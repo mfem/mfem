@@ -206,8 +206,8 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
       {
          amgx_config = amgx_config + ",\n"
                        "   \"obtain_timings\": 1, \n"
-                       "   \"monitor_residual\": 1, \n"
                        "   \"print_grid_stats\": 1, \n"
+                       "   \"monitor_residual\": 1, \n"
                        "   \"print_solve_stats\": 1 \n";
       }
       else
@@ -243,12 +243,12 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
                     "  \"convergence\": \"RELATIVE_MAX\", \n"
                     "  \"scope\": \"main\", \n"
                     "  \"tolerance\": 1e-12, \n"
+                    "  \"monitor_residual\": 1, \n"
                     "  \"norm\": \"L2\" ";
       if (verbose)
       {
          amgx_config = amgx_config + ", \n"
                        "        \"obtain_timings\": 1, \n"
-                       "        \"monitor_residual\": 1, \n"
                        "        \"print_grid_stats\": 1, \n"
                        "        \"print_solve_stats\": 1 \n";
       }
