@@ -15,9 +15,11 @@
 #include "vector.hpp"
 #include "../general/forall.hpp"
 
-#if defined(MFEM_USE_SUNDIALS) && defined(MFEM_USE_MPI)
+#if defined(MFEM_USE_SUNDIALS)
+#include "sundials.hpp"
+#if defined(MFEM_USE_MPI)
 #include <nvector/nvector_parallel.h>
-#include <nvector/nvector_parhyp.h>
+#endif
 #endif
 
 #include <iostream>
@@ -66,6 +68,12 @@ void Vector::Load(std::istream **in, int np, int *dim)
       for (j = 0; j < dim[i]; j++)
       {
          *in[i] >> data[p++];
+         // Clang's libc++ sets the failbit when (correctly) parsing subnormals,
+         // so we reset the failbit here.
+         if (!*in[i] && errno == ERANGE)
+         {
+            in[i]->clear();
+         }
       }
    }
 }
@@ -77,6 +85,12 @@ void Vector::Load(std::istream &in, int Size)
    for (int i = 0; i < size; i++)
    {
       in >> data[i];
+      // Clang's libc++ sets the failbit when (correctly) parsing subnormals,
+      // so we reset the failbit here.
+      if (!in && errno == ERANGE)
+      {
+         in.clear();
+      }
    }
 }
 
@@ -661,7 +675,7 @@ void Vector::Print(std::ostream &out, int width) const
    data.Read(MemoryClass::HOST, size);
    for (int i = 0; 1; )
    {
-      out << data[i];
+      out << ZeroSubnormal(data[i]);
       i++;
       if (i == size)
       {
@@ -701,7 +715,7 @@ void Vector::Print_HYPRE(std::ostream &out) const
    data.Read(MemoryClass::HOST, size);
    for (i = 0; i < size; i++)
    {
-      out << data[i] << '\n';
+      out << ZeroSubnormal(data[i]) << '\n';
    }
 
    out.precision(old_prec);
@@ -937,7 +951,7 @@ static double cuVectorDot(const int N, const double *X, const double *Y)
 #ifdef MFEM_USE_HIP
 static __global__ void hipKernelMin(const int N, double *gdsr, const double *x)
 {
-   __shared__ double s_min[MFEM_CUDA_BLOCKS];
+   __shared__ double s_min[MFEM_HIP_BLOCKS];
    const int n = hipBlockDim_x*hipBlockIdx_x + hipThreadIdx_x;
    if (n>=N) { return; }
    const int bid = hipBlockIdx_x;
@@ -964,8 +978,8 @@ static Array<double> cuda_reduce_buf;
 
 static double hipVectorMin(const int N, const double *X)
 {
-   const int tpb = MFEM_CUDA_BLOCKS;
-   const int blockSize = MFEM_CUDA_BLOCKS;
+   const int tpb = MFEM_HIP_BLOCKS;
+   const int blockSize = MFEM_HIP_BLOCKS;
    const int gridSize = (N+blockSize-1)/blockSize;
    const int min_sz = (N%tpb)==0 ? (N/tpb) : (1+N/tpb);
    cuda_reduce_buf.SetSize(min_sz);
@@ -982,7 +996,7 @@ static double hipVectorMin(const int N, const double *X)
 static __global__ void hipKernelDot(const int N, double *gdsr,
                                     const double *x, const double *y)
 {
-   __shared__ double s_dot[MFEM_CUDA_BLOCKS];
+   __shared__ double s_dot[MFEM_HIP_BLOCKS];
    const int n = hipBlockDim_x*hipBlockIdx_x + hipThreadIdx_x;
    if (n>=N) { return; }
    const int bid = hipBlockIdx_x;
@@ -1007,8 +1021,8 @@ static __global__ void hipKernelDot(const int N, double *gdsr,
 
 static double hipVectorDot(const int N, const double *X, const double *Y)
 {
-   const int tpb = MFEM_CUDA_BLOCKS;
-   const int blockSize = MFEM_CUDA_BLOCKS;
+   const int tpb = MFEM_HIP_BLOCKS;
+   const int blockSize = MFEM_HIP_BLOCKS;
    const int gridSize = (N+blockSize-1)/blockSize;
    const int dot_sz = (N%tpb)==0 ? (N/tpb) : (1+N/tpb);
    cuda_reduce_buf.SetSize(dot_sz);
@@ -1162,6 +1176,7 @@ vector_min_cpu:
 Vector::Vector(N_Vector nv)
 {
    N_Vector_ID nvid = N_VGetVectorID(nv);
+
    switch (nvid)
    {
       case SUNDIALS_NVEC_SERIAL:
@@ -1181,6 +1196,7 @@ void Vector::ToNVector(N_Vector &nv, long global_length)
 {
    MFEM_ASSERT(nv, "N_Vector handle is NULL");
    N_Vector_ID nvid = N_VGetVectorID(nv);
+
    switch (nvid)
    {
       case SUNDIALS_NVEC_SERIAL:
