@@ -60,6 +60,10 @@ Multigrid::~Multigrid()
       {
          delete smoothers[i];
       }
+      if (ownedProlongations[i])
+      {
+         delete prolongations[i];
+      }
       delete X[i];
       delete Y[i];
       delete R[i];
