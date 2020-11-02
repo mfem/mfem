@@ -320,7 +320,7 @@ int main(int argc, char *argv[])
                << flush;
    }
 
-   // 10. Free the used memory.
+   // 11. Free the used memory.
    delete scalar_u;
    delete divu;
    delete vector_u;
