@@ -13,6 +13,8 @@ Version 4.2.1 (development)
 - Added support for parallel non-conforming, non-matching, variational, volumetric
   mesh information transfer using ParMoonolith.
 
+- Upgraded the Catch unit test framework from version 2.13.0 to version 2.13.2.
+
 
 Version 4.2, released on October 30, 2020
 =========================================
