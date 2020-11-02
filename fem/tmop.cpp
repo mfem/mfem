@@ -2969,4 +2969,5 @@ void InterpolateTMOP_QualityMetric(TMOP_QualityMetric &metric,
       }
    }
 }
+
 } // namespace mfem
