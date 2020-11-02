@@ -60,18 +60,23 @@ Multigrid::~Multigrid()
       {
          delete smoothers[i];
       }
-      if (ownedProlongations[i])
-      {
-         delete prolongations[i];
-      }
       delete X[i];
       delete Y[i];
       delete R[i];
       delete Z[i];
    }
 
+   for (int i = 0; i < prolongations.Size(); ++i)
+   {
+      if (ownedProlongations[i])
+      {
+         delete prolongations[i];
+      }
+   }
+
    operators.DeleteAll();
    smoothers.DeleteAll();
+   prolongations.DeleteAll();
    X.DeleteAll();
    Y.DeleteAll();
    R.DeleteAll();
