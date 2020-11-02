@@ -461,7 +461,7 @@ public:
 
 
 /// Generalized-alpha ODE solver from "A generalized-α method for integrating
-/// the filtered Navier–Stokes equations with a stabilized finite element
+/// the filtered Navier-Stokes equations with a stabilized finite element
 /// method" by K.E. Jansen, C.H. Whiting and G.M. Hulbert.
 class GeneralizedAlphaSolver : public ODESolver
 {

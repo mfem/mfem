@@ -31,6 +31,10 @@
 using namespace std;
 using namespace mfem;
 
+#ifndef MFEM_USE_AMGX
+#error This example requires that MFEM is built with MFEM_USE_AMGX=YES
+#endif
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
