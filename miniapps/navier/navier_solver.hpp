@@ -118,7 +118,7 @@ public:
  * \f$M_v^{-1}\f$ is solved using CG with Jacobi as preconditioner.
  *
  * \f$S_p^{-1}\f$ is solved using CG with AMG applied to the low order refined
- * (LOR) assembled pressure poisson matrix. To avoid assembling a matrix for
+ * (LOR) assembled pressure Poisson matrix. To avoid assembling a matrix for
  * preconditioning, one can use p-MG as an alternative (NYI).
  *
  * \f$(M_v - \partial t K_v)^{-1}\f$ due to the CFL condition we expect the time
@@ -178,7 +178,7 @@ public:
 
    void AddPresDirichletBC(ScalarFuncT *f, Array<int> &attr);
 
-   /// Add an accelaration term to the RHS of the equation.
+   /// Add an acceleration term to the RHS of the equation.
    /**
     * The VecFuncT @a f is evaluated at the current time t and extrapolated
     * together with the nonlinear parts of the Navier Stokes equation.
@@ -200,7 +200,7 @@ public:
     *
     * 1. SETUP: Time spent for the setup of all forms, solvers and
     *    preconditioners.
-    * 2. STEP: Time spent computing a full time step. It includes allthree
+    * 2. STEP: Time spent computing a full time step. It includes all three
     *    solves.
     * 3. EXTRAP: Time spent for extrapolation of all forcing and nonlinear
     *    terms.
@@ -413,6 +413,9 @@ protected:
    OperatorHandle Sp_lor;
    OperatorHandle H_lor;
 };
+
 } // namespace navier
+
 } // namespace mfem
+
 #endif
