@@ -17,15 +17,6 @@
 namespace mfem
 {
 
-template<> bool
-TargetConstructor::ComputeElementTargetsPA<3>(const FiniteElementSpace *fes,
-                                              const IntegrationRule *ir,
-                                              DenseTensor &Jtr,
-                                              const Vector &xe) const
-{
-   return false;
-}
-
 MFEM_REGISTER_TMOP_KERNELS(bool, DatcSize,
                            const int NE,
                            const int ncomp,
