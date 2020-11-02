@@ -151,14 +151,15 @@ public:
 /// Relaxation on the kernel of divergence
 class KernelSmoother : public Solver
 {
-   Array<int> offsets_;
-   OperatorPtr blk_kernel_map_;
+   OperatorPtr kernel_map_;
    OperatorPtr kernel_system_;
    OperatorPtr kernel_smoother_;
+   void Mult(const Vector &x, Vector &y, bool transpose) const;
 public:
-   KernelSmoother(const BlockOperator& op, const HypreParMatrix& kernel_map_);
-   virtual void Mult(const Vector &x, Vector &y) const;
-   virtual void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
+   KernelSmoother(const HypreParMatrix &op, HypreParMatrix *kernel_map,
+                  bool own_kernel_map = false);
+   virtual void Mult(const Vector &x, Vector &y) const { Mult(x, y, false); }
+   virtual void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y, true); }
    virtual void SetOperator(const Operator &op) { }
 };
 

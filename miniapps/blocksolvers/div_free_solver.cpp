@@ -313,34 +313,33 @@ void SaddleSchwarzSmoother::Mult(const Vector & x, Vector & y) const
    blk_y.GetBlock(1) -= coarse_l2_projection;
 }
 
-KernelSmoother::KernelSmoother(const BlockOperator& op,
-                               const HypreParMatrix& kernel_map)
-   : Solver(op.NumRows()), offsets_(2)
+KernelSmoother::KernelSmoother(const HypreParMatrix &op,
+                               HypreParMatrix *kernel_map,
+                               bool own_kernel_map)
+   : Solver(op.NumRows()), kernel_map_(kernel_map, own_kernel_map)
 {
-   offsets_[0] = 0;
-   offsets_[1] = kernel_map.NumCols();
-
-   BlockOperator* blk_map = new BlockOperator(op.ColOffsets(), offsets_);
-   blk_map->SetBlock(0, 0, const_cast<HypreParMatrix*>(&kernel_map));
-   blk_kernel_map_.Reset(blk_map);
-
-   auto& M = static_cast<const HypreParMatrix&>(op.GetBlock(0, 0));
-   kernel_system_.Reset(TwoStepsRAP(kernel_map, M, kernel_map));
+   kernel_system_.Reset(TwoStepsRAP(*kernel_map, op, *kernel_map));
    kernel_system_.As<HypreParMatrix>()->EliminateZeroRows();
-   kernel_system_.As<HypreParMatrix>()->Threshold(1e-14);
    kernel_smoother_.Reset(new HypreSmoother(*kernel_system_.As<HypreParMatrix>()));
 }
 
-void KernelSmoother::Mult(const Vector & x, Vector & y) const
+void KernelSmoother::Mult(const Vector &x, Vector &y, bool transpose) const
 {
-   Vector kernel_rhs(blk_kernel_map_->NumCols());
-   blk_kernel_map_.As<BlockOperator>()->MultTranspose(x, kernel_rhs);
+   Vector kernel_rhs(kernel_map_->NumCols());
+   kernel_map_->MultTranspose(x, kernel_rhs);
 
    Vector kernel_sol(kernel_rhs.Size());
-   kernel_smoother_->Mult(kernel_rhs, kernel_sol);
+   if (transpose)
+   {
+      kernel_smoother_->MultTranspose(kernel_rhs, kernel_sol);
+   }
+   else
+   {
+      kernel_smoother_->Mult(kernel_rhs, kernel_sol);
+   }
 
-   y.SetSize(blk_kernel_map_->NumRows());
-   blk_kernel_map_.As<BlockOperator>()->Mult(kernel_sol, y);
+   y.SetSize(kernel_map_->NumRows());
+   kernel_map_->Mult(kernel_sol, y);
 }
 
 DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
@@ -363,6 +362,7 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
       SparseMatrix& agg_hdivdof_l = *data.agg_hdivdof[l-1].As<SparseMatrix>();
       SparseMatrix& agg_l2dof_l = *data.agg_l2dof[l-1].As<SparseMatrix>();
       HypreParMatrix& Q_l2_l = *data.Q_l2[l-1].As<HypreParMatrix>();
+      HypreParMatrix* C_l = data.C[l].As<HypreParMatrix>();
 
       auto& M_f = static_cast<HypreParMatrix&>(ops_[l]->GetBlock(0, 0));
       auto& B_f = static_cast<HypreParMatrix&>(ops_[l]->GetBlock(1, 0));
@@ -371,7 +371,9 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
                                           agg_l2dof_l, P_l2_l, Q_l2_l);
       if (data.param.coupled_solve)
       {
-         auto S1 = new KernelSmoother(*ops_[l], *data.C[l].As<HypreParMatrix>());
+         auto S1 = new BlockDiagonalPreconditioner(ops_offsets_[l]);
+         S1->SetDiagonalBlock(0, new KernelSmoother(M_f, C_l, false));
+         S1->owns_blocks = true;
          smoothers_[l] = new ProductSolver(ops_[l], S0, S1, false, true, true);
       }
       else
