@@ -714,12 +714,12 @@ static void tmop_tests(int id)
           TID({3}).MID({2})).Run(id);
 
    Launch(Launch::Args("TC_IDEAL_SHAPE_UNIT_SIZE_3D_KERNEL").
-          MESH("cube.mesh").REFINE(0).JI(jitter).
+          MESH("cube.mesh").REFINE(1).JI(jitter).
           POR({1,2}).QOR({2,3}).
           TID({1}).MID({302})).Run(id);
 
    Launch(Launch::Args("TC_IDEAL_SHAPE_GIVEN_SIZE_3D_KERNEL").
-          MESH("cube.mesh").REFINE(0).JI(jitter).
+          MESH("cube.mesh").REFINE(1).JI(jitter).
           POR({1,2}).QOR({2,3}).
           TID({3}).MID({302})).Run(id);
 
