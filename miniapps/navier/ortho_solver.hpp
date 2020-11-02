@@ -41,7 +41,9 @@ private:
 
    void Orthogonalize(const Vector &v, Vector &v_ortho) const;
 };
+
 } // namespace navier
+
 } // namespace mfem
 
 #endif

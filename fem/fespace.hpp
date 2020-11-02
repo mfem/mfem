@@ -479,7 +479,7 @@ public:
    /// Returns indexes of degrees of freedom for i'th boundary element.
    virtual void GetBdrElementDofs(int i, Array<int> &dofs) const;
 
-   /** @brief eturns the indexes of the degrees of freedom for i'th face
+   /** @brief Returns the indexes of the degrees of freedom for i'th face
        including the dofs for the edges and the vertices of the face. */
    virtual void GetFaceDofs(int i, Array<int> &dofs) const;
 
