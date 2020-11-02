@@ -14,7 +14,6 @@
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
 #include "quadinterpolator.hpp"
-#include "../general/debug.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 

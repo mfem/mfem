@@ -702,6 +702,16 @@ public:
                                 const IntegrationRule *ir,
                                 DenseTensor &Jtr,
                                 const Vector &xe = Vector()) const;
+   template<>
+   bool ComputeElementTargetsPA<2>(const FiniteElementSpace *fes,
+                                   const IntegrationRule *ir,
+                                   DenseTensor &Jtr,
+                                   const Vector &xe) const;
+   template<>
+   bool ComputeElementTargetsPA<3>(const FiniteElementSpace *fes,
+                                   const IntegrationRule *ir,
+                                   DenseTensor &Jtr,
+                                   const Vector &xe) const;
    virtual bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
                                         const IntegrationRule *ir,
                                         DenseTensor &Jtr,
