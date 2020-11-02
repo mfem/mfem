@@ -44,7 +44,7 @@ public:
 
    /// Default element constructor.
    explicit Element(Geometry::Type bg = Geometry::POINT)
-   { attribute = -1; base_geom = bg; }
+   { attribute = 1; base_geom = bg; }
 
    /// Returns element's type
    virtual Type GetType() const = 0;
