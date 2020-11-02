@@ -165,7 +165,7 @@ public:
     * always accepts the computed time step by automatically calling
     * UpdateTimestepHistory.
     *
-    * If @provisional is set to true, the solution at t+dt is not accepted
+    * If @a provisional is set to true, the solution at t+dt is not accepted
     * automatically and the application code has to call UpdateTimestepHistory
     * and update the @a time variable accordingly.
     *
