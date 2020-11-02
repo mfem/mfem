@@ -806,16 +806,16 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    {
       vel.SetSize(dim * nq * ne);
       auto C = Reshape(vel.HostWrite(), dim, nq, ne);
-      Vector Vq(dim);
+      DenseMatrix Q_ir;
       for (int e = 0; e < ne; ++e)
       {
          ElementTransformation& T = *fes.GetElementTransformation(e);
+         Q->Eval(Q_ir, T, *ir);
          for (int q = 0; q < nq; ++q)
          {
-            Q->Eval(Vq, T, ir->IntPoint(q));
             for (int i = 0; i < dim; ++i)
             {
-               C(i,q,e) = Vq(i);
+               C(i,q,e) = Q_ir(i,q);
             }
          }
       }

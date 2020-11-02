@@ -53,6 +53,8 @@ HIP_CXX = hipcc
 # gfx900, gfx1010, etc.
 HIP_ARCH = gfx900
 HIP_FLAGS = --amdgpu-target=$(HIP_ARCH)
+HIP_XCOMPILER =
+HIP_XLINKER   = -Wl,
 
 ifneq ($(NOTMAC),)
    AR      = ar
@@ -120,8 +122,10 @@ MFEM_USE_SUNDIALS      = NO
 MFEM_USE_MESQUITE      = NO
 MFEM_USE_SUITESPARSE   = NO
 MFEM_USE_SUPERLU       = NO
+MFEM_USE_SUPERLU5      = NO
 MFEM_USE_STRUMPACK     = NO
 MFEM_USE_GINKGO        = NO
+MFEM_USE_AMGX          = NO
 MFEM_USE_GNUTLS        = NO
 MFEM_USE_NETCDF        = NO
 MFEM_USE_PETSC         = NO
@@ -140,6 +144,17 @@ MFEM_USE_CEED          = NO
 MFEM_USE_UMPIRE        = NO
 MFEM_USE_SIMD          = NO
 MFEM_USE_ADIOS2        = NO
+MFEM_USE_MKL_CPARDISO  = NO
+
+# MPI library compile and link flags
+# These settings are used only when building MFEM with MPI + HIP
+ifeq ($(MFEM_USE_MPI)$(MFEM_USE_HIP),YESYES)
+   # We determine MPI_DIR assuming $(MPICXX) is in $(MPI_DIR)/bin
+   MPI_DIR := $(patsubst %/,%,$(dir $(shell which $(MPICXX))))
+   MPI_DIR := $(patsubst %/,%,$(dir $(MPI_DIR)))
+   MPI_OPT = -I$(MPI_DIR)/include
+   MPI_LIB = -L$(MPI_DIR)/lib $(XLINKER)-rpath,$(MPI_DIR)/lib -lmpi
+endif
 
 # Compile and link options for zlib.
 ZLIB_DIR =
@@ -189,15 +204,19 @@ OPENMP_LIB =
 POSIX_CLOCKS_LIB = -lrt
 
 # SUNDIALS library configuration
-# For sundials_nvecparhyp and nvecparallel remember to build with MPI_ENABLED=ON
+# For sundials_nvecmpiplusx and nvecparallel remember to build with MPI_ENABLE=ON
 # and modify cmake variables for hypre for sundials
-SUNDIALS_DIR = @MFEM_DIR@/../sundials-5.0.0/instdir
-SUNDIALS_OPT = -I$(SUNDIALS_DIR)/include
-SUNDIALS_LIB = -Wl,-rpath,$(SUNDIALS_DIR)/lib64 -L$(SUNDIALS_DIR)/lib64\
+SUNDIALS_DIR    = @MFEM_DIR@/../sundials-5.0.0/instdir
+SUNDIALS_OPT    = -I$(SUNDIALS_DIR)/include
+SUNDIALS_LIBDIR = $(wildcard $(SUNDIALS_DIR)/lib*)
+SUNDIALS_LIB    = $(XLINKER)-rpath,$(SUNDIALS_LIBDIR) -L$(SUNDIALS_LIBDIR)\
  -lsundials_arkode -lsundials_cvodes -lsundials_nvecserial -lsundials_kinsol
 
 ifeq ($(MFEM_USE_MPI),YES)
-   SUNDIALS_LIB += -lsundials_nvecparhyp -lsundials_nvecparallel
+   SUNDIALS_LIB += -lsundials_nvecparallel -lsundials_nvecmpiplusx
+endif
+ifeq ($(MFEM_USE_CUDA),YES)
+   SUNDIALS_LIB += -lsundials_nveccuda
 endif
 # If SUNDIALS was built with KLU:
 # MFEM_USE_SUITESPARSE = YES
@@ -216,9 +235,15 @@ SUITESPARSE_LIB = -Wl,-rpath,$(SUITESPARSE_DIR)/lib -L$(SUITESPARSE_DIR)/lib\
  -lsuitesparseconfig $(LIB_RT) $(METIS_LIB) $(LAPACK_LIB)
 
 # SuperLU library configuration
-SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_5.1.0
-SUPERLU_OPT = -I$(SUPERLU_DIR)/SRC
-SUPERLU_LIB = -Wl,-rpath,$(SUPERLU_DIR)/lib -L$(SUPERLU_DIR)/lib -lsuperlu_dist_5.1.0
+ifeq ($(MFEM_USE_SUPERLU5),YES)
+   SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_5.1.0
+   SUPERLU_OPT = -I$(SUPERLU_DIR)/include
+   SUPERLU_LIB = -Wl,-rpath,$(SUPERLU_DIR)/lib -L$(SUPERLU_DIR)/lib -lsuperlu_dist_5.1.0
+else
+   SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_6.3.1
+   SUPERLU_OPT = -I$(SUPERLU_DIR)/include
+   SUPERLU_LIB = -Wl,-rpath,$(SUPERLU_DIR)/lib64 -L$(SUPERLU_DIR)/lib64 -lsuperlu_dist -lblas
+endif
 
 # SCOTCH library configuration (required by STRUMPACK <= v2.1.0, optional in
 # STRUMPACK >= v2.2.0)
@@ -251,7 +276,13 @@ STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(MPI_FORTRAN_LIB)\
 # Ginkgo library configuration (currently not needed)
 GINKGO_DIR = @MFEM_DIR@/../ginkgo/install
 GINKGO_OPT = -isystem $(GINKGO_DIR)/include
-GINKGO_LIB = $(XLINKER)-rpath,$(GINKGO_DIR)/lib -L$(GINKGO_DIR)/lib -lginkgo -lginkgo_omp -lginkgo_cuda -lginkgo_reference
+GINKGO_LIB = $(XLINKER)-rpath,$(GINKGO_DIR)/lib -L$(GINKGO_DIR)/lib -lginkgo\
+ -lginkgo_omp -lginkgo_cuda -lginkgo_reference
+
+# AmgX library configuration
+AMGX_DIR = @MFEM_DIR@/../amgx
+AMGX_OPT = -I$(AMGX_DIR)/include
+AMGX_LIB = -lcusparse -lcusolver -lcublas -lnvToolsExt -L$(AMGX_DIR)/lib -lamgx
 
 # GnuTLS library configuration
 GNUTLS_OPT =
@@ -371,6 +402,15 @@ RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
 UMPIRE_DIR = @MFEM_DIR@/../umpire
 UMPIRE_OPT = -I$(UMPIRE_DIR)/include
 UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -lumpire
+
+# MKL CPardiso library configuration
+MKL_CPARDISO_DIR ?=
+MKL_MPI_WRAPPER ?= mkl_blacs_mpich_lp64
+MKL_LIBRARY_SUBDIR ?= lib
+MKL_CPARDISO_OPT = -I$(MKL_CPARDISO_DIR)/include
+MKL_CPARDISO_LIB = -Wl,-rpath,$(MKL_CPARDISO_DIR)/$(MKL_LIBRARY_SUBDIR)\
+                   -L$(MKL_CPARDISO_DIR)/$(MKL_LIBRARY_SUBDIR) -l$(MKL_MPI_WRAPPER)\
+                   -lmkl_intel_lp64 -lmkl_sequential -lmkl_core
 
 # If YES, enable some informational messages
 VERBOSE = NO
