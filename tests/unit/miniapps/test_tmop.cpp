@@ -702,19 +702,19 @@ public:
 static void tmop_tests(int id)
 {
    const double jitter = 1./(M_PI*M_PI);
+   /*
+      // Combo 2D
+      Launch(Launch::Args("Square01 + Combo").
+             MESH("square01.mesh").REFINE(1).JI(jitter).NORMALIZATION(true).
+             TID({5}).MID({2}).LS({2}).
+             POR({2}).QOR({8}).CMB(2)).Run(id);
 
-   // Combo 2D
-   Launch(Launch::Args("Square01 + Combo").
-          MESH("square01.mesh").REFINE(1).JI(jitter).NORMALIZATION(true).
-          TID({5}).MID({2}).LS({2}).
-          POR({2}).QOR({8}).CMB(2)).Run(id);
-
-   // Combo 3D
-   Launch(Launch::Args("Cube + Combo").
-          MESH("cube.mesh").REFINE(1).JI(jitter).NORMALIZATION(true).
-          TID({5}).MID({302}).LS({2}).
-          POR({2}).QOR({8}).CMB(2)).Run(id);
-
+      // Combo 3D
+      Launch(Launch::Args("Cube + Combo").
+             MESH("cube.mesh").REFINE(1).JI(jitter).NORMALIZATION(true).
+             TID({5}).MID({302}).LS({2}).
+             POR({2}).QOR({8}).CMB(2)).Run(id);
+   */
    // NURBS
    Launch(Launch::Args("2D Nurbs").
           MESH("square-disc-nurbs.mesh").REFINE(1).JI(jitter).

@@ -697,7 +697,13 @@ public:
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
 
-   virtual bool ComputeElementTargetsPA(const IntegrationRule *ir,
+   template<int DIM>
+   bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
+                                const IntegrationRule *ir,
+                                DenseTensor &Jtr,
+                                const Vector &xe = Vector()) const;
+   virtual bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
+                                        const IntegrationRule *ir,
                                         DenseTensor &Jtr,
                                         const Vector &xe = Vector()) const;
 
@@ -746,7 +752,8 @@ public:
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
 
-   virtual bool ComputeElementTargetsPA(const IntegrationRule *ir,
+   virtual bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
+                                        const IntegrationRule *ir,
                                         DenseTensor &Jtr,
                                         const Vector &xe = Vector()) const;
 
@@ -901,7 +908,8 @@ public:
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
 
-   virtual bool ComputeElementTargetsPA(const IntegrationRule *ir,
+   virtual bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
+                                        const IntegrationRule *ir,
                                         DenseTensor &Jtr,
                                         const Vector &xe = Vector()) const;
 
