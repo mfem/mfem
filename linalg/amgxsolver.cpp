@@ -25,6 +25,7 @@
 
 namespace mfem
 {
+
 int AmgXSolver::count = 0;
 
 AMGX_resources_handle AmgXSolver::rsrc = nullptr;
@@ -39,6 +40,7 @@ AmgXSolver::AmgXSolver(const AMGX_MODE amgxMode_, const bool verbose)
 }
 
 #ifdef MFEM_USE_MPI
+
 AmgXSolver::AmgXSolver(const MPI_Comm &comm,
                        const AMGX_MODE amgxMode_, const bool verbose)
 {
@@ -60,6 +62,7 @@ AmgXSolver::AmgXSolver(const MPI_Comm &comm, const int nDevs,
 
    InitMPITeams(comm, nDevs);
 }
+
 #endif
 
 AmgXSolver::~AmgXSolver()
@@ -101,6 +104,7 @@ void AmgXSolver::InitSerial()
 }
 
 #ifdef MFEM_USE_MPI
+
 void AmgXSolver::InitExclusiveGPU(const MPI_Comm &comm)
 {
    // If this instance has already been initialized, skip
@@ -164,6 +168,7 @@ void AmgXSolver::InitMPITeams(const MPI_Comm &comm,
 
    isInitialized = true;
 }
+
 #endif
 
 void AmgXSolver::ReadParameters(const std::string config,
@@ -192,7 +197,6 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
                     "   \"max_iters\": 2, \n"
                     "   \"convergence\": \"ABSOLUTE\", \n"
                     "   \"cycle\": \"V\"";
-
       if (verbose)
       {
          amgx_config = amgx_config + ",\n"
@@ -206,11 +210,9 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
          amgx_config = amgx_config + "\n";
       }
       amgx_config = amgx_config + " }\n" + "}\n";
-
    }
    else if (amgxMode == AMGX_MODE::SOLVER)
    {
-
       amgx_config = "{ \n"
                     " \"config_version\": 2, \n"
                     " \"solver\": { \n"
@@ -249,9 +251,7 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
       {
          amgx_config = amgx_config + "\n";
       }
-      amgx_config = amgx_config +
-                    "   } \n" + "} \n";
-
+      amgx_config = amgx_config + "   } \n" + "} \n";
    }
    else
    {
@@ -573,6 +573,7 @@ void AmgXSolver::SetMatrix(const SparseMatrix &in_A, const bool update_mat)
 }
 
 #ifdef MFEM_USE_MPI
+
 void AmgXSolver::SetMatrix(const HypreParMatrix &A, const bool update_mat)
 {
    // Require hypre >= 2.16.
@@ -814,10 +815,14 @@ void AmgXSolver::SetMatrixMPITeams(const HypreParMatrix &A,
       }
    }
 }
+
 #endif
 
 void AmgXSolver::SetOperator(const Operator& op)
 {
+   height = op.Height();
+   width = op.Width();
+
    if (const SparseMatrix* Aptr =
           dynamic_cast<const SparseMatrix*>(&op))
    {
@@ -1010,4 +1015,5 @@ void AmgXSolver::Finalize()
 }
 
 } // mfem namespace
+
 #endif
