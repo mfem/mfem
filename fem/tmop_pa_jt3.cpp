@@ -17,14 +17,9 @@
 namespace mfem
 {
 
-bool TargetConstructor::ComputeElementTargetsPA(const IntegrationRule *ir,
-                                                DenseTensor &Jtr,
-                                                const Vector &xe) const
-{
-   return false;
-}
-
-bool AnalyticAdaptTC::ComputeElementTargetsPA(const IntegrationRule *ir,
+template<> bool
+TargetConstructor::ComputeElementTargetsPA<3>(const FiniteElementSpace *fes,
+                                              const IntegrationRule *ir,
                                               DenseTensor &Jtr,
                                               const Vector &xe) const
 {
@@ -127,7 +122,8 @@ MFEM_REGISTER_TMOP_KERNELS(bool, DatcSize,
 }
 
 // PA.Jtr Size = (dim, dim, PA.ne*PA.nq);
-bool DiscreteAdaptTC::ComputeElementTargetsPA(const IntegrationRule *ir,
+bool DiscreteAdaptTC::ComputeElementTargetsPA(const FiniteElementSpace *pa_fes,
+                                              const IntegrationRule *ir,
                                               DenseTensor &Jtr,
                                               const Vector &xe) const
 {

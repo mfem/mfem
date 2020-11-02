@@ -73,6 +73,27 @@ void TMOP_Integrator::EnableLimitingPA(const GridFunction &n0)
                "Only TMOP_QuadraticLimiter is supported");
 }
 
+bool TargetConstructor::ComputeElementTargetsPA(const FiniteElementSpace *fes,
+                                                const IntegrationRule *ir,
+                                                DenseTensor &Jtr,
+                                                const Vector &xe) const
+{
+   MFEM_VERIFY(Jtr.SizeI() == Jtr.SizeJ() && Jtr.SizeI() > 1, "");
+   const int dim = Jtr.SizeI();
+   if (dim == 2) { return ComputeElementTargetsPA<2>(fes, ir, Jtr, xe); }
+   if (dim == 3) { return ComputeElementTargetsPA<3>(fes, ir, Jtr, xe); }
+   return false;
+}
+
+bool AnalyticAdaptTC::ComputeElementTargetsPA(const FiniteElementSpace *fes,
+                                              const IntegrationRule *ir,
+                                              DenseTensor &Jtr,
+                                              const Vector &xe) const
+{
+   return false;
+}
+
+
 // Code paths leading to ComputeElementTargets:
 // - GetElementEnergy(elfun) which is done through GetGridFunctionEnergyPA(x)
 // - AssembleElementVectorExact(elfun)
@@ -101,7 +122,7 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &xe) const
 
    {
       // Try to use the TargetConstructor ComputeElementTargetsPA
-      PA.setup_Jtr = targetC->ComputeElementTargetsPA(&ir,PA.Jtr);
+      PA.setup_Jtr = targetC->ComputeElementTargetsPA(fes, &ir, PA.Jtr);
       if (PA.setup_Jtr) { return; }
    }
 
