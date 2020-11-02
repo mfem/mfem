@@ -125,7 +125,7 @@ public:
 };
 
 /// non-overlapping additive Schwarz for saddle point problems
-class SchwarzSmoother : public Solver
+class SaddleSchwarzSmoother : public Solver
 {
    const SparseMatrix& agg_hdivdof_;
    const SparseMatrix& agg_l2dof_;
@@ -137,12 +137,12 @@ class SchwarzSmoother : public Solver
    mutable Array<int> l2dofs_loc_;
    Array<OperatorPtr> solvers_loc_;
 public:
-   SchwarzSmoother(const HypreParMatrix& M,
-                   const HypreParMatrix& B,
-                   const SparseMatrix& agg_hdivdof,
-                   const SparseMatrix& agg_l2dof,
-                   const HypreParMatrix& P_l2,
-                   const HypreParMatrix& Q_l2);
+   SaddleSchwarzSmoother(const HypreParMatrix& M,
+                         const HypreParMatrix& B,
+                         const SparseMatrix& agg_hdivdof,
+                         const SparseMatrix& agg_l2dof,
+                         const HypreParMatrix& P_l2,
+                         const HypreParMatrix& Q_l2);
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
    virtual void SetOperator(const Operator &op) { }
