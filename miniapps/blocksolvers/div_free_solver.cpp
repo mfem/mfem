@@ -313,33 +313,33 @@ void SaddleSchwarzSmoother::Mult(const Vector & x, Vector & y) const
    blk_y.GetBlock(1) -= coarse_l2_projection;
 }
 
-KernelSmoother::KernelSmoother(const HypreParMatrix &op,
-                               HypreParMatrix *kernel_map,
-                               bool own_kernel_map)
-   : Solver(op.NumRows()), kernel_map_(kernel_map, own_kernel_map)
+AuxSpaceSmoother::AuxSpaceSmoother(const HypreParMatrix &op,
+                                   HypreParMatrix *aux_map,
+                                   bool own_aux_map)
+   : Solver(op.NumRows()), aux_map_(aux_map, own_aux_map)
 {
-   kernel_system_.Reset(TwoStepsRAP(*kernel_map, op, *kernel_map));
-   kernel_system_.As<HypreParMatrix>()->EliminateZeroRows();
-   kernel_smoother_.Reset(new HypreSmoother(*kernel_system_.As<HypreParMatrix>()));
+   aux_system_.Reset(TwoStepsRAP(*aux_map, op, *aux_map));
+   aux_system_.As<HypreParMatrix>()->EliminateZeroRows();
+   aux_smoother_.Reset(new HypreSmoother(*aux_system_.As<HypreParMatrix>()));
 }
 
-void KernelSmoother::Mult(const Vector &x, Vector &y, bool transpose) const
+void AuxSpaceSmoother::Mult(const Vector &x, Vector &y, bool transpose) const
 {
-   Vector kernel_rhs(kernel_map_->NumCols());
-   kernel_map_->MultTranspose(x, kernel_rhs);
+   Vector aux_rhs(aux_map_->NumCols());
+   aux_map_->MultTranspose(x, aux_rhs);
 
-   Vector kernel_sol(kernel_rhs.Size());
+   Vector aux_sol(aux_rhs.Size());
    if (transpose)
    {
-      kernel_smoother_->MultTranspose(kernel_rhs, kernel_sol);
+      aux_smoother_->MultTranspose(aux_rhs, aux_sol);
    }
    else
    {
-      kernel_smoother_->Mult(kernel_rhs, kernel_sol);
+      aux_smoother_->Mult(aux_rhs, aux_sol);
    }
 
-   y.SetSize(kernel_map_->NumRows());
-   kernel_map_->Mult(kernel_sol, y);
+   y.SetSize(aux_map_->NumRows());
+   aux_map_->Mult(aux_sol, y);
 }
 
 DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
@@ -372,7 +372,7 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
       if (data.param.coupled_solve)
       {
          auto S1 = new BlockDiagonalPreconditioner(ops_offsets_[l]);
-         S1->SetDiagonalBlock(0, new KernelSmoother(M_f, C_l, false));
+         S1->SetDiagonalBlock(0, new AuxSpaceSmoother(M_f, C_l, false));
          S1->owns_blocks = true;
          smoothers_[l] = new ProductSolver(ops_[l], S0, S1, false, true, true);
       }
