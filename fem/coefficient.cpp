@@ -38,11 +38,11 @@ double FunctionCoefficient::Eval(ElementTransformation & T,
 
    if (Function)
    {
-      return ((*Function)(transip));
+      return Function(transip);
    }
    else
    {
-      return (*TDFunction)(transip, GetTime());
+      return TDFunction(transip, GetTime());
    }
 }
 
@@ -112,11 +112,11 @@ void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
    V.SetSize(vdim);
    if (Function)
    {
-      (*Function)(transip, V);
+      Function(transip, V);
    }
    else
    {
-      (*TDFunction)(transip, GetTime(), V);
+      TDFunction(transip, GetTime(), V);
    }
    if (Q)
    {
@@ -301,18 +301,45 @@ void MatrixFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
 
    K.SetSize(height, width);
 
-   if (Function)
+   if (symmetric) // Use SymmFunction
    {
-      (*Function)(transip, K);
-   }
-   else if (TDFunction)
-   {
-      (*TDFunction)(transip, GetTime(), K);
+      MFEM_VERIFY(height == width && SymmFunction,
+                  "MatrixFunctionCoefficient is not symmetric");
+
+      Vector Ksym((width * (width + 1)) / 2); // 1x1: 1, 2x2: 3, 3x3: 6
+
+      SymmFunction(transip, Ksym);
+
+      // Copy upper triangular values from Ksym to the full matrix K
+      int os = 0;
+      for (int i=0; i<height; ++i)
+      {
+         for (int j=i; j<width; ++j)
+         {
+            const double Kij = Ksym[j - i + os];
+            K(i,j) = Kij;
+            if (j != i) { K(j,i) = Kij; }
+         }
+
+         os += width - i;
+      }
    }
    else
    {
-      K = mat;
+      if (Function)
+      {
+         Function(transip, K);
+      }
+      else if (TDFunction)
+      {
+         TDFunction(transip, GetTime(), K);
+      }
+      else
+      {
+         K = mat;
+      }
    }
+
    if (Q)
    {
       K *= Q->Eval(T, ip, GetTime());
@@ -323,7 +350,7 @@ void MatrixFunctionCoefficient::EvalSymmetric(Vector &K,
                                               ElementTransformation &T,
                                               const IntegrationPoint &ip)
 {
-   MFEM_VERIFY(symmetric && height == width && height < 4 && SymmFunction,
+   MFEM_VERIFY(symmetric && height == width && SymmFunction,
                "MatrixFunctionCoefficient is not symmetric");
 
    double x[3];
@@ -335,7 +362,7 @@ void MatrixFunctionCoefficient::EvalSymmetric(Vector &K,
 
    if (SymmFunction)
    {
-      (*SymmFunction)(transip, K);
+      SymmFunction(transip, K);
    }
 
    if (Q)

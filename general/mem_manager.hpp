@@ -304,7 +304,7 @@ public:
        The parameter @a own determines whether both @a h_ptr and @a d_ptr will
        be deleted when the method Delete() is called.
 
-       @note Ownership can also be controled by using the folowing methods:
+       @note Ownership can also be controlled by using the following methods:
          - ClearOwnerFlags,
          - SetHostPtrOwner,
          - SetDevicePtrOwner.
@@ -750,7 +750,7 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
       h_ptr = ptr;
       if ((mt == MemoryType::HOST || mt == MemoryType::HOST_ARENA) || !own)
       {
-         // Skip restration
+         // Skip registration
          flags = (own ? OWNS_HOST : 0) | VALID_HOST;
          return;
       }

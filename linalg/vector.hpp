@@ -393,14 +393,15 @@ public:
    { return mfem::ReadWrite(data, size, false); }
 
 #ifdef MFEM_USE_SUNDIALS
-   /// Construct a wrapper Vector from SUNDIALS N_Vector.
-   explicit Vector(N_Vector nv);
+   /// (DEPRECATED) Construct a wrapper Vector from SUNDIALS N_Vector.
+   MFEM_DEPRECATED explicit Vector(N_Vector nv);
 
-   /// Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_SERIAL.
-   /** The returned N_Vector must be destroyed by the caller. */
-   virtual N_Vector ToNVector() { return N_VMake_Serial(Size(), GetData()); }
+   /// (DEPRECATED) Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_SERIAL.
+   /** @deprecated The returned N_Vector must be destroyed by the caller. */
+   MFEM_DEPRECATED virtual N_Vector ToNVector()
+   { return N_VMake_Serial(Size(), GetData()); }
 
-   /** @brief Update an existing wrapper SUNDIALS N_Vector to point to this
+   /** @deprecated @brief Update an existing wrapper SUNDIALS N_Vector to point to this
        Vector.
 
        \param[in] nv N_Vector to assign this vector's data to
@@ -408,11 +409,17 @@ public:
         length. If nv is a parallel vector and global_length == 0 then this
         method will perform a global reduction and calculate the global length
    */
-   virtual void ToNVector(N_Vector &nv, long global_length = 0);
+   MFEM_DEPRECATED virtual void ToNVector(N_Vector &nv, long global_length = 0);
 #endif
 };
 
 // Inline methods
+
+template <typename T>
+inline T ZeroSubnormal(T val)
+{
+   return (std::fpclassify(val) == FP_SUBNORMAL) ? 0.0 : val;
+}
 
 inline bool IsFinite(const double &val)
 {
