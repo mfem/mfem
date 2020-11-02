@@ -669,10 +669,19 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
       for (int i=0; i<sbcs_->Size(); i++)
       {
          ComplexCoefficientByAttr & sbc = (*sbcs_)[i];
+          
+          
          n20ZRe_->AddBoundaryIntegrator(new MassIntegrator(*sbc.real),
                                         sbc.attr_marker);
          n20ZIm_->AddBoundaryIntegrator(new MassIntegrator(*sbc.imag),
                                         sbc.attr_marker);
+        /*
+          n20ZRe_->AddBoundaryIntegrator(new MassIntegrator,
+                                         sbc.attr_marker);
+          n20ZIm_->AddBoundaryIntegrator(new MassIntegrator,
+                                         sbc.attr_marker);
+           */
+        
       }
    }
 
@@ -685,7 +694,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
 
    d_  = new ParComplexGridFunction(HDivFESpace_);
    *d_ = 0.0;
-
+    
    if (sbcs_->Size() > 0)
    {
       phi_  = new ParComplexGridFunction(H1FESpace_);
@@ -1107,6 +1116,7 @@ CPDSolver::Solve()
    if ( myid_ == 0 && logging_ > 0 ) { cout << "Running solver ... " << endl; }
 
    float E_err = 1.0;
+   float Phi_err = 1.0;
 
    if (e_tmp_ == NULL)
    {
@@ -1121,10 +1131,11 @@ CPDSolver::Solve()
    Vector zeroVec(3); zeroVec = 0.0;
    VectorConstantCoefficient zeroVecCoef(zeroVec);
 
-   int E_iter = 0;
+   int E_iter = 1;
 
-   while ( E_err > 1e-3 )
+   while ( E_err > 1e-6 )
    {
+      // if (E_iter > 3){break;}
       OperatorHandle A1;
       Vector E, RHS;
       // cout << "Norm of jd (pre-fls): " << jd_->Norml2() << endl;
@@ -1171,7 +1182,7 @@ CPDSolver::Solve()
          }
       }
 
-      if (e_ == e_tmp_ ) { break; } // L2 norm errors, these are only the boundary values at this point
+      if (e_ == e_tmp_ ){ break;} // L2 norm errors, these are only the boundary values at this point
 
       a1_->FormLinearSystem(ess_bdr_tdofs_, *e_, *rhs_, A1, E, RHS);
 
@@ -1342,7 +1353,7 @@ CPDSolver::Solve()
             solver.SetOperator(A_SuperLU);
             solver.Mult(RHS, E);
             delete A1C;
-            // delete A1Z;
+            //delete A1Z;
          }
          break;
 #endif
@@ -1396,6 +1407,7 @@ CPDSolver::Solve()
 
          rhs.real() -= tmp.real();
          rhs.imag() += tmp.imag();
+          
 
          if (conv_ == ComplexOperator::Convention::BLOCK_SYMMETRIC)
          {
@@ -1440,13 +1452,12 @@ CPDSolver::Solve()
 
          delete diag;
          delete pcg;
+          
       }
 
       // Update phi = - i w z n.D on the boundary
       if (sbcs_->Size() > 0)
       {
-         float Phi_err = 1.0;
-
          if (phi_tmp_ == NULL)
          {
             phi_tmp_ = new ParComplexGridFunction(H1FESpace_);
@@ -1459,14 +1470,12 @@ CPDSolver::Solve()
 
          ConstantCoefficient zeroScalarCoef(0.0);
 
-         int Phi_iter = 0;
+         HypreParMatrix M0;
+         Vector Phi, RHS0;
           
-          HypreParMatrix M0;
-          Vector Phi, RHS0;
-          
-          Array<int> sbc_marker(pmesh_->bdr_attributes.Max());
-          sbc_marker = 0;
-          for (int i=0; i<sbcs_->Size(); i++)
+         Array<int> sbc_marker(pmesh_->bdr_attributes.Max());
+         sbc_marker = 0;
+         for (int i=0; i<sbcs_->Size(); i++)
           {
              ComplexCoefficientByAttr & sbc = (*sbcs_)[i];
              for (int j=0; j<sbc.attr_marker.Size(); j++)
@@ -1475,131 +1484,112 @@ CPDSolver::Solve()
              }
           }
 
-          Array<int> sbc_tdof;
-          H1FESpace_->GetEssentialTrueDofs(sbc_marker, sbc_tdof);
+         Array<int> sbc_tdof;
+         H1FESpace_->GetEssentialTrueDofs(sbc_marker, sbc_tdof);
 
-          Array<int> sbc_tdof_marker;
-          H1FESpace_->ListToMarker(sbc_tdof, H1FESpace_->GetTrueVSize(),
-                                   sbc_tdof_marker);
+         Array<int> sbc_tdof_marker;
+         H1FESpace_->ListToMarker(sbc_tdof, H1FESpace_->GetTrueVSize(),
+                                             sbc_tdof_marker, 1);
 
           // Invert marker
-          for (int i=0; i<sbc_tdof_marker.Size(); i++)
+         for (int i=0; i<sbc_tdof_marker.Size(); i++)
           {
              sbc_tdof_marker[i] = 1 - sbc_tdof_marker[i];
           }
 
-          Array<int> ess_tdof;
-          H1FESpace_->MarkerToList(sbc_tdof_marker, ess_tdof);
+         Array<int> ess_tdof;
+         H1FESpace_->MarkerToList(sbc_tdof_marker, ess_tdof);
           
-          m0_->FormSystemMatrix(ess_tdof, M0);
+         m0_->FormSystemMatrix(ess_tdof, M0);
 
-          Phi.SetSize(H1FESpace_->TrueVSize()); Phi = 0.0;
-          RHS0.SetSize(H1FESpace_->TrueVSize());
+         Phi.SetSize(H1FESpace_->TrueVSize()); Phi = 0.0;
+         RHS0.SetSize(H1FESpace_->TrueVSize());
 
-          HypreDiagScale diag(M0);
+         HypreDiagScale diag(M0);
 
-          HyprePCG pcg(M0);
-          pcg.SetPreconditioner(diag);
-          pcg.SetTol(1e-12);
-          pcg.SetMaxIter(1000);
+         HyprePCG pcg(M0);
+         pcg.SetPreconditioner(diag);
+         pcg.SetTol(1e-12);
+         pcg.SetMaxIter(1000);
+          
+         ParComplexLinearForm rhs(H1FESpace_);
+         ParComplexLinearForm tmp(H1FESpace_);
 
-         while ( Phi_err > 1e-2 )
-         {
-            /*
-            if (Phi_iter > 5)
-            {
-              break;
-            }
-             */
-        
-            ParComplexLinearForm rhs(H1FESpace_);
-            ParComplexLinearForm tmp(H1FESpace_);
-
-            n20ZRe_->Update();
-            n20ZIm_->Update();
-            //n20ZRe_->operator=(0.0);
-            //n20ZIm_->operator=(0.0);
+         n20ZRe_->Update();
+         n20ZIm_->Update();
+         //n20ZRe_->operator=(0.0);
+         //n20ZIm_->operator=(0.0);
              
-            n20ZRe_->Assemble();
-            n20ZRe_->Finalize();
+         n20ZRe_->Assemble();
+         n20ZRe_->Finalize();
 
-            n20ZIm_->Assemble();
-            n20ZIm_->Finalize();
+         n20ZIm_->Assemble();
+         n20ZIm_->Finalize();
 
-            n20ZRe_->Mult(d_->imag(), rhs.real());
-            n20ZIm_->Mult(d_->real(), tmp.real());
+         n20ZRe_->Mult(d_->imag(), rhs.real());
+         n20ZIm_->Mult(d_->real(), tmp.real());
 
-            n20ZRe_->Mult(d_->real(), tmp.imag());
-            n20ZIm_->Mult(d_->imag(), rhs.imag());
+         n20ZRe_->Mult(d_->real(), tmp.imag());
+         n20ZIm_->Mult(d_->imag(), rhs.imag());
 
-            rhs.real() += tmp.real();
-            rhs.imag() -= tmp.imag();
-
-            rhs.real() *= omega_;
-            rhs.imag() *= omega_;
-
-            if (conv_ == ComplexOperator::Convention::BLOCK_SYMMETRIC)
+         rhs.real() += tmp.real();
+         rhs.imag() -= tmp.imag();
+          
+         rhs.real() *= omega_;
+         rhs.imag() *= omega_;
+          
+         if (conv_ == ComplexOperator::Convention::BLOCK_SYMMETRIC)
             {
                rhs.imag() *= -1.0;
             }
 
-            rhs.real().ParallelAssemble(RHS0);
+         rhs.real().ParallelAssemble(RHS0);
 
-            pcg.Mult(RHS0, Phi);
+         pcg.Mult(RHS0, Phi);
 
-            phi_->real().Distribute(Phi);
+         phi_->real().Distribute(Phi);
 
-            rhs.imag().ParallelAssemble(RHS0);
+         rhs.imag().ParallelAssemble(RHS0);
 
-            pcg.Mult(RHS0, Phi);
+         pcg.Mult(RHS0, Phi);
 
-            phi_->imag().Distribute(Phi);
+         phi_->imag().Distribute(Phi);
 
-            // have to have some error tolerance ...
-            double PhisolNorm = phi_tmp_->ComputeL2Error(zeroScalarCoef, zeroScalarCoef);
-            double PhisolNorm2 = phi_->ComputeL2Error(zeroScalarCoef, zeroScalarCoef);
-            double PhisolErr = phi_->ComputeL2Error(phi_tmp_r_, phi_tmp_i_);
+         // have to have some error tolerance ...
+         double PhisolNorm = phi_tmp_->ComputeL2Error(zeroScalarCoef, zeroScalarCoef);
+         double PhisolErr = phi_->ComputeL2Error(phi_tmp_r_, phi_tmp_i_);
 
-            Phi_err = PhisolErr;
-            if ( PhisolNorm != 0 ) { Phi_err = PhisolErr / PhisolNorm; }
+         Phi_err = PhisolErr;
+         if ( PhisolNorm != 0 ) { Phi_err = PhisolErr / PhisolNorm; }
 
-            cout << "Phi pass: " << Phi_iter << " Err : " << Phi_err << endl;
-            Phi_iter++;
+         if (PhisolNorm == 0 && Phi_err < 1e-3){ break; }
 
-            if (PhisolNorm == 0 && Phi_err < 1e-3)
-            {
-               break;
-            }
-
-            phi_tmp_->real() = phi_->real();
-            phi_tmp_->imag() = phi_->imag();
-
-         }
-         cout << " Inner potential calculation done in " << Phi_iter << " iteration(s)."
-              << endl;
+         phi_tmp_->real() = phi_->real();
+         phi_tmp_->imag() = phi_->imag();
 
       }
 
-      delete BDP;
-      if (pci != pcr) { delete pci; }
-      delete pcr;
+       delete BDP;
+       if (pci != pcr) { delete pci; }
+       delete pcr;
 
-      if ( myid_ == 0 && logging_ > 0 )
-      {
-         cout << " Solver done in " << tic_toc.RealTime() << " seconds." << endl;
-      }
-      double EsolNorm = e_tmp_->ComputeL2Error(zeroVecCoef, zeroVecCoef);
-      double EsolErr = e_->ComputeL2Error(e_tmp_r_, e_tmp_i_);
+       if ( myid_ == 0 && logging_ > 0 )
+       {
+          cout << " Solver done in " << tic_toc.RealTime() << " seconds." << endl;
+       }
+       double EsolNorm = e_tmp_->ComputeL2Error(zeroVecCoef, zeroVecCoef);
+       double EsolErr = e_->ComputeL2Error(e_tmp_r_, e_tmp_i_);
+       double EsolNorm_e = e_->ComputeL2Error(zeroVecCoef, zeroVecCoef);
 
-      E_err = EsolErr;
-      if ( EsolNorm != 0 ) { E_err = EsolErr / EsolNorm; }
+       E_err = EsolErr;
+       if ( EsolNorm != 0 ) { E_err = EsolErr / EsolNorm; }
 
-      cout << "Efield pass: " << E_iter << " Error: " << E_err << endl;
+       cout << "EField pass: " << E_iter << " Error: " << E_err << '\n';
 
-      e_tmp_->real() = e_->real();
-      e_tmp_->imag() = e_->imag();
+       e_tmp_->real() = e_->real();
+       e_tmp_->imag() = e_->imag();
 
-      E_iter++;
+       E_iter++;
    }
    cout << " Outer E field calculation done in " << E_iter << " iteration(s)." <<
         endl;
@@ -1665,8 +1655,8 @@ CPDSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
 
     if ( rectPot_ )
     {
-      //visit_dc.RegisterField("Rec_Re_Phi", &rectPot_->real());
-      //visit_dc.RegisterField("Rec_Im_Phi", &rectPot_->imag());
+      visit_dc.RegisterField("Rec_Re_Phi", &rectPot_->real());
+      visit_dc.RegisterField("Rec_Im_Phi", &rectPot_->imag());
     }
      
     if ( BCoef_)

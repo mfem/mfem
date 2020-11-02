@@ -329,7 +329,7 @@ private:
    ParGridFunction        * uB_;  // Magnetic Energy density (L2)
    ParComplexGridFunction * S_;  // Poynting Vector (HDiv)
 
-   VectorCoefficient * BCoef_;        // B Field Vector
+   VectorCoefficient * BCoef_;        // B Field Unit Vector
    MatrixCoefficient * epsReCoef_;    // Dielectric Material Coefficient
    MatrixCoefficient * epsImCoef_;    // Dielectric Material Coefficient
    MatrixCoefficient * epsAbsCoef_;   // Dielectric Material Coefficient

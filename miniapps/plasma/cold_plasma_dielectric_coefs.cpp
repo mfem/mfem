@@ -573,7 +573,7 @@ double SheathImpedance::Eval(ElementTransformation &T,
 
    double w_norm = omega_ / wpi;
    double wci_norm = wci / wpi;
-   complex<double> volt_norm(phi.real()/vnorm, phi.imag()/vnorm);
+   complex<double> volt_norm((abs(phi.real())/2)/vnorm, (abs(phi.imag())/2)/vnorm);
 
    double debye_length = debye(temp_val,
                                density_val*1e-6); // Input temp needs to be in eV, Units: cm
@@ -582,17 +582,14 @@ double SheathImpedance::Eval(ElementTransformation &T,
    double normag = nor.Norml2();
    double bn = (B * nor)/(normag*Bmag);
 
-   
-   //complex<double> zsheath_norm = 1.0 / ytot(w_norm, wci_norm, bn, volt_norm,
-                                             //masses_[0], masses_[1]);
+   complex<double> zsheath_norm = 1.0 / ytot(w_norm, wci_norm, bn, volt_norm,
+                                             masses_[0], masses_[1]);
     
-
-   
-    complex<double> zsheath_norm(8.47596385291947, 0.9477314254310637);
+    
+    //complex<double> zsheath_norm(57.4699936705, 21.39395629068357);
 
    if (realPart_)
    {
-    
       return (zsheath_norm.real()*9.0*1e11*1e-4*
               (4.0*M_PI*debye_length))/wpi; // Units: Ohm m^2
 
@@ -669,13 +666,13 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
       epsilon(1,1) =  (real(P) - real(S)) * pow(cos(ph), 2) + real(S);
       epsilon(2,2) =  (real(P) - real(S)) *
                       pow(sin(ph), 2) * pow(sin(th), 2) + real(S);
-      epsilon(0,1) = (real(P) - real(S)) * cos(ph) * cos(th) * sin(ph) +
+      epsilon(0,1) = (real(P) - real(S)) * cos(ph) * cos(th) * sin(ph) -
                      imag(D) * sin(th) * sin(ph);
       epsilon(0,2) =  (real(P) - real(S)) *
                       pow(sin(ph), 2) * sin(th) * cos(th) + imag(D) * cos(ph);
       epsilon(1,2) = (real(P) - real(S)) * sin(th) * cos(ph) * sin(ph) -
                      imag(D) * cos(th) * sin(ph);
-      epsilon(1,0) = (real(P) - real(S)) * cos(ph) * cos(th) * sin(ph) -
+      epsilon(1,0) = (real(P) - real(S)) * cos(ph) * cos(th) * sin(ph) +
                      imag(D) * sin(th) * sin(ph);
       epsilon(2,1) = (real(P) - real(S)) * sin(th) * cos(ph) * sin(ph) +
                      imag(D) * cos(th) * sin(ph);
@@ -696,13 +693,13 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
       epsilon(1,1) = (imag(P) - imag(S)) * pow(cos(ph), 2) + imag(S);
       epsilon(2,2) = (imag(P) - imag(S)) *
                      pow(sin(ph), 2) * pow(sin(th), 2) + imag(S);
-      epsilon(0,1) = (imag(P) - imag(S)) * cos(ph) * cos(th) * sin(ph) -
+      epsilon(0,1) = (imag(P) - imag(S)) * cos(ph) * cos(th) * sin(ph) +
                      real(D) * sin(th) * sin(ph);
       epsilon(0,2) = (imag(P) - imag(S)) *
                      pow(sin(ph), 2) * sin(th) * cos(th) - real(D) * cos(ph);
       epsilon(1,2) = (imag(P) - imag(S)) * sin(th) * cos(ph) * sin(ph) +
                      real(D) * cos(th) * sin(ph);
-      epsilon(1,0) = (imag(P) - imag(S)) * cos(ph) * cos(th) * sin(ph) +
+      epsilon(1,0) = (imag(P) - imag(S)) * cos(ph) * cos(th) * sin(ph) -
                      real(D) * sin(th) * sin(ph);
       epsilon(2,1) = (imag(P) - imag(S)) * sin(th) * cos(ph) * sin(ph) -
                      real(D) * cos(th) * sin(ph);
