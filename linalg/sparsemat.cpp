@@ -896,7 +896,7 @@ void SparseMatrix::AbsMult(const Vector &x, Vector &y) const
       const double *xp = x.HostRead();
       double *yp = y.HostReadWrite();
 
-      //  The matrix is not finalized, but multiplication is still possible
+      // The matrix is not finalized, but multiplication is still possible
       for (int i = 0; i < height; i++)
       {
          RowNode *row = Rows[i];
