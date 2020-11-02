@@ -1954,8 +1954,8 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const ParGridFunction &z0,
 #endif
 
 #ifdef MFEM_USE_MPI
-void TMOP_Integrator::EnableSurfaceFitting(ParGridFunction &s0,
-                                           const ParGridFunction &smarker,
+void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
+                                           const Array<bool> &smarker,
                                            Coefficient &coeff,
                                            AdaptivityEvaluator &ae)
 {
@@ -1968,12 +1968,6 @@ void TMOP_Integrator::EnableSurfaceFitting(ParGridFunction &s0,
                               *s0.ParFESpace()->FEColl(), 1);
    sigma_eval->SetInitialField
    (*sigma->FESpace()->GetMesh()->GetNodes(), *sigma);
-
-   for (int i = 0; i < sigma->Size(); i++)
-   {
-      (*sigma)(i) = (*sigma_marker)(i) * (*sigma)(i);
-   }
-   s0 = *sigma;
 }
 #endif
 
@@ -2050,11 +2044,6 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       zeta->GetValues(T.ElementNo, ir, zeta_q);
       zeta_0->GetValues(T.ElementNo, ir, zeta0_q);
    }
-   Vector sigma_q;
-   if (surface_fitting)
-   {
-      sigma->GetValues(T.ElementNo, ir, sigma_q);
-   }
 
    for (int i = 0; i < ir.GetNPoints(); i++)
    {
@@ -2086,14 +2075,30 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
          val += coeff_zeta->Eval(*Tpr, ip) * lim_normal * diff * diff;
       }
 
-      if (surface_fitting)
-      {
-         val += coeff_sigma->Eval(*Tpr, ip) * sigma_normal *
-                sigma_q(i) * sigma_q(i);
-      }
-
       energy += weight * val;
    }
+
+   // Non-variation contribution from the surface alignment term.
+   if (surface_fitting)
+   {
+      const IntegrationRule &ir_s =
+         sigma->FESpace()->GetFE(Tpr->ElementNo)->GetNodes();
+      Array<int> dofs;
+      Vector sigma_e;
+      sigma->FESpace()->GetElementDofs(Tpr->ElementNo, dofs);
+      sigma->GetSubVector(dofs, sigma_e);
+      for (int s = 0; s < dofs.Size(); s++)
+      {
+         if ((*sigma_marker)[dofs[s]] == true)
+         {
+            const IntegrationPoint &ip_s = ir_s.IntPoint(s);
+            Tpr->SetIntPoint(&ip_s);
+            energy += coeff_sigma->Eval(*Tpr, ip_s) * sigma_normal *
+                      sigma_e(s) * sigma_e(s);
+         }
+      }
+   }
+
    delete Tpr;
 
    return energy;
@@ -2267,11 +2272,9 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
    }
    if (sigma)
    {
-      AssembleElemVecAdaptLim(*sigma, nullptr, *coeff_sigma,
-                              el, weights, sigma_normal, *Tpr, ir, PMatO);
+      AssembleElemVecSurfAlign(*sigma, *sigma_marker, *coeff_sigma, el,
+                               *Tpr, sigma_normal, PMatO);
    }
-
-
    delete Tpr;
 }
 
@@ -2322,7 +2325,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
 
    // Define ref->physical transformation, when a Coefficient is specified.
    IsoparametricTransformation *Tpr = NULL;
-   if (coeff1 || coeff0 || zeta)
+   if (coeff1 || coeff0 || zeta || sigma)
    {
       Tpr = new IsoparametricTransformation;
       Tpr->SetFE(&el);
@@ -2383,8 +2386,8 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
    }
    if (sigma)
    {
-      AssembleElemGradAdaptLim(*sigma, nullptr, *coeff_sigma,
-                               el, weights, sigma_normal, *Tpr, ir, elmat);
+      AssembleElemGradSurfAlign(*sigma, *sigma_marker, *coeff_sigma, el,
+                                *Tpr, sigma_normal, elmat);
    }
 
    delete Tpr;
@@ -2400,8 +2403,6 @@ void TMOP_Integrator::AssembleElemVecAdaptLim(const GridFunction &g,
                                               const IntegrationRule &ir,
                                               DenseMatrix &mat)
 {
-   if (zeta == NULL) { return; }
-
    const int dof = el.GetDof(), dim = el.GetDim(), nqp = weights.Size();
    Vector shape(dof), zeta_e, zeta_q, zeta0_q(nqp);
 
@@ -2446,8 +2447,6 @@ void TMOP_Integrator::AssembleElemGradAdaptLim(const GridFunction &g,
                                                const IntegrationRule &ir,
                                                DenseMatrix &mat)
 {
-   if (zeta == NULL) { return; }
-
    const int dof = el.GetDof(), dim = el.GetDim(), nqp = weights.Size();
    Vector shape(dof), zeta_e, zeta_q, zeta0_q(nqp);
 
@@ -2500,6 +2499,130 @@ void TMOP_Integrator::AssembleElemGradAdaptLim(const GridFunction &g,
                      /* */ zeta_grad_q(jdim) * shape(jdof) +
                      2.0 * (zeta_q(q) - zeta0_q(q)) *
                      zeta_grad_grad_q(idim, jdim) * shape(idof) * shape(jdof));
+            mat(i, j) += entry;
+            if (i != j) { mat(j, i) += entry; }
+         }
+      }
+   }
+}
+
+void TMOP_Integrator::AssembleElemVecSurfAlign(const GridFunction &sigma,
+                                               const Array<bool> &sigma_marker,
+                                               Coefficient &coeff,
+                                               const FiniteElement &el_x,
+                                               IsoparametricTransformation &Tpr,
+                                               double normalization,
+                                               DenseMatrix &mat)
+{
+   const FiniteElement &el_s = *sigma.FESpace()->GetFE(Tpr.ElementNo);
+
+   const int dof_x = el_x.GetDof(), dim = el_x.GetDim(),
+             dof_s = el_s.GetDof();
+
+   Vector sigma_e;
+   Array<int> dofs;
+   sigma.FESpace()->GetElementDofs(Tpr.ElementNo, dofs);
+   sigma.GetSubVector(dofs, sigma_e);
+
+   // Project the gradient of sigma in the same space.
+   // The FE coefficients of the gradient go in zeta_grad_e.
+   DenseMatrix sigma_grad_e(dof_s, dim);
+   DenseMatrix grad_phys; // This will be (dof x dim, dof).
+   el_s.ProjectGrad(el_s, Tpr, grad_phys);
+   Vector grad_ptr(sigma_grad_e.GetData(), dof_s * dim);
+   grad_phys.Mult(sigma_e, grad_ptr);
+
+   const IntegrationRule &ir = el_s.GetNodes();
+   Vector shape_x(dof_x), shape_s(dof_s);
+
+   Vector sigma_grad_s(dim);
+
+   for (int s = 0; s < dof_s; s++)
+   {
+      if (sigma_marker[dofs[s]] == false) { continue; }
+
+      const IntegrationPoint &ip = ir.IntPoint(s);
+      Tpr.SetIntPoint(&ip);
+      el_x.CalcShape(ip, shape_x);
+      el_s.CalcShape(ip, shape_s);
+
+      // Note that this gradient is already in physical space.
+      sigma_grad_e.MultTranspose(shape_s, sigma_grad_s);
+
+      sigma_grad_s *= 2.0 * sigma_e(s);
+      sigma_grad_s *= normalization * coeff.Eval(Tpr, ip);
+
+      AddMultVWt(shape_x, sigma_grad_s, mat);
+   }
+}
+
+void TMOP_Integrator::AssembleElemGradSurfAlign(const GridFunction &sigma,
+                                                const Array<bool> &sigma_marker,
+                                                Coefficient &coeff,
+                                                const FiniteElement &el_x,
+                                                IsoparametricTransformation &Tpr,
+                                                double normalization,
+                                                DenseMatrix &mat)
+{
+   const FiniteElement &el_s = *sigma.FESpace()->GetFE(Tpr.ElementNo);
+
+   const int dof_x = el_x.GetDof(), dim = el_x.GetDim(),
+             dof_s = el_s.GetDof();
+
+   Vector sigma_e;
+
+   Array<int> dofs;
+   sigma.FESpace()->GetElementDofs(Tpr.ElementNo, dofs);
+   sigma.GetSubVector(dofs, sigma_e);
+
+   // Project the gradient of sigma in the same space.
+   // The FE coefficients of the gradient go in sigma_grad_e.
+   DenseMatrix sigma_grad_e(dof_s, dim);
+   DenseMatrix grad_phys; // This will be (dof x dim, dof).
+   el_s.ProjectGrad(el_s, Tpr, grad_phys);
+   Vector grad_ptr(sigma_grad_e.GetData(), dof_s * dim);
+   grad_phys.Mult(sigma_e, grad_ptr);
+
+   // Project the gradient of each gradient of sigma in the same space.
+   // The FE coefficients of the second derivatives go in sigma_grad_grad_e.
+   DenseMatrix sigma_grad_grad_e(dof_s * dim, dim);
+   Mult(grad_phys, sigma_grad_e, sigma_grad_grad_e);
+   // Reshape to be more convenient later (no change in the data).
+   sigma_grad_grad_e.SetSize(dof_s, dim * dim);
+
+   const IntegrationRule &ir = el_s.GetNodes();
+   Vector shape_x(dof_x), shape_s(dof_s);
+
+   Vector sigma_grad_s(dim);
+   DenseMatrix sigma_grad_grad_s(dim, dim);
+
+   for (int s = 0; s < dof_s; s++)
+   {
+      if (sigma_marker[dofs[s]] == false) { continue; }
+
+      const IntegrationPoint &ip = ir.IntPoint(s);
+      Tpr.SetIntPoint(&ip);
+      el_x.CalcShape(ip, shape_x);
+      el_s.CalcShape(ip, shape_s);
+
+      // These are the sums over k at the dof s (looking at the notes).
+      sigma_grad_e.MultTranspose(shape_s, sigma_grad_s);
+      Vector gg_ptr(sigma_grad_grad_s.GetData(), dim * dim);
+      sigma_grad_grad_e.MultTranspose(shape_s, gg_ptr);
+
+      // Loops over the local matrix.
+      const double w = normalization * coeff.Eval(Tpr, ip);
+      for (int i = 0; i < dof_x * dim; i++)
+      {
+         const int idof = i % dof_x, idim = i / dof_x;
+         for (int j = 0; j <= i; j++)
+         {
+            const int jdof = j % dof_x, jdim = j / dof_x;
+            const double entry =
+               w * ( 2.0 * sigma_grad_s(idim) * shape_x(idof) *
+                     /* */ sigma_grad_s(jdim) * shape_x(jdof) +
+                     2.0 * sigma_e(s) * sigma_grad_grad_s(idim, jdim) *
+                     /* */ shape_x(idof) * shape_x(jdof));
             mat(i, j) += entry;
             if (i != j) { mat(j, i) += entry; }
          }
@@ -2743,8 +2866,6 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
 
       targetC->ComputeElementTargets(i, *fe, ir, x_vals, Jtr);
 
-      if (sigma) { sigma->GetValues(i, ir, sigma_q); }
-
       for (int q = 0; q < nqp; q++)
       {
          const IntegrationPoint &ip = ir.IntPoint(q);
@@ -2758,8 +2879,22 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
 
          metric_energy += weight * metric->EvalW(Jpt);
          lim_energy += weight;
+      }
 
-         if (sigma) { sigma_energy += weight * sigma_q(i) * sigma_q(i); }
+      // Non-variation contribution from the surface alignment term.
+      if (sigma)
+      {
+         Array<int> dofs;
+         Vector sigma_e;
+         sigma->FESpace()->GetElementDofs(i, dofs);
+         sigma->GetSubVector(dofs, sigma_e);
+         for (int s = 0; s < dofs.Size(); s++)
+         {
+            if ((*sigma_marker)[dofs[s]] == true)
+            {
+               sigma_energy += sigma_e(s) * sigma_e(s);
+            }
+         }
       }
    }
    if (targetC->ContainsVolumeInfo() == false)
@@ -2810,10 +2945,6 @@ void TMOP_Integrator::UpdateAfterMeshChange(const Vector &new_x)
    if (sigma)
    {
       sigma_eval->ComputeAtNewPosition(new_x, *sigma);
-      for (int i = 0; i < sigma->Size(); i++)
-      {
-         (*sigma)(i) = (*sigma_marker)(i) * (*sigma)(i);
-      }
    }
 }
 
