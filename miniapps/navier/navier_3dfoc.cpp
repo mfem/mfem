@@ -9,7 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-// 3d flow over a cylinder benchmark example
+// 3D flow over a cylinder benchmark example
 
 #include "navier_solver.hpp"
 #include <fstream>

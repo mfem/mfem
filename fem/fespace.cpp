@@ -2674,7 +2674,7 @@ const Operator &InterpolationGridTransfer::ForwardOperator()
       return *F.Ptr();
    }
 
-   // Costruct F
+   // Construct F
    if (oper_type == Operator::ANY_TYPE)
    {
       F.Reset(new FiniteElementSpace::RefinementOperator(&ran_fes, &dom_fes));
