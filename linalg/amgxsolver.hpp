@@ -162,6 +162,9 @@ public:
    */
    void DefaultParameters(const AMGX_MODE amgxMode_, const bool verbose);
 
+   // Configure as AmgXSolver::PRECONDITIONER or AmgXSolver::SOLVER.
+   // When configuring as a preconditioner, the check for convergence
+   // or divergence will be skipped afer AmgX mult step.
    void ConfigureAs(const AMGX_MODE amgxMode_);
 
    ~AmgXSolver();
