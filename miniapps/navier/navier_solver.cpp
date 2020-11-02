@@ -305,7 +305,7 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
       vel_dbc.coeff->SetTime(time);
    }
 
-   // Set current time for pressure dirichlet boundary conditons.
+   // Set current time for pressure dirichlet boundary conditions.
    for (auto &pres_dbc : pres_dbcs)
    {
       pres_dbc.coeff->SetTime(time);
@@ -344,9 +344,7 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
    f_form->Assemble();
    f_form->ParallelAssemble(fn);
 
-   //
    // Nonlinear extrapolated terms.
-   //
    sw_extrap.Start();
 
    N->Mult(un, Nun);
@@ -357,10 +355,13 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
       const auto d_Nunm1 = Nunm1.Read();
       const auto d_Nunm2 = Nunm2.Read();
       auto d_Fext = Fext.Write();
+      const auto ab1_ = ab1;
+      const auto ab2_ = ab2;
+      const auto ab3_ = ab3;
       MFEM_FORALL(i, Fext.Size(),
-                  d_Fext[i] = ab1 * d_Nun[i] +
-                              ab2 * d_Nunm1[i] +
-                              ab3 * d_Nunm2[i];);
+                  d_Fext[i] = ab1_ * d_Nun[i] +
+                              ab2_ * d_Nunm1[i] +
+                              ab3_ * d_Nunm2[i];);
    }
 
    // Rotate the solutions from previous time steps.
@@ -390,19 +391,20 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
 
    sw_extrap.Stop();
 
-   //
-   // Pressure poisson.
-   //
+   // Pressure Poisson.
    sw_curlcurl.Start();
    {
       const auto d_un = un.Read();
       const auto d_unm1 = unm1.Read();
       const auto d_unm2 = unm2.Read();
       auto d_Lext = Lext.Write();
+      const auto ab1_ = ab1;
+      const auto ab2_ = ab2;
+      const auto ab3_ = ab3;
       MFEM_FORALL(i, Lext.Size(),
-                  d_Lext[i] = ab1 * d_un[i] +
-                              ab2 * d_unm1[i] +
-                              ab3 * d_unm2[i];);
+                  d_Lext[i] = ab1_ * d_un[i] +
+                              ab2_ * d_unm1[i] +
+                              ab3_ * d_unm2[i];);
    }
 
    Lext_gf.SetFromTrueDofs(Lext);
@@ -480,9 +482,7 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
 
    pn_gf.GetTrueDofs(pn);
 
-   //
    // Project velocity.
-   //
    G->Mult(pn, resu);
    resu.Neg();
    Mv->Mult(Fext, tmp1);

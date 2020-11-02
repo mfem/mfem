@@ -24,7 +24,9 @@ CCC = $(CC) $(CCOPTS)
 # -I$(MFEM_DIR) is needed by some tests, e.g. to #include "general/text.hpp"
 INCLUDES = -I$(or $(SRC:%/=%),.) -I$(MFEM_DIR)
 
-SOURCE_FILES = $(sort $(wildcard $(SRC)*/*.cpp))
+SOURCE_FILES := $(sort $(wildcard $(SRC)*/*.cpp))
+CEED_SOURCE_FILES = $(sort $(wildcard $(SRC)ceed/*.cpp))
+SOURCE_FILES := $(filter-out $(CEED_SOURCE_FILES), $(SOURCE_FILES))
 HEADER_FILES = $(SRC)catch.hpp $(SRC)unit_tests.hpp
 OBJECT_FILES = $(SOURCE_FILES:$(SRC)%.cpp=%.o)
 DATA_DIR = data
@@ -56,6 +58,11 @@ SEQ_UNIT_TESTS = unit_tests $(SEQ_SEDOV_TESTS)
 SEQ_UNIT_TESTS += $(if $(USE_CUDA),cunit_tests)
 PAR_UNIT_TESTS = punit_tests $(PAR_SEDOV_TESTS)
 
+# Ceed tests
+USE_CEED := $(MFEM_USE_CEED:NO=)
+CEED_OBJ = $(CEED_SOURCE_FILES:$(SRC)%.cpp=%.o)
+SEQ_UNIT_TESTS += $(if $(USE_CEED),ceed_tests)
+
 ifeq ($(MFEM_USE_MPI),NO)
    UNIT_TESTS = $(SEQ_UNIT_TESTS)
 else
@@ -77,11 +84,17 @@ punit_tests: $(PAR_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DAT
 cunit_tests: $(CUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(CUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
+ceed_tests: $(CEED_OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(CEED_OBJ) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+
 # Note: in this rule, we always use the full path to the source file as a
 # workaround for an issue with coveralls.
 $(OBJECT_FILES) $(SEQ_MAIN_OBJ) $(PAR_MAIN_OBJ) $(CUDA_MAIN_OBJ): %.o: $(SRC)%.cpp \
  $(HEADER_FILES) $(CONFIG_MK)
 	@mkdir -p $(@D)
+	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
+
+$(CEED_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
 
 # Template rule for devices
@@ -130,6 +143,14 @@ include $(MFEM_TEST_MK)
 
 %-test-seq: %
 	@$(call mfem-test,$<,, Unit tests,,SKIP-NO-VIS)
+
+ceed_tests-test-seq: ceed_tests
+	@$(call mfem-test,$<,, CEED Unit tests (cpu),--device ceed-cpu,SKIP-NO-VIS)
+ifeq ($(MFEM_USE_CUDA),YES)
+	@$(call mfem-test,$<,, CEED Unit tests (cuda-ref),--device ceed-cuda:/gpu/cuda/ref,SKIP-NO-VIS)
+	@$(call mfem-test,$<,, CEED Unit tests (cuda-shared),--device ceed-cuda:/gpu/cuda/shared,SKIP-NO-VIS)
+	@$(call mfem-test,$<,, CEED Unit tests (cuda-gen),--device ceed-cuda:/gpu/cuda/gen,SKIP-NO-VIS)
+endif
 
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP)
 %-test-par: %
