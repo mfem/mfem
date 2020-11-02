@@ -2501,7 +2501,7 @@ void PetscLinearSolver::SetPreconditioner(Solver &precond)
    {
       // wrap the Solver action
       // Solver is assumed to be already setup
-      // ownership of precond is not tranferred,
+      // ownership of precond is not transferred,
       // consistently with other MFEM's linear solvers
       PC pc;
       ierr = KSPGetPC(ksp,&pc); PCHKERRQ(ksp,ierr);

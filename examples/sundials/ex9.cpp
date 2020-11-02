@@ -215,7 +215,7 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
-   // check for vaild ODE solver option
+   // check for valid ODE solver option
    if (ode_solver_type < 1 || ode_solver_type > 9)
    {
       cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
