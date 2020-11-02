@@ -374,7 +374,7 @@ int main (int argc, char *argv[])
    TargetConstructor::TargetType target_t;
    TargetConstructor *target_c = NULL;
    HessianCoefficient *adapt_coeff = NULL;
-   H1_FECollection ind_fec(mesh_poly_deg, dim, BasisType::Positive);
+   H1_FECollection ind_fec(mesh_poly_deg, dim);
    ParFiniteElementSpace ind_fes(pmesh, &ind_fec);
    ParFiniteElementSpace ind_fesv(pmesh, &ind_fec, dim);
    ParGridFunction size(&ind_fes), aspr(&ind_fes), disc(&ind_fes), ori(&ind_fes);
@@ -620,8 +620,6 @@ int main (int argc, char *argv[])
            << irules->Get(Geometry::PRISM, quad_order).GetNPoints() << endl;
    }
 
-   if (normalization) { he_nlf_integ->ParEnableNormalization(x0); }
-
    // Limit the node movement.
    // The limiting distances can be given by a general function of space.
    ParGridFunction dist(pfespace);
@@ -664,14 +662,16 @@ int main (int argc, char *argv[])
    L2_FECollection mat_coll(0, dim);
    ParFiniteElementSpace mat_fes(pmesh, &mat_coll);
    ParGridFunction mat(&mat_fes);
-   ParGridFunction ls_0(&ind_fes), marker(&ind_fes);
+   ParGridFunction marker_gf(&ind_fes);
+   ParGridFunction ls_0(&ind_fes);
+   Array<bool> marker(ls_0.Size());
    ConstantCoefficient coef_ls(surface_const);
    AdaptivityEvaluator *adapt_surface = NULL;
    if (surface_const > 0.0)
    {
       FunctionCoefficient ls_coeff(surface_level_set);
       ls_0.ProjectCoefficient(ls_coeff);
-      DiffuseField(ls_0, 2);
+      DiffuseField(ls_0, 10);
 
       for (int i = 0; i < pmesh->GetNE(); i++)
       {
@@ -679,11 +679,19 @@ int main (int argc, char *argv[])
       }
 
       GridFunctionCoefficient coeff_mat(&mat);
-      marker.ProjectDiscCoefficient(coeff_mat, GridFunction::ARITHMETIC);
+      marker_gf.ProjectDiscCoefficient(coeff_mat, GridFunction::ARITHMETIC);
       for (int j = 0; j < marker.Size(); j++)
       {
-         if (marker(j) > 0.1 && marker(j) < 0.9) { marker(j) = 1.0; }
-         else { marker(j) = 0.0; }
+         if (marker_gf(j) > 0.1 && marker_gf(j) < 0.9)
+         {
+            marker[j] = true;
+            marker_gf(j) = 1.0;
+         }
+         else
+         {
+            marker[j] = false;
+            marker_gf(j) = 0.0;
+         }
       }
 
       if (adapt_eval == 0) { adapt_surface = new AdvectorCG; }
@@ -705,12 +713,19 @@ int main (int argc, char *argv[])
                                 300, 600, 300, 300);
          common::VisualizeField(vis2, "localhost", 19916, mat, "Materials",
                                 600, 600, 300, 300);
-         common::VisualizeField(vis3, "localhost", 19916, marker, "Dofs to Move",
+         common::VisualizeField(vis3, "localhost", 19916, marker_gf, "Dofs to Move",
                                 900, 600, 300, 300);
+
+         socketstream vis4;
+         common::VisualizeField(vis4, "localhost", 19916, ls_0, "Level Set 0",
+                                300, 600, 300, 300);
+
       }
    }
 
-   MFEM_ABORT("test");
+   // Has to be after the enabling of the limiting / alignment, as it computes
+   // normalization factors for these terms as well.
+   if (normalization) { he_nlf_integ->ParEnableNormalization(x0); }
 
    // 13. Setup the final NonlinearForm (which defines the integral of interest,
    //     its first and second derivatives). Here we can use a combination of
@@ -907,16 +922,27 @@ int main (int argc, char *argv[])
       pmesh->PrintAsOne(mesh_ofs);
    }
 
+   if (visualization)
+   {
+      socketstream vis2, vis3;
+      common::VisualizeField(vis2, "localhost", 19916, mat, "Materials",
+                             600, 900, 300, 300);
+      common::VisualizeField(vis3, "localhost", 19916, marker_gf, "Surface dof",
+                             900, 900, 300, 300);
+   }
+
    // 17. Compute the amount of energy decrease.
    const double fin_energy = a.GetParGridFunctionEnergy(x);
    double metric_part = fin_energy;
-   if (lim_const > 0.0 || adapt_lim_const > 0.0)
+   if (lim_const > 0.0 || adapt_lim_const > 0.0 || surface_const > 0.0)
    {
       lim_coeff.constant = 0.0;
       coef_zeta.constant = 0.0;
+      coef_ls.constant = 0.0;
       metric_part = a.GetParGridFunctionEnergy(x);
       lim_coeff.constant = lim_const;
       coef_zeta.constant = adapt_lim_const;
+      coef_ls.constant = surface_const;
    }
    if (myid == 0)
    {

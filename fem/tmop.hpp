@@ -919,7 +919,7 @@ protected:
 
    // Surface fitting.
    GridFunction *sigma;              // Owned. Updated by sigma_eval.
-   const GridFunction *sigma_marker; // Not owned.
+   const Array<bool> *sigma_marker;  // Not owned.
    Coefficient *coeff_sigma;         // Not owned.
    AdaptivityEvaluator *sigma_eval;  // Not owned.
    double sigma_normal;
@@ -985,6 +985,17 @@ protected:
                                  IsoparametricTransformation &Tpr,
                                  const IntegrationRule &ir, DenseMatrix &m);
 
+   void AssembleElemVecSurfAlign(const GridFunction &sigma,
+                                 const Array<bool> &sigma_marker,
+                                 Coefficient &coeff, const FiniteElement &el_x,
+                                 IsoparametricTransformation &Tpr,
+                                 double normalization, DenseMatrix &mat);
+   void AssembleElemGradSurfAlign(const GridFunction &sigma,
+                                  const Array<bool> &sigma_marker,
+                                  Coefficient &coeff, const FiniteElement &el_x,
+                                  IsoparametricTransformation &Tpr,
+                                  double normalization, DenseMatrix &mat);
+
    double GetFDDerivative(const FiniteElement &el,
                           ElementTransformation &T,
                           Vector &elfun, const int nodenum,const int idir,
@@ -1033,7 +1044,8 @@ public:
         nodes0(NULL), coeff0(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
         zeta_0(NULL), zeta(NULL), coeff_zeta(NULL), adapt_eval(NULL),
-        sigma(NULL), sigma_marker(NULL), coeff_sigma(NULL), sigma_eval(NULL),
+        sigma(NULL), sigma_marker(NULL), coeff_sigma(NULL),
+        sigma_eval(NULL), sigma_normal(1.0),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
    { }
@@ -1095,8 +1107,8 @@ public:
 #endif
 
 #ifdef MFEM_USE_MPI
-   void EnableSurfaceFitting(ParGridFunction &s0,
-                             const ParGridFunction &smarker, Coefficient &coeff,
+   void EnableSurfaceFitting(const ParGridFunction &s0,
+                             const Array<bool> &smarker, Coefficient &coeff,
                              AdaptivityEvaluator &ae);
 #endif
 

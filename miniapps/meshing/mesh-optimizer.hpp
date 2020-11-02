@@ -225,8 +225,18 @@ double adapt_lim_fun(const Vector &x)
 // Used for exact surface alignment
 double surface_level_set(const Vector &x)
 {
-   const double sine = 0.25 * std::sin(4 * M_PI * x(0));
-   return (x(1) >= sine + 0.5) ? 1.0 : -1.0;
+   const int type = 0;
+   if (type == 0)
+   {
+      const double sine = 0.25 * std::sin(4 * M_PI * x(0));
+      return (x(1) >= sine + 0.5) ? 1.0 : -1.0;
+   }
+   else
+   {
+      const double xc = x(0) - 0.5, yc = x(1) - 0.5;
+      const double r = sqrt(xc*xc + yc*yc);
+      return (r > 0.2) ? 1.0 : -1.0;
+   }
 }
 
 int material_id(int el_id, const GridFunction &g)
