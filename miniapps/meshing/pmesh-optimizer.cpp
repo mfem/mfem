@@ -354,9 +354,14 @@ int main (int argc, char *argv[])
       case 56: metric = new TMOP_Metric_056; break;
       case 58: metric = new TMOP_Metric_058; break;
       case 77: metric = new TMOP_Metric_077; break;
+      case 80: metric = new TMOP_Metric_080(0.9); break;
       case 85: metric = new TMOP_Metric_085; break;
       case 211: metric = new TMOP_Metric_211; break;
       case 252: metric = new TMOP_Metric_252(tauval); break;
+      case 11: metric = new TMOP_AMetric_011; break; //\nu - V
+      case 36: metric = new TMOP_AMetric_036; break; //\nu - VOS
+      case 107: metric = new TMOP_AMetric_107a; break; //\nu - OS
+      case 126: metric = new TMOP_AMetric_126(0.9); break; //\nu - VS
       case 301: metric = new TMOP_Metric_301; break;
       case 302: metric = new TMOP_Metric_302; break;
       case 303: metric = new TMOP_Metric_303; break;
@@ -553,7 +558,7 @@ int main (int argc, char *argv[])
 #endif
          }
 
-         if (metric_id == 14)
+         if (metric_id == 14 || metric_id == 36)
          {
             ConstantCoefficient ind_coeff(0.1*0.1);
             size.ProjectCoefficient(ind_coeff);
