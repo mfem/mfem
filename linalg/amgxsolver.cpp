@@ -178,6 +178,11 @@ void AmgXSolver::ReadParameters(const std::string config,
    configSrc = source;
 }
 
+void AmgXSolver::ConfigureAs(const AMGX_MODE amgxMode_)
+{
+  amgxMode = amgxMode_;
+}
+
 void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
                                    const bool verbose)
 {
