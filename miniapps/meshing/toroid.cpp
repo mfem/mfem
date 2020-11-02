@@ -13,7 +13,7 @@
 //             Toroid Miniapp:  Generate simple toroidal meshes
 //             ------------------------------------------------
 //
-// This miniapp generates two types of Toroidal meshes; one with triangular
+// This miniapp generates two types of toroidal meshes; one with triangular
 // cross sections and one with square cross sections.  It works by defining a
 // stack of individual elements and bending them so that the bottom and top of
 // the stack can be joined to form a torus.  The stack can also be twisted so
