@@ -713,17 +713,6 @@ public:
                                               DenseTensor &dJtr) const;
 };
 
-template<> bool
-TargetConstructor::ComputeElementTargetsPA<2>(const FiniteElementSpace *fes,
-                                              const IntegrationRule *ir,
-                                              DenseTensor &Jtr,
-                                              const Vector &xe) const;
-template<> bool
-TargetConstructor::ComputeElementTargetsPA<3>(const FiniteElementSpace *fes,
-                                              const IntegrationRule *ir,
-                                              DenseTensor &Jtr,
-                                              const Vector &xe) const;
-
 class TMOPMatrixCoefficient  : public MatrixCoefficient
 {
 public:
