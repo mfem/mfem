@@ -148,25 +148,6 @@ public:
    virtual void SetOperator(const Operator &op) { }
 };
 
-/** This smoother does relaxations on an auxiliary space (determined by a map
-    from the original space to the auxiliary space provided by the user).
-    For example, the space can be the nullspace of div/curl, in which case the
-    smoother can be used to construct a Hiptmair smoother. */
-class AuxSpaceSmoother : public Solver
-{
-   OperatorPtr aux_map_;
-   OperatorPtr aux_system_;
-   OperatorPtr aux_smoother_;
-   void Mult(const Vector &x, Vector &y, bool transpose) const;
-public:
-   AuxSpaceSmoother(const HypreParMatrix &op, HypreParMatrix *aux_map,
-                    bool own_aux_map = false);
-   virtual void Mult(const Vector &x, Vector &y) const { Mult(x, y, false); }
-   virtual void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y, true); }
-   virtual void SetOperator(const Operator &op) { }
-   HypreSmoother& GetSmoother() { return *aux_smoother_.As<HypreSmoother>(); }
-};
-
 /** Divergence free solver.
     The basic idea of the solver is to exploit a multilevel decomposition of
     Raviart-Thomas space to find a particular solution satisfying the divergence

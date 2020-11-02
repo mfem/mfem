@@ -313,35 +313,6 @@ void SaddleSchwarzSmoother::Mult(const Vector & x, Vector & y) const
    blk_y.GetBlock(1) -= coarse_l2_projection;
 }
 
-AuxSpaceSmoother::AuxSpaceSmoother(const HypreParMatrix &op,
-                                   HypreParMatrix *aux_map,
-                                   bool own_aux_map)
-   : Solver(op.NumRows()), aux_map_(aux_map, own_aux_map)
-{
-   aux_system_.Reset(TwoStepsRAP(*aux_map, op, *aux_map));
-   aux_system_.As<HypreParMatrix>()->EliminateZeroRows();
-   aux_smoother_.Reset(new HypreSmoother(*aux_system_.As<HypreParMatrix>()));
-}
-
-void AuxSpaceSmoother::Mult(const Vector &x, Vector &y, bool transpose) const
-{
-   Vector aux_rhs(aux_map_->NumCols());
-   aux_map_->MultTranspose(x, aux_rhs);
-
-   Vector aux_sol(aux_rhs.Size());
-   if (transpose)
-   {
-      aux_smoother_->MultTranspose(aux_rhs, aux_sol);
-   }
-   else
-   {
-      aux_smoother_->Mult(aux_rhs, aux_sol);
-   }
-
-   y.SetSize(aux_map_->NumRows());
-   aux_map_->Mult(aux_sol, y);
-}
-
 DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
                              const DFSData& data)
    : DarcySolver(M.NumRows(), B.NumRows()), data_(data), BT_(B.Transpose()),
