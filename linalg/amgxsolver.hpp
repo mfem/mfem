@@ -162,6 +162,8 @@ public:
    */
    void DefaultParameters(const AMGX_MODE amgxMode_, const bool verbose);
 
+   void ConfigureAs(const AMGX_MODE amgxMode_);
+
    ~AmgXSolver();
 
    void Finalize();
