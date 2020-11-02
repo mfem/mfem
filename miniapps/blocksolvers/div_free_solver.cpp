@@ -244,12 +244,12 @@ void LocalSolver::Mult(const Vector &x, Vector &y) const
    const_cast<Vector&>(x)[offset_] = x0;
 }
 
-SchwarzSmoother::SchwarzSmoother(const HypreParMatrix& M,
-                                 const HypreParMatrix& B,
-                                 const SparseMatrix& agg_hdivdof,
-                                 const SparseMatrix& agg_l2dof,
-                                 const HypreParMatrix& P_l2,
-                                 const HypreParMatrix& Q_l2)
+SaddleSchwarzSmoother::SaddleSchwarzSmoother(const HypreParMatrix& M,
+                                             const HypreParMatrix& B,
+                                             const SparseMatrix& agg_hdivdof,
+                                             const SparseMatrix& agg_l2dof,
+                                             const HypreParMatrix& P_l2,
+                                             const HypreParMatrix& Q_l2)
    : Solver(M.NumRows() + B.NumRows()), agg_hdivdof_(agg_hdivdof),
      agg_l2dof_(agg_l2dof), solvers_loc_(agg_l2dof.NumRows())
 {
@@ -276,7 +276,7 @@ SchwarzSmoother::SchwarzSmoother(const HypreParMatrix& M,
    }
 }
 
-void SchwarzSmoother::Mult(const Vector & x, Vector & y) const
+void SaddleSchwarzSmoother::Mult(const Vector & x, Vector & y) const
 {
    y.SetSize(offsets_[2]);
    y = 0.0;
@@ -360,13 +360,15 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
    {
       HypreParMatrix& P_hdiv_l = *data.P_hdiv[l-1].As<HypreParMatrix>();
       HypreParMatrix& P_l2_l = *data.P_l2[l-1].As<HypreParMatrix>();
+      SparseMatrix& agg_hdivdof_l = *data.agg_hdivdof[l-1].As<SparseMatrix>();
+      SparseMatrix& agg_l2dof_l = *data.agg_l2dof[l-1].As<SparseMatrix>();
+      HypreParMatrix& Q_l2_l = *data.Q_l2[l-1].As<HypreParMatrix>();
 
       auto& M_f = static_cast<HypreParMatrix&>(ops_[l]->GetBlock(0, 0));
       auto& B_f = static_cast<HypreParMatrix&>(ops_[l]->GetBlock(1, 0));
 
-      auto S0 = new SchwarzSmoother(M_f, B_f, *data.agg_hdivdof[l-1].As<SparseMatrix>(),
-                                    *data.agg_l2dof[l-1].As<SparseMatrix>(),
-                                    P_l2_l, *data.Q_l2[l-1].As<HypreParMatrix>());
+      auto S0 = new SaddleSchwarzSmoother(M_f, B_f, agg_hdivdof_l,
+                                          agg_l2dof_l, P_l2_l, Q_l2_l);
       if (data.param.coupled_solve)
       {
          auto S1 = new KernelSmoother(*ops_[l], *data.C[l].As<HypreParMatrix>());
