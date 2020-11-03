@@ -142,7 +142,7 @@ TargetConstructor::ComputeElementTargetsPA<2>(const FiniteElementSpace *fes,
          Vector X(R->Height(), Device::GetDeviceMemoryType());
          X.UseDevice(true);
          R->Mult(*nodes, X);
-         MFEM_ASSERT(dim == nodes->FESpace()->GetVDim(), "");
+         MFEM_ASSERT(nodes->FESpace()->GetVDim() == 2, "");
          MFEM_LAUNCH_TMOP_KERNEL(TC_IDEAL_SHAPE_GIVEN_SIZE_2D_KERNEL,
                                  id,NE,B,G,W,X,Jtr);
       }
