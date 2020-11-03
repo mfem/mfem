@@ -194,19 +194,19 @@ int main(int argc, char *argv[])
    auto ResetTimer = [&chrono]() { chrono.Clear(); chrono.Start(); };
 
    // 2. Parse command-line options.
+   const char *mesh_file = "../../data/beam-hex.mesh";
    int order = 0;
    int num_refines = 2;
-   bool use_tet_mesh = false;
    bool coupled_solve = true;
    bool show_error = false;
    bool visualization = false;
    OptionsParser args(argc, argv);
+   args.AddOption(&mesh_file, "-m", "--mesh",
+                  "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&num_refines, "-r", "--ref",
                   "Number of parallel refinement steps.");
-   args.AddOption(&use_tet_mesh, "-tet", "--tet-mesh", "-hex", "--hex-mesh",
-                  "Use a tetrahedral or hexahedral mesh (on unit cube).");
    args.AddOption(&coupled_solve, "-cs", "--coupled-solve", "-ss",
                   "--separate-solve",
                   "Whether to solve all unknowns together in div free solver.");
@@ -226,16 +226,17 @@ int main(int argc, char *argv[])
    if (verbose) { args.PrintOptions(cout); }
 
    // Initialize the mesh, boundary attributes, and solver parameters
-   auto elem_type = use_tet_mesh ? Element::TETRAHEDRON : Element::HEXAHEDRON;
-   Mesh mesh(2, 2, 2, elem_type, true);
-   for (int i = 0; i < (int)(log(num_procs)/log(8)); ++i)
+   Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   int dim = mesh->Dimension();
+   int ser_ref_levels = (int)ceil(log(num_procs/mesh->GetNE())/log(2.)/dim);
+   for (int i = 0; i < ser_ref_levels; ++i)
    {
-      mesh.UniformRefinement();
+      mesh->UniformRefinement();
    }
 
-   Array<int> ess_bdr(mesh.bdr_attributes.Max());
+   Array<int> ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 0;
-   ess_bdr[1] = 1;
+   ess_bdr[0] = 1;
 
    DFSParameters param;
    param.B_has_nullity_one = (ess_bdr.Sum() == ess_bdr.Size());
@@ -246,14 +247,16 @@ int main(int argc, char *argv[])
    ResetTimer();
 
    // Generate components of the saddle point problem
-   DarcyProblem darcy(mesh, num_refines, order, ess_bdr, param);
+   DarcyProblem darcy(*mesh, num_refines, order, ess_bdr, param);
    HypreParMatrix& M = darcy.GetM();
    HypreParMatrix& B = darcy.GetB();
    const DFSData& DFS_data = darcy.GetDFSData();
+   delete mesh;
 
    if (verbose)
    {
       cout << line << "System assembled in " << chrono.RealTime() << "s.\n";
+      cout << "Dimension of the physical space: " << dim << "\n";
       cout << "Size of the discrete Darcy system: " << M.M() + B.M() << "\n";
       cout << "Dimension of the divergence free subspace: "
            << DFS_data.C.Last().Ptr()->NumCols() << "\n";
