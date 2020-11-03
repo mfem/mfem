@@ -695,7 +695,7 @@ class MatrixCoefficient
 protected:
    int height, width;
    double time;
-   bool symmetric;
+   bool symmetric;  // TODO: remove this!
 
 public:
    /// Construct a dim x dim matrix coefficient.
@@ -939,6 +939,106 @@ public:
              + beta * b->Eval(T, ip);
    }
 };
+
+
+/// Base class for symmetric matrix coefficients that optionally depend on time and space.
+class SymmetricMatrixCoefficient
+{
+protected:
+   int dim;
+   double time;
+
+public:
+   /// Construct a dim x dim matrix coefficient.
+   explicit SymmetricMatrixCoefficient(int dimension)
+   { dim = dimension; time = 0.; }
+
+   /// Set the time for time dependent coefficients
+   void SetTime(double t) { time = t; }
+
+   /// Get the time for time dependent coefficients
+   double GetTime() { return time; }
+
+   /// Get the size of the matrix.
+   int GetSize() const { return dim; }
+
+   /** @brief Evaluate the matrix coefficient in the element described by @a T
+       at the point @a ip, storing the result in @a K. */
+   /** @note When this method is called, the caller must make sure that the
+       IntegrationPoint associated with @a T is the same as @a ip. This can be
+       achieved by calling T.SetIntPoint(&ip). */
+   virtual void Eval(DenseSymmetricMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip) = 0;
+
+   virtual ~SymmetricMatrixCoefficient() { }
+};
+
+
+/// A matrix coefficient that is constant in space and time.
+class SymmetricMatrixConstantCoefficient : public SymmetricMatrixCoefficient
+{
+private:
+   DenseSymmetricMatrix mat;
+
+public:
+   ///Construct using matrix @a m for the constant.
+   SymmetricMatrixConstantCoefficient(const DenseSymmetricMatrix &m)
+      : SymmetricMatrixCoefficient(m.Height()), mat(m) { }
+   using SymmetricMatrixCoefficient::Eval;
+   /// Evaluate the matrix coefficient at @a ip.
+   virtual void Eval(DenseSymmetricMatrix &M, ElementTransformation &T,
+                     const IntegrationPoint &ip) { M = mat; }
+};
+
+
+/** @brief A matrix coefficient with an optional scalar coefficient multiplier
+    \a q.  The matrix function can either be represented by a std function or
+    a constant matrix provided when constructing this object.  */
+class SymmetricMatrixFunctionCoefficient : public SymmetricMatrixCoefficient
+{
+private:
+   std::function<void(const Vector &, DenseSymmetricMatrix &)> Function;
+   std::function<void(const Vector &, double, DenseSymmetricMatrix &)> TDFunction;
+
+   Coefficient *Q;
+   DenseSymmetricMatrix mat;
+
+public:
+   /// Define a time-independent symmetric matrix coefficient from a std function
+   /** \param dim - the size of the matrix
+       \param F - time-independent function
+       \param q - optional scalar Coefficient to scale the matrix coefficient */
+   SymmetricMatrixFunctionCoefficient(int dim,
+                                      std::function<void(const Vector &, DenseSymmetricMatrix &)> F,
+                                      Coefficient *q = nullptr)
+      : SymmetricMatrixCoefficient(dim), Function(std::move(F)), Q(q), mat(0)
+   { }
+
+   /// Define a constant matrix coefficient times a scalar Coefficient
+   /** \param m - constant matrix
+       \param q - optional scalar Coefficient to scale the matrix coefficient */
+   SymmetricMatrixFunctionCoefficient(const DenseSymmetricMatrix &m,
+                                      Coefficient &q)
+      : SymmetricMatrixCoefficient(m.Height()), Q(&q), mat(m)
+   { }
+
+   /// Define a time-dependent square matrix coefficient from a std function
+   /** \param dim - the size of the matrix
+       \param TDF - time-dependent function
+       \param q - optional scalar Coefficient to scale the matrix coefficient */
+   SymmetricMatrixFunctionCoefficient(int dim,
+                                      std::function<void(const Vector &, double, DenseSymmetricMatrix &)> TDF,
+                                      Coefficient *q = nullptr)
+      : SymmetricMatrixCoefficient(dim), TDFunction(std::move(TDF)), Q(q)
+   { }
+
+   /// Evaluate the matrix coefficient at @a ip.
+   virtual void Eval(DenseSymmetricMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+
+   virtual ~SymmetricMatrixFunctionCoefficient() { }
+};
+
 
 /** @brief Scalar coefficient defined as the product of two scalar coefficients
     or a scalar and a scalar coefficient. */

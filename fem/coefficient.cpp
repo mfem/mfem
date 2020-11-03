@@ -371,6 +371,36 @@ void MatrixFunctionCoefficient::EvalSymmetric(Vector &K,
    }
 }
 
+void SymmetricMatrixFunctionCoefficient::Eval(DenseSymmetricMatrix &K,
+                                              ElementTransformation &T,
+                                              const IntegrationPoint &ip)
+{
+   double x[3];
+   Vector transip(x, 3);
+
+   T.Transform(ip, transip);
+
+   K.SetSize(dim);
+
+   if (Function)
+   {
+      Function(transip, K);
+   }
+   else if (TDFunction)
+   {
+      TDFunction(transip, GetTime(), K);
+   }
+   else
+   {
+      K = mat;
+   }
+
+   if (Q)
+   {
+      K *= Q->Eval(T, ip, GetTime());
+   }
+}
+
 MatrixArrayCoefficient::MatrixArrayCoefficient (int dim)
    : MatrixCoefficient (dim)
 {
