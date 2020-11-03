@@ -350,14 +350,13 @@ class TMOP_Metric_080 : public TMOP_Combo_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<double> ie;
-   TMOP_QualityMetric *sh_metric, *sz_metric;
    double gamma;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
    TMOP_Metric_080(double gamma_) : gamma(gamma_),
       sh_metric(new TMOP_Metric_002),
-      sz_metric(new TMOP_Metric_077),
-      TMOP_Combo_QualityMetric()
+      sz_metric(new TMOP_Metric_077)
    {
       // (1-gamma) mu_2 + gamma mu_77
       AddQualityMetric(sh_metric, 1.-gamma_);
@@ -637,14 +636,13 @@ class TMOP_AMetric_126 : public TMOP_Combo_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<double> ie;
-   TMOP_QualityMetric *sh_metric, *sz_metric;
    double gamma;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
    TMOP_AMetric_126(double gamma_) : gamma(gamma_),
       sh_metric(new TMOP_AMetric_011),
-      sz_metric(new TMOP_AMetric_014a),
-      TMOP_Combo_QualityMetric()
+      sz_metric(new TMOP_AMetric_014a)
    {
       // (1-gamma) nu_11 + gamma nu_14
       AddQualityMetric(sh_metric, 1.-gamma_);
