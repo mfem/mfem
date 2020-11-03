@@ -3,9 +3,11 @@
 // Compile with: make distance
 //
 // Sample runs:
-//   Problem 0: exact boundary alignment:
-//     mpirun -np 4 heat -m ../data/inline-segment.mesh -rs 3 -t 2.0
-//     mpirun -np 4 heat -m ../data/inline-quad.mesh -rs 2 -t 2.0
+//   Problem 0: point source
+//     mpirun -np 4 heat -m ../data/inline-quad.mesh -rs 2 -t 1.0
+//
+//   Problem 1: level set
+//      mpirun -np 4 heat -m ../data/inline-quad.mesh -rs 3 -o 2 -t 1.0 -p 1
 //
 //    K. Crane et al:
 //    Geodesics in Heat: A New Approach to Computing Distance Based on Heat Flow
@@ -35,6 +37,36 @@ public:
       V /= -norm;
    }
 };
+
+double surface_level_set(const Vector &x)
+{
+   const double sine = 0.25 * std::sin(4 * M_PI * x(0));
+   return (x(1) >= sine + 0.5) ? 0.0 : 1.0;
+}
+
+void DiffuseField(ParGridFunction &field, int smooth_steps)
+{
+   // Setup the Laplacian operator.
+   ParBilinearForm *Lap = new ParBilinearForm(field.ParFESpace());
+   Lap->AddDomainIntegrator(new DiffusionIntegrator());
+   Lap->Assemble();
+   Lap->Finalize();
+   HypreParMatrix *A = Lap->ParallelAssemble();
+
+   HypreSmoother *S = new HypreSmoother(*A,0,smooth_steps);
+   S->iterative_mode = true;
+
+   Vector tmp(A->Width());
+   field.SetTrueVector();
+   Vector fieldtrue = field.GetTrueVector();
+   tmp = 0.0;
+   S->Mult(tmp, fieldtrue);
+
+   field.SetFromTrueDofs(fieldtrue);
+
+   delete S;
+   delete Lap;
+}
 
 int main(int argc, char *argv[])
 {
@@ -117,32 +149,9 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
-   // 7. Define a parallel finite element space on the parallel mesh. Here we
-   //    use continuous Lagrange finite elements of the specified order. If
-   //    order < 1, we instead use an isoparametric/isogeometric space.
-   FiniteElementCollection *fec;
-   bool delete_fec;
-   if (order > 0)
-   {
-      fec = new H1_FECollection(order, dim);
-      delete_fec = true;
-   }
-   else if (pmesh.GetNodes())
-   {
-      fec = pmesh.GetNodes()->OwnFEC();
-      delete_fec = false;
-      if (myid == 0)
-      {
-         cout << "Using isoparametric FEs: " << fec->Name() << endl;
-      }
-   }
-   else
-   {
-      fec = new H1_FECollection(order = 1, dim);
-      delete_fec = true;
-   }
-   ParFiniteElementSpace fespace(&pmesh, fec);
-   ParFiniteElementSpace fespace_vec(&pmesh, fec, dim);
+   H1_FECollection fec(order, dim);
+   ParFiniteElementSpace fespace(&pmesh, &fec);
+   ParFiniteElementSpace fespace_vec(&pmesh, &fec, dim);
    HYPRE_Int size = fespace.GlobalTrueVSize();
    if (myid == 0) { cout << "Number of FE unknowns: " << size << endl; }
 
@@ -164,8 +173,24 @@ int main(int argc, char *argv[])
 
    // Position of the object of interest.
    ParGridFunction u0(&fespace);
-   DeltaCoefficient dc(0.75, 0.75, 1.0);
-   u0.ProjectCoefficient(dc);
+   if (problem == 0)
+   {
+      DeltaCoefficient dc(0.75, 0.625, 1.0);
+      u0.ProjectCoefficient(dc);
+   }
+   else
+   {
+      FunctionCoefficient dc(surface_level_set);
+      u0.ProjectCoefficient(dc);
+      DiffuseField(u0, 5);
+
+      // Transform so that the peak is at 0.5.
+      for (int i = 0; i < u0.Size(); i++)
+      {
+         const double x = u0(i);
+         u0(i) = (x < 0.0 || x > 1.0) ? 0.0 : 4.0 * x * (1.0 - x);
+      }
+   }
 
    // Solution of the first diffusion step.
    ParGridFunction u(&fespace);
@@ -176,10 +201,12 @@ int main(int argc, char *argv[])
    {
       // Set up RHS.
       ParLinearForm b1(&fespace);
-      b1 = u0;
+      GridFunctionCoefficient u0_coeff(&u0);
+      b1.AddDomainIntegrator(new DomainLFIntegrator(u0_coeff));
+      b1.Assemble();
 
       // Diffusion and mass terms in the LHS.
-      ParBilinearForm a1(    &fespace);
+      ParBilinearForm a1(&fespace);
       a1.AddDomainIntegrator(new MassIntegrator);
       const double dt = t_param * dx * dx;
       ConstantCoefficient t_coeff(dt);
@@ -289,7 +316,7 @@ int main(int argc, char *argv[])
       sol_sock_x << "window_geometry " << 2*size << " " << 0 << " "
                                        << size << " " << size << "\n"
                  << "window_title '" << "X" << "'\n"
-                 << "keys evvRj*******\n" << flush;
+                 << "keys evvRj*******A\n" << flush;
 
       socketstream sol_sock_d(vishost, visport);
       sol_sock_d << "parallel " << num_procs << " " << myid << "\n";
@@ -311,8 +338,6 @@ int main(int argc, char *argv[])
    paraview_dc.RegisterField("w",&u0);
    paraview_dc.RegisterField("u",&u);
    paraview_dc.Save();
-
-   if (delete_fec) { delete fec; }
 
    MPI_Finalize();
    return 0;
