@@ -13,6 +13,15 @@ Version 4.2.1 (development)
 - Added support for parallel non-conforming, non-matching, variational, volumetric
   mesh information transfer using ParMoonolith.
 
+- Added interface to MUMPS direct solver. Its usage is demonstrated in ex25p.
+  See http://mumps.enseeiht.fr/ for more details. Supported versions >= 5.1.1.
+
+- Added three ESDIRK time integrators: implicit trapezoid rule, L-stable
+  ESDIRK-32, and A-stable ESDIRK-33.
+
+- Added a "scaled Jacobian" visualization option in the Mesh Explorer miniapp to
+  help identify elements with poor mesh quality.
+
 - Upgraded the Catch unit test framework from version 2.13.0 to version 2.13.2.
 
 
