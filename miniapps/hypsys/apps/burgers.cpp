@@ -46,7 +46,7 @@ Burgers::Burgers(FiniteElementSpace *fes_, BlockVector &u_block,
          SteadyState = true;
          TimeDepBC = false;
          ProjType = 1;
-         LumpedL2_Projection(ic, u0);
+         u0.ProjectCoefficient(ic);
          break;
       }
       default:
