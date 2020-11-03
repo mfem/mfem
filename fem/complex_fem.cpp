@@ -1367,7 +1367,6 @@ ParSesquilinearForm::Update(FiniteElementSpace *nfes)
    if ( pblfi ) { pblfi->Update(nfes); }
 }
 
-
 #endif // MFEM_USE_MPI
 
 }

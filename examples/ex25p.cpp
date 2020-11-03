@@ -13,14 +13,16 @@
 // Description:  This example code solves a simple electromagnetic wave
 //               propagation problem corresponding to the second order
 //               indefinite Maxwell equation
+//
 //                  (1/mu) * curl curl E - \omega^2 * epsilon E = f
+//
 //               with a Perfectly Matched Layer (PML).
 //
 //               The example demonstrates discretization with Nedelec finite
 //               elements in 2D or 3D, as well as the use of complex-valued
 //               bilinear and linear forms. Several test problems are included,
 //               with prob = 0-3 having known exact solutions, see "On perfectly
-//               matched layers for discontinuous Petrov–Galerkin methods" by
+//               matched layers for discontinuous Petrov-Galerkin methods" by
 //               Vaziri Astaneh, Keith, Demkowicz, Comput Mech 63, 2019.
 //
 //               We recommend viewing Example 22 before viewing this example.
@@ -448,6 +450,7 @@ int main(int argc, char *argv[])
    OperatorPtr Ah;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, Ah, X, B);
+
    // 15. Solve using a direct or an iterative solver
 #ifdef MFEM_USE_SUPERLU
 

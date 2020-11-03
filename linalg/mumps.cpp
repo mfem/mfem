@@ -16,6 +16,14 @@
 
 #include "mumps.hpp"
 
+#ifdef HYPRE_BIGINT
+#error "MUMPSSolver requires HYPRE_Int == int, for now."
+#endif
+
+// macro s.t. indices match MUMPS documentation
+#define MUMPS_ICNTL(I) icntl[(I) -1]
+#define MUMPS_INFO(I) info[(I) -1]
+
 namespace mfem
 {
 
@@ -45,7 +53,7 @@ void MUMPSSolver::SetOperator(const Operator &op)
 
    row_start = parcsr_op->first_row_index;
 
-   int nnz = 0;
+   MUMPS_INT8 nnz = 0;
    if (mat_type)
    {
       // count nnz in case of symmetric mode
@@ -195,9 +203,9 @@ void MUMPSSolver::Mult(const Vector &x, Vector &y) const
    id->rhs_loc = x.GetData();
    id->irhs_loc = irhs_loc;
 
-   id->lsol_loc = id->INFO(23);
-   id->isol_loc = new int[id->INFO(23)];
-   id->sol_loc = new double[id->INFO(23)];
+   id->lsol_loc = id->MUMPS_INFO(23);
+   id->isol_loc = new int[id->MUMPS_INFO(23)];
+   id->sol_loc = new double[id->MUMPS_INFO(23)];
 
    // MUMPS solve
    id->job = 3;
@@ -227,10 +235,10 @@ void MUMPSSolver::Mult(const Vector &x, Vector &y) const
 void MUMPSSolver::MultTranspose(const Vector &x, Vector &y) const
 {
    // Set flag for Transpose Solve
-   id->ICNTL(9) = 0;
+   id->MUMPS_ICNTL(9) = 0;
    Mult(x,y);
    // Reset the flag
-   id->ICNTL(9) = 1;
+   id->MUMPS_ICNTL(9) = 1;
 
 }
 
@@ -264,47 +272,47 @@ MUMPSSolver::~MUMPSSolver()
 void MUMPSSolver::SetParameters()
 {
    // output stream for error messages
-   id->ICNTL(1) = 6;
+   id->MUMPS_ICNTL(1) = 6;
    // output stream for diagnosting printing local to each proc
-   id->ICNTL(2) = 6;
+   id->MUMPS_ICNTL(2) = 6;
    // output stream for global info
-   id->ICNTL(3) = 6;
+   id->MUMPS_ICNTL(3) = 6;
    // Level of error printing
-   id->ICNTL(4) = print_level;
+   id->MUMPS_ICNTL(4) = print_level;
    //input matrix format (assembled)
-   id->ICNTL(5) = 0;
+   id->MUMPS_ICNTL(5) = 0;
    // Use A or A^T
-   id->ICNTL(9) = 1;
+   id->MUMPS_ICNTL(9) = 1;
    // Iterative refinement (disabled)
-   id->ICNTL(10) = 0;
+   id->MUMPS_ICNTL(10) = 0;
    // Error analysis-statistics (disabled)
-   id->ICNTL(11) = 0;
+   id->MUMPS_ICNTL(11) = 0;
    // Use of ScaLAPACK (Parallel factorization on root)
-   id->ICNTL(13) = 0;
+   id->MUMPS_ICNTL(13) = 0;
    // Percentage increase of estimated workspace (default = 20%)
-   id->ICNTL(14) = 20;
+   id->MUMPS_ICNTL(14) = 20;
    // Number of OpenMP threads (default)
-   id->ICNTL(16) = 0;
+   id->MUMPS_ICNTL(16) = 0;
    // Matrix input format (distributed)
-   id->ICNTL(18) = 3;
+   id->MUMPS_ICNTL(18) = 3;
    // Schur complement (no Schur complement matrix returned)
-   id->ICNTL(19) = 0;
+   id->MUMPS_ICNTL(19) = 0;
 
 #if MFEM_MUMPS_VERSION >= 530
    // Distributed RHS
-   id->ICNTL(20) = 10;
+   id->MUMPS_ICNTL(20) = 10;
    // Distributed Sol
-   id->ICNTL(21) = 1;
+   id->MUMPS_ICNTL(21) = 1;
 #else
    // Centralized RHS
-   id->ICNTL(20) = 0;
+   id->MUMPS_ICNTL(20) = 0;
    // Centralized Sol
-   id->ICNTL(21) = 0;
+   id->MUMPS_ICNTL(21) = 0;
 #endif
    // Out of core factorization and solve (disabled)
-   id->ICNTL(22) = 0;
+   id->MUMPS_ICNTL(22) = 0;
    // Max size of working memory (default = based on estimates)
-   id->ICNTL(23) = 0;
+   id->MUMPS_ICNTL(23) = 0;
 }
 
 #if MFEM_MUMPS_VERSION >= 530
@@ -321,7 +329,7 @@ int MUMPSSolver::GetRowRank(int i, const Array<int> &row_starts_) const
 void MUMPSSolver::RedistributeSol(const int * row_map,
                                   const double * x, double * y) const
 {
-   int size = id->INFO(23);
+   int size = id->MUMPS_INFO(23);
    int * send_count = new int[numProcs]();
    for (int i = 0; i < size; i++)
    {

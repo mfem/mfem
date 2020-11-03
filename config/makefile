@@ -79,10 +79,12 @@ get-mumps-version: $(GMV).out
 	$(info MUMPS version: $(MFEM_MUMPS_VERSION)),\
 	$(error Unable to determine MUMPS version))
 
-header: $(if $(MPI),get-hypre-version,) $(if $(SMX),check-smx,) $(if $(MUMPS),get-mumps-version,)
+header: $(if $(MPI),get-hypre-version,) $(if $(SMX),check-smx,) \
+ $(if $(MUMPS),get-mumps-version,)
 	$(call mfem-info, Writing $(CONFIG_HPP) ...)
 	@set -- && \
-	for def in $${MFEM_DEFINES} $(if $(MPI),MFEM_HYPRE_VERSION) $(SMX) $(if $(MUMPS),MFEM_MUMPS_VERSION); do \
+	for def in $${MFEM_DEFINES} $(if $(MPI),MFEM_HYPRE_VERSION) $(SMX) \
+	           $(if $(MUMPS),MFEM_MUMPS_VERSION); do \
 	   eval var=\$$$$def && \
 	   if [ "NO" != "$${var}" ]; then \
 	      set -- "$$@" -e "s|// \(#define $${def} \)|\1|" && \

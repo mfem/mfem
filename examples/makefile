@@ -33,8 +33,14 @@ else
    EXAMPLES = $(PAR_EXAMPLES) $(SEQ_EXAMPLES)
 endif
 SUBDIRS =
-ifeq ($(MFEM_USE_SUNDIALS),YES)
-   SUBDIRS += sundials
+ifeq ($(MFEM_USE_AMGX),YES)
+   SUBDIRS += amgx
+endif
+ifeq ($(MFEM_USE_GINKGO),YES)
+   SUBDIRS += ginkgo
+endif
+ifeq ($(MFEM_USE_HIOP),YES)
+   SUBDIRS += hiop
 endif
 ifeq ($(MFEM_USE_PETSC),YES)
    SUBDIRS += petsc
@@ -42,11 +48,11 @@ endif
 ifeq ($(MFEM_USE_PUMI),YES)
    SUBDIRS += pumi
 endif
-ifeq ($(MFEM_USE_HIOP),YES)
-   SUBDIRS += hiop
+ifeq ($(MFEM_USE_SUNDIALS),YES)
+   SUBDIRS += sundials
 endif
-ifeq ($(MFEM_USE_GINKGO),YES)
-   SUBDIRS += ginkgo
+ifeq ($(MFEM_USE_SUPERLU),YES)
+   SUBDIRS += superlu
 endif
 
 SUBDIRS_ALL = $(addsuffix /all,$(SUBDIRS))

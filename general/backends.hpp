@@ -26,7 +26,6 @@
 #include "hip.hpp"
 
 #ifdef MFEM_USE_OCCA
-#include <occa.hpp>
 #include "occa.hpp"
 #endif
 

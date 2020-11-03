@@ -25,6 +25,7 @@
 
 namespace mfem
 {
+
 /**
  * @brief MUMPS: A Parallel Sparse Direct Solver
  *
@@ -74,6 +75,8 @@ public:
     * @brief Set the error print level for MUMPS
     *
     * @param print_lvl Print level
+    *
+    * @note This method has to be called before SetOperator.
     */
    void SetPrintLevel(int print_lvl);
 
@@ -84,6 +87,8 @@ public:
     * symmetric positive definite
     *
     * @param mtype Matrix type
+    *
+    * @note This method has to be called before SetOperator.
     */
    void SetMatrixSymType(MatType mtype);
 
@@ -109,11 +114,6 @@ private:
 
    // local row offsets
    int row_start;
-
-   // MUMPS workspace
-   // macro s.t. indices match MUMPS documentation
-#define ICNTL(I) icntl[(I) -1]
-#define INFO(I) info[(I) -1]
 
    // MUMPS object
    DMUMPS_STRUC_C *id=nullptr;

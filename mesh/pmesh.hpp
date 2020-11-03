@@ -362,6 +362,15 @@ public:
    /// Save the mesh in a parallel mesh format.
    void ParPrint(std::ostream &out) const;
 
+   /** Print the mesh in parallel PVTU format. The PVTU and VTU files will be
+       stored in the directory specified by @a pathname. If the directory does
+       not exist, it will be created. */
+   virtual void PrintVTU(std::string pathname,
+                         VTKFormat format=VTKFormat::ASCII,
+                         bool high_order_output=false,
+                         int compression_level=0,
+                         bool bdr=false);
+
    virtual int FindPoints(DenseMatrix& point_mat, Array<int>& elem_ids,
                           Array<IntegrationPoint>& ips, bool warn = true,
                           InverseElementTransformation *inv_trans = NULL);

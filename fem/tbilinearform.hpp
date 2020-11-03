@@ -26,9 +26,7 @@ namespace mfem
 
 /** @brief Templated bilinear form class, cf. bilinearform.?pp
 
-// complex_t - sol dof data type
     @tparam meshType typically TMesh, which is templated on FE type
-// real_t - mesh nodes, sol basis, mesh basis data type
     @tparam solFESpace eg. H1_FiniteElementSpace
     @tparam IR integration rule, typically TIntegrationRule, which is further
                templated on element geometry
