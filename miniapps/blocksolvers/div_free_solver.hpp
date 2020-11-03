@@ -42,7 +42,8 @@ class DFSSpaces
 {
    RT_FECollection hdiv_fec_;
    L2_FECollection l2_fec_;
-   ND_FECollection hcurl_fec_;
+//   ND_FECollection hcurl_fec_;
+   unique_ptr<FiniteElementCollection> hcurl_fec_;
    L2_FECollection l2_0_fec_;
 
    unique_ptr<ParFiniteElementSpace> coarse_hdiv_fes_;
