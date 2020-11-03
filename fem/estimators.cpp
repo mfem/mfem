@@ -104,7 +104,7 @@ void KellyErrorEstimator::ComputeEstimates()
 
       ///@TODO how to obtain the "correct" rule?
       const auto int_rule =
-         int_rules.Get(FT->FaceGeom, 2 * FT->Face->Order() - 1);
+         int_rules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(f) - 1);
       const auto nip = int_rule.GetNPoints();
 
       if (pmesh->FaceIsInterior(f))
@@ -148,7 +148,7 @@ void KellyErrorEstimator::ComputeEstimates()
                FT->Face->SetIntPoint(&fip);
                CalcOrtho(FT->Face->Jacobian(), normal);
 
-               jumps(i) = val * normal * fip.weight;
+               jumps(i) = val * normal * fip.weight * FT->Face->Weight();
             }
 
             // Substract integral over half face of e₂
@@ -168,7 +168,7 @@ void KellyErrorEstimator::ComputeEstimates()
                FT->Face->SetIntPoint(&fip);
                CalcOrtho(FT->Face->Jacobian(), normal);
 
-               jumps(i) -= val * normal * fip.weight;
+               jumps(i) -= val * normal * fip.weight * FT->Face->Weight();
             }
 
             // Finalize "local" L₂ contribution
@@ -204,7 +204,7 @@ void KellyErrorEstimator::ComputeEstimates()
 
       ///@TODO how to obtain the "correct" rule?
       const auto int_rule =
-         int_rules.Get(FT->FaceGeom, 2 * FT->Face->Order() - 1);
+         int_rules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(0) - 1);
       const auto nip = int_rule.GetNPoints();
 
       IntegrationRule eir;
@@ -225,8 +225,8 @@ void KellyErrorEstimator::ComputeEstimates()
          Vector normal(pmesh->Dimension());
          FT->Face->SetIntPoint(&fip);
          CalcOrtho(FT->Face->Jacobian(), normal);
-
-         jumps(i) = val * normal * fip.weight;
+         
+         jumps(i) = val * normal * fip.weight * FT->Face->Weight();
       }
 
       // Substract integral over non-local half face of e₂
@@ -246,7 +246,7 @@ void KellyErrorEstimator::ComputeEstimates()
          FT->Face->SetIntPoint(&fip);
          CalcOrtho(FT->Face->Jacobian(), normal);
 
-         jumps(i) -= val * normal * fip.weight;
+         jumps(i) -= val * normal * fip.weight * FT->Face->Weight();
       }
 
       // Finalize "local" L₂ contribution
