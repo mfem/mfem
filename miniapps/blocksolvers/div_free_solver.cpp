@@ -47,13 +47,17 @@ SparseMatrix ElemToDof(const ParFiniteElementSpace& fes)
 DFSSpaces::DFSSpaces(int order, int num_refine, ParMesh *mesh,
                      const Array<int>& ess_attr, const DFSParameters& param)
    : hdiv_fec_(order, mesh->Dimension()), l2_fec_(order, mesh->Dimension()),
-     hcurl_fec_(order+1, mesh->Dimension()), l2_0_fec_(0, mesh->Dimension()),
-     ess_bdr_attr_(ess_attr), level_(0)
+     l2_0_fec_(0, mesh->Dimension()), ess_bdr_attr_(ess_attr), level_(0)
 {
    if (mesh->GetElement(0)->GetType() == Element::TETRAHEDRON && order)
    {
       mfem_error("DFSDataCollector: High order spaces on tetrahedra are not supported");
    }
+
+   if (mesh->Dimension() == 3)
+      hcurl_fec_.reset(new ND_FECollection(order+1, mesh->Dimension()));
+   else
+      hcurl_fec_.reset(new H1_FECollection(order+1, mesh->Dimension()));
 
    data_.param = param;
 
@@ -75,7 +79,7 @@ DFSSpaces::DFSSpaces(int order, int num_refine, ParMesh *mesh,
    hdiv_fes_->GetEssentialTrueDofs(ess_attr, data_.coarsest_ess_hdivdofs);
    data_.C.SetSize(num_refine+1);
 
-   hcurl_fes_.reset(new ParFiniteElementSpace(mesh, &hcurl_fec_));
+   hcurl_fes_.reset(new ParFiniteElementSpace(mesh, hcurl_fec_.get()));
    coarse_hcurl_fes_.reset(new ParFiniteElementSpace(*hcurl_fes_));
    data_.P_hcurl.SetSize(num_refine, OperatorPtr(Operator::Hypre_ParCSR));
 }
@@ -153,6 +157,9 @@ void DFSSpaces::CollectDFSData()
 
    Vector trash1(hcurl_fes_->GetVSize()), trash2(hdiv_fes_->GetVSize());
    ParDiscreteLinearOperator curl(hcurl_fes_.get(), hdiv_fes_.get());
+
+//   auto KernelInterpolator = hcurl_fes_->GetMesh()->Dimension() == 3
+//         ?  : new
    curl.AddDomainInterpolator(new CurlInterpolator);
    curl.Assemble();
    curl.EliminateTrialDofs(ess_bdr_attr_, trash1, trash2);
