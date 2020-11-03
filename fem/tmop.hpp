@@ -70,7 +70,7 @@ public:
                           const double weight, DenseMatrix &A) const = 0;
 };
 
-/// Abstract class used to define combination of metrics with fixed coefficients.
+/// Abstract class used to define combination of metrics with constant coefficients.
 class TMOP_Combo_QualityMetric : public TMOP_QualityMetric
 {
 protected:

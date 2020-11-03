@@ -49,6 +49,7 @@
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100 -qo 6 -ex -st 1 -nor
 //   Adapted discrete size+orientation (requires GSLIB):
 //   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 8 -ni 100  -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd -ae 1
+//   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -ni 100  -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd -ae 1
 //   Adapted discrete aspect_ratio+orientation (requires GSLIB):
 //   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 8 -ni 10  -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd -ae 1
 //   Adapted discrete aspect ratio (3D):
