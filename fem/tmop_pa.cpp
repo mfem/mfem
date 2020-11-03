@@ -136,6 +136,10 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &xe) const
 
    const TargetConstructor::TargetType &target_type = targetC->Type();
 
+   // Skip when TargetConstructor needs the nodes but have not been set
+   const bool tc_wn = target_type != TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
+   if (targetC && tc_wn && !targetC->GetNodes()) { return; }
+
    Vector x;
    const bool useable_input_vector = xe.Size() > 0;
    const bool use_input_vector = target_type == TargetConstructor::GIVEN_FULL;
