@@ -675,13 +675,6 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
                                         sbc.attr_marker);
          n20ZIm_->AddBoundaryIntegrator(new MassIntegrator(*sbc.imag),
                                         sbc.attr_marker);
-        /*
-          n20ZRe_->AddBoundaryIntegrator(new MassIntegrator,
-                                         sbc.attr_marker);
-          n20ZIm_->AddBoundaryIntegrator(new MassIntegrator,
-                                         sbc.attr_marker);
-           */
-        
       }
    }
 
@@ -694,7 +687,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
 
    d_  = new ParComplexGridFunction(HDivFESpace_);
    *d_ = 0.0;
-    
+
    if (sbcs_->Size() > 0)
    {
       phi_  = new ParComplexGridFunction(H1FESpace_);
@@ -1182,7 +1175,7 @@ CPDSolver::Solve()
          }
       }
 
-      if (e_ == e_tmp_ ){ break;} // L2 norm errors, these are only the boundary values at this point
+      if (e_ == e_tmp_ ) { break;} // L2 norm errors, these are only the boundary values at this point
 
       a1_->FormLinearSystem(ess_bdr_tdofs_, *e_, *rhs_, A1, E, RHS);
 
@@ -1407,7 +1400,7 @@ CPDSolver::Solve()
 
          rhs.real() -= tmp.real();
          rhs.imag() += tmp.imag();
-          
+
 
          if (conv_ == ComplexOperator::Convention::BLOCK_SYMMETRIC)
          {
@@ -1452,7 +1445,7 @@ CPDSolver::Solve()
 
          delete diag;
          delete pcg;
-          
+
       }
 
       // Update phi = - i w z n.D on the boundary
@@ -1472,34 +1465,34 @@ CPDSolver::Solve()
 
          HypreParMatrix M0;
          Vector Phi, RHS0;
-          
+
          Array<int> sbc_marker(pmesh_->bdr_attributes.Max());
          sbc_marker = 0;
          for (int i=0; i<sbcs_->Size(); i++)
-          {
-             ComplexCoefficientByAttr & sbc = (*sbcs_)[i];
-             for (int j=0; j<sbc.attr_marker.Size(); j++)
-             {
-                sbc_marker[j] |= sbc.attr_marker[j];
-             }
-          }
+         {
+            ComplexCoefficientByAttr & sbc = (*sbcs_)[i];
+            for (int j=0; j<sbc.attr_marker.Size(); j++)
+            {
+               sbc_marker[j] |= sbc.attr_marker[j];
+            }
+         }
 
          Array<int> sbc_tdof;
          H1FESpace_->GetEssentialTrueDofs(sbc_marker, sbc_tdof);
 
          Array<int> sbc_tdof_marker;
          H1FESpace_->ListToMarker(sbc_tdof, H1FESpace_->GetTrueVSize(),
-                                             sbc_tdof_marker, 1);
+                                  sbc_tdof_marker, 1);
 
-          // Invert marker
+         // Invert marker
          for (int i=0; i<sbc_tdof_marker.Size(); i++)
-          {
-             sbc_tdof_marker[i] = 1 - sbc_tdof_marker[i];
-          }
+         {
+            sbc_tdof_marker[i] = 1 - sbc_tdof_marker[i];
+         }
 
          Array<int> ess_tdof;
          H1FESpace_->MarkerToList(sbc_tdof_marker, ess_tdof);
-          
+
          m0_->FormSystemMatrix(ess_tdof, M0);
 
          Phi.SetSize(H1FESpace_->TrueVSize()); Phi = 0.0;
@@ -1511,15 +1504,13 @@ CPDSolver::Solve()
          pcg.SetPreconditioner(diag);
          pcg.SetTol(1e-12);
          pcg.SetMaxIter(1000);
-          
+
          ParComplexLinearForm rhs(H1FESpace_);
          ParComplexLinearForm tmp(H1FESpace_);
 
          n20ZRe_->Update();
          n20ZIm_->Update();
-         //n20ZRe_->operator=(0.0);
-         //n20ZIm_->operator=(0.0);
-             
+
          n20ZRe_->Assemble();
          n20ZRe_->Finalize();
 
@@ -1534,14 +1525,14 @@ CPDSolver::Solve()
 
          rhs.real() += tmp.real();
          rhs.imag() -= tmp.imag();
-          
+
          rhs.real() *= omega_;
          rhs.imag() *= omega_;
-          
+
          if (conv_ == ComplexOperator::Convention::BLOCK_SYMMETRIC)
-            {
-               rhs.imag() *= -1.0;
-            }
+         {
+            rhs.imag() *= -1.0;
+         }
 
          rhs.real().ParallelAssemble(RHS0);
 
@@ -1562,34 +1553,34 @@ CPDSolver::Solve()
          Phi_err = PhisolErr;
          if ( PhisolNorm != 0 ) { Phi_err = PhisolErr / PhisolNorm; }
 
-         if (PhisolNorm == 0 && Phi_err < 1e-3){ break; }
+         if (PhisolNorm == 0 && Phi_err < 1e-3) { break; }
 
          phi_tmp_->real() = phi_->real();
          phi_tmp_->imag() = phi_->imag();
 
       }
 
-       delete BDP;
-       if (pci != pcr) { delete pci; }
-       delete pcr;
+      delete BDP;
+      if (pci != pcr) { delete pci; }
+      delete pcr;
 
-       if ( myid_ == 0 && logging_ > 0 )
-       {
-          cout << " Solver done in " << tic_toc.RealTime() << " seconds." << endl;
-       }
-       double EsolNorm = e_tmp_->ComputeL2Error(zeroVecCoef, zeroVecCoef);
-       double EsolErr = e_->ComputeL2Error(e_tmp_r_, e_tmp_i_);
-       double EsolNorm_e = e_->ComputeL2Error(zeroVecCoef, zeroVecCoef);
+      if ( myid_ == 0 && logging_ > 0 )
+      {
+         cout << " Solver done in " << tic_toc.RealTime() << " seconds." << endl;
+      }
+      double EsolNorm = e_tmp_->ComputeL2Error(zeroVecCoef, zeroVecCoef);
+      double EsolErr = e_->ComputeL2Error(e_tmp_r_, e_tmp_i_);
+      double EsolNorm_e = e_->ComputeL2Error(zeroVecCoef, zeroVecCoef);
 
-       E_err = EsolErr;
-       if ( EsolNorm != 0 ) { E_err = EsolErr / EsolNorm; }
+      E_err = EsolErr;
+      if ( EsolNorm != 0 ) { E_err = EsolErr / EsolNorm; }
 
-       cout << "EField pass: " << E_iter << " Error: " << E_err << '\n';
+      cout << "EField pass: " << E_iter << " Error: " << E_err << '\n';
 
-       e_tmp_->real() = e_->real();
-       e_tmp_->imag() = e_->imag();
+      e_tmp_->real() = e_->real();
+      e_tmp_->imag() = e_->imag();
 
-       E_iter++;
+      E_iter++;
    }
    cout << " Outer E field calculation done in " << E_iter << " iteration(s)." <<
         endl;
@@ -1647,23 +1638,21 @@ CPDSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
 
    if (sbcs_->Size() > 0)
    {
-      
       visit_dc.RegisterField("Re_Phi", &phi_->real());
       visit_dc.RegisterField("Im_Phi", &phi_->imag());
-    
    }
 
-    if ( rectPot_ )
-    {
+   if ( rectPot_ )
+   {
       visit_dc.RegisterField("Rec_Re_Phi", &rectPot_->real());
       visit_dc.RegisterField("Rec_Im_Phi", &rectPot_->imag());
-    }
-     
-    if ( BCoef_)
-    {
-        visit_dc.RegisterField("Re_EB", &e_b_->real());
-        visit_dc.RegisterField("Im_EB", &e_b_->imag());
-    }
+   }
+
+   if ( BCoef_)
+   {
+      visit_dc.RegisterField("Re_EB", &e_b_->real());
+      visit_dc.RegisterField("Im_EB", &e_b_->imag());
+   }
 
    // visit_dc.RegisterField("Er", e_r_);
    // visit_dc.RegisterField("Ei", e_i_);
@@ -1712,43 +1701,43 @@ CPDSolver::WriteVisItFields(int it)
 
       if ( rectPot_ )
       {
-          
-          ComplexCoefficientByAttr & sbc = (*sbcs_)[0];
-          SheathBase * sb = dynamic_cast<SheathBase*>(sbc.real);
 
-          
-          if (sb != NULL)
-          {
+         ComplexCoefficientByAttr & sbc = (*sbcs_)[0];
+         SheathBase * sb = dynamic_cast<SheathBase*>(sbc.real);
+
+
+         if (sb != NULL)
+         {
             RectifiedSheathPotential rectPotCoefR(*sb, true);
             RectifiedSheathPotential rectPotCoefI(*sb, false);
 
             rectPot_->ProjectCoefficient(rectPotCoefR, rectPotCoefI);
-          }
-       
+         }
+
       }
-      
-       if ( BCoef_)
-       {
-           VectorGridFunctionCoefficient e_r(&e_->real());
-           VectorGridFunctionCoefficient e_i(&e_->imag());
-           InnerProductCoefficient ebrCoef(e_r, *BCoef_);
-           InnerProductCoefficient ebiCoef(e_i, *BCoef_);
 
-           e_b_->ProjectCoefficient(ebrCoef, ebiCoef);
+      if ( BCoef_)
+      {
+         VectorGridFunctionCoefficient e_r(&e_->real());
+         VectorGridFunctionCoefficient e_i(&e_->imag());
+         InnerProductCoefficient ebrCoef(e_r, *BCoef_);
+         InnerProductCoefficient ebiCoef(e_i, *BCoef_);
+
+         e_b_->ProjectCoefficient(ebrCoef, ebiCoef);
+      }
+
+      //ComplexCoefficientByAttr & sbc = (*sbcs_)[0];
+      //SheathBase * sb = dynamic_cast<SheathBase*>(sbc.real);
+
+      /*
+      if (sb != NULL)
+      {
+        RectifiedSheathPotential rectPotCoefR(*sb, true);
+        RectifiedSheathPotential rectPotCoefI(*sb, false);
+
+        rectPot_->ProjectCoefficient(rectPotCoefR, rectPotCoefI);
        }
-
-         //ComplexCoefficientByAttr & sbc = (*sbcs_)[0];
-         //SheathBase * sb = dynamic_cast<SheathBase*>(sbc.real);
-
-         /*
-         if (sb != NULL)
-         {
-           RectifiedSheathPotential rectPotCoefR(*sb, true);
-           RectifiedSheathPotential rectPotCoefI(*sb, false);
-
-           rectPot_->ProjectCoefficient(rectPotCoefR, rectPotCoefI);
-          }
-          */
+       */
 
 
 
@@ -1927,42 +1916,42 @@ CPDSolver::DisplayToGLVis()
 
       VisualizeField(*socks_["Phii"], vishost, visport,
                      phi_v_->imag(), "Sheath Potential, Im(Phi)", Wx, Wy, Ww, Wh);
-        
-       /*
+
+      /*
 
       Wx += offx;
       VisualizeField(*socks_["RecPhir"], vishost, visport,
-                     rectPot_->real(), "Rectified Potential, Re(RecPhi)", Wx, Wy, Ww, Wh);
+                    rectPot_->real(), "Rectified Potential, Re(RecPhi)", Wx, Wy, Ww, Wh);
       Wx += offx;
 
       VisualizeField(*socks_["RecPhii"], vishost, visport,
-                     rectPot_->imag(), "Rectified Potential, Im(RecPhi)", Wx, Wy, Ww, Wh);
-        */
-    
+                    rectPot_->imag(), "Rectified Potential, Im(RecPhi)", Wx, Wy, Ww, Wh);
+       */
+
    }
 
    if (BCoef_)
    {
-       /*
+      /*
       VectorGridFunctionCoefficient e_r(&e_v_->real());
       VectorGridFunctionCoefficient e_i(&e_v_->imag());
       InnerProductCoefficient ebrCoef(e_r, *BCoef_);
       InnerProductCoefficient ebiCoef(e_i, *BCoef_);
 
       e_b_->ProjectCoefficient(ebrCoef, ebiCoef);
-        */
+       */
 
-      
+
       VisualizeField(*socks_["EBr"], vishost, visport,
-                    e_b_->real(), "Parallel Electric Field, Re(E.B)",
-                    Wx, Wy, Ww, Wh);
+                     e_b_->real(), "Parallel Electric Field, Re(E.B)",
+                     Wx, Wy, Ww, Wh);
       Wx += offx;
 
       VisualizeField(*socks_["EBi"], vishost, visport,
-                    e_b_->imag(), "Parallel Electric Field, Im(E.B)",
-                    Wx, Wy, Ww, Wh);
+                     e_b_->imag(), "Parallel Electric Field, Im(E.B)",
+                     Wx, Wy, Ww, Wh);
       Wx += offx;
-       
+
 
    }
    /*
