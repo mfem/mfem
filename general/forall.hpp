@@ -110,14 +110,12 @@ template <const int BLOCKS = MFEM_CUDA_BLOCKS, typename DBODY>
 void RajaCuWrap1D(const int N, DBODY &&d_body)
 {
    //true denotes asynchronous kernel
-   using ForPolicy = RAJA::cuda_exec<MFEM_CUDA_BLOCKS,true>;
-
-   RAJA::forall<ForPolicy>(RAJA::RangeSegment(0,N),d_body);
+   RAJA::forall<RAJA::cuda_exec<BLOCKS,true>>(RAJA::RangeSegment(0,N),d_body);
 }
 
 template <typename DBODY>
 void RajaCuWrap2D(const int N, DBODY &&d_body,
-                      const int X, const int Y, const int BZ)
+                  const int X, const int Y, const int BZ)
 {
    MFEM_VERIFY(N>0, "");
    MFEM_VERIFY(BZ>0, "");
@@ -152,7 +150,7 @@ void RajaCuWrap2D(const int N, DBODY &&d_body,
 
 template <typename DBODY>
 void RajaCuWrap3D(const int N, DBODY &&d_body,
-                      const int X, const int Y, const int Z)
+                  const int X, const int Y, const int Z)
 {
    MFEM_VERIFY(N>0, "");
    using namespace RAJA::expt;
@@ -173,18 +171,16 @@ void RajaCuWrap3D(const int N, DBODY &&d_body,
 #endif
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_HIP)
-template <const int BLOCKS = MFEM_CUDA_BLOCKS, typename DBODY>
+template <const int BLOCKS = MFEM_HIP_BLOCKS, typename DBODY>
 void RajaHipWrap1D(const int N, DBODY &&d_body)
 {
    //true denotes asynchronous kernel
-   using ForPolicy = RAJA::hip_exec<MFEM_CUDA_BLOCKS,true>;
-
-   RAJA::forall<ForPolicy>(RAJA::RangeSegment(0,N),d_body);
+   RAJA::forall<RAJA::hip_exec<BLOCKS,true>>(RAJA::RangeSegment(0,N),d_body);
 }
 
 template <typename DBODY>
 void RajaHipWrap2D(const int N, DBODY &&d_body,
-                      const int X, const int Y, const int BZ)
+                   const int X, const int Y, const int BZ)
 {
    MFEM_VERIFY(N>0, "");
    MFEM_VERIFY(BZ>0, "");
@@ -219,7 +215,7 @@ void RajaHipWrap2D(const int N, DBODY &&d_body,
 
 template <typename DBODY>
 void RajaHipWrap3D(const int N, DBODY &&d_body,
-                      const int X, const int Y, const int Z)
+                   const int X, const int Y, const int Z)
 {
    MFEM_VERIFY(N>0, "");
    using namespace RAJA::expt;
