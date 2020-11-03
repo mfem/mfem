@@ -201,18 +201,25 @@ public:
          backend (Backend::Id 'DEBUG_DEVICE') is exceptionally set to 'debug'.
        * The 'cpu' backend is always enabled with lowest priority.
        * The current backend priority from highest to lowest is:
-         'ceed-cuda', 'occa-cuda', 'raja-cuda', 'cuda', 'hip', 'debug',
+         'ceed-cuda', 'occa-cuda', 'raja-cuda', 'cuda',
+         'ceed-hip', 'hip', 'debug',
          'occa-omp', 'raja-omp', 'omp',
          'ceed-cpu', 'occa-cpu', 'raja-cpu', 'cpu'.
        * Multiple backends can be configured at the same time.
        * Only one 'occa-*' backend can be configured at a time.
        * The backend 'occa-cuda' enables the 'cuda' backend unless 'raja-cuda'
          is already enabled.
+       * The backend 'occa-omp' enables the 'omp' backend (if MFEM was built
+         with MFEM_USE_OPENMP=YES) unless 'raja-omp' is already enabled.
+       * Only one 'ceed-*' backend can be configured at a time.
        * The backend 'ceed-cpu' delegates to a libCEED CPU backend the setup and
          evaluation of the operator.
        * The backend 'ceed-cuda' delegates to a libCEED CUDA backend the setup
-         and evaluation of the operator and enables the 'cuda' backend to avoid
-         transfer between host and device.
+         and evaluation of operators and enables the 'cuda' backend to avoid
+         transfers between host and device.
+       * The backend 'ceed-hip' delegates to a libCEED HIP backend the setup
+         and evaluation of operators and enables the 'hip' backend to avoid
+         transfers between host and device.
        * The 'debug' backend should not be combined with other device backends.
    */
    void Configure(const std::string &device, const int dev = 0);

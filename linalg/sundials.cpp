@@ -577,7 +577,7 @@ void CVODESolver::Init(TimeDependentOperator &f_)
 
    if (!sundials_mem)
    {
-      // Temporarly set N_Vector wrapper data to create CVODE. The correct
+      // Temporarily set N_Vector wrapper data to create CVODE. The correct
       // initial condition will be set using CVodeReInit() when Step() is
       // called.
 
@@ -722,7 +722,7 @@ void CVODESolver::SetMaxStep(double dt_max)
 void CVODESolver::SetMaxNSteps(int mxsteps)
 {
    flag = CVodeSetMaxNumSteps(sundials_mem, mxsteps);
-   MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetMaxNSteps()");
+   MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetMaxNumSteps()");
 }
 
 long CVODESolver::GetNumSteps()
@@ -896,6 +896,12 @@ void CVODESSolver::InitAdjointSolve(int steps, int interpolation)
 {
    flag = CVodeAdjInit(sundials_mem, steps, interpolation);
    MFEM_VERIFY(flag == CV_SUCCESS, "Error in CVodeAdjInit");
+}
+
+void CVODESSolver::SetMaxNStepsB(int mxstepsB)
+{
+   flag = CVodeSetMaxNumStepsB(sundials_mem, indexB, mxstepsB);
+   MFEM_VERIFY(flag == CV_SUCCESS, "Error in CVodeSetMaxNumStepsB()");
 }
 
 void CVODESSolver::InitQuadIntegration(mfem::Vector &q0, double reltolQ,
