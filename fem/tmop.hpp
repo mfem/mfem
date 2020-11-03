@@ -697,7 +697,13 @@ public:
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
 
-   virtual bool ComputeElementTargetsPA(const IntegrationRule *ir,
+   template<int DIM>
+   bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
+                                const IntegrationRule *ir,
+                                DenseTensor &Jtr,
+                                const Vector &xe = Vector()) const;
+   virtual bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
+                                        const IntegrationRule *ir,
                                         DenseTensor &Jtr,
                                         const Vector &xe = Vector()) const;
 
@@ -746,7 +752,8 @@ public:
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
 
-   virtual bool ComputeElementTargetsPA(const IntegrationRule *ir,
+   virtual bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
+                                        const IntegrationRule *ir,
                                         DenseTensor &Jtr,
                                         const Vector &xe = Vector()) const;
 
@@ -901,7 +908,8 @@ public:
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
 
-   virtual bool ComputeElementTargetsPA(const IntegrationRule *ir,
+   virtual bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
+                                        const IntegrationRule *ir,
                                         DenseTensor &Jtr,
                                         const Vector &xe = Vector()) const;
 
@@ -928,6 +936,10 @@ protected:
 
    TMOP_QualityMetric *metric;        // not owned
    const TargetConstructor *targetC;  // not owned
+
+   // Custom integration rules.
+   IntegrationRules *IntegRules;
+   int integ_order;
 
    // Weight Coefficient multiplying the quality metric term.
    Coefficient *coeff1; // not owned, if NULL -> coeff1 is 1.
@@ -993,6 +1005,7 @@ protected:
       const GeometricFactors *geom;
       const FiniteElementSpace *fes;
       const Operator *R;
+      const IntegrationRule *ir;
    } PA;
 
    void ComputeNormalizationEnergies(const GridFunction &x,
@@ -1041,17 +1054,21 @@ protected:
       nodes0 = NULL; coeff0 = NULL; lim_dist = NULL; lim_func = NULL;
    }
 
-   const IntegrationRule *EnergyIntegrationRule(const FiniteElement &el) const
+   const IntegrationRule &EnergyIntegrationRule(const FiniteElement &el) const
    {
-      return (IntRule) ? IntRule
-             /*     */ : &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3));
+      if (IntegRules)
+      {
+         return IntegRules->Get(el.GetGeomType(), integ_order);
+      }
+      return (IntRule) ? *IntRule
+             /*     */ : IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3);
    }
-   const IntegrationRule *ActionIntegrationRule(const FiniteElement &el) const
+   const IntegrationRule &ActionIntegrationRule(const FiniteElement &el) const
    {
       // TODO the energy most likely needs less integration points.
       return EnergyIntegrationRule(el);
    }
-   const IntegrationRule *GradientIntegrationRule(const FiniteElement &el) const
+   const IntegrationRule &GradientIntegrationRule(const FiniteElement &el) const
    {
       // TODO the action and energy most likely need less integration points.
       return EnergyIntegrationRule(el);
@@ -1061,7 +1078,7 @@ public:
    /** @param[in] m  TMOP_QualityMetric that will be integrated (not owned).
        @param[in] tc Target-matrix construction algorithm to use (not owned). */
    TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc)
-      : metric(m), targetC(tc),
+      : metric(m), targetC(tc), IntegRules(NULL), integ_order(-1),
         coeff1(NULL), metric_normal(1.0),
         nodes0(NULL), coeff0(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
@@ -1071,6 +1088,14 @@ public:
    { PA.enabled = false; }
 
    ~TMOP_Integrator();
+
+   /// Prescribe a set of integration rules; relevant for mixed meshes.
+   /** This function has priority over SetIntRule(), if both are called. */
+   void SetIntegrationRules(IntegrationRules &irules, int order)
+   {
+      IntegRules = &irules;
+      integ_order = order;
+   }
 
    /// Sets a scaling Coefficient for the quality metric term of the integrator.
    /** With this addition, the integrator becomes
