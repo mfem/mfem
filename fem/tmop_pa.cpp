@@ -119,12 +119,15 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &xe) const
    PA.setup_Jtr = false;
    const FiniteElementSpace *fes = PA.fes;
    const IntegrationRule &ir = EnergyIntegrationRule(*fes->GetFE(0));
+   const TargetConstructor::TargetType &target_type = targetC->Type();
 
-   {
-      // Try to use the TargetConstructor ComputeElementTargetsPA
-      PA.setup_Jtr = targetC->ComputeElementTargetsPA(fes, &ir, PA.Jtr);
-      if (PA.setup_Jtr) { return; }
-   }
+   // Skip when TargetConstructor needs the nodes but have not been set
+   const bool tc_wn = target_type != TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
+   if (targetC && tc_wn && !targetC->GetNodes()) { return; }
+
+   // Try to use the TargetConstructor ComputeElementTargetsPA
+   PA.setup_Jtr = targetC->ComputeElementTargetsPA(fes, &ir, PA.Jtr);
+   if (PA.setup_Jtr) { return; }
 
    // Defaulting to host version
    PA.Jtr.HostWrite();
@@ -133,12 +136,6 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &xe) const
    const int NQ = PA.nq;
    const int dim = PA.dim;
    DenseTensor &Jtr = PA.Jtr;
-
-   const TargetConstructor::TargetType &target_type = targetC->Type();
-
-   // Skip when TargetConstructor needs the nodes but have not been set
-   const bool tc_wn = target_type != TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
-   if (targetC && tc_wn && !targetC->GetNodes()) { return; }
 
    Vector x;
    const bool useable_input_vector = xe.Size() > 0;
