@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include <fstream>
+#include "mfem.hpp"
 
 using namespace std;
 using namespace mfem;
