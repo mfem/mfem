@@ -12,6 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
+#include "libceed/mass.hpp"
 
 using namespace std;
 
@@ -30,6 +31,13 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    ElementTransformation *T = mesh->GetElementTransformation(0);
    const IntegrationRule *ir
       = IntRule ? IntRule : &MassIntegrator::GetRule(el, el, *T);
+   if (DeviceCanUseCeed())
+   {
+      delete ceedDataPtr;
+      ceedDataPtr = new CeedData;
+      InitCeedCoeff(Q, *mesh, *ir, ceedDataPtr);
+      return CeedPAMassAssemble(fes, *ir, *ceedDataPtr);
+   }
    dim = mesh->Dimension();
    ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
@@ -361,7 +369,14 @@ static void PAVectorMassApply(const int dim,
 
 void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   PAVectorMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, pa_data, x, y);
+   if (DeviceCanUseCeed())
+   {
+      CeedAddMult(ceedDataPtr, x, y);
+   }
+   else
+   {
+      PAVectorMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, pa_data, x, y);
+   }
 }
 
 template<const int T_D1D = 0, const int T_Q1D = 0>
@@ -514,14 +529,21 @@ static void PAVectorMassAssembleDiagonal(const int dim,
 
 void VectorMassIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   PAVectorMassAssembleDiagonal(dim,
-                                dofs1D,
-                                quad1D,
-                                ne,
-                                maps->B,
-                                maps->Bt,
-                                pa_data,
-                                diag);
+   if (DeviceCanUseCeed())
+   {
+      CeedAssembleDiagonal(ceedDataPtr, diag);
+   }
+   else
+   {
+      PAVectorMassAssembleDiagonal(dim,
+                                   dofs1D,
+                                   quad1D,
+                                   ne,
+                                   maps->B,
+                                   maps->Bt,
+                                   pa_data,
+                                   diag);
+   }
 }
 
 } // namespace mfem
