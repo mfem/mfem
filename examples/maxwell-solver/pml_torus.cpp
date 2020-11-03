@@ -121,7 +121,7 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    // const char *mesh_file = "torus1_4.mesh";
    // const char *mesh_file = "waveguide-bend2.mesh";
-   const char *mesh_file = "waveguide-bend.mesh";
+   const char *mesh_file = "meshes/waveguide-bend.mesh";
 
    int order = 1;
    int ref_levels = 3;
@@ -164,22 +164,22 @@ int main(int argc, char *argv[])
    {
    case 0: 
    {
-      mesh_file = "waveguide-bend.mesh"; 
+      mesh_file = "meshes/waveguide-bend.mesh"; 
       L = -2.;
       ylim = -3;
    }
    break;
    case 1: 
    {
-      mesh_file = "waveguide-bend2.mesh";
+      mesh_file = "meshes/waveguide-bend2.mesh";
       L = -5.;
       ylim = 0.0;
    }
    break;
-   case 2: mesh_file = "toroid3_4_2.mesh"; break;
+   case 2: mesh_file = "meshes/toroid3_4_2.mesh"; break;
    // case 3: mesh_file = "toroid-hex-o3-s0_r.mesh"; break;
    // case 3: mesh_file = "../../data/square-disc.mesh"; break;
-   case 3: mesh_file = "annulus-quad-o3.mesh"; break;
+   case 3: mesh_file = "meshes/annulus-quad-o3.mesh"; break;
    // case 3: mesh_file = "cylinder.mesh"; break;
    default:
       MFEM_ABORT("Not a valid problem choice ");
@@ -261,7 +261,7 @@ int main(int argc, char *argv[])
       mesh_sock.precision(8);
       mesh_sock << "mesh\n"
                   << *mesh << "window_title 'Mesh'" << flush;
-      ofstream mesh_ofs("pml_torus.mesh");
+      ofstream mesh_ofs("output/pml_torus.mesh");
       mesh_ofs.precision(8);
       mesh->Print(mesh_ofs);                  
    }
@@ -448,6 +448,42 @@ int main(int argc, char *argv[])
    }
 
 
+
+   ComplexDenseMatrix MatZ(2,2);
+   // for (int i = 0; i<3; i++)
+   // {
+   //    for (int j = 0; j<3; j++)
+   //    {
+   //       MatZ(i,j) = complex<double>(i,10*j);
+   //    }
+   // }
+
+   // for (int i = 0; i<3; i++)
+   // {
+   //    for (int j = 0; j<3; j++)
+   //    {
+   //       cout << "MatZ("<<i<<","<<j<<") = " << MatZ(i,j) << endl;
+   //    }
+   // }
+   MatZ(0,0) =  complex<double>(0.286569,0.736547);  
+   MatZ(0,1) =  complex<double>(0.051340,0.018433);  
+   // MatZ(0,2) =  complex<double>(0.526620,0.077061);  
+   MatZ(1,0) =  complex<double>(0.881512,0.036553);  
+   MatZ(1,1) =  complex<double>(0.727566,0.000757);  
+   // MatZ(1,2) =  complex<double>(0.853221,0.513477);  
+   // MatZ(2,0) =  complex<double>(0.834360,0.822687);  
+   // MatZ(2,1) =  complex<double>(0.335619,0.406582);  
+   // MatZ(2,2) =  complex<double>(0.029811,0.382764);  
+
+   // MatZ.PrintMatlab(cout);
+
+   ComplexDenseMatrixInverse InvZ(MatZ);
+   InvZ.PrintMatlab(cout);
+   // cout << "DetMatZ = " << MatZ.GetDeterminant() << endl;
+   // cout << "DetInvZ = " << InvZ.GetDeterminant() << endl;
+   
+
+   
 
 
    // 16. Send the solution by socket to a GLVis server.
