@@ -348,6 +348,12 @@ MFEM_USE_SUPERLU5 = YES/NO
    If SuperLU functionality is enabled, use the older 5.1.0 version rather than
    the more recent 6+ versions.
 
+MFEM_USE_MUMPS = YES/NO
+   Enable MFEM functionality based on the MUMPS library. Currently, this
+   option adds the class MUMPSSolver (a parallel sparse direct solver). 
+   When enabled, this option uses the MUMPS_* library options, see
+   below.
+   
 MFEM_USE_STRUMPACK = YES/NO
    Enable MFEM functionality based on the STRUMPACK sparse direct solver and
    preconditioner through the STRUMPACKSolver and STRUMPACKRowLocMatrix
@@ -577,6 +583,12 @@ The specific libraries and their options are:
   URL: http://crd-legacy.lbl.gov/~xiaoye/SuperLU
   Options: SUPERLU_OPT, SUPERLU_LIB.
   Versions: SuperLU_DIST >= 5.1.0.
+
+- MUMPS (optional), used when MFEM_USE_MUMPS = YES. Note that MUMPS
+  requires LAPACK, SCALAPACK and a reordering package such as PORD or METIS.
+  URL: http://mumps.enseeiht.fr
+  Options: MUMPS_OPT, MUMPS_LIB.
+  Versions: MUMPS >= 5.1.1
 
 - STRUMPACK (optional), used when MFEM_USE_STRUMPACK = YES. Note that STRUMPACK
   requires the PT-Scotch and Scalapack libraries as well as ParMETIS, which
@@ -837,6 +849,7 @@ MFEM_TIMER_TYPE - Set automatically, can be overwritten.
 MFEM_USE_MESQUITE
 MFEM_USE_SUITESPARSE
 MFEM_USE_SUPERLU
+MFEM_USE_MUMPS
 MFEM_USE_STRUMPACK
 MFEM_USE_GINKGO
 MFEM_USE_AMGX
