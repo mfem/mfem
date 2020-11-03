@@ -102,12 +102,12 @@ public:
    Kernel_t At(const Key_t id) { return map.at(id); }
 };
 
-// MFEM_REGISTER_TMOP_KERNELS macro:
-// - forward declaration of the kernel
-// - kernel pointer declaration
-// - struct K##name##_T definition
-// - Instantiator definition
-// - re-use kernel return type and name before its body
+/// MFEM_REGISTER_TMOP_KERNELS macro:
+/// - forward declaration of the kernel
+/// - kernel pointer declaration
+/// - struct K##name##_T definition
+/// - Instantiator definition
+/// - re-use kernel return type and name before its body
 #define MFEM_REGISTER_TMOP_KERNELS(return_t, kernel, ...) \
 template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0> \
     return_t kernel(__VA_ARGS__);\
@@ -128,7 +128,7 @@ struct K##kernel##_T {\
 static kernels::Instantiator<K##kernel##_T> K##kernel;\
 template<int T_D1D, int T_Q1D, int T_MAX> return_t kernel(__VA_ARGS__)
 
-// MFEM_LAUNCH_TMOP_KERNEL macro
+/// MFEM_LAUNCH_TMOP_KERNEL macro
 #define MFEM_LAUNCH_TMOP_KERNEL(kernel, id, ...)\
 if (K##kernel.Find(id)) { return K##kernel.At(id)(__VA_ARGS__,0,0); }\
 else {\
