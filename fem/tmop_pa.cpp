@@ -119,13 +119,14 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &xe) const
    PA.setup_Jtr = false;
    const FiniteElementSpace *fes = PA.fes;
    const IntegrationRule *ir = EnergyIntegrationRule(*fes->GetFE(0));
+   const TargetConstructor::TargetType &target_type = targetC->Type();
 
    // Skip when TargetConstructor needs the nodes but have not been set
    const bool tc_wn = target_type != TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
    if (targetC && tc_wn && !targetC->GetNodes()) { return; }
 
    // Try to use the TargetConstructor ComputeElementTargetsPA
-   PA.setup_Jtr = targetC->ComputeElementTargetsPA(fes, &ir, PA.Jtr);
+   PA.setup_Jtr = targetC->ComputeElementTargetsPA(fes, ir, PA.Jtr);
    if (PA.setup_Jtr) { return; }
 
    // Defaulting to host version
@@ -179,7 +180,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 {
    PA.enabled = true;
    MFEM_ASSERT(fes.GetMesh()->GetNE() > 0, "");
-   PA.ir = &EnergyIntegrationRule(*fes.GetFE(0));
+   PA.ir = EnergyIntegrationRule(*fes.GetFE(0));
    const IntegrationRule *ir = PA.ir;
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES,
                "PA Only supports Ordering::byNODES!");
