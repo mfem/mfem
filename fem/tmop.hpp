@@ -78,15 +78,18 @@ protected:
    Array<double> wt_arr;
 
 public:
-   virtual void AddQualityMetric(TMOP_QualityMetric *tq, double wt = 1.0) {
-       tmop_q_arr.Append(tq);
-       wt_arr.Append(wt);
+   virtual void AddQualityMetric(TMOP_QualityMetric *tq, double wt = 1.0)
+   {
+      tmop_q_arr.Append(tq);
+      wt_arr.Append(wt);
    }
 
-   virtual void SetTargetJacobian(const DenseMatrix &_Jtr) {
-       for (int i = 0; i < tmop_q_arr.Size(); i++) {
-           tmop_q_arr[i]->SetTargetJacobian(_Jtr);
-       }
+   virtual void SetTargetJacobian(const DenseMatrix &_Jtr)
+   {
+      for (int i = 0; i < tmop_q_arr.Size(); i++)
+      {
+         tmop_q_arr[i]->SetTargetJacobian(_Jtr);
+      }
    }
 
    virtual double EvalW(const DenseMatrix &Jpt) const;
@@ -352,21 +355,22 @@ protected:
 
 public:
    TMOP_Metric_080(double gamma_) : gamma(gamma_),
-       sh_metric(new TMOP_Metric_002),
-       sz_metric(new TMOP_Metric_077),
-       TMOP_Combo_QualityMetric()
+      sh_metric(new TMOP_Metric_002),
+      sz_metric(new TMOP_Metric_077),
+      TMOP_Combo_QualityMetric()
    {
-       // (1-gamma) mu_2 + gamma mu_77
-       AddQualityMetric(sh_metric, 1.-gamma_);
-       AddQualityMetric(sz_metric, gamma_);
+      // (1-gamma) mu_2 + gamma mu_77
+      AddQualityMetric(sh_metric, 1.-gamma_);
+      AddQualityMetric(sz_metric, gamma_);
    }
 
-   virtual void SetTargetJacobian(const DenseMatrix &_Jtr) {
-       sh_metric->SetTargetJacobian(_Jtr);
-       sz_metric->SetTargetJacobian(_Jtr);
+   virtual void SetTargetJacobian(const DenseMatrix &_Jtr)
+   {
+      sh_metric->SetTargetJacobian(_Jtr);
+      sz_metric->SetTargetJacobian(_Jtr);
    }
 
-    virtual ~TMOP_Metric_080() { delete sh_metric; delete sz_metric; }
+   virtual ~TMOP_Metric_080() { delete sh_metric; delete sz_metric; }
 };
 
 /// 2D barrier Shape+Orientation (OS) metric (polyconvex).
@@ -638,21 +642,22 @@ protected:
 
 public:
    TMOP_AMetric_126(double gamma_) : gamma(gamma_),
-       sh_metric(new TMOP_AMetric_011),
-       sz_metric(new TMOP_AMetric_014a),
-       TMOP_Combo_QualityMetric()
+      sh_metric(new TMOP_AMetric_011),
+      sz_metric(new TMOP_AMetric_014a),
+      TMOP_Combo_QualityMetric()
    {
-       // (1-gamma) nu_11 + gamma nu_14
-       AddQualityMetric(sh_metric, 1.-gamma_);
-       AddQualityMetric(sz_metric, gamma_);
+      // (1-gamma) nu_11 + gamma nu_14
+      AddQualityMetric(sh_metric, 1.-gamma_);
+      AddQualityMetric(sz_metric, gamma_);
    }
 
-   virtual void SetTargetJacobian(const DenseMatrix &_Jtr) {
-       sh_metric->SetTargetJacobian(_Jtr);
-       sz_metric->SetTargetJacobian(_Jtr);
+   virtual void SetTargetJacobian(const DenseMatrix &_Jtr)
+   {
+      sh_metric->SetTargetJacobian(_Jtr);
+      sz_metric->SetTargetJacobian(_Jtr);
    }
 
-    virtual ~TMOP_AMetric_126() { delete sh_metric; delete sz_metric; }
+   virtual ~TMOP_AMetric_126() { delete sh_metric; delete sz_metric; }
 };
 
 /// Base class for limiting functions to be used in class TMOP_Integrator.

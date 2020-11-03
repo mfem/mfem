@@ -22,32 +22,36 @@ namespace mfem
 double TMOP_Combo_QualityMetric::EvalW(const DenseMatrix &Jpt) const
 {
    double metric = 0.;
-   for (int i = 0; i < tmop_q_arr.Size(); i++) {
-       metric += wt_arr[i]*tmop_q_arr[i]->EvalW(Jpt);
+   for (int i = 0; i < tmop_q_arr.Size(); i++)
+   {
+      metric += wt_arr[i]*tmop_q_arr[i]->EvalW(Jpt);
    }
    return metric;
 }
 
-void TMOP_Combo_QualityMetric::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+void TMOP_Combo_QualityMetric::EvalP(const DenseMatrix &Jpt,
+                                     DenseMatrix &P) const
 {
    DenseMatrix Pt(P.Size());
-   for (int i = 0; i < tmop_q_arr.Size(); i++) {
-       tmop_q_arr[i]->EvalP(Jpt, Pt);
-       Pt *= wt_arr[i];
-       P += Pt;
+   for (int i = 0; i < tmop_q_arr.Size(); i++)
+   {
+      tmop_q_arr[i]->EvalP(Jpt, Pt);
+      Pt *= wt_arr[i];
+      P += Pt;
    }
 }
 
 void TMOP_Combo_QualityMetric::AssembleH(const DenseMatrix &Jpt,
-                                const DenseMatrix &DS,
-                                const double weight,
-                                DenseMatrix &A) const
+                                         const DenseMatrix &DS,
+                                         const double weight,
+                                         DenseMatrix &A) const
 {
    DenseMatrix At(A.Size());
-   for (int i = 0; i < tmop_q_arr.Size(); i++) {
-       tmop_q_arr[i]->AssembleH(Jpt, DS, weight, At);
-       At *= wt_arr[i];
-       A += At;
+   for (int i = 0; i < tmop_q_arr.Size(); i++)
+   {
+      tmop_q_arr[i]->AssembleH(Jpt, DS, weight, At);
+      At *= wt_arr[i];
+      A += At;
    }
 }
 
