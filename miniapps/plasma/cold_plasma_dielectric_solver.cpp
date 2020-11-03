@@ -661,7 +661,6 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    {
       // TODO: PA does not support BoundaryIntegrator yet
       m0_ = new ParBilinearForm(H1FESpace_);
-      m0_->AddBoundaryIntegrator(new MassIntegrator);
 
       n20ZRe_ = new ParMixedBilinearForm(HDivFESpace_, H1FESpace_);
       n20ZIm_ = new ParMixedBilinearForm(HDivFESpace_, H1FESpace_);
@@ -669,8 +668,9 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
       for (int i=0; i<sbcs_->Size(); i++)
       {
          ComplexCoefficientByAttr & sbc = (*sbcs_)[i];
-          
-          
+
+         m0_->AddBoundaryIntegrator(new MassIntegrator, sbc.attr_marker);
+
          n20ZRe_->AddBoundaryIntegrator(new MassIntegrator(*sbc.real),
                                         sbc.attr_marker);
          n20ZIm_->AddBoundaryIntegrator(new MassIntegrator(*sbc.imag),
