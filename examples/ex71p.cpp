@@ -320,7 +320,7 @@ int main(int argc, char *argv[])
    args.AddOption(&integrator,
                   "-int",
                   "--integrator",
-                  "Integrator 0: standard; 1: AD");
+                  "Integrator 0: standard; 1: AD for Hessian; 2: AD for residual and Hessian");
 
    args.Parse();
    if (!args.Good())
