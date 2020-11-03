@@ -229,6 +229,9 @@
     <ClCompile Include="..\mesh\wedge.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\fem\conduitdatacollection.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\general\array.hpp">

@@ -44,7 +44,7 @@
 /* #undef MFEM_USE_EXCEPTIONS */
 
 // Enable gzstream in MFEM.
-/* #undef MFEM_USE_GZSTREAM */
+#define MFEM_USE_GZSTREAM 
 
 // Enable backtraces for mfem_error through libunwind.
 /* #undef MFEM_USE_LIBUNWIND */
@@ -96,7 +96,7 @@
 /* #undef MFEM_USE_SIDRE */
 
 // Enable MFEM functionality based on Conduit
-/* #undef MFEM_USE_CONDUIT */
+#define MFEM_USE_CONDUIT
 
 // Enable MFEM functionality based on the PUMI library
 /* #undef MFEM_USE_PUMI */
