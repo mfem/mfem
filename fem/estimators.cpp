@@ -151,7 +151,7 @@ void KellyErrorEstimator::ComputeEstimates()
                jumps(i) = val * normal * fip.weight * FT->Face->Weight();
             }
 
-            // Substract integral over half face of e₂
+            // Subtract integral over half face of e₂
             // i.e. the numerical integration of ∫ flux ⋅ n dS₂
             for (int i = 0; i < nip; i++)
             {
@@ -176,7 +176,8 @@ void KellyErrorEstimator::ComputeEstimates()
             {
                jumps(i) *= jumps(i);
             }
-            double jump_integral = jumps.Sum();
+            auto h_k_face = compute_face_coefficient(pmesh, f, false);
+            double jump_integral = h_k_face*jumps.Sum();
 
             // A local face is shared between two local elements, so we
             // can get away with integrating the jump only once and add
@@ -229,7 +230,7 @@ void KellyErrorEstimator::ComputeEstimates()
          jumps(i) = val * normal * fip.weight * FT->Face->Weight();
       }
 
-      // Substract integral over non-local half face of e₂
+      // Subtract integral over non-local half face of e₂
       // i.e. the numerical integration of ∫ flux ⋅ n dS₂
       for (int i = 0; i < nip; i++)
       {
@@ -254,7 +255,8 @@ void KellyErrorEstimator::ComputeEstimates()
       {
          jumps(i) *= jumps(i);
       }
-      double jump_integral = jumps.Sum();
+      auto h_k_face = compute_face_coefficient(pmesh, sf, true);
+      double jump_integral = h_k_face*jumps.Sum();
 
       error_estimates(FT->Elem1No) += jump_integral;
       // We skip "error_estimates(FT->Elem2No) += jump_integral"

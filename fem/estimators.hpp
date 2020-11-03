@@ -426,6 +426,7 @@ public:
     @note This algorithm is only for Poisson problems a proper error esimator.
     The current implementation does not reflect this, because the factor "C" is not
     included.
+    It further assumes that the approximation error at the boundary is small enough.
 */
 class KellyErrorEstimator final : public ErrorEstimator
 {
@@ -438,13 +439,18 @@ private:
 
    Array<int> attributes;
 
-   /** @brief The method to compute hₖ.
+   /** @brief A method to compute hₖ on per-element basis.
 
-       Defaults to hₖ=det(J)^(-dim)/2p. This is a slight variation of the
-       description by Bangerth.
+       This method weights the error approximation on the element level.
+
+       Defaults to hₖ=det(J)^(1/dim)/2p. This is a slight variation of the
+       description by W. Bangerth, exchanging the diameter information with
+       volumetric information to avoid the expensive computation of "diameter
+       curves" in the case of nonlinear geometry. Note that this is purely
+       heuristic and does not have a solid theoretical foundation.
    */
    std::function<double(ParMesh*, const int)> compute_element_coefficient = [](
-                                                                               ParMesh* pmesh, const int e)
+      ParMesh* pmesh, const int e)
    {
       // Obtain jacobian of the transformation.
       DenseMatrix J;
@@ -458,6 +464,21 @@ private:
       return pow(abs(J.Weight()), 1.0 / double(pmesh->Dimension())) / (2*T->Order());
    };
 
+   /** @brief A method to compute hₖ on per-face basis.
+
+       This method weights the error approximation on the face level. The
+       background here is that classical Kelly error estimator implementations
+       approximate the geometrical characteristic hₖ with the face diameter,
+       which should be also be a possibility in this implementation.
+
+       Defaults to hₖ=1.0.
+   */
+   std::function<double(ParMesh*, const int, const bool)> compute_face_coefficient = [](
+      ParMesh* pmesh, const int f, const bool shared_face)
+   {
+      return 1.0;
+   };
+
    BilinearFormIntegrator* flux_integrator; ///< Not owned.
    ParGridFunction* solution;               ///< Not owned.
 
@@ -467,7 +488,7 @@ private:
    bool MeshIsModified()
    {
       long mesh_sequence = solution->FESpace()->GetMesh()->GetSequence();
-      MFEM_ASSERT(mesh_sequence >= current_sequence, "");
+      MFEM_ASSERT(mesh_sequence >= current_sequence, "improper mesh update sequence");
       return (mesh_sequence > current_sequence);
    }
 
@@ -514,15 +535,28 @@ public:
 
    double GetTotalError() const { return total_error; }
 
-   /** @brief Change the method to compute hₖ.
+   /** @brief Change the method to compute hₖ on a per-element basis.
        @param compute_element_coefficient_
                         A function taking a mesh and an element index to
                         compute the local hₖ for the element.
    */
-   void ChangeCoefficientFunction(std::function<double(ParMesh*, const int)>
-                                  compute_element_coefficient_)
+   void SetElementCoefficientFunction(
+         std::function<double(ParMesh*, const int)>
+      compute_element_coefficient_)
    {
       compute_element_coefficient = compute_element_coefficient_;
+   }
+
+   /** @brief Change the method to compute hₖ on a per-element basis.
+       @param compute_element_coefficient_
+                        A function taking a mesh and a face index to
+                        compute the local hₖ for the face.
+   */
+   void SetFaceCoefficientFunction(
+         std::function<double(ParMesh*, const int, const bool)>
+      compute_face_coefficient_)
+   {
+      compute_face_coefficient = compute_face_coefficient_;
    }
 };
 
