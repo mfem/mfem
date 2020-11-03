@@ -41,6 +41,7 @@
 //
 //   Adapted discrete size:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   Adapted discrete size; explicit combo of metrics; mixed tri/quad mesh:
 //     mesh-optimizer -m ../../data/square-mixed.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -bnd -qo 6 -cmb 2 -nor
 //   Adapted discrete size+aspect_ratio:
@@ -132,17 +133,21 @@ int main(int argc, char *argv[])
                   "Random perturbation scaling factor.");
    args.AddOption(&metric_id, "-mid", "--metric-id",
                   "Mesh optimization metric:\n\t"
+                  "T-metrics\n\t"
                   "1  : |T|^2                          -- 2D shape\n\t"
                   "2  : 0.5|T|^2/tau-1                 -- 2D shape (condition number)\n\t"
                   "7  : |T-T^-t|^2                     -- 2D shape+size\n\t"
                   "9  : tau*|T-T^-t|^2                 -- 2D shape+size\n\t"
-                  "14: 0.5*(1-cos(theta_A - theta_W)   -- 2D Sh+Sz+Alignment\n\t"
+                  "14 : |T-I|^2                        -- 2D shape+size+orientation\n\t"
                   "22 : 0.5(|T|^2-2*tau)/(tau-tau_0)   -- 2D untangling\n\t"
                   "50 : 0.5|T^tT|^2/tau^2-1            -- 2D shape\n\t"
                   "55 : (tau-1)^2                      -- 2D size\n\t"
                   "56 : 0.5(sqrt(tau)-1/sqrt(tau))^2   -- 2D size\n\t"
                   "58 : |T^tT|^2/(tau^2)-2*|T|^2/tau+2 -- 2D shape\n\t"
                   "77 : 0.5(tau-1/tau)^2               -- 2D size\n\t"
+                  "80 : (1-gamma)mu_2 + gamma mu_77    -- 2D shape+size\n\t"
+                  "85 : |T-|T|/sqrt(2)I|^2             -- 2D shape+orientation\n\t"
+                  "98 : (1/tau)|T-I|^2                 -- 2D shape+size+orientation\n\t"
                   "211: (tau-1)^2-tau+sqrt(tau^2)      -- 2D untangling\n\t"
                   "252: 0.5(tau-1)^2/(tau-tau_0)       -- 2D untangling\n\t"
                   "301: (|T||T^-1|)/3-1              -- 3D shape\n\t"
@@ -151,7 +156,13 @@ int main(int argc, char *argv[])
                   "315: (tau-1)^2                    -- 3D size\n\t"
                   "316: 0.5(sqrt(tau)-1/sqrt(tau))^2 -- 3D size\n\t"
                   "321: |T-T^-t|^2                   -- 3D shape+size\n\t"
-                  "352: 0.5(tau-1)^2/(tau-tau_0)     -- 3D untangling");
+                  "352: 0.5(tau-1)^2/(tau-tau_0)     -- 3D untangling\n\t"
+                  "A-metrics\n\t"
+                  "11 : (1/4*alpha)|A-(adjA)^T(W^TW)/omega|^2 -- 2D shape\n\t"
+                  "36 : (1/alpha)|A-W|^2                      -- 2D shape+size+orientation\n\t"
+                  "107: (1/2*alpha)|A-|A|/|W|W|^2             -- 2D shape+orientation\n\t"
+                  "126: (1-gamma)nu_11 + gamma*nu_14a         -- 2D shape+size\n\t"
+                 );
    args.AddOption(&target_id, "-tid", "--target-id",
                   "Target (ideal element) type:\n\t"
                   "1: Ideal shape, unit size\n\t"
@@ -315,23 +326,23 @@ int main(int argc, char *argv[])
    TMOP_QualityMetric *metric = NULL;
    switch (metric_id)
    {
+      // T-metrics
       case 1: metric = new TMOP_Metric_001; break;
       case 2: metric = new TMOP_Metric_002; break;
       case 7: metric = new TMOP_Metric_007; break;
       case 9: metric = new TMOP_Metric_009; break;
-      case 14: metric = new TMOP_Metric_SSA2D; break;
+      case 14: metric = new TMOP_Metric_014; break;
       case 22: metric = new TMOP_Metric_022(tauval); break;
       case 50: metric = new TMOP_Metric_050; break;
       case 55: metric = new TMOP_Metric_055; break;
       case 56: metric = new TMOP_Metric_056; break;
       case 58: metric = new TMOP_Metric_058; break;
       case 77: metric = new TMOP_Metric_077; break;
+      case 80: metric = new TMOP_Metric_080(0.9); break;
       case 85: metric = new TMOP_Metric_085; break;
+      case 98: metric = new TMOP_Metric_098; break;
       case 211: metric = new TMOP_Metric_211; break;
       case 252: metric = new TMOP_Metric_252(tauval); break;
-      case 11: metric = new TMOP_AMetric_011; break; //\nu - V
-      case 107: metric = new TMOP_AMetric_107a; break; //\nu - OS
-      case 126: metric = new TMOP_AMetric_126(1.0); break; //\nu - VS
       case 301: metric = new TMOP_Metric_301; break;
       case 302: metric = new TMOP_Metric_302; break;
       case 303: metric = new TMOP_Metric_303; break;
@@ -339,7 +350,14 @@ int main(int argc, char *argv[])
       case 316: metric = new TMOP_Metric_316; break;
       case 321: metric = new TMOP_Metric_321; break;
       case 352: metric = new TMOP_Metric_352(tauval); break;
-      default: cout << "Unknown metric_id: " << metric_id << endl; return 3;
+      // A-metrics
+      case 11: metric = new TMOP_AMetric_011; break;
+      case 36: metric = new TMOP_AMetric_036; break;
+      case 107: metric = new TMOP_AMetric_107a; break;
+      case 126: metric = new TMOP_AMetric_126(0.9); break;
+      default:
+         cout << "Unknown metric_id: " << metric_id << endl;
+         return 3;
    }
    TargetConstructor::TargetType target_t;
    TargetConstructor *target_c = NULL;
