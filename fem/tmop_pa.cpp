@@ -45,15 +45,16 @@ void TMOP_Integrator::EnableLimitingPA(const GridFunction &n0)
 {
    MFEM_VERIFY(PA.enabled, "EnableLimitingPA but PA is not enabled!");
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   PA.R = n0.FESpace()->GetElementRestriction(ordering);
 
    // Nodes0
-   PA.X0.SetSize(PA.R->Height(), Device::GetMemoryType());
+   const FiniteElementSpace *n0_fes = n0.FESpace();
+   const Operator *n0_R = n0_fes->GetElementRestriction(ordering);
+   PA.X0.SetSize(n0_R->Height(), Device::GetMemoryType());
    PA.X0.UseDevice(true);
-   PA.R->Mult(n0, PA.X0);
+   n0_R->Mult(n0, PA.X0);
 
    // Get the 1D maps for the distance FE space.
-   const IntegrationRule &ir = *EnergyIntegrationRule(*n0.FESpace()->GetFE(0));
+   const IntegrationRule &ir = EnergyIntegrationRule(*n0_fes->GetFE(0));
    PA.maps_lim =
       &lim_dist->FESpace()->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
 
@@ -71,6 +72,27 @@ void TMOP_Integrator::EnableLimitingPA(const GridFunction &n0)
    MFEM_VERIFY(dynamic_cast<TMOP_QuadraticLimiter*>(lim_func),
                "Only TMOP_QuadraticLimiter is supported");
 }
+
+bool TargetConstructor::ComputeElementTargetsPA(const FiniteElementSpace *fes,
+                                                const IntegrationRule *ir,
+                                                DenseTensor &Jtr,
+                                                const Vector &xe) const
+{
+   MFEM_VERIFY(Jtr.SizeI() == Jtr.SizeJ() && Jtr.SizeI() > 1, "");
+   const int dim = Jtr.SizeI();
+   if (dim == 2) { return ComputeElementTargetsPA<2>(fes, ir, Jtr, xe); }
+   if (dim == 3) { return ComputeElementTargetsPA<3>(fes, ir, Jtr, xe); }
+   return false;
+}
+
+bool AnalyticAdaptTC::ComputeElementTargetsPA(const FiniteElementSpace *fes,
+                                              const IntegrationRule *ir,
+                                              DenseTensor &Jtr,
+                                              const Vector &xe) const
+{
+   return false;
+}
+
 
 // Code paths leading to ComputeElementTargets:
 // - GetElementEnergy(elfun) which is done through GetGridFunctionEnergyPA(x)
@@ -96,13 +118,16 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &xe) const
 {
    PA.setup_Jtr = false;
    const FiniteElementSpace *fes = PA.fes;
-   const IntegrationRule *ir = EnergyIntegrationRule(*fes->GetFE(0));
+   const IntegrationRule &ir = EnergyIntegrationRule(*fes->GetFE(0));
+   const TargetConstructor::TargetType &target_type = targetC->Type();
 
-   {
-      // Try to use the TargetConstructor ComputeElementTargetsPA
-      PA.setup_Jtr = targetC->ComputeElementTargetsPA(ir,PA.Jtr);
-      if (PA.setup_Jtr) { return; }
-   }
+   // Skip when TargetConstructor needs the nodes but have not been set
+   const bool tc_wn = target_type != TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
+   if (targetC && tc_wn && !targetC->GetNodes()) { return; }
+
+   // Try to use the TargetConstructor ComputeElementTargetsPA
+   PA.setup_Jtr = targetC->ComputeElementTargetsPA(fes, &ir, PA.Jtr);
+   if (PA.setup_Jtr) { return; }
 
    // Defaulting to host version
    PA.Jtr.HostWrite();
@@ -111,8 +136,6 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &xe) const
    const int NQ = PA.nq;
    const int dim = PA.dim;
    DenseTensor &Jtr = PA.Jtr;
-
-   const TargetConstructor::TargetType &target_type = targetC->Type();
 
    Vector x;
    const bool useable_input_vector = xe.Size() > 0;
@@ -148,7 +171,7 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &xe) const
          x.GetSubVector(vdofs, elfun);
       }
       J.UseExternalData(Jtr(e*NQ).Data(), dim, dim, NQ);
-      targetC->ComputeElementTargets(e, fe, *ir, elfun, J);
+      targetC->ComputeElementTargets(e, fe, ir, elfun, J);
    }
    PA.setup_Jtr = true;
 }
@@ -156,20 +179,22 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &xe) const
 void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 {
    PA.enabled = true;
-   const IntegrationRule *ir = EnergyIntegrationRule(*fes.GetFE(0));
+   MFEM_ASSERT(fes.GetMesh()->GetNE() > 0, "");
+   PA.ir = &EnergyIntegrationRule(*fes.GetFE(0));
+   const IntegrationRule &ir = *PA.ir;
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES,
                "PA Only supports Ordering::byNODES!");
 
    PA.fes = &fes;
    Mesh *mesh = fes.GetMesh();
-   const int nq = PA.nq = ir->GetNPoints();
+   const int nq = PA.nq = ir.GetNPoints();
    const int ne = PA.ne = fes.GetMesh()->GetNE();
    const int dim = PA.dim = mesh->Dimension();
    MFEM_VERIFY(PA.dim == 2 || PA.dim == 3, "Not yet implemented!");
 
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
-   PA.maps = &fes.GetFE(0)->GetDofToQuad(*ir, mode);
-   PA.geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mode);
+   PA.maps = &fes.GetFE(0)->GetDofToQuad(ir, mode);
+   PA.geom = mesh->GetGeometricFactors(ir, GeometricFactors::JACOBIANS, mode);
 
    // Energy vector
    PA.E.UseDevice(true);
@@ -182,6 +207,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    // H for Grad
    PA.H.SetSize(dim*dim * dim*dim * nq*ne);
    PA.H.GetMemory().UseTemporary(true);
+
    // H0 for coeff0
    PA.H0.SetSize(dim * dim * nq*ne);
    PA.H0.GetMemory().UseTemporary(true);
@@ -231,7 +257,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
          ElementTransformation& T = *fes.GetElementTransformation(e);
          for (int q = 0; q < nq; ++q)
          {
-            C0(q,e) = coeff0->Eval(T, ir->IntPoint(q));
+            C0(q,e) = coeff0->Eval(T, ir.IntPoint(q));
          }
       }
    }
