@@ -148,88 +148,109 @@ int main(int argc, char *argv[])
 
    // List of true essential boundary dofs.
    Array<int> ess_tdof_list;
-   /*
    if (pmesh.bdr_attributes.Size())
    {
       Array<int> ess_bdr(pmesh.bdr_attributes.Max());
       ess_bdr = 1;
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
-   */
-
-   // Solution x with correct Dirichlet BC.
-   ParGridFunction u0(&fespace);
-   /*
-   w = 0.0;
-   Array<int> bdr(pmesh.bdr_attributes.Max()); bdr = 1;
-   ConstantCoefficient one(1.0);
-   w.ProjectBdrCoefficient(one, bdr);
-   */
-
-   DeltaCoefficient dc(0.5, 0.5, 1.0);
-   u0.ProjectCoefficient(dc);
-
-   // Set up RHS.
-   ParLinearForm b(&fespace);
-   b = u0;
-
-   // Diffusion and mass terms in the LHS.
-   ParBilinearForm a1(&fespace);
-   ConstantCoefficient one(1.0);
-   a1.AddDomainIntegrator(new MassIntegrator(one));
-   const double dt = t_param * dx * dx;
-   ConstantCoefficient t_coeff(dt);
-   a1.AddDomainIntegrator(new DiffusionIntegrator(t_coeff));
-   a1.Assemble();
-
-   ParGridFunction u(&fespace);
-   OperatorPtr A;
-   Vector B, X;
-   a1.FormLinearSystem(ess_tdof_list, u, b, A, X, B);
-
-   // Solve the linear system A X = B; CG + BoomerAMG.
-   Solver *prec = new HypreBoomerAMG;
 
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(1e-12);
-   cg.SetMaxIter(5000);
+   cg.SetMaxIter(100);
    cg.SetPrintLevel(1);
-   if (prec) { cg.SetPreconditioner(*prec); }
-   cg.SetOperator(*A);
-   cg.Mult(B, X);
-   delete prec;
+   OperatorPtr A;
+   Vector B, X;
 
-   // 14. Recover the parallel grid function corresponding to X. This is the
-   //     local finite element solution on each processor.
-   a1.RecoverFEMSolution(X, b, u);
+   // Position of the object of interest.
+   ParGridFunction u0(&fespace);
+   DeltaCoefficient dc(0.75, 0.75, 1.0);
+   u0.ProjectCoefficient(dc);
 
+   // Solution of the first diffusion step.
+   ParGridFunction u(&fespace);
+   // Final distance function solution.
+   ParGridFunction d(&fespace);
+
+   // Step 1 - diffuse.
+   {
+      // Set up RHS.
+      ParLinearForm b1(&fespace);
+      b1 = u0;
+
+      // Diffusion and mass terms in the LHS.
+      ParBilinearForm a1(    &fespace);
+      a1.AddDomainIntegrator(new MassIntegrator);
+      const double dt = t_param * dx * dx;
+      ConstantCoefficient t_coeff(dt);
+      a1.AddDomainIntegrator(new DiffusionIntegrator(t_coeff));
+      a1.Assemble();
+
+      // Solve with Dirichlet BC.
+      ParGridFunction u_dirichlet(&fespace);
+      u_dirichlet = 0.0;
+      a1.FormLinearSystem(ess_tdof_list, u_dirichlet, b1, A, X, B);
+      Solver *prec = new HypreBoomerAMG;
+      cg.SetPreconditioner(*prec);
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+      a1.RecoverFEMSolution(X, b1, u_dirichlet);
+      delete prec;
+
+      // Diffusion and mass terms in the LHS.
+      ParBilinearForm a_n(&fespace);
+      a_n.AddDomainIntegrator(new MassIntegrator);
+      a_n.AddDomainIntegrator(new DiffusionIntegrator(t_coeff));
+      a_n.Assemble();
+
+      // Solve with Neumann BC.
+      ParGridFunction u_neumann(&fespace);
+      ess_tdof_list.DeleteAll();
+      a_n.FormLinearSystem(ess_tdof_list, u_neumann, b1, A, X, B);
+      Solver *prec2 = new HypreBoomerAMG;
+      cg.SetPreconditioner(*prec2);
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+      a_n.RecoverFEMSolution(X, b1, u_neumann);
+      delete prec2;
+
+      for (int i = 0; i < u.Size(); i++)
+      {
+         //u(i) = u_neumann(i);
+         //u(i) = u_dirichlet(i);
+         u(i) = 0.5 * (u_neumann(i) + u_dirichlet(i));
+      }
+   }
+
+   // Step 2 - normalize the gradient. The x here is only for visualization.
    GradientCoefficient grad_u(u, dim);
    ParGridFunction x(&fespace_vec);
    x.ProjectCoefficient(grad_u);
 
-   ParLinearForm b2(&fespace);
-   b2.AddDomainIntegrator(new DomainLFGradIntegrator(grad_u));
-   b2.Assemble();
+   // Step 3 - solve for the distance using the normalized gradient.
+   {
+      // RHS - normalized gradient.
+      ParLinearForm b2(&fespace);
+      b2.AddDomainIntegrator(new DomainLFGradIntegrator(grad_u));
+      b2.Assemble();
 
-   ParBilinearForm a2(&fespace);
-   a2.AddDomainIntegrator(new DiffusionIntegrator(one));
-   a2.Assemble();
+      // LHS - diffusion.
+      ParBilinearForm a2(&fespace);
+      a2.AddDomainIntegrator(new DiffusionIntegrator);
+      a2.Assemble();
 
-   ParGridFunction d(&fespace);
-   d = 0.0;
-   OperatorPtr A2;
-   a2.FormLinearSystem(ess_tdof_list, d, b2, A2, X, B);
+      // No BC.
+      ess_tdof_list.DeleteAll();
 
-   CGSolver cg2(MPI_COMM_WORLD);
-   cg2.SetRelTol(1e-12);
-   cg2.SetMaxIter(5000);
-   cg2.SetPrintLevel(1);
-   Solver *prec2 = new HypreBoomerAMG;
-   if (prec) { cg2.SetPreconditioner(*prec2); }
-   cg2.SetOperator(*A2);
-   cg2.Mult(B, X);
-   delete prec2;
-   a2.RecoverFEMSolution(X, b2, d);
+      a2.FormLinearSystem(ess_tdof_list, d, b2, A, X, B);
+
+      Solver *prec2 = new HypreBoomerAMG;
+      cg.SetPreconditioner(*prec2);
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+      a2.RecoverFEMSolution(X, b2, d);
+      delete prec2;
+   }
 
    // Rescale the distance to have minimum at zero.
    double d_min_loc = d.Min();
@@ -241,6 +262,7 @@ int main(int argc, char *argv[])
    // Send the solution by socket to a GLVis server.
    if (visualization)
    {
+      int size = 500;
       char vishost[] = "localhost";
       int  visport   = 19916;
 
@@ -249,32 +271,34 @@ int main(int argc, char *argv[])
       sol_sock_w.precision(8);
       sol_sock_w << "solution\n" << pmesh << u0;
       sol_sock_w << "window_geometry " << 0 << " " << 0 << " "
-                                       << 600 << " " << 600 << "\n"
+                                       << size << " " << size << "\n"
                  << "window_title '" << "u0" << "'\n" << flush;
 
       socketstream sol_sock_u(vishost, visport);
       sol_sock_u << "parallel " << num_procs << " " << myid << "\n";
       sol_sock_u.precision(8);
       sol_sock_u << "solution\n" << pmesh << u;
-      sol_sock_u << "window_geometry " << 600 << " " << 0 << " "
-                                       << 600 << " " << 600 << "\n"
+      sol_sock_u << "window_geometry " << size << " " << 0 << " "
+                                       << size << " " << size << "\n"
                  << "window_title '" << "u" << "'\n" << flush;
 
       socketstream sol_sock_x(vishost, visport);
       sol_sock_x << "parallel " << num_procs << " " << myid << "\n";
       sol_sock_x.precision(8);
       sol_sock_x << "solution\n" << pmesh << x;
-      sol_sock_x << "window_geometry " << 1200 << " " << 0 << " "
-                                       << 600 << " " << 600 << "\n"
-                 << "window_title '" << "X" << "'\n" << flush;
+      sol_sock_x << "window_geometry " << 2*size << " " << 0 << " "
+                                       << size << " " << size << "\n"
+                 << "window_title '" << "X" << "'\n"
+                 << "keys evvRj*******\n" << flush;
 
       socketstream sol_sock_d(vishost, visport);
       sol_sock_d << "parallel " << num_procs << " " << myid << "\n";
       sol_sock_d.precision(8);
       sol_sock_d << "solution\n" << pmesh << d;
-      sol_sock_d << "window_geometry " << 600 << " " << 600 << " "
-                                       << 600 << " " << 600 << "\n"
-                 << "window_title '" << "Distance" << "'\n" << flush;
+      sol_sock_d << "window_geometry " << size << " " << size << " "
+                                       << size << " " << size << "\n"
+                 << "window_title '" << "Distance" << "'\n"
+                 << "keys rRjmm*****\n" << flush;
    }
 
    ParaViewDataCollection paraview_dc("Dist", &pmesh);
