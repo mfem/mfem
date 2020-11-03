@@ -15,6 +15,7 @@ list(APPEND SRCS
   blockvector.cpp
   complex_operator.cpp
   densemat.cpp
+  symmat.cpp
   handle.cpp
   matrix.cpp
   ode.cpp
@@ -31,6 +32,7 @@ list(APPEND HDRS
   blockvector.hpp
   complex_operator.hpp
   densemat.hpp
+  symmat.hpp
   dtensor.hpp
   handle.hpp
   invariants.hpp
