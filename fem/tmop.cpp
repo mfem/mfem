@@ -891,7 +891,6 @@ double TMOP_AMetric_014a::EvalW(const DenseMatrix &Jpt) const
 
    double sqalpha = pow(Jpr.Det(), 0.5),
           sqomega = pow(Jtr->Det(), 0.5);
-   // for nu_14 = //omega = Jtr->Det(), return 0.5*pow(sqalpha - omega/sqalpha, 2.);
 
    return 0.5*pow(sqalpha/sqomega - sqomega/sqalpha, 2.);
 }
