@@ -8,6 +8,12 @@
                                https://mfem.org
 
 
+Version 4.2.1 (development)
+===========================
+
+- Upgraded the Catch unit test framework from version 2.13.0 to version 2.13.2.
+
+
 Version 4.2, released on October 30, 2020
 =========================================
 
