@@ -11,6 +11,9 @@
 Version 4.2.1 (development)
 ===========================
 
+- Added three ESDIRK time integrators: implicit trapezoid rule, L-stable
+  ESDIRK-32, and A-stable ESDIRK-33.
+
 - Added a "scaled Jacobian" visualization option in the Mesh Explorer miniapp to
   help identify elements with poor mesh quality.
 
