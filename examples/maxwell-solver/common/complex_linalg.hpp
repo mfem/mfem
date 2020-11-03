@@ -56,13 +56,13 @@ public:
 inline complex<double> &ComplexDenseMatrix::operator()(int i, int j)
 {
    MFEM_VERIFY(data && i >= 0 && i < height && j >= 0 && j < width, "");
-   return data[i+j*height];
+   return data[i*width+j];
 }
 
 inline const complex<double> &ComplexDenseMatrix::operator()(int i, int j) const
 {
    MFEM_VERIFY(data && i >= 0 && i < height && j >= 0 && j < width, "");
-   return data[i+j*height];
+   return data[i*width+j];
 }
 
 

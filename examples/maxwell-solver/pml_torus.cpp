@@ -12,43 +12,6 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E);
 int prob_kind=0;
 double L;
 double ylim;
-// Class for setting up a simple Cartesian PML region
-class TorusPML
-{
-private:
-   Mesh *mesh;
-
-   int dim;
-
-   // Length of the PML Region given in radians
-   double PmlThicknessAngle;
-
-   double theta0;
-
-   double a,b;// defining the cross-section plane (vertical) /line for the pml
-
-   // Integer Array identifying elements in the PML
-   // 0: in the PML, 1: not in the PML
-   Array<int> elems;
-
-public:
-   // Constructor
-   TorusPML(Mesh *mesh_, double length_rad_);
-
-   // Return Markers list for elements
-   Array<int> * GetMarkedPMLElements() {return &elems;}
-
-   // Mark elements in the PML region
-   void SetAttributes(Mesh *mesh_);
-
-   double PmlBdrPlaneEquation(double x, double theta)
-   {
-      return tan(theta) * x;
-   }   
-
-   // PML complex stretching function
-   void StretchFunction(const Vector &x, vector<complex<double>> &dxs);
-};
 
 // Class for returning the PML coefficients of the bilinear form
 class PMLDiagMatrixCoefficient : public VectorCoefficient
@@ -76,6 +39,32 @@ public:
    }
 };
 
+class PMLMatrixCoefficient : public MatrixCoefficient
+{
+private:
+   ToroidPML * pml = nullptr;
+   void (*Function)(const Vector &, ToroidPML * , DenseMatrix &);
+public:
+   PMLMatrixCoefficient(int dim, void(*F)(const Vector &, ToroidPML *,
+                                              DenseMatrix &),
+                            ToroidPML * pml_)
+      : MatrixCoefficient(dim), pml(pml_), Function(F)
+   {}
+
+   using MatrixCoefficient::Eval;
+
+   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      double x[3];
+      Vector transip(x, 3);
+      T.Transform(ip, transip);
+      M.SetSize(height,width);
+      (*Function)(transip, pml, M);
+   }
+};
+
+
 void E_bdr_data_Re(const Vector &x, Vector &E);
 void E_bdr_data_Im(const Vector &x, Vector &E);
 
@@ -86,21 +75,17 @@ void source(const Vector &x, Vector & f);
 
 // Functions for computing the necessary coefficients after PML stretching.
 // J is the Jacobian matrix of the stretching function
-void detJ_JT_J_inv_Re(const Vector &x, TorusPML * pml, Vector &D);
-void detJ_JT_J_inv_Im(const Vector &x, TorusPML * pml, Vector &D);
-void detJ_JT_J_inv_abs(const Vector &x, TorusPML * pml, Vector &D);
-
-void detJ_inv_JT_J_Re(const Vector &x, TorusPML * pml, Vector &D);
-void detJ_inv_JT_J_Im(const Vector &x, TorusPML * pml, Vector &D);
-void detJ_inv_JT_J_abs(const Vector &x, TorusPML * pml, Vector &D);
-
 void detJ_JT_J_inv_Re(const Vector &x, ToroidPML * pml, Vector &D);
 void detJ_JT_J_inv_Im(const Vector &x, ToroidPML * pml, Vector &D);
-void detJ_JT_J_inv_abs(const Vector &x, ToroidPML * pml, Vector &D);
-
 void detJ_inv_JT_J_Re(const Vector &x, ToroidPML * pml, Vector &D);
 void detJ_inv_JT_J_Im(const Vector &x, ToroidPML * pml, Vector &D);
-void detJ_inv_JT_J_abs(const Vector &x, ToroidPML * pml, Vector &D);
+
+
+void detJ_JT_J_inv_Re(const Vector &x, ToroidPML * pml, DenseMatrix & M);
+void detJ_JT_J_inv_Im(const Vector &x, ToroidPML * pml, DenseMatrix & M);
+void detJ_inv_JT_J_Re(const Vector &x, ToroidPML * pml, DenseMatrix & M);
+void detJ_inv_JT_J_Im(const Vector &x, ToroidPML * pml, DenseMatrix & M);
+
 
 
 Array2D<double> comp_domain_bdr;
@@ -199,16 +184,6 @@ int main(int argc, char *argv[])
    {
       mesh->UniformRefinement();
    }
-
-
-   // Setup PMLThickness angle in rad
-   // double length_rad = 4.*M_PI/2./20.;
-
-   // TorusPML * pml = new TorusPML(mesh,length_rad);
-
-   // // // Set element attributes in order to distinguish elements in the PML region
-   // pml->SetAttributes(mesh);
-
 
    ToroidPML tpml(mesh);
    Vector zlim, rlim, alim;
@@ -347,19 +322,34 @@ int main(int argc, char *argv[])
    a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_omeg),NULL);
 
    int cdim = (dim == 2) ? 1 : dim;
-   PMLDiagMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, &tpml);
-   PMLDiagMatrixCoefficient pml_c1_Im(cdim,detJ_inv_JT_J_Im, &tpml);
-   ScalarVectorProductCoefficient c1_Re(muinv,pml_c1_Re);
-   ScalarVectorProductCoefficient c1_Im(muinv,pml_c1_Im);
-   VectorRestrictedCoefficient restr_c1_Re(c1_Re,attrPML);
-   VectorRestrictedCoefficient restr_c1_Im(c1_Im,attrPML);
+   // PMLDiagMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, &tpml);
+   // PMLDiagMatrixCoefficient pml_c1_Im(cdim,detJ_inv_JT_J_Im, &tpml);
+   // ScalarVectorProductCoefficient c1_Re(muinv,pml_c1_Re);
+   // ScalarVectorProductCoefficient c1_Im(muinv,pml_c1_Im);
+   // VectorRestrictedCoefficient restr_c1_Re(c1_Re,attrPML);
+   // VectorRestrictedCoefficient restr_c1_Im(c1_Im,attrPML);
 
-   PMLDiagMatrixCoefficient pml_c2_Re(dim, detJ_JT_J_inv_Re,&tpml);
-   PMLDiagMatrixCoefficient pml_c2_Im(dim, detJ_JT_J_inv_Im,&tpml);
-   ScalarVectorProductCoefficient c2_Re(omeg,pml_c2_Re);
-   ScalarVectorProductCoefficient c2_Im(omeg,pml_c2_Im);
-   VectorRestrictedCoefficient restr_c2_Re(c2_Re,attrPML);
-   VectorRestrictedCoefficient restr_c2_Im(c2_Im,attrPML);
+   // PMLDiagMatrixCoefficient pml_c2_Re(dim, detJ_JT_J_inv_Re,&tpml);
+   // PMLDiagMatrixCoefficient pml_c2_Im(dim, detJ_JT_J_inv_Im,&tpml);
+   // ScalarVectorProductCoefficient c2_Re(omeg,pml_c2_Re);
+   // ScalarVectorProductCoefficient c2_Im(omeg,pml_c2_Im);
+   // VectorRestrictedCoefficient restr_c2_Re(c2_Re,attrPML);
+   // VectorRestrictedCoefficient restr_c2_Im(c2_Im,attrPML);
+
+   PMLMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, &tpml);
+   PMLMatrixCoefficient pml_c1_Im(cdim,detJ_inv_JT_J_Im, &tpml);
+   ScalarMatrixProductCoefficient c1_Re(muinv,pml_c1_Re);
+   ScalarMatrixProductCoefficient c1_Im(muinv,pml_c1_Im);
+   MatrixRestrictedCoefficient restr_c1_Re(c1_Re,attrPML);
+   MatrixRestrictedCoefficient restr_c1_Im(c1_Im,attrPML);
+
+   PMLMatrixCoefficient pml_c2_Re(dim, detJ_JT_J_inv_Re,&tpml);
+   PMLMatrixCoefficient pml_c2_Im(dim, detJ_JT_J_inv_Im,&tpml);
+   ScalarMatrixProductCoefficient c2_Re(omeg,pml_c2_Re);
+   ScalarMatrixProductCoefficient c2_Im(omeg,pml_c2_Im);
+   MatrixRestrictedCoefficient restr_c2_Re(c2_Re,attrPML);
+   MatrixRestrictedCoefficient restr_c2_Im(c2_Im,attrPML);
+
 
    // Integrators inside the PML region
    a.AddDomainIntegrator(new CurlCurlIntegrator(restr_c1_Re),
@@ -449,7 +439,8 @@ int main(int argc, char *argv[])
 
 
 
-   ComplexDenseMatrix MatZ(2,2);
+   // ComplexDenseMatrix MatZ(2,2);
+   ComplexDenseMatrix MatZ(3,3);
    // for (int i = 0; i<3; i++)
    // {
    //    for (int j = 0; j<3; j++)
@@ -467,20 +458,20 @@ int main(int argc, char *argv[])
    // }
    MatZ(0,0) =  complex<double>(0.286569,0.736547);  
    MatZ(0,1) =  complex<double>(0.051340,0.018433);  
-   // MatZ(0,2) =  complex<double>(0.526620,0.077061);  
+   MatZ(0,2) =  complex<double>(0.526620,0.077061);  
    MatZ(1,0) =  complex<double>(0.881512,0.036553);  
    MatZ(1,1) =  complex<double>(0.727566,0.000757);  
-   // MatZ(1,2) =  complex<double>(0.853221,0.513477);  
-   // MatZ(2,0) =  complex<double>(0.834360,0.822687);  
-   // MatZ(2,1) =  complex<double>(0.335619,0.406582);  
-   // MatZ(2,2) =  complex<double>(0.029811,0.382764);  
+   MatZ(1,2) =  complex<double>(0.853221,0.513477);  
+   MatZ(2,0) =  complex<double>(0.834360,0.822687);  
+   MatZ(2,1) =  complex<double>(0.335619,0.406582);  
+   MatZ(2,2) =  complex<double>(0.029811,0.382764);  
 
-   // MatZ.PrintMatlab(cout);
+   MatZ.PrintMatlab(cout);
 
    ComplexDenseMatrixInverse InvZ(MatZ);
    InvZ.PrintMatlab(cout);
-   // cout << "DetMatZ = " << MatZ.GetDeterminant() << endl;
-   // cout << "DetInvZ = " << InvZ.GetDeterminant() << endl;
+   cout << "DetMatZ = " << MatZ.Det() << endl;
+   cout << "DetInvZ = " << InvZ.Det() << endl;
    
 
    
@@ -661,131 +652,6 @@ void E_bdr_data_Im(const Vector &x, Vector &E)
    }
 }
 
-void detJ_JT_J_inv_Re(const Vector &x, TorusPML * pml, Vector &D)
-{
-   vector<complex<double>> dxs(dim);
-   complex<double> det(1.0, 0.0);
-   pml->StretchFunction(x, dxs);
-
-   for (int i = 0; i < dim; ++i)
-   {
-      det *= dxs[i];
-   }
-
-   for (int i = 0; i < dim; ++i)
-   {
-      D(i) = (det / pow(dxs[i], 2)).real();
-   }
-}
-
-void detJ_JT_J_inv_Im(const Vector &x, TorusPML * pml, Vector &D)
-{
-   vector<complex<double>> dxs(dim);
-   complex<double> det = 1.0;
-   pml->StretchFunction(x, dxs);
-
-   for (int i = 0; i < dim; ++i)
-   {
-      det *= dxs[i];
-   }
-
-   for (int i = 0; i < dim; ++i)
-   {
-      D(i) = (det / pow(dxs[i], 2)).imag();
-   }
-}
-
-void detJ_JT_J_inv_abs(const Vector &x, TorusPML * pml, Vector &D)
-{
-   vector<complex<double>> dxs(dim);
-   complex<double> det = 1.0;
-   pml->StretchFunction(x, dxs);
-
-   for (int i = 0; i < dim; ++i)
-   {
-      det *= dxs[i];
-   }
-
-   for (int i = 0; i < dim; ++i)
-   {
-      D(i) = abs(det / pow(dxs[i], 2));
-   }
-}
-
-void detJ_inv_JT_J_Re(const Vector &x, TorusPML * pml, Vector &D)
-{
-   vector<complex<double>> dxs(dim);
-   complex<double> det(1.0, 0.0);
-   pml->StretchFunction(x, dxs);
-
-   for (int i = 0; i < dim; ++i)
-   {
-      det *= dxs[i];
-   }
-
-   // in the 2D case the coefficient is scalar 1/det(J)
-   if (dim == 2)
-   {
-      D = (1.0 / det).real();
-   }
-   else
-   {
-      for (int i = 0; i < dim; ++i)
-      {
-         D(i) = (pow(dxs[i], 2) / det).real();
-      }
-   }
-}
-
-void detJ_inv_JT_J_Im(const Vector &x, TorusPML * pml, Vector &D)
-{
-   vector<complex<double>> dxs(dim);
-   complex<double> det = 1.0;
-   pml->StretchFunction(x, dxs);
-
-   for (int i = 0; i < dim; ++i)
-   {
-      det *= dxs[i];
-   }
-
-   if (dim == 2)
-   {
-      D = (1.0 / det).imag();
-   }
-   else
-   {
-      for (int i = 0; i < dim; ++i)
-      {
-         D(i) = (pow(dxs[i], 2) / det).imag();
-      }
-   }
-}
-
-void detJ_inv_JT_J_abs(const Vector &x, TorusPML * pml, Vector &D)
-{
-   vector<complex<double>> dxs(dim);
-   complex<double> det = 1.0;
-   pml->StretchFunction(x, dxs);
-
-   for (int i = 0; i < dim; ++i)
-   {
-      det *= dxs[i];
-   }
-
-   if (dim == 2)
-   {
-      D = abs(1.0 / det);
-   }
-   else
-   {
-      for (int i = 0; i < dim; ++i)
-      {
-         D(i) = abs(pow(dxs[i], 2) / det);
-      }
-   }
-}
-
-
 void E_exact_Re(const Vector &x, Vector &E)
 {
    E = 0.0;
@@ -807,122 +673,6 @@ void E_exact_Im(const Vector &x, Vector &E)
       E[i] = Eval[i].imag();
    }
 }
-
-
-TorusPML::TorusPML(Mesh *mesh_, double length_rad_)
-   : mesh(mesh_), PmlThicknessAngle(length_rad_)
-{
-   dim = mesh->Dimension();
-   theta0 = M_PI/2.0 - PmlThicknessAngle;
-   a = tan(theta0);
-   b = -1.0;
-}
-
-void TorusPML::SetAttributes(Mesh *mesh_)
-{
-   int nrelem = mesh_->GetNE();
-   elems.SetSize(nrelem);
-   // Loop through the elements and identify which of them are in the PML
-
-   for (int i = 0; i < nrelem; ++i)
-   {
-      // initialize with 1
-      elems[i] = 1;
-      Element *el = mesh_->GetElement(i);
-      // Initialize attribute
-      el->SetAttribute(1);
-      Vector center;
-      mesh_->GetElementCenter(i,center);
-      double x = center[0];
-      double y = center[1];
-      if (prob_kind !=2)
-      {
-         if (x < L)
-         {
-            elems[i] = 0;
-            el->SetAttribute(2);
-         }
-      }
-      else
-      {
-         if (x > -3.0 && y<-7.0)
-         {
-            elems[i] = 0;
-            el->SetAttribute(2);
-         }
-      }
-   }
-   mesh_->SetAttributes();
-}
-
-
-
-
-void TorusPML::StretchFunction(const Vector &x,
-                               vector<complex<double>> &dxs)
-{
-   complex<double> zi = complex<double>(0., 1.);
-
-   double n = 2.0;
-   double c = 5.0;
-   double coeff;
-   double k = omega * sqrt(epsilon * mu);
-
-
-   double x0 = x[0];
-   double y0 = x[1];
-   double th = atan(y0/x0);
-   int m = 0;
-   if (x0<0)
-   {
-      m = 1;
-   }
-   else if (y0<0)
-   {
-      m = 2;
-   }
-   th += m*M_PI;
-
-   double thetad = th * 180.0/M_PI;
-   // find the distance from the plane defined by a * x + b * y = 0;
-   // Point on the plane coords
-   Vector xp(2);
-   xp(0) = b * (b * x(0) - a * x(1))/(a * a + b * b);
-   xp(1) = a * (-b * x(0) + a * x(1))/(a * a + b * b);
-
-   double th0 = atan(xp(1)/xp(0));
-   m = 0;
-   if (xp(0)<0)
-   {
-      m = 1;
-   }
-   else if (xp(1)<0)
-   {
-      m = 2;
-   }
-   th0 += m*M_PI;
-
-   double thetad0 = th0 * 180.0/M_PI;
-
-   // Stretch in each direction independently
-   coeff = n * c / k / pow(1, n);
-   if (prob_kind != 2)
-   {
-      dxs[0] = 1.0 + zi * coeff *
-                  abs(pow(x(0) - L, n - 1.0));
-   // dxs[0] = 1.0;
-      dxs[1] = 1.0;
-      dxs[2] = 1.0;
-   }
-   else
-   {
-      dxs[0] = 1.0 + zi * coeff *
-                  abs(pow(x(0) + 3.0, n - 1.0));
-      dxs[1] = 1.0;
-      dxs[2] = 1.0;
-   }
-}
-
 
 void maxwell_solution(const Vector &x, vector<complex<double>> &E)
 {
@@ -1003,23 +753,6 @@ void detJ_JT_J_inv_Im(const Vector &x, ToroidPML * pml, Vector &D)
    }
 }
 
-void detJ_JT_J_inv_abs(const Vector &x, ToroidPML * pml, Vector &D)
-{
-   vector<complex<double>> dxs(dim);
-   complex<double> det = 1.0;
-   pml->StretchFunction(x, dxs,omega);
-
-   for (int i = 0; i < dim; ++i)
-   {
-      det *= dxs[i];
-   }
-
-   for (int i = 0; i < dim; ++i)
-   {
-      D(i) = abs(det / pow(dxs[i], 2));
-   }
-}
-
 void detJ_inv_JT_J_Re(const Vector &x, ToroidPML * pml, Vector &D)
 {
    vector<complex<double>> dxs(dim);
@@ -1068,7 +801,70 @@ void detJ_inv_JT_J_Im(const Vector &x, ToroidPML * pml, Vector &D)
    }
 }
 
-void detJ_inv_JT_J_abs(const Vector &x, ToroidPML * pml, Vector &D)
+
+//-----------------------------------------------------------------
+
+void detJ_JT_J_inv_Re(const Vector &x, ToroidPML * pml, DenseMatrix & M)
+{
+   vector<complex<double>> dxs(dim);
+   complex<double> det(1.0, 0.0);
+   pml->StretchFunction(x, dxs,omega);
+
+   for (int i = 0; i < dim; ++i)
+   {
+      det *= dxs[i];
+   }
+   M=0.0;
+   for (int i = 0; i < dim; ++i)
+   {
+      M(i,i) = (det / pow(dxs[i], 2)).real();
+   }
+}
+
+void detJ_JT_J_inv_Im(const Vector &x, ToroidPML * pml, DenseMatrix & M)
+{
+   vector<complex<double>> dxs(dim);
+   complex<double> det = 1.0;
+   pml->StretchFunction(x, dxs,omega);
+
+   for (int i = 0; i < dim; ++i)
+   {
+      det *= dxs[i];
+   }
+
+   M=0.0;
+   for (int i = 0; i < dim; ++i)
+   {
+      M(i,i) = (det / pow(dxs[i], 2)).imag();
+   }
+}
+
+void detJ_inv_JT_J_Re(const Vector &x, ToroidPML * pml, DenseMatrix & M)
+{
+   vector<complex<double>> dxs(dim);
+   complex<double> det(1.0, 0.0);
+   pml->StretchFunction(x, dxs,omega);
+
+   for (int i = 0; i < dim; ++i)
+   {
+      det *= dxs[i];
+   }
+   // in the 2D case the coefficient is scalar 1/det(J)
+   if (dim == 2)
+   {
+      M = (1.0 / det).real();
+   }
+   else
+   {
+      M = 0.0;
+      for (int i = 0; i < dim; ++i)
+      {
+         M(i,i) = (pow(dxs[i], 2) / det).real();
+      }
+   }
+}
+
+void detJ_inv_JT_J_Im(const Vector &x, ToroidPML * pml, DenseMatrix & M)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
@@ -1081,13 +877,13 @@ void detJ_inv_JT_J_abs(const Vector &x, ToroidPML * pml, Vector &D)
 
    if (dim == 2)
    {
-      D = abs(1.0 / det);
+      M = (1.0 / det).imag();
    }
    else
    {
       for (int i = 0; i < dim; ++i)
       {
-         D(i) = abs(pow(dxs[i], 2) / det);
+         M(i,i) = (pow(dxs[i], 2) / det).imag();
       }
    }
 }

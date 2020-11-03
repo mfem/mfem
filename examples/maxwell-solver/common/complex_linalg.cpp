@@ -131,22 +131,20 @@ void ComplexDenseMatrix::Print(std::ostream &out, int width_) const
 void ComplexDenseMatrix::PrintMatlab(std::ostream &out) const
 {
    // save current output flags
-   ios::fmtflags old_flags = out.flags();
+   // ios::fmtflags old_flags = out.flags();
    // output flags = scientific + show sign
-   out << setiosflags(ios::scientific | ios::showpos);
+   // out << setiosflags(ios::scientific | ios::showpos);
    for (int i = 0; i < height; i++)
    {
-      cout << "i = " << i << endl;
       for (int j = 0; j < width; j++)
       {
-         cout << "j = " << j << endl;
          out << (*this)(i,j);
          out << ' ';
       }
       out << "\n";
    }
    // reset output flags to original values
-   out.flags(old_flags);
+   // out.flags(old_flags);
 }
 
 ComplexDenseMatrixInverse::ComplexDenseMatrixInverse(const ComplexDenseMatrix & A) : ComplexDenseMatrix(A.Height())
@@ -171,10 +169,10 @@ ComplexDenseMatrixInverse::ComplexDenseMatrixInverse(const ComplexDenseMatrix & 
       d[3] =  1.0/detA * dA[0];
       break;   
    case 3:
-      d[0] =   1.0/detA*(dA[3]*dA[8] - dA[5]*dA[7]);
+      d[0] =   1.0/detA*(dA[4]*dA[8] - dA[5]*dA[7]);
       d[1] =  -1.0/detA*(dA[1]*dA[8] - dA[2]*dA[7]);
       d[2] =   1.0/detA*(dA[1]*dA[5] - dA[2]*dA[4]);
-      d[3] =  -1.0/detA*(dA[3]*dA[7] - dA[4]*dA[6]);
+      d[3] =  -1.0/detA*(dA[3]*dA[8] - dA[5]*dA[6]);
       d[4] =   1.0/detA*(dA[0]*dA[8] - dA[2]*dA[6]);
       d[5] =  -1.0/detA*(dA[0]*dA[5] - dA[2]*dA[3]);
       d[6] =   1.0/detA*(dA[3]*dA[7] - dA[4]*dA[6]);
