@@ -1295,7 +1295,6 @@ void MemoryManager::UpdateDeviceMemoryType(void *h_ptr, const MemoryType mt)
    if (mem_map_iter == maps->memories.end()) { mfem_error("Unknown pointer!"); }
    internal::Memory &mem = mem_map_iter->second;
    if (mem.d_mt == mt) { return; }
-   fprintf(stderr, "mem.d_mt=%d, mt=%d\n", mem.d_mt, mt);
    MFEM_VERIFY(mem.d_ptr == nullptr,
                "Cannot change the memory type if d_ptr != nullptr");
    auto old = maps->memories.erase(mem_map_iter);
