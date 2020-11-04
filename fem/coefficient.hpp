@@ -695,16 +695,15 @@ class MatrixCoefficient
 protected:
    int height, width;
    double time;
-   bool symmetric;  // TODO: remove this!
 
 public:
    /// Construct a dim x dim matrix coefficient.
-   explicit MatrixCoefficient(int dim, bool symm=false)
-   { height = width = dim; time = 0.; symmetric = symm; }
+   explicit MatrixCoefficient(int dim)
+   { height = width = dim; time = 0.; }
 
    /// Construct a h x w matrix coefficient.
-   MatrixCoefficient(int h, int w, bool symm=false) :
-      height(h), width(w), time(0.), symmetric(symm) { }
+   MatrixCoefficient(int h, int w) :
+      height(h), width(w), time(0.) { }
 
    /// Set the time for time dependent coefficients
    void SetTime(double t) { time = t; }
@@ -721,8 +720,6 @@ public:
    /// For backward compatibility get the width of the matrix.
    int GetVDim() const { return width; }
 
-   bool IsSymmetric() const { return symmetric; }
-
    /** @brief Evaluate the matrix coefficient in the element described by @a T
        at the point @a ip, storing the result in @a K. */
    /** @note When this method is called, the caller must make sure that the
@@ -730,15 +727,6 @@ public:
        achieved by calling T.SetIntPoint(&ip). */
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip) = 0;
-
-   /** @brief Evaluate the upper triangular entries of the matrix coefficient
-       in the symmetric case, similarly to Eval. Matrix entry (i,j) is stored
-       in K[j - i + os_i] for 0 <= i <= j < width, os_0 = 0,
-       os_{i+1} = os_i + width - i. That is, K = {M(0,0), ..., M(0,w-1),
-       M(1,1), ..., M(1,w-1), ..., M(w-1,w-1) with w = width. */
-   virtual void EvalSymmetric(Vector &K, ElementTransformation &T,
-                              const IntegrationPoint &ip)
-   { mfem_error("MatrixCoefficient::EvalSymmetric"); }
 
    virtual ~MatrixCoefficient() { }
 };
@@ -767,7 +755,6 @@ class MatrixFunctionCoefficient : public MatrixCoefficient
 {
 private:
    std::function<void(const Vector &, DenseMatrix &)> Function;
-   std::function<void(const Vector &, Vector &)> SymmFunction;
    std::function<void(const Vector &, double, DenseMatrix &)> TDFunction;
 
    Coefficient *Q;
@@ -801,28 +788,12 @@ public:
       : MatrixCoefficient(dim), TDFunction(std::move(TDF)), Q(q)
    { }
 
-   /** @brief Define a time-independent symmetric square matrix coefficient from
-       a std function */
-   /** \param dim - the size of the matrix
-       \param SymmF - function used in EvalSymmetric
-       \param q - optional scalar Coefficient to scale the matrix coefficient */
-   MatrixFunctionCoefficient(int dim,
-                             std::function<void(const Vector &, Vector &)> SymmF,
-                             Coefficient *q = NULL)
-      : MatrixCoefficient(dim, true), SymmFunction(std::move(SymmF)), Q(q), mat(0)
-   { }
-
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
-   /// Evaluate the symmetric matrix coefficient at @a ip.
-   virtual void EvalSymmetric(Vector &K, ElementTransformation &T,
-                              const IntegrationPoint &ip);
-
    virtual ~MatrixFunctionCoefficient() { }
 };
-
 
 
 /** @brief Matrix coefficient defined by a matrix of scalar coefficients.

@@ -931,6 +931,7 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const IntegrationRule *ir
       = IntRule ? IntRule : &MassIntegrator::GetRule(*el, *el,
                                                      *mesh->GetElementTransformation(0));
+
    const int dims = el->GetDim();
    MFEM_VERIFY(dims == 2 || dims == 3, "");
 
@@ -949,12 +950,12 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
 
-   const int MQsymmDim = MQ ? (MQ->GetWidth() * (MQ->GetWidth() + 1)) / 2 : 0;
+   const int MQsymmDim = SMQ ? (SMQ->GetSize() * (SMQ->GetSize() + 1)) / 2 : 0;
    const int MQfullDim = MQ ? (MQ->GetHeight() * MQ->GetWidth()) : 0;
-   const int MQdim = MQ ? (MQ->IsSymmetric() ? MQsymmDim : MQfullDim) : 0;
-   const int coeffDim = MQ ? MQdim : (DQ ? DQ->GetVDim() : 1);
+   const int MQdim = MQ ? MQfullDim : MQsymmDim;
+   const int coeffDim = (MQ || SMQ) ? MQdim : (DQ ? DQ->GetVDim() : 1);
 
-   symmetric = MQ ? MQ->IsSymmetric() : true;
+   symmetric = (MQ == NULL);
 
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
    const int ndata = (dim == 2) ? 1 : (symmetric ? symmDims : MQfullDim);
@@ -963,22 +964,11 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
    Vector coeff(coeffDim * ne * nq);
    coeff = 1.0;
    auto coeffh = Reshape(coeff.HostWrite(), coeffDim, nq, ne);
-   if (Q || DQ || MQ)
+   if (Q || DQ || MQ || SMQ)
    {
       Vector D(DQ ? coeffDim : 0);
       DenseMatrix M;
-      Vector Msymm;
-      if (MQ)
-      {
-         if (symmetric)
-         {
-            Msymm.SetSize(MQsymmDim);
-         }
-         else
-         {
-            M.SetSize(dimc);
-         }
-      }
+      DenseSymmetricMatrix SM;
 
       if (DQ)
       {
@@ -986,8 +976,14 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
       }
       if (MQ)
       {
+         M.SetSize(dimc);
          MFEM_VERIFY(coeffDim == MQdim, "");
          MFEM_VERIFY(MQ->GetHeight() == dimc && MQ->GetWidth() == dimc, "");
+      }
+      if (SMQ)
+      {
+         SM.SetSize(dimc);
+         MFEM_VERIFY(SMQ->GetSize() == dimc, "");
       }
 
       for (int e=0; e<ne; ++e)
@@ -997,25 +993,26 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
          {
             if (MQ)
             {
-               if (MQ->IsSymmetric())
-               {
-                  MQ->EvalSymmetric(Msymm, *tr, ir->IntPoint(p));
+               MQ->Eval(M, *tr, ir->IntPoint(p));
 
-                  for (int i=0; i<MQsymmDim; ++i)
+               for (int i=0; i<dimc; ++i)
+                  for (int j=0; j<dimc; ++j)
                   {
-                     coeffh(i, p, e) = Msymm[i];
+                     coeffh(j+(i*dimc), p, e) = M(i,j);
                   }
-               }
-               else
-               {
-                  MQ->Eval(M, *tr, ir->IntPoint(p));
 
-                  for (int i=0; i<dimc; ++i)
-                     for (int j=0; j<dimc; ++j)
-                     {
-                        coeffh(j+(i*dimc), p, e) = M(i,j);
-                     }
-               }
+            }
+            else if (SMQ)
+            {
+               SMQ->Eval(SM, *tr, ir->IntPoint(p));
+
+               int cnt = 0;
+               for (int i=0; i<dimc; ++i)
+                  for (int j=i; j<dimc; ++j, ++cnt)
+                  {
+                     coeffh(cnt, p, e) = SM(i,j);
+                  }
+
             }
             else if (DQ)
             {

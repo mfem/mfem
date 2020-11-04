@@ -1900,6 +1900,7 @@ protected:
    Coefficient *Q;
    VectorCoefficient *VQ;
    MatrixCoefficient *MQ;
+   SymmetricMatrixCoefficient *SMQ;
 
 private:
    Vector vec, pointflux, shape;
@@ -1922,19 +1923,28 @@ private:
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
    DiffusionIntegrator()
-      : Q(NULL), VQ(NULL), MQ(NULL), maps(NULL), geom(NULL), ceedDataPtr(NULL) { }
+      : Q(NULL), VQ(NULL), MQ(NULL), SMQ(NULL), maps(NULL), geom(NULL),
+        ceedDataPtr(NULL) { }
 
    /// Construct a diffusion integrator with a scalar coefficient q
    DiffusionIntegrator(Coefficient &q)
-      : Q(&q), VQ(NULL), MQ(NULL), maps(NULL), geom(NULL), ceedDataPtr(NULL) { }
+      : Q(&q), VQ(NULL), MQ(NULL), SMQ(NULL), maps(NULL), geom(NULL),
+        ceedDataPtr(NULL) { }
 
    /// Construct a diffusion integrator with a vector coefficient q
    DiffusionIntegrator(VectorCoefficient &q)
-      : Q(NULL), VQ(&q), MQ(NULL), maps(NULL), geom(NULL), ceedDataPtr(NULL) { }
+      : Q(NULL), VQ(&q), MQ(NULL), SMQ(NULL), maps(NULL), geom(NULL),
+        ceedDataPtr(NULL) { }
 
    /// Construct a diffusion integrator with a matrix coefficient q
    DiffusionIntegrator(MatrixCoefficient &q)
-      : Q(NULL), VQ(NULL), MQ(&q), maps(NULL), geom(NULL), ceedDataPtr(NULL) { }
+      : Q(NULL), VQ(NULL), MQ(&q), SMQ(NULL), maps(NULL), geom(NULL),
+        ceedDataPtr(NULL) { }
+
+   /// Construct a diffusion integrator with a symmetric matrix coefficient q
+   DiffusionIntegrator(SymmetricMatrixCoefficient &q)
+      : Q(NULL), VQ(NULL), MQ(NULL), SMQ(&q), maps(NULL), geom(NULL),
+        ceedDataPtr(NULL) { }
 
    virtual ~DiffusionIntegrator()
    {
@@ -2337,6 +2347,7 @@ protected:
    Coefficient *Q;
    VectorCoefficient *DQ;
    MatrixCoefficient *MQ;
+   SymmetricMatrixCoefficient *SMQ;
 
    // PA extension
    Vector pa_data;
@@ -2347,14 +2358,17 @@ protected:
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
 public:
-   CurlCurlIntegrator() { Q = NULL; DQ = NULL; MQ = NULL; }
+   CurlCurlIntegrator() { Q = NULL; DQ = NULL; MQ = NULL; SMQ = NULL; }
    /// Construct a bilinear form integrator for Nedelec elements
    CurlCurlIntegrator(Coefficient &q, const IntegrationRule *ir = NULL) :
-      BilinearFormIntegrator(ir), Q(&q) { DQ = NULL; MQ = NULL; }
+      BilinearFormIntegrator(ir), Q(&q), DQ(NULL), MQ(NULL), SMQ(NULL) { }
    CurlCurlIntegrator(VectorCoefficient &dq, const IntegrationRule *ir = NULL) :
-      BilinearFormIntegrator(ir), DQ(&dq) { Q = NULL; MQ = NULL; }
+      BilinearFormIntegrator(ir), Q(NULL), DQ(&dq), MQ(NULL), SMQ(NULL) { }
    CurlCurlIntegrator(MatrixCoefficient &mq, const IntegrationRule *ir = NULL) :
-      BilinearFormIntegrator(ir), MQ(&mq) { Q = NULL; DQ = NULL; }
+      BilinearFormIntegrator(ir), Q(NULL), DQ(NULL), MQ(&mq), SMQ(NULL) { }
+   CurlCurlIntegrator(SymmetricMatrixCoefficient &smq,
+                      const IntegrationRule *ir = NULL) :
+      BilinearFormIntegrator(ir), MQ(NULL), Q(NULL), DQ(NULL), SMQ(&smq) { }
 
    /* Given a particular Finite Element, compute the
       element curl-curl matrix elmat */
@@ -2411,8 +2425,9 @@ public:
 class VectorFEMassIntegrator: public BilinearFormIntegrator
 {
 private:
-   void Init(Coefficient *q, VectorCoefficient *vq, MatrixCoefficient *mq)
-   { Q = q; VQ = vq; MQ = mq; }
+   void Init(Coefficient *q, VectorCoefficient *vq, MatrixCoefficient *mq,
+             SymmetricMatrixCoefficient *smq)
+   { Q = q; VQ = vq; MQ = mq; SMQ = smq; }
 
 #ifndef MFEM_THREAD_SAFE
    Vector shape;
@@ -2427,6 +2442,7 @@ protected:
    Coefficient *Q;
    VectorCoefficient *VQ;
    MatrixCoefficient *MQ;
+   SymmetricMatrixCoefficient *SMQ;
 
    // PA extension
    Vector pa_data;
@@ -2439,13 +2455,15 @@ protected:
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
 public:
-   VectorFEMassIntegrator() { Init(NULL, NULL, NULL); }
-   VectorFEMassIntegrator(Coefficient *_q) { Init(_q, NULL, NULL); }
-   VectorFEMassIntegrator(Coefficient &q) { Init(&q, NULL, NULL); }
-   VectorFEMassIntegrator(VectorCoefficient *_vq) { Init(NULL, _vq, NULL); }
-   VectorFEMassIntegrator(VectorCoefficient &vq) { Init(NULL, &vq, NULL); }
-   VectorFEMassIntegrator(MatrixCoefficient *_mq) { Init(NULL, NULL, _mq); }
-   VectorFEMassIntegrator(MatrixCoefficient &mq) { Init(NULL, NULL, &mq); }
+   VectorFEMassIntegrator() { Init(NULL, NULL, NULL, NULL); }
+   VectorFEMassIntegrator(Coefficient *_q) { Init(_q, NULL, NULL, NULL); }
+   VectorFEMassIntegrator(Coefficient &q) { Init(&q, NULL, NULL, NULL); }
+   VectorFEMassIntegrator(VectorCoefficient *_vq) { Init(NULL, _vq, NULL, NULL); }
+   VectorFEMassIntegrator(VectorCoefficient &vq) { Init(NULL, &vq, NULL, NULL); }
+   VectorFEMassIntegrator(MatrixCoefficient *_mq) { Init(NULL, NULL, _mq, NULL); }
+   VectorFEMassIntegrator(MatrixCoefficient &mq) { Init(NULL, NULL, &mq, NULL); }
+   VectorFEMassIntegrator(SymmetricMatrixCoefficient &smq) { Init(NULL, NULL, NULL, &smq); }
+   VectorFEMassIntegrator(SymmetricMatrixCoefficient *smq) { Init(NULL, NULL, NULL, smq); }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
