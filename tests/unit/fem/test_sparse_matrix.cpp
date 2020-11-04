@@ -177,9 +177,9 @@ void test_sparse_matrix(const char* input, int order, const Coeff coeff_type,
          break;
    }
 
+   k_ref.KeepNbrBlock();
    k_ref.Assemble();
    k_ref.Finalize();
-   k_ref.KeepNbrBlock();
 
    k_test.SetAssemblyLevel(assembly);
    k_test.Assemble();
@@ -188,7 +188,7 @@ void test_sparse_matrix(const char* input, int order, const Coeff coeff_type,
                        fes.GetVSize() + fes.GetFaceNbrVSize() :
                        fes.GetVSize();
    const int sizeOut = fes.GetVSize();
-   Vector x(sizeIn), y_test(sizeOut), y_ref(sizeOut);
+   Vector x(sizeIn), y_test(sizeIn), y_ref(sizeIn);
    x.Randomize(1);
 
    k_test.SpMat().Mult(x,y_test);
@@ -196,7 +196,9 @@ void test_sparse_matrix(const char* input, int order, const Coeff coeff_type,
 
    y_test -= y_ref;
 
-   REQUIRE(y_test.Norml2() < 1.e-12);
+   Vector result(y_test.HostReadWrite(), sizeOut);
+
+   REQUIRE(result.Norml2() < 1.e-12);
    delete coeff;
    delete fec;
 }
@@ -207,8 +209,10 @@ TEST_CASE("Sparse Matrix", "[Parallel]")
    auto coeff_type = GENERATE(Coeff::Const,Coeff::Grid,Coeff::Quad);
    auto pb = GENERATE(Problem::Mass,Problem::Convection,Problem::Diffusion);
    auto order = GENERATE(1,2,3);
-   auto mesh = GENERATE("../../data/inline-quad.mesh","../../data/inline-hex.mesh",
-                        "../../data/star-q2.mesh");
+   auto mesh = GENERATE("../../data/inline-quad.mesh",
+                        "../../data/inline-hex.mesh",
+                        "../../data/star-q2.mesh",
+                        "../../data/fichera-q2.mesh");
    test_sparse_matrix(mesh, order, coeff_type, pb, assembly);
 } // test case
 

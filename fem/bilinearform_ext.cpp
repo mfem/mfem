@@ -939,6 +939,7 @@ SparseMatrix* GetFullAssemblySparseMatrix(BilinearForm &a)
               dynamic_cast<ParFiniteElementSpace*>(a.FESpace()) )
       {
          pfes->ExchangeFaceNbrData();
+         size += pfes->GetFaceNbrVSize();
       }
 #endif
       SparseMatrix *A = new SparseMatrix(size,size);
