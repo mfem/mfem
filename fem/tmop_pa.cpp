@@ -120,10 +120,14 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &xe) const
    const FiniteElementSpace *fes = PA.fes;
    const IntegrationRule *ir = EnergyIntegrationRule(*fes->GetFE(0));
    const TargetConstructor::TargetType &target_type = targetC->Type();
+   const DiscreteAdaptTC *discr_tc = GetDiscreteAdaptTC();
 
    // Skip when TargetConstructor needs the nodes but have not been set
-   const bool tc_wn = target_type != TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
-   if (targetC && tc_wn && !targetC->GetNodes()) { return; }
+   const bool use_nodes =
+      target_type == TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE ||
+      target_type == TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE ||
+      target_type == TargetConstructor::GIVEN_SHAPE_AND_SIZE;
+   if (targetC && !discr_tc && use_nodes && !targetC->GetNodes()) { return; }
 
    // Try to use the TargetConstructor ComputeElementTargetsPA
    PA.setup_Jtr = targetC->ComputeElementTargetsPA(fes, ir, PA.Jtr);
@@ -143,7 +147,6 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &xe) const
 
    if (use_input_vector && !useable_input_vector) { return; }
 
-   DiscreteAdaptTC *discr_tc = GetDiscreteAdaptTC();
    if (discr_tc && !discr_tc->GetTspecFesv()) { return; }
 
    if (use_input_vector)
