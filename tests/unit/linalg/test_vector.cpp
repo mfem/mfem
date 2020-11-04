@@ -122,6 +122,4 @@ TEST_CASE("Vector Tests", "[Vector]")
       subtract(tmp, apb, diff);
       REQUIRE(diff.Norml2() < tol);
    }
-
-
 }
