@@ -2368,7 +2368,7 @@ public:
       BilinearFormIntegrator(ir), Q(NULL), DQ(NULL), MQ(&mq), SMQ(NULL) { }
    CurlCurlIntegrator(SymmetricMatrixCoefficient &smq,
                       const IntegrationRule *ir = NULL) :
-      BilinearFormIntegrator(ir), MQ(NULL), Q(NULL), DQ(NULL), SMQ(&smq) { }
+      BilinearFormIntegrator(ir), Q(NULL), DQ(NULL), MQ(NULL), SMQ(&smq) { }
 
    /* Given a particular Finite Element, compute the
       element curl-curl matrix elmat */
