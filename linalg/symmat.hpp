@@ -47,7 +47,7 @@ public:
        DenseSymmetricMatrix that owns its current data array. */
    void UseExternalData(double *d, int s)
    {
-      data.Wrap(d, s*s, false);
+      data.Wrap(d, (s*(s+1))/2, false);
       height = s; width = s;
    }
 
@@ -147,8 +147,6 @@ public:
 inline double &DenseSymmetricMatrix::operator()(int i, int j)
 {
    MFEM_ASSERT(data && i >= 0 && i < height && j >= 0 && j < width, "");
-   //if (i > j) return this->(j, i);
-   //const int rowOffset = (i*height) - (((i-1)*i)/2);  // TODO: put this directly in the next line
    if (i > j)  // reverse i and j
    {
       return data[(j*height) - (((j-1)*j)/2) + i - j];

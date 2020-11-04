@@ -27,7 +27,7 @@ DenseSymmetricMatrix::DenseSymmetricMatrix(int s) : Matrix(s)
    MFEM_ASSERT(s >= 0, "invalid DenseSymmetricMatrix size: " << s);
    if (s > 0)
    {
-      data.New(s*s);
+      data.New((s*(s+1))/2);
       *this = 0.0; // init with zeroes
    }
    else
@@ -46,7 +46,7 @@ void DenseSymmetricMatrix::SetSize(int s)
    }
    height = s;
    width = s;
-   const int s2 = s*s;
+   const int s2 = (s*(s+1))/2;
    if (s2 > data.Capacity())
    {
       data.Delete();
@@ -57,7 +57,7 @@ void DenseSymmetricMatrix::SetSize(int s)
 
 DenseSymmetricMatrix &DenseSymmetricMatrix::operator=(double c)
 {
-   const int s = Height()*Height();
+   const int s = (Height()*(Height()+1))/2;
    for (int i = 0; i < s; i++)
    {
       data[i] = c;
@@ -77,7 +77,7 @@ const double &DenseSymmetricMatrix::Elem(int i, int j) const
 
 DenseSymmetricMatrix &DenseSymmetricMatrix::operator*=(double c)
 {
-   int s = Height()*Height();
+   int s = Height()*(Height()+1)/2;
    for (int i = 0; i < s; i++)
    {
       data[i] *= c;
