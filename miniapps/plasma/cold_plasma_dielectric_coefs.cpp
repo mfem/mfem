@@ -296,8 +296,7 @@ void real_epsilon_sigma(double omega, const Vector &B,
 
 double mu(double mass_e, double mass_i)
 {
-   return pow((mass_i * pow(1.66053906, -27.0)) /
-              (2.0 * M_PI * mass_e * pow(1.66053906, -27.0)), 0.5);
+   return sqrt(mass_i / (2.0 * M_PI * mass_e));
 }
 
 complex<double> ff(complex<double> x)
@@ -308,9 +307,9 @@ complex<double> ff(complex<double> x)
    double b1 = 1.13352;
    double b2 = 1.24171;
    double a3 = (2.0 * b2) / M_PI;
-   complex<double> num = a0 + a1*x + a2*pow(x, 2) + a3*pow(x, 3);
+   complex<double> num = a0 + (a1 + (a2 + a3 * x) * x) * x;
    complex<double> val(1.0, 0);
-   complex<double> den = val + b1*x + b2*pow(x, 2);
+   complex<double> den = val + (b1 + b2 * x) * x;
 
    return (num / den);
 }
@@ -336,8 +335,8 @@ complex<double> he(complex<double> x)
    double g2 = 0.500595;
    double g3 = (M_PI * h2) / 4.0;
    complex<double> val(1.0, 0.0);
-   complex<double> num = val + h1*x + h2*pow(x, 2);
-   complex<double> den = val + g1*x + g2*pow(x, 2) + g3*pow(x, 3);
+   complex<double> num = val + (h1 + h2 * x) * x;
+   complex<double> den = val + (g1 + (g2 + g3 * x) * x) * x;
 
    return (num/den);
 }
@@ -346,10 +345,9 @@ double phips(double bx, double wci, double mass_e, double mass_i)
 {
    double mu_val = mu(mass_e, mass_i);
    double d3 = 0.995721;
-   double arg = sqrt((pow(mu_val, 2.0) * pow(bx, 2.0) + 1.0)/(pow(mu_val,
-                                                                  2.0) + 1.0));
+   double arg = sqrt((mu_val * mu_val * bx * bx + 1.0)/(mu_val * mu_val + 1.0));
    double num = -log(arg);
-   double den = 1.0 + d3 * pow(wci, 2.0);
+   double den = 1.0 + d3 * wci * wci;
 
    return (num/den);
 }
@@ -362,13 +360,13 @@ complex<double> niw(double wci, double bx, complex<double> phi, double mass_e,
    double d2 = 0.182378;
    double d4 = 0.0000901468;
    double nu1 = 1.455592;
-   double abx = abs(bx);
+   double abx = fabs(bx);
    complex<double> phips1(phips(abx,wci, mass_e, mass_i), 0.0);
    complex<double> phid = phi - phips1;
    complex<double> pre = d0 /(d2 + sqrt(phid));
    complex<double> wcip = wci * pow(phid, 0.25);
-   complex<double> num = pow(abx, 2.0) + d4 + pow(d1, 2.0) * pow(wcip, (2.0*nu1));
-   complex<double> den = 1.0 + d4 + pow(d1, 2.0) *pow(wcip, (2.0 * nu1));
+   complex<double> num = abx * abx + d4 + d1 * d1 * pow(wcip, (2.0*nu1));
+   complex<double> den = 1.0 + d4 + d1 * d1 * pow(wcip, (2.0 * nu1));
 
    return (pre*sqrt(num/den));
 }
@@ -376,7 +374,7 @@ complex<double> niw(double wci, double bx, complex<double> phi, double mass_e,
 complex<double> ye(double bx, complex<double> xi)
 {
    double h0 = 1.161585;
-   double abx = abs(bx);
+   double abx = fabs(bx);
 
    return (h0*abx*he(xi));
 }
@@ -410,15 +408,15 @@ complex<double> yi(double w, double wci, double bx, complex<double> xi,
    double p2 = 1.47405;
    double p3 = 0.809615;
    double eps = 0.0001;
-   double gfactornum = pow(w, 2.0) - pow(bx, 2.0) * pow(wci, 2.0) + eps;
-   double gfactorden = pow(w, 2.0) - pow(wci, 2.0) + eps;
-   complex<double> gfactor(gfactornum/gfactorden, 0.0);
+   complex<double> gfactornum(w * w - bx * bx * wci * wci, eps);
+   complex<double> gfactorden(w * w - wci * wci, eps);
+   complex<double> gfactor = gfactornum/gfactorden;
    complex<double> niwwa = niww(w,wci,bx,xi,mass_e,mass_i);
    complex<double> phi0avga = phi0avg(w,xi);
-   complex<double> abx(abs(bx), 0.0);
+   complex<double> abx(fabs(bx), 0.0);
    complex<double> gamcup = abx/(niwwa*sqrt(phi0avga));
    complex<double> wcup = p3*w/sqrt(niwwa);
-   complex<double> yicupden1 = pow(wcup, 2.0)/gfactor - p1;
+   complex<double> yicupden1 = wcup * wcup/gfactor - p1;
    complex<double> yicupden2 = p2*gamcup*wcup*val;
    complex<double> yicupden = yicupden1 + yicupden2;
    complex<double> yicup = val*p0*wcup/yicupden;
@@ -429,8 +427,8 @@ complex<double> yi(double w, double wci, double bx, complex<double> xi,
 complex<double> ytot(double w, double wci, double bx, complex<double> xi,
                      double mass_e, double mass_i)
 {
-   complex<double> ytot = ye(bx,xi) + yd(w,wci,bx,xi,mass_e,mass_i) + yi(w,wci,bx,
-                                                                         xi,mass_e,mass_i);
+   complex<double> ytot = ye(bx,xi) +
+                          yd(w,wci,bx,xi,mass_e,mass_i) + yi(w,wci,bx,xi,mass_e,mass_i);
    return (ytot);
 }
 
