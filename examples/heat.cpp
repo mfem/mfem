@@ -3,11 +3,12 @@
 // Compile with: make distance
 //
 // Sample runs:
-//   Problem 0: point source
+//   Problem 0: point sources
 //     mpirun -np 4 heat -m ../data/inline-quad.mesh -rs 2 -t 1.0
 //
-//   Problem 1: level set
+//   Problem 1: level sets
 //      mpirun -np 4 heat -m ../data/inline-quad.mesh -rs 3 -o 2 -t 1.0 -p 1
+//      mpirun -np 4 heat -m ../data/periodic-square.mesh -rs 5 -o 2 -t 1.0 -p 2
 //
 //    K. Crane et al:
 //    Geodesics in Heat: A New Approach to Computing Distance Based on Heat Flow
@@ -42,6 +43,21 @@ double surface_level_set(const Vector &x)
 {
    const double sine = 0.25 * std::sin(4 * M_PI * x(0));
    return (x(1) >= sine + 0.5) ? 0.0 : 1.0;
+}
+
+double Gyroid(const Vector & xx)
+{
+   const double period = 4.0 * M_PI;
+   double x=xx[0]*period;
+   double y=xx[1]*period;
+   double z=0.0;
+   if(xx.Size()==3)
+   {
+      z=xx[2]*period;
+   }
+   return std::sin(x)*std::cos(y) +
+          std::sin(y)*std::cos(z) +
+          std::sin(z)*std::cos(x);
 }
 
 void DiffuseField(ParGridFunction &field, int smooth_steps)
@@ -178,13 +194,25 @@ int main(int argc, char *argv[])
       DeltaCoefficient dc(0.75, 0.625, 1.0);
       u0.ProjectCoefficient(dc);
    }
-   else
+   else if (problem == 1)
    {
       FunctionCoefficient dc(surface_level_set);
       u0.ProjectCoefficient(dc);
       DiffuseField(u0, 5);
 
-      // Transform so that the peak is at 0.5.
+      // Transform so that the peak is at 0.
+      for (int i = 0; i < u0.Size(); i++)
+      {
+         const double x = u0(i);
+         u0(i) = (x < 0.0 || x > 1.0) ? 0.0 : 4.0 * x * (1.0 - x);
+      }
+   }
+   else
+   {
+      FunctionCoefficient lset(Gyroid);
+      u0.ProjectCoefficient(lset);
+
+      // Transform so that the peak is at 0.
       for (int i = 0; i < u0.Size(); i++)
       {
          const double x = u0(i);
