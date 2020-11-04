@@ -686,7 +686,8 @@ ASTYLE = $(ASTYLE_BIN) --options=$(SRC)config/mfem.astylerc
 ASTYLE_VER = "Artistic Style Version 2.05.1"
 FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp")
 FORMAT_FILES += "tests/unit/*.cpp"
-FORMAT_FILES += $(foreach dir,general linalg mesh fem,"tests/unit/$(dir)/*.?pp")
+UNIT_TESTS_SUBDIRS = general linalg mesh fem miniapps ceed
+FORMAT_FILES += $(foreach dir,$(UNIT_TESTS_SUBDIRS),"tests/unit/$(dir)/*.?pp")
 
 COUT_CERR_FILES = $(foreach dir,$(DIRS),$(dir)/*.[ch]pp)
 COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp'

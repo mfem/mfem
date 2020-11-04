@@ -29,21 +29,21 @@ static std::string getString(AssemblyLevel assembly)
 {
    switch (assembly)
    {
-   case AssemblyLevel::NONE:
-      return "NONE";
-      break;
-   case AssemblyLevel::PARTIAL:
-      return "PARTIAL";
-      break;
-   case AssemblyLevel::ELEMENT:
-      return "ELEMENT";
-      break;
-   case AssemblyLevel::FULL:
-      return "FULL";
-      break;
-   case AssemblyLevel::LEGACYFULL:
-      return "LEGACYFULL";
-      break;
+      case AssemblyLevel::NONE:
+         return "NONE";
+         break;
+      case AssemblyLevel::PARTIAL:
+         return "PARTIAL";
+         break;
+      case AssemblyLevel::ELEMENT:
+         return "ELEMENT";
+         break;
+      case AssemblyLevel::FULL:
+         return "FULL";
+         break;
+      case AssemblyLevel::LEGACYFULL:
+         return "LEGACYFULL";
+         break;
    }
    mfem_error("Unknown AssemblyLevel.");
    return "";
@@ -53,15 +53,15 @@ static std::string getString(CeedCoeff coeff_type)
 {
    switch (coeff_type)
    {
-   case CeedCoeff::Const:
-      return "Const";
-      break;
-   case CeedCoeff::Grid:
-      return "Grid";
-      break;
-   case CeedCoeff::Quad:
-      return "Quad";
-      break;
+      case CeedCoeff::Const:
+         return "Const";
+         break;
+      case CeedCoeff::Grid:
+         return "Grid";
+         break;
+      case CeedCoeff::Quad:
+         return "Quad";
+         break;
    }
    mfem_error("Unknown CeedCoeff.");
    return "";
@@ -73,24 +73,25 @@ static std::string getString(Problem pb)
 {
    switch (pb)
    {
-   case Problem::Mass:
-      return "Mass";
-      break;
-   case Problem::Diffusion:
-      return "Diffusion";
-      break;
-   case Problem::VectorMass:
-      return "VectorMass";
-      break;
-   case Problem::VectorDiffusion:
-      return "VectorDiffusion";
-      break;
+      case Problem::Mass:
+         return "Mass";
+         break;
+      case Problem::Diffusion:
+         return "Diffusion";
+         break;
+      case Problem::VectorMass:
+         return "VectorMass";
+         break;
+      case Problem::VectorDiffusion:
+         return "VectorDiffusion";
+         break;
    }
    mfem_error("Unknown Problem.");
    return "";
 }
 
-void test_ceed_operator(const char* input, int order, const CeedCoeff coeff_type,
+void test_ceed_operator(const char* input, int order,
+                        const CeedCoeff coeff_type,
                         const Problem pb, const AssemblyLevel assembly)
 {
    std::string section = "assembly: " + getString(assembly) + "\n" +
@@ -134,22 +135,22 @@ void test_ceed_operator(const char* input, int order, const CeedCoeff coeff_type
 
    switch (pb)
    {
-   case Problem::Mass:
-      k_ref.AddDomainIntegrator(new MassIntegrator(*coeff));
-      k_test.AddDomainIntegrator(new MassIntegrator(*coeff));
-      break;
-   case Problem::Diffusion:
-      k_ref.AddDomainIntegrator(new DiffusionIntegrator(*coeff));
-      k_test.AddDomainIntegrator(new DiffusionIntegrator(*coeff));
-      break;
-   case Problem::VectorMass:
-      k_ref.AddDomainIntegrator(new VectorMassIntegrator(*coeff));
-      k_test.AddDomainIntegrator(new VectorMassIntegrator(*coeff));
-      break;
-   case Problem::VectorDiffusion:
-      k_ref.AddDomainIntegrator(new VectorDiffusionIntegrator(*coeff));
-      k_test.AddDomainIntegrator(new VectorDiffusionIntegrator(*coeff));
-      break;
+      case Problem::Mass:
+         k_ref.AddDomainIntegrator(new MassIntegrator(*coeff));
+         k_test.AddDomainIntegrator(new MassIntegrator(*coeff));
+         break;
+      case Problem::Diffusion:
+         k_ref.AddDomainIntegrator(new DiffusionIntegrator(*coeff));
+         k_test.AddDomainIntegrator(new DiffusionIntegrator(*coeff));
+         break;
+      case Problem::VectorMass:
+         k_ref.AddDomainIntegrator(new VectorMassIntegrator(*coeff));
+         k_test.AddDomainIntegrator(new VectorMassIntegrator(*coeff));
+         break;
+      case Problem::VectorDiffusion:
+         k_ref.AddDomainIntegrator(new VectorDiffusionIntegrator(*coeff));
+         k_test.AddDomainIntegrator(new VectorDiffusionIntegrator(*coeff));
+         break;
    }
 
    k_ref.Assemble();
