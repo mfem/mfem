@@ -740,6 +740,7 @@ static void PADiffusionAssembleDiagonal(const int dim,
          case 0x23: return SmemPADiffusionDiagonal3D<2,3>(NE,B,G,D,Y);
          case 0x34: return SmemPADiffusionDiagonal3D<3,4>(NE,B,G,D,Y);
          case 0x45: return SmemPADiffusionDiagonal3D<4,5>(NE,B,G,D,Y);
+         case 0x46: return SmemPADiffusionDiagonal3D<4,6>(NE,B,G,D,Y);
          case 0x56: return SmemPADiffusionDiagonal3D<5,6>(NE,B,G,D,Y);
          case 0x67: return SmemPADiffusionDiagonal3D<6,7>(NE,B,G,D,Y);
          case 0x78: return SmemPADiffusionDiagonal3D<7,8>(NE,B,G,D,Y);
