@@ -557,22 +557,23 @@ double SheathImpedance::Eval(ElementTransformation &T,
    // Collect density, temperature, magnetic field, and potential field values
    Vector B(3);
    B_.GetVectorValue(T, ip, B);
-   double Bmag = B.Norml2();
+   double Bmag = B.Norml2();                         // Units: T
 
-   complex<double> phi = EvalSheathPotential(T, ip);
+   complex<double> phi = EvalSheathPotential(T, ip); // Units: V
 
-   double density_val = EvalIonDensity(T, ip);
-   double temp_val = EvalElectronTemp(T, ip);
+   double density_val = EvalIonDensity(T, ip);       // Units: # / m^3
+   double temp_val = EvalElectronTemp(T, ip);        // Units: eV
 
-   double Te = temp_val * q_; // Electron temperature, Units: J
-   double wci = omega_c(Bmag, charges_[1], masses_[1]);
-   double wpi = omega_p(density_val, charges_[1], masses_[1]);
+   double Te = temp_val * q_;            // Electron temperature, Units: J
+   double wci = omega_c(Bmag, charges_[1], masses_[1]);        // Units: s^{-1}
+   double wpi = omega_p(density_val, charges_[1], masses_[1]); // Units: s^{-1}
 
-   double vnorm = Te / (charges_[1] * q_);
+   double vnorm = Te / (charges_[1] * q_); // Units: V
 
-   double w_norm = omega_ / wpi;
-   double wci_norm = wci / wpi;
-   complex<double> volt_norm((abs(phi.real())/2)/vnorm, (abs(phi.imag())/2)/vnorm);
+   double w_norm = omega_ / wpi; // Unitless
+   double wci_norm = wci / wpi;  // Unitless
+   complex<double> volt_norm((abs(phi.real())/2)/vnorm,
+                             (abs(phi.imag())/2)/vnorm); // Unitless
 
    double debye_length = debye(temp_val,
                                density_val*1e-6); // Input temp needs to be in eV, Units: cm
