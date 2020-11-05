@@ -439,43 +439,45 @@ int main(int argc, char *argv[])
 
 
 
-   // ComplexDenseMatrix MatZ(2,2);
-   ComplexDenseMatrix MatZ(3,3);
-   // for (int i = 0; i<3; i++)
-   // {
-   //    for (int j = 0; j<3; j++)
-   //    {
-   //       MatZ(i,j) = complex<double>(i,10*j);
-   //    }
-   // }
+   // // ComplexDenseMatrix MatZ(2,2);
+   // ComplexDenseMatrix MatZ(3,3);
+   // MatZ(0,0) =  complex<double>(0.286569,0.736547);  
+   // MatZ(0,1) =  complex<double>(0.051340,0.018433);  
+   // MatZ(0,2) =  complex<double>(0.526620,0.077061);  
+   // MatZ(1,0) =  complex<double>(0.881512,0.036553);  
+   // MatZ(1,1) =  complex<double>(0.727566,0.000757);  
+   // MatZ(1,2) =  complex<double>(0.853221,0.513477);  
+   // MatZ(2,0) =  complex<double>(0.834360,0.822687);  
+   // MatZ(2,1) =  complex<double>(0.335619,0.406582);  
+   // MatZ(2,2) =  complex<double>(0.029811,0.382764);  
 
-   // for (int i = 0; i<3; i++)
-   // {
-   //    for (int j = 0; j<3; j++)
-   //    {
-   //       cout << "MatZ("<<i<<","<<j<<") = " << MatZ(i,j) << endl;
-   //    }
-   // }
-   MatZ(0,0) =  complex<double>(0.286569,0.736547);  
-   MatZ(0,1) =  complex<double>(0.051340,0.018433);  
-   MatZ(0,2) =  complex<double>(0.526620,0.077061);  
-   MatZ(1,0) =  complex<double>(0.881512,0.036553);  
-   MatZ(1,1) =  complex<double>(0.727566,0.000757);  
-   MatZ(1,2) =  complex<double>(0.853221,0.513477);  
-   MatZ(2,0) =  complex<double>(0.834360,0.822687);  
-   MatZ(2,1) =  complex<double>(0.335619,0.406582);  
-   MatZ(2,2) =  complex<double>(0.029811,0.382764);  
+   // cout << "A  " << endl;
+   // MatZ.PrintMatlab(cout);
 
-   MatZ.PrintMatlab(cout);
-
-   ComplexDenseMatrixInverse InvZ(MatZ);
-   InvZ.PrintMatlab(cout);
-   cout << "DetMatZ = " << MatZ.Det() << endl;
-   cout << "DetInvZ = " << InvZ.Det() << endl;
+   // ComplexDenseMatrixInverse InvZ(MatZ);
+   // cout << "B  " << endl;
+   // InvZ.PrintMatlab(cout);
+   // cout << "DetMatZ = " << MatZ.Det() << endl;
+   // cout << "DetInvZ = " << InvZ.Det() << endl;
    
+   // DenseMatrix * Ar = MatZ.real();
+   // DenseMatrix * Ai = MatZ.imag();
+   // ComplexDenseMatrix M(MatZ.Height());
+   // cout << "A * B " << endl;
+   // Mult(MatZ,InvZ,M);
+   // M.PrintMatlab(cout);
 
-   
+   // cout << "At * B " << endl;
+   // MultAtB(MatZ,InvZ,M);
+   // M.PrintMatlab(cout);
 
+   // cout << "A' * B " << endl;
+   // MultAhB(MatZ,InvZ,M);
+   // M.PrintMatlab(cout);
+   // cout << "Ar = " ; Ar->PrintMatlab(cout);
+   // cout << endl;
+   // cout << "Ai = " ; Ai->PrintMatlab(cout);
+   // cout << endl;
 
    // 16. Send the solution by socket to a GLVis server.
    if (visualization)
@@ -721,48 +723,56 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E)
 
 void detJ_JT_J_inv_Re(const Vector &x, ToroidPML * pml, Vector &D)
 {
-   vector<complex<double>> dxs(dim);
-   complex<double> det(1.0, 0.0);
-   pml->StretchFunction(x, dxs,omega);
+   // vector<complex<double>> dxs(dim);
+   // complex<double> det(1.0, 0.0);
+   // pml->StretchFunction(x, dxs,omega);
+   ComplexDenseMatrix J(dim);
+   pml->StretchFunction(x,J,omega);
+   complex<double> det = J.Det();
+
+   // for (int i = 0; i < dim; ++i)
+   // {
+   //    det *= dxs[i];
+   // }
 
    for (int i = 0; i < dim; ++i)
    {
-      det *= dxs[i];
-   }
-
-   for (int i = 0; i < dim; ++i)
-   {
-      D(i) = (det / pow(dxs[i], 2)).real();
+      D(i) = (det / pow(J(i,i), 2)).real();
    }
 }
 
 void detJ_JT_J_inv_Im(const Vector &x, ToroidPML * pml, Vector &D)
 {
-   vector<complex<double>> dxs(dim);
-   complex<double> det = 1.0;
-   pml->StretchFunction(x, dxs,omega);
+   // vector<complex<double>> dxs(dim);
+   // complex<double> det = 1.0;
+   // pml->StretchFunction(x, dxs,omega);
+   ComplexDenseMatrix J(dim);
+   pml->StretchFunction(x,J,omega);
+   complex<double> det = J.Det();
+
+   // for (int i = 0; i < dim; ++i)
+   // {
+   //    det *= dxs[i];
+   // }
 
    for (int i = 0; i < dim; ++i)
    {
-      det *= dxs[i];
-   }
-
-   for (int i = 0; i < dim; ++i)
-   {
-      D(i) = (det / pow(dxs[i], 2)).imag();
+      D(i) = (det / pow(J(i,i), 2)).imag();
    }
 }
 
 void detJ_inv_JT_J_Re(const Vector &x, ToroidPML * pml, Vector &D)
 {
-   vector<complex<double>> dxs(dim);
-   complex<double> det(1.0, 0.0);
-   pml->StretchFunction(x, dxs,omega);
-
-   for (int i = 0; i < dim; ++i)
-   {
-      det *= dxs[i];
-   }
+   // vector<complex<double>> dxs(dim);
+   // complex<double> det(1.0, 0.0);
+   // pml->StretchFunction(x, dxs,omega);
+   ComplexDenseMatrix J(dim);
+   pml->StretchFunction(x,J,omega);
+   complex<double> det = J.Det();
+   // for (int i = 0; i < dim; ++i)
+   // {
+   //    det *= dxs[i];
+   // }
    // in the 2D case the coefficient is scalar 1/det(J)
    if (dim == 2)
    {
@@ -772,21 +782,23 @@ void detJ_inv_JT_J_Re(const Vector &x, ToroidPML * pml, Vector &D)
    {
       for (int i = 0; i < dim; ++i)
       {
-         D(i) = (pow(dxs[i], 2) / det).real();
+         D(i) = (pow(J(i,i), 2) / det).real();
       }
    }
 }
 
 void detJ_inv_JT_J_Im(const Vector &x, ToroidPML * pml, Vector &D)
 {
-   vector<complex<double>> dxs(dim);
-   complex<double> det = 1.0;
-   pml->StretchFunction(x, dxs,omega);
-
-   for (int i = 0; i < dim; ++i)
-   {
-      det *= dxs[i];
-   }
+   // vector<complex<double>> dxs(dim);
+   // complex<double> det = 1.0;
+   // pml->StretchFunction(x, dxs,omega);
+   ComplexDenseMatrix J(dim);
+   pml->StretchFunction(x,J,omega);
+   complex<double> det = J.Det();
+   // for (int i = 0; i < dim; ++i)
+   // {
+   //    det *= dxs[i];
+   // }
 
    if (dim == 2)
    {
@@ -796,7 +808,7 @@ void detJ_inv_JT_J_Im(const Vector &x, ToroidPML * pml, Vector &D)
    {
       for (int i = 0; i < dim; ++i)
       {
-         D(i) = (pow(dxs[i], 2) / det).imag();
+         D(i) = (pow(J(i,i), 2) / det).imag();
       }
    }
 }
@@ -806,84 +818,60 @@ void detJ_inv_JT_J_Im(const Vector &x, ToroidPML * pml, Vector &D)
 
 void detJ_JT_J_inv_Re(const Vector &x, ToroidPML * pml, DenseMatrix & M)
 {
-   vector<complex<double>> dxs(dim);
-   complex<double> det(1.0, 0.0);
-   pml->StretchFunction(x, dxs,omega);
-
-   for (int i = 0; i < dim; ++i)
-   {
-      det *= dxs[i];
-   }
-   M=0.0;
-   for (int i = 0; i < dim; ++i)
-   {
-      M(i,i) = (det / pow(dxs[i], 2)).real();
-   }
+   ComplexDenseMatrix J(dim);
+   pml->StretchFunction(x,J,omega);
+   complex<double> det = J.Det();
+   ComplexDenseMatrix JtJ(dim);
+   MultAtB(J,J,JtJ);
+   ComplexDenseMatrixInverse InvJtJ(JtJ);
+   InvJtJ *=det;
+   InvJtJ.GetReal(M);
 }
 
 void detJ_JT_J_inv_Im(const Vector &x, ToroidPML * pml, DenseMatrix & M)
 {
-   vector<complex<double>> dxs(dim);
-   complex<double> det = 1.0;
-   pml->StretchFunction(x, dxs,omega);
-
-   for (int i = 0; i < dim; ++i)
-   {
-      det *= dxs[i];
-   }
-
-   M=0.0;
-   for (int i = 0; i < dim; ++i)
-   {
-      M(i,i) = (det / pow(dxs[i], 2)).imag();
-   }
+   ComplexDenseMatrix J(dim);
+   pml->StretchFunction(x,J,omega);
+   complex<double> det = J.Det();
+   ComplexDenseMatrix JtJ(dim);
+   MultAtB(J,J,JtJ);
+   ComplexDenseMatrixInverse InvJtJ(JtJ);
+   InvJtJ *=det;
+   InvJtJ.GetImag(M);
 }
 
 void detJ_inv_JT_J_Re(const Vector &x, ToroidPML * pml, DenseMatrix & M)
 {
-   vector<complex<double>> dxs(dim);
-   complex<double> det(1.0, 0.0);
-   pml->StretchFunction(x, dxs,omega);
-
-   for (int i = 0; i < dim; ++i)
-   {
-      det *= dxs[i];
-   }
-   // in the 2D case the coefficient is scalar 1/det(J)
+   ComplexDenseMatrix J(dim);
+   pml->StretchFunction(x,J,omega);
+   complex<double> det = J.Det();
    if (dim == 2)
    {
       M = (1.0 / det).real();
    }
    else
    {
-      M = 0.0;
-      for (int i = 0; i < dim; ++i)
-      {
-         M(i,i) = (pow(dxs[i], 2) / det).real();
-      }
+      ComplexDenseMatrix JtJ(dim);
+      MultAtB(J,J,JtJ);
+      JtJ *= 1.0/det;
+      JtJ.GetReal(M);
    }
 }
 
 void detJ_inv_JT_J_Im(const Vector &x, ToroidPML * pml, DenseMatrix & M)
 {
-   vector<complex<double>> dxs(dim);
-   complex<double> det = 1.0;
-   pml->StretchFunction(x, dxs,omega);
-
-   for (int i = 0; i < dim; ++i)
-   {
-      det *= dxs[i];
-   }
-
+   ComplexDenseMatrix J(dim);
+   pml->StretchFunction(x,J,omega);
+   complex<double> det = J.Det();
    if (dim == 2)
    {
       M = (1.0 / det).imag();
    }
    else
    {
-      for (int i = 0; i < dim; ++i)
-      {
-         M(i,i) = (pow(dxs[i], 2) / det).imag();
-      }
+      ComplexDenseMatrix JtJ(dim);
+      MultAtB(J,J,JtJ);
+      JtJ *= 1.0/det;
+      JtJ.GetImag(M);
    }
 }
