@@ -1108,8 +1108,7 @@ CPDSolver::Solve()
 {
    if ( myid_ == 0 && logging_ > 0 ) { cout << "Running solver ... " << endl; }
 
-   float E_err = 1.0;
-   float Phi_err = 1.0;
+   double E_err = 1.0;
 
    if (e_tmp_ == NULL)
    {
@@ -1126,9 +1125,9 @@ CPDSolver::Solve()
 
    int E_iter = 1;
 
-   while ( E_err > 1e-6 )
+   while ( E_err > 1e-4 && E_iter <= 10 )
    {
-      // if (E_iter > 3){break;}
+      //if (E_iter > 3){break;}
       OperatorHandle A1;
       Vector E, RHS;
       // cout << "Norm of jd (pre-fls): " << jd_->Norml2() << endl;
@@ -1508,56 +1507,67 @@ CPDSolver::Solve()
          ParComplexLinearForm rhs(H1FESpace_);
          ParComplexLinearForm tmp(H1FESpace_);
 
-         n20ZRe_->Update();
-         n20ZIm_->Update();
-
-         n20ZRe_->Assemble();
-         n20ZRe_->Finalize();
-
-         n20ZIm_->Assemble();
-         n20ZIm_->Finalize();
-
-         n20ZRe_->Mult(d_->imag(), rhs.real());
-         n20ZIm_->Mult(d_->real(), tmp.real());
-
-         n20ZRe_->Mult(d_->real(), tmp.imag());
-         n20ZIm_->Mult(d_->imag(), rhs.imag());
-
-         rhs.real() += tmp.real();
-         rhs.imag() -= tmp.imag();
-
-         rhs.real() *= omega_;
-         rhs.imag() *= omega_;
-
-         if (conv_ == ComplexOperator::Convention::BLOCK_SYMMETRIC)
+         double Phi_err  = 1.0;
+         int    Phi_iter = 1;
+         while (Phi_err > 1e-4 && Phi_iter <= 10)
          {
-            rhs.imag() *= -1.0;
+            n20ZRe_->Update();
+            n20ZIm_->Update();
+
+            n20ZRe_->Assemble();
+            n20ZRe_->Finalize();
+
+            n20ZIm_->Assemble();
+            n20ZIm_->Finalize();
+
+            n20ZRe_->Mult(d_->imag(), rhs.real());
+            n20ZIm_->Mult(d_->real(), tmp.real());
+
+            n20ZRe_->Mult(d_->real(), tmp.imag());
+            n20ZIm_->Mult(d_->imag(), rhs.imag());
+
+            rhs.real() += tmp.real();
+            rhs.imag() -= tmp.imag();
+
+            rhs.real() *= omega_;
+            rhs.imag() *= omega_;
+
+            if (conv_ == ComplexOperator::Convention::BLOCK_SYMMETRIC)
+            {
+               rhs.imag() *= -1.0;
+            }
+
+            rhs.real().ParallelAssemble(RHS0);
+
+            pcg.Mult(RHS0, Phi);
+
+            phi_->real().Distribute(Phi);
+
+            rhs.imag().ParallelAssemble(RHS0);
+
+            pcg.Mult(RHS0, Phi);
+
+            phi_->imag().Distribute(Phi);
+
+            // have to have some error tolerance ...
+            double PhisolNorm = phi_tmp_->ComputeL2Error(zeroScalarCoef, zeroScalarCoef);
+            double PhisolErr = phi_->ComputeL2Error(phi_tmp_r_, phi_tmp_i_);
+
+            Phi_err = PhisolErr;
+            if ( PhisolNorm != 0 ) { Phi_err = PhisolErr / PhisolNorm; }
+
+            // if (PhisolNorm == 0 && Phi_err < 1e-3) { break; }
+
+            if (myid_ == 0)
+            {
+               cout << "Phi pass: " << Phi_iter << " Error: " << Phi_err << '\n';
+            }
+
+            phi_tmp_->real() = phi_->real();
+            phi_tmp_->imag() = phi_->imag();
+
+            Phi_iter++;
          }
-
-         rhs.real().ParallelAssemble(RHS0);
-
-         pcg.Mult(RHS0, Phi);
-
-         phi_->real().Distribute(Phi);
-
-         rhs.imag().ParallelAssemble(RHS0);
-
-         pcg.Mult(RHS0, Phi);
-
-         phi_->imag().Distribute(Phi);
-
-         // have to have some error tolerance ...
-         double PhisolNorm = phi_tmp_->ComputeL2Error(zeroScalarCoef, zeroScalarCoef);
-         double PhisolErr = phi_->ComputeL2Error(phi_tmp_r_, phi_tmp_i_);
-
-         Phi_err = PhisolErr;
-         if ( PhisolNorm != 0 ) { Phi_err = PhisolErr / PhisolNorm; }
-
-         if (PhisolNorm == 0 && Phi_err < 1e-3) { break; }
-
-         phi_tmp_->real() = phi_->real();
-         phi_tmp_->imag() = phi_->imag();
-
       }
 
       delete BDP;
@@ -1575,15 +1585,21 @@ CPDSolver::Solve()
       E_err = EsolErr;
       if ( EsolNorm != 0 ) { E_err = EsolErr / EsolNorm; }
 
-      cout << "EField pass: " << E_iter << " Error: " << E_err << '\n';
+      if (myid_ == 0)
+      {
+         cout << "EField pass: " << E_iter << " Error: " << E_err << '\n';
+      }
 
       e_tmp_->real() = e_->real();
       e_tmp_->imag() = e_->imag();
 
       E_iter++;
    }
-   cout << " Outer E field calculation done in " << E_iter << " iteration(s)." <<
-        endl;
+   if (myid_ == 0)
+   {
+      cout << " Outer E field calculation done in " << E_iter
+           << " iteration(s)." << endl;
+   }
 }
 
 double
