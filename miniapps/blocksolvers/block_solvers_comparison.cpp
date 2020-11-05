@@ -21,8 +21,8 @@
 //               polynomials (pressure p).
 //
 //               The solvers being compared include:
-//                 1. MINRES preconditioned by a block diagonal preconditioner
-//                 2. The divergence free solver
+//                 1. The divergence free solver
+//                 2. MINRES preconditioned by a block diagonal preconditioner
 //
 //               We recommend viewing example 5 before viewing this miniapp.
 

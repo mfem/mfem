@@ -36,7 +36,7 @@ struct DFSData
    Array<OperatorPtr> P_hcurl;        // Interpolation for kernel space of div
    Array<OperatorPtr> Q_l2;           // Q_l2[l] = (W_{l+1})^{-1} P_l2[l]^T W_l
    Array<int> coarsest_ess_hdivdofs;  // coarsest level essential H(div) dofs
-   Array<OperatorPtr> C;              // discrete curl: ND -> RT
+   Array<OperatorPtr> C;              // discrete curl: ND -> RT, map to Null(B)
    DFSParameters param;
 };
 
@@ -136,7 +136,7 @@ public:
        @param P_l2 prolongation matrix of the discrete L2 space
        @param Q_l2 projection matrix of the discrete L2 space:
                       Q_l2 := (P_l2 W P_l2)^{-1} * P_l2 * W,
-              where W is the mass matrix of the discrete L2 space. */
+                   where W is the mass matrix of the discrete L2 space. */
    SaddleSchwarzSmoother(const HypreParMatrix& M,
                          const HypreParMatrix& B,
                          const SparseMatrix& agg_hdivdof,
