@@ -265,8 +265,10 @@ double ToroidPML::GetAngle(const double x, const double y)
    return arad * 180.0/M_PI;
 }
 
-void ToroidPML::StretchFunction(const Vector &X,
-                                   vector<complex<double>> &dxs, double omega)
+// void ToroidPML::StretchFunction(const Vector &X,
+//                                    vector<complex<double>> &dxs, double omega)
+void ToroidPML::StretchFunction(const Vector &X, ComplexDenseMatrix & J, double omega)
+
 {
    complex<double> zi = complex<double>(0., 1.);
 
@@ -277,9 +279,12 @@ void ToroidPML::StretchFunction(const Vector &X,
    double y0 = X[1];
    double a0 = GetAngle(x0,y0);
    double r0 = sqrt(x0*x0 + y0*y0);
-   dxs[0] = 1.0;
-   dxs[1] = 1.0;
-   if (dim == 3) dxs[2] = 1.0;
+   // dxs[0] = 1.0;
+   // dxs[1] = 1.0;
+   J = 0.0;
+   J(0,0) = 1.0;
+   J(1,1) = 1.0;
+   if (dim == 3) J(2,2) = 1.0;
 
    if (astretch)
    {
@@ -314,8 +319,10 @@ void ToroidPML::StretchFunction(const Vector &X,
          double coeffy = n * c / omega / pow(ythickness, n);
          double Lx = r1 * cos((alim[1]-apml_thickness[1])*M_PI/180.0);
          double Ly = r1 * sin((alim[1]-apml_thickness[1])*M_PI/180.0);
-         dxs[0] = 1.0 + zi * coeffx * abs(pow(x0 - Lx, n - 1.0));
-         dxs[1] = 1.0 + zi * coeffy * abs(pow(y0 - Ly, n - 1.0));
+         // dxs[0] = 1.0 + zi * coeffx * abs(pow(x0 - Lx, n - 1.0));
+         J(0,0) = 1.0 + zi * coeffx * abs(pow(x0 - Lx, n - 1.0));
+         // dxs[1] = 1.0 + zi * coeffy * abs(pow(y0 - Ly, n - 1.0));
+         J(1,1) = 1.0 + zi * coeffy * abs(pow(y0 - Ly, n - 1.0));
          // double coeffTheta = n * c / omega / pow(apml_thickness[1]*M_PI/180.0, n);
          // complex<double> dtheta = zi * coeffTheta * abs(pow((alim[1]-a0)*M_PI/180.0,n-1)); 
          // dxs[0] = 1.0 + dtheta * r1 * sin(a0*M_PI/180.0);
@@ -348,9 +355,11 @@ void ToroidPML::StretchFunction(const Vector &X,
          // cout << "Lx = " << Lx << endl;
          // cout << "Ly = " << Ly << endl;
          // dxs[0] = 1.0 + zi * coeff * abs(pow(x0 - Lx, n - 1.0));
-         dxs[0] = 1.0 + zi * coeff * abs(pow((r0-rlim[1]+rpml_thickness[1])*cos(a1*M_PI/180.0), n - 1.0));
+         // dxs[0] = 1.0 + zi * coeff * abs(pow((r0-rlim[1]+rpml_thickness[1])*cos(a1*M_PI/180.0), n - 1.0));
+         J(0,0) = 1.0 + zi * coeff * abs(pow((r0-rlim[1]+rpml_thickness[1])*cos(a1*M_PI/180.0), n - 1.0));
          // dxs[1] = 1.0 + zi * coeff * abs(pow(y0 - Ly, n - 1.0));
-         dxs[1] = 1.0 + zi * coeff * abs(pow((r0-rlim[1]+rpml_thickness[1])*sin(a1*M_PI/180.0), n - 1.0));
+         // dxs[1] = 1.0 + zi * coeff * abs(pow((r0-rlim[1]+rpml_thickness[1])*sin(a1*M_PI/180.0), n - 1.0));
+         J(1,1) = 1.0 + zi * coeff * abs(pow((r0-rlim[1]+rpml_thickness[1])*sin(a1*M_PI/180.0), n - 1.0));
          // cout << "xthickness = " << xthickness << endl;
          // cout << "ythickness = " << ythickness << endl;
          // cout << "coeffx = " << coeffx << endl;

@@ -119,7 +119,8 @@ public:
    void SetOmega(double omega_) {omega = omega_;}
 
    // PML complex stretching function
-   void StretchFunction(const Vector &X, vector<complex<double>> &dxs, double omega);
+   // void StretchFunction(const Vector &X, vector<complex<double>> &dxs, double omega);
+   void StretchFunction(const Vector &X, ComplexDenseMatrix & J, double omega);
 };
 
 class PmlCoefficient : public Coefficient

@@ -1,5 +1,5 @@
 
-
+#include "../../../linalg/kernels.hpp"
 #include "complex_linalg.hpp"
 
 
@@ -10,7 +10,6 @@ ComplexDenseMatrix::ComplexDenseMatrix(int s)
    MFEM_ASSERT(s >= 0, "invalid ComplexDenseMatrix size: " << s);
    height = s;
    width  = s;
-   cout << "s = " << s << endl;
    if (s > 0)
    {
       data = new complex<double>[s*s];
@@ -102,6 +101,101 @@ std::complex<double> ComplexDenseMatrix::Det() const
    }
 }
 
+DenseMatrix * ComplexDenseMatrix::real() const
+{
+   DenseMatrix * Ar = new DenseMatrix(height,width);
+   double * data = Ar->Data();
+   complex<double> * zdata = this->data;
+   for (int s = 0; s<height*width; s++)
+   {
+         data[s] = zdata[s].real();
+   }
+   return Ar;
+}
+DenseMatrix * ComplexDenseMatrix::imag() const
+{
+   DenseMatrix * Ai = new DenseMatrix(height,width);
+   double * data = Ai->Data();
+   complex<double> * zdata = this->data;
+   for (int s = 0; s<height*width; s++)
+   {
+         data[s] = zdata[s].imag();
+   }
+   return Ai;
+}
+
+void ComplexDenseMatrix::GetReal(DenseMatrix & Ar) 
+{
+   MFEM_ASSERT(Ar.Height() == height && Ar.Width() == width, "Incompatible dimensions");
+   double * data = Ar.Data();
+   complex<double> * zdata = this->data;
+   for (int s = 0; s<height*width; s++)
+   {
+         data[s] = zdata[s].real();
+   }
+}
+
+void ComplexDenseMatrix::GetImag(DenseMatrix & Ai) 
+{
+   double * data = Ai.Data();
+   complex<double> * zdata = this->data;
+   for (int s = 0; s<height*width; s++)
+   {
+         data[s] = zdata[s].imag();
+   }
+}
+
+ComplexDenseMatrix &ComplexDenseMatrix::operator=(const ComplexDenseMatrix &m)
+{
+   SetSize(m.height, m.width);
+
+   const int hw = height * width;
+   for (int i = 0; i < hw; i++)
+   {
+      data[i] = m.data[i];
+   }
+   return *this;
+}
+
+ComplexDenseMatrix &ComplexDenseMatrix::operator+=(const complex<double> *m)
+{
+   const int hw = Height()*Width();
+   for (int i = 0; i < hw; i++)
+   {
+      data[i] += m[i];
+   }
+   return *this;
+}
+
+ComplexDenseMatrix &ComplexDenseMatrix::operator+=(const ComplexDenseMatrix &m)
+{
+   MFEM_ASSERT(Height() == m.Height() && Width() == m.Width(),
+               "incompatible matrix sizes.");
+   return *this += m.GetData();
+}
+
+ComplexDenseMatrix &ComplexDenseMatrix::operator-=(const ComplexDenseMatrix &m)
+{
+   int s = Height()*Width();
+   complex<double> * mdata = m.GetData();
+   for (int i = 0; i < s; i++)
+   {
+      data[i] -= mdata[s];
+   }
+   return *this;
+}
+
+ComplexDenseMatrix &ComplexDenseMatrix::operator*=(complex<double> c)
+{
+   int s = Height()*Width();
+   for (int i = 0; i < s; i++)
+   {
+      data[i] *= c;
+   }
+   return *this;
+}
+
+
 void ComplexDenseMatrix::Print(std::ostream &out, int width_) const
 {
    // save current output flags
@@ -183,4 +277,82 @@ ComplexDenseMatrixInverse::ComplexDenseMatrixInverse(const ComplexDenseMatrix & 
       // Should be unreachable 
       break;
    }
+}
+
+
+
+/// Matrix matrix multiplication.  A = B * C.
+void Mult(const ComplexDenseMatrix &b, const ComplexDenseMatrix &c, ComplexDenseMatrix &a)
+{
+   MFEM_ASSERT(a.Height() == b.Height() && a.Width() == c.Width() &&
+               b.Width() == c.Height(), "incompatible dimensions");
+
+   const int ah = a.Height();
+   const int aw = a.Width();
+   const int bw = b.Width();
+   complex<double> *ad = a.Data();
+   const complex<double> *bd = b.Data();
+   const complex<double> *cd = c.Data();
+   kernels::Mult(ah,aw,bw,bd,cd,ad);               
+}
+
+/// Multiply the transpose of a matrix A with a matrix B:   At*B
+void MultAtB(const ComplexDenseMatrix &A, const ComplexDenseMatrix &B, ComplexDenseMatrix &AtB)
+{
+   MFEM_ASSERT(A.Width() == AtB.Height() && B.Width() == AtB.Width() &&
+               A.Height() == B.Height(), "incompatible dimensions");
+   const int ah = A.Height();
+   const int aw = A.Width();
+   const int bw = B.Width();
+   const complex<double> *ad = A.Data();
+   const complex<double> *bd = B.Data();
+   complex<double> *cd = AtB.Data();
+
+   for (int j = 0; j < bw; j++)
+   {
+      const complex<double> *ap = ad;
+      for (int i = 0; i < aw; i++)
+      {
+         complex<double> d = 0.0;
+         for (int k = 0; k < ah; k++)
+         {
+            d += ap[k] * bd[k];
+         }
+         *(cd++) = d;
+         ap += ah;
+      }
+      bd += ah;
+   }            
+}
+
+/// Multiply the conjugate transpose of a matrix A with a matrix B:   At*B
+void MultAhB(const ComplexDenseMatrix &A, const ComplexDenseMatrix &B, ComplexDenseMatrix &AtB)
+{
+   MFEM_ASSERT(A.Width() == AtB.Height() && B.Width() == AtB.Width() &&
+               A.Height() == B.Height(), "incompatible dimensions");
+      MFEM_ASSERT(A.Width() == AtB.Height() && B.Width() == AtB.Width() &&
+               A.Height() == B.Height(), "incompatible dimensions");
+   const int ah = A.Height();
+   const int aw = A.Width();
+   const int bw = B.Width();
+   const complex<double> *ad = A.Data();
+   const complex<double> *bd = B.Data();
+   complex<double> *cd = AtB.Data();
+
+   for (int j = 0; j < bw; j++)
+   {
+      const complex<double> *ap = ad;
+      for (int i = 0; i < aw; i++)
+      {
+         complex<double> d = 0.0;
+         for (int k = 0; k < ah; k++)
+         {
+            d += conj(ap[k]) * bd[k];
+         }
+         *(cd++) = d;
+         ap += ah;
+      }
+      bd += ah;
+   }                    
+
 }
