@@ -119,13 +119,20 @@ static Vector pw_eta_inv_im_(0);  // Piecewise inverse imaginary impedance
 // Current Density Function
 static Vector rod_params_
 (0); // Amplitude of x, y, z current source, position in 2D, and radius
+static Vector slab_params_
+(0); // Amplitude of x, y, z current source, position in 2D, and size in 2D
 
 void rod_current_source(const Vector &x, Vector &j);
+void slab_current_source(const Vector &x, Vector &j);
 void j_src(const Vector &x, Vector &j)
 {
    if (rod_params_.Size() > 0)
    {
       rod_current_source(x, j);
+   }
+   else if (slab_params_.Size() > 0)
+   {
+      slab_current_source(x, j);
    }
 }
 
@@ -445,6 +452,8 @@ int main(int argc, char *argv[])
                   "(one value per abc surface)");
    args.AddOption(&rod_params_, "-rod", "--rod_params",
                   "3D Vector Amplitude, 2D Position, Radius");
+   args.AddOption(&slab_params_, "-slab", "--slab_params",
+                  "3D Vector Amplitude, 2D Position, 2D Size");
    args.AddOption(&abcs, "-abcs", "--absorbing-bc-surf",
                   "Absorbing Boundary Condition Surfaces");
    args.AddOption(&sbca, "-sbcs", "--sheath-bc-surf",
@@ -1192,7 +1201,8 @@ int main(int argc, char *argv[])
                  abcs, dbcs, nbcs, sbcs,
                  // e_bc_r, e_bc_i,
                  // EReCoef, EImCoef,
-                 (rod_params_.Size() > 0) ? j_src : NULL, NULL, vis_u, pa);
+                 (rod_params_.Size() > 0 ||slab_params_.Size() > 0) ?
+                 j_src : NULL, NULL, vis_u, pa);
 
    // Initialize GLVis visualization
    if (visualization)
@@ -1483,6 +1493,29 @@ void rod_current_source(const Vector &x, Vector &j)
       j(2) = rod_params_(2);
    }
    // j *= height;
+}
+
+void slab_current_source(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+
+   j.SetSize(x.Size());
+   j = 0.0;
+
+   double x0 = slab_params_(3);
+   double y0 = slab_params_(4);
+   double dx = slab_params_(5);
+   double dy = slab_params_(6);
+
+
+   if (x[0] >= x0-0.5*dx && x[0] <= x0+0.5*dx &&
+       x[1] >= y0-0.5*dy && x[1] <= y0+0.5*dy)
+   {
+      j(0) = slab_params_(0);
+      j(1) = slab_params_(1);
+      j(2) = slab_params_(2);
+      j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5)));
+   }
 }
 
 void e_bc_r(const Vector &x, Vector &E)
