@@ -273,12 +273,14 @@ void ToroidPML::StretchFunction(const Vector &X, ComplexDenseMatrix & J, double 
    complex<double> zi = complex<double>(0., 1.);
 
    double n = 2.0;
-   double c = 5.0;
+   double c = 10.0;
    // Stretch in the azimuthal direction
-   double x0 = X[0];
-   double y0 = X[1];
-   double a0 = GetAngle(x0,y0);
-   double r0 = sqrt(x0*x0 + y0*y0);
+   double x = X[0];
+   double y = X[1];
+   if (abs(x) < 1e-12) x = 0.0;
+   if (abs(y) < 1e-12) y = 0.0;
+   double a = GetAngle(x,y);
+   double r = sqrt(x*x + y*y);
    // dxs[0] = 1.0;
    // dxs[1] = 1.0;
    J = 0.0;
@@ -289,7 +291,7 @@ void ToroidPML::StretchFunction(const Vector &X, ComplexDenseMatrix & J, double 
    if (astretch)
    {
       // negative direction 
-      if (a0 <= alim[0]+apml_thickness[0])
+      if (a <= alim[0]+apml_thickness[0])
       {
          // double a1 = alim[0]*M_PI/180.0;
          // double r1 = r0;
@@ -305,89 +307,56 @@ void ToroidPML::StretchFunction(const Vector &X, ComplexDenseMatrix & J, double 
          MFEM_ABORT ("TODO");
       }
       // positive direction 
-      if (a0 >= alim[1]-apml_thickness[1])
+      if (a < alim[1]-apml_thickness[1])
       {
-         double a1 = alim[1]*M_PI/180.0;
-         double r1 = r0;
-         double x1 = r1 * cos(a1);
-         double y1 = r1 * sin(a1);
-         double xthickness = r1*cos(apml_thickness[1]*M_PI/180.0);
-         double ythickness = r1*sin(apml_thickness[1]*M_PI/180.0);
-         xthickness = max(xthickness,1.0);
-         ythickness = max(ythickness,1.0);
-         double coeffx = n * c / omega / pow(xthickness, n);
-         double coeffy = n * c / omega / pow(ythickness, n);
-         double Lx = r1 * cos((alim[1]-apml_thickness[1])*M_PI/180.0);
-         double Ly = r1 * sin((alim[1]-apml_thickness[1])*M_PI/180.0);
-         // dxs[0] = 1.0 + zi * coeffx * abs(pow(x0 - Lx, n - 1.0));
-         J(0,0) = 1.0 + zi * coeffx * abs(pow(x0 - Lx, n - 1.0));
-         // dxs[1] = 1.0 + zi * coeffy * abs(pow(y0 - Ly, n - 1.0));
-         J(1,1) = 1.0 + zi * coeffy * abs(pow(y0 - Ly, n - 1.0));
-         // double coeffTheta = n * c / omega / pow(apml_thickness[1]*M_PI/180.0, n);
-         // complex<double> dtheta = zi * coeffTheta * abs(pow((alim[1]-a0)*M_PI/180.0,n-1)); 
-         // dxs[0] = 1.0 + dtheta * r1 * sin(a0*M_PI/180.0);
-         // dxs[1] = 1.0 - dtheta * r1 * cos(a0*M_PI/180.0);
+         cout << "Unreachable path" << endl;
+         cin.get();
+      }
+      if (a >= alim[1]-apml_thickness[1])
+      {
+         double th = a * M_PI/180.0;
+         double thL = alim[1] * M_PI/180.0;
+         double thH = apml_thickness[1] * M_PI/180.0;
+         double thl = thL - thH;
+         double coeff = n * c / omega / pow(thH,n);
+         double f_th = pow(th - thl,n-1);
+         double th_x = - y / (r * r);
+         double th_y = x / (r * r);
+
+         J(0,0) = 1.0 + zi * coeff * abs(f_th * th_x);
+         J(0,1) = zi * f_th * th_y;
+         J(1,0) = zi * f_th * th_x;
+         J(1,1) = 1.0 + zi * coeff * abs(f_th * th_y);
       }
    }
    // Stretch in the radial direction
    if (rstretch)
    {  // negative
-      if (r0 <= rlim[0]+rpml_thickness[0])
+      if (r <= rlim[0]+rpml_thickness[0])
       {
          cout << "negative " << endl;
          MFEM_ABORT ("TODO");
       }
       // positive direction 
-      if (r0 >= rlim[1]-rpml_thickness[1])
+      if (r >= rlim[1]-rpml_thickness[1])
       {
-         double a1 = a0; //degrees
-         double r1 = rlim[1];
-         double x1 = r1 * cos(a1*M_PI/180.0);
-         double y1 = r1 * sin(a1*M_PI/180.0);
-         // double xthickness = ((rpml_thickness[1])*cos(a1*M_PI/180.0));
-         // double ythickness = ((rpml_thickness[1])*sin(a1*M_PI/180.0));
-         // double coeffx = n * c / omega / pow(xthickness, n);
-         // double coeffy = n * c / omega / pow(ythickness, n);
-         double Lx = (rlim[1]-rpml_thickness[1]) * cos(a1*M_PI/180.0);
-         double Ly = (rlim[1]-rpml_thickness[1]) * sin(a1*M_PI/180.0);
-         double coeff = n * c / omega / pow(0.3, n);
+         double a1 = a; //degrees
+         
+         double rL = rlim[1];     
+         double rl = rL - rpml_thickness[1];
+         double coeff = n * c / omega / pow (rpml_thickness[1],n);
+         double f_r =  pow(r-rl,n-1.0);
+         double r_x = x / r;
+         double r_y = y / r;
+         double x_r = cos(a1*M_PI/180);
+         double y_r = sin(a1*M_PI/180);
 
-         // cout << "Lx = " << Lx << endl;
-         // cout << "Ly = " << Ly << endl;
-         // dxs[0] = 1.0 + zi * coeff * abs(pow(x0 - Lx, n - 1.0));
-         // dxs[0] = 1.0 + zi * coeff * abs(pow((r0-rlim[1]+rpml_thickness[1])*cos(a1*M_PI/180.0), n - 1.0));
-         J(0,0) = 1.0 + zi * coeff * abs(pow((r0-rlim[1]+rpml_thickness[1])*cos(a1*M_PI/180.0), n - 1.0));
-         // dxs[1] = 1.0 + zi * coeff * abs(pow(y0 - Ly, n - 1.0));
-         // dxs[1] = 1.0 + zi * coeff * abs(pow((r0-rlim[1]+rpml_thickness[1])*sin(a1*M_PI/180.0), n - 1.0));
-         J(1,1) = 1.0 + zi * coeff * abs(pow((r0-rlim[1]+rpml_thickness[1])*sin(a1*M_PI/180.0), n - 1.0));
-         // cout << "xthickness = " << xthickness << endl;
-         // cout << "ythickness = " << ythickness << endl;
-         // cout << "coeffx = " << coeffx << endl;
-         // cout << "coeffy = " << coeffy << endl;
-
+         J(0,0) = 1.0 + zi * coeff * abs(f_r*r_x);
+         J(0,1) = zi * f_r * r_y;
+         J(1,0) = zi * f_r * r_x;
+         J(1,1) = 1.0 + zi * coeff * abs(f_r*r_y);
       }
-      // for (int i = 0; i < dim; ++i)
-      // {
-      //    dxs[i] = 1.0;
-      //    if (X[i] <= -0.3)
-      //    {
-      //       double coeff = n * c / omega / pow(0.2, n);
-      //       dxs[i] = 1.0 + zi * coeff *
-      //                abs(pow(X(i) + 0.3, n - 1.0));
-      //                // cout << "coeff = " << coeff << endl;
-      //                // cout << "-0.3 " << endl;
-      //    }
-      //    if (X[i] >= 0.3 )
-      //    {
-      //       double coeff = n * c / omega / pow(0.2, n);
-      //       dxs[i] = 1.0 + zi * coeff *
-      //                abs(pow(X(i) - 0.3, n - 1.0));
-      //                // cout << "coeff = " << coeff << endl;
-      //                // cout << "0.3 " << endl;
-
-      //    }
-      // }
-      // cin.get();
+      
    }
 }
 

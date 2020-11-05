@@ -8,6 +8,7 @@ using namespace std;
 using namespace mfem;
 
 void maxwell_solution(const Vector &x, vector<complex<double>> &E);
+void maxwell_curl(const Vector &x, vector<complex<double>> &curlE);
 
 int prob_kind=0;
 double L;
@@ -200,7 +201,7 @@ int main(int argc, char *argv[])
       case 1: break;
       case 2: 
       {
-         apml_thickness[1] = 30; 
+         apml_thickness[1] = 45.0; 
          astretch = true;
       }
       break;// degrees 
@@ -407,6 +408,13 @@ int main(int argc, char *argv[])
       VectorFunctionCoefficient E_ex_Re(dim, E_exact_Re);
       VectorFunctionCoefficient E_ex_Im(dim, E_exact_Im);
       int order_quad = max(2, 2 * order + 1);
+
+      ConvergenceStudy rates_r;
+      ConvergenceStudy rates_i;
+
+      rates_r.AddHcurlGridFunction(&x.real(),&E_ex_Re);
+      rates_i.AddHcurlGridFunction(&x.imag(),&E_ex_Im);
+
       const IntegrationRule *irs[Geometry::NumGeom];
       for (int i = 0; i < Geometry::NumGeom; ++i)
       {
@@ -426,15 +434,15 @@ int main(int argc, char *argv[])
       norm_E_Im = x_gf0.imag().ComputeL2Error(E_ex_Im, irs,
                                               tpml.GetMarkedPMLElements());
 
-      if (myid == 0)
-      {
-         cout << "\n Relative Error (Re part): || E_h - E || / ||E|| = "
-              << L2Error_Re / norm_E_Re
-              << "\n Relative Error (Im part): || E_h - E || / ||E|| = "
-              << L2Error_Im / norm_E_Im
-              << "\n Total Error: "
-              << sqrt(L2Error_Re*L2Error_Re + L2Error_Im*L2Error_Im) << "\n\n";
-      }
+      cout << "\n Relative Error (Re part): || E_h - E || / ||E|| = "
+            << L2Error_Re / norm_E_Re
+            << "\n Relative Error (Im part): || E_h - E || / ||E|| = "
+            << L2Error_Im / norm_E_Im
+            << "\n Total Error: "
+            << sqrt(L2Error_Re*L2Error_Re + L2Error_Im*L2Error_Im) << "\n\n";
+
+      rates_r.Print(true);      
+      rates_i.Print(true);      
    }
 
 
@@ -718,6 +726,48 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E)
       E[0] = zi / k * (k * k * val + val_xx);
       E[1] = zi / k * val_xy;
    }
+}
+
+void maxwell_curl(const Vector &x, vector<complex<double>> &curlE)
+{
+   complex<double> zi = complex<double>(0., 1.);
+
+   double k = omega * sqrt(epsilon * mu);
+   Vector shift(dim);
+   shift = 0.0;
+   double x0 = x(0) + shift(0);
+   double x1 = x(1) + shift(1);
+   double r = sqrt(x0 * x0 + x1 * x1);
+   double beta = k * r;
+
+   // Bessel functions
+   complex<double> Ho, Ho_r, Ho_rr, Ho_rrr;
+   Ho = jn(0, beta) + zi * yn(0, beta);
+   Ho_r = -k * (jn(1, beta) + zi * yn(1, beta));
+   Ho_rr = -k * k * (1.0 / beta *
+                     (jn(1, beta) + zi * yn(1, beta)) -
+                     (jn(2, beta) + zi * yn(2, beta)));
+
+   // Ho_rrr = 
+
+   // First derivatives
+   double r_x = x0 / r;
+   double r_y = x1 / r;
+   double r_xy = -(r_x / r) * r_y;
+   double r_xx = (1.0 / r) * (1.0 - r_x * r_x);
+
+   complex<double> val, val_x, val_xx, val_xxx, val_xy, val_xyy;
+   val = 0.25 * zi * Ho;
+   val_xx = 0.25 * zi * (r_xx * Ho_r + r_x * r_x * Ho_rr);
+   val_xy = 0.25 * zi * (r_xy * Ho_r + r_x * r_y * Ho_rr);
+   vector<complex<double>> E(2);
+   E[0] = zi / k * (k * k * val + val_xx);
+   E[1] = zi / k * val_xy;
+
+   // 2D curl
+   // curlE = E[0]_x - E[1]_y
+   complex<double> E0_x = zi/k * ( k * k * val_x + val_xxx);
+
 }
 
 
