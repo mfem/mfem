@@ -22,8 +22,6 @@
 /*
   todo:
 
-  - better sphere picture, high-order
-  - improve documentation for ConstrainedSolver object itself
   - timing / scaling of different solvers
   - parallel BuildNormalConstraints in this example
   - make sure curved mesh works (is this a real problem or just VisIt visualization?)
@@ -34,7 +32,7 @@
     different interface)
   - finer grained control of hypre rigid body modes, for example in elimination
     solver the numbering gets messed up, can we deal with that?
-  - hook up to Smith or Tribol or some other contact setting
+  - hook up with user code (contact?)
 */
 
 #include "mfem.hpp"
@@ -321,6 +319,11 @@ int main(int argc, char *argv[])
       std::ofstream out("constraint.sparsematrix");
       constraint_mat->Print(out, 1);
    }
+   HYPRE_Int hconstraints_row_starts[2] = {0, constraint_mat->Height()};
+   HYPRE_Int hconstraints_col_starts[2] = {0, constraint_mat->Width()};
+   HypreParMatrix hconstraints(MPI_COMM_WORLD, constraint_mat->Height(),
+                               constraint_mat->Width(), hconstraints_row_starts,
+                               hconstraints_col_starts, constraint_mat);
 
    ParLinearForm b(&fespace);
    // for diffusion we may want a more interesting rhs
@@ -366,30 +369,22 @@ int main(int argc, char *argv[])
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
    IterativeSolver * constrained = nullptr;
-   HypreBoomerAMG * schur_prec = nullptr;
-
-   // ConstrainedSolver constrained(*A, *constraint_mat);
-
    if (penalty > 0.0)
    {
       constrained = new PenaltyConstrainedSolver(MPI_COMM_WORLD, *A.As<HypreParMatrix>(),
-                                                 *constraint_mat, penalty);
+                                                 hconstraints, penalty);
    }
    else if (elimination)
    {
       y_dofs.Append(z_dofs);
       y_dofs.Sort();
-      // constrained.SetElimination(y_dofs, x_dofs);
       constrained = new EliminationCGSolver(*A.As<HypreParMatrix>(), *constraint_mat,
                                             y_dofs, x_dofs);
    }
    else
    {
-      // constrained.SetSchur(prec);
-      schur_prec = new HypreBoomerAMG(*A.As<HypreParMatrix>());
-      schur_prec->SetPrintLevel(0);
-      constrained = new SchurConstrainedSolver(MPI_COMM_WORLD, *A.As<HypreParMatrix>(),
-                                               *constraint_mat, *schur_prec);
+      constrained = new SchurConstrainedHypreSolver(MPI_COMM_WORLD, *A.As<HypreParMatrix>(),
+                                                    hconstraints);
    }
    constrained->SetRelTol(reltol);
    constrained->SetAbsTol(1.e-12);
@@ -449,7 +444,6 @@ int main(int argc, char *argv[])
       delete fec;
    }
    delete constraint_mat;
-   delete schur_prec;
    delete constrained;
 
    return 0;
