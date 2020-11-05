@@ -563,16 +563,13 @@ double SheathImpedance::Eval(ElementTransformation &T,
    double density_val = EvalIonDensity(T, ip);       // Units: # / m^3
    double temp_val = EvalElectronTemp(T, ip);        // Units: eV
 
-   double Te = temp_val * q_;            // Electron temperature, Units: J
    double wci = omega_c(Bmag, charges_[1], masses_[1]);        // Units: s^{-1}
    double wpi = omega_p(density_val, charges_[1], masses_[1]); // Units: s^{-1}
 
-   double vnorm = Te / (charges_[1] * q_); // Units: V
-
    double w_norm = omega_ / wpi; // Unitless
    double wci_norm = wci / wpi;  // Unitless
-   complex<double> volt_norm((abs(phi.real())/2)/vnorm,
-                             (abs(phi.imag())/2)/vnorm); // Unitless
+   complex<double> volt_norm((abs(phi.real())/2)/temp_val,
+                             (abs(phi.imag())/2)/temp_val); // Unitless
 
    //double debye_length = debye(temp_val, density_val*1e-6); // Input temp needs to be in eV, Units: cm
    double debye_length = debye(temp_val, density_val);
