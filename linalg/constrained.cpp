@@ -486,14 +486,7 @@ public:
    void SetOperator(const Operator& op) { }
 };
 
-SchurConstrainedSolver::SchurConstrainedSolver(MPI_Comm comm,
-                                               Operator& A_, Operator& B_,
-                                               Solver& primal_pc_)
-   :
-   ConstrainedSolver(comm, A_, B_),
-   offsets(3),
-   primal_pc(primal_pc_),
-   dual_pc(NULL)
+void SchurConstrainedSolver::Initialize()
 {
    offsets[0] = 0;
    offsets[1] = A.Height();
@@ -506,13 +499,35 @@ SchurConstrainedSolver::SchurConstrainedSolver(MPI_Comm comm,
    block_op->SetBlock(0, 1, tr_B);
 
    block_pc = new BlockDiagonalPreconditioner(block_op->RowOffsets()),
+   rel_tol = 1.e-6;
+}
 
-   primal_pc.SetOperator(block_op->GetBlock(0, 0));
-   block_pc->SetDiagonalBlock(0, &primal_pc);
+SchurConstrainedSolver::SchurConstrainedSolver(MPI_Comm comm,
+                                               Operator& A_, Operator& B_,
+                                               Solver& primal_pc_)
+   :
+   ConstrainedSolver(comm, A_, B_),
+   offsets(3),
+   primal_pc(&primal_pc_),
+   dual_pc(nullptr)
+{
+   Initialize();
+   primal_pc->SetOperator(block_op->GetBlock(0, 0));
    dual_pc = new IdentitySolver(block_op->RowOffsets()[2] -
                                 block_op->RowOffsets()[1]);
+   block_pc->SetDiagonalBlock(0, primal_pc);
    block_pc->SetDiagonalBlock(1, dual_pc);
-   rel_tol = 1.e-6;
+}
+
+// protected constructor
+SchurConstrainedSolver::SchurConstrainedSolver(MPI_Comm comm, Operator& A_, Operator& B_)
+   :
+   ConstrainedSolver(comm, A_, B_),
+   offsets(3),
+   primal_pc(nullptr),
+   dual_pc(nullptr)
+{
+   Initialize();
 }
 
 SchurConstrainedSolver::~SchurConstrainedSolver()
@@ -534,6 +549,41 @@ void SchurConstrainedSolver::SaddleMult(const Vector& x, Vector& y) const
    gmres.SetPreconditioner(const_cast<BlockDiagonalPreconditioner&>(*block_pc));
 
    gmres.Mult(x, y);
+}
+
+SchurConstrainedHypreSolver::SchurConstrainedHypreSolver(MPI_Comm comm, HypreParMatrix& hA_,
+                                                         HypreParMatrix& hB_)
+   :
+   SchurConstrainedSolver(comm, hA_, hB_),
+   hA(hA_),
+   hB(hB_)
+{
+   auto h_primal_pc = new HypreBoomerAMG(hA);
+   h_primal_pc->SetPrintLevel(0);
+   primal_pc = h_primal_pc;
+   
+   HypreParMatrix * scaledB = new HypreParMatrix(hB);
+   Vector diagA;
+   hA.GetDiag(diagA);
+   HypreParMatrix * scaledBT = scaledB->Transpose();
+   scaledBT->InvScaleRows(diagA);
+   schur_mat = ParMult(scaledB, scaledBT);
+   schur_mat->CopyRowStarts();
+   schur_mat->CopyColStarts();
+   auto h_dual_pc = new HypreBoomerAMG(*schur_mat);
+   h_dual_pc->SetPrintLevel(0);
+   dual_pc = h_dual_pc;
+   delete scaledB;
+   delete scaledBT;
+
+   block_pc->SetDiagonalBlock(0, primal_pc);
+   block_pc->SetDiagonalBlock(1, dual_pc);
+}
+
+SchurConstrainedHypreSolver::~SchurConstrainedHypreSolver()
+{
+   delete schur_mat;
+   delete primal_pc;
 }
 
 ConstrainedSolver::ConstrainedSolver(MPI_Comm comm, Operator& A_, Operator& B_)

@@ -56,15 +56,21 @@ public:
 
    /** @brief Solve for x given f
 
+       If you want to set r, call SetConstraintRHS() before this.
+
+       If you want to get lambda, call GetMultiplierSolution() after this.
+
        The implementation for the base class calls SaddleMult(), so
        derived class must implement either Mult() or SaddleMult() */
    virtual void Mult(const Vector& f, Vector& x) const override;
 
 protected:
-   /** @brief Larger, saddle-point size system solve */
+   /** @brief Solve for (x, lambda) given (f, r)
+
+       Derived classes can implement either this or Mult(). */
    virtual void SaddleMult(const Vector& f_and_r, Vector& x_and_lambda) const
    {
-      mfem_error("Not Implemnted!");
+      mfem_error("Not Implemented!");
    }
 
    Operator& A;
@@ -87,7 +93,9 @@ protected:
     This is P in the EliminationCGSolver algorithm
 
     Height is number of total displacements, Width is smaller, with some
-    displacements eliminated via constraints. */
+    displacements eliminated via constraints.
+
+    Future improvement: special case where B_s has block structure. */
 class EliminationProjection : public Operator
 {
 public:
@@ -164,13 +172,9 @@ public:
    void Mult(const Vector& x, Vector& y) const override;
 
 private:
-   /**
-      This assumes the primary/secondary dofs are cleanly separated in
-      the matrix, and the given index tells you where.
-
-      We want to move away from this assumption, the first step
-      is to separate its logic in this method.
-   */
+   /** If primary/secondary dofs are cleanly separated in the matrix as
+       ordered, this routine can figure out the primary/secondary dofs
+       for elimination from the nonzero structure. */
    void BuildSeparatedInterfaceDofs(int firstblocksize);
 
    void BuildPreconditioner();
@@ -218,26 +222,54 @@ private:
     see ConstrainedSolver.
 
     Solves the saddle-point problem with a block-diagonal preconditioner, with
-    user-provided preconditioner in the top-left block and an identity matrix
-    in the bottom-right. */
+    user-provided preconditioner in the top-left block and (by default) an identity
+    matrix in the bottom-right. */
 class SchurConstrainedSolver : public ConstrainedSolver
 {
 public:
+   /// Setup constrained system, with primal_pc a user-provided preconditioner
+   /// for the top-left block.
    SchurConstrainedSolver(MPI_Comm comm, Operator& A_, Operator& B_,
                           Solver& primal_pc_);
    virtual ~SchurConstrainedSolver();
 
-   void SaddleMult(const Vector& x, Vector& y) const override;
+   virtual void SaddleMult(const Vector& x, Vector& y) const override;
 
-private:
+protected:
+   SchurConstrainedSolver(MPI_Comm comm, Operator& A_, Operator& B_);
+
    Array<int> offsets;
    BlockOperator * block_op;  // owned
    TransposeOperator * tr_B;  // owned
-   Solver& primal_pc;
+   Solver * primal_pc; // NOT owned
    BlockDiagonalPreconditioner * block_pc;  // owned
    Solver * dual_pc;  // owned
+
+private:
+   void Initialize();
 };
 
+
+/** @brief Basic saddle-point solver with assembled blocks.
+
+    We would like to use \f$ [ A^{-1} 0; 0 (B A^{-1} B^T)^{-1} ] \f$ as
+    a block-diagonal preconditioner. In the top-left block, we approximate
+    \f$ A^{-1} \f$ with HypreBoomerAMG. In the bottom-right, we
+    approximate \f$ A^{-1} \f$ with the inverse of the diagonal of
+    \f$ A \f$, assemble \f$ B D^{-1} B^T \f$, and use HypreBoomerAMG on
+    that assembled matrix. */
+class SchurConstrainedHypreSolver : public SchurConstrainedSolver
+{
+public:
+   SchurConstrainedHypreSolver(MPI_Comm comm, HypreParMatrix& hA_,
+                               HypreParMatrix& hB_);
+   virtual ~SchurConstrainedHypreSolver();
+
+private:
+   HypreParMatrix& hA;
+   HypreParMatrix& hB;
+   HypreParMatrix * schur_mat;
+};
 
 }
 
