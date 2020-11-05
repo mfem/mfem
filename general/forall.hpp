@@ -397,7 +397,7 @@ inline void ForallWrap(const bool use_dev, const int N,
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
    // If Backend::RAJA_CUDA is allowed, use it
-   if (Device::Allows(Backend::CUDA_MASK || ~Backend::CUDA))
+   if (Device::Allows(Backend::RAJA_CUDA))
    {
       if (DIM == 1) { return RajaCuWrap1D(N, d_body); }
       if (DIM == 2) { return RajaCuWrap2D(N, d_body, X, Y, Z); }
@@ -406,8 +406,8 @@ inline void ForallWrap(const bool use_dev, const int N,
 #endif
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_HIP)
-   // If Backend::RAJA_CUDA is allowed, use it
-   if (Device::Allows(Backend::HIP_MASK || ~Backend::HIP))
+   // If Backend::RAJA_HIP is allowed, use it
+   if (Device::Allows(Backend::RAJA_HIP))
    {
       if (DIM == 1) { return RajaHipWrap1D(N, d_body); }
       if (DIM == 2) { return RajaHipWrap2D(N, d_body, X, Y, Z); }
