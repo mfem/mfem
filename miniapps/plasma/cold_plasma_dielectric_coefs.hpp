@@ -25,8 +25,9 @@ namespace plasma
 {
 
 // Cyclotron frequency
-inline double omega_c(double Bmag, double charge,
-                      double mass)
+inline double omega_c(double Bmag   /* Tesla */,
+                      double charge /* electron charge */,
+                      double mass   /* AMU */)
 {
    return (charge * q_ * Bmag) / (mass * amu_);
 }
@@ -36,9 +37,10 @@ inline std::complex<double> omega_c(double Bmag, double charge,
    return (charge * q_ * Bmag) / (mass * amu_);
 }
 
-// Plasma frequency
-inline double omega_p(double number, double charge,
-                      double mass)
+// Plasma frequency in s^{-1}
+inline double omega_p(double number /* particles / m^3 */,
+                      double charge /* electron charge */,
+                      double mass   /* AMU */)
 {
    return fabs(charge * q_) * 1.0 * sqrt(number / (epsilon0_ * mass * amu_));
 }
