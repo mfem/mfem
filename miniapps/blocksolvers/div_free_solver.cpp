@@ -421,7 +421,8 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
    {
       solver_.Reset(new GMRESSolver(B.GetComm()));
       solver_.As<GMRESSolver>()->SetOperator(*(ops_.Last()));
-      prec_.Reset(new Multigrid(ops_, smoothers_, blk_Ps_, own_ops, own_smoothers, own_Ps));
+      prec_.Reset(new Multigrid(ops_, smoothers_, blk_Ps_,
+                                own_ops, own_smoothers, own_Ps));
    }
    else
    {
