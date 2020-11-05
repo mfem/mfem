@@ -4,7 +4,7 @@ window 1080 0 1920 1080
 # psolution 5
 
 # Output directory
-# ../output/output
+# ../output
 
 # Valuerange
 # valuerange 0 1
@@ -23,6 +23,7 @@ psolution 5 ../output/grid-mesh 0 ../output/initial-gf
    autoscale off
 }
 
+# Take multiple screenshots. Executed after pressing the space bar.
 {
    psolution 5 ../output/grid-mesh 0 ../output/initial-gf  valuerange 0 1 screenshot img00.png keys m
    psolution 5 ../output/grid-mesh 0 ../output/trans-gf-1  valuerange 0 1 screenshot img01.png
