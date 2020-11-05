@@ -16,8 +16,13 @@ struct IterSolveParameters
 /// Parameters for the divergence free solver
 struct DFSParameters : IterSolveParameters
 {
+   /** There are three components in the solver: a particular solution
+       satisfying the divergence constraint, the remaining div-free component of
+       the flux, and the pressure. When coupled_solve == false, the three
+       components will be solved one by one in the aforementioned order.
+       Otherwise, they will be solved at the same time. */
+   bool coupled_solve = false;
    bool verbose = false;
-   bool coupled_solve = false;       // whether to solve all unknowns together
    IterSolveParameters BBT_solve_param;
 };
 
@@ -109,7 +114,9 @@ public:
    virtual void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
 };
 
-/// non-overlapping additive Schwarz for saddle point problems
+/// non-overlapping additive Schwarz smoother for saddle point systems
+///                      [ M  B^T ]
+///                      [ B   0  ]
 class SaddleSchwarzSmoother : public Solver
 {
    const SparseMatrix& agg_hdivdof_;
@@ -122,6 +129,14 @@ class SaddleSchwarzSmoother : public Solver
    mutable Array<int> l2dofs_loc_;
    Array<OperatorPtr> solvers_loc_;
 public:
+   /** SaddleSchwarzSmoother solves local saddle point problems defined on a
+       list of non-overlapping aggregates (of elements).
+       @param agg_hdivdof aggregate to H(div) dofs relation table (boolean matrix)
+       @param agg_l2dof aggregate to L2 dofs relation table (boolean matrix)
+       @param P_l2 prolongation matrix of the discrete L2 space
+       @param Q_l2 projection matrix of the discrete L2 space:
+                      Q_l2 := (P_l2 W P_l2)^{-1} * P_l2 * W,
+              where W is the mass matrix of the discrete L2 space. */
    SaddleSchwarzSmoother(const HypreParMatrix& M,
                          const HypreParMatrix& B,
                          const SparseMatrix& agg_hdivdof,
