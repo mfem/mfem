@@ -432,9 +432,10 @@ complex<double> ytot(double w, double wci, double bx, complex<double> xi,
    return (ytot);
 }
 
-double debye(double Te, double n0_cm)
+double debye(double Te, double n0)
 {
-   return (7.43e2*pow((Te/n0_cm),0.5));
+   //return (7.43e2*pow((Te/n0_cm),0.5));
+    return pow((epsilon0_*Te*q_)/(n0*pow(q_, 2)),0.5);
 }
 
 SheathBase::SheathBase(const BlockVector & density,
@@ -573,8 +574,8 @@ double SheathImpedance::Eval(ElementTransformation &T,
    complex<double> volt_norm((abs(phi.real())/2)/vnorm,
                              (abs(phi.imag())/2)/vnorm); // Unitless
 
-   double debye_length = debye(temp_val,
-                               density_val*1e-6); // Input temp needs to be in eV, Units: cm
+   //double debye_length = debye(temp_val, density_val*1e-6); // Input temp needs to be in eV, Units: cm
+   double debye_length = debye(temp_val, density_val);
    Vector nor(T.GetSpaceDim());
    CalcOrtho(T.Jacobian(), nor);
    double normag = nor.Norml2();
@@ -591,7 +592,8 @@ double SheathImpedance::Eval(ElementTransformation &T,
       // return (zsheath_norm.real()*9.0e11*1e-4*
       //        (4.0*M_PI*debye_length))/wpi; // Units: Ohm m^2
 
-      return (zsheath_norm.real()*9.0e11*1e-4*debye_length)/wpi; // Units: Ohm m^2
+      //return (zsheath_norm.real()*9.0e11*1e-4*debye_length)/wpi; // Units: Ohm m^2
+       return (zsheath_norm.real()*debye_length)/(epsilon0_*wpi);
 
    }
    else
@@ -599,7 +601,8 @@ double SheathImpedance::Eval(ElementTransformation &T,
       // return (zsheath_norm.imag()*9.0e11*1e-4*
       //        (4.0*M_PI*debye_length))/wpi; // Units: Ohm m^2
 
-      return (zsheath_norm.imag()*9.0e11*1e-4*debye_length)/wpi; // Units: Ohm m^2
+      //return (zsheath_norm.imag()*9.0e11*1e-4*debye_length)/wpi; // Units: Ohm m^2
+       return (zsheath_norm.imag()*debye_length)/(epsilon0_*wpi);
    }
 }
 
