@@ -588,14 +588,18 @@ double SheathImpedance::Eval(ElementTransformation &T,
 
    if (realPart_)
    {
-      return (zsheath_norm.real()*9.0*1e11*1e-4*
-              (4.0*M_PI*debye_length))/wpi; // Units: Ohm m^2
+      // return (zsheath_norm.real()*9.0e11*1e-4*
+      //        (4.0*M_PI*debye_length))/wpi; // Units: Ohm m^2
+
+      return (zsheath_norm.real()*9.0e11*1e-4*debye_length)/wpi; // Units: Ohm m^2
 
    }
    else
    {
-      return (zsheath_norm.imag()*9.0*1e11*1e-4*
-              (4.0*M_PI*debye_length))/wpi; // Units: Ohm m^2
+      // return (zsheath_norm.imag()*9.0e11*1e-4*
+      //        (4.0*M_PI*debye_length))/wpi; // Units: Ohm m^2
+
+      return (zsheath_norm.imag()*9.0e11*1e-4*debye_length)/wpi; // Units: Ohm m^2
    }
 }
 
