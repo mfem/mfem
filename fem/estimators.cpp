@@ -144,10 +144,22 @@ void KellyErrorEstimator::ComputeEstimates()
                flux.GetVectorValue(FT->Elem1No, ip, val);
 
                // And build scalar product with normal
-               Vector normal(pmesh->Dimension());
+               Vector normal(pmesh->SpaceDimension());
                FT->Face->SetIntPoint(&fip);
-               CalcOrtho(FT->Face->Jacobian(), normal);
-
+               if (pmesh->Dimension() == pmesh->SpaceDimension())
+               {
+                  CalcOrtho(FT->Face->Jacobian(), normal);
+               }
+               else
+               {
+                  Vector ref_normal(pmesh->Dimension());
+                  FT->Loc1.Transf.SetIntPoint(&fip);
+                  CalcOrtho(FT->Loc1.Transf.Jacobian(), ref_normal);
+                  auto &e1 = FT->GetElement1Transformation();
+                  e1.AdjugateJacobian().MultTranspose(ref_normal, normal);
+                  normal /= e1.Weight();
+                  normal.Neg();
+               }
                jumps(i) = val * normal * fip.weight * FT->Face->Weight();
             }
 
@@ -164,9 +176,22 @@ void KellyErrorEstimator::ComputeEstimates()
                flux.GetVectorValue(FT->Elem2No, ip, val);
 
                // And build scalar product with normal
-               Vector normal(pmesh->Dimension());
+               Vector normal(pmesh->SpaceDimension());
                FT->Face->SetIntPoint(&fip);
-               CalcOrtho(FT->Face->Jacobian(), normal);
+               if (pmesh->Dimension() == pmesh->SpaceDimension())
+               {
+                  CalcOrtho(FT->Face->Jacobian(), normal);
+               }
+               else
+               {
+                  Vector ref_normal(pmesh->Dimension());
+                  FT->Loc1.Transf.SetIntPoint(&fip);
+                  CalcOrtho(FT->Loc1.Transf.Jacobian(), ref_normal);
+                  auto &e1 = FT->GetElement1Transformation();
+                  e1.AdjugateJacobian().MultTranspose(ref_normal, normal);
+                  normal /= e1.Weight();
+                  normal.Neg();
+               }
 
                jumps(i) -= val * normal * fip.weight * FT->Face->Weight();
             }
@@ -223,10 +248,23 @@ void KellyErrorEstimator::ComputeEstimates()
          Vector val(flux_space->GetVDim());
          flux.GetVectorValue(FT->Elem1No, ip, val);
 
-         Vector normal(pmesh->Dimension());
+         Vector normal(pmesh->SpaceDimension());
          FT->Face->SetIntPoint(&fip);
-         CalcOrtho(FT->Face->Jacobian(), normal);
-         
+         if (pmesh->Dimension() == pmesh->SpaceDimension())
+         {
+            CalcOrtho(FT->Face->Jacobian(), normal);
+         }
+         else
+         {
+            Vector ref_normal(pmesh->Dimension());
+            FT->Loc1.Transf.SetIntPoint(&fip);
+            CalcOrtho(FT->Loc1.Transf.Jacobian(), ref_normal);
+            auto &e1 = FT->GetElement1Transformation();
+            e1.AdjugateJacobian().MultTranspose(ref_normal, normal);
+            normal /= e1.Weight();
+            normal.Neg();
+         }
+
          jumps(i) = val * normal * fip.weight * FT->Face->Weight();
       }
 
@@ -243,9 +281,22 @@ void KellyErrorEstimator::ComputeEstimates()
          flux.GetVectorValue(FT->Elem2No, ip, val);
 
          // Evaluate gauss point
-         Vector normal(pmesh->Dimension());
+         Vector normal(pmesh->SpaceDimension());
          FT->Face->SetIntPoint(&fip);
-         CalcOrtho(FT->Face->Jacobian(), normal);
+         if (pmesh->Dimension() == pmesh->SpaceDimension())
+         {
+            CalcOrtho(FT->Face->Jacobian(), normal);
+         }
+         else
+         {
+            Vector ref_normal(pmesh->Dimension());
+            FT->Loc1.Transf.SetIntPoint(&fip);
+            CalcOrtho(FT->Loc1.Transf.Jacobian(), ref_normal);
+            auto &e1 = FT->GetElement1Transformation();
+            e1.AdjugateJacobian().MultTranspose(ref_normal, normal);
+            normal /= e1.Weight();
+            normal.Neg();
+         }
 
          jumps(i) -= val * normal * fip.weight * FT->Face->Weight();
       }
