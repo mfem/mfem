@@ -187,129 +187,21 @@ complex<double> P_cold_plasma(double omega,
    return val;
 }
 
-void real_epsilon_sigma(double omega, const Vector &B,
-                        const Vector &density_vals,
-                        const Vector &temperature_vals,
-                        double *real_epsilon, double *real_sigma)
-{
-   double Bnorm = B.Norml2();
-
-   // double phi = 0.0;
-   // double MData[9] = {cos(phi), 0.0, -sin(phi),
-   //                    0.0,      1.0,       0.0,
-   //                    sin(phi), 0.0,  cos(phi)
-   //                   };
-   // DenseMatrix M(MData, 3, 3);
-
-   // Vector Blocal(3);
-   // M.Mult(B, Blocal);
-
-   double Z1 = 1.0, Z2 = 18.0;
-   double qe = -q_, qi1 = Z1 * q_, qi2 = Z2 * q_;
-   double mi1 = 2.01410178 * amu_, mi2 = 39.948 * amu_;
-   double ne = density_vals[0], ni1 = density_vals[1], ni2 = density_vals[2];
-   /*double Te = temperature_vals[0];
-   double Ti1 = temperature_vals[1];
-   double Ti2 = temperature_vals[2];
-   double vTe = sqrt(2.0 * Te / me_);
-   double debye_length = sqrt((epsilon0_ * Te) / (ne * pow(qe, 2)));
-   double b90_1 = (qe * qi1)/(4.0 * M_PI * epsilon0_ * me_ * pow(vTe, 2)),
-          b90_2 = (qe * qi2)/(4.0 * M_PI * epsilon0_ * me_ * pow(vTe, 2));
-   double nu_ei1 = (pow(qe * qi1, 2) * ni1 * log(debye_length / b90_1)) /
-          (4.0 * M_PI * pow(epsilon0_ * me_, 2) * pow(Te, 3.0/2.0));
-   double nu_ei2 = (pow(qe * qi2, 2) * ni2 * log(debye_length / b90_2)) /
-          (4.0 * M_PI * pow(epsilon0_ * me_, 2) * pow(Te, 3.0/2.0));
-
-   // Effective Mass
-   complex<double> me_eff(me_, -me_*(nu_ei1/omega + nu_ei2/omega));
-   complex<double> mi1_eff(mi1, -mi1*(nu_ei1/omega + nu_ei2/omega));
-   complex<double> mi2_eff(mi2, -mi2*(nu_ei1/omega + nu_ei2/omega));
-    */
-
-   // Squared plasma frequencies for each species
-   double wpe  = (ne  * pow( qe, 2))/(me_kg_ * epsilon0_);
-   double wpi1 = (ni1 * pow(qi1, 2))/(mi1 * epsilon0_);
-   double wpi2 = (ni2 * pow(qi2, 2))/(mi2 * epsilon0_);
-
-   // Cyclotron frequencies for each species
-   double wce  = qe  * Bnorm / me_kg_;
-   double wci1 = qi1 * Bnorm / mi1;
-   double wci2 = qi2 * Bnorm / mi2;
-
-   double S = (1.0 -
-               wpe  / (pow(omega, 2) - pow( wce, 2)) -
-               wpi1 / (pow(omega, 2) - pow(wci1, 2)) -
-               wpi2 / (pow(omega, 2) - pow(wci2, 2)));
-   double P = (1.0 -
-               wpe  / pow(omega, 2) -
-               wpi1 / pow(omega, 2) -
-               wpi2 / pow(omega, 2));
-   double D = (wce  * wpe  / (omega * (pow(omega, 2) - pow( wce, 2))) +
-               wci1 * wpi1 / (omega * (pow(omega, 2) - pow(wci1, 2))) +
-               wci2 * wpi2 / (omega * (pow(omega, 2) - pow(wci2, 2))));
-
-   // Complex Dielectric tensor elements
-   double th = atan2(B(2), B(0));
-   double ph = atan2(B(0) * cos(th) + B(2) * sin(th), -B(1));
-
-   double e_xx = (P - S) * pow(sin(ph), 2) * pow(cos(th), 2) + S;
-   double e_yy = (P - S) * pow(cos(ph), 2) + S;
-   double e_zz = (P - S) * pow(sin(ph), 2) * pow(sin(th), 2) + S;
-
-   complex<double> e_xy(-(P - S) * cos(ph) * cos(th) * sin(ph),
-                        - D * sin(th) * sin(ph));
-   complex<double> e_xz((P - S) * pow(sin(ph), 2) * sin(th) * cos(th),
-                        - D * cos(ph));
-   complex<double> e_yz(-(P - S) * sin(th) * cos(ph) * sin(ph),
-                        - D * cos(th) * sin(ph));
-
-   complex<double> e_yx = std::conj(e_xy);
-   complex<double> e_zx = std::conj(e_xz);
-   complex<double> e_zy = std::conj(e_yz);
-
-   if (real_epsilon != NULL)
-   {
-      real_epsilon[0] = epsilon0_ * e_xx;
-      real_epsilon[1] = epsilon0_ * e_yx.real();
-      real_epsilon[2] = epsilon0_ * e_zx.real();
-      real_epsilon[3] = epsilon0_ * e_xy.real();
-      real_epsilon[4] = epsilon0_ * e_yy;
-      real_epsilon[5] = epsilon0_ * e_zy.real();
-      real_epsilon[6] = epsilon0_ * e_xz.real();
-      real_epsilon[7] = epsilon0_ * e_yz.real();
-      real_epsilon[8] = epsilon0_ * e_zz;
-   }
-   if (real_sigma != NULL)
-   {
-      real_sigma[0] = 0.0;
-      real_sigma[1] = e_yx.imag() * omega * epsilon0_;
-      real_sigma[2] = e_zx.imag() * omega * epsilon0_;
-      real_sigma[3] = e_xy.imag() * omega * epsilon0_;
-      real_sigma[4] = 0.0;
-      real_sigma[5] = e_zy.imag() * omega * epsilon0_;
-      real_sigma[6] = e_xz.imag() * omega * epsilon0_;
-      real_sigma[7] = e_yz.imag() * omega * epsilon0_;
-      real_sigma[8] = 0.0;
-   }
-
-}
-
 double mu(double mass_e, double mass_i)
 {
    return sqrt(mass_i / (2.0 * M_PI * mass_e));
 }
 
-complex<double> ff(complex<double> x)
+double ff(double x)
 {
-   complex<double> a0(3.18553, 0.0);
+   double a0 = 3.18553;
    double a1 = 3.70285;
    double a2 = 3.81991;
    double b1 = 1.13352;
    double b2 = 1.24171;
    double a3 = (2.0 * b2) / M_PI;
-   complex<double> num = a0 + (a1 + (a2 + a3 * x) * x) * x;
-   complex<double> val(1.0, 0);
-   complex<double> den = val + (b1 + b2 * x) * x;
+   double num = a0 + (a1 + (a2 + a3 * x) * x) * x;
+   double den = 1.0 + (b1 + b2 * x) * x;
 
    return (num / den);
 }
@@ -322,21 +214,20 @@ double gg(double w)
    return (c0+c1*tanh(w));
 }
 
-complex<double> phi0avg(double w, complex<double> xi)
+double phi0avg(double w, double xi)
 {
    return (ff(gg(w)*xi));
 }
 
-complex<double> he(complex<double> x)
+double he(double x)
 {
    double h1 = 0.607405;
    double h2 = 0.325497;
    double g1 = 0.624392;
    double g2 = 0.500595;
    double g3 = (M_PI * h2) / 4.0;
-   complex<double> val(1.0, 0.0);
-   complex<double> num = val + (h1 + h2 * x) * x;
-   complex<double> den = val + (g1 + (g2 + g3 * x) * x) * x;
+   double num = 1.0 + (h1 + h2 * x) * x;
+   double den = 1.0 + (g1 + (g2 + g3 * x) * x) * x;
 
    return (num/den);
 }
@@ -352,7 +243,7 @@ double phips(double bx, double wci, double mass_e, double mass_i)
    return (num/den);
 }
 
-complex<double> niw(double wci, double bx, complex<double> phi, double mass_e,
+double niw(double wci, double bx, double phi, double mass_e,
                     double mass_i)
 {
    double d0 = 0.794443;
@@ -361,17 +252,16 @@ complex<double> niw(double wci, double bx, complex<double> phi, double mass_e,
    double d4 = 0.0000901468;
    double nu1 = 1.455592;
    double abx = fabs(bx);
-   complex<double> phips1(phips(abx,wci, mass_e, mass_i), 0.0);
-   complex<double> phid = phi - phips1;
-   complex<double> pre = d0 /(d2 + sqrt(phid));
-   complex<double> wcip = wci * pow(phid, 0.25);
-   complex<double> num = abx * abx + d4 + d1 * d1 * pow(wcip, (2.0*nu1));
-   complex<double> den = 1.0 + d4 + d1 * d1 * pow(wcip, (2.0 * nu1));
+   double phid = phi - phips(abx,wci, mass_e, mass_i);
+   double pre = d0 /(d2 + sqrt(phid));
+   double wcip = wci * pow(phid, 0.25);
+   double num = abx * abx + d4 + d1 * d1 * pow(wcip, (2.0*nu1));
+   double den = 1.0 + d4 + d1 * d1 * pow(wcip, (2.0 * nu1));
 
    return (pre*sqrt(num/den));
 }
 
-complex<double> ye(double bx, complex<double> xi)
+double ye(double bx, double xi)
 {
    double h0 = 1.161585;
    double abx = fabs(bx);
@@ -379,27 +269,28 @@ complex<double> ye(double bx, complex<double> xi)
    return (h0*abx*he(xi));
 }
 
-complex<double> niww(double w, double wci, double bx, complex<double> xi,
+double niww(double w, double wci, double bx, double xi,
                      double mass_e, double mass_i)
 {
-   complex<double> k0(3.7616, 0.0);
+   double k0 = 3.7616;
    double k1 = 0.22202;
-   complex<double> phis = k0 + k1*(xi-k0);
-   complex<double> phipr = phis + (phi0avg(w,xi)-phis)*tanh(w);
+   double phis = k0 + k1*(xi-k0);
+   double phipr = phis + (phi0avg(w,xi)-phis)*tanh(w);
 
    return (niw(wci,bx,phipr,mass_e,mass_i));
 }
 
-complex<double> yd(double w, double wci, double bx, complex<double> xi,
+complex<double> yd(double w, double wci, double bx, double xi,
                    double mass_e, double mass_i)
 {
-   complex<double>  s0(0.0, 1.12415);
-   complex<double> delta = sqrt(phi0avg(w,xi)/niww(w,wci,bx,xi,mass_e,mass_i));
+   double s0 = 1.12415;
+   double delta = sqrt(phi0avg(w,xi)/niww(w,wci,bx,xi,mass_e,mass_i));
+   complex<double> val(0.0, 1.0);
 
-   return (-s0*(w/delta));
+   return (-s0*val*(w/delta));
 }
 
-complex<double> yi(double w, double wci, double bx, complex<double> xi,
+complex<double> yi(double w, double wci, double bx, double xi,
                    double mass_e, double mass_i)
 {
    complex<double> val(0.0, 1.0);
@@ -411,11 +302,10 @@ complex<double> yi(double w, double wci, double bx, complex<double> xi,
    complex<double> gfactornum(w * w - bx * bx * wci * wci, eps);
    complex<double> gfactorden(w * w - wci * wci, eps);
    complex<double> gfactor = gfactornum/gfactorden;
-   complex<double> niwwa = niww(w,wci,bx,xi,mass_e,mass_i);
-   complex<double> phi0avga = phi0avg(w,xi);
-   complex<double> abx(fabs(bx), 0.0);
-   complex<double> gamcup = abx/(niwwa*sqrt(phi0avga));
-   complex<double> wcup = p3*w/sqrt(niwwa);
+   double niwwa = niww(w,wci,bx,xi,mass_e,mass_i);
+   double phi0avga = phi0avg(w,xi);
+   complex<double> gamcup(fabs(bx)/(niwwa*sqrt(phi0avga)), 0.0);
+   complex<double> wcup(p3*w/sqrt(niwwa), 0.0);
    complex<double> yicupden1 = wcup * wcup/gfactor - p1;
    complex<double> yicupden2 = p2*gamcup*wcup*val;
    complex<double> yicupden = yicupden1 + yicupden2;
@@ -424,7 +314,7 @@ complex<double> yi(double w, double wci, double bx, complex<double> xi,
    return ((niwwa * yicup) / sqrt(phi0avga));
 }
 
-complex<double> ytot(double w, double wci, double bx, complex<double> xi,
+complex<double> ytot(double w, double wci, double bx, double xi,
                      double mass_e, double mass_i)
 {
    complex<double> ytot = ye(bx,xi) +
@@ -521,18 +411,18 @@ double RectifiedSheathPotential::Eval(ElementTransformation &T,
    double w_norm = omega_ / wpi;
 
    complex<double> phi = EvalSheathPotential(T, ip);
+   double phi_mag = sqrt(pow(phi.real(), 2) + pow(phi.imag(), 2));
+   double volt_norm = (phi_mag/2)/temp_val ;
 
-   complex<double> volt_norm(phi.real()/vnorm, phi.imag()/vnorm);
-
-   complex<double> phiRec = phi0avg(w_norm, volt_norm);
+   double phiRec = phi0avg(w_norm, volt_norm);
 
    if (realPart_)
    {
-      return phiRec.real(); // * temp_val;
+      return phiRec; // * temp_val;
    }
    else
    {
-      return phiRec.imag(); // * temp_val;
+      return phiRec; // * temp_val;
    }
 }
 
@@ -568,8 +458,8 @@ double SheathImpedance::Eval(ElementTransformation &T,
 
    double w_norm = omega_ / wpi; // Unitless
    double wci_norm = wci / wpi;  // Unitless
-   complex<double> volt_norm((abs(phi.real())/2)/temp_val,
-                             (abs(phi.imag())/2)/temp_val); // Unitless
+   double phi_mag = sqrt(pow(phi.real(), 2) + pow(phi.imag(), 2));
+   double volt_norm = (phi_mag/2)/temp_val ; // Unitless
 
    //double debye_length = debye(temp_val, density_val*1e-6); // Input temp needs to be in eV, Units: cm
    double debye_length = debye(temp_val, density_val);
@@ -580,7 +470,15 @@ double SheathImpedance::Eval(ElementTransformation &T,
 
    complex<double> zsheath_norm = 1.0 / ytot(w_norm, wci_norm, bn, volt_norm,
                                              masses_[0], masses_[1]);
-
+    /*
+    cout << "Check 1:" << phi0avg(0.4, 6.) - 6.43176481712605 << endl;
+    cout << "Check 2:" << niw(.2, .3, 13,masses_[0], masses_[1])- 0.07646452845544677 << endl;
+    cout << "Check 3:" << niww(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]) - 0.14077643642166277 << endl;
+    cout << "Check 4:" << yd(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]).imag()+0.025738204728120898 << endl;
+    cout << "Check 5: " << ye(0.4, 3.6) - 0.1588274616204441 << endl;
+    cout << "Check 6:" << yi(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]).real() - 0.006543897148693344 << yi(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]).imag()+0.013727440802110503 << endl;
+    cout << "Check 7:" << ytot(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]).real()-0.05185050837032144 << ytot(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]).imag()+0.0394656455302314 << endl;
+     */
 
    //complex<double> zsheath_norm(57.4699936705, 21.39395629068357);
 

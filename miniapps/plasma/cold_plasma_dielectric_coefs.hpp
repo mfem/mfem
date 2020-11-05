@@ -24,10 +24,9 @@ namespace mfem
 namespace plasma
 {
 
-// Cyclotron frequency in s^{-1}
-inline double omega_c(double Bmag   /* Tesla */,
-                      double charge /* electron charge */,
-                      double mass   /* AMU */)
+// Cyclotron frequency
+inline double omega_c(double Bmag, double charge,
+                      double mass)
 {
    return (charge * q_ * Bmag) / (mass * amu_);
 }
@@ -37,10 +36,9 @@ inline std::complex<double> omega_c(double Bmag, double charge,
    return (charge * q_ * Bmag) / (mass * amu_);
 }
 
-// Plasma frequency in s^{-1}
-inline double omega_p(double number /* particles / m^3 */,
-                      double charge /* electron charge */,
-                      double mass   /* AMU */)
+// Plasma frequency
+inline double omega_p(double number, double charge,
+                      double mass)
 {
    return fabs(charge * q_) * 1.0 * sqrt(number / (epsilon0_ * mass * amu_));
 }
@@ -97,26 +95,26 @@ std::complex<double> D_cold_plasma(double omega, double Bmag,
 
 double mu(double mass_e, double mass_i);
 
-std::complex<double> ff(std::complex<double> x);
+double ff(double x);
 
 double gg(double w);
 
-std::complex<double> phi0avg(double w, std::complex<double> xi);
+double phi0avg(double w, double xi);
 
-std::complex<double> he(std::complex<double> x);
+double he(double x);
 
 double phips(double bx, double wci,
              double mass_e,
              double mass_i);
 
-std::complex<double> niw(double wci, double bx,
-                         std::complex<double> phi, double mass_e,
-                         double mass_i);
+double niw(double wci, double bx,
+           double phi, double mass_e,
+           double mass_i);
 
-std::complex<double> ye(double bx, std::complex<double> xi);
+double ye(double bx, double xi);
 
-std::complex<double> niww(double w, double wci,
-                          double bx, std::complex<double> xi,
+double niww(double w, double wci,
+                          double bx, double xi,
                           double mass_e,
                           double mass_i);
 
