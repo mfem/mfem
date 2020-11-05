@@ -443,25 +443,12 @@ private:
 
        This method weights the error approximation on the element level.
 
-       Defaults to hₖ=det(J)^(1/dim)/2p. This is a slight variation of the
-       description by W. Bangerth, exchanging the diameter information with
-       volumetric information to avoid the expensive computation of "diameter
-       curves" in the case of nonlinear geometry. Note that this is purely
-       heuristic and does not have a solid theoretical foundation.
+       Defaults to hₖ=1.0.
    */
    std::function<double(ParMesh*, const int)> compute_element_coefficient = [](
       ParMesh* pmesh, const int e)
    {
-      // Obtain jacobian of the transformation.
-      DenseMatrix J;
-      // pmesh->GetElementJacobian(e, J); //..protected....
-      Geometry::Type geom      = pmesh->GetElementBaseGeometry(e);
-      ElementTransformation* T = pmesh->GetElementTransformation(e);
-      T->SetIntPoint(&Geometries.GetCenter(geom));
-      Geometries.JacToPerfJac(geom, T->Jacobian(), J);
-
-      // Intuitively we must scale the error with the "element size" and polynomial degree.
-      return pow(abs(J.Weight()), 1.0 / double(pmesh->Dimension())) / (2*T->Order());
+      return 1.0;
    };
 
    /** @brief A method to compute hₖ on per-face basis.
@@ -471,12 +458,46 @@ private:
        approximate the geometrical characteristic hₖ with the face diameter,
        which should be also be a possibility in this implementation.
 
-       Defaults to hₖ=1.0.
+       Defaults to hₖ=diameter/2p.
    */
    std::function<double(ParMesh*, const int, const bool)> compute_face_coefficient = [](
       ParMesh* pmesh, const int f, const bool shared_face)
    {
-      return 1.0;
+      auto FT = [&](){
+         if(shared_face)
+         {
+            return pmesh->GetSharedFaceTransformations(f);
+         }
+         return pmesh->GetFaceElementTransformations(f);
+      }();
+      const auto order = FT->GetFE()->GetOrder();
+
+      // Poor man's face diameter.
+      double diameter = 0.0;
+
+      Vector p1(pmesh->SpaceDimension());
+      Vector p2(pmesh->SpaceDimension());
+      // NOTE: We have no direct access to vertices for shared faces,
+      // so we fall back to compute the positions from the element.
+      // This can also be modified to compute the diameter for non-linear
+      // geometries by sampling along geometry-specific lines.
+      auto vtx_intrule = Geometries.GetVertices(FT->GetGeometryType());
+      const auto nip = vtx_intrule->GetNPoints();
+      for (int i = 0; i < nip; i++)
+      {
+         // Evaluate flux vector at integration point
+         auto fip1 = vtx_intrule->IntPoint(i);
+         FT->Transform(fip1, p1);
+
+         for (int j = 0; j < nip; j++)
+         {
+            auto fip2 = vtx_intrule->IntPoint(j);
+            FT->Transform(fip2, p2);
+
+            diameter = std::max<double>(diameter, p2.DistanceTo(p1));
+         }
+      }
+      return diameter/(2.0*order);
    };
 
    BilinearFormIntegrator* flux_integrator; ///< Not owned.
