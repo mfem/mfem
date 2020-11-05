@@ -244,7 +244,7 @@ double phips(double bx, double wci, double mass_e, double mass_i)
 }
 
 double niw(double wci, double bx, double phi, double mass_e,
-                    double mass_i)
+           double mass_i)
 {
    double d0 = 0.794443;
    double d1 = 0.803531;
@@ -270,7 +270,7 @@ double ye(double bx, double xi)
 }
 
 double niww(double w, double wci, double bx, double xi,
-                     double mass_e, double mass_i)
+            double mass_e, double mass_i)
 {
    double k0 = 3.7616;
    double k1 = 0.22202;
@@ -325,7 +325,7 @@ complex<double> ytot(double w, double wci, double bx, double xi,
 double debye(double Te, double n0)
 {
    //return (7.43e2*pow((Te/n0_cm),0.5));
-    return pow((epsilon0_*Te*q_)/(n0*pow(q_, 2)),0.5);
+   return sqrt((epsilon0_*Te*q_)/(n0*q_*q_));
 }
 
 SheathBase::SheathBase(const BlockVector & density,
@@ -462,33 +462,33 @@ double SheathImpedance::Eval(ElementTransformation &T,
    double volt_norm = (phi_mag/2)/temp_val ; // Unitless
 
    //double debye_length = debye(temp_val, density_val*1e-6); // Input temp needs to be in eV, Units: cm
-   double debye_length = debye(temp_val, density_val);
+   double debye_length = debye(temp_val, density_val); // Units: m
    Vector nor(T.GetSpaceDim());
    CalcOrtho(T.Jacobian(), nor);
    double normag = nor.Norml2();
-   double bn = (B * nor)/(normag*Bmag);
+   double bn = (B * nor)/(normag*Bmag); // Unitless
 
    complex<double> zsheath_norm = 1.0 / ytot(w_norm, wci_norm, bn, volt_norm,
                                              masses_[0], masses_[1]);
-    /*
-    cout << "Check 1:" << phi0avg(0.4, 6.) - 6.43176481712605 << endl;
-    cout << "Check 2:" << niw(.2, .3, 13,masses_[0], masses_[1])- 0.07646452845544677 << endl;
-    cout << "Check 3:" << niww(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]) - 0.14077643642166277 << endl;
-    cout << "Check 4:" << yd(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]).imag()+0.025738204728120898 << endl;
-    cout << "Check 5: " << ye(0.4, 3.6) - 0.1588274616204441 << endl;
-    cout << "Check 6:" << yi(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]).real() - 0.006543897148693344 << yi(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]).imag()+0.013727440802110503 << endl;
-    cout << "Check 7:" << ytot(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]).real()-0.05185050837032144 << ytot(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]).imag()+0.0394656455302314 << endl;
-     */
+   /*
+   cout << "Check 1:" << phi0avg(0.4, 6.) - 6.43176481712605 << endl;
+   cout << "Check 2:" << niw(.2, .3, 13,masses_[0], masses_[1])- 0.07646452845544677 << endl;
+   cout << "Check 3:" << niww(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]) - 0.14077643642166277 << endl;
+   cout << "Check 4:" << yd(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]).imag()+0.025738204728120898 << endl;
+   cout << "Check 5: " << ye(0.4, 3.6) - 0.1588274616204441 << endl;
+   cout << "Check 6:" << yi(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]).real() - 0.006543897148693344 << yi(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]).imag()+0.013727440802110503 << endl;
+   cout << "Check 7:" << ytot(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]).real()-0.05185050837032144 << ytot(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]).imag()+0.0394656455302314 << endl;
+    */
 
    //complex<double> zsheath_norm(57.4699936705, 21.39395629068357);
-
+   double f = 0.01;
    if (realPart_)
    {
       // return (zsheath_norm.real()*9.0e11*1e-4*
       //        (4.0*M_PI*debye_length))/wpi; // Units: Ohm m^2
 
       //return (zsheath_norm.real()*9.0e11*1e-4*debye_length)/wpi; // Units: Ohm m^2
-       return (zsheath_norm.real()*debye_length)/(epsilon0_*wpi);
+      return f * (zsheath_norm.real()*debye_length)/(epsilon0_*wpi);
 
    }
    else
@@ -497,7 +497,7 @@ double SheathImpedance::Eval(ElementTransformation &T,
       //        (4.0*M_PI*debye_length))/wpi; // Units: Ohm m^2
 
       //return (zsheath_norm.imag()*9.0e11*1e-4*debye_length)/wpi; // Units: Ohm m^2
-       return (zsheath_norm.imag()*debye_length)/(epsilon0_*wpi);
+      return f * (zsheath_norm.imag()*debye_length)/(epsilon0_*wpi);
    }
 }
 

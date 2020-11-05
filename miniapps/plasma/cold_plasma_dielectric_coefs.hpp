@@ -116,9 +116,9 @@ double niw(double wci, double bx,
 double ye(double bx, double xi);
 
 double niww(double w, double wci,
-                          double bx, double xi,
-                          double mass_e,
-                          double mass_i);
+            double bx, double xi,
+            double mass_e,
+            double mass_i);
 
 std::complex<double> yd(double w, double wci,
                         double bx, std::complex<double> xi,
