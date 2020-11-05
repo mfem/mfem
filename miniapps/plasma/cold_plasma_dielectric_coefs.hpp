@@ -229,7 +229,128 @@ private:
    const ParGridFunction & B_;
 };
 
-class DielectricTensor: public MatrixCoefficient
+class StixCoefBase
+{
+public:
+   StixCoefBase(const ParGridFunction & B,
+                const BlockVector & density,
+                const BlockVector & temp,
+                const ParFiniteElementSpace & L2FESpace,
+                const ParFiniteElementSpace & H1FESpace,
+                double omega,
+                const Vector & charges,
+                const Vector & masses,
+                bool realPart = true);
+
+   // Copy constructor
+   StixCoefBase(StixCoefBase & s);
+
+   void SetRealPart() { realPart_ = true; }
+   void SetImaginaryPart() { realPart_ = false; }
+   bool GetRealPartFlag() const { return realPart_; }
+
+   void SetOmega(double omega) { omega_ = omega; }
+   double GetOmega() const { return omega_; }
+
+   const ParGridFunction & GetBField() const { return B_; }
+   const BlockVector & GetDensityFields() const { return density_; }
+   const BlockVector & GetTemperatureFields() const { return temp_; }
+   const ParFiniteElementSpace & GetDensityFESpace() const
+   { return L2FESpace_; }
+   const ParFiniteElementSpace & GetTemperatureFESpace() const
+   { return H1FESpace_; }
+   const Vector & GetCharges() const { return charges_; }
+   const Vector & GetMasses() const { return masses_; }
+
+protected:
+   double getBMagnitude(ElementTransformation &T,
+                        const IntegrationPoint &ip,
+                        double *theta = NULL, double *phi = NULL);
+   void   fillDensityVals(ElementTransformation &T,
+                          const IntegrationPoint &ip);
+   void   fillTemperatureVals(ElementTransformation &T,
+                              const IntegrationPoint &ip);
+
+   const ParGridFunction & B_;
+   const BlockVector & density_;
+   const BlockVector & temp_;
+   const ParFiniteElementSpace & L2FESpace_;
+   const ParFiniteElementSpace & H1FESpace_;
+
+   double omega_;
+   bool realPart_;
+
+   mutable Vector BVec_;
+   ParGridFunction density_gf_;
+   ParGridFunction temperature_gf_;
+
+   Vector density_vals_;
+   Vector temp_vals_;
+   const Vector & charges_;
+   const Vector & masses_;
+};
+
+class StixSCoef: public Coefficient, public StixCoefBase
+{
+public:
+   StixSCoef(const ParGridFunction & B,
+             const BlockVector & density,
+             const BlockVector & temp,
+             const ParFiniteElementSpace & L2FESpace,
+             const ParFiniteElementSpace & H1FESpace,
+             double omega,
+             const Vector & charges,
+             const Vector & masses,
+             bool realPart = true);
+
+   StixSCoef(StixCoefBase &s) : StixCoefBase(s) {}
+
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+   virtual ~StixSCoef() {}
+};
+
+class StixDCoef: public Coefficient, public StixCoefBase
+{
+public:
+   StixDCoef(const ParGridFunction & B,
+             const BlockVector & density,
+             const BlockVector & temp,
+             const ParFiniteElementSpace & L2FESpace,
+             const ParFiniteElementSpace & H1FESpace,
+             double omega,
+             const Vector & charges,
+             const Vector & masses,
+             bool realPart = true);
+
+   StixDCoef(StixCoefBase &s) : StixCoefBase(s) {}
+
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+   virtual ~StixDCoef() {}
+};
+
+class StixPCoef: public Coefficient, public StixCoefBase
+{
+public:
+   StixPCoef(const ParGridFunction & B,
+             const BlockVector & density,
+             const BlockVector & temp,
+             const ParFiniteElementSpace & L2FESpace,
+             const ParFiniteElementSpace & H1FESpace,
+             double omega,
+             const Vector & charges,
+             const Vector & masses,
+             bool realPart = true);
+
+   StixPCoef(StixCoefBase &s) : StixCoefBase(s) {}
+
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+   virtual ~StixPCoef() {}
+};
+
+class DielectricTensor: public MatrixCoefficient, public StixCoefBase
 {
 public:
    DielectricTensor(const ParGridFunction & B,
@@ -242,32 +363,12 @@ public:
                     const Vector & masses,
                     bool realPart = true);
 
-   void SetRealPart() { realPart_ = true; }
-   void SetImaginaryPart() { realPart_ = false; }
+   DielectricTensor(StixCoefBase &s) : MatrixCoefficient(3), StixCoefBase(s) {}
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
-   // virtual void Dval(DenseMatrix &K, ElementTransformation &T,
-   //                   const IntegrationPoint &ip);
+
    virtual ~DielectricTensor() {}
-
-private:
-   const ParGridFunction & B_;
-   const BlockVector & density_;
-   const BlockVector & temp_;
-   const ParFiniteElementSpace & L2FESpace_;
-   const ParFiniteElementSpace & H1FESpace_;
-
-   double omega_;
-   bool realPart_;
-
-   ParGridFunction density_gf_;
-   ParGridFunction temperature_gf_;
-
-   Vector density_vals_;
-   Vector temp_vals_;
-   const Vector & charges_;
-   const Vector & masses_;
 };
 
 class SPDDielectricTensor: public MatrixCoefficient

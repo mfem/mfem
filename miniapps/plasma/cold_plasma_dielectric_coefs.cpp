@@ -501,6 +501,197 @@ double SheathImpedance::Eval(ElementTransformation &T,
    }
 }
 
+StixCoefBase::StixCoefBase(const ParGridFunction & B,
+                           const BlockVector & density,
+                           const BlockVector & temp,
+                           const ParFiniteElementSpace & L2FESpace,
+                           const ParFiniteElementSpace & H1FESpace,
+                           double omega,
+                           const Vector & charges,
+                           const Vector & masses,
+                           bool realPart)
+   : B_(B),
+     density_(density),
+     temp_(temp),
+     L2FESpace_(L2FESpace),
+     H1FESpace_(H1FESpace),
+     omega_(omega),
+     realPart_(realPart),
+     BVec_(3),
+     charges_(charges),
+     masses_(masses)
+{
+   density_vals_.SetSize(charges_.Size());
+   temp_vals_.SetSize(charges_.Size());
+}
+
+StixCoefBase::StixCoefBase(StixCoefBase & s)
+   : B_(s.GetBField()),
+     density_(s.GetDensityFields()),
+     temp_(s.GetTemperatureFields()),
+     L2FESpace_(s.GetDensityFESpace()),
+     H1FESpace_(s.GetTemperatureFESpace()),
+     omega_(s.GetOmega()),
+     realPart_(s.GetRealPartFlag()),
+     BVec_(3),
+     charges_(s.GetCharges()),
+     masses_(s.GetMasses())
+{
+   density_vals_.SetSize(charges_.Size());
+   temp_vals_.SetSize(charges_.Size());
+}
+
+double StixCoefBase::getBMagnitude(ElementTransformation &T,
+                                   const IntegrationPoint &ip,
+                                   double *theta, double *phi)
+{
+   B_.GetVectorValue(T.ElementNo, ip, BVec_);
+
+   if (theta != NULL)
+   {
+      *theta = atan2(BVec_(2), BVec_(0));
+
+      if (phi != NULL)
+      {
+         *phi = atan2(BVec_(0) * cos(*theta) + BVec_(2) * sin(*theta),
+                      -BVec_(1));
+      }
+   }
+
+   return BVec_.Norml2();
+}
+
+void StixCoefBase::fillDensityVals(ElementTransformation &T,
+                                   const IntegrationPoint &ip)
+{
+   for (int i=0; i<density_vals_.Size(); i++)
+   {
+      density_gf_.MakeRef(const_cast<ParFiniteElementSpace*>(&L2FESpace_),
+                          const_cast<Vector&>(density_.GetBlock(i)));
+      density_vals_[i] = density_gf_.GetValue(T.ElementNo, ip);
+   }
+}
+
+void StixCoefBase::fillTemperatureVals(ElementTransformation &T,
+                                       const IntegrationPoint &ip)
+{
+   for (int i=0; i<temp_vals_.Size(); i++)
+   {
+      temperature_gf_.MakeRef(const_cast<ParFiniteElementSpace*>(&H1FESpace_),
+                              const_cast<Vector&>(temp_.GetBlock(i)));
+      temp_vals_[i] = temperature_gf_.GetValue(T.ElementNo, ip);
+   }
+}
+
+StixSCoef::StixSCoef(const ParGridFunction & B,
+                     const BlockVector & density,
+                     const BlockVector & temp,
+                     const ParFiniteElementSpace & L2FESpace,
+                     const ParFiniteElementSpace & H1FESpace,
+                     double omega,
+                     const Vector & charges,
+                     const Vector & masses,
+                     bool realPart)
+   : StixCoefBase(B, density, temp, L2FESpace, H1FESpace, omega,
+                  charges, masses, realPart)
+{}
+
+double StixSCoef::Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+{
+   // Collect density, temperature, and magnetic field values
+   double Bmag = this->getBMagnitude(T, ip);
+
+   this->fillDensityVals(T, ip);
+   this->fillTemperatureVals(T, ip);
+
+   // Evaluate Stix Coefficient
+   complex<double> S = S_cold_plasma(omega_, Bmag, density_vals_,
+                                     charges_, masses_, temp_vals_);
+
+   // Return the selected component
+   if (realPart_)
+   {
+      return S.real();
+   }
+   else
+   {
+      return S.imag();
+   }
+}
+
+StixDCoef::StixDCoef(const ParGridFunction & B,
+                     const BlockVector & density,
+                     const BlockVector & temp,
+                     const ParFiniteElementSpace & L2FESpace,
+                     const ParFiniteElementSpace & H1FESpace,
+                     double omega,
+                     const Vector & charges,
+                     const Vector & masses,
+                     bool realPart)
+   : StixCoefBase(B, density, temp, L2FESpace, H1FESpace, omega,
+                  charges, masses, realPart)
+{}
+
+double StixDCoef::Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+{
+   // Collect density, temperature, and magnetic field values
+   double Bmag = this->getBMagnitude(T, ip);
+
+   this->fillDensityVals(T, ip);
+   this->fillTemperatureVals(T, ip);
+
+   // Evaluate Stix Coefficient
+   complex<double> D = D_cold_plasma(omega_, Bmag, density_vals_,
+                                     charges_, masses_, temp_vals_);
+
+   // Return the selected component
+   if (realPart_)
+   {
+      return D.real();
+   }
+   else
+   {
+      return D.imag();
+   }
+}
+
+StixPCoef::StixPCoef(const ParGridFunction & B,
+                     const BlockVector & density,
+                     const BlockVector & temp,
+                     const ParFiniteElementSpace & L2FESpace,
+                     const ParFiniteElementSpace & H1FESpace,
+                     double omega,
+                     const Vector & charges,
+                     const Vector & masses,
+                     bool realPart)
+   : StixCoefBase(B, density, temp, L2FESpace, H1FESpace, omega,
+                  charges, masses, realPart)
+{}
+
+double StixPCoef::Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+{
+   // Collect density and temperature field values
+   this->fillDensityVals(T, ip);
+   this->fillTemperatureVals(T, ip);
+
+   // Evaluate Stix Coefficient
+   complex<double> P = P_cold_plasma(omega_, density_vals_,
+                                     charges_, masses_, temp_vals_);
+
+   // Return the selected component
+   if (realPart_)
+   {
+      return P.real();
+   }
+   else
+   {
+      return P.imag();
+   }
+}
+
 DielectricTensor::DielectricTensor(const ParGridFunction & B,
                                    const BlockVector & density,
                                    const BlockVector & temp,
@@ -511,19 +702,9 @@ DielectricTensor::DielectricTensor(const ParGridFunction & B,
                                    const Vector & masses,
                                    bool realPart)
    : MatrixCoefficient(3),
-     B_(B),
-     density_(density),
-     temp_(temp),
-     L2FESpace_(L2FESpace),
-     H1FESpace_(H1FESpace),
-     omega_(omega),
-     realPart_(realPart),
-     charges_(charges),
-     masses_(masses)
-{
-   density_vals_.SetSize(charges_.Size());
-   temp_vals_.SetSize(charges_.Size());
-}
+     StixCoefBase(B, density, temp, L2FESpace, H1FESpace, omega,
+                  charges, masses, realPart)
+{}
 
 void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
                             const IntegrationPoint &ip)
@@ -532,35 +713,23 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    epsilon.SetSize(3);
 
    // Collect density, temperature, and magnetic field values
-   Vector B(3);
-   B_.GetVectorValue(T.ElementNo, ip, B);
-   double Bmag = B.Norml2();
-   double th = atan2(B(2), B(0));
-   double ph = atan2(B(0) * cos(th) + B(2) * sin(th), -B(1));
+   double th = 0.0;
+   double ph = 0.0;
+   double Bmag = this->getBMagnitude(T, ip, &th, &ph);
 
-   for (int i=0; i<density_vals_.Size(); i++)
-   {
-      density_gf_.MakeRef(const_cast<ParFiniteElementSpace*>(&L2FESpace_),
-                          const_cast<Vector&>(density_.GetBlock(i)));
-      density_vals_[i] = density_gf_.GetValue(T.ElementNo, ip);
-   }
+   this->fillDensityVals(T, ip);
+   this->fillTemperatureVals(T, ip);
 
-   for (int i=0; i<temp_vals_.Size(); i++)
-   {
-      temperature_gf_.MakeRef(const_cast<ParFiniteElementSpace*>(&H1FESpace_),
-                              const_cast<Vector&>(temp_.GetBlock(i)));
-      temp_vals_[i] = temperature_gf_.GetValue(T.ElementNo, ip);
-   }
+   // Evaluate the Stix Coefficients
+   complex<double> S = S_cold_plasma(omega_, Bmag, density_vals_,
+                                     charges_, masses_, temp_vals_);
+   complex<double> P = P_cold_plasma(omega_, density_vals_,
+                                     charges_, masses_, temp_vals_);
+   complex<double> D = D_cold_plasma(omega_, Bmag, density_vals_,
+                                     charges_, masses_, temp_vals_);
 
    if (realPart_)
    {
-      complex<double> S = S_cold_plasma(omega_, Bmag, density_vals_,
-                                        charges_, masses_, temp_vals_);
-      complex<double> P = P_cold_plasma(omega_, density_vals_,
-                                        charges_, masses_, temp_vals_);
-      complex<double> D = D_cold_plasma(omega_, Bmag, density_vals_,
-                                        charges_, masses_, temp_vals_);
-
       epsilon(0,0) =  (real(P) - real(S)) *
                       pow(sin(ph), 2) * pow(cos(th), 2) + real(S);
       epsilon(1,1) =  (real(P) - real(S)) * pow(cos(ph), 2) + real(S);
@@ -581,13 +750,6 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    }
    else
    {
-      complex<double> S = S_cold_plasma(omega_, Bmag, density_vals_,
-                                        charges_, masses_, temp_);
-      complex<double> P = P_cold_plasma(omega_, density_vals_,
-                                        charges_, masses_, temp_);
-      complex<double> D = D_cold_plasma(omega_, Bmag, density_vals_,
-                                        charges_, masses_, temp_);
-
       epsilon(0,0) = (imag(P) - imag(S)) *
                      pow(sin(ph), 2) * pow(cos(th), 2) + imag(S);
       epsilon(1,1) = (imag(P) - imag(S)) * pow(cos(ph), 2) + imag(S);
