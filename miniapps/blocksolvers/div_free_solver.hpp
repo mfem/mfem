@@ -17,7 +17,6 @@ struct IterSolveParameters
 struct DFSParameters : IterSolveParameters
 {
    bool verbose = false;
-   bool B_has_nullity_one = false;   // whether B has a 1D nullspace
    bool coupled_solve = false;       // whether to solve all unknowns together
    IterSolveParameters BBT_solve_param;
 };
@@ -42,7 +41,6 @@ class DFSSpaces
 {
    RT_FECollection hdiv_fec_;
    L2_FECollection l2_fec_;
-//   ND_FECollection hcurl_fec_;
    unique_ptr<FiniteElementCollection> hcurl_fec_;
    L2_FECollection l2_0_fec_;
 
@@ -96,11 +94,9 @@ class BBTSolver : public Solver
    OperatorPtr BBT_;
    OperatorPtr BBT_prec_;
    CGSolver BBT_solver_;
-   bool B_has_nullity_one_;
 public:
-   BBTSolver(const HypreParMatrix &B, bool B_has_nullity_one=false,
-             IterSolveParameters param=IterSolveParameters());
-   virtual void Mult(const Vector &x, Vector &y) const;
+   BBTSolver(const HypreParMatrix &B, IterSolveParameters param);
+   virtual void Mult(const Vector &x, Vector &y) const { BBT_solver_.Mult(x, y); }
    virtual void SetOperator(const Operator &op) { }
 };
 
@@ -111,18 +107,6 @@ public:
    SymBlkDiagSolver(const SparseMatrix& A, const SparseMatrix& block_dof)
       : BlockDiagSolver(A, block_dof) { }
    virtual void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
-};
-
-/// Solver for local problems in SchwarzSmoother
-class LocalSolver : public Solver
-{
-   DenseMatrix local_system_;
-   DenseMatrixInverse local_solver_;
-   const int offset_;
-public:
-   LocalSolver(const DenseMatrix &M, const DenseMatrix &B);
-   virtual void Mult(const Vector &x, Vector &y) const;
-   virtual void SetOperator(const Operator &op) { }
 };
 
 /// non-overlapping additive Schwarz for saddle point problems
@@ -147,6 +131,36 @@ public:
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
    virtual void SetOperator(const Operator &op) { }
+};
+
+/// Solver for local problems in SaddleSchwarzSmoother
+class LocalSolver : public Solver
+{
+   DenseMatrix local_system_;
+   DenseMatrixInverse local_solver_;
+   const int offset_;
+public:
+   LocalSolver(const DenseMatrix &M, const DenseMatrix &B);
+   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void SetOperator(const Operator &op) { }
+};
+
+/// Wrapper for the block-diagonal-preconditioned MINRES defined in ex5p.cpp
+class BDPMinresSolver : public DarcySolver
+{
+   BlockOperator op_;
+   BlockDiagonalPreconditioner prec_;
+   OperatorPtr BT_;
+   OperatorPtr S_;   // S_ = B diag(M)^{-1} B^T
+   MINRESSolver solver_;
+   Array<int> ess_zero_dofs_;
+public:
+   BDPMinresSolver(HypreParMatrix& M, HypreParMatrix& B,
+                   IterSolveParameters param);
+   virtual void Mult(const Vector & x, Vector & y) const;
+   virtual void SetOperator(const Operator &op) { }
+   void SetEssZeroDofs(const Array<int>& dofs) { dofs.Copy(ess_zero_dofs_); }
+   virtual int GetNumIterations() const { return solver_.GetNumIterations(); }
 };
 
 /** Divergence free solver.
@@ -179,29 +193,8 @@ class DivFreeSolver : public DarcySolver
 public:
    DivFreeSolver(const HypreParMatrix& M, const HypreParMatrix &B,
                  const DFSData& data);
-   virtual void Mult(const Vector & x, Vector & y) const;
+   ~DivFreeSolver();
+   virtual void Mult(const Vector &x, Vector &y) const;
    virtual void SetOperator(const Operator &op) { }
-   virtual int GetNumIterations() const
-   {
-      return solver_.As<IterativeSolver>()->GetNumIterations();
-   }
-};
-
-/// Wrapper for the block-diagonal-preconditioned MINRES defined in ex5p.cpp
-class BDPMinresSolver : public DarcySolver
-{
-   BlockOperator op_;
-   BlockDiagonalPreconditioner prec_;
-   OperatorPtr BT_;
-   OperatorPtr S_;   // S_ = B diag(M)^{-1} B^T
-   MINRESSolver solver_;
-   Array<int> ess_zero_dofs_;
-public:
-   BDPMinresSolver(HypreParMatrix& M, HypreParMatrix& B,
-                   IterSolveParameters param);
-   virtual void Mult(const Vector & x, Vector & y) const;
-   virtual void SetOperator(const Operator &op) { }
-   void SetEssZeroDofs(const Array<int>& dofs) { dofs.Copy(ess_zero_dofs_); }
-   const BlockOperator& GetOperator() const { return op_; }
-   virtual int GetNumIterations() const { return solver_.GetNumIterations(); }
+   virtual int GetNumIterations() const;
 };
