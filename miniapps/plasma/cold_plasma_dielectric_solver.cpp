@@ -301,6 +301,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      d_v_(NULL),
      phi_v_(NULL),
      j_v_(NULL),
+     b_hat_(NULL),
      u_(NULL),
      uE_(NULL),
      uB_(NULL),
@@ -377,6 +378,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
       }
       e_b_ = new ParComplexGridFunction(L2FESpace_);
       *e_b_ = 0.0;
+      b_hat_ = new ParGridFunction(HDivFESpace_);
    }
    if (kCoef_)
    {
@@ -1666,6 +1668,7 @@ CPDSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
 
    if ( BCoef_)
    {
+      visit_dc.RegisterField("B_hat", b_hat_);
       visit_dc.RegisterField("Re_EB", &e_b_->real());
       visit_dc.RegisterField("Im_EB", &e_b_->imag());
    }
@@ -1734,6 +1737,8 @@ CPDSolver::WriteVisItFields(int it)
 
       if ( BCoef_)
       {
+         b_hat_->ProjectCoefficient(*BCoef_);
+
          VectorGridFunctionCoefficient e_r(&e_->real());
          VectorGridFunctionCoefficient e_i(&e_->imag());
          InnerProductCoefficient ebrCoef(e_r, *BCoef_);

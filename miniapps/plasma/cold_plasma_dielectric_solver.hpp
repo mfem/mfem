@@ -324,6 +324,7 @@ private:
    ParComplexGridFunction * d_v_; // Complex electric flux (L2^d)
    ParComplexGridFunction * phi_v_; // Complex sheath potential (L2)
    ParComplexGridFunction * j_v_; // Complex current density (L2^d)
+   ParGridFunction        * b_hat_; // Unit vector along B (HDiv)
    ParGridFunction        * u_;   // Energy density (L2)
    ParGridFunction        * uE_;  // Electric Energy density (L2)
    ParGridFunction        * uB_;  // Magnetic Energy density (L2)
