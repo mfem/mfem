@@ -54,12 +54,16 @@ DFSSpaces::DFSSpaces(int order, int num_refine, ParMesh *mesh,
       mfem_error("DFSDataCollector: High order spaces on tetrahedra are not supported");
    }
 
-   if (mesh->Dimension() == 3)
-      hcurl_fec_.reset(new ND_FECollection(order+1, mesh->Dimension()));
-   else
-      hcurl_fec_.reset(new H1_FECollection(order+1, mesh->Dimension()));
-
    data_.param = param;
+
+   if (mesh->Dimension() == 3)
+   {
+      hcurl_fec_.reset(new ND_FECollection(order+1, mesh->Dimension()));
+   }
+   else
+   {
+      hcurl_fec_.reset(new H1_FECollection(order+1, mesh->Dimension()));
+   }
 
    all_bdr_attr_.SetSize(ess_attr.Size(), 1);
    hdiv_fes_.reset(new ParFiniteElementSpace(mesh, &hdiv_fec_));
@@ -91,8 +95,8 @@ SparseMatrix* AggToInteriorDof(const Array<int>& bdr_truedofs,
                                Array<int>& agg_starts)
 {
    OperatorPtr agg_dof(Mult(agg_elem, elem_dof));
-   OperatorPtr agg_tdof(dof_truedof.LeftDiagMult(*agg_dof.As<SparseMatrix>(),
-                                                 agg_starts));
+   SparseMatrix& agg_dof_ref = *agg_dof.As<SparseMatrix>();
+   OperatorPtr agg_tdof(dof_truedof.LeftDiagMult(agg_dof_ref, agg_starts));
    OperatorPtr agg_tdof_T(agg_tdof.As<HypreParMatrix>()->Transpose());
    SparseMatrix tdof_agg, is_shared;
    HYPRE_Int* trash;
@@ -157,9 +161,6 @@ void DFSSpaces::CollectDFSData()
 
    Vector trash1(hcurl_fes_->GetVSize()), trash2(hdiv_fes_->GetVSize());
    ParDiscreteLinearOperator curl(hcurl_fes_.get(), hdiv_fes_.get());
-
-//   auto KernelInterpolator = hcurl_fes_->GetMesh()->Dimension() == 3
-//         ?  : new
    curl.AddDomainInterpolator(new CurlInterpolator);
    curl.Assemble();
    curl.EliminateTrialDofs(ess_bdr_attr_, trash1, trash2);
@@ -194,22 +195,12 @@ void DFSSpaces::DataFinalize()
    l2_0_fes_.reset();
 }
 
-BBTSolver::BBTSolver(const HypreParMatrix& B, bool B_has_nullity_one,
-                     IterSolveParameters param)
+BBTSolver::BBTSolver(const HypreParMatrix& B, IterSolveParameters param)
    : Solver(B.NumRows()), BBT_solver_(B.GetComm())
 {
    OperatorPtr BT(B.Transpose());
    BBT_.Reset(ParMult(&B, BT.As<HypreParMatrix>()));
    BBT_.As<HypreParMatrix>()->CopyColStarts();
-
-   int myid;
-   MPI_Comm_rank(B.GetComm(), &myid);
-   B_has_nullity_one_ = B_has_nullity_one && (myid == 0);
-
-   Array<int> ess_dofs(B_has_nullity_one_ ? 1 : 0);
-   ess_dofs = 0;
-   OperatorPtr BBT_elim;
-   BBT_elim.EliminateRowsCols(BBT_, ess_dofs);
 
    BBT_prec_.Reset(new HypreBoomerAMG(*BBT_.As<HypreParMatrix>()));
    BBT_prec_.As<HypreBoomerAMG>()->SetPrintLevel(0);
@@ -217,14 +208,6 @@ BBTSolver::BBTSolver(const HypreParMatrix& B, bool B_has_nullity_one,
    SetOptions(BBT_solver_, param);
    BBT_solver_.SetOperator(*BBT_);
    BBT_solver_.SetPreconditioner(*BBT_prec_.As<HypreBoomerAMG>());
-}
-
-void BBTSolver::Mult(const Vector &x, Vector &y) const
-{
-   double x_0 = x[0];
-   if (B_has_nullity_one_) { const_cast<Vector&>(x)[0] = 0.0; }
-   BBT_solver_.Mult(x, y);
-   if (B_has_nullity_one_) { const_cast<Vector&>(x)[0] = x_0; }
 }
 
 LocalSolver::LocalSolver(const DenseMatrix& M, const DenseMatrix& B)
@@ -320,10 +303,41 @@ void SaddleSchwarzSmoother::Mult(const Vector & x, Vector & y) const
    blk_y.GetBlock(1) -= coarse_l2_projection;
 }
 
+BDPMinresSolver::BDPMinresSolver(HypreParMatrix& M, HypreParMatrix& B,
+                                 IterSolveParameters param)
+   : DarcySolver(M.NumRows(), B.NumRows()), op_(offsets_), prec_(offsets_),
+     BT_(B.Transpose()), solver_(M.GetComm())
+{
+   op_.SetBlock(0,0, &M);
+   op_.SetBlock(0,1, BT_.As<HypreParMatrix>());
+   op_.SetBlock(1,0, &B);
+
+   Vector Md;
+   M.GetDiag(Md);
+   BT_.As<HypreParMatrix>()->InvScaleRows(Md);
+   S_.Reset(ParMult(&B, BT_.As<HypreParMatrix>()));
+   BT_.As<HypreParMatrix>()->ScaleRows(Md);
+
+   prec_.SetDiagonalBlock(0, new HypreDiagScale(M));
+   prec_.SetDiagonalBlock(1, new HypreBoomerAMG(*S_.As<HypreParMatrix>()));
+   static_cast<HypreBoomerAMG&>(prec_.GetDiagonalBlock(1)).SetPrintLevel(0);
+   prec_.owns_blocks = true;
+
+   SetOptions(solver_, param);
+   solver_.SetOperator(op_);
+   solver_.SetPreconditioner(prec_);
+}
+
+void BDPMinresSolver::Mult(const Vector & x, Vector & y) const
+{
+   solver_.Mult(x, y);
+   for (int dof : ess_zero_dofs_) { y[dof] = 0.0; }
+}
+
 DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
                              const DFSData& data)
    : DarcySolver(M.NumRows(), B.NumRows()), data_(data), BT_(B.Transpose()),
-     BBT_solver_(B, data.param.B_has_nullity_one, data.param.BBT_solve_param),
+     BBT_solver_(B, data.param.BBT_solve_param),
      ops_offsets_(data.P_l2.Size()+1), ops_(ops_offsets_.Size()),
      blk_Ps_(ops_.Size()-1), smoothers_(ops_.Size())
 {
@@ -333,17 +347,38 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
    ops_.Last()->SetBlock(1, 0, const_cast<HypreParMatrix*>(&B));
    ops_.Last()->SetBlock(0, 1, BT_.Ptr());
 
-   for (int l = data.P_l2.Size(); l > 0; --l)
+   for (int l = data.P_l2.Size(); l >= 0; --l)
    {
+      auto& M_f = static_cast<HypreParMatrix&>(ops_[l]->GetBlock(0, 0));
+      auto& B_f = static_cast<HypreParMatrix&>(ops_[l]->GetBlock(1, 0));
+
+      if (l == 0)
+      {
+         SparseMatrix M_f_diag, B_f_diag;
+         M_f.GetDiag(M_f_diag);
+         B_f.GetDiag(B_f_diag);
+         for (int dof : data.coarsest_ess_hdivdofs)
+         {
+            M_f_diag.EliminateRowCol(dof);
+            B_f_diag.EliminateCol(dof);
+         }
+
+         const IterSolveParameters& param = data.param.BBT_solve_param;
+         auto coarse_solver = new BDPMinresSolver(M_f, B_f, param);
+         if (ops_.Size() > 1)
+         {
+            coarse_solver->SetEssZeroDofs(data.coarsest_ess_hdivdofs);
+         }
+         smoothers_[l] = coarse_solver;
+         continue;
+      }
+
       HypreParMatrix& P_hdiv_l = *data.P_hdiv[l-1].As<HypreParMatrix>();
       HypreParMatrix& P_l2_l = *data.P_l2[l-1].As<HypreParMatrix>();
       SparseMatrix& agg_hdivdof_l = *data.agg_hdivdof[l-1].As<SparseMatrix>();
       SparseMatrix& agg_l2dof_l = *data.agg_l2dof[l-1].As<SparseMatrix>();
       HypreParMatrix& Q_l2_l = *data.Q_l2[l-1].As<HypreParMatrix>();
       HypreParMatrix* C_l = data.C[l].As<HypreParMatrix>();
-
-      auto& M_f = static_cast<HypreParMatrix&>(ops_[l]->GetBlock(0, 0));
-      auto& B_f = static_cast<HypreParMatrix&>(ops_[l]->GetBlock(1, 0));
 
       auto S0 = new SaddleSchwarzSmoother(M_f, B_f, agg_hdivdof_l,
                                           agg_l2dof_l, P_l2_l, Q_l2_l);
@@ -375,23 +410,6 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
       ops_[l-1]->SetBlock(1, 0, B_c);
       ops_[l-1]->SetBlock(0, 1, B_c->Transpose());
       ops_[l-1]->owns_blocks = true;
-
-      if (l == 1)
-      {
-         SparseMatrix M_c_diag, B_c_diag;
-         M_c->GetDiag(M_c_diag);
-         B_c->GetDiag(B_c_diag);
-         for (int dof : data.coarsest_ess_hdivdofs)
-         {
-            M_c_diag.EliminateRowCol(dof);
-            B_c_diag.EliminateCol(dof);
-         }
-
-         const IterSolveParameters& param = data.param.BBT_solve_param;
-         auto coarse_solver = new BDPMinresSolver(*M_c, *B_c, param);
-         coarse_solver->SetEssZeroDofs(data.coarsest_ess_hdivdofs);
-         smoothers_[l-1] = coarse_solver;
-      }
    }
 
    Array<bool> own_ops(ops_.Size());
@@ -400,6 +418,8 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
    own_ops = true;
    own_smoothers = true;
    own_Ps = true;
+
+   if (data_.P_l2.Size() == 0) { return; }
 
    if (data.param.coupled_solve)
    {
@@ -438,6 +458,18 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
    SetOptions(*solver_.As<IterativeSolver>(), data_.param);
 }
 
+DivFreeSolver::~DivFreeSolver()
+{
+   if (data_.param.coupled_solve) { return; }
+   for (int i = 0; i < ops_.Size(); ++i)
+   {
+      delete ops_[i];
+      delete smoothers_[i];
+      if (i == ops_.Size() - 1) { break; }
+      delete blk_Ps_[i];
+   }
+}
+
 void DivFreeSolver::SolveParticular(const Vector& rhs, Vector& sol) const
 {
    Array<Vector> rhss(smoothers_.Size());
@@ -472,6 +504,7 @@ void DivFreeSolver::SolveDivFree(const Vector &rhs, Vector& sol) const
    data_.C.Last()->MultTranspose(rhs, rhs_divfree);
 
    Vector potential_divfree(rhs_divfree.Size());
+   potential_divfree = 0.0;
    solver_->Mult(rhs_divfree, potential_divfree);
 
    data_.C.Last()->Mult(potential_divfree, sol);
@@ -488,6 +521,8 @@ void DivFreeSolver::Mult(const Vector & x, Vector & y) const
 {
    MFEM_VERIFY(x.Size() == offsets_[2], "MLDivFreeSolver: x size is invalid");
    MFEM_VERIFY(y.Size() == offsets_[2], "MLDivFreeSolver: y size is invalid");
+
+   if (ops_.Size() == 1) { smoothers_[0]->Mult(x, y); return; }
 
    BlockVector blk_y(y, offsets_);
 
@@ -545,33 +580,11 @@ void DivFreeSolver::Mult(const Vector & x, Vector & y) const
    }
 }
 
-BDPMinresSolver::BDPMinresSolver(HypreParMatrix& M, HypreParMatrix& B,
-                                 IterSolveParameters param)
-   : DarcySolver(M.NumRows(), B.NumRows()), op_(offsets_), prec_(offsets_),
-     BT_(B.Transpose()), solver_(M.GetComm())
+int DivFreeSolver::GetNumIterations() const
 {
-   op_.SetBlock(0,0, &M);
-   op_.SetBlock(0,1, BT_.As<HypreParMatrix>());
-   op_.SetBlock(1,0, &B);
-
-   Vector Md;
-   M.GetDiag(Md);
-   BT_.As<HypreParMatrix>()->InvScaleRows(Md);
-   S_.Reset(ParMult(&B, BT_.As<HypreParMatrix>()));
-   BT_.As<HypreParMatrix>()->ScaleRows(Md);
-
-   prec_.SetDiagonalBlock(0, new HypreDiagScale(M));
-   prec_.SetDiagonalBlock(1, new HypreBoomerAMG(*S_.As<HypreParMatrix>()));
-   static_cast<HypreBoomerAMG&>(prec_.GetDiagonalBlock(1)).SetPrintLevel(0);
-   prec_.owns_blocks = true;
-
-   SetOptions(solver_, param);
-   solver_.SetOperator(op_);
-   solver_.SetPreconditioner(prec_);
-}
-
-void BDPMinresSolver::Mult(const Vector & x, Vector & y) const
-{
-   solver_.Mult(x, y);
-   for (int dof : ess_zero_dofs_) { y[dof] = 0.0; }
+   if (ops_.Size() == 1)
+   {
+      return static_cast<BDPMinresSolver*>(smoothers_[0])->GetNumIterations();
+   }
+   return solver_.As<IterativeSolver>()->GetNumIterations();
 }

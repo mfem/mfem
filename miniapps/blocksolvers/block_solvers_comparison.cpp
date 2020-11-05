@@ -196,18 +196,18 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/beam-hex.mesh";
    int order = 0;
-   int num_refines = 2;
-   bool coupled_solve = true;
+   int par_ref_levels = 2;
    bool show_error = false;
    bool visualization = false;
+   DFSParameters param;
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&num_refines, "-r", "--ref",
+   args.AddOption(&par_ref_levels, "-r", "--ref",
                   "Number of parallel refinement steps.");
-   args.AddOption(&coupled_solve, "-cs", "--coupled-solve", "-ss",
+   args.AddOption(&param.coupled_solve, "-cs", "--coupled-solve", "-ss",
                   "--separate-solve",
                   "Whether to solve all unknowns together in div free solver.");
    args.AddOption(&show_error, "-se", "--show-error", "-no-se",
@@ -236,18 +236,14 @@ int main(int argc, char *argv[])
 
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 0;
-   ess_bdr[0] = 1;
-
-   DFSParameters param;
-   param.B_has_nullity_one = (ess_bdr.Sum() == ess_bdr.Size());
-   param.coupled_solve = coupled_solve;
+   if (mesh->bdr_attributes.Max() > 1) { ess_bdr[1] = 1; }
 
    string line = "\n*******************************************************\n";
 
    ResetTimer();
 
    // Generate components of the saddle point problem
-   DarcyProblem darcy(*mesh, num_refines, order, ess_bdr, param);
+   DarcyProblem darcy(*mesh, par_ref_levels, order, ess_bdr, param);
    HypreParMatrix& M = darcy.GetM();
    HypreParMatrix& B = darcy.GetB();
    const DFSData& DFS_data = darcy.GetDFSData();
@@ -258,8 +254,11 @@ int main(int argc, char *argv[])
       cout << line << "System assembled in " << chrono.RealTime() << "s.\n";
       cout << "Dimension of the physical space: " << dim << "\n";
       cout << "Size of the discrete Darcy system: " << M.M() + B.M() << "\n";
-      cout << "Dimension of the divergence free subspace: "
-           << DFS_data.C.Last().Ptr()->NumCols() << "\n";
+      if (par_ref_levels > 0)
+      {
+         cout << "Dimension of the divergence free subspace: "
+              << DFS_data.C.Last().Ptr()->NumCols() << "\n";
+      }
    }
 
    {
