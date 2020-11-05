@@ -25,13 +25,6 @@ void GetRowColumnsRef(const SparseMatrix& A, int row, Array<int>& cols)
    cols.MakeRef(const_cast<int*>(A.GetRowColumns(row)), A.RowSize(row));
 }
 
-void GetSubMatrix(const SparseMatrix& A, const Array<int>& rows,
-                  const Array<int>& cols, DenseMatrix& sub_A)
-{
-   sub_A.SetSize(rows.Size(), cols.Size());
-   A.GetSubMatrix(rows, cols, sub_A);
-}
-
 SparseMatrix ElemToDof(const ParFiniteElementSpace& fes)
 {
    int* I = new int[fes.GetNE()+1];
@@ -260,8 +253,10 @@ SaddleSchwarzSmoother::SaddleSchwarzSmoother(const HypreParMatrix& M,
    {
       GetRowColumnsRef(agg_hdivdof_, agg, hdivdofs_loc_);
       GetRowColumnsRef(agg_l2dof_, agg, l2dofs_loc_);
-      GetSubMatrix(M_diag, hdivdofs_loc_, hdivdofs_loc_, M_loc);
-      GetSubMatrix(B_diag, l2dofs_loc_, hdivdofs_loc_, B_loc);
+      M_loc.SetSize(hdivdofs_loc_.Size(), hdivdofs_loc_.Size());
+      B_loc.SetSize(l2dofs_loc_.Size(), hdivdofs_loc_.Size());
+      M_diag.GetSubMatrix(hdivdofs_loc_, hdivdofs_loc_, M_loc);
+      B_diag.GetSubMatrix(l2dofs_loc_, hdivdofs_loc_, B_loc);
       solvers_loc_[agg].Reset(new LocalSolver(M_loc, B_loc));
    }
 }
@@ -276,6 +271,7 @@ void SaddleSchwarzSmoother::Mult(const Vector & x, Vector & y) const
    static_cast<Vector&>(Pi_x) = x;
 
    // Right hand side: F_l = F - W_l P_l2[l] (W_{l+1})^{-1} P_l2[l]^T F
+   // This ensures the existence of solutions to the local problems
    Vector coarse_l2_projection(Pi_x.BlockSize(1));
    coarse_l2_projector_->MultTranspose(Pi_x.GetBlock(1), coarse_l2_projection);
 

@@ -225,6 +225,12 @@ int main(int argc, char *argv[])
    }
    if (verbose) { args.PrintOptions(cout); }
 
+   if (par_ref_levels == 0 && verbose)
+   {
+      std::cout << "WARNING: DivFree solver is equivalent to BDPMinresSolver "
+                << "when par_ref_levels == 0.\n";
+   }
+
    // Initialize the mesh, boundary attributes, and solver parameters
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
