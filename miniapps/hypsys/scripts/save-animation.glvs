@@ -1,7 +1,20 @@
 window 1080 0 1920 1080
 
+# Number of processors
+# psolution 5
+
+# Output directory
+# ../output/output
+
+# Valuerange
+# valuerange 0 1
+
+# Files name
+# img
+
+
 # Initial solution
-psolution 7 ../output/grid-mesh 0 ../output/initial-gf
+psolution 5 ../output/grid-mesh 0 ../output/initial-gf
 
 # Setup the GLVis scene. Executed after pressing the space bar.
 {
@@ -11,63 +24,17 @@ psolution 7 ../output/grid-mesh 0 ../output/initial-gf
 }
 
 {
-   psolution 7 ../output/grid-mesh 0 ../output/initial-gf valuerange -1 1 screenshot frame00.png keys m
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-1 valuerange -1 1 screenshot frame01.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-2 valuerange -1 1 screenshot frame02.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-3 valuerange -1 1 screenshot frame03.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-4 valuerange -1 1 screenshot frame04.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-5 valuerange -1 1 screenshot frame05.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-6 valuerange -1 1 screenshot frame06.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-7 valuerange -1 1 screenshot frame07.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-8 valuerange -1 1 screenshot frame08.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-9 valuerange -1 1 screenshot frame09.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-10 valuerange -1 1 screenshot frame10.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-11 valuerange -1 1 screenshot frame11.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-12 valuerange -1 1 screenshot frame12.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-13 valuerange -1 1 screenshot frame13.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-14 valuerange -1 1 screenshot frame14.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-15 valuerange -1 1 screenshot frame15.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-16 valuerange -1 1 screenshot frame16.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-17 valuerange -1 1 screenshot frame17.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-18 valuerange -1 1 screenshot frame18.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-19 valuerange -1 1 screenshot frame19.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-20 valuerange -1 1 screenshot frame20.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-21 valuerange -1 1 screenshot frame21.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-22 valuerange -1 1 screenshot frame22.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-23 valuerange -1 1 screenshot frame23.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-24 valuerange -1 1 screenshot frame24.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-25 valuerange -1 1 screenshot frame25.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-26 valuerange -1 1 screenshot frame26.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-27 valuerange -1 1 screenshot frame27.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-28 valuerange -1 1 screenshot frame28.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-29 valuerange -1 1 screenshot frame29.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-30 valuerange -1 1 screenshot frame30.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-31 valuerange -1 1 screenshot frame31.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-32 valuerange -1 1 screenshot frame32.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-33 valuerange -1 1 screenshot frame33.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-34 valuerange -1 1 screenshot frame34.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-35 valuerange -1 1 screenshot frame35.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-36 valuerange -1 1 screenshot frame36.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-37 valuerange -1 1 screenshot frame37.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-38 valuerange -1 1 screenshot frame38.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-39 valuerange -1 1 screenshot frame39.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-40 valuerange -1 1 screenshot frame40.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-41 valuerange -1 1 screenshot frame41.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-42 valuerange -1 1 screenshot frame42.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-43 valuerange -1 1 screenshot frame43.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-44 valuerange -1 1 screenshot frame44.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-45 valuerange -1 1 screenshot frame45.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-46 valuerange -1 1 screenshot frame46.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-47 valuerange -1 1 screenshot frame47.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-48 valuerange -1 1 screenshot frame48.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-49 valuerange -1 1 screenshot frame49.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-50 valuerange -1 1 screenshot frame50.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-51 valuerange -1 1 screenshot frame51.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-52 valuerange -1 1 screenshot frame52.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-53 valuerange -1 1 screenshot frame53.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-54 valuerange -1 1 screenshot frame54.png
-   psolution 7 ../output/grid-mesh 0 ../output/trans-gf-55 valuerange -1 1 screenshot frame55.png
-   psolution 7 ../output/grid-mesh 0 ../output/ultimate-gf valuerange -1 1 screenshot frame56.png
+   psolution 5 ../output/grid-mesh 0 ../output/initial-gf  valuerange 0 1 screenshot img00.png keys m
+   psolution 5 ../output/grid-mesh 0 ../output/trans-gf-1  valuerange 0 1 screenshot img01.png
+   psolution 5 ../output/grid-mesh 0 ../output/trans-gf-2  valuerange 0 1 screenshot img02.png
+   psolution 5 ../output/grid-mesh 0 ../output/trans-gf-3  valuerange 0 1 screenshot img03.png
+   psolution 5 ../output/grid-mesh 0 ../output/trans-gf-4  valuerange 0 1 screenshot img04.png
+   psolution 5 ../output/grid-mesh 0 ../output/trans-gf-5  valuerange 0 1 screenshot img05.png
+   psolution 5 ../output/grid-mesh 0 ../output/trans-gf-6  valuerange 0 1 screenshot img06.png
+   psolution 5 ../output/grid-mesh 0 ../output/trans-gf-7  valuerange 0 1 screenshot img07.png
+   psolution 5 ../output/grid-mesh 0 ../output/trans-gf-8  valuerange 0 1 screenshot img08.png
+   psolution 5 ../output/grid-mesh 0 ../output/trans-gf-9  valuerange 0 1 screenshot img09.png
+   psolution 5 ../output/grid-mesh 0 ../output/ultimate-gf valuerange 0 1 screenshot img10.png
 }
 
 # ffmpeg -framerate 1 -pattern_type glob -i 'frame??.png' -c:v libx264 -r 30 -pix_fmt yuv420p out.mp4
