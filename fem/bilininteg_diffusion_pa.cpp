@@ -1820,6 +1820,20 @@ static void SmemPADiffusionApply3D(const int NE,
    });
 }
 
+#ifdef MFEM_USE_SYCL
+void SyclPADiffusionApply3D(const int D1D,
+                            const int Q1D,
+                            const int NE,
+                            const bool symm,
+                            const Array<double> &B,
+                            const Array<double> &G,
+                            const Array<double> &Bt,
+                            const Array<double> &Gt,
+                            const Vector &D,
+                            const Vector &X,
+                            Vector &Y);
+#endif
+
 static void PADiffusionApply(const int dim,
                              const int D1D,
                              const int Q1D,
@@ -1849,6 +1863,24 @@ static void PADiffusionApply(const int dim,
       MFEM_ABORT("OCCA PADiffusionApply unknown kernel!");
    }
 #endif // MFEM_USE_OCCA
+
+#ifdef MFEM_USE_SYCL
+   if (DeviceCanUseSycl())
+   {
+      if (dim == 2)
+      {
+         MFEM_ABORT("Not yet supported!");
+         return;
+      }
+      if (dim == 3)
+      {
+         SyclPADiffusionApply3D(D1D,Q1D,NE,symm,B,G,Bt,Gt,D,X,Y);
+         return;
+      }
+      MFEM_ABORT("SYCL PADiffusionApply unknown kernel!");
+   }
+#endif
+
    const int ID = (D1D << 4) | Q1D;
 
    if (dim == 2)

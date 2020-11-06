@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "debug.hpp"
 #include "forall.hpp"
 #include "occa.hpp"
 #ifdef MFEM_USE_CEED
@@ -45,7 +46,8 @@ static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
    Backend::CEED_CUDA, Backend::OCCA_CUDA, Backend::RAJA_CUDA, Backend::CUDA,
    Backend::CEED_HIP, Backend::HIP, Backend::DEBUG_DEVICE,
    Backend::OCCA_OMP, Backend::RAJA_OMP, Backend::OMP,
-   Backend::CEED_CPU, Backend::OCCA_CPU, Backend::RAJA_CPU, Backend::CPU
+   Backend::CEED_CPU, Backend::OCCA_CPU, Backend::RAJA_CPU,
+   Backend::SYCL, Backend::CPU
 };
 
 // Backend names listed by priority, high to low:
@@ -54,7 +56,7 @@ static const char *backend_name[Backend::NUM_BACKENDS] =
    "ceed-cuda", "occa-cuda", "raja-cuda", "cuda",
    "ceed-hip", "hip", "debug",
    "occa-omp", "raja-omp", "omp",
-   "ceed-cpu", "occa-cpu", "raja-cpu", "cpu"
+   "ceed-cpu", "occa-cpu", "raja-cpu", "sycl", "cpu"
 };
 
 } // namespace mfem::internal
@@ -454,6 +456,18 @@ static void OccaDeviceSetup(const int dev)
 #endif
 }
 
+static void SyclDeviceSetup(const int dev, int &ngpu)
+{
+   dbg();
+#ifdef MFEM_USE_SYCL
+   ngpu = SyGetDeviceCount();
+   MFEM_VERIFY(ngpu > 0, "No SYCL device!");
+#else
+   MFEM_CONTRACT_VAR(dev);
+   MFEM_CONTRACT_VAR(ngpu);
+#endif
+}
+
 static void CeedDeviceSetup(const char* ceed_spec)
 {
 #ifdef MFEM_USE_CEED
@@ -544,6 +558,7 @@ void Device::Setup(const int device)
          CeedDeviceSetup(device_option);
       }
    }
+   if (Allows(Backend::SYCL)) { SyclDeviceSetup(dev, ngpu); }
    if (Allows(Backend::DEBUG_DEVICE)) { ngpu = 1; }
 }
 

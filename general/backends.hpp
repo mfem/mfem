@@ -29,6 +29,11 @@
 #include "occa.hpp"
 #endif
 
+#ifdef MFEM_USE_SYCL
+#include <CL/sycl.hpp>
+#endif
+#include "sycl.hpp"
+
 #ifdef MFEM_USE_RAJA
 #include "RAJA/RAJA.hpp"
 #if defined(RAJA_ENABLE_CUDA) && !defined(MFEM_USE_CUDA)

@@ -155,6 +155,9 @@
 // Enable functionality based on the OCCA library.
 // #define MFEM_USE_OCCA
 
+// Enable functionality based on the SYCL library.
+// #define MFEM_USE_SYCL
+
 // Enable functionality based on the libCEED library.
 // #define MFEM_USE_CEED
 

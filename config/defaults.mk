@@ -141,6 +141,7 @@ MFEM_USE_CUDA          = NO
 MFEM_USE_HIP           = NO
 MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
+MFEM_USE_SYCL          = NO
 MFEM_USE_CEED          = NO
 MFEM_USE_UMPIRE        = NO
 MFEM_USE_SIMD          = NO
@@ -391,6 +392,11 @@ HIP_LIB =
 OCCA_DIR = @MFEM_DIR@/../occa
 OCCA_OPT = -I$(OCCA_DIR)/include
 OCCA_LIB = $(XLINKER)-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
+
+# SYCL library configuration - Empty as we are relying on the compiler
+SYCL_DIR =
+SYCL_OPT =
+SYCL_LIB =
 
 # libCEED library configuration
 CEED_DIR ?= @MFEM_DIR@/../libCEED
