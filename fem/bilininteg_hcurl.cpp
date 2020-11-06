@@ -5397,7 +5397,7 @@ void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
    ne = trial_fes.GetNE();
 
    const int order = trial_el->GetOrder();
-   fake_fe = new H1_SegmentElement(order);
+   dofquad_fe = new H1_SegmentElement(order);
    mfem::QuadratureFunctions1D qf1d;
    mfem::IntegrationRule closed_ir;
    closed_ir.SetSize(order + 1);
@@ -5406,8 +5406,8 @@ void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
    open_ir.SetSize(order);
    qf1d.GaussLegendre(order, &open_ir);
 
-   maps_C_C = &fake_fe->GetDofToQuad(closed_ir, DofToQuad::TENSOR);
-   maps_O_C = &fake_fe->GetDofToQuad(open_ir, DofToQuad::TENSOR);
+   maps_C_C = &dofquad_fe->GetDofToQuad(closed_ir, DofToQuad::TENSOR);
+   maps_O_C = &dofquad_fe->GetDofToQuad(open_ir, DofToQuad::TENSOR);
 
    o_dofs1D = maps_O_C->nqpt;
    c_dofs1D = maps_C_C->nqpt;
@@ -5683,7 +5683,6 @@ static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
                      NE);
 
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
-   //constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
 
@@ -5909,7 +5908,6 @@ static void PAHcurlVecH1IdentityApply2D(const int c_dofs1D,
    auto vk = Reshape(pa_data.Read(), 2, (2 * c_dofs1D * o_dofs1D), NE);
 
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
-   //constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
 
@@ -6127,7 +6125,7 @@ void IdentityInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
    ne = trial_fes.GetNE();
 
    const int order = trial_el->GetOrder();
-   fake_fe = new H1_SegmentElement(order);
+   dofquad_fe = new H1_SegmentElement(order);
    mfem::QuadratureFunctions1D qf1d;
    mfem::IntegrationRule closed_ir;
    closed_ir.SetSize(order + 1);
@@ -6136,8 +6134,8 @@ void IdentityInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
    open_ir.SetSize(order);
    qf1d.GaussLegendre(order, &open_ir);
 
-   maps_C_C = &fake_fe->GetDofToQuad(closed_ir, DofToQuad::TENSOR);
-   maps_O_C = &fake_fe->GetDofToQuad(open_ir, DofToQuad::TENSOR);
+   maps_C_C = &dofquad_fe->GetDofToQuad(closed_ir, DofToQuad::TENSOR);
+   maps_O_C = &dofquad_fe->GetDofToQuad(open_ir, DofToQuad::TENSOR);
 
    o_dofs1D = maps_O_C->nqpt;
    c_dofs1D = maps_C_C->nqpt;

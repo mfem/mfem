@@ -72,7 +72,7 @@ private:
    mutable HypreParMatrix *P;
    /// Optimized action-only prolongation operator for conforming meshes. Owned.
    mutable Operator *Pconf;
-   /// Optimized action-only diagonal prolongation operator on ldofs for
+   /// Optimized action-only local prolongation operator on ldofs for
    /// conforming meshes. Owned.
    mutable Operator *Pconf_local;
 
@@ -338,6 +338,8 @@ public:
    HYPRE_Int GetMyTDofOffset() const;
 
    virtual const Operator *GetProlongationMatrix() const;
+   /** Return the parallel local prolongation operator, which sets local DOFs
+       to the true DOF values if owned locally, otherwise zero. */
    virtual const Operator *GetLocalProlongationOperator() const;
    /// Get the R matrix which restricts a local dof vector to true dof vector.
    virtual const SparseMatrix *GetRestrictionMatrix() const

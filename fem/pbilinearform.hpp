@@ -160,7 +160,7 @@ public:
    /// Get the parallel finite element space prolongation matrix
    virtual const Operator *GetProlongation() const
    { return pfes->GetProlongationMatrix(); }
-   /// Get the diagonal part of the parallel finite element space prolongation matrix
+   /// Get the local part of the parallel finite element space prolongation matrix
    virtual const Operator *GetLocalProlongation() const
    { return pfes->GetLocalProlongationOperator(); }
    /// Get the parallel finite element space restriction matrix
