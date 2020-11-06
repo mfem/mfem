@@ -93,7 +93,7 @@ void ConvergenceStudy::AddL2Error(GridFunction *gf,
    }
    else if (vector_u)
    {
-      L2Err = gf->ComputeL2Error(*vector_u);
+      L2Err = gf->ComputeL2Error(*vector_u,nullptr,elem_list);
       CoeffNorm = GetNorm(gf,nullptr,vector_u);
    }
    else
@@ -122,7 +122,7 @@ void ConvergenceStudy::AddGf(GridFunction *gf, Coefficient *scalar_u,
 
    if (grad)
    {
-      double GradErr = gf->ComputeGradError(grad);
+      double GradErr = gf->ComputeGradError(grad,nullptr,elem_list);
       DErrors.Append(GradErr);
       double err = sqrt(L2Errors[counter-1]*L2Errors[counter-1]+GradErr*GradErr);
       EnErrors.Append(err);
@@ -161,13 +161,13 @@ void ConvergenceStudy::AddGf(GridFunction *gf, VectorCoefficient *vector_u,
    bool derivative = false;
    if (curl)
    {
-      DErr = gf->ComputeCurlError(curl);
+      DErr = gf->ComputeCurlError(curl,nullptr,elem_list);
       CoeffDNorm = GetNorm(gf,nullptr,curl);
       derivative = true;
    }
    else if (div)
    {
-      DErr = gf->ComputeDivError(div);
+      DErr = gf->ComputeDivError(div,nullptr,elem_list);
       // update coefficient norm
       CoeffDNorm = GetNorm(gf,div,nullptr);
       derivative = true;

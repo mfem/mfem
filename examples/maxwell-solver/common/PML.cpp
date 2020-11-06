@@ -292,9 +292,11 @@ void ToroidPML::StretchFunction(const Vector &X, ComplexDenseMatrix & J, double 
    {
       double th = a * M_PI/180.0;
       double thl, thL, thH;
+      bool in_pml = false;
       // negative direction 
       if (a <= alim[0]+apml_thickness[0])
       {
+         in_pml = true;
          thL = alim[1] * M_PI/180.0;
          thH = apml_thickness[1] * M_PI/180.0;
          thl = thL + thH;
@@ -302,28 +304,34 @@ void ToroidPML::StretchFunction(const Vector &X, ComplexDenseMatrix & J, double 
       // positive direction 
       if (a >= alim[1]-apml_thickness[1])
       {
+         in_pml = true;
          thL = alim[1] * M_PI/180.0;
          thH = apml_thickness[1] * M_PI/180.0;
          thl = thL - thH;
       }
       // double c1 = min(20.0*M_PI/180.0,thH);
-      double c1 = thH;
-      double coeff = n * c / omega / pow(c1,n);
-      double f_th = pow(th - thl,n-1);
-      double th_x = - y / (r * r);
-      double th_y =   x / (r * r);
+      if (in_pml)
+      {
+         double c1 = thH;
+         double coeff = n * c / omega / pow(c1,n);
+         double f_th = pow(th - thl,n-1);
+         double th_x = - y / (r * r);
+         double th_y =   x / (r * r);
 
-      J(0,0) = 1.0 + zi * coeff * abs(f_th * th_x);
-      J(0,1) = zi * f_th * th_y;
-      J(1,0) = zi * f_th * th_x;
-      J(1,1) = 1.0 + zi * coeff * abs(f_th * th_y);
+         J(0,0) = 1.0 + zi * coeff * abs(f_th * th_x);
+         J(0,1) = zi * f_th * th_y;
+         J(1,0) = zi * f_th * th_x;
+         J(1,1) = 1.0 + zi * coeff * abs(f_th * th_y);
+      }
    }
    // Stretch in the radial direction
    if (rstretch)
    {  // negative
       double rl, rL, rH;
+      bool in_pml = false;
       if (r <= rlim[0]+rpml_thickness[0])
       {
+         in_pml = true;
          rL = rlim[0];     
          rH = rpml_thickness[0];
          rl = rL + rH;
@@ -331,20 +339,24 @@ void ToroidPML::StretchFunction(const Vector &X, ComplexDenseMatrix & J, double 
       // positive direction 
       if (r >= rlim[1]-rpml_thickness[1])
       {
+         in_pml = true;
          rL = rlim[1];     
          rH = rpml_thickness[1];
          rl = rL - rH;
       }
-      double coeff = n * c / omega / pow (rH,n);
-      double f_r =  pow(r-rl,n-1.0);
-      double r_x = x / r;
-      double r_y = y / r;
 
-      J(0,0) = 1.0 + zi * coeff * abs(f_r*r_x);
-      J(0,1) = zi * f_r * r_y;
-      J(1,0) = zi * f_r * r_x;
-      J(1,1) = 1.0 + zi * coeff * abs(f_r*r_y);
-      
+      if (in_pml)
+      {
+         double coeff = n * c / omega / pow (rH,n);
+         double f_r =  pow(r-rl,n-1.0);
+         double r_x = x / r;
+         double r_y = y / r;
+
+         J(0,0) = 1.0 + zi * coeff * abs(f_r*r_x);
+         J(0,1) = zi * f_r * r_y;
+         J(1,0) = zi * f_r * r_x;
+         J(1,1) = 1.0 + zi * coeff * abs(f_r*r_y);
+      }
    }
 }
 

@@ -441,15 +441,18 @@ public:
 
    /// Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
    virtual double ComputeGradError(VectorCoefficient *exgrad,
-                                   const IntegrationRule *irs[] = NULL) const;
+                                   const IntegrationRule *irs[] = NULL,
+                                   Array<int> *elems = NULL) const;
 
    /// Returns ||curl u_ex - curl u_h||_L2 for ND elements
    virtual double ComputeCurlError(VectorCoefficient *excurl,
-                                   const IntegrationRule *irs[] = NULL) const;
+                                   const IntegrationRule *irs[] = NULL,
+                                   Array<int> *elems = NULL) const;
 
    /// Returns ||div u_ex - div u_h||_L2 for RT elements
    virtual double ComputeDivError(Coefficient *exdiv,
-                                  const IntegrationRule *irs[] = NULL) const;
+                                  const IntegrationRule *irs[] = NULL,
+                                  Array<int> *elems = NULL) const;
 
    /// Returns the Face Jumps error for L2 elements
    virtual double ComputeDGFaceJumpError(Coefficient *exsol,

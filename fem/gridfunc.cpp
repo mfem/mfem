@@ -2659,7 +2659,8 @@ double GridFunction::ComputeL2Error(
 }
 
 double GridFunction::ComputeGradError(VectorCoefficient *exgrad,
-                                      const IntegrationRule *irs[]) const
+                                      const IntegrationRule *irs[],
+                                      Array<int> *elems) const
 {
    double error = 0.0;
    const FiniteElement *fe;
@@ -2672,6 +2673,7 @@ double GridFunction::ComputeGradError(VectorCoefficient *exgrad,
 
    for (int i = 0; i < fes->GetNE(); i++)
    {
+      if (elems != NULL && (*elems)[i] == 0) { continue; }
       fe = fes->GetFE(i);
       Tr = fes->GetElementTransformation(i);
       intorder = 2*fe->GetOrder() + 3; // <--------
@@ -2699,7 +2701,8 @@ double GridFunction::ComputeGradError(VectorCoefficient *exgrad,
 }
 
 double GridFunction::ComputeCurlError(VectorCoefficient *excurl,
-                                      const IntegrationRule *irs[]) const
+                                      const IntegrationRule *irs[],
+                                      Array<int> *elems) const
 {
    double error = 0.0;
    const FiniteElement *fe;
@@ -2713,6 +2716,7 @@ double GridFunction::ComputeCurlError(VectorCoefficient *excurl,
 
    for (int i = 0; i < fes->GetNE(); i++)
    {
+      if (elems != NULL && (*elems)[i] == 0) { continue; }
       fe = fes->GetFE(i);
       Tr = fes->GetElementTransformation(i);
       intorder = 2*fe->GetOrder() + 3;
@@ -2741,7 +2745,8 @@ double GridFunction::ComputeCurlError(VectorCoefficient *excurl,
 }
 
 double GridFunction::ComputeDivError(
-   Coefficient *exdiv, const IntegrationRule *irs[]) const
+   Coefficient *exdiv, const IntegrationRule *irs[],
+   Array<int> *elems) const
 {
    double error = 0.0, a;
    const FiniteElement *fe;
@@ -2751,6 +2756,7 @@ double GridFunction::ComputeDivError(
 
    for (int i = 0; i < fes->GetNE(); i++)
    {
+      if (elems != NULL && (*elems)[i] == 0) { continue; }
       fe = fes->GetFE(i);
       Tr = fes->GetElementTransformation(i);
       intorder = 2*fe->GetOrder() + 3;

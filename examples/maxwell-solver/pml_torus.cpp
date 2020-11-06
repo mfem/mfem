@@ -412,6 +412,9 @@ int main(int argc, char *argv[])
       ConvergenceStudy rates_r;
       ConvergenceStudy rates_i;
 
+      rates_r.SetElementList(tpml.GetMarkedPMLElements());
+      rates_i.SetElementList(tpml.GetMarkedPMLElements());
+
       rates_r.AddHcurlGridFunction(&x.real(),&E_ex_Re);
       rates_i.AddHcurlGridFunction(&x.imag(),&E_ex_Im);
 
@@ -434,15 +437,21 @@ int main(int argc, char *argv[])
       norm_E_Im = x_gf0.imag().ComputeL2Error(E_ex_Im, irs,
                                               tpml.GetMarkedPMLElements());
 
-      cout << "\n Relative Error (Re part): || E_h - E || / ||E|| = "
-            << L2Error_Re / norm_E_Re
-            << "\n Relative Error (Im part): || E_h - E || / ||E|| = "
-            << L2Error_Im / norm_E_Im
-            << "\n Total Error: "
-            << sqrt(L2Error_Re*L2Error_Re + L2Error_Im*L2Error_Im) << "\n\n";
+      cout << "\n Absolute Error (Re part): || E_h - E || = "
+           << L2Error_Re
+           << "\n Absolute Error (Im part): || E_h - E || = "
+           << L2Error_Im
+           << "\n Total Error: "
+           << sqrt(L2Error_Re*L2Error_Re + L2Error_Im*L2Error_Im) << "\n\n";
+      // cout << "\n Relative Error (Re part): || E_h - E || / ||E|| = "
+      //       << L2Error_Re / norm_E_Re
+      //       << "\n Relative Error (Im part): || E_h - E || / ||E|| = "
+      //       << L2Error_Im / norm_E_Im
+      //       << "\n Total Error: "
+      //       << sqrt(L2Error_Re*L2Error_Re + L2Error_Im*L2Error_Im) << "\n\n";
 
-      rates_r.Print(true);      
-      rates_i.Print(true);      
+      rates_r.Print(false);      
+      rates_i.Print(false);      
    }
 
 

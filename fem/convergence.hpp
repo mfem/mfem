@@ -39,6 +39,7 @@ private:
    int counter=0;
    int dcounter=0;
    int fcounter=0;
+   Array<int> * elem_list = nullptr;
 
    // space continuity type
    int cont_type=-1;
@@ -70,6 +71,11 @@ public:
 
    /// Clear any internal data
    void Reset();
+
+   void SetElementList(Array<int> * elem_list_)
+   {
+      elem_list = elem_list_;
+   }
 
    /// Add L2 GridFunction, the exact solution and possibly its gradient and/or
    /// DG face jumps parameters
