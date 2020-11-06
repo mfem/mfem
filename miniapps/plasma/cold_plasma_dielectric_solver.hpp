@@ -329,6 +329,9 @@ private:
    ParGridFunction        * uE_;  // Electric Energy density (L2)
    ParGridFunction        * uB_;  // Magnetic Energy density (L2)
    ParComplexGridFunction * S_;  // Poynting Vector (HDiv)
+   ParComplexGridFunction * StixS_; // Stix S Coefficient (L2)
+   ParComplexGridFunction * StixD_; // Stix D Coefficient (L2)
+   ParComplexGridFunction * StixP_; // Stix P Coefficient (L2)
 
    VectorCoefficient * BCoef_;        // B Field Unit Vector
    MatrixCoefficient * epsReCoef_;    // Dielectric Material Coefficient
@@ -337,6 +340,13 @@ private:
    Coefficient       * muInvCoef_;    // Dia/Paramagnetic Material Coefficient
    Coefficient       * etaInvCoef_;   // Admittance Coefficient
    VectorCoefficient * kCoef_;        // Wave Vector
+
+   Coefficient * SReCoef_; // Stix S Coefficient
+   Coefficient * SImCoef_; // Stix S Coefficient
+   Coefficient * DReCoef_; // Stix D Coefficient
+   Coefficient * DImCoef_; // Stix D Coefficient
+   Coefficient * PReCoef_; // Stix P Coefficient
+   Coefficient * PImCoef_; // Stix P Coefficient
 
    Coefficient * omegaCoef_;     // omega expressed as a Coefficient
    Coefficient * negOmegaCoef_;  // -omega expressed as a Coefficient

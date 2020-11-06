@@ -306,6 +306,9 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      uE_(NULL),
      uB_(NULL),
      S_(NULL),
+     StixS_(NULL),
+     StixD_(NULL),
+     StixP_(NULL),
      BCoef_(&BCoef),
      epsReCoef_(&epsReCoef),
      epsImCoef_(&epsImCoef),
@@ -313,6 +316,12 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      muInvCoef_(&muInvCoef),
      etaInvCoef_(etaInvCoef),
      kCoef_(kCoef),
+     SReCoef_(NULL),
+     SImCoef_(NULL),
+     DReCoef_(NULL),
+     DImCoef_(NULL),
+     PReCoef_(NULL),
+     PImCoef_(NULL),
      omegaCoef_(new ConstantCoefficient(omega_)),
      negOmegaCoef_(new ConstantCoefficient(-omega_)),
      omega2Coef_(new ConstantCoefficient(pow(omega_, 2))),
@@ -369,23 +378,16 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    H1FESpace_    = new H1_ParFESpace(pmesh_,order,pmesh_->Dimension());
    HCurlFESpace_ = new ND_ParFESpace(pmesh_,order,pmesh_->Dimension());
    HDivFESpace_  = new RT_ParFESpace(pmesh_,order,pmesh_->Dimension());
+   L2FESpace_    = new L2_ParFESpace(pmesh_,order-1,pmesh_->Dimension());
 
    if (BCoef_)
    {
-      if (L2FESpace_ == NULL)
-      {
-         L2FESpace_ = new L2_ParFESpace(pmesh_,order-1,pmesh_->Dimension());
-      }
       e_b_ = new ParComplexGridFunction(L2FESpace_);
       *e_b_ = 0.0;
       b_hat_ = new ParGridFunction(HDivFESpace_);
    }
    if (kCoef_)
    {
-      if (L2FESpace_ == NULL)
-      {
-         L2FESpace_ = new L2_ParFESpace(pmesh_,order-1,pmesh_->Dimension());
-      }
       L2VFESpace_ = new L2_ParFESpace(pmesh_,order,pmesh_->Dimension(),
                                       pmesh_->SpaceDimension());
       e_t_ = new ParGridFunction(L2VFESpace_);
@@ -761,6 +763,28 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
       deiCoef_.SetGridFunction(&e_->imag());
    }
 
+   {
+      StixCoefBase * s = dynamic_cast<StixCoefBase*>(epsReCoef_);
+
+      if (s != NULL)
+      {
+         SReCoef_ = new StixSCoef(*s);
+         SImCoef_ = new StixSCoef(*s);
+         DReCoef_ = new StixDCoef(*s);
+         DImCoef_ = new StixDCoef(*s);
+         PReCoef_ = new StixPCoef(*s);
+         PImCoef_ = new StixPCoef(*s);
+
+         dynamic_cast<StixCoefBase*>(SImCoef_)->SetImaginaryPart();
+         dynamic_cast<StixCoefBase*>(DImCoef_)->SetImaginaryPart();
+         dynamic_cast<StixCoefBase*>(PImCoef_)->SetImaginaryPart();
+
+         StixS_ = new ParComplexGridFunction(L2FESpace_);
+         StixD_ = new ParComplexGridFunction(L2FESpace_);
+         StixP_ = new ParComplexGridFunction(L2FESpace_);
+      }
+   }
+
    tic_toc.Stop();
 
    if ( myid_ == 0 && logging_ > 0 )
@@ -783,6 +807,12 @@ CPDSolver::~CPDSolver()
    delete jiCoef_;
    // delete erCoef_;
    // delete eiCoef_;
+   delete SReCoef_;
+   delete SImCoef_;
+   delete DReCoef_;
+   delete DImCoef_;
+   delete PReCoef_;
+   delete PImCoef_;
    delete massReCoef_;
    delete massImCoef_;
    delete posMassCoef_;
@@ -815,6 +845,9 @@ CPDSolver::~CPDSolver()
    delete u_;
    delete uE_;
    delete uB_;
+   delete StixS_;
+   delete StixD_;
+   delete StixP_;
    // delete j_r_;
    // delete j_i_;
    // delete j_;
@@ -1691,6 +1724,15 @@ CPDSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
       visit_dc.RegisterField("Im_S", &S_->imag());
       // visit_dc.RegisterField("Im(u)", &u_->imag());
    }
+   if ( StixS_ )
+   {
+      visit_dc.RegisterField("Re_StixS", &StixS_->real());
+      visit_dc.RegisterField("Im_StixS", &StixS_->imag());
+      visit_dc.RegisterField("Re_StixD", &StixD_->real());
+      visit_dc.RegisterField("Im_StixD", &StixD_->imag());
+      visit_dc.RegisterField("Re_StixP", &StixP_->real());
+      visit_dc.RegisterField("Im_StixP", &StixP_->imag());
+   }
    // if ( j_r_ ) { visit_dc.RegisterField("Jr", j_r_); }
    // if ( j_i_ ) { visit_dc.RegisterField("Ji", j_i_); }
    // if ( k_ ) { visit_dc.RegisterField("K", k_); }
@@ -1716,7 +1758,12 @@ CPDSolver::WriteVisItFields(int it)
          uB_->ProjectCoefficient(uBCoef_);
          S_->ProjectCoefficient(SrCoef_, SiCoef_);
       }
-
+      if ( StixS_ )
+      {
+         StixS_->ProjectCoefficient(*SReCoef_, *SImCoef_);
+         StixD_->ProjectCoefficient(*DReCoef_, *DImCoef_);
+         StixP_->ProjectCoefficient(*PReCoef_, *PImCoef_);
+      }
 
       if ( rectPot_ )
       {
