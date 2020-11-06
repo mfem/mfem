@@ -407,7 +407,8 @@ int main(int argc, char *argv[])
    {
       VectorFunctionCoefficient E_ex_Re(dim, E_exact_Re);
       VectorFunctionCoefficient E_ex_Im(dim, E_exact_Im);
-      int order_quad = max(2, 2 * order + 1);
+      // int order_quad = max(2, 2 * order + 1);
+      int order = fespace->GetOrder(0) + 3;
 
       ConvergenceStudy rates_r;
       ConvergenceStudy rates_i;
@@ -415,14 +416,14 @@ int main(int argc, char *argv[])
       rates_r.SetElementList(tpml.GetMarkedPMLElements());
       rates_i.SetElementList(tpml.GetMarkedPMLElements());
 
-      rates_r.AddHcurlGridFunction(&x.real(),&E_ex_Re);
-      rates_i.AddHcurlGridFunction(&x.imag(),&E_ex_Im);
-
       const IntegrationRule *irs[Geometry::NumGeom];
       for (int i = 0; i < Geometry::NumGeom; ++i)
       {
-         irs[i] = &(IntRules.Get(i, order_quad));
+         irs[i] = &(IntRules.Get(i, order));
       }
+
+      rates_r.AddHcurlGridFunction(&x.real(),&E_ex_Re);
+      rates_i.AddHcurlGridFunction(&x.imag(),&E_ex_Im);
 
       double L2Error_Re = x.real().ComputeL2Error(E_ex_Re, irs,
                                                   tpml.GetMarkedPMLElements());

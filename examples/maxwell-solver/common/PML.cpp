@@ -201,40 +201,73 @@ void ToroidPML::SetAttributes(Mesh *mesh_)
       Element *el = mesh_->GetElement(i);
       // Initialize attribute
       el->SetAttribute(1);
-      Vector center;
-      mesh_->GetElementCenter(i,center);
-      double x = center[0];
-      double y = center[1];
-      double a = GetAngle(x,y);
-      double r = sqrt(x*x + y*y);
 
-      // check upper and lower bound
-      if (astretch)
+
+      Array<int> vertices;
+      el->GetVertices(vertices);
+      int nrvert = vertices.Size();
+      // Check if any vertex is in the pml
+      bool in_pml = false;
+      for (int iv = 0; iv < nrvert; ++iv)
       {
-         if ( (a <= alim[0]+apml_thickness[0]) ||
-           (a >= alim[1]-apml_thickness[1]) )
+         int vert_idx = vertices[iv];
+         double *coords = mesh_->GetVertex(vert_idx);
+         double x = coords[0];
+         double y = coords[1];
+         double a = GetAngle(x,y);
+         double r = sqrt(x*x + y*y);
+
+         if (astretch)
          {
-            elems[i] = 0;
-            el->SetAttribute(2);
+            if ( (a <= alim[0]+apml_thickness[0]) ||
+                 (a >= alim[1]-apml_thickness[1]) )
+            {
+               in_pml = true;
+               break;  
+            }
+         }
+
+         if (rstretch)
+         {
+            if ( (r <= rlim[0]+rpml_thickness[0]) ||
+                 (r >= rlim[1]-rpml_thickness[1]) )
+            {
+               in_pml = true;
+               break;  
+            }
          }
       }
-
-      if (rstretch)
+      if (in_pml)
       {
-         // if ( (r <= rlim[0]+rpml_thickness[0]) ||
-         //      (r >= rlim[1]-rpml_thickness[1]) )
-         // {
-         //    elems[i] = 0;
-         //    el->SetAttribute(2);
-         // }
-         if (x <= -0.3 || x>=0.3 || y<-0.3 || y>= 0.3)
-         // if (x <= 0.2 || x>=0.8 || y<=0.2 || y>= 0.8)
-         // if (r>0.3)
-         {
-            elems[i] = 0;
-            el->SetAttribute(2);
-         }
+         elems[i] = 0;
+         el->SetAttribute(2);
       }
+
+      // Vector center;
+      // mesh_->GetElementCenter(i,center);
+      // double x = center[0];
+      // double y = center[1];
+      // double a = GetAngle(x,y);
+      // double r = sqrt(x*x + y*y);
+      // // check upper and lower bound
+      // if (astretch)
+      // {
+      //    if ( (a <= alim[0]+apml_thickness[0]) ||
+      //      (a >= alim[1]-apml_thickness[1]) )
+      //    {
+      //       elems[i] = 0;
+      //       el->SetAttribute(2);
+      //    }
+      // }
+      // if (rstretch)
+      // {
+      //    if ( (r <= rlim[0]+rpml_thickness[0]) ||
+      //         (r >= rlim[1]-rpml_thickness[1]) )
+      //    {
+      //       elems[i] = 0;
+      //       el->SetAttribute(2);
+      //    }
+      // }
    }
    mesh_->SetAttributes();
 }
@@ -272,8 +305,9 @@ void ToroidPML::StretchFunction(const Vector &X, ComplexDenseMatrix & J, double 
 {
    complex<double> zi = complex<double>(0., 1.);
 
-   double n = 2.0;
-   double c = 5.0;
+   double n = 3.0;
+   // double c = 5.0;
+   double c = log(omega);
    // Stretch in the azimuthal direction
    double x = X[0];
    double y = X[1];
