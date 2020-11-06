@@ -566,6 +566,7 @@ MatrixVectorProductCoefficient::MatrixVectorProductCoefficient(
 void MatrixVectorProductCoefficient::Eval(Vector &V, ElementTransformation &T,
                                           const IntegrationPoint &ip)
 {
+   V.SetSize(ma.Height());
    a->Eval(ma, T, ip);
    b->Eval(vb, T, ip);
    ma.Mult(vb, V);
