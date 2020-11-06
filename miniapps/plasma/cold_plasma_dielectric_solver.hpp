@@ -332,6 +332,7 @@ private:
    ParComplexGridFunction * StixS_; // Stix S Coefficient (L2)
    ParComplexGridFunction * StixD_; // Stix D Coefficient (L2)
    ParComplexGridFunction * StixP_; // Stix P Coefficient (L2)
+   ParComplexGridFunction * EpsPara_; // B^T eps B / |B|^2 Coefficient (L2)
 
    VectorCoefficient * BCoef_;        // B Field Unit Vector
    MatrixCoefficient * epsReCoef_;    // Dielectric Material Coefficient

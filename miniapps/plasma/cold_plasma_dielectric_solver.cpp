@@ -309,6 +309,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      StixS_(NULL),
      StixD_(NULL),
      StixP_(NULL),
+     EpsPara_(NULL),
      BCoef_(&BCoef),
      epsReCoef_(&epsReCoef),
      epsImCoef_(&epsImCoef),
@@ -385,6 +386,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
       e_b_ = new ParComplexGridFunction(L2FESpace_);
       *e_b_ = 0.0;
       b_hat_ = new ParGridFunction(HDivFESpace_);
+      EpsPara_ = new ParComplexGridFunction(L2FESpace_);
    }
    if (kCoef_)
    {
@@ -848,6 +850,7 @@ CPDSolver::~CPDSolver()
    delete StixS_;
    delete StixD_;
    delete StixP_;
+   delete EpsPara_;
    // delete j_r_;
    // delete j_i_;
    // delete j_;
@@ -1704,6 +1707,8 @@ CPDSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
       visit_dc.RegisterField("B_hat", b_hat_);
       visit_dc.RegisterField("Re_EB", &e_b_->real());
       visit_dc.RegisterField("Im_EB", &e_b_->imag());
+      visit_dc.RegisterField("Re_EpsPara", &EpsPara_->real());
+      visit_dc.RegisterField("Im_EpsPara", &EpsPara_->imag());
    }
 
    // visit_dc.RegisterField("Er", e_r_);
@@ -1792,6 +1797,14 @@ CPDSolver::WriteVisItFields(int it)
          InnerProductCoefficient ebiCoef(e_i, *BCoef_);
 
          e_b_->ProjectCoefficient(ebrCoef, ebiCoef);
+
+         MatrixVectorProductCoefficient ReEpsB(*epsReCoef_, *BCoef_);
+         MatrixVectorProductCoefficient ImEpsB(*epsImCoef_, *BCoef_);
+         InnerProductCoefficient ReEpsParaCoef(*BCoef_, ReEpsB);
+         InnerProductCoefficient ImEpsParaCoef(*BCoef_, ImEpsB);
+
+         EpsPara_->ProjectCoefficient(ReEpsParaCoef, ImEpsParaCoef);
+         *EpsPara_ *= 1.0 / epsilon0_;
       }
 
       //ComplexCoefficientByAttr & sbc = (*sbcs_)[0];
