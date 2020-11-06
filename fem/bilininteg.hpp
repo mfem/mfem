@@ -2880,8 +2880,8 @@ class DiscreteInterpolator : public BilinearFormIntegrator { };
 class GradientInterpolator : public DiscreteInterpolator
 {
 public:
-   GradientInterpolator() : fake_fe(NULL) { }
-   virtual ~GradientInterpolator() { delete fake_fe; }
+   GradientInterpolator() : dofquad_fe(NULL) { }
+   virtual ~GradientInterpolator() { delete dofquad_fe; }
 
    virtual void AssembleElementMatrix2(const FiniteElement &h1_fe,
                                        const FiniteElement &nd_fe,
@@ -2890,10 +2890,12 @@ public:
    { nd_fe.ProjectGrad(h1_fe, Trans, elmat); }
 
    using BilinearFormIntegrator::AssemblePA;
-   /**
-      trial_fes should be H1 Lagrange
-      test_fes should be Nedelec
-   */
+
+   /** @brief Setup method for PA data.
+
+       @param[in] trial_fes   H1 Lagrange space
+       @param[in] test_fes    H(curl) Nedelec space
+    */
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
 
@@ -2901,8 +2903,8 @@ public:
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
 private:
-   /// 1D finit element that generates and owns the 1D DofToQuad maps below
-   FiniteElement * fake_fe;
+   /// 1D finite element that generates and owns the 1D DofToQuad maps below
+   FiniteElement * dofquad_fe;
 
    const DofToQuad *maps_C_C; // one-d map with Lobatto rows, Lobatto columns
    const DofToQuad *maps_O_C; // one-d map with Legendre rows, Lobatto columns
@@ -2931,8 +2933,8 @@ public:
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
 private:
-   /// 1D finit element that generates and owns the 1D DofToQuad maps below
-   FiniteElement * fake_fe;
+   /// 1D finite element that generates and owns the 1D DofToQuad maps below
+   FiniteElement * dofquad_fe;
 
    const DofToQuad *maps_C_C; // one-d map with Lobatto rows, Lobatto columns
    const DofToQuad *maps_O_C; // one-d map with Legendre rows, Lobatto columns

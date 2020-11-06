@@ -254,6 +254,8 @@ public:
 
 
 /**
+   @brief Partial assembly extension for DiscreteLinearOperator
+
    This acts very much like PAMixedBilinearFormExtension, but its
    FormRectangularSystemOperator implementation emulates 'Set' rather than
    'Add' in the assembly case.
