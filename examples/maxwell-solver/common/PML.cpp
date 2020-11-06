@@ -273,7 +273,7 @@ void ToroidPML::StretchFunction(const Vector &X, ComplexDenseMatrix & J, double 
    complex<double> zi = complex<double>(0., 1.);
 
    double n = 2.0;
-   double c = 10.0;
+   double c = 5.0;
    // Stretch in the azimuthal direction
    double x = X[0];
    double y = X[1];
@@ -290,72 +290,60 @@ void ToroidPML::StretchFunction(const Vector &X, ComplexDenseMatrix & J, double 
 
    if (astretch)
    {
+      double th = a * M_PI/180.0;
+      double thl, thL, thH;
       // negative direction 
       if (a <= alim[0]+apml_thickness[0])
       {
-         // double a1 = alim[0]*M_PI/180.0;
-         // double r1 = r0;
-         // double x1 = r1 * cos(a1);
-         // double y1 = r1 * sin(a1);
-         // double xthickness = r1*sin(apml_thickness[0]*M_PI/180.0);
-         // double ythickness = r1*cos(apml_thickness[0]*M_PI/180.0);
-         // double coeffx = n * c / omega / pow(xthickness, n);
-         // double coeffy = n * c / omega / pow(ythickness, n);
-         // dxs[0] = 1.0 + zi * coeffx * abs(pow(x0 - x1, n - 1.0));
-         // dxs[1] = 1.0 + zi * coeffy * abs(pow(y0 - y1, n - 1.0));
-         cout << "negative " << endl;
-         MFEM_ABORT ("TODO");
+         thL = alim[1] * M_PI/180.0;
+         thH = apml_thickness[1] * M_PI/180.0;
+         thl = thL + thH;
       }
       // positive direction 
-      if (a < alim[1]-apml_thickness[1])
-      {
-         cout << "Unreachable path" << endl;
-         cin.get();
-      }
       if (a >= alim[1]-apml_thickness[1])
       {
-         double th = a * M_PI/180.0;
-         double thL = alim[1] * M_PI/180.0;
-         double thH = apml_thickness[1] * M_PI/180.0;
-         double thl = thL - thH;
-         double coeff = n * c / omega / pow(thH,n);
-         double f_th = pow(th - thl,n-1);
-         double th_x = - y / (r * r);
-         double th_y = x / (r * r);
-
-         J(0,0) = 1.0 + zi * coeff * abs(f_th * th_x);
-         J(0,1) = zi * f_th * th_y;
-         J(1,0) = zi * f_th * th_x;
-         J(1,1) = 1.0 + zi * coeff * abs(f_th * th_y);
+         thL = alim[1] * M_PI/180.0;
+         thH = apml_thickness[1] * M_PI/180.0;
+         thl = thL - thH;
       }
+      // double c1 = min(20.0*M_PI/180.0,thH);
+      double c1 = thH;
+      double coeff = n * c / omega / pow(c1,n);
+      double f_th = pow(th - thl,n-1);
+      double th_x = - y / (r * r);
+      double th_y =   x / (r * r);
+
+      J(0,0) = 1.0 + zi * coeff * abs(f_th * th_x);
+      J(0,1) = zi * f_th * th_y;
+      J(1,0) = zi * f_th * th_x;
+      J(1,1) = 1.0 + zi * coeff * abs(f_th * th_y);
    }
    // Stretch in the radial direction
    if (rstretch)
    {  // negative
+      double rl, rL, rH;
       if (r <= rlim[0]+rpml_thickness[0])
       {
-         cout << "negative " << endl;
-         MFEM_ABORT ("TODO");
+         rL = rlim[0];     
+         rH = rpml_thickness[0];
+         rl = rL + rH;
       }
       // positive direction 
       if (r >= rlim[1]-rpml_thickness[1])
       {
-         double a1 = a; //degrees
-         
-         double rL = rlim[1];     
-         double rl = rL - rpml_thickness[1];
-         double coeff = n * c / omega / pow (rpml_thickness[1],n);
-         double f_r =  pow(r-rl,n-1.0);
-         double r_x = x / r;
-         double r_y = y / r;
-         double x_r = cos(a1*M_PI/180);
-         double y_r = sin(a1*M_PI/180);
-
-         J(0,0) = 1.0 + zi * coeff * abs(f_r*r_x);
-         J(0,1) = zi * f_r * r_y;
-         J(1,0) = zi * f_r * r_x;
-         J(1,1) = 1.0 + zi * coeff * abs(f_r*r_y);
+         rL = rlim[1];     
+         rH = rpml_thickness[1];
+         rl = rL - rH;
       }
+      double coeff = n * c / omega / pow (rH,n);
+      double f_r =  pow(r-rl,n-1.0);
+      double r_x = x / r;
+      double r_y = y / r;
+
+      J(0,0) = 1.0 + zi * coeff * abs(f_r*r_x);
+      J(0,1) = zi * f_r * r_y;
+      J(1,0) = zi * f_r * r_x;
+      J(1,1) = 1.0 + zi * coeff * abs(f_r*r_y);
       
    }
 }
