@@ -17,14 +17,16 @@
 // Description:  This example code solves a simple electromagnetic wave
 //               propagation problem corresponding to the second order
 //               indefinite Maxwell equation
+//
 //                  (1/mu) * curl curl E - \omega^2 * epsilon E = f
+//
 //               with a Perfectly Matched Layer (PML).
 //
 //               The example demonstrates discretization with Nedelec finite
 //               elements in 2D or 3D, as well as the use of complex-valued
 //               bilinear and linear forms. Several test problems are included,
 //               with prob = 0-3 having known exact solutions, see "On perfectly
-//               matched layers for discontinuous Petrov–Galerkin methods" by
+//               matched layers for discontinuous Petrov-Galerkin methods" by
 //               Vaziri Astaneh, Keith, Demkowicz, Comput Mech 63, 2019.
 //
 //               We recommend viewing Example 22 before viewing this example.
@@ -167,6 +169,7 @@ int main(int argc, char *argv[])
    double freq = 5.0;
    bool herm_conv = true;
    bool slu_solver  = false;
+   bool mumps_solver = false;
    bool visualization = 1;
    bool pa = false;
    const char *device_config = "cpu";
@@ -194,6 +197,10 @@ int main(int argc, char *argv[])
    args.AddOption(&slu_solver, "-slu", "--superlu", "-no-slu",
                   "--no-superlu", "Use the SuperLU Solver.");
 #endif
+#ifdef MFEM_USE_MUMPS
+   args.AddOption(&mumps_solver, "-mumps", "--mumps-solver", "-no-mumps",
+                  "--no-mumps-solver", "Use the MUMPS Solver.");
+#endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -202,6 +209,14 @@ int main(int argc, char *argv[])
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.Parse();
+   if (slu_solver && mumps_solver)
+   {
+      if (myid == 0)
+         cout << "WARNING: Both SuperLU and MUMPS have been selected,"
+              << " please choose either one." << endl
+              << "         Defaulting to SuperLU." << endl;
+      mumps_solver = false;
+   }
 
    if (iprob > 4) { iprob = 4; }
    prob = (prob_type)iprob;
@@ -463,6 +478,18 @@ int main(int argc, char *argv[])
       delete A;
    }
 #endif
+#ifdef MFEM_USE_MUMPS
+   if (!pa && mumps_solver)
+   {
+      HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
+      MUMPSSolver mumps;
+      mumps.SetPrintLevel(0);
+      mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+      mumps.SetOperator(*A);
+      mumps.Mult(B,X);
+      delete A;
+   }
+#endif
    // 16a. Set up the parallel Bilinear form a(.,.) for the preconditioner
    //
    //    In Comp
@@ -470,7 +497,7 @@ int main(int argc, char *argv[])
    //
    //    In PML:   1/mu (abs(1/det(J) J^T J) Curl E, Curl F)
    //              + omega^2 * epsilon (abs(det(J) * (J^T J)^-1) * E, F)
-   if (pa || !slu_solver)
+   if (pa || (!slu_solver && !mumps_solver))
    {
       ConstantCoefficient absomeg(pow(omega, 2) * epsilon);
       RestrictedCoefficient restr_absomeg(absomeg,attr);
