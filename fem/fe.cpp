@@ -13001,6 +13001,249 @@ void ND_P2D_QuadrilateralElement::CalcCurlShape(const IntegrationPoint &ip,
 }
 
 
+const double RT_P2D_QuadrilateralElement::nk[15] =
+{ 0., -1., 0.,  1., 0., 0.,  0., 1., 0.,  -1., 0., 0.,  0., 0., 1. };
+
+RT_P2D_QuadrilateralElement::RT_P2D_QuadrilateralElement(const int p,
+                                                         const int cb_type,
+                                                         const int ob_type)
+   : VectorFiniteElement(2, 3, 0, Geometry::SQUARE, (3*p + 5)*(p + 1), p + 1,
+                         H_DIV, FunctionSpace::Pk),
+     dof2nk(dof),
+     cbasis1d(poly1d.GetBasis(p + 1, VerifyClosed(cb_type))),
+     obasis1d(poly1d.GetBasis(p, VerifyOpen(ob_type)))
+{
+   dof_map.SetSize(dof);
+
+   const double *cp = poly1d.ClosedPoints(p + 1, cb_type);
+   const double *op = poly1d.OpenPoints(p, ob_type);
+   const int dofx = (p + 1)*(p + 2);
+   const int dofy = (p + 1)*(p + 2);
+   const int dofxy = dofx + dofy;
+
+#ifndef MFEM_THREAD_SAFE
+   shape_cx.SetSize(p + 2);
+   shape_ox.SetSize(p + 1);
+   shape_cy.SetSize(p + 2);
+   shape_oy.SetSize(p + 1);
+   dshape_cx.SetSize(p + 2);
+   dshape_cy.SetSize(p + 2);
+#endif
+
+   // edges
+   int o = 0;
+   for (int i = 0; i <= p; i++)  // (0,1)
+   {
+      dof_map[dofx + i + 0*(p + 1)] = o++;
+   }
+   for (int i = 0; i <= p; i++)  // (1,2)
+   {
+      dof_map[(p + 1) + i*(p + 2)] = o++;
+   }
+   for (int i = 0; i <= p; i++)  // (2,3)
+   {
+      dof_map[dofx + (p - i) + (p + 1)*(p + 1)] = o++;
+   }
+   for (int i = 0; i <= p; i++)  // (3,0)
+   {
+      dof_map[0 + (p - i)*(p + 2)] = o++;
+   }
+
+   // interior
+   for (int j = 0; j <= p; j++)  // x-components
+      for (int i = 1; i <= p; i++)
+      {
+         dof_map[i + j*(p + 2)] = o++;
+      }
+   for (int j = 1; j <= p; j++)  // y-components
+      for (int i = 0; i <= p; i++)
+      {
+         dof_map[dofx + i + j*(p + 1)] = o++;
+      }
+   for (int j = 0; j <= p; j++)  // z-components
+      for (int i = 0; i <= p; i++)
+      {
+         dof_map[dofxy + i + j*(p + 1)] = o++;
+      }
+
+   // dof orientations
+   // x-components
+   for (int j = 0; j <= p; j++)
+      for (int i = 0; i <= p/2; i++)
+      {
+         int idx = i + j*(p + 2);
+         dof_map[idx] = -1 - dof_map[idx];
+      }
+   if (p%2 == 1)
+      for (int j = p/2 + 1; j <= p; j++)
+      {
+         int idx = (p/2 + 1) + j*(p + 2);
+         dof_map[idx] = -1 - dof_map[idx];
+      }
+   // y-components
+   for (int j = 0; j <= p/2; j++)
+      for (int i = 0; i <= p; i++)
+      {
+         int idx = dofx + i + j*(p + 1);
+         dof_map[idx] = -1 - dof_map[idx];
+      }
+   if (p%2 == 1)
+      for (int i = 0; i <= p/2; i++)
+      {
+         int idx = dofx + i + (p/2 + 1)*(p + 1);
+         dof_map[idx] = -1 - dof_map[idx];
+      }
+
+   o = 0;
+   for (int j = 0; j <= p; j++)
+      for (int i = 0; i <= p + 1; i++)
+      {
+         int idx;
+         if ((idx = dof_map[o++]) < 0)
+         {
+            idx = -1 - idx;
+            dof2nk[idx] = 3;
+         }
+         else
+         {
+            dof2nk[idx] = 1;
+         }
+         Nodes.IntPoint(idx).Set2(cp[i], op[j]);
+      }
+   for (int j = 0; j <= p + 1; j++)
+      for (int i = 0; i <= p; i++)
+      {
+         int idx;
+         if ((idx = dof_map[o++]) < 0)
+         {
+            idx = -1 - idx;
+            dof2nk[idx] = 0;
+         }
+         else
+         {
+            dof2nk[idx] = 2;
+         }
+         Nodes.IntPoint(idx).Set2(op[i], cp[j]);
+      }
+   for (int j = 0; j <= p; j++)
+      for (int i = 0; i <= p; i++)
+      {
+         int idx = dof_map[o++];
+         dof2nk[idx] = 4;
+         Nodes.IntPoint(idx).Set2(op[i], op[j]);
+      }
+}
+
+void RT_P2D_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
+                                             DenseMatrix &shape) const
+{
+   const int pp1 = order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape_cx(pp1 + 1), shape_ox(pp1), shape_cy(pp1 + 1), shape_oy(pp1);
+#endif
+
+   cbasis1d.Eval(ip.x, shape_cx);
+   obasis1d.Eval(ip.x, shape_ox);
+   cbasis1d.Eval(ip.y, shape_cy);
+   obasis1d.Eval(ip.y, shape_oy);
+
+   int o = 0;
+   for (int j = 0; j < pp1; j++)
+      for (int i = 0; i <= pp1; i++)
+      {
+         int idx, s;
+         if ((idx = dof_map[o++]) < 0)
+         {
+            idx = -1 - idx, s = -1;
+         }
+         else
+         {
+            s = +1;
+         }
+         shape(idx,0) = s*shape_cx(i)*shape_oy(j);
+         shape(idx,1) = 0.;
+         shape(idx,2) = 0.;
+      }
+   for (int j = 0; j <= pp1; j++)
+      for (int i = 0; i < pp1; i++)
+      {
+         int idx, s;
+         if ((idx = dof_map[o++]) < 0)
+         {
+            idx = -1 - idx, s = -1;
+         }
+         else
+         {
+            s = +1;
+         }
+         shape(idx,0) = 0.;
+         shape(idx,1) = s*shape_ox(i)*shape_cy(j);
+         shape(idx,2) = 0.;
+      }
+   for (int j = 0; j < pp1; j++)
+      for (int i = 0; i < pp1; i++)
+      {
+         int idx = dof_map[o++];
+         shape(idx,0) = 0.;
+         shape(idx,1) = 0.;
+         shape(idx,2) = shape_ox(i)*shape_oy(j);
+      }
+}
+
+void RT_P2D_QuadrilateralElement::CalcDivShape(const IntegrationPoint &ip,
+                                               Vector &divshape) const
+{
+   const int pp1 = order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape_cx(pp1 + 1), shape_ox(pp1), shape_cy(pp1 + 1), shape_oy(pp1);
+   Vector dshape_cx(pp1 + 1), dshape_cy(pp1 + 1);
+#endif
+
+   cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
+   obasis1d.Eval(ip.x, shape_ox);
+   cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
+   obasis1d.Eval(ip.y, shape_oy);
+
+   int o = 0;
+   for (int j = 0; j < pp1; j++)
+      for (int i = 0; i <= pp1; i++)
+      {
+         int idx, s;
+         if ((idx = dof_map[o++]) < 0)
+         {
+            idx = -1 - idx, s = -1;
+         }
+         else
+         {
+            s = +1;
+         }
+         divshape(idx) = s*dshape_cx(i)*shape_oy(j);
+      }
+   for (int j = 0; j <= pp1; j++)
+      for (int i = 0; i < pp1; i++)
+      {
+         int idx, s;
+         if ((idx = dof_map[o++]) < 0)
+         {
+            idx = -1 - idx, s = -1;
+         }
+         else
+         {
+            s = +1;
+         }
+         divshape(idx) = s*shape_ox(i)*dshape_cy(j);
+      }
+   for (int j = 0; j < pp1; j++)
+      for (int i = 0; i < pp1; i++)
+      {
+         int idx = dof_map[o++];
+         divshape(idx) = 0.;
+      }
+}
+
+
 void NURBS1DFiniteElement::SetOrder() const
 {
    order = kv[0]->GetOrder();
