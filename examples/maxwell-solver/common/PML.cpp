@@ -306,7 +306,7 @@ void ToroidPML::StretchFunction(const Vector &X, ComplexDenseMatrix & J, double 
    complex<double> zi = complex<double>(0., 1.);
 
    double n = 3.0;
-   // double c = 5.0;
+   // double c = 10.0;
    double c = log(omega);
    // Stretch in the azimuthal direction
    double x = X[0];

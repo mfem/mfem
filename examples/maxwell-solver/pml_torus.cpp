@@ -72,6 +72,9 @@ void E_bdr_data_Im(const Vector &x, Vector &E);
 void E_exact_Re(const Vector &x, Vector &E);
 void E_exact_Im(const Vector &x, Vector &E);
 
+void E_exact_Curl_Re(const Vector &x, Vector &E);
+void E_exact_Curl_Im(const Vector &x, Vector &E);
+
 void source(const Vector &x, Vector & f);
 
 // Functions for computing the necessary coefficients after PML stretching.
@@ -110,7 +113,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "meshes/waveguide-bend.mesh";
 
    int order = 1;
-   int ref_levels = 3;
+   int ref_levels = 1;
    double freq = 5.0;
    bool herm_conv = true;
    bool visualization = 1;
@@ -180,12 +183,6 @@ int main(int argc, char *argv[])
    // Angular frequency
    omega = 2.0 * M_PI * freq;
 
-   // 4. Refine the mesh to increase the resolution.
-   for (int l = 0; l < ref_levels; l++)
-   {
-      mesh->UniformRefinement();
-   }
-
    ToroidPML tpml(mesh);
    Vector zlim, rlim, alim;
    tpml.GetDomainBdrs(zlim,rlim,alim);
@@ -216,286 +213,133 @@ int main(int argc, char *argv[])
    
    tpml.SetPmlAxes(zstretch,rstretch,astretch);
    tpml.SetPmlWidth(zpml_thickness,rpml_thickness,apml_thickness);
-   tpml.SetAttributes(mesh); 
    tpml.SetOmega(omega); 
 
-   // Array<int> * marked_elems = new Array<int>(mesh->GetNE());
-   // marked_elems = tpml.GetMarkedPMLElements();
-   // marked_elems->Print();
-   // cout << "nrelems = " << mesh->GetNE() << endl;
-
-   cout << "axial range     = " ; zlim.Print();
-   cout << "radial range    = " ; rlim.Print();
-   cout << "azimuthal range = " ; alim.Print();
-
-    if (visualization)
-   {
-      char vishost[] = "localhost";
-      int visport = 19916;
-
-      socketstream mesh_sock(vishost, visport);
-      mesh_sock.precision(8);
-      mesh_sock << "mesh\n"
-                  << *mesh << "window_title 'Mesh'" << flush;
-      ofstream mesh_ofs("output/pml_torus.mesh");
-      mesh_ofs.precision(8);
-      mesh->Print(mesh_ofs);                  
-   }
-   // 6. Define a finite element space on the mesh. Here we use the Nedelec
-   //    finite elements of the specified order.
-   FiniteElementCollection *fec = new ND_FECollection(order, dim);
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
-   int size = fespace->GetTrueVSize();
-
-   cout << "Number of finite element unknowns: " << size << endl;
-
-   // 7. Essential boundary dofs on the whole boundary.
-   Array<int> ess_tdof_list;
-   Array<int> ess_bdr;
-   if (mesh->bdr_attributes.Size())
-   {
-      ess_bdr.SetSize(mesh->bdr_attributes.Max());
-      ess_bdr = 1;
-   }
-   fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-
-   // ess_tdof_list.Print();
-
-   // 8. Setup Complex Operator convention
    ComplexOperator::Convention conv =
       herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
 
-   // 9. Set up the linear form b(.) which corresponds to the right-hand side of
-   //    the FEM linear system.
-   VectorFunctionCoefficient f(dim, source);
-   ComplexLinearForm b(fespace, conv);
-   // b.AddDomainIntegrator(NULL, new VectorFEDomainLFIntegrator(f));
-   b.Vector::operator=(0.0);
-   b.Assemble();
+   FiniteElementCollection *fec = new ND_FECollection(order, dim);
+   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
 
-   // 10. Define the solution vector x as a complex finite element grid function
-   //     corresponding to fespace.
    ComplexGridFunction x(fespace);
    x = 0.0;
    VectorFunctionCoefficient E_Re(dim, E_bdr_data_Re);
    VectorFunctionCoefficient E_Im(dim, E_bdr_data_Im);
-   x.ProjectBdrCoefficientTangent(E_Re, E_Im, ess_bdr);
-   // x.ProjectCoefficient(E_Re, E_Im);
 
-   VectorFunctionCoefficient E_Re_ex(dim, E_exact_Re);
-   VectorFunctionCoefficient E_Im_ex(dim, E_exact_Im);
-   ComplexGridFunction x_ex(fespace);
-   x_ex.ProjectCoefficient(E_Re_ex, E_Im_ex);
+   ConvergenceStudy rates_r;
+   ConvergenceStudy rates_i;
 
-   cout << "x.norm = " << x.Norml2() << endl;
-
-   // 11. Set up the sesquilinear form a(.,.)
-   //
-   //     In Comp
-   //     Domain:   1/mu (Curl E, Curl F) - omega^2 * epsilon (E,F)
-   //
-   //     In PML:   1/mu (1/det(J) J^T J Curl E, Curl F)
-   //               - omega^2 * epsilon (det(J) * (J^T J)^-1 * E, F)
-   //
-   //     where J denotes the Jacobian Matrix of the PML Stretching function
-   Array<int> attr;
-   Array<int> attrPML;
-   if (mesh->attributes.Size())
+   for (int iter = 0; iter<ref_levels; iter++)
    {
-      attr.SetSize(mesh->attributes.Max());
-      attrPML.SetSize(mesh->attributes.Max());
-      attr = 0;   attr[0] = 1;
-      attrPML = 0;
-      if (mesh->attributes.Max() > 1)
+      int size = fespace->GetTrueVSize();
+      cout << "Number of finite element unknowns: " << size << endl;
+      tpml.SetAttributes(mesh); 
+
+      Array<int> ess_tdof_list;
+      Array<int> ess_bdr;
+      if (mesh->bdr_attributes.Size())
       {
-         attrPML[1] = 1;
+         ess_bdr.SetSize(mesh->bdr_attributes.Max());
+         ess_bdr = 1;
       }
-   }
+      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-   ConstantCoefficient muinv(1.0/mu);
-   ConstantCoefficient omeg(-pow(omega, 2) * epsilon);
-   RestrictedCoefficient restr_muinv(muinv,attr);
-   RestrictedCoefficient restr_omeg(omeg,attr);
-
-   // Integrators inside the computational domain (excluding the PML region)
-   SesquilinearForm a(fespace, conv);
-   a.AddDomainIntegrator(new CurlCurlIntegrator(restr_muinv),NULL);
-   a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_omeg),NULL);
-
-   int cdim = (dim == 2) ? 1 : dim;
-   // PMLDiagMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, &tpml);
-   // PMLDiagMatrixCoefficient pml_c1_Im(cdim,detJ_inv_JT_J_Im, &tpml);
-   // ScalarVectorProductCoefficient c1_Re(muinv,pml_c1_Re);
-   // ScalarVectorProductCoefficient c1_Im(muinv,pml_c1_Im);
-   // VectorRestrictedCoefficient restr_c1_Re(c1_Re,attrPML);
-   // VectorRestrictedCoefficient restr_c1_Im(c1_Im,attrPML);
-
-   // PMLDiagMatrixCoefficient pml_c2_Re(dim, detJ_JT_J_inv_Re,&tpml);
-   // PMLDiagMatrixCoefficient pml_c2_Im(dim, detJ_JT_J_inv_Im,&tpml);
-   // ScalarVectorProductCoefficient c2_Re(omeg,pml_c2_Re);
-   // ScalarVectorProductCoefficient c2_Im(omeg,pml_c2_Im);
-   // VectorRestrictedCoefficient restr_c2_Re(c2_Re,attrPML);
-   // VectorRestrictedCoefficient restr_c2_Im(c2_Im,attrPML);
-
-   PMLMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, &tpml);
-   PMLMatrixCoefficient pml_c1_Im(cdim,detJ_inv_JT_J_Im, &tpml);
-   ScalarMatrixProductCoefficient c1_Re(muinv,pml_c1_Re);
-   ScalarMatrixProductCoefficient c1_Im(muinv,pml_c1_Im);
-   MatrixRestrictedCoefficient restr_c1_Re(c1_Re,attrPML);
-   MatrixRestrictedCoefficient restr_c1_Im(c1_Im,attrPML);
-
-   PMLMatrixCoefficient pml_c2_Re(dim, detJ_JT_J_inv_Re,&tpml);
-   PMLMatrixCoefficient pml_c2_Im(dim, detJ_JT_J_inv_Im,&tpml);
-   ScalarMatrixProductCoefficient c2_Re(omeg,pml_c2_Re);
-   ScalarMatrixProductCoefficient c2_Im(omeg,pml_c2_Im);
-   MatrixRestrictedCoefficient restr_c2_Re(c2_Re,attrPML);
-   MatrixRestrictedCoefficient restr_c2_Im(c2_Im,attrPML);
+      VectorFunctionCoefficient f(dim, source);
+      ComplexLinearForm b(fespace, conv);
+      // b.AddDomainIntegrator(NULL, new VectorFEDomainLFIntegrator(f));
+      b.Vector::operator=(0.0);
+      b.Assemble();
 
 
-   // Integrators inside the PML region
-   a.AddDomainIntegrator(new CurlCurlIntegrator(restr_c1_Re),
-                         new CurlCurlIntegrator(restr_c1_Im));
-   a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_c2_Re),
-                         new VectorFEMassIntegrator(restr_c2_Im));
+      x.ProjectBdrCoefficientTangent(E_Re, E_Im, ess_bdr);
 
-   // 12. Assemble the bilinear form and the corresponding linear system,
-   //     applying any necessary transformations such as: assembly, eliminating
-   //     boundary conditions, applying conforming constraints for
-   //     non-conforming AMR, etc.
-   a.Assemble(0);
+      Array<int> attr;
+      Array<int> attrPML;
+      if (mesh->attributes.Size())
+      {
+         attr.SetSize(mesh->attributes.Max());
+         attrPML.SetSize(mesh->attributes.Max());
+         attr = 0;   attr[0] = 1;
+         attrPML = 0;
+         if (mesh->attributes.Max() > 1)
+         {
+            attrPML[1] = 1;
+         }
+      }
 
-   OperatorPtr A;
-   Vector B, X;
-   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+      ConstantCoefficient muinv(1.0/mu);
+      ConstantCoefficient omeg(-pow(omega, 2) * epsilon);
+      RestrictedCoefficient restr_muinv(muinv,attr);
+      RestrictedCoefficient restr_omeg(omeg,attr);
 
-   
+      // Integrators inside the computational domain (excluding the PML region)
+      SesquilinearForm a(fespace, conv);
+      a.AddDomainIntegrator(new CurlCurlIntegrator(restr_muinv),NULL);
+      a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_omeg),NULL);
 
-   SparseMatrix * SpMat = (*A.As<ComplexSparseMatrix>()).GetSystemMatrix();
-   StopWatch chrono;
-   chrono.Clear();
-   chrono.Start();
-   HYPRE_Int global_size = SpMat->Height();
-   HYPRE_Int row_starts[2]; row_starts[0] = 0; row_starts[1] = global_size;
-   HypreParMatrix * HypreMat = new HypreParMatrix(MPI_COMM_SELF,global_size,row_starts,SpMat);
-   {
-      MUMPSSolver mumps;
-      mumps.SetOperator(*HypreMat);
-      mumps.Mult(B,X);
-   }
-   chrono.Stop();
+      int cdim = (dim == 2) ? 1 : dim;
 
-   // cout << "mumps time = " << chrono.RealTime() << endl;
+      PMLMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, &tpml);
+      PMLMatrixCoefficient pml_c1_Im(cdim,detJ_inv_JT_J_Im, &tpml);
+      ScalarMatrixProductCoefficient c1_Re(muinv,pml_c1_Re);
+      ScalarMatrixProductCoefficient c1_Im(muinv,pml_c1_Im);
+      MatrixRestrictedCoefficient restr_c1_Re(c1_Re,attrPML);
+      MatrixRestrictedCoefficient restr_c1_Im(c1_Im,attrPML);
 
-   // // 13. Solve using a direct or an iterative solver
-   // chrono.Clear();
-   // chrono.Start();
-   // // ComplexUMFPackSolver csolver(*A.As<ComplexSparseMatrix>());
-   // UMFPackSolver csolver(*SpMat);
-   // csolver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-   // csolver.SetPrintLevel(1);
-   // csolver.Mult(B, X);
-   // chrono.Stop();
-   // cout << "UMFPack time = " << chrono.RealTime() << endl;
+      PMLMatrixCoefficient pml_c2_Re(dim, detJ_JT_J_inv_Re,&tpml);
+      PMLMatrixCoefficient pml_c2_Im(dim, detJ_JT_J_inv_Im,&tpml);
+      ScalarMatrixProductCoefficient c2_Re(omeg,pml_c2_Re);
+      ScalarMatrixProductCoefficient c2_Im(omeg,pml_c2_Im);
+      MatrixRestrictedCoefficient restr_c2_Re(c2_Re,attrPML);
+      MatrixRestrictedCoefficient restr_c2_Im(c2_Im,attrPML);
 
-   // 14. Recover the solution as a finite element grid function and compute the
-   //     errors if the exact solution is known.
-   a.RecoverFEMSolution(X, b, x);
 
-   // If exact is known compute the error
-   bool exact_known = (prob_kind == 3) ? true : false;
-   if (exact_known)
-   {
-      VectorFunctionCoefficient E_ex_Re(dim, E_exact_Re);
-      VectorFunctionCoefficient E_ex_Im(dim, E_exact_Im);
-      // int order_quad = max(2, 2 * order + 1);
-      int order = fespace->GetOrder(0) + 3;
+      // Integrators inside the PML region
+      a.AddDomainIntegrator(new CurlCurlIntegrator(restr_c1_Re),
+                           new CurlCurlIntegrator(restr_c1_Im));
+      a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_c2_Re),
+                           new VectorFEMassIntegrator(restr_c2_Im));
 
-      ConvergenceStudy rates_r;
-      ConvergenceStudy rates_i;
+      a.Assemble(0);
+
+      OperatorPtr A;
+      Vector B, X;
+      a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+
+      SparseMatrix * SpMat = (*A.As<ComplexSparseMatrix>()).GetSystemMatrix();
+      HYPRE_Int global_size = SpMat->Height();
+      HYPRE_Int row_starts[2]; row_starts[0] = 0; row_starts[1] = global_size;
+      HypreParMatrix * HypreMat = new HypreParMatrix(MPI_COMM_SELF,global_size,row_starts,SpMat);
+      {
+         MUMPSSolver mumps;
+         mumps.SetOperator(*HypreMat);
+         mumps.Mult(B,X);
+      }
+
+      a.RecoverFEMSolution(X, b, x);
 
       rates_r.SetElementList(tpml.GetMarkedPMLElements());
       rates_i.SetElementList(tpml.GetMarkedPMLElements());
 
-      const IntegrationRule *irs[Geometry::NumGeom];
-      for (int i = 0; i < Geometry::NumGeom; ++i)
-      {
-         irs[i] = &(IntRules.Get(i, order));
-      }
+      VectorFunctionCoefficient E_ex_Re(dim, E_exact_Re);
+      VectorFunctionCoefficient E_ex_Im(dim, E_exact_Im);
+      VectorFunctionCoefficient E_Curl_Re(cdim, E_exact_Curl_Re);
+      VectorFunctionCoefficient E_Curl_Im(cdim, E_exact_Curl_Im);
 
-      rates_r.AddHcurlGridFunction(&x.real(),&E_ex_Re);
-      rates_i.AddHcurlGridFunction(&x.imag(),&E_ex_Im);
+      rates_r.AddHcurlGridFunction(&x.real(),&E_ex_Re,&E_Curl_Re);
+      rates_i.AddHcurlGridFunction(&x.imag(),&E_ex_Im,&E_Curl_Im);
 
-      double L2Error_Re = x.real().ComputeL2Error(E_ex_Re, irs,
-                                                  tpml.GetMarkedPMLElements());
-      double L2Error_Im = x.imag().ComputeL2Error(E_ex_Im, irs,
-                                                  tpml.GetMarkedPMLElements());
 
-      ComplexGridFunction x_gf0(fespace);
-      x_gf0 = 0.0;
-      double norm_E_Re, norm_E_Im;
-      norm_E_Re = x_gf0.real().ComputeL2Error(E_ex_Re, irs,
-                                              tpml.GetMarkedPMLElements());
-      norm_E_Im = x_gf0.imag().ComputeL2Error(E_ex_Im, irs,
-                                              tpml.GetMarkedPMLElements());
-
-      cout << "\n Absolute Error (Re part): || E_h - E || = "
-           << L2Error_Re
-           << "\n Absolute Error (Im part): || E_h - E || = "
-           << L2Error_Im
-           << "\n Total Error: "
-           << sqrt(L2Error_Re*L2Error_Re + L2Error_Im*L2Error_Im) << "\n\n";
-      // cout << "\n Relative Error (Re part): || E_h - E || / ||E|| = "
-      //       << L2Error_Re / norm_E_Re
-      //       << "\n Relative Error (Im part): || E_h - E || / ||E|| = "
-      //       << L2Error_Im / norm_E_Im
-      //       << "\n Total Error: "
-      //       << sqrt(L2Error_Re*L2Error_Re + L2Error_Im*L2Error_Im) << "\n\n";
-
-      rates_r.Print(false);      
-      rates_i.Print(false);      
+      if (iter == ref_levels) break;
+      mesh->UniformRefinement();
+      fespace->Update();
+      x.Update();
    }
 
+   rates_r.Print(false);      
+   rates_i.Print(false);     
 
 
-   // // ComplexDenseMatrix MatZ(2,2);
-   // ComplexDenseMatrix MatZ(3,3);
-   // MatZ(0,0) =  complex<double>(0.286569,0.736547);  
-   // MatZ(0,1) =  complex<double>(0.051340,0.018433);  
-   // MatZ(0,2) =  complex<double>(0.526620,0.077061);  
-   // MatZ(1,0) =  complex<double>(0.881512,0.036553);  
-   // MatZ(1,1) =  complex<double>(0.727566,0.000757);  
-   // MatZ(1,2) =  complex<double>(0.853221,0.513477);  
-   // MatZ(2,0) =  complex<double>(0.834360,0.822687);  
-   // MatZ(2,1) =  complex<double>(0.335619,0.406582);  
-   // MatZ(2,2) =  complex<double>(0.029811,0.382764);  
-
-   // cout << "A  " << endl;
-   // MatZ.PrintMatlab(cout);
-
-   // ComplexDenseMatrixInverse InvZ(MatZ);
-   // cout << "B  " << endl;
-   // InvZ.PrintMatlab(cout);
-   // cout << "DetMatZ = " << MatZ.Det() << endl;
-   // cout << "DetInvZ = " << InvZ.Det() << endl;
-   
-   // DenseMatrix * Ar = MatZ.real();
-   // DenseMatrix * Ai = MatZ.imag();
-   // ComplexDenseMatrix M(MatZ.Height());
-   // cout << "A * B " << endl;
-   // Mult(MatZ,InvZ,M);
-   // M.PrintMatlab(cout);
-
-   // cout << "At * B " << endl;
-   // MultAtB(MatZ,InvZ,M);
-   // M.PrintMatlab(cout);
-
-   // cout << "A' * B " << endl;
-   // MultAhB(MatZ,InvZ,M);
-   // M.PrintMatlab(cout);
-   // cout << "Ar = " ; Ar->PrintMatlab(cout);
-   // cout << endl;
-   // cout << "Ai = " ; Ai->PrintMatlab(cout);
-   // cout << endl;
 
    // 16. Send the solution by socket to a GLVis server.
    if (visualization)
@@ -716,12 +560,17 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E)
       double beta = k * r;
 
       // Bessel functions
-      complex<double> Ho, Ho_r, Ho_rr;
-      Ho = jn(0, beta) + zi * yn(0, beta);
-      Ho_r = -k * (jn(1, beta) + zi * yn(1, beta));
-      Ho_rr = -k * k * (1.0 / beta *
-                        (jn(1, beta) + zi * yn(1, beta)) -
-                        (jn(2, beta) + zi * yn(2, beta)));
+      complex<double> H0, H0_r, H0_rr, H0_rrr;
+      complex<double> H1, H1_r, H1_rr;
+      complex<double> H2, H2_r;
+      complex<double> H3;
+      H0 = jn(0,beta) + zi * yn(0,beta);
+      H1 = jn(1,beta) + zi * yn(1,beta);
+      H2 = jn(2,beta) + zi * yn(2,beta);
+      // H3 = jn(3,beta) + zi * yn(3,beta);
+
+      H0_r = - k * H1;
+      H0_rr = - k * k * (1.0/beta * H1 - H2); 
 
       // First derivatives
       double r_x = x0 / r;
@@ -729,14 +578,37 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E)
       double r_xy = -(r_x / r) * r_y;
       double r_xx = (1.0 / r) * (1.0 - r_x * r_x);
 
-      complex<double> val, val_xx, val_xy;
-      val = 0.25 * zi * Ho;
-      val_xx = 0.25 * zi * (r_xx * Ho_r + r_x * r_x * Ho_rr);
-      val_xy = 0.25 * zi * (r_xy * Ho_r + r_x * r_y * Ho_rr);
+      complex<double> val, val_x, val_xx, val_xxx, val_xy, val_xyy;
+      val = 0.25 * zi * H0;
+      val_xx = 0.25 * zi * (r_xx * H0_r + r_x * r_x * H0_rr);
+      val_xy = 0.25 * zi * (r_xy * H0_r + r_x * r_y * H0_rr);
       E[0] = zi / k * (k * k * val + val_xx);
       E[1] = zi / k * val_xy;
    }
 }
+
+void E_exact_Curl_Re(const Vector &x, Vector &E)
+{
+   E = 0.0;
+   vector<complex<double>> Eval(E.Size());
+   maxwell_curl(x, Eval);
+   for (int i = 0; i < E.Size(); ++i)
+   {
+      E[i] = Eval[i].real();
+   }
+}
+
+void E_exact_Curl_Im(const Vector &x, Vector &E)
+{
+   E = 0.0;
+   vector<complex<double>> Eval(E.Size());
+   maxwell_curl(x, Eval);
+   for (int i = 0; i < E.Size(); ++i)
+   {
+      E[i] = Eval[i].imag();
+   }
+}
+
 
 void maxwell_curl(const Vector &x, vector<complex<double>> &curlE)
 {
@@ -751,33 +623,38 @@ void maxwell_curl(const Vector &x, vector<complex<double>> &curlE)
    double beta = k * r;
 
    // Bessel functions
-   complex<double> Ho, Ho_r, Ho_rr, Ho_rrr;
-   Ho = jn(0, beta) + zi * yn(0, beta);
-   Ho_r = -k * (jn(1, beta) + zi * yn(1, beta));
-   Ho_rr = -k * k * (1.0 / beta *
-                     (jn(1, beta) + zi * yn(1, beta)) -
-                     (jn(2, beta) + zi * yn(2, beta)));
+   complex<double> H0_r;
+   complex<double> H1;
+   // complex<double> H2, H2_r;
+   // complex<double> H3;
+   // H0 = jn(0,beta) + zi * yn(0,beta);
+   H1 = jn(1,beta) + zi * yn(1,beta);
+   // H2 = jn(2,beta) + zi * yn(2,beta);
+   // H3 = jn(3,beta) + zi * yn(3,beta);
 
-   // Ho_rrr = 
+   H0_r   = - k * H1;
+   // H1_r   =   k * (1.0/beta * H1 - H2);
+   // H2_r   = - k * (2.0/beta * H2 - H3); 
+   // H0_rr  = - k * H1_r;
+   // H1_rr  = k * k * (- 2.0 /(beta * beta) * H1 + 1.0/beta * H1_r - H2_r); 
+   // H0_rrr = - k * H1_rr;
 
    // First derivatives
-   double r_x = x0 / r;
+   // double r_x = x0 / r;
    double r_y = x1 / r;
-   double r_xy = -(r_x / r) * r_y;
-   double r_xx = (1.0 / r) * (1.0 - r_x * r_x);
+   // double r_xy = -(r_x / r) * r_y;
+   // double r_yx = r_xy;
+   // double r_yy = (1.0 / r) * (1.0 - r_y * r_y);
+   // double r_xx = (1.0 / r) * (1.0 - r_x * r_x);
+   // double r_xxx = r_x * (r_x * r_x - 2. * r_xx * r - 1.0) /(r * r);
+   // double r_xyy = (r_x * r_y * r_y - r * r_xy * r_y - r * r_x * r_yy)/(r * r);
 
-   complex<double> val, val_x, val_xx, val_xxx, val_xy, val_xyy;
-   val = 0.25 * zi * Ho;
-   val_xx = 0.25 * zi * (r_xx * Ho_r + r_x * r_x * Ho_rr);
-   val_xy = 0.25 * zi * (r_xy * Ho_r + r_x * r_y * Ho_rr);
-   vector<complex<double>> E(2);
-   E[0] = zi / k * (k * k * val + val_xx);
-   E[1] = zi / k * val_xy;
-
-   // 2D curl
-   // curlE = E[0]_x - E[1]_y
-   complex<double> E0_x = zi/k * ( k * k * val_x + val_xxx);
-
+   complex<double> val_y;
+   // val = 0.25 * zi * H0;
+   val_y = 0.25 * zi * H0_r * r_y;
+   // val_xx = 0.25 * zi * (r_xx * H0_r + r_x * r_x * H0_rr);
+   // val_xy = 0.25 * zi * (r_xy * H0_r + r_x * r_y * H0_rr);
+   curlE[0] = zi / k * (- k * k * val_y);
 }
 
 
