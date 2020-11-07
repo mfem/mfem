@@ -3390,6 +3390,69 @@ public:
 };
 
 
+/// Arbitrary order Raviart-Thomas elements in 2D on a square
+class RT_P2D_QuadrilateralElement : public VectorFiniteElement
+{
+private:
+   static const double nk[15];
+
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_cx, shape_ox, shape_cy, shape_oy;
+   mutable Vector dshape_cx, dshape_cy;
+#endif
+   Array<int> dof_map, dof2nk;
+
+   Poly_1D::Basis &cbasis1d, &obasis1d;
+
+public:
+   /** @brief Construct the RT_QuadrilateralElement of order @a p and closed and
+       open BasisType @a cb_type and @a ob_type */
+   RT_P2D_QuadrilateralElement(const int p,
+                               const int cb_type = BasisType::GaussLobatto,
+                               const int ob_type = BasisType::GaussLegendre);
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const
+   { CalcVShape_RT(Trans, shape); }
+   virtual void CalcDivShape(const IntegrationPoint &ip,
+                             Vector &divshape) const;
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { LocalInterpolation_RT(*this, nk, dof2nk, Trans, I); }
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_RT(nk, dof2nk, Trans, R); }
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { LocalInterpolation_RT(CheckVectorFE(fe), nk, dof2nk, Trans, I); }
+   using FiniteElement::Project;
+   virtual void Project(VectorCoefficient &vc,
+                        ElementTransformation &Trans, Vector &dofs) const
+   { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
+                                 Vector &dofs) const
+   { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   virtual void ProjectMatrixCoefficient(
+      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+   { ProjectMatrixCoefficient_RT(nk, dof2nk, mc, T, dofs); }
+   virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
+                        DenseMatrix &I) const
+   { Project_RT(nk, dof2nk, fe, Trans, I); }
+   // Gradient + rotation = Curl: H1 -> H(div)
+   virtual void ProjectGrad(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &grad) const
+   { ProjectGrad_RT(nk, dof2nk, fe, Trans, grad); }
+   // Curl = Gradient + rotation: H1 -> H(div)
+   virtual void ProjectCurl(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &curl) const
+   { ProjectGrad_RT(nk, dof2nk, fe, Trans, curl); }
+};
+
+
 /// An arbitrary order and dimension NURBS element
 class NURBSFiniteElement : public ScalarFiniteElement
 {
