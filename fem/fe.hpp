@@ -3390,7 +3390,7 @@ public:
 };
 
 
-/// Arbitrary order Raviart-Thomas elements in 2D on a square
+/// Arbitrary order Raviart-Thomas 3D elements in 2D on a square
 class RT_P2D_QuadrilateralElement : public VectorFiniteElement
 {
 private:
