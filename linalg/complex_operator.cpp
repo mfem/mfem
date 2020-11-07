@@ -455,6 +455,7 @@ void ComplexUMFPackSolver::MultTranspose(const Vector &b, Vector &x) const
    ComplexOperator::Convention conv = mat->GetConvention();
    Vector bimag;
    bimag.SetDataAndSize(&datab[n],n);
+
    // Solve the Adjoint A^H x = b by solving
    // the conjugate problem A^T \bar{x} = \bar{b}
    if ((!transa && conv == ComplexOperator::HERMITIAN) ||

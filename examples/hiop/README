@@ -12,7 +12,7 @@ use of MFEM for solving nonlinear constrained optimization problems, including
 features based on the HiOp, a lightweight HPC solver for nonlinear optimization
 problems.
 
-To use the HiOp featuress, make sure that MFEM is configured with the option
+To use the HiOp features, make sure that MFEM is configured with the option
 "MFEM_USE_HIOP = YES", see the top-level INSTALL file for details.
 
 We recommend comparing the original example codes with the corresponding files
