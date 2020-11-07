@@ -46,13 +46,13 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
-   int ser_ref_levels = 2;
-   int par_ref_levels = 1;
+   int ser_ref_levels = 0;
+   int par_ref_levels = 0;
    int order0 = 1;
    int order1 = 1;
    int type0 = 0;
-   int type1 = 2;
-   int conv_type = 1;
+   int type1 = 1;
+   int conv_type = -1;
    bool static_cond = false;
    bool pa = false;
    const char *device_config = "cpu";
@@ -257,18 +257,20 @@ int main(int argc, char *argv[])
       delete fes0;
       delete fec0;
 
-
-      char c;
-      if (mpi.Root())
+      if (t0 < t0b - 1)
       {
-         cout << "press (q)uit or (c)ontinue --> " << flush;
-         cin >> c;
-      }
-      MPI_Bcast(&c, 1, MPI_CHAR, 0, MPI_COMM_WORLD);
+         char c;
+         if (mpi.Root())
+         {
+            cout << "press (q)uit or (c)ontinue --> " << flush;
+            cin >> c;
+         }
+         MPI_Bcast(&c, 1, MPI_CHAR, 0, MPI_COMM_WORLD);
 
-      if (c != 'c')
-      {
-         break;
+         if (c != 'c')
+         {
+            break;
+         }
       }
       if (mpi.Root())
       {
