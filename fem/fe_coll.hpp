@@ -422,6 +422,45 @@ public:
    virtual ~RT_P1D_FECollection();
 };
 
+/// Arbitrary order 3D H(curl)-conforming Nedelec finite elements in 2D.
+class ND_P2D_FECollection : public FiniteElementCollection
+{
+protected:
+   char nd_name[32];
+   FiniteElement *ND_Elements[Geometry::NumGeom];
+   int ND_dof[Geometry::NumGeom];
+   int *SegDofOrd[2];
+
+public:
+   ND_P2D_FECollection(const int p, const int dim,
+                       const int cb_type = BasisType::GaussLobatto,
+                       const int ob_type = BasisType::GaussLegendre);
+
+   virtual const FiniteElement *FiniteElementForGeometry(Geometry::Type GeomType)
+   const
+   { return ND_Elements[GeomType]; }
+   virtual int DofForGeometry(Geometry::Type GeomType) const
+   { return ND_dof[GeomType]; }
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
+   virtual const char *Name() const { return nd_name; }
+   virtual int GetContType() const { return TANGENTIAL; }
+   FiniteElementCollection *GetTraceCollection() const;
+
+   virtual ~ND_P2D_FECollection();
+};
+
+/** @brief Arbitrary order 3D H(curl)-trace finite elements in 2D defined on the
+    interface between mesh elements (edges); these are the tangential
+    trace FEs of the H(curl)-conforming FEs. */
+class ND_P2D_Trace_FECollection : public ND_P2D_FECollection
+{
+public:
+   ND_P2D_Trace_FECollection(const int p, const int dim,
+                             const int cb_type = BasisType::GaussLobatto,
+                             const int ob_type = BasisType::GaussLegendre);
+};
+
 /// Arbitrary order non-uniform rational B-splines (NURBS) finite elements.
 class NURBSFECollection : public FiniteElementCollection
 {
