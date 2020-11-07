@@ -12745,6 +12745,262 @@ void RT_P1D_SegmentElement::CalcDivShape(const IntegrationPoint &ip,
    }
 }
 
+const double ND_P2D_QuadrilateralElement::tk[15] =
+{ 1.,0.,0.,  0.,1.,0., -1.,0.,0., 0.,-1.,0., 0.,0.,1. };
+
+ND_P2D_QuadrilateralElement::ND_P2D_QuadrilateralElement(const int p,
+                                                         const int cb_type,
+                                                         const int ob_type)
+   : VectorFiniteElement(2, 3, 3, Geometry::SQUARE, (3*p+1)*(p + 1), p,
+                         H_CURL, FunctionSpace::Pk),
+     dof2tk(dof),
+     cbasis1d(poly1d.GetBasis(p, VerifyClosed(cb_type))),
+     obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(ob_type)))
+{
+   dof_map.SetSize(dof);
+
+   const double *cp = poly1d.ClosedPoints(p, cb_type);
+   const double *op = poly1d.OpenPoints(p - 1, ob_type);
+   const int dofx = p*(p+1);
+   const int dofy = p*(p+1);
+   const int dofxy = dofx+dofy;
+
+#ifndef MFEM_THREAD_SAFE
+   shape_cx.SetSize(p + 1);
+   shape_ox.SetSize(p);
+   shape_cy.SetSize(p + 1);
+   shape_oy.SetSize(p);
+   dshape_cx.SetSize(p + 1);
+   dshape_cy.SetSize(p + 1);
+#endif
+
+   dof_map.SetSize(dof);
+
+   int o = 0;
+   // nodes
+   dof_map[dofxy] = o++;   // (0)
+   dof_map[dofxy+p] = o++; // (1)
+   dof_map[dof-1] = o++;   // (2)
+   dof_map[dof-p-1] = o++; // (3)
+
+   // edges
+   for (int i = 0; i < p; i++)  // (0,1) - x-directed
+   {
+      dof_map[i + 0*p] = o++;
+   }
+   for (int i = 1; i < p; i++)  // (0,1) - z-directed
+   {
+      dof_map[dofxy + i + 0*(p+1)] = o++;
+   }
+   for (int j = 0; j < p; j++)  // (1,2) - y-directed
+   {
+      dof_map[dofx + p + j*(p + 1)] = o++;
+   }
+   for (int j = 1; j < p; j++)  // (1,2) - z-directed
+   {
+      dof_map[dofxy + p + j*(p + 1)] = o++;
+   }
+   for (int i = 0; i < p; i++)  // (2,3) - x-directed
+   {
+      dof_map[(p - 1 - i) + p*p] = -1 - (o++);
+   }
+   for (int i = 1; i < p; i++)  // (2,3) - z-directed
+   {
+      dof_map[dofxy + (p - i) + p*(p + 1)] = o++;
+   }
+   for (int j = 0; j < p; j++)  // (3,0) - y-directed
+   {
+      dof_map[dofx + 0 + (p - 1 - j)*(p + 1)] = -1 - (o++);
+   }
+   for (int j = 1; j < p; j++)  // (3,0) - z-directed
+   {
+      dof_map[dofxy + (p - j)*(p + 1)] = o++;
+   }
+
+   // interior
+   // x-components
+   for (int j = 1; j < p; j++)
+      for (int i = 0; i < p; i++)
+      {
+         dof_map[i + j*p] = o++;
+      }
+   // y-components
+   for (int j = 0; j < p; j++)
+      for (int i = 1; i < p; i++)
+      {
+         dof_map[dofx + i + j*(p + 1)] = o++;
+      }
+   // z-components
+   for (int j = 1; j < p; j++)
+      for (int i = 1; i < p; i++)
+      {
+         dof_map[dofxy + i + j*(p + 1)] = o++;
+      }
+
+   // set dof2tk and Nodes
+   o = 0;
+   // x-components
+   for (int j = 0; j <= p; j++)
+      for (int i = 0; i < p; i++)
+      {
+         int idx;
+         if ((idx = dof_map[o++]) < 0)
+         {
+            dof2tk[idx = -1 - idx] = 2;
+         }
+         else
+         {
+            dof2tk[idx] = 0;
+         }
+         Nodes.IntPoint(idx).Set2(op[i], cp[j]);
+      }
+   // y-components
+   for (int j = 0; j < p; j++)
+      for (int i = 0; i <= p; i++)
+      {
+         int idx;
+         if ((idx = dof_map[o++]) < 0)
+         {
+            dof2tk[idx = -1 - idx] = 3;
+         }
+         else
+         {
+            dof2tk[idx] = 1;
+         }
+         Nodes.IntPoint(idx).Set2(cp[i], op[j]);
+      }
+   // z-components
+   for (int j = 0; j <= p; j++)
+      for (int i = 0; i <= p; i++)
+      {
+         int idx = dof_map[o++];
+         dof2tk[idx] = 4;
+         Nodes.IntPoint(idx).Set2(cp[i], cp[j]);
+      }
+}
+
+void ND_P2D_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
+                                             DenseMatrix &shape) const
+{
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape_cx(p + 1), shape_ox(p), shape_cy(p + 1), shape_oy(p);
+#endif
+
+   cbasis1d.Eval(ip.x, shape_cx);
+   obasis1d.Eval(ip.x, shape_ox);
+   cbasis1d.Eval(ip.y, shape_cy);
+   obasis1d.Eval(ip.y, shape_oy);
+
+   int o = 0;
+   // x-components
+   for (int j = 0; j <= p; j++)
+      for (int i = 0; i < p; i++)
+      {
+         int idx, s;
+         if ((idx = dof_map[o++]) < 0)
+         {
+            idx = -1 - idx, s = -1;
+         }
+         else
+         {
+            s = +1;
+         }
+         shape(idx,0) = s*shape_ox(i)*shape_cy(j);
+         shape(idx,1) = 0.;
+         shape(idx,2) = 0.;
+      }
+   // y-components
+   for (int j = 0; j < p; j++)
+      for (int i = 0; i <= p; i++)
+      {
+         int idx, s;
+         if ((idx = dof_map[o++]) < 0)
+         {
+            idx = -1 - idx, s = -1;
+         }
+         else
+         {
+            s = +1;
+         }
+         shape(idx,0) = 0.;
+         shape(idx,1) = s*shape_cx(i)*shape_oy(j);
+         shape(idx,2) = 0.;
+      }
+   // z-components
+   for (int j = 0; j <= p; j++)
+      for (int i = 0; i <= p; i++)
+      {
+         int idx = dof_map[o++];
+         shape(idx,0) = 0.;
+         shape(idx,1) = 0.;
+         shape(idx,2) = shape_cx(i)*shape_cy(j);
+      }
+}
+
+void ND_P2D_QuadrilateralElement::CalcCurlShape(const IntegrationPoint &ip,
+                                                DenseMatrix &curl_shape) const
+{
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape_cx(p + 1), shape_ox(p), shape_cy(p + 1), shape_oy(p);
+   Vector dshape_cx(p + 1), dshape_cy(p + 1);
+#endif
+
+   cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
+   obasis1d.Eval(ip.x, shape_ox);
+   cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
+   obasis1d.Eval(ip.y, shape_oy);
+
+   int o = 0;
+   // x-components
+   for (int j = 0; j <= p; j++)
+      for (int i = 0; i < p; i++)
+      {
+         int idx, s;
+         if ((idx = dof_map[o++]) < 0)
+         {
+            idx = -1 - idx, s = -1;
+         }
+         else
+         {
+            s = +1;
+         }
+         curl_shape(idx,0) = 0.;
+         curl_shape(idx,1) = 0.;
+         curl_shape(idx,2) = -s*shape_ox(i)*dshape_cy(j);
+      }
+   // y-components
+   for (int j = 0; j < p; j++)
+      for (int i = 0; i <= p; i++)
+      {
+         int idx, s;
+         if ((idx = dof_map[o++]) < 0)
+         {
+            idx = -1 - idx, s = -1;
+         }
+         else
+         {
+            s = +1;
+         }
+         curl_shape(idx,0) = 0.;
+         curl_shape(idx,1) = 0.;
+         curl_shape(idx,2) =  s*dshape_cx(i)*shape_oy(j);
+      }
+   // z-components
+   for (int j = 0; j <= p; j++)
+      for (int i = 0; i <= p; i++)
+      {
+         int idx = dof_map[o++];
+         curl_shape(idx,0) =  shape_cx(i)*dshape_cy(j);
+         curl_shape(idx,1) = -dshape_cx(i)*shape_cy(j);
+         curl_shape(idx,2) = 0.;
+      }
+}
+
+
 void NURBS1DFiniteElement::SetOrder() const
 {
    order = kv[0]->GetOrder();
