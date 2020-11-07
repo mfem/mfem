@@ -56,6 +56,8 @@ using namespace mfem;
    Probably the correct parallel algorithm is to build this on
    each processor, and then do a kind of RAP procedure, but without
    adding, as in ParDiscreteLinearOperator::ParallelAssemble()
+
+   (but isn't it going to be block diagonal?)
 */
 SparseMatrix * BuildNormalConstraints(FiniteElementSpace& fespace,
                                       Array<int> constrained_att,
@@ -135,6 +137,129 @@ SparseMatrix * BuildNormalConstraints(FiniteElementSpace& fespace,
 
    out->Finalize();
    return out;
+}
+
+/*
+  among several future questions; are returned x_dofs, y_dofs, z_dofs
+  truedofs or ldofs?
+
+
+   /// If the given ldof is owned by the current processor, return its local
+   ///  tdof number, otherwise return -1
+   int GetLocalTDofNumber(int ldof) const;
+   /// Returns the global tdof number of the given local degree of freedom
+   HYPRE_Int GetGlobalTDofNumber(int ldof) const;
+*/
+HypreParMatrix * BuildParNormalConstraints(ParFiniteElementSpace& fespace,
+                                           Array<int> constrained_att)
+{
+   int rank, size;
+   MPI_Comm_rank(fespace.GetComm(), &rank);
+   MPI_Comm_size(fespace.GetComm(), &size);
+   int dim = fespace.GetVDim();
+
+   std::set<int> constrained_tdofs; // local tdofs
+   for (int i = 0; i < fespace.GetNBE(); ++i)
+   {
+      int att = fespace.GetBdrAttribute(i);
+      if (constrained_att.FindSorted(att) != -1)
+      {
+         Array<int> dofs;
+         fespace.GetBdrElementDofs(i, dofs);
+         for (auto k : dofs)
+         {
+            int vdof = fespace.DofToVDof(k, 0);
+            int tdof = fespace.GetLocalTDofNumber(vdof);
+            if (tdof >= 0) { constrained_tdofs.insert(tdof); }
+         }
+      }
+   }
+
+   std::map<int, int> dof_constraint;
+   int n_constraints = 0;
+   for (auto k : constrained_tdofs)
+   {
+      dof_constraint[k] = n_constraints++;
+   }
+   SparseMatrix * out = new SparseMatrix(n_constraints, fespace.GetTrueVSize());
+
+   int constraint_running_total = 0;
+   MPI_Scan(&n_constraints, &constraint_running_total, 1, MPI_INT, MPI_SUM, fespace.GetComm());
+   int global_constraints = 0;
+   if (rank == size - 1) global_constraints = constraint_running_total;
+   MPI_Bcast(&global_constraints, 1, MPI_INT, size - 1, fespace.GetComm());
+
+   std::cout << "[" << rank << "] n_constraints = " << n_constraints << ", constraint_running_total = "
+             << constraint_running_total << ", global_constraints = " << global_constraints << std::endl;
+
+   Vector nor(dim);
+   /*
+   Array<int>* d_dofs[3];
+   d_dofs[0] = &x_dofs;
+   d_dofs[1] = &y_dofs;
+   d_dofs[2] = &z_dofs;
+   */
+   for (int i = 0; i < fespace.GetNBE(); ++i)
+   {
+      int att = fespace.GetBdrAttribute(i);
+      if (constrained_att.FindSorted(att) != -1)
+      {
+         ElementTransformation * Tr = fespace.GetBdrElementTransformation(i);
+         const FiniteElement * fe = fespace.GetBE(i);
+         const IntegrationRule& nodes = fe->GetNodes();
+
+         Array<int> dofs;
+         fespace.GetBdrElementDofs(i, dofs);
+         MFEM_VERIFY(dofs.Size() == nodes.Size(),
+                     "Something wrong in finite element space!");
+
+         for (int j = 0; j < dofs.Size(); ++j)
+         {
+            Tr->SetIntPoint(&nodes[j]);
+            // the normal returned in the next line is scaled by h, which
+            // is probably what we want in this application
+            CalcOrtho(Tr->Jacobian(), nor);
+
+            // next line assumes nodes and dofs are ordered the same, which
+            // seems to be true
+            int k = dofs[j];
+            int vdof = fespace.DofToVDof(k, 0);
+            int truek = fespace.GetLocalTDofNumber(vdof);
+            if (truek >= 0)
+            {
+               int constraint = dof_constraint[truek];
+               for (int d = 0; d < dim; ++d)
+               {
+                  int vdof = fespace.DofToVDof(k, d);
+                  int truek = fespace.GetLocalTDofNumber(vdof);
+                  out->Set(constraint, truek, nor[d]);
+                  // d_dofs[d]->Append(vdof);
+               }
+            }
+         }
+      }
+   }
+
+   /*
+   for (int d = 0; d < dim; ++d)
+   {
+      d_dofs[d]->Sort();
+      d_dofs[d]->Unique();
+   }
+   */
+   out->Finalize();
+
+   // cols are same as for fespace; rows are... built here
+   HYPRE_Int glob_num_rows = global_constraints;
+   HYPRE_Int glob_num_cols = fespace.GlobalTrueVSize();
+   HYPRE_Int row_starts[2] = {constraint_running_total - n_constraints, constraint_running_total};
+   HYPRE_Int * col_starts = fespace.GetTrueDofOffsets();
+   HypreParMatrix * h_out = new HypreParMatrix(fespace.GetComm(), glob_num_rows, glob_num_cols, row_starts,
+                                               col_starts, out);
+   h_out->CopyRowStarts();
+   h_out->CopyColStarts();
+
+   return h_out;
 }
 
 int main(int argc, char *argv[])
@@ -319,6 +444,10 @@ int main(int argc, char *argv[])
       std::ofstream out("constraint.sparsematrix");
       constraint_mat->Print(out, 1);
    }
+
+   HypreParMatrix * h_constraint_mat = BuildParNormalConstraints(fespace, constraint_atts);
+   h_constraint_mat->Print("hconstraint");
+
    HYPRE_Int hconstraints_row_starts[2] = {0, constraint_mat->Height()};
    HYPRE_Int hconstraints_col_starts[2] = {0, constraint_mat->Width()};
    HypreParMatrix hconstraints(MPI_COMM_WORLD, constraint_mat->Height(),
