@@ -9,12 +9,15 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-add_mfem_miniapp(cvsRoberts_ASAi_dns
-  MAIN cvsRoberts_ASAi_dns.cpp
-  LIBRARIES mfem)
+# Sets the following variables:
+#   - MUMPS_FOUND
+#   - MUMPS_INCLUDE_DIRS
+#   - MUMPS_LIBRARIES
 
-if (MFEM_USE_MPI)
-  add_mfem_miniapp(adjoint_advection_diffusion
-    MAIN adjoint_advection_diffusion.cpp
-    LIBRARIES mfem)
-endif()
+include(MfemCmakeUtilities)
+mfem_find_package(MUMPS MUMPS MUMPS_DIR
+  "include" dmumps_c.h "lib" dmumps
+  "Paths to headers required by MUMPS."
+  "Libraries required by MUMPS."
+  ADD_COMPONENT mumps_common "include" dmumps_c.h "lib" mumps_common
+  ADD_COMPONENT pord "include" dmumps_c.h "lib" pord)
