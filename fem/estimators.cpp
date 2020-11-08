@@ -75,7 +75,6 @@ void KellyErrorEstimator::ComputeEstimates()
 
    Array<int> xdofs, fdofs;
    Vector el_x, el_f;
-
    for (int e = 0; e < xfes->GetNE(); e++)
    {
       auto attr = xfes->GetAttribute(e);
@@ -89,7 +88,7 @@ void KellyErrorEstimator::ComputeEstimates()
 
       ElementTransformation* Transf = xfes->GetElementTransformation(e);
       flux_integrator->ComputeElementFlux(*xfes->GetFE(e), *Transf, el_x,
-                                          *xfes->GetFE(e), el_f, true);
+                                          *flux_space->GetFE(e), el_f, true);
 
       flux_space->GetElementVDofs(e, fdofs);
       flux.AddElementVector(fdofs, el_f);
