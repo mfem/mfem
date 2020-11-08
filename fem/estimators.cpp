@@ -64,6 +64,7 @@ void KellyErrorEstimator::ComputeEstimates()
    flux_space->Update(false);
 
    auto xfes      = solution->ParFESpace();
+   MFEM_ASSERT(xfes->GetVDim() == 1, "Estimation for vector-valued problems not implemented yet.");
    auto pmesh     = xfes->GetParMesh();
 
    this->error_estimates.SetSize(xfes->GetNE());
