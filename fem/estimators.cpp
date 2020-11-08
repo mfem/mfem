@@ -96,15 +96,13 @@ void KellyErrorEstimator::ComputeEstimates()
    }
 
    // 2. Add error contribution from local interior faces
-   ///@TODO how to obtain the "correct" rule?
    auto int_rules = IntegrationRules();
    for (int f = 0; f < pmesh->GetNumFaces(); f++)
    {
       auto FT = pmesh->GetFaceElementTransformations(f);
 
-      ///@TODO how to obtain the "correct" rule?
       const auto int_rule =
-         int_rules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(f) - 1);
+         int_rules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(f));
       const auto nip = int_rule.GetNPoints();
 
       if (pmesh->FaceIsInterior(f))
@@ -158,7 +156,6 @@ void KellyErrorEstimator::ComputeEstimates()
                   auto &e1 = FT->GetElement1Transformation();
                   e1.AdjugateJacobian().MultTranspose(ref_normal, normal);
                   normal /= e1.Weight();
-                  normal.Neg();
                }
                jumps(i) = val * normal * fip.weight * FT->Face->Weight();
             }
@@ -190,8 +187,8 @@ void KellyErrorEstimator::ComputeEstimates()
                   auto &e1 = FT->GetElement1Transformation();
                   e1.AdjugateJacobian().MultTranspose(ref_normal, normal);
                   normal /= e1.Weight();
-                  normal.Neg();
                }
+               normal.Neg();
 
                jumps(i) -= val * normal * fip.weight * FT->Face->Weight();
             }
@@ -228,9 +225,8 @@ void KellyErrorEstimator::ComputeEstimates()
          continue;
       }
 
-      ///@TODO how to obtain the "correct" rule?
       const auto int_rule =
-         int_rules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(0) - 1);
+         int_rules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(0));
       const auto nip = int_rule.GetNPoints();
 
       IntegrationRule eir;
@@ -262,7 +258,6 @@ void KellyErrorEstimator::ComputeEstimates()
             auto &e1 = FT->GetElement1Transformation();
             e1.AdjugateJacobian().MultTranspose(ref_normal, normal);
             normal /= e1.Weight();
-            normal.Neg();
          }
 
          jumps(i) = val * normal * fip.weight * FT->Face->Weight();
@@ -290,13 +285,12 @@ void KellyErrorEstimator::ComputeEstimates()
          else
          {
             Vector ref_normal(pmesh->Dimension());
-            FT->Loc1.Transf.SetIntPoint(&fip);
             CalcOrtho(FT->Loc1.Transf.Jacobian(), ref_normal);
             auto &e1 = FT->GetElement1Transformation();
             e1.AdjugateJacobian().MultTranspose(ref_normal, normal);
             normal /= e1.Weight();
-            normal.Neg();
          }
+         normal.Neg();
 
          jumps(i) -= val * normal * fip.weight * FT->Face->Weight();
       }
