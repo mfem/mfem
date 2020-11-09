@@ -2850,7 +2850,7 @@ ND_P2D_FECollection::ND_P2D_FECollection(const int p, const int dim,
    MFEM_VERIFY(dim >= 1 && dim <= 2,
                "ND_P2D_FECollection requires 1 <= dim <= 2.");
 
-   const int pm1 = p - 1, pm2 = p - 2;
+   const int pm1 = p - 1;
 
    if (cb_type == BasisType::GaussLobatto &&
        ob_type == BasisType::GaussLegendre)
