@@ -315,7 +315,7 @@ int GridFunction::VectorDim() const
    {
       return fes->GetVDim();
    }
-   return fes->GetVDim()*fes->GetMesh()->SpaceDimension();
+   return fes->GetVDim()*fe->GetVDim();
 }
 
 void GridFunction::GetTrueDofs(Vector &tv) const
@@ -954,10 +954,10 @@ void GridFunction::GetVectorValue(ElementTransformation &T,
    }
    else
    {
-      int spaceDim = fes->GetMesh()->SpaceDimension();
-      DenseMatrix vshape(dof, spaceDim);
+      int vdim = fe->GetVDim();
+      DenseMatrix vshape(dof, vdim);
       fe->CalcVShape(T, vshape);
-      val.SetSize(spaceDim);
+      val.SetSize(vdim);
       vshape.MultTranspose(loc_data, val);
    }
 }
