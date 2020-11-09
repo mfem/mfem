@@ -60,13 +60,21 @@ packages:
 #     - spec: cmake@3.17.2
 #       prefix: /usr/local/Cellar/cmake/3.17.2/bin/
 
-  openmpi:
+#  openmpi:
+#    buildable: false
+#    externals:
+#      - spec: openmpi
+#        prefix: /usr/local/
+##     - spec: openmpi@4.0.3
+##       prefix: /usr/local/Cellar/open-mpi/4.0.3/bin/
+
+  mpich:
     buildable: false
     externals:
-      - spec: openmpi
+      - spec: mpich
         prefix: /usr/local/
-#     - spec: openmpi@4.0.3
-#       prefix: /usr/local/Cellar/open-mpi/4.0.3/bin/
+#      - spec: mpich@3.3.2
+#        prefix: /usr/local/Cellar/mpich/3.3.2_1
 
   openblas:
     buildable: false
