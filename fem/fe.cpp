@@ -13063,6 +13063,23 @@ void ND_P2D_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
       }
 }
 
+void ND_P2D_QuadrilateralElement::CalcVShape(ElementTransformation &Trans,
+                                             DenseMatrix &shape) const
+{
+   CalcVShape(Trans.GetIntPoint(), shape);
+   const DenseMatrix & JI = Trans.InverseJacobian();
+   MFEM_ASSERT(JI.Width() == 2 && JI.Height() == 2,
+               "ND_P2D_QuadrilateralElement cannot be embedded in "
+               "3 dimensional spaces");
+   for (int i=0; i<dof; i++)
+   {
+      double sx = shape(i, 0);
+      double sy = shape(i, 1);
+      shape(i, 0) = sx * JI(0, 0) + sy * JI(1, 0);
+      shape(i, 1) = sx * JI(0, 1) + sy * JI(1, 1);
+   }
+}
+
 void ND_P2D_QuadrilateralElement::CalcCurlShape(const IntegrationPoint &ip,
                                                 DenseMatrix &curl_shape) const
 {
