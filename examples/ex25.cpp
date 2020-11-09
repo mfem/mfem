@@ -183,7 +183,7 @@ int main(int argc, char *argv[])
                   "Frequency (in Hz).");
    args.AddOption(&herm_conv, "-herm", "--hermitian", "-no-herm",
                   "--no-hermitian", "Use convention for Hermitian operators.");
-#ifdef MFEM_SUITE_SPARSE
+#ifdef MFEM_USE_SUITESPARSE
    args.AddOption(&umf_solver, "-umf", "--umfpack", "-no-umf",
                   "--no-umfpack", "Use the UMFPack Solver.");
 #endif
@@ -957,7 +957,14 @@ void CartesianPML::SetBoundaries()
 
 void CartesianPML::SetAttributes(Mesh *mesh_)
 {
+   // Initialize bdr attributes
+   for (int i = 0; i < mesh_->GetNBE(); ++i)
+   {
+      mesh_->GetBdrElement(i)->SetAttribute(i+1);
+   }
+
    int nrelem = mesh_->GetNE();
+
    elems.SetSize(nrelem);
 
    // Loop through the elements and identify which of them are in the PML
