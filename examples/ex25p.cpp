@@ -1037,8 +1037,12 @@ void CartesianPML::SetBoundaries()
 
 void CartesianPML::SetAttributes(ParMesh *pmesh)
 {
-   int myid;
-   MPI_Comm_rank(MPI_COMM_WORLD,&myid);
+   // Initialize bdr attributes
+   for (int i = 0; i < pmesh->GetNBE(); ++i)
+   {
+      pmesh->GetBdrElement(i)->SetAttribute(i+1);
+   }
+
    int nrelem = pmesh->GetNE();
 
    // Initialize list with 1
