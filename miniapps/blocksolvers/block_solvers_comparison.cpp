@@ -184,11 +184,8 @@ void DarcyProblem::VisualizeSolution(const Vector& sol, string tag)
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
-   bool verbose = (myid == 0);
+   MPI_Session mpi(argc, argv);
+   bool verbose = (mpi.Root() == 0);
 
    StopWatch chrono;
    auto ResetTimer = [&chrono]() { chrono.Clear(); chrono.Start(); };
@@ -207,9 +204,11 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&par_ref_levels, "-r", "--ref",
                   "Number of parallel refinement steps.");
+   args.AddOption(&mesh_file, "-m", "--mesh",
+                  "Mesh file to use.");
    args.AddOption(&param.coupled_solve, "-cs", "--coupled-solve", "-ss",
                   "--separate-solve",
-                  "Whether to solve all unknowns together in div free solver.");
+                  "Solve all unknowns simultaneously or separately in div free solver.");
    args.AddOption(&show_error, "-se", "--show-error", "-no-se",
                   "--no-show-error",
                   "Show or not show approximation error.");
@@ -234,8 +233,8 @@ int main(int argc, char *argv[])
    // Initialize the mesh, boundary attributes, and solver parameters
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
-   int ser_ref_levels = (int)ceil(log(num_procs/mesh->GetNE())/log(2.)/dim);
-   for (int i = 0; i < ser_ref_levels; ++i)
+   int ser_ref_lvls = (int)ceil(log(mpi.WorldSize()/mesh->GetNE())/log(2.)/dim);
+   for (int i = 0; i < ser_ref_lvls; ++i)
    {
       mesh->UniformRefinement();
    }
@@ -267,46 +266,44 @@ int main(int argc, char *argv[])
       }
    }
 
+
+   // Setup various solvers for the discrete problem
+   std::map<const DarcySolver*, double> setup_time;
+   ResetTimer();
+   DivFreeSolver dfs(M, B, DFS_data);
+   setup_time[&dfs] = chrono.RealTime();
+
+   ResetTimer();
+   BDPMinresSolver bdp(M, B, param);
+   setup_time[&bdp] = chrono.RealTime();
+
+   std::map<const DarcySolver*, std::string> solver_to_name;
+   solver_to_name[&dfs] = "Divergence free";
+   solver_to_name[&bdp] = "Block-diagonal-preconditioned MINRES";
+
+   // Solve the problem using all solvers
+   for (const auto& solver_pair : solver_to_name)
    {
-      // Setup various solvers for the discrete problem
-      std::map<const DarcySolver*, double> setup_time;
+      auto& solver = solver_pair.first;
+      auto& name = solver_pair.second;
+
+      Vector sol = darcy.GetEssentialBC();
       ResetTimer();
-      DivFreeSolver dfs(M, B, DFS_data);
-      setup_time[&dfs] = chrono.RealTime();
+      solver->Mult(darcy.GetRHS(), sol);
+      chrono.Stop();
 
-      ResetTimer();
-      BDPMinresSolver bdp(M, B, param);
-      setup_time[&bdp] = chrono.RealTime();
-
-      std::map<const DarcySolver*, std::string> solver_to_name;
-      solver_to_name[&dfs] = "Divergence free";
-      solver_to_name[&bdp] = "Block-diagonal-preconditioned MINRES";
-
-      // Solve the problem using all solvers
-      for (const auto& solver_pair : solver_to_name)
+      if (verbose)
       {
-         auto& solver = solver_pair.first;
-         auto& name = solver_pair.second;
-
-         Vector sol = darcy.GetEssentialBC();
-         ResetTimer();
-         solver->Mult(darcy.GetRHS(), sol);
-         chrono.Stop();
-
-         if (verbose)
-         {
-            cout << line << name << " solver:\n   Setup time: "
-                 << setup_time[solver] << "s.\n   Solve time: "
-                 << chrono.RealTime() << "s.\n   Total time: "
-                 << setup_time[solver] + chrono.RealTime() << "s.\n"
-                 << "   Iteration count: " << solver->GetNumIterations() <<"\n";
-         }
-         if (show_error) { darcy.ShowError(sol, verbose); }
-         if (visualization) { darcy.VisualizeSolution(sol, name); }
+         cout << line << name << " solver:\n   Setup time: "
+              << setup_time[solver] << "s.\n   Solve time: "
+              << chrono.RealTime() << "s.\n   Total time: "
+              << setup_time[solver] + chrono.RealTime() << "s.\n"
+              << "   Iteration count: " << solver->GetNumIterations() <<"\n";
       }
+      if (show_error) { darcy.ShowError(sol, verbose); }
+      if (visualization) { darcy.VisualizeSolution(sol, name); }
    }
 
-   MPI_Finalize();
    return 0;
 }
 
