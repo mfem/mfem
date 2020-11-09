@@ -1832,6 +1832,18 @@ void SyclPADiffusionApply3D(const int D1D,
                             const Vector &D,
                             const Vector &X,
                             Vector &Y);
+
+void SyclNDPADiffusionApply3D(const int D1D,
+                              const int Q1D,
+                              const int NE,
+                              const bool symm,
+                              const Array<double> &B,
+                              const Array<double> &G,
+                              const Array<double> &Bt,
+                              const Array<double> &Gt,
+                              const Vector &D,
+                              const Vector &X,
+                              Vector &Y);
 #endif
 
 static void PADiffusionApply(const int dim,
@@ -1874,7 +1886,9 @@ static void PADiffusionApply(const int dim,
       }
       if (dim == 3)
       {
-         SyclPADiffusionApply3D(D1D,Q1D,NE,symm,B,G,Bt,Gt,D,X,Y);
+         static const bool ND = getenv("ND");
+         if (!ND) { SyclPADiffusionApply3D(D1D,Q1D,NE,symm,B,G,Bt,Gt,D,X,Y); }
+         if (ND) { SyclNDPADiffusionApply3D(D1D,Q1D,NE,symm,B,G,Bt,Gt,D,X,Y); }
          return;
       }
       MFEM_ABORT("SYCL PADiffusionApply unknown kernel!");

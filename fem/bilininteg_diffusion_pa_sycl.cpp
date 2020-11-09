@@ -20,80 +20,6 @@ using namespace sycl;
 namespace mfem
 {
 
-/// A SYCL buffer generic Tensor class
-template<int Dim, typename XS> class BufferTensor
-{
-public:
-   using val_t = typename XS::value_type;
-   using ref_t = typename XS::reference;
-   using const_ref_t = typename XS::const_reference;
-protected:
-   int capacity;
-   XS xs;
-   int sizes[Dim];
-
-public:
-   /// Default constructor
-   BufferTensor() = delete;
-
-   /// Constructor to initialize a tensor from the buffer _buf
-   template <typename... Args>
-   BufferTensor(XS _xs, Args... args): xs(_xs)
-   {
-      static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
-      // Initialize sizes, and compute the number of values
-      const long int nb = Init<1, Dim, Args...>::result(sizes, args...);
-      capacity = nb;
-   }
-
-   /// Conversion to `Scalar *`.
-   inline operator val_t *() const { return *(xs.get_pointer()); }
-
-   /// Const accessor for the data
-   template <typename... Args> MFEM_HOST_DEVICE inline
-   ref_t operator()(Args... args) const
-   {
-      static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
-      return xs[ TensorInd<1, Dim, Args...>::result(sizes, args...) ];
-   }
-
-   /// Subscript operator where the tensor is viewed as a 1D array.
-   MFEM_HOST_DEVICE inline ref_t operator[](int i) const
-   {
-      return xs[i];
-   }
-};
-
-template <typename XS, typename... Dims>
-inline BufferTensor<sizeof...(Dims),XS> Reshape(XS xs, Dims... dims)
-{
-   return BufferTensor<sizeof...(Dims),XS>(xs, dims...);
-}
-
-class Ker1D {};
-
-#define SYCL_KERNEL(...) { \
-    sycl::queue Q;\
-    Q.submit([&](sycl::handler &h) {__VA_ARGS__}); \
-}
-
-#define SYCL_NAME(LINE) Ker ## LINE
-
-#define SYCL_FORALL(i,N,...)                             \
-   ForallWrap<1>(N, h, [=] MFEM_DEVICE (int i) {__VA_ARGS__})
-
-/// The forall kernel body wrapper
-template <const int DIM, typename BODY>
-inline void ForallWrap(const int N, sycl::handler &h, BODY &&body)
-{
-   if (DIM == 1)
-   {
-      h.parallel_for<Ker1D>(range<1>(N), [=](id<1> k) {body(k);});
-      return;
-   }
-   MFEM_ABORT("Not yet supported!");
-}
-
 // PA Diffusion Apply 3D kernel
 template<int D1D, int Q1D>
 static void PADiffusionApply3D(const int NE,
@@ -105,8 +31,6 @@ static void PADiffusionApply3D(const int NE,
                                const double *d_x,
                                double *d_y)
 {
-   dbg();
-
    constexpr size_t B_sz = Q1D*D1D;
    const size_t D_sz = Q1D*Q1D*Q1D * 6 * NE;
    const size_t X_sz = D1D*D1D*D1D * NE;
@@ -317,7 +241,6 @@ void SyclPADiffusionApply3D(const int D1D,
                             const Vector &x,
                             Vector &y)
 {
-   dbg();
    MFEM_VERIFY(symm, "Only symmetric is supported!");
 
    const double *B = b.HostRead();
@@ -333,8 +256,13 @@ void SyclPADiffusionApply3D(const int D1D,
    switch (ID)
    {
       case 0x23: return PADiffusionApply3D<2,3>(NE,B,G,Bt,Gt,D,X,Y);
-      //case 0x34: return PADiffusionApply3D<3,4>(NE,B,G,Bt,Gt,D,X,Y);
-      //case 0x45: return PADiffusionApply3D<4,5>(NE,B,G,Bt,Gt,D,X,Y);
+      case 0x34: return PADiffusionApply3D<3,4>(NE,B,G,Bt,Gt,D,X,Y);
+      case 0x45: return PADiffusionApply3D<4,5>(NE,B,G,Bt,Gt,D,X,Y);
+      case 0x56: return PADiffusionApply3D<5,6>(NE,B,G,Bt,Gt,D,X,Y);
+      case 0x67: return PADiffusionApply3D<6,7>(NE,B,G,Bt,Gt,D,X,Y);
+      case 0x78: return PADiffusionApply3D<7,8>(NE,B,G,Bt,Gt,D,X,Y);
+      case 0x89: return PADiffusionApply3D<8,9>(NE,B,G,Bt,Gt,D,X,Y);
+      case 0x9A: return PADiffusionApply3D<9,10>(NE,B,G,Bt,Gt,D,X,Y);
       default:   MFEM_ABORT("Order D1D:"<<D1D<<", Q1D:"<<Q1D<<"!");
    }
    MFEM_ABORT("Unknown kernel.");

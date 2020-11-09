@@ -41,7 +41,7 @@
 #endif
 #endif
 
-#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP) || defined(MFEM_USE_SYCL))
 #define MFEM_DEVICE
 #define MFEM_LAMBDA
 #define MFEM_HOST_DEVICE
@@ -52,7 +52,8 @@
 #endif
 
 #if !((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
-      (defined(MFEM_USE_HIP)  && defined(__HIP_DEVICE_COMPILE__)))
+      (defined(MFEM_USE_HIP)  && defined(__HIP_DEVICE_COMPILE__)) ||\
+      (defined(MFEM_USE_SYCL) && defined(__SYCL_DEVICE_ONLY__)))
 #define MFEM_SHARED
 #define MFEM_SYNC_THREAD
 #define MFEM_THREAD_ID(k) 0
