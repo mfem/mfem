@@ -2893,7 +2893,9 @@ ND_P2D_FECollection::ND_P2D_FECollection(const int p, const int dim,
 
    if (dim >= 1)
    {
-      ND_Elements[Geometry::SEGMENT] = new ND_P2D_SegmentElement(p, ob_type);
+      ND_Elements[Geometry::SEGMENT] = new ND_P2D_SegmentElement(p,
+                                                                 cb_type,
+                                                                 ob_type);
       ND_dof[Geometry::SEGMENT] = 2 * p - 1;
 
       SegDofOrd[0] = new int[4 * p - 2];
@@ -2960,6 +2962,189 @@ ND_P2D_FECollection::~ND_P2D_FECollection()
    {
       delete ND_Elements[g];
    }
+}
+
+
+ND_P2D_Trace_FECollection::ND_P2D_Trace_FECollection(const int p, const int dim,
+                                                     const int cb_type,
+                                                     const int ob_type)
+   : ND_P2D_FECollection(p, dim-1, cb_type, ob_type)
+{
+   if (cb_type == BasisType::GaussLobatto &&
+       ob_type == BasisType::GaussLegendre)
+   {
+      snprintf(nd_name, 32, "ND_P2D_Trace_%dD_P%d", dim, p);
+   }
+   else
+   {
+      snprintf(nd_name, 32, "ND_P2D_Trace@%c%c_%dD_P%d",
+               (int)BasisType::GetChar(cb_type),
+               (int)BasisType::GetChar(ob_type), dim, p);
+   }
+}
+
+
+RT_P2D_FECollection::RT_P2D_FECollection(const int p, const int dim,
+                                         const int cb_type, const int ob_type)
+   : ob_type(ob_type)
+{
+   MFEM_VERIFY(p >= 0, "RT_P2D_FECollection requires order >= 0.");
+
+   int cp_type = BasisType::GetQuadrature1D(cb_type);
+   int op_type = BasisType::GetQuadrature1D(ob_type);
+
+   if (Quadrature1D::CheckClosed(cp_type) == Quadrature1D::Invalid)
+   {
+      const char *cb_name = BasisType::Name(cb_type); // this may abort
+      MFEM_ABORT("unknown closed BasisType: " << cb_name);
+   }
+   if (Quadrature1D::CheckOpen(op_type) == Quadrature1D::Invalid)
+   {
+      const char *ob_name = BasisType::Name(ob_type); // this may abort
+      MFEM_ABORT("unknown open BasisType: " << ob_name);
+   }
+
+   InitFaces(p, dim, FiniteElement::INTEGRAL, true);
+
+   if (cb_type == BasisType::GaussLobatto &&
+       ob_type == BasisType::GaussLegendre)
+   {
+      snprintf(rt_name, 32, "RT_P2D_%dD_P%d", dim, p);
+   }
+   else
+   {
+      snprintf(rt_name, 32, "RT_P2D@%c%c_%dD_P%d",
+               (int)BasisType::GetChar(cb_type),
+               (int)BasisType::GetChar(ob_type), dim, p);
+   }
+
+   const int pp1 = p + 1;
+   if (dim == 2)
+   {
+      // TODO: cb_type, ob_type for triangles
+      // RT_Elements[Geometry::TRIANGLE] = new RT_P2D_TriangleElement(p);
+      // RT_dof[Geometry::TRIANGLE] = p*pp1;
+
+      RT_Elements[Geometry::SQUARE] = new RT_P2D_QuadrilateralElement(p,
+                                                                      cb_type,
+                                                                      ob_type);
+      // two vector components * n_unk_face *
+      RT_dof[Geometry::SQUARE] = 2*p*pp1 + p*p;
+   }
+   else
+   {
+      MFEM_ABORT("invalid dim = " << dim);
+   }
+}
+
+// This is a special protected constructor only used by RT_Trace_FECollection
+// and DG_Interface_FECollection
+RT_P2D_FECollection::RT_P2D_FECollection(const int p, const int dim,
+                                         const int map_type,
+                                         const bool signs, const int ob_type)
+   : ob_type(ob_type)
+{
+   if (Quadrature1D::CheckOpen(BasisType::GetQuadrature1D(ob_type)) ==
+       Quadrature1D::Invalid)
+   {
+      const char *ob_name = BasisType::Name(ob_type); // this may abort
+      MFEM_ABORT("Invalid open basis type: " << ob_name);
+   }
+   InitFaces(p, dim, map_type, signs);
+}
+
+void RT_P2D_FECollection::InitFaces(const int p, const int dim,
+                                    const int map_type,
+                                    const bool signs)
+{
+   int op_type = BasisType::GetQuadrature1D(ob_type);
+
+   MFEM_VERIFY(Quadrature1D::CheckOpen(op_type) != Quadrature1D::Invalid,
+               "invalid open point type");
+
+   const int pp1 = p + 1;
+
+   for (int g = 0; g < Geometry::NumGeom; g++)
+   {
+      RT_Elements[g] = NULL;
+      RT_dof[g] = 0;
+   }
+   // Degree of Freedom orderings
+   for (int i = 0; i < 2; i++)
+   {
+      SegDofOrd[i] = NULL;
+   }
+
+   if (dim == 2)
+   {
+      L2_SegmentElement *l2_seg = new L2_SegmentElement(p, ob_type);
+      l2_seg->SetMapType(map_type);
+      RT_Elements[Geometry::SEGMENT] = l2_seg;
+      RT_dof[Geometry::SEGMENT] = pp1;
+
+      SegDofOrd[0] = new int[2*pp1];
+      SegDofOrd[1] = SegDofOrd[0] + pp1;
+      for (int i = 0; i <= p; i++)
+      {
+         SegDofOrd[0][i] = i;
+         SegDofOrd[1][i] = signs ? (-1 - (p - i)) : (p - i);
+      }
+   }
+}
+
+const int *RT_P2D_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                       int Or) const
+{
+   if (GeomType == Geometry::SEGMENT)
+   {
+      return (Or > 0) ? SegDofOrd[0] : SegDofOrd[1];
+   }
+   return NULL;
+}
+
+FiniteElementCollection *RT_P2D_FECollection::GetTraceCollection() const
+{
+   int dim, p;
+   if (!strncmp(rt_name, "RT_P2D_", 7))
+   {
+      dim = atoi(rt_name + 7);
+      p = atoi(rt_name + 11);
+   }
+   else // rt_name = RT_P2D@.._.D_P*
+   {
+      dim = atoi(rt_name + 10);
+      p = atoi(rt_name + 14);
+   }
+   return new RT_P2D_Trace_FECollection(p, dim, FiniteElement::INTEGRAL, ob_type);
+}
+
+RT_P2D_FECollection::~RT_P2D_FECollection()
+{
+   delete [] SegDofOrd[0];
+   for (int g = 0; g < Geometry::NumGeom; g++)
+   {
+      delete RT_Elements[g];
+   }
+}
+
+
+RT_P2D_Trace_FECollection::RT_P2D_Trace_FECollection(const int p, const int dim,
+                                                     const int map_type,
+                                                     const int ob_type)
+   : RT_P2D_FECollection(p, dim, map_type, true, ob_type)
+{
+   const char *prefix =
+      (map_type == FiniteElement::INTEGRAL) ? "RT_P2D_Trace" : "RT_P2D_ValTrace";
+   char ob_str[3] = { '\0', '\0', '\0' };
+
+   if (ob_type != BasisType::GaussLegendre)
+   {
+      ob_str[0] = '@';
+      ob_str[1] = BasisType::GetChar(ob_type);
+   }
+   snprintf(rt_name, 32, "%s%s_%dD_P%d", prefix, ob_str, dim, p);
+
+   MFEM_VERIFY(dim == 2 || dim == 3, "Wrong dimension, dim = " << dim);
 }
 
 
