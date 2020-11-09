@@ -3430,8 +3430,7 @@ public:
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
    virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const
-   { CalcVShape_ND(Trans, shape); }
+                           DenseMatrix &shape) const;
    virtual void CalcCurlShape(const IntegrationPoint &ip,
                               DenseMatrix &curl_shape) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
