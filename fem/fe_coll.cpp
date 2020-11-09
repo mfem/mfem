@@ -2906,7 +2906,7 @@ ND_P2D_FECollection::ND_P2D_FECollection(const int p, const int dim,
       for (int i = 0; i < pm1; i++)
       {
          SegDofOrd[0][p+i] = p + i;
-         SegDofOrd[1][p+i] = -1 - (2 * pm1 - i);
+         SegDofOrd[1][p+i] = 2 * pm1 - i;
       }
    }
 
