@@ -96,13 +96,12 @@ void KellyErrorEstimator::ComputeEstimates()
    }
 
    // 2. Add error contribution from local interior faces
-   auto int_rules = IntegrationRules();
    for (int f = 0; f < pmesh->GetNumFaces(); f++)
    {
       auto FT = pmesh->GetFaceElementTransformations(f);
 
       const auto int_rule =
-         int_rules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(f));
+         IntRules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(f));
       const auto nip = int_rule.GetNPoints();
 
       if (pmesh->FaceIsInterior(f))
@@ -226,7 +225,7 @@ void KellyErrorEstimator::ComputeEstimates()
       }
 
       const auto int_rule =
-         int_rules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(0));
+         IntRules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(0));
       const auto nip = int_rule.GetNPoints();
 
       IntegrationRule eir;
