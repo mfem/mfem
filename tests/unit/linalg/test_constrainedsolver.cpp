@@ -341,4 +341,67 @@ TEST_CASE("ParallelConstrainedSolver", "[Parallel], [ConstrainedSolver]")
 }
 
 
+TEST_CASE("EliminationProjection", "[Parallel], [ConstrainedSolver]")
+{
+   int comm_size;
+   MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
+
+   if (comm_size == 1)
+   {
+      SparseMatrix A(4, 4);
+      for (int i = 0; i < 4; ++i)
+      {
+         A.Add(i, i, 1.0);
+      }
+      A.Finalize();
+      SparseMatrix B(2, 4);
+      B.Add(0, 0, 1.0);
+      B.Add(0, 1, 1.0);
+      B.Add(1, 2, 1.0);
+      B.Add(1, 3, 1.0);
+      B.Finalize();
+
+      Array<int> primary_dofs;
+      primary_dofs.Append(1);
+      primary_dofs.Append(3);
+      Array<int> secondary_dofs;
+      secondary_dofs.Append(0);
+      secondary_dofs.Append(2);
+
+      EliminationProjection ep(A, B, primary_dofs, secondary_dofs);
+      INFO("ep height: " << ep.Height() << ", ep width: " << ep.Width());
+      NodalEliminationProjection nep(A, B);
+
+      SparseMatrix * assembled_ep = ep.AssembleExact();
+
+      Vector x(2);
+      x.Randomize();
+      // x = 0.0;
+      // x(0) = 1.0;
+
+      Vector epy(4), nepy(4), aepy(4);
+
+      ep.Mult(x, epy);
+      nep.Mult(x, nepy);
+      assembled_ep->Mult(x, aepy);
+
+      /*
+      std::cout << "epy:" << std::endl;
+      epy.Print(std::cout);
+      std::cout << "nepy:" << std::endl;
+      nepy.Print(std::cout);
+      std::cout << "aepy:" << std::endl;
+      aepy.Print(std::cout);
+      */
+
+      for (int i = 0; i < 4; ++i)
+      {
+         REQUIRE(epy(i) - nepy(i) == MFEM_Approx(0.0));
+         REQUIRE(epy(i) - aepy(i) == MFEM_Approx(0.0));
+      }
+
+      delete assembled_ep;
+   }
+}
+
 #endif
