@@ -697,6 +697,11 @@ void OuterProductCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
    }
 }
 
+CrossCrossCoefficient::CrossCrossCoefficient(double A, VectorCoefficient &K)
+   : MatrixCoefficient(K.GetVDim(), K.GetVDim()), aConst(A), a(NULL), k(&K),
+     vk(K.GetVDim())
+{}
+
 CrossCrossCoefficient::CrossCrossCoefficient(Coefficient &A,
                                              VectorCoefficient &K)
    : MatrixCoefficient(K.GetVDim(), K.GetVDim()), aConst(0.0), a(&A), k(&K),
