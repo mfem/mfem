@@ -9,6 +9,8 @@
 //   Problem 1: level sets
 //      mpirun -np 4 heat -m ../data/inline-quad.mesh -rs 3 -o 2 -t 1.0 -p 1
 //      mpirun -np 4 heat -m ../data/periodic-square.mesh -rs 5 -o 2 -t 1.0 -p 2
+//      mpirun -np 4 heat -m ../data/periodic-cube.mesh -rs 3 -o 2 -t 1.0 -p 2
+//
 //
 //    K. Crane et al:
 //    Geodesics in Heat: A New Approach to Computing Distance Based on Heat Flow
@@ -23,10 +25,10 @@ using namespace mfem;
 class GradientCoefficient : public VectorCoefficient
 {
 private:
-   GridFunction &u;
+   const GridFunction &u;
 
 public:
-   GradientCoefficient(GridFunction &u_gf, int dim)
+   GradientCoefficient(const GridFunction &u_gf, int dim)
       : VectorCoefficient(dim), u(u_gf) { }
 
    void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
@@ -83,6 +85,185 @@ void DiffuseField(ParGridFunction &field, int smooth_steps)
    delete S;
    delete Lap;
 }
+
+class DistanceFunction
+{
+private:
+   // Collection and space for the distance function.
+   H1_FECollection fec;
+   ParFiniteElementSpace pfes;
+   ParGridFunction distance, source, diffused_source;
+
+   // Diffusion coefficient.
+   double t_param;
+   // Length scale of the mesh.
+   double dx;
+   // List of true essential boundary dofs.
+   Array<int> ess_tdof_list;
+
+public:
+   DistanceFunction(ParMesh &pmesh, int order, double diff_coeff)
+      : fec(order, pmesh.Dimension()),
+        pfes(&pmesh, &fec),
+        distance(&pfes), source(&pfes), diffused_source(&pfes),
+        t_param(diff_coeff)
+   {
+      // Compute average mesh size (assumes similar cells).
+      double loc_area = 0.0;
+      for (int i = 0; i < pmesh.GetNE(); i++)
+      {
+         loc_area += pmesh.GetElementVolume(i);
+      }
+      double glob_area;
+      MPI_Allreduce(&loc_area, &glob_area, 1, MPI_DOUBLE,
+                    MPI_SUM, pfes.GetComm());
+
+      const int glob_zones = pmesh.GetGlobalNE();
+      switch (pmesh.GetElementBaseGeometry(0))
+      {
+         case Geometry::SEGMENT:
+            dx = glob_area / glob_zones; break;
+         case Geometry::SQUARE:
+            dx = sqrt(glob_area / glob_zones); break;
+         case Geometry::TRIANGLE:
+            dx = sqrt(2.0 * glob_area / glob_zones); break;
+         case Geometry::CUBE:
+            dx = pow(glob_area / glob_zones, 1.0/3.0); break;
+         case Geometry::TETRAHEDRON:
+            dx = pow(6.0 * glob_area / glob_zones, 1.0/3.0); break;
+         default: MFEM_ABORT("Unknown zone type!");
+      }
+      dx /= order;
+
+
+      // List of true essential boundary dofs.
+      if (pmesh.bdr_attributes.Size())
+      {
+         Array<int> ess_bdr(pmesh.bdr_attributes.Max());
+         ess_bdr = 1;
+         pfes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      }
+   }
+
+   ParGridFunction &ComputeDistance(Coefficient &level_set,
+                                    int smooth_steps = 0, bool transform = true)
+   {
+      source.ProjectCoefficient(level_set);
+
+      // Optional smoothing of the initial level set.
+      if (smooth_steps > 0) { DiffuseField(source, smooth_steps); }
+
+      // Transform so that the peak is at 0.
+      // Assumes range [0, 1].
+      if (transform)
+      {
+         for (int i = 0; i < source.Size(); i++)
+         {
+            const double x = source(i);
+            source(i) = (x < 0.0 || x > 1.0) ? 0.0 : 4.0 * x * (1.0 - x);
+         }
+      }
+
+      // Solver.
+      CGSolver cg(MPI_COMM_WORLD);
+      cg.SetRelTol(1e-12);
+      cg.SetMaxIter(100);
+      cg.SetPrintLevel(1);
+      OperatorPtr A;
+      Vector B, X;
+
+      // Step 1 - diffuse.
+      {
+         // Set up RHS.
+         ParLinearForm b1(&pfes);
+         GridFunctionCoefficient src_coeff(&source);
+         b1.AddDomainIntegrator(new DomainLFIntegrator(src_coeff));
+         b1.Assemble();
+
+         // Diffusion and mass terms in the LHS.
+         ParBilinearForm a1(&pfes);
+         a1.AddDomainIntegrator(new MassIntegrator);
+         const double dt = t_param * dx * dx;
+         ConstantCoefficient t_coeff(dt);
+         a1.AddDomainIntegrator(new DiffusionIntegrator(t_coeff));
+         a1.Assemble();
+
+         // Solve with Dirichlet BC.
+         ParGridFunction u_dirichlet(&pfes);
+         u_dirichlet = 0.0;
+         a1.FormLinearSystem(ess_tdof_list, u_dirichlet, b1, A, X, B);
+         Solver *prec = new HypreBoomerAMG;
+         cg.SetPreconditioner(*prec);
+         cg.SetOperator(*A);
+         cg.Mult(B, X);
+         a1.RecoverFEMSolution(X, b1, u_dirichlet);
+         delete prec;
+
+         // Diffusion and mass terms in the LHS.
+         ParBilinearForm a_n(&pfes);
+         a_n.AddDomainIntegrator(new MassIntegrator);
+         a_n.AddDomainIntegrator(new DiffusionIntegrator(t_coeff));
+         a_n.Assemble();
+
+         // Solve with Neumann BC.
+         ParGridFunction u_neumann(&pfes);
+         ess_tdof_list.DeleteAll();
+         a_n.FormLinearSystem(ess_tdof_list, u_neumann, b1, A, X, B);
+         Solver *prec2 = new HypreBoomerAMG;
+         cg.SetPreconditioner(*prec2);
+         cg.SetOperator(*A);
+         cg.Mult(B, X);
+         a_n.RecoverFEMSolution(X, b1, u_neumann);
+         delete prec2;
+
+         for (int i = 0; i < diffused_source.Size(); i++)
+         {
+            diffused_source(i) = 0.5 * (u_neumann(i) + u_dirichlet(i));
+         }
+      }
+
+      // Step 2 - solve for the distance using the normalized gradient.
+      {
+         // RHS - normalized gradient.
+         ParLinearForm b2(&pfes);
+         GradientCoefficient grad_u(diffused_source,
+                                    pfes.GetMesh()->Dimension());
+         b2.AddDomainIntegrator(new DomainLFGradIntegrator(grad_u));
+         b2.Assemble();
+
+         // LHS - diffusion.
+         ParBilinearForm a2(&pfes);
+         a2.AddDomainIntegrator(new DiffusionIntegrator);
+         a2.Assemble();
+
+         // No BC.
+         Array<int> no_ess_tdofs;
+
+         a2.FormLinearSystem(no_ess_tdofs, distance, b2, A, X, B);
+
+         Solver *prec2 = new HypreBoomerAMG;
+         cg.SetPreconditioner(*prec2);
+         cg.SetOperator(*A);
+         cg.Mult(B, X);
+         a2.RecoverFEMSolution(X, b2, distance);
+         delete prec2;
+      }
+
+      // Rescale the distance to have minimum at zero.
+      double d_min_loc = distance.Min();
+      double d_min_glob;
+      MPI_Allreduce(&d_min_loc, &d_min_glob, 1, MPI_DOUBLE,
+                    MPI_MIN, pfes.GetComm());
+      distance -= d_min_glob;
+
+      return distance;
+   }
+
+   const ParGridFunction &GetLastSourceGF() const
+   { return source; }
+   const ParGridFunction &GetLastDiffusedSourceGF() const
+   { return diffused_source; }
+};
 
 int main(int argc, char *argv[])
 {
@@ -141,178 +322,42 @@ int main(int argc, char *argv[])
    const int dim = mesh.Dimension();
    for (int lev = 0; lev < rs_levels; lev++) { mesh.UniformRefinement(); }
 
-   // Compute average mesh size (assumes similar cells).
-   double area = 0.0, dx;
-   const int zones_cnt = mesh.GetNE();
-   for (int i = 0; i < zones_cnt; i++) { area += mesh.GetElementVolume(i); }
-   switch (mesh.GetElementBaseGeometry(0))
-   {
-      case Geometry::SEGMENT:
-         dx = area / zones_cnt; break;
-      case Geometry::SQUARE:
-         dx = sqrt(area / zones_cnt); break;
-      case Geometry::TRIANGLE:
-         dx = sqrt(2.0 * area / zones_cnt); break;
-      case Geometry::CUBE:
-         dx = pow(area / zones_cnt, 1.0/3.0); break;
-      case Geometry::TETRAHEDRON:
-         dx = pow(6.0 * area / zones_cnt, 1.0/3.0); break;
-      default: MFEM_ABORT("Unknown zone type!");
-   }
-   dx /= order;
-
    // MPI distribution.
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
-   H1_FECollection fec(order, dim);
-   ParFiniteElementSpace fespace(&pmesh, &fec);
-   ParFiniteElementSpace fespace_vec(&pmesh, &fec, dim);
-   HYPRE_Int size = fespace.GlobalTrueVSize();
-   if (myid == 0) { cout << "Number of FE unknowns: " << size << endl; }
-
-   // List of true essential boundary dofs.
-   Array<int> ess_tdof_list;
-   if (pmesh.bdr_attributes.Size())
-   {
-      Array<int> ess_bdr(pmesh.bdr_attributes.Max());
-      ess_bdr = 1;
-      fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   }
-
-   CGSolver cg(MPI_COMM_WORLD);
-   cg.SetRelTol(1e-12);
-   cg.SetMaxIter(100);
-   cg.SetPrintLevel(1);
-   OperatorPtr A;
-   Vector B, X;
-
-   // Position of the object of interest.
-   ParGridFunction u0(&fespace);
+   Coefficient *ls_coeff;
+   int smooth_steps; bool transform;
    if (problem == 0)
    {
-      DeltaCoefficient dc(0.75, 0.625, 1.0);
-      u0.ProjectCoefficient(dc);
+      ls_coeff = new DeltaCoefficient(0.75, 0.625, 1.0);
+      smooth_steps = 0;
+      transform = false;
    }
    else if (problem == 1)
    {
-      FunctionCoefficient dc(surface_level_set);
-      u0.ProjectCoefficient(dc);
-      DiffuseField(u0, 5);
-
-      // Transform so that the peak is at 0.
-      for (int i = 0; i < u0.Size(); i++)
-      {
-         const double x = u0(i);
-         u0(i) = (x < 0.0 || x > 1.0) ? 0.0 : 4.0 * x * (1.0 - x);
-      }
+      ls_coeff = new FunctionCoefficient(surface_level_set);
+      smooth_steps = 5;
+      transform = true;
    }
    else
    {
-      FunctionCoefficient lset(Gyroid);
-      u0.ProjectCoefficient(lset);
-
-      // Transform so that the peak is at 0.
-      for (int i = 0; i < u0.Size(); i++)
-      {
-         const double x = u0(i);
-         u0(i) = (x < 0.0 || x > 1.0) ? 0.0 : 4.0 * x * (1.0 - x);
-      }
+      ls_coeff = new FunctionCoefficient(Gyroid);
+      smooth_steps = 0;
+      transform = true;
    }
+   DistanceFunction dist_func(pmesh, order, t_param);
+   ParGridFunction &distance = dist_func.ComputeDistance(*ls_coeff,
+                                                         smooth_steps, transform);
+   const ParGridFunction &src = dist_func.GetLastSourceGF(),
+                         &diff_src = dist_func.GetLastDiffusedSourceGF();
+   delete ls_coeff;
 
-   // Solution of the first diffusion step.
-   ParGridFunction u(&fespace);
-   // Final distance function solution.
-   ParGridFunction d(&fespace);
-
-   // Step 1 - diffuse.
-   {
-      // Set up RHS.
-      ParLinearForm b1(&fespace);
-      GridFunctionCoefficient u0_coeff(&u0);
-      b1.AddDomainIntegrator(new DomainLFIntegrator(u0_coeff));
-      b1.Assemble();
-
-      // Diffusion and mass terms in the LHS.
-      ParBilinearForm a1(&fespace);
-      a1.AddDomainIntegrator(new MassIntegrator);
-      const double dt = t_param * dx * dx;
-      ConstantCoefficient t_coeff(dt);
-      a1.AddDomainIntegrator(new DiffusionIntegrator(t_coeff));
-      a1.Assemble();
-
-      // Solve with Dirichlet BC.
-      ParGridFunction u_dirichlet(&fespace);
-      u_dirichlet = 0.0;
-      a1.FormLinearSystem(ess_tdof_list, u_dirichlet, b1, A, X, B);
-      Solver *prec = new HypreBoomerAMG;
-      cg.SetPreconditioner(*prec);
-      cg.SetOperator(*A);
-      cg.Mult(B, X);
-      a1.RecoverFEMSolution(X, b1, u_dirichlet);
-      delete prec;
-
-      // Diffusion and mass terms in the LHS.
-      ParBilinearForm a_n(&fespace);
-      a_n.AddDomainIntegrator(new MassIntegrator);
-      a_n.AddDomainIntegrator(new DiffusionIntegrator(t_coeff));
-      a_n.Assemble();
-
-      // Solve with Neumann BC.
-      ParGridFunction u_neumann(&fespace);
-      ess_tdof_list.DeleteAll();
-      a_n.FormLinearSystem(ess_tdof_list, u_neumann, b1, A, X, B);
-      Solver *prec2 = new HypreBoomerAMG;
-      cg.SetPreconditioner(*prec2);
-      cg.SetOperator(*A);
-      cg.Mult(B, X);
-      a_n.RecoverFEMSolution(X, b1, u_neumann);
-      delete prec2;
-
-      for (int i = 0; i < u.Size(); i++)
-      {
-         //u(i) = u_neumann(i);
-         //u(i) = u_dirichlet(i);
-         u(i) = 0.5 * (u_neumann(i) + u_dirichlet(i));
-      }
-   }
-
-   // Step 2 - normalize the gradient. The x here is only for visualization.
-   GradientCoefficient grad_u(u, dim);
+   H1_FECollection fec(order, dim);
+   ParFiniteElementSpace fespace_vec(&pmesh, &fec, dim);
+   GradientCoefficient grad_u(dist_func.GetLastDiffusedSourceGF(), dim);
    ParGridFunction x(&fespace_vec);
    x.ProjectCoefficient(grad_u);
-
-   // Step 3 - solve for the distance using the normalized gradient.
-   {
-      // RHS - normalized gradient.
-      ParLinearForm b2(&fespace);
-      b2.AddDomainIntegrator(new DomainLFGradIntegrator(grad_u));
-      b2.Assemble();
-
-      // LHS - diffusion.
-      ParBilinearForm a2(&fespace);
-      a2.AddDomainIntegrator(new DiffusionIntegrator);
-      a2.Assemble();
-
-      // No BC.
-      ess_tdof_list.DeleteAll();
-
-      a2.FormLinearSystem(ess_tdof_list, d, b2, A, X, B);
-
-      Solver *prec2 = new HypreBoomerAMG;
-      cg.SetPreconditioner(*prec2);
-      cg.SetOperator(*A);
-      cg.Mult(B, X);
-      a2.RecoverFEMSolution(X, b2, d);
-      delete prec2;
-   }
-
-   // Rescale the distance to have minimum at zero.
-   double d_min_loc = d.Min();
-   double d_min_glob;
-   MPI_Allreduce(&d_min_loc, &d_min_glob, 1, MPI_DOUBLE,
-                 MPI_MIN, fespace.GetComm());
-   d -= d_min_glob;
 
    // Send the solution by socket to a GLVis server.
    if (visualization)
@@ -324,7 +369,7 @@ int main(int argc, char *argv[])
       socketstream sol_sock_w(vishost, visport);
       sol_sock_w << "parallel " << num_procs << " " << myid << "\n";
       sol_sock_w.precision(8);
-      sol_sock_w << "solution\n" << pmesh << u0;
+      sol_sock_w << "solution\n" << pmesh << src;
       sol_sock_w << "window_geometry " << 0 << " " << 0 << " "
                                        << size << " " << size << "\n"
                  << "window_title '" << "u0" << "'\n" << flush;
@@ -332,7 +377,7 @@ int main(int argc, char *argv[])
       socketstream sol_sock_u(vishost, visport);
       sol_sock_u << "parallel " << num_procs << " " << myid << "\n";
       sol_sock_u.precision(8);
-      sol_sock_u << "solution\n" << pmesh << u;
+      sol_sock_u << "solution\n" << pmesh << diff_src;
       sol_sock_u << "window_geometry " << size << " " << 0 << " "
                                        << size << " " << size << "\n"
                  << "window_title '" << "u" << "'\n" << flush;
@@ -349,13 +394,14 @@ int main(int argc, char *argv[])
       socketstream sol_sock_d(vishost, visport);
       sol_sock_d << "parallel " << num_procs << " " << myid << "\n";
       sol_sock_d.precision(8);
-      sol_sock_d << "solution\n" << pmesh << d;
+      sol_sock_d << "solution\n" << pmesh << distance;
       sol_sock_d << "window_geometry " << size << " " << size << " "
                                        << size << " " << size << "\n"
                  << "window_title '" << "Distance" << "'\n"
                  << "keys rRjmm*****\n" << flush;
    }
 
+   /*
    ParaViewDataCollection paraview_dc("Dist", &pmesh);
    paraview_dc.SetPrefixPath("ParaView");
    paraview_dc.SetLevelsOfDetail(order);
@@ -363,9 +409,19 @@ int main(int argc, char *argv[])
    paraview_dc.SetHighOrderOutput(true);
    paraview_dc.SetCycle(0);
    paraview_dc.SetTime(0.0);
-   paraview_dc.RegisterField("w",&u0);
-   paraview_dc.RegisterField("u",&u);
+   paraview_dc.RegisterField("w", &src);
+   paraview_dc.RegisterField("u", &diff_src);
    paraview_dc.Save();
+   */
+
+   ConstantCoefficient zero(0.0);
+   const double u0_norm = src.ComputeL2Error(zero),
+                u_norm  = diff_src.ComputeL2Error(zero),
+                d_norm  = distance.ComputeL2Error(zero);
+   if (myid == 0)
+   {
+     std::cout <<  u0_norm << " "<< u_norm << " " << d_norm << std::endl;
+   }
 
    MPI_Finalize();
    return 0;
