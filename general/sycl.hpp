@@ -16,7 +16,6 @@
 
 #ifdef MFEM_USE_SYCL
 
-#include "../general/debug.hpp"
 #define MFEM_DEVICE
 #define MFEM_LAMBDA
 #define MFEM_HOST_DEVICE
@@ -69,16 +68,11 @@ template <int X, int Y, int Z, typename BODY>
 inline void ForallWrap3D(const int N, sycl::handler &h, BODY &&body)
 {
    if (N == 0) { return; }
-   constexpr int B = X*Y*Z;
    const int L = static_cast<int>(ceil(cbrt(N)));
-   dbg("N:%d, B:%d, L:%d", N, B, L);
    const sycl::range<3> GRID(L*X,L*Y,L*Z);
    const sycl::range<3> BLCK(X,Y,Z);
-
    h.parallel_for(sycl::nd_range<3>(GRID, BLCK), [=](sycl::nd_item<3> itm)
-   {
-      SyKernel3D(N, body, itm);
-   });
+   { SyKernel3D(N, body, itm); });
    return;
 }
 

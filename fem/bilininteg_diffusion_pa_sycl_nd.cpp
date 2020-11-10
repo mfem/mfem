@@ -9,7 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../general/debug.hpp"
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
@@ -59,7 +58,6 @@ static void NDPADiffusionApply3D(const int NE,
                                  const double * __restrict d_x,
                                  double * __restrict d_y)
 {
-   dbg("D1D:%d, Q1D:%d",D1D,Q1D);
    constexpr size_t B_sz = Q1D*D1D;
    const size_t D_sz = Q1D*Q1D*Q1D * 6 * NE;
    const size_t X_sz = D1D*D1D*D1D * NE;
@@ -413,14 +411,14 @@ void SyclNDPADiffusionApply3D(const int D1D,
 
    switch (ID)
    {
-      case 0x23: return NDPADiffusionApply3D<2,3>(NE,B,G,Bt,Gt,D,X,Y);/*
+      case 0x23: return NDPADiffusionApply3D<2,3>(NE,B,G,Bt,Gt,D,X,Y);
       case 0x34: return NDPADiffusionApply3D<3,4>(NE,B,G,Bt,Gt,D,X,Y);
       case 0x45: return NDPADiffusionApply3D<4,5>(NE,B,G,Bt,Gt,D,X,Y);
       case 0x56: return NDPADiffusionApply3D<5,6>(NE,B,G,Bt,Gt,D,X,Y);
       case 0x67: return NDPADiffusionApply3D<6,7>(NE,B,G,Bt,Gt,D,X,Y);
       case 0x78: return NDPADiffusionApply3D<7,8>(NE,B,G,Bt,Gt,D,X,Y);
       case 0x89: return NDPADiffusionApply3D<8,9>(NE,B,G,Bt,Gt,D,X,Y);
-      case 0x9A: return NDPADiffusionApply3D<9,10>(NE,B,G,Bt,Gt,D,X,Y);*/
+      case 0x9A: return NDPADiffusionApply3D<9,10>(NE,B,G,Bt,Gt,D,X,Y);
       default:   MFEM_ABORT("Order D1D:"<<D1D<<", Q1D:"<<Q1D<<"!");
    }
    MFEM_ABORT("Unknown kernel.");

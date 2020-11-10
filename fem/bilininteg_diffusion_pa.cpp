@@ -1886,9 +1886,9 @@ static void PADiffusionApply(const int dim,
       }
       if (dim == 3)
       {
-         static const bool ND = getenv("ND");
-         if (!ND) { SyclPADiffusionApply3D(D1D,Q1D,NE,symm,B,G,Bt,Gt,D,X,Y); }
-         if (ND) { SyclNDPADiffusionApply3D(D1D,Q1D,NE,symm,B,G,Bt,Gt,D,X,Y); }
+         //static const bool ND = getenv("ND");
+         //SyclPADiffusionApply3D(D1D,Q1D,NE,symm,B,G,Bt,Gt,D,X,Y);
+         SyclNDPADiffusionApply3D(D1D,Q1D,NE,symm,B,G,Bt,Gt,D,X,Y);
          return;
       }
       MFEM_ABORT("SYCL PADiffusionApply unknown kernel!");
