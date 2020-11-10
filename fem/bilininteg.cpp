@@ -2985,7 +2985,6 @@ void SBM2Integrator::AssembleFaceMatrix(
    ndofs = ndof1;
    elmat.SetSize(ndofs);
    elmat = 0.0;
-   dgdfi->AssembleFaceMatrix(el1, el2, Trans, elmat);
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
@@ -2993,6 +2992,8 @@ void SBM2Integrator::AssembleFaceMatrix(
       // a simple choice for the integration order; is this OK?
       int order = 4*el1.GetOrder();
       ir = &IntRules.Get(Trans.GetGeometryType(), order);
+      //IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
+      //ir = &IntRulesLo.Get(Trans.GetGeometryType(), order);
    }
 
    Vector D(vD->GetVDim());
@@ -3009,6 +3010,7 @@ void SBM2Integrator::AssembleFaceMatrix(
       // Access the neighboring elements' integration points
       // Note: eip2 will only contain valid data if Elem2 exists
       const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
+      const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
 
       if (dim == 1)
       {
@@ -3018,42 +3020,60 @@ void SBM2Integrator::AssembleFaceMatrix(
       {
          CalcOrtho(Trans.Jacobian(), nor);
       }
+      vD->Eval(D, Trans, ip);
 
-      el1.CalcShape(eip1, shape1);
-      el1.CalcDShape(eip1, dshape1);
+      double nor_dot_d = nor*D;
+      if (nor_dot_d > 0) { nor *= -1; }
 
-      w = ip.weight/Trans.Elem1->Weight(); //alpha_k/det(J)
+      if (elem1f)
+      {
+         el1.CalcShape(eip1, shape1);
+         el1.CalcDShape(eip1, dshape1);
+         w = ip.weight/Trans.Elem1->Weight();
+         CalcAdjugate(Trans.Elem1->Jacobian(), adjJ);
+      }
+      else
+      {
+         el1.CalcShape(eip2, shape1);
+         el1.CalcDShape(eip2, dshape1);
+         w = ip.weight/Trans.Elem2->Weight();
+         CalcAdjugate(Trans.Elem2->Jacobian(), adjJ);
+      }
 
       ni.Set(w, nor); // alpha_k*nor/det(J)
-
-      CalcAdjugate(Trans.Elem1->Jacobian(), adjJ); //adj(J)
       adjJ.Mult(ni, nh);
       dshape1.Mult(nh, dshape1dn); //dphi/dn * Jinv * alpha_k * nor
 
-      el1.CalcPhysDShape(*(Trans.Elem1), dshape2); //dphi/dx
-      vD->Eval(D, Trans, ip);
+      AddMult_a_VWt(-1., dshape1dn, shape1, elmat); //DG diffusion integrator terms
+      AddMult_a_VWt(-1., shape1, dshape1dn, elmat);
+
+      if (elem1f) { el1.CalcPhysDShape(*(Trans.Elem1), dshape2); }
+      else { el1.CalcPhysDShape(*(Trans.Elem2), dshape2); } //dphi/dx
       dshape2.Mult(D, dshape2dd); // dphi/dx.D
 
       AddMult_a_VWt(-1., dshape1dn, dshape2dd, elmat); // (grad u.d, grad w.n)
 
-      double hinvdx = nor*nor/Trans.Elem1->Weight();
+      double hinvdx;
+      if (elem1f) { hinvdx = nor*nor/Trans.Elem1->Weight(); }
+      else { hinvdx = nor*nor/Trans.Elem2->Weight(); }
 
       wrk = shape1;
       w = ip.weight*alpha*hinvdx;
       wrk *= w;
-      AddMultVWt(wrk, shape1, elmat); // + <alpha * hinv * u, w>
+      AddMult_a_VWt(1., wrk, shape1, elmat); // + <alpha * hinv * u, w>
 
       w = ip.weight*alpha*hinvdx;
       wrk = dshape2dd;
       wrk *= w;
-      AddMultVWt(wrk, shape1, elmat); // + < alpha * hinv * grad u.d, w>
+      AddMult_a_VWt(1., wrk, shape1, elmat); // + < alpha * hinv * grad u.d, w>
 
-      AddMultVWt(shape1, wrk, elmat); // + < alpha * hinv * u, grad w.d>
+      AddMult_a_VWt(1., shape1, wrk, elmat); // + < alpha * hinv * u, grad w.d>
 
       w = ip.weight*alpha*hinvdx;
       wrk = dshape2dd;
       wrk *= w;
-      AddMultVWt(wrk, dshape2dd, elmat); // + < alpha * hinv * grad u.d, grad w.d>
+      AddMult_a_VWt(1., wrk, dshape2dd,
+                    elmat); // + < alpha * hinv * grad u.d, grad w.d>
 
    } //p < ir->GetNPoints()
 }

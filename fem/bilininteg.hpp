@@ -2755,6 +2755,7 @@ class SBM2Integrator : public BilinearFormIntegrator
 protected:
    VectorCoefficient *vD; // Distance function coefficient
    double alpha;
+   bool elem1f;
 
    // these are not thread-safe!
    Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
@@ -2770,6 +2771,7 @@ public:
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
+   void SetElem1Flag(bool flag_) { elem1f = flag_; }
 
    virtual ~SBM2Integrator() { delete dgdfi; }
 };

@@ -50,6 +50,22 @@ void LinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi)
    }
 }
 
+void LinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi,
+                                     Array<int> &el_flags)
+{
+   DeltaLFIntegrator *maybe_delta =
+      dynamic_cast<DeltaLFIntegrator *>(lfi);
+   if (!maybe_delta || !maybe_delta->IsDelta())
+   {
+      dlfi.Append(lfi);
+   }
+   else
+   {
+      dlfi_delta.Append(maybe_delta);
+   }
+   dlfi_marker.Append(&el_flags);
+}
+
 void LinearForm::AddBoundaryIntegrator (LinearFormIntegrator * lfi)
 {
    blfi.Append (lfi);
@@ -76,6 +92,18 @@ void LinearForm::AddBdrFaceIntegrator(LinearFormIntegrator *lfi,
    flfi_marker.Append(&bdr_attr_marker);
 }
 
+void LinearForm::AddShiftedBdrFaceIntegrator(LinearFormIntegrator *lfi,
+                                             Array<int> &sbmfaces,
+                                             Array<int> &sbmfaceel,
+                                             Array<int> &sbmfaceflag)
+{
+   sflfi.Append(lfi);
+   sflfi_marker.Append(&sbmfaces);
+   sflfi_el_marker.Append(&sbmfaceel);
+   sflfi_flag_marker.Append(&sbmfaceflag);
+
+}
+
 void LinearForm::Assemble()
 {
    Array<int> vdofs;
@@ -99,6 +127,13 @@ void LinearForm::Assemble()
          for (int k=0; k < dlfi.Size(); k++)
          {
             dlfi[k]->AssembleRHSElementVect(*fes->GetFE(i), *eltrans, elemvect);
+            if (dlfi_marker.Size())
+            {
+               if ((*(dlfi_marker[0]))[i]==1)
+               {
+                  elemvect *= 0.;
+               }
+            }
             AddElementVector (vdofs, elemvect);
          }
       }
@@ -191,6 +226,46 @@ void LinearForm::Assemble()
                                                   *tr, elemvect);
                AddElementVector (vdofs, elemvect);
             }
+         }
+      }
+   }
+   if (sflfi.Size())
+   {
+      FaceElementTransformations *tr;
+      Mesh *mesh = fes->GetMesh();
+
+      for (i = 0; i < sflfi_marker[0]->Size(); i++)
+      {
+         int fnum = (*(sflfi_marker[0]))[i];
+         int faceflag = (*(sflfi_flag_marker[0]))[i];
+         if (faceflag == 1)
+         {
+            tr = mesh->GetInteriorFaceTransformations(fnum);
+         }
+         else
+         {
+            tr = mesh->GetBdrFaceTransformations(fnum);
+         }
+         if (tr != NULL)
+         {
+            int faceel = (*(sflfi_el_marker[0]))[i];
+
+            if (tr->Elem1No == faceel)
+            {
+               fes -> GetElementVDofs (tr -> Elem1No, vdofs);
+               dynamic_cast<SBM2LFIntegrator *>(sflfi[0])->SetElem1Flag(true);
+               sflfi[0] -> AssembleRHSElementVect (*fes->GetFE(tr -> Elem1No),
+                                                   *tr, elemvect);
+            }
+            else
+            {
+               fes -> GetElementVDofs (tr -> Elem2No, vdofs);
+               dynamic_cast<SBM2LFIntegrator *>(sflfi[0])->SetElem1Flag(false);
+               sflfi[0] -> AssembleRHSElementVect (*fes->GetFE(tr -> Elem2No),
+                                                   *tr, elemvect);
+            }
+            //  if (faceflag == 1) { elemvect *= 2.; }
+            AddElementVector (vdofs, elemvect);
          }
       }
    }

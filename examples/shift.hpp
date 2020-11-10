@@ -18,121 +18,15 @@ double dist_fun(const Vector &x)
    double dist0 = rv - ring_radius; // +ve is the domain
    return dist0;
 }
-#undef ring_radius
 
-// trims mesh if elem_flag = 1
-Mesh* trim_mesh(Mesh &mesh, Array<int> trim_flag)
+void dist_vec_c(const Vector &x, Vector &p)
 {
-   MFEM_VERIFY(trim_flag.Size() == mesh.GetNE(), "Length of the flag array must"
-                                                 "be the same as NE.");
-
-
-   // Count the number of elements in the final mesh
-   int num_elements = 0;
-   for (int e=0; e<mesh.GetNE(); e++)
-   {
-      if (trim_flag[e] == 0) { num_elements++; }
-   }
-
-   // Count the number of boundary elements in the final mesh
-   int num_bdr_elements = 0;
-   for (int f=0; f<mesh.GetNumFaces(); f++)
-   {
-      int e1 = -1, e2 = -1;
-      mesh.GetFaceElements(f, &e1, &e2);
-
-      int a1 = 1, a2 = 1;
-      if (e1 >= 0) { a1 = trim_flag[e1]; }
-      if (e2 >= 0) { a2 = trim_flag[e2]; }
-
-      if (a1 == 1 && a2 == 0) { num_bdr_elements++; }
-      if (a1 == 0 && a2 == 1) { num_bdr_elements++; }
-   }
-
-   cout << "Number of Elements:          " << mesh.GetNE() << " -> "
-        << num_elements << endl;
-   cout << "Number of Boundary Elements: " << mesh.GetNBE() << " -> "
-        << num_bdr_elements << endl;
-
-   Mesh *trimmed_mesh = new Mesh(mesh.Dimension(), mesh.GetNV(),
-                                 num_elements, num_bdr_elements, mesh.SpaceDimension());
-
-   // Copy vertices
-   for (int v=0; v<mesh.GetNV(); v++)
-   {
-      trimmed_mesh->AddVertex(mesh.GetVertex(v));
-   }
-
-   // Copy elements
-   for (int e=0; e<mesh.GetNE(); e++)
-   {
-      Element * el = mesh.GetElement(e);
-      int elem_attr = el->GetAttribute();
-      if (trim_flag[e] == 0)
-      {
-         Element * nel = mesh.NewElement(el->GetGeometryType());
-         nel->SetAttribute(elem_attr);
-         nel->SetVertices(el->GetVertices());
-         trimmed_mesh->AddElement(nel);
-      }
-   }
-
-   // Copy existing boundary elements
-   for (int be=0; be<mesh.GetNBE(); be++)
-   {
-      int e, info;
-      mesh.GetBdrElementAdjacentElement(be, e, info);
-
-      int elem_attr = mesh.GetElement(e)->GetAttribute();
-      if (trim_flag[e] == 0)
-      {
-         Element * nbel = mesh.GetBdrElement(be)->Duplicate(trimmed_mesh);
-         trimmed_mesh->AddBdrElement(nbel);
-      }
-   }
-
-   int bndr_attr_max = mesh.bdr_attributes.Max();
-   // Create new boundary elements that are in the interior
-   for (int f=0; f<mesh.GetNumFaces(); f++)
-   {
-      int e1 = -1, e2 = -1;
-      mesh.GetFaceElements(f, &e1, &e2);
-
-      int i1 = -1, i2 = -1;
-      mesh.GetFaceInfos(f, &i1, &i2);
-
-      int a1 = 1, a2 = 1;
-      if (e1 >= 0) { a1 = trim_flag[e1]; }
-      if (e2 >= 0) { a2 = trim_flag[e2]; }
-
-      if (e1 >= 0 && e2 >= 0) { // this means this face was interior
-          if (a1 == 1 && a2 == 0) {
-              Element * bel = (mesh.Dimension() == 1) ?
-                              (Element*)new Point(&f) :
-                              mesh.GetFace(f)->Duplicate(trimmed_mesh);
-              int bdr_atr = mesh.GetAttribute(e2);
-              bdr_atr = bndr_attr_max+1; //internal face
-              bel->SetAttribute(bdr_atr);
-              trimmed_mesh->AddBdrElement(bel);
-          }
-          else if (a1 == 0 && a2 == 1) {
-              Element * bel = (mesh.Dimension() == 1) ?
-                              (Element*)new Point(&f) :
-                              mesh.GetFace(f)->Duplicate(trimmed_mesh);
-              int bdr_atr = mesh.GetAttribute(e1);
-              bdr_atr = bndr_attr_max+1; //internal face
-              bel->SetAttribute(bdr_atr);
-              trimmed_mesh->AddBdrElement(bel);
-          }
-      }
-   }
-
-   trimmed_mesh->FinalizeTopology();
-   trimmed_mesh->Finalize();
-   trimmed_mesh->RemoveUnusedVertices();
-
-   return trimmed_mesh;
+   double dist0 = dist_fun(x);
+   double theta = std::atan2(x(1)-0.5, x(0)-0.5);
+   p(0) = -dist0*std::cos(theta);
+   p(1) = -dist0*std::sin(theta);
 }
+#undef ring_radius
 
 void optimize_mesh_with_distfun(Mesh &mesh, GridFunction &x, GridFunction &dist)
 {
@@ -178,9 +72,10 @@ void optimize_mesh_with_distfun(Mesh &mesh, GridFunction &x, GridFunction &dist)
    size *= 0.;
    aspr *= 0.;
 
-   for (int i = 0; i < disc.Size(); i++) {
-       if (disc(i) <= 0.075) { disc(i) = 0; }
-       else { disc(i) = 1; }
+   for (int i = 0; i < disc.Size(); i++)
+   {
+      if (disc(i) <= 0.075) { disc(i) = 0; }
+      else { disc(i) = 1; }
    }
 
    target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE;
@@ -253,7 +148,8 @@ void optimize_mesh_with_distfun(Mesh &mesh, GridFunction &x, GridFunction &dist)
 
    DiffuseField(size, 2);
 
-   for (int i = 0; i < aspr.Size(); i++) {
+   for (int i = 0; i < aspr.Size(); i++)
+   {
       double aval = aspr(i);
       if (aval < 1.) { aspr(i) = 1. - (1./aval - 1.); }
       aspr(i) = aspr(i)-1.;
@@ -262,46 +158,47 @@ void optimize_mesh_with_distfun(Mesh &mesh, GridFunction &x, GridFunction &dist)
    DiffuseField(aspr, 1);
 
    //move aspr back to 1
-   for (int i = 0; i < aspr.Size(); i++) {
-       aspr(i) = aspr(i)+1.;
-       double aval = aspr(i);
-       if (aval < 1.) { aval = 1. + (1. - aval); aspr(i) = 1./aval; }
+   for (int i = 0; i < aspr.Size(); i++)
+   {
+      aspr(i) = aspr(i)+1.;
+      double aval = aspr(i);
+      if (aval < 1.) { aval = 1. + (1. - aval); aspr(i) = 1./aval; }
    }
 
    tcd->SetSerialDiscreteTargetSize(size);
    //tcd->SetSerialDiscreteTargetAspectRatio(aspr);
    target_c = tcd;
 
-     if (visualization)
-     {
-        osockstream sock(19916, "localhost");
-        sock << "solution\n";
-        mesh.Print(sock);
-        disc.Save(sock);
-        sock.send();
-        sock << "window_title 'Indicator'\n"
-             << "window_geometry "
-             << 000 << " " << 0 << " " << 300 << " " << 300 << "\n"
-             << "keys jRmclA" << endl;
-     }
+   if (visualization)
+   {
+      osockstream sock(19916, "localhost");
+      sock << "solution\n";
+      mesh.Print(sock);
+      disc.Save(sock);
+      sock.send();
+      sock << "window_title 'Indicator'\n"
+           << "window_geometry "
+           << 000 << " " << 0 << " " << 300 << " " << 300 << "\n"
+           << "keys jRmclA" << endl;
+   }
 
-     if (visualization)
-     {
-        osockstream sock(19916, "localhost");
-        sock << "solution\n";
-        mesh.Print(sock);
-        size.Save(sock);
-        sock.send();
-        sock << "window_title 'SIZE'\n"
-             << "window_geometry "
-             << 300 << " " << 0 << " " << 300 << " " << 300 << "\n"
-             << "keys jRmclA" << endl;
-     }
-     //MFEM_ABORT(" ");
+   if (visualization)
+   {
+      osockstream sock(19916, "localhost");
+      sock << "solution\n";
+      mesh.Print(sock);
+      size.Save(sock);
+      sock.send();
+      sock << "window_title 'SIZE'\n"
+           << "window_geometry "
+           << 300 << " " << 0 << " " << 300 << " " << 300 << "\n"
+           << "keys jRmclA" << endl;
+   }
+   //MFEM_ABORT(" ");
 
    target_c->SetNodes(x0);
    TMOP_Integrator *he_nlf_integ =
-           new TMOP_Integrator(metric, target_c);
+      new TMOP_Integrator(metric, target_c);
 
    // Setup the quadrature rules for the TMOP integrator.
    IntegrationRules *irules = &IntRulesLo;
@@ -328,14 +225,14 @@ void optimize_mesh_with_distfun(Mesh &mesh, GridFunction &x, GridFunction &dist)
    NonlinearForm a(fespace);
 
    a.AddDomainIntegrator(he_nlf_integ);
-    const double init_energy = a.GetGridFunctionEnergy(x)/mesh.GetNE();
+   const double init_energy = a.GetGridFunctionEnergy(x)/mesh.GetNE();
 
    // fix_bnd
    if (true)
    {
-         Array<int> ess_bdr(mesh.bdr_attributes.Max());
-         ess_bdr = 1;
-         a.SetEssentialBC(ess_bdr);
+      Array<int> ess_bdr(mesh.bdr_attributes.Max());
+      ess_bdr = 1;
+      a.SetEssentialBC(ess_bdr);
    }
 
    Solver *S = NULL;

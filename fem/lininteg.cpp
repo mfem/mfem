@@ -783,8 +783,6 @@ void SBM2LFIntegrator::AssembleRHSElementVect(
 void SBM2LFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
 {
-   dgdlf->AssembleRHSElementVect(el, Tr, elvect);
-
    int dim, ndof;
    double w;
 
@@ -800,6 +798,7 @@ void SBM2LFIntegrator::AssembleRHSElementVect(
    shape.SetSize(ndof);
    dshape.SetSize(ndof, dim);
    dshape_dd.SetSize(ndof);
+   dshape_dn.SetSize(ndof);
 
    elvect.SetSize(ndof);
    elvect = 0.0;
@@ -823,6 +822,8 @@ void SBM2LFIntegrator::AssembleRHSElementVect(
 
       // Access the neighboring element's integration point
       const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+      const IntegrationPoint &eip1 = Tr.GetElement1IntPoint();
+      const IntegrationPoint &eip2 = Tr.GetElement2IntPoint();
 
       if (dim == 1)
       {
@@ -832,27 +833,58 @@ void SBM2LFIntegrator::AssembleRHSElementVect(
       {
          CalcOrtho(Tr.Jacobian(), nor);
       }
+      vD->Eval(D, Tr, ip);
 
-      el.CalcShape(eip, shape);
-      el.CalcDShape(eip, dshape);
+      double nor_dot_d = nor*D;
+      if (nor_dot_d > 0) { nor *= -1; }
 
-      double hinvdx = nor*nor/Tr.Elem1->Weight();
-      // compute uD through the face transformation
-      w = ip.weight * uD->Eval(Tr, ip) * alpha * hinvdx/Tr.Elem1->Weight();
+      double hinvdx;
+
+      if (elem1f)
+      {
+         el.CalcShape(eip1, shape);
+         el.CalcDShape(eip1, dshape);
+         hinvdx =nor*nor/Tr.Elem1->Weight();
+         w = ip.weight * uD->Eval(Tr, ip) / Tr.Elem1->Weight();
+         CalcAdjugate(Tr.Elem1->Jacobian(), adjJ);
+      }
+      else
+      {
+         el.CalcShape(eip2, shape);
+         el.CalcDShape(eip2, dshape);
+         hinvdx = nor*nor/Tr.Elem2->Weight();
+         w = ip.weight * uD->Eval(Tr, ip) / Tr.Elem2->Weight();
+         CalcAdjugate(Tr.Elem2->Jacobian(), adjJ);
+      }
+
+
+      ni.Set(w, nor);
+      adjJ.Mult(ni, nh);
+
+      dshape.Mult(nh, dshape_dn);
+      elvect.Add(-1., dshape_dn); //T2
+
+      if (elem1f)
+      {
+         w = ip.weight * uD->Eval(Tr, ip) * alpha * hinvdx/Tr.Elem1->Weight();
+      }
+      else
+      {
+         w = ip.weight * uD->Eval(Tr, ip) * alpha * hinvdx/Tr.Elem2->Weight();
+      }
 
       vD->Eval(D, Tr, ip);
 
-      CalcAdjugate(Tr.Elem1->Jacobian(), adjJ);
       adjJ.Mult(D, nh);
       nh *= w;
 
       dshape.Mult(nh, dshape_dd);
-      elvect += dshape_dd;
+      elvect.Add(1., dshape_dd); //T4
 
       wrk = shape;
       w = ip.weight * uD->Eval(Tr, ip) * alpha * hinvdx;
       wrk *= w;
-      elvect += wrk;
+      elvect.Add(1., wrk);  //T3
    }
 }
 

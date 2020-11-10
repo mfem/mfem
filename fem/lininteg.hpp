@@ -460,20 +460,18 @@ public:
 class SBM2LFIntegrator : public LinearFormIntegrator
 {
 protected:
-    Coefficient *uD;
-    VectorCoefficient *vD; // Distance function coefficient
-    double alpha;
+   Coefficient *uD;
+   VectorCoefficient *vD; // Distance function coefficient
+   double alpha;
+   bool elem1f;
 
    // these are not thread-safe!
-   Vector shape, dshape_dd, nor, nh, ni;
+   Vector shape, dshape_dd, dshape_dn, nor, nh, ni;
    DenseMatrix dshape, mq, adjJ;
-
-   DGDirichletLFIntegrator *dgdlf;
 
 public:
    SBM2LFIntegrator(Coefficient &u, const double a, VectorCoefficient &vD_)
-      : uD(&u), vD(&vD_), alpha(a),
-        dgdlf(new DGDirichletLFIntegrator(u, -1., 0.))  { }
+      : uD(&u), vD(&vD_), alpha(a)  { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
@@ -481,8 +479,7 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
-
-   virtual ~SBM2LFIntegrator() { delete dgdlf; }
+   void SetElem1Flag(bool flag_) { elem1f = flag_; }
 };
 
 /** Boundary linear form integrator for imposing non-zero Dirichlet boundary
