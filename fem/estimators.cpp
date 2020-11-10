@@ -61,6 +61,7 @@ void KellyErrorEstimator::ComputeEstimates()
    // https://github.com/mfem/mfem/blob/02d0bfe9c18ce049c3c93a6a4208080fcfc96991/mesh/mesh.hpp#L94
    // [2]
    // https://github.com/mfem/mfem/blob/02d0bfe9c18ce049c3c93a6a4208080fcfc96991/fem/eltrans.hpp#L435
+
    flux_space->Update(false);
 
    auto xfes      = solution->ParFESpace();
@@ -74,12 +75,18 @@ void KellyErrorEstimator::ComputeEstimates()
    ParGridFunction flux(flux_space);
    flux = 0.0;
 
+   // We pre-sort the array to speed up the search in the following loops.
+   if(attributes.Size())
+   {
+      attributes.Sort();
+   }
+
    Array<int> xdofs, fdofs;
    Vector el_x, el_f;
    for (int e = 0; e < xfes->GetNE(); e++)
    {
       auto attr = xfes->GetAttribute(e);
-      if (attributes.Size() && attributes.Find(attr) == -1)
+      if (attributes.Size() && attributes.FindSorted(attr) == -1)
       {
          continue;
       }
@@ -119,8 +126,8 @@ void KellyErrorEstimator::ComputeEstimates()
          if ((FT->Elem1No < FT->Elem2No && isConforming) || isNCSlave)
          {
             if (attributes.Size() &&
-                (attributes.Find(FT->Elem1->Attribute) == -1
-                 || attributes.Find(FT->Elem2->Attribute) == -1))
+                (attributes.FindSorted(FT->Elem1->Attribute) == -1
+                 || attributes.FindSorted(FT->Elem2->Attribute) == -1))
             {
                continue;
             }
@@ -218,8 +225,8 @@ void KellyErrorEstimator::ComputeEstimates()
    {
       auto FT = pmesh->GetSharedFaceTransformations(sf, true);
       if (attributes.Size() &&
-          (attributes.Find(FT->Elem1->Attribute) == -1
-           || attributes.Find(FT->Elem2->Attribute) == -1))
+          (attributes.FindSorted(FT->Elem1->Attribute) == -1
+           || attributes.FindSorted(FT->Elem2->Attribute) == -1))
       {
          continue;
       }
