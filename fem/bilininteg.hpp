@@ -465,7 +465,7 @@ protected:
       : same_calc_shape(false), Q(NULL), VQ(NULL), DQ(NULL), MQ(NULL) {}
    MixedVectorIntegrator(Coefficient &q)
       : same_calc_shape(false), Q(&q), VQ(NULL), DQ(NULL), MQ(NULL) {}
-   MixedVectorIntegrator(VectorCoefficient &dq, bool diag = true)
+   MixedVectorIntegrator(DiagonalMatrixCoefficient &dq, bool diag = true)
       : same_calc_shape(false), Q(NULL), VQ(diag?NULL:&dq), DQ(diag?&dq:NULL),
         MQ(NULL) {}
    MixedVectorIntegrator(MatrixCoefficient &mq)
@@ -503,7 +503,7 @@ protected:
 
    Coefficient *Q;
    VectorCoefficient *VQ;
-   VectorCoefficient *DQ;
+   DiagonalMatrixCoefficient *DQ;
    MatrixCoefficient *MQ;
 
 private:
@@ -901,7 +901,7 @@ public:
    MixedVectorMassIntegrator() { same_calc_shape = true; }
    MixedVectorMassIntegrator(Coefficient &q)
       : MixedVectorIntegrator(q) { same_calc_shape = true; }
-   MixedVectorMassIntegrator(VectorCoefficient &dq)
+   MixedVectorMassIntegrator(DiagonalMatrixCoefficient &dq)
       : MixedVectorIntegrator(dq, true) { same_calc_shape = true; }
    MixedVectorMassIntegrator(MatrixCoefficient &mq)
       : MixedVectorIntegrator(mq) { same_calc_shape = true; }
@@ -1019,7 +1019,7 @@ public:
    MixedGradGradIntegrator() { same_calc_shape = true; }
    MixedGradGradIntegrator(Coefficient &q)
       : MixedVectorIntegrator(q) { same_calc_shape = true; }
-   MixedGradGradIntegrator(VectorCoefficient &dq)
+   MixedGradGradIntegrator(DiagonalMatrixCoefficient &dq)
       : MixedVectorIntegrator(dq, true) { same_calc_shape = true; }
    MixedGradGradIntegrator(MatrixCoefficient &mq)
       : MixedVectorIntegrator(mq) { same_calc_shape = true; }
@@ -1107,7 +1107,7 @@ public:
    MixedCurlCurlIntegrator() { same_calc_shape = true; }
    MixedCurlCurlIntegrator(Coefficient &q)
       : MixedVectorIntegrator(q) { same_calc_shape = true; }
-   MixedCurlCurlIntegrator(VectorCoefficient &dq)
+   MixedCurlCurlIntegrator(DiagonalMatrixCoefficient &dq)
       : MixedVectorIntegrator(dq, true) { same_calc_shape = true; }
    MixedCurlCurlIntegrator(MatrixCoefficient &mq)
       : MixedVectorIntegrator(mq) { same_calc_shape = true; }
@@ -1651,7 +1651,7 @@ public:
    MixedVectorGradientIntegrator() {}
    MixedVectorGradientIntegrator(Coefficient &q)
       : MixedVectorIntegrator(q) {}
-   MixedVectorGradientIntegrator(VectorCoefficient &dq)
+   MixedVectorGradientIntegrator(DiagonalMatrixCoefficient &dq)
       : MixedVectorIntegrator(dq, true) {}
    MixedVectorGradientIntegrator(MatrixCoefficient &mq)
       : MixedVectorIntegrator(mq) {}
@@ -1705,7 +1705,7 @@ public:
    MixedVectorCurlIntegrator() {}
    MixedVectorCurlIntegrator(Coefficient &q)
       : MixedVectorIntegrator(q) {}
-   MixedVectorCurlIntegrator(VectorCoefficient &dq)
+   MixedVectorCurlIntegrator(DiagonalMatrixCoefficient &dq)
       : MixedVectorIntegrator(dq, true) {}
    MixedVectorCurlIntegrator(MatrixCoefficient &mq)
       : MixedVectorIntegrator(mq) {}
@@ -1760,7 +1760,7 @@ public:
    MixedVectorWeakCurlIntegrator() {}
    MixedVectorWeakCurlIntegrator(Coefficient &q)
       : MixedVectorIntegrator(q) {}
-   MixedVectorWeakCurlIntegrator(VectorCoefficient &dq)
+   MixedVectorWeakCurlIntegrator(DiagonalMatrixCoefficient &dq)
       : MixedVectorIntegrator(dq, true) {}
    MixedVectorWeakCurlIntegrator(MatrixCoefficient &mq)
       : MixedVectorIntegrator(mq) {}
@@ -1813,7 +1813,7 @@ public:
    MixedVectorWeakDivergenceIntegrator() {}
    MixedVectorWeakDivergenceIntegrator(Coefficient &q)
       : MixedVectorIntegrator(q) {}
-   MixedVectorWeakDivergenceIntegrator(VectorCoefficient &dq)
+   MixedVectorWeakDivergenceIntegrator(DiagonalMatrixCoefficient &dq)
       : MixedVectorIntegrator(dq, true) {}
    MixedVectorWeakDivergenceIntegrator(MatrixCoefficient &mq)
       : MixedVectorIntegrator(mq) {}
@@ -2345,7 +2345,7 @@ private:
 
 protected:
    Coefficient *Q;
-   VectorCoefficient *DQ;
+   DiagonalMatrixCoefficient *DQ;
    MatrixCoefficient *MQ;
    SymmetricMatrixCoefficient *SMQ;
 
@@ -2362,7 +2362,8 @@ public:
    /// Construct a bilinear form integrator for Nedelec elements
    CurlCurlIntegrator(Coefficient &q, const IntegrationRule *ir = NULL) :
       BilinearFormIntegrator(ir), Q(&q), DQ(NULL), MQ(NULL), SMQ(NULL) { }
-   CurlCurlIntegrator(VectorCoefficient &dq, const IntegrationRule *ir = NULL) :
+   CurlCurlIntegrator(DiagonalMatrixCoefficient &dq,
+                      const IntegrationRule *ir = NULL) :
       BilinearFormIntegrator(ir), Q(NULL), DQ(&dq), MQ(NULL), SMQ(NULL) { }
    CurlCurlIntegrator(MatrixCoefficient &mq, const IntegrationRule *ir = NULL) :
       BilinearFormIntegrator(ir), Q(NULL), DQ(NULL), MQ(&mq), SMQ(NULL) { }
@@ -2458,8 +2459,8 @@ public:
    VectorFEMassIntegrator() { Init(NULL, NULL, NULL, NULL); }
    VectorFEMassIntegrator(Coefficient *_q) { Init(_q, NULL, NULL, NULL); }
    VectorFEMassIntegrator(Coefficient &q) { Init(&q, NULL, NULL, NULL); }
-   VectorFEMassIntegrator(VectorCoefficient *_vq) { Init(NULL, _vq, NULL, NULL); }
-   VectorFEMassIntegrator(VectorCoefficient &vq) { Init(NULL, &vq, NULL, NULL); }
+   VectorFEMassIntegrator(DiagonalMatrixCoefficient *_vq) { Init(NULL, _vq, NULL, NULL); }
+   VectorFEMassIntegrator(DiagonalMatrixCoefficient &vq) { Init(NULL, &vq, NULL, NULL); }
    VectorFEMassIntegrator(MatrixCoefficient *_mq) { Init(NULL, NULL, _mq, NULL); }
    VectorFEMassIntegrator(MatrixCoefficient &mq) { Init(NULL, NULL, &mq, NULL); }
    VectorFEMassIntegrator(SymmetricMatrixCoefficient &smq) { Init(NULL, NULL, NULL, &smq); }

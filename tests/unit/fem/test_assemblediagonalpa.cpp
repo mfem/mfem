@@ -363,7 +363,7 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
          const int numSpaces = (coeffType == 0) ? 2 : 1;
 
          Coefficient* coeff = nullptr;
-         VectorCoefficient* vcoeff = nullptr;
+         DiagonalMatrixCoefficient* dcoeff = nullptr;
          MatrixCoefficient* mcoeff = nullptr;
          SymmetricMatrixCoefficient* smcoeff = nullptr;
          if (coeffType == 0)
@@ -376,7 +376,7 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
          }
          else if (coeffType == 2)
          {
-            vcoeff = new VectorFunctionCoefficient(dimension, &vectorCoeffFunction);
+            dcoeff = new VectorFunctionCoefficient(dimension, &vectorCoeffFunction);
          }
          else if (coeffType == 3)
          {
@@ -445,8 +445,8 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
                         }
                         else if (coeffType == 2)
                         {
-                           paform.AddDomainIntegrator(new VectorFEMassIntegrator(*vcoeff));
-                           faform.AddDomainIntegrator(new VectorFEMassIntegrator(*vcoeff));
+                           paform.AddDomainIntegrator(new VectorFEMassIntegrator(*dcoeff));
+                           faform.AddDomainIntegrator(new VectorFEMassIntegrator(*dcoeff));
                         }
                         else
                         {
@@ -474,8 +474,8 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
                            }
                            else if (coeffType == 2)
                            {
-                              paform.AddDomainIntegrator(new CurlCurlIntegrator(*vcoeff, intRule));
-                              faform.AddDomainIntegrator(new CurlCurlIntegrator(*vcoeff, intRule));
+                              paform.AddDomainIntegrator(new CurlCurlIntegrator(*dcoeff, intRule));
+                              faform.AddDomainIntegrator(new CurlCurlIntegrator(*dcoeff, intRule));
                            }
                            else
                            {
@@ -511,7 +511,7 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
          }  // spaceType
 
          delete coeff;
-         delete vcoeff;
+         delete dcoeff;
          delete mcoeff;
          delete smcoeff;
       }  // coeffType
