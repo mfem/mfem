@@ -446,11 +446,7 @@ private:
 
        Defaults to hₖ=1.0.
    */
-   std::function<double(ParMesh*, const int)> compute_element_coefficient = [](
-      ParMesh* pmesh, const int e)
-   {
-      return 1.0;
-   };
+   std::function<double(ParMesh*, const int)> compute_element_coefficient;
 
    /** @brief A method to compute hₖ on per-face basis.
 
@@ -461,45 +457,7 @@ private:
 
        Defaults to hₖ=diameter/2p.
    */
-   std::function<double(ParMesh*, const int, const bool)> compute_face_coefficient = [](
-      ParMesh* pmesh, const int f, const bool shared_face)
-   {
-      auto FT = [&](){
-         if(shared_face)
-         {
-            return pmesh->GetSharedFaceTransformations(f);
-         }
-         return pmesh->GetFaceElementTransformations(f);
-      }();
-      const auto order = FT->GetFE()->GetOrder();
-
-      // Poor man's face diameter.
-      double diameter = 0.0;
-
-      Vector p1(pmesh->SpaceDimension());
-      Vector p2(pmesh->SpaceDimension());
-      // NOTE: We have no direct access to vertices for shared faces,
-      // so we fall back to compute the positions from the element.
-      // This can also be modified to compute the diameter for non-linear
-      // geometries by sampling along geometry-specific lines.
-      auto vtx_intrule = Geometries.GetVertices(FT->GetGeometryType());
-      const auto nip = vtx_intrule->GetNPoints();
-      for (int i = 0; i < nip; i++)
-      {
-         // Evaluate flux vector at integration point
-         auto fip1 = vtx_intrule->IntPoint(i);
-         FT->Transform(fip1, p1);
-
-         for (int j = 0; j < nip; j++)
-         {
-            auto fip2 = vtx_intrule->IntPoint(j);
-            FT->Transform(fip2, p2);
-
-            diameter = std::max<double>(diameter, p2.DistanceTo(p1));
-         }
-      }
-      return diameter/(2.0*order);
-   };
+   std::function<double(ParMesh*, const int, const bool)> compute_face_coefficient;
 
    BilinearFormIntegrator* flux_integrator; ///< Not owned.
    ParGridFunction* solution;               ///< Not owned.
@@ -535,12 +493,7 @@ public:
    */
    KellyErrorEstimator(BilinearFormIntegrator& di_, ParGridFunction& sol_,
                        ParFiniteElementSpace& flux_fes_,
-                       Array<int> attributes_ = Array<int>())
-      : attributes(attributes_)
-      , flux_integrator(&di_)
-      , solution(&sol_)
-      , flux_space(&flux_fes_)
-   {}
+                       Array<int> attributes_ = Array<int>());
 
    /// Get a Vector with all element errors.
    const Vector& GetLocalErrors() override
@@ -563,7 +516,7 @@ public:
                         compute the local hₖ for the element.
    */
    void SetElementCoefficientFunction(
-         std::function<double(ParMesh*, const int)>
+      std::function<double(ParMesh*, const int)>
       compute_element_coefficient_)
    {
       compute_element_coefficient = compute_element_coefficient_;
@@ -575,11 +528,14 @@ public:
                         compute the local hₖ for the face.
    */
    void SetFaceCoefficientFunction(
-         std::function<double(ParMesh*, const int, const bool)>
+      std::function<double(ParMesh*, const int, const bool)>
       compute_face_coefficient_)
    {
       compute_face_coefficient = compute_face_coefficient_;
    }
+
+   /// Change the coefficients back to default as described above.
+   void ResetCoefficientFunctions();
 };
 
 #endif // MFEM_USE_MPI

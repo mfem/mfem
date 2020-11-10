@@ -48,6 +48,67 @@ void L2ZienkiewiczZhuEstimator::ComputeEstimates()
    current_sequence = solution->FESpace()->GetMesh()->GetSequence();
 }
 
+KellyErrorEstimator::KellyErrorEstimator(BilinearFormIntegrator& di_,
+                                         ParGridFunction& sol_,
+                                         ParFiniteElementSpace& flux_fes_,
+                                         Array<int> attributes_)
+   : attributes(attributes_)
+   , flux_integrator(&di_)
+   , solution(&sol_)
+   , flux_space(&flux_fes_)
+{
+   ResetCoefficientFunctions();
+}
+
+void KellyErrorEstimator::ResetCoefficientFunctions()
+{
+   compute_element_coefficient = [](ParMesh* pmesh, const int e)
+   {
+      return 1.0;
+   };
+
+   compute_face_coefficient = [](ParMesh* pmesh, const int f,
+                                 const bool shared_face)
+   {
+      auto FT = [&]()
+      {
+         if (shared_face)
+         {
+            return pmesh->GetSharedFaceTransformations(f);
+         }
+         return pmesh->GetFaceElementTransformations(f);
+      }();
+      const auto order = FT->GetFE()->GetOrder();
+
+      // Poor man's face diameter.
+      double diameter = 0.0;
+
+      Vector p1(pmesh->SpaceDimension());
+      Vector p2(pmesh->SpaceDimension());
+      // NOTE: We have no direct access to vertices for shared faces,
+      // so we fall back to compute the positions from the element.
+      // This can also be modified to compute the diameter for non-linear
+      // geometries by sampling along geometry-specific lines.
+      auto vtx_intrule = Geometries.GetVertices(FT->GetGeometryType());
+      const auto nip = vtx_intrule->GetNPoints();
+      for (int i = 0; i < nip; i++)
+      {
+         // Evaluate flux vector at integration point
+         auto fip1 = vtx_intrule->IntPoint(i);
+         FT->Transform(fip1, p1);
+
+         for (int j = 0; j < nip; j++)
+         {
+            auto fip2 = vtx_intrule->IntPoint(j);
+            FT->Transform(fip2, p2);
+
+            diameter = std::max<double>(diameter, p2.DistanceTo(p1));
+         }
+      }
+      return diameter/(2.0*order);
+   };
+}
+
 void KellyErrorEstimator::ComputeEstimates()
 {
    // Remarks:
@@ -65,7 +126,8 @@ void KellyErrorEstimator::ComputeEstimates()
    flux_space->Update(false);
 
    auto xfes      = solution->ParFESpace();
-   MFEM_ASSERT(xfes->GetVDim() == 1, "Estimation for vector-valued problems not implemented yet.");
+   MFEM_ASSERT(xfes->GetVDim() == 1,
+               "Estimation for vector-valued problems not implemented yet.");
    auto pmesh     = xfes->GetParMesh();
 
    this->error_estimates.SetSize(xfes->GetNE());
@@ -76,7 +138,7 @@ void KellyErrorEstimator::ComputeEstimates()
    flux = 0.0;
 
    // We pre-sort the array to speed up the search in the following loops.
-   if(attributes.Size())
+   if (attributes.Size())
    {
       attributes.Sort();
    }
