@@ -256,13 +256,13 @@ void SyclPADiffusionApply3D(const int D1D,
    switch (ID)
    {
       case 0x23: return PADiffusionApply3D<2,3>(NE,B,G,Bt,Gt,D,X,Y);
-      case 0x34: return PADiffusionApply3D<3,4>(NE,B,G,Bt,Gt,D,X,Y);
+      /*case 0x34: return PADiffusionApply3D<3,4>(NE,B,G,Bt,Gt,D,X,Y);
       case 0x45: return PADiffusionApply3D<4,5>(NE,B,G,Bt,Gt,D,X,Y);
       case 0x56: return PADiffusionApply3D<5,6>(NE,B,G,Bt,Gt,D,X,Y);
       case 0x67: return PADiffusionApply3D<6,7>(NE,B,G,Bt,Gt,D,X,Y);
       case 0x78: return PADiffusionApply3D<7,8>(NE,B,G,Bt,Gt,D,X,Y);
       case 0x89: return PADiffusionApply3D<8,9>(NE,B,G,Bt,Gt,D,X,Y);
-      case 0x9A: return PADiffusionApply3D<9,10>(NE,B,G,Bt,Gt,D,X,Y);
+      case 0x9A: return PADiffusionApply3D<9,10>(NE,B,G,Bt,Gt,D,X,Y);*/
       default:   MFEM_ABORT("Order D1D:"<<D1D<<", Q1D:"<<Q1D<<"!");
    }
    MFEM_ABORT("Unknown kernel.");
