@@ -129,9 +129,37 @@ void NodalEliminationProjection::Mult(const Vector& x, Vector& y) const
    }
 }
 
-void NodalEliminationProjection::MultTranspose(const Vector& x, Vector& y) const
+void NodalEliminationProjection::MultTranspose(const Vector& in, Vector& out) const
 {
-   mfem_error("Not implemented");
+   int num_elim_dofs = secondary_dofs_.Size();
+   MFEM_ASSERT(out.Size() == A_.Height() - num_elim_dofs, "Sizes don't match!");
+   MFEM_ASSERT(in.Size() == A_.Height(), "Sizes don't match!");
+
+   out = 0.0;
+
+   int row_dof = 0;
+   int sequence = 0;
+   const int * BI = B_.GetI();
+   // const int * BJ = B_.GetJ();
+   const double * Bdata = B_.GetData();
+   for (int i = 0; i < A_.Height(); ++i)
+   {
+      const int brow = secondary_dofs_.Find(i);
+      if (brow >= 0)
+      {
+         for (int jidx = BI[brow] + 1; jidx < BI[brow + 1]; ++jidx)
+         {
+            const double bval = Bdata[jidx];
+            out(mapped_primary_dofs_[sequence]) += secondary_inv_(brow) * bval * in(i);
+            sequence++;
+         }
+      }
+      else
+      {
+         out(row_dof) += -in(i);
+         row_dof++;
+      }
+   }
 }
 
 EliminationProjection::EliminationProjection(SparseMatrix& A, SparseMatrix& B,
