@@ -649,7 +649,7 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff",
       for (int coeffType = 0; coeffType < 3; ++coeffType)
       {
          Coefficient* coeff = nullptr;
-         VectorCoefficient* vcoeff = nullptr;
+         DiagonalMatrixCoefficient* dcoeff = nullptr;
          if (coeffType == 0)
          {
             coeff = new ConstantCoefficient(12.34);
@@ -660,7 +660,7 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff",
          }
          else if (coeffType == 2)
          {
-            vcoeff = new VectorFunctionCoefficient(dimension, &vectorCoeffFunction);
+            dcoeff = new VectorFunctionCoefficient(dimension, &vectorCoeffFunction);
          }
 
          enum MixedSpaces {HcurlH1, HcurlL2, HdivL2, NumSpaceTypes};
@@ -731,13 +731,13 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff",
                      {
                         if (integrator == 0)
                         {
-                           paform->AddDomainIntegrator(new MixedVectorCurlIntegrator(*vcoeff));
-                           assemblyform->AddDomainIntegrator(new MixedVectorCurlIntegrator(*vcoeff));
+                           paform->AddDomainIntegrator(new MixedVectorCurlIntegrator(*dcoeff));
+                           assemblyform->AddDomainIntegrator(new MixedVectorCurlIntegrator(*dcoeff));
                         }
                         else
                         {
-                           paform->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*vcoeff));
-                           assemblyform->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*vcoeff));
+                           paform->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*dcoeff));
+                           assemblyform->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*dcoeff));
                         }
                      }
                      else
@@ -842,7 +842,7 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff",
          }
 
          delete coeff;
-         delete vcoeff;
+         delete dcoeff;
       }
 
       delete mesh;

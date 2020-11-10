@@ -688,6 +688,7 @@ public:
                      const IntegrationRule &ir);
 };
 
+typedef VectorCoefficient DiagonalMatrixCoefficient;
 
 /// Base class for Matrix Coefficients that optionally depend on time and space.
 class MatrixCoefficient
