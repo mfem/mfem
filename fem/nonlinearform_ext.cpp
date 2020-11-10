@@ -13,62 +13,107 @@
 // PABilinearFormExtension and MFBilinearFormExtension.
 
 #include "nonlinearform.hpp"
+#include "../general/forall.hpp"
 
 namespace mfem
 {
 
-NonlinearFormExtension::NonlinearFormExtension(NonlinearForm *form)
-   : Operator(form->FESpace()->GetTrueVSize()), n(form)
+NonlinearFormExtension::NonlinearFormExtension(const NonlinearForm *nlf)
+   : Operator(nlf->FESpace()->GetTrueVSize()), nlf(nlf) { }
+
+PANonlinearFormExtension::PANonlinearFormExtension(NonlinearForm *nlf):
+   NonlinearFormExtension(nlf),
+   fes(*nlf->FESpace()),
+   dnfi(*nlf->GetDNFI()),
+   elemR(fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC))
 {
-   // empty
+   MFEM_VERIFY(elemR, "Not yet implemented!");
+   xe.SetSize(elemR->Height(), Device::GetMemoryType());
+   ye.SetSize(elemR->Height(), Device::GetMemoryType());
+   ye.UseDevice(true);
 }
 
-PANonlinearFormExtension::PANonlinearFormExtension(NonlinearForm *form):
-   NonlinearFormExtension(form), fes(*form->FESpace())
+double PANonlinearFormExtension::GetGridFunctionEnergy(const Vector &x) const
 {
-   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   elem_restrict_lex = fes.GetElementRestriction(ordering);
-   if (elem_restrict_lex)
+   double energy = 0.0;
+
+   elemR->Mult(x, xe);
+   for (int i = 0; i < dnfi.Size(); i++)
    {
-      localX.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
-      localY.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
-      localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
+      energy += dnfi[i]->GetGridFunctionEnergyPA(xe);
    }
+   return energy;
 }
 
-void PANonlinearFormExtension::AssemblePA()
+void PANonlinearFormExtension::Assemble()
 {
-   Array<NonlinearFormIntegrator*> &integrators = *n->GetDNFI();
-   const int Ni = integrators.Size();
-   for (int i = 0; i < Ni; ++i)
-   {
-      integrators[i]->AssemblePA(*n->FESpace());
-   }
+   for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AssemblePA(fes); }
+}
+
+void PANonlinearFormExtension::AssembleGradient(const Vector &x)
+{
+   elemR->Mult(x, xe);
+   for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AssembleGradPA(xe, fes); }
 }
 
 void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
-   Array<NonlinearFormIntegrator*> &integrators = *n->GetDNFI();
-   const int iSz = integrators.Size();
-   if (elem_restrict_lex)
+   ye = 0.0;
+   elemR->Mult(x, xe);
+   for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AddMultPA(xe, ye); }
+   elemR->MultTranspose(ye, y);
+}
+
+Operator &PANonlinearFormExtension::GetGradient(const Vector &x) const
+{
+   if (Grad.Ptr() == nullptr)
    {
-      elem_restrict_lex->Mult(x, localX);
-      localY = 0.0;
-      for (int i = 0; i < iSz; ++i)
-      {
-         integrators[i]->AddMultPA(localX, localY);
-      }
-      elem_restrict_lex->MultTranspose(localY, y);
+      Grad.Reset(new PANonlinearFormExtension::Gradient(x, *this));
    }
    else
    {
-      y.UseDevice(true); // typically this is a large vector, so store on device
-      y = 0.0;
-      for (int i = 0; i < iSz; ++i)
-      {
-         integrators[i]->AddMultPA(x, y);
-      }
+      dynamic_cast<PANonlinearFormExtension::Gradient *>(Grad.Ptr())->ReInit(x);
    }
+   return *Grad.Ptr();
 }
 
+PANonlinearFormExtension::Gradient::Gradient(const Vector &g,
+                                             const PANonlinearFormExtension &e):
+   Operator(e.fes.GetVSize()), elemR(e.elemR), fes(e.fes), dnfi(e.dnfi)
+{
+   ge.UseDevice(true);
+   ge.SetSize(elemR->Height(), Device::GetMemoryType());
+   elemR->Mult(g, ge);
+
+   xe.UseDevice(true);
+   xe.SetSize(elemR->Height(), Device::GetMemoryType());
+
+   ye.UseDevice(true);
+   ye.SetSize(elemR->Height(), Device::GetMemoryType());
+
+   ze.UseDevice(true);
+   ze.SetSize(elemR->Height(), Device::GetMemoryType());
 }
+
+void PANonlinearFormExtension::Gradient::Mult(const Vector &x, Vector &y) const
+{
+   ze = x;
+   ye = 0.0;
+   elemR->Mult(ze, xe);
+   for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AddMultGradPA(ge, xe, ye); }
+   elemR->MultTranspose(ye, y);
+}
+
+void PANonlinearFormExtension::Gradient::AssembleDiagonal(Vector &diag) const
+{
+   MFEM_ASSERT(diag.Size() == fes.GetVSize(),
+               "Vector for holding diagonal has wrong size!");
+   ye = 0.0;
+   for (int i = 0; i < dnfi.Size(); ++i)
+   {
+      dnfi[i]->AssembleGradDiagonalPA(ge, ye);
+   }
+   elemR->MultTranspose(ye, diag);
+}
+
+} // namespace mfem

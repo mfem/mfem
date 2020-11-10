@@ -136,6 +136,11 @@ public:
                           const Array<int> &ess_tdof_list,
                           const double damping=1.0);
 
+   /// The diagonal will be computed by the calls to SetOperator.
+   OperatorJacobiSmoother(int size,
+                          const Array<int> &ess_tdof_list,
+                          const double damping=1.0);
+
    /** Application is by the *inverse* of the given vector. It is assumed that
        the underlying operator acts as the identity on entries in ess_tdof_list,
        corresponding to (assembled) DIAG_ONE policy or ConstrainedOperator in
@@ -143,21 +148,26 @@ public:
    OperatorJacobiSmoother(const Vector &d,
                           const Array<int> &ess_tdof_list,
                           const double damping=1.0);
+
    ~OperatorJacobiSmoother() {}
 
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
-   void SetOperator(const Operator &op) { oper = &op; }
-   void Setup(const Vector &diag);
+
+   /// Recompute the diagonal using the given Operator.
+   void SetOperator(const Operator &op);
 
 private:
-   const int N;
+   int N;
    Vector dinv;
    const double damping;
    const Array<int> &ess_tdof_list;
    mutable Vector residual;
 
    const Operator *oper;
+
+public:
+   void Setup(const Vector &diag);
 };
 
 /// Chebyshev accelerated smoothing with given vector, no matrix necessary

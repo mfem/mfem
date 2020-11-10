@@ -132,6 +132,12 @@ OperatorJacobiSmoother::OperatorJacobiSmoother(const BilinearForm &a,
    Setup(diag);
 }
 
+OperatorJacobiSmoother::OperatorJacobiSmoother(int size,
+                                               const Array<int> &ess_tdofs,
+                                               const double dmpng)
+   : Solver(size), N(size), dinv(N), damping(dmpng),
+     ess_tdof_list(ess_tdofs), residual(N) { }
+
 OperatorJacobiSmoother::OperatorJacobiSmoother(const Vector &d,
                                                const Array<int> &ess_tdofs,
                                                const double dmpng)
@@ -141,9 +147,24 @@ OperatorJacobiSmoother::OperatorJacobiSmoother(const Vector &d,
    dinv(N),
    damping(dmpng),
    ess_tdof_list(ess_tdofs),
-   residual(N)
+   residual(N),
+   oper(NULL)
 {
    Setup(d);
+}
+
+void OperatorJacobiSmoother::SetOperator(const Operator &op)
+{
+   oper = &op;
+
+   Vector diag(N);
+   // Assumes that the result is on the tdofs, e.g., oper is a RAP Operator.
+   // Note that there are operators that work on the ldofs, but their
+   // AssembleDiagonal() is defined w.r.t. the tdofs (e.g. BilinearForm). In
+   // other words, we may have N != op.Size(). This is why the size N is set in
+   // the constructor.
+   oper->AssembleDiagonal(diag);
+   Setup(diag);
 }
 
 void OperatorJacobiSmoother::Setup(const Vector &diag)
@@ -159,13 +180,14 @@ void OperatorJacobiSmoother::Setup(const Vector &diag)
 
 void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
 {
+   MFEM_VERIFY(N > 0, "The diagonal hasn't been computed.");
    MFEM_ASSERT(x.Size() == N, "invalid input vector");
    MFEM_ASSERT(y.Size() == N, "invalid output vector");
 
    if (iterative_mode && oper)
    {
-      oper->Mult(y, residual);  // r = A x
-      subtract(x, residual, residual); // r = b - A x
+      oper->Mult(y, residual);  // r = A y
+      subtract(x, residual, residual); // r = x - A y
    }
    else
    {

@@ -17,28 +17,75 @@
 
 namespace mfem
 {
-class NonlinearForm;
 
+class NonlinearForm;
+class NonlinearFormIntegrator;
+
+/** @brief Class extending the NonlinearForm class to support the different
+    AssemblyLevel%s. */
 class NonlinearFormExtension : public Operator
 {
 protected:
-   NonlinearForm *n; ///< Not owned
+   const NonlinearForm *nlf; ///< Not owned
+
 public:
-   NonlinearFormExtension(NonlinearForm *form);
-   virtual void AssemblePA() = 0;
+   NonlinearFormExtension(const NonlinearForm*);
+
+   /// Assemble at the AssemblyLevel of the subclass.
+   virtual void Assemble() = 0;
+   /// Assemble gradient data at the AssemblyLevel of the subclass, for the
+   /// state @a x, which is assumed to be a ldof Vector.
+   virtual void AssembleGradient(const Vector &x) = 0;
+
+   /// Assumes that @a x is a ldof Vector.
+   virtual Operator &GetGradient(const Vector &x) const = 0;
+
+   /// Assumes that @a x is a ldof Vector.
+   virtual double GetGridFunctionEnergy(const Vector &x) const = 0;
 };
 
 /// Data and methods for partially-assembled nonlinear forms
 class PANonlinearFormExtension : public NonlinearFormExtension
 {
+private:
+   class Gradient : public Operator
+   {
+   protected:
+      const Operator *elemR;
+      const FiniteElementSpace &fes;
+      const Array<NonlinearFormIntegrator*> &dnfi;
+      mutable Vector ge, xe, ye, ze;
+
+   public:
+      /// Assumes that @a g is a ldof Vector.
+      Gradient(const Vector &g, const PANonlinearFormExtension &ext);
+
+      /// Assumes that @a x and @a y are ldof Vector%s.
+      virtual void Mult(const Vector &x, Vector &y) const;
+
+      /// Assumes that @a g is an ldof Vector.
+      void ReInit(const Vector &g) { elemR->Mult(g, ge); }
+
+      /// Assemble the diagonal of the gradient into the ldof Vector @a diag.
+      virtual void AssembleDiagonal(Vector &diag) const;
+   };
+
 protected:
-   const FiniteElementSpace &fes; // Not owned
-   mutable Vector localX, localY;
-   const Operator *elem_restrict_lex; // Not owned
+   mutable Vector xe, ye;
+   mutable OperatorHandle Grad;
+   const FiniteElementSpace &fes;
+   const Array<NonlinearFormIntegrator*> &dnfi;
+   const Operator *elemR;
+
 public:
-   PANonlinearFormExtension(NonlinearForm*);
-   void AssemblePA();
+   PANonlinearFormExtension(NonlinearForm *nlf);
+
+   void Assemble();
+   void AssembleGradient(const Vector &x);
+
    void Mult(const Vector &x, Vector &y) const;
+   Operator &GetGradient(const Vector &x) const;
+   double GetGridFunctionEnergy(const Vector &x) const;
 };
 }
 #endif // NONLINEARFORM_EXT_HPP

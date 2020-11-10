@@ -79,6 +79,16 @@ public:
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
 
+   /// The result of the partial assembly is stored internally so that it can be
+   /// used later in the methods AddMultGradPA() and AssembleGradDiagonalPA().
+   /// The state Vector @a x is a E-vector.
+   virtual void AssembleGradPA(const Vector &x, const FiniteElementSpace &fes);
+
+   /// Compute the local energy with partial assembly.
+   /** Here @a x is an E-vector. This method can be called only after the
+       method AssemblePA() has been called. */
+   virtual double GetGridFunctionEnergyPA(const Vector &x) const;
+
    /// Method for partially assembled action.
    /** Perform the action of integrator on the input @a x and add the result to
        the output @a y. Both @a x and @a y are E-vectors, i.e. they represent
@@ -87,6 +97,24 @@ public:
        This method can be called only after the method AssemblePA() has been
        called. */
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+
+   /// Method for partially assembled gradient action.
+   /** All arguments are E-vectors. This method can be called only after the
+       method AssembleGradPA() has been called.
+
+       @param[in]  g  The gradient Operator is defined at the state @a g.
+       @param[in]  x  The gradient Operator is applied to the Vector @a x.
+       @param[out] y  The RHS of @f$ grad(g) x = y @f$. */
+   virtual void AddMultGradPA(const Vector &g,
+                              const Vector &x, Vector &y) const;
+
+   /// Method for computing the diagonal of the gradient with partial assmebly.
+   /** All arguments are E-vectors. This method can be called only after the
+       method AssembleGradPA() has been called.
+
+       @param[in]  g     The gradient Operator is defined at the state @a g.
+       @param[out] diag  The diagonal of the @f$ grad(g) @f$ Operator. */
+   virtual void AssembleGradDiagonalPA(const Vector &g, Vector &diag) const;
 
    virtual ~NonlinearFormIntegrator() { }
 };

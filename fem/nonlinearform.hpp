@@ -27,9 +27,8 @@ protected:
    /// The assembly level.
    AssemblyLevel assembly;
 
-   /** Extension for supporting Partial Assembly (PA) or
-       Matrix Free assembly (MF). */
-   NonlinearFormExtension *ext;
+   /// Extension for supporting different AssemblyLevel%s
+   NonlinearFormExtension *ext; // owned
 
    /// FE space on which the form lives.
    FiniteElementSpace *fes; // not owned
@@ -45,6 +44,8 @@ protected:
    Array<Array<int>*>              bfnfi_marker; // not owned
 
    mutable SparseMatrix *Grad, *cGrad; // owned
+   /// Gradient of the NonlinearFormExtension. The extension owns it.
+   mutable OperatorHandle hGrad; // not owned.
 
    /// A list of all essential true dofs
    Array<int> ess_tdof_list;
@@ -162,8 +163,12 @@ public:
        set again. */
    virtual void Update();
 
-   /// Setup the NonlinearForm
+   /// Setup the NonlinearForm.
    virtual void Setup();
+
+   /// Setup the gradient of the NonlinearForm at the state @a x, which must be
+   /// a true-dof vector.
+   virtual void SetupGradient(const Vector &x);
 
    /// Get the finite element space prolongation matrix
    virtual const Operator *GetProlongation() const { return P; }
