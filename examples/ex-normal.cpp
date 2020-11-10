@@ -432,27 +432,36 @@ int main(int argc, char *argv[])
    {
       mfem_error("Unrecognized mesh!");
    }
+
    Array<int> x_dofs, y_dofs, z_dofs;
-   SparseMatrix * constraint_mat = BuildNormalConstraints(fespace, constraint_atts,
-                                                          x_dofs, y_dofs, z_dofs);
-   std::cout << "constraint_mat is " << constraint_mat->Height() << " by "
-             << constraint_mat->Width() << std::endl;
-   std::cout << "x_dofs.Size() = " << x_dofs.Size()
-             << ", y_dofs.Size() = " << y_dofs.Size()
-             << ", z_dofs.Size() = " << z_dofs.Size() << std::endl;
+   HypreParMatrix * hconstraints;
+   SparseMatrix * constraint_mat = NULL;
+   if (elimination)
    {
-      std::ofstream out("constraint.sparsematrix");
-      constraint_mat->Print(out, 1);
+      constraint_mat = BuildNormalConstraints(fespace, constraint_atts,
+                                              x_dofs, y_dofs, z_dofs);
+      std::cout << "constraint_mat is " << constraint_mat->Height() << " by "
+                << constraint_mat->Width() << std::endl;
+      std::cout << "x_dofs.Size() = " << x_dofs.Size()
+                << ", y_dofs.Size() = " << y_dofs.Size()
+                << ", z_dofs.Size() = " << z_dofs.Size() << std::endl;
+      {
+         std::ofstream out("constraint.sparsematrix");
+         constraint_mat->Print(out, 1);
+      }
+      HYPRE_Int hconstraints_row_starts[2] = {0, constraint_mat->Height()};
+      HYPRE_Int hconstraints_col_starts[2] = {0, constraint_mat->Width()};
+      hconstraints = new HypreParMatrix(MPI_COMM_WORLD, constraint_mat->Height(),
+                                        constraint_mat->Width(), hconstraints_row_starts,
+                                        hconstraints_col_starts, constraint_mat);
+      hconstraints->CopyRowStarts();
+      hconstraints->CopyColStarts();
    }
-
-   HypreParMatrix * h_constraint_mat = BuildParNormalConstraints(fespace, constraint_atts);
-   h_constraint_mat->Print("hconstraint");
-
-   HYPRE_Int hconstraints_row_starts[2] = {0, constraint_mat->Height()};
-   HYPRE_Int hconstraints_col_starts[2] = {0, constraint_mat->Width()};
-   HypreParMatrix hconstraints(MPI_COMM_WORLD, constraint_mat->Height(),
-                               constraint_mat->Width(), hconstraints_row_starts,
-                               hconstraints_col_starts, constraint_mat);
+   else
+   {
+      hconstraints = BuildParNormalConstraints(fespace, constraint_atts);
+      hconstraints->Print("hconstraint");
+   }
 
    ParLinearForm b(&fespace);
    // for diffusion we may want a more interesting rhs
@@ -501,7 +510,7 @@ int main(int argc, char *argv[])
    if (penalty > 0.0)
    {
       constrained = new PenaltyConstrainedSolver(MPI_COMM_WORLD, *A.As<HypreParMatrix>(),
-                                                 hconstraints, penalty);
+                                                 *hconstraints, penalty);
    }
    else if (elimination)
    {
@@ -513,7 +522,7 @@ int main(int argc, char *argv[])
    else
    {
       constrained = new SchurConstrainedHypreSolver(MPI_COMM_WORLD, *A.As<HypreParMatrix>(),
-                                                    hconstraints);
+                                                    *hconstraints);
    }
    constrained->SetRelTol(reltol);
    constrained->SetAbsTol(1.e-12);
@@ -525,21 +534,25 @@ int main(int argc, char *argv[])
    //     local finite element solution on each processor.
    a.RecoverFEMSolution(X, b, x);
 
+   std::stringstream filename;
    if (penalty > 0.0)
    {
-      std::ofstream out("penalty.vector");
+      filename << "penalty" << myid << ".vector";
+      std::ofstream out(filename.str().c_str());
       out << std::setprecision(14);
       X.Print(out, 1);
    }
    else if (elimination)
    {
-      std::ofstream out("elimination.vector");
+      filename << "elimination" << myid << ".vector";
+      std::ofstream out(filename.str().c_str());
       out << std::setprecision(14);
       X.Print(out, 1);
    }
    else
    {
-      std::ofstream out("schur.vector");
+      filename << "schur" << myid << ".vector";
+      std::ofstream out(filename.str().c_str());
       out << std::setprecision(14);
       X.Print(out, 1);
    }
@@ -573,6 +586,7 @@ int main(int argc, char *argv[])
       delete fec;
    }
    delete constraint_mat;
+   delete hconstraints;
    delete constrained;
 
    return 0;
