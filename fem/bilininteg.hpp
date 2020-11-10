@@ -465,8 +465,8 @@ protected:
       : same_calc_shape(false), Q(NULL), VQ(NULL), DQ(NULL), MQ(NULL) {}
    MixedVectorIntegrator(Coefficient &q)
       : same_calc_shape(false), Q(&q), VQ(NULL), DQ(NULL), MQ(NULL) {}
-   MixedVectorIntegrator(DiagonalMatrixCoefficient &dq, bool diag = true)
-      : same_calc_shape(false), Q(NULL), VQ(diag?NULL:&dq), DQ(diag?&dq:NULL),
+   MixedVectorIntegrator(VectorCoefficient &vq, bool diag = true)
+      : same_calc_shape(false), Q(NULL), VQ(diag?NULL:&vq), DQ(diag?&vq:NULL),
         MQ(NULL) {}
    MixedVectorIntegrator(MatrixCoefficient &mq)
       : same_calc_shape(false), Q(NULL), VQ(NULL), DQ(NULL), MQ(&mq) {}
@@ -2426,9 +2426,9 @@ public:
 class VectorFEMassIntegrator: public BilinearFormIntegrator
 {
 private:
-   void Init(Coefficient *q, VectorCoefficient *vq, MatrixCoefficient *mq,
+   void Init(Coefficient *q, DiagonalMatrixCoefficient *dq, MatrixCoefficient *mq,
              SymmetricMatrixCoefficient *smq)
-   { Q = q; VQ = vq; MQ = mq; SMQ = smq; }
+   { Q = q; DQ = dq; MQ = mq; SMQ = smq; }
 
 #ifndef MFEM_THREAD_SAFE
    Vector shape;
@@ -2441,7 +2441,7 @@ private:
 
 protected:
    Coefficient *Q;
-   VectorCoefficient *VQ;
+   DiagonalMatrixCoefficient *DQ;
    MatrixCoefficient *MQ;
    SymmetricMatrixCoefficient *SMQ;
 
@@ -2459,8 +2459,8 @@ public:
    VectorFEMassIntegrator() { Init(NULL, NULL, NULL, NULL); }
    VectorFEMassIntegrator(Coefficient *_q) { Init(_q, NULL, NULL, NULL); }
    VectorFEMassIntegrator(Coefficient &q) { Init(&q, NULL, NULL, NULL); }
-   VectorFEMassIntegrator(DiagonalMatrixCoefficient *_vq) { Init(NULL, _vq, NULL, NULL); }
-   VectorFEMassIntegrator(DiagonalMatrixCoefficient &vq) { Init(NULL, &vq, NULL, NULL); }
+   VectorFEMassIntegrator(DiagonalMatrixCoefficient *_dq) { Init(NULL, _dq, NULL, NULL); }
+   VectorFEMassIntegrator(DiagonalMatrixCoefficient &dq) { Init(NULL, &dq, NULL, NULL); }
    VectorFEMassIntegrator(MatrixCoefficient *_mq) { Init(NULL, NULL, _mq, NULL); }
    VectorFEMassIntegrator(MatrixCoefficient &mq) { Init(NULL, NULL, &mq, NULL); }
    VectorFEMassIntegrator(SymmetricMatrixCoefficient &smq) { Init(NULL, NULL, NULL, &smq); }
