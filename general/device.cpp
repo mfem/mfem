@@ -33,6 +33,11 @@ namespace internal
 occa::device occaDevice;
 #endif
 
+#ifdef MFEM_USE_SYCL
+// Default sycl::queue used by MFEM.
+sycl::queue syclQueue;
+#endif
+
 #ifdef MFEM_USE_CEED
 Ceed ceed = NULL;
 

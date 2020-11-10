@@ -16,6 +16,11 @@
 namespace mfem
 {
 
+// This variable is defined in device.cpp:
+namespace internal { extern sycl::queue syclQueue; }
+
+sycl::queue &SyclQueue() { return internal::syclQueue; }
+
 #ifdef MFEM_USE_SYCL
 static bool SyGetplatformsInfo(const bool out = false)
 {
