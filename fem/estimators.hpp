@@ -400,9 +400,9 @@ public:
 
 #ifdef MFEM_USE_MPI
 /** @brief The KellyErrorEstimator class provides a fast error indication
-    for smooth scalar parallel problems.
+    strategy for smooth scalar parallel problems.
 
-    A very simple error *indicator* based on the following papers.
+    The Kelly error indicator is based on the following papers:
 
     Kelly, D. W., et al. "A posteriori error analysis and adaptive processes in
     the finite element method: Part I—Error analysis." International journal for
@@ -414,19 +414,20 @@ public:
     1621-1656.
 
     It can be roughly described by:
-        ||∇(u-uₕ)||ₑ ≦ √( C ∑ₖ (hₖ ∫ |J[∇uₕ]|²) dS )
+        ||∇(u-uₕ)||ₑ ≦ √( C hₑ ∑ₖ (hₖ ∫ |J[∇uₕ]|²) dS )
     where "e" denotes an element, ||⋅||ₑ the corresponding local norm and k the
     corresponding faces. u is the analytic solution and uₕ the discretized solution.
-    hₖ is a factor dependend on the element geometry. J is the jump function, i.e.
-    the difference between the limits at each point for each side of the face.
-    A custom method to compute hₖ can be provided. It is also possible to estimate
-    the error only on a subspace by feeding this class an attribute array describing
-    the subspace. The error on boundary faces is ignored.
+    hₖ and hₑ are factors dependend on the face and element geometry. J is the jump
+    function, i.e. the difference between the limits at each point for each side of
+    the face. A custom method to compute hₖ can be provided. It is also possible to
+    estimate the error only on a subspace by feeding this class an attribute array
+    describing the subspace.
 
     @note This algorithm is only for Poisson problems a proper error esimator.
-    The current implementation does not reflect this, because the factor "C" is not
+    The current implementation does not reflect this, because the "C" factor is not
     included.
-    It further assumes that the approximation error at the boundary is small enough.
+    It further assumes that the approximation error at the boundary is small enough,
+    as the implementation ignores boundary faces.
 */
 class KellyErrorEstimator final : public ErrorEstimator
 {
