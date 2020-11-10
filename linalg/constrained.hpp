@@ -83,6 +83,26 @@ protected:
 };
 
 
+/** experimental version of EliminationProjection, the assumption is that
+    each row of B has nonzeros that are unique to it, that is, no other row has
+    nonzeros in the same columns */
+class NodalEliminationProjection : public Operator
+{
+public:
+   NodalEliminationProjection(const SparseMatrix& A, const SparseMatrix& B);
+   void Mult(const Vector& in, Vector& out) const override;
+   void MultTranspose(const Vector& in, Vector& out) const override;
+
+private:
+   const SparseMatrix& A_;
+   const SparseMatrix& B_;
+
+   Vector secondary_inv_;
+   Array<int> primary_dofs_;
+   Array<int> secondary_dofs_;
+   Array<int> mapped_primary_dofs_;
+};
+
 /** @brief Connects eliminated dofs to non-eliminated dofs for EliminationCGSolver
 
     The action of this is (for a certain ordering) \f$ [ I ; -B_s^{-1} B_p ] \f$

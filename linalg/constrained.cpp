@@ -48,6 +48,92 @@ HypreParMatrix* SerialHypreMatrix(SparseMatrix& mat, bool transfer_ownership=tru
    return out;
 }
 
+NodalEliminationProjection::NodalEliminationProjection(const SparseMatrix& A, const SparseMatrix& B)
+   :
+   Operator(A.Height(),
+            A.Height() - B.Height()),
+   A_(A),
+   B_(B),
+   secondary_inv_(B.Height())
+{
+   const int * I = B.GetI();
+   const int * J = B.GetJ();
+   const double * data = B.GetData();
+   for (int i = 0; i < B.Height(); ++i)
+   {
+      const int jidx = I[i];
+      const int j = J[jidx];
+      const double val = data[jidx];
+      MFEM_VERIFY(std::abs(val) > 1.e-14, "Cannot eliminate!");
+      secondary_inv_(i) = 1.0 / val;
+      secondary_dofs_.Append(j);
+      for (int jidx = I[i] + 1; jidx < I[i + 1]; ++jidx)
+      {
+         const int j = J[jidx];
+         primary_dofs_.Append(j);
+      }
+   }
+   primary_dofs_.Sort();
+   // should probably either sort or store some kind of map?
+   // secondary_dofs_.Sort(); // ATB veteran
+
+   int column_dof = 0;
+   for (int i = 0; i < A.Height(); ++i)
+   {
+      if (secondary_dofs_.Find(i) == -1)
+      {
+         // otherwise, dof exists in reduced system (identity)
+         if (primary_dofs_.FindSorted(i) >= 0)
+         {
+            // in addition, mapped_primary_contact_dofs[reduced_id] = larger_id
+            mapped_primary_dofs_.Append(column_dof);
+         }
+         column_dof++;
+      }
+   }
+}
+
+void NodalEliminationProjection::Mult(const Vector& x, Vector& y) const
+{
+   MFEM_VERIFY(x.Size() == width, "Vector size doesn't match!");
+   MFEM_VERIFY(y.Size() == height, "Vector size doesn't match!");
+
+   y = 0.0;
+
+   int column_dof = 0;
+   int sequence = 0;
+   const int * BI = B_.GetI();
+   // const int * BJ = B_.GetJ();
+   const double * Bdata = B_.GetData();
+   for (int i = 0; i < A_.Height(); ++i)
+   {
+      // const int brow = secondary_dofs_.FindSorted(i); // ATB veteran
+      const int brow = secondary_dofs_.Find(i);
+      if (brow >= 0)
+      {
+         double val = 0.0;
+         for (int jidx = BI[brow] + 1; jidx < BI[brow + 1]; ++jidx)
+         {
+            // const int bcol = BJ[jidx];
+            const double bval = Bdata[jidx];
+            val += secondary_inv_(brow) * bval * x(mapped_primary_dofs_[sequence]);
+            sequence++;
+         }
+         y(i) += val;
+      }
+      else
+      {
+         y(i) += -x(column_dof);
+         column_dof++;
+      }
+   }
+}
+
+void NodalEliminationProjection::MultTranspose(const Vector& x, Vector& y) const
+{
+   mfem_error("Not implemented");
+}
+
 EliminationProjection::EliminationProjection(SparseMatrix& A, SparseMatrix& B,
                                              Array<int>& primary_contact_dofs,
                                              Array<int>& secondary_contact_dofs)
@@ -121,6 +207,8 @@ SparseMatrix * EliminationProjection::AssembleExact() const
 
    DenseMatrix block(Bp_);
    // the following line may be expensive in the general case
+   // in many cases Bs_ is actually block diagonal; the idea is easy but the actual
+   // implementation is just a bit annoying
    Bsinverse_.Solve(Bs_.Height(), Bp_.Width(), block.GetData());
 
    for (int iz = 0; iz < secondary_contact_dofs_.Size(); ++iz)
