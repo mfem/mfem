@@ -86,37 +86,25 @@ static void NDPADiffusionApply3D(const int NE,
       const auto x = Reshape(x_, D1D, D1D, D1D, NE);
       auto y = Reshape(y_, D1D, D1D, D1D, NE);
 
-      sycl::accessor<double, 1,
-      sycl::access::mode::read_write,
+      sycl::accessor<double, 1, sycl::access::mode::read_write,
       sycl::access::target::local> localBG(sycl::range<1>(Q1D*D1D), h);
 
-      sycl::accessor<double, 1,
-      sycl::access::mode::read_write,
+      sycl::accessor<double, 1, sycl::access::mode::read_write,
       sycl::access::target::local> localSM0_0(sycl::range<1>(Q1D*Q1D*Q1D), h);
-      sycl::accessor<double, 1,
-      sycl::access::mode::read_write,
+      sycl::accessor<double, 1, sycl::access::mode::read_write,
       sycl::access::target::local> localSM0_1(sycl::range<1>(Q1D*Q1D*Q1D), h);
-      sycl::accessor<double, 1,
-      sycl::access::mode::read_write,
+      sycl::accessor<double, 1, sycl::access::mode::read_write,
       sycl::access::target::local> localSM0_2(sycl::range<1>(Q1D*Q1D*Q1D), h);
-      sycl::accessor<double, 1,
-      sycl::access::mode::read_write,
+
+      sycl::accessor<double, 1, sycl::access::mode::read_write,
       sycl::access::target::local> localSM1_0(sycl::range<1>(Q1D*Q1D*Q1D), h);
-      sycl::accessor<double, 1,
-      sycl::access::mode::read_write,
+      sycl::accessor<double, 1, sycl::access::mode::read_write,
       sycl::access::target::local> localSM1_1(sycl::range<1>(Q1D*Q1D*Q1D), h);
-      sycl::accessor<double, 1,
-      sycl::access::mode::read_write,
+      sycl::accessor<double, 1, sycl::access::mode::read_write,
       sycl::access::target::local> localSM1_2(sycl::range<1>(Q1D*Q1D*Q1D), h);
 
       SYCL_FORALL_3D(e, NE, Q1D, Q1D, 1,
       {
-         /*const int i = itm.get_local_id(0);
-         const int j = itm.get_local_id(1);
-         const int k = itm.get_local_id(2);*/
-         //const int n = itm.get_group_linear_id();
-         //if (i==0 && j==0 && k==0) { kout << "\n\033[31;1m" << e <<" \033[m "; }
-
          constexpr int MQ1 = Q1D;
          constexpr int MD1 = D1D;
          //constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
@@ -126,9 +114,11 @@ static void NDPADiffusionApply3D(const int NE,
          double (*G)[MD1] = (double (*)[MD1]) sBG;
          double (*Bt)[MQ1] = (double (*)[MQ1]) sBG;
          double (*Gt)[MQ1] = (double (*)[MQ1]) sBG;
+
          double *sm0_0= &localSM0_0[0];
          double *sm0_1= &localSM0_1[0];
          double *sm0_2= &localSM0_2[0];
+
          double *sm1_0= &localSM1_0[0];
          double *sm1_1= &localSM1_1[0];
          double *sm1_2= &localSM1_2[0];
@@ -388,13 +378,10 @@ static void NDPADiffusionApply3D(const int NE,
                MFEM_UNROLL(MD1)
                for (int dz = 0; dz < D1D; ++dz)
                {
-                  //const double GyG = (u[dz] + v[dz] + w[dz]);
                   y(dx,dy,dz,e) += (u[dz] + v[dz] + w[dz]);
-                  //kout << " " << GyG;
                }
             }
          }
-         //kout << sycl::endl;
       }); // MFEM_FORALL
    }); // MFEM_KERNEL (Q.submit)
 }
@@ -426,15 +413,14 @@ void SyclNDPADiffusionApply3D(const int D1D,
 
    switch (ID)
    {
-      case 0x23: return NDPADiffusionApply3D<2,3>(NE,B,G,Bt,Gt,D,X,Y);
+      case 0x23: return NDPADiffusionApply3D<2,3>(NE,B,G,Bt,Gt,D,X,Y);/*
       case 0x34: return NDPADiffusionApply3D<3,4>(NE,B,G,Bt,Gt,D,X,Y);
-      /*case 0x45: return NDPADiffusionApply3D<4,5>(NE,B,G,Bt,Gt,D,X,Y);
+      case 0x45: return NDPADiffusionApply3D<4,5>(NE,B,G,Bt,Gt,D,X,Y);
       case 0x56: return NDPADiffusionApply3D<5,6>(NE,B,G,Bt,Gt,D,X,Y);
       case 0x67: return NDPADiffusionApply3D<6,7>(NE,B,G,Bt,Gt,D,X,Y);
       case 0x78: return NDPADiffusionApply3D<7,8>(NE,B,G,Bt,Gt,D,X,Y);
       case 0x89: return NDPADiffusionApply3D<8,9>(NE,B,G,Bt,Gt,D,X,Y);
-      case 0x9A: return NDPADiffusionApply3D<9,10>(NE,B,G,Bt,Gt,D,X,Y);
-      */
+      case 0x9A: return NDPADiffusionApply3D<9,10>(NE,B,G,Bt,Gt,D,X,Y);*/
       default:   MFEM_ABORT("Order D1D:"<<D1D<<", Q1D:"<<Q1D<<"!");
    }
    MFEM_ABORT("Unknown kernel.");
