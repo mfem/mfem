@@ -175,111 +175,111 @@ int main(int argc, char *argv[])
    // auto stop = high_resolution_clock::now();
    // auto duration = duration_cast<microseconds>(stop - start);
    // cout << "time taken for prolongation: " << duration.count()*1e-06 << endl;
-   // cout << "fes created " << endl;
-   // cout << "Number of unknowns in GD: " << fes->GetTrueVSize() << endl;
-   // cout << "Number of unknowns: " << fespace->GetVSize() << endl;
-   // cout << "Number of finite element unknowns: "
-   //      << fespace->GetTrueVSize() << endl;
-   // LinearForm *b = new LinearForm(fespace);
-   // FunctionCoefficient f(f_exact);
-   // FunctionCoefficient u(u_exact);
-   // ConstantCoefficient one(1.0);
-   // ConstantCoefficient zero(0.0);
-   // ConstantCoefficient two(2.0);
-   // ConstantCoefficient zerop(0.01);
-   // VectorFunctionCoefficient uN(dim, u_neumann);
-   // //linear form
-   // b->AddDomainIntegrator(new CutDomainLFIntegrator(f, CutSquareIntRules, EmbeddedElems));
-   // // b->AddDomainIntegrator(new CutDGDirichletLFIntegrator(u, one, sigma, kappa,
-   // //                                                       cutSegmentIntRules));
-   // b->AddDomainIntegrator(new CutDGNeumannLFIntegrator(uN,
-   //                                                     cutSegmentIntRules));
-   // b->AddBdrFaceIntegrator(
-   //     new DGDirichletLFIntegrator(u, one, sigma, kappa));
-   // b->Assemble();
-   // // cout << "RHS: " << endl;
-   // // b->Print();
-   // GridFunction x(fespace);
-   // CentGridFunction y(fes);
-   // VectorFunctionCoefficient exact(1, exact_function);
-   // GridFunction xexact(fespace);
-   // xexact.ProjectCoefficient(exact);
-   // // cout << "exact sol created " << endl;
-   // // xexact.Print();
-   // // cout << "prolongated sol " << endl;
-   // y.ProjectCoefficient(exact);
-   // fes->GetProlongationMatrix()->Mult(y, x);
-   // // x.Print();
-   // // cout << "check prolongation operator " << endl;
-   // // cout << x.ComputeL2Error(u) << endl;
-   // // bilinear form
-   // BilinearForm *a = new BilinearForm(fespace);
-   // a->AddDomainIntegrator(new CutDiffusionIntegrator(one, CutSquareIntRules, EmbeddedElems));
-   // //a->AddDomainIntegrator(new CutBoundaryFaceIntegrator(one, sigma, kappa, cutSegmentIntRules));
-   // a->AddInteriorFaceIntegrator(new CutDGDiffusionIntegrator(one, sigma, kappa,
-   //                                                           immersedFaces, cutinteriorFaces,
-   //                                                           cutInteriorFaceIntRules));
-   // a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
-   // a->Assemble();
-   // a->Finalize();
-   // //const SparseMatrix &A = a->SpMat();
-   // SparseMatrix &Aold = a->SpMat();
-   // SparseMatrix *cp = dynamic_cast<GalerkinDifference *>(fes)->GetCP();
-   // SparseMatrix *p = RAP(*cp, Aold, *cp);
-   // SparseMatrix &A = *p;
-   // ofstream write("stiffmat_lap_cut_gd.txt");
-   // A.PrintMatlab(write);
-   // write.close();
-   // // calculate condition number
-   // // DenseMatrix Ad;
-   // // A.ToDenseMatrix(Ad);
-   // // Vector si;
-   // // Ad.SingularValues(si);
-   // // // cout << "singular values " << endl;
-   // // // si.Print();
-   // // double cond;
-   // // cond = si(0) / si(si.Size() - 1);
-   // // cout << "cond# " << endl;
-   // // cout << cond << endl;
-   // Vector bnew(A.Width());
-   // fes->GetProlongationMatrix()->MultTranspose(*b, bnew);
-   // // Define a simple symmetric Gauss-Seidel preconditioner and use it to
-   // //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
-   // //    non-symmetric one.
-   // GSSmoother M(A);
-   // if (sigma == -1.0)
-   // {
-   //    PCG(A, M, bnew, y, 1, 10000, 1e-40, 0.0);
-   // }
-   // else
-   // {
-   //    GMRES(A, M, bnew, y, 1, 1000, 10, 1e-12, 0.0);
-   // }
-   // //x.Print();
-   // // #else
-   // //    // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-   // //    UMFPackSolver umf_solver;
-   // //    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-   // //    umf_solver.SetOperator(A);
-   // //    umf_solver.Mult(bnew, y);
-   // // #endif
+   cout << "fes created " << endl;
+   cout << "Number of unknowns in GD: " << fes->GetTrueVSize() << endl;
+   cout << "Number of unknowns: " << fespace->GetVSize() << endl;
+   cout << "Number of finite element unknowns: "
+        << fespace->GetTrueVSize() << endl;
+   LinearForm *b = new LinearForm(fespace);
+   FunctionCoefficient f(f_exact);
+   FunctionCoefficient u(u_exact);
+   ConstantCoefficient one(1.0);
+   ConstantCoefficient zero(0.0);
+   ConstantCoefficient two(2.0);
+   ConstantCoefficient zerop(0.01);
+   VectorFunctionCoefficient uN(dim, u_neumann);
+   //linear form
+   b->AddDomainIntegrator(new CutDomainLFIntegrator(f, CutSquareIntRules, EmbeddedElems));
+   // b->AddDomainIntegrator(new CutDGDirichletLFIntegrator(u, one, sigma, kappa,
+   //                                                       cutSegmentIntRules));
+   b->AddDomainIntegrator(new CutDGNeumannLFIntegrator(uN,
+                                                       cutSegmentIntRules));
+   b->AddBdrFaceIntegrator(
+       new DGDirichletLFIntegrator(u, one, sigma, kappa));
+   b->Assemble();
+   // cout << "RHS: " << endl;
+   // b->Print();
+   GridFunction x(fespace);
+   CentGridFunction y(fes);
+   VectorFunctionCoefficient exact(1, exact_function);
+   GridFunction xexact(fespace);
+   xexact.ProjectCoefficient(exact);
+   // cout << "exact sol created " << endl;
+   // xexact.Print();
+   // cout << "prolongated sol " << endl;
+   y.ProjectCoefficient(exact);
+   fes->GetProlongationMatrix()->Mult(y, x);
+   // x.Print();
+   // cout << "check prolongation operator " << endl;
+   // cout << x.ComputeL2Error(u) << endl;
+   // bilinear form
+   BilinearForm *a = new BilinearForm(fespace);
+   a->AddDomainIntegrator(new CutDiffusionIntegrator(one, CutSquareIntRules, EmbeddedElems));
+   //a->AddDomainIntegrator(new CutBoundaryFaceIntegrator(one, sigma, kappa, cutSegmentIntRules));
+   a->AddInteriorFaceIntegrator(new CutDGDiffusionIntegrator(one, sigma, kappa,
+                                                             immersedFaces, cutinteriorFaces,
+                                                             cutInteriorFaceIntRules));
+   a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+   a->Assemble();
+   a->Finalize();
+   //const SparseMatrix &A = a->SpMat();
+   SparseMatrix &Aold = a->SpMat();
+   SparseMatrix *cp = dynamic_cast<GalerkinDifference *>(fes)->GetCP();
+   SparseMatrix *p = RAP(*cp, Aold, *cp);
+   SparseMatrix &A = *p;
+   ofstream write("stiffmat_lap_cut_gd.txt");
+   A.PrintMatlab(write);
+   write.close();
+   // calculate condition number
+   // DenseMatrix Ad;
+   // A.ToDenseMatrix(Ad);
+   // Vector si;
+   // Ad.SingularValues(si);
+   // // cout << "singular values " << endl;
+   // // si.Print();
+   // double cond;
+   // cond = si(0) / si(si.Size() - 1);
+   // cout << "cond# " << endl;
+   // cout << cond << endl;
+   Vector bnew(A.Width());
+   fes->GetProlongationMatrix()->MultTranspose(*b, bnew);
+   // Define a simple symmetric Gauss-Seidel preconditioner and use it to
+   //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
+   //    non-symmetric one.
+   GSSmoother M(A);
+   if (sigma == -1.0)
+   {
+      PCG(A, M, bnew, y, 1, 10000, 1e-40, 0.0);
+   }
+   else
+   {
+      GMRES(A, M, bnew, y, 1, 1000, 10, 1e-12, 0.0);
+   }
+   //x.Print();
+   // #else
+   //    // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+   //    UMFPackSolver umf_solver;
+   //    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+   //    umf_solver.SetOperator(A);
+   //    umf_solver.Mult(bnew, y);
+   // #endif
 
-   // fes->GetProlongationMatrix()->Mult(y, x);
+   fes->GetProlongationMatrix()->Mult(y, x);
 
-   // ofstream adj_ofs("dgSolcirclelap_gd.vtk");
-   // adj_ofs.precision(14);
-   // mesh->PrintVTK(adj_ofs, 1);
-   // x.SaveVTK(adj_ofs, "Solution", 1);
-   // adj_ofs.close();
-   // //double norm = x.ComputeL2Error(u);
-   // double norm = CutComputeL2Error(x, fespace, u, EmbeddedElems, CutSquareIntRules);
-   // cout << "----------------------------- " << endl;
-   // cout << "mesh size, h = " << 1.0 / N << endl;
-   // cout << "solution norm: " << norm << endl;
-   // // x.Print();
-   // // 11. Free the used memory.
-   // delete a;
-   // delete b;
+   ofstream adj_ofs("dgSolcirclelap_gd.vtk");
+   adj_ofs.precision(14);
+   mesh->PrintVTK(adj_ofs, 1);
+   x.SaveVTK(adj_ofs, "Solution", 1);
+   adj_ofs.close();
+   //double norm = x.ComputeL2Error(u);
+   double norm = CutComputeL2Error(x, fespace, u, EmbeddedElems, CutSquareIntRules);
+   cout << "----------------------------- " << endl;
+   cout << "mesh size, h = " << 1.0 / N << endl;
+   cout << "solution norm: " << norm << endl;
+   // x.Print();
+   // 11. Free the used memory.
+   delete a;
+   delete b;
    delete fespace;
    delete fec;
    delete mesh;
