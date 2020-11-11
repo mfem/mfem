@@ -25,6 +25,9 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
+SHIFTED_COMMON_SRC = distfunction.cpp
+SHIFTED_COMMON_OBJ = $(SHIFTED_COMMON_SRC:.cpp=.o)
+
 PAR_MINIAPPS = distance
 
 ifeq ($(MFEM_USE_MPI),NO)
@@ -48,8 +51,11 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 %: %.cpp
 
 # Replace the default implicit rule for *.cpp files
-%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_LIB) $(MFEM_LIBS)
+%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common $(SHIFTED_COMMON_OBJ) 
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_LIB) $(MFEM_LIBS) $(SHIFTED_COMMON_OBJ)
+	
+%.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
 all: $(MINIAPPS)
 
