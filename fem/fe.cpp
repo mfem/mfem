@@ -1019,7 +1019,25 @@ void VectorFiniteElement::Project_RT(
    }
    else
    {
-      mfem_error("VectorFiniteElement::Project_RT (fe version)");
+      Vector vk(dim);
+      DenseMatrix vshape(fe.GetDof(), dim);
+
+      I.SetSize(dof, fe.GetDof());
+      for (int k = 0; k < dof; k++)
+      {
+         const IntegrationPoint &ip = Nodes.IntPoint(k);
+         Trans.SetIntPoint(&ip);
+         Trans.AdjugateJacobian().MultTranspose(nk + d2n[k]*dim, vk);
+         fe.CalcVShape(Trans, vshape);
+         for (int j = 0; j < fe.GetDof(); j++)
+         {
+            I(k, j) = 0.0;
+            for (int d=0; d<dim; d++)
+            {
+               I(k, j) += vshape(j, d) * vk(d);
+            }
+         }
+      }
    }
 }
 
@@ -1206,7 +1224,24 @@ void VectorFiniteElement::Project_ND(
    }
    else
    {
-      mfem_error("VectorFiniteElement::Project_ND (fe version)");
+      Vector vk(dim);
+      DenseMatrix vshape(fe.GetDof(), dim);
+      I.SetSize(dof, fe.GetDof());
+      for (int k = 0; k < dof; k++)
+      {
+         const IntegrationPoint &ip = Nodes.IntPoint(k);
+         Trans.SetIntPoint(&ip);
+         Trans.Jacobian().Mult(tk + d2t[k]*dim, vk);
+         fe.CalcVShape(Trans, vshape);
+         for (int j = 0; j < fe.GetDof(); j++)
+         {
+            I(k, j) = 0.0;
+            for (int d=0; d<dim; d++)
+            {
+               I(k, j) += vshape(j, d) * vk(d);
+            }
+         }
+      }
    }
 }
 
