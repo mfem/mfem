@@ -523,10 +523,10 @@ public:
 
    virtual double GetTotalError() const override { return total_error; }
 
-   /** @brief Change the method to compute hₖ on a per-element basis.
+   /** @brief Change the method to compute hₑ on a per-element basis.
        @param compute_element_coefficient_
                         A function taking a mesh and an element index to
-                        compute the local hₖ for the element.
+                        compute the local hₑ for the element.
    */
    void SetElementCoefficientFunction(ElementCoefficientFunction
                                       compute_element_coefficient_)
