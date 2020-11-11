@@ -19,6 +19,11 @@
 //               mpirun -np 4 ex15p -m ../data/square-disc.mesh
 //               mpirun -np 4 ex15p -m ../data/escher.mesh -r 2 -tf 0.3
 //
+//               Other estimators:
+//
+//               mpirun -np 4 ex15p -est 1 -e 1e-6
+//               mpirun -np 4 ex15p -est 1 -o 3 -tf 0.3
+//
 // Description:  Building on Example 6, this example demonstrates dynamic AMR.
 //               The mesh is adapted to a time-dependent solution by refinement
 //               as well as by derefinement. For simplicity, the solution is
@@ -109,7 +114,7 @@ int main(int argc, char *argv[])
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&which_estimator, "-est", "--estimator",
-                  "Which estmator to use: 0 = L2ZZ, 1 = Kelly.");
+                  "Which estimator to use: 0 = L2ZZ, 1 = Kelly. Defaults to L2ZZ.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -336,9 +341,7 @@ int main(int argc, char *argv[])
          refiner.Apply(pmesh);
          if (myid == 0)
          {
-            //TODO how to handle this?
-            //cout << ", total error: " << estimator->GetTotalError() << endl;
-            cout << endl;
+            cout << ", total error: " << estimator->GetTotalError() << endl;
          }
 
          // 21. Quit the AMR loop if the termination criterion has been met
@@ -367,6 +370,8 @@ int main(int argc, char *argv[])
          UpdateAndRebalance(pmesh, fespace, x, a, b);
       }
    }
+
+   delete estimator;
 
    // 25. Exit
    MPI_Finalize();
