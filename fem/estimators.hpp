@@ -437,11 +437,12 @@ public:
 class KellyErrorEstimator final : public ErrorEstimator
 {
 public:
-   /// Function type to compute the coefficient of an element.
-   using ElementCoefFun = std::function<double(ParMesh*, const int)>;
-   /// Function type to compute the coefficient of a face. The third argument
+   /// Function type to compute the local coefficient hₑ of an element.
+   using ElementCoefficientFunction = std::function<double(ParMesh*, const int)>;
+   /// Function type to compute the local coefficient hₖ of a face. The third argument
    /// is true for shared faces and false for local faces.
-   using FaceCoefFun = std::function<double(ParMesh*, const int, const bool)>;
+   using FaceCoefficientFunction =
+      std::function<double(ParMesh*, const int, const bool)>;
 
 private:
    int current_sequence = -1;
@@ -452,13 +453,13 @@ private:
 
    Array<int> attributes;
 
-   /** @brief A method to compute hₖ on per-element basis.
+   /** @brief A method to compute hₑ on per-element basis.
 
        This method weights the error approximation on the element level.
 
-       Defaults to hₖ=1.0.
+       Defaults to hₑ=1.0.
    */
-   ElementCoefFun compute_element_coefficient;
+   ElementCoefficientFunction compute_element_coefficient;
 
    /** @brief A method to compute hₖ on per-face basis.
 
@@ -469,7 +470,7 @@ private:
 
        Defaults to hₖ=diameter/2p.
    */
-   FaceCoefFun compute_face_coefficient;
+   FaceCoefficientFunction compute_face_coefficient;
 
    BilinearFormIntegrator* flux_integrator; ///< Not owned.
    ParGridFunction* solution;               ///< Not owned.
@@ -527,20 +528,19 @@ public:
                         A function taking a mesh and an element index to
                         compute the local hₖ for the element.
    */
-   void SetElementCoefficientFunction(
-      std::function<double(ParMesh*, const int)>
-      compute_element_coefficient_)
+   void SetElementCoefficientFunction(ElementCoefficientFunction
+                                      compute_element_coefficient_)
    {
       compute_element_coefficient = compute_element_coefficient_;
    }
 
    /** @brief Change the method to compute hₖ on a per-element basis.
-       @param compute_element_coefficient_
+       @param compute_face_coefficient_
                         A function taking a mesh and a face index to
                         compute the local hₖ for the face.
    */
    void SetFaceCoefficientFunction(
-      std::function<double(ParMesh*, const int, const bool)>
+      FaceCoefficientFunction
       compute_face_coefficient_)
    {
       compute_face_coefficient = compute_face_coefficient_;
