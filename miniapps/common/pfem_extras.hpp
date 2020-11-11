@@ -201,6 +201,41 @@ void VisualizeField(socketstream &sock, const char *vishost, int visport,
                     int x = 0, int y = 0, int w = 400, int h = 400,
                     const char *keys = NULL, bool vec = false);
 
+class Visualizer
+{
+protected:
+   socketstream sock;
+   std::string host;
+   int port;
+
+   std::string Wtitle;
+   std::string Wkeys;
+   int Wx, Wy, Ww, Wh;
+
+   bool new_title;
+   bool new_geom;
+   bool new_keys;
+
+public:
+   Visualizer(const std::string &vishost = "localhost", int visport = 19916);
+   ~Visualizer() { sock.close(); }
+
+   void Close() { sock.close(); }
+
+   void SetPrecision(int prec) { sock.precision(prec); }
+
+   void SetPosition(int x, int y);
+   void SetSize(int w, int h);
+   void SetGeometry(int x, int y, int w, int h);
+
+   void SetTitle(const std::string &title);
+   void SetKeys(const std::string &keys);
+
+   void VisMesh(ParMesh &pmesh);
+   void VisField(ParGridFunction &gf);
+};
+
+
 } // namespace common
 
 } // namespace mfem

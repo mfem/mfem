@@ -112,6 +112,151 @@ public:
 };
 
 
+/// The ODEController and related classes are based on the algorithms described
+/// in "A _PI_ Stepsize Control For The Numerical Solution of Ordinary
+/// Differential Equations" by K. Gustafsson, M. Lundh, and G. Soderlind, BIT
+/// Numerical Mathematics, Vol. 28, Issue 2, pages 270-287 (1988).
+
+class ODEEmbeddedSolver;
+class ODERelativeErrorMeasure;
+class ODEStepAdjustmentFactor;
+class ODEStepAdjustmentLimiter;
+
+/** The ODEController class is designed to adaptively adjust the step size
+    used with the ODESolver classes. The goal is to maintain some measure of
+    the solution error at a user specified level.
+ */
+class ODEController
+{
+protected:
+   ODEEmbeddedSolver        * sol;
+   ODERelativeErrorMeasure  * msr;
+   ODEStepAdjustmentFactor  * acc;
+   ODEStepAdjustmentFactor  * rej;
+   ODEStepAdjustmentLimiter * lim;
+   double tol;
+   double rho;
+   double curr_r;
+   double min_dt;
+   bool   epus;
+
+   int ofreq;
+   int nsteps;
+
+   int nrejs;
+   int nrejs_tot;
+   int max_nrejs;
+
+   mutable Vector next_x;
+   mutable Vector error;
+   mutable double dt;
+
+   std::ostream * out;
+   bool log_sol_;
+
+public:
+   ODEController()
+      : sol(NULL), msr(NULL), acc(NULL), rej(NULL), lim(NULL),
+        tol(-1.0), rho(1.2), curr_r(-1.0), min_dt(-1.0), epus(false),
+        ofreq(-1), nsteps(0), nrejs(0), nrejs_tot(0), max_nrejs(1000), dt(1.0),
+        out(NULL), log_sol_(false) {}
+
+   /// Define the particulars of the ODE step-size control process
+   /** The various pieces are:
+        sol - Computes a possible update of the field at the next time step
+        msr - Computes relative change in the field from two sucessive steps
+        acc - Computes a new step size when the previous step was accepted
+        rej - Computes a new step size when the previous step was rejected
+        lim - Imposes limits on the next time step
+   */
+   void Init(ODEEmbeddedSolver &sol, ODERelativeErrorMeasure &msr,
+             ODEStepAdjustmentFactor &acc, ODEStepAdjustmentFactor &rej,
+             ODEStepAdjustmentLimiter &lim)
+   {
+      this->sol = &sol; this->msr = &msr;
+      this->acc = &acc; this->rej = &rej;
+      this->lim = &lim;
+   }
+
+   /// Returns the current time step
+   double GetTimeStep() const { return this->dt; }
+
+   /// Returns the number of successful steps
+   int GetNSteps() const { return nsteps; }
+
+   /// Returns the number of rejected steps
+   int GetNRejectedSteps() const { return nrejs_tot; }
+
+   /// Sets (or resets) the initial time step
+   void SetTimeStep(double dt) { this->dt = dt; }
+
+   /// Sets the minimum allowable time step
+   void SetMinTimeStep(double min_dt) { this->min_dt = min_dt; }
+
+   /// Sets the error target for the control process
+   void SetTolerance(double tol);
+
+   /// Sets the threshold for rejection of a time step to be rho * tol
+   void SetRejectionLimit(double rho) { this->rho = rho; }
+
+   /// Sets the maximum number of successively rejected steps
+   void SetMaxRejectCount(int max_nrejs) { this->max_nrejs = max_nrejs; }
+
+   bool GetErrorPerUnitStep() const { return this->epus; }
+   void SetErrorPerStep() { epus = false; }
+   void SetErrorPerUnitStep() { epus = true; }
+
+   void SetOutputFrequency(int ofreq) { this->ofreq = ofreq; }
+
+   void SetOutput(std::ostream & os, bool log_sol = false)
+   { this->out = &os; log_sol_ = log_sol; }
+
+   virtual void Step(Vector &x, double &t, double delta_t);
+
+   /// Advances the solution vector x from time t to tf
+   virtual void Run(Vector &x, double &t, double tf);
+};
+
+/// Computes a measure of the relative error in an ODE solution
+class ODERelativeErrorMeasure
+{
+protected:
+   ODERelativeErrorMeasure() {}
+
+public:
+   virtual ~ODERelativeErrorMeasure() {}
+
+   virtual double Eval(Vector &x, Vector &error) = 0;
+};
+
+class ODEStepAdjustmentFactor
+{
+protected:
+   double tol;
+
+   ODEStepAdjustmentFactor() : tol(-1.0) {}
+
+public:
+   virtual ~ODEStepAdjustmentFactor() {}
+
+   void SetTolerance(double tol) { this->tol = tol; }
+
+   virtual void Reset() {}
+
+   virtual double operator()(double err) const = 0;
+};
+
+class ODEStepAdjustmentLimiter
+{
+protected:
+   ODEStepAdjustmentLimiter() {}
+
+public:
+   virtual ~ODEStepAdjustmentLimiter() {}
+
+   virtual double operator()(double theta) const = 0;
+};
+
 /// The classical forward Euler method
 class ForwardEulerSolver : public ODESolver
 {
@@ -530,6 +675,211 @@ public:
 };
 
 
+/// IMEX Backward-Forward Euler ODE solver
+class IMEX_BE_FE : public ODESolver
+{
+protected:
+   Vector k_exp, k_imp, y;
+
+public:
+   virtual void Init(TimeDependentOperator &_f);
+
+   virtual void Step(Vector &x, double &t, double &dt);
+};
+
+/** Second-order IMEX (2,3,2) method, from "Implicit-explicit Runge-Kutta
+    methods for time-dependent partial differential equations" by Ascher, Ruuth
+    and Spiteri, Applied Numerical Mathematics (1997). */
+class IMEXRK2 : public ODESolver
+{
+protected:
+   Vector k_exp, k_imp, y, z;
+
+public:
+   virtual void Init(TimeDependentOperator &_f);
+
+   virtual void Step(Vector &x, double &t, double &dt);
+};
+
+/// Returns the solution along with an estimate of the local truncation error
+class ODEEmbeddedSolver : public ODESolver
+{
+public:
+   virtual void Step(Vector &x, double &t, double &dt) = 0;
+   virtual void Step(Vector &x, Vector &e, double &t, double &dt) = 0;
+};
+
+/** An explicit embedded Runge-Kutta method corresponding to a general
+    extended Butcher tableau
+    +--------+-------------------------+
+    | c[0]   | a[0]                    |
+    | c[1]   | a[1]  a[2]              |
+    | ...    |    ...                  |
+    | c[s-2] | ...   a[s(s-1)/2-1]     |
+    +--------+-------------------------+
+    |        | b[0]  b[1]  ... b[s-1]  |
+    |        | b*[0] b*[1] ... b*[s-1] |
+    +--------+-------------------------+
+
+    Where the b coefficients produce the main method and the b* coefficients
+    produce the embedded method.  The embedded method usually has an order
+    which differs from the main method by one.  The difference of the two
+    solutions provides an approximation of the local truncation error.
+ */
+class EmbeddedRKSolver : public ODEEmbeddedSolver
+{
+private:
+   int s;
+   const double *a, *b, *b_em, *c;
+   Vector y, *k;
+
+public:
+   EmbeddedRKSolver(int _s, const double *_a,
+                    const double *_b, const double *_b_embedded,
+                    const double *_c);
+
+   virtual void Init(TimeDependentOperator &_f);
+
+   virtual void Step(Vector &x, double &t, double &dt);
+   virtual void Step(Vector &x, Vector &e, double &t, double &dt);
+
+   virtual ~EmbeddedRKSolver();
+
+};
+
+/// Heun-Euler 2-nd order method
+/** Heun-Euler method produces a 2-nd order solution and a 1-st order
+    error estimate in 2 steps.
+*/
+class HeunEulerSolver : public EmbeddedRKSolver
+{
+private:
+   static const double a[1], b[2], b_star[2], c[1];
+
+public:
+   HeunEulerSolver() : EmbeddedRKSolver(2, a, b, b_star, c) {}
+};
+
+/// Runge-Kutta-Fehlberg 2-nd order method
+/** Known as the RKF12 method it produces a 2-nd order solution and a 1-st order
+    error estimate in three steps.
+*/
+class FehlbergRK12Solver : public EmbeddedRKSolver
+{
+private:
+   static const double a[3], b[3], b_star[3], c[2];
+
+public:
+   FehlbergRK12Solver() : EmbeddedRKSolver(3, a, b, b_star, c) {}
+};
+
+/// Bogacki-Shampine 3-rd order method
+/** The Bogacki-Shampine method produces a 3-rd order solution and a
+    2-nd order error estimate in 4 steps.
+*/
+class BogackiShampineSolver : public EmbeddedRKSolver
+{
+private:
+   static const double a[6], b[4], b_star[4], c[3];
+
+public:
+   BogackiShampineSolver() : EmbeddedRKSolver(4, a, b, b_star, c) {}
+};
+
+/// Runge-Kutta-Fehlberg 4-th order method
+/** Known as the RKF45 method it produces a 4-th order solution and a
+    5-th order error estimate in 6 steps.
+*/
+class FehlbergRK45Solver : public EmbeddedRKSolver
+{
+private:
+   static const double a[15], b[6], b_star[6], c[5];
+
+public:
+   FehlbergRK45Solver() : EmbeddedRKSolver(6, a, b, b_star, c) {}
+};
+
+/// Cash-Karp 5-th order method
+/** The Cash-Karp method produces a 5-th order solution and a 4-th
+    order error estimate in 6 steps. */
+class CashKarpSolver : public EmbeddedRKSolver
+{
+private:
+   static const double a[15], b[6], b_star[6], c[5];
+
+public:
+   CashKarpSolver() : EmbeddedRKSolver(6, a, b, b_star, c) {}
+};
+
+/// Dormand-Prince 5-th order method
+/** The Dormand-Prince method produces a 5-th order solution and a
+    4-th order error estimate in 7 steps. */
+class DormandPrinceSolver : public EmbeddedRKSolver
+{
+private:
+   static const double a[21], b[7], b_star[7], c[6];
+
+public:
+   DormandPrinceSolver() : EmbeddedRKSolver(7, a, b, b_star, c) {}
+};
+
+/** An implicit embedded Runge-Kutta method corresponding to a general
+    extended Butcher tableau
+    +--------+-------------------------+
+    | c[0]   | a[0]                    |
+    | c[1]   | a[1]  a[2]              |
+    | ...    |    ...                  |
+    | c[s-2] | ...   a[s(s-1)/2-1]     |
+    +--------+-------------------------+
+    |        | b[0]  b[1]  ... b[s-1]  |
+    |        | b*[0] b*[1] ... b*[s-1] |
+    +--------+-------------------------+
+
+    Where the b coefficients compute the update according to the main method.
+    The b* coefficients produce an embedded solution which is usually one
+    order lower or higher than the main method.  The difference of these two
+    solutions provides an approximation of the local truncation error.
+ */
+class EmbeddedSDIRKSolver : public ODEEmbeddedSolver
+{
+private:
+   int s;
+   const double *a, *b, *b_em, *c;
+   Vector y, *k;
+
+public:
+   EmbeddedSDIRKSolver(int _s, const double *_a,
+                       const double *_b, const double *_b_embedded,
+                       const double *_c);
+
+   virtual void Init(TimeDependentOperator &_f);
+
+   virtual void Step(Vector &x, double &t, double &dt);
+   virtual void Step(Vector &x, Vector &e, double &t, double &dt);
+
+   virtual ~EmbeddedSDIRKSolver();
+
+};
+
+class SDIRK212Solver : public EmbeddedSDIRKSolver
+{
+private:
+   static const double a[3], b[2], b_star[2], c[2];
+
+public:
+   SDIRK212Solver() : EmbeddedSDIRKSolver(2, a, b, b_star, c) {}
+};
+
+class SDIRK534Solver : public EmbeddedSDIRKSolver
+{
+private:
+   static const double a[15], b[5], b_star[5], c[5];
+
+public:
+   SDIRK534Solver() : EmbeddedSDIRKSolver(5, a, b, b_star, c) {}
+};
+
+
 /// The SIASolver class is based on the Symplectic Integration Algorithm
 /// described in "A Symplectic Integration Algorithm for Separable Hamiltonian
 /// Functions" by J. Candy and W. Rozmus, Journal of Computational Physics,
@@ -599,6 +949,202 @@ private:
    Array<double> b_;
 };
 
+/// Computes the largest absolute/relative error in a pair of vectors
+/** Computes the maximum of the following ratio:
+        max_i |err_i| / (|x_i| + eta_i)
+    Where eta can either be a single constant or a vector of non-zero values
+    with the same length as x and err.
+
+    Note: this class is designed for use on a single processor.  To take the
+    maximum across multiple processors use the ParMaxAbsRelDiffMeasure class.
+*/
+class MaxAbsRelDiffMeasure : public ODERelativeErrorMeasure
+{
+private:
+   Vector * etaVec;
+   double   etaConst;
+
+public:
+   MaxAbsRelDiffMeasure(double eta) : etaVec(NULL), etaConst(eta) {}
+   MaxAbsRelDiffMeasure(Vector &eta) : etaVec(&eta), etaConst(-1.0) {}
+
+   double Eval(Vector &x, Vector &error);
+};
+
+class L2AbsRelDiffMeasure : public ODERelativeErrorMeasure
+{
+private:
+   Vector * etaVec;
+   double   etaConst;
+
+public:
+   L2AbsRelDiffMeasure(double eta) : etaVec(NULL), etaConst(eta) {}
+   L2AbsRelDiffMeasure(Vector &eta) : etaVec(&eta), etaConst(-1.0) {}
+
+   double Eval(Vector &x, Vector &error);
+};
+
+#ifdef MFEM_USE_MPI
+
+/// Computes the largest absolute/relative difference in a pair of vectors
+/** Computes the maximum of the following ratio:
+        max_i |err_i| / (|x_i| + eta_i)
+    Where eta can either be a single constant or a vector of non-zero values
+    with the same length as x and err.
+
+    Note: this class is designed for use on multiple processors.  For a
+    serial implementation see the MaxAbsRelDiffMeasure class.
+*/
+class ParMaxAbsRelDiffMeasure : public ODERelativeErrorMeasure
+{
+private:
+   MPI_Comm comm;
+   Vector * etaVec;
+   double   etaConst;
+
+public:
+   ParMaxAbsRelDiffMeasure(MPI_Comm comm, double eta)
+      : comm(comm), etaVec(NULL), etaConst(eta) {}
+
+   ParMaxAbsRelDiffMeasure(MPI_Comm comm, Vector &eta)
+      : comm(comm), etaVec(&eta), etaConst(-1.0) {}
+
+   double Eval(Vector &x, Vector &error);
+};
+
+class ParL2AbsRelDiffMeasure : public ODERelativeErrorMeasure
+{
+private:
+   MPI_Comm comm;
+   Vector * etaVec;
+   double   etaConst;
+
+public:
+   ParL2AbsRelDiffMeasure(MPI_Comm comm, double eta)
+      : comm(comm), etaVec(NULL), etaConst(eta) {}
+
+   ParL2AbsRelDiffMeasure(MPI_Comm comm, Vector &eta)
+      : comm(comm), etaVec(&eta), etaConst(-1.0) {}
+
+   double Eval(Vector &x, Vector &error);
+};
+
+#endif
+
+class ConstantFactor : public ODEStepAdjustmentFactor
+{
+private:
+   double factor;
+
+protected:
+   ConstantFactor(double _factor = 1.0) : factor(_factor) {}
+
+public:
+   double operator()(double) const { return factor; }
+};
+
+class ConstantAcceptFactor : public ConstantFactor
+{
+public:
+   ConstantAcceptFactor(double _factor = 1.0) : ConstantFactor(_factor)
+   {
+      MFEM_VERIFY(_factor > 0.0,
+                  "Adjustment factor for accepted steps must be positive"
+                  " (and should usually be >= 1.0).");
+   }
+};
+
+class ConstantRejectFactor : public ConstantFactor
+{
+public:
+   ConstantRejectFactor(double _factor = 0.9) : ConstantFactor(_factor)
+   {
+      MFEM_VERIFY(_factor < 1.0 && _factor > 0.0,
+                  "Rejected steps must decrease the time step.");
+   }
+};
+
+class StdAdjFactor : public ODEStepAdjustmentFactor
+{
+private:
+   double gamma;
+   double kI;
+
+public:
+   StdAdjFactor(double _gamma, double _kI) : gamma(_gamma), kI(_kI) {}
+
+   double operator()(double err) const;
+};
+
+class IntegralAdjFactor : public StdAdjFactor
+{
+public:
+   IntegralAdjFactor(double _kI) : StdAdjFactor(1.0, _kI) {}
+};
+
+typedef IntegralAdjFactor IAdjFactor;
+
+class PIAdjFactor : public ODEStepAdjustmentFactor
+{
+private:
+   double kI;
+   double kP;
+   mutable double prev_err;
+
+public:
+   PIAdjFactor(double _kP, double _kI)
+      : kI(_kI), kP(_kP), prev_err(-1.0) {}
+
+   void Reset() { prev_err = -1.0; }
+
+   double operator()(double err) const;
+};
+
+class PIDAdjFactor : public ODEStepAdjustmentFactor
+{
+private:
+   double kI;
+   double kP;
+   double kD;
+   mutable double prev_err1;
+   mutable double prev_err2;
+
+public:
+   PIDAdjFactor(double _kP, double _kI, double _kD)
+      : kI(_kI), kP(_kP), kD(_kD),
+        prev_err1(-1.0), prev_err2(-1.0) {}
+
+   void Reset() { prev_err1 = -1.0; prev_err2 = -1.0; }
+
+   double operator()(double err) const;
+};
+
+class DeadZoneLimiter : public ODEStepAdjustmentLimiter
+{
+private:
+   double lo;
+   double hi;
+   double mx;
+
+public:
+   DeadZoneLimiter(double _lo, double _hi, double _mx)
+      : lo(_lo), hi(_hi), mx(_mx) {}
+
+   double operator()(double theta) const
+   { return std::min(mx, ((lo <= theta && theta <= hi) ? 1.0 : theta)); }
+};
+
+class MaxLimiter : public ODEStepAdjustmentLimiter
+{
+private:
+   double mx;
+
+public:
+   MaxLimiter(double _mx) : mx(_mx) {}
+
+   double operator()(double theta) const
+   { return std::min(mx, theta); }
+};
 
 
 /// Abstract class for solving systems of ODEs: d2x/dt2 = f(x,dx/dt,t)

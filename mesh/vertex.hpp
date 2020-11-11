@@ -25,7 +25,7 @@ protected:
    double coord[3];
 
 public:
-   Vertex() { }
+   Vertex() { coord[0] = 0.; coord[1] = 0.; coord[2] = 0.; }
 
    // Trivial copy constructor and trivial copy assignment operator
 
