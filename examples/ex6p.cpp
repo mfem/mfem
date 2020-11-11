@@ -126,8 +126,9 @@ int main(int argc, char *argv[])
    {
       // 7. We can also restart the computation by loading the mesh from a
       //    previously saved check-point.
-      ifstream ifs(MakeParFilename("ex6p-checkpoint.", myid));
-      MFEM_VERIFY(ifs.good(), "Checkpoint file not found.");
+      string fname(MakeParFilename("ex6p-checkpoint.", myid));
+      ifstream ifs(fname);
+      MFEM_VERIFY(ifs.good(), "Checkpoint file " << fname << " not found.");
       pmesh = new ParMesh(MPI_COMM_WORLD, ifs);
    }
 

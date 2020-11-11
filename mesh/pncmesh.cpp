@@ -53,11 +53,17 @@ ParNCMesh::ParNCMesh(MPI_Comm comm, std::istream &input, int version,
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
 
-   int myrank;
-   MPI_Comm_rank(MyComm, &myrank);
+   int my_rank;
+   MPI_Comm_rank(MyComm, &my_rank);
 
-   MFEM_VERIFY(myrank == MyRank,
-               "Current MPI rank is not equal to the rank in the mesh file. "
+   int max_rank = 0;
+   for (int i = 0; i < leaf_elements.Size(); i++)
+   {
+      max_rank = std::max(elements[leaf_elements[i]].rank, max_rank);
+   }
+
+   MFEM_VERIFY((my_rank == MyRank) && (max_rank < NRanks),
+               "Parallel mesh file doesn't seem to match current MPI setup. "
                "Loading a parallel NC mesh with a non-matching communicator "
                "size is not supported.");
 
