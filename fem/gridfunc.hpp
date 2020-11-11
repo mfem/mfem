@@ -752,7 +752,7 @@ public:
 
    /// Copy the data from @a v.
    /** The size of @a v must be equal to the size of the associated
-       QuadratureSpace #qspace times the QuadratureFunction dimension 
+       QuadratureSpace #qspace times the QuadratureFunction dimension
        i.e. QuadratureFunction::Size(). */
    QuadratureFunction &operator=(const Vector &v);
 
