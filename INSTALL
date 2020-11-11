@@ -5,7 +5,7 @@
                       | | | | | ||  _||  __/| | | | | |
                       |_| |_| |_||_|   \___||_| |_| |_|
 
-                               http://mfem.org
+                               https://mfem.org
 
 The MFEM library has a serial and an MPI-based parallel version, which largely
 share the same code base. The only prerequisite for building the serial version
@@ -19,10 +19,10 @@ requires an MPI C++ compiler, as well as the following external libraries:
   http://glaros.dtc.umn.edu/gkhome/metis/metis/overview
 
 The hypre dependency can be downloaded as a tarball from GitHub or from the
-project webpage https://www.llnl.gov/casc/hypre. For example, the 2.16.0 release
+project webpage https://www.llnl.gov/casc/hypre. For example, the 2.20.0 release
 of hypre is available at
 
-   https://github.com/hypre-space/hypre/archive/v2.16.0.tar.gz
+   https://github.com/hypre-space/hypre/archive/v2.20.0.tar.gz
 
 The METIS dependency can be disabled but that is not generally recommended, see
 the option MFEM_USE_METIS.
@@ -62,7 +62,7 @@ following package managers:
 
 We also recommend downloading and building the MFEM-based GLVis visualization
 tool which can be used to visualize the meshes and solution in MFEM's examples
-and miniapps. See http://glvis.org and http://mfem.org/building.
+and miniapps. See https://glvis.org and https://mfem.org/building.
 
 Quick start with GNU make
 =========================
@@ -344,6 +344,16 @@ MFEM_USE_SUPERLU = YES/NO
    SuperLURowLocMatrix a distributed CSR matrix class needed by SuperLU. When
    enabled, this option uses the SUPERLU_* library options, see below.
 
+MFEM_USE_SUPERLU5 = YES/NO
+   If SuperLU functionality is enabled, use the older 5.1.0 version rather than
+   the more recent 6+ versions.
+
+MFEM_USE_MUMPS = YES/NO
+   Enable MFEM functionality based on the MUMPS library. Currently, this
+   option adds the class MUMPSSolver (a parallel sparse direct solver). 
+   When enabled, this option uses the MUMPS_* library options, see
+   below.
+   
 MFEM_USE_STRUMPACK = YES/NO
    Enable MFEM functionality based on the STRUMPACK sparse direct solver and
    preconditioner through the STRUMPACKSolver and STRUMPACKRowLocMatrix
@@ -355,6 +365,11 @@ MFEM_USE_GINKGO = YES/NO
    iterative linear solvers and preconditioners with OpenMP, CUDA backends, see
    https://github.com/ginkgo-project/ginkgo. When enabled, the user can use
    Ginkgo's solvers and preconditioners as shown in examples/ginkgo/.
+
+MFEM_USE_AMGX = YES/NO
+   Enable MFEM functionality based on the AmgX multigrid library from NVIDIA.
+   Allows the user to use SparseMatrices and HypreParMatrices to solve linear
+   systems with the routines from the AmgX library.
 
 MFEM_USE_GNUTLS = YES/NO
    Enable secure socket support in class socketstream, using the auxiliary
@@ -486,6 +501,13 @@ MFEM_USE_CEED = YES/NO
    library for performant high-order operator evaluation developed by the Center
    for Efficient Exascale Discretizations in the Exascale Computing Project.
 
+MFEM_USE_MKL_CPARDISO = YES/NO
+   Enables the interface to MKL CPardiso: the Intel MKL Parallel Direct Sparse
+   Solver for Clusters. Make sure to set the correct values for MKL_MPI_WRAPPER
+   and MKL_LIBRARY_SUBDIR as shown in defaults.mk. If you configure MFEM with
+   MFEM_USE_LAPACK=YES, verify that the MKL LAPACK libraries are used. The
+   OpenMP capabilities are disabled at link time.
+
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.
    Can be used to identify the MFEM build from other makefiles.
@@ -535,15 +557,19 @@ The specific libraries and their options are:
   Beginning with MFEM v3.3, SUNDIALS v2.7.0 is supported.
   Beginning with MFEM v3.3.2, SUNDIALS v3.0.0 is also supported.
   Beginning with MFEM v4.1, only SUNDIALS v5.0.0+ is supported.
+  When MFEM_USE_CUDA is enabled, only SUNDIALS v5.4.0+ is supported.
   If MFEM_USE_MPI is enabled, we expect that SUNDIALS is built with support for
   both MPI and hypre.
+  If MFEM_USE_CUDA is enabled, we expect that SUNDIALS is built with support
+  for CUDA.
   URL: http://computation.llnl.gov/projects/sundials/sundials-software
   Options: SUNDIALS_OPT, SUNDIALS_LIB.
-  Versions: SUNDIALS >= 5.0.0.
+  Versions: SUNDIALS >= 5.0.0, SUNDIALS >= 5.4.0 for CUDA support.
 
 - Mesquite (optional), used when MFEM_USE_MESQUITE = YES.
   URL: http://trilinos.org/oldsite/packages/mesquite
   Options: MESQUITE_OPT, MESQUITE_LIB.
+  The Mesquite support is deprecated and will be removed in the future.
 
 - SuiteSparse (optional), used when MFEM_USE_SUITESPARSE = YES.
   URL: http://faculty.cse.tamu.edu/davis/suitesparse.html
@@ -553,10 +579,16 @@ The specific libraries and their options are:
 - SuperLU_DIST (optional), used when MFEM_USE_SUPERLU = YES. Note that
   SuperLU_DIST requires ParMETIS, which includes METIS 5 in its distribution.
   Both ParMETIS and the included METIS 5 should be built and installed in the
-  same location.
+  same location. If using SuperLU_Dist v5, set MFEM_USE_SUPERLU5=YES.
   URL: http://crd-legacy.lbl.gov/~xiaoye/SuperLU
   Options: SUPERLU_OPT, SUPERLU_LIB.
   Versions: SuperLU_DIST >= 5.1.0.
+
+- MUMPS (optional), used when MFEM_USE_MUMPS = YES. Note that MUMPS
+  requires LAPACK, SCALAPACK and a reordering package such as PORD or METIS.
+  URL: http://mumps.enseeiht.fr
+  Options: MUMPS_OPT, MUMPS_LIB.
+  Versions: MUMPS >= 5.1.1
 
 - STRUMPACK (optional), used when MFEM_USE_STRUMPACK = YES. Note that STRUMPACK
   requires the PT-Scotch and Scalapack libraries as well as ParMETIS, which
@@ -566,13 +598,18 @@ The specific libraries and their options are:
   2.0.0 or later.
   URL: http://portal.nersc.gov/project/sparse/strumpack
   Options: STRUMPACK_OPT, STRUMPACK_LIB.
-  Versions: STRUMPACK >= 3.0.0, requires HYPRE < 2.16.0.
+  Versions: STRUMPACK >= 3.0.0.
 
 - Ginkgo (optional), used when MFEM_USE_GINKGO = YES. Note that Ginkgo needs a
   C++ compiler that supports the C++-11 standard. For additional requirements
   and dependencies of specific modules see the Ginkgo webpage below.
   URL: https://ginkgo-project.github.io
   Options: GINKGO_OPT (Not used), GINKGO_LIB.
+
+- AmgX (optional), used when MFEM_USE_AMGX = YES.
+  URL: https://github.com/NVIDIA/AMGX
+  Options: AMGX_OPT, AMGX_LIB.
+  Versions: AmgX >= 2.1, older versions may work too.
 
 - GnuTLS (optional), used when MFEM_USE_GNUTLS = YES. On most Linux systems,
   GnuTLS is available as a development package, e.g. gnutls-devel. On Mac OS X,
@@ -624,16 +661,18 @@ The specific libraries and their options are:
 
 - ADIOS2 (optional) used when MFEM_USE_ADIOS2 = YES.
   URL: https://adios2.readthedocs.io/
+  Versions: ADIOS >= 2.5.0.
 
 - PUMI (optional), used when MFEM_USE_PUMI = YES.
   URL: https://scorec.rpi.edu/pumi
        https://github.com/SCOREC/core
   Options: PUMI_OPT, PUMI_LIB.
-  Versions: PUMI >= 2.2.3.
+  Versions: PUMI == 2.2.3.
 
 - HiOp (optional), used when MFEM_USE_HIOP = YES.
   URL: https://github.com/LLNL/hiop
   Options: HIOP_OPT, HIOP_LIB.
+  Versions: HIOP >= 0.1.
 
 - GSLIB (optional), used when MFEM_USE_GSLIB = YES. The gslib library must be
   built prior to the MFEM build, as follows: download gslib-1.0.5, untar it at
@@ -644,6 +683,11 @@ The specific libraries and their options are:
   URL: https://github.com/gslib/gslib/archive/v1.0.5.tar.gz
   Options: GSLIB_OPT, GSLIB_LIB.
   Versions: GSLIB >= 1.0.5.
+
+- MKL CPardiso (optional), used when MFEM_USE_MKL_CPARDISO = YES.
+  URL: https://software.intel.com/content/www/us/en/develop/tools/math-kernel-library.html
+  Options: MKL_CPARDISO_OPT, MKL_CPARDISO_LIB.
+  Versions: Intel MKL >= 2020.
 
 - CUDA (optional), used when MFEM_USE_CUDA = YES.
   URL: https://developer.nvidia.com/cuda-toolkit
@@ -657,13 +701,13 @@ The specific libraries and their options are:
 - OCCA (optional), used when MFEM_USE_OCCA = YES.
   URL: https://libocca.org
   Options: OCCA_DIR, OCCA_OPT, OCCA_LIB.
-  Versions: OCCA >= 1.0.9.
+  Versions: OCCA >= 1.1.0.
 
 - libCEED (optional), used when MFEM_USE_CEED = YES.
   URL: https://github.com/CEED/libCEED
        https://ceed.exascaleproject.org/libceed
   Options: CEED_DIR, CEED_OPT, CEED_LIB.
-  Versions: libCEED > 0.6, git-hash bdfed75.
+  Versions: libCEED >= 0.7.
 
 - RAJA (optional), used when MFEM_USE_RAJA = YES.
   Beginning with MFEM v4.1, only RAJA v0.10.0+ is supported.
@@ -805,8 +849,10 @@ MFEM_TIMER_TYPE - Set automatically, can be overwritten.
 MFEM_USE_MESQUITE
 MFEM_USE_SUITESPARSE
 MFEM_USE_SUPERLU
+MFEM_USE_MUMPS
 MFEM_USE_STRUMPACK
 MFEM_USE_GINKGO
+MFEM_USE_AMGX
 MFEM_USE_GNUTLS
 MFEM_USE_NETCDF
 MFEM_USE_MPFR
@@ -855,11 +901,12 @@ The CMake build system adds auto-detection for the following packages/libraries:
 
  - HYPRE
  - METIS - The option MFEM_USE_METIS_5 is auto-detected.
+ - ParMETIS
  - MESQUITE
  - SuiteSparse
  - SuperLUDist, STRUMPACK
- - ParMETIS
  - Ginkgo
+ - AMGX
  - GNUTLS - Extends the built-in CMake support, to search GNUTLS_DIR as well.
  - NETCDF
  - MPFR
