@@ -14,6 +14,7 @@ spec=${SPEC:-""}
 sys_type=${SYS_TYPE:-""}
 py_env_path=${PYTHON_ENVIRONMENT_PATH:-""}
 
+
 # Dependencies
 if [[ "${option}" != "--build-only" && "${option}" != "--test-only" ]]
 then
@@ -27,16 +28,22 @@ then
         exit 1
     fi
 
+    upstream_opt=""
+    if [[ ${CI_COMMIT_BRANCH:-"master"} != "master" && ${sys_type} != "" ]]
+    then
+        upstream_opt="--upstream=/usr/workspace/mfem/mfem-spack-upstream/uberenv_libs"
+    fi
+
     prefix_opt=""
 
-    if [[ -d /dev/shm ]]
+    if [[ -d "/dev/shm" ]]
     then
         prefix="/dev/shm/${hostname}/${spec// /_}"
         mkdir -p ${prefix}
         prefix_opt="--prefix=${prefix}"
     fi
 
-    python scripts/uberenv/uberenv.py --spec="${spec}"
+    python scripts/uberenv/uberenv.py --spec="${spec}" "${upstream_opt}"
 
 fi
 
