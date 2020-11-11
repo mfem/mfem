@@ -409,6 +409,7 @@ void LpErrorEstimator::ComputeEstimates()
    {
       sol->ComputeElementLpErrors(local_norm_p, *vcoef, error_estimates);
    }
+   total_error = pow(error_estimates.Sum(), 1.0/local_norm_p);
    current_sequence = sol->FESpace()->GetMesh()->GetSequence();
 }
 
