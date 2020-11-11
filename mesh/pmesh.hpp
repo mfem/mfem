@@ -366,6 +366,15 @@ public:
    /// Old mesh format (Netgen/Truegrid) version of 'PrintAsOne'
    void PrintAsOneXG(std::ostream &out = mfem::out);
 
+   /** Print the mesh in parallel PVTU format. The PVTU and VTU files will be
+       stored in the directory specified by @a pathname. If the directory does
+       not exist, it will be created. */
+   virtual void PrintVTU(std::string pathname,
+                         VTKFormat format=VTKFormat::ASCII,
+                         bool high_order_output=false,
+                         int compression_level=0,
+                         bool bdr=false);
+
    /// Parallel version of Mesh::Load().
    virtual void Load(std::istream &input, int generate_edges = 0,
                      int refine = 1, bool fix_orientation = true);

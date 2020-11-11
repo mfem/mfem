@@ -245,9 +245,9 @@ int main(int argc, char *argv[])
    x = 0.0;
 
    // 10. Create the multigrid operator using the previously created parallel
-   //     FiniteElementSpaceHierarchy and additional boundary information. This operator
-   //     is then used to create the MultigridSolver as a preconditioner in the
-   //     iterative solver.
+   //     FiniteElementSpaceHierarchy and additional boundary information. This
+   //     operator is then used to create the MultigridSolver as preconditioner
+   //     in the iterative solver.
    Array<int> ess_bdr(pmesh->bdr_attributes.Max());
    if (pmesh->bdr_attributes.Size())
    {
@@ -274,8 +274,8 @@ int main(int argc, char *argv[])
    //     local finite element solution on each processor.
    M->RecoverFineFEMSolution(X, *b, x);
 
-   // 13. Save the refined mesh and the solution in parallel. This output can
-   //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+   // 13. Save the refined mesh and the solution in parallel. This output can be
+   //     viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
       ostringstream mesh_name, sol_name;
       mesh_name << "mesh." << setfill('0') << setw(6) << myid;
