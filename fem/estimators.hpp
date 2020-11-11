@@ -436,6 +436,13 @@ public:
 */
 class KellyErrorEstimator final : public ErrorEstimator
 {
+public:
+   /// Function type to compute the coefficient of an element.
+   using ElementCoefFun = std::function<double(ParMesh*, const int)>;
+   /// Function type to compute the coefficient of a face. The third argument
+   /// is true for shared faces and false for local faces.
+   using FaceCoefFun = std::function<double(ParMesh*, const int, const bool)>;
+
 private:
    int current_sequence = -1;
 
@@ -451,7 +458,7 @@ private:
 
        Defaults to hₖ=1.0.
    */
-   std::function<double(ParMesh*, const int)> compute_element_coefficient;
+   ElementCoefFun compute_element_coefficient;
 
    /** @brief A method to compute hₖ on per-face basis.
 
@@ -462,7 +469,7 @@ private:
 
        Defaults to hₖ=diameter/2p.
    */
-   std::function<double(ParMesh*, const int, const bool)> compute_face_coefficient;
+   FaceCoefFun compute_face_coefficient;
 
    BilinearFormIntegrator* flux_integrator; ///< Not owned.
    ParGridFunction* solution;               ///< Not owned.
