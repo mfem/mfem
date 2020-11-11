@@ -1397,7 +1397,7 @@ double GridFunction::GetDivergence(ElementTransformation &T) const
       {
          // In order to properly capture the derivative of the normal component
          // of the field (as well as the transverse divergence of the
-         // tangential compoents) we must evaluate it in the neighboring
+         // tangential components) we must evaluate it in the neighboring
          // element.
          FaceElementTransformations * FET =
             fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
@@ -2182,7 +2182,7 @@ void GridFunction::ComputeMeans(AvgType type, Array<int> &zones_per_vdof)
          break;
 
       default:
-         MFEM_ABORT("invalud AvgType");
+         MFEM_ABORT("invalid AvgType");
    }
 }
 
