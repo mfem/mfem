@@ -15,6 +15,30 @@ using namespace mfem;
 
 std::default_random_engine gen(std::random_device{}());
 std::uniform_real_distribution<double> normal_rand(-1.0, 1.0);
+static std::uniform_real_distribution<double> uniform_rand(0.0, 1.0);
+const double rho = 0.9856566615165173;
+const double rhoe = 2.061597236955558;
+const double rhou[3] = {0.09595562550099601, -0.030658751626551423, -0.13471469906596886};
+template <int dim>
+void randBaselinePert(const mfem::Vector &x, mfem::Vector &u)
+{
+ 
+    const double scale = 0.01;
+    u(0) = rho * (1.0 + scale * uniform_rand(gen));
+    u(dim + 1) = rhoe * (1.0 + scale * uniform_rand(gen));
+    for (int di = 0; di < dim; ++di)
+    {
+        u(di + 1) = rhou[di] * (1.0 + scale * uniform_rand(gen));
+    }
+}
+
+void randState(const mfem::Vector &x, mfem::Vector &u)
+{
+    for (int i = 0; i < u.Size(); ++i)
+    {
+        u(i) = 2.0 * uniform_rand(gen) - 1.0;
+    }
+}
 
 /// \brief Defines the random function for the jabocian check
 /// \param[in] x - coordinate of the point at which the state is needed
@@ -36,7 +60,7 @@ void uexact(const Vector &x, Vector &u);
 std::unique_ptr<Mesh> buildQuarterAnnulusMesh(int degree, int num_rad,
                                               int num_ang);
 
-//main
+// main
 int main(int argc, char *argv[])
 {
    // Parse command-line options
@@ -96,8 +120,40 @@ int main(int argc, char *argv[])
    res->AddDomainIntegrator(new EulerDomainIntegrator<2>(num_state, 1));
    res->AddBdrFaceIntegrator(new EulerBoundaryIntegrator<2, 1, 0>(fec, num_state, 1),
                              bndry_marker1);
-   res->AddBdrFaceIntegrator(new EulerBoundaryIntegrator<2, 2, 0>(fec, num_state, 1),
-                             bndry_marker2);
+   // res->AddBdrFaceIntegrator(new EulerBoundaryIntegrator<2, 2, 0>(fec, num_state, 1),
+   //                           bndry_marker2);
+   
+
+   /// check if the domain integrator is correct 
+   // double delta = 1e-5;
+   // // initialize state; here we randomly perturb a constant state
+   // GridFunction q(fes);
+   // VectorFunctionCoefficient pert(num_state, randBaselinePert<2>);
+   // q.ProjectCoefficient(pert);
+
+   // // initialize the vector that the Jacobian multiplies
+   // GridFunction v(fes);
+   // VectorFunctionCoefficient v_rand(num_state, randState);
+   // v.ProjectCoefficient(v_rand);
+
+   // // evaluate the Jacobian and compute its product with v
+   // Operator &Jac = res->GetGradient(q);
+   // GridFunction jac_v(fes);
+   // Jac.Mult(v, jac_v);
+
+   // // now compute the finite-difference approximation...
+   // GridFunction q_pert(q), r(fes), jac_v_fd(fes);
+   // q_pert.Add(-delta, v);
+   // res->Mult(q_pert, r);
+   // q_pert.Add(2 * delta, v);
+   // res->Mult(q_pert, jac_v_fd);
+   // jac_v_fd -= r;
+   // jac_v_fd /= (2 * delta);
+
+   // for (int i = 0; i < jac_v.Size(); ++i)
+   // {
+   //    std::cout << std::abs(jac_v(i) - (jac_v_fd(i))) << "\n";
+   // }
 
    /// bilinear form
    BilinearForm *mass = new BilinearForm(fes);
@@ -122,7 +178,8 @@ int main(int argc, char *argv[])
    auto t = 0.0;
    evolver->SetTime(t);
    ode_solver->Init(*evolver);
-   mfem::GridFunction residual;
+   mfem::GridFunction residual(fes);
+   residual = 0.0;
    for (auto ti = 0; ti < 10000; ++ti)
    {
       auto dt = 10000.005;
@@ -132,7 +189,7 @@ int main(int argc, char *argv[])
       res->Mult(u, residual);
       cout << "res mult has problem " << endl;
       auto res_norm = residual.Norml2();
-      // std::cout << "residual norm: " << res_norm << "\n";
+      std::cout << "residual norm: " << res_norm << "\n";
       if (res_norm <= 1e-12)
          break;
 

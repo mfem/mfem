@@ -80,6 +80,37 @@ namespace mfem
             }
         }
 
+    void AssembleElementGrad(
+    const mfem::FiniteElement &el, mfem::ElementTransformation &trans,
+    const mfem::Vector &elfun, mfem::DenseMatrix &elmat)
+{
+   int num_nodes = el.GetDof();
+   int ndof = elfun.Size();
+   elmat.SetSize(ndof);
+   elmat = 0.0;
+   double delta = 1e-5;
+   for (int i = 0; i < ndof; ++i)
+   {
+      Vector elfun_plus(elfun);
+      Vector elfun_minus(elfun);
+      elfun_plus(i) += delta;
+      Vector elvect_plus;
+      AssembleElementVector(el, trans, elfun_plus, elvect_plus);
+      elfun_minus(i) -= delta;
+      Vector elvect_minus;
+      AssembleElementVector(el, trans, elfun_minus, elvect_minus);
+      
+      
+      elvect_plus -= elvect_minus;
+      elvect_plus /= 2*delta;
+
+      for (int j = 0; j < ndof; ++j)
+      {
+         elmat(j, i) = elvect_plus(j);
+      }
+   }
+}
+
     protected:
         /// number of states
         int num_states;
