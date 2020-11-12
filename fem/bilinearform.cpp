@@ -237,6 +237,13 @@ void BilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi)
    dbfi.Append(bfi);
 }
 
+void BilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi,
+                                       Array<int> &el_flags)
+{
+   dbfi.Append(bfi);
+   dbfi_marker.Append(&el_flags);
+}
+
 void BilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi)
 {
    bbfi.Append (bfi);
@@ -266,6 +273,16 @@ void BilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
 {
    bfbfi.Append(bfi);
    bfbfi_marker.Append(&bdr_marker);
+}
+void BilinearForm::AddShiftedBdrFaceIntegrator(BilinearFormIntegrator *bfi,
+                                               Array<int> &sbmfaces,
+                                               Array<int> &sbmfaceel,
+                                               Array<int> &sbmfaceflag)
+{
+   sbfbfi.Append(bfi);
+   sbfbfi_marker.Append(&sbmfaces);
+   sbfbfi_el_marker.Append(&sbmfaceel);
+   sbfbfi_flag_marker.Append(&sbmfaceflag);
 }
 
 void BilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat)
@@ -413,6 +430,13 @@ void BilinearForm::Assemble(int skip_zeros)
             const FiniteElement &fe = *fes->GetFE(i);
             eltrans = fes->GetElementTransformation(i);
             dbfi[0]->AssembleElementMatrix(fe, *eltrans, elmat);
+            if (dbfi_marker.Size())
+            {
+               if ((*(dbfi_marker[0]))[i]==1)
+               {
+                  elmat *= 0.;
+               }
+            }
             for (int k = 1; k < dbfi.Size(); k++)
             {
                dbfi[k]->AssembleElementMatrix(fe, *eltrans, elemmat);
@@ -574,6 +598,48 @@ void BilinearForm::Assemble(int skip_zeros)
             }
          }
       }
+   }
+
+   if (sbfbfi.Size())
+   {
+      FaceElementTransformations *tr;
+      const FiniteElement *fe1, *fe2;
+
+      for (int i = 0; i < sbfbfi_marker[0]->Size(); i++)
+      {
+         int fnum = (*(sbfbfi_marker[0]))[i];
+         int faceflag = (*(sbfbfi_flag_marker[0]))[i];
+         if (faceflag == 1)
+         {
+            tr = mesh->GetInteriorFaceTransformations(fnum);
+         }
+         else
+         {
+            tr = mesh->GetBdrFaceTransformations(fnum);
+         }
+
+         if (tr != NULL)
+         {
+            int faceel = (*(sbfbfi_el_marker[0]))[i];
+            if (tr->Elem1No == faceel)
+            {
+               fe1 = fes -> GetFE (tr -> Elem1No);
+               fes -> GetElementVDofs (tr -> Elem1No, vdofs);
+               dynamic_cast<SBM2Integrator *>(sbfbfi[0])->SetElem1Flag(true);
+            }
+            else
+            {
+               fe1 = fes -> GetFE (tr -> Elem2No);
+               fes -> GetElementVDofs (tr -> Elem2No, vdofs);
+               dynamic_cast<SBM2Integrator *>(sbfbfi[0])->SetElem1Flag(false);
+            }
+            fe2 = fe1;
+            sbfbfi[0] -> AssembleFaceMatrix (*fe1, *fe2, *tr, elemmat);
+            //if (faceflag == 1) { elemmat *= 2.; }
+            mat -> AddSubMatrix (vdofs, vdofs, elemmat, skip_zeros);
+         }
+      }
+
    }
 
 #ifdef MFEM_USE_LEGACY_OPENMP

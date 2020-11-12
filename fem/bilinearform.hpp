@@ -83,6 +83,7 @@ protected:
 
    /// Set of Domain Integrators to be applied.
    Array<BilinearFormIntegrator*> dbfi;
+   Array<Array<int>*>             dbfi_marker;
 
    /// Set of Boundary Integrators to be applied.
    Array<BilinearFormIntegrator*> bbfi;
@@ -94,6 +95,11 @@ protected:
    /// Set of boundary face Integrators to be applied.
    Array<BilinearFormIntegrator*> bfbfi;
    Array<Array<int>*>             bfbfi_marker; ///< Entries are not owned.
+
+   Array<BilinearFormIntegrator*> sbfbfi;
+   Array<Array<int>*>             sbfbfi_marker; ///< Entries are not owned.
+   Array<Array<int>*>             sbfbfi_el_marker;
+   Array<Array<int>*>             sbfbfi_flag_marker;
 
    DenseMatrix elemmat;
    Array<int>  vdofs;
@@ -323,6 +329,7 @@ public:
 
    /// Adds new Domain Integrator. Assumes ownership of @a bfi.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi);
+   void AddDomainIntegrator(BilinearFormIntegrator *bfi, Array<int> &el_flags);
 
    /// Adds new Boundary Integrator. Assumes ownership of @a bfi.
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi);
@@ -348,6 +355,11 @@ public:
        as a pointer to the given Array<int> object. */
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
                              Array<int> &bdr_marker);
+
+   void AddShiftedBdrFaceIntegrator(BilinearFormIntegrator *bfi,
+                                    Array<int> &sbmfaces,
+                                    Array<int> &sbmfaceel,
+                                    Array<int> &sbmfaceflag);
 
    /// Sets all sparse values of \f$ M \f$ and \f$ M_e \f$ to 'a'.
    void operator=(const double a)

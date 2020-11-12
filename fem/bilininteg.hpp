@@ -2752,6 +2752,33 @@ public:
                                    DenseMatrix &elmat);
 };
 
+// <grad u. d, grad w .n>
+class SBM2Integrator : public BilinearFormIntegrator
+{
+protected:
+   VectorCoefficient *vD; // Distance function coefficient
+   double alpha;
+   bool elem1f;
+
+   // these are not thread-safe!
+   Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
+   DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
+
+   DGDiffusionIntegrator *dgdfi;
+
+public:
+   SBM2Integrator(const double a, VectorCoefficient &vD_)
+      : vD(&vD_), alpha(a), dgdfi(new DGDiffusionIntegrator(-1., 0.)) { }
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+   void SetElem1Flag(bool flag_) { elem1f = flag_; }
+
+   virtual ~SBM2Integrator() { delete dgdfi; }
+};
+
 /** Integrator for the DG elasticity form, for the formulations see:
     - PhD Thesis of Jonas De Basabe, High-Order Finite %Element Methods for
       Seismic Wave Propagation, UT Austin, 2009, p. 23, and references therein
