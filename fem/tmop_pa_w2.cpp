@@ -143,8 +143,7 @@ double TMOP_Integrator::GetGridFunctionEnergyPA_2D(const Vector &X) const
    const int id = (D1D << 4 ) | Q1D;
    const double m = metric_normal;
    const DenseTensor &J = PA.Jtr;
-   const IntegrationRule *ir = IntRule;
-   const Array<double> &W = ir->GetWeights();
+   const Array<double> &W = PA.ir->GetWeights();
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
    const Vector &O = PA.O;

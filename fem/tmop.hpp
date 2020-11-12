@@ -681,6 +681,9 @@ public:
        nodes are used by all target types except IDEAL_SHAPE_UNIT_SIZE. */
    void SetNodes(const GridFunction &n) { nodes = &n; avg_volume = 0.0; }
 
+   /** @brief Get the nodes to be used in the target-matrix construction. */
+   const GridFunction *GetNodes() const { return nodes; }
+
    /// Used by target type IDEAL_SHAPE_EQUAL_SIZE. The default volume scale is 1.
    void SetVolumeScale(double vol_scale) { volume_scale = vol_scale; }
 
@@ -697,7 +700,13 @@ public:
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
 
-   virtual bool ComputeElementTargetsPA(const IntegrationRule *ir,
+   template<int DIM>
+   bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
+                                const IntegrationRule *ir,
+                                DenseTensor &Jtr,
+                                const Vector &xe = Vector()) const;
+   virtual bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
+                                        const IntegrationRule *ir,
                                         DenseTensor &Jtr,
                                         const Vector &xe = Vector()) const;
 
@@ -746,7 +755,8 @@ public:
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
 
-   virtual bool ComputeElementTargetsPA(const IntegrationRule *ir,
+   virtual bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
+                                        const IntegrationRule *ir,
                                         DenseTensor &Jtr,
                                         const Vector &xe = Vector()) const;
 
@@ -901,7 +911,8 @@ public:
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
 
-   virtual bool ComputeElementTargetsPA(const IntegrationRule *ir,
+   virtual bool ComputeElementTargetsPA(const FiniteElementSpace *fes,
+                                        const IntegrationRule *ir,
                                         DenseTensor &Jtr,
                                         const Vector &xe = Vector()) const;
 
@@ -993,6 +1004,7 @@ protected:
       const GeometricFactors *geom;
       const FiniteElementSpace *fes;
       const Operator *R;
+      const IntegrationRule *ir;
    } PA;
 
    void ComputeNormalizationEnergies(const GridFunction &x,
