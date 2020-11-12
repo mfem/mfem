@@ -3,7 +3,7 @@
 // Compile with: make ex1p
 //
 // Sample runs:
-// mpirun -np 1 ex1p -m ../../data/inline-quad.mesh  -rs 0 -vis -o 2
+// mpirun -np 1 ex1p -m ../../data/inline-quad.mesh  -rs 1 -vis -o 2
 
 #include "../../mfem.hpp"
 #include <fstream>
