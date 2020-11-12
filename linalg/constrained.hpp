@@ -197,6 +197,9 @@ public:
    /// Apply -B_p^T B_s^{-T}
    void EliminateTranspose(const Vector& in, Vector& out) const;
 
+   /// Return -B_s^{-1} B_p explicitly assembled in mat
+   void ExplicitAssembly(DenseMatrix& mat) const;
+
 private:
    Array<int> primary_tdofs_; // in original displacement ordering
    Array<int> secondary_tdofs_;
@@ -220,6 +223,11 @@ public:
    void Mult(const Vector& x, Vector& y) const;
 
    void MultTranspose(const Vector& x, Vector& y) const;
+
+   /** @brief Assemble this projector as a SparseMatrix
+
+       Some day we may also want to try approximate variants. */
+   SparseMatrix * AssembleExact() const;
 
 private:
    Array<Eliminator*> eliminators_;

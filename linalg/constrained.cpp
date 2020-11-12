@@ -412,18 +412,26 @@ void Eliminator::EliminateTranspose(const Vector& in, Vector& out) const
    out *= -1.0;
 }
 
+void Eliminator::ExplicitAssembly(DenseMatrix& mat) const
+{
+   mat.SetSize(Bp_.Height(), Bp_.Width());
+   mat = Bp_;
+   Bsinverse_.Solve(Bs_.Height(), Bp_.Width(), mat.GetData());
+}
+
 NewEliminationProjection::NewEliminationProjection(const SparseMatrix& A, Array<Eliminator*>& eliminators)
    :
+   Operator(A.Height()),
    eliminators_(eliminators)
 {
 }
 
 void NewEliminationProjection::Mult(const Vector& in, Vector& out) const
 {
-   out = in;
+   MFEM_ASSERT(in.Size() == width, "Wrong vector size!");
+   MFEM_ASSERT(out.Size() == height, "Wrong vector size!");
 
-   std::cout << "newout A: ";
-   out.Print(std::cout);
+   out = in;
 
    for (int k = 0; k < eliminators_.Size(); ++k)
    {
@@ -431,16 +439,57 @@ void NewEliminationProjection::Mult(const Vector& in, Vector& out) const
       Vector subvecin;
       Vector subvecout(elim->SecondaryDofs().Size());
       in.GetSubVector(elim->PrimaryDofs(), subvecin);
-      std::cout << "  newout subvecin: ";
-      subvecin.Print(std::cout);
       elim->Eliminate(subvecin, subvecout);
-      // subvectou *= -1.0;
-      // Set not Add
       out.SetSubVector(elim->SecondaryDofs(), subvecout);
-
-      std::cout << "newout B: ";
-      out.Print(std::cout);
    }
+}
+
+void NewEliminationProjection::MultTranspose(const Vector& in, Vector& out) const
+{
+   MFEM_ASSERT(in.Size() == height, "Wrong vector size!");
+   MFEM_ASSERT(out.Size() == width, "Wrong vector size!");
+
+   out = in;
+
+   for (int k = 0; k < eliminators_.Size(); ++k)
+   {
+      Eliminator* elim = eliminators_[k];
+      Vector subvecin;
+      Vector subvecout(elim->PrimaryDofs().Size());
+      in.GetSubVector(elim->SecondaryDofs(), subvecin);
+      elim->EliminateTranspose(subvecin, subvecout);
+      out.AddElementVector(elim->PrimaryDofs(), subvecout);
+      out.SetSubVector(elim->SecondaryDofs(), 0.0);
+   }
+}
+
+SparseMatrix * NewEliminationProjection::AssembleExact() const
+{
+   SparseMatrix * out = new SparseMatrix(height, width);
+
+   for (int i = 0; i < height; ++i)
+   {
+      out->Add(i, i, 1.0);
+   }
+
+   for (int k = 0; k < eliminators_.Size(); ++k)
+   {
+      Eliminator* elim = eliminators_[k];
+      DenseMatrix mat;
+      elim->ExplicitAssembly(mat);
+      for (int iz = 0; iz < elim->SecondaryDofs().Size(); ++iz)
+      {
+         int i = elim->SecondaryDofs()[iz];
+         for (int jz = 0; jz < elim->PrimaryDofs().Size(); ++jz)
+         {
+            int j = elim->PrimayDofs()[jz];
+            out->Add(i, j, -mat(iz, jz));
+         }
+         out->Set(i, i, 0.0);
+      }
+   }
+
+   out->Finalize();
 }
 
 EliminationCGSolver::~EliminationCGSolver()
