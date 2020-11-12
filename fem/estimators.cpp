@@ -256,7 +256,6 @@ void KellyErrorEstimator::ComputeEstimates()
                   e1.AdjugateJacobian().MultTranspose(ref_normal, normal);
                   normal /= e1.Weight();
                }
-               normal.Neg();
 
                jumps(i) -= val * normal * fip.weight * FT->Face->Weight();
             }
@@ -358,7 +357,6 @@ void KellyErrorEstimator::ComputeEstimates()
             e1.AdjugateJacobian().MultTranspose(ref_normal, normal);
             normal /= e1.Weight();
          }
-         normal.Neg();
 
          jumps(i) -= val * normal * fip.weight * FT->Face->Weight();
       }
