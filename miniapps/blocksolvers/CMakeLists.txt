@@ -10,23 +10,23 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 if (MFEM_USE_MPI)
-  add_mfem_miniapp(block_solvers_comparison
-    MAIN block_solvers_comparison.cpp
+  add_mfem_miniapp(block-solvers-compare
+    MAIN block-solvers-compare.cpp
     EXTRA_SOURCES div_free_solver.cpp
     EXTRA_HEADERS div_free_solver.hpp
     LIBRARIES mfem)
 
   # Add the corresponding tests to the "test" target
-  add_test(NAME compare_block_solvers
+  add_test(NAME block-solvers-compare-constant
     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
     ${MPIEXEC_PREFLAGS}
-    $<TARGET_FILE:block_solvers_comparison> -r 2
+    $<TARGET_FILE:block-solvers-compare> -r 2
     ${MPIEXEC_POSTFLAGS})
 
-  add_test(NAME compare_block_solvers_high_contrast_coef
+  add_test(NAME block-solvers-compare-high-contrast
     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
     ${MPIEXEC_PREFLAGS}
-    $<TARGET_FILE:block_solvers_comparison> -r 2
+    $<TARGET_FILE:block-solvers-compare> -r 2
     -m ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.mesh
     -c ${CMAKE_CURRENT_SOURCE_DIR}/high_contrast_coef.txt
     -eb ${CMAKE_CURRENT_SOURCE_DIR}/ess_bdr_attr.txt
