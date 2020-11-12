@@ -356,7 +356,6 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       // Needed for the line search below.
       // The untangling metrics see this reference to detect deteriorations.
       *min_det_ptr = min_detJ_in - eps_untangle;
-      std::cout << "--- Update detJ: " << *min_det_ptr << std::endl;
    }
 
    const bool have_b = (b.Size() == Height());
@@ -440,7 +439,8 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    {
       // Update min detJ for all the metrics. The metrics see this min_det_ptr.
       *min_det_ptr = min_detJ_out - eps_untangle;
-      std::cout << "$$$ Final update detJ: " << *min_det_ptr << std::endl;
+      if (print_level >= 0)
+      { mfem::out << "New min_detJ = " << min_detJ_out << "\n"; }
    }
 
    if (print_level >= 0)
