@@ -475,7 +475,10 @@ private:
    BilinearFormIntegrator* flux_integrator; ///< Not owned.
    ParGridFunction* solution;               ///< Not owned.
 
-   ParFiniteElementSpace* flux_space; ///< Not owned.
+   ParFiniteElementSpace*
+   flux_space; /**< @brief Ownership based on own_flux_fes. */
+   bool with_coeff;
+   bool own_flux_fespace; ///< Ownership flag for flux_space.
 
    /// Check if the mesh of the solution was modified.
    bool MeshIsModified()
@@ -507,6 +510,20 @@ public:
    KellyErrorEstimator(BilinearFormIntegrator& di_, ParGridFunction& sol_,
                        ParFiniteElementSpace& flux_fes_,
                        Array<int> attributes_ = Array<int>());
+
+   /** @brief Construct a new KellyErrorEstimator object for a scalar field.
+       @param di_         The bilinearform to compute the interface flux.
+       @param sol_        The solution field whose error is to be estimated.
+       @param flux_fes_   The finite element space for the interface flux.
+       @param attributes_ The attributes of the subdomain(s) for which the
+                          error should be estimated. An empty array results in
+                          estimating the error over the complete domain.
+   */
+   KellyErrorEstimator(BilinearFormIntegrator& di_, ParGridFunction& sol_,
+                       ParFiniteElementSpace* flux_fes_,
+                       Array<int> attributes_ = Array<int>());
+
+   ~KellyErrorEstimator();
 
    /// Get a Vector with all element errors.
    const Vector& GetLocalErrors() override

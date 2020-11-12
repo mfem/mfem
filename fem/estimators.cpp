@@ -50,14 +50,36 @@ void L2ZienkiewiczZhuEstimator::ComputeEstimates()
 
 KellyErrorEstimator::KellyErrorEstimator(BilinearFormIntegrator& di_,
                                          ParGridFunction& sol_,
-                                         ParFiniteElementSpace& flux_fes_,
+                                         ParFiniteElementSpace& flux_fespace_,
                                          Array<int> attributes_)
    : attributes(attributes_)
    , flux_integrator(&di_)
    , solution(&sol_)
-   , flux_space(&flux_fes_)
+   , flux_space(&flux_fespace_)
+   , own_flux_fespace(false)
 {
    ResetCoefficientFunctions();
+}
+
+KellyErrorEstimator::KellyErrorEstimator(BilinearFormIntegrator& di_,
+                                         ParGridFunction& sol_,
+                                         ParFiniteElementSpace* flux_fespace_,
+                                         Array<int> attributes_)
+   : attributes(attributes_)
+   , flux_integrator(&di_)
+   , solution(&sol_)
+   , flux_space(flux_fespace_)
+   , own_flux_fespace(true)
+{
+   ResetCoefficientFunctions();
+}
+
+KellyErrorEstimator::~KellyErrorEstimator()
+{
+   if (own_flux_fespace)
+   {
+      delete flux_space;
+   }
 }
 
 void KellyErrorEstimator::ResetCoefficientFunctions()
@@ -407,7 +429,17 @@ void LpErrorEstimator::ComputeEstimates()
    {
       sol->ComputeElementLpErrors(local_norm_p, *vcoef, error_estimates);
    }
-   total_error = pow(error_estimates.Sum(), 1.0/local_norm_p);
+#ifdef MFEM_USE_MPI
+   total_error = error_estimates.Sum();
+   auto pfes = dynamic_cast<ParFiniteElementSpace*>(sol->FESpace());
+   if (pfes)
+   {
+      auto process_local_error = total_error;
+      MPI_Allreduce(&process_local_error, &total_error, 1, MPI_DOUBLE,
+                    MPI_SUM, pfes->GetComm());
+   }
+#endif // MFEM_USE_MPI
+   total_error = pow(total_error, 1.0/local_norm_p);
    current_sequence = sol->FESpace()->GetMesh()->GetSequence();
 }
 
