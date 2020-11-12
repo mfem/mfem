@@ -94,8 +94,8 @@ then
     echo "~~~~~ Building MFEM"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
-    make config \
-      USER_CONFIG=${hostconfig_path}
+    cp ${hostconfig_path} ${project_dir}/config/
+
     make all -j
 fi
 
