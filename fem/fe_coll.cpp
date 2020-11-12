@@ -2850,7 +2850,7 @@ ND_P2D_FECollection::ND_P2D_FECollection(const int p, const int dim,
    MFEM_VERIFY(dim >= 1 && dim <= 2,
                "ND_P2D_FECollection requires 1 <= dim <= 2.");
 
-   const int pm1 = p - 1;
+   const int pm1 = p - 1, pm2 = p - 2;
 
    if (cb_type == BasisType::GaussLobatto &&
        ob_type == BasisType::GaussLegendre)
@@ -2920,8 +2920,8 @@ ND_P2D_FECollection::ND_P2D_FECollection(const int p, const int dim,
       ND_dof[Geometry::SQUARE] = 2*p*pm1 + pm1*pm1;
 
       // TODO: cb_type and ob_type for triangles
-      // ND_Elements[Geometry::TRIANGLE] = new ND_P2D_TriangleElement(p);
-      // ND_dof[Geometry::TRIANGLE] = p*pm1;
+      ND_Elements[Geometry::TRIANGLE] = new ND_P2D_TriangleElement(p, cb_type);
+      ND_dof[Geometry::TRIANGLE] = p*pm1 + (pm1*pm2)/2;
    }
 }
 
