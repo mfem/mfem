@@ -159,29 +159,34 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh embedded in 3D",
    const auto order = GENERATE(1, 3, 5);
 
    // Manually construct embedded mesh
-   std::array<double, 4*3> vertices = {
+   std::array<double, 4*3> vertices =
+   {
       0.0,0.0,0.0,
       0.0,1.0,0.0,
       1.0,1.0,0.0,
       1.0,0.0,0.0
    };
 
-   std::array<int, 4> element_indices = {
+   std::array<int, 4> element_indices =
+   {
       0,1,2,3
    };
 
-   std::array<int, 1> element_attributes = {
+   std::array<int, 1> element_attributes =
+   {
       1
    };
 
-   std::array<int, 8> boundary_indices = {
+   std::array<int, 8> boundary_indices =
+   {
       0,1,
       1,2,
       2,3,
       3,0
    };
 
-   std::array<int, 4> boundary_attributes = {
+   std::array<int, 4> boundary_attributes =
+   {
       1,
       1,
       1,
