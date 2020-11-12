@@ -96,7 +96,7 @@ protected:
    {
       eval_state |= HAVE_I2b;
       const scalar_t det = J[0]*J[3] - J[1]*J[2];
-      //sign_detJ = scalar_ops::sign(det);
+      sign_detJ = scalar_ops::sign(det);
       //I2b = sign_detJ*det;
       I2b = det;
    }

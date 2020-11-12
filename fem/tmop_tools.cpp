@@ -390,14 +390,15 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       min_detJ_out = ComputeMinDet(x_out_loc, *fes);
       if (untangling == false && min_detJ_out < 0.0)
       {
-         // No untangling and detJ got negative - no good.
+         // No untangling, and detJ got negative -- no good.
          if (print_level >= 0)
          { mfem::out << "Scale = " << scale << " Neg det(J) found.\n"; }
          scale *= detJ_factor; continue;
       }
-      if (untangling == true && min_detJ_out < 0.0 && min_detJ_out < *min_det_ptr)
+      if (untangling == true &&
+          min_detJ_out < 0.0 && min_detJ_out < *min_det_ptr)
       {
-         // Untangling and detJ got even more negative - no good.
+         // Untangling, and detJ got even more negative -- no good.
          if (print_level >= 0)
          { mfem::out << "Scale = " << scale << " Neg det(J) decreased.\n"; }
          scale *= detJ_factor; continue;
@@ -414,7 +415,6 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          energy_out = p_nlf->GetParGridFunctionEnergy(x_out_loc);
       }
 #endif
-      std::cout << "Change E: " << energy_in << " " << energy_out << std::endl;
 
       if (energy_out > 1.2*energy_in || std::isnan(energy_out) != 0)
       {
@@ -426,8 +426,6 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       oper->Mult(x_out, r);
       if (have_b) { r -= b; }
       double norm_out = Norm(r);
-
-      std::cout << "Change N: " << norm_in << " " << norm_out << std::endl;
 
       if (norm_out > 1.2*norm_in)
       {
