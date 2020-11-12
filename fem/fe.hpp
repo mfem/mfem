@@ -2375,7 +2375,6 @@ private:
 
    H1_TriangleElement TriangleFE;
    H1_SegmentElement  SegmentFE;
-
 public:
    /// Construct the H1_WedgeElement of order @a p and BasisType @a btype
    H1_WedgeElement(const int p,
@@ -3407,29 +3406,86 @@ public:
    { ProjectCurl_ND(tk, dof2tk, fe, Trans, curl); }
 };
 
+class ND_P2D_FiniteElement : public VectorFiniteElement
+{
+protected:
+  const double *tk;
+  Array<int> dof2tk;
+  
+  ND_P2D_FiniteElement(int p, Geometry::Type G, int Do, const double *tk_fe)
+     : VectorFiniteElement(2, 3, 3, G, Do, p,
+			   H_CURL, FunctionSpace::Pk),
+       tk(tk_fe),
+       dof2tk(dof)
+  {}
+
+public:
+   using FiniteElement::CalcVShape;
+  
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const;
+
+   virtual void ProjectGrad(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &grad) const
+   { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
+};
+
+/// Arbitrary order Nedelec 3D elements in 2D on a triangle
+class ND_P2D_TriangleElement : public ND_P2D_FiniteElement
+{
+private:
+   static const double tk_t[15];
+
+#ifndef MFEM_THREAD_SAFE
+   mutable DenseMatrix nd_shape;
+   mutable Vector      h1_shape;
+   mutable DenseMatrix nd_dshape;
+   mutable DenseMatrix h1_dshape;
+#endif
+
+   Array<int> dof_map;
+
+   ND_TriangleElement ND_FE;
+   H1_TriangleElement H1_FE;
+
+public:
+   /// Construct the ND_P2D_TriangleElement of order @a p
+   ND_P2D_TriangleElement(const int p,
+                          const int cb_type = BasisType::GaussLobatto);
+
+   using ND_P2D_FiniteElement::CalcVShape;
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+   virtual void CalcCurlShape(const IntegrationPoint &ip,
+                              DenseMatrix &curl_shape) const;
+};
+
 
 /// Arbitrary order Nedelec 3D elements in 2D on a square
-class ND_P2D_QuadrilateralElement : public VectorFiniteElement
+class ND_P2D_QuadrilateralElement : public ND_P2D_FiniteElement
 {
-   static const double tk[15];
+   static const double tk_q[15];
 
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox, shape_cy, shape_oy;
    mutable Vector dshape_cx, dshape_cy;
 #endif
-   Array<int> dof_map, dof2tk;
+   Array<int> dof_map;
 
    Poly_1D::Basis &cbasis1d, &obasis1d;
 
 public:
-   /** @brief Construct the ND_QuadrilateralElement of order @a p and closed and
-       open BasisType @a cb_type and @a ob_type */
+   /** @brief Construct the ND_P2D_QuadrilateralElement of order @a p and
+       closed and open BasisType @a cb_type and @a ob_type */
    ND_P2D_QuadrilateralElement(const int p,
                                const int cb_type = BasisType::GaussLobatto,
                                const int ob_type = BasisType::GaussLegendre);
+
+   using ND_P2D_FiniteElement::CalcVShape;
+
    virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
-   virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const;
    virtual void CalcCurlShape(const IntegrationPoint &ip,
                               DenseMatrix &curl_shape) const;
@@ -3457,10 +3513,6 @@ public:
                         ElementTransformation &Trans,
                         DenseMatrix &I) const
    { Project_ND(tk, dof2tk, fe, Trans, I); }
-   virtual void ProjectGrad(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &grad) const
-   { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
 };
 
 

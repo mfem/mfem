@@ -12869,15 +12869,152 @@ void ND_P2D_SegmentElement::CalcCurlShape(const IntegrationPoint &ip,
    }
 }
 
-const double ND_P2D_QuadrilateralElement::tk[15] =
+void ND_P2D_FiniteElement::CalcVShape(ElementTransformation &Trans,
+                                        DenseMatrix &shape) const
+{
+   CalcVShape(Trans.GetIntPoint(), shape);
+   const DenseMatrix & JI = Trans.InverseJacobian();
+   MFEM_ASSERT(JI.Width() == 2 && JI.Height() == 2,
+               "ND_P2D_FiniteElement cannot be embedded in "
+               "3 dimensional spaces");
+   for (int i=0; i<dof; i++)
+   {
+      double sx = shape(i, 0);
+      double sy = shape(i, 1);
+      shape(i, 0) = sx * JI(0, 0) + sy * JI(1, 0);
+      shape(i, 1) = sx * JI(0, 1) + sy * JI(1, 1);
+   }
+}
+
+const double ND_P2D_TriangleElement::tk_t[15] =
+  { 1.,0.,0.,  -1.,1.,0.,  0.,-1.,0.,  0.,1.,0., 0.,0.,1. };
+
+ND_P2D_TriangleElement::ND_P2D_TriangleElement(const int p,
+                                               const int cb_type)
+  : ND_P2D_FiniteElement(p, Geometry::TRIANGLE, ((3*p + 1)*(p + 2))/2, tk_t),
+     dof_map(dof),
+     ND_FE(p),
+     H1_FE(p, cb_type)
+{
+   int pm1 = p - 1, pm2 = p - 2;
+
+#ifndef MFEM_THREAD_SAFE
+   nd_shape.SetSize(ND_FE.GetDof(), 2);
+   h1_shape.SetSize(H1_FE.GetDof());
+   nd_dshape.SetSize(ND_FE.GetDof(), 1);
+   h1_dshape.SetSize(H1_FE.GetDof(), 2);
+#endif
+
+   int o = 0;
+   int n = 0;
+   int h = 0;
+   // Three nodes
+   dof_map[o++] = -1 - h++;
+   dof_map[o++] = -1 - h++;
+   dof_map[o++] = -1 - h++;
+
+   // Three edges
+   for (int e=0; e<3; e++)
+   {
+      // Dofs in the plane
+      for (int i=0; i<p; i++)
+      {
+         dof_map[o++] = n++;
+      }
+      // z-directed dofs
+      for (int i=0; i<pm1; i++)
+      {
+         dof_map[o++] = -1 - h++;
+      }
+   }
+
+   // Interior dofs in the plane
+   for (int j = 0; j <= pm2; j++)
+      for (int i = 0; i + j <= pm2; i++)
+      {
+         dof_map[o++] = n++;
+         dof_map[o++] = n++;
+      }
+
+   // Interior z-directed dofs
+   for (int j = 0; j < pm1; j++)
+      for (int i = 0; i + j < pm2; i++)
+      {
+         dof_map[o++] = -1 - h++;
+      }
+
+   MFEM_VERIFY(n == p*(p + 2),
+               "ND_P2D_Triangle incorrect number of ND dofs.");
+   MFEM_VERIFY(h == ((p + 1)*(p + 2))/2,
+               "ND_P2D_Triangle incorrect number of H1 dofs.");
+}
+
+void ND_P2D_TriangleElement::CalcVShape(const IntegrationPoint &ip,
+                                        DenseMatrix &shape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix nd_shape(ND_FE.GetDof());
+   Vector      h1_shape(H1_FE.GetDof());
+#endif
+
+   ND_FE.CalcVShape(ip, nd_shape);
+   H1_FE.CalcShape(ip, h1_shape);
+
+   for (int i=0; i<dof; i++)
+   {
+      int idx = dof_map[i];
+      if (idx >= 0)
+      {
+         shape(i, 0) = nd_shape(idx, 0);
+         shape(i, 1) = nd_shape(idx, 1);
+         shape(i, 2) = 0.0;
+      }
+      else
+      {
+         shape(i, 0) = 0.0;
+         shape(i, 1) = 0.0;
+         shape(i, 2) = h1_shape(-idx-1);
+      }
+   }
+}
+
+void ND_P2D_TriangleElement::CalcCurlShape(const IntegrationPoint &ip,
+                                           DenseMatrix &curl_shape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix nd_dshape(ND_FE.GetDof(), 1);
+   DenseMatrix h1_dshape(H1_FE.GetDof(), 2);
+#endif
+
+   ND_FE.CalcCurlShape(ip, nd_dshape);
+   H1_FE.CalcDShape(ip, h1_dshape);
+
+   for (int i=0; i<dof; i++)
+   {
+      int idx = dof_map[i];
+      if (idx >= 0)
+      {
+         curl_shape(i, 0) = 0.0;
+         curl_shape(i, 1) = 0.0;
+         curl_shape(i, 2) = nd_dshape(idx, 0);
+      }
+      else
+      {
+         curl_shape(i, 0) = h1_dshape(-idx-1, 1);
+         curl_shape(i, 1) = -h1_dshape(-idx-1, 0);
+         curl_shape(i, 2) = 0.0;
+      }
+   }
+}
+
+
+const double ND_P2D_QuadrilateralElement::tk_q[15] =
 { 1.,0.,0.,  0.,1.,0., -1.,0.,0., 0.,-1.,0., 0.,0.,1. };
 
 ND_P2D_QuadrilateralElement::ND_P2D_QuadrilateralElement(const int p,
                                                          const int cb_type,
                                                          const int ob_type)
-   : VectorFiniteElement(2, 3, 3, Geometry::SQUARE, (3*p+1)*(p + 1), p,
-                         H_CURL, FunctionSpace::Pk),
-     dof2tk(dof),
+  : ND_P2D_FiniteElement(p, Geometry::SQUARE, ((3*p + 1)*(p + 1)), tk_q),
      cbasis1d(poly1d.GetBasis(p, VerifyClosed(cb_type))),
      obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(ob_type)))
 {
@@ -13061,23 +13198,6 @@ void ND_P2D_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
          shape(idx,1) = 0.;
          shape(idx,2) = shape_cx(i)*shape_cy(j);
       }
-}
-
-void ND_P2D_QuadrilateralElement::CalcVShape(ElementTransformation &Trans,
-                                             DenseMatrix &shape) const
-{
-   CalcVShape(Trans.GetIntPoint(), shape);
-   const DenseMatrix & JI = Trans.InverseJacobian();
-   MFEM_ASSERT(JI.Width() == 2 && JI.Height() == 2,
-               "ND_P2D_QuadrilateralElement cannot be embedded in "
-               "3 dimensional spaces");
-   for (int i=0; i<dof; i++)
-   {
-      double sx = shape(i, 0);
-      double sy = shape(i, 1);
-      shape(i, 0) = sx * JI(0, 0) + sy * JI(1, 0);
-      shape(i, 1) = sx * JI(0, 1) + sy * JI(1, 1);
-   }
 }
 
 void ND_P2D_QuadrilateralElement::CalcCurlShape(const IntegrationPoint &ip,
