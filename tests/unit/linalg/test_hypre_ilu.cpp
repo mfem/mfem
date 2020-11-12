@@ -16,7 +16,7 @@ namespace mfem
 {
 
 #ifdef MFEM_USE_MPI
-#if MFEM_HYPRE_VERSION >= 21400
+#if MFEM_HYPRE_VERSION >= 21900
 
 
 TEST_CASE("HypreILU and HypreFGMRES wrappers",
