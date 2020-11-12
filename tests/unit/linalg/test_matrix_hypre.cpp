@@ -9,13 +9,11 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "catch.hpp"
 #include "mfem.hpp"
+#include "unit_tests.hpp"
 
 namespace mfem
 {
-
-constexpr double EPS = 1.e-12;
 
 #ifdef MFEM_USE_MPI
 
@@ -75,7 +73,7 @@ TEST_CASE("HypreParMatrixAbsMult",  "[Parallel], [HypreParMatrixAbsMult]")
                 << ", error norm on rank "
                 << rank << ": " << error << std::endl;
 
-      REQUIRE(error == Approx(EPS));
+      REQUIRE(error == MFEM_Approx(0.0));
 
       MPI_Barrier(MPI_COMM_WORLD);
 
@@ -91,7 +89,7 @@ TEST_CASE("HypreParMatrixAbsMult",  "[Parallel], [HypreParMatrixAbsMult]")
                 << ", error norm on rank "
                 << rank << ": " << error << std::endl;
 
-      REQUIRE(error == Approx(EPS));
+      REQUIRE(error == MFEM_Approx(0.0));
 
       delete A;
       delete Aabs;

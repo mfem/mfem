@@ -133,8 +133,7 @@ void BilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
          ext = new PABilinearFormExtension(this);
          break;
       case AssemblyLevel::NONE:
-         mfem_error("Matrix-free action not supported yet... stay tuned!");
-         // ext = new MFBilinearFormExtension(this);
+         ext = new MFBilinearFormExtension(this);
          break;
       default:
          mfem_error("Unknown assembly level");
@@ -627,7 +626,10 @@ void BilinearForm::AssembleDiagonal(Vector &diag) const
       MFEM_ASSERT(diag.Size() == fes->GetTrueVSize(),
                   "Vector for holding diagonal has wrong size!");
       const Operator *P = fes->GetProlongationMatrix();
-      if (!fes->Conforming())
+      // For an AMR mesh, a convergent diagonal is assembled with |P^T| d_e,
+      // where |P^T| has the entry-wise absolute values of the conforming
+      // prolongation transpose operator.
+      if (P && !fes->Conforming())
       {
          Vector local_diag(P->Height());
          ext->AssembleDiagonal(local_diag);

@@ -34,6 +34,7 @@ void ParLinearForm::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
 {
    LinearForm::MakeRef(f, v, v_offset);
    pfes = dynamic_cast<ParFiniteElementSpace*>(f);
+   MFEM_ASSERT(pfes != NULL, "not a ParFiniteElementSpace");
 }
 
 void ParLinearForm::MakeRef(ParFiniteElementSpace *pf, Vector &v, int v_offset)
