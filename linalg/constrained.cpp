@@ -555,6 +555,7 @@ void NewEliminationProjection::RecoverPressure(
 EliminationCGSolver::~EliminationCGSolver()
 {
    delete h_explicit_operator_;
+   delete elim_;
    delete projector_;
    delete prec_;
 }
@@ -613,14 +614,30 @@ void EliminationCGSolver::BuildSeparatedInterfaceDofs(int firstblocksize)
 void EliminationCGSolver::BuildPreconditioner()
 {
    // first_interface_dofs = primary_dofs, column indices corresponding to nonzeros in constraint
-   // rectangular B_1 = B_m has lagrange_dofs rows, first_interface_dofs columns
+   // rectangular B_1 = B_p has lagrange_dofs rows, first_interface_dofs columns
    // square B_2 = B_s has lagrange_dofs rows, second_interface_dofs columns
+   /*
    projector_ = new EliminationProjection(spA_, spB_, first_interface_dofs_,
                                           second_interface_dofs_);
+   */
+   Array<int> lagrange_dofs(second_interface_dofs_.Size());
+   for (int i = 0; i < lagrange_dofs.Size(); ++i)
+   {
+      lagrange_dofs[i] = i;
+   }
+   elim_ = new Eliminator(spB_, lagrange_dofs, first_interface_dofs_,
+                          second_interface_dofs_);
+   Array<Eliminator*> elims;
+   elims.Append(elim_);
+   projector_ = new NewEliminationProjection(spA_, elims);
 
    SparseMatrix * explicit_projector = projector_->AssembleExact();
    HypreParMatrix * h_explicit_projector = SerialHypreMatrix(*explicit_projector);
    h_explicit_operator_ = RAP(&hA_, h_explicit_projector);
+   
+   /// next line because of square projector
+   h_explicit_operator_->EliminateZeroRows();
+
    h_explicit_operator_->CopyRowStarts();
    h_explicit_operator_->CopyColStarts();
    prec_ = new HypreBoomerAMG(*h_explicit_operator_);
@@ -678,37 +695,40 @@ EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
 
 void EliminationCGSolver::Mult(const Vector& rhs, Vector& sol) const
 {
-   RAPOperator reducedoperator(*projector_, spA_, *projector_);
+   // with square projector, need to add ones on diagonal
+   // for quasi-eliminated dofs...
+   // RAPOperator reducedoperator(*projector_, spA_, *projector_);
    CGSolver krylov;
-   krylov.SetOperator(reducedoperator);
+   // krylov.SetOperator(reducedoperator);
+   krylov.SetOperator(*h_explicit_operator_);
    krylov.SetPreconditioner(*prec_);
    krylov.SetMaxIter(max_iter);
    krylov.SetRelTol(rel_tol);
    krylov.SetAbsTol(abs_tol);
    krylov.SetPrintLevel(print_level);
 
-   Vector gtilde(rhs.Size());
+   Vector rtilde(rhs.Size());
    if (constraint_rhs.Size() > 0)
    {
-      projector_->BuildGTilde(constraint_rhs, gtilde);
+      projector_->BuildGTilde(constraint_rhs, rtilde);
    }
    else
    {
-      gtilde = 0.0;
+      rtilde = 0.0;
    }
    Vector temprhs(rhs);
-   spA_.AddMult(gtilde, temprhs, -1.0);
+   spA_.AddMult(rtilde, temprhs, -1.0);
 
-   Vector reducedrhs(reducedoperator.Height());
+   Vector reducedrhs(rhs.Size());
    projector_->MultTranspose(temprhs, reducedrhs);
-   Vector reducedsol(reducedoperator.Height());
+   Vector reducedsol(rhs.Size());
    reducedsol = 0.0;
    krylov.Mult(reducedrhs, reducedsol);
    projector_->Mult(reducedsol, sol);
 
    projector_->RecoverPressure(temprhs, sol, multiplier_sol);
 
-   sol += gtilde;
+   sol += rtilde;
 }
 
 void PenaltyConstrainedSolver::Initialize(HypreParMatrix& A, HypreParMatrix& B)
