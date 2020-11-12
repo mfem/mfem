@@ -62,9 +62,9 @@ include $(MFEM_TEST_MK)
 
 # Testing: Specific execution options
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-block_solvers_comparison-test: block_solvers_comparison
+block-solvers-test-par: block_solvers_comparison
 	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-r 2)
-block_solvers_comparison-test-high-contrast: block_solvers_comparison
+block-solvers-test-high-contrast-par: block_solvers_comparison
 	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-r 2\
 	-m anisoptropic.mesh -c high_contrast_coef.txt -eb ess_bdr_attr.txt)
 
