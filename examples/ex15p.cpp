@@ -19,10 +19,13 @@
 //               mpirun -np 4 ex15p -m ../data/square-disc.mesh
 //               mpirun -np 4 ex15p -m ../data/escher.mesh -r 2 -tf 0.3
 //
-//               Other estimators:
+//               Different estimators:
 //
+//               mpirun -np 4 ex15p -est 0 -e 1e-4
 //               mpirun -np 4 ex15p -est 1 -e 1e-6
 //               mpirun -np 4 ex15p -est 1 -o 3 -tf 0.3
+//               mpirun -np 4 ex15p -est 1 -o 3 -tf 0.3
+//               mpirun -np 4 ex15p -est 2 -o 2
 //
 // Description:  Building on Example 6, this example demonstrates dynamic AMR.
 //               The mesh is adapted to a time-dependent solution by refinement
@@ -114,7 +117,8 @@ int main(int argc, char *argv[])
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&which_estimator, "-est", "--estimator",
-                  "Which estimator to use: 0 = L2ZZ, 1 = Kelly. Defaults to L2ZZ.");
+                  "Which estimator to use: "
+                  "0 = L2ZZ, 1 = Kelly, 2 = ZZ. Defaults to L2ZZ.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -222,26 +226,35 @@ int main(int argc, char *argv[])
    //     provide the method ComputeElementFlux. We supply an L2 space for the
    //     discontinuous flux and an H(div) space for the smoothed flux.
    L2_FECollection flux_fec(order, dim);
-   ParFiniteElementSpace flux_fes(&pmesh, &flux_fec, sdim);
    RT_FECollection smooth_flux_fec(order-1, dim);
-   ParFiniteElementSpace smooth_flux_fes(&pmesh, &smooth_flux_fec);
    ErrorEstimator* estimator;
    switch (which_estimator)
    {
-      case 0:
-         estimator = new L2ZienkiewiczZhuEstimator(*integ, x, flux_fes, smooth_flux_fes);
-         break;
       case 1:
+      {
+         auto flux_fes = new ParFiniteElementSpace(&pmesh, &flux_fec, sdim);
          estimator = new KellyErrorEstimator(*integ, x, flux_fes);
          break;
+      }
+      case 2:
+      {
+         auto flux_fes = new ParFiniteElementSpace(&pmesh, &fec, sdim);
+         estimator = new ZienkiewiczZhuEstimator(*integ, x, flux_fes);
+         break;
+      }
 
       default:
          if (myid == 0)
          {
             std::cout << "Unkown estimator. Falling back to L2ZZ." << std::endl;
          }
+      case 0:
+      {
+         auto flux_fes = new ParFiniteElementSpace(&pmesh, &flux_fec, sdim);
+         auto smooth_flux_fes = new ParFiniteElementSpace(&pmesh, &smooth_flux_fec);
          estimator = new L2ZienkiewiczZhuEstimator(*integ, x, flux_fes, smooth_flux_fes);
          break;
+      }
    }
 
    // 11. As in Example 6p, we also need a refiner. This time the refinement
