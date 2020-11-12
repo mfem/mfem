@@ -359,7 +359,7 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
             B_f_diag.EliminateCol(dof);
          }
 
-         const IterSolveParameters& param = data.param.BBT_solve_param;
+         const IterSolveParameters& param = data.param.coarse_solve_param;
          auto coarse_solver = new BDPMinresSolver(M_f, B_f, param);
          if (ops_.Size() > 1)
          {
