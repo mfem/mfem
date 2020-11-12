@@ -15,4 +15,20 @@ if (MFEM_USE_MPI)
     EXTRA_SOURCES div_free_solver.cpp
     EXTRA_HEADERS div_free_solver.hpp
     LIBRARIES mfem)
+
+  # Add the corresponding tests to the "test" target
+  add_test(NAME compare_block_solvers
+    COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+    ${MPIEXEC_PREFLAGS}
+    $<TARGET_FILE:block_solvers_comparison> -r 2
+    ${MPIEXEC_POSTFLAGS})
+
+  add_test(NAME compare_block_solvers_high_contrast_coef
+    COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+    ${MPIEXEC_PREFLAGS}
+    $<TARGET_FILE:block_solvers_comparison> -r 2
+    -m ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.mesh
+    -c ${CMAKE_CURRENT_SOURCE_DIR}/high_contrast_coef.txt
+    -eb ${CMAKE_CURRENT_SOURCE_DIR}/ess_bdr_attr.txt
+    ${MPIEXEC_POSTFLAGS})
 endif()

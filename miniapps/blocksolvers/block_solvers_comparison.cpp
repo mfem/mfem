@@ -46,7 +46,7 @@ double natural_bc(const Vector & x);
                      [ M  B^T ] [u] = [f]
                      [ B   0  ] [p] = [g]
     where:
-       M = \int_\Omega u_h \cdot v_h dx,
+       M = \int_\Omega (k u_h) \cdot v_h dx,
        B = -\int_\Omega (div_h u_h) q_h dx,
        f = \int_\Omega f_exact v_h dx + \int_D natural_bc v_h dS,
        g = \int_\Omega g_exact q_h dx,
@@ -67,20 +67,21 @@ class DarcyProblem
    DFSSpaces dfs_spaces_;
    const IntegrationRule *irs_[Geometry::NumGeom];
 public:
-   DarcyProblem(Mesh& mesh, int num_refines, int order,
-                Array<int>& ess_bdr, DFSParameters param);
+   DarcyProblem(Mesh &mesh, int num_refines, int order, const char *coef_file,
+                Array<int> &ess_bdr, DFSParameters param);
 
    HypreParMatrix& GetM() { return *M_.As<HypreParMatrix>(); }
    HypreParMatrix& GetB() { return *B_.As<HypreParMatrix>(); }
    const Vector& GetRHS() { return rhs_; }
    const Vector& GetEssentialBC() { return ess_data_; }
    const DFSData& GetDFSData() const { return dfs_spaces_.GetDFSData(); }
-   void ShowError(const Vector& sol, bool verbose);
-   void VisualizeSolution(const Vector& sol, string tag);
+   void ShowError(const Vector &sol, bool verbose);
+   void VisualizeSolution(const Vector &sol, string tag);
 };
 
-DarcyProblem::DarcyProblem(Mesh& mesh, int num_refs, int order,
-                           Array<int>& ess_bdr, DFSParameters dfs_param)
+DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
+                           const char *coef_file, Array<int> &ess_bdr,
+                           DFSParameters dfs_param)
    : mesh_(MPI_COMM_WORLD, mesh), ucoeff_(mesh.Dimension(), u_exact),
      pcoeff_(p_exact), dfs_spaces_(order, num_refs, &mesh_, ess_bdr, dfs_param)
 {
@@ -90,12 +91,21 @@ DarcyProblem::DarcyProblem(Mesh& mesh, int num_refs, int order,
       dfs_spaces_.CollectDFSData();
    }
 
+   Vector coef_vector(mesh.GetNE());
+   coef_vector = 1.0;
+   if (coef_file != "")
+   {
+      ifstream coef_str(coef_file);
+      coef_vector.Load(coef_str, mesh.GetNE());
+   }
+   PWConstCoefficient mass_coeff(coef_vector);
    VectorFunctionCoefficient fcoeff(mesh_.Dimension(), f_exact);
    FunctionCoefficient natcoeff(natural_bc);
    FunctionCoefficient gcoeff(g_exact);
 
    u_.SetSpace(dfs_spaces_.GetHdivFES());
    p_.SetSpace(dfs_spaces_.GetL2FES());
+   p_ = 0.0;
    u_ = 0.0;
    u_.ProjectBdrCoefficientNormal(ucoeff_, ess_bdr);
 
@@ -111,7 +121,7 @@ DarcyProblem::DarcyProblem(Mesh& mesh, int num_refs, int order,
    ParBilinearForm mVarf(dfs_spaces_.GetHdivFES());
    ParMixedBilinearForm bVarf(dfs_spaces_.GetHdivFES(), dfs_spaces_.GetL2FES());
 
-   mVarf.AddDomainIntegrator(new VectorFEMassIntegrator);
+   mVarf.AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
    mVarf.Assemble();
    mVarf.EliminateEssentialBC(ess_bdr, u_, fform);
    mVarf.Finalize();
@@ -185,13 +195,15 @@ int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
    MPI_Session mpi(argc, argv);
-   bool verbose = (mpi.Root() == 0);
+   bool verbose = mpi.Root();
 
    StopWatch chrono;
    auto ResetTimer = [&chrono]() { chrono.Clear(); chrono.Start(); };
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/beam-hex.mesh";
+   const char *coef_file = "";
+   const char *ess_bdr_attr_file = "";
    int order = 0;
    int par_ref_levels = 2;
    bool show_error = false;
@@ -204,8 +216,10 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&par_ref_levels, "-r", "--ref",
                   "Number of parallel refinement steps.");
-   args.AddOption(&mesh_file, "-m", "--mesh",
-                  "Mesh file to use.");
+   args.AddOption(&coef_file, "-c", "--coef",
+                  "Coefficient file to use.");
+   args.AddOption(&ess_bdr_attr_file, "-eb", "--ess-bdr",
+                  "Essential boundary attribute file to use.");
    args.AddOption(&param.coupled_solve, "-cs", "--coupled-solve", "-ss",
                   "--separate-solve",
                   "Solve all unknowns simultaneously or separately in div free solver.");
@@ -219,7 +233,6 @@ int main(int argc, char *argv[])
    if (!args.Good())
    {
       if (verbose) { args.PrintUsage(cout); }
-      MPI_Finalize();
       return 1;
    }
    if (verbose) { args.PrintOptions(cout); }
@@ -241,14 +254,18 @@ int main(int argc, char *argv[])
 
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 0;
-   if (mesh->bdr_attributes.Max() > 1) { ess_bdr[1] = 1; }
+   if (ess_bdr_attr_file != "")
+   {
+      ifstream ess_bdr_attr_str(ess_bdr_attr_file);
+      ess_bdr.Load(mesh->bdr_attributes.Max(), ess_bdr_attr_str);
+   }
 
    string line = "\n*******************************************************\n";
 
    ResetTimer();
 
    // Generate components of the saddle point problem
-   DarcyProblem darcy(*mesh, par_ref_levels, order, ess_bdr, param);
+   DarcyProblem darcy(*mesh, par_ref_levels, order, coef_file, ess_bdr, param);
    HypreParMatrix& M = darcy.GetM();
    HypreParMatrix& B = darcy.GetB();
    const DFSData& DFS_data = darcy.GetDFSData();
@@ -265,7 +282,6 @@ int main(int argc, char *argv[])
               << DFS_data.C.Last().Ptr()->NumCols() << "\n";
       }
    }
-
 
    // Setup various solvers for the discrete problem
    std::map<const DarcySolver*, double> setup_time;
