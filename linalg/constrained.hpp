@@ -150,8 +150,14 @@ public:
        Some day we may also want to try approximate variants. */
    SparseMatrix * AssembleExact() const;
 
+   /// This returns B_s^{-1} r extended by zeros 
+   /// @todo should probably be called RTilde, also documented
    void BuildGTilde(const Vector& g, Vector& gtilde) const;
 
+   /** Given displacement rhs \f$ f \f$ and displacement solution \f$ u \f$
+       returns the Lagrange multiplier \f$ \lambda \f$ 
+
+       @todo should probably be renamed RecoverLagrangeMultiplier */
    void RecoverPressure(const Vector& disprhs,
                         const Vector& disp, Vector& pressure) const;
 
@@ -159,7 +165,7 @@ private:
    /// Apply \f$ B_s^{-1} B_p \f$
    void Eliminate(const Vector& x, Vector& y) const;
 
-   /// Apply \f$ B_p^T B_s^{-T}
+   /// Apply \f$ B_p^T B_s^{-T} \f$
    void EliminateTranspose(const Vector& x, Vector& y) const;
 
    SparseMatrix& A_;
@@ -180,27 +186,44 @@ private:
 
 /** Keeps track of primary / secondary tdofs
 
-    In this context we are always talking about the displacement system,
-    rarely about lagrange multiplier dofs */
+    (In this context we are always talking about the displacement system,
+    rarely about lagrange multiplier dofs)
+
+    B_s^{-1} maps lagrange space into secondary displacements
+    -B_s^{-1} B_p maps primary displacements to secondary displacements
+
+    @todo should interface operate on small vectors (as below), or on
+    large vectors, so that this object does its own GetSubVector()
+    SetSubVector() with the primary/secondary dof Arrays that it owns? */
 class Eliminator
 {
 public:
-   Eliminator(const SparseMatrix& B, Array<int>& primary_tdofs,
-              Array<int>& secondary_tdofs);
+   Eliminator(const SparseMatrix& B, Array<int>& lagrange_dofs,
+              Array<int>& primary_tdofs, Array<int>& secondary_tdofs);
 
+   const Array<int>& LagrangeDofs() const { return lagrange_tdofs_; }
    const Array<int>& PrimaryDofs() const { return primary_tdofs_; }
    const Array<int>& SecondaryDofs() const { return secondary_tdofs_; }
 
-   /// Apply -B_s^{-1} B_p
+   /// Given primary displacements, return secondary displacements
+   /// This applies \f$ -B_s^{-1} B_p \f$.
    void Eliminate(const Vector& in, Vector& out) const;
 
-   /// Apply -B_p^T B_s^{-T}
+   /// Transpose of Eliminate(), applies \f$ -B_p^T B_s^{-T} \f$
    void EliminateTranspose(const Vector& in, Vector& out) const;
 
-   /// Return -B_s^{-1} B_p explicitly assembled in mat
+   /// Maps Lagrange multipliers to secondary displacements,
+   /// applies \f$ B_s^{-1} \f$
+   void LagrangeSecondary(const Vector& in, Vector& out) const;
+
+   /// Transpose of LagrangeSecondary()
+   void LagrangeSecondaryTranspose(const Vector& in, Vector& out) const;
+
+   /// Return \f$ -B_s^{-1} B_p \f$ explicitly assembled in mat
    void ExplicitAssembly(DenseMatrix& mat) const;
 
 private:
+   Array<int> lagrange_tdofs_;
    Array<int> primary_tdofs_; // in original displacement ordering
    Array<int> secondary_tdofs_;
 
@@ -229,7 +252,15 @@ public:
        Some day we may also want to try approximate variants. */
    SparseMatrix * AssembleExact() const;
 
+   /** Given Lagrange multiplier right-hand-side \f$ g \f$, return
+       \f$ \tilde{g} \f$ */
+   void BuildGTilde(const Vector& g, Vector& gtilde) const;
+
+   void RecoverPressure(const Vector& disprhs,
+                        const Vector& disp, Vector& pressure) const;
+
 private:
+   const SparseMatrix& A_;
    Array<Eliminator*> eliminators_;
 };
 

@@ -368,12 +368,16 @@ void EliminationProjection::RecoverPressure(const Vector& disprhs, const Vector&
 }
 
 
-Eliminator::Eliminator(const SparseMatrix& B, Array<int>& primary_tdofs,
-                       Array<int>& secondary_tdofs)
+Eliminator::Eliminator(const SparseMatrix& B, Array<int>& lagrange_tdofs,
+                       Array<int>& primary_tdofs, Array<int>& secondary_tdofs)
    :
+   lagrange_tdofs_(lagrange_tdofs),
    primary_tdofs_(primary_tdofs),
    secondary_tdofs_(secondary_tdofs)
 {
+   MFEM_VERIFY(lagrange_tdofs.Size() == secondary_tdofs.Size(),
+               "Dof sizes don't match!");
+
    Array<int> lm_dofs;
    for (int i = 0; i < B.Height(); ++i)
    {
@@ -412,16 +416,30 @@ void Eliminator::EliminateTranspose(const Vector& in, Vector& out) const
    out *= -1.0;
 }
 
+void Eliminator::LagrangeSecondary(const Vector& in, Vector& out) const
+{
+   out = in;
+   Bsinverse_.Solve(Bs_.Height(), 1, out);
+}
+
+void Eliminator::LagrangeSecondaryTranspose(const Vector& in, Vector& out) const
+{
+   out = in;
+   BsTinverse_.Solve(Bs_.Height(), 1, out);
+}
+
 void Eliminator::ExplicitAssembly(DenseMatrix& mat) const
 {
    mat.SetSize(Bp_.Height(), Bp_.Width());
    mat = Bp_;
    Bsinverse_.Solve(Bs_.Height(), Bp_.Width(), mat.GetData());
+   mat *= -1.0;
 }
 
 NewEliminationProjection::NewEliminationProjection(const SparseMatrix& A, Array<Eliminator*>& eliminators)
    :
    Operator(A.Height()),
+   A_(A),
    eliminators_(eliminators)
 {
 }
@@ -482,14 +500,56 @@ SparseMatrix * NewEliminationProjection::AssembleExact() const
          int i = elim->SecondaryDofs()[iz];
          for (int jz = 0; jz < elim->PrimaryDofs().Size(); ++jz)
          {
-            int j = elim->PrimayDofs()[jz];
-            out->Add(i, j, -mat(iz, jz));
+            int j = elim->PrimaryDofs()[jz];
+            out->Add(i, j, mat(iz, jz));
          }
          out->Set(i, i, 0.0);
       }
    }
 
    out->Finalize();
+   return out;
+}
+
+// drafted (untested)
+void NewEliminationProjection::BuildGTilde(const Vector& r, Vector& rtilde) const
+{
+   // MFEM_ASSERT(r.Size() == B_.Height(), "Sizes don't match!");
+   MFEM_ASSERT(rtilde.Size() == A_.Height(), "Sizes don't match!");
+
+   rtilde = 0.0;
+   for (int k = 0; k < eliminators_.Size(); ++k)
+   {
+      Eliminator* elim = eliminators_[k];
+      Vector subr;
+      r.GetSubVector(elim->LagrangeDofs(), subr);
+      Vector bsinvr(subr.Size());
+      elim->LagrangeSecondary(subr, bsinvr);
+      rtilde.AddElementVector(elim->SecondaryDofs(), bsinvr);
+   }
+}
+
+// drafted (untested)
+void NewEliminationProjection::RecoverPressure(
+   const Vector& disprhs, const Vector& disp, Vector& lagrangem) const
+{
+   // MFEM_ASSERT(lagrangem.Size() == B_.Height(), "Sizes don't match!");
+   MFEM_ASSERT(disp.Size() == A_.Height(), "Sizes don't match!");
+
+   Vector fullrhs(A_.Height());
+   A_.Mult(disp, fullrhs);
+   fullrhs -= disprhs;
+   fullrhs *= -1.0;
+   for (int k = 0; k < eliminators_.Size(); ++k)
+   {
+      Eliminator* elim = eliminators_[k];
+      Vector localsec;
+      fullrhs.GetSubVector(elim->SecondaryDofs(), localsec);
+      Vector locallagrange(localsec.Size());
+      // BsTinverse_.Solve(Bs_.Height(), 1, lagrangem);
+      elim->LagrangeSecondaryTranspose(localsec, locallagrange);
+      lagrangem.AddElementVector(elim->LagrangeDofs(), locallagrange);
+   }
 }
 
 EliminationCGSolver::~EliminationCGSolver()
