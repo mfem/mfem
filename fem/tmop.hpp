@@ -418,6 +418,23 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
+/// Untangling metric, 3D
+class TMOP_Metric_311 : public TMOP_QualityMetric
+{
+protected:
+   const double eps;
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   TMOP_Metric_311(double epsilon = 1e-4) : eps(epsilon) { }
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+};
+
 /// Volume metric, 3D
 class TMOP_Metric_315 : public TMOP_QualityMetric
 {

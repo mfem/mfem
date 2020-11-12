@@ -360,6 +360,7 @@ int main (int argc, char *argv[])
       case 301: metric = new TMOP_Metric_301; break;
       case 302: metric = new TMOP_Metric_302; break;
       case 303: metric = new TMOP_Metric_303; break;
+      case 311: metric = new TMOP_Metric_311; break;
       case 315: metric = new TMOP_Metric_315; break;
       case 316: metric = new TMOP_Metric_316; break;
       case 321: metric = new TMOP_Metric_321; break;
@@ -375,7 +376,7 @@ int main (int argc, char *argv[])
    ParFiniteElementSpace ind_fes(pmesh, &ind_fec);
    ParFiniteElementSpace ind_fesv(pmesh, &ind_fec, dim);
    ParGridFunction size(&ind_fes), aspr(&ind_fes), disc(&ind_fes), ori(&ind_fes);
-   ParGridFunction aspr3d(&ind_fesv), size3d(&ind_fesv);
+   ParGridFunction aspr3d(&ind_fesv);
 
    switch (target_id)
    {
@@ -703,6 +704,39 @@ int main (int argc, char *argv[])
    }
    else { a.AddDomainIntegrator(he_nlf_integ); }
 
+   // Compute the minimum det(J) of the starting mesh.
+   tauval = infinity();
+   const int NE = pmesh->GetNE();
+   for (int i = 0; i < NE; i++)
+   {
+      const IntegrationRule &ir =
+         irules->Get(pfespace->GetFE(i)->GetGeomType(), quad_order);
+      ElementTransformation *transf = pmesh->GetElementTransformation(i);
+      for (int j = 0; j < ir.GetNPoints(); j++)
+      {
+         transf->SetIntPoint(&ir.IntPoint(j));
+         tauval = min(tauval, transf->Jacobian().Det());
+      }
+   }
+   double minJ0;
+   MPI_Allreduce(&tauval, &minJ0, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+   tauval = minJ0;
+   if (myid == 0)
+   { cout << "Minimum det(J) of the original mesh is " << tauval << endl; }
+
+   if (tauval < 0.0 && metric_id != 22 && metric_id != 211 && metric_id != 252
+                    && metric_id != 311 && metric_id != 352)
+   {
+      MFEM_ABORT("The input mesh is inverted! Try an untangling metric.");
+   }
+   if (tauval < 0.0)
+   {
+      double h0min = h0.Min(), h0min_all;
+      MPI_Allreduce(&h0min, &h0min_all, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+      // Slightly below minJ0 to avoid div by 0.
+      tauval -= 0.01 * h0min_all;
+   }
+
    const double init_energy = a.GetParGridFunctionEnergy(x);
 
    // Visualize the starting mesh and metric values.
@@ -796,29 +830,6 @@ int main (int argc, char *argv[])
       S = minres;
    }
 
-   // Compute the minimum det(J) of the starting mesh.
-   tauval = infinity();
-   const int NE = pmesh->GetNE();
-   for (int i = 0; i < NE; i++)
-   {
-      const IntegrationRule &ir =
-         irules->Get(pfespace->GetFE(i)->GetGeomType(), quad_order);
-      ElementTransformation *transf = pmesh->GetElementTransformation(i);
-      for (int j = 0; j < ir.GetNPoints(); j++)
-      {
-         transf->SetIntPoint(&ir.IntPoint(j));
-         tauval = min(tauval, transf->Jacobian().Det());
-      }
-   }
-   double minJ0;
-   MPI_Allreduce(&tauval, &minJ0, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
-   tauval = minJ0;
-   if (myid == 0)
-   { cout << "Minimum det(J) of the original mesh is " << tauval << endl; }
-   double h0min = h0.Min(), h0min_all;
-   MPI_Allreduce(&h0min, &h0min_all, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
-   tauval -= 0.01 * h0min_all; // Slightly below minJ0 to avoid div by 0.
-
    // Perform the nonlinear optimization.
    const IntegrationRule &ir =
       irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
@@ -830,6 +841,8 @@ int main (int argc, char *argv[])
       // Specify linear solver when we use a Newton-based solver.
       solver.SetPreconditioner(*S);
    }
+   // For untangling, the solver will update the min detJ values.
+   if (tauval < 0.0) { solver.SetMinDetPtr(&tauval); }
    solver.SetMaxIter(solver_iter);
    solver.SetRelTol(solver_rtol);
    solver.SetAbsTol(0.0);
