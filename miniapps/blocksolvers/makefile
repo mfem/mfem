@@ -24,7 +24,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 BLOCK_COMMON_SRC = div_free_solver.cpp
 BLOCK_COMMON_OBJ = $(BLOCK_COMMON_SRC:.cpp=.o)
 
-PAR_MINIAPPS = block_solvers_comparison
+PAR_MINIAPPS = block-solvers-compare
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS =
@@ -54,7 +54,7 @@ ifneq ($(SRC),)
 AUX_FILES = anisoptropic.mesh high_contrast_coef.txt ess_bdr_attr.txt
 $(AUX_FILES): %: $(SRC)%
         ln -sf $(<) .
-block_solvers_comparison: | $(AUX_FILES)
+block-solvers-compare: | $(AUX_FILES)
 endif
 
 MFEM_TESTS = MINIAPPS
@@ -62,9 +62,10 @@ include $(MFEM_TEST_MK)
 
 # Testing: Specific execution options
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-block-solvers-test-par: block_solvers_comparison
+block-solvers-compare-test-par: compare-constant compare-high-contrast
+compare-constant: block-solvers-compare
 	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-r 2)
-block-solvers-test-high-contrast-par: block_solvers_comparison
+compare-high-contrast: block-solvers-compare
 	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-r 2\
 	-m anisoptropic.mesh -c high_contrast_coef.txt -eb ess_bdr_attr.txt)
 
