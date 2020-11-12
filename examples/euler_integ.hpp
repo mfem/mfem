@@ -80,36 +80,35 @@ namespace mfem
             }
         }
 
-    void AssembleElementGrad(
-    const mfem::FiniteElement &el, mfem::ElementTransformation &trans,
-    const mfem::Vector &elfun, mfem::DenseMatrix &elmat)
-{
-   int num_nodes = el.GetDof();
-   int ndof = elfun.Size();
-   elmat.SetSize(ndof);
-   elmat = 0.0;
-   double delta = 1e-5;
-   for (int i = 0; i < ndof; ++i)
-   {
-      Vector elfun_plus(elfun);
-      Vector elfun_minus(elfun);
-      elfun_plus(i) += delta;
-      Vector elvect_plus;
-      AssembleElementVector(el, trans, elfun_plus, elvect_plus);
-      elfun_minus(i) -= delta;
-      Vector elvect_minus;
-      AssembleElementVector(el, trans, elfun_minus, elvect_minus);
-      
-      
-      elvect_plus -= elvect_minus;
-      elvect_plus /= 2*delta;
+        void AssembleElementGrad(
+            const mfem::FiniteElement &el, mfem::ElementTransformation &trans,
+            const mfem::Vector &elfun, mfem::DenseMatrix &elmat)
+        {
+            int num_nodes = el.GetDof();
+            int ndof = elfun.Size();
+            elmat.SetSize(ndof);
+            elmat = 0.0;
+            double delta = 1e-5;
+            for (int i = 0; i < ndof; ++i)
+            {
+                Vector elfun_plus(elfun);
+                Vector elfun_minus(elfun);
+                elfun_plus(i) += delta;
+                Vector elvect_plus;
+                AssembleElementVector(el, trans, elfun_plus, elvect_plus);
+                elfun_minus(i) -= delta;
+                Vector elvect_minus;
+                AssembleElementVector(el, trans, elfun_minus, elvect_minus);
 
-      for (int j = 0; j < ndof; ++j)
-      {
-         elmat(j, i) = elvect_plus(j);
-      }
-   }
-}
+                elvect_plus -= elvect_minus;
+                elvect_plus /= 2 * delta;
+
+                for (int j = 0; j < ndof; ++j)
+                {
+                    elmat(j, i) = elvect_plus(j);
+                }
+            }
+        }
 
     protected:
         /// number of states
@@ -138,7 +137,6 @@ namespace mfem
 #endif
     };
 
-   
     /// Integrator for inviscid boundary fluxes
     template <int dim, int bndinteg, bool entvar = false>
     class EulerBoundaryIntegrator : public NonlinearFormIntegrator
@@ -211,7 +209,7 @@ namespace mfem
             DenseMatrix res(elvect.GetData(), dof, num_states);
 
             int intorder;
-            intorder = 2 * el_bnd.GetOrder();
+            intorder = trans.Elem1->OrderW() + 2 * el_bnd.GetOrder();
             const IntegrationRule *ir = &IntRules.Get(trans.FaceGeom, intorder);
             IntegrationPoint eip1;
             for (int i = 0; i < ir->GetNPoints(); i++)
@@ -234,6 +232,38 @@ namespace mfem
                     {
                         res(s, n) += shape(s) * flux_face(n);
                     }
+                }
+            }
+        }
+
+        void AssembleFaceGrad(
+            const mfem::FiniteElement &el_bnd,
+            const mfem::FiniteElement &el_unused,
+            mfem::FaceElementTransformations &trans,
+            const mfem::Vector &elfun,
+            mfem::DenseMatrix &elmat)
+        {
+            int ndof = elfun.Size();
+            elmat.SetSize(ndof);
+            elmat = 0.0;
+            double delta = 1e-5;
+            for (int i = 0; i < ndof; ++i)
+            {
+                Vector elfun_plus(elfun);
+                Vector elfun_minus(elfun);
+                elfun_plus(i) += delta;
+                Vector elvect_plus;
+                AssembleFaceVector(el_bnd, el_unused, trans, elfun_plus, elvect_plus);
+                elfun_minus(i) -= delta;
+                Vector elvect_minus;
+                AssembleFaceVector(el_bnd, el_unused, trans, elfun_minus, elvect_minus);
+
+                elvect_plus -= elvect_minus;
+                elvect_plus /= 2 * delta;
+
+                for (int j = 0; j < ndof; ++j)
+                {
+                    elmat(j, i) = elvect_plus(j);
                 }
             }
         }
@@ -314,13 +344,13 @@ namespace mfem
 
             // Integration order calculation from DGTraceIntegrator
             int intorder;
-            // if (trans.Elem2No >= 0)
-            //     intorder = (min(trans.Elem1->OrderW(), trans.Elem2->OrderW()) +
-            //                 2 * max(el_left.GetOrder(), el_right.GetOrder()));
-            // else
-            // {
+            if (trans.Elem2No >= 0)
+                intorder = (min(trans.Elem1->OrderW(), trans.Elem2->OrderW()) +
+                            2 * max(el_left.GetOrder(), el_right.GetOrder()));
+            else
+            {
             intorder = trans.Elem1->OrderW() + 2 * el_left.GetOrder();
-            //}
+            }
 
             const IntegrationRule *ir = &IntRules.Get(trans.FaceGeom, intorder);
 
@@ -358,6 +388,37 @@ namespace mfem
                     {
                         elvect2_mat(s, k) += fluxN(k) * shape2(s);
                     }
+                }
+            }
+        }
+        void AssembleFaceGrad(
+            const mfem::FiniteElement &el_left,
+            const mfem::FiniteElement &el_right,
+            mfem::FaceElementTransformations &trans,
+            const mfem::Vector &elfun,
+            mfem::DenseMatrix &elmat)
+        {
+            int ndof = elfun.Size();
+            elmat.SetSize(ndof);
+            elmat = 0.0;
+            double delta = 1e-5;
+            for (int i = 0; i < ndof; ++i)
+            {
+                Vector elfun_plus(elfun);
+                Vector elfun_minus(elfun);
+                elfun_plus(i) += delta;
+                Vector elvect_plus;
+                AssembleFaceVector(el_left, el_right, trans, elfun_plus, elvect_plus);
+                elfun_minus(i) -= delta;
+                Vector elvect_minus;
+                AssembleFaceVector(el_left, el_right, trans, elfun_minus, elvect_minus);
+
+                elvect_plus -= elvect_minus;
+                elvect_plus /= 2 * delta;
+
+                for (int j = 0; j < ndof; ++j)
+                {
+                    elmat(j, i) = elvect_plus(j);
                 }
             }
         }
@@ -401,55 +462,54 @@ namespace mfem
         }
     };
 
-/// Integrator for mass matrix 
-class EulerMassIntegrator : public mfem::BilinearFormIntegrator
-{
-public:
-      /// Constructs a diagonal-mass matrix integrator.
-   /// \param[in] nvar - number of state variables
-   EulerMassIntegrator(int nvar = 1) : num_state(nvar) {}
-   /// Finds the mass matrix for the given element.
-   /// \param[in] el - the element for which the mass matrix is desired
-   /// \param[in,out] trans -  transformation
-   /// \param[out] elmat - the element mass matrix
-   void AssembleElementMatrix(const mfem::FiniteElement &el,
-                         mfem::ElementTransformation &trans,
-                         mfem::DenseMatrix &elmat)
+    /// Integrator for mass matrix
+    class EulerMassIntegrator : public mfem::BilinearFormIntegrator
     {
-        using namespace mfem;
-        int num_nodes = el.GetDof();
-        double w;
+    public:
+        /// Constructs a diagonal-mass matrix integrator.
+        /// \param[in] nvar - number of state variables
+        EulerMassIntegrator(int nvar = 1) : num_state(nvar) {}
+        /// Finds the mass matrix for the given element.
+        /// \param[in] el - the element for which the mass matrix is desired
+        /// \param[in,out] trans -  transformation
+        /// \param[out] elmat - the element mass matrix
+        void AssembleElementMatrix(const mfem::FiniteElement &el,
+                                   mfem::ElementTransformation &trans,
+                                   mfem::DenseMatrix &elmat)
+        {
+            using namespace mfem;
+            int num_nodes = el.GetDof();
+            double w;
 
 #ifdef MFEM_THREAD_SAFE
-        Vector shape;
+            Vector shape;
 #endif
-        elmat.SetSize(num_nodes * num_state);
-        shape.SetSize(num_nodes);
-        DenseMatrix elmat1;
-        elmat1.SetSize(num_nodes);
+            elmat.SetSize(num_nodes * num_state);
+            shape.SetSize(num_nodes);
+            DenseMatrix elmat1;
+            elmat1.SetSize(num_nodes);
 
-        const IntegrationRule &ir = el.GetNodes();
-        elmat = 0.0;
-        for (int i = 0; i < ir.GetNPoints(); i++)
-        {
-            const IntegrationPoint &ip = ir.IntPoint(i);
-            el.CalcShape(ip, shape);
-            trans.SetIntPoint(&ip);
-            w = trans.Weight() * ip.weight;
-            AddMult_a_VVt(w, shape, elmat1);
-            for (int k = 0; k < num_state; k++)
+            const IntegrationRule &ir = el.GetNodes();
+            elmat = 0.0;
+            for (int i = 0; i < ir.GetNPoints(); i++)
             {
-                elmat.AddMatrix(elmat1, num_nodes * k, num_nodes * k);
+                const IntegrationPoint &ip = ir.IntPoint(i);
+                el.CalcShape(ip, shape);
+                trans.SetIntPoint(&ip);
+                w = trans.Weight() * ip.weight;
+                AddMult_a_VVt(w, shape, elmat1);
+                for (int k = 0; k < num_state; k++)
+                {
+                    elmat.AddMatrix(elmat1, num_nodes * k, num_nodes * k);
+                }
             }
         }
-    }
 
-protected:
- mfem::Vector shape;
- mfem::DenseMatrix elmat;
- int num_state;
-
-};  
+    protected:
+        mfem::Vector shape;
+        mfem::DenseMatrix elmat;
+        int num_state;
+    };
 
     //#include "euler_integ_def.hpp"
 } // namespace mfem

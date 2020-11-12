@@ -22,24 +22,30 @@ const double rhou[3] = {0.09595562550099601, -0.030658751626551423, -0.134714699
 template <int dim>
 void randBaselinePert(const mfem::Vector &x, mfem::Vector &u)
 {
- 
-    const double scale = 0.01;
-    u(0) = rho * (1.0 + scale * uniform_rand(gen));
-    u(dim + 1) = rhoe * (1.0 + scale * uniform_rand(gen));
-    for (int di = 0; di < dim; ++di)
-    {
-        u(di + 1) = rhou[di] * (1.0 + scale * uniform_rand(gen));
-    }
+
+   const double scale = 0.01;
+   u(0) = rho * (1.0 + scale * uniform_rand(gen));
+   u(dim + 1) = rhoe * (1.0 + scale * uniform_rand(gen));
+   for (int di = 0; di < dim; ++di)
+   {
+      u(di + 1) = rhou[di] * (1.0 + scale * uniform_rand(gen));
+   }
 }
 
 void randState(const mfem::Vector &x, mfem::Vector &u)
 {
-    for (int i = 0; i < u.Size(); ++i)
-    {
-        u(i) = 2.0 * uniform_rand(gen) - 1.0;
-    }
+   for (int i = 0; i < u.Size(); ++i)
+   {
+      u(i) = 2.0 * uniform_rand(gen) - 1.0;
+   }
 }
-
+double calcStepSize(int iter, double t, double t_final,
+                                    double dt_old) 
+{
+   double dt = 0.2;
+   dt = min(dt, t_final - t);
+   return dt;
+}
 /// \brief Defines the random function for the jabocian check
 /// \param[in] x - coordinate of the point at which the state is needed
 /// \param[out] u - conservative variables stored as a 4-vector
@@ -118,76 +124,86 @@ int main(int argc, char *argv[])
    /// nonlinearform
    NonlinearForm *res = new NonlinearForm(fes);
    res->AddDomainIntegrator(new EulerDomainIntegrator<2>(num_state, 1));
-   res->AddBdrFaceIntegrator(new EulerBoundaryIntegrator<2, 1, 0>(fec, num_state, 1),
+   res->AddBdrFaceIntegrator(new EulerBoundaryIntegrator<2, 1, 0>(fec, num_state, 1.0),
                              bndry_marker1);
-   // res->AddBdrFaceIntegrator(new EulerBoundaryIntegrator<2, 2, 0>(fec, num_state, 1),
-   //                           bndry_marker2);
-   
+   res->AddBdrFaceIntegrator(new EulerBoundaryIntegrator<2, 2, 0>(fec, num_state, 1.0),
+                             bndry_marker2);
+   res->AddInteriorFaceIntegrator(new EulerFaceIntegrator<2>(fec, 1.0, num_state, 1.0));
 
-   /// check if the domain integrator is correct 
-   // double delta = 1e-5;
-   // // initialize state; here we randomly perturb a constant state
-   // GridFunction q(fes);
-   // VectorFunctionCoefficient pert(num_state, randBaselinePert<2>);
-   // q.ProjectCoefficient(pert);
+   /// check if the domain integrator is correct
+   double delta = 1e-5;
+   // initialize state; here we randomly perturb a constant state
+   GridFunction q(fes);
+   VectorFunctionCoefficient pert(num_state, randBaselinePert<2>);
+   q.ProjectCoefficient(pert);
 
-   // // initialize the vector that the Jacobian multiplies
-   // GridFunction v(fes);
-   // VectorFunctionCoefficient v_rand(num_state, randState);
-   // v.ProjectCoefficient(v_rand);
+   // initialize the vector that the Jacobian multiplies
+   GridFunction v(fes);
+   VectorFunctionCoefficient v_rand(num_state, randState);
+   v.ProjectCoefficient(v_rand);
 
-   // // evaluate the Jacobian and compute its product with v
-   // Operator &Jac = res->GetGradient(q);
-   // GridFunction jac_v(fes);
-   // Jac.Mult(v, jac_v);
+   // evaluate the Jacobian and compute its product with v
+   Operator &Jac = res->GetGradient(q);
+   GridFunction jac_v(fes);
+   Jac.Mult(v, jac_v);
 
-   // // now compute the finite-difference approximation...
-   // GridFunction q_pert(q), r(fes), jac_v_fd(fes);
-   // q_pert.Add(-delta, v);
-   // res->Mult(q_pert, r);
-   // q_pert.Add(2 * delta, v);
-   // res->Mult(q_pert, jac_v_fd);
-   // jac_v_fd -= r;
-   // jac_v_fd /= (2 * delta);
+   // now compute the finite-difference approximation...
+   GridFunction q_pert(q), r(fes), jac_v_fd(fes);
+   q_pert.Add(-delta, v);
+   res->Mult(q_pert, r);
+   q_pert.Add(2 * delta, v);
+   res->Mult(q_pert, jac_v_fd);
+   jac_v_fd -= r;
+   jac_v_fd /= (2 * delta);
 
-   // for (int i = 0; i < jac_v.Size(); ++i)
-   // {
-   //    std::cout << std::abs(jac_v(i) - (jac_v_fd(i))) << "\n";
-   // }
+   for (int i = 0; i < jac_v.Size(); ++i)
+   {
+      std::cout << std::abs(jac_v(i) - (jac_v_fd(i))) << "\n";
+      MFEM_ASSERT(abs(jac_v(i) - (jac_v_fd(i))) < 1e-08, "jacobian is incorrect");
+   }
 
    /// bilinear form
    BilinearForm *mass = new BilinearForm(fes);
 
    // set up the mass matrix
-   mass->AddDomainIntegrator(new EulerMassIntegrator(num_state));
+   // mass->AddDomainIntegrator(new EulerMassIntegrator(num_state));
+   // mass->Assemble();
+   // mass->Finalize();
+   auto mass_integ = new VectorMassIntegrator();
+   mass_integ->SetVDim(dim + 2);
+   mass->AddDomainIntegrator(mass_integ);
    mass->Assemble();
    mass->Finalize();
-   SparseMatrix &mass_matrix = mass->SpMat();
+   // SparseMatrix &mass_matrix = mass->SpMat();
 
    /// grid function
    GridFunction u(fes);
    VectorFunctionCoefficient u0(num_state, uexact);
    u.ProjectCoefficient(u0);
+
    /// time-marching method (might be NULL)
    std::unique_ptr<mfem::ODESolver> ode_solver;
-   ode_solver.reset(new RK4Solver);
+   //ode_solver.reset(new RK4Solver);
+   ode_solver.reset(new BackwardEulerSolver);
    cout << "ode_solver set " << endl;
 
    /// TimeDependentOperator
-   unique_ptr<mfem::TimeDependentOperator> evolver(new mfem::EulerEvolver(mass, res, 0.0));
+   unique_ptr<mfem::TimeDependentOperator> evolver(new mfem::EulerEvolver(mass, res, 0.0, TimeDependentOperator::Type::IMPLICIT));
    auto t = 0.0;
    evolver->SetTime(t);
    ode_solver->Init(*evolver);
    mfem::GridFunction residual(fes);
    residual = 0.0;
+   double dt = 0.0;
+   double t_final = 100;
    for (auto ti = 0; ti < 10000; ++ti)
    {
-      auto dt = 10000.005;
+      //auto dt = 10000.005;
+      dt = calcStepSize(ti, t, t_final, dt);
+      //auto dt = 0.005;
       std::cout << "iter " << ti << ": time = " << t << ": dt = " << dt << endl;
       //   std::cout << " (" << round(100 * t / t_final) << "% complete)";
-
       res->Mult(u, residual);
-      cout << "res mult has problem " << endl;
       auto res_norm = residual.Norml2();
       std::cout << "residual norm: " << res_norm << "\n";
       if (res_norm <= 1e-12)

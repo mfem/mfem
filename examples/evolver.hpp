@@ -156,11 +156,14 @@ namespace mfem
         /// \param[in] k - dx/dt
         mfem::Operator &GetGradient(const mfem::Vector &k) const override
         {
+
             SparseMatrix *jac;
-            delete jac;
+            // delete jac;
             jac = nullptr;
+
             // x_work = x + dt*k = x + dt*dx/dt = x + dx
             add(1.0, *x, dt, k, x_work);
+
             jac = Add(1.0, mass->SpMat(),
                       dt, *dynamic_cast<const SparseMatrix *>(&res->GetGradient(x_work)));
             return *jac;
@@ -182,14 +185,17 @@ namespace mfem
         ~SystemOperator() { delete Jacobian; };
 
     private:
-        NonlinearForm *nonlinear_mass;
+        NonlinearForm *nonlinear_mass; // not used
         DSmoother mass_prec;
         BilinearForm *mass;
         NonlinearForm *res;
-        BilinearForm *stiff;
+        BilinearForm *stiff; // not used
+
         mutable SparseMatrix *Jacobian;
+
         double dt;
         double dt_stage;
+
         const mfem::Vector *x;
 
         mutable mfem::Vector x_work;
@@ -200,15 +206,13 @@ namespace mfem
                                double start_time, TimeDependentOperator::Type type)
         : TimeDependentOperator(_mass->FESpace()->GetTrueVSize(),
                                 start_time, type),
-          mass(_mass), res(_res), x_work(width), r_work1(height), r_work2(height)
+          mass(_mass), res(_res), x_work(width), r_work1(mass->Height()), r_work2(height)
     {
         combined_oper.reset(new SystemOperator(_mass, _res));
         cout << "combined_oper set " << endl;
         if (_mass != nullptr)
         {
-            cout << "flag 1 " << endl;
-            mass_prec = DSmoother(mass->SpMat());
-            cout << "flag 2 " << endl;
+            //mass_prec = DSmoother(mass->SpMat());
             mass_solver.SetPreconditioner(mass_prec);
             mass_solver.SetOperator(mass->SpMat());
             mass_solver.iterative_mode = false; // do not use second arg of Mult as guess
