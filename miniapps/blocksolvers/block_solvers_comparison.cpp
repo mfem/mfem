@@ -220,9 +220,6 @@ int main(int argc, char *argv[])
                   "Coefficient file to use.");
    args.AddOption(&ess_bdr_attr_file, "-eb", "--ess-bdr",
                   "Essential boundary attribute file to use.");
-   args.AddOption(&param.coupled_solve, "-cs", "--coupled-solve", "-ss",
-                  "--separate-solve",
-                  "Solve all unknowns simultaneously or separately in div free solver.");
    args.AddOption(&show_error, "-se", "--show-error", "-no-se",
                   "--no-show-error",
                   "Show or not show approximation error.");
@@ -286,16 +283,22 @@ int main(int argc, char *argv[])
    // Setup various solvers for the discrete problem
    std::map<const DarcySolver*, double> setup_time;
    ResetTimer();
-   DivFreeSolver dfs(M, B, DFS_data);
-   setup_time[&dfs] = chrono.RealTime();
-
-   ResetTimer();
    BDPMinresSolver bdp(M, B, param);
    setup_time[&bdp] = chrono.RealTime();
 
+   ResetTimer();
+   DivFreeSolver* dfs_dm = new DivFreeSolver(M, B, DFS_data);
+   setup_time[dfs_dm] = chrono.RealTime();
+
+   ResetTimer();
+   const_cast<bool&>(DFS_data.param.coupled_solve) = true;
+   DivFreeSolver* dfs_cm = new DivFreeSolver(M, B, DFS_data);
+   setup_time[dfs_cm] = chrono.RealTime();
+
    std::map<const DarcySolver*, std::string> solver_to_name;
-   solver_to_name[&dfs] = "Divergence free";
    solver_to_name[&bdp] = "Block-diagonal-preconditioned MINRES";
+   solver_to_name[dfs_dm] = "Divergence free (decoupled mode)";
+   solver_to_name[dfs_cm] = "Divergence free (coupled mode)";
 
    // Solve the problem using all solvers
    for (const auto& solver_pair : solver_to_name)
@@ -303,7 +306,9 @@ int main(int argc, char *argv[])
       auto& solver = solver_pair.first;
       auto& name = solver_pair.second;
 
+      const_cast<bool&>(DFS_data.param.coupled_solve) = (solver == dfs_cm);
       Vector sol = darcy.GetEssentialBC();
+
       ResetTimer();
       solver->Mult(darcy.GetRHS(), sol);
       chrono.Stop();
@@ -319,6 +324,11 @@ int main(int argc, char *argv[])
       if (show_error) { darcy.ShowError(sol, verbose); }
       if (visualization) { darcy.VisualizeSolution(sol, name); }
    }
+
+   const_cast<bool&>(DFS_data.param.coupled_solve) = false;
+   delete dfs_dm;
+   const_cast<bool&>(DFS_data.param.coupled_solve) = true;
+   delete dfs_cm;
 
    return 0;
 }

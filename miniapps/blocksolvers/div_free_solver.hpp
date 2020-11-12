@@ -23,6 +23,7 @@ struct DFSParameters : IterSolveParameters
        Otherwise, they will be solved at the same time. */
    bool coupled_solve = false;
    bool verbose = false;
+   IterSolveParameters coarse_solve_param;
    IterSolveParameters BBT_solve_param;
 };
 
