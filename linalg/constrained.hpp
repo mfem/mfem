@@ -268,8 +268,8 @@ private:
 
 /** @brief Solve constrained system by eliminating the constraint; see ConstrainedSolver
 
-    Solves the system with the operator \f$ P^T A P \f$, where P is
-    EliminationProjection.
+    Solves the system with the operator \f$ P^T A P + Z_P \f$, where P is
+    (New)EliminationProjection.
 
     Currently does not work in parallel. */
 class EliminationCGSolver : public ConstrainedSolver
@@ -301,7 +301,9 @@ private:
    SparseMatrix& spB_;
    Array<int> first_interface_dofs_;
    Array<int> second_interface_dofs_;
-   EliminationProjection * projector_;
+   // EliminationProjection * projector_;
+   Eliminator * elim_;
+   NewEliminationProjection * projector_;
    HypreParMatrix * h_explicit_operator_;
    HypreBoomerAMG * prec_;
 };
