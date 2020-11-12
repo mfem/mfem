@@ -52,8 +52,6 @@ all: $(MINIAPPS)
 # running the sample runs when building out-of-source:
 ifneq ($(SRC),)
 AUX_FILES = anisoptropic.mesh high_contrast_coef.txt ess_bdr_attr.txt
-TESLA_MESH_FILES = square-angled-pipe.mesh
-VOLTA_MESH_FILES = llnl.mesh
 $(AUX_FILES): %: $(SRC)%
         ln -sf $(<) .
 block_solvers_comparison: | $(AUX_FILES)
@@ -67,8 +65,8 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 block_solvers_comparison-test: block_solvers_comparison
 	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-r 2)
 block_solvers_comparison-test-high-contrast: block_solvers_comparison
-        @$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-r 2\
-        -m anisoptropic.mesh -c high_contrast_coef.txt -eb ess_bdr_attr.txt)
+	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-r 2\
+	-m anisoptropic.mesh -c high_contrast_coef.txt -eb ess_bdr_attr.txt)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
