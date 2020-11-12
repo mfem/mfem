@@ -137,7 +137,6 @@ int main(int argc, char *argv[])
    GradientCoefficient grad_u(dist_func.GetLastDiffusedSourceGF(), dim);
 
    dist.ProjectCoefficient(dist_fun_level_coef);
-   distance.ProjectCoefficient(dist_fun_coef);
 
    if (visualization)
    {
