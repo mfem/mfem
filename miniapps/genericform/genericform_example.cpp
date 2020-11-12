@@ -19,10 +19,9 @@ int main(int argc, char *argv[])
    int refinements = 0;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&refinements,
-                  "-r",
-                  "--ref",
-                  "");
+   args.AddOption(&refinements, "-r", "--ref", "");
+   args.AddOption(&order, "-o", "--order", "");
+
    args.Parse();
    if (!args.Good())
    {
@@ -52,30 +51,53 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace fespace(&pmesh, &fec);
 
    Array<int> ess_tdof_list;
-   if (pmesh.bdr_attributes.Size())
-   {
-      Array<int> ess_bdr(pmesh.bdr_attributes.Max());
-      ess_bdr = 1;
-      fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   }
-
-   ParLinearForm b(&fespace);
-   ConstantCoefficient one(1.0);
-   b.AddDomainIntegrator(new DomainLFIntegrator(one));
-   b.Assemble();
+   Array<int> ess_bdr(pmesh.bdr_attributes.Max());
+   ess_bdr = 1;
+   fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    ParGridFunction x(&fespace);
    x = 0.0;
 
+   FunctionCoefficient u_excoeff([](const Vector &coords) {
+      double x = coords(0);
+      double y = coords(1);
+
+      return x * x + y * y;
+   });
+
+   x.ProjectCoefficient(u_excoeff);
+
    GenericForm a(&fespace);
 
    auto diffusion = new QFunctionIntegrator([](auto u, auto du) {
+      // R(u) = -\nabla^2 u - f
       Vector v(2);
       v = du;
-      return qfunc_output_type{0.0, v};
+
+      double f0 = 4.0;
+      return qfunc_output_type{f0, v};
    });
 
-   // a.AddDomainIntegrator(diffusion);
+   a.AddDomainIntegrator(diffusion);
+
+   Vector X, B;
+   x.GetTrueDofs(X);
+
+   B.SetSize(X.Size());
+   B = 0.0;
+
+   a.Mult(X, B);
+
+   printf("sum(B) = %.1E\n", B.Sum());
+
+   ParGridFunction b(&fespace);
+   b.SetFromTrueDofs(B);
+
+   ConstantCoefficient zero_coeff(0.0);
+   b.ProjectBdrCoefficient(zero_coeff, ess_bdr);
+
+   printf("||B|| = %.5E\n", b.Norml2());
+
    // a.Assemble();
 
    // OperatorPtr A;
@@ -91,12 +113,12 @@ int main(int argc, char *argv[])
 
    // a.RecoverFEMSolution(X, b, x);
 
-   // char vishost[] = "localhost";
-   // int visport = 19916;
-   // socketstream sol_sock(vishost, visport);
-   // sol_sock << "parallel " << num_procs << " " << myid << "\n";
-   // sol_sock.precision(8);
-   // sol_sock << "solution\n" << pmesh << x << flush;
+   char vishost[] = "localhost";
+   int visport = 19916;
+   socketstream sol_sock(vishost, visport);
+   sol_sock << "parallel " << num_procs << " " << myid << "\n";
+   sol_sock.precision(8);
+   sol_sock << "solution\n" << pmesh << b << flush;
 
    MPI_Finalize();
 

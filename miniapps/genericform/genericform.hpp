@@ -28,6 +28,6 @@ protected:
    // L -> E
    const Operator *G;
 
-   mutable Vector x_local, y_local, z1;
+   mutable Vector x_local, y_local, px, py;
 };
 } // namespace mfem
