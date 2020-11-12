@@ -654,14 +654,11 @@ class Mfem(Package):
                 'CONDUIT_OPT=%s' % conduit_opt_flags,
                 'CONDUIT_LIB=%s' % ld_flags_from_library_list(libs)]
 
-        host_config_path = self._get_host_config_path(spec)
-        cfg = open(host_config_path, "w")
-        for option in options:
-            cfg.write("{}\n".format(option))
-
         make('config', *options, parallel=False)
         make('info', parallel=False)
-        #copy(str(self.config_mk),host_config_path)
+
+        # Uberenv: Save the config_mk with a spec dependent name
+        copy('config/config.mk',self._get_host_config_path(spec))
 
     def build(self, spec, prefix):
         make('lib')
