@@ -1,0 +1,7 @@
+add_library(genericform genericform.cpp)
+target_include_directories(genericform PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(genericform mfem)
+
+add_executable(genericform_example genericform_example.cpp)
+target_include_directories(genericform_example PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(genericform_example genericform mfem)
