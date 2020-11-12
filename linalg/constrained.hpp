@@ -93,6 +93,11 @@ public:
    void Mult(const Vector& in, Vector& out) const override;
    void MultTranspose(const Vector& in, Vector& out) const override;
 
+   /** @brief Assemble this projector as a SparseMatrix
+
+       Some day we may also want to try approximate variants. */
+   SparseMatrix * AssembleExact() const;
+
 private:
    const SparseMatrix& A_;
    const SparseMatrix& B_;
@@ -151,6 +156,12 @@ public:
                         const Vector& disp, Vector& pressure) const;
 
 private:
+   /// Apply \f$ B_s^{-1} B_p \f$
+   void Eliminate(const Vector& x, Vector& y) const;
+
+   /// Apply \f$ B_p^T B_s^{-T}
+   void EliminateTranspose(const Vector& x, Vector& y) const;
+
    SparseMatrix& A_;
    SparseMatrix& B_;
 
@@ -165,6 +176,53 @@ private:
    LUFactors BsTinverse_;
    Array<int> ipiv_;
    Array<int> ipivT_;
+};
+
+/** Keeps track of primary / secondary tdofs
+
+    In this context we are always talking about the displacement system,
+    rarely about lagrange multiplier dofs */
+class Eliminator
+{
+public:
+   Eliminator(const SparseMatrix& B, Array<int>& primary_tdofs,
+              Array<int>& secondary_tdofs);
+
+   const Array<int>& PrimaryDofs() const { return primary_tdofs_; }
+   const Array<int>& SecondaryDofs() const { return secondary_tdofs_; }
+
+   /// Apply -B_s^{-1} B_p
+   void Eliminate(const Vector& in, Vector& out) const;
+
+   /// Apply -B_p^T B_s^{-T}
+   void EliminateTranspose(const Vector& in, Vector& out) const;
+
+private:
+   Array<int> primary_tdofs_; // in original displacement ordering
+   Array<int> secondary_tdofs_;
+
+   DenseMatrix Bp_;
+   DenseMatrix Bs_;  // gets inverted in place
+   LUFactors Bsinverse_;
+   /// @todo there is probably a better way to handle the B_s^{-T}
+   DenseMatrix BsT_;   // gets inverted in place
+   LUFactors BsTinverse_;
+   Array<int> ipiv_;
+   Array<int> ipivT_;
+};
+
+/** The innovation here is throw away the mapping and make a square matrix */
+class NewEliminationProjection : public Operator
+{
+public:
+   NewEliminationProjection(const SparseMatrix& A, Array<Eliminator*>& eliminators);
+
+   void Mult(const Vector& x, Vector& y) const;
+
+   void MultTranspose(const Vector& x, Vector& y) const;
+
+private:
+   Array<Eliminator*> eliminators_;
 };
 
 #ifdef MFEM_USE_MPI

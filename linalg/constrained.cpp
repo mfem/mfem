@@ -252,6 +252,19 @@ SparseMatrix * EliminationProjection::AssembleExact() const
    return out;
 }
 
+void EliminationProjection::Eliminate(const Vector& in, Vector& out) const
+{
+   Bp_.Mult(in, out);
+   Bsinverse_.Solve(Bs_.Height(), 1, out);
+}
+
+void EliminationProjection::EliminateTranspose(const Vector& in, Vector& out) const
+{
+   Vector work(in);
+   BsTinverse_.Solve(Bs_.Height(), 1, work);
+   Bp_.MultTranspose(work, out);
+}
+
 void EliminationProjection::Mult(const Vector& in, Vector& out) const
 {
    int num_elim_dofs = secondary_contact_dofs_.Size();
@@ -286,8 +299,7 @@ void EliminationProjection::Mult(const Vector& in, Vector& out) const
    Vector subvecin;
    Vector subvecout(secondary_contact_dofs_.Size());
    in.GetSubVector(mapped_primary_contact_dofs, subvecin);
-   Bp_.Mult(subvecin, subvecout);
-   Bsinverse_.Solve(Bs_.Height(), 1, subvecout);
+   Eliminate(subvecin, subvecout);
    subvecout *= -1.0;
    out.AddElementVector(secondary_contact_dofs_, subvecout);
 }
@@ -324,20 +336,19 @@ void EliminationProjection::MultTranspose(const Vector& in, Vector& out) const
    Vector subvecout(Bp_.Width());
 
    in.GetSubVector(secondary_contact_dofs_, subvecin);
-   BsTinverse_.Solve(Bs_.Height(), 1, subvecin);
-   Bp_.MultTranspose(subvecin, subvecout);
+   EliminateTranspose(subvecin, subvecout);
    subvecout *= -1.0;
    out.AddElementVector(mapped_primary_contact_dofs, subvecout);
 }
 
 void EliminationProjection::BuildGTilde(const Vector& g, Vector& gtilde) const
 {
-   // int num_elim_dofs = secondary_contact_dofs_.Size();
    MFEM_ASSERT(g.Size() == B_.Height(), "Sizes don't match!");
    MFEM_ASSERT(gtilde.Size() == A_.Height(), "Sizes don't match!");
 
    gtilde = 0.0;
    Vector cinvg(g);
+
    Bsinverse_.Solve(Bs_.Height(), 1, cinvg);
    gtilde.AddElementVector(secondary_contact_dofs_, cinvg);
 }
@@ -356,6 +367,81 @@ void EliminationProjection::RecoverPressure(const Vector& disprhs, const Vector&
    BsTinverse_.Solve(Bs_.Height(), 1, pressure);
 }
 
+
+Eliminator::Eliminator(const SparseMatrix& B, Array<int>& primary_tdofs,
+                       Array<int>& secondary_tdofs)
+   :
+   primary_tdofs_(primary_tdofs),
+   secondary_tdofs_(secondary_tdofs)
+{
+   Array<int> lm_dofs;
+   for (int i = 0; i < B.Height(); ++i)
+   {
+      lm_dofs.Append(i);
+   }
+   Bp_.SetSize(B.Height(), primary_tdofs.Size());
+   B.GetSubMatrix(lm_dofs, primary_tdofs, Bp_);
+
+   Bs_.SetSize(B.Height(), secondary_tdofs.Size());
+   B.GetSubMatrix(lm_dofs, secondary_tdofs, Bs_);
+   BsT_.Transpose(Bs_);
+
+   ipiv_.SetSize(Bs_.Height());
+   Bsinverse_.data = Bs_.GetData();
+   Bsinverse_.ipiv = ipiv_.GetData();
+   Bsinverse_.Factor(Bs_.Height());
+
+   ipivT_.SetSize(Bs_.Height());
+   BsTinverse_.data = BsT_.GetData();
+   BsTinverse_.ipiv = ipivT_.GetData();
+   BsTinverse_.Factor(Bs_.Height());
+}
+
+void Eliminator::Eliminate(const Vector& in, Vector& out) const
+{
+   Bp_.Mult(in, out);
+   Bsinverse_.Solve(Bs_.Height(), 1, out);
+   out *= -1.0;
+}
+
+void Eliminator::EliminateTranspose(const Vector& in, Vector& out) const
+{
+   Vector work(in);
+   BsTinverse_.Solve(Bs_.Height(), 1, work);
+   Bp_.MultTranspose(work, out);
+   out *= -1.0;
+}
+
+NewEliminationProjection::NewEliminationProjection(const SparseMatrix& A, Array<Eliminator*>& eliminators)
+   :
+   eliminators_(eliminators)
+{
+}
+
+void NewEliminationProjection::Mult(const Vector& in, Vector& out) const
+{
+   out = in;
+
+   std::cout << "newout A: ";
+   out.Print(std::cout);
+
+   for (int k = 0; k < eliminators_.Size(); ++k)
+   {
+      Eliminator* elim = eliminators_[k];
+      Vector subvecin;
+      Vector subvecout(elim->SecondaryDofs().Size());
+      in.GetSubVector(elim->PrimaryDofs(), subvecin);
+      std::cout << "  newout subvecin: ";
+      subvecin.Print(std::cout);
+      elim->Eliminate(subvecin, subvecout);
+      // subvectou *= -1.0;
+      // Set not Add
+      out.SetSubVector(elim->SecondaryDofs(), subvecout);
+
+      std::cout << "newout B: ";
+      out.Print(std::cout);
+   }
+}
 
 EliminationCGSolver::~EliminationCGSolver()
 {

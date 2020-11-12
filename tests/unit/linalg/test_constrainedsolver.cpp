@@ -372,16 +372,42 @@ TEST_CASE("EliminationProjection", "[Parallel], [ConstrainedSolver]")
       NodalEliminationProjection nep(A, B);
       SparseMatrix * assembled_ep = ep.AssembleExact();
 
+      Eliminator eliminator(B, primary_dofs, secondary_dofs);
+      Array<Eliminator*> eliminators;
+      eliminators.Append(&eliminator);
+      NewEliminationProjection newep(A, eliminators);
+
       Vector x(2);
-      x.Randomize();
-      Vector epy(4), nepy(4), aepy(4);
+      // x.Randomize();
+      x = 0.0;
+      x(1) = 1.0;
+      Vector newx(4);
+      // newx.Randomize();
+      newx = 0.0;
+      /*
+      newx(0) = x(0);
+      newx(1) = x(1);
+      */
+      for (int i = 0; i < primary_dofs.Size(); ++i)
+      {
+         newx(primary_dofs[i]) = x(i);
+      }
+      Vector epy(4), nepy(4), aepy(4), newepy(4);
       ep.Mult(x, epy);
       nep.Mult(x, nepy);
       assembled_ep->Mult(x, aepy);
+      newep.Mult(newx, newepy);
+
+      std::cout << "epy:" << std::endl;
+      epy.Print(std::cout);
+      std::cout << "newepy:" << std::endl;
+      newepy.Print(std::cout);
+
       for (int i = 0; i < 4; ++i)
       {
          REQUIRE(epy(i) - nepy(i) == MFEM_Approx(0.0));
          REQUIRE(epy(i) - aepy(i) == MFEM_Approx(0.0));
+         REQUIRE(epy(i) - newepy(i) == MFEM_Approx(0.0));
       }
 
       Vector xt(4);
