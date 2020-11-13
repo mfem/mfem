@@ -311,10 +311,10 @@ GetEdge(int &nv, v_t &v, int &ne, int &e, int &eo, const int edge_info)
    eo = edge_info%64;
    MFEM_ASSERT(0 <= e && e < g_consts::NumEdges, "");
    MFEM_ASSERT(0 <= eo && eo < e_consts::NumOrient, "");
-   v[0] = g_consts::Edges[e][0];
-   v[1] = g_consts::Edges[e][1];
-   v[0] = e_consts::Orient[eo][v[0]];
-   v[1] = e_consts::Orient[eo][v[1]];
+   v[0] = e_consts::Orient[eo][0];
+   v[1] = e_consts::Orient[eo][1];
+   v[0] = g_consts::Edges[e][v[0]];
+   v[1] = g_consts::Edges[e][v[1]];
 }
 
 template <Geometry::Type geom, Geometry::Type f_geom,

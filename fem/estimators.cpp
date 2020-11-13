@@ -50,4 +50,21 @@ void L2ZienkiewiczZhuEstimator::ComputeEstimates()
 
 #endif // MFEM_USE_MPI
 
+void LpErrorEstimator::ComputeEstimates()
+{
+   MFEM_VERIFY(coef != NULL || vcoef != NULL,
+               "LpErrorEstimator has no coefficient!  Call SetCoef first.");
+
+   error_estimates.SetSize(sol->FESpace()->GetMesh()->GetNE());
+   if (coef)
+   {
+      sol->ComputeElementLpErrors(local_norm_p, *coef, error_estimates);
+   }
+   else
+   {
+      sol->ComputeElementLpErrors(local_norm_p, *vcoef, error_estimates);
+   }
+   current_sequence = sol->FESpace()->GetMesh()->GetSequence();
+}
+
 } // namespace mfem

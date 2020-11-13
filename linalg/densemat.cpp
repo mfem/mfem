@@ -17,6 +17,8 @@
 #include "vector.hpp"
 #include "matrix.hpp"
 #include "densemat.hpp"
+#include "kernels.hpp"
+#include "../general/forall.hpp"
 #include "../general/table.hpp"
 #include "../general/globals.hpp"
 
@@ -371,7 +373,7 @@ void DenseMatrix::SymmetricScaling(const Vector & s)
 {
    if (height != width || s.Size() != height)
    {
-      mfem_error("DenseMatrix::SymmetricScaling");
+      mfem_error("DenseMatrix::SymmetricScaling: dimension mismatch");
    }
 
    double * ss = new double[width];
@@ -399,7 +401,7 @@ void DenseMatrix::InvSymmetricScaling(const Vector & s)
 {
    if (height != width || s.Size() != width)
    {
-      mfem_error("DenseMatrix::SymmetricScaling");
+      mfem_error("DenseMatrix::InvSymmetricScaling: dimension mismatch");
    }
 
    double * ss = new double[width];
@@ -526,8 +528,121 @@ double DenseMatrix::Weight() const
       double F = d[0] * d[3] + d[1] * d[4] + d[2] * d[5];
       return sqrt(E * G - F * F);
    }
-   mfem_error("DenseMatrix::Weight()");
+   mfem_error("DenseMatrix::Weight(): mismatched or unsupported dimensions");
    return 0.0;
+}
+
+void DenseMatrix::DetRevDiff(DenseMatrix &A_bar) const
+{
+   MFEM_ASSERT(Height() == Width() && Height() > 0,
+               "The matrix must be square and "
+               << "sized larger than zero to compute the determinant."
+               << "  Height() = " << Height()
+               << ", Width() = " << Width());
+
+   switch (Height())
+   {
+      case 1:
+         // return data[0];
+         A_bar(0,0) = 1.0;
+         return;
+
+      case 2:
+         // return data[0] * data[3] - data[1] * data[2];
+         A_bar(0,0) = data[3]; // data[0]
+         A_bar(1,1) = data[0]; // data[3]
+         A_bar(1,0) = -data[2]; // data[1]
+         A_bar(0,1) = -data[1]; // data[2]
+         return;
+
+      case 3:
+      {
+         const double *d = data;
+         // return
+         //   d[0] * (d[4] * d[8] - d[5] * d[7]) +
+         //   d[3] * (d[2] * d[7] - d[1] * d[8]) +
+         //   d[6] * (d[1] * d[5] - d[2] * d[4]);
+         A_bar(0,0) = d[4]*d[8] - d[5]*d[7]; // d[0]
+         A_bar(1,0) = d[6]*d[5] - d[3]*d[8]; // d[1]
+         A_bar(2,0) = d[3]*d[7] - d[6]*d[4]; // d[2]
+         A_bar(0,1) = d[2]*d[7] - d[1]*d[8]; // d[3]
+         A_bar(1,1) = d[0]*d[8] - d[6]*d[2]; // d[4]
+         A_bar(2,1) = d[6]*d[1] - d[0]*d[7]; // d[5]
+         A_bar(0,2) = d[1]*d[5] - d[2]*d[4]; // d[6]
+         A_bar(1,2) = d[3]*d[2] - d[0]*d[5]; // d[7]
+         A_bar(2,2) = d[0]*d[4] - d[3]*d[1]; // d[8]
+         return;
+
+      }
+      default:
+      {
+         // In the general case we compute the gradient of the determinant
+         // using the relation from Mike Giles document:
+         // "An extended collection of matrix derivative results for forward
+         // and reverse mode algorithmic differentiation"
+         DenseMatrixInverse lu_factors(*this);
+         lu_factors.GetInverseMatrix(A_bar);
+         A_bar.Transpose();
+         A_bar *= lu_factors.Det();
+         return;
+
+      }
+   }
+   // not reachable
+}
+
+void DenseMatrix::WeightRevDiff(DenseMatrix &A_bar) const
+{
+#ifdef MFEM_DEBUG
+   if (Height() != A_bar.Height() || Width() != A_bar.Width())
+   {
+      mfem_error("DenseMatrix::WeightRevDiff()");
+   }
+#endif
+   if (Height() == Width())
+   {
+      // return Det();
+      DetRevDiff(A_bar);
+      return;
+   }
+   else if ((Height() == 2) && (Width() == 1))
+   {
+      // return sqrt(data[0] * data[0] + data[1] * data[1]);
+      double wgt = sqrt(data[0] * data[0] + data[1] * data[1]);
+      A_bar(0,0) = data[0]/wgt;
+      A_bar(1,0) = data[1]/wgt;
+      return;
+   }
+   else if ((Height() == 3) && (Width() == 1))
+   {
+      // return sqrt(data[0] * data[0] + data[1] * data[1] + data[2] * data[2]);
+      double wgt = sqrt(data[0] * data[0] + data[1] * data[1] + data[2] * data[2]);
+      for (int i = 0; i < 3; ++i)
+      {
+         A_bar(i,0) = data[i]/wgt;
+      }
+      return;
+   }
+   else if ((Height() == 3) && (Width() == 2))
+   {
+      const double *d = data;
+      double E = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+      double G = d[3] * d[3] + d[4] * d[4] + d[5] * d[5];
+      double F = d[0] * d[3] + d[1] * d[4] + d[2] * d[5];
+      double wgt = sqrt(E * G - F * F);
+      // start reverse sweep
+      double E_bar = 0.5*G/wgt;
+      double G_bar = 0.5*E/wgt;
+      double F_bar = -F/wgt;
+      A_bar(0,0) = F_bar*d[3] + 2.0*E_bar*d[0]; // d[0]
+      A_bar(1,0) = F_bar*d[4] + 2.0*E_bar*d[1]; // d[1]
+      A_bar(2,0) = F_bar*d[5] + 2.0*E_bar*d[2]; // d[2]
+      A_bar(0,1) = F_bar*d[0] + 2.0*G_bar*d[3]; // d[3]
+      A_bar(1,1) = F_bar*d[1] + 2.0*G_bar*d[4]; // d[4]
+      A_bar(2,1) = F_bar*d[2] + 2.0*G_bar*d[5]; // d[5]
+      return;
+   }
+   mfem_error("DenseMatrix::WeightRevDiff()");
 }
 
 void DenseMatrix::Set(double alpha, const double *A)
@@ -637,7 +752,7 @@ void DenseMatrix::Invert()
 #ifdef MFEM_DEBUG
    if (Height() <= 0 || Height() != Width())
    {
-      mfem_error("DenseMatrix::Invert()");
+      mfem_error("DenseMatrix::Invert(): dimension mismatch");
    }
 #endif
 
@@ -1081,7 +1196,7 @@ void DenseMatrix::Eigensystem(Vector &ev, DenseMatrix *evect)
 
    MFEM_CONTRACT_VAR(ev);
    MFEM_CONTRACT_VAR(evect);
-   mfem_error("DenseMatrix::Eigensystem");
+   mfem_error("DenseMatrix::Eigensystem: Compiled without LAPACK");
 
 #endif
 }
@@ -1162,7 +1277,7 @@ void DenseMatrix::Eigensystem(DenseMatrix &b, Vector &ev,
    MFEM_CONTRACT_VAR(b);
    MFEM_CONTRACT_VAR(ev);
    MFEM_CONTRACT_VAR(evect);
-   mfem_error("DenseMatrix::Eigensystem for generalized eigenvalues");
+   mfem_error("DenseMatrix::Eigensystem(generalized): Compiled without LAPACK");
 #endif
 }
 
@@ -1202,7 +1317,7 @@ void DenseMatrix::SingularValues(Vector &sv) const
 #else
    MFEM_CONTRACT_VAR(sv);
    // compiling without lapack
-   mfem_error("DenseMatrix::SingularValues");
+   mfem_error("DenseMatrix::SingularValues: Compiled without LAPACK");
 #endif
 }
 
@@ -1439,7 +1554,7 @@ void DenseMatrix::GradToCurl(DenseMatrix &curl)
    if ((Width() != 2 || curl.Width() != 1 || 2*n != curl.Height()) &&
        (Width() != 3 || curl.Width() != 3 || 3*n != curl.Height()))
    {
-      mfem_error("DenseMatrix::GradToCurl(...)");
+      mfem_error("DenseMatrix::GradToCurl(...): dimension mismatch");
    }
 #endif
 
@@ -1674,7 +1789,7 @@ void DenseMatrix::AddMatrix(DenseMatrix &A, int ro, int co)
 #ifdef MFEM_DEBUG
    if (co+aw > Width() || ro+ah > h)
    {
-      mfem_error("DenseMatrix::AddMatrix(...) 1");
+      mfem_error("DenseMatrix::AddMatrix(...) 1 : dimension mismatch");
    }
 #endif
 
@@ -1704,7 +1819,7 @@ void DenseMatrix::AddMatrix(double a, const DenseMatrix &A, int ro, int co)
 #ifdef MFEM_DEBUG
    if (co+aw > Width() || ro+ah > h)
    {
-      mfem_error("DenseMatrix::AddMatrix(...) 2");
+      mfem_error("DenseMatrix::AddMatrix(...) 2 : dimension mismatch");
    }
 #endif
 
@@ -1751,7 +1866,7 @@ void DenseMatrix::AdjustDofDirection(Array<int> &dofs)
 #ifdef MFEM_DEBUG
    if (dofs.Size() != n || Width() != n)
    {
-      mfem_error("DenseMatrix::AdjustDofDirection(...)");
+      mfem_error("DenseMatrix::AdjustDofDirection(...): dimension mismatch");
    }
 #endif
 
@@ -2091,11 +2206,11 @@ void CalcAdjugate(const DenseMatrix &a, DenseMatrix &adja)
 #ifdef MFEM_DEBUG
    if (a.Width() > a.Height() || a.Width() < 1 || a.Height() > 3)
    {
-      mfem_error("CalcAdjugate(...)");
+      mfem_error("CalcAdjugate(...): unsupported dimensions");
    }
    if (a.Width() != adja.Height() || a.Height() != adja.Width())
    {
-      mfem_error("CalcAdjugate(...)");
+      mfem_error("CalcAdjugate(...): dimension mismatch");
    }
 #endif
 
@@ -2164,7 +2279,7 @@ void CalcAdjugateTranspose(const DenseMatrix &a, DenseMatrix &adjat)
    if (a.Height() != a.Width() || adjat.Height() != adjat.Width() ||
        a.Width() != adjat.Width() || a.Width() < 1 || a.Width() > 3)
    {
-      mfem_error("CalcAdjugateTranspose(...)");
+      mfem_error("CalcAdjugateTranspose(...): dimension mismatch");
    }
 #endif
    if (a.Width() == 1)
@@ -2191,6 +2306,143 @@ void CalcAdjugateTranspose(const DenseMatrix &a, DenseMatrix &adjat)
       adjat(0,2) = a(1,0)*a(2,1)-a(1,1)*a(2,0);
       adjat(1,2) = a(0,1)*a(2,0)-a(0,0)*a(2,1);
       adjat(2,2) = a(0,0)*a(1,1)-a(0,1)*a(1,0);
+   }
+}
+
+void CalcAdjugateRevDiff(const DenseMatrix &a, const DenseMatrix &adja_bar,
+                         DenseMatrix &a_bar)
+{
+#ifdef MFEM_DEBUG
+   if (a.Width() > a.Height() || a.Width() < 1 || a.Height() > 3)
+   {
+      mfem_error("CalcAdjugateRevDiff(...)");
+   }
+   if (a.Width() != a_bar.Width() ||
+       a.Height() != a_bar.Height() ||
+       a_bar.Width() != adja_bar.Height() ||
+       a_bar.Height() != adja_bar.Width())
+   {
+      mfem_error("CalcAdjugateRefDiff(...)");
+   }
+#endif
+
+   if (a.Width() < a.Height())
+   {
+      const double *d = a.Data();
+      const double *ad_bar = adja_bar.Data();
+      double *d_bar = a_bar.Data();
+      if (a.Width() == 1)
+      {
+         // N x 1, N = 2,3
+         // ad[0] = d[0];
+         d_bar[0] = ad_bar[0];
+         // ad[1] = d[1];
+         d_bar[1] = ad_bar[1];
+         if (a.Height() == 3)
+         {
+            // ad[2] = d[2];
+            d_bar[2] = ad_bar[2];
+         }
+      }
+      else
+      {
+         // 3 x 2
+         // e, g, and f are needed during the reverse sweep
+         double e, g, f;
+         e = d[0]*d[0] + d[1]*d[1] + d[2]*d[2];
+         g = d[3]*d[3] + d[4]*d[4] + d[5]*d[5];
+         f = d[0]*d[3] + d[1]*d[4] + d[2]*d[5];
+
+         // start reverse sweep
+         a_bar = 0.0; // this zeros out d_bar[]
+         double e_bar = 0.0;
+         double g_bar = 0.0;
+         double f_bar = 0.0;
+         // ad[0] = d[0]*g - d[3]*f;
+         d_bar[0] += g*ad_bar[0];
+         d_bar[3] -= f*ad_bar[0];
+         g_bar += d[0]*ad_bar[0];
+         f_bar -= d[3]*ad_bar[0];
+         // ad[1] = d[3]*e - d[0]*f;
+         d_bar[3] += e*ad_bar[1];
+         d_bar[0] -= f*ad_bar[1];
+         e_bar += d[3]*ad_bar[1];
+         f_bar -= d[0]*ad_bar[1];
+         // ad[2] = d[1]*g - d[4]*f;
+         d_bar[1] += g*ad_bar[2];
+         d_bar[4] -= f*ad_bar[2];
+         g_bar += d[1]*ad_bar[2];
+         f_bar -= d[4]*ad_bar[2];
+         // ad[3] = d[4]*e - d[1]*f;
+         d_bar[4] += e*ad_bar[3];
+         d_bar[1] -= f*ad_bar[3];
+         e_bar += d[4]*ad_bar[3];
+         f_bar -= d[1]*ad_bar[3];
+         // ad[4] = d[2]*g - d[5]*f;
+         d_bar[2] += g*ad_bar[4];
+         d_bar[5] -= f*ad_bar[4];
+         g_bar += d[2]*ad_bar[4];
+         f_bar -= d[5]*ad_bar[4];
+         // ad[5] = d[5]*e - d[2]*f;
+         d_bar[5] += e*ad_bar[5];
+         d_bar[2] -= f*ad_bar[5];
+         e_bar += d[5]*ad_bar[5];
+         f_bar -= d[2]*ad_bar[5];
+
+         // e = d[0]*d[0] + d[1]*d[1] + d[2]*d[2];
+         d_bar[0] += 2.0*d[0]*e_bar;
+         d_bar[1] += 2.0*d[1]*e_bar;
+         d_bar[2] += 2.0*d[2]*e_bar;
+         // g = d[3]*d[3] + d[4]*d[4] + d[5]*d[5];
+         d_bar[3] += 2.0*d[3]*g_bar;
+         d_bar[4] += 2.0*d[4]*g_bar;
+         d_bar[5] += 2.0*d[5]*g_bar;
+         // f = d[0]*d[3] + d[1]*d[4] + d[2]*d[5];
+         d_bar[0] += d[3]*f_bar;
+         d_bar[3] += d[0]*f_bar;
+         d_bar[1] += d[4]*f_bar;
+         d_bar[4] += d[1]*f_bar;
+         d_bar[2] += d[5]*f_bar;
+         d_bar[5] += d[2]*f_bar;
+
+      }
+      return;
+   }
+
+   if (a.Width() == 1)
+   {
+      // adja(0,0) = 1.0;
+      a_bar(0,0) = 0.0;
+   }
+   else if (a.Width() == 2)
+   {
+      // adja(0,0) =  a(1,1);
+      a_bar(1,1) = adja_bar(0,0);
+      // adja(0,1) = -a(0,1);
+      a_bar(0,1) = -adja_bar(0,1);
+      // adja(1,0) = -a(1,0);
+      a_bar(1,0) = -adja_bar(1,0);
+      // adja(1,1) =  a(0,0);
+      a_bar(0,0) = adja_bar(1,1);
+   }
+   else
+   {
+      a_bar = 0.0;
+      for (int di1 = 0; di1 < 3; ++di1)
+      {
+         int it11 = (di1 + 1) % 3;
+         int it12 = (di1 + 2) % 3;
+         for (int di2 = 0; di2 < 3; ++di2)
+         {
+            int it21 = (di2 + 1) % 3;
+            int it22 = (di2 + 2) % 3;
+            // adja(di2,di1) = a(it11,it21)*a(it12,it22) - a(it11,it22)*a(it12,it21);
+            a_bar(it11,it21) += a(it12,it22)*adja_bar(di2,di1);
+            a_bar(it12,it22) += a(it11,it21)*adja_bar(di2,di1);
+            a_bar(it11,it22) -= a(it12,it21)*adja_bar(di2,di1);
+            a_bar(it12,it21) -= a(it11,it22)*adja_bar(di2,di1);
+         }
+      }
    }
 }
 
@@ -2267,7 +2519,7 @@ void CalcInverseTranspose(const DenseMatrix &a, DenseMatrix &inva)
    if ( (a.Width() != a.Height()) || ( (a.Height()!= 1) && (a.Height()!= 2)
                                        && (a.Height()!= 3) ) )
    {
-      mfem_error("CalcInverseTranspose(...)");
+      mfem_error("CalcInverseTranspose(...): dimension mismatch");
    }
 #endif
 
@@ -2323,6 +2575,50 @@ void CalcOrtho(const DenseMatrix &J, Vector &n)
       n(0) = d[1]*d[5] - d[2]*d[4];
       n(1) = d[2]*d[3] - d[0]*d[5];
       n(2) = d[0]*d[4] - d[1]*d[3];
+   }
+}
+
+void CalcOrthoRevDiff(const DenseMatrix &J, const Vector &n_bar,
+                      DenseMatrix &J_bar)
+{
+   MFEM_ASSERT(((J.Height() == 2 && J.Width() == 1) ||
+                (J.Height() == 3 && J.Width() == 2)) &&
+               (J.Height() == n_bar.Size()),
+               "Matrix must be 3x2 or 2x1, "
+               << "and the Vector must be sized with the rows. "
+               << " J.Height() = " << J.Height()
+               << ", J.Width() = " << J.Width()
+               << ", n_bar.Size() = " << n_bar.Size());
+   MFEM_ASSERT((J.Height() == J_bar.Height() && J.Width() == J_bar.Width()),
+               "Input matrix and derivative matrix must be the same size.");
+
+   const double *d = J.Data();
+   double *d_bar = J_bar.Data();
+   if (J.Height() == 2)
+   {
+      // n(0) =  d[1];
+      d_bar[1] = n_bar(0);
+      // n(1) = -d[0];
+      d_bar[0] = -n_bar(1);
+   }
+   else
+   {
+      J_bar = 0.0;
+      // n(0) = d[1]*d[5] - d[2]*d[4];
+      d_bar[1] += d[5]*n_bar(0);
+      d_bar[5] += d[1]*n_bar(0);
+      d_bar[2] -= d[4]*n_bar(0);
+      d_bar[4] -= d[2]*n_bar(0);
+      // n(1) = d[2]*d[3] - d[0]*d[5];
+      d_bar[2] += d[3]*n_bar(1);
+      d_bar[3] += d[2]*n_bar(1);
+      d_bar[0] -= d[5]*n_bar(1);
+      d_bar[5] -= d[0]*n_bar(1);
+      // n(2) = d[0]*d[4] - d[1]*d[3];
+      d_bar[0] += d[4]*n_bar(2);
+      d_bar[4] += d[0]*n_bar(2);
+      d_bar[1] -= d[3]*n_bar(2);
+      d_bar[3] -= d[1]*n_bar(2);
    }
 }
 
@@ -2394,7 +2690,7 @@ void MultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
    if (A.Height() != ABt.Height() || B.Height() != ABt.Width() ||
        A.Width() != B.Width())
    {
-      mfem_error("MultABt(...)");
+      mfem_error("MultABt(...): dimension mismatch");
    }
 #endif
 
@@ -2460,7 +2756,7 @@ void MultADBt(const DenseMatrix &A, const Vector &D,
    if (A.Height() != ADBt.Height() || B.Height() != ADBt.Width() ||
        A.Width() != B.Width() || A.Width() != D.Size())
    {
-      mfem_error("MultADBt(...)");
+      mfem_error("MultADBt(...): dimension mismatch");
    }
 #endif
 
@@ -2499,7 +2795,7 @@ void AddMultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
    if (A.Height() != ABt.Height() || B.Height() != ABt.Width() ||
        A.Width() != B.Width())
    {
-      mfem_error("AddMultABt(...)");
+      mfem_error("AddMultABt(...): dimension mismatch");
    }
 #endif
 
@@ -2557,7 +2853,7 @@ void AddMultADBt(const DenseMatrix &A, const Vector &D,
    if (A.Height() != ADBt.Height() || B.Height() != ADBt.Width() ||
        A.Width() != B.Width() || A.Width() != D.Size())
    {
-      mfem_error("AddMultADBt(...)");
+      mfem_error("AddMultADBt(...): dimension mismatch");
    }
 #endif
 
@@ -2593,7 +2889,7 @@ void AddMult_a_ABt(double a, const DenseMatrix &A, const DenseMatrix &B,
    if (A.Height() != ABt.Height() || B.Height() != ABt.Width() ||
        A.Width() != B.Width())
    {
-      mfem_error("AddMult_a_ABt(...)");
+      mfem_error("AddMult_a_ABt(...): dimension mismatch");
    }
 #endif
 
@@ -2651,7 +2947,7 @@ void MultAtB(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &AtB)
    if (A.Width() != AtB.Height() || B.Width() != AtB.Width() ||
        A.Height() != B.Height())
    {
-      mfem_error("MultAtB(...)");
+      mfem_error("MultAtB(...): dimension mismatch");
    }
 #endif
 
@@ -2759,7 +3055,7 @@ void MultVWt(const Vector &v, const Vector &w, DenseMatrix &VWt)
 #ifdef MFEM_DEBUG
    if (v.Size() != VWt.Height() || w.Size() != VWt.Width())
    {
-      mfem_error("MultVWt(...)");
+      mfem_error("MultVWt(...): dimension mismatch");
    }
 #endif
 
@@ -2780,7 +3076,7 @@ void AddMultVWt(const Vector &v, const Vector &w, DenseMatrix &VWt)
 #ifdef MFEM_DEBUG
    if (VWt.Height() != m || VWt.Width() != n)
    {
-      mfem_error("AddMultVWt(...)");
+      mfem_error("AddMultVWt(...): dimension mismatch");
    }
 #endif
 
@@ -2801,7 +3097,7 @@ void AddMultVVt(const Vector &v, DenseMatrix &VVt)
 #ifdef MFEM_DEBUG
    if (VVt.Height() != n || VVt.Width() != n)
    {
-      mfem_error("AddMultVVt(...)");
+      mfem_error("AddMultVVt(...): dimension mismatch");
    }
 #endif
 
@@ -2826,7 +3122,7 @@ void AddMult_a_VWt(const double a, const Vector &v, const Vector &w,
 #ifdef MFEM_DEBUG
    if (VWt.Height() != m || VWt.Width() != n)
    {
-      mfem_error("AddMult_a_VWt(...)");
+      mfem_error("AddMult_a_VWt(...): dimension mismatch");
    }
 #endif
 
@@ -3043,9 +3339,6 @@ void LUFactors::RightSolve(int m, int n, double *X) const
    }
 #else
    // compiling without LAPACK
-   const double *data = this->data;
-   const int *ipiv = this->ipiv;
-
    // X <- X U^{-1}
    x = X;
    for (int k = 0; k < n; k++)
@@ -3080,7 +3373,7 @@ void LUFactors::RightSolve(int m, int n, double *X) const
    x = X;
    for (int k = 0; k < n; k++)
    {
-      for (int i = 0; i < m; i++)
+      for (int i = m-1; i >= 0; --i)
       {
          Swap<double>(x[i*n], x[(ipiv[i]-ipiv_base)*n]);
       }
@@ -3275,6 +3568,15 @@ void DenseMatrixInverse::SetOperator(const Operator &op)
    Factor(*p);
 }
 
+void DenseMatrixInverse::Mult(const double *x, double *y) const
+{
+   for (int row = 0; row < height; row++)
+   {
+      y[row] = x[row];
+   }
+   lu.Solve(width, 1, y);
+}
+
 void DenseMatrixInverse::Mult(const Vector &x, Vector &y) const
 {
    y = x;
@@ -3345,7 +3647,7 @@ void DenseMatrixEigensystem::Eval()
 #ifdef MFEM_DEBUG
    if (mat.Width() != n)
    {
-      mfem_error("DenseMatrixEigensystem::Eval()");
+      mfem_error("DenseMatrixEigensystem::Eval(): dimension mismatch");
    }
 #endif
 
@@ -3503,4 +3805,88 @@ DenseTensor &DenseTensor::operator=(double c)
    return *this;
 }
 
+void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const double TOL)
+{
+   const int m = Mlu.SizeI();
+   const int NE = Mlu.SizeK();
+   P.SetSize(m*NE);
+
+   auto data_all = mfem::Reshape(Mlu.ReadWrite(), m, m, NE);
+   auto ipiv_all = mfem::Reshape(P.Write(), m, NE);
+   Array<bool> pivot_flag(1);
+   pivot_flag[0] = true;
+   bool *d_pivot_flag = pivot_flag.ReadWrite();
+
+   MFEM_FORALL(e, NE,
+   {
+      for (int i = 0; i < m; i++)
+      {
+         // pivoting
+         {
+            int piv = i;
+            double a = fabs(data_all(piv,i,e));
+            for (int j = i+1; j < m; j++)
+            {
+               const double b = fabs(data_all(j,i,e));
+               if (b > a)
+               {
+                  a = b;
+                  piv = j;
+               }
+            }
+            ipiv_all(i,e) = piv;
+            if (piv != i)
+            {
+               // swap rows i and piv in both L and U parts
+               for (int j = 0; j < m; j++)
+               {
+                  mfem::kernels::internal::Swap<double>(data_all(i,j,e), data_all(piv,j,e));
+               }
+            }
+         } // pivot end
+
+         if (abs(data_all(i,i,e)) <= TOL)
+         {
+            d_pivot_flag[0] = false;
+         }
+
+         const double a_ii_inv = 1.0 / data_all(i,i,e);
+         for (int j = i+1; j < m; j++)
+         {
+            data_all(j,i,e) *= a_ii_inv;
+         }
+
+         for (int k = i+1; k < m; k++)
+         {
+            const double a_ik = data_all(i,k,e);
+            for (int j = i+1; j < m; j++)
+            {
+               data_all(j,k,e) -= a_ik * data_all(j,i,e);
+            }
+         }
+
+      } // m loop
+
+   });
+
+   MFEM_ASSERT(pivot_flag.HostRead()[0], "Batch LU factorization failed \n");
 }
+
+void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X)
+{
+
+   const int m = Mlu.SizeI();
+   const int NE = Mlu.SizeK();
+
+   auto data_all = mfem::Reshape(Mlu.Read(), m, m, NE);
+   auto piv_all = mfem::Reshape(P.Read(), m, NE);
+   auto x_all = mfem::Reshape(X.ReadWrite(), m, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      kernels::LUSolve(&data_all(0, 0,e), m, &piv_all(0, e), &x_all(0,e));
+   });
+
+}
+
+} // namespace mfem

@@ -15,13 +15,8 @@ namespace mfem
     public:
         /// Serves as an base class for linear/nonlinear explicit/implicit time
         /// marching problems
-        /// \param[in] ess_bdr - flags for essential boundary
-        /// \param[in] nonlinear_mass - nonlinear mass operator (not owned)
         /// \param[in] mass - bilinear form for mass matrix (not owned)
         /// \param[in] res - nonlinear residual operator (not owned)
-        /// \param[in] stiff - bilinear form for stiffness matrix (not owned)
-        /// \param[in] ent - nonlinear form for entropy/energy (not owned)
-        /// \param[in] out - outstream to use pointer (not owned)
         /// \param[in] start_time - time to start integration from
         ///                         (important for time-variant sources)
         /// \param[in] type - solver type; explicit or implicit
@@ -58,43 +53,26 @@ namespace mfem
 
         void solveForState(){};
 
-        /// Evaluate the entropy functional at the given state
-        /// \param[in] x - the state at which to evaluate the entropy
-        /// \returns the entropy functional
-        /// \note optional, but must be implemented for relaxation RK
-        double Entropy(const mfem::Vector &x);
-
-        /// Evaluate the residual weighted by the entropy variables
-        /// \praam[in] dt - evaluate residual at t+dt
-        /// \param[in] x - previous time step state
-        /// \param[in] k - the approximate time derivative, `du/dt`
-        /// \returns the product `w^T res`
-        /// \note `w` and `res` are evaluated at `x + dt*k` and time `t+dt`
-        /// \note optional, but must be implemented for relaxation RK
-        double EntropyChange(double dt, const mfem::Vector &x,
-                             const mfem::Vector &k);
-
         virtual ~EulerEvolver();
 
     protected:
-        /// pointer to nonlinear mass bilinear form (not owned)
-        NonlinearForm *nonlinear_mass;
         /// pointer to mass bilinear form (not owned)
         BilinearForm *mass;
         /// pointer to nonlinear form (not owned)
         NonlinearForm *res;
-        /// pointer to stiffness bilinear form (not owned)
-        mfem::OperatorHandle stiff;
-        /// pointer to a form for computing the entropy  (not owned)
-        NonlinearForm *ent;
+
         /// solver for inverting mass matrix for explicit solves
         /// \note supports partially assembled mass bilinear form
+        // #ifdef MFEM_USE_SUITESPARSE
+        //  // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+        // UMFPackSolver mass_solver;
+        // #else
         mfem::CGSolver mass_solver;
+       // #endif
         /// preconditioner for inverting mass matrix
         //std::unique_ptr<mfem::Solver> mass_prec;
         DSmoother mass_prec;
-        /// Linear solver for implicit problems (not owned)
-        mfem::Solver *linsolver;
+
         /// Newton solver for implicit problems (not owned)
         mfem::NewtonSolver newton_solver;
         /// pointer-to-implementation idiom
@@ -157,9 +135,7 @@ namespace mfem
         mfem::Operator &GetGradient(const mfem::Vector &k) const override
         {
 
-            SparseMatrix *jac;
-            // delete jac;
-            jac = nullptr;
+            SparseMatrix *jac = nullptr;
 
             // x_work = x + dt*k = x + dt*dx/dt = x + dx
             add(1.0, *x, dt, k, x_work);
@@ -212,23 +188,27 @@ namespace mfem
         cout << "combined_oper set " << endl;
         if (_mass != nullptr)
         {
-            //mass_prec = DSmoother(mass->SpMat());
+            // #ifdef MFEM_USE_SUITESPARSE
+            // mass_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+            // mass_solver.SetOperator(mass->SpMat());
+            // #else
             mass_solver.SetPreconditioner(mass_prec);
             mass_solver.SetOperator(mass->SpMat());
-            mass_solver.iterative_mode = false; // do not use second arg of Mult as guess
+            mass_solver.iterative_mode = false; 
             mass_solver.SetRelTol(1e-9);
             mass_solver.SetAbsTol(0.0);
             mass_solver.SetMaxIter(100);
-            mass_solver.SetPrintLevel(0);
+            mass_solver.SetPrintLevel(-1);
+           // #endif
         }
         cout << "mass_solver is set " << endl;
         newton_solver.iterative_mode = false;
         newton_solver.SetSolver(mass_solver);
         newton_solver.SetOperator(*combined_oper);
         newton_solver.SetPrintLevel(-1); // print Newton iterations
-        newton_solver.SetRelTol(1e-14);
-        newton_solver.SetAbsTol(1e-14);
-        newton_solver.SetMaxIter(15);
+        newton_solver.SetRelTol(1e-03);
+        newton_solver.SetAbsTol(1e-03);
+        newton_solver.SetMaxIter(1000);
         cout << "newton_solver is set " << endl;
     }
 
@@ -244,6 +224,7 @@ namespace mfem
     void EulerEvolver::ImplicitSolve(const double dt, const Vector &x,
                                      Vector &k)
     {
+        cout << "ImplicitSolve is called " << endl;
         setOperParameters(dt, &x);
         Vector zero; // empty vector is interpreted as zero r.h.s. by NewtonSolver
         k = 0.0;     // In case iterative mode is set to true
@@ -264,27 +245,6 @@ namespace mfem
     mfem::Operator &EulerEvolver::GetGradient(const mfem::Vector &x) const
     {
         return combined_oper->GetGradient(x);
-    }
-
-    double EulerEvolver::Entropy(const mfem::Vector &x)
-    {
-        if (!ent)
-        {
-            std::cout << "EulerEvolver::Entropy(): ent member not defined!" << endl;
-        }
-        return ent->GetEnergy(x);
-    }
-
-    double EulerEvolver::EntropyChange(double dt, const mfem::Vector &x,
-                                       const mfem::Vector &k)
-    {
-        if (!ent) // even though it is not used here, ent should be defined
-        {
-
-            std::cout << "EulerEvolver::EntropyChange(): ent not defined!" << endl;
-        }
-        add(x, dt, k, x_work);
-        return res->GetEnergy(x_work);
     }
 
     void EulerEvolver::setOperParameters(double dt, const mfem::Vector *x,

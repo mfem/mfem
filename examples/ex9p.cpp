@@ -16,11 +16,16 @@
 //    mpirun -np 4 ex9p -m ../data/disc-nurbs.mesh -p 2 -rp 1 -dt 0.005 -tf 9
 //    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 3 -rp 2 -dt 0.0025 -tf 9 -vs 20
 //    mpirun -np 4 ex9p -m ../data/periodic-cube.mesh -p 0 -o 2 -rp 1 -dt 0.01 -tf 8
+//    mpirun -np 3 ex9p -m ../data/amr-hex.mesh -p 1 -rs 1 -rp 0 -dt 0.005 -tf 0.5
 //
 // Device sample runs:
 //    mpirun -np 4 ex9p -pa
+//    mpirun -np 4 ex9p -ea
+//    mpirun -np 4 ex9p -fa
 //    mpirun -np 4 ex9p -pa -m ../data/periodic-cube.mesh
 //    mpirun -np 4 ex9p -pa -m ../data/periodic-cube.mesh -d cuda
+//    mpirun -np 4 ex9p -ea -m ../data/periodic-cube.mesh -d cuda
+//    mpirun -np 4 ex9p -fa -m ../data/periodic-cube.mesh -d cuda
 //
 // Description:  This example code solves the time-dependent advection equation
 //               du/dt + v.grad(u) = 0, where v is a given fluid velocity, and
@@ -161,6 +166,8 @@ int main(int argc, char *argv[])
    int par_ref_levels = 0;
    int order = 3;
    bool pa = false;
+   bool ea = false;
+   bool fa = false;
    const char *device_config = "cpu";
    int ode_solver_type = 4;
    double t_final = 10.0;
@@ -188,6 +195,10 @@ int main(int argc, char *argv[])
                   "Order (degree) of the finite elements.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&ea, "-ea", "--element-assembly", "-no-ea",
+                  "--no-element-assembly", "Enable Element Assembly.");
+   args.AddOption(&fa, "-fa", "--full-assembly", "-no-fa",
+                  "--no-full-assembly", "Enable Full Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
@@ -319,6 +330,17 @@ int main(int argc, char *argv[])
       m->SetAssemblyLevel(AssemblyLevel::PARTIAL);
       k->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    }
+   else if (ea)
+   {
+      m->SetAssemblyLevel(AssemblyLevel::ELEMENT);
+      k->SetAssemblyLevel(AssemblyLevel::ELEMENT);
+   }
+   else if (fa)
+   {
+      m->SetAssemblyLevel(AssemblyLevel::FULL);
+      k->SetAssemblyLevel(AssemblyLevel::FULL);
+   }
+
    m->AddDomainIntegrator(new MassIntegrator);
    k->AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
    k->AddInteriorFaceIntegrator(
@@ -555,28 +577,21 @@ FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
      M_solver(_M.ParFESpace()->GetComm()),
      z(_M.Height())
 {
-   bool pa = _M.GetAssemblyLevel()==AssemblyLevel::PARTIAL;
-
-   if (pa)
-   {
-      M.Reset(&_M, false);
-      K.Reset(&_K, false);
-   }
-   else
+   if (_M.GetAssemblyLevel()==AssemblyLevel::LEGACYFULL)
    {
       M.Reset(_M.ParallelAssemble(), true);
       K.Reset(_K.ParallelAssemble(), true);
+   }
+   else
+   {
+      M.Reset(&_M, false);
+      K.Reset(&_K, false);
    }
 
    M_solver.SetOperator(*M);
 
    Array<int> ess_tdof_list;
-   if (pa)
-   {
-      M_prec = new OperatorJacobiSmoother(_M, ess_tdof_list);
-      dg_solver = NULL;
-   }
-   else
+   if (_M.GetAssemblyLevel()==AssemblyLevel::LEGACYFULL)
    {
       HypreParMatrix &M_mat = *M.As<HypreParMatrix>();
       HypreParMatrix &K_mat = *K.As<HypreParMatrix>();
@@ -584,6 +599,11 @@ FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
       M_prec = hypre_prec;
 
       dg_solver = new DG_Solver(M_mat, K_mat, *_M.FESpace());
+   }
+   else
+   {
+      M_prec = new OperatorJacobiSmoother(_M, ess_tdof_list);
+      dg_solver = NULL;
    }
 
    M_solver.SetPreconditioner(*M_prec);

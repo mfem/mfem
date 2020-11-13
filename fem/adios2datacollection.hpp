@@ -17,6 +17,9 @@
 #define MFEM_ADIOS2DATACOLLECTION
 
 #include "../config/config.hpp"
+
+#ifdef MFEM_USE_ADIOS2
+
 #include "../general/adios2stream.hpp"
 #include "datacollection.hpp"
 
@@ -84,5 +87,7 @@ private:
 };
 
 }  // namespace mfem
+
+#endif // MFEM_USE_ADIOS2
 
 #endif /* MFEM_ADIOS2DATACOLLECTION */

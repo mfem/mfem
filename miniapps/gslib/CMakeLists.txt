@@ -22,7 +22,7 @@ if (MFEM_USE_GSLIB)
   # Parallel apps.
   if (MFEM_USE_MPI)
     add_mfem_miniapp(pfindpts
-      MAIN findpts.cpp
+      MAIN pfindpts.cpp
       LIBRARIES mfem)
   endif()
 

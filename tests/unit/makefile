@@ -25,12 +25,13 @@ CCC = $(CC) $(CCOPTS)
 INCLUDES = -I$(or $(SRC:%/=%),.) -I$(MFEM_DIR)
 
 SOURCE_FILES = $(sort $(wildcard $(SRC)*/*.cpp))
-HEADER_FILES = $(SRC)catch.hpp
+HEADER_FILES = $(SRC)catch.hpp $(SRC)unit_tests.hpp
 OBJECT_FILES = $(SOURCE_FILES:$(SRC)%.cpp=%.o)
 DATA_DIR = data
 
 SEQ_MAIN_OBJ = unit_test_main.o
 PAR_MAIN_OBJ = punit_test_main.o
+CUDA_MAIN_OBJ = cunit_test_main.o
 
 # Sedov numerical seq/par files and tests
 SEDOV_FILES = $(SRC)miniapps/test_sedov.cpp
@@ -52,6 +53,7 @@ PAR_SEDOV_CUDA_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.pcuda.o)
 PAR_SEDOV_CUDA_UVM_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.pcuda_uvm.o))
 
 SEQ_UNIT_TESTS = unit_tests $(SEQ_SEDOV_TESTS)
+SEQ_UNIT_TESTS += $(if $(USE_CUDA),cunit_tests)
 PAR_UNIT_TESTS = punit_tests $(PAR_SEDOV_TESTS)
 
 ifeq ($(MFEM_USE_MPI),NO)
@@ -72,9 +74,12 @@ unit_tests: $(SEQ_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA
 punit_tests: $(PAR_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(PAR_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
+cunit_tests: $(CUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(CUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+
 # Note: in this rule, we always use the full path to the source file as a
 # workaround for an issue with coveralls.
-$(OBJECT_FILES) $(SEQ_MAIN_OBJ) $(PAR_MAIN_OBJ): %.o: $(SRC)%.cpp \
+$(OBJECT_FILES) $(SEQ_MAIN_OBJ) $(PAR_MAIN_OBJ) $(CUDA_MAIN_OBJ): %.o: $(SRC)%.cpp \
  $(HEADER_FILES) $(CONFIG_MK)
 	@mkdir -p $(@D)
 	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)

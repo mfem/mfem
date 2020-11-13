@@ -43,11 +43,6 @@ template <int dim>
 inline double dot(const double *a, const double *b)
 {
     return DotProduct<dim>::result(a,b);
-    // double adotb;
-    // for (int k=0; k < a->Size(); ++k)
-    // {
-    //     adotb += (*a[k]) * (*b[k])
-    // }
 }
 
 /// Pressure based on the ideal gas law equation of state
@@ -244,11 +239,10 @@ void calcBoundaryFlux(const double *dir, const double *qbnd, const double *q,
    // Define some constants
    const double sat_Vn = 0.0; // 0.025
    const double sat_Vl = 0.0; // 0.025
-
    // Define some constants used to construct the "Jacobian"
    const double dA = sqrt(dot<dim>(dir, dir));
    const double fac = 1.0 / qbnd[0];
-   const double phi = 0.5 * dot< dim>(qbnd + 1, qbnd + 1) * fac * fac;
+   const double phi = 0.5 * dot<dim>(qbnd + 1, qbnd + 1) * fac * fac;
    const double H = euler::gamma * qbnd[dim + 1] * fac - euler::gami * phi;
    const double a = sqrt(euler::gami * (H - phi));
    const double Un = dot< dim>(qbnd + 1, dir) * fac;

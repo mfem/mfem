@@ -273,6 +273,7 @@ public:
    void OpenUniform(const int np, IntegrationRule *ir);
    void ClosedUniform(const int np, IntegrationRule *ir);
    void OpenHalfUniform(const int np, IntegrationRule *ir);
+   void ClosedGL(const int np, IntegrationRule *ir);
    ///@}
 
    /// A helper function that will play nice with Poly_1D::OpenPoints and
@@ -294,7 +295,8 @@ public:
       GaussLobatto    = 1,
       OpenUniform     = 2,  ///< aka open Newton-Cotes
       ClosedUniform   = 3,  ///< aka closed Newton-Cotes
-      OpenHalfUniform = 4   ///< aka "open half" Newton-Cotes
+      OpenHalfUniform = 4,  ///< aka "open half" Newton-Cotes
+      ClosedGL        = 5   ///< aka closed Gauss Legendre
    };
    /** @brief If the Quadrature1D type is not closed return Invalid; otherwise
        return type. */

@@ -13,6 +13,7 @@
 #define MFEM_TEMPLATE_BILINEAR_FORM
 
 #include "../config/tconfig.hpp"
+#include "../linalg/simd.hpp"
 #include "../linalg/ttensor.hpp"
 #include "bilinearform.hpp"
 #include "tevaluator.hpp"
@@ -23,16 +24,32 @@
 namespace mfem
 {
 
-// Templated bilinear form class, cf. bilinearform.?pp
+/** @brief Templated bilinear form class, cf. bilinearform.?pp
 
 // complex_t - sol dof data type
+    @tparam meshType typically TMesh, which is templated on FE type
 // real_t - mesh nodes, sol basis, mesh basis data type
+    @tparam solFESpace eg. H1_FiniteElementSpace
+    @tparam IR integration rule, typically TIntegrationRule, which is further
+               templated on element geometry
+    @tparam IntegratorType typically a TIntegrator, which is templated on a
+                           kernel, eg. TDiffusionKernel or TMassKernel. This
+                           describes what actual problem you solve.
+    @tparam solVecLayout_t describes how degrees of freedom are laid out,
+                           scalar or vector, column/row major, etc.
+    @tparam complex_t data type for solution dofs
+    @tparam real_t data type for mesh nodes, solution basis, and mesh basis
+*/
 template <typename meshType, typename solFESpace,
           typename IR, typename IntegratorType,
           typename solVecLayout_t = ScalarLayout,
-          typename complex_t = double, typename real_t = double>
+          typename complex_t = double, typename real_t = double,
+          typename impl_traits_t = AutoSIMDTraits<complex_t,real_t> >
 class TBilinearForm : public Operator
 {
+public:
+   typedef impl_traits_t impl_traits_type;
+
 protected:
    typedef complex_t complex_type;
    typedef real_t    real_type;
@@ -48,26 +65,47 @@ protected:
    static const int dofs = solFE_type::dofs;
    static const int vdim = solVecLayout_t::vec_dim;
    static const int qpts = IR::qpts;
+   static const int AB   = impl_traits_t::align_bytes;
+   static const int SS   = impl_traits_t::simd_size;
+   static const int BE   = impl_traits_t::batch_size;
+   static const int TE   = SS*BE;
 
+   typedef typename impl_traits_t::vcomplex_t vcomplex_t;
+   typedef typename impl_traits_t::vreal_t    vreal_t;
+
+   /// @name IntegratorType defines several internal types
+   ///@{
    typedef IntegratorType integ_t;
+   /// coeff_t might be TConstantCoefficient or TFunctionCoefficient, for example
    typedef typename integ_t::coefficient_type coeff_t;
-   typedef typename integ_t::template kernel<sdim,dim,complex_t>::type kernel_t;
+   /// kernel_t may be TDiffusionKernel or TMassKernel
+   typedef typename integ_t::template kernel<sdim,dim,vcomplex_t>::type kernel_t;
+   /// p_assembled_t is something like a TTensor or TMatrix for partial assembly
    typedef typename kernel_t::template p_asm_data<qpts>::type p_assembled_t;
+   /// f_assembled_t is something like a TTensor or TMatrix for full assembly
    typedef typename kernel_t::template f_asm_data<qpts>::type f_assembled_t;
+   ///@}
+
+   typedef typename kernel_t::template
+   CoefficientEval<IR,coeff_t,impl_traits_t>::Type coeff_eval_t;
+
 
    typedef TElementTransformation<meshType,IR,real_t> Trans_t;
-   template <int NE> struct T_result
+   struct T_result
    {
       static const int EvalOps =
          Trans_t::template Get<coeff_t,kernel_t>::EvalOps;
-      typedef typename Trans_t::template Result<EvalOps,NE> Type;
+      typedef typename Trans_t::template Result<EvalOps,impl_traits_t> Type;
    };
 
    typedef FieldEvaluator<solFESpace,solVecLayout_t,IR,
            complex_t,real_t> solFieldEval;
-   template <int BE> struct S_spec
+
+   /** @brief Contains matrix sizes, type of kernel (ElementMatrix is templated
+       on a kernel, e.g. ElementMatrix::Compute may be AssembleGradGrad()). */
+   struct S_spec
    {
-      typedef typename solFieldEval::template Spec<kernel_t,BE> Spec;
+      typedef typename solFieldEval::template Spec<kernel_t,impl_traits_t> Spec;
       typedef typename Spec::DataType DataType;
       typedef typename Spec::ElementMatrix ElementMatrix;
    };
@@ -86,7 +124,7 @@ protected:
 
    coeff_t coeff;
 
-   p_assembled_t *assembled_data;
+   Memory<p_assembled_t> assembled_data;
 
    const FiniteElementSpace &in_fes;
 
@@ -101,13 +139,17 @@ public:
         solVecLayout(sol_fes),
         int_rule(),
         coeff(integ.coeff),
-        assembled_data(NULL),
+        assembled_data(),
         in_fes(sol_fes)
-   { }
+   {
+      assembled_data.Reset(AB == 64 ? MemoryType::HOST_64 :
+                           AB == 32 ? MemoryType::HOST_32 :
+                           MemoryType::HOST);
+   }
 
    virtual ~TBilinearForm()
    {
-      delete [] assembled_data;
+      assembled_data.Delete();
    }
 
    /// Get the input finite element space prolongation matrix
@@ -119,10 +161,9 @@ public:
 
    virtual void Mult(const Vector &x, Vector &y) const
    {
-      if (assembled_data)
+      if (!assembled_data.Empty())
       {
-         const int num_elem = 1;
-         MultAssembled<num_elem>(x, y);
+         MultAssembled(x, y);
       }
       else
       {
@@ -135,10 +176,6 @@ public:
    {
       y = 0.0;
 
-      const int BE = 1; // batch-size of elements
-      typedef typename kernel_t::template
-      CoefficientEval<IR,coeff_t,BE>::Type coeff_eval_t;
-
       // For better performance, create stack copies of solFES, and solEval
       // inside 'solFEval'. The element-transformation 'T' also copies the
       // meshFES, meshEval, etc internally.
@@ -149,49 +186,49 @@ public:
       coeff_eval_t wQ(int_rule, coeff);
 
       const int NE = mesh.GetNE();
-      for (int el = 0; el < NE; el++)
+      for (int el = 0; el < NE; el += TE)
       {
 #if 0
-         typename S_spec<BE>::DataType R;
+         typename S_spec::DataType R;
          solFEval.Eval(el, R);
 
-         typename T_result<BE>::Type F;
+         typename T_result::Type F;
          T.Eval(el, F);
 #else
-         typename T_result<BE>::Type F;
+         typename T_result::Type F;
          T.Eval(el, F);
 
-         typename S_spec<BE>::DataType R;
+         typename S_spec::DataType R;
          solFEval.Eval(el, R);
 #endif
 
          typename coeff_eval_t::result_t res;
          wQ.Eval(F, res);
 
-         kernel_t::Action(0, F, wQ, res, R);
+         for (int k = 0; k < BE; k++)
+         {
+            kernel_t::Action(k, F, wQ, res, R);
+         }
 
          solFEval.template Assemble<true>(R);
       }
    }
 
-   // Partial assembly of quadrature point data
+   /// Partial assembly of quadrature point data
    void Assemble()
    {
-      const int BE = 1; // batch-size of elements
-      typedef typename kernel_t::template
-      CoefficientEval<IR,coeff_t,BE>::Type coeff_eval_t;
-
       Trans_t T(mesh, meshEval);
       coeff_eval_t wQ(int_rule, coeff);
 
       const int NE = mesh.GetNE();
-      if (!assembled_data)
+      if (assembled_data.Empty())
       {
-         assembled_data = new p_assembled_t[NE];
+         const int size = ((NE+TE-1)/TE)*BE;
+         assembled_data.New(size, assembled_data.GetMemoryType());
       }
-      for (int el = 0; el < NE; el++) // BE == 1
+      for (int el = 0; el < NE; el += TE)
       {
-         typename T_result<BE>::Type F;
+         typename T_result::Type F;
          T.Eval(el, F);
 
          typename coeff_eval_t::result_t res;
@@ -199,28 +236,26 @@ public:
 
          for (int k = 0; k < BE; k++)
          {
-            kernel_t::Assemble(k, F, wQ, res, assembled_data[el+k]);
+            kernel_t::Assemble(k, F, wQ, res, assembled_data[el/SS+k]);
          }
       }
    }
 
-   template <int num_elem>
    inline MFEM_ALWAYS_INLINE
    void ElementAddMultAssembled(int el, solFieldEval &solFEval) const
    {
-      typename S_spec<num_elem>::DataType R;
+      typename S_spec::DataType R;
       solFEval.Eval(el, R);
 
-      for (int k = 0; k < num_elem; k++)
+      for (int k = 0; k < BE; k++)
       {
-         kernel_t::MultAssembled(k, assembled_data[el+k], R);
+         kernel_t::MultAssembled(k, assembled_data[el/SS+k], R);
       }
 
       solFEval.template Assemble<true>(R);
    }
 
    // complex_t = double
-   template <int num_elem>
    void MultAssembled(const Vector &x, Vector &y) const
    {
       y = 0.0;
@@ -229,14 +264,9 @@ public:
                             x.GetData(), y.GetData());
 
       const int NE = mesh.GetNE();
-      const int bNE = NE-NE%num_elem;
-      for (int el = 0; el < bNE; el += num_elem)
+      for (int el = 0; el < NE; el += TE)
       {
-         ElementAddMultAssembled<num_elem>(el, solFEval);
-      }
-      for (int el = bNE; el < NE; el++)
-      {
-         ElementAddMultAssembled<1>(el, solFEval);
+         ElementAddMultAssembled(el, solFEval);
       }
    }
 
@@ -249,10 +279,10 @@ public:
       solVecLayout_type solVecLayout(this->solVecLayout);
       solFESpace solFES(this->solFES);
 
-      TTensor3<dofs,vdim,1,complex_t> xy_dof;
+      TTensor3<dofs,vdim,BE,vcomplex_t> xy_dof;
 
       const int NE = mesh.GetNE();
-      for (int el = 0; el < NE; el++)
+      for (int el = 0; el < NE; el += TE)
       {
          solFES.SetElement(el);
 
@@ -266,98 +296,108 @@ public:
    {
       typedef typename meshType::FESpace_type meshFESpace;
       meshFESpace meshFES(mesh.t_fes);
-      typedef TTensor3<meshFE_type::dofs,sdim,1,real_t> lnodes_t;
+      typedef TTensor3<meshFE_type::dofs,sdim,BE,vreal_t> lnodes_t;
 
       const int NE = mesh.GetNE();
-      sNodes.SetSize(lnodes_t::size*NE);
-      real_t *lNodes = sNodes.GetData();
-      for (int el = 0; el < NE; el++)
+      // TODO: How do we make sure that this array is aligned properly, AND the
+      //       compiler knows that it is aligned? => ALIGN_32|ALIGN_64 when ready
+      const int NVE = (NE+TE-1)/TE;
+      vreal_t *vsNodes = new vreal_t[lnodes_t::size*NVE];
+      sNodes.NewDataAndSize(vsNodes[0].vec, (lnodes_t::size*SS)*NVE);
+      sNodes.MakeDataOwner();
+      for (int el = 0; el < NE; el += TE)
       {
          meshFES.SetElement(el);
          meshFES.VectorExtract(mesh.node_layout, mesh.Nodes,
-                               lnodes_t::layout, lNodes);
-         lNodes += lnodes_t::size;
+                               lnodes_t::layout, vsNodes);
+         vsNodes += lnodes_t::size;
       }
    }
 
-   // partial assembly from "serialized" nodes
+   /// Partial assembly from "serialized" nodes
    // real_t = double
    void AssembleFromSerializedNodes(const Vector &sNodes)
    {
-      const int  BE = 1; // batch-size of elements
-      typedef typename kernel_t::template
-      CoefficientEval<IR,coeff_t,BE>::Type coeff_eval_t;
-
-      Trans_t T(this->mesh, this->meshEval);
+      Trans_t T(mesh, meshEval);
       coeff_eval_t wQ(int_rule, coeff);
 
       const int NE = mesh.GetNE();
-      if (!assembled_data)
+      if (assembled_data.Empty())
       {
-         assembled_data = new p_assembled_t[NE];
+         const int size = ((NE+TE-1)/TE)*BE;
+         assembled_data.New(size, assembled_data.GetMemoryType());
       }
-      for (int el = 0; el < NE; el++)
+      const vreal_t *vsNodes = (const vreal_t*)(sNodes.GetData());
+      for (int el = 0; el < NE; el += TE)
       {
-         typename T_result<BE>::Type F;
-         T.EvalSerialized(el, sNodes.GetData(), F);
+         typename T_result::Type F;
+         T.EvalSerialized(el, vsNodes, F);
 
          typename coeff_eval_t::result_t res;
          wQ.Eval(F, res);
 
-         kernel_t::Assemble(0, F, wQ, res, assembled_data[el]);
+         for (int k = 0; k < BE; k++)
+         {
+            kernel_t::Assemble(k, F, wQ, res, assembled_data[el/SS+k]);
+         }
       }
    }
 
    // complex_t = double
    void Serialize(const Vector &x, Vector &sx) const
    {
+      typedef TTensor3<dofs,vdim,BE,vcomplex_t> vdof_data_t;
+
       solVecLayout_t solVecLayout(this->solVecLayout);
-      typedef TTensor3<dofs,vdim,1,complex_t> vdof_data_t;
       solFESpace solFES(this->solFES);
 
       const int NE = mesh.GetNE();
-      sx.SetSize(vdim*dofs*NE);
-      complex_t *loc_sx = sx.GetData();
-      for (int el = 0; el < NE; el++)
+      // TODO: How do we make sure that this array is aligned properly, AND
+      //       the compiler knows that it is aligned? => ALIGN_32|ALIGN_64 when ready
+      const int NVE = (NE+TE-1)/TE;
+      vreal_t *vsx = new vreal_t[vdof_data_t::size*NVE];
+      sx.NewDataAndSize(vsx[0].vec, (vdof_data_t::size*SS)*NVE);
+      sx.MakeDataOwner();
+      for (int el = 0; el < NE; el += TE)
       {
          solFES.SetElement(el);
-         solFES.VectorExtract(solVecLayout, x, vdof_data_t::layout, loc_sx);
-         loc_sx += vdim*dofs;
+         solFES.VectorExtract(solVecLayout, x, vdof_data_t::layout, vsx);
+         vsx += vdof_data_t::size;
       }
    }
 
-   // serialized vector sx --> serialized vector 'sy'
+   /// serialized vector sx --> serialized vector 'sy'
    // complex_t = double
    void MultAssembledSerialized(const Vector &sx, Vector &sy) const
    {
       solFieldEval solFEval(solFES, solEval, solVecLayout, NULL, NULL);
 
       const int NE = mesh.GetNE();
-      const complex_t *loc_sx = sx.GetData();
-      complex_t *loc_sy = sy.GetData();
-      for (int el = 0; el < NE; el++)
+      const vreal_t *vsx = (const vreal_t*)(sx.GetData());
+      vreal_t *vsy = (vreal_t*)(sy.GetData());
+
+      for (int el = 0; el < NE; el += TE)
       {
-         typename S_spec<1>::DataType R;
-         solFEval.EvalSerialized(loc_sx, R);
+         typename S_spec::DataType R;
+         solFEval.EvalSerialized(vsx, R);
 
-         kernel_t::MultAssembled(0, assembled_data[el], R);
+         for (int k = 0; k < BE; k++)
+         {
+            kernel_t::MultAssembled(k, assembled_data[el/SS+k], R);
+         }
 
-         solFEval.template AssembleSerialized<false>(R, loc_sy);
+         solFEval.template AssembleSerialized<false>(R, vsy);
 
-         loc_sx += vdim*dofs;
-         loc_sy += vdim*dofs;
+         vsx += vdim*dofs*BE;
+         vsy += vdim*dofs*BE;
       }
    }
 #endif // MFEM_TEMPLATE_ENABLE_SERIALIZE
 
-   // Assemble the operator in a SparseMatrix.
+   /// Assemble the operator in a SparseMatrix.
    // complex_t = double
    void AssembleMatrix(SparseMatrix &M) const
    {
-      const int BE = 1; // batch-size of elements
-      typedef typename kernel_t::template
-      CoefficientEval<IR,coeff_t,BE>::Type coeff_eval_t;
-
       Trans_t T(mesh, meshEval);
       solFESpace solFES(this->solFES);
       solShapeEval solEval(this->solEval);
@@ -365,79 +405,100 @@ public:
       coeff_eval_t wQ(int_rule, coeff);
 
       const int NE = mesh.GetNE();
-      for (int el = 0; el < NE; el++)
+      for (int el = 0; el < NE; el += TE)
       {
-         f_assembled_t asm_qpt_data;
+         f_assembled_t asm_qpt_data[BE];
          {
-            typename T_result<BE>::Type F;
+            typename T_result::Type F;
             T.Eval(el, F);
 
             typename coeff_eval_t::result_t res;
             wQ.Eval(F, res);
 
-            kernel_t::Assemble(0, F, wQ, res, asm_qpt_data);
+            for (int k = 0; k < BE; k++)
+            {
+               kernel_t::Assemble(k, F, wQ, res, asm_qpt_data[k]);
+            }
          }
 
          // For now, when vdim > 1, assume block-diagonal matrix with the same
          // diagonal block for all components.
-         TMatrix<dofs,dofs> M_loc;
-         S_spec<BE>::ElementMatrix::Compute(
-            asm_qpt_data.layout, asm_qpt_data, M_loc.layout, M_loc, solEval);
-
-         solFES.SetElement(el);
-         for (int bi = 0; bi < vdim; bi++)
+         for (int k = 0; k < BE; k++)
          {
-            solFES.AssembleBlock(bi, bi, solVecLayout, M_loc, M);
+            const int el_k = el+SS*k;
+            if (el_k >= NE) { break; }
+
+            TMatrix<dofs,dofs,vcomplex_t> M_loc;
+            S_spec::ElementMatrix::Compute(
+               asm_qpt_data[k].layout, asm_qpt_data[k], M_loc.layout, M_loc,
+               solEval);
+
+            solFES.SetElement(el_k);
+            for (int bi = 0; bi < vdim; bi++)
+            {
+               solFES.AssembleBlock(bi, bi, solVecLayout, M_loc, M);
+            }
          }
       }
    }
 
-   // Assemble element matrices and store them as a DenseTensor object.
+   /// Assemble element matrices and store them as a DenseTensor object.
    // complex_t = double
    void AssembleMatrix(DenseTensor &M) const
    {
-      const int BE = 1; // batch-size of elements
-      typedef typename kernel_t::template
-      CoefficientEval<IR,coeff_t,BE>::Type coeff_eval_t;
-
       Trans_t T(mesh, meshEval);
       solShapeEval solEval(this->solEval);
       coeff_eval_t wQ(int_rule, coeff);
 
       const int NE = mesh.GetNE();
-      for (int el = 0; el < NE; el++)
+      for (int el = 0; el < NE; el += TE)
       {
-         f_assembled_t asm_qpt_data;
+         f_assembled_t asm_qpt_data[BE];
          {
-            typename T_result<BE>::Type F;
+            typename T_result::Type F;
             T.Eval(el, F);
 
             typename coeff_eval_t::result_t res;
             wQ.Eval(F, res);
 
-            kernel_t::Assemble(0, F, wQ, res, asm_qpt_data);
+            for (int k = 0; k < BE; k++)
+            {
+               kernel_t::Assemble(k, F, wQ, res, asm_qpt_data[k]);
+            }
          }
 
          // For now, when vdim > 1, assume block-diagonal matrix with the same
          // diagonal block for all components.
          // M is assumed to be (dof x dof x NE).
-         TMatrix<dofs,dofs> M_loc;
-         S_spec<BE>::ElementMatrix::Compute(
-            asm_qpt_data.layout, asm_qpt_data, M_loc.layout, M_loc, solEval);
+         for (int k = 0; k < BE; k++)
+         {
+            const int el_k = el+SS*k;
+            if (el_k >= NE) { break; }
 
-         complex_t *M_data = M.GetData(el);
-         M_loc.template AssignTo<AssignOp::Set>(M_data);
+            TMatrix<dofs,dofs,vcomplex_t> M_loc;
+            S_spec::ElementMatrix::Compute(
+               asm_qpt_data[k].layout, asm_qpt_data[k], M_loc.layout, M_loc,
+               solEval);
+
+            for (int s = 0; s < SS && el_k+s < NE; s++)
+            {
+               complex_t *M_data = M.GetData(el_k+s);
+               for (int j = 0; j < dofs; j++)
+               {
+                  for (int i = 0; i < dofs; i++)
+                  {
+                     M_data[j+dofs*i] = M_loc(i,j)[s];
+                  }
+               }
+            }
+         }
       }
    }
 
-   // Assemble element matrices and add them to the bilinear form
+   /// Assemble element matrices and add them to the bilinear form
    // complex_t = double
    void AssembleBilinearForm(BilinearForm &a) const
    {
-      const int BE = 1; // batch-size of elements
-      typedef typename kernel_t::template
-      CoefficientEval<IR,coeff_t,BE>::Type coeff_eval_t;
-
       Trans_t T(mesh, meshEval);
       solShapeEval solEval(this->solEval);
       coeff_eval_t wQ(int_rule, coeff);
@@ -448,61 +509,93 @@ public:
       DenseMatrix M_loc_perm(dofs*vdim,dofs*vdim); // initialized with zeros
 
       const int NE = mesh.GetNE();
-      for (int el = 0; el < NE; el++)
+      for (int el = 0; el < NE; el += TE)
       {
-         f_assembled_t asm_qpt_data;
+         f_assembled_t asm_qpt_data[BE];
          {
-            typename T_result<BE>::Type F;
+            typename T_result::Type F;
             T.Eval(el, F);
 
             typename coeff_eval_t::result_t res;
             wQ.Eval(F, res);
 
-            kernel_t::Assemble(0, F, wQ, res, asm_qpt_data);
+            for (int k = 0; k < BE; k++)
+            {
+               kernel_t::Assemble(k, F, wQ, res, asm_qpt_data[k]);
+            }
          }
 
          // For now, when vdim > 1, assume block-diagonal matrix with the same
          // diagonal block for all components.
-         TMatrix<dofs,dofs> M_loc;
-         S_spec<BE>::ElementMatrix::Compute(
-            asm_qpt_data.layout, asm_qpt_data, M_loc.layout, M_loc, solEval);
-
-         if (dof_map) // switch from tensor-product ordering
+         for (int k = 0; k < BE; k++)
          {
-            for (int i = 0; i < dofs; i++)
+            const int el_k = el+SS*k;
+            if (el_k >= NE) { break; }
+
+            TMatrix<dofs,dofs,vcomplex_t> M_loc;
+            S_spec::ElementMatrix::Compute(
+               asm_qpt_data[k].layout, asm_qpt_data[k], M_loc.layout, M_loc,
+               solEval);
+
+            if (dof_map) // switch from tensor-product ordering
             {
-               for (int j = 0; j < dofs; j++)
+               for (int s = 0; s < SS && el_k+s < NE; s++)
                {
-                  M_loc_perm(dof_map_[i],dof_map_[j]) = M_loc(i,j);
+                  for (int i = 0; i < dofs; i++)
+                  {
+                     for (int j = 0; j < dofs; j++)
+                     {
+                        M_loc_perm(dof_map_[i],dof_map_[j]) = M_loc(i,j)[s];
+                     }
+                  }
+                  for (int bi = 1; bi < vdim; bi++)
+                  {
+                     M_loc_perm.CopyMN(M_loc_perm, dofs, dofs, 0, 0,
+                                       bi*dofs, bi*dofs);
+                  }
+                  a.AssembleElementMatrix(el_k+s, M_loc_perm, vdofs);
                }
             }
-            for (int bi = 1; bi < vdim; bi++)
+            else if (SS == 1)
             {
-               M_loc_perm.CopyMN(M_loc_perm, dofs, dofs, 0, 0,
-                                 bi*dofs, bi*dofs);
-            }
-            a.AssembleElementMatrix(el, M_loc_perm, vdofs);
-         }
-         else
-         {
-            DenseMatrix DM(M_loc.data, dofs, dofs);
-            if (vdim == 1)
-            {
-               a.AssembleElementMatrix(el, DM, vdofs);
+               DenseMatrix DM(M_loc.data[0].vec, dofs, dofs);
+               if (vdim == 1)
+               {
+                  a.AssembleElementMatrix(el_k, DM, vdofs);
+               }
+               else
+               {
+                  for (int bi = 0; bi < vdim; bi++)
+                  {
+                     M_loc_perm.CopyMN(DM, dofs, dofs, 0, 0, bi*dofs, bi*dofs);
+                  }
+                  a.AssembleElementMatrix(el_k, M_loc_perm, vdofs);
+               }
             }
             else
             {
-               for (int bi = 0; bi < vdim; bi++)
+               for (int s = 0; s < SS && el_k+s < NE; s++)
                {
-                  M_loc_perm.CopyMN(DM, dofs, dofs, 0, 0, bi*dofs, bi*dofs);
+                  for (int i = 0; i < dofs; i++)
+                  {
+                     for (int j = 0; j < dofs; j++)
+                     {
+                        M_loc_perm(i,j) = M_loc(i,j)[s];
+                     }
+                  }
+                  for (int bi = 1; bi < vdim; bi++)
+                  {
+                     M_loc_perm.CopyMN(M_loc_perm, dofs, dofs, 0, 0,
+                                       bi*dofs, bi*dofs);
+                  }
+                  a.AssembleElementMatrix(el_k+s, M_loc_perm, vdofs);
                }
-               a.AssembleElementMatrix(el, M_loc_perm, vdofs);
             }
          }
       }
    }
 
-   // Multiplication using assembled element matrices stored as a DenseTensor.
+   /// Multiplication using assembled element matrices stored as a DenseTensor.
    // complex_t = double
    void AddMult(DenseTensor &M, const Vector &x, Vector &y) const
    {
@@ -513,7 +606,7 @@ public:
       const int NE = mesh.GetNE();
       for (int el = 0; el < NE; el++)
       {
-         TTensor3<dofs,vdim,1,complex_t> x_dof, y_dof;
+         TTensor3<dofs,vdim,1,AutoSIMD<complex_t,1,1> > x_dof, y_dof;
 
          solFES.SetElement(el);
          solFES.VectorExtract(solVecLayout, x, x_dof.layout, x_dof);

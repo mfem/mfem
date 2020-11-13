@@ -38,6 +38,11 @@ protected:
        initialized by ExchangeFaceNbrData(). */
    Vector face_nbr_data;
 
+   /** @brief Vector used as an MPI buffer to send face-neighbor data
+       in ExchangeFaceNbrData() to neighboring processors. */
+   //TODO: Use temporary memory to avoid CUDA malloc allocation cost.
+   Vector send_data;
+
    void ProjectBdrCoefficient(Coefficient *coeff[], VectorCoefficient *vcoeff,
                               Array<int> &attr);
 
@@ -204,6 +209,18 @@ public:
    double GetValue(ElementTransformation &T)
    { return GetValue(T.ElementNo, T.GetIntPoint()); }
 
+   // Redefine to handle the case when T describes a face-neighbor element
+   virtual double GetValue(ElementTransformation &T, const IntegrationPoint &ip,
+                           int comp = 0, Vector *tr = NULL) const;
+
+   virtual void GetVectorValue(int i, const IntegrationPoint &ip,
+                               Vector &val) const;
+
+   // Redefine to handle the case when T describes a face-neighbor element
+   virtual void GetVectorValue(ElementTransformation &T,
+                               const IntegrationPoint &ip,
+                               Vector &val, Vector *tr = NULL) const;
+
    using GridFunction::ProjectCoefficient;
    virtual void ProjectCoefficient(Coefficient &coeff);
 
@@ -263,6 +280,77 @@ public:
                                  Array<int> *elems = NULL) const
    {
       return GlobalLpNorm(2.0, GridFunction::ComputeL2Error(exsol, irs, elems),
+                          pfes->GetComm());
+   }
+
+   /// Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
+   virtual double ComputeGradError(VectorCoefficient *exgrad,
+                                   const IntegrationRule *irs[] = NULL) const
+   {
+      return GlobalLpNorm(2.0, GridFunction::ComputeGradError(exgrad,irs),
+                          pfes->GetComm());
+   }
+
+   /// Returns ||curl u_ex - curl u_h||_L2 for ND elements
+   virtual double ComputeCurlError(VectorCoefficient *excurl,
+                                   const IntegrationRule *irs[] = NULL) const
+   {
+      return GlobalLpNorm(2.0, GridFunction::ComputeCurlError(excurl,irs),
+                          pfes->GetComm());
+   }
+
+   /// Returns ||div u_ex - div u_h||_L2 for RT elements
+   virtual double ComputeDivError(Coefficient *exdiv,
+                                  const IntegrationRule *irs[] = NULL) const
+   {
+      return GlobalLpNorm(2.0, GridFunction::ComputeDivError(exdiv,irs),
+                          pfes->GetComm());
+   }
+
+   /// Returns the Face Jumps error for L2 elements
+   virtual double ComputeDGFaceJumpError(Coefficient *exsol,
+                                         Coefficient *ell_coeff,
+                                         double Nu,
+                                         const IntegrationRule *irs[]=NULL)
+   const;
+
+   /// Returns either the H1-seminorm or the DG Face Jumps error or both
+   /// depending on norm_type = 1, 2, 3
+   virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
+                                 Coefficient *ell_coef, double Nu,
+                                 int norm_type) const
+   {
+      return GlobalLpNorm(2.0,
+                          GridFunction::ComputeH1Error(exsol,exgrad,ell_coef,
+                                                       Nu, norm_type),
+                          pfes->GetComm());
+   }
+
+   /// Returns the error measured in H1-norm for H1 elements or in "broken"
+   /// H1-norm for L2 elements
+   virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
+                                 const IntegrationRule *irs[] = NULL) const
+   {
+      return GlobalLpNorm(2.0, GridFunction::ComputeH1Error(exsol,exgrad,irs),
+                          pfes->GetComm());
+   }
+
+   /// Returns the error measured H(div)-norm for RT elements
+   virtual double ComputeHDivError(VectorCoefficient *exsol,
+                                   Coefficient *exdiv,
+                                   const IntegrationRule *irs[] = NULL) const
+   {
+      return GlobalLpNorm(2.0, GridFunction::ComputeHDivError(exsol,exdiv,irs),
+                          pfes->GetComm());
+   }
+
+   /// Returns the error measured H(curl)-norm for ND elements
+   virtual double ComputeHCurlError(VectorCoefficient *exsol,
+                                    VectorCoefficient *excurl,
+                                    const IntegrationRule *irs[] = NULL) const
+   {
+      return GlobalLpNorm(2.0,
+                          GridFunction::ComputeHCurlError(exsol,excurl,irs),
                           pfes->GetComm());
    }
 

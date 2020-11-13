@@ -20,10 +20,9 @@
 namespace mfem
 {
 
-/** The abstract base class NonlinearFormIntegrator is used to express the
-    local action of a general nonlinear finite element operator. In addition
-    it may provide the capability to assemble the local gradient operator
-    and to compute the local energy. */
+/** @brief This class is used to express the local action of a general nonlinear
+    finite element operator. In addition it may provide the capability to
+    assemble the local gradient operator and to compute the local energy. */
 class NonlinearFormIntegrator
 {
 protected:
@@ -64,10 +63,16 @@ public:
                                  FaceElementTransformations &Tr,
                                  const Vector &elfun, DenseMatrix &elmat);
 
-   /// Compute the local energy
+   /// Compute the local energy/functional
    virtual double GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &Tr,
                                    const Vector &elfun);
+
+   /// Compute the face(s) contribution to the energy/functional
+   virtual double GetFaceEnergy(const FiniteElement &el1,
+                                const FiniteElement &el2,
+                                FaceElementTransformations &Tr,
+                                const Vector &elfun);
 
    /// Method defining partial assembly.
    /** The result of the partial assembly is stored internally so that it can be

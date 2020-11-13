@@ -6,8 +6,6 @@ constexpr bool entvar = false;
 #include <fstream>
 #include <iostream>
 #include <random>
-#include "exGD.hpp"
-#include "centgridfunc.hpp"
 #include "euler_integ.hpp"
 #include "evolver.hpp"
 using namespace std;
@@ -19,6 +17,7 @@ static std::uniform_real_distribution<double> uniform_rand(0.0, 1.0);
 const double rho = 0.9856566615165173;
 const double rhoe = 2.061597236955558;
 const double rhou[3] = {0.09595562550099601, -0.030658751626551423, -0.13471469906596886};
+
 template <int dim>
 void randBaselinePert(const mfem::Vector &x, mfem::Vector &u)
 {
@@ -40,12 +39,24 @@ void randState(const mfem::Vector &x, mfem::Vector &u)
    }
 }
 double calcStepSize(int iter, double t, double t_final,
-                                    double dt_old) 
+                    double dt_old)
 {
-   double dt = 0.2;
+   double dt = 0.02;
    dt = min(dt, t_final - t);
    return dt;
 }
+
+template <int dim, bool entvar>
+void getFreeStreamState(mfem::Vector &q_ref) 
+{
+   double mach_fs = 0.3;
+   q_ref = 0.0;
+   q_ref(0) = 1.0;
+   q_ref(1) = q_ref(0)*mach_fs; // ignore angle of attack
+   q_ref(2) = 0.0;
+   q_ref(dim+1) = 1/(euler::gamma*euler::gami) + 0.5*mach_fs*mach_fs;
+}
+
 /// \brief Defines the random function for the jabocian check
 /// \param[in] x - coordinate of the point at which the state is needed
 /// \param[out] u - conservative variables stored as a 4-vector
@@ -93,6 +104,7 @@ int main(int argc, char *argv[])
    cout << "Number of elements " << mesh->GetNE() << '\n';
    /// dimension
    const int dim = mesh->Dimension();
+
    // save the initial mesh
    ofstream sol_ofs("steady_vortex_mesh.vtk");
    sol_ofs.precision(14);
@@ -108,30 +120,35 @@ int main(int argc, char *argv[])
         << fes->GetTrueVSize() << endl;
 
    /// `bndry_marker[i]` lists the boundaries associated with a particular BC
-   Array<int> bndry_marker1;
-   Array<int> bndry_marker2;
+   Array<int> bndry_marker_isentropic;
+   Array<int> bndry_marker_slipwall;
 
-   bndry_marker1.Append(1);
-   bndry_marker1.Append(1);
-   bndry_marker1.Append(1);
-   bndry_marker1.Append(0);
+   bndry_marker_isentropic.Append(1);
+   bndry_marker_isentropic.Append(1);
+   bndry_marker_isentropic.Append(1);
+   bndry_marker_isentropic.Append(0);
 
-   bndry_marker2.Append(0);
-   bndry_marker2.Append(0);
-   bndry_marker2.Append(0);
-   bndry_marker2.Append(1);
+   bndry_marker_slipwall.Append(0);
+   bndry_marker_slipwall.Append(0);
+   bndry_marker_slipwall.Append(0);
+   bndry_marker_slipwall.Append(1);
+
+   Vector qfs(dim+2);
+
+   getFreeStreamState<2, 0>(qfs);
 
    /// nonlinearform
    NonlinearForm *res = new NonlinearForm(fes);
    res->AddDomainIntegrator(new EulerDomainIntegrator<2>(num_state, 1));
-   res->AddBdrFaceIntegrator(new EulerBoundaryIntegrator<2, 1, 0>(fec, num_state, 1.0),
-                             bndry_marker1);
-   res->AddBdrFaceIntegrator(new EulerBoundaryIntegrator<2, 2, 0>(fec, num_state, 1.0),
-                             bndry_marker2);
+   res->AddBdrFaceIntegrator(new EulerBoundaryIntegrator<2, 1, 0>(fec, num_state, qfs, 1.0),
+                             bndry_marker_isentropic);
+   res->AddBdrFaceIntegrator(new EulerBoundaryIntegrator<2, 2, 0>(fec, num_state, qfs, 1.0),
+                              bndry_marker_slipwall);                           
    res->AddInteriorFaceIntegrator(new EulerFaceIntegrator<2>(fec, 1.0, num_state, 1.0));
-
-   /// check if the domain integrator is correct
+   
+   /// check if the integrators are correct
    double delta = 1e-5;
+
    // initialize state; here we randomly perturb a constant state
    GridFunction q(fes);
    VectorFunctionCoefficient pert(num_state, randBaselinePert<2>);
@@ -158,8 +175,8 @@ int main(int argc, char *argv[])
 
    for (int i = 0; i < jac_v.Size(); ++i)
    {
-      std::cout << std::abs(jac_v(i) - (jac_v_fd(i))) << "\n";
-      MFEM_ASSERT(abs(jac_v(i) - (jac_v_fd(i))) < 1e-08, "jacobian is incorrect");
+     // std::cout << std::abs(jac_v(i) - (jac_v_fd(i))) << "\n";
+      MFEM_ASSERT(abs(jac_v(i) - (jac_v_fd(i))) < 1e-09, "jacobian is incorrect");
    }
 
    /// bilinear form
@@ -169,6 +186,7 @@ int main(int argc, char *argv[])
    // mass->AddDomainIntegrator(new EulerMassIntegrator(num_state));
    // mass->Assemble();
    // mass->Finalize();
+
    auto mass_integ = new VectorMassIntegrator();
    mass_integ->SetVDim(dim + 2);
    mass->AddDomainIntegrator(mass_integ);
@@ -180,7 +198,6 @@ int main(int argc, char *argv[])
    GridFunction u(fes);
    VectorFunctionCoefficient u0(num_state, uexact);
    u.ProjectCoefficient(u0);
-
    /// time-marching method (might be NULL)
    std::unique_ptr<mfem::ODESolver> ode_solver;
    //ode_solver.reset(new RK4Solver);
@@ -188,19 +205,28 @@ int main(int argc, char *argv[])
    cout << "ode_solver set " << endl;
 
    /// TimeDependentOperator
-   unique_ptr<mfem::TimeDependentOperator> evolver(new mfem::EulerEvolver(mass, res, 0.0, TimeDependentOperator::Type::IMPLICIT));
+   unique_ptr<mfem::TimeDependentOperator> evolver(new mfem::EulerEvolver(mass, res,
+                                                                          0.0, TimeDependentOperator::Type::IMPLICIT));
+   /// set up the evolver                                                                    
    auto t = 0.0;
    evolver->SetTime(t);
    ode_solver->Init(*evolver);
+
+   /// solve the ode problem
    mfem::GridFunction residual(fes);
    residual = 0.0;
    double dt = 0.0;
    double t_final = 100;
+   res->Mult(u, residual);
+   ofstream adj_ofs("residual.vtk");
+   adj_ofs.precision(14);
+   mesh->PrintVTK(adj_ofs, 1);
+   residual.SaveVTK(adj_ofs, "Residual", 1);
+   adj_ofs.close();
+
    for (auto ti = 0; ti < 10000; ++ti)
    {
-      //auto dt = 10000.005;
       dt = calcStepSize(ti, t, t_final, dt);
-      //auto dt = 0.005;
       std::cout << "iter " << ti << ": time = " << t << ": dt = " << dt << endl;
       //   std::cout << " (" << round(100 * t / t_final) << "% complete)";
       res->Mult(u, residual);
@@ -274,6 +300,11 @@ void uexact(const Vector &x, Vector &q)
    u(3) = press / euler::gami + 0.5 * rho * a * a * Ma * Ma;
 
    q = u;
+   // double mach_fs = 0.3;
+   // q(0) = 1.0;
+   // q(1) = q(0)*mach_fs; // ignore angle of attack
+   // q(2) = 0.0;
+   // q(3) = 1/(euler::gamma*euler::gami) + 0.5*mach_fs*mach_fs;
 }
 
 unique_ptr<Mesh> buildQuarterAnnulusMesh(int degree, int num_rad, int num_ang)

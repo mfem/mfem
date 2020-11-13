@@ -19,8 +19,12 @@
 //
 // Device sample runs:
 //    ex9 -pa
+//    ex9 -ea
+//    ex9 -fa
 //    ex9 -pa -m ../data/periodic-cube.mesh
 //    ex9 -pa -m ../data/periodic-cube.mesh -d cuda
+//    ex9 -ea -m ../data/periodic-cube.mesh -d cuda
+//    ex9 -fa -m ../data/periodic-cube.mesh -d cuda
 //
 // Description:  This example code solves the time-dependent advection equation
 //               du/dt + v.grad(u) = 0, where v is a given fluid velocity, and
@@ -142,6 +146,8 @@ int main(int argc, char *argv[])
    int ref_levels = 2;
    int order = 3;
    bool pa = false;
+   bool ea = false;
+   bool fa = false;
    const char *device_config = "cpu";
    int ode_solver_type = 4;
    double t_final = 10.0;
@@ -166,6 +172,10 @@ int main(int argc, char *argv[])
                   "Order (degree) of the finite elements.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&ea, "-ea", "--element-assembly", "-no-ea",
+                  "--no-element-assembly", "Enable Element Assembly.");
+   args.AddOption(&fa, "-fa", "--full-assembly", "-no-fa",
+                  "--no-full-assembly", "Enable Full Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
@@ -268,6 +278,16 @@ int main(int argc, char *argv[])
    {
       m.SetAssemblyLevel(AssemblyLevel::PARTIAL);
       k.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   }
+   else if (ea)
+   {
+      m.SetAssemblyLevel(AssemblyLevel::ELEMENT);
+      k.SetAssemblyLevel(AssemblyLevel::ELEMENT);
+   }
+   else if (fa)
+   {
+      m.SetAssemblyLevel(AssemblyLevel::FULL);
+      k.SetAssemblyLevel(AssemblyLevel::FULL);
    }
    m.AddDomainIntegrator(new MassIntegrator);
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
@@ -428,19 +448,18 @@ int main(int argc, char *argv[])
 FE_Evolution::FE_Evolution(BilinearForm &_M, BilinearForm &_K, const Vector &_b)
    : TimeDependentOperator(_M.Height()), M(_M), K(_K), b(_b), z(_M.Height())
 {
-   bool pa = M.GetAssemblyLevel() == AssemblyLevel::PARTIAL;
    Array<int> ess_tdof_list;
-   if (pa)
+   if (M.GetAssemblyLevel() == AssemblyLevel::LEGACYFULL)
+   {
+      M_prec = new DSmoother(M.SpMat());
+      M_solver.SetOperator(M.SpMat());
+      dg_solver = new DG_Solver(M.SpMat(), K.SpMat(), *M.FESpace());
+   }
+   else
    {
       M_prec = new OperatorJacobiSmoother(M, ess_tdof_list);
       M_solver.SetOperator(M);
       dg_solver = NULL;
-   }
-   else
-   {
-      M_prec = new DSmoother(M.SpMat());
-      dg_solver = new DG_Solver(M.SpMat(), K.SpMat(), *M.FESpace());
-      M_solver.SetOperator(M.SpMat());
    }
    M_solver.SetPreconditioner(*M_prec);
    M_solver.iterative_mode = false;

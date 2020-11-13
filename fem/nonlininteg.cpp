@@ -75,6 +75,14 @@ double NonlinearFormIntegrator::GetElementEnergy(
    return 0.0;
 }
 
+double NonlinearFormIntegrator::GetFaceEnergy(
+   const FiniteElement &el1, const FiniteElement &el2,
+   FaceElementTransformations &Tr, const Vector &elfun)
+{
+   mfem_error("NonlinearFormIntegrator::GetFaceEnergy"
+              " is not overloaded!");
+   return 0.0;
+}
 
 void BlockNonlinearFormIntegrator::AssembleElementVector(
    const Array<const FiniteElement *> &el,

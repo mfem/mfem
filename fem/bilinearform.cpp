@@ -66,23 +66,40 @@ namespace mfem
       dof_dof.LoseData();
    }
 
-   BilinearForm::BilinearForm(FiniteElementSpace *f)
-       : Matrix(f->GetVSize())
-   {
-      fes = f;
-      sequence = f->GetSequence();
-      mat = mat_e = NULL;
-      extern_bfs = 0;
-      element_matrices = NULL;
-      static_cond = NULL;
-      hybridization = NULL;
-      precompute_sparsity = 0;
-      diag_policy = DIAG_KEEP;
+BilinearForm::BilinearForm(FiniteElementSpace * f)
+   : Matrix (f->GetVSize())
+{
+   fes = f;
+   sequence = f->GetSequence();
+   mat = mat_e = NULL;
+   extern_bfs = 0;
+   element_matrices = NULL;
+   static_cond = NULL;
+   hybridization = NULL;
+   precompute_sparsity = 0;
+   diag_policy = DIAG_KEEP;
 
-      assembly = AssemblyLevel::FULL;
-      batch = 1;
-      ext = NULL;
-   }
+   assembly = AssemblyLevel::LEGACYFULL;
+   batch = 1;
+   ext = NULL;
+}
+
+BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
+   : Matrix (f->GetVSize())
+{
+   fes = f;
+   sequence = f->GetSequence();
+   mat_e = NULL;
+   extern_bfs = 1;
+   element_matrices = NULL;
+   static_cond = NULL;
+   hybridization = NULL;
+   precompute_sparsity = ps;
+   diag_policy = DIAG_KEEP;
+
+   assembly = AssemblyLevel::LEGACYFULL;
+   batch = 1;
+   ext = NULL;
 
    BilinearForm::BilinearForm(FiniteElementSpace *f, BilinearForm *bf, int ps)
        : Matrix(f->GetVSize())
@@ -117,20 +134,13 @@ namespace mfem
 
    void BilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
    {
-      if (ext)
-      {
-         MFEM_ABORT("the assembly level has already been set!");
-      }
-      assembly = assembly_level;
-      switch (assembly)
-      {
+      case AssemblyLevel::LEGACYFULL:
+         break;
       case AssemblyLevel::FULL:
-         // ext = new FABilinearFormExtension(this);
-         // Use the original BilinearForm implementation for now
+         ext = new FABilinearFormExtension(this);
          break;
       case AssemblyLevel::ELEMENT:
-         mfem_error("Element assembly not supported yet... stay tuned!");
-         // ext = new EABilinearFormExtension(this);
+         ext = new EABilinearFormExtension(this);
          break;
       case AssemblyLevel::PARTIAL:
          ext = new PABilinearFormExtension(this);
@@ -144,7 +154,23 @@ namespace mfem
       }
    }
 
-   void BilinearForm::EnableStaticCondensation()
+void BilinearForm::EnableStaticCondensation()
+{
+   delete static_cond;
+   if (assembly != AssemblyLevel::LEGACYFULL)
+   {
+      static_cond = NULL;
+      MFEM_WARNING("Static condensation not supported for this assembly level");
+      return;
+   }
+   static_cond = new StaticCondensation(fes);
+   if (static_cond->ReducesTrueVSize())
+   {
+      bool symmetric = false;      // TODO
+      bool block_diagonal = false; // TODO
+      static_cond->Init(symmetric, block_diagonal);
+   }
+   else
    {
       delete static_cond;
       if (assembly != AssemblyLevel::FULL)
@@ -167,9 +193,12 @@ namespace mfem
       }
    }
 
-   void BilinearForm::EnableHybridization(FiniteElementSpace *constr_space,
-                                          BilinearFormIntegrator *constr_integ,
-                                          const Array<int> &ess_tdof_list)
+void BilinearForm::EnableHybridization(FiniteElementSpace *constr_space,
+                                       BilinearFormIntegrator *constr_integ,
+                                       const Array<int> &ess_tdof_list)
+{
+   delete hybridization;
+   if (assembly != AssemblyLevel::LEGACYFULL)
    {
       delete hybridization;
       if (assembly != AssemblyLevel::FULL)
@@ -213,7 +242,9 @@ namespace mfem
       UseSparsity(A.GetI(), A.GetJ(), A.ColumnsAreSorted());
    }
 
-   double &BilinearForm::Elem(int i, int j)
+void BilinearForm::Finalize (int skip_zeros)
+{
+   if (assembly == AssemblyLevel::LEGACYFULL)
    {
       return mat->Elem(i, j);
    }
@@ -417,9 +448,20 @@ namespace mfem
       }
 #endif
 
-      if (dbfi.Size())
-      {
-         for (int i = 0; i < fes->GetNE(); i++)
+         const FiniteElement &be = *fes->GetBE(i);
+         fes -> GetBdrElementVDofs (i, vdofs);
+         eltrans = fes -> GetBdrElementTransformation (i);
+         int k = 0;
+         for (; k < bbfi.Size(); k++)
+         {
+            if (bbfi_marker[k] &&
+                (*bbfi_marker[k])[bdr_attr-1] == 0) { continue; }
+
+            bbfi[k]->AssembleElementMatrix(be, *eltrans, elmat);
+            k++;
+            break;
+         }
+         for (; k < bbfi.Size(); k++)
          {
             fes->GetElementVDofs(i, vdofs);
             if (element_matrices)
@@ -618,10 +660,41 @@ namespace mfem
          return;
       } // conforming mesh
 
-      SparseMatrix *R = Transpose(*P);
-      SparseMatrix *RA = mfem::Mult(*R, *mat);
-      delete mat;
-      if (mat_e)
+void BilinearForm::AssembleDiagonal(Vector &diag) const
+{
+   if (ext)
+   {
+      MFEM_ASSERT(diag.Size() == fes->GetTrueVSize(),
+                  "Vector for holding diagonal has wrong size!");
+      const Operator *P = fes->GetProlongationMatrix();
+      // For an AMR mesh, a convergent diagonal is assembled with |P^T| d_e,
+      // where |P^T| has the entry-wise absolute values of the conforming
+      // prolongation transpose operator.
+      if (P && !fes->Conforming())
+      {
+         Vector local_diag(P->Height());
+         ext->AssembleDiagonal(local_diag);
+         const SparseMatrix *SP = dynamic_cast<const SparseMatrix*>(P);
+#ifdef MFEM_USE_MPI
+         const HypreParMatrix *HP = dynamic_cast<const HypreParMatrix*>(P);
+#endif
+         if (SP)
+         {
+            SP->AbsMultTranspose(local_diag, diag);
+         }
+#ifdef MFEM_USE_MPI
+         else if (HP)
+         {
+            HP->AbsMultTranspose(1.0, local_diag, 0.0, diag);
+         }
+#endif
+         else
+         {
+            MFEM_ABORT("Prolongation matrix has unexpected type.");
+         }
+         return;
+      }
+      if (!IsIdentityProlongation(P))
       {
          SparseMatrix *RAe = mfem::Mult(*R, *mat_e);
          delete mat_e;
@@ -636,6 +709,12 @@ namespace mfem
          delete mat_e;
          mat_e = RAeP;
       }
+   }
+   else
+   {
+      mat->GetDiag(diag);
+   }
+}
 
       height = mat->Height();
       width = mat->Width();
@@ -1156,22 +1235,55 @@ namespace mfem
       tfbfi = mbf->tfbfi;
       btfbfi = mbf->btfbfi;
 
-      bbfi_marker = mbf->bbfi_marker;
-      btfbfi_marker = mbf->btfbfi_marker;
+MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
+                                      FiniteElementSpace *te_fes)
+   : Matrix(te_fes->GetVSize(), tr_fes->GetVSize())
+{
+   trial_fes = tr_fes;
+   test_fes = te_fes;
+   mat = NULL;
+   mat_e = NULL;
+   extern_bfs = 0;
+   assembly = AssemblyLevel::LEGACYFULL;
+   ext = NULL;
+}
 
-      assembly = AssemblyLevel::FULL;
-      ext = NULL;
+MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
+                                      FiniteElementSpace *te_fes,
+                                      MixedBilinearForm * mbf)
+   : Matrix(te_fes->GetVSize(), tr_fes->GetVSize())
+{
+   trial_fes = tr_fes;
+   test_fes = te_fes;
+   mat = NULL;
+   mat_e = NULL;
+   extern_bfs = 1;
+   ext = NULL;
+
+   // Copy the pointers to the integrators
+   dbfi = mbf->dbfi;
+   bbfi = mbf->bbfi;
+   tfbfi = mbf->tfbfi;
+   btfbfi = mbf->btfbfi;
+
+   bbfi_marker = mbf->bbfi_marker;
+   btfbfi_marker = mbf->btfbfi_marker;
+
+   assembly = AssemblyLevel::LEGACYFULL;
+   ext = NULL;
+}
+
+void MixedBilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
+{
+   if (ext)
+   {
+      MFEM_ABORT("the assembly level has already been set!");
    }
 
    void MixedBilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
    {
-      if (ext)
-      {
-         MFEM_ABORT("the assembly level has already been set!");
-      }
-      assembly = assembly_level;
-      switch (assembly)
-      {
+      case AssemblyLevel::LEGACYFULL:
+         break;
       case AssemblyLevel::FULL:
          // ext = new FAMixedBilinearFormExtension(this);
          // Use the original BilinearForm implementation for now
@@ -1221,7 +1333,9 @@ namespace mfem
       }
    }
 
-   void MixedBilinearForm::MultTranspose(const Vector &x, Vector &y) const
+MatrixInverse * MixedBilinearForm::Inverse() const
+{
+   if (assembly != AssemblyLevel::LEGACYFULL)
    {
       y = 0.0;
       AddMultTranspose(x, y);
@@ -1240,7 +1354,9 @@ namespace mfem
       }
    }
 
-   MatrixInverse *MixedBilinearForm::Inverse() const
+void MixedBilinearForm::Finalize (int skip_zeros)
+{
+   if (assembly == AssemblyLevel::LEGACYFULL)
    {
       if (assembly != AssemblyLevel::FULL)
       {
@@ -1430,31 +1546,61 @@ namespace mfem
          }
       }
 
-      if (btfbfi.Size())
+void MixedBilinearForm::AssembleDiagonal_ADAt(const Vector &D,
+                                              Vector &diag) const
+{
+   if (ext)
+   {
+      MFEM_ASSERT(diag.Size() == test_fes->GetTrueVSize(),
+                  "Vector for holding diagonal has wrong size!");
+      MFEM_ASSERT(D.Size() == trial_fes->GetTrueVSize(),
+                  "Vector for holding diagonal has wrong size!");
+      const Operator *P_trial = trial_fes->GetProlongationMatrix();
+      const Operator *P_test = test_fes->GetProlongationMatrix();
+      if (!IsIdentityProlongation(P_trial))
       {
-         FaceElementTransformations *ftr;
-         Array<int> te_vdofs2;
-         const FiniteElement *trial_face_fe, *test_fe1, *test_fe2;
+         Vector local_D(P_trial->Height());
+         P_trial->Mult(D, local_D);
 
-         // Which boundary attributes need to be processed?
-         Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ? mesh->bdr_attributes.Max() : 0);
-         bdr_attr_marker = 0;
-         for (int k = 0; k < btfbfi.Size(); k++)
+         if (!IsIdentityProlongation(P_test))
          {
-            if (btfbfi_marker[k] == NULL)
-            {
-               bdr_attr_marker = 1;
-               break;
-            }
-            Array<int> &bdr_marker = *btfbfi_marker[k];
-            MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
-                        "invalid boundary marker for boundary trace face integrator #"
-                            << k << ", counting from zero");
-            for (int i = 0; i < bdr_attr_marker.Size(); i++)
-            {
-               bdr_attr_marker[i] |= bdr_marker[i];
-            }
+            Vector local_diag(P_test->Height());
+            ext->AssembleDiagonal_ADAt(local_D, local_diag);
+            P_test->MultTranspose(local_diag, diag);
          }
+         else
+         {
+            ext->AssembleDiagonal_ADAt(local_D, diag);
+         }
+      }
+      else
+      {
+         if (!IsIdentityProlongation(P_test))
+         {
+            Vector local_diag(P_test->Height());
+            ext->AssembleDiagonal_ADAt(D, local_diag);
+            P_test->MultTranspose(local_diag, diag);
+         }
+         else
+         {
+            ext->AssembleDiagonal_ADAt(D, diag);
+         }
+      }
+   }
+   else
+   {
+      MFEM_ABORT("Not implemented. Maybe assemble your bilinear form into a "
+                 "matrix and use SparseMatrix functions?");
+   }
+}
+
+void MixedBilinearForm::ConformingAssemble()
+{
+   if (assembly != AssemblyLevel::LEGACYFULL)
+   {
+      MFEM_WARNING("Conforming assemble not supported for this assembly level!");
+      return;
+   }
 
          for (int i = 0; i < trial_fes->GetNBE(); i++)
          {

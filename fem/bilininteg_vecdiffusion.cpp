@@ -101,7 +101,6 @@ static void PAVectorDiffusionSetup3D(const int Q1D,
 }
 
 static void PAVectorDiffusionSetup(const int dim,
-                                   const int D1D,
                                    const int Q1D,
                                    const int NE,
                                    const Array<double> &W,
@@ -134,6 +133,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
+   sdim = mesh->SpaceDimension();
    ne = fes.GetNE();
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
@@ -147,46 +147,83 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
       coeff = cQ->constant;
    }
-   PAVectorDiffusionSetup(dim, dofs1D, quad1D, ne, ir->GetWeights(), geom->J,
-                          coeff, pa_data);
+   const Array<double> &w = ir->GetWeights();
+   const Vector &j = geom->J;
+   Vector &d = pa_data;
+   if (dim == 1) { MFEM_ABORT("dim==1 not supported in PAVectorDiffusionSetup"); }
+   if (dim == 2 && sdim == 3)
+   {
+      constexpr int DIM = 2;
+      constexpr int SDIM = 3;
+      const int NQ = quad1D*quad1D;
+      auto W = w.Read();
+      auto J = Reshape(j.Read(), NQ, SDIM, DIM, ne);
+      auto D = Reshape(d.Write(), NQ, SDIM, ne);
+      MFEM_FORALL(e, ne,
+      {
+         for (int q = 0; q < NQ; ++q)
+         {
+            const double wq = W[q];
+            const double J11 = J(q,0,0,e);
+            const double J21 = J(q,1,0,e);
+            const double J31 = J(q,2,0,e);
+            const double J12 = J(q,0,1,e);
+            const double J22 = J(q,1,1,e);
+            const double J32 = J(q,2,1,e);
+            const double E = J11*J11 + J21*J21 + J31*J31;
+            const double G = J12*J12 + J22*J22 + J32*J32;
+            const double F = J11*J12 + J21*J22 + J31*J32;
+            const double iw = 1.0 / sqrt(E*G - F*F);
+            const double alpha = wq * coeff * iw;
+            D(q,0,e) =  alpha * G; // 1,1
+            D(q,1,e) = -alpha * F; // 1,2
+            D(q,2,e) =  alpha * E; // 2,2
+         }
+      });
+   }
+   else
+   {
+      PAVectorDiffusionSetup(dim, quad1D, ne, w, j, coeff, d);
+   }
 }
 
 // PA Diffusion Apply 2D kernel
-template<int T_D1D = 0, int T_Q1D = 0> static
+template<int T_D1D = 0, int T_Q1D = 0, int T_VDIM = 0> static
 void PAVectorDiffusionApply2D(const int NE,
                               const Array<double> &b,
                               const Array<double> &g,
                               const Array<double> &bt,
                               const Array<double> &gt,
-                              const Vector &_op,
-                              const Vector &_x,
-                              Vector &_y,
+                              const Vector &d_,
+                              const Vector &x_,
+                              Vector &y_,
                               const int d1d = 0,
-                              const int q1d = 0)
+                              const int q1d = 0,
+                              const int vdim = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int VDIM = 2;
+   const int VDIM = T_VDIM ? T_VDIM : vdim;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto Bt = Reshape(bt.Read(), D1D, Q1D);
    auto Gt = Reshape(gt.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D*Q1D, 3, NE);
-   auto x = Reshape(_x.Read(), D1D, D1D, VDIM, NE);
-   auto y = Reshape(_y.ReadWrite(), D1D, D1D, VDIM, NE);
+   auto D = Reshape(d_.Read(), Q1D*Q1D, 3, NE);
+   auto x = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
+   auto y = Reshape(y_.ReadWrite(), D1D, D1D, VDIM, NE);
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      // the following variables are evaluated at compile time
+      const int VDIM = T_VDIM ? T_VDIM : vdim;
       constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
 
-      for (int c = 0; c < VDIM; ++ c)
+      double grad[max_Q1D][max_Q1D][2];
+      for (int c = 0; c < VDIM; c++)
       {
-         double grad[max_Q1D][max_Q1D][2];
          for (int qy = 0; qy < Q1D; ++qy)
          {
             for (int qx = 0; qx < Q1D; ++qx)
@@ -229,14 +266,11 @@ void PAVectorDiffusionApply2D(const int NE,
             for (int qx = 0; qx < Q1D; ++qx)
             {
                const int q = qx + qy * Q1D;
-
-               const double O11 = op(q,0,e);
-               const double O12 = op(q,1,e);
-               const double O22 = op(q,2,e);
-
+               const double O11 = D(q,0,e);
+               const double O12 = D(q,1,e);
+               const double O22 = D(q,2,e);
                const double gradX = grad[qy][qx][0];
                const double gradY = grad[qy][qx][1];
-
                grad[qy][qx][0] = (O11 * gradX) + (O12 * gradY);
                grad[qy][qx][1] = (O12 * gradX) + (O22 * gradY);
             }
@@ -246,8 +280,8 @@ void PAVectorDiffusionApply2D(const int NE,
             double gradX[max_D1D][2];
             for (int dx = 0; dx < D1D; ++dx)
             {
-               gradX[dx][0] = 0;
-               gradX[dx][1] = 0;
+               gradX[dx][0] = 0.0;
+               gradX[dx][1] = 0.0;
             }
             for (int qx = 0; qx < Q1D; ++qx)
             {
@@ -469,35 +503,36 @@ void PAVectorDiffusionApply3D(const int NE,
    });
 }
 
-static void PAVectorDiffusionApply(const int dim,
-                                   const int D1D,
-                                   const int Q1D,
-                                   const int NE,
-                                   const Array<double> &B,
-                                   const Array<double> &G,
-                                   const Array<double> &Bt,
-                                   const Array<double> &Gt,
-                                   const Vector &op,
-                                   const Vector &x,
-                                   Vector &y)
-{
-   if (dim == 2)
-   {
-      return PAVectorDiffusionApply2D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
-   }
-   if (dim == 3)
-   {
-      return PAVectorDiffusionApply3D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
-   }
-   MFEM_ABORT("Unknown kernel.");
-}
-
 // PA Diffusion Apply kernel
 void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   PAVectorDiffusionApply(dim, dofs1D, quad1D, ne,
-                          maps->B, maps->G, maps->Bt, maps->Gt,
-                          pa_data, x, y);
+   const int D1D = dofs1D;
+   const int Q1D = quad1D;
+   const Array<double> &B = maps->B;
+   const Array<double> &G = maps->G;
+   const Array<double> &Bt = maps->Bt;
+   const Array<double> &Gt = maps->Gt;
+   const Vector &D = pa_data;
+
+   if (dim == 2 && sdim == 3)
+   {
+      switch ((dofs1D << 4 ) | quad1D)
+      {
+         case 0x22: return PAVectorDiffusionApply2D<2,2,3>(ne,B,G,Bt,Gt,D,x,y);
+         case 0x33: return PAVectorDiffusionApply2D<3,3,3>(ne,B,G,Bt,Gt,D,x,y);
+         case 0x44: return PAVectorDiffusionApply2D<4,4,3>(ne,B,G,Bt,Gt,D,x,y);
+         case 0x55: return PAVectorDiffusionApply2D<5,5,3>(ne,B,G,Bt,Gt,D,x,y);
+         default:
+            return PAVectorDiffusionApply2D(ne,B,G,Bt,Gt,D,x,y,D1D,Q1D,sdim);
+      }
+   }
+   if (dim == 2 && sdim == 2)
+   { return PAVectorDiffusionApply2D(ne,B,G,Bt,Gt,D,x,y,D1D,Q1D,sdim); }
+
+   if (dim == 3 && sdim == 3)
+   { return PAVectorDiffusionApply3D(ne,B,G,Bt,Gt,D,x,y,D1D,Q1D); }
+
+   MFEM_ABORT("Unknown kernel.");
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>

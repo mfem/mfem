@@ -182,6 +182,12 @@ public:
 
    double Weight() const;
 
+   /// Evaluate the derivative of Det() w.r.t. the matrix entries
+   void DetRevDiff(DenseMatrix &A_bar) const;
+
+   /// Evaluate the derivative of Weight() w.r.t. the matrix entries
+   void WeightRevDiff(DenseMatrix &A_bar) const;
+
    /** @brief Set the matrix to alpha * A, assuming that A has the same
        dimensions as the matrix and uses column-major layout. */
    void Set(double alpha, const double *A);
@@ -440,6 +446,10 @@ void CalcAdjugate(const DenseMatrix &a, DenseMatrix &adja);
 /// Calculate the transposed adjugate of a matrix (for NxN matrices, N=1,2,3)
 void CalcAdjugateTranspose(const DenseMatrix &a, DenseMatrix &adjat);
 
+/// Reverse-mode sensitivities of adj(A) with respect to the entries in A
+void CalcAdjugateRevDiff(const DenseMatrix &a, const DenseMatrix &adja_bar,
+                         DenseMatrix &a_bar);
+
 /** Calculate the inverse of a matrix (for NxN matrices, N=1,2,3) or the
     left inverse (A^t.A)^{-1}.A^t (for 2x1, 3x1, or 3x2 matrices) */
 void CalcInverse(const DenseMatrix &a, DenseMatrix &inva);
@@ -451,6 +461,10 @@ void CalcInverseTranspose(const DenseMatrix &a, DenseMatrix &inva);
     n_k = (-1)^{k+1} det(J_k), k=1,..,N, where J_k is the matrix J with the
     k-th row removed. Note: J^t.n = 0, det([n|J])=|n|^2=det(J^t.J). */
 void CalcOrtho(const DenseMatrix &J, Vector &n);
+
+/// The reverse-mode differentiation of CalcOrtho()
+void CalcOrthoRevDiff(const DenseMatrix &J, const Vector &n_bar,
+                      DenseMatrix &J_bar);
 
 /// Calculate the matrix A.At
 void MultAAt(const DenseMatrix &a, DenseMatrix &aat);
@@ -642,6 +656,9 @@ public:
    void Factor(const DenseMatrix &mat);
 
    virtual void SetOperator(const Operator &op);
+
+   /// Matrix vector multiplication with the inverse of dense matrix.
+   void Mult(const double *x, double *y) const;
 
    /// Matrix vector multiplication with the inverse of dense matrix.
    virtual void Mult(const Vector &x, Vector &y) const;
@@ -858,6 +875,28 @@ public:
 
    ~DenseTensor() { tdata.Delete(); }
 };
+
+/** @brief Compute the LU factorization of a batch of matrices
+
+    Factorize n matrices of size (m x m) stored in a dense tensor overwriting it
+    with the LU factors. The factorization is such that L.U = Piv.A, where A is
+    the original matrix and Piv is a permutation matrix represented by P.
+
+    @param [in, out] Mlu batch of square matrices - dimension m x m x n.
+    @param [out] P array storing pivot information - dimension m x n.
+    @param [in] TOL optional fuzzy comparison tolerance. Defaults to 0.0. */
+void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const double TOL = 0.0);
+
+/** @brief Solve batch linear systems
+
+    Assuming L.U = P.A for n factored matrices (m x m), compute x <- A x, for n
+    companion vectors.
+
+    @param [in] Mlu batch of LU factors for matrix M - dimension m x m x n.
+    @param [in] P array storing pivot information - dimension m x n.
+    @param [in, out] X vector storing right-hand side and then solution -
+    dimension m x n. */
+void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X);
 
 
 // Inline methods
