@@ -44,7 +44,7 @@ then
         prefix_opt="--prefix=${prefix}"
     fi
 
-    python scripts/uberenv/uberenv.py --spec="${spec}" "${upstream_opt}"
+    python scripts/uberenv/uberenv.py --spec="${spec}" "${upstream_opt}" "${prefix_opt}"
 
 fi
 
