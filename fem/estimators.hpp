@@ -477,7 +477,6 @@ private:
 
    ParFiniteElementSpace*
    flux_space; /**< @brief Ownership based on own_flux_fes. */
-   bool with_coeff;
    bool own_flux_fespace; ///< Ownership flag for flux_space.
 
    /// Check if the mesh of the solution was modified.
