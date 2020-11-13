@@ -5757,7 +5757,7 @@ static void PAHcurlApplyGradientTranspose3DBId(
             {
                const int ez = dz;
                const int local_index = c_dofs1D*c_dofs1D*o_dofs1D +
-                  ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
+                                       ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
                w1[ex][ey][dz] = x(local_index, e);
             }
          }
@@ -5864,7 +5864,8 @@ void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
    MFEM_VERIFY(dims == 2 || dims == 3, "Bad dimension!");
    dim = mesh->Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "Bad dimension!");
-   MFEM_VERIFY(trial_el->GetOrder() == test_el->GetOrder(), "Orders do not match!");
+   MFEM_VERIFY(trial_el->GetOrder() == test_el->GetOrder(),
+               "Orders do not match!");
    ne = trial_fes.GetNE();
 
    const int order = trial_el->GetOrder();
