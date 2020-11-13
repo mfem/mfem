@@ -14,6 +14,7 @@ spec=${SPEC:-""}
 sys_type=${SYS_TYPE:-""}
 py_env_path=${PYTHON_ENVIRONMENT_PATH:-""}
 
+threads=${THREADS:-""}
 
 # Dependencies
 if [[ "${option}" != "--build-only" && "${option}" != "--test-only" ]]
@@ -96,7 +97,7 @@ then
 
     cp ${hostconfig_path} ${project_dir}/config/
 
-    make all -j
+    make all -j ${threads}
 fi
 
 # Test

@@ -29,7 +29,7 @@ q_allocate_resources:
   extends: .on_quartz
   stage: q_allocate_resources
   script:
-    - salloc --nodes=1 --partition=pdebug --time=30 --no-shell --job-name=${ALLOC_NAME}
+    - salloc --exclusive --nodes=1 --partition=pdebug --time=30 --no-shell --job-name=${ALLOC_NAME}
   timeout: 6h
 
 # Release
