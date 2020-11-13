@@ -244,8 +244,8 @@ protected:
                      int edge_variant = 0) const;
 
    // Get degenerate face DOFs: see explanation in method implementation.
-   void GetDegenerateFaceDofs(int index, Array<int> &dofs,
-                              Geometry::Type master_geom) const;
+   int GetDegenerateFaceDofs(int index, Array<int> &dofs,
+                             Geometry::Type master_geom, int variant) const;
 
    /// Calculate the cP and cR matrices for a nonconforming mesh.
    void BuildConformingInterpolation() const;
