@@ -3737,7 +3737,7 @@ Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
 #endif
 }
 
-Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
+Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type, bool simplex_ref)
 {
    Dim = orig_mesh->Dimension();
    MFEM_VERIFY(ref_factor >= 1, "the refinement factor must be >= 1");
@@ -3746,7 +3746,7 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
    MFEM_VERIFY(Dim == 1 || Dim == 2 || Dim == 3,
                "only implemented for Segment, Quadrilateral and Hexahedron "
                "elements in 1D/2D/3D");
-   MFEM_VERIFY(orig_mesh->GetNumGeometries(Dim) <= 1,
+   MFEM_VERIFY(orig_mesh->GetNumGeometries(Dim) == 1,
                "meshes with mixed elements are not supported");
 
    // Construct a scalar H1 FE space of order ref_factor and use its dofs as
@@ -3754,26 +3754,75 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
    H1_FECollection rfec(ref_factor, Dim, ref_type);
    FiniteElementSpace rfes(orig_mesh, &rfec);
 
+   // If a LOR simplex mesh is requested, each sub-tensor-product element is
+   // further divided into either 2 triangles or 6 tets.
+   int simplex_factor; // Number of simplices per tensor-product element
+   Geometry::Type lor_geom;
+   DenseMatrix sub_vert_map; // Tensor-product vertices for each sub-simplex
+   if (simplex_ref && Dim > 1)
+   {
+      simplex_factor = (Dim == 2) ? 2 : 6;
+      lor_geom = (Dim == 2) ? Geometry::Type::TRIANGLE : Geometry::Type::TETRAHEDRON;
+      sub_vert_map.SetSize(Geometry::NumVerts[lor_geom], simplex_factor);
+      if (Dim == 2)
+      {
+         sub_vert_map(0,0) = 0; sub_vert_map(0,1) = 1;
+         sub_vert_map(1,0) = 1; sub_vert_map(1,1) = 2;
+         sub_vert_map(2,0) = 3; sub_vert_map(2,1) = 3;
+      }
+      else // Dim == 3
+      {
+         DenseMatrix &t = sub_vert_map;
+         t(0,0) = 0; t(0,1) = 0; t(0,2) = 0; t(0,3) = 0; t(0,4) = 0; t(0,5) = 0;
+         t(1,0) = 1; t(1,1) = 5; t(1,2) = 4; t(1,3) = 2; t(1,4) = 3; t(1,5) = 7;
+         t(2,0) = 2; t(2,1) = 1; t(2,2) = 5; t(2,3) = 3; t(2,4) = 7; t(2,5) = 4;
+         t(3,0) = 6; t(3,1) = 6; t(3,2) = 6; t(3,3) = 6; t(3,4) = 6; t(3,5) = 6;
+      }
+   }
+   else
+   {
+      simplex_factor = 1;
+      lor_geom = orig_mesh->GetElementBaseGeometry(0);
+      sub_vert_map.SetSize(pow(2, Dim), 1);
+      for (int i=0; i<pow(2, Dim); ++i)
+      {
+         sub_vert_map(i,0) = i;
+      }
+   }
+   int lor_nv = Geometry::NumVerts[lor_geom];
+
    int r_bndr_factor = pow(ref_factor, Dim - 1);
-   int r_elem_factor = ref_factor * r_bndr_factor;
+   int r_elem_factor = ref_factor * r_bndr_factor * simplex_factor;
 
    int r_num_vert = rfes.GetNDofs();
    int r_num_elem = orig_mesh->GetNE() * r_elem_factor;
    int r_num_bndr = orig_mesh->GetNBE() * r_bndr_factor;
 
    InitMesh(Dim, orig_mesh->SpaceDimension(), r_num_vert, r_num_elem,
-            r_num_bndr);
+            r_num_bndr*0);
 
    // Set the number of vertices, set the actual coordinates later
    NumOfVertices = r_num_vert;
+
+   // Store the vertex coordinates in the format of a DG grid function,
+   // will be used to set the nodes if necessary (e.g. for periodic meshes)
+   DenseMatrix node_coordinates(spaceDim*lor_nv, r_num_elem);
+   H1_FECollection vertex_fec(1, Dim);
+   // Map from DG DOF indices to vertex indices
+   Array<int> vertex_map(lor_nv);
+   if (simplex_ref)
+   {
+      // For simplices, orderings coincide
+      for (int i=0; i<lor_nv; ++i) { vertex_map[i] = i; }
+   }
+   else
+   {
+      vertex_map.Assign(vertex_fec.GetDofMap(lor_geom));
+   }
+
    // Add refined elements and set vertex coordinates
    Array<int> rdofs;
    DenseMatrix phys_pts;
-   int max_nv = 0;
-
-   DenseMatrix node_coordinates(spaceDim*pow(2, Dim), r_num_elem);
-   H1_FECollection vertex_fec(1, Dim);
-
    for (int el = 0; el < orig_mesh->GetNE(); el++)
    {
       Geometry::Type geom = orig_mesh->GetElementBaseGeometry(el);
@@ -3781,37 +3830,38 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       int nvert = Geometry::NumVerts[geom];
       RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref_factor);
 
-      max_nv = std::max(max_nv, nvert);
       rfes.GetElementDofs(el, rdofs);
       MFEM_ASSERT(rdofs.Size() == RG.RefPts.Size(), "");
       const FiniteElement *rfe = rfes.GetFE(el);
       orig_mesh->GetElementTransformation(el)->Transform(rfe->GetNodes(),
                                                          phys_pts);
       const int *c2h_map = rfec.GetDofMap(geom);
-      const int *vertex_map = vertex_fec.GetDofMap(geom);
       for (int i = 0; i < phys_pts.Width(); i++)
       {
          vertices[rdofs[i]].SetCoords(spaceDim, phys_pts.GetColumn(i));
       }
       for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
       {
-         Element *elem = NewElement(geom);
-         elem->SetAttribute(attrib);
-         int *v = elem->GetVertices();
-         for (int k = 0; k < nvert; k++)
+         for (int isub=0; isub<simplex_factor; ++isub)
          {
-            int cid = RG.RefGeoms[k+nvert*j]; // local Cartesian index
-            v[k] = rdofs[c2h_map[cid]];
-         }
-         for (int k = 0; k < nvert; k++)
-         {
-            for (int j = 0; j < spaceDim; ++j)
+            Element *elem = NewElement(lor_geom);
+            elem->SetAttribute(attrib);
+            int *v = elem->GetVertices();
+            for (int iv=0; iv<lor_nv; ++iv)
             {
-               node_coordinates(k*spaceDim + j, NumOfElements)
-                  = vertices[v[vertex_map[k]]](j);
+               int offset = sub_vert_map(iv,isub);
+               v[iv] = rdofs[c2h_map[RG.RefGeoms[offset + nvert*j]]];
             }
+            for (int iv=0; iv<lor_nv; ++iv)
+            {
+               for (int d=0; d<spaceDim; ++d)
+               {
+                  double vc = vertices[v[vertex_map[iv]]](d);
+                  node_coordinates(iv*spaceDim + d, NumOfElements) = vc;
+               }
+            }
+            AddElement(elem);
          }
-         AddElement(elem);
       }
    }
 
@@ -3831,43 +3881,41 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
    {
       Geometry::Type geom = orig_mesh->GetBdrElementBaseGeometry(el);
       int attrib = orig_mesh->GetBdrAttribute(el);
-      int nvert = Geometry::NumVerts[geom];
+      int nvert_bdr = Geometry::NumVerts[geom];
       RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref_factor);
 
       rfes.GetBdrElementDofs(el, rdofs);
       MFEM_ASSERT(rdofs.Size() == RG.RefPts.Size(), "");
-      if (Dim == 1)
+
+      const int *c2h_map = (Dim > 1) ? rfec.GetDofMap(geom) : NULL;
+      for (int j = 0; j < RG.RefGeoms.Size()/nvert_bdr; j++)
       {
-         // Dim == 1 is a special case because the boundary elements are
-         // zero-dimensional points, and therefore don't have a DofMap
-         for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
+         static int v[4];
+         for (int k = 0; k < nvert_bdr; k++)
          {
-            Element *elem = NewElement(geom);
-            elem->SetAttribute(attrib);
-            int *v = elem->GetVertices();
-            v[0] = rdofs[RG.RefGeoms[nvert*j]];
-            AddBdrElement(elem);
+            int cid = RG.RefGeoms[k+nvert_bdr*j]; // local Cartesian index
+            v[k] = rdofs[c2h_map ? c2h_map[cid] : cid];
          }
-      }
-      else
-      {
-         const int *c2h_map = rfec.GetDofMap(geom);
-         for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
+         if (simplex_ref && Dim == 3)
+         {
+            AddBdrQuadAsTriangles(v, attrib);
+         }
+         else
          {
             Element *elem = NewElement(geom);
             elem->SetAttribute(attrib);
-            int *v = elem->GetVertices();
-            for (int k = 0; k < nvert; k++)
-            {
-               int cid = RG.RefGeoms[k+nvert*j]; // local Cartesian index
-               v[k] = rdofs[c2h_map[cid]];
-            }
+            int *v2 = elem->GetVertices();
+            for (int iv=0; iv<nvert_bdr; ++iv) { v2[iv] = v[iv]; }
             AddBdrElement(elem);
          }
       }
    }
 
-   FinalizeTopology(false);
+   // TODO: Simplices: see comment below about non-matching meshes.
+   if (!simplex_ref)
+   {
+      FinalizeTopology(false);
+   }
    sequence = orig_mesh->GetSequence() + 1;
    last_operation = Mesh::REFINE;
 
@@ -3876,20 +3924,25 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
    if (orig_mesh->GetNE() > 0)
    {
       const int el = 0;
+      CoarseFineTr.point_matrices[lor_geom].SetSize(Dim, lor_nv, r_elem_factor);
       Geometry::Type geom = orig_mesh->GetElementBaseGeometry(el);
-      CoarseFineTr.point_matrices[geom].SetSize(Dim, max_nv, r_elem_factor);
       int nvert = Geometry::NumVerts[geom];
       RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref_factor);
       const int *c2h_map = rfec.GetDofMap(geom);
       const IntegrationRule &r_nodes = rfes.GetFE(el)->GetNodes();
       for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
       {
-         DenseMatrix &Pj = CoarseFineTr.point_matrices[geom](j);
-         for (int k = 0; k < nvert; k++)
+         for (int isub=0; isub<simplex_factor; ++isub)
          {
-            int cid = RG.RefGeoms[k+nvert*j]; // local Cartesian index
-            const IntegrationPoint &ip = r_nodes.IntPoint(c2h_map[cid]);
-            ip.Get(Pj.GetColumn(k), Dim);
+            int jj = j*simplex_factor + isub;
+            DenseMatrix &Pj = CoarseFineTr.point_matrices[lor_geom](jj);
+            for (int iv=0; iv<lor_nv; iv++)
+            {
+               int offset = sub_vert_map(iv,isub);
+               int cid = RG.RefGeoms[offset + nvert*j];
+               const IntegrationPoint &ip = r_nodes.IntPoint(c2h_map[cid]);
+               ip.Get(Pj.GetColumn(iv), Dim);
+            }
          }
       }
    }
@@ -3900,8 +3953,14 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       emb.matrix = el % r_elem_factor;
    }
 
-   MFEM_ASSERT(CheckElementOrientation(false) == 0, "");
-   MFEM_ASSERT(CheckBdrElementOrientation(false) == 0, "");
+   // TODO: Simplices: creating "matching" LOR tet meshes is nontrivial, so
+   // perhaps we should just skip these checks and accept non-matching meshes
+   // that are technically invalid, but good enough for our purposes.
+   if (!simplex_ref)
+   {
+      MFEM_ASSERT(CheckElementOrientation(false) == 0, "");
+      MFEM_ASSERT(CheckBdrElementOrientation(false) == 0, "");
+   }
 }
 
 void Mesh::KnotInsert(Array<KnotVector *> &kv)
