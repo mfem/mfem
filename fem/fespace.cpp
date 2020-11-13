@@ -97,7 +97,8 @@ void FiniteElementSpace::SetElementOrder(int i, int p)
    MFEM_VERIFY(sequence == mesh->GetSequence(), "space has not been Updated()");
    MFEM_VERIFY(i >= 0 && i < GetNE(), "invalid element index");
    MFEM_VERIFY(p >= 0 && p < CHAR_MAX, "order ouf of range");
-   MFEM_ASSERT(!elem_order.Size() || elem_order.Size() == GetNE(), "internal error");
+   MFEM_ASSERT(!elem_order.Size() || elem_order.Size() == GetNE(),
+               "internal error");
 
    if (elem_order.Size()) // already a variable-order space
    {
@@ -121,7 +122,8 @@ int FiniteElementSpace::GetElementOrder(int i) const
 {
    MFEM_VERIFY(sequence == mesh->GetSequence(), "space has not been Updated()");
    MFEM_VERIFY(i >= 0 && i < GetNE(), "invalid element index");
-   MFEM_ASSERT(!elem_order.Size() || elem_order.Size() == GetNE(), "internal error");
+   MFEM_ASSERT(!elem_order.Size() || elem_order.Size() == GetNE(),
+               "internal error");
 
    return GetElementOrderImpl(i);
 }
@@ -650,8 +652,8 @@ FiniteElementSpace::H2L_GlobalRestrictionMatrix (FiniteElementSpace *lfes)
 }
 
 void FiniteElementSpace
-   ::AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
-                     Array<int>& slave_dofs, DenseMatrix& I, int skipfirst)
+::AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
+                  Array<int>& slave_dofs, DenseMatrix& I, int skipfirst)
 {
    for (int i = skipfirst; i < slave_dofs.Size(); i++)
    {
@@ -746,8 +748,9 @@ bool FiniteElementSpace::DofFinalizable(int dof, const Array<bool>& finalized,
    return true;
 }
 
-void FiniteElementSpace::GetDegenerateFaceDofs(int index, Array<int> &dofs,
-                                               Geometry::Type master_geom) const
+int FiniteElementSpace::GetDegenerateFaceDofs(int index, Array<int> &dofs,
+                                              Geometry::Type master_geom,
+                                              int variant) const
 {
    // In NC meshes with prisms/tets, a special constraint occurs where a
    // prism/tet edge is slave to another element's face. Rather than introduce a
@@ -758,14 +761,14 @@ void FiniteElementSpace::GetDegenerateFaceDofs(int index, Array<int> &dofs,
    // The extra DOFs are ignored by FiniteElementSpace::AddDependencies.
 
    Array<int> edof;
-   GetEdgeDofs(-1 - index, edof);
+   GetEdgeDofs(-1 - index, edof); // FIXME variant
 
    int nv = fec->DofForGeometry(Geometry::POINT);
    int ne = fec->DofForGeometry(Geometry::SEGMENT);
    int nn = 2*nv + ne;
 
    dofs.SetSize(nn*nn);
-   if (!dofs.Size()) { return; }
+   if (!dofs.Size()) { return 0; }
 
    dofs = edof[0];
 
@@ -781,21 +784,33 @@ void FiniteElementSpace::GetDegenerateFaceDofs(int index, Array<int> &dofs,
    {
       dofs[face_vert*nv + i] = edof[2*nv + i];
    }
+
+   return 0; // FIXME
 }
 
 int FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs,
-                                  Geometry::Type master_geom, int variant) const
+                                      Geometry::Type master_geom,
+                                      int variant) const
 {
    switch (entity)
    {
-      case 0: GetVertexDofs(index, dofs); return 0;
-      case 1: return GetEdgeDofs(index, dofs, variant);
-      case 2: if (index >= 0) { return GetFaceDofs(index, dofs, variant); }
-              else MFEM_ABORT("FIXME"); return 0;
-//         /*             */ : GetDegenerateFaceDofs(index, dofs, master_geom); // FIXME - variant
+      case 0:
+         GetVertexDofs(index, dofs);
+         return 0;
 
+      case 1:
+         return GetEdgeDofs(index, dofs, variant);
+
+      default:
+         if (index >= 0)
+         {
+            return GetFaceDofs(index, dofs, variant);
+         }
+         else
+         {
+            return GetDegenerateFaceDofs(index, dofs, master_geom, variant);
+         }
    }
-   return 0;
 }
 
 void FiniteElementSpace::BuildConformingInterpolation() const
@@ -1113,7 +1128,8 @@ const SparseMatrix* FiniteElementSpace::GetConformingRestriction() const
    return cR;
 }
 
-const SparseMatrix* FiniteElementSpace::GetConformingRestrictionInterpolation() const
+const SparseMatrix* FiniteElementSpace
+::GetConformingRestrictionInterpolation() const
 {
    if (Conforming()) { return NULL; }
    if (!IsVariableOrder()) { return cR; }
@@ -2359,7 +2375,8 @@ void FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs) const
    }
 }
 
-int FiniteElementSpace::GetFaceDofs(int face, Array<int> &dofs, int variant) const
+int FiniteElementSpace::GetFaceDofs(int face, Array<int> &dofs,
+                                    int variant) const
 {
    // If face_dof is already built, use it.
    // If it is not and we have a NURBS space, build the face_dof and use it.
@@ -2411,7 +2428,7 @@ int FiniteElementSpace::GetFaceDofs(int face, Array<int> &dofs, int variant) con
       {
          for (int j = 0; j < nv; j++)
          {
-             dofs.Append(V[i]*nv + j);
+            dofs.Append(V[i]*nv + j);
          }
       }
    }
@@ -2419,13 +2436,13 @@ int FiniteElementSpace::GetFaceDofs(int face, Array<int> &dofs, int variant) con
    {
       for (int i = 0; i < E.Size(); i++)
       {
-          int ebase = IsVariableOrder() ? FindEdgeDof(E[i], ne) : E[i]*ne;
-          const int *ind = fec->GetDofOrdering(Geometry::SEGMENT, p, Eo[i]);
+         int ebase = IsVariableOrder() ? FindEdgeDof(E[i], ne) : E[i]*ne;
+         const int *ind = fec->GetDofOrdering(Geometry::SEGMENT, p, Eo[i]);
 
-          for (int j = 0; j < ne; j++)
-          {
-             dofs.Append(EncodeDof(nvdofs + ebase, ind[j]));
-          }
+         for (int j = 0; j < ne; j++)
+         {
+            dofs.Append(EncodeDof(nvdofs + ebase, ind[j]));
+         }
       }
    }
    for (int j = 0; j < nf; j++)
@@ -2452,6 +2469,7 @@ int FiniteElementSpace::GetEdgeDofs(int edge, Array<int> &dofs,
       p = ne + 1;
       MFEM_ASSERT(fec->GetNumDof(Geometry::SEGMENT, p) == ne, "");
       // TODO: how to safely deduce 'p' from the number of edge DOFs?
+      // FIXME
    }
    else
    {
@@ -2610,16 +2628,17 @@ const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
    return fe;
 }
 
-const FiniteElement *FiniteElementSpace::GetEdgeElement(int i, int variant) const
+const FiniteElement *FiniteElementSpace
+::GetEdgeElement(int i, int variant) const
 {
-   MFEM_ASSERT(mesh->Dimension() > 1, "No edges with a mesh dimension < 2");
+   MFEM_ASSERT(mesh->Dimension() > 1, "No edges with mesh dimension < 2");
 
    int eo = IsVariableOrder() ? GetEdgeOrder(i, variant) : fec->DefaultOrder();
    return fec->GetFE(Geometry::SEGMENT, eo);
 }
 
-const FiniteElement *FiniteElementSpace::GetTraceElement(
-   int i, Geometry::Type geom_type) const
+const FiniteElement *FiniteElementSpace
+::GetTraceElement(int i, Geometry::Type geom_type) const
 {
    return fec->TraceFiniteElementForGeometry(geom_type);
 }
