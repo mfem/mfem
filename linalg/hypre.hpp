@@ -457,6 +457,7 @@ public:
        the sparsity pattern of the matrix are treated as "true". */
    void BooleanMult(int alpha, const int *x, int beta, int *y)
    {
+      MFEM_ABORT("");
       internal::hypre_ParCSRMatrixBooleanMatvec(A, alpha, const_cast<int*>(x),
                                                 beta, y);
    }
@@ -1140,7 +1141,7 @@ HypreParMatrix* DiscreteCurl(ParFiniteElementSpace *face_fespace,
 /// The Auxiliary-space Maxwell Solver in hypre
 class HypreAMS : public HypreSolver
 {
-private:
+public:
    /// Constuct AMS solver from finite element space
    void Init(ParFiniteElementSpace *edge_space);
 

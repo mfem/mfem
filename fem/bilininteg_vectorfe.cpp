@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../general/debug.hpp"
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 
@@ -719,6 +720,7 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
                                         const FiniteElementSpace &test_fes)
 {
+   dbg();
    // Assumes tensor-product elements
    Mesh *mesh = trial_fes.GetMesh();
 
@@ -961,6 +963,7 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
 
 void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
+   dbg();
    const bool trial_curl = (trial_fetype == mfem::FiniteElement::CURL);
    const bool trial_div = (trial_fetype == mfem::FiniteElement::DIV);
    const bool test_curl = (test_fetype == mfem::FiniteElement::CURL);
