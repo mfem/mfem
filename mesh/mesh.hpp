@@ -704,7 +704,7 @@ public:
        is set to reflect the performed refinements.
 
        @note The constructed Mesh is linear, i.e. it does not have nodes. */
-   Mesh(Mesh *orig_mesh, int ref_factor, int ref_type);
+   Mesh(Mesh *orig_mesh, int ref_factor, int ref_type, bool simplex_ref=false);
 
    /** This is similar to the mesh constructor with the same arguments, but here
        the current mesh is destroyed and another one created based on the data
