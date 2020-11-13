@@ -13,6 +13,7 @@
 
 #ifdef MFEM_USE_MPI
 
+#include "../general/debug.hpp"
 #include "linalg.hpp"
 #include "../fem/fem.hpp"
 
@@ -976,12 +977,13 @@ HYPRE_Int HypreParMatrix::Mult(HypreParVector &x, HypreParVector &y,
 
 void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
 {
+   dbg();
    MFEM_ASSERT(x.Size() == Width(), "invalid x.Size() = " << x.Size()
                << ", expected size = " << Width());
    MFEM_ASSERT(y.Size() == Height(), "invalid y.Size() = " << y.Size()
                << ", expected size = " << Height());
 
-   auto x_data = x.HostRead();
+   auto x_data = const_cast<Vector*>(&x)->HostReadWrite();
    auto y_data = (b == 0.0) ? y.HostWrite() : y.HostReadWrite();
    if (X == NULL)
    {
@@ -2505,6 +2507,7 @@ HypreSolver::HypreSolver(HypreParMatrix *_A)
 
 void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
 {
+   dbg("b:%.15e x:%.15e",b*b,x*x);
    HYPRE_Int err;
    if (A == NULL)
    {
@@ -2513,7 +2516,21 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
    }
    if (!setup_called)
    {
+      dbg("[setup] called");
+      b.HostRead();
+      x.HostReadWrite();
+      const HypreAMS *hAMS = dynamic_cast<const HypreAMS*>(this);
+      MFEM_VERIFY(hAMS,"");
+      if (hAMS)
+      {
+         hAMS->x->HostReadWrite();
+         hAMS->y->HostReadWrite();
+      }
+
+      dbg("[setup] SetupFcn");
       err = SetupFcn()(*this, *A, b, x);
+      dbg("[setup] err:%.15e",err);
+      dbg("[setup] b:%.15e x:%.15e",b*b,x*x);
       if (error_mode == WARN_HYPRE_ERRORS)
       {
          if (err) { MFEM_WARNING("Error during setup! Error code: " << err); }
@@ -2530,7 +2547,11 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
    {
       x = 0.0;
    }
+   dbg("[mult] b:%.15e x:%.15e",b*b,x*x);
+   b.HostRead();
+   x.HostReadWrite();
    err = SolveFcn()(*this, *A, b, x);
+   dbg("[mult] x:%.15e",x*x);
    if (error_mode == WARN_HYPRE_ERRORS)
    {
       if (err) { MFEM_WARNING("Error during solve! Error code: " << err); }
@@ -2544,15 +2565,20 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
 
 void HypreSolver::Mult(const Vector &b, Vector &x) const
 {
+   dbg("b:%.15e, x:%.15e",b*b,x*x);
+   //A->Mult(b,x); dbg("x:%.15e",x*x);
+
    if (A == NULL)
    {
       mfem_error("HypreSolver::Mult (...) : HypreParMatrix A is missing");
       return;
    }
    auto b_data = b.HostRead();
+   //A->Mult(b,x); dbg("x:%.15e",x*x);
    auto x_data = x.HostWrite();
    if (B == NULL)
    {
+      dbg("B == NULL");
       B = new HypreParVector(A->GetComm(),
                              A -> GetGlobalNumRows(),
                              const_cast<double*>(b_data),
@@ -2564,11 +2590,16 @@ void HypreSolver::Mult(const Vector &b, Vector &x) const
    }
    else
    {
+      dbg("SetData");
       B -> SetData(const_cast<double*>(b_data));
       X -> SetData(x_data);
    }
 
+   dbg("B:%.15e",(*B)*(*B));
+   //*X = 0.0;
    Mult(*B, *X);
+   dbg("X:%.15e",(*X)*(*X));
+   //MFEM_ABORT("");
 }
 
 HypreSolver::~HypreSolver()
@@ -2661,6 +2692,7 @@ void HyprePCG::SetResidualConvergenceOptions(int res_frequency, double rtol)
 
 void HyprePCG::Mult(const HypreParVector &b, HypreParVector &x) const
 {
+   dbg("b:%.15e, x:%.15e", b*b, x*x);
    int myid;
    HYPRE_Int time_index = 0;
    HYPRE_Int num_iterations;
@@ -2680,8 +2712,9 @@ void HyprePCG::Mult(const HypreParVector &b, HypreParVector &x) const
          time_index = hypre_InitializeTiming("PCG Setup");
          hypre_BeginTiming(time_index);
       }
-
+      dbg("HYPRE_ParCSRPCGSetup b:%.15e",b*b);
       HYPRE_ParCSRPCGSetup(pcg_solver, *A, b, x);
+      dbg("HYPRE_ParCSRPCGSetup x:%.15e",x*x);
       setup_called = 1;
 
       if (print_level > 0 && print_level < 3)
@@ -2706,8 +2739,11 @@ void HyprePCG::Mult(const HypreParVector &b, HypreParVector &x) const
 
    b.HostRead();
    x.HostReadWrite();
+   dbg("A:"); A->Print("A.txt");
+   dbg("b:%.15e, x:%.15e", b*b, x*x);
 
    HYPRE_ParCSRPCGSolve(pcg_solver, *A, b, x);
+   dbg("b:%.15e, x:%.15e", b*b, x*x);
 
    if (print_level > 0)
    {
@@ -3623,6 +3659,7 @@ HypreAMS::HypreAMS(HypreParMatrix &A, ParFiniteElementSpace *edge_fespace)
 
 void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
 {
+   dbg("\033[33m[HypreAMS]");
    int cycle_type       = 13;
    int rlx_type         = 2;
    int rlx_sweeps       = 1;
@@ -3658,6 +3695,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
          p = edge_fespace->GetOrder(0);
       }
    }
+   dbg("p:%d",p);
 
    ParMesh *pmesh = edge_fespace->GetParMesh();
    if (rt_trace_space)
@@ -3666,6 +3704,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
       edge_fespace = new ParFiniteElementSpace(pmesh, nd_tr_fec);
    }
 
+   dbg("\033[33m[HypreAMS] HYPRE_AMSCreate");
    HYPRE_AMSCreate(&ams);
 
    HYPRE_AMSSetDimension(ams, sdim); // 2D H(div) and 3D H(curl) problems
@@ -3690,6 +3729,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
    // generate and set the vertex coordinates
    if (p == 1)
    {
+      dbg("\033[33m[HypreAMS] p==1 generate");
       ParGridFunction x_coord(vert_fespace);
       ParGridFunction y_coord(vert_fespace);
       ParGridFunction z_coord(vert_fespace);
@@ -3699,17 +3739,25 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
          coord = pmesh -> GetVertex(i);
          x_coord(i) = coord[0];
          y_coord(i) = coord[1];
+         dbg("%.8e %.8e",x_coord(i),y_coord(i));
          if (sdim == 3) { z_coord(i) = coord[2]; }
       }
+      dbg("\033[33m[HypreAMS] ParallelProject");
       x = x_coord.ParallelProject();
+      x->HostReadWrite();
+      dbg("\033[33m[HypreAMS] x:%.15e",(*x)*(*x));
       y = y_coord.ParallelProject();
+      y->HostReadWrite();
+      dbg("\033[33m[HypreAMS] y:%.15e",(*y)*(*y));
       if (sdim == 2)
       {
          z = NULL;
+         dbg("\033[33m[HypreAMS] sdim == 2 HYPRE_AMSSetCoordinateVectors");
          HYPRE_AMSSetCoordinateVectors(ams, *x, *y, NULL);
       }
       else
       {
+         dbg("\033[33m[HypreAMS] sdim == 3 HYPRE_AMSSetCoordinateVectors");
          z = z_coord.ParallelProject();
          HYPRE_AMSSetCoordinateVectors(ams, *x, *y, *z);
       }
@@ -3722,19 +3770,26 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
    }
 
    // generate and set the discrete gradient
+   dbg("\033[33m[HypreAMS] gradient");
    ParDiscreteLinearOperator *grad;
    grad = new ParDiscreteLinearOperator(vert_fespace, edge_fespace);
    if (trace_space)
    {
+      dbg("\033[33m[HypreAMS] AddTraceFaceInterpolator");
       grad->AddTraceFaceInterpolator(new GradientInterpolator);
    }
    else
    {
+      dbg("\033[33m[HypreAMS] AddDomainInterpolator");
       grad->AddDomainInterpolator(new GradientInterpolator);
    }
+   dbg("\033[33m[HypreAMS] Assemble");
    grad->Assemble();
+   dbg("\033[33m[HypreAMS] Finalize");
    grad->Finalize();
+   dbg("\033[33m[HypreAMS] ParallelAssemble");
    G = grad->ParallelAssemble();
+   dbg("\033[33m[HypreAMS] HYPRE_AMSSetDiscreteGradient");
    HYPRE_AMSSetDiscreteGradient(ams, *G);
    delete grad;
 
@@ -3792,9 +3847,14 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
    }
 
    // set additional AMS options
+   dbg("\033[33m[HypreAMS] HYPRE_AMSSetSmoothingOptions");
    HYPRE_AMSSetSmoothingOptions(ams, rlx_type, rlx_sweeps, rlx_weight, rlx_omega);
+
+   dbg("\033[33m[HypreAMS] HYPRE_AMSSetAlphaAMGOptions");
    HYPRE_AMSSetAlphaAMGOptions(ams, amg_coarsen_type, amg_agg_levels, amg_rlx_type,
                                theta, amg_interp_type, amg_Pmax);
+
+   dbg("\033[33m[HypreAMS] HYPRE_AMSSetBetaAMGOptions");
    HYPRE_AMSSetBetaAMGOptions(ams, amg_coarsen_type, amg_agg_levels, amg_rlx_type,
                               theta, amg_interp_type, amg_Pmax);
 
@@ -3803,10 +3863,12 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
    // can produce hypre errors in the Setup (specifically in the l1 row norm
    // computation). See the documentation of SetErrorMode() for more details.
    error_mode = IGNORE_HYPRE_ERRORS;
+   dbg("\033[33m[HypreAMS] done");
 }
 
 void HypreAMS::SetOperator(const Operator &op)
 {
+   dbg("\033[33m[HypreAMS]");
    const HypreParMatrix *new_A = dynamic_cast<const HypreParMatrix *>(&op);
    MFEM_VERIFY(new_A, "new Operator must be a HypreParMatrix!");
 
@@ -3823,6 +3885,7 @@ void HypreAMS::SetOperator(const Operator &op)
 
 HypreAMS::~HypreAMS()
 {
+   dbg("\033[33m[HypreAMS]");
    HYPRE_AMSDestroy(ams);
 
    delete x;

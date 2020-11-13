@@ -16,6 +16,7 @@
 #include "fem.hpp"
 #include <iostream>
 #include <limits>
+#include "../general/debug.hpp"
 #include "../general/forall.hpp"
 using namespace std;
 
@@ -175,13 +176,23 @@ void ParGridFunction::ParallelProject(Vector &tv) const
 
 void ParGridFunction::ParallelProject(HypreParVector &tv) const
 {
+   dbg();
    pfes->GetRestrictionMatrix()->Mult(*this, tv);
 }
 
 HypreParVector *ParGridFunction::ParallelProject() const
 {
-   HypreParVector *tv = pfes->NewTrueDofVector();
+   dbg();
+   //HypreParVector *tv = pfes->NewTrueDofVector();
+   Vector *tv_data = new Vector(pfes->GlobalTrueVSize(),
+                                Device::GetHostMemoryType());
+   HypreParVector *tv =
+      new HypreParVector(pfes->GetComm(),
+                         pfes->GlobalTrueVSize(),
+                         tv_data->GetData(),
+                         pfes->GetTrueDofOffsets());
    ParallelProject(*tv);
+   //tv->HostReadWrite();
    return tv;
 }
 
