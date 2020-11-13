@@ -88,6 +88,7 @@ setup:
 
 .build_toss_3_x86_64_ib_script:
   script:
+    - export THREADS=12
     - echo ${ALLOC_NAME}
     - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
     - echo ${JOBID}
