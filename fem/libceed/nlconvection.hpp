@@ -19,7 +19,7 @@
 namespace mfem
 {
 
-/// Initialize a Convection Integrator using libCEED
+/// Initialize a non-linear Convection Integrator using libCEED
 void CeedPANLConvectionAssemble(const FiniteElementSpace &fes,
                                 const mfem::IntegrationRule &ir,
                                 CeedData& ceedData);
