@@ -17,7 +17,7 @@ double dist_fun(const Vector &x);
 double dist_fun_level_set(const Vector &x);
 double dirichlet_velocity(const Vector &x);
 
-#define level_set_type 1 // 1 - 1 circle, 2 - 2 circles, 3 - analyic linear
+#define level_set_type 3 // 1 - 1 circle, 2 - 2 circles, 3 - analyic linear
 
 int main(int argc, char *argv[])
 {
@@ -35,6 +35,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = true;
    int ser_ref_levels = 0;
+   bool exact = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -53,6 +54,9 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&exact, "-ex", "--exact", "-no-ex",
+                  "--no-exact",
+                  "Enable or disable GLVis visualization.");
 
    args.Parse();
    if (!args.Good())
@@ -131,14 +135,16 @@ int main(int argc, char *argv[])
    FunctionCoefficient dist_fun_level_coef(dist_fun_level_set);
    DistanceFunction dist_func(pmesh, order, 1.0);
    ParGridFunction &distance = dist_func.ComputeDistance(dist_fun_level_coef,
-                                                         10, true);
+                                                         1, true);
   // const ParGridFunction &src = dist_func.GetLastSourceGF(),
   //                       &diff_src = dist_func.GetLastDiffusedSourceGF();
 
    GradientCoefficient grad_u(dist_func.GetLastDiffusedSourceGF(), dim);
 
    dist.ProjectCoefficient(dist_fun_level_coef);
-   distance.ProjectCoefficient(dist_fun_coef);
+   if (exact) {
+       distance.ProjectCoefficient(dist_fun_coef); // analytic projection
+   }
 
    if (visualization)
    {
@@ -344,6 +350,7 @@ int main(int argc, char *argv[])
                << 350 << " " << 350 << " " << 350 << " " << 350 << "\n"
                << "keys Rjmpc" << endl;
    }
+   //MFEM_ABORT(" ");
 
    // 7. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
@@ -399,6 +406,15 @@ int main(int argc, char *argv[])
    gmres.Mult(B, X);
    delete prec;
 
+//   CGSolver cg(MPI_COMM_WORLD);
+//   cg.SetRelTol(1e-12);
+//   cg.SetMaxIter(2000);
+//   cg.SetPrintLevel(1);
+//   cg.SetPreconditioner(*prec);
+//   cg.SetOperator(*A);
+//   cg.Mult(B, X);
+//   delete prec;
+
    // 12. Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, x);
 
@@ -450,7 +466,7 @@ int main(int argc, char *argv[])
                << 700 << " " << 0 << " " << 350 << " " << 350 << "\n"
                << "keys Rj" << endl;
    }
-
+   std::cout << " ERROR IS " << x.ComputeL1Error(dbcCoef) << " k10\n";
    // 15. Free the used memory.
    delete fec;
    delete fec_mesh;
