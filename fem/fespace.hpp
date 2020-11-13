@@ -485,7 +485,9 @@ public:
    inline int GetVDim() const { return vdim; }
 
    /// Returns the order of the i'th finite element (deprecated).
-   int GetOrder(int i) const { return GetElementOrder(i); }
+   int GetOrder(int i) const { return GetFE(i)->GetOrder(); }
+   /* TODO: the above should really be GetElementOrder(i) but there is an
+      inconsistency in ND/RT spaces: order 0 collection has order 1 FEs. */
 
    /** Returns the order of the specified edge. In a variable order space, order
        of the given variant is returned, or -1 if there are no more variants. */
