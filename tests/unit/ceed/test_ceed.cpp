@@ -20,6 +20,8 @@ using namespace mfem;
 namespace ceed_test
 {
 
+#ifdef MFEM_USE_CEED
+
 double coeff_function(const Vector &x)
 {
    return 1.0 + x[0]*x[0];
@@ -124,6 +126,8 @@ static std::string getString(NLProblem pb)
       return "Convection";
       break;
    }
+   mfem_error("Unknown Problem.");
+   return "";
 }
 
 static void InitCoeff(Mesh &mesh, FiniteElementCollection &fec, const int dim,
@@ -151,7 +155,7 @@ static void InitCoeff(Mesh &mesh, FiniteElementCollection &fec, const int dim,
       case CeedCoeff::VecConst:
       {
          Vector val(dim);
-         for (size_t i = 0; i < dim; i++)
+         for (int i = 0; i < dim; i++)
          {
             val(i) = 1.0;
          }         
@@ -305,7 +309,7 @@ void test_ceed_nloperator(const char* input, int order, const CeedCoeff coeff_ty
    delete vcoeff;
 }
 
-TEST_CASE("CEED mass & diffusion", "[CEED mass & diffusion]")
+TEST_CASE("CEED mass & diffusion", "[CEED]")
 {
    auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
    auto coeff_type = GENERATE(CeedCoeff::Const,CeedCoeff::Grid,CeedCoeff::Quad);
@@ -319,7 +323,7 @@ TEST_CASE("CEED mass & diffusion", "[CEED mass & diffusion]")
    test_ceed_operator(mesh, order, coeff_type, pb, assembly);
 } // test case
 
-TEST_CASE("CEED convection", "[CEED convection]")
+TEST_CASE("CEED convection", "[CEED],[Convection]")
 {
    auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
    auto coeff_type = GENERATE(CeedCoeff::VecConst,CeedCoeff::VecGrid,
@@ -332,7 +336,7 @@ TEST_CASE("CEED convection", "[CEED convection]")
    test_ceed_operator(mesh, order, coeff_type, pb, assembly);
 } // test case
 
-TEST_CASE("CEED non-linear convection", "[CEED nlconvection]")
+TEST_CASE("CEED non-linear convection", "[CEED],[NLConvection]")
 {
    auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
    auto coeff_type = GENERATE(CeedCoeff::Const,CeedCoeff::Grid,CeedCoeff::Quad);
@@ -345,5 +349,7 @@ TEST_CASE("CEED non-linear convection", "[CEED nlconvection]")
                         "../../data/fichera.mesh");
    test_ceed_nloperator(mesh, order, coeff_type, pb, assembly);
 } // test case
+
+#endif
 
 } // namespace ceed_test

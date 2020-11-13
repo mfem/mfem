@@ -120,7 +120,7 @@ void InitCeedVecCoeff(VectorCoefficient *VQ, Mesh &mesh,
       const int vdim = coeff->GetVDim();
       const Vector &val = coeff->GetVec();
       CeedVecConstCoeff *ceedCoeff = new CeedVecConstCoeff;
-      for (size_t i = 0; i < vdim; i++)
+      for (int i = 0; i < vdim; i++)
       {
          ceedCoeff->val[i] = val[i];
       }
@@ -256,7 +256,7 @@ void CeedAssemble(const CeedPAOperator& op,
                                      qf.c_str(),
                                      &ceedData.build_qfunc);
          CeedVecConstCoeff *coeff = static_cast<CeedVecConstCoeff*>(ceedData.coeff);
-         for (size_t i = 0; i < dim; i++)
+         for (int i = 0; i < dim; i++)
          {
             ceedData.build_ctx_data.coeff[i] = coeff->val[i];
          }
@@ -516,7 +516,7 @@ void CeedAssemble(const CeedMFOperator& op,
                                      qf.c_str(),
                                      &ceedData.apply_qfunc);
          CeedVecConstCoeff *coeff = static_cast<CeedVecConstCoeff*>(ceedData.coeff);
-         for (size_t i = 0; i < dim; i++)
+         for (int i = 0; i < dim; i++)
          {
             ceedData.build_ctx_data.coeff[i] = coeff->val[i];
          }
