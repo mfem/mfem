@@ -22,7 +22,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS = 
-PAR_MINIAPPS = stix1d stix2d stix3d
+PAR_MINIAPPS = stix1d stix2d stix3d stix2d_dh
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -36,7 +36,8 @@ endif
 
 COMMON_O=../common/fem_extras.o ../common/pfem_extras.o \
 	../common/mesh_extras.o \
-	cold_plasma_dielectric_solver.o cold_plasma_dielectric_coefs.o
+	cold_plasma_dielectric_solver.o cold_plasma_dielectric_coefs.o \
+	cold_plasma_dielectric_dh_solver.o 
 
 # Remove built-in rules
 %: %.cpp
