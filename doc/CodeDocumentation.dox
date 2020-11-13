@@ -62,7 +62,7 @@ namespace mfem {
  * - <a class="el" href="ex9p_8cpp_source.html">Example 9p</a>: parallel Discontinuous Galerkin (DG) time-dependent advection
  * - <a class="el" href="ex10_8cpp_source.html">Example 10</a>: time-dependent implicit nonlinear elasticity
  * - <a class="el" href="ex10p_8cpp_source.html">Example 10p</a>: parallel time-dependent implicit nonlinear elasticity
- * - <a class="el" href="examples_2ex11p_8cpp_source.html">Example 11p</a>: parallel Laplace eigensolver
+ * - <a class="el" href="ex11p_8cpp_source.html">Example 11p</a>: parallel Laplace eigensolver
  * - <a class="el" href="ex12p_8cpp_source.html">Example 12p</a>: parallel linear elasticity eigensolver
  * - <a class="el" href="ex13p_8cpp_source.html">Example 13p</a>: parallel Maxwell eigensolver
  * - <a class="el" href="ex14_8cpp_source.html">Example 14</a>: Discontinuous Galerkin (DG) for the Laplace problem
@@ -90,20 +90,25 @@ namespace mfem {
  * - <a class="el" href="ex25p_8cpp_source.html">Example 25p</a>: parallel simulation of electromagnetic wave propagation using a Perfectly Matched Layer (PML)
  * - <a class="el" href="ex26_8cpp_source.html">Example 26</a>: multigrid preconditioner for the Laplace problem using nodal H1 FEM
  * - <a class="el" href="ex26p_8cpp_source.html">Example 26p</a>: parallel multigrid preconditioner for the Laplace problem using nodal H1 FEM
+ * - <a class="el" href="ex27_8cpp_source.html">Example 27</a>: boundary conditions for the Laplace problem
+ * - <a class="el" href="ex27p_8cpp_source.html">Example 27p</a>: parallel boundary conditions for the Laplace problem
  *
- * <H4>SUNDIALS Examples</H4>
+ * <H4>AmgX Examples</H4>
  * - Variants of Examples
- *   <a class="el" href="sundials_2ex9_8cpp_source.html">9</a>,
- *   <a class="el" href="sundials_2ex9p_8cpp_source.html">9p</a>,
- *   <a class="el" href="sundials_2ex10_8cpp_source.html">10</a>,
- *   <a class="el" href="sundials_2ex10p_8cpp_source.html">10p</a>,
- *   <a class="el" href="sundials_2ex16_8cpp_source.html">16</a>,
- *   and
- *   <a class="el" href="sundials_2ex16p_8cpp_source.html">16p</a>
- *   demonstrating the use of MFEM's \link sundials.hpp SUNDIALS classes\endlink
- * - CVODES adjoint examples:
- *   <a class="el" href="cvsRoberts__ASAi__dns_8cpp_source.html">serial ODE system</a>,
- *   <a class="el" href="adjoint__advection__diffusion_8cpp_source.html">parallel advection-diffusion</a>
+ *   <a class="el" href="examples_2amgx_2ex1_8cpp_source.html">1</a> and
+ *   <a class="el" href="examples_2amgx_2ex1p_8cpp_source.html">1p</a>,
+ *   demonstrating the use of MFEM's \link amgxsolver.hpp AmgX integration\endlink.
+ *
+ * <H4>Ginkgo Examples</H4>
+ * - Variants of Example
+ *   <a class="el" href="examples_2ginkgo_2ex1_8cpp_source.html">1</a>,
+ *   demonstrating the use of MFEM's \link ginkgo.hpp Ginkgo integration\endlink.
+ *
+ * <H4>HiOp Examples</H4>
+ * - Variants of Examples
+ *   <a class="el" href="hiop_2ex9_8cpp_source.html">9</a> and
+ *   <a class="el" href="hiop_2ex9p_8cpp_source.html">9p</a>,
+ *   demonstrating the use of MFEM's \link hiop.hpp HiOp integration\endlink.
  *
  * <H4>PETSc Examples</H4>
  * - Variants of Examples
@@ -115,8 +120,8 @@ namespace mfem {
  *   <a class="el" href="petsc_2ex6p_8cpp_source.html">6p</a>,
  *   <a class="el" href="petsc_2ex9p_8cpp_source.html">9p</a>,
  *   and
- *   <a class="el" href="petsc_2ex10p_8cpp_source.html">10p</a>
- *   demonstrating the use of MFEM's \link petsc.hpp PETSc classes\endlink
+ *   <a class="el" href="petsc_2ex10p_8cpp_source.html">10p</a>,
+ *   demonstrating the use of MFEM's \link petsc.hpp PETSc integration\endlink.
  *
  * <H4>PUMI Examples</H4>
  * - Variants of Examples
@@ -124,19 +129,27 @@ namespace mfem {
  *   <a class="el" href="examples_2pumi_2ex1p_8cpp_source.html">1p</a>,
  *   <a class="el" href="pumi_2ex2_8cpp_source.html">2</a>,
  *   and
- *   <a class="el" href="pumi_2ex6p_8cpp_source.html">6p</a>
- *   demonstrating the use of MFEM's \link pumi.hpp PUMI classes\endlink
+ *   <a class="el" href="pumi_2ex6p_8cpp_source.html">6p</a>,
+ *   demonstrating the use of MFEM's \link pumi.hpp PUMI integration\endlink.
  *
- * <H4>HiOp Examples</H4>
+ * <H4>SUNDIALS Examples</H4>
  * - Variants of Examples
- *   <a class="el" href="hiop_2ex9_8cpp_source.html">9</a> and
- *   <a class="el" href="hiop_2ex9p_8cpp_source.html">9p</a>,
- *   demonstrating the use of MFEM's \link hiop.hpp HiOp classes\endlink
+ *   <a class="el" href="sundials_2ex9_8cpp_source.html">9</a>,
+ *   <a class="el" href="sundials_2ex9p_8cpp_source.html">9p</a>,
+ *   <a class="el" href="sundials_2ex10_8cpp_source.html">10</a>,
+ *   <a class="el" href="sundials_2ex10p_8cpp_source.html">10p</a>,
+ *   <a class="el" href="sundials_2ex16_8cpp_source.html">16</a>,
+ *   and
+ *   <a class="el" href="sundials_2ex16p_8cpp_source.html">16p</a>,
+ *   demonstrating the use of MFEM's \link sundials.hpp SUNDIALS integration\endlink.
+ * - CVODES adjoint miniapps:
+ *   <a class="el" href="cvsRoberts__ASAi__dns_8cpp_source.html">serial ODE system</a>,
+ *   <a class="el" href="adjoint__advection__diffusion_8cpp_source.html">parallel advection-diffusion</a>.
  *
- * <H4>Ginkgo Examples</H4>
+ * <H4>SuperLU Examples</H4>
  * - Variants of Example
- *   <a class="el" href="ginkgo_2ex1_8cpp_source.html">1</a>
- *   demonstrating the use of MFEM's \link ginkgo.hpp Ginkgo classes\endlink
+ *   <a class="el" href="examples_2superlu_2ex1p_8cpp_source.html">1p</a>,
+ *   demonstrating the use of MFEM's \link superlu.hpp SuperLU integration\endlink.
  *
  * <H3>Miniapps</H3>
  * - <a class="el" href="volta_8cpp_source.html">Volta</a>: simple electrostatics simulation code
@@ -162,11 +175,11 @@ namespace mfem {
  * - <a class="el" href="lor-transfer_8cpp_source.html">LOR Transfer</a>: map functions between high-order and low-order refined spaces
  * - <a class="el" href="findpts_8cpp_source.html">Find Points</a>: evaluate grid function in physical space, <a class="el" href="findpts_8cpp_source.html">serial</a> and <a class="el" href="pfindpts_8cpp_source.html">parallel</a> versions
  * - <a class="el" href="field-diff_8cpp_source.html">Field Diff</a>: compare grid functions on different meshes
- * - <a class="el" href="field-interp_8cpp_source.html">Field Interp</a>: transfer a grid functions betwen meshes
+ * - <a class="el" href="field-interp_8cpp_source.html">Field Interp</a>: transfer a grid functions between meshes
  * - <a class="el" href="miniapps_2performance_2ex1_8cpp_source.html">HPC Example 1</a>: high-performance nodal H1 FEM for the Laplace problem
  * - <a class="el" href="miniapps_2performance_2ex1p_8cpp_source.html">HPC Example 1p</a>: high-performance parallel nodal H1 FEM for the Laplace problem
  *
- * See also the <a class="el" href="../../../examples/README.html">README</a> in the <code>examples/</code> directory
+ * See also the <a class="el" href="https://mfem.org/examples/">examples documentation</a> online.
  */
 
 }
