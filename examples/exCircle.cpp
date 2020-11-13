@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
    Mesh *mesh3; 
    cout << "flag 1 " << endl;                  
    // CutMesh newmesh;
-   mesh3->updateMesh();
+   //mesh3->updateMesh();
    cout << "flag 4 " << endl;   
    std::cout << "Number of elements for mesh 3 inside " << mesh3->GetNE() << '\n';
    //mesh2->elements.SetSize(100);
@@ -199,17 +199,17 @@ void CutDomainIntegrator::AssembleDeltaElementVect(
    elvect *= delta->EvalDelta(Trans, Trans.GetIntPoint());
 }
 
-void Mesh::updateMesh()
-{
-   //Mesh* mesh2;
-   //  Element *el = mesh2->NewElement(Element::QUADRILATERAL);
-   cout << "flag 2 inside " << endl; 
-   cout << elements.Size() << endl;  
-   NumOfElements= 200;
-   elements.SetSize( NumOfElements);
-   cout << "flag 3 inside " << endl;   
-   cout << elements.Size() << endl;  
-}
+// void Mesh::updateMesh()
+// {
+//    //Mesh* mesh2;
+//    //  Element *el = mesh2->NewElement(Element::QUADRILATERAL);
+//    cout << "flag 2 inside " << endl; 
+//    cout << elements.Size() << endl;  
+//    NumOfElements= 200;
+//    elements.SetSize( NumOfElements);
+//    cout << "flag 3 inside " << endl;   
+//    cout << elements.Size() << endl;  
+// }
 // function to see if an element is cut-element
 bool cutByCircle(Mesh *mesh, int &elemid)
 {

@@ -295,8 +295,8 @@ void uexact(const Vector &x, Vector &q)
    double a = sqrt(euler::gamma * press / rho);
 
    u(0) = rho;
-   u(1) = -rho * a * Ma * sin(theta);
-   u(2) = rho * a * Ma * cos(theta);
+   u(1) = rho * a * Ma * sin(theta);
+   u(2) = -rho * a * Ma * cos(theta);
    u(3) = press / euler::gami + 0.5 * rho * a * a * Ma * Ma;
 
    q = u;

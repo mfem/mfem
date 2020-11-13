@@ -155,10 +155,7 @@ int main(int argc, char *argv[])
       ess_bdr = 1;
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
-   cout << "Number of finite element unknowns: "
-        << fespace->GetVSize() << endl;
-   cout << "Number of true finite element unknowns: "
-        << fespace->GetTrueVSize() << endl;
+
    // 7. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.

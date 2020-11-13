@@ -514,17 +514,6 @@ public:
    ///@{
    std::map<int, int> cutboundaryFaces;
    Element *NewElement(int geom);
-<<<<<<< HEAD
-   void updateMesh();
-   void AddVertex(const double *);
-   void AddSegment(const int *vi, int attr = 1);
-   void AddTri(const int *vi, int attr = 1);
-   void AddTriangle(const int *vi, int attr = 1);
-   void AddQuad(const int *vi, int attr = 1);
-   void AddTet(const int *vi, int attr = 1);
-   void AddWedge(const int *vi, int attr = 1);
-   void AddHex(const int *vi, int attr = 1);
-=======
 
    int AddVertex(double x, double y = 0.0, double z = 0.0);
    int AddVertex(const double *coords);
@@ -550,7 +539,6 @@ public:
    int AddHex(int v1, int v2, int v3, int v4, int v5, int v6, int v7, int v8,
               int attr = 1);
    int AddHex(const int *vi, int attr = 1);
->>>>>>> origin/odl
    void AddHexAsTets(const int *vi, int attr = 1);
    void AddHexAsWedges(const int *vi, int attr = 1);
 

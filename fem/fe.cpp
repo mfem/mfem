@@ -7774,15 +7774,6 @@ NodalTensorFiniteElement::NodalTensorFiniteElement(const int dims,
      TensorBasisElement(dims, p, VerifyNodal(btype), dmtype) { }
 
 
-CutNodalTensorFiniteElement::CutNodalTensorFiniteElement(const int dims,
-                                                   const int p,
-                                                   const int btype,
-                                                   const DofMapType dmtype)
-   : NodalFiniteElement(dims, Geometry::CUTSQUARE , Pow(p + 1, dims),
-                        p, dims > 1 ? FunctionSpace::Qk : FunctionSpace::Pk),
-     TensorBasisElement(dims, p, VerifyNodal(btype), dmtype) { }
-
-
 PositiveTensorFiniteElement::PositiveTensorFiniteElement(
    const int dims, const int p, const DofMapType dmtype)
    : PositiveFiniteElement(dims, GetTensorProductGeometry(dims),
@@ -8045,57 +8036,7 @@ void H1_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
          break;
    }
 }
-// finite element for 2d cut element
-H1_CutQuadElement::H1_CutQuadElement(const int p, const int btype)
-   : CutNodalTensorFiniteElement(2, p, VerifyClosed(btype), H1_DOF_MAP)
-{
-   const double *cp = poly1d.ClosedPoints(p, b_type);
 
-#ifndef MFEM_THREAD_SAFE
-   const int p1 = p + 1;
-
-   shape_x.SetSize(p1);
-   shape_y.SetSize(p1);
-   dshape_x.SetSize(p1);
-   dshape_y.SetSize(p1);
-#endif
-   int o = 0;
-   // for (int j = 0; j <= p; j++)
-   // {
-   //    for (int i = 0; i <= p; i++)
-   //    {
-   //       Nodes.IntPoint(dof_map[o++]).Set2(cp[i], cp[j]);
-   //    }
-   // }
-}
-
-void H1_CutQuadElement::CalcShape(const IntegrationPoint &ip,
-                                        Vector &shape) const
-{
-   const int p = Order;
-   const int btype = BasisType::GaussLobatto;
-   H1_QuadrilateralElement cutquad = H1_QuadrilateralElement(p, btype);
-   cutquad.CalcShape(ip, shape);
-}
-
-void H1_CutQuadElement::CalcDShape(const IntegrationPoint &ip,
-                                         DenseMatrix &dshape) const
-{
-   const int p = Order;
-   const int btype = BasisType::GaussLobatto;
-   H1_QuadrilateralElement cutquad = H1_QuadrilateralElement(p, btype);
-   cutquad.CalcDShape(ip, dshape);
-}
-
-void H1_CutQuadElement::ProjectDelta(int vertex, Vector &dofs) const
-{
-   const int p = Order;
-   const int btype = BasisType::GaussLobatto;
-   H1_QuadrilateralElement cutquad = H1_QuadrilateralElement(p, btype);
-   cutquad.ProjectDelta(vertex, dofs);
-}
-
-// cut quad element ends here
 
 H1_HexahedronElement::H1_HexahedronElement(const int p, const int btype)
    : NodalTensorFiniteElement(3, p, VerifyClosed(btype), H1_DOF_MAP)
