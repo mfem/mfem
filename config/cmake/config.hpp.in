@@ -86,6 +86,9 @@
 // Enable MFEM functionality based on the SuperLU_DIST library.
 #cmakedefine MFEM_USE_SUPERLU
 
+// Enable MFEM functionality based on the MUMPS library.
+#cmakedefine MFEM_USE_MUMPS
+
 // Enable MFEM functionality based on the STRUMPACK library.
 #cmakedefine MFEM_USE_STRUMPACK
 
