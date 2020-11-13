@@ -298,7 +298,7 @@ void adios2stream::Print(const Mesh& mesh, const mode print_mode)
          element_nvertices = static_cast<size_t>(mesh.elements[0]->GetNVertices());
       }
       SafeDefineVariable<uint64_t>(io, "connectivity", {}, {}, {nelements, element_nvertices+1});
-      SafeDefineVariable<int32_t>(io, "material", {}, {}, {nelements});
+      SafeDefineVariable<int32_t>(io, "attribute", {}, {}, {nelements});
 
       // vertices
       SafeDefineVariable<uint32_t>(io,"NumOfVertices", {adios2::LocalValueDim});
@@ -351,7 +351,7 @@ void adios2stream::Print(const Mesh& mesh, const mode print_mode)
                                                            (var_connectivity);
 
       adios2::Variable<int32_t> var_element_attribute =
-         io.InquireVariable<int32_t>("material");
+         io.InquireVariable<int32_t>("attribute");
       adios2::Variable<int32_t>::Span span_element_attribute = engine.Put<int32_t>
                                                                (var_element_attribute);
 
@@ -435,7 +435,7 @@ void adios2stream::Print(const Mesh& mesh, const mode print_mode)
          engine.Put<uint64_t>(varConnectivity);
 
       adios2::Variable<int32_t> varElementAttribute =
-         io.InquireVariable<int32_t>("material");
+         io.InquireVariable<int32_t>("attribute");
       // zero-copy access to adios2 buffer to put non-contiguous to contiguous memory
       adios2::Variable<int32_t>::Span spanElementAttribute =
          engine.Put<int32_t>(varElementAttribute);
@@ -720,7 +720,7 @@ std::string adios2stream::VTKSchema() const noexcept
    vtkSchema += R"(
       </Points>
 	  <CellData>
-        <DataArray Name="material" />
+        <DataArray Name="attribute" />
 	  </CellData>
       <Cells>
         <DataArray Name="connectivity" />

@@ -415,6 +415,12 @@ public:
 
 // Inline methods
 
+template <typename T>
+inline T ZeroSubnormal(T val)
+{
+   return (std::fpclassify(val) == FP_SUBNORMAL) ? 0.0 : val;
+}
+
 inline bool IsFinite(const double &val)
 {
    // isfinite didn't appear in a standard until C99, and later C++11. It wasn't
