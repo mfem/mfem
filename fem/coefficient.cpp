@@ -46,6 +46,28 @@ double FunctionCoefficient::Eval(ElementTransformation & T,
    }
 }
 
+double SBMFunctionCoefficient::Eval(ElementTransformation & T,
+                                 const IntegrationPoint & ip,
+                                 const Vector &D)
+{
+   double x[3];
+   Vector transip(x, 3);
+
+   T.Transform(ip, transip);
+   for (int i = 0; i < D.Size(); i++) {
+       transip(i) += D(i);
+   }
+
+   if (Function)
+   {
+      return Function(transip);
+   }
+   else
+   {
+      return TDFunction(transip, GetTime());
+   }
+}
+
 double GridFunctionCoefficient::Eval (ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {

@@ -264,7 +264,7 @@ void LinearForm::Assemble()
                sflfi[0] -> AssembleRHSElementVect (*fes->GetFE(tr -> Elem2No),
                                                    *tr, elemvect);
             }
-            //  if (faceflag == 1) { elemvect *= 2.; }
+            //if (faceflag == 1) { elemvect *= 2.; }
             AddElementVector (vdofs, elemvect);
          }
       }

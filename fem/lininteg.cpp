@@ -845,7 +845,7 @@ void SBM2LFIntegrator::AssembleRHSElementVect(
          el.CalcShape(eip1, shape);
          el.CalcDShape(eip1, dshape);
          hinvdx =nor*nor/Tr.Elem1->Weight();
-         w = ip.weight * uD->Eval(Tr, ip) / Tr.Elem1->Weight();
+         w = ip.weight * uD->Eval(Tr, ip, D) / Tr.Elem1->Weight();
          CalcAdjugate(Tr.Elem1->Jacobian(), adjJ);
       }
       else
@@ -853,7 +853,7 @@ void SBM2LFIntegrator::AssembleRHSElementVect(
          el.CalcShape(eip2, shape);
          el.CalcDShape(eip2, dshape);
          hinvdx = nor*nor/Tr.Elem2->Weight();
-         w = ip.weight * uD->Eval(Tr, ip) / Tr.Elem2->Weight();
+         w = ip.weight * uD->Eval(Tr, ip, D) / Tr.Elem2->Weight();
          CalcAdjugate(Tr.Elem2->Jacobian(), adjJ);
       }
 
@@ -866,14 +866,12 @@ void SBM2LFIntegrator::AssembleRHSElementVect(
 
       if (elem1f)
       {
-         w = ip.weight * uD->Eval(Tr, ip) * alpha * hinvdx/Tr.Elem1->Weight();
+         w = ip.weight * uD->Eval(Tr, ip, D) * alpha * hinvdx/Tr.Elem1->Weight();
       }
       else
       {
-         w = ip.weight * uD->Eval(Tr, ip) * alpha * hinvdx/Tr.Elem2->Weight();
+         w = ip.weight * uD->Eval(Tr, ip, D) * alpha * hinvdx/Tr.Elem2->Weight();
       }
-
-      vD->Eval(D, Tr, ip);
 
       adjJ.Mult(D, nh);
       nh *= w;
@@ -882,7 +880,7 @@ void SBM2LFIntegrator::AssembleRHSElementVect(
       elvect.Add(1., dshape_dd); //T4
 
       wrk = shape;
-      w = ip.weight * uD->Eval(Tr, ip) * alpha * hinvdx;
+      w = ip.weight * uD->Eval(Tr, ip, D) * alpha * hinvdx;
       wrk *= w;
       elvect.Add(1., wrk);  //T3
    }

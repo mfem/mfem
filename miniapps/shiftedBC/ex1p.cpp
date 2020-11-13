@@ -15,6 +15,9 @@ using namespace mfem;
 
 double dist_fun(const Vector &x);
 double dist_fun_level_set(const Vector &x);
+double dirichlet_velocity(const Vector &x);
+
+#define level_set_type 1 // 1 - 1 circle, 2 - 2 circles, 3 - analyic linear
 
 int main(int argc, char *argv[])
 {
@@ -32,8 +35,6 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = true;
    int ser_ref_levels = 0;
-   double dbc_val = 0.0;
-   bool smooth = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -131,8 +132,8 @@ int main(int argc, char *argv[])
    DistanceFunction dist_func(pmesh, order, 1.0);
    ParGridFunction &distance = dist_func.ComputeDistance(dist_fun_level_coef,
                                                          10, true);
-   const ParGridFunction &src = dist_func.GetLastSourceGF(),
-                         &diff_src = dist_func.GetLastDiffusedSourceGF();
+  // const ParGridFunction &src = dist_func.GetLastSourceGF(),
+  //                       &diff_src = dist_func.GetLastDiffusedSourceGF();
 
    GradientCoefficient grad_u(dist_func.GetLastDiffusedSourceGF(), dim);
 
@@ -347,11 +348,15 @@ int main(int argc, char *argv[])
    // 7. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
-   double alpha = 10.;
+   double alpha = 100.;
    ParLinearForm b(&pfespace);
-   ConstantCoefficient one(1.0);
-   b.AddDomainIntegrator(new DomainLFIntegrator(one), trim_flag);
-   ConstantCoefficient dbcCoef(dbc_val);
+   double fval = 1.;
+   if (level_set_type == 3) {
+      fval = 0.;
+   }
+   ConstantCoefficient rhs_f(fval);
+   b.AddDomainIntegrator(new DomainLFIntegrator(rhs_f), trim_flag);
+   SBMFunctionCoefficient dbcCoef(dirichlet_velocity);
    b.AddShiftedBdrFaceIntegrator(new SBM2LFIntegrator(dbcCoef, alpha, dist_vec),
                                  sbm_int_face, sbm_int_face_el, sbm_int_flag);
    b.Assemble();
@@ -360,25 +365,25 @@ int main(int argc, char *argv[])
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
    ParBilinearForm a(&pfespace);
+   ConstantCoefficient one(1.);
    //(nabla u, nabla w) - Term 1
    a.AddDomainIntegrator(new DiffusionIntegrator(one), trim_flag);
    a.AddShiftedBdrFaceIntegrator(new SBM2Integrator(alpha, dist_vec),
                                  sbm_int_face, sbm_int_face_el, sbm_int_flag);
    x = 0;
+   x.ProjectCoefficient(dbcCoef);
 
    // 10. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
    //     conditions, applying conforming constraints for non-conforming AMR,
    //     static condensation, etc.
    if (static_cond) { a.EnableStaticCondensation(); }
-   std::cout << " abuot to assemble\n";
 
    a.Assemble();
 
    OperatorPtr A;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-
    cout << "Size of linear system: " << A->Height() << endl;
 
    Solver *prec = NULL;
@@ -386,8 +391,8 @@ int main(int argc, char *argv[])
 
    GMRESSolver gmres(MPI_COMM_WORLD);
    gmres.SetRelTol(1e-12);
-   gmres.SetMaxIter(10000);
-   gmres.SetKDim(50);
+   gmres.SetMaxIter(5000);
+   gmres.SetKDim(100);
    gmres.SetPrintLevel(1);
    gmres.SetPreconditioner(*prec);
    gmres.SetOperator(*A);
@@ -396,17 +401,6 @@ int main(int argc, char *argv[])
 
    // 12. Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, x);
-
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << pmesh << x << flush;
-   }
-
 
    // 13. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
@@ -423,11 +417,37 @@ int main(int argc, char *argv[])
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << mesh << x << flush;
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock << "solution\n" << pmesh << x << flush;
       sol_sock << "window_title 'Solution'\n"
                << "window_geometry "
                << 350 << " " << 0 << " " << 350 << " " << 350 << "\n"
+               << "keys Rj" << endl;
+   }
+
+   ParGridFunction err(x);
+   Vector vxyz;
+   vxyz = *pmesh.GetNodes();
+   int nodes_cnt = vxyz.Size()/dim;
+   for (int i = 0; i < nodes_cnt; i++) {
+       double xv = vxyz(i),
+              yv = vxyz(i+nodes_cnt);
+       double exact_val = 0.0 + (yv-0.1)/(0.9-0.1);
+       if (yv < 0.1 || yv > 0.9) { err(i) = 0.; }
+       else { err(i) = std::fabs(x(i) - exact_val); }
+   }
+
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock.precision(8);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock << "solution\n" << pmesh << err << flush;
+      sol_sock << "window_title 'Error'\n"
+               << "window_geometry "
+               << 700 << " " << 0 << " " << 350 << " " << 350 << "\n"
                << "keys Rj" << endl;
    }
 
@@ -441,7 +461,6 @@ int main(int argc, char *argv[])
 }
 
 #define ring_radius 0.2
-#define level_set_type 1
 // use 0.2 ring for dist_fun because square_disc has the
 // hole with this radius
 double dist_fun(const Vector &x)
@@ -454,7 +473,7 @@ double dist_fun(const Vector &x)
        double dist0 = rv - ring_radius; // +ve is the domain
        return dist0;
    }
-   else { // circle of radius 0.2 at 0.25, 0.25 and 0.75, 0.75
+   else if (level_set_type == 2) { // circle of radius 0.2 at 0.25, 0.25 and 0.75, 0.75
        double xc1 = 0.3, xc2 = 0.7,
               yc1 = 0.3, yc2 = 0.7;
        double dx = x(0) - xc1,
@@ -469,14 +488,37 @@ double dist_fun(const Vector &x)
        double dist2 = rv - ring_radius;
        return std::min(dist1, dist2);
    }
+   else if (level_set_type == 3) { // circle of radius 0.2 at 0.5,0.5
+       double dx = x(0) - 0.5,
+          dy = x(1) - 0.5,
+          rv = dx*dx + dy*dy;
+       rv = rv > 0 ? pow(rv, 0.5) : 0;
+       double dist0 = rv - ring_radius; // +ve is the domain
+       return dist0;
+   }
 }
 
 double dist_fun_level_set(const Vector &x)
 {
    double dist = dist_fun(x);
    if (dist > 0.) { return 1; }
-   //else if (dist == 0.) { return 0.5; }
    else { return 0.; }
 }
-#undef level_set_type
+
+double dirichlet_velocity(const Vector &x)
+{
+    if (level_set_type == 1) {
+        return 0.;
+    }
+    else if (level_set_type == 2) {
+        return 0.;
+    }
+    else {
+        double yv1 = x(1);
+        double val = 0.0 + (yv1-0.1)/(0.9-0.1);
+        return val;
+    }
+}
+
 #undef ring_radius
+#undef level_set_type
