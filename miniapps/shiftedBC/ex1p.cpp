@@ -3,7 +3,7 @@
 // Compile with: make ex1p
 //
 // Sample runs:
-// mpirun -np 1 ex1p -m ../../data/inline-quad.mesh  -rs 1 -vis -o 2
+//   mpirun -np 1 ex1p -m ../../data/inline-quad.mesh  -rs 1 -vis -o 2
 
 #include "../../mfem.hpp"
 #include <fstream>
@@ -33,7 +33,6 @@ int main(int argc, char *argv[])
    bool visualization = true;
    int ser_ref_levels = 0;
    double dbc_val = 0.0;
-   bool smooth = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -131,10 +130,6 @@ int main(int argc, char *argv[])
    DistanceFunction dist_func(pmesh, order, 1.0);
    ParGridFunction &distance = dist_func.ComputeDistance(dist_fun_level_coef,
                                                          10, true);
-   const ParGridFunction &src = dist_func.GetLastSourceGF(),
-                         &diff_src = dist_func.GetLastDiffusedSourceGF();
-
-   GradientCoefficient grad_u(dist_func.GetLastDiffusedSourceGF(), dim);
 
    dist.ProjectCoefficient(dist_fun_level_coef);
 
@@ -149,7 +144,7 @@ int main(int argc, char *argv[])
       sol_sock << "window_title 'Distance function'\n"
                << "window_geometry "
                << 0 << " " << 0 << " " << 350 << " " << 350 << "\n"
-               << "keys Rjmpc" << endl;
+               << "keys Rjmc" << endl;
    }
 
    int max_attr     = pmesh.attributes.Max();
@@ -472,10 +467,23 @@ double dist_fun(const Vector &x)
 
 double dist_fun_level_set(const Vector &x)
 {
+   double xx, yy;
+
+   //xx = 1.5 * (x(0)-0.15), yy = x(1) - 0.5;
+   //if (yy * yy < xx * xx * xx * (1.0 - xx)) { return 1.0; }
+   //else { return 0.0; }
+
+   //xx = 3.0 * (x(0)-0.6), yy = 4.0 * (x(1) - 0.5);
+   //double l = yy * yy - 1.0, r = xx - 1.0;
+   //if (l * l < - (xx * xx - 1.0) * r * r) { return 1.0; }
+   //else { return 0.0; }
+
+
    double dist = dist_fun(x);
    if (dist > 0.) { return 1; }
    //else if (dist == 0.) { return 0.5; }
    else { return 0.; }
+
 }
 #undef level_set_type
 #undef ring_radius
