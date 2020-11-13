@@ -71,6 +71,7 @@ FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
                                        Mesh *mesh,
                                        const FiniteElementCollection *fec)
    : relaxed_hp(orig.relaxed_hp)
+   // FIXME: orders_changed? test
 {
    mesh = mesh ? mesh : orig.mesh;
    fec = fec ? fec : orig.fec;
@@ -2806,6 +2807,7 @@ void FiniteElementSpace::Update(bool want_transform)
    if (NURBSext)
    {
       UpdateNURBS();
+      sequence = mesh->GetSequence();
       return;
    }
 

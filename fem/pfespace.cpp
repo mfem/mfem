@@ -129,8 +129,8 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
 
 void ParFiniteElementSpace::Construct()
 {
-   MFEM_VERIFY(!IsVariableOrder(), "variable orders are not implemented "
-                                   "for ParFiniteElementSpace yet.");
+   MFEM_VERIFY(!IsVariableOrder(), "variable orders are not implemented"
+               " for ParFiniteElementSpace yet.");
 
    if (NURBSext)
    {
