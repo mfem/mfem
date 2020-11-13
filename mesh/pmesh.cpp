@@ -1077,8 +1077,8 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
    // TODO: AMR meshes, NURBS meshes?
 }
 
-ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
-   : Mesh(orig_mesh, ref_factor, ref_type),
+ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type, bool simplex_ref)
+   : Mesh(orig_mesh, ref_factor, ref_type, simplex_ref),
      MyComm(orig_mesh->GetComm()),
      NRanks(orig_mesh->GetNRanks()),
      MyRank(orig_mesh->GetMyRank()),
@@ -1138,11 +1138,14 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
 
          // count internal vertices
          group_svert.AddColumnsInRow(gr-1, orig_nq*rfec.DofForGeometry(geom));
-         // count internal edges
-         group_sedge.AddColumnsInRow(gr-1, orig_nq*(RG.RefEdges.Size()/2-
-                                                    RG.NumBdrEdges));
-         // count refined faces
-         group_squad.AddColumnsInRow(gr-1, orig_nq*(RG.RefGeoms.Size()/nvert));
+         if (!simplex_ref)
+         {
+            // count internal edges
+            group_sedge.AddColumnsInRow(gr-1, orig_nq*(RG.RefEdges.Size()/2-
+                                                      RG.NumBdrEdges));
+            // count refined faces
+            group_squad.AddColumnsInRow(gr-1, orig_nq*RG.RefGeoms.Size()/nvert);
+         }
       }
    }
 
@@ -1266,28 +1269,31 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
             {
                group_svert.AddConnection(gr-1, svert_lvert.Append(rdofs[j])-1);
             }
-            // add the internal (for the shared face) edges as shared edges
-            for (int j = 2*RG.NumBdrEdges; j < RG.RefEdges.Size(); j += 2)
+            if (!simplex_ref)
             {
-               Element *elem = NewElement(Geometry::SEGMENT);
-               int *v = elem->GetVertices();
-               for (int k = 0; k < 2; k++)
+               // add the internal (for the shared face) edges as shared edges
+               for (int j = 2*RG.NumBdrEdges; j < RG.RefEdges.Size(); j += 2)
                {
-                  v[k] = rdofs[c2h_map[RG.RefEdges[j+k]]];
+                  Element *elem = NewElement(Geometry::SEGMENT);
+                  int *v = elem->GetVertices();
+                  for (int k = 0; k < 2; k++)
+                  {
+                     v[k] = rdofs[c2h_map[RG.RefEdges[j+k]]];
+                  }
+                  group_sedge.AddConnection(gr-1, shared_edges.Append(elem)-1);
                }
-               group_sedge.AddConnection(gr-1, shared_edges.Append(elem)-1);
-            }
-            // add refined shared faces
-            for (int j = 0; j < RG.RefGeoms.Size(); j += nvert)
-            {
-               shared_quads.SetSize(shared_quads.Size()+1);
-               int *v = shared_quads.Last().v;
-               for (int k = 0; k < nvert; k++)
+               // add refined shared faces
+               for (int j = 0; j < RG.RefGeoms.Size(); j += nvert)
                {
-                  int cid = RG.RefGeoms[j+k]; // local Cartesian index
-                  v[k] = rdofs[c2h_map[cid]];
+                  shared_quads.SetSize(shared_quads.Size()+1);
+                  int *v = shared_quads.Last().v;
+                  for (int k = 0; k < nvert; k++)
+                  {
+                     int cid = RG.RefGeoms[j+k]; // local Cartesian index
+                     v[k] = rdofs[c2h_map[cid]];
+                  }
+                  group_squad.AddConnection(gr-1, shared_quads.Size()-1);
                }
-               group_squad.AddConnection(gr-1, shared_quads.Size()-1);
             }
          }
       }
