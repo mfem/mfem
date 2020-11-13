@@ -981,6 +981,11 @@ ConduitDataCollection::SaveRootFile(int num_domains,
    n_root["file_pattern"]     = MeshFilePattern(relay_protocol);
    n_root["tree_pattern"]     = "";
 
+   // Add the time, time step, and cycle
+   n_root["blueprint_index/mesh/state/time"] = time;
+   n_root["blueprint_index/mesh/state/time_step"] = time_step;
+   n_root["blueprint_index/mesh/state/cycle"] = cycle;
+
    relay::io::save(n_root, RootFileName(), root_proto);
 }
 
