@@ -2906,6 +2906,7 @@ private:
    /// 1D finite element that generates and owns the 1D DofToQuad maps below
    FiniteElement * dofquad_fe;
 
+   bool B_id; // is the B basis operator (maps_C_C) the identity?
    const DofToQuad *maps_C_C; // one-d map with Lobatto rows, Lobatto columns
    const DofToQuad *maps_O_C; // one-d map with Legendre rows, Lobatto columns
    int dim, ne, o_dofs1D, c_dofs1D;
