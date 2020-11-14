@@ -55,6 +55,11 @@ int main(int argc, char *argv[])
    ess_bdr = 1;
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
+   ParLinearForm f(&fespace);
+   ConstantCoefficient fcoeff(-4.0);
+   f.AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
+   f.Assemble();
+
    ParGridFunction x(&fespace);
    x = 0.0;
 
@@ -68,27 +73,46 @@ int main(int argc, char *argv[])
    x.ProjectCoefficient(u_excoeff);
 
    GenericForm a(&fespace);
+   a.AssumeLinear();
 
-   auto diffusion = new QFunctionIntegrator([](auto u, auto du) {
-      // R(u) = -\nabla^2 u - f
-      Vector v(2);
-      v = du;
-
-      double f0 = 4.0;
-      return qfunc_output_type{f0, v};
-   });
+   auto diffusion = new QFunctionIntegrator(
+      [](auto u, auto du) {
+         // R(u, du) = -\nabla^2 u - f
+         double f0 = 4.0;
+         Vector f1(2);
+         f1 = du;
+         return qfunc_output_type{f0, f1};
+      },
+      [](auto u, auto du) {
+         // R'(u, du)
+         double f00 = 0.0;
+         Vector f01(2);
+         f01 = 0.0;
+         Vector f10(2);
+         f10 = 0.0;
+         DenseMatrix f11;
+         f11.Diag(1.0, 2);
+         return qfunc_grad_output_type{f00, f01, f10, f11};
+      });
 
    a.AddDomainIntegrator(diffusion);
 
    Vector X, B;
    x.GetTrueDofs(X);
 
+   auto &A = a.GetGradient(X);
+
    B.SetSize(X.Size());
    B = 0.0;
 
-   a.Mult(X, B);
+   A.Mult(X, B);
 
    printf("sum(B) = %.1E\n", B.Sum());
+
+   Vector Btmp;
+   f.ParallelAssemble(Btmp);
+
+   B -= Btmp;
 
    ParGridFunction b(&fespace);
    b.SetFromTrueDofs(B);
