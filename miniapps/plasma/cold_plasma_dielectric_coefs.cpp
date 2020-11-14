@@ -481,14 +481,14 @@ double SheathImpedance::Eval(ElementTransformation &T,
     */
 
    //complex<double> zsheath_norm(57.4699936705, 21.39395629068357);
-   double f = 0.5;
+
    if (realPart_)
    {
       // return (zsheath_norm.real()*9.0e11*1e-4*
       //        (4.0*M_PI*debye_length))/wpi; // Units: Ohm m^2
 
       //return (zsheath_norm.real()*9.0e11*1e-4*debye_length)/wpi; // Units: Ohm m^2
-      return f * (zsheath_norm.real()*debye_length)/(epsilon0_*wpi);
+      return (zsheath_norm.real()*debye_length)/(epsilon0_*wpi);
 
    }
    else
@@ -497,7 +497,7 @@ double SheathImpedance::Eval(ElementTransformation &T,
       //        (4.0*M_PI*debye_length))/wpi; // Units: Ohm m^2
 
       //return (zsheath_norm.imag()*9.0e11*1e-4*debye_length)/wpi; // Units: Ohm m^2
-      return f * (zsheath_norm.imag()*debye_length)/(epsilon0_*wpi);
+      return (zsheath_norm.imag()*debye_length)/(epsilon0_*wpi);
    }
 }
 
