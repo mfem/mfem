@@ -42,7 +42,6 @@
 //               We recommend viewing examples 1-2 before viewing this example.
 
 #include "mfem.hpp"
-#include "general/debug.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -126,7 +125,7 @@ int main(int argc, char *argv[])
       {
          mesh->UniformRefinement();
       }
-   }*/
+      }*/
 
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
@@ -135,13 +134,13 @@ int main(int argc, char *argv[])
    //    spaces on them.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
-   /*{
+   {
       int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
       }
-   }*/
+   }
    pmesh->ReorientTetMesh();
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
@@ -181,7 +180,6 @@ int main(int argc, char *argv[])
    //     when eliminating the non-homogeneous boundary condition to modify the
    //     r.h.s. vector b.
    ParGridFunction x(fespace);
-   //x = 0.0;
    VectorFunctionCoefficient E(sdim, E_exact);
    x.ProjectCoefficient(E);
 
@@ -192,20 +190,19 @@ int main(int argc, char *argv[])
    Coefficient *sigma = new ConstantCoefficient(1.0);
    ParBilinearForm *a = new ParBilinearForm(fespace);
    if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   //a->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
+   a->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
    a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
 
    // 12. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, static condensation, etc.
-   //if (static_cond) { a->EnableStaticCondensation(); }
+   if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
    OperatorPtr A;
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-   dbg("X:%.15e, B:%.15e",X*X,B*B);
 
    // 13. Solve the system AX=B using PCG with the AMS preconditioner from hypre
    //     (in the full assembly case) or CG with Jacobi preconditioner (in the
@@ -234,22 +231,12 @@ int main(int argc, char *argv[])
       ParFiniteElementSpace *prec_fespace =
          (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
       HypreAMS ams(*A.As<HypreParMatrix>(), prec_fespace);
-#if 0
       HyprePCG pcg(*A.As<HypreParMatrix>());
       pcg.SetTol(1e-12);
       pcg.SetMaxIter(500);
       pcg.SetPrintLevel(2);
       pcg.SetPreconditioner(ams);
       pcg.Mult(B, X);
-#else
-      CGSolver pcg(MPI_COMM_WORLD);
-      pcg.SetRelTol(1e-12);
-      pcg.SetMaxIter(500);
-      pcg.SetPrintLevel(2);
-      pcg.SetPreconditioner(ams);
-      pcg.SetOperator(*A.As<HypreParMatrix>());
-      pcg.Mult(B, X);
-#endif
    }
 
    // 14. Recover the parallel grid function corresponding to X. This is the

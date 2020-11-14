@@ -14,7 +14,6 @@
 #ifdef MFEM_USE_MPI
 
 #include "fem.hpp"
-#include "../general/debug.hpp"
 #include "../general/sort_pairs.hpp"
 
 namespace mfem
@@ -341,15 +340,8 @@ void ParBilinearForm::FormLinearSystem(
       B.SetSize(X.Size());
       P.MultTranspose(b, B);
       R.Mult(x, X);
-      X.HostRead();
-      B.HostRead();
       p_mat.EliminateBC(p_mat_e, ess_tdof_list, X, B);
-      if (!copy_interior)
-      {
-         dbg();
-         X.SetSubVectorComplement(ess_tdof_list, 0.0);
-         //X.HostReadWrite();
-      }
+      if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
    }
 }
 
