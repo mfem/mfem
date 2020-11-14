@@ -21,9 +21,9 @@ namespace mfem
 
 // Matrix-Vector multiplication (local to the thread)
 template <typename T, int H, int W> MFEM_HOST_DEVICE inline
-Tensor<T,H> operator*(const Tensor<T,H,W> &A, const Tensor<T,W> &u)
+StaticTensor<T,H> operator*(const StaticTensor<T,H,W> &A, const StaticTensor<T,W> &u)
 {
-  Tensor<T,H> v;
+  StaticTensor<T,H> v;
   for (int h = 0; h < H; h++)
   {
     T val = 0.0;
@@ -38,9 +38,9 @@ Tensor<T,H> operator*(const Tensor<T,H,W> &A, const Tensor<T,W> &u)
 
 // Multiplication of a Vector by a scalar.
 template <typename T,int H> MFEM_HOST_DEVICE inline
-Tensor<T,H> operator*(const T &a, const Tensor<T,H> &u)
+StaticTensor<T,H> operator*(const T &a, const StaticTensor<T,H> &u)
 {
-  Tensor<T,H> v;
+  StaticTensor<T,H> v;
   for (int h = 0; h < H; h++)
   {
     v(h) = a * u(h);
@@ -50,9 +50,9 @@ Tensor<T,H> operator*(const T &a, const Tensor<T,H> &u)
 
 // Multiplication of a Matrix by a scalar.
 template <typename T, int H, int W> MFEM_HOST_DEVICE inline
-Tensor<T,H> operator*(const T &a, const Tensor<T,H,W> &U)
+StaticTensor<T,H> operator*(const T &a, const StaticTensor<T,H,W> &U)
 {
-  Tensor<T,H,W> V;
+  StaticTensor<T,H,W> V;
   for (int h = 0; h < H; h++)
   {
     for (int w = 0; w < W; w++)

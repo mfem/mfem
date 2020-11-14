@@ -21,7 +21,7 @@ namespace mfem
 
 // Non-tensor and 1D write with VDIM components
 template<int P, int VDIM> MFEM_HOST_DEVICE inline
-void WriteVector(const Tensor<dTensor<VDIM>,P> &u, const int e,
+void WriteVector(const StaticTensor<dTensor<VDIM>,P> &u, const int e,
                  DeviceTensor<3> &e_vec)
 {
    for (int c = 0; c < VDIM; c++)
@@ -36,7 +36,7 @@ void WriteVector(const Tensor<dTensor<VDIM>,P> &u, const int e,
 
 // 3D tensor write with VDIM components
 template <int D1d, int VDIM> MFEM_HOST_DEVICE inline
-void WriteVector(const Tensor<dTensor<VDIM>,D1d,D1d,D1d> &u, const int e,
+void WriteVector(const StaticTensor<dTensor<VDIM>,D1d,D1d,D1d> &u, const int e,
                  DeviceTensor<5> &e_vec)
 {
    for (int c = 0; c < VDIM; c++)
@@ -57,7 +57,7 @@ void WriteVector(const Tensor<dTensor<VDIM>,D1d,D1d,D1d> &u, const int e,
 
 // 2D tensor write with VDIM components
 template <int D1d, int VDIM> MFEM_HOST_DEVICE inline
-void WriteVector(const Tensor<dTensor<VDIM>,D1d,D1d> &u, const int e,
+void WriteVector(const StaticTensor<dTensor<VDIM>,D1d,D1d> &u, const int e,
                  DeviceTensor<4> &e_vec)
 {
    for (int c = 0; c < VDIM; c++)
@@ -75,7 +75,7 @@ void WriteVector(const Tensor<dTensor<VDIM>,D1d,D1d> &u, const int e,
 
 // Non-tensor and 1D write with VDIM components
 template<int P, int VDIM> MFEM_HOST_DEVICE inline
-void WriteAddVector(const Tensor<dTensor<VDIM>,P> &u, const int e,
+void WriteAddVector(const StaticTensor<dTensor<VDIM>,P> &u, const int e,
                     DeviceTensor<3> &e_vec)
 {
    for (int c = 0; c < VDIM; c++)
@@ -90,7 +90,7 @@ void WriteAddVector(const Tensor<dTensor<VDIM>,P> &u, const int e,
 
 // 3D tensor write with VDIM components
 template <int D1d, int VDIM> MFEM_HOST_DEVICE inline
-void WriteAddVector(const Tensor<dTensor<VDIM>,D1d,D1d,D1d> &u, const int e,
+void WriteAddVector(const StaticTensor<dTensor<VDIM>,D1d,D1d,D1d> &u, const int e,
                     DeviceTensor<5> &e_vec)
 {
    for (int c = 0; c < VDIM; c++)
@@ -111,7 +111,7 @@ void WriteAddVector(const Tensor<dTensor<VDIM>,D1d,D1d,D1d> &u, const int e,
 
 // 2D tensor write with VDIM components
 template <int D1d, int VDIM> MFEM_HOST_DEVICE inline
-void WriteAddVector(const Tensor<dTensor<VDIM>,D1d,D1d> &u, const int e,
+void WriteAddVector(const StaticTensor<dTensor<VDIM>,D1d,D1d> &u, const int e,
                     DeviceTensor<4> &e_vec)
 {
    for (int c = 0; c < VDIM; c++)

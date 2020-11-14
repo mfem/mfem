@@ -38,9 +38,9 @@ const dTensor<Q,P> ReadMatrix(const DeviceBasis<Q,P> &d_B)
 
 // Functions to read dofs to derivatives matrix
 template<int P, int Q, int Dim> MFEM_HOST_DEVICE inline
-const Tensor<dTensor<Dim>,Q,P> ReadMatrix(const DeviceTensor<3> &d_G)
+const StaticTensor<dTensor<Dim>,Q,P> ReadMatrix(const DeviceTensor<3> &d_G)
 {
-   Tensor<dTensor<Dim>,Q,P> s_G;
+   StaticTensor<dTensor<Dim>,Q,P> s_G;
    for (int p = 0; p < P; p++)
    {
       for (int s = 0; s < Dim; s++)
@@ -57,10 +57,10 @@ const Tensor<dTensor<Dim>,Q,P> ReadMatrix(const DeviceTensor<3> &d_G)
 
 // Non-tensor and 1D read with VDIMxVDIM components
 template<int D, int VDIM> MFEM_HOST_DEVICE inline
-const Tensor<dTensor<VDIM,VDIM>,D> ReadMatrix(const DeviceTensor<4> &e_vec,
-                                              const int e)
+const StaticTensor<dTensor<VDIM,VDIM>,D> ReadMatrix(const DeviceTensor<4> &e_vec,
+                                                    const int e)
 {
-   Tensor<dTensor<VDIM,VDIM>,D> u;
+   StaticTensor<dTensor<VDIM,VDIM>,D> u;
    for (int w = 0; w < VDIM; w++)
    {
       for (int h = 0; h < VDIM; h++)
@@ -77,10 +77,10 @@ const Tensor<dTensor<VDIM,VDIM>,D> ReadMatrix(const DeviceTensor<4> &e_vec,
 
 // Non-tensor and 1D read with VDIMxVDIM components
 template<int D, int VDIM> MFEM_HOST_DEVICE inline
-const Tensor<dTensor<VDIM,VDIM>,D> ReadSymmMatrix(const DeviceTensor<3,const double> &e_vec,
+const StaticTensor<dTensor<VDIM,VDIM>,D> ReadSymmMatrix(const DeviceTensor<3,const double> &e_vec,
                                                   const int e)
 {
-   Tensor<dTensor<VDIM,VDIM>,D> u;
+   StaticTensor<dTensor<VDIM,VDIM>,D> u;
    for (int i = 0; i < VDIM*(VDIM+1)/2; i++)
    {
       const int h = i/VDIM;
@@ -105,10 +105,10 @@ const Tensor<dTensor<VDIM,VDIM>,D> ReadSymmMatrix(const DeviceTensor<3,const dou
 
 // 3D tensor read with VDIMxVDIM components
 template <int D1d, int VDIM> MFEM_HOST_DEVICE inline
-const Tensor<dTensor<VDIM,VDIM>,D1d,D1d,D1d> ReadMatrix(const DeviceTensor<6> &e_vec,
+const StaticTensor<dTensor<VDIM,VDIM>,D1d,D1d,D1d> ReadMatrix(const DeviceTensor<6> &e_vec,
                                                         const int e)
 {
-   Tensor<dTensor<VDIM,VDIM>,D1d,D1d,D1d> u;
+   StaticTensor<dTensor<VDIM,VDIM>,D1d,D1d,D1d> u;
    for (int w = 0; w < VDIM; w++)
    {
       for (int h = 0; h < VDIM; h++)
@@ -131,10 +131,10 @@ const Tensor<dTensor<VDIM,VDIM>,D1d,D1d,D1d> ReadMatrix(const DeviceTensor<6> &e
 
 // 3D tensor read with VDIMxVDIM components
 template<int D1d, int VDIM> MFEM_HOST_DEVICE inline
-const Tensor<dTensor<VDIM,VDIM>,D1d,D1d,D1d> ReadSymmMatrix(const DeviceTensor<5,const double> &e_vec,
+const StaticTensor<dTensor<VDIM,VDIM>,D1d,D1d,D1d> ReadSymmMatrix(const DeviceTensor<5,const double> &e_vec,
                                                             const int e)
 {
-   Tensor<dTensor<VDIM,VDIM>,D1d,D1d,D1d> u;
+   StaticTensor<dTensor<VDIM,VDIM>,D1d,D1d,D1d> u;
    for (int i = 0; i < VDIM*(VDIM+1)/2; i++)
    {
       const int h = i/VDIM;
@@ -165,10 +165,10 @@ const Tensor<dTensor<VDIM,VDIM>,D1d,D1d,D1d> ReadSymmMatrix(const DeviceTensor<5
 
 // 2D tensor read with VDIMxVDIM components
 template <int D1d, int VDIM> MFEM_HOST_DEVICE inline
-const Tensor<dTensor<VDIM,VDIM>,D1d,D1d> ReadMatrix(const DeviceTensor<5> &e_vec,
+const StaticTensor<dTensor<VDIM,VDIM>,D1d,D1d> ReadMatrix(const DeviceTensor<5> &e_vec,
                                                     const int e)
 {
-   Tensor<dTensor<VDIM,VDIM>,D1d,D1d> u;
+   StaticTensor<dTensor<VDIM,VDIM>,D1d,D1d> u;
    for (int w = 0; w < VDIM; w++)
    {
       for (int h = 0; h < VDIM; h++)
@@ -188,10 +188,10 @@ const Tensor<dTensor<VDIM,VDIM>,D1d,D1d> ReadMatrix(const DeviceTensor<5> &e_vec
 
 // 2D read with VDIMxVDIM components
 template<int D1d, int VDIM> MFEM_HOST_DEVICE inline
-const Tensor<dTensor<VDIM,VDIM>,D1d,D1d> ReadSymmMatrix(const DeviceTensor<4,const double> &e_vec,
+const StaticTensor<dTensor<VDIM,VDIM>,D1d,D1d> ReadSymmMatrix(const DeviceTensor<4,const double> &e_vec,
                                                         const int e)
 {
-   Tensor<dTensor<VDIM,VDIM>,D1d,D1d> u;
+   StaticTensor<dTensor<VDIM,VDIM>,D1d,D1d> u;
    for (int i = 0; i < VDIM*(VDIM+1)/2; i++)
    {
       const int h = i/VDIM;
