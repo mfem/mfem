@@ -31,10 +31,10 @@ class ParPumiMesh;
 /// Class for parallel meshes
 class ParMesh : public Mesh
 {
-protected:
+public:
    ParMesh() : MyComm(0), NRanks(0), MyRank(-1),
       have_face_nbr_data(false), pncmesh(NULL) {}
-
+protected:
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
@@ -224,10 +224,10 @@ public:
                              BasisType::GaussLobatto.
 
        The refinement data which can be accessed with GetRefinementTransforms()
-       is set to reflect the performed refinements.
+       is set to reflect the performed refinements. */
+   ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type);
 
-       @note The constructed ParMesh is linear, i.e. it does not have nodes. */
-   ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type, bool simplex_ref=false);
+   void MakeSimplicial(ParMesh &orig_mesh);
 
    virtual void Finalize(bool refine = false, bool fix_orientation = false);
 
