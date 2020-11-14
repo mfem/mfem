@@ -12,7 +12,6 @@
 // Implementation of sparse matrix
 
 #include "linalg.hpp"
-#include "../general/debug.hpp"
 #include "../general/forall.hpp"
 #include "../general/table.hpp"
 #include "../general/sort_pairs.hpp"
@@ -639,7 +638,6 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
    if (nnz == 0) {return;}
    if (Device::Allows(Backend::CUDA_MASK) && useCuSparse)
    {
-      dbg();
 #ifdef MFEM_USE_CUDA
       const double alpha = a;
       const double beta  = 1.0;
@@ -840,9 +838,9 @@ void SparseMatrix::BooleanMult(const Array<int> &x, Array<int> &y) const
 
    const int height = Height();
    const int nnz = J.Capacity();
-   const auto d_I = Read(I, height+1);
-   const auto d_J = Read(J, nnz);
-   const auto d_x = Read(x.GetMemory(), x.Size());
+   auto d_I = Read(I, height+1);
+   auto d_J = Read(J, nnz);
+   auto d_x = Read(x.GetMemory(), x.Size());
    auto d_y = Write(y.GetMemory(), y.Size());
    MFEM_FORALL(i, height,
    {
@@ -3360,12 +3358,12 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
                "number of columns of A (" << ncolsA
                << ") must equal number of rows of B (" << nrowsB << ")");
 
-   A_i    = A.HostReadI();// A.GetI();
-   A_j    = A.HostReadJ();//GetJ();
-   A_data = A.HostReadData();//GetData();
-   B_i    = B.HostReadI();//GetI();
-   B_j    = B.HostReadJ();//GetJ();
-   B_data = B.HostReadData();//GetData();
+   A_i    = A.HostReadI();
+   A_j    = A.HostReadJ();
+   A_data = A.HostReadData();
+   B_i    = B.GetI();
+   B_j    = B.GetJ();
+   B_data = B.GetData();
 
    B_marker = new int[ncolsB];
 

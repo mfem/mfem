@@ -10,7 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "linalg.hpp"
-#include "../general/debug.hpp"
 #include "../general/forall.hpp"
 #include "../general/globals.hpp"
 #include "../fem/bilinearform.hpp"
@@ -535,38 +534,29 @@ void CGSolver::UpdateVectors()
 
 void CGSolver::Mult(const Vector &b, Vector &x) const
 {
-   dbg("b:%.15e",b*b);
    int i;
    double r0, den, nom, nom0, betanom, alpha, beta;
 
    if (iterative_mode)
    {
-      dbg("iterative_mode: x:%.15e",x*x);
       oper->Mult(x, r);
-      dbg("oper->Mult: r:%.15e",r*r);
       subtract(b, r, r); // r = b - A x
-      dbg("r:%.15e",r*r);
    }
    else
    {
-      dbg("!iterative_mode");
       r = b;
       x = 0.0;
    }
 
    if (prec)
    {
-      dbg("prec: r:%.15e",r*r);
-      z = 0.0;
       prec->Mult(r, z); // z = B r
-      dbg("prec: z:%.15e",z*z);
       d = z;
    }
    else
    {
       d = r;
    }
-   dbg("d:%.15e",d*d);
    nom0 = nom = Dot(d, r);
    MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
    if (print_level == 1 || print_level == 3)

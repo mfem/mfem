@@ -40,12 +40,6 @@ const int MAX_Q1D = 14;
 // interfaces supporting RAJA, CUDA, OpenMP, and sequential backends.
 
 // The MFEM_FORALL wrapper
-#define MFEM_HOST_FORALL(i,N,...)                        \
-   ForallWrap<1>(false,N,                                \
-                 [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
-                 [&] MFEM_LAMBDA (int i) {__VA_ARGS__})
-
-// The MFEM_FORALL wrapper
 #define MFEM_FORALL(i,N,...)                             \
    ForallWrap<1>(true,N,                                 \
                  [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
