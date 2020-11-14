@@ -350,12 +350,14 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    // Note that x hasn't been modified by the Newton update yet.
    const double min_detJ_in = ComputeMinDet(x_out_loc, *fes);
    const bool untangling = (min_detJ_in <= 0.0) ? true : false;
-   const double eps_untangle = 1e-5;
+   const double factor = 3.0;
    if (untangling)
    {
       // Needed for the line search below.
       // The untangling metrics see this reference to detect deteriorations.
-      *min_det_ptr = min_detJ_in - eps_untangle;
+      *min_det_ptr = factor * min_detJ_in;
+      if (print_level >= 0)
+      { mfem::out << "Starting min_detJ = " << min_detJ_in << "\n"; }
    }
 
    const bool have_b = (b.Size() == Height());
@@ -368,7 +370,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    const double detJ_factor = (solver_type == 1) ? 0.25 : 0.5;
 
    // Perform the line search.
-   for (int i = 0; i < 25; i++)
+   for (int i = 0; i < 12; i++)
    {
       add(x, -scale, c, x_out);
 
@@ -415,17 +417,14 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       }
 #endif
 
-      if (untangling == false)
+      if (energy_out > 1.2*energy_in || std::isnan(energy_out) != 0)
       {
-         if (energy_out > 1.2*energy_in || std::isnan(energy_out) != 0)
+         if (print_level >= 0)
          {
-            if (print_level >= 0)
-            {
-               std::cout << energy_in << " " << energy_out << std::endl;
-               mfem::out << "Scale = " << scale << " Increasing energy.\n";
-            }
-            scale *= 0.5; continue;
+            std::cout << energy_in << " " << energy_out << std::endl;
+            mfem::out << "Scale = " << scale << " Increasing energy.\n";
          }
+         scale *= 0.5; continue;
       }
 
       oper->Mult(x_out, r);
@@ -453,7 +452,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       {
          // Update min detJ for all the metrics.
          // The metrics see this min_det_ptr.
-         *min_det_ptr = min_detJ_out - eps_untangle;
+         *min_det_ptr = factor * min_detJ_out;
          if (print_level >= 0)
          { mfem::out << "New min_detJ = " << min_detJ_out << "\n"; }
       }
