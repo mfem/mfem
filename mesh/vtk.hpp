@@ -37,6 +37,8 @@ void CreateVTKElementConnectivity(Array<int> &con, Geometry::Type geom,
 void WriteVTKEncodedCompressed(std::ostream &out, const void *bytes,
                                uint32_t nbytes, int compression_level);
 
+int BarycentricToVTKTriangle(int *b, int ref);
+
 const char *VTKByteOrder();
 
 } // namespace mfem

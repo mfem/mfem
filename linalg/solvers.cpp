@@ -645,7 +645,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 
       Monitor(i, betanom, r, x);
 
-      if (betanom < r0)
+      if (betanom <= r0)
       {
          if (print_level == 2)
          {
@@ -1649,12 +1649,12 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    Vector sk, rk, yk, rho, alpha;
    DenseMatrix skM(width, m), ykM(width, m);
 
-   //r - r_{k+1}, c - descent direction
-   sk.SetSize(width);    //x_{k+1}-x_k
-   rk.SetSize(width);    //nabla(f(x_{k}))
-   yk.SetSize(width);    //r_{k+1}-r_{k}
-   rho.SetSize(m);       //1/(dot(yk,sk)
-   alpha.SetSize(m);    //rhok*sk'*c
+   // r - r_{k+1}, c - descent direction
+   sk.SetSize(width);    // x_{k+1}-x_k
+   rk.SetSize(width);    // nabla(f(x_{k}))
+   yk.SetSize(width);    // r_{k+1}-r_{k}
+   rho.SetSize(m);       // 1/(dot(yk,sk)
+   alpha.SetSize(m);     // rhok*sk'*c
    int last_saved_id = -1;
 
    int it;
@@ -1707,7 +1707,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
          converged = 0;
          break;
       }
-      add(x, -c_scale, c, x); //x_{k+1} = x_k - c_scale*c
+      add(x, -c_scale, c, x); // x_{k+1} = x_k - c_scale*c
 
       ProcessNewState(x);
 
@@ -1717,12 +1717,12 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
          r -= b;
       }
 
-      //    LBFGS - construct descent direction
+      // LBFGS - construct descent direction
       subtract(r, rk, yk);   // yk = r_{k+1} - r_{k}
       sk = c; sk *= -c_scale; //sk = x_{k+1} - x_{k} = -c_scale*c
       const double gamma = Dot(sk, yk)/Dot(yk, yk);
 
-      //  Save last m vectors
+      // Save last m vectors
       last_saved_id = (last_saved_id == m-1) ? 0 : last_saved_id+1;
       skM.SetCol(last_saved_id, sk);
       ykM.SetCol(last_saved_id, yk);
@@ -2664,6 +2664,42 @@ void BlockILU::Mult(const Vector &b, Vector &x) const
       A_ii_inv.Solve(block_size, 1, xi);
    }
 }
+
+
+void ResidualBCMonitor::MonitorResidual(
+   int it, double norm, const Vector &r, bool final)
+{
+   if (!ess_dofs_list) { return; }
+
+   double bc_norm_squared = 0.0;
+   r.HostRead();
+   ess_dofs_list->HostRead();
+   for (int i = 0; i < ess_dofs_list->Size(); i++)
+   {
+      const double r_entry = r((*ess_dofs_list)[i]);
+      bc_norm_squared += r_entry*r_entry;
+   }
+   bool print = true;
+#ifdef MFEM_USE_MPI
+   MPI_Comm comm = iter_solver->GetComm();
+   if (comm != MPI_COMM_NULL)
+   {
+      double glob_bc_norm_squared = 0.0;
+      MPI_Reduce(&bc_norm_squared, &glob_bc_norm_squared, 1, MPI_DOUBLE,
+                 MPI_SUM, 0, comm);
+      bc_norm_squared = glob_bc_norm_squared;
+      int rank;
+      MPI_Comm_rank(comm, &rank);
+      print = (rank == 0);
+   }
+#endif
+   if ((it == 0 || final || bc_norm_squared > 0.0) && print)
+   {
+      mfem::out << "      ResidualBCMonitor : b.c. residual norm = "
+                << sqrt(bc_norm_squared) << endl;
+   }
+}
+
 
 #ifdef MFEM_USE_SUITESPARSE
 
