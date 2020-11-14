@@ -107,7 +107,7 @@ serac_sundials_gcc_8_3_1:
 # Baseline
 baselinecheck_mfem_intel_quartz:
   extends: [.baselinecheck_mfem, .on_quartz]
-  needs: [q_allocate_resources]
+  needs: [setup]
 
 baselinepublish_mfem_quartz:
   extends: [.on_quartz, .rebaseline_mfem]

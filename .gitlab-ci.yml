@@ -57,12 +57,12 @@ variables:
 # - Baseline_publish, only available on master, allows to update baseline
 #   results
 stages:
-  - setup
   - q_allocate_resources
   - q_build_and_test
   - q_release_resources
   - l_build_and_test
   - c_build_and_test
+  - setup
   - baseline_check
   - baseline_publish
 
@@ -85,6 +85,7 @@ setup:
     - if [ ! -d "tests" ]; then git clone ${TESTS_REPO}; fi
     - cd tpls && git pull && cd ..
     - cd tests && git pull && cd ..
+  needs: []
 
 .build_toss_3_x86_64_ib_script:
   script:
@@ -124,7 +125,7 @@ setup:
   cd tests
   mkdir _${BASELINE_TEST} && cd _${BASELINE_TEST}
   # run
-  salloc --nodes=1 -p pdebug ../runtest ../../mfem "${BASELINE_TEST} ${ADDITIONAL_DIR}"
+  srun --nodes=1 -p pdebug ../runtest ../../mfem "${BASELINE_TEST} ${ADDITIONAL_DIR}"
   # post
   mkdir ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}
   if [[ -s ${_glob_err} ]]
