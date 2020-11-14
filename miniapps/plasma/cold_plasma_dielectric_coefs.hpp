@@ -264,8 +264,7 @@ public:
 
 protected:
    double getBMagnitude(ElementTransformation &T,
-                        const IntegrationPoint &ip,
-                        double *theta = NULL, double *phi = NULL);
+                        const IntegrationPoint &ip);
    void   fillDensityVals(ElementTransformation &T,
                           const IntegrationPoint &ip);
    void   fillTemperatureVals(ElementTransformation &T,
@@ -369,9 +368,14 @@ public:
                      const IntegrationPoint &ip);
 
    virtual ~DielectricTensor() {}
+
+private:
+   void addParallelComp(double P, DenseMatrix & eps);
+   void addPerpDiagComp(double S, DenseMatrix & eps);
+   void addPerpSkewComp(double D, DenseMatrix & eps);
 };
 
-class SPDDielectricTensor: public MatrixCoefficient
+class SPDDielectricTensor: public MatrixCoefficient, public StixCoefBase
 {
 public:
    SPDDielectricTensor(const ParGridFunction & B,
@@ -387,7 +391,7 @@ public:
                      const IntegrationPoint &ip);
 
    virtual ~SPDDielectricTensor() {}
-
+  /*
 private:
    const ParGridFunction & B_;
    const BlockVector & density_;
@@ -404,6 +408,7 @@ private:
    Vector temp_vals_;
    const Vector & charges_;
    const Vector & masses_;
+  */
 };
 
 /*

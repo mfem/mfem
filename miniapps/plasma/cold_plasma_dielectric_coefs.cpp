@@ -481,7 +481,7 @@ double SheathImpedance::Eval(ElementTransformation &T,
     */
 
    //complex<double> zsheath_norm(57.4699936705, 21.39395629068357);
-   double f = 0.01;
+   double f = 0.5;
    if (realPart_)
    {
       // return (zsheath_norm.real()*9.0e11*1e-4*
@@ -542,21 +542,9 @@ StixCoefBase::StixCoefBase(StixCoefBase & s)
 }
 
 double StixCoefBase::getBMagnitude(ElementTransformation &T,
-                                   const IntegrationPoint &ip,
-                                   double *theta, double *phi)
+                                   const IntegrationPoint &ip)
 {
    B_.GetVectorValue(T.ElementNo, ip, BVec_);
-
-   if (theta != NULL)
-   {
-      *theta = atan2(BVec_(2), BVec_(0));
-
-      if (phi != NULL)
-      {
-         *phi = atan2(BVec_(0) * cos(*theta) + BVec_(2) * sin(*theta),
-                      -BVec_(1));
-      }
-   }
 
    return BVec_.Norml2();
 }
@@ -710,12 +698,11 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
                             const IntegrationPoint &ip)
 {
    // Initialize dielectric tensor to appropriate size
-   epsilon.SetSize(3);
+   epsilon.SetSize(3); epsilon = 0.0;
 
    // Collect density, temperature, and magnetic field values
-   double th = 0.0;
-   double ph = 0.0;
-   double Bmag = this->getBMagnitude(T, ip, &th, &ph);
+   double Bmag = this->getBMagnitude(T, ip);
+   BVec_ /= Bmag;
 
    this->fillDensityVals(T, ip);
    this->fillTemperatureVals(T, ip);
@@ -728,6 +715,10 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    complex<double> D = D_cold_plasma(omega_, Bmag, density_vals_,
                                      charges_, masses_, temp_vals_);
 
+   this->addParallelComp(realPart_ ? P.real() :  P.imag(), epsilon);
+   this->addPerpDiagComp(realPart_ ? S.real() :  S.imag(), epsilon);
+   this->addPerpSkewComp(realPart_ ? D.imag() : -D.real(), epsilon);
+   /*
    if (realPart_)
    {
       epsilon(0,0) =  (real(P) - real(S)) *
@@ -768,6 +759,7 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
       epsilon(2,0) = (imag(P) - imag(S)) *
                      pow(sin(ph), 2) * sin(th) * cos(th) + real(D) * cos(ph);
    }
+   */
    epsilon *= epsilon0_;
 
    /*
@@ -786,6 +778,49 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    */
 }
 
+void DielectricTensor::addParallelComp(double P, DenseMatrix & eps)
+{
+   // For b = B/|B|, add P * b b^T to epsilon
+   for (int i=0; i<3; i++)
+   {
+      eps(i,i) += P * BVec_(i) * BVec_(i);
+      for (int j = i+1; j<3; j++)
+      {
+         double eij = P * BVec_(i) * BVec_(j);
+         eps(i,j) += eij;
+         eps(j,i) += eij;
+      }
+   }
+}
+
+void DielectricTensor::addPerpDiagComp(double S, DenseMatrix & eps)
+{
+   // For b = B/|B|, add S * (I - b b^T) to epsilon
+   for (int i=0; i<3; i++)
+   {
+      eps(i,i) += S * (1.0 - BVec_(i) * BVec_(i));
+      for (int j = i+1; j<3; j++)
+      {
+         double eij = S * BVec_(i) * BVec_(j);
+         eps(i,j) -= eij;
+         eps(j,i) -= eij;
+      }
+   }
+}
+
+void DielectricTensor::addPerpSkewComp(double D, DenseMatrix & eps)
+{
+   // For b = B/|B|, add D * b\times to epsilon
+   eps(1,2) -= D * BVec_[0];
+   eps(2,1) += D * BVec_[0];
+
+   eps(2,0) -= D * BVec_[1];
+   eps(0,2) += D * BVec_[1];
+
+   eps(0,1) -= D * BVec_[2];
+   eps(1,0) += D * BVec_[2];
+}
+
 SPDDielectricTensor::SPDDielectricTensor(
    const ParGridFunction & B,
    const BlockVector & density,
@@ -796,18 +831,9 @@ SPDDielectricTensor::SPDDielectricTensor(
    const Vector & charges,
    const Vector & masses)
    : MatrixCoefficient(3),
-     B_(B),
-     density_(density),
-     temp_(temp),
-     L2FESpace_(L2FESpace),
-     H1FESpace_(H1FESpace),
-     omega_(omega),
-     charges_(charges),
-     masses_(masses)
-{
-   density_vals_.SetSize(charges_.Size());
-   temp_vals_.SetSize(charges_.Size());
-}
+     StixCoefBase(B, density, temp, L2FESpace, H1FESpace, omega,
+                  charges, masses, true)
+{}
 
 void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
                                const IntegrationPoint &ip)
@@ -816,6 +842,12 @@ void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    epsilon.SetSize(3);
 
    // Collect density, temperature, and magnetic field values
+   double Bmag = this->getBMagnitude(T, ip);
+   BVec_ /= Bmag;
+
+   this->fillDensityVals(T, ip);
+   this->fillTemperatureVals(T, ip);
+   /*
    Vector B(3);
    B_.GetVectorValue(T.ElementNo, ip, B);
    double Bmag = B.Norml2();
@@ -835,7 +867,7 @@ void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
                               const_cast<Vector&>(temp_.GetBlock(i)));
       temp_vals_[i] = temperature_gf_.GetValue(T.ElementNo, ip);
    }
-
+   */
    complex<double> S = S_cold_plasma(omega_, Bmag, density_vals_,
                                      charges_, masses_, temp_vals_);
    complex<double> P = P_cold_plasma(omega_, density_vals_,
@@ -843,6 +875,16 @@ void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    complex<double> D = D_cold_plasma(omega_, Bmag, density_vals_,
                                      charges_, masses_, temp_vals_);
 
+   epsilon(0,0) = abs(S + (P - S) * BVec_(0) * BVec_(0));
+   epsilon(1,1) = abs(S + (P - S) * BVec_(1) * BVec_(1));
+   epsilon(2,2) = abs(S + (P - S) * BVec_(2) * BVec_(2));
+   epsilon(0,1) = abs((P - S) * BVec_(0) * BVec_(1) - D * BVec_(2));
+   epsilon(1,0) = abs((P - S) * BVec_(1) * BVec_(0) + D * BVec_(2));
+   epsilon(0,2) = abs((P - S) * BVec_(0) * BVec_(2) + D * BVec_(1));
+   epsilon(2,0) = abs((P - S) * BVec_(2) * BVec_(0) - D * BVec_(1));
+   epsilon(1,2) = abs((P - S) * BVec_(1) * BVec_(2) - D * BVec_(0));
+   epsilon(2,1) = abs((P - S) * BVec_(2) * BVec_(1) + D * BVec_(0));
+   /*
    epsilon(0,0) = abs((P - S) * pow(sin(ph), 2) * pow(cos(th), 2) + S);
    epsilon(1,1) = abs((P - S) * pow(cos(ph), 2) + S);
    epsilon(2,2) = abs((P - S) * pow(sin(ph), 2) * pow(sin(th), 2) + S);
@@ -858,7 +900,7 @@ void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
                       D * cos(th) * sin(ph));
    epsilon(2,0) = abs((P - S) * pow(sin(ph), 2) * sin(th) * cos(th) +
                       D * cos(ph));
-
+   */
    /*
     double aP = fabs(P);
     double aSD = 0.5 * (fabs(S + D) + fabs(S - D));
