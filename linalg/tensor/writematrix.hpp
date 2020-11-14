@@ -21,7 +21,7 @@ namespace mfem
 
 // Non-tensor write with VDIMxVDIM components
 template<int P, int VDIM> MFEM_HOST_DEVICE inline
-void WriteMatrix(const Tensor<dTensor<VDIM,VDIM>,P> &u, const int e,
+void WriteMatrix(const StaticTensor<dTensor<VDIM,VDIM>,P> &u, const int e,
                  DeviceTensor<4> &e_vec)
 {
    for (int w = 0; w < VDIM; w++)
@@ -39,7 +39,7 @@ void WriteMatrix(const Tensor<dTensor<VDIM,VDIM>,P> &u, const int e,
 
 // 3D tensor write with VDIMxVDIM components
 template <int D1d, int VDIM> MFEM_HOST_DEVICE inline
-void WriteMatrix(const Tensor<dTensor<VDIM,VDIM>,D1d,D1d,D1d> &u, const int e,
+void WriteMatrix(const StaticTensor<dTensor<VDIM,VDIM>,D1d,D1d,D1d> &u, const int e,
                  DeviceTensor<6> &e_vec)
 {
    for (int w = 0; w < VDIM; w++)
@@ -63,7 +63,7 @@ void WriteMatrix(const Tensor<dTensor<VDIM,VDIM>,D1d,D1d,D1d> &u, const int e,
 
 // 2D tensor write with VDIMxVDIM components
 template <int D1d, int VDIM> MFEM_HOST_DEVICE inline
-void WriteMatrix(const Tensor<dTensor<VDIM,VDIM>,D1d,D1d> &u, const int e,
+void WriteMatrix(const StaticTensor<dTensor<VDIM,VDIM>,D1d,D1d> &u, const int e,
                  DeviceTensor<4> &e_vec)
 {
    for (int w = 0; w < VDIM; w++)
@@ -84,7 +84,7 @@ void WriteMatrix(const Tensor<dTensor<VDIM,VDIM>,D1d,D1d> &u, const int e,
 
 // Non-tensor and 1D write with VDIMxVDIM components
 template<int P, int VDIM> MFEM_HOST_DEVICE inline
-void WriteAddMatrix(const Tensor<dTensor<VDIM,VDIM>,P> &u, const int e,
+void WriteAddMatrix(const StaticTensor<dTensor<VDIM,VDIM>,P> &u, const int e,
                     DeviceTensor<4> &e_vec)
 {
    for (int w = 0; w < VDIM; w++)
@@ -102,7 +102,7 @@ void WriteAddMatrix(const Tensor<dTensor<VDIM,VDIM>,P> &u, const int e,
 
 // 3D tensor write with VDIMxVDIM components
 template <int D1d, int VDIM> MFEM_HOST_DEVICE inline
-void WriteAddMatrix(const Tensor<dTensor<VDIM,VDIM>,D1d,D1d,D1d> &u, const int e,
+void WriteAddMatrix(const StaticTensor<dTensor<VDIM,VDIM>,D1d,D1d,D1d> &u, const int e,
                     DeviceTensor<6> &e_vec)
 {
    for (int w = 0; w < VDIM; w++)
@@ -126,7 +126,7 @@ void WriteAddMatrix(const Tensor<dTensor<VDIM,VDIM>,D1d,D1d,D1d> &u, const int e
 
 // 2D tensor write with VDIMxVDIM components
 template <int D1d, int VDIM> MFEM_HOST_DEVICE inline
-void WriteAddMatrix(const Tensor<dTensor<VDIM,VDIM>,D1d,D1d> &u, const int e,
+void WriteAddMatrix(const StaticTensor<dTensor<VDIM,VDIM>,D1d,D1d> &u, const int e,
                     DeviceTensor<4> &e_vec)
 {
    for (int w = 0; w < VDIM; w++)

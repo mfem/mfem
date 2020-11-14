@@ -23,11 +23,11 @@ namespace mfem
 // at quadrature points.
 // Non-tensor case
 template<int D, int Q, int Dim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<Dim>,Q> Gradient(const dTensor<Q,D> &B,
-                                const Tensor<dTensor<Dim>,Q,D> &G,
+StaticTensor<dTensor<Dim>,Q> Gradient(const dTensor<Q,D> &B,
+                                const StaticTensor<dTensor<Dim>,Q,D> &G,
                                 const dTensor<D> &u)
 {
-   Tensor<dTensor<Dim>,Q> gu_q;
+   StaticTensor<dTensor<Dim>,Q> gu_q;
    MFEM_FOREACH_THREAD(q,x,Q)
    {
       double v[Dim];
@@ -55,11 +55,11 @@ Tensor<dTensor<Dim>,Q> Gradient(const dTensor<Q,D> &B,
 
 // Non-tensor case with VDim components
 template<int Q, int D, int Dim, int VDim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<Dim,VDim>,Q> Gradient(const dTensor<Q,D> &B,
-                                     const Tensor<dTensor<Dim>,Q,D> &G,
-                                     const Tensor<dTensor<VDim>,D> &u)
+StaticTensor<dTensor<Dim,VDim>,Q> Gradient(const dTensor<Q,D> &B,
+                                     const StaticTensor<dTensor<Dim>,Q,D> &G,
+                                     const StaticTensor<dTensor<VDim>,D> &u)
 {
-   Tensor<dTensor<Dim,VDim>,Q> gu_q;
+   StaticTensor<dTensor<Dim,VDim>,Q> gu_q;
    MFEM_FOREACH_THREAD(q,x,Q)
    {
       double v[Dim][VDim];
@@ -104,7 +104,7 @@ Tensor<dTensor<Dim,VDim>,Q> Gradient(const dTensor<Q,D> &B,
 
 // 3D Tensor case
 template<int Q1d, int D1d> MFEM_HOST_DEVICE inline
-Tensor<dTensor<3>,Q1d,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
+StaticTensor<dTensor<3>,Q1d,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
                                         const dTensor<Q1d,D1d> &G,
                                         const dTensor<D1d,D1d,D1d> &u)
 {
@@ -161,7 +161,7 @@ Tensor<dTensor<3>,Q1d,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   Tensor<dTensor<3>,Q1d,Q1d,Q1d> gu_q;
+   StaticTensor<dTensor<3>,Q1d,Q1d,Q1d> gu_q;
    MFEM_FOREACH_THREAD(qx,x,Q1d)
    {
       MFEM_FOREACH_THREAD(qy,y,Q1d)
@@ -194,12 +194,12 @@ Tensor<dTensor<3>,Q1d,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
 
 // 3D Tensor case with VDim components
 template<int Q1d, int D1d, int VDim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<VDim,3>,Q1d,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
+StaticTensor<dTensor<VDim,3>,Q1d,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
                                              const dTensor<Q1d,D1d> &G,
                                              const dTensor<D1d,D1d,D1d> &u)
 {
-   Tensor<dTensor<VDim>,Q1d,D1d,D1d> Bu;
-   Tensor<dTensor<VDim>,Q1d,D1d,D1d> Gu;
+   StaticTensor<dTensor<VDim>,Q1d,D1d,D1d> Bu;
+   StaticTensor<dTensor<VDim>,Q1d,D1d,D1d> Gu;
    for (int dz = 0; dz < D1d; dz++)
    {
       MFEM_FOREACH_THREAD(dy,y,D1d)
@@ -233,9 +233,9 @@ Tensor<dTensor<VDim,3>,Q1d,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   Tensor<dTensor<VDim>,Q1d,Q1d,D1d> BBu;
-   Tensor<dTensor<VDim>,Q1d,Q1d,D1d> GBu;
-   Tensor<dTensor<VDim>,Q1d,Q1d,D1d> BGu;
+   StaticTensor<dTensor<VDim>,Q1d,Q1d,D1d> BBu;
+   StaticTensor<dTensor<VDim>,Q1d,Q1d,D1d> GBu;
+   StaticTensor<dTensor<VDim>,Q1d,Q1d,D1d> BGu;
    for (int dz = 0; dz < D1d; dz++)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1d)
@@ -274,7 +274,7 @@ Tensor<dTensor<VDim,3>,Q1d,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   Tensor<dTensor<VDim,3>,Q1d,Q1d,Q1d> gu_q;
+   StaticTensor<dTensor<VDim,3>,Q1d,Q1d,Q1d> gu_q;
    MFEM_FOREACH_THREAD(qx,x,Q1d)
    {
       MFEM_FOREACH_THREAD(qy,y,Q1d)
@@ -319,7 +319,7 @@ Tensor<dTensor<VDim,3>,Q1d,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
 
 // 2D Tensor case
 template<int Q1d, int D1d> MFEM_HOST_DEVICE inline
-Tensor<dTensor<2>,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
+StaticTensor<dTensor<2>,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
                                     const dTensor<Q1d,D1d> &G,
                                     const dTensor<D1d,D1d> &u)
 {
@@ -344,7 +344,7 @@ Tensor<dTensor<2>,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   Tensor<dTensor<2>,Q1d,Q1d> gu_q;
+   StaticTensor<dTensor<2>,Q1d,Q1d> gu_q;
    MFEM_FOREACH_THREAD(qx,x,Q1d)
    {
       MFEM_FOREACH_THREAD(qy,y,Q1d)
@@ -370,12 +370,12 @@ Tensor<dTensor<2>,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
 
 // 2D Tensor case with VDim components
 template<int Q1d, int D1d, int VDim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<VDim,2>,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
+StaticTensor<dTensor<VDim,2>,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
                                          const dTensor<Q1d,D1d> &G,
-                                         const Tensor<dTensor<VDim>,D1d,D1d> &u)
+                                         const StaticTensor<dTensor<VDim>,D1d,D1d> &u)
 {
-   Tensor<dTensor<VDim>,Q1d,D1d> Bu;
-   Tensor<dTensor<VDim>,Q1d,D1d> Gu;
+   StaticTensor<dTensor<VDim>,Q1d,D1d> Bu;
+   StaticTensor<dTensor<VDim>,Q1d,D1d> Gu;
    MFEM_FOREACH_THREAD(dy,y,D1d)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1d)
@@ -406,7 +406,7 @@ Tensor<dTensor<VDim,2>,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   Tensor<dTensor<VDim,2>,Q1d,Q1d> gu_q;
+   StaticTensor<dTensor<VDim,2>,Q1d,Q1d> gu_q;
    MFEM_FOREACH_THREAD(qx,x,Q1d)
    {
       MFEM_FOREACH_THREAD(qy,y,Q1d)
@@ -465,11 +465,11 @@ dTensor<Q1d> Gradient(const dTensor<Q1d,D1d> &B,
 
 // 1D Tensor case with VDim components
 template<int Q1d, int D1d, int VDim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<VDim>,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
+StaticTensor<dTensor<VDim>,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
                                    const dTensor<Q1d,D1d> &G,
-                                   const Tensor<dTensor<VDim>,D1d> &u)
+                                   const StaticTensor<dTensor<VDim>,D1d> &u)
 {
-   Tensor<dTensor<VDim>,Q1d> gu_q;
+   StaticTensor<dTensor<VDim>,Q1d> gu_q;
    MFEM_FOREACH_THREAD(qx,x,Q1d)
    {
       double gu[VDim];
@@ -500,8 +500,8 @@ Tensor<dTensor<VDim>,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
 // Non-tensor case
 template<int Q, int D, int Dim> MFEM_HOST_DEVICE inline
 dTensor<D> GradientT(const dTensor<Q,D> &B,
-                     const Tensor<dTensor<Dim>,Q,D> &G,
-                     const Tensor<dTensor<Dim>,Q> &u_q)
+                     const StaticTensor<dTensor<Dim>,Q,D> &G,
+                     const StaticTensor<dTensor<Dim>,Q> &u_q)
 {
    dTensor<D> gu;
    MFEM_FOREACH_THREAD(d,x,D)
@@ -524,11 +524,11 @@ dTensor<D> GradientT(const dTensor<Q,D> &B,
 
 // Non-tensor case with VDim components
 template<int D, int Q, int Dim, int VDim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<VDim>,D> GradientT(const dTensor<Q,D> &B,
-                                  const Tensor<dTensor<Dim>,Q,D> &G,
-                                  const Tensor<dTensor<VDim,Dim>,Q> &u_q)
+StaticTensor<dTensor<VDim>,D> GradientT(const dTensor<Q,D> &B,
+                                  const StaticTensor<dTensor<Dim>,Q,D> &G,
+                                  const StaticTensor<dTensor<VDim,Dim>,Q> &u_q)
 {
-   Tensor<dTensor<VDim>,D> gu;
+   StaticTensor<dTensor<VDim>,D> gu;
    MFEM_FOREACH_THREAD(d,x,D)
    {
       double v[VDim];
@@ -565,7 +565,7 @@ Tensor<dTensor<VDim>,D> GradientT(const dTensor<Q,D> &B,
 template<int D1d, int Q1d> MFEM_HOST_DEVICE inline
 dTensor<D1d,D1d,D1d> GradientT(const dTensor<Q1d,D1d> &B,
                                const dTensor<Q1d,D1d> &G,
-                               const Tensor<dTensor<3>,Q1d,Q1d,Q1d> &u_q)
+                               const StaticTensor<dTensor<3>,Q1d,Q1d,Q1d> &u_q)
 {
    dTensor<D1d,Q1d,Q1d> Gux;
    dTensor<D1d,Q1d,Q1d> Buy;
@@ -648,13 +648,13 @@ dTensor<D1d,D1d,D1d> GradientT(const dTensor<Q1d,D1d> &B,
 
 // 3D Tensor case with VDim components
 template<int D1d, int Q1d, int VDim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<VDim>,D1d,D1d,D1d> GradientT(const dTensor<Q1d,D1d> &B,
+StaticTensor<dTensor<VDim>,D1d,D1d,D1d> GradientT(const dTensor<Q1d,D1d> &B,
                                             const dTensor<Q1d,D1d> &G,
-                                            const Tensor<dTensor<VDim,3>,Q1d,Q1d,Q1d> &u_q)
+                                            const StaticTensor<dTensor<VDim,3>,Q1d,Q1d,Q1d> &u_q)
 {
-   Tensor<dTensor<VDim>,D1d,Q1d,Q1d> Gux;
-   Tensor<dTensor<VDim>,D1d,Q1d,Q1d> Buy;
-   Tensor<dTensor<VDim>,D1d,Q1d,Q1d> Buz;
+   StaticTensor<dTensor<VDim>,D1d,Q1d,Q1d> Gux;
+   StaticTensor<dTensor<VDim>,D1d,Q1d,Q1d> Buy;
+   StaticTensor<dTensor<VDim>,D1d,Q1d,Q1d> Buz;
    for (int qz = 0; qz < Q1d; qz++)
    {
       MFEM_FOREACH_THREAD(qy,y,Q1d)
@@ -691,9 +691,9 @@ Tensor<dTensor<VDim>,D1d,D1d,D1d> GradientT(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   Tensor<dTensor<VDim>,D1d,D1d,Q1d> BGux;
-   Tensor<dTensor<VDim>,D1d,D1d,Q1d> GBuy;
-   Tensor<dTensor<VDim>,D1d,D1d,Q1d> BBuz;
+   StaticTensor<dTensor<VDim>,D1d,D1d,Q1d> BGux;
+   StaticTensor<dTensor<VDim>,D1d,D1d,Q1d> GBuy;
+   StaticTensor<dTensor<VDim>,D1d,D1d,Q1d> BBuz;
    for (int qz = 0; qz < Q1d; qz++)
    {
       MFEM_FOREACH_THREAD(dx,x,D1d)
@@ -730,7 +730,7 @@ Tensor<dTensor<VDim>,D1d,D1d,D1d> GradientT(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   Tensor<dTensor<VDim>,D1d,D1d,D1d> gu;
+   StaticTensor<dTensor<VDim>,D1d,D1d,D1d> gu;
    MFEM_FOREACH_THREAD(dx,x,D1d)
    {
       MFEM_FOREACH_THREAD(dy,y,D1d)
@@ -769,7 +769,7 @@ Tensor<dTensor<VDim>,D1d,D1d,D1d> GradientT(const dTensor<Q1d,D1d> &B,
 template<int D1d, int Q1d> MFEM_HOST_DEVICE inline
 dTensor<D1d,D1d> GradientT(const dTensor<Q1d,D1d> &B,
                            const dTensor<Q1d,D1d> &G,
-                           const Tensor<dTensor<2>,Q1d,Q1d> &u_q)
+                           const StaticTensor<dTensor<2>,Q1d,Q1d> &u_q)
 {
    dTensor<D1d,Q1d> Gux;
    dTensor<D1d,Q1d> Buy;
@@ -814,12 +814,12 @@ dTensor<D1d,D1d> GradientT(const dTensor<Q1d,D1d> &B,
 
 // 2D Tensor case with VDim components
 template<int D1d, int Q1d, int VDim> MFEM_HOST_DEVICE inline
-Tensor<dTensor<VDim>,D1d,D1d> GradientT(const dTensor<Q1d,D1d> &B,
+StaticTensor<dTensor<VDim>,D1d,D1d> GradientT(const dTensor<Q1d,D1d> &B,
                                         const dTensor<Q1d,D1d> &G,
-                                        const Tensor<dTensor<VDim,2>,Q1d,Q1d> &u_q)
+                                        const StaticTensor<dTensor<VDim,2>,Q1d,Q1d> &u_q)
 {
-   Tensor<dTensor<VDim>,D1d,Q1d> Gux;
-   Tensor<dTensor<VDim>,D1d,Q1d> Buy;
+   StaticTensor<dTensor<VDim>,D1d,Q1d> Gux;
+   StaticTensor<dTensor<VDim>,D1d,Q1d> Buy;
    MFEM_FOREACH_THREAD(qy,y,Q1d)
    {
       MFEM_FOREACH_THREAD(dx,x,D1d)
@@ -849,7 +849,7 @@ Tensor<dTensor<VDim>,D1d,D1d> GradientT(const dTensor<Q1d,D1d> &B,
       }
    }
    MFEM_SYNC_THREAD;
-   Tensor<dTensor<VDim>,D1d,D1d> gu;
+   StaticTensor<dTensor<VDim>,D1d,D1d> gu;
    MFEM_FOREACH_THREAD(dx,x,D1d)
    {
       MFEM_FOREACH_THREAD(dy,y,D1d)

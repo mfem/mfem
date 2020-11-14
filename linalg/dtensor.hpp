@@ -18,74 +18,16 @@
 namespace mfem
 {
 
-/// A Class to compute the real index from the multi-indices of a tensor
-template <int N, int Dim, typename T, typename... Args>
-class TensorInd
-{
-public:
-   MFEM_HOST_DEVICE
-   static inline int result(const int* sizes, T first, Args... args)
-   {
-#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-      MFEM_ASSERT(first<sizes[N-1],"Trying to access out of boundary.");
-#endif
-      return first + sizes[N - 1] * TensorInd < N + 1, Dim, Args... >
-             ::result(sizes, args...);
-   }
-};
-
-// Terminal case
-template <int Dim, typename T, typename... Args>
-class TensorInd<Dim, Dim, T, Args...>
-{
-public:
-   MFEM_HOST_DEVICE
-   static inline int result(const int* sizes, T first, Args... args)
-   {
-#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-      MFEM_ASSERT(first<sizes[Dim-1],"Trying to access out of boundary.");
-#endif
-      return first;
-   }
-};
-
-
-/// A class to initialize the size of a Tensor
-template <int N, int Dim, typename T, typename... Args>
-class Init
-{
-public:
-   static inline int result(int* sizes, T first, Args... args)
-   {
-      sizes[N - 1] = first;
-      return first * Init < N + 1, Dim, Args... >::result(sizes, args...);
-   }
-};
-
-// Terminal case
-template <int Dim, typename T, typename... Args>
-class Init<Dim, Dim, T, Args...>
-{
-public:
-   static inline int result(int* sizes, T first, Args... args)
-   {
-      sizes[Dim - 1] = first;
-      return first;
-   }
-};
-
-
 /// A basic generic Tensor class, appropriate for use on the GPU
-template<int Dim, typename Scalar = double>
+template<int Rank, typename Scalar = double>
 class DeviceTensor
 {
 protected:
    int capacity;
    Scalar *data;
-   int sizes[Dim];
+   int sizes[Rank];
 
 public:
-   static const int Rank = Dim;
 
    /// Default constructor
    DeviceTensor() = delete;
@@ -94,9 +36,9 @@ public:
    template <typename... Args>
    DeviceTensor(Scalar* _data, Args... args)
    {
-      static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
+      static_assert(sizeof...(args) == Rank, "Wrong number of arguments");
       // Initialize sizes, and compute the number of values
-      const long int nb = Init<1, Dim, Args...>::result(sizes, args...);
+      const long int nb = Init<1, Rank, Args...>::result(sizes, args...);
       capacity = nb;
       data = (capacity > 0) ? _data : NULL;
    }
@@ -105,7 +47,7 @@ public:
    MFEM_HOST_DEVICE DeviceTensor(const DeviceTensor& t)
    {
       capacity = t.capacity;
-      for (int i = 0; i < Dim; ++i)
+      for (int i = 0; i < Rank; ++i)
       {
          sizes[i] = t.sizes[i];
       }
@@ -119,8 +61,8 @@ public:
    template <typename... Args> MFEM_HOST_DEVICE inline
    Scalar& operator()(Args... args) const
    {
-      static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
-      return data[ TensorInd<1, Dim, Args...>::result(sizes, args...) ];
+      static_assert(sizeof...(args) == Rank, "Wrong number of arguments");
+      return data[ TensorInd<1, Rank, Args...>::result(sizes, args...) ];
    }
 
    /// Subscript operator where the tensor is viewed as a 1D array.
@@ -128,6 +70,63 @@ public:
    {
       return data[i];
    }
+
+private:
+   /// A Class to compute the real index from the multi-indices of a tensor
+   template <int N, int Dim, typename T, typename... Args>
+   class TensorInd
+   {
+   public:
+      MFEM_HOST_DEVICE
+      static inline int result(const int* sizes, T first, Args... args)
+      {
+   #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+         MFEM_ASSERT(first<sizes[N-1],"Trying to access out of boundary.");
+   #endif
+         return first + sizes[N - 1] * TensorInd < N + 1, Dim, Args... >
+               ::result(sizes, args...);
+      }
+   };
+
+   // Terminal case
+   template <int Dim, typename T, typename... Args>
+   class TensorInd<Dim, Dim, T, Args...>
+   {
+   public:
+      MFEM_HOST_DEVICE
+      static inline int result(const int* sizes, T first, Args... args)
+      {
+   #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+         MFEM_ASSERT(first<sizes[Dim-1],"Trying to access out of boundary.");
+   #endif
+         return first;
+      }
+   };
+
+
+   /// A class to initialize the size of a Tensor
+   template <int N, int Dim, typename T, typename... Args>
+   class Init
+   {
+   public:
+      static inline int result(int* sizes, T first, Args... args)
+      {
+         sizes[N - 1] = first;
+         return first * Init < N + 1, Dim, Args... >::result(sizes, args...);
+      }
+   };
+
+   // Terminal case
+   template <int Dim, typename T, typename... Args>
+   class Init<Dim, Dim, T, Args...>
+   {
+   public:
+      static inline int result(int* sizes, T first, Args... args)
+      {
+         sizes[Dim - 1] = first;
+         return first;
+      }
+   };
 };
 
 
