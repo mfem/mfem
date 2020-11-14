@@ -2511,18 +2511,10 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
       mfem_error("HypreSolver::Mult (...) : HypreParMatrix A is missing");
       return;
    }
+   b.HostRead();
+   x.HostReadWrite();
    if (!setup_called)
    {
-      //b.HostRead();
-      //x.HostReadWrite();
-      const HypreAMS *hAMS = dynamic_cast<const HypreAMS*>(this);
-      MFEM_VERIFY(hAMS,"");
-      if (hAMS)
-      {
-         //hAMS->x->HostReadWrite();
-         //hAMS->y->HostReadWrite();
-      }
-
       err = SetupFcn()(*this, *A, b, x);
       if (error_mode == WARN_HYPRE_ERRORS)
       {
@@ -2540,8 +2532,7 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
    {
       x = 0.0;
    }
-   //b.HostRead();
-   //x.HostReadWrite();
+   x.HostReadWrite();
    err = SolveFcn()(*this, *A, b, x);
    if (error_mode == WARN_HYPRE_ERRORS)
    {
@@ -3725,6 +3716,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
       else
       {
          z = z_coord.ParallelProject();
+         z->HostReadWrite();
          HYPRE_AMSSetCoordinateVectors(ams, *x, *y, *z);
       }
    }
