@@ -1140,7 +1140,7 @@ HypreParMatrix* DiscreteCurl(ParFiniteElementSpace *face_fespace,
 /// The Auxiliary-space Maxwell Solver in hypre
 class HypreAMS : public HypreSolver
 {
-public:
+private:
    /// Constuct AMS solver from finite element space
    void Init(ParFiniteElementSpace *edge_space);
 
