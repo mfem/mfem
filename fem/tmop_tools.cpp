@@ -415,11 +415,17 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       }
 #endif
 
-      if (energy_out > 1.2*energy_in || std::isnan(energy_out) != 0)
+      if (untangling == false)
       {
-         if (print_level >= 0)
-         { mfem::out << "Scale = " << scale << " Increasing energy.\n"; }
-         scale *= 0.5; continue;
+         if (energy_out > 1.2*energy_in || std::isnan(energy_out) != 0)
+         {
+            if (print_level >= 0)
+            {
+               std::cout << energy_in << " " << energy_out << std::endl;
+               mfem::out << "Scale = " << scale << " Increasing energy.\n";
+            }
+            scale *= 0.5; continue;
+         }
       }
 
       oper->Mult(x_out, r);
@@ -437,10 +443,20 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    if (untangling)
    {
-      // Update min detJ for all the metrics. The metrics see this min_det_ptr.
-      *min_det_ptr = min_detJ_out - eps_untangle;
-      if (print_level >= 0)
-      { mfem::out << "New min_detJ = " << min_detJ_out << "\n"; }
+      if (min_detJ_out > 0.0)
+      {
+         *min_det_ptr = 0.0;
+         if (print_level >= 0)
+         { mfem::out << "The mesh has been untangled at the used points!\n"; }
+      }
+      else
+      {
+         // Update min detJ for all the metrics.
+         // The metrics see this min_det_ptr.
+         *min_det_ptr = min_detJ_out - eps_untangle;
+         if (print_level >= 0)
+         { mfem::out << "New min_detJ = " << min_detJ_out << "\n"; }
+      }
    }
 
    if (print_level >= 0)
@@ -603,6 +619,10 @@ double TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
                     p_nlf->ParFESpace()->GetComm());
    }
 #endif
+   const DenseMatrix &Wideal =
+      Geometries.GetGeomToPerfGeomJac(fes.GetFE(0)->GetGeomType());
+   min_detJ_all /= Wideal.Det();
+
    return min_detJ_all;
 }
 

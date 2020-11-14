@@ -682,6 +682,34 @@ void TMOP_Metric_311::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI3b(c2*weight, A.GetData());
 }
 
+double TMOP_Metric_313::EvalW(const DenseMatrix &Jpt) const
+{
+   ie.SetJacobian(Jpt.GetData());
+
+   double d = ie.Get_I3b() - min_detJ;
+   if (d < 0.0)
+   {
+      std::cout << ie.Get_I3b() << " " << min_detJ << std::endl;
+      MFEM_WARNING("negative");
+   }
+   const double c = std::pow(ie.Get_I3b() - min_detJ, -2.0/3.0);
+
+   //return ie.Get_I1() * c / 3.0 - 1.0;
+   return ie.Get_I1() * c / 3.0;
+}
+
+void TMOP_Metric_313::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   MFEM_ABORT("Metric not implemented yet.");
+}
+
+void TMOP_Metric_313::AssembleH(const DenseMatrix &Jpt,
+                                const DenseMatrix &DS,
+                                const double weight,
+                                DenseMatrix &A) const
+{
+   MFEM_ABORT("Metric not implemented yet.");
+}
 
 double TMOP_Metric_315::EvalW(const DenseMatrix &Jpt) const
 {

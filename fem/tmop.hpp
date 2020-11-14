@@ -409,7 +409,7 @@ protected:
    mutable InvariantsEvaluator3D<double> ie;
 
 public:
-   // W = |J|^2 / 3 * det(J)^(2/3) - 1.
+   // W = |J|^2 / 3 * det(J)^(-2/3) - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -427,6 +427,25 @@ protected:
 
 public:
    TMOP_Metric_311(double epsilon = 1e-4) : eps(epsilon) { }
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+};
+
+/// Shape 3D, untangling version of 303.
+class TMOP_Metric_313 : public TMOP_QualityMetric
+{
+protected:
+   double &min_detJ;
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   TMOP_Metric_313(double &mindet) : min_detJ(mindet) { }
+
+   // W = |J|^2 / 3 * [det(J)-tau0]^(-2/3) - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;

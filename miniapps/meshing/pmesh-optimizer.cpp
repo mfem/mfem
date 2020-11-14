@@ -365,6 +365,7 @@ int main (int argc, char *argv[])
       case 302: metric = new TMOP_Metric_302; break;
       case 303: metric = new TMOP_Metric_303; break;
       case 311: metric = new TMOP_Metric_311; break;
+      case 313: metric = new TMOP_Metric_313(tauval); break;
       case 315: metric = new TMOP_Metric_315; break;
       case 316: metric = new TMOP_Metric_316; break;
       case 321: metric = new TMOP_Metric_321; break;
@@ -729,12 +730,16 @@ int main (int argc, char *argv[])
    { cout << "Minimum det(J) of the original mesh is " << tauval << endl; }
 
    if (tauval < 0.0 && metric_id != 22 && metric_id != 211 && metric_id != 252
-                    && metric_id != 311 && metric_id != 352)
+                    && metric_id != 311 && metric_id != 313 && metric_id != 352)
    {
       MFEM_ABORT("The input mesh is inverted! Try an untangling metric.");
    }
    if (tauval < 0.0)
    {
+      const DenseMatrix &Wideal =
+         Geometries.GetGeomToPerfGeomJac(pfespace->GetFE(0)->GetGeomType());
+      tauval /= Wideal.Det();
+
       double h0min = h0.Min(), h0min_all;
       MPI_Allreduce(&h0min, &h0min_all, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
       // Slightly below minJ0 to avoid div by 0.
