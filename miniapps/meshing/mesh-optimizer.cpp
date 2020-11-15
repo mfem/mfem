@@ -539,7 +539,7 @@ int main(int argc, char *argv[])
 #endif
          }
 
-         if (metric_id == 14)
+         if (metric_id == 14 || metric_id == 36)
          {
             ConstantCoefficient ind_coeff(0.1*0.1);
             size.ProjectCoefficient(ind_coeff);
