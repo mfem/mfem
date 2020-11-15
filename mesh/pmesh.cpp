@@ -1140,7 +1140,7 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
          group_svert.AddColumnsInRow(gr-1, orig_nq*rfec.DofForGeometry(geom));
          // count internal edges
          group_sedge.AddColumnsInRow(gr-1, orig_nq*(RG.RefEdges.Size()/2-
-                                                   RG.NumBdrEdges));
+                                                    RG.NumBdrEdges));
          // count refined faces
          group_squad.AddColumnsInRow(gr-1, orig_nq*RG.RefGeoms.Size()/nvert);
       }
@@ -1339,10 +1339,13 @@ void ParMesh::MakeSimplicial(ParMesh &orig_mesh)
       group_svert.AddColumnsInRow(gr-1, orig_mesh.GroupNVertices(gr));
       group_sedge.AddColumnsInRow(gr-1, orig_mesh.GroupNEdges(gr));
       // Every quad gives an extra edge
-      int orig_nq = orig_mesh.GroupNQuadrilaterals(gr);
+      const int orig_nq = orig_mesh.GroupNQuadrilaterals(gr);
       group_sedge.AddColumnsInRow(gr-1, orig_nq);
       // Every quad is subdivided into two triangles
       group_stria.AddColumnsInRow(gr-1, 2*orig_nq);
+      // Existing triangles remain unchanged
+      const int orig_nt = orig_mesh.GroupNTriangles(gr);
+      group_stria.AddColumnsInRow(gr-1, orig_nt);
    }
    group_svert.MakeJ();
    svert_lvert.Reserve(group_svert.Size_of_connections());
@@ -1356,6 +1359,8 @@ void ParMesh::MakeSimplicial(ParMesh &orig_mesh)
    sface_lface.SetSize(shared_trias.Size());
 
    group_squad.MakeJ();
+
+   constexpr int ntris = 2, nv_tri = 3, nv_quad = 4;
 
    Array<int> dofs;
    for (int gr = 1; gr < GetNGroups(); gr++)
@@ -1380,11 +1385,22 @@ void ParMesh::MakeSimplicial(ParMesh &orig_mesh)
          elem->SetVertices(edge_verts);
          group_sedge.AddConnection(gr-1, shared_edges.Append(elem)-1);
       }
+      // add original shared triangles
+      const int orig_nt = orig_mesh.GroupNTriangles(gr);
+      for (int e = 0; e < orig_nt; e++)
+      {
+         int itri, o;
+         orig_mesh.GroupTriangle(gr, e, itri, o);
+         const int *v = orig_mesh.GetFace(itri)->GetVertices();
+         shared_trias.SetSize(shared_trias.Size()+1);
+         int *v2 = shared_trias.Last().v;
+         for (int iv=0; iv<nv_tri; ++iv) { v2[iv] = v[iv]; }
+         group_stria.AddConnection(gr-1, shared_trias.Size()-1);
+      }
       // add triangles from split quads and add resulting diagonal edge
       const int orig_nq = orig_mesh.GroupNQuadrilaterals(gr);
       if (orig_nq > 0)
       {
-         constexpr int ntris = 2, nv_tri = 3, nv_quad = 4;
          static const int trimap[12] =
          {
             0, 0, 0, 1,
