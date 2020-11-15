@@ -497,7 +497,9 @@ void ScalarFiniteElement::ScalarLocalRestriction(
 
    if (map_type == INTEGRAL)
    {
-      mfem_error("INTEGRAL case not supported in ScalarLocalRestriction");
+      // assuming Trans is linear; this should be ok for all refinement types
+      Trans.SetIntPoint(&Geometries.GetCenter(geom_type));
+      R *= 1.0 / Trans.Weight();
    }
 }
 const DofToQuad &ScalarFiniteElement::GetDofToQuad(const IntegrationRule &ir,

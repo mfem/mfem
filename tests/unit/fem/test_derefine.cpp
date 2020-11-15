@@ -36,77 +36,82 @@ TEST_CASE("Derefine")
    {
       for (int order = 0; order <= 2; ++order)
       {
-         const int ne = 8;
-         Mesh *mesh = nullptr;
-         if (dimension == 2)
+         for (int map_type = FiniteElement::VALUE; map_type <= FiniteElement::INTEGRAL;
+              ++map_type)
          {
-            mesh = new Mesh(ne, ne, Element::QUADRILATERAL, true, 1.0, 1.0);
+            const int ne = 8;
+            Mesh *mesh = nullptr;
+            if (dimension == 2)
+            {
+               mesh = new Mesh(ne, ne, Element::QUADRILATERAL, true, 1.0, 1.0);
+            }
+            else
+            {
+               mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, true, 1.0, 1.0, 1.0);
+            }
+
+            mesh->EnsureNCMesh();
+            mesh->SetCurvature(std::max(order,1), false, dimension, Ordering::byNODES);
+
+            L2_FECollection fec(order, dimension, BasisType::Positive, map_type);
+
+            FiniteElementSpace fespace(mesh, &fec);
+
+            GridFunction x(&fespace);
+
+            FunctionCoefficient c(coeff);
+            x.ProjectCoefficient(c);
+
+            fespace.Update();
+            x.Update();
+
+            Array<Refinement> refinements;
+            refinements.Append(Refinement(1));
+            refinements.Append(Refinement(2));
+
+            int nonconformity_limit = 0; // 0 meaning allow unlimited ratio
+
+            // First refine two elements.
+            mesh->GeneralRefinement(refinements, 1, nonconformity_limit);
+
+            fespace.Update();
+            x.Update();
+
+            // Now refine one more element and then derefine it, comparing x before and after.
+            Vector diff(x);
+
+            refinements.DeleteAll();
+            refinements.Append(Refinement(2));
+            mesh->GeneralRefinement(refinements, 1, nonconformity_limit);
+
+            fespace.Update();
+            x.Update();
+
+            // Derefine by setting 0 error on the fine elements in coarse element 2.
+            Table coarse_to_fine_;
+            Table ref_type_to_matrix;
+            Array<int> coarse_to_ref_type;
+            Array<Geometry::Type> ref_type_to_geom;
+            const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
+            rtrans.GetCoarseToFineMap(*mesh, coarse_to_fine_, coarse_to_ref_type,
+                                      ref_type_to_matrix, ref_type_to_geom);
+            Array<int> tabrow;
+
+            Vector local_err(mesh->GetNE());
+            double threshold = 1.0;
+            local_err = 2*threshold;
+            coarse_to_fine_.GetRow(2, tabrow);
+            for (int j = 0; j < tabrow.Size(); j++) { local_err(tabrow[j]) = 0.0; }
+            mesh->DerefineByError(local_err, threshold, 0, 1);
+
+            fespace.Update();
+            x.Update();
+
+            diff -= x;
+            REQUIRE(diff.Norml2() / x.Norml2() < 1e-11);
+
+            delete mesh;
          }
-         else
-         {
-            mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, true, 1.0, 1.0, 1.0);
-         }
-
-         mesh->EnsureNCMesh();
-         mesh->SetCurvature(std::max(order,1), false, dimension, Ordering::byNODES);
-
-         L2_FECollection fec(order, dimension, BasisType::Positive);
-         FiniteElementSpace fespace(mesh, &fec);
-
-         GridFunction x(&fespace);
-
-         FunctionCoefficient c(coeff);
-         x.ProjectCoefficient(c);
-
-         fespace.Update();
-         x.Update();
-
-         Array<Refinement> refinements;
-         refinements.Append(Refinement(1));
-         refinements.Append(Refinement(2));
-
-         int nonconformity_limit = 0; // 0 meaning allow unlimited ratio
-
-         // First refine two elements.
-         mesh->GeneralRefinement(refinements, 1, nonconformity_limit);
-
-         fespace.Update();
-         x.Update();
-
-         // Now refine one more element and then derefine it, comparing x before and after.
-         Vector diff(x);
-
-         refinements.DeleteAll();
-         refinements.Append(Refinement(2));
-         mesh->GeneralRefinement(refinements, 1, nonconformity_limit);
-
-         fespace.Update();
-         x.Update();
-
-         // Derefine by setting 0 error on the fine elements in coarse element 2.
-         Table coarse_to_fine_;
-         Table ref_type_to_matrix;
-         Array<int> coarse_to_ref_type;
-         Array<Geometry::Type> ref_type_to_geom;
-         const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
-         rtrans.GetCoarseToFineMap(*mesh, coarse_to_fine_, coarse_to_ref_type,
-                                   ref_type_to_matrix, ref_type_to_geom);
-         Array<int> tabrow;
-
-         Vector local_err(mesh->GetNE());
-         double threshold = 1.0;
-         local_err = 2*threshold;
-         coarse_to_fine_.GetRow(2, tabrow);
-         for (int j = 0; j < tabrow.Size(); j++) { local_err(tabrow[j]) = 0.0; }
-         mesh->DerefineByError(local_err, threshold, 0, 1);
-
-         fespace.Update();
-         x.Update();
-
-         diff -= x;
-         REQUIRE(diff.Norml2() / x.Norml2() < 1e-11);
-
-         delete mesh;
       }
    }
 }
@@ -118,61 +123,65 @@ TEST_CASE("ParDerefine", "[Parallel]")
    {
       for (int order = 0; order <= 2; ++order)
       {
-         const int ne = 8;
-         Mesh *mesh = nullptr;
-         if (dimension == 2)
+         for (int map_type = FiniteElement::VALUE; map_type <= FiniteElement::INTEGRAL;
+              ++map_type)
          {
-            mesh = new Mesh(ne, ne, Element::QUADRILATERAL, true, 1.0, 1.0);
+            const int ne = 8;
+            Mesh *mesh = nullptr;
+            if (dimension == 2)
+            {
+               mesh = new Mesh(ne, ne, Element::QUADRILATERAL, true, 1.0, 1.0);
+            }
+            else
+            {
+               mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, true, 1.0, 1.0, 1.0);
+            }
+
+            mesh->EnsureNCMesh();
+            mesh->SetCurvature(std::max(order,1), false, dimension, Ordering::byNODES);
+
+            ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+            delete mesh;
+
+            L2_FECollection fec(order, dimension, BasisType::Positive, map_type);
+            ParFiniteElementSpace fespace(pmesh, &fec);
+
+            ParGridFunction x(&fespace);
+
+            FunctionCoefficient c(coeff);
+            x.ProjectCoefficient(c);
+
+            fespace.Update();
+            x.Update();
+
+            // Refine two elements on each process and then derefine, comparing x before and after.
+            Vector diff(x);
+
+            Array<Refinement> refinements;
+            refinements.Append(Refinement(1));
+            refinements.Append(Refinement(2));
+
+            int nonconformity_limit = 0; // 0 meaning allow unlimited ratio
+
+            pmesh->GeneralRefinement(refinements, 1, nonconformity_limit);
+
+            fespace.Update();
+            x.Update();
+
+            // Derefine by setting 0 error on all fine elements.
+            Vector local_err(pmesh->GetNE());
+            double threshold = 1.0;
+            local_err = 0.0;
+            pmesh->DerefineByError(local_err, threshold, 0, 1);
+
+            fespace.Update();
+            x.Update();
+
+            diff -= x;
+            REQUIRE(diff.Norml2() / x.Norml2() < 1e-11);
+
+            delete pmesh;
          }
-         else
-         {
-            mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, true, 1.0, 1.0, 1.0);
-         }
-
-         mesh->EnsureNCMesh();
-         mesh->SetCurvature(std::max(order,1), false, dimension, Ordering::byNODES);
-
-         ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-         delete mesh;
-
-         L2_FECollection fec(order, dimension, BasisType::Positive);
-         ParFiniteElementSpace fespace(pmesh, &fec);
-
-         ParGridFunction x(&fespace);
-
-         FunctionCoefficient c(coeff);
-         x.ProjectCoefficient(c);
-
-         fespace.Update();
-         x.Update();
-
-         // Refine two elements on each process and then derefine, comparing x before and after.
-         Vector diff(x);
-
-         Array<Refinement> refinements;
-         refinements.Append(Refinement(1));
-         refinements.Append(Refinement(2));
-
-         int nonconformity_limit = 0; // 0 meaning allow unlimited ratio
-
-         pmesh->GeneralRefinement(refinements, 1, nonconformity_limit);
-
-         fespace.Update();
-         x.Update();
-
-         // Derefine by setting 0 error on all fine elements.
-         Vector local_err(pmesh->GetNE());
-         double threshold = 1.0;
-         local_err = 0.0;
-         pmesh->DerefineByError(local_err, threshold, 0, 1);
-
-         fespace.Update();
-         x.Update();
-
-         diff -= x;
-         REQUIRE(diff.Norml2() / x.Norml2() < 1e-11);
-
-         delete pmesh;
       }
    }
 }
