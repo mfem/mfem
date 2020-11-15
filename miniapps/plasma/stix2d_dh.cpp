@@ -892,18 +892,18 @@ int main(int argc, char *argv[])
    }
 
    // Create a coefficient describing the magnetic permeability
-   ConstantCoefficient muInvCoef(1.0 / mu0_);
+   ConstantCoefficient muCoef(mu0_);
 
    // Create a coefficient describing the surface admittance
    Coefficient * etaInvCoef = SetupRealAdmittanceCoefficient(pmesh, abcs);
 
    // Create tensor coefficients describing the dielectric permittivity
-   DielectricTensor epsilon_real(BField, density, temperature,
-                                 L2FESpace, H1FESpace,
-                                 omega, charges, masses, true);
-   DielectricTensor epsilon_imag(BField, density, temperature,
-                                 L2FESpace, H1FESpace,
-                                 omega, charges, masses, false);
+   InverseDielectricTensor epsilonInv_real(BField, density, temperature,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, true);
+   InverseDielectricTensor epsilonInv_imag(BField, density, temperature,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, false);
    SPDDielectricTensor epsilon_abs(BField, density, temperature,
                                    L2FESpace, H1FESpace,
                                    omega, charges, masses);
@@ -1193,16 +1193,17 @@ int main(int argc, char *argv[])
 
    // Create the cold plasma EM solver
    CPDSolverDH CPD(pmesh, order, omega,
-		   (CPDSolverDH::SolverType)sol, solOpts,
-		   (CPDSolverDH::PrecondType)prec,
-		   conv, BUnitCoef, epsilon_real, epsilon_imag, epsilon_abs,
-		   muInvCoef, etaInvCoef,
-		   (phase_shift) ? &kCoef : NULL,
-		   abcs, dbcs, nbcs, sbcs,
-		   // e_bc_r, e_bc_i,
-		   // EReCoef, EImCoef,
-		   (rod_params_.Size() > 0 ||slab_params_.Size() > 0) ?
-		   j_src : NULL, NULL, vis_u, pa);
+                   (CPDSolverDH::SolverType)sol, solOpts,
+                   (CPDSolverDH::PrecondType)prec,
+                   conv, BUnitCoef,
+                   epsilonInv_real, epsilonInv_imag, epsilon_abs,
+                   muCoef, etaInvCoef,
+                   (phase_shift) ? &kCoef : NULL,
+                   abcs, dbcs, nbcs, sbcs,
+                   // e_bc_r, e_bc_i,
+                   // EReCoef, EImCoef,
+                   (rod_params_.Size() > 0 ||slab_params_.Size() > 0) ?
+                   j_src : NULL, NULL, vis_u, pa);
 
    // Initialize GLVis visualization
    if (visualization)
