@@ -349,7 +349,30 @@ public:
    virtual ~StixPCoef() {}
 };
 
-class DielectricTensor: public MatrixCoefficient, public StixCoefBase
+class StixTensorBase: public StixCoefBase
+{
+public:
+   StixTensorBase(const ParGridFunction & B,
+                  const BlockVector & density,
+                  const BlockVector & temp,
+                  const ParFiniteElementSpace & L2FESpace,
+                  const ParFiniteElementSpace & H1FESpace,
+                  double omega,
+                  const Vector & charges,
+                  const Vector & masses,
+                  bool realPart = true);
+
+   StixTensorBase(StixCoefBase &s) : StixCoefBase(s) {}
+
+   virtual ~StixTensorBase() {}
+
+protected:
+   void addParallelComp(double P, DenseMatrix & eps);
+   void addPerpDiagComp(double S, DenseMatrix & eps);
+   void addPerpSkewComp(double D, DenseMatrix & eps);
+};
+
+class DielectricTensor: public MatrixCoefficient, public StixTensorBase
 {
 public:
    DielectricTensor(const ParGridFunction & B,
@@ -362,17 +385,35 @@ public:
                     const Vector & masses,
                     bool realPart = true);
 
-   DielectricTensor(StixCoefBase &s) : MatrixCoefficient(3), StixCoefBase(s) {}
+   DielectricTensor(StixCoefBase &s)
+      : MatrixCoefficient(3), StixTensorBase(s) {}
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
    virtual ~DielectricTensor() {}
+};
 
-private:
-   void addParallelComp(double P, DenseMatrix & eps);
-   void addPerpDiagComp(double S, DenseMatrix & eps);
-   void addPerpSkewComp(double D, DenseMatrix & eps);
+class InverseDielectricTensor: public MatrixCoefficient, public StixTensorBase
+{
+public:
+   InverseDielectricTensor(const ParGridFunction & B,
+                           const BlockVector & density,
+                           const BlockVector & temp,
+                           const ParFiniteElementSpace & L2FESpace,
+                           const ParFiniteElementSpace & H1FESpace,
+                           double omega,
+                           const Vector & charges,
+                           const Vector & masses,
+                           bool realPart = true);
+
+   InverseDielectricTensor(StixCoefBase &s)
+      : MatrixCoefficient(3), StixTensorBase(s) {}
+
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+
+   virtual ~InverseDielectricTensor() {}
 };
 
 class SPDDielectricTensor: public MatrixCoefficient, public StixCoefBase
@@ -391,24 +432,24 @@ public:
                      const IntegrationPoint &ip);
 
    virtual ~SPDDielectricTensor() {}
-  /*
-private:
-   const ParGridFunction & B_;
-   const BlockVector & density_;
-   const BlockVector & temp_;
-   const ParFiniteElementSpace & L2FESpace_;
-   const ParFiniteElementSpace & H1FESpace_;
+   /*
+   private:
+    const ParGridFunction & B_;
+    const BlockVector & density_;
+    const BlockVector & temp_;
+    const ParFiniteElementSpace & L2FESpace_;
+    const ParFiniteElementSpace & H1FESpace_;
 
-   double omega_;
+    double omega_;
 
-   ParGridFunction density_gf_;
-   ParGridFunction temperature_gf_;
+    ParGridFunction density_gf_;
+    ParGridFunction temperature_gf_;
 
-   Vector density_vals_;
-   Vector temp_vals_;
-   const Vector & charges_;
-   const Vector & masses_;
-  */
+    Vector density_vals_;
+    Vector temp_vals_;
+    const Vector & charges_;
+    const Vector & masses_;
+   */
 };
 
 /*

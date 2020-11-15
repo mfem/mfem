@@ -403,11 +403,11 @@ double RectifiedSheathPotential::Eval(ElementTransformation &T,
    double density_val = EvalIonDensity(T, ip);
    double temp_val = EvalElectronTemp(T, ip);
 
-   double Te = temp_val * q_; // Electron temperature, Units: J
+   // double Te = temp_val * q_; // Electron temperature, Units: J
 
    double wpi = omega_p(density_val, charges_[1], masses_[1]);
 
-   double vnorm = Te / (charges_[1] * q_);
+   // double vnorm = Te / (charges_[1] * q_);
    double w_norm = omega_ / wpi;
 
    complex<double> phi = EvalSheathPotential(T, ip);
@@ -680,6 +680,62 @@ double StixPCoef::Eval(ElementTransformation &T,
    }
 }
 
+StixTensorBase::StixTensorBase(const ParGridFunction & B,
+                               const BlockVector & density,
+                               const BlockVector & temp,
+                               const ParFiniteElementSpace & L2FESpace,
+                               const ParFiniteElementSpace & H1FESpace,
+                               double omega,
+                               const Vector & charges,
+                               const Vector & masses,
+                               bool realPart)
+   : StixCoefBase(B, density, temp, L2FESpace, H1FESpace,
+                  omega, charges, masses, realPart)
+{}
+
+void StixTensorBase::addParallelComp(double P, DenseMatrix & eps)
+{
+   // For b = B/|B|, add P * b b^T to epsilon
+   for (int i=0; i<3; i++)
+   {
+      eps(i,i) += P * BVec_(i) * BVec_(i);
+      for (int j = i+1; j<3; j++)
+      {
+         double eij = P * BVec_(i) * BVec_(j);
+         eps(i,j) += eij;
+         eps(j,i) += eij;
+      }
+   }
+}
+
+void StixTensorBase::addPerpDiagComp(double S, DenseMatrix & eps)
+{
+   // For b = B/|B|, add S * (I - b b^T) to epsilon
+   for (int i=0; i<3; i++)
+   {
+      eps(i,i) += S * (1.0 - BVec_(i) * BVec_(i));
+      for (int j = i+1; j<3; j++)
+      {
+         double eij = S * BVec_(i) * BVec_(j);
+         eps(i,j) -= eij;
+         eps(j,i) -= eij;
+      }
+   }
+}
+
+void StixTensorBase::addPerpSkewComp(double D, DenseMatrix & eps)
+{
+   // For b = B/|B|, add D * b\times to epsilon
+   eps(1,2) -= D * BVec_[0];
+   eps(2,1) += D * BVec_[0];
+
+   eps(2,0) -= D * BVec_[1];
+   eps(0,2) += D * BVec_[1];
+
+   eps(0,1) -= D * BVec_[2];
+   eps(1,0) += D * BVec_[2];
+}
+
 DielectricTensor::DielectricTensor(const ParGridFunction & B,
                                    const BlockVector & density,
                                    const BlockVector & temp,
@@ -690,8 +746,8 @@ DielectricTensor::DielectricTensor(const ParGridFunction & B,
                                    const Vector & masses,
                                    bool realPart)
    : MatrixCoefficient(3),
-     StixCoefBase(B, density, temp, L2FESpace, H1FESpace, omega,
-                  charges, masses, realPart)
+     StixTensorBase(B, density, temp, L2FESpace, H1FESpace, omega,
+                    charges, masses, realPart)
 {}
 
 void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
@@ -778,47 +834,54 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    */
 }
 
-void DielectricTensor::addParallelComp(double P, DenseMatrix & eps)
+InverseDielectricTensor::InverseDielectricTensor(
+   const ParGridFunction & B,
+   const BlockVector & density,
+   const BlockVector & temp,
+   const ParFiniteElementSpace & L2FESpace,
+   const ParFiniteElementSpace & H1FESpace,
+   double omega,
+   const Vector & charges,
+   const Vector & masses,
+   bool realPart)
+   : MatrixCoefficient(3),
+     StixTensorBase(B, density, temp, L2FESpace, H1FESpace, omega,
+                    charges, masses, realPart)
+{}
+
+void InverseDielectricTensor::Eval(DenseMatrix &epsilonInv,
+                                   ElementTransformation &T,
+                                   const IntegrationPoint &ip)
 {
-   // For b = B/|B|, add P * b b^T to epsilon
-   for (int i=0; i<3; i++)
-   {
-      eps(i,i) += P * BVec_(i) * BVec_(i);
-      for (int j = i+1; j<3; j++)
-      {
-         double eij = P * BVec_(i) * BVec_(j);
-         eps(i,j) += eij;
-         eps(j,i) += eij;
-      }
-   }
-}
+   // Initialize dielectric tensor to appropriate size
+   epsilonInv.SetSize(3); epsilonInv = 0.0;
 
-void DielectricTensor::addPerpDiagComp(double S, DenseMatrix & eps)
-{
-   // For b = B/|B|, add S * (I - b b^T) to epsilon
-   for (int i=0; i<3; i++)
-   {
-      eps(i,i) += S * (1.0 - BVec_(i) * BVec_(i));
-      for (int j = i+1; j<3; j++)
-      {
-         double eij = S * BVec_(i) * BVec_(j);
-         eps(i,j) -= eij;
-         eps(j,i) -= eij;
-      }
-   }
-}
+   // Collect density, temperature, and magnetic field values
+   double Bmag = this->getBMagnitude(T, ip);
+   BVec_ /= Bmag;
 
-void DielectricTensor::addPerpSkewComp(double D, DenseMatrix & eps)
-{
-   // For b = B/|B|, add D * b\times to epsilon
-   eps(1,2) -= D * BVec_[0];
-   eps(2,1) += D * BVec_[0];
+   this->fillDensityVals(T, ip);
+   this->fillTemperatureVals(T, ip);
 
-   eps(2,0) -= D * BVec_[1];
-   eps(0,2) += D * BVec_[1];
+   // Evaluate the Stix Coefficients
+   complex<double> S = S_cold_plasma(omega_, Bmag, density_vals_,
+                                     charges_, masses_, temp_vals_);
+   complex<double> P = P_cold_plasma(omega_, density_vals_,
+                                     charges_, masses_, temp_vals_);
+   complex<double> D = D_cold_plasma(omega_, Bmag, density_vals_,
+                                     charges_, masses_, temp_vals_);
 
-   eps(0,1) -= D * BVec_[2];
-   eps(1,0) += D * BVec_[2];
+   complex<double> Q = S * S - D * D;
+   complex<double> QInv = 1.0 / Q;
+   complex<double> SInv = S * QInv;
+   complex<double> PInv = 1.0 / P;
+   complex<double> DInv = D * QInv;
+
+   this->addParallelComp(realPart_ ?  PInv.real() : PInv.imag(), epsilonInv);
+   this->addPerpDiagComp(realPart_ ?  SInv.real() : SInv.imag(), epsilonInv);
+   this->addPerpSkewComp(realPart_ ? -DInv.imag() : DInv.real(), epsilonInv);
+
+   epsilonInv *= 1.0 / epsilon0_;
 }
 
 SPDDielectricTensor::SPDDielectricTensor(
