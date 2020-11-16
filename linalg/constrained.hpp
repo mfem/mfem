@@ -162,10 +162,10 @@ private:
 };
 
 /** The innovation here is throw away the mapping and make a square matrix */
-class NewEliminationProjection : public Operator
+class EliminationProjection : public Operator
 {
 public:
-   NewEliminationProjection(const SparseMatrix& A, Array<Eliminator*>& eliminators);
+   EliminationProjection(const SparseMatrix& A, Array<Eliminator*>& eliminators);
 
    void Mult(const Vector& x, Vector& y) const;
 
@@ -226,7 +226,7 @@ private:
    Array<int> first_interface_dofs_;
    Array<int> second_interface_dofs_;
    Eliminator * elim_;
-   NewEliminationProjection * projector_;
+   EliminationProjection * projector_;
    HypreParMatrix * h_explicit_operator_;
    HypreBoomerAMG * prec_;
 };

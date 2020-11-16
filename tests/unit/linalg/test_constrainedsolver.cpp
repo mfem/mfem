@@ -375,7 +375,7 @@ TEST_CASE("EliminationProjection", "[Parallel], [ConstrainedSolver]")
       Eliminator eliminator(B, lagrange_dofs, primary_dofs, secondary_dofs);
       Array<Eliminator*> eliminators;
       eliminators.Append(&eliminator);
-      NewEliminationProjection newep(A, eliminators);
+      EliminationProjection newep(A, eliminators);
       SparseMatrix * new_assembled_ep = newep.AssembleExact();
 
       Vector x(2);
