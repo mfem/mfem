@@ -363,12 +363,6 @@ public:
       AddQualityMetric(sz_metric, gamma_);
    }
 
-   virtual void SetTargetJacobian(const DenseMatrix &_Jtr)
-   {
-      sh_metric->SetTargetJacobian(_Jtr);
-      sz_metric->SetTargetJacobian(_Jtr);
-   }
-
    virtual ~TMOP_Metric_080() { delete sh_metric; delete sz_metric; }
 };
 
@@ -647,12 +641,6 @@ public:
       // (1-gamma) nu_11 + gamma nu_14
       AddQualityMetric(sh_metric, 1.-gamma_);
       AddQualityMetric(sz_metric, gamma_);
-   }
-
-   virtual void SetTargetJacobian(const DenseMatrix &_Jtr)
-   {
-      sh_metric->SetTargetJacobian(_Jtr);
-      sz_metric->SetTargetJacobian(_Jtr);
    }
 
    virtual ~TMOP_AMetric_126() { delete sh_metric; delete sz_metric; }

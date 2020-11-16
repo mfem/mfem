@@ -752,7 +752,7 @@ int main(int argc, char *argv[])
 
    // 14. As we use the Newton method to solve the resulting nonlinear system,
    //     here we setup the linear solver for the system's Jacobian.
-   Solver *S = NULL;
+   Solver *S = NULL, *S_prec = NULL;
    const double linsol_rtol = 1e-12;
    if (lin_solver == 0)
    {
@@ -774,6 +774,11 @@ int main(int argc, char *argv[])
       minres->SetRelTol(linsol_rtol);
       minres->SetAbsTol(0.0);
       minres->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
+      if (lin_solver == 3 || lin_solver == 4)
+      {
+         S_prec = new DSmoother((lin_solver == 3) ? 0 : 1, 1.0, 1);
+         minres->SetPreconditioner(*S_prec);
+      }
       S = minres;
    }
 
@@ -875,6 +880,7 @@ int main(int argc, char *argv[])
    }
 
    // 19. Free the used memory.
+   delete S_prec;
    delete S;
    delete target_c2;
    delete metric2;
