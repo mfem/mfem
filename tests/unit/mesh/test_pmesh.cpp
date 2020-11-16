@@ -76,7 +76,7 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
                localGI.insert(gi[i]);
             }
 
-            REQUIRE(localGI.size() == gi.Size());
+            REQUIRE(localGI.size() == (std::size_t) gi.Size());
          }
 
          // Verify that the global indices range from 0 to globalN-1.
