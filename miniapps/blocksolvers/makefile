@@ -48,15 +48,6 @@ endif
 
 all: $(MINIAPPS)
 
-# Rules to copy the mesh, coefficient, and boundary attribute files - needed for
-# running the sample runs when building out-of-source:
-ifneq ($(SRC),)
-AUX_FILES = anisoptropic.mesh high_contrast_coef.txt ess_bdr_attr.txt
-$(AUX_FILES): %: $(SRC)%
-        ln -sf $(<) .
-block-solvers-compare: | $(AUX_FILES)
-endif
-
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
 
