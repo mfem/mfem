@@ -1103,7 +1103,7 @@ double Vector::operator*(const Vector &v) const
       }
       return th_dot.Sum();
 #else
-      // The standard way of computing the dot product is non-deterimistic
+      // The standard way of computing the dot product is non-deterministic
       double prod = 0.0;
       #pragma omp parallel for reduction(+:prod)
       for (int i = 0; i < size; i++)
