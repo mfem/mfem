@@ -79,7 +79,7 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
             REQUIRE(localGI.size() == gi.Size());
          }
 
-         // Verify that the global indices range from 0 to globalNV-1.
+         // Verify that the global indices range from 0 to globalN-1.
          {
             const HYPRE_Int localMin = gi.Min();
             const HYPRE_Int localMax = gi.Max();
