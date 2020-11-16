@@ -1780,6 +1780,7 @@ void DiscreteLinearOperator::SetAssemblyLevel(AssemblyLevel assembly_level)
    assembly = assembly_level;
    switch (assembly)
    {
+      case AssemblyLevel::LEGACYFULL:
       case AssemblyLevel::FULL:
          // Use the original implementation for now
          break;
