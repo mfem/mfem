@@ -145,3 +145,39 @@ TEST_CASE("Gecko integration in MFEM", "[Mesh]")
       }
    }
 }
+
+TEST_CASE("MakeSimplicial", "[Mesh]")
+{
+   auto mesh_fname = GENERATE("../../data/star.mesh",
+                              "../../data/inline-quad.mesh",
+                              "../../data/inline-hex.mesh",
+                              "../../data/inline-wedge.mesh",
+                              "../../data/beam-wedge.mesh");
+
+   Mesh orig_mesh(mesh_fname, 1, 1);
+   Mesh simplex_mesh;
+   simplex_mesh.MakeSimplicial(orig_mesh);
+
+   Geometry::Type orig_geom = orig_mesh.GetElementBaseGeometry(0);
+   int factor;
+   switch (orig_geom)
+   {
+      case Geometry::SQUARE: factor = 2; break;
+      case Geometry::PRISM: factor = 3; break;
+      case Geometry::CUBE: factor = 6; break;
+      default: factor = 1;
+   }
+
+   int dim = orig_mesh.Dimension();
+   Geometry::Type simplex_geom
+      = (dim == 2) ? Geometry::TRIANGLE : Geometry::TETRAHEDRON;
+
+   Array<Geometry::Type> geoms;
+   simplex_mesh.GetGeometries(simplex_mesh.Dimension(), geoms);
+
+   REQUIRE(geoms.Size() == 1);
+   REQUIRE(geoms[0] == simplex_geom);
+   // Note: assuming no hex is subdivided into 5 tets. This can happen depending
+   // on the original mesh, but it doesn't happen for these test cases.
+   REQUIRE(simplex_mesh.GetNE() == orig_mesh.GetNE()*factor);
+}
