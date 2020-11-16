@@ -645,7 +645,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 
       Monitor(i, betanom, r, x);
 
-      if (betanom < r0)
+      if (betanom <= r0)
       {
          if (print_level == 2)
          {
@@ -1649,12 +1649,12 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    Vector sk, rk, yk, rho, alpha;
    DenseMatrix skM(width, m), ykM(width, m);
 
-   //r - r_{k+1}, c - descent direction
-   sk.SetSize(width);    //x_{k+1}-x_k
-   rk.SetSize(width);    //nabla(f(x_{k}))
-   yk.SetSize(width);    //r_{k+1}-r_{k}
-   rho.SetSize(m);       //1/(dot(yk,sk)
-   alpha.SetSize(m);    //rhok*sk'*c
+   // r - r_{k+1}, c - descent direction
+   sk.SetSize(width);    // x_{k+1}-x_k
+   rk.SetSize(width);    // nabla(f(x_{k}))
+   yk.SetSize(width);    // r_{k+1}-r_{k}
+   rho.SetSize(m);       // 1/(dot(yk,sk)
+   alpha.SetSize(m);     // rhok*sk'*c
    int last_saved_id = -1;
 
    int it;
@@ -1707,7 +1707,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
          converged = 0;
          break;
       }
-      add(x, -c_scale, c, x); //x_{k+1} = x_k - c_scale*c
+      add(x, -c_scale, c, x); // x_{k+1} = x_k - c_scale*c
 
       ProcessNewState(x);
 
@@ -1717,12 +1717,12 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
          r -= b;
       }
 
-      //    LBFGS - construct descent direction
+      // LBFGS - construct descent direction
       subtract(r, rk, yk);   // yk = r_{k+1} - r_{k}
       sk = c; sk *= -c_scale; //sk = x_{k+1} - x_{k} = -c_scale*c
       const double gamma = Dot(sk, yk)/Dot(yk, yk);
 
-      //  Save last m vectors
+      // Save last m vectors
       last_saved_id = (last_saved_id == m-1) ? 0 : last_saved_id+1;
       skM.SetCol(last_saved_id, sk);
       ykM.SetCol(last_saved_id, yk);

@@ -83,6 +83,11 @@ if (MFEM_USE_SUPERLU)
   list(APPEND HDRS superlu.hpp)
 endif()
 
+if (MFEM_USE_MUMPS)
+  list(APPEND SRCS mumps.cpp)
+  list(APPEND HDRS mumps.hpp)
+endif()
+
 if (MFEM_USE_STRUMPACK)
   list(APPEND SRCS strumpack.cpp)
   list(APPEND HDRS strumpack.hpp)
