@@ -351,6 +351,7 @@ int main (int argc, char *argv[])
            "e) View elements\n"
            "h) View element sizes, h\n"
            "k) View element ratios, kappa\n"
+           "J) View scaled Jacobian\n"
            "l) Plot a function\n"
            "x) Print sub-element stats\n"
            "f) Find physical point in reference space\n"
@@ -558,6 +559,8 @@ int main (int argc, char *argv[])
          cin >> sd;
          Array<int> bad_elems_by_geom(Geometry::NumGeom);
          bad_elems_by_geom = 0;
+         // Only print so many to keep output compact
+         const int max_to_print = 10;
          for (int i = 0; i < mesh->GetNE(); i++)
          {
             Geometry::Type geom = mesh->GetElementBaseGeometry(i);
@@ -589,9 +592,22 @@ int main (int argc, char *argv[])
             max_det_J = fmax(max_det_J, max_det_J_z);
             if (min_det_J_z <= 0.0)
             {
+               if (nz < max_to_print)
+               {
+                  Vector center;
+                  mesh->GetElementCenter(i, center);
+                  cout << "det(J) < 0 = " << min_det_J_z << " in element "
+                       << i << ", centered at: ";
+                  center.Print();
+               }
                nz++;
                bad_elems_by_geom[geom]++;
             }
+         }
+         if (nz >= max_to_print)
+         {
+            cout << "det(J) < 0 for " << nz - max_to_print << " more elements "
+                 << "not printed.\n";
          }
          cout << "\nbad elements = " << nz;
          if (nz)
@@ -692,7 +708,7 @@ int main (int argc, char *argv[])
 
       // These are most of the cases that open a new GLVis window
       if (mk == 'm' || mk == 'b' || mk == 'e' || mk == 'v' || mk == 'h' ||
-          mk == 'k' || mk == 'p')
+          mk == 'k' || mk == 'J' || mk == 'p')
       {
          Array<int> bdr_part;
          Array<int> part(mesh->GetNE());
@@ -765,7 +781,7 @@ int main (int argc, char *argv[])
             h_max = -h_min;
             for (int i = 0; i < mesh->GetNE(); i++)
             {
-               int geom = mesh->GetElementBaseGeometry(i);
+               Geometry::Type geom = mesh->GetElementBaseGeometry(i);
                ElementTransformation *T = mesh->GetElementTransformation(i);
                T->SetIntPoint(&Geometries.GetCenter(geom));
                Geometries.JacToPerfJac(geom, T->Jacobian(), J);
@@ -790,11 +806,53 @@ int main (int argc, char *argv[])
             DenseMatrix J(dim);
             for (int i = 0; i < mesh->GetNE(); i++)
             {
-               int geom = mesh->GetElementBaseGeometry(i);
+               Geometry::Type geom = mesh->GetElementBaseGeometry(i);
                ElementTransformation *T = mesh->GetElementTransformation(i);
                T->SetIntPoint(&Geometries.GetCenter(geom));
                Geometries.JacToPerfJac(geom, T->Jacobian(), J);
                attr(i) = J.CalcSingularvalue(0) / J.CalcSingularvalue(dim-1);
+            }
+         }
+
+         if (mk == 'J')
+         {
+            // The "scaled Jacobian" is the determinant of the Jacobian scaled
+            // by the l2 norms of its columns. It can be used to identify badly
+            // skewed elements, since it takes values between 0 and 1, with 0
+            // corresponding to a flat element, and 1 to orthogonal columns.
+            DenseMatrix J(dim);
+            int sd;
+            cout << "subdivision factor ---> " << flush;
+            cin >> sd;
+            for (int i = 0; i < mesh->GetNE(); i++)
+            {
+               Geometry::Type geom = mesh->GetElementBaseGeometry(i);
+               ElementTransformation *T = mesh->GetElementTransformation(i);
+
+               RefinedGeometry *RefG = GlobGeometryRefiner.Refine(geom, sd, 1);
+               IntegrationRule &ir = RefG->RefPts;
+
+               // For each element, find the minimal scaled Jacobian in a
+               // lattice of points with the given subdivision factor.
+               attr(i) = infinity();
+               for (int j = 0; j < ir.GetNPoints(); j++)
+               {
+                  T->SetIntPoint(&ir.IntPoint(j));
+                  Geometries.JacToPerfJac(geom, T->Jacobian(), J);
+
+                  // Jacobian determinant
+                  double sJ = J.Det();
+
+                  for (int k = 0; k < J.Width(); k++)
+                  {
+                     Vector col;
+                     J.GetColumnReference(k,col);
+                     // Scale by column norms
+                     sJ /= col.Norml2();
+                  }
+
+                  attr(i) = fmin(sJ, attr(i));
+               }
             }
          }
 
@@ -950,7 +1008,7 @@ int main (int argc, char *argv[])
             else
             {
                sol_sock << "fem3d_gf_data_keys\n";
-               if (mk == 'v' || mk == 'h' || mk == 'k')
+               if (mk == 'v' || mk == 'h' || mk == 'k' || mk == 'J')
                {
                   mesh->Print(sol_sock);
                }
