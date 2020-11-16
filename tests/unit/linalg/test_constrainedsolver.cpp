@@ -367,62 +367,56 @@ TEST_CASE("EliminationProjection", "[Parallel], [ConstrainedSolver]")
       Array<int> secondary_dofs;
       secondary_dofs.Append(0);
       secondary_dofs.Append(2);
+      Array<int> lagrange_dofs;
+      lagrange_dofs.Append(0);
+      lagrange_dofs.Append(1);
 
-      EliminationProjection ep(A, B, primary_dofs, secondary_dofs);
       NodalEliminationProjection nep(A, B);
-      SparseMatrix * assembled_ep = ep.AssembleExact();
-
-      Eliminator eliminator(B, primary_dofs, secondary_dofs);
+      Eliminator eliminator(B, lagrange_dofs, primary_dofs, secondary_dofs);
       Array<Eliminator*> eliminators;
       eliminators.Append(&eliminator);
       NewEliminationProjection newep(A, eliminators);
+      SparseMatrix * new_assembled_ep = newep.AssembleExact();
 
       Vector x(2);
-      // x.Randomize();
-      x = 0.0;
-      x(1) = 1.0;
+      x.Randomize();
+      // x = 0.0;
+      // x(1) = 1.0;
       Vector newx(4);
-      // newx.Randomize();
       newx = 0.0;
-      /*
-      newx(0) = x(0);
-      newx(1) = x(1);
-      */
       for (int i = 0; i < primary_dofs.Size(); ++i)
       {
          newx(primary_dofs[i]) = x(i);
       }
-      Vector epy(4), nepy(4), aepy(4), newepy(4);
-      ep.Mult(x, epy);
+      Vector nepy(4), newepy(4), aepy(4);
       nep.Mult(x, nepy);
-      assembled_ep->Mult(x, aepy);
       newep.Mult(newx, newepy);
+      new_assembled_ep->Mult(newx, aepy);
 
-      std::cout << "epy:" << std::endl;
-      epy.Print(std::cout);
-      std::cout << "newepy:" << std::endl;
-      newepy.Print(std::cout);
+      /*
+      std::cout << "new_assembled_ep:";
+      new_assembled_ep->Print(std::cout);
+      */
 
       for (int i = 0; i < 4; ++i)
       {
-         REQUIRE(epy(i) - nepy(i) == MFEM_Approx(0.0));
-         REQUIRE(epy(i) - aepy(i) == MFEM_Approx(0.0));
-         REQUIRE(epy(i) - newepy(i) == MFEM_Approx(0.0));
+         REQUIRE(nepy(i) - aepy(i) == MFEM_Approx(0.0));
+         REQUIRE(nepy(i) - newepy(i) == MFEM_Approx(0.0));
       }
 
       Vector xt(4);
       xt.Randomize();
-      Vector epyt(2), nepyt(2), aepyt(2);
-      ep.MultTranspose(xt, epyt);
+      Vector newepyt(4), nepyt(2), aepyt(4);
+      newep.MultTranspose(xt, newepyt);
       nep.MultTranspose(xt, nepyt);
-      assembled_ep->MultTranspose(xt, aepyt);
+      new_assembled_ep->MultTranspose(xt, aepyt);
       for (int i = 0; i < 2; ++i)
       {
-         REQUIRE(epyt(i) - nepyt(i) == MFEM_Approx(0.0));
-         REQUIRE(epyt(i) - aepyt(i) == MFEM_Approx(0.0));
+         REQUIRE(newepyt(primary_dofs[i]) - nepyt(i) == MFEM_Approx(0.0));
+         REQUIRE(nepyt(i) - aepyt(primary_dofs[i]) == MFEM_Approx(0.0));
       }
 
-      delete assembled_ep;
+      delete new_assembled_ep;
    }
 }
 
