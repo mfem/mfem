@@ -122,8 +122,8 @@ private:
 class Eliminator
 {
 public:
-   Eliminator(const SparseMatrix& B, Array<int>& lagrange_dofs,
-              Array<int>& primary_tdofs, Array<int>& secondary_tdofs);
+   Eliminator(const SparseMatrix& B, const Array<int>& lagrange_dofs,
+              const Array<int>& primary_tdofs, const Array<int>& secondary_tdofs);
 
    const Array<int>& LagrangeDofs() const { return lagrange_tdofs_; }
    const Array<int>& PrimaryDofs() const { return primary_tdofs_; }

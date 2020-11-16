@@ -162,8 +162,8 @@ void NodalEliminationProjection::MultTranspose(const Vector& in, Vector& out) co
    }
 }
 
-Eliminator::Eliminator(const SparseMatrix& B, Array<int>& lagrange_tdofs,
-                       Array<int>& primary_tdofs, Array<int>& secondary_tdofs)
+Eliminator::Eliminator(const SparseMatrix& B, const Array<int>& lagrange_tdofs,
+                       const Array<int>& primary_tdofs, const Array<int>& secondary_tdofs)
    :
    lagrange_tdofs_(lagrange_tdofs),
    primary_tdofs_(primary_tdofs),
@@ -172,16 +172,11 @@ Eliminator::Eliminator(const SparseMatrix& B, Array<int>& lagrange_tdofs,
    MFEM_VERIFY(lagrange_tdofs.Size() == secondary_tdofs.Size(),
                "Dof sizes don't match!");
 
-   Array<int> lm_dofs;
-   for (int i = 0; i < B.Height(); ++i)
-   {
-      lm_dofs.Append(i);
-   }
-   Bp_.SetSize(B.Height(), primary_tdofs.Size());
-   B.GetSubMatrix(lm_dofs, primary_tdofs, Bp_);
+   Bp_.SetSize(lagrange_tdofs.Size(), primary_tdofs.Size());
+   B.GetSubMatrix(lagrange_tdofs, primary_tdofs, Bp_);
 
-   Bs_.SetSize(B.Height(), secondary_tdofs.Size());
-   B.GetSubMatrix(lm_dofs, secondary_tdofs, Bs_);
+   Bs_.SetSize(lagrange_tdofs.Size(), secondary_tdofs.Size());
+   B.GetSubMatrix(lagrange_tdofs, secondary_tdofs, Bs_);
    BsT_.Transpose(Bs_);
 
    ipiv_.SetSize(Bs_.Height());

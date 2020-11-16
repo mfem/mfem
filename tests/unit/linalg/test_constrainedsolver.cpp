@@ -378,6 +378,22 @@ TEST_CASE("EliminationProjection", "[Parallel], [ConstrainedSolver]")
       EliminationProjection newep(A, eliminators);
       SparseMatrix * new_assembled_ep = newep.AssembleExact();
 
+      Array<int> n_lagrange_dofs(1);
+      Array<int> n_primary_dofs(1);
+      Array<int> n_secondary_dofs(1);
+      n_lagrange_dofs[0] = 0;
+      n_primary_dofs[0] = 1;
+      n_secondary_dofs[0] = 0;
+      Eliminator elimone(B, n_lagrange_dofs, n_primary_dofs, n_secondary_dofs);
+      n_lagrange_dofs[0] = 1;
+      n_primary_dofs[0] = 3;
+      n_secondary_dofs[0] = 2;
+      Eliminator elimtwo(B, n_lagrange_dofs, n_primary_dofs, n_secondary_dofs);
+      Array<Eliminator*> nodal_eliminators(2);
+      nodal_eliminators[0] = &elimone;
+      nodal_eliminators[1] = &elimtwo;
+      EliminationProjection new_nodalep(A, nodal_eliminators);
+
       Vector x(2);
       x.Randomize();
       // x = 0.0;
