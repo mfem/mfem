@@ -111,7 +111,7 @@ DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
 
    Vector coef_vector(mesh.GetNE());
    coef_vector = 1.0;
-   if (coef_file != "")
+   if (std::strcmp(coef_file, ""))
    {
       ifstream coef_str(coef_file);
       coef_vector.Load(coef_str, mesh.GetNE());
@@ -181,7 +181,7 @@ void DarcyProblem::ShowError(const Vector& sol, bool verbose)
    double norm_p = ComputeGlobalLpNorm(2, pcoeff_, mesh_, irs_);
 
    if (!verbose) { return; }
-   cout << "\n|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
+   cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
    cout << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
 }
 
@@ -274,7 +274,7 @@ int main(int argc, char *argv[])
 
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 0;
-   if (ess_bdr_attr_file != "")
+   if (std::strcmp(ess_bdr_attr_file, ""))
    {
       ifstream ess_bdr_attr_str(ess_bdr_attr_file);
       ess_bdr.Load(mesh->bdr_attributes.Max(), ess_bdr_attr_str);
@@ -291,7 +291,7 @@ int main(int argc, char *argv[])
       return 0;
    }
 
-   string line = "\n*******************************************************\n";
+   string line = "**********************************************************\n";
 
    ResetTimer();
 
@@ -310,7 +310,7 @@ int main(int argc, char *argv[])
       if (par_ref_levels > 0)
       {
          cout << "Dimension of the divergence free subspace: "
-              << DFS_data.C.Last().Ptr()->NumCols() << "\n";
+              << DFS_data.C.Last().Ptr()->NumCols() << "\n\n";
       }
    }
 
@@ -352,14 +352,18 @@ int main(int argc, char *argv[])
               << setup_time[solver] << "s.\n   Solve time: "
               << chrono.RealTime() << "s.\n   Total time: "
               << setup_time[solver] + chrono.RealTime() << "s.\n"
-              << "   Iteration count: " << solver->GetNumIterations() <<"\n";
+              << "   Iteration count: " << solver->GetNumIterations() <<"\n\n";
       }
-      if (mpi.Root() && coef_file != "")
+      if (show_error && std::strcmp(coef_file, "") == 0)
+      {
+         darcy.ShowError(sol, mpi.Root());
+      }
+      else if (show_error && mpi.Root())
       {
          cout << "Exact solution is unknown for coefficient '" << coef_file
-              << "'.\nApproximation error cannot be computed in this case!\n";
+              << "'.\nApproximation error is computed in this case!\n\n";
       }
-      if (show_error && coef_file == "") { darcy.ShowError(sol, mpi.Root()); }
+
       if (visualization) { darcy.VisualizeSolution(sol, name); }
 
    }
