@@ -2161,6 +2161,7 @@ HypreSmoother::HypreSmoother() : Solver()
    B = X = V = Z = NULL;
    X0 = X1 = NULL;
    fir_coeffs = NULL;
+   transpose_action = Undefined;
 }
 
 HypreSmoother::HypreSmoother(HypreParMatrix &_A, int _type,
@@ -2180,6 +2181,7 @@ HypreSmoother::HypreSmoother(HypreParMatrix &_A, int _type,
    B = X = V = Z = NULL;
    X0 = X1 = NULL;
    fir_coeffs = NULL;
+   transpose_action = Undefined;
 
    SetOperator(_A);
 }
@@ -2465,6 +2467,17 @@ void HypreSmoother::Mult(const Vector &b, Vector &x) const
    }
 
    Mult(*B, *X);
+}
+
+void HypreSmoother::MultTranspose(const Vector &b, Vector &x) const
+{
+   if (transpose_action == SameAsMult)
+   {
+      Mult(b, x);
+      return;
+   }
+
+   mfem_error("HypreSmoother::MultTranspose (...) : transpose is undefined!");
 }
 
 HypreSmoother::~HypreSmoother()
