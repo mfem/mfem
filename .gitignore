@@ -263,7 +263,7 @@ miniapps/toys/lissajous.mesh
 miniapps/toys/lissajous.gf
 miniapps/toys/mondrian.mesh
 
-miniapps/blocksolvers/block_solvers_comparison
+miniapps/blocksolvers/block-solvers-compare
 
 # Unit test binary and outputs
 tests/unit/output_meshes
