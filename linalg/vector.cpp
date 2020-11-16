@@ -1082,7 +1082,7 @@ double Vector::operator*(const Vector &v) const
    {
 #define MFEM_USE_OPENMP_DETERMINISTIC_DOT
 #ifdef MFEM_USE_OPENMP_DETERMINISTIC_DOT
-      // Use a deterimistic way of computing the dot product
+      // By default, use a deterministic way of computing the dot product
       static Vector th_dot;
       #pragma omp parallel
       {
