@@ -26,6 +26,10 @@
 //               mpirun -np 4 ex3p -m ../data/star.mesh -pa -d raja-omp
 //               mpirun -np 4 ex3p -m ../data/beam-hex.mesh -pa -d cuda
 //
+// Device w/o partial assembly runs:
+//               mpirun -np 4 ex3p -m ../data/star.mesh -no-pa -d cpu
+//               mpirun -np 4 ex3p -m ../data/star.mesh -no-pa -d cuda
+//
 // Description:  This example code solves a simple electromagnetic diffusion
 //               problem corresponding to the second order definite Maxwell
 //               equation curl curl E + E = f with boundary condition
