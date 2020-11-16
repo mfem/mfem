@@ -107,6 +107,8 @@ DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
    {
       mesh_.UniformRefinement();
       dfs_spaces_.CollectDFSData();
+
+      cout << "debug 2."<<l+1<<"\n";
    }
 
    Vector coef_vector(mesh.GetNE());
@@ -211,19 +213,19 @@ void DarcyProblem::VisualizeSolution(const Vector& sol, string tag)
 
 bool IsAllNeumannBoundary(const Array<int>& ess_bdr_attr)
 {
-   for (int attr : ess_bdr_attr) { if (attr == 0) return false; }
+   for (int attr : ess_bdr_attr) { if (attr == 0) { return false; } }
    return true;
 }
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
+   // Initialize MPI.
    MPI_Session mpi(argc, argv);
 
    StopWatch chrono;
    auto ResetTimer = [&chrono]() { chrono.Clear(); chrono.Start(); };
 
-   // 2. Parse command-line options.
+   // Parse command-line options.
    const char *mesh_file = "../../data/beam-hex.mesh";
    const char *coef_file = "";
    const char *ess_bdr_attr_file = "";
@@ -271,7 +273,7 @@ int main(int argc, char *argv[])
    {
       mesh->UniformRefinement();
    }
-
+   cout << "debug 1\n";
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 0;
    if (ess_bdr_attr_file != "")
@@ -284,19 +286,22 @@ int main(int argc, char *argv[])
       if (mpi.Root())
       {
          cout << "\nSolution is not unique when Neumann boundary condition is "
-                 "imposed on the entire boundary. \nPlease provide a different "
-                 "boundary condition.\n";
+              << "imposed on the entire boundary. \nPlease provide a different "
+              << "boundary condition.\n";
       }
       delete mesh;
       return 0;
    }
 
+   cout << "debug 2\n";
    string line = "\n*******************************************************\n";
 
    ResetTimer();
 
    // Generate components of the saddle point problem
    DarcyProblem darcy(*mesh, par_ref_levels, order, coef_file, ess_bdr, param);
+
+   cout << "debug 3\n";
    HypreParMatrix& M = darcy.GetM();
    HypreParMatrix& B = darcy.GetB();
    const DFSData& DFS_data = darcy.GetDFSData();
@@ -356,8 +361,8 @@ int main(int argc, char *argv[])
       }
       if (mpi.Root() && coef_file != "")
       {
-         cout << "Exact solution is unknown for coefficient '" << coef_file <<
-                 "'.\nApproximation error cannot be computed in this case!\n";
+         cout << "Exact solution is unknown for coefficient '" << coef_file
+              << "'.\nApproximation error cannot be computed in this case!\n";
       }
       if (show_error && coef_file == "") { darcy.ShowError(sol, mpi.Root()); }
       if (visualization) { darcy.VisualizeSolution(sol, name); }
