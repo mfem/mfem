@@ -230,7 +230,7 @@ void Eliminator::ExplicitAssembly(DenseMatrix& mat) const
    mat *= -1.0;
 }
 
-NewEliminationProjection::NewEliminationProjection(const SparseMatrix& A, Array<Eliminator*>& eliminators)
+EliminationProjection::EliminationProjection(const SparseMatrix& A, Array<Eliminator*>& eliminators)
    :
    Operator(A.Height()),
    A_(A),
@@ -238,7 +238,7 @@ NewEliminationProjection::NewEliminationProjection(const SparseMatrix& A, Array<
 {
 }
 
-void NewEliminationProjection::Mult(const Vector& in, Vector& out) const
+void EliminationProjection::Mult(const Vector& in, Vector& out) const
 {
    MFEM_ASSERT(in.Size() == width, "Wrong vector size!");
    MFEM_ASSERT(out.Size() == height, "Wrong vector size!");
@@ -256,7 +256,7 @@ void NewEliminationProjection::Mult(const Vector& in, Vector& out) const
    }
 }
 
-void NewEliminationProjection::MultTranspose(const Vector& in, Vector& out) const
+void EliminationProjection::MultTranspose(const Vector& in, Vector& out) const
 {
    MFEM_ASSERT(in.Size() == height, "Wrong vector size!");
    MFEM_ASSERT(out.Size() == width, "Wrong vector size!");
@@ -275,7 +275,7 @@ void NewEliminationProjection::MultTranspose(const Vector& in, Vector& out) cons
    }
 }
 
-SparseMatrix * NewEliminationProjection::AssembleExact() const
+SparseMatrix * EliminationProjection::AssembleExact() const
 {
    SparseMatrix * out = new SparseMatrix(height, width);
 
@@ -306,7 +306,7 @@ SparseMatrix * NewEliminationProjection::AssembleExact() const
 }
 
 // drafted (untested)
-void NewEliminationProjection::BuildGTilde(const Vector& r, Vector& rtilde) const
+void EliminationProjection::BuildGTilde(const Vector& r, Vector& rtilde) const
 {
    // MFEM_ASSERT(r.Size() == B_.Height(), "Sizes don't match!");
    MFEM_ASSERT(rtilde.Size() == A_.Height(), "Sizes don't match!");
@@ -324,7 +324,7 @@ void NewEliminationProjection::BuildGTilde(const Vector& r, Vector& rtilde) cons
 }
 
 // drafted (untested)
-void NewEliminationProjection::RecoverPressure(
+void EliminationProjection::RecoverPressure(
    const Vector& disprhs, const Vector& disp, Vector& lagrangem) const
 {
    // MFEM_ASSERT(lagrangem.Size() == B_.Height(), "Sizes don't match!");
@@ -423,7 +423,7 @@ void EliminationCGSolver::BuildPreconditioner()
                           second_interface_dofs_);
    Array<Eliminator*> elims;
    elims.Append(elim_);
-   projector_ = new NewEliminationProjection(spA_, elims);
+   projector_ = new EliminationProjection(spA_, elims);
 
    SparseMatrix * explicit_projector = projector_->AssembleExact();
    HypreParMatrix * h_explicit_projector = SerialHypreMatrix(*explicit_projector);
