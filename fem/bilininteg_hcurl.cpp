@@ -4850,16 +4850,16 @@ void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 static void PAHcurlApplyGradient2D(const int c_dofs1D,
                                    const int o_dofs1D,
                                    const int NE,
-                                   const Array<double> &_B,
-                                   const Array<double> &_G,
-                                   const Vector &_x,
-                                   Vector &_y)
+                                   const Array<double> &B_,
+                                   const Array<double> &G_,
+                                   const Vector &x_,
+                                   Vector &y_)
 {
-   auto B = Reshape(_B.Read(), c_dofs1D, c_dofs1D);
-   auto G = Reshape(_G.Read(), o_dofs1D, c_dofs1D);
+   auto B = Reshape(B_.Read(), c_dofs1D, c_dofs1D);
+   auto G = Reshape(G_.Read(), o_dofs1D, c_dofs1D);
 
-   auto x = Reshape(_x.Read(), c_dofs1D, c_dofs1D, NE);
-   auto y = Reshape(_y.ReadWrite(), 2 * c_dofs1D * o_dofs1D, NE);
+   auto x = Reshape(x_.Read(), c_dofs1D, c_dofs1D, NE);
+   auto y = Reshape(y_.ReadWrite(), 2 * c_dofs1D * o_dofs1D, NE);
 
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
@@ -4928,14 +4928,14 @@ static void PAHcurlApplyGradient2D(const int c_dofs1D,
 static void PAHcurlApplyGradient2DBId(const int c_dofs1D,
                                       const int o_dofs1D,
                                       const int NE,
-                                      const Array<double> &_G,
-                                      const Vector &_x,
-                                      Vector &_y)
+                                      const Array<double> &G_,
+                                      const Vector &x_,
+                                      Vector &y_)
 {
-   auto G = Reshape(_G.Read(), o_dofs1D, c_dofs1D);
+   auto G = Reshape(G_.Read(), o_dofs1D, c_dofs1D);
 
-   auto x = Reshape(_x.Read(), c_dofs1D, c_dofs1D, NE);
-   auto y = Reshape(_y.ReadWrite(), 2 * c_dofs1D * o_dofs1D, NE);
+   auto x = Reshape(x_.Read(), c_dofs1D, c_dofs1D, NE);
+   auto y = Reshape(y_.ReadWrite(), 2 * c_dofs1D * o_dofs1D, NE);
 
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
@@ -4996,14 +4996,14 @@ static void PAHcurlApplyGradient2DBId(const int c_dofs1D,
 
 static void PAHcurlApplyGradientTranspose2D(
    const int c_dofs1D, const int o_dofs1D, const int NE,
-   const Array<double> &_B, const Array<double> &_G,
-   const Vector &_x, Vector &_y)
+   const Array<double> &B_, const Array<double> &G_,
+   const Vector &x_, Vector &y_)
 {
-   auto B = Reshape(_B.Read(), c_dofs1D, c_dofs1D);
-   auto G = Reshape(_G.Read(), o_dofs1D, c_dofs1D);
+   auto B = Reshape(B_.Read(), c_dofs1D, c_dofs1D);
+   auto G = Reshape(G_.Read(), o_dofs1D, c_dofs1D);
 
-   auto x = Reshape(_x.Read(), 2 * c_dofs1D * o_dofs1D, NE);
-   auto y = Reshape(_y.ReadWrite(), c_dofs1D, c_dofs1D, NE);
+   auto x = Reshape(x_.Read(), 2 * c_dofs1D * o_dofs1D, NE);
+   auto y = Reshape(y_.ReadWrite(), c_dofs1D, c_dofs1D, NE);
 
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
@@ -5072,13 +5072,13 @@ static void PAHcurlApplyGradientTranspose2D(
 // B is identity
 static void PAHcurlApplyGradientTranspose2DBId(
    const int c_dofs1D, const int o_dofs1D, const int NE,
-   const Array<double> &_G,
-   const Vector &_x, Vector &_y)
+   const Array<double> &G_,
+   const Vector &x_, Vector &y_)
 {
-   auto G = Reshape(_G.Read(), o_dofs1D, c_dofs1D);
+   auto G = Reshape(G_.Read(), o_dofs1D, c_dofs1D);
 
-   auto x = Reshape(_x.Read(), 2 * c_dofs1D * o_dofs1D, NE);
-   auto y = Reshape(_y.ReadWrite(), c_dofs1D, c_dofs1D, NE);
+   auto x = Reshape(x_.Read(), 2 * c_dofs1D * o_dofs1D, NE);
+   auto y = Reshape(y_.ReadWrite(), c_dofs1D, c_dofs1D, NE);
 
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
@@ -5140,16 +5140,16 @@ static void PAHcurlApplyGradientTranspose2DBId(
 static void PAHcurlApplyGradient3D(const int c_dofs1D,
                                    const int o_dofs1D,
                                    const int NE,
-                                   const Array<double> &_B,
-                                   const Array<double> &_G,
-                                   const Vector &_x,
-                                   Vector &_y)
+                                   const Array<double> &B_,
+                                   const Array<double> &G_,
+                                   const Vector &x_,
+                                   Vector &y_)
 {
-   auto B = Reshape(_B.Read(), c_dofs1D, c_dofs1D);
-   auto G = Reshape(_G.Read(), o_dofs1D, c_dofs1D);
+   auto B = Reshape(B_.Read(), c_dofs1D, c_dofs1D);
+   auto G = Reshape(G_.Read(), o_dofs1D, c_dofs1D);
 
-   auto x = Reshape(_x.Read(), c_dofs1D, c_dofs1D, c_dofs1D, NE);
-   auto y = Reshape(_y.ReadWrite(), (3 * c_dofs1D * c_dofs1D * o_dofs1D), NE);
+   auto x = Reshape(x_.Read(), c_dofs1D, c_dofs1D, c_dofs1D, NE);
+   auto y = Reshape(y_.ReadWrite(), (3 * c_dofs1D * c_dofs1D * o_dofs1D), NE);
 
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
@@ -5329,14 +5329,14 @@ static void PAHcurlApplyGradient3D(const int c_dofs1D,
 static void PAHcurlApplyGradient3DBId(const int c_dofs1D,
                                       const int o_dofs1D,
                                       const int NE,
-                                      const Array<double> &_G,
-                                      const Vector &_x,
-                                      Vector &_y)
+                                      const Array<double> &G_,
+                                      const Vector &x_,
+                                      Vector &y_)
 {
-   auto G = Reshape(_G.Read(), o_dofs1D, c_dofs1D);
+   auto G = Reshape(G_.Read(), o_dofs1D, c_dofs1D);
 
-   auto x = Reshape(_x.Read(), c_dofs1D, c_dofs1D, c_dofs1D, NE);
-   auto y = Reshape(_y.ReadWrite(), (3 * c_dofs1D * c_dofs1D * o_dofs1D), NE);
+   auto x = Reshape(x_.Read(), c_dofs1D, c_dofs1D, c_dofs1D, NE);
+   auto y = Reshape(y_.ReadWrite(), (3 * c_dofs1D * c_dofs1D * o_dofs1D), NE);
 
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
@@ -5496,14 +5496,14 @@ static void PAHcurlApplyGradient3DBId(const int c_dofs1D,
 
 static void PAHcurlApplyGradientTranspose3D(
    const int c_dofs1D, const int o_dofs1D, const int NE,
-   const Array<double> &_B, const Array<double> &_G,
-   const Vector &_x, Vector &_y)
+   const Array<double> &B_, const Array<double> &G_,
+   const Vector &x_, Vector &y_)
 {
-   auto B = Reshape(_B.Read(), c_dofs1D, c_dofs1D);
-   auto G = Reshape(_G.Read(), o_dofs1D, c_dofs1D);
+   auto B = Reshape(B_.Read(), c_dofs1D, c_dofs1D);
+   auto G = Reshape(G_.Read(), o_dofs1D, c_dofs1D);
 
-   auto x = Reshape(_x.Read(), (3 * c_dofs1D * c_dofs1D * o_dofs1D), NE);
-   auto y = Reshape(_y.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D, NE);
+   auto x = Reshape(x_.Read(), (3 * c_dofs1D * c_dofs1D * o_dofs1D), NE);
+   auto y = Reshape(y_.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D, NE);
 
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
@@ -5681,13 +5681,13 @@ static void PAHcurlApplyGradientTranspose3D(
 // Specialization of PAHcurlApplyGradientTranspose3D to the case where
 static void PAHcurlApplyGradientTranspose3DBId(
    const int c_dofs1D, const int o_dofs1D, const int NE,
-   const Array<double> &_G,
-   const Vector &_x, Vector &_y)
+   const Array<double> &G_,
+   const Vector &x_, Vector &y_)
 {
-   auto G = Reshape(_G.Read(), o_dofs1D, c_dofs1D);
+   auto G = Reshape(G_.Read(), o_dofs1D, c_dofs1D);
 
-   auto x = Reshape(_x.Read(), (3 * c_dofs1D * c_dofs1D * o_dofs1D), NE);
-   auto y = Reshape(_y.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D, NE);
+   auto x = Reshape(x_.Read(), (3 * c_dofs1D * c_dofs1D * o_dofs1D), NE);
+   auto y = Reshape(y_.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D, NE);
 
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
@@ -5967,14 +5967,14 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
                                         const Array<double> &Bclosed,
                                         const Array<double> &Bopen,
                                         const Vector &pa_data,
-                                        const Vector &_x,
-                                        Vector &_y)
+                                        const Vector &x_,
+                                        Vector &y_)
 {
    auto Bc = Reshape(Bclosed.Read(), c_dofs1D, c_dofs1D);
    auto Bo = Reshape(Bopen.Read(), o_dofs1D, c_dofs1D);
 
-   auto x = Reshape(_x.Read(), c_dofs1D, c_dofs1D, c_dofs1D, 3, NE);
-   auto y = Reshape(_y.ReadWrite(), (3 * c_dofs1D * c_dofs1D * o_dofs1D), NE);
+   auto x = Reshape(x_.Read(), c_dofs1D, c_dofs1D, c_dofs1D, 3, NE);
+   auto y = Reshape(y_.ReadWrite(), (3 * c_dofs1D * c_dofs1D * o_dofs1D), NE);
 
    auto vk = Reshape(pa_data.Read(), 3, (3 * c_dofs1D * c_dofs1D * o_dofs1D),
                      NE);
@@ -6180,14 +6180,14 @@ static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
                                                  const Array<double> &Bclosed,
                                                  const Array<double> &Bopen,
                                                  const Vector &pa_data,
-                                                 const Vector &_x,
-                                                 Vector &_y)
+                                                 const Vector &x_,
+                                                 Vector &y_)
 {
    auto Bc = Reshape(Bclosed.Read(), c_dofs1D, c_dofs1D);
    auto Bo = Reshape(Bopen.Read(), o_dofs1D, c_dofs1D);
 
-   auto x = Reshape(_x.Read(), (3 * c_dofs1D * c_dofs1D * o_dofs1D), NE);
-   auto y = Reshape(_y.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D, 3, NE);
+   auto x = Reshape(x_.Read(), (3 * c_dofs1D * c_dofs1D * o_dofs1D), NE);
+   auto y = Reshape(y_.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D, 3, NE);
 
    auto vk = Reshape(pa_data.Read(), 3, (3 * c_dofs1D * c_dofs1D * o_dofs1D),
                      NE);
@@ -6406,14 +6406,14 @@ static void PAHcurlVecH1IdentityApply2D(const int c_dofs1D,
                                         const Array<double> &Bclosed,
                                         const Array<double> &Bopen,
                                         const Vector &pa_data,
-                                        const Vector &_x,
-                                        Vector &_y)
+                                        const Vector &x_,
+                                        Vector &y_)
 {
    auto Bc = Reshape(Bclosed.Read(), c_dofs1D, c_dofs1D);
    auto Bo = Reshape(Bopen.Read(), o_dofs1D, c_dofs1D);
 
-   auto x = Reshape(_x.Read(), c_dofs1D, c_dofs1D, 2, NE);
-   auto y = Reshape(_y.ReadWrite(), (2 * c_dofs1D * o_dofs1D), NE);
+   auto x = Reshape(x_.Read(), c_dofs1D, c_dofs1D, 2, NE);
+   auto y = Reshape(y_.ReadWrite(), (2 * c_dofs1D * o_dofs1D), NE);
 
    auto vk = Reshape(pa_data.Read(), 2, (2 * c_dofs1D * o_dofs1D), NE);
 
@@ -6505,14 +6505,14 @@ static void PAHcurlVecH1IdentityApplyTranspose2D(const int c_dofs1D,
                                                  const Array<double> &Bclosed,
                                                  const Array<double> &Bopen,
                                                  const Vector &pa_data,
-                                                 const Vector &_x,
-                                                 Vector &_y)
+                                                 const Vector &x_,
+                                                 Vector &y_)
 {
    auto Bc = Reshape(Bclosed.Read(), c_dofs1D, c_dofs1D);
    auto Bo = Reshape(Bopen.Read(), o_dofs1D, c_dofs1D);
 
-   auto x = Reshape(_x.Read(), (2 * c_dofs1D * o_dofs1D), NE);
-   auto y = Reshape(_y.ReadWrite(), c_dofs1D, c_dofs1D, 2, NE);
+   auto x = Reshape(x_.Read(), (2 * c_dofs1D * o_dofs1D), NE);
+   auto y = Reshape(y_.ReadWrite(), c_dofs1D, c_dofs1D, 2, NE);
 
    auto vk = Reshape(pa_data.Read(), 2, (2 * c_dofs1D * o_dofs1D), NE);
 
