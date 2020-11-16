@@ -32,16 +32,13 @@ public:
    };
 
 protected:
-   const FiniteElementSpaceHierarchy& fespaces;
-   Array<Array<int>*> essentialTrueDofs;
-   Array<BilinearForm*> bfs;
-
-private:
    Array<Operator*> operators;
    Array<Solver*> smoothers;
+   Array<Operator*> prolongations;
 
    Array<bool> ownedOperators;
    Array<bool> ownedSmoothers;
+   Array<bool> ownedProlongations;
 
    CycleType cycleType;
    int preSmoothingSteps;
@@ -53,8 +50,16 @@ private:
    mutable Array<Vector*> Z;
 
 public:
-   /// Constructs an empty multigrid for the given FiniteElementSpaceHierarchy
-   Multigrid(const FiniteElementSpaceHierarchy& fespaces_);
+   /// Constructs an empty multigrid
+   Multigrid();
+
+   /// Constructs a multigrid from the given inputs.
+   /** Inputs include operators and smoothers on all levels,
+       prolongation operators that go from coarser to finer levels,
+       and owenership of the given operators, smoothers, and prolongations. */
+   Multigrid(const Array<Operator*>& operators_, const Array<Solver*>& smoothers_,
+             const Array<Operator*>& prolongations_, const Array<bool>& ownedOperators_,
+             const Array<bool>& ownedSmoothers_, const Array<bool>& ownedProlongations_);
 
    /// Destructor
    virtual ~Multigrid();
@@ -99,6 +104,33 @@ public:
    /// Not supported for multigrid
    virtual void SetOperator(const Operator& op) override;
 
+private:
+   /// Application of a smoothing step at particular level
+   void SmoothingStep(int level, bool transpose) const;
+
+   /// Application of a cycle at particular level
+   void Cycle(int level) const;
+
+   /// Returns prolongation operator at given level
+   virtual const Operator* GetProlongationAtLevel(int level) const;
+};
+
+/// Geometric multigrid which is associated with a hierarchy of finite element spaces
+class GeometricMultigrid : public Multigrid
+{
+protected:
+   const FiniteElementSpaceHierarchy& fespaces;
+   Array<Array<int>*> essentialTrueDofs;
+   Array<BilinearForm*> bfs;
+
+public:
+   /// Constructs an empty multigrid for the given FiniteElementSpaceHierarchy
+   GeometricMultigrid(const FiniteElementSpaceHierarchy& fespaces_)
+      : Multigrid(), fespaces(fespaces_) { }
+
+   /// Destructor
+   virtual ~GeometricMultigrid();
+
    /// Form the linear system A X = B, corresponding to the operator on the finest level
    void FormFineLinearSystem(Vector& x, Vector& b, OperatorHandle& A, Vector& X,
                              Vector& B);
@@ -107,11 +139,8 @@ public:
    void RecoverFineFEMSolution(const Vector& X, const Vector& b, Vector& x);
 
 private:
-   /// Application of a smoothing step at particular level
-   void SmoothingStep(int level, bool transpose) const;
-
-   /// Application of a cycle at particular level
-   void Cycle(int level) const;
+   /// Returns prolongation operator at given level
+   virtual const Operator* GetProlongationAtLevel(int level) const override;
 };
 
 } // namespace mfem
