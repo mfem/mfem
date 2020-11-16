@@ -194,6 +194,7 @@ public:
 class DivFreeSolver : public DarcySolver
 {
    const DFSData& data_;
+   DFSParameters param_;
    OperatorPtr BT_;
    BBTSolver BBT_solver_;
    Array<Array<int>> ops_offsets_;

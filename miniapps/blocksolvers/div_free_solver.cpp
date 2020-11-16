@@ -332,8 +332,8 @@ void BDPMinresSolver::Mult(const Vector & x, Vector & y) const
 
 DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
                              const DFSData& data)
-   : DarcySolver(M.NumRows(), B.NumRows()), data_(data), BT_(B.Transpose()),
-     BBT_solver_(B, data.param.BBT_solve_param),
+   : DarcySolver(M.NumRows(), B.NumRows()), data_(data), param_(data.param),
+     BT_(B.Transpose()), BBT_solver_(B, param_.BBT_solve_param),
      ops_offsets_(data.P_l2.Size()+1), ops_(ops_offsets_.Size()),
      blk_Ps_(ops_.Size()-1), smoothers_(ops_.Size())
 {
@@ -359,7 +359,7 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
             B_f_diag.EliminateCol(dof);
          }
 
-         const IterSolveParameters& param = data.param.coarse_solve_param;
+         const IterSolveParameters& param = param_.coarse_solve_param;
          auto coarse_solver = new BDPMinresSolver(M_f, B_f, param);
          if (ops_.Size() > 1)
          {
@@ -378,7 +378,7 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
 
       auto S0 = new SaddleSchwarzSmoother(M_f, B_f, agg_hdivdof_l,
                                           agg_l2dof_l, P_l2_l, Q_l2_l);
-      if (data.param.coupled_solve)
+      if (param_.coupled_solve)
       {
          auto S1 = new BlockDiagonalPreconditioner(ops_offsets_[l]);
          S1->SetDiagonalBlock(0, new AuxSpaceSmoother(M_f, C_l, false));
@@ -417,7 +417,7 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
 
    if (data_.P_l2.Size() == 0) { return; }
 
-   if (data.param.coupled_solve)
+   if (param_.coupled_solve)
    {
       solver_.Reset(new GMRESSolver(B.GetComm()));
       solver_.As<GMRESSolver>()->SetOperator(*(ops_.Last()));
@@ -452,12 +452,12 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
    }
 
    solver_.As<IterativeSolver>()->SetPreconditioner(*prec_.As<Solver>());
-   SetOptions(*solver_.As<IterativeSolver>(), data_.param);
+   SetOptions(*solver_.As<IterativeSolver>(), param_);
 }
 
 DivFreeSolver::~DivFreeSolver()
 {
-   if (data_.param.coupled_solve) { return; }
+   if (param_.coupled_solve) { return; }
    for (int i = 0; i < ops_.Size(); ++i)
    {
       delete ops_[i];
@@ -530,7 +530,7 @@ void DivFreeSolver::Mult(const Vector & x, Vector & y) const
    BlockVector correction(offsets_);
    correction = 0.0;
 
-   if (data_.param.coupled_solve)
+   if (param_.coupled_solve)
    {
       solver_->Mult(resid, correction);
       y += correction;
@@ -543,7 +543,7 @@ void DivFreeSolver::Mult(const Vector & x, Vector & y) const
       SolveParticular(resid, correction);
       blk_y += correction;
 
-      if (data_.param.verbose)
+      if (param_.verbose)
       {
          cout << "Particular solution found in " << ch.RealTime() << "s.\n";
       }
@@ -557,7 +557,7 @@ void DivFreeSolver::Mult(const Vector & x, Vector & y) const
       SolveDivFree(resid.GetBlock(0), correction.GetBlock(0));
       blk_y.GetBlock(0) += correction.GetBlock(0);
 
-      if (data_.param.verbose)
+      if (param_.verbose)
       {
          cout << "Divergence free solution found in " << ch.RealTime() << "s.\n";
       }
@@ -570,7 +570,7 @@ void DivFreeSolver::Mult(const Vector & x, Vector & y) const
       SolvePotential(resid.GetBlock(0), correction.GetBlock(1));
       blk_y.GetBlock(1) += correction.GetBlock(1);
 
-      if (data_.param.verbose)
+      if (param_.verbose)
       {
          cout << "Scalar potential found in " << ch.RealTime() << "s.\n";
       }

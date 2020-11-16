@@ -25,6 +25,24 @@
 //                 2. MINRES preconditioned by a block diagonal preconditioner
 //
 //               We recommend viewing example 5 before viewing this miniapp.
+//
+// Sample runs:
+//
+//    mpirun -np 8 block-solvers-compare -r 2 -o 0
+//    mpirun -np 8 block-solvers-compare -m anisotropic.mesh -c high_contrast_coef.txt -be ess_bdr_attr.txt
+//
+// NOTE:  The coefficient file (provided through -c) defines a piecewise
+//        constant scalar coefficient k. The number of entries in this file
+//        should equal to the number of "element attributes" in the mesh file.
+//        The value of the coefficient in elements with the i-th attribute
+//        is given by the i-th entry of the coefficient file.
+//
+// NOTE:  The essential boundary attribute file (provided through -eb) defines
+//        which attributes to impose essential boundary condition (on u).
+//        The number of entries in this file should equal to the number of
+//        "boundary attributes" in the mesh file. If the i-th entry of the file
+//        is nonzero (respectively 0), essential (respectively natural) boundary
+//        condition will be imposed on boundary with the i-th attribute.
 
 #include "mfem.hpp"
 #include "div_free_solver.hpp"
@@ -191,11 +209,16 @@ void DarcyProblem::VisualizeSolution(const Vector& sol, string tag)
           << tag << " solver)'" << endl;
 }
 
+bool IsAllNeumannBoundary(const Array<int>& ess_bdr_attr)
+{
+   for (int attr : ess_bdr_attr) { if (attr == 0) return false; }
+   return true;
+}
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
    MPI_Session mpi(argc, argv);
-   bool verbose = mpi.Root();
 
    StopWatch chrono;
    auto ResetTimer = [&chrono]() { chrono.Clear(); chrono.Start(); };
@@ -229,12 +252,12 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (verbose) { args.PrintUsage(cout); }
+      if (mpi.Root()) { args.PrintUsage(cout); }
       return 1;
    }
-   if (verbose) { args.PrintOptions(cout); }
+   if (mpi.Root()) { args.PrintOptions(cout); }
 
-   if (par_ref_levels == 0 && verbose)
+   if (mpi.Root() && par_ref_levels == 0)
    {
       std::cout << "WARNING: DivFree solver is equivalent to BDPMinresSolver "
                 << "when par_ref_levels == 0.\n";
@@ -256,6 +279,17 @@ int main(int argc, char *argv[])
       ifstream ess_bdr_attr_str(ess_bdr_attr_file);
       ess_bdr.Load(mesh->bdr_attributes.Max(), ess_bdr_attr_str);
    }
+   if (IsAllNeumannBoundary(ess_bdr))
+   {
+      if (mpi.Root())
+      {
+         cout << "\nSolution is not unique when Neumann boundary condition is "
+                 "imposed on the entire boundary. \nPlease provide a different "
+                 "boundary condition.\n";
+      }
+      delete mesh;
+      return 0;
+   }
 
    string line = "\n*******************************************************\n";
 
@@ -268,7 +302,7 @@ int main(int argc, char *argv[])
    const DFSData& DFS_data = darcy.GetDFSData();
    delete mesh;
 
-   if (verbose)
+   if (mpi.Root())
    {
       cout << line << "System assembled in " << chrono.RealTime() << "s.\n";
       cout << "Dimension of the physical space: " << dim << "\n";
@@ -287,18 +321,18 @@ int main(int argc, char *argv[])
    setup_time[&bdp] = chrono.RealTime();
 
    ResetTimer();
-   DivFreeSolver* dfs_dm = new DivFreeSolver(M, B, DFS_data);
-   setup_time[dfs_dm] = chrono.RealTime();
+   DivFreeSolver dfs_dm(M, B, DFS_data);
+   setup_time[&dfs_dm] = chrono.RealTime();
 
    ResetTimer();
    const_cast<bool&>(DFS_data.param.coupled_solve) = true;
-   DivFreeSolver* dfs_cm = new DivFreeSolver(M, B, DFS_data);
-   setup_time[dfs_cm] = chrono.RealTime();
+   DivFreeSolver dfs_cm(M, B, DFS_data);
+   setup_time[&dfs_cm] = chrono.RealTime();
 
    std::map<const DarcySolver*, std::string> solver_to_name;
    solver_to_name[&bdp] = "Block-diagonal-preconditioned MINRES";
-   solver_to_name[dfs_dm] = "Divergence free (decoupled mode)";
-   solver_to_name[dfs_cm] = "Divergence free (coupled mode)";
+   solver_to_name[&dfs_dm] = "Divergence free (decoupled mode)";
+   solver_to_name[&dfs_cm] = "Divergence free (coupled mode)";
 
    // Solve the problem using all solvers
    for (const auto& solver_pair : solver_to_name)
@@ -306,14 +340,13 @@ int main(int argc, char *argv[])
       auto& solver = solver_pair.first;
       auto& name = solver_pair.second;
 
-      const_cast<bool&>(DFS_data.param.coupled_solve) = (solver == dfs_cm);
       Vector sol = darcy.GetEssentialBC();
 
       ResetTimer();
       solver->Mult(darcy.GetRHS(), sol);
       chrono.Stop();
 
-      if (verbose)
+      if (mpi.Root())
       {
          cout << line << name << " solver:\n   Setup time: "
               << setup_time[solver] << "s.\n   Solve time: "
@@ -321,14 +354,15 @@ int main(int argc, char *argv[])
               << setup_time[solver] + chrono.RealTime() << "s.\n"
               << "   Iteration count: " << solver->GetNumIterations() <<"\n";
       }
-      if (show_error) { darcy.ShowError(sol, verbose); }
+      if (mpi.Root() && coef_file != "")
+      {
+         cout << "Exact solution is unknown for coefficient '" << coef_file <<
+                 "'.\nApproximation error cannot be computed in this case!\n";
+      }
+      if (show_error && coef_file == "") { darcy.ShowError(sol, mpi.Root()); }
       if (visualization) { darcy.VisualizeSolution(sol, name); }
-   }
 
-   const_cast<bool&>(DFS_data.param.coupled_solve) = false;
-   delete dfs_dm;
-   const_cast<bool&>(DFS_data.param.coupled_solve) = true;
-   delete dfs_cm;
+   }
 
    return 0;
 }
