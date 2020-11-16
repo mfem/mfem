@@ -108,82 +108,6 @@ private:
    Array<int> mapped_primary_dofs_;
 };
 
-/** @brief Connects eliminated dofs to non-eliminated dofs for EliminationCGSolver
-
-    The action of this is (for a certain ordering) \f$ [ I ; -B_s^{-1} B_p ] \f$
-    where \f$ B_s \f$ is the part of B (the constraint matrix) corresponding
-    to secondary degrees of freedom, and \f$ B_p \f$ is the remainder of the
-    constraint matrix.
-
-    This is P in the EliminationCGSolver algorithm
-
-    Height is number of total displacements, Width is smaller, with some
-    displacements eliminated via constraints.
-
-    Future improvement: special case where B_s has block structure. */
-class EliminationProjection : public Operator
-{
-public:
-   /**
-      Lots to think about in this interface, but I think a cleaner version
-      takes just the jac. Actually, what I want is an object that creates
-      both this and the approximate version, using only jac.
-
-      rectangular B_1 = B_p has lagrange_dofs rows, primary_contact_dofs columns
-      square B_2 = B_s has lagrange_dofs rows, secondary_contact_dofs columns
-
-      B_p maps primary displacements into lagrange space
-      B_s maps secondary displacements into lagrange space
-      B_s^T maps lagrange space to secondary displacements (*)
-      B_s^{-1} maps lagrange space into secondary displacements
-      -B_s^{-1} B_p maps primary displacements to secondary displacements
-   */
-   EliminationProjection(SparseMatrix& A, SparseMatrix& B,
-                         Array<int>& primary_contact_dofs,
-                         Array<int>& secondary_contact_dofs);
-
-   void Mult(const Vector& in, Vector& out) const override;
-   void MultTranspose(const Vector& in, Vector& out) const override;
-
-   /** @brief Assemble this projector as a SparseMatrix
-
-       Some day we may also want to try approximate variants. */
-   SparseMatrix * AssembleExact() const;
-
-   /// This returns B_s^{-1} r extended by zeros 
-   /// @todo should probably be called RTilde, also documented
-   void BuildGTilde(const Vector& g, Vector& gtilde) const;
-
-   /** Given displacement rhs \f$ f \f$ and displacement solution \f$ u \f$
-       returns the Lagrange multiplier \f$ \lambda \f$ 
-
-       @todo should probably be renamed RecoverLagrangeMultiplier */
-   void RecoverPressure(const Vector& disprhs,
-                        const Vector& disp, Vector& pressure) const;
-
-private:
-   /// Apply \f$ B_s^{-1} B_p \f$
-   void Eliminate(const Vector& x, Vector& y) const;
-
-   /// Apply \f$ B_p^T B_s^{-T} \f$
-   void EliminateTranspose(const Vector& x, Vector& y) const;
-
-   SparseMatrix& A_;
-   SparseMatrix& B_;
-
-   Array<int>& primary_contact_dofs_;
-   Array<int>& secondary_contact_dofs_;
-
-   DenseMatrix Bp_;
-   DenseMatrix Bs_;  // gets inverted in place
-   LUFactors Bsinverse_;
-   /// @todo there is probably a better way to handle the B_s^{-T}
-   DenseMatrix BsT_;   // gets inverted in place
-   LUFactors BsTinverse_;
-   Array<int> ipiv_;
-   Array<int> ipivT_;
-};
-
 /** Keeps track of primary / secondary tdofs
 
     (In this context we are always talking about the displacement system,
@@ -301,7 +225,6 @@ private:
    SparseMatrix& spB_;
    Array<int> first_interface_dofs_;
    Array<int> second_interface_dofs_;
-   // EliminationProjection * projector_;
    Eliminator * elim_;
    NewEliminationProjection * projector_;
    HypreParMatrix * h_explicit_operator_;
