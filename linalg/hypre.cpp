@@ -2553,7 +2553,7 @@ void HypreSolver::Mult(const Vector &b, Vector &x) const
       return;
    }
    auto b_data = b.HostRead();
-   auto x_data = x.HostWrite();
+   auto x_data = x.HostReadWrite();
    if (B == NULL)
    {
       B = new HypreParVector(A->GetComm(),
@@ -2671,6 +2671,7 @@ void HyprePCG::Mult(const HypreParVector &b, HypreParVector &x) const
    MPI_Comm comm;
    HYPRE_Int print_level;
 
+   b.HostRead();
    HYPRE_PCGGetPrintLevel(pcg_solver, &print_level);
    HYPRE_ParCSRPCGSetPrintLevel(pcg_solver, print_level%3);
 
@@ -2684,6 +2685,7 @@ void HyprePCG::Mult(const HypreParVector &b, HypreParVector &x) const
          hypre_BeginTiming(time_index);
       }
 
+      x.HostReadWrite();
       HYPRE_ParCSRPCGSetup(pcg_solver, *A, b, x);
       setup_called = 1;
 
@@ -2705,10 +2707,8 @@ void HyprePCG::Mult(const HypreParVector &b, HypreParVector &x) const
    if (!iterative_mode)
    {
       x = 0.0;
+      x.HostReadWrite();
    }
-
-   b.HostRead();
-   x.HostReadWrite();
 
    HYPRE_ParCSRPCGSolve(pcg_solver, *A, b, x);
 
