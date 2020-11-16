@@ -5568,6 +5568,97 @@ void ParMesh::PrintSharedEntities(const char *fname_prefix) const
    }
 }
 
+void ParMesh::GetGlobalVertexIndices(Array<HYPRE_Int> &gi)
+{
+   H1_FECollection fec(1, Dim); // Order 1, mesh dimension (not spatial dimension).
+   ParFiniteElementSpace fespace(this, &fec);
+
+   MFEM_VERIFY(fespace.GetVSize() == GetNV(),
+               "There should be a bijection between DOFs and vertices");
+
+   gi.SetSize(GetNV());
+
+   Array<int> dofs;
+   bool oneDof = true;
+   for (int i=0; i<GetNV(); ++i)
+   {
+      fespace.GetVertexDofs(i, dofs);
+      oneDof = oneDof && (dofs.Size() == 1);
+      gi[i] = fespace.GetGlobalTDofNumber(dofs[0]);
+   }
+
+   MFEM_VERIFY(oneDof, "Each vertex should have exactly one DOF");
+}
+
+void ParMesh::GetGlobalEdgeIndices(Array<HYPRE_Int> &gi)
+{
+   ND_FECollection fec(1, Dim); // Order 1, mesh dimension (not spatial dimension).
+   ParFiniteElementSpace fespace(this, &fec);
+
+   MFEM_VERIFY(fespace.GetVSize() == GetNEdges(),
+               "There should be a bijection between DOFs and edges");
+
+   gi.SetSize(GetNEdges());
+
+   Array<int> dofs;
+   bool oneDof = true;
+   for (int i=0; i<GetNEdges(); ++i)
+   {
+      fespace.GetEdgeDofs(i, dofs);
+      oneDof = oneDof && (dofs.Size() == 1);
+      const int ldof = (dofs[0] >= 0) ? dofs[0] : -1 - dofs[0];
+      gi[i] = fespace.GetGlobalTDofNumber(ldof);
+   }
+
+   MFEM_VERIFY(oneDof, "Each edge should have exactly one DOF");
+}
+
+void ParMesh::GetGlobalFaceIndices(Array<HYPRE_Int> &gi)
+{
+   MFEM_VERIFY(Dim == 3, "GetGlobalFaceIndices can be called only in 3D");
+   RT_FECollection fec(0, Dim); // Order 0, mesh dimension (not spatial dimension).
+   ParFiniteElementSpace fespace(this, &fec);
+
+   MFEM_VERIFY(fespace.GetVSize() == GetNFaces(),
+               "There should be a bijection between DOFs and faces");
+
+   gi.SetSize(GetNFaces());
+
+   Array<int> dofs;
+   bool oneDof = true;
+   for (int i=0; i<GetNFaces(); ++i)
+   {
+      fespace.GetFaceDofs(i, dofs);
+      oneDof = oneDof && (dofs.Size() == 1);
+      const int ldof = (dofs[0] >= 0) ? dofs[0] : -1 - dofs[0];
+      gi[i] = fespace.GetGlobalTDofNumber(ldof);
+   }
+
+   MFEM_VERIFY(oneDof, "Each face should have exactly one DOF");
+}
+
+void ParMesh::GetGlobalElementIndices(Array<HYPRE_Int> &gi)
+{
+   L2_FECollection fec(0, Dim); // Order 0, mesh dimension (not spatial dimension).
+   ParFiniteElementSpace fespace(this, &fec);
+
+   MFEM_VERIFY(fespace.GetVSize() == GetNE(),
+               "There should be a bijection between DOFs and elements");
+
+   gi.SetSize(GetNE());
+
+   Array<int> dofs;
+   bool oneDof = true;
+   for (int i=0; i<GetNE(); ++i)
+   {
+      fespace.GetElementDofs(i, dofs);
+      oneDof = oneDof && (dofs.Size() == 1);
+      gi[i] = fespace.GetGlobalTDofNumber(dofs[0]);
+   }
+
+   MFEM_VERIFY(oneDof, "Each element should have exactly one DOF");
+}
+
 ParMesh::~ParMesh()
 {
    delete pncmesh;
