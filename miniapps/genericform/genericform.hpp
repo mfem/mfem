@@ -43,6 +43,8 @@ public:
    // GenericForm wrt to x.
    HypreParMatrix *GetGradientMatrix(const Vector &x);
 
+   void SetEssentialBC(const Array<int> &ess_attr);
+
 protected:
    // y = F'(x_lin) * v
    void GradientMult(const Vector &v, Vector &y) const;

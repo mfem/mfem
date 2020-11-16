@@ -50,10 +50,8 @@ int main(int argc, char *argv[])
    auto fec = H1_FECollection(order, dim);
    ParFiniteElementSpace fespace(&pmesh, &fec);
 
-   Array<int> ess_tdof_list;
    Array<int> ess_bdr(pmesh.bdr_attributes.Max());
    ess_bdr = 1;
-   fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    ParLinearForm f(&fespace);
    ConstantCoefficient fcoeff(-4.0);
@@ -70,18 +68,17 @@ int main(int argc, char *argv[])
       return x * x + y * y;
    });
 
-   x.ProjectCoefficient(u_excoeff);
+   x.ProjectBdrCoefficient(u_excoeff, ess_bdr);
 
-   GenericForm a(&fespace);
-   a.AssumeLinear();
+   GenericForm form(&fespace);
 
    auto diffusion = new QFunctionIntegrator(
       [](auto u, auto du) {
-         // R(u, du) = -\nabla^2 u - f
+         // R(u, du) = \nabla u \cdot \nabla v - f = 0
          double f0 = 4.0;
          Vector f1(2);
          f1 = du;
-         return qfunc_output_type{f0, f1};
+         return std::tuple{f0, f1};
       },
       [](auto u, auto du) {
          // R'(u, du)
@@ -92,57 +89,41 @@ int main(int argc, char *argv[])
          f10 = 0.0;
          DenseMatrix f11;
          f11.Diag(1.0, 2);
-         return qfunc_grad_output_type{f00, f01, f10, f11};
+         return std::tuple{f00, f01, f10, f11};
       });
 
-   a.AddDomainIntegrator(diffusion);
+   form.AddDomainIntegrator(diffusion);
 
-   Vector X, B;
+   form.SetEssentialBC(ess_bdr);
+
+   Vector X;
    x.GetTrueDofs(X);
 
-   auto &A = a.GetGradient(X);
+   auto &A = form.GetGradient(X);
 
-   B.SetSize(X.Size());
-   B = 0.0;
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetRelTol(1e-6);
+   cg.SetMaxIter(2000);
+   cg.SetPrintLevel(2);
+   cg.SetOperator(A);
 
-   A.Mult(X, B);
+   NewtonSolver newton(MPI_COMM_WORLD);
+   newton.SetOperator(form);
+   newton.SetSolver(cg);
+   newton.SetPrintLevel(1);
+   newton.SetRelTol(1e-8);
 
-   printf("sum(B) = %.1E\n", B.Sum());
+   Vector zero;
+   newton.Mult(zero, X);
 
-   Vector Btmp;
-   f.ParallelAssemble(Btmp);
-
-   B -= Btmp;
-
-   ParGridFunction b(&fespace);
-   b.SetFromTrueDofs(B);
-
-   ConstantCoefficient zero_coeff(0.0);
-   b.ProjectBdrCoefficient(zero_coeff, ess_bdr);
-
-   printf("||B|| = %.5E\n", b.Norml2());
-
-   // a.Assemble();
-
-   // OperatorPtr A;
-   // Vector B, X;
-   // a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-
-   // CGSolver cg(MPI_COMM_WORLD);
-   // cg.SetRelTol(1e-12);
-   // cg.SetMaxIter(2000);
-   // cg.SetPrintLevel(1);
-   // cg.SetOperator(*A);
-   // cg.Mult(B, X);
-
-   // a.RecoverFEMSolution(X, b, x);
+   x.Distribute(X);
 
    char vishost[] = "localhost";
    int visport = 19916;
    socketstream sol_sock(vishost, visport);
    sol_sock << "parallel " << num_procs << " " << myid << "\n";
    sol_sock.precision(8);
-   sol_sock << "solution\n" << pmesh << b << flush;
+   sol_sock << "solution\n" << pmesh << x << flush;
 
    MPI_Finalize();
 

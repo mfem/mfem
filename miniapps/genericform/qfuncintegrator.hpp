@@ -6,20 +6,6 @@
 
 namespace mfem
 {
-struct qfunc_output_type
-{
-   double f0;
-   Vector f1;
-};
-
-struct qfunc_grad_output_type
-{
-   double f00;
-   Vector f01;
-   Vector f10;
-   DenseMatrix f11;
-};
-
 template<typename qfunc_type, typename qfunc_grad_type>
 class QFunctionIntegrator : public GenericIntegrator
 {
@@ -116,15 +102,15 @@ static void Apply2D(const int dim,
                   (adjJ[0][1] * du_dX_q[0] + adjJ[1][1] * du_dX_q[1]) / detJ_q};
 
             // call Qfunction
-            qfunc_output_type output = qf(u_q, du_dx_q);
+            auto [f0, f1] = qf(u_q, du_dx_q);
 
-            double f0_X = output.f0 * detJ_q;
+            double f0_X = f0 * detJ_q;
 
             // f1_X = invJ * f1 * detJ
             //      = adjJ * f1
             double f1_X[2] = {
-               adjJ[0][0] * output.f1[0] + adjJ[0][1] * output.f1[1],
-               adjJ[1][0] * output.f1[0] + adjJ[1][1] * output.f1[1],
+               adjJ[0][0] * f1[0] + adjJ[0][1] * f1[1],
+               adjJ[1][0] * f1[0] + adjJ[1][1] * f1[1],
             };
 
             for (int ix = 0; ix < D1D; ix++)
@@ -218,15 +204,14 @@ static void ApplyGradient2D(const int dim,
                   (adjJ[0][1] * dv_dX_q[0] + adjJ[1][1] * dv_dX_q[1]) / detJ_q};
 
             // call Qfunction
-            qfunc_grad_output_type o = qf_grad(u_q, du_dx_q);
+            auto [f00, f01, f10, f11] = qf_grad(u_q, du_dx_q);
 
-            double W0 = o.f00 * v_q + o.f01[0] * dv_dx_q[0]
-                          + o.f01[1] * dv_dx_q[1];
+            double W0 = f00 * v_q + f01[0] * dv_dx_q[0] + f01[1] * dv_dx_q[1];
 
-            double W1[2] = {o.f10[0] * v_q + o.f11(0, 0) * dv_dx_q[0]
-                                 + o.f11(0, 1) * dv_dx_q[1],
-                              o.f10[1] * v_q + o.f11(1, 0) * dv_dx_q[0]
-                                 + +o.f11(1, 1) * dv_dx_q[1]};
+            double W1[2] = {f10[0] * v_q + f11(0, 0) * dv_dx_q[0]
+                               + f11(0, 1) * dv_dx_q[1],
+                            f10[1] * v_q + f11(1, 0) * dv_dx_q[0]
+                               + +f11(1, 1) * dv_dx_q[1]};
 
             double W0_X = W0 * detJ_q;
 

@@ -84,4 +84,10 @@ HypreParMatrix *GenericForm::GetGradientMatrix(const Vector &x)
    gradient_matrix = new HypreParMatrix;
    return gradient_matrix;
 }
+
+void GenericForm::SetEssentialBC(const Array<int> &ess_attr)
+{
+   fes->GetEssentialTrueDofs(ess_attr, ess_tdof_list);
+}
+
 } // namespace mfem
