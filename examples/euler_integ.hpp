@@ -78,6 +78,7 @@ namespace mfem
                     AddMult_a_VWt(-ip.weight, dshapedxi, fluxi, res);
                 }
             }
+            res *= alpha;
         }
 
         void AssembleElementGrad(
@@ -234,6 +235,7 @@ namespace mfem
                     }
                 }
             }
+            res *= alpha;
         }
 
         void AssembleFaceGrad(
@@ -294,152 +296,7 @@ namespace mfem
 
 #endif
     };
- /// Integrator for inviscid boundary fluxes
-    template <int dim, int bndinteg, bool entvar = false>
-    class EulerSlipWallIntegrator : public NonlinearFormIntegrator
-    {
-    public:
-        /// Constructs an integrator for isentropic vortex boundary flux
-        /// \param[in] diff_stack - for algorithmic differentiation
-        /// \param[in] fe_coll - used to determine the face elements
-        /// \param[in] a - used to move residual to lhs (1.0) or rhs(-1.0)
-        EulerSlipWallIntegrator(const mfem::FiniteElementCollection *fe_coll, int num_state, mfem::Vector &qf,
-                                double a = 1.0)
-            : fec(fe_coll), num_states(num_state),  qfs(qf), alpha(a), work_vec(dim+2) {}
-
-        /// Not used (or, rather, *do not use*!)
-        double calcBndryFun(const mfem::Vector &x, const mfem::Vector &dir,
-                            const mfem::Vector &q) { return 0.0; }
-
-        /// Compute a characteristic boundary flux for the isentropic vortex
-        /// \param[in] x - coordinate location at which flux is evaluated
-        /// \param[in] dir - vector normal to the boundary at `x`
-        /// \param[in] q - conservative variables at which to evaluate the flux
-        /// \param[out] flux_vec - value of the flux
-        void calcFlux(const mfem::Vector &x, const mfem::Vector &dir,
-                      const mfem::Vector &q, mfem::Vector &flux_vec)
-        {
-            
-            calcSlipWallFlux<dim, entvar>(x.GetData(), dir.GetData(),
-                                              q.GetData(), flux_vec.GetData());
-
-          
-        }
-
-        /// Construct the contribution to the element local residual
-        /// \param[in] el_bnd - the finite element whose residual we want to update
-        /// \param[in] el_unused - dummy element that is not used for boundaries
-        /// \param[in] trans - holds geometry and mapping information about the face
-        /// \param[in] elfun - element local state function
-        /// \param[out] elvect - element local residual
-        virtual void AssembleFaceVector(const mfem::FiniteElement &el_bnd,
-                                        const mfem::FiniteElement &el_unused,
-                                        mfem::FaceElementTransformations &trans,
-                                        const mfem::Vector &elfun,
-                                        mfem::Vector &elvect)
-        {
-            // using namespace mfem;
-            const int dof = el_bnd.GetDof();
-#ifdef MFEM_THREAD_SAFE
-            Vector u_face, x, nrm, flux_face, shape;
-#endif
-            // int dim = el_bnd.GetDim();
-            u_face.SetSize(num_states);
-            x.SetSize(dim);
-            nrm.SetSize(dim);
-            flux_face.SetSize(num_states);
-            elvect.SetSize(num_states * dof);
-            elvect = 0.0;
-            shape.SetSize(dof);
-            DenseMatrix u(elfun.GetData(), dof, num_states);
-            DenseMatrix res(elvect.GetData(), dof, num_states);
-
-            int intorder;
-            intorder = trans.Elem1->OrderW() + 2 * el_bnd.GetOrder();
-            const IntegrationRule *ir = &IntRules.Get(trans.FaceGeom, intorder);
-            IntegrationPoint eip1;
-            for (int i = 0; i < ir->GetNPoints(); i++)
-            {
-                const IntegrationPoint &ip = ir->IntPoint(i);
-                trans.Loc1.Transform(ip, eip1);
-                trans.Elem1->Transform(eip1, x);
-                el_bnd.CalcShape(eip1, shape);
-                // get the normal vector and the flux on the face
-                trans.Face->SetIntPoint(&ip);
-                CalcOrtho(trans.Face->Jacobian(), nrm);
-                // Interpolate elfun at the point
-                u.MultTranspose(shape, u_face);
-                calcFlux(x, nrm, u_face, flux_face);
-                flux_face *= ip.weight;
-                // multiply by test function
-                for (int n = 0; n < num_states; ++n)
-                {
-                    for (int s = 0; s < dof; s++)
-                    {
-                        res(s, n) += shape(s) * flux_face(n);
-                    }
-                }
-            }
-        }
-
-        void AssembleFaceGrad(
-            const mfem::FiniteElement &el_bnd,
-            const mfem::FiniteElement &el_unused,
-            mfem::FaceElementTransformations &trans,
-            const mfem::Vector &elfun,
-            mfem::DenseMatrix &elmat)
-        {
-            int ndof = elfun.Size();
-            elmat.SetSize(ndof);
-            elmat = 0.0;
-            double delta = 1e-5;
-            for (int i = 0; i < ndof; ++i)
-            {
-                Vector elfun_plus(elfun);
-                Vector elfun_minus(elfun);
-                elfun_plus(i) += delta;
-                Vector elvect_plus;
-                AssembleFaceVector(el_bnd, el_unused, trans, elfun_plus, elvect_plus);
-                elfun_minus(i) -= delta;
-                Vector elvect_minus;
-                AssembleFaceVector(el_bnd, el_unused, trans, elfun_minus, elvect_minus);
-
-                elvect_plus -= elvect_minus;
-                elvect_plus /= 2 * delta;
-
-                for (int j = 0; j < ndof; ++j)
-                {
-                    elmat(j, i) = elvect_plus(j);
-                }
-            }
-        }
-
-    protected:
-        /// number of states
-        int num_states;
-        /// scales the terms; can be used to move to rhs/lhs
-        double alpha;
-        /// used to select the appropriate face element
-        const mfem::FiniteElementCollection *fec;
-#ifndef MFEM_THREAD_SAFE
-        /// used to reference the state at face node
-        mfem::Vector u_face;
-        /// store the physical location of a node
-        mfem::Vector x;
-        /// farfield state value
-        mfem::Vector qfs;
-        /// work vector
-        mfem::Vector work_vec;
-        /// the outward pointing (scaled) normal to the boundary at a node
-        mfem::Vector nrm;
-        mfem::Vector shape;
-        /// stores the flux evaluated by `bnd_flux`
-        mfem::Vector flux_face;
-        /// stores the jacobian of the flux with respect to the state at `u_face`
-        mfem::DenseMatrix flux_jac_face;
-
-#endif
-    };
+ 
     /// Integrator for inviscid interface fluxes (fluxes that do not need gradient)
     /// \tparam Derived - a class Derived from this one (needed for CRTP)
     template <int dim>
@@ -539,6 +396,7 @@ namespace mfem
                         elvect2_mat(s, k) -= fluxN(k) * shape2(s);
                     }
                 }
+            elvect *= alpha;
             }
         }
         void AssembleFaceGrad(
@@ -639,14 +497,29 @@ namespace mfem
             DenseMatrix elmat1;
             elmat1.SetSize(num_nodes);
 
-            const IntegrationRule &ir = el.GetNodes();
-            elmat = 0.0;
-            for (int i = 0; i < ir.GetNPoints(); i++)
+            const IntegrationRule *ir = IntRule;
+            if (ir == NULL)
             {
-                const IntegrationPoint &ip = ir.IntPoint(i);
+                int order = 2 * el.GetOrder() + trans.OrderW();
+
+                if (el.Space() == FunctionSpace::rQk)
+                {
+                    ir = &RefinedIntRules.Get(el.GetGeomType(), order);
+                }
+                else
+                {
+                    ir = &IntRules.Get(el.GetGeomType(), order);
+                }
+            }
+            elmat = 0.0;
+            for (int i = 0; i < ir->GetNPoints(); i++)
+            {
+                const IntegrationPoint &ip = ir->IntPoint(i);
                 el.CalcShape(ip, shape);
+                
                 trans.SetIntPoint(&ip);
                 w = trans.Weight() * ip.weight;
+        
                 AddMult_a_VVt(w, shape, elmat1);
                 for (int k = 0; k < num_state; k++)
                 {

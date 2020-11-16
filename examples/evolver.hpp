@@ -61,16 +61,16 @@ namespace mfem
         /// pointer to nonlinear form (not owned)
         NonlinearForm *res;
 
-        /// solver for inverting mass matrix for explicit solves
-        /// \note supports partially assembled mass bilinear form
-        // #ifdef MFEM_USE_SUITESPARSE
-        //  // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-        // UMFPackSolver mass_solver;
-        // #else
-        mfem::CGSolver mass_solver;
-       // #endif
+/// solver for inverting mass matrix for explicit solves
+/// \note supports partially assembled mass bilinear form
+#ifdef MFEM_USE_SUITESPARSE
+        // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+        UMFPackSolver mass_solver;
+#else
+        //mfem::CGSolver mass_solver;
+        mfem::GMRESSolver mass_solver;
+#endif
         /// preconditioner for inverting mass matrix
-        //std::unique_ptr<mfem::Solver> mass_prec;
         DSmoother mass_prec;
 
         /// Newton solver for implicit problems (not owned)
@@ -188,26 +188,27 @@ namespace mfem
         cout << "combined_oper set " << endl;
         if (_mass != nullptr)
         {
-            // #ifdef MFEM_USE_SUITESPARSE
-            // mass_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-            // mass_solver.SetOperator(mass->SpMat());
-            // #else
+#ifdef MFEM_USE_SUITESPARSE
+            mass_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+            mass_solver.SetOperator(mass->SpMat());
+#else
+            mass_prec = DSmoother(mass->SpMat());
             mass_solver.SetPreconditioner(mass_prec);
             mass_solver.SetOperator(mass->SpMat());
-            mass_solver.iterative_mode = false; 
+            mass_solver.iterative_mode = false;
             mass_solver.SetRelTol(1e-9);
             mass_solver.SetAbsTol(0.0);
-            mass_solver.SetMaxIter(100);
+            mass_solver.SetMaxIter(500);
             mass_solver.SetPrintLevel(-1);
-           // #endif
+#endif
         }
         cout << "mass_solver is set " << endl;
         newton_solver.iterative_mode = false;
         newton_solver.SetSolver(mass_solver);
         newton_solver.SetOperator(*combined_oper);
-        newton_solver.SetPrintLevel(-1); // print Newton iterations
-        newton_solver.SetRelTol(1e-03);
-        newton_solver.SetAbsTol(1e-03);
+        newton_solver.SetPrintLevel(1); // print Newton iterations
+        newton_solver.SetRelTol(1e-11);
+        newton_solver.SetAbsTol(1e-11);
         newton_solver.SetMaxIter(1000);
         cout << "newton_solver is set " << endl;
     }

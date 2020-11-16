@@ -353,8 +353,8 @@ void calcIsentropicVortexState(const double *x, double *qbnd)
    double a = sqrt(euler::gamma * press / rho);
 
    qbnd[0] = rho;
-   qbnd[1] = rho * a * Ma * sin(theta);
-   qbnd[2] = -rho * a * Ma * cos(theta);
+   qbnd[1] = -rho * a * Ma * sin(theta);
+   qbnd[2] = rho * a * Ma * cos(theta);
    qbnd[3] = press / euler::gami + 0.5 * rho * a * a * Ma * Ma;
 }
 
@@ -427,7 +427,7 @@ void calcLaxFriedrichsFlux(const double *dir, const double *qL, const double *qR
    for (int i = 0; i < dim + 2; i++)
    {
       q_ave[i] = 0.5 * (qL[i] + qR[i]);
-      q_diff[i] = qR[i] - qL[i];
+      q_diff[i] = -qR[i] + qL[i];
    }
    double lambda  = calcSpectralRadius<dim, false>(dir, q_ave);
    for (int k = 0; k < dim + 2; ++k)
