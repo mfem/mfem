@@ -107,8 +107,6 @@ DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
    {
       mesh_.UniformRefinement();
       dfs_spaces_.CollectDFSData();
-
-      cout << "debug 2."<<l+1<<"\n";
    }
 
    Vector coef_vector(mesh.GetNE());
@@ -273,7 +271,7 @@ int main(int argc, char *argv[])
    {
       mesh->UniformRefinement();
    }
-   cout << "debug 1\n";
+
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 0;
    if (ess_bdr_attr_file != "")
@@ -293,15 +291,12 @@ int main(int argc, char *argv[])
       return 0;
    }
 
-   cout << "debug 2\n";
    string line = "\n*******************************************************\n";
 
    ResetTimer();
 
    // Generate components of the saddle point problem
    DarcyProblem darcy(*mesh, par_ref_levels, order, coef_file, ess_bdr, param);
-
-   cout << "debug 3\n";
    HypreParMatrix& M = darcy.GetM();
    HypreParMatrix& B = darcy.GetB();
    const DFSData& DFS_data = darcy.GetDFSData();
