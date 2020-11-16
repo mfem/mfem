@@ -7,7 +7,18 @@
 //
 // Device sample runs:
 //
-// Description:
+// Description: This is a prototype example showing how one might
+//         compute the flux of a vector field through a surface.  The
+//         vector field is represented using an H(Div),
+//         a.k.a. Raviart-Thomas, basis.  The surface integral is
+//         computed using a ParLinearForm object with a specialized
+//         integrator, SurfaceFluxLFIntegrator.  This integrator
+//         requires a VectorCoefficient which specifies the
+//         orientation of the surface integral.  The magnitude of the
+//         VectorCoefficient is unimportant (assuming it's of order
+//         1), however, it must pierce the surface of interest in a
+//         consistent direction.  This direction determines the sign
+//         of the flux integral.
 
 #include "mfem.hpp"
 #include <fstream>
