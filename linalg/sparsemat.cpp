@@ -3358,9 +3358,9 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
                "number of columns of A (" << ncolsA
                << ") must equal number of rows of B (" << nrowsB << ")");
 
-   A_i    = A.GetI();
-   A_j    = A.GetJ();
-   A_data = A.GetData();
+   A_i    = A.HostReadI();
+   A_j    = A.HostReadJ();
+   A_data = A.HostReadData();
    B_i    = B.GetI();
    B_j    = B.GetJ();
    B_data = B.GetData();
