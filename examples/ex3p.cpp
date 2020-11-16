@@ -28,7 +28,7 @@
 //
 // Device w/o partial assembly runs:
 //               mpirun -np 1 ex3p -m ../data/star.mesh -no-pa -d cpu
-//               mpirun -np 1 ex3p -m ../data/star.mesh -no-pa -d debug
+//               mpirun -np 1 ex3p -m ../data/star.mesh -no-pa -d cuda
 //
 // Description:  This example code solves a simple electromagnetic diffusion
 //               problem corresponding to the second order definite Maxwell
