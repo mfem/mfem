@@ -123,6 +123,7 @@ MFEM_USE_MESQUITE      = NO
 MFEM_USE_SUITESPARSE   = NO
 MFEM_USE_SUPERLU       = NO
 MFEM_USE_SUPERLU5      = NO
+MFEM_USE_MUMPS         = NO
 MFEM_USE_STRUMPACK     = NO
 MFEM_USE_GINKGO        = NO
 MFEM_USE_AMGX          = NO
@@ -171,7 +172,7 @@ HYPRE_OPT = -I$(HYPRE_DIR)/include
 HYPRE_LIB = -L$(HYPRE_DIR)/lib -lHYPRE
 
 # METIS library configuration
-ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK),NONO)
+ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK)$(MFEM_USE_MUMPS),NONONO)
    ifeq ($(MFEM_USE_METIS_5),NO)
      METIS_DIR = @MFEM_DIR@/../metis-4.0
      METIS_OPT =
@@ -252,18 +253,24 @@ SCOTCH_OPT = -I$(SCOTCH_DIR)/include
 SCOTCH_LIB = -L$(SCOTCH_DIR)/lib -lptscotch -lptscotcherr -lscotch -lscotcherr\
  -lpthread
 
-# SCALAPACK library configuration (required by STRUMPACK)
+# SCALAPACK library configuration (required by STRUMPACK and MUMPS)
 SCALAPACK_DIR = @MFEM_DIR@/../scalapack-2.0.2
 SCALAPACK_OPT = -I$(SCALAPACK_DIR)/SRC
 SCALAPACK_LIB = -L$(SCALAPACK_DIR)/lib -lscalapack $(LAPACK_LIB)
 
-# MPI Fortran library, needed e.g. by STRUMPACK
+# MPI Fortran library, needed e.g. by STRUMPACK or MUMPS
 # MPICH:
 MPI_FORTRAN_LIB = -lmpifort
 # OpenMPI:
 # MPI_FORTRAN_LIB = -lmpi_mpifh
 # Additional Fortan library:
 # MPI_FORTRAN_LIB += -lgfortran
+
+# MUMPS library configuration
+MUMPS_DIR = @MFEM_DIR@/../MUMPS_5.2.0
+MUMPS_OPT = -I$(MUMPS_DIR)/include
+MUMPS_LIB = -Wl,-rpath,$(MUMPS_DIR)/lib -L$(MUMPS_DIR)/lib -ldmumps\
+ -lmumps_common -lpord $(SCALAPACK_LIB) $(LAPACK_LIB) $(MPI_FORTRAN_LIB)
 
 # STRUMPACK library configuration
 STRUMPACK_DIR = @MFEM_DIR@/../STRUMPACK-build
