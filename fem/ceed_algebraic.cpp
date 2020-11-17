@@ -75,7 +75,7 @@ Solver *BuildSmootherFromCeed(MFEMCeedOperator &op, bool chebyshev)
 class CeedAMG : public Solver
 {
 public:
-   CeedAMG(MFEMCeedOperator &oper, HypreParMatrix *P)
+   CeedAMG(MFEMCeedOperator &oper, HypreParMatrix *P, bool amgx=false)
    {
       MFEM_ASSERT(P != NULL, "");
       const Array<int> ess_tdofs = oper.GetEssentialTrueDofs();
@@ -90,10 +90,25 @@ public:
       }
       HypreParMatrix *mat_e = op_assembled->EliminateRowsCols(ess_tdofs);
       delete mat_e;
-      amg = new HypreBoomerAMG(*op_assembled);
-      amg->SetPrintLevel(0);
+
+#ifdef MFEM_USE_AMGX
+      if (amgx)
+      {
+         bool amgx_verbose = false;
+         amg = new AmgXSolver(op_assembled->GetComm(),
+                              AmgXSolver::PRECONDITIONER, amgx_verbose);
+         amg->SetOperator(*op_assembled);
+      }
+      else
+#endif
+      {
+         HypreBoomerAMG * hypre_amg = new HypreBoomerAMG(*op_assembled);
+         hypre_amg->SetPrintLevel(0);
+         amg = hypre_amg;
+      }
    }
-   void SetOperator(const Operator &op) { }
+
+   void SetOperator(const Operator &op) { amg->SetOperator(op); }
    void Mult(const Vector &x, Vector &y) const { amg->Mult(x, y); }
    ~CeedAMG()
    {
@@ -104,7 +119,7 @@ public:
 private:
    SparseMatrix *mat_local;
    HypreParMatrix *op_assembled;
-   HypreBoomerAMG *amg;
+   Solver *amg;
 };
 
 #endif
@@ -238,30 +253,44 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
       MFEMCeedOperator *op = new MFEMCeedOperator(
          ceed_operators[ilevel], *essentialTrueDofs[ilevel], P);
       Solver *smoother;
-#ifdef MFEM_USE_MPI
-      if (ilevel == 0 && !Device::Allows(Backend::CUDA))
+      if (ilevel != 0)
       {
+         smoother = BuildSmootherFromCeed(*op, true);
+      }
+      else
+      {
+         bool assemble_matrix = false;
+#ifdef MFEM_USE_AMGX
+         if (Device::Allows(Backend::CUDA)) { assemble_matrix = true; }
+#endif
+#ifdef MFEM_USE_MPI
+         if (!Device::Allows(Backend::CUDA)) { assemble_matrix = true; }
+#endif
          HypreParMatrix *P_mat = NULL;
-         if (nlevels == 1)
+         if (assemble_matrix)
          {
-            // Only one level -- no coarsening, finest level
-            ParFiniteElementSpace *pfes
-               = dynamic_cast<ParFiniteElementSpace*>(&space);
-            if (pfes) { P_mat = pfes->Dof_TrueDof_Matrix(); }
+            if (nlevels == 1)
+            {
+               // Only one level -- no coarsening, finest level
+               ParFiniteElementSpace *pfes
+                  = dynamic_cast<ParFiniteElementSpace*>(&space);
+               if (pfes) { P_mat = pfes->Dof_TrueDof_Matrix(); }
+            }
+            else
+            {
+               ParAlgebraicCoarseSpace *pspace
+                  = dynamic_cast<ParAlgebraicCoarseSpace*>(&space);
+               if (pspace) { P_mat = pspace->GetProlongationHypreParMatrix(); }
+            }
+         }
+         if (P_mat)
+         {
+            smoother = new CeedAMG(*op, P_mat, Device::Allows(Backend::CUDA));
          }
          else
          {
-            ParAlgebraicCoarseSpace *pspace
-               = dynamic_cast<ParAlgebraicCoarseSpace*>(&space);
-            if (pspace) { P_mat = pspace->GetProlongationHypreParMatrix(); }
+            smoother = BuildSmootherFromCeed(*op, true);
          }
-         if (P_mat) { smoother = new CeedAMG(*op, P_mat); }
-         else { smoother = BuildSmootherFromCeed(*op, true); }
-      }
-      else
-#endif
-      {
-         smoother = BuildSmootherFromCeed(*op, true);
       }
       AddLevel(op, smoother, true, true);
    }

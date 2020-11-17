@@ -1281,10 +1281,14 @@ static void get_sorted_rows_cols(const Array<int> &rows_cols,
 {
    hypre_sorted.SetSize(rows_cols.Size());
    bool sorted = true;
-   for (int i = 0; i < rows_cols.Size(); i++)
    {
-      hypre_sorted[i] = rows_cols[i];
-      if (i && rows_cols[i-1] > rows_cols[i]) { sorted = false; }
+      auto in_data = rows_cols.HostRead();
+      auto out_data = hypre_sorted.HostReadWrite();
+      for (int i = 0; i < rows_cols.Size(); i++)
+      {
+         out_data[i] = in_data[i];
+         if (i && in_data[i-1] > in_data[i]) { sorted = false; }
+      }
    }
    if (!sorted) { hypre_sorted.Sort(); }
 }
@@ -1373,7 +1377,7 @@ void HypreParMatrix::EliminateRowsCols(const Array<int> &rows_cols,
    get_sorted_rows_cols(rows_cols, rc_sorted);
 
    internal::hypre_ParCSRMatrixEliminateAXB(
-      A, rc_sorted.Size(), rc_sorted.GetData(), X, B);
+      A, rc_sorted.Size(), rc_sorted.HostReadWrite(), X, B);
 }
 
 HypreParMatrix* HypreParMatrix::EliminateRowsCols(const Array<int> &rows_cols)
@@ -1383,7 +1387,7 @@ HypreParMatrix* HypreParMatrix::EliminateRowsCols(const Array<int> &rows_cols)
 
    hypre_ParCSRMatrix* Ae;
    internal::hypre_ParCSRMatrixEliminateAAe(
-      A, &Ae, rc_sorted.Size(), rc_sorted.GetData());
+      A, &Ae, rc_sorted.Size(), rc_sorted.HostReadWrite());
 
    return new HypreParMatrix(Ae);
 }
@@ -1395,7 +1399,7 @@ HypreParMatrix* HypreParMatrix::EliminateCols(const Array<int> &cols)
 
    hypre_ParCSRMatrix* Ae;
    internal::hypre_ParCSRMatrixEliminateAAe(
-      A, &Ae, rc_sorted.Size(), rc_sorted.GetData(), 1);
+      A, &Ae, rc_sorted.Size(), rc_sorted.HostReadWrite(), 1);
 
    return new HypreParMatrix(Ae);
 }
@@ -1407,7 +1411,7 @@ void HypreParMatrix::EliminateRows(const Array<int> &rows)
       Array<HYPRE_Int> r_sorted;
       get_sorted_rows_cols(rows, r_sorted);
       internal::hypre_ParCSRMatrixEliminateRows(A, r_sorted.Size(),
-                                                r_sorted.GetData());
+                                                r_sorted.HostReadWrite());
    }
 }
 
