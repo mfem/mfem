@@ -692,7 +692,6 @@ void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
    {
       if (UsesTensorBasis(fes))
       {
-         const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, irm.GetOrder());
          InitCeedTensorRestriction(fes, ceed, restr);
       }
       else
