@@ -43,10 +43,15 @@ struct Dim<N, Dim0, Dims...>
    static constexpr int val = Dim<N-1,Dims...>::val;
 };
 
-template <typename T, typename... Args>
-T prod(T first, Args... args)
-{
-   return first * prod<Args...>(args...);
+// Compute the product of a list of values
+template <typename T>
+constexpr T prod(T first) {
+  return first;
+}
+
+template <typename T, typename... D>
+constexpr T prod(T first, D... rest) {
+  return first*prod(rest...);
 }
 
 } // mfem namespace
