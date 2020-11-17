@@ -18,11 +18,8 @@ int CeedHackReallocArray(size_t n, size_t unit, void *p)
 {
    *(void **)p = realloc(*(void **)p, n*unit);
    if (n && unit && !*(void **)p)
-      // LCOV_EXCL_START
       return CeedError(NULL, 1, "realloc failed to allocate %zd members of size "
                        "%zd\n", n, unit);
-   // LCOV_EXCL_STOP
-
    return 0;
 }
 
@@ -221,16 +218,13 @@ int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
             CeedInt din = -1;
             for (int ein = 0; ein < numemodein; ++ein)
             {
-               if (emodein[ein] == CEED_EVAL_GRAD)
-               {
-                  din += 1;
-               }
                if (emodein[ein] == CEED_EVAL_INTERP)
                {
                   Bmat(numemodein * q + ein, n) += interpin[q * elemsize + n];
                }
                else if (emodein[ein] == CEED_EVAL_GRAD)
                {
+                  din += 1;
                   Bmat(numemodein * q + ein, n) += gradin[(din*nqpts+q) * elemsize + n];
                }
                else

@@ -1989,9 +1989,7 @@ public:
 
    void SetupPA(const FiniteElementSpace &fes);
 
-#ifdef MFEM_USE_CEED
    CeedData * GetCeedData() { return ceedDataPtr; }
-#endif
 };
 
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
