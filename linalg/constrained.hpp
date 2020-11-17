@@ -165,7 +165,7 @@ private:
 class EliminationProjection : public Operator
 {
 public:
-   EliminationProjection(const SparseMatrix& A, Array<Eliminator*>& eliminators);
+   EliminationProjection(const Operator& A, Array<Eliminator*>& eliminators);
 
    void Mult(const Vector& x, Vector& y) const;
 
@@ -184,7 +184,7 @@ public:
                         const Vector& disp, Vector& pressure) const;
 
 private:
-   const SparseMatrix& A_;
+   const Operator& A_;
    Array<Eliminator*> eliminators_;
 };
 
@@ -193,7 +193,7 @@ private:
 /** @brief Solve constrained system by eliminating the constraint; see ConstrainedSolver
 
     Solves the system with the operator \f$ P^T A P + Z_P \f$, where P is
-    (New)EliminationProjection.
+    EliminationProjection.
 
     Currently does not work in parallel. */
 class EliminationCGSolver : public ConstrainedSolver
@@ -218,11 +218,10 @@ private:
        for elimination from the nonzero structure. */
    void BuildSeparatedInterfaceDofs(int firstblocksize);
 
-   void BuildPreconditioner();
+   void BuildPreconditioner(SparseMatrix& spB);
 
    HypreParMatrix& hA_;
-   SparseMatrix spA_;
-   SparseMatrix& spB_;
+   SparseMatrix& spB_;  /// deprecated, use in arguments but don't keep
    Array<int> first_interface_dofs_;
    Array<int> second_interface_dofs_;
    Eliminator * elim_;

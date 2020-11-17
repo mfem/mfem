@@ -225,7 +225,7 @@ void Eliminator::ExplicitAssembly(DenseMatrix& mat) const
    mat *= -1.0;
 }
 
-EliminationProjection::EliminationProjection(const SparseMatrix& A, Array<Eliminator*>& eliminators)
+EliminationProjection::EliminationProjection(const Operator& A, Array<Eliminator*>& eliminators)
    :
    Operator(A.Height()),
    A_(A),
@@ -349,76 +349,21 @@ EliminationCGSolver::~EliminationCGSolver()
    delete prec_;
 }
 
-void EliminationCGSolver::BuildSeparatedInterfaceDofs(int firstblocksize)
-{
-   std::set<int> first_interface;
-   std::set<int> second_interface;
-   int * I = spB_.GetI();
-   int * J = spB_.GetJ();
-   double * data = spB_.GetData();
-   const double tol = 1.e-14;
-   for (int i = 0; i < spB_.Height(); ++i)
-   {
-      for (int jidx = I[i]; jidx < I[i + 1]; ++jidx)
-      {
-         int j = J[jidx];
-         double v = data[jidx];
-         if (fabs(v) < tol)
-         {
-            continue;
-         }
-         if (j < firstblocksize)
-         {
-            first_interface.insert(j);
-         }
-         else
-         {
-            second_interface.insert(j);
-         }
-      }
-   }
-
-   for (auto i : first_interface)
-   {
-      first_interface_dofs_.Append(i);
-   }
-   first_interface_dofs_.Sort();
-   int second_interface_size = 0;
-   for (auto i : second_interface)
-   {
-      second_interface_size++;
-      second_interface_dofs_.Append(i);
-   }
-   second_interface_dofs_.Sort();
-
-   if (second_interface_size != spB_.Height())
-   {
-      // is this really expected? equating nodes with dofs in some weird way on a manifold?
-      std::cerr << "spB_.Height() = " << spB_.Height()
-                << ", secondary_interface_size = " << second_interface_size << std::endl;
-      MFEM_VERIFY(false, "I don't understand how this matrix is constructed!");
-   }
-}
-
-void EliminationCGSolver::BuildPreconditioner()
+void EliminationCGSolver::BuildPreconditioner(SparseMatrix& spB)
 {
    // first_interface_dofs = primary_dofs, column indices corresponding to nonzeros in constraint
    // rectangular B_1 = B_p has lagrange_dofs rows, first_interface_dofs columns
    // square B_2 = B_s has lagrange_dofs rows, second_interface_dofs columns
-   /*
-   projector_ = new EliminationProjection(spA_, spB_, first_interface_dofs_,
-                                          second_interface_dofs_);
-   */
    Array<int> lagrange_dofs(second_interface_dofs_.Size());
    for (int i = 0; i < lagrange_dofs.Size(); ++i)
    {
       lagrange_dofs[i] = i;
    }
-   elim_ = new Eliminator(spB_, lagrange_dofs, first_interface_dofs_,
+   elim_ = new Eliminator(spB, lagrange_dofs, first_interface_dofs_,
                           second_interface_dofs_);
    Array<Eliminator*> elims;
    elims.Append(elim_);
-   projector_ = new EliminationProjection(spA_, elims);
+   projector_ = new EliminationProjection(hA_, elims);
 
    SparseMatrix * explicit_projector = projector_->AssembleExact();
    HypreParMatrix * h_explicit_projector = SerialHypreMatrix(*explicit_projector);
@@ -463,23 +408,7 @@ EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
 {
    MFEM_VERIFY(secondary_dofs.Size() == B.Height(),
                "Wrong number of dofs for elimination!");
-   A.GetDiag(spA_);
-   BuildPreconditioner();
-}
-
-EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
-                                         int firstblocksize)
-   :
-   ConstrainedSolver(MPI_COMM_SELF, A, B),
-   hA_(A),
-   spB_(B)
-{
-   A.GetDiag(spA_);
-
-   // identify interface dofs to eliminate via nonzero structure
-   BuildSeparatedInterfaceDofs(firstblocksize);
-
-   BuildPreconditioner();
+   BuildPreconditioner(B);
 }
 
 void EliminationCGSolver::Mult(const Vector& rhs, Vector& sol) const
@@ -506,7 +435,8 @@ void EliminationCGSolver::Mult(const Vector& rhs, Vector& sol) const
       rtilde = 0.0;
    }
    Vector temprhs(rhs);
-   spA_.AddMult(rtilde, temprhs, -1.0);
+   // hA_.AddMult(rtilde, temprhs, -1.0);
+   hA_.Mult(-1.0, rtilde, 1.0, temprhs);
 
    Vector reducedrhs(rhs.Size());
    projector_->MultTranspose(temprhs, reducedrhs);

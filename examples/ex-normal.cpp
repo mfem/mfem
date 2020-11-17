@@ -21,9 +21,19 @@
 
 /*
   todo:
+  ---
+
+  elimination:
+
+  - interface in EliminationCGSolver can be different, use HypreParMatrix or
+    some other way of listing constraints? (connects to next point)
+  - multiple blocks in elimination (ie, replace NodalEliminationProjection)
+  - add a scalar Eliminator?
+  - try in parallel
+
+  general:
 
   - timing / scaling of different solvers
-  - parallel BuildNormalConstraints in this example
   - make sure curved mesh works (is this a real problem or just VisIt visualization?)
   - make elimination solver parallel
   - think about preconditioning interface; user may have good preconditioner
