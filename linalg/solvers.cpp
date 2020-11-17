@@ -3036,6 +3036,7 @@ void ProductSolver::MultTranspose(const Vector & x, Vector & y) const
    y += S0Tz;
 }
 
+#ifdef MFEM_USE_MPI
 AuxSpaceSmoother::AuxSpaceSmoother(const HypreParMatrix &op,
                                    HypreParMatrix *aux_map,
                                    bool own_aux_map)
@@ -3064,5 +3065,6 @@ void AuxSpaceSmoother::Mult(const Vector &x, Vector &y, bool transpose) const
    y.SetSize(aux_map_->NumRows());
    aux_map_->Mult(aux_sol, y);
 }
+#endif // MFEM_USE_MPI
 
 }

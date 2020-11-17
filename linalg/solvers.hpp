@@ -832,8 +832,11 @@ public:
    virtual void SetOperator(const Operator &op) { }
 };
 
+#ifdef MFEM_USE_MPI
 /** This smoother does relaxations on an auxiliary space (determined by a map
     from the original space to the auxiliary space provided by the user).
+    The smoother on the auxiliary space is a HypreSmoother. Its options can be
+    modified through GetSmoother.
     For example, the space can be the nullspace of div/curl, in which case the
     smoother can be used to construct a Hiptmair smoother. */
 class AuxSpaceSmoother : public Solver
@@ -850,6 +853,7 @@ public:
    virtual void SetOperator(const Operator &op) { }
    HypreSmoother& GetSmoother() { return *aux_smoother_.As<HypreSmoother>(); }
 };
+#endif // MFEM_USE_MPI
 
 }
 
