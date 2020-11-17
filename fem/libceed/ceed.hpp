@@ -181,20 +181,6 @@ struct CeedMFOperator
 void InitCeedCoeff(Coefficient* Q, Mesh &mesh, const IntegrationRule &ir,
                    CeedData* ptr);
 
-#ifdef MFEM_USE_CEED
-/// Initialize a CeedBasis and a CeedElemRestriction
-void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
-                                 const IntegrationRule &ir,
-                                 Ceed ceed, CeedBasis *basis,
-                                 CeedElemRestriction *restr);
-
-void InitCeedTensorRestriction(const FiniteElementSpace &fes,
-                               Ceed ceed, CeedElemRestriction *restr);
-#endif
-
-/// Return the path to the libCEED q-function headers.
-const std::string &GetCeedPath();
-
 /** This function initializes an arbitrary linear operator using the partial
     assembly decomposition in libCEED. The operator details are described by the
     struct CEEDPAOperator input. */
@@ -245,6 +231,15 @@ void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
 
 /// Return the path to the libCEED q-function headers.
 const std::string &GetCeedPath();
+
+/// Initialize a CeedBasis and a CeedElemRestriction
+void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
+                                 const IntegrationRule &ir,
+                                 Ceed ceed, CeedBasis *basis,
+                                 CeedElemRestriction *restr);
+
+void InitCeedTensorRestriction(const FiniteElementSpace &fes,
+                               Ceed ceed, CeedElemRestriction *restr);
 
 // Hash table for CeedBasis
 using CeedBasisKey =
