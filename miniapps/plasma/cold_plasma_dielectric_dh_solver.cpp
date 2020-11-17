@@ -300,7 +300,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      // phi_tmp_(NULL),
      rectPot_(NULL),
      rhs_(NULL),
-     // e_t_(NULL),
+     e_t_(NULL),
      e_b_(NULL),
      h_v_(NULL),
      e_v_(NULL),
@@ -420,7 +420,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    }
    else
    {
-      // e_t_ = new ParGridFunction(HCurlFESpace_);
+      e_t_ = new ParGridFunction(HCurlFESpace_);
    }
 
    // HDivFESpace_  = new RT_ParFESpace(pmesh_,order,pmesh_->Dimension());
@@ -659,9 +659,9 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
       //m12EpsRe_->SetAssemblyLevel(AssemblyLevel::PARTIAL);
       //m12EpsIm_->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    }
-   m1_ = new ParBilinearForm(HCurlFESpace_);
+   m1_ = new ParSesquilinearForm(HCurlFESpace_, conv_);
    if (pa_) { m1_->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   m1_->AddDomainIntegrator(new VectorFEMassIntegrator);
+   m1_->AddDomainIntegrator(new VectorFEMassIntegrator, NULL);
 
    m21EpsInvRe_ = new ParMixedBilinearForm(HDivFESpace_, HCurlFESpace_);
    m21EpsInvIm_ = new ParMixedBilinearForm(HDivFESpace_, HCurlFESpace_);
@@ -935,7 +935,7 @@ CPDSolverDH::Assemble()
    if ( myid_ == 0 && logging_ > 0 ) { cout << "Assembling ..." << endl; }
 
    if ( myid_ == 0 && logging_ > 0 )
-   { cout << "  Curl(1/mu Curl) - omega^2 epsilon ..." << flush; }
+   { cout << "  Curl(1/eps Curl) - omega^2 mu ..." << flush; }
    tic_toc.Clear();
    tic_toc.Start();
 
@@ -950,21 +950,21 @@ CPDSolverDH::Assemble()
    {
       cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
    }
-   if ( myid_ == 0 && logging_ > 0 )
-   { cout << "  Curl(1/mu Curl) + omega^2 |epsilon| ..." << flush; }
-   tic_toc.Clear();
-   tic_toc.Start();
+   // if ( myid_ == 0 && logging_ > 0 )
+   // { cout << "  Curl(1/mu Curl) + omega^2 |epsilon| ..." << flush; }
+   // tic_toc.Clear();
+   // tic_toc.Start();
 
    // b1_->Assemble();
    // if (!pa_) { b1_->Finalize(); }
 
-   tic_toc.Stop();
+   // tic_toc.Stop();
+   // if ( myid_ == 0 && logging_ > 0 )
+   //  {
+   //   cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
+   // }
    if ( myid_ == 0 && logging_ > 0 )
-   {
-      cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
-   }
-   if ( myid_ == 0 && logging_ > 0 )
-   { cout << "  H(Div) mass matrix ..." << flush; }
+   { cout << "  H(Curl) mass matrix ..." << flush; }
    tic_toc.Clear();
    tic_toc.Start();
 
@@ -1062,6 +1062,8 @@ CPDSolverDH::Assemble()
       grad_->Assemble();
       grad_->Finalize();
    }
+   curl_->Assemble();
+   curl_->Finalize();
    /*
    curlMuInvCurl_->Assemble();
    curlMuInvCurl_->Finalize();
@@ -1069,8 +1071,6 @@ CPDSolverDH::Assemble()
    hDivHCurlMuInv_->Finalize();
    hCurlMass_->Assemble();
    hCurlMass_->Finalize();
-   curl_->Assemble();
-   curl_->Finalize();
    if ( weakCurlMuInv_ )
    {
       weakCurlMuInv_->Assemble();
@@ -1234,12 +1234,29 @@ CPDSolverDH::Solve()
 
       m1_->FormLinearSystem(sbc_nd_tdofs_, *e_, *rhs_, M1, E, RHS);
 
-      HypreDiagScale diag(*M1.As<HypreParMatrix>());
-      HyprePCG pcg(*M1.As<HypreParMatrix>());
-      pcg.SetTol(1e-12);
-      pcg.SetMaxIter(500);
-      pcg.SetPrintLevel(0);
+      HypreDiagScale diag_r(M1.As<ComplexHypreParMatrix>()->real());
+      Operator * diag_i = NULL;
+      if (conv_ != ComplexOperator::HERMITIAN)
+      {
+         diag_i = new ScaledOperator(&diag_r, -1.0);
+      }
+      else
+      {
+         diag_i = &diag_r;
+      }
+
+      BlockDiagonalPreconditioner diag(blockTrueOffsets_);
+      diag.SetDiagonalBlock(0, &diag_r);
+      diag.SetDiagonalBlock(1, diag_i);
+      diag.owns_blocks = 0;
+
+      CGSolver pcg(HCurlFESpace_->GetComm());
       pcg.SetPreconditioner(diag);
+      pcg.SetOperator(*M1.Ptr());
+      pcg.SetRelTol(solOpts_.relTol);
+      pcg.SetMaxIter(solOpts_.maxIter);
+      pcg.SetPrintLevel(solOpts_.printLvl+1);
+
       pcg.Mult(RHS, E);
 
       m1_->RecoverFEMSolution(E, *rhs_, *e_);
@@ -1457,6 +1474,12 @@ void
 CPDSolverDH::InitializeGLVis()
 {
    if ( myid_ == 0 ) { cout << "Opening GLVis sockets." << endl; }
+
+   socks_["Hr"] = new socketstream;
+   socks_["Hr"]->precision(8);
+
+   socks_["Hi"] = new socketstream;
+   socks_["Hi"]->precision(8);
 
    socks_["Er"] = new socketstream;
    socks_["Er"]->precision(8);
@@ -1688,7 +1711,7 @@ CPDSolverDH::DisplayToGLVis()
    {
       Wx = 0; Wy += offy; // next line
 
-      j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
+      // j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
 
       if (kCoef_)
       {
@@ -1704,13 +1727,11 @@ CPDSolverDH::DisplayToGLVis()
          j_v_ = j_;
       }
 
-      /*
       VisualizeField(*socks_["Jr"], vishost, visport,
-                    j_v_->real(), "Current Density, Re(J)", Wx, Wy, Ww, Wh);
+                     j_v_->real(), "Current Density, Re(J)", Wx, Wy, Ww, Wh);
       Wx += offx;
       VisualizeField(*socks_["Ji"], vishost, visport,
-                    j_v_->imag(), "Current Density, Im(J)", Wx, Wy, Ww, Wh);
-       */
+                     j_v_->imag(), "Current Density, Im(J)", Wx, Wy, Ww, Wh);
    }
    Wx = 0; Wy += offy; // next line
    /*

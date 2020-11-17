@@ -303,7 +303,7 @@ private:
    // ParBilinearForm * m2_;
    // ParMixedBilinearForm * m12EpsRe_;
    // ParMixedBilinearForm * m12EpsIm_;
-   ParBilinearForm * m1_;
+   ParSesquilinearForm * m1_;
    ParMixedBilinearForm * m21EpsInvRe_;
    ParMixedBilinearForm * m21EpsInvIm_;
 
