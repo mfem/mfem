@@ -139,7 +139,14 @@ int CeedInterpolationRestrict(CeedInterpolation interp,
    const CeedScalar *multiplicitydata, *indata;
    CeedScalar *workdata;
    CeedMemType mem;
-   CeedGetPreferredMemType(interp->ceed, &mem);
+   if (Device::Allows(Backend::DEVICE_MASK))
+   {
+      mem = CEED_MEM_DEVICE;
+   }
+   else
+   {
+      mem = CEED_MEM_HOST;
+   }
    ierr = CeedVectorGetArrayRead(in, mem, &indata); CeedChk(ierr);
    ierr = CeedVectorGetArrayRead(interp->fine_multiplicity_r, mem,
                                  &multiplicitydata); CeedChk(ierr);
