@@ -59,7 +59,7 @@ class DFSSpaces
    unique_ptr<ParFiniteElementSpace> l2_fes_;
    unique_ptr<ParFiniteElementSpace> hcurl_fes_;
 
-   Array<SparseMatrix> el_l2dof_;
+   std::vector<SparseMatrix> el_l2dof_;
    const Array<int>& ess_bdr_attr_;
    Array<int> all_bdr_attr_;
 

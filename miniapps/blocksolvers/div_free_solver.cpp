@@ -65,8 +65,8 @@ DFSSpaces::DFSSpaces(int order, int num_refine, ParMesh *mesh,
    coarse_l2_fes_.reset(new ParFiniteElementSpace(*l2_fes_));
    l2_0_fes_.reset(new ParFiniteElementSpace(mesh, &l2_0_fec_));
    l2_0_fes_->SetUpdateOperatorType(Operator::MFEM_SPARSEMAT);
-   el_l2dof_.SetSize(num_refine+1);
-   el_l2dof_[level_] = ElemToDof(*coarse_l2_fes_);
+   el_l2dof_.reserve(num_refine+1);
+   el_l2dof_.push_back(ElemToDof(*coarse_l2_fes_));
 
    data_.agg_hdivdof.SetSize(num_refine);
    data_.agg_l2dof.SetSize(num_refine);
@@ -125,7 +125,7 @@ void DFSSpaces::MakeDofRelationTables(int level)
    OperatorPtr agg_elem(Transpose(elem_agg));
    SparseMatrix& agg_el = *agg_elem.As<SparseMatrix>();
 
-   el_l2dof_[level+1] = ElemToDof(*l2_fes_);
+   el_l2dof_.push_back(ElemToDof(*l2_fes_));
    data_.agg_l2dof[level].Reset(Mult(agg_el, el_l2dof_[level+1]));
 
    Array<int> bdr_tdofs;
