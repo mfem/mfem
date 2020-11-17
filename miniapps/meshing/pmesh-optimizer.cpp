@@ -85,6 +85,7 @@
 //
 //   Untangling:
 //     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -rs 0 -mid 22 -tid 1 -ni 1000 -ls 2 -li 50 -bnd -qt 1 -qo 4 -vl 1 -fd
+//     mpirun -np 4 pmesh-optimizer -m SS_bc.mesh -o 3 -rs 0 -mid 313 -tid 1 -ni 100 -ls 2 -li 50 -bnd -qt 1 -qo 4 -vl 1 -fd
 //
 
 #include "mfem.hpp"

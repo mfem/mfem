@@ -278,7 +278,18 @@ double TMOP_Metric_022::EvalW(const DenseMatrix &Jpt) const
    //       = (0.5*I1 - I2b) / (I2b - tau0)
    ie.SetJacobian(Jpt.GetData());
    const double I2b = ie.Get_I2b();
-   return (0.5*ie.Get_I1() - I2b) / (I2b - tau0);
+
+   double d = I2b - min_det;
+   if (d < 0.0)
+   {
+      // Although min_det is computed exactly to avoid this case, it's still
+      // possible in FD calculations, as they move the nodes around with some
+      // small increments and can get worse determinants that min_det.
+      // Thus in this case we return a small value. Note that here I2b < 0.
+      d = - I2b * 0.1;
+   }
+
+   return (0.5*ie.Get_I1() - I2b) / d;
 }
 
 void TMOP_Metric_022::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
@@ -287,8 +298,8 @@ void TMOP_Metric_022::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
    // P = 1/(I2b - tau0)*(0.5*dI1 - dI2b) - (0.5*I1 - I2b)/(I2b - tau0)^2*dI2b
    //   = 0.5/(I2b - tau0)*dI1 + (tau0 - 0.5*I1)/(I2b - tau0)^2*dI2b
    ie.SetJacobian(Jpt.GetData());
-   const double c1 = 1.0/(ie.Get_I2b() - tau0);
-   Add(c1/2, ie.Get_dI1(), (tau0 - ie.Get_I1()/2)*c1*c1, ie.Get_dI2b(), P);
+   const double c1 = 1.0/(ie.Get_I2b() - min_det);
+   Add(c1/2, ie.Get_dI1(), (min_det - ie.Get_I1()/2)*c1*c1, ie.Get_dI2b(), P);
 }
 
 void TMOP_Metric_022::AssembleH(const DenseMatrix &Jpt,
@@ -308,10 +319,10 @@ void TMOP_Metric_022::AssembleH(const DenseMatrix &Jpt,
    //      +0.5/(I2b - tau0)*ddI1 + z*ddI2b
    ie.SetJacobian(Jpt.GetData());
    ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
-   const double c1 = 1.0/(ie.Get_I2b() - tau0);
+   const double c1 = 1.0/(ie.Get_I2b() - min_det);
    const double c2 = weight*c1/2;
    const double c3 = c1*c2;
-   const double c4 = (2*tau0 - ie.Get_I1())*c3; // weight*z
+   const double c4 = (2*min_det - ie.Get_I1())*c3; // weight*z
    ie.Assemble_TProd(-c3, ie.Get_dI1(), ie.Get_dI2b(), A.GetData());
    ie.Assemble_TProd(-2*c1*c4, ie.Get_dI2b(), A.GetData());
    ie.Assemble_ddI1(c2, A.GetData());
@@ -686,13 +697,17 @@ double TMOP_Metric_313::EvalW(const DenseMatrix &Jpt) const
 {
    ie.SetJacobian(Jpt.GetData());
 
-   double d = ie.Get_I3b() - min_detJ;
+   const double I3b = ie.Get_I3b();
+   double d = I3b - min_det;
    if (d < 0.0)
    {
-      std::cout << ie.Get_I3b() << " " << min_detJ << std::endl;
-      MFEM_WARNING("negative");
+      // Although min_det is computed exactly to avoid this case, it's still
+      // possible in FD calculations, as they move the nodes around with some
+      // small increments and can get worse determinants that min_det.
+      // Thus in this case we return a small value. Note that here I3b < 0.
+      d = - I3b * 0.1;
    }
-   const double c = std::pow(ie.Get_I3b() - min_detJ, -2.0/3.0);
+   const double c = std::pow(d, -2.0/3.0);
 
    //return ie.Get_I1() * c / 3.0 - 1.0;
    return ie.Get_I1() * c / 3.0;

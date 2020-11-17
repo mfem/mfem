@@ -350,7 +350,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    // Note that x hasn't been modified by the Newton update yet.
    const double min_detJ_in = ComputeMinDet(x_out_loc, *fes);
    const bool untangling = (min_detJ_in <= 0.0) ? true : false;
-   const double factor = 3.0;
+   const double factor = 1.5;
    if (untangling)
    {
       // Needed for the line search below.
