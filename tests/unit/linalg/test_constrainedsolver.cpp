@@ -371,7 +371,6 @@ TEST_CASE("EliminationProjection", "[Parallel], [ConstrainedSolver]")
       lagrange_dofs.Append(0);
       lagrange_dofs.Append(1);
 
-      NodalEliminationProjection nep(A, B);
       Eliminator eliminator(B, lagrange_dofs, primary_dofs, secondary_dofs);
       Array<Eliminator*> eliminators;
       eliminators.Append(&eliminator);
@@ -405,8 +404,8 @@ TEST_CASE("EliminationProjection", "[Parallel], [ConstrainedSolver]")
          newx(primary_dofs[i]) = x(i);
       }
       Vector nepy(4), newepy(4), aepy(4);
-      nep.Mult(x, nepy);
       newep.Mult(newx, newepy);
+      new_nodalep.Mult(newx, nepy);
       new_assembled_ep->Mult(newx, aepy);
 
       /*
@@ -422,14 +421,14 @@ TEST_CASE("EliminationProjection", "[Parallel], [ConstrainedSolver]")
 
       Vector xt(4);
       xt.Randomize();
-      Vector newepyt(4), nepyt(2), aepyt(4);
+      Vector newepyt(4), nepyt(4), aepyt(4);
       newep.MultTranspose(xt, newepyt);
-      nep.MultTranspose(xt, nepyt);
+      new_nodalep.MultTranspose(xt, nepyt);
       new_assembled_ep->MultTranspose(xt, aepyt);
-      for (int i = 0; i < 2; ++i)
+      for (int i = 0; i < 4; ++i)
       {
-         REQUIRE(newepyt(primary_dofs[i]) - nepyt(i) == MFEM_Approx(0.0));
-         REQUIRE(nepyt(i) - aepyt(primary_dofs[i]) == MFEM_Approx(0.0));
+         REQUIRE(newepyt(i) - nepyt(i) == MFEM_Approx(0.0));
+         REQUIRE(nepyt(i) - aepyt(i) == MFEM_Approx(0.0));
       }
 
       delete new_assembled_ep;
