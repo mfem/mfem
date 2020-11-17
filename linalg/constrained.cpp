@@ -48,120 +48,6 @@ HypreParMatrix* SerialHypreMatrix(SparseMatrix& mat, bool transfer_ownership=tru
    return out;
 }
 
-NodalEliminationProjection::NodalEliminationProjection(const SparseMatrix& A, const SparseMatrix& B)
-   :
-   Operator(A.Height(),
-            A.Height() - B.Height()),
-   A_(A),
-   B_(B),
-   secondary_inv_(B.Height())
-{
-   const int * I = B.GetI();
-   const int * J = B.GetJ();
-   const double * data = B.GetData();
-   for (int i = 0; i < B.Height(); ++i)
-   {
-      const int jidx = I[i];
-      const int j = J[jidx];
-      const double val = data[jidx];
-      MFEM_VERIFY(std::abs(val) > 1.e-14, "Cannot eliminate!");
-      secondary_inv_(i) = 1.0 / val;
-      secondary_dofs_.Append(j);
-      for (int jidx = I[i] + 1; jidx < I[i + 1]; ++jidx)
-      {
-         const int j = J[jidx];
-         primary_dofs_.Append(j);
-      }
-   }
-   primary_dofs_.Sort();
-   // should probably either sort or store some kind of map?
-   // secondary_dofs_.Sort(); // ATB veteran
-
-   int column_dof = 0;
-   for (int i = 0; i < A.Height(); ++i)
-   {
-      if (secondary_dofs_.Find(i) == -1)
-      {
-         // otherwise, dof exists in reduced system (identity)
-         if (primary_dofs_.FindSorted(i) >= 0)
-         {
-            // in addition, mapped_primary_contact_dofs[reduced_id] = larger_id
-            mapped_primary_dofs_.Append(column_dof);
-         }
-         column_dof++;
-      }
-   }
-}
-
-void NodalEliminationProjection::Mult(const Vector& x, Vector& y) const
-{
-   MFEM_VERIFY(x.Size() == width, "Vector size doesn't match!");
-   MFEM_VERIFY(y.Size() == height, "Vector size doesn't match!");
-
-   y = 0.0;
-
-   int column_dof = 0;
-   int sequence = 0;
-   const int * BI = B_.GetI();
-   // const int * BJ = B_.GetJ();
-   const double * Bdata = B_.GetData();
-   for (int i = 0; i < A_.Height(); ++i)
-   {
-      // const int brow = secondary_dofs_.FindSorted(i); // ATB veteran
-      const int brow = secondary_dofs_.Find(i);
-      if (brow >= 0)
-      {
-         double val = 0.0;
-         for (int jidx = BI[brow] + 1; jidx < BI[brow + 1]; ++jidx)
-         {
-            // const int bcol = BJ[jidx];
-            const double bval = Bdata[jidx];
-            val += secondary_inv_(brow) * bval * x(mapped_primary_dofs_[sequence]);
-            sequence++;
-         }
-         y(i) += val;
-      }
-      else
-      {
-         y(i) += -x(column_dof);
-         column_dof++;
-      }
-   }
-}
-
-void NodalEliminationProjection::MultTranspose(const Vector& in, Vector& out) const
-{
-   int num_elim_dofs = secondary_dofs_.Size();
-   MFEM_ASSERT(out.Size() == A_.Height() - num_elim_dofs, "Sizes don't match!");
-   MFEM_ASSERT(in.Size() == A_.Height(), "Sizes don't match!");
-
-   out = 0.0;
-
-   int row_dof = 0;
-   int sequence = 0;
-   const int * BI = B_.GetI();
-   // const int * BJ = B_.GetJ();
-   const double * Bdata = B_.GetData();
-   for (int i = 0; i < A_.Height(); ++i)
-   {
-      const int brow = secondary_dofs_.Find(i);
-      if (brow >= 0)
-      {
-         for (int jidx = BI[brow] + 1; jidx < BI[brow + 1]; ++jidx)
-         {
-            const double bval = Bdata[jidx];
-            out(mapped_primary_dofs_[sequence]) += secondary_inv_(brow) * bval * in(i);
-            sequence++;
-         }
-      }
-      else
-      {
-         out(row_dof) += -in(i);
-         row_dof++;
-      }
-   }
-}
-
 Eliminator::Eliminator(const SparseMatrix& B, const Array<int>& lagrange_tdofs,
                        const Array<int>& primary_tdofs, const Array<int>& secondary_tdofs)
    :
@@ -344,26 +230,28 @@ void EliminationProjection::RecoverPressure(
 EliminationCGSolver::~EliminationCGSolver()
 {
    delete h_explicit_operator_;
-   delete elim_;
+   for (auto elim : elims_)
+   {
+      delete elim;
+   }
    delete projector_;
    delete prec_;
 }
 
-void EliminationCGSolver::BuildPreconditioner(SparseMatrix& spB)
+void EliminationCGSolver::BuildPreconditioner(SparseMatrix& spB, Array<int>& first_interface_dofs,
+                                              Array<int>& second_interface_dofs)
 {
    // first_interface_dofs = primary_dofs, column indices corresponding to nonzeros in constraint
    // rectangular B_1 = B_p has lagrange_dofs rows, first_interface_dofs columns
    // square B_2 = B_s has lagrange_dofs rows, second_interface_dofs columns
-   Array<int> lagrange_dofs(second_interface_dofs_.Size());
+   Array<int> lagrange_dofs(second_interface_dofs.Size());
    for (int i = 0; i < lagrange_dofs.Size(); ++i)
    {
       lagrange_dofs[i] = i;
    }
-   elim_ = new Eliminator(spB, lagrange_dofs, first_interface_dofs_,
-                          second_interface_dofs_);
-   Array<Eliminator*> elims;
-   elims.Append(elim_);
-   projector_ = new EliminationProjection(hA_, elims);
+   elims_.Append(new Eliminator(spB, lagrange_dofs, first_interface_dofs,
+                                second_interface_dofs));
+   projector_ = new EliminationProjection(hA_, elims_);
 
    SparseMatrix * explicit_projector = projector_->AssembleExact();
    HypreParMatrix * h_explicit_projector = SerialHypreMatrix(*explicit_projector);
@@ -401,13 +289,39 @@ EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
                                          Array<int>& secondary_dofs)
    :
    ConstrainedSolver(MPI_COMM_SELF, A, B),
-   hA_(A),
-   first_interface_dofs_(primary_dofs),
-   second_interface_dofs_(secondary_dofs)
+   hA_(A)
 {
    MFEM_VERIFY(secondary_dofs.Size() == B.Height(),
                "Wrong number of dofs for elimination!");
-   BuildPreconditioner(B);
+   BuildPreconditioner(B, primary_dofs, secondary_dofs);
+}
+
+EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
+                                         Array<int>& lagrange_rowstarts)
+   :
+   ConstrainedSolver(MPI_COMM_SELF, A, B),
+   hA_(A)
+{
+   int * I = B.GetI();
+   int * J = B.GetJ();
+   double * data = B.GetData();
+
+   for (int k = 0; k < lagrange_rowstarts.Size() - 1; ++k)
+   {
+      int constraint_size = lagrange_rowstarts[k + 1] - lagrange_rowstarts[k];
+      Array<int> lagrange_dofs(constraint_size);
+      Array<int> primary_dofs;
+      Array<int> secondary_dofs;
+      for (int i = lagrange_rowstarts[k]; i < lagrange_rowstarts[k + 1]; ++i)
+      {
+         for (int jptr = I[i]; jptr < I[i + 1]; ++jptr)
+         {
+            int j = J[jptr];
+            double val = data[jptr];
+            ;
+         }
+      }
+   }
 }
 
 void EliminationCGSolver::Mult(const Vector& rhs, Vector& sol) const

@@ -176,27 +176,33 @@ class EliminationCGSolver : public ConstrainedSolver
 public:
    /** @brief Constructor, with explicit splitting into primary/secondary dofs.
 
+       This constructor uses a single elimination block (per processor), which
+       provides the most general algorithm but is also not scalable
+
        The secondary_dofs are eliminated from the system in this algorithm,
        as they can be written in terms of the primary_dofs. */
    EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B, Array<int>& primary_dofs,
                        Array<int>& secondary_dofs);
+
+   /** @brief Constructor, elimination is by blocks.
+
+       The nonzeros in B are assumed to be in disjoint rows and columns; the rows
+       are identified with the lagrange_rowstarts array, the secondary dofs are
+       assumed to be the first nonzeros in the rows. */
+   EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
+                       Array<int>& lagrange_rowstarts);
 
    ~EliminationCGSolver();
 
    void Mult(const Vector& x, Vector& y) const override;
 
 private:
-   /** If primary/secondary dofs are cleanly separated in the matrix as
-       ordered, this routine can figure out the primary/secondary dofs
-       for elimination from the nonzero structure. */
-   void BuildSeparatedInterfaceDofs(int firstblocksize);
-
-   void BuildPreconditioner(SparseMatrix& spB);
+   /// Utility routine for constructors
+   void BuildPreconditioner(SparseMatrix& spB, Array<int>& primary_dofs,
+                            Array<int>& secondary_dofs);
 
    HypreParMatrix& hA_;
-   Array<int> first_interface_dofs_;
-   Array<int> second_interface_dofs_;
-   Eliminator * elim_;
+   Array<Eliminator*> elims_;
    EliminationProjection * projector_;
    HypreParMatrix * h_explicit_operator_;
    HypreBoomerAMG * prec_;
