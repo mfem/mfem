@@ -61,9 +61,9 @@ public:
 
 template <typename T, int... Sizes>
 using StaticSharedTensor = Tensor<sizeof...(Sizes),
-                                    T,
-                                    StaticSharedContainer<T, Sizes...>,
-                                    StaticLayout<Sizes...> >;
+                                  T,
+                                  StaticSharedContainer<T, Sizes...>,
+                                  StaticLayout<Sizes...> >;
 
 template <int Rank, typename T, int MaxSize = 16>
 using SharedTensor = Tensor<Rank,

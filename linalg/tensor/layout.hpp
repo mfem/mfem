@@ -106,7 +106,7 @@ public:
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
-   int operator()(Idx... idx) const
+   constexpr int operator()(Idx... idx) const
    {
    #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
       MFEM_ASSERT(sizeof...(Sizes)==sizeof...(Idx), "Wrong number of arguments.");

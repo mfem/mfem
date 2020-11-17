@@ -48,7 +48,7 @@ template <typename T, int... Dims>
 class StaticSharedContainer
 {
 private:
-   MFEM_SHARED T data[Size<Dims...>::val];
+   MFEM_SHARED T data[prod(Dims...)];
 public:
    template <typename... Sizes> MFEM_HOST_DEVICE
    StaticSharedContainer(Sizes... sizes)
@@ -71,7 +71,7 @@ public:
 
    constexpr int size() const
    {
-      return Size<Dims...>::val;
+      return prod(Dims...);
    }
 };
 
@@ -79,7 +79,7 @@ template <typename T, int... Dims>
 class StaticContainer
 {
 private:
-   T data[Size<Dims...>::val];
+   T data[prod(Dims...)];
 
 public:
    template <typename... Sizes> MFEM_HOST_DEVICE
@@ -104,7 +104,7 @@ public:
    MFEM_HOST_DEVICE
    constexpr int size() const
    {
-      return Size<Dims...>::val;
+      return prod(Dims...);
    }
 };
 
