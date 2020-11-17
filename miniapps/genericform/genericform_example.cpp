@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
          double f0 = 4.0;
          Vector f1(2);
          f1 = du;
-         return std::tuple{f0, f1};
+         return std::make_tuple(f0, f1);
       },
       [](auto u, auto du) {
          // R'(u, du)
@@ -89,8 +89,28 @@ int main(int argc, char *argv[])
          f10 = 0.0;
          DenseMatrix f11;
          f11.Diag(1.0, 2);
-         return std::tuple{f00, f01, f10, f11};
-      });
+         return std::make_tuple(f00, f01, f10, f11);
+      }, pmesh);
+
+   // auto nonlinear_diffusion = new QFunctionIntegrator(
+   //    [](auto u, auto du) {
+   //       // R(u, du) = \nabla u \cdot \nabla v - f = 0
+   //       double f0 = 4.0;
+   //       Vector f1(2);
+   //       f1 = du;
+   //       return std::make_tuple(f0, f1);
+   //    },
+   //    [](auto u, auto du) {
+   //       // R'(u, du)
+   //       double f00 = 0.0;
+   //       Vector f01(2);
+   //       f01 = 0.0;
+   //       Vector f10(2);
+   //       f10 = 0.0;
+   //       DenseMatrix f11;
+   //       f11.Diag(1.0, 2);
+   //       return std::make_tuple(f00, f01, f10, f11);
+   //    });
 
    form.AddDomainIntegrator(diffusion);
 

@@ -6,7 +6,19 @@
 
 namespace mfem
 {
-template<typename qfunc_type, typename qfunc_grad_type>
+template<typename T>
+struct supported_type
+{
+   static constexpr bool value = false;
+};
+
+template<>
+struct supported_type<ParMesh>
+{
+   static constexpr bool value = true;
+};
+
+template<typename qfunc_type, typename qfunc_grad_type, typename... qfunc_args_type>
 class QFunctionIntegrator : public GenericIntegrator
 {
 protected:
@@ -28,7 +40,7 @@ protected:
 public:
    QFunctionIntegrator(qfunc_type f,
                        qfunc_grad_type f_grad,
-                       const IntegrationRule *ir = nullptr);
+                       qfunc_args_type const &... fargs);
 
    void Setup(const FiniteElementSpace &fes) override;
 
@@ -38,6 +50,15 @@ public:
    void ApplyGradient(const Vector &x,
                       const Vector &v,
                       Vector &y) const override;
+
+   template<typename qfunc_arg_type>
+   void handle_farg(const qfunc_arg_type &farg)
+   {
+      if constexpr (std::is_same_v<decltype(farg), Mesh>)
+      {
+         std::cout << "mesh" << std::endl;
+      }
+   }
 };
 
 // QFunc(double, mfem::Vector) -> {double, mfem::Vector}
@@ -158,6 +179,8 @@ static void ApplyGradient2D(const int dim,
       constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
 
+      // double physical_coordinates =
+
       // loop over quadrature points
       for (int qy = 0; qy < Q1D; ++qy)
       {
@@ -238,14 +261,22 @@ static void ApplyGradient2D(const int dim,
    }
 }
 
-template<typename qfunc_type, typename qfunc_grad_type>
-QFunctionIntegrator<qfunc_type, qfunc_grad_type>::QFunctionIntegrator(
-   qfunc_type f, qfunc_grad_type df, const IntegrationRule *ir)
-   : GenericIntegrator(ir), maps(nullptr), geom(nullptr), qf(f), qf_grad(df)
-{}
+template<typename qfunc_type, typename qfunc_grad_type, typename... qfunc_args_type>
+QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::
+   QFunctionIntegrator(qfunc_type f,
+                       qfunc_grad_type df,
+                       qfunc_args_type const &... fargs)
+   : GenericIntegrator(nullptr), maps(nullptr), geom(nullptr), qf(f),
+     qf_grad(df)
+{
+   static_assert((supported_type<qfunc_args_type>::value && ...),
+                 "Type not supported for parameter expansion. See "
+                 "documentation for supported types.");
+   (handle_farg(fargs), ...);
+}
 
-template<typename qfunc_type, typename qfunc_grad_type>
-void QFunctionIntegrator<qfunc_type, qfunc_grad_type>::Setup(
+template<typename qfunc_type, typename qfunc_grad_type, typename... qfunc_args_type>
+void QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::Setup(
    const FiniteElementSpace &fes)
 {
    // Assuming the same element type
@@ -282,17 +313,17 @@ void QFunctionIntegrator<qfunc_type, qfunc_grad_type>::Setup(
    J = geom->J;
 }
 
-template<typename qfunc_type, typename qfunc_grad_type>
-void QFunctionIntegrator<qfunc_type, qfunc_grad_type>::Apply(const Vector &x,
-                                                             Vector &y) const
+template<typename qfunc_type, typename qfunc_grad_type, typename... qfunc_args_type>
+void QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::Apply(
+   const Vector &x, Vector &y) const
 {
    Apply2D<0, 0, qfunc_type>(
       dim, dofs1D, quad1D, ne, maps->B, maps->G, J, W, x, qf, y);
 }
 
-template<typename qfunc_type, typename qfunc_grad_type>
-void QFunctionIntegrator<qfunc_type, qfunc_grad_type>::ApplyGradient(
-   const Vector &x, const Vector &v, Vector &y) const
+template<typename qfunc_type, typename qfunc_grad_type, typename... qfunc_args_type>
+void QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::
+   ApplyGradient(const Vector &x, const Vector &v, Vector &y) const
 {
    ApplyGradient2D<0, 0, qfunc_grad_type>(
       dim, dofs1D, quad1D, ne, maps->B, maps->G, J, W, x, v, qf_grad, y);
