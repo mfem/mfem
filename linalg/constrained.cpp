@@ -402,7 +402,6 @@ EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
    :
    ConstrainedSolver(MPI_COMM_SELF, A, B),
    hA_(A),
-   spB_(B),
    first_interface_dofs_(primary_dofs),
    second_interface_dofs_(secondary_dofs)
 {

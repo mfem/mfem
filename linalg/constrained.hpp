@@ -83,31 +83,6 @@ protected:
 };
 
 
-/** experimental version of EliminationProjection, the assumption is that
-    each row of B has nonzeros that are unique to it, that is, no other row has
-    nonzeros in the same columns */
-class NodalEliminationProjection : public Operator
-{
-public:
-   NodalEliminationProjection(const SparseMatrix& A, const SparseMatrix& B);
-   void Mult(const Vector& in, Vector& out) const override;
-   void MultTranspose(const Vector& in, Vector& out) const override;
-
-   /** @brief Assemble this projector as a SparseMatrix
-
-       Some day we may also want to try approximate variants. */
-   SparseMatrix * AssembleExact() const;
-
-private:
-   const SparseMatrix& A_;
-   const SparseMatrix& B_;
-
-   Vector secondary_inv_;
-   Array<int> primary_dofs_;
-   Array<int> secondary_dofs_;
-   Array<int> mapped_primary_dofs_;
-};
-
 /** Keeps track of primary / secondary tdofs
 
     (In this context we are always talking about the displacement system,
@@ -199,8 +174,6 @@ private:
 class EliminationCGSolver : public ConstrainedSolver
 {
 public:
-   EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B, int firstblocksize);
-
    /** @brief Constructor, with explicit splitting into primary/secondary dofs.
 
        The secondary_dofs are eliminated from the system in this algorithm,
@@ -221,7 +194,6 @@ private:
    void BuildPreconditioner(SparseMatrix& spB);
 
    HypreParMatrix& hA_;
-   SparseMatrix& spB_;  /// deprecated, use in arguments but don't keep
    Array<int> first_interface_dofs_;
    Array<int> second_interface_dofs_;
    Eliminator * elim_;
