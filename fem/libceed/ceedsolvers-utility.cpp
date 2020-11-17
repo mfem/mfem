@@ -33,7 +33,14 @@ int CeedVectorPointwiseMult(CeedVector a, const CeedVector b)
    }
 
    CeedMemType mem;
-   CeedGetPreferredMemType(ceed, &mem);
+   if (Device::Allows(Backend::DEVICE_MASK))
+   {
+      mem = CEED_MEM_DEVICE;
+   }
+   else
+   {
+      mem = CEED_MEM_HOST;
+   }
    CeedScalar *a_data;
    const CeedScalar *b_data;
    ierr = CeedVectorGetArray(a, mem, &a_data); CeedChk(ierr);

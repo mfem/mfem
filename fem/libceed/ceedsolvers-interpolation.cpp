@@ -73,10 +73,8 @@ int CeedInterpolationCreate(Ceed ceed, CeedBasis basisctof,
                              &fine_r_data); CeedChk(ierr);
    ierr = CeedVectorGetArrayRead(c_fine_multiplicity, CEED_MEM_HOST,
                                  &fine_data); CeedChk(ierr);
-   for (int i = 0; i < height; ++i)
-   {
-      fine_r_data[i] = 1.0 / fine_data[i];
-   }
+   MFEM_FORALL(i, height,
+   {fine_r_data[i] = 1.0 / fine_data[i];});
 
    ierr = CeedVectorRestoreArray(fine_multiplicity_r, &fine_r_data); CeedChk(ierr);
    ierr = CeedVectorRestoreArrayRead(c_fine_multiplicity, &fine_data);
@@ -86,7 +84,6 @@ int CeedInterpolationCreate(Ceed ceed, CeedBasis basisctof,
    CeedVector fine_work;
    ierr = CeedVectorCreate(ceed, height, &fine_work); CeedChk(ierr);
 
-   // ierr = CeedCalloc(1, interp);
    *interp = (CeedInterpolation) calloc(1,
                                         sizeof(struct CeedInterpolation_private));
    (*interp)->ceed = ceed;
