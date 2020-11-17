@@ -58,34 +58,18 @@ UnconstrainedMFEMCeedOperator::~UnconstrainedMFEMCeedOperator()
 
 void UnconstrainedMFEMCeedOperator::Mult(const Vector& x, Vector& y) const
 {
-   int ierr = 0;
+   y = 0.0;
 
-   const CeedScalar *x_ptr;
-   CeedScalar *y_ptr;
-   CeedMemType mem;
-   CeedGetPreferredMemType(internal::ceed, &mem);
-   if (Device::Allows(Backend::CUDA) && mem == CEED_MEM_DEVICE)
-   {
-      x_ptr = x.Read();
-      y_ptr = y.ReadWrite();
-   }
-   else
-   {
-      x_ptr = x.HostRead();
-      y_ptr = y.HostReadWrite();
-      mem = CEED_MEM_HOST;
-   }
+   // I specifically do not want to call the constructor or destructor
+   // of CeedData, this is kind of a hack.
+   CeedData * data = (CeedData*) malloc(sizeof(CeedData));
+   data->u = u_;
+   data->v = v_;
+   data->oper = oper_;
 
-   ierr += CeedVectorSetArray(u_, mem, CEED_USE_POINTER,
-                              const_cast<CeedScalar*>(x_ptr));
-   ierr += CeedVectorSetArray(v_, mem, CEED_USE_POINTER, y_ptr);
+   CeedAddMult(data, x, y);
 
-   ierr += CeedOperatorApply(oper_, u_, v_, CEED_REQUEST_IMMEDIATE);
-
-   ierr += CeedVectorTakeArray(u_, mem, const_cast<CeedScalar**>(&x_ptr));
-   ierr += CeedVectorTakeArray(v_, mem, &y_ptr);
-
-   MFEM_ASSERT(ierr == 0, "CEED error");
+   free(data);
 }
 
 MFEMCeedOperator::MFEMCeedOperator(
