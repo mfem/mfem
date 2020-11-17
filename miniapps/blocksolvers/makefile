@@ -58,7 +58,7 @@ compare-constant: block-solvers-compare
 	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-r 2)
 compare-high-contrast: block-solvers-compare
 	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-r 2\
-        -m anisotropic.mesh -c high_contrast_coef.txt -eb ess_bdr_attr.txt)
+	-m anisotropic.mesh -c high_contrast_coef.txt -eb ess_bdr_attr.txt)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
@@ -71,4 +71,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-        @rm -rf block-solvers-compare
+	@rm -rf block-solvers-compare
