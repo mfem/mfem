@@ -1406,6 +1406,22 @@ ParMixedSesquilinearForm::~ParMixedSesquilinearForm()
    delete pblfi;
 }
 
+void ParMixedSesquilinearForm::Mult(const ParComplexGridFunction & x,
+                                    ParComplexLinearForm & y) const
+{
+   pblfr->Mult(x.real(), y.real());
+   pblfi->AddMult(x.imag(), y.real(), -1.0);
+
+   pblfr->Mult(x.imag(), y.imag());
+   pblfi->AddMult(x.real(), y.imag(), 1.0);
+
+   if (conv == ComplexOperator::Convention::BLOCK_SYMMETRIC)
+   {
+      y.imag() *= -1.0;
+   }
+
+}
+
 void ParMixedSesquilinearForm::AddDomainIntegrator(BilinearFormIntegrator
                                                    *bfi_real,
                                                    BilinearFormIntegrator *bfi_imag)

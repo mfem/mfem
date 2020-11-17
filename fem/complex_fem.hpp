@@ -736,6 +736,10 @@ public:
    const ParMixedBilinearForm & real() const { return *pblfr; }
    const ParMixedBilinearForm & imag() const { return *pblfi; }
 
+   /// Matrix multiplication: \f$ y = M x \f$
+   void Mult(const ParComplexGridFunction & x,
+             ParComplexLinearForm & y) const;
+
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
                             BilinearFormIntegrator *bfi_imag);
