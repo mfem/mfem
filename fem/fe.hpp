@@ -683,6 +683,7 @@ public:
 class NodalFiniteElement : public ScalarFiniteElement
 {
 protected:
+   Array<int> lex_ordering;
    void ProjectCurl_2D(const FiniteElement &fe,
                        ElementTransformation &Trans,
                        DenseMatrix &curl) const;
@@ -731,6 +732,15 @@ public:
    virtual void ProjectDiv(const FiniteElement &fe,
                            ElementTransformation &Trans,
                            DenseMatrix &div) const;
+
+   /** @brief Get an Array<int> that maps lexicographically ordered indices to
+       the indices of the respective nodes/dofs/basis functions. The returned
+       array may be empty if the DOFs are already ordered lexicographically, or
+       if the finite element does not support creating this permutation. The
+       array returned is the same as the array given by
+       TensorBasisElement::GetDofMap, but it is also available for non-tensor
+       elements. */
+   const Array<int> &GetLexicographicOrdering() const { return lex_ordering; }
 };
 
 /** @brief Class for finite elements utilizing the
