@@ -18,6 +18,129 @@
 namespace mfem
 {
 
+int VTKGeometry::Map[Geometry::NUM_GEOMETRIES] = {
+   POINT, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, CUBE, PRISM
+};
+
+int VTKGeometry::HighOrderMap[Geometry::NUM_GEOMETRIES] = {
+   POINT, LAGRANGE_SEGMENT, LAGRANGE_TRIANGLE, LAGRANGE_SQUARE,
+   LAGRANGE_TETRAHEDRON, LAGRANGE_CUBE, LAGRANGE_PRISM
+};
+
+Geometry::Type VTKGeometry::GetMFEMGeometry(int vtk_geom)
+{
+   switch (vtk_geom)
+   {
+      case POINT:
+         return Geometry::POINT;
+      case SEGMENT:
+      case QUADRATIC_SEGMENT:
+      case LAGRANGE_SEGMENT:
+         return Geometry::SEGMENT;
+      case TRIANGLE:
+      case QUADRATIC_TRIANGLE:
+      case LAGRANGE_TRIANGLE:
+         return Geometry::TRIANGLE;
+      case SQUARE:
+      case BIQUADRATIC_SQUARE:
+      case LAGRANGE_SQUARE:
+         return Geometry::SQUARE;
+      case TETRAHEDRON:
+      case QUADRATIC_TETRAHEDRON:
+      case LAGRANGE_TETRAHEDRON:
+         return Geometry::TETRAHEDRON;
+      case CUBE:
+      case TRIQUADRATIC_CUBE:
+      case LAGRANGE_CUBE:
+         return Geometry::CUBE;
+      case PRISM:
+      case BIQUADRATIC_QUADRATIC_PRISM:
+      case LAGRANGE_PRISM:
+         return Geometry::PRISM;
+      default:
+         return Geometry::INVALID;
+   }
+}
+
+bool VTKGeometry::IsLagrange(int vtk_geom)
+{
+   return vtk_geom >= LAGRANGE_SEGMENT && vtk_geom <= LAGRANGE_PRISM;
+}
+
+bool VTKGeometry::IsQuadratic(int vtk_geom)
+{
+   return vtk_geom >= QUADRATIC_SEGMENT
+      && vtk_geom <= BIQUADRATIC_QUADRATIC_PRISM;
+}
+
+int VTKGeometry::GetOrder(int vtk_geom, int npoints)
+{
+   if (IsQuadratic(vtk_geom))
+   {
+      return 2;
+   }
+   else if (!IsLagrange(vtk_geom))
+   {
+      return 1;
+   }
+   else
+   {
+      switch (vtk_geom)
+      {
+         case LAGRANGE_SEGMENT:
+            return npoints - 1;
+         case LAGRANGE_TRIANGLE:
+            return (std::sqrt(8*npoints + 1) - 3)/2;
+         case LAGRANGE_SQUARE:
+            return std::round(std::sqrt(npoints)) - 1;
+         case LAGRANGE_TETRAHEDRON:
+            switch (npoints)
+            {
+               case 4: return 1;
+               case 10: return 2;
+               case 20: return 3;
+               case 35: return 4;
+               case 56: return 5;
+               case 84: return 6;
+               case 120: return 7;
+               case 165: return 8;
+               case 220: return 9;
+               case 286: return 10;
+               // this is a iterative solution strategy to find the nearest
+               // integer ( order ) given the number of points in the
+               // tetrahedron. the order is the root of following cubic equation
+               // npoints = (order + 1) * (order + 2) * (order + 3) / 6;
+               // npoints =  ( x3 + 6x2 + 11x + 6 ) / 6
+               default:
+               {
+                  int order = 1;
+                  int nPointsForOrder = 4;
+                  while (nPointsForOrder < npoints)
+                  {
+                     order++;
+                     nPointsForOrder = (order + 1)*(order + 2)*(order + 3)/6;
+                  }
+                  MFEM_ASSERT(npoints == nPointsForOrder, "");
+                  return order;
+               }
+         }
+         case LAGRANGE_CUBE:
+            return std::round(std::cbrt(npoints)) - 1;
+         case LAGRANGE_PRISM:
+         {
+            const double n = npoints;
+            static const double third(1.0/3.0);
+            static const double ninth(1.0/9.0);
+            static const double twentyseventh(1.0/27.0);
+            const double term =
+               std::cbrt(third*sqrt(third)*sqrt((27.0*n - 2.0)*n) + n
+                  - twentyseventh);
+            return std::round(term + ninth / term - 4*third);
+         }
+      }
+   }
+}
+
 int BarycentricToVTKTriangle(int *b, int ref)
 {
    // Cf. https://git.io/JvW8f
