@@ -2050,8 +2050,6 @@ public:
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
                                          ElementTransformation &Trans);
-
-   void SetupPA(const FiniteElementSpace &fes);
 };
 
 /** Mass integrator (u, v) restricted to the boundary of a domain */
