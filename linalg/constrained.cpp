@@ -16,38 +16,6 @@
 namespace mfem
 {
 
-/// convenience function, convert a SparseMatrix to a (serial)
-/// HypreParMatrix so you can use hypre solvers
-HypreParMatrix* SerialHypreMatrix(SparseMatrix& mat, bool transfer_ownership=true)
-{
-   HYPRE_Int row_starts[3];
-   row_starts[0] = 0;
-   row_starts[1] = mat.Height();
-   row_starts[2] = mat.Height();
-   HYPRE_Int col_starts[3];
-   col_starts[0] = 0;
-   col_starts[1] = mat.Width();
-   col_starts[2] = mat.Width();
-   HypreParMatrix * out = new HypreParMatrix(
-      MPI_COMM_WORLD, mat.Height(), mat.Width(),
-      row_starts, col_starts, &mat);
-   out->CopyRowStarts();
-   out->CopyColStarts();
-
-   /// 3 gives MFEM full ownership of i, j, data
-   if (transfer_ownership)
-   {
-      out->SetOwnerFlags(3, out->OwnsOffd(), out->OwnsColMap());
-      mat.LoseData();
-   }
-   else
-   {
-      out->SetOwnerFlags(0, out->OwnsOffd(), out->OwnsColMap());
-   }
-
-   return out;
-}
-
 Eliminator::Eliminator(const SparseMatrix& B, const Array<int>& lagrange_tdofs,
                        const Array<int>& primary_tdofs, const Array<int>& secondary_tdofs)
    :
@@ -279,7 +247,7 @@ EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
                                          Array<int>& primary_dofs,
                                          Array<int>& secondary_dofs)
    :
-   ConstrainedSolver(MPI_COMM_SELF, A, B),
+   ConstrainedSolver(A.GetComm(), A, B),
    hA_(A)
 {
    MFEM_VERIFY(secondary_dofs.Size() == B.Height(),
@@ -298,7 +266,7 @@ EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
 EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
                                          Array<int>& lagrange_rowstarts)
    :
-   ConstrainedSolver(MPI_COMM_SELF, A, B),
+   ConstrainedSolver(A.GetComm(), A, B),
    hA_(A)
 {
    int * I = B.GetI();
@@ -396,7 +364,7 @@ PenaltyConstrainedSolver::PenaltyConstrainedSolver(
 {
    HYPRE_Int hB_row_starts[2] = {0, B.Height()};
    HYPRE_Int hB_col_starts[2] = {0, B.Width()};
-   HypreParMatrix hB(MPI_COMM_WORLD, B.Height(), B.Width(),
+   HypreParMatrix hB(comm, B.Height(), B.Width(),
                      hB_row_starts, hB_col_starts, &B);
    Initialize(A, hB);
 }
