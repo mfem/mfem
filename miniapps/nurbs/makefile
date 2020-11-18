@@ -78,7 +78,7 @@ nurbs_ex1-test-seq: nurbs_ex1
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_10))
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_11))
 
-EX1P_ARGS_1 := 
+EX1P_ARGS_1 :=
 EX1P_ARGS_2 := -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp
 EX1P_ARGS_3 := -m ../../data/ball-nurbs.mesh -o 2 --weak-bc -r 0
 EX1P_ARGS_4 := -m ../../data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 0
@@ -91,7 +91,7 @@ nurbs_ex1p-test-par: nurbs_ex1p
 	@$(call mfem-test,$<, $(RUN_MPI), NURBS miniapp,$(EX1P_ARGS_4))
 	@$(call mfem-test,$<, $(RUN_MPI), NURBS miniapp,$(EX1P_ARGS_5))
 
-EX11P_ARGS_1 := 
+EX11P_ARGS_1 :=
 
 nurbs_ex11p-test-par: nurbs_ex11p
 	@$(call mfem-test,$<, $(RUN_MPI), NURBS miniapp,$(EX11P_ARGS_1))

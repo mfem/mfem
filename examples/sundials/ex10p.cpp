@@ -306,7 +306,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // check for vaild ODE solver option
+   // check for valid ODE solver option
    if (ode_solver_type < 1 || ode_solver_type > 17)
    {
       if (myid == 0)
