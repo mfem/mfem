@@ -285,25 +285,28 @@ public:
 
    /// Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
    virtual double ComputeGradError(VectorCoefficient *exgrad,
-                                   const IntegrationRule *irs[] = NULL) const
+                                   const IntegrationRule *irs[] = NULL,
+                                   Array<int> *elems = NULL) const
    {
-      return GlobalLpNorm(2.0, GridFunction::ComputeGradError(exgrad,irs),
+      return GlobalLpNorm(2.0, GridFunction::ComputeGradError(exgrad,irs,elems),
                           pfes->GetComm());
    }
 
    /// Returns ||curl u_ex - curl u_h||_L2 for ND elements
    virtual double ComputeCurlError(VectorCoefficient *excurl,
-                                   const IntegrationRule *irs[] = NULL) const
+                                   const IntegrationRule *irs[] = NULL,
+                                   Array<int> *elems = NULL) const
    {
-      return GlobalLpNorm(2.0, GridFunction::ComputeCurlError(excurl,irs),
+      return GlobalLpNorm(2.0, GridFunction::ComputeCurlError(excurl,irs,elems),
                           pfes->GetComm());
    }
 
    /// Returns ||div u_ex - div u_h||_L2 for RT elements
    virtual double ComputeDivError(Coefficient *exdiv,
-                                  const IntegrationRule *irs[] = NULL) const
+                                  const IntegrationRule *irs[] = NULL,
+                                  Array<int> *elems = NULL) const
    {
-      return GlobalLpNorm(2.0, GridFunction::ComputeDivError(exdiv,irs),
+      return GlobalLpNorm(2.0, GridFunction::ComputeDivError(exdiv,irs,elems),
                           pfes->GetComm());
    }
 
