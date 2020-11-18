@@ -363,18 +363,14 @@ void NavierSolver::Step(double &time, double dt, int cur_step, bool provisional)
    H_form->Assemble();
    H_form->FormSystemMatrix(vel_ess_tdof, H);
 
+   HInv->SetOperator(*H);
    if (partial_assembly)
    {
-      HInv->SetOperator(*H);
       delete HInvPC;
       Vector diag_pa(vfes->GetTrueVSize());
       H_form->AssembleDiagonal(diag_pa);
       HInvPC = new OperatorJacobiSmoother(diag_pa, vel_ess_tdof);
       HInv->SetPreconditioner(*HInvPC);
-   }
-   else
-   {
-      HInv->SetOperator(*H);
    }
 
    // Extrapolated f^{n+1}.
