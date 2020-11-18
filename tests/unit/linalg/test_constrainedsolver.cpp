@@ -341,6 +341,9 @@ TEST_CASE("ParallelConstrainedSolver", "[Parallel], [ConstrainedSolver]")
 }
 
 
+// DEPRECATED: this was useful for migrating what is now EliminationProjection into
+// its present form while making sure it maintained the same behavior as its
+// predecessor, but not it doesn't really make sense?
 TEST_CASE("EliminationProjection", "[Parallel], [ConstrainedSolver]")
 {
    int comm_size;

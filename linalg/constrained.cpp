@@ -238,22 +238,10 @@ EliminationCGSolver::~EliminationCGSolver()
    delete prec_;
 }
 
-void EliminationCGSolver::BuildPreconditioner(SparseMatrix& spB, Array<int>& first_interface_dofs,
-                                              Array<int>& second_interface_dofs)
+void EliminationCGSolver::BuildPreconditioner()
 {
-   // first_interface_dofs = primary_dofs, column indices corresponding to nonzeros in constraint
-   // rectangular B_1 = B_p has lagrange_dofs rows, first_interface_dofs columns
-   // square B_2 = B_s has lagrange_dofs rows, second_interface_dofs columns
-   Array<int> lagrange_dofs(second_interface_dofs.Size());
-   for (int i = 0; i < lagrange_dofs.Size(); ++i)
-   {
-      lagrange_dofs[i] = i;
-   }
-   elims_.Append(new Eliminator(spB, lagrange_dofs, first_interface_dofs,
-                                second_interface_dofs));
-   projector_ = new EliminationProjection(hA_, elims_);
-
    SparseMatrix * explicit_projector = projector_->AssembleExact();
+   /// todo: next line should be diagonal (potentially parallel)
    HypreParMatrix * h_explicit_projector = SerialHypreMatrix(*explicit_projector);
    h_explicit_operator_ = RAP(&hA_, h_explicit_projector);
    
@@ -293,7 +281,15 @@ EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
 {
    MFEM_VERIFY(secondary_dofs.Size() == B.Height(),
                "Wrong number of dofs for elimination!");
-   BuildPreconditioner(B, primary_dofs, secondary_dofs);
+   Array<int> lagrange_dofs(secondary_dofs.Size());
+   for (int i = 0; i < lagrange_dofs.Size(); ++i)
+   {
+      lagrange_dofs[i] = i;
+   }
+   elims_.Append(new Eliminator(B, lagrange_dofs, primary_dofs,
+                                secondary_dofs));
+   projector_ = new EliminationProjection(hA_, elims_);
+   BuildPreconditioner();
 }
 
 EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
@@ -311,17 +307,28 @@ EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
       int constraint_size = lagrange_rowstarts[k + 1] - lagrange_rowstarts[k];
       Array<int> lagrange_dofs(constraint_size);
       Array<int> primary_dofs;
-      Array<int> secondary_dofs;
+      Array<int> secondary_dofs(constraint_size);
       for (int i = lagrange_rowstarts[k]; i < lagrange_rowstarts[k + 1]; ++i)
       {
-         for (int jptr = I[i]; jptr < I[i + 1]; ++jptr)
+         lagrange_dofs[i - lagrange_rowstarts[k]] = i;
+         int j = J[I[i]];
+         double val = data[I[i]];
+         secondary_dofs[i  - lagrange_rowstarts[k]] = j;
+         // could actually deal with following issue, for now we are lazy
+         MFEM_VERIFY(std::abs(val) > 1.e-16, "Explicit zero in leading position in B matrix!");
+         for (int jptr = I[i] + 1; jptr < I[i + 1]; ++jptr)
          {
-            int j = J[jptr];
-            double val = data[jptr];
-            ;
+            j = J[jptr];
+            val = data[jptr];
+            primary_dofs.Append(j);
          }
       }
+      primary_dofs.Sort();
+      primary_dofs.Unique();
+      elims_.Append(new Eliminator(B, lagrange_dofs, primary_dofs, secondary_dofs));
    }
+   projector_ = new EliminationProjection(hA_, elims_);
+   BuildPreconditioner();
 }
 
 void EliminationCGSolver::Mult(const Vector& rhs, Vector& sol) const

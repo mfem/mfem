@@ -524,10 +524,13 @@ int main(int argc, char *argv[])
    }
    else if (elimination)
    {
-      y_dofs.Append(z_dofs);
-      y_dofs.Sort();
+      Array<int> lagrange_rowstarts(constraint_mat->Height() + 1);
+      for (int k = 0; k < constraint_mat->Height() + 1; ++k)
+      {
+         lagrange_rowstarts[k] = k;
+      }
       constrained = new EliminationCGSolver(*A.As<HypreParMatrix>(), *constraint_mat,
-                                            y_dofs, x_dofs);
+                                            lagrange_rowstarts);
    }
    else
    {
