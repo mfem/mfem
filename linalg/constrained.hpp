@@ -198,8 +198,7 @@ public:
 
 private:
    /// Utility routine for constructors
-   void BuildPreconditioner(SparseMatrix& spB, Array<int>& primary_dofs,
-                            Array<int>& secondary_dofs);
+   void BuildPreconditioner();
 
    HypreParMatrix& hA_;
    Array<Eliminator*> elims_;
