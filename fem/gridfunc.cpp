@@ -3689,7 +3689,7 @@ QuadratureFunction & QuadratureFunction::operator=(double value)
 
 QuadratureFunction & QuadratureFunction::operator=(const Vector &v)
 {
-   MFEM_ASSERT(qspace && v.Size() == qspace->GetSize(), "");
+   MFEM_ASSERT(qspace && v.Size() == this->Size(), "");
    Vector::operator=(v);
    return *this;
 }
