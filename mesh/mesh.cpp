@@ -9258,9 +9258,22 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTKFormat format,
          {
             coff = coff+nv;
             offset.push_back(coff);
-            for (int k = 0; k < nv; k++, j++)
+            if (geom != Geometry::PRISM)
             {
-               WriteBinaryOrASCII(out, buf, np + RG[j], " ", format);
+               for (int k = 0; k < nv; k++, j++)
+               {
+                  WriteBinaryOrASCII(out, buf, np + RG[j], " ", format);
+               }
+            }
+            else
+            {
+               WriteBinaryOrASCII(out, buf, np + RG[0], " ", format);
+               WriteBinaryOrASCII(out, buf, np + RG[2], " ", format);
+               WriteBinaryOrASCII(out, buf, np + RG[1], " ", format);
+               WriteBinaryOrASCII(out, buf, np + RG[3], " ", format);
+               WriteBinaryOrASCII(out, buf, np + RG[5], " ", format);
+               WriteBinaryOrASCII(out, buf, np + RG[4], " ", format);
+               j += 6;
             }
             if (format == VTKFormat::ASCII) { out << '\n'; }
          }
