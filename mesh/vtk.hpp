@@ -17,7 +17,42 @@
 namespace mfem
 {
 
-// Helpers for writing to the VTK format
+// Helpers for reading and writing VTK format
+
+// VTK element types defined at: https://git.io/JvZLm
+struct VTKGeometry
+{
+   static const int POINT = 1;
+   static const int SEGMENT = 3;
+   static const int TRIANGLE = 5;
+   static const int SQUARE = 9;
+   static const int TETRAHEDRON = 10;
+   static const int CUBE = 12;
+   static const int PRISM = 13;
+
+   static const int QUADRATIC_SEGMENT = 21;
+   static const int QUADRATIC_TRIANGLE = 22;
+   static const int BIQUADRATIC_SQUARE = 28;
+   static const int QUADRATIC_TETRAHEDRON = 24;
+   static const int TRIQUADRATIC_CUBE = 29;
+   static const int QUADRATIC_PRISM = 26;
+   static const int BIQUADRATIC_QUADRATIC_PRISM = 32;
+
+   static const int LAGRANGE_SEGMENT = 68;
+   static const int LAGRANGE_TRIANGLE = 69;
+   static const int LAGRANGE_SQUARE = 70;
+   static const int LAGRANGE_TETRAHEDRON = 71;
+   static const int LAGRANGE_CUBE = 72;
+   static const int LAGRANGE_PRISM = 73;
+
+   static int Map[Geometry::NUM_GEOMETRIES];
+   static int HighOrderMap[Geometry::NUM_GEOMETRIES];
+
+   static Geometry::Type GetMFEMGeometry(int vtk_geom);
+   static bool IsLagrange(int vtk_geom);
+   static bool IsQuadratic(int vtk_geom);
+   static int GetOrder(int vtk_geom, int npoints);
+};
 
 enum class VTKFormat
 {
