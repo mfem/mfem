@@ -8130,7 +8130,13 @@ void Mesh::GeneralRefinement(const Array<int> &el_to_refine, int nonconforming,
 void Mesh::EnsureNCMesh(bool simplices_nonconforming)
 {
    MFEM_VERIFY(!NURBSext, "Cannot convert a NURBS mesh to an NC mesh. "
-               "Project the NURBS to Nodes first.");
+               "Please project the NURBS to Nodes first, with SetCurvature().");
+
+#ifdef MFEM_USE_MPI
+   MFEM_VERIFY(ncmesh != NULL || dynamic_cast<const ParMesh*>(this) == NULL,
+               "Sorry, converting a conforming ParMesh to an NC mesh is "
+               "not possible.");
+#endif
 
    if (!ncmesh)
    {
