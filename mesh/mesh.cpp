@@ -8920,17 +8920,11 @@ void Mesh::PrintVTK(std::ostream &out)
          const int *v = elements[i]->GetVertices();
          const int nv = elements[i]->GetNVertices();
          out << nv;
-         if (elements[i]->GetType() != Element::WEDGE)
+         Geometry::Type geom = elements[i]->GetGeometryType();
+         const int *perm = (geom == Geometry::PRISM) ? vtk_prism_perm : NULL;
+         for (int j = 0; j < nv; j++)
          {
-            for (int j = 0; j < nv; j++)
-            {
-               out << ' ' << v[j];
-            }
-         }
-         else
-         {
-            out << ' ' << v[0] << ' ' << v[2] << ' ' << v[1]
-                << ' ' << v[3] << ' ' << v[5] << ' ' << v[4];
+            out << ' ' << v[perm ? perm[j] : j];
          }
          out << '\n';
       }
@@ -9258,22 +9252,10 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTKFormat format,
          {
             coff = coff+nv;
             offset.push_back(coff);
-            if (geom != Geometry::PRISM)
+            const int *p = (geom == Geometry::PRISM) ? vtk_prism_perm : NULL;
+            for (int k = 0; k < nv; k++, j++)
             {
-               for (int k = 0; k < nv; k++, j++)
-               {
-                  WriteBinaryOrASCII(out, buf, np + RG[j], " ", format);
-               }
-            }
-            else
-            {
-               WriteBinaryOrASCII(out, buf, np + RG[0], " ", format);
-               WriteBinaryOrASCII(out, buf, np + RG[2], " ", format);
-               WriteBinaryOrASCII(out, buf, np + RG[1], " ", format);
-               WriteBinaryOrASCII(out, buf, np + RG[3], " ", format);
-               WriteBinaryOrASCII(out, buf, np + RG[5], " ", format);
-               WriteBinaryOrASCII(out, buf, np + RG[4], " ", format);
-               j += 6;
+               WriteBinaryOrASCII(out, buf, np + RG[p ? p[j] : j], " ", format);
             }
             if (format == VTKFormat::ASCII) { out << '\n'; }
          }
