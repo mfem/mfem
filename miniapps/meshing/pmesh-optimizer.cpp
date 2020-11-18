@@ -196,7 +196,12 @@ int main (int argc, char *argv[])
    args.AddOption(&solver_rtol, "-rtol", "--newton-rel-tolerance",
                   "Relative tolerance for the Newton solver.");
    args.AddOption(&lin_solver, "-ls", "--lin-solver",
-                  "Linear solver: 0 - l1-Jacobi, 1 - CG, 2 - MINRES.");
+                  "Linear solver:\n\t"
+                  "0: l1-Jacobi\n\t"
+                  "1: CG\n\t"
+                  "2: MINRES\n\t"
+                  "3: MINRES + Jacobi preconditioner"
+                  "4: MINRES + l1-Jacobi preconditioner");
    args.AddOption(&max_lin_iter, "-li", "--lin-iter",
                   "Maximum number of iterations in the linear solve.");
    args.AddOption(&move_bnd, "-bnd", "--move-boundary", "-fix-bnd",
