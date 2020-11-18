@@ -9025,35 +9025,9 @@ void Mesh::PrintVTK(std::ostream &out)
    for (int i = 0; i < NumOfElements; i++)
    {
       int vtk_cell_type = 5;
-      Geometry::Type geom_type = GetElement(i)->GetGeometryType();
-      if (order == 1)
-      {
-         switch (geom_type)
-         {
-            case Geometry::POINT:        vtk_cell_type = 1;   break;
-            case Geometry::SEGMENT:      vtk_cell_type = 3;   break;
-            case Geometry::TRIANGLE:     vtk_cell_type = 5;   break;
-            case Geometry::SQUARE:       vtk_cell_type = 9;   break;
-            case Geometry::TETRAHEDRON:  vtk_cell_type = 10;  break;
-            case Geometry::CUBE:         vtk_cell_type = 12;  break;
-            case Geometry::PRISM:        vtk_cell_type = 13;  break;
-            default: break;
-         }
-      }
-      else if (order == 2)
-      {
-         switch (geom_type)
-         {
-            case Geometry::SEGMENT:      vtk_cell_type = 21;  break;
-            case Geometry::TRIANGLE:     vtk_cell_type = 22;  break;
-            case Geometry::SQUARE:       vtk_cell_type = 28;  break;
-            case Geometry::TETRAHEDRON:  vtk_cell_type = 24;  break;
-            case Geometry::CUBE:         vtk_cell_type = 29;  break;
-            case Geometry::PRISM:        vtk_cell_type = 32;  break;
-            default: break;
-         }
-      }
-
+      Geometry::Type geom = GetElement(i)->GetGeometryType();
+      if (order == 1) { vtk_cell_type = VTKGeometry::Map[geom]; }
+      else if (order == 2) { vtk_cell_type = VTKGeometry::QuadraticMap[geom]; }
       out << vtk_cell_type << '\n';
    }
 
@@ -9301,39 +9275,14 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTKFormat format,
    out << "<DataArray type=\"UInt8\" Name=\"types\" format=\""
        << fmt_str << "\">" << std::endl;
    // cell types
+   int *vtk_geom_map =
+      high_order_output ? VTKGeometry::HighOrderMap : VTKGeometry::Map;
    for (int i = 0; i < ne; i++)
    {
       Geometry::Type geom = get_geom(i);
       uint8_t vtk_cell_type = 5;
 
-      // VTK element types defined at: https://git.io/JvZLm
-      switch (geom)
-      {
-         case Geometry::POINT:
-            vtk_cell_type = 1;
-            break;
-         case Geometry::SEGMENT:
-            vtk_cell_type = high_order_output ? 68 : 3;
-            break;
-         case Geometry::TRIANGLE:
-            vtk_cell_type = high_order_output ? 69 : 5;
-            break;
-         case Geometry::SQUARE:
-            vtk_cell_type = high_order_output ? 70 : 9;
-            break;
-         case Geometry::TETRAHEDRON:
-            vtk_cell_type = high_order_output ? 71 : 10;
-            break;
-         case Geometry::CUBE:
-            vtk_cell_type = high_order_output ? 72 : 12;
-            break;
-         case Geometry::PRISM:
-            vtk_cell_type = high_order_output ? 73 : 13;
-            break;
-         default:
-            MFEM_ABORT("Unrecognized VTK element type \"" << geom << "\"");
-            break;
-      }
+      vtk_cell_type = vtk_geom_map[geom];
 
       if (high_order_output)
       {
@@ -9482,21 +9431,7 @@ void Mesh::PrintVTK(std::ostream &out, int ref, int field_data)
       int nv = Geometries.GetVertices(geom)->GetNPoints();
       RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
       Array<int> &RG = RefG->RefGeoms;
-      int vtk_cell_type = 5;
-
-      switch (geom)
-      {
-         case Geometry::POINT:        vtk_cell_type = 1;   break;
-         case Geometry::SEGMENT:      vtk_cell_type = 3;   break;
-         case Geometry::TRIANGLE:     vtk_cell_type = 5;   break;
-         case Geometry::SQUARE:       vtk_cell_type = 9;   break;
-         case Geometry::TETRAHEDRON:  vtk_cell_type = 10;  break;
-         case Geometry::CUBE:         vtk_cell_type = 12;  break;
-         case Geometry::PRISM:        vtk_cell_type = 13;  break;
-         default:
-            MFEM_ABORT("Unrecognized VTK element type \"" << geom << "\"");
-            break;
-      }
+      int vtk_cell_type = VTKGeometry::Map[geom];
 
       for (int j = 0; j < RG.Size(); j += nv)
       {

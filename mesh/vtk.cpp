@@ -22,6 +22,11 @@ int VTKGeometry::Map[Geometry::NUM_GEOMETRIES] = {
    POINT, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, CUBE, PRISM
 };
 
+int VTKGeometry::QuadraticMap[Geometry::NUM_GEOMETRIES] = {
+   POINT, QUADRATIC_SEGMENT, QUADRATIC_TRIANGLE, BIQUADRATIC_SQUARE,
+   QUADRATIC_TETRAHEDRON, TRIQUADRATIC_CUBE, BIQUADRATIC_QUADRATIC_PRISM
+};
+
 int VTKGeometry::HighOrderMap[Geometry::NUM_GEOMETRIES] = {
    POINT, LAGRANGE_SEGMENT, LAGRANGE_TRIANGLE, LAGRANGE_SQUARE,
    LAGRANGE_TETRAHEDRON, LAGRANGE_CUBE, LAGRANGE_PRISM
@@ -79,11 +84,7 @@ int VTKGeometry::GetOrder(int vtk_geom, int npoints)
    {
       return 2;
    }
-   else if (!IsLagrange(vtk_geom))
-   {
-      return 1;
-   }
-   else
+   else if (IsLagrange(vtk_geom))
    {
       switch (vtk_geom)
       {
@@ -139,6 +140,7 @@ int VTKGeometry::GetOrder(int vtk_geom, int npoints)
          }
       }
    }
+   return 1;
 }
 
 int BarycentricToVTKTriangle(int *b, int ref)
