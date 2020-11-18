@@ -301,6 +301,21 @@ void NavierSolver::Setup(double dt)
    // Set initial time step in the history array
    dthist[0] = dt;
 
+   if (filter_alpha != 0.0)
+   {
+      vfec_filter = new H1_FECollection(order - filter_cutoff_modes,
+                                        pmesh->Dimension());
+      vfes_filter = new ParFiniteElementSpace(pmesh,
+                                              vfec_filter,
+                                              pmesh->Dimension());
+
+      un_NM1_gf.SetSpace(vfes_filter);
+      un_NM1_gf = 0.0;
+
+      un_filtered_gf.SetSpace(vfes);
+      un_filtered_gf = 0.0;
+   }
+
    sw_setup.Stop();
 }
 
@@ -337,7 +352,7 @@ void NavierSolver::Step(double &time, double dt, int cur_step, bool provisional)
       vel_dbc.coeff->SetTime(time + dt);
    }
 
-   // Set current time for pressure dirichlet boundary conditons.
+   // Set current time for pressure dirichlet boundary conditions.
    for (auto &pres_dbc : pres_dbcs)
    {
       pres_dbc.coeff->SetTime(time + dt);
@@ -367,9 +382,7 @@ void NavierSolver::Step(double &time, double dt, int cur_step, bool provisional)
    f_form->Assemble();
    f_form->ParallelAssemble(fn);
 
-   //
    // Nonlinear extrapolated terms.
-   //
    sw_extrap.Start();
 
    N->Mult(un, Nun);
@@ -380,10 +393,13 @@ void NavierSolver::Step(double &time, double dt, int cur_step, bool provisional)
       const auto d_Nunm1 = Nunm1.Read();
       const auto d_Nunm2 = Nunm2.Read();
       auto d_Fext = Fext.Write();
+      const auto ab1_ = ab1;
+      const auto ab2_ = ab2;
+      const auto ab3_ = ab3;
       MFEM_FORALL(i, Fext.Size(),
-                  d_Fext[i] = ab1 * d_Nun[i] +
-                              ab2 * d_Nunm1[i] +
-                              ab3 * d_Nunm2[i];);
+                  d_Fext[i] = ab1_ * d_Nun[i] +
+                              ab2_ * d_Nunm1[i] +
+                              ab3_ * d_Nunm2[i];);
    }
 
    // Fext = M^{-1} (F(u^{n}) + f^{n+1})
@@ -409,19 +425,20 @@ void NavierSolver::Step(double &time, double dt, int cur_step, bool provisional)
 
    sw_extrap.Stop();
 
-   //
-   // Pressure poisson.
-   //
+   // Pressure Poisson.
    sw_curlcurl.Start();
    {
       const auto d_un = un.Read();
       const auto d_unm1 = unm1.Read();
       const auto d_unm2 = unm2.Read();
       auto d_Lext = Lext.Write();
+      const auto ab1_ = ab1;
+      const auto ab2_ = ab2;
+      const auto ab3_ = ab3;
       MFEM_FORALL(i, Lext.Size(),
-                  d_Lext[i] = ab1 * d_un[i] +
-                              ab2 * d_unm1[i] +
-                              ab3 * d_unm2[i];);
+                  d_Lext[i] = ab1_ * d_un[i] +
+                              ab2_ * d_unm1[i] +
+                              ab3_ * d_unm2[i];);
    }
 
    Lext_gf.SetFromTrueDofs(Lext);
@@ -499,9 +516,7 @@ void NavierSolver::Step(double &time, double dt, int cur_step, bool provisional)
 
    pn_gf.GetTrueDofs(pn);
 
-   //
    // Project velocity.
-   //
    G->Mult(pn, resu);
    resu.Neg();
    Mv->Mult(Fext, tmp1);
@@ -541,6 +556,18 @@ void NavierSolver::Step(double &time, double dt, int cur_step, bool provisional)
    {
       UpdateTimestepHistory(dt);
       time += dt;
+   }
+
+   if (filter_alpha != 0.0)
+   {
+      un_NM1_gf.ProjectGridFunction(un_gf);
+      un_filtered_gf.ProjectGridFunction(un_NM1_gf);
+      const auto d_un_filtered_gf = un_filtered_gf.Read();
+      auto d_un_gf = un_gf.ReadWrite();
+      MFEM_FORALL(i,
+                  un_gf.Size(),
+                  d_un_gf[i] = (1.0 - filter_alpha) * d_un_gf[i]
+                               + filter_alpha * d_un_filtered_gf[i];);
    }
 
    sw_step.Stop();
@@ -1119,4 +1146,6 @@ NavierSolver::~NavierSolver()
    delete pfec;
    delete vfes;
    delete pfes;
+   delete vfec_filter;
+   delete vfes_filter;
 }
