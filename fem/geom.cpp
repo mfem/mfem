@@ -1276,18 +1276,9 @@ RefinedGeometry * GeometryRefiner::Refine(Geometry::Type Geom,
                for (i = 0; i <= n-j; i++, l++)
                {
                   IntegrationPoint &ip = RG->RefPts.IntPoint(l);
-                  if (type == 0)
-                  {
-                     ip.x = double(i) / n;
-                     ip.y = double(j) / n;
-                     ip.z = double(k) / n;
-                  }
-                  else
-                  {
-                     ip.x = cp[i]/(cp[i] + cp[j] + cp[n-i-j]);
-                     ip.y = cp[j]/(cp[i] + cp[j] + cp[n-i-j]);
-                     ip.z = cp[k];
-                  }
+                  ip.x = cp[i]/(cp[i] + cp[j] + cp[n-i-j]);
+                  ip.y = cp[j]/(cp[i] + cp[j] + cp[n-i-j]);
+                  ip.z = cp[k];
                   m++;
                }
          if (m != (n+1)*(n+1)*(n+2)/2)
