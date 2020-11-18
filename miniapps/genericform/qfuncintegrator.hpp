@@ -21,24 +21,6 @@ struct supported_type<ParMesh>
 template<typename qfunc_type, typename qfunc_grad_type, typename... qfunc_args_type>
 class QFunctionIntegrator : public GenericIntegrator
 {
-protected:
-#ifndef MFEM_THREAD_SAFE
-   Vector shape, te_shape;
-#endif
-   const FiniteElementSpace *fespace;
-   const DofToQuad *maps;        ///< Not owned
-   const GeometricFactors *geom; ///< Not owned
-   int dim, ne, nq, dofs1D, quad1D;
-
-   // Geometric factors
-   Vector J;
-   Vector W;
-
-   qfunc_type qf;
-   qfunc_grad_type qf_grad;
-
-   const ParMesh *mesh_arg = nullptr;
-
 public:
    QFunctionIntegrator(qfunc_type f,
                        qfunc_grad_type f_grad,
@@ -53,33 +35,104 @@ public:
                       const Vector &v,
                       Vector &y) const override;
 
-   template<typename qfunc_arg_type>
-   void handle_farg(const qfunc_arg_type &farg)
-   {
-      if constexpr (std::is_same_v<qfunc_arg_type, ParMesh>)
-      {
-         // @TODO: if mesh not nullptr -> inform user
-         mesh_arg = &farg;
-      }
-   }
+protected:
+   void Apply2D(const Vector &u_in_, Vector &y_) const;
+
+   void ApplyGradient2D(const Vector &u_in_,
+                        const Vector &v_in_,
+                        Vector &y_) const;
+
+   auto EvaluateFargValue(const Mesh& m) const;
+
+   const FiniteElementSpace *fespace;
+   const DofToQuad *maps;        ///< Not owned
+   const GeometricFactors *geom; ///< Not owned
+   int dim, ne, nq, dofs1D, quad1D;
+
+   // Geometric factors
+   Vector J_;
+   Vector W_;
+
+   qfunc_type qf;
+   qfunc_grad_type qf_grad;
+   std::tuple<qfunc_args_type...> qf_farg_values;
 };
 
-// QFunc(double, mfem::Vector) -> {double, mfem::Vector}
-template<int T_D1D = 0, int T_Q1D = 0, typename qfunc_type>
-static void Apply2D(const int dim,
-                    const int D1D,
-                    const int Q1D,
-                    const int NE,
-                    const Array<double> &v1d_,
-                    const Array<double> &dv1d_dX_,
-                    const Vector &J_,
-                    const Vector &W_,
-                    const Vector &u_in_,
-                    const qfunc_type qf,
-                    Vector &y_)
+template<typename qfunc_type, typename qfunc_grad_type, typename... qfunc_args_type>
+QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::
+   QFunctionIntegrator(qfunc_type f,
+                       qfunc_grad_type df,
+                       qfunc_args_type const &... fargs)
+   : GenericIntegrator(nullptr), maps(nullptr), geom(nullptr), qf(f),
+     qf_grad(df), qf_farg_values(std::tuple{fargs...})
 {
-   auto v1d = Reshape(v1d_.Read(), Q1D, D1D);
-   auto dv1d_dX = Reshape(dv1d_dX_.Read(), Q1D, D1D);
+   static_assert((supported_type<qfunc_args_type>::value && ...),
+                 "Type not supported for parameter expansion. See "
+                 "documentation for supported types.");
+}
+
+template<typename qfunc_type, typename qfunc_grad_type, typename... qfunc_args_type>
+void QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::Setup(
+   const FiniteElementSpace &fes)
+{
+   // Assuming the same element type
+   fespace = &fes;
+   Mesh *mesh = fes.GetMesh();
+   if (mesh->GetNE() == 0)
+   {
+      return;
+   }
+   const FiniteElement &el = *fes.GetFE(0);
+   ElementTransformation *T = mesh->GetElementTransformation(0);
+   const IntegrationRule *ir = nullptr;
+   if (!IntRule)
+   {
+      IntRule = &IntRules.Get(el.GetGeomType(), el.GetOrder() * 2);
+   }
+   ir = IntRule;
+
+   dim = mesh->Dimension();
+   ne = fes.GetMesh()->GetNE();
+   nq = ir->GetNPoints();
+   geom = mesh->GetGeometricFactors(*ir,
+                                    GeometricFactors::COORDINATES
+                                       | GeometricFactors::JACOBIANS);
+   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   dofs1D = maps->ndof;
+   quad1D = maps->nqpt;
+   //    pa_data.SetSize(ne * nq, Device::GetDeviceMemoryType());
+
+   W_.SetSize(nq, Device::GetDeviceMemoryType());
+   W_.GetMemory().CopyFrom(ir->GetWeights().GetMemory(), nq);
+
+   // J.SetSize(ne * nq, Device::GetDeviceMemoryType());
+   J_ = geom->J;
+}
+
+template<typename qfunc_type, typename qfunc_grad_type, typename... qfunc_args_type>
+auto QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::
+   EvaluateFargValue(const Mesh &m) const
+{
+   return std::tuple{};
+}
+
+template<typename qfunc_type, typename qfunc_grad_type, typename... qfunc_args_type>
+void QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::Apply(
+   const Vector &x, Vector &y) const
+{
+   Apply2D(x, y);
+}
+
+template<typename qfunc_type, typename qfunc_grad_type, typename... qfunc_args_type>
+void QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::Apply2D(
+   const Vector &u_in_, Vector &y_) const
+{
+   int D1D = dofs1D;
+   int Q1D = quad1D;
+   int NE = ne;
+
+   auto v1d = Reshape(maps->B.Read(), Q1D, D1D);
+   auto dv1d_dX = Reshape(maps->G.Read(), Q1D, D1D);
    // (NQ x SDIM x DIM x NE)
    auto J = Reshape(J_.Read(), Q1D, Q1D, 2, 2, NE);
    auto W = Reshape(W_.Read(), Q1D, Q1D);
@@ -89,9 +142,6 @@ static void Apply2D(const int dim,
    // MFEM_FORALL(e, NE, {
    for (int e = 0; e < NE; e++)
    {
-      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
-
       // loop over quadrature points
       for (int qy = 0; qy < Q1D; ++qy)
       {
@@ -125,7 +175,12 @@ static void Apply2D(const int dim,
                = {(adjJ[0][0] * du_dX_q[0] + adjJ[1][0] * du_dX_q[1]) / detJ_q,
                   (adjJ[0][1] * du_dX_q[0] + adjJ[1][1] * du_dX_q[1]) / detJ_q};
 
-            // call Qfunction
+            // auto processed_qf_farg_values = std::apply(
+            //    [=](auto... a) {
+            //       return std::make_tuple(u_q, du_dx_q, EvaluateFargValue(a)...);
+            //    },
+            //    qf_farg_values);
+
             auto [f0, f1] = qf(u_q, du_dx_q);
 
             double f0_X = f0 * detJ_q;
@@ -154,22 +209,23 @@ static void Apply2D(const int dim,
    // });
 }
 
-template<int T_D1D = 0, int T_Q1D = 0, typename qfunc_grad_type>
-static void ApplyGradient2D(const int dim,
-                            const int D1D,
-                            const int Q1D,
-                            const int NE,
-                            const Array<double> &v1d_,
-                            const Array<double> &dv1d_dX_,
-                            const Vector &J_,
-                            const Vector &W_,
-                            const Vector &u_in_,
-                            const Vector &v_in_,
-                            const qfunc_grad_type qf_grad,
-                            Vector &y_)
+template<typename qfunc_type, typename qfunc_grad_type, typename... qfunc_args_type>
+void QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::
+   ApplyGradient(const Vector &x, const Vector &v, Vector &y) const
 {
-   auto v1d = Reshape(v1d_.Read(), Q1D, D1D);
-   auto dv1d_dX = Reshape(dv1d_dX_.Read(), Q1D, D1D);
+   ApplyGradient2D(x, v, y);
+}
+
+template<typename qfunc_type, typename qfunc_grad_type, typename... qfunc_args_type>
+void QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::
+   ApplyGradient2D(const Vector &u_in_, const Vector &v_in_, Vector &y_) const
+{
+   int D1D = dofs1D;
+   int Q1D = quad1D;
+   int NE = ne;
+
+   auto v1d = Reshape(maps->B.Read(), Q1D, D1D);
+   auto dv1d_dX = Reshape(maps->G.Read(), Q1D, D1D);
    // (NQ x SDIM x DIM x NE)
    auto J = Reshape(J_.Read(), Q1D, Q1D, 2, 2, NE);
    auto W = Reshape(W_.Read(), Q1D, Q1D);
@@ -179,11 +235,6 @@ static void ApplyGradient2D(const int dim,
 
    for (int e = 0; e < NE; e++)
    {
-      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
-
-      // double physical_coordinates =
-
       // loop over quadrature points
       for (int qy = 0; qy < Q1D; ++qy)
       {
@@ -262,79 +313,6 @@ static void ApplyGradient2D(const int dim,
          }
       }
    }
-}
-
-template<typename qfunc_type, typename qfunc_grad_type, typename... qfunc_args_type>
-QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::
-   QFunctionIntegrator(qfunc_type f,
-                       qfunc_grad_type df,
-                       qfunc_args_type const &... fargs)
-   : GenericIntegrator(nullptr), maps(nullptr), geom(nullptr), qf(f),
-     qf_grad(df)
-{
-   static_assert((supported_type<qfunc_args_type>::value && ...),
-                 "Type not supported for parameter expansion. See "
-                 "documentation for supported types.");
-   (handle_farg(fargs), ...);
-}
-
-template<typename qfunc_type, typename qfunc_grad_type, typename... qfunc_args_type>
-void QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::Setup(
-   const FiniteElementSpace &fes)
-{
-   // Assuming the same element type
-   fespace = &fes;
-   Mesh *mesh = fes.GetMesh();
-   if (mesh->GetNE() == 0)
-   {
-      return;
-   }
-   const FiniteElement &el = *fes.GetFE(0);
-   ElementTransformation *T = mesh->GetElementTransformation(0);
-   const IntegrationRule *ir = nullptr;
-   if (!IntRule)
-   {
-      IntRule = &IntRules.Get(el.GetGeomType(), el.GetOrder() * 2);
-   }
-   ir = IntRule;
-
-   if (mesh_arg)
-   {
-      // retrieve coordinates into array
-   }
-
-   dim = mesh->Dimension();
-   ne = fes.GetMesh()->GetNE();
-   nq = ir->GetNPoints();
-   geom = mesh->GetGeometricFactors(*ir,
-                                    GeometricFactors::COORDINATES
-                                       | GeometricFactors::JACOBIANS);
-   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
-   dofs1D = maps->ndof;
-   quad1D = maps->nqpt;
-   //    pa_data.SetSize(ne * nq, Device::GetDeviceMemoryType());
-
-   W.SetSize(nq, Device::GetDeviceMemoryType());
-   W.GetMemory().CopyFrom(ir->GetWeights().GetMemory(), nq);
-
-   // J.SetSize(ne * nq, Device::GetDeviceMemoryType());
-   J = geom->J;
-}
-
-template<typename qfunc_type, typename qfunc_grad_type, typename... qfunc_args_type>
-void QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::Apply(
-   const Vector &x, Vector &y) const
-{
-   Apply2D<0, 0, qfunc_type>(
-      dim, dofs1D, quad1D, ne, maps->B, maps->G, J, W, x, qf, y);
-}
-
-template<typename qfunc_type, typename qfunc_grad_type, typename... qfunc_args_type>
-void QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::
-   ApplyGradient(const Vector &x, const Vector &v, Vector &y) const
-{
-   ApplyGradient2D<0, 0, qfunc_grad_type>(
-      dim, dofs1D, quad1D, ne, maps->B, maps->G, J, W, x, v, qf_grad, y);
 }
 
 } // namespace mfem
