@@ -1001,7 +1001,7 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
          {
             if (pv_data_format == VTKFormat::ASCII)
             {
-               out << val(j) << '\n';
+               out << ZeroSubnormal(val(j)) << '\n';
             }
             else if (pv_data_format == VTKFormat::BINARY)
             {
@@ -1034,7 +1034,7 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
             {
                if (pv_data_format == VTKFormat::ASCII)
                {
-                  out << vval(ii,jj) << ' ';
+                  out << ZeroSubnormal(vval(ii,jj)) << ' ';
                }
                else if (pv_data_format == VTKFormat::BINARY)
                {

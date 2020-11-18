@@ -485,32 +485,32 @@ VectorSumCoefficient::VectorSumCoefficient(int dim)
 }
 
 VectorSumCoefficient::VectorSumCoefficient(VectorCoefficient &_A,
-                                           VectorCoefficient &_B,
+                                           VectorCoefficient &B_,
                                            double _alpha, double _beta)
    : VectorCoefficient(_A.GetVDim()),
-     ACoef(&_A), BCoef(&_B),
+     ACoef(&_A), BCoef(&B_),
      A(_A.GetVDim()), B(_A.GetVDim()),
      alphaCoef(NULL), betaCoef(NULL),
      alpha(_alpha), beta(_beta)
 {
-   MFEM_ASSERT(_A.GetVDim() == _B.GetVDim(),
+   MFEM_ASSERT(_A.GetVDim() == B_.GetVDim(),
                "VectorSumCoefficient:  "
                "Arguments must have the same dimension.");
 }
 
 VectorSumCoefficient::VectorSumCoefficient(VectorCoefficient &_A,
-                                           VectorCoefficient &_B,
+                                           VectorCoefficient &B_,
                                            Coefficient &_alpha,
                                            Coefficient &_beta)
    : VectorCoefficient(_A.GetVDim()),
-     ACoef(&_A), BCoef(&_B),
+     ACoef(&_A), BCoef(&B_),
      A(_A.GetVDim()),
      B(_A.GetVDim()),
      alphaCoef(&_alpha),
      betaCoef(&_beta),
      alpha(0.0), beta(0.0)
 {
-   MFEM_ASSERT(_A.GetVDim() == _B.GetVDim(),
+   MFEM_ASSERT(_A.GetVDim() == B_.GetVDim(),
                "VectorSumCoefficient:  "
                "Arguments must have the same dimension.");
 }

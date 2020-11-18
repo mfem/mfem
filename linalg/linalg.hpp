@@ -49,6 +49,10 @@
 #include "hypre_parcsr.hpp"
 #include "hypre.hpp"
 
+#ifdef MFEM_USE_MUMPS
+#include "mumps.hpp"
+#endif
+
 #ifdef MFEM_USE_PETSC
 #include "petsc.hpp"
 #endif

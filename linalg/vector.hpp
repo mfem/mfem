@@ -42,10 +42,19 @@ namespace mfem
 inline int CheckFinite(const double *v, const int n);
 
 /// Define a shortcut for std::numeric_limits<double>::infinity()
+#ifndef __CYGWIN__
 inline double infinity()
 {
    return std::numeric_limits<double>::infinity();
 }
+#else
+// On Cygwin math.h defines a function 'infinity()' which will conflict with the
+// above definition if we have 'using namespace mfem;' and try to use something
+// like 'double a = infinity();'. This 'infinity()' function is non-standard and
+// is defined by the Newlib C standard library implementation used by Cygwin,
+// see https://en.wikipedia.org/wiki/Newlib, http://www.sourceware.org/newlib.
+using ::infinity;
+#endif
 
 /// Vector data type.
 class Vector
@@ -414,6 +423,12 @@ public:
 };
 
 // Inline methods
+
+template <typename T>
+inline T ZeroSubnormal(T val)
+{
+   return (std::fpclassify(val) == FP_SUBNORMAL) ? 0.0 : val;
+}
 
 inline bool IsFinite(const double &val)
 {
