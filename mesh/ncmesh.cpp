@@ -5868,6 +5868,9 @@ void NCMesh::Trim()
    element_vertex.Clear();
 
    ClearTransforms();
+
+   // TODO future: consider trimming unused blocks at the end of 'elements' and
+   // maybe also of 'nodes' and 'faces'.
 }
 
 long NCMesh::NCList::MemoryUsage() const
