@@ -241,15 +241,18 @@ EliminationCGSolver::~EliminationCGSolver()
 void EliminationCGSolver::BuildPreconditioner()
 {
    SparseMatrix * explicit_projector = projector_->AssembleExact();
-   /// todo: next line should be diagonal (potentially parallel)
-   HypreParMatrix * h_explicit_projector = SerialHypreMatrix(*explicit_projector);
-   h_explicit_operator_ = RAP(&hA_, h_explicit_projector);
-   
+   HypreParMatrix * h_explicit_projector =
+      new HypreParMatrix(hA_.GetComm(), hA_.GetGlobalNumRows(), hA_.GetRowStarts(),
+                         explicit_projector);
+   h_explicit_projector->CopyRowStarts();
+   h_explicit_projector->CopyColStarts();
+
+   h_explicit_operator_ = RAP(&hA_, h_explicit_projector);   
    /// next line because of square projector
    h_explicit_operator_->EliminateZeroRows();
-
    h_explicit_operator_->CopyRowStarts();
    h_explicit_operator_->CopyColStarts();
+
    prec_ = new HypreBoomerAMG(*h_explicit_operator_);
    prec_->SetPrintLevel(0);
 
