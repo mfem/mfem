@@ -778,7 +778,8 @@ int main(int argc, char *argv[])
       minres->SetMaxIter(max_lin_iter);
       minres->SetRelTol(linsol_rtol);
       minres->SetAbsTol(0.0);
-      minres->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
+      if (verbosity_level > 2) { minres->SetPrintLevel(1); }
+      minres->SetPrintLevel(verbosity_level == 2 ? 3 : -1);
       if (lin_solver == 3 || lin_solver == 4)
       {
          S_prec = new DSmoother((lin_solver == 3) ? 0 : 1, 1.0, 1);
