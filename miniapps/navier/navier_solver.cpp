@@ -290,6 +290,21 @@ void NavierSolver::Setup(double dt)
 
    un_gf.GetTrueDofs(un);
 
+   if (filter_alpha != 0.0)
+   {
+      vfec_filter = new H1_FECollection(order - filter_cutoff_modes,
+                                        pmesh->Dimension());
+      vfes_filter = new ParFiniteElementSpace(pmesh,
+                                              vfec_filter,
+                                              pmesh->Dimension());
+
+      un_NM1_gf.SetSpace(vfes_filter);
+      un_NM1_gf = 0.0;
+
+      un_filtered_gf.SetSpace(vfes);
+      un_filtered_gf = 0.0;
+   }
+
    sw_setup.Stop();
 }
 
@@ -517,6 +532,18 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
    H_form->RecoverFEMSolution(X2, resu_gf, un_gf);
 
    un_gf.GetTrueDofs(un);
+
+   if (filter_alpha != 0.0)
+   {
+      un_NM1_gf.ProjectGridFunction(un_gf);
+      un_filtered_gf.ProjectGridFunction(un_NM1_gf);
+      const auto d_un_filtered_gf = un_filtered_gf.Read();
+      auto d_un_gf = un_gf.ReadWrite();
+      MFEM_FORALL(i,
+                  un_gf.Size(),
+                  d_un_gf[i] = (1.0 - filter_alpha) * d_un_gf[i]
+                               + filter_alpha * d_un_filtered_gf[i];);
+   }
 
    sw_step.Stop();
 
@@ -1075,4 +1102,6 @@ NavierSolver::~NavierSolver()
    delete pfec;
    delete vfes;
    delete pfes;
+   delete vfec_filter;
+   delete vfes_filter;
 }
