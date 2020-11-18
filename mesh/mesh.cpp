@@ -8920,9 +8920,17 @@ void Mesh::PrintVTK(std::ostream &out)
          const int *v = elements[i]->GetVertices();
          const int nv = elements[i]->GetNVertices();
          out << nv;
-         for (int j = 0; j < nv; j++)
+         if (elements[i]->GetType() != Element::WEDGE)
          {
-            out << ' ' << v[j];
+            for (int j = 0; j < nv; j++)
+            {
+               out << ' ' << v[j];
+            }
+         }
+         else
+         {
+            out << ' ' << v[0] << ' ' << v[2] << ' ' << v[1]
+                << ' ' << v[3] << ' ' << v[5] << ' ' << v[4];
          }
          out << '\n';
       }
