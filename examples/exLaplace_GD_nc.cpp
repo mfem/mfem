@@ -43,6 +43,7 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    int order = 1;
+   int ref_levels = 0;
    int N = 5;
    bool static_cond = false;
    bool pa = false;
@@ -60,6 +61,8 @@ int main(int argc, char *argv[])
                   "number of mesh elements.");
    args.AddOption(&radius, "-r", "--radius",
                   "radius of circle.");
+   args.AddOption(&ref_levels, "-ref", "--refine", 
+                    "refine levels" ); 
    args.Parse();
    if (!args.Good())
    {
@@ -82,7 +85,41 @@ int main(int argc, char *argv[])
    mesh->PrintVTK(sol_ofv, 0);
    std::map<int, IntegrationRule *> CutSquareIntRules;
    std::map<int, IntegrationRule *> cutSegmentIntRules;
-   std::map<int, IntegrationRule *> cutInteriorFaceIntRules;
+   std::map<int, IntegrationRule *> cutInteriorFaceIntRules;cout << "#elements before refinement " << mesh->GetNE() << endl;
+
+   /// find the elements to refine
+   for (int k=0; k<1 ; ++k)
+   {
+     Array<int> marked_elements;
+     for (int i = 0; i < mesh->GetNE(); ++i)
+     {
+         if (cutByCircle(mesh, radius, i) == true)
+         {
+          marked_elements.Append(i);
+         }
+     }
+   mesh->GeneralRefinement(marked_elements, 1);
+   }
+
+   for (int lev = 0; lev < ref_levels; lev++)
+   {
+       Array<int> ref_elements;
+       for (int i = 0; i < mesh->GetNE(); ++i)
+       {
+           if  (insideBoundary(mesh, radius, i)== false)
+           {
+               ref_elements.Append(i);
+           }
+       }
+       mesh->GeneralRefinement(ref_elements, 1);
+   }
+
+   cout << "#elements after refinement " << mesh->GetNE() << endl;
+   // write mesh after refinement
+   ofstream refine("refined_square_mesh_gd.vtk");
+   refine.precision(14);
+   mesh->PrintVTK(refine, 0);
+
    //find the elements cut by boundary
    vector<int> cutelems;
    vector<int> innerelems;
@@ -98,16 +135,16 @@ int main(int argc, char *argv[])
          innerelems.push_back(i);
       }
    }
-   cout << "elements cut by circle:  " << endl;
-   for (int i = 0; i < cutelems.size(); ++i)
-   {
-      cout << cutelems.at(i) << endl;
-   }
-   cout << "elements completely inside circle:  " << endl;
-   for (int i = 0; i < innerelems.size(); ++i)
-   {
-      cout << innerelems.at(i) << endl;
-   }
+   cout << "elements cut by circle:  " << cutelems.size() << endl;
+//    for (int i = 0; i < cutelems.size(); ++i)
+//    {
+//       cout << cutelems.at(i) << endl;
+//    }
+//    cout << "elements completely inside circle:  " << endl;
+//    for (int i = 0; i < innerelems.size(); ++i)
+//    {
+//       cout << innerelems.at(i) << endl;
+//    }
    cout << "#elements completely inside circle:  " << innerelems.size() << endl;
    int dim = mesh->Dimension();
    for (int i = 0; i < mesh->GetNumFaces(); ++i)
@@ -123,11 +160,11 @@ int main(int argc, char *argv[])
          }
       }
    }
-   cout << "faces cut by circle:  " << endl;
-   for (int i = 0; i < cutinteriorFaces.size(); ++i)
-   {
-      cout << cutinteriorFaces.at(i) << endl;
-   }
+//    cout << "faces cut by circle:  " << endl;
+//    for (int i = 0; i < cutinteriorFaces.size(); ++i)
+//    {
+//       cout << cutinteriorFaces.at(i) << endl;
+//    }
    cout << "dimension is " << dim << endl;
    std::cout << "Number of elements: " << mesh->GetNE() << '\n';
    int deg = order + 1;
@@ -278,6 +315,7 @@ int main(int argc, char *argv[])
    double norm = CutComputeL2Error(x, fespace, u, EmbeddedElems, CutSquareIntRules);
    cout << "----------------------------- " << endl;
    cout << "mesh size, h = " << 1.0 / N << endl;
+   cout << "h_new  is " << 1/sqrt(mesh->GetNE()) << endl;
    cout << "solution norm: " << norm << endl;
    // x.Print();
    // 11. Free the used memory.
@@ -1567,15 +1605,15 @@ void GalerkinDifference::BuildGDProlongation() const
    {
       if (EmbeddedElements.at(i) == false)
       {
-         cout << " element is " << i << endl;
+         //cout << " element is " << i << endl;
          // 1. get the elements in patch
          GetNeighbourSet(i, nelmt, elmt_id);
-         cout << "element "
-              << "( " << i << ") "
-              << " #neighbours = " << elmt_id.Size() << endl;
-         cout << "Elements id(s) in patch: ";
-         elmt_id.Print(cout, elmt_id.Size());
-         cout << " ----------------------- " << endl;
+        //  cout << "element "
+        //       << "( " << i << ") "
+        //       << " #neighbours = " << elmt_id.Size() << endl;
+        //  cout << "Elements id(s) in patch: ";
+        //  elmt_id.Print(cout, elmt_id.Size());
+        //  cout << " ----------------------- " << endl;
 
          // 2. build the quadrature and barycenter coordinate matrices
          BuildNeighbourMat(elmt_id, cent_mat, quad_mat);

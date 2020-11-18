@@ -33,7 +33,7 @@ int main(int argc, char *argv[])
    Vector node_coord;
    smesh->GetNodes(node_coord);
    cout << node_coord.Size() << endl;
-   ofstream sol_ofs("steady_vortex_mesh.vtk");
+   ofstream sol_ofs("circle_mesh.vtk");
    sol_ofs.precision(14);
    smesh->PrintVTK(sol_ofs);
 

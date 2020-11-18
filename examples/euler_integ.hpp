@@ -149,7 +149,7 @@ namespace mfem
         /// \param[in] a - used to move residual to lhs (1.0) or rhs(-1.0)
         EulerBoundaryIntegrator(const mfem::FiniteElementCollection *fe_coll, int num_state, mfem::Vector &qf,
                                 double a = 1.0)
-            : fec(fe_coll), num_states(num_state),  qfs(qf), alpha(a), work_vec(dim+2) {}
+            : fec(fe_coll), num_states(num_state), qfs(qf), alpha(a), work_vec(dim + 2) {}
 
         /// Not used (or, rather, *do not use*!)
         double calcBndryFun(const mfem::Vector &x, const mfem::Vector &dir,
@@ -296,7 +296,7 @@ namespace mfem
 
 #endif
     };
- 
+
     /// Integrator for inviscid interface fluxes (fluxes that do not need gradient)
     /// \tparam Derived - a class Derived from this one (needed for CRTP)
     template <int dim>
@@ -396,7 +396,7 @@ namespace mfem
                         elvect2_mat(s, k) -= fluxN(k) * shape2(s);
                     }
                 }
-            elvect *= alpha;
+                elvect *= alpha;
             }
         }
         void AssembleFaceGrad(
@@ -516,10 +516,10 @@ namespace mfem
             {
                 const IntegrationPoint &ip = ir->IntPoint(i);
                 el.CalcShape(ip, shape);
-                
+
                 trans.SetIntPoint(&ip);
                 w = trans.Weight() * ip.weight;
-        
+
                 AddMult_a_VVt(w, shape, elmat1);
                 for (int k = 0; k < num_state; k++)
                 {

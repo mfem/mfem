@@ -7,7 +7,9 @@ constexpr bool entvar = false;
 #include <iostream>
 #include <random>
 #include "euler_integ.hpp"
-#include "evolver.hpp"
+#include "evolver_GD.hpp"
+#include "gd_def.hpp"
+#include "gd.hpp"
 using namespace std;
 using namespace mfem;
 
@@ -111,11 +113,11 @@ void randState(const mfem::Vector &x, mfem::Vector &u)
    }
 }
 
-double calcResidualNorm(NonlinearForm *res, FiniteElementSpace *fes, GridFunction &u)
+double calcResidualNorm(NonlinearForm *res, FiniteElementSpace *fes, CentGridFunction &uc)
 {
-   GridFunction residual(fes);
+   CentGridFunction residual(fes);
    residual = 0.0;
-   res->Mult(u, residual);
+   res->Mult(uc, residual);
    return residual.Norml2();
 }
 
@@ -156,10 +158,10 @@ int main(int argc, char *argv[])
 {
    // Parse command-line options
    OptionsParser args(argc, argv);
+   int degree = 2;
    int nx = 4;
    int ny = 4;
    int order = 1;
-   int degree = 2;
    args.AddOption(&degree, "-d", "--degree", "poly. degree of mesh mapping");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) >= 0.");
@@ -171,7 +173,8 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
-   degree = order+1;
+   /// degree = p+1
+   degree = order + 1;
    /// number of state variables
    int num_state = 4;
    // construct the mesh
@@ -191,6 +194,13 @@ int main(int argc, char *argv[])
    // finite element space
    FiniteElementSpace *fes = new FiniteElementSpace(mesh.get(), fec, num_state,
                                                     Ordering::byVDIM);
+
+   // GD finite element space
+   FiniteElementSpace *fes_GD = new GalerkinDifference(mesh.get(),
+                                                       fec, num_state, Ordering::byVDIM, order);
+   cout << "Number of finite element unknowns in GD: "
+        << fes_GD->GetTrueVSize() << endl;
+
    cout << "Number of finite element unknowns: "
         << fes->GetTrueVSize() << endl;
 
@@ -214,7 +224,7 @@ int main(int argc, char *argv[])
    double alpha = 1.0;
 
    /// nonlinearform
-   NonlinearForm *res = new NonlinearForm(fes);
+   NonlinearForm *res = new NonlinearForm(fes_GD);
    res->AddDomainIntegrator(new EulerDomainIntegrator<2>(num_state, alpha));
    res->AddBdrFaceIntegrator(new EulerBoundaryIntegrator<2, 1, 0>(fec, num_state, qfs, alpha),
                              bndry_marker_isentropic);
@@ -226,22 +236,22 @@ int main(int argc, char *argv[])
    // double delta = 1e-5;
 
    // // initialize state; here we randomly perturb a constant state
-   // GridFunction q(fes);
+   // CentGridFunction q(fes_GD);
    // VectorFunctionCoefficient pert(num_state, randBaselinePert<2>);
    // q.ProjectCoefficient(pert);
 
    // // initialize the vector that the Jacobian multiplies
-   // GridFunction v(fes);
+   // CentGridFunction v(fes_GD);
    // VectorFunctionCoefficient v_rand(num_state, randState);
    // v.ProjectCoefficient(v_rand);
 
    // // evaluate the Jacobian and compute its product with v
    // Operator &Jac = res->GetGradient(q);
-   // GridFunction jac_v(fes);
+   // CentGridFunction jac_v(fes_GD);
    // Jac.Mult(v, jac_v);
 
    // // now compute the finite-difference approximation...
-   // GridFunction q_pert(q), r(fes), jac_v_fd(fes);
+   // CentGridFunction q_pert(q), r(fes), jac_v_fd(fes_GD);
    // q_pert.Add(-delta, v);
    // res->Mult(q_pert, r);
    // q_pert.Add(2 * delta, v);
@@ -251,7 +261,7 @@ int main(int argc, char *argv[])
 
    // for (int i = 0; i < jac_v.Size(); ++i)
    // {
-   //    // std::cout << std::abs(jac_v(i) - (jac_v_fd(i))) << "\n";
+   //    //std::cout << std::abs(jac_v(i) - (jac_v_fd(i))) << "\n";
    //    MFEM_ASSERT(abs(jac_v(i) - (jac_v_fd(i))) < 1e-09, "jacobian is incorrect");
    // }
 
@@ -262,7 +272,10 @@ int main(int argc, char *argv[])
    mass->AddDomainIntegrator(new EulerMassIntegrator(num_state));
    mass->Assemble();
    mass->Finalize();
-
+   SparseMatrix &mass_old = mass->SpMat();
+   SparseMatrix *cp = dynamic_cast<GalerkinDifference *>(fes_GD)->GetCP();
+   SparseMatrix *p = RAP(*cp, mass_old, *cp);
+   SparseMatrix &M = *p;
    // auto mass_integ = new VectorMassIntegrator();
    // mass_integ->SetVDim(dim + 2);
    // mass->AddDomainIntegrator(mass_integ);
@@ -272,29 +285,50 @@ int main(int argc, char *argv[])
    /// grid function
    GridFunction u(fes);
    VectorFunctionCoefficient u0(num_state, uexact);
-   u.ProjectCoefficient(u0);
 
-   /// time-marching method 
+   GridFunction u_test(fes);
+   u_test.ProjectCoefficient(u0);
+   // cout << "exact solution " << endl;
+   // u_test.Print();
+
+   /// GD grid function
+   CentGridFunction uc(fes_GD);
+   uc.ProjectCoefficient(u0);
+   fes_GD->GetProlongationMatrix()->Mult(uc, u);
+   ofstream projection("initial_projection.vtk");
+   projection.precision(14);
+   mesh->PrintVTK(projection, 0);
+   u.SaveVTK(projection, "projection", 0);
+   projection.close();
+   u_test -= u;
+   cout << "After projection, the difference norm is " << u_test.Norml2() << '\n';
+   ofstream proj_ofs("projection_error.vtk");
+   proj_ofs.precision(14);
+   mesh->PrintVTK(proj_ofs, 0);
+   u.SaveVTK(proj_ofs, "project_error", 0);
+   proj_ofs.close();
+
+   // /// time-marching method
    std::unique_ptr<mfem::ODESolver> ode_solver;
    //ode_solver.reset(new RK4Solver);
    ode_solver.reset(new BackwardEulerSolver);
    cout << "ode_solver set " << endl;
 
-   /// TimeDependentOperator
-   unique_ptr<mfem::TimeDependentOperator> evolver(new mfem::EulerEvolver(mass, res,
+   // /// TimeDependentOperator
+   unique_ptr<mfem::TimeDependentOperator> evolver(new mfem::EulerEvolver(M, res,
                                                                           0.0, TimeDependentOperator::Type::IMPLICIT));
    /// set up the evolver
    auto t = 0.0;
    evolver->SetTime(t);
    ode_solver->Init(*evolver);
 
-   /// solve the ode problem
-   double res_norm0 = calcResidualNorm(res, fes, u);
+   // solve the ode problem
+   double res_norm0 = calcResidualNorm(res, fes_GD, uc);
    double t_final = 1000;
-
-   double dt_init = 10.0;
+   std::cout << "initial residual norm: " << res_norm0 << "\n";
+   double dt_init = 0.2;
    double dt_old;
-   
+
    //initial l2_err
    double l2_err_init = calcConservativeVarsL2Error<2, 0>(uexact, &u, fes,
                                                           num_state, 0);
@@ -307,11 +341,10 @@ int main(int argc, char *argv[])
    for (auto ti = 0; ti < 30000; ++ti)
    {
       /// calculate timestep
-      res_norm = calcResidualNorm(res, fes, u);
+      res_norm = calcResidualNorm(res, fes_GD, uc);
       dt_old = dt;
       dt = dt_init * pow(res_norm0 / res_norm, exponent);
       dt = max(dt, dt_old);
-      //dt = dt_init;
       // print iterations
       std::cout << "iter " << ti << ": time = " << t << ": dt = " << dt << endl;
       //   std::cout << " (" << round(100 * t / t_final) << "% complete)";
@@ -323,9 +356,10 @@ int main(int argc, char *argv[])
       if (isnan(res_norm))
          break;
 
-      ode_solver->Step(u, t, dt);
+      ode_solver->Step(uc, t, dt);
    }
 
+   fes_GD->GetProlongationMatrix()->Mult(uc, u);
    ofstream finalsol_ofs("final_sol.vtk");
    finalsol_ofs.precision(14);
    mesh->PrintVTK(finalsol_ofs, 1);
@@ -397,6 +431,11 @@ void uexact(const Vector &x, Vector &q)
    u(3) = press / euler::gami + 0.5 * rho * a * a * Ma * Ma;
 
    q = u;
+   // double mach_fs = 0.3;
+   // q(0) = 1.0;
+   // q(1) = q(0) * mach_fs; // ignore angle of attack
+   // q(2) = 0.0;
+   // q(3) = 1 / (euler::gamma * euler::gami) + 0.5 * mach_fs * mach_fs;
 }
 
 unique_ptr<Mesh> buildQuarterAnnulusMesh(int degree, int num_rad, int num_ang)

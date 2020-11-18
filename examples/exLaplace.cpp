@@ -44,9 +44,9 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = true;
    double sigma = -1.0;
-   double kappa = 100.0;
+   double kappa = 50.0;
    double cutsize;
-   double radius = 0.1;
+   double radius = 0.2;
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
@@ -198,10 +198,11 @@ int main(int argc, char *argv[])
    //cout << "bilinear form size " << a->Size() << endl;
    //a->PrintMatlab();
    //A.PrintMatlab("stiffmat.txt");
-   ofstream write("stiffmat_lap_cut_dg.txt");
-   A.PrintMatlab(write);
-   write.close();
+   // ofstream write("stiffmat_lap_cut_dg.txt");
+   // A.PrintMatlab(write);
+   // write.close();
    // calculate condition number
+   #if 0
    DenseMatrix Ad;
    A.ToDenseMatrix(Ad);
    Vector si;
@@ -212,54 +213,56 @@ int main(int argc, char *argv[])
    cond = si(0) / si(si.Size() - 1);
    cout << "cond# " << endl;
    cout << cond << endl;
-//#ifndef MFEM_USE_SUITESPARSE
+   #endif
+#ifndef MFEM_USE_SUITESPARSE
    // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
    //    non-symmetric one.
-//    GSSmoother M(A);
-//    if (sigma == -1.0)
-//    {
-//       PCG(A, M, *b, x, 1, 5000, 1e-30, 0.0);
-//    }
-//    else
-//    {
-//       GMRES(A, M, *b, x, 1, 1000, 10, 1e-12, 0.0);
-//    }
-// // #else
-// //    // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-// //    UMFPackSolver umf_solver;
-// //    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-// //    umf_solver.SetOperator(A);
-// //    umf_solver.Mult(*b, x);
-// // #endif
+   GSSmoother M(A);
+   if (sigma == -1.0)
+   {
+      PCG(A, M, *b, x, 1, 5000, 1e-30, 0.0);
+   }
+   else
+   {
+      GMRES(A, M, *b, x, 1, 1000, 10, 1e-12, 0.0);
+   }
+#else
+   // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+   UMFPackSolver umf_solver;
+   umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+   umf_solver.SetOperator(A);
+   umf_solver.Mult(*b, x);
+#endif
 
-//    ofstream adj_ofs("dgSolcirclelap.vtk");
-//    adj_ofs.precision(14);
-//    mesh->PrintVTK(adj_ofs, 1);
-//    x.SaveVTK(adj_ofs, "dgSolution", 1);
-//    adj_ofs.close();
-//    // 10. Send the solution by socket to a GLVis server.
-//    if (visualization)
-//    {
-//       char vishost[] = "localhost";
-//       int visport = 19916;
-//       socketstream sol_sock(vishost, visport);
-//       sol_sock.precision(8);
-//       sol_sock << "solution\n"
-//                << *mesh << x << flush;
-//    }
-//    double norm = CutComputeL2Error(x, fespace, u, EmbeddedElems, CutSquareIntRules) ;
-//    cout << "----------------------------- "<< endl;
-//    cout << "mesh size, h = " << 1.0 /N << endl;
-//    cout << "solution norm: " << norm << endl; 
-//    // 11. Free the used memory.
-//    delete a;
-//    delete b;
+   ofstream adj_ofs("dgSolcirclelap.vtk");
+   adj_ofs.precision(14);
+   mesh->PrintVTK(adj_ofs, 1);
+   x.SaveVTK(adj_ofs, "dgSolution", 1);
+   adj_ofs.close();
+   // 10. Send the solution by socket to a GLVis server.
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int visport = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock.precision(8);
+      sol_sock << "solution\n"
+               << *mesh << x << flush;
+   }
+   double norm = CutComputeL2Error(x, fespace, u, EmbeddedElems, CutSquareIntRules) ;
+   cout << "----------------------------- "<< endl;
+   cout << "mesh size, h = " << 1.0 /N << endl;
+   cout << "solution norm: " << norm << endl; 
+   // 11. Free the used memory.
+   delete a;
+   delete b;
    delete fespace;
    delete fec;
    delete mesh;
    return 0;
 }
+
 double u_exact(const Vector &x)
 {
    return sin(M_PI* x(0))*sin(M_PI*x(1));
