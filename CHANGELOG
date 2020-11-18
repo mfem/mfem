@@ -25,7 +25,7 @@ Version 4.2.1 (development)
 - Implemented a filter method for the Navier miniapp to stabilize highly
   turbulent flows in direct numerical simulation.
 
-- Updated the mesh quality metrics for TMOP-based mesh optimization.
+- Added new mesh quality metrics for TMOP-based mesh optimization.
 
 
 Version 4.2, released on October 30, 2020
