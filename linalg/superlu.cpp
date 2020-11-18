@@ -523,9 +523,10 @@ void SuperLUSolver::Mult( const Vector & x, Vector & y ) const
    // SuperLU overwrites x with y, so copy x to y and pass that to the solve
    // routine.
 
-   y = x;
+   const double *xptr = x.HostRead();
+   y = xptr;
+   double * yPtr = y.HostReadWrite();
 
-   double*  yPtr = (double*)y;
    int      info = -1, locSize = y.Size();
 
    // Solve the system
