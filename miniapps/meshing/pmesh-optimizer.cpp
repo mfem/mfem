@@ -819,7 +819,7 @@ int main (int argc, char *argv[])
       minres->SetRelTol(linsol_rtol);
       minres->SetAbsTol(0.0);
       if (verbosity_level > 2) { minres->SetPrintLevel(1); }
-      else { minres->SetPrintLevel(verbosity_level = 2 ? 3 : -1); }
+      else { minres->SetPrintLevel(verbosity_level == 2 ? 3 : -1); }
       if (lin_solver == 3 || lin_solver == 4)
       {
          HypreSmoother *hs = new HypreSmoother;
