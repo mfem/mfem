@@ -36,8 +36,11 @@
 //               At each outer iteration the right hand side function is changed
 //               to mimic a time dependent problem.  Within each inner iteration
 //               the problem is solved on a sequence of meshes which are locally
-//               refined according to a simple ZZ error estimator.  At the end
-//               of the inner iteration the error estimates are also used to
+//               refined according to a chosen error estimator. Currently there
+//               are three error estimators supported: A L2 formulation of the
+//               Zienkiewicz-Zhu error estimator (0), a Kelly error indicator (1)
+//               and a traditional Zienkiewicz-Zhu error estimator (2). At the
+//               end of the inner iteration the error estimates are also used to
 //               identify any elements which may be over-refined and a single
 //               derefinement step is performed.  After each refinement or
 //               derefinement step a rebalance operation is performed to keep
