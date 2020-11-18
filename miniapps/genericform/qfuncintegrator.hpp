@@ -37,6 +37,8 @@ protected:
    qfunc_type qf;
    qfunc_grad_type qf_grad;
 
+   const ParMesh *mesh_arg = nullptr;
+
 public:
    QFunctionIntegrator(qfunc_type f,
                        qfunc_grad_type f_grad,
@@ -54,9 +56,10 @@ public:
    template<typename qfunc_arg_type>
    void handle_farg(const qfunc_arg_type &farg)
    {
-      if constexpr (std::is_same_v<decltype(farg), Mesh>)
+      if constexpr (std::is_same_v<qfunc_arg_type, ParMesh>)
       {
-         std::cout << "mesh" << std::endl;
+         // @TODO: if mesh not nullptr -> inform user
+         mesh_arg = &farg;
       }
    }
 };
@@ -294,6 +297,11 @@ void QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::Setup
       IntRule = &IntRules.Get(el.GetGeomType(), el.GetOrder() * 2);
    }
    ir = IntRule;
+
+   if (mesh_arg)
+   {
+      // retrieve coordinates into array
+   }
 
    dim = mesh->Dimension();
    ne = fes.GetMesh()->GetNE();

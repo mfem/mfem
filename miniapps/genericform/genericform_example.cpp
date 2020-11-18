@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
          DenseMatrix f11;
          f11.Diag(1.0, 2);
          return std::make_tuple(f00, f01, f10, f11);
-      }, pmesh);
+      });
 
    // auto nonlinear_diffusion = new QFunctionIntegrator(
    //    [](auto u, auto du) {
