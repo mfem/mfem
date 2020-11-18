@@ -40,8 +40,7 @@
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 4 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd
 //
 //   Adapted discrete size:
-//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
-//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4
 //   Adapted discrete size; explicit combo of metrics; mixed tri/quad mesh:
 //     mesh-optimizer -m ../../data/square-mixed.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -bnd -qo 6 -cmb 2 -nor
 //   Adapted discrete size+aspect_ratio:
@@ -344,7 +343,7 @@ int main(int argc, char *argv[])
       case 56: metric = new TMOP_Metric_056; break;
       case 58: metric = new TMOP_Metric_058; break;
       case 77: metric = new TMOP_Metric_077; break;
-      case 80: metric = new TMOP_Metric_080(0.9); break;
+      case 80: metric = new TMOP_Metric_080(0.5); break;
       case 85: metric = new TMOP_Metric_085; break;
       case 98: metric = new TMOP_Metric_098; break;
       case 211: metric = new TMOP_Metric_211; break;
