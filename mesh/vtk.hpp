@@ -46,6 +46,7 @@ struct VTKGeometry
    static const int LAGRANGE_PRISM = 73;
 
    static int Map[Geometry::NUM_GEOMETRIES];
+   static int QuadraticMap[Geometry::NUM_GEOMETRIES];
    static int HighOrderMap[Geometry::NUM_GEOMETRIES];
 
    static Geometry::Type GetMFEMGeometry(int vtk_geom);
