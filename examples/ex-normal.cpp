@@ -52,107 +52,14 @@
 using namespace std;
 using namespace mfem;
 
-/**
+/*
    Given a vector space fespace, and the array constrained_att that
    includes the boundary *attributes* that are constrained to have normal
    component zero, this returns a SparseMatrix representing the
    constraints that need to be imposed.
 
-   It also returns in x_dofs, y_dofs, z_dofs the partition of dofs
-   invovled in constraints, which can be used in an elimination solver.
-
-   @todo do this in parallel
-
-   Probably the correct parallel algorithm is to build this on
-   each processor, and then do a kind of RAP procedure, but without
-   adding, as in ParDiscreteLinearOperator::ParallelAssemble()
-
-   (but isn't it going to be block diagonal?)
-*/
-SparseMatrix * BuildNormalConstraints(FiniteElementSpace& fespace,
-                                      Array<int> constrained_att,
-                                      Array<int>& x_dofs,
-                                      Array<int>& y_dofs,
-                                      Array<int>& z_dofs)
-{
-   int dim = fespace.GetVDim();
-
-   std::set<int> constrained_dofs;
-   for (int i = 0; i < fespace.GetNBE(); ++i)
-   {
-      int att = fespace.GetBdrAttribute(i);
-      if (constrained_att.FindSorted(att) != -1)
-      {
-         Array<int> dofs;
-         fespace.GetBdrElementDofs(i, dofs);
-         for (auto k : dofs)
-         {
-            constrained_dofs.insert(k);
-         }
-      }
-   }
-
-   std::map<int, int> dof_constraint;
-   int n_constraints = 0;
-   for (auto k : constrained_dofs)
-   {
-      dof_constraint[k] = n_constraints++;
-   }
-   SparseMatrix * out = new SparseMatrix(n_constraints, fespace.GetVSize());
-
-   Vector nor(dim);
-   Array<int>* d_dofs[3];
-   d_dofs[0] = &x_dofs;
-   d_dofs[1] = &y_dofs;
-   d_dofs[2] = &z_dofs;
-   for (int i = 0; i < fespace.GetNBE(); ++i)
-   {
-      int att = fespace.GetBdrAttribute(i);
-      if (constrained_att.FindSorted(att) != -1)
-      {
-         ElementTransformation * Tr = fespace.GetBdrElementTransformation(i);
-         const FiniteElement * fe = fespace.GetBE(i);
-         const IntegrationRule& nodes = fe->GetNodes();
-
-         Array<int> dofs;
-         fespace.GetBdrElementDofs(i, dofs);
-         MFEM_VERIFY(dofs.Size() == nodes.Size(),
-                     "Something wrong in finite element space!");
-
-         for (int j = 0; j < dofs.Size(); ++j)
-         {
-            Tr->SetIntPoint(&nodes[j]);
-            // the normal returned in the next line is scaled by h, which
-            // is probably what we want in this application
-            CalcOrtho(Tr->Jacobian(), nor);
-
-            // next line assumes nodes and dofs are ordered the same, which
-            // seems to be true
-            int k = dofs[j];
-            int constraint = dof_constraint[k];
-            for (int d = 0; d < dim; ++d)
-            {
-               int vdof = fespace.DofToVDof(k, d);
-               out->Set(constraint, vdof, nor[d]);
-               d_dofs[d]->Append(vdof);
-            }
-         }
-      }
-   }
-   for (int d = 0; d < dim; ++d)
-   {
-      d_dofs[d]->Sort();
-      d_dofs[d]->Unique();
-   }
-
-   out->Finalize();
-   return out;
-}
-
-/*
-  among several future questions; are returned x_dofs, y_dofs, z_dofs
-  truedofs or ldofs?
-
+   among several future questions; are returned x_dofs, y_dofs, z_dofs
+   truedofs or ldofs?
 
    /// If the given ldof is owned by the current processor, return its local
    ///  tdof number, otherwise return -1
@@ -445,33 +352,7 @@ int main(int argc, char *argv[])
 
    Array<int> x_dofs, y_dofs, z_dofs;
    HypreParMatrix * hconstraints;
-   SparseMatrix * constraint_mat = NULL;
-   if (elimination)
-   {
-      constraint_mat = BuildNormalConstraints(fespace, constraint_atts,
-                                              x_dofs, y_dofs, z_dofs);
-      std::cout << "constraint_mat is " << constraint_mat->Height() << " by "
-                << constraint_mat->Width() << std::endl;
-      std::cout << "x_dofs.Size() = " << x_dofs.Size()
-                << ", y_dofs.Size() = " << y_dofs.Size()
-                << ", z_dofs.Size() = " << z_dofs.Size() << std::endl;
-      {
-         std::ofstream out("constraint.sparsematrix");
-         constraint_mat->Print(out, 1);
-      }
-      HYPRE_Int hconstraints_row_starts[2] = {0, constraint_mat->Height()};
-      HYPRE_Int hconstraints_col_starts[2] = {0, constraint_mat->Width()};
-      hconstraints = new HypreParMatrix(MPI_COMM_WORLD, constraint_mat->Height(),
-                                        constraint_mat->Width(), hconstraints_row_starts,
-                                        hconstraints_col_starts, constraint_mat);
-      hconstraints->CopyRowStarts();
-      hconstraints->CopyColStarts();
-   }
-   else
-   {
-      hconstraints = BuildParNormalConstraints(fespace, constraint_atts);
-      hconstraints->Print("hconstraint");
-   }
+   hconstraints = BuildParNormalConstraints(fespace, constraint_atts);
 
    ParLinearForm b(&fespace);
    // for diffusion we may want a more interesting rhs
@@ -524,12 +405,14 @@ int main(int argc, char *argv[])
    }
    else if (elimination)
    {
-      Array<int> lagrange_rowstarts(constraint_mat->Height() + 1);
-      for (int k = 0; k < constraint_mat->Height() + 1; ++k)
+      SparseMatrix local_constraints;
+      hconstraints->GetDiag(local_constraints);
+      Array<int> lagrange_rowstarts(local_constraints.Height() + 1);
+      for (int k = 0; k < local_constraints.Height() + 1; ++k)
       {
          lagrange_rowstarts[k] = k;
       }
-      constrained = new EliminationCGSolver(*A.As<HypreParMatrix>(), *constraint_mat,
+      constrained = new EliminationCGSolver(*A.As<HypreParMatrix>(), local_constraints,
                                             lagrange_rowstarts);
    }
    else
@@ -598,7 +481,6 @@ int main(int argc, char *argv[])
    {
       delete fec;
    }
-   delete constraint_mat;
    delete hconstraints;
    delete constrained;
 
