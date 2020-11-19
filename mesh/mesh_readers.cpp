@@ -674,7 +674,7 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
          own_nodes = 1;
          Array<int> dofs;
 
-         std::map<Geometry::Type,Array<int>*> vtk_inv_maps;
+         std::map<Geometry::Type,Array<int>> vtk_inv_maps;
          std::map<Geometry::Type,const Array<int>*> lex_orderings;
 
          for (n = i = 0; i < NumOfElements; i++)
@@ -682,15 +682,15 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
             Geometry::Type geom = GetElementBaseGeometry(i);
             fes->GetElementDofs(i, dofs);
 
-            Array<int> *&vtk_inv_map = vtk_inv_maps[geom];
-            if (!vtk_inv_map)
+            Array<int> &vtk_inv_map = vtk_inv_maps[geom];
+            if (vtk_inv_map.Size() == 0)
             {
                Array<int> vtk_map;
                CreateVTKElementConnectivity(vtk_map, geom, order);
-               vtk_inv_map = new Array<int>(vtk_map.Size());
+               vtk_inv_map.SetSize(vtk_map.Size());
                for (int j=0; j<vtk_map.Size(); ++j)
                {
-                  (*vtk_inv_map)[vtk_map[j]] = j;
+                  vtk_inv_map[vtk_map[j]] = j;
                }
             }
             const Array<int> *&lex_ordering = lex_orderings[geom];
@@ -706,7 +706,7 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
             for (int lex_idx = 0; lex_idx < dofs.Size(); lex_idx++)
             {
                int mfem_idx = (*lex_ordering)[lex_idx];
-               int vtk_idx = (*vtk_inv_map)[lex_idx];
+               int vtk_idx = vtk_inv_map[lex_idx];
                int pt_idx = cells_data[n + 1 + vtk_idx];
                if (pts_dof[pt_idx] == -1)
                {
