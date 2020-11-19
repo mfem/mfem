@@ -451,7 +451,17 @@ public:
    virtual double ComputeDivError(Coefficient *exdiv,
                                   const IntegrationRule *irs[] = NULL) const;
 
-   /// Returns the Face Jumps error for L2 elements
+   /// Returns the Face Jumps error for L2 elements. The error can be weighted
+   /// by a constant nu, by nu/h, or nu*p^2/h, depending on the value of
+   /// @a jump_scaling.
+   virtual double ComputeDGFaceJumpError(Coefficient *exsol,
+                                         Coefficient *ell_coeff,
+                                         class JumpScaling jump_scaling,
+                                         const IntegrationRule *irs[] = NULL)
+   const;
+
+   /// Returns the Face Jumps error for L2 elements, with 1/h scaling.
+   MFEM_DEPRECATED
    virtual double ComputeDGFaceJumpError(Coefficient *exsol,
                                          Coefficient *ell_coeff,
                                          double Nu,
@@ -664,6 +674,32 @@ public:
     derived class ParGridFunction */
 std::ostream &operator<<(std::ostream &out, const GridFunction &sol);
 
+/// Class used to specify how the jump terms in
+/// GridFunction::ComputeDGFaceJumpError are scaled.
+class JumpScaling
+{
+public:
+   enum JumpScalingType
+   {
+      CONSTANT,
+      ONE_OVER_H,
+      P_SQUARED_OVER_H
+   };
+private:
+   double nu;
+   JumpScalingType type;
+public:
+   JumpScaling(double nu_=1.0, JumpScalingType type_=CONSTANT)
+      : nu(nu_), type(type_) { }
+   double Eval(double h, int p) const
+   {
+      double val = nu;
+      if (type != CONSTANT) { val /= h; }
+      if (type == P_SQUARED_OVER_H) { val *= p*p; }
+      return val;
+   }
+};
+
 
 /** @brief Class representing a function through its values (scalar or vector)
     at quadrature points. */
@@ -752,7 +788,8 @@ public:
 
    /// Copy the data from @a v.
    /** The size of @a v must be equal to the size of the associated
-       QuadratureSpace #qspace. */
+       QuadratureSpace #qspace times the QuadratureFunction dimension
+       i.e. QuadratureFunction::Size(). */
    QuadratureFunction &operator=(const Vector &v);
 
    /// Copy assignment. Only the data of the base class Vector is copied.
