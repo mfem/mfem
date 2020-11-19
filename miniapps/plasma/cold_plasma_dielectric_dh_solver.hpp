@@ -246,8 +246,11 @@ public:
 
    void Solve();
 
-   double GetError(const VectorCoefficient & EReCoef,
-                   const VectorCoefficient & EImCoef) const;
+   double GetEFieldError(const VectorCoefficient & EReCoef,
+			 const VectorCoefficient & EImCoef) const;
+
+   double GetHFieldError(const VectorCoefficient & HReCoef,
+			 const VectorCoefficient & HImCoef) const;
 
    void GetErrorEstimates(Vector & errors);
 

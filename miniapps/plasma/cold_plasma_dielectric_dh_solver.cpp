@@ -1270,8 +1270,8 @@ CPDSolverDH::Solve()
 }
 
 double
-CPDSolverDH::GetError(const VectorCoefficient & EReCoef,
-                      const VectorCoefficient & EImCoef) const
+CPDSolverDH::GetEFieldError(const VectorCoefficient & EReCoef,
+			    const VectorCoefficient & EImCoef) const
 {
    ParComplexGridFunction z(e_->ParFESpace());
    z = 0.0;
@@ -1282,6 +1282,23 @@ CPDSolverDH::GetError(const VectorCoefficient & EReCoef,
 
    double solErr = e_->ComputeL2Error(const_cast<VectorCoefficient&>(EReCoef),
                                       const_cast<VectorCoefficient&>(EImCoef));
+
+   return (solNorm > 0.0) ? solErr / solNorm : solErr;
+}
+
+double
+CPDSolverDH::GetHFieldError(const VectorCoefficient & HReCoef,
+			    const VectorCoefficient & HImCoef) const
+{
+   ParComplexGridFunction z(h_->ParFESpace());
+   z = 0.0;
+
+   double solNorm = z.ComputeL2Error(const_cast<VectorCoefficient&>(HReCoef),
+                                     const_cast<VectorCoefficient&>(HImCoef));
+
+
+   double solErr = h_->ComputeL2Error(const_cast<VectorCoefficient&>(HReCoef),
+                                      const_cast<VectorCoefficient&>(HImCoef));
 
    return (solNorm > 0.0) ? solErr / solNorm : solErr;
 }
