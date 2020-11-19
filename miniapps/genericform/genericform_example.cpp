@@ -73,14 +73,14 @@ int main(int argc, char *argv[])
    GenericForm form(&fespace);
 
    auto diffusion = new QFunctionIntegrator(
-      [](auto u, auto du) {
+      [](auto u, auto du, auto x) {
          // R(u, du) = \nabla u \cdot \nabla v - f = 0
          double f0 = 4.0;
          Vector f1(2);
          f1 = du;
          return std::make_tuple(f0, f1);
       },
-      [](auto u, auto du) {
+      [](auto u, auto du, auto x) {
          // R'(u, du)
          double f00 = 0.0;
          Vector f01(2);

@@ -175,13 +175,13 @@ void QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::Apply
                = {(adjJ[0][0] * du_dX_q[0] + adjJ[1][0] * du_dX_q[1]) / detJ_q,
                   (adjJ[0][1] * du_dX_q[0] + adjJ[1][1] * du_dX_q[1]) / detJ_q};
 
-            // auto processed_qf_farg_values = std::apply(
-            //    [=](auto... a) {
-            //       return std::make_tuple(u_q, du_dx_q, EvaluateFargValue(a)...);
-            //    },
-            //    qf_farg_values);
+            auto processed_qf_farg_values = std::apply(
+                [=](auto &... a) {
+                   return std::make_tuple(u_q, du_dx_q, EvaluateFargValue(a)...);
+                },
+                qf_farg_values);
 
-            auto [f0, f1] = qf(u_q, du_dx_q);
+            auto [f0, f1] = std::apply(qf, processed_qf_farg_values);
 
             double f0_X = f0 * detJ_q;
 
@@ -280,8 +280,15 @@ void QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::
                = {(adjJ[0][0] * dv_dX_q[0] + adjJ[1][0] * dv_dX_q[1]) / detJ_q,
                   (adjJ[0][1] * dv_dX_q[0] + adjJ[1][1] * dv_dX_q[1]) / detJ_q};
 
+
+            auto processed_qf_farg_values = std::apply(
+                [=](auto &... a) {
+                   return std::make_tuple(u_q, du_dx_q, EvaluateFargValue(a)...);
+                },
+                qf_farg_values);
+
             // call Qfunction
-            auto [f00, f01, f10, f11] = qf_grad(u_q, du_dx_q);
+            auto [f00, f01, f10, f11] = std::apply(qf_grad, processed_qf_farg_values);
 
             double W0 = f00 * v_q + f01[0] * dv_dx_q[0] + f01[1] * dv_dx_q[1];
 
