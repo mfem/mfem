@@ -1306,6 +1306,10 @@ public:
        have two adjacent faces in 3D, or edges in 2D. */
    void RemoveInternalBoundaries();
 
+   /** Remove boundary elements that lie in the interior of the mesh, except 
+       for those with boundary attributes in `keep` */
+   void RemoveInternalBoundaries(const Array<int> &keep);
+
    /** @brief Get the size of the i-th element relative to the perfect
        reference element. */
    double GetElementSize(int i, int type = 0);

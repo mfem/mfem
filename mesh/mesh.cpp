@@ -29,6 +29,7 @@
 #include <cstring>
 #include <ctime>
 #include <functional>
+#include <unordered_set>
 
 // Include the METIS header, if using version 5. If using METIS 4, the needed
 // declarations are inlined below, i.e. no header is needed.
@@ -10502,6 +10503,99 @@ void Mesh::RemoveInternalBoundaries()
    for (int i = 0; i < GetNBE(); i++)
    {
       if (!FaceIsInterior(GetBdrElementEdgeIndex(i)))
+      {
+         new_boundary.Append(boundary[i]);
+         if (Dim == 2)
+         {
+            new_be_to_edge.Append(be_to_edge[i]);
+         }
+         else if (Dim == 3)
+         {
+            int row = new_be_to_face.Size();
+            new_be_to_face.Append(be_to_face[i]);
+            int *e = bel_to_edge->GetRow(i);
+            int ne = bel_to_edge->RowSize(i);
+            int *new_e = new_bel_to_edge->GetRow(row);
+            for (int j = 0; j < ne; j++)
+            {
+               new_e[j] = e[j];
+            }
+            new_bel_to_edge->GetI()[row+1] = new_bel_to_edge->GetI()[row] + ne;
+         }
+      }
+   }
+
+   NumOfBdrElements = new_boundary.Size();
+   mfem::Swap(boundary, new_boundary);
+
+   if (Dim == 2)
+   {
+      mfem::Swap(be_to_edge, new_be_to_edge);
+   }
+   else if (Dim == 3)
+   {
+      mfem::Swap(be_to_face, new_be_to_face);
+      delete bel_to_edge;
+      bel_to_edge = new_bel_to_edge;
+   }
+
+   Array<int> attribs(num_bdr_elem);
+   for (int i = 0; i < attribs.Size(); i++)
+   {
+      attribs[i] = GetBdrAttribute(i);
+   }
+   attribs.Sort();
+   attribs.Unique();
+   bdr_attributes.DeleteAll();
+   attribs.Copy(bdr_attributes);
+}
+
+void Mesh::RemoveInternalBoundaries(const Array<int> &_keep)
+{
+   if (NURBSext || ncmesh) { return; }
+
+   std::unordered_set<int> keep(_keep.GetData(), _keep.GetData() +_keep.Size());
+
+   int num_bdr_elem = 0;
+   int new_bel_to_edge_nnz = 0;
+   for (int i = 0; i < GetNBE(); i++)
+   {
+      if (FaceIsInterior(GetBdrElementEdgeIndex(i)) && 
+         (keep.count(boundary[i]->GetAttribute()) == 0))
+      {
+         FreeElement(boundary[i]);
+      }
+      else
+      {
+         num_bdr_elem++;
+         if (Dim == 3)
+         {
+            new_bel_to_edge_nnz += bel_to_edge->RowSize(i);
+         }
+      }
+   }
+
+   if (num_bdr_elem == GetNBE()) { return; }
+
+   Array<Element *> new_boundary(num_bdr_elem);
+   Array<int> new_be_to_edge, new_be_to_face;
+   Table *new_bel_to_edge = NULL;
+   new_boundary.SetSize(0);
+   if (Dim == 2)
+   {
+      new_be_to_edge.Reserve(num_bdr_elem);
+   }
+   else if (Dim == 3)
+   {
+      new_be_to_face.Reserve(num_bdr_elem);
+      new_bel_to_edge = new Table;
+      new_bel_to_edge->SetDims(num_bdr_elem, new_bel_to_edge_nnz);
+   }
+   for (int i = 0; i < GetNBE(); i++)
+   {
+      /// if it's not interior or is in the keep boundary list
+      if (!FaceIsInterior(GetBdrElementEdgeIndex(i)) || 
+          keep.count(boundary[i]->GetAttribute()))
       {
          new_boundary.Append(boundary[i]);
          if (Dim == 2)
