@@ -767,8 +767,8 @@ void Mesh::ReadNURBSMesh(std::istream &input, int &curved, int &read_gf)
       NURBSext->SetCoordsFromPatches(*Nodes);
       own_nodes = 1;
       read_gf = 0;
-      int vd = Nodes->VectorDim();
-      for (int i = 0; i < vd; i++)
+      spaceDim = Nodes->VectorDim();
+      for (int i = 0; i < spaceDim; i++)
       {
          Vector vert_val;
          Nodes->GetNodalValues(vert_val, i+1);
