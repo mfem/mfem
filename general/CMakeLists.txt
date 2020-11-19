@@ -35,6 +35,7 @@ list(APPEND HDRS
   backends.hpp
   binaryio.hpp
   cuda.hpp
+  debug.hpp
   device.hpp
   error.hpp
   gecko.hpp

@@ -41,10 +41,11 @@ protected:
    const FiniteElementSpace *fespace;  ///< Not owned
    const QuadratureSpace *qspace;      ///< Not owned
    const IntegrationRule *IntRule;     ///< Not owned
+
    mutable QVectorLayout q_layout;     ///< Output Q-vector layout
+   mutable bool use_tensor_products;   ///< Tensor product evaluation mmode
 
-   mutable bool use_tensor_products;
-
+public:
    static const int MAX_NQ2D = 100;
    static const int MAX_ND2D = 100;
    static const int MAX_VDIM2D = 3;
@@ -53,7 +54,6 @@ protected:
    static const int MAX_ND3D = 1000;
    static const int MAX_VDIM3D = 3;
 
-public:
    enum EvalFlags
    {
       VALUES       = 1 << 0,  ///< Evaluate the values at quadrature points
@@ -61,21 +61,28 @@ public:
       /** @brief Assuming the derivative at quadrature points form a matrix,
           this flag can be used to compute and store their determinants. This
           flag can only be used in Mult(). */
-      DETERMINANTS = 1 << 2
+      DETERMINANTS = 1 << 2,
+      PHYSICAL_DERIVATIVES = 1 << 3 ///< Evaluate the physical derivatives
    };
 
    QuadratureInterpolator(const FiniteElementSpace &fes,
-                          const IntegrationRule &ir);
+                          const IntegrationRule &ir,
+                          const bool use_tensor_products = false);
 
    QuadratureInterpolator(const FiniteElementSpace &fes,
-                          const QuadratureSpace &qs);
+                          const QuadratureSpace &qs,
+                          const bool use_tensor_products = false);
 
    /** @brief Disable the use of tensor product evaluations, for tensor-product
        elements, e.g. quads and hexes. */
-   /** Currently, tensor product evaluations are not implemented and this method
-       has no effect. */
-   void DisableTensorProducts(bool disable = true) const
-   { use_tensor_products = !disable; }
+   void DisableTensorProducts() const { use_tensor_products = false; }
+
+   /** @brief Enable the use of tensor product evaluations, for tensor-product
+       elements, e.g. quads and hexes. */
+   void EnableTensorProducts() const { use_tensor_products = true; }
+
+   /** @brief Query the current evaluation mode. */
+   bool UseTensorProducts() const { return use_tensor_products; }
 
    /** @brief Query the current output Q-vector layout. The default value is
        QVectorLayout::byNODES. */
@@ -83,8 +90,7 @@ public:
 
    /** @brief Set the desired output Q-vector layout. The default value is
        QVectorLayout::byNODES. */
-   void SetOutputLayout(QVectorLayout out_layout) const
-   { q_layout = out_layout; }
+   void SetOutputLayout(QVectorLayout layout) const { q_layout = layout; }
 
    /// Interpolate the E-vector @a e_vec to quadrature points.
    /** The @a eval_flags are a bitwise mask of constants from the EvalFlags
@@ -99,26 +105,36 @@ public:
              Vector &q_val, Vector &q_der, Vector &q_det) const;
 
    /// Interpolate the values of the E-vector @a e_vec at quadrature points.
+   template <QVectorLayout>
+   void Values(const Vector &e_vec, Vector &q_val) const;
    void Values(const Vector &e_vec, Vector &q_val) const;
 
    /** @brief Interpolate the derivatives of the E-vector @a e_vec at quadrature
        points. */
+   template <QVectorLayout>
+   void Derivatives(const Vector &e_vec, Vector &q_der) const;
    void Derivatives(const Vector &e_vec, Vector &q_der) const;
 
    /** @brief Interpolate the derivatives in physical space of the E-vector
        @a e_vec at quadrature points. */
+   template <QVectorLayout>
    void PhysDerivatives(const Vector &e_vec, Vector &q_der) const;
+   void PhysDerivatives(const Vector &e_vec, Vector &q_der) const;
+
+   /// Compute the determinant of the E-vector @a e_vec at quadrature points.
+   void Determinants(const Vector &e_vec, Vector &q_det) const;
 
    /// Perform the transpose operation of Mult(). (TODO)
    void MultTranspose(unsigned eval_flags, const Vector &q_val,
                       const Vector &q_der, Vector &e_vec) const;
 
    // Compute kernels follow (cannot be private or protected with nvcc)
-
    /// Template compute kernel for 2D.
    template<const int T_VDIM = 0, const int T_ND = 0, const int T_NQ = 0>
-   static void Eval2D(const int NE,
+   static void Mult2D(const int NE,
                       const int vdim,
+                      const QVectorLayout q_layout,
+                      const GeometricFactors *geom,
                       const DofToQuad &maps,
                       const Vector &e_vec,
                       Vector &q_val,
@@ -128,8 +144,10 @@ public:
 
    /// Template compute kernel for 3D.
    template<const int T_VDIM = 0, const int T_ND = 0, const int T_NQ = 0>
-   static void Eval3D(const int NE,
+   static void Mult3D(const int NE,
                       const int vdim,
+                      const QVectorLayout q_layout,
+                      const GeometricFactors *geom,
                       const DofToQuad &maps,
                       const Vector &e_vec,
                       Vector &q_val,

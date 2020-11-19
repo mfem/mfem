@@ -13,6 +13,7 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
+#include "../general/forall.hpp"
 
 namespace mfem
 {
@@ -441,8 +442,8 @@ void TMOP_Metric_058::AssembleH(const DenseMatrix &Jpt,
 double TMOP_Metric_077::EvalW(const DenseMatrix &Jpt) const
 {
    ie.SetJacobian(Jpt.GetData());
-   const double I2 = ie.Get_I2b();
-   return  0.5*(I2*I2 + 1./(I2*I2) - 2.);
+   const double I2b = ie.Get_I2b();
+   return  0.5*(I2b*I2b + 1./(I2b*I2b) - 2.);
 }
 
 void TMOP_Metric_077::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
@@ -1038,11 +1039,10 @@ void DiscreteAdaptTC::SetTspecAtIndex(int idx, const ParGridFunction &tspec_)
 {
    const int vdim     = tspec_.FESpace()->GetVDim(),
              dof_cnt  = tspec_.Size()/vdim;
-   for (int i = 0; i < dof_cnt*vdim; i++)
-   {
-      tspec(i+idx*dof_cnt) = tspec_(i);
-   }
-
+   const auto tspec__d = tspec_.Read();
+   auto tspec_d = tspec.ReadWrite();
+   const int offset = idx*dof_cnt;
+   MFEM_FORALL(i, dof_cnt*vdim, tspec_d[i+offset] = tspec__d[i];);
    FinalizeParDiscreteTargetSpec(tspec_);
 }
 
@@ -1102,34 +1102,33 @@ void DiscreteAdaptTC::SetDiscreteTargetBase(const GridFunction &tspec_)
    // make a copy of tspec->tspec_temp, increase its size, and
    // copy data from tspec_temp -> tspec, then add new entries
    Vector tspec_temp = tspec;
+   tspec.UseDevice(true);
+   tspec_sav.UseDevice(true);
    tspec.SetSize(ncomp*dof_cnt);
 
-   for (int i = 0; i < tspec_temp.Size(); i++)
-   {
-      tspec(i) = tspec_temp(i);
-   }
+   const auto tspec_temp_d = tspec_temp.Read();
+   auto tspec_d = tspec.ReadWrite();
+   MFEM_FORALL(i, tspec_temp.Size(), tspec_d[i] = tspec_temp_d[i];);
 
-   for (int i = 0; i < dof_cnt*vdim; i++)
-   {
-      tspec(i+(ncomp-vdim)*dof_cnt) = tspec_(i);
-   }
+   const auto tspec__d = tspec_.Read();
+   const int offset = (ncomp-vdim)*dof_cnt;
+   MFEM_FORALL(i, dof_cnt*vdim, tspec_d[i+offset] = tspec__d[i];);
 }
 
 void DiscreteAdaptTC::SetTspecAtIndex(int idx, const GridFunction &tspec_)
 {
    const int vdim     = tspec_.FESpace()->GetVDim(),
              dof_cnt  = tspec_.Size()/vdim;
-   for (int i = 0; i < dof_cnt*vdim; i++)
-   {
-      tspec(i+idx*dof_cnt) = tspec_(i);
-   }
 
+   const auto tspec__d = tspec_.Read();
+   auto tspec_d = tspec.ReadWrite();
+   const int offset = idx*dof_cnt;
+   MFEM_FORALL(i, dof_cnt*vdim, tspec_d[i+offset] = tspec__d[i];);
    FinalizeSerialDiscreteTargetSpec();
 }
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetSize(const GridFunction &tspec_)
 {
-
    if (sizeidx > -1) { SetTspecAtIndex(sizeidx, tspec_); return; }
    sizeidx = ncomp;
    SetDiscreteTargetBase(tspec_);
@@ -1257,16 +1256,17 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
 
          Vector shape(ndofs), tspec_vals(ntspec_dofs), par_vals,
                 par_vals_c1, par_vals_c2, par_vals_c3;
-
          Array<int> dofs;
          DenseMatrix D_rho(dim), Q_phi(dim), R_theta(dim);
          tspec_fesv->GetElementVDofs(e_id, dofs);
+         tspec.UseDevice(true);
          tspec.GetSubVector(dofs, tspec_vals);
 
          for (int q = 0; q < nqp; q++)
          {
             const IntegrationPoint &ip = ir.IntPoint(q);
             tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
+
             Jtr(q) = Wideal; // Initialize to identity
             for (int d = 0; d < 4; d++)
             {
@@ -1899,6 +1899,7 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0,
 {
    EnableLimiting(n0, w0, lfunc);
    lim_dist = &dist;
+   if (PA.enabled) { EnableLimitingPA(n0); }
 }
 void TMOP_Integrator::EnableLimiting(const GridFunction &n0, Coefficient &w0,
                                      TMOP_LimiterFunction *lfunc)
@@ -2044,7 +2045,8 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
          PMatI.MultTranspose(shape, p);
          pos0.MultTranspose(shape, p0);
          val += lim_normal *
-                lim_func->Eval(p, p0, d_vals(i)) * coeff0->Eval(*Tpr, ip);
+                lim_func->Eval(p, p0, d_vals(i)) *
+                coeff0->Eval(*Tpr, ip);
       }
 
       if (adaptive_limiting)
@@ -2722,6 +2724,8 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
 
 void TMOP_Integrator::UpdateAfterMeshChange(const Vector &new_x)
 {
+   PA.setup_Jtr = false;
+   PA.setup_Grad = false;
    // Update zeta if adaptive limiting is enabled.
    if (zeta) { adapt_eval->ComputeAtNewPosition(new_x, *zeta); }
 }
@@ -2877,6 +2881,49 @@ void TMOPComboIntegrator::ParEnableNormalization(const ParGridFunction &x)
 }
 #endif
 
+void TMOPComboIntegrator::AssemblePA(const FiniteElementSpace &fes)
+{
+   for (int i = 0; i < tmopi.Size(); i++)
+   {
+      tmopi[i]->AssemblePA(fes);
+   }
+}
+
+void TMOPComboIntegrator::AssembleGradientDiagonalPA(const Vector &xe,
+                                                     Vector &de) const
+{
+   for (int i = 0; i < tmopi.Size(); i++)
+   {
+      tmopi[i]->AssembleGradientDiagonalPA(xe, de);
+   }
+}
+
+void TMOPComboIntegrator::AddMultPA(const Vector &xe, Vector &ye) const
+{
+   for (int i = 0; i < tmopi.Size(); i++)
+   {
+      tmopi[i]->AddMultPA(xe, ye);
+   }
+}
+
+void TMOPComboIntegrator::AddMultGradPA(const Vector &xe, const Vector &re,
+                                        Vector &ce) const
+{
+   for (int i = 0; i < tmopi.Size(); i++)
+   {
+      tmopi[i]->AddMultGradPA(xe, re, ce);
+   }
+}
+
+double TMOPComboIntegrator::GetGridFunctionEnergyPA(const Vector &xe) const
+{
+   double energy = 0.0;
+   for (int i = 0; i < tmopi.Size(); i++)
+   {
+      energy += tmopi[i]->GetGridFunctionEnergyPA(xe);
+   }
+   return energy;
+}
 
 void InterpolateTMOP_QualityMetric(TMOP_QualityMetric &metric,
                                    const TargetConstructor &tc,

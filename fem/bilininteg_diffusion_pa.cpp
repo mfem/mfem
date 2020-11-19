@@ -369,9 +369,10 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
    ne = fes.GetNE();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
+   const DofToQuad::Mode mode = DofToQuad::TENSOR;
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mode);
    const int sdim = mesh->SpaceDimension();
-   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   maps = &el.GetDofToQuad(*ir, mode);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    int coeffDim = 1;

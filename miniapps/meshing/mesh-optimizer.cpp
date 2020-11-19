@@ -31,6 +31,9 @@
 //
 // Compile with: make mesh-optimizer
 //
+//  Preconditioner run:
+// ./mesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -bnd -qt 1 -qo 8 -ls 3 -nor -lc 0.1 -vl 2 -pa -d cpu
+//
 // Sample runs:
 //   Adapted analytic shape:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
@@ -52,6 +55,11 @@
 //   * mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 8 -ni 10  -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd -ae 1
 //   Adapted discrete aspect ratio (3D):
 //     mesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20  -ls 2 -li 100 -bnd -qt 1 -qo 8
+//
+//   Adapted discrete size (3D):
+//     mesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ni 20  -ls 2 -li 100 -bnd -qt 1 -qo 8 -nor
+//   Adapted discrete shape+size explicit combo (3D):
+//     mesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 5 -ni 20  -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb 2 -nor
 //
 //   Adaptive limiting:
 //     mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5
@@ -86,6 +94,7 @@
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
+#include <cfloat>
 #include <fstream>
 #include <iostream>
 #include "mesh-optimizer.hpp"
@@ -119,6 +128,8 @@ int main(int argc, char *argv[])
    bool fdscheme         = false;
    int adapt_eval        = 0;
    bool exactaction      = false;
+   const char *devopt    = "cpu";
+   bool pa               = false;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -176,7 +187,12 @@ int main(int argc, char *argv[])
    args.AddOption(&solver_rtol, "-rtol", "--newton-rel-tolerance",
                   "Relative tolerance for the Newton solver.");
    args.AddOption(&lin_solver, "-ls", "--lin-solver",
-                  "Linear solver: 0 - l1-Jacobi, 1 - CG, 2 - MINRES.");
+                  "Linear solver:\n\t"
+                  "0: l1-Jacobi\n\t"
+                  "1: CG\n\t"
+                  "2: MINRES\n\t"
+                  "3: MINRES + Jacobi preconditioner"
+                  "4: MINRES + l1-Jacobi preconditioner");
    args.AddOption(&max_lin_iter, "-li", "--lin-iter",
                   "Maximum number of iterations in the linear solve.");
    args.AddOption(&move_bnd, "-bnd", "--move-boundary", "-fix-bnd",
@@ -203,6 +219,10 @@ int main(int argc, char *argv[])
                   "Set the verbosity level - 0, 1, or 2.");
    args.AddOption(&adapt_eval, "-ae", "--adaptivity-evaluator",
                   "0 - Advection based (DEFAULT), 1 - GSLIB.");
+   args.AddOption(&devopt, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.Parse();
    if (!args.Good())
    {
@@ -210,6 +230,9 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+
+   Device device(devopt);
+   device.Print();
 
    // 2. Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
@@ -279,6 +302,7 @@ int main(int argc, char *argv[])
    rdm.Randomize();
    rdm -= 0.25; // Shift to random values in [-0.5,0.5].
    rdm *= jitter;
+   rdm.HostReadWrite();
    // Scale the random values to be of order of the local mesh size.
    for (int i = 0; i < fespace->GetNDofs(); i++)
    {
@@ -345,7 +369,9 @@ int main(int argc, char *argv[])
    FiniteElementSpace ind_fes(mesh, &ind_fec);
    FiniteElementSpace ind_fesv(mesh, &ind_fec, dim);
    GridFunction size(&ind_fes), aspr(&ind_fes), disc(&ind_fes), ori(&ind_fes);
-   GridFunction aspr3d(&ind_fesv), size3d(&ind_fesv);
+   GridFunction aspr3d(&ind_fesv);
+   const AssemblyLevel al =
+      pa ? AssemblyLevel::PARTIAL : AssemblyLevel::LEGACYFULL;
    switch (target_id)
    {
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
@@ -360,13 +386,13 @@ int main(int argc, char *argv[])
          target_c = tc;
          break;
       }
-      case 5: // Discrete size 2D
+      case 5: // Discrete size 2D or 3D
       {
          target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
          DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
          if (adapt_eval == 0)
          {
-            tc->SetAdaptivityEvaluator(new AdvectorCG);
+            tc->SetAdaptivityEvaluator(new AdvectorCG(al));
          }
          else
          {
@@ -376,8 +402,16 @@ int main(int argc, char *argv[])
             MFEM_ABORT("MFEM is not built with GSLIB.");
 #endif
          }
-         FunctionCoefficient ind_coeff(discrete_size_2d);
-         size.ProjectCoefficient(ind_coeff);
+         if (dim == 2)
+         {
+            FunctionCoefficient ind_coeff(discrete_size_2d);
+            size.ProjectCoefficient(ind_coeff);
+         }
+         else if (dim == 3)
+         {
+            FunctionCoefficient ind_coeff(discrete_size_3d);
+            size.ProjectCoefficient(ind_coeff);
+         }
          tc->SetSerialDiscreteTargetSize(size);
          target_c = tc;
          break;
@@ -392,7 +426,7 @@ int main(int argc, char *argv[])
          disc.ProjectCoefficient(ind_coeff);
          if (adapt_eval == 0)
          {
-            tc->SetAdaptivityEvaluator(new AdvectorCG);
+            tc->SetAdaptivityEvaluator(new AdvectorCG(al));
          }
          else
          {
@@ -483,7 +517,7 @@ int main(int argc, char *argv[])
          DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
          if (adapt_eval == 0)
          {
-            tc->SetAdaptivityEvaluator(new AdvectorCG);
+            tc->SetAdaptivityEvaluator(new AdvectorCG(al));
          }
          else
          {
@@ -506,7 +540,7 @@ int main(int argc, char *argv[])
          DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
          if (adapt_eval == 0)
          {
-            tc->SetAdaptivityEvaluator(new AdvectorCG);
+            tc->SetAdaptivityEvaluator(new AdvectorCG(al));
          }
          else
          {
@@ -546,7 +580,13 @@ int main(int argc, char *argv[])
    }
    target_c->SetNodes(x0);
    TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c);
-   if (fdscheme) { he_nlf_integ->EnableFiniteDifferences(x); }
+
+   // Finite differences for computations of derivatives.
+   if (fdscheme)
+   {
+      MFEM_VERIFY(pa == false, "PA for finite differences is not imlemented.");
+      he_nlf_integ->EnableFiniteDifferences(x);
+   }
    he_nlf_integ->SetExactActionFlag(exactaction);
 
    // Setup the quadrature rules for the TMOP integrator.
@@ -593,10 +633,12 @@ int main(int argc, char *argv[])
    AdaptivityEvaluator *adapt_evaluator = NULL;
    if (adapt_lim_const > 0.0)
    {
+      MFEM_VERIFY(pa == false, "PA is not implemented for adaptive limiting");
+
       FunctionCoefficient alim_coeff(adapt_lim_fun);
       zeta_0.ProjectCoefficient(alim_coeff);
 
-      if (adapt_eval == 0) { adapt_evaluator = new AdvectorCG; }
+      if (adapt_eval == 0) { adapt_evaluator = new AdvectorCG(al); }
       else if (adapt_eval == 1)
       {
 #ifdef MFEM_USE_GSLIB
@@ -623,6 +665,7 @@ int main(int argc, char *argv[])
    //     command-line options for the weights and the type of the second
    //     metric; one should update those in the code.
    NonlinearForm a(fespace);
+   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    ConstantCoefficient *coeff1 = NULL;
    TMOP_QualityMetric *metric2 = NULL;
    TargetConstructor *target_c2 = NULL;
@@ -636,7 +679,8 @@ int main(int argc, char *argv[])
       he_nlf_integ->SetCoefficient(*coeff1);
 
       // Second metric.
-      metric2 = new TMOP_Metric_077;
+      if (dim == 2) { metric2 = new TMOP_Metric_077; }
+      else          { metric2 = new TMOP_Metric_315; }
       TMOP_Integrator *he_nlf_integ2 = NULL;
       if (combomet == 1)
       {
@@ -660,7 +704,12 @@ int main(int argc, char *argv[])
 
       a.AddDomainIntegrator(combo);
    }
-   else { a.AddDomainIntegrator(he_nlf_integ); }
+   else
+   {
+      a.AddDomainIntegrator(he_nlf_integ);
+   }
+
+   if (pa) { a.Setup(); }
 
    const double init_energy = a.GetGridFunctionEnergy(x);
 
@@ -730,7 +779,7 @@ int main(int argc, char *argv[])
 
    // 14. As we use the Newton method to solve the resulting nonlinear system,
    //     here we setup the linear solver for the system's Jacobian.
-   Solver *S = NULL;
+   Solver *S = NULL, *S_prec = NULL;
    const double linsol_rtol = 1e-12;
    if (lin_solver == 0)
    {
@@ -752,6 +801,16 @@ int main(int argc, char *argv[])
       minres->SetRelTol(linsol_rtol);
       minres->SetAbsTol(0.0);
       minres->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
+      if (lin_solver == 3 || lin_solver == 4)
+      {
+         if (pa)
+         {
+            MFEM_VERIFY(lin_solver != 4, "PA l1-Jacobi is not implemented");
+            S_prec = new OperatorJacobiSmoother(a, a.GetEssentialTrueDofs());
+         }
+         else { S_prec = new DSmoother((lin_solver == 3) ? 0 : 1, 1.0, 1); }
+         minres->SetPreconditioner(*S_prec);
+      }
       S = minres;
    }
 
@@ -854,6 +913,7 @@ int main(int argc, char *argv[])
 
    // 19. Free the used memory.
    delete S;
+   delete S_prec;
    delete target_c2;
    delete metric2;
    delete coeff1;
