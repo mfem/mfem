@@ -4471,6 +4471,25 @@ void Mesh::EnsureNodes()
    }
 }
 
+void Mesh::SetVerticesFromNodes()
+{
+   if (!Nodes) { return; }
+   for (int iel=0; iel<GetNE(); ++iel)
+   {
+      Geometry::Type geom = GetElementBaseGeometry(iel);
+      const IntegrationRule *ref_verts = Geometries.GetVertices(geom);
+      DenseMatrix node_coords;
+      ElementTransformation *T = GetElementTransformation(iel);
+      Nodes->GetVectorValues(*T, *ref_verts, node_coords);
+      Element *el = GetElement(iel);
+      for (int iv=0; iv<el->GetNVertices(); ++iv)
+      {
+         int v = el->GetVertices()[iv];
+         vertices[v].SetCoords(&node_coords(0,iv));
+      }
+   }
+}
+
 void Mesh::SetNodalGridFunction(GridFunction *nodes, bool make_owner)
 {
    GetNodes(*nodes);
