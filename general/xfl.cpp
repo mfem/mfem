@@ -1,7 +1,14 @@
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 #include <fstream>
-#ifdef XFL_C
-#include <getopt.h>
-#endif
 
 #include "xfl.hpp"
 #include "xfl.Y.hpp"
@@ -22,10 +29,11 @@ static bool skip(const Node *n, const bool simplify)
 {
    if (!simplify) { return false; }
    if (n->IsToken()) { return false; }
-   if (n->nb_siblings == 0) { return false; }
+   if (n->nnext == 0) { return false; }
    if (n->keep) { return false; }
-   const bool is_child_a_rule = n->children->IsRule();
-   return is_child_a_rule && n->children->nb_siblings == 1;
+   const bool has_child = n->child != nullptr; // %empty
+   const bool is_child_a_rule = has_child ? n->child->IsRule() : false;
+   return is_child_a_rule && n->child->nnext == 1;
 }
 
 // *****************************************************************************
@@ -50,7 +58,7 @@ static int astTreeSaveNodes(FILE* fTreeOutput, Node *n,
                  n->id = id++,
                  strKillQuote(n->Name()));
       }
-      id = astTreeSaveNodes(fTreeOutput, n->children, simplify, id);
+      id = astTreeSaveNodes(fTreeOutput, n->child, simplify, id);
    }
    return id;
 }
@@ -61,32 +69,31 @@ static int astTreeSaveEdges(FILE* fTreeOutput,
                             const Node *father,
                             const bool simplify)
 {
-   for (; n; astTreeSaveEdges(fTreeOutput, n->children, n, simplify),
+   for (; n; astTreeSaveEdges(fTreeOutput, n->child, n, simplify),
         n = n->next)
    {
       if (skip(n, simplify)) { continue; }
       const Node *from = father;
-      while (skip(from, simplify)) { from = from->parent; }
+      while (skip(from, simplify)) { from = from->root; }
       fprintf(fTreeOutput, "\n\tNode_%d -> Node_%d;", from->id, n->id);
    }
    return 0;
 }
 
 // *****************************************************************************
-static void setNbSiblings(const Node *n)
+static void setNNext(const Node *n)
 {
-   int nb_siblings = 0;
-   for (Node *c = n->children; c; c = c->next) { nb_siblings += 1; }
-   for (Node *c = n->children; c; c = c->next) { c->nb_siblings = nb_siblings; }
+   int nnext = 0;
+   for (Node *c = n->child; c; c = c->next) { nnext += 1; }
+   for (Node *c = n->child; c; c = c->next) { c->nnext = nnext; }
 }
 
 // *****************************************************************************
-static void astNbSiblings(Node *n)
+static void astNNext(Node *n)
 {
    if (!n) { return; }
-   if (n->parent && n->nb_siblings == 0) { setNbSiblings(n->parent); }
-   astNbSiblings(n->children);
-   astNbSiblings(n->next);
+   if (n->root && n->nnext == 0) { setNNext(n->root); }
+   (astNNext(n->child), astNNext(n->next));
 }
 
 // *****************************************************************************
@@ -97,7 +104,7 @@ int astTreeSave(const char* file_name, Node *root, const bool simplify)
    FILE *file;
    char fName[FILENAME_MAX];
    // ***************************************************************************
-   astNbSiblings(root);
+   astNNext(root);
    // ***************************************************************************
    sprintf(fName, "%s.dot", file_name);
    // Saving tree file
@@ -109,7 +116,7 @@ int astTreeSave(const char* file_name, Node *root, const bool simplify)
            "digraph {\nordering=out;\n\tNode [style = filled, shape = circle];");
 
    astTreeSaveNodes(file, root, simplify, 0);
-   if (astTreeSaveEdges(file, root->children, root, simplify) not_eq 0)
+   if (astTreeSaveEdges(file, root->child, root, simplify) not_eq 0)
    {
       return -1 | printf("[astTreeSave] ERROR");
    }
@@ -129,8 +136,7 @@ Node *astAddNode(Node_ptr n_ptr)
    return n_ptr.get();
 }
 
-#ifndef XFL_C
-extern yy::location Location;
+extern yy::location xfl_location; // defined in xfl.ll
 
 // *****************************************************************************
 int xfl::yy_parse(const std::string &f)
@@ -159,7 +165,7 @@ int xfl::yy_parse(const std::string &f)
       //DBG("!is_i_file");
       i_filename = f;
    }
-   Location.initialize(&i_filename);
+   xfl_location.initialize(&i_filename);
 
    ll_open();
    yy::parser parse(*this);
@@ -169,8 +175,8 @@ int xfl::yy_parse(const std::string &f)
 
    assert(root);
    {
-      struct cpu dev(out);
-      yy::dfs(root, dev);
+      struct mfem::internal::XIR dev(out);
+      dfs(root, dev);
    }
 
    //astTreeSave("ast", root, true);
@@ -180,9 +186,35 @@ int xfl::yy_parse(const std::string &f)
 }
 
 // *****************************************************************************
+namespace cst
+{
+
+constexpr double gratio(int n) { return n <= 1 ? 1.0 : 1.0 + 1.0/gratio(n-1); }
+
+template <typename T = long double>
+constexpr T gdrt(T x = 1.0, T eps = 1.e-15L)
+{
+   return x > 2 ? 0 :
+          (x*(x-1.0L) >= (1.0L-eps)) && (x*(x-1.0L) <= (1.0L+eps)) ? x :
+          cst::gdrt(1.L+1.L/x, eps);
+}
+
+} // cst namespace
+
+// *****************************************************************************
+// 1.6180339887498948482045868343656381L
+#define XFL_N 1
+#define XFL_pre -1.0
+#define XFL_ver cst::gdrt() XFL_pre
+#define XFL_str(n) #n
+#define XFL_man(n) "[1;36m[XFL] version %." XFL_str(n) "Lf[m\n"
+
+// *****************************************************************************
 int main (int argc, char *argv[])
 {
    xfl ufl;
+   bool ast = false;
+   if (argc == 1) { exit(~0 | fprintf(stderr, XFL_man(XFL_N), XFL_ver)); }
    for (int i = 1; i < argc; ++i)
    {
       if (argv[i] == std::string ("-p"))
@@ -196,133 +228,28 @@ int main (int argc, char *argv[])
       else if (argv[i] == std::string ("-i"))
       {
          ufl.i_filename.assign(argv[++i]);
-         DBG("-i %s\n", ufl.i_filename.c_str());
+         //DBG("-i %s\n", ufl.i_filename.c_str());
       }
       else if (argv[i] == std::string ("-o"))
       {
          ufl.o_filename.assign(argv[++i]);
-         DBG("-o %s\n", ufl.o_filename.c_str());
+         //DBG("-o %s\n", ufl.o_filename.c_str());
       }
-      //else if (!ufl.yy_parse(argv[i])) { return EXIT_SUCCESS; }
-      //else { return EXIT_FAILURE; }
+      else if (argv[i] == std::string ("-t")) { ast = true; }
+      else
+      {
+         //DBG("filename: '%s'\n", argv[i]);
+         break;
+      }
    }
 
    const bool is_i_file = !ufl.i_filename.empty();
    const bool is_o_file = !ufl.o_filename.empty();
    if (is_i_file != is_o_file) { assert(false); }
 
-   if (!ufl.yy_parse(argv[argc-1])) { return EXIT_SUCCESS; }
-   else { return EXIT_FAILURE; }
-   return EXIT_FAILURE;
+   if (ufl.yy_parse(argv[argc-1]) != 0) { return EXIT_FAILURE; }
+
+   if (ast) { astTreeSave("ast", ufl.root, false); }
+
+   return EXIT_SUCCESS;
 }
-#else
-// *****************************************************************************
-extern FILE *yyin;
-int yyparse(Node**);
-int yylex_destroy(void);
-
-// *****************************************************************************
-#define XFL_man "[1;36m[XFL] version %.1f[m\n"
-#define XFL_version 0.01
-
-// *****************************************************************************
-int main(const int argc, char* argv[])
-{
-   int c, longindex = 0;
-   Node *root = nullptr;
-   bool simplify = false;
-   bool dump = false;//, gpu = false;
-   std::string i_filename, o_filename;
-   const struct option longopts[] =
-   {
-      {"help", no_argument, NULL, OPTION_HELP},
-      {NULL, 0, NULL, 0}
-   };
-
-   if (argc == 1) { exit(~0 | fprintf(stderr, XFL_man, XFL_version)); }
-
-   while ((c = getopt_long(argc,argv,"tTedi:o:h",longopts,&longindex)) != -1)
-   {
-      switch (c)
-      {
-         //case 'g': gpu = true; break;
-         case 't': simplify = dump = true; break;
-         case 'T': dump = true; break;
-         case 'e': yy::echo = true; break;
-         case 'd':
-#if YYDEBUG
-            yydebug = 1;
-#endif
-            break;
-         case 'i': i_filename.assign(optarg); break;
-         case 'o': o_filename.assign(optarg); break;
-         case 'h':
-         case OPTION_HELP: printf("[xfl] OPTION_HELP\n"); return 0;
-         case '?':
-            if ((optopt > (int)'A') && (optopt < (int)'z'))
-            {
-               fprintf (stderr, "[xfl] Unknown option `-%c'.\n", optopt);
-            }
-            else { fprintf (stderr, "[xfl] Unknown option character `\\%d'.\n", optopt); }
-            exit(~0);
-         default: exit(~0 | fprintf(stderr, "[xfl] Error in command line\n"));
-      }
-   }
-   const bool is_i_file = !i_filename.empty();
-   const bool is_o_file = !o_filename.empty();
-   assert(is_i_file == is_o_file);
-   std::ifstream i_file(i_filename.c_str(), std::ios::in | std::ios::binary);
-   if (is_i_file)
-   {
-      assert(!i_file.fail());
-      assert(i_file.is_open());
-   }
-   std::ofstream o_file(o_filename.c_str(),
-                        std::ios::out | std::ios::binary | std::ios::trunc);
-   if (is_o_file)
-   {
-      assert(o_file.is_open());
-   }
-   //std::istream &in = is_i_file ? i_file : std::cin;
-   std::ostream &out = is_o_file ? o_file : std::cout;
-
-   // point to next command line input
-   if (!is_i_file)
-   {
-      if (optind >= argc) { exit(~0 | fprintf(stderr, "[31m[xfl] no input file[m\n")); }
-      if (yy::echo) { printf("[32m[xfl] argv: '%s'[m\n", argv[optind]); }
-      optarg = argv[optind++];
-      i_filename.assign(optarg);
-      assert(optind == argc); // only one input file for now
-   }
-
-   if (!(yyin = fopen(i_filename.c_str(), "r")))
-   {
-      return printf("[xfl] Could not open '%s' file\n", i_filename.c_str());
-   }
-   if (yy::echo) { printf("[32m[xfl] parse: %s[m\n", i_filename.c_str()); }
-
-   if (yyparse(&root))
-   {
-      return fclose(yyin) | printf("[xfl] Error while parsing!\n");
-   }
-   assert(root);
-
-   {
-      struct cpu dev(out);
-      yy::dfs(root, dev);
-   }
-
-   if (dump)
-   {
-      assert(root);
-      astTreeSave("ast", root, simplify);
-   }
-
-   fclose(yyin);
-   fflush(NULL);
-   yylex_destroy();
-   return 0;
-}
-#endif
-
