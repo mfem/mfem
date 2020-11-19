@@ -51,7 +51,7 @@
 #ifndef YY_YY_USERS_CAMIER1_HOME_SAWMILL_UFL_XFL_BUILD_SRC_XFL_Y_HPP_INCLUDED
 # define YY_YY_USERS_CAMIER1_HOME_SAWMILL_UFL_XFL_BUILD_SRC_XFL_Y_HPP_INCLUDED
 // "%code requires" blocks.
- class xfl; struct Node; 
+class xfl; struct Node;
 
 
 # include <cassert>
@@ -174,7 +174,8 @@
 #  endif
 # endif
 /* XFL Rules */
-enum yyruletype {
+enum yyruletype
+{
    entry_point_statements = 2,
    extra_status_rules_lhs = 3,
    lhs_lhs = 4,
@@ -403,587 +404,596 @@ typedef enum yyruletype yyrule_kind_t;
 # define YYDEBUG 1
 #endif
 
-namespace yy {
+namespace yy
+{
 
 
-  /// A point in a source file.
-  class position
-  {
-  public:
-    /// Type for file name.
-    typedef const std::string filename_type;
-    /// Type for line and column numbers.
-    typedef int counter_type;
+/// A point in a source file.
+class position
+{
+public:
+   /// Type for file name.
+   typedef const std::string filename_type;
+   /// Type for line and column numbers.
+   typedef int counter_type;
 
-    /// Construct a position.
-    explicit position (filename_type* f = YY_NULLPTR,
-                       counter_type l = 1,
-                       counter_type c = 1)
+   /// Construct a position.
+   explicit position (filename_type* f = YY_NULLPTR,
+                      counter_type l = 1,
+                      counter_type c = 1)
       : filename (f)
       , line (l)
       , column (c)
-    {}
+   {}
 
 
-    /// Initialization.
-    void initialize (filename_type* fn = YY_NULLPTR,
-                     counter_type l = 1,
-                     counter_type c = 1)
-    {
+   /// Initialization.
+   void initialize (filename_type* fn = YY_NULLPTR,
+                    counter_type l = 1,
+                    counter_type c = 1)
+   {
       filename = fn;
       line = l;
       column = c;
-    }
+   }
 
-    /** \name Line and Column related manipulators
-     ** \{ */
-    /// (line related) Advance to the COUNT next lines.
-    void lines (counter_type count = 1)
-    {
+   /** \name Line and Column related manipulators
+    ** \{ */
+   /// (line related) Advance to the COUNT next lines.
+   void lines (counter_type count = 1)
+   {
       if (count)
-        {
-          column = 1;
-          line = add_ (line, count, 1);
-        }
-    }
+      {
+         column = 1;
+         line = add_ (line, count, 1);
+      }
+   }
 
-    /// (column related) Advance to the COUNT next columns.
-    void columns (counter_type count = 1)
-    {
+   /// (column related) Advance to the COUNT next columns.
+   void columns (counter_type count = 1)
+   {
       column = add_ (column, count, 1);
-    }
-    /** \} */
+   }
+   /** \} */
 
-    /// File name to which this position refers.
-    filename_type* filename;
-    /// Current line number.
-    counter_type line;
-    /// Current column number.
-    counter_type column;
+   /// File name to which this position refers.
+   filename_type* filename;
+   /// Current line number.
+   counter_type line;
+   /// Current column number.
+   counter_type column;
 
-  private:
-    /// Compute max (min, lhs+rhs).
-    static counter_type add_ (counter_type lhs, counter_type rhs, counter_type min)
-    {
+private:
+   /// Compute max (min, lhs+rhs).
+   static counter_type add_ (counter_type lhs, counter_type rhs, counter_type min)
+   {
       return lhs + rhs < min ? min : lhs + rhs;
-    }
-  };
+   }
+};
 
-  /// Add \a width columns, in place.
-  inline position&
-  operator+= (position& res, position::counter_type width)
-  {
-    res.columns (width);
-    return res;
-  }
+/// Add \a width columns, in place.
+inline position&
+operator+= (position& res, position::counter_type width)
+{
+   res.columns (width);
+   return res;
+}
 
-  /// Add \a width columns.
-  inline position
-  operator+ (position res, position::counter_type width)
-  {
-    return res += width;
-  }
+/// Add \a width columns.
+inline position
+operator+ (position res, position::counter_type width)
+{
+   return res += width;
+}
 
-  /// Subtract \a width columns, in place.
-  inline position&
-  operator-= (position& res, position::counter_type width)
-  {
-    return res += -width;
-  }
+/// Subtract \a width columns, in place.
+inline position&
+operator-= (position& res, position::counter_type width)
+{
+   return res += -width;
+}
 
-  /// Subtract \a width columns.
-  inline position
-  operator- (position res, position::counter_type width)
-  {
-    return res -= width;
-  }
+/// Subtract \a width columns.
+inline position
+operator- (position res, position::counter_type width)
+{
+   return res -= width;
+}
 
-  /** \brief Intercept output stream redirection.
-   ** \param ostr the destination output stream
-   ** \param pos a reference to the position to redirect
-   */
-  template <typename YYChar>
-  std::basic_ostream<YYChar>&
-  operator<< (std::basic_ostream<YYChar>& ostr, const position& pos)
-  {
-    if (pos.filename)
+/** \brief Intercept output stream redirection.
+ ** \param ostr the destination output stream
+ ** \param pos a reference to the position to redirect
+ */
+template <typename YYChar>
+std::basic_ostream<YYChar>&
+operator<< (std::basic_ostream<YYChar>& ostr, const position& pos)
+{
+   if (pos.filename)
+   {
       ostr << *pos.filename << ':';
-    return ostr << pos.line << '.' << pos.column;
-  }
+   }
+   return ostr << pos.line << '.' << pos.column;
+}
 
-  /// Two points in a source file.
-  class location
-  {
-  public:
-    /// Type for file name.
-    typedef position::filename_type filename_type;
-    /// Type for line and column numbers.
-    typedef position::counter_type counter_type;
+/// Two points in a source file.
+class location
+{
+public:
+   /// Type for file name.
+   typedef position::filename_type filename_type;
+   /// Type for line and column numbers.
+   typedef position::counter_type counter_type;
 
-    /// Construct a location from \a b to \a e.
-    location (const position& b, const position& e)
+   /// Construct a location from \a b to \a e.
+   location (const position& b, const position& e)
       : begin (b)
       , end (e)
-    {}
+   {}
 
-    /// Construct a 0-width location in \a p.
-    explicit location (const position& p = position ())
+   /// Construct a 0-width location in \a p.
+   explicit location (const position& p = position ())
       : begin (p)
       , end (p)
-    {}
+   {}
 
-    /// Construct a 0-width location in \a f, \a l, \a c.
-    explicit location (filename_type* f,
-                       counter_type l = 1,
-                       counter_type c = 1)
+   /// Construct a 0-width location in \a f, \a l, \a c.
+   explicit location (filename_type* f,
+                      counter_type l = 1,
+                      counter_type c = 1)
       : begin (f, l, c)
       , end (f, l, c)
-    {}
+   {}
 
 
-    /// Initialization.
-    void initialize (filename_type* f = YY_NULLPTR,
-                     counter_type l = 1,
-                     counter_type c = 1)
-    {
+   /// Initialization.
+   void initialize (filename_type* f = YY_NULLPTR,
+                    counter_type l = 1,
+                    counter_type c = 1)
+   {
       begin.initialize (f, l, c);
       end = begin;
-    }
+   }
 
-    /** \name Line and Column related manipulators
-     ** \{ */
-  public:
-    /// Reset initial location to final location.
-    void step ()
-    {
+   /** \name Line and Column related manipulators
+    ** \{ */
+public:
+   /// Reset initial location to final location.
+   void step ()
+   {
       begin = end;
-    }
+   }
 
-    /// Extend the current location to the COUNT next columns.
-    void columns (counter_type count = 1)
-    {
+   /// Extend the current location to the COUNT next columns.
+   void columns (counter_type count = 1)
+   {
       end += count;
-    }
+   }
 
-    /// Extend the current location to the COUNT next lines.
-    void lines (counter_type count = 1)
-    {
+   /// Extend the current location to the COUNT next lines.
+   void lines (counter_type count = 1)
+   {
       end.lines (count);
-    }
-    /** \} */
+   }
+   /** \} */
 
 
-  public:
-    /// Beginning of the located region.
-    position begin;
-    /// End of the located region.
-    position end;
-  };
+public:
+   /// Beginning of the located region.
+   position begin;
+   /// End of the located region.
+   position end;
+};
 
-  /// Join two locations, in place.
-  inline location&
-  operator+= (location& res, const location& end)
-  {
-    res.end = end.end;
-    return res;
-  }
+/// Join two locations, in place.
+inline location&
+operator+= (location& res, const location& end)
+{
+   res.end = end.end;
+   return res;
+}
 
-  /// Join two locations.
-  inline location
-  operator+ (location res, const location& end)
-  {
-    return res += end;
-  }
+/// Join two locations.
+inline location
+operator+ (location res, const location& end)
+{
+   return res += end;
+}
 
-  /// Add \a width columns to the end position, in place.
-  inline location&
-  operator+= (location& res, location::counter_type width)
-  {
-    res.columns (width);
-    return res;
-  }
+/// Add \a width columns to the end position, in place.
+inline location&
+operator+= (location& res, location::counter_type width)
+{
+   res.columns (width);
+   return res;
+}
 
-  /// Add \a width columns to the end position.
-  inline location
-  operator+ (location res, location::counter_type width)
-  {
-    return res += width;
-  }
+/// Add \a width columns to the end position.
+inline location
+operator+ (location res, location::counter_type width)
+{
+   return res += width;
+}
 
-  /// Subtract \a width columns to the end position, in place.
-  inline location&
-  operator-= (location& res, location::counter_type width)
-  {
-    return res += -width;
-  }
+/// Subtract \a width columns to the end position, in place.
+inline location&
+operator-= (location& res, location::counter_type width)
+{
+   return res += -width;
+}
 
-  /// Subtract \a width columns to the end position.
-  inline location
-  operator- (location res, location::counter_type width)
-  {
-    return res -= width;
-  }
+/// Subtract \a width columns to the end position.
+inline location
+operator- (location res, location::counter_type width)
+{
+   return res -= width;
+}
 
-  /** \brief Intercept output stream redirection.
-   ** \param ostr the destination output stream
-   ** \param loc a reference to the location to redirect
-   **
-   ** Avoid duplicate information.
-   */
-  template <typename YYChar>
-  std::basic_ostream<YYChar>&
-  operator<< (std::basic_ostream<YYChar>& ostr, const location& loc)
-  {
-    location::counter_type end_col
+/** \brief Intercept output stream redirection.
+ ** \param ostr the destination output stream
+ ** \param loc a reference to the location to redirect
+ **
+ ** Avoid duplicate information.
+ */
+template <typename YYChar>
+std::basic_ostream<YYChar>&
+operator<< (std::basic_ostream<YYChar>& ostr, const location& loc)
+{
+   location::counter_type end_col
       = 0 < loc.end.column ? loc.end.column - 1 : 0;
-    ostr << loc.begin;
-    if (loc.end.filename
-        && (!loc.begin.filename
-            || *loc.begin.filename != *loc.end.filename))
+   ostr << loc.begin;
+   if (loc.end.filename
+       && (!loc.begin.filename
+           || *loc.begin.filename != *loc.end.filename))
+   {
       ostr << '-' << loc.end.filename << ':' << loc.end.line << '.' << end_col;
-    else if (loc.begin.line < loc.end.line)
+   }
+   else if (loc.begin.line < loc.end.line)
+   {
       ostr << '-' << loc.end.line << '.' << end_col;
-    else if (loc.begin.column < end_col)
+   }
+   else if (loc.begin.column < end_col)
+   {
       ostr << '-' << end_col;
-    return ostr;
-  }
+   }
+   return ostr;
+}
 
 
-  /// A Bison parser.
-  class parser
-  {
-  public:
+/// A Bison parser.
+class parser
+{
+public:
 #ifndef YYSTYPE
-    /// Symbol semantic values.
-    typedef  Node*  semantic_type;
+   /// Symbol semantic values.
+   typedef  Node*  semantic_type;
 #else
-    typedef YYSTYPE semantic_type;
+   typedef YYSTYPE semantic_type;
 #endif
-    /// Symbol locations.
-    typedef location location_type;
+   /// Symbol locations.
+   typedef location location_type;
 
-    /// Syntax errors thrown from user actions.
-    struct syntax_error : std::runtime_error
-    {
+   /// Syntax errors thrown from user actions.
+   struct syntax_error : std::runtime_error
+   {
       syntax_error (const location_type& l, const std::string& m)
-        : std::runtime_error (m)
-        , location (l)
+         : std::runtime_error (m)
+         , location (l)
       {}
 
       syntax_error (const syntax_error& s)
-        : std::runtime_error (s.what ())
-        , location (s.location)
+         : std::runtime_error (s.what ())
+         , location (s.location)
       {}
 
       ~syntax_error () YY_NOEXCEPT YY_NOTHROW;
 
       location_type location;
-    };
+   };
 
-    /// Token kinds.
-    struct token
-    {
+   /// Token kinds.
+   struct token
+   {
       enum token_kind_type
       {
-        YYEMPTY = -2,
-    YYEOF = 0,                     // "end of file"
-    YYerror = 1,                   // error
-    YYUNDEF = 2,                   // "invalid token"
-    LL_SHIFT = 3,                  // LL_SHIFT
-    NL = 4,                        // NL
-    AS = 5,                        // AS
-    DEF = 6,                       // DEF
-    FROM = 7,                      // FROM
-    IMPORT = 8,                    // IMPORT
-    RETURN = 9,                    // RETURN
-    PLOT = 10,                     // PLOT
-    SAVE = 11,                     // SAVE
-    SOLVE = 12,                    // SOLVE
-    PROJECT = 13,                  // PROJECT
-    STRING = 14,                   // STRING
-    QUOTE = 15,                    // QUOTE
-    IF = 16,                       // IF
-    FOR = 17,                      // FOR
-    IN = 18,                       // IN
-    RANGE = 19,                    // RANGE
-    DOT_OP = 20,                   // DOT_OP
-    INNER_OP = 21,                 // INNER_OP
-    GRAD_OP = 22,                  // GRAD_OP
-    LHS = 23,                      // LHS
-    RHS = 24,                      // RHS
-    DEVICE = 25,                   // DEVICE
-    MESH = 26,                     // MESH
-    FINITE_ELEMENT = 27,           // FINITE_ELEMENT
-    UNIT_SQUARE_MESH = 28,         // UNIT_SQUARE_MESH
-    UNIT_HEX_MESH = 29,            // UNIT_HEX_MESH
-    FUNCTION = 30,                 // FUNCTION
-    FUNCTION_SPACE = 31,           // FUNCTION_SPACE
-    VECTOR_FUNCTION_SPACE = 32,    // VECTOR_FUNCTION_SPACE
-    EXPRESSION = 33,               // EXPRESSION
-    DIRICHLET_BC = 34,             // DIRICHLET_BC
-    TRIAL_FUNCTION = 35,           // TRIAL_FUNCTION
-    TEST_FUNCTION = 36,            // TEST_FUNCTION
-    CONSTANT_API = 37,             // CONSTANT_API
-    OR_OR = 38,                    // OR_OR
-    AND_AND = 39,                  // AND_AND
-    DOM_DX = 40,                   // DOM_DX
-    EXT_DS = 41,                   // EXT_DS
-    INT_DS = 42,                   // INT_DS
-    EQ_EQ = 43,                    // EQ_EQ
-    ADD_EQ = 44,                   // ADD_EQ
-    SUB_EQ = 45,                   // SUB_EQ
-    MUL_EQ = 46,                   // MUL_EQ
-    DIV_EQ = 47,                   // DIV_EQ
-    MOD_EQ = 48,                   // MOD_EQ
-    XOR_EQ = 49,                   // XOR_EQ
-    AND_EQ = 50,                   // AND_EQ
-    OR_EQ = 51,                    // OR_EQ
-    LEFT_EQ = 52,                  // LEFT_EQ
-    RIGHT_EQ = 53,                 // RIGHT_EQ
-    NATURAL = 54,                  // NATURAL
-    REAL = 55,                     // REAL
-    IDENTIFIER = 56,               // IDENTIFIER
-    GT = 57,                       // GT
-    LT = 58,                       // LT
-    EQ = 59,                       // EQ
-    ADD = 60,                      // ADD
-    SUB = 61,                      // SUB
-    MUL = 62,                      // MUL
-    DIV = 63,                      // DIV
-    POW = 64,                      // POW
-    LS = 65,                       // LS
-    RS = 66,                       // RS
-    LP = 67,                       // LP
-    RP = 68,                       // RP
-    LB = 69,                       // LB
-    RB = 70,                       // RB
-    COMA = 71,                     // COMA
-    APOSTROPHE = 72,               // APOSTROPHE
-    COLON = 73,                    // COLON
-    DOT = 74,                      // DOT
-    MOD = 75,                      // MOD
-    TILDE = 76,                    // TILDE
-    LEFT_SHIFT = 77,               // LEFT_SHIFT
-    RIGHT_SHIFT = 78,              // RIGHT_SHIFT
-    LT_EQ = 79,                    // LT_EQ
-    GT_EQ = 80,                    // GT_EQ
-    NOT_EQ = 81,                   // NOT_EQ
-    AND = 82,                      // AND
-    XOR = 83,                      // XOR
-    OR = 84,                       // OR
-    QUESTION = 85,                 // QUESTION
-    NOT = 86,                      // NOT
-    INC_OP = 87,                   // INC_OP
-    DEC_OP = 88,                   // DEC_OP
-    EMPTY = 89                     // EMPTY
+         YYEMPTY = -2,
+         YYEOF = 0,                     // "end of file"
+         YYerror = 1,                   // error
+         YYUNDEF = 2,                   // "invalid token"
+         LL_SHIFT = 3,                  // LL_SHIFT
+         NL = 4,                        // NL
+         AS = 5,                        // AS
+         DEF = 6,                       // DEF
+         FROM = 7,                      // FROM
+         IMPORT = 8,                    // IMPORT
+         RETURN = 9,                    // RETURN
+         PLOT = 10,                     // PLOT
+         SAVE = 11,                     // SAVE
+         SOLVE = 12,                    // SOLVE
+         PROJECT = 13,                  // PROJECT
+         STRING = 14,                   // STRING
+         QUOTE = 15,                    // QUOTE
+         IF = 16,                       // IF
+         FOR = 17,                      // FOR
+         IN = 18,                       // IN
+         RANGE = 19,                    // RANGE
+         DOT_OP = 20,                   // DOT_OP
+         INNER_OP = 21,                 // INNER_OP
+         GRAD_OP = 22,                  // GRAD_OP
+         LHS = 23,                      // LHS
+         RHS = 24,                      // RHS
+         DEVICE = 25,                   // DEVICE
+         MESH = 26,                     // MESH
+         FINITE_ELEMENT = 27,           // FINITE_ELEMENT
+         UNIT_SQUARE_MESH = 28,         // UNIT_SQUARE_MESH
+         UNIT_HEX_MESH = 29,            // UNIT_HEX_MESH
+         FUNCTION = 30,                 // FUNCTION
+         FUNCTION_SPACE = 31,           // FUNCTION_SPACE
+         VECTOR_FUNCTION_SPACE = 32,    // VECTOR_FUNCTION_SPACE
+         EXPRESSION = 33,               // EXPRESSION
+         DIRICHLET_BC = 34,             // DIRICHLET_BC
+         TRIAL_FUNCTION = 35,           // TRIAL_FUNCTION
+         TEST_FUNCTION = 36,            // TEST_FUNCTION
+         CONSTANT_API = 37,             // CONSTANT_API
+         OR_OR = 38,                    // OR_OR
+         AND_AND = 39,                  // AND_AND
+         DOM_DX = 40,                   // DOM_DX
+         EXT_DS = 41,                   // EXT_DS
+         INT_DS = 42,                   // INT_DS
+         EQ_EQ = 43,                    // EQ_EQ
+         ADD_EQ = 44,                   // ADD_EQ
+         SUB_EQ = 45,                   // SUB_EQ
+         MUL_EQ = 46,                   // MUL_EQ
+         DIV_EQ = 47,                   // DIV_EQ
+         MOD_EQ = 48,                   // MOD_EQ
+         XOR_EQ = 49,                   // XOR_EQ
+         AND_EQ = 50,                   // AND_EQ
+         OR_EQ = 51,                    // OR_EQ
+         LEFT_EQ = 52,                  // LEFT_EQ
+         RIGHT_EQ = 53,                 // RIGHT_EQ
+         NATURAL = 54,                  // NATURAL
+         REAL = 55,                     // REAL
+         IDENTIFIER = 56,               // IDENTIFIER
+         GT = 57,                       // GT
+         LT = 58,                       // LT
+         EQ = 59,                       // EQ
+         ADD = 60,                      // ADD
+         SUB = 61,                      // SUB
+         MUL = 62,                      // MUL
+         DIV = 63,                      // DIV
+         POW = 64,                      // POW
+         LS = 65,                       // LS
+         RS = 66,                       // RS
+         LP = 67,                       // LP
+         RP = 68,                       // RP
+         LB = 69,                       // LB
+         RB = 70,                       // RB
+         COMA = 71,                     // COMA
+         APOSTROPHE = 72,               // APOSTROPHE
+         COLON = 73,                    // COLON
+         DOT = 74,                      // DOT
+         MOD = 75,                      // MOD
+         TILDE = 76,                    // TILDE
+         LEFT_SHIFT = 77,               // LEFT_SHIFT
+         RIGHT_SHIFT = 78,              // RIGHT_SHIFT
+         LT_EQ = 79,                    // LT_EQ
+         GT_EQ = 80,                    // GT_EQ
+         NOT_EQ = 81,                   // NOT_EQ
+         AND = 82,                      // AND
+         XOR = 83,                      // XOR
+         OR = 84,                       // OR
+         QUESTION = 85,                 // QUESTION
+         NOT = 86,                      // NOT
+         INC_OP = 87,                   // INC_OP
+         DEC_OP = 88,                   // DEC_OP
+         EMPTY = 89                     // EMPTY
       };
       /// Backward compatibility alias (Bison 3.6).
       typedef token_kind_type yytokentype;
-    };
+   };
 
-    /// Token kind, as returned by yylex.
-    typedef token::yytokentype token_kind_type;
+   /// Token kind, as returned by yylex.
+   typedef token::yytokentype token_kind_type;
 
-    /// Backward compatibility alias (Bison 3.6).
-    typedef token_kind_type token_type;
+   /// Backward compatibility alias (Bison 3.6).
+   typedef token_kind_type token_type;
 
-    /// Symbol kinds.
-    struct symbol_kind
-    {
+   /// Symbol kinds.
+   struct symbol_kind
+   {
       enum symbol_kind_type
       {
-        YYNTOKENS = 90, ///< Number of tokens.
-        S_YYEMPTY = -2,
-        S_YYEOF = 0,                             // "end of file"
-        S_YYerror = 1,                           // error
-        S_YYUNDEF = 2,                           // "invalid token"
-        S_LL_SHIFT = 3,                          // LL_SHIFT
-        S_NL = 4,                                // NL
-        S_AS = 5,                                // AS
-        S_DEF = 6,                               // DEF
-        S_FROM = 7,                              // FROM
-        S_IMPORT = 8,                            // IMPORT
-        S_RETURN = 9,                            // RETURN
-        S_PLOT = 10,                             // PLOT
-        S_SAVE = 11,                             // SAVE
-        S_SOLVE = 12,                            // SOLVE
-        S_PROJECT = 13,                          // PROJECT
-        S_STRING = 14,                           // STRING
-        S_QUOTE = 15,                            // QUOTE
-        S_IF = 16,                               // IF
-        S_FOR = 17,                              // FOR
-        S_IN = 18,                               // IN
-        S_RANGE = 19,                            // RANGE
-        S_DOT_OP = 20,                           // DOT_OP
-        S_INNER_OP = 21,                         // INNER_OP
-        S_GRAD_OP = 22,                          // GRAD_OP
-        S_LHS = 23,                              // LHS
-        S_RHS = 24,                              // RHS
-        S_DEVICE = 25,                           // DEVICE
-        S_MESH = 26,                             // MESH
-        S_FINITE_ELEMENT = 27,                   // FINITE_ELEMENT
-        S_UNIT_SQUARE_MESH = 28,                 // UNIT_SQUARE_MESH
-        S_UNIT_HEX_MESH = 29,                    // UNIT_HEX_MESH
-        S_FUNCTION = 30,                         // FUNCTION
-        S_FUNCTION_SPACE = 31,                   // FUNCTION_SPACE
-        S_VECTOR_FUNCTION_SPACE = 32,            // VECTOR_FUNCTION_SPACE
-        S_EXPRESSION = 33,                       // EXPRESSION
-        S_DIRICHLET_BC = 34,                     // DIRICHLET_BC
-        S_TRIAL_FUNCTION = 35,                   // TRIAL_FUNCTION
-        S_TEST_FUNCTION = 36,                    // TEST_FUNCTION
-        S_CONSTANT_API = 37,                     // CONSTANT_API
-        S_OR_OR = 38,                            // OR_OR
-        S_AND_AND = 39,                          // AND_AND
-        S_DOM_DX = 40,                           // DOM_DX
-        S_EXT_DS = 41,                           // EXT_DS
-        S_INT_DS = 42,                           // INT_DS
-        S_EQ_EQ = 43,                            // EQ_EQ
-        S_ADD_EQ = 44,                           // ADD_EQ
-        S_SUB_EQ = 45,                           // SUB_EQ
-        S_MUL_EQ = 46,                           // MUL_EQ
-        S_DIV_EQ = 47,                           // DIV_EQ
-        S_MOD_EQ = 48,                           // MOD_EQ
-        S_XOR_EQ = 49,                           // XOR_EQ
-        S_AND_EQ = 50,                           // AND_EQ
-        S_OR_EQ = 51,                            // OR_EQ
-        S_LEFT_EQ = 52,                          // LEFT_EQ
-        S_RIGHT_EQ = 53,                         // RIGHT_EQ
-        S_NATURAL = 54,                          // NATURAL
-        S_REAL = 55,                             // REAL
-        S_IDENTIFIER = 56,                       // IDENTIFIER
-        S_GT = 57,                               // GT
-        S_LT = 58,                               // LT
-        S_EQ = 59,                               // EQ
-        S_ADD = 60,                              // ADD
-        S_SUB = 61,                              // SUB
-        S_MUL = 62,                              // MUL
-        S_DIV = 63,                              // DIV
-        S_POW = 64,                              // POW
-        S_LS = 65,                               // LS
-        S_RS = 66,                               // RS
-        S_LP = 67,                               // LP
-        S_RP = 68,                               // RP
-        S_LB = 69,                               // LB
-        S_RB = 70,                               // RB
-        S_COMA = 71,                             // COMA
-        S_APOSTROPHE = 72,                       // APOSTROPHE
-        S_COLON = 73,                            // COLON
-        S_DOT = 74,                              // DOT
-        S_MOD = 75,                              // MOD
-        S_TILDE = 76,                            // TILDE
-        S_LEFT_SHIFT = 77,                       // LEFT_SHIFT
-        S_RIGHT_SHIFT = 78,                      // RIGHT_SHIFT
-        S_LT_EQ = 79,                            // LT_EQ
-        S_GT_EQ = 80,                            // GT_EQ
-        S_NOT_EQ = 81,                           // NOT_EQ
-        S_AND = 82,                              // AND
-        S_XOR = 83,                              // XOR
-        S_OR = 84,                               // OR
-        S_QUESTION = 85,                         // QUESTION
-        S_NOT = 86,                              // NOT
-        S_INC_OP = 87,                           // INC_OP
-        S_DEC_OP = 88,                           // DEC_OP
-        S_EMPTY = 89,                            // EMPTY
-        S_YYACCEPT = 90,                         // $accept
-        S_entry_point = 91,                      // entry_point
-        S_extra_status_rules = 92,               // extra_status_rules
-        S_lhs = 93,                              // lhs
-        S_statements = 94,                       // statements
-        S_statement = 95,                        // statement
-        S_decl = 96,                             // decl
-        S_primary_id = 97,                       // primary_id
-        S_postfix_id = 98,                       // postfix_id
-        S_postfix_ids = 99,                      // postfix_ids
-        S_id_list = 100,                         // id_list
-        S_function = 101,                        // function
-        S_def_empty = 102,                       // def_empty
-        S_def_statements = 103,                  // def_statements
-        S_def_statement = 104,                   // def_statement
-        S_iteration_statement = 105,             // iteration_statement
-        S_if_statement = 106,                    // if_statement
-        S_api_statement = 107,                   // api_statement
-        S_direct_declarator = 108,               // direct_declarator
-        S_domain = 109,                          // domain
-        S_constant = 110,                        // constant
-        S_strings = 111,                         // strings
-        S_api = 112,                             // api
-        S_primary_expr = 113,                    // primary_expr
-        S_pow_expr = 114,                        // pow_expr
-        S_dot_expr = 115,                        // dot_expr
-        S_postfix_expr = 116,                    // postfix_expr
-        S_unary_expr = 117,                      // unary_expr
-        S_unary_op = 118,                        // unary_op
-        S_cast_expr = 119,                       // cast_expr
-        S_multiplicative_expr = 120,             // multiplicative_expr
-        S_additive_expr = 121,                   // additive_expr
-        S_shift_expr = 122,                      // shift_expr
-        S_relational_expr = 123,                 // relational_expr
-        S_equality_expr = 124,                   // equality_expr
-        S_and_expr = 125,                        // and_expr
-        S_exclusive_or_expr = 126,               // exclusive_or_expr
-        S_inclusive_or_expr = 127,               // inclusive_or_expr
-        S_logical_and_expr = 128,                // logical_and_expr
-        S_logical_or_expr = 129,                 // logical_or_expr
-        S_conditional_expr = 130,                // conditional_expr
-        S_assign_expr = 131,                     // assign_expr
-        S_assign_op = 132,                       // assign_op
-        S_expr = 133,                            // expr
-        S_args_expr_list = 134,                  // args_expr_list
-        S_coord = 135,                           // coord
-        S_coords = 136,                          // coords
-        S_primary_math_expr = 137,               // primary_math_expr
-        S_dot_math_expr = 138,                   // dot_math_expr
-        S_postfix_math_expr = 139,               // postfix_math_expr
-        S_argument_math_expr_list = 140,         // argument_math_expr_list
-        S_unary_math_expr = 141,                 // unary_math_expr
-        S_unary_math_op = 142,                   // unary_math_op
-        S_multiplicative_math_expr = 143,        // multiplicative_math_expr
-        S_additive_math_expr = 144,              // additive_math_expr
-        S_shift_math_expr = 145,                 // shift_math_expr
-        S_relational_math_expr = 146,            // relational_math_expr
-        S_equality_math_expr = 147,              // equality_math_expr
-        S_and_math_expr = 148,                   // and_math_expr
-        S_exclusive_or_math_expr = 149,          // exclusive_or_math_expr
-        S_inclusive_or_math_expr = 150,          // inclusive_or_math_expr
-        S_logical_and_math_expr = 151,           // logical_and_math_expr
-        S_logical_or_math_expr = 152,            // logical_or_math_expr
-        S_conditional_math_expr = 153,           // conditional_math_expr
-        S_assign_math_expr = 154,                // assign_math_expr
-        S_assign_math_op = 155,                  // assign_math_op
-        S_math_expr = 156                        // math_expr
+         YYNTOKENS = 90, ///< Number of tokens.
+         S_YYEMPTY = -2,
+         S_YYEOF = 0,                             // "end of file"
+         S_YYerror = 1,                           // error
+         S_YYUNDEF = 2,                           // "invalid token"
+         S_LL_SHIFT = 3,                          // LL_SHIFT
+         S_NL = 4,                                // NL
+         S_AS = 5,                                // AS
+         S_DEF = 6,                               // DEF
+         S_FROM = 7,                              // FROM
+         S_IMPORT = 8,                            // IMPORT
+         S_RETURN = 9,                            // RETURN
+         S_PLOT = 10,                             // PLOT
+         S_SAVE = 11,                             // SAVE
+         S_SOLVE = 12,                            // SOLVE
+         S_PROJECT = 13,                          // PROJECT
+         S_STRING = 14,                           // STRING
+         S_QUOTE = 15,                            // QUOTE
+         S_IF = 16,                               // IF
+         S_FOR = 17,                              // FOR
+         S_IN = 18,                               // IN
+         S_RANGE = 19,                            // RANGE
+         S_DOT_OP = 20,                           // DOT_OP
+         S_INNER_OP = 21,                         // INNER_OP
+         S_GRAD_OP = 22,                          // GRAD_OP
+         S_LHS = 23,                              // LHS
+         S_RHS = 24,                              // RHS
+         S_DEVICE = 25,                           // DEVICE
+         S_MESH = 26,                             // MESH
+         S_FINITE_ELEMENT = 27,                   // FINITE_ELEMENT
+         S_UNIT_SQUARE_MESH = 28,                 // UNIT_SQUARE_MESH
+         S_UNIT_HEX_MESH = 29,                    // UNIT_HEX_MESH
+         S_FUNCTION = 30,                         // FUNCTION
+         S_FUNCTION_SPACE = 31,                   // FUNCTION_SPACE
+         S_VECTOR_FUNCTION_SPACE = 32,            // VECTOR_FUNCTION_SPACE
+         S_EXPRESSION = 33,                       // EXPRESSION
+         S_DIRICHLET_BC = 34,                     // DIRICHLET_BC
+         S_TRIAL_FUNCTION = 35,                   // TRIAL_FUNCTION
+         S_TEST_FUNCTION = 36,                    // TEST_FUNCTION
+         S_CONSTANT_API = 37,                     // CONSTANT_API
+         S_OR_OR = 38,                            // OR_OR
+         S_AND_AND = 39,                          // AND_AND
+         S_DOM_DX = 40,                           // DOM_DX
+         S_EXT_DS = 41,                           // EXT_DS
+         S_INT_DS = 42,                           // INT_DS
+         S_EQ_EQ = 43,                            // EQ_EQ
+         S_ADD_EQ = 44,                           // ADD_EQ
+         S_SUB_EQ = 45,                           // SUB_EQ
+         S_MUL_EQ = 46,                           // MUL_EQ
+         S_DIV_EQ = 47,                           // DIV_EQ
+         S_MOD_EQ = 48,                           // MOD_EQ
+         S_XOR_EQ = 49,                           // XOR_EQ
+         S_AND_EQ = 50,                           // AND_EQ
+         S_OR_EQ = 51,                            // OR_EQ
+         S_LEFT_EQ = 52,                          // LEFT_EQ
+         S_RIGHT_EQ = 53,                         // RIGHT_EQ
+         S_NATURAL = 54,                          // NATURAL
+         S_REAL = 55,                             // REAL
+         S_IDENTIFIER = 56,                       // IDENTIFIER
+         S_GT = 57,                               // GT
+         S_LT = 58,                               // LT
+         S_EQ = 59,                               // EQ
+         S_ADD = 60,                              // ADD
+         S_SUB = 61,                              // SUB
+         S_MUL = 62,                              // MUL
+         S_DIV = 63,                              // DIV
+         S_POW = 64,                              // POW
+         S_LS = 65,                               // LS
+         S_RS = 66,                               // RS
+         S_LP = 67,                               // LP
+         S_RP = 68,                               // RP
+         S_LB = 69,                               // LB
+         S_RB = 70,                               // RB
+         S_COMA = 71,                             // COMA
+         S_APOSTROPHE = 72,                       // APOSTROPHE
+         S_COLON = 73,                            // COLON
+         S_DOT = 74,                              // DOT
+         S_MOD = 75,                              // MOD
+         S_TILDE = 76,                            // TILDE
+         S_LEFT_SHIFT = 77,                       // LEFT_SHIFT
+         S_RIGHT_SHIFT = 78,                      // RIGHT_SHIFT
+         S_LT_EQ = 79,                            // LT_EQ
+         S_GT_EQ = 80,                            // GT_EQ
+         S_NOT_EQ = 81,                           // NOT_EQ
+         S_AND = 82,                              // AND
+         S_XOR = 83,                              // XOR
+         S_OR = 84,                               // OR
+         S_QUESTION = 85,                         // QUESTION
+         S_NOT = 86,                              // NOT
+         S_INC_OP = 87,                           // INC_OP
+         S_DEC_OP = 88,                           // DEC_OP
+         S_EMPTY = 89,                            // EMPTY
+         S_YYACCEPT = 90,                         // $accept
+         S_entry_point = 91,                      // entry_point
+         S_extra_status_rules = 92,               // extra_status_rules
+         S_lhs = 93,                              // lhs
+         S_statements = 94,                       // statements
+         S_statement = 95,                        // statement
+         S_decl = 96,                             // decl
+         S_primary_id = 97,                       // primary_id
+         S_postfix_id = 98,                       // postfix_id
+         S_postfix_ids = 99,                      // postfix_ids
+         S_id_list = 100,                         // id_list
+         S_function = 101,                        // function
+         S_def_empty = 102,                       // def_empty
+         S_def_statements = 103,                  // def_statements
+         S_def_statement = 104,                   // def_statement
+         S_iteration_statement = 105,             // iteration_statement
+         S_if_statement = 106,                    // if_statement
+         S_api_statement = 107,                   // api_statement
+         S_direct_declarator = 108,               // direct_declarator
+         S_domain = 109,                          // domain
+         S_constant = 110,                        // constant
+         S_strings = 111,                         // strings
+         S_api = 112,                             // api
+         S_primary_expr = 113,                    // primary_expr
+         S_pow_expr = 114,                        // pow_expr
+         S_dot_expr = 115,                        // dot_expr
+         S_postfix_expr = 116,                    // postfix_expr
+         S_unary_expr = 117,                      // unary_expr
+         S_unary_op = 118,                        // unary_op
+         S_cast_expr = 119,                       // cast_expr
+         S_multiplicative_expr = 120,             // multiplicative_expr
+         S_additive_expr = 121,                   // additive_expr
+         S_shift_expr = 122,                      // shift_expr
+         S_relational_expr = 123,                 // relational_expr
+         S_equality_expr = 124,                   // equality_expr
+         S_and_expr = 125,                        // and_expr
+         S_exclusive_or_expr = 126,               // exclusive_or_expr
+         S_inclusive_or_expr = 127,               // inclusive_or_expr
+         S_logical_and_expr = 128,                // logical_and_expr
+         S_logical_or_expr = 129,                 // logical_or_expr
+         S_conditional_expr = 130,                // conditional_expr
+         S_assign_expr = 131,                     // assign_expr
+         S_assign_op = 132,                       // assign_op
+         S_expr = 133,                            // expr
+         S_args_expr_list = 134,                  // args_expr_list
+         S_coord = 135,                           // coord
+         S_coords = 136,                          // coords
+         S_primary_math_expr = 137,               // primary_math_expr
+         S_dot_math_expr = 138,                   // dot_math_expr
+         S_postfix_math_expr = 139,               // postfix_math_expr
+         S_argument_math_expr_list = 140,         // argument_math_expr_list
+         S_unary_math_expr = 141,                 // unary_math_expr
+         S_unary_math_op = 142,                   // unary_math_op
+         S_multiplicative_math_expr = 143,        // multiplicative_math_expr
+         S_additive_math_expr = 144,              // additive_math_expr
+         S_shift_math_expr = 145,                 // shift_math_expr
+         S_relational_math_expr = 146,            // relational_math_expr
+         S_equality_math_expr = 147,              // equality_math_expr
+         S_and_math_expr = 148,                   // and_math_expr
+         S_exclusive_or_math_expr = 149,          // exclusive_or_math_expr
+         S_inclusive_or_math_expr = 150,          // inclusive_or_math_expr
+         S_logical_and_math_expr = 151,           // logical_and_math_expr
+         S_logical_or_math_expr = 152,            // logical_or_math_expr
+         S_conditional_math_expr = 153,           // conditional_math_expr
+         S_assign_math_expr = 154,                // assign_math_expr
+         S_assign_math_op = 155,                  // assign_math_op
+         S_math_expr = 156                        // math_expr
       };
-    };
+   };
 
-    /// (Internal) symbol kind.
-    typedef symbol_kind::symbol_kind_type symbol_kind_type;
+   /// (Internal) symbol kind.
+   typedef symbol_kind::symbol_kind_type symbol_kind_type;
 
-    /// The number of tokens.
-    static const symbol_kind_type YYNTOKENS = symbol_kind::YYNTOKENS;
+   /// The number of tokens.
+   static const symbol_kind_type YYNTOKENS = symbol_kind::YYNTOKENS;
 
-    /// A complete symbol.
-    ///
-    /// Expects its Base type to provide access to the symbol kind
-    /// via kind ().
-    ///
-    /// Provide access to semantic value and location.
-    template <typename Base>
-    struct basic_symbol : Base
-    {
+   /// A complete symbol.
+   ///
+   /// Expects its Base type to provide access to the symbol kind
+   /// via kind ().
+   ///
+   /// Provide access to semantic value and location.
+   template <typename Base>
+   struct basic_symbol : Base
+   {
       /// Alias to Base.
       typedef Base super_type;
 
       /// Default constructor.
       basic_symbol ()
-        : value ()
-        , location ()
+         : value ()
+         , location ()
       {}
 
 #if 201103L <= YY_CPLUSPLUS
       /// Move constructor.
       basic_symbol (basic_symbol&& that)
-        : Base (std::move (that))
-        , value (std::move (that.value))
-        , location (std::move (that.location))
+         : Base (std::move (that))
+         , value (std::move (that.value))
+         , location (std::move (that.location))
       {}
 #endif
 
@@ -1001,19 +1011,19 @@ namespace yy {
       /// Destroy the symbol.
       ~basic_symbol ()
       {
-        clear ();
+         clear ();
       }
 
       /// Destroy contents, and record that is empty.
       void clear ()
       {
-        Base::clear ();
+         Base::clear ();
       }
 
       /// The user-facing name of this symbol.
       const char *name () const YY_NOEXCEPT
       {
-        return parser::symbol_name (this->kind ());
+         return parser::symbol_name (this->kind ());
       }
 
       /// Backward compatibility (Bison 3.6).
@@ -1031,16 +1041,16 @@ namespace yy {
       /// The location.
       location_type location;
 
-    private:
+   private:
 #if YY_CPLUSPLUS < 201103L
       /// Assignment operator.
       basic_symbol& operator= (const basic_symbol& that);
 #endif
-    };
+   };
 
-    /// Type access provider for token (enum) based symbols.
-    struct by_kind
-    {
+   /// Type access provider for token (enum) based symbols.
+   struct by_kind
+   {
       /// Default constructor.
       by_kind ();
 
@@ -1074,65 +1084,65 @@ namespace yy {
       /// The symbol kind.
       /// \a S_YYEMPTY when empty.
       symbol_kind_type kind_;
-    };
+   };
 
-    /// Backward compatibility for a private implementation detail (Bison 3.6).
-    typedef by_kind by_type;
+   /// Backward compatibility for a private implementation detail (Bison 3.6).
+   typedef by_kind by_type;
 
-    /// "External" symbols: returned by the scanner.
-    struct symbol_type : basic_symbol<by_kind>
-    {};
+   /// "External" symbols: returned by the scanner.
+   struct symbol_type : basic_symbol<by_kind>
+   {};
 
-    /// Build a parser object.
-    parser (xfl &ufl_yyarg);
-    virtual ~parser ();
+   /// Build a parser object.
+   parser (xfl &ufl_yyarg);
+   virtual ~parser ();
 
 #if 201103L <= YY_CPLUSPLUS
-    /// Non copyable.
-    parser (const parser&) = delete;
-    /// Non copyable.
-    parser& operator= (const parser&) = delete;
+   /// Non copyable.
+   parser (const parser&) = delete;
+   /// Non copyable.
+   parser& operator= (const parser&) = delete;
 #endif
 
-    /// Parse.  An alias for parse ().
-    /// \returns  0 iff parsing succeeded.
-    int operator() ();
+   /// Parse.  An alias for parse ().
+   /// \returns  0 iff parsing succeeded.
+   int operator() ();
 
-    /// Parse.
-    /// \returns  0 iff parsing succeeded.
-    virtual int parse ();
+   /// Parse.
+   /// \returns  0 iff parsing succeeded.
+   virtual int parse ();
 
 #if YYDEBUG
-    /// The current debugging stream.
-    std::ostream& debug_stream () const YY_ATTRIBUTE_PURE;
-    /// Set the current debugging stream.
-    void set_debug_stream (std::ostream &);
+   /// The current debugging stream.
+   std::ostream& debug_stream () const YY_ATTRIBUTE_PURE;
+   /// Set the current debugging stream.
+   void set_debug_stream (std::ostream &);
 
-    /// Type for debugging levels.
-    typedef int debug_level_type;
-    /// The current debugging level.
-    debug_level_type debug_level () const YY_ATTRIBUTE_PURE;
-    /// Set the current debugging level.
-    void set_debug_level (debug_level_type l);
+   /// Type for debugging levels.
+   typedef int debug_level_type;
+   /// The current debugging level.
+   debug_level_type debug_level () const YY_ATTRIBUTE_PURE;
+   /// Set the current debugging level.
+   void set_debug_level (debug_level_type l);
 #endif
 
-    /// Report a syntax error.
-    /// \param loc    where the syntax error is found.
-    /// \param msg    a description of the syntax error.
-    virtual void error (const location_type& loc, const std::string& msg);
+   /// Report a syntax error.
+   /// \param loc    where the syntax error is found.
+   /// \param msg    a description of the syntax error.
+   virtual void error (const location_type& loc, const std::string& msg);
 
-    /// Report a syntax error.
-    void error (const syntax_error& err);
+   /// Report a syntax error.
+   void error (const syntax_error& err);
 
-    /// The user-facing name of the symbol whose (internal) number is
-    /// YYSYMBOL.  No bounds checking.
-    static const char *symbol_name (symbol_kind_type yysymbol);
+   /// The user-facing name of the symbol whose (internal) number is
+   /// YYSYMBOL.  No bounds checking.
+   static const char *symbol_name (symbol_kind_type yysymbol);
 
 
 
-    class context
-    {
-    public:
+   class context
+   {
+   public:
       context (const parser& yyparser, const symbol_type& yyla);
       const symbol_type& lookahead () const { return yyla_; }
       symbol_kind_type token () const { return yyla_.kind (); }
@@ -1143,128 +1153,128 @@ namespace yy {
       /// number of expected tokens (guaranteed to be less than YYNTOKENS).
       int expected_tokens (symbol_kind_type yyarg[], int yyargn) const;
 
-    private:
+   private:
       const parser& yyparser_;
       const symbol_type& yyla_;
-    };
+   };
 
-  private:
+private:
 #if YY_CPLUSPLUS < 201103L
-    /// Non copyable.
-    parser (const parser&);
-    /// Non copyable.
-    parser& operator= (const parser&);
+   /// Non copyable.
+   parser (const parser&);
+   /// Non copyable.
+   parser& operator= (const parser&);
 #endif
 
-    /// Check the lookahead yytoken.
-    /// \returns  true iff the token will be eventually shifted.
-    bool yy_lac_check_ (symbol_kind_type yytoken) const;
-    /// Establish the initial context if no initial context currently exists.
-    /// \returns  true iff the token will be eventually shifted.
-    bool yy_lac_establish_ (symbol_kind_type yytoken);
-    /// Discard any previous initial lookahead context because of event.
-    /// \param event  the event which caused the lookahead to be discarded.
-    ///               Only used for debbuging output.
-    void yy_lac_discard_ (const char* event);
+   /// Check the lookahead yytoken.
+   /// \returns  true iff the token will be eventually shifted.
+   bool yy_lac_check_ (symbol_kind_type yytoken) const;
+   /// Establish the initial context if no initial context currently exists.
+   /// \returns  true iff the token will be eventually shifted.
+   bool yy_lac_establish_ (symbol_kind_type yytoken);
+   /// Discard any previous initial lookahead context because of event.
+   /// \param event  the event which caused the lookahead to be discarded.
+   ///               Only used for debbuging output.
+   void yy_lac_discard_ (const char* event);
 
-    /// Stored state numbers (used for stacks).
-    typedef short state_type;
+   /// Stored state numbers (used for stacks).
+   typedef short state_type;
 
-    /// The arguments of the error message.
-    int yy_syntax_error_arguments_ (const context& yyctx,
-                                    symbol_kind_type yyarg[], int yyargn) const;
+   /// The arguments of the error message.
+   int yy_syntax_error_arguments_ (const context& yyctx,
+                                   symbol_kind_type yyarg[], int yyargn) const;
 
-    /// Generate an error message.
-    /// \param yyctx     the context in which the error occurred.
-    virtual std::string yysyntax_error_ (const context& yyctx) const;
-    /// Compute post-reduction state.
-    /// \param yystate   the current state
-    /// \param yysym     the nonterminal to push on the stack
-    static state_type yy_lr_goto_state_ (state_type yystate, int yysym);
+   /// Generate an error message.
+   /// \param yyctx     the context in which the error occurred.
+   virtual std::string yysyntax_error_ (const context& yyctx) const;
+   /// Compute post-reduction state.
+   /// \param yystate   the current state
+   /// \param yysym     the nonterminal to push on the stack
+   static state_type yy_lr_goto_state_ (state_type yystate, int yysym);
 
-    /// Whether the given \c yypact_ value indicates a defaulted state.
-    /// \param yyvalue   the value to check
-    static bool yy_pact_value_is_default_ (int yyvalue);
+   /// Whether the given \c yypact_ value indicates a defaulted state.
+   /// \param yyvalue   the value to check
+   static bool yy_pact_value_is_default_ (int yyvalue);
 
-    /// Whether the given \c yytable_ value indicates a syntax error.
-    /// \param yyvalue   the value to check
-    static bool yy_table_value_is_error_ (int yyvalue);
+   /// Whether the given \c yytable_ value indicates a syntax error.
+   /// \param yyvalue   the value to check
+   static bool yy_table_value_is_error_ (int yyvalue);
 
-    static const short yypact_ninf_;
-    static const signed char yytable_ninf_;
+   static const short yypact_ninf_;
+   static const signed char yytable_ninf_;
 
-    /// Convert a scanner token kind \a t to a symbol kind.
-    /// In theory \a t should be a token_kind_type, but character literals
-    /// are valid, yet not members of the token_type enum.
-    static symbol_kind_type yytranslate_ (int t);
+   /// Convert a scanner token kind \a t to a symbol kind.
+   /// In theory \a t should be a token_kind_type, but character literals
+   /// are valid, yet not members of the token_type enum.
+   static symbol_kind_type yytranslate_ (int t);
 
 
 
-    // Tables.
-    // YYPACT[STATE-NUM] -- Index in YYTABLE of the portion describing
-    // STATE-NUM.
-    static const short yypact_[];
+   // Tables.
+   // YYPACT[STATE-NUM] -- Index in YYTABLE of the portion describing
+   // STATE-NUM.
+   static const short yypact_[];
 
-    // YYDEFACT[STATE-NUM] -- Default reduction number in state STATE-NUM.
-    // Performed when YYTABLE does not specify something else to do.  Zero
-    // means the default is an error.
-    static const unsigned char yydefact_[];
+   // YYDEFACT[STATE-NUM] -- Default reduction number in state STATE-NUM.
+   // Performed when YYTABLE does not specify something else to do.  Zero
+   // means the default is an error.
+   static const unsigned char yydefact_[];
 
-    // YYPGOTO[NTERM-NUM].
-    static const short yypgoto_[];
+   // YYPGOTO[NTERM-NUM].
+   static const short yypgoto_[];
 
-    // YYDEFGOTO[NTERM-NUM].
-    static const short yydefgoto_[];
+   // YYDEFGOTO[NTERM-NUM].
+   static const short yydefgoto_[];
 
-    // YYTABLE[YYPACT[STATE-NUM]] -- What to do in state STATE-NUM.  If
-    // positive, shift that token.  If negative, reduce the rule whose
-    // number is the opposite.  If YYTABLE_NINF, syntax error.
-    static const short yytable_[];
+   // YYTABLE[YYPACT[STATE-NUM]] -- What to do in state STATE-NUM.  If
+   // positive, shift that token.  If negative, reduce the rule whose
+   // number is the opposite.  If YYTABLE_NINF, syntax error.
+   static const short yytable_[];
 
-    static const short yycheck_[];
+   static const short yycheck_[];
 
-    // YYSTOS[STATE-NUM] -- The (internal number of the) accessing
-    // symbol of state STATE-NUM.
-    static const unsigned char yystos_[];
+   // YYSTOS[STATE-NUM] -- The (internal number of the) accessing
+   // symbol of state STATE-NUM.
+   static const unsigned char yystos_[];
 
-    // YYR1[YYN] -- Symbol number of symbol that rule YYN derives.
-    static const unsigned char yyr1_[];
+   // YYR1[YYN] -- Symbol number of symbol that rule YYN derives.
+   static const unsigned char yyr1_[];
 
-    // YYR2[YYN] -- Number of symbols on the right hand side of rule YYN.
-    static const signed char yyr2_[];
+   // YYR2[YYN] -- Number of symbols on the right hand side of rule YYN.
+   static const signed char yyr2_[];
 
 
 #if YYDEBUG
-    // YYRLINE[YYN] -- Source line where rule number YYN was defined.
-    static const short yyrline_[];
-    /// Report on the debug stream that the rule \a r is going to be reduced.
-    virtual void yy_reduce_print_ (int r) const;
-    /// Print the state stack on the debug stream.
-    virtual void yy_stack_print_ () const;
+   // YYRLINE[YYN] -- Source line where rule number YYN was defined.
+   static const short yyrline_[];
+   /// Report on the debug stream that the rule \a r is going to be reduced.
+   virtual void yy_reduce_print_ (int r) const;
+   /// Print the state stack on the debug stream.
+   virtual void yy_stack_print_ () const;
 
-    /// Debugging level.
-    int yydebug_;
-    /// Debug stream.
-    std::ostream* yycdebug_;
+   /// Debugging level.
+   int yydebug_;
+   /// Debug stream.
+   std::ostream* yycdebug_;
 
-    /// \brief Display a symbol kind, value and location.
-    /// \param yyo    The output stream.
-    /// \param yysym  The symbol.
-    template <typename Base>
-    void yy_print_ (std::ostream& yyo, const basic_symbol<Base>& yysym) const;
+   /// \brief Display a symbol kind, value and location.
+   /// \param yyo    The output stream.
+   /// \param yysym  The symbol.
+   template <typename Base>
+   void yy_print_ (std::ostream& yyo, const basic_symbol<Base>& yysym) const;
 #endif
 
-    /// \brief Reclaim the memory associated to a symbol.
-    /// \param yymsg     Why this token is reclaimed.
-    ///                  If null, print nothing.
-    /// \param yysym     The symbol.
-    template <typename Base>
-    void yy_destroy_ (const char* yymsg, basic_symbol<Base>& yysym) const;
+   /// \brief Reclaim the memory associated to a symbol.
+   /// \param yymsg     Why this token is reclaimed.
+   ///                  If null, print nothing.
+   /// \param yysym     The symbol.
+   template <typename Base>
+   void yy_destroy_ (const char* yymsg, basic_symbol<Base>& yysym) const;
 
-  private:
-    /// Type access provider for state based symbols.
-    struct by_state
-    {
+private:
+   /// Type access provider for state based symbols.
+   struct by_state
+   {
       /// Default constructor.
       by_state () YY_NOEXCEPT;
 
@@ -1294,11 +1304,11 @@ namespace yy {
       /// The state.
       /// \a empty when empty.
       state_type state;
-    };
+   };
 
-    /// "Internal" symbol: element of the stack.
-    struct stack_symbol_type : basic_symbol<by_state>
-    {
+   /// "Internal" symbol: element of the stack.
+   struct stack_symbol_type : basic_symbol<by_state>
+   {
       /// Superclass.
       typedef basic_symbol<by_state> super_type;
       /// Construct an empty symbol.
@@ -1316,13 +1326,13 @@ namespace yy {
       /// Needed by some other old implementations.
       stack_symbol_type& operator= (const stack_symbol_type& that);
 #endif
-    };
+   };
 
-    /// A stack with random access from its top.
-    template <typename T, typename S = std::vector<T> >
-    class stack
-    {
-    public:
+   /// A stack with random access from its top.
+   template <typename T, typename S = std::vector<T> >
+   class stack
+   {
+   public:
       // Hide our reversed order.
       typedef typename S::iterator iterator;
       typedef typename S::const_iterator const_iterator;
@@ -1330,7 +1340,7 @@ namespace yy {
       typedef typename std::ptrdiff_t index_type;
 
       stack (size_type n = 200)
-        : seq_ (n)
+         : seq_ (n)
       {}
 
 #if 201103L <= YY_CPLUSPLUS
@@ -1346,7 +1356,7 @@ namespace yy {
       const T&
       operator[] (index_type i) const
       {
-        return seq_[size_type (size () - 1 - i)];
+         return seq_[size_type (size () - 1 - i)];
       }
 
       /// Random access.
@@ -1355,7 +1365,7 @@ namespace yy {
       T&
       operator[] (index_type i)
       {
-        return seq_[size_type (size () - 1 - i)];
+         return seq_[size_type (size () - 1 - i)];
       }
 
       /// Steal the contents of \a t.
@@ -1364,67 +1374,69 @@ namespace yy {
       void
       push (YY_MOVE_REF (T) t)
       {
-        seq_.push_back (T ());
-        operator[] (0).move (t);
+         seq_.push_back (T ());
+         operator[] (0).move (t);
       }
 
       /// Pop elements from the stack.
       void
       pop (std::ptrdiff_t n = 1) YY_NOEXCEPT
       {
-        for (; 0 < n; --n)
-          seq_.pop_back ();
+         for (; 0 < n; --n)
+         {
+            seq_.pop_back ();
+         }
       }
 
       /// Pop all elements from the stack.
       void
       clear () YY_NOEXCEPT
       {
-        seq_.clear ();
+         seq_.clear ();
       }
 
       /// Number of elements on the stack.
       index_type
       size () const YY_NOEXCEPT
       {
-        return index_type (seq_.size ());
+         return index_type (seq_.size ());
       }
 
       /// Iterator on top of the stack (going downwards).
       const_iterator
       begin () const YY_NOEXCEPT
       {
-        return seq_.begin ();
+         return seq_.begin ();
       }
 
       /// Bottom of the stack.
       const_iterator
       end () const YY_NOEXCEPT
       {
-        return seq_.end ();
+         return seq_.end ();
       }
 
       /// Present a slice of the top of a stack.
       class slice
       {
       public:
-        slice (const stack& stack, index_type range)
-          : stack_ (stack)
-          , range_ (range)
-        {}
+         slice (const stack& stack, index_type range)
+            : stack_ (stack)
+            , range_ (range)
+         {}
 
-        const T&
-        operator[] (index_type i) const
-        {
-          return stack_[range_ - i];
-        }
+         const T&
+         operator[] (index_type i) const
+         {
+            return stack_[range_ - i];
+         }
 
       private:
-        const stack& stack_;
-        index_type range_;
+         const stack& stack_;
+         index_type range_;
       };
 
-    private:
+   private:
 #if YY_CPLUSPLUS < 201103L
       /// Non copyable.
       stack (const stack&);
@@ -1433,57 +1445,57 @@ namespace yy {
 #endif
       /// The wrapped container.
       S seq_;
-    };
+   };
 
 
-    /// Stack type.
-    public: // XFL
-    typedef stack<stack_symbol_type> stack_type;
-    private: // XFL
+   /// Stack type.
+public: // XFL
+   typedef stack<stack_symbol_type> stack_type;
+private: // XFL
 
-    /// The stack.
-    stack_type yystack_;
-    /// The stack for LAC.
-    /// Logically, the yy_lac_stack's lifetime is confined to the function
-    /// yy_lac_check_. We just store it as a member of this class to hold
-    /// on to the memory and to avoid frequent reallocations.
-    /// Since yy_lac_check_ is const, this member must be mutable.
-    mutable std::vector<state_type> yylac_stack_;
-    /// Whether an initial LAC context was established.
-    bool yy_lac_established_;
+   /// The stack.
+   stack_type yystack_;
+   /// The stack for LAC.
+   /// Logically, the yy_lac_stack's lifetime is confined to the function
+   /// yy_lac_check_. We just store it as a member of this class to hold
+   /// on to the memory and to avoid frequent reallocations.
+   /// Since yy_lac_check_ is const, this member must be mutable.
+   mutable std::vector<state_type> yylac_stack_;
+   /// Whether an initial LAC context was established.
+   bool yy_lac_established_;
 
 
-    /// Push a new state on the stack.
-    /// \param m    a debug message to display
-    ///             if null, no trace is output.
-    /// \param sym  the symbol
-    /// \warning the contents of \a s.value is stolen.
-    void yypush_ (const char* m, YY_MOVE_REF (stack_symbol_type) sym);
+   /// Push a new state on the stack.
+   /// \param m    a debug message to display
+   ///             if null, no trace is output.
+   /// \param sym  the symbol
+   /// \warning the contents of \a s.value is stolen.
+   void yypush_ (const char* m, YY_MOVE_REF (stack_symbol_type) sym);
 
-    /// Push a new look ahead token on the state on the stack.
-    /// \param m    a debug message to display
-    ///             if null, no trace is output.
-    /// \param s    the state
-    /// \param sym  the symbol (for its value and location).
-    /// \warning the contents of \a sym.value is stolen.
-    void yypush_ (const char* m, state_type s, YY_MOVE_REF (symbol_type) sym);
+   /// Push a new look ahead token on the state on the stack.
+   /// \param m    a debug message to display
+   ///             if null, no trace is output.
+   /// \param s    the state
+   /// \param sym  the symbol (for its value and location).
+   /// \warning the contents of \a sym.value is stolen.
+   void yypush_ (const char* m, state_type s, YY_MOVE_REF (symbol_type) sym);
 
-    /// Pop \a n symbols from the stack.
-    void yypop_ (int n = 1);
+   /// Pop \a n symbols from the stack.
+   void yypop_ (int n = 1);
 
-    /// Constants.
-    enum
-    {
+   /// Constants.
+   enum
+   {
       yylast_ = 902,     ///< Last index in yytable_.
       yynnts_ = 67,  ///< Number of nonterminal symbols.
       yyfinal_ = 42 ///< Termination state number.
-    };
+   };
 
 
-    // User arguments.
-    xfl &ufl;
+   // User arguments.
+   xfl &ufl;
 
-  };
+};
 
 
 } // yy
