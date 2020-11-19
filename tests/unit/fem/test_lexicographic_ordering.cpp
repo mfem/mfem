@@ -28,9 +28,10 @@ void VerifyOrdering(NodalFiniteElement &el)
 
    for (int i=0; i<el.GetDof(); ++i)
    {
-      error += std::fabs(el.GetNodes()[p[i]].x - ref_geom->RefPts[i].x);
-      error += std::fabs(el.GetNodes()[p[i]].y - ref_geom->RefPts[i].y);
-      error += std::fabs(el.GetNodes()[p[i]].z - ref_geom->RefPts[i].z);
+      int pi = (p.Size() > 0) ? p[i] : i;
+      error += std::fabs(el.GetNodes()[pi].x - ref_geom->RefPts[i].x);
+      error += std::fabs(el.GetNodes()[pi].y - ref_geom->RefPts[i].y);
+      error += std::fabs(el.GetNodes()[pi].z - ref_geom->RefPts[i].z);
    }
 
    REQUIRE(error == MFEM_Approx(0.0));
@@ -38,7 +39,7 @@ void VerifyOrdering(NodalFiniteElement &el)
 
 template <typename T> void VerifyOrdering(int order)
 {
-   T el(order);
+   T el(order, BasisType::GaussLobatto);
    Geometry::Type geom = el.GetGeomType();
    INFO("order " << order << " " << Geometry::Name[geom]);
    VerifyOrdering(el);
@@ -53,4 +54,11 @@ TEST_CASE("Lexicographic Ordering", "[FiniteElement,Geometry]")
    VerifyOrdering<H1_TetrahedronElement>(order);
    VerifyOrdering<H1_HexahedronElement>(order);
    VerifyOrdering<H1_WedgeElement>(order);
+
+   VerifyOrdering<L2_SegmentElement>(order);
+   VerifyOrdering<L2_TriangleElement>(order);
+   VerifyOrdering<L2_QuadrilateralElement>(order);
+   VerifyOrdering<L2_TetrahedronElement>(order);
+   VerifyOrdering<L2_HexahedronElement>(order);
+   VerifyOrdering<L2_WedgeElement>(order);
 }
