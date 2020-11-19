@@ -10,9 +10,9 @@
 // CONTRIBUTING.md for details.
 
 #include <fstream>
-using namespace std;
-
 #include "mfem.hpp"
+
+using namespace std;
 using namespace mfem;
 
 #include "unit_tests.hpp"
