@@ -1214,15 +1214,6 @@ public:
          //const uintptr_t delta_arena = SIZEOF_ARENA >> 3;
          //host_arena += delta_arena;
          host_arena = ARNalloc(SIZEOF_ARENA);
-         /*if (num_shift > MAX_SHIFT)
-         {
-            std::cout << "<"<<N<<"> "
-                      << ", bytes: " << bytes
-                      << ", shift: " << num_shift
-                      << ", MAX_SHIFT: " << MAX_SHIFT
-                      << ", asize: " << asize
-                      << std::endl;
-         }*/
          //assert(num_shift <= MAX_SHIFT);
          Arena<N> *new_arena = new (host_arena) Arena<N>(host_blocks, asize);
          new_arena->Set(arena);
