@@ -1583,22 +1583,22 @@ CPDSolverDH::DisplayToGLVis()
    {
       VectorGridFunctionCoefficient h_r(&h_->real());
       VectorGridFunctionCoefficient h_i(&h_->imag());
-      VectorSumCoefficient hrCoef(h_r, h_i, *coskx_, *sinkx_);
-      VectorSumCoefficient hiCoef(h_i, h_r, *coskx_, *negsinkx_);
+      VectorSumCoefficient hrCoef(h_r, h_i, *coskx_, *negsinkx_);
+      VectorSumCoefficient hiCoef(h_i, h_r, *coskx_, *sinkx_);
 
       h_v_->ProjectCoefficient(hrCoef, hiCoef);
 
       VectorGridFunctionCoefficient e_r(&e_->real());
       VectorGridFunctionCoefficient e_i(&e_->imag());
-      VectorSumCoefficient erCoef(e_r, e_i, *coskx_, *sinkx_);
-      VectorSumCoefficient eiCoef(e_i, e_r, *coskx_, *negsinkx_);
+      VectorSumCoefficient erCoef(e_r, e_i, *coskx_, *negsinkx_);
+      VectorSumCoefficient eiCoef(e_i, e_r, *coskx_, *sinkx_);
 
       e_v_->ProjectCoefficient(erCoef, eiCoef);
 
       VectorGridFunctionCoefficient d_r(&d_->real());
       VectorGridFunctionCoefficient d_i(&d_->imag());
-      VectorSumCoefficient drCoef(d_r, d_i, *coskx_, *sinkx_);
-      VectorSumCoefficient diCoef(d_i, d_r, *coskx_, *negsinkx_);
+      VectorSumCoefficient drCoef(d_r, d_i, *coskx_, *negsinkx_);
+      VectorSumCoefficient diCoef(d_i, d_r, *coskx_, *sinkx_);
 
       d_v_->ProjectCoefficient(drCoef, diCoef);
 
@@ -1608,10 +1608,10 @@ CPDSolverDH::DisplayToGLVis()
          GridFunctionCoefficient phi_i(&phi_->imag());
          ProductCoefficient cosphi_r(phi_r, *coskx_);
          ProductCoefficient cosphi_i(phi_i, *coskx_);
-         ProductCoefficient sinphi_i(phi_i, *sinkx_);
-         ProductCoefficient negsinphi_r(phi_r, *negsinkx_);
-         SumCoefficient phirCoef(cosphi_r, sinphi_i);
-         SumCoefficient phiiCoef(cosphi_i, negsinphi_r);
+         ProductCoefficient sinphi_r(phi_r, *sinkx_);
+         ProductCoefficient negsinphi_i(phi_i, *negsinkx_);
+         SumCoefficient phirCoef(cosphi_r, negsinphi_i);
+         SumCoefficient phiiCoef(cosphi_i, sinphi_r);
 
          phi_v_->ProjectCoefficient(phirCoef, phiiCoef);
       }
@@ -1717,8 +1717,8 @@ CPDSolverDH::DisplayToGLVis()
       {
          VectorGridFunctionCoefficient j_r(&j_->real());
          VectorGridFunctionCoefficient j_i(&j_->imag());
-         VectorSumCoefficient jrCoef(j_r, j_i, *coskx_, *sinkx_);
-         VectorSumCoefficient jiCoef(j_i, j_r, *coskx_, *negsinkx_);
+         VectorSumCoefficient jrCoef(j_r, j_i, *coskx_, *negsinkx_);
+         VectorSumCoefficient jiCoef(j_i, j_r, *coskx_, *sinkx_);
 
          j_v_->ProjectCoefficient(jrCoef, jiCoef);
       }
@@ -1794,8 +1794,8 @@ CPDSolverDH::DisplayAnimationToGLVis()
    {
       VectorGridFunctionCoefficient e_r(&e_->real());
       VectorGridFunctionCoefficient e_i(&e_->imag());
-      VectorSumCoefficient erCoef(e_r, e_i, *coskx_, *sinkx_);
-      VectorSumCoefficient eiCoef(e_i, e_r, *coskx_, *negsinkx_);
+      VectorSumCoefficient erCoef(e_r, e_i, *coskx_, *negsinkx_);
+      VectorSumCoefficient eiCoef(e_i, e_r, *coskx_, *sinkx_);
 
       e_v_->ProjectCoefficient(erCoef, eiCoef);
    }
@@ -1835,7 +1835,7 @@ CPDSolverDH::DisplayAnimationToGLVis()
       oss << "Harmonic Solution (t = " << t << " T)";
 
       add( cos( 2.0 * M_PI * t), e_v_->real(),
-           -sin( 2.0 * M_PI * t), e_v_->imag(), *e_t_);
+           sin( 2.0 * M_PI * t), e_v_->imag(), *e_t_);
       sol_sock << "parallel " << num_procs_ << " " << myid_ << "\n";
       sol_sock << "solution\n" << *pmesh_ << *e_t_
                << "window_title '" << oss.str() << "'" << flush;

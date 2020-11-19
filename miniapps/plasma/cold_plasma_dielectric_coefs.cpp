@@ -877,9 +877,9 @@ void InverseDielectricTensor::Eval(DenseMatrix &epsilonInv,
    complex<double> PInv = 1.0 / P;
    complex<double> DInv = D * QInv;
 
-   this->addParallelComp(realPart_ ?  PInv.real() : PInv.imag(), epsilonInv);
-   this->addPerpDiagComp(realPart_ ?  SInv.real() : SInv.imag(), epsilonInv);
-   this->addPerpSkewComp(realPart_ ? -DInv.imag() : DInv.real(), epsilonInv);
+   this->addParallelComp(realPart_ ? PInv.real() :  PInv.imag(), epsilonInv);
+   this->addPerpDiagComp(realPart_ ? SInv.real() :  SInv.imag(), epsilonInv);
+   this->addPerpSkewComp(realPart_ ? DInv.imag() : -DInv.real(), epsilonInv);
 
    epsilonInv *= 1.0 / epsilon0_;
 }

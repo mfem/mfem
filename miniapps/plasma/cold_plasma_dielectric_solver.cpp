@@ -1440,15 +1440,15 @@ CPDSolver::DisplayToGLVis()
    {
       VectorGridFunctionCoefficient e_r(&e_->real());
       VectorGridFunctionCoefficient e_i(&e_->imag());
-      VectorSumCoefficient erCoef(e_r, e_i, *coskx_, *sinkx_);
-      VectorSumCoefficient eiCoef(e_i, e_r, *coskx_, *negsinkx_);
+      VectorSumCoefficient erCoef(e_r, e_i, *coskx_, *negsinkx_);
+      VectorSumCoefficient eiCoef(e_i, e_r, *coskx_, *sinkx_);
 
       e_v_->ProjectCoefficient(erCoef, eiCoef);
 
       VectorGridFunctionCoefficient d_r(&d_->real());
       VectorGridFunctionCoefficient d_i(&d_->imag());
-      VectorSumCoefficient drCoef(d_r, d_i, *coskx_, *sinkx_);
-      VectorSumCoefficient diCoef(d_i, d_r, *coskx_, *negsinkx_);
+      VectorSumCoefficient drCoef(d_r, d_i, *coskx_, *negsinkx_);
+      VectorSumCoefficient diCoef(d_i, d_r, *coskx_, *sinkx_);
 
       d_v_->ProjectCoefficient(drCoef, diCoef);
    }
@@ -1510,8 +1510,8 @@ CPDSolver::DisplayToGLVis()
       {
          VectorGridFunctionCoefficient j_r(&j_->real());
          VectorGridFunctionCoefficient j_i(&j_->imag());
-         VectorSumCoefficient jrCoef(j_r, j_i, *coskx_, *sinkx_);
-         VectorSumCoefficient jiCoef(j_i, j_r, *coskx_, *negsinkx_);
+         VectorSumCoefficient jrCoef(j_r, j_i, *coskx_, *negsinkx_);
+         VectorSumCoefficient jiCoef(j_i, j_r, *coskx_, *sinkx_);
 
          j_v_->ProjectCoefficient(jrCoef, jiCoef);
       }
@@ -1586,8 +1586,8 @@ CPDSolver::DisplayAnimationToGLVis()
    {
       VectorGridFunctionCoefficient e_r(&e_->real());
       VectorGridFunctionCoefficient e_i(&e_->imag());
-      VectorSumCoefficient erCoef(e_r, e_i, *coskx_, *sinkx_);
-      VectorSumCoefficient eiCoef(e_i, e_r, *coskx_, *negsinkx_);
+      VectorSumCoefficient erCoef(e_r, e_i, *coskx_, *negsinkx_);
+      VectorSumCoefficient eiCoef(e_i, e_r, *coskx_, *sinkx_);
 
       e_v_->ProjectCoefficient(erCoef, eiCoef);
    }
@@ -1627,7 +1627,7 @@ CPDSolver::DisplayAnimationToGLVis()
       oss << "Harmonic Solution (t = " << t << " T)";
 
       add( cos( 2.0 * M_PI * t), e_v_->real(),
-           -sin( 2.0 * M_PI * t), e_v_->imag(), *e_t_);
+           sin( 2.0 * M_PI * t), e_v_->imag(), *e_t_);
       sol_sock << "parallel " << num_procs_ << " " << myid_ << "\n";
       sol_sock << "solution\n" << *pmesh_ << *e_t_
                << "window_title '" << oss.str() << "'" << flush;
