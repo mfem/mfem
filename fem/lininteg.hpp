@@ -470,7 +470,8 @@ protected:
    DenseMatrix dshape, mq, adjJ;
 
 public:
-   SBM2LFIntegrator(SBMFunctionCoefficient &u, const double a, VectorCoefficient &vD_)
+   SBM2LFIntegrator(SBMFunctionCoefficient &u, const double a,
+                    VectorCoefficient &vD_)
       : uD(&u), vD(&vD_), alpha(a)  { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,

@@ -188,10 +188,11 @@ public:
    { }
 
    virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip) {
-       Vector D(2);
-       D = 0.;
-       return (this)->Eval(T, ip, D);
+                       const IntegrationPoint &ip)
+   {
+      Vector D(2);
+      D = 0.;
+      return (this)->Eval(T, ip, D);
    }
 
    /// Evaluate the coefficient at @a ip.

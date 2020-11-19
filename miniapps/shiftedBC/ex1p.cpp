@@ -16,6 +16,7 @@ using namespace mfem;
 double dist_fun(const Vector &x);
 double dist_fun_level_set(const Vector &x);
 double dirichlet_velocity(const Vector &x);
+void dist_vec_c(const Vector &x, Vector &p);
 
 #define level_set_type 3 // 1 - 1 circle, 2 - 2 circles, 3 - analyic linear
 
@@ -350,12 +351,11 @@ int main(int argc, char *argv[])
                << 350 << " " << 350 << " " << 350 << " " << 350 << "\n"
                << "keys Rjmpc" << endl;
    }
-   //MFEM_ABORT(" ");
 
    // 7. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
-   double alpha = 100.;
+   double alpha = 100/pow(2., ser_ref_levels*1.);
    ParLinearForm b(&pfespace);
    double fval = 1.;
    if (level_set_type == 3) {
@@ -396,14 +396,13 @@ int main(int argc, char *argv[])
    Solver *prec = NULL;
    prec = new HypreBoomerAMG;
 
-   GMRESSolver gmres(MPI_COMM_WORLD);
-   gmres.SetRelTol(1e-12);
-   gmres.SetMaxIter(5000);
-   gmres.SetKDim(100);
-   gmres.SetPrintLevel(1);
-   gmres.SetPreconditioner(*prec);
-   gmres.SetOperator(*A);
-   gmres.Mult(B, X);
+   BiCGSTABSolver bicg(MPI_COMM_WORLD);
+   bicg.SetRelTol(1e-12);
+   bicg.SetMaxIter(5000);
+   bicg.SetPrintLevel(1);
+   bicg.SetPreconditioner(*prec);
+   bicg.SetOperator(*A);
+   bicg.Mult(B, X);
    delete prec;
 
 //   CGSolver cg(MPI_COMM_WORLD);
@@ -534,6 +533,14 @@ double dirichlet_velocity(const Vector &x)
         double val = 0.0 + (yv1-0.1)/(0.9-0.1);
         return val;
     }
+}
+
+void dist_vec_c(const Vector &x, Vector &p)
+{
+   double dist0 = dist_fun(x);
+   double theta = std::atan2(x(1)-0.5, x(0)-0.5);
+   p(0) = -dist0*std::cos(theta);
+   p(1) = -dist0*std::sin(theta);
 }
 
 #undef ring_radius

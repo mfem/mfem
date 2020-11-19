@@ -807,7 +807,7 @@ void SBM2LFIntegrator::AssembleRHSElementVect(
    if (ir == NULL)
    {
       // a simple choice for the integration order; is this OK?
-      int order = 2*el.GetOrder();
+      int order = 4*el.GetOrder();
       ir = &IntRules.Get(Tr.GetGeometryType(), order);
    }
 
@@ -836,7 +836,10 @@ void SBM2LFIntegrator::AssembleRHSElementVect(
       vD->Eval(D, Tr, ip);
 
       double nor_dot_d = nor*D;
-      if (nor_dot_d > 0) { nor *= -1; }
+      if (nor_dot_d > 0)
+      {
+         nor *= -1;
+      }
 
       double hinvdx;
 

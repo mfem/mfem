@@ -97,9 +97,14 @@ protected:
    Array<Array<int>*>             bfbfi_marker; ///< Entries are not owned.
 
    Array<BilinearFormIntegrator*> sbfbfi;
-   Array<Array<int>*>             sbfbfi_marker; ///< Entries are not owned.
-   Array<Array<int>*>             sbfbfi_el_marker;
-   Array<Array<int>*>             sbfbfi_flag_marker;
+   /// interior/boundary face number for the face to be integrated.
+   Array<Array<int>*>
+   sbfbfi_facenum_marker; ///< Entries are not owned.
+   /// The sbfbfi_elnum_marker tells what is the mesh element # adjacent to the face
+   /// which is inside the domain
+   Array<Array<int>*>             sbfbfi_elnum_marker;
+   /// sbfbfi_face_flag tells if it is an internal face (1) or a boundary face(2)
+   Array<Array<int>*>             sbfbfi_face_flag_marker;
 
    DenseMatrix elemmat;
    Array<int>  vdofs;

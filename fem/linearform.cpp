@@ -98,9 +98,9 @@ void LinearForm::AddShiftedBdrFaceIntegrator(LinearFormIntegrator *lfi,
                                              Array<int> &sbmfaceflag)
 {
    sflfi.Append(lfi);
-   sflfi_marker.Append(&sbmfaces);
-   sflfi_el_marker.Append(&sbmfaceel);
-   sflfi_flag_marker.Append(&sbmfaceflag);
+   sflfi_facenum_marker.Append(&sbmfaces);
+   sflfi_elnum_marker.Append(&sbmfaceel);
+   sflfi_face_flag_marker.Append(&sbmfaceflag);
 
 }
 
@@ -234,10 +234,10 @@ void LinearForm::Assemble()
       FaceElementTransformations *tr;
       Mesh *mesh = fes->GetMesh();
 
-      for (i = 0; i < sflfi_marker[0]->Size(); i++)
+      for (i = 0; i < sflfi_facenum_marker[0]->Size(); i++)
       {
-         int fnum = (*(sflfi_marker[0]))[i];
-         int faceflag = (*(sflfi_flag_marker[0]))[i];
+         int fnum = (*(sflfi_facenum_marker[0]))[i];
+         int faceflag = (*(sflfi_face_flag_marker[0]))[i];
          if (faceflag == 1)
          {
             tr = mesh->GetInteriorFaceTransformations(fnum);
@@ -248,7 +248,7 @@ void LinearForm::Assemble()
          }
          if (tr != NULL)
          {
-            int faceel = (*(sflfi_el_marker[0]))[i];
+            int faceel = (*(sflfi_elnum_marker[0]))[i];
 
             if (tr->Elem1No == faceel)
             {
@@ -264,7 +264,6 @@ void LinearForm::Assemble()
                sflfi[0] -> AssembleRHSElementVect (*fes->GetFE(tr -> Elem2No),
                                                    *tr, elemvect);
             }
-            //if (faceflag == 1) { elemvect *= 2.; }
             AddElementVector (vdofs, elemvect);
          }
       }
