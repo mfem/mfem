@@ -12,11 +12,6 @@
 #ifndef MFEM_KERNELS_HPP
 #define MFEM_KERNELS_HPP
 
-#ifdef _WIN32
-#define _USE_MATH_DEFINES
-#include <cmath>
-#endif
-
 #include "../config/config.hpp"
 #include "../general/backends.hpp"
 #include "../general/globals.hpp"
