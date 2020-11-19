@@ -14,11 +14,11 @@
 #include <fstream>
 #include <iostream>
 #include "mfem.hpp"
-#include "mfem/general/forall.hpp"
-#include "mfem/fem/kernels.hpp"
-#include "mfem/fem/intrules.hpp"
-#include "mfem/linalg/dtensor.hpp"
-#include "mfem/linalg/kernels.hpp"
+#include "general/forall.hpp"
+#include "fem/kernels.hpp"
+#include "fem/intrules.hpp"
+#include "linalg/dtensor.hpp"
+#include "linalg/kernels.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -307,7 +307,7 @@ public:
       dx(NQ*NE),
       UF(uf), VF(vf)
    {
-      DBG("\033[32mDIM:%d VDIM:%d, NE:%d, ND:%d, NQ:%d", DIM,VDIM,NE,ND,NQ);
+      //DBG("\033[32mDIM:%d VDIM:%d, NE:%d, ND:%d, NQ:%d", DIM,VDIM,NE,ND,NQ);
       MFEM_VERIFY(R,"");
       MFEM_VERIFY(DIM == 2, "");
       MFEM_VERIFY(VDIM == 1,"");
@@ -315,8 +315,8 @@ public:
       MFEM_VERIFY(NQ == Q1D*Q1D, "");
       MFEM_VERIFY(ye.Size() == R->Height(),"");
       MFEM_VERIFY(DIM == mesh->Dimension(),"");
-      DBG("[XFLOperator] DIM:<%d>, p:%d, q:%d, D1D:%d, Q1D:%d, R->Height():%d",
-          DIM, p, q, D1D, Q1D, R->Height());
+      /*DBG("[XFLOperator] DIM:<%d>, p:%d, q:%d, D1D:%d, Q1D:%d, R->Height():%d",
+          DIM, p, q, D1D, Q1D, R->Height());*/
 
       qi->SetOutputLayout(QVectorLayout::byVDIM);
       nqi->SetOutputLayout(QVectorLayout::byVDIM);
@@ -334,7 +334,7 @@ public:
    /// 2D setup for partially assembld (DX) kernels: only W*detJ
    void Assemble()
    {
-      DBG("[XFLOperator] Assemble");
+      //DBG("[XFLOperator] Assemble");
       auto DX = mfem::Reshape(dx.Write(), Q1D, Q1D, NE);
       MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
       {
@@ -865,7 +865,7 @@ double Pow(double base, double exp) { return std::pow(base, exp); }
  */
 int solve(xfl::Problem pb, xfl::Function &x, Array<int> ess_tdof_list)
 {
-   DBG("[solve] x:%d, ess_tdof_list:%d", x.Size(), ess_tdof_list.Size());
+   //DBG("[solve] x:%d, ess_tdof_list:%d", x.Size(), ess_tdof_list.Size());
    FiniteElementSpace *fes = x.FESpace();
    assert(fes);
    MFEM_VERIFY(UsesTensorBasis(*fes), "FE Space must Use Tensor Basis!");
@@ -891,7 +891,7 @@ int solve(xfl::Problem pb, xfl::Function &x, Array<int> ess_tdof_list)
 /**
  * @brief plot the x gridfunction
  */
-void plot(xfl::Function &x)
+int plot(xfl::Function &x)
 {
    FiniteElementSpace *fes = x.FESpace(); assert(fes);
    mfem::Mesh *mesh = fes->GetMesh(); assert(mesh);
@@ -900,38 +900,42 @@ void plot(xfl::Function &x)
    socketstream sol_sock(vishost, visport);
    sol_sock.precision(8);
    sol_sock << "solution\n" << *mesh << x << std::flush;
+   return 0;
 }
 
 /**
  * @brief plot the mesh
  */
-void plot(mfem::Mesh *mesh)
+int plot(mfem::Mesh *mesh)
 {
    char vishost[] = "localhost";
    int visport = 19916;
    socketstream sol_sock(vishost, visport);
    sol_sock.precision(8);
    sol_sock << "mesh\n" << *mesh << std::flush;
+   return 0;
 }
 
 /**
  * @brief save the x gridfunction
  */
-void save(xfl::Function &x, const char *filename)
+int save(xfl::Function &x, const char *filename)
 {
    ofstream sol_ofs(filename);
    sol_ofs.precision(8);
    x.Save(sol_ofs);
+   return 0;
 }
 
 /**
  * @brief save the x gridfunction
  */
-void save(mfem::Mesh &mesh, const char *filename)
+int save(mfem::Mesh &mesh, const char *filename)
 {
    ofstream mesh_ofs(filename);
    mesh_ofs.precision(8);
    mesh.Print(mesh_ofs);
+   return 0;
 }
 
 } // namespace xfl

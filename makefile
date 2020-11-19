@@ -409,7 +409,7 @@ OKL_DIRS = fem
 
 .PHONY: lib all clean distclean install config status info deps serial parallel	\
 	debug pdebug cuda hip pcuda cudebug pcudebug hpc style check test unittest \
-	deprecation-warnings
+	deprecation-warnings ufl
 
 .SUFFIXES:
 .SUFFIXES: .cpp .o
@@ -432,8 +432,8 @@ $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 all: examples miniapps $(TEST_DIRS)
 xfl: general/xfl.o general/xfl.L.o general/xfl.Y.o general/xfc.o
 	$(MFEM_CXX) -o $(@) $(^)
-101: xfl ufl/101.ufl
-	./xfl -t ufl/101.ufl | g++ -x c++ -std=c++11 -o 101 -Igeneral -I. -L. -lmfem -
+ufl: xfl ufl/ex1.ufl
+	./xfl -t ufl/ex1.ufl | g++ -x c++ -std=c++14 -o ex1 -Igeneral -I. -L. -lmfem -
 
 .PHONY: miniapps $(EM_DIRS) $(TEST_DIRS)
 miniapps: $(MINIAPP_DIRS)

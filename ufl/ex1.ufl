@@ -1,0 +1,71 @@
+# comment
+#a b c
+# ⇒
+
+# Example options.
+mesh_file = "./data/star.mesh"
+order = 3
+static_cond = false
+assert(!static_cond) # Not yet supported
+pa = true
+assert(pa) # UFL forms require partial assembly for now
+device_config = "debug"
+output = false
+visualization = false
+
+# Enable hardware devices such as GPUs, and programming models such as
+# CUDA, OCCA, RAJA and OpenMP based on the example options.
+device = Device(device_config)
+device.Print()
+
+# Read the mesh from the given mesh file.
+mesh = Mesh(mesh_file)
+dim = mesh.Dimension()
+
+# Refine the mesh to increase the resolution.
+ref_levels = floor(log(500./mesh.GetNE())/log(2.)/dim)
+for l in range(ref_levels): mesh.UniformRefinement()
+
+# Define a finite element space on the mesh. Here we use continuous
+# Lagrange finite elements of the specified order.
+fe = FiniteElement("Lagrange", quadrilateral, order)
+fes = FunctionSpace(mesh, fe)
+assert(UsesTensorBasis(fes))
+u = TrialFunction(fes)
+v = TestFunction(fes)
+
+# Determine the list of true (i.e. conforming) essential boundary dofs.
+bc = DirichletBC(fes)
+
+# Set up the linear form b(.) which corresponds to the right-hand side.
+one = Constant(1.0)
+b = one*v*dx
+
+# Define the solution vector x as a finite element grid function
+# corresponding to fespace. Initialize x with initial guess of zero,
+# which satisfies the boundary conditions.
+x = Function(fes)
+x = 0.0
+
+# Set up the bilinear form a(.,.) on the finite element space
+# corresponding to the Laplacian operator -Delta, by adding the Diffusion
+# domain integrator.
+a = inner(grad(u), grad(v))*dx
+#a = inner(u, v) * dx
+
+# Solve the linear system a x = b, applying any necessary
+# transformations such as: eliminating boundary conditions,
+# applying conforming constraints for non-conforming AMR, etc.
+solve(a == b, x, bc)
+
+# Verify norms with simple forms
+Norml1 = x**1 * dx
+Norml2 = x**2 * dx
+print("Norms: %.3f, %.3f", Norml1, Norml2)
+
+# Send the solution by socket to a GLVis server.
+if (visualization) plot(x)
+
+# Save the output mesh and solution
+if (output) save(mesh, "ex1.mesh")
+if (output) save(x, "sol.gf")
