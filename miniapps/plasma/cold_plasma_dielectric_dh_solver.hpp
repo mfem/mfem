@@ -224,7 +224,7 @@ public:
                MatrixCoefficient & epsInvImCoef,
                MatrixCoefficient & epsAbsCoef,
                Coefficient & muCoef,
-               Coefficient * etaInvCoef,
+               Coefficient * etaCoef,
                VectorCoefficient * kCoef,
                Array<int> & abcs,
                Array<ComplexVectorCoefficientByAttr> & dbcs,
@@ -279,7 +279,7 @@ private:
 
    ComplexOperator::Convention conv_;
 
-   bool ownsEtaInv_;
+   bool ownsEta_;
    bool vis_u_;
    bool pa_;
 
@@ -302,14 +302,12 @@ private:
    // ParSesquilinearForm * a0_;
    ParSesquilinearForm * a1_;
    // ParBilinearForm * b1_;
+   ParMixedSesquilinearForm * d21EpsInv_;
 
-   // ParBilinearForm * m2_;
-   // ParMixedBilinearForm * m12EpsRe_;
-   // ParMixedBilinearForm * m12EpsIm_;
    ParSesquilinearForm * m1_;
-   ParMixedBilinearForm * m21EpsInvRe_;
-   ParMixedBilinearForm * m21EpsInvIm_;
+   ParMixedSesquilinearForm * m21EpsInv_;
 
+  
    ParBilinearForm * m0_;
    ParMixedBilinearForm * n20ZRe_;
    ParMixedBilinearForm * n20ZIm_;
@@ -328,7 +326,8 @@ private:
    // ParComplexGridFunction * phi_tmp_; // Complex sheath potential temporary (H1)
    ParComplexGridFunction * rectPot_; // Complex rectified potential (H1)
    // ParComplexGridFunction * j_;   // Complex current density (HCurl)
-   ParComplexLinearForm   * rhs_; // Dual of complex current density (HCurl)
+   ParComplexLinearForm   * rhs1_; // RHS of magnetic field eqn (HCurl)
+   ParComplexLinearForm   * rhs0_; // RHS of sheath potential eqn (H1)
    ParGridFunction        * e_t_; // Time dependent Electric field
    ParComplexGridFunction * e_b_; // Complex parallel electric field (L2)
    ParComplexGridFunction * h_v_; // Complex magnetic field (L2^d)
@@ -353,7 +352,7 @@ private:
    MatrixCoefficient * epsInvImCoef_;    // Dielectric Material Coefficient
    // MatrixCoefficient * epsAbsCoef_;   // Dielectric Material Coefficient
    Coefficient       * muCoef_;       // Dia/Paramagnetic Material Coefficient
-   Coefficient       * etaInvCoef_;   // Admittance Coefficient
+   Coefficient       * etaCoef_;      // Impedance Coefficient
    VectorCoefficient * kCoef_;        // Wave Vector
 
    Coefficient * SReCoef_; // Stix S Coefficient
@@ -367,7 +366,7 @@ private:
    Coefficient * negOmegaCoef_;  // -omega expressed as a Coefficient
    Coefficient * omega2Coef_;    // omega^2 expressed as a Coefficient
    Coefficient * negOmega2Coef_; // -omega^2 expressed as a Coefficient
-   Coefficient * abcCoef_;       // -omega eta^{-1}
+   Coefficient * abcCoef_;       // -omega eta
    // Coefficient * sbcReCoef_;     //  omega Im(eta^{-1})
    // Coefficient * sbcImCoef_;     // -omega Re(eta^{-1})
    Coefficient * sinkx_;         // sin(ky * y + kz * z)

@@ -243,7 +243,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
                          MatrixCoefficient & epsInvImCoef,
                          MatrixCoefficient & epsAbsCoef,
                          Coefficient & muCoef,
-                         Coefficient * etaInvCoef,
+                         Coefficient * etaCoef,
                          VectorCoefficient * kCoef,
                          Array<int> & abcs,
                          Array<ComplexVectorCoefficientByAttr> & dbcs,
@@ -264,7 +264,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      solOpts_(sOpts),
      prec_(prec),
      conv_(conv),
-     ownsEtaInv_(etaInvCoef == NULL),
+     ownsEta_(etaCoef == NULL),
      vis_u_(vis_u),
      pa_(pa),
      omega_(omega),
@@ -279,12 +279,12 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      HDivFESpace2p_(NULL),
      a1_(NULL),
      // b1_(NULL),
+     d21EpsInv_(NULL),
      // m2_(NULL),
      // m12EpsRe_(NULL),
      // m12EpsIm_(NULL),
      m1_(NULL),
-     m21EpsInvRe_(NULL),
-     m21EpsInvIm_(NULL),
+     m21EpsInv_(NULL),
      m0_(NULL),
      n20ZRe_(NULL),
      n20ZIm_(NULL),
@@ -299,7 +299,8 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      // temp_(NULL),
      // phi_tmp_(NULL),
      rectPot_(NULL),
-     rhs_(NULL),
+     rhs1_(NULL),
+     rhs0_(NULL),
      e_t_(NULL),
      e_b_(NULL),
      h_v_(NULL),
@@ -323,7 +324,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      epsInvImCoef_(&epsInvImCoef),
      // epsAbsCoef_(&epsAbsCoef),
      muCoef_(&muCoef),
-     etaInvCoef_(etaInvCoef),
+     etaCoef_(etaCoef),
      kCoef_(kCoef),
      SReCoef_(NULL),
      SImCoef_(NULL),
@@ -531,11 +532,11 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
             abc_marker_[abcs[i]-1] = 1;
          }
       }
-      if ( etaInvCoef_ == NULL )
+      if ( etaCoef_ == NULL )
       {
-         etaInvCoef_ = new ConstantCoefficient(sqrt(epsilon0_/mu0_));
+         etaCoef_ = new ConstantCoefficient(sqrt(mu0_/epsilon0_));
       }
-      abcCoef_ = new TransformedCoefficient(negOmegaCoef_, etaInvCoef_,
+      abcCoef_ = new TransformedCoefficient(negOmegaCoef_, etaCoef_,
                                             prodFunc);
    }
 
@@ -643,6 +644,11 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*posMassCoef_));
    //b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massImCoef_));
    */
+   d21EpsInv_ = new ParMixedSesquilinearForm(HDivFESpace_, HCurlFESpace_,
+					     conv_);
+   d21EpsInv_->AddDomainIntegrator(
+			   new MixedVectorWeakCurlIntegrator(*epsInvReCoef_),
+			   new MixedVectorWeakCurlIntegrator(*epsInvImCoef_));
    /*
    m2_ = new ParBilinearForm(HDivFESpace_);
    if (pa_) { m2_->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
@@ -663,10 +669,9 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    if (pa_) { m1_->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    m1_->AddDomainIntegrator(new VectorFEMassIntegrator, NULL);
 
-   m21EpsInvRe_ = new ParMixedBilinearForm(HDivFESpace_, HCurlFESpace_);
-   m21EpsInvIm_ = new ParMixedBilinearForm(HDivFESpace_, HCurlFESpace_);
-   m21EpsInvRe_->AddDomainIntegrator(new VectorFEMassIntegrator(*epsInvReCoef_));
-   m21EpsInvIm_->AddDomainIntegrator(new VectorFEMassIntegrator(*epsInvImCoef_));
+   m21EpsInv_ = new ParMixedSesquilinearForm(HDivFESpace_, HCurlFESpace_, conv_);
+   m21EpsInv_->AddDomainIntegrator(new VectorFEMassIntegrator(*epsInvReCoef_),
+                                   new VectorFEMassIntegrator(*epsInvImCoef_));
 
    if (sbcs_->Size() > 0)
    {
@@ -738,10 +743,11 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    // solNorm_ = e_->ComputeL2Error(const_cast<VectorCoefficient&>(erCoef_),
    //                               const_cast<VectorCoefficient&>(eiCoef_));
 
-   rhs_ = new ParComplexLinearForm(HCurlFESpace_, conv_);
-   rhs_->AddDomainIntegrator(new VectorFEDomainLFIntegrator(*rhsrCoef_),
-                             new VectorFEDomainLFIntegrator(*rhsiCoef_));
-
+   rhs1_ = new ParComplexLinearForm(HCurlFESpace_, conv_);
+   rhs0_ = new ParComplexLinearForm(H1FESpace_, conv_);
+   // rhs_->AddDomainIntegrator(new VectorFEDomainLFIntegrator(*rhsrCoef_),
+   //                        new VectorFEDomainLFIntegrator(*rhsiCoef_));
+   /*
    if (nkbcs_ != NULL)
    {
       for (int i=0; i<nkbcs_->Size(); i++)
@@ -753,8 +759,11 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
 
       }
    }
-   rhs_->real().Vector::operator=(0.0);
-   rhs_->imag().Vector::operator=(0.0);
+   */
+   rhs1_->real().Vector::operator=(0.0);
+   rhs1_->imag().Vector::operator=(0.0);
+   rhs0_->real().Vector::operator=(0.0);
+   rhs0_->imag().Vector::operator=(0.0);
    /*
    if (vis_u_)
    {
@@ -831,7 +840,7 @@ CPDSolverDH::~CPDSolverDH()
    delete massCoef_;
    delete posMassCoef_;
    delete abcCoef_;
-   if ( ownsEtaInv_ ) { delete etaInvCoef_; }
+   if ( ownsEta_ ) { delete etaCoef_; }
    delete omegaCoef_;
    delete negOmegaCoef_;
    delete omega2Coef_;
@@ -871,7 +880,8 @@ CPDSolverDH::~CPDSolverDH()
    // delete k_;
    // delete m_;
    // delete bd_;
-   delete rhs_;
+   delete rhs1_;
+   delete rhs0_;
    // delete e_t_;
    // delete jd_r_;
    // delete jd_i_;
@@ -880,12 +890,12 @@ CPDSolverDH::~CPDSolverDH()
 
    delete a1_;
    // delete b1_;
+   delete d21EpsInv_;
    // delete m2_;
    // delete m12EpsRe_;
    // delete m12EpsIm_;
    delete m1_;
-   delete m21EpsInvRe_;
-   delete m21EpsInvIm_;
+   delete m21EpsInv_;
    delete m0_;
    delete n20ZRe_;
    delete n20ZIm_;
@@ -964,6 +974,20 @@ CPDSolverDH::Assemble()
    //   cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
    // }
    if ( myid_ == 0 && logging_ > 0 )
+   { cout << "  Curl(1/eps) ..." << flush; }
+   tic_toc.Clear();
+   tic_toc.Start();
+
+   d21EpsInv_->Assemble();
+   if (!pa_) { d21EpsInv_->Finalize(); }
+   
+   tic_toc.Stop();
+   if ( myid_ == 0 && logging_ > 0 )
+   {
+      cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
+   }
+   
+   if ( myid_ == 0 && logging_ > 0 )
    { cout << "  H(Curl) mass matrix ..." << flush; }
    tic_toc.Clear();
    tic_toc.Start();
@@ -1000,14 +1024,9 @@ CPDSolverDH::Assemble()
    tic_toc.Start();
 
    // TODO: PA
-   m21EpsInvRe_->Assemble();
-   m21EpsInvRe_->Finalize();
-   //if (!pa_) m12EpsRe_->Finalize();
-
-   // TODO: PA
-   m21EpsInvIm_->Assemble();
-   m21EpsInvIm_->Finalize();
-   //if (!pa_) m12EpsIm_->Finalize();
+   m21EpsInv_->Assemble();
+   m21EpsInv_->Finalize();
+   //if (!pa_) m21EpsInv_->Finalize();
 
    if (m0_)
    {
@@ -1055,7 +1074,7 @@ CPDSolverDH::Assemble()
    tic_toc.Clear();
    tic_toc.Start();
 
-   rhs_->Assemble();
+   // rhs_->Assemble();
 
    if ( grad_ )
    {
@@ -1139,7 +1158,8 @@ CPDSolverDH::Update()
    // h_->Update();
    // b_->Update();
    // bd_->Update();
-   rhs_->Update();
+   rhs1_->Update();
+   rhs0_->Update();
    // jd_i_->Update();
    // if ( jr_ ) { jr_->Update(); }
    // if ( j_  ) {  j_->Update(); }
@@ -1152,12 +1172,12 @@ CPDSolverDH::Update()
    // a0_->Update();
    a1_->Update();
    // b1_->Update();
+   d21EpsInv_->Update();
    // m2_->Update();
    // m12EpsRe_->Update();
    // m12EpsIm_->Update();
    m1_->Update();
-   m21EpsInvRe_->Update();
-   m21EpsInvIm_->Update();
+   m21EpsInv_->Update();
    if (m0_)
    {
       m0_->Update();
@@ -1188,35 +1208,75 @@ CPDSolverDH::Solve()
    if ( myid_ == 0 && logging_ > 0 ) { cout << "Running solver ... " << endl; }
    int H_iter = 0;
 
+   Vector zeroVec(3); zeroVec = 0.0;
+   VectorConstantCoefficient zeroVCoef(zeroVec);
+   ConstantCoefficient zeroCoef(0.0);
+
    // Set the current density
    j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
 
+   d21EpsInv_->Mult(*j_, *rhs1_);
 
    *h_ = 0.0;
+
+   OperatorHandle A1;
+   Vector H, RHS1;
+   if (dbcs_->Size() > 0)
+   {
+      Array<int> attr_marker(pmesh_->bdr_attributes.Max());
+      for (int i = 0; i<dbcs_->Size(); i++)
+      {
+         attr_marker = 0;
+         for (int j=0; j<(*dbcs_)[i].attr.Size(); j++)
+         {
+            attr_marker[(*dbcs_)[i].attr[j] - 1] = 1;
+         }
+         h_->ProjectCoefficient(*(*dbcs_)[i].real,
+                                *(*dbcs_)[i].imag);
+      }
+   }
+
+   a1_->FormLinearSystem(ess_bdr_tdofs_, *h_, *rhs1_, A1, H, RHS1);
+   
+#ifdef MFEM_USE_SUPERLU
+   if ( myid_ == 0 && logging_ > 0 )
+   {
+     cout << "SuperLU Solver Requested" << endl;
+   }
+   ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
+   HypreParMatrix * A1C = A1Z->GetSystemMatrix();
+   SuperLURowLocMatrix A_SuperLU(*A1C);
+   SuperLUSolver solver(MPI_COMM_WORLD);
+   solver.SetOperator(A_SuperLU);
+   solver.Mult(RHS1, H);
+   delete A1C;
+#endif
+
+   a1_->RecoverFEMSolution(H, *rhs1_, *h_);
+   {
+     double nrmh = h_->ComputeL2Error(zeroVCoef, zeroVCoef);
+     cout << "norm of H: " << nrmh << endl;
+   }
    *phi_ = 0.0;
 
-   // Compute D from H:  D = (Curl(H) - J) / (i omega)
+   // Compute D from H:  D = (Curl(H) - J) / (-i omega)
    {
-      d_->real().Set(-1.0 / omega_, j_->imag());
-      d_->imag().Set( 1.0 / omega_, j_->real());
+      d_->real().Set( 1.0 / omega_, j_->imag());
+      d_->imag().Set(-1.0 / omega_, j_->real());
 
-      curl_->AddMult(h_->imag(), d_->real(), 1.0 / omega_);
-      curl_->AddMult(h_->real(), d_->imag(),-1.0 / omega_);
+      curl_->AddMult(h_->imag(), d_->real(),-1.0 / omega_);
+      curl_->AddMult(h_->real(), d_->imag(), 1.0 / omega_);
+
+      {
+	double nrmd = d_->ComputeL2Error(zeroVCoef, zeroVCoef);
+	cout << "norm of D: " << nrmd << endl;
+      }
    }
 
    // Compute E from D: E = epsilon^{-1} D with BC given by -Grad(phi)
    {
-      m21EpsInvRe_->Mult(d_->real(), rhs_->real());
-      m21EpsInvIm_->AddMult(d_->imag(), rhs_->real(), -1.0);
-
-      m21EpsInvRe_->Mult(d_->imag(), rhs_->imag());
-      m21EpsInvIm_->AddMult(d_->real(), rhs_->imag(), 1.0);
-
-      if (conv_ == ComplexOperator::Convention::BLOCK_SYMMETRIC)
-      {
-         rhs_->imag() *= -1.0;
-      }
-      rhs_->SyncAlias();
+      m21EpsInv_->Mult(*d_, *rhs1_);
+      rhs1_->SyncAlias();
 
       if (sbcs_->Size() > 0)
       {
@@ -1230,36 +1290,33 @@ CPDSolverDH::Solve()
       }
 
       OperatorHandle M1;
-      Vector E, RHS;
+      Vector E, RHS1;
 
-      m1_->FormLinearSystem(sbc_nd_tdofs_, *e_, *rhs_, M1, E, RHS);
+      m1_->FormLinearSystem(sbc_nd_tdofs_, *e_, *rhs1_, M1, E, RHS1);
 
       HypreDiagScale diag_r(M1.As<ComplexHypreParMatrix>()->real());
-      Operator * diag_i = NULL;
-      if (conv_ != ComplexOperator::HERMITIAN)
-      {
-         diag_i = new ScaledOperator(&diag_r, -1.0);
-      }
-      else
-      {
-         diag_i = &diag_r;
-      }
+      Operator * diag_i = &diag_r;
 
       BlockDiagonalPreconditioner diag(blockTrueOffsets_);
       diag.SetDiagonalBlock(0, &diag_r);
       diag.SetDiagonalBlock(1, diag_i);
       diag.owns_blocks = 0;
 
-      CGSolver pcg(HCurlFESpace_->GetComm());
-      pcg.SetPreconditioner(diag);
-      pcg.SetOperator(*M1.Ptr());
-      pcg.SetRelTol(solOpts_.relTol);
-      pcg.SetMaxIter(solOpts_.maxIter);
-      pcg.SetPrintLevel(solOpts_.printLvl+1);
+      MINRESSolver minres(HCurlFESpace_->GetComm());
+      minres.SetPreconditioner(diag);
+      minres.SetOperator(*M1.Ptr());
+      minres.SetRelTol(solOpts_.relTol);
+      minres.SetMaxIter(solOpts_.maxIter);
+      minres.SetPrintLevel(solOpts_.printLvl+1);
 
-      pcg.Mult(RHS, E);
+      minres.Mult(RHS1, E);
 
-      m1_->RecoverFEMSolution(E, *rhs_, *e_);
+      m1_->RecoverFEMSolution(E, *rhs1_, *e_);
+
+      {
+	double nrme = e_->ComputeL2Error(zeroVCoef, zeroVCoef);
+	cout << "norm of E: " << nrme << endl;
+      }
    }
 
    if (myid_ == 0)
