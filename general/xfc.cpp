@@ -141,9 +141,11 @@ template<> bool assign_op_eq_cpu<false>(IR& ir, OS &out, Node**) { return true; 
 
 
 // *****************************************************************************
-template<> bool primary_expr_api_cpu<true>(IR& ir, OS &out, Node**)
+template<> bool primary_expr_api_cpu<true>(IR& ir, OS &out, Node **n)
 {
-   out << "xfl::"; return true;
+   if (HitToken(TOK::CONSTANT_API, *n)) { return true; }
+   out << "xfl::";
+   return true;
 }
 template<> bool primary_expr_api_cpu<false>(IR& ir, OS &out, Node**) { return true; }
 
@@ -404,6 +406,11 @@ template<> void XPU::token<TOK::COMA>(string) const
 
 template<> void XPU::token<TOK::AND_AND>(string) const { out << " && "; }
 template<> void XPU::token<TOK::OR_OR>(string) const { out << " || "; }
+
+template<> void XPU::token<TOK::CONSTANT_API>(std::string) const
+{
+   out << " /** new*/ xfl::Constant";
+}
 
 } // internal
 

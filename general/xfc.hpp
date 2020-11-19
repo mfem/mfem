@@ -109,6 +109,7 @@ template<> void XPU::token<TOK::RETURN>(std::string) const;
 template<> void XPU::token<TOK::COMA>(std::string) const;
 template<> void XPU::token<TOK::AND_AND>(std::string) const;
 template<> void XPU::token<TOK::OR_OR>(std::string) const;
+template<> void XPU::token<TOK::CONSTANT_API>(std::string) const;
 
 } // internal
 

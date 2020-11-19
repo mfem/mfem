@@ -11,6 +11,9 @@
 /libmfem.*
 /miniapps/common/libmfem-common.*
 
+# Executables
+/xfl
+
 # CMake generated files
 CMakeCache.txt
 CMakeFiles/
@@ -169,6 +172,8 @@ examples/sundials/Example16*
 examples/superlu/ex1p
 examples/superlu/mesh.*
 examples/superlu/sol.*
+
+examples/ufl/ex1
 
 miniapps/adjoint/cvsRoberts_ASAi_dns
 miniapps/adjoint/adjoint_advection_diffusion

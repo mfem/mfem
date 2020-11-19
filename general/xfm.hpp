@@ -253,7 +253,7 @@ template<> class XFLOperator<2> : public mfem::Operator
                      GeometricFactors::DETERMINANTS;
    const ElementDofOrdering e_ordering = ElementDofOrdering::LEXICOGRAPHIC;
 
-   const mfem::FiniteElementSpace *fes;
+   //const mfem::FiniteElementSpace *fes;
    mfem::Mesh *mesh;
    const GridFunction *nodes;
    const mfem::FiniteElementSpace *nfes;
@@ -276,7 +276,7 @@ public:
    XFLOperator(const mfem::FiniteElementSpace *fes,
                const Q::EvalFlags uf, const Q::EvalFlags vf):
       Operator(fes->GetNDofs()),
-      fes(fes),
+      //fes(fes),
       mesh(fes->GetMesh()),
       nodes((mesh->EnsureNodes(), mesh->GetNodes())),
       nfes(nodes->FESpace()),
@@ -566,28 +566,29 @@ struct Problem
  ******************************************************************************/
 struct Form { };
 
-struct LinearForm
+struct XLinearForm
 {
    mfem::LinearForm *b;
 
-   LinearForm(FiniteElementSpace *fes): b(new mfem::LinearForm(fes)) {}
+   XLinearForm(FiniteElementSpace *fes): b(new mfem::LinearForm(fes)) {}
 
-   LinearForm &operator *(Form dx) { return *this;}
+   XLinearForm &operator *(Form dx) { return *this;}
 };
 
 struct ScalarForm
 {
    FiniteElementSpace *fes;
-   mfem::ConstantCoefficient cst;
+   mfem::ConstantCoefficient *cst = nullptr;
 
-   ScalarForm(double cst, FiniteElementSpace *fes): fes(fes), cst(cst) {}
+   ScalarForm(double val, FiniteElementSpace *fes):
+      fes(fes), cst(new mfem::ConstantCoefficient(val)) {}
 
-   LinearForm operator*(Form dx)
+   XLinearForm &operator*(Form dx)
    {
       assert(fes);
-      LinearForm linear_form(fes);
-      linear_form.b->AddDomainIntegrator(new DomainLFIntegrator(cst));
-      return linear_form;
+      XLinearForm *linear_form = new XLinearForm(fes);
+      linear_form->b->AddDomainIntegrator(new DomainLFIntegrator(*cst));
+      return *linear_form;
    }
 };
 
@@ -602,7 +603,7 @@ struct XFLForm
           //dim==3 ? static_cast<Operator*>(new XFLOperator<3>(fes,u,v)) :
           nullptr) { MFEM_VERIFY(ufl,""); }
 
-   Problem operator ==(LinearForm &li) { return Problem(ufl, li.b); }
+   Problem &operator ==(XLinearForm &li) { return *new Problem(ufl, li.b); }
 
    // XFLForm * dx
    XFLForm &operator *(Form dx) { return *this; }
@@ -702,13 +703,15 @@ public:
 /** ****************************************************************************
  * @brief Constant
  ******************************************************************************/
-class Constant: public ConstantCoefficient
+class Constant//: public ConstantCoefficient
 {
+   const double value = 0.0;
+   ConstantCoefficient *cst = nullptr;
 public:
-   Constant(double constant): ConstantCoefficient(constant) { }
+   Constant(double val): value(val), cst(new ConstantCoefficient(val)) { }
    // T can be a Trial or a Test function
-   template <typename T> ScalarForm operator*(T &gf) { return gf * constant; }
-   double operator *(Form dx) { return constant;}
+   template <typename T> ScalarForm operator*(T &gf) { return gf * value; }
+   double operator *(Form dx) { return value;}
 };
 
 /** ****************************************************************************
@@ -863,7 +866,7 @@ double Pow(double base, double exp) { return std::pow(base, exp); }
 /**
  * @brief solve with boundary conditions
  */
-int solve(xfl::Problem pb, xfl::Function &x, Array<int> ess_tdof_list)
+int solve(xfl::Problem &pb, xfl::Function &x, Array<int> ess_tdof_list)
 {
    //DBG("[solve] x:%d, ess_tdof_list:%d", x.Size(), ess_tdof_list.Size());
    FiniteElementSpace *fes = x.FESpace();
@@ -871,7 +874,8 @@ int solve(xfl::Problem pb, xfl::Function &x, Array<int> ess_tdof_list)
    MFEM_VERIFY(UsesTensorBasis(*fes), "FE Space must Use Tensor Basis!");
 
    Vector B, X;
-   mfem::LinearForm &b = *pb.b;
+   assert(pb.b);
+   mfem::LinearForm &b = *(pb.b);
    b.Assemble();
    Operator *A = nullptr;
    Operator *op = pb.ufl;
@@ -941,7 +945,12 @@ int save(mfem::Mesh &mesh, const char *filename)
 } // namespace xfl
 
 template<typename... Args>
-void print(const char *fmt, Args... args) { printf(fmt, args...); }
+void print(const char *fmt, Args... args)
+{
+   std::cout << std::flush;
+   std::printf(fmt, args...);
+   std::cout << std::endl;
+}
 
 inline bool UsesTensorBasis(const FiniteElementSpace *fes)
 {

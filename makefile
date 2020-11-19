@@ -409,7 +409,7 @@ OKL_DIRS = fem
 
 .PHONY: lib all clean distclean install config status info deps serial parallel	\
 	debug pdebug cuda hip pcuda cudebug pcudebug hpc style check test unittest \
-	deprecation-warnings ufl
+	deprecation-warnings
 
 .SUFFIXES:
 .SUFFIXES: .cpp .o
@@ -419,7 +419,7 @@ OKL_DIRS = fem
 %:	%.cpp
 
 # Default rule.
-lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
+lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT)) xfl
 
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
@@ -429,11 +429,9 @@ MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
-all: examples miniapps $(TEST_DIRS)
+all: examples miniapps $(TEST_DIRS) xfl
 xfl: general/xfl.o general/xfl.L.o general/xfl.Y.o general/xfc.o
 	$(MFEM_CXX) -o $(@) $(^)
-ufl: xfl ufl/ex1.ufl
-	./xfl -t ufl/ex1.ufl | g++ -x c++ -std=c++14 -o ex1 -Igeneral -I. -L. -lmfem -
 
 .PHONY: miniapps $(EM_DIRS) $(TEST_DIRS)
 miniapps: $(MINIAPP_DIRS)

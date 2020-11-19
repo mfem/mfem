@@ -1,15 +1,7 @@
-# comment
-#a b c
-# ⇒
-
 # Example options.
-mesh_file = "./data/star.mesh"
+mesh_file = "../../data/star.mesh"
 order = 3
-static_cond = false
-assert(!static_cond) # Not yet supported
-pa = true
-assert(pa) # UFL forms require partial assembly for now
-device_config = "debug"
+device_config = "cpu"
 output = false
 visualization = false
 
@@ -51,7 +43,6 @@ x = 0.0
 # corresponding to the Laplacian operator -Delta, by adding the Diffusion
 # domain integrator.
 a = inner(grad(u), grad(v))*dx
-#a = inner(u, v) * dx
 
 # Solve the linear system a x = b, applying any necessary
 # transformations such as: eliminating boundary conditions,
