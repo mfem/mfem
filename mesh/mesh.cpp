@@ -25,7 +25,6 @@
 #include <sstream>
 #include <fstream>
 #include <limits>
-#include <float.h>
 #include <cmath>
 #include <cstring>
 #include <ctime>
@@ -2495,11 +2494,11 @@ void Mesh::FinalizeTopology(bool generate_bdr)
       for (int d=0; d<3; ++d)
       {
          min_value = max_value = vertices[0](d);
-         for(int i = 1; i < vertices.Size(); i++)
+         for (int i = 1; i < vertices.Size(); i++)
          {
             min_value = std::min(min_value,vertices[i](d));
             max_value = std::max(max_value,vertices[i](d));
-            if(min_value != max_value)
+            if (min_value != max_value)
             {
                spaceDim++;
                break;
@@ -3492,11 +3491,12 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    {
       ReadTrueGridMesh(input);
    }
-   else if (mesh_type == "# vtk DataFile Version 4.2" ||
-            mesh_type == "# vtk DataFile Version 3.0" ||
-            mesh_type == "# vtk DataFile Version 2.0") // VTK
+   else if (mesh_type.rfind("# vtk DataFile Version") == 0)
    {
-      std::cerr << "Processing VTK mesh: " << mesh_type << std::endl;
+      int major_vtk_version = mesh_type[mesh_type.length()-3] - '0';
+      // int minor_vtk_version = mesh_type[mesh_type.length()-1] - '0';
+      MFEM_VERIFY(major_vtk_version >= 2 && major_vtk_version <= 4,
+                  "Unsupported VTK format");
       ReadVTKMesh(input, curved, read_gf, finalize_topo);
    }
    else if (mesh_type == "MFEM NURBS mesh v1.0")
@@ -9275,7 +9275,7 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTKFormat format,
    out << "<DataArray type=\"UInt8\" Name=\"types\" format=\""
        << fmt_str << "\">" << std::endl;
    // cell types
-   int *vtk_geom_map =
+   const int *vtk_geom_map =
       high_order_output ? VTKGeometry::HighOrderMap : VTKGeometry::Map;
    for (int i = 0; i < ne; i++)
    {
