@@ -676,8 +676,8 @@ void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
    Vector points(3*npts);
    const XMLElement *pts_xml;
    for (pts_xml = piece->FirstChildElement();
-         pts_xml != NULL;
-         pts_xml = pts_xml->NextSiblingElement())
+        pts_xml != NULL;
+        pts_xml = pts_xml->NextSiblingElement())
    {
       if (std::string(pts_xml->Name()) == "Points")
       {
@@ -700,8 +700,8 @@ void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
    Array<int> cell_data, cell_offsets, cell_types;
    const XMLElement *cells_xml;
    for (cells_xml = piece->FirstChildElement();
-         cells_xml != NULL;
-         cells_xml = cells_xml->NextSiblingElement())
+        cells_xml != NULL;
+        cells_xml = cells_xml->NextSiblingElement())
    {
       if (std::string(cells_xml->Name()) == "Cells")
       {
