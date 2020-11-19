@@ -42,6 +42,10 @@ GHV_FLAGS = $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(HYPRE_OPT))
 SMX = $(if $(MFEM_USE_PUMI:NO=),MFEM_USE_SIMMETRIX)
 SMX_PATH = $(PUMI_DIR)/include/gmi_sim.h
 SMX_FILE = $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(SMX_PATH))
+MUMPS = $(MFEM_USE_MUMPS:NO=)
+GMV_CXX ?= $(MFEM_CXX)
+GMV = get_mumps_version
+GMV_FLAGS = $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(MUMPS_OPT))
 
 $(GHV): $(SRC)$(GHV).cpp
 	$(call mfem-info, Determining HYPRE version ...)
@@ -49,6 +53,13 @@ $(GHV): $(SRC)$(GHV).cpp
 $(GHV).out: $(GHV)
 	./$(GHV) > $(GHV).out
 .INTERMEDIATE: $(GHV) $(GHV).out
+
+$(GMV): $(SRC)$(GMV).cpp
+	$(call mfem-info, Determining MUMPS version ...)
+	$(GMV_CXX) ${GMV_FLAGS} $(SRC)$(GMV).cpp -o $(GMV)
+$(GMV).out: $(GMV)
+	./$(GMV) > $(GMV).out
+.INTERMEDIATE: $(GMV) $(GMV).out
 
 get-hypre-version: $(GHV).out
 	$(eval MFEM_HYPRE_VERSION:=$(shell cat $(GHV).out))
@@ -62,10 +73,18 @@ check-smx:
 	$(call mfem-info, MFEM_USE_SIMMETRIX = $(MFEM_USE_SIMMETRIX))
 	$(eval export MFEM_USE_SIMMETRIX)
 
-header: $(if $(MPI),get-hypre-version,) $(if $(SMX),check-smx)
+get-mumps-version: $(GMV).out
+	$(eval MFEM_MUMPS_VERSION:=$(shell cat $(GMV).out))
+	$(if $(MFEM_MUMPS_VERSION),$(eval export MFEM_MUMPS_VERSION)\
+	$(info MUMPS version: $(MFEM_MUMPS_VERSION)),\
+	$(error Unable to determine MUMPS version))
+
+header: $(if $(MPI),get-hypre-version,) $(if $(SMX),check-smx,) \
+ $(if $(MUMPS),get-mumps-version,)
 	$(call mfem-info, Writing $(CONFIG_HPP) ...)
 	@set -- && \
-	for def in $${MFEM_DEFINES} $(if $(MPI),MFEM_HYPRE_VERSION) $(SMX); do \
+	for def in $${MFEM_DEFINES} $(if $(MPI),MFEM_HYPRE_VERSION) $(SMX) \
+	           $(if $(MUMPS),MFEM_MUMPS_VERSION); do \
 	   eval var=\$$$$def && \
 	   if [ "NO" != "$${var}" ]; then \
 	      set -- "$$@" -e "s|// \(#define $${def} \)|\1|" && \

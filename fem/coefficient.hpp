@@ -1171,8 +1171,8 @@ public:
                         double _alpha = 1.0, double _beta = 1.0);
 
    /** Constructor with scalar coefficients.
-       Result is _alpha * _A + _beta * _B */
-   VectorSumCoefficient(VectorCoefficient &_A, VectorCoefficient &_B,
+       Result is _alpha * _A + _beta * B_ */
+   VectorSumCoefficient(VectorCoefficient &_A, VectorCoefficient &B_,
                         Coefficient &_alpha, Coefficient &_beta);
 
    /// Reset the first vector coefficient
@@ -1201,7 +1201,7 @@ public:
    const Vector & GetA() const { return A; }
 
    /// Reset the second vector as a constant
-   void SetB(const Vector &_B) { B = _B; BCoef = NULL; }
+   void SetB(const Vector &B_) { B = B_; BCoef = NULL; }
    /// Return the second vector constant
    const Vector & GetB() const { return B; }
 
