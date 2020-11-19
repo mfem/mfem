@@ -16,9 +16,6 @@ py_env_path=${PYTHON_ENVIRONMENT_PATH:-""}
 
 threads=${THREADS:-""}
 
-uberenv_url="ssh://git@czgitlab.llnl.gov:7999/bernede1/mfem-uberenv.git"
-uberenv_ref="71d85ce03411259ec145197b6155801277f49229"
-
 # Dependencies
 if [[ "${option}" != "--build-only" && "${option}" != "--test-only" ]]
 then
@@ -48,11 +45,7 @@ then
         prefix_opt="--prefix=${prefix}"
     fi
 
-    git clone ${uberenv_url} scripts/uberenv
-    cd scripts/uberenv
-    git fetch origin ${uberenv_ref}
-    git checkout ${uberenv_ref}
-    cd -
+    scripts/gitlab/get_mfem_uberenv.sh || ( echo "Error fetching Uberenv" && exit 1 );
 
     python scripts/uberenv/uberenv.py --spec="${spec}" "${upstream_opt}" "${prefix_opt}"
 
