@@ -2390,7 +2390,8 @@ int FiniteElementSpace::GetFaceDofs(int face, Array<int> &dofs,
    }
 
    int p, nf, fbase;
-   auto fgeom = mesh->GetFaceGeometry(face);
+   int dim = mesh->Dimension();
+   auto fgeom = (dim > 2) ? mesh->GetFaceGeometry(face) : Geometry::INVALID;
 
    if (var_face_dofs.Size() > 0) // variable orders or mixed faces
    {
@@ -2408,12 +2409,11 @@ int FiniteElementSpace::GetFaceDofs(int face, Array<int> &dofs,
    {
       if (variant > 0) { return -1; }
       p = fec->DefaultOrder();
-      nf = fec->GetNumDof(fgeom, p);
+      nf = (dim > 2) ? fec->GetNumDof(fgeom, p) : 0;
       fbase = face*nf;
    }
 
    // for 1D, 2D and 3D faces
-   int dim = mesh->Dimension();
    int nv = fec->GetNumDof(Geometry::POINT, p);
    int ne = (dim > 1) ? fec->GetNumDof(Geometry::SEGMENT, p) : 0;
 
