@@ -18,19 +18,24 @@
 namespace mfem
 {
 
-int VTKGeometry::Map[Geometry::NUM_GEOMETRIES] = {
+const int VTKGeometry::Map[Geometry::NUM_GEOMETRIES] =
+{
    POINT, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, CUBE, PRISM
 };
 
-int VTKGeometry::QuadraticMap[Geometry::NUM_GEOMETRIES] = {
+const int VTKGeometry::QuadraticMap[Geometry::NUM_GEOMETRIES] =
+{
    POINT, QUADRATIC_SEGMENT, QUADRATIC_TRIANGLE, BIQUADRATIC_SQUARE,
    QUADRATIC_TETRAHEDRON, TRIQUADRATIC_CUBE, BIQUADRATIC_QUADRATIC_PRISM
 };
 
-int VTKGeometry::HighOrderMap[Geometry::NUM_GEOMETRIES] = {
+const int VTKGeometry::HighOrderMap[Geometry::NUM_GEOMETRIES] =
+{
    POINT, LAGRANGE_SEGMENT, LAGRANGE_TRIANGLE, LAGRANGE_SQUARE,
    LAGRANGE_TETRAHEDRON, LAGRANGE_CUBE, LAGRANGE_PRISM
 };
+
+const int VTKGeometry::PrismMap[6] = {0, 2, 1, 3, 5, 4};
 
 Geometry::Type VTKGeometry::GetMFEMGeometry(int vtk_geom)
 {
@@ -75,7 +80,7 @@ bool VTKGeometry::IsLagrange(int vtk_geom)
 bool VTKGeometry::IsQuadratic(int vtk_geom)
 {
    return vtk_geom >= QUADRATIC_SEGMENT
-      && vtk_geom <= BIQUADRATIC_QUADRATIC_PRISM;
+          && vtk_geom <= BIQUADRATIC_QUADRATIC_PRISM;
 }
 
 int VTKGeometry::GetOrder(int vtk_geom, int npoints)
@@ -97,6 +102,8 @@ int VTKGeometry::GetOrder(int vtk_geom, int npoints)
          case LAGRANGE_TETRAHEDRON:
             switch (npoints)
             {
+               // Note that for given order, npoints is given by
+               // npoints_order = (order + 1)*(order + 2)*(order + 3)/6,
                case 4: return 1;
                case 10: return 2;
                case 20: return 3;
@@ -107,35 +114,30 @@ int VTKGeometry::GetOrder(int vtk_geom, int npoints)
                case 165: return 8;
                case 220: return 9;
                case 286: return 10;
-               // this is a iterative solution strategy to find the nearest
-               // integer ( order ) given the number of points in the
-               // tetrahedron. the order is the root of following cubic equation
-               // npoints = (order + 1) * (order + 2) * (order + 3) / 6;
-               // npoints =  ( x3 + 6x2 + 11x + 6 ) / 6
                default:
                {
-                  int order = 1;
-                  int nPointsForOrder = 4;
-                  while (nPointsForOrder < npoints)
+                  constexpr int max_order = 20;
+                  int order = 11, npoints_order;
+                  for (; order<max_order; ++order)
                   {
-                     order++;
-                     nPointsForOrder = (order + 1)*(order + 2)*(order + 3)/6;
+                     npoints_order = (order + 1)*(order + 2)*(order + 3)/6;
+                     if (npoints_order == npoints) { break; }
                   }
-                  MFEM_ASSERT(npoints == nPointsForOrder, "");
+                  MFEM_VERIFY(npoints == npoints_order, "");
                   return order;
                }
-         }
+            }
          case LAGRANGE_CUBE:
             return std::round(std::cbrt(npoints)) - 1;
          case LAGRANGE_PRISM:
          {
             const double n = npoints;
-            static const double third(1.0/3.0);
-            static const double ninth(1.0/9.0);
-            static const double twentyseventh(1.0/27.0);
+            static const double third = 1.0/3.0;
+            static const double ninth = 1.0/9.0;
+            static const double twentyseventh = 1.0/27.0;
             const double term =
                std::cbrt(third*sqrt(third)*sqrt((27.0*n - 2.0)*n) + n
-                  - twentyseventh);
+                         - twentyseventh);
             return std::round(term + ninth / term - 4*third);
          }
       }

@@ -1863,7 +1863,7 @@ const int *H1_FECollection::GetDofMap(Geometry::Type GeomType) const
    else
    {
       MFEM_ABORT("Geometry type " << Geometry::Name[GeomType] << " is not "
-                  "implemented");
+                 "implemented");
    }
    return dof_map;
 }

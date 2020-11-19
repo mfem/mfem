@@ -8544,7 +8544,8 @@ H1_TetrahedronElement::H1_TetrahedronElement(const int p, const int btype)
    auto tri = [](int k) { return (k*(k + 1))/2; };
    auto tet = [](int k) { return (k*(k + 1)*(k + 2))/6; };
    int ndof = tet(p+1);
-   auto idx = [tri, tet, p, ndof](int i, int j, int k) {
+   auto idx = [tri, tet, p, ndof](int i, int j, int k)
+   {
       return ndof - tet(p - k) - tri(p + 1 - k - j) + i;
    };
 

@@ -45,9 +45,11 @@ struct VTKGeometry
    static const int LAGRANGE_CUBE = 72;
    static const int LAGRANGE_PRISM = 73;
 
-   static int Map[Geometry::NUM_GEOMETRIES];
-   static int QuadraticMap[Geometry::NUM_GEOMETRIES];
-   static int HighOrderMap[Geometry::NUM_GEOMETRIES];
+   static const int PrismMap[6];
+
+   static const int Map[Geometry::NUM_GEOMETRIES];
+   static const int QuadraticMap[Geometry::NUM_GEOMETRIES];
+   static const int HighOrderMap[Geometry::NUM_GEOMETRIES];
 
    static Geometry::Type GetMFEMGeometry(int vtk_geom);
    static bool IsLagrange(int vtk_geom);
