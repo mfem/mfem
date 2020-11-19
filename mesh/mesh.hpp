@@ -1310,6 +1310,8 @@ public:
        for those with boundary attributes in `keep` */
    void RemoveInternalBoundaries(const Array<int> &keep);
 
+   void RemoveInternalBoundariesNotAdjacentTo(const Array<int> &regions);
+
    /** @brief Get the size of the i-th element relative to the perfect
        reference element. */
    double GetElementSize(int i, int type = 0);
