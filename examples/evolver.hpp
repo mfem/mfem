@@ -63,7 +63,7 @@ namespace mfem
 
 /// solver for inverting mass matrix for explicit solves
 /// \note supports partially assembled mass bilinear form
-#ifndef MFEM_USE_SUITESPARSE
+#ifdef MFEM_USE_SUITESPARSE
         // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
         UMFPackSolver mass_solver;
 #else
@@ -186,7 +186,7 @@ namespace mfem
         combined_oper.reset(new SystemOperator(_mass, _res));
         if (_mass != nullptr)
         {
-#ifndef MFEM_USE_SUITESPARSE
+#ifdef MFEM_USE_SUITESPARSE
             mass_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
             mass_solver.SetOperator(mass->SpMat());
 #else

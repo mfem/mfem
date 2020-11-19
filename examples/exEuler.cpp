@@ -292,7 +292,7 @@ int main(int argc, char *argv[])
    double res_norm0 = calcResidualNorm(res, fes, u);
    double t_final = 1000;
 
-   double dt_init = 10.0;
+   double dt_init = 0.01;
    double dt_old;
    
    //initial l2_err
@@ -401,8 +401,11 @@ void uexact(const Vector &x, Vector &q)
 
 unique_ptr<Mesh> buildQuarterAnnulusMesh(int degree, int num_rad, int num_ang)
 {
+   // auto mesh_ptr = unique_ptr<Mesh>(new Mesh(num_rad, num_ang,
+   //                                           Element::TRIANGLE, true /* gen. edges */,
+   //                                           2.0, M_PI * 0.5, true));
    auto mesh_ptr = unique_ptr<Mesh>(new Mesh(num_rad, num_ang,
-                                             Element::TRIANGLE, true /* gen. edges */,
+                                             Element::QUADRILATERAL, true /* gen. edges */,
                                              2.0, M_PI * 0.5, true));
    // strategy:
    // 1) generate a fes for Lagrange elements of desired degree

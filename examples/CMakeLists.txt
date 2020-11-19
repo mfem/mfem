@@ -48,6 +48,7 @@ list(APPEND ALL_EXE_SRCS
   exAdvection_CM.cpp
   ex_testGD.cpp
   exEuler.cpp
+  exEuler_cut.cpp
   exEuler_GD.cpp
   )
 
