@@ -164,6 +164,8 @@ int main(int argc, char *argv[])
    int iprob = 4;
    double freq = 5.0;
    bool herm_conv = true;
+   bool slu_solver  = false;
+   bool mumps_solver = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -185,10 +187,26 @@ int main(int argc, char *argv[])
                   "Frequency (in Hz).");
    args.AddOption(&herm_conv, "-herm", "--hermitian", "-no-herm",
                   "--no-hermitian", "Use convention for Hermitian operators.");
+#ifdef MFEM_USE_SUPERLU
+   args.AddOption(&slu_solver, "-slu", "--superlu", "-no-slu",
+                  "--no-superlu", "Use the SuperLU Solver.");
+#endif
+#ifdef MFEM_USE_MUMPS
+   args.AddOption(&mumps_solver, "-mumps", "--mumps-solver", "-no-mumps",
+                  "--no-mumps-solver", "Use the MUMPS Solver.");
+#endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.Parse();
+   if (slu_solver && mumps_solver)
+   {
+      if (myid == 0)
+         cout << "WARNING: Both SuperLU and MUMPS have been selected,"
+              << " please choose either one." << endl
+              << "         Defaulting to SuperLU." << endl;
+      mumps_solver = false;
+   }
 
    if (iprob > 4) { iprob = 4; }
    prob = (prob_type)iprob;
@@ -430,6 +448,7 @@ int main(int argc, char *argv[])
 
    // 15. Solve using a direct or an iterative solver
 #ifdef MFEM_USE_SUPERLU
+   if (slu_solver)
    {
       // Transform to monolithic HypreParMatrix
       HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
@@ -442,7 +461,19 @@ int main(int argc, char *argv[])
       superlu.Mult(B, X);
       delete A;
    }
-#else
+#endif
+#ifdef MFEM_USE_MUMPS
+   if (mumps_solver)
+   {
+      HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
+      MUMPSSolver mumps;
+      mumps.SetPrintLevel(0);
+      mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+      mumps.SetOperator(*A);
+      mumps.Mult(B,X);
+      delete A;
+   }
+#endif
    // 16a. Set up the parallel Bilinear form a(.,.) for the preconditioner
    //
    //    In Comp
@@ -450,6 +481,7 @@ int main(int argc, char *argv[])
    //
    //    In PML:   1/mu (abs(1/det(J) J^T J) Curl E, Curl F)
    //              + omega^2 * epsilon (abs(det(J) * (J^T J)^-1) * E, F)
+   if (!slu_solver && !mumps_solver)
    {
       ConstantCoefficient absomeg(pow(omega, 2) * epsilon);
       RestrictedCoefficient restr_absomeg(absomeg,attr);
@@ -499,7 +531,6 @@ int main(int argc, char *argv[])
       gmres.SetPreconditioner(BlockAMS);
       gmres.Mult(B, X);
    }
-#endif
 
    // 17. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
