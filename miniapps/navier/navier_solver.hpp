@@ -118,7 +118,7 @@ public:
  * \f$M_v^{-1}\f$ is solved using CG with Jacobi as preconditioner.
  *
  * \f$S_p^{-1}\f$ is solved using CG with AMG applied to the low order refined
- * (LOR) assembled pressure poisson matrix. To avoid assembling a matrix for
+ * (LOR) assembled pressure Poisson matrix. To avoid assembling a matrix for
  * preconditioning, one can use p-MG as an alternative (NYI).
  *
  * \f$(M_v - \partial t K_v)^{-1}\f$ due to the CFL condition we expect the time
@@ -178,7 +178,7 @@ public:
 
    void AddPresDirichletBC(ScalarFuncT *f, Array<int> &attr);
 
-   /// Add an accelaration term to the RHS of the equation.
+   /// Add an acceleration term to the RHS of the equation.
    /**
     * The VecFuncT @a f is evaluated at the current time t and extrapolated
     * together with the nonlinear parts of the Navier Stokes equation.
@@ -200,7 +200,7 @@ public:
     *
     * 1. SETUP: Time spent for the setup of all forms, solvers and
     *    preconditioners.
-    * 2. STEP: Time spent computing a full time step. It includes allthree
+    * 2. STEP: Time spent computing a full time step. It includes all three
     *    solves.
     * 3. EXTRAP: Time spent for extrapolation of all forcing and nonlinear
     *    terms.
@@ -240,6 +240,19 @@ public:
 
    /// Compute CFL
    double ComputeCFL(ParGridFunction &u, double dt);
+
+   /// Set the number of modes to cut off in the interpolation filter
+   void SetCutoffModes(int c) { filter_cutoff_modes = c; }
+
+   /// Set the interpolation filter parameter @a a
+   /**
+    * If @a a is > 0, the filtering algorithm for the velocity field after every
+    * time step from [1] is used. The parameter should be 0 > @a >= 1.
+    *
+    * [1] Paul Fischer, Julia Mullen (2001) Filter-based stabilization of
+    * spectral element methods
+    */
+   void SetFilterAlpha(double a) { filter_alpha = a; }
 
 protected:
    /// Print informations about the Navier version.
@@ -412,7 +425,18 @@ protected:
    OperatorHandle Mv_lor;
    OperatorHandle Sp_lor;
    OperatorHandle H_lor;
+
+   // Filter-based stabilization
+   int filter_cutoff_modes = 1;
+   double filter_alpha = 0.0;
+   FiniteElementCollection *vfec_filter = nullptr;
+   ParFiniteElementSpace *vfes_filter = nullptr;
+   ParGridFunction un_NM1_gf;
+   ParGridFunction un_filtered_gf;
 };
+
 } // namespace navier
+
 } // namespace mfem
+
 #endif

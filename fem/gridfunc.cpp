@@ -1397,7 +1397,7 @@ double GridFunction::GetDivergence(ElementTransformation &T) const
       {
          // In order to properly capture the derivative of the normal component
          // of the field (as well as the transverse divergence of the
-         // tangential compoents) we must evaluate it in the neighboring
+         // tangential components) we must evaluate it in the neighboring
          // element.
          FaceElementTransformations * FET =
             fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
@@ -2182,7 +2182,7 @@ void GridFunction::ComputeMeans(AvgType type, Array<int> &zones_per_vdof)
          break;
 
       default:
-         MFEM_ABORT("invalud AvgType");
+         MFEM_ABORT("invalid AvgType");
    }
 }
 
@@ -2777,10 +2777,11 @@ double GridFunction::ComputeDivError(
 }
 
 double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
-                                            Coefficient *ell_coeff, double Nu,
+                                            Coefficient *ell_coeff,
+                                            class JumpScaling jump_scaling,
                                             const IntegrationRule *irs[])  const
 {
-   int fdof, dim, intorder, k;
+   int fdof, intorder, k;
    Mesh *mesh;
    const FiniteElement *fe;
    ElementTransformation *transf;
@@ -2791,20 +2792,24 @@ double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
    double error = 0.0;
 
    mesh = fes->GetMesh();
-   dim = mesh->Dimension();
 
    for (int i = 0; i < mesh->GetNumFaces(); i++)
    {
-      face_elem_transf = mesh->GetFaceElementTransformations(i, 5);
-      int i1 = face_elem_transf->Elem1No;
-      int i2 = face_elem_transf->Elem2No;
+      int i1, i2;
+      mesh->GetFaceElements(i, &i1, &i2);
+      double h = mesh->GetElementSize(i1);
       intorder = fes->GetFE(i1)->GetOrder();
       if (i2 >= 0)
+      {
          if ( (k = fes->GetFE(i2)->GetOrder()) > intorder )
          {
             intorder = k;
          }
+         h = std::min(h, mesh->GetElementSize(i2));
+      }
+      int p = intorder;
       intorder = 2 * intorder;  // <-------------
+      face_elem_transf = mesh->GetFaceElementTransformations(i, 5);
       const IntegrationRule *ir;
       if (irs)
       {
@@ -2875,13 +2880,23 @@ double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          transf->SetIntPoint(&ip);
-         error += (ip.weight * Nu * ell_coeff_val(j) *
-                   pow(transf->Weight(), 1.0-1.0/(dim-1)) *
+         double nu = jump_scaling.Eval(h, p);
+         error += (ip.weight * nu * ell_coeff_val(j) *
+                   transf->Weight() *
                    err_val(j) * err_val(j));
       }
    }
 
    return (error < 0.0) ? -sqrt(-error) : sqrt(error);
+}
+
+double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
+                                            Coefficient *ell_coeff,
+                                            double Nu,
+                                            const IntegrationRule *irs[])  const
+{
+   return ComputeDGFaceJumpError(
+             exsol, ell_coeff, {Nu, JumpScaling::ONE_OVER_H}, irs);
 }
 
 double GridFunction::ComputeH1Error(Coefficient *exsol,
@@ -2892,7 +2907,11 @@ double GridFunction::ComputeH1Error(Coefficient *exsol,
    double error1 = 0.0;
    double error2 = 0.0;
    if (norm_type & 1) { error1 = GridFunction::ComputeGradError(exgrad); }
-   if (norm_type & 2) { error2 = GridFunction::ComputeDGFaceJumpError(exsol,ell_coef,Nu); }
+   if (norm_type & 2)
+   {
+      error2 = GridFunction::ComputeDGFaceJumpError(
+                  exsol, ell_coef, {Nu, JumpScaling::ONE_OVER_H});
+   }
 
    return sqrt(error1 * error1 + error2 * error2);
 }
@@ -3670,7 +3689,7 @@ QuadratureFunction & QuadratureFunction::operator=(double value)
 
 QuadratureFunction & QuadratureFunction::operator=(const Vector &v)
 {
-   MFEM_ASSERT(qspace && v.Size() == qspace->GetSize(), "");
+   MFEM_ASSERT(qspace && v.Size() == this->Size(), "");
    Vector::operator=(v);
    return *this;
 }
