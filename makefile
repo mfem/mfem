@@ -431,7 +431,7 @@ $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 
 all: examples miniapps $(TEST_DIRS) xfl
 xfl: general/xfl.o general/xfl.L.o general/xfl.Y.o general/xfc.o
-	$(MFEM_CXX) -o $(@) $(^)
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -o $(@) $(^)
 
 .PHONY: miniapps $(EM_DIRS) $(TEST_DIRS)
 miniapps: $(MINIAPP_DIRS)
