@@ -55,7 +55,7 @@
 //   ./stix1d -md 0.55 -ne  50 -dbcs '3 5' -s 1 -f 80e6 -B '5.4 0 0' -w R
 //   ./stix1d -md 0.10 -ne  50 -dbcs '3 5' -s 1 -f 80e6 -B '5.4 0 0' -w L
 //   ./stix1d -md 0.01 -ne  50 -dbcs '3 5' -s 1 -f 80e6 -B '0 5.4 0' -w O
-//   ./stix1d -md 20 -ne 80 -dbcs' 3 5' -s 1 -f 80e4 -B'0 5.4 0' -w X
+//   ./stix1d -md 20 -ne 80 -dbcs '3 5' -s 1 -f 80e4 -B '0 5.4 0' -w X
 //   ./stix1d -md 0.24 -ne 40 -dbcs '3 5' -s 1 -f 80e6 -B '0 0 5.4' -w J -slab '0 1 0 0.132 0.024'
 //
 // Sample runs with partial assembly:
@@ -651,7 +651,7 @@ int main(int argc, char *argv[])
    int size_l2 = L2FESpace.GetVSize();
 
    Array<int> density_offsets(numbers.Size() + 1);
-   Array<int> temperature_offsets(numbers.Size() + 1);
+   Array<int> temperature_offsets(numbers.Size() + 2);
 
    density_offsets[0] = 0;
    temperature_offsets[0] = 0;
@@ -1191,9 +1191,9 @@ void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
       case 'L': // Left Circularly Polarized, propagating along B
       {
          complex<double> kL = omega_ * sqrt(S_ - D_) / c0_;
-         if (kL.imag() > 0.0) { kL *= -1.0; }
+         if (kL.imag() < 0.0) { kL *= -1.0; }
 
-         complex<double> Ez = exp(-i * kL * x[0]);
+         complex<double> Ez = exp(i * kL * x[0]);
          complex<double> Ey = i * Ez;
 
          if (realPart_)
@@ -1213,9 +1213,9 @@ void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
       case 'R': // Right Circularly Polarized, propagating along B
       {
          complex<double> kR = omega_ * sqrt(S_ + D_) / c0_;
-         if (kR.imag() > 0.0) { kR *= -1.0; }
+         if (kR.imag() < 0.0) { kR *= -1.0; }
 
-         complex<double> Ez = exp(-i * kR * x[0]);
+         complex<double> Ez = exp(i * kR * x[0]);
          complex<double> Ey = -i * Ez;
 
          if (realPart_)
@@ -1235,9 +1235,9 @@ void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
       case 'O': // Ordinary wave propagating perpendicular to B
       {
          complex<double> kO = omega_ * sqrt(P_) / c0_;
-         if (kO.imag() > 0.0) { kO *= -1.0; }
+         if (kO.imag() < 0.0) { kO *= -1.0; }
 
-         complex<double> Ey = exp(-i * kO * x[0]);
+         complex<double> Ey = exp(i * kO * x[0]);
 
          if (realPart_)
          {
@@ -1256,9 +1256,9 @@ void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
       case 'X': // eXtraordinary wave propagating perpendicular to B
       {
          complex<double> kX = omega_ * sqrt(S_ - D_ * D_ / S_) / c0_;
-         if (kX.imag() > 0.0) { kX *= -1.0; }
+         if (kX.imag() < 0.0) { kX *= -1.0; }
 
-         complex<double> Ez = exp(-i * kX * x[0]);
+         complex<double> Ez = exp(i * kX * x[0]);
          complex<double> Ex = -i * D_ * Ez / S_;
 
          if (realPart_)
