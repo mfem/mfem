@@ -471,6 +471,8 @@ protected:
    void GetElementData(const Array<Element*> &elem_array, int geom,
                        Array<int> &elem_vtx, Array<int> &attr) const;
 
+   double GetElementSize(ElementTransformation *T, int type = 0);
+
 public:
 
    Mesh() { SetEmpty(); }
@@ -554,6 +556,8 @@ public:
    int AddBdrQuad(int v1, int v2, int v3, int v4, int attr = 1);
    int AddBdrQuad(const int *vi, int attr = 1);
    void AddBdrQuadAsTriangles(const int *vi, int attr = 1);
+
+   int AddBdrPoint(int v, int attr = 1);
 
    void GenerateBoundaryElements();
    /// Finalize the construction of a triangular Mesh.

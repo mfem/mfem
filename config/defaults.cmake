@@ -34,6 +34,7 @@ option(MFEM_USE_MESQUITE "Enable MESQUITE usage" OFF)
 option(MFEM_USE_SUITESPARSE "Enable SuiteSparse usage" OFF)
 option(MFEM_USE_SUPERLU "Enable SuperLU_DIST usage" OFF)
 option(MFEM_USE_SUPERLU5 "Use the old SuperLU_DIST 5.1 version" OFF)
+option(MFEM_USE_MUMPS "Enable MUMPS usage" OFF)
 option(MFEM_USE_STRUMPACK "Enable STRUMPACK usage" OFF)
 option(MFEM_USE_GINKGO "Enable Ginkgo usage" OFF)
 option(MFEM_USE_AMGX "Enable AmgX usage" OFF)
@@ -117,6 +118,15 @@ set(SuperLUDist_DIR "${MFEM_DIR}/../SuperLU_DIST_6.3.1" CACHE PATH
 # SuperLU_DIST may also depend on "OpenMP", depending on how it was compiled.
 set(SuperLUDist_REQUIRED_PACKAGES "MPI" "BLAS" "ParMETIS" CACHE STRING
     "Additional packages required by SuperLU_DIST.")
+
+set(MUMPS_DIR "${MFEM_DIR}/../MUMPS_5.2.0" CACHE PATH
+    "Path to the MUMPS library.")
+# Packages required by MUMPS, depending on how it was compiled.
+set(MUMPS_REQUIRED_PACKAGES "MPI" "BLAS" "METIS" "ScaLAPACK" CACHE STRING
+    "Additional packages required by MUMPS.")    
+# If the MPI package does not find all required Fortran libraries:
+# set(MUMPS_REQUIRED_LIBRARIES "gfortran" "mpi_mpifh" CACHE STRING
+#     "Additional libraries required by MUMPS.")    
 
 set(STRUMPACK_DIR "${MFEM_DIR}/../STRUMPACK-build" CACHE PATH
     "Path to the STRUMPACK library.")
