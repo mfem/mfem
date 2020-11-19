@@ -502,15 +502,12 @@ void CreateVTKElementConnectivity(Array<int> &con, Geometry::Type geom, int ref)
    {
       int idx = 0;
       int b[4];
-      for (int k=0; k<=ref; k++)
+      for (b[2]=0; b[2]<=ref; b[2]++)
       {
-         for (int j=0; j<=k; j++)
+         for (b[1]=0; b[1]<=ref-b[2]; b[1]++)
          {
-            for (int i=0; i<=j; i++)
+            for (b[0]=0; b[0]<=ref-b[1]-b[2]; b[0]++)
             {
-               b[0] = k-j;
-               b[1] = i;
-               b[2] = j-i;
                b[3] = ref-b[0]-b[1]-b[2];
                con[BarycentricToVTKTetra(b, ref)] = idx++;
             }
