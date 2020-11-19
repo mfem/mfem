@@ -795,12 +795,7 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
       input >> np >> ws;
       points.SetSize(3*np);
       getline(input, buff); // "double"
-      // TODO:
-      // points.Load(input, 3*np);
-      for (i = 0; i < points.Size(); i++)
-      {
-         input >> points(i);
-      }
+      points.Load(input, 3*np);
    }
 
    //skip metadata
