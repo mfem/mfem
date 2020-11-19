@@ -8425,8 +8425,6 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
          }
    }
 
-
-
    Ti.Factor(T);
    // mfem::out << "H1_TriangleElement(" << p << ") : "; Ti.TestInversion();
 }
