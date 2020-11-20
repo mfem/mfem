@@ -487,18 +487,20 @@ void ParFiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
    }
 }
 
-void ParFiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
+int ParFiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs,
+                                       int variant) const
 {
-   if (face_dof)
+   if (face_dof && variant == 0)
    {
       face_dof->GetRow(i, dofs);
-      return;
+      return fec->DefaultOrder();
    }
-   FiniteElementSpace::GetFaceDofs(i, dofs);
+   int p = FiniteElementSpace::GetFaceDofs(i, dofs, variant);
    if (Conforming())
    {
       ApplyLDofSigns(dofs);
    }
+   return p;
 }
 
 
