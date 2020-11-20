@@ -1880,10 +1880,10 @@ void FiniteElementSpace::Construct()
    // This method should be used only for non-NURBS spaces.
    MFEM_VERIFY(!NURBSext, "internal error");
 
-   // Variable order space needs a non-trivial P matrix + also ghost elements
-   // in parallel.
-   MFEM_VERIFY(Conforming() || !IsVariableOrder(),
-               "Variable order space requires a non-conforming mesh.");
+   // Variable order space needs a nontrivial P matrix + also ghost elements
+   // in parallel, we thus require the mesh to be NC.
+   MFEM_VERIFY(!IsVariableOrder() || Nonconforming(),
+               "Variable order space requires a nonconforming mesh.");
 
    elem_dof = NULL;
    bdr_elem_dof = NULL;
