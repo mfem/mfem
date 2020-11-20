@@ -37,6 +37,11 @@ const int VTKGeometry::HighOrderMap[Geometry::NUM_GEOMETRIES] =
 
 const int VTKGeometry::PrismMap[6] = {0, 2, 1, 3, 5, 4};
 
+const int *VTKGeometry::VertexPermutation[Geometry::NUM_GEOMETRIES] =
+{
+   NULL, NULL, NULL, NULL, NULL, NULL, VTKGeometry::PrismMap
+};
+
 Geometry::Type VTKGeometry::GetMFEMGeometry(int vtk_geom)
 {
    switch (vtk_geom)
