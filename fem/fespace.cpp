@@ -70,8 +70,7 @@ FiniteElementSpace::FiniteElementSpace()
 FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
                                        Mesh *mesh,
                                        const FiniteElementCollection *fec)
-   : relaxed_hp(orig.relaxed_hp)
-   // FIXME: orders_changed? test
+   : relaxed_hp(orig.relaxed_hp) // FIXME: orders_changed? test
 {
    mesh = mesh ? mesh : orig.mesh;
    fec = fec ? fec : orig.fec;
@@ -1881,6 +1880,11 @@ void FiniteElementSpace::Construct()
    // This method should be used only for non-NURBS spaces.
    MFEM_VERIFY(!NURBSext, "internal error");
 
+   // Variable order space needs a non-trivial P matrix + also ghost elements
+   // in parallel.
+   MFEM_VERIFY(Conforming() || !IsVariableOrder(),
+               "Variable order space requires a non-conforming mesh.");
+
    elem_dof = NULL;
    bdr_elem_dof = NULL;
    face_dof = NULL;
@@ -1999,6 +2003,7 @@ void FiniteElementSpace
                         Array<VarOrderBits> &face_orders) const
 {
    MFEM_ASSERT(IsVariableOrder(), "");
+   MFEM_ASSERT(Nonconforming(), "");
    MFEM_ASSERT(elem_order.Size() == mesh->GetNE(), "");
 
    edge_orders.SetSize(mesh->GetNEdges());  edge_orders = 0;
@@ -2767,8 +2772,8 @@ void FiniteElementSpace::GetTrueTransferOperator(
 void FiniteElementSpace::UpdateElementOrders()
 {
    const CoarseFineTransformations &cf_tr = mesh->GetRefinementTransforms();
-   Array<char> new_order(mesh->GetNE());
 
+   Array<char> new_order(mesh->GetNE());
    switch (mesh->GetLastOperation())
    {
       case Mesh::REFINE:

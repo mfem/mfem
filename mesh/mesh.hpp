@@ -343,6 +343,10 @@ protected:
    double AggregateError(const Array<double> &elem_error,
                          const int *fine, int nfine, int op);
 
+   /// Implementation of the refinement constructors (LOR).
+   void CreateRefinedMesh(Mesh *orig_mesh, Array<int> &ref_factors,
+                          int ref_type);
+
    /// Read NURBS patch/macro-element mesh
    void LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot);
 
@@ -704,10 +708,8 @@ public:
        @note The constructed Mesh is linear, i.e. it does not have nodes. */
    Mesh(Mesh *orig_mesh, int ref_factor, int ref_type);
 
+   /// A version of the above constructor for non-uniform refinement.
    Mesh(Mesh *orig_mesh, Array<int> &ref_factors, int ref_type);
-
-   void CreateRefinedMesh(Mesh *orig_mesh, Array<int> &ref_factors,
-                          int ref_type);
 
    /** This is similar to the mesh constructor with the same arguments, but here
        the current mesh is destroyed and another one created based on the data

@@ -3745,27 +3745,34 @@ void Mesh::CreateRefinedMesh(Mesh *orig_mesh, Array<int> &ref_factors,
 {
    Dim = orig_mesh->Dimension();
 
-   int r_num_elem = 0;
-   int r_num_bndr = 0;
+   int min_ref = ref_factors.Min();
+   int max_ref = ref_factors.Max();
+
+   bool var_order = (min_ref != max_ref);
+
+   // variable order space can only be constructed over an NC mesh
+   if (var_order) { orig_mesh->EnsureNCMesh(true); }
 
    // Construct a scalar H1 FE space of order ref_factor and use its dofs as
    // the indices of the new, refined vertices.
 
-   int min_ref = ref_factors.Min();
    H1_FECollection rfec(min_ref, Dim, ref_type);
    FiniteElementSpace rfes(orig_mesh, &rfec);
    rfes.SetRelaxedHpConformity(false);
+
+   int r_num_elem = 0;
    for (int i = 0; i < orig_mesh->GetNE(); i++)
    {
       int ref = ref_factors[i];
-      rfes.SetElementOrder(i, ref);
+      if (var_order) { rfes.SetElementOrder(i, ref); }
 
       int r_elem_factor = pow(ref, Dim);
       r_num_elem += r_elem_factor;
    }
    rfes.Update(false);
 
-   for (int ibdr=0; ibdr < orig_mesh->GetNBE(); ibdr++)
+   int r_num_bndr = 0;
+   for (int ibdr = 0; ibdr < orig_mesh->GetNBE(); ibdr++)
    {
       int i, info;
       orig_mesh->GetBdrElementAdjacentElement(ibdr, i, info);
@@ -3777,8 +3784,6 @@ void Mesh::CreateRefinedMesh(Mesh *orig_mesh, Array<int> &ref_factors,
 
    InitMesh(Dim, orig_mesh->SpaceDimension(), r_num_vert, r_num_elem,
             r_num_bndr);
-
-   EnsureNCMesh();
 
    // Set the number of vertices, set the actual coordinates later
    NumOfVertices = r_num_vert;
@@ -3794,7 +3799,7 @@ void Mesh::CreateRefinedMesh(Mesh *orig_mesh, Array<int> &ref_factors,
    {
       int ref = ref_factors[el];
 
-      Geometry::Type geom = orig_mesh->GetElementBaseGeometry(el);
+      Geometry::Type geom = orig_mesh->GetElementGeometry(el);
       int attrib = orig_mesh->GetAttribute(el);
       int nvert = Geometry::NumVerts[geom];
       RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref);
