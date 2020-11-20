@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
    fespace.SetRelaxedHpConformity(relaxed_hp);
 
    // 6. At this point all elements have the default order (specified when
-   //    construction the FECollection). Now we can p-refine some of them to
+   //    constructing the FECollection). Now we can p-refine some of them to
    //    obtain a variable-order space...
    for (int i = 0; i < mesh.GetNE(); i++)
    {
@@ -223,7 +223,7 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << mesh << *vis_x;
-      if (dim < 3) { sol_sock << "keys Rjlm\n"; }
+      if (dim < 3) { sol_sock << "keys ARjlm\n"; }
       delete vis_x;
    }
 
@@ -242,7 +242,7 @@ int main(int argc, char *argv[])
       socketstream ord_sock(vishost, visport);
       ord_sock.precision(8);
       ord_sock << "solution\n" << mesh << orders;
-      if (dim < 3) { ord_sock << "keys Rjlmc\n"; }
+      if (dim < 3) { ord_sock << "keys ARjlmc\n"; }
    }
 
    // 16. Visualize the basis functions

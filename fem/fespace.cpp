@@ -1899,10 +1899,11 @@ void FiniteElementSpace::Construct()
    cP_is_set = false;
    // 'Th' is initialized/destroyed before this method is called.
 
+   int dim = mesh->Dimension();
    int order = fec->DefaultOrder();
 
-   bool mixed_elements = (mesh->GetNumGeometries(mesh->Dimension()) > 1);
-   bool mixed_faces = (mesh->GetNumGeometries(2) > 1);
+   bool mixed_elements = (mesh->GetNumGeometries(dim) > 1);
+   bool mixed_faces = (dim > 2 && mesh->GetNumGeometries(2) > 1);
 
    Array<VarOrderBits> edge_orders, face_orders;
    if (IsVariableOrder())
@@ -1957,7 +1958,7 @@ void FiniteElementSpace::Construct()
    }
 
    // assign internal ("bubble") DOFs
-   if (mesh->GetNE())
+   if (mesh->GetNE() && dim > 0)
    {
       if (IsVariableOrder() || mixed_elements)
       {
