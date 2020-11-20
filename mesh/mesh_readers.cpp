@@ -524,8 +524,7 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
 
          // Map vtk points to edge/face/element dofs
          Array<int> dofs;
-         int i, n;
-         for (n = i = 0; i < NumOfElements; i++)
+         for (int i = 0; i < NumOfElements; i++)
          {
             fes->GetElementDofs(i, dofs);
             const int *vtk_mfem;
@@ -545,7 +544,6 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
                   break;
             }
 
-            // int j;
             for (int j = 0; j < dofs.Size(); j++)
             {
                if (pts_dof[cell_data[j]] == -1)
@@ -560,7 +558,7 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
                   }
                }
             }
-         } // for NumOfElements
+         }
       }
       else
       {
