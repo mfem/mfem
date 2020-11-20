@@ -19,6 +19,45 @@
 namespace mfem
 {
 
+/** Manages memory for using mfem::Vector s for Ceed operations */
+class MFEMCeedVectorContext
+{
+public:
+   MFEMCeedVectorContext(const mfem::Vector& in, mfem::Vector& out,
+                         CeedVector ceed_in_, CeedVector ceed_out_)
+      :
+      ceed_in(ceed_in_), ceed_out(ceed_out_)
+   {
+      CeedGetPreferredMemType(internal::ceed, &mem);
+      if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
+      {
+         in_ptr = in.Read();
+         out_ptr = out.ReadWrite();
+      }
+      else
+      {
+         in_ptr = in.HostRead();
+         out_ptr = out.HostReadWrite();
+         mem = CEED_MEM_HOST;
+      }
+
+      CeedVectorSetArray(ceed_in, mem, CEED_USE_POINTER, const_cast<CeedScalar*>(in_ptr));
+      CeedVectorSetArray(ceed_out, mem, CEED_USE_POINTER, out_ptr);
+   }
+
+   ~MFEMCeedVectorContext()
+   {
+      CeedVectorTakeArray(ceed_in, mem, const_cast<CeedScalar**>(&in_ptr));
+      CeedVectorTakeArray(ceed_out, mem, &out_ptr);
+   }
+
+private:
+   CeedVector ceed_in, ceed_out;
+   const CeedScalar *in_ptr;
+   CeedScalar *out_ptr;
+   CeedMemType mem;
+};
+
 class UnconstrainedMFEMCeedOperator : public Operator
 {
 public:
@@ -60,16 +99,8 @@ void UnconstrainedMFEMCeedOperator::Mult(const Vector& x, Vector& y) const
 {
    y = 0.0;
 
-   // I specifically do not want to call the constructor or destructor
-   // of CeedData, this is kind of a hack.
-   CeedData * data = (CeedData*) malloc(sizeof(CeedData));
-   data->u = u_;
-   data->v = v_;
-   data->oper = oper_;
-
-   CeedAddMult(data, x, y);
-
-   free(data);
+   MFEMCeedVectorContext(x, y, u_, v_);
+   CeedOperatorApplyAdd(oper_, u_, v_, CEED_REQUEST_IMMEDIATE);
 }
 
 MFEMCeedOperator::MFEMCeedOperator(
@@ -81,7 +112,7 @@ MFEMCeedOperator::MFEMCeedOperator(
    unconstrained_op = new UnconstrainedMFEMCeedOperator(oper);
    Operator *rap = unconstrained_op->SetupRAP(P, P);
    height = width = rap->Height();
-   bool own_rap = rap != unconstrained_op;
+   bool own_rap = (rap != unconstrained_op);
    constrained_op = new ConstrainedOperator(rap, ess_tdofs, own_rap);
 }
 
@@ -154,45 +185,6 @@ MFEMCeedInterpolation::~MFEMCeedInterpolation()
    }
    CeedInterpolationDestroy(&ceed_interp_);
 }
-
-/** Manages memory for using mfem::Vector s for Ceed operations */
-class MFEMCeedVectorContext
-{
-public:
-   MFEMCeedVectorContext(const mfem::Vector& in, mfem::Vector& out,
-                         CeedVector ceed_in_, CeedVector ceed_out_)
-      :
-      ceed_in(ceed_in_), ceed_out(ceed_out_)
-   {
-      CeedGetPreferredMemType(internal::ceed, &mem);
-      if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
-      {
-         in_ptr = in.Read();
-         out_ptr = out.ReadWrite();
-      }
-      else
-      {
-         in_ptr = in.HostRead();
-         out_ptr = out.HostReadWrite();
-         mem = CEED_MEM_HOST;
-      }
-
-      CeedVectorSetArray(ceed_in, mem, CEED_USE_POINTER, const_cast<CeedScalar*>(in_ptr));
-      CeedVectorSetArray(ceed_out, mem, CEED_USE_POINTER, out_ptr);
-   }
-
-   ~MFEMCeedVectorContext()
-   {
-      CeedVectorTakeArray(ceed_in, mem, const_cast<CeedScalar**>(&in_ptr));
-      CeedVectorTakeArray(ceed_out, mem, &out_ptr);
-   }
-
-private:
-   CeedVector ceed_in, ceed_out;
-   const CeedScalar *in_ptr;
-   CeedScalar *out_ptr;
-   CeedMemType mem;
-};
 
 void MFEMCeedInterpolation::Mult(const mfem::Vector& x, mfem::Vector& y) const
 {
