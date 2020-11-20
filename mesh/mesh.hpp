@@ -239,8 +239,15 @@ protected:
    void ReadNetgen2DMesh(std::istream &input, int &curved);
    void ReadNetgen3DMesh(std::istream &input);
    void ReadTrueGridMesh(std::istream &input);
+   void CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
+                      const Array<int> &cell_offsets,
+                      const Array<int> &cell_types,
+                      const Array<int> &cell_attributes,
+                      int &curved, int &read_gf, bool &finalize_topo);
    void ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
                     bool &finalize_topo);
+   void ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
+                        bool &finalize_topo);
    void ReadNURBSMesh(std::istream &input, int &curved, int &read_gf);
    void ReadInlineMesh(std::istream &input, bool generate_edges = false);
    void ReadGmshMesh(std::istream &input, int &curved, int &read_gf);
