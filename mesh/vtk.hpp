@@ -46,6 +46,7 @@ struct VTKGeometry
    static const int LAGRANGE_PRISM = 73;
 
    static const int PrismMap[6];
+   static const int *VertexPermutation[Geometry::NUM_GEOMETRIES];
 
    static const int Map[Geometry::NUM_GEOMETRIES];
    static const int QuadraticMap[Geometry::NUM_GEOMETRIES];

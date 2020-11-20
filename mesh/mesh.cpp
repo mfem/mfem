@@ -71,10 +71,14 @@ void Mesh::GetElementCenter(int i, Vector &center)
    eltransf->Transform(Geometries.GetCenter(geom), center);
 }
 
-double Mesh::GetElementSize(int i, int type)
+double Mesh::GetElementSize(ElementTransformation *T, int type)
 {
    DenseMatrix J(Dim);
-   GetElementJacobian(i, J);
+
+   Geometry::Type geom = T->GetGeometryType();
+   T->SetIntPoint(&Geometries.GetCenter(geom));
+   Geometries.JacToPerfJac(geom, T->Jacobian(), J);
+
    if (type == 0)
    {
       return pow(fabs(J.Det()), 1./Dim);
@@ -87,6 +91,11 @@ double Mesh::GetElementSize(int i, int type)
    {
       return J.CalcSingularvalue(0);   // h_max
    }
+}
+
+double Mesh::GetElementSize(int i, int type)
+{
+   return GetElementSize(GetElementTransformation(i), type);
 }
 
 double Mesh::GetElementSize(int i, const Vector &dir)
@@ -8948,9 +8957,11 @@ void Mesh::PrintVTK(std::ostream &out)
          const int *v = elements[i]->GetVertices();
          const int nv = elements[i]->GetNVertices();
          out << nv;
+         Geometry::Type geom = elements[i]->GetGeometryType();
+         const int *perm = VTKGeometry::VertexPermutation[geom];
          for (int j = 0; j < nv; j++)
          {
-            out << ' ' << v[j];
+            out << ' ' << v[perm ? perm[j] : j];
          }
          out << '\n';
       }
@@ -9252,9 +9263,10 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTKFormat format,
          {
             coff = coff+nv;
             offset.push_back(coff);
+            const int *p = VTKGeometry::VertexPermutation[geom];
             for (int k = 0; k < nv; k++, j++)
             {
-               WriteBinaryOrASCII(out, buf, np + RG[j], " ", format);
+               WriteBinaryOrASCII(out, buf, np + RG[p ? p[j] : j], " ", format);
             }
             if (format == VTKFormat::ASCII) { out << '\n'; }
          }
