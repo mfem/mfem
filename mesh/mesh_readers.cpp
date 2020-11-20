@@ -759,8 +759,6 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
    //   * https://lorensen.github.io/VTKExamples/site/VTKFileFormats
    //   * https://www.kitware.com/products/books/VTKUsersGuide.pdf
 
-   int i, n;
-
    string buff;
    getline(input, buff); // comment line
    getline(input, buff);
@@ -789,14 +787,12 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
       }
    }
    while (buff != "POINTS");
-   int np = 0;
+
    Vector points;
-   {
-      input >> np >> ws;
-      points.SetSize(3*np);
-      getline(input, buff); // "double"
-      points.Load(input, 3*np);
-   }
+   int np;
+   input >> np >> ws;
+   getline(input, buff); // "double"
+   points.Load(input, 3*np);
 
    //skip metadata
    // Looks like:
@@ -840,8 +836,8 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
 
    // Read the cell types
    input >> ws >> buff;
-   int ncells;
    Array<int> cell_types;
+   int ncells;
    if (buff == "CELL_TYPES")
    {
       input >> ncells;
@@ -854,6 +850,7 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
    Array<int> cell_attributes;
    if (buff == "CELL_DATA")
    {
+      int n;
       input >> n >> ws;
       getline(input, buff);
       filter_dos(buff);
@@ -861,7 +858,7 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
       if (buff.rfind("SCALARS material") == 0)
       {
          getline(input, buff); // "LOOKUP_TABLE default"
-         cell_attributes.Load(NumOfElements, input);
+         cell_attributes.Load(ncells, input);
       }
       else
       {
