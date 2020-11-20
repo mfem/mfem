@@ -41,7 +41,8 @@ public:
          mem = CEED_MEM_HOST;
       }
 
-      CeedVectorSetArray(ceed_in, mem, CEED_USE_POINTER, const_cast<CeedScalar*>(in_ptr));
+      CeedVectorSetArray(ceed_in, mem, CEED_USE_POINTER,
+                         const_cast<CeedScalar*>(in_ptr));
       CeedVectorSetArray(ceed_out, mem, CEED_USE_POINTER, out_ptr);
    }
 
