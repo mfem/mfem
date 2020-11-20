@@ -3781,12 +3781,15 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
    DenseMatrix phys_pts;
    int max_nv = 0;
 
+   GeometryRefiner refiner;
+   refiner.SetType(ref_type);
+
    for (int el = 0; el < orig_mesh->GetNE(); el++)
    {
       Geometry::Type geom = orig_mesh->GetElementBaseGeometry(el);
       int attrib = orig_mesh->GetAttribute(el);
       int nvert = Geometry::NumVerts[geom];
-      RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref_factor);
+      RefinedGeometry &RG = *refiner.Refine(geom, ref_factor);
 
       max_nv = std::max(max_nv, nvert);
       rfes.GetElementDofs(el, rdofs);
@@ -3827,7 +3830,7 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       {
          Geometry::Type geom = orig_mesh->GetElementBaseGeometry(iel);
          int nvert = Geometry::NumVerts[geom];
-         RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref_factor);
+         RefinedGeometry &RG = *refiner.Refine(geom, ref_factor);
          rfes.GetElementDofs(iel, rdofs);
          const FiniteElement *rfe = rfes.GetFE(iel);
          orig_mesh->GetElementTransformation(iel)->Transform(rfe->GetNodes(),
@@ -3864,7 +3867,7 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       Geometry::Type geom = orig_mesh->GetBdrElementBaseGeometry(el);
       int attrib = orig_mesh->GetBdrAttribute(el);
       int nvert = Geometry::NumVerts[geom];
-      RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref_factor);
+      RefinedGeometry &RG = *refiner.Refine(geom, ref_factor);
 
       rfes.GetBdrElementDofs(el, rdofs);
       MFEM_ASSERT(rdofs.Size() == RG.RefPts.Size(), "");
@@ -3889,33 +3892,30 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
 
    // Setup the data for the coarse-fine refinement transformations
    CoarseFineTr.embeddings.SetSize(GetNE());
-   if (orig_mesh->GetNE() > 0)
+   Array<Geometry::Type> geoms;
+   GetGeometries(Dim, geoms);
+   for (int ig=0; ig<geoms.Size(); ++ig)
    {
-      Array<Geometry::Type> geoms;
-      GetGeometries(Dim, geoms);
-      for (int ig=0; ig<geoms.Size(); ++ig)
+      Geometry::Type geom = geoms[ig];
+      RefinedGeometry &RG = *refiner.Refine(geom, ref_factor);
+      int nvert = Geometry::NumVerts[geom];
+      int nref_el = RG.RefGeoms.Size()/nvert;
+      CoarseFineTr.point_matrices[geom].SetSize(Dim, nvert, nref_el);
+      for (int j = 0; j < nref_el; j++)
       {
-         Geometry::Type geom = geoms[ig];
-         RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref_factor);
-         int nvert = Geometry::NumVerts[geom];
-         int nref_el = RG.RefGeoms.Size()/nvert;
-         CoarseFineTr.point_matrices[geom].SetSize(Dim, max_nv, nref_el);
-         for (int j = 0; j < nref_el; j++)
+         DenseMatrix &Pj = CoarseFineTr.point_matrices[geom](j);
+         for (int k = 0; k < nvert; k++)
          {
-            DenseMatrix &Pj = CoarseFineTr.point_matrices[geom](j);
-            for (int k = 0; k < nvert; k++)
-            {
-               int cid = RG.RefGeoms[k+nvert*j]; // local Cartesian index
-               const IntegrationPoint &ip = RG.RefPts[cid];
-               ip.Get(Pj.GetColumn(k), Dim);
-            }
+            int cid = RG.RefGeoms[k+nvert*j]; // local Cartesian index
+            const IntegrationPoint &ip = RG.RefPts[cid];
+            ip.Get(Pj.GetColumn(k), Dim);
          }
       }
    }
    for (int el = 0; el < GetNE(); el++)
    {
       Geometry::Type geom = GetElementBaseGeometry(el);
-      RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref_factor);
+      RefinedGeometry &RG = *refiner.Refine(geom, ref_factor);
       int nref_el = RG.RefGeoms.Size()/Geometry::NumVerts[geom];
       Embedding &emb = CoarseFineTr.embeddings[el];
       emb.parent = el / nref_el;
