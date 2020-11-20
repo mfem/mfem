@@ -12,6 +12,7 @@
 #include "mesh_headers.hpp"
 #include "../fem/fem.hpp"
 #include "../general/text.hpp"
+#include "../general/tinyxml2.h"
 #include "gmsh.hpp"
 
 #include <iostream>
@@ -375,179 +376,73 @@ const int Mesh::vtk_quadratic_hex[27] =
    24, 22, 21, 23, 20, 25, 26
 };
 
-void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
-                       bool &finalize_topo)
+void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
+                         const Array<int> &cell_offsets,
+                         const Array<int> &cell_types,
+                         const Array<int> &cell_attributes,
+                         int &curved, int &read_gf, bool &finalize_topo)
 {
-   // VTK resources:
-   //   * https://www.vtk.org/doc/nightly/html/vtkCellType_8h_source.html
-   //   * https://www.vtk.org/doc/nightly/html/classvtkCell.html
-   //   * https://lorensen.github.io/VTKExamples/site/VTKFileFormats
-   //   * https://www.kitware.com/products/books/VTKUsersGuide.pdf
-
-   int i, j, n, attr;
-   bool legacy_elem=false, lagrange_elem=false;
-
-   string buff;
-   getline(input, buff); // comment line
-   getline(input, buff);
-   filter_dos(buff);
-   if (buff != "ASCII")
-   {
-      MFEM_ABORT("VTK mesh is not in ASCII format!");
-      return;
-   }
-   getline(input, buff);
-   filter_dos(buff);
-   if (buff != "DATASET UNSTRUCTURED_GRID")
-   {
-      MFEM_ABORT("VTK mesh is not UNSTRUCTURED_GRID!");
-      return;
-   }
-
-   // Read the points, skipping optional sections such as the FIELD data from
-   // VisIt's VTK export (or from Mesh::PrintVTK with field_data==1).
-   do
-   {
-      input >> buff;
-      if (!input.good())
-      {
-         MFEM_ABORT("VTK mesh does not have POINTS data!");
-      }
-   }
-   while (buff != "POINTS");
-   int np = 0;
-   Vector points;
-   {
-      input >> np >> ws;
-      points.SetSize(3*np);
-      getline(input, buff); // "double"
-      for (i = 0; i < points.Size(); i++)
-      {
-         input >> points(i);
-      }
-   }
-
-   //skip metadata
-   // Looks like:
-   // METADATA
-   //INFORMATION 2
-   //NAME L2_NORM_RANGE LOCATION vtkDataArray
-   //DATA 2 0 5.19615
-   //NAME L2_NORM_FINITE_RANGE LOCATION vtkDataArray
-   //DATA 2 0 5.19615
-
-   do
-   {
-      input >> buff;
-      if (!input.good())
-      {
-         MFEM_ABORT("VTK mesh does not have CELLS data!");
-      }
-   }
-   while (buff != "CELLS");
-
-   // Read the cells
-   NumOfElements = n = 0;
-   Array<int> cells_data;
-   if (buff == "CELLS")
-   {
-      input >> NumOfElements >> n >> ws;
-      cells_data.SetSize(n);
-      for (i = 0; i < n; i++)
-      {
-         input >> cells_data[i];
-      }
-   }
-
-   // Read the cell types
+   int np = points.Size()/3;
    Dim = -1;
+   NumOfElements = cell_types.Size();
+   elements.SetSize(NumOfElements);
+
    int order = -1;
-   input >> ws >> buff;
-   if (buff == "CELL_TYPES")
+   bool legacy_elem = false, lagrange_elem = false;
+
+   int j = 0;
+   for (int i = 0; i < NumOfElements; i++)
    {
-      input >> NumOfElements;
-      elements.SetSize(NumOfElements);
-      for (j = i = 0; i < NumOfElements; i++)
+      int ct = cell_types[i];
+      Geometry::Type geom = VTKGeometry::GetMFEMGeometry(ct);
+      elements[i] = NewElement(geom);
+      if (cell_attributes.Size() > 0)
       {
-         int ct, elem_dim, elem_order = 1;
-         input >> ct;
-         Geometry::Type geom = VTKGeometry::GetMFEMGeometry(ct);
-         elements[i] = NewElement(geom);
-         // VTK ordering of vertices is the same as MFEM ordering of vertices
-         // for all element types *except* prisms, which require a permutation
-         if (geom == Geometry::PRISM && ct != VTKGeometry::LAGRANGE_PRISM)
-         {
-            int prism_vertices[6];
-            for (int k=0; k<6; ++k)
-            {
-               prism_vertices[k] = cells_data[j+1+VTKGeometry::PrismMap[k]];
-            }
-            elements[i]->SetVertices(prism_vertices);
-         }
-         else
-         {
-            elements[i]->SetVertices(&cells_data[j+1]);
-         }
-
-         elem_dim = Geometry::Dimension[geom];
-         elem_order = VTKGeometry::GetOrder(ct, cells_data[j]);
-
-         if (VTKGeometry::IsLagrange(ct)) { lagrange_elem = true; }
-         else { legacy_elem = true; }
-
-         MFEM_VERIFY(Dim == -1 || Dim == elem_dim,
-                     "Elements with different dimensions are not supported");
-         MFEM_VERIFY(order == -1 || order == elem_order,
-                     "Elements with different orders are not supported");
-         MFEM_VERIFY(legacy_elem != lagrange_elem,
-                     "Mixing of legacy and Lagrange cell types is not supported");
-         Dim = elem_dim;
-         order = elem_order;
-         j += cells_data[j] + 1;
+         elements[i]->SetAttribute(cell_attributes[i]);
       }
-   }
-
-   // Read attributes
-   streampos sp = input.tellg();
-   input >> ws >> buff;
-   if (buff == "CELL_DATA")
-   {
-      input >> n >> ws;
-      getline(input, buff);
-      filter_dos(buff);
-      // "SCALARS material dataType numComp"
-      if (buff.rfind("SCALARS material") == 0)
+      // VTK ordering of vertices is the same as MFEM ordering of vertices
+      // for all element types *except* prisms, which require a permutation
+      if (geom == Geometry::PRISM && ct != VTKGeometry::LAGRANGE_PRISM)
       {
-         getline(input, buff); // "LOOKUP_TABLE default"
-         for (i = 0; i < NumOfElements; i++)
+         int prism_vertices[6];
+         for (int k=0; k<6; ++k)
          {
-            input >> attr;
-            elements[i]->SetAttribute(attr);
+            prism_vertices[k] = cell_data[j+VTKGeometry::PrismMap[k]];
          }
+         elements[i]->SetVertices(prism_vertices);
       }
       else
       {
-         input.seekg(sp);
+         elements[i]->SetVertices(&cell_data[j]);
       }
-   }
-   else
-   {
-      input.seekg(sp);
+
+      int elem_dim = Geometry::Dimension[geom];
+      int elem_order = VTKGeometry::GetOrder(ct, cell_offsets[i] - j);
+
+      if (VTKGeometry::IsLagrange(ct)) { lagrange_elem = true; }
+      else { legacy_elem = true; }
+
+      MFEM_VERIFY(Dim == -1 || Dim == elem_dim,
+                  "Elements with different dimensions are not supported");
+      MFEM_VERIFY(order == -1 || order == elem_order,
+                  "Elements with different orders are not supported");
+      MFEM_VERIFY(legacy_elem != lagrange_elem,
+                  "Mixing of legacy and Lagrange cell types is not supported");
+      Dim = elem_dim;
+      order = elem_order;
+      j = cell_offsets[i];
    }
 
-   if (order == 1)
+   if (order == 1 && !lagrange_elem)
    {
-      cells_data.DeleteAll();
       NumOfVertices = np;
       vertices.SetSize(np);
-      for (i = 0; i < np; i++)
+      for (int i = 0; i < np; i++)
       {
          vertices[i](0) = points(3*i+0);
          vertices[i](1) = points(3*i+1);
          vertices[i](2) = points(3*i+2);
       }
-      points.Destroy();
-
       // No boundary is defined in a VTK mesh
       NumOfBdrElements = 0;
       FinalizeTopology();
@@ -563,11 +458,11 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
       Array<int> pts_dof(np);
       pts_dof = -1;
       // mark vertex points
-      for (i = 0; i < NumOfElements; i++)
+      for (int i = 0; i < NumOfElements; i++)
       {
          int *v = elements[i]->GetVertices();
          int nv = elements[i]->GetNVertices();
-         for (j = 0; j < nv; j++)
+         for (int j = 0; j < nv; j++)
          {
             if (pts_dof[v[j]] == -1) { pts_dof[v[j]] = 0; }
          }
@@ -577,6 +472,7 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
       // canonical order
 
       // Keep the original ordering of the vertices
+      int i, n;
       for (n = i = 0; i < np; i++)
       {
          if (pts_dof[i] != -1)
@@ -585,11 +481,11 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
          }
       }
       // update the element vertices
-      for (i = 0; i < NumOfElements; i++)
+      for (int i = 0; i < NumOfElements; i++)
       {
          int *v = elements[i]->GetVertices();
          int nv = elements[i]->GetNVertices();
-         for (j = 0; j < nv; j++)
+         for (int j = 0; j < nv; j++)
          {
             v[j] = pts_dof[v[j]];
          }
@@ -597,9 +493,10 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
       // Define the 'vertices' from the 'points' through the 'pts_dof' map
       NumOfVertices = n;
       vertices.SetSize(n);
-      for (i = 0; i < np; i++)
+      for (int i = 0; i < np; i++)
       {
-         if ((j = pts_dof[i]) != -1)
+         int j = pts_dof[i];
+         if (j != -1)
          {
             vertices[j](0) = points(3*i+0);
             vertices[j](1) = points(3*i+1);
@@ -613,7 +510,6 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
       // Generate faces and edges so that we can define
       // FE space on the mesh
       FinalizeTopology();
-      finalize_topo = false;
 
       FiniteElementCollection *fec;
       FiniteElementSpace *fes;
@@ -628,7 +524,7 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
 
          // Map vtk points to edge/face/element dofs
          Array<int> dofs;
-         for (n = i = 0; i < NumOfElements; i++)
+         for (int i = 0; i < NumOfElements; i++)
          {
             fes->GetElementDofs(i, dofs);
             const int *vtk_mfem;
@@ -648,23 +544,23 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
                   break;
             }
 
-            for (n++, j = 0; j < dofs.Size(); j++, n++)
+            for (int j = 0; j < dofs.Size(); j++)
             {
-               if (pts_dof[cells_data[n]] == -1)
+               if (pts_dof[cell_data[j]] == -1)
                {
-                  pts_dof[cells_data[n]] = dofs[vtk_mfem[j]];
+                  pts_dof[cell_data[j]] = dofs[vtk_mfem[j]];
                }
                else
                {
-                  if (pts_dof[cells_data[n]] != dofs[vtk_mfem[j]])
+                  if (pts_dof[cell_data[j]] != dofs[vtk_mfem[j]])
                   {
-                     MFEM_ABORT("VTK mesh : inconsistent quadratic mesh!");
+                     MFEM_ABORT("VTK mesh: inconsistent quadratic mesh!");
                   }
                }
             }
-         } // for NumOfElements
+         }
       }
-      else if (lagrange_elem)
+      else
       {
          // Define H1 FE space
          fec = new H1_FECollection(order,Dim,BasisType::ClosedUniform);
@@ -677,6 +573,7 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
          std::map<Geometry::Type,Array<int>> vtk_inv_maps;
          std::map<Geometry::Type,const Array<int>*> lex_orderings;
 
+         int i, n;
          for (n = i = 0; i < NumOfElements; i++)
          {
             Geometry::Type geom = GetElementBaseGeometry(i);
@@ -707,7 +604,7 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
             {
                int mfem_idx = (*lex_ordering)[lex_idx];
                int vtk_idx = vtk_inv_map[lex_idx];
-               int pt_idx = cells_data[n + 1 + vtk_idx];
+               int pt_idx = cell_data[n + vtk_idx];
                if (pts_dof[pt_idx] == -1)
                {
                   pts_dof[pt_idx] = dofs[mfem_idx];
@@ -720,27 +617,259 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
                   }
                }
             }
-            n += dofs.Size() + 1;
+            n += dofs.Size();
          }
       }
       // Define the 'Nodes' from the 'points' through the 'pts_dof' map
       Array<int> dofs;
-      for (i = 0; i < np; i++)
+      for (int i = 0; i < np; i++)
       {
          dofs.SetSize(1);
          if (pts_dof[i] != -1)
          {
             dofs[0] = pts_dof[i];
             fes->DofsToVDofs(dofs);
-            for (j = 0; j < dofs.Size(); j++)
+            for (int j = 0; j < dofs.Size(); j++)
             {
                (*Nodes)(dofs[j]) = points(3*i+j);
             }
          }
       }
-      points.Destroy();
       read_gf = 0;
-   } // else order >= 2
+   }
+}
+
+void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
+                           bool &finalize_topo)
+{
+   using namespace tinyxml2;
+
+   const char *erstr = "XML parsing error";
+
+   // Read entire stream into buffer
+   std::istreambuf_iterator<char> eos;
+   std::vector<char> buf(std::istreambuf_iterator<char>(input), eos);
+   buf.push_back('\0'); // null-terminate buffer
+
+   XMLDocument xml;
+   xml.Parse(buf.data());
+   MFEM_VERIFY(xml.ErrorID() == XML_SUCCESS, erstr);
+
+   const XMLElement *vtkfile = xml.FirstChildElement();
+   MFEM_VERIFY(vtkfile, erstr);
+   MFEM_VERIFY(std::string(vtkfile->Name()) == "VTKFile", erstr);
+   const XMLElement *vtu = vtkfile->FirstChildElement();
+   MFEM_VERIFY(vtu, erstr);
+   MFEM_VERIFY(std::string(vtu->Name()) == "UnstructuredGrid", erstr);
+
+   // Count the number of points and cells
+   const XMLElement *piece = vtu->FirstChildElement();
+   MFEM_VERIFY(std::string(piece->Name()) == "Piece", erstr);
+   MFEM_VERIFY(piece->NextSiblingElement() == NULL,
+               "XML VTK meshes with more than one Piece are not supported");
+   int npts = piece->IntAttribute("NumberOfPoints");
+   int ncells = piece->IntAttribute("NumberOfCells");
+
+   // Read the points
+   Vector points(3*npts);
+   const XMLElement *pts_xml;
+   for (pts_xml = piece->FirstChildElement();
+        pts_xml != NULL;
+        pts_xml = pts_xml->NextSiblingElement())
+   {
+      if (std::string(pts_xml->Name()) == "Points")
+      {
+         const XMLElement *pts_data = pts_xml->FirstChildElement();
+         MFEM_VERIFY(std::string(pts_data->Name()) == "DataArray", erstr);
+         MFEM_VERIFY(std::string(pts_data->Attribute("Name")) == "Points",
+                     erstr);
+         MFEM_VERIFY(pts_data->IntAttribute("NumberOfComponents") == 3,
+                     "XML VTK Points DataArray must have 3 components");
+         const char *pts_txt = pts_data->GetText();
+         MFEM_VERIFY(pts_txt != NULL, erstr);
+         std::istringstream pts_stream(pts_txt);
+         points.Load(pts_stream, 3*npts);
+         break;
+      }
+   }
+   if (pts_xml == NULL) { MFEM_ABORT(erstr); }
+
+   // Read the cells
+   Array<int> cell_data, cell_offsets, cell_types;
+   const XMLElement *cells_xml;
+   for (cells_xml = piece->FirstChildElement();
+        cells_xml != NULL;
+        cells_xml = cells_xml->NextSiblingElement())
+   {
+      if (std::string(cells_xml->Name()) == "Cells")
+      {
+         const char *cell_data_txt = NULL;
+         for (const XMLElement *data_xml = cells_xml->FirstChildElement();
+              data_xml != NULL;
+              data_xml = data_xml->NextSiblingElement())
+         {
+            MFEM_VERIFY(std::string(data_xml->Name()) == "DataArray", erstr);
+            std::string data_name(data_xml->Attribute("Name"));
+            const char *data_txt = data_xml->GetText();
+            MFEM_VERIFY(data_txt != NULL, erstr);
+            if (data_name == "offsets")
+            {
+               std::istringstream data_stream(data_txt);
+               cell_offsets.Load(ncells, data_stream);
+            }
+            else if (data_name == "types")
+            {
+               std::istringstream data_stream(data_txt);
+               cell_types.Load(ncells, data_stream);
+            }
+            else if (data_name == "connectivity")
+            {
+               // Have to read the connectivity after the offsets, because we
+               // don't know how many points to read until we have the offsets
+               // (size of connectivity array is equal to the last offset), so
+               // store the data pointer and read this array later.
+               cell_data_txt = data_txt;
+            }
+         }
+         MFEM_VERIFY(cell_offsets.Size() == ncells, erstr);
+         MFEM_VERIFY(cell_types.Size() == ncells, erstr);
+         MFEM_VERIFY(cell_data_txt != NULL, erstr);
+         int cell_data_size = cell_offsets.Last();
+         std::istringstream cell_data_stream(cell_data_txt);
+         cell_data.Load(cell_data_size, cell_data_stream);
+         break;
+      }
+   }
+   if (cells_xml == NULL) { MFEM_ABORT(erstr); }
+
+   // Currently don't support reading cell attributes from VTK mesh
+   Array<int> cell_attributes;
+   CreateVTKMesh(points, cell_data, cell_offsets, cell_types, cell_attributes,
+                 curved, read_gf, finalize_topo);
+}
+
+void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
+                       bool &finalize_topo)
+{
+   // VTK resources:
+   //   * https://www.vtk.org/doc/nightly/html/vtkCellType_8h_source.html
+   //   * https://www.vtk.org/doc/nightly/html/classvtkCell.html
+   //   * https://lorensen.github.io/VTKExamples/site/VTKFileFormats
+   //   * https://www.kitware.com/products/books/VTKUsersGuide.pdf
+
+   string buff;
+   getline(input, buff); // comment line
+   getline(input, buff);
+   filter_dos(buff);
+   if (buff != "ASCII")
+   {
+      MFEM_ABORT("VTK mesh is not in ASCII format!");
+      return;
+   }
+   getline(input, buff);
+   filter_dos(buff);
+   if (buff != "DATASET UNSTRUCTURED_GRID")
+   {
+      MFEM_ABORT("VTK mesh is not UNSTRUCTURED_GRID!");
+      return;
+   }
+
+   // Read the points, skipping optional sections such as the FIELD data from
+   // VisIt's VTK export (or from Mesh::PrintVTK with field_data==1).
+   do
+   {
+      input >> buff;
+      if (!input.good())
+      {
+         MFEM_ABORT("VTK mesh does not have POINTS data!");
+      }
+   }
+   while (buff != "POINTS");
+
+   Vector points;
+   int np;
+   input >> np >> ws;
+   getline(input, buff); // "double"
+   points.Load(input, 3*np);
+
+   //skip metadata
+   // Looks like:
+   // METADATA
+   //INFORMATION 2
+   //NAME L2_NORM_RANGE LOCATION vtkDataArray
+   //DATA 2 0 5.19615
+   //NAME L2_NORM_FINITE_RANGE LOCATION vtkDataArray
+   //DATA 2 0 5.19615
+   do
+   {
+      input >> buff;
+      if (!input.good())
+      {
+         MFEM_ABORT("VTK mesh does not have CELLS data!");
+      }
+   }
+   while (buff != "CELLS");
+
+   // Read the cells
+   Array<int> cell_data, cell_offsets;
+   if (buff == "CELLS")
+   {
+      int ncells, n;
+      input >> ncells >> n >> ws;
+      cell_offsets.SetSize(ncells);
+      cell_data.SetSize(n - ncells);
+      int offset = 0;
+      for (int i=0; i<ncells; ++i)
+      {
+         int nv;
+         input >> nv;
+         cell_offsets[i] = offset + nv;
+         for (int j=0; j<nv; ++j)
+         {
+            input >> cell_data[offset + j];
+         }
+         offset += nv;
+      }
+   }
+
+   // Read the cell types
+   input >> ws >> buff;
+   Array<int> cell_types;
+   int ncells;
+   if (buff == "CELL_TYPES")
+   {
+      input >> ncells;
+      cell_types.Load(ncells, input);
+   }
+
+   // Read cell attributes
+   streampos sp = input.tellg();
+   input >> ws >> buff;
+   Array<int> cell_attributes;
+   if (buff == "CELL_DATA")
+   {
+      int n;
+      input >> n >> ws;
+      getline(input, buff);
+      filter_dos(buff);
+      // "SCALARS material dataType numComp"
+      if (buff.rfind("SCALARS material") == 0)
+      {
+         getline(input, buff); // "LOOKUP_TABLE default"
+         cell_attributes.Load(ncells, input);
+      }
+      else
+      {
+         input.seekg(sp);
+      }
+   }
+   else
+   {
+      input.seekg(sp);
+   }
+
+   CreateVTKMesh(points, cell_data, cell_offsets, cell_types, cell_attributes,
+                 curved, read_gf, finalize_topo);
 } // end ReadVTKMesh
 
 void Mesh::ReadNURBSMesh(std::istream &input, int &curved, int &read_gf)
