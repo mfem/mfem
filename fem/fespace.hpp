@@ -932,12 +932,10 @@ protected:
       const FiniteElementSpace &fes_ho;
       const FiniteElementSpace &fes_lor;
 
-      int ndof_lor, ndof_ho, nref;
+      mutable Array<double> R, P;
+      Array<int> offsets;
 
       Table ho2lor;
-
-      DenseTensor R, P;
-
    public:
       L2Projection(const FiniteElementSpace &fes_ho_,
                    const FiniteElementSpace &fes_lor_);
