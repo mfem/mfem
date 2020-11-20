@@ -569,8 +569,13 @@ void ParallelTestProblemTwo::Elimination(Vector& serr, Vector& lerr)
 {
    int rank;
    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-   int nl = rank == 3 ? 1 : 0;
-   Array<int> lagrange_rowstarts(nl);
+   Array<int> lagrange_rowstarts(2);
+   lagrange_rowstarts[0] = 0;
+   lagrange_rowstarts[1] = 0;
+   if (rank == 3)
+   {
+      lagrange_rowstarts[1] = 1;
+   }
    EliminationCGSolver solver(*amat, *Blocal, lagrange_rowstarts);
    solver.Mult(rhs, sol);
    solver.GetMultiplierSolution(lambda);
@@ -617,16 +622,25 @@ TEST_CASE("ParallelConstrainedSolverTwo", "[Parallel], [ConstrainedSolver]")
       problem.Schur(serr, lerr);
       double serrnorm = serr.Norml2();
       INFO("[" << comm_rank << "] Parallel Schur primal error: " << serrnorm << "\n");
-      // std::cout << "[" << comm_rank << "] Parallel Schur primal error: " << serrnorm << "\n";
       REQUIRE(serrnorm == MFEM_Approx(0.0));
       if (comm_rank == 3)
       {
-         // std::cout << "[" << comm_rank << "] Parallel Schur dual error: " << lerr(0) << "\n";
          INFO("[" << comm_rank << "] Parallel Schur dual error: " << lerr(0) << "\n");
          REQUIRE(lerr(0) == MFEM_Approx(0.0));
       }
 
-      /*
+      problem.Elimination(serr, lerr);
+      serrnorm = serr.Norml2();
+      INFO("[" << comm_rank << "] Parallel Elimination primal error: " << serrnorm << "\n");
+      REQUIRE(serrnorm == MFEM_Approx(0.0));
+      if (comm_rank == 3)
+      {
+         INFO("[" << comm_rank << "] Parallel Elimination dual error: " << lerr(0) << "\n");
+         REQUIRE(lerr(0) == MFEM_Approx(0.0));
+         // std::cout << "[3] lerr = " << lerr(0) << std::endl;
+      }
+
+/*
       for (int i = 0; i < comm_size; ++i)
       {
          if (comm_rank == i)
@@ -640,17 +654,7 @@ TEST_CASE("ParallelConstrainedSolverTwo", "[Parallel], [ConstrainedSolver]")
          }
          MPI_Barrier(MPI_COMM_WORLD);
       }
-      */
-
-      problem.Elimination(serr, lerr);
-      serrnorm = serr.Norml2();
-      INFO("[" << comm_rank << "] Parallel Elimination primal error: " << serrnorm << "\n");
-      REQUIRE(serrnorm == MFEM_Approx(0.0));
-      if (comm_rank == 3)
-      {
-         INFO("[" << comm_rank << "] Parallel Elimination dual error: " << lerr(0) << "\n");
-         REQUIRE(lerr(0) == MFEM_Approx(0.0));
-      }
+*/
 
       for (auto pen : {1.e+3, 1.e+4, 1.e+6})
       {
@@ -663,21 +667,6 @@ TEST_CASE("ParallelConstrainedSolverTwo", "[Parallel], [ConstrainedSolver]")
             INFO("Parallel penalty dual error: " << lerr(0) << "\n");
             REQUIRE(lerr(0) == MFEM_Approx(0.0, 2./pen));
          }
-
-         for (int i = 0; i < comm_size; ++i)
-         {
-            if (comm_rank == i)
-            {
-               std::cout << "[" << comm_rank << "]:\n";
-               for (int j = 0; j < 2; ++j)
-               {
-                  printf("  sol(%d)=%f, truesol(%d)=%f, serr(%d)=%f\n",
-                         j, problem.sol(j), j, problem.truesol(j), j, serr(j));
-               }
-            }
-            MPI_Barrier(MPI_COMM_WORLD);
-         }
-
       }
 
       // today is the day I test the elimination solver in parallel
