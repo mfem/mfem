@@ -155,35 +155,51 @@ MFEMCeedInterpolation::~MFEMCeedInterpolation()
    CeedInterpolationDestroy(&ceed_interp_);
 }
 
+/** Manages memory for using mfem::Vector s for Ceed operations */
+class MFEMCeedVectorContext
+{
+public:
+   MFEMCeedVectorContext(const mfem::Vector& in, mfem::Vector& out,
+                         CeedVector ceed_in_, CeedVector ceed_out_)
+      :
+      ceed_in(ceed_in_), ceed_out(ceed_out_)
+   {
+      CeedGetPreferredMemType(internal::ceed, &mem);
+      if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
+      {
+         in_ptr = in.Read();
+         out_ptr = out.ReadWrite();
+      }
+      else
+      {
+         in_ptr = in.HostRead();
+         out_ptr = out.HostReadWrite();
+         mem = CEED_MEM_HOST;
+      }
+
+      CeedVectorSetArray(ceed_in, mem, CEED_USE_POINTER, const_cast<CeedScalar*>(in_ptr));
+      CeedVectorSetArray(ceed_out, mem, CEED_USE_POINTER, out_ptr);
+   }
+
+   ~MFEMCeedVectorContext()
+   {
+      CeedVectorTakeArray(ceed_in, mem, const_cast<CeedScalar**>(&in_ptr));
+      CeedVectorTakeArray(ceed_out, mem, &out_ptr);
+   }
+
+private:
+   CeedVector ceed_in, ceed_out;
+   const CeedScalar *in_ptr;
+   CeedScalar *out_ptr;
+   CeedMemType mem;
+};
+
 void MFEMCeedInterpolation::Mult(const mfem::Vector& x, mfem::Vector& y) const
 {
    int ierr = 0;
-
-   const CeedScalar *x_ptr;
-   CeedScalar *y_ptr;
-   CeedMemType mem;
-   CeedGetPreferredMemType(internal::ceed, &mem);
-   if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
-   {
-      x_ptr = x.Read();
-      y_ptr = y.ReadWrite();
-   }
-   else
-   {
-      x_ptr = x.HostRead();
-      y_ptr = y.HostReadWrite();
-      mem = CEED_MEM_HOST;
-   }
-
-   ierr += CeedVectorSetArray(u_, mem, CEED_USE_POINTER,
-                              const_cast<CeedScalar*>(x_ptr));
-   ierr += CeedVectorSetArray(v_, mem, CEED_USE_POINTER, y_ptr);
+   MFEMCeedVectorContext context(x, y, u_, v_);
 
    ierr += CeedInterpolationInterpolate(ceed_interp_, u_, v_);
-
-   ierr += CeedVectorTakeArray(u_, mem, const_cast<CeedScalar**>(&x_ptr));
-   ierr += CeedVectorTakeArray(v_, mem, &y_ptr);
-
    MFEM_ASSERT(ierr == 0, "CEED error");
 }
 
@@ -191,32 +207,9 @@ void MFEMCeedInterpolation::MultTranspose(const mfem::Vector& x,
                                           mfem::Vector& y) const
 {
    int ierr = 0;
-
-   const CeedScalar *x_ptr;
-   CeedScalar *y_ptr;
-   CeedMemType mem;
-   CeedGetPreferredMemType(internal::ceed, &mem);
-   if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
-   {
-      x_ptr = x.Read();
-      y_ptr = y.ReadWrite();
-   }
-   else
-   {
-      x_ptr = x.HostRead();
-      y_ptr = y.HostReadWrite();
-      mem = CEED_MEM_HOST;
-   }
-
-   ierr += CeedVectorSetArray(v_, mem, CEED_USE_POINTER,
-                              const_cast<CeedScalar*>(x_ptr));
-   ierr += CeedVectorSetArray(u_, mem, CEED_USE_POINTER, y_ptr);
+   MFEMCeedVectorContext context(x, y, v_, u_);
 
    ierr += CeedInterpolationRestrict(ceed_interp_, v_, u_);
-
-   ierr += CeedVectorTakeArray(v_, mem, const_cast<CeedScalar**>(&x_ptr));
-   ierr += CeedVectorTakeArray(u_, mem, &y_ptr);
-
    MFEM_ASSERT(ierr == 0, "CEED error");
 }
 
