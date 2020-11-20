@@ -283,3 +283,9 @@ tests/par-mesh-format/ex1p
 
 # VPATH builds
 build-*/*
+
+*.user
+*.obj
+*.tlog
+*.pdb
+Win32/x64/*/*.log
