@@ -178,6 +178,8 @@ TEST_CASE("ConstrainedSolver", "[Parallel], [ConstrainedSolver]")
 }
 
 
+/// this problem is general, with constraints crossing
+/// processor boundaries
 class ParallelTestProblem
 {
 public:
@@ -231,7 +233,7 @@ ParallelTestProblem::ParallelTestProblem()
    // rhs // [ 1.1 -2.   3.  -1.4  2.1 -3.2 -1.1  2.2  0.   0.   0.   0. ]
    // truesol // [-0.55 -2.5   2.5  -1.75  1.75 -1.05  1.05  0.55  0.5   0.35 -2.15  1.65]
 
-   rhs = 0.0;   
+   rhs = 0.0;
    if (rank == 0)
    {
       rhs(0) = 1.1;
@@ -295,7 +297,6 @@ void ParallelTestProblem::Schur(Vector& serr, Vector& lerr)
 void ParallelTestProblem::Penalty(double pen, Vector& serr, Vector& lerr)
 {
    PenaltyConstrainedSolver solver(MPI_COMM_WORLD, *amat, *bmat, pen);
-   // solver.SetPenalty(pen);
    solver.Mult(rhs, sol);
    solver.GetMultiplierSolution(lambda);
    for (int i = 0; i < 2; ++i)
@@ -437,5 +438,251 @@ TEST_CASE("EliminationProjection", "[Parallel], [ConstrainedSolver]")
       delete new_assembled_ep;
    }
 }
+
+class ParallelTestProblemTwo
+{
+public:
+   ParallelTestProblemTwo();
+   ~ParallelTestProblemTwo();
+
+   void Schur(Vector& serr, Vector& lerr);
+   void Penalty(double pen, Vector& serr, Vector& lerr);
+   void Elimination(Vector& serr, Vector& lerr);
+
+// private:
+   SparseMatrix Alocal;
+   SparseMatrix * Blocal;
+   Vector rhs, sol, truesol, lambda, truelambda;
+   HypreParMatrix * amat;
+   HypreParMatrix * bmat;
+};
+
+
+ParallelTestProblemTwo::ParallelTestProblemTwo()
+   :
+   Alocal(2), rhs(2), sol(2), truesol(2), lambda(0), truelambda(0)
+{
+   int rank;
+   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+   Alocal.Add(0, 0, 1.0);
+   Alocal.Add(1, 1, 1.0);
+   Alocal.Finalize();
+
+   int row_starts_a[2] = {2 * rank, 2 * (rank + 1)};
+   amat = new HypreParMatrix(MPI_COMM_WORLD, 8, row_starts_a, &Alocal);
+   amat->CopyRowStarts();
+
+   int blocalrows = rank == 3 ? 1 : 0;
+   // printf("[%d] blocalrows=%d\n", rank, blocalrows);
+   Blocal = new SparseMatrix(blocalrows, 2);
+   int row_starts_b[2];
+   if (rank == 3)
+   {
+      truelambda.SetSize(1);
+      lambda.SetSize(1);
+      Blocal->Add(0, 0, 1.0);
+      Blocal->Add(0, 1, 1.0);
+      row_starts_b[0] = 0;
+      row_starts_b[1] = 1;
+   }
+   else
+   {
+      row_starts_b[0] = 0;
+      row_starts_b[1] = 0;
+   }
+   Blocal->Finalize();
+   int col_starts[2] = { 2*rank, 2 * (rank + 1) };
+
+   bmat = new HypreParMatrix(MPI_COMM_WORLD, 1, 8, row_starts_b, col_starts,
+                             Blocal);
+   bmat->CopyRowStarts();
+   bmat->CopyColStarts();
+
+   if (false)
+   {
+      /// this seems to work just fine...
+      HypreParMatrix * junk = bmat->Transpose();
+      delete junk;
+   }
+
+   rhs = 0.0;
+   if (rank == 0)
+   {
+      rhs(0) = 1.1;
+      truesol(0) = 1.1;
+      rhs(1) = -2.0;
+      truesol(1) = -2.0;
+   }
+   else if (rank == 1)
+   {
+      rhs(0) = 3.0;
+      truesol(0) = 3.0;
+      rhs(1) = -1.4;
+      truesol(1) = -1.4;
+   }
+   else if (rank == 2)
+   {
+      rhs(0) = 2.1;
+      truesol(0) = 2.1;
+      rhs(1) = -3.2;
+      truesol(1) = -3.2;
+   }
+   else if (rank == 3)
+   {
+      rhs(0) = -1.1;
+      truesol(0) = -1.65;
+      rhs(1) = 2.2;
+      truesol(1) = 1.65;
+      truelambda(0) = 0.55;
+   }
+   else
+   {
+      mfem_error("Test only works on 4 ranks!");
+   }
+}
+
+ParallelTestProblemTwo::~ParallelTestProblemTwo()
+{
+   delete amat;
+   delete bmat;
+   delete Blocal;
+}
+
+void ParallelTestProblemTwo::Schur(Vector& serr, Vector& lerr)
+{
+   IdentitySolver prec(2);
+   SchurConstrainedSolver solver(MPI_COMM_WORLD, *amat, *bmat, prec);
+   solver.Mult(rhs, sol);
+   solver.GetMultiplierSolution(lambda);
+   for (int i = 0; i < 2; ++i)
+   {
+      serr(i) = truesol(i) - sol(i);
+   }
+   for (int i = 0; i < truelambda.Size(); ++i)
+   {
+      lerr(i) = truelambda(i) - lambda(i);
+   }
+}
+
+void ParallelTestProblemTwo::Elimination(Vector& serr, Vector& lerr)
+{
+   int rank;
+   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+   int nl = rank == 3 ? 1 : 0;
+   Array<int> lagrange_rowstarts(nl);
+   EliminationCGSolver solver(*amat, *Blocal, lagrange_rowstarts);
+   solver.Mult(rhs, sol);
+   solver.GetMultiplierSolution(lambda);
+   for (int i = 0; i < 2; ++i)
+   {
+      serr(i) = truesol(i) - sol(i);
+   }
+   for (int i = 0; i < truelambda.Size(); ++i)
+   {
+      lerr(i) = truelambda(i) - lambda(i);
+   }
+}
+
+void ParallelTestProblemTwo::Penalty(double pen, Vector& serr, Vector& lerr)
+{
+   int rank;
+   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+   PenaltyConstrainedSolver solver(MPI_COMM_WORLD, *amat, *bmat, pen);
+   solver.Mult(rhs, sol);
+   solver.GetMultiplierSolution(lambda);
+   for (int i = 0; i < 2; ++i)
+   {
+      serr(i) = truesol(i) - sol(i);
+   }
+   for (int i = 0; i < truelambda.Size(); ++i)
+   {
+      lerr(i) = truelambda(i) - lambda(i);
+   }
+}
+
+TEST_CASE("ParallelConstrainedSolverTwo", "[Parallel], [ConstrainedSolver]")
+{
+   int comm_rank, comm_size;
+   MPI_Comm_rank(MPI_COMM_WORLD, &comm_rank);
+   MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
+
+   if (comm_size == 4)
+   {
+      int lsize = comm_rank == 3 ? 1 : 0;
+      Vector serr(2), lerr(lsize);
+      ParallelTestProblemTwo problem;
+
+      problem.Schur(serr, lerr);
+      double serrnorm = serr.Norml2();
+      INFO("[" << comm_rank << "] Parallel Schur primal error: " << serrnorm << "\n");
+      // std::cout << "[" << comm_rank << "] Parallel Schur primal error: " << serrnorm << "\n";
+      REQUIRE(serrnorm == MFEM_Approx(0.0));
+      if (comm_rank == 3)
+      {
+         // std::cout << "[" << comm_rank << "] Parallel Schur dual error: " << lerr(0) << "\n";
+         INFO("[" << comm_rank << "] Parallel Schur dual error: " << lerr(0) << "\n");
+         REQUIRE(lerr(0) == MFEM_Approx(0.0));
+      }
+
+      /*
+      for (int i = 0; i < comm_size; ++i)
+      {
+         if (comm_rank == i)
+         {
+            std::cout << "[" << comm_rank << "]:\n";
+            for (int j = 0; j < 2; ++j)
+            {
+               printf("  sol(%d)=%f, truesol(%d)=%f, serr(%d)=%f\n",
+                      j, problem.sol(j), j, problem.truesol(j), j, serr(j));
+            }
+         }
+         MPI_Barrier(MPI_COMM_WORLD);
+      }
+      */
+
+      problem.Elimination(serr, lerr);
+      serrnorm = serr.Norml2();
+      INFO("[" << comm_rank << "] Parallel Elimination primal error: " << serrnorm << "\n");
+      REQUIRE(serrnorm == MFEM_Approx(0.0));
+      if (comm_rank == 3)
+      {
+         INFO("[" << comm_rank << "] Parallel Elimination dual error: " << lerr(0) << "\n");
+         REQUIRE(lerr(0) == MFEM_Approx(0.0));
+      }
+
+      for (auto pen : {1.e+3, 1.e+4, 1.e+6})
+      {
+         problem.Penalty(pen, serr, lerr);
+         serrnorm = serr.Norml2();
+         INFO("Parallel penalty primal error: " << serrnorm << "\n");
+         REQUIRE(serrnorm == MFEM_Approx(0.0, 2./pen));
+         if (comm_rank == 3)
+         {
+            INFO("Parallel penalty dual error: " << lerr(0) << "\n");
+            REQUIRE(lerr(0) == MFEM_Approx(0.0, 2./pen));
+         }
+
+         for (int i = 0; i < comm_size; ++i)
+         {
+            if (comm_rank == i)
+            {
+               std::cout << "[" << comm_rank << "]:\n";
+               for (int j = 0; j < 2; ++j)
+               {
+                  printf("  sol(%d)=%f, truesol(%d)=%f, serr(%d)=%f\n",
+                         j, problem.sol(j), j, problem.truesol(j), j, serr(j));
+               }
+            }
+            MPI_Barrier(MPI_COMM_WORLD);
+         }
+
+      }
+
+      // today is the day I test the elimination solver in parallel
+   }
+}
+
 
 #endif

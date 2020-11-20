@@ -269,34 +269,38 @@ EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
    ConstrainedSolver(A.GetComm(), A, B),
    hA_(A)
 {
-   int * I = B.GetI();
-   int * J = B.GetJ();
-   double * data = B.GetData();
-
-   for (int k = 0; k < lagrange_rowstarts.Size() - 1; ++k)
+   // if (B.Height() > 0)
+   if (!B.Empty())
    {
-      int constraint_size = lagrange_rowstarts[k + 1] - lagrange_rowstarts[k];
-      Array<int> lagrange_dofs(constraint_size);
-      Array<int> primary_dofs;
-      Array<int> secondary_dofs(constraint_size);
-      for (int i = lagrange_rowstarts[k]; i < lagrange_rowstarts[k + 1]; ++i)
+      int * I = B.GetI();
+      int * J = B.GetJ();
+      double * data = B.GetData();
+
+      for (int k = 0; k < lagrange_rowstarts.Size() - 1; ++k)
       {
-         lagrange_dofs[i - lagrange_rowstarts[k]] = i;
-         int j = J[I[i]];
-         double val = data[I[i]];
-         secondary_dofs[i  - lagrange_rowstarts[k]] = j;
-         // could actually deal with following issue, for now we are lazy
-         MFEM_VERIFY(std::abs(val) > 1.e-16, "Explicit zero in leading position in B matrix!");
-         for (int jptr = I[i] + 1; jptr < I[i + 1]; ++jptr)
+         int constraint_size = lagrange_rowstarts[k + 1] - lagrange_rowstarts[k];
+         Array<int> lagrange_dofs(constraint_size);
+         Array<int> primary_dofs;
+         Array<int> secondary_dofs(constraint_size);
+         for (int i = lagrange_rowstarts[k]; i < lagrange_rowstarts[k + 1]; ++i)
          {
-            j = J[jptr];
-            val = data[jptr];
-            primary_dofs.Append(j);
+            lagrange_dofs[i - lagrange_rowstarts[k]] = i;
+            int j = J[I[i]];
+            double val = data[I[i]];
+            secondary_dofs[i  - lagrange_rowstarts[k]] = j;
+            // could actually deal with following issue, for now we are lazy
+            MFEM_VERIFY(std::abs(val) > 1.e-16, "Explicit zero in leading position in B matrix!");
+            for (int jptr = I[i] + 1; jptr < I[i + 1]; ++jptr)
+            {
+               j = J[jptr];
+               val = data[jptr];
+               primary_dofs.Append(j);
+            }
          }
+         primary_dofs.Sort();
+         primary_dofs.Unique();
+         elims_.Append(new Eliminator(B, lagrange_dofs, primary_dofs, secondary_dofs));
       }
-      primary_dofs.Sort();
-      primary_dofs.Unique();
-      elims_.Append(new Eliminator(B, lagrange_dofs, primary_dofs, secondary_dofs));
    }
    projector_ = new EliminationProjection(hA_, elims_);
    BuildPreconditioner();
