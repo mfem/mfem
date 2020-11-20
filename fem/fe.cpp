@@ -1395,6 +1395,8 @@ void VectorFiniteElement::LocalRestriction_ND(
 PointFiniteElement::PointFiniteElement()
    : NodalFiniteElement(0, Geometry::POINT, 1, 0)
 {
+   lex_ordering.SetSize(1);
+   lex_ordering[0] = 0;
    Nodes.IntPoint(0).x = 0.0;
 }
 
