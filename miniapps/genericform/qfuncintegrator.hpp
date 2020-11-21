@@ -1,6 +1,7 @@
 #include "mfem.hpp"
 #include "../../general/forall.hpp"
 #include "genericintegrator.hpp"
+#include "tensor.hpp"
 
 #pragma once
 
@@ -26,6 +27,8 @@ public:
                        qfunc_grad_type f_grad,
                        qfunc_args_type const &... fargs);
 
+   QFunctionIntegrator(qfunc_type f, qfunc_args_type const &... fargs);
+
    void Setup(const FiniteElementSpace &fes) override;
 
    void Apply(const Vector &, Vector &) const override;
@@ -36,13 +39,15 @@ public:
                       Vector &y) const override;
 
 protected:
+   template<int D1D, int Q1D>
    void Apply2D(const Vector &u_in_, Vector &y_) const;
 
+   template<int D1D, int Q1D>
    void ApplyGradient2D(const Vector &u_in_,
                         const Vector &v_in_,
                         Vector &y_) const;
 
-   auto EvaluateFargValue(const Mesh& m) const;
+   auto EvaluateFargValue(const Mesh &m) const;
 
    const FiniteElementSpace *fespace;
    const DofToQuad *maps;        ///< Not owned
@@ -70,6 +75,21 @@ QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::
                  "Type not supported for parameter expansion. See "
                  "documentation for supported types.");
 }
+
+template<typename qfunc_type, typename qfunc_grad_type, typename... qfunc_args_type>
+QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::
+   QFunctionIntegrator(qfunc_type f, qfunc_args_type const &... fargs)
+   : GenericIntegrator(nullptr), maps(nullptr), geom(nullptr), qf(f),
+     qf_grad(qfunc_grad_type{}), qf_farg_values(std::tuple{fargs...})
+{
+   static_assert((supported_type<qfunc_args_type>::value && ...),
+                 "Type not supported for parameter expansion. See "
+                 "documentation for supported types.");
+}
+
+template<typename qfunc_type, typename... qfunc_args_type>
+QFunctionIntegrator(qfunc_type, qfunc_args_type const &...)
+   -> QFunctionIntegrator<qfunc_type, int, qfunc_args_type const &...>;
 
 template<typename qfunc_type, typename qfunc_grad_type, typename... qfunc_args_type>
 void QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::Setup(
@@ -120,15 +140,23 @@ template<typename qfunc_type, typename qfunc_grad_type, typename... qfunc_args_t
 void QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::Apply(
    const Vector &x, Vector &y) const
 {
-   Apply2D(x, y);
+   if (dim == 2)
+   {
+      switch ((dofs1D << 4) | quad1D)
+      {
+      case 0x22:
+         return Apply2D<2, 2>(x, y);
+      default:
+         MFEM_ASSERT(true, "NOPE");
+      }
+   }
 }
 
 template<typename qfunc_type, typename qfunc_grad_type, typename... qfunc_args_type>
+template<int D1D, int Q1D>
 void QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::Apply2D(
    const Vector &u_in_, Vector &y_) const
 {
-   int D1D = dofs1D;
-   int Q1D = quad1D;
    int NE = ne;
 
    auto v1d = Reshape(maps->B.Read(), Q1D, D1D);
@@ -171,15 +199,15 @@ void QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::Apply
             double adjJ[2][2] = {{J_q[1][1], -J_q[0][1]},
                                  {-J_q[1][0], J_q[0][0]}};
 
-            double du_dx_q[2]
+            tensor<double, 2> du_dx_q
                = {(adjJ[0][0] * du_dX_q[0] + adjJ[1][0] * du_dX_q[1]) / detJ_q,
                   (adjJ[0][1] * du_dX_q[0] + adjJ[1][1] * du_dX_q[1]) / detJ_q};
 
             auto processed_qf_farg_values = std::apply(
-                [=](auto &... a) {
-                   return std::make_tuple(u_q, du_dx_q, EvaluateFargValue(a)...);
-                },
-                qf_farg_values);
+               [=](auto &... a) {
+                  return std::make_tuple(u_q, du_dx_q, EvaluateFargValue(a)...);
+               },
+               qf_farg_values);
 
             auto [f0, f1] = std::apply(qf, processed_qf_farg_values);
 
@@ -213,15 +241,14 @@ template<typename qfunc_type, typename qfunc_grad_type, typename... qfunc_args_t
 void QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::
    ApplyGradient(const Vector &x, const Vector &v, Vector &y) const
 {
-   ApplyGradient2D(x, v, y);
+   ApplyGradient2D<2, 2>(x, v, y);
 }
 
 template<typename qfunc_type, typename qfunc_grad_type, typename... qfunc_args_type>
+template<int D1D, int Q1D>
 void QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::
    ApplyGradient2D(const Vector &u_in_, const Vector &v_in_, Vector &y_) const
 {
-   int D1D = dofs1D;
-   int Q1D = quad1D;
    int NE = ne;
 
    auto v1d = Reshape(maps->B.Read(), Q1D, D1D);
@@ -272,7 +299,7 @@ void QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::
             double adjJ[2][2] = {{J_q[1][1], -J_q[0][1]},
                                  {-J_q[1][0], J_q[0][0]}};
 
-            double du_dx_q[2]
+            tensor<double, 2> du_dx_q
                = {(adjJ[0][0] * du_dX_q[0] + adjJ[1][0] * du_dX_q[1]) / detJ_q,
                   (adjJ[0][1] * du_dX_q[0] + adjJ[1][1] * du_dX_q[1]) / detJ_q};
 
@@ -280,22 +307,50 @@ void QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::
                = {(adjJ[0][0] * dv_dX_q[0] + adjJ[1][0] * dv_dX_q[1]) / detJ_q,
                   (adjJ[0][1] * dv_dX_q[0] + adjJ[1][1] * dv_dX_q[1]) / detJ_q};
 
+            // compute dF(u, du)/du
+            auto processed_qf_farg_values_u = std::apply(
+               [=](auto &... a) {
+                  return std::make_tuple(derivative_wrt(u_q),
+                                         du_dx_q,
+                                         EvaluateFargValue(a)...);
+               },
+               qf_farg_values);
 
-            auto processed_qf_farg_values = std::apply(
-                [=](auto &... a) {
-                   return std::make_tuple(u_q, du_dx_q, EvaluateFargValue(a)...);
-                },
-                qf_farg_values);
+            auto [f0u, f1u] = std::apply(qf, processed_qf_farg_values_u);
+            // @TODO
+            double f00 = 0.0;
+            tensor<double, 2> f10 = {0.0, 0.0};
 
-            // call Qfunction
-            auto [f00, f01, f10, f11] = std::apply(qf_grad, processed_qf_farg_values);
+            // compute dF(u, du)/ddu
+            auto processed_qf_farg_values_du = std::apply(
+               [=](auto &... a) {
+                  return std::make_tuple(u_q,
+                                         derivative_wrt(du_dx_q),
+                                         EvaluateFargValue(a)...);
+               },
+               qf_farg_values);
+
+            auto [f0du, f1du] = std::apply(qf, processed_qf_farg_values_du);
+
+            tensor<double, 2> f01;
+            if constexpr (std::is_same_v<decltype(f0du), double>)
+            {
+               f01 = {0.0, 0.0};
+            }
+            else
+            {
+               f01 = f0du.gradient;
+            }
+            tensor<double, 2, 2> f11 = {
+               {{f1du[0].gradient[0], f1du[0].gradient[1]},
+                {f1du[1].gradient[0], f1du[1].gradient[1]}}};
 
             double W0 = f00 * v_q + f01[0] * dv_dx_q[0] + f01[1] * dv_dx_q[1];
 
-            double W1[2] = {f10[0] * v_q + f11(0, 0) * dv_dx_q[0]
-                               + f11(0, 1) * dv_dx_q[1],
-                            f10[1] * v_q + f11(1, 0) * dv_dx_q[0]
-                               + +f11(1, 1) * dv_dx_q[1]};
+            double W1[2] = {f10[0] * v_q + f11[0][0] * dv_dx_q[0]
+                               + f11[0][1] * dv_dx_q[1],
+                            f10[1] * v_q + f11[1][0] * dv_dx_q[0]
+                               + +f11[1][1] * dv_dx_q[1]};
 
             double W0_X = W0 * detJ_q;
 
