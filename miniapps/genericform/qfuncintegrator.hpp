@@ -147,7 +147,7 @@ void QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::Apply
       case 0x22:
          return Apply2D<2, 2>(x, y);
       default:
-         MFEM_ASSERT(true, "NOPE");
+         MFEM_ASSERT(false, "NOPE");
       }
    }
 }
@@ -317,9 +317,26 @@ void QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::
                qf_farg_values);
 
             auto [f0u, f1u] = std::apply(qf, processed_qf_farg_values_u);
-            // @TODO
+
             double f00 = 0.0;
-            tensor<double, 2> f10 = {0.0, 0.0};
+            if constexpr (std::is_same_v<decltype(f0u), double>)
+            {
+               f00 = 0.0;
+            }
+            else
+            {
+               f00 = f0u.gradient;
+            }
+
+            tensor<double, 2> f10;
+            if constexpr (std::is_same_v<decltype(f1u), tensor<double, 2>>)
+            {
+               f10 = {0.0, 0.0};
+            }
+            else
+            {
+               f10 = {f1u[0].gradient, f1u[1].gradient};
+            }
 
             // compute dF(u, du)/ddu
             auto processed_qf_farg_values_du = std::apply(
