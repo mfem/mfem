@@ -10659,10 +10659,27 @@ void Mesh::RemoveInternalBoundariesNotAdjacentTo(const Array<int> &_regions)
       bool interior = FaceIsInterior(faceNo);
 
       auto face_info = faces_info[faceNo];
-      auto adjacent = regions.count(face_info.Elem1No) +
-                      regions.count(face_info.Elem2No);
+      auto adj = regions.count(elements[face_info.Elem1No]->GetAttribute());
+      if (face_info.Elem2No > 0)
+         adj += regions.count(elements[face_info.Elem2No]->GetAttribute());
 
-      bool remove = interior & !adjacent;
+      bool remove = interior & !adj;
+
+      // if (remove)
+      // {
+      //    std::cout << "remove face on: " << boundary[i]->GetAttribute()
+      //              << " adj to ("
+      //              << elements[face_info.Elem1No]->GetAttribute();
+      //    if (face_info.Elem2No > 0)
+      //    {
+      //       std::cout << ", "
+      //                 << elements[face_info.Elem2No]->GetAttribute() << ")\n";
+      //    }
+      //    else
+      //    {
+      //       std::cout << ")\n";
+      //    }
+      // }
 
       if (remove)
       {
@@ -10700,10 +10717,11 @@ void Mesh::RemoveInternalBoundariesNotAdjacentTo(const Array<int> &_regions)
       bool interior = FaceIsInterior(faceNo);
 
       auto face_info = faces_info[faceNo];
-      auto adjacent = regions.count(face_info.Elem1No) +
-                      regions.count(face_info.Elem2No);
+      auto adj = regions.count(elements[face_info.Elem1No]->GetAttribute());
+      if (face_info.Elem2No > 0)
+         adj += regions.count(elements[face_info.Elem2No]->GetAttribute());
 
-      bool keep = !interior || adjacent;
+      bool keep = !interior || adj;
 
       if (keep)
       {
