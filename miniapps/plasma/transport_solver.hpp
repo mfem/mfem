@@ -2285,17 +2285,19 @@ public:
    virtual void SetOperator(const Operator &op);
 };
 
-struct TransportTol
+struct SolverParams
 {
    // Linear solver tolerances
    double lin_abs_tol;
    double lin_rel_tol;
    int lin_max_iter;
+   int lin_log_lvl;
 
    // Newton Solver tolerances
    double newt_abs_tol;
    double newt_rel_tol;
    int newt_max_iter;
+   int newt_log_lvl;
 
    // Steady State tolerances
    double ss_abs_tol;
@@ -2323,7 +2325,7 @@ private:
    GMRESSolver   newton_op_solver_;
    NewtonSolver  newton_solver_;
 
-   TransportTol tol_;
+   SolverParams tol_;
 
    Vector kMax_;
    Array<bool> ss_;
@@ -3088,7 +3090,7 @@ private:
 public:
    DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
                   const PlasmaParams & plasma,
-                  const TransportTol & tol,
+                  const SolverParams & tol,
                   const Vector &eqn_weights,
                   ParFiniteElementSpace &fes,
                   ParFiniteElementSpace &vfes,

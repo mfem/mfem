@@ -1547,7 +1547,7 @@ void TransportPrec::SetOperator(const Operator &op)
 
 DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
                                const PlasmaParams &plasma,
-                               const TransportTol & tol,
+                               const SolverParams & tol,
                                const Vector &eqn_weights,
                                ParFiniteElementSpace &fes,
                                ParFiniteElementSpace &vfes,
@@ -1592,13 +1592,13 @@ DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
    newton_op_solver_.SetRelTol(tol_.lin_rel_tol);
    newton_op_solver_.SetAbsTol(tol_.lin_abs_tol);
    newton_op_solver_.SetMaxIter(tol_.lin_max_iter);
-   newton_op_solver_.SetPrintLevel(3);
+   newton_op_solver_.SetPrintLevel(tol_.lin_log_lvl);
    newton_op_solver_.SetPreconditioner(newton_op_prec_);
 
    newton_solver_.iterative_mode = false;
    newton_solver_.SetSolver(newton_op_solver_);
    newton_solver_.SetOperator(op_);
-   newton_solver_.SetPrintLevel(1); // print Newton iterations
+   newton_solver_.SetPrintLevel(tol_.newt_log_lvl); // print Newton iterations
    newton_solver_.SetRelTol(tol_.newt_rel_tol);
    newton_solver_.SetAbsTol(tol_.newt_abs_tol);
    newton_solver_.SetMaxIter(tol_.newt_max_iter);
