@@ -2273,13 +2273,22 @@ public:
    void Update();
 };
 
+struct TransPrecParams
+{
+   int type;
+   int log_lvl;
+};
+
 class TransportPrec : public BlockDiagonalPreconditioner
 {
 private:
    Array<Operator*> diag_prec_;
+   Array<SuperLURowLocMatrix*> slu_mat_;
+
+   TransPrecParams p_;
 
 public:
-   TransportPrec(const Array<int> &offsets);
+   TransportPrec(const Array<int> &offsets, const TransPrecParams &p);
    ~TransportPrec();
 
    virtual void SetOperator(const Operator &op);
@@ -2302,6 +2311,8 @@ struct SolverParams
    // Steady State tolerances
    double ss_abs_tol;
    double ss_rel_tol;
+
+   TransPrecParams prec;
 };
 
 class DGTransportTDO : public TimeDependentOperator

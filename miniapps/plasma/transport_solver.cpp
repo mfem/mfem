@@ -1489,10 +1489,12 @@ void DGAdvectionDiffusionTDO::Update()
    X_.SetSize(fes_->GetTrueVSize());
 }
 
-TransportPrec::TransportPrec(const Array<int> &offsets)
-   : BlockDiagonalPreconditioner(offsets), diag_prec_(5)
+TransportPrec::TransportPrec(const Array<int> &offsets,
+                             const TransPrecParams &p)
+   : BlockDiagonalPreconditioner(offsets), diag_prec_(5), slu_mat_(5), p_(p)
 {
    diag_prec_ = NULL;
+   slu_mat_ = NULL;
 }
 
 TransportPrec::~TransportPrec()
@@ -1500,6 +1502,7 @@ TransportPrec::~TransportPrec()
    for (int i=0; i<diag_prec_.Size(); i++)
    {
       delete diag_prec_[i];
+      delete slu_mat_[i];
    }
 }
 
@@ -1523,10 +1526,26 @@ void TransportPrec::SetOperator(const Operator &op)
             const HypreParMatrix & M =
                dynamic_cast<const HypreParMatrix&>(diag_op);
 
-            HypreBoomerAMG * amg =
-               new HypreBoomerAMG(const_cast<HypreParMatrix&>(M));
-            amg->SetPrintLevel(0);
-            diag_prec_[i] = amg;
+            if (p_.type == 0)
+            {
+               diag_prec_[i] =
+                  new HypreDiagScale(const_cast<HypreParMatrix&>(M));
+            }
+            else if (p_.type == 1)
+            {
+               HypreBoomerAMG * amg =
+                  new HypreBoomerAMG(const_cast<HypreParMatrix&>(M));
+               amg->SetPrintLevel(p_.log_lvl);
+               diag_prec_[i] = amg;
+            }
+            else
+            {
+               delete slu_mat_[i];
+               slu_mat_[i] = new SuperLURowLocMatrix(M);
+               SuperLUSolver * slu = new SuperLUSolver(MPI_COMM_WORLD);
+               slu->SetOperator(*slu_mat_[i]);
+               diag_prec_[i] = slu;
+            }
             /*
                  if (i == 0)
                  {
@@ -1572,7 +1591,7 @@ DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
      yGF_(yGF),
      kGF_(kGF),
      offsets_(offsets),
-     newton_op_prec_(offsets),
+     newton_op_prec_(offsets, tol.prec),
      newton_op_solver_(fes.GetComm()),
      newton_solver_(fes.GetComm()),
      tol_(tol),

@@ -964,6 +964,9 @@ int main(int argc, char *argv[])
    ttol.ss_abs_tol = 0.0;
    ttol.ss_rel_tol = -1.0;
 
+   ttol.prec.type    = 1;
+   ttol.prec.log_lvl = 0;
+
    // 2. Parse command-line options.
    // problem_ = 1;
    const char *mesh_file = "ellipse_origin_h0pt0625_o3.mesh";
@@ -1103,6 +1106,10 @@ int main(int argc, char *argv[])
                   "Absolute tolerance for Steady State detection.");
    args.AddOption(&ttol.ss_rel_tol, "-srtol", "--steady-state-rel-tolerance",
                   "Relative tolerance for Steady State detection.");
+   args.AddOption(&ttol.prec.type, "-pt", "--prec-type",
+                  "Type of preconditioner: 0-DiagScale, 1-AMG, 2-SuperLU");
+   args.AddOption(&ttol.prec.log_lvl, "-plog", "--prec-logging-level",
+                  "Output level for preconditioner.");
    args.AddOption(&tol_init, "-tol0", "--initial-tolerance",
                   "Error tolerance for initial condition.");
    args.AddOption(&tol_ode, "-tol", "--ode-tolerance",
