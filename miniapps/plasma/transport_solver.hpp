@@ -2283,7 +2283,9 @@ class TransportPrec : public BlockDiagonalPreconditioner
 {
 private:
    Array<Operator*> diag_prec_;
+#ifdef MFEM_USE_SUPERLU
    Array<SuperLURowLocMatrix*> slu_mat_;
+#endif
 
    TransPrecParams p_;
 

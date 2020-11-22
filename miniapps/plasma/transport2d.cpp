@@ -1107,7 +1107,7 @@ int main(int argc, char *argv[])
    args.AddOption(&ttol.ss_rel_tol, "-srtol", "--steady-state-rel-tolerance",
                   "Relative tolerance for Steady State detection.");
    args.AddOption(&ttol.prec.type, "-pt", "--prec-type",
-                  "Type of preconditioner: 0-DiagScale, 1-AMG, 2-SuperLU");
+                  "Type of preconditioner: 1-AMG, 2-SuperLU");
    args.AddOption(&ttol.prec.log_lvl, "-plog", "--prec-logging-level",
                   "Output level for preconditioner.");
    args.AddOption(&tol_init, "-tol0", "--initial-tolerance",
