@@ -37,30 +37,6 @@ void velocity_function(const Vector &x, Vector &v)
    }
 }
 
-static std::string getString(AssemblyLevel assembly)
-{
-   switch (assembly)
-   {
-      case AssemblyLevel::NONE:
-         return "NONE";
-         break;
-      case AssemblyLevel::PARTIAL:
-         return "PARTIAL";
-         break;
-      case AssemblyLevel::ELEMENT:
-         return "ELEMENT";
-         break;
-      case AssemblyLevel::FULL:
-         return "FULL";
-         break;
-      case AssemblyLevel::LEGACYFULL:
-         return "LEGACYFULL";
-         break;
-   }
-   mfem_error("Unknown AssemblyLevel.");
-   return "";
-}
-
 enum class Coeff {Const, Grid, Quad};
 
 static std::string getString(Coeff coeff_type)
@@ -102,9 +78,10 @@ static std::string getString(Problem pb)
 }
 
 void test_sparse_matrix(const char* input, int order, const Coeff coeff_type,
-                        const Problem pb, const AssemblyLevel assembly)
+                        const Problem pb, const bool keep_nbr_block)
 {
-   std::string section = "assembly: " + getString(assembly) + "\n" +
+   std::string knb = keep_nbr_block ? "ON" : "OFF";
+   std::string section = "keep_nbr_block: " + knb + "\n" +
                          "coeff_type: " + getString(coeff_type) + "\n" +
                          "pb: " + getString(pb) + "\n" +
                          "order: " + std::to_string(order) + "\n" +
@@ -177,26 +154,30 @@ void test_sparse_matrix(const char* input, int order, const Coeff coeff_type,
          break;
    }
 
-   k_ref.KeepNbrBlock();
+   if (keep_nbr_block) k_ref.KeepNbrBlock();
    k_ref.Assemble();
    k_ref.Finalize();
 
-   k_test.SetAssemblyLevel(assembly);
+   k_test.SetAssemblyLevel(AssemblyLevel::FULL);
+   if (keep_nbr_block) k_test.KeepNbrBlock();
    k_test.Assemble();
 
    const int sizeIn  = pb == Problem::Convection ?
                        fes.GetVSize() + fes.GetFaceNbrVSize() :
                        fes.GetVSize();
-   const int sizeOut = fes.GetVSize();
-   Vector x(sizeIn), y_test(sizeIn), y_ref(sizeIn);
+   const int sizeOut = (pb == Problem::Convection && keep_nbr_block)?
+                       fes.GetVSize() + fes.GetFaceNbrVSize() :
+                       fes.GetVSize();
+   const int sizeEnd = fes.GetVSize();
+   Vector x(sizeIn), y_test(sizeOut), y_ref(sizeOut);
    x.Randomize(1);
 
    k_test.SpMat().Mult(x,y_test);
-   k_ref.Mult(x,y_ref);
+   k_ref.SpMat().Mult(x,y_ref);
 
    y_test -= y_ref;
 
-   Vector result(y_test.HostReadWrite(), sizeOut);
+   Vector result(y_test.HostReadWrite(), sizeEnd);
 
    REQUIRE(result.Norml2() < 1.e-12);
    delete coeff;
@@ -205,7 +186,7 @@ void test_sparse_matrix(const char* input, int order, const Coeff coeff_type,
 
 TEST_CASE("Sparse Matrix", "[Parallel]")
 {
-   auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::ELEMENT);
+   auto keep_nbr_block = GENERATE(false);
    auto coeff_type = GENERATE(Coeff::Const,Coeff::Grid,Coeff::Quad);
    auto pb = GENERATE(Problem::Mass,Problem::Convection,Problem::Diffusion);
    auto order = GENERATE(1,2,3);
@@ -213,7 +194,7 @@ TEST_CASE("Sparse Matrix", "[Parallel]")
                         "../../data/inline-hex.mesh",
                         "../../data/star-q2.mesh",
                         "../../data/fichera-q2.mesh");
-   test_sparse_matrix(mesh, order, coeff_type, pb, assembly);
+   test_sparse_matrix(mesh, order, coeff_type, pb, keep_nbr_block);
 } // test case
 
 } // namespace sparse_matrix_test

@@ -53,6 +53,8 @@ enum class AssemblyLevel
     SetAssemblyLevel() function. */
 class BilinearForm : public Matrix
 {
+   friend FABilinearFormExtension;
+
 protected:
    /// Sparse matrix \f$ M \f$ to be associated with the form. Owned.
    SparseMatrix *mat;
@@ -298,16 +300,8 @@ public:
    /// Returns a reference to the sparse matrix:  \f$ M \f$
    SparseMatrix &SpMat()
    {
-      if (GetAssemblyLevel() == AssemblyLevel::LEGACYFULL)
-      {
-         MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
-         return *mat;
-      }
-      else
-      {
-         mat = mat ? mat : GetFullAssemblySparseMatrix(*this);
-         return *mat;
-      }
+      MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
+      return *mat;
    }
 
    /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer
@@ -594,8 +588,6 @@ public:
 
    /// Indicate that integrators are not owned by the BilinearForm
    void UseExternalIntegrators() { extern_bfs = 1; };
-
-   friend SparseMatrix* GetFullAssemblySparseMatrix(BilinearForm &a);
 
    /// Destroys bilinear form.
    virtual ~BilinearForm();

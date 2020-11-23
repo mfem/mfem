@@ -111,21 +111,14 @@ public:
    void Assemble();
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
-   /// Assemble the Full Assembly operator in a single SparseMatrix.
-   /** Warning: Does not include the boundary conditions. */
-   friend SparseMatrix* GetFullAssemblySparseMatrix(BilinearForm &a);
 };
-
-SparseMatrix* GetFullAssemblySparseMatrix(BilinearForm &a);
 
 /// Data and methods for fully-assembled bilinear forms
 class FABilinearFormExtension : public EABilinearFormExtension
 {
 private:
-   SparseMatrix mat;
-   /// face_mat handles parallelism for DG face terms.
-   SparseMatrix face_mat;
-   bool use_face_mat;
+   SparseMatrix *mat;
+   mutable Vector long_x, long_y;
 
 public:
    FABilinearFormExtension(BilinearForm *form);
