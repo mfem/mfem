@@ -100,7 +100,7 @@ public:
 /**
  * This implementation of a transient incompressible Navier Stokes solver uses
  * the non-dimensionalized formulation. The coupled momentum and
- * incompressibilty equations are decoupled using the split scheme described in
+ * incompressibility equations are decoupled using the split scheme described in
  * [1]. This leads to three solving steps.
  *
  * 1. An extrapolation step for all nonlinear terms which are treated
@@ -285,7 +285,7 @@ public:
    void SetFilterAlpha(double a) { filter_alpha = a; }
 
 protected:
-   /// Print informations about the Navier version.
+   /// Print information about the Navier version.
    void PrintInfo();
 
    /// Update the EXTk/BDF time integration coefficient.
