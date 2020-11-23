@@ -346,13 +346,13 @@ void NavierSolver::Step(double &time, double dt, int cur_step, bool provisional)
 
    SetTimeIntegrationCoefficients(cur_step);
 
-   // Set current time for velocity dirichlet boundary conditions.
+   // Set current time for velocity Dirichlet boundary conditions.
    for (auto &vel_dbc : vel_dbcs)
    {
       vel_dbc.coeff->SetTime(time + dt);
    }
 
-   // Set current time for pressure dirichlet boundary conditions.
+   // Set current time for pressure Dirichlet boundary conditions.
    for (auto &pres_dbc : pres_dbcs)
    {
       pres_dbc.coeff->SetTime(time + dt);
