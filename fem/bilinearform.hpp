@@ -83,7 +83,7 @@ protected:
 
    /// Set of Domain Integrators to be applied.
    Array<BilinearFormIntegrator*> dbfi;
-    /// 0 if active, 1 if outside, 2 if intersection
+   /// 0 if active, 1 if outside, 2 if intersection
    Array<Array<int>*>             dbfi_marker;
 
    /// Set of Boundary Integrators to be applied.
