@@ -23,16 +23,9 @@
   todo:
   ---
 
-  elimination:
-
-  - add a scalar Eliminator?
-  - debug parallel issues
-
-  general:
-
+  - add a scalar Eliminator? (instead of calling LAPACK on 1 by 1 matrices)
   - timing / scaling of different solvers
   - make sure curved mesh works (is this a real problem or just VisIt visualization?)
-  - make elimination solver parallel
   - think about preconditioning interface; user may have good preconditioner
     for primal system that we could use in all three existing solvers?
   - improve Schur complement block in Schur solver (user-defined preconditioner, but
@@ -194,7 +187,6 @@ int main(int argc, char *argv[])
    double reltol = 1.e-6;
    double penalty = 0.0;
    bool mass = true;
-   bool debug_mesh = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -224,8 +216,6 @@ int main(int argc, char *argv[])
                   "Penalty parameter for penalty solver, used if > 0");
    args.AddOption(&mass, "--mass", "--mass", "--diffusion", "--diffusion",
                   "Which bilinear form, --mass or --diffusion");
-   args.AddOption(&debug_mesh, "--debug-mesh", "--debug-mesh", "--no-debug-mesh",
-                  "--no-debug-mesh", "Use tiny debug mesh");
 
    args.Parse();
    if (!args.Good())
@@ -244,19 +234,7 @@ int main(int argc, char *argv[])
    Device device(device_config);
    if (myid == 0) { device.Print(); }
 
-   Mesh * mesh;
-   if (debug_mesh)
-   {
-      mesh = new Mesh(2, 2, Element::QUADRILATERAL, true);
-      {
-         std::ofstream out("debug.mesh");
-         mesh->Print(out);
-      }
-   }
-   else
-   {
-      mesh = new Mesh(mesh_file, 1, 1);
-   }
+   Mesh * mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
    {
@@ -332,38 +310,30 @@ int main(int argc, char *argv[])
    }
 
    Array<int> constraint_atts;
-   if (debug_mesh)
+   if (!strcmp(mesh_file, "../data/square-disc-p3.mesh"))
    {
+      // constrain the circular boundary inside
+      constraint_atts.SetSize(4);
+      constraint_atts[0] = 5;
+      constraint_atts[1] = 6;
+      constraint_atts[2] = 7;
+      constraint_atts[3] = 8;
+   }
+   else if (!strcmp(mesh_file, "../miniapps/meshing/icf.mesh"))
+   {
+      // constrain the outer curved boundary
+      constraint_atts.SetSize(1);
+      constraint_atts[0] = 4;
+   }
+   else if (!strcmp(mesh_file, "sphere_hex27.mesh"))
+   {
+      // constrain the (entire) boundary of the sphere
       constraint_atts.SetSize(1);
       constraint_atts[0] = 1;
    }
    else
    {
-      if (!strcmp(mesh_file, "../data/square-disc-p3.mesh"))
-      {
-         // constrain the circular boundary inside
-         constraint_atts.SetSize(4);
-         constraint_atts[0] = 5;
-         constraint_atts[1] = 6;
-         constraint_atts[2] = 7;
-         constraint_atts[3] = 8;
-      }
-      else if (!strcmp(mesh_file, "../miniapps/meshing/icf.mesh"))
-      {
-         // constrain the outer curved boundary
-         constraint_atts.SetSize(1);
-         constraint_atts[0] = 4;
-      }
-      else if (!strcmp(mesh_file, "sphere_hex27.mesh"))
-      {
-         // constrain the (entire) boundary of the sphere
-         constraint_atts.SetSize(1);
-         constraint_atts[0] = 1;
-      }
-      else
-      {
-         mfem_error("Unrecognized mesh!");
-      }
+      mfem_error("Unrecognized mesh!");
    }
 
    Array<int> x_dofs, y_dofs, z_dofs;
