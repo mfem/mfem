@@ -34,6 +34,9 @@ public:
                         L2FaceValues m = L2FaceValues::DoubleValued);
    void Mult(const Vector &x, Vector &y) const;
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
+       given by this L2FaceRestriction. */
+   virtual void FillI(SparseMatrix &mat, const bool keep_nbr_block = false) const;
+   /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
        given by this L2FaceRestriction. @a mat contains the interior dofs
        contribution, the @a face_mat contains the shared dofs contribution.*/
    virtual void FillI(SparseMatrix &mat, SparseMatrix &face_mat) const;
@@ -44,6 +47,10 @@ public:
    virtual void FillJAndData(const Vector &ea_data,
                              SparseMatrix &mat,
                              SparseMatrix &face_mat) const;
+
+   virtual void FillJAndData(const Vector &ea_data,
+                             SparseMatrix &mat,
+                             const bool keep_nbr_block = false) const;
 };
 
 }
