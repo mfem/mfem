@@ -188,9 +188,10 @@ packages:
 
   doxygen:
     version: [1.8.5]
-    paths:
-      doxygen: /usr/bin/doxygen
     buildable: False
+    externals:
+    - spec: doxygen@1.8.5
+      prefix: /usr/bin
 
 # GPU
   cuda:
