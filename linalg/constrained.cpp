@@ -17,7 +17,8 @@ namespace mfem
 {
 
 Eliminator::Eliminator(const SparseMatrix& B, const Array<int>& lagrange_tdofs,
-                       const Array<int>& primary_tdofs, const Array<int>& secondary_tdofs)
+                       const Array<int>& primary_tdofs,
+                       const Array<int>& secondary_tdofs)
    :
    lagrange_tdofs_(lagrange_tdofs),
    primary_tdofs_(primary_tdofs),
@@ -79,7 +80,8 @@ void Eliminator::ExplicitAssembly(DenseMatrix& mat) const
    mat *= -1.0;
 }
 
-EliminationProjection::EliminationProjection(const Operator& A, Array<Eliminator*>& eliminators)
+EliminationProjection::EliminationProjection(const Operator& A,
+                                             Array<Eliminator*>& eliminators)
    :
    Operator(A.Height()),
    A_(A),
@@ -154,7 +156,6 @@ SparseMatrix * EliminationProjection::AssembleExact() const
    return out;
 }
 
-// drafted (untested)
 void EliminationProjection::BuildGTilde(const Vector& r, Vector& rtilde) const
 {
    // MFEM_ASSERT(r.Size() == B_.Height(), "Sizes don't match!");
@@ -172,8 +173,7 @@ void EliminationProjection::BuildGTilde(const Vector& r, Vector& rtilde) const
    }
 }
 
-// drafted (untested)
-void EliminationProjection::RecoverPressure(
+void EliminationProjection::RecoverMultiplier(
    const Vector& disprhs, const Vector& disp, Vector& lagrangem) const
 {
    // MFEM_ASSERT(lagrangem.Size() == B_.Height(), "Sizes don't match!");
@@ -189,7 +189,6 @@ void EliminationProjection::RecoverPressure(
       Vector localsec;
       fullrhs.GetSubVector(elim->SecondaryDofs(), localsec);
       Vector locallagrange(localsec.Size());
-      // BsTinverse_.Solve(Bs_.Height(), 1, lagrangem);
       elim->LagrangeSecondaryTranspose(localsec, locallagrange);
       lagrangem.AddElementVector(elim->LagrangeDofs(), locallagrange);
    }
@@ -210,8 +209,8 @@ void EliminationCGSolver::BuildPreconditioner()
 {
    SparseMatrix * explicit_projector = projector_->AssembleExact();
    HypreParMatrix * h_explicit_projector =
-      new HypreParMatrix(hA_.GetComm(), hA_.GetGlobalNumRows(), hA_.GetRowStarts(),
-                         explicit_projector);
+      new HypreParMatrix(hA_.GetComm(), hA_.GetGlobalNumRows(),
+                         hA_.GetRowStarts(), explicit_projector);
    h_explicit_projector->CopyRowStarts();
    h_explicit_projector->CopyColStarts();
 
@@ -228,13 +227,11 @@ void EliminationCGSolver::BuildPreconditioner()
    delete h_explicit_projector;
 
    // kind of want to do this, use systems version of AMG, but we've eliminated
-   // just some of the dofs associated with a particular direction, so the sizes
-   // don't work out! (the *correct* way to do this reorders again or uses rigid body modes
-   // or something)
+   // just some of the dofs associated with a particular direction, so the
+   // sizes don't work out! (the *correct* way to do this reorders again or
+   // uses rigid body modes or something)
    /*
       SparseMatrix * explicit_operator = RAPWithP(A, *explicit_projector);
-      std::cout << "A.Height() = " << A.Height() << ", explicit_operator->Height() = "
-                << explicit_operator->Height() << std::endl;
       const int dim = 3;
       HypreBoomerAMGReordered prec(*explicit_operator, dim);
    */
@@ -278,7 +275,8 @@ EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
 
       for (int k = 0; k < lagrange_rowstarts.Size() - 1; ++k)
       {
-         int constraint_size = lagrange_rowstarts[k + 1] - lagrange_rowstarts[k];
+         int constraint_size = lagrange_rowstarts[k + 1] -
+                               lagrange_rowstarts[k];
          Array<int> lagrange_dofs(constraint_size);
          Array<int> primary_dofs;
          Array<int> secondary_dofs(constraint_size);
@@ -289,7 +287,8 @@ EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
             double val = data[I[i]];
             secondary_dofs[i  - lagrange_rowstarts[k]] = j;
             // could actually deal with following issue, for now we are lazy
-            MFEM_VERIFY(std::abs(val) > 1.e-16, "Explicit zero in leading position in B matrix!");
+            MFEM_VERIFY(std::abs(val) > 1.e-16,
+                        "Explicit zero in leading position in B matrix!");
             for (int jptr = I[i] + 1; jptr < I[i + 1]; ++jptr)
             {
                j = J[jptr];
@@ -299,7 +298,8 @@ EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
          }
          primary_dofs.Sort();
          primary_dofs.Unique();
-         elims_.Append(new Eliminator(B, lagrange_dofs, primary_dofs, secondary_dofs));
+         elims_.Append(new Eliminator(B, lagrange_dofs, primary_dofs,
+                                      secondary_dofs));
       }
    }
    projector_ = new EliminationProjection(hA_, elims_);
@@ -340,7 +340,7 @@ void EliminationCGSolver::Mult(const Vector& rhs, Vector& sol) const
    krylov.Mult(reducedrhs, reducedsol);
    projector_->Mult(reducedsol, sol);
 
-   projector_->RecoverPressure(temprhs, sol, multiplier_sol);
+   projector_->RecoverMultiplier(temprhs, sol, multiplier_sol);
 
    sol += rtilde;
 }
@@ -465,7 +465,8 @@ SchurConstrainedSolver::SchurConstrainedSolver(MPI_Comm comm,
 }
 
 // protected constructor
-SchurConstrainedSolver::SchurConstrainedSolver(MPI_Comm comm, Operator& A_, Operator& B_)
+SchurConstrainedSolver::SchurConstrainedSolver(MPI_Comm comm, Operator& A_,
+                                               Operator& B_)
    :
    ConstrainedSolver(comm, A_, B_),
    offsets(3),
@@ -491,12 +492,14 @@ void SchurConstrainedSolver::SaddleMult(const Vector& x, Vector& y) const
    gmres.SetAbsTol(abs_tol);
    gmres.SetMaxIter(max_iter);
    gmres.SetPrintLevel(print_level);
-   gmres.SetPreconditioner(const_cast<BlockDiagonalPreconditioner&>(*block_pc));
+   gmres.SetPreconditioner(
+      const_cast<BlockDiagonalPreconditioner&>(*block_pc));
 
    gmres.Mult(x, y);
 }
 
-SchurConstrainedHypreSolver::SchurConstrainedHypreSolver(MPI_Comm comm, HypreParMatrix& hA_,
+SchurConstrainedHypreSolver::SchurConstrainedHypreSolver(MPI_Comm comm,
+                                                         HypreParMatrix& hA_,
                                                          HypreParMatrix& hB_)
    :
    SchurConstrainedSolver(comm, hA_, hB_),

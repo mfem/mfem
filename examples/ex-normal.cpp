@@ -9,6 +9,8 @@
 //               ex-normal --elimination
 //               ex-normal --penalty 1e+4
 //
+//               mpirun -np 4 ex-normal --mesh sphere_hex27.mesh --elimination
+//
 // Description:  Demonstrates solving a linear system subject to a linear
 //               constraint, using the ConstrainedSolver object.
 //
@@ -23,6 +25,7 @@
   todo:
   ---
 
+  - test parallel elimination with different orderings of dofs, non-contiguous, etc.
   - add a scalar Eliminator? (instead of calling LAPACK on 1 by 1 matrices)
   - timing / scaling of different solvers
   - make sure curved mesh works (is this a real problem or just VisIt visualization?)
