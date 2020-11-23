@@ -59,7 +59,8 @@ private:
                    VectorCoefficient *vector_u);
    void AddGf(GridFunction *gf, Coefficient *scalar_u,
               VectorCoefficient *grad=nullptr,
-              Coefficient *ell_coeff=nullptr, double Nu=1.0);
+              Coefficient *ell_coeff=nullptr,
+              JumpScaling jump_scaling = {1.0, JumpScaling::ONE_OVER_H});
    void AddGf(GridFunction *gf, VectorCoefficient *vector_u,
               VectorCoefficient *curl, Coefficient *div);
    // returns the L2-norm of scalar_u or vector_u
@@ -75,9 +76,10 @@ public:
    /// DG face jumps parameters
    void AddL2GridFunction(GridFunction *gf, Coefficient *scalar_u,
                           VectorCoefficient *grad=nullptr,
-                          Coefficient *ell_coeff=nullptr, double Nu=1.0)
+                          Coefficient *ell_coeff=nullptr,
+                          JumpScaling jump_scaling = {1.0, JumpScaling::ONE_OVER_H})
    {
-      AddGf(gf, scalar_u, grad, ell_coeff, Nu);
+      AddGf(gf, scalar_u, grad, ell_coeff, jump_scaling);
    }
 
    /// Add H1 GridFunction, the exact solution and possibly its gradient
