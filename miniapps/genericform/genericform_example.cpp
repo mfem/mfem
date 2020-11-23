@@ -1,6 +1,7 @@
 #include "mfem.hpp"
 #include "genericform.hpp"
 #include "qfuncintegrator.hpp"
+#include "tensor.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -17,6 +18,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/inline-quad.mesh";
    int order = 1;
    int refinements = 0;
+   double p = 3.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&refinements, "-r", "--ref", "");
@@ -39,13 +41,14 @@ int main(int argc, char *argv[])
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
-   ParMesh pmesh(MPI_COMM_WORLD, mesh);
    {
       for (int l = 0; l < refinements; l++)
       {
-         pmesh.UniformRefinement();
+         mesh.UniformRefinement();
       }
    }
+
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
 
    auto fec = H1_FECollection(order, dim);
    ParFiniteElementSpace fespace(&pmesh, &fec);
@@ -59,53 +62,33 @@ int main(int argc, char *argv[])
    f.Assemble();
 
    ParGridFunction x(&fespace);
-   x = 0.0;
+   x.Randomize();
 
-   FunctionCoefficient u_excoeff([](const Vector &coords) {
+   FunctionCoefficient u_excoeff([&](const Vector &coords) {
       double x = coords(0);
       double y = coords(1);
 
-      return x * x + y * y;
+      return 1.0 - pow(abs(x), p / (p - 1));
    });
 
    x.ProjectBdrCoefficient(u_excoeff, ess_bdr);
 
    GenericForm form(&fespace);
 
-   auto diffusion = new QFunctionIntegrator(
-      [](auto u, auto du, auto x) {
-         // R(u, du) = \nabla u \cdot \nabla v - f = 0
-         double f0 = 4.0;
-         Vector f1(2);
-         f1 = du;
-         return std::make_tuple(f0, f1);
-      },
-      [](auto u, auto du, auto x) {
-         // R'(u, du)
-         double f00 = 0.0;
-         Vector f01(2);
-         f01 = 0.0;
-         Vector f10(2);
-         f10 = 0.0;
-         DenseMatrix f11;
-         f11.Diag(1.0, 2);
-         return std::make_tuple(f00, f01, f10, f11);
-      }, pmesh);
+   auto diffusion = new QFunctionIntegrator([&](auto u, auto du) {
+      auto f0 = -1.0;
+      auto f1 = du;
+      return std::tuple{f0, f1};
+   });
 
    form.AddDomainIntegrator(diffusion);
 
    form.SetEssentialBC(ess_bdr);
 
-   Vector X;
-   x.GetTrueDofs(X);
-
-   auto &A = form.GetGradient(X);
-
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(1e-6);
    cg.SetMaxIter(2000);
-   cg.SetPrintLevel(2);
-   cg.SetOperator(A);
+   cg.SetPrintLevel(1);
 
    NewtonSolver newton(MPI_COMM_WORLD);
    newton.SetOperator(form);
@@ -114,6 +97,8 @@ int main(int argc, char *argv[])
    newton.SetRelTol(1e-8);
 
    Vector zero;
+   Vector X;
+   x.GetTrueDofs(X);
    newton.Mult(zero, X);
 
    x.Distribute(X);

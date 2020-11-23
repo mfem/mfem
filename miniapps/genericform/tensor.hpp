@@ -184,6 +184,17 @@ auto transpose(const tensor<T, m, n> &A)
    return AT;
 }
 
+template<typename T, int n>
+auto norm(const tensor<T, n> &A)
+{
+   T r = {};
+   for (int i = 0; i < n; i++)
+   {
+      r = r + A[i] * A[i];
+   }
+   return r;
+}
+
 template<typename gradient_type>
 struct dual
 {
@@ -226,6 +237,12 @@ auto operator*(dual<gradient_type> a, dual<gradient_type> b)
 {
    return dual<gradient_type>{a.value + b.value,
                               b.value * a.gradient + a.value * b.gradient};
+}
+
+template<typename gradient_type>
+auto cos(dual<gradient_type> a)
+{
+   return dual<gradient_type>{cos(a.value), -a.gradient * sin(a.value)};
 }
 
 template<typename T, int... n>
@@ -292,4 +309,3 @@ auto directional_derivative(tensor<dual<grad_type>, nrows, ncols> A, grad_type n
    }
    return dA_dn;
 }
-

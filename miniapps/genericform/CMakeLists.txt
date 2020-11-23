@@ -5,3 +5,7 @@ target_link_libraries(genericform mfem)
 add_executable(genericform_example genericform_example.cpp)
 target_include_directories(genericform_example PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(genericform_example genericform mfem)
+
+add_executable(genericform_unit_tests test_tensor_ad.cpp)
+target_include_directories(genericform_unit_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/tests/unit)
+target_link_libraries(genericform_unit_tests genericform mfem)
