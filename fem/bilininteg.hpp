@@ -2652,10 +2652,14 @@ public:
 /** Integrator for the DG form:
     alpha < rho_u (u.n) {v},[w] > + beta < rho_u |u.n| [v],[w] >,
     where v and w are the trial and test variables, respectively, and rho/u are
-    given scalar/vector coefficients. The vector coefficient, u, is assumed to
-    be continuous across the faces and when given the scalar coefficient, rho,
-    is assumed to be discontinuous. The integrator uses the upwind value of rho,
-    rho_u, which is value from the side into which the vector coefficient, u,
+    given scalar/vector coefficients. {v} represents the average value of v on
+    the face and [v] is the jump such that {v}=(v1+v2)/2 and [v]=(v1-v2) for the
+    face between elements 1 and 2. For boundary elements, v2=0 such that
+    alpha=1, beta=0.5 corresponds to "outflow" on the external boundary. The
+    vector coefficient, u, is assumed to be continuous across the faces and when
+    given the scalar coefficient, rho, is assumed to be discontinuous. The
+    integrator uses the upwind value of rho, rho_u, which is value from the side
+    into which the vector coefficient, u,
     points. */
 class DGTraceIntegrator : public BilinearFormIntegrator
 {
