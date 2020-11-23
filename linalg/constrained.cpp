@@ -312,7 +312,7 @@ void EliminationCGSolver::Mult(const Vector& rhs, Vector& sol) const
    // for quasi-eliminated dofs...
    // RAPOperator reducedoperator(*projector_, spA_, *projector_);
 
-   CGSolver krylov;
+   CGSolver krylov(GetComm());
    krylov.SetOperator(*h_explicit_operator_);
    krylov.SetPreconditioner(*prec_);
    krylov.SetMaxIter(max_iter);
