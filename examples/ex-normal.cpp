@@ -25,11 +25,8 @@
 
   elimination:
 
-  - interface in EliminationCGSolver can be different, use HypreParMatrix or
-    some other way of listing constraints? (connects to next point)
-  - multiple blocks in elimination (ie, replace NodalEliminationProjection)
   - add a scalar Eliminator?
-  - try in parallel
+  - debug parallel issues
 
   general:
 
@@ -67,8 +64,8 @@ using namespace mfem;
    /// Returns the global tdof number of the given local degree of freedom
    HYPRE_Int GetGlobalTDofNumber(int ldof) const;
 */
-HypreParMatrix * BuildParNormalConstraints(ParFiniteElementSpace& fespace,
-                                           Array<int> constrained_att)
+HypreParMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
+                                        Array<int> constrained_att)
 {
    int rank, size;
    MPI_Comm_rank(fespace.GetComm(), &rank);
@@ -105,9 +102,6 @@ HypreParMatrix * BuildParNormalConstraints(ParFiniteElementSpace& fespace,
    int global_constraints = 0;
    if (rank == size - 1) global_constraints = constraint_running_total;
    MPI_Bcast(&global_constraints, 1, MPI_INT, size - 1, fespace.GetComm());
-
-   std::cout << "[" << rank << "] n_constraints = " << n_constraints << ", constraint_running_total = "
-             << constraint_running_total << ", global_constraints = " << global_constraints << std::endl;
 
    Vector nor(dim);
    /*
@@ -200,6 +194,7 @@ int main(int argc, char *argv[])
    double reltol = 1.e-6;
    double penalty = 0.0;
    bool mass = true;
+   bool debug_mesh = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -229,6 +224,8 @@ int main(int argc, char *argv[])
                   "Penalty parameter for penalty solver, used if > 0");
    args.AddOption(&mass, "--mass", "--mass", "--diffusion", "--diffusion",
                   "Which bilinear form, --mass or --diffusion");
+   args.AddOption(&debug_mesh, "--debug-mesh", "--debug-mesh", "--no-debug-mesh",
+                  "--no-debug-mesh", "Use tiny debug mesh");
 
    args.Parse();
    if (!args.Good())
@@ -247,16 +244,27 @@ int main(int argc, char *argv[])
    Device device(device_config);
    if (myid == 0) { device.Print(); }
 
-   Mesh mesh(mesh_file, 1, 1);
-   // mesh.EnsureNodes(); // ???
-   int dim = mesh.Dimension();
+   Mesh * mesh;
+   if (debug_mesh)
+   {
+      mesh = new Mesh(2, 2, Element::QUADRILATERAL, true);
+      {
+         std::ofstream out("debug.mesh");
+         mesh->Print(out);
+      }
+   }
+   else
+   {
+      mesh = new Mesh(mesh_file, 1, 1);
+   }
+   int dim = mesh->Dimension();
 
    {
       int ref_levels;
       if (refine == -1)
       {
          ref_levels =
-            (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
+            (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
       }
       else
       {
@@ -264,13 +272,13 @@ int main(int argc, char *argv[])
       }
       for (int l = 0; l < ref_levels; l++)
       {
-         mesh.UniformRefinement();
+         mesh->UniformRefinement();
       }
    }
-   mesh.SetCurvature(order);
+   mesh->SetCurvature(order);
 
-   ParMesh pmesh(MPI_COMM_WORLD, mesh);
-   mesh.Clear();
+   ParMesh pmesh(MPI_COMM_WORLD, *mesh);
+   delete mesh;
    {
       // int par_ref_levels = 2;
       int par_ref_levels = 0;
@@ -324,35 +332,44 @@ int main(int argc, char *argv[])
    }
 
    Array<int> constraint_atts;
-   if (!strcmp(mesh_file, "../data/square-disc-p3.mesh"))
+   if (debug_mesh)
    {
-      // constrain the circular boundary inside
-      constraint_atts.SetSize(4);
-      constraint_atts[0] = 5;
-      constraint_atts[1] = 6;
-      constraint_atts[2] = 7;
-      constraint_atts[3] = 8;
-   }
-   else if (!strcmp(mesh_file, "../miniapps/meshing/icf.mesh"))
-   {
-      // constrain the outer curved boundary
-      constraint_atts.SetSize(1);
-      constraint_atts[0] = 4;
-   }
-   else if (!strcmp(mesh_file, "sphere_hex27.mesh"))
-   {
-      // constrain the (entire) boundary of the sphere
       constraint_atts.SetSize(1);
       constraint_atts[0] = 1;
    }
    else
    {
-      mfem_error("Unrecognized mesh!");
+      if (!strcmp(mesh_file, "../data/square-disc-p3.mesh"))
+      {
+         // constrain the circular boundary inside
+         constraint_atts.SetSize(4);
+         constraint_atts[0] = 5;
+         constraint_atts[1] = 6;
+         constraint_atts[2] = 7;
+         constraint_atts[3] = 8;
+      }
+      else if (!strcmp(mesh_file, "../miniapps/meshing/icf.mesh"))
+      {
+         // constrain the outer curved boundary
+         constraint_atts.SetSize(1);
+         constraint_atts[0] = 4;
+      }
+      else if (!strcmp(mesh_file, "sphere_hex27.mesh"))
+      {
+         // constrain the (entire) boundary of the sphere
+         constraint_atts.SetSize(1);
+         constraint_atts[0] = 1;
+      }
+      else
+      {
+         mfem_error("Unrecognized mesh!");
+      }
    }
 
    Array<int> x_dofs, y_dofs, z_dofs;
    HypreParMatrix * hconstraints;
-   hconstraints = BuildParNormalConstraints(fespace, constraint_atts);
+   hconstraints = BuildNormalConstraints(fespace, constraint_atts);
+   hconstraints->Print("hconstraints");
 
    ParLinearForm b(&fespace);
    // for diffusion we may want a more interesting rhs
