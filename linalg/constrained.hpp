@@ -33,8 +33,9 @@ namespace mfem
     Not to be confused with ConstrainedOperator, which is totally
     different.
 
-    The only point for this object is to unify handling of the "dual" rhs
-    r and the dual solution \f$ \labmda \f$. */
+    This abstract object unifies handling of the "dual" rhs \f$ r \f$
+    and the Lagrange multiplier solution \f$ \lambda \f$, so that derived
+    classses can reuse that code. */
 class ConstrainedSolver : public IterativeSolver
 {
 public:
@@ -54,20 +55,21 @@ public:
        system with Mult() */
    void GetMultiplierSolution(Vector& lambda) const { lambda = multiplier_sol; }
 
-   /** @brief Solve for x given f
+   /** @brief Solve for \f$ x \f$ given \f$ f \f$.
 
-       If you want to set r, call SetConstraintRHS() before this.
+       If you want to set \f$ r \f$, call SetConstraintRHS() before this.
 
-       If you want to get lambda, call GetMultiplierSolution() after this.
+       If you want to get \f$ \lambda \f$, call GetMultiplierSolution() after
+       this.
 
        The implementation for the base class calls SaddleMult(), so
-       derived class must implement either Mult() or SaddleMult() */
+       a derived class must implement either Mult() or SaddleMult() */
    virtual void Mult(const Vector& f, Vector& x) const override;
 
 protected:
    /** @brief Solve for (x, lambda) given (f, r)
 
-       Derived classes can implement either this or Mult(). */
+       Derived classes must implement either this or Mult(). */
    virtual void SaddleMult(const Vector& f_and_r, Vector& x_and_lambda) const
    {
       mfem_error("Not Implemented!");
@@ -83,13 +85,15 @@ protected:
 };
 
 
-/** Keeps track of primary / secondary tdofs
+/** @brief Perform elimination of a single constraint.
 
-    (In this context we are always talking about the displacement system,
-    rarely about lagrange multiplier dofs)
+    See EliminatinoProjection, EliminationCGSolver
 
-    B_s^{-1} maps lagrange space into secondary displacements
-    -B_s^{-1} B_p maps primary displacements to secondary displacements
+    This keeps track of primary / secondary tdofs and does small dense block
+    solves to eliminate constraints from a global system.
+
+    \f$ B_s^{-1} \f$ maps lagrange space into secondary displacements,
+    \f$ -B_s^{-1} B_p \f$ maps primary displacements to secondary displacements
 
     @todo should interface operate on small vectors (as below), or on
     large vectors, so that this object does its own GetSubVector()
@@ -98,7 +102,8 @@ class Eliminator
 {
 public:
    Eliminator(const SparseMatrix& B, const Array<int>& lagrange_dofs,
-              const Array<int>& primary_tdofs, const Array<int>& secondary_tdofs);
+              const Array<int>& primary_tdofs,
+              const Array<int>& secondary_tdofs);
 
    const Array<int>& LagrangeDofs() const { return lagrange_tdofs_; }
    const Array<int>& PrimaryDofs() const { return primary_tdofs_; }
@@ -136,7 +141,13 @@ private:
    Array<int> ipivT_;
 };
 
-/** The innovation here is throw away the mapping and make a square matrix */
+/** Collects action of several Eliminator objects to perform elimination of
+    constraints.
+
+    Works in parallel, but each Eliminator must be processor local, and must
+    operate on disjoint degrees of freedom (ie, the primary and secondary dofs
+    for one Eliminator must have no overlap with any dofs from a different
+    Eliminator). */
 class EliminationProjection : public Operator
 {
 public:
@@ -146,7 +157,7 @@ public:
 
    void MultTranspose(const Vector& x, Vector& y) const;
 
-   /** @brief Assemble this projector as a SparseMatrix
+   /** @brief Assemble this projector as a (processor-local) SparseMatrix.
 
        Some day we may also want to try approximate variants. */
    SparseMatrix * AssembleExact() const;
@@ -155,8 +166,9 @@ public:
        \f$ \tilde{g} \f$ */
    void BuildGTilde(const Vector& g, Vector& gtilde) const;
 
-   void RecoverPressure(const Vector& disprhs,
-                        const Vector& disp, Vector& pressure) const;
+   /** After a solve, recover the Lagrange multiplier. */
+   void RecoverMultiplier(const Vector& disprhs,
+                          const Vector& disp, Vector& lm) const;
 
 private:
    const Operator& A_;
@@ -165,12 +177,11 @@ private:
 
 #ifdef MFEM_USE_MPI
 
-/** @brief Solve constrained system by eliminating the constraint; see ConstrainedSolver
+/** @brief Solve constrained system by eliminating the constraint; see
+    ConstrainedSolver
 
     Solves the system with the operator \f$ P^T A P + Z_P \f$, where P is
-    EliminationProjection.
-
-    Currently does not work in parallel. */
+    EliminationProjection and Z_P is the identity on the eliminated dofs. */
 class EliminationCGSolver : public ConstrainedSolver
 {
 public:
@@ -181,14 +192,15 @@ public:
 
        The secondary_dofs are eliminated from the system in this algorithm,
        as they can be written in terms of the primary_dofs. */
-   EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B, Array<int>& primary_dofs,
+   EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
+                       Array<int>& primary_dofs,
                        Array<int>& secondary_dofs);
 
    /** @brief Constructor, elimination is by blocks.
 
-       The nonzeros in B are assumed to be in disjoint rows and columns; the rows
-       are identified with the lagrange_rowstarts array, the secondary dofs are
-       assumed to be the first nonzeros in the rows. */
+       The nonzeros in B are assumed to be in disjoint rows and columns; the
+       rows are identified with the lagrange_rowstarts array, the secondary
+       dofs are assumed to be the first nonzeros in the rows. */
    EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
                        Array<int>& lagrange_rowstarts);
 
@@ -240,8 +252,11 @@ private:
     see ConstrainedSolver.
 
     Solves the saddle-point problem with a block-diagonal preconditioner, with
-    user-provided preconditioner in the top-left block and (by default) an identity
-    matrix in the bottom-right. */
+    user-provided preconditioner in the top-left block and (by default) an
+    identity matrix in the bottom-right.
+
+    This is the most general ConstrainedSolver, needing only Operator objects
+    to function. But in general it is not very efficient or scalable. */
 class SchurConstrainedSolver : public ConstrainedSolver
 {
 public:
@@ -268,14 +283,16 @@ private:
 };
 
 
-/** @brief Basic saddle-point solver with assembled blocks.
+/** @brief Basic saddle-point solver with assembled blocks (ie, the
+    operators are assembled HypreParMatrix objects.)
 
-    We would like to use \f$ [ A^{-1} 0; 0 (B A^{-1} B^T)^{-1} ] \f$ as
-    a block-diagonal preconditioner. In the top-left block, we approximate
-    \f$ A^{-1} \f$ with HypreBoomerAMG. In the bottom-right, we
-    approximate \f$ A^{-1} \f$ with the inverse of the diagonal of
-    \f$ A \f$, assemble \f$ B D^{-1} B^T \f$, and use HypreBoomerAMG on
-    that assembled matrix. */
+    This uses a block-diagonal preconditioner that approximates
+    \f$ [ A^{-1} 0; 0 (B A^{-1} B^T)^{-1} ] \f$.
+
+    In the top-left block, we approximate \f$ A^{-1} \f$ with HypreBoomerAMG.
+    In the bottom-right, we approximate \f$ A^{-1} \f$ with the inverse of the
+    diagonal of \f$ A \f$, assemble \f$ B D^{-1} B^T \f$, and use
+    HypreBoomerAMG on that assembled matrix. */
 class SchurConstrainedHypreSolver : public SchurConstrainedSolver
 {
 public:
