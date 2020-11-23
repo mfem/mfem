@@ -231,7 +231,7 @@ void LinearForm::Assemble()
    }
    if (sflfi.Size())
    {
-      FaceElementTransformations *tr;
+      FaceElementTransformations *tr = NULL;
       Mesh *mesh = fes->GetMesh();
 
       for (i = 0; i < sflfi_facenum_marker[0]->Size(); i++)
@@ -242,14 +242,13 @@ void LinearForm::Assemble()
          {
             tr = mesh->GetInteriorFaceTransformations(fnum);
          }
-         else
+         else if (faceflag == 2)
          {
             tr = mesh->GetBdrFaceTransformations(fnum);
          }
          if (tr != NULL)
          {
             int faceel = (*(sflfi_elnum_marker[0]))[i];
-
             if (tr->Elem1No == faceel)
             {
                fes -> GetElementVDofs (tr -> Elem1No, vdofs);

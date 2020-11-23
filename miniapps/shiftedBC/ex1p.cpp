@@ -120,7 +120,9 @@ int main(int argc, char *argv[])
    }
    ParFiniteElementSpace pfespace(&pmesh, fec);
    L2_FECollection fecl2 = L2_FECollection(0, dim);
+   L2_FECollection fecl2ho = L2_FECollection(order, dim);
    ParFiniteElementSpace pfesl2(&pmesh, &fecl2);
+   ParFiniteElementSpace pfesl2ho(&pmesh, &fecl2ho);
    cout << "Number of finite element unknowns: "
         << pfespace.GetTrueVSize() << endl;
 
@@ -137,15 +139,14 @@ int main(int argc, char *argv[])
    DistanceFunction dist_func(pmesh, order, 1.0);
    ParGridFunction &distance = dist_func.ComputeDistance(dist_fun_level_coef,
                                                          1, true);
-  // const ParGridFunction &src = dist_func.GetLastSourceGF(),
-  //                       &diff_src = dist_func.GetLastDiffusedSourceGF();
-
-   GradientCoefficient grad_u(dist_func.GetLastDiffusedSourceGF(), dim);
+  // GradientCoefficient grad_u(dist_func.GetLastDiffusedSourceGF(), dim);
+   //ParGridFunction distance(&pfesl2ho);
 
    dist.ProjectCoefficient(dist_fun_level_coef);
    if (exact) {
        distance.ProjectCoefficient(dist_fun_coef); // analytic projection
    }
+
 
    if (visualization)
    {
@@ -164,11 +165,34 @@ int main(int argc, char *argv[])
    int max_attr     = pmesh.attributes.Max();
    IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
 
+   dist.ExchangeFaceNbrData();
+   pfespace.ExchangeFaceNbrData();
+   FaceElementTransformations *tr = NULL;
+   gfl2 = myid;
+
+   if (visualization && false)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock.precision(8);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock << "solution\n" << pmesh << gfl2 << flush;
+      sol_sock << "window_title 'MPI RANK '\n"
+               << "window_geometry "
+               << 0 << " " << 0 << " " << 350 << " " << 350 << "\n"
+               << "keys Rjmpc" << endl;
+   }
+
+   for (int i = 0; i < gfl2.Size(); i++) {
+       gfl2(i) = i;
+   }
+
    // Set trim flag based on the distance field
    // 0 if completely in the domain
    // 1 if completely outside the domain
    // 2 if partially inside the domain
-   Array<int> trim_flag(pmesh.GetNE());
+   Array<int> trim_flag(pmesh.GetNE()+pmesh.GetNSharedFaces());
    trim_flag = 0;
    Vector vals;
    for (int i = 0; i < pmesh.GetNE(); i++)
@@ -195,13 +219,45 @@ int main(int argc, char *argv[])
       }
    }
 
+   for (int i = pmesh.GetNE(); i < pmesh.GetNE()+pmesh.GetNSharedFaces(); i++)
+   {
+       int shared_fnum = i-pmesh.GetNE();
+       tr = pmesh.GetSharedFaceTransformations(shared_fnum);
+       int Elem2NbrNo = tr->Elem2No - pmesh.GetNE();
+
+       ElementTransformation *eltr =
+               pfespace.GetFaceNbrElementTransformation(Elem2NbrNo);
+       const IntegrationRule &ir =
+         IntRulesLo.Get(pfespace.GetFaceNbrFE(Elem2NbrNo)->GetGeomType(),
+                        4*eltr->OrderJ());
+
+       const int nip = ir.GetNPoints();
+       vals.SetSize(nip);
+       int count = 0;
+       for (int j = 0; j < nip; j++) {
+          const IntegrationPoint &ip = ir.IntPoint(j);
+          vals[j] = dist.GetValue(tr->Elem2No, ip);
+          if (vals[j] <= 0.) { count++; }
+       }
+
+      if (count == ir.GetNPoints())
+      {
+         trim_flag[i] = 1;
+      }
+      else if (count > 0)
+      {
+         trim_flag[i] = 2;
+      }
+   }
+
    Array<int> sbm_int_face;
    Array<int> sbm_int_face_el;
-   Array<int> sbm_int_flag; // 1 if int face, 2 if bdr face
+   Array<int> sbm_int_flag; // 1 if int face, 2 if bdr face, 3 if shared int face
    // Get SBM faces
+
    for (int i = 0; i < pmesh.GetNumFaces(); i++)
    {
-      FaceElementTransformations *tr;
+      FaceElementTransformations *tr = NULL;
       tr = pmesh.GetInteriorFaceTransformations (i);
       if (tr != NULL)
       {
@@ -240,6 +296,30 @@ int main(int argc, char *argv[])
       }
    }
 
+   for (int i = 0; i < pmesh.GetNSharedFaces(); i++)
+   {
+      tr = pmesh.GetSharedFaceTransformations(i);
+      if (tr != NULL)
+      {
+         int ne1 = tr->Elem1No;
+         int te1 = trim_flag[ne1];
+         int te2 = trim_flag[i+pmesh.GetNE()];
+         if (te1 == 1 && te2 != 1) // dont add if your element is outside the domain
+         {
+            sbm_int_face.Append(i);
+            sbm_int_face_el.Append(i+pmesh.GetNE());
+            sbm_int_flag.Append(3);
+         }
+         if (te2 == 1 && te1 != 1)
+         {
+             std::cout << i <<  " " << ne1 << " k10fnumandne1\n";
+            sbm_int_face.Append(i);
+            sbm_int_face_el.Append(ne1);
+            sbm_int_flag.Append(3);
+         }
+      }
+   }
+
    for (int i = 0; i < gfl2.Size(); i++)
    {
       gfl2(i) = trim_flag[i]*1.;
@@ -258,6 +338,7 @@ int main(int argc, char *argv[])
                << 0 << " " << 0 << " " << 350 << " " << 350 << "\n"
                << "keys Rjmpc" << endl;
    }
+
 
    x = 0;
 
@@ -281,7 +362,7 @@ int main(int argc, char *argv[])
    // now get all dofs that are not part of the untrimmed elements
    Array<int> ess_vdofs_hole(ess_vdofs_bdr.Size());
    ess_vdofs_hole = -1;
-   for (int e = 0; e < trim_flag.Size(); e++)
+   for (int e = 0; e < pmesh.GetNE(); e++)
    {
       if (trim_flag[e] != 1)
       {
@@ -336,7 +417,9 @@ int main(int argc, char *argv[])
       x_dx_dy(i + x_dx_dy.Size()/dim) = x_dy(i);
    }
    x_dx_dy *= -1; // true = surrogate + d
-   VectorGridFunctionCoefficient dist_vec(&x_dx_dy);
+   //VectorGridFunctionCoefficient dist_vec(&x_dx_dy);
+   //Uncomment above line to use numerical distance.
+   VectorFunctionCoefficient dist_vec(dim, dist_vec_c);
 
    if (visualization && false)
    {
@@ -397,6 +480,7 @@ int main(int argc, char *argv[])
    prec = new HypreBoomerAMG;
 
    BiCGSTABSolver bicg(MPI_COMM_WORLD);
+   //CGSolver bicg(MPI_COMM_WORLD);
    bicg.SetRelTol(1e-12);
    bicg.SetMaxIter(5000);
    bicg.SetPrintLevel(1);
@@ -445,8 +529,7 @@ int main(int argc, char *argv[])
    vxyz = *pmesh.GetNodes();
    int nodes_cnt = vxyz.Size()/dim;
    for (int i = 0; i < nodes_cnt; i++) {
-       double xv = vxyz(i),
-              yv = vxyz(i+nodes_cnt);
+       double yv = vxyz(i+nodes_cnt);
        double exact_val = 0.0 + (yv-0.1)/(0.9-0.1);
        if (yv < 0.1 || yv > 0.9) { err(i) = 0.; }
        else { err(i) = std::fabs(x(i) - exact_val); }
@@ -516,7 +599,7 @@ double dist_fun(const Vector &x)
 double dist_fun_level_set(const Vector &x)
 {
    double dist = dist_fun(x);
-   if (dist > 0.) { return 1; }
+   if (dist > 0.) { return 1.; }
    else { return 0.; }
 }
 

@@ -435,7 +435,7 @@ void BilinearForm::Assemble(int skip_zeros)
             {
                if ((*(dbfi_marker[0]))[i]==1)
                {
-                  elmat *= 0.;
+                  elmat = 0.;
                }
             }
             for (int k = 1; k < dbfi.Size(); k++)
@@ -603,7 +603,7 @@ void BilinearForm::Assemble(int skip_zeros)
 
    if (sbfbfi.Size())
    {
-      FaceElementTransformations *tr;
+      FaceElementTransformations *tr = NULL;
       const FiniteElement *fe1, *fe2;
 
       for (int i = 0; i < sbfbfi_facenum_marker[0]->Size(); i++)
@@ -614,7 +614,7 @@ void BilinearForm::Assemble(int skip_zeros)
          {
             tr = mesh->GetInteriorFaceTransformations(fnum);
          }
-         else
+         else if (faceflag == 2)
          {
             tr = mesh->GetBdrFaceTransformations(fnum);
          }
@@ -640,7 +640,6 @@ void BilinearForm::Assemble(int skip_zeros)
          }
       }
    }
-
 
 #ifdef MFEM_USE_LEGACY_OPENMP
    if (free_element_matrices)

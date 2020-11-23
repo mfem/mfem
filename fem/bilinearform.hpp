@@ -83,6 +83,7 @@ protected:
 
    /// Set of Domain Integrators to be applied.
    Array<BilinearFormIntegrator*> dbfi;
+    /// 0 if active, 1 if outside, 2 if intersection
    Array<Array<int>*>             dbfi_marker;
 
    /// Set of Boundary Integrators to be applied.
@@ -334,7 +335,8 @@ public:
 
    /// Adds new Domain Integrator. Assumes ownership of @a bfi.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi);
-   void AddDomainIntegrator(BilinearFormIntegrator *bfi, Array<int> &el_flags);
+   void AddDomainIntegrator(BilinearFormIntegrator *bfi,
+                            Array<int> &el_flags);
 
    /// Adds new Boundary Integrator. Assumes ownership of @a bfi.
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi);
