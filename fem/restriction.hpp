@@ -160,9 +160,9 @@ public:
    virtual void FillI(SparseMatrix &mat, const bool keep_nbr_block = false) const;
    /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
        pattern given by this L2FaceRestriction, and the values of ea_data. */
-   void FillJAndData(const Vector &ea_data,
-                     SparseMatrix &mat,
-                     const bool keep_nbr_block = false) const;
+   virtual void FillJAndData(const Vector &ea_data,
+                             SparseMatrix &mat,
+                             const bool keep_nbr_block = false) const;
    /// This methods adds the DG face matrices to the element matrices.
    void AddFaceMatricesToElementMatrices(Vector &fea_data,
                                          Vector &ea_data) const;
