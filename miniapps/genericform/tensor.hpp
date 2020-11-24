@@ -235,7 +235,7 @@ auto operator*(double a, dual<gradient_type> b)
 template<typename gradient_type>
 auto operator*(dual<gradient_type> a, dual<gradient_type> b)
 {
-   return dual<gradient_type>{a.value + b.value,
+   return dual<gradient_type>{a.value * b.value,
                               b.value * a.gradient + a.value * b.gradient};
 }
 

@@ -18,7 +18,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/inline-quad.mesh";
    int order = 1;
    int refinements = 0;
-   double p = 2.0;
+   double p = 4.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&refinements, "-r", "--ref", "");
@@ -40,6 +40,12 @@ int main(int argc, char *argv[])
    }
 
    Mesh mesh(mesh_file, 1, 1);
+   mesh.EnsureNodes();
+   GridFunction *nodes = mesh.GetNodes();
+
+   *nodes -= 0.5;
+   *nodes *= 2.0;
+
    int dim = mesh.Dimension();
    {
       for (int l = 0; l < refinements; l++)
@@ -56,20 +62,17 @@ int main(int argc, char *argv[])
    Array<int> ess_bdr(pmesh.bdr_attributes.Max());
    ess_bdr = 1;
 
-   ParLinearForm f(&fespace);
-   ConstantCoefficient fcoeff(-4.0);
-   f.AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
-   f.Assemble();
-
-   ParGridFunction x(&fespace);
-   x.Randomize();
-
    FunctionCoefficient u_excoeff([&](const Vector &coords) {
       double x = coords(0);
       double y = coords(1);
 
-      return 1.0 - pow(abs(x), p / (p - 1));
+      return 1.0 - pow(x * x + y * y, p / (p - 1.0));
    });
+
+   ConstantCoefficient zero_coeff(0.0);
+
+   ParGridFunction x(&fespace);
+   x.Randomize();
 
    x.ProjectBdrCoefficient(u_excoeff, ess_bdr);
 

@@ -6,6 +6,15 @@
 
 using namespace mfem;
 
+TEST_CASE("Tensor tests", "[tensor]")
+{
+   SECTION("norm")
+   {
+      tensor<double, 5> a = {{1.0, 2.0, 3.0, 4.0, 5.0}};
+      REQUIRE(norm(a) - sqrt(55) < std::numeric_limits<double>::epsilon());
+   }
+}
+
 TEST_CASE("Dual number tensor tests", "[DualNumber]")
 {
    double x = 0.5;
