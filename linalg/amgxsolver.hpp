@@ -164,7 +164,7 @@ public:
 
    // Configure as AmgXSolver::PRECONDITIONER or AmgXSolver::SOLVER.
    // When configuring as a preconditioner, the check for convergence
-   // or divergence will be skipped afer AmgX mult step.
+   // or divergence will be skipped after applying Mult.
    void ConfigureAs(const AMGX_MODE amgxMode_);
 
    ~AmgXSolver();
