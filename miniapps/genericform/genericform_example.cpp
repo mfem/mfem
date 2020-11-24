@@ -18,7 +18,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/inline-quad.mesh";
    int order = 1;
    int refinements = 0;
-   double p = 3.0;
+   double p = 2.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&refinements, "-r", "--ref", "");
@@ -75,13 +75,13 @@ int main(int argc, char *argv[])
 
    GenericForm form(&fespace);
 
-   auto diffusion = new QFunctionIntegrator([&](auto u, auto du) {
+   auto plaplacian = new QFunctionIntegrator([&](auto u, auto du) {
       auto f0 = -1.0;
-      auto f1 = du;
+      auto f1 = pow(norm(du), p - 2.0) * du;
       return std::tuple{f0, f1};
    });
 
-   form.AddDomainIntegrator(diffusion);
+   form.AddDomainIntegrator(plaplacian);
 
    form.SetEssentialBC(ess_bdr);
 

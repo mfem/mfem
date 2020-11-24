@@ -192,7 +192,7 @@ auto norm(const tensor<T, n> &A)
    {
       r = r + A[i] * A[i];
    }
-   return r;
+   return pow(r, 0.5);
 }
 
 template<typename gradient_type>
@@ -243,6 +243,42 @@ template<typename gradient_type>
 auto cos(dual<gradient_type> a)
 {
    return dual<gradient_type>{cos(a.value), -a.gradient * sin(a.value)};
+}
+
+template<typename gradient_type>
+auto exp(dual<gradient_type> a)
+{
+   return dual<gradient_type>{exp(a.value), exp(a.value)};
+}
+
+template<typename gradient_type>
+auto log(dual<gradient_type> a)
+{
+   return dual<gradient_type>{log(a.value), a.gradient / a.value};
+}
+
+template<typename gradient_type>
+auto pow(dual<gradient_type> a, dual<gradient_type> b)
+{
+   double value = pow(a.value, b.value);
+   return dual<gradient_type>{value,
+                              value
+                                 * (a.gradient * (b.value / a.value)
+                                    + b.gradient * log(a.value))};
+}
+
+template<typename gradient_type>
+auto pow(double a, dual<gradient_type> b)
+{
+   double value = pow(a, b.value);
+   return dual<gradient_type>{value, value * b.gradient * log(a)};
+}
+
+template<typename gradient_type>
+auto pow(dual<gradient_type> a, double b)
+{
+   double value = pow(a.value, b);
+   return dual<gradient_type>{value, value * a.gradient * b / a.value};
 }
 
 template<typename T, int... n>
