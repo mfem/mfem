@@ -350,14 +350,12 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    // Note that x hasn't been modified by the Newton update yet.
    const double min_detJ_in = ComputeMinDet(x_out_loc, *fes);
    const bool untangling = (min_detJ_in <= 0.0) ? true : false;
-   const double factor = 1.5;
+   const double untangle_factor = 1.5;
    if (untangling)
    {
       // Needed for the line search below.
       // The untangling metrics see this reference to detect deteriorations.
-      *min_det_ptr = factor * min_detJ_in;
-      if (print_level >= 0)
-      { mfem::out << "Starting min_detJ = " << min_detJ_in << "\n"; }
+      *min_det_ptr = untangle_factor * min_detJ_in;
    }
 
    const bool have_b = (b.Size() == Height());
@@ -372,8 +370,8 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    // Perform the line search.
    for (int i = 0; i < 12; i++)
    {
+      // Update the mesh and get the L-vector in x_out_loc.
       add(x, -scale, c, x_out);
-
       if (serial)
       {
          const SparseMatrix *cP = fes->GetConformingProlongation();
@@ -405,6 +403,12 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          scale *= detJ_factor; continue;
       }
 
+      // Skip the energy and residual checks when we're untangling.
+      // The untangling metrics change their denominators, which can affect the
+      // energy and residual, so their increase/decrease is not relevant.
+      if (untangling) { x_out_ok = true; break; }
+
+      // Check the changes in total energy.
       ProcessNewState(x_out);
       if (serial)
       {
@@ -416,7 +420,6 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          energy_out = p_nlf->GetParGridFunctionEnergy(x_out_loc);
       }
 #endif
-
       if (energy_out > 1.2*energy_in || std::isnan(energy_out) != 0)
       {
          if (print_level >= 0)
@@ -427,6 +430,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          scale *= 0.5; continue;
       }
 
+      // Check the changes in the Newton residual.
       oper->Mult(x_out, r);
       if (have_b) { r -= b; }
       double norm_out = Norm(r);
@@ -442,27 +446,30 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    if (untangling)
    {
+      // Update the global min detJ. Untangling metrics see this min_det_ptr.
       if (min_detJ_out > 0.0)
       {
          *min_det_ptr = 0.0;
          if (print_level >= 0)
          { mfem::out << "The mesh has been untangled at the used points!\n"; }
       }
-      else
-      {
-         // Update min detJ for all the metrics.
-         // The metrics see this min_det_ptr.
-         *min_det_ptr = factor * min_detJ_out;
-         if (print_level >= 0)
-         { mfem::out << "New min_detJ = " << min_detJ_out << "\n"; }
-      }
+      else { *min_det_ptr = untangle_factor * min_detJ_out; }
    }
 
    if (print_level >= 0)
    {
-      mfem::out << "Energy decrease: "
-                << (energy_in - energy_out) / energy_in * 100.0
-                << "% with " << scale << " scaling.\n";
+      if (untangling)
+      {
+         mfem::out << "Min detJ change: "
+                   << min_detJ_in << " -> " << min_detJ_out
+                   << " with " << scale << " scaling.\n";
+      }
+      else
+      {
+         mfem::out << "Energy decrease: "
+                   << (energy_in - energy_out) / energy_in * 100.0
+                   << "% with " << scale << " scaling.\n";
+      }
    }
 
    if (x_out_ok == false) { scale = 0.0; }
