@@ -31,6 +31,37 @@ void randBaselinePert(const mfem::Vector &x, mfem::Vector &u)
    }
 }
 
+double calcDrag(mfem::FiniteElementSpace *fes, mfem::GridFunction u,
+                int num_state, double alpha)
+{
+   /// check initial drag value
+   mfem::Vector drag_dir(2);
+
+   drag_dir = 0.0;
+   int iroll = 0;
+   int ipitch = 1;
+   double aoa_fs = 0.0;
+   double mach_fs = 1.0;
+
+   drag_dir(iroll) = cos(aoa_fs);
+   drag_dir(ipitch) = sin(aoa_fs);
+   drag_dir *= 1.0 / pow(mach_fs, 2.0); // to get non-dimensional Cd
+
+   Array<int> bndry_marker_drag;
+   bndry_marker_drag.Append(0);
+   bndry_marker_drag.Append(0);
+   bndry_marker_drag.Append(0);
+   bndry_marker_drag.Append(1);
+   NonlinearForm *dragf = new NonlinearForm(fes);
+
+   dragf->AddBdrFaceIntegrator(
+       new PressureForce<2, entvar>(drag_dir, num_state, alpha),
+       bndry_marker_drag);
+
+   double drag = dragf->GetEnergy(u);
+   return drag;
+}
+
 /// function to calculate conservative variables l2error
 template <int dim, bool entvar>
 double calcConservativeVarsL2Error(
@@ -171,7 +202,7 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
-   degree = order+1;
+   degree = order + 1;
    /// number of state variables
    int num_state = 4;
    // construct the mesh
@@ -237,6 +268,7 @@ int main(int argc, char *argv[])
 
    // // evaluate the Jacobian and compute its product with v
    // Operator &Jac = res->GetGradient(q);
+
    // GridFunction jac_v(fes);
    // Jac.Mult(v, jac_v);
 
@@ -274,7 +306,12 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient u0(num_state, uexact);
    u.ProjectCoefficient(u0);
 
-   /// time-marching method 
+   GridFunction residual(fes);
+   residual = 0.0;
+   res->Mult(u, residual);
+   cout << "residual sum " << residual.Sum() << endl;
+
+   /// time-marching method
    std::unique_ptr<mfem::ODESolver> ode_solver;
    //ode_solver.reset(new RK4Solver);
    ode_solver.reset(new BackwardEulerSolver);
@@ -292,9 +329,9 @@ int main(int argc, char *argv[])
    double res_norm0 = calcResidualNorm(res, fes, u);
    double t_final = 1000;
 
-   double dt_init = 0.01;
+   double dt_init = 0.2;
    double dt_old;
-   
+
    //initial l2_err
    double l2_err_init = calcConservativeVarsL2Error<2, 0>(uexact, &u, fes,
                                                           num_state, 0);
@@ -314,10 +351,9 @@ int main(int argc, char *argv[])
       //dt = dt_init;
       // print iterations
       std::cout << "iter " << ti << ": time = " << t << ": dt = " << dt << endl;
-      //   std::cout << " (" << round(100 * t / t_final) << "% complete)";
-      std::cout << "residual norm: " << res_norm << "\n";
+      //std::cout << " (" << round(100 * t / t_final) << "% complete)";
 
-      if (res_norm <= 1e-11)
+      if (res_norm <= 1e-13)
          break;
 
       if (isnan(res_norm))
@@ -325,18 +361,23 @@ int main(int argc, char *argv[])
 
       ode_solver->Step(u, t, dt);
    }
-
-   ofstream finalsol_ofs("final_sol.vtk");
+   cout << "=========================================" << endl;
+   std::cout << "final residual norm: " << res_norm << "\n";
+   double drag = calcDrag(fes, u, num_state, alpha);
+   double drag_err = abs(drag - (-1 / 1.4));
+   cout << "drag: " << drag << endl;
+   cout << "drag_error: " << drag_err << endl;
+   ofstream finalsol_ofs("final_sol_euler_vortex.vtk");
    finalsol_ofs.precision(14);
    mesh->PrintVTK(finalsol_ofs, 1);
    u.SaveVTK(finalsol_ofs, "Solution", 1);
    finalsol_ofs.close();
-   double l2_err = u.ComputeL2Error(u0);
-   cout << "l2_err " << l2_err << endl;
+
    //calculate final solution error
-   double l2_err_final = calcConservativeVarsL2Error<2, 0>(uexact, &u, fes,
-                                                           num_state, 0);
-   cout << "l2_err_final " << l2_err_final << endl;
+   double l2_err_rho = calcConservativeVarsL2Error<2, 0>(uexact, &u, fes,
+                                                         num_state, 0);
+   cout << "|| rho_h - rho ||_{L^2} = " << l2_err_rho << endl;
+   cout << "=========================================" << endl;
 }
 
 // perturbation function used to check the jacobian in each iteration
@@ -397,16 +438,21 @@ void uexact(const Vector &x, Vector &q)
    u(3) = press / euler::gami + 0.5 * rho * a * a * Ma * Ma;
 
    q = u;
+   // double mach_fs = 0.3;
+   // q(0) = 1.0;
+   // q(1) = q(0) * mach_fs; // ignore angle of attack
+   // q(2) = 0.0;
+   // q(3) = 1 / (euler::gamma * euler::gami) + 0.5 * mach_fs * mach_fs;
 }
 
 unique_ptr<Mesh> buildQuarterAnnulusMesh(int degree, int num_rad, int num_ang)
 {
-   // auto mesh_ptr = unique_ptr<Mesh>(new Mesh(num_rad, num_ang,
-   //                                           Element::TRIANGLE, true /* gen. edges */,
-   //                                           2.0, M_PI * 0.5, true));
    auto mesh_ptr = unique_ptr<Mesh>(new Mesh(num_rad, num_ang,
-                                             Element::QUADRILATERAL, true /* gen. edges */,
+                                             Element::TRIANGLE, true /* gen. edges */,
                                              2.0, M_PI * 0.5, true));
+   // auto mesh_ptr = unique_ptr<Mesh>(new Mesh(num_rad, num_ang,
+   //                                           Element::QUADRILATERAL, true /* gen. edges */,
+   //                                           2.0, M_PI * 0.5, true));
    // strategy:
    // 1) generate a fes for Lagrange elements of desired degree
    // 2) create a Grid Function using a VectorFunctionCoefficient

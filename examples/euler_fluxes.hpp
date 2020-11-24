@@ -260,7 +260,11 @@ void calcBoundaryFlux(const double *dir, const double *qbnd, const double *q,
       dq[i] = q[i] - qbnd[i];
    }
    calcEulerFlux<dim>(dir, q, flux);
-
+   // cout << "euler flux " <<  endl;
+   // for (int k = 0; k < dim + 2; ++k)
+   // {
+   //    cout << flux[k] << endl;
+   // }
    // diagonal matrix multiply; note that flux was initialized by calcEulerFlux
    for (int i = 0; i < dim + 2; ++i)
    {
@@ -464,7 +468,7 @@ void calcSlipWallFlux(const double *x, const double *dir, const double *q,
    }
    else
    {
-      press = pressure< dim>(q);
+      press = pressure<dim>(q);
    }
    flux[0] = 0.0;
    for (int i = 0; i < dim; ++i)
@@ -473,3 +477,28 @@ void calcSlipWallFlux(const double *x, const double *dir, const double *q,
    }
    flux[dim + 1] = 0.0;
 }
+
+/// Convert conservative variables `q` to entropy variables `w`
+/// \param[in] q - conservative variables that we want to convert from
+/// \param[out] w - entropy variables we want to convert to
+/// \tparam xdouble - typically `double` or `adept::adouble`
+/// \tparam dim - number of spatial dimensions (1, 2, or 3)
+template <int dim>
+void calcEntropyVars(const double *q, double *w)
+{
+   double u[dim];
+   for (int i = 0; i < dim; ++i)
+   {
+      u[i] = q[i + 1] / q[0];
+   }
+   double p = pressure<dim>(q);
+   double s = log(p / pow(q[0], euler::gamma));
+   double fac = 1.0 / p;
+   w[0] = (euler::gamma - s) / euler::gami - 0.5 * dot<dim>(u, u) * fac * q[0];
+   for (int i = 0; i < dim; ++i)
+   {
+      w[i + 1] = q[i + 1] * fac;
+   }
+   w[dim + 1] = -q[0] * fac;
+}
+

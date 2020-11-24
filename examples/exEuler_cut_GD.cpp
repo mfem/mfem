@@ -6,8 +6,10 @@ constexpr bool entvar = false;
 #include <iostream>
 #include <random>
 #include "euler_integ_cut.hpp"
-#include "evolver.hpp"
+#include "evolver_GD.hpp"
 #include "cut_quad.hpp"
+#include "gd_def_cut.hpp"
+#include "gd_cut.hpp"
 using namespace std;
 using namespace mfem;
 std::default_random_engine gen(std::random_device{}());
@@ -33,34 +35,6 @@ void randBaselinePert(const mfem::Vector &x, mfem::Vector &u)
     {
         u(di + 1) = rhou[di] * (1.0 + scale * uniform_rand(gen));
     }
-}
-/// function to calculate drag 
-double calcDrag(mfem::FiniteElementSpace *fes, mfem::GridFunction u,
-                int num_state,
-                std::map<int, IntegrationRule *> cutSegmentIntRules_inner,
-                double alpha)
-{
-    /// check initial drag value
-    mfem::Vector drag_dir(2);
-
-    drag_dir = 0.0;
-    int iroll = 0;
-    int ipitch = 1;
-    double aoa_fs = 0.0;
-    double mach_fs = 1.0;
-
-    drag_dir(iroll) = cos(aoa_fs);
-    drag_dir(ipitch) = sin(aoa_fs);
-    drag_dir *= 1.0 / pow(mach_fs, 2.0); // to get non-dimensional Cd
-
-    NonlinearForm *dragf = new NonlinearForm(fes);
-
-    dragf->AddDomainIntegrator(
-        new PressureForce<2, entvar>(drag_dir, num_state,
-                                     cutSegmentIntRules_inner, alpha));
-
-    double drag = dragf->GetEnergy(u);
-    return drag;
 }
 
 /// function to calculate conservative variables l2error
@@ -156,11 +130,11 @@ void randState(const mfem::Vector &x, mfem::Vector &u)
     }
 }
 
-double calcResidualNorm(NonlinearForm *res, FiniteElementSpace *fes, GridFunction &u)
+double calcResidualNorm(NonlinearForm *res, FiniteElementSpace *fes, CentGridFunction &uc)
 {
-    GridFunction residual(fes);
+    CentGridFunction residual(fes);
     residual = 0.0;
-    res->Mult(u, residual);
+    res->Mult(uc, residual);
     return residual.Norml2();
 }
 
@@ -188,107 +162,6 @@ double calcEntropyTotalExact();
 /// \param[in] x - coordinate of the point at which the state is needed
 /// \param[out] u - state variables stored as a 4-vector
 void uexact(const Vector &x, Vector &u);
-
-// double calcInnerProduct(const GridFunction &x, const GridFunction &y, mfem::FiniteElementSpace *fes)
-// {
-//    double loc_prod = 0.0;
-//    const FiniteElement *fe;
-//    ElementTransformation *T;
-//    DenseMatrix x_vals, y_vals;
-//    int num_state = 4;
-//    // calculate the L2 inner product for component index `entry`
-//    for (int i = 0; i < fes->GetNE(); i++)
-//    {
-//       fe = fes->GetFE(i);
-//       const IntegrationRule *ir = &(fe->GetNodes());
-//       T = fes->GetElementTransformation(i);
-//       x.GetVectorValues(*T, *ir, x_vals);
-//       y.GetVectorValues(*T, *ir, y_vals);
-//       for (int j = 0; j < ir->GetNPoints(); j++)
-//       {
-//          const IntegrationPoint &ip = ir->IntPoint(j);
-//          T->SetIntPoint(&ip);
-//          double node_prod = 0.0;
-//          for (int n = 0; n < num_state; ++n)
-//          {
-//             node_prod += x_vals(n,j)*y_vals(n,j);
-//          }
-//          loc_prod += ip.weight * T->Weight() * node_prod;
-//       }
-//    }
-//    return loc_prod;
-// }
-
-// void checkJacobian(
-//     void (*pert_fun)(const mfem::Vector &, mfem::Vector &), mfem::FiniteElementSpace *fes)
-// {
-//    // initialize some variables
-//    const double delta = 1e-5;
-//    GridFunction u_plus(*u);
-//    GridFunction u_minus(*u);
-//    GridFunction pert_vec(fes);
-//    VectorFunctionCoefficient up(num_state, pert_fun);
-//    pert_vec.ProjectCoefficient(up);
-
-//    // perturb in the positive and negative pert_vec directions
-//    u_plus.Add(delta, pert_vec);
-//    u_minus.Add(-delta, pert_vec);
-
-//    // Get the product using a 2nd-order finite-difference approximation
-//    GridFunction res_plus(fes.get());
-//    GridFunction res_minus(fes.get());
-//    Vector *u_p = u_plus.GetTrueDofs();
-//    Vector *u_m = u_minus.GetTrueDofs();
-//    Vector *res_p = res_plus.GetTrueDofs();
-//    Vector *res_m = res_minus.GetTrueDofs();
-//    res->Mult(*u_p, *res_p);
-//    res->Mult(*u_m, *res_m);
-//    res_plus.SetFromTrueDofs(*res_p);
-//    res_minus.SetFromTrueDofs(*res_m);
-//    // res_plus = 1/(2*delta)*(res_plus - res_minus)
-//    subtract(1/(2*delta), res_plus, res_minus, res_plus);
-
-//    // Get the product directly using Jacobian from GetGradient
-//    GridFunction jac_v(fes);
-//    Vector *u_true = u->GetTrueDofs();
-//    Vector *pert = pert_vec.GetTrueDofs();
-//    Vector *prod = jac_v.GetTrueDofs();
-//    mfem::Operator &jac = res->GetGradient(*u_true);
-//    jac.Mult(*pert, *prod);
-//    jac_v.SetFromTrueDofs(*prod);
-
-//    // check the difference norm
-//    jac_v -= res_plus;
-//    double error = calcInnerProduct(jac_v, jac_v, fes);
-//    *out << "The Jacobian product error norm is " << sqrt(error) << endl;
-// }
-
-template <int N>
-struct circle
-{
-    double xscale;
-    double yscale;
-    double xmin;
-    double ymin;
-    double radius;
-    template <typename T>
-    T operator()(const blitz::TinyVector<T, N> &x) const
-    {
-        // level-set function to work in physical space
-        // return -1 * (((x[0] - 5) * (x[0] - 5)) +
-        //               ((x[1]- 5) * (x[1] - 5)) - (0.5 * 0.5));
-        // level-set function for reference elements
-        return -1 * ((((x[0] * xscale) + xmin - 0.5) * ((x[0] * xscale) + xmin - 0.5)) +
-                     (((x[1] * yscale) + ymin - 0.5) * ((x[1] * yscale) + ymin - 0.5)) - (radius * radius));
-    }
-    template <typename T>
-    blitz::TinyVector<T, N> grad(const blitz::TinyVector<T, N> &x) const
-    {
-        // return blitz::TinyVector<T, N>(-1 * (2.0 * (x(0) - 5)), -1 * (2.0 * (x(1) - 5)));
-        return blitz::TinyVector<T, N>(-1 * (2.0 * xscale * ((x(0) * xscale) + xmin - 0.5)),
-                                       -1 * (2.0 * yscale * ((x(1) * yscale) + ymin - 0.5)));
-    }
-};
 
 int main(int argc, char *argv[])
 {
@@ -424,25 +297,7 @@ int main(int argc, char *argv[])
                 cutFaces_outer.push_back(tr->Face->ElementNo);
             }
         }
-// the boundary faces are not required for outer circle
-#if 0
-       if (tr->Elem2No < 0)
-       {
-           if (find(cutelems_outer.begin(), cutelems_outer.end(), tr->Elem1No) != cutelems_outer.end())
-           {
-               cutFaces_outer.push_back(tr->Face->ElementNo);
-               cout << "boundary face is " << tr->Face->ElementNo << endl;
-               cout << tr->Elem1No << endl;
-           }
-       }
-#endif
     }
-
-    // cout << "faces cut by outer circle " << cutFaces_outer.size() << endl;
-    // for (int k = 0; k < cutFaces_outer.size(); ++k)
-    // {
-    //     cout << cutFaces_outer.at(k) << endl;
-    // }
 
     /// find the elements for which we don't need to solve
     std::vector<bool> EmbeddedElems;
@@ -547,21 +402,13 @@ int main(int argc, char *argv[])
                                                      Ordering::byVDIM);
     cout << "Number of finite element unknowns: "
          << fes->GetTrueVSize() << endl;
+    FiniteElementSpace *fes_GD = new GalerkinDifference(mesh, fec, EmbeddedElems,
+                                                        num_state, Ordering::byVDIM, order);
+    cout << "Number of finite element unknowns in GD: "
+         << fes_GD->GetTrueVSize() << endl;
 
     Vector qfs(dim + 2);
     getFreeStreamState<2, 0>(qfs);
-    /// check area
-    cout << "--------- area and perimeter test --------- " << endl;
-    GridFunction x(fes);
-    NonlinearForm *a = new NonlinearForm(fes);
-    a->AddDomainIntegrator(new CutEulerDomainIntegrator<2>(num_state, cutSquareIntRules, EmbeddedElems, alpha));
-    double area;
-    area = a->GetEnergy(x);
-    cout << "correct area: " << 2 * M_PI << endl;
-    cout << "calculated area: " << area << endl;
-    NonlinearForm *pi = new NonlinearForm(fes);
-    NonlinearForm *po = new NonlinearForm(fes);
-    NonlinearForm *pf = new NonlinearForm(fes);
 
     Array<int> bndry_marker_isentropic;
     bndry_marker_isentropic.Append(1);
@@ -569,30 +416,9 @@ int main(int argc, char *argv[])
     bndry_marker_isentropic.Append(0);
     bndry_marker_isentropic.Append(1);
 
-    pi->AddDomainIntegrator(new CutEulerVortexBoundaryIntegrator<2, 1, 0>(fec, num_state, qfs, cutSegmentIntRules_inner, alpha));
-    po->AddDomainIntegrator(new CutEulerVortexBoundaryIntegrator<2, 2, 0>(fec, num_state, qfs, cutSegmentIntRules_outer, alpha));
-    pf->AddBdrFaceIntegrator(new CutEulerBoundaryIntegrator<2, 3, 0>(fec, cutBdrFaceIntRules_inner, EmbeddedElems,
-                                                                     num_state, qfs, alpha),
-                             bndry_marker_isentropic);
-    double perim_in, perim_out, perim_far;
-    perim_in = pi->GetEnergy(x);
-    perim_out = po->GetEnergy(x);
-    perim_far = pf->GetEnergy(x);
-    double ar = 2 * M_PI;
-    double peri = M_PI / 2.0;
-
-    cout << "correct perimeters for inner and outer quarter circles resp: " << M_PI / 2.0 << " , " << 1.5 * M_PI << endl;
-    cout << "calculated perimeter for inner quarter: " << perim_in << endl;
-    cout << "calculated perimeter for outer quarter: " << perim_out << endl;
-    cout << "farfield perimeter: " << perim_far << endl;
-    cout << "area err " << endl;
-    cout << abs(area - ar) << endl;
-    cout << "perimeter err " << endl;
-    cout << abs(peri - perim_in) << endl;
-    cout << "---------test done--------- " << endl;
 
     /// nonlinearform
-    NonlinearForm *res = new NonlinearForm(fes);
+    NonlinearForm *res = new NonlinearForm(fes_GD);
     res->AddDomainIntegrator(new CutEulerDomainIntegrator<2>(num_state, cutSquareIntRules, EmbeddedElems, alpha));
     res->AddDomainIntegrator(new CutEulerVortexBoundaryIntegrator<2, 1, 0>(fec, num_state, qfs, cutSegmentIntRules_inner, alpha));
     res->AddDomainIntegrator(new CutEulerVortexBoundaryIntegrator<2, 2, 0>(fec, num_state, qfs, cutSegmentIntRules_outer, alpha));
@@ -600,58 +426,50 @@ int main(int argc, char *argv[])
     res->AddBdrFaceIntegrator(new CutEulerBoundaryIntegrator<2, 1, 0>(fec, cutBdrFaceIntRules_inner, EmbeddedElems,
                                                                       num_state, qfs, alpha),
                               bndry_marker_isentropic);
-    //check if the integrators are correct
-    // double delta = 1e-5;
 
-    // // initialize state; here we randomly perturb a constant state
-    // GridFunction q(fes);
-    // VectorFunctionCoefficient pert(num_state, randBaselinePert<2>);
-    // q.ProjectCoefficient(pert);
-
-    // // initialize the vector that the Jacobian multiplies
-    // GridFunction v(fes);
-    // VectorFunctionCoefficient v_rand(num_state, randState);
-    // v.ProjectCoefficient(v_rand);
-
-    // // evaluate the Jacobian and compute its product with v
-    // Operator &Jac = res->GetGradient(q);
-    // GridFunction jac_v(fes);
-    // Jac.Mult(v, jac_v);
-
-    // // now compute the finite-difference approximation...
-    // GridFunction q_pert(q), r(fes), jac_v_fd(fes);
-    // q_pert.Add(-delta, v);
-    // res->Mult(q_pert, r);
-    // q_pert.Add(2 * delta, v);
-    // res->Mult(q_pert, jac_v_fd);
-    // jac_v_fd -= r;
-    // jac_v_fd /= (2 * delta);
-
-    // for (int i = 0; i < jac_v.Size(); ++i)
-    // {
-    //     // std::cout << std::abs(jac_v(i) - (jac_v_fd(i))) << "\n";
-    //     MFEM_ASSERT(abs(jac_v(i) - (jac_v_fd(i))) < 1e-09, "jacobian is incorrect");
-    // }
-
-    /// bilinear form
+    // bilinear form
     BilinearForm *mass = new BilinearForm(fes);
 
     // set up the mass matrix
     mass->AddDomainIntegrator(new CutEulerMassIntegrator(cutSquareIntRules, EmbeddedElems, num_state));
     mass->Assemble();
     mass->Finalize();
+    SparseMatrix &mass_old = mass->SpMat();
+    SparseMatrix *cp = dynamic_cast<GalerkinDifference *>(fes_GD)->GetCP();
+    SparseMatrix *p = RAP(*cp, mass_old, *cp);
+    SparseMatrix &M = *p;
 
     /// grid function
     GridFunction u(fes);
     VectorFunctionCoefficient u0(num_state, uexact);
-    u.ProjectCoefficient(u0);
-    GridFunction residual(fes);
+    GridFunction u_test(fes);
+    u_test.ProjectCoefficient(u0);
+
+    /// GD grid function
+    CentGridFunction uc(fes_GD);
+    uc.ProjectCoefficient(u0);
+    fes_GD->GetProlongationMatrix()->Mult(uc, u);
+    ofstream projection("initial_projection.vtk");
+    projection.precision(14);
+    mesh->PrintVTK(projection, 0);
+    u.SaveVTK(projection, "projection", 0);
+    projection.close();
+    u_test -= u;
+    cout << "After projection, the difference norm is " << u_test.Norml2() << '\n';
+    ofstream proj_ofs("projection_error_cutGD.vtk");
+    proj_ofs.precision(14);
+    mesh->PrintVTK(proj_ofs, 0);
+    u.SaveVTK(proj_ofs, "project_error", 0);
+    proj_ofs.close();
+
+    CentGridFunction residual(fes_GD);
     residual = 0.0;
-    res->Mult(u, residual);
+    res->Mult(uc, residual);
     cout << "sum of residual " << residual.Sum() << endl;
+
     //residual.Print();
     // check the residual
-    ofstream res_ofs("residual_cut.vtk");
+    ofstream res_ofs("residual_cut_GD.vtk");
     res_ofs.precision(14);
     mesh->PrintVTK(res_ofs, 1);
     residual.SaveVTK(res_ofs, "Residual", 1);
@@ -663,7 +481,7 @@ int main(int argc, char *argv[])
     cout << "ode_solver set " << endl;
 
     /// TimeDependentOperator
-    unique_ptr<mfem::TimeDependentOperator> evolver(new mfem::EulerEvolver(mass, res,
+    unique_ptr<mfem::TimeDependentOperator> evolver(new mfem::EulerEvolver(M, res,
                                                                            0.0, TimeDependentOperator::Type::IMPLICIT));
     /// set up the evolver
     auto t = 0.0;
@@ -671,10 +489,10 @@ int main(int argc, char *argv[])
     ode_solver->Init(*evolver);
 
     /// solve the ode problem
-    double res_norm0 = calcResidualNorm(res, fes, u);
+    double res_norm0 = calcResidualNorm(res, fes_GD, uc);
     double t_final = 1000;
     std::cout << "initial residual norm: " << res_norm0 << "\n";
-    double dt_init = 0.2;
+    double dt_init = 500;
     double dt_old;
     // initial l2_err
     double l2_err_init = calcCutConservativeVarsL2Error<2, 0>(uexact, &u, fes, EmbeddedElems,
@@ -683,46 +501,43 @@ int main(int argc, char *argv[])
 
     double dt = 0.0;
     double res_norm;
-    int exponent = 1;
+    int exponent = 2;
     res_norm = res_norm0;
-    for (auto ti = 0; ti < 40000; ++ti)
+    for (auto ti = 0; ti < 30000; ++ti)
     {
         /// calculate timestep
         dt_old = dt;
         dt = dt_init * pow(res_norm0 / res_norm, exponent);
         dt = max(dt, dt_old);
-        //dt = dt_init;
         // print iterations
         std::cout << "iter " << ti << ": time = " << t << ": dt = " << dt << endl;
         //   std::cout << " (" << round(100 * t / t_final) << "% complete)";
+        std::cout << "residual norm: " << res_norm << "\n";
+
         if (res_norm <= 1e-11)
             break;
 
         if (isnan(res_norm))
             break;
-        ode_solver->Step(u, t, dt);
-        res_norm = calcResidualNorm(res, fes, u);
+        ode_solver->Step(uc, t, dt);
+        res_norm = calcResidualNorm(res, fes_GD, uc);
     }
-    cout << "=========================================" << endl;
-    std::cout << "final residual norm: " << res_norm << "\n";
-    double drag = calcDrag(fes, u, num_state, cutSegmentIntRules_inner, alpha);
-    double drag_err = abs(drag - (-1 / 1.4));
-    cout << "drag: " << drag << endl;
-    cout << "drag_error: " << drag_err << endl;
-    ofstream finalsol_ofs("final_sol_euler_vortex_cut.vtk");
+    fes_GD->GetProlongationMatrix()->Mult(uc, u);
+    ofstream finalsol_ofs("final_sol_cut_GD.vtk");
     finalsol_ofs.precision(14);
     mesh->PrintVTK(finalsol_ofs, 1);
     u.SaveVTK(finalsol_ofs, "Solution", 1);
     finalsol_ofs.close();
+
     //calculate final solution error
-    double l2_err_rho = calcCutConservativeVarsL2Error<2, 0>(uexact, &u, fes, EmbeddedElems,
-                                                             cutSquareIntRules, num_state, 0);
-    cout << "|| rho_h - rho ||_{L^2} = " << l2_err_rho << endl;
-    cout << "=========================================" << endl;
+    double l2_err_final = calcCutConservativeVarsL2Error<2, 0>(uexact, &u, fes, EmbeddedElems,
+                                                               cutSquareIntRules, num_state, 0);
+    cout << "l2_err_final " << l2_err_final << endl;
     // Free the used memory.
     delete res;
     delete mass;
     delete fes;
+    delete fes_GD;
     delete fec;
     delete mesh;
     return 0;
@@ -782,51 +597,3 @@ void uexact(const Vector &x, Vector &q)
     //        q(3) = 1 / (euler::gamma * euler::gami) + 0.5 * mach_fs * mach_fs;
     //    }
 }
-
-// back-up code
-#if 0
-    cout << "boundary faces " << endl;
-    /// find boundary faces cut by vortex 
-    for (int ib=0; ib<mesh->GetNBE(); ++ib)
-    {
-       FaceElementTransformations *trans;
-       trans = mesh->GetFaceElementTransformations(ib);
-       if (trans->Elem2No < 0)
-       {
-           if (find(cutelems_inner.begin(), cutelems_inner.end(), trans->Elem1No) != cutelems_inner.end())
-           {
-               cutFaces.push_back(trans->Face->ElementNo);
-               cout << "face is " << trans->Face->ElementNo << endl;
-               cout << trans->Elem1No  << endl;
-           }
-       }
-    }
-   // cut faces
-   cout << "faces cut by inner circle:  " << endl;
-   for (int i = 0; i < cutFaces.size(); ++i)
-   {
-       FaceElementTransformations *tr, *trans;
-       int fid = cutFaces.at(i);
-       tr = mesh->GetInteriorFaceTransformations(fid);
-       if (tr != NULL)
-       {
-           cout << "interior face elements for Face " << tr->Face->ElementNo << " : " << tr->Elem1No << " , " << tr->Elem2No << endl;
-       }
-       else
-       {
-           trans = mesh->GetBdrFaceTransformations(fid);
-           cout << "boundary face element for Face " << trans->Face->ElementNo << " : " << trans->Elem1No << endl;
-       }
-   }
-   cout << "boundary faces cut by inner circle:  " << endl;
-   for (int i = 0; i < cutboundaryFaces.size(); ++i)
-   { 
-       FaceElementTransformations *tr;
-       int fid = cutboundaryFaces.at(i);
-       tr = mesh->GetBdrFaceTransformations(fid);
-       if (tr !=NULL)
-       {
-           cout << "boundary face element for Face "  << tr->Face->ElementNo << " : " << tr->Elem1No  << endl;
-       }
-   }
-#endif

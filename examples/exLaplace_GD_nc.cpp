@@ -101,17 +101,9 @@ int main(int argc, char *argv[])
    mesh->GeneralRefinement(marked_elements, 1);
    }
 
-   for (int lev = 0; lev < ref_levels; lev++)
+   for (int l = 0; l < ref_levels; l++)
    {
-       Array<int> ref_elements;
-       for (int i = 0; i < mesh->GetNE(); ++i)
-       {
-           if  (insideBoundary(mesh, radius, i)== false)
-           {
-               ref_elements.Append(i);
-           }
-       }
-       mesh->GeneralRefinement(ref_elements, 1);
+      mesh->UniformRefinement();
    }
 
    cout << "#elements after refinement " << mesh->GetNE() << endl;
@@ -167,7 +159,7 @@ int main(int argc, char *argv[])
 //    }
    cout << "dimension is " << dim << endl;
    std::cout << "Number of elements: " << mesh->GetNE() << '\n';
-   int deg = order + 1;
+   int deg = min((order + 2) * (order + 2), 10);
    // define map for integration rule for cut elements
    GetCutElementIntRule<2>(mesh, cutelems, deg, radius, CutSquareIntRules);
    GetCutSegmentIntRule<2>(mesh, cutelems, cutinteriorFaces, deg, radius, cutSegmentIntRules,

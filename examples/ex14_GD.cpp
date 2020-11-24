@@ -297,10 +297,10 @@ void GalerkinDifference::GetNeighbourSet(int id, int req_n,
             // Get and store the element center
             mfem::Vector cent(dim);
             GetElementCenter(adj[i], cent);
-            if ((cent(0) == cent_coord(0)) || (cent(1) == cent_coord(1)))
-            {
+            // if ((cent(0) == cent_coord(0)) || (cent(1) == cent_coord(1)))
+            // {
             nels.Append(adj[i]);
-            }
+            //}
          }
       }
       //cout << "List now is: ";
@@ -614,33 +614,33 @@ void buildLSInterpolation(int dim, int degree, const DenseMatrix &x_center,
          }
       }
       // loop over quadrature points
-      // for (int j = 0; j < num_quad; ++j)
-      // {
-      //    for (int p = 0; p <= degree; ++p)
-      //    {
-      //       for (int q = 0; q <= p; ++q)
-      //       {
-      //          // int p = 0;
-      //          // int q = 0;
-      //          // loop over the element centers
-      //          double poly_at_quad = 0.0;
-      //          for (int i = 0; i < num_elem; ++i)
-      //          {
-      //             double dx = x_quad(0, j) - x_center(0, i);
-      //             double dy = x_quad(1, j) - x_center(1, i);
-      //             poly_at_quad += interp(j, i) * pow(dx, p - q) * pow(dy, q);
-      //          }
-      //          double exact = ((p == 0) && (q == 0)) ? 1.0 : 0.0;
-      //          // mfem::out << "polynomial interpolation error (" << p - q << ","
-      //          //           << q << ") = " << fabs(exact - poly_at_quad) << endl;
-      //          if ((p == 0) && (q == 0))
-      //          {
-      //             MFEM_ASSERT(fabs(exact - poly_at_quad) <= 1e-12,
-      //                         "Interpolation operator does not interpolate exactly!\n");
-      //          }
-      //       }
-      //    }
-      // }
+      for (int j = 0; j < num_quad; ++j)
+      {
+         for (int p = 0; p <= degree; ++p)
+         {
+            for (int q = 0; q <= p; ++q)
+            {
+               // int p = 0;
+               // int q = 0;
+               // loop over the element centers
+               double poly_at_quad = 0.0;
+               for (int i = 0; i < num_elem; ++i)
+               {
+                  double dx = x_quad(0, j) - x_center(0, i);
+                  double dy = x_quad(1, j) - x_center(1, i);
+                  poly_at_quad += interp(j, i) * pow(dx, p - q) * pow(dy, q);
+               }
+               double exact = ((p == 0) && (q == 0)) ? 1.0 : 0.0;
+               // mfem::out << "polynomial interpolation error (" << p - q << ","
+               //           << q << ") = " << fabs(exact - poly_at_quad) << endl;
+               if ((p == 0) && (q == 0))
+               {
+                       MFEM_ASSERT(fabs(exact - poly_at_quad) <= 1e-12, " p = " << p << " , q = " << q << ", " << fabs(exact - poly_at_quad) << " : " 
+                                                                           << "Interpolation operator does not interpolate exactly!\n");
+               }
+            }
+         }
+      }
    }
    else if (dim == 3)
    {

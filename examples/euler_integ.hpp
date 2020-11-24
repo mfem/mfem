@@ -89,7 +89,7 @@ namespace mfem
             int ndof = elfun.Size();
             elmat.SetSize(ndof);
             elmat = 0.0;
-            double delta = 1e-5;
+            double delta = 1e-6;
             for (int i = 0; i < ndof; ++i)
             {
                 Vector elfun_plus(elfun);
@@ -102,13 +102,24 @@ namespace mfem
                 AssembleElementVector(el, trans, elfun_minus, elvect_minus);
 
                 elvect_plus -= elvect_minus;
-                elvect_plus /= 2 * delta;
+                elvect_plus /= 2.0 * delta;
 
                 for (int j = 0; j < ndof; ++j)
                 {
                     elmat(j, i) = elvect_plus(j);
                 }
             }
+        }
+        virtual double GetElementEnergy(const FiniteElement &el,
+                                        ElementTransformation &Ttr,
+                                        const Vector &elfun)
+        {
+
+            double energy;
+
+            energy = 0.0;
+
+            return energy;
         }
 
     protected:
@@ -150,10 +161,6 @@ namespace mfem
         EulerBoundaryIntegrator(const mfem::FiniteElementCollection *fe_coll, int num_state, mfem::Vector &qf,
                                 double a = 1.0)
             : fec(fe_coll), num_states(num_state), qfs(qf), alpha(a), work_vec(dim + 2) {}
-
-        /// Not used (or, rather, *do not use*!)
-        double calcBndryFun(const mfem::Vector &x, const mfem::Vector &dir,
-                            const mfem::Vector &q) { return 0.0; }
 
         /// Compute a characteristic boundary flux for the isentropic vortex
         /// \param[in] x - coordinate location at which flux is evaluated
@@ -248,7 +255,7 @@ namespace mfem
             int ndof = elfun.Size();
             elmat.SetSize(ndof);
             elmat = 0.0;
-            double delta = 1e-5;
+            double delta = 1e-6;
             for (int i = 0; i < ndof; ++i)
             {
                 Vector elfun_plus(elfun);
@@ -268,6 +275,60 @@ namespace mfem
                     elmat(j, i) = elvect_plus(j);
                 }
             }
+        }
+
+        double calcBndryFun(
+            const mfem::Vector &x, const mfem::Vector &dir,
+            const mfem::Vector &q)
+        {
+            mfem::Vector flux_vec(q.Size());
+            calcFlux(x, dir, q, flux_vec);
+            mfem::Vector w(q.Size());
+            if (entvar)
+            {
+                w = q;
+            }
+            else
+            {
+                calcEntropyVars<dim>(q.GetData(), w.GetData());
+            }
+            return w * flux_vec;
+        }
+
+        double GetFaceEnergy(
+            const mfem::FiniteElement &el_bnd,
+            const mfem::FiniteElement &el_unused,
+            mfem::FaceElementTransformations &trans,
+            const mfem::Vector &elfun)
+        {
+            const int num_nodes = el_bnd.GetDof();
+#ifdef MFEM_THREAD_SAFE
+            Vector u_face, x, nrm, flux_face;
+#endif
+            u_face.SetSize(num_states);
+            x.SetSize(dim);
+            nrm.SetSize(dim);
+            shape.SetSize(num_nodes);
+            double fun = 0.0; // initialize the functional value
+            DenseMatrix u(elfun.GetData(), num_nodes, num_states);
+
+            int intorder;
+            intorder = trans.Elem1->OrderW() + 2 * el_bnd.GetOrder();
+            const IntegrationRule *ir = &IntRules.Get(trans.FaceGeom, intorder);
+            IntegrationPoint el_ip;
+            for (int i = 0; i < ir->GetNPoints(); i++)
+            {
+                const IntegrationPoint &face_ip = ir->IntPoint(i);
+                trans.Loc1.Transform(face_ip, el_ip);
+                trans.Elem1->Transform(el_ip, x);
+                el_bnd.CalcShape(el_ip, shape);
+                u.MultTranspose(shape, u_face);
+                // get the normal vector, and then add contribution to function
+                trans.Face->SetIntPoint(&face_ip);
+                CalcOrtho(trans.Face->Jacobian(), nrm);
+                fun += calcBndryFun(x, nrm, u_face) * face_ip.weight * alpha;
+            }
+            return fun;
         }
 
     protected:
@@ -409,7 +470,7 @@ namespace mfem
             int ndof = elfun.Size();
             elmat.SetSize(ndof);
             elmat = 0.0;
-            double delta = 1e-5;
+            double delta = 1e-6;
             for (int i = 0; i < ndof; ++i)
             {
                 Vector elfun_plus(elfun);
@@ -429,6 +490,14 @@ namespace mfem
                     elmat(j, i) = elvect_plus(j);
                 }
             }
+        }
+        double GetFaceEnergy(
+            const mfem::FiniteElement &el_bnd,
+            const mfem::FiniteElement &el_unused,
+            mfem::FaceElementTransformations &trans,
+            const mfem::Vector &elfun)
+        {
+            return 0.0;
         }
 
     protected:
@@ -532,6 +601,81 @@ namespace mfem
         mfem::Vector shape;
         mfem::DenseMatrix elmat;
         int num_state;
+    };
+
+    template <int dim, bool entvar = false>
+    class PressureForce : public NonlinearFormIntegrator
+    {
+        public:
+        PressureForce(const mfem::Vector &force_dir, int num_state, double a) : force_nrm(force_dir),
+                                             work_vec(dim + 2),
+                                             num_states(num_state), alpha(a) {}
+        
+        double calcBndryFun(const mfem::Vector &x,
+                            const mfem::Vector &dir,
+                            const mfem::Vector &q)
+        {
+            calcSlipWallFlux<dim, entvar>(x.GetData(), dir.GetData(),
+                                                  q.GetData(), work_vec.GetData());
+            return dot<dim>(force_nrm.GetData(), work_vec.GetData() + 1);
+        }
+
+        double GetFaceEnergy(
+            const mfem::FiniteElement &el_bnd,
+            const mfem::FiniteElement &el_unused,
+            mfem::FaceElementTransformations &trans,
+            const mfem::Vector &elfun)
+        {
+            const int num_nodes = el_bnd.GetDof();
+#ifdef MFEM_THREAD_SAFE
+            Vector u_face, x, nrm, flux_face;
+#endif
+            u_face.SetSize(num_states);
+            x.SetSize(dim);
+            nrm.SetSize(dim);
+            shape.SetSize(num_nodes);
+            double fun = 0.0; // initialize the functional value
+            DenseMatrix u(elfun.GetData(), num_nodes, num_states);
+
+            int intorder;
+            intorder = trans.Elem1->OrderW() + 2 * el_bnd.GetOrder();
+            const IntegrationRule *ir = &IntRules.Get(trans.FaceGeom, intorder);
+            IntegrationPoint el_ip;
+            for (int i = 0; i < ir->GetNPoints(); i++)
+            {
+                const IntegrationPoint &face_ip = ir->IntPoint(i);
+                trans.Loc1.Transform(face_ip, el_ip);
+                trans.Elem1->Transform(el_ip, x);
+                el_bnd.CalcShape(el_ip, shape);
+                u.MultTranspose(shape, u_face);
+                // get the normal vector, and then add contribution to function
+                trans.Face->SetIntPoint(&face_ip);
+                CalcOrtho(trans.Face->Jacobian(), nrm);
+                fun += calcBndryFun(x, nrm, u_face) * face_ip.weight * alpha;
+            }
+            return fun;
+        }
+
+    protected:
+        /// number of states
+        int num_states;
+        /// scales the terms; can be used to move to rhs/lhs
+        double alpha;
+        /// `dim` entry unit normal vector specifying the direction of the force
+        mfem::Vector force_nrm;
+        /// work vector used to stored the flux
+        mfem::Vector work_vec;
+            /// used to reference the state at face node
+        mfem::Vector u_face;
+        /// store the physical location of a node
+        mfem::Vector x;
+        /// farfield state value
+        mfem::Vector qfs;
+        /// the outward pointing (scaled) normal to the boundary at a node
+        mfem::Vector nrm;
+        mfem::Vector shape;
+        /// stores the flux evaluated by `bnd_flux`
+        mfem::Vector flux_face;
     };
 } // namespace mfem
 #endif

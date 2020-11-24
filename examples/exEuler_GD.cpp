@@ -184,7 +184,7 @@ int main(int argc, char *argv[])
    const int dim = mesh->Dimension();
 
    // save the initial mesh
-   ofstream sol_ofs("steady_vortex_mesh.vtk");
+   ofstream sol_ofs("steady_vortex_mesh_gd.vtk");
    sol_ofs.precision(14);
    mesh->PrintVTK(sol_ofs, 0);
 
@@ -254,15 +254,15 @@ int main(int argc, char *argv[])
    // CentGridFunction q_pert(q), r(fes), jac_v_fd(fes_GD);
    // q_pert.Add(-delta, v);
    // res->Mult(q_pert, r);
-   // q_pert.Add(2 * delta, v);
+   // q_pert.Add(2.0 * delta, v);
    // res->Mult(q_pert, jac_v_fd);
    // jac_v_fd -= r;
-   // jac_v_fd /= (2 * delta);
+   // jac_v_fd /= (2.0 * delta);
 
    // for (int i = 0; i < jac_v.Size(); ++i)
    // {
-   //    //std::cout << std::abs(jac_v(i) - (jac_v_fd(i))) << "\n";
-   //    MFEM_ASSERT(abs(jac_v(i) - (jac_v_fd(i))) < 1e-09, "jacobian is incorrect");
+   //   // std::cout << std::abs(jac_v(i) - (jac_v_fd(i))) << "\n";
+   //    MFEM_ASSERT(abs(jac_v(i) - (jac_v_fd(i))) <= 1e-08, "jacobian is incorrect");
    // }
 
    /// bilinear form
@@ -308,13 +308,13 @@ int main(int argc, char *argv[])
    u.SaveVTK(proj_ofs, "project_error", 0);
    proj_ofs.close();
 
-   // /// time-marching method
+   /// time-marching method
    std::unique_ptr<mfem::ODESolver> ode_solver;
    //ode_solver.reset(new RK4Solver);
    ode_solver.reset(new BackwardEulerSolver);
    cout << "ode_solver set " << endl;
 
-   // /// TimeDependentOperator
+   // TimeDependentOperator
    unique_ptr<mfem::TimeDependentOperator> evolver(new mfem::EulerEvolver(M, res,
                                                                           0.0, TimeDependentOperator::Type::IMPLICIT));
    /// set up the evolver
@@ -326,7 +326,7 @@ int main(int argc, char *argv[])
    double res_norm0 = calcResidualNorm(res, fes_GD, uc);
    double t_final = 1000;
    std::cout << "initial residual norm: " << res_norm0 << "\n";
-   double dt_init = 0.2;
+   double dt_init = 100;
    double dt_old;
 
    //initial l2_err
@@ -441,7 +441,7 @@ void uexact(const Vector &x, Vector &q)
 unique_ptr<Mesh> buildQuarterAnnulusMesh(int degree, int num_rad, int num_ang)
 {
    auto mesh_ptr = unique_ptr<Mesh>(new Mesh(num_rad, num_ang,
-                                             Element::TRIANGLE, true /* gen. edges */,
+                                             Element::QUADRILATERAL, true /* gen. edges */,
                                              2.0, M_PI * 0.5, true));
    // strategy:
    // 1) generate a fes for Lagrange elements of desired degree

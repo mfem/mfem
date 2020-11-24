@@ -1,5 +1,5 @@
 
-#include "gd.hpp"
+#include "gd_cut.hpp"
 #include <fstream>
 #include <iostream>
 #include "centgridfunc.hpp"
@@ -23,13 +23,14 @@ dgecon_(char *, int *, double *, int *, double *,
                               const DenseMatrix &x_quad, DenseMatrix &interp);
 
 GalerkinDifference::GalerkinDifference(Mesh *pm, const FiniteElementCollection *f,
-   int vdim, int ordering, int de)
+   std::vector<bool> EmbeddedElems, int vdim, int ordering, int de)
    : FiniteElementSpace(pm, f, vdim, ordering)
 {
    degree = de;
    nEle = mesh->GetNE();
    dim = mesh->Dimension();
    fec = f;
+   EmbeddedElements = EmbeddedElems;
    BuildGDProlongation();
 }
 
@@ -107,30 +108,36 @@ void GalerkinDifference::GetNeighbourSet(int id, int req_n,
    {
       for(int i = 0; i < adj.Size(); i++)
       {
-         if (-1 == nels.Find(adj[i]))
-         {
-            nels.Append(adj[i]); 
-         }
+          if (-1 == nels.Find(adj[i]))
+          {
+              if (EmbeddedElements.at(adj[i]) == false)
+              {
+                  nels.Append(adj[i]);
+              }
+          }
       }
       //cout << "List now is: ";
       //nels.Print(cout, nels.Size());
       adj.LoseData();
       for (int i = 0; i < cand.Size(); i++)
       {
-         //cout << "deal with cand " << cand[i];
-         mesh->ElementToElementTable().GetRow(cand[i], cand_adj);
-         //cout << "'s adj are ";
-         //cand_adj.Print(cout, cand_adj.Size());
-         for(int j = 0; j < cand_adj.Size(); j++)
-         {
-            if (-1 == nels.Find(cand_adj[j]))
-            {
-               //cout << cand_adj[j] << " is not found in nels. add to adj and cand_next.\n";
-               adj.Append(cand_adj[j]);
-               cand_next.Append(cand_adj[j]);
-            }
-         }
-         cand_adj.LoseData();
+          //cout << "deal with cand " << cand[i];
+          if (EmbeddedElements.at(cand[i]) == false)
+          {
+              mesh->ElementToElementTable().GetRow(cand[i], cand_adj);
+              //cout << "'s adj are ";
+              //cand_adj.Print(cout, cand_adj.Size());
+              for (int j = 0; j < cand_adj.Size(); j++)
+              {
+                  if (-1 == nels.Find(cand_adj[j]))
+                  {
+                      //cout << cand_adj[j] << " is not found in nels. add to adj and cand_next.\n";
+                      adj.Append(cand_adj[j]);
+                      cand_next.Append(cand_adj[j]);
+                  }
+              }
+              cand_adj.LoseData();
+          }
       }
       cand.LoseData();
       cand = cand_next;
@@ -190,26 +197,45 @@ void GalerkinDifference::BuildGDProlongation() const
    //int degree_actual;
    for (int i = 0; i < nEle; i++)
    {
-      GetNeighbourSet(i, nelmt, elmt_id);
-      cout << "Elements id(s) in patch " << i << ": ";
-      elmt_id.Print(cout, elmt_id.Size());
-      
-      // 2. build the quadrature and barycenter coordinate matrices
-      BuildNeighbourMat(elmt_id, cent_mat, quad_mat);
-      // cout << "The element center matrix:\n";
-      // cent_mat.Print(cout, cent_mat.Width());
-      // cout << endl;
-      // cout << "Quadrature points id matrix:\n";
-      // quad_mat.Print(cout, quad_mat.Width());
-      // cout << endl;
+  if (EmbeddedElements.at(i) == false)
+      {
+         cout << " element is " << i << endl;
+         // 1. get the elements in patch
+         GetNeighbourSet(i, nelmt, elmt_id);
+         cout << "element "
+              << "( " << i << ") "
+              << " #neighbours = " << elmt_id.Size() << endl;
+         cout << "Elements id(s) in patch: ";
+         elmt_id.Print(cout, elmt_id.Size());
+         cout << " ----------------------- " << endl;
 
-      // 3. buil the loacl reconstruction matrix
-      buildLSInterpolation(dim, degree, cent_mat, quad_mat, local_mat);
-      // cout << "Local reconstruction matrix R:\n";
-      // local_mat.Print(cout, local_mat.Width());
+         // 2. build the quadrature and barycenter coordinate matrices
+         BuildNeighbourMat(elmt_id, cent_mat, quad_mat);
 
-      // 4. assemble them back to prolongation matrix
-      AssembleProlongationMatrix(elmt_id, local_mat);
+         // 3. buil the local reconstruction matrix
+         //cout << "element is " << i << endl;
+         buildLSInterpolation(dim, degree, cent_mat, quad_mat, local_mat);
+         //cout << " ######################### " << endl;
+         // cout << "Local reconstruction matrix R:\n";
+         // local_mat.Print(cout, local_mat.Width());
+
+         // 4. assemble them back to prolongation matrix
+         AssembleProlongationMatrix(elmt_id, local_mat);
+      }
+      else
+      {
+         elmt_id.LoseData();
+         elmt_id.Append(i);
+
+         local_mat.SetSize(num_dofs, 1);
+
+         for (int k = 0; k < num_dofs; ++k)
+         {
+            local_mat(k, 0) = 1.0;
+         }
+
+         AssembleProlongationMatrix(elmt_id, local_mat);
+      }
    }
    cP->Finalize();
    cP_is_set = true;
@@ -354,7 +380,14 @@ void buildLSInterpolation(int dim, int degree, const DenseMatrix &x_center,
       coeff(i,i) = 1.0;
    }
 
-   // Set-up and solve the least-squares problem using LAPACK's dgels
+//    // Set-up and solve the least-squares problem using LAPACK's dgels
+//    char TRANS = 'N';
+//    int info;
+//    int lwork = 2*num_elem*num_basis;
+//    double work[lwork];
+//    dgels_(&TRANS, &num_elem, &num_basis, &num_elem, V.GetData(), &num_elem,
+//           coeff.GetData(), &num_elem, work, &lwork, &info);
+     // Set-up and solve the least-squares problem using LAPACK's dgels
    char TRANS = 'N';
    int info;
    //int lwork = 2 * num_elem * num_basis;
@@ -365,7 +398,6 @@ void buildLSInterpolation(int dim, int degree, const DenseMatrix &x_center,
    jpvt.SetSize(num_basis);
    jpvt = 0;
    double rcond = 1e-16;
- 
    dgelsy_(&num_elem, &num_basis, &num_elem, V.GetData(), &num_elem, coeff.GetData(),
            &LDB, jpvt.GetData(), &rcond, &rank, work, &lwork, &info);
    if (info != 0)
@@ -415,7 +447,7 @@ void buildLSInterpolation(int dim, int degree, const DenseMatrix &x_center,
             }
          }
       }
-            // loop over quadrature points
+         // loop over quadrature points
       for (int j = 0; j < num_quad; ++j)
       {
          for (int p = 0; p <= degree; ++p)
@@ -435,7 +467,7 @@ void buildLSInterpolation(int dim, int degree, const DenseMatrix &x_center,
                //           << q << ") = " << fabs(exact - poly_at_quad) << endl;
                if ((p == 0) && (q == 0))
                {
-                  MFEM_ASSERT(fabs(exact - poly_at_quad) <= 1e-12, " p = " << p << " , q = " << q << ", " << fabs(exact - poly_at_quad) << " : " 
+                  MFEM_ASSERT(fabs(exact - poly_at_quad) <= 1e-12, " p = " << p << " , q = " << q << " : "
                                                                            << "Interpolation operator does not interpolate exactly!\n");
                }
             }

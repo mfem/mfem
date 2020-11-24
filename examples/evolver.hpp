@@ -71,7 +71,8 @@ namespace mfem
         mfem::GMRESSolver mass_solver;
 #endif
         /// preconditioner for inverting mass matrix
-        DSmoother mass_prec;
+        //DSmoother mass_prec;
+        Solver *mass_prec;
 
         /// Newton solver for implicit problems (not owned)
         mfem::NewtonSolver newton_solver;
@@ -161,7 +162,9 @@ namespace mfem
 
     private:
         NonlinearForm *nonlinear_mass; // not used
-        DSmoother mass_prec;
+        //DSmoother mass_prec;
+        Solver *mass_prec;
+        
         BilinearForm *mass;
         NonlinearForm *res;
         BilinearForm *stiff; // not used
@@ -190,12 +193,13 @@ namespace mfem
             mass_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
             mass_solver.SetOperator(mass->SpMat());
 #else
-            mass_prec = DSmoother(mass->SpMat());
-            mass_solver.SetPreconditioner(mass_prec);
+            //mass_prec = DSmoother(mass->SpMat());
+            mass_prec = new DSmoother(1);
+            mass_solver.SetPreconditioner(*mass_prec);
             mass_solver.SetOperator(mass->SpMat());
             mass_solver.iterative_mode = false;
-            mass_solver.SetRelTol(1e-2);
-            mass_solver.SetAbsTol(1e-12);
+            mass_solver.SetRelTol(1e-9);
+            mass_solver.SetAbsTol(0.0);
             mass_solver.SetMaxIter(500);
             mass_solver.SetPrintLevel(-1);
 #endif
@@ -204,8 +208,8 @@ namespace mfem
         newton_solver.SetSolver(mass_solver);
         newton_solver.SetOperator(*combined_oper);
         newton_solver.SetPrintLevel(1); // print Newton iterations
-        newton_solver.SetRelTol(1e-11);
-        newton_solver.SetAbsTol(1e-12);
+        newton_solver.SetRelTol(1e-9);
+        newton_solver.SetAbsTol(1e-11);
         newton_solver.SetMaxIter(1000);
     }
 
@@ -221,7 +225,7 @@ namespace mfem
     void EulerEvolver::ImplicitSolve(const double dt, const Vector &x,
                                      Vector &k)
     {
-        cout << "ImplicitSolve is called " << endl;
+        //cout << "ImplicitSolve is called " << endl;
         setOperParameters(dt, &x);
         Vector zero; // empty vector is interpreted as zero r.h.s. by NewtonSolver
         k = 0.0;     // In case iterative mode is set to true

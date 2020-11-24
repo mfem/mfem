@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
    std::map<int, IntegrationRule *> CutSquareIntRules;
    std::map<int, IntegrationRule *> cutSegmentIntRules;
    std::map<int, IntegrationRule *> cutInteriorFaceIntRules;
-   cout << "#elements before refinement " << mesh->GetNE() << endl;
+   cout << "#elements before nc refinement " << mesh->GetNE() << endl;
 
    /// find the elements to refine
    for (int k=0; k<1 ; ++k)
@@ -95,10 +95,12 @@ int main(int argc, char *argv[])
    mesh->GeneralRefinement(marked_elements, 1);
    }
 
-   for (int lev = 0; lev < ref_levels; lev++)
+   cout << "#elements before uniform refinement " << mesh->GetNE() << endl;
+
+   for (int l = 0; l < ref_levels; l++)
    {
       mesh->UniformRefinement();
-   }  
+   }
 
    cout << "#elements after refinement " << mesh->GetNE() << endl;
    // write mesh after refinement
@@ -122,15 +124,15 @@ int main(int argc, char *argv[])
       }
    }
    cout << "elements cut by circle:  " << cutelems.size() << endl;
-   for (int i = 0; i < cutelems.size(); ++i)
-   {
-      cout << cutelems.at(i) << endl;
-   }
+   // for (int i = 0; i < cutelems.size(); ++i)
+   // {
+   //    cout << cutelems.at(i) << endl;
+   // }
    cout << "elements completely inside circle:  " << innerelems.size() << endl;
-   for (int i = 0; i < innerelems.size(); ++i)
-   {
-      cout << innerelems.at(i) << endl;
-   }
+   // for (int i = 0; i < innerelems.size(); ++i)
+   // {
+   //    cout << innerelems.at(i) << endl;
+   // }
  
    int dim = mesh->Dimension();
    /// find the interior faces cut by boundary
@@ -147,11 +149,11 @@ int main(int argc, char *argv[])
          }
       }
    }
-   cout << "faces cut by circle:  " << endl;
-   for (int i = 0; i < cutinteriorFaces.size(); ++i)
-   {
-      cout << cutinteriorFaces.at(i) << endl;
-   }
+   // cout << "faces cut by circle:  " << endl;
+   // for (int i = 0; i < cutinteriorFaces.size(); ++i)
+   // {
+   //    cout << cutinteriorFaces.at(i) << endl;
+   // }
 
    cout << "dimension is " << dim << endl;
    std::cout << "Number of elements: " << mesh->GetNE() << '\n';
@@ -1388,6 +1390,7 @@ void CutDGNeumannLFIntegrator::AssembleRHSElementVect(
          double ds = sqrt((nx * nx) + (ny * ny));
          nor(0) = -nx / ds;
          nor(1) = -ny / ds;
+        // cout << "edge length " << sqrt(Trans.Weight()) << endl;
          w = ip.weight * sqrt(Trans.Weight());
          elvect.Add(w * (Qvec * nor), shape);
       }

@@ -171,7 +171,8 @@ int main(int argc, char *argv[])
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec, 1);
    /// GD finite element space
    // auto start = high_resolution_clock::now();
-   FiniteElementSpace *fes = new GalerkinDifference(mesh, dim, mesh->GetNE(), fec, EmbeddedElems, 1, Ordering::byVDIM, order);
+   FiniteElementSpace *fes = new GalerkinDifference(mesh, dim, mesh->GetNE(), 
+                        fec, EmbeddedElems, 1, Ordering::byVDIM, order);
    // auto stop = high_resolution_clock::now();
    // auto duration = duration_cast<microseconds>(stop - start);
    // cout << "time taken for prolongation: " << duration.count()*1e-06 << endl;
@@ -269,7 +270,7 @@ int main(int argc, char *argv[])
 
    fes->GetProlongationMatrix()->Mult(y, x);
 
-   ofstream adj_ofs("dgSolcirclelap_gd.vtk");
+   ofstream adj_ofs("dgSolcirclelap_gd_conf.vtk");
    adj_ofs.precision(14);
    mesh->PrintVTK(adj_ofs, 1);
    x.SaveVTK(adj_ofs, "Solution", 1);

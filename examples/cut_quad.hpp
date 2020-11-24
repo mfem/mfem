@@ -383,3 +383,120 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
         }
     }
 }
+
+/// get integration rule for cut segments
+template <int N, int ls>
+void GetCutBdrSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutBdrFaces,
+                          int order, double radius, std::map<int, IntegrationRule *> &cutBdrFaceIntRules)
+{
+    for (int k = 0; k < cutelems.size(); ++k)
+    {
+        IntegrationRule *ir;
+        blitz::TinyVector<double, N> xmin;
+        blitz::TinyVector<double, N> xmax;
+        blitz::TinyVector<double, N> xupper;
+        blitz::TinyVector<double, N> xlower;
+        int side;
+        int dir;
+        double tol = 1e-16;
+        // standard reference element
+        xlower = {0, 0};
+        xupper = {1, 1};
+        int elemid = cutelems.at(k);
+        findBoundingBox<N>(mesh, elemid, xmin, xmax);
+        vortex<N, ls> phi;
+        phi.xscale = xmax[0] - xmin[0];
+        phi.yscale = xmax[1] - xmin[1];
+        phi.xmin = xmin[0];
+        phi.ymin = xmin[1];
+        phi.radius = radius;
+        Array<int> orient;
+        Array<int> fids;
+        mesh->GetElementEdges(elemid, fids, orient);
+        int fid;
+        for (int c = 0; c < fids.Size(); ++c)
+        {
+            fid = fids[c];
+            if (find(cutBdrFaces.begin(), cutBdrFaces.end(), fid) != cutBdrFaces.end())
+            {
+                if (cutBdrFaceIntRules[elemid] == NULL)
+                {
+                    cout << "bdr face int rule for " << fid << endl;
+                    Array<int> v;
+                    mesh->GetEdgeVertices(fid, v);
+                    double *v1coord, *v2coord;
+                    v1coord = mesh->GetVertex(v[0]);
+                    v2coord = mesh->GetVertex(v[1]);
+                    if (v1coord[0] == v2coord[0])
+                    {
+                        dir = 0;
+                        if (v1coord[0] < xmax[0])
+                        {
+                            side = 0;
+                        }
+                        else
+                        {
+                            side = 1;
+                        }
+                    }
+                    else
+                    {
+                        dir = 1;
+                        if (v1coord[1] < xmax[1])
+                        {
+                            side = 0;
+                        }
+                        else
+                        {
+                            side = 1;
+                        }
+                    }
+                    auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double, N>(xlower, xupper), dir, side, order);
+                    int i = 0;
+                    ir = new IntegrationRule(q.nodes.size());
+                    for (const auto &pt : q.nodes)
+                    {
+                        IntegrationPoint &ip = ir->IntPoint(i);
+                        ip.y = 0.0;
+                        if (dir == 0)
+                        {
+                            if (-1 == orient[c])
+                            {
+                                ip.x = 1 - pt.x[1];
+                            }
+                            else
+                            {
+                                ip.x = pt.x[1];
+                            }
+                        }
+                        else if (dir == 1)
+                        {
+                            if (-1 == orient[c])
+                            {
+                                ip.x = 1 - pt.x[0];
+                            }
+                            else
+                            {
+                                ip.x = pt.x[0];
+                            }
+                        }
+                        ip.weight = pt.w;
+                        i = i + 1;
+                        // scaled to original element space
+                        double xq = (pt.x[0] * phi.xscale) + phi.xmin;
+                        double yq = (pt.x[1] * phi.yscale) + phi.ymin;
+                       // cout << "int rule " << xq << " , " << yq << " : " << pt.w << endl; 
+                        MFEM_ASSERT(ip.weight > 0, "integration point weight is negative from Saye's method");
+                        MFEM_ASSERT((phi(pt.x) < tol), " phi = " << phi(pt.x) << " : "
+                                                                 << "levelset function positive at the quadrature point (Saye's method)");
+                        MFEM_ASSERT((xq <= (max(v1coord[0], v2coord[0]))) && (xq >= (min(v1coord[0], v2coord[0]))),
+                                    "integration point (xcoord) not on element face (Saye's rule)");
+                        MFEM_ASSERT((yq <= (max(v1coord[1], v2coord[1]))) && (yq >= (min(v1coord[1], v2coord[1]))),
+                                    "integration point (ycoord) not on element face (Saye's rule)");
+                    }
+                    cutBdrFaceIntRules[elemid] = ir;
+                }
+            }
+        }
+    }
+}
