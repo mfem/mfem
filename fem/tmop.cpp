@@ -315,8 +315,8 @@ double TMOP_Metric_022::EvalW(const DenseMatrix &Jpt) const
    ie.SetJacobian(Jpt.GetData());
    const double I2b = ie.Get_I2b();
 
-   double d = I2b - min_det;
-   if (d < 0.0 && min_det == 0.0)
+   double d = I2b - min_detT;
+   if (d < 0.0 && min_detT == 0.0)
    {
       // The mesh has been untangled, but it's still possible to get negative
       // detJ in FD calculations, as they move the nodes around with some
@@ -334,8 +334,8 @@ void TMOP_Metric_022::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
    // P = 1/(I2b - tau0)*(0.5*dI1 - dI2b) - (0.5*I1 - I2b)/(I2b - tau0)^2*dI2b
    //   = 0.5/(I2b - tau0)*dI1 + (tau0 - 0.5*I1)/(I2b - tau0)^2*dI2b
    ie.SetJacobian(Jpt.GetData());
-   const double c1 = 1.0/(ie.Get_I2b() - min_det);
-   Add(c1/2, ie.Get_dI1(), (min_det - ie.Get_I1()/2)*c1*c1, ie.Get_dI2b(), P);
+   const double c1 = 1.0/(ie.Get_I2b() - min_detT);
+   Add(c1/2, ie.Get_dI1(), (min_detT - ie.Get_I1()/2)*c1*c1, ie.Get_dI2b(), P);
 }
 
 void TMOP_Metric_022::AssembleH(const DenseMatrix &Jpt,
@@ -355,10 +355,10 @@ void TMOP_Metric_022::AssembleH(const DenseMatrix &Jpt,
    //      +0.5/(I2b - tau0)*ddI1 + z*ddI2b
    ie.SetJacobian(Jpt.GetData());
    ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
-   const double c1 = 1.0/(ie.Get_I2b() - min_det);
+   const double c1 = 1.0/(ie.Get_I2b() - min_detT);
    const double c2 = weight*c1/2;
    const double c3 = c1*c2;
-   const double c4 = (2*min_det - ie.Get_I1())*c3; // weight*z
+   const double c4 = (2*min_detT - ie.Get_I1())*c3; // weight*z
    ie.Assemble_TProd(-c3, ie.Get_dI1(), ie.Get_dI2b(), A.GetData());
    ie.Assemble_TProd(-2*c1*c4, ie.Get_dI2b(), A.GetData());
    ie.Assemble_ddI1(c2, A.GetData());
@@ -751,8 +751,8 @@ double TMOP_Metric_313::EvalW(const DenseMatrix &Jpt) const
    ie.SetJacobian(Jpt.GetData());
 
    const double I3b = ie.Get_I3b();
-   double d = I3b - min_det;
-   if (d < 0.0 && min_det == 0.0)
+   double d = I3b - min_detT;
+   if (d < 0.0 && min_detT == 0.0)
    {
       // The mesh has been untangled, but it's still possible to get negative
       // detJ in FD calculations, as they move the nodes around with some
@@ -760,7 +760,6 @@ double TMOP_Metric_313::EvalW(const DenseMatrix &Jpt) const
       // Thus in this case we return a small value. Note that here I3b < 0.
       d = - I3b * 0.1;
    }
-   MFEM_VERIFY(d > 0.0, "Error with a negative determinant in metric 313.");
 
    const double c = std::pow(d, -2.0/3.0);
 

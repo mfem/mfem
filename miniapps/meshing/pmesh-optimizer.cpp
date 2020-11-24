@@ -762,6 +762,9 @@ int main (int argc, char *argv[])
    }
    if (tauval < 0.0)
    {
+      MFEM_VERIFY(target_t == TargetConstructor::IDEAL_SHAPE_UNIT_SIZE,
+                  "Untangling is supported only for ideal targets.");
+
       const DenseMatrix &Wideal =
          Geometries.GetGeomToPerfGeomJac(pfespace->GetFE(0)->GetGeomType());
       tauval /= Wideal.Det();

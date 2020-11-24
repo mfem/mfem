@@ -348,21 +348,21 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    // Check if the starting mesh (given by x) is inverted.
    // Note that x hasn't been modified by the Newton update yet.
-   const double min_detJ_in = ComputeMinDet(x_out_loc, *fes);
-   const bool untangling = (min_detJ_in <= 0.0) ? true : false;
+   const double min_detT_in = ComputeMinDet(x_out_loc, *fes);
+   const bool untangling = (min_detT_in <= 0.0) ? true : false;
    const double untangle_factor = 1.5;
    if (untangling)
    {
       // Needed for the line search below.
       // The untangling metrics see this reference to detect deteriorations.
-      *min_det_ptr = untangle_factor * min_detJ_in;
+      *min_det_ptr = untangle_factor * min_detT_in;
    }
 
    const bool have_b = (b.Size() == Height());
 
    Vector x_out(x.Size());
    bool x_out_ok = false;
-   double scale = 1.0, energy_out = 0.0, min_detJ_out;
+   double scale = 1.0, energy_out = 0.0, min_detT_out;
    const double norm_in = Norm(r);
 
    const double detJ_factor = (solver_type == 1) ? 0.25 : 0.5;
@@ -386,8 +386,8 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 #endif
 
       // Check the changes in detJ.
-      min_detJ_out = ComputeMinDet(x_out_loc, *fes);
-      if (untangling == false && min_detJ_out < 0.0)
+      min_detT_out = ComputeMinDet(x_out_loc, *fes);
+      if (untangling == false && min_detT_out < 0.0)
       {
          // No untangling, and detJ got negative -- no good.
          if (print_level >= 0)
@@ -395,7 +395,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          scale *= detJ_factor; continue;
       }
       if (untangling == true &&
-          min_detJ_out < 0.0 && min_detJ_out < *min_det_ptr)
+          min_detT_out < 0.0 && min_detT_out < *min_det_ptr)
       {
          // Untangling, and detJ got even more negative -- no good.
          if (print_level >= 0)
@@ -447,21 +447,21 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    if (untangling)
    {
       // Update the global min detJ. Untangling metrics see this min_det_ptr.
-      if (min_detJ_out > 0.0)
+      if (min_detT_out > 0.0)
       {
          *min_det_ptr = 0.0;
          if (print_level >= 0)
          { mfem::out << "The mesh has been untangled at the used points!\n"; }
       }
-      else { *min_det_ptr = untangle_factor * min_detJ_out; }
+      else { *min_det_ptr = untangle_factor * min_detT_out; }
    }
 
    if (print_level >= 0)
    {
       if (untangling)
       {
-         mfem::out << "Min detJ change: "
-                   << min_detJ_in << " -> " << min_detJ_out
+         mfem::out << "Min det(T) change: "
+                   << min_detT_in << " -> " << min_detT_out
                    << " with " << scale << " scaling.\n";
       }
       else
@@ -615,21 +615,21 @@ double TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
          min_detJ = std::min(min_detJ, Jpr.Det());
       }
    }
-   double min_detJ_all = min_detJ;
+   double min_detT_all = min_detJ;
 #ifdef MFEM_USE_MPI
    if (parallel)
    {
       const ParNonlinearForm *p_nlf =
             dynamic_cast<const ParNonlinearForm *>(oper);
-      MPI_Allreduce(&min_detJ, &min_detJ_all, 1, MPI_DOUBLE, MPI_MIN,
+      MPI_Allreduce(&min_detJ, &min_detT_all, 1, MPI_DOUBLE, MPI_MIN,
                     p_nlf->ParFESpace()->GetComm());
    }
 #endif
    const DenseMatrix &Wideal =
       Geometries.GetGeomToPerfGeomJac(fes.GetFE(0)->GetGeomType());
-   min_detJ_all /= Wideal.Det();
+   min_detT_all /= Wideal.Det();
 
-   return min_detJ_all;
+   return min_detT_all;
 }
 
 #ifdef MFEM_USE_MPI

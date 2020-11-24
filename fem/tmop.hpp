@@ -243,11 +243,11 @@ public:
 class TMOP_Metric_022 : public TMOP_QualityMetric
 {
 protected:
-   double &min_det;
+   double &min_detT;
    mutable InvariantsEvaluator2D<double> ie;
 
 public:
-   TMOP_Metric_022(double &t0): min_det(t0) {}
+   TMOP_Metric_022(double &t0): min_detT(t0) {}
 
    // W = 0.5(|J|^2 - 2det(J)) / (det(J) - tau0).
    virtual double EvalW(const DenseMatrix &Jpt) const;
@@ -504,11 +504,11 @@ public:
 class TMOP_Metric_313 : public TMOP_QualityMetric
 {
 protected:
-   double &min_det;
+   double &min_detT;
    mutable InvariantsEvaluator3D<double> ie;
 
 public:
-   TMOP_Metric_313(double &mindet) : min_det(mindet) { }
+   TMOP_Metric_313(double &mindet) : min_detT(mindet) { }
 
    // W = |J|^2 / 3 * [det(J)-tau0]^(-2/3) - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
