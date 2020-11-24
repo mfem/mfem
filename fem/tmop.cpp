@@ -316,12 +316,12 @@ double TMOP_Metric_022::EvalW(const DenseMatrix &Jpt) const
    const double I2b = ie.Get_I2b();
 
    double d = I2b - min_det;
-   if (d < 0.0)
+   if (d < 0.0 && min_det == 0.0)
    {
-      // Although min_det is computed exactly to avoid this case, it's still
-      // possible in FD calculations, as they move the nodes around with some
-      // small increments and can get worse determinants that min_det.
-      // Thus in this case we return a small value. Note that here I2b < 0.
+      // The mesh has been untangled, but it's still possible to get negative
+      // detJ in FD calculations, as they move the nodes around with some
+      // small increments and can get negative determinants.
+      // Thus in this case we return a small value. Note that here I3b < 0.
       d = - I2b * 0.1;
    }
 
@@ -752,14 +752,16 @@ double TMOP_Metric_313::EvalW(const DenseMatrix &Jpt) const
 
    const double I3b = ie.Get_I3b();
    double d = I3b - min_det;
-   if (d < 0.0)
+   if (d < 0.0 && min_det == 0.0)
    {
-      // Although min_det is computed exactly to avoid this case, it's still
-      // possible in FD calculations, as they move the nodes around with some
-      // small increments and can get worse determinants that min_det.
+      // The mesh has been untangled, but it's still possible to get negative
+      // detJ in FD calculations, as they move the nodes around with some
+      // small increments and can get negative determinants.
       // Thus in this case we return a small value. Note that here I3b < 0.
       d = - I3b * 0.1;
    }
+   MFEM_VERIFY(d > 0.0, "Error with a negative determinant in metric 313.");
+
    const double c = std::pow(d, -2.0/3.0);
 
    //return ie.Get_I1() * c / 3.0 - 1.0;
