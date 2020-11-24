@@ -483,7 +483,7 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// Untangling metric, 3D
+/// 3D Size (V) untangling metric.
 class TMOP_Metric_311 : public TMOP_QualityMetric
 {
 protected:
@@ -500,7 +500,7 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// Shape 3D, untangling version of 303.
+/// 3D Shape (S) metric, untangling version of 303.
 class TMOP_Metric_313 : public TMOP_QualityMetric
 {
 protected:
@@ -510,7 +510,7 @@ protected:
 public:
    TMOP_Metric_313(double &mindet) : min_detT(mindet) { }
 
-   // W = |J|^2 / 3 * [det(J)-tau0]^(-2/3) - 1.
+   // W = 1/3 |J|^2 / [det(J)-tau0]^(-2/3) - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
