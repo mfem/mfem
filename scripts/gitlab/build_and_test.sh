@@ -39,8 +39,9 @@ then
 
     if [[ -d "/dev/shm" ]]
     then
-        prefix="/dev/shm/${hostname}/${spec// /_}"
+        prefix="/dev/shm/${hostname}/${CI_PIPELINE_ID:-"NONE"}_${RANDOM}"
         mkdir -p ${prefix}
+        echo ${spec} > spec.txt
         prefix_opt="--prefix=${prefix}"
     fi
 
