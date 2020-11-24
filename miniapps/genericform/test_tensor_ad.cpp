@@ -17,6 +17,7 @@ TEST_CASE("Tensor tests", "[tensor]")
 
 TEST_CASE("Dual number tensor tests", "[DualNumber]")
 {
+   auto eps = std::numeric_limits<double>::epsilon();
    double x = 0.5;
 
    SECTION("cos")
@@ -51,15 +52,18 @@ TEST_CASE("Dual number tensor tests", "[DualNumber]")
       REQUIRE(abs(-2.0 * sin(x) * cos(x) - r.gradient) == Approx(0.0));
 
       r = exp(xd) * cos(xd);
-      REQUIRE(abs(exp(x) * (cos(x) - sin(x)) - r.gradient)
-              < std::numeric_limits<double>::epsilon());
+      REQUIRE(abs(exp(x) * (cos(x) - sin(x)) - r.gradient) < eps);
 
       r = log(xd) * cos(xd);
-      REQUIRE(abs((cos(x) / x - log(x) * sin(x)) - r.gradient)
-              < std::numeric_limits<double>::epsilon());
+      REQUIRE(abs((cos(x) / x - log(x) * sin(x)) - r.gradient) < eps);
 
       r = exp(xd) * pow(xd, 1.5);
       REQUIRE(abs((exp(x) * (pow(x, 1.5) + 1.5 * pow(x, 0.5))) - r.gradient)
-              < std::numeric_limits<double>::epsilon());
+              < eps);
+
+      tensor<double, 2> vx = {{0.5, 0.25}};
+      tensor<double, 2> vre = {{0.894427190999916, 0.4472135954999579}};
+      auto vr = norm(derivative_wrt(vx));
+      REQUIRE(norm(vr.gradient - vre) < eps);
    }
 }

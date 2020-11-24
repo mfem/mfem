@@ -15,10 +15,10 @@ int main(int argc, char *argv[])
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
-   const char *mesh_file = "../data/inline-quad.mesh";
+   const char *mesh_file = "../data/disc.e";
    int order = 1;
    int refinements = 0;
-   double p = 4.0;
+   double p = 5.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&refinements, "-r", "--ref", "");
@@ -40,11 +40,6 @@ int main(int argc, char *argv[])
    }
 
    Mesh mesh(mesh_file, 1, 1);
-   mesh.EnsureNodes();
-   GridFunction *nodes = mesh.GetNodes();
-
-   *nodes -= 0.5;
-   *nodes *= 2.0;
 
    int dim = mesh.Dimension();
    {
@@ -66,10 +61,8 @@ int main(int argc, char *argv[])
       double x = coords(0);
       double y = coords(1);
 
-      return 1.0 - pow(x * x + y * y, p / (p - 1.0));
+      return 1.0 - pow(sqrt(x * x + y * y), p / (p - 1.0));
    });
-
-   ConstantCoefficient zero_coeff(0.0);
 
    ParGridFunction x(&fespace);
    x.Randomize();
@@ -98,6 +91,7 @@ int main(int argc, char *argv[])
    newton.SetSolver(cg);
    newton.SetPrintLevel(1);
    newton.SetRelTol(1e-8);
+   newton.SetMaxIter(100);
 
    Vector zero;
    Vector X;
@@ -106,6 +100,8 @@ int main(int argc, char *argv[])
 
    x.Distribute(X);
 
+   // x.ProjectCoefficient(u_excoeff);
+   
    char vishost[] = "localhost";
    int visport = 19916;
    socketstream sol_sock(vishost, visport);
