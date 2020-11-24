@@ -72,14 +72,15 @@ macro(add_mfem_examples EXE_SRCS)
   foreach(SRC_FILE IN LISTS ${EXE_SRCS})
     # If CUDA is enabled, tag source files to be compiled with nvcc.
     if (MFEM_USE_CUDA)
-      set_property(SOURCE ${SRC_FILE} PROPERTY LANGUAGE CUDA)
+      set_source_files_properties(${SRC_FILE} PROPERTIES LANGUAGE CUDA)
+    elseif(MFEM_USE_HIP)
+      set_source_files_properties(${SRC_FILE} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT TRUE)
     endif()
 
     get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)
 
     string(REPLACE ".cpp" "" EXE_NAME "${EXE_PREFIX}${SRC_FILENAME}")
     if (HIP_FOUND)
-      set_source_files_properties(${SRC_FILE} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT TRUE)
       hip_add_executable(${EXE_NAME} ${SRC_FILE})
     else()
       add_executable(${EXE_NAME} ${SRC_FILE})
@@ -131,8 +132,7 @@ macro(add_mfem_miniapp MFEM_EXE_NAME)
 
   # If CUDA is enabled, tag source files to be compiled with nvcc.
   if (MFEM_USE_CUDA)
-    set_property(SOURCE ${MAIN_LIST} ${EXTRA_SOURCES_LIST}
-      PROPERTY LANGUAGE CUDA)
+    set_source_files_properties(${MAIN_LIST} ${EXTRA_SOURCES_LIST} PROPERTIES LANGUAGE CUDA)
     if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.12.0)
       list(TRANSFORM EXTRA_OPTIONS_LIST PREPEND "-Xcompiler=")
     else()
@@ -142,12 +142,12 @@ macro(add_mfem_miniapp MFEM_EXE_NAME)
       endforeach()
       set(EXTRA_OPTIONS_LIST ${LIST_})
     endif()
+  elseif(MFEM_USE_HIP)
+    set_source_files_properties(${MAIN_LIST} ${EXTRA_SOURCES_LIST} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT TRUE)
   endif()
 
   # Actually add the executable
   if (HIP_FOUND)
-    set_source_files_properties(${MAIN_LIST} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT TRUE)
-    set_source_files_properties(${EXTRA_SOURCES_LIST} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT TRUE)
     hip_add_executable(${MFEM_EXE_NAME} ${MAIN_LIST}
       ${EXTRA_SOURCES_LIST} ${EXTRA_HEADERS_LIST})
   else()
