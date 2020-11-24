@@ -80,7 +80,7 @@ macro(add_mfem_examples EXE_SRCS)
     get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)
 
     string(REPLACE ".cpp" "" EXE_NAME "${EXE_PREFIX}${SRC_FILENAME}")
-    if (HIP_FOUND)
+    if (MFEM_USE_HIP)
       hip_add_executable(${EXE_NAME} ${SRC_FILE})
     else()
       add_executable(${EXE_NAME} ${SRC_FILE})
@@ -147,7 +147,7 @@ macro(add_mfem_miniapp MFEM_EXE_NAME)
   endif()
 
   # Actually add the executable
-  if (HIP_FOUND)
+  if (MFEM_USE_HIP)
     hip_add_executable(${MFEM_EXE_NAME} ${MAIN_LIST}
       ${EXTRA_SOURCES_LIST} ${EXTRA_HEADERS_LIST})
   else()
