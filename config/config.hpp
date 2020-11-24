@@ -34,6 +34,12 @@
 // Macro needed to get defines like M_PI from <cmath>. (Visual Studio C++ only?)
 #define _USE_MATH_DEFINES
 #endif
+// On Cygwin the option -std=c++11 prevents the definition of M_PI. Defining
+// the following macro allows us to get M_PI and some needed functions, e.g.
+// posix_memalign(), strdup(), strerror_r().
+#ifdef __CYGWIN__
+#define _XOPEN_SOURCE 600
+#endif
 
 // Check dependencies:
 

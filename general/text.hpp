@@ -12,6 +12,7 @@
 #ifndef MFEM_TEXT
 #define MFEM_TEXT
 
+#include "../config/config.hpp"
 #include <istream>
 #include <iomanip>
 #include <sstream>
@@ -23,6 +24,8 @@ namespace mfem
 {
 
 // Utilities for text parsing
+
+using std::to_string;
 
 /// Check if the stream starts with @a comment_char. If so skip it.
 inline void skip_comment_lines(std::istream &is, const char comment_char)
@@ -45,18 +48,6 @@ inline void filter_dos(std::string &line)
    {
       line.resize(line.size()-1);
    }
-}
-
-/// Convert an integer to an std::string.
-inline std::string to_string(int i)
-{
-   std::stringstream ss;
-   ss << i;
-
-   // trim leading spaces
-   std::string out_str = ss.str();
-   out_str = out_str.substr(out_str.find_first_not_of(" \t"));
-   return out_str;
 }
 
 /// Convert an integer to a 0-padded string with the given number of @a digits
