@@ -10,7 +10,7 @@ class GenericForm : public Operator
    class Gradient : public Operator
    {
    public:
-      Gradient(GenericForm &f) : form(f){};
+      Gradient(GenericForm &f) : Operator(f.Height()), form(f){};
 
       void Mult(const Vector &x, Vector &y) const override
       {
