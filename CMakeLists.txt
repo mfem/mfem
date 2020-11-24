@@ -441,9 +441,9 @@ foreach(DIR IN LISTS MFEM_SOURCE_DIRS)
 endforeach()
 
 if (MFEM_USE_CUDA)
-   foreach(file IN LISTS SOURCES)
-      set_property(SOURCE ${file} PROPERTY LANGUAGE CUDA)
-   endforeach()
+  set_source_files_properties(${SOURCES} PROPERTIES LANGUAGE CUDA)
+elseif(MFEM_USE_HIP)
+  set_source_files_properties(${SOURCES} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT TRUE)
 endif()
 
 add_subdirectory(config)
@@ -463,7 +463,6 @@ set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
 
 # Declaring the library
 if (HIP_FOUND)
-  set_source_files_properties(${SOURCES} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT TRUE)
   hip_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
 else()
   add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
