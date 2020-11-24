@@ -19,6 +19,7 @@
 #include "eltrans.hpp"
 #include "coefficient.hpp"
 #include "complex_fem.hpp"
+#include "convergence.hpp"
 #include "lininteg.hpp"
 #include "nonlininteg.hpp"
 #include "bilininteg.hpp"
@@ -37,6 +38,9 @@
 #include "restriction.hpp"
 #include "quadinterpolator.hpp"
 #include "quadinterpolator_face.hpp"
+#include "transfer.hpp"
+#include "fespacehierarchy.hpp"
+#include "multigrid.hpp"
 /* HDG */
 #include "hdg_integrators.hpp"
 #include "HDGBilinearForm.hpp"

@@ -13,14 +13,16 @@
 // Description:  This example code solves a simple electromagnetic wave
 //               propagation problem corresponding to the second order
 //               indefinite Maxwell equation
+//
 //                  (1/mu) * curl curl E - \omega^2 * epsilon E = f
+//
 //               with a Perfectly Matched Layer (PML).
 //
 //               The example demonstrates discretization with Nedelec finite
 //               elements in 2D or 3D, as well as the use of complex-valued
 //               bilinear and linear forms. Several test problems are included,
 //               with prob = 0-3 having known exact solutions, see "On perfectly
-//               matched layers for discontinuous Petrov–Galerkin methods" by
+//               matched layers for discontinuous Petrov-Galerkin methods" by
 //               Vaziri Astaneh, Keith, Demkowicz, Comput Mech 63, 2019.
 //
 //               We recommend viewing Example 22 before viewing this example.
@@ -82,24 +84,27 @@ public:
 };
 
 // Class for returning the PML coefficients of the bilinear form
-class PMLMatrixCoefficient : public MatrixCoefficient
+class PMLDiagMatrixCoefficient : public VectorCoefficient
 {
 private:
    CartesianPML * pml = nullptr;
-   void (*Function)(const Vector &, CartesianPML * , DenseMatrix &);
+   void (*Function)(const Vector &, CartesianPML * , Vector &);
 public:
-   PMLMatrixCoefficient(int dim, void(*F)(const Vector &, CartesianPML *,
-                                          DenseMatrix &),
-                        CartesianPML * pml_)
-      : MatrixCoefficient(dim), pml(pml_), Function(F)
+   PMLDiagMatrixCoefficient(int dim, void(*F)(const Vector &, CartesianPML *,
+                                              Vector &),
+                            CartesianPML * pml_)
+      : VectorCoefficient(dim), pml(pml_), Function(F)
    {}
-   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+
+   using VectorCoefficient::Eval;
+
+   virtual void Eval(Vector &K, ElementTransformation &T,
                      const IntegrationPoint &ip)
    {
       double x[3];
       Vector transip(x, 3);
       T.Transform(ip, transip);
-      K.SetSize(height, width);
+      K.SetSize(vdim);
       (*Function)(transip, pml, K);
    }
 };
@@ -116,13 +121,13 @@ void source(const Vector &x, Vector & f);
 
 // Functions for computing the necessary coefficients after PML stretching.
 // J is the Jacobian matrix of the stretching function
-void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M);
-void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M);
-void detJ_JT_J_inv_abs(const Vector &x, CartesianPML * pml, DenseMatrix &M);
+void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml, Vector & D);
+void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml, Vector & D);
+void detJ_JT_J_inv_abs(const Vector &x, CartesianPML * pml, Vector & D);
 
-void detJ_inv_JT_J_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M);
-void detJ_inv_JT_J_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M);
-void detJ_inv_JT_J_abs(const Vector &x, CartesianPML * pml, DenseMatrix &M);
+void detJ_inv_JT_J_Re(const Vector &x, CartesianPML * pml, Vector & D);
+void detJ_inv_JT_J_Im(const Vector &x, CartesianPML * pml, Vector & D);
+void detJ_inv_JT_J_abs(const Vector &x, CartesianPML * pml, Vector & D);
 
 Array2D<double> comp_domain_bdr;
 Array2D<double> domain_bdr;
@@ -159,6 +164,8 @@ int main(int argc, char *argv[])
    int iprob = 4;
    double freq = 5.0;
    bool herm_conv = true;
+   bool slu_solver  = false;
+   bool mumps_solver = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -180,10 +187,26 @@ int main(int argc, char *argv[])
                   "Frequency (in Hz).");
    args.AddOption(&herm_conv, "-herm", "--hermitian", "-no-herm",
                   "--no-hermitian", "Use convention for Hermitian operators.");
+#ifdef MFEM_USE_SUPERLU
+   args.AddOption(&slu_solver, "-slu", "--superlu", "-no-slu",
+                  "--no-superlu", "Use the SuperLU Solver.");
+#endif
+#ifdef MFEM_USE_MUMPS
+   args.AddOption(&mumps_solver, "-mumps", "--mumps-solver", "-no-mumps",
+                  "--no-mumps-solver", "Use the MUMPS Solver.");
+#endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.Parse();
+   if (slu_solver && mumps_solver)
+   {
+      if (myid == 0)
+         cout << "WARNING: Both SuperLU and MUMPS have been selected,"
+              << " please choose either one." << endl
+              << "         Defaulting to SuperLU." << endl;
+      mumps_solver = false;
+   }
 
    if (iprob > 4) { iprob = 4; }
    prob = (prob_type)iprob;
@@ -393,19 +416,19 @@ int main(int argc, char *argv[])
    a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_omeg),NULL);
 
    int cdim = (dim == 2) ? 1 : dim;
-   PMLMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, pml);
-   PMLMatrixCoefficient pml_c1_Im(cdim,detJ_inv_JT_J_Im, pml);
-   ScalarMatrixProductCoefficient c1_Re(muinv,pml_c1_Re);
-   ScalarMatrixProductCoefficient c1_Im(muinv,pml_c1_Im);
-   MatrixRestrictedCoefficient restr_c1_Re(c1_Re,attrPML);
-   MatrixRestrictedCoefficient restr_c1_Im(c1_Im,attrPML);
+   PMLDiagMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, pml);
+   PMLDiagMatrixCoefficient pml_c1_Im(cdim,detJ_inv_JT_J_Im, pml);
+   ScalarVectorProductCoefficient c1_Re(muinv,pml_c1_Re);
+   ScalarVectorProductCoefficient c1_Im(muinv,pml_c1_Im);
+   VectorRestrictedCoefficient restr_c1_Re(c1_Re,attrPML);
+   VectorRestrictedCoefficient restr_c1_Im(c1_Im,attrPML);
 
-   PMLMatrixCoefficient pml_c2_Re(dim, detJ_JT_J_inv_Re,pml);
-   PMLMatrixCoefficient pml_c2_Im(dim, detJ_JT_J_inv_Im,pml);
-   ScalarMatrixProductCoefficient c2_Re(omeg,pml_c2_Re);
-   ScalarMatrixProductCoefficient c2_Im(omeg,pml_c2_Im);
-   MatrixRestrictedCoefficient restr_c2_Re(c2_Re,attrPML);
-   MatrixRestrictedCoefficient restr_c2_Im(c2_Im,attrPML);
+   PMLDiagMatrixCoefficient pml_c2_Re(dim, detJ_JT_J_inv_Re,pml);
+   PMLDiagMatrixCoefficient pml_c2_Im(dim, detJ_JT_J_inv_Im,pml);
+   ScalarVectorProductCoefficient c2_Re(omeg,pml_c2_Re);
+   ScalarVectorProductCoefficient c2_Im(omeg,pml_c2_Im);
+   VectorRestrictedCoefficient restr_c2_Re(c2_Re,attrPML);
+   VectorRestrictedCoefficient restr_c2_Im(c2_Im,attrPML);
 
    // Integrators inside the PML region
    a.AddDomainIntegrator(new CurlCurlIntegrator(restr_c1_Re),
@@ -419,21 +442,16 @@ int main(int argc, char *argv[])
    //     constraints for non-conforming AMR, etc.
    a.Assemble();
 
-   OperatorHandle Ah;
+   OperatorPtr Ah;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, Ah, X, B);
 
-   // 15. Transform to monolithic HypreParMatrix
-   HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
-
-   if (myid == 0)
-   {
-      cout << "Size of linear system: " << A->GetGlobalNumRows() << endl;
-   }
-
-   // 16. Solve using a direct or an iterative solver
+   // 15. Solve using a direct or an iterative solver
 #ifdef MFEM_USE_SUPERLU
+   if (slu_solver)
    {
+      // Transform to monolithic HypreParMatrix
+      HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
       SuperLURowLocMatrix SA(*A);
       SuperLUSolver superlu(MPI_COMM_WORLD);
       superlu.SetPrintStatistics(false);
@@ -441,9 +459,21 @@ int main(int argc, char *argv[])
       superlu.SetColumnPermutation(superlu::PARMETIS);
       superlu.SetOperator(SA);
       superlu.Mult(B, X);
+      delete A;
    }
-#else
-
+#endif
+#ifdef MFEM_USE_MUMPS
+   if (mumps_solver)
+   {
+      HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
+      MUMPSSolver mumps;
+      mumps.SetPrintLevel(0);
+      mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+      mumps.SetOperator(*A);
+      mumps.Mult(B,X);
+      delete A;
+   }
+#endif
    // 16a. Set up the parallel Bilinear form a(.,.) for the preconditioner
    //
    //    In Comp
@@ -451,6 +481,7 @@ int main(int argc, char *argv[])
    //
    //    In PML:   1/mu (abs(1/det(J) J^T J) Curl E, Curl F)
    //              + omega^2 * epsilon (abs(det(J) * (J^T J)^-1) * E, F)
+   if (!slu_solver && !mumps_solver)
    {
       ConstantCoefficient absomeg(pow(omega, 2) * epsilon);
       RestrictedCoefficient restr_absomeg(absomeg,attr);
@@ -459,20 +490,20 @@ int main(int argc, char *argv[])
       prec.AddDomainIntegrator(new CurlCurlIntegrator(restr_muinv));
       prec.AddDomainIntegrator(new VectorFEMassIntegrator(restr_absomeg));
 
-      PMLMatrixCoefficient pml_c1_abs(cdim,detJ_inv_JT_J_abs, pml);
-      ScalarMatrixProductCoefficient c1_abs(muinv,pml_c1_abs);
-      MatrixRestrictedCoefficient restr_c1_abs(c1_abs,attrPML);
+      PMLDiagMatrixCoefficient pml_c1_abs(cdim,detJ_inv_JT_J_abs, pml);
+      ScalarVectorProductCoefficient c1_abs(muinv,pml_c1_abs);
+      VectorRestrictedCoefficient restr_c1_abs(c1_abs,attrPML);
 
-      PMLMatrixCoefficient pml_c2_abs(dim, detJ_JT_J_inv_abs,pml);
-      ScalarMatrixProductCoefficient c2_abs(absomeg,pml_c2_abs);
-      MatrixRestrictedCoefficient restr_c2_abs(c2_abs,attrPML);
+      PMLDiagMatrixCoefficient pml_c2_abs(dim, detJ_JT_J_inv_abs,pml);
+      ScalarVectorProductCoefficient c2_abs(absomeg,pml_c2_abs);
+      VectorRestrictedCoefficient restr_c2_abs(c2_abs,attrPML);
 
       prec.AddDomainIntegrator(new CurlCurlIntegrator(restr_c1_abs));
       prec.AddDomainIntegrator(new VectorFEMassIntegrator(restr_c2_abs));
 
       prec.Assemble();
 
-      OperatorHandle PCOpAh;
+      OperatorPtr PCOpAh;
       prec.FormSystemMatrix(ess_tdof_list, PCOpAh);
 
       // 16b. Define and apply a parallel GMRES solver for AU=B with a block
@@ -496,11 +527,10 @@ int main(int argc, char *argv[])
       gmres.SetMaxIter(2000);
       gmres.SetRelTol(1e-5);
       gmres.SetAbsTol(0.0);
-      gmres.SetOperator(*A);
+      gmres.SetOperator(*Ah);
       gmres.SetPreconditioner(BlockAMS);
       gmres.Mult(B, X);
    }
-#endif
 
    // 17. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
@@ -509,10 +539,8 @@ int main(int argc, char *argv[])
    // If exact is known compute the error
    if (exact_known)
    {
-      ParComplexGridFunction x_gf(fespace);
       VectorFunctionCoefficient E_ex_Re(dim, E_exact_Re);
       VectorFunctionCoefficient E_ex_Im(dim, E_exact_Im);
-      x_gf.ProjectCoefficient(E_ex_Re, E_ex_Im);
       int order_quad = max(2, 2 * order + 1);
       const IntegrationRule *irs[Geometry::NumGeom];
       for (int i = 0; i < Geometry::NumGeom; ++i)
@@ -629,7 +657,6 @@ int main(int argc, char *argv[])
    }
 
    // 20. Free the used memory.
-   delete A;
    delete pml;
    delete fespace;
    delete fec;
@@ -828,7 +855,7 @@ void E_bdr_data_Im(const Vector &x, Vector &E)
    }
 }
 
-void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M)
+void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml, Vector & D)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det(1.0, 0.0);
@@ -839,14 +866,13 @@ void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M)
       det *= dxs[i];
    }
 
-   M = 0.0;
    for (int i = 0; i < dim; ++i)
    {
-      M(i, i) = (det / pow(dxs[i], 2)).real();
+      D(i) = (det / pow(dxs[i], 2)).real();
    }
 }
 
-void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M)
+void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml, Vector & D)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
@@ -857,14 +883,13 @@ void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M)
       det *= dxs[i];
    }
 
-   M = 0.0;
    for (int i = 0; i < dim; ++i)
    {
-      M(i, i) = (det / pow(dxs[i], 2)).imag();
+      D(i) = (det / pow(dxs[i], 2)).imag();
    }
 }
 
-void detJ_JT_J_inv_abs(const Vector &x, CartesianPML * pml, DenseMatrix &M)
+void detJ_JT_J_inv_abs(const Vector &x, CartesianPML * pml, Vector & D)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
@@ -875,14 +900,13 @@ void detJ_JT_J_inv_abs(const Vector &x, CartesianPML * pml, DenseMatrix &M)
       det *= dxs[i];
    }
 
-   M = 0.0;
    for (int i = 0; i < dim; ++i)
    {
-      M(i, i) = abs(det / pow(dxs[i], 2));
+      D(i) = abs(det / pow(dxs[i], 2));
    }
 }
 
-void detJ_inv_JT_J_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M)
+void detJ_inv_JT_J_Re(const Vector &x, CartesianPML * pml, Vector & D)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det(1.0, 0.0);
@@ -896,19 +920,18 @@ void detJ_inv_JT_J_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M)
    // in the 2D case the coefficient is scalar 1/det(J)
    if (dim == 2)
    {
-      M = (1.0 / det).real();
+      D = (1.0 / det).real();
    }
    else
    {
-      M = 0.0;
       for (int i = 0; i < dim; ++i)
       {
-         M(i, i) = (pow(dxs[i], 2) / det).real();
+         D(i) = (pow(dxs[i], 2) / det).real();
       }
    }
 }
 
-void detJ_inv_JT_J_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M)
+void detJ_inv_JT_J_Im(const Vector &x, CartesianPML * pml, Vector & D)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
@@ -921,19 +944,18 @@ void detJ_inv_JT_J_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M)
 
    if (dim == 2)
    {
-      M = (1.0 / det).imag();
+      D = (1.0 / det).imag();
    }
    else
    {
-      M = 0.0;
       for (int i = 0; i < dim; ++i)
       {
-         M(i, i) = (pow(dxs[i], 2) / det).imag();
+         D(i) = (pow(dxs[i], 2) / det).imag();
       }
    }
 }
 
-void detJ_inv_JT_J_abs(const Vector &x, CartesianPML * pml, DenseMatrix &M)
+void detJ_inv_JT_J_abs(const Vector &x, CartesianPML * pml, Vector & D)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
@@ -946,14 +968,13 @@ void detJ_inv_JT_J_abs(const Vector &x, CartesianPML * pml, DenseMatrix &M)
 
    if (dim == 2)
    {
-      M = abs(1.0 / det);
+      D = abs(1.0 / det);
    }
    else
    {
-      M = 0.0;
       for (int i = 0; i < dim; ++i)
       {
-         M(i, i) = abs(pow(dxs[i], 2) / det);
+         D(i) = abs(pow(dxs[i], 2) / det);
       }
    }
 }

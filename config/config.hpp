@@ -42,11 +42,20 @@
 #ifdef MFEM_USE_SUPERLU
 #error Building with SuperLU_DIST (MFEM_USE_SUPERLU=YES) requires MPI (MFEM_USE_MPI=YES)
 #endif
+#ifdef MFEM_USE_MUMPS
+#error Building with MUMPS (MFEM_USE_MUMPS=YES) requires MPI (MFEM_USE_MPI=YES)
+#endif
 #ifdef MFEM_USE_STRUMPACK
 #error Building with STRUMPACK (MFEM_USE_STRUMPACK=YES) requires MPI (MFEM_USE_MPI=YES)
 #endif
+#ifdef MFEM_USE_MKL_CPARDISO
+#error Building with MKL CPARDISO (MFEM_USE_MKL_CPARDISO=YES) requires MPI (MFEM_USE_MPI=YES)
+#endif
 #ifdef MFEM_USE_PETSC
 #error Building with PETSc (MFEM_USE_PETSC=YES) requires MPI (MFEM_USE_MPI=YES)
+#endif
+#ifdef MFEM_USE_SLEPC
+#error Building with SLEPc (MFEM_USE_SLEPC=YES) requires MPI (MFEM_USE_MPI=YES)
 #endif
 #ifdef MFEM_USE_PUMI
 #error Building with PUMI (MFEM_USE_PUMI=YES) requires MPI (MFEM_USE_MPI=YES)

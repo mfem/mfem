@@ -906,7 +906,7 @@ double JouleHeatingCoefficient::Eval(ElementTransformation &T,
 {
    Vector E;
    double thisSigma;
-   E_gf.GetVectorValue(T.ElementNo, ip, E);
+   E_gf.GetVectorValue(T, ip, E);
    thisSigma = sigma.Eval(T, ip);
    return thisSigma*(E*E);
 }

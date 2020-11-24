@@ -446,7 +446,7 @@ void HDGBilinearForm::AssembleSC(GridFunction *F,
    RHSGridFunctions.SetSize(1);
    RHSGridFunctions[0] = F;
    Array<int> ess_bdr;
-   ess_bdr.SetSize(1);
+   ess_bdr.SetSize(fes1[0]->GetMesh()->bdr_attributes.Max());
    ess_bdr = 0; // dummy
 
    GridFunction sol(fes2[0]);
@@ -702,7 +702,7 @@ void HDGBilinearForm::Reconstruct(GridFunction *F1,
                                   GridFunction *u)
 {
    Array<GridFunction*> RHSGridFunctions, FacetGridFunctions, SolGridFunctions;
-   RHSGridFunctions.SetSize(1);
+   RHSGridFunctions.SetSize(2);
    RHSGridFunctions[0] = F1;
    RHSGridFunctions[1] = F2;
    SolGridFunctions.SetSize(2);
@@ -859,7 +859,9 @@ void HDGBilinearForm::compute_face_integrals_shared(const int elem,
 
    const FiniteElement &trial_face_fe = *fes2[0]->GetFaceElement(edge);
    const FiniteElement &testu1_fe1 = *fes1[0]->GetFE(tr->Elem1No);
-   const FiniteElement &testu1_fe2 = *fes1[0]->GetFE(tr->Elem2No);
+//    const FiniteElement &testu1_fe2 = *fes1[0]->GetFE(tr->Elem2No);
+//    const FiniteElement &testu1_fe2 = *pfes1->GetFaceNbrFE(tr->Elem2No);
+   const FiniteElement &testu1_fe2 = *fes1[0]->GetFE(tr->Elem1No);
 
    // For parallel the element the processor owns is tr->Elem1No
    //    hdg_fbfi[0]->AssembleFaceMatrixOneElement1and1FES(test_fe1, test_fe2,
@@ -880,8 +882,11 @@ void HDGBilinearForm::compute_face_integrals_shared(const int elem,
       }
       case 2:
       {
+         ParFiniteElementSpace* pfes2 = dynamic_cast<ParFiniteElementSpace*>(fes1[1]);
          const FiniteElement &testu2_fe1 = *fes1[1]->GetFE(tr->Elem1No);
-         const FiniteElement &testu2_fe2 = *fes1[1]->GetFE(tr->Elem2No);
+//          const FiniteElement &testu2_fe2 = *fes1[1]->GetFE(tr->Elem2No);
+//          const FiniteElement &testu2_fe2 = *pfes2->GetFaceNbrFE(tr->Elem2No);
+         const FiniteElement &testu2_fe2 = *fes1[1]->GetFE(tr->Elem1No);
          hdg_fbfi[0]->AssembleFaceMatrixOneElement2and1FES(testu1_fe1, testu1_fe2,
                                                            testu2_fe1, testu2_fe2,
                                                            trial_face_fe,

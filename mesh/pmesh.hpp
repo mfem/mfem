@@ -78,6 +78,12 @@ protected:
    // sface ids: all triangles first, then all quads
    Array<int> sface_lface;
 
+   IsoparametricTransformation FaceNbrTransformation;
+
+   // glob_elem_offset + local element number defines a global element numbering
+   mutable long glob_elem_offset, glob_offset_sequence;
+   void ComputeGlobalElementOffset() const;
+
    /// Create from a nonconforming mesh.
    ParMesh(const ParNCMesh &pncmesh);
 
@@ -103,7 +109,7 @@ protected:
    void GetFaceNbrElementTransformation(
       int i, IsoparametricTransformation *ElTr);
 
-   ElementTransformation* GetGhostFaceTransformation(
+   void GetGhostFaceTransformation(
       FaceElementTransformations* FETr, Element::Type face_type,
       Geometry::Type face_geom);
 
@@ -231,6 +237,13 @@ public:
    int GetNRanks() const { return NRanks; }
    int GetMyRank() const { return MyRank; }
 
+   /** Map a global element number to a local element number. If the global
+       element is not on this processor, return -1. */
+   int GetLocalElementNum(long global_element_num) const;
+
+   /// Map a local element number to a global element number.
+   long GetGlobalElementNum(int local_element_num) const;
+
    GroupTopology gtopo;
 
    // Face-neighbor elements and vertices
@@ -283,6 +296,14 @@ public:
        elements, respectively. */
    FaceElementTransformations *
    GetSharedFaceTransformations(int sf, bool fill2 = true);
+
+   ElementTransformation *
+   GetFaceNbrElementTransformation(int i)
+   {
+      GetFaceNbrElementTransformation(i, &FaceNbrTransformation);
+
+      return &FaceNbrTransformation;
+   }
 
    /// Return the number of shared faces (3D), edges (2D), vertices (1D)
    int GetNSharedFaces() const;
@@ -340,6 +361,15 @@ public:
 
    /// Save the mesh in a parallel mesh format.
    void ParPrint(std::ostream &out) const;
+
+   /** Print the mesh in parallel PVTU format. The PVTU and VTU files will be
+       stored in the directory specified by @a pathname. If the directory does
+       not exist, it will be created. */
+   virtual void PrintVTU(std::string pathname,
+                         VTKFormat format=VTKFormat::ASCII,
+                         bool high_order_output=false,
+                         int compression_level=0,
+                         bool bdr=false);
 
    virtual int FindPoints(DenseMatrix& point_mat, Array<int>& elem_ids,
                           Array<IntegrationPoint>& ips, bool warn = true,

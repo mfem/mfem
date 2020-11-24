@@ -29,6 +29,10 @@
 #include "handle.hpp"
 #include "invariants.hpp"
 
+#ifdef MFEM_USE_AMGX
+#include "amgxsolver.hpp"
+#endif
+
 #ifdef MFEM_USE_SUNDIALS
 #include "sundials.hpp"
 #endif
@@ -45,8 +49,16 @@
 #include "hypre_parcsr.hpp"
 #include "hypre.hpp"
 
+#ifdef MFEM_USE_MUMPS
+#include "mumps.hpp"
+#endif
+
 #ifdef MFEM_USE_PETSC
 #include "petsc.hpp"
+#endif
+
+#ifdef MFEM_USE_SLEPC
+#include "slepc.hpp"
 #endif
 
 #ifdef MFEM_USE_SUPERLU
@@ -55,6 +67,10 @@
 
 #ifdef MFEM_USE_STRUMPACK
 #include "strumpack.hpp"
+#endif
+
+#ifdef MFEM_USE_MKL_CPARDISO
+#include "cpardiso.hpp"
 #endif
 
 #endif // MFEM_USE_MPI
