@@ -1651,7 +1651,7 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
      kxy_i_(3),
      h_r_(3),
      h_i_(3),
-     k_(0),
+     k_(3),
      B_(B),
      numbers_(number),
      charges_(charge),
@@ -1659,6 +1659,7 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
      temps_(temp)
 {
    b_ *= 1.0 / Bmag_;
+   k_ = 0.0;
 
    S_ = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_);
    D_ = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_);
@@ -1739,7 +1740,44 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
       case 'O':
          // MFEM_VERIFY(fabs(B_[1]) == Bmag_,
          //             "O waves require a magnetic field in the y-direction.");
-         break;
+      {
+         double bxyInv = 1.0 / (b_[0] * b_[0] + b_[1] * b_[1]);
+         complex<double> bxyk = sqrt(1.0 - b_[2] * b_[2] - k_[2] * k_[2]);
+
+         complex<double> h = sqrt((P_) * (epsilon0_ / mu0_));
+         complex<double> hx = (-b_[1] * k_[2] - b_[0] * b_[2] * bxyk) * bxyInv;
+         complex<double> hy = ( b_[0] * k_[2] - b_[1] * b_[2] * bxyk) * bxyInv;
+         complex<double> hz = bxyk;
+
+         hx *= h;
+         hy *= h;
+         hz *= h;
+
+         h_r_[0] = hx.real();
+         h_r_[1] = hy.real();
+         h_r_[2] = hz.real();
+
+         h_i_[0] = hx.imag();
+         h_i_[1] = hy.imag();
+         h_i_[2] = hz.imag();
+
+         kappa_ = omega_ * sqrt(P_) / c0_;
+         if (kappa_.imag() < 0.0) { kappa_ *= -1.0; }
+
+         complex<double> kx = (-b_[0] * b_[2] * k_[2] + b_[1] * bxyk);
+         complex<double> ky = (-b_[1] * b_[2] * k_[2] - b_[0] * bxyk);
+         kx *= kappa_ * bxyInv;
+         ky *= kappa_ * bxyInv;
+
+         kxy_r_[0] = kx.real();
+         kxy_r_[1] = ky.real();
+         kxy_r_[2] = kappa_.real() * k_[2];
+
+         kxy_i_[0] = kx.imag();
+         kxy_i_[1] = ky.imag();
+         kxy_i_[2] = kappa_.imag() * k_[2];
+      }
+      break;
       case 'X':
          // MFEM_VERIFY(fabs(B_[1]) == Bmag_,
          //             "X waves require a magnetic field in the y-direction.");
@@ -1766,15 +1804,8 @@ void ColdPlasmaPlaneWaveH::Eval(Vector &V, ElementTransformation &T,
    {
       case 'L': // Left Circularly Polarized, propagating along B
       case 'R': // Right Circularly Polarized, propagating along B
+      case 'O': // Ordinary wave propagating perpendicular to B
       {
-         // complex<double> kL = omega_ * sqrt(S_ - D_) / c0_;
-         // if (kL.imag() < 0.0) { kL *= -1.0; }
-
-         // complex<double> a = kL / (omega_ * mu0_);
-
-         // complex<double> Hy = -a * exp(i * kL * x[0]);
-         // complex<double> Hz = -i * Hy;
-
          complex<double> kx = 0.0;
          for (int d=0; d<2; d++)
          {
@@ -1825,7 +1856,6 @@ void ColdPlasmaPlaneWaveH::Eval(Vector &V, ElementTransformation &T,
          }
       }
       break;
-      */
       case 'O': // Ordinary wave propagating perpendicular to B
       {
          complex<double> kO = omega_ * sqrt(P_) / c0_;
@@ -1849,6 +1879,7 @@ void ColdPlasmaPlaneWaveH::Eval(Vector &V, ElementTransformation &T,
          }
       }
       break;
+      */
       case 'X': // eXtraordinary wave propagating perpendicular to B
       {
          complex<double> kX = omega_ * sqrt(S_ - D_ * D_ / S_) / c0_;
@@ -1963,7 +1994,7 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
      kxy_i_(3),
      e_r_(3),
      e_i_(3),
-     k_(0),
+     k_(3),
      B_(B),
      numbers_(number),
      charges_(charge),
@@ -1971,6 +2002,7 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
      temps_(temp)
 {
    b_ *= 1.0 / Bmag_;
+   k_ = 0.0;
 
    S_ = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_);
    D_ = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_);
@@ -2018,7 +2050,7 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
          e_i_[1] = -b_[0] * bxyInv;
          e_i_[2] =  0.0;
 
-         kappa_ = omega_ * sqrt(S_ - D_) / c0_;
+         kappa_ = omega_ * sqrt(S_ + D_) / c0_;
          if (kappa_.imag() < 0.0) { kappa_ *= -1.0; }
 
          kxy_r_[0] = kappa_.real() * b_[0];
@@ -2031,9 +2063,37 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
       }
       break;
       case 'O':
-         MFEM_VERIFY(fabs(B_[1]) == Bmag_,
-                     "O waves require a magnetic field in the y-direction.");
-         break;
+         // MFEM_VERIFY(fabs(B_[1]) == Bmag_,
+         //              "O waves require a magnetic field in the y-direction.");
+      {
+         double bxyInv = 1.0 / (b_[0] * b_[0] + b_[1] * b_[1]);
+         complex<double> bxyk = sqrt(1.0 - b_[2] * b_[2] - k_[2] * k_[2]);
+
+         e_r_[0] = b_[0];
+         e_r_[1] = b_[1];
+         e_r_[2] = b_[2];
+
+         e_i_[0] = 0.0;
+         e_i_[1] = 0.0;
+         e_i_[2] = 0.0;
+
+         kappa_ = omega_ * sqrt(P_) / c0_;
+         if (kappa_.imag() < 0.0) { kappa_ *= -1.0; }
+
+         complex<double> kx = (-b_[0] * b_[2] * k_[2] + b_[1] * bxyk);
+         complex<double> ky = (-b_[1] * b_[2] * k_[2] - b_[0] * bxyk);
+         kx *= kappa_ * bxyInv;
+         ky *= kappa_ * bxyInv;
+
+         kxy_r_[0] = kx.real();
+         kxy_r_[1] = ky.real();
+         kxy_r_[2] = kappa_.real() * k_[2];
+
+         kxy_i_[0] = kx.imag();
+         kxy_i_[1] = ky.imag();
+         kxy_i_[2] = kappa_.imag() * k_[2];
+      }
+      break;
       case 'X':
          MFEM_VERIFY(fabs(B_[1]) == Bmag_,
                      "X waves require a magnetic field in the y-direction.");
@@ -2059,27 +2119,10 @@ void ColdPlasmaPlaneWaveE::Eval(Vector &V, ElementTransformation &T,
    switch (type_)
    {
       case 'L': // Left Circularly Polarized, propagating along B
+      case 'R': // Right Circularly Polarized, propagating along B
+      case 'O': // Ordinary wave propagating perpendicular to B
+      case 'X': // eXtraordinary wave propagating perpendicular to B
       {
-         /*
-          complex<double> kL = omega_ * sqrt(S_ - D_) / c0_;
-               if (kL.imag() < 0.0) { kL *= -1.0; }
-
-               complex<double> Ez = exp(i * kL * x[0]);
-               complex<double> Ey = i * Ez;
-
-               if (realPart_)
-               {
-                  V[0] = 0.0;
-                  V[1] = Ey.real();
-                  V[2] = Ez.real();
-               }
-               else
-               {
-                  V[0] = 0.0;
-                  V[1] = Ey.imag();
-                  V[2] = Ez.imag();
-               }
-         */
          complex<double> kx = 0.0;
          for (int d=0; d<2; d++)
          {
@@ -2105,6 +2148,7 @@ void ColdPlasmaPlaneWaveE::Eval(Vector &V, ElementTransformation &T,
          }
       }
       break;
+      /*
       case 'R': // Right Circularly Polarized, propagating along B
       {
          complex<double> kR = omega_ * sqrt(S_ + D_) / c0_;
@@ -2170,6 +2214,7 @@ void ColdPlasmaPlaneWaveE::Eval(Vector &V, ElementTransformation &T,
          }
       }
       break;
+      */
       case 'J':  // Slab of current density perpendicular to propagation
       {
          if (k_.Size() == 0)

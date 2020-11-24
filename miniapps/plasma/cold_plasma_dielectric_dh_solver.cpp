@@ -290,6 +290,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      n20ZIm_(NULL),
      grad_(NULL),
      curl_(NULL),
+     kCross_(NULL),
      h_(NULL),
      e_(NULL),
      // e_tmp_(NULL),
@@ -343,6 +344,12 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      // negMuInvCoef_(NULL),
      massCoef_(NULL),
      posMassCoef_(NULL),
+     kekReCoef_(kCoef_, epsInvReCoef_),
+     kekImCoef_(kCoef_, epsInvImCoef_),
+     keReCoef_(kCoef_, epsInvImCoef_),
+     keImCoef_(kCoef_, epsInvReCoef_, -1.0),
+     ekReCoef_(kCoef_, epsInvImCoef_, -1.0),
+     ekImCoef_(kCoef_, epsInvReCoef_),
      // negMuInvkxkxCoef_(NULL),
      // negMuInvkCoef_(NULL),
      jrCoef_(NULL),
@@ -604,14 +611,16 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
          MFEM_ABORT("kCoef_: Partial Assembly has not yet been implemented for "
                     "MixedCrossCurlIntegrator and MixedWeakCurlCrossIntegrator.");
       }
-      /*
-      a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*negMuInvkxkxCoef_),
-                               NULL);
-      a1_->AddDomainIntegrator(NULL,
-                               new MixedCrossCurlIntegrator(*negMuInvkCoef_));
-      a1_->AddDomainIntegrator(NULL,
-                               new MixedWeakCurlCrossIntegrator(*negMuInvkCoef_));
-      */
+      a1_->AddDomainIntegrator(new VectorFEMassIntegrator(kekReCoef_),
+                               new VectorFEMassIntegrator(kekImCoef_));
+      a1_->AddDomainIntegrator(new MixedVectorCurlIntegrator(keReCoef_),
+                               new MixedVectorCurlIntegrator(keImCoef_));
+      a1_->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(ekReCoef_),
+                               new MixedVectorWeakCurlIntegrator(ekImCoef_));
+
+      kCross_ = new ParDiscreteLinearOperator(HCurlFESpace_, HDivFESpace_);
+      kCross_->AddDomainInterpolator(
+         new VectorCrossProductInterpolator(*kCoef_));
    }
    if ( abcCoef_ )
    {
@@ -645,10 +654,10 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    //b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massImCoef_));
    */
    d21EpsInv_ = new ParMixedSesquilinearForm(HDivFESpace_, HCurlFESpace_,
-					     conv_);
+                                             conv_);
    d21EpsInv_->AddDomainIntegrator(
-			   new MixedVectorWeakCurlIntegrator(*epsInvReCoef_),
-			   new MixedVectorWeakCurlIntegrator(*epsInvImCoef_));
+      new MixedVectorWeakCurlIntegrator(*epsInvReCoef_),
+      new MixedVectorWeakCurlIntegrator(*epsInvImCoef_));
    /*
    m2_ = new ParBilinearForm(HDivFESpace_);
    if (pa_) { m2_->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
@@ -887,6 +896,7 @@ CPDSolverDH::~CPDSolverDH()
    // delete jd_i_;
    delete grad_;
    delete curl_;
+   delete kCross_;
 
    delete a1_;
    // delete b1_;
@@ -980,13 +990,13 @@ CPDSolverDH::Assemble()
 
    d21EpsInv_->Assemble();
    if (!pa_) { d21EpsInv_->Finalize(); }
-   
+
    tic_toc.Stop();
    if ( myid_ == 0 && logging_ > 0 )
    {
       cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
    }
-   
+
    if ( myid_ == 0 && logging_ > 0 )
    { cout << "  H(Curl) mass matrix ..." << flush; }
    tic_toc.Clear();
@@ -1083,6 +1093,12 @@ CPDSolverDH::Assemble()
    }
    curl_->Assemble();
    curl_->Finalize();
+
+   if ( kCross_ )
+   {
+      kCross_->Assemble();
+      kCross_->Finalize();
+   }
    /*
    curlMuInvCurl_->Assemble();
    curlMuInvCurl_->Finalize();
@@ -1192,6 +1208,7 @@ CPDSolverDH::Update()
    // Inform the other objects that the space has changed.
    curl_->Update();
    if ( grad_ ) { grad_->Update(); }
+   if ( kCross_ ) { kCross_->Update(); }
    // if ( DivFreeProj_ ) { DivFreeProj_->Update(); }
    // if ( SurfCur_     ) { SurfCur_->Update(); }
    tic_toc.Stop();
@@ -1237,11 +1254,11 @@ CPDSolverDH::Solve()
    }
 
    a1_->FormLinearSystem(ess_bdr_tdofs_, *h_, *rhs1_, A1, H, RHS1);
-   
+
 #ifdef MFEM_USE_SUPERLU
    if ( myid_ == 0 && logging_ > 0 )
    {
-     cout << "SuperLU Solver Requested" << endl;
+      cout << "SuperLU Solver Requested" << endl;
    }
    ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
    HypreParMatrix * A1C = A1Z->GetSystemMatrix();
@@ -1253,10 +1270,13 @@ CPDSolverDH::Solve()
 #endif
 
    a1_->RecoverFEMSolution(H, *rhs1_, *h_);
+
+   if (logging_ > 0)
    {
-     double nrmh = h_->ComputeL2Error(zeroVCoef, zeroVCoef);
-     cout << "norm of H: " << nrmh << endl;
+      double nrmh = h_->ComputeL2Error(zeroVCoef, zeroVCoef);
+      if (myid_ == 0) { cout << "norm of H: " << nrmh << endl; }
    }
+
    *phi_ = 0.0;
 
    // Compute D from H:  D = (Curl(H) - J) / (-i omega)
@@ -1267,9 +1287,16 @@ CPDSolverDH::Solve()
       curl_->AddMult(h_->imag(), d_->real(),-1.0 / omega_);
       curl_->AddMult(h_->real(), d_->imag(), 1.0 / omega_);
 
+      if (kCoef_)
       {
-	double nrmd = d_->ComputeL2Error(zeroVCoef, zeroVCoef);
-	cout << "norm of D: " << nrmd << endl;
+         kCross_->AddMult(h_->real(), d_->real(), -1.0 / omega_);
+         kCross_->AddMult(h_->imag(), d_->imag(), -1.0 / omega_);
+      }
+
+      if (logging_ > 0)
+      {
+         double nrmd = d_->ComputeL2Error(zeroVCoef, zeroVCoef);
+         if (myid_ == 0) { cout << "norm of D: " << nrmd << endl; }
       }
    }
 
@@ -1313,9 +1340,10 @@ CPDSolverDH::Solve()
 
       m1_->RecoverFEMSolution(E, *rhs1_, *e_);
 
+      if (logging_ > 0)
       {
-	double nrme = e_->ComputeL2Error(zeroVCoef, zeroVCoef);
-	cout << "norm of E: " << nrme << endl;
+         double nrme = e_->ComputeL2Error(zeroVCoef, zeroVCoef);
+         if (myid_ == 0) { cout << "norm of E: " << nrme << endl; }
       }
    }
 
@@ -1328,7 +1356,7 @@ CPDSolverDH::Solve()
 
 double
 CPDSolverDH::GetEFieldError(const VectorCoefficient & EReCoef,
-			    const VectorCoefficient & EImCoef) const
+                            const VectorCoefficient & EImCoef) const
 {
    ParComplexGridFunction z(e_->ParFESpace());
    z = 0.0;
@@ -1345,7 +1373,7 @@ CPDSolverDH::GetEFieldError(const VectorCoefficient & EReCoef,
 
 double
 CPDSolverDH::GetHFieldError(const VectorCoefficient & HReCoef,
-			    const VectorCoefficient & HImCoef) const
+                            const VectorCoefficient & HImCoef) const
 {
    ParComplexGridFunction z(h_->ParFESpace());
    z = 0.0;

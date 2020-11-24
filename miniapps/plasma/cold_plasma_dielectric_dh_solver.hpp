@@ -247,10 +247,10 @@ public:
    void Solve();
 
    double GetEFieldError(const VectorCoefficient & EReCoef,
-			 const VectorCoefficient & EImCoef) const;
+                         const VectorCoefficient & EImCoef) const;
 
    double GetHFieldError(const VectorCoefficient & HReCoef,
-			 const VectorCoefficient & HImCoef) const;
+                         const VectorCoefficient & HImCoef) const;
 
    void GetErrorEstimates(Vector & errors);
 
@@ -267,6 +267,138 @@ public:
    // const ParGridFunction & GetVectorPotential() { return *a_; }
 
 private:
+
+   class kekCoefficient : public MatrixCoefficient
+   {
+   private:
+      VectorCoefficient * kCoef_;
+      MatrixCoefficient * eCoef_;
+
+      double a_;
+
+      mutable Vector k;
+      mutable DenseMatrix e;
+
+   public:
+      kekCoefficient(VectorCoefficient *kCoef, MatrixCoefficient *eCoef,
+                     double a = 1.0)
+         : MatrixCoefficient(3),
+           kCoef_(kCoef), eCoef_(eCoef), a_(a), k(3), e(3) {}
+
+      void Eval(DenseMatrix &M, ElementTransformation &T,
+                const IntegrationPoint &ip)
+      {
+         M.SetSize(3);
+         if (kCoef_ == NULL || eCoef_ == NULL)
+         {
+            M = 0.0;
+            return;
+         }
+         kCoef_->Eval(k, T, ip);
+         eCoef_->Eval(e, T, ip);
+
+         for (int i=0; i<3; i++)
+         {
+            int i1 = (i+1)%3;
+            int i2 = (i+2)%3;
+            for (int j=0; j<3; j++)
+            {
+               int j1 = (j+1)%3;
+               int j2 = (j+2)%3;
+               M(i,j) =
+                  k(i1) * e(i2,j2) * k(j1) -
+                  k(i1) * e(i2,j1) * k(j2) -
+                  k(i2) * e(i1,j2) * k(j1) +
+                  k(i2) * e(i1,j1) * k(j2);
+            }
+         }
+         if (a_ != 1.0) { M *= a_; }
+      }
+   };
+
+   class ekCoefficient : public MatrixCoefficient
+   {
+   private:
+      VectorCoefficient * kCoef_;
+      MatrixCoefficient * eCoef_;
+
+      double a_;
+
+      mutable Vector k;
+      mutable DenseMatrix e;
+
+   public:
+      ekCoefficient(VectorCoefficient *kCoef, MatrixCoefficient *eCoef,
+                    double a = 1.0)
+         : MatrixCoefficient(3),
+           kCoef_(kCoef), eCoef_(eCoef), a_(a), k(3), e(3) {}
+
+      void Eval(DenseMatrix &M, ElementTransformation &T,
+                const IntegrationPoint &ip)
+      {
+         M.SetSize(3);
+         if (kCoef_ == NULL || eCoef_ == NULL)
+         {
+            M = 0.0;
+            return;
+         }
+         kCoef_->Eval(k, T, ip);
+         eCoef_->Eval(e, T, ip);
+
+         for (int i=0; i<3; i++)
+         {
+            for (int j=0; j<3; j++)
+            {
+               int j1 = (j+1)%3;
+               int j2 = (j+2)%3;
+               M(i,j) = e(i,j1) * k(j2) - e(i,j2) * k(j1);
+            }
+         }
+         if (a_ != 1.0) { M *= a_; }
+      }
+   };
+
+   class keCoefficient : public MatrixCoefficient
+   {
+   private:
+      VectorCoefficient * kCoef_;
+      MatrixCoefficient * eCoef_;
+
+      double a_;
+
+      mutable Vector k;
+      mutable DenseMatrix e;
+
+   public:
+      keCoefficient(VectorCoefficient *kCoef, MatrixCoefficient *eCoef,
+                    double a = 1.0)
+         : MatrixCoefficient(3),
+           kCoef_(kCoef), eCoef_(eCoef), a_(a), k(3), e(3) {}
+
+      void Eval(DenseMatrix &M, ElementTransformation &T,
+                const IntegrationPoint &ip)
+      {
+         M.SetSize(3);
+         if (kCoef_ == NULL || eCoef_ == NULL)
+         {
+            M = 0.0;
+            return;
+         }
+         kCoef_->Eval(k, T, ip);
+         eCoef_->Eval(e, T, ip);
+
+         for (int i=0; i<3; i++)
+         {
+            int i1 = (i+1)%3;
+            int i2 = (i+2)%3;
+            for (int j=0; j<3; j++)
+            {
+               M(i,j) = k(i2) * e(i1,j) - k(i1) * e(i2,j);
+            }
+         }
+         if (a_ != 1.0) { M *= a_; }
+      }
+   };
 
    int myid_;
    int num_procs_;
@@ -307,13 +439,14 @@ private:
    ParSesquilinearForm * m1_;
    ParMixedSesquilinearForm * m21EpsInv_;
 
-  
+
    ParBilinearForm * m0_;
    ParMixedBilinearForm * n20ZRe_;
    ParMixedBilinearForm * n20ZIm_;
 
    ParDiscreteGradOperator * grad_; // For Computing E from phi
    ParDiscreteCurlOperator * curl_; // For Computing D from H
+   ParDiscreteLinearOperator * kCross_;
 
    ParComplexGridFunction * h_;   // Complex magnetic field (HCurl)
    ParComplexGridFunction * e_;   // Complex electric field (HCurl)
@@ -379,6 +512,14 @@ private:
    // MatrixCoefficient * negMuInvkxkxCoef_; // -\vec{k}\times\vec{k}\times/mu
 
    // VectorCoefficient * negMuInvkCoef_; // -\vec{k}/mu
+
+   kekCoefficient kekReCoef_;
+   kekCoefficient kekImCoef_;
+   keCoefficient keReCoef_;
+   keCoefficient keImCoef_;
+   ekCoefficient ekReCoef_;
+   ekCoefficient ekImCoef_;
+
    VectorCoefficient * jrCoef_;     // Volume Current Density Function
    VectorCoefficient * jiCoef_;     // Volume Current Density Function
    VectorCoefficient * rhsrCoef_;     // Volume Current Density Function
