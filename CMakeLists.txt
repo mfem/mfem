@@ -460,7 +460,7 @@ set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
     "The MFEM install directory" FORCE)
 
 # Declaring the library
-if (HIP_FOUND)
+if (MFEM_USE_HIP)
   hip_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
 else()
   add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
