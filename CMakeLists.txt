@@ -87,6 +87,9 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/config/XSDKDefaults.cmake")
 # Enable languages.
 enable_language(CXX)
 if (MFEM_USE_CUDA)
+   if (MFEM_USE_HIP)
+      message(FATAL_ERROR " *** MFEM_USE_HIP cannot be combined with MFEM_USE_CUDA.")
+   endif()
    # MFEM_USE_CUDA requires CMake 3.8 or newer (for direct CUDA support)
    cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
    # Use ${CMAKE_CXX_COMPILER} as the cuda host compiler.
@@ -163,6 +166,13 @@ if (CMAKE_BUILD_TYPE MATCHES "Debug|debug|DEBUG")
   set(MFEM_DEBUG ON)
 else()
   set(MFEM_DEBUG OFF)
+endif()
+
+if (MFEM_USE_HIP)
+  find_package(HIP REQUIRED)
+  if (NOT HIP_FOUND)
+    message(FATAL_ERROR "Did not find HIP")
+  endif()
 endif()
 
 # MPI -> hypre; PETSc (optional)
@@ -452,7 +462,12 @@ set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
     "The MFEM install directory" FORCE)
 
 # Declaring the library
-add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
+if (HIP_FOUND)
+  set_source_files_properties(${SOURCES} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT TRUE)
+  hip_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
+else()
+  add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
+endif()
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
 if (CMAKE_VERSION VERSION_GREATER 2.8.11)
   target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})

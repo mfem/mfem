@@ -56,7 +56,7 @@ function(add_mfem_target TARGET_NAME ADD_TO_ALL)
 endfunction()
 
 # Add mfem examples
-function(add_mfem_examples EXE_SRCS)
+macro(add_mfem_examples EXE_SRCS)
   set(EXE_PREFIX "")
   set(EXE_PREREQUISITE "")
   set(EXE_NEEDED_BY "")
@@ -78,7 +78,12 @@ function(add_mfem_examples EXE_SRCS)
     get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)
 
     string(REPLACE ".cpp" "" EXE_NAME "${EXE_PREFIX}${SRC_FILENAME}")
-    add_executable(${EXE_NAME} ${SRC_FILE})
+    if (HIP_FOUND)
+      set_source_files_properties(${SRC_FILE} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT TRUE)
+      hip_add_executable(${EXE_NAME} ${SRC_FILE})
+    else()
+      add_executable(${EXE_NAME} ${SRC_FILE})
+    endif()
     add_dependencies(${MFEM_ALL_EXAMPLES_TARGET_NAME} ${EXE_NAME})
     if (EXE_NEEDED_BY)
       add_dependencies(${EXE_NEEDED_BY} ${EXE_NAME})
@@ -107,10 +112,10 @@ function(add_mfem_examples EXE_SRCS)
       endif()
     endif()
   endforeach(SRC_FILE)
-endfunction()
+endmacro()
 
 # A slightly more versatile function for adding miniapps to MFEM
-function(add_mfem_miniapp MFEM_EXE_NAME)
+macro(add_mfem_miniapp MFEM_EXE_NAME)
   # Parse the input arguments looking for the things we need
   set(POSSIBLE_ARGS "MAIN" "EXTRA_SOURCES" "EXTRA_HEADERS" "EXTRA_OPTIONS" "EXTRA_DEFINES" "LIBRARIES")
   set(CURRENT_ARG)
@@ -140,8 +145,15 @@ function(add_mfem_miniapp MFEM_EXE_NAME)
   endif()
 
   # Actually add the executable
-  add_executable(${MFEM_EXE_NAME} ${MAIN_LIST}
-    ${EXTRA_SOURCES_LIST} ${EXTRA_HEADERS_LIST})
+  if (HIP_FOUND)
+    set_source_files_properties(${MAIN_LIST} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT TRUE)
+    set_source_files_properties(${EXTRA_SOURCES_LIST} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT TRUE)
+    hip_add_executable(${MFEM_EXE_NAME} ${MAIN_LIST}
+      ${EXTRA_SOURCES_LIST} ${EXTRA_HEADERS_LIST})
+  else()
+    add_executable(${MFEM_EXE_NAME} ${MAIN_LIST}
+      ${EXTRA_SOURCES_LIST} ${EXTRA_HEADERS_LIST})
+  endif()
   add_dependencies(${MFEM_ALL_MINIAPPS_TARGET_NAME} ${MFEM_EXE_NAME})
   add_dependencies(${MFEM_EXE_NAME} ${MFEM_EXEC_PREREQUISITES_TARGET_NAME})
 
@@ -194,7 +206,7 @@ function(add_mfem_miniapp MFEM_EXE_NAME)
         LINK_FLAGS "${MPI_CXX_LINK_FLAGS}")
     endif()
   endif()
-endfunction()
+endmacro()
 
 
 # Auxiliary function, used in mfem_find_package().
