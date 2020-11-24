@@ -168,13 +168,6 @@ else()
   set(MFEM_DEBUG OFF)
 endif()
 
-if (MFEM_USE_HIP)
-  find_package(HIP REQUIRED)
-  if (NOT HIP_FOUND)
-    message(FATAL_ERROR "Did not find HIP")
-  endif()
-endif()
-
 # MPI -> hypre; PETSc (optional)
 if (MFEM_USE_MPI)
   find_package(MPI REQUIRED)
@@ -364,6 +357,11 @@ endif()
 # UMPIRE
 if (MFEM_USE_UMPIRE)
    find_package(UMPIRE REQUIRED)
+endif()
+
+# AMD HIP
+if (MFEM_USE_HIP)
+  find_package(HIP REQUIRED)
 endif()
 
 # ADIOS2 for parallel I/O
