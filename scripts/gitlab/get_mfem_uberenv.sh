@@ -4,7 +4,7 @@ set -o errexit
 set -o nounset
 
 uberenv_url="ssh://git@czgitlab.llnl.gov:7999/bernede1/mfem-uberenv.git"
-uberenv_ref="5f6762ceb325a2d44f27b4198961fb63a93e270a"
+uberenv_ref="51b81411bb3d87bdf424aabd65d6f369badc5fd8"
 
 git clone ${uberenv_url} scripts/uberenv
 cd scripts/uberenv
