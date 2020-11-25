@@ -1902,6 +1902,9 @@ void FiniteElementSpace::Construct()
    int dim = mesh->Dimension();
    int order = fec->DefaultOrder();
 
+   MFEM_ASSERT(mesh->GetNumGeometries(dim),
+               "Mesh was not correctly finalized.");
+
    bool mixed_elements = (mesh->GetNumGeometries(dim) > 1);
    bool mixed_faces = (dim > 2 && mesh->GetNumGeometries(2) > 1);
 
