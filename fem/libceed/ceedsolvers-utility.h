@@ -25,6 +25,12 @@ int CeedOperatorGetOrder(CeedOperator oper, CeedInt * order);
 int CeedOperatorGetActiveElemRestriction(CeedOperator oper,
                                          CeedElemRestriction* restr_out);
 int CeedOperatorGetSize(CeedOperator oper, CeedInt * size);
+int CeedBasisCreateTensorH1Gauss(Ceed ceed, CeedInt dim, CeedInt ncomp,
+                                 CeedInt P, CeedInt Q, CeedQuadMode qmode,
+                                 CeedBasis *basis);
+int CeedBasisCreateMFEMTensorH1Lagrange(Ceed ceed, CeedInt dim, CeedInt ncomp,
+                                        CeedInt P, CeedInt Q, CeedQuadMode qmode,
+                                        CeedBasis *basis);
 int CeedOperatorGetActiveBasis(CeedOperator oper, CeedBasis *basis);
 
 #endif // MFEM_USE_CEED

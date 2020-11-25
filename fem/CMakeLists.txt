@@ -55,6 +55,7 @@ set(SRCS
   libceed/ceedsolvers-interpolation.cpp
   libceed/ceedsolvers-utility.cpp
   libceed/ceed-wrappers.cpp
+  libceed/ceedsolvers-qcoarsen.cpp
   linearform.cpp
   lininteg.cpp
   multigrid.cpp
@@ -100,6 +101,7 @@ set(HDRS
   libceed/ceedsolvers-interpolation.h
   libceed/ceedsolvers-utility.h
   libceed/ceed-wrappers.hpp
+  libceed/ceedsolvers-qcoarsen.h
   linearform.hpp
   lininteg.hpp
   multigrid.hpp
