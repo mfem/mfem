@@ -260,10 +260,10 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
       else
       {
          bool assemble_matrix = false;
+#ifdef MFEM_USE_MPI
 #ifdef MFEM_USE_AMGX
          if (Device::Allows(Backend::CUDA)) { assemble_matrix = true; }
-#endif
-#ifdef MFEM_USE_MPI
+#else
          if (!Device::Allows(Backend::CUDA)) { assemble_matrix = true; }
 #endif
          HypreParMatrix *P_mat = NULL;
@@ -288,6 +288,7 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
             smoother = new CeedAMG(*op, P_mat, Device::Allows(Backend::CUDA));
          }
          else
+#endif
          {
             smoother = BuildSmootherFromCeed(*op, true);
          }
