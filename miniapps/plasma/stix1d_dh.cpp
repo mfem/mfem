@@ -1000,6 +1000,8 @@ int main(int argc, char *argv[])
       CPD.DisplayAnimationToGLVis();
    }
 
+   delete BCoef;
+   
    return 0;
 }
 
