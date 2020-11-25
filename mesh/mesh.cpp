@@ -4213,7 +4213,7 @@ void Mesh::EnsureNodes()
       }
       else // Mesh using a legacy FE_Collection
       {
-         const int order = GetNodalFESpace()->GetOrder(0);
+         const int order = GetNodalFESpace()->GetElementPolyDegree(0);
          SetCurvature(order, false, -1, Ordering::byVDIM);
       }
    }
@@ -9105,7 +9105,9 @@ void Mesh::PrintVTU(std::string fname,
                     int compression_level,
                     bool bdr)
 {
-   int ref = (high_order_output && Nodes) ? Nodes->FESpace()->GetOrder(0) : 1;
+   int ref = (high_order_output && Nodes)
+             ? Nodes->FESpace()->GetElementPolyDegree(0) : 1;
+
    fname = fname + ".vtu";
    std::fstream out(fname.c_str(),std::ios::out);
    out << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\"";
