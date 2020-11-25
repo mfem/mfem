@@ -17,6 +17,7 @@
 #include "../fem/libceed/ceedsolvers-atpmg.h"
 #include "../fem/libceed/ceedsolvers-interpolation.h"
 #include "../fem/libceed/ceed-assemble.hpp"
+#include "../fem/libceed/ceedsolvers-qcoarsen.h"
 #include "../fem/pfespace.hpp"
 
 namespace mfem
@@ -188,7 +189,8 @@ CeedOperator CoarsenCeedCompositeOperator(
    CeedOperator op,
    CeedElemRestriction er,
    CeedBasis c2f,
-   int order_reduction
+   int order_reduction,
+   int qorder_reduction
 )
 {
    bool isComposite;
@@ -206,9 +208,21 @@ CeedOperator CoarsenCeedCompositeOperator(
    {
       CeedOperator subop = subops[isub];
       CeedBasis basis_coarse, basis_c2f;
-      CeedOperator subop_coarse;
+      CeedOperator subop_coarse, t_subop_coarse;
       CeedATPMGOperator(subop, order_reduction, er, &basis_coarse, &basis_c2f,
-                        &subop_coarse);
+                        &t_subop_coarse);
+      if (qorder_reduction == 0)
+      {
+         subop_coarse = t_subop_coarse;
+      }
+      else
+      {
+         CeedVector qcoarsen_assembledqf;
+         CeedQFunctionContext qcoarsen_context;
+         CeedOperatorQCoarsen(t_subop_coarse, qorder_reduction, &subop_coarse,
+                              &qcoarsen_assembledqf, &qcoarsen_context);
+         /// how to delete the qfunction, context cleanly?
+      }
       CeedBasisDestroy(&basis_coarse); // refcounted by subop_coarse
       CeedBasisDestroy(&basis_c2f);
       CeedCompositeOperatorAddSub(op_coarse, subop_coarse);
@@ -238,7 +252,8 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
       AlgebraicCoarseSpace &space = hierarchy.GetAlgebraicCoarseSpace(ilevel);
       ceed_operators[ilevel] = CoarsenCeedCompositeOperator(
                                   ceed_operators[ilevel+1], space.GetCeedElemRestriction(),
-                                  space.GetCeedCoarseToFine(), space.GetOrderReduction());
+                                  space.GetCeedCoarseToFine(), space.GetOrderReduction(),
+                                  space.GetOrderReduction());
       Operator *P = hierarchy.GetProlongationAtLevel(ilevel);
       essentialTrueDofs[ilevel] = new Array<int>;
       CoarsenEssentialDofs(*P, *essentialTrueDofs[ilevel+1],

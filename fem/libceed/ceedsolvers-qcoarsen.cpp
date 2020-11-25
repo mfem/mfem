@@ -54,35 +54,6 @@ int CeedBasisQCoarsen(CeedBasis basisin, CeedBasis* basisout,
    return 0;
 }
 
-/// @todo debug routine should probably delete
-int CeedElemRestrictionExplore(CeedElemRestriction rstr,
-                               const char* tag)
-{
-   int ierr;
-   CeedInt layout[3];
-   CeedInt strides[3];
-   CeedInt lsize, nelem, elemsize, ncomp;
-   ierr = CeedElemRestrictionGetLVectorSize(rstr, &lsize); CeedChk(ierr);
-   ierr = CeedElemRestrictionGetNumElements(rstr, &nelem); CeedChk(ierr);
-   ierr = CeedElemRestrictionGetElementSize(rstr, &elemsize); CeedChk(ierr);
-   ierr = CeedElemRestrictionGetNumComponents(rstr, &ncomp); CeedChk(ierr);
-   ierr = CeedElemRestrictionGetELayout(rstr, &layout); CeedChk(ierr);
-   ierr = CeedElemRestrictionGetStrides(rstr, &strides); CeedChk(ierr);
-   printf("  %s lsize=%d, nelem=%d, elemsize=%d, ncomp=%d\n",
-          tag, lsize, nelem, elemsize, ncomp);
-   printf("  %s ", tag);
-   for (int i = 0; i < 3; ++i) {
-      printf("; layout[%d]=%d", i, layout[i]);
-   }
-   printf("\n");
-   printf("  %s ", tag);
-   for (int i = 0; i < 3; ++i) {
-      printf("; strides[%d]=%d", i, strides[i]);
-   }
-   printf("\n");
-   return 0;
-}
-
 /** Given the (CeedVector) output of CeedOperatorLinearAssembleQFunction,
     coarsen it according to the local integration-interpolation qbasisctof
     and the numbering encoded in rstr_q, returning a (smaller)
@@ -121,10 +92,6 @@ int CeedQFunctionCoarsenAssembledVector(CeedVector assembledqf,
 
    // note well ncomp (not basis_ncomp) on line below (they are different)
    coarse_qflength = ncomp * nelem * P;
-   /*
-     printf("ncomp=%d, nelem=%d, P=%d, coarse_qflength=%d, qflength=%d, Q=%d, elemsize=%d, basis_ncomp=%d\n",
-     ncomp, nelem, P, coarse_qflength, qflength, Q, elemsize, basis_ncomp);
-   */
    if (Q != elemsize)
    {
       return CeedError(ceed, 1, "qbasisctof does not match rstr_q!");
@@ -176,26 +143,13 @@ int CeedQFunctionCoarsenAssembledVector(CeedVector assembledqf,
    return 0;
 }
 
-/// @todo debug routine should probably be removed
-int CeedVectorDebugView(CeedVector vec) {
-  int ierr;
-  CeedInt len;
-  const CeedScalar * data;
-  ierr = CeedVectorGetLength(vec, &len); CeedChk(ierr);
-  ierr = CeedVectorGetArrayRead(vec, CEED_MEM_HOST, &data); CeedChk(ierr);
-  for (int i = 0; i < len; ++i) {
-    printf("  %d : %f\n", i, data[i]);
-  }
-  ierr = CeedVectorRestoreArrayRead(vec, &data); CeedChk(ierr);
-  return 0;
-}
-
 /** Given an ElemRestriction rstr_q and a local integration-interpolation,
     return a CeedElemRestriction with the integration points coarsened.
 
     @param[in] rstr_q
     @param[in] qbasisctof (only used for dimensions/sizes!)
     @param[out] coarse_rstr_q
+    @param[out] ncomp
 */
 int CeedElementRestrictionQCoarsen(CeedElemRestriction rstr_q,
                                    CeedBasis qbasisctof,
@@ -206,9 +160,8 @@ int CeedElementRestrictionQCoarsen(CeedElemRestriction rstr_q,
    Ceed ceed;
    ierr = CeedElemRestrictionGetCeed(rstr_q, &ceed); CeedChk(ierr);
 
+   // layout and strides are different; we may only care about strides
    CeedInt layout[3];
-   /// layout is just copied for the strides argument of
-   /// CeedElemRestrictionCreateStrided ? (no, layout and strides are different)
    ierr = CeedElemRestrictionGetELayout(rstr_q, &layout); CeedChk(ierr);
    CeedInt strides[3];
    ierr = CeedElemRestrictionGetStrides(rstr_q, &strides); CeedChk(ierr);
@@ -216,7 +169,7 @@ int CeedElementRestrictionQCoarsen(CeedElemRestriction rstr_q,
    CeedInt coarse_lsize;
    CeedInt coarse_strides[3];
 
-   /// some of these are only used for sanity checking
+   // some of these are only used for sanity checking
    CeedInt q_nelem, q_elemsize, q_lsize, q_ncomp;
    ierr = CeedElemRestrictionGetNumElements(rstr_q, &q_nelem); CeedChk(ierr);
    ierr = CeedElemRestrictionGetElementSize(rstr_q, &q_elemsize); CeedChk(ierr);
