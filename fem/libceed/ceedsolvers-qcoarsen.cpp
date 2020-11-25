@@ -17,6 +17,7 @@
 
 // todo: should probably use Ceed memory wrappers instead of calloc/free?
 #include <stdlib.h>
+#include "linear.h"
 
 /** @brief Coarsen the rows (integration points) of a CeedBasis
 
@@ -256,7 +257,7 @@ int CeedElementRestrictionQCoarsen(CeedElemRestriction rstr_q,
 int CeedQFunctionQCoarsen(CeedOperator oper, CeedInt qorder_reduction,
                           CeedVector* coarse_assembledqf,
                           CeedElemRestriction* coarse_rstr_q, CeedBasis* qcoarse_basis,
-                          CeedQFunction* qfout, struct LinearQFunctionContext** context_ptr)
+                          CeedQFunction* qfout, CeedQFunctionContext* context_ptr)
 {
    int ierr;
    Ceed ceed;
@@ -305,8 +306,13 @@ int CeedQFunctionQCoarsen(CeedOperator oper, CeedInt qorder_reduction,
    {
       context->layout[i] = coarse_layout[i];
    }
-   ierr = CeedQFunctionSetContext(*qfout, context, sizeof(*context)); CeedChk(ierr);
-   *context_ptr = context;
+   CeedQFunctionContext qf_context;
+   ierr = CeedQFunctionContextCreate(ceed, &qf_context); CeedChk(ierr);
+   ierr = CeedQFunctionContextSetData(qf_context, CEED_MEM_HOST, CEED_COPY_VALUES,
+                                      sizeof(*context), context); CeedChk(ierr);
+   ierr = CeedQFunctionSetContext(*qfout, qf_context); CeedChk(ierr);
+   *context_ptr = qf_context;
+   free(context);
 
    ierr = CeedElemRestrictionDestroy(&rstr_q); CeedChk(ierr);
    ierr = CeedBasisDestroy(&qbasisctof); CeedChk(ierr);
@@ -323,7 +329,7 @@ int CeedQFunctionQCoarsen(CeedOperator oper, CeedInt qorder_reduction,
 */
 int CeedOperatorQCoarsen(CeedOperator oper, int qorder_reduction,
                          CeedOperator* out, CeedVector* coarse_assembledqf,
-                         struct LinearQFunctionContext** context_ptr)
+                         CeedQFunctionContext* context_ptr)
 {
    int ierr;
    Ceed ceed;

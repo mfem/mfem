@@ -18,12 +18,9 @@
 
 #include <ceed.h>
 
-// include linear.h here or in the .cpp?
-#include "linear.h"
-
 CEED_EXTERN int CeedOperatorQCoarsen(CeedOperator oper, int qorder_reduction,
                                      CeedOperator* out, CeedVector* coarse_assembledqf,
-                                     struct LinearQFunctionContext** context_ptr);
+                                     CeedQFunctionContext* context_ptr);
 
 #endif
 
