@@ -81,7 +81,7 @@ opt_par_gcc_6_1_0_sundials:
 
 opt_par_gcc_6_1_0_petsc:
   variables:
-    SPEC: "%gcc@6.1.0 +petsc"
+    SPEC: "%gcc@6.1.0 +petsc ^petsc+mumps"
   extends: .build_and_test_on_quartz
 
 opt_par_gcc_6_1_0_pumi:
@@ -89,20 +89,20 @@ opt_par_gcc_6_1_0_pumi:
     SPEC: "%gcc@6.1.0 +pumi"
   extends: .build_and_test_on_quartz
 
-serac_gcc_8_3_1:
-  variables:
-    SPEC: "%gcc@8.3.1 ~shared+metis+superlu-dist+lapack+mpi+netcdf ^hypre@2.18.2~shared~superlu-dist+mpi ^metis@5.1.0~shared ^parmetis@4.0.3~shared ^superlu-dist@5.4.0~shared ^netcdf-c@4.7.4~shared ^hdf5@1.8.21~shared"
-  extends: .build_and_test_on_quartz
-
-serac_petsc_gcc_8_3_1:
-  variables:
-    SPEC: "%gcc@8.3.1 ~shared+metis+superlu-dist+lapack+mpi+netcdf+petsc ^hypre@2.18.2~shared~superlu-dist+mpi ^metis@5.1.0~shared ^parmetis@4.0.3~shared ^superlu-dist@5.4.0~shared ^netcdf-c@4.7.4~shared ^hdf5@1.8.21~shared ^petsc~shared"
-  extends: .build_and_test_on_quartz
-
-serac_sundials_gcc_8_3_1:
-  variables:
-    SPEC: "%gcc@8.3.1 ~shared+metis+superlu-dist+lapack+mpi+netcdf+sundials ^hypre@2.18.2~shared~superlu-dist+mpi ^metis@5.1.0~shared ^parmetis@4.0.3~shared ^superlu-dist@5.4.0~shared ^netcdf-c@4.7.4~shared ^hdf5@1.8.21~shared ^sundials~shared"
-  extends: .build_and_test_on_quartz
+#serac_gcc_8_3_1:
+#  variables:
+#    SPEC: "%gcc@8.3.1 ~shared+metis+superlu-dist+lapack+mpi+netcdf ^hypre@2.18.2~shared~superlu-dist+mpi ^metis@5.1.0~shared ^parmetis@4.0.3~shared ^superlu-dist@5.4.0~shared ^netcdf-c@4.7.4~shared ^hdf5@1.8.21~shared"
+#  extends: .build_and_test_on_quartz
+#
+#serac_petsc_gcc_8_3_1:
+#  variables:
+#    SPEC: "%gcc@8.3.1 ~shared+metis+superlu-dist+lapack+mpi+netcdf+petsc ^hypre@2.18.2~shared~superlu-dist+mpi ^metis@5.1.0~shared ^parmetis@4.0.3~shared ^superlu-dist@5.4.0~shared ^netcdf-c@4.7.4~shared ^hdf5@1.8.21~shared ^petsc~shared"
+#  extends: .build_and_test_on_quartz
+#
+#serac_sundials_gcc_8_3_1:
+#  variables:
+#    SPEC: "%gcc@8.3.1 ~shared+metis+superlu-dist+lapack+mpi+netcdf+sundials ^hypre@2.18.2~shared~superlu-dist+mpi ^metis@5.1.0~shared ^parmetis@4.0.3~shared ^superlu-dist@5.4.0~shared ^netcdf-c@4.7.4~shared ^hdf5@1.8.21~shared ^sundials~shared"
+#  extends: .build_and_test_on_quartz
 
 # Baseline
 baselinecheck_mfem_intel_quartz:
