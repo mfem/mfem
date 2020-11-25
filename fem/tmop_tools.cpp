@@ -618,8 +618,7 @@ double TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
 #ifdef MFEM_USE_MPI
    if (parallel)
    {
-      const ParNonlinearForm *p_nlf =
-            dynamic_cast<const ParNonlinearForm *>(oper);
+      auto p_nlf = dynamic_cast<const ParNonlinearForm *>(oper);
       MPI_Allreduce(&min_detJ, &min_detT_all, 1, MPI_DOUBLE, MPI_MIN,
                     p_nlf->ParFESpace()->GetComm());
    }

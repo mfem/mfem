@@ -713,7 +713,7 @@ int main(int argc, char *argv[])
    cout << "Minimum det(J) of the original mesh is " << tauval << endl;
 
    if (tauval < 0.0 && metric_id != 22 && metric_id != 211 && metric_id != 252
-                    && metric_id != 311 && metric_id != 313 && metric_id != 352)
+       && metric_id != 311 && metric_id != 313 && metric_id != 352)
    {
       MFEM_ABORT("The input mesh is inverted! Try an untangling metric.");
    }
