@@ -47,7 +47,7 @@ protected:
                         const Vector &v_in_,
                         Vector &y_) const;
 
-   auto EvaluateFargValue(const Mesh &m) const;
+   auto EvaluateFargValue(const Mesh &m, const double qx, const double qy) const;
 
    const FiniteElementSpace *fespace;
    const DofToQuad *maps;        ///< Not owned
@@ -131,9 +131,14 @@ void QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::Setup
 
 template<typename qfunc_type, typename qfunc_grad_type, typename... qfunc_args_type>
 auto QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::
-   EvaluateFargValue(const Mesh &m) const
+   EvaluateFargValue(const Mesh &m, const double qx, const double qy) const
 {
-   return std::tuple{};
+   Vector trip(3);
+   trip = 0.0;
+   ElementTransformation *tr = const_cast<Mesh &>(m).GetElementTransformation(0);
+   tr->Transform(IntRule->IntPoint(qx + quad1D * qy), trip);
+   return tensor<double, 3>{
+      {trip(0), trip(1), m.SpaceDimension() == 2 ? 0.0 : trip(2)}};
 }
 
 template<typename qfunc_type, typename qfunc_grad_type, typename... qfunc_args_type>
@@ -205,7 +210,9 @@ void QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::Apply
 
             auto processed_qf_farg_values = std::apply(
                [=](auto &... a) {
-                  return std::make_tuple(u_q, du_dx_q, EvaluateFargValue(a)...);
+                  return std::make_tuple(u_q,
+                                         du_dx_q,
+                                         EvaluateFargValue(a, qx, qy)...);
                },
                qf_farg_values);
 
@@ -312,7 +319,7 @@ void QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::
                [=](auto &... a) {
                   return std::make_tuple(derivative_wrt(u_q),
                                          du_dx_q,
-                                         EvaluateFargValue(a)...);
+                                         EvaluateFargValue(a, qx, qy)...);
                },
                qf_farg_values);
 
@@ -343,7 +350,7 @@ void QFunctionIntegrator<qfunc_type, qfunc_grad_type, qfunc_args_type...>::
                [=](auto &... a) {
                   return std::make_tuple(u_q,
                                          derivative_wrt(du_dx_q),
-                                         EvaluateFargValue(a)...);
+                                         EvaluateFargValue(a, qx, qy)...);
                },
                qf_farg_values);
 
