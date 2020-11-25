@@ -392,15 +392,17 @@ public:
    bool Conforming() const { return mesh->Conforming(); }
    bool Nonconforming() const { return mesh->Nonconforming(); }
 
-   /** Sets the polynomial order of the i'th finite element. */
+   /// Sets the order of the i'th finite element.
    /** By default, all elements are assumed to be of fec->DefaultOrder(). Once
        SetElementOrder is called, the space becomes a variable order space. */
    void SetElementOrder(int i, int p);
 
-   /// Returns the order of the i'th finite element
+   /// Returns the order of the i'th finite element.
+   /** @note This is the 'order' of the FiniteElementCollection. The actual
+       polynomial degree may differ, see @a GetElementPolyDegree(). */
    int GetElementOrder(int i) const;
 
-   /// Return the maximum polynomial order
+   /// Return the maximum polynomial order.
    int GetMaxElementOrder() const
    { return IsVariableOrder() ? elem_order.Max() : fec->DefaultOrder(); }
 
@@ -484,10 +486,13 @@ public:
    /// Returns vector dimension.
    inline int GetVDim() const { return vdim; }
 
-   /// Returns the order of the i'th finite element (deprecated).
-   int GetOrder(int i) const { return GetFE(i)->GetOrder(); }
-   /* TODO: the above should really be GetElementOrder(i) but there is an
-      inconsistency in ND/RT spaces: order 0 collection has order 1 FEs. */
+   /// Returns the polynomial degree of the i'th element.
+   /** This is normally the same as GetElementOrder(i), except for RT finite
+       element spaces, where the actual degree of the RTp collection is (p+1).*/
+   int GetElementPolyDegree(int i) const { return GetFE(i)->GetOrder(); }
+
+   /// Returns the polynomial degree of the i'th finite element (deprecated).
+   MFEM_DEPRECATED int GetOrder(int i) const { return GetElementPolyDegree(i); }
 
    /** Returns the order of the specified edge. In a variable order space, order
        of the given variant is returned, or -1 if there are no more variants. */
