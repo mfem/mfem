@@ -221,7 +221,9 @@ CeedOperator CoarsenCeedCompositeOperator(
          CeedQFunctionContext qcoarsen_context;
          CeedOperatorQCoarsen(t_subop_coarse, qorder_reduction, &subop_coarse,
                               &qcoarsen_assembledqf, &qcoarsen_context);
-         /// how to delete the qfunction, context cleanly?
+         CeedVectorDestroy(&qcoarsen_assembledqf); // todo: delete inside previous function?
+         CeedQFunctionContextDestroy(&qcoarsen_context);
+         CeedOperatorDestroy(&t_subop_coarse);
       }
       CeedBasisDestroy(&basis_coarse); // refcounted by subop_coarse
       CeedBasisDestroy(&basis_c2f);
