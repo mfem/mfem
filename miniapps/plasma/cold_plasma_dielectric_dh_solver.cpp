@@ -844,8 +844,6 @@ CPDSolverDH::~CPDSolverDH()
    delete DImCoef_;
    delete PReCoef_;
    delete PImCoef_;
-   delete epsInvReCoef_;
-   delete epsInvImCoef_;
    delete massCoef_;
    delete posMassCoef_;
    delete abcCoef_;
@@ -864,6 +862,7 @@ CPDSolverDH::~CPDSolverDH()
    if (j_v_ != j_) { delete j_v_; }
    if (phi_v_ != phi_) {delete phi_v_;}
    delete e_b_;
+   delete b_hat_;
    // delete e_r_;
    // delete e_i_;
    delete h_;
@@ -891,7 +890,7 @@ CPDSolverDH::~CPDSolverDH()
    // delete bd_;
    delete rhs1_;
    delete rhs0_;
-   // delete e_t_;
+   delete e_t_;
    // delete jd_r_;
    // delete jd_i_;
    delete grad_;
