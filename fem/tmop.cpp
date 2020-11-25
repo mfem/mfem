@@ -320,8 +320,8 @@ double TMOP_Metric_022::EvalW(const DenseMatrix &Jpt) const
    {
       // The mesh has been untangled, but it's still possible to get negative
       // detJ in FD calculations, as they move the nodes around with some
-      // small increments and can get negative determinants.
-      // Thus in this case we return a small value. Note that here I3b < 0.
+      // small increments and can produce negative determinants.
+      // Thus we put a small value in the denominator. Note that here I2b < 0.
       d = - I2b * 0.1;
    }
 
@@ -756,8 +756,8 @@ double TMOP_Metric_313::EvalW(const DenseMatrix &Jpt) const
    {
       // The mesh has been untangled, but it's still possible to get negative
       // detJ in FD calculations, as they move the nodes around with some
-      // small increments and can get negative determinants.
-      // Thus in this case we return a small value. Note that here I3b < 0.
+      // small increments and can produce negative determinants.
+      // Thus we put a small value in the denominator. Note that here I3b < 0.
       d = - I3b * 0.1;
    }
 
