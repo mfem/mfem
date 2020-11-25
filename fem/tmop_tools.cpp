@@ -424,7 +424,6 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       {
          if (print_level >= 0)
          {
-            std::cout << energy_in << " " << energy_out << std::endl;
             mfem::out << "Scale = " << scale << " Increasing energy.\n";
          }
          scale *= 0.5; continue;
