@@ -1762,7 +1762,11 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
 
    elem_dof = NULL;
    face_dof = NULL;
+
    sequence = mesh->GetSequence();
+   orders_changed = false;
+   relaxed_hp = false;
+
    Th.SetType(Operator::ANY_TYPE);
 
    const NURBSFECollection *nurbs_fec =
