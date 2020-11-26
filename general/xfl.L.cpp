@@ -756,15 +756,15 @@ int yy_flex_debug = 1;
 static const flex_int16_t yy_rule_linenum[91] =
 {
    0,
-   58,   59,   60,   61,   62,   63,   64,   65,   66,   67,
-   68,   69,   70,   71,   72,   73,   74,   75,   76,   77,
-   78,   79,   80,   81,   82,   83,   84,   85,   86,   87,
-   88,   89,   90,   91,   92,   93,   94,   95,   96,   97,
-   98,   99,  100,  101,  102,  103,  104,  105,  106,  107,
-   108,  109,  110,  111,  112,  113,  114,  115,  116,  117,
-   118,  119,  120,  121,  122,  123,  124,  125,  126,  127,
-   128,  129,  130,  131,  132,  133,  134,  135,  136,  137,
-   138,  139,  140,  141,  142,  143,  144,  145,  146,  147
+   53,   54,   55,   56,   57,   58,   59,   60,   61,   62,
+   63,   64,   65,   66,   67,   68,   69,   70,   71,   72,
+   73,   74,   75,   76,   77,   78,   79,   80,   81,   82,
+   83,   84,   85,   86,   87,   88,   89,   90,   91,   92,
+   93,   94,   95,   96,   97,   98,   99,  100,  101,  102,
+   103,  104,  105,  106,  107,  108,  109,  110,  111,  112,
+   113,  114,  115,  116,  117,  118,  119,  120,  121,  122,
+   123,  124,  125,  126,  127,  128,  129,  130,  131,  132,
+   133,  134,  135,  136,  137,  138,  139,  140,  141,  142
 } ;
 
 static yy_state_type *yy_state_buf=0, *yy_state_ptr=0;
@@ -799,10 +799,8 @@ char *yytext;
 #include "xfl.Y.hpp"
 #include "xfc.hpp"
 
-// *****************************************************************************
 using token_t = yy::parser::token_kind_type;
 
-// *****************************************************************************
 static token_t update(xfl&);
 static token_t new_line(xfl&);
 static token_t line_token(xfl&, Node**, const char*);
@@ -812,10 +810,7 @@ static token_t spaces(xfl &ufl) { return update(ufl); }
 static void llerror(xfl&, char const*);
 static token_t token(xfl&, Node**, token_t TOK_TK, const char *TOK_STR,
                      const char *yytext, token_t = TOK::YYEMPTY);
-
-// *****************************************************************************
 #define _(TK) return token(ufl, yylval, TOK::TK, #TK, yytext, update(ufl));
-
 
 
 
@@ -2883,7 +2878,7 @@ static token_t update(xfl &ufl)
 // *****************************************************************************
 static void llerror(xfl &ufl, char const *msg)
 {
-   std::cerr << *ufl.loc << ": " << msg << std::endl;
+   std::cerr << (*ufl.loc) << ": " << msg << std::endl;
    abort();
 }
 

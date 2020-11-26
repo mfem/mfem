@@ -28,8 +28,9 @@ namespace mfem
 namespace internal
 {
 
-// *****************************************************************************
-bool Code::entry_point_statements_t(Node_p&) const
+/** @cond */ // Doxygen warning: documented symbol was not declared or defined
+
+bool Code::entry_point_statements_t(Node*&) const
 {
    out << "#include \"xfm.hpp\"" << std:: endl;
    out << "int main(int argc, char* argv[]){" << std:: endl;
@@ -351,6 +352,8 @@ void Code::token_CONSTANT_API(std::string) const
 {
    out << " /** new*/ xfl::Constant";
 }
+
+/** @endcond */
 
 } // internal
 

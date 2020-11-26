@@ -66,18 +66,16 @@ public:
 // *****************************************************************************
 /// AST code generation
 // *****************************************************************************
-template<typename T> struct identity { typedef T type; };
-
 class Code : public Middlend
 {
    Middlend &me;
    std::ostream &out;
 public:
    Code(xfl &ufl, std::ostream &out): Middlend(ufl), me(*this), out(out) {}
-private:
 #define DECL_RULE(name) \
-   void name##_rn(bool &d, Node*&n) const { d=d?name##_t(n):name##_f(n);}\
-    bool name##_t(Node*&) const; bool name##_f(Node*&) const
+   void name##_r(bool &d, Node*&n) const { d=d?name##_t(n):name##_f(n); }\
+   bool name##_t(Node*&) const;\
+   bool name##_f(Node*&) const
    DECL_RULE(entry_point_statements);
    DECL_RULE(decl_domain_assign_op_expr);
    DECL_RULE(decl_id_list_assign_op_expr);
@@ -101,7 +99,7 @@ private:
 
    void Visit(Rule& r)
    {
-#define CASE_RULE(nm) case (nm): return nm##_rn(r.dfs.down, r.dfs.n);
+#define CASE_RULE(nm) case (nm): return nm##_r(r.dfs.down, r.dfs.n);
       switch (r.n)
       {
             CASE_RULE(entry_point_statements);

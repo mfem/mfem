@@ -13,6 +13,7 @@
 #include <numeric>
 #include <fstream>
 #include <iostream>
+
 #include "mfem.hpp"
 #include "general/forall.hpp"
 #include "fem/kernels.hpp"
@@ -22,7 +23,6 @@
 
 using namespace std;
 using namespace mfem;
-
 
 #define DBG(...) { \
     printf("\033[33m"); \

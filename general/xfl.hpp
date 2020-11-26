@@ -17,6 +17,7 @@
 #include <memory>
 
 // *****************************************************************************
+/** @cond */ // Doxygen warning Detected potential recursive class relation
 template <typename T, typename... Types>
 struct Atom : public Atom<T>, public Atom<Types...>
 {
@@ -33,6 +34,7 @@ struct Middlends : public Middlends<T>, public Middlends<Types...>
    using Middlends<Types...>::Visit;
 };
 template <typename T> struct Middlends<T> { virtual void Visit(T&) = 0; };
+/** @endcond */
 
 // *****************************************************************************
 class xfl;
@@ -43,7 +45,7 @@ struct Token;
 namespace yy { class location; }
 
 // *****************************************************************************
-struct Middlend : public Middlends<Rule, Token>
+struct Middlend /** @cond */: public Middlends<Rule, Token> /** @endcond */
 {
    xfl &ufl;
    Middlend(xfl &ufl) : ufl(ufl) { }
