@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization of the solution.");
    args.AddOption(&vis_orders, "-vis-o", "--visualize-orders", "-no-vis-o",
-                  "--dont-visualize_orders",
+                  "--dont-visualize-orders",
                   "Enable or disable visualization of element orders.");
    args.AddOption(&vis_basis, "-vis-b", "--visualize-bases", "-no-vis-b",
                   "--dont-visualize-bases",
@@ -90,6 +90,7 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
+#if 0
    srand(seed);
    {
       for (int l = 0; l < ref_levels; l++)
@@ -97,6 +98,14 @@ int main(int argc, char *argv[])
          mesh.RandomRefinement(0.5, true);
       }
    }
+#else
+   Array<Refinement> refs;
+   refs.Append(Refinement(0, 1));
+   mesh.GeneralRefinement(refs);
+
+   refs[0].ref_type = 2;
+   mesh.GeneralRefinement(refs);
+#endif
 
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
@@ -128,7 +137,8 @@ int main(int argc, char *argv[])
    //    obtain a variable-order space...
    for (int i = 0; i < mesh.GetNE(); i++)
    {
-      fespace.SetElementOrder(i, order + (rand()%5));
+      //fespace.SetElementOrder(i, order + (rand()%2));
+      fespace.SetElementOrder(i, order);
    }
    fespace.Update(false);
 
@@ -227,44 +237,44 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << mesh << *vis_x;
       if (dim < 3) { sol_sock << "keys ARjlm\n"; }
       delete vis_x;
-   }
 
-   // 15. Visualize element orders
-   if (vis_orders)
-   {
-      L2_FECollection l2fec(0, dim);
-      FiniteElementSpace l2fes(&mesh, &l2fec);
-      GridFunction orders(&l2fes);
-
-      for (int i = 0; i < orders.Size(); i++)
+      // 15. Visualize element orders
+      if (vis_orders)
       {
-         orders(i) = fespace.GetElementOrder(i);
+         L2_FECollection l2fec(0, dim);
+         FiniteElementSpace l2fes(&mesh, &l2fec);
+         GridFunction orders(&l2fes);
+
+         for (int i = 0; i < orders.Size(); i++)
+         {
+            orders(i) = fespace.GetElementOrder(i);
+         }
+
+         socketstream ord_sock(vishost, visport);
+         ord_sock.precision(8);
+         ord_sock << "solution\n" << mesh << orders;
+         if (dim < 3) { ord_sock << "keys ARjlmc\n"; }
       }
 
-      socketstream ord_sock(vishost, visport);
-      ord_sock.precision(8);
-      ord_sock << "solution\n" << mesh << orders;
-      if (dim < 3) { ord_sock << "keys ARjlmc\n"; }
-   }
-
-   // 16. Visualize the basis functions
-   if (vis_basis)
-   {
-      socketstream b_sock(vishost, visport);
-      b_sock.precision(8);
-      cout << "Press SPACE to cycle through basis functions..." << endl;
-
-      for (int i = 0; i < X.Size(); i++)
+      // 16. Visualize the basis functions
+      if (vis_basis)
       {
-         X = 0.0;
-         X(i) = 1.0;
-         a.RecoverFEMSolution(X, b, x);
+         socketstream b_sock(vishost, visport);
+         b_sock.precision(8);
+         cout << "Press SPACE to cycle through basis functions..." << endl;
 
-         GridFunction *vis_x = ProlongToMaxOrder(&x);
-         b_sock << "solution\n" << mesh << *vis_x << flush;
-         if (!i) { b_sock << "keys miIMA\n"; }
-         b_sock << "pause\n" << flush;
-         delete vis_x;
+         for (int i = 0; i < X.Size(); i++)
+         {
+            X = 0.0;
+            X(i) = 1.0;
+            a.RecoverFEMSolution(X, b, x);
+
+            GridFunction *vis_x = ProlongToMaxOrder(&x);
+            b_sock << "solution\n" << mesh << *vis_x << flush;
+            if (!i) { b_sock << "keys miIMA\n"; }
+            b_sock << "pause\n" << flush;
+            delete vis_x;
+         }
       }
    }
 
