@@ -119,8 +119,8 @@ protected:
    Table var_face_dofs; ///< var-order space or mixed mesh: similar for faces
 
    // precalculated DOFs for each element, boundary element, and face
-   mutable Table *elem_dof; // if NURBS FE space, not owned; otherwise, owned.
-   mutable Table *bdr_elem_dof; // not owned only if NURBS FE space.
+   mutable Table *elem_dof; // owned (except in NURBS FE space)
+   mutable Table *bdr_elem_dof; // owned (except in NURBS FE space)
    mutable Table *face_dof; // owned; in var-order space contains variant 0 DOFs
 
    /// Helper mapping for variable order spaces, see InitNDofToOrder().
@@ -130,7 +130,7 @@ protected:
 
    NURBSExtension *NURBSext;
    int own_ext;
-   mutable Array<int> face_to_be; // used only with NURBS FE spaces; owned.
+   mutable Array<int> face_to_be; // NURBS FE space only
 
    /** Matrix representing the prolongation from the global conforming dofs to
        a set of intermediate partially conforming dofs, e.g. the dofs associated

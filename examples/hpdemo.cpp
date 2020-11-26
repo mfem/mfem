@@ -8,7 +8,8 @@
 // Description:  Demonstrates creation of a variable order space and solution
 //               of the Laplace problem -Delta u = 1. The mesh may contain
 //               nonconforming refinements. Works in both 2D and 3D.
-//               Serial FiniteElementSpace only, so far.
+//
+//               At the moment only the serial FiniteElementSpace is supported.
 //
 //               As there is no support in GLVis yet (mainly variable-order
 //               space serialization), we need to prolong the solution to the
@@ -22,6 +23,7 @@ using namespace std;
 using namespace mfem;
 
 GridFunction* ProlongToMaxOrder(const GridFunction *x);
+
 
 int main(int argc, char *argv[])
 {
