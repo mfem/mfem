@@ -56,7 +56,8 @@ YY_DECL;
 
 using symbol_t = yy::parser::symbol_kind_type;
 
-template<int YYN> void rhs(Node**,                       // &yylhs.value
+template<int YYN> void rhs(xfl&,
+                           Node**,                       // &yylhs.value
                            const int,                    // yyn
                            const symbol_t,               // yyr1n (sn)
                            const int,                    // yyr2n (nrhs, yylen)
@@ -66,7 +67,7 @@ template<int YYN> void rhs(Node**,                       // &yylhs.value
     const unsigned char sn_yyn = yyr1_[yyn];\
     const symbol_t sn = yy::parser::yytranslate_(sn_yyn);\
     const char *rule = yy::parser::symbol_name(sn);\
-    rhs<YYN>(&yylhs.value, yyn, sn, yyr2_[yyn], rule, yystack_);}
+    rhs<YYN>(ufl, &yylhs.value, yyn, sn, yyr2_[yyn], rule, yystack_);}
 
 // %warning: %token order has to be sync'ed with the lexer's one
 
@@ -74,9 +75,6 @@ template<int YYN> void rhs(Node**,                       // &yylhs.value
 
 #include "xfl.Y.hpp"
 
-
-// Unqualified %code blocks.
-#include "xfc.hpp"
 
 
 
@@ -2640,25 +2638,25 @@ parser::symbol_name (symbol_kind_type yysymbol)
       "IDENTIFIER", "GT", "LT", "EQ", "ADD", "SUB", "MUL", "DIV", "POW", "LS",
       "RS", "LP", "RP", "LB", "RB", "COMA", "APOSTROPHE", "COLON", "DOT",
       "MOD", "TILDE", "LEFT_SHIFT", "RIGHT_SHIFT", "LT_EQ", "GT_EQ", "NOT_EQ",
-      "AND", "XOR", "OR", "QUESTION", "NOT", "INC_OP", "DEC_OP", "EMPTY",
-      "$accept", "entry_point", "extra_status_rules", "lhs", "statements",
-      "statement", "decl", "primary_id", "postfix_id", "postfix_ids",
-      "id_list", "function", "def_empty", "def_statements", "def_statement",
-      "iteration_statement", "if_statement", "api_statement",
-      "direct_declarator", "domain", "constant", "strings", "api",
-      "primary_expr", "pow_expr", "dot_expr", "postfix_expr", "unary_expr",
-      "unary_op", "cast_expr", "multiplicative_expr", "additive_expr",
-      "shift_expr", "relational_expr", "equality_expr", "and_expr",
-      "exclusive_or_expr", "inclusive_or_expr", "logical_and_expr",
-      "logical_or_expr", "conditional_expr", "assign_expr", "assign_op",
-      "expr", "args_expr_list", "coord", "coords", "primary_math_expr",
-      "dot_math_expr", "postfix_math_expr", "argument_math_expr_list",
-      "unary_math_expr", "unary_math_op", "multiplicative_math_expr",
-      "additive_math_expr", "shift_math_expr", "relational_math_expr",
-      "equality_math_expr", "and_math_expr", "exclusive_or_math_expr",
-      "inclusive_or_math_expr", "logical_and_math_expr",
-      "logical_or_math_expr", "conditional_math_expr", "assign_math_expr",
-      "assign_math_op", "math_expr", YY_NULLPTR
+      "AND", "XOR", "OR", "QUESTION", "NOT", "INC_OP", "DEC_OP",
+      "DOM_DX_PREFIX", "DOM_DX_POSTFIX", "EMPTY", "$accept", "entry_point",
+      "extra_status_rules", "lhs", "statements", "statement", "decl",
+      "primary_id", "postfix_id", "postfix_ids", "id_list", "function",
+      "def_empty", "def_statements", "def_statement", "iteration_statement",
+      "if_statement", "api_statement", "direct_declarator", "domain",
+      "constant", "strings", "api", "primary_expr", "pow_expr", "dot_expr",
+      "postfix_expr", "unary_expr", "unary_op", "cast_expr",
+      "multiplicative_expr", "additive_expr", "shift_expr", "relational_expr",
+      "equality_expr", "and_expr", "exclusive_or_expr", "inclusive_or_expr",
+      "logical_and_expr", "logical_or_expr", "conditional_expr", "assign_expr",
+      "assign_op", "expr", "args_expr_list", "coord", "coords",
+      "primary_math_expr", "dot_math_expr", "postfix_math_expr",
+      "argument_math_expr_list", "unary_math_expr", "unary_math_op",
+      "multiplicative_math_expr", "additive_math_expr", "shift_math_expr",
+      "relational_math_expr", "equality_math_expr", "and_math_expr",
+      "exclusive_or_math_expr", "inclusive_or_math_expr",
+      "logical_and_math_expr", "logical_or_math_expr", "conditional_math_expr",
+      "assign_math_expr", "assign_math_op", "math_expr", YY_NULLPTR
    };
    return yy_sname[yysymbol];
 }
@@ -3251,73 +3249,73 @@ const unsigned char
 parser::yystos_[] =
 {
    0,     4,     6,    10,    11,    12,    13,    16,    17,    23,
-   40,    41,    42,    56,    67,    69,    91,    92,    93,    94,
-   95,    96,    97,    98,    99,   100,   101,   105,   106,   107,
-   108,   109,    56,    67,    67,    67,    67,    67,    56,    98,
-   100,   100,     0,    95,     4,    67,    74,    98,    44,    45,
+   40,    41,    42,    56,    67,    69,    93,    94,    95,    96,
+   97,    98,    99,   100,   101,   102,   103,   107,   108,   109,
+   110,   111,    56,    67,    67,    67,    67,    67,    56,   100,
+   102,   102,     0,    97,     4,    67,    74,   100,    44,    45,
    46,    47,    48,    49,    50,    51,    52,    53,    59,    71,
-   132,   132,    67,    14,    15,    20,    21,    22,    23,    24,
+   134,   134,    67,    14,    15,    20,    21,    22,    23,    24,
    25,    26,    27,    28,    29,    30,    31,    32,    33,    34,
    35,    36,    37,    54,    55,    56,    60,    61,    62,    65,
-   67,    69,    76,    86,   107,   109,   110,   111,   112,   113,
-   114,   115,   116,   117,   118,   119,   120,   121,   122,   123,
-   124,   125,   126,   127,   128,   129,   130,   131,   133,   133,
-   133,   133,   133,    18,    68,    70,    68,   133,    97,    99,
-   133,   133,   131,   134,    67,    67,    67,    67,    67,    67,
-   135,   136,   133,   133,    14,    64,    67,    69,    74,   132,
-   116,   119,    62,    63,    75,    60,    61,    77,    78,    57,
+   67,    69,    76,    86,   109,   111,   112,   113,   114,   115,
+   116,   117,   118,   119,   120,   121,   122,   123,   124,   125,
+   126,   127,   128,   129,   130,   131,   132,   133,   135,   135,
+   135,   135,   135,    18,    68,    70,    68,   135,    99,   101,
+   135,   135,   133,   136,    67,    67,    67,    67,    67,    67,
+   137,   138,   135,   135,    14,    64,    67,    69,    74,   134,
+   118,   121,    62,    63,    75,    60,    61,    77,    78,    57,
    58,    79,    80,    43,    81,    82,    83,    84,    39,    38,
-   85,    68,    71,    68,    68,    68,    68,    19,   132,   132,
-   68,    68,    71,   121,   121,   121,    56,    56,   110,    66,
-   73,    68,    70,    56,   110,    68,   134,   133,   113,   131,
-   119,   119,   119,   120,   120,   121,   121,   122,   122,   122,
-   122,   123,   123,   124,   125,   126,   127,   128,   133,   131,
-   133,    67,   133,   133,    73,     4,   131,    71,    71,    68,
-   68,    68,    71,   135,    68,    70,    73,    56,     4,    67,
-   100,   102,   103,   104,   131,   121,   121,   110,   130,    68,
-   100,   132,     9,     9,   104,    68,    68,    68,    73,    68,
-   133,    15,    20,    21,    22,    56,    60,    61,    62,    67,
-   69,    75,    76,    82,    86,    87,    88,   109,   110,   137,
-   138,   139,   141,   142,   143,   144,   145,   146,   147,   148,
-   149,   150,   151,   152,   153,   154,   156,   156,     4,   133,
-   132,     4,    67,    67,    67,   156,   100,   141,   141,   141,
+   85,    68,    71,    68,    68,    68,    68,    19,   134,   134,
+   68,    68,    71,   123,   123,   123,    56,    56,   112,    66,
+   73,    68,    70,    56,   112,    68,   136,   135,   115,   133,
+   121,   121,   121,   122,   122,   123,   123,   124,   124,   124,
+   124,   125,   125,   126,   127,   128,   129,   130,   135,   133,
+   135,    67,   135,   135,    73,     4,   133,    71,    71,    68,
+   68,    68,    71,   137,    68,    70,    73,    56,     4,    67,
+   102,   104,   105,   106,   133,   123,   123,   112,   132,    68,
+   102,   134,     9,     9,   106,    68,    68,    68,    73,    68,
+   135,    15,    20,    21,    22,    56,    60,    61,    62,    67,
+   69,    75,    76,    82,    86,    87,    88,   111,   112,   139,
+   140,   141,   143,   144,   145,   146,   147,   148,   149,   150,
+   151,   152,   153,   154,   155,   156,   158,   158,     4,   135,
+   134,     4,    67,    67,    67,   158,   102,   143,   143,   143,
    64,    67,    69,    74,    87,    88,    44,    45,    46,    47,
-   48,    49,    50,    51,    52,    53,    59,   155,   141,    62,
+   48,    49,    50,    51,    52,    53,    59,   157,   143,    62,
    63,    75,    60,    61,    77,    78,    57,    58,    79,    80,
-   43,    81,    82,    83,    84,    39,    38,    71,   133,   133,
-   121,   121,   141,   144,    68,    70,   110,   140,   154,   156,
-   56,   154,   141,   141,   141,   143,   143,   144,   144,   145,
-   145,   145,   145,   146,   146,   147,   148,   149,   150,   151,
-   154,     4,    71,    71,    68,    68,    71,    70,   121,   121,
-   154,    68,    68
+   43,    81,    82,    83,    84,    39,    38,    71,   135,   135,
+   123,   123,   143,   146,    68,    70,   112,   142,   156,   158,
+   56,   156,   143,   143,   143,   145,   145,   146,   146,   147,
+   147,   147,   147,   148,   148,   149,   150,   151,   152,   153,
+   156,     4,    71,    71,    68,    68,    71,    70,   123,   123,
+   156,    68,    68
 };
 
 const unsigned char
 parser::yyr1_[] =
 {
-   0,    90,    91,    92,    93,    94,    94,    94,    95,    95,
-   96,    96,    96,    96,    96,    96,    96,    96,    96,    97,
-   98,    98,    98,    98,    99,    99,   100,   100,   101,   101,
-   102,   103,   103,   104,   104,   104,   105,   105,   106,   107,
-   107,   107,   107,   108,   109,   109,   109,   110,   110,   111,
-   111,   112,   112,   112,   112,   112,   112,   112,   112,   112,
-   112,   112,   112,   112,   112,   113,   113,   113,   113,   113,
-   113,   113,   113,   113,   114,   114,   115,   115,   116,   116,
-   116,   116,   116,   116,   116,   116,   116,   116,   117,   117,
-   118,   118,   118,   118,   118,   119,   120,   120,   120,   120,
-   121,   121,   121,   122,   122,   122,   123,   123,   123,   123,
-   123,   124,   124,   124,   125,   125,   126,   126,   127,   127,
-   128,   128,   129,   129,   130,   130,   131,   131,   132,   132,
-   132,   132,   132,   132,   132,   132,   132,   132,   132,   133,
-   133,   134,   134,   134,   135,   136,   136,   137,   137,   137,
-   137,   137,   137,   138,   138,   139,   139,   139,   139,   139,
-   139,   139,   139,   139,   140,   140,   141,   141,   141,   141,
-   141,   142,   142,   142,   142,   142,   142,   143,   143,   143,
-   143,   144,   144,   144,   145,   145,   145,   146,   146,   146,
-   146,   146,   147,   147,   147,   148,   148,   149,   149,   150,
-   150,   151,   151,   152,   152,   153,   154,   154,   155,   155,
-   155,   155,   155,   155,   155,   155,   155,   155,   155,   156,
-   156
+   0,    92,    93,    94,    95,    96,    96,    96,    97,    97,
+   98,    98,    98,    98,    98,    98,    98,    98,    98,    99,
+   100,   100,   100,   100,   101,   101,   102,   102,   103,   103,
+   104,   105,   105,   106,   106,   106,   107,   107,   108,   109,
+   109,   109,   109,   110,   111,   111,   111,   112,   112,   113,
+   113,   114,   114,   114,   114,   114,   114,   114,   114,   114,
+   114,   114,   114,   114,   114,   115,   115,   115,   115,   115,
+   115,   115,   115,   115,   116,   116,   117,   117,   118,   118,
+   118,   118,   118,   118,   118,   118,   118,   118,   119,   119,
+   120,   120,   120,   120,   120,   121,   122,   122,   122,   122,
+   123,   123,   123,   124,   124,   124,   125,   125,   125,   125,
+   125,   126,   126,   126,   127,   127,   128,   128,   129,   129,
+   130,   130,   131,   131,   132,   132,   133,   133,   134,   134,
+   134,   134,   134,   134,   134,   134,   134,   134,   134,   135,
+   135,   136,   136,   136,   137,   138,   138,   139,   139,   139,
+   139,   139,   139,   140,   140,   141,   141,   141,   141,   141,
+   141,   141,   141,   141,   142,   142,   143,   143,   143,   143,
+   143,   144,   144,   144,   144,   144,   144,   145,   145,   145,
+   145,   146,   146,   146,   147,   147,   147,   148,   148,   148,
+   148,   148,   149,   149,   149,   150,   150,   151,   151,   152,
+   152,   153,   153,   154,   154,   155,   156,   156,   157,   157,
+   157,   157,   157,   157,   157,   157,   157,   157,   157,   158,
+   158
 };
 
 const signed char
@@ -3355,29 +3353,29 @@ parser::yyr2_[] =
 const short
 parser::yyrline_[] =
 {
-   0,    95,    95,    98,    99,   101,   101,   101,   103,   103,
-   105,   106,   107,   108,   109,   110,   111,   112,   113,   115,
-   117,   118,   119,   120,   122,   122,   124,   124,   128,   129,
-   130,   131,   131,   132,   133,   134,   138,   139,   142,   145,
-   146,   147,   148,   151,   154,   154,   154,   157,   157,   159,
-   159,   161,   162,   163,   164,   165,   166,   167,   168,   169,
-   170,   171,   172,   173,   174,   176,   177,   178,   179,   180,
-   181,   182,   183,   184,   186,   187,   189,   190,   192,   193,
-   194,   195,   196,   197,   198,   199,   200,   201,   203,   203,
-   205,   205,   205,   205,   205,   207,   209,   210,   211,   212,
-   214,   215,   216,   218,   219,   220,   222,   223,   224,   225,
-   226,   228,   229,   230,   232,   233,   235,   236,   238,   239,
-   241,   242,   244,   245,   247,   248,   250,   251,   253,   254,
-   254,   254,   254,   254,   255,   255,   255,   256,   256,   258,
-   259,   261,   262,   263,   265,   267,   267,   272,   273,   274,
-   275,   276,   277,   280,   281,   284,   285,   286,   287,   288,
-   289,   290,   291,   292,   295,   296,   299,   300,   301,   302,
-   303,   305,   305,   305,   305,   305,   305,   307,   308,   309,
-   310,   312,   313,   314,   316,   317,   318,   320,   321,   322,
-   323,   324,   326,   327,   328,   330,   331,   333,   334,   336,
-   337,   339,   340,   342,   343,   345,   347,   348,   350,   351,
-   351,   351,   351,   351,   352,   352,   352,   353,   353,   355,
-   356
+   0,    93,    93,    96,    97,    99,    99,    99,   101,   101,
+   103,   104,   105,   106,   107,   108,   109,   110,   111,   113,
+   115,   116,   117,   118,   120,   120,   122,   122,   126,   127,
+   128,   129,   129,   130,   131,   132,   136,   137,   140,   143,
+   144,   145,   146,   149,   152,   152,   152,   155,   155,   157,
+   157,   159,   160,   161,   162,   163,   164,   165,   166,   167,
+   168,   169,   170,   171,   172,   174,   175,   176,   177,   178,
+   179,   180,   181,   182,   184,   185,   187,   188,   190,   191,
+   192,   193,   194,   195,   196,   197,   198,   199,   201,   201,
+   203,   203,   203,   203,   203,   205,   207,   208,   209,   210,
+   212,   213,   214,   216,   217,   218,   220,   221,   222,   223,
+   224,   226,   227,   228,   230,   231,   233,   234,   236,   237,
+   239,   240,   242,   243,   245,   246,   248,   249,   251,   252,
+   252,   252,   252,   252,   253,   253,   253,   254,   254,   256,
+   257,   259,   260,   261,   263,   265,   265,   270,   271,   272,
+   273,   274,   275,   278,   279,   282,   283,   284,   285,   286,
+   287,   288,   289,   290,   293,   294,   297,   298,   299,   300,
+   301,   303,   303,   303,   303,   303,   303,   305,   306,   307,
+   308,   310,   311,   312,   314,   315,   316,   318,   319,   320,
+   321,   322,   324,   325,   326,   328,   329,   331,   332,   334,
+   335,   337,   338,   340,   341,   343,   345,   346,   348,   349,
+   349,   349,   349,   349,   350,   350,   350,   351,   351,   353,
+   354
 };
 
 void
@@ -3447,40 +3445,25 @@ static Node* astAddNext(Node* root, Node* n)
 }
 
 // *****************************************************************************
-template<int RN>
-Node* astNewRule(int yyn, const int sn, const char *rule)
-{
-   return astAddNode(std::make_shared<Rule<RN>>(yyn, sn, rule));
-}
-
-// *****************************************************************************
-template<int YYN> void rhs(Node **yylval,
-                           const int yyn,
-                           const yy::parser::symbol_kind_type yyr1n,
-                           const int nrhs,
-                           const char *rule,
-                           yy::parser::stack_type &yystack)
+template<int YYN>
+void rhs(xfl &ufl, Node **yylval,  const int yyn,
+         const symbol_t yyr1n, const int nrhs, const char *rule,
+         yy::parser::stack_type &yystack)
 {
    assert(YYN == yyn);
-   const yy::parser::symbol_kind_type sn = yyr1n;
-   Node *root = *yylval = astNewRule<YYN>(yyn, sn, rule);
+   Node *root = *yylval = ufl.astAddNode(std::make_shared<Rule>(yyn, rule));
    if (nrhs == 0) { return; } // %empty
    Node *n = yystack[nrhs-1].value;
    astAddChild(root, n);
    for (int i = 1; i < nrhs ; i++)
-   {
-      root = n;
-      astAddNext(root, n = yystack[nrhs-1-i].value);
-   }
+   { (root = n, astAddNext(root, n = yystack[nrhs-1-i].value)); }
 }
 
 // *****************************************************************************
-void dfs(Node *n, mfem::internal::Middlend &ir)
+void xfl::dfs(Node *n, Middlend &me)
 {
    if (!n) { return; }
-   bool down = true;
-   Node *extra = n;
-   n->Apply(ir, down, &extra); // down
+   n->Accept(me);
    const int N = n->Number(); // N = SN | RN
    assert(N > 0);
    if (n->IsRule())
@@ -3495,33 +3478,20 @@ void dfs(Node *n, mfem::internal::Middlend &ir)
       assert(N < YYNTOKENS);
    }
    if (n->IsRule()) { yy::rules.at(N) = true; } // Set the state flags
-   if (down && n->child)
+   // If n->dfs.down does not stop us from previous Accept, dfs down
+   if (n->dfs.down && n->child)
    {
-      dfs(n->child, ir);
-      if (extra!=n) { dfs(extra, ir); }
+      dfs(n->child, me);
+      // If dfs.n has changed, re-run a dfs with it
+      if (n->dfs.n != n) { dfs(n->dfs.n, me); }
    }
-   if (n->next) { dfs(n->next, ir); }
+   if (n->next) { dfs(n->next, me); }
    if (n->IsRule()) { yy::rules.at(N) = false; } // Reset the state flags
-   if (n->IsRule()) {n->Apply(ir, down = false, nullptr);} // up, only for rules
-}
-
-// *****************************************************************************
-extern yy::location xfl_location; // defined in xfl.ll
-void yy::parser::error(const location_type& loc, const std::string& msg)
-{
-   std::cerr << xfl_location << ": " << msg << std::endl;
-   abort();
-}
-
-// *****************************************************************************
-template<int RN>
-void Rule<RN>::Apply(mfem::internal::Middlend &ir, bool &dfs, Node **extra)
-{
-   ir.middlend<RN>(this, dfs, extra);
+   if (n->IsRule()) {n->Accept(me, false);} // up, only for rules
 }
 
 // ****************************************************************************
-bool HitRule(const int rule, Node *n)
+bool xfl::HitRule(const int rule, Node *n)
 {
    if (!n) { return false; }
    if (n->IsRule() && n->Number() == rule) { return true; }
@@ -3531,7 +3501,7 @@ bool HitRule(const int rule, Node *n)
 }
 
 // ****************************************************************************
-bool HitToken(const int tok, Node *n)
+bool xfl::HitToken(const int tok, Node *n)
 {
    if (!n) { return false; }
    if (n->IsToken() && n->Number() == tok) { return true; }
@@ -3541,11 +3511,18 @@ bool HitToken(const int tok, Node *n)
 }
 
 // ****************************************************************************
-bool OnlyToken(const int tok, Node *n)
+bool xfl::OnlyToken(const int tok, Node *n)
 {
    assert(n);
    if (n->IsToken() && n->Number() != tok) { return false; }
    if (n->child) { if (!OnlyToken(tok, n->child)) { return false; }}
    if (n->next) { if (!OnlyToken(tok, n->next)) { return false; }}
    return true;
+}
+
+// *****************************************************************************
+void yy::parser::error(const location_type&, const std::string& msg)
+{
+   std::cerr << (*ufl.loc) << ": " << msg << std::endl;
+   abort();
 }

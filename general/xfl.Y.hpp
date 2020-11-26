@@ -785,7 +785,9 @@ public:
          NOT = 86,                      // NOT
          INC_OP = 87,                   // INC_OP
          DEC_OP = 88,                   // DEC_OP
-         EMPTY = 89                     // EMPTY
+         DOM_DX_PREFIX = 89,            // DOM_DX_PREFIX
+         DOM_DX_POSTFIX = 90,           // DOM_DX_POSTFIX
+         EMPTY = 91                     // EMPTY
       };
       /// Backward compatibility alias (Bison 3.6).
       typedef token_kind_type yytokentype;
@@ -802,7 +804,7 @@ public:
    {
       enum symbol_kind_type
       {
-         YYNTOKENS = 90, ///< Number of tokens.
+         YYNTOKENS = 92, ///< Number of tokens.
          S_YYEMPTY = -2,
          S_YYEOF = 0,                             // "end of file"
          S_YYerror = 1,                           // error
@@ -893,74 +895,76 @@ public:
          S_NOT = 86,                              // NOT
          S_INC_OP = 87,                           // INC_OP
          S_DEC_OP = 88,                           // DEC_OP
-         S_EMPTY = 89,                            // EMPTY
-         S_YYACCEPT = 90,                         // $accept
-         S_entry_point = 91,                      // entry_point
-         S_extra_status_rules = 92,               // extra_status_rules
-         S_lhs = 93,                              // lhs
-         S_statements = 94,                       // statements
-         S_statement = 95,                        // statement
-         S_decl = 96,                             // decl
-         S_primary_id = 97,                       // primary_id
-         S_postfix_id = 98,                       // postfix_id
-         S_postfix_ids = 99,                      // postfix_ids
-         S_id_list = 100,                         // id_list
-         S_function = 101,                        // function
-         S_def_empty = 102,                       // def_empty
-         S_def_statements = 103,                  // def_statements
-         S_def_statement = 104,                   // def_statement
-         S_iteration_statement = 105,             // iteration_statement
-         S_if_statement = 106,                    // if_statement
-         S_api_statement = 107,                   // api_statement
-         S_direct_declarator = 108,               // direct_declarator
-         S_domain = 109,                          // domain
-         S_constant = 110,                        // constant
-         S_strings = 111,                         // strings
-         S_api = 112,                             // api
-         S_primary_expr = 113,                    // primary_expr
-         S_pow_expr = 114,                        // pow_expr
-         S_dot_expr = 115,                        // dot_expr
-         S_postfix_expr = 116,                    // postfix_expr
-         S_unary_expr = 117,                      // unary_expr
-         S_unary_op = 118,                        // unary_op
-         S_cast_expr = 119,                       // cast_expr
-         S_multiplicative_expr = 120,             // multiplicative_expr
-         S_additive_expr = 121,                   // additive_expr
-         S_shift_expr = 122,                      // shift_expr
-         S_relational_expr = 123,                 // relational_expr
-         S_equality_expr = 124,                   // equality_expr
-         S_and_expr = 125,                        // and_expr
-         S_exclusive_or_expr = 126,               // exclusive_or_expr
-         S_inclusive_or_expr = 127,               // inclusive_or_expr
-         S_logical_and_expr = 128,                // logical_and_expr
-         S_logical_or_expr = 129,                 // logical_or_expr
-         S_conditional_expr = 130,                // conditional_expr
-         S_assign_expr = 131,                     // assign_expr
-         S_assign_op = 132,                       // assign_op
-         S_expr = 133,                            // expr
-         S_args_expr_list = 134,                  // args_expr_list
-         S_coord = 135,                           // coord
-         S_coords = 136,                          // coords
-         S_primary_math_expr = 137,               // primary_math_expr
-         S_dot_math_expr = 138,                   // dot_math_expr
-         S_postfix_math_expr = 139,               // postfix_math_expr
-         S_argument_math_expr_list = 140,         // argument_math_expr_list
-         S_unary_math_expr = 141,                 // unary_math_expr
-         S_unary_math_op = 142,                   // unary_math_op
-         S_multiplicative_math_expr = 143,        // multiplicative_math_expr
-         S_additive_math_expr = 144,              // additive_math_expr
-         S_shift_math_expr = 145,                 // shift_math_expr
-         S_relational_math_expr = 146,            // relational_math_expr
-         S_equality_math_expr = 147,              // equality_math_expr
-         S_and_math_expr = 148,                   // and_math_expr
-         S_exclusive_or_math_expr = 149,          // exclusive_or_math_expr
-         S_inclusive_or_math_expr = 150,          // inclusive_or_math_expr
-         S_logical_and_math_expr = 151,           // logical_and_math_expr
-         S_logical_or_math_expr = 152,            // logical_or_math_expr
-         S_conditional_math_expr = 153,           // conditional_math_expr
-         S_assign_math_expr = 154,                // assign_math_expr
-         S_assign_math_op = 155,                  // assign_math_op
-         S_math_expr = 156                        // math_expr
+         S_DOM_DX_PREFIX = 89,                    // DOM_DX_PREFIX
+         S_DOM_DX_POSTFIX = 90,                   // DOM_DX_POSTFIX
+         S_EMPTY = 91,                            // EMPTY
+         S_YYACCEPT = 92,                         // $accept
+         S_entry_point = 93,                      // entry_point
+         S_extra_status_rules = 94,               // extra_status_rules
+         S_lhs = 95,                              // lhs
+         S_statements = 96,                       // statements
+         S_statement = 97,                        // statement
+         S_decl = 98,                             // decl
+         S_primary_id = 99,                       // primary_id
+         S_postfix_id = 100,                      // postfix_id
+         S_postfix_ids = 101,                     // postfix_ids
+         S_id_list = 102,                         // id_list
+         S_function = 103,                        // function
+         S_def_empty = 104,                       // def_empty
+         S_def_statements = 105,                  // def_statements
+         S_def_statement = 106,                   // def_statement
+         S_iteration_statement = 107,             // iteration_statement
+         S_if_statement = 108,                    // if_statement
+         S_api_statement = 109,                   // api_statement
+         S_direct_declarator = 110,               // direct_declarator
+         S_domain = 111,                          // domain
+         S_constant = 112,                        // constant
+         S_strings = 113,                         // strings
+         S_api = 114,                             // api
+         S_primary_expr = 115,                    // primary_expr
+         S_pow_expr = 116,                        // pow_expr
+         S_dot_expr = 117,                        // dot_expr
+         S_postfix_expr = 118,                    // postfix_expr
+         S_unary_expr = 119,                      // unary_expr
+         S_unary_op = 120,                        // unary_op
+         S_cast_expr = 121,                       // cast_expr
+         S_multiplicative_expr = 122,             // multiplicative_expr
+         S_additive_expr = 123,                   // additive_expr
+         S_shift_expr = 124,                      // shift_expr
+         S_relational_expr = 125,                 // relational_expr
+         S_equality_expr = 126,                   // equality_expr
+         S_and_expr = 127,                        // and_expr
+         S_exclusive_or_expr = 128,               // exclusive_or_expr
+         S_inclusive_or_expr = 129,               // inclusive_or_expr
+         S_logical_and_expr = 130,                // logical_and_expr
+         S_logical_or_expr = 131,                 // logical_or_expr
+         S_conditional_expr = 132,                // conditional_expr
+         S_assign_expr = 133,                     // assign_expr
+         S_assign_op = 134,                       // assign_op
+         S_expr = 135,                            // expr
+         S_args_expr_list = 136,                  // args_expr_list
+         S_coord = 137,                           // coord
+         S_coords = 138,                          // coords
+         S_primary_math_expr = 139,               // primary_math_expr
+         S_dot_math_expr = 140,                   // dot_math_expr
+         S_postfix_math_expr = 141,               // postfix_math_expr
+         S_argument_math_expr_list = 142,         // argument_math_expr_list
+         S_unary_math_expr = 143,                 // unary_math_expr
+         S_unary_math_op = 144,                   // unary_math_op
+         S_multiplicative_math_expr = 145,        // multiplicative_math_expr
+         S_additive_math_expr = 146,              // additive_math_expr
+         S_shift_math_expr = 147,                 // shift_math_expr
+         S_relational_math_expr = 148,            // relational_math_expr
+         S_equality_math_expr = 149,              // equality_math_expr
+         S_and_math_expr = 150,                   // and_math_expr
+         S_exclusive_or_math_expr = 151,          // exclusive_or_math_expr
+         S_inclusive_or_math_expr = 152,          // inclusive_or_math_expr
+         S_logical_and_math_expr = 153,           // logical_and_math_expr
+         S_logical_or_math_expr = 154,            // logical_or_math_expr
+         S_conditional_math_expr = 155,           // conditional_math_expr
+         S_assign_math_expr = 156,                // assign_math_expr
+         S_assign_math_op = 157,                  // assign_math_op
+         S_math_expr = 158                        // math_expr
       };
    };
 
@@ -1503,10 +1507,8 @@ private: // XFL
 
 // "%code provides" blocks.
 
-using TOK = yy::parser::token;
-constexpr int YYTOKENSHIFT(int T) { return T - TOK::LL_SHIFT + 3; }
-constexpr int YYTOKENUNSHIFT(int T) { return T + TOK::LL_SHIFT - 3;}
-#define YY_DECL int yylex (Node* *yylval, yy::location*, xfl &ufl)
+#include "xfc.hpp"
+#define YY_DECL int yylex(Node* *yylval, yy::location*, xfl &ufl)
 
 
 

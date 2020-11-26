@@ -15,50 +15,74 @@
 #include <array>
 #include <string>
 #include <memory>
-#include <iostream>
-#include <cerrno>
-#include <climits>
-#include <cstdlib>
-#include <cassert>
-#include <cstring>
 
 // *****************************************************************************
-#define DBG(...) {\
-    printf("\033[32m"); printf(__VA_ARGS__); printf("\033[m"); fflush(0); }
+template <typename T, typename... Types>
+struct Atom : public Atom<T>, public Atom<Types...>
+{
+   using Atom<T>::Accept;
+   using Atom<Types...>::Accept;
+};
+template <typename T> struct Atom<T>
+{ virtual void Accept(T&, const bool = true) = 0; };
 
-namespace mfem { namespace internal { struct Middlend; } }
+template <typename T, typename... Types>
+struct Middlends : public Middlends<T>, public Middlends<Types...>
+{
+   using Middlends<T>::Visit;
+   using Middlends<Types...>::Visit;
+};
+template <typename T> struct Middlends<T> { virtual void Visit(T&) = 0; };
 
 // *****************************************************************************
-struct Node
+class xfl;
+class Debug;
+struct Node;
+struct Rule;
+struct Token;
+namespace yy { class location; }
+
+// *****************************************************************************
+struct Middlend : public Middlends<Rule, Token>
+{
+   xfl &ufl;
+   Middlend(xfl &ufl) : ufl(ufl) { }
+};
+
+// *****************************************************************************
+struct Node: public Atom<Middlend>
 {
    int n;
    std::string name;
    bool keep {false};
    int id {0}, nnext {0};
+   struct {bool down; Node *n;} dfs {true, nullptr};
    Node *next {nullptr}, *child {nullptr}, *root {nullptr};
-   Node(int n, int sn, const char *name): n(n), name(name) {}
+   Node(int n, const char *name): n(n), name(name) {}
    const int Number() const { return n; }
    const std::string Name() const { return name; }
-   virtual ~Node() {}
-   virtual void Apply(mfem::internal::Middlend&, bool&, Node** = nullptr) = 0;
+   const char *CStr() const { return name.c_str(); }
+   virtual void Accept(Middlend&, const bool down = true) = 0;
    virtual const bool IsRule() const = 0;
    virtual const bool IsToken() const = 0;
+   virtual ~Node() {}
 };
 
 // *****************************************************************************
-template<int RN> struct Rule : public Node
+struct Rule : public Node
 {
-   Rule(int rn, int sn, const char *name): Node(rn, sn, name) {}
-   void Apply(mfem::internal::Middlend&, bool&, Node** = nullptr);
+   Rule(int rn, const char *name): Node(rn, name) {}
+   void Accept(Middlend &me, const bool down = true)
+   { dfs.down = down; dfs.n = this; me.Visit(*this); }
    const bool IsRule() const { return true; }
    const bool IsToken() const { return false; }
 };
 
 // *****************************************************************************
-template<int TK> struct Token : public Node
+struct Token : public Node
 {
-   Token(int tk, int sn, const char *name): Node(tk, sn, name) {}
-   void Apply(mfem::internal::Middlend&, bool&, Node** = nullptr);
+   Token(int tk, const char *name): Node(tk, name) {}
+   void Accept(Middlend &me, const bool down = true) { me.Visit(*this); }
    const bool IsRule() const { return false; }
    const bool IsToken() const { return true; }
 };
@@ -66,34 +90,35 @@ template<int TK> struct Token : public Node
 // *****************************************************************************
 class xfl
 {
+   using Node_sptr = std::shared_ptr<Node>;
 public:
    Node *root;
-   bool trace_parsing;
-   bool trace_scanning;
-   std::string i_filename, o_filename;
+   yy::location *loc;
+   bool yy_debug;
+   bool ll_debug;
+   std::string &input, &output;
+   struct {int debug; bool echo;} ll;
 public:
-   xfl(): root(nullptr), trace_parsing(false), trace_scanning(false) {}
-   void ll_open();
-   void ll_close();
-   int yy_parse(const std::string&);
+   xfl(bool yy_debug, bool ll_debug, std::string &input, std::string &output);
+   ~xfl();
+   int open();
+   int close();
+   int parse(const std::string&, std::ostream&);
+   int morph(std::ostream&);
+   int code(std::ostream&);
    Node* &Root() { return root;}
+public:
+   Node *astAddNode(Node_sptr);
+   void dfs(Node*, Middlend&);
+   bool HitRule(const int, Node*);
+   bool HitToken(const int, Node*);
+   bool OnlyToken(const int, Node*);
 };
 
 // *****************************************************************************
-namespace yy
-{
-extern int debug;
-extern bool echo;
-} // yy
-
-// *****************************************************************************
-Node *astAddNode(std::shared_ptr<Node>);
-void yyerror(Node**, char const*);
-
-// *****************************************************************************
-void dfs(Node*, mfem::internal::Middlend&);
-bool HitRule(const int, Node*);
-bool HitToken(const int, Node*);
-bool OnlyToken(const int, Node*);
+#define DBG(...) { printf("\033[33m");  \
+                   printf(__VA_ARGS__); \
+                   printf(" \n\033[m"); \
+                   fflush(0); }
 
 #endif // MFEM_XFL_HPP

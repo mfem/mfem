@@ -15,6 +15,9 @@
 #include "xfc.hpp"
 
 // ****************************************************************************
+extern yy::location xfl_location; // defined in xfl.ll
+
+// ****************************************************************************
 // * tr \" to \'
 // ****************************************************************************
 static const char* strKillQuote(const std::string &str)
@@ -126,67 +129,53 @@ int astTreeSave(const char* file_name, Node *root, const bool simplify)
 }
 
 // ****************************************************************************
-using Node_ptr = std::shared_ptr<Node>;
-
-Node *astAddNode(Node_ptr n_ptr)
+Node *xfl::astAddNode(Node_sptr n_ptr)
 {
    assert(n_ptr);
-   static std::list<Node_ptr> node_list_to_be_destructed;
+   static std::list<Node_sptr> node_list_to_be_destructed;
    node_list_to_be_destructed.push_back(n_ptr);
    return n_ptr.get();
 }
 
-extern yy::location xfl_location; // defined in xfl.ll
+// *****************************************************************************
+xfl::xfl(bool yy_debug, bool ll_debug, std::string &input, std::string &output):
+   root(nullptr), loc(new yy::location(&input)),
+   yy_debug(yy_debug), ll_debug(ll_debug),
+   input(input), output(output) { }
 
 // *****************************************************************************
-int xfl::yy_parse(const std::string &f)
+int xfl::parse(const std::string &f, std::ostream &out)
 {
-   const bool is_i_file = !i_filename.empty();
-   const bool is_o_file = !o_filename.empty();
-   std::ifstream i_file(i_filename.c_str(), std::ios::in | std::ios::binary);
-   if (is_i_file)
-   {
-      //DBG("is_i_file");
-      assert(!i_file.fail());
-      assert(i_file.is_open());
-   }
-   std::ofstream o_file(o_filename.c_str(),
-                        std::ios::out | std::ios::binary | std::ios::trunc);
-   if (is_o_file)
-   {
-      //DBG("is_o_file");
-      assert(o_file.is_open());
-   }
-   //std::istream &in = is_i_file ? i_file : std::cin;
-   std::ostream &out = is_o_file ? o_file : std::cout;
-
-   if (!is_i_file)
-   {
-      //DBG("!is_i_file");
-      i_filename = f;
-   }
-   xfl_location.initialize(&i_filename);
-
-   ll_open();
-   yy::parser parse(*this);
-   parse.set_debug_level(trace_parsing);
-   const int result = parse ();
-   ll_close();
-
+   yy::parser parser(*this);
+   parser.set_debug_level(yy_debug);
+   const int result = parser();
    assert(root);
-   {
-      struct mfem::internal::XIR dev(out);
-      dfs(root, dev);
-   }
-
-   //astTreeSave("ast", root, true);
-
-   fflush(NULL);
    return result;
 }
 
 // *****************************************************************************
-namespace cst
+xfl::~xfl() { delete loc; }
+
+// *****************************************************************************
+int xfl::morph(std::ostream &out)
+{
+   // First transformation to add prefix/postfix to DOM_DX
+   mfem::internal::DomDx dx(*this, out);
+   dfs(root, dx);
+   return EXIT_SUCCESS;
+}
+
+// *****************************************************************************
+int xfl::code(std::ostream &out)
+{
+   // Then code generation
+   mfem::internal::Code me(*this, out);
+   dfs(root, me);
+   return EXIT_SUCCESS;
+}
+
+// *****************************************************************************
+namespace version
 {
 
 constexpr double gratio(int n) { return n <= 1 ? 1.0 : 1.0 + 1.0/gratio(n-1); }
@@ -196,7 +185,7 @@ constexpr T gdrt(T x = 1.0, T eps = 1.e-15L)
 {
    return x > 2 ? 0 :
           (x*(x-1.0L) >= (1.0L-eps)) && (x*(x-1.0L) <= (1.0L+eps)) ? x :
-          cst::gdrt(1.L+1.L/x, eps);
+          version::gdrt(1.L+1.L/x, eps);
 }
 
 } // cst namespace
@@ -205,49 +194,57 @@ constexpr T gdrt(T x = 1.0, T eps = 1.e-15L)
 // 1.6180339887498948482045868343656381L
 #define XFL_N 1
 #define XFL_pre -1.0
-#define XFL_ver cst::gdrt() XFL_pre
+#define XFL_ver version::gdrt() XFL_pre
 #define XFL_str(n) #n
 #define XFL_man(n) "[1;36m[XFL] version %." XFL_str(n) "Lf[m\n"
 
 // *****************************************************************************
 int main (int argc, char *argv[])
 {
-   xfl ufl;
    bool ast = false;
+   bool yy_debug = false;
+   bool ll_debug = false;
+   std::string input, output;
+
    if (argc == 1) { exit(~0 | fprintf(stderr, XFL_man(XFL_N), XFL_ver)); }
+
    for (int i = 1; i < argc; ++i)
    {
-      if (argv[i] == std::string ("-p"))
-      {
-         ufl.trace_parsing = true;
-      }
-      else if (argv[i] == std::string ("-s"))
-      {
-         ufl.trace_scanning = true;
-      }
-      else if (argv[i] == std::string ("-i"))
-      {
-         ufl.i_filename.assign(argv[++i]);
-         //DBG("-i %s\n", ufl.i_filename.c_str());
-      }
-      else if (argv[i] == std::string ("-o"))
-      {
-         ufl.o_filename.assign(argv[++i]);
-         //DBG("-o %s\n", ufl.o_filename.c_str());
-      }
+      if (argv[i] == std::string ("-p")) { yy_debug = true; }
+      else if (argv[i] == std::string ("-s")) { ll_debug = true; }
+      else if (argv[i] == std::string ("-i")) { input.assign(argv[++i]); }
+      else if (argv[i] == std::string ("-o")) { output.assign(argv[++i]); }
       else if (argv[i] == std::string ("-t")) { ast = true; }
-      else
-      {
-         //DBG("filename: '%s'\n", argv[i]);
-         break;
-      }
+      else { break; }
    }
+   const std::string &last_argv = argv[argc-1];
 
-   const bool is_i_file = !ufl.i_filename.empty();
-   const bool is_o_file = !ufl.o_filename.empty();
-   if (is_i_file != is_o_file) { assert(false); }
+   const bool is_i_file = !input.empty();
+   const bool is_o_file = !output.empty();
+   // Make sure either both or none are set
+   assert (!(is_i_file ^ is_o_file));
 
-   if (ufl.yy_parse(argv[argc-1]) != 0) { return EXIT_FAILURE; }
+   std::ifstream i_file(input.c_str(), std::ios::in | std::ios::binary);
+   if (is_i_file) { assert(!i_file.fail() && i_file.is_open()); }
+   else { input = last_argv; }
+
+   xfl ufl(yy_debug, ll_debug, input, output);
+
+   constexpr auto os = std::ios::out | std::ios::binary | std::ios::trunc;
+   std::ofstream o_file(output.c_str(), os);
+   if (is_o_file) { assert(o_file.is_open()); }
+
+   std::ostream &out = is_o_file ? o_file : std::cout;
+
+   if (ufl.open() != 0) { return EXIT_FAILURE; }
+
+   if (ufl.parse(last_argv, out) != 0) { return EXIT_FAILURE; }
+
+   if (ufl.close() != 0) { return EXIT_FAILURE; }
+
+   if (ufl.morph(out) != 0 ) { return EXIT_FAILURE; }
+
+   if (ufl.code(out) != 0 ) { return EXIT_FAILURE; }
 
    if (ast) { astTreeSave("ast", ufl.root, false); }
 

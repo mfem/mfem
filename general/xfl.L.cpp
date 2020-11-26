@@ -756,15 +756,15 @@ int yy_flex_debug = 1;
 static const flex_int16_t yy_rule_linenum[91] =
 {
    0,
-   64,   65,   66,   67,   69,   70,   71,   72,   73,   74,
-   75,   76,   77,   78,   79,   80,   81,   82,   83,   84,
-   85,   86,   87,   88,   89,   90,   91,   92,   93,   94,
-   95,   96,   97,   98,   99,  100,  101,  102,  103,  104,
-   105,  106,  107,  108,  109,  110,  111,  112,  113,  114,
-   115,  116,  117,  118,  119,  120,  121,  122,  123,  124,
-   125,  126,  127,  128,  129,  130,  131,  132,  133,  134,
-   135,  136,  137,  138,  139,  140,  141,  142,  143,  144,
-   145,  146,  147,  148,  149,  150,  151,  152,  153,  154
+   58,   59,   60,   61,   62,   63,   64,   65,   66,   67,
+   68,   69,   70,   71,   72,   73,   74,   75,   76,   77,
+   78,   79,   80,   81,   82,   83,   84,   85,   86,   87,
+   88,   89,   90,   91,   92,   93,   94,   95,   96,   97,
+   98,   99,  100,  101,  102,  103,  104,  105,  106,  107,
+   108,  109,  110,  111,  112,  113,  114,  115,  116,  117,
+   118,  119,  120,  121,  122,  123,  124,  125,  126,  127,
+   128,  129,  130,  131,  132,  133,  134,  135,  136,  137,
+   138,  139,  140,  141,  142,  143,  144,  145,  146,  147
 } ;
 
 static yy_state_type *yy_state_buf=0, *yy_state_ptr=0;
@@ -799,27 +799,22 @@ char *yytext;
 #include "xfl.Y.hpp"
 #include "xfc.hpp"
 
+// *****************************************************************************
 using token_t = yy::parser::token_kind_type;
 
 // *****************************************************************************
-yy::location xfl_location;
+static token_t update(xfl&);
+static token_t new_line(xfl&);
+static token_t line_token(xfl&, Node**, const char*);
+static token_t line_comment(xfl&);
+static token_t block_comment(xfl&);
+static token_t spaces(xfl &ufl) { return update(ufl); }
+static void llerror(xfl&, char const*);
+static token_t token(xfl&, Node**, token_t TOK_TK, const char *TOK_STR,
+                     const char *yytext, token_t = TOK::YYEMPTY);
 
 // *****************************************************************************
-static token_t update();
-// keep this template to hold *one* LL_TOK per line
-template<int> static token_t back_slash();
-template<int> static token_t line_comment();
-template<int> static token_t block_comment();
-template<int> static token_t blank() { return update(); }
-
-template <int> static token_t token(Node**, token_t,
-                     const char *TK_string,
-                     const char *yytext,
-                     token_t = TOK::YYEMPTY);
-
-// *****************************************************************************
-#define LL_TOK (YYTOKENUNSHIFT(__COUNTER__))
-#define _(TK) return token<LL_TOK>( yylval, TOK::TK, #TK, yytext, update());
+#define _(TK) return token(ufl, yylval, TOK::TK, #TK, yytext, update(ufl));
 
 
 
@@ -1184,7 +1179,6 @@ YY_DECL
 /* %% [7.0] user's declarations go here */
 
 
-
 	while ( /*CONSTCOND*/1 )		/* loops until end-of-file is reached */
 		{
 /* %% [8.0] yymore()-related code goes here */
@@ -1272,21 +1266,20 @@ do_action:	/* This label is used only to access EOF actions. */
 /* %% [13.0] actions go here */
 case 1:
 YY_RULE_SETUP
-blank<LL_TOK>();
+spaces(ufl);
 	YY_BREAK
 case 2:
 /* rule 2 can match eol */
 YY_RULE_SETUP
-back_slash<LL_TOK>();
+new_line(ufl);
 	YY_BREAK
 case 3:
 YY_RULE_SETUP
-block_comment<LL_TOK>();
+block_comment(ufl);
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
-{ return token<TOK::NL>(yylval, TOK::NL, "NL",
-                                   yytext, line_comment<LL_TOK>()); }
+{ return line_token(ufl, yylval, yytext); }
 	YY_BREAK
 case 5:
 /* rule 5 can match eol */
@@ -1633,7 +1626,7 @@ _(DEC_OP)
 	YY_BREAK
 case 90:
 YY_RULE_SETUP
-{ yyerror(yylval, "unexpected token"); REJECT }
+{ llerror(ufl, "unexpected token"); REJECT }
 	YY_BREAK
 case YY_STATE_EOF(INITIAL):
 return TOK::YYEOF;
@@ -2812,138 +2805,101 @@ void yyfree (void * ptr )
 // *INDENT-ON*
 
 // ****************************************************************************
-namespace yy { bool echo = false; }
-
-// ****************************************************************************
-template<int TK>
-Node* astNewToken(int tk, const int sn, const char *text)
-{
-   return astAddNode(std::make_shared<Token<TK>>(tk, sn, text));
-}
-
-// ****************************************************************************
-// * Tokenizer
-// ****************************************************************************
-template <int TK>
-static token_t token(Node* *yylval, token_t token, const char *tok,
+static token_t token(xfl &ufl, Node* *yylval, token_t TK, const char *tok,
                      const char *yytext, token_t /*updated*/)
 {
-   assert(TK == token);
-   const int sn = TK;//yy::Translate(token);
-   xfl_location.step();
-   //DBG("(TK:%d token:%d sn:%d '%s:%s')\n", TK, token, sn, tok, yytext);
-   const char *text = token == yy::parser::token::NL ? "\\\\n" : strdup(yytext);
-   *yylval = astNewToken<TK>(TK, sn, text);
-   return token;
+   ufl.loc->step();
+   const char *text = (TK == yy::parser::token::NL) ? "\\\\n" : strdup(yytext);
+   *yylval = ufl.astAddNode(std::make_shared<Token>(TK, text));
+   return TK;
 }
 
 // *****************************************************************************
-template <int>
-static token_t block_comment(void)
+static token_t block_comment(xfl &ufl)
 {
-   xfl_location.step();
-   if (yy::echo) { DBG("\"\"\""); }
+   ufl.loc->step();
    char c, prev = 0, prev2 = 0;
    while ((c = yyinput()) != 0)
    {
       if (c == '\n')
       {
-         xfl_location.lines(1);
-         if (yy::echo) { DBG("\n"); }
+         ufl.loc->lines(1);
          continue;
       }
-      if (yy::echo) { DBG("%c",c); }
       if (c == '\"' && prev == '\"' && prev2 == '\"') { return TOK::EMPTY; }
       prev2 = prev;
       prev = c;
    }
-   xfl_location.step();
+   ufl.loc->step();
    return TOK::EMPTY;
 }
 
 // *****************************************************************************
-template <int>
-static token_t line_comment(void)
+static token_t line_token(xfl &ufl, Node* *yylval, const char *yytext)
 {
-   if (yy::echo) { DBG("#"); }
+   return token(ufl, yylval, TOK::NL, "NL", yytext, line_comment(ufl));
+}
+
+// *****************************************************************************
+static token_t line_comment(xfl &ufl)
+{
    char c;
    while ((c = yyinput()) != 0)
    {
-      if (yy::echo) { DBG("%c",c); }
       if (c == '\n')
       {
-         xfl_location.lines(1);
-         xfl_location.step();
+         ufl.loc->lines(1);
+         ufl.loc->step();
          return TOK::NL;
       }
    }
-   xfl_location.step();
+   ufl.loc->step();
    return TOK::NL;
 }
 
 // *****************************************************************************
-template <int>
-static token_t back_slash(void)
+static token_t new_line(xfl &ufl)
 {
    assert(yytext[0] == '\\');
    assert(yytext[1] == '\n');
-   xfl_location.lines(1);
-   xfl_location.step();
+   ufl.loc->lines(1);
+   ufl.loc->step();
    return TOK::EMPTY;
 }
 
 // *****************************************************************************
-static token_t update(void)
+static token_t update(xfl &ufl)
 {
    for (int i = 0; yytext[i] != '\0'; i++)
    {
-      //loc.Echo(yytext[i]);
-      if (yytext[i] == '\n')
-      {
-         xfl_location.lines(1);
-      }
-      else if (yytext[i] == '\t')
-      {
-         xfl_location.columns(1);
-      }
-      else
-      {
-         xfl_location.columns(1);
-      }
+      if (yytext[i] == '\n') { ufl.loc->lines(1); }
+      else if (yytext[i] == '\t') { ufl.loc->columns(1); }
+      else { ufl.loc->columns(1); }
    }
-   if (yy::echo) { ECHO; }
-   xfl_location.step();
+   ufl.loc->step();
    return TOK::EMPTY;
 }
 
 // *****************************************************************************
-template<int TK>
-void Token<TK>::Apply(mfem::internal::Middlend &ir, bool &dfs, Node**)
+static void llerror(xfl &ufl, char const *msg)
 {
-   if (dfs && yy::echo)
-   { DBG("\033[33m[Apply] #%d %s", TK, Name().c_str()); }
-   //{ DBG("\033[33m[Apply] #%d %s (%s)", TK, Name().c_str(), Text().c_str()); }
-   ir.middlend<TK>(this);
-}
-
-// *****************************************************************************
-void yyerror(Node**, char const *msg)
-{
-   std::cerr << xfl_location << ": " << msg << std::endl;
+   std::cerr << *ufl.loc << ": " << msg << std::endl;
    abort();
 }
 
 // *****************************************************************************
-void xfl::ll_open()
+int xfl::open()
 {
-   yy_flex_debug = trace_scanning;
-   if (i_filename.empty() || i_filename == "-") { yyin = stdin; }
-   else if (!(yyin = fopen(i_filename.c_str (), "r")))
+   yy_flex_debug = ll_debug;
+   if (input.empty() || input == "-") { yyin = stdin; }
+   else if (!(yyin = fopen(input.c_str (), "r")))
    {
-      std::cerr << "cannot open " << i_filename << ": " << strerror(errno) << '\n';
-      exit (EXIT_FAILURE);
+      std::cerr << "cannot open " << input << ": " << strerror(errno) << '\n';
+      return EXIT_FAILURE;
    }
+   return EXIT_SUCCESS;
 }
 
-void xfl::ll_close() { fclose(yyin); }
+// *****************************************************************************
+int xfl::close() { return fclose(yyin); }
 

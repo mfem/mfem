@@ -618,6 +618,9 @@ struct XFLForm
    XFLForm &operator -(XFLForm rhs) { return *this + rhs; /*!*/ }
 };
 
+/// Forwarding Form prefix/postfix
+template<typename T> T &NewForm(T &&form) { return form; }
+
 /** ****************************************************************************
  * @brief The Function class
  ******************************************************************************/
