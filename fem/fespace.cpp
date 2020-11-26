@@ -70,7 +70,7 @@ FiniteElementSpace::FiniteElementSpace()
 FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
                                        Mesh *mesh,
                                        const FiniteElementCollection *fec)
-   : relaxed_hp(orig.relaxed_hp) // FIXME: orders_changed? test
+   : relaxed_hp(orig.relaxed_hp)
 {
    mesh = mesh ? mesh : orig.mesh;
    fec = fec ? fec : orig.fec;
@@ -2208,10 +2208,12 @@ int FiniteElementSpace::GetNVariants(int entity, int index) const
    return dof_table.GetRow(index + 1) - dof_table.GetRow(index);
 }
 
+static const char* msg_orders_changed =
+   "Element orders changed, you need to Update() the space first.";
+
 void FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs) const
 {
-   // FIXME
-   //if (orders_changed) { CheckUpToDate(); }
+   MFEM_VERIFY(!orders_changed, msg_orders_changed);
 
    if (elem_dof)
    {
@@ -2318,6 +2320,8 @@ const FiniteElement *FiniteElementSpace::GetFE(int i) const
 
 void FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs) const
 {
+   MFEM_VERIFY(!orders_changed, msg_orders_changed);
+
    if (bdr_elem_dof)
    {
       bdr_elem_dof->GetRow(bel, dofs);
@@ -2389,6 +2393,8 @@ void FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs) const
 int FiniteElementSpace::GetFaceDofs(int face, Array<int> &dofs,
                                     int variant) const
 {
+   MFEM_VERIFY(!orders_changed, msg_orders_changed);
+
    // If face_dof is already built, use it.
    // If it is not and we have a NURBS space, build the face_dof and use it.
    if ((face_dof && variant == 0) ||
@@ -2467,6 +2473,8 @@ int FiniteElementSpace::GetFaceDofs(int face, Array<int> &dofs,
 int FiniteElementSpace::GetEdgeDofs(int edge, Array<int> &dofs,
                                     int variant) const
 {
+   MFEM_VERIFY(!orders_changed, msg_orders_changed);
+
    int p, ne, base;
    if (IsVariableOrder())
    {
@@ -2514,11 +2522,9 @@ int FiniteElementSpace::GetEdgeDofs(int edge, Array<int> &dofs,
 
 void FiniteElementSpace::GetVertexDofs(int i, Array<int> &dofs) const
 {
-   int j, nv;
-
-   nv = fec->DofForGeometry(Geometry::POINT);
+   int nv = fec->DofForGeometry(Geometry::POINT);
    dofs.SetSize(nv);
-   for (j = 0; j < nv; j++)
+   for (int j = 0; j < nv; j++)
    {
       dofs[j] = i*nv+j;
    }
@@ -2526,6 +2532,8 @@ void FiniteElementSpace::GetVertexDofs(int i, Array<int> &dofs) const
 
 void FiniteElementSpace::GetElementInteriorDofs(int i, Array<int> &dofs) const
 {
+   MFEM_VERIFY(!orders_changed, msg_orders_changed);
+
    int nb = fec->GetNumDof(mesh->GetElementGeometry(i), GetElementOrderImpl(i));
    int base = bdofs ? bdofs[i] : i*nb;
 
@@ -2539,16 +2547,17 @@ void FiniteElementSpace::GetElementInteriorDofs(int i, Array<int> &dofs) const
 
 int FiniteElementSpace::GetNumElementInteriorDofs(int i) const
 {
-   return fec->GetNumDof(mesh->GetElementGeometry(i), GetElementOrderImpl(i));
+   return fec->GetNumDof(mesh->GetElementGeometry(i),
+                         GetElementOrderImpl(i));
 }
 
 void FiniteElementSpace::GetEdgeInteriorDofs(int i, Array<int> &dofs) const
 {
-   int j, k, ne;
+   MFEM_VERIFY(!IsVariableOrder(), "not implemented");
 
-   ne = fec -> DofForGeometry (Geometry::SEGMENT);
+   int ne = fec->DofForGeometry(Geometry::SEGMENT);
    dofs.SetSize (ne);
-   for (j = 0, k = nvdofs+i*ne; j < ne; j++, k++)
+   for (int j = 0, k = nvdofs+i*ne; j < ne; j++, k++)
    {
       dofs[j] = k;
    }
@@ -2556,8 +2565,10 @@ void FiniteElementSpace::GetEdgeInteriorDofs(int i, Array<int> &dofs) const
 
 void FiniteElementSpace::GetFaceInteriorDofs(int i, Array<int> &dofs) const
 {
+   MFEM_VERIFY(!IsVariableOrder(), "not implemented");
+
    int nf, base;
-   if (var_face_dofs.Size() > 0)
+   if (var_face_dofs.Size() > 0) // mixed faces
    {
       base = var_face_dofs.GetRow(i)[0];
       nf = var_face_dofs.GetRow(i)[1] - base;
@@ -2578,8 +2589,6 @@ void FiniteElementSpace::GetFaceInteriorDofs(int i, Array<int> &dofs) const
 
 const FiniteElement *FiniteElementSpace::GetBE(int i) const
 {
-   const FiniteElement *BE;
-
    int order = fec->DefaultOrder();
 
    if (IsVariableOrder()) // determine order from adjacent element
@@ -2589,7 +2598,8 @@ const FiniteElement *FiniteElementSpace::GetBE(int i) const
       order = elem_order[elem];
    }
 
-   switch ( mesh->Dimension() )
+   const FiniteElement *BE;
+   switch (mesh->Dimension())
    {
       case 1:
          BE = fec->GetFE(Geometry::POINT, order);
@@ -2612,8 +2622,9 @@ const FiniteElement *FiniteElementSpace::GetBE(int i) const
 
 const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
 {
-   const FiniteElement *fe;
+   MFEM_VERIFY(!IsVariableOrder(), "not implemented");
 
+   const FiniteElement *fe;
    switch (mesh->Dimension())
    {
       case 1:
