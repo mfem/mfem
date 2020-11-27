@@ -144,7 +144,7 @@ int FiniteElementSpace::GetEdgeOrder(int edge, int variant) const
    if (variant >= end - beg) { return -1; } // past last variant
 
    int ndof = beg[variant+1] - beg[variant];
-   int order = ndof_to_geom_order[Geometry::SEGMENT].at(ndof);
+   int order = geom_ndof_order[Geometry::SEGMENT].at(ndof);
    MFEM_ASSERT(fec->GetNumDof(Geometry::SEGMENT, order) == ndof, "");
 
    return order;
@@ -160,7 +160,7 @@ int FiniteElementSpace::GetFaceOrder(int face, int variant) const
 
    int ndof = beg[variant+1] - beg[variant];
    auto fgeom = mesh->GetFaceGeometry(face);
-   int order = ndof_to_geom_order[fgeom].at(ndof);
+   int order = geom_ndof_order[fgeom].at(ndof);
    MFEM_ASSERT(fec->GetNumDof(fgeom, order) == ndof, "");
 
    return order;
@@ -2116,13 +2116,13 @@ void FiniteElementSpace
    // function to convert a bit mask to a dof->order map
    auto init_map = [&](Geometry::Type geom, VarOrderBits mask)
    {
-      ndof_to_geom_order[geom].clear();
+      geom_ndof_order[geom].clear();
       for (int order = 0; mask; order++, mask >>= 1)
       {
          if (mask & 1)
          {
             int ndof = fec->GetNumDof(geom, order);
-            ndof_to_geom_order[geom][ndof] = order;
+            geom_ndof_order[geom][ndof] = order;
          }
       }
    };
@@ -2419,7 +2419,7 @@ int FiniteElementSpace::GetFaceDofs(int face, Array<int> &dofs,
       fbase = beg[variant];
       nf = beg[variant+1] - fbase;
 
-      p = ndof_to_geom_order[fgeom].at(nf);
+      p = geom_ndof_order[fgeom].at(nf);
       MFEM_ASSERT(fec->GetNumDof(fgeom, p) == nf, "");
    }
    else
@@ -2487,10 +2487,8 @@ int FiniteElementSpace::GetEdgeDofs(int edge, Array<int> &dofs,
       base = beg[variant];
       ne = beg[variant+1] - base;
 
-      p = ne + 1;
+      p = geom_ndof_order[Geometry::SEGMENT].at(ne);
       MFEM_ASSERT(fec->GetNumDof(Geometry::SEGMENT, p) == ne, "");
-      // TODO: how to safely deduce 'p' from the number of edge DOFs?
-      // FIXME
    }
    else
    {

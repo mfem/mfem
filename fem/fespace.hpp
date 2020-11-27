@@ -124,7 +124,7 @@ protected:
    mutable Table *face_dof; // owned; in var-order space contains variant 0 DOFs
 
    /// Helper mapping for variable order spaces, see InitNDofToOrder().
-   std::map<int, int> ndof_to_geom_order[Geometry::NumGeom];
+   std::map<int, int> geom_ndof_order[Geometry::NumGeom];
 
    Array<int> dof_elem_array, dof_ldof_array;
 
