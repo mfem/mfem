@@ -678,29 +678,26 @@ void FiniteElementSpace
 }
 
 void FiniteElementSpace
-::AddEdgeFaceDependencies(SparseMatrix &deps,
-                          Array<int>& master_dofs, Array<int> &slave_dofs,
+::AddEdgeFaceDependencies(SparseMatrix &deps, Array<int> &master_dofs,
                           const FiniteElement *master_fe,
-                          const NCMesh::NCList &list, int slave_index) const
+                          Array<int> &slave_dofs, int slave_face,
+                          const DenseMatrix *pm) const
 {
    // In variable-order spaces in 3D, we need to only constrain interior face
    // DOFs (this is done one level up), since edge dependencies can be more
    // complex and are primarily handled by edge-edge dependencies. The one
-   // exception is edges of slave faces that lie in the interior of a master
+   // exception is edges of slave faces that lie in the interior of the master
    // face, which are not covered by edge-edge relations. This function finds
-   // such edges and makes them constrained by the master face of 'slave_index'.
+   // such edges and makes them constrained by the master face.
 
    Array<int> V, E, Eo; // TODO: LocalArray
-   mesh->GetFaceVertices(slave_index, V);
-   mesh->GetFaceEdges(slave_index, E, Eo);
+   mesh->GetFaceVertices(slave_face, V);
+   mesh->GetFaceEdges(slave_face, E, Eo);
    MFEM_ASSERT(V.Size() == E.Size(), "");
 
    DenseMatrix I;
    IsoparametricTransformation edge_T;
    edge_T.SetFE(&SegmentFE);
-
-   const NCMesh::Slave &sl = list.slaves[slave_index];
-   const DenseMatrix &pm = *(list.point_matrices[sl.geom][sl.matrix]);
 
    // constrain each edge of the slave face
    for (int i = 0; i < E.Size(); i++)
@@ -715,9 +712,9 @@ void FiniteElementSpace
       double mid[2];
       for (int j = 0; j < 2; j++)
       {
-         edge_pm(j, 0) = pm(j, a);
-         edge_pm(j, 1) = pm(j, b);
-         mid[j] = 0.5*(pm(j, a) + pm(j, b));
+         edge_pm(j, 0) = (*pm)(j, a);
+         edge_pm(j, 1) = (*pm)(j, b);
+         mid[j] = 0.5*((*pm)(j, a) + (*pm)(j, b));
       }
 
       // check that the edge does not coincide with the master face's edge
@@ -891,8 +888,9 @@ void FiniteElementSpace::BuildConformingInterpolation() const
             if (skipfirst)
             {
                // constrain internal edge DOFs if they were skipped
-               AddEdgeFaceDependencies(deps, master_dofs, slave_dofs,
-                                       master_fe, list, si);
+               const auto *pm = list.point_matrices[master_geom][slave.matrix];
+               AddEdgeFaceDependencies(deps, master_dofs, master_fe,
+                                       slave_dofs, slave.index, pm);
             }
          }
 

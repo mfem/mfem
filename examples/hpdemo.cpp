@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
-#if 0
+#if 1
    srand(seed);
    {
       for (int l = 0; l < ref_levels; l++)
@@ -137,8 +137,7 @@ int main(int argc, char *argv[])
    //    obtain a variable-order space...
    for (int i = 0; i < mesh.GetNE(); i++)
    {
-      //fespace.SetElementOrder(i, order + (rand()%2));
-      fespace.SetElementOrder(i, order);
+      fespace.SetElementOrder(i, order + (rand()%5));
    }
    fespace.Update(false);
 
