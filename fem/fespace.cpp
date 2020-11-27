@@ -62,7 +62,7 @@ FiniteElementSpace::FiniteElementSpace()
      ndofs(0), nvdofs(0), nedofs(0), nfdofs(0), nbdofs(0), bdofs(NULL),
      elem_dof(NULL), bdr_elem_dof(NULL), face_dof(NULL),
      NURBSext(NULL), own_ext(false),
-     cP(NULL), cR(NULL), cQ(NULL), cP_is_set(false),
+     cP(NULL), cR(NULL), cR_hp(NULL), cP_is_set(false),
      Th(Operator::ANY_TYPE),
      sequence(0), orders_changed(false), relaxed_hp(false)
 { }
@@ -786,6 +786,14 @@ int FiniteElementSpace::GetDegenerateFaceDofs(int index, Array<int> &dofs,
    return order;
 }
 
+int FiniteElementSpace::GetNumBorderDofs(Geometry::Type geom, int order) const
+{
+   // return the number of vertex and edge DOFs that precede inner DOFs
+   int nv = fec->GetNumDof(Geometry::POINT, order);
+   int ne = fec->GetNumDof(Geometry::SEGMENT, order);
+   return Geometry::NumVerts[geom] * (nv + ne);
+}
+
 int FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs,
                                       Geometry::Type master_geom,
                                       int variant) const
@@ -831,11 +839,11 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // DOFs. Rows of independent DOFs will remain empty.
    SparseMatrix deps(ndofs);
 
-   // Inverse dependencies for the cQ matrix in variable order spaces:
+   // Inverse dependencies for the cR_hp matrix in variable order spaces:
    // For each master edge/face with more DOF sets, the inverse dependency
    // matrix contains a row that expresses the master true DOF (lowest order)
    // as a linear combination of the highest order set of DOFs.
-   SparseMatrix sped(ndofs);
+   SparseMatrix inv_deps(ndofs);
 
    // collect local face/edge dependencies
    for (int entity = 2; entity >= 1; entity--)
@@ -877,9 +885,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
             int skipfirst = 0;
             if (IsVariableOrder() && entity == 2)
             {
-               int nv = fec->GetNumDof(Geometry::POINT, q);
-               int ne = fec->GetNumDof(Geometry::SEGMENT, q);
-               skipfirst = Geometry::NumVerts[master_geom] * (nv + ne);
+               skipfirst = GetNumBorderDofs(master_geom, q);
             }
 
             // make each slave DOF dependent on all master DOFs
@@ -894,8 +900,8 @@ void FiniteElementSpace::BuildConformingInterpolation() const
             }
          }
 
-         // Add the inverse dependencies for the cQ matrix; if a master has
-         // more DOF sets, the lowest order set interpolates the highest one
+         // Add the inverse dependencies for the cR_hp matrix; if a master has
+         // more DOF sets, the lowest order set interpolates the highest one.
          if (IsVariableOrder())
          {
             int nvar = GetNVariants(entity, master.index);
@@ -904,11 +910,13 @@ void FiniteElementSpace::BuildConformingInterpolation() const
                int q = GetEntityDofs(entity, master.index, highest_dofs,
                                      master_geom, nvar-1);
                const auto *highest_fe = fec->GetFE(master_geom, q);
+
                T.SetIdentityTransformation(master_geom);
                master_fe->GetTransferMatrix(*highest_fe, T, I);
-               // add dependencies only for the edge inner dofs
-               AddDependencies(sped, highest_dofs, master_dofs, I, 2);
-               // FIXME: 3D
+
+               // add dependencies only for the inner dofs
+               int skip = GetNumBorderDofs(master_geom, p);
+               AddDependencies(inv_deps, highest_dofs, master_dofs, I, skip);
             }
          }
       }
@@ -958,7 +966,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    }
 
    deps.Finalize();
-   sped.Finalize();
+   inv_deps.Finalize();
 
    // DOFs that stayed independent are true DOFs
    int n_true_dofs = 0;
@@ -970,7 +978,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // if all dofs are true dofs leave cP and cR NULL
    if (n_true_dofs == ndofs)
    {
-      cP = cR = cQ = NULL; // will be treated as identities
+      cP = cR = cR_hp = NULL; // will be treated as identities
       return;
    }
 
@@ -992,9 +1000,9 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       cR = new SparseMatrix(cR_I, cR_J, cR_A, n_true_dofs, ndofs);
    }
 
-   // in var. order spaces, create the restriction matrix cQ which is similar to
-   // cR, but has interpolation in the extra master edge/face DOFs
-   cQ = IsVariableOrder() ? new SparseMatrix(n_true_dofs, ndofs) : NULL;
+   // In var. order spaces, create the restriction matrix cR_hp which is similar
+   // to cR, but has interpolation in the extra master edge/face DOFs.
+   cR_hp = IsVariableOrder() ? new SparseMatrix(n_true_dofs, ndofs) : NULL;
 
    Array<bool> finalized(ndofs);
    finalized = false;
@@ -1002,26 +1010,25 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    Array<int> cols;
    Vector srow;
 
-   // put identity in the prolongation matrix for true DOFs, initialize cQ
+   // put identity in the prolongation matrix for true DOFs, initialize cR_hp
    for (int i = 0, true_dof = 0; i < ndofs; i++)
    {
-      if (!deps.RowSize(i))
+      if (!deps.RowSize(i)) // true dof
       {
-         // true dof
          cP->Add(i, true_dof, 1.0);
          cR_J[true_dof] = i;
          finalized[i] = true;
 
-         if (cQ)
+         if (cR_hp)
          {
-            if (sped.RowSize(i))
+            if (inv_deps.RowSize(i))
             {
-               sped.GetRow(i, cols, srow);
-               cQ->AddRow(true_dof, cols, srow);
+               inv_deps.GetRow(i, cols, srow);
+               cR_hp->AddRow(true_dof, cols, srow);
             }
             else
             {
-               cQ->Add(true_dof, i, 1.0);
+               cR_hp->Add(true_dof, i, 1.0);
             }
          }
 
@@ -1064,22 +1071,20 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    }
    while (!finished);
 
-   // if everything is consistent (mesh, face orientations, etc.), we should
-   // be able to finalize all slave DOFs, otherwise it's a serious error
-   if (n_finalized != ndofs)
-   {
-      MFEM_ABORT("Error creating cP matrix: n_finalized = " << n_finalized
-                 << ", ndofs = " << ndofs);
-   }
+   // If everything is consistent (mesh, face orientations, etc.), we should
+   // be able to finalize all slave DOFs, otherwise it's a serious error.
+   MFEM_VERIFY(n_finalized == ndofs,
+               "Error creating cP matrix: n_finalized = "
+               << n_finalized << ", ndofs = " << ndofs);
 
    cP->Finalize();
-   if (cQ) { cQ->Finalize(); }
+   if (cR_hp) { cR_hp->Finalize(); }
 
    if (vdim > 1)
    {
       MakeVDimMatrix(*cP);
       MakeVDimMatrix(*cR);
-      if (cQ) { MakeVDimMatrix(*cQ); }
+      if (cR_hp) { MakeVDimMatrix(*cR_hp); }
    }
 
    if (Device::IsEnabled()) { cP->BuildTranspose(); }
@@ -1127,13 +1132,12 @@ const SparseMatrix* FiniteElementSpace::GetConformingRestriction() const
    return cR;
 }
 
-const SparseMatrix* FiniteElementSpace
-::GetConformingRestrictionInterpolation() const
+const SparseMatrix* FiniteElementSpace::GetHpConformingRestriction() const
 {
    if (Conforming()) { return NULL; }
    if (!IsVariableOrder()) { return cR; }
    if (!cP_is_set) { BuildConformingInterpolation(); }
-   return cQ;
+   return cR_hp;
 }
 
 int FiniteElementSpace::GetNConformingDofs() const
@@ -1784,7 +1788,7 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
          own_ext = 1;
       }
       UpdateNURBS();
-      cP = cR = cQ = NULL;
+      cP = cR = cR_hp = NULL;
       cP_is_set = false;
    }
    else
@@ -1897,7 +1901,7 @@ void FiniteElementSpace::Construct()
 
    cP = NULL;
    cR = NULL;
-   cQ = NULL;
+   cR_hp = NULL;
    cP_is_set = false;
    // 'Th' is initialized/destroyed before this method is called.
 
@@ -2673,7 +2677,7 @@ FiniteElementSpace::~FiniteElementSpace()
 void FiniteElementSpace::Destroy()
 {
    delete cR;
-   delete cQ;
+   delete cR_hp;
    delete cP;
    Th.Clear();
    L2E_nat.Clear();
