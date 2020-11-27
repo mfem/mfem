@@ -257,11 +257,10 @@ protected:
    static bool DofFinalizable(int dof, const Array<bool>& finalized,
                               const SparseMatrix& deps);
 
-   void AddEdgeFaceDependencies(SparseMatrix &deps,
-                                Array<int>& master_dofs, Array<int> &slave_dofs,
+   void AddEdgeFaceDependencies(SparseMatrix &deps, Array<int>& master_dofs,
                                 const FiniteElement *master_fe,
-                                const NCMesh::NCList &list,
-                                int slave_index) const;
+                                Array<int> &slave_dofs, int slave_face,
+                                const DenseMatrix *pm) const;
 
    /// Replicate 'mat' in the vector dimension, according to vdim ordering mode.
    void MakeVDimMatrix(SparseMatrix &mat) const;
