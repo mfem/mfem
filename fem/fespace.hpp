@@ -138,8 +138,8 @@ protected:
    mutable SparseMatrix *cP; // owned
    /// Conforming restriction matrix such that cR.cP=I.
    mutable SparseMatrix *cR; // owned
-   /// Variable order conforming restriction matrix, cQ.cP=I.
-   mutable SparseMatrix *cQ; // owned
+   /// A version of the conforming restriction matrix for variable-order spaces.
+   mutable SparseMatrix *cR_hp; // owned
    mutable bool cP_is_set;
 
    /// Transformation to apply to GridFunctions after space Update().
@@ -246,6 +246,8 @@ protected:
    // Get degenerate face DOFs: see explanation in method implementation.
    int GetDegenerateFaceDofs(int index, Array<int> &dofs,
                              Geometry::Type master_geom, int variant) const;
+
+   int GetNumBorderDofs(Geometry::Type geom, int order) const;
 
    /// Calculate the cP and cR matrices for a nonconforming mesh.
    void BuildConformingInterpolation() const;
@@ -414,9 +416,12 @@ public:
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
    const SparseMatrix *GetConformingRestriction() const;
 
-   /// TODO: explain
+   /** Return a version of the conforming restriction matrix for variable-order
+       spaces with complex hp interfaces, where some true DOFs are not owned by
+       any elements and need to be interpolated from higher order edge/face
+       variants (see also @a SetRelaxedHpConformity()). */
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
-   const SparseMatrix *GetConformingRestrictionInterpolation() const;
+   const SparseMatrix *GetHpConformingRestriction() const;
 
    /// The returned Operator is owned by the FiniteElementSpace.
    virtual const Operator *GetProlongationMatrix() const
@@ -426,10 +431,9 @@ public:
    virtual const SparseMatrix *GetRestrictionMatrix() const
    { return GetConformingRestriction(); }
 
-   /// TODO: explain
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
-   virtual const SparseMatrix *GetRestrictionInterpolationMatrix() const
-   { return GetConformingRestrictionInterpolation(); }
+   virtual const SparseMatrix *GetHpRestrictionMatrix() const
+   { return GetHpConformingRestriction(); }
 
    /// Return an Operator that converts L-vectors to E-vectors.
    /** An L-vector is a vector of size GetVSize() which is the same size as a

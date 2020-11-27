@@ -2017,9 +2017,14 @@ int ParFiniteElementSpace
             const NCMesh::Master &mf = list.masters[mi];
 
             // get master DOFs
-            pncmesh->IsGhost(entity, mf.index)
-            ? GetGhostDofs(entity, mf, master_dofs)
-            : GetEntityDofs(entity, mf.index, master_dofs, mf.Geom(), 0);
+            if (pncmesh->IsGhost(entity, mf.index))
+            {
+               GetGhostDofs(entity, mf, master_dofs);
+            }
+            else
+            {
+               GetEntityDofs(entity, mf.index, master_dofs, mf.Geom());
+            }
 
             if (!master_dofs.Size()) { continue; }
 
