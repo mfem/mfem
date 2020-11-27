@@ -2017,14 +2017,9 @@ int ParFiniteElementSpace
             const NCMesh::Master &mf = list.masters[mi];
 
             // get master DOFs
-            if (pncmesh->IsGhost(entity, mf.index))
-            {
-               GetGhostDofs(entity, mf, master_dofs);
-            }
-            else
-            {
-               GetEntityDofs(entity, mf.index, master_dofs, mf.Geom(), 0);
-            }
+            pncmesh->IsGhost(entity, mf.index)
+            ? GetGhostDofs(entity, mf, master_dofs)
+            : GetEntityDofs(entity, mf.index, master_dofs, mf.Geom(), 0);
 
             if (!master_dofs.Size()) { continue; }
 
@@ -2045,8 +2040,7 @@ int ParFiniteElementSpace
                const NCMesh::Slave &sf = list.slaves[si];
                if (pncmesh->IsGhost(entity, sf.index)) { continue; }
 
-               const int variant = 0; // FIXME
-
+               const int variant = 0; // TODO parallel var-order
                GetEntityDofs(entity, sf.index, slave_dofs, mf.Geom(), variant);
                if (!slave_dofs.Size()) { continue; }
 
