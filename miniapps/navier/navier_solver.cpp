@@ -853,7 +853,7 @@ double NavierSolver::ComputeCFL(ParGridFunction &u, double dt)
       }
 
       double hmin = pmesh->GetElementSize(e, 1) /
-                    (double) fes->GetElementPolyDegree(0);
+                    (double) fes->GetElementDegree(0);
 
       for (int i = 0; i < ir.GetNPoints(); ++i)
       {

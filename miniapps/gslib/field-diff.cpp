@@ -74,7 +74,7 @@ int main (int argc, char *argv[])
    MFEM_VERIFY(dim > 1, "GSLIB requires a 2D or a 3D mesh" );
    if (mesh_1.GetNodes() == NULL) { mesh_1.SetCurvature(1); }
    if (mesh_2.GetNodes() == NULL) { mesh_2.SetCurvature(1); }
-   const int mesh_poly_deg = mesh_1.GetNodes()->FESpace()->GetElementPolyDegree(0);
+   const int mesh_poly_deg = mesh_1.GetNodes()->FESpace()->GetElementDegree(0);
    cout << "Mesh curvature: "
         << mesh_1.GetNodes()->OwnFEC()->Name() << " " << mesh_poly_deg << endl;
 
