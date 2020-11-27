@@ -3655,7 +3655,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
       }
       else
       {
-         p = edge_fespace->GetElementPolyDegree(0);
+         p = edge_fespace->GetElementDegree(0);
       }
    }
 
@@ -3879,7 +3879,7 @@ void HypreADS::Init(ParFiniteElementSpace *face_fespace)
       }
       else
       {
-         p = face_fespace->GetElementPolyDegree(0);
+         p = face_fespace->GetElementDegree(0);
       }
    }
 

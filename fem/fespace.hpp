@@ -398,7 +398,7 @@ public:
 
    /// Returns the order of the i'th finite element.
    /** @note This is the 'order' of the FiniteElementCollection. The actual
-       polynomial degree may differ, see @a GetElementPolyDegree(). */
+       polynomial degree may differ, see @a GetElementDegree(). */
    int GetElementOrder(int i) const;
 
    /// Return the maximum polynomial order.
@@ -488,10 +488,10 @@ public:
    /// Returns the polynomial degree of the i'th element.
    /** This is normally the same as GetElementOrder(i), except for RT finite
        element spaces, where the actual degree of the RTp collection is (p+1).*/
-   int GetElementPolyDegree(int i) const { return GetFE(i)->GetOrder(); }
+   int GetElementDegree(int i) const { return GetFE(i)->GetOrder(); }
 
    /// Returns the polynomial degree of the i'th finite element (deprecated).
-   MFEM_DEPRECATED int GetOrder(int i) const { return GetElementPolyDegree(i); }
+   MFEM_DEPRECATED int GetOrder(int i) const { return GetElementDegree(i); }
 
    /** Returns the order of the specified edge. In a variable order space, order
        of the given variant is returned, or -1 if there are no more variants. */
