@@ -53,6 +53,7 @@ int main(int argc, char *argv[])
    double kappa = 100.0;
    double cutsize;
    double radius = 0.2;
+   int ncr = 2;
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
@@ -61,8 +62,8 @@ int main(int argc, char *argv[])
                   "number of mesh elements.");
    args.AddOption(&radius, "-r", "--radius",
                   "radius of circle.");
-   args.AddOption(&ref_levels, "-ref", "--refine", 
-                    "refine levels" ); 
+   args.AddOption(&ref_levels, "-ref", "--refine",
+                  "refine levels");
    args.Parse();
    if (!args.Good())
    {
@@ -85,20 +86,21 @@ int main(int argc, char *argv[])
    mesh->PrintVTK(sol_ofv, 0);
    std::map<int, IntegrationRule *> CutSquareIntRules;
    std::map<int, IntegrationRule *> cutSegmentIntRules;
-   std::map<int, IntegrationRule *> cutInteriorFaceIntRules;cout << "#elements before refinement " << mesh->GetNE() << endl;
+   std::map<int, IntegrationRule *> cutInteriorFaceIntRules;
+   cout << "#elements before refinement " << mesh->GetNE() << endl;
 
    /// find the elements to refine
-   for (int k=0; k<1 ; ++k)
+   for (int k = 0; k < ncr; ++k)
    {
-     Array<int> marked_elements;
-     for (int i = 0; i < mesh->GetNE(); ++i)
-     {
+      Array<int> marked_elements;
+      for (int i = 0; i < mesh->GetNE(); ++i)
+      {
          if (cutByCircle(mesh, radius, i) == true)
          {
-          marked_elements.Append(i);
+            marked_elements.Append(i);
          }
-     }
-   mesh->GeneralRefinement(marked_elements, 1);
+      }
+      mesh->GeneralRefinement(marked_elements, 1);
    }
 
    for (int l = 0; l < ref_levels; l++)
@@ -128,15 +130,15 @@ int main(int argc, char *argv[])
       }
    }
    cout << "elements cut by circle:  " << cutelems.size() << endl;
-//    for (int i = 0; i < cutelems.size(); ++i)
-//    {
-//       cout << cutelems.at(i) << endl;
-//    }
-//    cout << "elements completely inside circle:  " << endl;
-//    for (int i = 0; i < innerelems.size(); ++i)
-//    {
-//       cout << innerelems.at(i) << endl;
-//    }
+   //    for (int i = 0; i < cutelems.size(); ++i)
+   //    {
+   //       cout << cutelems.at(i) << endl;
+   //    }
+   //    cout << "elements completely inside circle:  " << endl;
+   //    for (int i = 0; i < innerelems.size(); ++i)
+   //    {
+   //       cout << innerelems.at(i) << endl;
+   //    }
    cout << "#elements completely inside circle:  " << innerelems.size() << endl;
    int dim = mesh->Dimension();
    for (int i = 0; i < mesh->GetNumFaces(); ++i)
@@ -152,11 +154,11 @@ int main(int argc, char *argv[])
          }
       }
    }
-//    cout << "faces cut by circle:  " << endl;
-//    for (int i = 0; i < cutinteriorFaces.size(); ++i)
-//    {
-//       cout << cutinteriorFaces.at(i) << endl;
-//    }
+   //    cout << "faces cut by circle:  " << endl;
+   //    for (int i = 0; i < cutinteriorFaces.size(); ++i)
+   //    {
+   //       cout << cutinteriorFaces.at(i) << endl;
+   //    }
    cout << "dimension is " << dim << endl;
    std::cout << "Number of elements: " << mesh->GetNE() << '\n';
    int deg = min((order + 2) * (order + 2), 10);
@@ -189,6 +191,10 @@ int main(int argc, char *argv[])
             immersedFaces[tr->Face->ElementNo] = true;
          }
          if ((EmbeddedElems.at(tr->Elem2No) == true) && (EmbeddedElems.at(tr->Elem1No)) == false)
+         {
+            immersedFaces[tr->Face->ElementNo] = true;
+         }
+         if ((EmbeddedElems.at(tr->Elem2No) == true) && (EmbeddedElems.at(tr->Elem1No)) == true)
          {
             immersedFaces[tr->Face->ElementNo] = true;
          }
@@ -256,11 +262,11 @@ int main(int argc, char *argv[])
    SparseMatrix *cp = dynamic_cast<GalerkinDifference *>(fes)->GetCP();
    SparseMatrix *p = RAP(*cp, Aold, *cp);
    SparseMatrix &A = *p;
-   // ofstream write("stiffmat_lap_cut_gd.txt");
-   // A.PrintMatlab(write);
-   // write.close();
-   // calculate condition number
-   #if 0
+// ofstream write("stiffmat_lap_cut_gd.txt");
+// A.PrintMatlab(write);
+// write.close();
+// calculate condition number
+#if 0
    DenseMatrix Ad;
    A.ToDenseMatrix(Ad);
    Vector si;
@@ -271,14 +277,14 @@ int main(int argc, char *argv[])
    cond = si(0) / si(si.Size() - 1);
    cout << "cond# " << endl;
    cout << cond << endl;
-   #endif
+#endif
    Vector bnew(A.Width());
    fes->GetProlongationMatrix()->MultTranspose(*b, bnew);
    // Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
    //    non-symmetric one.
    GSSmoother M(A);
-   #ifndef MFEM_USE_SUITESPARSE
+#ifdef MFEM_USE_SUITESPARSE
    if (sigma == -1.0)
    {
       PCG(A, M, bnew, y, 1, 10000, 1e-20, 0.0);
@@ -287,14 +293,14 @@ int main(int argc, char *argv[])
    {
       GMRES(A, M, bnew, y, 1, 1000, 10, 1e-12, 0.0);
    }
-   //x.Print();
-   #else
-      // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-      UMFPackSolver umf_solver;
-      umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-      umf_solver.SetOperator(A);
-      umf_solver.Mult(bnew, y);
-   #endif
+//x.Print();
+#else
+   // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+   UMFPackSolver umf_solver;
+   umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+   umf_solver.SetOperator(A);
+   umf_solver.Mult(bnew, y);
+#endif
 
    fes->GetProlongationMatrix()->Mult(y, x);
 
@@ -307,7 +313,7 @@ int main(int argc, char *argv[])
    double norm = CutComputeL2Error(x, fespace, u, EmbeddedElems, CutSquareIntRules);
    cout << "----------------------------- " << endl;
    cout << "mesh size, h = " << 1.0 / N << endl;
-   cout << "h_new  is " << 1/sqrt(mesh->GetNE()) << endl;
+   cout << "h_new  is " << 1 / sqrt(mesh->GetNE()) << endl;
    cout << "solution norm: " << norm << endl;
    // x.Print();
    // 11. Free the used memory.
@@ -503,6 +509,9 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
       xupper = {1, 1};
       int elemid = cutelems.at(k);
       findBoundingBox<N>(mesh, elemid, xmin, xmax);
+        cout << "bounding box " << endl;
+        cout << xmin[0] << " , " << xmax[0] << endl;
+        cout << xmin[1] << " , " << xmax[1] << endl;
       circle<N> phi;
       phi.xscale = xmax[0] - xmin[0];
       phi.yscale = xmax[1] - xmin[1];
@@ -543,10 +552,12 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
                double *v1coord, *v2coord;
                v1coord = mesh->GetVertex(v[0]);
                v2coord = mesh->GetVertex(v[1]);
-               if (v1coord[0] == v2coord[0])
+               cout << " x vert " << v1coord[0] << " , " << v2coord[0] << endl;
+               cout << " y vert " << v1coord[1] << " , " << v2coord[1] << endl;
+               if (abs(v1coord[0] - v2coord[0]) < 1e-15)
                {
                   dir = 0;
-                  if (v1coord[0] < xmax[0])
+                  if (abs(v1coord[0] - xmax[0]) > 1e-15)
                   {
                      side = 0;
                   }
@@ -558,7 +569,7 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
                else
                {
                   dir = 1;
-                  if (v1coord[1] < xmax[1])
+                  if (abs(v1coord[1] - xmax[1]) > 1e-15)
                   {
                      side = 0;
                   }
@@ -567,6 +578,8 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
                      side = 1;
                   }
                }
+               cout << "dir " << dir << endl;
+               cout << "side " << side << endl;
                auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double, N>(xlower, xupper), dir, side, order);
                int i = 0;
                ir = new IntegrationRule(q.nodes.size());
@@ -576,28 +589,74 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
                   ip.y = 0.0;
                   if (dir == 0)
                   {
-                     if (-1 == orient[c])
+                     if (v1coord[1] < v2coord[1])
                      {
-                        ip.x = 1 - pt.x[1];
+                        if (-1 == orient[c])
+                        {
+                           ip.x = 1 - pt.x[1];
+                        }
+                        else
+                        {
+                           ip.x = pt.x[1];
+                        }
                      }
                      else
                      {
-                        ip.x = pt.x[1];
+                        if (1 == orient[c])
+                        {
+                           ip.x = 1 - pt.x[1];
+                        }
+                        else
+                        {
+                           ip.x = pt.x[1];
+                        }
                      }
                   }
                   else if (dir == 1)
                   {
-                     if (-1 == orient[c])
+                     if (v1coord[0] < v2coord[0])
                      {
-                        ip.x = 1 - pt.x[0];
+                        if (-1 == orient[c])
+                        {
+                           ip.x = 1.0 - pt.x[0];
+                        }
+                        else
+                        {
+                           ip.x = pt.x[0];
+                        }
                      }
                      else
                      {
-                        ip.x = pt.x[0];
+                        if (1 == orient[c])
+                        {
+                           ip.x = 1.0 - pt.x[0];
+                        }
+                        else
+                        {
+                           ip.x = pt.x[0];
+                        }
                      }
                   }
                   ip.weight = pt.w;
                   i = i + 1;
+                  FaceElementTransformations *trans;
+                  trans = mesh->GetInteriorFaceTransformations(fid);
+                  IntegrationPoint eip1;
+                  IntegrationPoint eip2;
+                  trans->Loc1.Transform(ip, eip1);
+                  trans->Loc2.Transform(ip, eip2);
+
+                  Vector x1, x2;
+
+                  cout << "--- x1 ---" << endl;
+                  trans->Elem1->Transform(eip1, x1);
+                  x1.Print();
+                  cout << "--- x2 ---" << endl;
+                  trans->Elem2->Transform(eip2, x2);
+                  x2.Print();
+                  double phi_inner = -(((x1(0) - 0.5) * (x1(0) - 0.5)) + ((x1(1) - 0.5)) * ((x1(1) - 0.5)) - 0.04);
+                  MFEM_ASSERT((phi_inner < tol), " phi = " << phi_inner << " : "
+                                                         << "levelset function positive at the quadrature point (Saye's method)");
 
                   // scaled to original element space
                   double xq = (pt.x[0] * phi.xscale) + phi.xmin;
@@ -1482,7 +1541,8 @@ void GalerkinDifference::BuildNeighbourMat(const mfem::Array<int> &elmt_id,
    }
 }
 void GalerkinDifference::GetNeighbourSet(int id, int req_n, Array<int> &nels_x, Array<int> &nels_y) const
-{}
+{
+}
 void GalerkinDifference::GetNeighbourSet(int id, int req_n,
                                          mfem::Array<int> &nels) const
 {
@@ -1513,10 +1573,10 @@ void GalerkinDifference::GetNeighbourSet(int id, int req_n,
             GetElementCenter(adj[i], cent);
             // if ((cent(0) == cent_coord(0)) || (cent(1) == cent_coord(1)))
             // {
-               if (EmbeddedElements.at(adj[i]) == false)
-               {
-                  nels.Append(adj[i]);
-               }
+            if (EmbeddedElements.at(adj[i]) == false)
+            {
+               nels.Append(adj[i]);
+            }
             //}
          }
       }
@@ -1600,12 +1660,12 @@ void GalerkinDifference::BuildGDProlongation() const
          //cout << " element is " << i << endl;
          // 1. get the elements in patch
          GetNeighbourSet(i, nelmt, elmt_id);
-        //  cout << "element "
-        //       << "( " << i << ") "
-        //       << " #neighbours = " << elmt_id.Size() << endl;
-        //  cout << "Elements id(s) in patch: ";
-        //  elmt_id.Print(cout, elmt_id.Size());
-        //  cout << " ----------------------- " << endl;
+         //  cout << "element "
+         //       << "( " << i << ") "
+         //       << " #neighbours = " << elmt_id.Size() << endl;
+         //  cout << "Elements id(s) in patch: ";
+         //  elmt_id.Print(cout, elmt_id.Size());
+         //  cout << " ----------------------- " << endl;
 
          // 2. build the quadrature and barycenter coordinate matrices
          BuildNeighbourMat(elmt_id, cent_mat, quad_mat);

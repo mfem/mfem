@@ -168,6 +168,8 @@ int main(int argc, char *argv[])
     // 1. Parse command-line options.
     int order = 1;
     int N = 5;
+    int ref_levels = -1;
+    int ncr = 2;
     double radius = 1.0;
     /// number of state variables
     int num_state = 4;
@@ -181,6 +183,8 @@ int main(int argc, char *argv[])
                    "number of mesh elements.");
     args.AddOption(&radius, "-r", "--radius",
                    "radius of circle.");
+    args.AddOption(&ref_levels, "-ref", "--refine",
+                   "refine levels");
     args.Parse();
     if (!args.Good())
     {
@@ -195,6 +199,28 @@ int main(int argc, char *argv[])
     sol_ofv.precision(14);
     mesh->PrintVTK(sol_ofv, 0);
     int dim = mesh->Dimension();
+    /// find the elements to refine
+    for (int k = 0; k < 1; ++k)
+    {
+        Array<int> marked_elements;
+        for (int i = 0; i < mesh->GetNE(); ++i)
+        {
+            if ((cutByGeom<1>(mesh, i) == true))
+            {
+                marked_elements.Append(i);
+            }
+        }
+        mesh->GeneralRefinement(marked_elements, 1);
+    }
+    ofstream wmesh("square_mesh_vortex_nc.vtk");
+    wmesh.precision(14);
+    mesh->PrintVTK(wmesh, 0);
+
+    cout << "#elements after refinement " << mesh->GetNE() <<  endl;
+    for (int l = 0; l < ref_levels; l++)
+    {
+        mesh->UniformRefinement();
+    }
 
     //find the elements cut by inner circle boundary
     vector<int> cutelems_inner;
@@ -492,7 +518,7 @@ int main(int argc, char *argv[])
     double res_norm0 = calcResidualNorm(res, fes_GD, uc);
     double t_final = 1000;
     std::cout << "initial residual norm: " << res_norm0 << "\n";
-    double dt_init = 500;
+    double dt_init = 1000.0;
     double dt_old;
     // initial l2_err
     double l2_err_init = calcCutConservativeVarsL2Error<2, 0>(uexact, &u, fes, EmbeddedElems,

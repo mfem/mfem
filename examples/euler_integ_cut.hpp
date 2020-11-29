@@ -685,7 +685,21 @@ namespace mfem
                     IntegrationPoint eip2;
                     trans.Loc1.Transform(ip, eip1);
                     trans.Loc2.Transform(ip, eip2);
-                    
+                    // if (cutInteriorFaceIntRules[trans.Face->ElementNo] != NULL)
+                    // {
+                    //     // cout << "ip in integ " << endl;
+                    //     // // cout << "eip1 " << eip1.x << " , " << eip1.y << endl;
+                    //     // // cout << "eip2 " << eip2.x << " , " << eip2.y << endl;
+                    //     // Vector x1, x2;
+                    //     // cout << "--- x1 ---" << endl;
+                    //     // trans.Elem1->Transform(eip1, x1);
+                    //     // x1.Print();
+                    //     // cout << "--- x2 ---" << endl;
+                    //     // trans.Elem2->Transform(eip2, x2);
+                    //     // x2.Print();
+
+                    // }
+
                     // Calculate basis functions on both elements at the face
                     el_left.CalcShape(eip1, shape1);
                     el_right.CalcShape(eip2, shape2);

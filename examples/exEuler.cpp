@@ -187,15 +187,19 @@ int main(int argc, char *argv[])
 {
    // Parse command-line options
    OptionsParser args(argc, argv);
-   int nx = 4;
-   int ny = 4;
+   int nx = 5;
+   int ny = 5;
    int order = 1;
    int degree = 2;
+   int ref_levels = -1;
+   int nc_ref = -1;
    args.AddOption(&degree, "-d", "--degree", "poly. degree of mesh mapping");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) >= 0.");
    args.AddOption(&nx, "-nr", "--num-rad", "number of radial segments");
    args.AddOption(&ny, "-nt", "--num-theta", "number of angular segments");
+   args.AddOption(&ref_levels, "-ref", "--refine",
+                  "refine levels");
    args.Parse();
    if (!args.Good())
    {
@@ -211,11 +215,35 @@ int main(int argc, char *argv[])
    /// dimension
    const int dim = mesh->Dimension();
 
-   // save the initial mesh
-   ofstream sol_ofs("steady_vortex_mesh.vtk");
-   sol_ofs.precision(14);
-   mesh->PrintVTK(sol_ofs, 0);
+   for (int l = 0; l < nc_ref; ++l)
+   {
+      Array<int> marked_elements;
+      for (int k = 0; k < mesh->GetNBE(); ++k)
+      {
+        if (mesh->GetBdrAttribute(k) == 4)
+         {
+         //cout << "bdr face: " <<  k << endl;
+         FaceElementTransformations *trans;
+         trans = mesh->GetBdrFaceTransformations(k);
+        // cout << "bdr el: " << trans->Elem1No << endl;
+         marked_elements.Append(trans->Elem1No);
+         }
+      }
+      mesh->GeneralRefinement(marked_elements);
+   }
 
+   for (int l = 0; l < ref_levels; l++)
+   {
+      mesh->UniformRefinement();
+   }
+
+   cout << "Number of elements after refinement " << mesh->GetNE() << '\n';
+
+   // save the initial mesh
+   ofstream sol_ofs("steady_vortex_mesh_non_cut.vtk");
+   sol_ofs.precision(14);
+   mesh->PrintVTK(sol_ofs, 1);
+   sol_ofs.close();
    // finite element collection
    FiniteElementCollection *fec = new DG_FECollection(order, dim);
 
@@ -336,7 +364,7 @@ int main(int argc, char *argv[])
    double l2_err_init = calcConservativeVarsL2Error<2, 0>(uexact, &u, fes,
                                                           num_state, 0);
    cout << "l2_err_init " << l2_err_init << endl;
-
+   cout << "initial residual norm " << calcResidualNorm(res, fes, u) << endl;
    double dt = 0.0;
    double res_norm;
    int exponent = 2;
@@ -353,7 +381,7 @@ int main(int argc, char *argv[])
       std::cout << "iter " << ti << ": time = " << t << ": dt = " << dt << endl;
       //std::cout << " (" << round(100 * t / t_final) << "% complete)";
 
-      if (res_norm <= 1e-13)
+      if (res_norm <= 1e-11)
          break;
 
       if (isnan(res_norm))

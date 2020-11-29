@@ -107,6 +107,7 @@ double calcCutConservativeVarsL2Error(
     DenseMatrix vals, exact_vals;
     Vector u_j, exsol_j;
     double loc_norm = 0.0;
+    cout << "#elements in fes " << fes->GetNE() << endl;
     for (int i = 0; i < fes->GetNE(); i++)
     {
         if (EmbeddedElems.at(i) == true)
@@ -296,6 +297,8 @@ int main(int argc, char *argv[])
     int order = 1;
     int N = 5;
     double radius = 1.0;
+    int ref_levels =1;
+    int ncr = 3;
     /// number of state variables
     int num_state = 4;
     double alpha = 1.0;
@@ -308,6 +311,8 @@ int main(int argc, char *argv[])
                    "number of mesh elements.");
     args.AddOption(&radius, "-r", "--radius",
                    "radius of circle.");
+    args.AddOption(&ref_levels, "-ref", "--refine",
+                   "refine levels");
     args.Parse();
     if (!args.Good())
     {
@@ -321,8 +326,36 @@ int main(int argc, char *argv[])
     ofstream sol_ofv("square_mesh_vortex.vtk");
     sol_ofv.precision(14);
     mesh->PrintVTK(sol_ofv, 0);
+    sol_ofv.close();
     int dim = mesh->Dimension();
+    /// find the elements to refine
+    for (int k = 0; k < ncr; ++k)
+    {
+        Array<int> marked_elements;
+        for (int i = 0; i < mesh->GetNE(); ++i)
+        {
+            if ((cutByGeom<1>(mesh, i) == true) || (cutByGeom<2>(mesh, i) == true))
+            {
+                marked_elements.Append(i);
+            }
+        }
+        mesh->GeneralRefinement(marked_elements, 1);
+    }
 
+    for (int l = 0; l < ref_levels; l++)
+    {
+        mesh->UniformRefinement(0);
+    }
+
+    cout << "elements with wrong orientation " << mesh->CheckElementOrientation(false) << endl;
+
+   // mesh->GetEdgeVertexTable();
+    mesh->Finalize();
+    cout << "#elements after refinement " << mesh->GetNE() <<  endl;
+    ofstream wmesh("square_mesh_vortex_nc.vtk");
+    wmesh.precision(14);
+    mesh->PrintVTK(wmesh, 0);
+    wmesh.close();
     //find the elements cut by inner circle boundary
     vector<int> cutelems_inner;
     vector<int> embeddedelems_inner;
@@ -520,6 +553,7 @@ int main(int argc, char *argv[])
     std::map<int, IntegrationRule *> cutFaceIntRules_outer;
 
     int deg = min((order + 2) * (order + 2), 10);
+    //int deg = order + 1;
     double inner_radius = 1.0;
     double outer_radius = 3.0;
 
@@ -529,7 +563,7 @@ int main(int argc, char *argv[])
                                cutFaceIntRules);
     GetCutBdrSegmentIntRule<2, 1>(mesh, cutelems_inner, cutBdrFaces_inner, deg, inner_radius,
                                   cutBdrFaceIntRules_inner);
-    // int rule for outer circle elements
+    //int rule for outer circle elements
     GetCutElementIntRule<2, 2>(mesh, cutelems_outer, deg, outer_radius, cutSquareIntRules_outer);
     GetCutSegmentIntRule<2, 2>(mesh, cutelems_outer, cutFaces_outer, deg, outer_radius, cutSegmentIntRules_outer,
                                cutFaceIntRules_outer);
@@ -580,7 +614,7 @@ int main(int argc, char *argv[])
     perim_far = pf->GetEnergy(x);
     double ar = 2 * M_PI;
     double peri = M_PI / 2.0;
-
+    
     cout << "correct perimeters for inner and outer quarter circles resp: " << M_PI / 2.0 << " , " << 1.5 * M_PI << endl;
     cout << "calculated perimeter for inner quarter: " << perim_in << endl;
     cout << "calculated perimeter for outer quarter: " << perim_out << endl;
@@ -591,6 +625,10 @@ int main(int argc, char *argv[])
     cout << abs(peri - perim_in) << endl;
     cout << "---------test done--------- " << endl;
 
+    delete pi;
+    delete po;
+    delete pf;
+
     /// nonlinearform
     NonlinearForm *res = new NonlinearForm(fes);
     res->AddDomainIntegrator(new CutEulerDomainIntegrator<2>(num_state, cutSquareIntRules, EmbeddedElems, alpha));
@@ -600,38 +638,38 @@ int main(int argc, char *argv[])
     res->AddBdrFaceIntegrator(new CutEulerBoundaryIntegrator<2, 1, 0>(fec, cutBdrFaceIntRules_inner, EmbeddedElems,
                                                                       num_state, qfs, alpha),
                               bndry_marker_isentropic);
-    //check if the integrators are correct
-    // double delta = 1e-5;
+    // check if the integrators are correct
+    double delta = 1e-5;
 
-    // // initialize state; here we randomly perturb a constant state
-    // GridFunction q(fes);
-    // VectorFunctionCoefficient pert(num_state, randBaselinePert<2>);
-    // q.ProjectCoefficient(pert);
+    // initialize state; here we randomly perturb a constant state
+    GridFunction q(fes);
+    VectorFunctionCoefficient pert(num_state, randBaselinePert<2>);
+    q.ProjectCoefficient(pert);
 
-    // // initialize the vector that the Jacobian multiplies
-    // GridFunction v(fes);
-    // VectorFunctionCoefficient v_rand(num_state, randState);
-    // v.ProjectCoefficient(v_rand);
+    // initialize the vector that the Jacobian multiplies
+    GridFunction v(fes);
+    VectorFunctionCoefficient v_rand(num_state, randState);
+    v.ProjectCoefficient(v_rand);
 
-    // // evaluate the Jacobian and compute its product with v
-    // Operator &Jac = res->GetGradient(q);
-    // GridFunction jac_v(fes);
-    // Jac.Mult(v, jac_v);
+    // evaluate the Jacobian and compute its product with v
+    Operator &Jac = res->GetGradient(q);
+    GridFunction jac_v(fes);
+    Jac.Mult(v, jac_v);
 
-    // // now compute the finite-difference approximation...
-    // GridFunction q_pert(q), r(fes), jac_v_fd(fes);
-    // q_pert.Add(-delta, v);
-    // res->Mult(q_pert, r);
-    // q_pert.Add(2 * delta, v);
-    // res->Mult(q_pert, jac_v_fd);
-    // jac_v_fd -= r;
-    // jac_v_fd /= (2 * delta);
+    // now compute the finite-difference approximation...
+    GridFunction q_pert(q), r(fes), jac_v_fd(fes);
+    q_pert.Add(-delta, v);
+    res->Mult(q_pert, r);
+    q_pert.Add(2 * delta, v);
+    res->Mult(q_pert, jac_v_fd);
+    jac_v_fd -= r;
+    jac_v_fd /= (2 * delta);
 
-    // for (int i = 0; i < jac_v.Size(); ++i)
-    // {
-    //     // std::cout << std::abs(jac_v(i) - (jac_v_fd(i))) << "\n";
-    //     MFEM_ASSERT(abs(jac_v(i) - (jac_v_fd(i))) < 1e-09, "jacobian is incorrect");
-    // }
+    for (int i = 0; i < jac_v.Size(); ++i)
+    {
+        // std::cout << std::abs(jac_v(i) - (jac_v_fd(i))) << "\n";
+        MFEM_ASSERT(abs(jac_v(i) - (jac_v_fd(i))) < 1e-09, "jacobian is incorrect");
+    }
 
     /// bilinear form
     BilinearForm *mass = new BilinearForm(fes);
@@ -645,10 +683,15 @@ int main(int argc, char *argv[])
     GridFunction u(fes);
     VectorFunctionCoefficient u0(num_state, uexact);
     u.ProjectCoefficient(u0);
+    // cout << "exact solution size " <<  u.Size() << endl;
+    // u.Print();
     GridFunction residual(fes);
     residual = 0.0;
     res->Mult(u, residual);
     cout << "sum of residual " << residual.Sum() << endl;
+    std::cout << "initial residual norm: " << residual.Norml2()<< "\n";
+    // cout << "residual " << endl;
+    // residual.Print();
     //residual.Print();
     // check the residual
     ofstream res_ofs("residual_cut.vtk");
@@ -666,59 +709,59 @@ int main(int argc, char *argv[])
     unique_ptr<mfem::TimeDependentOperator> evolver(new mfem::EulerEvolver(mass, res,
                                                                            0.0, TimeDependentOperator::Type::IMPLICIT));
     /// set up the evolver
-    auto t = 0.0;
-    evolver->SetTime(t);
-    ode_solver->Init(*evolver);
+    // auto t = 0.0;
+    // evolver->SetTime(t);
+    // ode_solver->Init(*evolver);
 
-    /// solve the ode problem
-    double res_norm0 = calcResidualNorm(res, fes, u);
-    double t_final = 1000;
-    std::cout << "initial residual norm: " << res_norm0 << "\n";
-    double dt_init = 0.2;
-    double dt_old;
+    // /// solve the ode problem
+    // double res_norm0 = calcResidualNorm(res, fes, u);
+    // double t_final = 1000;
+    // std::cout << "initial residual norm: " << res_norm0 << "\n";
+    // double dt_init = 0.05;
+    // double dt_old;
     // initial l2_err
     double l2_err_init = calcCutConservativeVarsL2Error<2, 0>(uexact, &u, fes, EmbeddedElems,
                                                               cutSquareIntRules, num_state, 0);
     cout << "l2_err_init " << l2_err_init << endl;
 
-    double dt = 0.0;
-    double res_norm;
-    int exponent = 1;
-    res_norm = res_norm0;
-    for (auto ti = 0; ti < 40000; ++ti)
-    {
-        /// calculate timestep
-        dt_old = dt;
-        dt = dt_init * pow(res_norm0 / res_norm, exponent);
-        dt = max(dt, dt_old);
-        //dt = dt_init;
-        // print iterations
-        std::cout << "iter " << ti << ": time = " << t << ": dt = " << dt << endl;
-        //   std::cout << " (" << round(100 * t / t_final) << "% complete)";
-        if (res_norm <= 1e-11)
-            break;
+    // double dt = 0.0;
+    // double res_norm;
+    // int exponent = 1;
+    // res_norm = res_norm0;
+    // for (auto ti = 0; ti < 40000; ++ti)
+    // {
+    //     /// calculate timestep
+    //     dt_old = dt;
+    //     dt = dt_init * pow(res_norm0 / res_norm, exponent);
+    //     dt = max(dt, dt_old);
+    //     //dt = dt_init;
+    //     // print iterations
+    //     std::cout << "iter " << ti << ": time = " << t << ": dt = " << dt << endl;
+    //     //   std::cout << " (" << round(100 * t / t_final) << "% complete)";
+    //     if (res_norm <= 1e-11)
+    //         break;
 
-        if (isnan(res_norm))
-            break;
-        ode_solver->Step(u, t, dt);
-        res_norm = calcResidualNorm(res, fes, u);
-    }
-    cout << "=========================================" << endl;
-    std::cout << "final residual norm: " << res_norm << "\n";
-    double drag = calcDrag(fes, u, num_state, cutSegmentIntRules_inner, alpha);
-    double drag_err = abs(drag - (-1 / 1.4));
-    cout << "drag: " << drag << endl;
-    cout << "drag_error: " << drag_err << endl;
-    ofstream finalsol_ofs("final_sol_euler_vortex_cut.vtk");
-    finalsol_ofs.precision(14);
-    mesh->PrintVTK(finalsol_ofs, 1);
-    u.SaveVTK(finalsol_ofs, "Solution", 1);
-    finalsol_ofs.close();
-    //calculate final solution error
-    double l2_err_rho = calcCutConservativeVarsL2Error<2, 0>(uexact, &u, fes, EmbeddedElems,
-                                                             cutSquareIntRules, num_state, 0);
-    cout << "|| rho_h - rho ||_{L^2} = " << l2_err_rho << endl;
-    cout << "=========================================" << endl;
+    //     if (isnan(res_norm))
+    //         break;
+    //     ode_solver->Step(u, t, dt);
+    //     res_norm = calcResidualNorm(res, fes, u);
+    // }
+    // cout << "=========================================" << endl;
+    // std::cout << "final residual norm: " << res_norm << "\n";
+    // double drag = calcDrag(fes, u, num_state, cutSegmentIntRules_inner, alpha);
+    // double drag_err = abs(drag - (-1 / 1.4));
+    // cout << "drag: " << drag << endl;
+    // cout << "drag_error: " << drag_err << endl;
+    // ofstream finalsol_ofs("final_sol_euler_vortex_cut.vtk");
+    // finalsol_ofs.precision(14);
+    // mesh->PrintVTK(finalsol_ofs, 1);
+    // u.SaveVTK(finalsol_ofs, "Solution", 1);
+    // finalsol_ofs.close();
+    // //calculate final solution error
+    // double l2_err_rho = calcCutConservativeVarsL2Error<2, 0>(uexact, &u, fes, EmbeddedElems,
+    //                                                          cutSquareIntRules, num_state, 0);
+    // cout << "|| rho_h - rho ||_{L^2} = " << l2_err_rho << endl;
+    // cout << "=========================================" << endl;
     // Free the used memory.
     delete res;
     delete mass;
@@ -773,14 +816,6 @@ void uexact(const Vector &x, Vector &q)
     //    q(1) = q(0) * mach_fs; // ignore angle of attack
     //    q(2) = 0.0;
     //    q(3) = 1 / (euler::gamma * euler::gami) + 0.5 * mach_fs * mach_fs;
-    //    if (((x(0) * x(0)) + (x(1) * x(1)) < 1.0) /*|| ((x(0) * x(0)) + (x(1) * x(1)) > 9.0)*/)
-    //    {
-    //        double mach_fs = 0.3;
-    //        q(0) = 1.0;
-    //        q(1) = q(0) * mach_fs; // ignore angle of attack
-    //        q(2) = 0.0;
-    //        q(3) = 1 / (euler::gamma * euler::gami) + 0.5 * mach_fs * mach_fs;
-    //    }
 }
 
 // back-up code

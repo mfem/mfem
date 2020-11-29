@@ -171,8 +171,8 @@ int main(int argc, char *argv[])
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec, 1);
    /// GD finite element space
    // auto start = high_resolution_clock::now();
-   FiniteElementSpace *fes = new GalerkinDifference(mesh, dim, mesh->GetNE(), 
-                        fec, EmbeddedElems, 1, Ordering::byVDIM, order);
+   FiniteElementSpace *fes = new GalerkinDifference(mesh, dim, mesh->GetNE(),
+                                                    fec, EmbeddedElems, 1, Ordering::byVDIM, order);
    // auto stop = high_resolution_clock::now();
    // auto duration = duration_cast<microseconds>(stop - start);
    // cout << "time taken for prolongation: " << duration.count()*1e-06 << endl;
@@ -228,11 +228,11 @@ int main(int argc, char *argv[])
    SparseMatrix *cp = dynamic_cast<GalerkinDifference *>(fes)->GetCP();
    SparseMatrix *p = RAP(*cp, Aold, *cp);
    SparseMatrix &A = *p;
-   // ofstream write("stiffmat_lap_cut_gd.txt");
-   // A.PrintMatlab(write);
-   // write.close();
-   // calculate condition number
-   #if 0
+// ofstream write("stiffmat_lap_cut_gd.txt");
+// A.PrintMatlab(write);
+// write.close();
+// calculate condition number
+#if 0
    DenseMatrix Ad;
    A.ToDenseMatrix(Ad);
    Vector si;
@@ -243,14 +243,14 @@ int main(int argc, char *argv[])
    cond = si(0) / si(si.Size() - 1);
    cout << "cond# " << endl;
    cout << cond << endl;
-   #endif
+#endif
    Vector bnew(A.Width());
    fes->GetProlongationMatrix()->MultTranspose(*b, bnew);
    // Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
    //    non-symmetric one.
    GSSmoother M(A);
-   #ifndef MFEM_USE_SUITESPARSE
+#ifndef MFEM_USE_SUITESPARSE
    if (sigma == -1.0)
    {
       PCG(A, M, bnew, y, 1, 10000, 1e-20, 0.0);
@@ -259,14 +259,14 @@ int main(int argc, char *argv[])
    {
       GMRES(A, M, bnew, y, 1, 1000, 10, 1e-12, 0.0);
    }
-   //x.Print();
-   #else
-      // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-      UMFPackSolver umf_solver;
-      umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-      umf_solver.SetOperator(A);
-      umf_solver.Mult(bnew, y);
-   #endif
+//x.Print();
+#else
+   // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+   UMFPackSolver umf_solver;
+   umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+   umf_solver.SetOperator(A);
+   umf_solver.Mult(bnew, y);
+#endif
 
    fes->GetProlongationMatrix()->Mult(y, x);
 
@@ -514,10 +514,10 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
                double *v1coord, *v2coord;
                v1coord = mesh->GetVertex(v[0]);
                v2coord = mesh->GetVertex(v[1]);
-               if (v1coord[0] == v2coord[0])
+               if (abs(v1coord[0] - v2coord[0]) < 1e-15)
                {
                   dir = 0;
-                  if (v1coord[0] < xmax[0])
+                  if (abs(v1coord[0] - xmax[0]) > 1e-15)
                   {
                      side = 0;
                   }
@@ -529,7 +529,7 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
                else
                {
                   dir = 1;
-                  if (v1coord[1] < xmax[1])
+                  if (abs(v1coord[1] - xmax[1]) > 1e-15)
                   {
                      side = 0;
                   }
@@ -538,6 +538,8 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
                      side = 1;
                   }
                }
+               cout << "dir " << dir << endl;
+               cout << "side " << side << endl;
                auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double, N>(xlower, xupper), dir, side, order);
                int i = 0;
                ir = new IntegrationRule(q.nodes.size());
@@ -547,29 +549,74 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
                   ip.y = 0.0;
                   if (dir == 0)
                   {
-                     if (-1 == orient[c])
+                     if (v1coord[1] < v2coord[1])
                      {
-                        ip.x = 1 - pt.x[1];
+                        if (-1 == orient[c])
+                        {
+                           ip.x = 1 - pt.x[1];
+                        }
+                        else
+                        {
+                           ip.x = pt.x[1];
+                        }
                      }
                      else
                      {
-                        ip.x = pt.x[1];
+                        if (1 == orient[c])
+                        {
+                           ip.x = 1 - pt.x[1];
+                        }
+                        else
+                        {
+                           ip.x = pt.x[1];
+                        }
                      }
                   }
                   else if (dir == 1)
                   {
-                     if (-1 == orient[c])
+                     if (v1coord[0] < v2coord[0])
                      {
-                        ip.x = 1 - pt.x[0];
+                        if (-1 == orient[c])
+                        {
+                           ip.x = 1.0 - pt.x[0];
+                        }
+                        else
+                        {
+                           ip.x = pt.x[0];
+                        }
                      }
                      else
                      {
-                        ip.x = pt.x[0];
+                        if (1 == orient[c])
+                        {
+                           ip.x = 1.0 - pt.x[0];
+                        }
+                        else
+                        {
+                           ip.x = pt.x[0];
+                        }
                      }
                   }
                   ip.weight = pt.w;
                   i = i + 1;
+                  FaceElementTransformations *trans;
+                  trans = mesh->GetInteriorFaceTransformations(fid);
+                  IntegrationPoint eip1;
+                  IntegrationPoint eip2;
+                  trans->Loc1.Transform(ip, eip1);
+                  trans->Loc2.Transform(ip, eip2);
 
+                  Vector x1, x2;
+
+                  cout << "--- x1 ---" << endl;
+                  trans->Elem1->Transform(eip1, x1);
+                  x1.Print();
+                  cout << "--- x2 ---" << endl;
+                  trans->Elem2->Transform(eip2, x2);
+                  x2.Print();
+                  double phi_inner = (x1(0) - 0.5) * (x1(0) - 0.5) + (x1(1) - 0.5) * (x1(1) - 0.5) - 0.04;
+                  MFEM_ASSERT((phi_inner < 0), " phi = " << phi_inner << " : "
+                                                         << "levelset function positive at the quadrature point (Saye's method)");
                   // scaled to original element space
                   double xq = (pt.x[0] * phi.xscale) + phi.xmin;
                   double yq = (pt.x[1] * phi.yscale) + phi.ymin;
@@ -1453,7 +1500,8 @@ void GalerkinDifference::BuildNeighbourMat(const mfem::Array<int> &elmt_id,
    }
 }
 void GalerkinDifference::GetNeighbourSet(int id, int req_n, Array<int> &nels_x, Array<int> &nels_y) const
-{}
+{
+}
 void GalerkinDifference::GetNeighbourSet(int id, int req_n,
                                          mfem::Array<int> &nels) const
 {
@@ -1484,10 +1532,10 @@ void GalerkinDifference::GetNeighbourSet(int id, int req_n,
             GetElementCenter(adj[i], cent);
             // if ((cent(0) == cent_coord(0)) || (cent(1) == cent_coord(1)))
             // {
-               if (EmbeddedElements.at(adj[i]) == false)
-               {
-                  nels.Append(adj[i]);
-               }
+            if (EmbeddedElements.at(adj[i]) == false)
+            {
+               nels.Append(adj[i]);
+            }
             //}
          }
       }

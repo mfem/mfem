@@ -193,13 +193,13 @@ namespace mfem
             mass_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
             mass_solver.SetOperator(mass->SpMat());
 #else
-            //mass_prec = DSmoother(mass->SpMat());
-            mass_prec = new DSmoother(1);
+            mass_prec = new DSmoother(mass->SpMat());
+            //mass_prec = new DSmoother(1);
             mass_solver.SetPreconditioner(*mass_prec);
             mass_solver.SetOperator(mass->SpMat());
             mass_solver.iterative_mode = false;
-            mass_solver.SetRelTol(1e-9);
-            mass_solver.SetAbsTol(0.0);
+            mass_solver.SetRelTol(1e-3);
+            mass_solver.SetAbsTol(1e-11);
             mass_solver.SetMaxIter(500);
             mass_solver.SetPrintLevel(-1);
 #endif

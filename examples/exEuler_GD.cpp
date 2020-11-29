@@ -159,14 +159,19 @@ int main(int argc, char *argv[])
    // Parse command-line options
    OptionsParser args(argc, argv);
    int degree = 2;
-   int nx = 4;
-   int ny = 4;
+   int nx = 3;
+   int ny = 3;
    int order = 1;
+   int ref_levels = -1;
+   int nc_ref = -1;
    args.AddOption(&degree, "-d", "--degree", "poly. degree of mesh mapping");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) >= 0.");
    args.AddOption(&nx, "-nr", "--num-rad", "number of radial segments");
    args.AddOption(&ny, "-nt", "--num-theta", "number of angular segments");
+   args.AddOption(&ref_levels, "-ref", "--refine",
+                  "refine levels");
+
    args.Parse();
    if (!args.Good())
    {
@@ -182,11 +187,34 @@ int main(int argc, char *argv[])
    cout << "Number of elements " << mesh->GetNE() << '\n';
    /// dimension
    const int dim = mesh->Dimension();
+   
+   for (int l = 0; l < nc_ref; ++l)
+   {
+      Array<int> marked_elements;
+      for (int k = 0; k < mesh->GetNBE(); ++k)
+      {
+        if (mesh->GetBdrAttribute(k) == 4)
+         {
+         //cout << "bdr face: " <<  k << endl;
+         FaceElementTransformations *trans;
+         trans = mesh->GetBdrFaceTransformations(k);
+        // cout << "bdr el: " << trans->Elem1No << endl;
+         marked_elements.Append(trans->Elem1No);
+         }
+      }
+      mesh->GeneralRefinement(marked_elements);
+   }
 
+   for (int l = 0; l < ref_levels; l++)
+   {
+      mesh->UniformRefinement();
+   }
+
+   cout << "Number of elements after refinement " << mesh->GetNE() << '\n';
    // save the initial mesh
-   ofstream sol_ofs("steady_vortex_mesh_gd.vtk");
+   ofstream sol_ofs("steady_vortex_mesh_gd_nc.vtk");
    sol_ofs.precision(14);
-   mesh->PrintVTK(sol_ofs, 0);
+   mesh->PrintVTK(sol_ofs, 1);
 
    // finite element collection
    FiniteElementCollection *fec = new DG_FECollection(order, dim);
@@ -326,7 +354,7 @@ int main(int argc, char *argv[])
    double res_norm0 = calcResidualNorm(res, fes_GD, uc);
    double t_final = 1000;
    std::cout << "initial residual norm: " << res_norm0 << "\n";
-   double dt_init = 100;
+   double dt_init = 1000;
    double dt_old;
 
    //initial l2_err
@@ -441,7 +469,7 @@ void uexact(const Vector &x, Vector &q)
 unique_ptr<Mesh> buildQuarterAnnulusMesh(int degree, int num_rad, int num_ang)
 {
    auto mesh_ptr = unique_ptr<Mesh>(new Mesh(num_rad, num_ang,
-                                             Element::QUADRILATERAL, true /* gen. edges */,
+                                             Element::TRIANGLE, true /* gen. edges */,
                                              2.0, M_PI * 0.5, true));
    // strategy:
    // 1) generate a fes for Lagrange elements of desired degree
