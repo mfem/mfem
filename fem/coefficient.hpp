@@ -12,6 +12,8 @@
 #ifndef MFEM_COEFFICIENT
 #define MFEM_COEFFICIENT
 
+#include <functional>
+
 #include "../config/config.hpp"
 #include "../linalg/linalg.hpp"
 #include "intrules.hpp"
@@ -123,28 +125,25 @@ public:
                        const IntegrationPoint &ip);
 };
 
-
-/// A general C-function coefficient
+/// A general function coefficient
 class FunctionCoefficient : public Coefficient
 {
 protected:
-   double (*Function)(const Vector &);
-   double (*TDFunction)(const Vector &, double);
+   std::function<double(const Vector &)> Function;
+   std::function<double(const Vector &, double)> TDFunction;
 
 public:
-   /// Define a time-independent coefficient from a pointer to a C-function
-   FunctionCoefficient(double (*f)(const Vector &))
-   {
-      Function = f;
-      TDFunction = NULL;
-   }
+   /// Define a time-independent coefficient from a std function
+   /** \param F time-independent std::function */
+   FunctionCoefficient(std::function<double(const Vector &)> F)
+      : Function(std::move(F))
+   { }
 
-   /// Define a time-dependent coefficient from a pointer to a C-function
-   FunctionCoefficient(double (*tdf)(const Vector &, double))
-   {
-      Function = NULL;
-      TDFunction = tdf;
-   }
+   /// Define a time-dependent coefficient from a std function
+   /** \param TDF time-dependent function */
+   FunctionCoefficient(std::function<double(const Vector &, double)> TDF)
+      : TDFunction(std::move(TDF))
+   { }
 
    /// (DEPRECATED) Define a time-independent coefficient from a C-function
    /** @deprecated Use the method where the C-function, @a f, uses a const
@@ -405,33 +404,34 @@ public:
    const Vector& GetVec() { return vec; }
 };
 
-/// A general C-function vector coefficient
+/// A general vector function coefficient
 class VectorFunctionCoefficient : public VectorCoefficient
 {
 private:
-   void (*Function)(const Vector &, Vector &);
-   void (*TDFunction)(const Vector &, double, Vector &);
+   std::function<void(const Vector &, Vector &)> Function;
+   std::function<void(const Vector &, double, Vector &)> TDFunction;
    Coefficient *Q;
 
 public:
-   /// Construct a time-independent vector coefficient from a C-function
-   VectorFunctionCoefficient(int dim, void (*F)(const Vector &, Vector &),
-                             Coefficient *q = NULL)
-      : VectorCoefficient(dim), Q(q)
-   {
-      Function = F;
-      TDFunction = NULL;
-   }
-
-   /// Construct a time-dependent vector coefficient from a C-function
+   /// Define a time-independent vector coefficient from a std function
+   /** \param dim - the size of the vector
+       \param F - time-independent function
+       \param q - optional scalar Coefficient to scale the vector coefficient */
    VectorFunctionCoefficient(int dim,
-                             void (*TDF)(const Vector &, double, Vector &),
-                             Coefficient *q = NULL)
-      : VectorCoefficient(dim), Q(q)
-   {
-      Function = NULL;
-      TDFunction = TDF;
-   }
+                             std::function<void(const Vector &, Vector &)> F,
+                             Coefficient *q = nullptr)
+      : VectorCoefficient(dim), Function(std::move(F)), Q(q)
+   { }
+
+   /// Define a time-dependent vector coefficient from a std function
+   /** \param dim - the size of the vector
+       \param TDF - time-dependent function
+       \param q - optional scalar Coefficient to scale the vector coefficient */
+   VectorFunctionCoefficient(int dim,
+                             std::function<void(const Vector &, double, Vector &)> TDF,
+                             Coefficient *q = nullptr)
+      : VectorCoefficient(dim), TDFunction(std::move(TDF)), Q(q)
+   { }
 
    using VectorCoefficient::Eval;
    /// Evaluate the vector coefficient at @a ip.
@@ -721,7 +721,6 @@ public:
    /// For backward compatibility get the width of the matrix.
    int GetVDim() const { return width; }
 
-   void SetSymmetric(bool s) { symmetric = s; }
    bool IsSymmetric() const { return symmetric; }
 
    /** @brief Evaluate the matrix coefficient in the element described by @a T
@@ -762,61 +761,56 @@ public:
 
 
 /** @brief A matrix coefficient with an optional scalar coefficient multiplier
-    \a q.  The matrix function can either be represented by a C-function or a
-    constant matrix provided when constructing this object.  */
+    \a q.  The matrix function can either be represented by a std function or
+    a constant matrix provided when constructing this object.  */
 class MatrixFunctionCoefficient : public MatrixCoefficient
 {
 private:
-   void (*Function)(const Vector &, DenseMatrix &);
-   void (*SymmFunction)(const Vector &, Vector &);
-   void (*TDFunction)(const Vector &, double, DenseMatrix &);
+   std::function<void(const Vector &, DenseMatrix &)> Function;
+   std::function<void(const Vector &, Vector &)> SymmFunction;
+   std::function<void(const Vector &, double, DenseMatrix &)> TDFunction;
+
    Coefficient *Q;
    DenseMatrix mat;
 
 public:
-   /// Construct a square matrix coefficient from a C-function without time
-   /// dependence.
-   MatrixFunctionCoefficient(int dim, void (*F)(const Vector &, DenseMatrix &),
-                             Coefficient *q = NULL)
-      : MatrixCoefficient(dim), Q(q)
-   {
-      Function = F;
-      TDFunction = NULL;
-      mat.SetSize(0);
-   }
-
-   /// Construct a constant matrix coefficient times a scalar Coefficient
-   MatrixFunctionCoefficient(const DenseMatrix &m, Coefficient &q)
-      : MatrixCoefficient(m.Height(), m.Width()), Q(&q)
-   {
-      Function = NULL;
-      TDFunction = NULL;
-      mat = m;
-   }
-
-   /// Construct a square matrix coefficient from a C-function with
-   /// time-dependence.
+   /// Define a time-independent square matrix coefficient from a std function
+   /** \param dim - the size of the matrix
+       \param F - time-independent function
+       \param q - optional scalar Coefficient to scale the matrix coefficient */
    MatrixFunctionCoefficient(int dim,
-                             void (*TDF)(const Vector &, double, DenseMatrix &),
-                             Coefficient *q = NULL)
-      : MatrixCoefficient(dim), Q(q)
-   {
-      Function = NULL;
-      TDFunction = TDF;
-      mat.SetSize(0);
-   }
+                             std::function<void(const Vector &, DenseMatrix &)> F,
+                             Coefficient *q = nullptr)
+      : MatrixCoefficient(dim), Function(std::move(F)), Q(q), mat(0)
+   { }
 
-   /// Construct a symmetric square matrix coefficient from a C-function
-   /// defining a vector function used by EvalSymmetric
-   MatrixFunctionCoefficient(int dim, void (*F)(const Vector &, Vector &),
+   /// Define a constant matrix coefficient times a scalar Coefficient
+   /** \param m - constant matrix
+       \param q - optional scalar Coefficient to scale the matrix coefficient */
+   MatrixFunctionCoefficient(const DenseMatrix &m, Coefficient &q)
+      : MatrixCoefficient(m.Height(), m.Width()), Q(&q), mat(m)
+   { }
+
+   /// Define a time-dependent square matrix coefficient from a std function
+   /** \param dim - the size of the matrix
+       \param TDF - time-dependent function
+       \param q - optional scalar Coefficient to scale the matrix coefficient */
+   MatrixFunctionCoefficient(int dim,
+                             std::function<void(const Vector &, double, DenseMatrix &)> TDF,
+                             Coefficient *q = nullptr)
+      : MatrixCoefficient(dim), TDFunction(std::move(TDF)), Q(q)
+   { }
+
+   /** @brief Define a time-independent symmetric square matrix coefficient from
+       a std function */
+   /** \param dim - the size of the matrix
+       \param SymmF - function used in EvalSymmetric
+       \param q - optional scalar Coefficient to scale the matrix coefficient */
+   MatrixFunctionCoefficient(int dim,
+                             std::function<void(const Vector &, Vector &)> SymmF,
                              Coefficient *q = NULL)
-      : MatrixCoefficient(dim, true), Q(q)
-   {
-      SymmFunction = F;
-      Function = NULL;
-      TDFunction = NULL;
-      mat.SetSize(0);
-   }
+      : MatrixCoefficient(dim, true), SymmFunction(std::move(SymmF)), Q(q), mat(0)
+   { }
 
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
@@ -889,7 +883,7 @@ public:
 
 /// Coefficients based on sums, products, or other functions of coefficients.
 ///@{
-/** Scalar coefficient defined as the linear combination of two scalar
+/** @brief Scalar coefficient defined as the linear combination of two scalar
     coefficients or a scalar and a scalar coefficient */
 class SumCoefficient : public Coefficient
 {
@@ -946,8 +940,8 @@ public:
    }
 };
 
-/** Scalar coefficient defined as the product of two scalar coefficients or
-    a scalar and a scalar coefficient. */
+/** @brief Scalar coefficient defined as the product of two scalar coefficients
+    or a scalar and a scalar coefficient. */
 class ProductCoefficient : public Coefficient
 {
 private:
@@ -985,8 +979,8 @@ public:
    { return ((a == NULL ) ? aConst : a->Eval(T, ip) ) * b->Eval(T, ip); }
 };
 
-/** Scalar coefficient defined as the ratio of two scalars where one or both
-    scalars are scalar coefficients. */
+/** @brief Scalar coefficient defined as the ratio of two scalars where one or
+    both scalars are scalar coefficients. */
 class RatioCoefficient : public Coefficient
 {
 private:
@@ -1177,8 +1171,8 @@ public:
                         double _alpha = 1.0, double _beta = 1.0);
 
    /** Constructor with scalar coefficients.
-       Result is _alpha * _A + _beta * _B */
-   VectorSumCoefficient(VectorCoefficient &_A, VectorCoefficient &_B,
+       Result is _alpha * _A + _beta * B_ */
+   VectorSumCoefficient(VectorCoefficient &_A, VectorCoefficient &B_,
                         Coefficient &_alpha, Coefficient &_beta);
 
    /// Reset the first vector coefficient
@@ -1207,7 +1201,7 @@ public:
    const Vector & GetA() const { return A; }
 
    /// Reset the second vector as a constant
-   void SetB(const Vector &_B) { B = _B; BCoef = NULL; }
+   void SetB(const Vector &B_) { B = B_; BCoef = NULL; }
    /// Return the second vector constant
    const Vector & GetB() const { return B; }
 
