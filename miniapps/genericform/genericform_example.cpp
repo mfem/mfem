@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
-   const char *mesh_file = "../data/disc.e";
+   const char *mesh_file = "../data/inline-quad.mesh";
    int order = 1;
    int refinements = 0;
    double p = 5.0;
@@ -61,7 +61,8 @@ int main(int argc, char *argv[])
       double x = coords(0);
       double y = coords(1);
 
-      return 1.0 - pow(sqrt(x * x + y * y), p / (p - 1.0));
+      // return 1.0 - pow(sqrt(x * x + y * y), p / (p - 1.0));
+      return x * x + y * y;
    });
 
    ParGridFunction x(&fespace);
@@ -71,11 +72,13 @@ int main(int argc, char *argv[])
 
    GenericForm form(&fespace);
 
-   auto plaplacian = new QFunctionIntegrator([&](auto u, auto du) {
-      auto f0 = -1.0;
-      auto f1 = pow(norm(du), p - 2.0) * du;
+   auto plaplacian = new QFunctionIntegrator([&](auto u, auto du, auto x) {
+      // auto f0 = -1.0;
+      // auto f1 = pow(norm(du), p - 2.0) * du;
+      auto f0 = 4.0 * (1.0 + 2.0 * x[0] * x[0] + 2.0 * x[1] * x[1]);
+      auto f1 = (1.0 + u) * du;
       return std::tuple{f0, f1};
-   });
+   }, 0, pmesh);
 
    form.AddDomainIntegrator(plaplacian);
 
