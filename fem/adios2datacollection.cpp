@@ -87,6 +87,6 @@ noexcept
    stream->SetRefinementLevel(levels_of_detail);
 }
 
-} //end namespace mfem
+} // namespace mfem
 
 #endif // MFEM_USE_ADIOS2

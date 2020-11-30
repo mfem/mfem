@@ -30,6 +30,10 @@
 #include <fstream>
 #include <iostream>
 
+#ifndef MFEM_USE_AMGX
+#error This example requires that MFEM is built with MFEM_USE_AMGX=YES
+#endif
+
 using namespace std;
 using namespace mfem;
 
