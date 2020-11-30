@@ -194,7 +194,8 @@ public:
        as they can be written in terms of the primary_dofs. */
    EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
                        Array<int>& primary_dofs,
-                       Array<int>& secondary_dofs);
+                       Array<int>& secondary_dofs,
+                       int dimension=0);
 
    /** @brief Constructor, elimination is by blocks.
 
@@ -202,7 +203,8 @@ public:
        rows are identified with the lagrange_rowstarts array, the secondary
        dofs are assumed to be the first nonzeros in the rows. */
    EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
-                       Array<int>& lagrange_rowstarts);
+                       Array<int>& lagrange_rowstarts,
+                       int dimension=0);
 
    ~EliminationCGSolver();
 
@@ -210,7 +212,7 @@ public:
 
 private:
    /// Utility routine for constructors
-   void BuildPreconditioner();
+   void BuildPreconditioner(int dimension);
 
    HypreParMatrix& hA_;
    Array<Eliminator*> elims_;
@@ -228,17 +230,19 @@ class PenaltyConstrainedSolver : public ConstrainedSolver
 {
 public:
    PenaltyConstrainedSolver(MPI_Comm comm, HypreParMatrix& A,
-                            SparseMatrix& B, double penalty_);
+                            SparseMatrix& B, double penalty_,
+                            int dimension=0);
 
    PenaltyConstrainedSolver(MPI_Comm comm, HypreParMatrix& A,
-                            HypreParMatrix& B, double penalty_);
+                            HypreParMatrix& B, double penalty_,
+                            int dimension=0);
 
    ~PenaltyConstrainedSolver();
 
    void Mult(const Vector& x, Vector& y) const override;
 
 private:
-   void Initialize(HypreParMatrix& A, HypreParMatrix& B);
+   void Initialize(HypreParMatrix& A, HypreParMatrix& B, int dimension);
 
    double penalty;
    Operator& constraintB;
@@ -297,7 +301,7 @@ class SchurConstrainedHypreSolver : public SchurConstrainedSolver
 {
 public:
    SchurConstrainedHypreSolver(MPI_Comm comm, HypreParMatrix& hA_,
-                               HypreParMatrix& hB_);
+                               HypreParMatrix& hB_, int dimension=0);
    virtual ~SchurConstrainedHypreSolver();
 
 private:

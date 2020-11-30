@@ -205,7 +205,7 @@ EliminationCGSolver::~EliminationCGSolver()
    delete prec_;
 }
 
-void EliminationCGSolver::BuildPreconditioner()
+void EliminationCGSolver::BuildPreconditioner(int dimension)
 {
    SparseMatrix * explicit_projector = projector_->AssembleExact();
    HypreParMatrix * h_explicit_projector =
@@ -222,6 +222,10 @@ void EliminationCGSolver::BuildPreconditioner()
 
    prec_ = new HypreBoomerAMG(*h_explicit_operator_);
    prec_->SetPrintLevel(0);
+   if (dimension > 0)
+   {
+      prec_->SetSystemsOptions(dimension, true); // ???
+   }
 
    delete explicit_projector;
    delete h_explicit_projector;
@@ -242,7 +246,8 @@ void EliminationCGSolver::BuildPreconditioner()
 
 EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
                                          Array<int>& primary_dofs,
-                                         Array<int>& secondary_dofs)
+                                         Array<int>& secondary_dofs,
+                                         int dimension)
    :
    ConstrainedSolver(A.GetComm(), A, B),
    hA_(A)
@@ -257,11 +262,12 @@ EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
    elims_.Append(new Eliminator(B, lagrange_dofs, primary_dofs,
                                 secondary_dofs));
    projector_ = new EliminationProjection(hA_, elims_);
-   BuildPreconditioner();
+   BuildPreconditioner(dimension);
 }
 
 EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
-                                         Array<int>& lagrange_rowstarts)
+                                         Array<int>& lagrange_rowstarts,
+                                         int dimension)
    :
    ConstrainedSolver(A.GetComm(), A, B),
    hA_(A)
@@ -303,7 +309,7 @@ EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
       }
    }
    projector_ = new EliminationProjection(hA_, elims_);
-   BuildPreconditioner();
+   BuildPreconditioner(dimension);
 }
 
 void EliminationCGSolver::Mult(const Vector& rhs, Vector& sol) const
@@ -338,6 +344,7 @@ void EliminationCGSolver::Mult(const Vector& rhs, Vector& sol) const
    Vector reducedsol(rhs.Size());
    reducedsol = 0.0;
    krylov.Mult(reducedrhs, reducedsol);
+   final_iter = krylov.GetNumIterations();
    projector_->Mult(reducedsol, sol);
 
    projector_->RecoverMultiplier(temprhs, sol, multiplier_sol);
@@ -345,7 +352,7 @@ void EliminationCGSolver::Mult(const Vector& rhs, Vector& sol) const
    sol += rtilde;
 }
 
-void PenaltyConstrainedSolver::Initialize(HypreParMatrix& A, HypreParMatrix& B)
+void PenaltyConstrainedSolver::Initialize(HypreParMatrix& A, HypreParMatrix& B, int dimension)
 {
    HypreParMatrix * hBT = B.Transpose();
    HypreParMatrix * hBTB = ParMult(hBT, &B, true);
@@ -354,13 +361,16 @@ void PenaltyConstrainedSolver::Initialize(HypreParMatrix& A, HypreParMatrix& B)
    penalized_mat = Add(1.0, A, penalty, *hBTB);
    prec = new HypreBoomerAMG(*penalized_mat);
    prec->SetPrintLevel(0);
-   // prec->SetSystemsOptions(2); // ???
+   if (dimension > 0)
+   {
+      prec->SetSystemsOptions(dimension, true); // ???
+   }
    delete hBTB;
    delete hBT;
 }
 
 PenaltyConstrainedSolver::PenaltyConstrainedSolver(
-   MPI_Comm comm, HypreParMatrix& A, SparseMatrix& B, double penalty_)
+   MPI_Comm comm, HypreParMatrix& A, SparseMatrix& B, double penalty_, int dimension)
    :
    ConstrainedSolver(comm, A, B),
    penalty(penalty_),
@@ -370,11 +380,11 @@ PenaltyConstrainedSolver::PenaltyConstrainedSolver(
    HYPRE_Int hB_col_starts[2] = {0, B.Width()};
    HypreParMatrix hB(comm, B.Height(), B.Width(),
                      hB_row_starts, hB_col_starts, &B);
-   Initialize(A, hB);
+   Initialize(A, hB, dimension);
 }
 
 PenaltyConstrainedSolver::PenaltyConstrainedSolver(
-   MPI_Comm comm, HypreParMatrix& A, HypreParMatrix& B, double penalty_)
+   MPI_Comm comm, HypreParMatrix& A, HypreParMatrix& B, double penalty_, int dimension)
    :
    ConstrainedSolver(comm, A, B),
    penalty(penalty_),
@@ -383,7 +393,7 @@ PenaltyConstrainedSolver::PenaltyConstrainedSolver(
    // TODO: check column starts of A and B are compatible?
    // (probably will happen in ParMult later)
 
-   Initialize(A, B);
+   Initialize(A, B, dimension);
 }
 
 PenaltyConstrainedSolver::~PenaltyConstrainedSolver()
@@ -413,6 +423,7 @@ void PenaltyConstrainedSolver::Mult(const Vector& b, Vector& x) const
    cg.SetPrintLevel(print_level);
    cg.SetPreconditioner(*prec);
    cg.Mult(penalized_rhs, x);
+   final_iter = cg.GetNumIterations();
 
    constraintB.Mult(x, multiplier_sol);
    if (constraint_rhs.Size() > 0)
@@ -496,11 +507,13 @@ void SchurConstrainedSolver::SaddleMult(const Vector& x, Vector& y) const
       const_cast<BlockDiagonalPreconditioner&>(*block_pc));
 
    gmres.Mult(x, y);
+   final_iter = gmres.GetNumIterations();
 }
 
 SchurConstrainedHypreSolver::SchurConstrainedHypreSolver(MPI_Comm comm,
                                                          HypreParMatrix& hA_,
-                                                         HypreParMatrix& hB_)
+                                                         HypreParMatrix& hB_,
+                                                         int dimension)
    :
    SchurConstrainedSolver(comm, hA_, hB_),
    hA(hA_),
@@ -508,6 +521,10 @@ SchurConstrainedHypreSolver::SchurConstrainedHypreSolver(MPI_Comm comm,
 {
    auto h_primal_pc = new HypreBoomerAMG(hA);
    h_primal_pc->SetPrintLevel(0);
+   if (dimension > 0)
+   {
+      h_primal_pc->SetSystemsOptions(dimension, true); // ???
+   }
    primal_pc = h_primal_pc;
    
    HypreParMatrix * scaledB = new HypreParMatrix(hB);

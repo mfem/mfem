@@ -33,8 +33,8 @@
     for primal system that we could use in all three existing solvers?
   - improve Schur complement block in Schur solver (user-defined preconditioner, but
     different interface)
-  - finer grained control of hypre rigid body modes, for example in elimination
-    solver the numbering gets messed up, can we deal with that?
+  - finer grained control of hypre rigid body modes, in elimination the numbering may
+    get messed around (with square projector less of a problem)
   - hook up with user code (contact?)
 */
 
@@ -391,7 +391,7 @@ int main(int argc, char *argv[])
    if (penalty > 0.0)
    {
       constrained = new PenaltyConstrainedSolver(MPI_COMM_WORLD, *A.As<HypreParMatrix>(),
-                                                 *hconstraints, penalty);
+                                                 *hconstraints, penalty, dim);
    }
    else if (elimination)
    {
@@ -403,18 +403,24 @@ int main(int argc, char *argv[])
          lagrange_rowstarts[k] = k;
       }
       constrained = new EliminationCGSolver(*A.As<HypreParMatrix>(), local_constraints,
-                                            lagrange_rowstarts);
+                                            lagrange_rowstarts, dim);
    }
    else
    {
       constrained = new SchurConstrainedHypreSolver(MPI_COMM_WORLD, *A.As<HypreParMatrix>(),
-                                                    *hconstraints);
+                                                    *hconstraints, dim);
    }
    constrained->SetRelTol(reltol);
    constrained->SetAbsTol(1.e-12);
    constrained->SetMaxIter(500);
    constrained->SetPrintLevel(1);
    constrained->Mult(B, X);
+
+   int iterations = constrained->GetNumIterations();
+   if (myid == 0)
+   {
+      cout << "Total iterations: " << iterations << endl;
+   }
 
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
