@@ -305,6 +305,10 @@ public:
       return &FaceNbrTransformation;
    }
 
+   /// Get the size of the i-th face neighbor element relative to the reference
+   /// element.
+   double GetFaceNbrElementSize(int i, int type=0);
+
    /// Return the number of shared faces (3D), edges (2D), vertices (1D)
    int GetNSharedFaces() const;
 
@@ -361,6 +365,15 @@ public:
 
    /// Save the mesh in a parallel mesh format.
    void ParPrint(std::ostream &out) const;
+
+   /** Print the mesh in parallel PVTU format. The PVTU and VTU files will be
+       stored in the directory specified by @a pathname. If the directory does
+       not exist, it will be created. */
+   virtual void PrintVTU(std::string pathname,
+                         VTKFormat format=VTKFormat::ASCII,
+                         bool high_order_output=false,
+                         int compression_level=0,
+                         bool bdr=false);
 
    virtual int FindPoints(DenseMatrix& point_mat, Array<int>& elem_ids,
                           Array<IntegrationPoint>& ips, bool warn = true,
