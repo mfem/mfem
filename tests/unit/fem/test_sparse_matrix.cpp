@@ -154,12 +154,12 @@ void test_sparse_matrix(const char* input, int order, const Coeff coeff_type,
          break;
    }
 
-   if (keep_nbr_block) k_ref.KeepNbrBlock();
+   if (keep_nbr_block) { k_ref.KeepNbrBlock(); }
    k_ref.Assemble();
    k_ref.Finalize();
 
    k_test.SetAssemblyLevel(AssemblyLevel::FULL);
-   if (keep_nbr_block) k_test.KeepNbrBlock();
+   if (keep_nbr_block) { k_test.KeepNbrBlock(); }
    k_test.Assemble();
 
    const int sizeIn  = pb == Problem::Convection ?
