@@ -822,12 +822,12 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 // Data and methods for fully-assembled bilinear forms
 FABilinearFormExtension::FABilinearFormExtension(BilinearForm *form)
    : EABilinearFormExtension(form),
-   mat(a->mat)
+     mat(a->mat)
 {
 #ifdef MFEM_USE_MPI
    ParFiniteElementSpace *pfes = nullptr;
    if ( a->GetFBFI()->Size()>0 && 
-         (pfes = dynamic_cast<ParFiniteElementSpace*>(form->FESpace())) )
+        (pfes = dynamic_cast<ParFiniteElementSpace*>(form->FESpace())) )
    {
       pfes->ExchangeFaceNbrData();
    }
@@ -844,13 +844,13 @@ void FABilinearFormExtension::Assemble()
 #ifdef MFEM_USE_MPI
    ParFiniteElementSpace *pfes = nullptr;
    if ( a->GetFBFI()->Size()>0 && 
-         (pfes = dynamic_cast<ParFiniteElementSpace*>(&fes)) )
+        (pfes = dynamic_cast<ParFiniteElementSpace*>(&fes)) )
    {
       pfes->ExchangeFaceNbrData();
       width += pfes->GetFaceNbrVSize();
       long_x.SetSize(width);
       ParBilinearForm *pb = nullptr;
-      if((pb = dynamic_cast<ParBilinearForm*>(a)) && (pb->keep_nbr_block))
+      if ((pb = dynamic_cast<ParBilinearForm*>(a)) && (pb->keep_nbr_block))
       {
          height += pfes->GetFaceNbrVSize();
          long_y.SetSize(height);
@@ -941,12 +941,12 @@ void FABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
 #ifdef MFEM_USE_MPI
    const ParFiniteElementSpace *pfes;
-   if(a->GetFBFI()->Size()>0 &&
-         (pfes = dynamic_cast<const ParFiniteElementSpace*>(testFes)) )
+   if (a->GetFBFI()->Size()>0 &&
+       (pfes = dynamic_cast<const ParFiniteElementSpace*>(testFes)) )
    {
       ParGridFunction x_gf;
       x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(pfes),
-                  const_cast<Vector&>(x),0);
+                   const_cast<Vector&>(x),0);
       x_gf.ExchangeFaceNbrData();
       Vector &shared_x = x_gf.FaceNbrData();
       const int local_size = a->FESpace()->GetVSize();
@@ -963,7 +963,7 @@ void FABilinearFormExtension::Mult(const Vector &x, Vector &y) const
          long_x_ptr[local_size+i] = shared_x_ptr[i];
       });
       ParBilinearForm *pform = nullptr;
-      if((pform = dynamic_cast<ParBilinearForm*>(a)) && (pform->keep_nbr_block))
+      if ((pform = dynamic_cast<ParBilinearForm*>(a)) && (pform->keep_nbr_block))
       {
          mat->Mult(long_x, long_y);
          auto long_y_ptr = long_y.Read();
@@ -989,12 +989,12 @@ void FABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 {
 #ifdef MFEM_USE_MPI
    const ParFiniteElementSpace *pfes;
-   if(a->GetFBFI()->Size()>0 &&
-         (pfes = dynamic_cast<const ParFiniteElementSpace*>(testFes)) )
+   if (a->GetFBFI()->Size()>0 &&
+       (pfes = dynamic_cast<const ParFiniteElementSpace*>(testFes)) )
    {
       ParGridFunction x_gf;
       x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(pfes),
-                  const_cast<Vector&>(x),0);
+                   const_cast<Vector&>(x),0);
       x_gf.ExchangeFaceNbrData();
       Vector &shared_x = x_gf.FaceNbrData();
       const int local_size = a->FESpace()->GetVSize();
@@ -1011,7 +1011,7 @@ void FABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
          long_x_ptr[local_size+i] = shared_x_ptr[i];
       });
       ParBilinearForm *pb = nullptr;
-      if((pb = dynamic_cast<ParBilinearForm*>(a)) && (pb->keep_nbr_block))
+      if ((pb = dynamic_cast<ParBilinearForm*>(a)) && (pb->keep_nbr_block))
       {
          mat->MultTranspose(long_x, long_y);
          auto long_y_ptr = long_y.Read();
