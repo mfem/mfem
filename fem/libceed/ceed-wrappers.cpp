@@ -29,7 +29,7 @@ public:
       ceed_in(ceed_in_), ceed_out(ceed_out_)
    {
       CeedGetPreferredMemType(internal::ceed, &mem);
-      if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
+      if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
       {
          in_ptr = in.Read();
          out_ptr = out.ReadWrite();
@@ -98,10 +98,20 @@ UnconstrainedMFEMCeedOperator::~UnconstrainedMFEMCeedOperator()
 
 void UnconstrainedMFEMCeedOperator::Mult(const Vector& x, Vector& y) const
 {
+   // would like to use MFEMCeedVectorContext here, does not seem to work
+
    y = 0.0;
 
-   MFEMCeedVectorContext(x, y, u_, v_);
-   CeedOperatorApplyAdd(oper_, u_, v_, CEED_REQUEST_IMMEDIATE);
+   // I specifically do not want to call the constructor or destructor
+   // of CeedData, this is kind of a hack.
+   CeedData * data = (CeedData*) malloc(sizeof(CeedData));
+   data->u = u_;
+   data->v = v_;
+   data->oper = oper_;
+
+   CeedAddMult(data, x, y);
+
+   free(data);
 }
 
 MFEMCeedOperator::MFEMCeedOperator(
