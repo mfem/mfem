@@ -130,7 +130,7 @@ void ParBilinearForm::ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local)
 
    OperatorHandle dA(A.Type()), Ph(A.Type()), hdA;
 
-   if (fbfi.Size() == 0)
+   if (fbfi.Size() == 0 && sbfbfi.Size() == 0)
    {
       // construct a parallel block-diagonal matrix 'A' based on 'a'
       dA.MakeSquareBlockDiag(pfes->GetComm(), pfes->GlobalVSize(),
@@ -229,11 +229,40 @@ void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
          }
       }
    }
+
+   if (sbfbfi.Size())
+   {
+      FaceElementTransformations *tr = NULL;
+      const FiniteElement *fe1, *fe2;
+
+      for (int i = 0; i < sbfbfi_facenum_marker[0]->Size(); i++)
+      {
+         int fnum = (*(sbfbfi_facenum_marker[0]))[i];
+         int faceflag = (*(sbfbfi_face_flag_marker[0]))[i];
+         if (faceflag == 3)
+         {
+            tr = pmesh->GetSharedFaceTransformations(fnum);
+         }
+         if (tr != NULL)
+         {
+            int faceel = (*(sbfbfi_elnum_marker[0]))[i];
+            if (tr->Elem1No == faceel)
+            {
+               fe1 = pfes->GetFE(tr->Elem1No);
+               pfes->GetElementVDofs(tr->Elem1No, vdofs1);
+               dynamic_cast<SBM2Integrator *>(sbfbfi[0])->SetElem1Flag(true);
+               fe2 = fe1;
+               sbfbfi[0] -> AssembleFaceMatrix (*fe1, *fe2, *tr, elemmat);
+               mat -> AddSubMatrix (vdofs1, vdofs1, elemmat, skip_zeros);
+            }
+         }
+      }
+   }
 }
 
 void ParBilinearForm::Assemble(int skip_zeros)
 {
-   if (mat == NULL && fbfi.Size() > 0)
+   if (mat == NULL && (fbfi.Size() > 0 || sbfbfi.Size() > 0))
    {
       pfes->ExchangeFaceNbrData();
       pAllocMat();
@@ -241,7 +270,7 @@ void ParBilinearForm::Assemble(int skip_zeros)
 
    BilinearForm::Assemble(skip_zeros);
 
-   if (!ext && fbfi.Size() > 0)
+   if (!ext && (fbfi.Size() > 0 || sbfbfi.Size() > 0))
    {
       AssembleSharedFaces(skip_zeros);
    }

@@ -83,6 +83,7 @@ protected:
 
    /// Set of Domain Integrators to be applied.
    Array<BilinearFormIntegrator*> dbfi;
+   /// 0 if active, 1 if outside, 2 if intersection
    Array<Array<int>*>             dbfi_marker;
 
    /// Set of Boundary Integrators to be applied.
@@ -97,9 +98,14 @@ protected:
    Array<Array<int>*>             bfbfi_marker; ///< Entries are not owned.
 
    Array<BilinearFormIntegrator*> sbfbfi;
-   Array<Array<int>*>             sbfbfi_marker; ///< Entries are not owned.
-   Array<Array<int>*>             sbfbfi_el_marker;
-   Array<Array<int>*>             sbfbfi_flag_marker;
+   /// interior/boundary face number for the face to be integrated.
+   Array<Array<int>*>
+   sbfbfi_facenum_marker; ///< Entries are not owned.
+   /// The sbfbfi_elnum_marker tells what is the mesh element # adjacent to the face
+   /// which is inside the domain
+   Array<Array<int>*>             sbfbfi_elnum_marker;
+   /// sbfbfi_face_flag tells if it is an internal face (1) or a boundary face(2)
+   Array<Array<int>*>             sbfbfi_face_flag_marker;
 
    DenseMatrix elemmat;
    Array<int>  vdofs;
@@ -329,7 +335,8 @@ public:
 
    /// Adds new Domain Integrator. Assumes ownership of @a bfi.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi);
-   void AddDomainIntegrator(BilinearFormIntegrator *bfi, Array<int> &el_flags);
+   void AddDomainIntegrator(BilinearFormIntegrator *bfi,
+                            Array<int> &el_flags);
 
    /// Adds new Boundary Integrator. Assumes ownership of @a bfi.
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi);

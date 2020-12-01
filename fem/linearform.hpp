@@ -47,10 +47,12 @@ protected:
 
    /// Set of Shifted Boundary Face Integrators
    Array<LinearFormIntegrator*> sflfi;
-   Array<Array<int>*>           sflfi_marker; // Faces to which apply
-   Array<Array<int>*>
-   sflfi_el_marker; // List of elements that are trimmed
-   Array<Array<int>*>           sflfi_flag_marker;
+   /// interior/boundary face number for the face to be integrated
+   Array<Array<int>*>           sflfi_facenum_marker; // Faces to which apply
+   /// element number for the element adjacent to the face that is inside the domain.
+   Array<Array<int>*> sflfi_elnum_marker; // Element number
+   /// flag tells if the face is interior face (1) or boundary face (2)
+   Array<Array<int>*>           sflfi_face_flag_marker;
 
    /// The element ids where the centers of the delta functions lie
    Array<int> dlfi_delta_elem_id;

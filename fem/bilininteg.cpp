@@ -3083,8 +3083,8 @@ void SBM2Integrator::AssembleFaceMatrix(
       w = ip.weight*alpha*hinvdx;
       wrk = dshape2dd;
       wrk *= w;
-      AddMult_a_VWt(1., wrk, dshape2dd,
-                    elmat); // + < alpha * hinv * grad u.d, grad w.d>
+      AddMult_a_VWt(1., wrk, dshape2dd, elmat);
+      // < alpha * hinv * grad u.d, grad w.d>
 
    } //p < ir->GetNPoints()
 }
