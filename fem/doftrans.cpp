@@ -255,6 +255,81 @@ ND_DofTransformation::ND_DofTransformation(int height, int width, int p)
 {
 }
 
+ND_TriDofTransformation::ND_TriDofTransformation(int p)
+   : ND_DofTransformation(p*(p + 2), p*(p + 2), p)
+{
+}
+
+void ND_TriDofTransformation::TransformPrimal(const double *v,
+                                              double *v_trans) const
+{
+   int nedofs = order; // number of DoFs per edge
+   int nfdofs = order*(order-1); // number of DoFs per face
+
+   // Copy edge DoFs
+   for (int i=0; i<3*nedofs; i++)
+   {
+      v_trans[i] = v[i];
+   }
+
+   // Transform face DoFs
+   for (int f=0; f<1; f++)
+   {
+      for (int i=0; i<nfdofs/2; i++)
+      {
+         T(Fo[f]).Mult(&v[3*nedofs + f*nfdofs + 2*i],
+                       &v_trans[3*nedofs + f*nfdofs + 2*i]);
+      }
+   }
+}
+
+void
+ND_TriDofTransformation::InvTransformPrimal(const double *v_trans,
+                                            double *v) const
+{
+   int nedofs = order; // number of DoFs per edge
+   int nfdofs = order*(order-1); // number of DoFs per face
+
+   // Copy edge DoFs
+   for (int i=0; i<3*nedofs; i++)
+   {
+      v[i] = v_trans[i];
+   }
+
+   // Transform face DoFs
+   for (int f=0; f<1; f++)
+   {
+      for (int i=0; i<nfdofs/2; i++)
+      {
+         TInv(Fo[f]).Mult(&v_trans[3*nedofs + f*nfdofs + 2*i],
+                          &v[3*nedofs + f*nfdofs + 2*i]);
+      }
+   }
+}
+
+void
+ND_TriDofTransformation::TransformDual(const double *v, double *v_trans) const
+{
+   int nedofs = order; // number of DoFs per edge
+   int nfdofs = order*(order-1); // number of DoFs per face
+
+   // Copy edge DoFs
+   for (int i=0; i<3*nedofs; i++)
+   {
+      v_trans[i] = v[i];
+   }
+
+   // Transform face DoFs
+   for (int f=0; f<1; f++)
+   {
+      for (int i=0; i<nfdofs/2; i++)
+      {
+         TInv(Fo[f]).MultTranspose(&v[3*nedofs + f*nfdofs + 2*i],
+                                   &v_trans[3*nedofs + f*nfdofs + 2*i]);
+      }
+   }
+}
+
 ND_TetDofTransformation::ND_TetDofTransformation(int p)
    : ND_DofTransformation(p*(p + 2)*(p + 3)/2, p*(p + 2)*(p + 3)/2, p)
 {

@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_DOFTRANSFORM
 #define MFEM_DOFTRANSFORM
@@ -29,7 +29,7 @@ namespace mfem
     LinearForm and BilinearForm objects.  The DofTransformation class is
     designed to apply the action of both of these types of DoF transformations.
 
-    Let the "primal transformation" by given by the operator T.  This means that
+    Let the "primal transformation" be given by the operator T.  This means that
     given a local element vector v the data that must be placed into a
     GridFunction object is v_t = T * v.
 
@@ -77,6 +77,8 @@ public:
    /// The face_orientation array can be obtained from Mesh::GetElementFaces.
    inline void SetFaceOrientations(const Array<int> & face_orientation)
    { Fo = face_orientation; }
+
+   inline const Array<int> & GetFaceOrientations() const { return Fo; }
 
    /** Transform local DoFs to align with the global DoFs.  For example, this
        transformation can be used to map the local vector computed by
@@ -137,8 +139,8 @@ private:
    DofTransformation * doftrans_;
 
 public:
-   /** Default constructor which requires that SetDofTransformation be called
-       before use. */
+   /** @brief Default constructor which requires that SetDofTransformation be
+       called before use. */
    VDofTransformation(int vdim = 1, int ordering = 0)
       : DofTransformation(0,0),
         vdim_(vdim), ordering_(ordering),
@@ -151,7 +153,7 @@ public:
         vdim_(vdim), ordering_(ordering),
         doftrans_(&doftrans) {}
 
-   // Set or change the vdim parameter
+   /// Set or change the vdim parameter
    inline void SetVDim(int vdim)
    {
       vdim_ = vdim;
@@ -162,7 +164,10 @@ public:
       }
    }
 
-   // Set or change the nested DofTransformation object
+   /// Return the current vdim value
+   inline int GetVDim() const { return vdim_; }
+
+   /// Set or change the nested DofTransformation object
    inline void SetDofTransformation(DofTransformation & doftrans)
    {
       height_ = vdim_ * doftrans.Height();
@@ -170,8 +175,11 @@ public:
       doftrans_ = &doftrans;
    }
 
+   /// Return the nested DofTransformation object
+   inline DofTransformation * GetDofTransformation() const { return doftrans_; }
+
    inline void SetFaceOrientation(const Array<int> & face_orientation)
-   { Fo = face_orientation; doftrans_->SetFaceOrientations(face_orientation);}
+   { Fo = face_orientation; doftrans_->SetFaceOrientations(face_orientation); }
 
    using DofTransformation::TransformPrimal;
    using DofTransformation::InvTransformPrimal;
@@ -212,6 +220,23 @@ public:
    // Return the 2x2 inverse transformation operator
    static const DenseMatrix & GetFaceInverseTransform(int ori)
    { return TInv(ori); }
+};
+
+/// DoF transformation implementation for the Nedelec basis on triangles
+class ND_TriDofTransformation : public ND_DofTransformation
+{
+public:
+   ND_TriDofTransformation(int order);
+
+   using DofTransformation::TransformPrimal;
+   using DofTransformation::InvTransformPrimal;
+   using DofTransformation::TransformDual;
+
+   void TransformPrimal(const double *, double *) const;
+
+   void InvTransformPrimal(const double *, double *) const;
+
+   void TransformDual(const double *, double *) const;
 };
 
 /// DoF transformation implementation for the Nedelec basis on tetrahedra

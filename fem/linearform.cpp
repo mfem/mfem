@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 // Implementation of class LinearForm
 
@@ -19,6 +19,9 @@ namespace mfem
 LinearForm::LinearForm(FiniteElementSpace *f, LinearForm *lf)
    : Vector(f->GetVSize())
 {
+   // Linear forms are stored on the device
+   UseDevice(true);
+
    fes = f;
    extern_lfs = 1;
 
@@ -84,6 +87,10 @@ void LinearForm::Assemble()
 
    Vector::operator=(0.0);
 
+   // The above operation is executed on device because of UseDevice().
+   // The first use of AddElementVector() below will move it back to host
+   // because both 'vdofs' and 'elemvect' are on host.
+
    if (dlfi.Size())
    {
       for (i = 0; i < fes -> GetNE(); i++)
@@ -137,12 +144,25 @@ void LinearForm::Assemble()
       {
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
-         fes -> GetBdrElementVDofs (i, vdofs);
+         doftrans = fes -> GetBdrElementVDofs (i, vdofs);
          eltrans = fes -> GetBdrElementTransformation (i);
          for (int k=0; k < blfi.Size(); k++)
          {
+            if (blfi_marker[k] &&
+                (*blfi_marker[k])[bdr_attr-1] == 0) { continue; }
+
             blfi[k]->AssembleRHSElementVect(*fes->GetBE(i), *eltrans, elemvect);
-            AddElementVector (vdofs, elemvect);
+
+            if (doftrans)
+            {
+               elemvect_t.SetSize(elemvect.Size());
+               doftrans->TransformDual(elemvect, elemvect_t);
+               AddElementVector (vdofs, elemvect_t);
+            }
+            else
+            {
+               AddElementVector (vdofs, elemvect);
+            }
          }
       }
    }
@@ -198,8 +218,17 @@ void LinearForm::Assemble()
 void LinearForm::Update(FiniteElementSpace *f, Vector &v, int v_offset)
 {
    fes = f;
-   NewDataAndSize((double *)v + v_offset, fes->GetVSize());
+   NewMemoryAndSize(Memory<double>(v.GetMemory(), v_offset, f->GetVSize()),
+                    f->GetVSize(), false);
    ResetDeltaLocations();
+}
+
+void LinearForm::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
+{
+   MFEM_ASSERT(v.Size() >= v_offset + f->GetVSize(), "");
+   fes = f;
+   v.UseDevice(true);
+   this->Vector::MakeRef(v, v_offset, fes->GetVSize());
 }
 
 void LinearForm::AssembleDelta()
@@ -266,6 +295,5 @@ LinearForm::~LinearForm()
       for (k=0; k < flfi.Size(); k++) { delete flfi[k]; }
    }
 }
-
 
 }
