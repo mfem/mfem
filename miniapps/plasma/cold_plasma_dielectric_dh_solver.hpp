@@ -496,6 +496,7 @@ private:
    ParComplexGridFunction * d_;   // Complex electric flux (HDiv)
    ParComplexGridFunction * j_;   // Complex current density (HDiv)
    ParComplexGridFunction * phi_; // Complex sheath potential (H1)
+   ParComplexGridFunction * prev_phi_; // Complex sheath potential (H1)
 
    // ParComplexGridFunction * e_tmp_; // Temporary complex electric field (HCurl)
    // ParGridFunction * temp_; // Temporary grid function (HCurl)

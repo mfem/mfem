@@ -370,6 +370,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      d_(NULL),
      j_(NULL),
      phi_(NULL),
+     prev_phi_(NULL),
      // temp_(NULL),
      // phi_tmp_(NULL),
      rectPot_(NULL),
@@ -758,7 +759,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
          m0_->AddBoundaryIntegrator(new MassIntegrator, new MassIntegrator,
                                     sbc.attr_marker);
          nzD12_->AddBoundaryIntegrator(new VectorFECurlIntegrator(*sbc.real),
-                                       new VectorFECurlIntegrator(*sbc.real),
+                                       new VectorFECurlIntegrator(*sbc.imag),
                                        sbc.attr_marker);
       }
    }
@@ -779,7 +780,9 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    j_  = new ParComplexGridFunction(HDivFESpace_);
    *j_ = 0.0;
 
+   prev_phi_  = new ParComplexGridFunction(H1FESpace_);
    phi_  = new ParComplexGridFunction(H1FESpace_);
+   *prev_phi_ = 0.0;
    *phi_ = 0.0;
 
    curl_ = new ParDiscreteCurlOperator(HCurlFESpace_, HDivFESpace_);
@@ -931,6 +934,7 @@ CPDSolverDH::~CPDSolverDH()
    delete j_;
    // delete temp_;
    delete phi_;
+   delete prev_phi_;
    // delete phi_tmp_;
    delete rectPot_;
    // delete b_;
@@ -1256,6 +1260,7 @@ CPDSolverDH::Update()
    d_->Update();
    j_->Update();
    phi_->Update();
+   prev_phi_->Update();
    // temp_->Update();
    // if (u_) { u_->Update(); }
    // if (uE_) { uE_->Update(); }
@@ -1266,7 +1271,6 @@ CPDSolverDH::Update()
    if (e_v_) { e_v_->Update(); }
    if (d_v_) { d_v_->Update(); }
    if (j_v_) { j_v_->Update(); }
-   if (phi_) { phi_->Update(); }
    if (phi_v_) { phi_v_->Update(); }
    if (rectPot_) { rectPot_ ->Update();}
    // e_r_->Update();
@@ -1325,13 +1329,12 @@ void
 CPDSolverDH::Solve()
 {
    if ( myid_ == 0 && logging_ > 0 ) { cout << "Running solver ... " << endl; }
-   int H_iter = 0;
 
    // Set the current density
    j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
 
    d21EpsInv_->Mult(*j_, *rhs1_);
-
+   /*
    *phi_ = 0.0;
 
    if (nxD01_)
@@ -1339,7 +1342,7 @@ CPDSolverDH::Solve()
       nxD01_->real().AddMult(phi_->imag(), rhs1_->real(), -omega_);
       nxD01_->imag().AddMult(phi_->real(), rhs1_->imag(),  omega_);
    }
-
+   */
    *h_ = 0.0;
 
    OperatorHandle A1;
@@ -1386,31 +1389,59 @@ CPDSolverDH::Solve()
       OperatorHandle B, C, D;
 
       nxD01_->FormRectangularSystemMatrix(non_sbc_h1_tdofs_, dbc_nd_tdofs_, B);
-      nzD12_->FormRectangularSystemMatrix(dbc_nd_tdofs_, non_sbc_h1_tdofs_, C);
       m0_->FormSystemMatrix(non_sbc_h1_tdofs_, D);
-
-      SchurComplimentOperator schur(AInv, *B, *C, *D);
 
       rhs0_->real() = 0.0;
       rhs0_->imag() = 0.0;
 
       Vector RHS0(2 * H1FESpace_->GetTrueVSize()); RHS0 = 0.0;
       Vector PHI(2 * H1FESpace_->GetTrueVSize()); PHI = 0.0;
-      const Vector & RHS = schur.GetRHSVector(RHS1, RHS0);
 
-      GMRESSolver gmres(MPI_COMM_WORLD);
-      gmres.SetKDim(50);
-      gmres.SetRelTol(1e-6);
-      gmres.SetAbsTol(1e-8);
-      gmres.SetMaxIter(500);
-      gmres.SetPrintLevel(1);
-      gmres.SetOperator(schur);
+      int H_iter = 0;
+      double phi_diff = DBL_MAX;
+      GridFunctionCoefficient prevPhiReCoef(&prev_phi_->real());
+      GridFunctionCoefficient prevPhiImCoef(&prev_phi_->imag());
+      while (H_iter < 5)
+      {
+         nzD12_->Update();
+         nzD12_->Assemble();
+         nzD12_->Finalize();
+         nzD12_->FormRectangularSystemMatrix(dbc_nd_tdofs_,
+                                             non_sbc_h1_tdofs_, C);
 
-      gmres.Mult(RHS, PHI);
+         SchurComplimentOperator schur(AInv, *B, *C, *D);
 
-      m0_->RecoverFEMSolution(PHI, *rhs0_, *phi_);
+         const Vector & RHS = schur.GetRHSVector(RHS1, RHS0);
 
-      schur.Solve(RHS1, PHI, H);
+         GMRESSolver gmres(MPI_COMM_WORLD);
+         gmres.SetKDim(50);
+         gmres.SetRelTol(1e-6);
+         gmres.SetAbsTol(1e-8);
+         gmres.SetMaxIter(500);
+         gmres.SetPrintLevel(1);
+         gmres.SetOperator(schur);
+
+         gmres.Mult(RHS, PHI);
+
+         m0_->RecoverFEMSolution(PHI, *rhs0_, *phi_);
+
+         schur.Solve(RHS1, PHI, H);
+
+         double dr = phi_->real().ComputeL2Error(prevPhiReCoef);
+         double di = phi_->imag().ComputeL2Error(prevPhiImCoef);
+         phi_diff = sqrt(dr*dr + di*di);
+
+         if (myid_ == 0) { cout << H_iter << '\t' << phi_diff << endl; }
+
+         *prev_phi_ = *phi_;
+
+         H_iter++;
+      }
+      if (myid_ == 0)
+      {
+         cout << " Outer H field calculation done in " << H_iter
+              << " iteration(s)." << endl;
+      }
    }
    else
    {
@@ -1441,8 +1472,7 @@ CPDSolverDH::Solve()
 
    if (myid_ == 0)
    {
-      cout << " Outer H field calculation done in " << H_iter
-           << " iteration(s)." << endl;
+      cout << " Solve done." << endl;
    }
 }
 
