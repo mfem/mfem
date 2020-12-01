@@ -848,12 +848,12 @@ void FABilinearFormExtension::Assemble()
    {
       pfes->ExchangeFaceNbrData();
       width += pfes->GetFaceNbrVSize();
-      long_x.SetSize(width);
+      dg_x.SetSize(width);
       ParBilinearForm *pb = nullptr;
       if ((pb = dynamic_cast<ParBilinearForm*>(a)) && (pb->keep_nbr_block))
       {
          height += pfes->GetFaceNbrVSize();
-         long_y.SetSize(height);
+         dg_y.SetSize(height);
          keep_nbr_block = true;
       }
    }
@@ -937,45 +937,46 @@ void FABilinearFormExtension::Assemble()
    }
 }
 
-void FABilinearFormExtension::Mult(const Vector &x, Vector &y) const
+void FABilinearFormExtension::DGMult(const Vector &x, Vector &y) const
 {
 #ifdef MFEM_USE_MPI
    const ParFiniteElementSpace *pfes;
-   if (a->GetFBFI()->Size()>0 &&
-       (pfes = dynamic_cast<const ParFiniteElementSpace*>(testFes)) )
+   if ( pfes = dynamic_cast<const ParFiniteElementSpace*>(testFes) )
    {
+      // DG Prolongation
       ParGridFunction x_gf;
       x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(pfes),
                    const_cast<Vector&>(x),0);
       x_gf.ExchangeFaceNbrData();
       Vector &shared_x = x_gf.FaceNbrData();
       const int local_size = a->FESpace()->GetVSize();
-      auto long_x_ptr = long_x.Write();
+      auto dg_x_ptr = dg_x.Write();
       auto x_ptr = x.Read();
       MFEM_FORALL(i,local_size,
       {
-         long_x_ptr[i] = x_ptr[i];
+         dg_x_ptr[i] = x_ptr[i];
       });
       const int shared_size = shared_x.Size();
       auto shared_x_ptr = shared_x.Read();
       MFEM_FORALL(i,shared_size,
       {
-         long_x_ptr[local_size+i] = shared_x_ptr[i];
+         dg_x_ptr[local_size+i] = shared_x_ptr[i];
       });
       ParBilinearForm *pform = nullptr;
       if ((pform = dynamic_cast<ParBilinearForm*>(a)) && (pform->keep_nbr_block))
       {
-         mat->Mult(long_x, long_y);
-         auto long_y_ptr = long_y.Read();
+         mat->Mult(dg_x, dg_y);
+         // DG Restriction
+         auto dg_y_ptr = dg_y.Read();
          auto y_ptr = y.ReadWrite();
          MFEM_FORALL(i,local_size,
          {
-            y_ptr[i] += long_y_ptr[i];
+            y_ptr[i] += dg_y_ptr[i];
          });
       }
       else
       {
-         mat->Mult(long_x, y);
+         mat->Mult(dg_x, y);
       }
    }
    else
@@ -985,49 +986,74 @@ void FABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    }
 }
 
-void FABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
+void FABilinearFormExtension::Mult(const Vector &x, Vector &y) const
+{
+   if ( a->GetFBFI()->Size()>0 )
+   {
+      DGMult(x, y);
+   }
+   else
+   {
+      mat->Mult(x, y);
+   }
+}
+
+void FABilinearFormExtension::DGMultTranspose(const Vector &x, Vector &y) const
 {
 #ifdef MFEM_USE_MPI
    const ParFiniteElementSpace *pfes;
-   if (a->GetFBFI()->Size()>0 &&
-       (pfes = dynamic_cast<const ParFiniteElementSpace*>(testFes)) )
+   if ( pfes = dynamic_cast<const ParFiniteElementSpace*>(testFes) )
    {
+      // DG Prolongation
       ParGridFunction x_gf;
       x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(pfes),
                    const_cast<Vector&>(x),0);
       x_gf.ExchangeFaceNbrData();
       Vector &shared_x = x_gf.FaceNbrData();
       const int local_size = a->FESpace()->GetVSize();
-      auto long_x_ptr = long_x.Write();
+      auto dg_x_ptr = dg_x.Write();
       auto x_ptr = x.Read();
       MFEM_FORALL(i,local_size,
       {
-         long_x_ptr[i] = x_ptr[i];
+         dg_x_ptr[i] = x_ptr[i];
       });
       const int shared_size = shared_x.Size();
       auto shared_x_ptr = shared_x.Read();
       MFEM_FORALL(i,shared_size,
       {
-         long_x_ptr[local_size+i] = shared_x_ptr[i];
+         dg_x_ptr[local_size+i] = shared_x_ptr[i];
       });
       ParBilinearForm *pb = nullptr;
       if ((pb = dynamic_cast<ParBilinearForm*>(a)) && (pb->keep_nbr_block))
       {
-         mat->MultTranspose(long_x, long_y);
-         auto long_y_ptr = long_y.Read();
+         mat->MultTranspose(dg_x, dg_y);
+         // DG Restriction
+         auto dg_y_ptr = dg_y.Read();
          auto y_ptr = y.ReadWrite();
          MFEM_FORALL(i,local_size,
          {
-            y_ptr[i] += long_y_ptr[i];
+            y_ptr[i] += dg_y_ptr[i];
          });
       }
       else
       {
-         mat->MultTranspose(long_x, y);
+         mat->MultTranspose(dg_x, y);
       }
    }
    else
 #endif
+   {
+      mat->MultTranspose(x, y);
+   }
+}
+
+void FABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
+{
+   if ( a->GetFBFI()->Size()>0 )
+   {
+      DGMultTranspose(x, y);
+   }
+   else
    {
       mat->MultTranspose(x, y);
    }
