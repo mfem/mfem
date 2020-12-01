@@ -46,10 +46,8 @@ struct SolverOptions
    int euLvl;
 };
 */
-struct ComplexCoefficientByAttr
+struct ComplexCoefficientByAttr : public AttributeArrays
 {
-   Array<int> attr;
-   Array<int> attr_marker;
    Coefficient * real;
    Coefficient * imag;
 };
@@ -226,7 +224,7 @@ public:
                Coefficient & muCoef,
                Coefficient * etaCoef,
                VectorCoefficient * kCoef,
-               Array<int> & abcs,
+               // Array<int> & abcs,
                Array<ComplexVectorCoefficientByAttr> & dbcs,
                Array<ComplexVectorCoefficientByAttr> & nbcs,
                Array<ComplexCoefficientByAttr> & sbcs,

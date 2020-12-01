@@ -45,10 +45,15 @@ struct SolverOptions
    int euLvl;
 };
 
-struct ComplexVectorCoefficientByAttr
+struct AttributeArrays
 {
    Array<int> attr;
    Array<int> attr_marker;
+
+};
+
+struct ComplexVectorCoefficientByAttr : public AttributeArrays
+{
    VectorCoefficient * real;
    VectorCoefficient * imag;
 };

@@ -854,7 +854,8 @@ int main(int argc, char *argv[])
                    epsilonInv_real, epsilonInv_imag, epsilon_abs,
                    muCoef, etaInvCoef,
                    (phase_shift) ? &kCoef : NULL,
-                   abcs, dbcs, nbcs, sbcs,
+                   // abcs,
+                   dbcs, nbcs, sbcs,
                    (slab_params_.Size() > 0) ? j_src : NULL, NULL, vis_u, pa);
 
    // Initialize GLVis visualization
@@ -1001,7 +1002,7 @@ int main(int argc, char *argv[])
    }
 
    delete BCoef;
-   
+
    return 0;
 }
 

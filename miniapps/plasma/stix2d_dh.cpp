@@ -1281,7 +1281,8 @@ int main(int argc, char *argv[])
                    epsilonInv_real, epsilonInv_imag, epsilon_abs,
                    muCoef, etaInvCoef,
                    (phase_shift) ? &kCoef : NULL,
-                   abcs, dbcs, nbcs, sbcs,
+                   //abcs,
+                   dbcs, nbcs, sbcs,
                    // e_bc_r, e_bc_i,
                    // EReCoef, EImCoef,
                    (rod_params_.Size() > 0 ||slab_params_.Size() > 0) ?
