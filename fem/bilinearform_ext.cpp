@@ -941,7 +941,7 @@ void FABilinearFormExtension::DGMult(const Vector &x, Vector &y) const
 {
 #ifdef MFEM_USE_MPI
    const ParFiniteElementSpace *pfes;
-   if ( pfes = dynamic_cast<const ParFiniteElementSpace*>(testFes) )
+   if ( (pfes = dynamic_cast<const ParFiniteElementSpace*>(testFes)) )
    {
       // DG Prolongation
       ParGridFunction x_gf;
@@ -1002,7 +1002,7 @@ void FABilinearFormExtension::DGMultTranspose(const Vector &x, Vector &y) const
 {
 #ifdef MFEM_USE_MPI
    const ParFiniteElementSpace *pfes;
-   if ( pfes = dynamic_cast<const ParFiniteElementSpace*>(testFes) )
+   if ( (pfes = dynamic_cast<const ParFiniteElementSpace*>(testFes)) )
    {
       // DG Prolongation
       ParGridFunction x_gf;
