@@ -270,7 +270,7 @@ private:
    Vector h_i_;
    Vector k_;
 
-   const Vector & B_;
+   // const Vector & B_;
    const Vector & numbers_;
    const Vector & charges_;
    const Vector & masses_;
@@ -1008,7 +1008,10 @@ int main(int argc, char *argv[])
       HField.ProjectCoefficient(HReCoef, HImCoef);
       // ParComplexGridFunction EField(&HCurlFESpace);
       // EField.ProjectCoefficient(EReCoef, EImCoef);
-
+      Vector zeroVec(3); zeroVec = 0.0;
+      VectorConstantCoefficient zeroCoef(zeroVec);
+      double max_Hr = HField.real().ComputeMaxError(zeroCoef);
+      double max_Hi = HField.imag().ComputeMaxError(zeroCoef);
       /*
       ParComplexGridFunction ZCoef(&H1FESpace);
       // Array<int> ess_bdr(mesh->bdr_attributes.Size());
@@ -1033,15 +1036,19 @@ int main(int argc, char *argv[])
       // sock_zr.precision(8);
       // sock_zi.precision(8);
 
+      ostringstream hr_keys, hi_keys;
+      hr_keys << "maaAcPPPPvvv valuerange 0.0 " << max_Hr;
+      hi_keys << "maaAcPPPPvvv valuerange 0.0 " << max_Hi;
+
       Wx += 2 * offx;
       VisualizeField(sock_Hr, vishost, visport,
                      HField.real(), "Exact Magnetic Field, Re(H)",
-                     Wx, Wy, Ww, Wh);
+                     Wx, Wy, Ww, Wh, hr_keys.str().c_str());
 
       Wx += offx;
       VisualizeField(sock_Hi, vishost, visport,
                      HField.imag(), "Exact Magnetic Field, Im(H)",
-                     Wx, Wy, Ww, Wh);
+                     Wx, Wy, Ww, Wh, hi_keys.str().c_str());
       /*
       VisualizeField(sock_Er, vishost, visport,
                      EField.real(), "Exact Electric Field, Re(E)",
@@ -1295,7 +1302,7 @@ int main(int argc, char *argv[])
    }
 
    // Initialize VisIt visualization
-   VisItDataCollection visit_dc("STIX2D-AMR-Parallel", &pmesh);
+   VisItDataCollection visit_dc("STIX2D-DH-AMR-Parallel", &pmesh);
 
    if ( visit )
    {
@@ -1645,6 +1652,7 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
      Bmag_(B.Norml2()),
      Jy_(0.0),
      xJ_(0.5),
+     dx_(0.05),
      Lx_(1.0),
      kappa_(0.0),
      b_(B),
@@ -1653,7 +1661,7 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
      h_r_(3),
      h_i_(3),
      k_(3),
-     B_(B),
+     // B_(B),
      numbers_(number),
      charges_(charge),
      masses_(mass),
@@ -1988,6 +1996,7 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
      Bmag_(B.Norml2()),
      Jy_(0.0),
      xJ_(0.5),
+     dx_(0.05),
      Lx_(1.0),
      kappa_(0.0),
      b_(B),

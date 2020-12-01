@@ -189,6 +189,31 @@ private:
    mutable Vector Hi_;
 };
 */
+
+class nxGradIntegrator : public BilinearFormIntegrator
+{
+private:
+
+#ifndef MFEM_THREAD_SAFE
+   Vector nor, nxj;
+   DenseMatrix test_shape;
+   DenseMatrix trial_dshape;
+#endif
+
+public:
+   nxGradIntegrator() {}
+
+   int GetIntegrationOrder(const FiniteElement & trial_fe,
+                           const FiniteElement & test_fe,
+                           ElementTransformation &Trans)
+   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW(); }
+
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat);
+};
+
 /// Cold Plasma Dielectric Solver
 class CPDSolverDH
 {
@@ -398,6 +423,23 @@ private:
       }
    };
 
+   void collectBdrAttributes(const Array<AttributeArrays> & aa,
+                             Array<int> & attr_marker);
+
+   void locateTrueDBCDofs(const Array<int> & dbc_bdr_marker,
+                          Array<int> & dbc_nd_tdofs);
+
+   void locateTrueSBCDofs(const Array<int> & sbc_bdr_marker,
+                          Array<int> & non_sbc_h1_tdofs,
+                          Array<int> & sbc_nd_tdofs);
+
+   void computeD(const ParComplexGridFunction & h,
+                 const ParComplexGridFunction & j,
+                 ParComplexGridFunction & d);
+
+   void computeE(const ParComplexGridFunction & d,
+                 ParComplexGridFunction & e);
+
    int myid_;
    int num_procs_;
    int order_;
@@ -432,15 +474,18 @@ private:
    // ParSesquilinearForm * a0_;
    ParSesquilinearForm * a1_;
    // ParBilinearForm * b1_;
+   ParMixedSesquilinearForm * nxD01_;
    ParMixedSesquilinearForm * d21EpsInv_;
 
    ParSesquilinearForm * m1_;
    ParMixedSesquilinearForm * m21EpsInv_;
 
+   // ParBilinearForm * m0_;
+   // ParMixedBilinearForm * n20ZRe_;
+   // ParMixedBilinearForm * n20ZIm_;
 
-   ParBilinearForm * m0_;
-   ParMixedBilinearForm * n20ZRe_;
-   ParMixedBilinearForm * n20ZIm_;
+   ParSesquilinearForm * m0_;
+   ParMixedSesquilinearForm * nzD12_;
 
    ParDiscreteGradOperator * grad_; // For Computing E from phi
    ParDiscreteCurlOperator * curl_; // For Computing D from H
@@ -542,27 +587,28 @@ private:
    void   (*j_i_src_)(const Vector&, Vector&);
 
    // Array of 0's and 1's marking the location of absorbing surfaces
-   Array<int> abc_marker_;
+   Array<int> abc_bdr_marker_;
 
    // Array of 0's and 1's marking the location of sheath surfaces
    // Array<int> sbc_marker_;
 
    // Array of 0's and 1's marking the location of Dirichlet boundaries
-   Array<int> dbc_marker_;
+   // Array<int> dbc_marker_;
    // void   (*e_r_bc_)(const Vector&, Vector&);
    // void   (*e_i_bc_)(const Vector&, Vector&);
 
    // Array<int> * dbcs_;
    Array<ComplexVectorCoefficientByAttr> * dbcs_;
-   Array<int> ess_bdr_;
-   Array<int> ess_bdr_tdofs_;
+   Array<int> dbc_bdr_marker_;
+   Array<int> dbc_nd_tdofs_;
    Array<int> non_k_bdr_;
 
    Array<ComplexVectorCoefficientByAttr> * nbcs_; // Surface current BCs
    Array<ComplexVectorCoefficientByAttr> * nkbcs_; // Neumann BCs (-i*omega*K)
 
    Array<ComplexCoefficientByAttr> * sbcs_; // Sheath BCs
-   Array<int> sbc_bdr_;
+   Array<int> sbc_bdr_marker_;
+   Array<int> non_sbc_h1_tdofs_;
    Array<int> sbc_nd_tdofs_;
 
    VisItDataCollection * visit_dc_;
