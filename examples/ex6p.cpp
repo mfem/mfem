@@ -19,6 +19,9 @@
 //               mpirun -np 4 ex6p -pa -d cuda
 //               mpirun -np 4 ex6p -pa -d occa-cuda
 //               mpirun -np 4 ex6p -pa -d raja-omp
+//               mpirun -np 4 ex6p -pa -d ceed-cpu
+//             * mpirun -np 4 ex6p -pa -d ceed-cuda
+//               mpirun -np 4 ex6p -pa -d ceed-cuda:/gpu/cuda/shared
 //
 // Description:  This is a version of Example 1 with a simple adaptive mesh
 //               refinement loop. The problem being solved is again the Laplace
@@ -55,7 +58,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool pa = false;
-   const char *device = "cpu";
+   const char *device_config = "cpu";
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -65,7 +68,7 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&device, "-d", "--device",
+   args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -85,14 +88,19 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // 3. Read the (serial) mesh from the given mesh file on all processors.  We
+   // 3. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   if (myid == 0) { device.Print(); }
+
+   // 4. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
 
-   // 4. Refine the serial mesh on all processors to increase the resolution.
+   // 5. Refine the serial mesh on all processors to increase the resolution.
    //    Also project a NURBS mesh to a piecewise-quadratic curved mesh. Make
    //    sure that the mesh is non-conforming.
    if (mesh->NURBSext)
@@ -102,7 +110,7 @@ int main(int argc, char *argv[])
    }
    mesh->EnsureNCMesh();
 
-   // 5. Define a parallel mesh by partitioning the serial mesh.
+   // 6. Define a parallel mesh by partitioning the serial mesh.
    //    Once the parallel mesh is defined, the serial mesh can be deleted.
    ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
@@ -112,20 +120,20 @@ int main(int argc, char *argv[])
    Array<int> ess_bdr(pmesh.bdr_attributes.Max());
    ess_bdr = 1;
 
-   // 6. Define a finite element space on the mesh. The polynomial order is
+   // 7. Define a finite element space on the mesh. The polynomial order is
    //    one (linear) by default, but this can be changed on the command line.
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace fespace(&pmesh, &fec);
-
-   // 7. Set device config parameters from the command line options.
-   Device::Configure(device);
-   if (myid == 0) { Device::Print(); }
 
    // 8. As in Example 1p, we set up bilinear and linear forms corresponding to
    //    the Laplace problem -\Delta u = 1. We don't assemble the discrete
    //    problem yet, this will be done in the main loop.
    ParBilinearForm a(&fespace);
-   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   if (pa)
+   {
+      a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      a.SetDiagonalPolicy(Operator::DIAG_ONE);
+   }
    ParLinearForm b(&fespace);
 
    ConstantCoefficient one(1.0);
@@ -200,11 +208,10 @@ int main(int argc, char *argv[])
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
       b.Assemble();
 
-      // 15. Switch to the device and assemble the stiffness matrix. Note that
-      //     MFEM doesn't care at this point that the mesh is nonconforming and
-      //     parallel.  The FE space is considered 'cut' along hanging
-      //     edges/faces, and also across processor boundaries.
-      Device::Enable();
+      // 15. Assemble the stiffness matrix. Note that MFEM doesn't care at this
+      //     point that the mesh is nonconforming and parallel.  The FE space is
+      //     considered 'cut' along hanging edges/faces, and also across
+      //     processor boundaries.
       a.Assemble();
 
       // 16. Create the parallel linear system: eliminate boundary conditions.
@@ -217,22 +224,30 @@ int main(int argc, char *argv[])
 
       // 17. Solve the linear system A X = B.
       //     * With full assembly, use the BoomerAMG preconditioner from hypre.
-      //     * With partial assembly, use no preconditioner, for now.
-      HypreBoomerAMG *amg = NULL;
-      if (!pa) { amg = new HypreBoomerAMG; amg->SetPrintLevel(0); }
+      //     * With partial assembly, use a diagonal preconditioner.
+      Solver *M = NULL;
+      if (pa)
+      {
+         M = new OperatorJacobiSmoother(a, ess_tdof_list);
+      }
+      else
+      {
+         HypreBoomerAMG *amg = new HypreBoomerAMG;
+         amg->SetPrintLevel(0);
+         M = amg;
+      }
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-6);
       cg.SetMaxIter(2000);
       cg.SetPrintLevel(3); // print the first and the last iterations only
-      if (amg) { cg.SetPreconditioner(*amg); }
+      cg.SetPreconditioner(*M);
       cg.SetOperator(*A);
       cg.Mult(B, X);
-      delete amg;
+      delete M;
 
       // 18. Switch back to the host and extract the parallel grid function
       //     corresponding to the finite element approximation X. This is the
       //     local solution on each processor.
-      Device::Disable();
       a.RecoverFEMSolution(X, b, x);
 
       // 19. Send the solution by socket to a GLVis server.

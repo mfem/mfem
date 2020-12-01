@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 //
 //            -----------------------------------------------------
 //            Joule Miniapp:  Transient Magnetics and Joule Heating
@@ -111,18 +111,18 @@
 
 using namespace std;
 using namespace mfem;
+using namespace mfem::common;
 using namespace mfem::electromagnetics;
 
 void display_banner(ostream & os);
 
-static double aj_ = 0.0;
 static double mj_ = 0.0;
 static double sj_ = 0.0;
 static double wj_ = 0.0;
-static double kj_ = 0.0;
-static double hj_ = 0.0;
-static double dtj_ = 0.0;
-static double rj_ = 0.0;
+
+// Initialize variables used in joule_solver.cpp
+int electromagnetics::SOLVER_PRINT_LEVEL = 0;
+int electromagnetics::STATIC_COND        = 0;
 
 int main(int argc, char *argv[])
 {
@@ -141,12 +141,10 @@ int main(int argc, char *argv[])
    int ode_solver_type = 1;
    double t_final = 100.0;
    double dt = 0.5;
-   double amp = 2.0;
    double mu = 1.0;
    double sigma = 2.0*M_PI*10;
    double Tcapacity = 1.0;
    double Tconductivity = 0.01;
-   double alpha = Tconductivity/Tcapacity;
    double freq = 1.0/60.0;
    bool visualization = true;
    bool visit = true;
@@ -214,14 +212,9 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   aj_  = amp;
    mj_  = mu;
    sj_  = sigma;
    wj_  = 2.0*M_PI*freq;
-   kj_  = sqrt(0.5*wj_*mj_*sj_);
-   hj_  = alpha;
-   dtj_ = dt;
-   rj_  = 1.0;
 
    if (mpi.Root())
    {
@@ -283,6 +276,7 @@ int main(int argc, char *argv[])
    // 4. Read the serial mesh from the given mesh file on all processors. We can
    //    handle triangular, quadrilateral, tetrahedral and hexahedral meshes
    //    with the same code.
+   cout << mpi.WorldRank() << ": reading mesh" << endl;
    Mesh *mesh;
    mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
@@ -378,6 +372,7 @@ int main(int argc, char *argv[])
    // 7. Refine the mesh in serial to increase the resolution. In this example
    //    we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
    //    a command-line parameter.
+   cout << mpi.WorldRank() << ": refining mesh in serial" << endl;
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
       mesh->UniformRefinement();
@@ -386,13 +381,16 @@ int main(int argc, char *argv[])
    // 8. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
+   cout << mpi.WorldRank() << ": building parallel mesh" << endl;
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
+   cout << mpi.WorldRank() << ": refining mesh in parallel" << endl;
    for (int lev = 0; lev < par_ref_levels; lev++)
    {
       pmesh->UniformRefinement();
    }
    // Make sure tet-only meshes are marked for local refinement.
+   cout << mpi.WorldRank() << ": finalizing mesh in parallel" << endl;
    pmesh->Finalize(true);
 
    // 9. Apply non-uniform non-conforming mesh refinement to the mesh.  The
@@ -416,19 +414,15 @@ int main(int argc, char *argv[])
       ref_list.DeleteAll();
    }
 
-   // 10. Exchange of face orientation information with neighboring processors.
-   //     Must be done after refinement but before definition of higher order
-   //     Nedelec spaces
-   pmesh->ExchangeFaceNbrData();
-
-   // 11. Rebalance the mesh. Since the mesh was adaptively refined in a
+   // 10. Rebalance the mesh. Since the mesh was adaptively refined in a
    //     non-uniform way it will be computationally unbalanced.
    if (pmesh->Nonconforming())
    {
+      cout << mpi.WorldRank() << ": rebalancing mesh in parallel" << endl;
       pmesh->Rebalance();
    }
 
-   // 12. Define the parallel finite element spaces. We use:
+   // 11. Define the parallel finite element spaces. We use:
    //
    //     H(curl) for electric field,
    //     H(div) for magnetic flux,
@@ -476,13 +470,14 @@ int main(int argc, char *argv[])
    int Vsize_rt = HDivFESpace.GetVSize();
    int Vsize_h1 = HGradFESpace.GetVSize();
 
-   // the big BlockVector stores the fields as
-   //    0 Temperature
-   //    1 Temperature Flux
-   //    2 P field
-   //    3 E field
-   //    4 B field
-   //    5 Joule Heating
+   // 12. Declare storage for field data.
+   //     The big BlockVector stores the fields as
+   //       0 Temperature
+   //       1 Temperature Flux
+   //       2 P field
+   //       3 E field
+   //       4 B field
+   //       5 Joule Heating
 
    Array<int> true_offset(7);
    true_offset[0] = 0;
@@ -547,26 +542,26 @@ int main(int argc, char *argv[])
       int Ww = 350, Wh = 350; // window size
       int offx = Ww+10, offy = Wh+45; // window offsets
 
-      miniapps::VisualizeField(vis_P, vishost, visport,
-                               P_gf, "Electric Potential (Phi)", Wx, Wy, Ww, Wh);
+      VisualizeField(vis_P, vishost, visport,
+                     P_gf, "Electric Potential (Phi)", Wx, Wy, Ww, Wh);
       Wx += offx;
 
-      miniapps::VisualizeField(vis_E, vishost, visport,
-                               E_gf, "Electric Field (E)", Wx, Wy, Ww, Wh);
+      VisualizeField(vis_E, vishost, visport,
+                     E_gf, "Electric Field (E)", Wx, Wy, Ww, Wh);
       Wx += offx;
 
-      miniapps::VisualizeField(vis_B, vishost, visport,
-                               B_gf, "Magnetic Field (B)", Wx, Wy, Ww, Wh);
+      VisualizeField(vis_B, vishost, visport,
+                     B_gf, "Magnetic Field (B)", Wx, Wy, Ww, Wh);
       Wx = 0;
       Wy += offy;
 
-      miniapps::VisualizeField(vis_w, vishost, visport,
-                               w_gf, "Joule Heating", Wx, Wy, Ww, Wh);
+      VisualizeField(vis_w, vishost, visport,
+                     w_gf, "Joule Heating", Wx, Wy, Ww, Wh);
 
       Wx += offx;
 
-      miniapps::VisualizeField(vis_T, vishost, visport,
-                               T_gf, "Temperature", Wx, Wy, Ww, Wh);
+      VisualizeField(vis_T, vishost, visport,
+                     T_gf, "Temperature", Wx, Wy, Ww, Wh);
    }
    // VisIt visualization
    VisItDataCollection visit_dc(basename, pmesh);
@@ -687,27 +682,27 @@ int main(int argc, char *argv[])
             int Ww = 350, Wh = 350; // window size
             int offx = Ww+10, offy = Wh+45; // window offsets
 
-            miniapps::VisualizeField(vis_P, vishost, visport,
-                                     P_gf, "Electric Potential (Phi)", Wx, Wy, Ww, Wh);
+            VisualizeField(vis_P, vishost, visport,
+                           P_gf, "Electric Potential (Phi)", Wx, Wy, Ww, Wh);
             Wx += offx;
 
-            miniapps::VisualizeField(vis_E, vishost, visport,
-                                     E_gf, "Electric Field (E)", Wx, Wy, Ww, Wh);
+            VisualizeField(vis_E, vishost, visport,
+                           E_gf, "Electric Field (E)", Wx, Wy, Ww, Wh);
             Wx += offx;
 
-            miniapps::VisualizeField(vis_B, vishost, visport,
-                                     B_gf, "Magnetic Field (B)", Wx, Wy, Ww, Wh);
+            VisualizeField(vis_B, vishost, visport,
+                           B_gf, "Magnetic Field (B)", Wx, Wy, Ww, Wh);
 
             Wx = 0;
             Wy += offy;
 
-            miniapps::VisualizeField(vis_w, vishost, visport,
-                                     w_gf, "Joule Heating", Wx, Wy, Ww, Wh);
+            VisualizeField(vis_w, vishost, visport,
+                           w_gf, "Joule Heating", Wx, Wy, Ww, Wh);
 
             Wx += offx;
 
-            miniapps::VisualizeField(vis_T, vishost, visport,
-                                     T_gf, "Temperature", Wx, Wy, Ww, Wh);
+            VisualizeField(vis_T, vishost, visport,
+                           T_gf, "Temperature", Wx, Wy, Ww, Wh);
          }
 
          if (visit)
@@ -759,7 +754,7 @@ void b_exact(const Vector &x, double t, Vector &B)
    B[2] = 0.0;
 }
 
-double t_exact(Vector &x)
+double t_exact(const Vector &x)
 {
    double T = 0.0;
    return T;

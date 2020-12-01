@@ -25,15 +25,15 @@ using namespace std;
 FiniteElement::FiniteElement(int D, Geometry::Type G, int Do, int O, int F)
    : Nodes(Do)
 {
-   Dim = D ; GeomType = G ; Dof = Do ; Order = O ; FuncSpace = F;
-   RangeType = SCALAR;
-   MapType = VALUE;
-   DerivType = NONE;
-   DerivRangeType = SCALAR;
-   DerivMapType = VALUE;
-   for (int i = 0; i < Geometry::MaxDim; i++) { Orders[i] = -1; }
+   dim = D ; geom_type = G ; dof = Do ; order = O ; func_space = F;
+   range_type = SCALAR;
+   map_type = VALUE;
+   deriv_type = NONE;
+   deriv_range_type = SCALAR;
+   deriv_map_type = VALUE;
+   for (int i = 0; i < Geometry::MaxDim; i++) { orders[i] = -1; }
 #ifndef MFEM_THREAD_SAFE
-   vshape.SetSize(Dof, Dim);
+   vshape.SetSize(dof, dim);
 #endif
 }
 
@@ -75,12 +75,12 @@ void FiniteElement::CalcCurlShape(const IntegrationPoint &ip,
 void FiniteElement::CalcPhysCurlShape(ElementTransformation &Trans,
                                       DenseMatrix &curl_shape) const
 {
-   switch (Dim)
+   switch (dim)
    {
       case 3:
       {
 #ifdef MFEM_THREAD_SAFE
-         DenseMatrix vshape(Dof, Dim);
+         DenseMatrix vshape(dof, dim);
 #endif
          CalcCurlShape(Trans.GetIntPoint(), vshape);
          MultABt(vshape, Trans.Jacobian(), curl_shape);
@@ -93,7 +93,7 @@ void FiniteElement::CalcPhysCurlShape(ElementTransformation &Trans,
          curl_shape *= (1.0 / Trans.Weight());
          break;
       default:
-         MFEM_ABORT("Invalid dimension, Dim = " << Dim);
+         MFEM_ABORT("Invalid dimension, Dim = " << dim);
    }
 }
 
@@ -186,7 +186,7 @@ void FiniteElement::CalcPhysShape(ElementTransformation &Trans,
                                   Vector &shape) const
 {
    CalcShape(Trans.GetIntPoint(), shape);
-   if (MapType == INTEGRAL)
+   if (map_type == INTEGRAL)
    {
       shape /= Trans.Weight();
    }
@@ -195,9 +195,9 @@ void FiniteElement::CalcPhysShape(ElementTransformation &Trans,
 void FiniteElement::CalcPhysDShape(ElementTransformation &Trans,
                                    DenseMatrix &dshape) const
 {
-   MFEM_ASSERT(MapType == VALUE, "");
+   MFEM_ASSERT(map_type == VALUE, "");
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix vshape(Dof, Dim);
+   DenseMatrix vshape(dof, dim);
 #endif
    CalcDShape(Trans.GetIntPoint(), vshape);
    Mult(vshape, Trans.InverseJacobian(), dshape);
@@ -209,31 +209,31 @@ void ScalarFiniteElement::NodalLocalInterpolation (
    const ScalarFiniteElement &fine_fe) const
 {
    double v[Geometry::MaxDim];
-   Vector vv (v, Dim);
+   Vector vv (v, dim);
    IntegrationPoint f_ip;
 
 #ifdef MFEM_THREAD_SAFE
-   Vector c_shape(Dof);
+   Vector c_shape(dof);
 #endif
 
-   MFEM_ASSERT(MapType == fine_fe.GetMapType(), "");
+   MFEM_ASSERT(map_type == fine_fe.GetMapType(), "");
 
-   I.SetSize(fine_fe.Dof, Dof);
-   for (int i = 0; i < fine_fe.Dof; i++)
+   I.SetSize(fine_fe.dof, dof);
+   for (int i = 0; i < fine_fe.dof; i++)
    {
       Trans.Transform(fine_fe.Nodes.IntPoint(i), vv);
-      f_ip.Set(v, Dim);
+      f_ip.Set(v, dim);
       CalcShape(f_ip, c_shape);
-      for (int j = 0; j < Dof; j++)
+      for (int j = 0; j < dof; j++)
          if (fabs(I(i,j) = c_shape(j)) < 1.0e-12)
          {
             I(i,j) = 0.0;
          }
    }
-   if (MapType == INTEGRAL)
+   if (map_type == INTEGRAL)
    {
       // assuming Trans is linear; this should be ok for all refinement types
-      Trans.SetIntPoint(&Geometries.GetCenter(GeomType));
+      Trans.SetIntPoint(&Geometries.GetCenter(geom_type));
       I *= Trans.Weight();
    }
 }
@@ -245,7 +245,7 @@ void ScalarFiniteElement::ScalarLocalInterpolation(
    // General "interpolation", defined by L2 projection
 
    double v[Geometry::MaxDim];
-   Vector vv (v, Dim);
+   Vector vv (v, dim);
    IntegrationPoint f_ip;
 
    const int fs = fine_fe.GetDof(), cs = this->GetDof();
@@ -260,7 +260,7 @@ void ScalarFiniteElement::ScalarLocalInterpolation(
       const IntegrationPoint &ip = ir.IntPoint(i);
       fine_fe.CalcShape(ip, fine_shape);
       Trans.Transform(ip, vv);
-      f_ip.Set(v, Dim);
+      f_ip.Set(v, dim);
       this->CalcShape(f_ip, coarse_shape);
 
       AddMult_a_VVt(ip.weight, fine_shape, fine_mass);
@@ -270,10 +270,10 @@ void ScalarFiniteElement::ScalarLocalInterpolation(
    DenseMatrixInverse fine_mass_inv(fine_mass);
    fine_mass_inv.Mult(fine_coarse_mass, I);
 
-   if (MapType == INTEGRAL)
+   if (map_type == INTEGRAL)
    {
       // assuming Trans is linear; this should be ok for all refinement types
-      Trans.SetIntPoint(&Geometries.GetCenter(GeomType));
+      Trans.SetIntPoint(&Geometries.GetCenter(geom_type));
       I *= Trans.Weight();
    }
 }
@@ -287,8 +287,8 @@ void NodalFiniteElement::ProjectCurl_2D(
 
    DenseMatrix curl_shape(fe.GetDof(), 1);
 
-   curl.SetSize(Dof, fe.GetDof());
-   for (int i = 0; i < Dof; i++)
+   curl.SetSize(dof, fe.GetDof());
+   for (int i = 0; i < dof; i++)
    {
       fe.CalcCurlShape(Nodes.IntPoint(i), curl_shape);
       for (int j = 0; j < fe.GetDof(); j++)
@@ -318,18 +318,18 @@ void NodalFiniteElement::GetLocalRestriction(ElementTransformation &Trans,
                                              DenseMatrix &R) const
 {
    IntegrationPoint ipt;
-   Vector pt(&ipt.x, Dim);
+   Vector pt(&ipt.x, dim);
 
 #ifdef MFEM_THREAD_SAFE
-   Vector c_shape(Dof);
+   Vector c_shape(dof);
 #endif
 
    Trans.SetIntPoint(&Nodes[0]);
 
-   for (int j = 0; j < Dof; j++)
+   for (int j = 0; j < dof; j++)
    {
       InvertLinearTrans(Trans, Nodes[j], pt);
-      if (Geometries.CheckPoint(GeomType, ipt)) // do we need an epsilon here?
+      if (Geometries.CheckPoint(geom_type, ipt)) // do we need an epsilon here?
       {
          CalcShape(ipt, c_shape);
          R.SetRow(j, c_shape);
@@ -346,14 +346,14 @@ void NodalFiniteElement::GetLocalRestriction(ElementTransformation &Trans,
 void NodalFiniteElement::Project (
    Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
 {
-   for (int i = 0; i < Dof; i++)
+   for (int i = 0; i < dof; i++)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(i);
       // some coefficients expect that Trans.IntPoint is the same
       // as the second argument of Eval
       Trans.SetIntPoint(&ip);
       dofs(i) = coeff.Eval (Trans, ip);
-      if (MapType == INTEGRAL)
+      if (map_type == INTEGRAL)
       {
          dofs(i) *= Trans.Weight();
       }
@@ -363,21 +363,21 @@ void NodalFiniteElement::Project (
 void NodalFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
 {
-   MFEM_ASSERT(dofs.Size() == vc.GetVDim()*Dof, "");
+   MFEM_ASSERT(dofs.Size() == vc.GetVDim()*dof, "");
    Vector x(vc.GetVDim());
 
-   for (int i = 0; i < Dof; i++)
+   for (int i = 0; i < dof; i++)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(i);
       Trans.SetIntPoint(&ip);
       vc.Eval (x, Trans, ip);
-      if (MapType == INTEGRAL)
+      if (map_type == INTEGRAL)
       {
          x *= Trans.Weight();
       }
       for (int j = 0; j < x.Size(); j++)
       {
-         dofs(Dof*j+i) = x(j);
+         dofs(dof*j+i) = x(j);
       }
    }
 }
@@ -386,19 +386,19 @@ void NodalFiniteElement::ProjectMatrixCoefficient(
    MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
 {
    // (mc.height x mc.width) @ DOFs -> (Dof x mc.width x mc.height) in dofs
-   MFEM_ASSERT(dofs.Size() == mc.GetHeight()*mc.GetWidth()*Dof, "");
+   MFEM_ASSERT(dofs.Size() == mc.GetHeight()*mc.GetWidth()*dof, "");
    DenseMatrix MQ(mc.GetHeight(), mc.GetWidth());
 
-   for (int k = 0; k < Dof; k++)
+   for (int k = 0; k < dof; k++)
    {
       T.SetIntPoint(&Nodes.IntPoint(k));
       mc.Eval(MQ, T, Nodes.IntPoint(k));
-      if (MapType == INTEGRAL) { MQ *= T.Weight(); }
+      if (map_type == INTEGRAL) { MQ *= T.Weight(); }
       for (int r = 0; r < MQ.Height(); r++)
       {
          for (int d = 0; d < MQ.Width(); d++)
          {
-            dofs(k+Dof*(d+MQ.Width()*r)) = MQ(r,d);
+            dofs(k+dof*(d+MQ.Width()*r)) = MQ(r,d);
          }
       }
    }
@@ -409,12 +409,12 @@ void NodalFiniteElement::Project(
 {
    if (fe.GetRangeType() == SCALAR)
    {
-      MFEM_ASSERT(MapType == fe.GetMapType(), "");
+      MFEM_ASSERT(map_type == fe.GetMapType(), "");
 
       Vector shape(fe.GetDof());
 
-      I.SetSize(Dof, fe.GetDof());
-      for (int k = 0; k < Dof; k++)
+      I.SetSize(dof, fe.GetDof());
+      for (int k = 0; k < dof; k++)
       {
          fe.CalcShape(Nodes.IntPoint(k), shape);
          for (int j = 0; j < shape.Size(); j++)
@@ -427,19 +427,19 @@ void NodalFiniteElement::Project(
    {
       DenseMatrix vshape(fe.GetDof(), Trans.GetSpaceDim());
 
-      I.SetSize(vshape.Width()*Dof, fe.GetDof());
-      for (int k = 0; k < Dof; k++)
+      I.SetSize(vshape.Width()*dof, fe.GetDof());
+      for (int k = 0; k < dof; k++)
       {
          Trans.SetIntPoint(&Nodes.IntPoint(k));
          fe.CalcVShape(Trans, vshape);
-         if (MapType == INTEGRAL)
+         if (map_type == INTEGRAL)
          {
             vshape *= Trans.Weight();
          }
          for (int j = 0; j < vshape.Height(); j++)
             for (int d = 0; d < vshape.Width(); d++)
             {
-               I(k+d*Dof,j) = vshape(j,d);
+               I(k+d*dof,j) = vshape(j,d);
             }
       }
    }
@@ -450,26 +450,26 @@ void NodalFiniteElement::ProjectGrad(
    DenseMatrix &grad) const
 {
    MFEM_ASSERT(fe.GetMapType() == VALUE, "");
-   MFEM_ASSERT(Trans.GetSpaceDim() == Dim, "")
+   MFEM_ASSERT(Trans.GetSpaceDim() == dim, "")
 
-   DenseMatrix dshape(fe.GetDof(), Dim), grad_k(fe.GetDof(), Dim), Jinv(Dim);
+   DenseMatrix dshape(fe.GetDof(), dim), grad_k(fe.GetDof(), dim), Jinv(dim);
 
-   grad.SetSize(Dim*Dof, fe.GetDof());
-   for (int k = 0; k < Dof; k++)
+   grad.SetSize(dim*dof, fe.GetDof());
+   for (int k = 0; k < dof; k++)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(k);
       fe.CalcDShape(ip, dshape);
       Trans.SetIntPoint(&ip);
       CalcInverse(Trans.Jacobian(), Jinv);
       Mult(dshape, Jinv, grad_k);
-      if (MapType == INTEGRAL)
+      if (map_type == INTEGRAL)
       {
          grad_k *= Trans.Weight();
       }
       for (int j = 0; j < grad_k.Height(); j++)
-         for (int d = 0; d < Dim; d++)
+         for (int d = 0; d < dim; d++)
          {
-            grad(k+d*Dof,j) = grad_k(j,d);
+            grad(k+d*dof,j) = grad_k(j,d);
          }
    }
 }
@@ -481,12 +481,12 @@ void NodalFiniteElement::ProjectDiv(
    double detJ;
    Vector div_shape(fe.GetDof());
 
-   div.SetSize(Dof, fe.GetDof());
-   for (int k = 0; k < Dof; k++)
+   div.SetSize(dof, fe.GetDof());
+   for (int k = 0; k < dof; k++)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(k);
       fe.CalcDivShape(ip, div_shape);
-      if (MapType == VALUE)
+      if (map_type == VALUE)
       {
          Trans.SetIntPoint(&ip);
          detJ = Trans.Weight();
@@ -509,7 +509,7 @@ void NodalFiniteElement::ProjectDiv(
 void PositiveFiniteElement::Project(
    Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
 {
-   for (int i = 0; i < Dof; i++)
+   for (int i = 0; i < dof; i++)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(i);
       Trans.SetIntPoint(&ip);
@@ -520,17 +520,17 @@ void PositiveFiniteElement::Project(
 void PositiveFiniteElement::Project(
    VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
 {
-   MFEM_ASSERT(dofs.Size() == vc.GetVDim()*Dof, "");
+   MFEM_ASSERT(dofs.Size() == vc.GetVDim()*dof, "");
    Vector x(vc.GetVDim());
 
-   for (int i = 0; i < Dof; i++)
+   for (int i = 0; i < dof; i++)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(i);
       Trans.SetIntPoint(&ip);
       vc.Eval (x, Trans, ip);
       for (int j = 0; j < x.Size(); j++)
       {
-         dofs(Dof*j+i) = x(j);
+         dofs(dof*j+i) = x(j);
       }
    }
 }
@@ -541,7 +541,7 @@ void PositiveFiniteElement::Project(
    const NodalFiniteElement *nfe =
       dynamic_cast<const NodalFiniteElement *>(&fe);
 
-   if (nfe && Dof == nfe->GetDof())
+   if (nfe && dof == nfe->GetDof())
    {
       nfe->Project(*this, Trans, I);
       I.Invert();
@@ -556,7 +556,7 @@ void PositiveFiniteElement::Project(
       mass_integ.AssembleElementMatrix2(fe, *this, Trans, mixed_mass);
 
       DenseMatrixInverse pos_mass_inv(pos_mass);
-      I.SetSize(Dof, fe.GetDof());
+      I.SetSize(dof, fe.GetDof());
       pos_mass_inv.Mult(mixed_mass, I);
    }
 }
@@ -578,47 +578,47 @@ void VectorFiniteElement::CalcDShape (
 
 void VectorFiniteElement::SetDerivMembers()
 {
-   switch (MapType)
+   switch (map_type)
    {
       case H_DIV:
-         DerivType = DIV;
-         DerivRangeType = SCALAR;
-         DerivMapType = INTEGRAL;
+         deriv_type = DIV;
+         deriv_range_type = SCALAR;
+         deriv_map_type = INTEGRAL;
          break;
       case H_CURL:
-         switch (Dim)
+         switch (dim)
          {
             case 3: // curl: 3D H_CURL -> 3D H_DIV
-               DerivType = CURL;
-               DerivRangeType = VECTOR;
-               DerivMapType = H_DIV;
+               deriv_type = CURL;
+               deriv_range_type = VECTOR;
+               deriv_map_type = H_DIV;
                break;
             case 2:
                // curl: 2D H_CURL -> INTEGRAL
-               DerivType = CURL;
-               DerivRangeType = SCALAR;
-               DerivMapType = INTEGRAL;
+               deriv_type = CURL;
+               deriv_range_type = SCALAR;
+               deriv_map_type = INTEGRAL;
                break;
             case 1:
-               DerivType = NONE;
-               DerivRangeType = SCALAR;
-               DerivMapType = INTEGRAL;
+               deriv_type = NONE;
+               deriv_range_type = SCALAR;
+               deriv_map_type = INTEGRAL;
                break;
             default:
-               MFEM_ABORT("Invalid dimension, Dim = " << Dim);
+               MFEM_ABORT("Invalid dimension, Dim = " << dim);
          }
          break;
       default:
-         MFEM_ABORT("Invalid MapType = " << MapType);
+         MFEM_ABORT("Invalid MapType = " << map_type);
    }
 }
 
 void VectorFiniteElement::CalcVShape_RT (
    ElementTransformation &Trans, DenseMatrix &shape) const
 {
-   MFEM_ASSERT(MapType == H_DIV, "");
+   MFEM_ASSERT(map_type == H_DIV, "");
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix vshape(Dof, Dim);
+   DenseMatrix vshape(dof, dim);
 #endif
    CalcVShape(Trans.GetIntPoint(), vshape);
    MultABt(vshape, Trans.Jacobian(), shape);
@@ -628,9 +628,9 @@ void VectorFiniteElement::CalcVShape_RT (
 void VectorFiniteElement::CalcVShape_ND (
    ElementTransformation &Trans, DenseMatrix &shape) const
 {
-   MFEM_ASSERT(MapType == H_CURL, "");
+   MFEM_ASSERT(map_type == H_CURL, "");
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix vshape(Dof, Dim);
+   DenseMatrix vshape(dof, dim);
 #endif
    CalcVShape(Trans.GetIntPoint(), vshape);
    Mult(vshape, Trans.InverseJacobian(), shape);
@@ -644,14 +644,14 @@ void VectorFiniteElement::Project_RT(
    const int sdim = Trans.GetSpaceDim();
    MFEM_ASSERT(vc.GetVDim() == sdim, "");
    Vector xk(vk, sdim);
-   const bool square_J = (Dim == sdim);
+   const bool square_J = (dim == sdim);
 
-   for (int k = 0; k < Dof; k++)
+   for (int k = 0; k < dof; k++)
    {
       Trans.SetIntPoint(&Nodes.IntPoint(k));
       vc.Eval(xk, Trans, Nodes.IntPoint(k));
       // dof_k = nk^t adj(J) xk
-      dofs(k) = Trans.AdjugateJacobian().InnerProduct(vk, nk + d2n[k]*Dim);
+      dofs(k) = Trans.AdjugateJacobian().InnerProduct(vk, nk + d2n[k]*dim);
       if (!square_J) { dofs(k) /= Trans.Weight(); }
    }
 }
@@ -664,22 +664,22 @@ void VectorFiniteElement::ProjectMatrixCoefficient_RT(
 
    const int sdim = T.GetSpaceDim();
    MFEM_ASSERT(mc.GetWidth() == sdim, "");
-   const bool square_J = (Dim == sdim);
+   const bool square_J = (dim == sdim);
    DenseMatrix MQ(mc.GetHeight(), mc.GetWidth());
    Vector nk_phys(sdim), dofs_k(MQ.Height());
-   MFEM_ASSERT(dofs.Size() == Dof*MQ.Height(), "");
+   MFEM_ASSERT(dofs.Size() == dof*MQ.Height(), "");
 
-   for (int k = 0; k < Dof; k++)
+   for (int k = 0; k < dof; k++)
    {
       T.SetIntPoint(&Nodes.IntPoint(k));
       mc.Eval(MQ, T, Nodes.IntPoint(k));
       // nk_phys = adj(J)^t nk
-      T.AdjugateJacobian().MultTranspose(nk + d2n[k]*Dim, nk_phys);
+      T.AdjugateJacobian().MultTranspose(nk + d2n[k]*dim, nk_phys);
       if (!square_J) { nk_phys /= T.Weight(); }
       MQ.Mult(nk_phys, dofs_k);
       for (int r = 0; r < MQ.Height(); r++)
       {
-         dofs(k+Dof*r) = dofs_k(r);
+         dofs(k+dof*r) = dofs_k(r);
       }
    }
 }
@@ -694,18 +694,18 @@ void VectorFiniteElement::Project_RT(
       Vector shape(fe.GetDof());
       int sdim = Trans.GetSpaceDim();
 
-      I.SetSize(Dof, sdim*fe.GetDof());
-      for (int k = 0; k < Dof; k++)
+      I.SetSize(dof, sdim*fe.GetDof());
+      for (int k = 0; k < dof; k++)
       {
          const IntegrationPoint &ip = Nodes.IntPoint(k);
 
          fe.CalcShape(ip, shape);
          Trans.SetIntPoint(&ip);
-         Trans.AdjugateJacobian().MultTranspose(nk + d2n[k]*Dim, vk);
+         Trans.AdjugateJacobian().MultTranspose(nk + d2n[k]*dim, vk);
          if (fe.GetMapType() == INTEGRAL)
          {
             double w = 1.0/Trans.Weight();
-            for (int d = 0; d < Dim; d++)
+            for (int d = 0; d < dim; d++)
             {
                vk[d] *= w;
             }
@@ -735,7 +735,7 @@ void VectorFiniteElement::ProjectGrad_RT(
    const double *nk, const Array<int> &d2n, const FiniteElement &fe,
    ElementTransformation &Trans, DenseMatrix &grad) const
 {
-   if (Dim != 2)
+   if (dim != 2)
    {
       mfem_error("VectorFiniteElement::ProjectGrad_RT works only in 2D!");
    }
@@ -744,12 +744,12 @@ void VectorFiniteElement::ProjectGrad_RT(
    Vector grad_k(fe.GetDof());
    double tk[2];
 
-   grad.SetSize(Dof, fe.GetDof());
-   for (int k = 0; k < Dof; k++)
+   grad.SetSize(dof, fe.GetDof());
+   for (int k = 0; k < dof; k++)
    {
       fe.CalcDShape(Nodes.IntPoint(k), dshape);
-      tk[0] = nk[d2n[k]*Dim+1];
-      tk[1] = -nk[d2n[k]*Dim];
+      tk[0] = nk[d2n[k]*dim+1];
+      tk[1] = -nk[d2n[k]*dim];
       dshape.Mult(tk, grad_k);
       for (int j = 0; j < grad_k.Size(); j++)
       {
@@ -763,19 +763,19 @@ void VectorFiniteElement::ProjectCurl_ND(
    ElementTransformation &Trans, DenseMatrix &curl) const
 {
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix curlshape(fe.GetDof(), Dim);
-   DenseMatrix curlshape_J(fe.GetDof(), Dim);
-   DenseMatrix J(Dim, Dim);
+   DenseMatrix curlshape(fe.GetDof(), dim);
+   DenseMatrix curlshape_J(fe.GetDof(), dim);
+   DenseMatrix J(dim, dim);
 #else
-   curlshape.SetSize(fe.GetDof(), Dim);
-   curlshape_J.SetSize(fe.GetDof(), Dim);
-   J.SetSize(Dim, Dim);
+   curlshape.SetSize(fe.GetDof(), dim);
+   curlshape_J.SetSize(fe.GetDof(), dim);
+   J.SetSize(dim, dim);
 #endif
 
    Vector curl_k(fe.GetDof());
 
-   curl.SetSize(Dof, fe.GetDof());
-   for (int k = 0; k < Dof; k++)
+   curl.SetSize(dof, fe.GetDof());
+   for (int k = 0; k < dof; k++)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(k);
 
@@ -788,7 +788,7 @@ void VectorFiniteElement::ProjectCurl_ND(
       fe.CalcCurlShape(ip, curlshape);
       Mult(curlshape, J, curlshape_J);
 
-      curlshape_J.Mult(tk + d2t[k]*Dim, curl_k);
+      curlshape_J.Mult(tk + d2t[k]*dim, curl_k);
       for (int j = 0; j < curl_k.Size(); j++)
       {
          curl(k,j) = (fabs(curl_k(j)) < 1e-12) ? 0.0 : curl_k(j);
@@ -800,14 +800,14 @@ void VectorFiniteElement::ProjectCurl_RT(
    const double *nk, const Array<int> &d2n, const FiniteElement &fe,
    ElementTransformation &Trans, DenseMatrix &curl) const
 {
-   DenseMatrix curl_shape(fe.GetDof(), Dim);
+   DenseMatrix curl_shape(fe.GetDof(), dim);
    Vector curl_k(fe.GetDof());
 
-   curl.SetSize(Dof, fe.GetDof());
-   for (int k = 0; k < Dof; k++)
+   curl.SetSize(dof, fe.GetDof());
+   for (int k = 0; k < dof; k++)
    {
       fe.CalcCurlShape(Nodes.IntPoint(k), curl_shape);
-      curl_shape.Mult(nk + d2n[k]*Dim, curl_k);
+      curl_shape.Mult(nk + d2n[k]*dim, curl_k);
       for (int j = 0; j < curl_k.Size(); j++)
       {
          curl(k,j) = (fabs(curl_k(j)) < 1e-12) ? 0.0 : curl_k(j);
@@ -822,13 +822,13 @@ void VectorFiniteElement::Project_ND(
    double vk[Geometry::MaxDim];
    Vector xk(vk, vc.GetVDim());
 
-   for (int k = 0; k < Dof; k++)
+   for (int k = 0; k < dof; k++)
    {
       Trans.SetIntPoint(&Nodes.IntPoint(k));
 
       vc.Eval(xk, Trans, Nodes.IntPoint(k));
       // dof_k = xk^t J tk
-      dofs(k) = Trans.Jacobian().InnerProduct(tk + d2t[k]*Dim, vk);
+      dofs(k) = Trans.Jacobian().InnerProduct(tk + d2t[k]*dim, vk);
    }
 }
 
@@ -842,18 +842,18 @@ void VectorFiniteElement::ProjectMatrixCoefficient_ND(
    MFEM_ASSERT(mc.GetWidth() == sdim, "");
    DenseMatrix MQ(mc.GetHeight(), mc.GetWidth());
    Vector tk_phys(sdim), dofs_k(MQ.Height());
-   MFEM_ASSERT(dofs.Size() == Dof*MQ.Height(), "");
+   MFEM_ASSERT(dofs.Size() == dof*MQ.Height(), "");
 
-   for (int k = 0; k < Dof; k++)
+   for (int k = 0; k < dof; k++)
    {
       T.SetIntPoint(&Nodes.IntPoint(k));
       mc.Eval(MQ, T, Nodes.IntPoint(k));
       // tk_phys = J tk
-      T.Jacobian().Mult(tk + d2t[k]*Dim, tk_phys);
+      T.Jacobian().Mult(tk + d2t[k]*dim, tk_phys);
       MQ.Mult(tk_phys, dofs_k);
       for (int r = 0; r < MQ.Height(); r++)
       {
-         dofs(k+Dof*r) = dofs_k(r);
+         dofs(k+dof*r) = dofs_k(r);
       }
    }
 }
@@ -868,14 +868,14 @@ void VectorFiniteElement::Project_ND(
       double vk[Geometry::MaxDim];
       Vector shape(fe.GetDof());
 
-      I.SetSize(Dof, sdim*fe.GetDof());
-      for (int k = 0; k < Dof; k++)
+      I.SetSize(dof, sdim*fe.GetDof());
+      for (int k = 0; k < dof; k++)
       {
          const IntegrationPoint &ip = Nodes.IntPoint(k);
 
          fe.CalcShape(ip, shape);
          Trans.SetIntPoint(&ip);
-         Trans.Jacobian().Mult(tk + d2t[k]*Dim, vk);
+         Trans.Jacobian().Mult(tk + d2t[k]*dim, vk);
          if (fe.GetMapType() == INTEGRAL)
          {
             double w = 1.0/Trans.Weight();
@@ -914,11 +914,11 @@ void VectorFiniteElement::ProjectGrad_ND(
    DenseMatrix dshape(fe.GetDof(), fe.GetDim());
    Vector grad_k(fe.GetDof());
 
-   grad.SetSize(Dof, fe.GetDof());
-   for (int k = 0; k < Dof; k++)
+   grad.SetSize(dof, fe.GetDof());
+   for (int k = 0; k < dof; k++)
    {
       fe.CalcDShape(Nodes.IntPoint(k), dshape);
-      dshape.Mult(tk + d2t[k]*Dim, grad_k);
+      dshape.Mult(tk + d2t[k]*dim, grad_k);
       for (int j = 0; j < grad_k.Size(); j++)
       {
          grad(k,j) = (fabs(grad_k(j)) < 1e-12) ? 0.0 : grad_k(j);
@@ -930,33 +930,33 @@ void VectorFiniteElement::LocalInterpolation_RT(
    const VectorFiniteElement &cfe, const double *nk, const Array<int> &d2n,
    ElementTransformation &Trans, DenseMatrix &I) const
 {
-   MFEM_ASSERT(MapType == cfe.GetMapType(), "");
+   MFEM_ASSERT(map_type == cfe.GetMapType(), "");
 
    double vk[Geometry::MaxDim];
-   Vector xk(vk, Dim);
+   Vector xk(vk, dim);
    IntegrationPoint ip;
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix vshape(cfe.GetDof(), cfe.GetDim());
 #else
    DenseMatrix vshape(cfe.vshape.Data(), cfe.GetDof(), cfe.GetDim());
 #endif
-   I.SetSize(Dof, vshape.Height());
+   I.SetSize(dof, vshape.Height());
 
    // assuming Trans is linear; this should be ok for all refinement types
-   Trans.SetIntPoint(&Geometries.GetCenter(GeomType));
+   Trans.SetIntPoint(&Geometries.GetCenter(geom_type));
    const DenseMatrix &adjJ = Trans.AdjugateJacobian();
-   for (int k = 0; k < Dof; k++)
+   for (int k = 0; k < dof; k++)
    {
       Trans.Transform(Nodes.IntPoint(k), xk);
       ip.Set3(vk);
       cfe.CalcVShape(ip, vshape);
       // xk = |J| J^{-t} n_k
-      adjJ.MultTranspose(nk + d2n[k]*Dim, vk);
+      adjJ.MultTranspose(nk + d2n[k]*dim, vk);
       // I_k = vshape_k.adj(J)^t.n_k, k=1,...,Dof
       for (int j = 0; j < vshape.Height(); j++)
       {
          double Ikj = 0.;
-         for (int i = 0; i < Dim; i++)
+         for (int i = 0; i < dim; i++)
          {
             Ikj += vshape(j, i) * vk[i];
          }
@@ -970,30 +970,30 @@ void VectorFiniteElement::LocalInterpolation_ND(
    ElementTransformation &Trans, DenseMatrix &I) const
 {
    double vk[Geometry::MaxDim];
-   Vector xk(vk, Dim);
+   Vector xk(vk, dim);
    IntegrationPoint ip;
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix vshape(cfe.GetDof(), cfe.GetDim());
 #else
    DenseMatrix vshape(cfe.vshape.Data(), cfe.GetDof(), cfe.GetDim());
 #endif
-   I.SetSize(Dof, vshape.Height());
+   I.SetSize(dof, vshape.Height());
 
    // assuming Trans is linear; this should be ok for all refinement types
-   Trans.SetIntPoint(&Geometries.GetCenter(GeomType));
+   Trans.SetIntPoint(&Geometries.GetCenter(geom_type));
    const DenseMatrix &J = Trans.Jacobian();
-   for (int k = 0; k < Dof; k++)
+   for (int k = 0; k < dof; k++)
    {
       Trans.Transform(Nodes.IntPoint(k), xk);
       ip.Set3(vk);
       cfe.CalcVShape(ip, vshape);
       // xk = J t_k
-      J.Mult(tk + d2t[k]*Dim, vk);
+      J.Mult(tk + d2t[k]*dim, vk);
       // I_k = vshape_k.J.t_k, k=1,...,Dof
       for (int j = 0; j < vshape.Height(); j++)
       {
          double Ikj = 0.;
-         for (int i = 0; i < Dim; i++)
+         for (int i = 0; i < dim; i++)
          {
             Ikj += vshape(j, i) * vk[i];
          }
@@ -1008,28 +1008,28 @@ void VectorFiniteElement::LocalRestriction_RT(
 {
    double pt_data[Geometry::MaxDim];
    IntegrationPoint ip;
-   Vector pt(pt_data, Dim);
+   Vector pt(pt_data, dim);
 
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix vshape(Dof, Dim);
+   DenseMatrix vshape(dof, dim);
 #endif
 
-   Trans.SetIntPoint(&Geometries.GetCenter(GeomType));
+   Trans.SetIntPoint(&Geometries.GetCenter(geom_type));
    const DenseMatrix &J = Trans.Jacobian();
    const double weight = Trans.Weight();
-   for (int j = 0; j < Dof; j++)
+   for (int j = 0; j < dof; j++)
    {
       InvertLinearTrans(Trans, Nodes.IntPoint(j), pt);
-      ip.Set(pt_data, Dim);
-      if (Geometries.CheckPoint(GeomType, ip)) // do we need an epsilon here?
+      ip.Set(pt_data, dim);
+      if (Geometries.CheckPoint(geom_type, ip)) // do we need an epsilon here?
       {
          CalcVShape(ip, vshape);
-         J.MultTranspose(nk+Dim*d2n[j], pt_data);
+         J.MultTranspose(nk+dim*d2n[j], pt_data);
          pt /= weight;
-         for (int k = 0; k < Dof; k++)
+         for (int k = 0; k < dof; k++)
          {
             double R_jk = 0.0;
-            for (int d = 0; d < Dim; d++)
+            for (int d = 0; d < dim; d++)
             {
                R_jk += vshape(k,d)*pt_data[d];
             }
@@ -1051,26 +1051,26 @@ void VectorFiniteElement::LocalRestriction_ND(
 {
    double pt_data[Geometry::MaxDim];
    IntegrationPoint ip;
-   Vector pt(pt_data, Dim);
+   Vector pt(pt_data, dim);
 
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix vshape(Dof, Dim);
+   DenseMatrix vshape(dof, dim);
 #endif
 
-   Trans.SetIntPoint(&Geometries.GetCenter(GeomType));
+   Trans.SetIntPoint(&Geometries.GetCenter(geom_type));
    const DenseMatrix &Jinv = Trans.InverseJacobian();
-   for (int j = 0; j < Dof; j++)
+   for (int j = 0; j < dof; j++)
    {
       InvertLinearTrans(Trans, Nodes.IntPoint(j), pt);
-      ip.Set(pt_data, Dim);
-      if (Geometries.CheckPoint(GeomType, ip)) // do we need an epsilon here?
+      ip.Set(pt_data, dim);
+      if (Geometries.CheckPoint(geom_type, ip)) // do we need an epsilon here?
       {
          CalcVShape(ip, vshape);
-         Jinv.Mult(tk+Dim*d2t[j], pt_data);
-         for (int k = 0; k < Dof; k++)
+         Jinv.Mult(tk+dim*d2t[j], pt_data);
+         for (int k = 0; k < dof; k++)
          {
             double R_jk = 0.0;
-            for (int d = 0; d < Dim; d++)
+            for (int d = 0; d < dim; d++)
             {
                R_jk += vshape(k,d)*pt_data[d];
             }
@@ -2827,8 +2827,8 @@ void RT0TriangleFiniteElement::GetLocalInterpolation (
 {
    int k, j;
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix vshape(Dof, Dim);
-   DenseMatrix Jinv(Dim);
+   DenseMatrix vshape(dof, dim);
+   DenseMatrix Jinv(dim);
 #endif
 
 #ifdef MFEM_DEBUG
@@ -2881,7 +2881,7 @@ void RT0TriangleFiniteElement::Project (
    double vk[2];
    Vector xk (vk, 2);
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix Jinv(Dim);
+   DenseMatrix Jinv(dim);
 #endif
 
    for (int k = 0; k < 3; k++)
@@ -2942,8 +2942,8 @@ void RT0QuadFiniteElement::GetLocalInterpolation (
 {
    int k, j;
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix vshape(Dof, Dim);
-   DenseMatrix Jinv(Dim);
+   DenseMatrix vshape(dof, dim);
+   DenseMatrix Jinv(dim);
 #endif
 
 #ifdef MFEM_DEBUG
@@ -2996,7 +2996,7 @@ void RT0QuadFiniteElement::Project (
    double vk[2];
    Vector xk (vk, 2);
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix Jinv(Dim);
+   DenseMatrix Jinv(dim);
 #endif
 
    for (int k = 0; k < 4; k++)
@@ -3084,8 +3084,8 @@ void RT1TriangleFiniteElement::GetLocalInterpolation (
 {
    int k, j;
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix vshape(Dof, Dim);
-   DenseMatrix Jinv(Dim);
+   DenseMatrix vshape(dof, dim);
+   DenseMatrix Jinv(dim);
 #endif
 
 #ifdef MFEM_DEBUG
@@ -3137,7 +3137,7 @@ void RT1TriangleFiniteElement::Project (
    double vk[2];
    Vector xk (vk, 2);
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix Jinv(Dim);
+   DenseMatrix Jinv(dim);
 #endif
 
    for (int k = 0; k < 8; k++)
@@ -3266,8 +3266,8 @@ void RT1QuadFiniteElement::GetLocalInterpolation (
 {
    int k, j;
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix vshape(Dof, Dim);
-   DenseMatrix Jinv(Dim);
+   DenseMatrix vshape(dof, dim);
+   DenseMatrix Jinv(dim);
 #endif
 
 #ifdef MFEM_DEBUG
@@ -3319,7 +3319,7 @@ void RT1QuadFiniteElement::Project (
    double vk[2];
    Vector xk (vk, 2);
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix Jinv(Dim);
+   DenseMatrix Jinv(dim);
 #endif
 
    for (int k = 0; k < 12; k++)
@@ -3718,8 +3718,8 @@ void RT2QuadFiniteElement::GetLocalInterpolation (
 {
    int k, j;
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix vshape(Dof, Dim);
-   DenseMatrix Jinv(Dim);
+   DenseMatrix vshape(dof, dim);
+   DenseMatrix Jinv(dim);
 #endif
 
 #ifdef MFEM_DEBUG
@@ -3771,7 +3771,7 @@ void RT2QuadFiniteElement::Project (
    double vk[2];
    Vector xk (vk, 2);
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix Jinv(Dim);
+   DenseMatrix Jinv(dim);
 #endif
 
    for (int k = 0; k < 24; k++)
@@ -4078,9 +4078,9 @@ LagrangeHexFiniteElement::LagrangeHexFiniteElement (int degree)
 {
    if (degree == 2)
    {
-      I = new int[Dof];
-      J = new int[Dof];
-      K = new int[Dof];
+      I = new int[dof];
+      J = new int[dof];
+      K = new int[dof];
       // nodes
       I[ 0] = 0; J[ 0] = 0; K[ 0] = 0;
       I[ 1] = 1; J[ 1] = 0; K[ 1] = 0;
@@ -4115,9 +4115,9 @@ LagrangeHexFiniteElement::LagrangeHexFiniteElement (int degree)
    }
    else if (degree == 3)
    {
-      I = new int[Dof];
-      J = new int[Dof];
-      K = new int[Dof];
+      I = new int[dof];
+      J = new int[dof];
+      K = new int[dof];
       // nodes
       I[ 0] = 0; J[ 0] = 0; K[ 0] = 0;
       I[ 1] = 1; J[ 1] = 0; K[ 1] = 0;
@@ -4205,7 +4205,7 @@ LagrangeHexFiniteElement::LagrangeHexFiniteElement (int degree)
    dshape1dz.SetSize(dof1d,1);
 #endif
 
-   for (int n = 0; n < Dof; n++)
+   for (int n = 0; n < dof; n++)
    {
       Nodes.IntPoint(n).x = fe1d -> GetNodes().IntPoint(I[n]).x;
       Nodes.IntPoint(n).y = fe1d -> GetNodes().IntPoint(J[n]).x;
@@ -4228,7 +4228,7 @@ void LagrangeHexFiniteElement::CalcShape(const IntegrationPoint &ip,
    fe1d -> CalcShape(ipy, shape1dy);
    fe1d -> CalcShape(ipz, shape1dz);
 
-   for (int n = 0; n < Dof; n++)
+   for (int n = 0; n < dof; n++)
    {
       shape(n) = shape1dx(I[n]) *  shape1dy(J[n]) * shape1dz(K[n]);
    }
@@ -4254,7 +4254,7 @@ void LagrangeHexFiniteElement::CalcDShape(const IntegrationPoint &ip,
    fe1d -> CalcDShape(ipy, dshape1dy);
    fe1d -> CalcDShape(ipz, dshape1dz);
 
-   for (int n = 0; n < Dof; n++)
+   for (int n = 0; n < dof; n++)
    {
       dshape(n,0) = dshape1dx(I[n],0) * shape1dy(J[n])    * shape1dz(K[n]);
       dshape(n,1) = shape1dx(I[n])    * dshape1dy(J[n],0) * shape1dz(K[n]);
@@ -5353,7 +5353,7 @@ void Nedelec1HexFiniteElement::GetLocalInterpolation (
 {
    int k, j;
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix vshape(Dof, Dim);
+   DenseMatrix vshape(dof, dim);
 #endif
 
 #ifdef MFEM_DEBUG
@@ -5519,7 +5519,7 @@ void Nedelec1TetFiniteElement::GetLocalInterpolation (
 {
    int k, j;
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix vshape(Dof, Dim);
+   DenseMatrix vshape(dof, dim);
 #endif
 
 #ifdef MFEM_DEBUG
@@ -5667,8 +5667,8 @@ void RT0HexFiniteElement::GetLocalInterpolation (
 {
    int k, j;
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix vshape(Dof, Dim);
-   DenseMatrix Jinv(Dim);
+   DenseMatrix vshape(dof, dim);
+   DenseMatrix Jinv(dim);
 #endif
 
 #ifdef MFEM_DEBUG
@@ -5724,7 +5724,7 @@ void RT0HexFiniteElement::Project (
    double vk[3];
    Vector xk (vk, 3);
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix Jinv(Dim);
+   DenseMatrix Jinv(dim);
 #endif
 
    for (int k = 0; k < 6; k++)
@@ -6056,8 +6056,8 @@ void RT1HexFiniteElement::GetLocalInterpolation (
 {
    int k, j;
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix vshape(Dof, Dim);
-   DenseMatrix Jinv(Dim);
+   DenseMatrix vshape(dof, dim);
+   DenseMatrix Jinv(dim);
 #endif
 
 #ifdef MFEM_DEBUG
@@ -6113,7 +6113,7 @@ void RT1HexFiniteElement::Project (
    double vk[3];
    Vector xk (vk, 3);
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix Jinv(Dim);
+   DenseMatrix Jinv(dim);
 #endif
 
    for (int k = 0; k < 36; k++)
@@ -6191,8 +6191,8 @@ void RT0TetFiniteElement::GetLocalInterpolation (
 {
    int k, j;
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix vshape(Dof, Dim);
-   DenseMatrix Jinv(Dim);
+   DenseMatrix vshape(dof, dim);
+   DenseMatrix Jinv(dim);
 #endif
 
 #ifdef MFEM_DEBUG
@@ -6248,7 +6248,7 @@ void RT0TetFiniteElement::Project (
    double vk[3];
    Vector xk (vk, 3);
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix Jinv(Dim);
+   DenseMatrix Jinv(dim);
 #endif
 
    for (int k = 0; k < 4; k++)
@@ -7093,7 +7093,7 @@ H1_SegmentElement::H1_SegmentElement(const int p, const int btype)
 void H1_SegmentElement::CalcShape(const IntegrationPoint &ip,
                                   Vector &shape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1);
@@ -7112,7 +7112,7 @@ void H1_SegmentElement::CalcShape(const IntegrationPoint &ip,
 void H1_SegmentElement::CalcDShape(const IntegrationPoint &ip,
                                    DenseMatrix &dshape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1), dshape_x(p+1);
@@ -7130,7 +7130,7 @@ void H1_SegmentElement::CalcDShape(const IntegrationPoint &ip,
 
 void H1_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
 {
-   const int p = Order;
+   const int p = order;
    const double *cp = poly1d.ClosedPoints(p, b_type);
 
    switch (vertex)
@@ -7183,7 +7183,7 @@ H1_QuadrilateralElement::H1_QuadrilateralElement(const int p, const int btype)
 void H1_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
                                         Vector &shape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1), shape_y(p+1);
@@ -7202,7 +7202,7 @@ void H1_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
 void H1_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
                                          DenseMatrix &dshape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1), shape_y(p+1), dshape_x(p+1), dshape_y(p+1);
@@ -7223,7 +7223,7 @@ void H1_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
 
 void H1_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
 {
-   const int p = Order;
+   const int p = order;
    const double *cp = poly1d.ClosedPoints(p, b_type);
 
 #ifdef MFEM_THREAD_SAFE
@@ -7298,7 +7298,7 @@ H1_HexahedronElement::H1_HexahedronElement(const int p, const int btype)
 void H1_HexahedronElement::CalcShape(const IntegrationPoint &ip,
                                      Vector &shape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1), shape_y(p+1), shape_z(p+1);
@@ -7319,7 +7319,7 @@ void H1_HexahedronElement::CalcShape(const IntegrationPoint &ip,
 void H1_HexahedronElement::CalcDShape(const IntegrationPoint &ip,
                                       DenseMatrix &dshape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1),  shape_y(p+1),  shape_z(p+1);
@@ -7342,7 +7342,7 @@ void H1_HexahedronElement::CalcDShape(const IntegrationPoint &ip,
 
 void H1_HexahedronElement::ProjectDelta(int vertex, Vector &dofs) const
 {
-   const int p = Order;
+   const int p = order;
    const double *cp = poly1d.ClosedPoints(p,b_type);
 
 #ifdef MFEM_THREAD_SAFE
@@ -7446,7 +7446,7 @@ H1Pos_SegmentElement::H1Pos_SegmentElement(const int p)
 void H1Pos_SegmentElement::CalcShape(const IntegrationPoint &ip,
                                      Vector &shape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1);
@@ -7466,7 +7466,7 @@ void H1Pos_SegmentElement::CalcShape(const IntegrationPoint &ip,
 void H1Pos_SegmentElement::CalcDShape(const IntegrationPoint &ip,
                                       DenseMatrix &dshape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1), dshape_x(p+1);
@@ -7513,7 +7513,7 @@ H1Pos_QuadrilateralElement::H1Pos_QuadrilateralElement(const int p)
 void H1Pos_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
                                            Vector &shape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1), shape_y(p+1);
@@ -7533,7 +7533,7 @@ void H1Pos_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
 void H1Pos_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
                                             DenseMatrix &dshape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1), shape_y(p+1), dshape_x(p+1), dshape_y(p+1);
@@ -7583,7 +7583,7 @@ H1Pos_HexahedronElement::H1Pos_HexahedronElement(const int p)
 void H1Pos_HexahedronElement::CalcShape(const IntegrationPoint &ip,
                                         Vector &shape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1), shape_y(p+1), shape_z(p+1);
@@ -7604,7 +7604,7 @@ void H1Pos_HexahedronElement::CalcShape(const IntegrationPoint &ip,
 void H1Pos_HexahedronElement::CalcDShape(const IntegrationPoint &ip,
                                          DenseMatrix &dshape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1),  shape_y(p+1),  shape_z(p+1);
@@ -7648,9 +7648,9 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
    ddshape_x.SetSize(p + 1);
    ddshape_y.SetSize(p + 1);
    ddshape_l.SetSize(p + 1);
-   u.SetSize(Dof);
-   du.SetSize(Dof, Dim);
-   ddu.SetSize(Dof, (Dim * (Dim + 1)) / 2 );
+   u.SetSize(dof);
+   du.SetSize(dof, dim);
+   ddu.SetSize(dof, (dim * (dim + 1)) / 2 );
 #else
    Vector shape_x(p + 1), shape_y(p + 1), shape_l(p + 1);
 #endif
@@ -7683,8 +7683,8 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
          Nodes.IntPoint(o++).Set2(cp[i]/w, cp[j]/w);
       }
 
-   DenseMatrix T(Dof);
-   for (int k = 0; k < Dof; k++)
+   DenseMatrix T(dof);
+   for (int k = 0; k < dof; k++)
    {
       IntegrationPoint &ip = Nodes.IntPoint(k);
       poly1d.CalcBasis(p, ip.x, shape_x);
@@ -7706,10 +7706,10 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
 void H1_TriangleElement::CalcShape(const IntegrationPoint &ip,
                                    Vector &shape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
-   Vector shape_x(p + 1), shape_y(p + 1), shape_l(p + 1), u(Dof);
+   Vector shape_x(p + 1), shape_y(p + 1), shape_l(p + 1), u(dof);
 #endif
 
    poly1d.CalcBasis(p, ip.x, shape_x);
@@ -7728,12 +7728,12 @@ void H1_TriangleElement::CalcShape(const IntegrationPoint &ip,
 void H1_TriangleElement::CalcDShape(const IntegrationPoint &ip,
                                     DenseMatrix &dshape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector  shape_x(p + 1),  shape_y(p + 1),  shape_l(p + 1);
    Vector dshape_x(p + 1), dshape_y(p + 1), dshape_l(p + 1);
-   DenseMatrix du(Dof, Dim);
+   DenseMatrix du(dof, dim);
 #endif
 
    poly1d.CalcBasis(p, ip.x, shape_x, dshape_x);
@@ -7757,12 +7757,12 @@ void H1_TriangleElement::CalcDShape(const IntegrationPoint &ip,
 void H1_TriangleElement::CalcHessian(const IntegrationPoint &ip,
                                      DenseMatrix &ddshape) const
 {
-   const int p = Order;
+   const int p = order;
 #ifdef MFEM_THREAD_SAFE
    Vector   shape_x(p + 1),   shape_y(p + 1),   shape_l(p + 1);
    Vector  dshape_x(p + 1),  dshape_y(p + 1),  dshape_l(p + 1);
    Vector ddshape_x(p + 1), ddshape_y(p + 1), ddshape_l(p + 1);
-   DenseMatrix ddu(Dof, Dim);
+   DenseMatrix ddu(dof, dim);
 #endif
 
    poly1d.CalcBasis(p, ip.x, shape_x, dshape_x, ddshape_x);
@@ -7806,9 +7806,9 @@ H1_TetrahedronElement::H1_TetrahedronElement(const int p, const int btype)
    ddshape_y.SetSize(p + 1);
    ddshape_z.SetSize(p + 1);
    ddshape_l.SetSize(p + 1);
-   u.SetSize(Dof);
-   du.SetSize(Dof, Dim);
-   ddu.SetSize(Dof, (Dim * (Dim + 1)) / 2);
+   u.SetSize(dof);
+   du.SetSize(dof, dim);
+   ddu.SetSize(dof, (dim * (dim + 1)) / 2);
 #else
    Vector shape_x(p + 1), shape_y(p + 1), shape_z(p + 1), shape_l(p + 1);
 #endif
@@ -7881,8 +7881,8 @@ H1_TetrahedronElement::H1_TetrahedronElement(const int p, const int btype)
             Nodes.IntPoint(o++).Set3(cp[i]/w, cp[j]/w, cp[k]/w);
          }
 
-   DenseMatrix T(Dof);
-   for (int m = 0; m < Dof; m++)
+   DenseMatrix T(dof);
+   for (int m = 0; m < dof; m++)
    {
       IntegrationPoint &ip = Nodes.IntPoint(m);
       poly1d.CalcBasis(p, ip.x, shape_x);
@@ -7906,11 +7906,11 @@ H1_TetrahedronElement::H1_TetrahedronElement(const int p, const int btype)
 void H1_TetrahedronElement::CalcShape(const IntegrationPoint &ip,
                                       Vector &shape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p + 1), shape_y(p + 1), shape_z(p + 1), shape_l(p + 1);
-   Vector u(Dof);
+   Vector u(dof);
 #endif
 
    poly1d.CalcBasis(p, ip.x, shape_x);
@@ -7931,12 +7931,12 @@ void H1_TetrahedronElement::CalcShape(const IntegrationPoint &ip,
 void H1_TetrahedronElement::CalcDShape(const IntegrationPoint &ip,
                                        DenseMatrix &dshape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector  shape_x(p + 1),  shape_y(p + 1),  shape_z(p + 1),  shape_l(p + 1);
    Vector dshape_x(p + 1), dshape_y(p + 1), dshape_z(p + 1), dshape_l(p + 1);
-   DenseMatrix du(Dof, Dim);
+   DenseMatrix du(dof, dim);
 #endif
 
    poly1d.CalcBasis(p, ip.x, shape_x, dshape_x);
@@ -7964,13 +7964,13 @@ void H1_TetrahedronElement::CalcDShape(const IntegrationPoint &ip,
 void H1_TetrahedronElement::CalcHessian(const IntegrationPoint &ip,
                                         DenseMatrix &ddshape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector   shape_x(p + 1),   shape_y(p + 1),   shape_z(p + 1),   shape_l(p + 1);
    Vector  dshape_x(p + 1),  dshape_y(p + 1),  dshape_z(p + 1),  dshape_l(p + 1);
    Vector ddshape_x(p + 1), ddshape_y(p + 1), ddshape_z(p + 1), ddshape_l(p + 1);
-   DenseMatrix ddu(Dof, ((Dim + 1) * Dim) / 2);
+   DenseMatrix ddu(dof, ((dim + 1) * dim) / 2);
 #endif
 
    poly1d.CalcBasis(p, ip.x, shape_x, dshape_x, ddshape_x);
@@ -8012,11 +8012,11 @@ H1Pos_TriangleElement::H1Pos_TriangleElement(const int p)
                            FunctionSpace::Pk)
 {
 #ifndef MFEM_THREAD_SAFE
-   m_shape.SetSize(Dof);
+   m_shape.SetSize(dof);
    dshape_1d.SetSize(p + 1);
-   m_dshape.SetSize(Dof, Dim);
+   m_dshape.SetSize(dof, dim);
 #endif
-   dof_map.SetSize(Dof);
+   dof_map.SetSize(dof);
 
    struct Index
    {
@@ -8125,10 +8125,10 @@ void H1Pos_TriangleElement::CalcShape(const IntegrationPoint &ip,
                                       Vector &shape) const
 {
 #ifdef MFEM_THREAD_SAFE
-   Vector m_shape(Dof);
+   Vector m_shape(dof);
 #endif
-   CalcShape(Order, ip.x, ip.y, m_shape.GetData());
-   for (int i = 0; i < Dof; i++)
+   CalcShape(order, ip.x, ip.y, m_shape.GetData());
+   for (int i = 0; i < dof; i++)
    {
       shape(dof_map[i]) = m_shape(i);
    }
@@ -8138,13 +8138,13 @@ void H1Pos_TriangleElement::CalcDShape(const IntegrationPoint &ip,
                                        DenseMatrix &dshape) const
 {
 #ifdef MFEM_THREAD_SAFE
-   Vector dshape_1d(Order + 1);
-   DenseMatrix m_dshape(Dof, Dim);
+   Vector dshape_1d(order + 1);
+   DenseMatrix m_dshape(dof, dim);
 #endif
-   CalcDShape(Order, ip.x, ip.y, dshape_1d.GetData(), m_dshape.Data());
+   CalcDShape(order, ip.x, ip.y, dshape_1d.GetData(), m_dshape.Data());
    for (int d = 0; d < 2; d++)
    {
-      for (int i = 0; i < Dof; i++)
+      for (int i = 0; i < dof; i++)
       {
          dshape(dof_map[i],d) = m_dshape(i,d);
       }
@@ -8157,11 +8157,11 @@ H1Pos_TetrahedronElement::H1Pos_TetrahedronElement(const int p)
                            ((p + 1)*(p + 2)*(p + 3))/6, p, FunctionSpace::Pk)
 {
 #ifndef MFEM_THREAD_SAFE
-   m_shape.SetSize(Dof);
+   m_shape.SetSize(dof);
    dshape_1d.SetSize(p + 1);
-   m_dshape.SetSize(Dof, Dim);
+   m_dshape.SetSize(dof, dim);
 #endif
-   dof_map.SetSize(Dof);
+   dof_map.SetSize(dof);
 
    struct Index
    {
@@ -8377,10 +8377,10 @@ void H1Pos_TetrahedronElement::CalcShape(const IntegrationPoint &ip,
                                          Vector &shape) const
 {
 #ifdef MFEM_THREAD_SAFE
-   Vector m_shape(Dof);
+   Vector m_shape(dof);
 #endif
-   CalcShape(Order, ip.x, ip.y, ip.z, m_shape.GetData());
-   for (int i = 0; i < Dof; i++)
+   CalcShape(order, ip.x, ip.y, ip.z, m_shape.GetData());
+   for (int i = 0; i < dof; i++)
    {
       shape(dof_map[i]) = m_shape(i);
    }
@@ -8390,13 +8390,13 @@ void H1Pos_TetrahedronElement::CalcDShape(const IntegrationPoint &ip,
                                           DenseMatrix &dshape) const
 {
 #ifdef MFEM_THREAD_SAFE
-   Vector dshape_1d(Order + 1);
-   DenseMatrix m_dshape(Dof, Dim);
+   Vector dshape_1d(order + 1);
+   DenseMatrix m_dshape(dof, dim);
 #endif
-   CalcDShape(Order, ip.x, ip.y, ip.z, dshape_1d.GetData(), m_dshape.Data());
+   CalcDShape(order, ip.x, ip.y, ip.z, dshape_1d.GetData(), m_dshape.Data());
    for (int d = 0; d < 3; d++)
    {
-      for (int i = 0; i < Dof; i++)
+      for (int i = 0; i < dof; i++)
       {
          dshape(dof_map[i],d) = m_dshape(i,d);
       }
@@ -8418,8 +8418,8 @@ H1_WedgeElement::H1_WedgeElement(const int p,
    s_dshape.SetSize(SegmentFE.GetDof(), 1);
 #endif
 
-   t_dof.SetSize(Dof);
-   s_dof.SetSize(Dof);
+   t_dof.SetSize(dof);
+   s_dof.SetSize(dof);
 
    // Nodal DoFs
    t_dof[0] = 0; s_dof[0] = 0;
@@ -8496,7 +8496,7 @@ H1_WedgeElement::H1_WedgeElement(const int p,
    // Define Nodes
    const IntegrationRule & t_Nodes = TriangleFE.GetNodes();
    const IntegrationRule & s_Nodes = SegmentFE.GetNodes();
-   for (int i=0; i<Dof; i++)
+   for (int i=0; i<dof; i++)
    {
       Nodes.IntPoint(i).x = t_Nodes.IntPoint(t_dof[i]).x;
       Nodes.IntPoint(i).y = t_Nodes.IntPoint(t_dof[i]).y;
@@ -8517,7 +8517,7 @@ void H1_WedgeElement::CalcShape(const IntegrationPoint &ip,
    TriangleFE.CalcShape(ip, t_shape);
    SegmentFE.CalcShape(ipz, s_shape);
 
-   for (int i=0; i<Dof; i++)
+   for (int i=0; i<dof; i++)
    {
       shape[i] = t_shape[t_dof[i]] * s_shape[s_dof[i]];
    }
@@ -8540,7 +8540,7 @@ void H1_WedgeElement::CalcDShape(const IntegrationPoint &ip,
    SegmentFE.CalcShape(ipz, s_shape);
    SegmentFE.CalcDShape(ipz, s_dshape);
 
-   for (int i=0; i<Dof; i++)
+   for (int i=0; i<dof; i++)
    {
       dshape(i, 0) = t_dshape(t_dof[i],0) * s_shape[s_dof[i]];
       dshape(i, 1) = t_dshape(t_dof[i],1) * s_shape[s_dof[i]];
@@ -8562,8 +8562,8 @@ H1Pos_WedgeElement::H1Pos_WedgeElement(const int p)
    s_dshape.SetSize(SegmentFE.GetDof(), 1);
 #endif
 
-   t_dof.SetSize(Dof);
-   s_dof.SetSize(Dof);
+   t_dof.SetSize(dof);
+   s_dof.SetSize(dof);
 
    // Nodal DoFs
    t_dof[0] = 0; s_dof[0] = 0;
@@ -8639,7 +8639,7 @@ H1Pos_WedgeElement::H1Pos_WedgeElement(const int p)
    // Define Nodes
    const IntegrationRule & t_Nodes = TriangleFE.GetNodes();
    const IntegrationRule & s_Nodes = SegmentFE.GetNodes();
-   for (int i=0; i<Dof; i++)
+   for (int i=0; i<dof; i++)
    {
       Nodes.IntPoint(i).x = t_Nodes.IntPoint(t_dof[i]).x;
       Nodes.IntPoint(i).y = t_Nodes.IntPoint(t_dof[i]).y;
@@ -8660,7 +8660,7 @@ void H1Pos_WedgeElement::CalcShape(const IntegrationPoint &ip,
    TriangleFE.CalcShape(ip, t_shape);
    SegmentFE.CalcShape(ipz, s_shape);
 
-   for (int i=0; i<Dof; i++)
+   for (int i=0; i<dof; i++)
    {
       shape[i] = t_shape[t_dof[i]] * s_shape[s_dof[i]];
    }
@@ -8683,7 +8683,7 @@ void H1Pos_WedgeElement::CalcDShape(const IntegrationPoint &ip,
    SegmentFE.CalcShape(ipz, s_shape);
    SegmentFE.CalcDShape(ipz, s_dshape);
 
-   for (int i=0; i<Dof; i++)
+   for (int i=0; i<dof; i++)
    {
       dshape(i, 0) = t_dshape(t_dof[i],0) * s_shape[s_dof[i]];
       dshape(i, 1) = t_dshape(t_dof[i],1) * s_shape[s_dof[i]];
@@ -8718,7 +8718,7 @@ void L2_SegmentElement::CalcDShape(const IntegrationPoint &ip,
                                    DenseMatrix &dshape) const
 {
 #ifdef MFEM_THREAD_SAFE
-   Vector shape_x(Dof), dshape_x(dshape.Data(), Dof);
+   Vector shape_x(dof), dshape_x(dshape.Data(), dof);
 #else
    dshape_x.SetData(dshape.Data());
 #endif
@@ -8727,7 +8727,7 @@ void L2_SegmentElement::CalcDShape(const IntegrationPoint &ip,
 
 void L2_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
 {
-   const int p = Order;
+   const int p = order;
    const double *op = poly1d.OpenPoints(p, b_type);
 
    switch (vertex)
@@ -8773,24 +8773,24 @@ L2Pos_SegmentElement::L2Pos_SegmentElement(const int p)
 void L2Pos_SegmentElement::CalcShape(const IntegrationPoint &ip,
                                      Vector &shape) const
 {
-   Poly_1D::CalcBernstein(Order, ip.x, shape);
+   Poly_1D::CalcBernstein(order, ip.x, shape);
 }
 
 void L2Pos_SegmentElement::CalcDShape(const IntegrationPoint &ip,
                                       DenseMatrix &dshape) const
 {
 #ifdef MFEM_THREAD_SAFE
-   Vector shape_x(Dof), dshape_x(dshape.Data(), Dof);
+   Vector shape_x(dof), dshape_x(dshape.Data(), dof);
 #else
    dshape_x.SetData(dshape.Data());
 #endif
-   Poly_1D::CalcBernstein(Order, ip.x, shape_x, dshape_x);
+   Poly_1D::CalcBernstein(order, ip.x, shape_x, dshape_x);
 }
 
 void L2Pos_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
 {
    dofs = 0.0;
-   dofs[vertex*Order] = 1.0;
+   dofs[vertex*order] = 1.0;
 }
 
 
@@ -8816,7 +8816,7 @@ L2_QuadrilateralElement::L2_QuadrilateralElement(const int p, const int btype)
 void L2_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
                                         Vector &shape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1), shape_y(p+1);
@@ -8835,7 +8835,7 @@ void L2_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
 void L2_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
                                          DenseMatrix &dshape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1), shape_y(p+1), dshape_x(p+1), dshape_y(p+1);
@@ -8854,7 +8854,7 @@ void L2_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
 
 void L2_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
 {
-   const int p = Order;
+   const int p = order;
    const double *op = poly1d.OpenPoints(p, b_type);
 
 #ifdef MFEM_THREAD_SAFE
@@ -8928,7 +8928,7 @@ L2Pos_QuadrilateralElement::L2Pos_QuadrilateralElement(const int p)
 void L2Pos_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
                                            Vector &shape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1), shape_y(p+1);
@@ -8947,7 +8947,7 @@ void L2Pos_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
 void L2Pos_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
                                             DenseMatrix &dshape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1), shape_y(p+1), dshape_x(p+1), dshape_y(p+1);
@@ -8966,7 +8966,7 @@ void L2Pos_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
 
 void L2Pos_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
 {
-   const int p = Order;
+   const int p = order;
 
    dofs = 0.0;
    switch (vertex)
@@ -9004,7 +9004,7 @@ L2_HexahedronElement::L2_HexahedronElement(const int p, const int btype)
 void L2_HexahedronElement::CalcShape(const IntegrationPoint &ip,
                                      Vector &shape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1), shape_y(p+1), shape_z(p+1);
@@ -9025,7 +9025,7 @@ void L2_HexahedronElement::CalcShape(const IntegrationPoint &ip,
 void L2_HexahedronElement::CalcDShape(const IntegrationPoint &ip,
                                       DenseMatrix &dshape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1),  shape_y(p+1),  shape_z(p+1);
@@ -9048,7 +9048,7 @@ void L2_HexahedronElement::CalcDShape(const IntegrationPoint &ip,
 
 void L2_HexahedronElement::ProjectDelta(int vertex, Vector &dofs) const
 {
-   const int p = Order;
+   const int p = order;
    const double *op = poly1d.OpenPoints(p, b_type);
 
 #ifdef MFEM_THREAD_SAFE
@@ -9161,7 +9161,7 @@ L2Pos_HexahedronElement::L2Pos_HexahedronElement(const int p)
 void L2Pos_HexahedronElement::CalcShape(const IntegrationPoint &ip,
                                         Vector &shape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1), shape_y(p+1), shape_z(p+1);
@@ -9182,7 +9182,7 @@ void L2Pos_HexahedronElement::CalcShape(const IntegrationPoint &ip,
 void L2Pos_HexahedronElement::CalcDShape(const IntegrationPoint &ip,
                                          DenseMatrix &dshape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1),  shape_y(p+1),  shape_z(p+1);
@@ -9205,7 +9205,7 @@ void L2Pos_HexahedronElement::CalcDShape(const IntegrationPoint &ip,
 
 void L2Pos_HexahedronElement::ProjectDelta(int vertex, Vector &dofs) const
 {
-   const int p = Order;
+   const int p = order;
 
    dofs = 0.0;
    switch (vertex)
@@ -9216,8 +9216,8 @@ void L2Pos_HexahedronElement::ProjectDelta(int vertex, Vector &dofs) const
       case 3: dofs[p*(p + 1)] = 1.0; break;
       case 4: dofs[p*(p + 1)*(p + 1)] = 1.0; break;
       case 5: dofs[p + p*(p + 1)*(p + 1)] = 1.0; break;
-      case 6: dofs[Dof - 1] = 1.0; break;
-      case 7: dofs[Dof - p - 1] = 1.0; break;
+      case 6: dofs[dof - 1] = 1.0; break;
+      case 7: dofs[dof - p - 1] = 1.0; break;
    }
 }
 
@@ -9235,8 +9235,8 @@ L2_TriangleElement::L2_TriangleElement(const int p, const int btype)
    dshape_x.SetSize(p + 1);
    dshape_y.SetSize(p + 1);
    dshape_l.SetSize(p + 1);
-   u.SetSize(Dof);
-   du.SetSize(Dof, Dim);
+   u.SetSize(dof);
+   du.SetSize(dof, dim);
 #else
    Vector shape_x(p + 1), shape_y(p + 1), shape_l(p + 1);
 #endif
@@ -9248,8 +9248,8 @@ L2_TriangleElement::L2_TriangleElement(const int p, const int btype)
          Nodes.IntPoint(o++).Set2(op[i]/w, op[j]/w);
       }
 
-   DenseMatrix T(Dof);
-   for (int k = 0; k < Dof; k++)
+   DenseMatrix T(dof);
+   for (int k = 0; k < dof; k++)
    {
       IntegrationPoint &ip = Nodes.IntPoint(k);
       poly1d.CalcBasis(p, ip.x, shape_x);
@@ -9270,10 +9270,10 @@ L2_TriangleElement::L2_TriangleElement(const int p, const int btype)
 void L2_TriangleElement::CalcShape(const IntegrationPoint &ip,
                                    Vector &shape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
-   Vector shape_x(p + 1), shape_y(p + 1), shape_l(p + 1), u(Dof);
+   Vector shape_x(p + 1), shape_y(p + 1), shape_l(p + 1), u(dof);
 #endif
 
    poly1d.CalcBasis(p, ip.x, shape_x);
@@ -9292,12 +9292,12 @@ void L2_TriangleElement::CalcShape(const IntegrationPoint &ip,
 void L2_TriangleElement::CalcDShape(const IntegrationPoint &ip,
                                     DenseMatrix &dshape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector  shape_x(p + 1),  shape_y(p + 1),  shape_l(p + 1);
    Vector dshape_x(p + 1), dshape_y(p + 1), dshape_l(p + 1);
-   DenseMatrix du(Dof, Dim);
+   DenseMatrix du(dof, dim);
 #endif
 
    poly1d.CalcBasis(p, ip.x, shape_x, dshape_x);
@@ -9323,24 +9323,24 @@ void L2_TriangleElement::ProjectDelta(int vertex, Vector &dofs) const
    switch (vertex)
    {
       case 0:
-         for (int i = 0; i < Dof; i++)
+         for (int i = 0; i < dof; i++)
          {
             const IntegrationPoint &ip = Nodes.IntPoint(i);
-            dofs[i] = pow(1.0 - ip.x - ip.y, Order);
+            dofs[i] = pow(1.0 - ip.x - ip.y, order);
          }
          break;
       case 1:
-         for (int i = 0; i < Dof; i++)
+         for (int i = 0; i < dof; i++)
          {
             const IntegrationPoint &ip = Nodes.IntPoint(i);
-            dofs[i] = pow(ip.x, Order);
+            dofs[i] = pow(ip.x, order);
          }
          break;
       case 2:
-         for (int i = 0; i < Dof; i++)
+         for (int i = 0; i < dof; i++)
          {
             const IntegrationPoint &ip = Nodes.IntPoint(i);
-            dofs[i] = pow(ip.y, Order);
+            dofs[i] = pow(ip.y, order);
          }
          break;
    }
@@ -9372,17 +9372,17 @@ L2Pos_TriangleElement::L2Pos_TriangleElement(const int p)
 void L2Pos_TriangleElement::CalcShape(const IntegrationPoint &ip,
                                       Vector &shape) const
 {
-   H1Pos_TriangleElement::CalcShape(Order, ip.x, ip.y, shape.GetData());
+   H1Pos_TriangleElement::CalcShape(order, ip.x, ip.y, shape.GetData());
 }
 
 void L2Pos_TriangleElement::CalcDShape(const IntegrationPoint &ip,
                                        DenseMatrix &dshape) const
 {
 #ifdef MFEM_THREAD_SAFE
-   Vector dshape_1d(Order + 1);
+   Vector dshape_1d(order + 1);
 #endif
 
-   H1Pos_TriangleElement::CalcDShape(Order, ip.x, ip.y, dshape_1d.GetData(),
+   H1Pos_TriangleElement::CalcDShape(order, ip.x, ip.y, dshape_1d.GetData(),
                                      dshape.Data());
 }
 
@@ -9392,8 +9392,8 @@ void L2Pos_TriangleElement::ProjectDelta(int vertex, Vector &dofs) const
    switch (vertex)
    {
       case 0: dofs[0] = 1.0; break;
-      case 1: dofs[Order] = 1.0; break;
-      case 2: dofs[Dof-1] = 1.0; break;
+      case 1: dofs[order] = 1.0; break;
+      case 2: dofs[dof-1] = 1.0; break;
    }
 }
 
@@ -9413,8 +9413,8 @@ L2_TetrahedronElement::L2_TetrahedronElement(const int p, const int btype)
    dshape_y.SetSize(p + 1);
    dshape_z.SetSize(p + 1);
    dshape_l.SetSize(p + 1);
-   u.SetSize(Dof);
-   du.SetSize(Dof, Dim);
+   u.SetSize(dof);
+   du.SetSize(dof, dim);
 #else
    Vector shape_x(p + 1), shape_y(p + 1), shape_z(p + 1), shape_l(p + 1);
 #endif
@@ -9427,8 +9427,8 @@ L2_TetrahedronElement::L2_TetrahedronElement(const int p, const int btype)
             Nodes.IntPoint(o++).Set3(op[i]/w, op[j]/w, op[k]/w);
          }
 
-   DenseMatrix T(Dof);
-   for (int m = 0; m < Dof; m++)
+   DenseMatrix T(dof);
+   for (int m = 0; m < dof; m++)
    {
       IntegrationPoint &ip = Nodes.IntPoint(m);
       poly1d.CalcBasis(p, ip.x, shape_x);
@@ -9451,11 +9451,11 @@ L2_TetrahedronElement::L2_TetrahedronElement(const int p, const int btype)
 void L2_TetrahedronElement::CalcShape(const IntegrationPoint &ip,
                                       Vector &shape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p + 1), shape_y(p + 1), shape_z(p + 1), shape_l(p + 1);
-   Vector u(Dof);
+   Vector u(dof);
 #endif
 
    poly1d.CalcBasis(p, ip.x, shape_x);
@@ -9476,12 +9476,12 @@ void L2_TetrahedronElement::CalcShape(const IntegrationPoint &ip,
 void L2_TetrahedronElement::CalcDShape(const IntegrationPoint &ip,
                                        DenseMatrix &dshape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector  shape_x(p + 1),  shape_y(p + 1),  shape_z(p + 1),  shape_l(p + 1);
    Vector dshape_x(p + 1), dshape_y(p + 1), dshape_z(p + 1), dshape_l(p + 1);
-   DenseMatrix du(Dof, Dim);
+   DenseMatrix du(dof, dim);
 #endif
 
    poly1d.CalcBasis(p, ip.x, shape_x, dshape_x);
@@ -9511,30 +9511,30 @@ void L2_TetrahedronElement::ProjectDelta(int vertex, Vector &dofs) const
    switch (vertex)
    {
       case 0:
-         for (int i = 0; i < Dof; i++)
+         for (int i = 0; i < dof; i++)
          {
             const IntegrationPoint &ip = Nodes.IntPoint(i);
-            dofs[i] = pow(1.0 - ip.x - ip.y - ip.z, Order);
+            dofs[i] = pow(1.0 - ip.x - ip.y - ip.z, order);
          }
          break;
       case 1:
-         for (int i = 0; i < Dof; i++)
+         for (int i = 0; i < dof; i++)
          {
             const IntegrationPoint &ip = Nodes.IntPoint(i);
-            dofs[i] = pow(ip.x, Order);
+            dofs[i] = pow(ip.x, order);
          }
          break;
       case 2:
-         for (int i = 0; i < Dof; i++)
+         for (int i = 0; i < dof; i++)
          {
             const IntegrationPoint &ip = Nodes.IntPoint(i);
-            dofs[i] = pow(ip.y, Order);
+            dofs[i] = pow(ip.y, order);
          }
       case 3:
-         for (int i = 0; i < Dof; i++)
+         for (int i = 0; i < dof; i++)
          {
             const IntegrationPoint &ip = Nodes.IntPoint(i);
-            dofs[i] = pow(ip.z, Order);
+            dofs[i] = pow(ip.z, order);
          }
          break;
    }
@@ -9567,7 +9567,7 @@ L2Pos_TetrahedronElement::L2Pos_TetrahedronElement(const int p)
 void L2Pos_TetrahedronElement::CalcShape(const IntegrationPoint &ip,
                                          Vector &shape) const
 {
-   H1Pos_TetrahedronElement::CalcShape(Order, ip.x, ip.y, ip.z,
+   H1Pos_TetrahedronElement::CalcShape(order, ip.x, ip.y, ip.z,
                                        shape.GetData());
 }
 
@@ -9575,10 +9575,10 @@ void L2Pos_TetrahedronElement::CalcDShape(const IntegrationPoint &ip,
                                           DenseMatrix &dshape) const
 {
 #ifdef MFEM_THREAD_SAFE
-   Vector dshape_1d(Order + 1);
+   Vector dshape_1d(order + 1);
 #endif
 
-   H1Pos_TetrahedronElement::CalcDShape(Order, ip.x, ip.y, ip.z,
+   H1Pos_TetrahedronElement::CalcDShape(order, ip.x, ip.y, ip.z,
                                         dshape_1d.GetData(), dshape.Data());
 }
 
@@ -9588,9 +9588,9 @@ void L2Pos_TetrahedronElement::ProjectDelta(int vertex, Vector &dofs) const
    switch (vertex)
    {
       case 0: dofs[0] = 1.0; break;
-      case 1: dofs[Order] = 1.0; break;
-      case 2: dofs[(Order*(Order+3))/2] = 1.0; break;
-      case 3: dofs[Dof-1] = 1.0; break;
+      case 1: dofs[order] = 1.0; break;
+      case 2: dofs[(order*(order+3))/2] = 1.0; break;
+      case 3: dofs[dof-1] = 1.0; break;
    }
 }
 
@@ -9608,8 +9608,8 @@ L2_WedgeElement::L2_WedgeElement(const int p, const int btype)
    s_dshape.SetSize(SegmentFE.GetDof(), 1);
 #endif
 
-   t_dof.SetSize(Dof);
-   s_dof.SetSize(Dof);
+   t_dof.SetSize(dof);
+   s_dof.SetSize(dof);
 
    // Interior DoFs
    int m=0;
@@ -9630,7 +9630,7 @@ L2_WedgeElement::L2_WedgeElement(const int p, const int btype)
    // Define Nodes
    const IntegrationRule & t_Nodes = TriangleFE.GetNodes();
    const IntegrationRule & s_Nodes = SegmentFE.GetNodes();
-   for (int i=0; i<Dof; i++)
+   for (int i=0; i<dof; i++)
    {
       Nodes.IntPoint(i).x = t_Nodes.IntPoint(t_dof[i]).x;
       Nodes.IntPoint(i).y = t_Nodes.IntPoint(t_dof[i]).y;
@@ -9651,7 +9651,7 @@ void L2_WedgeElement::CalcShape(const IntegrationPoint &ip,
    TriangleFE.CalcShape(ip, t_shape);
    SegmentFE.CalcShape(ipz, s_shape);
 
-   for (int i=0; i<Dof; i++)
+   for (int i=0; i<dof; i++)
    {
       shape[i] = t_shape[t_dof[i]] * s_shape[s_dof[i]];
    }
@@ -9674,7 +9674,7 @@ void L2_WedgeElement::CalcDShape(const IntegrationPoint &ip,
    SegmentFE.CalcShape(ipz, s_shape);
    SegmentFE.CalcDShape(ipz, s_dshape);
 
-   for (int i=0; i<Dof; i++)
+   for (int i=0; i<dof; i++)
    {
       dshape(i, 0) = t_dshape(t_dof[i],0) * s_shape[s_dof[i]];
       dshape(i, 1) = t_dshape(t_dof[i],1) * s_shape[s_dof[i]];
@@ -9696,8 +9696,8 @@ L2Pos_WedgeElement::L2Pos_WedgeElement(const int p)
    s_dshape.SetSize(SegmentFE.GetDof(), 1);
 #endif
 
-   t_dof.SetSize(Dof);
-   s_dof.SetSize(Dof);
+   t_dof.SetSize(dof);
+   s_dof.SetSize(dof);
 
    // Interior DoFs
    int m=0;
@@ -9718,7 +9718,7 @@ L2Pos_WedgeElement::L2Pos_WedgeElement(const int p)
    // Define Nodes
    const IntegrationRule & t_Nodes = TriangleFE.GetNodes();
    const IntegrationRule & s_Nodes = SegmentFE.GetNodes();
-   for (int i=0; i<Dof; i++)
+   for (int i=0; i<dof; i++)
    {
       Nodes.IntPoint(i).x = t_Nodes.IntPoint(t_dof[i]).x;
       Nodes.IntPoint(i).y = t_Nodes.IntPoint(t_dof[i]).y;
@@ -9739,7 +9739,7 @@ void L2Pos_WedgeElement::CalcShape(const IntegrationPoint &ip,
    TriangleFE.CalcShape(ip, t_shape);
    SegmentFE.CalcShape(ipz, s_shape);
 
-   for (int i=0; i<Dof; i++)
+   for (int i=0; i<dof; i++)
    {
       shape[i] = t_shape[t_dof[i]] * s_shape[s_dof[i]];
    }
@@ -9762,7 +9762,7 @@ void L2Pos_WedgeElement::CalcDShape(const IntegrationPoint &ip,
    SegmentFE.CalcShape(ipz, s_shape);
    SegmentFE.CalcDShape(ipz, s_dshape);
 
-   for (int i=0; i<Dof; i++)
+   for (int i=0; i<dof; i++)
    {
       dshape(i, 0) = t_dshape(t_dof[i],0) * s_shape[s_dof[i]];
       dshape(i, 1) = t_dshape(t_dof[i],1) * s_shape[s_dof[i]];
@@ -9777,15 +9777,13 @@ const double RT_QuadrilateralElement::nk[8] =
 RT_QuadrilateralElement::RT_QuadrilateralElement(const int p,
                                                  const int cb_type,
                                                  const int ob_type)
-   : VectorFiniteElement(2, Geometry::SQUARE, 2*(p + 1)*(p + 2), p + 1,
-                         H_DIV, FunctionSpace::Qk),
-     cbasis1d(poly1d.GetBasis(p + 1, VerifyClosed(cb_type))),
-     obasis1d(poly1d.GetBasis(p, VerifyOpen(ob_type))),
-     dof_map(Dof), dof2nk(Dof)
+   : VectorTensorFiniteElement(2, 2*(p + 1)*(p + 2), p + 1, cb_type, ob_type,
+                               H_DIV, DofMapType::L2_DOF_MAP),
+     dof2nk(dof)
 {
    const double *cp = poly1d.ClosedPoints(p + 1, cb_type);
    const double *op = poly1d.OpenPoints(p, ob_type);
-   const int dof2 = Dof/2;
+   const int dof2 = dof/2;
 
 #ifndef MFEM_THREAD_SAFE
    shape_cx.SetSize(p + 2);
@@ -9891,7 +9889,7 @@ RT_QuadrilateralElement::RT_QuadrilateralElement(const int p,
 void RT_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
                                          DenseMatrix &shape) const
 {
-   const int pp1 = Order;
+   const int pp1 = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_cx(pp1 + 1), shape_ox(pp1), shape_cy(pp1 + 1), shape_oy(pp1);
@@ -9938,7 +9936,7 @@ void RT_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
 void RT_QuadrilateralElement::CalcDivShape(const IntegrationPoint &ip,
                                            Vector &divshape) const
 {
-   const int pp1 = Order;
+   const int pp1 = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_cx(pp1 + 1), shape_ox(pp1), shape_cy(pp1 + 1), shape_oy(pp1);
@@ -9988,15 +9986,13 @@ const double RT_HexahedronElement::nk[18] =
 RT_HexahedronElement::RT_HexahedronElement(const int p,
                                            const int cb_type,
                                            const int ob_type)
-   : VectorFiniteElement(3, Geometry::CUBE, 3*(p + 1)*(p + 1)*(p + 2), p + 1,
-                         H_DIV, FunctionSpace::Qk),
-     cbasis1d(poly1d.GetBasis(p + 1, VerifyClosed(cb_type))),
-     obasis1d(poly1d.GetBasis(p, VerifyOpen(ob_type))),
-     dof_map(Dof), dof2nk(Dof)
+   : VectorTensorFiniteElement(3, 3*(p + 1)*(p + 1)*(p + 2), p + 1, cb_type,
+                               ob_type, H_DIV, DofMapType::L2_DOF_MAP),
+     dof2nk(dof)
 {
    const double *cp = poly1d.ClosedPoints(p + 1, cb_type);
    const double *op = poly1d.OpenPoints(p, ob_type);
-   const int dof3 = Dof/3;
+   const int dof3 = dof/3;
 
 #ifndef MFEM_THREAD_SAFE
    shape_cx.SetSize(p + 2);
@@ -10152,7 +10148,7 @@ RT_HexahedronElement::RT_HexahedronElement(const int p,
 void RT_HexahedronElement::CalcVShape(const IntegrationPoint &ip,
                                       DenseMatrix &shape) const
 {
-   const int pp1 = Order;
+   const int pp1 = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_cx(pp1 + 1), shape_ox(pp1), shape_cy(pp1 + 1), shape_oy(pp1);
@@ -10226,7 +10222,7 @@ void RT_HexahedronElement::CalcVShape(const IntegrationPoint &ip,
 void RT_HexahedronElement::CalcDivShape(const IntegrationPoint &ip,
                                         Vector &divshape) const
 {
-   const int pp1 = Order;
+   const int pp1 = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_cx(pp1 + 1), shape_ox(pp1), shape_cy(pp1 + 1), shape_oy(pp1);
@@ -10301,7 +10297,7 @@ const double RT_TriangleElement::c = 1./3.;
 RT_TriangleElement::RT_TriangleElement(const int p)
    : VectorFiniteElement(2, Geometry::TRIANGLE, (p + 1)*(p + 3), p + 1,
                          H_DIV, FunctionSpace::Pk),
-     dof2nk(Dof)
+     dof2nk(dof)
 {
    const double *iop = (p > 0) ? poly1d.OpenPoints(p - 1) : NULL;
    const double *bop = poly1d.OpenPoints(p);
@@ -10313,8 +10309,8 @@ RT_TriangleElement::RT_TriangleElement(const int p)
    dshape_x.SetSize(p + 1);
    dshape_y.SetSize(p + 1);
    dshape_l.SetSize(p + 1);
-   u.SetSize(Dof, Dim);
-   divu.SetSize(Dof);
+   u.SetSize(dof, dim);
+   divu.SetSize(dof);
 #else
    Vector shape_x(p + 1), shape_y(p + 1), shape_l(p + 1);
 #endif
@@ -10348,8 +10344,8 @@ RT_TriangleElement::RT_TriangleElement(const int p)
          dof2nk[o++] = 2;
       }
 
-   DenseMatrix T(Dof);
-   for (int k = 0; k < Dof; k++)
+   DenseMatrix T(dof);
+   for (int k = 0; k < dof; k++)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(k);
       poly1d.CalcBasis(p, ip.x, shape_x);
@@ -10379,11 +10375,11 @@ RT_TriangleElement::RT_TriangleElement(const int p)
 void RT_TriangleElement::CalcVShape(const IntegrationPoint &ip,
                                     DenseMatrix &shape) const
 {
-   const int p = Order - 1;
+   const int p = order - 1;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p + 1), shape_y(p + 1), shape_l(p + 1);
-   DenseMatrix u(Dof, Dim);
+   DenseMatrix u(dof, dim);
 #endif
 
    poly1d.CalcBasis(p, ip.x, shape_x);
@@ -10412,12 +10408,12 @@ void RT_TriangleElement::CalcVShape(const IntegrationPoint &ip,
 void RT_TriangleElement::CalcDivShape(const IntegrationPoint &ip,
                                       Vector &divshape) const
 {
-   const int p = Order - 1;
+   const int p = order - 1;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p + 1),  shape_y(p + 1),  shape_l(p + 1);
    Vector dshape_x(p + 1), dshape_y(p + 1), dshape_l(p + 1);
-   Vector divu(Dof);
+   Vector divu(dof);
 #endif
 
    poly1d.CalcBasis(p, ip.x, shape_x, dshape_x);
@@ -10454,7 +10450,7 @@ const double RT_TetrahedronElement::c = 1./4.;
 RT_TetrahedronElement::RT_TetrahedronElement(const int p)
    : VectorFiniteElement(3, Geometry::TETRAHEDRON, (p + 1)*(p + 2)*(p + 4)/2,
                          p + 1, H_DIV, FunctionSpace::Pk),
-     dof2nk(Dof)
+     dof2nk(dof)
 {
    const double *iop = (p > 0) ? poly1d.OpenPoints(p - 1) : NULL;
    const double *bop = poly1d.OpenPoints(p);
@@ -10468,8 +10464,8 @@ RT_TetrahedronElement::RT_TetrahedronElement(const int p)
    dshape_y.SetSize(p + 1);
    dshape_z.SetSize(p + 1);
    dshape_l.SetSize(p + 1);
-   u.SetSize(Dof, Dim);
-   divu.SetSize(Dof);
+   u.SetSize(dof, dim);
+   divu.SetSize(dof);
 #else
    Vector shape_x(p + 1), shape_y(p + 1), shape_z(p + 1), shape_l(p + 1);
 #endif
@@ -10520,8 +10516,8 @@ RT_TetrahedronElement::RT_TetrahedronElement(const int p)
             dof2nk[o++] = 3;
          }
 
-   DenseMatrix T(Dof);
-   for (int m = 0; m < Dof; m++)
+   DenseMatrix T(dof);
+   for (int m = 0; m < dof; m++)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(m);
       poly1d.CalcBasis(p, ip.x, shape_x);
@@ -10556,11 +10552,11 @@ RT_TetrahedronElement::RT_TetrahedronElement(const int p)
 void RT_TetrahedronElement::CalcVShape(const IntegrationPoint &ip,
                                        DenseMatrix &shape) const
 {
-   const int p = Order - 1;
+   const int p = order - 1;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p + 1), shape_y(p + 1), shape_z(p + 1), shape_l(p + 1);
-   DenseMatrix u(Dof, Dim);
+   DenseMatrix u(dof, dim);
 #endif
 
    poly1d.CalcBasis(p, ip.x, shape_x);
@@ -10592,12 +10588,12 @@ void RT_TetrahedronElement::CalcVShape(const IntegrationPoint &ip,
 void RT_TetrahedronElement::CalcDivShape(const IntegrationPoint &ip,
                                          Vector &divshape) const
 {
-   const int p = Order - 1;
+   const int p = order - 1;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p + 1),  shape_y(p + 1),  shape_z(p + 1),  shape_l(p + 1);
    Vector dshape_x(p + 1), dshape_y(p + 1), dshape_z(p + 1), dshape_l(p + 1);
-   Vector divu(Dof);
+   Vector divu(dof);
 #endif
 
    poly1d.CalcBasis(p, ip.x, shape_x, dshape_x);
@@ -10639,16 +10635,16 @@ RT_WedgeElement::RT_WedgeElement(const int p)
                          (p + 2) * ((p + 1) * (p + 2)) / 2 +
                          (p + 1) * (p + 1) * (p + 3), p + 1,
                          H_DIV, FunctionSpace::Pk),
-     dof2nk(Dof),
-     t_dof(Dof),
-     s_dof(Dof),
+     dof2nk(dof),
+     t_dof(dof),
+     s_dof(dof),
      L2TriangleFE(p),
      RTTriangleFE(p),
      H1SegmentFE(p + 1),
      L2SegmentFE(p)
 {
    MFEM_ASSERT(L2TriangleFE.GetDof() * H1SegmentFE.GetDof() +
-               RTTriangleFE.GetDof() * L2SegmentFE.GetDof() == Dof,
+               RTTriangleFE.GetDof() * L2SegmentFE.GetDof() == dof,
                "Mismatch in number of degrees of freedom "
                "when building RT_WedgeElement!");
 
@@ -10769,7 +10765,7 @@ void RT_WedgeElement::CalcVShape(const IntegrationPoint &ip,
    H1SegmentFE.CalcShape(ipz, sh1_shape);
    L2SegmentFE.CalcShape(ipz, sl2_shape);
 
-   for (int i=0; i<Dof; i++)
+   for (int i=0; i<dof; i++)
    {
       if ( dof2nk[i] >= 2 )
       {
@@ -10805,7 +10801,7 @@ void RT_WedgeElement::CalcDivShape(const IntegrationPoint &ip,
    L2SegmentFE.CalcShape(ipz, sl2_shape);
    H1SegmentFE.CalcDShape(ipz, sh1_dshape);
 
-   for (int i=0; i<Dof; i++)
+   for (int i=0; i<dof; i++)
    {
       if ( dof2nk[i] >= 2 )
       {
@@ -10824,15 +10820,15 @@ const double ND_HexahedronElement::tk[18] =
 
 ND_HexahedronElement::ND_HexahedronElement(const int p,
                                            const int cb_type, const int ob_type)
-   : VectorFiniteElement(3, Geometry::CUBE, 3*p*(p + 1)*(p + 1), p,
-                         H_CURL, FunctionSpace::Qk),
-     cbasis1d(poly1d.GetBasis(p, VerifyClosed(cb_type))),
-     obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(ob_type))),
-     dof_map(Dof), dof2tk(Dof)
+   : VectorTensorFiniteElement(3, 3*p*(p + 1)*(p + 1), p, cb_type, ob_type,
+                               H_CURL, DofMapType::L2_DOF_MAP),
+     dof2tk(dof)
 {
+   dof_map.SetSize(dof);
+
    const double *cp = poly1d.ClosedPoints(p, cb_type);
    const double *op = poly1d.OpenPoints(p - 1, ob_type);
-   const int dof3 = Dof/3;
+   const int dof3 = dof/3;
 
 #ifndef MFEM_THREAD_SAFE
    shape_cx.SetSize(p + 1);
@@ -11043,7 +11039,7 @@ ND_HexahedronElement::ND_HexahedronElement(const int p,
 void ND_HexahedronElement::CalcVShape(const IntegrationPoint &ip,
                                       DenseMatrix &shape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_cx(p + 1), shape_ox(p), shape_cy(p + 1), shape_oy(p);
@@ -11117,7 +11113,7 @@ void ND_HexahedronElement::CalcVShape(const IntegrationPoint &ip,
 void ND_HexahedronElement::CalcCurlShape(const IntegrationPoint &ip,
                                          DenseMatrix &curl_shape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_cx(p + 1), shape_ox(p), shape_cy(p + 1), shape_oy(p);
@@ -11196,15 +11192,15 @@ const double ND_QuadrilateralElement::tk[8] =
 ND_QuadrilateralElement::ND_QuadrilateralElement(const int p,
                                                  const int cb_type,
                                                  const int ob_type)
-   : VectorFiniteElement(2, Geometry::SQUARE, 2*p*(p + 1), p,
-                         H_CURL, FunctionSpace::Qk),
-     cbasis1d(poly1d.GetBasis(p, VerifyClosed(cb_type))),
-     obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(ob_type))),
-     dof_map(Dof), dof2tk(Dof)
+   : VectorTensorFiniteElement(2, 2*p*(p + 1), p, cb_type, ob_type,
+                               H_CURL, DofMapType::L2_DOF_MAP),
+     dof2tk(dof)
 {
+   dof_map.SetSize(dof);
+
    const double *cp = poly1d.ClosedPoints(p, cb_type);
    const double *op = poly1d.OpenPoints(p - 1, ob_type);
-   const int dof2 = Dof/2;
+   const int dof2 = dof/2;
 
 #ifndef MFEM_THREAD_SAFE
    shape_cx.SetSize(p + 1);
@@ -11285,7 +11281,7 @@ ND_QuadrilateralElement::ND_QuadrilateralElement(const int p,
 void ND_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
                                          DenseMatrix &shape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_cx(p + 1), shape_ox(p), shape_cy(p + 1), shape_oy(p);
@@ -11334,7 +11330,7 @@ void ND_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
 void ND_QuadrilateralElement::CalcCurlShape(const IntegrationPoint &ip,
                                             DenseMatrix &curl_shape) const
 {
-   const int p = Order;
+   const int p = order;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_cx(p + 1), shape_ox(p), shape_cy(p + 1), shape_oy(p);
@@ -11387,7 +11383,7 @@ const double ND_TetrahedronElement::c = 1./4.;
 
 ND_TetrahedronElement::ND_TetrahedronElement(const int p)
    : VectorFiniteElement(3, Geometry::TETRAHEDRON, p*(p + 2)*(p + 3)/2, p,
-                         H_CURL, FunctionSpace::Pk), dof2tk(Dof)
+                         H_CURL, FunctionSpace::Pk), dof2tk(dof)
 {
    const double *eop = poly1d.OpenPoints(p - 1);
    const double *fop = (p > 1) ? poly1d.OpenPoints(p - 2) : NULL;
@@ -11404,7 +11400,7 @@ ND_TetrahedronElement::ND_TetrahedronElement(const int p)
    dshape_y.SetSize(p);
    dshape_z.SetSize(p);
    dshape_l.SetSize(p);
-   u.SetSize(Dof, Dim);
+   u.SetSize(dof, dim);
 #else
    Vector shape_x(p), shape_y(p), shape_z(p), shape_l(p);
 #endif
@@ -11494,8 +11490,8 @@ ND_TetrahedronElement::ND_TetrahedronElement(const int p)
             dof2tk[o++] = 2;
          }
 
-   DenseMatrix T(Dof);
-   for (int m = 0; m < Dof; m++)
+   DenseMatrix T(dof);
+   for (int m = 0; m < dof; m++)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(m);
       const double *tm = tk + 3*dof2tk[m];
@@ -11536,12 +11532,12 @@ ND_TetrahedronElement::ND_TetrahedronElement(const int p)
 void ND_TetrahedronElement::CalcVShape(const IntegrationPoint &ip,
                                        DenseMatrix &shape) const
 {
-   const int pm1 = Order - 1;
+   const int pm1 = order - 1;
 
 #ifdef MFEM_THREAD_SAFE
-   const int p = Order;
+   const int p = order;
    Vector shape_x(p), shape_y(p), shape_z(p), shape_l(p);
-   DenseMatrix u(Dof, Dim);
+   DenseMatrix u(dof, dim);
 #endif
 
    poly1d.CalcBasis(pm1, ip.x, shape_x);
@@ -11578,13 +11574,13 @@ void ND_TetrahedronElement::CalcVShape(const IntegrationPoint &ip,
 void ND_TetrahedronElement::CalcCurlShape(const IntegrationPoint &ip,
                                           DenseMatrix &curl_shape) const
 {
-   const int pm1 = Order - 1;
+   const int pm1 = order - 1;
 
 #ifdef MFEM_THREAD_SAFE
-   const int p = Order;
+   const int p = order;
    Vector shape_x(p), shape_y(p), shape_z(p), shape_l(p);
    Vector dshape_x(p), dshape_y(p), dshape_z(p), dshape_l(p);
-   DenseMatrix u(Dof, Dim);
+   DenseMatrix u(dof, dim);
 #endif
 
    poly1d.CalcBasis(pm1, ip.x, shape_x, dshape_x);
@@ -11650,7 +11646,7 @@ const double ND_TriangleElement::c = 1./3.;
 ND_TriangleElement::ND_TriangleElement(const int p)
    : VectorFiniteElement(2, Geometry::TRIANGLE, p*(p + 2), p,
                          H_CURL, FunctionSpace::Pk),
-     dof2tk(Dof)
+     dof2tk(dof)
 {
    const double *eop = poly1d.OpenPoints(p - 1);
    const double *iop = (p > 1) ? poly1d.OpenPoints(p - 2) : NULL;
@@ -11664,8 +11660,8 @@ ND_TriangleElement::ND_TriangleElement(const int p)
    dshape_x.SetSize(p);
    dshape_y.SetSize(p);
    dshape_l.SetSize(p);
-   u.SetSize(Dof, Dim);
-   curlu.SetSize(Dof);
+   u.SetSize(dof, dim);
+   curlu.SetSize(dof);
 #else
    Vector shape_x(p), shape_y(p), shape_l(p);
 #endif
@@ -11699,8 +11695,8 @@ ND_TriangleElement::ND_TriangleElement(const int p)
          dof2tk[n++] = 3;
       }
 
-   DenseMatrix T(Dof);
-   for (int m = 0; m < Dof; m++)
+   DenseMatrix T(dof);
+   for (int m = 0; m < dof; m++)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(m);
       const double *tm = tk + 2*dof2tk[m];
@@ -11731,12 +11727,12 @@ ND_TriangleElement::ND_TriangleElement(const int p)
 void ND_TriangleElement::CalcVShape(const IntegrationPoint &ip,
                                     DenseMatrix &shape) const
 {
-   const int pm1 = Order - 1;
+   const int pm1 = order - 1;
 
 #ifdef MFEM_THREAD_SAFE
-   const int p = Order;
+   const int p = order;
    Vector shape_x(p), shape_y(p), shape_l(p);
-   DenseMatrix u(Dof, Dim);
+   DenseMatrix u(dof, dim);
 #endif
 
    poly1d.CalcBasis(pm1, ip.x, shape_x);
@@ -11765,13 +11761,13 @@ void ND_TriangleElement::CalcVShape(const IntegrationPoint &ip,
 void ND_TriangleElement::CalcCurlShape(const IntegrationPoint &ip,
                                        DenseMatrix &curl_shape) const
 {
-   const int pm1 = Order - 1;
+   const int pm1 = order - 1;
 
 #ifdef MFEM_THREAD_SAFE
-   const int p = Order;
+   const int p = order;
    Vector shape_x(p), shape_y(p), shape_l(p);
    Vector dshape_x(p), dshape_y(p), dshape_l(p);
-   Vector curlu(Dof);
+   Vector curlu(dof);
 #endif
 
    poly1d.CalcBasis(pm1, ip.x, shape_x, dshape_x);
@@ -11800,7 +11796,7 @@ void ND_TriangleElement::CalcCurlShape(const IntegrationPoint &ip,
                      (dshape_y(j)*(ip.y - c) + shape_y(j)) * shape_x(i));
    }
 
-   Vector curl2d(curl_shape.Data(),Dof);
+   Vector curl2d(curl_shape.Data(),dof);
    Ti.Mult(curlu, curl2d);
 }
 
@@ -11811,7 +11807,7 @@ ND_SegmentElement::ND_SegmentElement(const int p, const int ob_type)
    : VectorFiniteElement(1, Geometry::SEGMENT, p, p - 1,
                          H_CURL, FunctionSpace::Pk),
      obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(ob_type))),
-     dof2tk(Dof)
+     dof2tk(dof)
 {
    const double *op = poly1d.OpenPoints(p - 1, ob_type);
 
@@ -11826,7 +11822,7 @@ ND_SegmentElement::ND_SegmentElement(const int p, const int ob_type)
 void ND_SegmentElement::CalcVShape(const IntegrationPoint &ip,
                                    DenseMatrix &shape) const
 {
-   Vector vshape(shape.Data(), Dof);
+   Vector vshape(shape.Data(), dof);
 
    obasis1d.Eval(ip.x, vshape);
 }
@@ -11840,16 +11836,16 @@ ND_WedgeElement::ND_WedgeElement(const int p,
    : VectorFiniteElement(3, Geometry::PRISM,
                          3 * p * ((p + 1) * (p + 2))/2, p,
                          H_CURL, FunctionSpace::Pk),
-     dof2tk(Dof),
-     t_dof(Dof),
-     s_dof(Dof),
+     dof2tk(dof),
+     t_dof(dof),
+     s_dof(dof),
      H1TriangleFE(p, cb_type),
      NDTriangleFE(p),
      H1SegmentFE(p, cb_type),
      NDSegmentFE(p, ob_type)
 {
    MFEM_ASSERT(H1TriangleFE.GetDof() * NDSegmentFE.GetDof() +
-               NDTriangleFE.GetDof() * H1SegmentFE.GetDof() == Dof,
+               NDTriangleFE.GetDof() * H1SegmentFE.GetDof() == dof,
                "Mismatch in number of degrees of freedom "
                "when building ND_WedgeElement!");
 
@@ -12066,7 +12062,7 @@ void ND_WedgeElement::CalcVShape(const IntegrationPoint &ip,
    H1SegmentFE.CalcShape(ipz, s1_shape);
    NDSegmentFE.CalcVShape(ipz, sn_shape);
 
-   for (int i=0; i<Dof; i++)
+   for (int i=0; i<dof; i++)
    {
       if ( dof2tk[i] != 3 )
       {
@@ -12104,7 +12100,7 @@ void ND_WedgeElement::CalcCurlShape(const IntegrationPoint &ip,
    NDTriangleFE.CalcCurlShape(ip, tn_dshape);
    NDSegmentFE.CalcVShape(ipz, sn_shape);
 
-   for (int i=0; i<Dof; i++)
+   for (int i=0; i<dof; i++)
    {
       if ( dof2tk[i] != 3 )
       {
@@ -12123,11 +12119,11 @@ void ND_WedgeElement::CalcCurlShape(const IntegrationPoint &ip,
 
 void NURBS1DFiniteElement::SetOrder() const
 {
-   Order = kv[0]->GetOrder();
-   Dof = Order + 1;
+   order = kv[0]->GetOrder();
+   dof = order + 1;
 
-   weights.SetSize(Dof);
-   shape_x.SetSize(Dof);
+   weights.SetSize(dof);
+   shape_x.SetSize(dof);
 }
 
 void NURBS1DFiniteElement::CalcShape(const IntegrationPoint &ip,
@@ -12136,7 +12132,7 @@ void NURBS1DFiniteElement::CalcShape(const IntegrationPoint &ip,
    kv[0]->CalcShape(shape, ijk[0], ip.x);
 
    double sum = 0.0;
-   for (int i = 0; i <= Order; i++)
+   for (int i = 0; i <= order; i++)
    {
       sum += (shape(i) *= weights(i));
    }
@@ -12147,13 +12143,13 @@ void NURBS1DFiniteElement::CalcShape(const IntegrationPoint &ip,
 void NURBS1DFiniteElement::CalcDShape(const IntegrationPoint &ip,
                                       DenseMatrix &dshape) const
 {
-   Vector grad(dshape.Data(), Dof);
+   Vector grad(dshape.Data(), dof);
 
    kv[0]->CalcShape (shape_x, ijk[0], ip.x);
    kv[0]->CalcDShape(grad,    ijk[0], ip.x);
 
    double sum = 0.0, dsum = 0.0;
-   for (int i = 0; i <= Order; i++)
+   for (int i = 0; i <= order; i++)
    {
       sum  += (shape_x(i) *= weights(i));
       dsum += (   grad(i) *= weights(i));
@@ -12165,17 +12161,17 @@ void NURBS1DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 
 void NURBS2DFiniteElement::SetOrder() const
 {
-   Orders[0] = kv[0]->GetOrder();
-   Orders[1] = kv[1]->GetOrder();
-   shape_x.SetSize(Orders[0]+1);
-   shape_y.SetSize(Orders[1]+1);
-   dshape_x.SetSize(Orders[0]+1);
-   dshape_y.SetSize(Orders[1]+1);
+   orders[0] = kv[0]->GetOrder();
+   orders[1] = kv[1]->GetOrder();
+   shape_x.SetSize(orders[0]+1);
+   shape_y.SetSize(orders[1]+1);
+   dshape_x.SetSize(orders[0]+1);
+   dshape_y.SetSize(orders[1]+1);
 
-   Order = max(Orders[0], Orders[1]);
-   Dof = (Orders[0] + 1)*(Orders[1] + 1);
-   u.SetSize(Dof);
-   weights.SetSize(Dof);
+   order = max(orders[0], orders[1]);
+   dof = (orders[0] + 1)*(orders[1] + 1);
+   u.SetSize(dof);
+   weights.SetSize(dof);
 }
 
 void NURBS2DFiniteElement::CalcShape(const IntegrationPoint &ip,
@@ -12185,10 +12181,10 @@ void NURBS2DFiniteElement::CalcShape(const IntegrationPoint &ip,
    kv[1]->CalcShape(shape_y, ijk[1], ip.y);
 
    double sum = 0.0;
-   for (int o = 0, j = 0; j <= Orders[1]; j++)
+   for (int o = 0, j = 0; j <= orders[1]; j++)
    {
       const double sy = shape_y(j);
-      for (int i = 0; i <= Orders[0]; i++, o++)
+      for (int i = 0; i <= orders[0]; i++, o++)
       {
          sum += ( shape(o) = shape_x(i)*sy*weights(o) );
       }
@@ -12209,10 +12205,10 @@ void NURBS2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
    kv[1]->CalcDShape(dshape_y, ijk[1], ip.y);
 
    sum = dsum[0] = dsum[1] = 0.0;
-   for (int o = 0, j = 0; j <= Orders[1]; j++)
+   for (int o = 0, j = 0; j <= orders[1]; j++)
    {
       const double sy = shape_y(j), dsy = dshape_y(j);
-      for (int i = 0; i <= Orders[0]; i++, o++)
+      for (int i = 0; i <= orders[0]; i++, o++)
       {
          sum += ( u(o) = shape_x(i)*sy*weights(o) );
 
@@ -12225,7 +12221,7 @@ void NURBS2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
    dsum[0] *= sum*sum;
    dsum[1] *= sum*sum;
 
-   for (int o = 0; o < Dof; o++)
+   for (int o = 0; o < dof; o++)
    {
       dshape(o,0) = dshape(o,0)*sum - u(o)*dsum[0];
       dshape(o,1) = dshape(o,1)*sum - u(o)*dsum[1];
@@ -12235,21 +12231,21 @@ void NURBS2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 //---------------------------------------------------------------------
 void NURBS3DFiniteElement::SetOrder() const
 {
-   Orders[0] = kv[0]->GetOrder();
-   Orders[1] = kv[1]->GetOrder();
-   Orders[2] = kv[2]->GetOrder();
-   shape_x.SetSize(Orders[0]+1);
-   shape_y.SetSize(Orders[1]+1);
-   shape_z.SetSize(Orders[2]+1);
+   orders[0] = kv[0]->GetOrder();
+   orders[1] = kv[1]->GetOrder();
+   orders[2] = kv[2]->GetOrder();
+   shape_x.SetSize(orders[0]+1);
+   shape_y.SetSize(orders[1]+1);
+   shape_z.SetSize(orders[2]+1);
 
-   dshape_x.SetSize(Orders[0]+1);
-   dshape_y.SetSize(Orders[1]+1);
-   dshape_z.SetSize(Orders[2]+1);
+   dshape_x.SetSize(orders[0]+1);
+   dshape_y.SetSize(orders[1]+1);
+   dshape_z.SetSize(orders[2]+1);
 
-   Order = max(max(Orders[0], Orders[1]), Orders[2]);
-   Dof = (Orders[0] + 1)*(Orders[1] + 1)*(Orders[2] + 1);
-   u.SetSize(Dof);
-   weights.SetSize(Dof);
+   order = max(max(orders[0], orders[1]), orders[2]);
+   dof = (orders[0] + 1)*(orders[1] + 1)*(orders[2] + 1);
+   u.SetSize(dof);
+   weights.SetSize(dof);
 }
 
 void NURBS3DFiniteElement::CalcShape(const IntegrationPoint &ip,
@@ -12260,13 +12256,13 @@ void NURBS3DFiniteElement::CalcShape(const IntegrationPoint &ip,
    kv[2]->CalcShape(shape_z, ijk[2], ip.z);
 
    double sum = 0.0;
-   for (int o = 0, k = 0; k <= Orders[2]; k++)
+   for (int o = 0, k = 0; k <= orders[2]; k++)
    {
       const double sz = shape_z(k);
-      for (int j = 0; j <= Orders[1]; j++)
+      for (int j = 0; j <= orders[1]; j++)
       {
          const double sy_sz = shape_y(j)*sz;
-         for (int i = 0; i <= Orders[0]; i++, o++)
+         for (int i = 0; i <= orders[0]; i++, o++)
          {
             sum += ( shape(o) = shape_x(i)*sy_sz*weights(o) );
          }
@@ -12290,15 +12286,15 @@ void NURBS3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
    kv[2]->CalcDShape(dshape_z, ijk[2], ip.z);
 
    sum = dsum[0] = dsum[1] = dsum[2] = 0.0;
-   for (int o = 0, k = 0; k <= Orders[2]; k++)
+   for (int o = 0, k = 0; k <= orders[2]; k++)
    {
       const double sz = shape_z(k), dsz = dshape_z(k);
-      for (int j = 0; j <= Orders[1]; j++)
+      for (int j = 0; j <= orders[1]; j++)
       {
          const double  sy_sz  =  shape_y(j)* sz;
          const double dsy_sz  = dshape_y(j)* sz;
          const double  sy_dsz =  shape_y(j)*dsz;
-         for (int i = 0; i <= Orders[0]; i++, o++)
+         for (int i = 0; i <= orders[0]; i++, o++)
          {
             sum += ( u(o) = shape_x(i)*sy_sz*weights(o) );
 
@@ -12314,7 +12310,7 @@ void NURBS3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
    dsum[1] *= sum*sum;
    dsum[2] *= sum*sum;
 
-   for (int o = 0; o < Dof; o++)
+   for (int o = 0; o < dof; o++)
    {
       dshape(o,0) = dshape(o,0)*sum - u(o)*dsum[0];
       dshape(o,1) = dshape(o,1)*sum - u(o)*dsum[1];
