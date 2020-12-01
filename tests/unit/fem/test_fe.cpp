@@ -677,31 +677,6 @@ TEST_CASE("L2 Wedge Finite Element",
    }
 }
 
-TEST_CASE("H1 Wedge Finite Element",
-          "[H1_WedgeElement]"
-          "[NodalFiniteElement]"
-          "[ScalarFiniteElement]"
-          "[FiniteElement]")
-{
-   int p = 1;
-
-   H1_WedgeElement fe(p);
-
-   SECTION("Attributes")
-   {
-      REQUIRE( fe.GetDim()            == 3                      );
-      REQUIRE( fe.GetGeomType()       == Geometry::PRISM        );
-      REQUIRE( fe.GetDof()            == (int)pow(p+1,2)*(p+2)/2);
-      REQUIRE( fe.GetOrder()          == p                      );
-      REQUIRE( fe.Space()             == (int) FunctionSpace::Qk     );
-      REQUIRE( fe.GetRangeType()      == (int) FiniteElement::SCALAR );
-      REQUIRE( fe.GetMapType()        == (int) FiniteElement::VALUE  );
-      REQUIRE( fe.GetDerivType()      == (int) FiniteElement::GRAD   );
-      REQUIRE( fe.GetDerivRangeType() == (int) FiniteElement::VECTOR );
-      REQUIRE( fe.GetDerivMapType()   == (int) FiniteElement::H_CURL );
-   }
-}
-
 TEST_CASE("Nedelec Wedge Finite Element",
           "[ND_WedgeElement]"
           "[VectorFiniteElement]"
@@ -748,30 +723,5 @@ TEST_CASE("Raviart-Thomas Wedge Finite Element",
       REQUIRE( fe.GetDerivType()      == (int) FiniteElement::DIV      );
       REQUIRE( fe.GetDerivRangeType() == (int) FiniteElement::SCALAR   );
       REQUIRE( fe.GetDerivMapType()   == (int) FiniteElement::INTEGRAL );
-   }
-}
-
-TEST_CASE("L2 Wedge Finite Element",
-          "[L2_WedgeElement]"
-          "[NodalFiniteElement]"
-          "[ScalarFiniteElement]"
-          "[FiniteElement]")
-{
-   int p = 1;
-
-   L2_WedgeElement fe(p);
-
-   SECTION("Attributes")
-   {
-      REQUIRE( fe.GetDim()            == 3                      );
-      REQUIRE( fe.GetGeomType()       == Geometry::PRISM        );
-      REQUIRE( fe.GetDof()            == (int)pow(p+1,2)*(p+2)/2);
-      REQUIRE( fe.GetOrder()          == p                      );
-      REQUIRE( fe.Space()             == (int) FunctionSpace::Qk     );
-      REQUIRE( fe.GetRangeType()      == (int) FiniteElement::SCALAR );
-      REQUIRE( fe.GetMapType()        == (int) FiniteElement::VALUE  );
-      REQUIRE( fe.GetDerivType()      == (int) FiniteElement::GRAD   );
-      REQUIRE( fe.GetDerivRangeType() == (int) FiniteElement::VECTOR );
-      REQUIRE( fe.GetDerivMapType()   == (int) FiniteElement::H_CURL );
    }
 }
