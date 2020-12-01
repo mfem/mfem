@@ -4,6 +4,6 @@
 "package_final_phase" : "configure",
 "package_source_dir" : "../..",
 "spack_url": "https://github.com/spack/spack",
-"spack_commit": "mfem-updates",
+"spack_branch": "mfem-updates",
 "spack_activate" : {}
 }
