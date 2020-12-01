@@ -826,7 +826,7 @@ FABilinearFormExtension::FABilinearFormExtension(BilinearForm *form)
 {
 #ifdef MFEM_USE_MPI
    ParFiniteElementSpace *pfes = nullptr;
-   if ( a->GetFBFI()->Size()>0 && 
+   if ( a->GetFBFI()->Size()>0 &&
         (pfes = dynamic_cast<ParFiniteElementSpace*>(form->FESpace())) )
    {
       pfes->ExchangeFaceNbrData();
@@ -843,7 +843,7 @@ void FABilinearFormExtension::Assemble()
    bool keep_nbr_block = false;
 #ifdef MFEM_USE_MPI
    ParFiniteElementSpace *pfes = nullptr;
-   if ( a->GetFBFI()->Size()>0 && 
+   if ( a->GetFBFI()->Size()>0 &&
         (pfes = dynamic_cast<ParFiniteElementSpace*>(&fes)) )
    {
       pfes->ExchangeFaceNbrData();

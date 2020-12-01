@@ -128,7 +128,7 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const;
 
 private:
-   /** DGMult and DGMultTranspose use the extended L-vector to perform the 
+   /** DGMult and DGMultTranspose use the extended L-vector to perform the
        computation. */
    void DGMult(const Vector &x, Vector &y) const;
    void DGMultTranspose(const Vector &x, Vector &y) const;
