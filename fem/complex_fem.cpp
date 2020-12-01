@@ -1424,7 +1424,8 @@ void ParMixedSesquilinearForm::Mult(const ParComplexGridFunction & x,
 
 void ParMixedSesquilinearForm::AddDomainIntegrator(BilinearFormIntegrator
                                                    *bfi_real,
-                                                   BilinearFormIntegrator *bfi_imag)
+                                                   BilinearFormIntegrator
+                                                   *bfi_imag)
 {
    if (bfi_real) { pblfr->AddDomainIntegrator(bfi_real); }
    if (bfi_imag) { pblfi->AddDomainIntegrator(bfi_imag); }
@@ -1497,6 +1498,52 @@ ParMixedSesquilinearForm::ParallelAssemble()
    return new ComplexHypreParMatrix(pblfr->ParallelAssemble(),
                                     pblfi->ParallelAssemble(),
                                     true, true, conv);
+}
+
+void ParMixedSesquilinearForm::FormRectangularSystemMatrix(
+   const Array<int> &trial_tdof_list,
+   const Array<int> &test_tdof_list,
+   OperatorHandle &A)
+{
+   OperatorHandle A_r, A_i;
+   if (RealInteg())
+   {
+      pblfr->FormRectangularSystemMatrix(trial_tdof_list, test_tdof_list, A_r);
+   }
+   if (ImagInteg())
+   {
+      pblfi->FormRectangularSystemMatrix(trial_tdof_list, test_tdof_list, A_i);
+   }
+   if (!RealInteg() && !ImagInteg())
+   {
+      MFEM_ABORT("Both Real and Imaginary part of the MixedSesquilinear form are empty");
+   }
+
+   // A = A_r + i A_i
+   A.Clear();
+   if ( A_r.Type() == Operator::Hypre_ParCSR ||
+        A_i.Type() == Operator::Hypre_ParCSR )
+   {
+      ComplexHypreParMatrix * A_hyp =
+         new ComplexHypreParMatrix(A_r.As<HypreParMatrix>(),
+                                   A_i.As<HypreParMatrix>(),
+                                   A_r.OwnsOperator(),
+                                   A_i.OwnsOperator(),
+                                   conv);
+      A.Reset<ComplexHypreParMatrix>(A_hyp, true);
+   }
+   else
+   {
+      ComplexOperator * A_op =
+         new ComplexOperator(A_r.As<Operator>(),
+                             A_i.As<Operator>(),
+                             A_r.OwnsOperator(),
+                             A_i.OwnsOperator(),
+                             conv);
+      A.Reset<ComplexOperator>(A_op, true);
+   }
+   A_r.SetOperatorOwner(false);
+   A_i.SetOperatorOwner(false);
 }
 
 void

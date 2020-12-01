@@ -788,6 +788,10 @@ public:
    /** The returned matrix has to be deleted by the caller. */
    ComplexHypreParMatrix *ParallelAssemble();
 
+   void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
+                                    const Array<int> &test_tdof_list,
+                                    OperatorHandle &A);
+
    virtual void Update();
 
    virtual ~ParMixedSesquilinearForm();
