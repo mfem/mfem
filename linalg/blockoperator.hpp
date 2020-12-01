@@ -282,6 +282,42 @@ private:
    mutable Vector tmp2;
 };
 
+class SchurComplimentOperator : public Operator
+{
+private:
+   Operator * A;
+   Operator * B;
+   Operator * C;
+   Operator * D;
+
+   Solver * AInv;
+   Solver * DInv;
+
+   int sizeA, sizeD;
+
+   Vector rhs;
+
+   mutable Vector x1;
+   mutable Vector x2;
+   mutable Vector y1;
+   mutable Vector y2;
+   mutable Vector rhs1;
+   mutable Vector rhs2;
+
+public:
+   SchurComplimentOperator(Solver & _AInv, Operator & _B,
+                           Operator & _C, Operator & _D);
+
+   SchurComplimentOperator(Operator & _A, Operator & _B,
+                           Operator & _C, Solver & _DInv);
+
+   const Vector & GetRHSVector(const Vector & a, const Vector & b);
+
+   void Mult(const Vector & x, Vector & y) const;
+
+   void Solve(const Vector & b, const Vector & x, Vector & y);
+};
+
 }
 
 #endif /* MFEM_BLOCKOPERATOR */
