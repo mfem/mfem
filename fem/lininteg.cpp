@@ -10,8 +10,8 @@
 // CONTRIBUTING.md for details.
 
 
-#include <cmath>
 #include "fem.hpp"
+#include <cmath>
 
 namespace mfem
 {
@@ -48,7 +48,7 @@ void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
       Tr.SetIntPoint (&ip);
       double val = Tr.Weight() * Q.Eval(Tr, ip);
 
-      el.CalcShape(ip, shape);
+      el.CalcPhysShape(Tr, shape);
 
       add(elvect, ip.weight * val, shape, elvect);
    }
