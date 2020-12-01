@@ -666,13 +666,22 @@ public:
                                 const ScalarFiniteElement &fine_fe) const;
 
    /** @brief Get matrix @a I "Interpolation" defined through local
-       L2-projection in the space defined by the @a fine_fe.  */
+       L2-projection in the space defined by the @a fine_fe. */
    /** If the "fine" elements cannot represent all basis functions of the
        "coarse" element, then boundary values from different sub-elements are
        generally different. */
    void ScalarLocalInterpolation(ElementTransformation &Trans,
                                  DenseMatrix &I,
                                  const ScalarFiniteElement &fine_fe) const;
+
+   /** @brief Get restriction matrix @a R defined through local L2-projection
+        in the space defined by the @a coarse_fe. */
+   /** If the "fine" elements cannot represent all basis functions of the
+       "coarse" element, then boundary values from different sub-elements are
+       generally different. */
+   void ScalarLocalRestriction(ElementTransformation &Trans,
+                               DenseMatrix &R,
+                               const ScalarFiniteElement &coarse_fe) const;
 
    virtual const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                          DofToQuad::Mode mode) const;
@@ -753,6 +762,10 @@ public:
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
    { ScalarLocalInterpolation(Trans, I, *this); }
+
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { ScalarLocalRestriction(Trans, R, *this); }
 
    virtual void GetTransferMatrix(const FiniteElement &fe,
                                   ElementTransformation &Trans,
@@ -2249,7 +2262,7 @@ public:
 };
 
 
-/// Arbitrary order H1 elements in 2D on a tiangle
+/// Arbitrary order H1 elements in 2D on a triangle
 class H1_TriangleElement : public NodalFiniteElement
 {
 private:

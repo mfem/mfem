@@ -13,7 +13,6 @@ SHELL = /bin/bash
 MFEM_DIR ?= ..
 DOXYGEN_CONF = CodeDocumentation.conf
 
-
 # doxygen uses: graphviz, latex
 html: $(DOXYGEN_CONF)
 	@# Generate the html documentation
