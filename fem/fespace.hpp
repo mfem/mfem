@@ -118,13 +118,13 @@ protected:
    Table var_edge_dofs; ///< var-order space: beginnings of DOF sets for edges
    Table var_face_dofs; ///< var-order space or mixed mesh: similar for faces
 
+   /// Additional data for var_*_dofs: edge/face variant orders.
+   Array<char> var_edge_orders, var_face_orders;
+
    // precalculated DOFs for each element, boundary element, and face
    mutable Table *elem_dof; // owned (except in NURBS FE space)
    mutable Table *bdr_elem_dof; // owned (except in NURBS FE space)
    mutable Table *face_dof; // owned; in var-order space contains variant 0 DOFs
-
-   /// Helper mapping for variable order spaces, see InitNDofToOrder().
-   std::map<int, int> geom_ndof_order[Geometry::NumGeom];
 
    Array<int> dof_elem_array, dof_ldof_array;
 
@@ -200,14 +200,10 @@ protected:
    void CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
                               Array<VarOrderBits> &face_orders) const;
 
-   /// Initialize the mapping 'ndof_to_geom_order'.
-   void InitNDofToOrders(const Array<VarOrderBits> &edge_orders,
-                         const Array<VarOrderBits> &face_orders);
-
    /** Build the table var_edge_dofs (or var_face_dofs) in a variable order
        space; return total edge/face DOFs. */
    int MakeDofTable(int ent_dim, const Array<int> &entity_orders,
-                    Table &entity_dofs);
+                    Table &entity_dofs, Array<char> &var_ent_order);
 
    /// Search row of a DOF table for a DOF set of size 'ndof', return first DOF.
    int FindDofs(const Table &var_dof_table, int row, int ndof) const;

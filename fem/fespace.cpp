@@ -143,11 +143,7 @@ int FiniteElementSpace::GetEdgeOrder(int edge, int variant) const
    const int* end = var_edge_dofs.GetRow(edge + 1);
    if (variant >= end - beg) { return -1; } // past last variant
 
-   int ndof = beg[variant+1] - beg[variant];
-   int order = geom_ndof_order[Geometry::SEGMENT].at(ndof);
-   MFEM_ASSERT(fec->GetNumDof(Geometry::SEGMENT, order) == ndof, "");
-
-   return order;
+   return var_edge_orders[var_edge_dofs.GetI()[edge] + variant];
 }
 
 int FiniteElementSpace::GetFaceOrder(int face, int variant) const
@@ -158,12 +154,7 @@ int FiniteElementSpace::GetFaceOrder(int face, int variant) const
    const int* end = var_face_dofs.GetRow(face + 1);
    if (variant >= end - beg) { return -1; } // past last variant
 
-   int ndof = beg[variant+1] - beg[variant];
-   auto fgeom = mesh->GetFaceGeometry(face);
-   int order = geom_ndof_order[fgeom].at(ndof);
-   MFEM_ASSERT(fec->GetNumDof(fgeom, order) == ndof, "");
-
-   return order;
+   return var_face_orders[var_face_dofs.GetI()[face] + variant];
 }
 
 void FiniteElementSpace::DofsToVDofs (Array<int> &dofs, int ndofs) const
@@ -1919,14 +1910,12 @@ void FiniteElementSpace::Construct()
    {
       // for variable order spaces, calculate orders of edges and faces
       CalcEdgeFaceVarOrders(edge_orders, face_orders);
-      InitNDofToOrders(edge_orders, face_orders);
    }
    else if (mixed_faces)
    {
       // for mixed faces we also create the var_face_dofs table, see below
       face_orders.SetSize(mesh->GetNFaces());
       face_orders = (VarOrderBits(1) << order);
-      InitNDofToOrders(edge_orders, face_orders);
    }
 
    // assign vertex DOFs
@@ -1940,7 +1929,7 @@ void FiniteElementSpace::Construct()
    {
       if (IsVariableOrder())
       {
-         nedofs = MakeDofTable(1, edge_orders, var_edge_dofs);
+         nedofs = MakeDofTable(1, edge_orders, var_edge_dofs, var_edge_orders);
       }
       else
       {
@@ -1955,7 +1944,7 @@ void FiniteElementSpace::Construct()
       if (IsVariableOrder() || mixed_faces)
       {
          // NOTE: we use Table var_face_dofs for mixed faces as well
-         nfdofs = MakeDofTable(2, face_orders, var_face_dofs);
+         nfdofs = MakeDofTable(2, face_orders, var_face_dofs, var_face_orders);
          uni_fdof = -1;
       }
       else
@@ -2113,54 +2102,19 @@ void FiniteElementSpace
    while (!done);
 }
 
-void FiniteElementSpace
-::InitNDofToOrders(const Array<VarOrderBits> &edge_orders,
-                   const Array<VarOrderBits> &face_orders)
-{
-   // function to convert a bit mask to a dof->order map
-   auto init_map = [&](Geometry::Type geom, VarOrderBits mask)
-   {
-      geom_ndof_order[geom].clear();
-      for (int order = 0; mask; order++, mask >>= 1)
-      {
-         if (mask & 1)
-         {
-            int ndof = fec->GetNumDof(geom, order);
-            geom_ndof_order[geom][ndof] = order;
-         }
-      }
-   };
-
-   // initialize the map for edges
-   VarOrderBits edge_mask = 0;
-   for (int i = 0; i < edge_orders.Size(); i++)
-   {
-      edge_mask |= edge_orders[i];
-   }
-
-   init_map(Geometry::SEGMENT, edge_mask);
-
-   // initialize the map for faces
-   VarOrderBits quad_mask = 0, tri_mask = 0;
-   for (int i = 0; i < face_orders.Size(); i++)
-   {
-      bool quad = (mesh->GetFaceGeometry(i) == Geometry::SQUARE);
-      *(quad ? &quad_mask : &tri_mask) |= face_orders[i];
-   }
-
-   init_map(Geometry::SQUARE, quad_mask);
-   init_map(Geometry::TRIANGLE, tri_mask);
-}
-
 int FiniteElementSpace::MakeDofTable(int ent_dim,
                                      const Array<int> &entity_orders,
-                                     Table &entity_dofs)
+                                     Table &entity_dofs,
+                                     Array<char> &var_ent_order)
 {
    int num_ent = entity_orders.Size();
    int total_dofs = 0;
 
    Array<Connection> list;
    list.Reserve(2*num_ent);
+
+   var_ent_order.SetSize(0);
+   var_ent_order.Reserve(num_ent);
 
    // assign DOFs according to order bit masks
    for (int i = 0; i < num_ent; i++)
@@ -2174,6 +2128,7 @@ int FiniteElementSpace::MakeDofTable(int ent_dim,
          {
             int dofs = fec->GetNumDof(geom, order);
             list.Append(Connection(i, total_dofs));
+            var_ent_order.Append(order);
             total_dofs += dofs;
          }
       }
@@ -2423,7 +2378,7 @@ int FiniteElementSpace::GetFaceDofs(int face, Array<int> &dofs,
       fbase = beg[variant];
       nf = beg[variant+1] - fbase;
 
-      order = geom_ndof_order[fgeom].at(nf);
+      order = var_face_orders[var_face_dofs.GetI()[face] + variant];
       MFEM_ASSERT(fec->GetNumDof(fgeom, order) == nf, "");
    }
    else
@@ -2491,7 +2446,7 @@ int FiniteElementSpace::GetEdgeDofs(int edge, Array<int> &dofs,
       base = beg[variant];
       ne = beg[variant+1] - base;
 
-      order = geom_ndof_order[Geometry::SEGMENT].at(ne);
+      order = var_edge_orders[var_edge_dofs.GetI()[edge] + variant];
       MFEM_ASSERT(fec->GetNumDof(Geometry::SEGMENT, order) == ne, "");
    }
    else
