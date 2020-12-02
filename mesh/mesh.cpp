@@ -462,17 +462,58 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
                                     FaceElemTr.Loc1.Transf, face_info);
          // NOTE: FaceElemTr.Loc1 is overwritten here -- used as a temporary
 
+         Geometry::Type face_geom = GetBdrElementBaseGeometry(i);
          const FiniteElement *face_el =
-            Nodes->FESpace()->GetTraceElement(elem_id,
-                                              GetBdrElementBaseGeometry(i));
-
+            Nodes->FESpace()->GetTraceElement(elem_id, face_geom);
+         // The mesh assumes nodal basis on the faces, so we must ensure that.
+         const FiniteElement* face_el_nodal = nullptr;
+         switch (face_geom)
+         {
+         case Geometry::SEGMENT:
+            if (dynamic_cast<const L2Pos_SegmentElement*>(face_el))
+            {
+               face_el_nodal = new L2_SegmentElement(face_el->GetOrder());
+            }
+            else
+            {
+               face_el_nodal = face_el;
+            }
+            break;
+         case Geometry::TRIANGLE:
+            if (dynamic_cast<const L2Pos_TriangleElement*>(face_el))
+            {
+               face_el_nodal = new L2_TriangleElement(face_el->GetOrder());
+            }
+            else
+            {
+               face_el_nodal = face_el;
+            }
+            break;
+         case Geometry::SQUARE:
+            if (dynamic_cast<const L2Pos_QuadrilateralElement*>(face_el))
+            {
+               face_el_nodal = new L2_QuadrilateralElement(face_el->GetOrder());
+            }
+            else
+            {
+               face_el_nodal = face_el;
+            }
+            break;
+         default:
+            face_el_nodal = face_el;
+            break;
+         }
          IntegrationRule eir(face_el->GetDof());
          FaceElemTr.Loc1.Transf.ElementNo = elem_id;
          FaceElemTr.Loc1.Transf.ElementType = ElementTransformation::ELEMENT;
-         FaceElemTr.Loc1.Transform(face_el->GetNodes(), eir);
+         FaceElemTr.Loc1.Transform(face_el_nodal->GetNodes(), eir);
          Nodes->GetVectorValues(FaceElemTr.Loc1.Transf, eir, pm);
 
-         ElTr->SetFE(face_el);
+         ElTr->SetFE(face_el_nodal);
+         if (face_el != face_el_nodal)
+         {
+            delete face_el_nodal;
+         }
       }
    }
 }
@@ -532,14 +573,55 @@ void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
 
          face_el = Nodes->FESpace()->GetTraceElement(face_info.Elem1No,
                                                      face_geom);
-
+         // The mesh assumes nodal basis on the faces, so we must ensure that.
+         const FiniteElement* face_el_nodal = nullptr;
+         switch (face_geom)
+         {
+         case Geometry::SEGMENT:
+            if (dynamic_cast<const L2Pos_SegmentElement*>(face_el))
+            {
+               face_el_nodal = new L2_SegmentElement(face_el->GetOrder());
+            }
+            else
+            {
+               face_el_nodal = face_el;
+            }
+            break;
+         case Geometry::TRIANGLE:
+            if (dynamic_cast<const L2Pos_TriangleElement*>(face_el))
+            {
+               face_el_nodal = new L2_TriangleElement(face_el->GetOrder());
+            }
+            else
+            {
+               face_el_nodal = face_el;
+            }
+            break;
+         case Geometry::SQUARE:
+            if (dynamic_cast<const L2Pos_QuadrilateralElement*>(face_el))
+            {
+               face_el_nodal = new L2_QuadrilateralElement(face_el->GetOrder());
+            }
+            else
+            {
+               face_el_nodal = face_el;
+            }
+            break;
+         default:
+            face_el_nodal = face_el;
+            break;
+         }
          IntegrationRule eir(face_el->GetDof());
          FaceElemTr.Loc1.Transf.ElementNo = face_info.Elem1No;
          FaceElemTr.Loc1.Transf.ElementType = ElementTransformation::ELEMENT;
-         FaceElemTr.Loc1.Transform(face_el->GetNodes(), eir);
+         FaceElemTr.Loc1.Transform(face_el_nodal->GetNodes(), eir);
          Nodes->GetVectorValues(FaceElemTr.Loc1.Transf, eir, pm);
 
-         FTr->SetFE(face_el);
+         FTr->SetFE(face_el_nodal);
+         if (face_el != face_el_nodal)
+         {
+            delete face_el_nodal;
+         }
       }
    }
 }
