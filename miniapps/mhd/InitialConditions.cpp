@@ -16,12 +16,32 @@ double InitialW(const Vector &x)
 
 double InitialJ(const Vector &x)
 {
-    return -M_PI*M_PI*(1.0+4.0/Lx/Lx)*beta*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
+    const double k=2.*M_PI/Lx;
+    return -(M_PI*M_PI+k*k)*beta*sin(M_PI*x(1))*cos(k*x(0));
 }
 
 double InitialPsi(const Vector &x)
 {
-    return -x(1)+beta*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
+    const double k=2.*M_PI/Lx;
+    return -x(1)+beta*sin(M_PI*x(1))*cos(k*x(0));
+}
+
+double exactPhi1(const Vector &x, double t)
+{
+    const double k=2.*M_PI/Lx;
+    return -beta*sin(M_PI*x(1))*sin(k*x(0))*sin(k*t);
+}
+
+double exactW1(const Vector &x, double t)
+{
+    const double k=2.*M_PI/Lx;
+    return beta*(M_PI*M_PI+k*k)*sin(M_PI*x(1))*sin(k*x(0))*sin(k*t);
+}
+
+double exactPsi1(const Vector &x, double t)
+{
+    const double k=2.*M_PI/Lx;
+    return -x(1)+beta*sin(M_PI*x(1))*cos(k*x(0))*cos(k*t);
 }
 
 double BackPsi(const Vector &x)

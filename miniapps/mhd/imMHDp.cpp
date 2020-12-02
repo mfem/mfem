@@ -741,6 +741,8 @@ int main(int argc, char *argv[])
 
    }
 
+   
+
    MPI_Barrier(MPI_COMM_WORLD); 
    double end = MPI_Wtime();
 
@@ -818,6 +820,24 @@ int main(int argc, char *argv[])
         b2.Save(osol9);
       }
  
+   }
+
+   if (icase==1){
+      FunctionCoefficient psiExact(exactPsi1); 
+      FunctionCoefficient phiExact(exactPhi1); 
+      FunctionCoefficient wExact(exactW1); 
+      psiExact.SetTime(t_final);
+      phiExact.SetTime(t_final);
+      wExact.SetTime(t_final);
+      double err_psi  = psi.ComputeL2Error(psiExact);
+      double err_phi  = phi.ComputeL2Error(phiExact);
+      double err_w  = w.ComputeL2Error(wExact);
+      if (myid==0)
+      {
+        cout << "|| psi_h - psi_ex || = " << err_psi << "\n";
+        cout << "|| phi_h - phi_ex || = " << err_phi << "\n";
+        cout << "||   w_h -   w_ex || = " << err_w << "\n";
+      }
    }
 
    if (myid == 0) 

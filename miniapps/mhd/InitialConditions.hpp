@@ -16,6 +16,11 @@ double InitialJ(const Vector &x);
 double InitialPsi(const Vector &x);
 double BackPsi(const Vector &x);
 
+//exact solution
+double exactPhi1(const Vector &x, double t);
+double exactPsi1(const Vector &x, double t);
+double exactW1(const Vector &x, double t);
+
 double InitialJ2(const Vector &x);
 double InitialPsi2(const Vector &x);
 double BackPsi2(const Vector &x);
