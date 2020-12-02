@@ -39,7 +39,7 @@ void velocity_function(const Vector &x, Vector &v)
    }
 }
 
-static std::string getString(AssemblyLevel assembly)
+std::string getString(AssemblyLevel assembly)
 {
    switch (assembly)
    {
@@ -63,7 +63,7 @@ static std::string getString(AssemblyLevel assembly)
    return "";
 }
 
-static std::string getString(CeedCoeff coeff_type)
+std::string getString(CeedCoeff coeff_type)
 {
    switch (coeff_type)
    {
@@ -92,7 +92,7 @@ static std::string getString(CeedCoeff coeff_type)
 
 enum class Problem {Mass, Convection, Diffusion, VectorMass, VectorDiffusion};
 
-static std::string getString(Problem pb)
+std::string getString(Problem pb)
 {
    switch (pb)
    {
@@ -118,7 +118,7 @@ static std::string getString(Problem pb)
 
 enum class NLProblem {Convection};
 
-static std::string getString(NLProblem pb)
+std::string getString(NLProblem pb)
 {
    switch (pb)
    {
@@ -130,10 +130,10 @@ static std::string getString(NLProblem pb)
    return "";
 }
 
-static void InitCoeff(Mesh &mesh, FiniteElementCollection &fec, const int dim,
-                      const CeedCoeff coeff_type, GridFunction *&gf,
-                      FiniteElementSpace *& coeff_fes,
-                      Coefficient *&coeff, VectorCoefficient *&vcoeff)
+void InitCoeff(Mesh &mesh, FiniteElementCollection &fec, const int dim,
+               const CeedCoeff coeff_type, GridFunction *&gf,
+               FiniteElementSpace *& coeff_fes,
+               Coefficient *&coeff, VectorCoefficient *&vcoeff)
 {
    switch (coeff_type)
    {
