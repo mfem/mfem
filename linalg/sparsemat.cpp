@@ -3361,9 +3361,9 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
    A_i    = A.HostReadI();
    A_j    = A.HostReadJ();
    A_data = A.HostReadData();
-   B_i    = B.GetI();
-   B_j    = B.GetJ();
-   B_data = B.GetData();
+   B_i    = B.HostReadI();
+   B_j    = B.HostReadJ();
+   B_data = B.HostReadData();
 
    B_marker = new int[ncolsB];
 
@@ -3409,16 +3409,16 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
    {
       C = OAB;
 
-      MFEM_VERIFY(nrowsA == C -> Height() && ncolsB == C -> Width(),
+      MFEM_VERIFY(nrowsA == C->Height() && ncolsB == C->Width(),
                   "Input matrix sizes do not match output sizes"
                   << " nrowsA = " << nrowsA
                   << ", C->Height() = " << C->Height()
                   << " ncolsB = " << ncolsB
                   << ", C->Width() = " << C->Width());
 
-      // C_i    = C -> GetI(); // not used
-      C_j    = C -> GetJ();
-      C_data = C -> GetData();
+      // C_i    = C->HostReadI(); // not used
+      C_j    = C->HostWriteJ();
+      C_data = C->HostWriteData();
    }
 
    counter = 0;
