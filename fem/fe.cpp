@@ -12681,20 +12681,20 @@ void L2_PentatopeElement::CalcDShape(const IntegrationPoint &ip,
    poly1d.CalcBasis(p, ip.t, shape_t, dshape_t);
    poly1d.CalcBasis(p, 1. - ip.x - ip.y - ip.z - ip.t, shape_l, dshape_l);
 
-   for (int o = 0, l = 0; l <= p; l++)
-      for (int k = 0; l + k <= p; k++)
-         for (int j = 0; j + l + k <= p; j++)
-            for (int i = 0; i + j + l + k <= p; i++)
+   for (int o = 0, m = 0; m <= p; m++)
+      for (int k = 0; k + m <= p; k++)
+         for (int j = 0; j + k + m <= p; j++)
+            for (int i = 0; i + j + k + m <= p; i++)
             {
-               int l = p - i - j - k;
+               int l = p - i - j - k - m;
                du(o,0) = ((dshape_x(i)* shape_l(l)) -
-                          ( shape_x(i)*dshape_l(l)))*shape_y(j)*shape_z(k)*shape_t(l);
+                          ( shape_x(i)*dshape_l(l)))*shape_y(j)*shape_z(k)*shape_t(m);
                du(o,1) = ((dshape_y(j)* shape_l(l)) -
-                          ( shape_y(j)*dshape_l(l)))*shape_x(i)*shape_z(k)*shape_t(l);
+                          ( shape_y(j)*dshape_l(l)))*shape_x(i)*shape_z(k)*shape_t(m);
                du(o,2) = ((dshape_z(k)* shape_l(l)) -
-                          ( shape_z(k)*dshape_l(l)))*shape_x(i)*shape_y(j)*shape_t(l);
-               du(o,3) = ((dshape_t(k)* shape_l(l)) -
-                          ( shape_t(k)*dshape_l(l)))*shape_x(i)*shape_y(j)*shape_z(k);
+                          ( shape_z(k)*dshape_l(l)))*shape_x(i)*shape_y(j)*shape_t(m);
+               du(o,3) = ((dshape_t(m)* shape_l(l)) -
+                          ( shape_t(m)*dshape_l(l)))*shape_x(i)*shape_y(j)*shape_z(k);
                o++;
             }
 
