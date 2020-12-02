@@ -30,6 +30,13 @@ double BackPsi(const Vector &x)
     return -x(1);
 }
 
+double E0rhs1(const Vector &x, double t)
+{
+    //E0=d^2*sin(k*t)*sin(Pi*y)*k*cos(Pi*y)*cos(k*t)*Pi
+    const double k=2.*M_PI/Lx;
+    return beta*beta*sin(k*t)*sin(M_PI*x(1))*k*cos(M_PI*x(1))*cos(k*t)*M_PI;
+}
+
 double InitialJ2(const Vector &x)
 {
     return lambda/pow(cosh(lambda*(x(1)-.5)),2)

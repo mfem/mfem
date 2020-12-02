@@ -289,7 +289,7 @@ protected:
    HypreParVector *E0Vec;
    FunctionCoefficient *E0rhs;
    double viscosity, resistivity;
-   bool useAMG, use_petsc, use_factory, convergedSolver;
+   bool useAMG, use_petsc, use_factory, convergedSolver, tRHS;
    ConstantCoefficient visc_coeff, resi_coeff;
    FunctionCoefficient visc_vari, resi_vari;
 
@@ -366,6 +366,7 @@ public:
 
    //set rhs E0 
    void SetRHSEfield( double(* f)( const Vector&) );
+   void SetRHSEfield( double(* f)( const Vector&, double) );
    void SetInitialJ(FunctionCoefficient initJ);
 
    void UpdateJ(Vector &k, ParGridFunction *jout);
@@ -389,7 +390,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
      M(NULL), Mfull(NULL), Mlumped(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace),
      Nv(NULL), Nb(NULL), StabMass(NULL), StabNb(NULL), StabNv(NULL),  
      E0(NULL), StabE0(NULL), zLF(&fespace), MfullMat(NULL), E0Vec(NULL), E0rhs(NULL),
-     viscosity(visc),  resistivity(resi), useAMG(false), use_petsc(use_petsc_), use_factory(use_factory_),
+     viscosity(visc),  resistivity(resi), useAMG(false), tRHS(false), use_petsc(use_petsc_), use_factory(use_factory_),
      convergedSolver(true),
      visc_coeff(visc),  resi_coeff(resi),  visc_vari(resiVari),  resi_vari(resiVari),  
      reduced_oper(NULL), pnewton_solver(NULL), bchandler(NULL), J_factory(NULL),
@@ -739,6 +740,17 @@ void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr, bool PartialUpdate
 
 }
 
+//a time dependent rhs
+void ResistiveMHDOperator::SetRHSEfield( double(* f)( const Vector&,  double t) ) 
+{
+   tRHS=true;
+   delete E0;
+   delete E0rhs;
+   E0rhs = new FunctionCoefficient(f);
+   E0 = new ParLinearForm(&fespace);
+   E0->AddDomainIntegrator(new DomainLFIntegrator(*E0rhs));
+}
+
 void ResistiveMHDOperator::SetRHSEfield( double(* f)( const Vector&) ) 
 {
    delete E0;
@@ -955,6 +967,19 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
 void ResistiveMHDOperator::ImplicitSolve(const double dt,
                                          const Vector &vx, Vector &k)
 {
+   double time=GetTime();
+   if(tRHS)
+   {   
+      if (myid==0) cout<<"++++++ update source at time = "<<time<<" ++++++\n";
+      E0rhs->SetTime(time);
+      E0->Assemble();
+      E0Vec=E0->ParallelAssemble();
+
+      //add E0 to reduced_oper
+      if (reduced_oper!=NULL)
+      {  reduced_oper->setE0(E0Vec, E0rhs); }
+   }
+   
    int sc = height/3;
    Vector phi(vx.GetData() +   0, sc);
    Vector psi(vx.GetData() +  sc, sc);

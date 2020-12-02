@@ -437,7 +437,11 @@ int main(int argc, char *argv[])
 
    //++++Initialize the MHD operator, the GLVis visualization    
    ResistiveMHDOperator oper(fespace, ess_bdr, visc, resi, use_petsc, use_factory);
-   if (icase==2)  //add the source term
+   if (icase==1)
+   {
+       oper.SetRHSEfield(E0rhs1);
+   }
+   else if (icase==2)  //add the source term
    {
        oper.SetRHSEfield(E0rhs);
    }
@@ -446,7 +450,9 @@ int main(int argc, char *argv[])
        oper.SetRHSEfield(E0rhs3);
    }
    else if (icase==5)
+   {
        oper.SetRHSEfield(E0rhs5);
+   }
 
    ParGridFunction j(&fespace);
    //set initial J
@@ -514,6 +520,14 @@ int main(int argc, char *argv[])
          vis_j << "solution\n" << *pmesh << j;
          vis_j << "window_size 800 800\n"<< "window_title '" << "current'" << "keys cm\n";
          vis_j << flush;
+         MPI_Barrier(MPI_COMM_WORLD);//without barrier, glvis may not open
+
+         vis_psi.open(vishost, visport);
+         vis_psi << "parallel " << num_procs << " " << myid << "\n";
+         vis_psi.precision(8);
+         vis_psi << "solution\n" << *pmesh << psiPer;
+         vis_psi << "window_size 800 800\n"<< "window_title '" << "psi per'" << "keys cm\n";
+         vis_psi << flush;
          MPI_Barrier(MPI_COMM_WORLD);//without barrier, glvis may not open
 
          vis_w.open(vishost, visport);
@@ -683,6 +697,8 @@ int main(int argc, char *argv[])
              vis_j << "solution\n" << *pmesh << j << flush;
              vis_w << "parallel " << num_procs << " " << myid << "\n";
              vis_w << "solution\n" << *pmesh << w << flush;
+             vis_psi << "parallel " << num_procs << " " << myid << "\n";
+             vis_psi << "solution\n" << *pmesh << psiPer << flush;
          }
          
          if(false)

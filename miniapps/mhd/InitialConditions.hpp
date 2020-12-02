@@ -20,6 +20,7 @@ double InitialJ2(const Vector &x);
 double InitialPsi2(const Vector &x);
 double BackPsi2(const Vector &x);
 
+double E0rhs1(const Vector &x, double t);
 double E0rhs(const Vector &x);
 double E0rhs3(const Vector &x);
 double E0rhs5(const Vector &x);
