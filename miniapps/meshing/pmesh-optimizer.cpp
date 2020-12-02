@@ -826,11 +826,7 @@ int main (int argc, char *argv[])
       {
          HypreSmoother *hs = new HypreSmoother;
          hs->SetType((lin_solver == 3) ? HypreSmoother::Jacobi
-<<<<<<< HEAD
-                                       : HypreSmoother::l1Jacobi, 1);
-=======
                      : HypreSmoother::l1Jacobi, 1);
->>>>>>> master
          S_prec = hs;
          minres->SetPreconditioner(*S_prec);
       }
