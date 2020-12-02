@@ -294,7 +294,8 @@ public:
    /// Returns a const reference to the sparse matrix.
    const SparseMatrix &SpMat() const
    {
-      return const_cast<BilinearForm*>(this)->SpMat();
+      MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
+      return *mat;
    }
 
    /// Returns a reference to the sparse matrix:  \f$ M \f$
