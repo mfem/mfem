@@ -2767,11 +2767,11 @@ void ParMesh::ExchangeFaceNbrNodes()
          int tag = 0;
 
          MPI_Isend(send_vertices[send_face_nbr_vertices.GetI()[fn]](),
-                   3*send_face_nbr_vertices.RowSize(fn),
+                   4*send_face_nbr_vertices.RowSize(fn),
                    MPI_DOUBLE, nbr_rank, tag, MyComm, &send_requests[fn]);
 
          MPI_Irecv(face_nbr_vertices[face_nbr_vertices_offset[fn]](),
-                   3*(face_nbr_vertices_offset[fn+1] -
+                   4*(face_nbr_vertices_offset[fn+1] -
                       face_nbr_vertices_offset[fn]),
                    MPI_DOUBLE, nbr_rank, tag, MyComm, &recv_requests[fn]);
       }

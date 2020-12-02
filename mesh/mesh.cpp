@@ -966,7 +966,7 @@ FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
 {
    FaceElementTransformations *tr;
    int fn;
-   if (Dim == 3)
+   if (Dim >= 3)
    {
       fn = be_to_face[BdrElemNo];
    }
