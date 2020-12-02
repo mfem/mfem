@@ -469,7 +469,7 @@ public:
    const Vector &GetCurrentResidual() const { return r; }
    const Vector &GetCurrentIterate() const { return xcur; }
 
-   /** @brief Enable adaptive linear solver relative tolerance algorithm. */
+   /// Enable adaptive linear solver relative tolerance algorithm.
    /** Compute a relative tolerance for the Krylov method after each nonlinear
     iteration, based on the algorithm presented in [1].
 
