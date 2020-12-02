@@ -33,8 +33,11 @@ option(MFEM_USE_SUNDIALS "Enable SUNDIALS usage" OFF)
 option(MFEM_USE_MESQUITE "Enable MESQUITE usage" OFF)
 option(MFEM_USE_SUITESPARSE "Enable SuiteSparse usage" OFF)
 option(MFEM_USE_SUPERLU "Enable SuperLU_DIST usage" OFF)
+option(MFEM_USE_SUPERLU5 "Use the old SuperLU_DIST 5.1 version" OFF)
+option(MFEM_USE_MUMPS "Enable MUMPS usage" OFF)
 option(MFEM_USE_STRUMPACK "Enable STRUMPACK usage" OFF)
 option(MFEM_USE_GINKGO "Enable Ginkgo usage" OFF)
+option(MFEM_USE_AMGX "Enable AmgX usage" OFF)
 option(MFEM_USE_GNUTLS "Enable GNUTLS usage" OFF)
 option(MFEM_USE_GSLIB "Enable GSLIB usage" OFF)
 option(MFEM_USE_NETCDF "Enable NETCDF usage" OFF)
@@ -110,11 +113,20 @@ set(ParMETIS_DIR "${MFEM_DIR}/../parmetis-4.0.3" CACHE PATH
 set(ParMETIS_REQUIRED_PACKAGES "METIS" CACHE STRING
     "Additional packages required by ParMETIS.")
 
-set(SuperLUDist_DIR "${MFEM_DIR}/../SuperLU_DIST_5.1.0" CACHE PATH
+set(SuperLUDist_DIR "${MFEM_DIR}/../SuperLU_DIST_6.3.1" CACHE PATH
     "Path to the SuperLU_DIST library.")
 # SuperLU_DIST may also depend on "OpenMP", depending on how it was compiled.
 set(SuperLUDist_REQUIRED_PACKAGES "MPI" "BLAS" "ParMETIS" CACHE STRING
     "Additional packages required by SuperLU_DIST.")
+
+set(MUMPS_DIR "${MFEM_DIR}/../MUMPS_5.2.0" CACHE PATH
+    "Path to the MUMPS library.")
+# Packages required by MUMPS, depending on how it was compiled.
+set(MUMPS_REQUIRED_PACKAGES "MPI" "BLAS" "METIS" "ScaLAPACK" CACHE STRING
+    "Additional packages required by MUMPS.")    
+# If the MPI package does not find all required Fortran libraries:
+# set(MUMPS_REQUIRED_LIBRARIES "gfortran" "mpi_mpifh" CACHE STRING
+#     "Additional libraries required by MUMPS.")    
 
 set(STRUMPACK_DIR "${MFEM_DIR}/../STRUMPACK-build" CACHE PATH
     "Path to the STRUMPACK library.")
@@ -145,6 +157,8 @@ set(ScaLAPACK_TARGET_NAMES scalapack)
 # set(ScaLAPACK_IMPORT_CONFIG DEBUG)
 
 set(Ginkgo_DIR "${MFEM_DIR}/../ginkgo" CACHE PATH "Path to the Ginkgo library.")
+
+set(AMGX_DIR "${MFEM_DIR}/../amgx" CACHE PATH "Path to AmgX")
 
 set(GNUTLS_DIR "" CACHE PATH "Path to the GnuTLS library.")
 
