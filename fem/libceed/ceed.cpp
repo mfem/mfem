@@ -163,17 +163,17 @@ void InitCeedVecCoeff(VectorCoefficient *VQ, Mesh &mesh,
       const int dim = mesh.Dimension();
       const int nq = ir.GetNPoints();
       ceedCoeff->coeff.SetSize(dim * nq * ne);
-      auto C = Reshape(ceedCoeff->coeff.HostWrite(), dim, nq, ne);
-      Vector Vq(dim);
+      auto C = Reshape(ceedCoeff->coeff.HostWrite(), nq, ne, dim);
+      DenseMatrix Q_ir;
       for (int e = 0; e < ne; ++e)
       {
          ElementTransformation &T = *mesh.GetElementTransformation(e);
+         VQ->Eval(Q_ir, T, ir);
          for (int q = 0; q < nq; ++q)
          {
-            VQ->Eval(Vq, T, ir.IntPoint(q));
             for (int i = 0; i < dim; ++i)
             {
-               C(i,q,e) = Vq(i);
+               C(q,e,i) = Q_ir(i,q);
             }
          }
       }
