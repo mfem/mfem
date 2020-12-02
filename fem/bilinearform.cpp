@@ -433,9 +433,9 @@ void BilinearForm::Assemble(int skip_zeros)
             dbfi[0]->AssembleElementMatrix(fe, *eltrans, elmat);
             if (dbfi_marker.Size())
             {
-               if ((*(dbfi_marker[0]))[i]==1)
+               if ((*(dbfi_marker[0]))[i]>=1)
                {
-                  elmat = 0.;
+                  continue; //skip assembly part if element is outside
                }
             }
             for (int k = 1; k < dbfi.Size(); k++)

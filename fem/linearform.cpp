@@ -129,9 +129,9 @@ void LinearForm::Assemble()
             dlfi[k]->AssembleRHSElementVect(*fes->GetFE(i), *eltrans, elemvect);
             if (dlfi_marker.Size())
             {
-               if ((*(dlfi_marker[0]))[i]==1)
+               if ((*(dlfi_marker[0]))[i]>=1)
                {
-                  elemvect *= 0.;
+                  continue;
                }
             }
             AddElementVector (vdofs, elemvect);

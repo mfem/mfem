@@ -170,7 +170,7 @@ int main(int argc, char *argv[])
    FaceElementTransformations *tr = NULL;
    gfl2 = myid;
 
-   if (visualization && false)
+   if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
@@ -254,27 +254,34 @@ int main(int argc, char *argv[])
    Array<int> sbm_int_face_el;
    Array<int> sbm_int_flag; // 1 if int face, 2 if bdr face, 3 if shared int face
    // Get SBM faces
+   Array<int> sbm_dofs;
+   Array<int> dofs;
 
    for (int i = 0; i < pmesh.GetNumFaces(); i++)
    {
       FaceElementTransformations *tr = NULL;
       tr = pmesh.GetInteriorFaceTransformations (i);
+      const int faceno = i;
       if (tr != NULL)
       {
          int ne1 = tr->Elem1No;
          int ne2 = tr->Elem2No;
          int te1 = trim_flag[ne1], te2 = trim_flag[ne2];
-         if (te1 == 1 && te2 != 1)
+         if (te1 == 2 && te2 == 0)
          {
-            sbm_int_face.Append(i);
-            sbm_int_face_el.Append(ne2);
-            sbm_int_flag.Append(1);
+             sbm_int_face.Append(i);
+             sbm_int_face_el.Append(ne2);
+             sbm_int_flag.Append(1);
+             pfespace.GetFaceDofs(faceno, dofs);
+             sbm_dofs.Append(dofs);
          }
-         if (te2 == 1 && te1 != 1)
+         if (te1 == 0 && te2 == 2)
          {
-            sbm_int_face.Append(i);
-            sbm_int_face_el.Append(ne1);
-            sbm_int_flag.Append(1);
+             sbm_int_face.Append(i);
+             sbm_int_face_el.Append(ne1);
+             sbm_int_flag.Append(1);
+             pfespace.GetFaceDofs(faceno, dofs);
+             sbm_dofs.Append(dofs);
          }
       }
    }
@@ -287,11 +294,14 @@ int main(int argc, char *argv[])
       {
          int ne1 = tr->Elem1No;
          int te1 = trim_flag[ne1];
+         const int faceno = pmesh.GetBdrFace(i);
          if (te1 == 2)
          {
             sbm_int_face.Append(i);
             sbm_int_face_el.Append(ne1);
             sbm_int_flag.Append(2);
+            pfespace.GetFaceDofs(faceno, dofs);
+            sbm_dofs.Append(dofs);
          }
       }
    }
@@ -304,17 +314,21 @@ int main(int argc, char *argv[])
          int ne1 = tr->Elem1No;
          int te1 = trim_flag[ne1];
          int te2 = trim_flag[i+pmesh.GetNE()];
-         if (te1 == 1 && te2 != 1) // dont add if your element is outside the domain
+         const int faceno = pmesh.GetSharedFace(i);
+         // Add if the element on this proc is completely inside the domain
+         // and the the element on other proc is not
+         if (te2 == 2 && te1 == 0)
          {
-            sbm_int_face.Append(i);
-            sbm_int_face_el.Append(i+pmesh.GetNE());
-            sbm_int_flag.Append(3);
-         }
-         if (te2 == 1 && te1 != 1)
-         {
-             std::cout << i <<  " " << ne1 << " k10fnumandne1\n";
             sbm_int_face.Append(i);
             sbm_int_face_el.Append(ne1);
+            sbm_int_flag.Append(3);
+            pfespace.GetFaceDofs(faceno, dofs);
+            sbm_dofs.Append(dofs);
+         }
+         if (te2 == 0 && te1 == 2)
+         {
+            sbm_int_face.Append(i);
+            sbm_int_face_el.Append(tr->Elem2No);
             sbm_int_flag.Append(3);
          }
       }
@@ -325,7 +339,7 @@ int main(int argc, char *argv[])
       gfl2(i) = trim_flag[i]*1.;
    }
 
-   if (visualization && false)
+   if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
@@ -352,23 +366,24 @@ int main(int argc, char *argv[])
    if (pmesh.bdr_attributes.Size())
    {
       ess_bdr = 1;
+      if (pmesh.bdr_attributes.Size() == 5) {
+          ess_bdr[4] = 0;
+      }
    }
-   Array<int> dofs;
-   // approach 2 - get dofs of all elements that are not marked
-   // First get all essential vdofs at boundary
+   // Approach 3 - Get all the boundary dofs
    Array<int> ess_vdofs_bdr;
    pfespace.GetEssentialVDofs(ess_bdr, ess_vdofs_bdr);
 
-   // now get all dofs that are not part of the untrimmed elements
+   // now get all dofs that are part of the elements not in the domain
    Array<int> ess_vdofs_hole(ess_vdofs_bdr.Size());
-   ess_vdofs_hole = -1;
+   ess_vdofs_hole = 0;
    for (int e = 0; e < pmesh.GetNE(); e++)
    {
-      if (trim_flag[e] != 1)
+      if (trim_flag[e] > 0)
       {
          pfespace.GetElementVDofs(e, dofs);
          for (int i = 0; i < dofs.Size(); i++) {
-             ess_vdofs_hole[dofs[i]] = 0;
+             ess_vdofs_hole[dofs[i]] = -1;
          }
       }
    }
@@ -379,6 +394,12 @@ int main(int argc, char *argv[])
       if (ess_vdofs_bdr[i] == -1) { ess_vdofs_hole[i] = -1; }
    }
 
+   // Now unmark dofs that are on SBM faces
+   for (int i = 0; i < sbm_dofs.Size(); i++) {
+       ess_vdofs_hole[sbm_dofs[i]] = 0;
+   }
+
+   // Now synchronize
    for (int i = 0; i < ess_vdofs_hole.Size() ; i++) {
        ess_vdofs_hole[i] += 1;
    }
@@ -439,6 +460,8 @@ int main(int argc, char *argv[])
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
    double alpha = 100/pow(2., ser_ref_levels*1.);
+   alpha = 1000;
+   //alpha = 10;
    ParLinearForm b(&pfespace);
    double fval = 1.;
    if (level_set_type == 3) {
@@ -479,8 +502,8 @@ int main(int argc, char *argv[])
    Solver *prec = NULL;
    prec = new HypreBoomerAMG;
 
-   BiCGSTABSolver bicg(MPI_COMM_WORLD);
-   //CGSolver bicg(MPI_COMM_WORLD);
+   //BiCGSTABSolver bicg(MPI_COMM_WORLD);
+   CGSolver bicg(MPI_COMM_WORLD);
    bicg.SetRelTol(1e-12);
    bicg.SetMaxIter(5000);
    bicg.SetPrintLevel(1);
@@ -488,15 +511,6 @@ int main(int argc, char *argv[])
    bicg.SetOperator(*A);
    bicg.Mult(B, X);
    delete prec;
-
-//   CGSolver cg(MPI_COMM_WORLD);
-//   cg.SetRelTol(1e-12);
-//   cg.SetMaxIter(2000);
-//   cg.SetPrintLevel(1);
-//   cg.SetPreconditioner(*prec);
-//   cg.SetOperator(*A);
-//   cg.Mult(B, X);
-//   delete prec;
 
    // 12. Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, x);

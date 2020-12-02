@@ -45,39 +45,36 @@ void ParLinearForm::MakeRef(ParFiniteElementSpace *pf, Vector &v, int v_offset)
 
 void ParLinearForm::Assemble()
 {
-    LinearForm::Assemble();
+   LinearForm::Assemble();
 
-    Array<int> vdofs;
-    Vector elemvect;
+   Array<int> vdofs;
+   Vector elemvect;
 
-    if (sflfi.Size())
-    {
-       FaceElementTransformations *tr = NULL;
-       ParMesh *pmesh = pfes->GetParMesh();
+   if (sflfi.Size())
+   {
+      FaceElementTransformations *tr = NULL;
+      ParMesh *pmesh = pfes->GetParMesh();
 
-       for (int i = 0; i < sflfi_facenum_marker[0]->Size(); i++)
-       {
-          int fnum = (*(sflfi_facenum_marker[0]))[i];
-          int faceflag = (*(sflfi_face_flag_marker[0]))[i];
+      for (int i = 0; i < sflfi_facenum_marker[0]->Size(); i++)
+      {
+         int fnum = (*(sflfi_facenum_marker[0]))[i];
+         int faceflag = (*(sflfi_face_flag_marker[0]))[i];
 
-          if (faceflag == 3)
-          {
-             tr = pmesh->GetSharedFaceTransformations(fnum);
-          }
-          if (tr != NULL)
-          {
-             int faceel = (*(sflfi_elnum_marker[0]))[i];
-             if (tr->Elem1No == faceel)
-             {
-                fes -> GetElementVDofs (tr -> Elem1No, vdofs);
-                dynamic_cast<SBM2LFIntegrator *>(sflfi[0])->SetElem1Flag(true);
-                sflfi[0] -> AssembleRHSElementVect (*fes->GetFE(tr -> Elem1No),
-                                                    *tr, elemvect);
-                AddElementVector (vdofs, elemvect);
-             }
-          }
-       }
-    }
+         if (faceflag == 3)
+         {
+            tr = pmesh->GetSharedFaceTransformations(fnum);
+            int faceel = (*(sflfi_elnum_marker[0]))[i];
+            if (tr->Elem1No == faceel)
+            {
+               fes -> GetElementVDofs (tr -> Elem1No, vdofs);
+               dynamic_cast<SBM2LFIntegrator *>(sflfi[0])->SetElem1Flag(true);
+               sflfi[0] -> AssembleRHSElementVect (*fes->GetFE(tr -> Elem1No),
+                                                   *tr, elemvect);
+               AddElementVector (vdofs, elemvect);
+            }
+         }
+      }
+   }
 }
 
 void ParLinearForm::ParallelAssemble(Vector &tv)

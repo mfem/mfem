@@ -3023,7 +3023,7 @@ void SBM2Integrator::AssembleFaceMatrix(
       vD->Eval(D, Trans, ip);
 
       double nor_dot_d = nor*D;
-      if (nor_dot_d > 0) { nor *= -1; }
+      if (nor_dot_d < 0) { nor *= -1; }
 
       if (elem1f)
       {

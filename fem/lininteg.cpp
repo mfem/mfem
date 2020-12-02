@@ -836,7 +836,7 @@ void SBM2LFIntegrator::AssembleRHSElementVect(
       vD->Eval(D, Tr, ip);
 
       double nor_dot_d = nor*D;
-      if (nor_dot_d > 0)
+      if (nor_dot_d < 0)
       {
          nor *= -1;
       }

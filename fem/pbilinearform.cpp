@@ -242,9 +242,6 @@ void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
          if (faceflag == 3)
          {
             tr = pmesh->GetSharedFaceTransformations(fnum);
-         }
-         if (tr != NULL)
-         {
             int faceel = (*(sbfbfi_elnum_marker[0]))[i];
             if (tr->Elem1No == faceel)
             {
