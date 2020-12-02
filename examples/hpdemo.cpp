@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
-   int ref_levels = 1;
+   int uni_levels = 0, rnd_levels = 1;
    int seed = 1;
    bool static_cond = false;
    bool pa = false;
@@ -45,8 +45,10 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&ref_levels, "-r", "--ref-levels",
-                  "Number of mesh refinement levels.");
+   args.AddOption(&uni_levels, "-u", "--uni-levels",
+                  "Number of mesh uniform refinement levels.");
+   args.AddOption(&rnd_levels, "-r", "--rnd-levels",
+                  "Number of mesh random refinement levels.");
    args.AddOption(&seed, "-s", "--seed", "Random seed");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
@@ -86,26 +88,16 @@ int main(int argc, char *argv[])
    int dim = mesh.Dimension();
    mesh.EnsureNCMesh();
 
-   // 4. Refine the mesh to increase the resolution. In this example we do
-   //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
-   //    largest number that gives a final mesh with no more than 50,000
-   //    elements.
-#if 1
-   srand(seed);
+   // 4. Refine the mesh to increase the resolution.
+   for (int l = 0; l < uni_levels; l++)
    {
-      for (int l = 0; l < ref_levels; l++)
-      {
-         mesh.RandomRefinement(0.5, true);
-      }
+      mesh.UniformRefinement();
    }
-#else
-   Array<Refinement> refs;
-   refs.Append(Refinement(0, 1));
-   mesh.GeneralRefinement(refs);
-
-   refs[0].ref_type = 2;
-   mesh.GeneralRefinement(refs);
-#endif
+   srand(seed);
+   for (int l = 0; l < rnd_levels; l++)
+   {
+      mesh.RandomRefinement(0.5, true);
+   }
 
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
