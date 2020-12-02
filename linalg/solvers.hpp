@@ -474,7 +474,7 @@ public:
     iteration, based on the algorithm presented in [1].
 
     The maximum linear solver relative tolerance @a rtol_max should be < 1.
-    For @a version 1 the parameters @a alpha @and @a gamma are ignore. For @a
+    For @a version 1 the parameters @a alpha and @a gamma are ignore. For @a
     version 2 @a alpha has to be between 0 and 1 and @a alpha between 1 and 2.
 
     [1] Eisenstat, Stanley C., and Homer F. Walker. "Choosing the forcing terms
