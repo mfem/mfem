@@ -78,7 +78,8 @@ static std::string getString(Problem pb)
 }
 
 void test_sparse_matrix(const char* input, int order, const Coeff coeff_type,
-                        const Problem pb, const bool keep_nbr_block)
+                        const Problem pb, const bool keep_nbr_block,
+                        int basis)
 {
    std::string knb = keep_nbr_block ? "ON" : "OFF";
    std::string section = "keep_nbr_block: " + knb + "\n" +
@@ -96,11 +97,11 @@ void test_sparse_matrix(const char* input, int order, const Coeff coeff_type,
    FiniteElementCollection *fec;
    if (pb == Problem::Convection)
    {
-      fec = new L2_FECollection(order, dim, BasisType::GaussLobatto);
+      fec = new L2_FECollection(order, dim, basis);
    }
    else
    {
-      fec = new H1_FECollection(order, dim);
+      fec = new H1_FECollection(order, dim, basis);
    }
    ParFiniteElementSpace fes(&pmesh, fec);
 
@@ -186,6 +187,7 @@ void test_sparse_matrix(const char* input, int order, const Coeff coeff_type,
 
 TEST_CASE("Sparse Matrix", "[Parallel]")
 {
+   auto basis = GENERATE(BasisType::GaussLobatto,BasisType::Positive);
    auto keep_nbr_block = GENERATE(false);
    auto coeff_type = GENERATE(Coeff::Const,Coeff::Grid,Coeff::Quad);
    auto pb = GENERATE(Problem::Mass,Problem::Convection,Problem::Diffusion);
@@ -194,7 +196,7 @@ TEST_CASE("Sparse Matrix", "[Parallel]")
                         "../../data/inline-hex.mesh",
                         "../../data/star-q2.mesh",
                         "../../data/fichera-q2.mesh");
-   test_sparse_matrix(mesh, order, coeff_type, pb, keep_nbr_block);
+   test_sparse_matrix(mesh, order, coeff_type, pb, keep_nbr_block, basis);
 } // test case
 
 } // namespace sparse_matrix_test
