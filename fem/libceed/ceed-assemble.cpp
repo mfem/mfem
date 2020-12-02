@@ -206,8 +206,8 @@ int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
       // form element matrix itself
       DenseMatrix Bmat(nqpts * numemodein, elemsize);
       Bmat = 0.0;
-      DenseMatrix Dmat(nqpts * numemodeout,
-                       nqpts * numemodein);
+      // Store block-diagonal D matrix as collection of small dense blocks
+      DenseTensor Dmat(numemodeout, numemodein, nqpts);
       Dmat = 0.0;
       DenseMatrix elem_mat(elemsize, elemsize);
       elem_mat = 0.0;
@@ -239,13 +239,28 @@ int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
             {
                const int comp = ei * numemodein + ej;
                const int index = q*layout[0] + comp*layout[1] + e*layout[2];
-               Dmat(numemodein * q + ei, numemodein * q + ej) +=
-                  assembledqfarray[index];
+               Dmat(ei, ej, q) += assembledqfarray[index];
             }
          }
       }
-      DenseMatrix BTD(Bmat.Width(), Dmat.Width());
-      MultAtB(Bmat, Dmat, BTD);
+      DenseMatrix BTD(elemsize, nqpts*numemodein);
+      // Compute B^T*D
+      BTD = 0.0;
+      for (int j=0; j<elemsize; ++j)
+      {
+         for (int q=0; q<nqpts; ++q)
+         {
+            int qq = numemodein*q;
+            for (int ei = 0; ei < numemodein; ++ei)
+            {
+               for (int ej = 0; ej < numemodein; ++ej)
+               {
+                  BTD(j,qq+ei) += Bmat(qq+ej,j)*Dmat(ej,ei,q);
+               }
+            }
+         }
+      }
+
       Mult(BTD, Bmat, elem_mat);
 
       /// put element matrix in sparsemat
