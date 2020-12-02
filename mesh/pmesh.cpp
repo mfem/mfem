@@ -2306,7 +2306,7 @@ void ParMesh::ExchangeFaceNbrData()
       gr_sface = &group_sedge;
       s2l_face = sedge_ledge;
    }
-   else
+   else if (Dim == 3)
    {
       s2l_face = sface_lface;
       if (shared_trias.Size() == sface_lface.Size())
@@ -2347,6 +2347,19 @@ void ParMesh::ExchangeFaceNbrData()
             }
          }
          gr_sface->ShiftUpI();
+      }
+   }
+   else
+   {
+      s2l_face = sface_lface;
+      if (shared_tetra.Size() == sface_lface.Size())
+      {
+         // All shared faces are Tetrahedral
+         gr_sface = &group_stetr;
+      }
+      else
+      {
+         MFEM_ABORT("Mixed/Tesseract 4D meshes not supported.");
       }
    }
 
@@ -2473,6 +2486,7 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
    el_marker = -1;
    vertex_marker = -1;
    const int nst = shared_trias.Size();
+   const int nste = shared_tetra.Size();
    for (int fn = 0; fn < num_face_nbrs; fn++)
    {
       int nbr_group = face_nbr_group[fn];
@@ -2516,6 +2530,14 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
             else // quad shared face
             {
                info += GetQuadOrientation(shared_quads[sf-nst].v, lf_v);
+            }
+         }
+         else if (Dim == 4)
+         {
+            const int *lf_v = faces[lface]->GetVertices();
+            if (sf < nste) // triangle shared face
+            {
+               info += GetTetOrientation(shared_tetra[sf].v, lf_v);
             }
          }
          send_face_nbr_facedata.AddConnection(fn, info);
@@ -2683,7 +2705,7 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
          {
             info++; // orientation 0 --> orientation 1
          }
-         else
+         else if (Dim < 4)
          {
             int nbr_ori = info%64, nbr_v[4];
             const int *lf_v = faces[lface]->GetVertices();
@@ -2711,6 +2733,39 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
                }
                // get the orientation of nbr_v w.r.t. the local face
                nbr_ori = GetQuadOrientation(lf_v, nbr_v);
+            }
+
+            info = 64*(info/64) + nbr_ori;
+         }
+         else
+         {
+            int nbr_ori = info%64, nbr_v[4];
+            const int *lf_v = faces[lface]->GetVertices();
+
+            if (sf < nste) // tetrahedra shared face
+            {
+               // apply the nbr_ori to sf_v to get nbr_v
+               const int *perm = tet_t::Orient[nbr_ori];
+               const int *sf_v = shared_tetra[sf].v;
+               for (int j = 0; j < 4; j++)
+               {
+                  nbr_v[perm[j]] = sf_v[j];
+               }
+               // get the orientation of nbr_v w.r.t. the local face
+               nbr_ori = GetTetOrientation(lf_v, nbr_v);
+            }
+            else // hex shared face
+            {
+               MFEM_ABORT("Not implemented for 4D.");
+               // apply the nbr_ori to sf_v to get nbr_v
+               // const int *perm = hex_t::Orient[nbr_ori];
+               // const int *sf_v = shared_hexas[sf-nst].v;
+               // for (int j = 0; j < 8; j++)
+               // {
+               //    nbr_v[perm[j]] = sf_v[j];
+               // }
+               // // get the orientation of nbr_v w.r.t. the local face
+               // nbr_ori = GetHexOrientation(lf_v, nbr_v);
             }
 
             info = 64*(info/64) + nbr_ori;
