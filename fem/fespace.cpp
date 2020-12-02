@@ -874,7 +874,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
 
             // variable order spaces: face edges need to be handled separately
             int skipfirst = 0;
-            if (IsVariableOrder() && entity == 2)
+            if (IsVariableOrder() && entity == 2 && slave.index >= 0)
             {
                skipfirst = GetNumBorderDofs(master_geom, q);
             }
@@ -891,7 +891,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
             }
          }
 
-         // Add the inverse dependencies for the cR_hp matrix; if a master has
+         // Add inverse dependencies for the cR_hp matrix; if a master has
          // more DOF sets, the lowest order set interpolates the highest one.
          if (IsVariableOrder())
          {
@@ -2072,12 +2072,20 @@ void FiniteElementSpace
          for (int i = master.slaves_begin; i < master.slaves_end; i++)
          {
             const NCMesh::Slave &slave = face_list.slaves[i];
-            slave_orders |= face_orders[slave.index];
-
-            mesh->GetFaceEdges(slave.index, E, ori);
-            for (int j = 0; j < E.Size(); j++)
+            if (slave.index >= 0)
             {
-               slave_orders |= edge_orders[E[j]];
+               slave_orders |= face_orders[slave.index];
+
+               mesh->GetFaceEdges(slave.index, E, ori);
+               for (int j = 0; j < E.Size(); j++)
+               {
+                  slave_orders |= edge_orders[E[j]];
+               }
+            }
+            else
+            {
+               // degenerate face (i.e., edge-face constraint)
+               slave_orders |= edge_orders[-1 - slave.index];
             }
          }
 
