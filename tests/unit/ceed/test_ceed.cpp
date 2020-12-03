@@ -31,11 +31,12 @@ double coeff_function(const Vector &x)
 void velocity_function(const Vector &x, Vector &v)
 {
    int dim = x.Size();
+   const double w = 1.0 + x[0]*x[0];
    switch (dim)
    {
-      case 1: v(0) = 1.0; break;
-      case 2: v(0) = sqrt(2./3.); v(1) = sqrt(1./3.); break;
-      case 3: v(0) = sqrt(3./6.); v(1) = sqrt(2./6.); v(2) = sqrt(1./6.); break;
+      case 1: v(0) = w; break;
+      case 2: v(0) = w*sqrt(2./3.); v(1) = w*sqrt(1./3.); break;
+      case 3: v(0) = w*sqrt(3./6.); v(1) = w*sqrt(2./6.); v(2) = w*sqrt(1./6.); break;
    }
 }
 
