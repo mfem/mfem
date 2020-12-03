@@ -2709,20 +2709,20 @@ ND_Trace_FECollection::ND_Trace_FECollection(const int p, const int dim,
 }
 
 
-ND_P1D_FECollection::ND_P1D_FECollection(const int p, const int dim,
+ND_R1D_FECollection::ND_R1D_FECollection(const int p, const int dim,
                                          const int cb_type, const int ob_type)
 {
-   MFEM_VERIFY(p >= 1, "ND_P1D_FECollection requires order >= 1.");
-   MFEM_VERIFY(dim == 1, "ND_P1D_FECollection requires dim == 1.");
+   MFEM_VERIFY(p >= 1, "ND_R1D_FECollection requires order >= 1.");
+   MFEM_VERIFY(dim == 1, "ND_R1D_FECollection requires dim == 1.");
 
    if (cb_type == BasisType::GaussLobatto &&
        ob_type == BasisType::GaussLegendre)
    {
-      snprintf(nd_name, 32, "ND_P1D_%dD_P%d", dim, p);
+      snprintf(nd_name, 32, "ND_R1D_%dD_P%d", dim, p);
    }
    else
    {
-      snprintf(nd_name, 32, "ND_P1D@%c%c_%dD_P%d",
+      snprintf(nd_name, 32, "ND_R1D@%c%c_%dD_P%d",
                (int)BasisType::GetChar(cb_type),
                (int)BasisType::GetChar(ob_type), dim, p);
    }
@@ -2750,24 +2750,24 @@ ND_P1D_FECollection::ND_P1D_FECollection(const int p, const int dim,
 
    ND_dof[Geometry::POINT] = 2;
 
-   ND_Elements[Geometry::SEGMENT] = new ND_P1D_SegmentElement(p,
+   ND_Elements[Geometry::SEGMENT] = new ND_R1D_SegmentElement(p,
                                                               cb_type,
                                                               ob_type);
    ND_dof[Geometry::SEGMENT] = 3 * p - 2;
 }
 
-const int *ND_P1D_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
+const int *ND_R1D_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
                                                        int Or) const
 {
    return NULL;
 }
 
-FiniteElementCollection *ND_P1D_FECollection::GetTraceCollection() const
+FiniteElementCollection *ND_R1D_FECollection::GetTraceCollection() const
 {
    return NULL;
 }
 
-ND_P1D_FECollection::~ND_P1D_FECollection()
+ND_R1D_FECollection::~ND_R1D_FECollection()
 {
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
@@ -2776,20 +2776,20 @@ ND_P1D_FECollection::~ND_P1D_FECollection()
 }
 
 
-RT_P1D_FECollection::RT_P1D_FECollection(const int p, const int dim,
+RT_R1D_FECollection::RT_R1D_FECollection(const int p, const int dim,
                                          const int cb_type, const int ob_type)
 {
-   MFEM_VERIFY(p >= 0, "RT_P1D_FECollection requires order >= 0.");
-   MFEM_VERIFY(dim == 1, "RT_P1D_FECollection requires dim == 1.");
+   MFEM_VERIFY(p >= 0, "RT_R1D_FECollection requires order >= 0.");
+   MFEM_VERIFY(dim == 1, "RT_R1D_FECollection requires dim == 1.");
 
    if (cb_type == BasisType::GaussLobatto &&
        ob_type == BasisType::GaussLegendre)
    {
-      snprintf(rt_name, 32, "RT_P1D_%dD_P%d", dim, p);
+      snprintf(rt_name, 32, "RT_R1D_%dD_P%d", dim, p);
    }
    else
    {
-      snprintf(rt_name, 32, "RT_P1D@%c%c_%dD_P%d",
+      snprintf(rt_name, 32, "RT_R1D@%c%c_%dD_P%d",
                (int)BasisType::GetChar(cb_type),
                (int)BasisType::GetChar(ob_type), dim, p);
    }
@@ -2817,24 +2817,24 @@ RT_P1D_FECollection::RT_P1D_FECollection(const int p, const int dim,
 
    RT_dof[Geometry::POINT] = 1;
 
-   RT_Elements[Geometry::SEGMENT] = new RT_P1D_SegmentElement(p,
+   RT_Elements[Geometry::SEGMENT] = new RT_R1D_SegmentElement(p,
                                                               cb_type,
                                                               ob_type);
    RT_dof[Geometry::SEGMENT] = 3 * p + 2;
 }
 
-const int *RT_P1D_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
+const int *RT_R1D_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
                                                        int Or) const
 {
    return NULL;
 }
 
-FiniteElementCollection *RT_P1D_FECollection::GetTraceCollection() const
+FiniteElementCollection *RT_R1D_FECollection::GetTraceCollection() const
 {
    return NULL;
 }
 
-RT_P1D_FECollection::~RT_P1D_FECollection()
+RT_R1D_FECollection::~RT_R1D_FECollection()
 {
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
@@ -2843,23 +2843,23 @@ RT_P1D_FECollection::~RT_P1D_FECollection()
 }
 
 
-ND_P2D_FECollection::ND_P2D_FECollection(const int p, const int dim,
+ND_R2D_FECollection::ND_R2D_FECollection(const int p, const int dim,
                                          const int cb_type, const int ob_type)
 {
-   MFEM_VERIFY(p >= 1, "ND_P2D_FECollection requires order >= 1.");
+   MFEM_VERIFY(p >= 1, "ND_R2D_FECollection requires order >= 1.");
    MFEM_VERIFY(dim >= 1 && dim <= 2,
-               "ND_P2D_FECollection requires 1 <= dim <= 2.");
+               "ND_R2D_FECollection requires 1 <= dim <= 2.");
 
    const int pm1 = p - 1, pm2 = p - 2;
 
    if (cb_type == BasisType::GaussLobatto &&
        ob_type == BasisType::GaussLegendre)
    {
-      snprintf(nd_name, 32, "ND_P2D_%dD_P%d", dim, p);
+      snprintf(nd_name, 32, "ND_R2D_%dD_P%d", dim, p);
    }
    else
    {
-      snprintf(nd_name, 32, "ND_P2D@%c%c_%dD_P%d",
+      snprintf(nd_name, 32, "ND_R2D@%c%c_%dD_P%d",
                (int)BasisType::GetChar(cb_type),
                (int)BasisType::GetChar(ob_type), dim, p);
    }
@@ -2893,7 +2893,7 @@ ND_P2D_FECollection::ND_P2D_FECollection(const int p, const int dim,
 
    if (dim >= 1)
    {
-      ND_Elements[Geometry::SEGMENT] = new ND_P2D_SegmentElement(p,
+      ND_Elements[Geometry::SEGMENT] = new ND_R2D_SegmentElement(p,
                                                                  cb_type,
                                                                  ob_type);
       ND_dof[Geometry::SEGMENT] = 2 * p - 1;
@@ -2914,18 +2914,18 @@ ND_P2D_FECollection::ND_P2D_FECollection(const int p, const int dim,
 
    if (dim >= 2)
    {
-      ND_Elements[Geometry::SQUARE] = new ND_P2D_QuadrilateralElement(p,
+      ND_Elements[Geometry::SQUARE] = new ND_R2D_QuadrilateralElement(p,
                                                                       cb_type,
                                                                       ob_type);
       ND_dof[Geometry::SQUARE] = 2*p*pm1 + pm1*pm1;
 
       // TODO: cb_type and ob_type for triangles
-      ND_Elements[Geometry::TRIANGLE] = new ND_P2D_TriangleElement(p, cb_type);
+      ND_Elements[Geometry::TRIANGLE] = new ND_R2D_TriangleElement(p, cb_type);
       ND_dof[Geometry::TRIANGLE] = p*pm1 + (pm1*pm2)/2;
    }
 }
 
-const int *ND_P2D_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
+const int *ND_R2D_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
                                                        int Or) const
 {
    if (GeomType == Geometry::SEGMENT)
@@ -2935,27 +2935,27 @@ const int *ND_P2D_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
    return NULL;
 }
 
-FiniteElementCollection *ND_P2D_FECollection::GetTraceCollection() const
+FiniteElementCollection *ND_R2D_FECollection::GetTraceCollection() const
 {
    int p, dim, cb_type, ob_type;
 
    p = ND_dof[Geometry::SEGMENT];
-   if (nd_name[5] == '_') // ND_P2D_
+   if (nd_name[5] == '_') // ND_R2D_
    {
       dim = atoi(nd_name + 6);
       cb_type = BasisType::GaussLobatto;
       ob_type = BasisType::GaussLegendre;
    }
-   else // ND_P2D@
+   else // ND_R2D@
    {
       dim = atoi(nd_name + 9);
       cb_type = BasisType::GetType(nd_name[6]);
       ob_type = BasisType::GetType(nd_name[7]);
    }
-   return new ND_P2D_Trace_FECollection(p, dim, cb_type, ob_type);
+   return new ND_R2D_Trace_FECollection(p, dim, cb_type, ob_type);
 }
 
-ND_P2D_FECollection::~ND_P2D_FECollection()
+ND_R2D_FECollection::~ND_R2D_FECollection()
 {
    delete [] SegDofOrd[0];
    for (int g = 0; g < Geometry::NumGeom; g++)
@@ -2965,30 +2965,30 @@ ND_P2D_FECollection::~ND_P2D_FECollection()
 }
 
 
-ND_P2D_Trace_FECollection::ND_P2D_Trace_FECollection(const int p, const int dim,
+ND_R2D_Trace_FECollection::ND_R2D_Trace_FECollection(const int p, const int dim,
                                                      const int cb_type,
                                                      const int ob_type)
-   : ND_P2D_FECollection(p, dim-1, cb_type, ob_type)
+   : ND_R2D_FECollection(p, dim-1, cb_type, ob_type)
 {
    if (cb_type == BasisType::GaussLobatto &&
        ob_type == BasisType::GaussLegendre)
    {
-      snprintf(nd_name, 32, "ND_P2D_Trace_%dD_P%d", dim, p);
+      snprintf(nd_name, 32, "ND_R2D_Trace_%dD_P%d", dim, p);
    }
    else
    {
-      snprintf(nd_name, 32, "ND_P2D_Trace@%c%c_%dD_P%d",
+      snprintf(nd_name, 32, "ND_R2D_Trace@%c%c_%dD_P%d",
                (int)BasisType::GetChar(cb_type),
                (int)BasisType::GetChar(ob_type), dim, p);
    }
 }
 
 
-RT_P2D_FECollection::RT_P2D_FECollection(const int p, const int dim,
+RT_R2D_FECollection::RT_R2D_FECollection(const int p, const int dim,
                                          const int cb_type, const int ob_type)
    : ob_type(ob_type)
 {
-   MFEM_VERIFY(p >= 0, "RT_P2D_FECollection requires order >= 0.");
+   MFEM_VERIFY(p >= 0, "RT_R2D_FECollection requires order >= 0.");
 
    int cp_type = BasisType::GetQuadrature1D(cb_type);
    int op_type = BasisType::GetQuadrature1D(ob_type);
@@ -3009,11 +3009,11 @@ RT_P2D_FECollection::RT_P2D_FECollection(const int p, const int dim,
    if (cb_type == BasisType::GaussLobatto &&
        ob_type == BasisType::GaussLegendre)
    {
-      snprintf(rt_name, 32, "RT_P2D_%dD_P%d", dim, p);
+      snprintf(rt_name, 32, "RT_R2D_%dD_P%d", dim, p);
    }
    else
    {
-      snprintf(rt_name, 32, "RT_P2D@%c%c_%dD_P%d",
+      snprintf(rt_name, 32, "RT_R2D@%c%c_%dD_P%d",
                (int)BasisType::GetChar(cb_type),
                (int)BasisType::GetChar(ob_type), dim, p);
    }
@@ -3023,10 +3023,10 @@ RT_P2D_FECollection::RT_P2D_FECollection(const int p, const int dim,
    if (dim == 2)
    {
       // TODO: cb_type, ob_type for triangles
-      RT_Elements[Geometry::TRIANGLE] = new RT_P2D_TriangleElement(p);
+      RT_Elements[Geometry::TRIANGLE] = new RT_R2D_TriangleElement(p);
       RT_dof[Geometry::TRIANGLE] = p*pp1 + (pp1 * pp2) / 2;
 
-      RT_Elements[Geometry::SQUARE] = new RT_P2D_QuadrilateralElement(p,
+      RT_Elements[Geometry::SQUARE] = new RT_R2D_QuadrilateralElement(p,
                                                                       cb_type,
                                                                       ob_type);
       // two vector components * n_unk_face *
@@ -3040,7 +3040,7 @@ RT_P2D_FECollection::RT_P2D_FECollection(const int p, const int dim,
 
 // This is a special protected constructor only used by RT_Trace_FECollection
 // and DG_Interface_FECollection
-RT_P2D_FECollection::RT_P2D_FECollection(const int p, const int dim,
+RT_R2D_FECollection::RT_R2D_FECollection(const int p, const int dim,
                                          const int map_type,
                                          const bool signs, const int ob_type)
    : ob_type(ob_type)
@@ -3054,7 +3054,7 @@ RT_P2D_FECollection::RT_P2D_FECollection(const int p, const int dim,
    InitFaces(p, dim, map_type, signs);
 }
 
-void RT_P2D_FECollection::InitFaces(const int p, const int dim,
+void RT_R2D_FECollection::InitFaces(const int p, const int dim,
                                     const int map_type,
                                     const bool signs)
 {
@@ -3093,7 +3093,7 @@ void RT_P2D_FECollection::InitFaces(const int p, const int dim,
    }
 }
 
-const int *RT_P2D_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
+const int *RT_R2D_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
                                                        int Or) const
 {
    if (GeomType == Geometry::SEGMENT)
@@ -3103,23 +3103,23 @@ const int *RT_P2D_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
    return NULL;
 }
 
-FiniteElementCollection *RT_P2D_FECollection::GetTraceCollection() const
+FiniteElementCollection *RT_R2D_FECollection::GetTraceCollection() const
 {
    int dim, p;
-   if (!strncmp(rt_name, "RT_P2D_", 7))
+   if (!strncmp(rt_name, "RT_R2D_", 7))
    {
       dim = atoi(rt_name + 7);
       p = atoi(rt_name + 11);
    }
-   else // rt_name = RT_P2D@.._.D_P*
+   else // rt_name = RT_R2D@.._.D_P*
    {
       dim = atoi(rt_name + 10);
       p = atoi(rt_name + 14);
    }
-   return new RT_P2D_Trace_FECollection(p, dim, FiniteElement::INTEGRAL, ob_type);
+   return new RT_R2D_Trace_FECollection(p, dim, FiniteElement::INTEGRAL, ob_type);
 }
 
-RT_P2D_FECollection::~RT_P2D_FECollection()
+RT_R2D_FECollection::~RT_R2D_FECollection()
 {
    delete [] SegDofOrd[0];
    for (int g = 0; g < Geometry::NumGeom; g++)
@@ -3129,13 +3129,13 @@ RT_P2D_FECollection::~RT_P2D_FECollection()
 }
 
 
-RT_P2D_Trace_FECollection::RT_P2D_Trace_FECollection(const int p, const int dim,
+RT_R2D_Trace_FECollection::RT_R2D_Trace_FECollection(const int p, const int dim,
                                                      const int map_type,
                                                      const int ob_type)
-   : RT_P2D_FECollection(p, dim, map_type, true, ob_type)
+   : RT_R2D_FECollection(p, dim, map_type, true, ob_type)
 {
    const char *prefix =
-      (map_type == FiniteElement::INTEGRAL) ? "RT_P2D_Trace" : "RT_P2D_ValTrace";
+      (map_type == FiniteElement::INTEGRAL) ? "RT_R2D_Trace" : "RT_R2D_ValTrace";
    char ob_str[3] = { '\0', '\0', '\0' };
 
    if (ob_type != BasisType::GaussLegendre)

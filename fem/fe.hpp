@@ -3197,11 +3197,11 @@ public:
 
 
 /// Arbitrary order Nedelec 3D elements in 1D on a segment
-/** ND_P1D_SegmentElement provides a representation of a 3D Nedelec
+/** ND_R1D_SegmentElement provides a representation of a 3D Nedelec
     basis where the vector field is assumed constant in the second and
     third dimensions.
 */
-class ND_P1D_SegmentElement : public VectorFiniteElement
+class ND_R1D_SegmentElement : public VectorFiniteElement
 {
    static const double tk[9];
 #ifndef MFEM_THREAD_SAFE
@@ -3213,9 +3213,9 @@ class ND_P1D_SegmentElement : public VectorFiniteElement
    Poly_1D::Basis &cbasis1d, &obasis1d;
 
 public:
-   /** @brief Construct the ND_P1D_SegmentElement of order @a p and closed and
+   /** @brief Construct the ND_R1D_SegmentElement of order @a p and closed and
        open BasisType @a cb_type and @a ob_type */
-   ND_P1D_SegmentElement(const int p,
+   ND_R1D_SegmentElement(const int p,
                          const int cb_type = BasisType::GaussLobatto,
                          const int ob_type = BasisType::GaussLegendre);
 
@@ -3272,11 +3272,11 @@ public:
 
 
 /// Arbitrary order Raviart-Thomas 3D elements in 1D on a segment
-/** RT_P1D_SegmentElement provides a representation of a 3D Raviart-Thomas
+/** RT_R1D_SegmentElement provides a representation of a 3D Raviart-Thomas
     basis where the vector field is assumed constant in the second and
     third dimensions.
 */
-class RT_P1D_SegmentElement : public VectorFiniteElement
+class RT_R1D_SegmentElement : public VectorFiniteElement
 {
    static const double nk[9];
 #ifndef MFEM_THREAD_SAFE
@@ -3288,9 +3288,9 @@ class RT_P1D_SegmentElement : public VectorFiniteElement
    Poly_1D::Basis &cbasis1d, &obasis1d;
 
 public:
-   /** @brief Construct the RT_P1D_SegmentElement of order @a p and closed and
+   /** @brief Construct the RT_R1D_SegmentElement of order @a p and closed and
        open BasisType @a cb_type and @a ob_type */
-   RT_P1D_SegmentElement(const int p,
+   RT_R1D_SegmentElement(const int p,
                          const int cb_type = BasisType::GaussLobatto,
                          const int ob_type = BasisType::GaussLegendre);
 
@@ -3333,10 +3333,10 @@ public:
 
 
 /// Arbitrary order Nedelec 3D elements in 2D on a square
-/** ND_P2D_SegmentElement provides a representation of a 3D Nedelec
+/** ND_R2D_SegmentElement provides a representation of a 3D Nedelec
     basis where the vector field is assumed constant in the third dimension.
 */
-class ND_P2D_SegmentElement : public VectorFiniteElement
+class ND_R2D_SegmentElement : public VectorFiniteElement
 {
    static const double tk[6];
 #ifndef MFEM_THREAD_SAFE
@@ -3348,9 +3348,9 @@ class ND_P2D_SegmentElement : public VectorFiniteElement
    Poly_1D::Basis &cbasis1d, &obasis1d;
 
 public:
-   /** @brief Construct the ND_P2D_SegmentElement of order @a p and closed and
+   /** @brief Construct the ND_R2D_SegmentElement of order @a p and closed and
        open BasisType @a cb_type and @a ob_type */
-   ND_P2D_SegmentElement(const int p,
+   ND_R2D_SegmentElement(const int p,
                          const int cb_type = BasisType::GaussLobatto,
                          const int ob_type = BasisType::GaussLegendre);
 
@@ -3406,13 +3406,13 @@ public:
    { ProjectCurl_ND(tk, dof2tk, fe, Trans, curl); }
 };
 
-class ND_P2D_FiniteElement : public VectorFiniteElement
+class ND_R2D_FiniteElement : public VectorFiniteElement
 {
 protected:
    const double *tk;
    Array<int> dof_map, dof2tk;
 
-   ND_P2D_FiniteElement(int p, Geometry::Type G, int Do, const double *tk_fe)
+   ND_R2D_FiniteElement(int p, Geometry::Type G, int Do, const double *tk_fe)
       : VectorFiniteElement(2, 3, 3, G, Do, p,
                             H_CURL, FunctionSpace::Pk),
         tk(tk_fe),
@@ -3441,7 +3441,7 @@ public:
 };
 
 /// Arbitrary order Nedelec 3D elements in 2D on a triangle
-class ND_P2D_TriangleElement : public ND_P2D_FiniteElement
+class ND_R2D_TriangleElement : public ND_R2D_FiniteElement
 {
 private:
    static const double tk_t[15];
@@ -3457,12 +3457,12 @@ private:
    H1_TriangleElement H1_FE;
 
 public:
-   /// Construct the ND_P2D_TriangleElement of order @a p
-   ND_P2D_TriangleElement(const int p,
+   /// Construct the ND_R2D_TriangleElement of order @a p
+   ND_R2D_TriangleElement(const int p,
                           const int cb_type = BasisType::GaussLobatto);
 
-   using ND_P2D_FiniteElement::CalcVShape;
-   using ND_P2D_FiniteElement::CalcPhysCurlShape;
+   using ND_R2D_FiniteElement::CalcVShape;
+   using ND_R2D_FiniteElement::CalcPhysCurlShape;
 
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
@@ -3472,7 +3472,7 @@ public:
 
 
 /// Arbitrary order Nedelec 3D elements in 2D on a square
-class ND_P2D_QuadrilateralElement : public ND_P2D_FiniteElement
+class ND_R2D_QuadrilateralElement : public ND_R2D_FiniteElement
 {
    static const double tk_q[15];
 
@@ -3484,14 +3484,14 @@ class ND_P2D_QuadrilateralElement : public ND_P2D_FiniteElement
    Poly_1D::Basis &cbasis1d, &obasis1d;
 
 public:
-   /** @brief Construct the ND_P2D_QuadrilateralElement of order @a p and
+   /** @brief Construct the ND_R2D_QuadrilateralElement of order @a p and
        closed and open BasisType @a cb_type and @a ob_type */
-   ND_P2D_QuadrilateralElement(const int p,
+   ND_R2D_QuadrilateralElement(const int p,
                                const int cb_type = BasisType::GaussLobatto,
                                const int ob_type = BasisType::GaussLegendre);
 
-   using ND_P2D_FiniteElement::CalcVShape;
-   using ND_P2D_FiniteElement::CalcPhysCurlShape;
+   using ND_R2D_FiniteElement::CalcVShape;
+   using ND_R2D_FiniteElement::CalcPhysCurlShape;
 
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
@@ -3524,13 +3524,13 @@ public:
 };
 
 
-class RT_P2D_FiniteElement : public VectorFiniteElement
+class RT_R2D_FiniteElement : public VectorFiniteElement
 {
 protected:
    const double *nk;
    Array<int> dof_map, dof2nk;
 
-   RT_P2D_FiniteElement(int p, Geometry::Type G, int Do, const double *nk_fe)
+   RT_R2D_FiniteElement(int p, Geometry::Type G, int Do, const double *nk_fe)
       : VectorFiniteElement(2, 3, 0, G, Do, p + 1,
                             H_DIV, FunctionSpace::Pk),
         nk(nk_fe),
@@ -3549,7 +3549,7 @@ public:
 };
 
 /// Arbitrary order Raviart-Thomas 3D elements in 2D on a triangle
-class RT_P2D_TriangleElement : public RT_P2D_FiniteElement
+class RT_R2D_TriangleElement : public RT_R2D_FiniteElement
 {
 private:
    static const double nk_t[12];
@@ -3564,10 +3564,10 @@ private:
    L2_TriangleElement L2_FE;
 
 public:
-   /** @brief Construct the RT_P2D_TriangleElement of order @a p */
-   RT_P2D_TriangleElement(const int p);
+   /** @brief Construct the RT_R2D_TriangleElement of order @a p */
+   RT_R2D_TriangleElement(const int p);
 
-   using RT_P2D_FiniteElement::CalcVShape;
+   using RT_R2D_FiniteElement::CalcVShape;
 
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
@@ -3577,7 +3577,7 @@ public:
 };
 
 /// Arbitrary order Raviart-Thomas 3D elements in 2D on a square
-class RT_P2D_QuadrilateralElement : public RT_P2D_FiniteElement
+class RT_R2D_QuadrilateralElement : public RT_R2D_FiniteElement
 {
 private:
    static const double nk_q[15];
@@ -3592,11 +3592,11 @@ private:
 public:
    /** @brief Construct the RT_QuadrilateralElement of order @a p and closed and
        open BasisType @a cb_type and @a ob_type */
-   RT_P2D_QuadrilateralElement(const int p,
+   RT_R2D_QuadrilateralElement(const int p,
                                const int cb_type = BasisType::GaussLobatto,
                                const int ob_type = BasisType::GaussLegendre);
 
-   using RT_P2D_FiniteElement::CalcVShape;
+   using RT_R2D_FiniteElement::CalcVShape;
 
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;

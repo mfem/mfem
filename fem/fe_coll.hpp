@@ -369,7 +369,7 @@ public:
 };
 
 /// Arbitrary order 3D H(curl)-conforming Nedelec finite elements in 1D.
-class ND_P1D_FECollection : public FiniteElementCollection
+class ND_R1D_FECollection : public FiniteElementCollection
 {
 protected:
    char nd_name[32];
@@ -377,7 +377,7 @@ protected:
    int ND_dof[Geometry::NumGeom];
 
 public:
-   ND_P1D_FECollection(const int p, const int dim,
+   ND_R1D_FECollection(const int p, const int dim,
                        const int cb_type = BasisType::GaussLobatto,
                        const int ob_type = BasisType::GaussLegendre);
 
@@ -392,11 +392,11 @@ public:
    virtual int GetContType() const { return TANGENTIAL; }
    FiniteElementCollection *GetTraceCollection() const;
 
-   virtual ~ND_P1D_FECollection();
+   virtual ~ND_R1D_FECollection();
 };
 
 /// Arbitrary order 3D H(div)-conforming Raviart-Thomas finite elements in 1D.
-class RT_P1D_FECollection : public FiniteElementCollection
+class RT_R1D_FECollection : public FiniteElementCollection
 {
 protected:
    char rt_name[32];
@@ -404,7 +404,7 @@ protected:
    int RT_dof[Geometry::NumGeom];
 
 public:
-   RT_P1D_FECollection(const int p, const int dim,
+   RT_R1D_FECollection(const int p, const int dim,
                        const int cb_type = BasisType::GaussLobatto,
                        const int ob_type = BasisType::GaussLegendre);
 
@@ -419,11 +419,11 @@ public:
    virtual int GetContType() const { return NORMAL; }
    FiniteElementCollection *GetTraceCollection() const;
 
-   virtual ~RT_P1D_FECollection();
+   virtual ~RT_R1D_FECollection();
 };
 
 /// Arbitrary order 3D H(curl)-conforming Nedelec finite elements in 2D.
-class ND_P2D_FECollection : public FiniteElementCollection
+class ND_R2D_FECollection : public FiniteElementCollection
 {
 protected:
    char nd_name[32];
@@ -432,7 +432,7 @@ protected:
    int *SegDofOrd[2];
 
 public:
-   ND_P2D_FECollection(const int p, const int dim,
+   ND_R2D_FECollection(const int p, const int dim,
                        const int cb_type = BasisType::GaussLobatto,
                        const int ob_type = BasisType::GaussLegendre);
 
@@ -447,22 +447,22 @@ public:
    virtual int GetContType() const { return TANGENTIAL; }
    FiniteElementCollection *GetTraceCollection() const;
 
-   virtual ~ND_P2D_FECollection();
+   virtual ~ND_R2D_FECollection();
 };
 
 /** @brief Arbitrary order 3D H(curl)-trace finite elements in 2D defined on the
     interface between mesh elements (edges); these are the tangential
     trace FEs of the H(curl)-conforming FEs. */
-class ND_P2D_Trace_FECollection : public ND_P2D_FECollection
+class ND_R2D_Trace_FECollection : public ND_R2D_FECollection
 {
 public:
-   ND_P2D_Trace_FECollection(const int p, const int dim,
+   ND_R2D_Trace_FECollection(const int p, const int dim,
                              const int cb_type = BasisType::GaussLobatto,
                              const int ob_type = BasisType::GaussLegendre);
 };
 
 /// Arbitrary order 3D H(div)-conforming Raviart-Thomas finite elements in 2D.
-class RT_P2D_FECollection : public FiniteElementCollection
+class RT_R2D_FECollection : public FiniteElementCollection
 {
 protected:
    int ob_type; // open BasisType
@@ -475,13 +475,13 @@ protected:
    void InitFaces(const int p, const int dim, const int map_type,
                   const bool signs);
 
-   // Constructor used by the constructor of the RT_P2D_Trace_FECollection
-   RT_P2D_FECollection(const int p, const int dim, const int map_type,
+   // Constructor used by the constructor of the RT_R2D_Trace_FECollection
+   RT_R2D_FECollection(const int p, const int dim, const int map_type,
                        const bool signs,
                        const int ob_type = BasisType::GaussLegendre);
 
 public:
-   RT_P2D_FECollection(const int p, const int dim,
+   RT_R2D_FECollection(const int p, const int dim,
                        const int cb_type = BasisType::GaussLobatto,
                        const int ob_type = BasisType::GaussLegendre);
 
@@ -496,16 +496,16 @@ public:
    virtual int GetContType() const { return NORMAL; }
    FiniteElementCollection *GetTraceCollection() const;
 
-   virtual ~RT_P2D_FECollection();
+   virtual ~RT_R2D_FECollection();
 };
 
 /** @brief Arbitrary order 3D "H^{-1/2}-conforming" face finite elements defined on
     the interface between mesh elements (faces); these are the normal trace FEs
     of the H(div)-conforming FEs. */
-class RT_P2D_Trace_FECollection : public RT_P2D_FECollection
+class RT_R2D_Trace_FECollection : public RT_R2D_FECollection
 {
 public:
-   RT_P2D_Trace_FECollection(const int p, const int dim,
+   RT_R2D_Trace_FECollection(const int p, const int dim,
                              const int map_type = FiniteElement::INTEGRAL,
                              const int ob_type = BasisType::GaussLegendre);
 };
