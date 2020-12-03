@@ -326,18 +326,22 @@ struct CeedBasisHash
 using CeedBasisMap =
    std::unordered_map<const CeedBasisKey, CeedBasis, CeedBasisHash>;
 
+enum restr_type {Standard, Strided};
+
 // Hash table for CeedElemRestriction
-using CeedRestrKey = std::tuple<const FiniteElementSpace*, int, int, int>;
+using CeedRestrKey = std::tuple<const FiniteElementSpace*, int, int, int, int>;
 struct CeedRestrHash
 {
    std::size_t operator()(const CeedRestrKey& k) const
    {
       return CeedHashCombine(
                 CeedHashCombine(
-                   CeedHashInt(reinterpret_cast<CeedHash64_t>(std::get<0>(k))),
-                   CeedHashInt(std::get<1>(k))),
-                CeedHashCombine(CeedHashInt(std::get<2>(k)),
-                                CeedHashInt(std::get<3>(k))));
+                   CeedHashCombine(
+                      CeedHashInt(reinterpret_cast<CeedHash64_t>(std::get<0>(k))),
+                      CeedHashInt(std::get<1>(k))),
+                   CeedHashCombine(CeedHashInt(std::get<2>(k)),
+                                  CeedHashInt(std::get<3>(k)))),
+             CeedHashInt(std::get<4>(k)));
    }
 };
 using CeedRestrMap =
