@@ -2381,44 +2381,8 @@ void ParMesh::GetGhostFaceTransformation(
    {
       const FiniteElement* face_el =
          Nodes->FESpace()->GetTraceElement(FETr->Elem1No, face_geom);
-      // The mesh assumes nodal basis on the faces, so we must ensure that.
-      const FiniteElement* face_el_nodal = nullptr;
-      switch (face_geom)
-      {
-         case Geometry::SEGMENT:
-            if (dynamic_cast<const L2Pos_SegmentElement*>(face_el))
-            {
-               face_el_nodal = new L2_SegmentElement(face_el->GetOrder());
-            }
-            else
-            {
-               face_el_nodal = face_el;
-            }
-            break;
-         case Geometry::TRIANGLE:
-            if (dynamic_cast<const L2Pos_TriangleElement*>(face_el))
-            {
-               face_el_nodal = new L2_TriangleElement(face_el->GetOrder());
-            }
-            else
-            {
-               face_el_nodal = face_el;
-            }
-            break;
-         case Geometry::SQUARE:
-            if (dynamic_cast<const L2Pos_QuadrilateralElement*>(face_el))
-            {
-               face_el_nodal = new L2_QuadrilateralElement(face_el->GetOrder());
-            }
-            else
-            {
-               face_el_nodal = face_el;
-            }
-            break;
-         default:
-            face_el_nodal = face_el;
-            break;
-      }
+      MFEM_VERIFY(dynamic_cast<const NodalFiniteElement*>(face_el),
+                  "Mesh requires nodal Finite Element.");
 
 #if 0 // TODO: handle the case of non-interpolatory Nodes
       DenseMatrix I;
@@ -2426,14 +2390,10 @@ void ParMesh::GetGhostFaceTransformation(
       MultABt(Transformation.GetPointMat(), I, pm_face);
 #else
       IntegrationRule eir(face_el->GetDof());
-      FETr->Loc1.Transform(face_el_nodal->GetNodes(), eir);
+      FETr->Loc1.Transform(face_el->GetNodes(), eir);
       Nodes->GetVectorValues(*FETr->Elem1, eir, face_pm);
 #endif
-      FETr->SetFE(face_el_nodal);
-      if (face_el != face_el_nodal)
-      {
-         delete face_el_nodal;
-      }
+      FETr->SetFE(face_el);
    }
 }
 
