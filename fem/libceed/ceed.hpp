@@ -340,8 +340,8 @@ struct CeedRestrHash
                       CeedHashInt(reinterpret_cast<CeedHash64_t>(std::get<0>(k))),
                       CeedHashInt(std::get<1>(k))),
                    CeedHashCombine(CeedHashInt(std::get<2>(k)),
-                                  CeedHashInt(std::get<3>(k)))),
-             CeedHashInt(std::get<4>(k)));
+                                   CeedHashInt(std::get<3>(k)))),
+                CeedHashInt(std::get<4>(k)));
    }
 };
 using CeedRestrMap =
