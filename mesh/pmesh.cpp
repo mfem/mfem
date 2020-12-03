@@ -2385,39 +2385,39 @@ void ParMesh::GetGhostFaceTransformation(
       const FiniteElement* face_el_nodal = nullptr;
       switch (face_geom)
       {
-      case Geometry::SEGMENT:
-         if (dynamic_cast<const L2Pos_SegmentElement*>(face_el))
-         {
-            face_el_nodal = new L2_SegmentElement(face_el->GetOrder());
-         }
-         else
-         {
+         case Geometry::SEGMENT:
+            if (dynamic_cast<const L2Pos_SegmentElement*>(face_el))
+            {
+               face_el_nodal = new L2_SegmentElement(face_el->GetOrder());
+            }
+            else
+            {
+               face_el_nodal = face_el;
+            }
+            break;
+         case Geometry::TRIANGLE:
+            if (dynamic_cast<const L2Pos_TriangleElement*>(face_el))
+            {
+               face_el_nodal = new L2_TriangleElement(face_el->GetOrder());
+            }
+            else
+            {
+               face_el_nodal = face_el;
+            }
+            break;
+         case Geometry::SQUARE:
+            if (dynamic_cast<const L2Pos_QuadrilateralElement*>(face_el))
+            {
+               face_el_nodal = new L2_QuadrilateralElement(face_el->GetOrder());
+            }
+            else
+            {
+               face_el_nodal = face_el;
+            }
+            break;
+         default:
             face_el_nodal = face_el;
-         }
-         break;
-      case Geometry::TRIANGLE:
-         if (dynamic_cast<const L2Pos_TriangleElement*>(face_el))
-         {
-            face_el_nodal = new L2_TriangleElement(face_el->GetOrder());
-         }
-         else
-         {
-            face_el_nodal = face_el;
-         }
-         break;
-      case Geometry::SQUARE:
-         if (dynamic_cast<const L2Pos_QuadrilateralElement*>(face_el))
-         {
-            face_el_nodal = new L2_QuadrilateralElement(face_el->GetOrder());
-         }
-         else
-         {
-            face_el_nodal = face_el;
-         }
-         break;
-      default:
-         face_el_nodal = face_el;
-         break;
+            break;
       }
 
 #if 0 // TODO: handle the case of non-interpolatory Nodes

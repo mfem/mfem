@@ -469,39 +469,39 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
          const FiniteElement* face_el_nodal = nullptr;
          switch (face_geom)
          {
-         case Geometry::SEGMENT:
-            if (dynamic_cast<const L2Pos_SegmentElement*>(face_el))
-            {
-               face_el_nodal = new L2_SegmentElement(face_el->GetOrder());
-            }
-            else
-            {
+            case Geometry::SEGMENT:
+               if (dynamic_cast<const L2Pos_SegmentElement*>(face_el))
+               {
+                  face_el_nodal = new L2_SegmentElement(face_el->GetOrder());
+               }
+               else
+               {
+                  face_el_nodal = face_el;
+               }
+               break;
+            case Geometry::TRIANGLE:
+               if (dynamic_cast<const L2Pos_TriangleElement*>(face_el))
+               {
+                  face_el_nodal = new L2_TriangleElement(face_el->GetOrder());
+               }
+               else
+               {
+                  face_el_nodal = face_el;
+               }
+               break;
+            case Geometry::SQUARE:
+               if (dynamic_cast<const L2Pos_QuadrilateralElement*>(face_el))
+               {
+                  face_el_nodal = new L2_QuadrilateralElement(face_el->GetOrder());
+               }
+               else
+               {
+                  face_el_nodal = face_el;
+               }
+               break;
+            default:
                face_el_nodal = face_el;
-            }
-            break;
-         case Geometry::TRIANGLE:
-            if (dynamic_cast<const L2Pos_TriangleElement*>(face_el))
-            {
-               face_el_nodal = new L2_TriangleElement(face_el->GetOrder());
-            }
-            else
-            {
-               face_el_nodal = face_el;
-            }
-            break;
-         case Geometry::SQUARE:
-            if (dynamic_cast<const L2Pos_QuadrilateralElement*>(face_el))
-            {
-               face_el_nodal = new L2_QuadrilateralElement(face_el->GetOrder());
-            }
-            else
-            {
-               face_el_nodal = face_el;
-            }
-            break;
-         default:
-            face_el_nodal = face_el;
-            break;
+               break;
          }
          IntegrationRule eir(face_el->GetDof());
          FaceElemTr.Loc1.Transf.ElementNo = elem_id;
@@ -577,39 +577,39 @@ void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
          const FiniteElement* face_el_nodal = nullptr;
          switch (face_geom)
          {
-         case Geometry::SEGMENT:
-            if (dynamic_cast<const L2Pos_SegmentElement*>(face_el))
-            {
-               face_el_nodal = new L2_SegmentElement(face_el->GetOrder());
-            }
-            else
-            {
+            case Geometry::SEGMENT:
+               if (dynamic_cast<const L2Pos_SegmentElement*>(face_el))
+               {
+                  face_el_nodal = new L2_SegmentElement(face_el->GetOrder());
+               }
+               else
+               {
+                  face_el_nodal = face_el;
+               }
+               break;
+            case Geometry::TRIANGLE:
+               if (dynamic_cast<const L2Pos_TriangleElement*>(face_el))
+               {
+                  face_el_nodal = new L2_TriangleElement(face_el->GetOrder());
+               }
+               else
+               {
+                  face_el_nodal = face_el;
+               }
+               break;
+            case Geometry::SQUARE:
+               if (dynamic_cast<const L2Pos_QuadrilateralElement*>(face_el))
+               {
+                  face_el_nodal = new L2_QuadrilateralElement(face_el->GetOrder());
+               }
+               else
+               {
+                  face_el_nodal = face_el;
+               }
+               break;
+            default:
                face_el_nodal = face_el;
-            }
-            break;
-         case Geometry::TRIANGLE:
-            if (dynamic_cast<const L2Pos_TriangleElement*>(face_el))
-            {
-               face_el_nodal = new L2_TriangleElement(face_el->GetOrder());
-            }
-            else
-            {
-               face_el_nodal = face_el;
-            }
-            break;
-         case Geometry::SQUARE:
-            if (dynamic_cast<const L2Pos_QuadrilateralElement*>(face_el))
-            {
-               face_el_nodal = new L2_QuadrilateralElement(face_el->GetOrder());
-            }
-            else
-            {
-               face_el_nodal = face_el;
-            }
-            break;
-         default:
-            face_el_nodal = face_el;
-            break;
+               break;
          }
          IntegrationRule eir(face_el->GetDof());
          FaceElemTr.Loc1.Transf.ElementNo = face_info.Elem1No;
