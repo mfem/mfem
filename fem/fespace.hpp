@@ -108,7 +108,7 @@ protected:
    int ndofs;
 
    /** Polynomial order for each element. If empty, all elements are assumed
-       to be of the default order (fec->DefaultOrder()). */
+       to be of the default order (fec->GetOrder()). */
    Array<char> elem_order;
 
    int nvdofs, nedofs, nfdofs, nbdofs;
@@ -391,7 +391,7 @@ public:
    bool Nonconforming() const { return mesh->Nonconforming(); }
 
    /// Sets the order of the i'th finite element.
-   /** By default, all elements are assumed to be of fec->DefaultOrder(). Once
+   /** By default, all elements are assumed to be of fec->GetOrder(). Once
        SetElementOrder is called, the space becomes a variable order space. */
    void SetElementOrder(int i, int p);
 

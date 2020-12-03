@@ -19,7 +19,6 @@
 
 #include <cmath>
 #include <cstdarg>
-#include <climits>
 
 using namespace std;
 
@@ -97,7 +96,7 @@ void FiniteElementSpace::SetElementOrder(int i, int p)
 {
    MFEM_VERIFY(sequence == mesh->GetSequence(), "space has not been Updated()");
    MFEM_VERIFY(i >= 0 && i < GetNE(), "invalid element index");
-   MFEM_VERIFY(p >= 0 && p < CHAR_MAX, "order ouf of range");
+   MFEM_VERIFY(p >= 0 && p <= MaxVarOrder, "order ouf of range");
    MFEM_ASSERT(!elem_order.Size() || elem_order.Size() == GetNE(),
                "internal error");
 
@@ -850,7 +849,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
          int p = GetEntityDofs(entity, master.index, master_dofs, master_geom);
          if (!master_dofs.Size()) { continue; }
 
-         const auto *master_fe = fec->GetFE(master_geom, p);
+         const FiniteElement *master_fe = fec->GetFE(master_geom, p);
          if (!master_fe) { continue; }
 
          switch (master_geom)
@@ -868,7 +867,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
             int q = GetEntityDofs(entity, slave.index, slave_dofs, master_geom);
             if (!slave_dofs.Size()) { break; }
 
-            const auto *slave_fe = fec->GetFE(slave.Geom(), q);
+            const FiniteElement *slave_fe = fec->GetFE(slave.Geom(), q);
             list.OrientedPointMatrix(slave, T.GetPointMat());
             slave_fe->GetTransferMatrix(*master_fe, T, I);
 
@@ -2827,7 +2826,8 @@ void FiniteElementSpace::Update(bool want_transform)
 
    if (want_transform)
    {
-      MFEM_VERIFY(!orders_changed, "not implemented yet");
+      MFEM_VERIFY(!orders_changed, "Interpolation for element order change is "
+                                   "not implemented yet, sorry.");
 
       // calculate appropriate GridFunction transformation
       switch (mesh->GetLastOperation())

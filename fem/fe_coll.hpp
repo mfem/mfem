@@ -213,7 +213,6 @@ public:
    virtual const FiniteElement *FiniteElementForGeometry(
       Geometry::Type GeomType) const
    { return H1_Elements[GeomType]; }
-
    virtual int DofForGeometry(Geometry::Type GeomType) const
    { return H1_dof[GeomType]; }
    virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
