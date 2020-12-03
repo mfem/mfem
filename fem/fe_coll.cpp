@@ -3019,17 +3019,18 @@ RT_P2D_FECollection::RT_P2D_FECollection(const int p, const int dim,
    }
 
    const int pp1 = p + 1;
+   const int pp2 = p + 2;
    if (dim == 2)
    {
       // TODO: cb_type, ob_type for triangles
-      // RT_Elements[Geometry::TRIANGLE] = new RT_P2D_TriangleElement(p);
-      // RT_dof[Geometry::TRIANGLE] = p*pp1;
+      RT_Elements[Geometry::TRIANGLE] = new RT_P2D_TriangleElement(p);
+      RT_dof[Geometry::TRIANGLE] = p*pp1 + (pp1 * pp2) / 2;
 
       RT_Elements[Geometry::SQUARE] = new RT_P2D_QuadrilateralElement(p,
                                                                       cb_type,
                                                                       ob_type);
       // two vector components * n_unk_face *
-      RT_dof[Geometry::SQUARE] = 2*p*pp1 + p*p;
+      RT_dof[Geometry::SQUARE] = 2*p*pp1 + pp1*pp1;
    }
    else
    {

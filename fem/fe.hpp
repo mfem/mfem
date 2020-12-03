@@ -370,7 +370,8 @@ public:
    /** @brief Evaluate the values of all shape functions of a scalar finite
        element in physical space at the point described by @a Trans. */
    /** The size (#dof) of the result Vector @a shape must be set in advance. */
-   void CalcPhysShape(ElementTransformation &Trans, Vector &shape) const;
+   virtual void CalcPhysShape(ElementTransformation &Trans,
+                              Vector &shape) const;
 
    /** @brief Evaluate the gradients of all shape functions of a scalar finite
        element in reference space at the given point @a ip. */
@@ -442,8 +443,8 @@ public:
        of the curl of one vector shape function. The size (#dof x CDim) of
        @a curl_shape must be set in advance, where CDim = 3 for #dim = 3 and
        CDim = 1 for #dim = 2. */
-   void CalcPhysCurlShape(ElementTransformation &Trans,
-                          DenseMatrix &curl_shape) const;
+   virtual void CalcPhysCurlShape(ElementTransformation &Trans,
+                                  DenseMatrix &curl_shape) const;
 
    /** @brief Get the dofs associated with the given @a face.
        @a *dofs is set to an internal array of the local dofc on the
@@ -3243,8 +3244,7 @@ public:
    using FiniteElement::Project;
 
    virtual void Project(VectorCoefficient &vc,
-                        ElementTransformation &Trans, Vector &dofs) const
-   { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+                        ElementTransformation &Trans, Vector &dofs) const;
 
    virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
                                  Vector &dofs) const
@@ -3409,26 +3409,35 @@ public:
 class ND_P2D_FiniteElement : public VectorFiniteElement
 {
 protected:
-  const double *tk;
-  Array<int> dof2tk;
-  
-  ND_P2D_FiniteElement(int p, Geometry::Type G, int Do, const double *tk_fe)
-     : VectorFiniteElement(2, 3, 3, G, Do, p,
-			   H_CURL, FunctionSpace::Pk),
-       tk(tk_fe),
-       dof2tk(dof)
-  {}
+   const double *tk;
+   Array<int> dof_map, dof2tk;
+
+   ND_P2D_FiniteElement(int p, Geometry::Type G, int Do, const double *tk_fe)
+      : VectorFiniteElement(2, 3, 3, G, Do, p,
+                            H_CURL, FunctionSpace::Pk),
+        tk(tk_fe),
+        dof_map(dof),
+        dof2tk(dof)
+   {}
 
 public:
    using FiniteElement::CalcVShape;
-  
+   using FiniteElement::CalcPhysCurlShape;
+
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const;
 
+   virtual void CalcPhysCurlShape(ElementTransformation &Trans,
+                                  DenseMatrix &curl_shape) const;
+
+   virtual void Project(VectorCoefficient &vc,
+                        ElementTransformation &Trans, Vector &dofs) const;
+   /*
    virtual void ProjectGrad(const FiniteElement &fe,
                             ElementTransformation &Trans,
                             DenseMatrix &grad) const
    { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
+   */
 };
 
 /// Arbitrary order Nedelec 3D elements in 2D on a triangle
@@ -3444,8 +3453,6 @@ private:
    mutable DenseMatrix h1_dshape;
 #endif
 
-   Array<int> dof_map;
-
    ND_TriangleElement ND_FE;
    H1_TriangleElement H1_FE;
 
@@ -3455,6 +3462,7 @@ public:
                           const int cb_type = BasisType::GaussLobatto);
 
    using ND_P2D_FiniteElement::CalcVShape;
+   using ND_P2D_FiniteElement::CalcPhysCurlShape;
 
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
@@ -3472,7 +3480,6 @@ class ND_P2D_QuadrilateralElement : public ND_P2D_FiniteElement
    mutable Vector shape_cx, shape_ox, shape_cy, shape_oy;
    mutable Vector dshape_cx, dshape_cy;
 #endif
-   Array<int> dof_map;
 
    Poly_1D::Basis &cbasis1d, &obasis1d;
 
@@ -3484,11 +3491,13 @@ public:
                                const int ob_type = BasisType::GaussLegendre);
 
    using ND_P2D_FiniteElement::CalcVShape;
+   using ND_P2D_FiniteElement::CalcPhysCurlShape;
 
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
    virtual void CalcCurlShape(const IntegrationPoint &ip,
                               DenseMatrix &curl_shape) const;
+   /*
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
    { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
@@ -3499,34 +3508,84 @@ public:
                                   ElementTransformation &Trans,
                                   DenseMatrix &I) const
    { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
-   using FiniteElement::Project;
-   virtual void Project(VectorCoefficient &vc,
-                        ElementTransformation &Trans, Vector &dofs) const
-   { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+
    virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
                                  Vector &dofs) const
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
    virtual void ProjectMatrixCoefficient(
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
    { ProjectMatrixCoefficient_ND(tk, dof2tk, mc, T, dofs); }
+
    virtual void Project(const FiniteElement &fe,
                         ElementTransformation &Trans,
                         DenseMatrix &I) const
    { Project_ND(tk, dof2tk, fe, Trans, I); }
+   */
 };
 
 
-/// Arbitrary order Raviart-Thomas 3D elements in 2D on a square
-class RT_P2D_QuadrilateralElement : public VectorFiniteElement
+class RT_P2D_FiniteElement : public VectorFiniteElement
+{
+protected:
+   const double *nk;
+   Array<int> dof_map, dof2nk;
+
+   RT_P2D_FiniteElement(int p, Geometry::Type G, int Do, const double *nk_fe)
+      : VectorFiniteElement(2, 3, 0, G, Do, p + 1,
+                            H_DIV, FunctionSpace::Pk),
+        nk(nk_fe),
+        dof_map(dof),
+        dof2nk(dof)
+   {}
+
+public:
+   using FiniteElement::CalcVShape;
+
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const;
+
+   virtual void Project(VectorCoefficient &vc,
+                        ElementTransformation &Trans, Vector &dofs) const;
+};
+
+/// Arbitrary order Raviart-Thomas 3D elements in 2D on a triangle
+class RT_P2D_TriangleElement : public RT_P2D_FiniteElement
 {
 private:
-   static const double nk[15];
+   static const double nk_t[12];
+
+#ifndef MFEM_THREAD_SAFE
+   mutable DenseMatrix rt_shape;
+   mutable Vector      l2_shape;
+   mutable Vector      rt_dshape;
+#endif
+
+   RT_TriangleElement RT_FE;
+   L2_TriangleElement L2_FE;
+
+public:
+   /** @brief Construct the RT_P2D_TriangleElement of order @a p */
+   RT_P2D_TriangleElement(const int p);
+
+   using RT_P2D_FiniteElement::CalcVShape;
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcDivShape(const IntegrationPoint &ip,
+                             Vector &divshape) const;
+};
+
+/// Arbitrary order Raviart-Thomas 3D elements in 2D on a square
+class RT_P2D_QuadrilateralElement : public RT_P2D_FiniteElement
+{
+private:
+   static const double nk_q[15];
 
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox, shape_cy, shape_oy;
    mutable Vector dshape_cx, dshape_cy;
 #endif
-   Array<int> dof_map, dof2nk;
 
    Poly_1D::Basis &cbasis1d, &obasis1d;
 
@@ -3536,13 +3595,16 @@ public:
    RT_P2D_QuadrilateralElement(const int p,
                                const int cb_type = BasisType::GaussLobatto,
                                const int ob_type = BasisType::GaussLegendre);
+
+   using RT_P2D_FiniteElement::CalcVShape;
+
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const
-   { CalcVShape_RT(Trans, shape); }
+   // virtual void CalcVShape(ElementTransformation &Trans,
+   //                       DenseMatrix &shape) const;
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
+   /*
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
    { LocalInterpolation_RT(*this, nk, dof2nk, Trans, I); }
@@ -3576,6 +3638,7 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &curl) const
    { ProjectGrad_RT(nk, dof2nk, fe, Trans, curl); }
+   */
 };
 
 
