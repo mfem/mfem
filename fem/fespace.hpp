@@ -838,6 +838,7 @@ public:
    void SetRelaxedHpConformity(bool relaxed = true)
    {
       relaxed_hp = relaxed;
+      orders_changed = true; // force update
       Update(false);
    }
 
