@@ -776,6 +776,7 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, Trans);
    if (DeviceCanUseCeed())
    {
+      MFEM_VERIFY(alpha==-1, "Only alpha=-1 currently supported with libCEED.");
       delete ceedDataPtr;
       ceedDataPtr = new CeedData;
       InitCeedVecCoeff(Q, *mesh, *ir, ceedDataPtr);
