@@ -27,9 +27,9 @@ Version 4.2.1 (development)
 
 libCEED integration improvements
 --------------------------------
-- Add support for  VectorCoefficient.
+- Add support for VectorCoefficient with libCEED backends.
 
-- Add support for ConvectionIntegrator, and VectorConvectionNLFIntegrator.
+- Add support for ConvectionIntegrator, and VectorConvectionNLFIntegrator with libCEED backends.
 
 Version 4.2, released on October 30, 2020
 =========================================
