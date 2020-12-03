@@ -1277,9 +1277,30 @@ void Mesh::AddHexAsWedges(const int *vi, int attr)
    }
 }
 
+void Mesh::AddPent(const int *vi, int attr)
+{
+   elements[NumOfElements++] = new Pentatope(vi, attr);
+}
+
 void Mesh::AddTes(const int *vi, int attr)
 {
    elements[NumOfElements++] = new Tesseract(vi, attr);
+}
+
+void Mesh::AddTesAsPentatopes(const int *vi, int attr)
+{
+   static const int tess_to_pent[24][5] = {
+       {0, 1, 2, 6, 14}, {14, 1, 2, 10, 0}, {14, 1, 5, 6, 0}, {0, 1, 9, 10, 14}, {0, 1, 5, 13, 14}, {14, 1, 9, 13, 0}, {14, 3, 2, 6, 0}, {0, 3, 2, 10, 14}, {0, 4, 5, 6, 14}, {14, 8, 9, 10, 0}, {14, 4, 5, 13, 0}, {0, 8, 9, 13, 14}, {0, 3, 7, 6, 14}, {14, 3, 11, 10, 0}, {14, 4, 7, 6, 0}, {0, 8, 11, 10, 14}, {0, 4, 12, 13, 14}, {14, 8, 12, 13, 0}, {14, 3, 7, 15, 0}, {0, 3, 11, 15, 14}, {0, 4, 7, 15, 14}, {14, 8, 11, 15, 0}, {14, 4, 12, 15, 0}, {0, 8, 12, 15, 14}};
+   int pi[5];
+
+   for (int i = 0; i < 24; i++)
+   {
+      for (int j = 0; j < 5; j++)
+      {
+         pi[j] = vi[tess_to_pent[i][j]];
+      }
+      AddPent(pi, attr);
+   }
 }
 
 void Mesh::AddBdrSegment(const int *vi, int attr)
@@ -1312,9 +1333,35 @@ void Mesh::AddBdrQuadAsTriangles(const int *vi, int attr)
    }
 }
 
+void Mesh::AddBdrTet(const int *vi, int attr)
+{
+   boundary[NumOfBdrElements++] = new Tetrahedron(vi, attr);
+}
+
 void Mesh::AddBdrHex(const int *vi, int attr)
 {
    boundary[NumOfBdrElements++] = new Hexahedron(vi, attr);
+}
+
+void Mesh::AddBdrHexAsTet(const int *vi, int perm, int attr)
+{
+   static const int hex_to_tet[4][6][4] =
+   {
+      {{1, 2, 6, 0}, {0, 1, 5, 6}, {0, 3, 2, 6}, {4, 5, 6, 0}, {3, 7, 6, 0}, {0, 4, 7, 6}},
+      {{0, 1, 2, 6}, {6, 0, 1, 5}, {6, 0, 3, 2}, {0, 4, 5, 6}, {0, 3, 7, 6}, {6, 0, 4, 7}},
+      {{0, 1, 2, 6}, {1, 5, 6, 0}, {3, 2, 6, 0}, {0, 4, 5, 6}, {0, 3, 7, 6}, {4, 7, 6, 0}},
+      {{6, 0, 1, 2}, {0, 1, 5, 6}, {0, 3, 2, 6}, {6, 0, 4, 5}, {6, 0, 3, 7}, {0, 4, 7, 6}}
+   };
+   int ti[4];
+
+   for (int i = 0; i < 6; i++)
+   {
+      for (int j = 0; j < 4; j++)
+      {
+         ti[j] = vi[hex_to_tet[perm][i][j]];
+      }
+      AddBdrTet(ti, attr);
+   }
 }
 
 void Mesh::GenerateBoundaryElements()
@@ -2522,10 +2569,7 @@ void Mesh::FinalizeTesMesh(int generate_edges, int refine, bool fix_orientation)
 }
 
 void Mesh::Make4D(int nx, int ny, int nz, int nt, Element::Type type,
-                  int generate_edges,
-                  double sx, double sy, double sz, double st,
-                  bool generate_boundary, bool which_boundary[8],
-                  double shX, double shY, double shZ, double shT)
+                  double sx, double sy, double sz, double st)
 {
    int x, y, z, t;
 
@@ -2533,8 +2577,12 @@ void Mesh::Make4D(int nx, int ny, int nz, int nt, Element::Type type,
 
    NVert = (nx+1) * (ny+1) * (nz+1) * (nt+1);
    NElem = nx * ny * nz * nt;
-   NBdrElem = 0;
-   if (generate_boundary) { NBdrElem = 2 * (nx*ny*nz + nx*nz*nt + nx*ny*nt + ny*nz*nt); }
+   NBdrElem = 2 * (nx*ny*nz + nx*nz*nt + nx*ny*nt + ny*nz*nt);
+   if (type == Element::PENTATOPE)
+   {
+      NElem *= 24;
+      NBdrElem *= 6;
+   }
 
    InitMesh(4, 4, NVert, NElem, NBdrElem);
 
@@ -2544,16 +2592,16 @@ void Mesh::Make4D(int nx, int ny, int nz, int nt, Element::Type type,
    // Sets vertices and the corresponding coordinates
    for (t = 0; t<=nt; t++)
    {
-      coord[3] = shT + ((double) t / nt) * st;
+      coord[3] = ((double) t / nt) * st;
       for (z = 0; z <= nz; z++)
       {
-         coord[2] = shZ + ((double) z / nz) * sz;
+         coord[2] = ((double) z / nz) * sz;
          for (y = 0; y <= ny; y++)
          {
-            coord[1] = shY + ((double) y / ny) * sy;
+            coord[1] = ((double) y / ny) * sy;
             for (x = 0; x <= nx; x++)
             {
-               coord[0] = shX + ((double) x / nx) * sx;
+               coord[0] = ((double) x / nx) * sx;
                AddVertex(coord);
             }
          }
@@ -2588,188 +2636,245 @@ void Mesh::Make4D(int nx, int ny, int nz, int nt, Element::Type type,
                ind[14] = VTX4D(x+1, y+1, z+1,t+1);
                ind[15] = VTX4D(x, y+1, z+1,t+1);
 
-               AddTes(ind, 1);
+               if (type == Element::PENTATOPE)
+               {
+                  AddTesAsPentatopes(ind, 1);
+               }
+               else
+               {
+                  AddTes(ind, 1);
+               }
             }
          }
       }
    }
 
-   if (generate_boundary)
+   //x bottom
+   for (t = 0; t < nt; t++)
    {
-      //x bottom
-      for (t = 0; t < nt; t++)
+      for (z = 0; z < nz; z++)
       {
-         for (z = 0; z < nz; z++)
+         for (y = 0; y < ny; y++)
          {
-            for (y = 0; y < ny; y++)
-            {
-               ind[0] = VTX4D(0, y, z,t  );
-               ind[1] = VTX4D(0, y+1, z,t  );
-               ind[3] = VTX4D(0, y, z+1,t  );
-               ind[2] = VTX4D(0, y+1, z+1,t  );
-               ind[4] = VTX4D(0, y, z,t+1);
-               ind[5] = VTX4D(0, y+1, z,t+1);
-               ind[7] = VTX4D(0, y, z+1,t+1);
-               ind[6] = VTX4D(0, y+1, z+1,t+1);
+            ind[0] = VTX4D(0, y, z,t  );
+            ind[1] = VTX4D(0, y+1, z,t  );
+            ind[3] = VTX4D(0, y, z+1,t  );
+            ind[2] = VTX4D(0, y+1, z+1,t  );
+            ind[4] = VTX4D(0, y, z,t+1);
+            ind[5] = VTX4D(0, y+1, z,t+1);
+            ind[7] = VTX4D(0, y, z+1,t+1);
+            ind[6] = VTX4D(0, y+1, z+1,t+1);
 
+            if (type == Element::PENTATOPE)
+            {
+               AddBdrHexAsTet(ind, 0, 2);
+            }
+            else
+            {
                AddBdrHex(ind, 2);
             }
          }
       }
-      //x top
-      for (t = 0; t < nt; t++)
+   }
+   //x top
+   for (t = 0; t < nt; t++)
+   {
+      for (z = 0; z < nz; z++)
       {
-         for (z = 0; z < nz; z++)
+         for (y = 0; y < ny; y++)
          {
-            for (y = 0; y < ny; y++)
-            {
-               ind[0] = VTX4D(nx, y, z,t  );
-               ind[1] = VTX4D(nx, y+1, z,t  );
-               ind[3] = VTX4D(nx, y, z+1,t  );
-               ind[2] = VTX4D(nx, y+1, z+1,t  );
-               ind[4] = VTX4D(nx, y, z,t+1);
-               ind[5] = VTX4D(nx, y+1, z,t+1);
-               ind[7] = VTX4D(nx, y, z+1,t+1);
-               ind[6] = VTX4D(nx, y+1, z+1,t+1);
+            ind[0] = VTX4D(nx, y, z,t  );
+            ind[1] = VTX4D(nx, y+1, z,t  );
+            ind[3] = VTX4D(nx, y, z+1,t  );
+            ind[2] = VTX4D(nx, y+1, z+1,t  );
+            ind[4] = VTX4D(nx, y, z,t+1);
+            ind[5] = VTX4D(nx, y+1, z,t+1);
+            ind[7] = VTX4D(nx, y, z+1,t+1);
+            ind[6] = VTX4D(nx, y+1, z+1,t+1);
 
+            if (type == Element::PENTATOPE)
+            {
+               AddBdrHexAsTet(ind, 1, 3);
+            }
+            else
+            {
                AddBdrHex(ind, 3);
             }
          }
       }
+   }
 
-      //y bottom
-      for (t = 0; t < nt; t++)
+   //y bottom
+   for (t = 0; t < nt; t++)
+   {
+      for (z = 0; z < nz; z++)
       {
-         for (z = 0; z < nz; z++)
+         for (x = 0; x < nx; x++)
          {
-            for (x = 0; x < nx; x++)
-            {
-               ind[0] = VTX4D(x, 0, z,t  );
-               ind[1] = VTX4D(x+1, 0, z,t  );
-               ind[3] = VTX4D(x, 0, z+1,t  );
-               ind[2] = VTX4D(x+1, 0, z+1,t  );
-               ind[4] = VTX4D(x, 0, z,t+1);
-               ind[5] = VTX4D(x+1, 0, z,t+1);
-               ind[7] = VTX4D(x, 0, z+1,t+1);
-               ind[6] = VTX4D(x+1, 0, z+1,t+1);
+            ind[0] = VTX4D(x, 0, z,t  );
+            ind[1] = VTX4D(x+1, 0, z,t  );
+            ind[3] = VTX4D(x, 0, z+1,t  );
+            ind[2] = VTX4D(x+1, 0, z+1,t  );
+            ind[4] = VTX4D(x, 0, z,t+1);
+            ind[5] = VTX4D(x+1, 0, z,t+1);
+            ind[7] = VTX4D(x, 0, z+1,t+1);
+            ind[6] = VTX4D(x+1, 0, z+1,t+1);
 
+            if (type == Element::PENTATOPE)
+            {
+               AddBdrHexAsTet(ind, 2, 4);
+            }
+            else
+            {
                AddBdrHex(ind, 4);
             }
-
          }
-      }
-      //y top
-      for (t = 0; t < nt; t++)
-      {
-         for (z = 0; z < nz; z++)
-         {
-            for (x = 0; x < nx; x++)
-            {
-               ind[0] = VTX4D(x+1, ny, z,t  );
-               ind[1] = VTX4D(x, ny, z,t  );
-               ind[3] = VTX4D(x+1, ny, z+1,t  );
-               ind[2] = VTX4D(x, ny, z+1,t  );
-               ind[4] = VTX4D(x+1, ny, z,t+1);
-               ind[5] = VTX4D(x, ny, z,t+1);
-               ind[7] = VTX4D(x+1, ny, z+1,t+1);
-               ind[6] = VTX4D(x, ny, z+1,t+1);
 
+      }
+   }
+   //y top
+   for (t = 0; t < nt; t++)
+   {
+      for (z = 0; z < nz; z++)
+      {
+         for (x = 0; x < nx; x++)
+         {
+            ind[0] = VTX4D(x, ny, z,t  );
+            ind[1] = VTX4D(x+1, ny, z,t  );
+            ind[3] = VTX4D(x, ny, z+1,t  );
+            ind[2] = VTX4D(x+1, ny, z+1,t  );
+            ind[4] = VTX4D(x, ny, z,t+1);
+            ind[5] = VTX4D(x+1, ny, z,t+1);
+            ind[7] = VTX4D(x, ny, z+1,t+1);
+            ind[6] = VTX4D(x+1, ny, z+1,t+1);
+
+            if (type == Element::PENTATOPE)
+            {
+               AddBdrHexAsTet(ind, 3, 5);
+            }
+            else
+            {
                AddBdrHex(ind, 5);
             }
-
          }
+
       }
+   }
 
-      //z bottom
-      for (t = 0; t < nt; t++)
+   //z bottom
+   for (t = 0; t < nt; t++)
+   {
+      for (y = 0; y < ny; y++)
       {
-         for (y = 0; y < ny; y++)
+         for (x = 0; x < nx; x++)
          {
-            for (x = 0; x < nx; x++)
-            {
-               ind[0] = VTX4D(x, y, 0,t  );
-               ind[1] = VTX4D(x+1, y, 0,t  );
-               ind[2] = VTX4D(x+1, y+1, 0,t  );
-               ind[3] = VTX4D(x, y+1, 0,t  );
-               ind[4] = VTX4D(x, y, 0,t+1);
-               ind[5] = VTX4D(x+1, y, 0,t+1);
-               ind[6] = VTX4D(x+1, y+1, 0,t+1);
-               ind[7] = VTX4D(x, y+1, 0,t+1);
+            ind[0] = VTX4D(x, y, 0,t  );
+            ind[1] = VTX4D(x+1, y, 0,t  );
+            ind[2] = VTX4D(x+1, y+1, 0,t  );
+            ind[3] = VTX4D(x, y+1, 0,t  );
+            ind[4] = VTX4D(x, y, 0,t+1);
+            ind[5] = VTX4D(x+1, y, 0,t+1);
+            ind[6] = VTX4D(x+1, y+1, 0,t+1);
+            ind[7] = VTX4D(x, y+1, 0,t+1);
 
+            if (type == Element::PENTATOPE)
+            {
+               AddBdrHexAsTet(ind, 0, 6);
+            }
+            else
+            {
                AddBdrHex(ind, 6);
             }
          }
       }
+   }
 
-      //z top
-      for (t = 0; t < nt; t++)
+   //z top
+   for (t = 0; t < nt; t++)
+   {
+      for (y = 0; y < ny; y++)
       {
-         for (y = 0; y < ny; y++)
+         for (x = 0; x < nx; x++)
          {
-            for (x = 0; x < nx; x++)
-            {
-               ind[0] = VTX4D(x, y, nz,t  );
-               ind[1] = VTX4D(x+1, y, nz,t  );
-               ind[2] = VTX4D(x+1, y+1, nz,t  );
-               ind[3] = VTX4D(x, y+1, nz,t  );
-               ind[4] = VTX4D(x, y, nz,t+1);
-               ind[5] = VTX4D(x+1, y, nz,t+1);
-               ind[6] = VTX4D(x+1, y+1, nz,t+1);
-               ind[7] = VTX4D(x, y+1, nz,t+1);
+            ind[0] = VTX4D(x, y, nz,t  );
+            ind[1] = VTX4D(x+1, y, nz,t  );
+            ind[2] = VTX4D(x+1, y+1, nz,t  );
+            ind[3] = VTX4D(x, y+1, nz,t  );
+            ind[4] = VTX4D(x, y, nz,t+1);
+            ind[5] = VTX4D(x+1, y, nz,t+1);
+            ind[6] = VTX4D(x+1, y+1, nz,t+1);
+            ind[7] = VTX4D(x, y+1, nz,t+1);
 
+            if (type == Element::PENTATOPE)
+            {
+               AddBdrHexAsTet(ind, 1, 7);
+            }
+            else
+            {
                AddBdrHex(ind, 7);
             }
          }
       }
+   }
 
 
-      //t bottom
-      for (z = 0; z < nz; z++)
+   //t bottom
+   for (z = 0; z < nz; z++)
+   {
+      for (y = 0; y < ny; y++)
       {
-         for (y = 0; y < ny; y++)
+         for (x = 0; x < nx; x++)
          {
-            for (x = 0; x < nx; x++)
-            {
-               ind[0] = VTX4D(x, y, z,0  );
-               ind[1] = VTX4D(x+1, y, z,0  );
-               ind[2] = VTX4D(x+1, y+1, z,0  );
-               ind[3] = VTX4D(x, y+1, z,0  );
-               ind[4] = VTX4D(x, y, z+1,0  );
-               ind[5] = VTX4D(x+1, y, z+1,0  );
-               ind[6] = VTX4D(x+1, y+1, z+1,0  );
-               ind[7] = VTX4D(x, y+1, z+1,0  );
+            ind[0] = VTX4D(x, y, z,0  );
+            ind[1] = VTX4D(x+1, y, z,0  );
+            ind[2] = VTX4D(x+1, y+1, z,0  );
+            ind[3] = VTX4D(x, y+1, z,0  );
+            ind[4] = VTX4D(x, y, z+1,0  );
+            ind[5] = VTX4D(x+1, y, z+1,0  );
+            ind[6] = VTX4D(x+1, y+1, z+1,0  );
+            ind[7] = VTX4D(x, y+1, z+1,0  );
 
+            if (type == Element::PENTATOPE)
+            {
+               AddBdrHexAsTet(ind, 2, 1);
+            }
+            else
+            {
                AddBdrHex(ind, 1);
             }
          }
       }
-      //t top
-      for (z = 0; z < nz; z++)
+   }
+   //t top
+   for (z = 0; z < nz; z++)
+   {
+      for (y = 0; y < ny; y++)
       {
-         for (y = 0; y < ny; y++)
+         for (x = 0; x < nx; x++)
          {
-            for (x = 0; x < nx; x++)
-            {
-               ind[0] = VTX4D(x, y, z,nt  );
-               ind[1] = VTX4D(x+1, y, z,nt  );
-               ind[2] = VTX4D(x+1, y+1, z,nt  );
-               ind[3] = VTX4D(x, y+1, z,nt  );
-               ind[4] = VTX4D(x, y, z+1,nt  );
-               ind[5] = VTX4D(x+1, y, z+1,nt  );
-               ind[6] = VTX4D(x+1, y+1, z+1,nt  );
-               ind[7] = VTX4D(x, y+1, z+1,nt  );
+            ind[0] = VTX4D(x, y, z,nt  );
+            ind[1] = VTX4D(x+1, y, z,nt  );
+            ind[2] = VTX4D(x+1, y+1, z,nt  );
+            ind[3] = VTX4D(x, y+1, z,nt  );
+            ind[4] = VTX4D(x, y, z+1,nt  );
+            ind[5] = VTX4D(x+1, y, z+1,nt  );
+            ind[6] = VTX4D(x+1, y+1, z+1,nt  );
+            ind[7] = VTX4D(x, y+1, z+1,nt  );
 
+            if (type == Element::PENTATOPE)
+            {
+               AddBdrHexAsTet(ind, 3, 8);
+            }
+            else
+            {
                AddBdrHex(ind, 8);
             }
          }
       }
    }
+   FinalizeTopology();
 
-
-
-   int refine = 1;
-   bool fix_orientation = false;
-   FinalizeTesMesh(generate_edges, refine, fix_orientation);
+   // Finalize(...) can be called after this method, if needed
 }
 
 void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
