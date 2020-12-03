@@ -12455,9 +12455,9 @@ void ND_SegmentElement::CalcVShape(const IntegrationPoint &ip,
    obasis1d.Eval(ip.x, vshape);
 }
 
-const double ND_P1D_SegmentElement::tk[9] = { 1.,0.,0., 0.,1.,0., 0.,0.,1. };
+const double ND_R1D_SegmentElement::tk[9] = { 1.,0.,0., 0.,1.,0., 0.,0.,1. };
 
-ND_P1D_SegmentElement::ND_P1D_SegmentElement(const int p,
+ND_R1D_SegmentElement::ND_R1D_SegmentElement(const int p,
                                              const int cb_type,
                                              const int ob_type)
    : VectorFiniteElement(1, 3, 3, Geometry::SEGMENT, 3 * p + 2, p,
@@ -12512,7 +12512,7 @@ ND_P1D_SegmentElement::ND_P1D_SegmentElement(const int p,
    }
 }
 
-void ND_P1D_SegmentElement::CalcVShape(const IntegrationPoint &ip,
+void ND_R1D_SegmentElement::CalcVShape(const IntegrationPoint &ip,
                                        DenseMatrix &shape) const
 {
    const int p = order;
@@ -12551,13 +12551,13 @@ void ND_P1D_SegmentElement::CalcVShape(const IntegrationPoint &ip,
    }
 }
 
-void ND_P1D_SegmentElement::CalcVShape(ElementTransformation &Trans,
+void ND_R1D_SegmentElement::CalcVShape(ElementTransformation &Trans,
                                        DenseMatrix &shape) const
 {
    CalcVShape(Trans.GetIntPoint(), shape);
    const DenseMatrix & JI = Trans.InverseJacobian();
    MFEM_ASSERT(JI.Width() == 1 && JI.Height() == 1,
-               "ND_P1D_SegmentElement cannot be embedded in "
+               "ND_R1D_SegmentElement cannot be embedded in "
                "2 or 3 dimensional spaces");
    for (int i=0; i<dof; i++)
    {
@@ -12565,7 +12565,7 @@ void ND_P1D_SegmentElement::CalcVShape(ElementTransformation &Trans,
    }
 }
 
-void ND_P1D_SegmentElement::CalcCurlShape(const IntegrationPoint &ip,
+void ND_R1D_SegmentElement::CalcCurlShape(const IntegrationPoint &ip,
                                           DenseMatrix &curl_shape) const
 {
    const int p = order;
@@ -12605,7 +12605,7 @@ void ND_P1D_SegmentElement::CalcCurlShape(const IntegrationPoint &ip,
    }
 }
 
-void ND_P1D_SegmentElement::Project(VectorCoefficient &vc,
+void ND_R1D_SegmentElement::Project(VectorCoefficient &vc,
                                     ElementTransformation &Trans,
                                     Vector &dofs) const
 {
@@ -12625,9 +12625,9 @@ void ND_P1D_SegmentElement::Project(VectorCoefficient &vc,
 
 }
 
-const double RT_P1D_SegmentElement::nk[9] = { 1.,0.,0., 0.,1.,0., 0.,0.,1. };
+const double RT_R1D_SegmentElement::nk[9] = { 1.,0.,0., 0.,1.,0., 0.,0.,1. };
 
-RT_P1D_SegmentElement::RT_P1D_SegmentElement(const int p,
+RT_R1D_SegmentElement::RT_R1D_SegmentElement(const int p,
                                              const int cb_type,
                                              const int ob_type)
    : VectorFiniteElement(1, 3, 0, Geometry::SEGMENT, 3 * p + 4, p + 1,
@@ -12678,7 +12678,7 @@ RT_P1D_SegmentElement::RT_P1D_SegmentElement(const int p,
    }
 }
 
-void RT_P1D_SegmentElement::CalcVShape(const IntegrationPoint &ip,
+void RT_R1D_SegmentElement::CalcVShape(const IntegrationPoint &ip,
                                        DenseMatrix &shape) const
 {
    const int p = order;
@@ -12717,13 +12717,13 @@ void RT_P1D_SegmentElement::CalcVShape(const IntegrationPoint &ip,
    }
 }
 
-void RT_P1D_SegmentElement::CalcVShape(ElementTransformation &Trans,
+void RT_R1D_SegmentElement::CalcVShape(ElementTransformation &Trans,
                                        DenseMatrix &shape) const
 {
    CalcVShape(Trans.GetIntPoint(), shape);
    const DenseMatrix & J = Trans.Jacobian();
    MFEM_ASSERT(J.Width() == 1 && J.Height() == 1,
-               "RT_P1D_SegmentElement cannot be embedded in "
+               "RT_R1D_SegmentElement cannot be embedded in "
                "2 or 3 dimensional spaces");
    for (int i=0; i<dof; i++)
    {
@@ -12732,7 +12732,7 @@ void RT_P1D_SegmentElement::CalcVShape(ElementTransformation &Trans,
    shape *= (1.0 / Trans.Weight());
 }
 
-void RT_P1D_SegmentElement::CalcDivShape(const IntegrationPoint &ip,
+void RT_R1D_SegmentElement::CalcDivShape(const IntegrationPoint &ip,
                                          Vector &divshape) const
 {
    const int p = order;
@@ -12765,9 +12765,9 @@ void RT_P1D_SegmentElement::CalcDivShape(const IntegrationPoint &ip,
    }
 }
 
-const double ND_P2D_SegmentElement::tk[6] = { 1.,0.,0., 0.,0.,1. };
+const double ND_R2D_SegmentElement::tk[6] = { 1.,0.,0., 0.,0.,1. };
 
-ND_P2D_SegmentElement::ND_P2D_SegmentElement(const int p,
+ND_R2D_SegmentElement::ND_R2D_SegmentElement(const int p,
                                              const int cb_type,
                                              const int ob_type)
    : VectorFiniteElement(1, 3, 3, Geometry::SEGMENT, 2 * p + 1, p,
@@ -12812,7 +12812,7 @@ ND_P2D_SegmentElement::ND_P2D_SegmentElement(const int p,
    }
 }
 
-void ND_P2D_SegmentElement::CalcVShape(const IntegrationPoint &ip,
+void ND_R2D_SegmentElement::CalcVShape(const IntegrationPoint &ip,
                                        DenseMatrix &shape) const
 {
    const int p = order;
@@ -12843,13 +12843,13 @@ void ND_P2D_SegmentElement::CalcVShape(const IntegrationPoint &ip,
    }
 }
 
-void ND_P2D_SegmentElement::CalcVShape(ElementTransformation &Trans,
+void ND_R2D_SegmentElement::CalcVShape(ElementTransformation &Trans,
                                        DenseMatrix &shape) const
 {
    CalcVShape(Trans.GetIntPoint(), shape);
    const DenseMatrix & JI = Trans.InverseJacobian();
    MFEM_ASSERT(JI.Width() == 1 && JI.Height() == 1,
-               "ND_P2D_SegmentElement cannot be embedded in "
+               "ND_R2D_SegmentElement cannot be embedded in "
                "2 or 3 dimensional spaces");
    for (int i=0; i<dof; i++)
    {
@@ -12857,7 +12857,7 @@ void ND_P2D_SegmentElement::CalcVShape(ElementTransformation &Trans,
    }
 }
 
-void ND_P2D_SegmentElement::CalcCurlShape(const IntegrationPoint &ip,
+void ND_R2D_SegmentElement::CalcCurlShape(const IntegrationPoint &ip,
                                           DenseMatrix &curl_shape) const
 {
    const int p = order;
@@ -12889,13 +12889,13 @@ void ND_P2D_SegmentElement::CalcCurlShape(const IntegrationPoint &ip,
    }
 }
 
-void ND_P2D_FiniteElement::CalcVShape(ElementTransformation &Trans,
+void ND_R2D_FiniteElement::CalcVShape(ElementTransformation &Trans,
                                       DenseMatrix &shape) const
 {
    CalcVShape(Trans.GetIntPoint(), shape);
    const DenseMatrix & JI = Trans.InverseJacobian();
    MFEM_ASSERT(JI.Width() == 2 && JI.Height() == 2,
-               "ND_P2D_FiniteElement cannot be embedded in "
+               "ND_R2D_FiniteElement cannot be embedded in "
                "3 dimensional spaces");
    for (int i=0; i<dof; i++)
    {
@@ -12906,13 +12906,13 @@ void ND_P2D_FiniteElement::CalcVShape(ElementTransformation &Trans,
    }
 }
 
-void ND_P2D_FiniteElement::CalcPhysCurlShape(ElementTransformation &Trans,
+void ND_R2D_FiniteElement::CalcPhysCurlShape(ElementTransformation &Trans,
                                              DenseMatrix &curl_shape) const
 {
    CalcCurlShape(Trans.GetIntPoint(), curl_shape);
    const DenseMatrix & J = Trans.Jacobian();
    MFEM_ASSERT(J.Width() == 2 && J.Height() == 2,
-               "ND_P2D_FiniteElement cannot be embedded in "
+               "ND_R2D_FiniteElement cannot be embedded in "
                "3 dimensional spaces");
    for (int i=0; i<dof; i++)
    {
@@ -12924,7 +12924,7 @@ void ND_P2D_FiniteElement::CalcPhysCurlShape(ElementTransformation &Trans,
    curl_shape *= (1.0 / Trans.Weight());
 }
 
-void ND_P2D_FiniteElement::Project(VectorCoefficient &vc,
+void ND_R2D_FiniteElement::Project(VectorCoefficient &vc,
                                    ElementTransformation &Trans,
                                    Vector &dofs) const
 {
@@ -12948,12 +12948,12 @@ void ND_P2D_FiniteElement::Project(VectorCoefficient &vc,
 
 }
 
-const double ND_P2D_TriangleElement::tk_t[15] =
+const double ND_R2D_TriangleElement::tk_t[15] =
 { 1.,0.,0.,  -1.,1.,0.,  0.,-1.,0.,  0.,1.,0., 0.,0.,1. };
 
-ND_P2D_TriangleElement::ND_P2D_TriangleElement(const int p,
+ND_R2D_TriangleElement::ND_R2D_TriangleElement(const int p,
                                                const int cb_type)
-   : ND_P2D_FiniteElement(p, Geometry::TRIANGLE, ((3*p + 1)*(p + 2))/2, tk_t),
+   : ND_R2D_FiniteElement(p, Geometry::TRIANGLE, ((3*p + 1)*(p + 2))/2, tk_t),
      ND_FE(p),
      H1_FE(p, cb_type)
 {
@@ -13005,11 +13005,11 @@ ND_P2D_TriangleElement::ND_P2D_TriangleElement(const int p,
       }
 
    MFEM_VERIFY(n == ND_FE.GetDof(),
-               "ND_P2D_Triangle incorrect number of ND dofs.");
+               "ND_R2D_Triangle incorrect number of ND dofs.");
    MFEM_VERIFY(h == H1_FE.GetDof(),
-               "ND_P2D_Triangle incorrect number of H1 dofs.");
+               "ND_R2D_Triangle incorrect number of H1 dofs.");
    MFEM_VERIFY(o == GetDof(),
-               "ND_P2D_Triangle incorrect number of dofs.");
+               "ND_R2D_Triangle incorrect number of dofs.");
 
    const IntegrationRule & nd_Nodes = ND_FE.GetNodes();
    const IntegrationRule & h1_Nodes = H1_FE.GetNodes();
@@ -13030,7 +13030,7 @@ ND_P2D_TriangleElement::ND_P2D_TriangleElement(const int p,
    }
 }
 
-void ND_P2D_TriangleElement::CalcVShape(const IntegrationPoint &ip,
+void ND_R2D_TriangleElement::CalcVShape(const IntegrationPoint &ip,
                                         DenseMatrix &shape) const
 {
 #ifdef MFEM_THREAD_SAFE
@@ -13059,7 +13059,7 @@ void ND_P2D_TriangleElement::CalcVShape(const IntegrationPoint &ip,
    }
 }
 
-void ND_P2D_TriangleElement::CalcCurlShape(const IntegrationPoint &ip,
+void ND_R2D_TriangleElement::CalcCurlShape(const IntegrationPoint &ip,
                                            DenseMatrix &curl_shape) const
 {
 #ifdef MFEM_THREAD_SAFE
@@ -13089,13 +13089,13 @@ void ND_P2D_TriangleElement::CalcCurlShape(const IntegrationPoint &ip,
 }
 
 
-const double ND_P2D_QuadrilateralElement::tk_q[15] =
+const double ND_R2D_QuadrilateralElement::tk_q[15] =
 { 1.,0.,0.,  0.,1.,0., -1.,0.,0., 0.,-1.,0., 0.,0.,1. };
 
-ND_P2D_QuadrilateralElement::ND_P2D_QuadrilateralElement(const int p,
+ND_R2D_QuadrilateralElement::ND_R2D_QuadrilateralElement(const int p,
                                                          const int cb_type,
                                                          const int ob_type)
-   : ND_P2D_FiniteElement(p, Geometry::SQUARE, ((3*p + 1)*(p + 1)), tk_q),
+   : ND_R2D_FiniteElement(p, Geometry::SQUARE, ((3*p + 1)*(p + 1)), tk_q),
      cbasis1d(poly1d.GetBasis(p, VerifyClosed(cb_type))),
      obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(ob_type)))
 {
@@ -13219,7 +13219,7 @@ ND_P2D_QuadrilateralElement::ND_P2D_QuadrilateralElement(const int p,
       }
 }
 
-void ND_P2D_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
+void ND_R2D_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
                                              DenseMatrix &shape) const
 {
    const int p = order;
@@ -13279,7 +13279,7 @@ void ND_P2D_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
       }
 }
 
-void ND_P2D_QuadrilateralElement::CalcCurlShape(const IntegrationPoint &ip,
+void ND_R2D_QuadrilateralElement::CalcCurlShape(const IntegrationPoint &ip,
                                                 DenseMatrix &curl_shape) const
 {
    const int p = order;
@@ -13341,13 +13341,13 @@ void ND_P2D_QuadrilateralElement::CalcCurlShape(const IntegrationPoint &ip,
 }
 
 
-void RT_P2D_FiniteElement::CalcVShape(ElementTransformation &Trans,
+void RT_R2D_FiniteElement::CalcVShape(ElementTransformation &Trans,
                                       DenseMatrix &shape) const
 {
    CalcVShape(Trans.GetIntPoint(), shape);
    const DenseMatrix & J = Trans.Jacobian();
    MFEM_ASSERT(J.Width() == 2 && J.Height() == 2,
-               "RT_P2D_FiniteElement cannot be embedded in "
+               "RT_R2D_FiniteElement cannot be embedded in "
                "3 dimensional spaces");
    for (int i=0; i<dof; i++)
    {
@@ -13359,7 +13359,7 @@ void RT_P2D_FiniteElement::CalcVShape(ElementTransformation &Trans,
    shape *= (1.0 / Trans.Weight());
 }
 
-void RT_P2D_FiniteElement::Project(VectorCoefficient &vc,
+void RT_R2D_FiniteElement::Project(VectorCoefficient &vc,
                                    ElementTransformation &Trans,
                                    Vector &dofs) const
 {
@@ -13383,11 +13383,11 @@ void RT_P2D_FiniteElement::Project(VectorCoefficient &vc,
    }
 }
 
-const double RT_P2D_TriangleElement::nk_t[12] =
+const double RT_R2D_TriangleElement::nk_t[12] =
 { 0.,-1.,0.,  1.,1.,0.,  -1.,0.,0., 0.,0.,1. };
 
-RT_P2D_TriangleElement::RT_P2D_TriangleElement(const int p)
-   : RT_P2D_FiniteElement(p, Geometry::TRIANGLE, ((p + 1)*(3 * p + 8))/2, nk_t),
+RT_R2D_TriangleElement::RT_R2D_TriangleElement(const int p)
+   : RT_R2D_FiniteElement(p, Geometry::TRIANGLE, ((p + 1)*(3 * p + 8))/2, nk_t),
      RT_FE(p),
      L2_FE(p)
 {
@@ -13429,11 +13429,11 @@ RT_P2D_TriangleElement::RT_P2D_TriangleElement(const int p)
       }
 
    MFEM_VERIFY(r == RT_FE.GetDof(),
-               "RT_P2D_Triangle incorrect number of RT dofs.");
+               "RT_R2D_Triangle incorrect number of RT dofs.");
    MFEM_VERIFY(l == L2_FE.GetDof(),
-               "RT_P2D_Triangle incorrect number of L2 dofs.");
+               "RT_R2D_Triangle incorrect number of L2 dofs.");
    MFEM_VERIFY(o == GetDof(),
-               "RT_P2D_Triangle incorrect number of dofs.");
+               "RT_R2D_Triangle incorrect number of dofs.");
 
    const IntegrationRule & rt_Nodes = RT_FE.GetNodes();
    const IntegrationRule & l2_Nodes = L2_FE.GetNodes();
@@ -13454,7 +13454,7 @@ RT_P2D_TriangleElement::RT_P2D_TriangleElement(const int p)
    }
 }
 
-void RT_P2D_TriangleElement::CalcVShape(const IntegrationPoint &ip,
+void RT_R2D_TriangleElement::CalcVShape(const IntegrationPoint &ip,
                                         DenseMatrix &shape) const
 {
 #ifdef MFEM_THREAD_SAFE
@@ -13483,7 +13483,7 @@ void RT_P2D_TriangleElement::CalcVShape(const IntegrationPoint &ip,
    }
 }
 
-void RT_P2D_TriangleElement::CalcDivShape(const IntegrationPoint &ip,
+void RT_R2D_TriangleElement::CalcDivShape(const IntegrationPoint &ip,
                                           Vector &div_shape) const
 {
 #ifdef MFEM_THREAD_SAFE
@@ -13506,13 +13506,13 @@ void RT_P2D_TriangleElement::CalcDivShape(const IntegrationPoint &ip,
    }
 }
 
-const double RT_P2D_QuadrilateralElement::nk_q[15] =
+const double RT_R2D_QuadrilateralElement::nk_q[15] =
 { 0., -1., 0.,  1., 0., 0.,  0., 1., 0.,  -1., 0., 0.,  0., 0., 1. };
 
-RT_P2D_QuadrilateralElement::RT_P2D_QuadrilateralElement(const int p,
+RT_R2D_QuadrilateralElement::RT_R2D_QuadrilateralElement(const int p,
                                                          const int cb_type,
                                                          const int ob_type)
-   : RT_P2D_FiniteElement(p, Geometry::SQUARE, (3*p + 5)*(p + 1), nk_q),
+   : RT_R2D_FiniteElement(p, Geometry::SQUARE, (3*p + 5)*(p + 1), nk_q),
      cbasis1d(poly1d.GetBasis(p + 1, VerifyClosed(cb_type))),
      obasis1d(poly1d.GetBasis(p, VerifyOpen(ob_type)))
 {
@@ -13635,7 +13635,7 @@ RT_P2D_QuadrilateralElement::RT_P2D_QuadrilateralElement(const int p,
       }
 }
 
-void RT_P2D_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
+void RT_R2D_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
                                              DenseMatrix &shape) const
 {
    const int pp1 = order;
@@ -13692,7 +13692,7 @@ void RT_P2D_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
       }
 }
 
-void RT_P2D_QuadrilateralElement::CalcDivShape(const IntegrationPoint &ip,
+void RT_R2D_QuadrilateralElement::CalcDivShape(const IntegrationPoint &ip,
                                                Vector &divshape) const
 {
    const int pp1 = order;
