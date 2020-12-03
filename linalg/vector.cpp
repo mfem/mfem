@@ -22,6 +22,10 @@
 #endif
 #endif
 
+#ifdef MFEM_USE_OPENMP
+#include <omp.h>
+#endif
+
 #include <iostream>
 #include <iomanip>
 #include <cmath>
@@ -1076,6 +1080,30 @@ double Vector::operator*(const Vector &v) const
 #ifdef MFEM_USE_OPENMP
    if (Device::Allows(Backend::OMP_MASK))
    {
+#define MFEM_USE_OPENMP_DETERMINISTIC_DOT
+#ifdef MFEM_USE_OPENMP_DETERMINISTIC_DOT
+      // By default, use a deterministic way of computing the dot product
+      static Vector th_dot;
+      #pragma omp parallel
+      {
+         const int nt = omp_get_num_threads();
+         #pragma omp master
+         th_dot.SetSize(nt);
+         const int tid    = omp_get_thread_num();
+         const int stride = (size + nt - 1)/nt;
+         const int start  = tid*stride;
+         const int stop   = std::min(start + stride, size);
+         double my_dot = 0.0;
+         for (int i = start; i < stop; i++)
+         {
+            my_dot += m_data[i] * v_data[i];
+         }
+         #pragma omp barrier
+         th_dot(tid) = my_dot;
+      }
+      return th_dot.Sum();
+#else
+      // The standard way of computing the dot product is non-deterministic
       double prod = 0.0;
       #pragma omp parallel for reduction(+:prod)
       for (int i = 0; i < size; i++)
@@ -1083,8 +1111,9 @@ double Vector::operator*(const Vector &v) const
          prod += m_data[i] * v_data[i];
       }
       return prod;
+#endif // MFEM_USE_OPENMP_DETERMINISTIC_DOT
    }
-#endif
+#endif // MFEM_USE_OPENMP
    if (Device::Allows(Backend::DEBUG_DEVICE))
    {
       const int N = size;

@@ -19,6 +19,10 @@ if (MFEM_USE_GSLIB)
     MAIN findpts.cpp
     LIBRARIES mfem)
 
+  add_mfem_miniapp(field-interp
+    MAIN field-interp.cpp
+    LIBRARIES mfem)
+
   # Parallel apps.
   if (MFEM_USE_MPI)
     add_mfem_miniapp(pfindpts
