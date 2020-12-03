@@ -188,7 +188,7 @@ protected:
    FiniteElementCollection(int p) : base_p(p) {}
 
    /// Instantiate a new collection of the same type with a different order.
-   virtual FiniteElementCollection* NewOrder(int p) const;
+   virtual FiniteElementCollection* CloneOrder(int p) const;
 
    void InitVarOrder(int p) const;
 
@@ -210,15 +210,14 @@ public:
    explicit H1_FECollection(const int p, const int dim = 3,
                             const int btype = BasisType::GaussLobatto);
 
-   virtual const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const
+   virtual const FiniteElement *FiniteElementForGeometry(
+      Geometry::Type GeomType) const
    { return H1_Elements[GeomType]; }
 
    virtual int DofForGeometry(Geometry::Type GeomType) const
    { return H1_dof[GeomType]; }
-
-   virtual const int *
-   DofOrderForOrientation(Geometry::Type GeomType, int Or) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
 
    virtual const char *Name() const { return h1_name; }
    virtual int GetContType() const { return CONTINUOUS; }
@@ -234,7 +233,7 @@ public:
    virtual ~H1_FECollection();
 
 protected:
-   FiniteElementCollection* NewOrder(int p) const
+   FiniteElementCollection* CloneOrder(int p) const
    { return new H1_FECollection(p, dim, b_type); }
 };
 
@@ -317,7 +316,7 @@ public:
    virtual ~L2_FECollection();
 
 protected:
-   FiniteElementCollection* NewOrder(int p) const
+   FiniteElementCollection* CloneOrder(int p) const
    { return new L2_FECollection(p, dim, b_type, m_type); }
 };
 
