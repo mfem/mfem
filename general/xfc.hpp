@@ -25,7 +25,54 @@ namespace internal
 {
 
 // *****************************************************************************
-/// AST transformation which adds DOM_DX prefix/postfix nodes
+/// AST Qfunction dump
+// *****************************************************************************
+class Qfunc : public Middlend
+{
+protected:
+   std::ostream &out;
+public:
+   Qfunc(xfl &ufl, std::ostream &out): Middlend(ufl), out(out) {}
+#define DECL_RULE(name) \
+   void name##_r(Rule*n) const { n->dfs.down ? name##_d(n) : name##_u(n); }\
+   void name##_d(Rule*) const;\
+   void name##_u(Rule*) const
+   DECL_RULE(postfix_expr_pow_expr);
+#undef DECL_RULE
+
+   void Visit(Rule& rule)
+   {
+#define CASE_RULE(nm) case (nm): return nm##_r(&rule);
+      switch (rule.n)
+      {
+            CASE_RULE(postfix_expr_pow_expr);
+         default: /* Nothing to do */ ;
+      }
+#undef CASE_RULE
+   }
+
+#define DECL_TOKEN(TK) void token_##TK(Token*) const
+   DECL_TOKEN(POW);
+   DECL_TOKEN(INNER_OP);
+   DECL_TOKEN(DOT_OP);
+   DECL_TOKEN(GRAD_OP);
+   void Visit(Token& token)
+   {
+#define CASE_TOKEN(TK) case TOK::TK : return token_##TK(&token)
+      switch (token.n)
+      {
+            CASE_TOKEN(POW);
+            CASE_TOKEN(INNER_OP);
+            CASE_TOKEN(DOT_OP);
+            CASE_TOKEN(GRAD_OP);
+         default: out << token.Name();
+      }
+#undef CASE_TOKEN
+   }
+};
+
+// *****************************************************************************
+/// AST transformation which adds the extra dom_xt/var_xt rules
 // *****************************************************************************
 class DomDx : public Middlend
 {
@@ -39,25 +86,34 @@ public:
           rule.n == multiplicative_expr_multiplicative_expr_mul_cast_expr &&
           ufl.HitToken(TOK::DOM_DX, rule.child->next->next))
       {
-         //DBG("multiplicative_expr_multiplicative_expr_mul_cast_expr\n");
-         assert(rule.child->next->n == TOK::MUL);
+         //dbg("multiplicative_expr_multiplicative_expr_mul_cast_expr");
+         if (rule.child->next->n != TOK::MUL)
+         {
+            // tests/ufl/QuadratureElement.ufl unsuported dx(i)*dx
+            return;
+         }
          assert(rule.child->next->next->n == cast_expr_unary_expr);
-         Node *child = rule.child;
-         Node *mult = rule.child->next;
-         Node *cast = rule.child->next->next;
-         const int PX = TOK::DOM_DX_PREFIX;
-         Node *prefix = ufl.astAddNode(std::make_shared<Token>(PX, "xfl::NewForm("));
-         const int RP = TOK::DOM_DX_POSTFIX;
-         Node *postfix = ufl.astAddNode(std::make_shared<Token>(RP, ")"));
-         // flush state
-         yy::rules.at(rule.n) = false;
-         // prefix => child => postfix => mult => cast
-         (rule.child = prefix, rule.dfs.n = prefix);
-         prefix->next = child;
-         child->next = postfix;
-         postfix->next = mult;
-         mult->next = cast;
-         rule.dfs.down = false;
+
+         Node *child = rule.child; assert(child);
+         Node *cast_expr = rule.child->next->next;
+
+         constexpr int vx = extra_status_rule_var_xt;
+         Node *var_xt = ufl.astAddNode(std::make_shared<Rule>(vx, "var_xt"));
+
+         constexpr int dx = extra_status_rule_dom_xt;
+         Node *dom_xt = ufl.astAddNode(std::make_shared<Rule>(dx, "dom_xt"));
+
+         rule.child = var_xt;
+         var_xt->root = static_cast<Node*>(&rule); assert(var_xt->root);
+         var_xt->child = child; // set the child to be able to do the dfs
+         var_xt->next = dom_xt;
+
+         dom_xt->root = static_cast<Node*>(&rule); assert(dom_xt->root);
+         dom_xt->next = cast_expr;
+         dom_xt->child = child;
+         child->root = dom_xt;
+         child->next = nullptr;
+
       }
    }
    void Visit(Token&) { /* Nothing to do */  }
@@ -68,19 +124,21 @@ public:
 // *****************************************************************************
 class Code : public Middlend
 {
+public:
    Middlend &me;
    std::ostream &out;
 public:
    Code(xfl &ufl, std::ostream &out): Middlend(ufl), me(*this), out(out) {}
 #define DECL_RULE(name) \
-   void name##_r(bool &d, Node*&n) const { d=d?name##_t(n):name##_f(n); }\
-   bool name##_t(Node*&) const;\
-   bool name##_f(Node*&) const
+   void name##_r(Rule*n) const { n->dfs.down ? name##_d(n) : name##_u(n); }\
+   void name##_d(Rule*) const;\
+   void name##_u(Rule*) const
    DECL_RULE(entry_point_statements);
    DECL_RULE(decl_domain_assign_op_expr);
    DECL_RULE(decl_id_list_assign_op_expr);
    DECL_RULE(decl_direct_declarator);
    DECL_RULE(postfix_id_primary_id);
+   DECL_RULE(primary_id_identifier);
    DECL_RULE(assign_expr_postfix_expr_assign_op_assign_expr);
    DECL_RULE(primary_expr_identifier);
    DECL_RULE(assign_op_eq);
@@ -94,19 +152,24 @@ public:
    DECL_RULE(args_expr_list_assign_expr);
    DECL_RULE(args_expr_list_args_expr_list_coma_assign_expr);
    DECL_RULE(def_statement_nl);
+   DECL_RULE(statement_decl_nl);
    DECL_RULE(def_empty_empty);
+   DECL_RULE(extra_status_rule_var_xt);
+   DECL_RULE(extra_status_rule_dom_xt);
+   DECL_RULE(postfix_expr_grad_op_lp_additive_expr_rp);
 #undef DECL_RULE
 
-   void Visit(Rule& r)
+   void Visit(Rule& rule)
    {
-#define CASE_RULE(nm) case (nm): return nm##_r(r.dfs.down, r.dfs.n);
-      switch (r.n)
+#define CASE_RULE(nm) case (nm): return nm##_r(&rule);
+      switch (rule.n)
       {
             CASE_RULE(entry_point_statements);
             CASE_RULE(decl_domain_assign_op_expr);
             CASE_RULE(decl_id_list_assign_op_expr);
             CASE_RULE(decl_direct_declarator);
             CASE_RULE(postfix_id_primary_id);
+            CASE_RULE(primary_id_identifier);
             CASE_RULE(assign_expr_postfix_expr_assign_op_assign_expr);
             CASE_RULE(primary_expr_identifier);
             CASE_RULE(assign_op_eq);
@@ -120,13 +183,17 @@ public:
             CASE_RULE(args_expr_list_assign_expr);
             CASE_RULE(args_expr_list_args_expr_list_coma_assign_expr);
             CASE_RULE(def_statement_nl);
+            CASE_RULE(statement_decl_nl);
             CASE_RULE(def_empty_empty);
+            CASE_RULE(extra_status_rule_var_xt);
+            CASE_RULE(extra_status_rule_dom_xt);
+            CASE_RULE(postfix_expr_grad_op_lp_additive_expr_rp);
          default: /* Nothing to do */ ;
       }
 #undef CASE_RULE
    }
 
-#define DECL_TOKEN(TK) void token_##TK(std::string) const
+#define DECL_TOKEN(TK) void token_##TK(Token*) const
    DECL_TOKEN(NL);
    DECL_TOKEN(QUOTE);
    DECL_TOKEN(DOM_DX);
@@ -145,12 +212,14 @@ public:
    DECL_TOKEN(AND_AND);
    DECL_TOKEN(OR_OR);
    DECL_TOKEN(CONSTANT_API);
+   DECL_TOKEN(DOT_OP);
+   DECL_TOKEN(GRAD_OP);
 #undef DECL_TOKEN
 
-   void Visit(Token& tk)
+   void Visit(Token& token)
    {
-#define CASE_TOKEN(TK) case TOK::TK : return token_##TK(tk.Name())
-      switch (tk.n)
+#define CASE_TOKEN(TK) case TOK::TK : return token_##TK(&token)
+      switch (token.n)
       {
             CASE_TOKEN(NL);
             CASE_TOKEN(QUOTE);
@@ -170,7 +239,9 @@ public:
             CASE_TOKEN(AND_AND);
             CASE_TOKEN(OR_OR);
             CASE_TOKEN(CONSTANT_API);
-         default: out << tk.Name();
+            CASE_TOKEN(DOT_OP);
+            CASE_TOKEN(GRAD_OP);
+         default: out << token.Name();
       }
 #undef CASE_TOKEN
    }

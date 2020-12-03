@@ -13,6 +13,7 @@
 #include <numeric>
 #include <fstream>
 #include <iostream>
+#include <functional>
 
 #include "mfem.hpp"
 #include "general/forall.hpp"
@@ -235,14 +236,34 @@ MFEM_HOST_DEVICE inline void Grad1Xt(const int D1D, const int Q1D,
    MFEM_SYNC_THREAD;
 }
 
+template<typename T> double Dot(T u, T v) { return u*v; }
+template<typename T> T Grad(T u) { return u; }
+template<typename T> T Pow(T u, double a) { return u; }
+
 }
+
+/** ****************************************************************************
+ * @brief The operators at Q-points
+ **************************************************************************** */
+double grad(double w) { return w; }
+double dot(double u, double v) { return u * v; }
+
+// XFL addons //////////////////////////////////////////////////////////////////
+namespace xfl
+{
+using TestFunction_q = double;
+using TrialFunction_q = double;
+using Function_q = double;
+using Constant_q = double;
 
 /** ****************************************************************************
  * @brief The XFLOperator class
  **************************************************************************** */
-template<int DIM> class XFLOperator;
+template<typename R, typename Q, typename ... Args> struct QForm;
+template<int DIM, typename TR, typename TQ, typename ... TA> class XFLOperator;
 
-template<> class XFLOperator<2> : public mfem::Operator
+template<typename TR, typename TQ, typename ... TA>
+class XFLOperator<2,TR,TQ,TA...> : public mfem::Operator
 {
    static constexpr int DIM = 2;
    static constexpr int NBZ = 1;
@@ -271,10 +292,13 @@ template<> class XFLOperator<2> : public mfem::Operator
    mutable Vector xe, ye, yg, val_xq, grad_xq;
    Vector dx;
    const Q::EvalFlags UF, VF;
-
+   const QForm<TR,TQ,TA...> &qf;
+   double u,v;
+   const double types;
 public:
    XFLOperator(const mfem::FiniteElementSpace *fes,
-               const Q::EvalFlags uf, const Q::EvalFlags vf):
+               const Q::EvalFlags uf, const Q::EvalFlags vf,
+               const QForm<TR,TQ,TA...> &qf):
       Operator(fes->GetNDofs()),
       //fes(fes),
       mesh(fes->GetMesh()),
@@ -305,7 +329,10 @@ public:
       val_xq(NQ*VDIM*NE),
       grad_xq(NQ*VDIM*DIM*NE),
       dx(NQ*NE),
-      UF(uf), VF(vf)
+      UF(uf), VF(vf),
+      qf(qf),
+      u(0.0), v(0.0),
+      types(qf(u, v, false))
    {
       //DBG("\033[32mDIM:%d VDIM:%d, NE:%d, ND:%d, NQ:%d", DIM,VDIM,NE,ND,NQ);
       MFEM_VERIFY(R,"");
@@ -329,6 +356,8 @@ public:
       nqi->Derivatives(Enodes, J0);
 
       Assemble();
+      TestQFunction();
+      DBG("0x%x",(int)types);
    }
 
    /// 2D setup for partially assembld (DX) kernels: only W*detJ
@@ -348,6 +377,23 @@ public:
                const double J22 = J(qx,qy,1,1,e);
                const double detJ = (J11*J22)-(J21*J12);
                DX(qx,qy,e) =  W(qx,qy) * detJ; // * coeff
+            }
+         }
+      });
+   }
+
+   /// Test QFunction
+   void TestQFunction()
+   {
+      MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
+            {
+               TestFunction_q u = 1.0;
+               TrialFunction_q v = 2.0;
+               qf(u,v,true);
             }
          }
       });
@@ -544,12 +590,9 @@ public:
    }
 };
 
-
-// XFL addons //////////////////////////////////////////////////////////////////
-namespace xfl
-{
-
-class TestFunction;
+class Function;
+struct TestFunction;
+struct TrialFunction;
 
 /**
  * @brief The Problem struct
@@ -557,24 +600,38 @@ class TestFunction;
 struct Problem
 {
    mfem::LinearForm *b;
-   Operator *ufl;
-   Problem(Operator *ufl, mfem::LinearForm *b): b(b), ufl(ufl) {}
+   mfem::Operator *op;
+   Problem(mfem::Operator *op, mfem::LinearForm *b): b(b), op(op) {}
 };
 
 /** ****************************************************************************
- * @brief The Integral classes
+ * @brief The QForm classes
  ******************************************************************************/
-struct Form { };
+template<typename R, typename Q, typename ... Args>
+struct QForm
+{
+   Q qf;
+   R(Q::*Apply)(Args...) const;
+   QForm(const Q &q): qf(q), Apply(&decltype(qf)::operator()) {}
+   R operator() (Args ... args) const { return (qf.*Apply)(args...); }
+};
 
+/** ****************************************************************************
+ * @brief The XLinearForm classes
+ ******************************************************************************/
 struct XLinearForm
 {
    mfem::LinearForm *b;
 
    XLinearForm(FiniteElementSpace *fes): b(new mfem::LinearForm(fes)) {}
 
-   XLinearForm &operator *(Form dx) { return *this;}
+   template<typename R, typename Q, typename ... A>
+   XLinearForm &operator *(const QForm<R,Q,A...> &dx) { return *this;}
 };
 
+/** ****************************************************************************
+ * @brief The ScalarForm classes
+ ******************************************************************************/
 struct ScalarForm
 {
    FiniteElementSpace *fes;
@@ -583,7 +640,8 @@ struct ScalarForm
    ScalarForm(double val, FiniteElementSpace *fes):
       fes(fes), cst(new mfem::ConstantCoefficient(val)) {}
 
-   XLinearForm &operator*(Form dx)
+   template<typename R, typename Q, typename ... A>
+   XLinearForm &operator *(const QForm<R,Q,A...> &dx)
    {
       assert(fes);
       XLinearForm *linear_form = new XLinearForm(fes);
@@ -592,34 +650,57 @@ struct ScalarForm
    }
 };
 
+
+/** ****************************************************************************
+ * @brief The XFLForm classes
+ ******************************************************************************/
+template<typename R, typename Q, typename ... A> struct QXFLForm;
+
 struct XFLForm
 {
    const int dim;
-   Operator *ufl;
+   mfem::Operator *op;
+   const FiniteElementSpace *fes;
+   const Q::EvalFlags u,v;
 
    XFLForm(FiniteElementSpace *fes, Q::EvalFlags u, Q::EvalFlags v):
-      dim(fes->GetFE(0)->GetDim()),
-      ufl(dim==2 ? static_cast<Operator*>(new XFLOperator<2>(fes,u,v)) :
-          //dim==3 ? static_cast<Operator*>(new XFLOperator<3>(fes,u,v)) :
-          nullptr) { MFEM_VERIFY(ufl,""); }
-
-   Problem &operator ==(XLinearForm &li) { return *new Problem(ufl, li.b); }
-
-   // XFLForm * dx
-   XFLForm &operator *(Form dx) { return *this; }
-
-   // XFLForm + XFLForm
-   XFLForm &operator +(XFLForm rhs)
+      dim(fes->GetFE(0)->GetDim()), op(nullptr), fes(fes), u(u), v(v)
    {
-      assert(false);
-      return *this;
+      DBG("XFLForm");
    }
 
-   XFLForm &operator -(XFLForm rhs) { return *this + rhs; /*!*/ }
+   // XFLForm * dx
+   template<typename R, typename Q, typename ... A>
+   QXFLForm<R,Q,A...> operator *(const QForm<R,Q,A...> &dx)
+   {
+      DBG("=> QXFLForm");
+      assert(dim==2);
+      op = static_cast<Operator*>(new XFLOperator<2,R,Q,A...>(fes,u,v,dx));
+      MFEM_VERIFY(op,"");
+      return QXFLForm<R,Q,A...>(*this, dx);
+   }
+
+   Problem &operator ==(XLinearForm &li)
+   {
+      DBG("=> Problem");
+      assert(op);
+      return *new Problem(op, li.b);
+   }
+
+   // XFLForm + XFLForm
+   XFLForm &operator +(XFLForm rhs) { assert(false); return *this; }
+
+   XFLForm &operator -(XFLForm rhs) { assert(false); return *this + rhs; /*!*/ }
 };
 
-/// Forwarding Form prefix/postfix
-template<typename T> T &NewForm(T &&form) { return form; }
+/** ****************************************************************************
+ * @brief The QXFLForm classes
+ ******************************************************************************/
+template<typename R, typename Q, typename ... A>
+struct QXFLForm: XFLForm, QForm<R,Q,A...>
+{
+   QXFLForm(XFLForm &f, const QForm<R,Q,A...> &q): XFLForm(f), QForm<R,Q,A...>(q) { }
+};
 
 /** ****************************************************************************
  * @brief The Function class
@@ -648,7 +729,6 @@ public:
       XFLForm xf(fes, GRAD, GRAD);
       return xf;
    }
-
 };
 
 /** ****************************************************************************
@@ -683,7 +763,7 @@ public:
 /** ****************************************************************************
  * @brief The TestFunction class
  ******************************************************************************/
-class TestFunction: public Function
+struct TestFunction: public Function
 {
    TestFunction &v;
 public:
@@ -714,7 +794,9 @@ public:
    Constant(double val): value(val), cst(new ConstantCoefficient(val)) { }
    // T can be a Trial or a Test function
    template <typename T> ScalarForm operator*(T &gf) { return gf * value; }
-   double operator *(Form dx) { return value;}
+
+   template<typename R, typename Q, typename ... A>
+   double operator *(const QForm<R,Q,A...> &dx) { return value;}
 };
 
 /** ****************************************************************************
@@ -745,7 +827,6 @@ mfem::Mesh *UnitHexMesh(int nx, int ny, int nz)
    const double sx = 1.0, sy = 1.0, sz = 1.0;
    return new mfem::Mesh(nx, ny, nz, hex, generate_edges,
                          sx, sy, sz, sfc_ordering);
-
 }
 
 /** ****************************************************************************
@@ -823,8 +904,6 @@ mfem::FiniteElementSpace *VectorFunctionSpace(mfem::Mesh &mesh,
 /** ****************************************************************************
  * @brief Boundary Conditions
  ******************************************************************************/
-//Constant* Expression(string, int degree) { return new Constant(1.0); }
-//int DirichletBC(FiniteElementSpace&, Constant *u, bool on_boundary) { return 0; }
 Array<int> DirichletBC(FiniteElementSpace *fes)
 {
    assert(fes);
@@ -881,7 +960,7 @@ int solve(xfl::Problem &pb, xfl::Function &x, Array<int> ess_tdof_list)
    mfem::LinearForm &b = *(pb.b);
    b.Assemble();
    Operator *A = nullptr;
-   Operator *op = pb.ufl;
+   Operator *op = pb.op;
    op->FormLinearSystem(ess_tdof_list, x, b, A, X, B);
    std::cout << "Size of linear system: " << A->Height() << std::endl;
    /*Vector Md(fes->GetNDofs());

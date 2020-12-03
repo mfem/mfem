@@ -9,199 +9,34 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 #include <fstream>
+#include <algorithm>
 
 #include "xfl.hpp"
 #include "xfl.Y.hpp"
 #include "xfc.hpp"
 
-// ****************************************************************************
-extern yy::location xfl_location; // defined in xfl.ll
-
-// ****************************************************************************
-// * tr \" to \'
-// ****************************************************************************
-static const char* strKillQuote(const std::string &str)
-{
-   char *p = const_cast<char*>(str.c_str());
-   for (; *p != 0; p++) if (*p == '\"') { *p = '\''; }
-   return str.c_str();
-}
-
 // *****************************************************************************
-static bool skip(const Node *n, const bool simplify)
-{
-   if (!simplify) { return false; }
-   if (n->IsToken()) { return false; }
-   if (n->nnext == 0) { return false; }
-   if (n->keep) { return false; }
-   const bool has_child = n->child != nullptr; // %empty
-   const bool is_child_a_rule = has_child ? n->child->IsRule() : false;
-   return is_child_a_rule && n->child->nnext == 1;
-}
-
-// *****************************************************************************
-static int astTreeSaveNodes(FILE* fTreeOutput, Node *n,
-                            const bool simplify, int id)
-{
-   for (; n not_eq NULL; n = n->next)
-   {
-      if (n->IsRule())
-      {
-         if (!skip(n, simplify))
-            fprintf(fTreeOutput,
-                    "\n\tNode_%d [label=\"%s\" color=\"#%s\"]",
-                    n->id = id++,
-                    strKillQuote(n->Name()),
-                    skip(n, true) ? "FFDDCC" : "CCDDCC");
-      }
-      else
-      {
-         fprintf(fTreeOutput,
-                 "\n\tNode_%d [label=\"%s\" color=\"#CCCCDD\"]",
-                 n->id = id++,
-                 strKillQuote(n->Name()));
-      }
-      id = astTreeSaveNodes(fTreeOutput, n->child, simplify, id);
-   }
-   return id;
-}
-
-// *****************************************************************************
-static int astTreeSaveEdges(FILE* fTreeOutput,
-                            const Node *n,
-                            const Node *father,
-                            const bool simplify)
-{
-   for (; n; astTreeSaveEdges(fTreeOutput, n->child, n, simplify),
-        n = n->next)
-   {
-      if (skip(n, simplify)) { continue; }
-      const Node *from = father;
-      while (skip(from, simplify)) { from = from->root; }
-      fprintf(fTreeOutput, "\n\tNode_%d -> Node_%d;", from->id, n->id);
-   }
-   return 0;
-}
-
-// *****************************************************************************
-static void setNNext(const Node *n)
-{
-   int nnext = 0;
-   for (Node *c = n->child; c; c = c->next) { nnext += 1; }
-   for (Node *c = n->child; c; c = c->next) { c->nnext = nnext; }
-}
-
-// *****************************************************************************
-static void astNNext(Node *n)
-{
-   if (!n) { return; }
-   if (n->root && n->nnext == 0) { setNNext(n->root); }
-   (astNNext(n->child), astNNext(n->next));
-}
-
-// *****************************************************************************
-// * astTreeSave
-// *****************************************************************************
-int astTreeSave(const char* file_name, Node *root, const bool simplify)
-{
-   FILE *file;
-   char fName[FILENAME_MAX];
-   // ***************************************************************************
-   astNNext(root);
-   // ***************************************************************************
-   sprintf(fName, "%s.dot", file_name);
-   // Saving tree file
-   if ((file = fopen(fName, "w")) == 0)
-   {
-      return -1 | printf("[astTreeSave] fopen ERROR");
-   }
-   fprintf(file,
-           "digraph {\nordering=out;\n\tNode [style = filled, shape = circle];");
-
-   astTreeSaveNodes(file, root, simplify, 0);
-   if (astTreeSaveEdges(file, root->child, root, simplify) not_eq 0)
-   {
-      return -1 | printf("[astTreeSave] ERROR");
-   }
-   fprintf(file, "\n}\n");
-   fclose(file);
-   return 0;
-}
-
-// ****************************************************************************
-Node *xfl::astAddNode(Node_sptr n_ptr)
-{
-   assert(n_ptr);
-   static std::list<Node_sptr> node_list_to_be_destructed;
-   node_list_to_be_destructed.push_back(n_ptr);
-   return n_ptr.get();
-}
-
-// *****************************************************************************
-xfl::xfl(bool yy_debug, bool ll_debug, std::string &input, std::string &output):
-   root(nullptr), loc(new yy::location(&input)),
-   yy_debug(yy_debug), ll_debug(ll_debug),
-   input(input), output(output) { }
-
-// *****************************************************************************
-int xfl::parse(const std::string &f, std::ostream &out)
-{
-   yy::parser parser(*this);
-   parser.set_debug_level(yy_debug);
-   const int result = parser();
-   assert(root);
-   return result;
-}
-
-// *****************************************************************************
-xfl::~xfl() { delete loc; }
-
-// *****************************************************************************
-int xfl::morph(std::ostream &out)
-{
-   // First transformation to add prefix/postfix to DOM_DX
-   mfem::internal::DomDx dx(*this, out);
-   dfs(root, dx);
-   return EXIT_SUCCESS;
-}
-
-// *****************************************************************************
-int xfl::code(std::ostream &out)
-{
-   // Then code generation
-   mfem::internal::Code me(*this, out);
-   dfs(root, me);
-   return EXIT_SUCCESS;
-}
-
-// *****************************************************************************
-namespace version
-{
-
-constexpr double gratio(int n) { return n <= 1 ? 1.0 : 1.0 + 1.0/gratio(n-1); }
-
 template <typename T = long double>
-constexpr T gdrt(T x = 1.0, T eps = 1.e-15L)
+constexpr T XFL_version(T x = 1.0, T eps = 1.e-15L)
 {
    return x > 2 ? 0 :
           (x*(x-1.0L) >= (1.0L-eps)) && (x*(x-1.0L) <= (1.0L+eps)) ? x :
-          version::gdrt(1.L+1.L/x, eps);
+          XFL_version(1.L+1.L/x, eps);
 }
-
-} // cst namespace
-
-// *****************************************************************************
-// 1.6180339887498948482045868343656381L
 #define XFL_N 1
-#define XFL_pre -1.0
-#define XFL_ver version::gdrt() XFL_pre
+#define XFL_alpha -1.0
+#define XFL_ver XFL_version() XFL_alpha
 #define XFL_str(n) #n
 #define XFL_man(n) "[1;36m[XFL] version %." XFL_str(n) "Lf[m\n"
 
 // *****************************************************************************
-int main (int argc, char *argv[])
+int AstSave(const char*, Node*, const int);
+
+// *****************************************************************************
+int main(int argc, char *argv[])
 {
-   bool ast = false;
+   int ast_debug = 2;     // [0-2] debug modes
+   bool ast_save = false;
    bool yy_debug = false;
    bool ll_debug = false;
    std::string input, output;
@@ -214,7 +49,8 @@ int main (int argc, char *argv[])
       else if (argv[i] == std::string ("-s")) { ll_debug = true; }
       else if (argv[i] == std::string ("-i")) { input.assign(argv[++i]); }
       else if (argv[i] == std::string ("-o")) { output.assign(argv[++i]); }
-      else if (argv[i] == std::string ("-t")) { ast = true; }
+      else if (argv[i] == std::string ("-t")) { ast_save = true; }
+      else if (argv[i] == std::string ("-n")) { ast_debug = atoi(argv[++i]); }
       else { break; }
    }
    const std::string &last_argv = argv[argc-1];
@@ -246,7 +82,144 @@ int main (int argc, char *argv[])
 
    if (ufl.code(out) != 0 ) { return EXIT_FAILURE; }
 
-   if (ast) { astTreeSave("ast", ufl.root, false); }
+   if (ast_save) { AstSave("ast", ufl.root, ast_debug); }
 
+   return EXIT_SUCCESS;
+}
+
+// *****************************************************************************
+static bool Simplify(const Node *n, const int debug = 2)
+{
+   if (debug == 0) { return false; } // keep all rules if requested
+   if (n->IsToken() && n->n == TOK::NL) { return true; } // remove NL
+   if (n->IsRule() && n->n == statement_nl) { return true; } // remove NL
+   if (n->IsRule() && n->n == statements_statement) { return true; } // remove end of statement list
+   if (n->IsRule() && n->n == statements_statements_statement) { return true; } // remove statements list
+   if (n->IsToken()) { return false; } // keep all tokens
+   if (debug == 1 && n->nnext > 1) { return false; } // keep when siblings
+   if (n->nnext == 0) { assert(!n->root); return false; } // keep entry_point
+   const bool has_child = n->child != nullptr; // %empty
+   const bool is_child_a_rule = has_child ? n->child->IsRule() : false;
+   return is_child_a_rule && n->child->nnext == 1;
+}
+
+// *****************************************************************************
+static int astTreeSaveNodes(FILE* file, Node *n, const int debug, int id)
+{
+   for (; n; id = astTreeSaveNodes(file, n->child, debug, id), n = n->next)
+   {
+      const bool rule = n->IsRule();
+      const bool skip = Simplify(n, debug);
+      if (skip) { continue; }
+      constexpr char const *GREEN = "CCDDCC"; // rule with children
+      constexpr char const *ORANGE = "FFDDCC"; // rule with one child
+      constexpr char const *BLUE = "CCCCDD"; // token
+      const char *color = rule ? Simplify(n) ? ORANGE : GREEN  : BLUE;
+      char const *NODE = "\n\tNode_%d [label=\"%s\" color=\"#%s\"]";
+      std::replace(n->name.begin(), n->name.end(), '\"', '\'');
+      fprintf(file, NODE, n->id = id++, n->Name().c_str(), color);
+   }
+   return id;
+}
+
+// *****************************************************************************
+static void astTreeSaveEdges(FILE* file, const Node *n,
+                             const Node *root, const int debug)
+{
+   for (; n; astTreeSaveEdges(file, n->child, n, debug), n = n->next)
+   {
+      if (Simplify(n, debug)) { continue; }
+      const Node *from = root;
+      while (Simplify(from, debug)) { from = from->root; }
+      constexpr char const * EDGE = "\n\tNode_%d -> Node_%d;";
+      fprintf(file, EDGE, from->id, n->id);
+   }
+}
+
+// *****************************************************************************
+static void setNNext(const Node *n)
+{
+   int nnext = 0;
+   for (Node *c = n->child; c; c = c->next) { nnext += 1; }
+   for (Node *c = n->child; c; c = c->next) { c->nnext = nnext; }
+}
+
+// *****************************************************************************
+static void dfsSetNNext(const Node *n)
+{
+   if (!n) { return; }
+   if (n->root && n->nnext == 0) { setNNext(n->root); }
+   (dfsSetNNext(n->child), dfsSetNNext(n->next));
+}
+
+// *****************************************************************************
+int AstSave(const char* filename, Node *root, const int debug)
+{
+   FILE *file;
+   char fname[FILENAME_MAX];
+   // Computes 'nnext' of each node
+   dfsSetNNext(root);
+   sprintf(fname, "%s.dot", filename);
+   // Saving tree file
+   if ((file = fopen(fname, "w")) == 0) { return EXIT_FAILURE; }
+   constexpr char const *DIGRAPH = "digraph {\n\tordering=out;";
+   constexpr char const *NODE_STYLE = "\n\tNode [style=filled, shape=circle];";
+   fprintf(file, "%s%s", DIGRAPH, NODE_STYLE);
+   // Save all nodes as Rules or Tokens, filling `id` by the way
+   astTreeSaveNodes(file, root, debug, /*id=*/ 0);
+   // Save all edges
+   astTreeSaveEdges(file, root->child, root, debug);
+   fprintf(file, "\n}\n");
+   fclose(file);
+   return EXIT_SUCCESS;
+}
+
+// ****************************************************************************
+Node *xfl::astAddNode(Node_sptr n)
+{
+   assert(n);
+   static std::list<Node_sptr> node_list_to_be_destructed;
+   node_list_to_be_destructed.push_back(n);
+   return n.get();
+}
+
+// *****************************************************************************
+xfl::xfl(bool yy_debug, bool ll_debug, std::string &input, std::string &output):
+   root(nullptr), loc(new yy::location(&input)),
+   yy_debug(yy_debug), ll_debug(ll_debug),
+   input(input), output(output) { }
+
+// *****************************************************************************
+int xfl::parse(const std::string &f, std::ostream &out)
+{
+   yy::parser parser(*this);
+   parser.set_debug_level(yy_debug);
+   const int result = parser();
+   assert(root);
+   return result;
+}
+
+// *****************************************************************************
+xfl::~xfl() { delete loc; }
+
+// *****************************************************************************
+int xfl::morph(std::ostream &out)
+{
+   // First transformation to add the extra_status_rule_dom_dx rule
+   mfem::internal::DomDx dx(*this, out);
+   dfs(root, dx);
+   return EXIT_SUCCESS;
+}
+
+// *****************************************************************************
+int xfl::code(std::ostream &out)
+{
+   // Then code generation
+   mfem::internal::Code me(*this, out);
+   dfs(root, me);
+   /*for (const auto &p : me.ufl.ctx.vars)
+   {
+      DBG("%s:%d", p.first.c_str(), p.second.type);
+   }*/
    return EXIT_SUCCESS;
 }
