@@ -112,7 +112,7 @@ void FiniteElementSpace::SetElementOrder(int i, int p)
    else // convert space to variable-order space
    {
       elem_order.SetSize(GetNE());
-      elem_order = fec->DefaultOrder();
+      elem_order = fec->GetOrder();
 
       elem_order[i] = p;
       orders_changed = true;
@@ -132,12 +132,12 @@ int FiniteElementSpace::GetElementOrder(int i) const
 int FiniteElementSpace::GetElementOrderImpl(int i) const
 {
    // (this is an internal version of GetElementOrder without asserts and checks)
-   return elem_order.Size() ? elem_order[i] : fec->DefaultOrder();
+   return elem_order.Size() ? elem_order[i] : fec->GetOrder();
 }
 
 int FiniteElementSpace::GetEdgeOrder(int edge, int variant) const
 {
-   if (!IsVariableOrder()) { return fec->DefaultOrder(); }
+   if (!IsVariableOrder()) { return fec->GetOrder(); }
 
    const int* beg = var_edge_dofs.GetRow(edge);
    const int* end = var_edge_dofs.GetRow(edge + 1);
@@ -148,7 +148,7 @@ int FiniteElementSpace::GetEdgeOrder(int edge, int variant) const
 
 int FiniteElementSpace::GetFaceOrder(int face, int variant) const
 {
-   if (!IsVariableOrder()) { return fec->DefaultOrder(); }
+   if (!IsVariableOrder()) { return fec->GetOrder(); }
 
    const int* beg = var_face_dofs.GetRow(face);
    const int* end = var_face_dofs.GetRow(face + 1);
@@ -1897,7 +1897,7 @@ void FiniteElementSpace::Construct()
    // 'Th' is initialized/destroyed before this method is called.
 
    int dim = mesh->Dimension();
-   int order = fec->DefaultOrder();
+   int order = fec->GetOrder();
 
    MFEM_ASSERT(mesh->GetNumGeometries(dim),
                "Mesh was not correctly finalized.");
@@ -1929,7 +1929,7 @@ void FiniteElementSpace::Construct()
    {
       if (IsVariableOrder())
       {
-         nedofs = MakeDofTable(1, edge_orders, var_edge_dofs, var_edge_orders);
+         nedofs = MakeDofTable(1, edge_orders, var_edge_dofs, &var_edge_orders);
       }
       else
       {
@@ -1943,8 +1943,9 @@ void FiniteElementSpace::Construct()
    {
       if (IsVariableOrder() || mixed_faces)
       {
-         // NOTE: we use Table var_face_dofs for mixed faces as well
-         nfdofs = MakeDofTable(2, face_orders, var_face_dofs, var_face_orders);
+         // NOTE: for simplicity, we also use Table var_face_dofs for mixed faces
+         nfdofs = MakeDofTable(2, face_orders, var_face_dofs,
+                               IsVariableOrder() ? &var_face_orders : NULL);
          uni_fdof = -1;
       }
       else
@@ -2113,7 +2114,7 @@ void FiniteElementSpace
 int FiniteElementSpace::MakeDofTable(int ent_dim,
                                      const Array<int> &entity_orders,
                                      Table &entity_dofs,
-                                     Array<char> &var_ent_order)
+                                     Array<char> *var_ent_order)
 {
    int num_ent = entity_orders.Size();
    int total_dofs = 0;
@@ -2121,8 +2122,11 @@ int FiniteElementSpace::MakeDofTable(int ent_dim,
    Array<Connection> list;
    list.Reserve(2*num_ent);
 
-   var_ent_order.SetSize(0);
-   var_ent_order.Reserve(num_ent);
+   if (var_ent_order)
+   {
+      var_ent_order->SetSize(0);
+      var_ent_order->Reserve(num_ent);
+   }
 
    // assign DOFs according to order bit masks
    for (int i = 0; i < num_ent; i++)
@@ -2136,8 +2140,9 @@ int FiniteElementSpace::MakeDofTable(int ent_dim,
          {
             int dofs = fec->GetNumDof(geom, order);
             list.Append(Connection(i, total_dofs));
-            var_ent_order.Append(order);
             total_dofs += dofs;
+
+            if (var_ent_order) { var_ent_order->Append(order); }
          }
       }
    }
@@ -2302,7 +2307,7 @@ void FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs) const
 
    int dim = mesh->Dimension();
    auto geom = mesh->GetBdrElementGeometry(bel);
-   int order = fec->DefaultOrder();
+   int order = fec->GetOrder();
 
    if (IsVariableOrder()) // determine order from adjacent element
    {
@@ -2370,14 +2375,14 @@ int FiniteElementSpace::GetFaceDofs(int face, Array<int> &dofs,
        (NURBSext && (BuildNURBSFaceToDofTable(), true)))
    {
       face_dof->GetRow(face, dofs);
-      return fec->DefaultOrder();
+      return fec->GetOrder();
    }
 
    int order, nf, fbase;
    int dim = mesh->Dimension();
    auto fgeom = (dim > 2) ? mesh->GetFaceGeometry(face) : Geometry::INVALID;
 
-   if (var_face_dofs.Size() > 0) // variable orders or mixed faces
+   if (var_face_dofs.Size() > 0) // variable orders or *mixed* faces
    {
       const int* beg = var_face_dofs.GetRow(face);
       const int* end = var_face_dofs.GetRow(face + 1);
@@ -2386,13 +2391,14 @@ int FiniteElementSpace::GetFaceDofs(int face, Array<int> &dofs,
       fbase = beg[variant];
       nf = beg[variant+1] - fbase;
 
-      order = var_face_orders[var_face_dofs.GetI()[face] + variant];
+      order = !IsVariableOrder() ? fec->GetOrder() :
+              var_face_orders[var_face_dofs.GetI()[face] + variant];
       MFEM_ASSERT(fec->GetNumDof(fgeom, order) == nf, "");
    }
    else
    {
       if (variant > 0) { return -1; }
-      order = fec->DefaultOrder();
+      order = fec->GetOrder();
       nf = (dim > 2) ? fec->GetNumDof(fgeom, order) : 0;
       fbase = face*nf;
    }
@@ -2460,7 +2466,7 @@ int FiniteElementSpace::GetEdgeDofs(int edge, Array<int> &dofs,
    else
    {
       if (variant > 0) { return -1; }
-      order = fec->DefaultOrder();
+      order = fec->GetOrder();
       ne = fec->GetNumDof(Geometry::SEGMENT, order);
       base = edge*ne;
    }
@@ -2543,7 +2549,7 @@ void FiniteElementSpace::GetFaceInteriorDofs(int i, Array<int> &dofs) const
    else
    {
       auto geom = mesh->GetFaceGeometry(0);
-      nf = fec->GetNumDof(geom, fec->DefaultOrder());
+      nf = fec->GetNumDof(geom, fec->GetOrder());
       base = i*nf;
    }
 
@@ -2556,7 +2562,7 @@ void FiniteElementSpace::GetFaceInteriorDofs(int i, Array<int> &dofs) const
 
 const FiniteElement *FiniteElementSpace::GetBE(int i) const
 {
-   int order = fec->DefaultOrder();
+   int order = fec->GetOrder();
 
    if (IsVariableOrder()) // determine order from adjacent element
    {
@@ -2622,7 +2628,7 @@ const FiniteElement *FiniteElementSpace
 {
    MFEM_ASSERT(mesh->Dimension() > 1, "No edges with mesh dimension < 2");
 
-   int eo = IsVariableOrder() ? GetEdgeOrder(i, variant) : fec->DefaultOrder();
+   int eo = IsVariableOrder() ? GetEdgeOrder(i, variant) : fec->GetOrder();
    return fec->GetFE(Geometry::SEGMENT, eo);
 }
 

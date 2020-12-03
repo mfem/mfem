@@ -118,7 +118,8 @@ protected:
    Table var_edge_dofs; ///< var-order space: beginnings of DOF sets for edges
    Table var_face_dofs; ///< var-order space or mixed mesh: similar for faces
 
-   /// Additional data for var_*_dofs: edge/face variant orders.
+   /** Additional data for the var_*_dofs tables: individual variant orders
+       (these are basically alternate J arrays for var_edge/face_dofs). */
    Array<char> var_edge_orders, var_face_orders;
 
    // precalculated DOFs for each element, boundary element, and face
@@ -203,7 +204,7 @@ protected:
    /** Build the table var_edge_dofs (or var_face_dofs) in a variable order
        space; return total edge/face DOFs. */
    int MakeDofTable(int ent_dim, const Array<int> &entity_orders,
-                    Table &entity_dofs, Array<char> &var_ent_order);
+                    Table &entity_dofs, Array<char> *var_ent_order);
 
    /// Search row of a DOF table for a DOF set of size 'ndof', return first DOF.
    int FindDofs(const Table &var_dof_table, int row, int ndof) const;
@@ -401,7 +402,7 @@ public:
 
    /// Return the maximum polynomial order.
    int GetMaxElementOrder() const
-   { return IsVariableOrder() ? elem_order.Max() : fec->DefaultOrder(); }
+   { return IsVariableOrder() ? elem_order.Max() : fec->GetOrder(); }
 
    /// Returns true if the space contains elements of varying polynomial orders.
    bool IsVariableOrder() const { return elem_order.Size(); }
