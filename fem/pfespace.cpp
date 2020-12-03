@@ -493,7 +493,7 @@ int ParFiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs,
    if (face_dof && variant == 0)
    {
       face_dof->GetRow(i, dofs);
-      return fec->DefaultOrder();
+      return fec->GetOrder();
    }
    int p = FiniteElementSpace::GetFaceDofs(i, dofs, variant);
    if (Conforming())

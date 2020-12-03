@@ -55,8 +55,8 @@ public:
 
    /** @brief Returns an array, say p, that maps a local permuted index i to
        a local base index: base_i = p[i]. */
-   virtual const int *
-   DofOrderForOrientation(Geometry::Type GeomType, int Or) const = 0;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const = 0;
 
    virtual const char * Name() const { return "Undefined"; }
 
@@ -64,8 +64,8 @@ public:
 
    int HasFaceDofs(Geometry::Type geom, int p) const;
 
-   virtual const FiniteElement *
-   TraceFiniteElementForGeometry(Geometry::Type GeomType) const
+   virtual const FiniteElement *TraceFiniteElementForGeometry(
+      Geometry::Type GeomType) const
    {
       return FiniteElementForGeometry(GeomType);
    }
@@ -178,7 +178,8 @@ public:
       return var_orders[p]->DofOrderForOrientation(geom, ori);
    }
 
-   int DefaultOrder() const { return base_p; }
+   /// Return the order the FE collection was constructed with.
+   int GetOrder() const { return base_p; }
 
 protected:
    const int base_p;
