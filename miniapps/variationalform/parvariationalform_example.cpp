@@ -1,5 +1,5 @@
 #include "mfem.hpp"
-#include "genericform.hpp"
+#include "parvariationalform.hpp"
 #include "qfuncintegrator.hpp"
 #include "tensor.hpp"
 #include <fstream>
@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
 
    x.ProjectBdrCoefficient(u_excoeff, ess_bdr);
 
-   GenericForm form(&fespace);
+   ParVariationalForm form(&fespace);
 
    auto plaplacian = new QFunctionIntegrator([&](auto u, auto du, auto x) {
       // auto f0 = -1.0;

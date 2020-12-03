@@ -1,8 +1,9 @@
-#include "genericform.hpp"
+#include "parvariationalform.hpp"
+#include "qfuncintegrator.hpp"
 
 namespace mfem
 {
-GenericForm::GenericForm(FiniteElementSpace *f)
+ParVariationalForm::ParVariationalForm(ParFiniteElementSpace *f)
    : Operator(f->GetTrueVSize()), fes(f), P(f->GetProlongationMatrix()),
      grad(*this)
 {
@@ -13,7 +14,7 @@ GenericForm::GenericForm(FiniteElementSpace *f)
    y_local.SetSize(G->Height(), Device::GetMemoryType());
 }
 
-void GenericForm::Mult(const Vector &x, Vector &y) const
+void ParVariationalForm::Mult(const Vector &x, Vector &y) const
 {
    px.SetSize(P->Height());
    py.SetSize(P->Height());
@@ -38,7 +39,7 @@ void GenericForm::Mult(const Vector &x, Vector &y) const
    }
 }
 
-void GenericForm::GradientMult(const Vector &v, Vector &y) const
+void ParVariationalForm::GradientMult(const Vector &v, Vector &y) const
 {
    px.SetSize(P->Height());
    py.SetSize(P->Height());
@@ -72,20 +73,20 @@ void GenericForm::GradientMult(const Vector &v, Vector &y) const
    }
 }
 
-Operator &GenericForm::GetGradient(const Vector &x) const
+Operator &ParVariationalForm::GetGradient(const Vector &x) const
 {
    x_lin = x;
    return grad;
 }
 
-HypreParMatrix *GenericForm::GetGradientMatrix(const Vector &x)
+HypreParMatrix *ParVariationalForm::GetGradientMatrix(const Vector &x)
 {
    delete gradient_matrix;
    gradient_matrix = new HypreParMatrix;
    return gradient_matrix;
 }
 
-void GenericForm::SetEssentialBC(const Array<int> &ess_attr)
+void ParVariationalForm::SetEssentialBC(const Array<int> &ess_attr)
 {
    fes->GetEssentialTrueDofs(ess_attr, ess_tdof_list);
 }

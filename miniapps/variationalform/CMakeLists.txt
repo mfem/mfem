@@ -1,0 +1,15 @@
+add_library(parvariationalform parvariationalform.cpp)
+target_include_directories(parvariationalform PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(parvariationalform mfem)
+
+add_executable(parvariationalform_example parvariationalform_example.cpp)
+target_include_directories(parvariationalform_example PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(parvariationalform_example parvariationalform mfem)
+
+add_executable(parvariationalform_ex1 parvariationalform_ex1.cpp)
+target_include_directories(parvariationalform_ex1 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(parvariationalform_ex1 parvariationalform mfem)
+
+add_executable(parvariationalform_unit_tests test_tensor_ad.cpp)
+target_include_directories(parvariationalform_unit_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/tests/unit)
+target_link_libraries(parvariationalform_unit_tests parvariationalform mfem)
