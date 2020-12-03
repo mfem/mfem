@@ -22,7 +22,6 @@ using std::ostream;
 
 // *****************************************************************************
 namespace yy { extern std::array<bool, yyruletype::yynrules> rules; }
-extern std::array<Node*,8> nodes;
 
 namespace mfem
 {
@@ -64,18 +63,24 @@ void Code::decl_domain_assign_op_expr_u(Rule*) const
 }
 
 // *****************************************************************************
-// ... = 0.0
-// Should check if the variable is already known before launching a kernel
 static bool KernelCheck(xfl &ufl, Node *n)
 {
    assert(n->child);
    assert(n->child->next);
    assert(n->child->next->IsRule());
    assert(n->Number() == decl_id_list_assign_op_expr);
+
+   bool known = false;
+   Node *id = ufl.GetToken(TOK::IDENTIFIER,n->child); assert(id);
+   const std::string &name = id->Name();
+   for (auto &p : ufl.ctx.vars)
+   {
+      if (name == p.second.name) { known = true; break; }
+   }
    Node *expr = n->child->next->next;
    assert(expr->Number() == expr_assign_expr);
    const bool only_real = ufl.OnlyToken(TOK::REAL, expr);
-   if (only_real && ufl.HitRule(primary_expr_constant, expr)) { return true; }
+   if (known && only_real && ufl.HitRule(primary_expr_constant, expr)) { return true; }
    return false;
 }
 
@@ -137,9 +142,13 @@ void Code::postfix_id_primary_id_u(Rule*) const { }
 void Code::primary_id_identifier_d(Rule *n) const
 {
    //dbg("\033[33mprimary_id_identifier_t");
-   // LHS declaration
-   if (yy::rules.at(lhs_lhs) &&
-       yy::rules.at(decl_id_list_assign_op_expr) && ufl.ctx.type > 0)
+
+   // known types from decl_id_list_assign_op_expr_d
+   const bool known_types = true; // ufl.ctx.type > 0;
+
+   if (yy::rules.at(lhs_lhs) &&                     // LHS declaration
+       yy::rules.at(decl_id_list_assign_op_expr) && // declaration
+       known_types)                                 // ? known types
    {
       dbg("\033[33mAdding variable: %s:%d",n->child->Name().c_str(), ufl.ctx.type);
       const std::string &name = n->child->Name();
@@ -148,7 +157,7 @@ void Code::primary_id_identifier_d(Rule *n) const
       {
          auto &m = res.first->second;
          dbg("Variable already present with type: %d", m.type);
-         assert(false);
+         //assert(false);
       }
       //for (const auto &p : ufl.ctx.vars) { DBG("%s:%d", p.first.c_str(), p.second.type); }
    }
@@ -175,7 +184,7 @@ void Code::primary_expr_identifier_d(Rule *n) const
       if (ufl.ctx.vars.find(name) != ufl.ctx.vars.end())
       {
          auto &var = ufl.ctx.vars.at(name);
-         var.mode |= xfl::INTERP;
+         var.mode |= xfl::VALUE;
          dbg("\033[31m%s:%d:%d", name.c_str(), var.type, var.mode);
       }
       //else { assert(false); }
@@ -262,11 +271,13 @@ void Code::args_expr_list_assign_expr_d(Rule *n) const
 {
    dbg();
    if (yy::rules.at(decl_function) &&
-       !yy::rules.at(args_expr_list_args_expr_list_coma_assign_expr))
+       !yy::rules.at(args_expr_list_args_expr_list_coma_assign_expr) &&
+       !ufl.ctx.nodes[0])
    {
       assert(n);
       assert(n->child);
-      nodes[0] = n->child;
+      ufl.ctx.nodes[0] = n->child;
+      //dbg("\033[31mSAVE ufl.ctx.node");
       n->dfs.down = false; // don't continue down
    }
 }
@@ -277,12 +288,14 @@ void Code::args_expr_list_args_expr_list_coma_assign_expr_d(Rule *n) const
 {
    dbg();
    if (yy::rules.at(decl_function)&&
-       !yy::rules.at(args_expr_list_args_expr_list_coma_assign_expr))
+       !yy::rules.at(args_expr_list_args_expr_list_coma_assign_expr) &&
+       !ufl.ctx.nodes[0])
    {
       assert(n);
       assert(n->child);
-      nodes[0] = n->child;
-      n->dfs.down = false; // don't continue down
+      ufl.ctx.nodes[0] = n->child;
+      //dbg("\033[31mSAVE ufl.ctx.node");
+      n->dfs.down = false; // don't continue down, we wait for the ':'
    }
 }
 void Code::args_expr_list_args_expr_list_coma_assign_expr_u(Rule*) const { }
@@ -290,15 +303,14 @@ void Code::args_expr_list_args_expr_list_coma_assign_expr_u(Rule*) const { }
 // *****************************************************************************
 void Code::def_statement_nl_d(Rule*n) const
 {
-   // Only one param for the lambda yet
+   if (!ufl.ctx.nodes[0]) { return; }
    out << "[&] (auto ";
-   assert(nodes[0]);
-   ufl.dfs(nodes[0],me);
-   // We delayed the lhs => rhs (from COLON), do it now
-   dbg("LHS=false");
+   ufl.dfs(ufl.ctx.nodes[0], me); // now dfs with the saved arguments node
+   ufl.ctx.nodes[0] = nullptr;
+   //dbg("\033[31mFLUSH ufl.ctx.node");
+   // We delayed the lhs => rhs (from COLON), now switch to RHS
    yy::rules.at(lhs_lhs) = false;
    out << ") {";
-   n->dfs.down = false;
 }
 void Code::def_statement_nl_u(Rule*) const { }
 
@@ -311,7 +323,10 @@ void Code::statement_decl_nl_d(Rule *n) const
 void Code::statement_decl_nl_u(Rule*) const { }
 
 // *****************************************************************************
-void Code::def_empty_empty_d(Rule *n) const { def_statement_nl_d(n); }
+void Code::def_empty_empty_d(Rule *n) const
+{
+   if (yy::rules.at(decl_function)) { def_statement_nl_d(n); }
+}
 void Code::def_empty_empty_u(Rule*) const { }
 
 // *****************************************************************************
@@ -446,8 +461,9 @@ void Code::token_RANGE(Token*) const {  }
 
 void Code::token_COLON(Token*) const
 {
+   dbg();
    if (yy::rules.at(decl_iteration_statement)) {  out << ")) "; return; }
-   if (yy::rules.at(decl_function)) { out << " = "; return; }
+   if (yy::rules.at(decl_function)) { out << " /*function*/ = "; return; }
    out << ":";
 }
 

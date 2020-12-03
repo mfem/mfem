@@ -92,6 +92,7 @@ static bool Simplify(const Node *n, const int debug = 2)
 {
    if (debug == 0) { return false; } // keep all rules if requested
    if (n->IsToken() && n->n == TOK::NL) { return true; } // remove NL
+   if (n->child && n->child->root != n) { return false; } // keep links
    if (n->IsRule() && n->n == statement_nl) { return true; } // remove NL
    if (n->IsRule() && n->n == statements_statement) { return true; } // remove end of statement list
    if (n->IsRule() && n->n == statements_statements_statement) { return true; } // remove statements list
@@ -104,20 +105,32 @@ static bool Simplify(const Node *n, const int debug = 2)
 }
 
 // *****************************************************************************
+static void astTreeAddNewNode(FILE *file, Node *n, int &id)
+{
+   const bool link = n->child && n->child->root != n;
+   constexpr char const *GRAY = "FFAAAA"; // link
+   constexpr char const *BLUE = "CCCCDD"; // token
+   constexpr char const *GREEN = "CCDDCC"; // rule with children
+   constexpr char const *ORANGE = "FFDDCC"; // rule with one child
+   const char *color =
+      link ? GRAY : n->IsRule() ? Simplify(n) ? ORANGE : GREEN : BLUE;
+   char const *NODE = "\n\tNode_%d [label=\"%s\" color=\"#%s\"]";
+   std::replace(n->name.begin(), n->name.end(), '\"', '\'');
+   fprintf(file, NODE, n->id = id++, n->Name().c_str(), color);
+}
+
+// *****************************************************************************
 static int astTreeSaveNodes(FILE* file, Node *n, const int debug, int id)
 {
-   for (; n; id = astTreeSaveNodes(file, n->child, debug, id), n = n->next)
+   for (; n; n = n->next)
    {
-      const bool rule = n->IsRule();
-      const bool skip = Simplify(n, debug);
-      if (skip) { continue; }
-      constexpr char const *GREEN = "CCDDCC"; // rule with children
-      constexpr char const *ORANGE = "FFDDCC"; // rule with one child
-      constexpr char const *BLUE = "CCCCDD"; // token
-      const char *color = rule ? Simplify(n) ? ORANGE : GREEN  : BLUE;
-      char const *NODE = "\n\tNode_%d [label=\"%s\" color=\"#%s\"]";
-      std::replace(n->name.begin(), n->name.end(), '\"', '\'');
-      fprintf(file, NODE, n->id = id++, n->Name().c_str(), color);
+      if (!Simplify(n, debug))
+      {
+         astTreeAddNewNode(file, n, id);
+         // if our child is not our's, continue with next
+         if (n->child && n->child->root != n) { continue; }
+      }
+      id = astTreeSaveNodes(file, n->child, debug, id);
    }
    return id;
 }
@@ -126,13 +139,23 @@ static int astTreeSaveNodes(FILE* file, Node *n, const int debug, int id)
 static void astTreeSaveEdges(FILE* file, const Node *n,
                              const Node *root, const int debug)
 {
-   for (; n; astTreeSaveEdges(file, n->child, n, debug), n = n->next)
+   for (; n; n = n->next)
    {
-      if (Simplify(n, debug)) { continue; }
-      const Node *from = root;
-      while (Simplify(from, debug)) { from = from->root; }
-      constexpr char const * EDGE = "\n\tNode_%d -> Node_%d;";
-      fprintf(file, EDGE, from->id, n->id);
+      if (!Simplify(n, debug))
+      {
+         const Node *from = root;
+         while (Simplify(from, debug)) { from = from->root; }
+         constexpr char const * EDGE = "\n\tNode_%d -> Node_%d [%s];";
+         fprintf(file, EDGE, from->id, n->id, "style=solid");
+         if (n->child && n->child->root != n)
+         {
+            const Node *to = n->child;
+            while (Simplify(to, debug)) { to = to->child; }
+            fprintf(file, EDGE, n->id, to->id, "style=dashed");
+            continue;
+         }
+      }
+      astTreeSaveEdges(file, n->child, n, debug);
    }
 }
 
@@ -196,6 +219,8 @@ int xfl::parse(const std::string &f, std::ostream &out)
    parser.set_debug_level(yy_debug);
    const int result = parser();
    assert(root);
+   assert(root->child);
+   root->child->root = root;
    return result;
 }
 
@@ -217,9 +242,5 @@ int xfl::code(std::ostream &out)
    // Then code generation
    mfem::internal::Code me(*this, out);
    dfs(root, me);
-   /*for (const auto &p : me.ufl.ctx.vars)
-   {
-      DBG("%s:%d", p.first.c_str(), p.second.type);
-   }*/
    return EXIT_SUCCESS;
 }

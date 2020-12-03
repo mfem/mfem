@@ -3435,7 +3435,6 @@ parser::yytranslate_ (int t)
 #undef MFEM_DEBUG_COLOR
 #define MFEM_DEBUG_COLOR 165
 namespace yy { std::array<bool, yyruletype::yynrules> rules = {false}; }
-std::array<Node*,8> nodes = {nullptr};
 
 // *****************************************************************************
 static Node* astAddChild(Node* root, Node* n)

@@ -35,12 +35,10 @@ using namespace mfem;
 namespace mfem
 {
 
-constexpr int MDQ = 8;
+constexpr int MDQ = 6;
 
+using FE = mfem::FiniteElement;
 using Q = mfem::QuadratureInterpolator;
-
-constexpr Q::EvalFlags VALUES = Q::VALUES;
-constexpr Q::EvalFlags GRAD = Q::DERIVATIVES;
 
 constexpr int quadrilateral = Element::Type::QUADRILATERAL;
 
@@ -63,7 +61,25 @@ struct Range:public std::vector<int>
 namespace kernels
 {
 
-/// Multiply the transpose of a matrix A with a matrix B:   At*B
+/// Multiply a vector with the transpose matrix.
+template<typename TA, typename TX, typename TY>
+MFEM_HOST_DEVICE inline
+void MultTranspose(const int H, const int W, TA *data, const TX *x, TY *y)
+{
+   double *d_col = data;
+   for (int col = 0; col < W; col++)
+   {
+      double y_col = 0.0;
+      for (int row = 0; row < H; row++)
+      {
+         y_col += x[row]*d_col[row];
+      }
+      y[col] = y_col;
+      d_col += H;
+   }
+}
+
+/// Multiply the transpose of a matrix A with a matrix B: At*B
 template<typename TA, typename TB, typename TC>
 MFEM_HOST_DEVICE inline
 void MultAtB(const int Aheight, const int Awidth, const int Bwidth,
@@ -251,10 +267,19 @@ double dot(double u, double v) { return u * v; }
 // XFL addons //////////////////////////////////////////////////////////////////
 namespace xfl
 {
-using TestFunction_q = double;
-using TrialFunction_q = double;
+
 using Function_q = double;
 using Constant_q = double;
+using TestFunction_q = double;
+using TrialFunction_q = double;
+
+FE::DerivType DerivType(const int type)
+{
+   if (type == 0) { return FE::NONE; }
+   if (type == 1) { return FE::NONE; }
+   if (type == 2) { return FE::GRAD; }
+   assert(false);
+}
 
 /** ****************************************************************************
  * @brief The XFLOperator class
@@ -291,16 +316,13 @@ class XFLOperator<2,TR,TQ,TA...> : public mfem::Operator
    Vector J0;
    mutable Vector xe, ye, yg, val_xq, grad_xq;
    Vector dx;
-   const Q::EvalFlags UF, VF;
+   double u,v; const int types;
+   const FE::DerivType UF, VF;
    const QForm<TR,TQ,TA...> &qf;
-   double u,v;
-   const double types;
 public:
    XFLOperator(const mfem::FiniteElementSpace *fes,
-               const Q::EvalFlags uf, const Q::EvalFlags vf,
                const QForm<TR,TQ,TA...> &qf):
       Operator(fes->GetNDofs()),
-      //fes(fes),
       mesh(fes->GetMesh()),
       nodes((mesh->EnsureNodes(), mesh->GetNodes())),
       nfes(nodes->FESpace()),
@@ -329,12 +351,12 @@ public:
       val_xq(NQ*VDIM*NE),
       grad_xq(NQ*VDIM*DIM*NE),
       dx(NQ*NE),
-      UF(uf), VF(vf),
-      qf(qf),
       u(0.0), v(0.0),
-      types(qf(u, v, false))
+      types(qf(u, v, false)),
+      // warning orders of the test & trial
+      UF(DerivType((types&0xF0)>>4)), VF(DerivType(types&0xF)),
+      qf(qf)
    {
-      //DBG("\033[32mDIM:%d VDIM:%d, NE:%d, ND:%d, NQ:%d", DIM,VDIM,NE,ND,NQ);
       MFEM_VERIFY(R,"");
       MFEM_VERIFY(DIM == 2, "");
       MFEM_VERIFY(VDIM == 1,"");
@@ -342,28 +364,20 @@ public:
       MFEM_VERIFY(NQ == Q1D*Q1D, "");
       MFEM_VERIFY(ye.Size() == R->Height(),"");
       MFEM_VERIFY(DIM == mesh->Dimension(),"");
-      /*DBG("[XFLOperator] DIM:<%d>, p:%d, q:%d, D1D:%d, Q1D:%d, R->Height():%d",
-          DIM, p, q, D1D, Q1D, R->Height());*/
-
       qi->SetOutputLayout(QVectorLayout::byVDIM);
       nqi->SetOutputLayout(QVectorLayout::byVDIM);
-
       const FiniteElement *fe = nfes->GetFE(0);
       const int vdim = nfes->GetVDim();
       const int nd   = fe->GetDof();
       Vector Enodes(vdim*nd*NE);
       NR->Mult(*nodes, Enodes);
       nqi->Derivatives(Enodes, J0);
-
-      Assemble();
-      TestQFunction();
-      DBG("0x%x",(int)types);
+      ComputeDX();
    }
 
-   /// 2D setup for partially assembld (DX) kernels: only W*detJ
-   void Assemble()
+   /// 2D setup to compute DX: W * detJ
+   void ComputeDX()
    {
-      //DBG("[XFLOperator] Assemble");
       auto DX = mfem::Reshape(dx.Write(), Q1D, Q1D, NE);
       MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
       {
@@ -382,131 +396,15 @@ public:
       });
    }
 
-   /// Test QFunction
-   void TestQFunction()
-   {
-      MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qy,y,Q1D)
-            {
-               TestFunction_q u = 1.0;
-               TrialFunction_q v = 2.0;
-               qf(u,v,true);
-            }
-         }
-      });
-   }
-
-   /// 2D Partially assembled (DX) mass kernel
-   void MassMult(const mfem::Vector &x, mfem::Vector &y) const
-   {
-      ye = 0.0;
-      R->Mult(x, xe);
-      Vector q_der, q_det;
-      qi->Mult(xe, Q::VALUES, val_xq, q_der, q_det);
-      const auto X = mfem::Reshape(val_xq.Read(), Q1D, Q1D, NE);
-
-      const auto b = Reshape(maps->B.Read(), Q1D, D1D);
-      const auto DX = mfem::Reshape(dx.Read(), Q1D, Q1D, NE);
-      auto YE = mfem::Reshape(ye.ReadWrite(), D1D, D1D, NE);
-
-      constexpr const int MD1 = MDQ;
-      constexpr const int MQ1 = MDQ;
-      MFEM_VERIFY(MD1>=D1D,"");
-      MFEM_VERIFY(MQ1>=Q1D,"");
-
-      MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
-      {
-         MFEM_SHARED double B[MQ1*MD1];
-         MFEM_SHARED double DQ[NBZ][MD1*MQ1];
-         MFEM_SHARED double QQ[NBZ][MQ1*MQ1];
-
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-               const double D = X(qx,qy,e) * DX(qx,qy,e);
-               kernels::PushEval<MQ1,NBZ>(qx,qy,D,QQ);
-            }
-         }
-         MFEM_SYNC_THREAD;
-         kernels::LoadBt<MD1,MQ1>(D1D,Q1D,b,B);
-         kernels::EvalXt<MD1,MQ1,NBZ>(D1D,Q1D,B,QQ,DQ);
-         kernels::EvalYt<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ,YE,e);
-      });
-      R->MultTranspose(ye,y);
-   }
-
-   /// 2D Matrix free diffusion kernel
-   void DiffusionMult(const mfem::Vector &x, mfem::Vector &y) const
-   {
-      ye = 0.0;
-      R->Mult(x, xe);
-      Vector q_val, q_det;
-      qi->Mult(xe, Q::DERIVATIVES, q_val, grad_xq, q_det);
-      const auto GradX = mfem::Reshape(grad_xq.Read(), DIM, Q1D, Q1D, NE);
-
-      const auto b = Reshape(maps->B.Read(), Q1D, D1D);
-      const auto g = Reshape(maps->G.Read(), Q1D, D1D);
-      const auto DX = mfem::Reshape(dx.Read(), Q1D, Q1D, NE);
-      auto YE = mfem::Reshape(ye.ReadWrite(), D1D, D1D, NE);
-
-      constexpr const int MD1 = MDQ;
-      constexpr const int MQ1 = MDQ;
-      MFEM_VERIFY(MD1>=D1D,"");
-      MFEM_VERIFY(MQ1>=Q1D,"");
-
-      MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
-      {
-         MFEM_SHARED double BG[2][MQ1*MD1];
-         MFEM_SHARED double DQ[2][NBZ][MD1*MQ1];
-         MFEM_SHARED double QQ[2][NBZ][MQ1*MQ1];
-
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-               const double J11 = J(qx,qy,0,0,e);
-               const double J21 = J(qx,qy,1,0,e);
-               const double J12 = J(qx,qy,0,1,e);
-               const double J22 = J(qx,qy,1,1,e);
-               const double detJ = (J11*J22)-(J21*J12);
-               const double dp = 1.0/(detJ*detJ);
-               const double dx = dp*DX(qx,qy,e);
-
-               const double O11 =  (J12*J12 + J22*J22);
-               const double O12 = -(J12*J11 + J22*J21);
-               const double O22 =  (J11*J11 + J21*J21);
-
-               const double gX = GradX(0,qx,qy,e);
-               const double gY = GradX(1,qx,qy,e);
-
-               const double D0 = (O11 * gX) + (O12 * gY);
-               const double D1 = (O12 * gX) + (O22 * gY);
-
-               const double D[2] = { D0*dx, D1*dx };
-               kernels::PushGrad1<MQ1,NBZ>(qx,qy,D,QQ);
-            }
-         }
-         MFEM_SYNC_THREAD;
-         kernels::LoadBGt<MD1,MQ1>(D1D,Q1D,b,g,BG);
-         kernels::Grad1Yt<MD1,MQ1,NBZ>(D1D,Q1D,BG,QQ,DQ);
-         kernels::Grad1Xt<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,YE,e);
-      });
-      R->MultTranspose(ye,y);
-   }
-
-   /// 2D Matrix free generic kernel
-   void GenericMult(const mfem::Vector &x, mfem::Vector &y) const
+   /// 2D Generic Kernel
+   virtual void Mult(const mfem::Vector &x, mfem::Vector &y) const
    {
       ye = 0.0;
       R->Mult(x, xe);
       Vector q_val, q_der, q_det;
-      const bool ud = UF == Q::DERIVATIVES;
+      const bool ud = UF == FE::GRAD;
       Vector q(ud?grad_xq.Size():val_xq.Size());
-      qi->Mult(xe, UF, ud?q_val:q, ud?q:q_der, q_det);
+      qi->Mult(xe, ud?Q::DERIVATIVES:Q::VALUES, ud?q_val:q, ud?q:q_der, q_det);
 
       const auto X = mfem::Reshape(q.Read(), ud?DIM:1, Q1D,Q1D, NE);
       const auto b = Reshape(maps->B.Read(), Q1D, D1D);
@@ -533,35 +431,38 @@ public:
             {
                double D[DIM];
 
-               const bool sc = UF == Q::VALUES && VF == Q::VALUES;
-               const bool gg = UF == Q::DERIVATIVES && VF == Q::DERIVATIVES;
+               const bool sc = UF == FE::NONE && VF == FE::NONE;
+               const bool gg = UF == FE::GRAD && VF == FE::GRAD;
 
-               if (sc) { D[0] = X(0,qx,qy,e); }
+               if (sc)
+               {
+                  D[0] = 1.0 * X(0,qx,qy,e) * 1.0;
+               }
 
                if (gg)
                {
-                  double A[DIM*DIM], C[DIM*DIM];
+                  double Jrt[DIM*DIM], C[DIM*DIM];
                   const double *Jtr = &Jac(0,0,qx,qy,e);
                   const double p[DIM]= {X(0,qx,qy,e), X(1,qx,qy,e)};
-                  kernels::CalcInverse<DIM>(Jtr, A);
-                  kernels::MultABt(DIM,DIM,DIM,A,A,C);
-                  kernels::Mult(DIM,DIM,C,p,D);
+                  kernels::CalcInverse<DIM>(Jtr, Jrt);
+                  // D = J.(J^T.p)
+                  kernels::MultTranspose(DIM,DIM,Jrt,p,C);
+                  kernels::Mult(DIM,DIM,Jrt,C,D);
                }
-
                const double dx = DX(qx,qy,e);
                const double VDX[DIM] = { D[0]*dx, D[1]*dx };
-               if (VF == Q::VALUES) {kernels::PushEval<MQ1,NBZ>(qx,qy,VDX[0],QQ[0]);}
-               if (VF == Q::DERIVATIVES) {kernels::PushGrad1<MQ1,NBZ>(qx,qy,VDX,QQ);}
+               if (VF == FE::NONE) {kernels::PushEval<MQ1,NBZ>(qx,qy,VDX[0],QQ[0]);}
+               if (VF == FE::GRAD) {kernels::PushGrad1<MQ1,NBZ>(qx,qy,VDX,QQ);}
             }
          }
          MFEM_SYNC_THREAD;
          kernels::LoadBGt<MD1,MQ1>(D1D,Q1D,b,g,BG);
-         if (VF == Q::VALUES)
+         if (VF == FE::NONE)
          {
             kernels::EvalXt<MD1,MQ1,NBZ>(D1D,Q1D,BG[0],QQ[0],DQ[0]);
             kernels::EvalYt<MD1,MQ1,NBZ>(D1D,Q1D,BG[0],DQ[0],YE,e);
          }
-         if (VF == Q::DERIVATIVES)
+         if (VF == FE::GRAD)
          {
             kernels::Grad1Yt<MD1,MQ1,NBZ>(D1D,Q1D,BG,QQ,DQ);
             kernels::Grad1Xt<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,YE,e);
@@ -569,34 +470,15 @@ public:
       });
       R->MultTranspose(ye,y);
    }
-
-   virtual void Mult(const mfem::Vector &x, mfem::Vector &y) const
-   {
-      const bool mass = UF == Q::VALUES && VF == Q::VALUES;
-      const bool diffusion = UF == Q::DERIVATIVES && VF == Q::DERIVATIVES;
-      MFEM_VERIFY(mass || diffusion, "Unknown kernel!");
-
-      if (mass) { MassMult(x,y); }
-
-      if (diffusion) { DiffusionMult(x,y); }
-
-      const double alpha = y*y;
-
-      GenericMult(x,y);
-
-      const double beta = y*y;
-
-      MFEM_VERIFY(std::abs(alpha - beta)<1e-12, "");
-   }
 };
 
 class Function;
 struct TestFunction;
 struct TrialFunction;
 
-/**
+/** ****************************************************************************
  * @brief The Problem struct
- */
+ ******************************************************************************/
 struct Problem
 {
    mfem::LinearForm *b;
@@ -661,35 +543,28 @@ struct XFLForm
    const int dim;
    mfem::Operator *op;
    const FiniteElementSpace *fes;
-   const Q::EvalFlags u,v;
 
-   XFLForm(FiniteElementSpace *fes, Q::EvalFlags u, Q::EvalFlags v):
-      dim(fes->GetFE(0)->GetDim()), op(nullptr), fes(fes), u(u), v(v)
-   {
-      DBG("XFLForm");
-   }
+   XFLForm(FiniteElementSpace *fes):
+      dim(fes->GetFE(0)->GetDim()), op(nullptr), fes(fes) { }
 
    // XFLForm * dx
    template<typename R, typename Q, typename ... A>
    QXFLForm<R,Q,A...> operator *(const QForm<R,Q,A...> &dx)
    {
-      DBG("=> QXFLForm");
       assert(dim==2);
-      op = static_cast<Operator*>(new XFLOperator<2,R,Q,A...>(fes,u,v,dx));
+      op = static_cast<Operator*>(new XFLOperator<2,R,Q,A...>(fes, dx));
       MFEM_VERIFY(op,"");
       return QXFLForm<R,Q,A...>(*this, dx);
    }
 
    Problem &operator ==(XLinearForm &li)
    {
-      DBG("=> Problem");
       assert(op);
       return *new Problem(op, li.b);
    }
 
    // XFLForm + XFLForm
    XFLForm &operator +(XFLForm rhs) { assert(false); return *this; }
-
    XFLForm &operator -(XFLForm rhs) { assert(false); return *this + rhs; /*!*/ }
 };
 
@@ -721,14 +596,7 @@ class GradFunction: public Function
 {
 public:
    GradFunction(FiniteElementSpace *fes): Function(fes) { }
-
-   // ∇u * ∇v
-   XFLForm operator*(GradFunction &v)
-   {
-      //DBG("\033[32m[Diffusion] XFLForm");
-      XFLForm xf(fes, GRAD, GRAD);
-      return xf;
-   }
+   XFLForm operator*(GradFunction&) { return XFLForm(fes); }
 };
 
 /** ****************************************************************************
@@ -748,16 +616,9 @@ struct TrialFunction: public Function
    TrialFunction &u;
 public:
    TrialFunction(FiniteElementSpace *fes): Function(fes), u(*this) { }
-
    GradFunction Grad() { return GradFunction(fes); }
    DivFunction Div() { return DivFunction(fes); }
-
-   // u * v
-   XFLForm operator*(TestFunction&)
-   {
-      XFLForm xf(fes, VALUES, VALUES);
-      return xf;
-   }
+   XFLForm operator*(TestFunction&) { return XFLForm(fes); }
 };
 
 /** ****************************************************************************
@@ -768,19 +629,10 @@ struct TestFunction: public Function
    TestFunction &v;
 public:
    TestFunction(FiniteElementSpace *fes): Function(fes), v(*this) { }
-
    GradFunction Grad() { return GradFunction(fes); }
    DivFunction Div() { return DivFunction(fes); }
-
-   // v * u
    XFLForm operator*(TrialFunction &u) { return u * v;}
-
-   // f * v
-   ScalarForm operator*(double alpha)
-   {
-      ScalarForm scalar_form(alpha, fes);
-      return scalar_form;
-   }
+   ScalarForm operator*(double alpha) { return ScalarForm(alpha, fes); }
 };
 
 /** ****************************************************************************
@@ -792,9 +644,7 @@ class Constant//: public ConstantCoefficient
    ConstantCoefficient *cst = nullptr;
 public:
    Constant(double val): value(val), cst(new ConstantCoefficient(val)) { }
-   // T can be a Trial or a Test function
    template <typename T> ScalarForm operator*(T &gf) { return gf * value; }
-
    template<typename R, typename Q, typename ... A>
    double operator *(const QForm<R,Q,A...> &dx) { return value;}
 };
@@ -843,7 +693,7 @@ mfem::FiniteElementCollection *FiniteElement(std::string family,
 {
    MFEM_VERIFY(family == "Lagrange", "Unsupported family!");
    MFEM_VERIFY(type == quadrilateral, "Unsupported type!");
-   const int dim = 2; // quadrilateral
+   constexpr int dim = 2; // quadrilateral
    return new H1_FECollection(order, dim);
 }
 
@@ -856,21 +706,18 @@ mfem::FiniteElementSpace *FunctionSpace(mfem::Mesh *mesh, std::string family,
    const int dim = mesh->Dimension();
    MFEM_VERIFY(family == "P", "Unsupported FE!");
    FiniteElementCollection *fec = new H1_FECollection(order, dim);
-   assert(fec);
    return new FiniteElementSpace(mesh, fec);
 }
 
-mfem::FiniteElementSpace *FunctionSpace(mfem::Mesh &mesh, std::string family,
-                                        int order)
+mfem::FiniteElementSpace *FunctionSpace(mfem::Mesh &m, std::string f, int p)
 {
-   return FunctionSpace(&mesh, family, order);
+   return FunctionSpace(&m, f, p);
 }
 
-mfem::FiniteElementSpace *FunctionSpace(mfem::Mesh &mesh,
-                                        mfem::FiniteElementCollection *fec)
+mfem::FiniteElementSpace *FunctionSpace(mfem::Mesh &m,
+                                        FiniteElementCollection *fec)
 {
-   assert(fec);
-   return new FiniteElementSpace(&mesh, fec);
+   return new FiniteElementSpace(&m, fec);
 }
 
 /** ****************************************************************************
@@ -878,18 +725,17 @@ mfem::FiniteElementSpace *FunctionSpace(mfem::Mesh &mesh,
  ******************************************************************************/
 mfem::FiniteElementSpace *VectorFunctionSpace(mfem::Mesh *mesh,
                                               std::string family,
-                                              int order)
+                                              const int order)
 {
    const int dim = mesh->Dimension();
    MFEM_VERIFY(family == "P", "Unsupported FE!");
    FiniteElementCollection *fec = new H1_FECollection(order, dim);
-   assert(fec);
    return new FiniteElementSpace(mesh, fec, dim);
 }
 
 mfem::FiniteElementSpace *VectorFunctionSpace(mfem::Mesh &mesh,
                                               std::string family,
-                                              int order)
+                                              const int order)
 {
    return VectorFunctionSpace(&mesh, family, order);
 }
@@ -897,7 +743,6 @@ mfem::FiniteElementSpace *VectorFunctionSpace(mfem::Mesh &mesh,
 mfem::FiniteElementSpace *VectorFunctionSpace(mfem::Mesh &mesh,
                                               mfem::FiniteElementCollection *fec)
 {
-   assert(fec);
    return new FiniteElementSpace(&mesh, fec, mesh.Dimension());
 }
 
@@ -950,7 +795,6 @@ double Pow(double base, double exp) { return std::pow(base, exp); }
  */
 int solve(xfl::Problem &pb, xfl::Function &x, Array<int> ess_tdof_list)
 {
-   //DBG("[solve] x:%d, ess_tdof_list:%d", x.Size(), ess_tdof_list.Size());
    FiniteElementSpace *fes = x.FESpace();
    assert(fes);
    MFEM_VERIFY(UsesTensorBasis(*fes), "FE Space must Use Tensor Basis!");
@@ -1036,7 +880,7 @@ void print(const char *fmt, Args... args)
 
 inline bool UsesTensorBasis(const FiniteElementSpace *fes)
 {
-   return UsesTensorBasis(*fes);
+   return mfem::UsesTensorBasis(*fes);
 }
 
 } // namespace mfem

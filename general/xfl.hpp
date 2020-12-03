@@ -104,7 +104,7 @@ public:
    enum VarMode: unsigned
    {
       NONE   = 0,
-      INTERP = 1 << 0,
+      VALUE  = 1 << 0,
       GRAD   = 1 << 1,
       DIV    = 1 << 2,
       CURL   = 1 << 3
@@ -123,6 +123,7 @@ public:
       int type;
       Node *qfunc { nullptr };
       Node *extra { nullptr };
+      std::array<Node*,8> nodes = {nullptr};
       std::unordered_map<std::string, xfl::var> vars;
    } ctx;
 public:
