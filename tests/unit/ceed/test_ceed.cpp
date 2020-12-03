@@ -213,8 +213,8 @@ void test_ceed_operator(const char* input, int order, const CeedCoeff coeff_type
       k_test.AddDomainIntegrator(new MassIntegrator(*coeff));
       break;
    case Problem::Convection:
-      k_ref.AddDomainIntegrator(new ConvectionIntegrator(*vcoeff));
-      k_test.AddDomainIntegrator(new ConvectionIntegrator(*vcoeff));
+      k_ref.AddDomainIntegrator(new ConvectionIntegrator(*vcoeff,-1));
+      k_test.AddDomainIntegrator(new ConvectionIntegrator(*vcoeff,-1));
       break;
    case Problem::Diffusion:
       k_ref.AddDomainIntegrator(new DiffusionIntegrator(*coeff));
@@ -331,9 +331,12 @@ TEST_CASE("CEED convection", "[CEED],[Convection]")
                               CeedCoeff::VecQuad);
    auto pb = GENERATE(Problem::Convection);
    auto order = GENERATE(1,2,3);
-   auto mesh = GENERATE("../../data/inline-quad.mesh","../../data/inline-hex.mesh",
-                        "../../data/star-q2.mesh","../../data/fichera-q2.mesh",
-                        "../../data/amr-quad.mesh","../../data/fichera-amr.mesh");
+   auto mesh = GENERATE("../../data/inline-quad.mesh",
+                        "../../data/inline-hex.mesh",
+                        "../../data/star-q2.mesh",
+                        "../../data/fichera-q2.mesh",
+                        "../../data/amr-quad.mesh",
+                        "../../data/fichera-amr.mesh");
    test_ceed_operator(mesh, order, coeff_type, pb, assembly);
 } // test case
 

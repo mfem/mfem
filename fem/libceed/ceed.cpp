@@ -163,7 +163,7 @@ void InitCeedVecCoeff(VectorCoefficient *VQ, Mesh &mesh,
       const int dim = mesh.Dimension();
       const int nq = ir.GetNPoints();
       ceedCoeff->coeff.SetSize(dim * nq * ne);
-      auto C = Reshape(ceedCoeff->coeff.HostWrite(), nq, ne, dim);
+      auto C = Reshape(ceedCoeff->coeff.HostWrite(), dim, nq, ne);
       DenseMatrix Q_ir;
       for (int e = 0; e < ne; ++e)
       {
@@ -173,7 +173,7 @@ void InitCeedVecCoeff(VectorCoefficient *VQ, Mesh &mesh,
          {
             for (int i = 0; i < dim; ++i)
             {
-               C(q,e,i) = Q_ir(i,q);
+               C(i,q,e) = Q_ir(i,q);
             }
          }
       }
@@ -332,10 +332,9 @@ void CeedAssemble(const CeedPAOperator& op,
       {
          CeedVecQuadCoeff* quadCoeff = (CeedVecQuadCoeff*)ceedData.coeff;
          const int ncomp = dim;
-         CeedInt strides[3] = {1, nqpts, ncomp*nqpts};
-         CeedElemRestrictionCreateStrided(ceed, nelem, nqpts, ncomp,
-                                          nelem*ncomp*nqpts, strides,
-                                          &quadCoeff->restr);
+         CeedInt strides[3] = {ncomp, 1, ncomp*nqpts};
+         InitCeedStridedRestriction(*mesh_fes, nelem, nqpts, ncomp, strides,
+                                    &quadCoeff->restr);
          CeedOperatorSetField(ceedData.build_oper, "coeff", quadCoeff->restr,
                               CEED_BASIS_COLLOCATED, quadCoeff->coeffVector);
       }
@@ -625,10 +624,10 @@ void CeedAssemble(const CeedMFOperator& op,
       {
          CeedVecQuadCoeff* quadCoeff = (CeedVecQuadCoeff*)ceedData.coeff;
          const int ncomp = dim;
-         CeedInt strides[3] = {1, nqpts, ncomp*nqpts};
-         CeedElemRestrictionCreateStrided(ceed, nelem, nqpts, ncomp,
-                                          nelem*ncomp*nqpts, strides,
-                                          &quadCoeff->restr);
+         CeedInt strides[3] = {ncomp, 1, ncomp*nqpts};
+         InitCeedStridedRestriction(*mesh->GetNodalFESpace(),
+                                    nelem, nqpts, ncomp, strides,
+                                    &quadCoeff->restr);
          CeedOperatorSetField(ceedData.oper, "coeff", quadCoeff->restr,
                               CEED_BASIS_COLLOCATED, quadCoeff->coeffVector);
       }
@@ -959,7 +958,7 @@ void InitCeedStridedRestriction(const FiniteElementSpace &fes,
                                 const CeedInt *strides,
                                 CeedElemRestriction *restr)
 {
-   CeedRestrKey restr_key(&fes, nelem, nqpts, qdatasize);
+   CeedRestrKey restr_key(&fes, nelem, nqpts, qdatasize, restr_type::Strided);
    auto restr_itr = internal::ceed_restr_map.find(restr_key);
    if (restr_itr == internal::ceed_restr_map.end())
    {
@@ -989,7 +988,7 @@ void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
    const int ncomp = fes.GetVDim();
    CeedBasisKey basis_key(&fes, &irm, ncomp, P, Q);
    auto basis_itr = internal::ceed_basis_map.find(basis_key);
-   CeedRestrKey restr_key(&fes, nelem, P, ncomp);
+   CeedRestrKey restr_key(&fes, nelem, P, ncomp, restr_type::Standard);
    auto restr_itr = internal::ceed_restr_map.find(restr_key);
 
    // Init or retreive key values
