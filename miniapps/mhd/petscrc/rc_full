@@ -35,7 +35,7 @@
 -s3_ksp_rtol 1e-6
 -s3_ksp_type cg
 #======ARe matrix======
--s4_ksp_rtol 1e-4
+-s4_ksp_rtol 1e-6
 -s4_ksp_type gmres
 -s4_pc_type hypre
 -s4_ksp_converged_reason

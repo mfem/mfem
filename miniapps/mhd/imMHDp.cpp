@@ -587,7 +587,7 @@ int main(int argc, char *argv[])
    ParaViewDataCollection *pd = NULL;
    if (paraview)
    {
-      pd = new ParaViewDataCollection("case3amr-derefine", pmesh);
+      pd = new ParaViewDataCollection("imMHDp", pmesh);
       pd->SetPrefixPath("ParaView");
       pd->RegisterField("psi", &psi);
       pd->RegisterField("phi", &phi);
