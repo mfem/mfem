@@ -446,6 +446,10 @@ protected:
    void Printer(std::ostream &out = mfem::out,
                 std::string section_delimiter = "") const;
 
+   /** Creates mesh for the hyper-prism spatial_mesh x[0,st], divided into
+       4*nt*spatial_mesh.NumElem pentatopes. */
+   void Make4D(Mesh* spatial_mesh, int nt, Element::Type type, double st);
+
    /** Creates mesh for the 4-parallelotope [0,sx]x[0,sy]x[0,sz]x[0,st], divided into
        nx*ny*nz*nt tesseracts if type=TESSERACT or into 24*nx*ny*nz*nt pentatopes if
        type=PENTATOPE. */
@@ -541,6 +545,7 @@ public:
    void AddPent(const int *vi, int attr = 1);
    void AddTes(const int *vi, int attr = 1);
    void AddTesAsPentatopes(const int *vi, int attr = 1);
+   void AddHyperPrismAsPentatopes(const int *vi, int attr = 1);
    /// The parameter @a elem should be allocated using the NewElement() method
    void AddElement(Element *elem)     { elements[NumOfElements++] = elem; }
    void AddBdrElement(Element *elem)  { boundary[NumOfBdrElements++] = elem; }
@@ -550,7 +555,8 @@ public:
    void AddBdrQuadAsTriangles(const int *vi, int attr = 1);
    void AddBdrTet(const int *vi, int attr = 1);
    void AddBdrHex(const int *vi, int attr = 1);
-   void AddBdrHexAsTet(const int *vi, int perm, int attr = 1);
+   void AddBdrHexAsTets(const int *vi, int perm, int attr = 1);
+   void AddBdrPrismAsTets(const int *vi, int attr = 1);
 
    void GenerateBoundaryElements();
    /// Finalize the construction of a triangular Mesh.
@@ -619,6 +625,17 @@ public:
    void ReorderElements(const Array<int> &ordering, bool reorder_vertices = true);
 
 
+   /** Creates mesh for the hyper-prism spatial_mesh x[0,st], divided into
+       4*nt*spatial_mesh.NumElem pentatopes. If refine = true (default) the
+       mesh is made conforming for the bisection algorithm, i.e., each
+       pentatope is again subdivided into 60 sub-pentatopes. Use refine = false
+       if you want to use the mesh in parallel. */
+   Mesh(Mesh* spatial_mesh, int nt, Element::Type type, bool refine = true, double st = 1.0)
+   {
+      Make4D(spatial_mesh, nt, type, st);
+      Finalize(refine, true);
+   }
+
    /** Creates mesh for the 4-parallelotope [0,sx]x[0,sy]x[0,sz]x[0,st], divided into
        nx*ny*nz*nt tesseracts if type=TESSERACT or into 24*nx*ny*nz pentatopes if
        type=PENTATOPE. If refine = true (default) the mesh is made conforming
@@ -628,10 +645,6 @@ public:
    Mesh(int nx, int ny, int nz, int nt, Element::Type type, bool refine = true,
         double sx = 1.0, double sy = 1.0, double sz = 1.0, double st = 1.0)
    {
-    //   bool generate_boundary = true;
-    //   bool which_boundary[8] = {true,true,true,true,true,true,true,true};
-    //   Make4D(nx, ny, nz, nt, type, generate_edges, sx, sy, sz, st, generate_boundary,
-    //          which_boundary);
         Make4D(nx, ny, nz, nt, type, sx, sy, sz, st);
         Finalize(refine,true);
    }

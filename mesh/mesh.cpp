@@ -1303,6 +1303,21 @@ void Mesh::AddTesAsPentatopes(const int *vi, int attr)
    }
 }
 
+void Mesh::AddHyperPrismAsPentatopes(const int *vi, int attr)
+{
+   int pi[5];
+
+   for (int i = 0, j; i < 4; i++)
+   {
+      for (j = i; j < 4; j++)
+         pi[j - i] = vi[j];
+      for (; j < i + 5; j++)
+         pi[j - i] = vi[j];
+
+      AddPent(pi, attr);
+   }
+}
+
 void Mesh::AddBdrSegment(const int *vi, int attr)
 {
    boundary[NumOfBdrElements++] = new Segment(vi, attr);
@@ -1343,7 +1358,7 @@ void Mesh::AddBdrHex(const int *vi, int attr)
    boundary[NumOfBdrElements++] = new Hexahedron(vi, attr);
 }
 
-void Mesh::AddBdrHexAsTet(const int *vi, int perm, int attr)
+void Mesh::AddBdrHexAsTets(const int *vi, int perm, int attr)
 {
    static const int hex_to_tet[4][6][4] =
    {
@@ -1360,6 +1375,21 @@ void Mesh::AddBdrHexAsTet(const int *vi, int perm, int attr)
       {
          ti[j] = vi[hex_to_tet[perm][i][j]];
       }
+      AddBdrTet(ti, attr);
+   }
+}
+
+void Mesh::AddBdrPrismAsTets(const int *vi, int attr)
+{
+   int ti[4];
+
+   for (int i = 0, j; i < 3; i++)
+   {
+      for (j = i; j < 3; j++)
+         ti[j - i] = vi[j];
+      for (; j < i + 4; j++)
+         ti[j - i] = vi[j];
+
       AddBdrTet(ti, attr);
    }
 }
@@ -2568,6 +2598,114 @@ void Mesh::FinalizeTesMesh(int generate_edges, int refine, bool fix_orientation)
    meshgen = 2;
 }
 
+void Mesh::Make4D(Mesh* spatial_mesh, int nt, Element::Type type, double st)
+{
+   MFEM_VERIFY(type == Element::PENTATOPE && !spatial_mesh->HasGeometry(Geometry::CUBE), "Only implemented for simplical meshes.");
+   int t, v, e, i, d;
+
+   int NVert, NElem, NBdrElem;
+   int spatial_NV = spatial_mesh->GetNV();
+   int spatial_NE = spatial_mesh->GetNE();
+   int spatial_NBE = spatial_mesh->GetNBE();
+
+   NVert = spatial_NV * (nt + 1);
+   NElem = spatial_NE * nt;
+   NBdrElem = nt * spatial_NBE;
+   if (type == Element::PENTATOPE)
+   {
+      if (spatial_mesh->GetElementType(0) == Element::HEXAHEDRON)
+         MFEM_ABORT("Not supported.");
+      NElem *= 4;
+      NBdrElem = NBdrElem * 3 + 2 * spatial_NE;
+   }
+
+   int NAttr = spatial_mesh->attributes.Max();
+   int NBdrAttr = spatial_mesh->bdr_attributes.Max();
+
+   InitMesh(4, 4, NVert, NElem, NBdrElem);
+
+   double coord[4];
+   int ind[16];
+   Array<int> spatial_ind;
+
+   // Sets vertices and the corresponding coordinates
+   for (t = 0; t<=nt; t++)
+   {
+      coord[3] = ((double) t / nt) * st;
+      for (v = 0; v < spatial_NV; v++)
+      {
+         const double* vert = spatial_mesh->GetVertex(v);
+         for (d = 0; d < 3; d++)
+            coord[d] = vert[d];
+         AddVertex(coord);
+      }
+   }
+
+   // Sets elements and the corresponding indices of vertices
+   int attr;
+   for (t = 0; t < nt; t++)
+   {
+      for (e = 0; e < spatial_NE; e++)
+      {
+         attr = spatial_mesh->GetAttribute(e);
+         spatial_mesh->GetElementVertices(e, spatial_ind);
+         switch (type)
+         {
+         case Element::PENTATOPE:
+         {
+            spatial_ind.Sort();
+            int ni = spatial_ind.Size();
+            for (i = 0; i < ni; i++)
+            {
+               ind[i] = spatial_ind[i] + t * spatial_NV;
+               ind[i+ni] = spatial_ind[i] + (t + 1) * spatial_NV;
+            }
+            AddHyperPrismAsPentatopes(ind, attr);
+         }
+         break;
+
+         default:
+            MFEM_ABORT("Element type '" << type << "' not implmented.")
+            break;
+         }
+      }
+   }
+
+   // Sets boundary elements and the corresponding indices of vertices
+   // t bottom and top
+   for (e = 0; e < spatial_NE; e ++)
+   {
+      // t bottom, attr = element attr
+      attr = spatial_mesh->GetAttribute(e);
+      spatial_mesh->GetElementVertices(e, spatial_ind);
+      AddBdrTet(spatial_ind.GetData(), attr);
+      // t top, attr = max element attr + max bdr element attr
+      attr = NAttr + NBdrAttr + 1;
+      for (i = 0; i < spatial_ind.Size() ; i++)
+         ind[i] = spatial_ind[i] + (nt) * spatial_NV;
+      AddBdrTet(ind, attr);
+   }
+   // mantle, attr = max element attr + bdr element attr
+   for (t = 0; t < nt; t++)
+   {
+      for (e = 0; e < spatial_NBE; e++)
+      {
+         attr = spatial_mesh->GetBdrAttribute(e) + NAttr;
+         spatial_mesh->GetBdrElementVertices(e, spatial_ind);
+         spatial_ind.Sort();
+         int ni = spatial_ind.Size();
+         for (i = 0; i < ni; i++)
+         {
+            ind[i] = spatial_ind[i] + t * spatial_NV;
+            ind[i+ni] = spatial_ind[i] + (t + 1) * spatial_NV;
+         }
+         AddBdrPrismAsTets(ind, attr);
+      }
+   }
+
+   FinalizeTopology();
+}
+
 void Mesh::Make4D(int nx, int ny, int nz, int nt, Element::Type type,
                   double sx, double sy, double sz, double st)
 {
@@ -2649,7 +2787,8 @@ void Mesh::Make4D(int nx, int ny, int nz, int nt, Element::Type type,
       }
    }
 
-   //x bottom
+   // Sets boundary elements and the corresponding indices of vertices
+   //x bottom, attr 2
    for (t = 0; t < nt; t++)
    {
       for (z = 0; z < nz; z++)
@@ -2667,7 +2806,7 @@ void Mesh::Make4D(int nx, int ny, int nz, int nt, Element::Type type,
 
             if (type == Element::PENTATOPE)
             {
-               AddBdrHexAsTet(ind, 0, 2);
+               AddBdrHexAsTets(ind, 0, 2);
             }
             else
             {
@@ -2694,7 +2833,7 @@ void Mesh::Make4D(int nx, int ny, int nz, int nt, Element::Type type,
 
             if (type == Element::PENTATOPE)
             {
-               AddBdrHexAsTet(ind, 1, 3);
+               AddBdrHexAsTets(ind, 1, 3);
             }
             else
             {
@@ -2722,7 +2861,7 @@ void Mesh::Make4D(int nx, int ny, int nz, int nt, Element::Type type,
 
             if (type == Element::PENTATOPE)
             {
-               AddBdrHexAsTet(ind, 2, 4);
+               AddBdrHexAsTets(ind, 2, 4);
             }
             else
             {
@@ -2750,7 +2889,7 @@ void Mesh::Make4D(int nx, int ny, int nz, int nt, Element::Type type,
 
             if (type == Element::PENTATOPE)
             {
-               AddBdrHexAsTet(ind, 3, 5);
+               AddBdrHexAsTets(ind, 3, 5);
             }
             else
             {
@@ -2779,7 +2918,7 @@ void Mesh::Make4D(int nx, int ny, int nz, int nt, Element::Type type,
 
             if (type == Element::PENTATOPE)
             {
-               AddBdrHexAsTet(ind, 0, 6);
+               AddBdrHexAsTets(ind, 0, 6);
             }
             else
             {
@@ -2807,7 +2946,7 @@ void Mesh::Make4D(int nx, int ny, int nz, int nt, Element::Type type,
 
             if (type == Element::PENTATOPE)
             {
-               AddBdrHexAsTet(ind, 1, 7);
+               AddBdrHexAsTets(ind, 1, 7);
             }
             else
             {
@@ -2836,7 +2975,7 @@ void Mesh::Make4D(int nx, int ny, int nz, int nt, Element::Type type,
 
             if (type == Element::PENTATOPE)
             {
-               AddBdrHexAsTet(ind, 2, 1);
+               AddBdrHexAsTets(ind, 2, 1);
             }
             else
             {
@@ -2863,7 +3002,7 @@ void Mesh::Make4D(int nx, int ny, int nz, int nt, Element::Type type,
 
             if (type == Element::PENTATOPE)
             {
-               AddBdrHexAsTet(ind, 3, 8);
+               AddBdrHexAsTets(ind, 3, 8);
             }
             else
             {
