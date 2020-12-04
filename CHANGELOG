@@ -32,6 +32,14 @@ Version 4.2.1 (development)
 
 - Added new mesh quality metrics for TMOP-based mesh optimization.
 
+- Variable order spaces, p- and hp-refinement. This is the initial (serial)
+  support for variable-order FiniteElementCollection and FiniteElementSpace.
+  The new method FiniteElementSpace::SetElementOrder can be called to set an
+  arbitrary order for each mesh element. The conforming interpolation matrix
+  will now automatically constrain p- and hp- interfaces, enabling general
+  hp-refinement in both 2D and 3D, on uniform or mixed NC meshes. Support for
+  parallel variable-order spaces will follow shortly.
+
 
 Version 4.2, released on October 30, 2020
 =========================================
