@@ -2050,8 +2050,6 @@ public:
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
                                          ElementTransformation &Trans);
-
-   void SetupPA(const FiniteElementSpace &fes);
 };
 
 /** Mass integrator (u, v) restricted to the boundary of a domain */
@@ -2745,6 +2743,51 @@ public:
       : Q(&q), MQ(NULL), sigma(s), kappa(k) { }
    DGDiffusionIntegrator(MatrixCoefficient &q, const double s, const double k)
       : Q(NULL), MQ(&q), sigma(s), kappa(k) { }
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+};
+
+/** Integrator for the "BR2" diffusion stabilization term
+
+    sum_e eta (r_e([u]), r_e([v]))
+
+    where r_e is the lifting operator defined on each edge e. The parameter eta
+    can be chosen to be one to obtain a stable discretization. The constructor
+    for this integrator requires the finite element space because the lifting
+    operator depends on the element-wise inverse mass matrix.
+
+    BR2 stands for the second method of Bassi and Rebay:
+
+    - F. Bassi and S. Rebay. A high order discontinuous Galerkin method for
+      compressible turbulent flows. In B. Cockburn, G. E. Karniadakis, and
+      C.-W. Shu, editors, Discontinuous Galerkin Methods, pages 77–88. Springer
+      Berlin Heidelberg, 2000.
+    - D. N. Arnold, F. Brezzi, B. Cockburn, and L. D. Marini. Unified analysis
+      of discontinuous Galerkin methods for elliptic problems. SIAM Journal on
+      Numerical Analysis, 39(5):1749–1779, 2002.
+*/
+class DGDiffusionBR2Integrator : public BilinearFormIntegrator
+{
+protected:
+   double eta;
+
+   // Block factorizations of local mass matrices, with offsets for the case of
+   // not equally sized blocks (mixed meshes, p-refinement)
+   Array<double> Minv;
+   Array<int> ipiv;
+   Array<int> ipiv_offsets, Minv_offsets;
+
+   Vector shape1, shape2;
+
+   DenseMatrix R11, R12, R21, R22;
+   DenseMatrix MinvR11, MinvR12, MinvR21, MinvR22;
+   DenseMatrix Re, MinvRe;
+
+public:
+   DGDiffusionBR2Integrator(class FiniteElementSpace *fes, double e = 1.0);
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
