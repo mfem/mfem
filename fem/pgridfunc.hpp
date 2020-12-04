@@ -307,7 +307,6 @@ public:
                           pfes->GetComm());
    }
 
-   using GridFunction::ComputeDGFaceJumpError;
    /// Returns the Face Jumps error for L2 elements
    virtual double ComputeDGFaceJumpError(Coefficient *exsol,
                                          Coefficient *ell_coeff,
