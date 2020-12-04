@@ -771,6 +771,7 @@ inline bool UsesTensorBasis(const FiniteElementSpace *fes)
    return mfem::UsesTensorBasis(*fes);
 }
 
+double sym(double w) { return w; }
 double grad(double w) { return w; }
 double dot(double u, double v) { return u * v; }
 

@@ -304,7 +304,7 @@ void Code::args_expr_list_args_expr_list_coma_assign_expr_u(Rule*) const { }
 void Code::def_statement_nl_d(Rule*n) const
 {
    if (!ufl.ctx.nodes[0]) { return; }
-   out << "[&] (auto ";
+   out << "[&] (int ";
    ufl.dfs(ufl.ctx.nodes[0], me); // now dfs with the saved arguments node
    ufl.ctx.nodes[0] = nullptr;
    //dbg("\033[31mFLUSH ufl.ctx.node");
@@ -330,6 +330,17 @@ void Code::def_empty_empty_d(Rule *n) const
 void Code::def_empty_empty_u(Rule*) const { }
 
 // *****************************************************************************
+static string QTypes(const int type)
+{
+   if (type == TOK::TEST_FUNCTION) { return {"xfl::TestFunction_q"};}
+   if (type == TOK::TRIAL_FUNCTION) { return "xfl::TrialFunction_q"; }
+   if (type == TOK::FUNCTION) {return "xfl::Function_q"; }
+   if (type == TOK::CONSTANT_API) { return "xfl::Constant_q"; }
+   //assert(false);
+   return string();
+}
+
+// *****************************************************************************
 void Code::extra_status_rule_var_xt_d(Rule*n) const
 {
    dbg();
@@ -338,6 +349,7 @@ void Code::extra_status_rule_var_xt_d(Rule*n) const
    out << "[&]() {\n\t\tauto qf = [](/*";
    // continue with parsing the commented body to capture inputs
 }
+
 void Code::extra_status_rule_var_xt_u(Rule*n) const
 {
    dbg();
@@ -349,7 +361,10 @@ void Code::extra_status_rule_var_xt_u(Rule*n) const
       xfl::var &var = p.second;
       if (var.mode != xfl::NONE)
       {
-         out << ((i++>0)?", ":"") << "auto &" << var.name;//, var.type, var.mode);
+         out << ((i++>0)?", ":"");
+         out << QTypes(var.type);
+         out << " &" << var.name;
+         //out << ", " << var.mode;
       }
    }
 
@@ -495,7 +510,7 @@ void Code::token_COMA(Token*) const
    dbg();
    const bool lhs = yy::rules.at(lhs_lhs);
    const bool decl_func = lhs and yy::rules.at(decl_function);
-   if (decl_func) { out << ", auto "; return; }
+   if (decl_func) { out << ", int "; return; }
    out << ", ";
 }
 
