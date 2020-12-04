@@ -679,6 +679,7 @@ void FiniteElementSpace
    // exception is edges of slave faces that lie in the interior of the master
    // face, which are not covered by edge-edge relations. This function finds
    // such edges and makes them constrained by the master face.
+   // See also https://github.com/mfem/mfem/pull/1423#issuecomment-633916643
 
    Array<int> V, E, Eo; // TODO: LocalArray
    mesh->GetFaceVertices(slave_face, V);
@@ -741,12 +742,14 @@ int FiniteElementSpace::GetDegenerateFaceDofs(int index, Array<int> &dofs,
                                               int variant) const
 {
    // In NC meshes with prisms/tets, a special constraint occurs where a
-   // prism/tet edge is slave to another element's face. Rather than introduce a
-   // new edge-face constraint type, we handle such cases as degenerate
-   // face-face constraints, where the point-matrix rectangle has zero height.
-   // This method returns DOFs for the first edge of the rectangle, duplicated
-   // in the orthogonal direction, to resemble DOFs for a quadrilateral face.
-   // The extra DOFs are ignored by FiniteElementSpace::AddDependencies.
+   // prism/tet edge is slave to another element's face (see illustration
+   // here: https://github.com/mfem/mfem/pull/713#issuecomment-495786362)
+   // Rather than introduce a new edge-face constraint type, we handle such
+   // cases as degenerate face-face constraints, where the point-matrix
+   // rectangle has zero height. This method returns DOFs for the first edge
+   // of the rectangle, duplicated in the orthogonal direction, to resemble
+   // DOFs for a quadrilateral face. The extra DOFs are ignored by
+   // FiniteElementSpace::AddDependencies.
 
    Array<int> edof;
    int order = GetEdgeDofs(-1 - index, edof, variant);
@@ -2039,8 +2042,10 @@ void FiniteElementSpace
       return;
    }
 
-   // iterate while minimum orders propagate by master/slave relations
-   // (and new orders also propagate from faces to incident edges)
+   // Iterate while minimum orders propagate by master/slave relations
+   // (and new orders also propagate from faces to incident edges).
+   // See https://github.com/mfem/mfem/pull/1423#issuecomment-638930559
+   // for an illustration of why this is necessary in hp meshes.
    bool done;
    do
    {
@@ -2826,8 +2831,8 @@ void FiniteElementSpace::Update(bool want_transform)
 
    if (want_transform)
    {
-      MFEM_VERIFY(!orders_changed, "Interpolation for element order change is "
-                                   "not implemented yet, sorry.");
+      MFEM_VERIFY(!orders_changed, "Interpolation for element order change "
+                  "is not implemented yet, sorry.");
 
       // calculate appropriate GridFunction transformation
       switch (mesh->GetLastOperation())
