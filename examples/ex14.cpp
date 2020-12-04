@@ -17,6 +17,7 @@
 //               ex14 -m ../data/amr-quad.mesh -r 3
 //               ex14 -m ../data/amr-hex.mesh
 //               ex14 -m ../data/fichera-amr.mesh
+//               ex14 -m ../data/inline-tet.mesh -o 0 -nt 4 -s 1
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               discontinuous Galerkin (DG) finite element discretization of
@@ -45,10 +46,16 @@ int main(int argc, char *argv[])
    double sigma = -1.0;
    double kappa = -1.0;
    bool visualization = 1;
+   int nt = 0;
+   double st = 1.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&nt, "-nt", "--number-of-timeslices",
+                  "Number of slices through the hyper-prism in the 4th coordinate.");
+   args.AddOption(&st, "-st", "--size-time",
+                  "Length of hyper-prims in 4th coordinate (e.g. time).");
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&order, "-o", "--order",
@@ -79,6 +86,13 @@ int main(int argc, char *argv[])
    //    NURBS meshes are projected to second order meshes.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
+   if (dim == 3 && nt > 0)
+   {
+      Mesh* spat_mesh = mesh;
+      mesh = new Mesh(spat_mesh, nt, Element::PENTATOPE, true, st);
+      delete spat_mesh;
+      dim = 4;
+   }
 
    // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. By default, or if ref_levels < 0,
@@ -87,7 +101,7 @@ int main(int argc, char *argv[])
    {
       if (ref_levels < 0)
       {
-         ref_levels = (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+         ref_levels = (int)floor(log(50000./mesh->GetNE())/log(2.)/(dim < 4 ? dim : 1.));
       }
       for (int l = 0; l < ref_levels; l++)
       {

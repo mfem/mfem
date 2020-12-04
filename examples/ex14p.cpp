@@ -16,6 +16,7 @@
 //               mpirun -np 4 ex14p -m ../data/inline-segment.mesh -rs 5
 //               mpirun -np 4 ex14p -m ../data/amr-quad.mesh -rs 3
 //               mpirun -np 4 ex14p -m ../data/amr-hex.mesh
+//               mpirun -np 4 ex14p -m ../data/inline-tet.mesh -o 0 -nt 4 -s 1
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               discontinuous Galerkin (DG) finite element discretization of
@@ -51,10 +52,16 @@ int main(int argc, char *argv[])
    double sigma = -1.0;
    double kappa = -1.0;
    bool visualization = 1;
+   int nt = 0;
+   double st = 1.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&nt, "-nt", "--number-of-timeslices",
+                  "Number of slices through the hyper-prism in the 4th coordinate.");
+   args.AddOption(&st, "-st", "--size-time",
+                  "Length of hyper-prims in 4th coordinate (e.g. time).");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial,"
                   " -1 for auto.");
@@ -95,7 +102,15 @@ int main(int argc, char *argv[])
    //    with the same code. NURBS meshes are projected to second order meshes.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
-
+   if (dim == 3 && nt > 0)
+   {
+      Mesh* spat_mesh = mesh;
+      mesh = new Mesh(spat_mesh, nt, Element::PENTATOPE, true, st);
+      delete spat_mesh;
+      dim = 4;
+   }
+   if (dim == 4)
+      ser_ref_levels = 0;
    // 4. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ser_ref_levels' of uniform refinement. By default,
    //    or if ser_ref_levels < 0, we choose it to be the largest number that
