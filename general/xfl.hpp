@@ -15,7 +15,7 @@
 #include <array>
 #include <string>
 #include <memory>
-#include <unordered_map>
+#include <map>
 
 // *****************************************************************************
 /** @cond */ // Doxygen warning Detected potential recursive class relation
@@ -124,7 +124,7 @@ public:
       Node *qfunc { nullptr };
       Node *extra { nullptr };
       std::array<Node*,8> nodes = {nullptr};
-      std::unordered_map<std::string, xfl::var> vars;
+      std::map<std::string, xfl::var> vars;
    } ctx;
 public:
    xfl(bool yy_debug, bool ll_debug, std::string &input, std::string &output);

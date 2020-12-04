@@ -16,54 +16,25 @@
 #include <functional>
 
 #include "mfem.hpp"
-#include "general/forall.hpp"
 #include "fem/kernels.hpp"
-#include "fem/intrules.hpp"
-#include "linalg/dtensor.hpp"
+#include "general/debug.hpp"
+#include "general/forall.hpp"
 #include "linalg/kernels.hpp"
 
-using namespace std;
 using namespace mfem;
-
-#define DBG(...) { \
-    printf("\033[33m"); \
-    printf(__VA_ARGS__);\
-    printf("\033[m\n");\
-    fflush(0);\
-}
 
 namespace mfem
 {
 
-constexpr int MDQ = 6;
-
 using FE = mfem::FiniteElement;
-using Q = mfem::QuadratureInterpolator;
-
-constexpr int quadrilateral = Element::Type::QUADRILATERAL;
-
-// CPP addons //////////////////////////////////////////////////////////////////
-namespace cpp
-{
-
-struct Range:public std::vector<int>
-{
-   Range(const int n):vector<int>(n)
-   {
-      // Fills the range with sequentially increasing values
-      std::iota (std::begin(*this), std::end(*this), 0);
-   }
-};
-
-}
+using QI = mfem::QuadratureInterpolator;
 
 // Kernels addons //////////////////////////////////////////////////////////////
 namespace kernels
 {
 
 /// Multiply a vector with the transpose matrix.
-template<typename TA, typename TX, typename TY>
-MFEM_HOST_DEVICE inline
+template<typename TA, typename TX, typename TY> MFEM_HOST_DEVICE inline
 void MultTranspose(const int H, const int W, TA *data, const TX *x, TY *y)
 {
    double *d_col = data;
@@ -80,8 +51,7 @@ void MultTranspose(const int H, const int W, TA *data, const TX *x, TY *y)
 }
 
 /// Multiply the transpose of a matrix A with a matrix B: At*B
-template<typename TA, typename TB, typename TC>
-MFEM_HOST_DEVICE inline
+template<typename TA, typename TB, typename TC> MFEM_HOST_DEVICE inline
 void MultAtB(const int Aheight, const int Awidth, const int Bwidth,
              const TA *Adata, const TB *Bdata, TC *AtBdata)
 {
@@ -110,11 +80,11 @@ void MultAtB(const int Aheight, const int Awidth, const int Bwidth,
 }
 
 /// 2D Scalar Transposed evaluation, 1/2
-template<int MD1, int MQ1, int NBZ>
-MFEM_HOST_DEVICE inline void EvalXt(const int D1D, const int Q1D,
-                                    const double sB[MQ1*MD1],
-                                    const double sQQ[NBZ][MQ1*MQ1],
-                                    double sDQ[NBZ][MD1*MQ1])
+template<int MD1, int MQ1, int NBZ> MFEM_HOST_DEVICE inline
+void EvalXt(const int D1D, const int Q1D,
+            const double sB[MQ1*MD1],
+            const double sQQ[NBZ][MQ1*MQ1],
+            double sDQ[NBZ][MD1*MQ1])
 {
    const int tidz = MFEM_THREAD_ID(z);
    ConstDeviceMatrix Bt(sB, MQ1, MD1);
@@ -137,11 +107,11 @@ MFEM_HOST_DEVICE inline void EvalXt(const int D1D, const int Q1D,
 }
 
 /// 2D Scalar Transposed evaluation, 2/2
-template<int MD1, int MQ1, int NBZ>
-MFEM_HOST_DEVICE inline void EvalYt(const int D1D, const int Q1D,
-                                    const double sB[MQ1*MD1],
-                                    const double sDQ[NBZ][MD1*MQ1],
-                                    DeviceTensor<3, double> Y, const int e)
+template<int MD1, int MQ1, int NBZ> MFEM_HOST_DEVICE inline
+void EvalYt(const int D1D, const int Q1D,
+            const double sB[MQ1*MD1],
+            const double sDQ[NBZ][MD1*MQ1],
+            DeviceTensor<3, double> Y, const int e)
 {
    const int tidz = MFEM_THREAD_ID(z);
    ConstDeviceMatrix Bt(sB, MQ1, MD1);
@@ -163,10 +133,10 @@ MFEM_HOST_DEVICE inline void EvalYt(const int D1D, const int Q1D,
 }
 
 /// Push 2D Scalar Evaluation
-template<int MQ1, int NBZ>
-MFEM_HOST_DEVICE inline void PushEval(const int qx, const int qy,
-                                      const double &P,
-                                      double sQQ[NBZ][MQ1*MQ1])
+template<int MQ1, int NBZ> MFEM_HOST_DEVICE inline
+void PushEval(const int qx, const int qy,
+              const double &P,
+              double sQQ[NBZ][MQ1*MQ1])
 {
    const int tidz = MFEM_THREAD_ID(z);
    DeviceMatrix QQ(sQQ[tidz], MQ1, MQ1);
@@ -175,10 +145,10 @@ MFEM_HOST_DEVICE inline void PushEval(const int qx, const int qy,
 }
 
 /// Push 2D Scalar Gradient
-template<int MQ1, int NBZ>
-MFEM_HOST_DEVICE inline void PushGrad1(const int qx, const int qy,
-                                       const double *A,
-                                       double sQQ[2][NBZ][MQ1*MQ1])
+template<int MQ1, int NBZ> MFEM_HOST_DEVICE inline
+void PushGrad1(const int qx, const int qy,
+               const double *A,
+               double sQQ[2][NBZ][MQ1*MQ1])
 {
    const int tidz = MFEM_THREAD_ID(z);
    DeviceMatrix X0(sQQ[0][tidz], MQ1, MQ1);
@@ -189,11 +159,11 @@ MFEM_HOST_DEVICE inline void PushGrad1(const int qx, const int qy,
 }
 
 /// 2D Scalar Transposed gradient, 1/2
-template<int MD1, int MQ1, int NBZ>
-MFEM_HOST_DEVICE inline void Grad1Yt(const int D1D, const int Q1D,
-                                     const double sBG[2][MQ1*MD1],
-                                     const double GQ[2][NBZ][MQ1*MQ1],
-                                     double GD[2][NBZ][MD1*MQ1])
+template<int MD1, int MQ1, int NBZ> MFEM_HOST_DEVICE inline
+void Grad1Yt(const int D1D, const int Q1D,
+             const double sBG[2][MQ1*MD1],
+             const double GQ[2][NBZ][MQ1*MQ1],
+             double GD[2][NBZ][MD1*MQ1])
 {
    const int tidz = MFEM_THREAD_ID(z);
    ConstDeviceMatrix Bt(sBG[0], MQ1, MD1);
@@ -222,12 +192,12 @@ MFEM_HOST_DEVICE inline void Grad1Yt(const int D1D, const int Q1D,
 }
 
 /// 2D Scalar Transposed gradient, 2/2
-template<int MD1, int MQ1, int NBZ>
-MFEM_HOST_DEVICE inline void Grad1Xt(const int D1D, const int Q1D,
-                                     const double sBG[2][MQ1*MD1],
-                                     const double GD[2][NBZ][MD1*MQ1],
-                                     mfem::DeviceTensor<3, double> Y,
-                                     const int e)
+template<int MD1, int MQ1, int NBZ> MFEM_HOST_DEVICE inline
+void Grad1Xt(const int D1D, const int Q1D,
+             const double sBG[2][MQ1*MD1],
+             const double GD[2][NBZ][MD1*MQ1],
+             mfem::DeviceTensor<3, double> Y,
+             const int e)
 {
    const int tidz = MFEM_THREAD_ID(z);
    ConstDeviceMatrix Bt(sBG[0], MQ1, MD1);
@@ -252,17 +222,7 @@ MFEM_HOST_DEVICE inline void Grad1Xt(const int D1D, const int Q1D,
    MFEM_SYNC_THREAD;
 }
 
-template<typename T> double Dot(T u, T v) { return u*v; }
-template<typename T> T Grad(T u) { return u; }
-template<typename T> T Pow(T u, double a) { return u; }
-
-}
-
-/** ****************************************************************************
- * @brief The operators at Q-points
- **************************************************************************** */
-double grad(double w) { return w; }
-double dot(double u, double v) { return u * v; }
+} // namespace kernels
 
 // XFL addons //////////////////////////////////////////////////////////////////
 namespace xfl
@@ -282,13 +242,13 @@ FE::DerivType DerivType(const int type)
 }
 
 /** ****************************************************************************
- * @brief The XFLOperator class
+ * @brief The xfl::Operator class
  **************************************************************************** */
-template<typename R, typename Q, typename ... Args> struct QForm;
-template<int DIM, typename TR, typename TQ, typename ... TA> class XFLOperator;
+template<typename R, typename Q, typename ... A> class QForm;
+template<int DIM, typename R, typename Q, typename ... A> class Operator;
 
-template<typename TR, typename TQ, typename ... TA>
-class XFLOperator<2,TR,TQ,TA...> : public mfem::Operator
+template<typename R, typename Q, typename ... A>
+class Operator<2,R,Q,A...> : public mfem::Operator
 {
    static constexpr int DIM = 2;
    static constexpr int NBZ = 1;
@@ -304,7 +264,7 @@ class XFLOperator<2,TR,TQ,TA...> : public mfem::Operator
    const GridFunction *nodes;
    const mfem::FiniteElementSpace *nfes;
    const int p, q;
-   const Operator *R, *NR;
+   const mfem::Operator *ER, *NR;
    const Geometry::Type type;
    const IntegrationRule &ir;
    const GeometricFactors *geom;
@@ -318,17 +278,17 @@ class XFLOperator<2,TR,TQ,TA...> : public mfem::Operator
    Vector dx;
    double u,v; const int types;
    const FE::DerivType UF, VF;
-   const QForm<TR,TQ,TA...> &qf;
+   const QForm<R,Q,A...> &qf;
 public:
-   XFLOperator(const mfem::FiniteElementSpace *fes,
-               const QForm<TR,TQ,TA...> &qf):
-      Operator(fes->GetNDofs()),
+
+   Operator(const FiniteElementSpace *fes, const QForm<R,Q,A...> &qf):
+      mfem::Operator(fes->GetNDofs()),
       mesh(fes->GetMesh()),
       nodes((mesh->EnsureNodes(), mesh->GetNodes())),
       nfes(nodes->FESpace()),
       p(fes->GetFE(0)->GetOrder()),
       q(2*p + mesh->GetElementTransformation(0)->OrderW()),
-      R(fes->GetElementRestriction(e_ordering)),
+      ER(fes->GetElementRestriction(e_ordering)),
       NR(nfes->GetElementRestriction(e_ordering)),
       type(mesh->GetElementBaseGeometry(0)),
       ir(IntRules.Get(type, q)),
@@ -353,16 +313,15 @@ public:
       dx(NQ*NE),
       u(0.0), v(0.0),
       types(qf(u, v, false)),
-      // warning orders of the test & trial
-      UF(DerivType((types&0xF0)>>4)), VF(DerivType(types&0xF)),
+      UF(DerivType(types>>4)), VF(DerivType(types&0xF)),
       qf(qf)
    {
-      MFEM_VERIFY(R,"");
+      MFEM_VERIFY(ER,"");
       MFEM_VERIFY(DIM == 2, "");
       MFEM_VERIFY(VDIM == 1,"");
       MFEM_VERIFY(ND == D1D*D1D, "");
       MFEM_VERIFY(NQ == Q1D*Q1D, "");
-      MFEM_VERIFY(ye.Size() == R->Height(),"");
+      MFEM_VERIFY(ye.Size() == ER->Height(),"");
       MFEM_VERIFY(DIM == mesh->Dimension(),"");
       qi->SetOutputLayout(QVectorLayout::byVDIM);
       nqi->SetOutputLayout(QVectorLayout::byVDIM);
@@ -373,6 +332,7 @@ public:
       NR->Mult(*nodes, Enodes);
       nqi->Derivatives(Enodes, J0);
       ComputeDX();
+      dbg("0x%x",types);
    }
 
    /// 2D setup to compute DX: W * detJ
@@ -400,11 +360,11 @@ public:
    virtual void Mult(const mfem::Vector &x, mfem::Vector &y) const
    {
       ye = 0.0;
-      R->Mult(x, xe);
+      ER->Mult(x, xe);
       Vector q_val, q_der, q_det;
       const bool ud = UF == FE::GRAD;
       Vector q(ud?grad_xq.Size():val_xq.Size());
-      qi->Mult(xe, ud?Q::DERIVATIVES:Q::VALUES, ud?q_val:q, ud?q:q_der, q_det);
+      qi->Mult(xe, ud?QI::DERIVATIVES:QI::VALUES, ud?q_val:q, ud?q:q_der, q_det);
 
       const auto X = mfem::Reshape(q.Read(), ud?DIM:1, Q1D,Q1D, NE);
       const auto b = Reshape(maps->B.Read(), Q1D, D1D);
@@ -414,6 +374,7 @@ public:
 
       auto YE = mfem::Reshape(ye.ReadWrite(), D1D, D1D, NE);
 
+      constexpr const int MDQ = 8;
       constexpr const int MD1 = MDQ;
       constexpr const int MQ1 = MDQ;
       MFEM_VERIFY(MD1>=D1D,"");
@@ -468,114 +429,85 @@ public:
             kernels::Grad1Xt<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,YE,e);
          }
       });
-      R->MultTranspose(ye,y);
+      ER->MultTranspose(ye,y);
    }
 };
-
-class Function;
-struct TestFunction;
-struct TrialFunction;
 
 /** ****************************************************************************
  * @brief The Problem struct
  ******************************************************************************/
 struct Problem
 {
-   mfem::LinearForm *b;
    mfem::Operator *op;
-   Problem(mfem::Operator *op, mfem::LinearForm *b): b(b), op(op) {}
+   mfem::LinearForm *b;
+   Problem(mfem::Operator *op, mfem::LinearForm *b): op(op), b(b) {}
 };
 
 /** ****************************************************************************
  * @brief The QForm classes
  ******************************************************************************/
-template<typename R, typename Q, typename ... Args>
-struct QForm
+template<typename R, typename Q, typename ... A>
+class QForm
 {
-   Q qf;
-   R(Q::*Apply)(Args...) const;
-   QForm(const Q &q): qf(q), Apply(&decltype(qf)::operator()) {}
-   R operator() (Args ... args) const { return (qf.*Apply)(args...); }
-};
-
-/** ****************************************************************************
- * @brief The XLinearForm classes
- ******************************************************************************/
-struct XLinearForm
-{
+   int dim, rank;
+   FiniteElementSpace *fes = nullptr;
+   mfem::Operator *op;
    mfem::LinearForm *b;
 
-   XLinearForm(FiniteElementSpace *fes): b(new mfem::LinearForm(fes)) {}
+   Q qf;
+   R(Q::*Apply)(A...) const;
 
-   template<typename R, typename Q, typename ... A>
-   XLinearForm &operator *(const QForm<R,Q,A...> &dx) { return *this;}
-};
+   // Arguments
+   template <typename T>
+   inline void UseArgs(const T &arg) noexcept
+   {
+      //std::cout << "\033[33m.\033[m ";
+      if (arg.FESpace()) { rank++; }
+   }
 
-/** ****************************************************************************
- * @brief The ScalarForm classes
- ******************************************************************************/
-struct ScalarForm
-{
-   FiniteElementSpace *fes;
-   mfem::ConstantCoefficient *cst = nullptr;
+   template<typename T, typename... Args>
+   inline void UseArgs(const T &arg, Args... args) noexcept
+   {
+      //std::cout << "\033[31m.\033[m ";
+      if (arg.FESpace()) { rank++; }
+      if (!fes && arg.FESpace())
+      { fes = const_cast<FiniteElementSpace *>(arg.FESpace()); }
+      UseArgs(args...);
+   }
 
-   ScalarForm(double val, FiniteElementSpace *fes):
-      fes(fes), cst(new mfem::ConstantCoefficient(val)) {}
+public:
+   // Constructor
+   template<typename ... Args> QForm(const Q &q, Args... args):
+      rank(0), fes(nullptr),
+      qf(q), Apply(&decltype(qf)::operator())
+   {
+      UseArgs(args...);
+      if (fes) { dim = fes->GetFE(0)->GetDim(); }
+      dbg("rank:%d",rank);
+   }
 
-   template<typename R, typename Q, typename ... A>
-   XLinearForm &operator *(const QForm<R,Q,A...> &dx)
+   // Create problem
+   template <typename r, typename q, typename ... a>
+   Problem &operator ==(QForm<r,q,a...> &rhs)
    {
       assert(fes);
-      XLinearForm *linear_form = new XLinearForm(fes);
-      linear_form->b->AddDomainIntegrator(new DomainLFIntegrator(*cst));
-      return *linear_form;
-   }
-};
-
-
-/** ****************************************************************************
- * @brief The XFLForm classes
- ******************************************************************************/
-template<typename R, typename Q, typename ... A> struct QXFLForm;
-
-struct XFLForm
-{
-   const int dim;
-   mfem::Operator *op;
-   const FiniteElementSpace *fes;
-
-   XFLForm(FiniteElementSpace *fes):
-      dim(fes->GetFE(0)->GetDim()), op(nullptr), fes(fes) { }
-
-   // XFLForm * dx
-   template<typename R, typename Q, typename ... A>
-   QXFLForm<R,Q,A...> operator *(const QForm<R,Q,A...> &dx)
-   {
-      assert(dim==2);
-      op = static_cast<Operator*>(new XFLOperator<2,R,Q,A...>(fes, dx));
-      MFEM_VERIFY(op,"");
-      return QXFLForm<R,Q,A...>(*this, dx);
-   }
-
-   Problem &operator ==(XLinearForm &li)
-   {
+      assert(dim == 2);
+      assert(rhs.Rank()==1);
+      mfem::LinearForm *b = new mfem::LinearForm(fes);
+      mfem::ConstantCoefficient *cst = new mfem::ConstantCoefficient(1.0);
+      b->AddDomainIntegrator(new DomainLFIntegrator(*cst));
+      op = static_cast<mfem::Operator*>(new xfl::Operator<2,R,Q,A...>(fes,*this));
       assert(op);
-      return *new Problem(op, li.b);
+      return *new Problem(op,b);
    }
 
-   // XFLForm + XFLForm
-   XFLForm &operator +(XFLForm rhs) { assert(false); return *this; }
-   XFLForm &operator -(XFLForm rhs) { assert(false); return *this + rhs; /*!*/ }
+   int Rank() { return rank; }
+   const int Rank() const { return rank; }
+
+   // Call QFunction
+   R operator() (A ... args) const { return (qf.*Apply)(args...); }
 };
 
-/** ****************************************************************************
- * @brief The QXFLForm classes
- ******************************************************************************/
-template<typename R, typename Q, typename ... A>
-struct QXFLForm: XFLForm, QForm<R,Q,A...>
-{
-   QXFLForm(XFLForm &f, const QForm<R,Q,A...> &q): XFLForm(f), QForm<R,Q,A...>(q) { }
-};
 
 /** ****************************************************************************
  * @brief The Function class
@@ -590,63 +522,35 @@ public:
 };
 
 /** ****************************************************************************
- * @brief The GradFunction class
- **************************************************************************** */
-class GradFunction: public Function
-{
-public:
-   GradFunction(FiniteElementSpace *fes): Function(fes) { }
-   XFLForm operator*(GradFunction&) { return XFLForm(fes); }
-};
-
-/** ****************************************************************************
- * @brief The DivFunction class
- **************************************************************************** */
-class DivFunction: public Function
-{
-public:
-   DivFunction(FiniteElementSpace *fes): Function(fes) { }
-};
-
-/** ****************************************************************************
  * @brief The TrialFunction class
  ******************************************************************************/
-struct TrialFunction: public Function
+class TrialFunction: public Function
 {
-   TrialFunction &u;
 public:
-   TrialFunction(FiniteElementSpace *fes): Function(fes), u(*this) { }
-   GradFunction Grad() { return GradFunction(fes); }
-   DivFunction Div() { return DivFunction(fes); }
-   XFLForm operator*(TestFunction&) { return XFLForm(fes); }
+   TrialFunction(FiniteElementSpace *fes): Function(fes) { }
 };
 
 /** ****************************************************************************
  * @brief The TestFunction class
  ******************************************************************************/
-struct TestFunction: public Function
+class TestFunction: public Function
 {
-   TestFunction &v;
 public:
-   TestFunction(FiniteElementSpace *fes): Function(fes), v(*this) { }
-   GradFunction Grad() { return GradFunction(fes); }
-   DivFunction Div() { return DivFunction(fes); }
-   XFLForm operator*(TrialFunction &u) { return u * v;}
-   ScalarForm operator*(double alpha) { return ScalarForm(alpha, fes); }
+   TestFunction(FiniteElementSpace *fes): Function(fes) { }
 };
 
 /** ****************************************************************************
  * @brief Constant
  ******************************************************************************/
-class Constant//: public ConstantCoefficient
+class Constant
 {
    const double value = 0.0;
    ConstantCoefficient *cst = nullptr;
 public:
    Constant(double val): value(val), cst(new ConstantCoefficient(val)) { }
-   template <typename T> ScalarForm operator*(T &gf) { return gf * value; }
-   template<typename R, typename Q, typename ... A>
-   double operator *(const QForm<R,Q,A...> &dx) { return value;}
+   FiniteElementSpace *FESpace() const { return nullptr; }
+   const double Value() const { return value; }
+   double Value() { return value; }
 };
 
 /** ****************************************************************************
@@ -687,35 +591,31 @@ mfem::Device Device(const char *device_config) { return { device_config }; }
 /** ****************************************************************************
  * @brief FiniteElement
  ******************************************************************************/
-mfem::FiniteElementCollection *FiniteElement(std::string family,
-                                             int type,
-                                             int order)
+FiniteElementCollection *FiniteElement(std::string family, int type, int p)
 {
    MFEM_VERIFY(family == "Lagrange", "Unsupported family!");
-   MFEM_VERIFY(type == quadrilateral, "Unsupported type!");
-   constexpr int dim = 2; // quadrilateral
-   return new H1_FECollection(order, dim);
+   MFEM_VERIFY(type == Element::Type::QUADRILATERAL, "Unsupported type!");
+   const int dim = (type == Element::Type::QUADRILATERAL) ? 2 : 0;
+   return new H1_FECollection(p, dim);
 }
 
 /** ****************************************************************************
  * @brief Scalar Function Space
  ******************************************************************************/
-mfem::FiniteElementSpace *FunctionSpace(mfem::Mesh *mesh, std::string family,
-                                        int order)
+FiniteElementSpace *FunctionSpace(mfem::Mesh *mesh, std::string family, int p)
 {
    const int dim = mesh->Dimension();
    MFEM_VERIFY(family == "P", "Unsupported FE!");
-   FiniteElementCollection *fec = new H1_FECollection(order, dim);
+   FiniteElementCollection *fec = new H1_FECollection(p, dim);
    return new FiniteElementSpace(mesh, fec);
 }
 
-mfem::FiniteElementSpace *FunctionSpace(mfem::Mesh &m, std::string f, int p)
+FiniteElementSpace *FunctionSpace(mfem::Mesh &m, std::string f, int p)
 {
    return FunctionSpace(&m, f, p);
 }
 
-mfem::FiniteElementSpace *FunctionSpace(mfem::Mesh &m,
-                                        FiniteElementCollection *fec)
+FiniteElementSpace *FunctionSpace(mfem::Mesh &m, FiniteElementCollection *fec)
 {
    return new FiniteElementSpace(&m, fec);
 }
@@ -723,25 +623,25 @@ mfem::FiniteElementSpace *FunctionSpace(mfem::Mesh &m,
 /** ****************************************************************************
  * @brief Vector Function Space
  ******************************************************************************/
-mfem::FiniteElementSpace *VectorFunctionSpace(mfem::Mesh *mesh,
-                                              std::string family,
-                                              const int order)
+FiniteElementSpace *VectorFunctionSpace(mfem::Mesh *mesh,
+                                        std::string family,
+                                        const int p)
 {
    const int dim = mesh->Dimension();
    MFEM_VERIFY(family == "P", "Unsupported FE!");
-   FiniteElementCollection *fec = new H1_FECollection(order, dim);
+   FiniteElementCollection *fec = new H1_FECollection(p, dim);
    return new FiniteElementSpace(mesh, fec, dim);
 }
 
-mfem::FiniteElementSpace *VectorFunctionSpace(mfem::Mesh &mesh,
-                                              std::string family,
-                                              const int order)
+FiniteElementSpace *VectorFunctionSpace(mfem::Mesh &mesh,
+                                        std::string family,
+                                        const int p)
 {
-   return VectorFunctionSpace(&mesh, family, order);
+   return VectorFunctionSpace(&mesh, family, p);
 }
 
-mfem::FiniteElementSpace *VectorFunctionSpace(mfem::Mesh &mesh,
-                                              mfem::FiniteElementCollection *fec)
+FiniteElementSpace *VectorFunctionSpace(mfem::Mesh &mesh,
+                                        FiniteElementCollection *fec)
 {
    return new FiniteElementSpace(&mesh, fec, mesh.Dimension());
 }
@@ -763,21 +663,9 @@ Array<int> DirichletBC(FiniteElementSpace *fes)
    return ess_tdof_list;
 }
 
-/**
- * @brief Grad, Div
- */
-template<typename T> GradFunction grad(T w) { return w.Grad(); }
-template<typename T> DivFunction div(T w) { return w.Div(); }
-
-/**
- * @brief Dot/Inner product
- */
-template<typename T, typename U> XFLForm dot(T u, U v) { return u * v; }
-template<typename G> XFLForm dot(G u, G v) { return u * v; }
-
-/**
+/** ****************************************************************************
  * @brief Math namespace
- */
+ ******************************************************************************/
 namespace math
 {
 
@@ -790,9 +678,9 @@ double Pow(double base, double exp) { return std::pow(base, exp); }
 
 } // namespace math
 
-/**
+/** ****************************************************************************
  * @brief solve with boundary conditions
- */
+ ******************************************************************************/
 int solve(xfl::Problem &pb, xfl::Function &x, Array<int> ess_tdof_list)
 {
    FiniteElementSpace *fes = x.FESpace();
@@ -803,8 +691,8 @@ int solve(xfl::Problem &pb, xfl::Function &x, Array<int> ess_tdof_list)
    assert(pb.b);
    mfem::LinearForm &b = *(pb.b);
    b.Assemble();
-   Operator *A = nullptr;
-   Operator *op = pb.op;
+   mfem::Operator *A = nullptr;
+   mfem::Operator *op = pb.op;
    op->FormLinearSystem(ess_tdof_list, x, b, A, X, B);
    std::cout << "Size of linear system: " << A->Height() << std::endl;
    /*Vector Md(fes->GetNDofs());
@@ -818,9 +706,9 @@ int solve(xfl::Problem &pb, xfl::Function &x, Array<int> ess_tdof_list)
    return 0;
 }
 
-/**
+/** ****************************************************************************
  * @brief plot the x gridfunction
- */
+ ******************************************************************************/
 int plot(xfl::Function &x)
 {
    FiniteElementSpace *fes = x.FESpace(); assert(fes);
@@ -833,9 +721,9 @@ int plot(xfl::Function &x)
    return 0;
 }
 
-/**
+/** ****************************************************************************
  * @brief plot the mesh
- */
+ ******************************************************************************/
 int plot(mfem::Mesh *mesh)
 {
    char vishost[] = "localhost";
@@ -846,23 +734,23 @@ int plot(mfem::Mesh *mesh)
    return 0;
 }
 
-/**
+/** ****************************************************************************
  * @brief save the x gridfunction
- */
+ ******************************************************************************/
 int save(xfl::Function &x, const char *filename)
 {
-   ofstream sol_ofs(filename);
+   std::ofstream sol_ofs(filename);
    sol_ofs.precision(8);
    x.Save(sol_ofs);
    return 0;
 }
 
-/**
+/** ****************************************************************************
  * @brief save the x gridfunction
- */
+ ******************************************************************************/
 int save(mfem::Mesh &mesh, const char *filename)
 {
-   ofstream mesh_ofs(filename);
+   std::ofstream mesh_ofs(filename);
    mesh_ofs.precision(8);
    mesh.Print(mesh_ofs);
    return 0;
@@ -882,5 +770,25 @@ inline bool UsesTensorBasis(const FiniteElementSpace *fes)
 {
    return mfem::UsesTensorBasis(*fes);
 }
+
+double grad(double w) { return w; }
+double dot(double u, double v) { return u * v; }
+
+constexpr int quadrilateral = Element::Type::QUADRILATERAL;
+
+// CPP addons //////////////////////////////////////////////////////////////////
+namespace cpp
+{
+
+struct Range:public std::vector<int>
+{
+   Range(const int n):vector<int>(n)
+   {
+      // Fills the range with sequentially increasing values
+      std::iota(std::begin(*this), std::end(*this), 0);
+   }
+};
+
+} // namespace cpp
 
 } // namespace mfem

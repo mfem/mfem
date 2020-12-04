@@ -336,6 +336,7 @@ void Code::extra_status_rule_var_xt_d(Rule*n) const
    assert(n->next);
    assert(n->next->child);
    out << "[&]() {\n\t\tauto qf = [](/*";
+   // continue with parsing the commented body to capture inputs
 }
 void Code::extra_status_rule_var_xt_u(Rule*n) const
 {
@@ -365,7 +366,7 @@ void Code::extra_status_rule_var_xt_u(Rule*n) const
    }
    out << " const int types = 0x" << std::hex << types << std::dec << ";";
 
-   out << " if (eval) {(void)(";
+   out << " if (eval) {dbg();(void)(";
 
    // qf body with the dom_xt will be added next
 }
@@ -375,9 +376,8 @@ void Code::extra_status_rule_dom_xt_d(Rule*) const { dbg(); }
 void Code::extra_status_rule_dom_xt_u(Rule*n) const
 {
    dbg();
-   out << ");} return types; };\n\t\treturn (";
-   ufl.dfs(n->child, me);
-   out << ") * mfem::xfl::QForm<int,decltype(qf)";
+   out << ");} return types; };\n";
+   out << "\t\treturn xfl::QForm<int,decltype(qf)";
 
    // Add signature of the qfunc lambda
    for (auto &p : ufl.ctx.vars)
@@ -390,14 +390,17 @@ void Code::extra_status_rule_dom_xt_u(Rule*n) const
          if (var.type == TOK::TRIAL_FUNCTION) { out << "TrialFunction"; }
          if (var.type == TOK::FUNCTION) { out << "Function"; }
          if (var.type == TOK::CONSTANT_API) { out << "Constant"; }
-         //if (var.mode == xfl::INTERP) { out << "_Interp"; }
-         //if (var.mode == xfl::GRAD) { out << "_Grad"; }
          out << "_q &";
       }
    }
 
-   out << ", const bool>(qf);\n\t}";
-   out << "()"; // force lambda evaluation to object
+   out << ", const bool>(qf";
+   for (auto &p : ufl.ctx.vars)
+   {
+      xfl::var &var = p.second;
+      if (var.mode != xfl::NONE) { out << "," << var.name; }
+   }
+   out << ");}()"; // force lambda evaluation
 
    // Add QFunction lambda as argument to the to the xfl::Form
    if (ufl.ctx.qfunc)
