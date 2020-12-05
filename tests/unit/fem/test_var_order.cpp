@@ -15,6 +15,9 @@
 namespace mfem
 {
 
+static void TestSolve(FiniteElementSpace &fespace);
+
+
 // Check basic functioning of variable order spaces, hp interpolation and
 // some corner cases.
 //
@@ -78,12 +81,16 @@ TEST_CASE("Variable Order FiniteElementSpace",
       // 3 constrained DOFs on slave side, 2 on master side:
       REQUIRE(fespace.GetNConformingDofs() == 25);
 
+      TestSolve(fespace);
+
       // refine
       mesh.UniformRefinement();
       fespace.Update();
 
       REQUIRE(fespace.GetNDofs() == 93);
       REQUIRE(fespace.GetNConformingDofs() == 83);
+
+      TestSolve(fespace);
    }
 
    SECTION("Hex mesh")
@@ -145,6 +152,8 @@ TEST_CASE("Variable Order FiniteElementSpace",
       REQUIRE(fespace.GetNDofs() == 162);
       REQUIRE(fespace.GetNConformingDofs() == 115);
 
+      TestSolve(fespace);
+
       // lower the order of one of the four new elements to 1 - this minimum
       // order will propagate through two master faces and severely constrain
       // the space (since relaxed hp is off)
@@ -189,11 +198,86 @@ TEST_CASE("Variable Order FiniteElementSpace",
 
       REQUIRE(fespace.GetNDofs() == 113);
       REQUIRE(fespace.GetNConformingDofs() == 67);
-   }
 
-   // TODO mixed meshes 2D, 3D?
-   // TODO try to solve with known exact solution
+      TestSolve(fespace);
+   }
 }
 
+
+// Exact solution: x^2 + y^2 + z^2
+static double exact_sln(const Vector &p)
+{
+   double x = p(0), y = p(1);
+   if (p.Size() == 3)
+   {
+      double z = p(2);
+      return x*x + y*y + z*z;
+   }
+   else
+   {
+      return x*x + y*y;
+   }
+}
+
+static double exact_rhs(const Vector &p)
+{
+   return (p.Size() == 3) ? -6.0 : -4.0;
+}
+
+static void TestSolve(FiniteElementSpace &fespace)
+{
+   Mesh *mesh = fespace.GetMesh();
+
+   // exact solution and RHS for the problem -\Delta u = 1
+   FunctionCoefficient exsol(exact_sln);
+   FunctionCoefficient rhs(exact_rhs);
+
+   // set up Dirichlet BC on the boundary
+   Array<int> ess_attr(mesh->bdr_attributes.Max());
+   ess_attr = 1;
+
+   Array<int> ess_tdof_list;
+   fespace.GetEssentialTrueDofs(ess_attr, ess_tdof_list);
+
+   GridFunction x(&fespace);
+   x = 0.0;
+   x.ProjectBdrCoefficient(exsol, ess_attr);
+
+   // assemble the linear form
+   LinearForm lf(&fespace);
+   lf.AddDomainIntegrator(new DomainLFIntegrator(rhs));
+   lf.Assemble();
+
+   // assemble the bilinear form.
+   BilinearForm bf(&fespace);
+   bf.AddDomainIntegrator(new DiffusionIntegrator());
+   bf.Assemble();
+
+   OperatorPtr A;
+   Vector B, X;
+   bf.FormLinearSystem(ess_tdof_list, x, lf, A, X, B);
+
+   // solve
+   GSSmoother M((SparseMatrix&)(*A));
+   PCG(*A, M, B, X, 0, 500, 1e-30, 0.0);
+
+   bf.RecoverFEMSolution(X, lf, x);
+
+   // compute L2 error from the exact solution
+   double error = x.ComputeL2Error(exsol);
+
+   REQUIRE(error == MFEM_Approx(0.0));
+
+   // visualize
+#ifdef MFEM_UNIT_DEBUG_VISUALIZE
+   const char vishost[] = "localhost";
+   const int  visport   = 19916;
+   GridFunction *vis_x = ProlongToMaxOrder(&x);
+   socketstream sol_sock(vishost, visport);
+   sol_sock.precision(8);
+   sol_sock << "solution\n" << *mesh << *vis_x;
+   delete vis_x;
+#endif
+}
 
 }
