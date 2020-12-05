@@ -230,16 +230,6 @@ void EliminationCGSolver::BuildPreconditioner(int dimension)
    delete explicit_projector;
    delete h_explicit_projector;
 
-   // kind of want to do this, use systems version of AMG, but we've eliminated
-   // just some of the dofs associated with a particular direction, so the
-   // sizes don't work out! (the *correct* way to do this reorders again or
-   // uses rigid body modes or something)
-   /*
-      SparseMatrix * explicit_operator = RAPWithP(A, *explicit_projector);
-      const int dim = 3;
-      HypreBoomerAMGReordered prec(*explicit_operator, dim);
-   */
-
    // next line doesn't really belong here
    rel_tol = 1.e-8;
 }

@@ -32,7 +32,7 @@ public:
 
    void Schur(Vector& serr, Vector& lerr);
    void Penalty(double pen, Vector& serr, Vector& lerr);
-   void Elimination(Vector &serr, Vector& lerr);
+   void Elimination(Vector &serr, Vector& lerr, bool swap);
 
    void SetConstraintRHS(Vector &dualrhs_);
 
@@ -94,13 +94,21 @@ void SimpleSaddle::Schur(Vector& serr, Vector& lerr)
    lerr(0) = truelambda - lambda(0);
 }
 
-void SimpleSaddle::Elimination(Vector& serr, Vector& lerr)
+void SimpleSaddle::Elimination(Vector& serr, Vector& lerr, bool swap)
 {
 
    Array<int> primary(1);
-   primary[0] = 0;
    Array<int> secondary(1);
-   secondary[0] = 1;
+   if (swap)
+   {
+      primary[0] = 1;
+      secondary[0] = 0;
+   }
+   else
+   {
+      primary[0] = 0;
+      secondary[0] = 1;
+   }
    EliminationCGSolver solver(*hA, B, primary, secondary);
    solver.SetConstraintRHS(dualrhs);
    solver.Mult(rhs, sol);
@@ -140,7 +148,12 @@ TEST_CASE("ConstrainedSolver", "[Parallel], [ConstrainedSolver]")
       REQUIRE(serr(1) == MFEM_Approx(0.0));
       REQUIRE(lerr(0) == MFEM_Approx(0.0));
 
-      problem.Elimination(serr, lerr);
+      problem.Elimination(serr, lerr, false);
+      REQUIRE(serr(0) == MFEM_Approx(0.0));
+      REQUIRE(serr(1) == MFEM_Approx(0.0));
+      REQUIRE(lerr(0) == MFEM_Approx(0.0));
+
+      problem.Elimination(serr, lerr, true);
       REQUIRE(serr(0) == MFEM_Approx(0.0));
       REQUIRE(serr(1) == MFEM_Approx(0.0));
       REQUIRE(lerr(0) == MFEM_Approx(0.0));
@@ -162,7 +175,7 @@ TEST_CASE("ConstrainedSolver", "[Parallel], [ConstrainedSolver]")
       REQUIRE(serr(1) == MFEM_Approx(0.0));
       REQUIRE(lerr(0) == MFEM_Approx(0.0));
 
-      problem.Elimination(serr, lerr);
+      problem.Elimination(serr, lerr, false);
       REQUIRE(serr(0) == MFEM_Approx(0.0));
       REQUIRE(serr(1) == MFEM_Approx(0.0));
       REQUIRE(lerr(0) == MFEM_Approx(0.0));
@@ -179,7 +192,7 @@ TEST_CASE("ConstrainedSolver", "[Parallel], [ConstrainedSolver]")
 
 
 /// this problem is general, with constraints crossing
-/// processor boundaries
+/// processor boundaries (elimination does not work in this case)
 class ParallelTestProblem
 {
 public:
@@ -335,16 +348,13 @@ TEST_CASE("ParallelConstrainedSolver", "[Parallel], [ConstrainedSolver]")
          INFO("Parallel penalty dual error: " << lerr(0) << "\n");
          REQUIRE(lerr(0) == MFEM_Approx(0.0, 2./pen));
       }
-
-      // TODO: one day I will test the elimination solver for parallel matrices,
-      //       but today is not that day
    }
 }
 
 
-// DEPRECATED: this was useful for migrating what is now EliminationProjection into
-// its present form while making sure it maintained the same behavior as its
-// predecessor, but not it doesn't really make sense?
+// test that block (nodal) eliminators do the same thing as the global
+// eliminator, and also test that the assembled matrix has the same action
+// as the object
 TEST_CASE("EliminationProjection", "[Parallel], [ConstrainedSolver]")
 {
    int comm_size;
@@ -412,11 +422,6 @@ TEST_CASE("EliminationProjection", "[Parallel], [ConstrainedSolver]")
       new_nodalep.Mult(newx, nepy);
       new_assembled_ep->Mult(newx, aepy);
 
-      /*
-      std::cout << "new_assembled_ep:";
-      new_assembled_ep->Print(std::cout);
-      */
-
       for (int i = 0; i < 4; ++i)
       {
          REQUIRE(nepy(i) - aepy(i) == MFEM_Approx(0.0));
@@ -439,6 +444,8 @@ TEST_CASE("EliminationProjection", "[Parallel], [ConstrainedSolver]")
    }
 }
 
+/// actually parallel test problem, but constraints are not
+/// allowed to cross processor boundaries
 class ParallelTestProblemTwo
 {
 public:
@@ -498,13 +505,6 @@ ParallelTestProblemTwo::ParallelTestProblemTwo()
                              Blocal);
    bmat->CopyRowStarts();
    bmat->CopyColStarts();
-
-   if (false)
-   {
-      /// this seems to work just fine...
-      HypreParMatrix * junk = bmat->Transpose();
-      delete junk;
-   }
 
    rhs = 0.0;
    if (rank == 0)
