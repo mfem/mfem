@@ -3791,7 +3791,7 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
    int max_nv = 0;
 
    GeometryRefiner refiner;
-   refiner.SetType(ref_type);
+   refiner.SetType(BasisType::GetQuadrature1D(ref_type));
 
    for (int el = 0; el < orig_mesh->GetNE(); el++)
    {
