@@ -8929,9 +8929,11 @@ void Mesh::PrintVTK(std::ostream &out)
          const int *v = elements[i]->GetVertices();
          const int nv = elements[i]->GetNVertices();
          out << nv;
+         Geometry::Type geom = elements[i]->GetGeometryType();
+         const int *perm = (geom == Geometry::PRISM) ? vtk_prism_perm : NULL;
          for (int j = 0; j < nv; j++)
          {
-            out << ' ' << v[j];
+            out << ' ' << v[perm ? perm[j] : j];
          }
          out << '\n';
       }
@@ -9259,9 +9261,10 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTKFormat format,
          {
             coff = coff+nv;
             offset.push_back(coff);
+            const int *p = (geom == Geometry::PRISM) ? vtk_prism_perm : NULL;
             for (int k = 0; k < nv; k++, j++)
             {
-               WriteBinaryOrASCII(out, buf, np + RG[j], " ", format);
+               WriteBinaryOrASCII(out, buf, np + RG[p ? p[j] : j], " ", format);
             }
             if (format == VTKFormat::ASCII) { out << '\n'; }
          }
