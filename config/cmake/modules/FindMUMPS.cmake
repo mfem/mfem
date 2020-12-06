@@ -9,25 +9,15 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-if (MFEM_USE_GSLIB)
+# Sets the following variables:
+#   - MUMPS_FOUND
+#   - MUMPS_INCLUDE_DIRS
+#   - MUMPS_LIBRARIES
 
-  add_mfem_miniapp(field-diff
-    MAIN field-diff.cpp
-    LIBRARIES mfem)
-
-  add_mfem_miniapp(findpts
-    MAIN findpts.cpp
-    LIBRARIES mfem)
-
-  add_mfem_miniapp(field-interp
-    MAIN field-interp.cpp
-    LIBRARIES mfem)
-
-  # Parallel apps.
-  if (MFEM_USE_MPI)
-    add_mfem_miniapp(pfindpts
-      MAIN pfindpts.cpp
-      LIBRARIES mfem)
-  endif()
-
-endif()
+include(MfemCmakeUtilities)
+mfem_find_package(MUMPS MUMPS MUMPS_DIR
+  "include" dmumps_c.h "lib" dmumps
+  "Paths to headers required by MUMPS."
+  "Libraries required by MUMPS."
+  ADD_COMPONENT mumps_common "include" dmumps_c.h "lib" mumps_common
+  ADD_COMPONENT pord "include" dmumps_c.h "lib" pord)

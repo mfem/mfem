@@ -22,6 +22,7 @@
 //
 // Device sample runs:
 //               mpirun -np 4 ex3p -m ../data/star.mesh -pa -d cuda
+//               mpirun -np 4 ex3p -m ../data/star.mesh -no-pa -d cuda
 //               mpirun -np 4 ex3p -m ../data/star.mesh -pa -d raja-cuda
 //               mpirun -np 4 ex3p -m ../data/star.mesh -pa -d raja-omp
 //               mpirun -np 4 ex3p -m ../data/beam-hex.mesh -pa -d cuda
