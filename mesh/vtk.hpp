@@ -26,6 +26,8 @@ enum class VTKFormat
    BINARY32
 };
 
+extern const int vtk_prism_perm[6];
+
 /// Create the VTK element connectivity array for a given element geometry and
 /// refinement level. Converts node numbers from MFEM to VTK ordering.
 void CreateVTKElementConnectivity(Array<int> &con, Geometry::Type geom,
