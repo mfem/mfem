@@ -40,14 +40,14 @@
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 4 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd
 //
 //   Adapted discrete size:
-//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor
 //   Adapted discrete size; explicit combo of metrics; mixed tri/quad mesh:
 //     mesh-optimizer -m ../../data/square-mixed.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -bnd -qo 6 -cmb 2 -nor
 //   Adapted discrete size+aspect_ratio:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100 -qo 6 -ex -st 1 -nor
 //   Adapted discrete size+orientation (requires GSLIB):
-//   * mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 8 -ni 100  -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd -ae 1
+//   * mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -fd -ae 1 -nor
 //   Adapted discrete aspect-ratio+orientation (requires GSLIB):
 //   * mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 8 -ni 10  -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd -ae 1
 //   Adapted discrete aspect ratio (3D):
@@ -67,7 +67,7 @@
 //   Blade limited shape:
 //     mesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -lc 5000
 //   ICF shape and equal size:
-//     mesh-optimizer -o 3 -rs 0 -mid 9 -tid 2 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//     mesh-optimizer -o 3 -rs 0 -mid 9 -tid 2 -ni 25 -ls 3 -qo 5
 //   ICF shape and initial size:
 //     mesh-optimizer -o 3 -rs 0 -mid 9 -tid 3 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   ICF shape:
@@ -107,7 +107,7 @@ int main(int argc, char *argv[])
    int quad_type         = 1;
    int quad_order        = 8;
    int solver_type       = 0;
-   int solver_iter       = 10;
+   int solver_iter       = 20;
    double solver_rtol    = 1e-10;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
@@ -132,17 +132,21 @@ int main(int argc, char *argv[])
                   "Random perturbation scaling factor.");
    args.AddOption(&metric_id, "-mid", "--metric-id",
                   "Mesh optimization metric:\n\t"
+                  "T-metrics\n\t"
                   "1  : |T|^2                          -- 2D shape\n\t"
                   "2  : 0.5|T|^2/tau-1                 -- 2D shape (condition number)\n\t"
                   "7  : |T-T^-t|^2                     -- 2D shape+size\n\t"
                   "9  : tau*|T-T^-t|^2                 -- 2D shape+size\n\t"
-                  "14: 0.5*(1-cos(theta_A - theta_W)   -- 2D Sh+Sz+Alignment\n\t"
+                  "14 : |T-I|^2                        -- 2D shape+size+orientation\n\t"
                   "22 : 0.5(|T|^2-2*tau)/(tau-tau_0)   -- 2D untangling\n\t"
                   "50 : 0.5|T^tT|^2/tau^2-1            -- 2D shape\n\t"
                   "55 : (tau-1)^2                      -- 2D size\n\t"
                   "56 : 0.5(sqrt(tau)-1/sqrt(tau))^2   -- 2D size\n\t"
                   "58 : |T^tT|^2/(tau^2)-2*|T|^2/tau+2 -- 2D shape\n\t"
                   "77 : 0.5(tau-1/tau)^2               -- 2D size\n\t"
+                  "80 : (1-gamma)mu_2 + gamma mu_77    -- 2D shape+size\n\t"
+                  "85 : |T-|T|/sqrt(2)I|^2             -- 2D shape+orientation\n\t"
+                  "98 : (1/tau)|T-I|^2                 -- 2D shape+size+orientation\n\t"
                   "211: (tau-1)^2-tau+sqrt(tau^2)      -- 2D untangling\n\t"
                   "252: 0.5(tau-1)^2/(tau-tau_0)       -- 2D untangling\n\t"
                   "301: (|T||T^-1|)/3-1              -- 3D shape\n\t"
@@ -151,7 +155,13 @@ int main(int argc, char *argv[])
                   "315: (tau-1)^2                    -- 3D size\n\t"
                   "316: 0.5(sqrt(tau)-1/sqrt(tau))^2 -- 3D size\n\t"
                   "321: |T-T^-t|^2                   -- 3D shape+size\n\t"
-                  "352: 0.5(tau-1)^2/(tau-tau_0)     -- 3D untangling");
+                  "352: 0.5(tau-1)^2/(tau-tau_0)     -- 3D untangling\n\t"
+                  "A-metrics\n\t"
+                  "11 : (1/4*alpha)|A-(adjA)^T(W^TW)/omega|^2 -- 2D shape\n\t"
+                  "36 : (1/alpha)|A-W|^2                      -- 2D shape+size+orientation\n\t"
+                  "107: (1/2*alpha)|A-|A|/|W|W|^2             -- 2D shape+orientation\n\t"
+                  "126: (1-gamma)nu_11 + gamma*nu_14a         -- 2D shape+size\n\t"
+                 );
    args.AddOption(&target_id, "-tid", "--target-id",
                   "Target (ideal element) type:\n\t"
                   "1: Ideal shape, unit size\n\t"
@@ -176,7 +186,12 @@ int main(int argc, char *argv[])
    args.AddOption(&solver_rtol, "-rtol", "--newton-rel-tolerance",
                   "Relative tolerance for the Newton solver.");
    args.AddOption(&lin_solver, "-ls", "--lin-solver",
-                  "Linear solver: 0 - l1-Jacobi, 1 - CG, 2 - MINRES.");
+                  "Linear solver:\n\t"
+                  "0: l1-Jacobi\n\t"
+                  "1: CG\n\t"
+                  "2: MINRES\n\t"
+                  "3: MINRES + Jacobi preconditioner"
+                  "4: MINRES + l1-Jacobi preconditioner");
    args.AddOption(&max_lin_iter, "-li", "--lin-iter",
                   "Maximum number of iterations in the linear solve.");
    args.AddOption(&move_bnd, "-bnd", "--move-boundary", "-fix-bnd",
@@ -315,18 +330,21 @@ int main(int argc, char *argv[])
    TMOP_QualityMetric *metric = NULL;
    switch (metric_id)
    {
+      // T-metrics
       case 1: metric = new TMOP_Metric_001; break;
       case 2: metric = new TMOP_Metric_002; break;
       case 7: metric = new TMOP_Metric_007; break;
       case 9: metric = new TMOP_Metric_009; break;
-      case 14: metric = new TMOP_Metric_SSA2D; break;
+      case 14: metric = new TMOP_Metric_014; break;
       case 22: metric = new TMOP_Metric_022(tauval); break;
       case 50: metric = new TMOP_Metric_050; break;
       case 55: metric = new TMOP_Metric_055; break;
       case 56: metric = new TMOP_Metric_056; break;
       case 58: metric = new TMOP_Metric_058; break;
       case 77: metric = new TMOP_Metric_077; break;
+      case 80: metric = new TMOP_Metric_080(0.5); break;
       case 85: metric = new TMOP_Metric_085; break;
+      case 98: metric = new TMOP_Metric_098; break;
       case 211: metric = new TMOP_Metric_211; break;
       case 252: metric = new TMOP_Metric_252(tauval); break;
       case 301: metric = new TMOP_Metric_301; break;
@@ -336,7 +354,14 @@ int main(int argc, char *argv[])
       case 316: metric = new TMOP_Metric_316; break;
       case 321: metric = new TMOP_Metric_321; break;
       case 352: metric = new TMOP_Metric_352(tauval); break;
-      default: cout << "Unknown metric_id: " << metric_id << endl; return 3;
+      // A-metrics
+      case 11: metric = new TMOP_AMetric_011; break;
+      case 36: metric = new TMOP_AMetric_036; break;
+      case 107: metric = new TMOP_AMetric_107a; break;
+      case 126: metric = new TMOP_AMetric_126(0.9); break;
+      default:
+         cout << "Unknown metric_id: " << metric_id << endl;
+         return 3;
    }
    TargetConstructor::TargetType target_t;
    TargetConstructor *target_c = NULL;
@@ -517,7 +542,7 @@ int main(int argc, char *argv[])
 #endif
          }
 
-         if (metric_id == 14)
+         if (metric_id == 14 || metric_id == 36)
          {
             ConstantCoefficient ind_coeff(0.1*0.1);
             size.ProjectCoefficient(ind_coeff);
@@ -730,7 +755,7 @@ int main(int argc, char *argv[])
 
    // 14. As we use the Newton method to solve the resulting nonlinear system,
    //     here we setup the linear solver for the system's Jacobian.
-   Solver *S = NULL;
+   Solver *S = NULL, *S_prec = NULL;
    const double linsol_rtol = 1e-12;
    if (lin_solver == 0)
    {
@@ -751,7 +776,13 @@ int main(int argc, char *argv[])
       minres->SetMaxIter(max_lin_iter);
       minres->SetRelTol(linsol_rtol);
       minres->SetAbsTol(0.0);
-      minres->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
+      if (verbosity_level > 2) { minres->SetPrintLevel(1); }
+      minres->SetPrintLevel(verbosity_level == 2 ? 3 : -1);
+      if (lin_solver == 3 || lin_solver == 4)
+      {
+         S_prec = new DSmoother((lin_solver == 3) ? 0 : 1, 1.0, 1);
+         minres->SetPreconditioner(*S_prec);
+      }
       S = minres;
    }
 
@@ -853,6 +884,7 @@ int main(int argc, char *argv[])
    }
 
    // 19. Free the used memory.
+   delete S_prec;
    delete S;
    delete target_c2;
    delete metric2;
