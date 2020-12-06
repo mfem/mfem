@@ -40,7 +40,7 @@ public:
        The specified Jacobian matrix, #Jtr, can be used by metrics that cannot
        be written just as a function of the target->physical Jacobian matrix,
        Jpt. */
-   void SetTargetJacobian(const DenseMatrix &_Jtr) { Jtr = &_Jtr; }
+   virtual void SetTargetJacobian(const DenseMatrix &_Jtr) { Jtr = &_Jtr; }
 
    /** @brief Evaluate the strain energy density function, W = W(Jpt).
        @param[in] Jpt  Represents the target->physical transformation
@@ -74,8 +74,37 @@ public:
    virtual int Id() const { return 0; }
 };
 
+/// Abstract class used to define combination of metrics with constant coefficients.
+class TMOP_Combo_QualityMetric : public TMOP_QualityMetric
+{
+protected:
+   Array<TMOP_QualityMetric *> tmop_q_arr; //not owned
+   Array<double> wt_arr;
 
-/// Metric without a type, 2D
+public:
+   virtual void AddQualityMetric(TMOP_QualityMetric *tq, double wt = 1.0)
+   {
+      tmop_q_arr.Append(tq);
+      wt_arr.Append(wt);
+   }
+
+   virtual void SetTargetJacobian(const DenseMatrix &_Jtr)
+   {
+      for (int i = 0; i < tmop_q_arr.Size(); i++)
+      {
+         tmop_q_arr[i]->SetTargetJacobian(_Jtr);
+      }
+   }
+
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+};
+
+/// 2D non-barrier metric without a type.
 class TMOP_Metric_001 : public TMOP_QualityMetric
 {
 protected:
@@ -93,7 +122,7 @@ public:
    virtual int Id() const { return 1; }
 };
 
-/// Skew metric, 2D.
+/// 2D non-barrier Skew metric.
 class TMOP_Metric_skew2D : public TMOP_QualityMetric
 {
 public:
@@ -108,7 +137,7 @@ public:
    { MFEM_ABORT("Not implemented"); }
 };
 
-/// Skew metric, 3D.
+/// 3D non-barrier Skew metric.
 class TMOP_Metric_skew3D : public TMOP_QualityMetric
 {
 public:
@@ -123,7 +152,7 @@ public:
    { MFEM_ABORT("Not implemented"); }
 };
 
-/// Aspect ratio metric, 2D.
+/// 2D non-barrier Aspect ratio metric.
 class TMOP_Metric_aspratio2D : public TMOP_QualityMetric
 {
 public:
@@ -138,7 +167,7 @@ public:
    { MFEM_ABORT("Not implemented"); }
 };
 
-/// Aspect ratio metric, 3D.
+/// 3D non-barrier Aspect ratio metric.
 class TMOP_Metric_aspratio3D : public TMOP_QualityMetric
 {
 public:
@@ -153,22 +182,7 @@ public:
    { MFEM_ABORT("Not implemented"); }
 };
 
-/// Shape+Size+Orientation metric, 2D.
-class TMOP_Metric_SSA2D : public TMOP_QualityMetric
-{
-public:
-   // W = 0.5 (1 - cos(theta_Jpr - theta_Jtr)).
-   virtual double EvalW(const DenseMatrix &Jpt) const;
-
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-   { MFEM_ABORT("Not implemented"); }
-
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const
-   { MFEM_ABORT("Not implemented"); }
-};
-
-/// Shape, ideal barrier metric, 2D
+/// 2D barrier shape (S) metric (polyconvex).
 class TMOP_Metric_002 : public TMOP_QualityMetric
 {
 protected:
@@ -186,7 +200,7 @@ public:
    virtual int Id() const { return 2; }
 };
 
-/// Shape & area, ideal barrier metric, 2D
+/// 2D barrier Shape+Size (VS) metric (not polyconvex).
 class TMOP_Metric_007 : public TMOP_QualityMetric
 {
 protected:
@@ -204,7 +218,7 @@ public:
    virtual int Id() const { return 7; }
 };
 
-/// Shape & area metric, 2D
+/// 2D barrier Shape+Size (VS) metric (not polyconvex).
 class TMOP_Metric_009 : public TMOP_QualityMetric
 {
 protected:
@@ -220,7 +234,22 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// Shifted barrier form of metric 2 (shape, ideal barrier metric), 2D
+/// 2D non-barrier Shape+Size+Orientation (VOS) metric (polyconvex).
+class TMOP_Metric_014 : public TMOP_QualityMetric
+{
+public:
+   // W = |T-I|^2.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
+};
+
+/// 2D Shifted barrier form of shape metric (mu_2).
 class TMOP_Metric_022 : public TMOP_QualityMetric
 {
 protected:
@@ -239,7 +268,7 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// Shape, ideal barrier metric, 2D
+/// 2D barrier (not a shape) metric (polyconvex).
 class TMOP_Metric_050 : public TMOP_QualityMetric
 {
 protected:
@@ -255,7 +284,7 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// Area metric, 2D
+/// 2D non-barrier size (V) metric (not polyconvex).
 class TMOP_Metric_055 : public TMOP_QualityMetric
 {
 protected:
@@ -272,7 +301,7 @@ public:
 
 };
 
-/// Area, ideal barrier metric, 2D
+/// 2D barrier size (V) metric (polyconvex).
 class TMOP_Metric_056 : public TMOP_QualityMetric
 {
 protected:
@@ -290,7 +319,7 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// Shape, ideal barrier metric, 2D
+/// 2D barrier shape (S) metric (not polyconvex).
 class TMOP_Metric_058 : public TMOP_QualityMetric
 {
 protected:
@@ -307,7 +336,7 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// Area, ideal barrier metric, 2D
+/// 2D barrier size (V) metric (polyconvex).
 class TMOP_Metric_077 : public TMOP_QualityMetric
 {
 protected:
@@ -325,7 +354,28 @@ public:
    virtual int Id() const { return 77; }
 };
 
-/// Shape & orientation metric, 2D.
+/// 2D barrier Shape+Size (VS) metric (polyconvex).
+class TMOP_Metric_080 : public TMOP_Combo_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+   double gamma;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_080(double gamma_) : gamma(gamma_),
+      sh_metric(new TMOP_Metric_002),
+      sz_metric(new TMOP_Metric_077)
+   {
+      // (1-gamma) mu_2 + gamma mu_77
+      AddQualityMetric(sh_metric, 1.-gamma_);
+      AddQualityMetric(sz_metric, gamma_);
+   }
+
+   virtual ~TMOP_Metric_080() { delete sh_metric; delete sz_metric; }
+};
+
+/// 2D barrier Shape+Orientation (OS) metric (polyconvex).
 class TMOP_Metric_085 : public TMOP_QualityMetric
 {
 public:
@@ -340,7 +390,22 @@ public:
    { MFEM_ABORT("Not implemented"); }
 };
 
-/// Untangling metric, 2D
+/// 2D barrier Shape+Size+Orientation (VOS) metric (polyconvex).
+class TMOP_Metric_098 : public TMOP_QualityMetric
+{
+public:
+   // W = 1/tau |T-I|^2.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
+};
+
+/// 2D untangling metric.
 class TMOP_Metric_211 : public TMOP_QualityMetric
 {
 protected:
@@ -379,7 +444,7 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// Shape, ideal barrier metric, 3D
+/// 3D barrier Shape (S) metric.
 class TMOP_Metric_301 : public TMOP_QualityMetric
 {
 protected:
@@ -395,7 +460,7 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// Shape, ideal barrier metric, 3D
+/// 3D barrier Shape (S) metric.
 class TMOP_Metric_302 : public TMOP_QualityMetric
 {
 protected:
@@ -413,7 +478,7 @@ public:
    virtual int Id() const { return 302; }
 };
 
-/// Shape, ideal barrier metric, 3D
+/// 3D barrier Shape (S) metric.
 class TMOP_Metric_303 : public TMOP_QualityMetric
 {
 protected:
@@ -431,7 +496,7 @@ public:
    virtual int Id() const { return 303; }
 };
 
-/// Volume metric, 3D
+/// 3D non-barrier Size (V) metric.
 class TMOP_Metric_315 : public TMOP_QualityMetric
 {
 protected:
@@ -449,7 +514,7 @@ public:
    virtual int Id() const { return 315; }
 };
 
-/// Volume, ideal barrier metric, 3D
+/// 3D barrier Size (V) metric.
 class TMOP_Metric_316 : public TMOP_QualityMetric
 {
 protected:
@@ -467,7 +532,7 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// Shape & volume, ideal barrier metric, 3D
+/// 3D barrier Shape+Size (VS) metric.
 class TMOP_Metric_321 : public TMOP_QualityMetric
 {
 protected:
@@ -504,6 +569,99 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
+/// A-metrics
+/// 2D barrier Shape (S) metric (polyconvex).
+class TMOP_AMetric_011 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   // (1/4 alpha) | A - (adj A)^t W^t W / omega |^2
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
+};
+
+/// 2D barrier Size (V) metric (polyconvex).
+class TMOP_AMetric_014a : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   // 0.5 * ( sqrt(alpha/omega) - sqrt(omega/alpha) )^2
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
+};
+
+/// 2D barrier Shape+Size+Orientation (VOS) metric (polyconvex).
+class TMOP_AMetric_036 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   // (1/alpha) | A - W |^2
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
+};
+
+/// 2D barrier Shape+Orientation (OS) metric (polyconvex).
+class TMOP_AMetric_107a : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   // (1/2 alpha) | A - (|A|/|W|) W |^2
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
+};
+
+/// 2D barrier Shape+Size (VS) metric (polyconvex).
+class TMOP_AMetric_126 : public TMOP_Combo_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+   double gamma;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_AMetric_126(double gamma_) : gamma(gamma_),
+      sh_metric(new TMOP_AMetric_011),
+      sz_metric(new TMOP_AMetric_014a)
+   {
+      // (1-gamma) nu_11 + gamma nu_14
+      AddQualityMetric(sh_metric, 1.-gamma_);
+      AddQualityMetric(sz_metric, gamma_);
+   }
+
+   virtual ~TMOP_AMetric_126() { delete sh_metric; delete sz_metric; }
+};
 
 /// Base class for limiting functions to be used in class TMOP_Integrator.
 /** This class represents a scalar function f(x, x0, d), where x and x0 are
