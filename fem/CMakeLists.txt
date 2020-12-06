@@ -13,6 +13,7 @@ set(SRCS
   bilinearform.cpp
   bilinearform_ext.cpp
   bilininteg.cpp
+  bilininteg_br2.cpp
   bilininteg_convection_pa.cpp
   bilininteg_convection_ea.cpp
   bilininteg_dgtrace_pa.cpp
@@ -84,7 +85,9 @@ set(SRCS
   tmop_pa_h3s_c0.cpp
   tmop_pa_jp2.cpp
   tmop_pa_jp3.cpp
-  tmop_pa_jt3.cpp
+  tmop_pa_jt2_tc.cpp
+  tmop_pa_jt3_tc.cpp
+  tmop_pa_jt3_datc.cpp
   tmop_pa_p2.cpp
   tmop_pa_p2_c0.cpp
   tmop_pa_p3.cpp

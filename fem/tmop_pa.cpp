@@ -77,6 +77,27 @@ void TMOP_Integrator::EnableLimitingPA(const GridFunction &n0)
                "Only TMOP_QuadraticLimiter is supported");
 }
 
+bool TargetConstructor::ComputeElementTargetsPA(const FiniteElementSpace *fes,
+                                                const IntegrationRule *ir,
+                                                DenseTensor &Jtr,
+                                                const Vector &xe) const
+{
+   MFEM_VERIFY(Jtr.SizeI() == Jtr.SizeJ() && Jtr.SizeI() > 1, "");
+   const int dim = Jtr.SizeI();
+   if (dim == 2) { return ComputeElementTargetsPA<2>(fes, ir, Jtr, xe); }
+   if (dim == 3) { return ComputeElementTargetsPA<3>(fes, ir, Jtr, xe); }
+   return false;
+}
+
+bool AnalyticAdaptTC::ComputeElementTargetsPA(const FiniteElementSpace *fes,
+                                              const IntegrationRule *ir,
+                                              DenseTensor &Jtr,
+                                              const Vector &xe) const
+{
+   return false;
+}
+
+
 // Code paths leading to ComputeElementTargets:
 // - GetElementEnergy(elfun) which is done through GetGridFunctionEnergyPA(x)
 // - AssembleElementVectorExact(elfun)
@@ -103,11 +124,19 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &xe) const
    const FiniteElementSpace *fes = PA.fes;
    const IntegrationRule &ir = EnergyIntegrationRule(*fes->GetFE(0));
 
-   {
-      // Try to use the TargetConstructor ComputeElementTargetsPA
-      PA.setup_Jtr = targetC->ComputeElementTargetsPA(&ir,PA.Jtr);
-      if (PA.setup_Jtr) { return; }
-   }
+   const TargetConstructor::TargetType &target_type = targetC->Type();
+   const DiscreteAdaptTC *discr_tc = GetDiscreteAdaptTC();
+
+   // Skip when TargetConstructor needs the nodes but have not been set
+   const bool use_nodes =
+      target_type == TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE ||
+      target_type == TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE ||
+      target_type == TargetConstructor::GIVEN_SHAPE_AND_SIZE;
+   if (targetC && !discr_tc && use_nodes && !targetC->GetNodes()) { return; }
+
+   // Try to use the TargetConstructor ComputeElementTargetsPA
+   PA.setup_Jtr = targetC->ComputeElementTargetsPA(fes, &ir, PA.Jtr);
+   if (PA.setup_Jtr) { return; }
 
    // Defaulting to host version
    PA.Jtr.HostWrite();
@@ -117,15 +146,12 @@ void TMOP_Integrator::ComputeElementTargetsPA(const Vector &xe) const
    const int dim = PA.dim;
    DenseTensor &Jtr = PA.Jtr;
 
-   const TargetConstructor::TargetType &target_type = targetC->Type();
-
    Vector x;
    const bool useable_input_vector = xe.Size() > 0;
    const bool use_input_vector = target_type == TargetConstructor::GIVEN_FULL;
 
    if (use_input_vector && !useable_input_vector) { return; }
 
-   DiscreteAdaptTC *discr_tc = GetDiscreteAdaptTC();
    if (discr_tc && !discr_tc->GetTspecFesv()) { return; }
 
    if (use_input_vector)

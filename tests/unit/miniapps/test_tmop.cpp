@@ -493,8 +493,11 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    delete S_prec;
    delete pmesh;
    delete metric;
+   delete coeff1;
+   delete metric2;
    delete newton;
    delete target_c;
+   delete target_c2;
    delete adapt_coeff;
 
    return 0;
@@ -702,35 +705,25 @@ static void tmop_tests(int id)
 {
    const double jitter = 1./(M_PI*M_PI);
 
-   // Combo 2D
-   Launch(Launch::Args("Square01 + Combo").
-          MESH("square01.mesh").REFINE(1).JI(jitter).NORMALIZATION(true).
-          TID({5}).MID({2}).LS({2}).
-          POR({2}).QOR({8}).CMB(2)).Run(id);
+   Launch(Launch::Args("TC_IDEAL_SHAPE_UNIT_SIZE_2D_KERNEL").
+          MESH("star.mesh").REFINE(1).JI(jitter).
+          POR({1,2}).QOR({2,3}).
+          TID({1}).MID({2})).Run(id);
 
-   // Combo 3D
-   Launch(Launch::Args("Cube + Combo").
-          MESH("cube.mesh").REFINE(1).JI(jitter).NORMALIZATION(true).
-          TID({5}).MID({302}).LS({2}).
-          POR({2}).QOR({8}).CMB(2)).Run(id);
+   Launch(Launch::Args("TC_IDEAL_SHAPE_GIVEN_SIZE_2D_KERNEL").
+          MESH("star.mesh").REFINE(1).JI(jitter).
+          POR({1,2}).QOR({2,3}).
+          TID({3}).MID({2})).Run(id);
 
-   // NURBS
-   Launch(Launch::Args("2D Nurbs").
-          MESH("square-disc-nurbs.mesh").REFINE(1).JI(jitter).
-          POR({1,2}).QOR({2,4}).
-          TID({1,2,3}).MID({1,2})).Run(id);
+   Launch(Launch::Args("TC_IDEAL_SHAPE_UNIT_SIZE_3D_KERNEL").
+          MESH("cube.mesh").REFINE(1).JI(jitter).
+          POR({1,2}).QOR({2,3}).
+          TID({1}).MID({302})).Run(id);
 
-   Launch(Launch::Args("3D Nurbs").
-          MESH("beam-hex-nurbs.mesh").REFINE(1).JI(jitter).
-          POR({1,2}).QOR({2,4}).
-          TID({1,2,3}).MID({302,321})).Run(id);
-
-   // -m cube.mesh -rs 1 -tid 5 -mid 321 -ni 5 -ls 3 -li 100 -lc 1.0 -nor
-   Launch(Launch::Args("Cube + Blast options").
-          MESH("cube.mesh").REFINE(1).
-          TID({5}).MID({321}).LS({3}).LINEAR_ITERATIONS(100).
-          LIMITING(M_PI).NORMALIZATION(true).
-          POR({1,2,3}).QOR({2,4}).NL({1,2})).Run(id);
+   Launch(Launch::Args("TC_IDEAL_SHAPE_GIVEN_SIZE_3D_KERNEL").
+          MESH("cube.mesh").REFINE(1).JI(jitter).
+          POR({1,2}).QOR({2,3}).
+          TID({3}).MID({302})).Run(id);
 
    Launch(Launch::Args("Star").
           MESH("star.mesh").
@@ -798,6 +791,36 @@ static void tmop_tests(int id)
           LIMITING(M_PI).NORMALIZATION(true).
           POR({1,2}).QOR({2,4}).
           TID({1,2}).MID({321})).Run(id);
+
+   // -m cube.mesh -rs 1 -tid 5 -mid 321 -ni 5 -ls 3 -li 100 -lc 1.0 -nor
+   Launch(Launch::Args("Cube + Blast options").
+          MESH("cube.mesh").REFINE(1).
+          TID({5}).MID({321}).LS({3}).LINEAR_ITERATIONS(100).
+          LIMITING(M_PI).NORMALIZATION(true).
+          POR({1,2,3}).QOR({2,4}).NL({1,2})).Run(id);
+
+   // Combo 2D
+   Launch(Launch::Args("Square01 + Combo").
+          MESH("square01.mesh").REFINE(1).JI(jitter).NORMALIZATION(true).
+          TID({5}).MID({2}).LS({2}).
+          POR({2}).QOR({8}).CMB(2)).Run(id);
+
+   // Combo 3D
+   Launch(Launch::Args("Cube + Combo").
+          MESH("cube.mesh").REFINE(1).JI(jitter).NORMALIZATION(true).
+          TID({5}).MID({302}).LS({2}).
+          POR({2}).QOR({8}).CMB(2)).Run(id);
+
+   // NURBS
+   Launch(Launch::Args("2D Nurbs").
+          MESH("square-disc-nurbs.mesh").REFINE(1).JI(jitter).
+          POR({1,2}).QOR({2,4}).
+          TID({1,2,3}).MID({1,2})).Run(id);
+
+   Launch(Launch::Args("3D Nurbs").
+          MESH("beam-hex-nurbs.mesh").REFINE(1).JI(jitter).
+          POR({1,2}).QOR({2,4}).
+          TID({1,2,3}).MID({302,321})).Run(id);
 }
 
 #if defined(MFEM_TMOP_MPI)
