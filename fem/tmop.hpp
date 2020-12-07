@@ -492,6 +492,8 @@ protected:
 
 public:
    TMOP_Metric_311(double epsilon = 1e-4) : eps(epsilon) { }
+
+   // W = (det(J) - 1)^2 - det(J)  + (det(J)^2 + eps)^(1/2).
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -510,7 +512,7 @@ protected:
 public:
    TMOP_Metric_313(double &mindet) : min_detT(mindet) { }
 
-   // W = 1/3 |J|^2 / [det(J)-tau0]^(-2/3) - 1.
+   // W = 1/3 |J|^2 / [det(J)-tau0]^(-2/3).
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;

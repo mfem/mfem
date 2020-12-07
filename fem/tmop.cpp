@@ -763,7 +763,6 @@ double TMOP_Metric_313::EvalW(const DenseMatrix &Jpt) const
 
    const double c = std::pow(d, -2.0/3.0);
 
-   //return ie.Get_I1() * c / 3.0 - 1.0;
    return ie.Get_I1() * c / 3.0;
 }
 

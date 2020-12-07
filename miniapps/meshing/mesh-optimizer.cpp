@@ -85,7 +85,7 @@
 //
 //   2D untangling:
 //     mesh-optimizer -m jagged.mesh -o 2 -rs 0 -mid 22 -tid 1 -ni 50 -li 50 -qo 4 -fd
-//   3D untangling:
+//   3D untangling (the mesh is in the mfem/data GitHub repository):
 //   * mesh-optimizer -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -rs 0 -mid 313 -tid 1 -rtol 1e-5 -li 50 -qo 4 -fd
 //
 
