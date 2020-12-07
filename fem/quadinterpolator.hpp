@@ -73,7 +73,8 @@ public:
 
    /** @brief Disable the use of tensor product evaluations, for tensor-product
        elements, e.g. quads and hexes. */
-   void DisableTensorProducts() const { use_tensor_products = false; }
+   void DisableTensorProducts(bool disable = true) const
+   { use_tensor_products = !disable; }
 
    /** @brief Enable the use of tensor product evaluations, for tensor-product
        elements, e.g. quads and hexes. */
