@@ -25,7 +25,8 @@
   todo:
   ---
 
-  - test parallel elimination with different orderings of dofs, non-contiguous, etc.
+  - test parallel elimination with different orderings of dofs, non-contiguous,
+    etc. (partly done)
   - add a scalar Eliminator? (instead of calling LAPACK on 1 by 1 matrices)
   - timing / scaling of different solvers
   - make sure curved mesh works (is this a real problem or just VisIt visualization?)
@@ -50,15 +51,6 @@ using namespace mfem;
    includes the boundary *attributes* that are constrained to have normal
    component zero, this returns a SparseMatrix representing the
    constraints that need to be imposed.
-
-   among several future questions; are returned x_dofs, y_dofs, z_dofs
-   truedofs or ldofs?
-
-   /// If the given ldof is owned by the current processor, return its local
-   ///  tdof number, otherwise return -1
-   int GetLocalTDofNumber(int ldof) const;
-   /// Returns the global tdof number of the given local degree of freedom
-   HYPRE_Int GetGlobalTDofNumber(int ldof) const;
 */
 HypreParMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
                                         Array<int> constrained_att)
@@ -100,12 +92,6 @@ HypreParMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
    MPI_Bcast(&global_constraints, 1, MPI_INT, size - 1, fespace.GetComm());
 
    Vector nor(dim);
-   /*
-   Array<int>* d_dofs[3];
-   d_dofs[0] = &x_dofs;
-   d_dofs[1] = &y_dofs;
-   d_dofs[2] = &z_dofs;
-   */
    for (int i = 0; i < fespace.GetNBE(); ++i)
    {
       int att = fespace.GetBdrAttribute(i);
@@ -147,13 +133,6 @@ HypreParMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
       }
    }
 
-   /*
-   for (int d = 0; d < dim; ++d)
-   {
-      d_dofs[d]->Sort();
-      d_dofs[d]->Unique();
-   }
-   */
    out->Finalize();
 
    // cols are same as for fespace; rows are... built here
