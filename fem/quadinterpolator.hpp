@@ -53,6 +53,7 @@ protected:
    static const int MAX_ND3D = 1000;
    static const int MAX_VDIM3D = 3;
 
+public:
    enum EvalFlags
    {
       VALUES       = 1 << 0,  ///< Evaluate the values at quadrature points
