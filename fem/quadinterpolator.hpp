@@ -41,8 +41,8 @@ protected:
    const FiniteElementSpace *fespace;  ///< Not owned
    const QuadratureSpace *qspace;      ///< Not owned
    const IntegrationRule *IntRule;     ///< Not owned
-
    mutable QVectorLayout q_layout;     ///< Output Q-vector layout
+
    mutable bool use_tensor_products;   ///< Tensor product evaluation mmode
 
 public:
@@ -69,15 +69,7 @@ public:
                           const IntegrationRule &ir);
 
    QuadratureInterpolator(const FiniteElementSpace &fes,
-                          const IntegrationRule &ir,
-                          const bool use_tensor_products);
-
-   QuadratureInterpolator(const FiniteElementSpace &fes,
                           const QuadratureSpace &qs);
-
-   QuadratureInterpolator(const FiniteElementSpace &fes,
-                          const QuadratureSpace &qs,
-                          const bool use_tensor_products);
 
    /** @brief Disable the use of tensor product evaluations, for tensor-product
        elements, e.g. quads and hexes. */

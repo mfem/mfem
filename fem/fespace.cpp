@@ -987,8 +987,8 @@ const FaceQuadratureInterpolator
          if (qi->IntRule == &ir) { return qi; }
       }
 
-      FaceQuadratureInterpolator *qi =
-         new FaceQuadratureInterpolator(*this, ir, type);
+      FaceQuadratureInterpolator *qi = new FaceQuadratureInterpolator(*this, ir,
+                                                                      type);
       E2IFQ_array.Append(qi);
       return qi;
    }

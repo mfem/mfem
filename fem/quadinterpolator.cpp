@@ -18,18 +18,13 @@ namespace mfem
 {
 
 QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
-                                               const IntegrationRule &ir)
-   : QuadratureInterpolator(fes, ir, UsesTensorBasis(fes)) {}
-
-QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
-                                               const IntegrationRule &ir,
-                                               const bool use_tensor_products):
+                                               const IntegrationRule &ir):
 
    fespace(&fes),
    qspace(nullptr),
    IntRule(&ir),
    q_layout(QVectorLayout::byNODES),
-   use_tensor_products(use_tensor_products)
+   use_tensor_products(UsesTensorBasis(fes))
 {
 
    if (fespace->GetNE() == 0) { return; }
@@ -40,25 +35,19 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
 
 
 QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
-                                               const QuadratureSpace &qs,
-                                               const bool use_tensor_products):
+                                               const QuadratureSpace &qs):
 
    fespace(&fes),
    qspace(&qs),
    IntRule(nullptr),
    q_layout(QVectorLayout::byNODES),
-   use_tensor_products(use_tensor_products)
+   use_tensor_products(UsesTensorBasis(fes))
 {
    if (fespace->GetNE() == 0) { return; }
    const FiniteElement *fe = fespace->GetFE(0);
    MFEM_VERIFY(dynamic_cast<const ScalarFiniteElement*>(fe) != NULL,
                "Only scalar finite elements are supported");
 }
-
-QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
-                                               const QuadratureSpace &qs)
-   : QuadratureInterpolator(fes,qs,UsesTensorBasis(fes)) {}
-
 
 template<const int T_VDIM, const int T_ND, const int T_NQ>
 void QuadratureInterpolator::Mult2D(const int NE,

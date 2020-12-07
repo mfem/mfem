@@ -196,7 +196,7 @@ MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D, const int c,
                                    const DeviceTensor<5, const double> x,
                                    double sm[MD1*MD1*MD1])
 {
-   DeviceCube X(sm, MD1, MD1, MD1);
+   DeviceTensor<3,double> X(sm, MD1, MD1, MD1);
 
    MFEM_FOREACH_THREAD(dz,z,D1D)
    {
@@ -217,9 +217,9 @@ MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
                                    const DeviceTensor<5, const double> X,
                                    double sm[3][MD1*MD1*MD1])
 {
-   DeviceCube Xx(sm[0], MD1, MD1, MD1);
-   DeviceCube Xy(sm[1], MD1, MD1, MD1);
-   DeviceCube Xz(sm[2], MD1, MD1, MD1);
+   DeviceTensor<3,double> Xx(sm[0], MD1, MD1, MD1);
+   DeviceTensor<3,double> Xy(sm[1], MD1, MD1, MD1);
+   DeviceTensor<3,double> Xz(sm[2], MD1, MD1, MD1);
 
    MFEM_FOREACH_THREAD(dz,z,D1D)
    {
@@ -245,15 +245,15 @@ MFEM_HOST_DEVICE inline void GradX(const int D1D, const int Q1D,
 {
    ConstDeviceMatrix B(sBG[0], MD1, MQ1);
    ConstDeviceMatrix G(sBG[1], MD1, MQ1);
-   ConstDeviceCube Xx(sDDD[0], MD1, MD1, MD1);
-   ConstDeviceCube Xy(sDDD[1], MD1, MD1, MD1);
-   ConstDeviceCube Xz(sDDD[2], MD1, MD1, MD1);
-   DeviceCube XxB(sDDQ[0], MQ1, MD1, MD1);
-   DeviceCube XxG(sDDQ[1], MQ1, MD1, MD1);
-   DeviceCube XyB(sDDQ[2], MQ1, MD1, MD1);
-   DeviceCube XyG(sDDQ[3], MQ1, MD1, MD1);
-   DeviceCube XzB(sDDQ[4], MQ1, MD1, MD1);
-   DeviceCube XzG(sDDQ[5], MQ1, MD1, MD1);
+   DeviceTensor<3,const double> Xx(sDDD[0], MD1, MD1, MD1);
+   DeviceTensor<3,const double> Xy(sDDD[1], MD1, MD1, MD1);
+   DeviceTensor<3,const double> Xz(sDDD[2], MD1, MD1, MD1);
+   DeviceTensor<3,double> XxB(sDDQ[0], MQ1, MD1, MD1);
+   DeviceTensor<3,double> XxG(sDDQ[1], MQ1, MD1, MD1);
+   DeviceTensor<3,double> XyB(sDDQ[2], MQ1, MD1, MD1);
+   DeviceTensor<3,double> XyG(sDDQ[3], MQ1, MD1, MD1);
+   DeviceTensor<3,double> XzB(sDDQ[4], MQ1, MD1, MD1);
+   DeviceTensor<3,double> XzG(sDDQ[5], MQ1, MD1, MD1);
 
    MFEM_FOREACH_THREAD(dz,z,D1D)
    {
@@ -300,21 +300,21 @@ MFEM_HOST_DEVICE inline void GradY(const int D1D, const int Q1D,
 {
    ConstDeviceMatrix B(sBG[0], MD1, MQ1);
    ConstDeviceMatrix G(sBG[1], MD1, MQ1);
-   ConstDeviceCube XxB(sDDQ[0], MQ1, MD1, MD1);
-   ConstDeviceCube XxG(sDDQ[1], MQ1, MD1, MD1);
-   ConstDeviceCube XyB(sDDQ[2], MQ1, MD1, MD1);
-   ConstDeviceCube XyG(sDDQ[3], MQ1, MD1, MD1);
-   ConstDeviceCube XzB(sDDQ[4], MQ1, MD1, MD1);
-   ConstDeviceCube XzG(sDDQ[5], MQ1, MD1, MD1);
-   DeviceCube XxBB(sDQQ[0], MQ1, MQ1, MD1);
-   DeviceCube XxBG(sDQQ[1], MQ1, MQ1, MD1);
-   DeviceCube XxGB(sDQQ[2], MQ1, MQ1, MD1);
-   DeviceCube XyBB(sDQQ[3], MQ1, MQ1, MD1);
-   DeviceCube XyBG(sDQQ[4], MQ1, MQ1, MD1);
-   DeviceCube XyGB(sDQQ[5], MQ1, MQ1, MD1);
-   DeviceCube XzBB(sDQQ[6], MQ1, MQ1, MD1);
-   DeviceCube XzBG(sDQQ[7], MQ1, MQ1, MD1);
-   DeviceCube XzGB(sDQQ[8], MQ1, MQ1, MD1);
+   DeviceTensor<3,const double> XxB(sDDQ[0], MQ1, MD1, MD1);
+   DeviceTensor<3,const double> XxG(sDDQ[1], MQ1, MD1, MD1);
+   DeviceTensor<3,const double> XyB(sDDQ[2], MQ1, MD1, MD1);
+   DeviceTensor<3,const double> XyG(sDDQ[3], MQ1, MD1, MD1);
+   DeviceTensor<3,const double> XzB(sDDQ[4], MQ1, MD1, MD1);
+   DeviceTensor<3,const double> XzG(sDDQ[5], MQ1, MD1, MD1);
+   DeviceTensor<3,double> XxBB(sDQQ[0], MQ1, MQ1, MD1);
+   DeviceTensor<3,double> XxBG(sDQQ[1], MQ1, MQ1, MD1);
+   DeviceTensor<3,double> XxGB(sDQQ[2], MQ1, MQ1, MD1);
+   DeviceTensor<3,double> XyBB(sDQQ[3], MQ1, MQ1, MD1);
+   DeviceTensor<3,double> XyBG(sDQQ[4], MQ1, MQ1, MD1);
+   DeviceTensor<3,double> XyGB(sDQQ[5], MQ1, MQ1, MD1);
+   DeviceTensor<3,double> XzBB(sDQQ[6], MQ1, MQ1, MD1);
+   DeviceTensor<3,double> XzBG(sDQQ[7], MQ1, MQ1, MD1);
+   DeviceTensor<3,double> XzGB(sDQQ[8], MQ1, MQ1, MD1);
 
    MFEM_FOREACH_THREAD(dz,z,D1D)
    {
@@ -368,24 +368,24 @@ MFEM_HOST_DEVICE inline void GradZ(const int D1D, const int Q1D,
 {
    ConstDeviceMatrix B(sBG[0], MD1, MQ1);
    ConstDeviceMatrix G(sBG[1], MD1, MQ1);
-   ConstDeviceCube XxBB(sDQQ[0], MQ1, MQ1, MD1);
-   ConstDeviceCube XxBG(sDQQ[1], MQ1, MQ1, MD1);
-   ConstDeviceCube XxGB(sDQQ[2], MQ1, MQ1, MD1);
-   ConstDeviceCube XyBB(sDQQ[3], MQ1, MQ1, MD1);
-   ConstDeviceCube XyBG(sDQQ[4], MQ1, MQ1, MD1);
-   ConstDeviceCube XyGB(sDQQ[5], MQ1, MQ1, MD1);
-   ConstDeviceCube XzBB(sDQQ[6], MQ1, MQ1, MD1);
-   ConstDeviceCube XzBG(sDQQ[7], MQ1, MQ1, MD1);
-   ConstDeviceCube XzGB(sDQQ[8], MQ1, MQ1, MD1);
-   DeviceCube XxBBG(sQQQ[0], MQ1, MQ1, MQ1);
-   DeviceCube XxBGB(sQQQ[1], MQ1, MQ1, MQ1);
-   DeviceCube XxGBB(sQQQ[2], MQ1, MQ1, MQ1);
-   DeviceCube XyBBG(sQQQ[3], MQ1, MQ1, MQ1);
-   DeviceCube XyBGB(sQQQ[4], MQ1, MQ1, MQ1);
-   DeviceCube XyGBB(sQQQ[5], MQ1, MQ1, MQ1);
-   DeviceCube XzBBG(sQQQ[6], MQ1, MQ1, MQ1);
-   DeviceCube XzBGB(sQQQ[7], MQ1, MQ1, MQ1);
-   DeviceCube XzGBB(sQQQ[8], MQ1, MQ1, MQ1);
+   DeviceTensor<3,const double> XxBB(sDQQ[0], MQ1, MQ1, MD1);
+   DeviceTensor<3,const double> XxBG(sDQQ[1], MQ1, MQ1, MD1);
+   DeviceTensor<3,const double> XxGB(sDQQ[2], MQ1, MQ1, MD1);
+   DeviceTensor<3,const double> XyBB(sDQQ[3], MQ1, MQ1, MD1);
+   DeviceTensor<3,const double> XyBG(sDQQ[4], MQ1, MQ1, MD1);
+   DeviceTensor<3,const double> XyGB(sDQQ[5], MQ1, MQ1, MD1);
+   DeviceTensor<3,const double> XzBB(sDQQ[6], MQ1, MQ1, MD1);
+   DeviceTensor<3,const double> XzBG(sDQQ[7], MQ1, MQ1, MD1);
+   DeviceTensor<3,const double> XzGB(sDQQ[8], MQ1, MQ1, MD1);
+   DeviceTensor<3,double> XxBBG(sQQQ[0], MQ1, MQ1, MQ1);
+   DeviceTensor<3,double> XxBGB(sQQQ[1], MQ1, MQ1, MQ1);
+   DeviceTensor<3,double> XxGBB(sQQQ[2], MQ1, MQ1, MQ1);
+   DeviceTensor<3,double> XyBBG(sQQQ[3], MQ1, MQ1, MQ1);
+   DeviceTensor<3,double> XyBGB(sQQQ[4], MQ1, MQ1, MQ1);
+   DeviceTensor<3,double> XyGBB(sQQQ[5], MQ1, MQ1, MQ1);
+   DeviceTensor<3,double> XzBBG(sQQQ[6], MQ1, MQ1, MQ1);
+   DeviceTensor<3,double> XzBGB(sQQQ[7], MQ1, MQ1, MQ1);
+   DeviceTensor<3,double> XzGBB(sQQQ[8], MQ1, MQ1, MQ1);
 
    MFEM_FOREACH_THREAD(qz,z,Q1D)
    {
@@ -436,15 +436,15 @@ MFEM_HOST_DEVICE inline void PullGrad(const int x, const int y, const int z,
                                       const double sQQQ[9][MQ1*MQ1*MQ1],
                                       double *Jpr)
 {
-   ConstDeviceCube XxBBG(sQQQ[0], MQ1, MQ1, MQ1);
-   ConstDeviceCube XxBGB(sQQQ[1], MQ1, MQ1, MQ1);
-   ConstDeviceCube XxGBB(sQQQ[2], MQ1, MQ1, MQ1);
-   ConstDeviceCube XyBBG(sQQQ[3], MQ1, MQ1, MQ1);
-   ConstDeviceCube XyBGB(sQQQ[4], MQ1, MQ1, MQ1);
-   ConstDeviceCube XyGBB(sQQQ[5], MQ1, MQ1, MQ1);
-   ConstDeviceCube XzBBG(sQQQ[6], MQ1, MQ1, MQ1);
-   ConstDeviceCube XzBGB(sQQQ[7], MQ1, MQ1, MQ1);
-   ConstDeviceCube XzGBB(sQQQ[8], MQ1, MQ1, MQ1);
+   DeviceTensor<3,const double> XxBBG(sQQQ[0], MQ1, MQ1, MQ1);
+   DeviceTensor<3,const double> XxBGB(sQQQ[1], MQ1, MQ1, MQ1);
+   DeviceTensor<3,const double> XxGBB(sQQQ[2], MQ1, MQ1, MQ1);
+   DeviceTensor<3,const double> XyBBG(sQQQ[3], MQ1, MQ1, MQ1);
+   DeviceTensor<3,const double> XyBGB(sQQQ[4], MQ1, MQ1, MQ1);
+   DeviceTensor<3,const double> XyGBB(sQQQ[5], MQ1, MQ1, MQ1);
+   DeviceTensor<3,const double> XzBBG(sQQQ[6], MQ1, MQ1, MQ1);
+   DeviceTensor<3,const double> XzBGB(sQQQ[7], MQ1, MQ1, MQ1);
+   DeviceTensor<3,const double> XzGBB(sQQQ[8], MQ1, MQ1, MQ1);
 
    Jpr[0] = XxBBG(x,y,z);
    Jpr[3] = XxBGB(x,y,z);

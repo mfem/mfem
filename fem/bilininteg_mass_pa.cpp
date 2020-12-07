@@ -42,9 +42,8 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    dim = mesh->Dimension();
    ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
-   const int flags = GeometricFactors::JACOBIANS |
-                     GeometricFactors::COORDINATES;
-   geom = mesh->GetGeometricFactors(*ir, flags);
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::COORDINATES |
+                                    GeometricFactors::JACOBIANS);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
