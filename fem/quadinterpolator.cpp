@@ -443,8 +443,8 @@ static void D2QValues1D(const int NE,
             {
                y(c, q, e) += b(q, d) * x(d, c, e);
             }
-          }
-       }
+         }
+      }
    });
 }
 
