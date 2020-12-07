@@ -149,50 +149,55 @@ void QuadratureInterpolator::Determinants(const Vector &e_vec,
       const double *X = e_vec.Read();
       double *Y = q_det.Write();
 
-      const int id = (dim<<12) | (vdim<<8) | (D1D<<4) | Q1D;
+      const int id = (vdim<<8) | (D1D<<4) | Q1D;
 
-      switch (id)
+      if (dim == 2)
       {
-         case 0x2222: return Det2D<2,2>(NE,B,G,X,Y);
-         case 0x2223: return Det2D<2,3>(NE,B,G,X,Y);
-         case 0x2224: return Det2D<2,4>(NE,B,G,X,Y);
-         case 0x2226: return Det2D<2,6>(NE,B,G,X,Y);
-         case 0x2234: return Det2D<3,4>(NE,B,G,X,Y);
-         case 0x2236: return Det2D<3,6>(NE,B,G,X,Y);
-         case 0x2244: return Det2D<4,4>(NE,B,G,X,Y);
-         case 0x2246: return Det2D<4,6>(NE,B,G,X,Y);
-         case 0x2256: return Det2D<5,6>(NE,B,G,X,Y);
-
-         case 0x3324: return Det3D<2,4>(NE,B,G,X,Y);
-         case 0x3333: return Det3D<3,3>(NE,B,G,X,Y);
-         case 0x3335: return Det3D<3,5>(NE,B,G,X,Y);
-         case 0x3336: return Det3D<3,6>(NE,B,G,X,Y);
-         //case 0x3348: return Det3D<4,8>(NE,B,G,X,Y);
-
-         default:
+         switch (id)
          {
-            if (dim == 2)
+            case 0x222: return Det2D<2,2>(NE,B,G,X,Y);
+            case 0x223: return Det2D<2,3>(NE,B,G,X,Y);
+            case 0x224: return Det2D<2,4>(NE,B,G,X,Y);
+            case 0x226: return Det2D<2,6>(NE,B,G,X,Y);
+            case 0x234: return Det2D<3,4>(NE,B,G,X,Y);
+            case 0x236: return Det2D<3,6>(NE,B,G,X,Y);
+            case 0x244: return Det2D<4,4>(NE,B,G,X,Y);
+            case 0x246: return Det2D<4,6>(NE,B,G,X,Y);
+            case 0x256: return Det2D<5,6>(NE,B,G,X,Y);
+            default:
             {
-               constexpr int MD1 = 8;
-               constexpr int MQ1 = 8;
-               MFEM_VERIFY(D1D <= MD1, "Orders higher than " << MD1-1
+               constexpr int MD = MAX_D1D;
+               constexpr int MQ = MAX_Q1D;
+               MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
                            << " are not supported!");
-               MFEM_VERIFY(Q1D <= MQ1, "Quadrature rules with more than "
-                           << MQ1 << " 1D points are not supported!");
-               return Det2D<0,0,MD1,MQ1>(NE,B,G,X,Y,vdim,D1D,Q1D);
-            }
-            if (dim == 3)
-            {
-               constexpr int MD1 = 6;
-               constexpr int MQ1 = 6;
-               MFEM_VERIFY(D1D <= MD1, "Orders higher than " << MD1-1
-                           << " are not supported!");
-               MFEM_VERIFY(Q1D <= MQ1, "Quadrature rules with more than "
-                           << MQ1 << " 1D points are not supported!");
-               return Det3D<0,0,MD1,MQ1>(NE,B,G,X,Y,vdim,D1D,Q1D);
+               MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than "
+                           << MQ << " 1D points are not supported!");
+               Det2D<0,0,MD,MQ>(NE,B,G,X,Y,vdim,D1D,Q1D);
+               return;
             }
          }
-
+      }
+      if (dim == 3)
+      {
+         switch (id)
+         {
+            case 0x324: return Det3D<2,4>(NE,B,G,X,Y);
+            case 0x333: return Det3D<3,3>(NE,B,G,X,Y);
+            case 0x335: return Det3D<3,5>(NE,B,G,X,Y);
+            case 0x336: return Det3D<3,6>(NE,B,G,X,Y);
+            //case 0x348: return Det3D<4,8>(NE,B,G,X,Y);
+            default:
+            {
+               constexpr int MD = 6;
+               constexpr int MQ = 6;
+               MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
+                           << " are not supported!");
+               MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than "
+                           << MQ << " 1D points are not supported!");
+               Det3D<0,0,MD,MQ>(NE,B,G,X,Y,vdim,D1D,Q1D);
+               return;
+            }
+         }
       }
       MFEM_ABORT("Kernel " << std::hex << id << std::dec << " not supported yet");
    }
