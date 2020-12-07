@@ -30,7 +30,7 @@ void QuadratureInterpolator::PhysDerivatives<QVectorLayout::byNODES>(
    constexpr DofToQuad::Mode mode = DofToQuad::TENSOR;
    const DofToQuad &maps = fe->GetDofToQuad(*ir, mode);
    const GeometricFactors *geom =
-      mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mode);
+      mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
 
    const int D1D = maps.ndof;
    const int Q1D = maps.nqpt;

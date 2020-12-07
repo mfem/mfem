@@ -66,12 +66,18 @@ public:
    };
 
    QuadratureInterpolator(const FiniteElementSpace &fes,
+                          const IntegrationRule &ir);
+
+   QuadratureInterpolator(const FiniteElementSpace &fes,
                           const IntegrationRule &ir,
-                          const bool use_tensor_products = false);
+                          const bool use_tensor_products);
+
+   QuadratureInterpolator(const FiniteElementSpace &fes,
+                          const QuadratureSpace &qs);
 
    QuadratureInterpolator(const FiniteElementSpace &fes,
                           const QuadratureSpace &qs,
-                          const bool use_tensor_products = false);
+                          const bool use_tensor_products);
 
    /** @brief Disable the use of tensor product evaluations, for tensor-product
        elements, e.g. quads and hexes. */
