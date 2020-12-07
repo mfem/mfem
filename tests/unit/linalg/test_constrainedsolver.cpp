@@ -66,6 +66,8 @@ SimpleSaddle::SimpleSaddle(double alpha, double beta)
    rhs(1) = beta;
 
    dualrhs = 0.0;
+
+   sol = 0.0;
 }
 
 SimpleSaddle::~SimpleSaddle()
@@ -246,6 +248,7 @@ ParallelTestProblem::ParallelTestProblem()
    // rhs // [ 1.1 -2.   3.  -1.4  2.1 -3.2 -1.1  2.2  0.   0.   0.   0. ]
    // truesol // [-0.55 -2.5   2.5  -1.75  1.75 -1.05  1.05  0.55  0.5   0.35 -2.15  1.65]
 
+   sol = 0.0;
    rhs = 0.0;
    if (rank == 0)
    {
@@ -506,6 +509,7 @@ ParallelTestProblemTwo::ParallelTestProblemTwo()
    bmat->CopyRowStarts();
    bmat->CopyColStarts();
 
+   sol = 0.0;
    rhs = 0.0;
    if (rank == 0)
    {
@@ -694,6 +698,7 @@ ZerosTestProblem::ZerosTestProblem(bool e0, bool e1)
 
    // this solution is pretty boring
    // (this problem is pretty boring)
+   sol = 0.0;
    rhs = 0.0;
    rhs(0) = 1.0;
 
