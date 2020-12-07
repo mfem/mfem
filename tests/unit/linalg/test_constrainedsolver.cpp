@@ -637,24 +637,7 @@ TEST_CASE("ParallelConstrainedSolverTwo", "[Parallel], [ConstrainedSolver]")
       {
          INFO("[" << comm_rank << "] Parallel Elimination dual error: " << lerr(0) << "\n");
          REQUIRE(lerr(0) == MFEM_Approx(0.0));
-         // std::cout << "[3] lerr = " << lerr(0) << std::endl;
       }
-
-/*
-      for (int i = 0; i < comm_size; ++i)
-      {
-         if (comm_rank == i)
-         {
-            std::cout << "[" << comm_rank << "]:\n";
-            for (int j = 0; j < 2; ++j)
-            {
-               printf("  sol(%d)=%f, truesol(%d)=%f, serr(%d)=%f\n",
-                      j, problem.sol(j), j, problem.truesol(j), j, serr(j));
-            }
-         }
-         MPI_Barrier(MPI_COMM_WORLD);
-      }
-*/
 
       for (auto pen : {1.e+3, 1.e+4, 1.e+6})
       {
@@ -669,9 +652,115 @@ TEST_CASE("ParallelConstrainedSolverTwo", "[Parallel], [ConstrainedSolver]")
          }
       }
 
-      // today is the day I test the elimination solver in parallel
    }
 }
 
+// make sure EliminationCGSolver correctly handles explicit
+// zeros in the constraint matrix
+class ZerosTestProblem
+{
+public:
+   ZerosTestProblem(bool e0, bool e1);
+   ~ZerosTestProblem();
+
+   void Elimination(Vector& serr, Vector& lerr, bool twoblocks);
+
+private:
+   SparseMatrix A, B;
+   HypreParMatrix * hA;
+   Vector rhs, sol, dualrhs, lambda;
+   Vector truesol, truelambda;
+};
+
+ZerosTestProblem::ZerosTestProblem(bool e0, bool e1)
+   :
+   A(3, 3), B(2, 3), rhs(3), sol(3), dualrhs(2), lambda(2),
+   truesol(3), truelambda(2)
+{
+   for (int i = 0; i < 3; ++i)
+   {
+      A.Add(i, i, 1.0);
+   }
+   A.Finalize();
+   if (e0) { B.Add(0, 1, 0.0); }
+   B.Add(0, 2, 1.0);
+   B.Add(1, 1, 1.0);
+   if (e1) { B.Add(1, 2, 0.0); }
+   B.Finalize(0); // do not skip zeros!
+
+   int row_starts[2] = {0, 3};
+   hA = new HypreParMatrix(MPI_COMM_WORLD, 3, row_starts, &A);
+   hA->CopyRowStarts();
+
+   // this solution is pretty boring
+   // (this problem is pretty boring)
+   rhs = 0.0;
+   rhs(0) = 1.0;
+
+   dualrhs = 0.0;
+
+   truesol = 0.0;
+   truesol(0) = 1.0;
+
+   truelambda = 0.0;
+}
+
+ZerosTestProblem::~ZerosTestProblem()
+{
+   delete hA;
+}
+
+void ZerosTestProblem::Elimination(Vector& serr, Vector& lerr, bool twoblocks)
+{
+   Array<int> lagrange_rowstarts;
+   if (twoblocks)
+   {
+      lagrange_rowstarts.SetSize(3);
+      lagrange_rowstarts[0] = 0;
+      lagrange_rowstarts[1] = 1;
+      lagrange_rowstarts[2] = 2;
+   }
+   else
+   {
+      lagrange_rowstarts.SetSize(2);
+      lagrange_rowstarts[0] = 0;
+      lagrange_rowstarts[1] = 2;
+   }
+   EliminationCGSolver solver(*hA, B, lagrange_rowstarts);
+   solver.Mult(rhs, sol);
+   solver.GetMultiplierSolution(lambda);
+   for (int i = 0; i < 2; ++i)
+   {
+      serr(i) = truesol(i) - sol(i);
+   }
+   for (int i = 0; i < truelambda.Size(); ++i)
+   {
+      lerr(i) = truelambda(i) - lambda(i);
+   }
+}
+
+TEST_CASE("ZerosTestCase", "[Parallel], [ConstrainedSolver]")
+{
+   int comm_rank, comm_size;
+   MPI_Comm_rank(MPI_COMM_WORLD, &comm_rank);
+   MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
+
+   if (comm_size == 1)
+   {
+      Vector serr(3), lerr(2);
+      auto e0 = GENERATE(true, false);
+      auto e1 = GENERATE(true, false);
+      ZerosTestProblem problem(e0, e1);
+
+      auto twoblocks = GENERATE(true, false);
+      problem.Elimination(serr, lerr, twoblocks);
+      double serrnorm = serr.Norml2();
+      INFO("[" << comm_rank << "] zeros test case primal error: " << serrnorm << "\n");
+      REQUIRE(serrnorm == MFEM_Approx(0.0));
+      double lerrnorm = lerr.Norml2();
+      INFO("[" << comm_rank << "] zeros test case dual error: " << lerrnorm << "\n");
+      REQUIRE(lerrnorm == MFEM_Approx(0.0));
+   }
+}
 
 #endif
