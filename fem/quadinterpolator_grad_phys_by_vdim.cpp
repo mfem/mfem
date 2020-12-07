@@ -50,23 +50,23 @@ void QuadratureInterpolator::PhysDerivatives<QVectorLayout::byVDIM>(
    {
       switch (id)
       {
-         case 0x134: return Grad2D<L,P,1,3,4,8>(NE, B, G, J, X, Y);
-         case 0x146: return Grad2D<L,P,1,4,6,4>(NE, B, G, J, X, Y);
-         case 0x158: return Grad2D<L,P,1,5,8,2>(NE, B, G, J, X, Y);
+         case 0x134: return Derivatives2D<L,P,1,3,4,8>(NE,B,G,J,X,Y);
+         case 0x146: return Derivatives2D<L,P,1,4,6,4>(NE,B,G,J,X,Y);
+         case 0x158: return Derivatives2D<L,P,1,5,8,2>(NE,B,G,J,X,Y);
 
-         case 0x233: return Grad2D<L,P,2,3,3,8>(NE, B, G, J, X, Y);
-         case 0x234: return Grad2D<L,P,2,3,4,8>(NE, B, G, J, X, Y);
-         case 0x246: return Grad2D<L,P,2,4,6,4>(NE, B, G, J, X, Y);
-         case 0x258: return Grad2D<L,P,2,5,8,2>(NE, B, G, J, X, Y);
+         case 0x233: return Derivatives2D<L,P,2,3,3,8>(NE,B,G,J,X,Y);
+         case 0x234: return Derivatives2D<L,P,2,3,4,8>(NE,B,G,J,X,Y);
+         case 0x246: return Derivatives2D<L,P,2,4,6,4>(NE,B,G,J,X,Y);
+         case 0x258: return Derivatives2D<L,P,2,5,8,2>(NE,B,G,J,X,Y);
          default:
          {
             constexpr int MD = MAX_D1D;
             constexpr int MQ = MAX_Q1D;
             MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
                         << " are not supported!");
-            MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than " << MQ
-                        << " 1D points are not supported!");
-            Grad2D<L,P,0,0,0,0,MD,MQ>(NE, B, G, J, X, Y, vdim, D1D, Q1D);
+            MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than "
+                        << MQ << " 1D points are not supported!");
+            Derivatives2D<L,P,0,0,0,0,MD,MQ>(NE,B,G,J,X,Y,vdim,D1D,Q1D);
             return;
          }
       }
@@ -75,22 +75,22 @@ void QuadratureInterpolator::PhysDerivatives<QVectorLayout::byVDIM>(
    {
       switch (id)
       {
-         case 0x134: return Grad3D<L,P,1,3,4>(NE, B, G, J, X, Y);
-         case 0x146: return Grad3D<L,P,1,4,6>(NE, B, G, J, X, Y);
-         case 0x158: return Grad3D<L,P,1,5,8>(NE, B, G, J, X, Y);
+         case 0x134: return Derivatives3D<L,P,1,3,4>(NE,B,G,J,X,Y);
+         case 0x146: return Derivatives3D<L,P,1,4,6>(NE,B,G,J,X,Y);
+         case 0x158: return Derivatives3D<L,P,1,5,8>(NE,B,G,J,X,Y);
 
-         case 0x334: return Grad3D<L,P,3,3,4>(NE, B, G, J, X, Y);
-         case 0x346: return Grad3D<L,P,3,4,6>(NE, B, G, J, X, Y);
-         case 0x358: return Grad3D<L,P,3,5,8>(NE, B, G, J, X, Y);
+         case 0x334: return Derivatives3D<L,P,3,3,4>(NE,B,G,J,X,Y);
+         case 0x346: return Derivatives3D<L,P,3,4,6>(NE,B,G,J,X,Y);
+         case 0x358: return Derivatives3D<L,P,3,5,8>(NE,B,G,J,X,Y);
          default:
          {
             constexpr int MD = 8;
             constexpr int MQ = 8;
             MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
                         << " are not supported!");
-            MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than " << MQ
-                        << " 1D points are not supported!");
-            Grad3D<L,P,0,0,0,MD,MQ>(NE, B, G, J, X, Y, vdim, D1D, Q1D);
+            MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than "
+                        << MQ << " 1D points are not supported!");
+            Derivatives3D<L,P,0,0,0,MD,MQ>(NE,B,G,J,X,Y,vdim,D1D,Q1D);
             return;
          }
       }

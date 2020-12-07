@@ -81,7 +81,7 @@ public:
    void EnableTensorProducts() const { use_tensor_products = true; }
 
    /** @brief Query the current evaluation mode. */
-   bool UseTensorProducts() const { return use_tensor_products; }
+   bool UsesTensorProducts() const { return use_tensor_products; }
 
    /** @brief Query the current output Q-vector layout. The default value is
        QVectorLayout::byNODES. */
@@ -104,20 +104,14 @@ public:
              Vector &q_val, Vector &q_der, Vector &q_det) const;
 
    /// Interpolate the values of the E-vector @a e_vec at quadrature points.
-   template <QVectorLayout>
-   void Values(const Vector &e_vec, Vector &q_val) const;
    void Values(const Vector &e_vec, Vector &q_val) const;
 
    /** @brief Interpolate the derivatives of the E-vector @a e_vec at quadrature
        points. */
-   template <QVectorLayout>
-   void Derivatives(const Vector &e_vec, Vector &q_der) const;
    void Derivatives(const Vector &e_vec, Vector &q_der) const;
 
    /** @brief Interpolate the derivatives in physical space of the E-vector
        @a e_vec at quadrature points. */
-   template <QVectorLayout>
-   void PhysDerivatives(const Vector &e_vec, Vector &q_der) const;
    void PhysDerivatives(const Vector &e_vec, Vector &q_der) const;
 
    /// Compute the determinant of the E-vector @a e_vec at quadrature points.
@@ -130,7 +124,7 @@ public:
    // Compute kernels follow (cannot be private or protected with nvcc)
    /// Template compute kernel for 2D.
    template<const int T_VDIM = 0, const int T_ND = 0, const int T_NQ = 0>
-   static void Mult2D(const int NE,
+   static void Eval2D(const int NE,
                       const int vdim,
                       const QVectorLayout q_layout,
                       const GeometricFactors *geom,
@@ -143,7 +137,7 @@ public:
 
    /// Template compute kernel for 3D.
    template<const int T_VDIM = 0, const int T_ND = 0, const int T_NQ = 0>
-   static void Mult3D(const int NE,
+   static void Eval3D(const int NE,
                       const int vdim,
                       const QVectorLayout q_layout,
                       const GeometricFactors *geom,
@@ -153,6 +147,18 @@ public:
                       Vector &q_der,
                       Vector &q_det,
                       const int eval_flags);
+
+   /// Template compute kernel for Values.
+   template <QVectorLayout>
+   void Values(const Vector &e_vec, Vector &q_val) const;
+
+   /// Template compute kernel for Derivatives.
+   template <QVectorLayout>
+   void Derivatives(const Vector &e_vec, Vector &q_der) const;
+
+   /// Template compute kernel for PhysDerivatives.
+   template <QVectorLayout>
+   void PhysDerivatives(const Vector &e_vec, Vector &q_der) const;
 };
 
 }

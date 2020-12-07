@@ -10727,7 +10727,7 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
 
    const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(ir);
    qi->SetOutputLayout(QVectorLayout::byNODES);
-   const bool use_tensor_product = qi->UseTensorProducts();
+   const bool use_tensor_product = qi->UsesTensorProducts();
    if (use_tensor_product)
    {
       MFEM_VERIFY(mesh->GetNumGeometries(dim) == 1,

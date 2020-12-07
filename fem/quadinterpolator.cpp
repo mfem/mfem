@@ -26,7 +26,6 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
    q_layout(QVectorLayout::byNODES),
    use_tensor_products(UsesTensorBasis(fes))
 {
-
    if (fespace->GetNE() == 0) { return; }
    const FiniteElement *fe = fespace->GetFE(0);
    MFEM_VERIFY(dynamic_cast<const ScalarFiniteElement*>(fe) != NULL,
@@ -50,7 +49,7 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
 }
 
 template<const int T_VDIM, const int T_ND, const int T_NQ>
-void QuadratureInterpolator::Mult2D(const int NE,
+void QuadratureInterpolator::Eval2D(const int NE,
                                     const int vdim,
                                     const QVectorLayout q_layout,
                                     const GeometricFactors *geom,
@@ -189,7 +188,7 @@ void QuadratureInterpolator::Mult2D(const int NE,
 }
 
 template<const int T_VDIM, const int T_ND, const int T_NQ>
-void QuadratureInterpolator::Mult3D(const int NE,
+void QuadratureInterpolator::Eval3D(const int NE,
                                     const int vdim,
                                     const QVectorLayout q_layout,
                                     const GeometricFactors *geom,
@@ -416,7 +415,6 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
                    Vector &q_der,
                    Vector &q_det,
                    const int eval_flags) = NULL;
-
       if (vdim == 1)
       {
          if (dim == 2)
@@ -424,27 +422,27 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
             switch (100*nd + nq)
             {
                // Q0
-               case 101: mult = &Mult2D<1,1,1>; break;
-               case 104: mult = &Mult2D<1,1,4>; break;
+               case 101: mult = &Eval2D<1,1,1>; break;
+               case 104: mult = &Eval2D<1,1,4>; break;
                // Q1
-               case 404: mult = &Mult2D<1,4,4>; break;
-               case 409: mult = &Mult2D<1,4,9>; break;
+               case 404: mult = &Eval2D<1,4,4>; break;
+               case 409: mult = &Eval2D<1,4,9>; break;
                // Q2
-               case 909: mult = &Mult2D<1,9,9>; break;
-               case 916: mult = &Mult2D<1,9,16>; break;
+               case 909: mult = &Eval2D<1,9,9>; break;
+               case 916: mult = &Eval2D<1,9,16>; break;
                // Q3
-               case 1616: mult = &Mult2D<1,16,16>; break;
-               case 1625: mult = &Mult2D<1,16,25>; break;
-               case 1636: mult = &Mult2D<1,16,36>; break;
+               case 1616: mult = &Eval2D<1,16,16>; break;
+               case 1625: mult = &Eval2D<1,16,25>; break;
+               case 1636: mult = &Eval2D<1,16,36>; break;
                // Q4
-               case 2525: mult = &Mult2D<1,25,25>; break;
-               case 2536: mult = &Mult2D<1,25,36>; break;
-               case 2549: mult = &Mult2D<1,25,49>; break;
-               case 2564: mult = &Mult2D<1,25,64>; break;
+               case 2525: mult = &Eval2D<1,25,25>; break;
+               case 2536: mult = &Eval2D<1,25,36>; break;
+               case 2549: mult = &Eval2D<1,25,49>; break;
+               case 2564: mult = &Eval2D<1,25,64>; break;
             }
             if (nq >= 100 || !mult)
             {
-               mult = &Mult2D<1>;
+               mult = &Eval2D<1>;
             }
          }
          else if (dim == 3)
@@ -452,25 +450,25 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
             switch (1000*nd + nq)
             {
                // Q0
-               case 1001: mult = &Mult3D<1,1,1>; break;
-               case 1008: mult = &Mult3D<1,1,8>; break;
+               case 1001: mult = &Eval3D<1,1,1>; break;
+               case 1008: mult = &Eval3D<1,1,8>; break;
                // Q1
-               case 8008: mult = &Mult3D<1,8,8>; break;
-               case 8027: mult = &Mult3D<1,8,27>; break;
+               case 8008: mult = &Eval3D<1,8,8>; break;
+               case 8027: mult = &Eval3D<1,8,27>; break;
                // Q2
-               case 27027: mult = &Mult3D<1,27,27>; break;
-               case 27064: mult = &Mult3D<1,27,64>; break;
+               case 27027: mult = &Eval3D<1,27,27>; break;
+               case 27064: mult = &Eval3D<1,27,64>; break;
                // Q3
-               case 64064: mult = &Mult3D<1,64,64>; break;
-               case 64125: mult = &Mult3D<1,64,125>; break;
-               case 64216: mult = &Mult3D<1,64,216>; break;
+               case 64064: mult = &Eval3D<1,64,64>; break;
+               case 64125: mult = &Eval3D<1,64,125>; break;
+               case 64216: mult = &Eval3D<1,64,216>; break;
                // Q4
-               case 125125: mult = &Mult3D<1,125,125>; break;
-               case 125216: mult = &Mult3D<1,125,216>; break;
+               case 125125: mult = &Eval3D<1,125,125>; break;
+               case 125216: mult = &Eval3D<1,125,216>; break;
             }
             if (nq >= 1000 || !mult)
             {
-               mult = &Mult3D<1>;
+               mult = &Eval3D<1>;
             }
          }
       }
@@ -479,26 +477,26 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
          switch (100*nd + nq)
          {
             // Q0
-            case 101: mult = &Mult2D<3,1,1>; break;
-            case 104: mult = &Mult2D<3,1,4>; break;
+            case 101: mult = &Eval2D<3,1,1>; break;
+            case 104: mult = &Eval2D<3,1,4>; break;
             // Q1
-            case 404: mult = &Mult2D<3,4,4>; break;
-            case 409: mult = &Mult2D<3,4,9>; break;
+            case 404: mult = &Eval2D<3,4,4>; break;
+            case 409: mult = &Eval2D<3,4,9>; break;
             // Q2
-            case 904: mult = &Mult2D<3,9,4>; break;
-            case 909: mult = &Mult2D<3,9,9>; break;
-            case 916: mult = &Mult2D<3,9,16>; break;
-            case 925: mult = &Mult2D<3,9,25>; break;
+            case 904: mult = &Eval2D<3,9,4>; break;
+            case 909: mult = &Eval2D<3,9,9>; break;
+            case 916: mult = &Eval2D<3,9,16>; break;
+            case 925: mult = &Eval2D<3,9,25>; break;
             // Q3
-            case 1616: mult = &Mult2D<3,16,16>; break;
-            case 1625: mult = &Mult2D<3,16,25>; break;
-            case 1636: mult = &Mult2D<3,16,36>; break;
+            case 1616: mult = &Eval2D<3,16,16>; break;
+            case 1625: mult = &Eval2D<3,16,25>; break;
+            case 1636: mult = &Eval2D<3,16,36>; break;
             // Q4
-            case 2525: mult = &Mult2D<3,25,25>; break;
-            case 2536: mult = &Mult2D<3,25,36>; break;
-            case 2549: mult = &Mult2D<3,25,49>; break;
-            case 2564: mult = &Mult2D<3,25,64>; break;
-            default:   mult = &Mult2D<3>;
+            case 2525: mult = &Eval2D<3,25,25>; break;
+            case 2536: mult = &Eval2D<3,25,36>; break;
+            case 2549: mult = &Eval2D<3,25,49>; break;
+            case 2564: mult = &Eval2D<3,25,64>; break;
+            default:   mult = &Eval2D<3>;
          }
       }
       else if (vdim == dim)
@@ -508,43 +506,43 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
             switch (100*nd + nq)
             {
                // Q1
-               case 404: mult = &Mult2D<2,4,4>; break;
-               case 409: mult = &Mult2D<2,4,9>; break;
+               case 404: mult = &Eval2D<2,4,4>; break;
+               case 409: mult = &Eval2D<2,4,9>; break;
                // Q2
-               case 909: mult = &Mult2D<2,9,9>; break;
-               case 916: mult = &Mult2D<2,9,16>; break;
+               case 909: mult = &Eval2D<2,9,9>; break;
+               case 916: mult = &Eval2D<2,9,16>; break;
                // Q3
-               case 1616: mult = &Mult2D<2,16,16>; break;
-               case 1625: mult = &Mult2D<2,16,25>; break;
-               case 1636: mult = &Mult2D<2,16,36>; break;
+               case 1616: mult = &Eval2D<2,16,16>; break;
+               case 1625: mult = &Eval2D<2,16,25>; break;
+               case 1636: mult = &Eval2D<2,16,36>; break;
                // Q4
-               case 2525: mult = &Mult2D<2,25,25>; break;
-               case 2536: mult = &Mult2D<2,25,36>; break;
-               case 2549: mult = &Mult2D<2,25,49>; break;
-               case 2564: mult = &Mult2D<2,25,64>; break;
+               case 2525: mult = &Eval2D<2,25,25>; break;
+               case 2536: mult = &Eval2D<2,25,36>; break;
+               case 2549: mult = &Eval2D<2,25,49>; break;
+               case 2564: mult = &Eval2D<2,25,64>; break;
             }
-            if (nq >= 100 || !mult) { mult = &Mult2D<2>; }
+            if (nq >= 100 || !mult) { mult = &Eval2D<2>; }
          }
          else if (dim == 3)
          {
             switch (1000*nd + nq)
             {
                // Q1
-               case 8008: mult = &Mult3D<3,8,8>; break;
-               case 8027: mult = &Mult3D<3,8,27>; break;
+               case 8008: mult = &Eval3D<3,8,8>; break;
+               case 8027: mult = &Eval3D<3,8,27>; break;
                // Q2
-               case 27027: mult = &Mult3D<3,27,27>; break;
-               case 27064: mult = &Mult3D<3,27,64>; break;
-               case 27125: mult = &Mult3D<3,27,125>; break;
+               case 27027: mult = &Eval3D<3,27,27>; break;
+               case 27064: mult = &Eval3D<3,27,64>; break;
+               case 27125: mult = &Eval3D<3,27,125>; break;
                // Q3
-               case 64064: mult = &Mult3D<3,64,64>; break;
-               case 64125: mult = &Mult3D<3,64,125>; break;
-               case 64216: mult = &Mult3D<3,64,216>; break;
+               case 64064: mult = &Eval3D<3,64,64>; break;
+               case 64125: mult = &Eval3D<3,64,125>; break;
+               case 64216: mult = &Eval3D<3,64,216>; break;
                // Q4
-               case 125125: mult = &Mult3D<3,125,125>; break;
-               case 125216: mult = &Mult3D<3,125,216>; break;
+               case 125125: mult = &Eval3D<3,125,125>; break;
+               case 125216: mult = &Eval3D<3,125,216>; break;
             }
-            if (nq >= 1000 || !mult) {  mult = &Mult3D<3>; }
+            if (nq >= 1000 || !mult) {  mult = &Eval3D<3>; }
          }
       }
       if (mult)
