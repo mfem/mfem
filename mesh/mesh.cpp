@@ -777,7 +777,6 @@ void Mesh::GetLocalQuadToWdgTransformation(
 const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
                                                   const int flags)
 {
-
    for (int i = 0; i < geom_factors.Size(); i++)
    {
       GeometricFactors *gf = geom_factors[i];
@@ -788,6 +787,7 @@ const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
    }
 
    this->EnsureNodes();
+
    GeometricFactors *gf = new GeometricFactors(this, ir, flags);
    geom_factors.Append(gf);
    return gf;
@@ -10726,13 +10726,10 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    }
 
    const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(ir);
-   const bool use_tensor_products = qi->UseTensorProducts();
-
-   // GeometricFactors arrays use a column-major layout
    qi->SetOutputLayout(QVectorLayout::byNODES);
 
    // Use LEXICOGRAPHIC ordering in case of tensor product evaluation
-   const ElementDofOrdering e_ordering = use_tensor_products ?
+   const ElementDofOrdering e_ordering = qi->UseTensorProducts() ?
                                          ElementDofOrdering::LEXICOGRAPHIC :
                                          ElementDofOrdering::NATIVE;
    const Operator *elem_restr = fespace->GetElementRestriction(e_ordering);
