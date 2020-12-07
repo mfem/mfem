@@ -40,7 +40,6 @@ Version 4.2.1 (development)
 
 - Added new mesh quality metrics for TMOP-based mesh optimization.
 
-
 Version 4.2, released on October 30, 2020
 =========================================
 
@@ -57,11 +56,6 @@ High-Performance Computing
 
 Improved GPU capabilities
 -------------------------
-- Added support for different modes of QuadratureInterpolator on GPU.
-  The layout (QVectorLayout::byNODES|byVDIM) and the tensor modes can be
-  enabled before calling the Mult, Values, Derivatives, PhysDerivatives and
-  Determinants methods.
-
 - Added a Full Assembly mode compatible with GPU device execution. This assembly
   level builds on top of the Element Assembly kernels to compute a global sparse
   matrix. All integrators supported by element assembly are also supported by
