@@ -775,9 +775,9 @@ void Mesh::GetLocalQuadToWdgTransformation(
 }
 
 const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
-                                                  const int flags,
-                                                  mfem::DofToQuad::Mode mode)
+                                                  const int flags)
 {
+
    for (int i = 0; i < geom_factors.Size(); i++)
    {
       GeometricFactors *gf = geom_factors[i];
@@ -788,7 +788,7 @@ const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
    }
 
    this->EnsureNodes();
-   GeometricFactors *gf = new GeometricFactors(this, ir, flags, mode);
+   GeometricFactors *gf = new GeometricFactors(this, ir, flags);
    geom_factors.Append(gf);
    return gf;
 }
@@ -10693,7 +10693,7 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
 
 
 GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
-                                   int flags, DofToQuad::Mode mode)
+                                   int flags)
 {
    this->mesh = mesh;
    IntRule = &ir;
@@ -10725,8 +10725,7 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
       eval_flags |= QuadratureInterpolator::DETERMINANTS;
    }
 
-   const QuadratureInterpolator *qi =
-      fespace->GetQuadratureInterpolator(ir, mode);
+   const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(ir);
    const bool use_tensor_products = qi->UseTensorProducts();
 
    // GeometricFactors arrays use a column-major layout

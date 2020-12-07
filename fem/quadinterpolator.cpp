@@ -18,6 +18,10 @@ namespace mfem
 {
 
 QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
+                                               const IntegrationRule &ir)
+   : QuadratureInterpolator(fes, ir, UsesTensorBasis(fes)) {}
+
+QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
                                                const IntegrationRule &ir,
                                                const bool use_tensor_products):
 
@@ -34,6 +38,7 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
                "Only scalar finite elements are supported");
 }
 
+
 QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
                                                const QuadratureSpace &qs,
                                                const bool use_tensor_products):
@@ -49,6 +54,11 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
    MFEM_VERIFY(dynamic_cast<const ScalarFiniteElement*>(fe) != NULL,
                "Only scalar finite elements are supported");
 }
+
+QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
+                                               const QuadratureSpace &qs)
+   : QuadratureInterpolator(fes,qs,UsesTensorBasis(fes)) {}
+
 
 template<const int T_VDIM, const int T_ND, const int T_NQ>
 void QuadratureInterpolator::Mult2D(const int NE,
@@ -402,7 +412,7 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
       if (eval_flags & PHYSICAL_DERIVATIVES)
       {
          const int jacobians = GeometricFactors::JACOBIANS;
-         geom = fespace->GetMesh()->GetGeometricFactors(*ir, jacobians, mode);
+         geom = fespace->GetMesh()->GetGeometricFactors(*ir, jacobians);
       }
       const int nd = maps.ndof;
       const int nq = maps.nqpt;

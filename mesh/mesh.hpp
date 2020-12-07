@@ -769,8 +769,7 @@ public:
    /** @brief Return the mesh geometric factors corresponding to the given
        integration rule. */
    const GeometricFactors* GetGeometricFactors(const IntegrationRule& ir,
-                                               const int flags,
-                                               DofToQuad::Mode = DofToQuad::FULL);
+                                               const int flags);
 
    /** @brief Return the mesh geometric factors for the faces corresponding
         to the given integration rule. */
@@ -1410,8 +1409,7 @@ public:
       DETERMINANTS = 1 << 2,
    };
 
-   GeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags,
-                    DofToQuad::Mode = DofToQuad::FULL);
+   GeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags);
 
    /// Mapped (physical) coordinates of all quadrature points.
    /** This array uses a column-major layout with dimensions (NQ x SDIM x NE)
