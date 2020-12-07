@@ -34,10 +34,9 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T);
    if (DeviceCanUseCeed())
    {
-      delete ceedDataPtr;
-      ceedDataPtr = new CeedData;
-      InitCeedCoeff(Q, *mesh, *ir, ceedDataPtr);
-      return CeedPAMassAssemble(fes, *ir, *ceedDataPtr);
+      delete ceedOp;
+      ceedOp = new CeedPAMassIntegrator(fes,*ir,Q);
+      return;
    }
    dim = mesh->Dimension();
    ne = fes.GetMesh()->GetNE();
@@ -461,7 +460,7 @@ void MassIntegrator::AssembleDiagonalPA(Vector &diag)
 {
    if (DeviceCanUseCeed())
    {
-      CeedAssembleDiagonal(ceedDataPtr, diag);
+      ceedOp->GetDiagonal(diag);
    }
    else
    {
@@ -1218,7 +1217,7 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
    {
-      CeedAddMult(ceedDataPtr, x, y);
+      ceedOp->Mult(x, y);
    }
    else
    {

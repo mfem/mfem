@@ -31,10 +31,9 @@ void ConvectionIntegrator::AssembleMF(const FiniteElementSpace &fes)
    if (DeviceCanUseCeed())
    {
       MFEM_VERIFY(alpha==-1, "Only alpha=-1 currently supported with libCEED.");
-      delete ceedDataPtr;
-      ceedDataPtr = new CeedData;
-      InitCeedVecCoeff(Q, *mesh, *ir, ceedDataPtr);
-      return CeedMFConvectionAssemble(fes, *ir, *ceedDataPtr);
+      delete ceedOp;
+      ceedOp = new CeedMFConvectionIntegrator(fes, *ir, Q, alpha);
+      return;
    }
 #endif
    mfem_error("Error: ConvectionIntegrator::AssembleMF only implemented with libCEED");
@@ -45,7 +44,7 @@ void ConvectionIntegrator::AssembleDiagonalMF(Vector &diag)
 #ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      CeedAssembleDiagonal(ceedDataPtr, diag);
+      ceedOp->GetDiagonal(diag);
    }
    else
 #endif
@@ -59,7 +58,7 @@ void ConvectionIntegrator::AddMultMF(const Vector &x, Vector &y) const
 #ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      CeedAddMult(ceedDataPtr, x, y);
+      ceedOp->Mult(x, y);
    }
    else
 #endif

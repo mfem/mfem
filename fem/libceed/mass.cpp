@@ -19,47 +19,50 @@
 namespace mfem
 {
 
-void CeedPAMassAssemble(const FiniteElementSpace &fes,
-                        const mfem::IntegrationRule &irm, CeedData& ceedData)
+CeedPAMassIntegrator::CeedPAMassIntegrator(const FiniteElementSpace &fes,
+                                           const mfem::IntegrationRule &irm,
+                                           Coefficient *Q)
+: CeedPAIntegrator()
 {
-#ifdef MFEM_USE_CEED
    Mesh &mesh = *fes.GetMesh();
    // Perform checks for some assumptions made in the Q-functions.
    MFEM_VERIFY(mesh.Dimension() == mesh.SpaceDimension(), "case not supported");
-   MFEM_VERIFY(1 <= fes.GetVDim() && fes.GetVDim() <= 3, "case not supported");
+   MFEM_VERIFY(fes.GetVDim() == 1 || fes.GetVDim() == mesh.Dimension(),
+               "case not supported");
+   int dim = mesh.Dimension();
+   InitCeedCoeff(Q, mesh, irm, coeff_type, coeff);
    CeedPAOperator massOp = {fes, irm,
-                            1, "/mass.h",
-                            ":f_build_mass_const", f_build_mass_const,
-                            ":f_build_mass_quad", f_build_mass_quad,
-                            "", nullptr,
-                            "", nullptr,
-                            ":f_apply_mass", f_apply_mass,
-                            EvalMode::Interp,
-                            EvalMode::Interp
+                           dim * (dim + 1) / 2, "/mass.h",
+                           "", nullptr,
+                           "", nullptr,
+                           ":f_build_mass_const", f_build_mass_const,
+                           ":f_build_mass_quad", f_build_mass_quad,
+                           ":f_apply_mass", f_apply_mass,
+                           EvalMode::Grad,
+                           EvalMode::Interp
                            };
-   CeedAssemble(massOp, ceedData);
-#else
-   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
-#endif
+   BuildContext ctx;
+   Assemble(massOp, ctx);
 }
 
-void CeedMFMassAssemble(const FiniteElementSpace &fes,
-                        const mfem::IntegrationRule &irm, CeedData& ceedData)
+CeedMFMassIntegrator::CeedMFMassIntegrator(const FiniteElementSpace &fes,
+                                           const mfem::IntegrationRule &irm,
+                                           Coefficient *Q)
+: CeedMFIntegrator()
 {
-#ifdef MFEM_USE_CEED
+   Mesh &mesh = *fes.GetMesh();
+   InitCeedCoeff(Q, mesh, irm, coeff_type, coeff);
    CeedMFOperator massOp = {fes, irm,
-                            "/mass.h",
-                            ":f_apply_mass_mf_const", f_apply_mass_mf_const,
-                            ":f_apply_mass_mf_quad", f_apply_mass_mf_quad,
-                            "", nullptr,
-                            "", nullptr,
-                            EvalMode::Interp,
-                            EvalMode::Interp
-                           };
-   CeedAssemble(massOp, ceedData);
-#else
-   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
-#endif
+                           "/mass.h",
+                           "", nullptr,
+                           "", nullptr,
+                           ":f_apply_mass_mf_const", f_apply_mass_mf_const,
+                           ":f_apply_mass_mf_quad", f_apply_mass_mf_quad,
+                           EvalMode::Grad,
+                           EvalMode::Interp
+                        };
+   BuildContext ctx;
+   Assemble(massOp, ctx);
 }
 
 } // namespace mfem

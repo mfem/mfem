@@ -24,15 +24,15 @@ void VectorDiffusionIntegrator::AssembleMF(const FiniteElementSpace &fes)
 #ifdef MFEM_USE_CEED
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
+   if (mesh->GetNE() == 0) { return; }
    const FiniteElement &el = *fes.GetFE(0);
    const IntegrationRule *ir
       = IntRule ? IntRule : &DiffusionIntegrator::GetRule(el, el);
    if (DeviceCanUseCeed())
    {
-      delete ceedDataPtr;
-      ceedDataPtr = new CeedData;
-      InitCeedCoeff(Q, *mesh, *ir, ceedDataPtr);
-      return CeedMFDiffusionAssemble(fes, *ir, * ceedDataPtr);
+      delete ceedOp;
+      ceedOp = new CeedMFDiffusionIntegrator(fes, *ir, Q);
+      return;
    }
 #endif
    mfem_error("Error: VectorDiffusionIntegrator::AssembleMF only implemented with libCEED");
@@ -43,7 +43,8 @@ void VectorDiffusionIntegrator::AddMultMF(const Vector &x, Vector &y) const
 #ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      CeedAddMult(ceedDataPtr, x, y);
+      ceedOp->Mult(x, y);
+      // CeedAddMult(ceedOp, x, y);
    }
    else
 #endif
@@ -57,7 +58,8 @@ void VectorDiffusionIntegrator::AssembleDiagonalMF(Vector &diag)
 #ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      CeedAssembleDiagonal(ceedDataPtr, diag);
+      ceedOp->GetDiagonal(diag);
+      // CeedAssembleDiagonal(ceedOp, diag);
    }
    else
 #endif

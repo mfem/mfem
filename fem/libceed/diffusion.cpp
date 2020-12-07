@@ -19,16 +19,18 @@
 namespace mfem
 {
 
-void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
-                             const mfem::IntegrationRule &irm, CeedData& ceedData)
+CeedPADiffusionIntegrator::CeedPADiffusionIntegrator(const FiniteElementSpace &fes,
+                                           const mfem::IntegrationRule &irm,
+                                           Coefficient *Q)
+: CeedPAIntegrator()
 {
-#ifdef MFEM_USE_CEED
    Mesh &mesh = *fes.GetMesh();
    // Perform checks for some assumptions made in the Q-functions.
    MFEM_VERIFY(mesh.Dimension() == mesh.SpaceDimension(), "case not supported");
    MFEM_VERIFY(fes.GetVDim() == 1 || fes.GetVDim() == mesh.Dimension(),
                "case not supported");
    int dim = mesh.Dimension();
+   InitCeedCoeff(Q, mesh, irm, coeff_type, coeff);
    CeedPAOperator diffOp = {fes, irm,
                             dim * (dim + 1) / 2, "/diffusion.h",
                             ":f_build_diff_const", f_build_diff_const,
@@ -39,16 +41,17 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
                             EvalMode::Grad,
                             EvalMode::Grad
                            };
-   CeedAssemble(diffOp, ceedData);
-#else
-   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
-#endif
+   BuildContext ctx;
+   Assemble(diffOp, ctx);
 }
 
-void CeedMFDiffusionAssemble(const FiniteElementSpace &fes,
-                             const mfem::IntegrationRule &irm, CeedData& ceedData)
+CeedMFDiffusionIntegrator::CeedMFDiffusionIntegrator(const FiniteElementSpace &fes,
+                                           const mfem::IntegrationRule &irm,
+                                           Coefficient *Q)
+: CeedMFIntegrator()
 {
-#ifdef MFEM_USE_CEED
+   Mesh &mesh = *fes.GetMesh();
+   InitCeedCoeff(Q, mesh, irm, coeff_type, coeff);
    CeedMFOperator diffOp = {fes, irm,
                             "/diffusion.h",
                             ":f_apply_diff_mf_const", f_apply_diff_mf_const,
@@ -58,10 +61,8 @@ void CeedMFDiffusionAssemble(const FiniteElementSpace &fes,
                             EvalMode::Grad,
                             EvalMode::Grad
                            };
-   CeedAssemble(diffOp, ceedData);
-#else
-   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
-#endif
+   BuildContext ctx;
+   Assemble(diffOp, ctx);
 }
 
 } // namespace mfem

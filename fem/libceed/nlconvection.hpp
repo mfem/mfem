@@ -13,20 +13,28 @@
 #define MFEM_LIBCEED_CONV_HPP
 
 #include "ceed.hpp"
-
+#include "pa_integrator.hpp"
+#include "mf_integrator.hpp"
 #include "../fespace.hpp"
 
 namespace mfem
 {
 
-/// Initialize a non-linear Convection Integrator using libCEED
-void CeedPANLConvectionAssemble(const FiniteElementSpace &fes,
-                                const mfem::IntegrationRule &ir,
-                                CeedData& ceedData);
+class CeedPANLConvectionIntegrator : public CeedPAIntegrator
+{
+public:
+   CeedPANLConvectionIntegrator(const FiniteElementSpace &fes,
+                                const mfem::IntegrationRule &irm,
+                                Coefficient *coeff);
+};        
 
-void CeedMFNLConvectionAssemble(const FiniteElementSpace &fes,
-                                const mfem::IntegrationRule &ir,
-                                CeedData& ceedData);
+class CeedMFNLConvectionIntegrator : public CeedMFIntegrator
+{
+public:
+   CeedMFNLConvectionIntegrator(const FiniteElementSpace &fes,
+                                const mfem::IntegrationRule &irm,
+                                Coefficient *coeff);
+};
 
 }
 

@@ -16,7 +16,7 @@
 #include "fe.hpp"
 #include "coefficient.hpp"
 #include "fespace.hpp"
-#include "libceed/ceed.hpp"
+#include "libceed/operator.hpp"
 
 namespace mfem
 {
@@ -330,10 +330,11 @@ private:
    int dim, ne, nq;
 
    // CEED extension
-   CeedData* ceedDataPtr;
+   // CeedData* ceedOp;
+   MFEMCeedOperator* ceedOp;
 
 public:
-   VectorConvectionNLFIntegrator(Coefficient &q): Q(&q), ceedDataPtr(NULL) { }
+   VectorConvectionNLFIntegrator(Coefficient &q): Q(&q), ceedOp(NULL) { }
 
    VectorConvectionNLFIntegrator() = default;
 
