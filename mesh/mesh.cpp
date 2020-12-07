@@ -10727,8 +10727,6 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
 
    const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(ir);
    qi->SetOutputLayout(QVectorLayout::byNODES);
-
-   // Use LEXICOGRAPHIC ordering in case of tensor product evaluation
    const ElementDofOrdering e_ordering = qi->UseTensorProducts() ?
                                          ElementDofOrdering::LEXICOGRAPHIC :
                                          ElementDofOrdering::NATIVE;

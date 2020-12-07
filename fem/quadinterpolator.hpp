@@ -45,7 +45,6 @@ protected:
 
    mutable bool use_tensor_products;   ///< Tensor product evaluation mmode
 
-public:
    static const int MAX_NQ2D = 100;
    static const int MAX_ND2D = 100;
    static const int MAX_VDIM2D = 3;
