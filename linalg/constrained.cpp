@@ -262,7 +262,6 @@ EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
    ConstrainedSolver(A.GetComm(), A, B),
    hA_(A)
 {
-   // if (B.Height() > 0)
    if (!B.Empty())
    {
       int * I = B.GetI();
@@ -276,20 +275,25 @@ EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
          Array<int> lagrange_dofs(constraint_size);
          Array<int> primary_dofs;
          Array<int> secondary_dofs(constraint_size);
+         secondary_dofs = -1;
          for (int i = lagrange_rowstarts[k]; i < lagrange_rowstarts[k + 1]; ++i)
          {
             lagrange_dofs[i - lagrange_rowstarts[k]] = i;
-            int j = J[I[i]];
-            double val = data[I[i]];
-            secondary_dofs[i  - lagrange_rowstarts[k]] = j;
-            // could actually deal with following issue, for now we are lazy
-            MFEM_VERIFY(std::abs(val) > 1.e-16,
-                        "Explicit zero in leading position in B matrix!");
-            for (int jptr = I[i] + 1; jptr < I[i + 1]; ++jptr)
+            bool secondary_set = false;
+            for (int jptr = I[i]; jptr < I[i + 1]; ++jptr)
             {
-               j = J[jptr];
-               val = data[jptr];
-               primary_dofs.Append(j);
+               int j = J[jptr];
+               double val = data[jptr];
+               if (!secondary_set && std::abs(val) > 1.e-12 &&
+                   secondary_dofs.Find(j) == -1)
+               {
+                  secondary_dofs[i - lagrange_rowstarts[k]] = j;
+                  secondary_set = true;
+               }
+               else
+               {
+                  primary_dofs.Append(j);
+               }
             }
          }
          primary_dofs.Sort();
