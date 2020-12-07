@@ -776,11 +776,8 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, Trans);
    if (DeviceCanUseCeed())
    {
-      MFEM_VERIFY(alpha==-1, "Only alpha=-1 currently supported with libCEED.");
-      delete ceedDataPtr;
-      ceedDataPtr = new CeedData;
-      InitCeedVecCoeff(Q, *mesh, *ir, ceedDataPtr);
-      return CeedPAConvectionAssemble(fes, *ir, *ceedDataPtr);
+      ceedOp = new CeedPAConvectionIntegrator(fes, *ir, Q, alpha);
+      return;
    }
    const int dims = el.GetDim();
    const int symmDims = dims;
@@ -882,7 +879,7 @@ void ConvectionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
    {
-      return CeedAddMult(ceedDataPtr, x, y);
+      ceedOp->Mult(x, y);
    }
    else
    {
@@ -896,7 +893,7 @@ void ConvectionIntegrator::AssembleDiagonalPA(Vector &diag)
 {
    if (DeviceCanUseCeed())
    {
-      CeedAssembleDiagonal(ceedDataPtr, diag);
+      ceedOp->GetDiagonal(diag);
    }
    else
    {

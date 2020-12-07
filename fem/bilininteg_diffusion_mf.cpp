@@ -30,10 +30,9 @@ void DiffusionIntegrator::AssembleMF(const FiniteElementSpace &fes)
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
    if (DeviceCanUseCeed())
    {
-      delete ceedDataPtr;
-      ceedDataPtr = new CeedData;
-      InitCeedCoeff(Q, *mesh, *ir, ceedDataPtr);
-      return CeedMFDiffusionAssemble(fes, *ir, *ceedDataPtr);
+      delete ceedOp;
+      ceedOp = new CeedMFDiffusionIntegrator(fes, *ir, Q);
+      return;
    }
 #endif
    mfem_error("Error: DiffusionIntegrator::AssembleMF only implemented with libCEED");
@@ -44,7 +43,7 @@ void DiffusionIntegrator::AssembleDiagonalMF(Vector &diag)
 #ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      CeedAssembleDiagonal(ceedDataPtr, diag);
+      ceedOp->GetDiagonal(diag);
    }
    else
 #endif
@@ -58,7 +57,7 @@ void DiffusionIntegrator::AddMultMF(const Vector &x, Vector &y) const
 #ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      CeedAddMult(ceedDataPtr, x, y);
+      ceedOp->Mult(x, y);
    }
    else
 #endif

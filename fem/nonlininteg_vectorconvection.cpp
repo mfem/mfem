@@ -27,10 +27,9 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
    if (DeviceCanUseCeed())
    {
-      delete ceedDataPtr;
-      ceedDataPtr = new CeedData;
-      InitCeedCoeff(Q, *mesh, *ir, ceedDataPtr);
-      return CeedPANLConvectionAssemble(fes, *ir, *ceedDataPtr);
+      delete ceedOp;
+      ceedOp = new CeedPANLConvectionIntegrator(fes, *ir, Q);
+      return;
    }
    dim = mesh->Dimension();
    ne = fes.GetMesh()->GetNE();
@@ -801,7 +800,7 @@ void VectorConvectionNLFIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
    {
-      return CeedAddMult(ceedDataPtr, x, y);
+      ceedOp->Mult(x, y);
    }
    else
    {

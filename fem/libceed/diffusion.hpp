@@ -13,20 +13,28 @@
 #define MFEM_LIBCEED_DIFF_HPP
 
 #include "ceed.hpp"
-
+#include "pa_integrator.hpp"
+#include "mf_integrator.hpp"
 #include "../fespace.hpp"
 
 namespace mfem
 {
 
-/// Initialize a Diffusion Integrator using libCEED
-void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
-                             const mfem::IntegrationRule &ir,
-                             CeedData& ceedData);
+class CeedPADiffusionIntegrator : public CeedPAIntegrator
+{
+public:
+   CeedPADiffusionIntegrator(const FiniteElementSpace &fes,
+                        const mfem::IntegrationRule &irm,
+                        Coefficient *coeff);
+};
 
-void CeedMFDiffusionAssemble(const FiniteElementSpace &fes,
-                             const mfem::IntegrationRule &ir,
-                             CeedData& ceedData);
+class CeedMFDiffusionIntegrator : public CeedMFIntegrator
+{
+public:
+   CeedMFDiffusionIntegrator(const FiniteElementSpace &fes,
+                        const mfem::IntegrationRule &irm,
+                        Coefficient *coeff);
+};
 
 }
 

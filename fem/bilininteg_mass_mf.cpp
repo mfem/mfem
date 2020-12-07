@@ -31,10 +31,9 @@ void MassIntegrator::AssembleMF(const FiniteElementSpace &fes)
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T);
    if (DeviceCanUseCeed())
    {
-      delete ceedDataPtr;
-      ceedDataPtr = new CeedData;
-      InitCeedCoeff(Q, *mesh, *ir, ceedDataPtr);
-      return CeedMFMassAssemble(fes, *ir, *ceedDataPtr);
+      delete ceedOp;
+      ceedOp = new CeedMFMassIntegrator(fes,*ir,Q);
+      return;
    }
 #endif
    mfem_error("Error: MassIntegrator::AssembleMF only implemented with libCEED");
@@ -45,7 +44,7 @@ void MassIntegrator::AddMultMF(const Vector &x, Vector &y) const
 #ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      CeedAddMult(ceedDataPtr, x, y);
+      ceedOp->Mult(x, y);
    }
    else
 #endif
@@ -59,7 +58,7 @@ void MassIntegrator::AssembleDiagonalMF(Vector &diag)
 #ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      CeedAssembleDiagonal(ceedDataPtr, diag);
+      ceedOp->GetDiagonal(diag);
    }
    else
 #endif
