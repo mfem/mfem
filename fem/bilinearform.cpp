@@ -435,7 +435,8 @@ void BilinearForm::Assemble(int skip_zeros)
             {
                if ((*(dbfi_marker[0]))[i]>=1)
                {
-                  continue; //skip assembly part if element is outside
+                  // do not include partially or completely out elements
+                  continue;
                }
             }
             for (int k = 1; k < dbfi.Size(); k++)

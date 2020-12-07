@@ -171,8 +171,10 @@ public:
 class SBMFunctionCoefficient : public Coefficient
 {
 protected:
+   int type;
    std::function<double(const Vector &)> Function;
    std::function<double(const Vector &, double)> TDFunction;
+   std::function<double(const Vector &, int type)> TypeFunction;
 
 public:
    /// Define a time-independent coefficient from a std function
@@ -185,6 +187,11 @@ public:
    /** \param TDF time-dependent function */
    SBMFunctionCoefficient(std::function<double(const Vector &, double)> TDF)
       : TDFunction(std::move(TDF))
+   { }
+
+   SBMFunctionCoefficient(std::function<double(const Vector &v, int)> TF,
+                          int type_)
+      : TypeFunction(std::move(TF)), type(type_)
    { }
 
    virtual double Eval(ElementTransformation &T,

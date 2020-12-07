@@ -115,6 +115,8 @@ public:
 
    void Assemble();
 
+   void AssembleSharedFaces();
+
    /// Assemble the vector on the true dofs, i.e. P^t v.
    void ParallelAssemble(Vector &tv);
 

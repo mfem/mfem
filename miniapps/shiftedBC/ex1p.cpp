@@ -1,4 +1,4 @@
-//                       MFEM
+﻿//                       MFEM
 //
 // Compile with: make ex1p
 //
@@ -9,16 +9,12 @@
 #include <fstream>
 #include <iostream>
 #include "distfunction.hpp"
+#include "sbm-aux.hpp"
 
 using namespace std;
 using namespace mfem;
 
-double dist_fun(const Vector &x);
-double dist_fun_level_set(const Vector &x);
-double dirichlet_velocity(const Vector &x);
-void dist_vec_c(const Vector &x, Vector &p);
-
-#define level_set_type 3 // 1 - 1 circle, 2 - 2 circles, 3 - analyic linear
+double rhs_fun_xy(const Vector &x);
 
 int main(int argc, char *argv[])
 {
@@ -37,6 +33,8 @@ int main(int argc, char *argv[])
    bool visualization = true;
    int ser_ref_levels = 0;
    bool exact = true;
+   int solver_type = 0;
+   int level_set_type = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -58,6 +56,20 @@ int main(int argc, char *argv[])
    args.AddOption(&exact, "-ex", "--exact", "-no-ex",
                   "--no-exact",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&solver_type, "-st", "--solver-type",
+                  "Solver type: 0- CG, 1 - BiCG.");
+   args.AddOption(&level_set_type, "-lst", "--level-set-type",
+                  "level-set-type:");
+   /// IMPORTANT: Level set type notes
+   /// 1 - circlular hole of radius 0.2 at the center of domain [0,1].
+   /// 3 - solution is analytic linear and domain is y=0 to 1.
+   /// 4 - solution is analytic sinusoidal and domain is y=[0,1] with mesh y=[-0.1,1.1]
+
+   /// Use level set (1) and (4) for convergence study.
+   /// (1) does not have analytic solution so need to use sbm-diff with a fine mesh and
+   /// solution to get analytic error.
+   /// Use (3) to make sure we get exact solution with SBM.
+   /// Ignore (5) for now.
 
    args.Parse();
    if (!args.Good())
@@ -89,24 +101,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 5. Define a finite element space on the mesh. Here we use continuous
-   //    Lagrange finite elements of the specified order. If order < 1, we
-   //    instead use an isoparametric/isogeometric space.
-   FiniteElementCollection *fec_mesh;
-   if (order > 0)
-   {
-      fec_mesh = new H1_FECollection(order, dim);
-   }
-   else
-   {
-      fec_mesh = new H1_FECollection(order = 1, dim);
-   }
-   ParFiniteElementSpace *pfespace_mesh = new ParFiniteElementSpace(&pmesh, fec_mesh, dim);
-   pmesh.SetNodalFESpace(pfespace_mesh);
-   ParGridFunction x_mesh(pfespace_mesh);
-   pmesh.SetNodalGridFunction(&x_mesh);
-
-   // 5. Define a finite element space on the mesh. Here we use continuous
+   // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
    FiniteElementCollection *fec;
@@ -119,6 +114,23 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order = 1, dim);
    }
    ParFiniteElementSpace pfespace(&pmesh, fec);
+
+   Vector vxyz;
+
+   ParFiniteElementSpace pfespace_mesh(&pmesh, fec, dim);
+   pmesh.SetNodalFESpace(&pfespace_mesh);
+   ParGridFunction x_mesh(&pfespace_mesh);
+   pmesh.SetNodalGridFunction(&x_mesh);
+   vxyz = *pmesh.GetNodes();
+   int nodes_cnt = vxyz.Size()/dim;
+   if (level_set_type == 4) { //stretch quadmesh from [0, 1] to -[0.1, 1.1]
+       for (int i = 0; i < nodes_cnt; i++) {
+           vxyz(i+nodes_cnt) = -0.1 + 1.2*vxyz(i+nodes_cnt);
+       }
+   }
+   pmesh.SetNodes(vxyz);
+
+   // Setup FESpace for L2 function (used to mark element flags etc.)
    L2_FECollection fecl2 = L2_FECollection(0, dim);
    L2_FECollection fecl2ho = L2_FECollection(order, dim);
    ParFiniteElementSpace pfesl2(&pmesh, &fecl2);
@@ -126,81 +138,40 @@ int main(int argc, char *argv[])
    cout << "Number of finite element unknowns: "
         << pfespace.GetTrueVSize() << endl;
 
-   // 8. Define the solution vector x as a finite element grid function
+   // 5. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
-   ParGridFunction x(&pfespace), dist(&pfespace);
-   x = 0.0;
-   ParGridFunction gfl2(&pfesl2);
+   ParGridFunction x(&pfespace);
+   // ParGridFunction for level_set_value.
+   ParGridFunction level_set_val(&pfespace);
 
-   FunctionCoefficient dist_fun_coef(dist_fun);
-
-   FunctionCoefficient dist_fun_level_coef(dist_fun_level_set);
-   DistanceFunction dist_func(pmesh, order, 1.0);
-   ParGridFunction &distance = dist_func.ComputeDistance(dist_fun_level_coef,
-                                                         1, true);
-  // GradientCoefficient grad_u(dist_func.GetLastDiffusedSourceGF(), dim);
-   //ParGridFunction distance(&pfesl2ho);
-
-   dist.ProjectCoefficient(dist_fun_level_coef);
-   if (exact) {
-       distance.ProjectCoefficient(dist_fun_coef); // analytic projection
-   }
-
-
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock << "solution\n" << pmesh << distance << flush;
-      sol_sock << "window_title 'Distance function'\n"
-               << "window_geometry "
-               << 0 << " " << 0 << " " << 350 << " " << 350 << "\n"
-               << "keys Rjmpc" << endl;
-   }
+   // 6. Determine if each element in the ParMesh is inside the actual domain,
+   //    partially cut by the actual domain boundary, or completely outside
+   //    the domain.
+   Dist_Level_Set_Coefficient dist_fun_level_coef(level_set_type);
+   level_set_val.ProjectCoefficient(dist_fun_level_coef);
+   level_set_val.ExchangeFaceNbrData();
+   pfespace.ExchangeFaceNbrData();
 
    int max_attr     = pmesh.attributes.Max();
    IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
-
-   dist.ExchangeFaceNbrData();
-   pfespace.ExchangeFaceNbrData();
    FaceElementTransformations *tr = NULL;
-   gfl2 = myid;
-
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock << "solution\n" << pmesh << gfl2 << flush;
-      sol_sock << "window_title 'MPI RANK '\n"
-               << "window_geometry "
-               << 0 << " " << 0 << " " << 350 << " " << 350 << "\n"
-               << "keys Rjmpc" << endl;
-   }
-
-   for (int i = 0; i < gfl2.Size(); i++) {
-       gfl2(i) = i;
-   }
 
    // Set trim flag based on the distance field
    // 0 if completely in the domain
    // 1 if completely outside the domain
    // 2 if partially inside the domain
+   ParGridFunction elem_flags(&pfesl2);
    Array<int> trim_flag(pmesh.GetNE()+pmesh.GetNSharedFaces());
    trim_flag = 0;
    Vector vals;
+   // Check elements on the current MPI rank
    for (int i = 0; i < pmesh.GetNE(); i++)
    {
       ElementTransformation *Tr = pmesh.GetElementTransformation(i);
       const IntegrationRule &ir =
          IntRulesLo.Get(pmesh.GetElementBaseGeometry(i), 4*Tr->OrderJ());
-      dist.GetValues(i, ir, vals);
+      level_set_val.GetValues(i, ir, vals);
 
       int count = 0;
       for (int j = 0; j < ir.GetNPoints(); j++)
@@ -208,17 +179,17 @@ int main(int argc, char *argv[])
          double val = vals(j);
          if (val <= 0.) { count++; }
       }
-      if (count == ir.GetNPoints())
+      if (count == ir.GetNPoints()) // completely outside
       {
-         pmesh.SetAttribute(i, max_attr+1);
          trim_flag[i] = 1;
       }
-      else if (count > 0)
+      else if (count > 0) // partially outside
       {
          trim_flag[i] = 2;
       }
    }
 
+   // Check neighbors on the adjacent MPI rank
    for (int i = pmesh.GetNE(); i < pmesh.GetNE()+pmesh.GetNSharedFaces(); i++)
    {
        int shared_fnum = i-pmesh.GetNE();
@@ -236,7 +207,7 @@ int main(int argc, char *argv[])
        int count = 0;
        for (int j = 0; j < nip; j++) {
           const IntegrationPoint &ip = ir.IntPoint(j);
-          vals[j] = dist.GetValue(tr->Elem2No, ip);
+          vals[j] = level_set_val.GetValue(tr->Elem2No, ip);
           if (vals[j] <= 0.) { count++; }
        }
 
@@ -250,93 +221,9 @@ int main(int argc, char *argv[])
       }
    }
 
-   Array<int> sbm_int_face;
-   Array<int> sbm_int_face_el;
-   Array<int> sbm_int_flag; // 1 if int face, 2 if bdr face, 3 if shared int face
-   // Get SBM faces
-   Array<int> sbm_dofs;
-   Array<int> dofs;
-
-   for (int i = 0; i < pmesh.GetNumFaces(); i++)
+   for (int i = 0; i < elem_flags.Size(); i++)
    {
-      FaceElementTransformations *tr = NULL;
-      tr = pmesh.GetInteriorFaceTransformations (i);
-      const int faceno = i;
-      if (tr != NULL)
-      {
-         int ne1 = tr->Elem1No;
-         int ne2 = tr->Elem2No;
-         int te1 = trim_flag[ne1], te2 = trim_flag[ne2];
-         if (te1 == 2 && te2 == 0)
-         {
-             sbm_int_face.Append(i);
-             sbm_int_face_el.Append(ne2);
-             sbm_int_flag.Append(1);
-             pfespace.GetFaceDofs(faceno, dofs);
-             sbm_dofs.Append(dofs);
-         }
-         if (te1 == 0 && te2 == 2)
-         {
-             sbm_int_face.Append(i);
-             sbm_int_face_el.Append(ne1);
-             sbm_int_flag.Append(1);
-             pfespace.GetFaceDofs(faceno, dofs);
-             sbm_dofs.Append(dofs);
-         }
-      }
-   }
-
-   for (int i = 0; i < pmesh.GetNBE(); i++)
-   {
-      FaceElementTransformations *tr;
-      tr = pmesh.GetBdrFaceTransformations (i);
-      if (tr != NULL)
-      {
-         int ne1 = tr->Elem1No;
-         int te1 = trim_flag[ne1];
-         const int faceno = pmesh.GetBdrFace(i);
-         if (te1 == 2)
-         {
-            sbm_int_face.Append(i);
-            sbm_int_face_el.Append(ne1);
-            sbm_int_flag.Append(2);
-            pfespace.GetFaceDofs(faceno, dofs);
-            sbm_dofs.Append(dofs);
-         }
-      }
-   }
-
-   for (int i = 0; i < pmesh.GetNSharedFaces(); i++)
-   {
-      tr = pmesh.GetSharedFaceTransformations(i);
-      if (tr != NULL)
-      {
-         int ne1 = tr->Elem1No;
-         int te1 = trim_flag[ne1];
-         int te2 = trim_flag[i+pmesh.GetNE()];
-         const int faceno = pmesh.GetSharedFace(i);
-         // Add if the element on this proc is completely inside the domain
-         // and the the element on other proc is not
-         if (te2 == 2 && te1 == 0)
-         {
-            sbm_int_face.Append(i);
-            sbm_int_face_el.Append(ne1);
-            sbm_int_flag.Append(3);
-            pfespace.GetFaceDofs(faceno, dofs);
-            sbm_dofs.Append(dofs);
-         }
-         if (te2 == 0 && te1 == 2)
-         {
-            sbm_int_face.Append(i);
-            sbm_int_face_el.Append(tr->Elem2No);
-            sbm_int_flag.Append(3);
-         }
-      }
-   }
-
-   for (int i = 0; i < gfl2.Size(); i++)
-   {
-      gfl2(i) = trim_flag[i]*1.;
+      elem_flags(i) = trim_flag[i]*1.;
    }
 
    if (visualization)
@@ -346,31 +233,127 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock << "solution\n" << pmesh << gfl2 << flush;
+      sol_sock << "solution\n" << pmesh << elem_flags << flush;
       sol_sock << "window_title 'Element flags'\n"
                << "window_geometry "
                << 0 << " " << 0 << " " << 350 << " " << 350 << "\n"
                << "keys Rjmpc" << endl;
    }
 
+   // 7. Determine Shifted boundary faces of the mesh. This requires us to check
+   //    interior faces of the mesh, boundary faces of the mesh, and interior
+   //    faces of the mesh that are on processor boundaries.
+   Array<int> sbm_face_num; // store the face number
+   Array<int> sbm_face_el_num; // store the element number adjacent to the face
+   // that is actually part of the domain. We need this because for an internal
+   // face there are two options, and we need to integrate on the face that is
+   // part of the pseudo-domain.
+   Array<int> sbm_int_flag; // flag indicating the face type
+   // 1 if int face, 2 if bdr face, 3 if int face on processor boundary
+   // Get SBM faces
+   Array<int> sbm_dofs; // Array of dofs on sbm faces
+   Array<int> dofs; // work array
 
-   x = 0;
+   // First we check interior faces of the mesh (excluding interior faces that
+   // are on the processor boundaries)
+   double count1 = 0;
+   for (int i = 0; i < pmesh.GetNumFaces(); i++)
+   {
+      FaceElementTransformations *tr = NULL;
+      tr = pmesh.GetInteriorFaceTransformations (i);
+      const int faceno = i;
+      if (tr != NULL)
+      {
+         count1 += 1;
+         int ne1 = tr->Elem1No;
+         int ne2 = tr->Elem2No;
+         int te1 = trim_flag[ne1], te2 = trim_flag[ne2];
+         if (te1 == 2 && te2 == 0)
+         {
+             sbm_face_num.Append(i);
+             sbm_face_el_num.Append(ne2);
+             sbm_int_flag.Append(1);
+             pfespace.GetFaceDofs(faceno, dofs);
+             sbm_dofs.Append(dofs);
+         }
+         if (te1 == 0 && te2 == 2)
+         {
+             sbm_face_num.Append(i);
+             sbm_face_el_num.Append(ne1);
+             sbm_int_flag.Append(1);
+             pfespace.GetFaceDofs(faceno, dofs);
+             sbm_dofs.Append(dofs);
+         }
+      }
+   }
 
 
-   // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
-   //    In this example, the boundary conditions are defined by marking all
-   //    the boundary attributes from the mesh as essential (Dirichlet) and
-   //    converting them to a list of true dofs.
+   // Here we add boundary faces that we want to model as SBM faces.
+   // For the method where we clip inside the domain, a boundary face
+   // has to be set as SBM face using its attribute.
+   double count2 = 0;
+   for (int i = 0; i < pmesh.GetNBE(); i++)
+   {
+      int attr = pmesh.GetBdrAttribute(i);
+      FaceElementTransformations *tr;
+      tr = pmesh.GetBdrFaceTransformations (i);
+      if (tr != NULL) {
+          if (attr == 100) { // add all boundary faces with attr=100 as SBM faces
+              count2 += 1;
+              int ne1 = tr->Elem1No;
+              int te1 = trim_flag[ne1];
+              const int faceno = pmesh.GetBdrFace(i);
+              if (te1 == 0)
+              {
+                 sbm_face_num.Append(i);
+                 sbm_face_el_num.Append(ne1);
+                 sbm_int_flag.Append(2);
+                 pfespace.GetFaceDofs(faceno, dofs);
+                 sbm_dofs.Append(dofs);
+              }
+          }
+      }
+   }
+
+   // Now we add interior faces that are on processor boundaries. This does not
+   // work yet so we can only really run on 1 MPI rank.
+   double count3 = 0;
+   double count3b = 0;
+   for (int i = 0; i < pmesh.GetNSharedFaces(); i++)
+   {
+      tr = pmesh.GetSharedFaceTransformations(i);
+      if (tr != NULL)
+      {
+          count3b += 1;
+         int ne1 = tr->Elem1No;
+         int te1 = trim_flag[ne1];
+         int te2 = trim_flag[i+pmesh.GetNE()];
+         const int faceno = pmesh.GetSharedFace(i);
+         // Add if the element on this proc is completely inside the domain
+         // and the the element on other proc is not
+         if (te2 == 2 && te1 == 0)
+         {
+            count3 += 1;
+            sbm_face_num.Append(i);
+            sbm_face_el_num.Append(ne1);
+            sbm_int_flag.Append(3);
+            pfespace.GetFaceDofs(faceno, dofs);
+            sbm_dofs.Append(dofs);
+         }
+      }
+   }
+
+
+   // 8. Determine the list of true (i.e. conforming) essential boundary dofs.
+   //    To do this, we first make a list of all dofs that are on the real boundary
+   //    of the mesh, then add all the dofs of the elements that are completely
+   //    outside our shifted boundary. Then we remove the dofs from sbm faces.
    Array<int> ess_tdof_list;
    Array<int> ess_bdr(pmesh.bdr_attributes.Max());
    if (pmesh.bdr_attributes.Size())
    {
       ess_bdr = 1;
-      if (pmesh.bdr_attributes.Size() == 5) {
-          ess_bdr[4] = 0;
-      }
    }
-   // Approach 3 - Get all the boundary dofs
    Array<int> ess_vdofs_bdr;
    pfespace.GetEssentialVDofs(ess_bdr, ess_vdofs_bdr);
 
@@ -416,31 +399,71 @@ int main(int argc, char *argv[])
                                                 ess_tdofs);
    pfespace.MarkerToList(ess_tdofs, ess_tdof_list);
 
-   ParGridFunction x_dx(&pfespace), x_dy(&pfespace),
-                   x_dx_dy(pfespace_mesh);
-   distance.GetDerivative(1, 0, x_dx);
-   distance.GetDerivative(1, 1, x_dy);
-   // set vector magnitude
-   for (int i = 0; i < x_dx.Size(); i++)
-   {
-      double dxv = x_dx(i),
-             dyv = x_dy(i);
-      double mag = dxv*dxv + dyv*dyv;
-      if (mag > 0) { mag = pow(mag, 0.5); }
-      x_dx(i) *= distance(i)/mag;
-      x_dy(i) *= distance(i)/mag;
+   // 9. Get the Distance from the level set either using a numerical approach
+   //    or project an exact analytic function.
+   DistanceFunction dist_func(pmesh, order, 1.0);
+   ParGridFunction &distance = dist_func.ComputeDistance(dist_fun_level_coef,
+                                                         1, true);
+   Dist_Value_Coefficient dist_fun_coef(level_set_type);
+   if (exact) {
+       distance.ProjectCoefficient(dist_fun_coef); // analytic projection
    }
 
-   // copy to vector GridFunction
-   for (int i = 0; i < x_dx_dy.Size()/dim; i++)
+   if (visualization)
    {
-      x_dx_dy(i) = x_dx(i);
-      x_dx_dy(i + x_dx_dy.Size()/dim) = x_dy(i);
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock.precision(8);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock << "solution\n" << pmesh << distance << flush;
+      sol_sock << "window_title 'Distance function'\n"
+               << "window_geometry "
+               << 0 << " " << 0 << " " << 350 << " " << 350 << "\n"
+               << "keys Rjmpc" << endl;
    }
-   x_dx_dy *= -1; // true = surrogate + d
-   //VectorGridFunctionCoefficient dist_vec(&x_dx_dy);
-   //Uncomment above line to use numerical distance.
-   VectorFunctionCoefficient dist_vec(dim, dist_vec_c);
+
+   // 10. Construct the distance vector using numerical distances or an
+   //     exact analytic function.
+   ParFiniteElementSpace *distance_vec_space = new ParFiniteElementSpace(
+                                 distance.ParFESpace()->GetParMesh(),
+                                 distance.ParFESpace()->FEColl(), dim);
+   ParGridFunction x_dx_dy(distance_vec_space);
+   VectorCoefficient *dist_vec = NULL;
+
+   if (!exact) {
+       ParGridFunction x_dx(distance.ParFESpace()), x_dy(distance.ParFESpace());
+       distance.GetDerivative(1, 0, x_dx);
+       distance.GetDerivative(1, 1, x_dy);
+       // set vector magnitude
+       for (int i = 0; i < x_dx.Size(); i++)
+       {
+          double dxv = x_dx(i),
+                 dyv = x_dy(i);
+          double mag = dxv*dxv + dyv*dyv;
+          if (mag > 0) { mag = pow(mag, 0.5); }
+          x_dx(i) *= distance(i)/mag;
+          x_dy(i) *= distance(i)/mag;
+       }
+
+       // copy to vector GridFunction
+       for (int i = 0; i < x_dx_dy.Size()/dim; i++)
+       {
+          x_dx_dy(i) = x_dx(i);
+          x_dx_dy(i + x_dx_dy.Size()/dim) = x_dy(i);
+       }
+       x_dx_dy *= -1; // true = surrogate + d
+
+       VectorGridFunctionCoefficient *dist_vec_gfcoeff =
+               new VectorGridFunctionCoefficient(&x_dx_dy);
+       dist_vec = dist_vec_gfcoeff;
+   }
+   else {
+       Dist_Vector_Coefficient *dist_vec_fcoeff =
+               new Dist_Vector_Coefficient(dim, level_set_type);
+       dist_vec = dist_vec_fcoeff;
+       x_dx_dy.ProjectDiscCoefficient(*dist_vec);
+   }
 
    if (visualization && false)
    {
@@ -456,66 +479,91 @@ int main(int argc, char *argv[])
                << "keys Rjmpc" << endl;
    }
 
-   // 7. Set up the linear form b(.) which corresponds to the right-hand side of
-   //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
-   //    the basis functions in the finite element fespace.
-   double alpha = 100/pow(2., ser_ref_levels*1.);
-   alpha = 1000;
-   //alpha = 10;
+   // 12. Set up SBM integration parameter - alpha
+   double pfactor = std::max(ser_ref_levels*1., order*1.);
+   double alpha = 100/pow(2., pfactor);
+   alpha = 10;
+   alpha = std::max(10., alpha);
+
+
+   // 13. Set up the linear form b(.) which corresponds to the right-hand side of
+   //     the FEM linear system.
    ParLinearForm b(&pfespace);
    double fval = 1.;
-   if (level_set_type == 3) {
+   if (level_set_type == 3 || level_set_type == 5) {
       fval = 0.;
    }
    ConstantCoefficient rhs_f(fval);
-   b.AddDomainIntegrator(new DomainLFIntegrator(rhs_f), trim_flag);
-   SBMFunctionCoefficient dbcCoef(dirichlet_velocity);
-   b.AddShiftedBdrFaceIntegrator(new SBM2LFIntegrator(dbcCoef, alpha, dist_vec),
-                                 sbm_int_face, sbm_int_face_el, sbm_int_flag);
+   FunctionCoefficient rhs_fxy(rhs_fun_xy);
+   if (level_set_type == 4) {
+       b.AddDomainIntegrator(new DomainLFIntegrator(rhs_fxy), trim_flag);
+   }
+   else {
+       b.AddDomainIntegrator(new DomainLFIntegrator(rhs_f), trim_flag);
+   }
+
+   SBMFunctionCoefficient dbcCoef(dirichlet_velocity, level_set_type);
+   b.AddShiftedBdrFaceIntegrator(new SBM2LFIntegrator(dbcCoef, alpha, *dist_vec),
+                                 sbm_face_num, sbm_face_el_num, sbm_int_flag);
    b.Assemble();
 
-   // 9. Set up the bilinear form a(.,.) on the finite element space
-   //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
-   //    domain integrator.
+   // 14. Set up the bilinear form a(.,.) on the finite element space
+   //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
+   //     domain integrator and SBM integrator.
    ParBilinearForm a(&pfespace);
    ConstantCoefficient one(1.);
-   //(nabla u, nabla w) - Term 1
-   a.AddDomainIntegrator(new DiffusionIntegrator(one), trim_flag);
-   a.AddShiftedBdrFaceIntegrator(new SBM2Integrator(alpha, dist_vec),
-                                 sbm_int_face, sbm_int_face_el, sbm_int_flag);
-   x = 0;
-   x.ProjectCoefficient(dbcCoef);
 
-   // 10. Assemble the bilinear form and the corresponding linear system,
+   a.AddDomainIntegrator(new DiffusionIntegrator(one), trim_flag);
+   a.AddShiftedBdrFaceIntegrator(new SBM2Integrator(alpha, *dist_vec),
+                                 sbm_face_num, sbm_face_el_num, sbm_int_flag);
+
+   // 15. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
    //     conditions, applying conforming constraints for non-conforming AMR,
    //     static condensation, etc.
    if (static_cond) { a.EnableStaticCondensation(); }
-
    a.Assemble();
 
+   // Project the exact solution as an initial condition for dirichlet boundaries.
+   x = 0;
+   x.ProjectCoefficient(dbcCoef);
+
+   // 16. Form the linear system and solve it.
    OperatorPtr A;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+
    cout << "Size of linear system: " << A->Height() << endl;
 
+   Solver *S = NULL;
    Solver *prec = NULL;
    prec = new HypreBoomerAMG;
-
-   //BiCGSTABSolver bicg(MPI_COMM_WORLD);
-   CGSolver bicg(MPI_COMM_WORLD);
-   bicg.SetRelTol(1e-12);
-   bicg.SetMaxIter(5000);
-   bicg.SetPrintLevel(1);
-   bicg.SetPreconditioner(*prec);
-   bicg.SetOperator(*A);
-   bicg.Mult(B, X);
+   if (solver_type == 0) {
+       CGSolver *cg = new CGSolver(MPI_COMM_WORLD);
+       cg->SetRelTol(1e-12);
+       cg->SetMaxIter(5000);
+       cg->SetPrintLevel(1);
+       cg->SetPreconditioner(*prec);
+       cg->SetOperator(*A);
+       S = cg;
+   }
+   else {
+       BiCGSTABSolver *bicg = new BiCGSTABSolver(MPI_COMM_WORLD);
+       bicg->SetRelTol(1e-12);
+       bicg->SetMaxIter(5000);
+       bicg->SetPrintLevel(1);
+       bicg->SetPreconditioner(*prec);
+       bicg->SetOperator(*A);
+       S = bicg;
+   }
+   S->Mult(B, X);
    delete prec;
+   delete S;
 
-   // 12. Recover the solution as a finite element grid function.
+   // 17. Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, x);
 
-   // 13. Save the refined mesh and the solution. This output can be viewed later
+   // 18. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
    ofstream mesh_ofs("ex1-sbm.mesh");
    mesh_ofs.precision(8);
@@ -524,7 +572,7 @@ int main(int argc, char *argv[])
    sol_ofs.precision(8);
    x.SaveAsOne(sol_ofs);
 
-   // 14. Send the solution by socket to a GLVis server.
+   // 19. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -538,18 +586,29 @@ int main(int argc, char *argv[])
                << "keys Rj" << endl;
    }
 
+   // 20. Construct an error gridfunction if the exact solution is known.
    ParGridFunction err(x);
-   Vector vxyz;
-   vxyz = *pmesh.GetNodes();
-   int nodes_cnt = vxyz.Size()/dim;
+   Vector pxyz(dim);
+   pxyz(0) = 0.;
    for (int i = 0; i < nodes_cnt; i++) {
        double yv = vxyz(i+nodes_cnt);
-       double exact_val = 0.0 + (yv-0.1)/(0.9-0.1);
-       if (yv < 0.1 || yv > 0.9) { err(i) = 0.; }
-       else { err(i) = std::fabs(x(i) - exact_val); }
+       pxyz(1) = yv;
+       double exact_val = dirichlet_velocity(pxyz, level_set_type);
+       if (level_set_type == 3) {
+           if (yv < 0.1 || yv > 0.9) { err(i) = 0.; }
+           else { err(i) = std::fabs(x(i) - exact_val); }
+       }
+       else if (level_set_type == 4) {
+           if (yv < 0. || yv > 1.0) { err(i) = 0.; }
+           else { err(i) = std::fabs(x(i) - exact_val); }
+       }
+       else if (level_set_type == 5) {
+           if (yv < 0. || yv > 1.0) { err(i) = 0.; }
+           else { err(i) = std::fabs(x(i) - exact_val); }
+       }
    }
 
-   if (visualization)
+   if (visualization && level_set_type >= 3 && level_set_type <= 5)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
@@ -562,83 +621,32 @@ int main(int argc, char *argv[])
                << 700 << " " << 0 << " " << 350 << " " << 350 << "\n"
                << "keys Rj" << endl;
    }
-   std::cout << " ERROR IS " << x.ComputeL1Error(dbcCoef) << " k10\n";
+
+   if (level_set_type >= 3 && level_set_type <= 5)
+   {
+      ofstream myfile;
+      myfile.open ("error.txt", ios::app);
+      double h_factor = pow(1./2, ser_ref_levels*1.);
+      cout << order << " " <<
+                ser_ref_levels << " " <<
+                h_factor << " " <<
+                x.ComputeL2Error(dbcCoef) << " " <<
+                pmesh.GetGlobalNE() << " " <<
+                "k10-analytic-L2Error\n";
+      myfile.close();
+   }
+
+
    // 15. Free the used memory.
+   delete dist_vec;
    delete fec;
-   delete fec_mesh;
 
    MPI_Finalize();
 
    return 0;
 }
 
-#define ring_radius 0.2
-// use 0.2 ring for dist_fun because square_disc has the
-// hole with this radius
-double dist_fun(const Vector &x)
+double rhs_fun_xy(const Vector &x)
 {
-   if (level_set_type == 1) { // circle of radius 0.2 - centered at 0.5, 0.5
-       double dx = x(0) - 0.5,
-          dy = x(1) - 0.5,
-          rv = dx*dx + dy*dy;
-       rv = rv > 0 ? pow(rv, 0.5) : 0;
-       double dist0 = rv - ring_radius; // +ve is the domain
-       return dist0;
-   }
-   else if (level_set_type == 2) { // circle of radius 0.2 at 0.25, 0.25 and 0.75, 0.75
-       double xc1 = 0.3, xc2 = 0.7,
-              yc1 = 0.3, yc2 = 0.7;
-       double dx = x(0) - xc1,
-          dy = x(1) - yc1,
-          rv = dx*dx + dy*dy;
-       rv = rv > 0 ? pow(rv, 0.5) : 0;
-       double dist1 = rv - ring_radius; // +ve is the domain
-       dx = x(0) - xc2;
-       dy = x(1) - yc2;
-       rv = dx*dx + dy*dy;
-       rv = rv > 0 ? pow(rv, 0.5) : 0;
-       double dist2 = rv - ring_radius;
-       return std::min(dist1, dist2);
-   }
-   else if (level_set_type == 3) { // circle of radius 0.2 at 0.5,0.5
-       double dx = x(0) - 0.5,
-          dy = x(1) - 0.5,
-          rv = dx*dx + dy*dy;
-       rv = rv > 0 ? pow(rv, 0.5) : 0;
-       double dist0 = rv - ring_radius; // +ve is the domain
-       return dist0;
-   }
+    return std::sin(M_PI*x(0))*sin(M_PI*x(1));
 }
-
-double dist_fun_level_set(const Vector &x)
-{
-   double dist = dist_fun(x);
-   if (dist > 0.) { return 1.; }
-   else { return 0.; }
-}
-
-double dirichlet_velocity(const Vector &x)
-{
-    if (level_set_type == 1) {
-        return 0.;
-    }
-    else if (level_set_type == 2) {
-        return 0.;
-    }
-    else {
-        double yv1 = x(1);
-        double val = 0.0 + (yv1-0.1)/(0.9-0.1);
-        return val;
-    }
-}
-
-void dist_vec_c(const Vector &x, Vector &p)
-{
-   double dist0 = dist_fun(x);
-   double theta = std::atan2(x(1)-0.5, x(0)-0.5);
-   p(0) = -dist0*std::cos(theta);
-   p(1) = -dist0*std::sin(theta);
-}
-
-#undef ring_radius
-#undef level_set_type

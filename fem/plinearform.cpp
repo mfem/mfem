@@ -47,6 +47,15 @@ void ParLinearForm::Assemble()
 {
    LinearForm::Assemble();
 
+   if (sflfi.Size())
+   {
+      pfes->ExchangeFaceNbrData();
+      AssembleSharedFaces();
+   }
+}
+
+void ParLinearForm::AssembleSharedFaces()
+{
    Array<int> vdofs;
    Vector elemvect;
 

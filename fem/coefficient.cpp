@@ -63,6 +63,10 @@ double SBMFunctionCoefficient::Eval(ElementTransformation & T,
    {
       return Function(transip);
    }
+   else if (TypeFunction)
+   {
+      return TypeFunction(transip, type);
+   }
    else
    {
       return TDFunction(transip, GetTime());

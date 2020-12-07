@@ -130,6 +130,7 @@ void LinearForm::Assemble()
             if (dlfi_marker.Size())
             {
                if ((*(dlfi_marker[0]))[i]>=1)
+                  // do not include partially or completely out elements
                {
                   continue;
                }
