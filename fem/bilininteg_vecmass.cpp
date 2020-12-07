@@ -33,10 +33,10 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       = IntRule ? IntRule : &MassIntegrator::GetRule(el, el, *T);
    if (DeviceCanUseCeed())
    {
-      delete ceedDataPtr;
-      ceedDataPtr = new CeedData;
-      InitCeedCoeff(Q, *mesh, *ir, ceedDataPtr);
-      return CeedPAMassAssemble(fes, *ir, *ceedDataPtr);
+      // delete ceedOp;
+      // ceedOp = new CeedData;
+      // InitCeedCoeff(Q, *mesh, *ir, ceedOp);
+      // return CeedPAMassAssemble(fes, *ir, *ceedOp);
    }
    dim = mesh->Dimension();
    ne = fes.GetMesh()->GetNE();
@@ -371,7 +371,8 @@ void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
    {
-      CeedAddMult(ceedDataPtr, x, y);
+      ceedOp->Mult(x, y);
+      // CeedAddMult(ceedOp, x, y);
    }
    else
    {
@@ -531,7 +532,8 @@ void VectorMassIntegrator::AssembleDiagonalPA(Vector &diag)
 {
    if (DeviceCanUseCeed())
    {
-      CeedAssembleDiagonal(ceedDataPtr, diag);
+      ceedOp->GetDiagonal(diag);
+      // CeedAssembleDiagonal(ceedOp, diag);
    }
    else
    {

@@ -27,10 +27,9 @@ void VectorConvectionNLFIntegrator::AssembleMF(const FiniteElementSpace &fes)
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
    if (DeviceCanUseCeed())
    {
-      delete ceedDataPtr;
-      ceedDataPtr = new CeedData;
-      InitCeedCoeff(Q, *mesh, *ir, ceedDataPtr);
-      return CeedMFNLConvectionAssemble(fes, *ir, *ceedDataPtr);
+      delete ceedOp;
+      ceedOp = new CeedMFNLConvectionIntegrator(fes, *ir, Q);
+      return;
    }
    mfem_error("Not yet implemented.");
 }
@@ -39,7 +38,7 @@ void VectorConvectionNLFIntegrator::AddMultMF(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
    {
-      return CeedAddMult(ceedDataPtr, x, y);
+      ceedOp->Mult(x, y);
    }
    else
    {

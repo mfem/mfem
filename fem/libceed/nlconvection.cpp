@@ -19,15 +19,19 @@
 namespace mfem
 {
 
-void CeedPANLConvectionAssemble(const FiniteElementSpace &fes,
-                                const mfem::IntegrationRule &irm, CeedData& ceedData)
+CeedPANLConvectionIntegrator::CeedPANLConvectionIntegrator(
+   const FiniteElementSpace &fes,
+   const mfem::IntegrationRule &irm,
+   Coefficient *Q)
+: CeedPAIntegrator()
 {
-#ifdef MFEM_USE_CEED
    Mesh &mesh = *fes.GetMesh();
    // Perform checks for some assumptions made in the Q-functions.
    MFEM_VERIFY(mesh.Dimension() == mesh.SpaceDimension(), "case not supported");
-   MFEM_VERIFY(fes.GetVDim() == mesh.Dimension(), "case not supported");
+   MFEM_VERIFY(fes.GetVDim() == 1 || fes.GetVDim() == mesh.Dimension(),
+               "case not supported");
    int dim = mesh.Dimension();
+   InitCeedCoeff(Q, mesh, irm, coeff_type, coeff);
    CeedPAOperator convOp = {fes, irm,
                             dim * dim, "/nlconvection.h",
                             ":f_build_conv_const", f_build_conv_const,
@@ -38,16 +42,18 @@ void CeedPANLConvectionAssemble(const FiniteElementSpace &fes,
                             EvalMode::InterpAndGrad,
                             EvalMode::Interp
                            };
-   CeedAssemble(convOp, ceedData);
-#else
-   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
-#endif
+   BuildContext ctx;
+   Assemble(convOp, ctx);
 }
 
-void CeedMFNLConvectionAssemble(const FiniteElementSpace &fes,
-                                const mfem::IntegrationRule &irm, CeedData& ceedData)
+CeedMFNLConvectionIntegrator::CeedMFNLConvectionIntegrator(
+   const FiniteElementSpace &fes,
+   const mfem::IntegrationRule &irm,
+   Coefficient *Q)
+: CeedMFIntegrator()
 {
-#ifdef MFEM_USE_CEED
+   Mesh &mesh = *fes.GetMesh();
+   InitCeedCoeff(Q, mesh, irm, coeff_type, coeff);
    CeedMFOperator convOp = {fes, irm,
                             "/nlconvection.h",
                             ":f_apply_conv_mf_const", f_apply_conv_mf_const,
@@ -57,10 +63,8 @@ void CeedMFNLConvectionAssemble(const FiniteElementSpace &fes,
                             EvalMode::InterpAndGrad,
                             EvalMode::Interp
                            };
-   CeedAssemble(convOp, ceedData);
-#else
-   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
-#endif
+   BuildContext ctx;
+   Assemble(convOp, ctx);
 }
 
 } // namespace mfem
