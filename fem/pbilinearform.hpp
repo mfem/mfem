@@ -246,6 +246,9 @@ public:
        @a A. */
    void ParallelAssemble(OperatorHandle &A);
 
+   using MixedBilinearForm::FormRectangularSystemMatrix;
+   using MixedBilinearForm::FormRectangularLinearSystem;
+
    /** @brief Return in @a A a parallel (on truedofs) version of this operator.
 
        This returns the same operator as FormRectangularLinearSystem(), but does

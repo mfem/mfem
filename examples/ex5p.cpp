@@ -260,6 +260,9 @@ int main(int argc, char *argv[])
    }
    else
    {
+      HypreParMatrix matB;
+      bVarf->FormRectangularSystemMatrix(empty_tdof_list, empty_tdof_list, matB);
+
       M = mVarf->ParallelAssemble();
       B = bVarf->ParallelAssemble();
       (*B) *= -1;
