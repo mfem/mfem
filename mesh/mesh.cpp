@@ -8341,6 +8341,7 @@ void Mesh::UniformRefinement(int i, const DSTable &v_to_v,
 
 void Mesh::InitRefinementTransforms()
 {
+   // initialize CoarseFineTr
    CoarseFineTr.Clear();
    CoarseFineTr.embeddings.SetSize(NumOfElements);
    for (int i = 0; i < NumOfElements; i++)
