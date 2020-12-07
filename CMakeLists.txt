@@ -50,7 +50,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 4.1.1)
+set(${PROJECT_NAME}_VERSION 4.2.1)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -185,7 +185,7 @@ if (MFEM_USE_MPI)
     endif()
   endif()
 else()
-  set(PKGS_NEED_MPI SUPERLU PETSC SLEPC STRUMPACK PUMI)
+  set(PKGS_NEED_MPI SUPERLU MUMPS PETSC SLEPC STRUMPACK PUMI)
   foreach(PKG IN LISTS PKGS_NEED_MPI)
     if (MFEM_USE_${PKG})
       message(STATUS "Disabling package ${PKG} - requires MPI")
@@ -240,12 +240,14 @@ endif()
 
 # SUNDIALS
 if (MFEM_USE_SUNDIALS)
-  if (NOT MFEM_USE_MPI)
-    find_package(SUNDIALS REQUIRED NVector_Serial CVODES ARKODE KINSOL)
-  else()
-    find_package(SUNDIALS REQUIRED
-      NVector_Serial NVector_Parallel NVector_ParHyp CVODES ARKODE KINSOL)
+  set(SUNDIALS_COMPONENTS CVODES ARKODE KINSOL NVector_Serial)
+  if (MFEM_USE_MPI)
+    list(APPEND SUNDIALS_COMPONENTS NVector_Parallel NVector_MPIPlusX)
   endif()
+  if (MFEM_USE_CUDA)
+    list(APPEND SUNDIALS_COMPONENTS NVector_Cuda)
+  endif()
+  find_package(SUNDIALS REQUIRED ${SUNDIALS_COMPONENTS})
 endif()
 
 # Mesquite
@@ -259,6 +261,15 @@ if (MFEM_USE_SUPERLU)
     find_package(SuperLUDist REQUIRED)
   else()
     message(FATAL_ERROR " *** SuperLU_DIST requires that MPI be enabled.")
+  endif()
+endif()
+
+# MUMPS can only be enabled in parallel
+if (MFEM_USE_MUMPS)
+  if (MFEM_USE_MPI)
+    find_package(MUMPS REQUIRED mumps_common pord)
+  else()
+    message(FATAL_ERROR " *** MUMPS requires that MPI be enabled.")
   endif()
 endif()
 
@@ -293,6 +304,10 @@ endif()
 
 if (MFEM_USE_CEED)
   find_package(libCEED REQUIRED)
+endif()
+
+if (MFEM_USE_AMGX)
+  find_package(AMGX REQUIRED)
 endif()
 
 if (MFEM_USE_CONDUIT)
@@ -346,6 +361,12 @@ if (MFEM_USE_ADIOS2)
    find_package(ADIOS2 REQUIRED)
 endif()
 
+if (MFEM_USE_MKL_CPARDISO)
+  if (MFEM_USE_MPI)
+   find_package(MKL_CPARDISO REQUIRED MKL_SEQUENTIAL MKL_LP64 MKL_MPI_WRAPPER)
+  endif()
+endif()
+
 # MFEM_TIMER_TYPE
 if (NOT DEFINED MFEM_TIMER_TYPE)
   if (APPLE)
@@ -370,9 +391,9 @@ endif()
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
-    SLEPC MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT Ginkgo GNUTLS GSLIB NETCDF
+    SLEPC MESQUITE SuperLUDist MUMPS STRUMPACK AXOM CONDUIT Ginkgo GNUTLS GSLIB NETCDF
     MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE ADIOS2
-    CUSPARSE)
+    CUSPARSE MKL_CPARDISO AMGX)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")
