@@ -614,7 +614,7 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
                   cout << "--- x2 ---" << endl;
                   trans->Elem2->Transform(eip2, x2);
                   x2.Print();
-                  double phi_inner = (x1(0) - 0.5) * (x1(0) - 0.5) + (x1(1) - 0.5) * (x1(1) - 0.5) - 0.04;
+                  double phi_inner = -((x1(0) - 0.5) * (x1(0) - 0.5) + (x1(1) - 0.5) * (x1(1) - 0.5) - 0.04);
                   MFEM_ASSERT((phi_inner < 0), " phi = " << phi_inner << " : "
                                                          << "levelset function positive at the quadrature point (Saye's method)");
                   // scaled to original element space

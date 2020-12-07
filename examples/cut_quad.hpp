@@ -14,6 +14,10 @@ struct vortex
     double xmin;
     double ymin;
     double radius;
+    double ax;
+    double ay;
+    double xc;
+    double yc;
     template <typename T>
     T operator()(const blitz::TinyVector<T, N> &x) const
     {
@@ -26,12 +30,18 @@ struct vortex
             return -1 * ((((x[0] * xscale) + xmin) * ((x[0] * xscale) + xmin)) +
                          (((x[1] * yscale) + ymin) * ((x[1] * yscale) + ymin)) - (radius * radius));
         }
-        else
+        else if (ls1 == 2)
         {
             return 1 * ((((x[0] * xscale) + xmin) * ((x[0] * xscale) + xmin)) +
                         (((x[1] * yscale) + ymin) * ((x[1] * yscale) + ymin)) - (radius * radius));
         }
+        else
+        {
+            return -1 * (((((x[0] * xscale) + xmin - xc) * ((x[0] * xscale) + xmin - xc)) / (ax * ax)) +
+                         ((((x[1] * yscale) + ymin - yc) * ((x[1] * yscale) + ymin - yc)) / (ay * ay)) - (radius * radius));
+        }
     }
+
     template <typename T>
     blitz::TinyVector<T, N> grad(const blitz::TinyVector<T, N> &x) const
     {
@@ -41,10 +51,15 @@ struct vortex
             return blitz::TinyVector<T, N>(-1 * (2.0 * xscale * ((x(0) * xscale) + xmin)),
                                            -1 * (2.0 * yscale * ((x(1) * yscale) + ymin)));
         }
-        else
+        else if (ls1 == 2)
         {
             return blitz::TinyVector<T, N>(1 * (2.0 * xscale * ((x(0) * xscale) + xmin)),
                                            1 * (2.0 * yscale * ((x(1) * yscale) + ymin)));
+        }
+        else
+        {
+            return blitz::TinyVector<T, N>(-1 * (2.0 * xscale * ((x(0) * xscale) + xmin - xc)) / (ax * ax),
+                                           -1 * (2.0 * yscale * ((x(1) * yscale) + ymin - yc)) / (ay * ay));
         }
     }
 };
@@ -62,6 +77,8 @@ bool cutByGeom(Mesh *mesh, int &elemid)
     n = 0;
     double xc = 0.0;
     double yc = 0.0;
+    double ax = 0.0;
+    double ay = 0.0;
     double r;
     for (int i = 0; i < v.Size(); ++i)
     {
@@ -72,10 +89,20 @@ bool cutByGeom(Mesh *mesh, int &elemid)
             r = 1.0;
             lvsval(i) = ((coord[0] - xc) * (coord[0] - xc)) + ((coord[1] - yc) * (coord[1] - yc)) - (r * r);
         }
-        else
+        else if (ls1 == 2)
         {
             r = 3.0;
             lvsval(i) = -1 * (((coord[0] - xc) * (coord[0] - xc)) + ((coord[1] - yc) * (coord[1] - yc)) - (r * r));
+        }
+
+        else
+        {
+            r = 1.0;
+            xc = 20.0;
+            yc = 20.0;
+            ax = 0.5;
+            ay = ax / 10.0;
+            lvsval(i) = 1 * ((((coord[0] - xc) * (coord[0] - xc)) / (ax * ax)) + (((coord[1] - yc) * (coord[1] - yc)) / (ay * ay)) - (r * r));
         }
 
         if ((lvsval(i) < 0) && (abs(lvsval(i)) > 1e-16))
@@ -116,6 +143,8 @@ bool insideBoundary(Mesh *mesh, int &elemid)
     k = 0;
     double xc = 0.0;
     double yc = 0.0;
+    double ax = 0.0;
+    double ay = 0.0;
     double r;
     for (int i = 0; i < v.Size(); ++i)
     {
@@ -126,10 +155,19 @@ bool insideBoundary(Mesh *mesh, int &elemid)
             r = 1.0;
             lvsval(i) = ((coord[0] - xc) * (coord[0] - xc)) + ((coord[1] - yc) * (coord[1] - yc)) - (r * r);
         }
-        else
+        else if (ls1 == 2)
         {
             r = 3.0;
             lvsval(i) = -1 * (((coord[0] - xc) * (coord[0] - xc)) + ((coord[1] - yc) * (coord[1] - yc)) - (r * r));
+        }
+        else
+        {
+            r = 1.0;
+            xc = 20.0;
+            yc = 20.0;
+            ax = 0.5;
+            ay = ax / 10.0;
+            lvsval(i) = 1 * ((((coord[0] - xc) * (coord[0] - xc)) / (ax * ax)) + (((coord[1] - yc) * (coord[1] - yc)) / (ay * ay)) - (r * r));
         }
 
         if ((lvsval(i) < 0) || (lvsval(i) == 0))
@@ -220,6 +258,13 @@ void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems, int order, double ra
         phi.xmin = xmin[0];
         phi.ymin = xmin[1];
         phi.radius = radius;
+        if (ls == 3)
+        {
+            phi.ax = 0.5;
+            phi.ay = phi.ax / 10.0;
+            phi.xc = 20.0;
+            phi.yc = 20.0;
+        }
         auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double, N>(xlower, xupper), dir, side, order);
         int i = 0;
         ir = new IntegrationRule(q.nodes.size());
@@ -264,22 +309,29 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
         xupper = {1, 1};
         int elemid = cutelems.at(k);
         findBoundingBox<N>(mesh, elemid, xmin, xmax);
-        cout << "bounding box " << endl;
-        cout << xmin[0] << " , " << xmax[0] << endl;
-        cout << xmin[1] << " , " << xmax[1] << endl;
+        // cout << "bounding box " << endl;
+        // cout << xmin[0] << " , " << xmax[0] << endl;
+        // cout << xmin[1] << " , " << xmax[1] << endl;
         vortex<N, ls> phi;
         phi.xscale = xmax[0] - xmin[0];
         phi.yscale = xmax[1] - xmin[1];
         phi.xmin = xmin[0];
         phi.ymin = xmin[1];
         phi.radius = radius;
+        if (ls == 3)
+        {
+            phi.ax = 0.5;
+            phi.ay = phi.ax / 10.0;
+            phi.xc = 20.0;
+            phi.yc = 20.0;
+        }
         dir = N;
         side = -1;
         auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double, N>(xlower, xupper), dir, side, order);
         MFEM_ASSERT(q.nodes.size() > 0, "int rule not defined by Saye's method");
         int i = 0;
         ir = new IntegrationRule(q.nodes.size());
-        cout << "curved face int rule for " << elemid << endl;
+        //cout << "curved face int rule for " << elemid << endl;
         for (const auto &pt : q.nodes)
         {
             IntegrationPoint &ip = ir->IntPoint(i);
@@ -299,7 +351,7 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
         Array<int> fids;
         mesh->GetElementEdges(elemid, fids, orient);
         int fid;
-        cout << setprecision(11) << endl;
+        //cout << setprecision(11) << endl;
         for (int c = 0; c < fids.Size(); ++c)
         {
             fid = fids[c];
@@ -307,19 +359,12 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
             {
                 if (cutInteriorFaceIntRules[fid] == NULL)
                 {
-                    cout << "face int rule for " << fid << endl;
+                    //cout << "face int rule for " << fid << endl;
                     Array<int> v;
                     mesh->GetEdgeVertices(fid, v);
                     double *v1coord, *v2coord;
                     v1coord = mesh->GetVertex(v[0]);
                     v2coord = mesh->GetVertex(v[1]);
-                    // if (elemid == 92)
-                    // {
-                    //     cout << " x vert " << v1coord[0] << " , " << v2coord[0] << endl;
-                    //     cout << " y vert " << v1coord[1] << " , " << v2coord[1] << endl;
-                    //     cout << abs(v1coord[0] - v2coord[0]) << endl;
-                    // }
-
                     if (abs(v1coord[0] - v2coord[0]) < 1e-15)
                     {
                         dir = 0;
@@ -346,8 +391,8 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
                         }
                     }
 
-                    cout << "dir " << dir << endl;
-                    cout << "side " << side << endl;
+                    // cout << "dir " << dir << endl;
+                    // cout << "side " << side << endl;
 
                     auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double, N>(xlower, xupper), dir, side, order);
 
@@ -361,7 +406,6 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
                         ip.y = 0.0;
                         if (dir == 0)
                         {
-                            cout << "inside it " << endl;
                             if (v1coord[1] < v2coord[1])
                             {
                                 if (-1 == orient[c])
@@ -419,40 +463,43 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
                         trans->Loc1.Transform(ip, eip1);
                         trans->Loc2.Transform(ip, eip2);
 
-                        // cout << "eip1 " << eip1.x << " , " << eip1.y << endl;
-                        // cout << "eip2 " << eip2.x << " , " << eip2.y << endl;
                         Vector x1, x2;
 
-                        cout << "--- x1 ---" << endl;
+                        //cout << "--- x1 ---" << endl;
                         trans->Elem1->Transform(eip1, x1);
-                        x1.Print();
-                        cout << "--- x2 ---" << endl;
+                        //x1.Print();
+                        //cout << "--- x2 ---" << endl;
                         trans->Elem2->Transform(eip2, x2);
-                        x2.Print();
-                        cout << "phi is " << x1(0) * x1(0) + x1(1) * x1(1) - 9.0 << endl;
-                        double phi_inner = (x1(0) * x1(0)) + (x1(1) * x1(1)) - 9.0;
-                        MFEM_ASSERT((phi_inner < 0), " phi = " << phi_inner << " : "
-                                                               << "levelset function positive at the quadrature point (Saye's method)");
+                        // x2.Print();
+                         double r = 1.0;
+                         double xc = 20.0;
+                         double yc = 20.0;
+                         double ax = 0.5;
+                         double ay = ax / 10.0;
+                         double phi_inner = -1 * ((((x1(0) - xc) * (x1(0) - xc)) / (ax * ax)) + (((x1(1) - yc) * (x1(1) - yc)) / (ay * ay)) - (r * r));
+                        //  double phi_inner = (x1(0) * x1(0)) + (x1(1) * x1(1)) - 9.0;
+                         MFEM_ASSERT((phi_inner < 0), " phi = " << phi_inner << " : "
+                                                                << "levelset function positive at the quadrature point (Saye's method)");
 
-                        // scaled to original element space
-                        double xq = (pt.x[0] * phi.xscale) + phi.xmin;
-                        double yq = (pt.x[1] * phi.yscale) + phi.ymin;
-                        cout << setprecision(
-                                    11)
-                             << "int rule " << xq << " , " << yq << " : " << pt.w << endl;
-                        cout << "ymax " << v2coord[1] << " , ymin " << v1coord[1] << endl;
+                         // scaled to original element space
+                         double xq = (pt.x[0] * phi.xscale) + phi.xmin;
+                         double yq = (pt.x[1] * phi.yscale) + phi.ymin;
+                         // cout << setprecision(
+                         //             11)
+                         //      << "int rule " << xq << " , " << yq << " : " << pt.w << endl;
+                         // cout << "ymax " << v2coord[1] << " , ymin " << v1coord[1] << endl;
+                        //  cout << "phi_inner " << phi_inner << endl;
+                        //  cout << "phi(pt.x) " << phi(pt.x) << endl;
 
-                        cout << "phi(pt.x) " << phi(pt.x) << endl;
+                         // MFEM_ASSERT(abs(phi_inner - phi(pt.x)) < 1e-13, "level set funcs not same ");
 
-                        // MFEM_ASSERT(abs(phi_inner - phi(pt.x)) < 1e-13, "level set funcs not same ");
-
-                        MFEM_ASSERT(ip.weight > 0, "integration point weight is negative from Saye's method");
-                        MFEM_ASSERT((phi(pt.x) < tol), " phi = " << phi(pt.x) << " : "
-                                                                 << "levelset function positive at the quadrature point (Saye's method)");
-                        // MFEM_ASSERT((xq <= (max(v1coord[0], v2coord[0]))) && (xq >= (min(v1coord[0], v2coord[0]))),
-                        //             "integration point (xcoord) not on element face (Saye's rule)");
-                        MFEM_ASSERT((yq <= (max(v1coord[1], v2coord[1]))) && (yq >= (min(v1coord[1], v2coord[1]))),
-                                    "integration point (ycoord) not on element face (Saye's rule)");
+                         MFEM_ASSERT(ip.weight > 0, "integration point weight is negative from Saye's method");
+                         MFEM_ASSERT((phi(pt.x) < tol), " phi = " << phi(pt.x) << " : "
+                                                                  << "levelset function positive at the quadrature point (Saye's method)");
+                         // MFEM_ASSERT((xq <= (max(v1coord[0], v2coord[0]))) && (xq >= (min(v1coord[0], v2coord[0]))),
+                         //             "integration point (xcoord) not on element face (Saye's rule)");
+                         MFEM_ASSERT((yq <= (max(v1coord[1], v2coord[1]))) && (yq >= (min(v1coord[1], v2coord[1]))),
+                                     "integration point (ycoord) not on element face (Saye's rule)");
                     }
 
                     cutInteriorFaceIntRules[fid] = ir;
@@ -499,18 +546,17 @@ void GetCutBdrSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutBd
             {
                 if (cutBdrFaceIntRules[elemid] == NULL)
                 {
-                    cout << "bdr face int rule for " << fid << endl;
+                    //cout << "bdr face int rule for " << fid << endl;
                     Array<int> v;
                     mesh->GetEdgeVertices(fid, v);
                     double *v1coord, *v2coord;
                     v1coord = mesh->GetVertex(v[0]);
                     v2coord = mesh->GetVertex(v[1]);
-                    cout << " x vert " << v1coord[0] << " , " << v2coord[0] << endl;
-                    cout << " y vert " << v1coord[1] << " , " << v2coord[1] << endl;
-                    cout << abs(v1coord[0] - v2coord[0]) << endl;
+                    // cout << " x vert " << v1coord[0] << " , " << v2coord[0] << endl;
+                    // cout << " y vert " << v1coord[1] << " , " << v2coord[1] << endl;
+                    // cout << abs(v1coord[0] - v2coord[0]) << endl;
                     if (abs(v1coord[0] - v2coord[0]) < 1e-15)
                     {
-                        cout << "inside if " << endl;
                         dir = 0;
 
                         if (abs(v1coord[0] - xmax[0]) > 1e-15)
@@ -535,8 +581,8 @@ void GetCutBdrSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutBd
                         }
                     }
 
-                    cout << "dir " << dir << endl;
-                    cout << "side " << side << endl;
+                    // cout << "dir " << dir << endl;
+                    // cout << "side " << side << endl;
 
                     auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double, N>(xlower, xupper), dir, side, order);
                     int i = 0;
@@ -597,19 +643,16 @@ void GetCutBdrSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutBd
                         }
                         ip.weight = pt.w;
                         i = i + 1;
-                        cout << " ip.x " << ip.x << endl;
-                        cout << " pt.x[0] " << pt.x[0] << endl;
+                                    // scaled to original element space
 
-                        // scaled to original element space
-        
                         double xq = (pt.x[0] * phi.xscale) + phi.xmin;
                         double yq = (pt.x[1] * phi.yscale) + phi.ymin;
-                        cout << setprecision(
-                                    11)
-                             << "int rule " << xq << " , " << yq << " : " << pt.w << endl;
-                        cout << "ymax " << v2coord[1] << " , ymin " << v1coord[1] << endl;
+                        // cout << setprecision(
+                        //             11)
+                        //      << "int rule " << xq << " , " << yq << " : " << pt.w << endl;
+                        // cout << "ymax " << v2coord[1] << " , ymin " << v1coord[1] << endl;
 
-                        cout << "phi(pt.x) " << phi(pt.x) << endl;
+                        // cout << "phi(pt.x) " << phi(pt.x) << endl;
 
                         MFEM_ASSERT(ip.weight > 0, "integration point weight is negative from Saye's method");
                         MFEM_ASSERT((phi(pt.x) < tol), " phi = " << phi(pt.x) << " : "

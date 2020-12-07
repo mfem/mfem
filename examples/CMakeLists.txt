@@ -49,8 +49,10 @@ list(APPEND ALL_EXE_SRCS
   ex_testGD.cpp
   exEuler.cpp
   exEuler_cut.cpp
+  exEuler_cut_ellipse.cpp
   exEuler_cut_GD.cpp
   exEuler_GD.cpp
+  exEuler_GD_ellipse.cpp
   )
 
 if (MFEM_USE_MPI)

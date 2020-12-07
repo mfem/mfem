@@ -383,7 +383,7 @@ void calcIsentropicVortexFlux(const double *x, const double *dir,
       calcBoundaryFlux< 2>(dir, qbnd, qcons, work, flux);
    }
    else {
-      calcBoundaryFlux< 2>(dir, qbnd, q, work, flux);
+      calcBoundaryFlux<2>(dir, qbnd, q, work, flux);
    }
 }
 
@@ -433,7 +433,7 @@ void calcLaxFriedrichsFlux(const double *dir, const double *qL, const double *qR
       q_ave[i] = 0.5 * (qL[i] + qR[i]);
       q_diff[i] = -qR[i] + qL[i];
    }
-   double lambda  = calcSpectralRadius<dim, false>(dir, q_ave);
+   double lambda  = 1.0 * calcSpectralRadius<dim, false>(dir, q_ave);
    for (int k = 0; k < dim + 2; ++k)
    {
       flux[k] = fluxL[k] + fluxR[k] + (lambda * q_diff[k]);

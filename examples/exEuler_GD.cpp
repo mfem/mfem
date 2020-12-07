@@ -33,6 +33,37 @@ void randBaselinePert(const mfem::Vector &x, mfem::Vector &u)
    }
 }
 
+double calcDrag(mfem::FiniteElementSpace *fes, mfem::GridFunction u,
+                int num_state, double alpha)
+{
+   /// check initial drag value
+   mfem::Vector drag_dir(2);
+
+   drag_dir = 0.0;
+   int iroll = 0;
+   int ipitch = 1;
+   double aoa_fs = 0.0;
+   double mach_fs = 1.0;
+
+   drag_dir(iroll) = cos(aoa_fs);
+   drag_dir(ipitch) = sin(aoa_fs);
+   drag_dir *= 1.0 / pow(mach_fs, 2.0); // to get non-dimensional Cd
+
+   Array<int> bndry_marker_drag;
+   bndry_marker_drag.Append(0);
+   bndry_marker_drag.Append(0);
+   bndry_marker_drag.Append(0);
+   bndry_marker_drag.Append(1);
+   NonlinearForm *dragf = new NonlinearForm(fes);
+
+   dragf->AddBdrFaceIntegrator(
+       new PressureForce<2, entvar>(drag_dir, num_state, alpha),
+       bndry_marker_drag);
+
+   double drag = dragf->GetEnergy(u);
+   return drag;
+}
+
 /// function to calculate conservative variables l2error
 template <int dim, bool entvar>
 double calcConservativeVarsL2Error(
@@ -159,8 +190,8 @@ int main(int argc, char *argv[])
    // Parse command-line options
    OptionsParser args(argc, argv);
    int degree = 2;
-   int nx = 3;
-   int ny = 3;
+   int nx = 5;
+   int ny = 5;
    int order = 1;
    int ref_levels = -1;
    int nc_ref = -1;
@@ -376,7 +407,6 @@ int main(int argc, char *argv[])
       // print iterations
       std::cout << "iter " << ti << ": time = " << t << ": dt = " << dt << endl;
       //   std::cout << " (" << round(100 * t / t_final) << "% complete)";
-      std::cout << "residual norm: " << res_norm << "\n";
 
       if (res_norm <= 1e-11)
          break;
@@ -388,17 +418,24 @@ int main(int argc, char *argv[])
    }
 
    fes_GD->GetProlongationMatrix()->Mult(uc, u);
+
+   cout << "=========================================" << endl;
+   std::cout << "final residual norm: " << res_norm << "\n";
+   double drag = calcDrag(fes, u, num_state, alpha);
+   double drag_err = abs(drag - (-1 / 1.4));
+   cout << "drag: " << drag << endl;
+   cout << "drag_error: " << drag_err << endl;
    ofstream finalsol_ofs("final_sol.vtk");
    finalsol_ofs.precision(14);
    mesh->PrintVTK(finalsol_ofs, 1);
    u.SaveVTK(finalsol_ofs, "Solution", 1);
    finalsol_ofs.close();
-   double l2_err = u.ComputeL2Error(u0);
-   cout << "l2_err " << l2_err << endl;
+
    //calculate final solution error
-   double l2_err_final = calcConservativeVarsL2Error<2, 0>(uexact, &u, fes,
-                                                           num_state, 0);
-   cout << "l2_err_final " << l2_err_final << endl;
+   double l2_err_rho = calcConservativeVarsL2Error<2, 0>(uexact, &u, fes,
+                                                         num_state, 0);
+   cout << "|| rho_h - rho ||_{L^2} = " << l2_err_rho << endl;
+   cout << "=========================================" << endl;
 }
 
 // perturbation function used to check the jacobian in each iteration
@@ -469,7 +506,7 @@ void uexact(const Vector &x, Vector &q)
 unique_ptr<Mesh> buildQuarterAnnulusMesh(int degree, int num_rad, int num_ang)
 {
    auto mesh_ptr = unique_ptr<Mesh>(new Mesh(num_rad, num_ang,
-                                             Element::TRIANGLE, true /* gen. edges */,
+                                             Element::QUADRILATERAL, true /* gen. edges */,
                                              2.0, M_PI * 0.5, true));
    // strategy:
    // 1) generate a fes for Lagrange elements of desired degree

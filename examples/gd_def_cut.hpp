@@ -199,15 +199,15 @@ void GalerkinDifference::BuildGDProlongation() const
    {
   if (EmbeddedElements.at(i) == false)
       {
-         cout << " element is " << i << endl;
+         //cout << " element is " << i << endl;
          // 1. get the elements in patch
          GetNeighbourSet(i, nelmt, elmt_id);
-         cout << "element "
-              << "( " << i << ") "
-              << " #neighbours = " << elmt_id.Size() << endl;
-         cout << "Elements id(s) in patch: ";
-         elmt_id.Print(cout, elmt_id.Size());
-         cout << " ----------------------- " << endl;
+         // cout << "element "
+         //      << "( " << i << ") "
+         //      << " #neighbours = " << elmt_id.Size() << endl;
+         // cout << "Elements id(s) in patch: ";
+         // elmt_id.Print(cout, elmt_id.Size());
+         // cout << " ----------------------- " << endl;
 
          // 2. build the quadrature and barycenter coordinate matrices
          BuildNeighbourMat(elmt_id, cent_mat, quad_mat);

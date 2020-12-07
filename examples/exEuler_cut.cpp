@@ -56,7 +56,7 @@ double calcDrag(mfem::FiniteElementSpace *fes, mfem::GridFunction u,
     NonlinearForm *dragf = new NonlinearForm(fes);
 
     dragf->AddDomainIntegrator(
-        new PressureForce<2, entvar>(drag_dir, num_state,
+        new PressureForce<2, 1, entvar>(drag_dir, num_state,
                                      cutSegmentIntRules_inner, alpha));
 
     double drag = dragf->GetEnergy(u);
@@ -297,8 +297,8 @@ int main(int argc, char *argv[])
     int order = 1;
     int N = 5;
     double radius = 1.0;
-    int ref_levels =1;
-    int ncr = 3;
+    int ref_levels = -1;
+    int ncr = -1;
     /// number of state variables
     int num_state = 4;
     double alpha = 1.0;
@@ -709,59 +709,59 @@ int main(int argc, char *argv[])
     unique_ptr<mfem::TimeDependentOperator> evolver(new mfem::EulerEvolver(mass, res,
                                                                            0.0, TimeDependentOperator::Type::IMPLICIT));
     /// set up the evolver
-    // auto t = 0.0;
-    // evolver->SetTime(t);
-    // ode_solver->Init(*evolver);
+    auto t = 0.0;
+    evolver->SetTime(t);
+    ode_solver->Init(*evolver);
 
-    // /// solve the ode problem
-    // double res_norm0 = calcResidualNorm(res, fes, u);
-    // double t_final = 1000;
-    // std::cout << "initial residual norm: " << res_norm0 << "\n";
-    // double dt_init = 0.05;
-    // double dt_old;
+    /// solve the ode problem
+    double res_norm0 = calcResidualNorm(res, fes, u);
+    double t_final = 1000;
+    std::cout << "initial residual norm: " << res_norm0 << "\n";
+    double dt_init = 1.0;
+    double dt_old;
     // initial l2_err
     double l2_err_init = calcCutConservativeVarsL2Error<2, 0>(uexact, &u, fes, EmbeddedElems,
                                                               cutSquareIntRules, num_state, 0);
     cout << "l2_err_init " << l2_err_init << endl;
 
-    // double dt = 0.0;
-    // double res_norm;
-    // int exponent = 1;
-    // res_norm = res_norm0;
-    // for (auto ti = 0; ti < 40000; ++ti)
-    // {
-    //     /// calculate timestep
-    //     dt_old = dt;
-    //     dt = dt_init * pow(res_norm0 / res_norm, exponent);
-    //     dt = max(dt, dt_old);
-    //     //dt = dt_init;
-    //     // print iterations
-    //     std::cout << "iter " << ti << ": time = " << t << ": dt = " << dt << endl;
-    //     //   std::cout << " (" << round(100 * t / t_final) << "% complete)";
-    //     if (res_norm <= 1e-11)
-    //         break;
+    double dt = 0.0;
+    double res_norm;
+    int exponent = 2;
+    res_norm = res_norm0;
+    for (auto ti = 0; ti < 40000; ++ti)
+    {
+        /// calculate timestep
+        dt_old = dt;
+        dt = dt_init * pow(res_norm0 / res_norm, exponent);
+        dt = max(dt, dt_old);
+        //dt = dt_init;
+        // print iterations
+        std::cout << "iter " << ti << ": time = " << t << ": dt = " << dt << endl;
+        //   std::cout << " (" << round(100 * t / t_final) << "% complete)";
+        if (res_norm <= 1e-11)
+            break;
 
-    //     if (isnan(res_norm))
-    //         break;
-    //     ode_solver->Step(u, t, dt);
-    //     res_norm = calcResidualNorm(res, fes, u);
-    // }
-    // cout << "=========================================" << endl;
-    // std::cout << "final residual norm: " << res_norm << "\n";
-    // double drag = calcDrag(fes, u, num_state, cutSegmentIntRules_inner, alpha);
-    // double drag_err = abs(drag - (-1 / 1.4));
-    // cout << "drag: " << drag << endl;
-    // cout << "drag_error: " << drag_err << endl;
-    // ofstream finalsol_ofs("final_sol_euler_vortex_cut.vtk");
-    // finalsol_ofs.precision(14);
-    // mesh->PrintVTK(finalsol_ofs, 1);
-    // u.SaveVTK(finalsol_ofs, "Solution", 1);
-    // finalsol_ofs.close();
-    // //calculate final solution error
-    // double l2_err_rho = calcCutConservativeVarsL2Error<2, 0>(uexact, &u, fes, EmbeddedElems,
-    //                                                          cutSquareIntRules, num_state, 0);
-    // cout << "|| rho_h - rho ||_{L^2} = " << l2_err_rho << endl;
-    // cout << "=========================================" << endl;
+        if (isnan(res_norm))
+            break;
+        ode_solver->Step(u, t, dt);
+        res_norm = calcResidualNorm(res, fes, u);
+    }
+    cout << "=========================================" << endl;
+    std::cout << "final residual norm: " << res_norm << "\n";
+    double drag = calcDrag(fes, u, num_state, cutSegmentIntRules_inner, alpha);
+    double drag_err = abs(drag - (-1 / 1.4));
+    cout << "drag: " << drag << endl;
+    cout << "drag_error: " << drag_err << endl;
+    ofstream finalsol_ofs("final_sol_euler_vortex_cut.vtk");
+    finalsol_ofs.precision(14);
+    mesh->PrintVTK(finalsol_ofs, 1);
+    u.SaveVTK(finalsol_ofs, "Solution", 1);
+    finalsol_ofs.close();
+    //calculate final solution error
+    double l2_err_rho = calcCutConservativeVarsL2Error<2, 0>(uexact, &u, fes, EmbeddedElems,
+                                                             cutSquareIntRules, num_state, 0);
+    cout << "|| rho_h - rho ||_{L^2} = " << l2_err_rho << endl;
+    cout << "=========================================" << endl;
     // Free the used memory.
     delete res;
     delete mass;

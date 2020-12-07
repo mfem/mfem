@@ -24,6 +24,26 @@ const double rhou[3] = {0.09595562550099601, -0.030658751626551423, -0.134714699
 /// \param[out] u - state variables stored as a 4-vector
 void uexact(const Vector &x, Vector &u);
 
+double getlsvalue(double ax, Vector &cent)
+{
+
+    double r = 1.0;
+    double xc = 20.0;
+    double yc = 20.0;
+    double ay = ax / 1.0;
+    return 1 * ((((cent(0) - xc) * (cent(0) - xc)) / (ax * ax)) + (((cent(1) - yc) * (cent(1) - yc)) / (ay * ay)) - (r * r));
+}
+
+double getlsvalue2(double ax, Vector &cent)
+{
+
+    double r = 1.0;
+    double xc = 20.0;
+    double yc = 20.0;
+    double ay = ax / 10.0;
+    return 1 * ((((cent(0) - xc) * (cent(0) - xc)) / (ax * ax)) + (((cent(1) - yc) * (cent(1) - yc)) / (ay * ay)) - (r * r));
+}
+
 template <int dim>
 void randBaselinePert(const mfem::Vector &x, mfem::Vector &u)
 {
@@ -37,32 +57,33 @@ void randBaselinePert(const mfem::Vector &x, mfem::Vector &u)
     }
 }
 
+/// function to calculate drag
 double calcDrag(mfem::FiniteElementSpace *fes, mfem::GridFunction u,
-                int num_state, 
-                std::map<int, IntegrationRule *> cutSegmentIntRules_inner, 
+                int num_state,
+                std::map<int, IntegrationRule *> cutSegmentIntRules,
                 double alpha)
 {
-   /// check initial drag value
-   mfem::Vector drag_dir(2);
+    /// check initial drag value
+    mfem::Vector drag_dir(2);
 
-   drag_dir = 0.0;
-   int iroll = 0;
-   int ipitch = 1;
-   double aoa_fs = 0.0;
-   double mach_fs = 1.0;
+    drag_dir = 0.0;
+    int iroll = 0;
+    int ipitch = 1;
+    double aoa_fs = 0.0;
+    double mach_fs = 0.5;
 
-   drag_dir(iroll) = cos(aoa_fs);
-   drag_dir(ipitch) = sin(aoa_fs);
-   drag_dir *= 1.0 / pow(mach_fs, 2.0); // to get non-dimensional Cd
+    drag_dir(iroll) = cos(aoa_fs);
+    drag_dir(ipitch) = sin(aoa_fs);
+    drag_dir *= 1.0 / pow(mach_fs, 2.0); // to get non-dimensional Cd
 
-   NonlinearForm *dragf = new NonlinearForm(fes);
+    NonlinearForm *dragf = new NonlinearForm(fes);
 
-   dragf->AddDomainIntegrator(
-       new PressureForce<2, 1, entvar>(drag_dir, num_state, 
-        cutSegmentIntRules_inner, alpha));
+    dragf->AddDomainIntegrator(
+        new PressureForce<2, 3, entvar>(drag_dir, num_state,
+                                        cutSegmentIntRules, alpha));
 
-   double drag = dragf->GetEnergy(u);
-   return drag;
+    double drag = dragf->GetEnergy(u);
+    return drag;
 }
 
 /// function to calculate conservative variables l2error
@@ -170,12 +191,12 @@ double calcResidualNorm(NonlinearForm *res, FiniteElementSpace *fes, CentGridFun
 template <int dim, bool entvar>
 void getFreeStreamState(mfem::Vector &q_ref)
 {
-    double mach_fs = 0.3;
+    double mach_fs = 0.5;
     q_ref = 0.0;
     q_ref(0) = 1.0;
     q_ref(1) = q_ref(0) * mach_fs; // ignore angle of attack
     q_ref(2) = 0.0;
-    q_ref(dim + 1) = 1 / (euler::gamma * euler::gami) + 0.5 * mach_fs * mach_fs;
+    q_ref(dim + 1) = 1.0 / (euler::gamma * euler::gami) + 0.5 * mach_fs * mach_fs;
 }
 
 /// \brief Defines the random function for the jabocian check
@@ -195,14 +216,18 @@ int main(int argc, char *argv[])
 {
     // 1. Parse command-line options.
     int order = 1;
-    int N = 5;
+    int N = 10;
     int ref_levels = -1;
-    int ncr = 2;
+    int ncr1, ncr2, ncr3;
+    ncr1 = 1;
     double radius = 1.0;
+    int lhnodes = 1;
     /// number of state variables
     int num_state = 4;
     double alpha = 1.0;
     double cutsize;
+    /// maximum level set value
+    double lsmax = 10000.0;
     OptionsParser args(argc, argv);
     args.AddOption(&order, "-o", "--order",
                    "Finite element order (polynomial degree) or -1 for"
@@ -222,118 +247,225 @@ int main(int argc, char *argv[])
     args.PrintOptions(cout);
 
     Mesh *mesh = new Mesh(N, N, Element::QUADRILATERAL, true,
-                          3, 3, true);
+                          40, 40, true);
     ofstream sol_ofv("square_mesh_vortex.vtk");
     sol_ofv.precision(14);
     mesh->PrintVTK(sol_ofv, 0);
     int dim = mesh->Dimension();
+
     /// find the elements to refine
-    for (int k = 0; k < ncr; ++k)
+    for (int k = 0; k < ncr1 + 4; ++k)
     {
-        Array<int> marked_elements;
+        Array<int> marked_elements1;
         for (int i = 0; i < mesh->GetNE(); ++i)
         {
-            if ((cutByGeom<1>(mesh, i) == true))
+            if (cutByGeom<3>(mesh, i))
             {
-                marked_elements.Append(i);
+                if (-1 == marked_elements1.Find(i))
+                {
+                 marked_elements1.Append(i);
+                }
+                
+                Array<int> adj;
+                mesh->ElementToElementTable().GetRow(i, adj);
+
+                for (int k=0; k<adj.Size(); ++k)
+                {
+                    if (-1 == marked_elements1.Find(adj[k]))
+                    {
+                        marked_elements1.Append(adj[k]);
+                    }
+                }
             }
         }
-        mesh->GeneralRefinement(marked_elements, 1);
+        mesh->GeneralRefinement(marked_elements1, 1, lhnodes);
     }
-    ofstream wmesh("square_mesh_vortex_nc.vtk");
-    wmesh.precision(14);
-    mesh->PrintVTK(wmesh, 0);
+    
+    for (int k = 0; k < ncr1 + 1; ++k)
+    {
+        Array<int> marked_elements1;
+        for (int i = 0; i < mesh->GetNE(); ++i)
+        {
+            Vector cent;
+            GetElementCenter(mesh, i, cent);
+            double lsv = getlsvalue2(8.0, cent);
+            if (lsv < 0.0)
+            {
+                marked_elements1.Append(i);
+            }
+        }
 
-    cout << "#elements after refinement " << mesh->GetNE() <<  endl;
+        mesh->GeneralRefinement(marked_elements1, 1, lhnodes);
+    }
+
+
+
+    // for (int k = 0; k < ncr1; ++k)
+    // {
+    //     Array<int> marked_elements1;
+    //     for (int i = 0; i < mesh->GetNE(); ++i)
+    //     {
+    //         Vector cent;
+    //         GetElementCenter(mesh, i, cent);
+    //         double lsv = getlsvalue(10.0, cent);
+    //         if (lsv < 0.0)
+    //         {
+    //             marked_elements1.Append(i);
+    //         }
+    //     }
+
+    //     mesh->GeneralRefinement(marked_elements1, 1, lhnodes);
+    // }
+
+
+
+    for (int k = 0; k < ncr1 ; ++k)
+    {
+        Array<int> marked_elements1;
+        for (int i = 0; i < mesh->GetNE(); ++i)
+        {
+            Vector cent;
+            GetElementCenter(mesh, i, cent);
+            double rad = 0.3;
+            double lsvle = ((cent(0) - 19.5) * (cent(0) - 19.5)) + ((cent(1) - 20.0) * (cent(1) - 20.0)) - (rad * rad);
+            double lsvte = ((cent(0) - 20.5) * (cent(0) - 20.5)) + ((cent(1) - 20.0) * (cent(1) - 20.0)) - (rad * rad);
+
+            if (lsvle < 0.0 || lsvte < 0.0)
+            {
+                marked_elements1.Append(i);
+            }
+        }
+
+        mesh->GeneralRefinement(marked_elements1, 1, lhnodes);
+    }
+    
+    for (int k = 0; k < ncr1 + 1; ++k)
+    {
+        Array<int> marked_elements1;
+        for (int i = 0; i < mesh->GetNE(); ++i)
+        {
+            Vector cent;
+            GetElementCenter(mesh, i, cent);
+            double rad = 0.05;
+            double lsvle = ((cent(0) - 19.5) * (cent(0) - 19.5)) + ((cent(1) - 20.0) * (cent(1) - 20.0)) - (rad * rad);
+            double lsvte = ((cent(0) - 20.5) * (cent(0) - 20.5)) + ((cent(1) - 20.0) * (cent(1) - 20.0)) - (rad * rad);
+
+            if (lsvle < 0.0 || lsvte < 0.0)
+            {
+                marked_elements1.Append(i);
+            }
+        }
+
+        mesh->GeneralRefinement(marked_elements1, 1, lhnodes);
+    }
+    
+    // for (int k = 0; k < ncr1 ; ++k)
+    // {
+    //     Array<int> marked_elements1;
+    //     for (int i = 0; i < mesh->GetNE(); ++i)
+    //     {
+    //         Vector cent;
+    //         GetElementCenter(mesh, i, cent);
+    //         double rad = 0.05;
+    //         double lsvle = ((cent(0) - 19.5) * (cent(0) - 19.5)) + ((cent(1) - 20.0) * (cent(1) - 20.0)) - (rad * rad);
+    //         double lsvte = ((cent(0) - 20.5) * (cent(0) - 20.5)) + ((cent(1) - 20.0) * (cent(1) - 20.0)) - (rad * rad);
+
+    //         if ((lsvle < 0.0  && cent(0) < 19.5 )|| (lsvte < 0.0 && cent(0) > 20.5))
+    //         {
+    //             marked_elements1.Append(i);
+    //         }
+    //     }
+
+    //     mesh->GeneralRefinement(marked_elements1, 1, lhnodes);
+    // }
+   
+    for (int k = 0; k < ncr1 + 1; ++k)
+    {
+        Array<int> marked_elements1;
+        for (int i = 0; i < mesh->GetNE(); ++i)
+        {
+            Vector cent;
+            GetElementCenter(mesh, i, cent);
+            double rad = 0.03;
+            double lsvle = ((cent(0) - 19.5) * (cent(0) - 19.5)) + ((cent(1) - 20.0) * (cent(1) - 20.0)) - (rad * rad);
+            double lsvte = ((cent(0) - 20.5) * (cent(0) - 20.5)) + ((cent(1) - 20.0) * (cent(1) - 20.0)) - (rad * rad);
+
+            if (lsvle < 0.0 || lsvte < 0.0)
+            {
+                marked_elements1.Append(i);
+            }
+        }
+
+        mesh->GeneralRefinement(marked_elements1, 1, lhnodes);
+    }
+    
+    // for (int k = 0; k < ncr1 ; ++k)
+    // {
+    //     Array<int> marked_elements1;
+    //     for (int i = 0; i < mesh->GetNE(); ++i)
+    //     {
+    //         Vector cent;
+    //         GetElementCenter(mesh, i, cent);
+    //         double rad = 0.08;
+    //         double lsvle = ((cent(0) - 19.5) * (cent(0) - 19.5)) + ((cent(1) - 20.0) * (cent(1) - 20.0)) - (rad * rad);
+    //         double lsvte = ((cent(0) - 20.5) * (cent(0) - 20.5)) + ((cent(1) - 20.0) * (cent(1) - 20.0)) - (rad * rad);
+
+    //         if ((lsvle < 0.0  && cent(0) < 19.5 )|| (lsvte < 0.0 && cent(0) > 20.5))
+    //         {
+    //             marked_elements1.Append(i);
+    //         }
+    //     }
+
+    //     mesh->GeneralRefinement(marked_elements1, 1, lhnodes);
+    // }
+
     for (int l = 0; l < ref_levels; l++)
     {
         mesh->UniformRefinement();
     }
-    cout << "#elements after uniform refinement " << mesh->GetNE() <<  endl;
-    //find the elements cut by inner circle boundary
-    vector<int> cutelems_inner;
-    vector<int> embeddedelems_inner;
-    vector<int> cutFaces_inner;
-    vector<int> cutBdrFaces_inner;
+
+    cout << "#elements after refinement " << mesh->GetNE() << endl;
+    ofstream wmesh("square_mesh_ellipse.vtk");
+    wmesh.precision(14);
+    mesh->PrintVTK(wmesh, 0);
+    wmesh.close();
+    //find the elements cut by outer circle boundary
+    vector<int> cutelems;
+    vector<int> cutinteriorFaces;
+    vector<int> cutFaces;
+
+    /// find the elements for which we don't need to solve
+    std::vector<bool> EmbeddedElems;
+    vector<int> solidElems;
     for (int i = 0; i < mesh->GetNE(); ++i)
     {
-        if (cutByGeom<1>(mesh, i) == true)
+        if (cutByGeom<3>(mesh, i) == true)
         {
-            cutelems_inner.push_back(i);
+            cutelems.push_back(i);
         }
-        if (insideBoundary<1>(mesh, i) == true)
+
+        if (insideBoundary<3>(mesh, i) == true)
         {
-            embeddedelems_inner.push_back(i);
+            EmbeddedElems.push_back(true);
+            solidElems.push_back(i);
+        }
+        else
+        {
+            EmbeddedElems.push_back(false);
         }
     }
-    cout << "elements cut by inner circle:  " << cutelems_inner.size() << endl;
-    for (int i = 0; i < cutelems_inner.size(); ++i)
+    cout << "elements cut by  ellipse:  " << cutelems.size() << endl;
+    for (int i = 0; i < cutelems.size(); ++i)
     {
-        //cout << cutelems_inner.at(i) << endl;
+       // cout << cutelems.at(i) << endl;
     }
-    cout << "elements completely inside inner circle:  " << embeddedelems_inner.size() << endl;
-    for (int i = 0; i < embeddedelems_inner.size(); ++i)
+
+    cout << "solid elements: " << solidElems.size() << endl;
+    for (int k = 0; k < solidElems.size(); ++k)
     {
-        //cout << embeddedelems_inner.at(i) << endl;
+        //cout << solidElems.at(k) << endl;
     }
     /// find faces cut by inner circle
-    for (int i = 0; i < mesh->GetNumFaces(); ++i)
-    {
-        FaceElementTransformations *tr;
-
-        tr = mesh->GetFaceElementTransformations(i);
-        if (tr->Elem2No >= 0)
-        {
-            if ((find(cutelems_inner.begin(), cutelems_inner.end(), tr->Elem1No) != cutelems_inner.end()) &&
-                (find(cutelems_inner.begin(), cutelems_inner.end(), tr->Elem2No) != cutelems_inner.end()))
-            {
-                // cout << "interior face is " << tr->Face->ElementNo << endl;
-                // cout << tr->Elem1No << " , " << tr->Elem2No << endl;
-                cutFaces_inner.push_back(tr->Face->ElementNo);
-            }
-        }
-        if (tr->Elem2No < 0)
-        {
-            if (find(cutelems_inner.begin(), cutelems_inner.end(), tr->Elem1No) != cutelems_inner.end())
-            {
-                cutBdrFaces_inner.push_back(tr->Face->ElementNo);
-            }
-        }
-    }
-    // cout << "faces cut by inner circle " << endl;
-    for (int k = 0; k < cutFaces_inner.size(); ++k)
-    {
-        // cout << cutFaces_inner.at(k) << endl;
-    }
-
-    //find the elements cut by outer circle boundary
-    vector<int> cutelems_outer;
-    vector<int> embeddedelems_outer;
-    vector<int> cutinteriorFaces;
-    vector<int> cutFaces_outer;
-    for (int i = 0; i < mesh->GetNE(); ++i)
-    {
-        if (cutByGeom<2>(mesh, i) == true)
-        {
-            cutelems_outer.push_back(i);
-        }
-        if (insideBoundary<2>(mesh, i) == true)
-        {
-            embeddedelems_outer.push_back(i);
-        }
-    }
-    cout << "elements cut by outer circle:  " << cutelems_outer.size() << endl;
-    for (int i = 0; i < cutelems_outer.size(); ++i)
-    {
-        //cout << cutelems_outer.at(i) << endl;
-    }
-    cout << "elements completely outside outer circle:  " << embeddedelems_outer.size() << endl;
-    for (int i = 0; i < embeddedelems_outer.size(); ++i)
-    {
-        //cout << embeddedelems_outer.at(i) << endl;
-    }
-
-    /// find faces cut by outer circle
     for (int i = 0; i < mesh->GetNumFaces(); ++i)
     {
         FaceElementTransformations *tr;
@@ -341,45 +473,23 @@ int main(int argc, char *argv[])
         tr = mesh->GetFaceElementTransformations(i);
         if (tr->Elem2No >= 0)
         {
-            if ((find(cutelems_outer.begin(), cutelems_outer.end(), tr->Elem1No) != cutelems_outer.end()) &&
-                (find(cutelems_outer.begin(), cutelems_outer.end(), tr->Elem2No) != cutelems_outer.end()))
+            if ((find(cutelems.begin(), cutelems.end(), tr->Elem1No) != cutelems.end()) &&
+                (find(cutelems.begin(), cutelems.end(), tr->Elem2No) != cutelems.end()))
             {
                 // cout << "interior face is " << tr->Face->ElementNo << endl;
                 // cout << tr->Elem1No << " , " << tr->Elem2No << endl;
-                cutFaces_outer.push_back(tr->Face->ElementNo);
+                cutFaces.push_back(tr->Face->ElementNo);
             }
         }
     }
-
-    /// find the elements for which we don't need to solve
-    std::vector<bool> EmbeddedElems;
-    for (int i = 0; i < mesh->GetNE(); ++i)
-    {
-        if (insideBoundary<1>(mesh, i) == true)
-        {
-            EmbeddedElems.push_back(true);
-        }
-        else if (insideBoundary<2>(mesh, i) == true)
-        {
-            EmbeddedElems.push_back(true);
-        }
-        else
-        {
-            EmbeddedElems.push_back(false);
-        }
-    }
-    vector<int> solidElems;
-    solidElems.insert(solidElems.end(), embeddedelems_inner.begin(), embeddedelems_inner.end());
-    solidElems.insert(solidElems.end(), embeddedelems_outer.begin(), embeddedelems_outer.end());
-
-    cout << "solid elements " << solidElems.size() << endl;
-    for (int k = 0; k < solidElems.size(); ++k)
-    {
-       // cout << solidElems.at(k) << endl;
-    }
+    cout << "faces cut by ellipse " << cutFaces.size() << endl;
+    // for (int k = 0; k < cutFaces.size(); ++k)
+    // {
+    //     cout << cutFaces.at(k) << endl;
+    // }
 
     std::map<int, bool> immersedFaces;
-    //cout << "immersed faces " << endl;
+    //cout << "immersed faces" << endl;
     for (int i = 0; i < mesh->GetNumFaces(); ++i)
     {
         FaceElementTransformations *tr;
@@ -389,12 +499,12 @@ int main(int argc, char *argv[])
             if ((EmbeddedElems.at(tr->Elem1No) == true) && (EmbeddedElems.at(tr->Elem2No)) == false)
             {
                 immersedFaces[tr->Face->ElementNo] = true;
-                //cout << "face is " << tr->Face->ElementNo << " with elements " << tr->Elem1No << " , " << tr->Elem2No << endl;
+                // cout << "face is " << tr->Face->ElementNo << " with elements " << tr->Elem1No << " , " << tr->Elem2No << endl;
             }
             else if ((EmbeddedElems.at(tr->Elem2No) == true) && (EmbeddedElems.at(tr->Elem1No)) == false)
             {
                 immersedFaces[tr->Face->ElementNo] = true;
-                // cout << "face is " << tr->Face->ElementNo << " with elements " << tr->Elem1No << " , " << tr->Elem2No << endl;
+                //cout << "face is " << tr->Face->ElementNo << " with elements " << tr->Elem1No << " , " << tr->Elem2No << endl;
             }
             else if ((EmbeddedElems.at(tr->Elem2No) == true) && (EmbeddedElems.at(tr->Elem1No)) == true)
             {
@@ -403,6 +513,7 @@ int main(int argc, char *argv[])
             }
         }
     }
+
     /// Integration rule maps
 
     // for cut element
@@ -412,39 +523,12 @@ int main(int argc, char *argv[])
     // for cut interior/boundary faces
     std::map<int, IntegrationRule *> cutFaceIntRules;
 
-    // for inner circle
-    std::map<int, IntegrationRule *> cutSegmentIntRules_inner;
-    // for cut interior faces
-    std::map<int, IntegrationRule *> cutFaceIntRules_inner;
-    // for cut boundary faces
-    std::map<int, IntegrationRule *> cutBdrFaceIntRules_inner;
-
-    // for outer circle, later to be appended with above maps accordingly
-    std::map<int, IntegrationRule *> cutSquareIntRules_outer;
-    // for embedded boundary face elements
-    std::map<int, IntegrationRule *> cutSegmentIntRules_outer;
-    // for cut interior/boundary faces
-    std::map<int, IntegrationRule *> cutFaceIntRules_outer;
-
     int deg = min((order + 2) * (order + 2), 10);
-    double inner_radius = 1.0;
-    double outer_radius = 3.0;
 
-    // int rule for inner circle elements
-    GetCutElementIntRule<2, 1>(mesh, cutelems_inner, deg, inner_radius, cutSquareIntRules);
-    GetCutSegmentIntRule<2, 1>(mesh, cutelems_inner, cutFaces_inner, deg, inner_radius, cutSegmentIntRules_inner,
+    // int rule for cut elements
+    GetCutElementIntRule<2, 3>(mesh, cutelems, deg, radius, cutSquareIntRules);
+    GetCutSegmentIntRule<2, 3>(mesh, cutelems, cutFaces, deg, radius, cutSegmentIntRules,
                                cutFaceIntRules);
-    GetCutBdrSegmentIntRule<2, 1>(mesh, cutelems_inner, cutBdrFaces_inner, deg, inner_radius,
-                                  cutBdrFaceIntRules_inner);
-    // int rule for outer circle elements
-    GetCutElementIntRule<2, 2>(mesh, cutelems_outer, deg, outer_radius, cutSquareIntRules_outer);
-    GetCutSegmentIntRule<2, 2>(mesh, cutelems_outer, cutFaces_outer, deg, outer_radius, cutSegmentIntRules_outer,
-                               cutFaceIntRules_outer);
-
-    cutSegmentIntRules.insert(cutSegmentIntRules_inner.begin(), cutSegmentIntRules_inner.end());
-    cutSquareIntRules.insert(cutSquareIntRules_outer.begin(), cutSquareIntRules_outer.end());
-    cutSegmentIntRules.insert(cutSegmentIntRules_outer.begin(), cutSegmentIntRules_outer.end());
-    cutFaceIntRules.insert(cutFaceIntRules_outer.begin(), cutFaceIntRules_outer.end());
 
     // finite element collection
     FiniteElementCollection *fec = new DG_FECollection(order, dim);
@@ -454,38 +538,94 @@ int main(int argc, char *argv[])
                                                      Ordering::byVDIM);
     cout << "Number of finite element unknowns: "
          << fes->GetTrueVSize() << endl;
+
+    Vector qfs(dim + 2);
+    getFreeStreamState<2, 0>(qfs);
+
+    /// check area and perimeter
+    cout << "--------- area and perimeter test --------- " << endl;
+    GridFunction x(fes);
+    NonlinearForm *a = new NonlinearForm(fes);
+    a->AddDomainIntegrator(new CutEulerDomainIntegrator<2>(num_state, cutSquareIntRules, EmbeddedElems, alpha));
+    double area;
+    area = a->GetEnergy(x);
+    double ar = 1600 - (M_PI * 0.5 * 0.05);
+    cout << "correct area: " << ar << endl;
+    cout << "calculated area: " << area << endl;
+    NonlinearForm *po = new NonlinearForm(fes);
+
+    po->AddDomainIntegrator(new CutEulerVortexBoundaryIntegrator<2, 3, 0>(fec, num_state, qfs, cutSegmentIntRules, alpha));
+
+    double perim;
+    perim = po->GetEnergy(x);
+
+    double peri = 2.031987090050448;
+
+    cout << "correct perimeter for ellipse: " << peri << endl;
+
+    cout << "calculated perimeter : " << perim << endl;
+
+    cout << "area err " << endl;
+    cout << abs(area - ar) << endl;
+    cout << "perimeter err " << endl;
+    cout << abs(peri - perim) << endl;
+    cout << "---------test done--------- " << endl;
+
+    //  finite element space GD
+
     FiniteElementSpace *fes_GD = new GalerkinDifference(mesh, fec, EmbeddedElems,
                                                         num_state, Ordering::byVDIM, order);
     cout << "Number of finite element unknowns in GD: "
          << fes_GD->GetTrueVSize() << endl;
 
-    Vector qfs(dim + 2);
-    getFreeStreamState<2, 0>(qfs);
-
-    Array<int> bndry_marker_isentropic;
-    bndry_marker_isentropic.Append(1);
-    bndry_marker_isentropic.Append(0);
-    bndry_marker_isentropic.Append(0);
-    bndry_marker_isentropic.Append(1);
-
-
     /// nonlinearform
     NonlinearForm *res = new NonlinearForm(fes_GD);
     res->AddDomainIntegrator(new CutEulerDomainIntegrator<2>(num_state, cutSquareIntRules, EmbeddedElems, alpha));
-    res->AddDomainIntegrator(new CutEulerVortexBoundaryIntegrator<2, 1, 0>(fec, num_state, qfs, cutSegmentIntRules_inner, alpha));
-    res->AddDomainIntegrator(new CutEulerVortexBoundaryIntegrator<2, 2, 0>(fec, num_state, qfs, cutSegmentIntRules_outer, alpha));
+    res->AddDomainIntegrator(new CutEulerVortexBoundaryIntegrator<2, 3, 0>(fec, num_state, qfs, cutSegmentIntRules, alpha));
     res->AddInteriorFaceIntegrator(new CutEulerFaceIntegrator<2>(fec, immersedFaces, cutFaceIntRules, 1.0, num_state, alpha));
-    res->AddBdrFaceIntegrator(new CutEulerBoundaryIntegrator<2, 1, 0>(fec, cutBdrFaceIntRules_inner, EmbeddedElems,
-                                                                      num_state, qfs, alpha),
-                              bndry_marker_isentropic);
+    res->AddBdrFaceIntegrator(new EulerBoundaryIntegrator<2, 0>(fec, num_state, qfs, alpha));
+
+    // check if the integrators are correct
+    // double delta = 1e-5;
+
+    // // initialize state; here we randomly perturb a constant state
+    // CentGridFunction q(fes_GD);
+    // VectorFunctionCoefficient pert(num_state, randBaselinePert<2>);
+    // q.ProjectCoefficient(pert);
+
+    // // initialize the vector that the Jacobian multiplies
+    // CentGridFunction v(fes_GD);
+    // VectorFunctionCoefficient v_rand(num_state, randState);
+    // v.ProjectCoefficient(v_rand);
+
+    // // evaluate the Jacobian and compute its product with v
+    // Operator &Jac = res->GetGradient(q);
+    // CentGridFunction jac_v(fes_GD);
+    // Jac.Mult(v, jac_v);
+
+    // // now compute the finite-difference approximation...
+    // CentGridFunction q_pert(q), r(fes_GD), jac_v_fd(fes_GD);
+    // q_pert.Add(-delta, v);
+    // res->Mult(q_pert, r);
+    // q_pert.Add(2 * delta, v);
+    // res->Mult(q_pert, jac_v_fd);
+    // jac_v_fd -= r;
+    // jac_v_fd /= (2 * delta);
+
+    // for (int i = 0; i < jac_v.Size(); ++i)
+    // {
+    //     //std::cout << std::abs(jac_v(i) - (jac_v_fd(i))) << "\n";
+    //    MFEM_ASSERT(abs(jac_v(i) - (jac_v_fd(i))) <= 1e-09, "jacobian is incorrect");
+    // }
 
     // bilinear form
     BilinearForm *mass = new BilinearForm(fes);
-
     // set up the mass matrix
     mass->AddDomainIntegrator(new CutEulerMassIntegrator(cutSquareIntRules, EmbeddedElems, num_state));
     mass->Assemble();
     mass->Finalize();
+
+    /// prolongate mass_matrix
     SparseMatrix &mass_old = mass->SpMat();
     SparseMatrix *cp = dynamic_cast<GalerkinDifference *>(fes_GD)->GetCP();
     SparseMatrix *p = RAP(*cp, mass_old, *cp);
@@ -521,11 +661,13 @@ int main(int argc, char *argv[])
 
     //residual.Print();
     // check the residual
-    ofstream res_ofs("residual_cut_GD.vtk");
+    /// this doesn't work for GD
+    ofstream res_ofs("residual_cut_GD_ellipse.vtk");
     res_ofs.precision(14);
     mesh->PrintVTK(res_ofs, 1);
     residual.SaveVTK(res_ofs, "Residual", 1);
     res_ofs.close();
+
     /// time-marching method
     std::unique_ptr<mfem::ODESolver> ode_solver;
     //ode_solver.reset(new RK4Solver);
@@ -544,53 +686,57 @@ int main(int argc, char *argv[])
     double res_norm0 = calcResidualNorm(res, fes_GD, uc);
     double t_final = 1000;
     std::cout << "initial residual norm: " << res_norm0 << "\n";
-    double dt_init = 1000.0;
+    double dt_init = 0.02;
     double dt_old;
-    // initial l2_err
-    double l2_err_init = calcCutConservativeVarsL2Error<2, 0>(uexact, &u, fes, EmbeddedElems,
-                                                              cutSquareIntRules, num_state, 0);
-    cout << "l2_err_init " << l2_err_init << endl;
+
+    // // initial l2_err
+    // double l2_err_init = calcCutConservativeVarsL2Error<2, 0>(uexact, &u, fes, EmbeddedElems,
+    //                                                           cutSquareIntRules, num_state, 0);
+    // cout << "l2_err_init " << l2_err_init << endl;
 
     double dt = 0.0;
     double res_norm;
     int exponent = 2;
     res_norm = res_norm0;
-    for (auto ti = 0; ti < 30000; ++ti)
+    for (auto ti = 0; ti < 300; ++ti)
     {
         /// calculate timestep
         dt_old = dt;
         dt = dt_init * pow(res_norm0 / res_norm, exponent);
         dt = max(dt, dt_old);
+
         // print iterations
         std::cout << "iter " << ti << ": time = " << t << ": dt = " << dt << endl;
         //   std::cout << " (" << round(100 * t / t_final) << "% complete)";
 
-        if (res_norm <= 1e-11)
+        if (res_norm <= 1e-12)
             break;
 
         if (isnan(res_norm))
             break;
+
         ode_solver->Step(uc, t, dt);
         res_norm = calcResidualNorm(res, fes_GD, uc);
     }
+
     fes_GD->GetProlongationMatrix()->Mult(uc, u);
     cout << "=========================================" << endl;
     std::cout << "final residual norm: " << res_norm << "\n";
-    double drag = calcDrag(fes, u, num_state, cutSegmentIntRules_inner, alpha);
-    double drag_err = abs(drag - (-1 / 1.4));
+    double drag = calcDrag(fes, u, num_state, cutSegmentIntRules, alpha);
+    double drag_err = abs(drag - 0.0);
     cout << "drag: " << drag << endl;
     cout << "drag_error: " << drag_err << endl;
-    ofstream finalsol_ofs("final_sol_cut_GD.vtk");
+    cout << "=========================================" << endl;
+    ofstream finalsol_ofs("final_sol_cut_GD_ellipse.vtk");
     finalsol_ofs.precision(14);
     mesh->PrintVTK(finalsol_ofs, 3);
     u.SaveVTK(finalsol_ofs, "Solution", 3);
     finalsol_ofs.close();
 
-   //calculate final solution error
-    double l2_err_rho = calcCutConservativeVarsL2Error<2, 0>(uexact, &u, fes, EmbeddedElems,
-                                                             cutSquareIntRules, num_state, 0);
-    cout << "|| rho_h - rho ||_{L^2} = " << l2_err_rho << endl;
-    cout << "=========================================" << endl;
+    // calculate final solution error
+    // double l2_err_final = calcCutConservativeVarsL2Error<2, 0>(uexact, &u, fes, EmbeddedElems,
+    //                                                            cutSquareIntRules, num_state, 0);
+    // cout << "l2_err_final " << l2_err_final << endl;
     // Free the used memory.
     delete res;
     delete mass;
@@ -607,51 +753,9 @@ int main(int argc, char *argv[])
 void uexact(const Vector &x, Vector &q)
 {
     q.SetSize(4);
-    Vector u(4);
-    double ri = 1.0;
-    double Mai = 0.5; //0.95
-    double rhoi = 2.0;
-    double prsi = 1.0 / euler::gamma;
-    double rinv = ri / sqrt(x(0) * x(0) + x(1) * x(1));
-    double rho = rhoi * pow(1.0 + 0.5 * euler::gami * Mai * Mai * (1.0 - rinv * rinv),
-                            1.0 / euler::gami);
-    //cout << "rho " << rho << endl;
-    double Ma = sqrt((2.0 / euler::gami) * ((pow(rhoi / rho, euler::gami)) *
-                                                (1.0 + 0.5 * euler::gami * Mai * Mai) -
-                                            1.0));
-    //cout << "Ma " << Ma << endl;
-    double theta;
-    if (x(0) > 1e-15)
-    {
-        theta = atan(x(1) / x(0));
-    }
-    else
-    {
-        theta = M_PI / 2.0;
-    }
-    double press = prsi * pow((1.0 + 0.5 * euler::gami * Mai * Mai) /
-                                  (1.0 + 0.5 * euler::gami * Ma * Ma),
-                              euler::gamma / euler::gami);
-    double a = sqrt(euler::gamma * press / rho);
-
-    u(0) = rho;
-    u(1) = -rho * a * Ma * sin(theta);
-    u(2) = rho * a * Ma * cos(theta);
-    u(3) = press / euler::gami + 0.5 * rho * a * a * Ma * Ma;
-
-    q = u;
-
-    //    double mach_fs = 0.3;
-    //    q(0) = 1.0;
-    //    q(1) = q(0) * mach_fs; // ignore angle of attack
-    //    q(2) = 0.0;
-    //    q(3) = 1 / (euler::gamma * euler::gami) + 0.5 * mach_fs * mach_fs;
-    //    if (((x(0) * x(0)) + (x(1) * x(1)) < 1.0) /*|| ((x(0) * x(0)) + (x(1) * x(1)) > 9.0)*/)
-    //    {
-    //        double mach_fs = 0.3;
-    //        q(0) = 1.0;
-    //        q(1) = q(0) * mach_fs; // ignore angle of attack
-    //        q(2) = 0.0;
-    //        q(3) = 1 / (euler::gamma * euler::gami) + 0.5 * mach_fs * mach_fs;
-    //    }
+    double mach_fs = 0.5;
+    q(0) = 1.0;
+    q(1) = q(0) * mach_fs; // ignore angle of attack
+    q(2) = 0.0;
+    q(3) = 1.0 / (euler::gamma * euler::gami) + 0.5 * mach_fs * mach_fs;
 }
