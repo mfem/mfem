@@ -18,202 +18,6 @@
 using namespace mfem;
 using namespace std;
 
-class HessianCoefficientAMR : public TMOPMatrixCoefficient
-{
-private:
-   int typemod = 5;
-   int dim;
-
-public:
-   HessianCoefficientAMR(int dim_, int type_)
-      : TMOPMatrixCoefficient(dim_), typemod(type_), dim(dim_) { }
-
-   virtual void SetType(int typemod_) { typemod = typemod_; }
-   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip)
-   {
-      Vector pos(3);
-      T.Transform(ip, pos);
-      (this)->Eval(K,pos);
-   }
-
-   virtual void Eval(DenseMatrix &K)
-   {
-      Vector pos(3);
-      for (int i=0; i<K.Size(); i++) {pos(i)=K(i,i);}
-      (this)->Eval(K,pos);
-   }
-
-   virtual void Eval(DenseMatrix &K, Vector pos)
-   {
-      if (typemod == 0)
-      {
-         K(0, 0) = 1.0 + 3.0 * std::sin(M_PI*pos(0));
-         K(0, 1) = 0.0;
-         K(1, 0) = 0.0;
-         K(1, 1) = 1.0;
-      }
-      else if (typemod==1) //size only circle
-      {
-         double small = 0.001, big = 0.01;
-         if (dim == 3) { small = 0.005, big = 0.1; }
-         const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
-         double zc;
-         if (dim == 3) { zc = pos(2) - 0.5; }
-         double r = sqrt(xc*xc + yc*yc);
-         if (dim == 3) { r = sqrt(xc*xc + yc*yc + zc*zc); }
-         double r1 = 0.15; double r2 = 0.35; double sf=30.0;
-
-         const double tan1 = std::tanh(sf*(r-r1)),
-                      tan2 = std::tanh(sf*(r-r2));
-
-         double ind = (tan1 - tan2);
-         if (ind > 1.0) {ind = 1.;}
-         if (ind < 0.0) {ind = 0.;}
-         double val = ind * small + (1.0 - ind) * big;
-         //K(0, 0) = eps + 1.0 * (tan1 - tan2);
-         K = 0.0;
-         K(0, 0) = 1.0;
-         K(0, 1) = 0.0;
-         K(1, 0) = 0.0;
-         K(1, 1) = 1.0;
-         K(0, 0) *= pow(val,0.5);
-         K(1, 1) *= pow(val,0.5);
-         if (dim == 3) { K(2, 2) = pow(val,0.5); }
-      }
-      else if (typemod==2) // size only sine wave
-      {
-         const double small = 0.001, big = 0.01;
-         const double X = pos(0), Y = pos(1);
-         double ind = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
-                      std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
-         if (ind > 1.0) {ind = 1.;}
-         if (ind < 0.0) {ind = 0.;}
-         double val = ind * small + (1.0 - ind) * big;
-         K(0, 0) = pow(val,0.5);
-         K(0, 1) = 0.0;
-         K(1, 0) = 0.0;
-         K(1, 1) = pow(val,0.5);
-      }
-      else if (typemod==3) //circle with size and AR
-      {
-         const double small = 0.001, big = 0.01;
-         const double xc = pos(0)-0.5, yc = pos(1)-0.5;
-         const double rv = xc*xc + yc*yc;
-         double r = 0;
-         if (rv>0.) {r = sqrt(rv);}
-
-         double r1 = 0.2; double r2 = 0.3; double sf=30.0;
-         const double szfac = 1;
-         const double asfac = 4;
-         const double eps2 = szfac/asfac;
-         const double eps1 = szfac;
-
-         double tan1 = std::tanh(sf*(r-r1)+1),
-                tan2 = std::tanh(sf*(r-r2)-1);
-         double wgt = 0.5*(tan1-tan2);
-
-         tan1 = std::tanh(sf*(r-r1)),
-         tan2 = std::tanh(sf*(r-r2));
-
-         double ind = (tan1 - tan2);
-         if (ind > 1.0) {ind = 1.;}
-         if (ind < 0.0) {ind = 0.;}
-         double szval = ind * small + (1.0 - ind) * big;
-
-         double th = std::atan2(yc,xc)*180./M_PI;
-         if (wgt > 1) { wgt = 1; }
-         if (wgt < 0) { wgt = 0; }
-
-         double maxval = eps2 + eps1*(1-wgt)*(1-wgt);
-         double minval = eps1;
-         double avgval = 0.5*(maxval+minval);
-         double ampval = 0.5*(maxval-minval);
-         double val1 = avgval + ampval*sin(2.*th*M_PI/180.+90*M_PI/180.);
-         double val2 = avgval + ampval*sin(2.*th*M_PI/180.-90*M_PI/180.);
-
-         K(0,1) = 0.0;
-         K(1,0) = 0.0;
-         K(0,0) = val1;
-         K(1,1) = val2;
-
-         K(0,0) *= pow(szval,0.5);
-         K(1,1) *= pow(szval,0.5);
-      }
-      else if (typemod == 4) //sharp sine wave
-      {
-         //const double small = 0.001, big = 0.01;
-         const double xc = pos(0), yc = pos(1);
-
-         double tfac = 40;
-         double yl1 = 0.45;
-         double yl2 = 0.55;
-         double wgt = std::tanh((tfac*(yc-yl1) + 2*std::sin(4.0*M_PI*xc)) + 1) -
-                      std::tanh((tfac*(yc-yl2) + 2*std::sin(4.0*M_PI*xc)) - 1);
-         if (wgt > 1) { wgt = 1; }
-         if (wgt < 0) { wgt = 0; }
-
-         const double eps2 = 10;
-         const double eps1 = 1;
-         K(1,1) = eps1/eps2 + eps1*(1-wgt)*(1-wgt);
-         K(0,0) = eps1;
-         K(0,1) = 0.0;
-         K(1,0) = 0.0;
-
-         //K(0,0) *= pow(szval,0.5);
-         //K(1,1) *= pow(szval,0.5);
-      }
-      else if (typemod == 5) //sharp rotated sine wave
-      {
-         double xc = pos(0)-0.5, yc = pos(1)-0.5;
-         double th = 15.5*M_PI/180.;
-         double xn =  cos(th)*xc + sin(th)*yc;
-         double yn = -sin(th)*xc + cos(th)*yc;
-         double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
-         double stretch = 1/cos(th2);
-         xc = xn/stretch;
-         yc = yn;
-         double tfac = 20;
-         double s1 = 3;
-         double s2 = 2;
-         double yl1 = -0.025;
-         double yl2 =  0.025;
-         double wgt = std::tanh((tfac*(yc-yl1) + s2*std::sin(s1*M_PI*xc)) + 1) -
-                      std::tanh((tfac*(yc-yl2) + s2*std::sin(s1*M_PI*xc)) - 1);
-         if (wgt > 1) { wgt = 1; }
-         if (wgt < 0) { wgt = 0; }
-
-         const double eps2 = 25;
-         const double eps1 = 1;
-         K(1,1) = eps1/eps2 + eps1*(1-wgt)*(1-wgt);
-         K(0,0) = eps1;
-         K(0,1) = 0.0;
-         K(1,0) = 0.0;
-      }
-      else if (typemod == 6) //BOUNDARY LAYER REFINEMENT
-      {
-         const double szfac = 1;
-         const double asfac = 500;
-         const double eps = szfac;
-         const double eps2 = szfac/asfac;
-         double yscale = 1.5;
-         yscale = 2 - 2/asfac;
-         K(0, 0) = eps;
-         K(1, 1) = eps2 + szfac*yscale*pos(1);
-         K(0, 1) = 0.0;
-         K(1, 0) = 0.0;
-      }
-   }
-
-   virtual void EvalGrad(DenseMatrix &K, ElementTransformation &T,
-                         const IntegrationPoint &ip, int comp)
-   {
-      Vector pos(3);
-      T.Transform(ip, pos);
-      K = 0.;
-   }
-};
-
 double discrete_size_2d(const Vector &x)
 {
    int opt = 2;
@@ -299,75 +103,247 @@ class HessianCoefficient : public TMOPMatrixCoefficient
 {
 private:
    int metric;
+   int amr_type = 5;
+   int dim;
 
 public:
-   HessianCoefficient(int dim, int metric_id)
-      : TMOPMatrixCoefficient(dim), metric(metric_id) { }
+   HessianCoefficient(int dim_, int metric_id, int amr_type_)
+      : TMOPMatrixCoefficient(dim_), dim(dim_), metric(metric_id),
+        amr_type(amr_type_) { }
 
+   HessianCoefficient(int dim_, int metric_id)
+      : TMOPMatrixCoefficient(dim_), dim(dim_), metric(metric_id) { }
+
+   virtual void SetType(int amr_type_) { amr_type = amr_type_; }
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip)
    {
       Vector pos(3);
       T.Transform(ip, pos);
-      if (metric != 14 && metric != 36 && metric != 85)
+      (this)->Eval(K,pos);
+   }
+
+   virtual void Eval(DenseMatrix &K)
+   {
+      Vector pos(3);
+      for (int i=0; i<K.Size(); i++) {pos(i)=K(i,i);}
+      (this)->Eval(K,pos);
+   }
+
+   virtual void Eval(DenseMatrix &K, Vector pos)
+   {
+      if (amr_type == 0)
       {
+         if (metric != 14 && metric != 36 && metric != 85)
+         {
+            const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
+            const double r = sqrt(xc*xc + yc*yc);
+            double r1 = 0.15; double r2 = 0.35; double sf=30.0;
+            const double eps = 0.5;
+
+            const double tan1 = std::tanh(sf*(r-r1)),
+                         tan2 = std::tanh(sf*(r-r2));
+
+            K(0, 0) = eps + 1.0 * (tan1 - tan2);
+            K(0, 1) = 0.0;
+            K(1, 0) = 0.0;
+            K(1, 1) = 1.0;
+         }
+         else if (metric == 14 || metric == 36) // Size + Alignment
+         {
+            const double xc = pos(0), yc = pos(1);
+            double theta = M_PI * yc * (1.0 - yc) * cos(2 * M_PI * xc);
+            double alpha_bar = 0.1;
+
+            K(0, 0) =  cos(theta);
+            K(1, 0) =  sin(theta);
+            K(0, 1) = -sin(theta);
+            K(1, 1) =  cos(theta);
+
+            K *= alpha_bar;
+         }
+         else if (metric == 85) // Shape + Alignment
+         {
+            Vector x = pos;
+            double xc = x(0)-0.5, yc = x(1)-0.5;
+            double th = 22.5*M_PI/180.;
+            double xn =  cos(th)*xc + sin(th)*yc;
+            double yn = -sin(th)*xc + cos(th)*yc;
+            xc = xn; yc=yn;
+
+            double tfac = 20;
+            double s1 = 3;
+            double s2 = 2;
+            double wgt = std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) + 1)
+                         - std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) - 1);
+            if (wgt > 1) { wgt = 1; }
+            if (wgt < 0) { wgt = 0; }
+
+            xc = pos(0), yc = pos(1);
+            double theta = M_PI * (yc) * (1.0 - yc) * cos(2 * M_PI * xc);
+
+            K(0, 0) =  cos(theta);
+            K(1, 0) =  sin(theta);
+            K(0, 1) = -sin(theta);
+            K(1, 1) =  cos(theta);
+
+            double asp_ratio_tar = 0.1 + 1*(1-wgt)*(1-wgt);
+
+            K(0, 0) *=  1/pow(asp_ratio_tar,0.5);
+            K(1, 0) *=  1/pow(asp_ratio_tar,0.5);
+            K(0, 1) *=  pow(asp_ratio_tar,0.5);
+            K(1, 1) *=  pow(asp_ratio_tar,0.5);
+         }
+      }
+      else if (amr_type==1) //size only circle
+      {
+         double small = 0.001, big = 0.01;
+         if (dim == 3) { small = 0.005, big = 0.1; }
          const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
-         const double r = sqrt(xc*xc + yc*yc);
+         double zc;
+         if (dim == 3) { zc = pos(2) - 0.5; }
+         double r = sqrt(xc*xc + yc*yc);
+         if (dim == 3) { r = sqrt(xc*xc + yc*yc + zc*zc); }
          double r1 = 0.15; double r2 = 0.35; double sf=30.0;
-         const double eps = 0.5;
 
          const double tan1 = std::tanh(sf*(r-r1)),
                       tan2 = std::tanh(sf*(r-r2));
 
-         K(0, 0) = eps + 1.0 * (tan1 - tan2);
+         double ind = (tan1 - tan2);
+         if (ind > 1.0) {ind = 1.;}
+         if (ind < 0.0) {ind = 0.;}
+         double val = ind * small + (1.0 - ind) * big;
+         //K(0, 0) = eps + 1.0 * (tan1 - tan2);
+         K = 0.0;
+         K(0, 0) = 1.0;
          K(0, 1) = 0.0;
          K(1, 0) = 0.0;
          K(1, 1) = 1.0;
+         K(0, 0) *= pow(val,0.5);
+         K(1, 1) *= pow(val,0.5);
+         if (dim == 3) { K(2, 2) = pow(val,0.5); }
       }
-      else if (metric == 14 || metric == 36) // Size + Alignment
+      else if (amr_type==2) // size only sine wave
       {
-         const double xc = pos(0), yc = pos(1);
-         double theta = M_PI * yc * (1.0 - yc) * cos(2 * M_PI * xc);
-         double alpha_bar = 0.1;
-
-         K(0, 0) =  cos(theta);
-         K(1, 0) =  sin(theta);
-         K(0, 1) = -sin(theta);
-         K(1, 1) =  cos(theta);
-
-         K *= alpha_bar;
+         const double small = 0.001, big = 0.01;
+         const double X = pos(0), Y = pos(1);
+         double ind = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
+                      std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
+         if (ind > 1.0) {ind = 1.;}
+         if (ind < 0.0) {ind = 0.;}
+         double val = ind * small + (1.0 - ind) * big;
+         K(0, 0) = pow(val,0.5);
+         K(0, 1) = 0.0;
+         K(1, 0) = 0.0;
+         K(1, 1) = pow(val,0.5);
       }
-      else if (metric == 85) // Shape + Alignment
+      else if (amr_type==3) //circle with size and AR
       {
-         Vector x = pos;
-         double xc = x(0)-0.5, yc = x(1)-0.5;
-         double th = 22.5*M_PI/180.;
-         double xn =  cos(th)*xc + sin(th)*yc;
-         double yn = -sin(th)*xc + cos(th)*yc;
-         xc = xn; yc=yn;
+         const double small = 0.001, big = 0.01;
+         const double xc = pos(0)-0.5, yc = pos(1)-0.5;
+         const double rv = xc*xc + yc*yc;
+         double r = 0;
+         if (rv>0.) {r = sqrt(rv);}
 
-         double tfac = 20;
-         double s1 = 3;
-         double s2 = 2;
-         double wgt = std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) + 1)
-                      - std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) - 1);
+         double r1 = 0.2; double r2 = 0.3; double sf=30.0;
+         const double szfac = 1;
+         const double asfac = 4;
+         const double eps2 = szfac/asfac;
+         const double eps1 = szfac;
+
+         double tan1 = std::tanh(sf*(r-r1)+1),
+                tan2 = std::tanh(sf*(r-r2)-1);
+         double wgt = 0.5*(tan1-tan2);
+
+         tan1 = std::tanh(sf*(r-r1)),
+         tan2 = std::tanh(sf*(r-r2));
+
+         double ind = (tan1 - tan2);
+         if (ind > 1.0) {ind = 1.;}
+         if (ind < 0.0) {ind = 0.;}
+         double szval = ind * small + (1.0 - ind) * big;
+
+         double th = std::atan2(yc,xc)*180./M_PI;
          if (wgt > 1) { wgt = 1; }
          if (wgt < 0) { wgt = 0; }
 
-         xc = pos(0), yc = pos(1);
-         double theta = M_PI * (yc) * (1.0 - yc) * cos(2 * M_PI * xc);
+         double maxval = eps2 + eps1*(1-wgt)*(1-wgt);
+         double minval = eps1;
+         double avgval = 0.5*(maxval+minval);
+         double ampval = 0.5*(maxval-minval);
+         double val1 = avgval + ampval*sin(2.*th*M_PI/180.+90*M_PI/180.);
+         double val2 = avgval + ampval*sin(2.*th*M_PI/180.-90*M_PI/180.);
 
-         K(0, 0) =  cos(theta);
-         K(1, 0) =  sin(theta);
-         K(0, 1) = -sin(theta);
-         K(1, 1) =  cos(theta);
+         K(0,1) = 0.0;
+         K(1,0) = 0.0;
+         K(0,0) = val1;
+         K(1,1) = val2;
 
-         double asp_ratio_tar = 0.1 + 1*(1-wgt)*(1-wgt);
+         K(0,0) *= pow(szval,0.5);
+         K(1,1) *= pow(szval,0.5);
+      }
+      else if (amr_type == 4) //sharp sine wave
+      {
+         //const double small = 0.001, big = 0.01;
+         const double xc = pos(0), yc = pos(1);
 
-         K(0, 0) *=  1/pow(asp_ratio_tar,0.5);
-         K(1, 0) *=  1/pow(asp_ratio_tar,0.5);
-         K(0, 1) *=  pow(asp_ratio_tar,0.5);
-         K(1, 1) *=  pow(asp_ratio_tar,0.5);
+         double tfac = 40;
+         double yl1 = 0.45;
+         double yl2 = 0.55;
+         double wgt = std::tanh((tfac*(yc-yl1) + 2*std::sin(4.0*M_PI*xc)) + 1) -
+                      std::tanh((tfac*(yc-yl2) + 2*std::sin(4.0*M_PI*xc)) - 1);
+         if (wgt > 1) { wgt = 1; }
+         if (wgt < 0) { wgt = 0; }
+
+         const double eps2 = 10;
+         const double eps1 = 1;
+         K(1,1) = eps1/eps2 + eps1*(1-wgt)*(1-wgt);
+         K(0,0) = eps1;
+         K(0,1) = 0.0;
+         K(1,0) = 0.0;
+
+         //K(0,0) *= pow(szval,0.5);
+         //K(1,1) *= pow(szval,0.5);
+      }
+      else if (amr_type == 5) //sharp rotated sine wave
+      {
+         double xc = pos(0)-0.5, yc = pos(1)-0.5;
+         double th = 15.5*M_PI/180.;
+         double xn =  cos(th)*xc + sin(th)*yc;
+         double yn = -sin(th)*xc + cos(th)*yc;
+         double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
+         double stretch = 1/cos(th2);
+         xc = xn/stretch;
+         yc = yn;
+         double tfac = 20;
+         double s1 = 3;
+         double s2 = 2;
+         double yl1 = -0.025;
+         double yl2 =  0.025;
+         double wgt = std::tanh((tfac*(yc-yl1) + s2*std::sin(s1*M_PI*xc)) + 1) -
+                      std::tanh((tfac*(yc-yl2) + s2*std::sin(s1*M_PI*xc)) - 1);
+         if (wgt > 1) { wgt = 1; }
+         if (wgt < 0) { wgt = 0; }
+
+         const double eps2 = 25;
+         const double eps1 = 1;
+         K(1,1) = eps1/eps2 + eps1*(1-wgt)*(1-wgt);
+         K(0,0) = eps1;
+         K(0,1) = 0.0;
+         K(1,0) = 0.0;
+      }
+      else if (amr_type == 6) //BOUNDARY LAYER REFINEMENT
+      {
+         const double szfac = 1;
+         const double asfac = 500;
+         const double eps = szfac;
+         const double eps2 = szfac/asfac;
+         double yscale = 1.5;
+         yscale = 2 - 2/asfac;
+         K(0, 0) = eps;
+         K(1, 1) = eps2 + szfac*yscale*pos(1);
+         K(0, 1) = 0.0;
+         K(1, 0) = 0.0;
       }
    }
 
@@ -377,26 +353,29 @@ public:
       Vector pos(3);
       T.Transform(ip, pos);
       K = 0.;
-      if (metric != 14 && metric != 85)
+      if (amr_type == 0)
       {
-         const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
-         const double r = sqrt(xc*xc + yc*yc);
-         double r1 = 0.15; double r2 = 0.35; double sf=30.0;
-
-         const double tan1 = std::tanh(sf*(r-r1)),
-                      tan2 = std::tanh(sf*(r-r2));
-         double tan1d = 0., tan2d = 0.;
-         if (r > 0.001)
+         if (metric != 14 && metric != 85)
          {
-            tan1d = (1.-tan1*tan1)*(sf)/r,
-            tan2d = (1.-tan2*tan2)*(sf)/r;
-         }
+            const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
+            const double r = sqrt(xc*xc + yc*yc);
+            double r1 = 0.15; double r2 = 0.35; double sf=30.0;
 
-         K(0, 1) = 0.0;
-         K(1, 0) = 0.0;
-         K(1, 1) = 1.0;
-         if (comp == 0) { K(0, 0) = tan1d*xc - tan2d*xc; }
-         else if (comp == 1) { K(0, 0) = tan1d*yc - tan2d*yc; }
+            const double tan1 = std::tanh(sf*(r-r1)),
+                         tan2 = std::tanh(sf*(r-r2));
+            double tan1d = 0., tan2d = 0.;
+            if (r > 0.001)
+            {
+               tan1d = (1.-tan1*tan1)*(sf)/r,
+               tan2d = (1.-tan2*tan2)*(sf)/r;
+            }
+
+            K(0, 1) = 0.0;
+            K(1, 0) = 0.0;
+            K(1, 1) = 1.0;
+            if (comp == 0) { K(0, 0) = tan1d*xc - tan2d*xc; }
+            else if (comp == 1) { K(0, 0) = tan1d*yc - tan2d*yc; }
+         }
       }
    }
 };

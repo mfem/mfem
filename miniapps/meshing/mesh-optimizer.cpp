@@ -99,7 +99,6 @@ int main(int argc, char *argv[])
    const char *mesh_file = "icf.mesh";
    int mesh_poly_deg     = 1;
    int rs_levels         = 0;
-   int amr_rs_levels        = 0;
    double jitter         = 0.0;
    int metric_id         = 1;
    int target_id         = 1;
@@ -114,14 +113,14 @@ int main(int argc, char *argv[])
    int max_lin_iter      = 100;
    bool move_bnd         = true;
    int combomet          = 0;
-   bool hr               = true;
+   bool hradaptivity     = true;
    int amr_metric_id      = -1;
    bool normalization    = false;
    bool visualization    = true;
    int verbosity_level   = 0;
    int hessiantype       = 1;
    bool fdscheme         = false;
-   int adapt_eval        = 1;
+   int adapt_eval        = 0;
    bool exactaction      = false;
 
    // 1. Parse command-line options.
@@ -132,8 +131,6 @@ int main(int argc, char *argv[])
                   "Polynomial degree of mesh finite element space.");
    args.AddOption(&rs_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
-   args.AddOption(&amr_rs_levels, "-ars", "--amr-refine-serial",
-                  "Number of times to refine the mesh uniformly in serial using AMR.");
    args.AddOption(&jitter, "-ji", "--jitter",
                   "Random perturbation scaling factor.");
    args.AddOption(&metric_id, "-mid", "--metric-id",
@@ -208,7 +205,7 @@ int main(int argc, char *argv[])
                   "0: Use single metric\n\t"
                   "1: Shape + space-dependent size given analytically\n\t"
                   "2: Shape + adapted size given discretely; shared target");
-   args.AddOption(&hr, "-hr", "--hr-adaptivity", "-no-hr",
+   args.AddOption(&hradaptivity, "-hr", "--hr-adaptivity", "-no-hr",
                   "--no-hr-adaptivity",
                   "Enable hr-adaptivity.");
    args.AddOption(&amr_metric_id, "-hmid", "--h-metric",
@@ -277,19 +274,6 @@ int main(int argc, char *argv[])
    //    changing x automatically changes the shapes of the mesh elements.
    GridFunction x(fespace);
    mesh->SetNodalGridFunction(&x);
-
-   for (int lev = 0; lev < amr_rs_levels; lev++)
-   {
-      Array<Refinement> marked_elements;
-      for (int e = 0; e < mesh->GetNE(); e++)
-      {
-         marked_elements.Append(e);
-      }
-      //mesh->GeneralRefinement(marked_elements, 1, 0);
-      mesh->RandomRefinement(0.99, false, 1, 0);
-      fespace->Update();
-      x.Update();
-   }
 
    // 7. Define a vector representing the minimal local mesh size in the mesh
    //    nodes. We index the nodes using the scalar version of the degrees of
@@ -393,21 +377,24 @@ int main(int argc, char *argv[])
          return 3;
    }
    TMOP_QualityMetric *amrmetric = NULL;
-   switch (amr_metric_id)
+   if (hradaptivity)
    {
-      case 1: amrmetric = new TMOP_Metric_001; break;
-      case 2: amrmetric = new TMOP_Metric_002; break;
-      case 7: amrmetric = new TMOP_Metric_007; break;
-      case 9: amrmetric = new TMOP_Metric_009; break;
-      case 55: amrmetric = new TMOP_Metric_055; break;
-      case 56: amrmetric = new TMOP_Metric_056; break;
-      case 58: amrmetric = new TMOP_Metric_058; break;
-      case 77: amrmetric = new TMOP_Metric_077; break;
-      case 315: amrmetric = new TMOP_Metric_315; break;
-      case 316: amrmetric = new TMOP_Metric_316; break;
-      case 321: amrmetric = new TMOP_Metric_321; break;
-      default: cout << "Metric_id not supported in AMR: " << amr_metric_id << endl;
-         return 3;
+      switch (amr_metric_id)
+      {
+         case 1: amrmetric = new TMOP_Metric_001; break;
+         case 2: amrmetric = new TMOP_Metric_002; break;
+         case 7: amrmetric = new TMOP_Metric_007; break;
+         case 9: amrmetric = new TMOP_Metric_009; break;
+         case 55: amrmetric = new TMOP_Metric_055; break;
+         case 56: amrmetric = new TMOP_Metric_056; break;
+         case 58: amrmetric = new TMOP_Metric_058; break;
+         case 77: amrmetric = new TMOP_Metric_077; break;
+         case 315: amrmetric = new TMOP_Metric_315; break;
+         case 316: amrmetric = new TMOP_Metric_316; break;
+         case 321: amrmetric = new TMOP_Metric_321; break;
+         default: cout << "Metric_id not supported in AMR: " << amr_metric_id << endl;
+            return 3;
+      }
    }
 
    if (metric_id < 300 || amr_metric_id < 300)
@@ -421,7 +408,7 @@ int main(int argc, char *argv[])
 
    TargetConstructor::TargetType target_t;
    TargetConstructor *target_c = NULL;
-   HessianCoefficientAMR *adapt_coeff = NULL;
+   HessianCoefficient *adapt_coeff = NULL;
    H1_FECollection ind_fec(mesh_poly_deg, dim);
    DiscreteAdaptTC *tcd = NULL;
    AnalyticAdaptTC *tca = NULL;
@@ -438,7 +425,7 @@ int main(int argc, char *argv[])
       {
          target_t = TargetConstructor::GIVEN_FULL;
          tca = new AnalyticAdaptTC(target_t);
-         adapt_coeff = new HessianCoefficientAMR(dim, hessiantype);
+         adapt_coeff = new HessianCoefficient(dim, metric_id, hessiantype);
          tca->SetAnalyticTargetSpec(NULL, NULL, adapt_coeff);
          target_c = tca;
          break;
@@ -893,14 +880,12 @@ int main(int argc, char *argv[])
    TMOPDeRefinerEstimator tmop_dr_est(*mesh, a);
    ThresholdDerefiner tmop_dr(tmop_dr_est);
 
-   int newtonstop = 0;
+   bool radaptivity = true;
 
-   if (hr)
+   if (hradaptivity)
    {
       int n_hr = 5;         //Newton + AMR iterations
       int n_h = 1;          //AMR iterations per Newton iteration
-      int amrstop = 0;
-      int amrdstop = 0;
 
       tmop_dr.Reset();
       tmop_r.Reset();
@@ -908,9 +893,8 @@ int main(int argc, char *argv[])
       for (int i_hr = 0; i_hr < n_hr; i_hr++)
       {
 
-         if (amrstop == 1 && amrdstop == 1)
+         if (!radaptivity)
          {
-            newtonstop = 1;
             break;
          }
          std::cout << i_hr << " r-adaptivity iteration.\n";
@@ -926,44 +910,35 @@ int main(int argc, char *argv[])
          for (int i_r = 0; i_r < n_h; i_r++)
          {
             NCMesh *ncmesh = mesh->ncmesh;
-            if (ncmesh && (amrdstop == 0 || amrstop == 0))   //derefinement
+            if (ncmesh) //derefinement
             {
                tmop_dr.Apply(*mesh);
                tmopamrupdate.Update();
             }
 
-            if (!tmop_dr.Derefined()) { amrdstop = 1; }
             std::cout << "TMOP energy after derefinement: " <<
                       a.GetGridFunctionEnergy(x)/mesh->GetNE() <<
                       ", Elements: " << mesh->GetNE() << endl;
 
             // Refiner
-            if (amrdstop == 0 || amrstop == 0)
-            {
-               tmop_r.Apply(*mesh);
-               tmopamrupdate.Update();
-            }
-            if (tmop_r.Stop()) { amrstop = 1; }
+            tmop_r.Apply(*mesh);
+            tmopamrupdate.Update();
             std::cout << "TMOP energy after   refinement: " <<
                       a.GetGridFunctionEnergy(x)/mesh->GetNE() <<
                       ", Elements: " << mesh->GetNE() << endl;
 
-            if (amrstop == 1 && amrdstop == 1)
+            if (!tmop_dr.Derefined() && tmop_r.Stop())
             {
-               newtonstop = 1;
+               radaptivity = false;
                cout << "AMR stopping criterion satisfied. Stop h-refinement." << endl;
                break;
-            }
-            else
-            {
-               amrstop = 0; amrdstop = 0;
             }
          } //n_h
       } //n_hr
    } //hr
 
    solver.SetOperator(a);
-   if (newtonstop == 0 && !hr)
+   if (!hradaptivity)
    {
       solver.Mult(b, x.GetTrueVector());
       if (solver.GetConverged() == false)
@@ -977,13 +952,6 @@ int main(int argc, char *argv[])
    //     using GLVis: "glvis -m optimized.mesh".
    {
       ofstream mesh_ofs("optimized.mesh");
-      mesh_ofs.precision(14);
-      mesh->Print(mesh_ofs);
-   }
-   {
-      char numstr[1]; // enough to hold all numbers up to 64-bits
-      sprintf(numstr, "%s%d%s", "optimized_ht_", hessiantype, ".mesh");
-      ofstream mesh_ofs(numstr);
       mesh_ofs.precision(14);
       mesh->Print(mesh_ofs);
    }
