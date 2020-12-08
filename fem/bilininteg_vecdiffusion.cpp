@@ -132,10 +132,9 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       = IntRule ? IntRule : &DiffusionIntegrator::GetRule(el, el);
    if (DeviceCanUseCeed())
    {
-      // delete ceedOp;
-      // ceedOp = new CeedData;
-      // InitCeedCoeff(Q, *mesh, *ir, ceedOp);
-      // return CeedPADiffusionAssemble(fes, *ir, * ceedOp);
+      delete ceedOp;
+      ceedOp = new CeedPADiffusionIntegrator(fes, *ir, Q);
+      return;
    }
    const int dims = el.GetDim();
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
@@ -517,7 +516,6 @@ void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
    if (DeviceCanUseCeed())
    {
       ceedOp->Mult(x, y);
-      // CeedAddMult(ceedOp, x, y);
    }
    else
    {
@@ -745,7 +743,6 @@ void VectorDiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
    if (DeviceCanUseCeed())
    {
       ceedOp->GetDiagonal(diag);
-      // CeedAssembleDiagonal(ceedOp, diag);
    }
    else
    {
