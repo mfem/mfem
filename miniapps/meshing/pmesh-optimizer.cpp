@@ -161,17 +161,17 @@ int main (int argc, char *argv[])
                   "80 : (1-gamma)mu_2 + gamma mu_77    -- 2D shape+size\n\t"
                   "85 : |T-|T|/sqrt(2)I|^2             -- 2D shape+orientation\n\t"
                   "98 : (1/tau)|T-I|^2                 -- 2D shape+size+orientation\n\t"
-                  //"211: (tau-1)^2-tau+sqrt(tau^2+eps)  -- 2D untangling\n\t"
-                  //"252: 0.5(tau-1)^2/(tau-tau_0)       -- 2D untangling\n\t"
+                  // "211: (tau-1)^2-tau+sqrt(tau^2+eps)  -- 2D untangling\n\t"
+                  // "252: 0.5(tau-1)^2/(tau-tau_0)       -- 2D untangling\n\t"
                   "301: (|T||T^-1|)/3-1              -- 3D shape\n\t"
                   "302: (|T|^2|T^-1|^2)/9-1          -- 3D shape\n\t"
                   "303: (|T|^2)/3*tau^(2/3)-1        -- 3D shape\n\t"
-                  //"311: (tau-1)^2-tau+sqrt(tau^2+eps)-- 3D untangling\n\t"
+                  // "311: (tau-1)^2-tau+sqrt(tau^2+eps)-- 3D untangling\n\t"
                   "313: (|T|^2)(tau-tau0)^(-2/3)/3   -- 3D untangling\n\t"
                   "315: (tau-1)^2                    -- 3D size\n\t"
                   "316: 0.5(sqrt(tau)-1/sqrt(tau))^2 -- 3D size\n\t"
                   "321: |T-T^-t|^2                   -- 3D shape+size\n\t"
-                  //"352: 0.5(tau-1)^2/(tau-tau_0)     -- 3D untangling\n\t"
+                  // "352: 0.5(tau-1)^2/(tau-tau_0)     -- 3D untangling\n\t"
                   "A-metrics\n\t"
                   "11 : (1/4*alpha)|A-(adjA)^T(W^TW)/omega|^2 -- 2D shape\n\t"
                   "36 : (1/alpha)|A-W|^2                      -- 2D shape+size+orientation\n\t"
@@ -382,17 +382,17 @@ int main (int argc, char *argv[])
       case 80: metric = new TMOP_Metric_080(0.5); break;
       case 85: metric = new TMOP_Metric_085; break;
       case 98: metric = new TMOP_Metric_098; break;
-      //case 211: metric = new TMOP_Metric_211; break;
-      //case 252: metric = new TMOP_Metric_252(tauval); break;
+      // case 211: metric = new TMOP_Metric_211; break;
+      // case 252: metric = new TMOP_Metric_252(tauval); break;
       case 301: metric = new TMOP_Metric_301; break;
       case 302: metric = new TMOP_Metric_302; break;
       case 303: metric = new TMOP_Metric_303; break;
-      //case 311: metric = new TMOP_Metric_311; break;
+      // case 311: metric = new TMOP_Metric_311; break;
       case 313: metric = new TMOP_Metric_313(tauval); break;
       case 315: metric = new TMOP_Metric_315; break;
       case 316: metric = new TMOP_Metric_316; break;
       case 321: metric = new TMOP_Metric_321; break;
-      //case 352: metric = new TMOP_Metric_352(tauval); break;
+      // case 352: metric = new TMOP_Metric_352(tauval); break;
       // A-metrics
       case 11: metric = new TMOP_AMetric_011; break;
       case 36: metric = new TMOP_AMetric_036; break;
@@ -447,7 +447,7 @@ int main (int argc, char *argv[])
          target_c = tc;
          break;
       }
-      case 6: //material indicator 2D
+      case 6: // material indicator 2D
       {
          ParGridFunction d_x(&ind_fes), d_y(&ind_fes);
 
@@ -467,14 +467,14 @@ int main (int argc, char *argv[])
             MFEM_ABORT("MFEM is not built with GSLIB.");
 #endif
          }
-         //Diffuse the interface
+         // Diffuse the interface
          DiffuseField(disc,2);
 
-         //Get  partials with respect to x and y of the grid function
+         // Get  partials with respect to x and y of the grid function
          disc.GetDerivative(1,0,d_x);
          disc.GetDerivative(1,1,d_y);
 
-         //Compute the squared magnitude of the gradient
+         // Compute the squared magnitude of the gradient
          for (int i = 0; i < size.Size(); i++)
          {
             size(i) = std::pow(d_x(i),2)+std::pow(d_y(i),2);

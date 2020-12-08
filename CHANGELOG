@@ -27,8 +27,8 @@ Version 4.2.1 (development)
 
 - Implemented a variable step-size IMEX (VSSIMEX) method for the Navier miniapp.
 
-- Added new mesh quality metrics and improved the untangling capabilities
-  of the TMOP-based mesh optimization algorithms.
+- Added new mesh quality metrics and improved the untangling capabilities of the
+  TMOP-based mesh optimization algorithms.
 
 
 Version 4.2, released on October 30, 2020
