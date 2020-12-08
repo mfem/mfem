@@ -62,23 +62,24 @@ protected:
    AvgType avgtype;             // average type used for L2 functions
 
    /// Get GridFunction from MFEM format to GSLIB format
-   void GetNodeValues(const GridFunction &gf_in, Vector &node_vals);
+   virtual void GetNodeValues(const GridFunction &gf_in, Vector &node_vals);
    /// Get nodal coordinates from mesh to the format expected by GSLIB for quads
    /// and hexes
-   void GetQuadHexNodalCoordinates();
+   virtual void GetQuadHexNodalCoordinates();
    /// Convert simplices to quad/hexes and then get nodal coordinates for each
    /// split element into format expected by GSLIB
-   void GetSimplexNodalCoordinates();
+   virtual void GetSimplexNodalCoordinates();
 
    /// Use GSLIB for communication and interpolation
-   void InterpolateH1(const GridFunction &field_in, Vector &field_out);
+   virtual void InterpolateH1(const GridFunction &field_in, Vector &field_out);
    /// Uses GSLIB Crystal Router for communication followed by MFEM's
    /// interpolation functions
-   void InterpolateGeneral(const GridFunction &field_in, Vector &field_out);
+   virtual void InterpolateGeneral(const GridFunction &field_in,
+                                   Vector &field_out);
    /// Map {r,s,t} coordinates from [-1,1] to [0,1] for MFEM. For simplices mesh
    /// find the original element number (that was split into micro quads/hexes
    /// by GetSimplexNodalCoordinates())
-   void MapRefPosAndElemIndices();
+   virtual void MapRefPosAndElemIndices();
 
 public:
    FindPointsGSLIB();
@@ -99,8 +100,9 @@ public:
        @param[in] newt_tol  Newton tolerance for the gslib search methods.
        @param[in] npt_max   Number of points for simultaneous iteration. This
                             alters performance and memory footprint. */
-   void Setup(Mesh &m, const double bb_t = 0.1, const double newt_tol = 1.0e-12,
-              const int npt_max = 256);
+   virtual void Setup(Mesh &m, const double bb_t = 0.1,
+                      const double newt_tol = 1.0e-12,
+                      const int npt_max = 256);
    /** Searches positions given in physical space by @a point_pos. These positions
        must by ordered by nodes: (XXX...,YYY...,ZZZ).
        This function populates the following member variables:
@@ -120,10 +122,11 @@ public:
                         Defaults to 0 for points that were not found.
        #gsl_dist        Distance between the sought and the found point
                         in physical space. */
-   void FindPoints(const Vector &point_pos);
+   virtual void FindPoints(const Vector &point_pos);
    /// Setup FindPoints and search positions
-   void FindPoints(Mesh &m, const Vector &point_pos, const double bb_t = 0.1,
-                   const double newt_tol = 1.0e-12,  const int npt_max = 256);
+   virtual void FindPoints(Mesh &m, const Vector &point_pos,
+                           const double bb_t = 0.1,
+                           const double newt_tol = 1.0e-12,  const int npt_max = 256);
 
    /** Interpolation of field values at prescribed reference space positions.
        @param[in] field_in    Function values that will be interpolated on the
@@ -132,21 +135,21 @@ public:
                               mesh that was given to Setup().
        @param[out] field_out  Interpolated values. For points that are not found
                               the value is set to #default_interp_value. */
-   void Interpolate(const GridFunction &field_in, Vector &field_out);
+   virtual void Interpolate(const GridFunction &field_in, Vector &field_out);
    /** Search positions and interpolate */
-   void Interpolate(const Vector &point_pos, const GridFunction &field_in,
-                    Vector &field_out);
+   virtual void Interpolate(const Vector &point_pos, const GridFunction &field_in,
+                            Vector &field_out);
    /** Setup FindPoints, search positions and interpolate */
-   void Interpolate(Mesh &m, const Vector &point_pos,
-                    const GridFunction &field_in, Vector &field_out);
+   virtual void Interpolate(Mesh &m, const Vector &point_pos,
+                            const GridFunction &field_in, Vector &field_out);
 
    /// Average type to be used for L2 functions in-case a point is located at
    /// an element boundary where the function might be multi-valued.
-   void SetL2AvgType(AvgType avgtype_) { avgtype = avgtype_; }
+   virtual void SetL2AvgType(AvgType avgtype_) { avgtype = avgtype_; }
 
    /// Set the default interpolation value for points that are not found in the
    /// mesh.
-   void SetDefaultInterpolationValue(double interp_value_)
+   virtual void SetDefaultInterpolationValue(double interp_value_)
    {
       default_interp_value = interp_value_;
    }
@@ -154,27 +157,27 @@ public:
    /** Cleans up memory allocated internally by gslib.
        Note that in parallel, this must be called before MPI_Finalize(), as it
        calls MPI_Comm_free() for internal gslib communicators. */
-   void FreeData();
+   virtual void FreeData();
 
    /// Return code for each point searched by FindPoints: inside element (0), on
    /// element boundary (1), or not found (2).
-   const Array<unsigned int> &GetCode() const { return gsl_code; }
+   virtual const Array<unsigned int> &GetCode() const { return gsl_code; }
    /// Return element number for each point found by FindPoints.
-   const Array<unsigned int> &GetElem() const { return gsl_mfem_elem; }
+   virtual const Array<unsigned int> &GetElem() const { return gsl_mfem_elem; }
    /// Return MPI rank on which each point was found by FindPoints.
-   const Array<unsigned int> &GetProc() const { return gsl_proc; }
+   virtual const Array<unsigned int> &GetProc() const { return gsl_proc; }
    /// Return reference coordinates for each point found by FindPoints.
-   const Vector &GetReferencePosition() const { return gsl_mfem_ref;  }
+   virtual const Vector &GetReferencePosition() const { return gsl_mfem_ref;  }
    /// Return distance Distance between the sought and the found point
    /// in physical space, for each point found by FindPoints.
-   const Vector &GetDist()              const { return gsl_dist; }
+   virtual const Vector &GetDist()              const { return gsl_dist; }
 
    /// Return element number for each point found by FindPoints corresponding to
    /// GSLIB mesh. gsl_mfem_elem != gsl_elem for mesh with simplices.
-   const Array<unsigned int> &GetGSLIBElem() const { return gsl_elem; }
+   virtual const Array<unsigned int> &GetGSLIBElem() const { return gsl_elem; }
    /// Return reference coordinates in [-1,1] (internal range in GSLIB) for each
    /// point found by FindPoints.
-   const Vector &GetGSLIBReferencePosition() const { return gsl_ref; }
+   virtual const Vector &GetGSLIBReferencePosition() const { return gsl_ref; }
 };
 
 
@@ -233,6 +236,7 @@ public:
    /** Search positions and interpolate */
    void Interpolate(const Vector &point_pos, Array<unsigned int> &point_id,
                     const GridFunction &field_in, Vector &field_out);
+   using FindPointsGSLIB::Interpolate;
 };
 
 } // namespace mfem

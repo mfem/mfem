@@ -696,6 +696,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
        nptorig = points_cnt,
        npt     = points_cnt;
 
+
    field_out.SetSize(points_cnt*ncomp);
    field_out = default_interp_value;
 
@@ -914,7 +915,7 @@ void OversetFindPointsGSLIB::FindPoints(const Vector &point_pos,
 {
    MFEM_VERIFY(setupflag, "Use FindPointsGSLIB::Setup before finding points.");
    MFEM_VERIFY(overset, " Please setup FindPoints for overlapping grids.");
-   const int points_cnt = point_pos.Size() / dim;
+   points_cnt = point_pos.Size() / dim;
    unsigned int match= 0;
 
    gsl_code.SetSize(points_cnt);
@@ -931,11 +932,11 @@ void OversetFindPointsGSLIB::FindPoints(const Vector &point_pos,
       unsigned xv_stride[2];
       xv_stride[0] = sizeof(double);
       xv_stride[1] = sizeof(double);
-      findptsms_2(gsl_code.GetData(),    sizeof(unsigned int),
+      findptsms_2(gsl_code.GetData(), sizeof(unsigned int),
                   gsl_proc.GetData(), sizeof(unsigned int),
                   gsl_elem.GetData(), sizeof(unsigned int),
                   gsl_ref.GetData(),  sizeof(double) * dim,
-                  gsl_dist.GetData(),     sizeof(double),
+                  gsl_dist.GetData(), sizeof(double),
                   xv_base,            xv_stride,
                   point_id.GetData(), sizeof(unsigned int), &match,
                   points_cnt, fdata2D);
@@ -950,11 +951,11 @@ void OversetFindPointsGSLIB::FindPoints(const Vector &point_pos,
       xv_stride[0] = sizeof(double);
       xv_stride[1] = sizeof(double);
       xv_stride[2] = sizeof(double);
-      findptsms_3(gsl_code.GetData(),    sizeof(unsigned int),
+      findptsms_3(gsl_code.GetData(), sizeof(unsigned int),
                   gsl_proc.GetData(), sizeof(unsigned int),
                   gsl_elem.GetData(), sizeof(unsigned int),
                   gsl_ref.GetData(),  sizeof(double) * dim,
-                  gsl_dist.GetData(),     sizeof(double),
+                  gsl_dist.GetData(), sizeof(double),
                   xv_base,            xv_stride,
                   point_id.GetData(), sizeof(unsigned int), &match,
                   points_cnt, fdata3D);
@@ -981,7 +982,7 @@ void OversetFindPointsGSLIB::Interpolate(const Vector &point_pos,
                                          Vector &field_out)
 {
    FindPoints(point_pos, point_id);
-   FindPointsGSLIB::Interpolate(field_in, field_out);
+   Interpolate(field_in, field_out);
 }
 
 
