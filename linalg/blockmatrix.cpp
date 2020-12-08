@@ -155,7 +155,7 @@ const double& BlockMatrix::Elem (int i, int j) const
    findGlobalRow(i, iblock, iloc);
    findGlobalCol(j, jblock, jloc);
 
-   if (IsZeroBlock(i, j))
+   if (IsZeroBlock(iblock, jblock))
    {
       mfem_error("BlockMatrix::Elem");
    }
