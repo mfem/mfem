@@ -2025,9 +2025,31 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             for (int j=0; j<num_nodes; j++)
             {
                input >> slave >> master;
-               v2v[slave - 1] = master - 1;
+               // Forces slave to have an index larger to master
+               if (slave > master)
+               {
+                  v2v[slave - 1] = master - 1;
+               }
+               else
+               {
+                  v2v[master - 1] = slave - 1;
+               }
             }
             getline(input, buff); // Read end-of-line
+         }
+
+         // Follow existing long chains of slave->master in v2v array.
+         // Finally, we should have v2v[slave] pointing on a true master.
+         for (int slave = 0; slave < v2v.Size(); slave++)
+         {
+            int master = v2v[slave];
+            if (master != slave)
+            {
+               // This loop is ending because we imposed previously
+               // that a slave has an index larger to master.
+               while (v2v[master] != master) {  master = v2v[master]; }
+               v2v[slave] = master;
+            }
          }
 
          // Convert nodes to discontinuous GridFunction (if they aren't already)
