@@ -28,15 +28,44 @@ typedef struct _stat struct_stat;
 namespace mfem
 {
 
-namespace internal
+bool DeviceCanUseCeed()
 {
-extern Ceed ceed;
-
-std::string ceed_path;
-
-extern CeedBasisMap ceed_basis_map;
-extern CeedRestrMap ceed_restr_map;
+   return Device::Allows(Backend::CEED_MASK);
 }
+
+void RemoveCeedBasisAndRestriction(const FiniteElementSpace *fes)
+{
+#ifdef MFEM_USE_CEED
+   auto itb = internal::ceed_basis_map.begin();
+   while (itb != internal::ceed_basis_map.end())
+   {
+      if (std::get<0>(itb->first)==fes)
+      {
+         CeedBasisDestroy(&itb->second);
+         itb = internal::ceed_basis_map.erase(itb);
+      }
+      else
+      {
+         itb++;
+      }
+   }
+   auto itr = internal::ceed_restr_map.begin();
+   while (itr != internal::ceed_restr_map.end())
+   {
+      if (std::get<0>(itr->first)==fes)
+      {
+         CeedElemRestrictionDestroy(&itr->second);
+         itr = internal::ceed_restr_map.erase(itr);
+      }
+      else
+      {
+         itr++;
+      }
+   }
+#endif
+}
+
+#ifdef MFEM_USE_CEED
 
 void InitCeedVector(const Vector &v, CeedVector &cv)
 {
@@ -281,43 +310,6 @@ void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
    }
 }
 
-void RemoveCeedBasisAndRestriction(const FiniteElementSpace *fes)
-{
-#ifdef MFEM_USE_CEED
-   auto itb = internal::ceed_basis_map.begin();
-   while (itb != internal::ceed_basis_map.end())
-   {
-      if (std::get<0>(itb->first)==fes)
-      {
-         CeedBasisDestroy(&itb->second);
-         itb = internal::ceed_basis_map.erase(itb);
-      }
-      else
-      {
-         itb++;
-      }
-   }
-   auto itr = internal::ceed_restr_map.begin();
-   while (itr != internal::ceed_restr_map.end())
-   {
-      if (std::get<0>(itr->first)==fes)
-      {
-         CeedElemRestrictionDestroy(&itr->second);
-         itr = internal::ceed_restr_map.erase(itr);
-      }
-      else
-      {
-         itr++;
-      }
-   }
-#endif
-}
-
-bool DeviceCanUseCeed()
-{
-   return Device::Allows(Backend::CEED_MASK);
-}
-
 const std::string &GetCeedPath()
 {
    if (internal::ceed_path.empty())
@@ -343,5 +335,7 @@ const std::string &GetCeedPath()
    }
    return internal::ceed_path;
 }
+
+#endif
 
 } // namespace mfem

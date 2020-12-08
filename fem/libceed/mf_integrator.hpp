@@ -12,7 +12,9 @@
 #ifndef MFEM_LIBCEED_MFINTEG
 #define MFEM_LIBCEED_MFINTEG
 
+#ifdef MFEM_USE_CEED
 #include <ceed.h>
+#endif
 #include "operator.hpp"
 #include "util.hpp"
 #include "coefficient.hpp"
@@ -22,6 +24,7 @@
 namespace mfem
 {
 
+#ifdef MFEM_USE_CEED
 /** This structure contains the data to assemble a MF operator with libCEED.
     See libceed/mass.cpp or libceed/diffusion.cpp for examples. */
 struct CeedMFOperator
@@ -62,9 +65,11 @@ struct CeedMFOperator
        CEED_EVAL_GRAD, etc.) */
    EvalMode test_op;
 };
+#endif
 
 class CeedMFIntegrator : public MFEMCeedOperator
 {
+#ifdef MFEM_USE_CEED
 protected:
    CeedBasis basis, mesh_basis;
    CeedElemRestriction restr, mesh_restr, restr_i, mesh_restr_i;
@@ -360,6 +365,7 @@ public:
          break;
       }
    }
+#endif
 };
 
 } // namespace mfem

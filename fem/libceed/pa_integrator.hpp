@@ -12,7 +12,9 @@
 #ifndef MFEM_LIBCEED_PAINTEG
 #define MFEM_LIBCEED_PAINTEG
 
+#ifdef MFEM_USE_CEED
 #include <ceed.h>
+#endif
 #include "operator.hpp"
 #include "mf_integrator.hpp"
 #include "util.hpp"
@@ -23,6 +25,7 @@
 namespace mfem
 {
 
+#ifdef MFEM_USE_CEED
 /** This structure contains the data to assemble a PA operator with libCEED.
     See libceed/mass.cpp or libceed/diffusion.cpp for examples. */
 struct CeedPAOperator
@@ -67,9 +70,11 @@ struct CeedPAOperator
        CEED_EVAL_GRAD, etc.)*/
    EvalMode test_op;
 };
+#endif
 
 class CeedPAIntegrator : public CeedMFIntegrator
 {
+#ifdef MFEM_USE_CEED
 protected:
    CeedOperator build_oper;
    CeedQFunction build_qfunc;
@@ -326,10 +331,10 @@ public:
 
    ~CeedPAIntegrator()
    {
-      // ~CeedMFIntegrator();
       CeedOperatorDestroy(&build_oper);
       CeedQFunctionDestroy(&build_qfunc);
    }
+#endif
 };
 
 } // namespace mfem

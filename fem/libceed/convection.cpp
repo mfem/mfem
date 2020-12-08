@@ -25,6 +25,7 @@ CeedPAConvectionIntegrator::CeedPAConvectionIntegrator(
    const double alpha)
 : CeedPAIntegrator()
 {
+#ifdef MFEM_USE_CEED
    Mesh &mesh = *fes.GetMesh();
    // Perform checks for some assumptions made in the Q-functions.
    MFEM_VERIFY(mesh.Dimension() == mesh.SpaceDimension(), "case not supported");
@@ -45,6 +46,9 @@ CeedPAConvectionIntegrator::CeedPAConvectionIntegrator(
    ConvectionContext ctx;
    ctx.alpha = alpha;
    Assemble(convOp, ctx);
+#else
+   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
 }
 
 CeedMFConvectionIntegrator::CeedMFConvectionIntegrator(
@@ -54,6 +58,7 @@ CeedMFConvectionIntegrator::CeedMFConvectionIntegrator(
    const double alpha)
 : CeedMFIntegrator()
 {
+#ifdef MFEM_USE_CEED
    Mesh &mesh = *fes.GetMesh();
    InitCeedVecCoeff(Q, mesh, irm, coeff_type, coeff);
    CeedMFOperator convOp = {fes, irm,
@@ -68,6 +73,9 @@ CeedMFConvectionIntegrator::CeedMFConvectionIntegrator(
    ConvectionContext ctx;
    ctx.alpha = alpha;
    Assemble(convOp, ctx);
+#else
+   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
 }
 
 } // namespace mfem
