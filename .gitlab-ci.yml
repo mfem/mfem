@@ -76,7 +76,7 @@ stages:
   - baseline_check
   - baseline_publish
 
-# The setup job in setup stage don’t rely on MFEM git repo. It prepares a
+# The setup job in setup stage don't rely on MFEM git repo. It prepares a
 # pipeline-wide working directory downloading/updating external repos.
 # TODO: updating tests and tpls is not necessary anymore since pipelines are
 # now using unique directories so repo are never shared with another pipeline.
@@ -226,7 +226,7 @@ setup:
     echo "${BASELINE_TEST}: Differences found, replacement file generated"
     cp ${_base_out} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_out}.txt
   fi
-  # _base_diff won’t even exist if there is no difference.
+  # _base_diff won't even exist if there is no difference.
   if [[ -f ${_base_diff} ]]
   then
     echo "${BASELINE_TEST}: Relevant differences (filtered diff) ..."

@@ -1735,6 +1735,11 @@ void ParMesh::GetFaceNbrElementTransformation(
    }
 }
 
+double ParMesh::GetFaceNbrElementSize(int i, int type)
+{
+   return GetElementSize(GetFaceNbrElementTransformation(i), type);
+}
+
 void ParMesh::DeleteFaceNbrData()
 {
    if (!have_face_nbr_data)
@@ -2520,7 +2525,7 @@ int ParMesh::GetNSharedFaces() const
    {
       MFEM_ASSERT(Dim > 1, "");
       const NCMesh::NCList &shared = pncmesh->GetSharedList(Dim-1);
-      return shared.conforming.size() + shared.slaves.size();
+      return shared.conforming.Size() + shared.slaves.Size();
    }
 }
 
@@ -2539,7 +2544,7 @@ int ParMesh::GetSharedFace(int sface) const
    {
       MFEM_ASSERT(Dim > 1, "");
       const NCMesh::NCList &shared = pncmesh->GetSharedList(Dim-1);
-      int csize = (int) shared.conforming.size();
+      int csize = (int) shared.conforming.Size();
       return sface < csize
              ? shared.conforming[sface].index
              : shared.slaves[sface - csize].index;
@@ -4193,18 +4198,18 @@ void ParMesh::Print(std::ostream &out) const
          const NCMesh::NCList& sfaces =
             (Dim == 3) ? pncmesh->GetSharedFaces() : pncmesh->GetSharedEdges();
          const int nfaces = GetNumFaces();
-         for (unsigned i = 0; i < sfaces.conforming.size(); i++)
+         for (int i = 0; i < sfaces.conforming.Size(); i++)
          {
             int index = sfaces.conforming[i].index;
             if (index < nfaces) { nc_shared_faces.Append(index); }
          }
-         for (unsigned i = 0; i < sfaces.masters.size(); i++)
+         for (int i = 0; i < sfaces.masters.Size(); i++)
          {
             if (Dim == 2 && WantSkipSharedMaster(sfaces.masters[i])) { continue; }
             int index = sfaces.masters[i].index;
             if (index < nfaces) { nc_shared_faces.Append(index); }
          }
-         for (unsigned i = 0; i < sfaces.slaves.size(); i++)
+         for (int i = 0; i < sfaces.slaves.Size(); i++)
          {
             int index = sfaces.slaves[i].index;
             if (index < nfaces) { nc_shared_faces.Append(index); }
@@ -4404,7 +4409,7 @@ void ParMesh::PrintAsOne(std::ostream &out)
    else if (Dim > 1)
    {
       const NCMesh::NCList &list = pncmesh->GetSharedList(Dim - 1);
-      ne += list.conforming.size() + list.masters.size() + list.slaves.size();
+      ne += list.conforming.Size() + list.masters.Size() + list.slaves.Size();
       // In addition to the number returned by GetNSharedFaces(), include the
       // the master shared faces as well.
    }
@@ -4461,17 +4466,17 @@ void ParMesh::PrintAsOne(std::ostream &out)
    {
       const NCMesh::NCList &list = pncmesh->GetSharedList(Dim - 1);
       const int nfaces = GetNumFaces();
-      for (i = 0; i < (int) list.conforming.size(); i++)
+      for (i = 0; i < list.conforming.Size(); i++)
       {
          int index = list.conforming[i].index;
          if (index < nfaces) { dump_element(faces[index], ints); ne++; }
       }
-      for (i = 0; i < (int) list.masters.size(); i++)
+      for (i = 0; i < list.masters.Size(); i++)
       {
          int index = list.masters[i].index;
          if (index < nfaces) { dump_element(faces[index], ints); ne++; }
       }
-      for (i = 0; i < (int) list.slaves.size(); i++)
+      for (i = 0; i < list.slaves.Size(); i++)
       {
          int index = list.slaves[i].index;
          if (index < nfaces) { dump_element(faces[index], ints); ne++; }
@@ -5363,6 +5368,73 @@ void ParMesh::ParPrint(ostream &out) const
 
    // Write out section end tag for mesh.
    out << "\nmfem_mesh_end" << endl;
+}
+
+void ParMesh::PrintVTU(std::string pathname,
+                       VTKFormat format,
+                       bool high_order_output,
+                       int compression_level,
+                       bool bdr)
+{
+   int pad_digits_rank = 6;
+   DataCollection::create_directory(pathname, this, MyRank);
+
+   std::string::size_type pos = pathname.find_last_of('/');
+   std::string fname
+      = (pos == std::string::npos) ? pathname : pathname.substr(pos+1);
+
+   if (MyRank == 0)
+   {
+      std::string pvtu_name = pathname + "/" + fname + ".pvtu";
+      std::ofstream out(pvtu_name);
+
+      std::string data_type = (format == VTKFormat::BINARY32) ? "Float32" : "Float64";
+      std::string data_format = (format == VTKFormat::ASCII) ? "ascii" : "binary";
+
+      out << "<?xml version=\"1.0\"?>\n";
+      out << "<VTKFile type=\"PUnstructuredGrid\"";
+      out << " version =\"0.1\" byte_order=\"" << VTKByteOrder() << "\">\n";
+      out << "<PUnstructuredGrid GhostLevel=\"0\">\n";
+
+      out << "<PPoints>\n";
+      out << "\t<PDataArray type=\"" << data_type << "\" ";
+      out << " Name=\"Points\" NumberOfComponents=\"3\""
+          << " format=\"" << data_format << "\"/>\n";
+      out << "</PPoints>\n";
+
+      out << "<PCells>\n";
+      out << "\t<PDataArray type=\"Int32\" ";
+      out << " Name=\"connectivity\" NumberOfComponents=\"1\""
+          << " format=\"" << data_format << "\"/>\n";
+      out << "\t<PDataArray type=\"Int32\" ";
+      out << " Name=\"offsets\"      NumberOfComponents=\"1\""
+          << " format=\"" << data_format << "\"/>\n";
+      out << "\t<PDataArray type=\"UInt8\" ";
+      out << " Name=\"types\"        NumberOfComponents=\"1\""
+          << " format=\"" << data_format << "\"/>\n";
+      out << "</PCells>\n";
+
+      out << "<PCellData>\n";
+      out << "\t<PDataArray type=\"Int32\" Name=\"" << "attribute"
+          << "\" NumberOfComponents=\"1\""
+          << " format=\"" << data_format << "\"/>\n";
+      out << "</PCellData>\n";
+
+      for (int ii=0; ii<NRanks; ii++)
+      {
+         std::string piece = fname + ".proc"
+                             + to_padded_string(ii, pad_digits_rank) + ".vtu";
+         out << "<Piece Source=\"" << piece << "\"/>\n";
+      }
+
+      out << "</PUnstructuredGrid>\n";
+      out << "</VTKFile>\n";
+      out.close();
+   }
+
+   std::string vtu_fname = pathname + "/" + fname + ".proc"
+                           + to_padded_string(MyRank, pad_digits_rank);
+   Mesh::PrintVTU(vtu_fname, format, high_order_output, compression_level, bdr);
 }
 
 int ParMesh::FindPoints(DenseMatrix& point_mat, Array<int>& elem_id,

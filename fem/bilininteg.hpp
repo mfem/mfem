@@ -95,6 +95,30 @@ public:
    //                         const FiniteElementSpace &test_fes,
    //                         Vector &emat);
 
+   /// Method defining matrix-free assembly.
+   /** The result of fully matrix-free assembly is stored internally so that it
+       can be used later in the methods AddMultMF() and AddMultTransposeMF(). */
+   virtual void AssembleMF(const FiniteElementSpace &fes);
+
+   /** Perform the action of integrator on the input @a x and add the result to
+       the output @a y. Both @a x and @a y are E-vectors, i.e. they represent
+       the element-wise discontinuous version of the FE space.
+
+       This method can be called only after the method AssembleMF() has been
+       called. */
+   virtual void AddMultMF(const Vector &x, Vector &y) const;
+
+   /** Perform the transpose action of integrator on the input @a x and add the
+       result to the output @a y. Both @a x and @a y are E-vectors, i.e. they
+       represent the element-wise discontinuous version of the FE space.
+
+       This method can be called only after the method AssemblePA() has been
+       called. */
+   virtual void AddMultTransposeMF(const Vector &x, Vector &y) const;
+
+   /// Assemble diagonal and add it to Vector @a diag.
+   virtual void AssembleDiagonalMF(Vector &diag);
+
    virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes,
                                         Vector &ea_data_int,
                                         Vector &ea_data_ext,
@@ -131,10 +155,21 @@ public:
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 
-   /// Perform the local action of the BilinearFormIntegrator
+   /// @brief Perform the local action of the BilinearFormIntegrator.
+   /// Note that the default implementation in the base class is general but not
+   /// efficient.
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &Tr,
                                       const Vector &elfun, Vector &elvect);
+
+   /// @brief Perform the local action of the BilinearFormIntegrator resulting
+   /// from a face integral term.
+   /// Note that the default implementation in the base class is general but not
+   /// efficient.
+   virtual void AssembleFaceVector(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Tr,
+                                   const Vector &elfun, Vector &elvect);
 
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &Tr,
@@ -1863,6 +1898,7 @@ class DiffusionIntegrator: public BilinearFormIntegrator
 {
 protected:
    Coefficient *Q;
+   VectorCoefficient *VQ;
    MatrixCoefficient *MQ;
 
 private:
@@ -1870,6 +1906,7 @@ private:
 #ifndef MFEM_THREAD_SAFE
    DenseMatrix dshape, dshapedxt, invdfdx, mq;
    DenseMatrix te_dshape, te_dshapedxt;
+   Vector D;
 #endif
 
    // PA extension
@@ -1878,54 +1915,30 @@ private:
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, dofs1D, quad1D;
    Vector pa_data;
-
-#ifdef MFEM_USE_CEED
+   bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
    // CEED extension
    CeedData* ceedDataPtr;
-#endif
 
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
    DiffusionIntegrator()
-   {
-      Q = NULL;
-      MQ = NULL;
-      maps = NULL;
-      geom = NULL;
-#ifdef MFEM_USE_CEED
-      ceedDataPtr = NULL;
-#endif
-   }
+      : Q(NULL), VQ(NULL), MQ(NULL), maps(NULL), geom(NULL), ceedDataPtr(NULL) { }
 
    /// Construct a diffusion integrator with a scalar coefficient q
    DiffusionIntegrator(Coefficient &q)
-      : Q(&q)
-   {
-      MQ = NULL;
-      maps = NULL;
-      geom = NULL;
-#ifdef MFEM_USE_CEED
-      ceedDataPtr = NULL;
-#endif
-   }
+      : Q(&q), VQ(NULL), MQ(NULL), maps(NULL), geom(NULL), ceedDataPtr(NULL) { }
+
+   /// Construct a diffusion integrator with a vector coefficient q
+   DiffusionIntegrator(VectorCoefficient &q)
+      : Q(NULL), VQ(&q), MQ(NULL), maps(NULL), geom(NULL), ceedDataPtr(NULL) { }
 
    /// Construct a diffusion integrator with a matrix coefficient q
    DiffusionIntegrator(MatrixCoefficient &q)
-      : MQ(&q)
-   {
-      Q = NULL;
-      maps = NULL;
-      geom = NULL;
-#ifdef MFEM_USE_CEED
-      ceedDataPtr = NULL;
-#endif
-   }
+      : Q(NULL), VQ(NULL), MQ(&q), maps(NULL), geom(NULL), ceedDataPtr(NULL) { }
 
    virtual ~DiffusionIntegrator()
    {
-#ifdef MFEM_USE_CEED
       delete ceedDataPtr;
-#endif
    }
 
    /** Given a particular Finite Element computes the element stiffness matrix
@@ -1956,6 +1969,8 @@ public:
 
    using BilinearFormIntegrator::AssemblePA;
 
+   virtual void AssembleMF(const FiniteElementSpace &fes);
+
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
@@ -1963,12 +1978,14 @@ public:
 
    virtual void AssembleDiagonalPA(Vector &diag);
 
+   virtual void AssembleDiagonalMF(Vector &diag);
+
+   virtual void AddMultMF(const Vector&, Vector&) const;
+
    virtual void AddMultPA(const Vector&, Vector&) const;
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe);
-
-   void SetupPA(const FiniteElementSpace &fes);
 };
 
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
@@ -1986,39 +2003,22 @@ protected:
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
 
-#ifdef MFEM_USE_CEED
    // CEED extension
    CeedData* ceedDataPtr;
-#endif
 
 public:
    MassIntegrator(const IntegrationRule *ir = NULL)
-      : BilinearFormIntegrator(ir)
-   {
-      Q = NULL;
-      maps = NULL;
-      geom = NULL;
-#ifdef MFEM_USE_CEED
-      ceedDataPtr = NULL;
-#endif
-   }
+      : BilinearFormIntegrator(ir), Q(NULL), maps(NULL), geom(NULL),
+        ceedDataPtr(NULL) { }
 
    /// Construct a mass integrator with coefficient q
    MassIntegrator(Coefficient &q, const IntegrationRule *ir = NULL)
-      : BilinearFormIntegrator(ir), Q(&q)
-   {
-      maps = NULL;
-      geom = NULL;
-#ifdef MFEM_USE_CEED
-      ceedDataPtr = NULL;
-#endif
-   }
+      : BilinearFormIntegrator(ir), Q(&q), maps(NULL), geom(NULL),
+        ceedDataPtr(NULL) { }
 
    virtual ~MassIntegrator()
    {
-#ifdef MFEM_USE_CEED
       delete ceedDataPtr;
-#endif
    }
    /** Given a particular Finite Element computes the element mass matrix
        elmat. */
@@ -2032,6 +2032,8 @@ public:
 
    using BilinearFormIntegrator::AssemblePA;
 
+   virtual void AssembleMF(const FiniteElementSpace &fes);
+
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
@@ -2039,13 +2041,15 @@ public:
 
    virtual void AssembleDiagonalPA(Vector &diag);
 
+   virtual void AssembleDiagonalMF(Vector &diag);
+
+   virtual void AddMultMF(const Vector&, Vector&) const;
+
    virtual void AddMultPA(const Vector&, Vector&) const;
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
                                          ElementTransformation &Trans);
-
-   void SetupPA(const FiniteElementSpace &fes);
 };
 
 /** Mass integrator (u, v) restricted to the boundary of a domain */
@@ -2145,24 +2149,34 @@ protected:
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
 
+   // CEED extension
+   CeedData* ceedDataPtr;
+
 public:
    /// Construct an integrator with coefficient 1.0
    VectorMassIntegrator()
-      : vdim(-1), Q_order(0), Q(NULL), VQ(NULL), MQ(NULL) { }
+      : vdim(-1), Q_order(0), Q(NULL), VQ(NULL), MQ(NULL), ceedDataPtr(NULL) { }
    /** Construct an integrator with scalar coefficient q.  If possible, save
        memory by using a scalar integrator since the resulting matrix is block
        diagonal with the same diagonal block repeated. */
    VectorMassIntegrator(Coefficient &q, int qo = 0)
-      : vdim(-1), Q(&q) { VQ = NULL; MQ = NULL; Q_order = qo; }
+      : vdim(-1), Q_order(qo), Q(&q), VQ(NULL), MQ(NULL), ceedDataPtr(NULL) { }
    VectorMassIntegrator(Coefficient &q, const IntegrationRule *ir)
-      : BilinearFormIntegrator(ir), vdim(-1), Q(&q)
-   { VQ = NULL; MQ = NULL; Q_order = 0; }
+      : BilinearFormIntegrator(ir), vdim(-1), Q_order(0), Q(&q), VQ(NULL),
+        MQ(NULL), ceedDataPtr(NULL) { }
    /// Construct an integrator with diagonal coefficient q
    VectorMassIntegrator(VectorCoefficient &q, int qo = 0)
-      : vdim(q.GetVDim()), VQ(&q) { Q = NULL; MQ = NULL; Q_order = qo; }
+      : vdim(q.GetVDim()), Q_order(qo), Q(NULL), VQ(&q), MQ(NULL),
+        ceedDataPtr(NULL) { }
    /// Construct an integrator with matrix coefficient q
    VectorMassIntegrator(MatrixCoefficient &q, int qo = 0)
-      : vdim(q.GetVDim()), MQ(&q) { Q = NULL; VQ = NULL; Q_order = qo; }
+      : vdim(q.GetVDim()), Q_order(qo), Q(NULL), VQ(NULL), MQ(&q),
+        ceedDataPtr(NULL) { }
+
+   virtual ~VectorMassIntegrator()
+   {
+      delete ceedDataPtr;
+   }
 
    int GetVDim() const { return vdim; }
    void SetVDim(int vdim) { this->vdim = vdim; }
@@ -2176,8 +2190,11 @@ public:
                                        DenseMatrix &elmat);
    using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
+   virtual void AssembleMF(const FiniteElementSpace &fes);
    virtual void AssembleDiagonalPA(Vector &diag);
+   virtual void AssembleDiagonalMF(Vector &diag);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AddMultMF(const Vector &x, Vector &y) const;
 };
 
 
@@ -2541,13 +2558,23 @@ protected:
    int dim, sdim, ne, dofs1D, quad1D;
    Vector pa_data;
 
+   // CEED extension
+   CeedData* ceedDataPtr;
+
 private:
    DenseMatrix dshape, dshapedxt, pelmat;
    DenseMatrix Jinv, gshape;
 
 public:
-   VectorDiffusionIntegrator() { Q = NULL; }
-   VectorDiffusionIntegrator(Coefficient &q) { Q = &q; }
+   VectorDiffusionIntegrator()
+      : Q(NULL), ceedDataPtr(NULL) { }
+   VectorDiffusionIntegrator(Coefficient &q)
+      : Q(&q), ceedDataPtr(NULL) { }
+
+   virtual ~VectorDiffusionIntegrator()
+   {
+      delete ceedDataPtr;
+   }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
@@ -2557,8 +2584,11 @@ public:
                                       const Vector &elfun, Vector &elvect);
    using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
+   virtual void AssembleMF(const FiniteElementSpace &fes);
    virtual void AssembleDiagonalPA(Vector &diag);
+   virtual void AssembleDiagonalMF(Vector &diag);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AddMultMF(const Vector &x, Vector &y) const;
 };
 
 /** Integrator for the linear elasticity form:
@@ -2713,6 +2743,51 @@ public:
       : Q(&q), MQ(NULL), sigma(s), kappa(k) { }
    DGDiffusionIntegrator(MatrixCoefficient &q, const double s, const double k)
       : Q(NULL), MQ(&q), sigma(s), kappa(k) { }
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+};
+
+/** Integrator for the "BR2" diffusion stabilization term
+
+    sum_e eta (r_e([u]), r_e([v]))
+
+    where r_e is the lifting operator defined on each edge e. The parameter eta
+    can be chosen to be one to obtain a stable discretization. The constructor
+    for this integrator requires the finite element space because the lifting
+    operator depends on the element-wise inverse mass matrix.
+
+    BR2 stands for the second method of Bassi and Rebay:
+
+    - F. Bassi and S. Rebay. A high order discontinuous Galerkin method for
+      compressible turbulent flows. In B. Cockburn, G. E. Karniadakis, and
+      C.-W. Shu, editors, Discontinuous Galerkin Methods, pages 77–88. Springer
+      Berlin Heidelberg, 2000.
+    - D. N. Arnold, F. Brezzi, B. Cockburn, and L. D. Marini. Unified analysis
+      of discontinuous Galerkin methods for elliptic problems. SIAM Journal on
+      Numerical Analysis, 39(5):1749–1779, 2002.
+*/
+class DGDiffusionBR2Integrator : public BilinearFormIntegrator
+{
+protected:
+   double eta;
+
+   // Block factorizations of local mass matrices, with offsets for the case of
+   // not equally sized blocks (mixed meshes, p-refinement)
+   Array<double> Minv;
+   Array<int> ipiv;
+   Array<int> ipiv_offsets, Minv_offsets;
+
+   Vector shape1, shape2;
+
+   DenseMatrix R11, R12, R21, R22;
+   DenseMatrix MinvR11, MinvR12, MinvR21, MinvR22;
+   DenseMatrix Re, MinvRe;
+
+public:
+   DGDiffusionBR2Integrator(class FiniteElementSpace *fes, double e = 1.0);
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
@@ -3029,6 +3104,17 @@ protected:
    VectorCoefficient *VQ;
 };
 
-}
 
+
+// PA Diffusion Assemble 2D kernel
+template<const int T_SDIM>
+void PADiffusionSetup2D(const int Q1D,
+                        const int coeffDim,
+                        const int NE,
+                        const Array<double> &w,
+                        const Vector &j,
+                        const Vector &c,
+                        Vector &d);
+
+}
 #endif

@@ -19,6 +19,42 @@ namespace mfem
 
 // Target-matrix optimization paradigm (TMOP) mesh quality metrics.
 
+double TMOP_Combo_QualityMetric::EvalW(const DenseMatrix &Jpt) const
+{
+   double metric = 0.;
+   for (int i = 0; i < tmop_q_arr.Size(); i++)
+   {
+      metric += wt_arr[i]*tmop_q_arr[i]->EvalW(Jpt);
+   }
+   return metric;
+}
+
+void TMOP_Combo_QualityMetric::EvalP(const DenseMatrix &Jpt,
+                                     DenseMatrix &P) const
+{
+   DenseMatrix Pt(P.Size());
+   for (int i = 0; i < tmop_q_arr.Size(); i++)
+   {
+      tmop_q_arr[i]->EvalP(Jpt, Pt);
+      Pt *= wt_arr[i];
+      P += Pt;
+   }
+}
+
+void TMOP_Combo_QualityMetric::AssembleH(const DenseMatrix &Jpt,
+                                         const DenseMatrix &DS,
+                                         const double weight,
+                                         DenseMatrix &A) const
+{
+   DenseMatrix At(A.Size());
+   for (int i = 0; i < tmop_q_arr.Size(); i++)
+   {
+      tmop_q_arr[i]->AssembleH(Jpt, DS, weight, At);
+      At *= wt_arr[i];
+      A += At;
+   }
+}
+
 double TMOP_Metric_001::EvalW(const DenseMatrix &Jpt) const
 {
    ie.SetJacobian(Jpt.GetData());
@@ -160,23 +196,6 @@ double TMOP_Metric_aspratio3D::EvalW(const DenseMatrix &Jpt) const
           ) / 3.0;
 }
 
-// mu_14 = |T-I|^2
-double TMOP_Metric_SSA2D::EvalW(const DenseMatrix &Jpt) const
-{
-   MFEM_VERIFY(Jtr != NULL,
-               "Requires a target Jacobian, use SetTargetJacobian().");
-
-   DenseMatrix Id(2,2);
-
-   Id(0,0) = 1; Id(0,1) = 0;
-   Id(1,0) = 0; Id(1,1) = 1;
-
-   DenseMatrix Mat(2,2);
-   Mat = Jpt;
-   Mat.Add(-1,Id);
-   return Mat.FNorm2();
-}
-
 double TMOP_Metric_002::EvalW(const DenseMatrix &Jpt) const
 {
    ie.SetJacobian(Jpt.GetData());
@@ -270,6 +289,23 @@ void TMOP_Metric_009::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI2b(weight*(ie.Get_I1()-4.0), A.GetData());
    ie.Assemble_ddI1(weight*ie.Get_I2b(), A.GetData());
    ie.Assemble_ddI1b(weight, A.GetData());
+}
+
+// mu_14 = |T-I|^2
+double TMOP_Metric_014::EvalW(const DenseMatrix &Jpt) const
+{
+   MFEM_VERIFY(Jtr != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   DenseMatrix Id(2,2);
+
+   Id(0,0) = 1; Id(0,1) = 0;
+   Id(1,0) = 0; Id(1,1) = 1;
+
+   DenseMatrix Mat(2,2);
+   Mat = Jpt;
+   Mat.Add(-1,Id);
+   return Mat.FNorm2();
 }
 
 double TMOP_Metric_022::EvalW(const DenseMatrix &Jpt) const
@@ -482,6 +518,23 @@ double TMOP_Metric_085::EvalW(const DenseMatrix &Jpt) const
 
    Mat.Add(-1.,Id);
    return Mat.FNorm2();
+}
+
+// mu_98 = 1/(tau)|T-I|^2
+double TMOP_Metric_098::EvalW(const DenseMatrix &Jpt) const
+{
+   MFEM_VERIFY(Jtr != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   DenseMatrix Id(2,2);
+
+   Id(0,0) = 1; Id(0,1) = 0;
+   Id(1,0) = 0; Id(1,1) = 1;
+
+   DenseMatrix Mat(2,2);
+   Mat = Jpt;
+   Mat.Add(-1,Id);
+   return Mat.FNorm2()/Jtr->Det();
 }
 
 double TMOP_Metric_211::EvalW(const DenseMatrix &Jpt) const
@@ -798,6 +851,84 @@ void TMOP_Metric_352::AssembleH(const DenseMatrix &Jpt,
    const double c = c0*(I3b - 1.0);
    ie.Assemble_TProd(weight*c0*(1.0 - c)*(1.0 - c), ie.Get_dI3b(), A.GetData());
    ie.Assemble_ddI3b(weight*(c - 0.5*c*c), A.GetData());
+}
+
+double TMOP_AMetric_011::EvalW(const DenseMatrix &Jpt) const
+{
+   MFEM_VERIFY(Jtr != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   int dim = Jpt.Size();
+
+   DenseMatrix Jpr(dim, dim);
+   Mult(Jpt, *Jtr, Jpr);
+
+   double alpha = Jpr.Det(),
+          omega = Jtr->Det();
+
+   DenseMatrix AdjAt(dim), WtW(dim), WRK(dim), Jtrt(dim);
+   CalcAdjugateTranspose(Jpr, AdjAt);
+   Jtrt.Transpose(*Jtr);
+   MultAAt(Jtrt, WtW);
+   WtW *= 1./omega;
+   Mult(AdjAt, WtW, WRK);
+
+   WRK -= Jpr;
+   WRK *= -1.;
+
+   return (0.25/alpha)*WRK.FNorm2();
+}
+
+double TMOP_AMetric_014a::EvalW(const DenseMatrix &Jpt) const
+{
+   MFEM_VERIFY(Jtr != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   int dim = Jpt.Size();
+
+   DenseMatrix Jpr(dim, dim);
+   Mult(Jpt, *Jtr, Jpr);
+
+   double sqalpha = pow(Jpr.Det(), 0.5),
+          sqomega = pow(Jtr->Det(), 0.5);
+
+   return 0.5*pow(sqalpha/sqomega - sqomega/sqalpha, 2.);
+}
+
+double TMOP_AMetric_036::EvalW(const DenseMatrix &Jpt) const
+{
+   MFEM_VERIFY(Jtr != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   int dim = Jpt.Size();
+
+   DenseMatrix Jpr(dim, dim);
+   Mult(Jpt, *Jtr, Jpr); // T*W = A
+
+   double alpha = Jpr.Det(); // det(A)
+   Jpr -= *Jtr; // A-W
+
+   return (1./alpha)*(Jpr.FNorm2()); //(1/alpha)*(|A-W|^2)
+}
+
+double TMOP_AMetric_107a::EvalW(const DenseMatrix &Jpt) const
+{
+   MFEM_VERIFY(Jtr != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   int dim = Jpt.Size();
+
+   DenseMatrix Jpr(dim, dim);
+   Mult(Jpt, *Jtr, Jpr);
+
+   double alpha = Jpr.Det(),
+          aw = Jpr.FNorm()/Jtr->FNorm();
+
+   DenseMatrix W = *Jtr;
+   W *= aw;
+   Jpr -= W;
+
+   return (0.5/alpha)*Jpr.FNorm2();
 }
 
 
@@ -2922,4 +3053,5 @@ void InterpolateTMOP_QualityMetric(TMOP_QualityMetric &metric,
       }
    }
 }
+
 } // namespace mfem
