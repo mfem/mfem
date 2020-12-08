@@ -126,31 +126,27 @@ public:
       {
          case CeedCoeff::Const:
             qf = qf_file + op.const_func;
-            CeedQFunctionCreateInterior(ceed, 1, op.const_qf,
-                                        qf.c_str(),
+            CeedQFunctionCreateInterior(ceed, 1, op.const_qf, qf.c_str(),
                                         &build_qfunc);
             ctx.coeff[0] = ((CeedConstCoeff*)coeff)->val;
             break;
          case CeedCoeff::Grid:
             qf = qf_file + op.quad_func;
-            CeedQFunctionCreateInterior(ceed, 1, op.quad_qf,
-                                        qf.c_str(),
+            CeedQFunctionCreateInterior(ceed, 1, op.quad_qf, qf.c_str(),
                                         &build_qfunc);
             CeedQFunctionAddInput(build_qfunc, "coeff", 1, CEED_EVAL_INTERP);
             break;
          case CeedCoeff::Quad:
             qf = qf_file + op.quad_func;
-            CeedQFunctionCreateInterior(ceed, 1, op.quad_qf,
-                                        qf.c_str(),
+            CeedQFunctionCreateInterior(ceed, 1, op.quad_qf, qf.c_str(),
                                         &build_qfunc);
             CeedQFunctionAddInput(build_qfunc, "coeff", 1, CEED_EVAL_NONE);
             break;
          case CeedCoeff::VecConst:
          {
             qf = qf_file + op.vec_const_func;
-            CeedQFunctionCreateInterior(ceed, 1, op.vec_const_qf,
-                                       qf.c_str(),
-                                       &build_qfunc);
+            CeedQFunctionCreateInterior(ceed, 1, op.vec_const_qf, qf.c_str(),
+                                        &build_qfunc);
             CeedVecConstCoeff *vcoeff = static_cast<CeedVecConstCoeff*>(coeff);
             for (int i = 0; i < dim; i++)
             {
@@ -160,16 +156,14 @@ public:
          break;
          case CeedCoeff::VecGrid:
             qf = qf_file + op.vec_quad_func;
-            CeedQFunctionCreateInterior(ceed, 1, op.vec_quad_qf,
-                                       qf.c_str(),
+            CeedQFunctionCreateInterior(ceed, 1, op.vec_quad_qf, qf.c_str(),
                                        &build_qfunc);
             CeedQFunctionAddInput(build_qfunc, "coeff", dim, CEED_EVAL_INTERP);
             break;
          case CeedCoeff::VecQuad:
             qf = qf_file + op.vec_quad_func;
-            CeedQFunctionCreateInterior(ceed, 1, op.vec_quad_qf,
-                                       qf.c_str(),
-                                       &build_qfunc);
+            CeedQFunctionCreateInterior(ceed, 1, op.vec_quad_qf, qf.c_str(),
+                                        &build_qfunc);
             CeedQFunctionAddInput(build_qfunc, "coeff", dim, CEED_EVAL_NONE);
             break;
       }

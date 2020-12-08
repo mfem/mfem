@@ -21,7 +21,7 @@ namespace mfem
 CeedPAMassIntegrator::CeedPAMassIntegrator(const FiniteElementSpace &fes,
                                            const mfem::IntegrationRule &irm,
                                            Coefficient *Q)
-: CeedPAIntegrator()
+   : CeedPAIntegrator()
 {
 #ifdef MFEM_USE_CEED
    Mesh &mesh = *fes.GetMesh();
@@ -50,7 +50,7 @@ CeedPAMassIntegrator::CeedPAMassIntegrator(const FiniteElementSpace &fes,
 CeedMFMassIntegrator::CeedMFMassIntegrator(const FiniteElementSpace &fes,
                                            const mfem::IntegrationRule &irm,
                                            Coefficient *Q)
-: CeedMFIntegrator()
+   : CeedMFIntegrator()
 {
 #ifdef MFEM_USE_CEED
    Mesh &mesh = *fes.GetMesh();

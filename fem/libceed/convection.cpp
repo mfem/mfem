@@ -23,7 +23,7 @@ CeedPAConvectionIntegrator::CeedPAConvectionIntegrator(
    const mfem::IntegrationRule &irm,
    VectorCoefficient *Q,
    const double alpha)
-: CeedPAIntegrator()
+   : CeedPAIntegrator()
 {
 #ifdef MFEM_USE_CEED
    Mesh &mesh = *fes.GetMesh();
@@ -34,14 +34,14 @@ CeedPAConvectionIntegrator::CeedPAConvectionIntegrator(
    int dim = mesh.Dimension();
    InitCeedVecCoeff(Q, mesh, irm, coeff_type, coeff);
    CeedPAOperator convOp = {fes, irm,
-                           dim * (dim + 1) / 2, "/convection.h",
-                           "", nullptr,
-                           "", nullptr,
-                           ":f_build_conv_const", f_build_conv_const,
-                           ":f_build_conv_quad", f_build_conv_quad,
-                           ":f_apply_conv", f_apply_conv,
-                           EvalMode::Grad,
-                           EvalMode::Interp
+                            dim * (dim + 1) / 2, "/convection.h",
+                            "", nullptr,
+                            "", nullptr,
+                            ":f_build_conv_const", f_build_conv_const,
+                            ":f_build_conv_quad", f_build_conv_quad,
+                            ":f_apply_conv", f_apply_conv,
+                            EvalMode::Grad,
+                            EvalMode::Interp
                            };
    ConvectionContext ctx;
    ctx.alpha = alpha;
@@ -56,20 +56,20 @@ CeedMFConvectionIntegrator::CeedMFConvectionIntegrator(
    const mfem::IntegrationRule &irm,
    VectorCoefficient *Q,
    const double alpha)
-: CeedMFIntegrator()
+   : CeedMFIntegrator()
 {
 #ifdef MFEM_USE_CEED
    Mesh &mesh = *fes.GetMesh();
    InitCeedVecCoeff(Q, mesh, irm, coeff_type, coeff);
    CeedMFOperator convOp = {fes, irm,
-                           "/convection.h",
-                           "", nullptr,
-                           "", nullptr,
-                           ":f_apply_conv_mf_const", f_apply_conv_mf_const,
-                           ":f_apply_conv_mf_quad", f_apply_conv_mf_quad,
-                           EvalMode::Grad,
-                           EvalMode::Interp
-                        };
+                            "/convection.h",
+                            "", nullptr,
+                            "", nullptr,
+                            ":f_apply_conv_mf_const", f_apply_conv_mf_const,
+                            ":f_apply_conv_mf_quad", f_apply_conv_mf_quad,
+                            EvalMode::Grad,
+                            EvalMode::Interp
+                           };
    ConvectionContext ctx;
    ctx.alpha = alpha;
    Assemble(convOp, ctx);
