@@ -69,15 +69,11 @@ class VectorCoefficient;
 
 /** @brief Identifies the type of coefficient of the Integrator to initialize
     accordingly the CeedData. */
-// void InitCeedCoeff(Coefficient *Q, Mesh &mesh, const IntegrationRule &ir,
-//                    CeedData *ptr);
 void InitCeedCoeff(Coefficient *Q, Mesh &mesh, const IntegrationRule &ir,
                    CeedCoeff& coeff_type, void *&coeff);
 
 /** @brief Identifies the type of vector coefficient of the Integrator to
     initialize accordingly the CeedData. */
-// void InitCeedVecCoeff(VectorCoefficient *VQ, Mesh &mesh,
-//                       const IntegrationRule &ir, CeedData *ptr);
 void InitCeedVecCoeff(VectorCoefficient *VQ, Mesh &mesh,
                       const IntegrationRule &ir,
                       CeedCoeff& coeff_type, void *&coeff);

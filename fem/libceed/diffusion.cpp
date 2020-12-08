@@ -11,7 +11,6 @@
 
 #include "diffusion.hpp"
 
-#include "ceed.hpp"
 #ifdef MFEM_USE_CEED
 #include "diffusion.h"
 #endif
@@ -19,9 +18,10 @@
 namespace mfem
 {
 
-CeedPADiffusionIntegrator::CeedPADiffusionIntegrator(const FiniteElementSpace &fes,
-                                           const mfem::IntegrationRule &irm,
-                                           Coefficient *Q)
+CeedPADiffusionIntegrator::CeedPADiffusionIntegrator(
+   const FiniteElementSpace &fes,
+   const mfem::IntegrationRule &irm,
+   Coefficient *Q)
 : CeedPAIntegrator()
 {
    Mesh &mesh = *fes.GetMesh();
@@ -45,9 +45,10 @@ CeedPADiffusionIntegrator::CeedPADiffusionIntegrator(const FiniteElementSpace &f
    Assemble(diffOp, ctx);
 }
 
-CeedMFDiffusionIntegrator::CeedMFDiffusionIntegrator(const FiniteElementSpace &fes,
-                                           const mfem::IntegrationRule &irm,
-                                           Coefficient *Q)
+CeedMFDiffusionIntegrator::CeedMFDiffusionIntegrator(
+   const FiniteElementSpace &fes,
+   const mfem::IntegrationRule &irm,
+   Coefficient *Q)
 : CeedMFIntegrator()
 {
    Mesh &mesh = *fes.GetMesh();
