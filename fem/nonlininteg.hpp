@@ -330,7 +330,6 @@ private:
    int dim, ne, nq;
 
    // CEED extension
-   // CeedData* ceedOp;
    MFEMCeedOperator* ceedOp;
 
 public:
