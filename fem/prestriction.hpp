@@ -47,4 +47,4 @@ public:
 
 #endif // MFEM_USE_MPI
 
-#endif //MFEM_PRESTRICTION
+#endif // MFEM_PRESTRICTION
