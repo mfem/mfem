@@ -102,9 +102,9 @@ void discrete_aspr_3d(const Vector &x, Vector &v)
 class HessianCoefficient : public TMOPMatrixCoefficient
 {
 private:
+   int dim;
    int metric;
    int amr_type = 5;
-   int dim;
 
 public:
    HessianCoefficient(int dim_, int metric_id, int amr_type_)
@@ -607,7 +607,7 @@ void TMOPAMR::Update()
       }
       nlf->SetEssentialVDofs(ess_vdofs);
    }
-};
+}
 
 #ifdef MFEM_USE_MPI
 void TMOPAMR::ParUpdate()
