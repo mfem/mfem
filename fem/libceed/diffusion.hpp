@@ -23,16 +23,16 @@ class CeedPADiffusionIntegrator : public CeedPAIntegrator
 {
 public:
    CeedPADiffusionIntegrator(const FiniteElementSpace &fes,
-                        const mfem::IntegrationRule &irm,
-                        Coefficient *coeff);
+                             const mfem::IntegrationRule &irm,
+                             Coefficient *coeff);
 };
 
 class CeedMFDiffusionIntegrator : public CeedMFIntegrator
 {
 public:
    CeedMFDiffusionIntegrator(const FiniteElementSpace &fes,
-                        const mfem::IntegrationRule &irm,
-                        Coefficient *coeff);
+                             const mfem::IntegrationRule &irm,
+                             Coefficient *coeff);
 };
 
 }
