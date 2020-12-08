@@ -82,7 +82,12 @@
 //   * mesh-optimizer -m ../../../mfem_data/ball-pert.mesh -o 4 -rs 0 -mid 303 -tid 1 -ni 20 -ls 2 -li 500 -fix-bnd
 //   2D non-conforming shape and equal size:
 //     mesh-optimizer -m ./amr-quad-q2.mesh -o 2 -rs 1 -mid 9 -tid 2 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
-
+//
+//   2D untangling:
+//     mesh-optimizer -m jagged.mesh -o 2 -rs 0 -mid 22 -tid 1 -ni 50 -li 50 -qo 4 -fd
+//   3D untangling (the mesh is in the mfem/data GitHub repository):
+//   * mesh-optimizer -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -rs 0 -mid 313 -tid 1 -rtol 1e-5 -li 50 -qo 4 -fd
+//
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -147,15 +152,17 @@ int main(int argc, char *argv[])
                   "80 : (1-gamma)mu_2 + gamma mu_77    -- 2D shape+size\n\t"
                   "85 : |T-|T|/sqrt(2)I|^2             -- 2D shape+orientation\n\t"
                   "98 : (1/tau)|T-I|^2                 -- 2D shape+size+orientation\n\t"
-                  "211: (tau-1)^2-tau+sqrt(tau^2)      -- 2D untangling\n\t"
-                  "252: 0.5(tau-1)^2/(tau-tau_0)       -- 2D untangling\n\t"
+                  // "211: (tau-1)^2-tau+sqrt(tau^2)      -- 2D untangling\n\t"
+                  // "252: 0.5(tau-1)^2/(tau-tau_0)       -- 2D untangling\n\t"
                   "301: (|T||T^-1|)/3-1              -- 3D shape\n\t"
                   "302: (|T|^2|T^-1|^2)/9-1          -- 3D shape\n\t"
                   "303: (|T|^2)/3*tau^(2/3)-1        -- 3D shape\n\t"
+                  //"311: (tau-1)^2-tau+sqrt(tau^2+eps)-- 3D untangling\n\t"
+                  "313: (|T|^2)(tau-tau0)^(-2/3)/3   -- 3D untangling\n\t"
                   "315: (tau-1)^2                    -- 3D size\n\t"
                   "316: 0.5(sqrt(tau)-1/sqrt(tau))^2 -- 3D size\n\t"
                   "321: |T-T^-t|^2                   -- 3D shape+size\n\t"
-                  "352: 0.5(tau-1)^2/(tau-tau_0)     -- 3D untangling\n\t"
+                  // "352: 0.5(tau-1)^2/(tau-tau_0)     -- 3D untangling\n\t"
                   "A-metrics\n\t"
                   "11 : (1/4*alpha)|A-(adjA)^T(W^TW)/omega|^2 -- 2D shape\n\t"
                   "36 : (1/alpha)|A-W|^2                      -- 2D shape+size+orientation\n\t"
@@ -345,15 +352,17 @@ int main(int argc, char *argv[])
       case 80: metric = new TMOP_Metric_080(0.5); break;
       case 85: metric = new TMOP_Metric_085; break;
       case 98: metric = new TMOP_Metric_098; break;
-      case 211: metric = new TMOP_Metric_211; break;
-      case 252: metric = new TMOP_Metric_252(tauval); break;
+      // case 211: metric = new TMOP_Metric_211; break;
+      // case 252: metric = new TMOP_Metric_252(tauval); break;
       case 301: metric = new TMOP_Metric_301; break;
       case 302: metric = new TMOP_Metric_302; break;
       case 303: metric = new TMOP_Metric_303; break;
+      // case 311: metric = new TMOP_Metric_311; break;
+      case 313: metric = new TMOP_Metric_313(tauval); break;
       case 315: metric = new TMOP_Metric_315; break;
       case 316: metric = new TMOP_Metric_316; break;
       case 321: metric = new TMOP_Metric_321; break;
-      case 352: metric = new TMOP_Metric_352(tauval); break;
+      // case 352: metric = new TMOP_Metric_352(tauval); break;
       // A-metrics
       case 11: metric = new TMOP_AMetric_011; break;
       case 36: metric = new TMOP_AMetric_036; break;
@@ -370,7 +379,7 @@ int main(int argc, char *argv[])
    FiniteElementSpace ind_fes(mesh, &ind_fec);
    FiniteElementSpace ind_fesv(mesh, &ind_fec, dim);
    GridFunction size(&ind_fes), aspr(&ind_fes), disc(&ind_fes), ori(&ind_fes);
-   GridFunction aspr3d(&ind_fesv), size3d(&ind_fesv);
+   GridFunction aspr3d(&ind_fesv);
    switch (target_id)
    {
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
@@ -428,14 +437,14 @@ int main(int argc, char *argv[])
 #endif
          }
 
-         //Diffuse the interface
+         // Diffuse the interface
          DiffuseField(disc,2);
 
-         //Get  partials with respect to x and y of the grid function
+         // Get  partials with respect to x and y of the grid function
          disc.GetDerivative(1,0,d_x);
          disc.GetDerivative(1,1,d_y);
 
-         //Compute the squared magnitude of the gradient
+         // Compute the squared magnitude of the gradient
          for (int i = 0; i < size.Size(); i++)
          {
             size(i) = std::pow(d_x(i),2)+std::pow(d_y(i),2);
@@ -687,6 +696,40 @@ int main(int argc, char *argv[])
    }
    else { a.AddDomainIntegrator(he_nlf_integ); }
 
+   // Compute the minimum det(J) of the starting mesh.
+   tauval = infinity();
+   const int NE = mesh->GetNE();
+   for (int i = 0; i < NE; i++)
+   {
+      const IntegrationRule &ir =
+         irules->Get(fespace->GetFE(i)->GetGeomType(), quad_order);
+      ElementTransformation *transf = mesh->GetElementTransformation(i);
+      for (int j = 0; j < ir.GetNPoints(); j++)
+      {
+         transf->SetIntPoint(&ir.IntPoint(j));
+         tauval = min(tauval, transf->Jacobian().Det());
+      }
+   }
+   cout << "Minimum det(J) of the original mesh is " << tauval << endl;
+
+   if (tauval < 0.0 && metric_id != 22 && metric_id != 211 && metric_id != 252
+       && metric_id != 311 && metric_id != 313 && metric_id != 352)
+   {
+      MFEM_ABORT("The input mesh is inverted! Try an untangling metric.");
+   }
+   if (tauval < 0.0)
+   {
+      MFEM_VERIFY(target_t == TargetConstructor::IDEAL_SHAPE_UNIT_SIZE,
+                  "Untangling is supported only for ideal targets.");
+
+      const DenseMatrix &Wideal =
+         Geometries.GetGeomToPerfGeomJac(fespace->GetFE(0)->GetGeomType());
+      tauval /= Wideal.Det();
+
+      // Slightly below minJ0 to avoid div by 0.
+      tauval -= 0.01 * h0.Min();
+   }
+
    const double init_energy = a.GetGridFunctionEnergy(x);
 
    // Visualize the starting mesh and metric values.
@@ -786,23 +829,6 @@ int main(int argc, char *argv[])
       S = minres;
    }
 
-   // Compute the minimum det(J) of the starting mesh.
-   tauval = infinity();
-   const int NE = mesh->GetNE();
-   for (int i = 0; i < NE; i++)
-   {
-      const IntegrationRule &ir =
-         irules->Get(fespace->GetFE(i)->GetGeomType(), quad_order);
-      ElementTransformation *transf = mesh->GetElementTransformation(i);
-      for (int j = 0; j < ir.GetNPoints(); j++)
-      {
-         transf->SetIntPoint(&ir.IntPoint(j));
-         tauval = min(tauval, transf->Jacobian().Det());
-      }
-   }
-   cout << "Minimum det(J) of the original mesh is " << tauval << endl;
-   tauval -= 0.01 * h0.Min(); // Slightly below minJ0 to avoid div by 0.
-
    // Perform the nonlinear optimization.
    const IntegrationRule &ir =
       irules->Get(fespace->GetFE(0)->GetGeomType(), quad_order);
@@ -814,6 +840,8 @@ int main(int argc, char *argv[])
       // Specify linear solver when we use a Newton-based solver.
       solver.SetPreconditioner(*S);
    }
+   // For untangling, the solver will update the min det(T) values.
+   if (tauval < 0.0) { solver.SetMinDetPtr(&tauval); }
    solver.SetMaxIter(solver_iter);
    solver.SetRelTol(solver_rtol);
    solver.SetAbsTol(0.0);
