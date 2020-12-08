@@ -722,17 +722,34 @@ void NodalFiniteElement::Project(
 {
    if (fe.GetRangeType() == SCALAR)
    {
-      MFEM_ASSERT(map_type == fe.GetMapType(), "");
-
       Vector shape(fe.GetDof());
 
       I.SetSize(dof, fe.GetDof());
-      for (int k = 0; k < dof; k++)
+      if (map_type == fe.GetMapType())
       {
-         fe.CalcShape(Nodes.IntPoint(k), shape);
-         for (int j = 0; j < shape.Size(); j++)
+         for (int k = 0; k < dof; k++)
          {
-            I(k,j) = (fabs(shape(j)) < 1e-12) ? 0.0 : shape(j);
+            fe.CalcShape(Nodes.IntPoint(k), shape);
+            for (int j = 0; j < shape.Size(); j++)
+            {
+               I(k,j) = (fabs(shape(j)) < 1e-12) ? 0.0 : shape(j);
+            }
+         }
+      }
+      else
+      {
+         for (int k = 0; k < dof; k++)
+         {
+            Trans.SetIntPoint(&Nodes.IntPoint(k));
+            fe.CalcPhysShape(Trans, shape);
+            if (map_type == INTEGRAL)
+            {
+               shape *= Trans.Weight();
+            }
+            for (int j = 0; j < shape.Size(); j++)
+            {
+               I(k,j) = (fabs(shape(j)) < 1e-12) ? 0.0 : shape(j);
+            }
          }
       }
    }
