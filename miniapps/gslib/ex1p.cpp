@@ -312,7 +312,7 @@ int main(int argc, char *argv[])
       a->RecoverFEMSolution(X, *b, x);
 
       // Interpolate boundary condition
-      finder.FindPointsGSLIB::Interpolate(x, interp_vals1);
+      finder.Interpolate(x, interp_vals1);
 
       double dxmax = std::numeric_limits<float>::min();
       double xinf = x.Normlinf();
