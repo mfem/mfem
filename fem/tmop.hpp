@@ -1236,8 +1236,9 @@ protected:
    }
 
 public:
-   /** @param[in] m  TMOP_QualityMetric that will be integrated (not owned).
-       @param[in] tc Target-matrix construction algorithm to use (not owned). */
+   /** @param[in] m    TMOP_QualityMetric for r-adaptivity (not owned).
+       @param[in] tc   Target-matrix construction algorithm to use (not owned).
+       @param[in] amrm TMOP_QualityMetric for h-adaptivity (not owned). */
    TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc,
                    TMOP_QualityMetric *amrm)
       : amrmetric(amrm), metric(m), targetC(tc), IntegRules(NULL),
@@ -1248,6 +1249,9 @@ public:
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
    { }
+
+   TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc)
+      : TMOP_Integrator(m, tc, m) { }
 
    ~TMOP_Integrator();
 
@@ -1339,12 +1343,6 @@ public:
                                     const Vector &elfun, DenseMatrix &elmat);
 
    TMOP_QualityMetric &GetAMRQualityMetric() { return *amrmetric; }
-
-   void UpdateTargetConstructor(TargetConstructor *tc)
-   {
-      targetC=tc;
-      discr_tc = dynamic_cast<DiscreteAdaptTC *>(tc);
-   };
 
    void Update();
 #ifdef MFEM_USE_MPI

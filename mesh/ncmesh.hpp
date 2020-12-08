@@ -343,13 +343,6 @@ public:
        stretching and curvature). */
    int GetElementSizeReduction(int i) const;
 
-   /** Return the refinement type used on the parent element
-       that generated leaf 'i'. */
-   int GetElementParentRefType(int i) const;
-
-   /** Return the parent element number for leaf 'i'. */
-   int GetElementParent(int i) const;
-
    /// Return the faces and face attributes of leaf element 'i'.
    void GetElementFacesAttributes(int i, Array<int> &faces,
                                   Array<int> &fattr) const;
