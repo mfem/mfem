@@ -41,7 +41,7 @@ CeedPANLConvectionIntegrator::CeedPANLConvectionIntegrator(
                             EvalMode::InterpAndGrad,
                             EvalMode::Interp
                            };
-   BuildContext ctx;
+   NLConvectionContext ctx;
    Assemble(convOp, ctx);
 }
 
@@ -62,7 +62,7 @@ CeedMFNLConvectionIntegrator::CeedMFNLConvectionIntegrator(
                             EvalMode::InterpAndGrad,
                             EvalMode::Interp
                            };
-   BuildContext ctx;
+   NLConvectionContext ctx;
    Assemble(convOp, ctx);
 }
 
