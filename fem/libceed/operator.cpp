@@ -18,6 +18,7 @@ namespace mfem
 
 void MFEMCeedOperator::Mult(const Vector &x, Vector &y) const
 {
+#ifdef MFEM_USE_CEED
    const CeedScalar *x_ptr;
    CeedScalar *y_ptr;
    CeedMemType mem;
@@ -42,10 +43,14 @@ void MFEMCeedOperator::Mult(const Vector &x, Vector &y) const
 
    CeedVectorTakeArray(u, mem, const_cast<CeedScalar**>(&x_ptr));
    CeedVectorTakeArray(v, mem, &y_ptr);
+#else
+   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
 }
 
 void MFEMCeedOperator::GetDiagonal(Vector &diag) const
 {
+#ifdef MFEM_USE_CEED
    CeedScalar *d_ptr;
    CeedMemType mem;
    CeedGetPreferredMemType(internal::ceed, &mem);
@@ -63,6 +68,9 @@ void MFEMCeedOperator::GetDiagonal(Vector &diag) const
    CeedOperatorLinearAssembleAddDiagonal(oper, v, CEED_REQUEST_IMMEDIATE);
 
    CeedVectorTakeArray(v, mem, &d_ptr);
+#else
+   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
 }
 
 } // namespace mfem

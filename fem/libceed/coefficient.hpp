@@ -12,6 +12,7 @@
 #ifndef MFEM_LIBCEED_COEFF
 #define MFEM_LIBCEED_COEFF
 
+#ifdef MFEM_USE_CEED
 #include <ceed.h>
 #include "../../linalg/vector.hpp"
 
@@ -79,5 +80,7 @@ void InitCeedVecCoeff(VectorCoefficient *VQ, Mesh &mesh,
                       CeedCoeff& coeff_type, void *&coeff);
 
 } // namespace mfem
+
+#endif
 
 #endif // MFEM_LIBCEED_COEFF

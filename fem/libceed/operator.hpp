@@ -12,37 +12,33 @@
 #ifndef MFEM_LIBCEED_OPERATOR
 #define MFEM_LIBCEED_OPERATOR
 
-#include <ceed.h>
 #include "util.hpp"
 #include "coefficient.hpp"
 
 namespace mfem
 {
 
-namespace internal
-{
-extern Ceed ceed; // defined in device.cpp
-extern CeedBasisMap basis_map;
-extern CeedRestrMap restr_map;
-}
-
 /** A base class to represent an MFEM Operator with a CeedOperator. */
 class MFEMCeedOperator
 {
 protected:
+#ifdef MFEM_USE_CEED
    CeedOperator oper;
    CeedVector u, v;
 
    MFEMCeedOperator() : oper(nullptr), u(nullptr), v(nullptr) { }
+#endif
 
 public:
    void Mult(const Vector &x, Vector &y) const;
    void GetDiagonal(Vector &diag) const;
    virtual ~MFEMCeedOperator()
    {
+#ifdef MFEM_USE_CEED
       CeedOperatorDestroy(&oper);
       CeedVectorDestroy(&u);
       CeedVectorDestroy(&v);
+#endif
    }
 };
 
