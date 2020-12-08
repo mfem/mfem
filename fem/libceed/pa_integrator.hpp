@@ -81,7 +81,7 @@ protected:
 
 public:
    CeedPAIntegrator()
-   : CeedMFIntegrator(),  build_oper(nullptr), build_qfunc(nullptr) { }
+      : CeedMFIntegrator(),  build_oper(nullptr), build_qfunc(nullptr) { }
 
    template <typename Context>
    void Assemble(CeedPAOperator &op, Context &ctx)
@@ -157,7 +157,7 @@ public:
          case CeedCoeff::VecGrid:
             qf = qf_file + op.vec_quad_func;
             CeedQFunctionCreateInterior(ceed, 1, op.vec_quad_qf, qf.c_str(),
-                                       &build_qfunc);
+                                        &build_qfunc);
             CeedQFunctionAddInput(build_qfunc, "coeff", dim, CEED_EVAL_INTERP);
             break;
          case CeedCoeff::VecQuad:
