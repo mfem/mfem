@@ -838,7 +838,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
    } // parallel
 }
 
-void OversetFindPointsGSLIB::Setup(Mesh &m, const int idsess,
+void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
                                    GridFunction *gfmax,
                                    const double bb_t, const double newt_tol,
                                    const int npt_max)
@@ -871,7 +871,7 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int idsess,
       MFEM_ABORT("Element type not currently supported in FindPointsGSLIB.");
    }
 
-   MFEM_ASSERT(idsess>=0, " The ID should be greater than or equal to 0.");
+   MFEM_ASSERT(meshid>=0, " The ID should be greater than or equal to 0.");
 
    const int pts_cnt = gsl_mesh.Size()/dim,
              NEtot = pts_cnt/(int)pow(dof1D, dim);
@@ -885,7 +885,7 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int idsess,
    {
       GetNodeValues(*gfmax, distfint);
    }
-   u_idsess = (unsigned int)idsess;
+   u_meshid = (unsigned int)meshid;
 
    if (dim == 2)
    {
@@ -894,7 +894,7 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int idsess,
       double * const elx[2] = { &gsl_mesh(0), &gsl_mesh(pts_cnt) };
       fdata2D = findptsms_setup_2(gsl_comm, elx, nr, NEtot, mr, bb_t,
                                   pts_cnt, pts_cnt, npt_max, newt_tol,
-                                  &u_idsess, &distfint(0));
+                                  &u_meshid, &distfint(0));
    }
    else
    {
@@ -904,7 +904,7 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int idsess,
       { &gsl_mesh(0), &gsl_mesh(pts_cnt), &gsl_mesh(2*pts_cnt) };
       fdata3D = findptsms_setup_3(gsl_comm, elx, nr, NEtot, mr, bb_t,
                                   pts_cnt, pts_cnt, npt_max, newt_tol,
-                                  &u_idsess, &distfint(0));
+                                  &u_meshid, &distfint(0));
    }
    setupflag = true;
    overset   = true;
@@ -913,7 +913,8 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int idsess,
 void OversetFindPointsGSLIB::FindPoints(const Vector &point_pos,
                                         Array<unsigned int> &point_id)
 {
-   MFEM_VERIFY(setupflag, "Use FindPointsGSLIB::Setup before finding points.");
+   MFEM_VERIFY(setupflag, "Use OversetFindPointsGSLIB::Setup before "
+               "finding points.");
    MFEM_VERIFY(overset, " Please setup FindPoints for overlapping grids.");
    points_cnt = point_pos.Size() / dim;
    unsigned int match= 0;

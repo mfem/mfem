@@ -180,12 +180,14 @@ public:
    virtual const Vector &GetGSLIBReferencePosition() const { return gsl_ref; }
 };
 
-
+/** \brief OversetFindPointsGSLIB enables use of findpts for arbitrary number
+ * of overlapping grids.
+ */
 class OversetFindPointsGSLIB : public FindPointsGSLIB
 {
 protected:
    bool overset;
-   unsigned int u_idsess;
+   unsigned int u_meshid;
    Vector distfint;
 
 public:
@@ -203,7 +205,7 @@ public:
        Note: the input mesh @a m must have Nodes set.
 
        @param[in] m         Input mesh.
-       @param[in] idsess    Mesh number that the elements belong to.
+       @param[in] meshid    Mesh number that the elements belong to.
        @param[in] gfmax     (Optional) GridFunction in H1 that is used as a
                             discriminator where one point is located in multiple
                             meshes. The mesh that maximizes gfmax is chosen.
@@ -211,7 +213,7 @@ public:
        @param[in] newt_tol  Newton tolerance for the gslib search methods.
        @param[in] npt_max   Number of points for simultaneous iteration. This
                             alters performance and memory footprint.*/
-   void Setup(Mesh &m, const int idsess, GridFunction *gfmax = NULL,
+   void Setup(Mesh &m, const int meshid, GridFunction *gfmax = NULL,
               const double bb_t = 0.1, const double newt_tol = 1.0e-12,
               const int npt_max = 256);
 
@@ -221,16 +223,7 @@ public:
        @param[in]  point_pos  Positions to be found. Must by ordered by nodes
                               (XXX...,YYY...,ZZZ).
        @param[in]  point_id   Index of the mesh that the point belongs to
-                              (corresponding to @a idsess in Setup).
-       @param[out] codes      Return codes for each point: inside element (0),
-                              element boundary (1), not found (2).
-       @param[out] proc_ids   MPI proc ids where the points were found.
-       @param[out] elem_ids   Element ids where the points were found.
-       @param[out] ref_pos    Reference coordinates of the found point. Ordered
-                              by vdim (XYZ,XYZ,XYZ...).
-                              Note: the gslib reference frame is [-1,1].
-       @param[out] dist       Distance between the sought and the found point
-                              in physical space. */
+                              (corresponding to @a meshid in Setup). */
    void FindPoints(const Vector &point_pos, Array<unsigned int> &point_id);
 
    /** Search positions and interpolate */
