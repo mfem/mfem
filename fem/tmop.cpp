@@ -2229,7 +2229,7 @@ DiscreteAdaptTC::~DiscreteAdaptTC()
    if (ptspec_fesv) {delete ptspec_fesv; }
    pgfarr.DeleteAll();
 #endif
-};
+}
 
 void AdaptivityEvaluator::SetSerialMetaInfo(const Mesh &m,
                                             const FiniteElementCollection &fec,
