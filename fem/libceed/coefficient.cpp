@@ -9,6 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#ifdef MFEM_USE_CEED
+#include <ceed.h>
+#endif
 #include "coefficient.hpp"
 #include "util.hpp"
 #include "../../mesh/mesh.hpp"
@@ -18,11 +21,12 @@
 namespace mfem
 {
 
+#ifdef MFEM_USE_CEED
+
 void InitCeedCoeff(Coefficient *Q, Mesh &mesh,
                    const IntegrationRule &ir,
                    CeedCoeff &coeff_type, void *&ptr)
 {
-#ifdef MFEM_USE_CEED
    if ( Q == nullptr )
    {
       CeedConstCoeff *ceedCoeff = new CeedConstCoeff{1.0};
@@ -82,16 +86,12 @@ void InitCeedCoeff(Coefficient *Q, Mesh &mesh,
       coeff_type = CeedCoeff::Quad;
       ptr = static_cast<void*>(ceedCoeff);
    }
-#else
-   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
-#endif
 }
 
 void InitCeedVecCoeff(VectorCoefficient *VQ, Mesh &mesh,
                       const IntegrationRule &ir,
                       CeedCoeff &coeff_type, void *&ptr)
 {
-#ifdef MFEM_USE_CEED
    if (VectorConstantCoefficient *coeff =
           dynamic_cast<VectorConstantCoefficient*>(VQ))
    {
@@ -159,9 +159,8 @@ void InitCeedVecCoeff(VectorCoefficient *VQ, Mesh &mesh,
       coeff_type = CeedCoeff::VecQuad;
       ptr = static_cast<void*>(ceedCoeff);
    }
-#else
-   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
-#endif
 }
+
+#endif
 
 } // namespace mfem

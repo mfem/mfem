@@ -15,10 +15,10 @@
 #include <tuple>
 #include <unordered_map>
 #include <string>
-// #ifdef MFEM_USE_CEED
+#ifdef MFEM_USE_CEED
 #include <ceed.h>
 #include <ceed-hash.h>
-// #endif
+#endif
 
 namespace mfem
 {
@@ -26,6 +26,16 @@ namespace mfem
 class FiniteElementSpace;
 class IntegrationRule;
 class Vector;
+
+/** @brief Function that determines if a CEED kernel should be used, based on
+    the current mfem::Device configuration. */
+bool DeviceCanUseCeed();
+
+/** @brief Remove from ceed_basis_map and ceed_restr_map the entries associated
+    with the given @a fes. */
+void RemoveCeedBasisAndRestriction(const FiniteElementSpace *fes);
+
+#ifdef MFEM_USE_CEED
 
 /// Initialize a CeedVector from a Vector
 void InitCeedVector(const Vector &v, CeedVector &cv);
@@ -41,14 +51,6 @@ void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
                                  const IntegrationRule &ir,
                                  Ceed ceed, CeedBasis *basis,
                                  CeedElemRestriction *restr);
-
-/** @brief Remove from ceed_basis_map and ceed_restr_map the entries associated
-    with the given @a fes. */
-void RemoveCeedBasisAndRestriction(const FiniteElementSpace *fes);
-
-/** @brief Function that determines if a CEED kernel should be used, based on
-    the current mfem::Device configuration. */
-bool DeviceCanUseCeed();
 
 /// Return the path to the libCEED q-function headers.
 const std::string &GetCeedPath();
@@ -93,6 +95,18 @@ struct CeedRestrHash
 };
 using CeedRestrMap =
    std::unordered_map<const CeedRestrKey, CeedElemRestriction, CeedRestrHash>;
+
+namespace internal
+{
+extern Ceed ceed;
+
+std::string ceed_path;
+
+extern CeedBasisMap ceed_basis_map;
+extern CeedRestrMap ceed_restr_map;
+}
+
+#endif
 
 } // namespace mfem
 
