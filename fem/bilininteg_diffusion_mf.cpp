@@ -31,6 +31,8 @@ void DiffusionIntegrator::AssembleMF(const FiniteElementSpace &fes)
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
+      MFEM_VERIFY(!VQ && !MQ,
+                  "Only scalar coefficient supported for Diffusion Integrator with libCEED");
       ceedOp = new CeedMFDiffusionIntegrator(fes, *ir, Q);
       return;
    }

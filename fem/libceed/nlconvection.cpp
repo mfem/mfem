@@ -22,7 +22,7 @@ CeedPANLConvectionIntegrator::CeedPANLConvectionIntegrator(
    const FiniteElementSpace &fes,
    const mfem::IntegrationRule &irm,
    Coefficient *Q)
-: CeedPAIntegrator()
+   : CeedPAIntegrator()
 {
 #ifdef MFEM_USE_CEED
    Mesh &mesh = *fes.GetMesh();
@@ -53,7 +53,7 @@ CeedMFNLConvectionIntegrator::CeedMFNLConvectionIntegrator(
    const FiniteElementSpace &fes,
    const mfem::IntegrationRule &irm,
    Coefficient *Q)
-: CeedMFIntegrator()
+   : CeedMFIntegrator()
 {
 #ifdef MFEM_USE_CEED
    Mesh &mesh = *fes.GetMesh();

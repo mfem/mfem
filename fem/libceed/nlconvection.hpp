@@ -23,15 +23,15 @@ class CeedPANLConvectionIntegrator : public CeedPAIntegrator
 {
 public:
    CeedPANLConvectionIntegrator(const FiniteElementSpace &fes,
-                                const mfem::IntegrationRule &irm,
+                                const IntegrationRule &irm,
                                 Coefficient *coeff);
-};        
+};
 
 class CeedMFNLConvectionIntegrator : public CeedMFIntegrator
 {
 public:
    CeedMFNLConvectionIntegrator(const FiniteElementSpace &fes,
-                                const mfem::IntegrationRule &irm,
+                                const IntegrationRule &irm,
                                 Coefficient *coeff);
 };
 
