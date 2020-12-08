@@ -11,7 +11,6 @@
 
 #include "convection.hpp"
 
-#include "ceed.hpp"
 #ifdef MFEM_USE_CEED
 #include "convection.h"
 #endif

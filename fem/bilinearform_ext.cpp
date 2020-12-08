@@ -14,7 +14,6 @@
 
 #include "../general/forall.hpp"
 #include "bilinearform.hpp"
-#include "libceed/ceed.hpp"
 #include "pgridfunc.hpp"
 
 namespace mfem

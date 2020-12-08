@@ -11,7 +11,6 @@
 
 #include "nlconvection.hpp"
 
-#include "ceed.hpp"
 #ifdef MFEM_USE_CEED
 #include "nlconvection.h"
 #endif

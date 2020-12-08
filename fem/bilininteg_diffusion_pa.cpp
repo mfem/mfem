@@ -360,9 +360,9 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      // ceedOp = new CeedData;
-      // InitCeedCoeff(Q, *mesh, *ir, ceedOp);
-      // return CeedPADiffusionAssemble(fes, *ir, *ceedOp);
+      MFEM_VERIFY(!VQ && !MQ, "Only scalar coefficient supported for Diffusion Integrator with libCEED")
+      ceedOp = new CeedPADiffusionIntegrator(fes, *ir, Q);
+      return;
    }
    const int dims = el.GetDim();
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6

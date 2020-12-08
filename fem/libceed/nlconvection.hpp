@@ -12,7 +12,6 @@
 #ifndef MFEM_LIBCEED_CONV_HPP
 #define MFEM_LIBCEED_CONV_HPP
 
-#include "ceed.hpp"
 #include "pa_integrator.hpp"
 #include "mf_integrator.hpp"
 #include "../fespace.hpp"
