@@ -998,6 +998,8 @@ int main(int argc, char *argv[])
    double kI_acc = 0.6;
    double kD_acc = 0.0;
    double kI_rej = 0.6;
+   double lim_a = 0.95;
+   double lim_b = 1.05;
    double lim_max = 2.0;
 
    double tol_init = 1e-5;
@@ -1128,6 +1130,12 @@ int main(int argc, char *argv[])
                   "Gain for integrated error adjustment.");
    args.AddOption(&kD_acc, "-kD", "--kD",
                   "Gain for derivative error adjustment.");
+   args.AddOption(&lim_a, "-dza", "--dead-zone-min",
+                  "Time step will remain unchanged if scale factor is "
+		  "between dza and dzb.");
+   args.AddOption(&lim_b, "-dzb", "--dead-zone-max",
+                  "Time step will remain unchanged if scale factor is "
+		  "between dza and dzb.");
    args.AddOption(&lim_max, "-thm", "--theta-max",
                   "Maximum dt increase factor.");
    args.AddOption(&t_min, "-tmin", "--t-minimum",
@@ -1482,7 +1490,7 @@ int main(int argc, char *argv[])
    ODEController ode_controller;
    PIDAdjFactor dt_acc(kP_acc, kI_acc, kD_acc);
    IAdjFactor   dt_rej(kI_rej);
-   MaxLimiter   dt_max(lim_max);
+   DeadZoneLimiter dt_lim(lim_a, lim_b, lim_max);
 
    ODEEmbeddedSolver * ode_solver   = NULL;
    switch (ode_solver_type)
@@ -1808,7 +1816,7 @@ int main(int argc, char *argv[])
    ode_solver->Init(oper);
 
    ode_controller.Init(*ode_solver, ode_diff_msr,
-                       dt_acc, dt_rej, dt_max);
+                       dt_acc, dt_rej, dt_lim);
 
    ode_controller.SetOutputFrequency(vis_steps);
    ode_controller.SetTimeStep(dt);
