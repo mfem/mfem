@@ -46,9 +46,7 @@ public:
    }
 };
 
-/// A minimal BuildContext required by CeedIntegrator
-struct BuildContext { CeedInt dim, space_dim, vdim; CeedScalar coeff[3]; };
-
+/** The different evaluation modes available for PA and MF CeedIntegrator. */
 enum class EvalMode { None, Interp, Grad, InterpAndGrad };
 
 } // namespace mfem

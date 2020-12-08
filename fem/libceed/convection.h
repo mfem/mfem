@@ -10,7 +10,11 @@
 // CONTRIBUTING.md for details.
 
 /// A structure used to pass additional data to f_build_conv and f_apply_conv
-struct BuildContext { CeedInt dim, space_dim, vdim; CeedScalar coeff[3]; };
+struct ConvectionContext {
+   CeedInt dim, space_dim, vdim;
+   CeedScalar coeff[3];
+   CeedScalar alpha;
+};
 
 /// libCEED Q-function for building quadrature data for a convection operator
 /// with a constant coefficient
@@ -18,7 +22,7 @@ CEED_QFUNCTION(f_build_conv_const)(void *ctx, CeedInt Q,
                                    const CeedScalar *const *in,
                                    CeedScalar *const *out)
 {
-   BuildContext *bc = (BuildContext*)ctx;
+   ConvectionContext *bc = (ConvectionContext*)ctx;
    // in[0] is Jacobians with shape [dim, nc=dim, Q]
    // in[1] is quadrature weights, size (Q)
    //
@@ -27,6 +31,7 @@ CEED_QFUNCTION(f_build_conv_const)(void *ctx, CeedInt Q,
    const CeedScalar coeff0 = bc->coeff[0];
    const CeedScalar coeff1 = bc->coeff[1];
    const CeedScalar coeff2 = bc->coeff[2];
+   const CeedScalar alpha  = bc->alpha;
    const CeedScalar *J = in[0], *qw = in[1];
    CeedScalar *qd = out[0];
    switch (bc->dim + 10 * bc->space_dim)
@@ -34,7 +39,7 @@ CEED_QFUNCTION(f_build_conv_const)(void *ctx, CeedInt Q,
       case 11:
          for (CeedInt i = 0; i < Q; i++)
          {
-            qd[i] = coeff0 * qw[i] * J[i];
+            qd[i] = alpha * coeff0 * qw[i] * J[i];
          }
          break;
       case 22:
@@ -46,7 +51,7 @@ CEED_QFUNCTION(f_build_conv_const)(void *ctx, CeedInt Q,
             const CeedScalar J21 = J[i + Q * 1];
             const CeedScalar J12 = J[i + Q * 2];
             const CeedScalar J22 = J[i + Q * 3];
-            const CeedScalar w = - qw[i]; // TODO remove - and use alpha
+            const CeedScalar w = alpha * qw[i];
             const CeedScalar wx = w * coeff0;
             const CeedScalar wy = w * coeff1;
             qd[i + Q * 0] =  wx * J22 - wy * J12;
@@ -77,7 +82,7 @@ CEED_QFUNCTION(f_build_conv_const)(void *ctx, CeedInt Q,
             const CeedScalar A31 = J21 * J32 - J22 * J31;
             const CeedScalar A32 = J12 * J31 - J11 * J32;
             const CeedScalar A33 = J11 * J22 - J12 * J21;
-            const CeedScalar w = - qw[i]; // TODO remove - and use alpha
+            const CeedScalar w = alpha * qw[i];
             const CeedScalar wx = w * coeff0;
             const CeedScalar wy = w * coeff1;
             const CeedScalar wz = w * coeff2;
@@ -96,13 +101,14 @@ CEED_QFUNCTION(f_build_conv_quad)(void *ctx, CeedInt Q,
                                   const CeedScalar *const *in,
                                   CeedScalar *const *out)
 {
-   BuildContext *bc = (BuildContext *)ctx;
+   ConvectionContext *bc = (ConvectionContext *)ctx;
    // in[1] is Jacobians with shape [dim, nc=dim, Q]
    // in[2] is quadrature weights, size (Q)
    //
    // At every quadrature point, compute qw/det(J).adj(J).adj(J)^T and store
    // the symmetric part of the result.
    const CeedScalar *c = in[0], *J = in[1], *qw = in[2];
+   const CeedScalar alpha  = bc->alpha;
    CeedScalar *qd = out[0];
    switch (bc->dim + 10 * bc->space_dim)
    {
@@ -110,7 +116,7 @@ CEED_QFUNCTION(f_build_conv_quad)(void *ctx, CeedInt Q,
          for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar coeff = c[i];
-            qd[i] = coeff * qw[i] * J[i];
+            qd[i] = alpha * coeff * qw[i] * J[i];
          }
          break;
       case 22:
@@ -122,7 +128,7 @@ CEED_QFUNCTION(f_build_conv_quad)(void *ctx, CeedInt Q,
             const CeedScalar J21 = J[i + Q * 1];
             const CeedScalar J12 = J[i + Q * 2];
             const CeedScalar J22 = J[i + Q * 3];
-            const CeedScalar w = - qw[i]; // TODO remove - and use alpha
+            const CeedScalar w = alpha * qw[i];
             const CeedScalar wx = w * c[i + Q * 0];
             const CeedScalar wy = w * c[i + Q * 1];
             qd[i + Q * 0] =  wx * J22 - wy * J12;
@@ -153,7 +159,7 @@ CEED_QFUNCTION(f_build_conv_quad)(void *ctx, CeedInt Q,
             const CeedScalar A31 = J21 * J32 - J22 * J31;
             const CeedScalar A32 = J12 * J31 - J11 * J32;
             const CeedScalar A33 = J11 * J22 - J12 * J21;
-            const CeedScalar w = - qw[i]; // TODO remove - and use alpha
+            const CeedScalar w = alpha * qw[i];
             const CeedScalar wx = w * c[i + Q * 0];
             const CeedScalar wy = w * c[i + Q * 1];
             const CeedScalar wz = w * c[i + Q * 2];
@@ -171,7 +177,7 @@ CEED_QFUNCTION(f_apply_conv)(void *ctx, CeedInt Q,
                              const CeedScalar *const *in,
                              CeedScalar *const *out)
 {
-   BuildContext *bc = (BuildContext *)ctx;
+   ConvectionContext *bc = (ConvectionContext *)ctx;
    // in[0], out[0] have shape [dim, nc=1, Q]
    const CeedScalar *ug = in[0], *qd = in[1];
    CeedScalar *vg = out[0];
@@ -237,7 +243,7 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
                                       const CeedScalar *const *in,
                                       CeedScalar *const *out)
 {
-   BuildContext *bc = (BuildContext*)ctx;
+   ConvectionContext *bc = (ConvectionContext*)ctx;
    // in[0], out[0] have shape [dim, nc=1, Q]
    // in[1] is Jacobians with shape [dim, nc=dim, Q]
    // in[2] is quadrature weights, size (Q)
@@ -246,6 +252,7 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
    const CeedScalar coeff0 = bc->coeff[0];
    const CeedScalar coeff1 = bc->coeff[1];
    const CeedScalar coeff2 = bc->coeff[2];
+   const CeedScalar alpha  = bc->alpha;
    const CeedScalar *ug = in[0], *J = in[1], *qw = in[2];
    CeedScalar *vg = out[0];
    switch (10 * bc->dim + bc->vdim)
@@ -253,7 +260,7 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
       case 11:
          for (CeedInt i = 0; i < Q; i++)
          {
-            const CeedScalar qd = coeff0 * qw[i] * J[i];
+            const CeedScalar qd = alpha * coeff0 * qw[i] * J[i];
             vg[i] = ug[i] * qd;
          }
          break;
@@ -266,7 +273,7 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
             const CeedScalar J21 = J[i + Q * 1];
             const CeedScalar J12 = J[i + Q * 2];
             const CeedScalar J22 = J[i + Q * 3];
-            const CeedScalar w = - qw[i]; // TODO remove - and use alpha
+            const CeedScalar w = alpha * qw[i];
             const CeedScalar wx = w * coeff0;
             const CeedScalar wy = w * coeff1;
             const CeedScalar qd0 =  wx * J22 - wy * J12;
@@ -285,7 +292,7 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
             const CeedScalar J21 = J[i + Q * 1];
             const CeedScalar J12 = J[i + Q * 2];
             const CeedScalar J22 = J[i + Q * 3];
-            const CeedScalar w = - qw[i]; // TODO remove - and use alpha
+            const CeedScalar w = alpha * qw[i];
             const CeedScalar wx = w * coeff0;
             const CeedScalar wy = w * coeff1;
             const CeedScalar qd0 =  wx * J22 - wy * J12;
@@ -322,7 +329,7 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
             const CeedScalar A31 = J21 * J32 - J22 * J31;
             const CeedScalar A32 = J12 * J31 - J11 * J32;
             const CeedScalar A33 = J11 * J22 - J12 * J21;
-            const CeedScalar w = - qw[i]; // TODO remove - and use alpha
+            const CeedScalar w = alpha * qw[i];
             const CeedScalar wx = w * coeff0;
             const CeedScalar wy = w * coeff1;
             const CeedScalar wz = w * coeff2;
@@ -359,7 +366,7 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
             const CeedScalar A31 = J21 * J32 - J22 * J31;
             const CeedScalar A32 = J12 * J31 - J11 * J32;
             const CeedScalar A33 = J11 * J22 - J12 * J21;
-            const CeedScalar w = - qw[i]; // TODO remove - and use alpha
+            const CeedScalar w = alpha * qw[i];
             const CeedScalar wx = w * coeff0;
             const CeedScalar wy = w * coeff1;
             const CeedScalar wz = w * coeff2;
@@ -383,20 +390,21 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
                                      const CeedScalar *const *in,
                                      CeedScalar *const *out)
 {
-   BuildContext *bc = (BuildContext*)ctx;
+   ConvectionContext *bc = (ConvectionContext*)ctx;
    // in[0], out[0] have shape [dim, nc=1, Q]
    // in[1] is Jacobians with shape [dim, nc=dim, Q]
    // in[2] is quadrature weights, size (Q)
    //
    // At every quadrature point, compute qw/det(J).adj(J).adj(J)^T
    const CeedScalar *c = in[0], *ug = in[1], *J = in[2], *qw = in[3];
+   const CeedScalar alpha  = bc->alpha;
    CeedScalar *vg = out[0];
    switch (10 * bc->dim + bc->vdim)
    {
       case 11:
          for (CeedInt i = 0; i < Q; i++)
          {
-            const CeedScalar qd = c[i] * qw[i] * J[i];
+            const CeedScalar qd = alpha * c[i] * qw[i] * J[i];
             vg[i] = ug[i] * qd;
          }
          break;
@@ -409,7 +417,7 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
             const CeedScalar J21 = J[i + Q * 1];
             const CeedScalar J12 = J[i + Q * 2];
             const CeedScalar J22 = J[i + Q * 3];
-            const CeedScalar w = - qw[i]; // TODO remove - and use alpha
+            const CeedScalar w = alpha * qw[i];
             const CeedScalar wx = w * c[i + Q * 0];
             const CeedScalar wy = w * c[i + Q * 1];
             const CeedScalar qd0 =  wx * J22 - wy * J12;
@@ -428,7 +436,7 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
             const CeedScalar J21 = J[i + Q * 1];
             const CeedScalar J12 = J[i + Q * 2];
             const CeedScalar J22 = J[i + Q * 3];
-            const CeedScalar w = - qw[i]; // TODO remove - and use alpha
+            const CeedScalar w = alpha * qw[i];
             const CeedScalar wx = w * c[i + Q * 0];
             const CeedScalar wy = w * c[i + Q * 1];
             const CeedScalar qd0 =  wx * J22 - wy * J12;
@@ -465,7 +473,7 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
             const CeedScalar A31 = J21 * J32 - J22 * J31;
             const CeedScalar A32 = J12 * J31 - J11 * J32;
             const CeedScalar A33 = J11 * J22 - J12 * J21;
-            const CeedScalar w = - qw[i]; // TODO remove - and use alpha
+            const CeedScalar w = alpha * qw[i];
             const CeedScalar wx = w * c[i + Q * 0];
             const CeedScalar wy = w * c[i + Q * 1];
             const CeedScalar wz = w * c[i + Q * 2];
@@ -502,7 +510,7 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
             const CeedScalar A31 = J21 * J32 - J22 * J31;
             const CeedScalar A32 = J12 * J31 - J11 * J32;
             const CeedScalar A33 = J11 * J22 - J12 * J21;
-            const CeedScalar w = - qw[i]; // TODO remove - and use alpha
+            const CeedScalar w = alpha * qw[i];
             const CeedScalar wx = w * c[i + Q * 0];
             const CeedScalar wy = w * c[i + Q * 1];
             const CeedScalar wz = w * c[i + Q * 2];

@@ -18,11 +18,6 @@
 namespace mfem
 {
 
-struct ConvectionContext : public BuildContext
-{
-   CeedScalar alpha;
-};
-
 CeedPAConvectionIntegrator::CeedPAConvectionIntegrator(
    const FiniteElementSpace &fes,
    const mfem::IntegrationRule &irm,
