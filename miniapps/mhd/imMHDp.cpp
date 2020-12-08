@@ -490,6 +490,7 @@ int main(int argc, char *argv[])
 
    socketstream vis_phi, vis_j, vis_psi, vis_w;
    subtract(psi,psiBack,psiPer);
+
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -541,6 +542,10 @@ int main(int argc, char *argv[])
    }
 
    double t = .0, told=.0;
+   ConstantCoefficient zero(0.0); 
+   double l2norm  = psiPer.ComputeL2Error(zero);
+   if (myid==0) cout << "t="<<t<<" ln(|psiPer|_2) ="<<log(l2norm)<<endl;
+
    oper.SetTime(t);
    if (explicitSolve)
       ode_solver->Init(oper);
@@ -680,7 +685,11 @@ int main(int argc, char *argv[])
             oper.UpdateJ(vx, &j);
 
             if (icase!=3)
+            {
                subtract(psi,psiBack,psiPer);
+               double l2norm  = psiPer.ComputeL2Error(zero);
+               if (myid==0) cout << "t="<<t<<" ln(|psiPer|_2) ="<<log(l2norm)<<endl;
+            }
          }
 
 
