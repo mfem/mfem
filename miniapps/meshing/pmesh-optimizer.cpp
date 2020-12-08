@@ -934,8 +934,6 @@ int main (int argc, char *argv[])
    {
       int n_hr = 5;         //Newton + AMR iterations
       int n_r = 1;          //AMR iterations per Newton iteration
-      int amrstop = 0;
-      int amrdstop = 0;
 
       tmop_r.Reset();
       tmop_dr.Reset();
