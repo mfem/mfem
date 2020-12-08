@@ -2487,6 +2487,8 @@ double TMOP_Integrator::GetRefinementElementEnergy(const FiniteElement &el,
 
    TargetConstructor *tc = const_cast<TargetConstructor *>(targetC);
    DiscreteAdaptTC *dtc = dynamic_cast<DiscreteAdaptTC *>(tc);
+   // For DiscreteAdaptTC the GridFunctions used to set the targets must be
+   // mapped onto the fine elements.
    if (dtc) { dtc->SetTspecFromIntRule(el_id, el, irule); }
 
    for (int e = 0; e < NEsplit; e++)
@@ -2500,6 +2502,10 @@ double TMOP_Integrator::GetRefinementElementEnergy(const FiniteElement &el,
       {
          for (int d = 0; d < dim; d++)
          {
+            // elfun is (xe1,xe2,...xen,ye1,ye2...yen) and has nodal coordinates
+            // for all the children element of the parent element being considered.
+            // So we must index and get (xek, yek) i.e. nodal coordinates for
+            // the fine element being considered.
             elfun_split(i + d*dof) = elfun(i + e*dof + d*dof*NEsplit);
          }
       }
@@ -2511,6 +2517,7 @@ double TMOP_Integrator::GetRefinementElementEnergy(const FiniteElement &el,
       DenseTensor Jtr(dim, dim, ir.GetNPoints());
       if (dtc)
       {
+         // This is used to index into the tspec vector inside DiscreteAdaptTC.
          dtc->SetRefinementSubElement(e);
       }
       targetC->ComputeElementTargets(el_id, el, ir, elfun_split, Jtr);

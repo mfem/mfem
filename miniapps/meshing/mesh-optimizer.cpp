@@ -876,7 +876,7 @@ int main(int argc, char *argv[])
    }
    TMOPRefinerEstimator tmop_r_est(*mesh, a, mesh_poly_deg, amr_metric_id);
    TMOPRefiner tmop_r(tmop_r_est);
-   tmop_r_est.SetEnergyReductionFactor(1.);
+   tmop_r_est.SetEnergyScalingFactor(1.);
    TMOPDeRefinerEstimator tmop_dr_est(*mesh, a);
    ThresholdDerefiner tmop_dr(tmop_dr_est);
 

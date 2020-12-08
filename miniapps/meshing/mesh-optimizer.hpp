@@ -11,7 +11,7 @@
 
 // MFEM Mesh Optimizer Miniapp - Serial/Parallel Shared Code
 
-#include "mfem.hpp"
+#include "../../mfem.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -114,24 +114,11 @@ public:
    HessianCoefficient(int dim_, int metric_id)
       : TMOPMatrixCoefficient(dim_), dim(dim_), metric(metric_id) { }
 
-   virtual void SetType(int amr_type_) { amr_type = amr_type_; }
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip)
    {
       Vector pos(3);
       T.Transform(ip, pos);
-      (this)->Eval(K,pos);
-   }
-
-   virtual void Eval(DenseMatrix &K)
-   {
-      Vector pos(3);
-      for (int i=0; i<K.Size(); i++) {pos(i)=K(i,i);}
-      (this)->Eval(K,pos);
-   }
-
-   virtual void Eval(DenseMatrix &K, Vector pos)
-   {
       if (amr_type == 0)
       {
          if (metric != 14 && metric != 36 && metric != 85)
@@ -455,6 +442,9 @@ void DiffuseField(ParGridFunction &field, int smooth_steps)
 #endif
 
 
+/// This class is used to update GridFunction and FESpaces after mesh updates.
+/// It also provides functionality to reset essential boundary conditions, and
+/// rebalance ParMesh.
 class TMOPAMR
 {
 protected:
@@ -496,6 +486,8 @@ public:
 #endif
 
 #ifdef MFEM_USE_MPI
+   // Rebalance ParMesh such that all the children elements are moved to the same
+   // MPI rank where the parent will be if the mesh were to be derefined.
    void RebalanceParNCMesh();
 #endif
 };
@@ -720,15 +712,15 @@ void TMOPAMR::ParUpdate()
 class TMOPRefinerEstimator : public AnisotropicErrorEstimator
 {
 protected:
-   Mesh *mesh;
-   NonlinearForm *nlf;
+   Mesh *mesh; //not-owned
+   NonlinearForm *nlf; //not-owned
    int order;
    int amrmetric;
    Array<IntegrationRule *> TriIntRule, QuadIntRule, TetIntRule, HexIntRule;
    long current_sequence;
    Vector error_estimates;
    Array<int> aniso_flags;
-   double energy_reduction_factor; // an element is refined only if
+   double energy_scaling_factor; // an element is refined only if
    // [mean E(children)]*factor < E(parent)
    GridFunction *spat_gf;          // If specified, can be used to specify the
    double spat_gf_critical;        // the region where hr-adaptivity is done.
@@ -744,13 +736,21 @@ protected:
    /// Compute the element error estimates.
    void ComputeEstimates();
 
-   // Construct the integration rules for each element type - only 2D right now
-   void SetQuadIntRules();
-   void SetTriIntRules();
-   void SetHexIntRules();
-   void SetTetIntRules();
+   /// Construct the integration rules to model how each element type is split
+   /// using different refinement types. ref_type = 0 is the original element
+   /// and reftype \ in [1, 7] represent different refinement type based on
+   /// NCMesh class.
+   void SetQuadIntRules(); // supports ref_type = 1 to 3.
+   void SetTriIntRules(); // currently supports only isotropic refinement.
+   void SetHexIntRules(); // currently supports only isotropic refinement.
+   void SetTetIntRules(); // currently supports only isotropic refinement.
+
+   /// Get TMOP energy for each element corresponding to the refinement type
+   /// specified.
    void GetTMOPRefinementEnergy(int reftype, Vector &el_energy_vec);
 
+   /// Use a mesh to setup an integration rule that will mimic the different
+   /// refinement types.
    IntegrationRule* SetIntRulesFromMesh(Mesh &meshsplit);
 public:
    TMOPRefinerEstimator(Mesh &mesh_, NonlinearForm &nlf_, int order_,
@@ -758,7 +758,7 @@ public:
       mesh(&mesh_), nlf(&nlf_), order(order_), amrmetric(amrmetric_),
       TriIntRule(0), QuadIntRule(0), TetIntRule(0), HexIntRule(0),
       current_sequence(-1), error_estimates(), aniso_flags(),
-      energy_reduction_factor(1.), spat_gf(NULL), spat_gf_critical(0.)
+      energy_scaling_factor(1.), spat_gf(NULL), spat_gf_critical(0.)
    {
       if (mesh->Dimension() == 2)
       {
@@ -771,7 +771,8 @@ public:
          SetTetIntRules();
       }
    }
-   // destructor
+
+   /// Destructor
    ~TMOPRefinerEstimator()
    {
       for (int i = 0; i < QuadIntRule.Size(); i++) { delete QuadIntRule[i]; }
@@ -780,19 +781,27 @@ public:
       for (int i = 0; i < TetIntRule.Size();  i++) { delete TetIntRule[i]; }
    }
 
+   /// Get TMOP-based errors for each element in the mesh computed based on the
+   /// refinement types being considered.
    virtual const Vector &GetLocalErrors()
    {
       if (MeshIsModified()) { ComputeEstimates(); }
       return error_estimates;
    }
+   /// For anisotropic refinements, get the refinement type (e.g., x or y)
    virtual const Array<int> &GetAnisotropicFlags()
    {
       if (MeshIsModified()) { ComputeEstimates(); }
       return aniso_flags;
    }
 
-   void SetEnergyReductionFactor(double factor_) { energy_reduction_factor = factor_; }
+   /// Scaling factor for the TMOP refinement energy. Used to tighten the refinement
+   /// criterion. An element is refined only if
+   /// [mean E(children)]*energy_refuction_factor < E(parent)
+   void SetEnergyScalingFactor(double factor_) { energy_scaling_factor = factor_; }
 
+   /// Used to set a space-dependent function that can make elements from being
+   /// refined.
    void SetSpatialIndicator(GridFunction &spat_gf_) { spat_gf = &spat_gf_; }
    void SetSpatialIndicatorCritical(double val_) { spat_gf_critical = val_; }
 
@@ -849,7 +858,7 @@ void TMOPRefinerEstimator::ComputeEstimates()
          }
       }
    }
-   error_estimates *= energy_reduction_factor;
+   error_estimates *= energy_scaling_factor;
 
    if (spat_gf)
    {
@@ -864,7 +873,7 @@ void TMOPRefinerEstimator::ComputeEstimates()
    }
 
    error_estimates -= amr_base_energy;
-   error_estimates *= -1;
+   error_estimates *= -1; //error = E(parent) - scaling_factor*mean(E(children))
    current_sequence = mesh->GetSequence();
 }
 
@@ -1041,7 +1050,7 @@ void TMOPRefinerEstimator::SetTriIntRules()
    meshsplit.Clear();
 
    // no anisotropic refinements for triangle
-   // Reftype = 1-2
+   // Reftype = 3
    for (int i = 1; i < 2; i++)
    {
       Array<Refinement> marked_elements;
@@ -1085,7 +1094,7 @@ void TMOPRefinerEstimator::SetTetIntRules()
    meshsplit.Clear();
 
    // no anisotropic refinements for triangle
-   // Reftype = 1-2
+   // Reftype = 7
    for (int i = 1; i < 2; i++)
    {
       Array<Refinement> marked_elements;

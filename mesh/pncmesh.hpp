@@ -87,7 +87,7 @@ public:
    virtual void Derefine(const Array<int> &derefs);
 
    /** Gets partitioning for the coarse mesh if the current fine mesh were to
-       be derefine. */
+       be derefined. */
    virtual void GetFineToCoarsePartitioning(const Array<int> &derefs,
                                             Array<int> &new_ranks);
 
