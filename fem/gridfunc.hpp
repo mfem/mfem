@@ -465,8 +465,7 @@ public:
    double ComputeDGFaceJumpError(Coefficient *exsol,
                                  Coefficient *ell_coeff,
                                  double Nu,
-                                 const IntegrationRule *irs[] = NULL)
-   const;
+                                 const IntegrationRule *irs[] = NULL) const;
 
    /** This method is kept for backward compatibility.
 
