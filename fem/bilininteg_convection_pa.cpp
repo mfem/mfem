@@ -776,6 +776,7 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, Trans);
    if (DeviceCanUseCeed())
    {
+      delete ceedOp;
       ceedOp = new CeedPAConvectionIntegrator(fes, *ir, Q, alpha);
       return;
    }

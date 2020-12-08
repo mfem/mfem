@@ -44,7 +44,6 @@ void VectorDiffusionIntegrator::AddMultMF(const Vector &x, Vector &y) const
    if (DeviceCanUseCeed())
    {
       ceedOp->Mult(x, y);
-      // CeedAddMult(ceedOp, x, y);
    }
    else
 #endif
@@ -59,7 +58,6 @@ void VectorDiffusionIntegrator::AssembleDiagonalMF(Vector &diag)
    if (DeviceCanUseCeed())
    {
       ceedOp->GetDiagonal(diag);
-      // CeedAssembleDiagonal(ceedOp, diag);
    }
    else
 #endif
