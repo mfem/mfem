@@ -39,7 +39,7 @@ CeedPAMassIntegrator::CeedPAMassIntegrator(const FiniteElementSpace &fes,
                             EvalMode::Interp,
                             EvalMode::Interp
                            };
-   BuildContext ctx;
+   MassContext ctx;
    Assemble(massOp, ctx);
 }
 
@@ -59,7 +59,7 @@ CeedMFMassIntegrator::CeedMFMassIntegrator(const FiniteElementSpace &fes,
                             EvalMode::Interp,
                             EvalMode::Interp
                            };
-   BuildContext ctx;
+   MassContext ctx;
    Assemble(massOp, ctx);
 }
 

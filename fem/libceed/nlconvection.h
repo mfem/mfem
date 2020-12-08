@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 /// A structure used to pass additional data to f_build_conv and f_apply_conv
-struct BuildContext { CeedInt dim, space_dim, vdim; CeedScalar coeff[3]; };
+struct NLConvectionContext { CeedInt dim, space_dim, vdim; CeedScalar coeff[3]; };
 
 /// libCEED Q-function for building quadrature data for a convection operator
 /// with a constant coefficient
@@ -18,7 +18,7 @@ CEED_QFUNCTION(f_build_conv_const)(void *ctx, CeedInt Q,
                                    const CeedScalar *const *in,
                                    CeedScalar *const *out)
 {
-   BuildContext *bc = (BuildContext*)ctx;
+   NLConvectionContext *bc = (NLConvectionContext*)ctx;
    // in[0] is Jacobians with shape [dim, nc=dim, Q]
    // in[1] is quadrature weights, size (Q)
    //
@@ -97,7 +97,7 @@ CEED_QFUNCTION(f_build_conv_quad)(void *ctx, CeedInt Q,
                                   const CeedScalar *const *in,
                                   CeedScalar *const *out)
 {
-   BuildContext *bc = (BuildContext *)ctx;
+   NLConvectionContext *bc = (NLConvectionContext *)ctx;
    // in[1] is Jacobians with shape [dim, nc=dim, Q]
    // in[2] is quadrature weights, size (Q)
    //
@@ -177,7 +177,7 @@ CEED_QFUNCTION(f_apply_conv)(void *ctx, CeedInt Q,
                              const CeedScalar *const *in,
                              CeedScalar *const *out)
 {
-   BuildContext *bc = (BuildContext *)ctx;
+   NLConvectionContext *bc = (NLConvectionContext *)ctx;
    // in[0], out[0] have shape [dim, nc=1, Q]
    const CeedScalar *u = in[0], *ug = in[1], *qd = in[2];
    CeedScalar *vg = out[0];
@@ -257,7 +257,7 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
                                       const CeedScalar *const *in,
                                       CeedScalar *const *out)
 {
-   BuildContext *bc = (BuildContext*)ctx;
+   NLConvectionContext *bc = (NLConvectionContext*)ctx;
    // in[0], out[0] have shape [dim, nc=1, Q]
    // in[1] is Jacobians with shape [dim, nc=dim, Q]
    // in[2] is quadrature weights, size (Q)
@@ -371,7 +371,7 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
                                      const CeedScalar *const *in,
                                      CeedScalar *const *out)
 {
-   BuildContext *bc = (BuildContext*)ctx;
+   NLConvectionContext *bc = (NLConvectionContext*)ctx;
    // in[0], out[0] have shape [dim, nc=1, Q]
    // in[1] is Jacobians with shape [dim, nc=dim, Q]
    // in[2] is quadrature weights, size (Q)

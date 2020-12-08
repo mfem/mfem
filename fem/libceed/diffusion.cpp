@@ -41,7 +41,7 @@ CeedPADiffusionIntegrator::CeedPADiffusionIntegrator(
                             EvalMode::Grad,
                             EvalMode::Grad
                            };
-   BuildContext ctx;
+   DiffusionContext ctx;
    Assemble(diffOp, ctx);
 }
 
@@ -62,7 +62,7 @@ CeedMFDiffusionIntegrator::CeedMFDiffusionIntegrator(
                             EvalMode::Grad,
                             EvalMode::Grad
                            };
-   BuildContext ctx;
+   DiffusionContext ctx;
    Assemble(diffOp, ctx);
 }
 
