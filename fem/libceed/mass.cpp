@@ -11,7 +11,6 @@
 
 #include "mass.hpp"
 
-#include "ceed.hpp"
 #ifdef MFEM_USE_CEED
 #include "mass.h"
 #endif
@@ -29,17 +28,16 @@ CeedPAMassIntegrator::CeedPAMassIntegrator(const FiniteElementSpace &fes,
    MFEM_VERIFY(mesh.Dimension() == mesh.SpaceDimension(), "case not supported");
    MFEM_VERIFY(fes.GetVDim() == 1 || fes.GetVDim() == mesh.Dimension(),
                "case not supported");
-   int dim = mesh.Dimension();
    InitCeedCoeff(Q, mesh, irm, coeff_type, coeff);
    CeedPAOperator massOp = {fes, irm,
-                           dim * (dim + 1) / 2, "/mass.h",
-                           "", nullptr,
-                           "", nullptr,
-                           ":f_build_mass_const", f_build_mass_const,
-                           ":f_build_mass_quad", f_build_mass_quad,
-                           ":f_apply_mass", f_apply_mass,
-                           EvalMode::Grad,
-                           EvalMode::Interp
+                            1, "/mass.h",
+                            ":f_build_mass_const", f_build_mass_const,
+                            ":f_build_mass_quad", f_build_mass_quad,
+                            "", nullptr,
+                            "", nullptr,
+                            ":f_apply_mass", f_apply_mass,
+                            EvalMode::Interp,
+                            EvalMode::Interp
                            };
    BuildContext ctx;
    Assemble(massOp, ctx);
@@ -53,14 +51,14 @@ CeedMFMassIntegrator::CeedMFMassIntegrator(const FiniteElementSpace &fes,
    Mesh &mesh = *fes.GetMesh();
    InitCeedCoeff(Q, mesh, irm, coeff_type, coeff);
    CeedMFOperator massOp = {fes, irm,
-                           "/mass.h",
-                           "", nullptr,
-                           "", nullptr,
-                           ":f_apply_mass_mf_const", f_apply_mass_mf_const,
-                           ":f_apply_mass_mf_quad", f_apply_mass_mf_quad,
-                           EvalMode::Grad,
-                           EvalMode::Interp
-                        };
+                            "/mass.h",
+                            ":f_apply_mass_mf_const", f_apply_mass_mf_const,
+                            ":f_apply_mass_mf_quad", f_apply_mass_mf_quad,
+                            "", nullptr,
+                            "", nullptr,
+                            EvalMode::Interp,
+                            EvalMode::Interp
+                           };
    BuildContext ctx;
    Assemble(massOp, ctx);
 }

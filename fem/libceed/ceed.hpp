@@ -9,15 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_LIBCEED_HPP
-#define MFEM_LIBCEED_HPP
-
+#ifdef MFEM_USE_CEED
 #include <ceed.h>
-#include "operator.hpp"
-
-namespace mfem
-{
-
-} // namespace mfem
-
-#endif // MFEM_LIBCEED_HPP
+#include "util.hpp"
+#endif

@@ -94,7 +94,7 @@ public:
       const FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
       MFEM_VERIFY(mesh_fes, "the Mesh has no nodal FE space");
       InitCeedBasisAndRestriction(*mesh_fes, irm, ceed, &mesh_basis,
-                                 &mesh_restr);
+                                  &mesh_restr);
 
       CeedBasisGetNumQuadraturePoints(basis, &nqpts);
 
@@ -122,22 +122,22 @@ public:
          case CeedCoeff::Const:
             qf = qf_file + op.const_func;
             CeedQFunctionCreateInterior(ceed, 1, op.const_qf,
-                                       qf.c_str(),
-                                       &build_qfunc);
+                                        qf.c_str(),
+                                        &build_qfunc);
             ctx.coeff[0] = ((CeedConstCoeff*)coeff)->val;
             break;
          case CeedCoeff::Grid:
             qf = qf_file + op.quad_func;
             CeedQFunctionCreateInterior(ceed, 1, op.quad_qf,
-                                       qf.c_str(),
-                                       &build_qfunc);
+                                        qf.c_str(),
+                                        &build_qfunc);
             CeedQFunctionAddInput(build_qfunc, "coeff", 1, CEED_EVAL_INTERP);
             break;
          case CeedCoeff::Quad:
             qf = qf_file + op.quad_func;
             CeedQFunctionCreateInterior(ceed, 1, op.quad_qf,
-                                       qf.c_str(),
-                                       &build_qfunc);
+                                        qf.c_str(),
+                                        &build_qfunc);
             CeedQFunctionAddInput(build_qfunc, "coeff", 1, CEED_EVAL_NONE);
             break;
          case CeedCoeff::VecConst:
@@ -170,8 +170,7 @@ public:
       }
       CeedQFunctionAddInput(build_qfunc, "dx", dim * dim, CEED_EVAL_GRAD);
       CeedQFunctionAddInput(build_qfunc, "weights", 1, CEED_EVAL_WEIGHT);
-      CeedQFunctionAddOutput(build_qfunc, "qdata", qdatasize,
-                             CEED_EVAL_NONE);
+      CeedQFunctionAddOutput(build_qfunc, "qdata", qdatasize, CEED_EVAL_NONE);
 
       CeedQFunctionContextCreate(ceed, &build_ctx);
       CeedQFunctionContextSetData(build_ctx, CEED_MEM_HOST,
@@ -181,8 +180,7 @@ public:
       CeedQFunctionSetContext(build_qfunc, build_ctx);
 
       // Create the operator that builds the quadrature data for the operator.
-      CeedOperatorCreate(ceed, build_qfunc, NULL, NULL,
-                        &build_oper);
+      CeedOperatorCreate(ceed, build_qfunc, NULL, NULL, &build_oper);
       switch (coeff_type)
       {
          case CeedCoeff::Const:
@@ -191,8 +189,7 @@ public:
          {
             CeedGridCoeff* gridCoeff = (CeedGridCoeff*)coeff;
             InitCeedBasisAndRestriction(*gridCoeff->coeff->FESpace(), irm, ceed,
-                                       &gridCoeff->basis,
-                                       &gridCoeff->restr);
+                                        &gridCoeff->basis, &gridCoeff->restr);
             CeedOperatorSetField(build_oper, "coeff", gridCoeff->restr,
                                  gridCoeff->basis, gridCoeff->coeffVector);
          }
@@ -214,8 +211,7 @@ public:
          {
             CeedVecGridCoeff* gridCoeff = (CeedVecGridCoeff*)coeff;
             InitCeedBasisAndRestriction(*gridCoeff->coeff->FESpace(), irm, ceed,
-                                       &gridCoeff->basis,
-                                       &gridCoeff->restr);
+                                        &gridCoeff->basis, &gridCoeff->restr);
             CeedOperatorSetField(build_oper, "coeff", gridCoeff->restr,
                                  gridCoeff->basis, gridCoeff->coeffVector);
          }
@@ -240,14 +236,11 @@ public:
                            CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE);
 
       // Compute the quadrature data for the operator.
-      CeedOperatorApply(build_oper, node_coords, qdata,
-                        CEED_REQUEST_IMMEDIATE);
+      CeedOperatorApply(build_oper, node_coords, qdata, CEED_REQUEST_IMMEDIATE);
 
       // Create the Q-function that defines the action of the operator.
       qf = qf_file + op.apply_func;
-      CeedQFunctionCreateInterior(ceed, 1, op.apply_qf,
-                                 qf.c_str(),
-                                 &apply_qfunc);
+      CeedQFunctionCreateInterior(ceed, 1, op.apply_qf, qf.c_str(), &apply_qfunc);
       // input
       switch (op.trial_op)
       {
@@ -266,8 +259,7 @@ public:
             break;
       }
       // qdata
-      CeedQFunctionAddInput(apply_qfunc, "qdata", qdatasize,
-                            CEED_EVAL_NONE);
+      CeedQFunctionAddInput(apply_qfunc, "qdata", qdatasize, CEED_EVAL_NONE);
       // output
       switch (op.test_op)
       {
@@ -297,23 +289,18 @@ public:
                                  CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE);
             break;
          case EvalMode::Interp:
-            CeedOperatorSetField(oper, "u", restr, basis,
-                                 CEED_VECTOR_ACTIVE);
+            CeedOperatorSetField(oper, "u", restr, basis, CEED_VECTOR_ACTIVE);
             break;
          case EvalMode::Grad:
-            CeedOperatorSetField(oper, "gu", restr, basis,
-                                 CEED_VECTOR_ACTIVE);
+            CeedOperatorSetField(oper, "gu", restr, basis, CEED_VECTOR_ACTIVE);
             break;
          case EvalMode::InterpAndGrad:
-            CeedOperatorSetField(oper, "u", restr, basis,
-                                 CEED_VECTOR_ACTIVE);
-            CeedOperatorSetField(oper, "gu", restr, basis,
-                                 CEED_VECTOR_ACTIVE);
+            CeedOperatorSetField(oper, "u", restr, basis, CEED_VECTOR_ACTIVE);
+            CeedOperatorSetField(oper, "gu", restr, basis, CEED_VECTOR_ACTIVE);
             break;
       }
       // qdata
-      CeedOperatorSetField(oper, "qdata", restr_i,
-                           CEED_BASIS_COLLOCATED, qdata);
+      CeedOperatorSetField(oper, "qdata", restr_i, CEED_BASIS_COLLOCATED, qdata);
       // output
       switch (op.test_op)
       {
@@ -322,18 +309,14 @@ public:
                                  CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE);
             break;
          case EvalMode::Interp:
-            CeedOperatorSetField(oper, "v", restr, basis,
-                                 CEED_VECTOR_ACTIVE);
+            CeedOperatorSetField(oper, "v", restr, basis, CEED_VECTOR_ACTIVE);
             break;
          case EvalMode::Grad:
-            CeedOperatorSetField(oper, "gv", restr, basis,
-                                 CEED_VECTOR_ACTIVE);
+            CeedOperatorSetField(oper, "gv", restr, basis, CEED_VECTOR_ACTIVE);
             break;
          case EvalMode::InterpAndGrad:
-            CeedOperatorSetField(oper, "v", restr, basis,
-                                 CEED_VECTOR_ACTIVE);
-            CeedOperatorSetField(oper, "gv", restr, basis,
-                                 CEED_VECTOR_ACTIVE);
+            CeedOperatorSetField(oper, "v", restr, basis, CEED_VECTOR_ACTIVE);
+            CeedOperatorSetField(oper, "gv", restr, basis, CEED_VECTOR_ACTIVE);
             break;
       }
 
