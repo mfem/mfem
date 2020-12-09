@@ -4246,7 +4246,7 @@ int Mesh::CheckElementOrientation(bool fix_it)
 
       for (i = 0; i < NumOfElements; i++)
       {
-	 int *vi = elements[i]->GetVertices();
+         int *vi = elements[i]->GetVertices();
          if (Nodes == NULL)
          {
             for (j = 0; j < 3; j++)
