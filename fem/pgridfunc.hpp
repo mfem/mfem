@@ -225,7 +225,7 @@ public:
        freedom of element @a el. If @a el is greater than or equal to the number
        of local elements, it will be interpreted as a shifted index of a face
        neighbor element. */
-   virtual void GetElementDofs(int el, Vector &dof_vals) const;
+   virtual void GetElementDofValues(int el, Vector &dof_vals) const;
 
    using GridFunction::ProjectCoefficient;
    virtual void ProjectCoefficient(Coefficient &coeff);

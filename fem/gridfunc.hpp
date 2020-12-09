@@ -327,7 +327,7 @@ public:
 
    /** Sets the output vector @a dof_vals to the values of the degrees of
        freedom of element @a el. */
-   virtual void GetElementDofs(int el, Vector &dof_vals) const;
+   virtual void GetElementDofValues(int el, Vector &dof_vals) const;
 
    /** Impose the given bounds on the function's DOFs while preserving its local
     *  integral (described in terms of the given weights) on the i'th element
