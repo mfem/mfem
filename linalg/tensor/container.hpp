@@ -108,6 +108,49 @@ public:
    }
 };
 
+template <int... Dims>
+class BlockContainer;
+
+template <int DimX>
+class BlockContainer<DimX>
+{
+public:
+   MFEM_HOST_DEVICE inline
+   constexpr int operator()(int idx) const
+   {
+      // TODO verify that idx < DimX
+      return 0;
+   }
+};
+
+template <int DimX, int DimY>
+class BlockContainer<DimX, DimY>
+{
+public:
+   MFEM_HOST_DEVICE inline
+   constexpr int operator()(int idx0, int idx1) const
+   {
+      // TODO verify that idx0 < DimX && idx1 < DimY
+      // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y
+      return 0;
+   }
+};
+
+template <int DimX, int DimY, int... Dims>
+class BlockContainer<DimX,DimY,Dims...>
+{
+private:
+   StaticContainer<Dims...> layout;
+public:
+   template <typename... Idx> MFEM_HOST_DEVICE inline
+   constexpr int operator()(int idx0, int idx1, Idx... idx) const
+   {
+      // TODO verify that idx0 < DimX && idx1 < DimY && idx2 < DimZ
+      // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y
+      return layout(idx...);
+   }
+};
+
 } // namespace mfem
 
 #endif // MFEM_CONTAINER
