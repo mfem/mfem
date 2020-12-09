@@ -22,7 +22,7 @@
 //               of a singlerate and multirate predictor-corrector scheme for
 //               overlapping grids. arXiv preprint arXiv:2010.00118.
 
-#include "../../mfem.hpp"
+#include "mfem.hpp"
 #include <fstream>
 #include <iostream>
 
