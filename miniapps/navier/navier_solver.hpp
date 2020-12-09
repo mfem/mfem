@@ -14,7 +14,7 @@
 
 #define NAVIER_VERSION 0.1
 
-#include "mfem.hpp"
+#include "../../mfem.hpp"
 #include "ortho_solver.hpp"
 
 namespace mfem
