@@ -181,14 +181,17 @@ public:
 };
 
 /** \brief OversetFindPointsGSLIB enables use of findpts for arbitrary number
- * of overlapping grids.
+ * of overlapping grids. The parameters in this class are the same as
+ * FindPointsGSLIB with the difference of additional inputs required to account
+ * for more than 1 mesh.
  */
 class OversetFindPointsGSLIB : public FindPointsGSLIB
 {
 protected:
    bool overset;
    unsigned int u_meshid;
-   Vector distfint;
+   Vector distfint; // Used to store the nodal values of the gridfunction passed
+   // to findpts.
 
 public:
    OversetFindPointsGSLIB() : FindPointsGSLIB(),
@@ -205,7 +208,9 @@ public:
        Note: the input mesh @a m must have Nodes set.
 
        @param[in] m         Input mesh.
-       @param[in] meshid    Mesh number that the elements belong to.
+       @param[in] meshid    A unique # for each overlapping mesh. This id is
+                            used to make sure that points being searched are not
+                            looked for in the mesh that they belong to.
        @param[in] gfmax     (Optional) GridFunction in H1 that is used as a
                             discriminator where one point is located in multiple
                             meshes. The mesh that maximizes gfmax is chosen.

@@ -696,7 +696,6 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
        nptorig = points_cnt,
        npt     = points_cnt;
 
-
    field_out.SetSize(points_cnt*ncomp);
    field_out = default_interp_value;
 
@@ -917,7 +916,7 @@ void OversetFindPointsGSLIB::FindPoints(const Vector &point_pos,
                "finding points.");
    MFEM_VERIFY(overset, " Please setup FindPoints for overlapping grids.");
    points_cnt = point_pos.Size() / dim;
-   unsigned int match= 0;
+   unsigned int match = 0; // Don't find points in the mesh if point_id = mesh_id
 
    gsl_code.SetSize(points_cnt);
    gsl_proc.SetSize(points_cnt);

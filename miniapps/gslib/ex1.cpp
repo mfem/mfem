@@ -2,23 +2,24 @@
 //
 // Compile with: make ex1
 //
-// Sample runs:  ex1 -m1 ../../data/square-disc.mesh -m2 inner.mesh
+// Sample runs:  ex1
 //
 // Description:  Overlapping grids with MFEM:
-//               This example code demonstrates the use of MFEM to define a
-//               simple finite element discretization of the Laplace problem
-//               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
-//               Specifically, we discretize using a FE space of the specified
-//               order, or if order < 1 using an isoparametric/isogeometric
-//               space (i.e. quadratic for quadratic curvilinear mesh, NURBS for
-//               NURBS mesh, etc.)
+//               This example code demonstrates use of MFEM to solve the
+//               Poisson problem:
+//                              -nabla^2 u = 1 \in [0, 1]^2, u_b = 0 \in \dO
+//               with homogeneous boundary conditions on the domain boundary
+//               modeled using two overlapping grids: \Omega^1 and \Omega^2.
+//               Using simultaneous Schwarz iterations, the Poisson equation is
+//               solved iteratively, with boundary data interpolated between
+//               the two grids at each iteration. The overlapping Schwarz method
+//               was introduced by H. A. Schwarz in 1870, and a concise
+//               description of the simultaneous Schwarz iterations for this
+//               problem is given in Section 2.2 of [1]:
 //
-//               The example highlights the use of mesh refinement, finite
-//               element grid functions, as well as linear and bilinear forms
-//               corresponding to the left-hand side and right-hand side of the
-//               discrete linear system. We also cover the explicit elimination
-//               of essential boundary conditions, static condensation, and the
-//               optional connection to the GLVis tool for visualization.
+//           [1] Mittal, K., Dutta, S., & Fischer, P. (2020). Stability analysis
+//               of a singlerate and multirate predictor-corrector scheme for
+//               overlapping grids. arXiv preprint arXiv:2010.00118.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -79,7 +80,7 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file_1   = "../../data/square-disc.mesh";
-   const char *mesh_file_2   = "inner.mesh";
+   const char *mesh_file_2   = "../../data/inline-quad.mesh";
    int order                 = 2;
    const char *device_config = "cpu";
    bool visualization        = true;
@@ -205,6 +206,15 @@ int main(int argc, char *argv[])
    Vector vxyz1 = *mesharr[0]->GetNodes();
    mesharr[1]->SetCurvature(order, false, dim, Ordering::byNODES);
    Vector vxyz2 = *mesharr[1]->GetNodes();
+
+   // Since we are using the inline-quad.mesh which is in [0, 1]^2, we shrink
+   // the domain to [0.25, 0.75]^2. Now the mesh will not cover the entire
+   // domain, while maintaining a non-trivial overlap with the other mesh.
+   for (int i = 0; i < vxyz2.Size(); i++)
+   {
+      vxyz2(i) = 0.5 + 0.5*(vxyz2(i)-0.5);
+   }
+   mesharr[1]->SetNodes(vxyz2);
 
    FindPointsGSLIB finder1, finder2;
    finder1.Setup(*mesharr[0]);
