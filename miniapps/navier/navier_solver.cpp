@@ -230,7 +230,7 @@ void NavierSolver::Setup(double dt)
       MvInvPC = new HypreSmoother(*Mv.As<HypreParMatrix>());
       dynamic_cast<HypreSmoother *>(MvInvPC)->SetType(HypreSmoother::Jacobi, 1);
    }
-   MvInv = new CGSolver(MPI_COMM_WORLD);
+   MvInv = new CGSolver(vfes->GetComm());
    MvInv->iterative_mode = false;
    MvInv->SetOperator(*Mv);
    MvInv->SetPreconditioner(*MvInvPC);
@@ -248,17 +248,17 @@ void NavierSolver::Setup(double dt)
       SpInvPC = new HypreBoomerAMG(*Sp_lor.As<HypreParMatrix>());
       SpInvPC->SetPrintLevel(pl_amg);
       SpInvPC->Mult(resp, pn);
-      SpInvOrthoPC = new OrthoSolver();
+      SpInvOrthoPC = new OrthoSolver(vfes);
       SpInvOrthoPC->SetOperator(*SpInvPC);
    }
    else
    {
       SpInvPC = new HypreBoomerAMG(*Sp.As<HypreParMatrix>());
       SpInvPC->SetPrintLevel(0);
-      SpInvOrthoPC = new OrthoSolver();
+      SpInvOrthoPC = new OrthoSolver(vfes);
       SpInvOrthoPC->SetOperator(*SpInvPC);
    }
-   SpInv = new CGSolver(MPI_COMM_WORLD);
+   SpInv = new CGSolver(vfes->GetComm());
    SpInv->iterative_mode = true;
    SpInv->SetOperator(*Sp);
    if (pres_dbcs.empty())
@@ -284,7 +284,7 @@ void NavierSolver::Setup(double dt)
       HInvPC = new HypreSmoother(*H.As<HypreParMatrix>());
       dynamic_cast<HypreSmoother *>(HInvPC)->SetType(HypreSmoother::Jacobi, 1);
    }
-   HInv = new CGSolver(MPI_COMM_WORLD);
+   HInv = new CGSolver(vfes->GetComm());
    HInv->iterative_mode = true;
    HInv->SetOperator(*H);
    HInv->SetPreconditioner(*HInvPC);
@@ -648,8 +648,8 @@ void NavierSolver::Orthogonalize(Vector &v)
    int loc_size = v.Size();
    int global_size = 0;
 
-   MPI_Allreduce(&loc_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-   MPI_Allreduce(&loc_size, &global_size, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(&loc_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, pfes->GetComm());
+   MPI_Allreduce(&loc_size, &global_size, 1, MPI_INT, MPI_SUM, pfes->GetComm());
 
    v -= global_sum / static_cast<double>(global_size);
 }

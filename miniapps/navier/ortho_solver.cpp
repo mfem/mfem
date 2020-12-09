@@ -14,7 +14,8 @@
 using namespace mfem;
 using namespace navier;
 
-OrthoSolver::OrthoSolver() : Solver(0, true) {}
+OrthoSolver::OrthoSolver(ParFiniteElementSpace *fes_) : fes(fes_),
+   Solver(0, true) {}
 
 void OrthoSolver::SetOperator(const Operator &op)
 {
@@ -40,8 +41,8 @@ void OrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
    int loc_size = v.Size();
    int global_size = 0;
 
-   MPI_Allreduce(&loc_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-   MPI_Allreduce(&loc_size, &global_size, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(&loc_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, fes->GetComm());
+   MPI_Allreduce(&loc_size, &global_size, 1, MPI_INT, MPI_SUM, fes->GetComm());
 
    double ratio = global_sum / static_cast<double>(global_size);
    v_ortho.SetSize(v.Size());

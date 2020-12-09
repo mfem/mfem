@@ -101,23 +101,23 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&rs_levels[0], "-r1", "--refine-serial",
-                  "Number of times to refine the mesh uniformly in serial.");
+                  "Number of times to refine the mesh 1 uniformly in serial.");
    args.AddOption(&rs_levels[1], "-r2", "--refine-serial",
-                  "Number of times to refine the mesh uniformly in serial.");
+                  "Number of times to refine the mesh 2 uniformly in serial.");
    args.AddOption(&rs_levels[2], "-r3", "--refine-serial",
-                  "Number of times to refine the mesh uniformly in serial.");
+                  "Number of times to refine the mesh 3 uniformly in serial.");
    args.AddOption(&rp_levels[0], "-rp1", "--refine-parallel",
-                  "Number of times to refine the mesh uniformly in parallel.");
+                  "Number of times to refine the mesh 1 uniformly in parallel.");
    args.AddOption(&rp_levels[1], "-rp2", "--refine-parallel",
-                  "Number of times to refine the mesh uniformly in parallel.");
+                  "Number of times to refine the mesh 2 uniformly in parallel.");
    args.AddOption(&rp_levels[2], "-rp3", "--refine-parallel",
-                  "Number of times to refine the mesh uniformly in parallel.");
+                  "Number of times to refine the mesh 3 uniformly in parallel.");
    args.AddOption(&np_list[0], "-np1", "--np1",
                   "number of MPI ranks for mesh 1");
    args.AddOption(&np_list[1], "-np2", "--np2",
-                  "number of MPI ranks for mesh 1");
+                  "number of MPI ranks for mesh 2");
    args.AddOption(&np_list[2], "-np3", "--np3",
-                  "number of MPI ranks for mesh 1");
+                  "number of MPI ranks for mesh 3");
    args.AddOption(&nmeshes, "-nm", "--nm",
                   "number of meshes");
    args.AddOption(&rel_tol, "-rt", "--relative tolerance",
@@ -129,7 +129,10 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
-   args.PrintOptions(cout);
+   if (myid == 0)
+   {
+      args.PrintOptions(cout);
+   }
 
    // 3. Setup MPI communicator for each mesh
    MPI_Comm *comml = new MPI_Comm;
@@ -145,7 +148,6 @@ int main(int argc, char *argv[])
    int myidlocal, numproclocal;
    MPI_Comm_rank(*comml, &myidlocal);
    MPI_Comm_size(*comml, &numproclocal);
-   np_list.Print();
 
    // 4. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
