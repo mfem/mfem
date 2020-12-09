@@ -2,24 +2,25 @@
 //
 // Compile with: make ex1p
 //
-// Sample runs:  mpirun -np 4 ex1p -m1 ../../data/square-disc.mesh -m2 inner.mesh -np1 2 -np2 2
-//               mpirun -np 4 ex1p -m1 outer.mesh -m2 innerleft.mesh -m3 innerright.mesh -np1 1 -np2 1 -np3 2 -nm 3
+// Sample runs:  mpirun -np 4 ex1p -nm 3 -np1 2 -np2 1 -np3 1
+//               mpirun -np 4 ex1p -nm 2 -np1 2 -np2 2
 
 // Description:  Overlapping grids with MFEM:
-//               This example code demonstrates the use of MFEM to define a
-//               simple finite element discretization of the Laplace problem
-//               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
-//               Specifically, we discretize using a FE space of the specified
-//               order, or if order < 1 using an isoparametric/isogeometric
-//               space (i.e. quadratic for quadratic curvilinear mesh, NURBS for
-//               NURBS mesh, etc.)
+//               This example code demonstrates use of MFEM to solve the
+//               Poisson problem:
+//                              -nabla^2 u = 1 \in [0, 1]^2, u_b = 0 \in \dO
+//               with homogeneous boundary conditions on the domain boundary
+//               modeled using an arbitrary number of overlapping grids.
+//               Using simultaneous Schwarz iterations, the Poisson equation is
+//               solved iteratively, with boundary data interpolated between
+//               the overlapping grids at each iteration. The overlapping
+//               Schwarz method was introduced by H. A. Schwarz in 1870, and a
+//               concise description of the simultaneous Schwarz iterations for
+//               this problem is given in Section 2.2 of [1]:
 //
-//               The example highlights the use of mesh refinement, finite
-//               element grid functions, as well as linear and bilinear forms
-//               corresponding to the left-hand side and right-hand side of the
-//               discrete linear system. We also cover the explicit elimination
-//               of essential boundary conditions, static condensation, and the
-//               optional connection to the GLVis tool for visualization.
+//           [1] Mittal, K., Dutta, S., & Fischer, P. (2020). Stability analysis
+//               of a singlerate and multirate predictor-corrector scheme for
+//               overlapping grids. arXiv preprint arXiv:2010.00118.
 
 #include "../../mfem.hpp"
 #include <fstream>
@@ -73,8 +74,8 @@ int main(int argc, char *argv[])
    Array <int> np_list(lim_meshes), rs_levels(lim_meshes),
          rp_levels(lim_meshes);
    mesh_file_list[0]         = "../../data/square-disc.mesh";
-   mesh_file_list[1]         = "innerleft.mesh";
-   mesh_file_list[2]         = "innerright.mesh";
+   mesh_file_list[1]         = "../../data/inline-quad.mesh";
+   mesh_file_list[2]         = "../../data/inline-quad.mesh";
    int order                 = 2;
    const char *device_config = "cpu";
    bool visualization        = true;
@@ -82,10 +83,7 @@ int main(int argc, char *argv[])
    rp_levels                 = 0;
    np_list                   = 0;
    double rel_tol            = 1.e-8;
-   int nmeshes               = 3;
-   np_list[0]                = 2;
-   np_list[1]                = 1;
-   np_list[2]                = 1;
+   int nmeshes               = 2;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file_list[0], "-m1", "--mesh",
@@ -133,9 +131,6 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   MFEM_ASSERT(num_procs == np_list.Sum(),
-               " Please specify MPI ranks for each mesh.")
-
    // 3. Setup MPI communicator for each mesh
    MPI_Comm *comml = new MPI_Comm;
    int color = 0;
@@ -145,10 +140,12 @@ int main(int argc, char *argv[])
       npsum += np_list[i];
       if (myid < npsum) { color = i; break; }
    }
+
    MPI_Comm_split(MPI_COMM_WORLD, color, myid, comml);
    int myidlocal, numproclocal;
    MPI_Comm_rank(*comml, &myidlocal);
    MPI_Comm_size(*comml, &numproclocal);
+   np_list.Print();
 
    // 4. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -235,8 +232,56 @@ int main(int argc, char *argv[])
    // 9. Setup FindPointsGSLIB and determine points on each mesh's boundary that
    //    are interior to another mesh.
    pmesh->SetCurvature(order, false, dim, Ordering::byNODES);
+   {
+      Vector vxyz = *pmesh->GetNodes();
+
+      // Modify the inline-quad.mesh such that it does not cover the entire
+      // domain.
+      if (nmeshes == 2)
+      {
+         if (color == 1)   // rescale from [0, 1]^2 to [0.25, 0.75]^2
+         {
+            for (int i = 0; i < vxyz.Size(); i++)
+            {
+               vxyz(i) = 0.5 + 0.5*(vxyz(i)-0.5);
+            }
+         }
+      }
+      else if (nmeshes == 3)
+      {
+         if (color == 1)
+         {
+            // rescale from [0, 1]^2 to [0.21, 0.61] in x and [0.25, 0.75] in y
+            const int pts_cnt = vxyz.Size()/dim;
+            for (int i = 0; i < pts_cnt; i++)
+            {
+               vxyz(i) = 0.41 + 0.4*(vxyz(i)-0.5);
+            }
+            for (int i = 0; i < pts_cnt; i++)
+            {
+               vxyz(i+pts_cnt) = 0.5 + 0.5*(vxyz(i+pts_cnt)-0.5);
+            }
+         }
+         else if (color == 2)
+         {
+            // rescale from [0, 1]^2 to [0.4, 0.8] in x and [0.2, 0.8] in y
+            const int pts_cnt = vxyz.Size()/dim;
+            for (int i = 0; i < pts_cnt; i++)
+            {
+               vxyz(i) = 0.6 + 0.4*(vxyz(i)-0.5);
+            }
+            for (int i = 0; i < pts_cnt; i++)
+            {
+               vxyz(i+pts_cnt) = 0.5 + 0.6*(vxyz(i+pts_cnt)-0.5);
+            }
+         }
+      }
+      pmesh->SetNodes(vxyz);
+   }
+
    pmesh->GetNodes()->SetTrueVector();
    Vector vxyz = pmesh->GetNodes()->GetTrueVector();
+
 
    OversetFindPointsGSLIB finder(MPI_COMM_WORLD);
    finder.Setup(*pmesh, color);
@@ -319,15 +364,15 @@ int main(int argc, char *argv[])
       double xinfg = xinf;
       MPI_Allreduce(&xinf, &xinfg, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
       x.SetTrueVector();
-      Vector xdum = x.GetTrueVector();
+      Vector xt = x.GetTrueVector();
       for (int i = 0; i < nb1; i++)
       {
          int idx = ess_tdof_list_int[i];
-         double dx = std::abs(xdum(idx)-interp_vals1(i))/xinfg;
+         double dx = std::abs(xt(idx)-interp_vals1(i))/xinfg;
          if (dx > dxmax) { dxmax = dx; }
-         xdum(idx) = interp_vals1(i);
+         xt(idx) = interp_vals1(i);
       }
-      x.SetFromTrueDofs(xdum);
+      x.SetFromTrueDofs(xt);
       double dxmaxg = dxmax;
       MPI_Allreduce(&dxmax, &dxmaxg, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
 
