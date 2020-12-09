@@ -1559,7 +1559,7 @@ void GridFunction::GetGradient(ElementTransformation &T, Vector &grad) const
          Vector lval, gh(dim);
 
          grad.SetSize(spaceDim);
-         GetElementDofs(T.ElementNo, lval);
+         GetElementDofValues(T.ElementNo, lval);
          fe->CalcDShape(T.GetIntPoint(), dshape);
          dshape.MultTranspose(lval, gh);
          T.InverseJacobian().MultTranspose(gh, grad);
@@ -1729,7 +1729,7 @@ void GridFunction::GetElementAverages(GridFunction &avgs) const
    }
 }
 
-void GridFunction::GetElementDofs(int el, Vector &dof_vals) const
+void GridFunction::GetElementDofValues(int el, Vector &dof_vals) const
 {
    Array<int> dof_idx;
    fes->GetElementVDofs(el, dof_idx);

@@ -471,15 +471,15 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
    }
 }
 
-void ParGridFunction::GetElementDofs(int el, Vector &dof_vals) const
+void ParGridFunction::GetElementDofValues(int el, Vector &dof_vals) const
 {
    Array<int> dof_idx;
    int ne = fes->GetNE();
    if (el >= ne)
    {
-      MFEM_ASSERT(face_nbr_data.Size() > 0, "ParGridFunction::GetElementDofs: "
-                  "ExchangeFaceNbrData must be called before accessing face "
-                  "neighbor elements.");
+      MFEM_ASSERT(face_nbr_data.Size() > 0,
+                  "ParGridFunction::GetElementDofValues: ExchangeFaceNbrData "
+                  "must be called before accessing face neighbor elements.");
       // Face neighbor element
       pfes->GetFaceNbrElementVDofs(el - ne, dof_idx);
       face_nbr_data.GetSubVector(dof_idx, dof_vals);
