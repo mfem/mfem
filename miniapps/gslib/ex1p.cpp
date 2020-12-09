@@ -1,26 +1,36 @@
-//                                MFEM Example 1
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+//
+//            -------------------------------------------------
+//            Overlapping Grids Miniapp: Poisson problem (ex1p)
+//            -------------------------------------------------
+//
+// This example code demonstrates use of MFEM to solve the Poisson problem:
+//              -nabla^2 u = 1 \in [0, 1]^2, u_b = 0 \in \dO
+// on an arbitrary number of overlapping grids. Using simultaneous Schwarz
+// iterations, the Poisson equation is solved iteratively, with boundary data
+// interpolated between the overlapping boundaries for each grid. The
+// overlapping Schwarz method was introduced by H. A. Schwarz in 1870, and a
+// concise description of the simultaneous Schwarz iterations for the Poisson
+// problem is given in Section 2.2 of [1].
+//
+// [1] Mittal, K., Dutta, S., & Fischer, P. (2020). Stability analysis
+//     of a singlerate and multirate predictor-corrector scheme for
+//     overlapping grids. arXiv preprint arXiv:2010.00118.
+//
+// Compile with: make ex1
 // Compile with: make ex1p
 //
 // Sample runs:  mpirun -np 4 ex1p -nm 3 -np1 2 -np2 1 -np3 1
 //               mpirun -np 4 ex1p -nm 2 -np1 2 -np2 2
-
-// Description:  Overlapping grids with MFEM:
-//               This example code demonstrates use of MFEM to solve the
-//               Poisson problem:
-//                              -nabla^2 u = 1 \in [0, 1]^2, u_b = 0 \in \dO
-//               with homogeneous boundary conditions on the domain boundary
-//               modeled using an arbitrary number of overlapping grids.
-//               Using simultaneous Schwarz iterations, the Poisson equation is
-//               solved iteratively, with boundary data interpolated between
-//               the overlapping grids at each iteration. The overlapping
-//               Schwarz method was introduced by H. A. Schwarz in 1870, and a
-//               concise description of the simultaneous Schwarz iterations for
-//               this problem is given in Section 2.2 of [1]:
-//
-//           [1] Mittal, K., Dutta, S., & Fischer, P. (2020). Stability analysis
-//               of a singlerate and multirate predictor-corrector scheme for
-//               overlapping grids. arXiv preprint arXiv:2010.00118.
 
 #include "mfem.hpp"
 #include <fstream>
