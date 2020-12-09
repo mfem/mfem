@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 // make cht -j;mpirun -np 4 cht
 
-#include "../../mfem.hpp"
+#include "mfem.hpp"
 #include "navier_solver.hpp"
 #include <fstream>
 #include <iostream>
