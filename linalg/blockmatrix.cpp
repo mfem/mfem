@@ -159,8 +159,8 @@ const double& BlockMatrix::Elem (int i, int j) const
    {
       mfem_error("BlockMatrix::Elem");
    }
-
-   return Aij(iblock, jblock)->Elem(iloc, jloc);
+   const SparseMatrix& AijSM = *Aij(iblock, jblock);
+   return AijSM.Elem(iloc, jloc);
 }
 
 int BlockMatrix::RowSize(const int i) const
