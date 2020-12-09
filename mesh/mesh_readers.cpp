@@ -2019,9 +2019,15 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          for (int i = 0; i < num_per_ent; i++)
          {
             getline(input, buff); // Read and ignore entity dimension and tags
-            getline(input, buff); // Read and ignore affine mapping
-            // Read master/slave vertex pairs
-            input >> num_nodes;
+            getline(input, buff); // If affine mapping exist, read and ignore
+            if (!strncmp(buff.c_str(), "Affine", 6))
+            {
+               input >> num_nodes;
+            }
+            else
+            {
+               num_nodes = atoi(buff.c_str());
+            }
             for (int j=0; j<num_nodes; j++)
             {
                input >> slave >> master;
