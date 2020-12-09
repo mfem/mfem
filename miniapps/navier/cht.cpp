@@ -8,7 +8,48 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-// make cht -j;mpirun -np 4 cht
+//
+//            --------------------------------------------------
+//            Overlapping Grids Miniapp: Conjugate heat transfer
+//            --------------------------------------------------
+// This example code demonstrates use of MFEM to solve different physics in
+// different domains using overlapping grids: A solid block with its base at
+// a fixed temperature is cooled by incoming flow.
+// The Fluid domain models the entire domain, minus the solid block, and the
+// incompressible Navier-Stokes equations are solved on it:
+//                 ________________________________________
+//                |                                        |
+//                |             FLUID DOMAIN               |
+//                |                                        |
+//   -->inflow    |                ______                  | --> outflow
+//     (attr=1)   |               |      |                 |     (attr=2)
+//                |_______________|      |_________________|
+//
+// Inhomogeneous Dirichlet conditions are imposed at inflow (attr=1) and
+// homogeneous Dirichlet conditions are imposed on all surface (attr=3) except
+// the outflow (attr=2) which has Neumann boundary conditions for velocity.
+//
+// In contrast to the Fluid domain, the Thermal domain includes the solid block,
+// and the advection-diffusion equation is solved on it:
+//                     dT/dt + u.grad T = kappa \nabla^2 T
+//
+//                                (attr=3)
+//                 ________________________________________
+//                |                                        |
+//                |           THERMAL DOMAIN               |
+//   (attr=1)     |                kappa1                  |
+//     T=0        |                ______                  |
+//                |               |kappa2|                 |
+//                |_______________|______|_________________|
+//                   (attr=4)     (attr=2)      (attr=4)
+//                                  T=10
+//
+// Inhomogeneous boundary conditions (T=10) are imposed on the base of the solid
+// block (attr=2) and homogeneous boundary conditions are imposed at the
+// inflow region (attr=1). All other surfaces have Neumann condition.
+//
+// The one-sided coupling between the two domains is via transfer of the
+// advection velocity (u) from fluid domain to thermal domain at each time step.
 
 #include "mfem.hpp"
 #include "navier_solver.hpp"

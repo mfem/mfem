@@ -14,8 +14,8 @@
 using namespace mfem;
 using namespace navier;
 
-OrthoSolver::OrthoSolver(ParFiniteElementSpace *fes_) : fes(fes_),
-   Solver(0, true) {}
+OrthoSolver::OrthoSolver(ParFiniteElementSpace *fes_) : Solver(0, true),
+   fes(fes_) {}
 
 void OrthoSolver::SetOperator(const Operator &op)
 {
