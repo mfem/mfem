@@ -80,6 +80,12 @@ using StaticTensor = Tensor<sizeof...(Sizes),
 template <int... Sizes>
 using dTensor = StaticTensor<double,Sizes...>;
 
+template <typename T, int... Sizes>
+using BlockTensor = Tensor<sizeof...(Sizes),
+                           T,
+                           BlockContainer<T, Sizes...>,
+                           BlockLayout<Sizes...> >;
+
 /// A fixed size tensor class
 // template<typename T, int... Dims>
 // class Tensor{

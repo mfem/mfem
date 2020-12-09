@@ -161,6 +161,47 @@ private:
    };
 };
 
+template <int... Dims>
+class BlockLayout;
+
+template <int DimX>
+class BlockLayout<DimX>
+{
+public:
+   constexpr int operator()(int idx) const
+   {
+      // TODO verify that idx < DimX
+      return 0;
+   }
+};
+
+template <int DimX, int DimY>
+class BlockLayout<DimX, DimY>
+{
+public:
+   constexpr int operator()(int idx0, int idx1) const
+   {
+      // TODO verify that idx0 < DimX && idx1 < DimY
+      // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y
+      return 0;
+   }
+};
+
+template <int DimX, int DimY, int... Dims>
+class BlockLayout<DimX,DimY,Dims...>
+{
+private:
+   StaticLayout<Dims...> layout;
+public:
+   template <typename... Idx> MFEM_HOST_DEVICE inline
+   constexpr int operator()(int idx0, int idx1, Idx... idx) const
+   {
+      // TODO verify that idx0 < DimX && idx1 < DimY && idx2 < DimZ
+      // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y
+      return layout(idx...);
+   }
+};
+
 } // namespace mfem
 
 #endif // MFEM_LAYOUT
