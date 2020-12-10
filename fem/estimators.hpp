@@ -42,7 +42,9 @@ class ErrorEstimator : public AbstractErrorEstimator
 {
 public:
    /// Return the total error from the last error estimate.
-   virtual double GetTotalError() const = 0;
+   /** @note This method is optional for derived classes to override and the
+       base class implementation simply returns 0. */
+   virtual double GetTotalError() const { return 0.0; }
 
    /// Get a Vector with all element errors.
    virtual const Vector &GetLocalErrors() = 0;
@@ -153,8 +155,8 @@ public:
         own_flux_fes(false)
    { }
 
-   /** @brief Consider the coefficient in BilinearFormIntegrator to calculate the
-       fluxes for the error estimator.*/
+   /** @brief Consider the coefficient in BilinearFormIntegrator to calculate
+       the fluxes for the error estimator.*/
    void SetWithCoeff(bool w_coeff = true) { with_coeff = w_coeff; }
 
    /** @brief Enable/disable anisotropic estimates. To enable this option, the
@@ -319,6 +321,7 @@ public:
 
 #endif // MFEM_USE_MPI
 
+
 /** @brief The LpErrorEstimator class compares the solution to a known
     coefficient.
 
@@ -403,6 +406,7 @@ public:
    virtual ~LpErrorEstimator() {}
 };
 
+
 #ifdef MFEM_USE_MPI
 /** @brief The KellyErrorEstimator class provides a fast error indication
     strategy for smooth scalar parallel problems.
@@ -421,26 +425,27 @@ public:
     It can be roughly described by:
         ||∇(u-uₕ)||ₑ ≦ √( C hₑ ∑ₖ (hₖ ∫ |J[∇uₕ]|²) dS )
     where "e" denotes an element, ||⋅||ₑ the corresponding local norm and k the
-    corresponding faces. u is the analytic solution and uₕ the discretized solution.
-    hₖ and hₑ are factors dependend on the face and element geometry. J is the jump
-    function, i.e. the difference between the limits at each point for each side of
-    the face. A custom method to compute hₖ can be provided. It is also possible to
-    estimate the error only on a subspace by feeding this class an attribute array
-    describing the subspace.
+    corresponding faces. u is the analytic solution and uₕ the discretized
+    solution. hₖ and hₑ are factors dependend on the face and element geometry.
+    J is the jump function, i.e. the difference between the limits at each point
+    for each side of the face. A custom method to compute hₖ can be provided. It
+    is also possible to estimate the error only on a subspace by feeding this
+    class an attribute array describing the subspace.
 
     @note This algorithm is only for Poisson problems a proper error esimator.
-    The current implementation does not reflect this, because the "C" factor is not
-    included.
-    It further assumes that the approximation error at the boundary is small enough,
-    as the implementation ignores boundary faces.
+    The current implementation does not reflect this, because the "C" factor is
+    not included.
+    It further assumes that the approximation error at the boundary is small
+    enough, as the implementation ignores boundary faces.
 */
 class KellyErrorEstimator final : public ErrorEstimator
 {
 public:
    /// Function type to compute the local coefficient hₑ of an element.
-   using ElementCoefficientFunction = std::function<double(ParMesh*, const int)>;
-   /// Function type to compute the local coefficient hₖ of a face. The third argument
-   /// is true for shared faces and false for local faces.
+   using ElementCoefficientFunction =
+      std::function<double(ParMesh*, const int)>;
+   /** @brief Function type to compute the local coefficient hₖ of a face. The
+       third argument is true for shared faces and false for local faces. */
    using FaceCoefficientFunction =
       std::function<double(ParMesh*, const int, const bool)>;
 
@@ -483,7 +488,8 @@ private:
    bool MeshIsModified()
    {
       long mesh_sequence = solution->FESpace()->GetMesh()->GetSequence();
-      MFEM_ASSERT(mesh_sequence >= current_sequence, "improper mesh update sequence");
+      MFEM_ASSERT(mesh_sequence >= current_sequence,
+                  "improper mesh update sequence");
       return (mesh_sequence > current_sequence);
    }
 
@@ -508,7 +514,7 @@ public:
    */
    KellyErrorEstimator(BilinearFormIntegrator& di_, ParGridFunction& sol_,
                        ParFiniteElementSpace& flux_fes_,
-                       Array<int> attributes_ = Array<int>());
+                       const Array<int> &attributes_ = Array<int>());
 
    /** @brief Construct a new KellyErrorEstimator object for a scalar field.
        @param di_         The bilinearform to compute the interface flux.
@@ -520,7 +526,7 @@ public:
    */
    KellyErrorEstimator(BilinearFormIntegrator& di_, ParGridFunction& sol_,
                        ParFiniteElementSpace* flux_fes_,
-                       Array<int> attributes_ = Array<int>());
+                       const Array<int> &attributes_ = Array<int>());
 
    ~KellyErrorEstimator();
 
