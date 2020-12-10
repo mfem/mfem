@@ -17,6 +17,7 @@
 namespace mfem
 {
 
+/// Non-owning modifiable Container that can be moved between host and device.
 template <typename T>
 class DeviceContainer
 {
@@ -45,6 +46,7 @@ public:
    }
 };
 
+/// Non-owning const Container that can be moved between host and device.
 template <typename T>
 class ReadContainer
 {
@@ -73,6 +75,7 @@ public:
    }
 };
 
+/// Owning Memory Container meant for storage on host.
 template <typename T>
 class MemoryContainer
 {
@@ -127,37 +130,7 @@ public:
    }
 };
 
-template <typename T, int... Dims>
-class StaticSharedContainer
-{
-private:
-   MFEM_SHARED T data[prod(Dims...)];
-public:
-   template <typename... Sizes> MFEM_HOST_DEVICE
-   StaticSharedContainer(Sizes... sizes)
-   {
-      // static_assert(sizeof...(Dims)==sizeof...(Sizes), "Static and dynamic sizes don't match.");
-      // TODO verify that Dims == sizes in Debug mode
-   }
-
-   MFEM_HOST_DEVICE
-   const T& operator[](int i) const
-   {
-      return data[ i ];
-   }
-
-   MFEM_HOST_DEVICE
-   T& operator[](int i)
-   {
-      return data[ i ];
-   }
-
-   constexpr int Capacity() const
-   {
-      return prod(Dims...);
-   }
-};
-
+/// Owning Container statically sized.
 template <typename T, int... Dims>
 class StaticContainer
 {
@@ -191,9 +164,44 @@ public:
    }
 };
 
+/// Owning Container using shared memory on device and statically sized.
+template <typename T, int... Dims>
+class StaticSharedContainer
+{
+private:
+   MFEM_SHARED T data[prod(Dims...)];
+public:
+   template <typename... Sizes> MFEM_HOST_DEVICE
+   StaticSharedContainer(Sizes... sizes)
+   {
+      // static_assert(sizeof...(Dims)==sizeof...(Sizes), "Static and dynamic sizes don't match.");
+      // TODO verify that Dims == sizes in Debug mode
+   }
+
+   MFEM_HOST_DEVICE
+   const T& operator[](int i) const
+   {
+      return data[ i ];
+   }
+
+   MFEM_HOST_DEVICE
+   T& operator[](int i)
+   {
+      return data[ i ];
+   }
+
+   constexpr int Capacity() const
+   {
+      return prod(Dims...);
+   }
+};
+
+/// Statically sized owning Container distributed over a plane of threads.
+/// TODO This should only be used on device in combination with BlockLayout.
 template <typename T, int... Dims>
 class BlockContainer;
 
+/// 1D special case
 template <typename T, int DimX>
 class BlockContainer<T,DimX>
 {
@@ -225,6 +233,7 @@ public:
    }
 };
 
+/// 2D special case
 template <typename T, int DimX, int DimY>
 class BlockContainer<T,DimX, DimY>
 {
@@ -256,6 +265,7 @@ public:
    }
 };
 
+/// 3D and more general case
 template <typename T, int DimX, int DimY, int... Dims>
 class BlockContainer<T,DimX,DimY,Dims...>
 {
@@ -269,14 +279,14 @@ public:
    const T& operator[](int i) const
    {
       // TODO Verify in debug that i==0
-      return data[ 0 ];
+      return data[ i ];
    }
 
    MFEM_HOST_DEVICE
    T& operator[](int i)
    {
       // TODO Verify in debug that i==0
-      return data[ 0 ];
+      return data[ i ];
    }
 
    MFEM_HOST_DEVICE
