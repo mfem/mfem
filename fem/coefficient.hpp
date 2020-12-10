@@ -171,10 +171,10 @@ public:
 class SBMFunctionCoefficient : public Coefficient
 {
 protected:
-   int type;
    std::function<double(const Vector &)> Function;
    std::function<double(const Vector &, double)> TDFunction;
    std::function<double(const Vector &, int type)> TypeFunction;
+   int type;
 
 public:
    /// Define a time-independent coefficient from a std function

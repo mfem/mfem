@@ -2842,6 +2842,30 @@ void AddMult_a_VWt(const double a, const Vector &v, const Vector &w,
    }
 }
 
+void AddMult_a_VWt_WVt(const double a, const Vector &v, const Vector &w,
+                       DenseMatrix &VWt)
+{
+   const int m = v.Size(), n = w.Size();
+
+#ifdef MFEM_DEBUG
+   if (VWt.Height() != m || m != n)
+   {
+      mfem_error("AddMult_a_VWt_WVt(...): dimension mismatch");
+   }
+#endif
+
+   for (int j = 0; j < n; j++)
+   {
+      const double awj = a * w(j);
+      for (int i = 0; i < m; i++)
+      {
+         double val = v(i) * awj;
+         VWt(i, j) += val;
+         VWt(j, i) += val;
+      }
+   }
+}
+
 void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt)
 {
    MFEM_ASSERT(VVt.Height() == v.Size() && VVt.Width() == v.Size(),

@@ -3018,14 +3018,16 @@ void SBM2Integrator::AssembleFaceMatrix(
       }
       else
       {
+         // Note: this normal accounts for the weight of the surface transformation
+         // Jacobian i.e. nor = nhat*det(J)
          CalcOrtho(Trans.Jacobian(), nor);
       }
       vD->Eval(D, Trans, ip);
 
       double nor_dot_d = nor*D;
+      // Since we are clipping inside the domain, ntilde and d vector should be
+      // aligned.
       if (nor_dot_d < 0) { nor *= -1; }
-      // note here that if we are clipping outside the domain, we will have to
-      // flip the sign if nor_dot_d is +ve.
 
       if (elem1f)
       {
@@ -3046,14 +3048,19 @@ void SBM2Integrator::AssembleFaceMatrix(
       adjJ.Mult(ni, nh);
       dshape1.Mult(nh, dshape1dn); //dphi/dn * Jinv * alpha_k * nor
 
-      AddMult_a_VWt(-1., dshape1dn, shape1, elmat); //DG diffusion integrator terms
-      AddMult_a_VWt(-1., shape1, dshape1dn, elmat);
+      //(grad u.n, w) - Term 2
+      //AddMult_a_VWt(-1., dshape1dn, shape1, elmat);
+      //(u, grad w.n) - Term 3
+      //AddMult_a_VWt(-1., shape1, dshape1dn, elmat);
+      // Term 2 + Term 3
+      AddMult_a_VWt_WVt(-1., shape1, dshape1dn, elmat);
 
       if (elem1f) { el1.CalcPhysDShape(*(Trans.Elem1), dshape2); }
       else { el1.CalcPhysDShape(*(Trans.Elem2), dshape2); } //dphi/dx
       dshape2.Mult(D, dshape2dd); // dphi/dx.D
 
-      AddMult_a_VWt(-1., dshape1dn, dshape2dd, elmat); // (grad u.d, grad w.n)
+      // (grad u.d, grad w.n) - Term 4
+      AddMult_a_VWt(-1., dshape1dn, dshape2dd, elmat);
 
       double hinvdx;
       if (elem1f) { hinvdx = nor*nor/Trans.Elem1->Weight(); }
@@ -3062,20 +3069,24 @@ void SBM2Integrator::AssembleFaceMatrix(
       wrk = shape1;
       w = ip.weight*alpha*hinvdx;
       wrk *= w;
-      AddMult_a_VWt(1., wrk, shape1, elmat); // + <alpha * hinv * u, w>
+      // + <alpha * hinv * u, w> - Term 5
+      AddMult_a_VWt(1., wrk, shape1, elmat);
 
       w = ip.weight*alpha*hinvdx;
       wrk = dshape2dd;
       wrk *= w;
-      AddMult_a_VWt(1., wrk, shape1, elmat); // + < alpha * hinv * grad u.d, w>
-
-      AddMult_a_VWt(1., shape1, wrk, elmat); // + < alpha * hinv * u, grad w.d>
+      // + < alpha * hinv * grad u.d, w> - Term 6
+      //AddMult_a_VWt(1., wrk, shape1, elmat);
+      // + < alpha * hinv * u, grad w.d> - Term 7
+      //AddMult_a_VWt(1., shape1, wrk, elmat);
+      //Term 6 + Term 7
+      AddMult_a_VWt_WVt(1., wrk, shape1, elmat);
 
       w = ip.weight*alpha*hinvdx;
       wrk = dshape2dd;
       wrk *= w;
+      // < alpha * hinv * grad u.d, grad w.d> - Term 8
       AddMult_a_VWt(1., wrk, dshape2dd, elmat);
-      // < alpha * hinv * grad u.d, grad w.d>
 
    } //p < ir->GetNPoints()
 }

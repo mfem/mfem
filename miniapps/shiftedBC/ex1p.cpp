@@ -4,15 +4,17 @@
 //
 // Sample runs:
 // mpirun -np 1 ex1p -m ../../data/inline-quad.mesh  -rs 0 -vis -o 2
-
+// mpirun -np 1 ex1p -m quad.mesh -rs 0 -o 2 -st 1 -ex -lst 1
+// mpirun -np 1 ex1p -m quad.mesh -rs 0 -o 2 -st 1 -ex -lst 3
+// mpirun -np 1 ex1p -m quad.mesh -rs 0 -o 2 -st 1 -ex -lst 4
 #include "../../mfem.hpp"
 #include <fstream>
 #include <iostream>
 #include "distfunction.hpp"
 #include "sbm-aux.hpp"
 
-using namespace std;
 using namespace mfem;
+using namespace std;
 
 double rhs_fun_xy(const Vector &x);
 
@@ -61,15 +63,17 @@ int main(int argc, char *argv[])
    args.AddOption(&level_set_type, "-lst", "--level-set-type",
                   "level-set-type:");
    /// IMPORTANT: Level set type notes
-   /// 1 - circlular hole of radius 0.2 at the center of domain [0,1].
-   /// 3 - solution is analytic linear and domain is y=0 to 1.
-   /// 4 - solution is analytic sinusoidal and domain is y=[0,1] with mesh y=[-0.1,1.1]
+   /// 1 - circlular hole of radius 0.2 at the center of domain [0, 1].
+   ///     -nabla^2 = 1. Exact solution is generated using a very fine mesh
+   /// that is body fitted.
+   /// 3 - circular hole of radius 0.2 at the center of domain [0, 1]. Solution
+   /// is linear from y = 0 to 1. We use this to make sure we get exact solution.
+   /// 4. - Walls are at y = 0 to 1. In this case we stretch the mesh from
+   /// [0,1] to [-0.1, 1.1] to get shifted faces. The solution is analytic
+   /// sinusoidal function.
 
    /// Use level set (1) and (4) for convergence study.
-   /// (1) does not have analytic solution so need to use sbm-diff with a fine mesh and
-   /// solution to get analytic error.
    /// Use (3) to make sure we get exact solution with SBM.
-   /// Ignore (5) for now.
 
    args.Parse();
    if (!args.Good())
@@ -114,6 +118,7 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order = 1, dim);
    }
    ParFiniteElementSpace pfespace(&pmesh, fec);
+   pfespace.ExchangeFaceNbrData();
 
    Vector vxyz;
 
@@ -151,9 +156,7 @@ int main(int argc, char *argv[])
    Dist_Level_Set_Coefficient dist_fun_level_coef(level_set_type);
    level_set_val.ProjectCoefficient(dist_fun_level_coef);
    level_set_val.ExchangeFaceNbrData();
-   pfespace.ExchangeFaceNbrData();
 
-   int max_attr     = pmesh.attributes.Max();
    IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
    FaceElementTransformations *tr = NULL;
 
@@ -480,10 +483,10 @@ int main(int argc, char *argv[])
    }
 
    // 12. Set up SBM integration parameter - alpha
-   double pfactor = std::max(ser_ref_levels*1., order*1.);
-   double alpha = 100/pow(2., pfactor);
-   alpha = 10;
-   alpha = std::max(10., alpha);
+   //double pfactor = std::max(ser_ref_levels*1., order*1.);
+   //double alpha = 100/pow(2., pfactor);
+   double alpha = 10;
+   //alpha = std::max(10., alpha);
 
 
    // 13. Set up the linear form b(.) which corresponds to the right-hand side of
@@ -557,8 +560,6 @@ int main(int argc, char *argv[])
        S = bicg;
    }
    S->Mult(B, X);
-   delete prec;
-   delete S;
 
    // 17. Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, x);
@@ -638,7 +639,10 @@ int main(int argc, char *argv[])
 
 
    // 15. Free the used memory.
+   delete prec;
+   delete S;
    delete dist_vec;
+   delete distance_vec_space;
    delete fec;
 
    MPI_Finalize();
