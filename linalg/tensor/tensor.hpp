@@ -20,6 +20,12 @@
 namespace mfem
 {
 
+/** A tensor class
+    @a Rank is the rank of the Tensor
+    @a T is the type of elements stored
+    @a Container is the type of data container
+    @a Layout is a class that represents the data layout
+   */
 template <int Rank,
           typename T = double,
           typename Container = MemoryContainer<T>,
@@ -134,100 +140,65 @@ using BlockTensor = Tensor<sizeof...(Sizes),
 template <int... Sizes>
 using BlockDTensor = BlockTensor<double,Sizes...>;
 
-/// A fixed size tensor class
-// template<typename T, int... Dims>
-// class Tensor{
-// private:
-//    MFEM_SHARED T data[Size<Dims...>::val];
+// template <typename... LayoutParams,
+//           template <typename...> typename LayoutOut,
+//           int Rank,
+//           typename T,
+//           typename Container,
+//           typename LayoutIn>
+// auto Reshape(Tensor<Rank,T,Container,LayoutIn> &t, InitParams... params)
+// {
+//    return Tensor<Rank,T,Container,LayoutOut>{params};
+// }
 
-// public:
-//    MFEM_HOST_DEVICE
-//    explicit Tensor() {}
-   
-//    MFEM_HOST_DEVICE
-//    explicit Tensor(const T &val)
-//    {
-//       for (size_t i = 0; i < Size<Dims...>::val; i++)
-//       {
-//          data[i] = val;
-//       }      
-//    }
+// template <typename Basis>
+// class TensorTypeForBasis;
 
-//    MFEM_HOST_DEVICE
-//    Tensor(const Tensor &rhs)
-//    {
-//       for (size_t i = 0; i < Size<Dims...>::val; i++)
-//       {
-//          data[i] = rhs[i];
-//       }
-//    }
+// template <int Dim>
+// class TensorTypeForBasis<Basis<Dim,true,0,0>>
+// {
+//    using Type = DynamicDTensor<Dim>;
 
-//    const int size() const
-//    {
-//       return Size<Dims...>::val;
-//    }
-
-//    template<typename... Idx> MFEM_HOST_DEVICE inline
-//    const T& operator()(Idx... args) const
-//    {
-//       static_assert(sizeof...(Dims)==sizeof...(Idx), "Wrong number of indices");
-//       return data[ TensorIndex<Dims...>::eval(args...) ];
-//    }
-
-//    template<typename... Idx> MFEM_HOST_DEVICE inline
-//    T& operator()(Idx... args)
-//    {
-//       static_assert(sizeof...(Dims)==sizeof...(Idx), "Wrong number of indices");
-//       return data[ TensorIndex<Dims...>::eval(args...) ];
-//    }
-
-//    MFEM_HOST_DEVICE inline
-//    Tensor<T,Dims...>& operator= (const T &val)
-//    {
-//       for (size_t i = 0; i < Size<Dims...>::val; i++)
-//       {
-//          data[i] = val;
-//       }
-//       return *this;
-//    }
-
-// private:
-//    MFEM_HOST_DEVICE inline
-//    const T& operator[] (const int i) const
-//    {
-//       return data[i];
-//    }
-
-//    //Compute the index inside a Tensor
-//    template<int Cpt, int rank, int... Sizes>
-//    struct Index
-//    {
-//       template <typename... Idx>
-//       static inline int eval(int first, Idx... args)
-//       {
-//          return first + Dim<Cpt-1,Sizes...>::val * Index<Cpt+1, rank, Sizes...>::eval(args...);
-//       }
-//    };
-
-//    template<int rank, int... Sizes>
-//    struct Index<rank,rank,Sizes...>
-//    {
-//       static inline int eval(int first)
-//       {
-//          return first;
-//       }
-//    };
-
-//    template<int... Sizes>
-//    struct TensorIndex
-//    {
-//       template <typename... Idx>
-//       static inline int eval(Idx... args)
-//       {
-//          return Index<1,sizeof...(Sizes),Sizes...>::eval(args...);
-//       }
-//    };
+//    template <typename... Sizes> MFEM_HOST_DEVICE
+//    Type make()
 // };
+
+// template <int Dim>
+// class TensorTypeForBasis<Basis<Dim,false,0,0>>
+// {
+//    using Type = DynamicDTensor<1>;
+// };
+
+
+
+// template <int Dim, bool IsTensor, int Dofs, int Quads>
+// class TensorTypeForBasis<Basis<Dim,true,Dofs,Quads>>
+// {
+//    using BlockDTensor<Q>;
+// };
+
+// template <int Dim, bool IsTensor, int Dofs, int Quads>
+// class TensorTypeForBasis<Basis<Dim,false,Dofs,Quads>>
+// {
+
+// };
+
+template <typename Tensor>
+class TypeOf;
+
+template <int Rank, typename T, int MaxSize>
+class TypeOf<DynamicTensor<Rank,T,MaxSize>>
+{
+   template <int... Sizes>
+   using type = DynamicTensor<rank(Sizes...),T,MaxSize>;
+};
+
+template <typename T, int... Sizes>
+class TypeOf<BlockTensor<T,Sizes...>>
+{
+   template <int... YourSizes>
+   using type = BlockTensor<T,YourSizes...>;
+};
 
 } // namespace mfem
 
