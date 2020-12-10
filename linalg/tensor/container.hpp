@@ -20,27 +20,110 @@ namespace mfem
 template <typename T>
 class DeviceContainer
 {
-private:
-   int capacity;
+protected:
    T* data;
+   int capacity;
 
 public:
-   template <typename... Sizes> MFEM_HOST_DEVICE
-   DeviceContainer(Sizes... sizes)
-   : capacity(prod(sizes...)), data(nullptr)
-   {
-      data = new T[capacity];
-   }
+   MFEM_HOST_DEVICE
+   DeviceContainer(const T* data, int capacity) : data(data), capacity(capacity)
+   { }
 
    MFEM_HOST_DEVICE
-   T& operator[](const int i) const
+   DeviceContainer(const DeviceContainer &rhs) : data(rhs.data), capacity(rhs.capacity)
+   { }
+
+   MFEM_HOST_DEVICE
+   T& operator[](int i) const
    {
       return data[ i ];
    }
 
-   const int size() const
+   const int Capacity() const
    {
       return capacity;
+   }
+};
+
+template <typename T>
+class ReadContainer
+{
+private:
+   const T* data;
+   int capacity;
+
+public:
+   MFEM_HOST_DEVICE
+   ReadContainer(const T* data, int capacity) : data(data), capacity(capacity)
+   { }
+
+   MFEM_HOST_DEVICE
+   ReadContainer(const ReadContainer &rhs) : data(rhs.data), capacity(rhs.capacity)
+   { }
+
+   MFEM_HOST_DEVICE
+   const T& operator[](int i) const
+   {
+      return data[ i ];
+   }
+
+   const int Capacity() const
+   {
+      return capacity;
+   }
+};
+
+template <typename T>
+class MemoryContainer
+{
+private:
+   Memory<T> data;
+
+public:
+   template <typename... Sizes>
+   MemoryContainer(Sizes... sizes) : data(prod(sizes...)) { }
+
+   MemoryContainer(const MemoryContainer &rhs)
+   {
+      if(rhs.Capacity>Capacity())
+      {
+         data.New(rhs.Capacity(), data.GetMemoryType());
+      }
+      auto ptr = data.Write();
+      auto rhs_ptr = rhs.data.Read();
+      MFEM_FORALL(i, Capacity(),{
+         ptr[i] = rhs_ptr[i];
+      });
+   }
+
+   const T& operator[](int i) const
+   {
+      return data[ i ];
+   }
+
+   T& operator[](int i)
+   {
+      return data[ i ];
+   }
+
+   const int Capacity() const
+   {
+      return data.Capacity();
+   }
+
+   ReadContainer<T> ReadData() const
+   {
+      return ReadContainer<T>(data.Read(), data.Capacity());
+   }
+
+   DeviceContainer<T> WriteData()
+   {
+      return DeviceContainer<T>(data.Write(), data.Capacity());
+   }
+
+   DeviceContainer<T> ReadWriteData()
+   {
+      return DeviceContainer<T>(data.ReadWrite(), data.Capacity());
    }
 };
 
@@ -58,18 +141,18 @@ public:
    }
 
    MFEM_HOST_DEVICE
-   const T& operator[](const int i) const
+   const T& operator[](int i) const
    {
       return data[ i ];
    }
 
    MFEM_HOST_DEVICE
-   T& operator[](const int i)
+   T& operator[](int i)
    {
       return data[ i ];
    }
 
-   constexpr int size() const
+   constexpr int Capacity() const
    {
       return prod(Dims...);
    }
@@ -90,64 +173,116 @@ public:
    }
 
    MFEM_HOST_DEVICE
-   const T& operator[](const int i) const
+   const T& operator[](int i) const
    {
       return data[ i ];
    }
 
    MFEM_HOST_DEVICE
-   T& operator[](const int i)
+   T& operator[](int i)
    {
       return data[ i ];
    }
 
    MFEM_HOST_DEVICE
-   constexpr int size() const
+   constexpr int Capacity() const
    {
       return prod(Dims...);
    }
 };
 
-template <int... Dims>
+template <typename T, int... Dims>
 class BlockContainer;
 
-template <int DimX>
-class BlockContainer<DimX>
-{
-public:
-   MFEM_HOST_DEVICE inline
-   constexpr int operator()(int idx) const
-   {
-      // TODO verify that idx < DimX
-      return 0;
-   }
-};
-
-template <int DimX, int DimY>
-class BlockContainer<DimX, DimY>
-{
-public:
-   MFEM_HOST_DEVICE inline
-   constexpr int operator()(int idx0, int idx1) const
-   {
-      // TODO verify that idx0 < DimX && idx1 < DimY
-      // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y
-      return 0;
-   }
-};
-
-template <int DimX, int DimY, int... Dims>
-class BlockContainer<DimX,DimY,Dims...>
+template <typename T, int DimX>
+class BlockContainer<T,DimX>
 {
 private:
-   StaticContainer<Dims...> layout;
+   T data;
+
 public:
-   template <typename... Idx> MFEM_HOST_DEVICE inline
-   constexpr int operator()(int idx0, int idx1, Idx... idx) const
+   MFEM_HOST_DEVICE
+   BlockContainer(int size) { /* TODO Verify that size < threadIdx.x */ }
+
+   MFEM_HOST_DEVICE
+   const T& operator[](int i) const
    {
-      // TODO verify that idx0 < DimX && idx1 < DimY && idx2 < DimZ
-      // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y
-      return layout(idx...);
+      // TODO Verify in debug that i==0
+      return data;
+   }
+
+   MFEM_HOST_DEVICE
+   T& operator[](int i)
+   {
+      // TODO Verify in debug that i==0
+      return data;
+   }
+
+   MFEM_HOST_DEVICE
+   constexpr int Capacity() const
+   {
+      return 1;
+   }
+};
+
+template <typename T, int DimX, int DimY>
+class BlockContainer<T,DimX, DimY>
+{
+private:
+   StaticContainer<T,1> data;
+
+public:
+   MFEM_HOST_DEVICE
+   BlockContainer(int size0, int size1) { }
+
+   MFEM_HOST_DEVICE
+   const T& operator[](int i) const
+   {
+      // TODO Verify in debug that i==0
+      return data[ 0 ];
+   }
+
+   MFEM_HOST_DEVICE
+   T& operator[](int i)
+   {
+      // TODO Verify in debug that i==0
+      return data[ 0 ];
+   }
+
+   MFEM_HOST_DEVICE
+   constexpr int Capacity() const
+   {
+      return 1;
+   }
+};
+
+template <typename T, int DimX, int DimY, int... Dims>
+class BlockContainer<T,DimX,DimY,Dims...>
+{
+private:
+   StaticContainer<T,Dims...> data;
+public:
+   template <typename... Sizes> MFEM_HOST_DEVICE
+   BlockContainer(int size0, int size1, Sizes... sizes): data(sizes...) { }
+
+   MFEM_HOST_DEVICE
+   const T& operator[](int i) const
+   {
+      // TODO Verify in debug that i==0
+      return data[ 0 ];
+   }
+
+   MFEM_HOST_DEVICE
+   T& operator[](int i)
+   {
+      // TODO Verify in debug that i==0
+      return data[ 0 ];
+   }
+
+   MFEM_HOST_DEVICE
+   constexpr int Capacity() const
+   {
+      return prod(Dims...);
    }
 };
 
