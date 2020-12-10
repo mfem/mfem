@@ -206,6 +206,9 @@ public:
    Array<FaceGeometricFactors*>
    face_geom_factors; ///< Optional face geometric factors.
 
+   /// Used during initialization only.
+   Array<Triple<int, int, int> > tmp_vertex_parents;
+
    // Global parameter that can be used to control the removal of unused
    // vertices performed when reading a mesh in MFEM format. The default value
    // (true) is set in mesh_readers.cpp.
@@ -468,6 +471,8 @@ protected:
    void GetElementData(const Array<Element*> &elem_array, int geom,
                        Array<int> &elem_vtx, Array<int> &attr) const;
 
+   double GetElementSize(ElementTransformation *T, int type = 0);
+
 public:
 
    Mesh() { SetEmpty(); }
@@ -499,10 +504,7 @@ public:
        @brief _Init_ constructor: begin the construction of a Mesh object. */
    Mesh(int _Dim, int NVert, int NElem, int NBdrElem = 0, int _spaceDim = -1)
    {
-      if (_spaceDim == -1)
-      {
-         _spaceDim = _Dim;
-      }
+      if (_spaceDim == -1) { _spaceDim = _Dim; }
       InitMesh(_Dim, _spaceDim, NVert, NElem, NBdrElem);
    }
 
@@ -514,23 +516,48 @@ public:
 
    Element *NewElement(int geom);
 
-   void AddVertex(const double *);
-   void AddSegment(const int *vi, int attr = 1);
-   void AddTri(const int *vi, int attr = 1);
-   void AddTriangle(const int *vi, int attr = 1);
-   void AddQuad(const int *vi, int attr = 1);
-   void AddTet(const int *vi, int attr = 1);
-   void AddWedge(const int *vi, int attr = 1);
-   void AddHex(const int *vi, int attr = 1);
+   int AddVertex(double x, double y = 0.0, double z = 0.0);
+   int AddVertex(const double *coords);
+   /// Mark vertex @a i as non-conforming, with parent vertices @a p1 and @a p2.
+   void AddVertexParents(int i, int p1, int p2);
+
+   int AddSegment(int v1, int v2, int attr = 1);
+   int AddSegment(const int *vi, int attr = 1);
+
+   int AddTriangle(int v1, int v2, int v3, int attr = 1);
+   int AddTriangle(const int *vi, int attr = 1);
+   int AddTri(const int *vi, int attr = 1) { return AddTriangle(vi, attr); }
+
+   int AddQuad(int v1, int v2, int v3, int v4, int attr = 1);
+   int AddQuad(const int *vi, int attr = 1);
+
+   int AddTet(int v1, int v2, int v3, int v4, int attr = 1);
+   int AddTet(const int *vi, int attr = 1);
+
+   int AddWedge(int v1, int v2, int v3, int v4, int v5, int v6, int attr = 1);
+   int AddWedge(const int *vi, int attr = 1);
+
+   int AddHex(int v1, int v2, int v3, int v4, int v5, int v6, int v7, int v8,
+              int attr = 1);
+   int AddHex(const int *vi, int attr = 1);
    void AddHexAsTets(const int *vi, int attr = 1);
    void AddHexAsWedges(const int *vi, int attr = 1);
+
    /// The parameter @a elem should be allocated using the NewElement() method
-   void AddElement(Element *elem)     { elements[NumOfElements++] = elem; }
-   void AddBdrElement(Element *elem)  { boundary[NumOfBdrElements++] = elem; }
-   void AddBdrSegment(const int *vi, int attr = 1);
-   void AddBdrTriangle(const int *vi, int attr = 1);
-   void AddBdrQuad(const int *vi, int attr = 1);
+   int AddElement(Element *elem);
+   int AddBdrElement(Element *elem);
+
+   int AddBdrSegment(int v1, int v2, int attr = 1);
+   int AddBdrSegment(const int *vi, int attr = 1);
+
+   int AddBdrTriangle(int v1, int v2, int v3, int attr = 1);
+   int AddBdrTriangle(const int *vi, int attr = 1);
+
+   int AddBdrQuad(int v1, int v2, int v3, int v4, int attr = 1);
+   int AddBdrQuad(const int *vi, int attr = 1);
    void AddBdrQuadAsTriangles(const int *vi, int attr = 1);
+
+   int AddBdrPoint(int v, int attr = 1);
 
    void GenerateBoundaryElements();
    /// Finalize the construction of a triangular Mesh.
@@ -1225,17 +1252,27 @@ public:
    /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
    void PrintVTK(std::ostream &out, int ref, int field_data=0);
    /** Print the mesh in VTU format. The parameter ref > 0 specifies an element
-       subdivision number (useful for high order fields and curved meshes). */
+       subdivision number (useful for high order fields and curved meshes).
+       If @a bdr_elements is true, then output (only) the boundary elements,
+       otherwise output only the non-boundary elements. */
    void PrintVTU(std::ostream &out,
                  int ref=1,
                  VTKFormat format=VTKFormat::ASCII,
                  bool high_order_output=false,
-                 int compression_level=0);
+                 int compression_level=0,
+                 bool bdr_elements=false);
    /** Print the mesh in VTU format with file name fname. */
-   void PrintVTU(std::string fname,
-                 VTKFormat format=VTKFormat::ASCII,
-                 bool high_order_output=false,
-                 int compression_level=0);
+   virtual void PrintVTU(std::string fname,
+                         VTKFormat format=VTKFormat::ASCII,
+                         bool high_order_output=false,
+                         int compression_level=0,
+                         bool bdr=false);
+   /** Print the boundary elements of the mesh in VTU format, and output the
+       boundary attributes as a data array (useful for boundary conditions). */
+   void PrintBdrVTU(std::string fname,
+                    VTKFormat format=VTKFormat::ASCII,
+                    bool high_order_output=false,
+                    int compression_level=0);
 
    void GetElementColoring(Array<int> &colors, int el0 = 0);
 

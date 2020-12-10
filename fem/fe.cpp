@@ -139,6 +139,12 @@ void FiniteElement::Project (
    mfem_error ("FiniteElement::Project (...) (vector) is not overloaded !");
 }
 
+void FiniteElement::ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
+                                     Vector &dofs) const
+{
+   mfem_error ("FiniteElement::ProjectFromNodes() (vector) is not overloaded!");
+}
+
 void FiniteElement::ProjectMatrixCoefficient(
    MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
 {
@@ -429,7 +435,7 @@ void ScalarFiniteElement::ScalarLocalInterpolation(
    IntegrationPoint f_ip;
 
    const int fs = fine_fe.GetDof(), cs = this->GetDof();
-   I.SetSize(fs, cs );
+   I.SetSize(fs, cs);
    Vector fine_shape(fs), coarse_shape(cs);
    DenseMatrix fine_mass(fs), fine_coarse_mass(fs, cs); // initialized with 0
    const int ir_order = GetOrder() + fine_fe.GetOrder();
@@ -458,6 +464,44 @@ void ScalarFiniteElement::ScalarLocalInterpolation(
    }
 }
 
+void ScalarFiniteElement::ScalarLocalRestriction(
+   ElementTransformation &Trans, DenseMatrix &R,
+   const ScalarFiniteElement &coarse_fe) const
+{
+   // General "restriction", defined by L2 projection
+   double v[Geometry::MaxDim];
+   Vector vv (v, dim);
+   IntegrationPoint f_ip;
+
+   const int cs = coarse_fe.GetDof(), fs = this->GetDof();
+   R.SetSize(cs, fs);
+   Vector fine_shape(fs), coarse_shape(cs);
+   DenseMatrix coarse_mass(cs), coarse_fine_mass(cs, fs); // initialized with 0
+   const int ir_order = GetOrder() + coarse_fe.GetOrder();
+   const IntegrationRule &ir = IntRules.Get(coarse_fe.GetGeomType(), ir_order);
+
+   for (int i = 0; i < ir.GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(i);
+      this->CalcShape(ip, fine_shape);
+      Trans.Transform(ip, vv);
+      f_ip.Set(v, dim);
+      coarse_fe.CalcShape(f_ip, coarse_shape);
+
+      AddMult_a_VVt(ip.weight, coarse_shape, coarse_mass);
+      AddMult_a_VWt(ip.weight, coarse_shape, fine_shape, coarse_fine_mass);
+   }
+
+   DenseMatrixInverse coarse_mass_inv(coarse_mass);
+   coarse_mass_inv.Mult(coarse_fine_mass, R);
+
+   if (map_type == INTEGRAL)
+   {
+      // assuming Trans is linear; this should be ok for all refinement types
+      Trans.SetIntPoint(&Geometries.GetCenter(geom_type));
+      R *= 1.0 / Trans.Weight();
+   }
+}
 const DofToQuad &ScalarFiniteElement::GetDofToQuad(const IntegrationRule &ir,
                                                    DofToQuad::Mode mode) const
 {
@@ -925,6 +969,23 @@ void VectorFiniteElement::Project_RT(
    }
 }
 
+void VectorFiniteElement::Project_RT(
+   const double *nk, const Array<int> &d2n,
+   Vector &vc, ElementTransformation &Trans, Vector &dofs) const
+{
+   const int sdim = Trans.GetSpaceDim();
+   const bool square_J = (dim == sdim);
+
+   for (int k = 0; k < dof; k++)
+   {
+      Trans.SetIntPoint(&Nodes.IntPoint(k));
+      // dof_k = nk^t adj(J) xk
+      Vector vk(vc.GetData()+k*sdim, sdim);
+      dofs(k) = Trans.AdjugateJacobian().InnerProduct(vk, nk + d2n[k]*dim);
+      if (!square_J) { dofs(k) /= Trans.Weight(); }
+   }
+}
+
 void VectorFiniteElement::ProjectMatrixCoefficient_RT(
    const double *nk, const Array<int> &d2n,
    MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
@@ -1096,6 +1157,19 @@ void VectorFiniteElement::Project_ND(
       Trans.SetIntPoint(&Nodes.IntPoint(k));
 
       vc.Eval(xk, Trans, Nodes.IntPoint(k));
+      // dof_k = xk^t J tk
+      dofs(k) = Trans.Jacobian().InnerProduct(tk + d2t[k]*dim, vk);
+   }
+}
+
+void VectorFiniteElement::Project_ND(
+   const double *tk, const Array<int> &d2t,
+   Vector &vc, ElementTransformation &Trans, Vector &dofs) const
+{
+   for (int k = 0; k < dof; k++)
+   {
+      Trans.SetIntPoint(&Nodes.IntPoint(k));
+      Vector vk(vc.GetData()+k*dim, dim);
       // dof_k = xk^t J tk
       dofs(k) = Trans.Jacobian().InnerProduct(tk + d2t[k]*dim, vk);
    }
@@ -7995,7 +8069,7 @@ void H1_HexahedronElement::CalcHessian(const IntegrationPoint &ip,
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1),  shape_y(p+1),  shape_z(p+1);
    Vector dshape_x(p+1), dshape_y(p+1), dshape_z(p+1);
-   Vector d2shape_x(p+1), d2shape_y(p+1), ds2hape_z(p+1);
+   Vector d2shape_x(p+1), d2shape_y(p+1), d2shape_z(p+1);
 #endif
 
    basis1d.Eval(ip.x, shape_x, dshape_x, d2shape_x);

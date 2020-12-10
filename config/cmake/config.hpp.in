@@ -74,6 +74,9 @@
 // [Deprecated] Enable experimental OpenMP support. Requires MFEM_THREAD_SAFE.
 #cmakedefine MFEM_USE_LEGACY_OPENMP
 
+// Internal MFEM option: enable group/batch allocation for some small objects.
+#cmakedefine MFEM_USE_MEMALLOC
+
 // Enable MFEM functionality based on the Mesquite library.
 #cmakedefine MFEM_USE_MESQUITE
 
@@ -83,14 +86,17 @@
 // Enable MFEM functionality based on the SuperLU_DIST library.
 #cmakedefine MFEM_USE_SUPERLU
 
+// Enable MFEM functionality based on the MUMPS library.
+#cmakedefine MFEM_USE_MUMPS
+
 // Enable MFEM functionality based on the STRUMPACK library.
 #cmakedefine MFEM_USE_STRUMPACK
 
-// Internal MFEM option: enable group/batch allocation for some small objects.
-#cmakedefine MFEM_USE_MEMALLOC
-
 // Enable functionality based on the Ginkgo library
 #cmakedefine MFEM_USE_GINKGO
+
+// Enable MFEM functionality based on the AmgX library
+#cmakedefine MFEM_USE_AMGX
 
 // Enable MFEM functionality based on the GnuTLS library
 #cmakedefine MFEM_USE_GNUTLS
@@ -155,5 +161,8 @@
 // Macro defined when PUMI is built with support for the Simmetrix SimModSuite
 // library.
 #cmakedefine MFEM_USE_SIMMETRIX
+
+// Enable interface to the MKL CPardiso library.
+#cmakedefine MFEM_USE_MKL_CPARDISO
 
 #endif // MFEM_CONFIG_HEADER
