@@ -22,40 +22,67 @@ namespace mfem
 
 template <int Rank,
           typename T = double,
-          typename Container = DeviceContainer<T>,
+          typename Container = MemoryContainer<T>,
           typename Layout = DynamicLayout<Rank>>
-class Tensor
+class Tensor // TODO inherit from Container and Layout ,data -> operator[]
 {
 private:
    Container data;
-   Layout layout;
+   Layout index;
 
 public:
    template <typename... Sizes> MFEM_HOST_DEVICE
-   Tensor(Sizes... sizes): data(sizes...), layout(sizes...) { }
+   Tensor(Sizes... sizes): data(sizes...), index(sizes...) { }
+
+   Tensor(Container &data, Layout &index): data(data), index(index) { }
+
+   MFEM_HOST_DEVICE
+   Tensor(const Tensor &rhs): data(rhs.data), index(rhs.index) { }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
    const T& operator()(Idx... args) const
    {
       static_assert(Rank==sizeof...(Idx), "Wrong number of indices");
-      return data[ layout(args...) ];
+      return data[ index(args...) ];
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
    T& operator()(Idx... args)
    {
       static_assert(Rank==sizeof...(Idx), "Wrong number of indices");
-      return data[ layout(args...) ];
+      return data[ index(args...) ];
+   }
+
+   // TODO remove after inheriting
+   template <int N>
+   int Size() const
+   {
+      return index.template Size<N>();
    }
 
    MFEM_HOST_DEVICE inline
-   Tensor& operator= (const T &val)
+   Tensor<Rank,T,Container,Layout>& operator=(const T &val)
    {
-      for (size_t i = 0; i < data.size(); i++)
+      for (size_t i = 0; i < data.Capacity(); i++)
       {
          data[i] = val;
       }
       return *this;
+   }
+
+   Tensor<Rank,T,ReadContainer<T>,Layout>& Read()
+   {
+      return Tensor<Rank,T,ReadContainer<T>,Layout>(data.ReadData(),index);
+   }
+
+   Tensor<Rank,T,DeviceContainer,Layout>& Write()
+   {
+      return Tensor<Rank,T,DeviceContainer,Layout>(data.WriteData(),index);
+   }
+
+   Tensor<Rank,T,DeviceContainer,Layout>& ReadWrite()
+   {
+      return Tensor<Rank,T,DeviceContainer,Layout>(data.ReadWriteData(),index);
    }
 };
 
@@ -65,11 +92,17 @@ using StaticSharedTensor = Tensor<sizeof...(Sizes),
                                   StaticSharedContainer<T, Sizes...>,
                                   StaticLayout<Sizes...> >;
 
-template <int Rank, typename T, int MaxSize = 16>
+template <int... Sizes>
+using StaticSharedDTensor = StaticSharedTensor<double,Sizes...>;
+
+template <int Rank, typename T, int MaxSize = pow(16,Rank)>
 using SharedTensor = Tensor<Rank,
                             T,
-                            StaticSharedContainer<T, Rank*MaxSize>,
+                            StaticSharedContainer<T, MaxSize>,
                             DynamicLayout<Rank> >;
+
+template <int Rank, int MaxSize = pow(16,Rank)>
+using SharedDTensor = SharedTensor<Rank,double,MaxSize>;
 
 template <typename T, int... Sizes>
 using StaticTensor = Tensor<sizeof...(Sizes),
@@ -80,11 +113,26 @@ using StaticTensor = Tensor<sizeof...(Sizes),
 template <int... Sizes>
 using dTensor = StaticTensor<double,Sizes...>;
 
+template <int... Sizes>
+using StaticDTensor = StaticTensor<double,Sizes...>;
+
+template <int Rank, typename T, int MaxSize = pow(16,Rank)>
+using DynamicTensor = Tensor<Rank,
+                             T,
+                             StaticContainer<T, MaxSize>,
+                             DynamicLayout<Rank> >;
+
+template <int Rank, int MaxSize = pow(16,Rank)>
+using DynamicDTensor = DynamicTensor<Rank,double,MaxSize>;
+
 template <typename T, int... Sizes>
 using BlockTensor = Tensor<sizeof...(Sizes),
                            T,
                            BlockContainer<T, Sizes...>,
                            BlockLayout<Sizes...> >;
+
+template <int... Sizes>
+using BlockDTensor = BlockTensor<double,Sizes...>;
 
 /// A fixed size tensor class
 // template<typename T, int... Dims>
