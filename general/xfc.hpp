@@ -13,6 +13,7 @@
 
 #include "xfl.hpp"
 #include <memory>
+#include <sstream>
 
 using TOK = yy::parser::token;
 
@@ -84,7 +85,7 @@ public:
    {
       if (rule.dfs.down &&
           rule.n == multiplicative_expr_multiplicative_expr_mul_cast_expr &&
-          ufl.HitToken(TOK::DOM_DX, rule.child->next->next))
+          rule.child->next && ufl.HitToken(TOK::DOM_DX, rule.child->next->next))
       {
          //dbg("multiplicative_expr_multiplicative_expr_mul_cast_expr");
          if (rule.child->next->n != TOK::MUL)
@@ -113,7 +114,6 @@ public:
          dom_xt->child = child;
          child->root = dom_xt;
          child->next = nullptr;
-
       }
    }
    void Visit(Token&) { /* Nothing to do */  }
@@ -127,6 +127,10 @@ class Code : public Middlend
 public:
    Middlend &me;
    std::ostream &out;
+   std::stringstream dev_null;
+   mutable std::streambuf *dev_bkp { nullptr };
+   void StopOutput() const { dev_bkp = out.rdbuf(); out.rdbuf (dev_null.rdbuf()); }
+   void RestoreOutput() const { out.rdbuf (dev_bkp); }
 public:
    Code(xfl &ufl, std::ostream &out): Middlend(ufl), me(*this), out(out) {}
 #define DECL_RULE(name) \
@@ -157,6 +161,7 @@ public:
    DECL_RULE(extra_status_rule_var_xt);
    DECL_RULE(extra_status_rule_dom_xt);
    DECL_RULE(postfix_expr_grad_op_lp_additive_expr_rp);
+   DECL_RULE(shift_expr_additive_expr);
 #undef DECL_RULE
 
    void Visit(Rule& rule)
@@ -188,6 +193,7 @@ public:
             CASE_RULE(extra_status_rule_var_xt);
             CASE_RULE(extra_status_rule_dom_xt);
             CASE_RULE(postfix_expr_grad_op_lp_additive_expr_rp);
+            CASE_RULE(shift_expr_additive_expr);
          default: /* Nothing to do */ ;
       }
 #undef CASE_RULE
@@ -214,6 +220,8 @@ public:
    DECL_TOKEN(CONSTANT_API);
    DECL_TOKEN(DOT_OP);
    DECL_TOKEN(GRAD_OP);
+   DECL_TOKEN(ADD);
+   DECL_TOKEN(EXPRESSION);
 #undef DECL_TOKEN
 
    void Visit(Token& token)
@@ -241,6 +249,8 @@ public:
             CASE_TOKEN(CONSTANT_API);
             CASE_TOKEN(DOT_OP);
             CASE_TOKEN(GRAD_OP);
+            CASE_TOKEN(ADD);
+            CASE_TOKEN(EXPRESSION);
          default: out << token.Name();
       }
 #undef CASE_TOKEN

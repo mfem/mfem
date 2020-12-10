@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 #include <array>
+#include <sstream>
 #include <iostream>
 #include <algorithm>
 
@@ -269,7 +270,6 @@ void Code::decl_function_u(Rule*) const
 // *****************************************************************************
 void Code::args_expr_list_assign_expr_d(Rule *n) const
 {
-   dbg();
    if (yy::rules.at(decl_function) &&
        !yy::rules.at(args_expr_list_args_expr_list_coma_assign_expr) &&
        !ufl.ctx.nodes[0])
@@ -330,12 +330,12 @@ void Code::def_empty_empty_d(Rule *n) const
 void Code::def_empty_empty_u(Rule*) const { }
 
 // *****************************************************************************
-static string QTypes(const int type)
+static inline string QTypes(const int type)
 {
-   if (type == TOK::TEST_FUNCTION) { return {"xfl::TestFunction_q"};}
-   if (type == TOK::TRIAL_FUNCTION) { return "xfl::TrialFunction_q"; }
-   if (type == TOK::FUNCTION) {return "xfl::Function_q"; }
-   if (type == TOK::CONSTANT_API) { return "xfl::Constant_q"; }
+   if (type == TOK::FUNCTION) { return "xfl::Func_q"; }
+   if (type == TOK::CONSTANT_API) { return "xfl::Cst_q"; }
+   if (type == TOK::TEST_FUNCTION) { return "xfl::Test_q"; }
+   if (type == TOK::TRIAL_FUNCTION) { return "xfl::Trial_q"; }
    //assert(false);
    return string();
 }
@@ -346,29 +346,14 @@ void Code::extra_status_rule_var_xt_d(Rule*n) const
    dbg();
    assert(n->next);
    assert(n->next->child);
-   out << "[&]() {\n\t\tauto qf = [](/*";
+   if (ufl.ctx.i++ < 0) { out << "[&]() {\n"; }
    // continue with parsing the commented body to capture inputs
+   out << "\t\tconst auto qs"<<ufl.ctx.i<<" = \"";
+   //StopOutput();
 }
 
-void Code::extra_status_rule_var_xt_u(Rule*n) const
+static inline int GetTypes(xfl &ufl)
 {
-   dbg();
-   out << "*/";
-   // Add variables to the qfunc lambda
-   int i = 0;
-   for (auto &p : ufl.ctx.vars)
-   {
-      xfl::var &var = p.second;
-      if (var.mode != xfl::NONE)
-      {
-         out << ((i++>0)?", ":"");
-         out << QTypes(var.type);
-         out << " &" << var.name;
-         //out << ", " << var.mode;
-      }
-   }
-
-   out << ", const bool eval){";
    int types = 0;
    for (auto &p : ufl.ctx.vars)
    {
@@ -379,10 +364,21 @@ void Code::extra_status_rule_var_xt_u(Rule*n) const
          types |= var.mode;
       }
    }
-   out << " const int types = 0x" << std::hex << types << std::dec << ";";
+   return types;
+}
 
-   out << " if (eval) {dbg();(void)(";
-
+void Code::extra_status_rule_var_xt_u(Rule*) const
+{
+   int i = 0;
+   out << "\";"; // end of qfunction string
+   out << " // ";
+   for (auto &p : ufl.ctx.vars)
+   {
+      xfl::var &var = p.second;
+      if (var.mode != xfl::NONE) { out << (i++==0?"":",") << var.name; }
+   }
+   out << "\n\t\tauto qf"<<ufl.ctx.i<<" = [&](void*){";
+   //RestoreOutput();
    // qf body with the dom_xt will be added next
 }
 
@@ -391,31 +387,17 @@ void Code::extra_status_rule_dom_xt_d(Rule*) const { dbg(); }
 void Code::extra_status_rule_dom_xt_u(Rule*n) const
 {
    dbg();
-   out << ");} return types; };\n";
-   out << "\t\treturn xfl::QForm<int,decltype(qf)";
+   out << ";};\n";
+   const int i = ufl.ctx.i;
+   out << "\t\txfl::QForm QForm" << i << " = xfl::QForm";
+   out << "(qs" << i << ", cpp::QLambda::ptr(qf" << i;
+   out << "),0x" << std::hex << GetTypes(ufl) << std::dec;
 
-   // Add signature of the qfunc lambda
-   for (auto &p : ufl.ctx.vars)
-   {
-      xfl::var &var = p.second;
-      if (var.mode != xfl::NONE)
-      {
-         out << ", xfl::";
-         if (var.type == TOK::TEST_FUNCTION) { out << "TestFunction"; }
-         if (var.type == TOK::TRIAL_FUNCTION) { out << "TrialFunction"; }
-         if (var.type == TOK::FUNCTION) { out << "Function"; }
-         if (var.type == TOK::CONSTANT_API) { out << "Constant"; }
-         out << "_q &";
-      }
-   }
-
-   out << ", const bool>(qf";
    for (auto &p : ufl.ctx.vars)
    {
       xfl::var &var = p.second;
       if (var.mode != xfl::NONE) { out << "," << var.name; }
    }
-   out << ");}()"; // force lambda evaluation
 
    // Add QFunction lambda as argument to the to the xfl::Form
    if (ufl.ctx.qfunc)
@@ -454,11 +436,52 @@ void Code::postfix_expr_grad_op_lp_additive_expr_rp_d(Rule *n) const
 void Code::postfix_expr_grad_op_lp_additive_expr_rp_u(Rule*) const { }
 
 // *****************************************************************************
+void Code::shift_expr_additive_expr_d(Rule*) const
+{
+   if (yy::rules.at(extra_status_rule_var_xt) ||
+       yy::rules.at(extra_status_rule_dom_xt)) { return; }
+   {
+      //out << "\033[33m/*shift_expr_additive_expr_d*/\033[m";
+      ufl.ctx.i = -1;
+   }
+   //out << "/*shift_expr_additive_expr_d i=" << ufl.ctx.i <<"*/";
+}
+void Code::shift_expr_additive_expr_u(Rule*) const
+{
+   if (yy::rules.at(extra_status_rule_var_xt) ||
+       yy::rules.at(extra_status_rule_dom_xt)) { return; }
+
+   if (ufl.ctx.i >= 0)
+   {
+      //out << "\033[33m/*shift_expr_additive_expr_u*/\033[m";
+      out << ");\n\t\treturn QForm0";
+      for (int i = 1; i <= ufl.ctx.i; i++)
+      {
+         out << " + QForm" << i;
+      }
+      out << ";\n\t}()"; // force lambda evaluation
+      ufl.ctx.i = -1;
+   }
+}
+
+// *****************************************************************************
 // Specialized Code backend tokens
 void Code::token_NL(Token*) const { /* empty */ }
 
 void Code::token_QUOTE(Token *tok) const
 {
+   const bool expr_quote = yy::rules.at(expr_quote_expr_quote);
+   if (expr_quote)
+   {
+      dbg();
+      out << "[](const Vector &x){return ";
+      string &str = tok->name;
+      str.erase(std::remove(str.begin(), str.end(), '\''), str.end());
+      out << tok->name;
+      out << ";}";
+      yy::rules.at(expr_quote_expr_quote) = false;
+      return;
+   }
    std::replace(tok->name.begin(), tok->name.end(), '\'', '\"');
    out << tok->name;
 }
@@ -523,6 +546,22 @@ void Code::token_CONSTANT_API(Token*) const { out << "Constant"; }
 void Code::token_DOT_OP(Token*) const { out << "*"; }
 
 void Code::token_GRAD_OP(Token*) const { out << "grad"; }
+
+void Code::token_ADD(Token *t) const
+{
+   if (t->next && ufl.HitToken(TOK::DOM_DX, t->next))
+   {
+      out << ");\n";
+      return;
+   }
+   out << "+";
+}
+
+void Code::token_EXPRESSION(Token *token) const
+{
+   yy::rules.at(expr_quote_expr_quote) = true;
+   out << token->Name();
+}
 
 /** @endcond */
 

@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
 
    if (ufl.open() != 0) { return EXIT_FAILURE; }
 
-   if (ufl.parse(last_argv, out) != 0) { return EXIT_FAILURE; }
+   if (ufl.parse() != 0) { return EXIT_FAILURE; }
 
    if (ufl.close() != 0) { return EXIT_FAILURE; }
 
@@ -213,7 +213,7 @@ xfl::xfl(bool yy_debug, bool ll_debug, std::string &input, std::string &output):
    input(input), output(output) { }
 
 // *****************************************************************************
-int xfl::parse(const std::string &f, std::ostream &out)
+int xfl::parse(void)
 {
    yy::parser parser(*this);
    parser.set_debug_level(yy_debug);

@@ -120,7 +120,7 @@ public:
    // Context
    struct
    {
-      int type;
+      int i,type;
       Node *qfunc { nullptr };
       Node *extra { nullptr };
       std::array<Node*,8> nodes = {nullptr};
@@ -129,9 +129,9 @@ public:
 public:
    xfl(bool yy_debug, bool ll_debug, std::string &input, std::string &output);
    ~xfl();
-   int open();
-   int close();
-   int parse(const std::string&, std::ostream&);
+   int open(void);
+   int close(void);
+   int parse(void);
    int morph(std::ostream&);
    int code(std::ostream&);
    Node* &Root() { return root;}

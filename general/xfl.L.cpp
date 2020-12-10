@@ -2891,7 +2891,7 @@ static void llerror(xfl &ufl, char const *msg)
 }
 
 // *****************************************************************************
-int xfl::open()
+int xfl::open(void)
 {
    yy_flex_debug = ll_debug;
    if (input.empty() || input == "-") { yyin = stdin; }
@@ -2904,5 +2904,5 @@ int xfl::open()
 }
 
 // *****************************************************************************
-int xfl::close() { return fclose(yyin); }
+int xfl::close(void) { return fclose(yyin); }
 
