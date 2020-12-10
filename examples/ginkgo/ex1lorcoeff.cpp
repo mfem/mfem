@@ -98,6 +98,52 @@ int pcg_solve(const Operator &A, Solver &B, const Vector &b, Vector &x,
    return pcg.GetNumIterations();
 }
 
+int gmres_solve(const Operator &A, const Vector &b, Vector &x,
+                int print_iter, int max_num_iter,
+                double RTOLERANCE, double ATOLERANCE, double &it_time)
+{
+
+   GMRESSolver gmres;
+   gmres.SetPrintLevel(print_iter);
+   gmres.SetMaxIter(max_num_iter);
+   gmres.SetRelTol(sqrt(RTOLERANCE));
+   gmres.SetAbsTol(sqrt(ATOLERANCE));
+   gmres.SetOperator(A);
+
+   tic_toc.Clear();
+   tic_toc.Start();
+
+   gmres.Mult(b, x);
+
+   tic_toc.Stop();
+   it_time = tic_toc.RealTime();
+
+   return gmres.GetNumIterations();
+}
+int pgmres_solve(const Operator &A, Solver &B, const Vector &b, Vector &x,
+              int print_iter, int max_num_iter,
+              double RTOLERANCE, double ATOLERANCE, double &it_time)
+{
+
+   GMRESSolver pgmres;
+   pgmres.SetPrintLevel(print_iter);
+   pgmres.SetMaxIter(max_num_iter);
+   pgmres.SetRelTol(sqrt(RTOLERANCE));
+   pgmres.SetAbsTol(sqrt(ATOLERANCE));
+   pgmres.SetOperator(A);
+   pgmres.SetPreconditioner(B);
+
+   tic_toc.Clear();
+   tic_toc.Start();
+
+   pgmres.Mult(b, x);
+
+   tic_toc.Stop();
+   it_time = tic_toc.RealTime();
+
+   return pgmres.GetNumIterations();
+}
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -181,15 +227,38 @@ int main(int argc, char *argv[])
       mfem_error("Invalid coefficient type specified");
    }
 
-   enum PCType { NONE, GKO_BLOCK_JACOBI, GKO_ILU, GKO_ILU_ISAI, GKO_CUILU, GKO_CUILU_ISAI, MFEM_GS, MFEM_UMFPACK };
+   enum PCType { NONE,
+                 GKO_BLOCK_JACOBI,
+                 GKO_IC,
+                 GKO_IC_ISAI,
+                 GKO_ILU,
+                 GKO_ILU_ISAI,
+                 GKO_CUIC,
+                 GKO_CUIC_ISAI,
+                 GKO_CUILU,
+                 GKO_CUILU_ISAI,
+                 MFEM_GS,
+                 MFEM_UMFPACK };
    PCType pc_choice;
    bool pc = true;
    const char *trisolve_type = "exact"; //only used for ILU
    if (!strcmp(pc_type, "gko:bj")) { pc_choice = GKO_BLOCK_JACOBI; }
+   else if (!strcmp(pc_type, "gko:ic")) { pc_choice = GKO_IC; }
+   else if (!strcmp(pc_type, "gko:ic-isai"))
+   {
+      pc_choice = GKO_IC_ISAI;
+      trisolve_type = "isai";
+   }
    else if (!strcmp(pc_type, "gko:ilu")) { pc_choice = GKO_ILU; }
    else if (!strcmp(pc_type, "gko:ilu-isai"))
    {
       pc_choice = GKO_ILU_ISAI;
+      trisolve_type = "isai";
+   }
+   else if (!strcmp(pc_type, "gko:cuic")) { pc_choice = GKO_CUIC; }
+   else if (!strcmp(pc_type, "gko:cuic-isai"))
+   {
+      pc_choice = GKO_CUIC_ISAI;
       trisolve_type = "isai";
    }
    else if (!strcmp(pc_type, "gko:cuilu")) { pc_choice = GKO_CUILU; }
@@ -501,6 +570,7 @@ int main(int argc, char *argv[])
       cout << "Real time adjusting A_pc for essential BC: " <<
            tic_toc.RealTime() << "\n";
 
+      int max_iter = 15000;
       if (pc_choice == GKO_BLOCK_JACOBI)
       {
 
@@ -519,7 +589,7 @@ int main(int argc, char *argv[])
                  tic_toc.RealTime() << endl;
 
             // Use preconditioned CG
-            total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
+            total_its = pcg_solve(*A, M, B, X, 0, max_iter, 1e-12, 0.0, it_time);
 
             cout << "Real time in PCG: " << it_time << endl;
          }
@@ -534,11 +604,113 @@ int main(int argc, char *argv[])
                  tic_toc.RealTime() << endl;
 
             // Use preconditioned CG
-            total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
+            total_its = pcg_solve(*A, M, B, X, 0, max_iter, 1e-12, 0.0, it_time);
 
             cout << "Real time in PCG: " << it_time << endl;
          }
 
+      }
+      else if (pc_choice == GKO_IC || pc_choice == GKO_IC_ISAI)
+      {
+
+         // Create Ginkgo IC preconditioner
+
+         if (permute)
+         {
+
+            tic_toc.Clear();
+            tic_toc.Start();
+
+            GinkgoWrappers::GinkgoIcPreconditioner M(executor, *A_pc, *inv_reordering,
+                                                      trisolve_type, isai_sparsity_power, par_ilu_its);
+
+            tic_toc.Stop();
+            cout << "Real time creating Ginkgo Ic preconditioner: " <<
+                 tic_toc.RealTime() << endl;
+            
+            // Temporary code: to output the IC
+            if ((trisolve_type == "exact") && (output_pc == true))
+            {
+              auto gko_precond = gko::as<gko::preconditioner::Ic<>>(M.get_gko_precond());
+              auto gko_l_ic = gko_precond->get_l_solver()->get_system_matrix();
+              gko::matrix_data<double, int> l_ic_data;
+              gko_l_ic->write(l_ic_data);
+              ofstream l_ic_ofs("l_ic.dat");
+              l_ic_ofs.precision(12);
+              for (auto pdata = l_ic_data.nonzeros.begin(); pdata != l_ic_data.nonzeros.end(); pdata++) {
+                  l_ic_ofs << pdata->row << " " << pdata->column << " " << pdata->value << "\n"; 
+              } 
+            } // End temporary code
+
+            // Temporary code: to output the approx inverse
+            if ((trisolve_type == "isai") && (output_pc == true))
+            {
+              using l_solver_type = gko::preconditioner::LowerIsai<>;
+              auto gko_precond = gko::as<gko::preconditioner::Ic<l_solver_type>>(M.get_gko_precond());
+              auto gko_l_isai = gko_precond->get_l_solver()->get_approximate_inverse();
+              gko::matrix_data<double, int> l_isai_data;
+              gko_l_isai->write(l_isai_data);
+              ofstream l_isai_ofs("l_ic_isai.dat");
+              l_isai_ofs.precision(12);
+              for (auto pdata = l_isai_data.nonzeros.begin(); pdata != l_isai_data.nonzeros.end(); pdata++) {
+                  l_isai_ofs << pdata->row << " " << pdata->column << " " << pdata->value << "\n"; 
+              } 
+            } // End temporary code
+
+            // Use preconditioned CG
+            total_its = pcg_solve(*A, M, B, X, 0, max_iter, 1e-12, 0.0, it_time);
+
+            cout << "Real time in PCG: " << it_time << endl;
+
+         }
+         else
+         {
+
+            tic_toc.Clear();
+            tic_toc.Start();
+
+            GinkgoWrappers::GinkgoIcPreconditioner M(executor, *A_pc, trisolve_type,
+                                                      isai_sparsity_power, par_ilu_its);
+
+            tic_toc.Stop();
+            cout << "Real time creating Ginkgo Ic preconditioner: " <<
+                 tic_toc.RealTime() << endl;
+            
+            // Temporary code: to output the IC
+            if ((trisolve_type == "exact") && (output_pc == true))
+            {
+              auto gko_precond = gko::as<gko::preconditioner::Ic<>>(M.get_gko_precond());
+              auto gko_l_ic = gko_precond->get_l_solver()->get_system_matrix();
+              gko::matrix_data<double, int> l_ic_data;
+              gko_l_ic->write(l_ic_data);
+              ofstream l_ic_ofs("l_ic.dat");
+              l_ic_ofs.precision(12);
+              for (auto pdata = l_ic_data.nonzeros.begin(); pdata != l_ic_data.nonzeros.end(); pdata++) {
+                  l_ic_ofs << pdata->row << " " << pdata->column << " " << pdata->value << "\n"; 
+              } 
+            } // End temporary code
+
+            // Temporary code: to output the approx inverse
+            if ((trisolve_type == "isai") && (output_pc == true))
+            {
+              using l_solver_type = gko::preconditioner::LowerIsai<>;
+              auto gko_precond = gko::as<gko::preconditioner::Ic<l_solver_type>>(M.get_gko_precond());
+              auto gko_l_isai = gko_precond->get_l_solver()->get_approximate_inverse();
+              gko::matrix_data<double, int> l_isai_data;
+              gko_l_isai->write(l_isai_data);
+              ofstream l_isai_ofs("l_ic_isai.dat");
+              l_isai_ofs.precision(12);
+              for (auto pdata = l_isai_data.nonzeros.begin(); pdata != l_isai_data.nonzeros.end(); pdata++) {
+                  l_isai_ofs << pdata->row << " " << pdata->column << " " << pdata->value << "\n"; 
+              } 
+            } // End temporary code
+
+            // Use preconditioned CG
+            total_its = pcg_solve(*A, M, B, X, 0, max_iter, 1e-12, 0.0, it_time);
+
+            cout << "Real time in PCG: " << it_time << endl;
+
+         }
       }
       else if (pc_choice == GKO_ILU || pc_choice == GKO_ILU_ISAI)
       {
@@ -557,9 +729,55 @@ int main(int argc, char *argv[])
             tic_toc.Stop();
             cout << "Real time creating Ginkgo Ilu preconditioner: " <<
                  tic_toc.RealTime() << endl;
+            
+            // Temporary code: to output the ILU
+            if ((trisolve_type == "exact") && (output_pc == true))
+            {
+              auto gko_precond = gko::as<gko::preconditioner::Ilu<>>(M.get_gko_precond());
+              auto gko_l_ilu = gko_precond->get_l_solver()->get_system_matrix();
+              auto gko_u_ilu = gko_precond->get_u_solver()->get_system_matrix();
+              gko::matrix_data<double, int> l_ilu_data;
+              gko::matrix_data<double, int> u_ilu_data;
+              gko_l_ilu->write(l_ilu_data);
+              gko_u_ilu->write(u_ilu_data);
+              ofstream l_ilu_ofs("l_ilu.dat");
+              l_ilu_ofs.precision(12);
+              for (auto pdata = l_ilu_data.nonzeros.begin(); pdata != l_ilu_data.nonzeros.end(); pdata++) {
+                  l_ilu_ofs << pdata->row << " " << pdata->column << " " << pdata->value << "\n"; 
+              } 
+              ofstream u_ilu_ofs("u_ilu.dat");
+              u_ilu_ofs.precision(12);
+              for (auto pdata = u_ilu_data.nonzeros.begin(); pdata != u_ilu_data.nonzeros.end(); pdata++) {
+                  u_ilu_ofs << pdata->row << " " << pdata->column << " " << pdata->value << "\n"; 
+              } 
+            } // End temporary code
+
+            // Temporary code: to output the approx inverse
+            if ((trisolve_type == "isai") && (output_pc == true))
+            {
+              using l_solver_type = gko::preconditioner::LowerIsai<>;
+              using u_solver_type = gko::preconditioner::UpperIsai<>;
+              auto gko_precond = gko::as<gko::preconditioner::Ilu<l_solver_type, u_solver_type>>(M.get_gko_precond());
+              auto gko_l_isai = gko_precond->get_l_solver()->get_approximate_inverse();
+              auto gko_u_isai = gko_precond->get_u_solver()->get_approximate_inverse();
+              gko::matrix_data<double, int> l_isai_data;
+              gko::matrix_data<double, int> u_isai_data;
+              gko_l_isai->write(l_isai_data);
+              gko_u_isai->write(u_isai_data);
+              ofstream l_isai_ofs("l_isai.dat");
+              l_isai_ofs.precision(12);
+              for (auto pdata = l_isai_data.nonzeros.begin(); pdata != l_isai_data.nonzeros.end(); pdata++) {
+                  l_isai_ofs << pdata->row << " " << pdata->column << " " << pdata->value << "\n"; 
+              } 
+              ofstream u_isai_ofs("u_isai.dat");
+              u_isai_ofs.precision(12);
+              for (auto pdata = u_isai_data.nonzeros.begin(); pdata != u_isai_data.nonzeros.end(); pdata++) {
+                  u_isai_ofs << pdata->row << " " << pdata->column << " " << pdata->value << "\n"; 
+              } 
+            } // End temporary code
 
             // Use preconditioned CG
-            total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
+            total_its = pcg_solve(*A, M, B, X, 0, max_iter, 1e-12, 0.0, it_time);
 
             cout << "Real time in PCG: " << it_time << endl;
 
@@ -577,8 +795,100 @@ int main(int argc, char *argv[])
             cout << "Real time creating Ginkgo Ilu preconditioner: " <<
                  tic_toc.RealTime() << endl;
 
+            // Temporary code: to output the ILU
+            if ((trisolve_type == "exact") && (output_pc == true))
+            {
+              auto gko_precond = gko::as<gko::preconditioner::Ilu<>>(M.get_gko_precond());
+              auto gko_l_ilu = gko_precond->get_l_solver()->get_system_matrix();
+              auto gko_u_ilu = gko_precond->get_u_solver()->get_system_matrix();
+              gko::matrix_data<double, int> l_ilu_data;
+              gko::matrix_data<double, int> u_ilu_data;
+              gko_l_ilu->write(l_ilu_data);
+              gko_u_ilu->write(u_ilu_data);
+              ofstream l_ilu_ofs("l_ilu.dat");
+              l_ilu_ofs.precision(12);
+              for (auto pdata = l_ilu_data.nonzeros.begin(); pdata != l_ilu_data.nonzeros.end(); pdata++) {
+                  l_ilu_ofs << pdata->row << " " << pdata->column << " " << pdata->value << "\n"; 
+              } 
+              ofstream u_ilu_ofs("u_ilu.dat");
+              u_ilu_ofs.precision(12);
+              for (auto pdata = u_ilu_data.nonzeros.begin(); pdata != u_ilu_data.nonzeros.end(); pdata++) {
+                  u_ilu_ofs << pdata->row << " " << pdata->column << " " << pdata->value << "\n"; 
+              } 
+            } // End temporary code
+
+            // Temporary code: to output the approx inverse
+            if ((trisolve_type == "isai") && (output_pc == true))
+            {
+              using l_solver_type = gko::preconditioner::LowerIsai<>;
+              using u_solver_type = gko::preconditioner::UpperIsai<>;
+              auto gko_precond = gko::as<gko::preconditioner::Ilu<l_solver_type, u_solver_type>>(M.get_gko_precond());
+              auto gko_l_isai = gko_precond->get_l_solver()->get_approximate_inverse();
+              auto gko_u_isai = gko_precond->get_u_solver()->get_approximate_inverse();
+              gko::matrix_data<double, int> l_isai_data;
+              gko::matrix_data<double, int> u_isai_data;
+              gko_l_isai->write(l_isai_data);
+              gko_u_isai->write(u_isai_data);
+              ofstream l_isai_ofs("l_isai.dat");
+              l_isai_ofs.precision(12);
+              cout << "num nz in l_isai_data: " << l_isai_data.nonzeros.size() << "\n";
+              for (auto pdata = l_isai_data.nonzeros.begin(); pdata != l_isai_data.nonzeros.end(); pdata++) {
+                  l_isai_ofs << pdata->row << " " << pdata->column << " " << pdata->value << "\n"; 
+              } 
+              ofstream u_isai_ofs("u_isai.dat");
+              u_isai_ofs.precision(12);
+              for (auto pdata = u_isai_data.nonzeros.begin(); pdata != u_isai_data.nonzeros.end(); pdata++) {
+                  u_isai_ofs << pdata->row << " " << pdata->column << " " << pdata->value << "\n"; 
+              } 
+            } // End temporary code
+
+
             // Use preconditioned CG
-            total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
+            total_its = pcg_solve(*A, M, B, X, 0, max_iter, 1e-12, 0.0, it_time);
+
+            cout << "Real time in PCG: " << it_time << endl;
+
+         }
+      }
+      else if (pc_choice == GKO_CUIC || pc_choice == GKO_CUIC_ISAI)
+      {
+
+         // Create Ginkgo IC preconditioner using IC from cuSPARSE
+
+         if (permute)
+         {
+
+            tic_toc.Clear();
+            tic_toc.Start();
+
+            GinkgoWrappers::GinkgoCuIcPreconditioner M(executor, *A_pc, *inv_reordering,
+                                                        trisolve_type, isai_sparsity_power);
+
+            tic_toc.Stop();
+            cout << "Real time creating Ginkgo CuIc preconditioner: " <<
+                 tic_toc.RealTime() << endl;
+
+            // Use preconditioned CG
+            total_its = pcg_solve(*A, M, B, X, 0, max_iter, 1e-12, 0.0, it_time);
+
+            cout << "Real time in PCG: " << it_time << endl;
+
+         }
+         else
+         {
+
+            tic_toc.Clear();
+            tic_toc.Start();
+
+            GinkgoWrappers::GinkgoCuIcPreconditioner M(executor, *A_pc, trisolve_type,
+                                                      isai_sparsity_power);
+
+            tic_toc.Stop();
+            cout << "Real time creating Ginkgo CuIc preconditioner: " <<
+                 tic_toc.RealTime() << endl;
+
+            // Use preconditioned CG
+            total_its = pcg_solve(*A, M, B, X, 0, max_iter, 1e-12, 0.0, it_time);
 
             cout << "Real time in PCG: " << it_time << endl;
 
@@ -603,7 +913,7 @@ int main(int argc, char *argv[])
                  tic_toc.RealTime() << endl;
 
             // Use preconditioned CG
-            total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
+            total_its = pcg_solve(*A, M, B, X, 0, max_iter, 1e-12, 0.0, it_time);
 
             cout << "Real time in PCG: " << it_time << endl;
 
@@ -622,7 +932,7 @@ int main(int argc, char *argv[])
                  tic_toc.RealTime() << endl;
 
             // Use preconditioned CG
-            total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
+            total_its = pcg_solve(*A, M, B, X, 0, max_iter, 1e-12, 0.0, it_time);
 
             cout << "Real time in PCG: " << it_time << endl;
 
@@ -642,7 +952,7 @@ int main(int argc, char *argv[])
               tic_toc.RealTime() << endl;
 
          // Use preconditioned CG
-         total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
+         total_its = pcg_solve(*A, M, B, X, 0, max_iter, 1e-12, 0.0, it_time);
 
          cout << "Real time in PCG: " << it_time << endl;
 
@@ -664,7 +974,7 @@ int main(int argc, char *argv[])
               tic_toc.RealTime() << endl;
 
          // Use preconditioned CG
-         total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
+         total_its = pcg_solve(*A, M, B, X, 0, max_iter, 1e-12, 0.0, it_time);
 
          cout << "Real time in PCG: " << it_time << endl;
 #endif
@@ -674,6 +984,7 @@ int main(int argc, char *argv[])
    {
 
       total_its = cg_solve(*A, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
+      int max_iter = 15000;
 
       cout << "Real time in CG: " << it_time << endl;
    }
