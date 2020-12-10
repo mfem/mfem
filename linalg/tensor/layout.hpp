@@ -132,21 +132,6 @@ public:
    }
 
 private:
-   // Getter for the N-th dimension value
-   template <int N, int... Dims>
-   struct Dim;
-
-   template <int Dim0, int... Dims>
-   struct Dim<0, Dim0, Dims...>
-   {
-      static constexpr int val = Dim0;
-   };
-   template <int N, int Dim0, int... Dims>
-   struct Dim<N, Dim0, Dims...>
-   {
-      static constexpr int val = Dim<N-1,Dims...>::val;
-   };
-
    //Compute the index inside a Tensor
    template<int Cpt, int rank, int... Dims>
    struct StaticIndex
@@ -217,6 +202,61 @@ public:
       // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y
       return layout(idx...);
    }
+
+   // Can be constexpr if Tensor inherit from Layout
+   template <int N>
+   int Size() const
+   {
+      static_assert(N>=0 && N<rank(Sizes...),"Accessed size is higher than the rank of the Tensor.");
+      return Dim<N,DimX,DimY,Dims...>::val;
+   }
+};
+
+/// Strided Layout
+template <int Rank>
+class StridedLayout
+{
+private:
+   int strides[Rank];
+   int offsets[Rank];
+   int sizes[Rank]
+
+public:
+   template <typename... Idx> MFEM_HOST_DEVICE inline
+   constexpr int operator()(Idx... idx) const
+   {
+      static_assert(sizeof...(Idx...)==Rank,"Wrong number of argumets.");
+      return StridedIndex::eval<1>(idx...);
+   }
+
+   // Can be constexpr if Tensor inherit from Layout
+   template <int N>
+   int Size() const
+   {
+      static_assert(N>=0 && N<rank(Sizes...),"Accessed size is higher than the rank of the Tensor.");
+      return sizes[N];
+   }
+
+private:
+   template <int N>
+   struct StridedIndex
+   {
+      template <typename... Idx>
+      static inline int eval(int first, Idx... args)
+      {
+         return (offsets[N-1]+first)*strides[N-1] + StridedIndex<N+1>(args...);
+      }
+   };
+
+   template <>
+   struct StridedIndex<Rank>
+   {
+      template <typename... Idx>
+      static inline int eval(int first)
+      {
+         return (offsets[N-1]+first)*strides[N-1];
+      }
+   };
 };
 
 } // namespace mfem
