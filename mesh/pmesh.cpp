@@ -1142,7 +1142,7 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
          group_sedge.AddColumnsInRow(gr-1, orig_nq*(RG.RefEdges.Size()/2-
                                                     RG.NumBdrEdges));
          // count refined faces
-         group_squad.AddColumnsInRow(gr-1, orig_nq*RG.RefGeoms.Size()/nvert);
+         group_squad.AddColumnsInRow(gr-1, orig_nq*(RG.RefGeoms.Size()/nvert));
       }
    }
 

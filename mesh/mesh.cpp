@@ -3836,18 +3836,34 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
 
       rfes.GetBdrElementDofs(el, rdofs);
       MFEM_ASSERT(rdofs.Size() == RG.RefPts.Size(), "");
-      const int *c2h_map = (Dim == 1) ? NULL : rfec.GetDofMap(geom);
-      for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
+      if (Dim == 1)
       {
-         Element *elem = NewElement(geom);
-         elem->SetAttribute(attrib);
-         int *v = elem->GetVertices();
-         for (int k = 0; k < nvert; k++)
+         // Dim == 1 is a special case because the boundary elements are
+         // zero-dimensional points, and therefore don't have a DofMap
+         for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
          {
-            int cid = RG.RefGeoms[k+nvert*j]; // local Cartesian index
-            v[k] = rdofs[c2h_map ? c2h_map[cid] : cid];
+            Element *elem = NewElement(geom);
+            elem->SetAttribute(attrib);
+            int *v = elem->GetVertices();
+            v[0] = rdofs[RG.RefGeoms[nvert*j]];
+            AddBdrElement(elem);
          }
-         AddBdrElement(elem);
+      }
+      else
+      {
+         const int *c2h_map = rfec.GetDofMap(geom);
+         for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
+         {
+            Element *elem = NewElement(geom);
+            elem->SetAttribute(attrib);
+            int *v = elem->GetVertices();
+            for (int k = 0; k < nvert; k++)
+            {
+               int cid = RG.RefGeoms[k+nvert*j]; // local Cartesian index
+               v[k] = rdofs[c2h_map[cid]];
+            }
+            AddBdrElement(elem);
+         }
       }
    }
 

@@ -701,7 +701,9 @@ public:
                              BasisType::GaussLobatto.
 
        The refinement data which can be accessed with GetRefinementTransforms()
-       is set to reflect the performed refinements. */
+       is set to reflect the performed refinements.
+
+       @note The constructed Mesh is linear, i.e. it does not have nodes. */
    Mesh(Mesh *orig_mesh, int ref_factor, int ref_type);
 
    void MakeSimplicial(Mesh &orig_mesh, int *vglobal=NULL);
