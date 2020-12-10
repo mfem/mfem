@@ -38,17 +38,17 @@ double SmoothSolutionZ(const mfem::Vector& x)
 
 double NonsmoothSolutionX(const mfem::Vector& x)
 {
-   return abs(x(0)-0.5);
+   return std::abs(x(0)-0.5);
 }
 
 double NonsmoothSolutionY(const mfem::Vector& x)
 {
-   return abs(x(1)-0.5);
+   return std::abs(x(1)-0.5);
 }
 
 double NonsmoothSolutionZ(const mfem::Vector& x)
 {
-   return abs(x(2)-0.5);
+   return std::abs(x(2)-0.5);
 }
 }
 
@@ -84,7 +84,7 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh",
       DiffusionIntegrator di;
       KellyErrorEstimator estimator(di, u_gf, flux_fes);
 
-      auto local_errors = estimator.GetLocalErrors();
+      auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
          REQUIRE(local_errors(i) == MFEM_Approx(0.0));
@@ -103,7 +103,7 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh",
       DiffusionIntegrator di;
       KellyErrorEstimator estimator(di, u_gf, flux_fes);
 
-      auto local_errors = estimator.GetLocalErrors();
+      auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
          REQUIRE(local_errors(i) == MFEM_Approx(0.0));
@@ -122,7 +122,7 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh",
       DiffusionIntegrator di;
       KellyErrorEstimator estimator(di, u_gf, flux_fes);
 
-      auto local_errors = estimator.GetLocalErrors();
+      auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
          REQUIRE(local_errors(i) >= 0.0);
@@ -141,7 +141,7 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh",
       DiffusionIntegrator di;
       KellyErrorEstimator estimator(di, u_gf, flux_fes);
 
-      auto local_errors = estimator.GetLocalErrors();
+      auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
          REQUIRE(local_errors(i) >= MFEM_Approx(0.0));
@@ -229,7 +229,7 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh embedded in 3D",
       DiffusionIntegrator di;
       KellyErrorEstimator estimator(di, u_gf, flux_fes);
 
-      auto local_errors = estimator.GetLocalErrors();
+      auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
          REQUIRE(local_errors(i) == MFEM_Approx(0.0));
@@ -248,7 +248,7 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh embedded in 3D",
       DiffusionIntegrator di;
       KellyErrorEstimator estimator(di, u_gf, flux_fes);
 
-      auto local_errors = estimator.GetLocalErrors();
+      auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
          REQUIRE(local_errors(i) == MFEM_Approx(0.0));
@@ -267,7 +267,7 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh embedded in 3D",
       DiffusionIntegrator di;
       KellyErrorEstimator estimator(di, u_gf, flux_fes);
 
-      auto local_errors = estimator.GetLocalErrors();
+      auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
          REQUIRE(local_errors(i) >= 0.0);
@@ -286,7 +286,7 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh embedded in 3D",
       DiffusionIntegrator di;
       KellyErrorEstimator estimator(di, u_gf, flux_fes);
 
-      auto local_errors = estimator.GetLocalErrors();
+      auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
          REQUIRE(local_errors(i) >= MFEM_Approx(0.0));
@@ -329,7 +329,7 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
       DiffusionIntegrator di;
       KellyErrorEstimator estimator(di, u_gf, flux_fes);
 
-      auto local_errors = estimator.GetLocalErrors();
+      auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
          REQUIRE(local_errors(i) == MFEM_Approx(0.0));
@@ -348,7 +348,7 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
       DiffusionIntegrator di;
       KellyErrorEstimator estimator(di, u_gf, flux_fes);
 
-      auto local_errors = estimator.GetLocalErrors();
+      auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
          REQUIRE(local_errors(i) == MFEM_Approx(0.0));
@@ -367,7 +367,7 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
       DiffusionIntegrator di;
       KellyErrorEstimator estimator(di, u_gf, flux_fes);
 
-      auto local_errors = estimator.GetLocalErrors();
+      auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
          REQUIRE(local_errors(i) == MFEM_Approx(0.0));
@@ -386,7 +386,7 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
       DiffusionIntegrator di;
       KellyErrorEstimator estimator(di, u_gf, flux_fes);
 
-      auto local_errors = estimator.GetLocalErrors();
+      auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
          REQUIRE(local_errors(i) >= 0.0);
@@ -405,7 +405,7 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
       DiffusionIntegrator di;
       KellyErrorEstimator estimator(di, u_gf, flux_fes);
 
-      auto local_errors = estimator.GetLocalErrors();
+      auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
          REQUIRE(local_errors(i) >= MFEM_Approx(0.0));
@@ -424,7 +424,7 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
       DiffusionIntegrator di;
       KellyErrorEstimator estimator(di, u_gf, flux_fes);
 
-      auto local_errors = estimator.GetLocalErrors();
+      auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
          REQUIRE(local_errors(i) >= 0.0);
