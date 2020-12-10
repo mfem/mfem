@@ -389,4 +389,55 @@ BlockLowerTriangularPreconditioner::~BlockLowerTriangularPreconditioner()
    }
 }
 
+void BlockGSPreconditioner::Mult(const Vector & x, Vector & y) const
+{
+   MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
+   MFEM_ASSERT(y.Size() == height, "incorrect output Vector size");
+
+   x.Read();
+   y.Write(); y = 0.0;
+
+   xblock.Update(const_cast<Vector&>(x),col_offsets);
+   yblock.Update(y,row_offsets);
+
+   // TODO: this should not be necessary, but it is in case tmp.SetSize(0) is called for first row.
+   tmp.SetSize(10);
+
+   for (int iter=0; iter<numIter; ++iter)
+   {
+      for (int iRow=0; iRow < nRowBlocks; ++iRow)
+      {
+         tmp.SetSize(row_offsets[iRow+1] - row_offsets[iRow]);
+
+         yblock.GetBlock(iRow) = xblock.GetBlock(iRow);
+
+         for (int jCol=0; jCol < nColBlocks; ++jCol)
+         {
+            if (iRow != jCol && !blocks->IsZeroBlock(iRow,jCol))
+            {
+               blocks->GetBlock(iRow,jCol).Mult(yblock.GetBlock(jCol), tmp);
+               yblock.GetBlock(iRow).Add(-blocks->GetBlockCoef(iRow,jCol), tmp);
+            }
+         }
+
+         blocks->GetBlock(iRow,iRow).Mult(yblock.GetBlock(iRow),
+                                          tmp); // inverse or preconditioner
+         MFEM_VERIFY(blocks->GetBlockCoef(iRow,iRow) == 1.0,
+                     "If not 1, choose a convention for how to scale");
+         yblock.GetBlock(iRow) = tmp;
+      }
+   }
+
+   for (int iRow=0; iRow < nRowBlocks; ++iRow)
+   {
+      if (yblock.BlockSize(iRow) == 0) { continue; }
+      yblock.GetBlock(iRow).SyncAliasMemory(y);
+   }
+
+   // Destroy alias vectors to prevent dangling aliases when the base vectors
+   // are deleted
+   for (int i=0; i < xblock.NumBlocks(); ++i) { xblock.GetBlock(i).Destroy(); }
+   for (int i=0; i < yblock.NumBlocks(); ++i) { yblock.GetBlock(i).Destroy(); }
+}
+
 }

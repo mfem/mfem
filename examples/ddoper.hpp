@@ -91,6 +91,7 @@ using namespace std;
 
 #define BLOCK_PREC
 #define BLOCK_AMS_PREC
+//#define BLOCK_GS_PREC
 
 void test1_E_exact(const Vector &x, Vector &E);
 void test1_RHS_exact(const Vector &x, Vector &f);
@@ -2179,6 +2180,8 @@ public:
 
       if (pa)
       {
+         cout << "FOSLSSolver using PA" << endl;
+
          a_EE->SetAssemblyLevel(AssemblyLevel::PARTIAL);
 #ifndef SD_ITERATIVE_GMG_PA_GALERKIN_FA
          a_HH->SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -2706,19 +2709,43 @@ public:
             */
 
             ConstantCoefficient one(1.0);
-            MatrixFreeAMS *prec_E = new MatrixFreeAMS(*a_EE, *A_EE, *fespace, &one, NULL, &mcoeff2, ess_tdof_list_E); //, 20, 20);
-            MatrixFreeAMS *prec_H = new MatrixFreeAMS(*a_HH, *A_HH, *fespace, &one, &sigma, NULL, ess_tdof_list_empty); //, 20, 20);
+            prec_E = new MatrixFreeAMS(*a_EE, *A_EE, *fespace, &one, NULL, &mcoeff2, ess_tdof_list_E); //, 20, 20);
+            prec_H = new MatrixFreeAMS(*a_HH, *A_HH, *fespace, &one, &sigma, NULL, ess_tdof_list_empty); //, 20, 20);
 #else // use block Jacobi
             Solver *prec_E = new OperatorJacobiSmoother(diag_PA_EE, ess_tdof_list_E, 1.0);
             Solver *prec_H = new OperatorJacobiSmoother(diag_PA_HH, ess_tdof_list_empty, 1.0);
 #endif // BLOCK_AMS_PREC
 
+#ifdef BLOCK_GS_PREC
+            LS_MaxwellopGS = new BlockOperator(block_trueOffsets);
+            for (int i=0; i<numBlocks; ++i)
+            {
+               for (int j=0; j<numBlocks; ++j)
+               {
+                  if (LS_Maxwellop->IsZeroBlock(i,j) == 0 && i != j)
+                  {
+                     LS_MaxwellopGS->SetBlock(i, j, &(LS_Maxwellop->GetBlock(i,j)),
+                     LS_Maxwellop->GetBlockCoef(i,j));
+                  }
+               }
+            }
+
+            // Put preconditioners on diagonal
+            LS_MaxwellopGS->SetDiagonalBlock(0, prec_E);
+            LS_MaxwellopGS->SetDiagonalBlock(1, prec_H);
+            LS_MaxwellopGS->SetDiagonalBlock(2, prec_E);
+            LS_MaxwellopGS->SetDiagonalBlock(3, prec_H);
+
+            precLS = new BlockGSPreconditioner(LS_MaxwellopGS, 5);
+#else
             bdp->SetDiagonalBlock(0, prec_E);
             bdp->SetDiagonalBlock(1, prec_H);
             bdp->SetDiagonalBlock(2, prec_E);
             bdp->SetDiagonalBlock(3, prec_H);
 
             precLS = bdp;
+#endif
+
             LSpcg.SetPreconditioner(*precLS);
          }
 #else
@@ -2900,11 +2927,18 @@ public:
 
       cout << myid << ": FOSLSSOLVER BlockMGPASolver Mult restrict timing " << t1 <<
            endl;
+
+#ifdef BLOCK_AMS_PREC
+      cout << myid << ": FOSLSSOLVER MatrixFreeAMS timings " << endl;
+      prec_E->PrintTimings(myid);
+      prec_H->PrintTimings(myid);
+#endif
    }
 
    Vector rhs_E;  // real part
 
    BlockOperator *LS_Maxwellop;
+   BlockOperator *LS_MaxwellopGS;
 
 private:
 
@@ -2920,6 +2954,11 @@ private:
    HypreParMatrix M_Ebc, M_eps_Ebc;
 
    CGSolver M_inv;
+
+#ifdef BLOCK_AMS_PREC
+   MatrixFreeAMS *prec_E = NULL;
+   MatrixFreeAMS *prec_H = NULL;
+#endif
 
    const int n;
    const int nfull;  // TODO: not used?

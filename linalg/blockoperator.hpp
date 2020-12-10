@@ -282,5 +282,41 @@ private:
    mutable Vector tmp2;
 };
 
+class BlockGSPreconditioner : public Solver
+{
+public:
+   //! Constructor that specifies the block structure
+   BlockGSPreconditioner(BlockOperator *blocks_, const int iter)
+      : blocks(blocks_), row_offsets(blocks_->RowOffsets()),
+        col_offsets(blocks_->ColOffsets()), nRowBlocks(blocks_->NumRowBlocks()),
+        nColBlocks(blocks_->NumColBlocks()), numIter(iter)
+   { }
+
+   /// Operator application
+   virtual void Mult(const Vector & x, Vector & y) const;
+
+   //! This method is present since required by the abstract base class Solver
+   virtual void SetOperator(const Operator &op) { }
+
+private:
+
+   BlockOperator
+   *blocks;  // Assumption: diagonal blocks are inverses or preconditioners, while off-diagonal blocks are operator blocks.
+
+   //! Number of Blocks
+   int nRowBlocks;
+   int nColBlocks;
+
+   Array<int> row_offsets;
+   Array<int> col_offsets;
+
+   const int numIter;
+
+   mutable BlockVector xblock;
+   mutable BlockVector yblock;
+
+   mutable Vector tmp;
+};
+
 }
 #endif /* MFEM_BLOCKOPERATOR */
