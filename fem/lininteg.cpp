@@ -866,25 +866,24 @@ void SBM2LFIntegrator::AssembleRHSElementVect(
       dshape.Mult(nh, dshape_dn);
       elvect.Add(-1., dshape_dn); //T2
 
+      double jinv;
       if (elem1f)
       {
-         w = ip.weight * uD->Eval(Tr, ip, D) * alpha * hinvdx/Tr.Elem1->Weight();
+         w = ip.weight * uD->Eval(Tr, ip, D) * alpha * hinvdx;
+         jinv = 1./Tr.Elem1->Weight();
       }
       else
       {
-         w = ip.weight * uD->Eval(Tr, ip, D) * alpha * hinvdx/Tr.Elem2->Weight();
+         w = ip.weight * uD->Eval(Tr, ip, D) * alpha * hinvdx;
+         jinv = 1./Tr.Elem2->Weight();
       }
-
       adjJ.Mult(D, nh);
-      nh *= w;
-
+      nh *= jinv;
       dshape.Mult(nh, dshape_dd);
-      elvect.Add(1., dshape_dd); //T4
 
-      wrk = shape;
-      w = ip.weight * uD->Eval(Tr, ip, D) * alpha * hinvdx;
-      wrk *= w;
-      elvect.Add(1., wrk);  //T3
+      wrk = dshape_dd; //\grad w .d
+      wrk += shape;  // w + grad w.d
+      elvect.Add(w, wrk); //<u, gradw.d>
    }
 }
 

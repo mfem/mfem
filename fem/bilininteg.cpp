@@ -3048,45 +3048,25 @@ void SBM2Integrator::AssembleFaceMatrix(
       adjJ.Mult(ni, nh);
       dshape1.Mult(nh, dshape1dn); //dphi/dn * Jinv * alpha_k * nor
 
-      //(grad u.n, w) - Term 2
-      //AddMult_a_VWt(-1., dshape1dn, shape1, elmat);
-      //(u, grad w.n) - Term 3
-      //AddMult_a_VWt(-1., shape1, dshape1dn, elmat);
-      // Term 2 + Term 3
-      AddMult_a_VWt_WVt(-1., shape1, dshape1dn, elmat);
+      // <grad u.n, w> - Term 2
+      AddMult_a_VWt(-1., shape1, dshape1dn, elmat);
 
       if (elem1f) { el1.CalcPhysDShape(*(Trans.Elem1), dshape2); }
       else { el1.CalcPhysDShape(*(Trans.Elem2), dshape2); } //dphi/dx
       dshape2.Mult(D, dshape2dd); // dphi/dx.D
 
-      // (grad u.d, grad w.n) - Term 4
-      AddMult_a_VWt(-1., dshape1dn, dshape2dd, elmat);
+      wrk = dshape2dd;
+      wrk += shape1; // u + grad u.d
+      // <u + grad u.d, grad w.n>  - Term 3
+      AddMult_a_VWt(-1., dshape1dn, wrk, elmat);
 
       double hinvdx;
       if (elem1f) { hinvdx = nor*nor/Trans.Elem1->Weight(); }
       else { hinvdx = nor*nor/Trans.Elem2->Weight(); }
 
-      wrk = shape1;
       w = ip.weight*alpha*hinvdx;
-      wrk *= w;
-      // + <alpha * hinv * u, w> - Term 5
-      AddMult_a_VWt(1., wrk, shape1, elmat);
-
-      w = ip.weight*alpha*hinvdx;
-      wrk = dshape2dd;
-      wrk *= w;
-      // + < alpha * hinv * grad u.d, w> - Term 6
-      //AddMult_a_VWt(1., wrk, shape1, elmat);
-      // + < alpha * hinv * u, grad w.d> - Term 7
-      //AddMult_a_VWt(1., shape1, wrk, elmat);
-      //Term 6 + Term 7
-      AddMult_a_VWt_WVt(1., wrk, shape1, elmat);
-
-      w = ip.weight*alpha*hinvdx;
-      wrk = dshape2dd;
-      wrk *= w;
-      // < alpha * hinv * grad u.d, grad w.d> - Term 8
-      AddMult_a_VWt(1., wrk, dshape2dd, elmat);
+      // + <alpha * hinv * u + grad u.d, w + grad w.d> - Term 4
+      AddMult_a_VVt(w, wrk, elmat);
 
    } //p < ir->GetNPoints()
 }
