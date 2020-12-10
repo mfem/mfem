@@ -14,20 +14,6 @@
 
 namespace mfem
 {
-
-// Compute the product of the dimensions
-template<int Dim0, int... Dims>
-struct Size
-{
-   static constexpr int val = Dim0 * Size<Dims...>::val;
-};
-
-template<int Dim0>
-struct Size<Dim0>
-{
-   static constexpr int val = Dim0;
-};
-
 // Getter for the N-th dimension value
 template <int N, int... Dims>
 struct Dim;
