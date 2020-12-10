@@ -568,7 +568,7 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
    J_minres->SetRelTol(rel_tol);
    J_minres->SetAbsTol(0.0);
    J_minres->SetMaxIter(300);
-   J_minres->SetPrintLevel(2);
+   J_minres->SetPrintLevel(-1);
    J_minres->SetPreconditioner(*J_prec);
    J_solver = J_minres;
 
