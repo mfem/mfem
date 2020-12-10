@@ -192,8 +192,6 @@ int main(int argc, char *argv[])
       }
    }
 
-   std::cout << myid << " " << pmesh.GetNSharedFaces() << " k10sharedfaces\n";
-
    // Check neighbors on the adjacent MPI rank
    for (int i = pmesh.GetNE(); i < pmesh.GetNE()+pmesh.GetNSharedFaces(); i++)
    {
@@ -625,7 +623,9 @@ int main(int argc, char *argv[])
                << "keys Rj" << endl;
    }
 
-   if (level_set_type >= 3 && level_set_type <= 5)
+   int NEglob = pmesh.GetGlobalNE();
+   double errnorm = x.ComputeL2Error(dbcCoef);
+   if (level_set_type >= 3 && level_set_type <= 5 && myid == 0)
    {
       ofstream myfile;
       myfile.open ("error.txt", ios::app);
@@ -633,8 +633,8 @@ int main(int argc, char *argv[])
       cout << order << " " <<
                 ser_ref_levels << " " <<
                 h_factor << " " <<
-                x.ComputeL2Error(dbcCoef) << " " <<
-                pmesh.GetGlobalNE() << " " <<
+                errnorm << " " <<
+                NEglob << " " <<
                 "k10-analytic-L2Error\n";
       myfile.close();
    }

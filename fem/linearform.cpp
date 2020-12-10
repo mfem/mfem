@@ -232,11 +232,11 @@ void LinearForm::Assemble()
    }
    if (sflfi.Size())
    {
-      FaceElementTransformations *tr = NULL;
       Mesh *mesh = fes->GetMesh();
 
       for (i = 0; i < sflfi_facenum_marker[0]->Size(); i++)
       {
+         FaceElementTransformations *tr = NULL;
          int fnum = (*(sflfi_facenum_marker[0]))[i];
          int faceflag = (*(sflfi_face_flag_marker[0]))[i];
          if (faceflag == 1)

@@ -604,13 +604,13 @@ void BilinearForm::Assemble(int skip_zeros)
 
    if (sbfbfi.Size())
    {
-      FaceElementTransformations *tr = NULL;
       const FiniteElement *fe1, *fe2;
 
       for (int i = 0; i < sbfbfi_facenum_marker[0]->Size(); i++)
       {
          int fnum = (*(sbfbfi_facenum_marker[0]))[i];
          int faceflag = (*(sbfbfi_face_flag_marker[0]))[i];
+         FaceElementTransformations *tr = NULL;
          if (faceflag == 1)
          {
             tr = mesh->GetInteriorFaceTransformations(fnum);
