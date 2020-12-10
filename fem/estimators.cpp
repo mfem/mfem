@@ -48,10 +48,11 @@ void L2ZienkiewiczZhuEstimator::ComputeEstimates()
    current_sequence = solution->FESpace()->GetMesh()->GetSequence();
 }
 
+
 KellyErrorEstimator::KellyErrorEstimator(BilinearFormIntegrator& di_,
                                          ParGridFunction& sol_,
                                          ParFiniteElementSpace& flux_fespace_,
-                                         Array<int> attributes_)
+                                         const Array<int> &attributes_)
    : attributes(attributes_)
    , flux_integrator(&di_)
    , solution(&sol_)
@@ -64,7 +65,7 @@ KellyErrorEstimator::KellyErrorEstimator(BilinearFormIntegrator& di_,
 KellyErrorEstimator::KellyErrorEstimator(BilinearFormIntegrator& di_,
                                          ParGridFunction& sol_,
                                          ParFiniteElementSpace* flux_fespace_,
-                                         Array<int> attributes_)
+                                         const Array<int> &attributes_)
    : attributes(attributes_)
    , flux_integrator(&di_)
    , solution(&sol_)
@@ -191,8 +192,7 @@ void KellyErrorEstimator::ComputeEstimates()
    {
       auto FT = pmesh->GetFaceElementTransformations(f);
 
-      const auto int_rule =
-         IntRules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(f));
+      auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(f));
       const auto nip = int_rule.GetNPoints();
 
       if (pmesh->FaceIsInterior(f))
@@ -224,7 +224,7 @@ void KellyErrorEstimator::ComputeEstimates()
             for (int i = 0; i < nip; i++)
             {
                // Evaluate flux at IP
-               auto fip = int_rule.IntPoint(i);
+               auto &fip = int_rule.IntPoint(i);
                IntegrationPoint ip;
                FT->Loc1.Transform(fip, ip);
 
@@ -255,7 +255,7 @@ void KellyErrorEstimator::ComputeEstimates()
             for (int i = 0; i < nip; i++)
             {
                // Evaluate flux vector at IP
-               auto fip = int_rule.IntPoint(i);
+               auto &fip = int_rule.IntPoint(i);
                IntegrationPoint ip;
                FT->Loc2.Transform(fip, ip);
 
@@ -314,8 +314,7 @@ void KellyErrorEstimator::ComputeEstimates()
          continue;
       }
 
-      const auto int_rule =
-         IntRules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(0));
+      auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(0));
       const auto nip = int_rule.GetNPoints();
 
       IntegrationRule eir;
@@ -326,7 +325,7 @@ void KellyErrorEstimator::ComputeEstimates()
       for (int i = 0; i < nip; i++)
       {
          // Evaluate flux vector at integration point
-         auto fip = int_rule.IntPoint(i);
+         auto &fip = int_rule.IntPoint(i);
          IntegrationPoint ip;
          FT->Loc1.Transform(fip, ip);
 
@@ -357,7 +356,7 @@ void KellyErrorEstimator::ComputeEstimates()
       for (int i = 0; i < nip; i++)
       {
          // Evaluate flux vector at integration point
-         auto fip = int_rule.IntPoint(i);
+         auto &fip = int_rule.IntPoint(i);
          IntegrationPoint ip;
          FT->Loc2.Transform(fip, ip);
 
@@ -414,6 +413,7 @@ void KellyErrorEstimator::ComputeEstimates()
 }
 
 #endif // MFEM_USE_MPI
+
 
 void LpErrorEstimator::ComputeEstimates()
 {
