@@ -3820,34 +3820,18 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
 
       rfes.GetBdrElementDofs(el, rdofs);
       MFEM_ASSERT(rdofs.Size() == RG.RefPts.Size(), "");
-      if (Dim == 1)
+      const int *c2h_map = (Dim == 1) ? NULL : rfec.GetDofMap(geom);
+      for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
       {
-         // Dim == 1 is a special case because the boundary elements are
-         // zero-dimensional points, and therefore don't have a DofMap
-         for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
+         Element *elem = NewElement(geom);
+         elem->SetAttribute(attrib);
+         int *v = elem->GetVertices();
+         for (int k = 0; k < nvert; k++)
          {
-            Element *elem = NewElement(geom);
-            elem->SetAttribute(attrib);
-            int *v = elem->GetVertices();
-            v[0] = rdofs[RG.RefGeoms[nvert*j]];
-            AddBdrElement(elem);
+            int cid = RG.RefGeoms[k+nvert*j]; // local Cartesian index
+            v[k] = rdofs[c2h_map ? c2h_map[cid] : cid];
          }
-      }
-      else
-      {
-         const int *c2h_map = rfec.GetDofMap(geom);
-         for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
-         {
-            Element *elem = NewElement(geom);
-            elem->SetAttribute(attrib);
-            int *v = elem->GetVertices();
-            for (int k = 0; k < nvert; k++)
-            {
-               int cid = RG.RefGeoms[k+nvert*j]; // local Cartesian index
-               v[k] = rdofs[c2h_map[cid]];
-            }
-            AddBdrElement(elem);
-         }
+         AddBdrElement(elem);
       }
    }
 
@@ -3883,6 +3867,326 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       emb.parent = el / r_elem_factor;
       emb.matrix = el % r_elem_factor;
    }
+
+   MFEM_ASSERT(CheckElementOrientation(false) == 0, "");
+   MFEM_ASSERT(CheckBdrElementOrientation(false) == 0, "");
+}
+
+void Mesh::MakeSimplicial(Mesh &orig_mesh, int *vglobal)
+{
+   MFEM_VERIFY(orig_mesh.CheckElementOrientation(false) == 0,
+               "Mesh::MakeSimplicial requires a properly oriented input mesh");
+
+   int dim = orig_mesh.Dimension();
+   int sdim = orig_mesh.SpaceDimension();
+
+   if (dim == 1)
+   {
+      Mesh copy(orig_mesh);
+      Swap(copy, true);
+      return;
+   }
+
+   int nv = orig_mesh.GetNV();
+   int ne = orig_mesh.GetNE();
+   int nbe = orig_mesh.GetNBE();
+
+   static int num_subdivisions[Geometry::NUM_GEOMETRIES];
+   num_subdivisions[Geometry::POINT] = 1;
+   num_subdivisions[Geometry::SEGMENT] = 1;
+   num_subdivisions[Geometry::TRIANGLE] = 1;
+   num_subdivisions[Geometry::TETRAHEDRON] = 1;
+   num_subdivisions[Geometry::SQUARE] = 2;
+   num_subdivisions[Geometry::PRISM] = 3;
+   num_subdivisions[Geometry::CUBE] = 6;
+   // NOTE: some hexes may be subdivided into only 5 tets, so this is an
+   // estimate only. The actual number of created tets may be less, so the
+   // elements array will need to be shrunk after mesh creation.
+   int new_ne = 0, new_nbe = 0;
+   for (int i=0; i<ne; ++i)
+   {
+      new_ne += num_subdivisions[orig_mesh.GetElementBaseGeometry(i)];
+   }
+   for (int i=0; i<nbe; ++i)
+   {
+      new_nbe += num_subdivisions[orig_mesh.GetBdrElementBaseGeometry(i)];
+   }
+
+   InitMesh(dim, sdim, nv, new_ne, new_nbe);
+
+   // Vertices of the new mesh are same as the original mesh
+   NumOfVertices = nv;
+   for (int i=0; i<nv; ++i)
+   {
+      vertices[i].SetCoords(dim, orig_mesh.vertices[i]());
+   }
+
+   // We need a global vertex numbering to identify which diagonals to split
+   // (quad faces are split using the diagonal originating from the smallest
+   // global vertex number). Use the supplied global numbering, if it is
+   // non-NULL, otherwise use the local numbering.
+   Array<int> vglobal_id;
+   if (vglobal == NULL)
+   {
+      vglobal_id.SetSize(nv);
+      for (int i=0; i<nv; ++i) { vglobal_id[i] = i; }
+      vglobal = vglobal_id.GetData();
+   }
+
+   constexpr int nv_tri = 3, nv_quad = 4, nv_tet = 4, nv_prism = 6, nv_hex = 8;
+   constexpr int quad_ntris = 2, prism_ntets = 3;
+   static const int quad_trimap[2][nv_tri*quad_ntris] =
+   {
+      {
+         0, 0,
+         1, 2,
+         2, 3
+      },{
+         0, 1,
+         1, 2,
+         3, 3
+      }
+   };
+   static const int prism_rot[nv_prism*nv_prism] =
+   {
+      0, 1, 2, 3, 4, 5,
+      1, 2, 0, 4, 5, 3,
+      2, 0, 1, 5, 3, 4,
+      3, 5, 4, 0, 2, 1,
+      4, 3, 5, 1, 0, 2,
+      5, 4, 3, 2, 1, 0
+   };
+   static const int prism_f[nv_quad] = {1, 2, 5, 4};
+   static const int prism_tetmaps[2][nv_prism*prism_ntets] =
+   {
+      {
+         0, 0, 0,
+         1, 1, 4,
+         2, 5, 5,
+         5, 4, 3
+      },{
+         0, 0, 0,
+         1, 4, 4,
+         2, 2, 5,
+         4, 5, 3
+      }
+   };
+   static const int hex_rot[nv_hex*nv_hex] =
+   {
+      0, 1, 2, 3, 4, 5, 6, 7,
+      1, 0, 4, 5, 2, 3, 7, 6,
+      2, 1, 5, 6, 3, 0, 4, 7,
+      3, 0, 1, 2, 7, 4, 5, 6,
+      4, 0, 3, 7, 5, 1, 2, 6,
+      5, 1, 0, 4, 6, 2, 3, 7,
+      6, 2, 1, 5, 7, 3, 0, 4,
+      7, 3, 2, 6, 4, 0, 1, 5
+   };
+   static const int hex_f0[nv_quad] = {1, 2, 6, 5};
+   static const int hex_f1[nv_quad] = {2, 3, 7, 6};
+   static const int hex_f2[nv_quad] = {4, 5, 6, 7};
+   static const int num_rot[8] = {0, 1, 2, 0, 0, 2, 1, 0};
+   static const int hex_tetmap0[nv_tet*5] =
+   {
+      0, 0, 0, 0, 2,
+      1, 2, 2, 5, 7,
+      2, 7, 3, 7, 5,
+      5, 5, 7, 4, 6
+   };
+   static const int hex_tetmap1[nv_tet*6] =
+   {
+      0, 0, 1, 0, 0, 1,
+      5, 1, 6, 7, 7, 7,
+      7, 7, 7, 2, 1, 6,
+      4, 5, 5, 3, 2, 2
+   };
+   static const int hex_tetmap2[nv_tet*6] =
+   {
+      0, 0, 0, 0, 0, 0,
+      4, 3, 7, 1, 3, 6,
+      5, 7, 4, 2, 6, 5,
+      6, 6, 6, 5, 2, 2
+   };
+   static const int hex_tetmap3[nv_tet*6] =
+   {
+      0, 0, 0, 0, 1, 1,
+      2, 3, 7, 5, 5, 6,
+      3, 7, 4, 6, 6, 2,
+      6, 6, 6, 4, 0, 0
+   };
+   static const int *hex_tetmaps[4] =
+   {
+      hex_tetmap0, hex_tetmap1, hex_tetmap2, hex_tetmap3
+   };
+
+   auto find_min = [](const int*a, int n) { return std::min_element(a,a+n)-a; };
+
+   for (int i=0; i<ne; ++i)
+   {
+      const int *v = orig_mesh.elements[i]->GetVertices();
+      const int attrib = orig_mesh.GetAttribute(i);
+      const Geometry::Type orig_geom = orig_mesh.GetElementBaseGeometry(i);
+
+      if (num_subdivisions[orig_geom] == 1)
+      {
+         // (num_subdivisions[orig_geom] == 1) implies that the element does
+         // not need to be further split (it is either a segment, triangle,
+         // or tetrahedron), and so it is left unchanged.
+         Element *e = NewElement(orig_geom);
+         e->SetAttribute(attrib);
+         e->SetVertices(v);
+         AddElement(e);
+      }
+      else if (orig_geom == Geometry::SQUARE)
+      {
+         for (int itri=0; itri<quad_ntris; ++itri)
+         {
+            Element *e = NewElement(Geometry::TRIANGLE);
+            e->SetAttribute(attrib);
+            int *v2 = e->GetVertices();
+            for (int iv=0; iv<nv_tri; ++iv)
+            {
+               v2[iv] = v[quad_trimap[0][itri + iv*quad_ntris]];
+            }
+            AddElement(e);
+         }
+      }
+      else if (orig_geom == Geometry::PRISM)
+      {
+         int vg[nv_prism];
+         for (int iv=0; iv<nv_prism; ++iv) { vg[iv] = vglobal[v[iv]]; }
+         // Rotate the vertices of the prism so that the smallest vertex index
+         // is in the first place
+         int irot = find_min(vg, nv_prism);
+         for (int iv=0; iv<nv_prism; ++iv)
+         {
+            int jv = prism_rot[iv + irot*nv_prism];
+            vg[iv] = v[jv];
+         }
+         // Two cases according to which diagonal splits third quad face
+         int q[nv_quad];
+         for (int iv=0; iv<nv_quad; ++iv) { q[iv] = vglobal[vg[prism_f[iv]]]; }
+         int j = find_min(q, nv_quad);
+         const int *tetmap = (j == 0 || j == 2) ? prism_tetmaps[0] : prism_tetmaps[1];
+         for (int itet=0; itet<prism_ntets; ++itet)
+         {
+            Element *e = NewElement(Geometry::TETRAHEDRON);
+            e->SetAttribute(attrib);
+            int *v2 = e->GetVertices();
+            for (int iv=0; iv<nv_tet; ++iv)
+            {
+               v2[iv] = vg[tetmap[itet + iv*prism_ntets]];
+            }
+            AddElement(e);
+         }
+      }
+      else if (orig_geom == Geometry::CUBE)
+      {
+         int vg[nv_hex];
+         for (int iv=0; iv<nv_hex; ++iv) { vg[iv] = vglobal[v[iv]]; }
+
+         // Rotate the vertices of the hex so that the smallest vertex index is
+         // in the first place
+         int irot = find_min(vg, nv_hex);
+         for (int iv=0; iv<nv_hex; ++iv)
+         {
+            int jv = hex_rot[iv + irot*nv_hex];
+            vg[iv] = v[jv];
+         }
+
+         int q[nv_quad];
+         // Bitmask is three binary digits, each digit is 1 if the diagonal of
+         // the corresponding face goes through the 7th vertex, and 0 if not.
+         int bitmask = 0;
+         int j;
+         // First quad face
+         for (int iv=0; iv<nv_quad; ++iv) { q[iv] = vglobal[vg[hex_f0[iv]]]; }
+         j = find_min(q, nv_quad);
+         if (j == 0 || j == 2) { bitmask += 4; }
+         // Second quad face
+         for (int iv=0; iv<nv_quad; ++iv) { q[iv] = vglobal[vg[hex_f1[iv]]]; }
+         j = find_min(q, nv_quad);
+         if (j == 1 || j == 3) { bitmask += 2; }
+         // Third quad face
+         for (int iv=0; iv<nv_quad; ++iv) { q[iv] = vglobal[vg[hex_f2[iv]]]; }
+         j = find_min(q, nv_quad);
+         if (j == 0 || j == 2) { bitmask += 1; }
+
+         // Apply rotations
+         int nrot = num_rot[bitmask];
+         for (int irot=0; irot<nrot; ++irot)
+         {
+            int vtemp;
+            vtemp = vg[1];
+            vg[1] = vg[4];
+            vg[4] = vg[3];
+            vg[3] = vtemp;
+            vtemp = vg[5];
+            vg[5] = vg[7];
+            vg[7] = vg[2];
+            vg[2] = vtemp;
+         }
+
+         // Sum up nonzero bits in bitmask
+         int ndiags = ((bitmask&4) >> 2) + ((bitmask&2) >> 1) + (bitmask&1);
+         int ntets = (ndiags == 0) ? 5 : 6;
+         const int *tetmap = hex_tetmaps[ndiags];
+         for (int itet=0; itet<ntets; ++itet)
+         {
+            Element *e = NewElement(Geometry::TETRAHEDRON);
+            e->SetAttribute(attrib);
+            int *v2 = e->GetVertices();
+            for (int iv=0; iv<nv_tet; ++iv)
+            {
+               v2[iv] = vg[tetmap[itet + iv*ntets]];
+            }
+            AddElement(e);
+         }
+      }
+   }
+   // In 3D, shrink the element array because some hexes have only 5 tets
+   if (dim == 3) { elements.SetSize(NumOfElements); }
+
+   for (int i=0; i<nbe; ++i)
+   {
+      const int *v = orig_mesh.boundary[i]->GetVertices();
+      const int attrib = orig_mesh.GetBdrAttribute(i);
+      const Geometry::Type orig_geom = orig_mesh.GetBdrElementBaseGeometry(i);
+      if (num_subdivisions[orig_geom] == 1)
+      {
+         Element *be = NewElement(orig_geom);
+         be->SetAttribute(attrib);
+         be->SetVertices(v);
+         AddBdrElement(be);
+      }
+      else if (orig_geom == Geometry::SQUARE)
+      {
+         int vg[nv_quad];
+         for (int iv=0; iv<nv_quad; ++iv) { vg[iv] = vglobal[v[iv]]; }
+         // Split quad according the smallest (global) vertex
+         int iv_min = find_min(vg, nv_quad);
+         int isplit = (iv_min == 0 || iv_min == 2) ? 0 : 1;
+         for (int itri=0; itri<quad_ntris; ++itri)
+         {
+            Element *be = NewElement(Geometry::TRIANGLE);
+            be->SetAttribute(attrib);
+            int *v2 = be->GetVertices();
+            for (int iv=0; iv<nv_tri; ++iv)
+            {
+               v2[iv] = v[quad_trimap[isplit][itri + iv*quad_ntris]];
+            }
+            AddBdrElement(be);
+         }
+      }
+      else
+      {
+         MFEM_ABORT("Unreachable");
+      }
+   }
+
+   FinalizeTopology(false);
+   sequence = orig_mesh.GetSequence();
+   last_operation = orig_mesh.last_operation;
 
    MFEM_ASSERT(CheckElementOrientation(false) == 0, "");
    MFEM_ASSERT(CheckBdrElementOrientation(false) == 0, "");
@@ -4148,6 +4452,25 @@ void Mesh::EnsureNodes()
    else //First order H1 mesh
    {
       SetCurvature(1, false, -1, Ordering::byVDIM);
+   }
+}
+
+void Mesh::SetVerticesFromNodes()
+{
+   if (!Nodes) { return; }
+   for (int iel=0; iel<GetNE(); ++iel)
+   {
+      Geometry::Type geom = GetElementBaseGeometry(iel);
+      const IntegrationRule *ref_verts = Geometries.GetVertices(geom);
+      DenseMatrix node_coords;
+      ElementTransformation *T = GetElementTransformation(iel);
+      Nodes->GetVectorValues(*T, *ref_verts, node_coords);
+      Element *el = GetElement(iel);
+      for (int iv=0; iv<el->GetNVertices(); ++iv)
+      {
+         int v = el->GetVertices()[iv];
+         vertices[v].SetCoords(&node_coords(0,iv));
+      }
    }
 }
 

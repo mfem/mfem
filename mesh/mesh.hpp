@@ -697,10 +697,10 @@ public:
                              BasisType::GaussLobatto.
 
        The refinement data which can be accessed with GetRefinementTransforms()
-       is set to reflect the performed refinements.
-
-       @note The constructed Mesh is linear, i.e. it does not have nodes. */
+       is set to reflect the performed refinements. */
    Mesh(Mesh *orig_mesh, int ref_factor, int ref_type);
+
+   void MakeSimplicial(Mesh &orig_mesh, int *vglobal=NULL);
 
    /** This is similar to the mesh constructor with the same arguments, but here
        the current mesh is destroyed and another one created based on the data
@@ -1131,6 +1131,9 @@ public:
        by a vector finite element grid function (even if it is a low-order mesh
        with straight edges). */
    void EnsureNodes();
+
+    /** Updates the coordinates of the vertices from the node locations. */
+   void SetVerticesFromNodes();
 
    /** Set the curvature of the mesh nodes using the given polynomial degree,
        'order', and optionally: discontinuous or continuous FE space, 'discont',

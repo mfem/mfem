@@ -2803,9 +2803,9 @@ L2ProjectionGridTransfer::L2Projection::L2Projection(
    Vector shape_ho(ndof_ho);
    Vector shape_lor(ndof_lor);
 
-   const Geometry::Type geom = fe_ho->GetGeomType();
-   const DenseTensor &pmats = cf_tr.point_matrices[geom];
-   emb_tr.SetIdentityTransformation(geom);
+   const Geometry::Type lor_geom = fe_lor->GetGeomType();
+   const DenseTensor &pmats = cf_tr.point_matrices[lor_geom];
+   emb_tr.SetIdentityTransformation(lor_geom);
 
    for (int iho=0; iho<nel_ho; ++iho)
    {
@@ -2830,7 +2830,7 @@ L2ProjectionGridTransfer::L2Projection::L2Projection(
          emb_tr.SetPointMat(pmats(cf_tr.embeddings[ilor].matrix));
 
          int order = fe_lor->GetOrder() + fe_ho->GetOrder() + el_tr->OrderW();
-         const IntegrationRule *ir = &IntRules.Get(geom, order);
+         const IntegrationRule *ir = &IntRules.Get(lor_geom, order);
          M_mixed_el = 0.0;
          for (int i = 0; i < ir->GetNPoints(); i++)
          {

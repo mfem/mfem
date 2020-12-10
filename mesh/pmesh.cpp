@@ -1142,7 +1142,7 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
          group_sedge.AddColumnsInRow(gr-1, orig_nq*(RG.RefEdges.Size()/2-
                                                     RG.NumBdrEdges));
          // count refined faces
-         group_squad.AddColumnsInRow(gr-1, orig_nq*(RG.RefGeoms.Size()/nvert));
+         group_squad.AddColumnsInRow(gr-1, orig_nq*RG.RefGeoms.Size()/nvert);
       }
    }
 
@@ -1305,6 +1305,144 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
       SetCurvature(1, GetNodalFESpace()->IsDGSpace(), spaceDim,
                    GetNodalFESpace()->GetOrdering());
    }
+}
+
+void ParMesh::MakeSimplicial(ParMesh &orig_mesh)
+{
+   MyComm = orig_mesh.GetComm();
+   NRanks = orig_mesh.GetNRanks();
+   MyRank = orig_mesh.GetMyRank();
+   glob_elem_offset = -1;
+   glob_offset_sequence = -1;
+   gtopo = orig_mesh.gtopo;
+   have_face_nbr_data = false;
+   pncmesh = NULL;
+   meshgen = orig_mesh.meshgen;
+
+   H1_FECollection fec(1, orig_mesh.Dimension());
+   ParFiniteElementSpace fes(&orig_mesh, &fec);
+
+   Array<int> vglobal(orig_mesh.GetNV());
+   for (int iv=0; iv<orig_mesh.GetNV(); ++iv)
+   {
+      vglobal[iv] = fes.GetGlobalTDofNumber(iv);
+   }
+   Mesh::MakeSimplicial(orig_mesh, vglobal);
+
+   // count the number of entries in each row of group_s{vert,edge,face}
+   group_svert.MakeI(GetNGroups()-1); // exclude the local group 0
+   group_sedge.MakeI(GetNGroups()-1);
+   group_stria.MakeI(GetNGroups()-1);
+   group_squad.MakeI(GetNGroups()-1);
+   for (int gr = 1; gr < GetNGroups(); gr++)
+   {
+      group_svert.AddColumnsInRow(gr-1, orig_mesh.GroupNVertices(gr));
+      group_sedge.AddColumnsInRow(gr-1, orig_mesh.GroupNEdges(gr));
+      // Every quad gives an extra edge
+      const int orig_nq = orig_mesh.GroupNQuadrilaterals(gr);
+      group_sedge.AddColumnsInRow(gr-1, orig_nq);
+      // Every quad is subdivided into two triangles
+      group_stria.AddColumnsInRow(gr-1, 2*orig_nq);
+      // Existing triangles remain unchanged
+      const int orig_nt = orig_mesh.GroupNTriangles(gr);
+      group_stria.AddColumnsInRow(gr-1, orig_nt);
+   }
+   group_svert.MakeJ();
+   svert_lvert.Reserve(group_svert.Size_of_connections());
+
+   group_sedge.MakeJ();
+   shared_edges.Reserve(group_sedge.Size_of_connections());
+   sedge_ledge.SetSize(group_sedge.Size_of_connections());
+
+   group_stria.MakeJ();
+   shared_trias.Reserve(group_stria.Size_of_connections());
+   sface_lface.SetSize(shared_trias.Size());
+
+   group_squad.MakeJ();
+
+   constexpr int ntris = 2, nv_tri = 3, nv_quad = 4;
+
+   Array<int> dofs;
+   for (int gr = 1; gr < GetNGroups(); gr++)
+   {
+      // add shared vertices from original shared vertices
+      const int orig_n_verts = orig_mesh.GroupNVertices(gr);
+      for (int j = 0; j < orig_n_verts; j++)
+      {
+         fes.GetVertexDofs(orig_mesh.GroupVertex(gr, j), dofs);
+         group_svert.AddConnection(gr-1, svert_lvert.Append(dofs[0])-1);
+      }
+
+      // add original shared edges
+      const int orig_n_edges = orig_mesh.GroupNEdges(gr);
+      for (int e = 0; e < orig_n_edges; e++)
+      {
+         int iedge, o;
+         orig_mesh.GroupEdge(gr, e, iedge, o);
+         Element *elem = NewElement(Geometry::SEGMENT);
+         Array<int> edge_verts;
+         orig_mesh.GetEdgeVertices(iedge, edge_verts);
+         elem->SetVertices(edge_verts);
+         group_sedge.AddConnection(gr-1, shared_edges.Append(elem)-1);
+      }
+      // add original shared triangles
+      const int orig_nt = orig_mesh.GroupNTriangles(gr);
+      for (int e = 0; e < orig_nt; e++)
+      {
+         int itri, o;
+         orig_mesh.GroupTriangle(gr, e, itri, o);
+         const int *v = orig_mesh.GetFace(itri)->GetVertices();
+         shared_trias.SetSize(shared_trias.Size()+1);
+         int *v2 = shared_trias.Last().v;
+         for (int iv=0; iv<nv_tri; ++iv) { v2[iv] = v[iv]; }
+         group_stria.AddConnection(gr-1, shared_trias.Size()-1);
+      }
+      // add triangles from split quads and add resulting diagonal edge
+      const int orig_nq = orig_mesh.GroupNQuadrilaterals(gr);
+      if (orig_nq > 0)
+      {
+         static const int trimap[12] =
+         {
+            0, 0, 0, 1,
+            1, 2, 1, 2,
+            2, 3, 3, 3
+         };
+         static const int diagmap[4] = { 0, 2, 1, 3 };
+         for (int f = 0; f < orig_nq; ++f)
+         {
+            int iquad, o;
+            orig_mesh.GroupQuadrilateral(gr, f, iquad, o);
+            const int *v = orig_mesh.GetFace(iquad)->GetVertices();
+            // Split quad according the smallest (global) vertex
+            int vg[nv_quad];
+            for (int iv=0; iv<nv_quad; ++iv) { vg[iv] = vglobal[v[iv]]; }
+            int iv_min = std::min_element(vg, vg+nv_quad) - vg;
+            int isplit = (iv_min == 0 || iv_min == 2) ? 0 : 1;
+            // Add diagonal
+            Element *diag = NewElement(Geometry::SEGMENT);
+            int *v_diag = diag->GetVertices();
+            v_diag[0] = v[diagmap[0 + isplit*2]];
+            v_diag[1] = v[diagmap[1 + isplit*2]];
+            group_sedge.AddConnection(gr-1, shared_edges.Append(diag)-1);
+            // Add two new triangles
+            for (int itri=0; itri<ntris; ++itri)
+            {
+               shared_trias.SetSize(shared_trias.Size()+1);
+               int *v2 = shared_trias.Last().v;
+               for (int iv=0; iv<nv_tri; ++iv)
+               {
+                  v2[iv] = v[trimap[itri + isplit*2 + iv*ntris*2]];
+               }
+               group_stria.AddConnection(gr-1, shared_trias.Size()-1);
+            }
+         }
+      }
+   }
+   group_svert.ShiftUpI();
+   group_sedge.ShiftUpI();
+   group_stria.ShiftUpI();
+
+   FinalizeParTopo();
 }
 
 void ParMesh::Finalize(bool refine, bool fix_orientation)

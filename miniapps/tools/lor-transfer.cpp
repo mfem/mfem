@@ -72,6 +72,7 @@ int main(int argc, char *argv[])
    bool vis = true;
    bool useH1 = false;
    bool use_transfer = false;
+   bool simplex = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -92,6 +93,8 @@ int main(int argc, char *argv[])
    args.AddOption(&use_transfer, "-t", "--use-pointwise-transfer", "-no-t",
                   "--dont-use-pointwise-transfer",
                   "Use pointwise transfer operators instead of L2 projection.");
+   args.AddOption(&simplex, "-s", "--simplex", "-no-s", "--no-simplex",
+                  "Create a simplicial (tri/tet) LOR mesh.");
    args.Parse();
    if (!args.Good())
    {
@@ -106,7 +109,7 @@ int main(int argc, char *argv[])
 
    // Create the low-order refined mesh
    int basis_lor = BasisType::GaussLobatto; // BasisType::ClosedUniform;
-   Mesh mesh_lor(&mesh, lref, basis_lor);
+   Mesh mesh_lor(&mesh, lref, basis_lor, simplex);
 
    // Create spaces
    FiniteElementCollection *fec, *fec_lor;
