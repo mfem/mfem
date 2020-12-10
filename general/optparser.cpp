@@ -22,7 +22,7 @@ int isValidAsInt(char * s)
 {
    if ( s == NULL || *s == '\0' )
    {
-      return 0;   //Empty string
+      return 0;   // Empty string
    }
 
    if ( *s == '+' || *s == '-' )
@@ -32,7 +32,7 @@ int isValidAsInt(char * s)
 
    if ( *s == '\0')
    {
-      return 0;   //sign character only
+      return 0;   // sign character only
    }
 
    while (*s)
@@ -49,7 +49,7 @@ int isValidAsInt(char * s)
 
 int isValidAsDouble(char * s)
 {
-   //A valid floating point number for atof using the "C" locale is formed by
+   // A valid floating point number for atof using the "C" locale is formed by
    // - an optional sign character (+ or -),
    // - followed by a sequence of digits, optionally containing a decimal-point
    //   character (.),
@@ -58,7 +58,7 @@ int isValidAsDouble(char * s)
 
    if ( s == NULL || *s == '\0' )
    {
-      return 0;   //Empty string
+      return 0;   // Empty string
    }
 
    if ( *s == '+' || *s == '-' )
@@ -68,7 +68,7 @@ int isValidAsDouble(char * s)
 
    if ( *s == '\0')
    {
-      return 0;   //sign character only
+      return 0;   // sign character only
    }
 
    while (*s)
@@ -82,7 +82,7 @@ int isValidAsDouble(char * s)
 
    if (*s == '\0')
    {
-      return 1;   //s = "123"
+      return 1;   // s = "123"
    }
 
    if (*s == '.')
@@ -98,7 +98,7 @@ int isValidAsDouble(char * s)
       }
       if (*s == '\0')
       {
-         return 1;   //this is a fixed point double s = "123." or "123.45"
+         return 1;   // this is a fixed point double s = "123." or "123.45"
       }
    }
 
@@ -109,7 +109,7 @@ int isValidAsDouble(char * s)
    }
    else
    {
-      return 0;   //we have encounter a wrong character
+      return 0;   // we have encounter a wrong character
    }
 }
 
