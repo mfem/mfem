@@ -330,7 +330,7 @@ void Code::def_empty_empty_d(Rule *n) const
 void Code::def_empty_empty_u(Rule*) const { }
 
 // *****************************************************************************
-static inline string QTypes(const int type)
+/*static inline string QTypes(const int type)
 {
    if (type == TOK::FUNCTION) { return "xfl::Func_q"; }
    if (type == TOK::CONSTANT_API) { return "xfl::Cst_q"; }
@@ -338,7 +338,7 @@ static inline string QTypes(const int type)
    if (type == TOK::TRIAL_FUNCTION) { return "xfl::Trial_q"; }
    //assert(false);
    return string();
-}
+}*/
 
 // *****************************************************************************
 void Code::extra_status_rule_var_xt_d(Rule*n) const
