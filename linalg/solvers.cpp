@@ -1622,14 +1622,14 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       grad = &oper->GetGradient(x);
       prec->SetOperator(*grad);
 
-      if (lin_rtol_ver)
+      if (lin_rtol_type)
       {
          AdaptiveLinRtolPreSolve(x, it, norm);
       }
 
       prec->Mult(r, c); // c = [DF(x_i)]^{-1} [F(x_i)-b]
 
-      if (lin_rtol_ver)
+      if (lin_rtol_type)
       {
          AdaptiveLinRtolPostSolve(c, r, it, norm);
       }
@@ -1656,13 +1656,13 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    final_norm = norm;
 }
 
-void NewtonSolver::SetAdaptiveLinRtol(const int version,
+void NewtonSolver::SetAdaptiveLinRtol(const int type,
                                       const double rtol0,
                                       const double rtol_max,
                                       const double alpha,
                                       const double gamma)
 {
-   lin_rtol_ver = version;
+   lin_rtol_type = type;
    lin_rtol0 = rtol0;
    lin_rtol_max = rtol_max;
    this->alpha = alpha;
@@ -1678,6 +1678,8 @@ void NewtonSolver::AdaptiveLinRtolPreSolve(const Vector &x,
    auto iterative_solver = static_cast<IterativeSolver *>(prec);
    // Adaptive linear solver relative tolerance
    double eta;
+   // Safeguard threshold
+   double sg_threshold = 0.1;
 
    if (it == 0)
    {
@@ -1685,12 +1687,12 @@ void NewtonSolver::AdaptiveLinRtolPreSolve(const Vector &x,
    }
    else
    {
-      if (lin_rtol_ver == 1)
+      if (lin_rtol_type == 1)
       {
          // eta = gamma * abs(||F(x1)|| - ||F(x0) + DF(x0) s0||) / ||F(x0)||
          eta = gamma * abs(fnorm - lnorm_last) / fnorm_last;
       }
-      else if (lin_rtol_ver == 2)
+      else if (lin_rtol_type == 2)
       {
          // eta = gamma * (||F(x1)|| / ||F(x0)||)^alpha
          eta = gamma * pow(fnorm / fnorm_last, alpha);
@@ -1724,7 +1726,7 @@ void NewtonSolver::AdaptiveLinRtolPostSolve(const Vector &x,
    // If version 1 is chosen, the true linear residual norm has to be computed
    // and in most cases we can only retrieve the preconditioned linear residual
    // norm.
-   if (lin_rtol_ver == 1)
+   if (lin_rtol_type == 1)
    {
       // lnorm_last = ||F(x0) + DF(x0) s0||
       Vector linres(x.Size());
@@ -1737,11 +1739,13 @@ void NewtonSolver::AdaptiveLinRtolPostSolve(const Vector &x,
 void NewtonSolver::DQOpTimes(const Vector &v, Vector &Jv, void *ctx)
 {
    NewtonSolver *c = static_cast<NewtonSolver *>(ctx);
-
-   double eps = 1.0e-6;
    Vector &xpev = c->z;
    const Vector &x = c->GetCurrentIterate();
    const Vector &fx = c->GetCurrentResidual();
+
+   constexpr double epsmach = 2.0 * DBL_EPSILON;
+   const double eps = sqrt((1.0 + c->Norm(x)) * epsmach)
+                      / max(sqrt(epsmach), c->Norm(v));
 
    for (int i = 0; i < Jv.Size(); i++)
    {
