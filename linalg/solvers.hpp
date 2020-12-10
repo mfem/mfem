@@ -421,7 +421,7 @@ protected:
    // Adaptive linear solver rtol variables
 
    // Method to determine rtol, 0 means the adaptive algorithm is deactivated.
-   int lin_rtol_ver = 0;
+   int lin_rtol_type = 0;
    // rtol to use in first iteration
    double lin_rtol0;
    // Maximum rtol
@@ -436,8 +436,19 @@ protected:
    double gamma;
    // Eisenstat-Walker factor alpha
    double alpha;
-   // Safeguard threshold
-   double sg_threshold = 0.1;
+
+   /** @brief Method for the adaptive linear solver rtol invoked before the
+       linear solve. */
+   void AdaptiveLinRtolPreSolve(const Vector &x,
+                                const int it,
+                                const double fnorm) const;
+
+   /** @brief Method for the adaptive linear solver rtol invoked after the
+       linear solve. */
+   void AdaptiveLinRtolPostSolve(const Vector &x,
+                                 const Vector &b,
+                                 const int it,
+                                 const double fnorm) const;
 
 public:
    NewtonSolver() { }
@@ -473,31 +484,18 @@ public:
    /** Compute a relative tolerance for the Krylov method after each nonlinear
     iteration, based on the algorithm presented in [1].
 
-    The maximum linear solver relative tolerance @a rtol_max should be < 1.
-    For @a version 1 the parameters @a alpha and @a gamma are ignore. For @a
-    version 2 @a alpha has to be between 0 and 1 and @a alpha between 1 and 2.
+    The maximum linear solver relative tolerance @a rtol_max should be < 1. For
+    @a type 1 the parameters @a alpha @and @a gamma are ignored. For @a type 2
+    @a alpha has to be between 0 and 1 and @a gamma between 1 and 2.
 
     [1] Eisenstat, Stanley C., and Homer F. Walker. "Choosing the forcing terms
     in an inexact Newton method."
     */
-   void SetAdaptiveLinRtol(const int version = 2,
+   void SetAdaptiveLinRtol(const int type = 2,
                            const double rtol0 = 0.5,
                            const double rtol_max = 0.9,
                            const double alpha = 0.5 * (1.0 + sqrt(5.0)),
                            const double gamma = 1.0);
-
-   /** @brief Method for the adaptive linear solver rtol invoked before the
-       linear solve. */
-   void AdaptiveLinRtolPreSolve(const Vector &x,
-                                const int it,
-                                const double fnorm) const;
-
-   /** @brief Method for the adaptive linear solver rtol invoked after the
-       linear solve. */
-   void AdaptiveLinRtolPostSolve(const Vector &x,
-                                 const Vector &b,
-                                 const int it,
-                                 const double fnorm) const;
 
    static void DQOpTimes(const Vector &v, Vector &Jv, void *ctx);
 
