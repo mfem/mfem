@@ -46,12 +46,24 @@ struct Dim<N, Dim0, Dims...>
 // Compute the product of a list of values
 template <typename T>
 constexpr T prod(T first) {
-  return first;
+   return first;
 }
 
 template <typename T, typename... D>
 constexpr T prod(T first, D... rest) {
-  return first*prod(rest...);
+   return first*prod(rest...);
+}
+
+template <typename T>
+constexpr T pow(T x, unsigned int n)
+{
+   return n == 0 ? 1 : x * pow(x, n-1);
+}
+
+template <typename First, typename... Rest>
+constexpr unsigned int rank()
+{
+   return 1 + rank<Rest...>();
 }
 
 } // mfem namespace
