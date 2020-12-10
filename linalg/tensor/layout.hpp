@@ -12,6 +12,8 @@
 #ifndef MFEM_LAYOUT
 #define MFEM_LAYOUT
 
+#include "util.hpp"
+
 namespace mfem
 {
 
@@ -31,10 +33,17 @@ public:
    template <typename... Idx> MFEM_HOST_DEVICE inline
    int operator()(Idx... idx) const
    {
-   #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-      MFEM_ASSERT(Rank==sizeof...(Idx), "Wrong number of arguments.");
+   #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)) // TODO add MFEM_DEBUG
+      MFEM_VERIFY(Rank==sizeof...(Idx), "Wrong number of arguments.");
    #endif
       return DynamicTensorIndex<1, Rank, Idx...>::eval(sizes, idx...);
+   }
+
+   template <int N>
+   int Size() const
+   {
+      static_assert(N>=0 && N<Rank,"Accessed size is higher than the rank of the Tensor.");
+      return sizes[N];
    }
 
 private:
@@ -46,8 +55,8 @@ private:
       MFEM_HOST_DEVICE
       static inline int eval(const int* sizes, T first, Args... args)
       {
-   #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-         MFEM_ASSERT(first<sizes[N-1],"Trying to access out of boundary.");
+   #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)) // TODO add MFEM_DEBUG
+         MFEM_VERIFY(first<sizes[N-1],"Trying to access out of boundary.");
    #endif
          return first + sizes[N - 1] * DynamicTensorIndex < N + 1, Dim, Args... >
                ::eval(sizes, args...);
@@ -62,8 +71,8 @@ private:
       MFEM_HOST_DEVICE
       static inline int eval(const int* sizes, T first, Args... args)
       {
-   #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-         MFEM_ASSERT(first<sizes[Dim-1],"Trying to access out of boundary.");
+   #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)) // TODO add MFEM_DEBUG
+         MFEM_VERIFY(first<sizes[Dim-1],"Trying to access out of boundary.");
    #endif
          return first;
       }
@@ -109,9 +118,17 @@ public:
    constexpr int operator()(Idx... idx) const
    {
    #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-      MFEM_ASSERT(sizeof...(Sizes)==sizeof...(Idx), "Wrong number of arguments.");
+      static_assert(sizeof...(Sizes)==sizeof...(Idx), "Wrong number of arguments.");
    #endif
       return StaticTensorIndex<Sizes...>::eval(idx...);
+   }
+
+   // Can be constexpr if Tensor inherit from Layout
+   template <int N>
+   int Size() const
+   {
+      static_assert(N>=0 && N<rank(Sizes...),"Accessed size is higher than the rank of the Tensor.");
+      return Dim<N,Sizes...>::val;
    }
 
 private:
