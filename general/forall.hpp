@@ -1,39 +1,40 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_FORALL_HPP
 #define MFEM_FORALL_HPP
 
 #include "../config/config.hpp"
 #include "error.hpp"
-#include "cuda.hpp"
-#include "hip.hpp"
-#include "occa.hpp"
+#include "backends.hpp"
 #include "device.hpp"
 #include "mem_manager.hpp"
 #include "../linalg/dtensor.hpp"
-
-#ifdef MFEM_USE_RAJA
-#include "RAJA/RAJA.hpp"
-#if defined(RAJA_ENABLE_CUDA) && !defined(MFEM_USE_CUDA)
-#error When RAJA is built with CUDA, MFEM_USE_CUDA=YES is required
-#endif
-#endif
 
 namespace mfem
 {
 
 // Maximum size of dofs and quads in 1D.
-const int MAX_D1D = 16;
-const int MAX_Q1D = 16;
+const int MAX_D1D = 14;
+const int MAX_Q1D = 14;
+
+// MFEM pragma macros that can be used inside MFEM_FORALL macros.
+#define MFEM_PRAGMA(X) _Pragma(#X)
+
+// MFEM_UNROLL pragma macro that can be used inside MFEM_FORALL macros.
+#if defined(MFEM_USE_CUDA)
+#define MFEM_UNROLL(N) MFEM_PRAGMA(unroll N)
+#else
+#define MFEM_UNROLL(N)
+#endif
 
 // Implementation of MFEM's "parallel for" (forall) device/host kernel
 // interfaces supporting RAJA, CUDA, OpenMP, and sequential backends.
@@ -42,20 +43,20 @@ const int MAX_Q1D = 16;
 #define MFEM_FORALL(i,N,...)                             \
    ForallWrap<1>(true,N,                                 \
                  [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
-                 [&]             (int i) {__VA_ARGS__})
+                 [&] MFEM_LAMBDA (int i) {__VA_ARGS__})
 
 // MFEM_FORALL with a 2D CUDA block
 #define MFEM_FORALL_2D(i,N,X,Y,BZ,...)                   \
    ForallWrap<2>(true,N,                                 \
                  [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
-                 [&]             (int i) {__VA_ARGS__},  \
+                 [&] MFEM_LAMBDA (int i) {__VA_ARGS__},\
                  X,Y,BZ)
 
 // MFEM_FORALL with a 3D CUDA block
 #define MFEM_FORALL_3D(i,N,X,Y,Z,...)                    \
    ForallWrap<3>(true,N,                                 \
                  [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
-                 [&]             (int i) {__VA_ARGS__},  \
+                 [&] MFEM_LAMBDA (int i) {__VA_ARGS__},\
                  X,Y,Z)
 
 // MFEM_FORALL that uses the basic CPU backend when use_dev is false. See for
@@ -64,7 +65,7 @@ const int MAX_Q1D = 16;
 #define MFEM_FORALL_SWITCH(use_dev,i,N,...)              \
    ForallWrap<1>(use_dev,N,                              \
                  [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
-                 [&]             (int i) {__VA_ARGS__})
+                 [&] MFEM_LAMBDA (int i) {__VA_ARGS__})
 
 
 /// OpenMP backend
@@ -78,6 +79,8 @@ void OmpWrap(const int N, HBODY &&h_body)
       h_body(k);
    }
 #else
+   MFEM_CONTRACT_VAR(N);
+   MFEM_CONTRACT_VAR(h_body);
    MFEM_ABORT("OpenMP requested for MFEM but OpenMP is not enabled!");
 #endif
 }
@@ -86,12 +89,16 @@ void OmpWrap(const int N, HBODY &&h_body)
 /// RAJA Cuda backend
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
 
+#if RAJA_VERSION_MAJOR == 0 && RAJA_VERSION_MINOR < 12
 using RAJA::statement::Segs;
+#else
+using RAJA::Segs;
+#endif
 
 template <const int BLOCKS = MFEM_CUDA_BLOCKS, typename DBODY>
 void RajaCudaWrap1D(const int N, DBODY &&d_body)
 {
-   //true denotes asynchronous kernel
+   // true denotes asynchronous kernel
    RAJA::forall<RAJA::cuda_exec<BLOCKS,true>>(RAJA::RangeSegment(0,N),d_body);
 }
 
@@ -144,7 +151,11 @@ void RajaCudaWrap3D(const int N, DBODY &&d_body,
 /// RAJA OpenMP backend
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
 
+#if RAJA_VERSION_MAJOR == 0 && RAJA_VERSION_MINOR < 12
 using RAJA::statement::Segs;
+#else
+using RAJA::Segs;
+#endif
 
 template <typename HBODY>
 void RajaOmpWrap(const int N, HBODY &&h_body)
@@ -162,6 +173,8 @@ void RajaSeqWrap(const int N, HBODY &&h_body)
 #ifdef MFEM_USE_RAJA
    RAJA::forall<RAJA::loop_exec>(RAJA::RangeSegment(0,N), h_body);
 #else
+   MFEM_CONTRACT_VAR(N);
+   MFEM_CONTRACT_VAR(h_body);
    MFEM_ABORT("RAJA requested but RAJA is not enabled!");
 #endif
 }
@@ -296,59 +309,58 @@ inline void ForallWrap(const bool use_dev, const int N,
                        DBODY &&d_body, HBODY &&h_body,
                        const int X=0, const int Y=0, const int Z=0)
 {
+   MFEM_CONTRACT_VAR(X);
+   MFEM_CONTRACT_VAR(Y);
+   MFEM_CONTRACT_VAR(Z);
+   MFEM_CONTRACT_VAR(d_body);
    if (!use_dev) { goto backend_cpu; }
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
-   // Handle all allowed CUDA backends except Backend::CUDA
-   if (DIM == 1 && Device::Allows(Backend::CUDA_MASK & ~Backend::CUDA))
-   { return RajaCudaWrap1D(N, d_body); }
-
-   if (DIM == 2 && Device::Allows(Backend::CUDA_MASK & ~Backend::CUDA))
-   { return RajaCudaWrap2D(N, d_body, X, Y, Z); }
-
-   if (DIM == 3 && Device::Allows(Backend::CUDA_MASK & ~Backend::CUDA))
-   { return RajaCudaWrap3D(N, d_body, X, Y, Z); }
+   // If Backend::RAJA_CUDA is allowed, use it
+   if (Device::Allows(Backend::RAJA_CUDA))
+   {
+      if (DIM == 1) { return RajaCudaWrap1D(N, d_body); }
+      if (DIM == 2) { return RajaCudaWrap2D(N, d_body, X, Y, Z); }
+      if (DIM == 3) { return RajaCudaWrap3D(N, d_body, X, Y, Z); }
+   }
 #endif
 
 #ifdef MFEM_USE_CUDA
-   // Handle all allowed CUDA backends
-   if (DIM == 1 && Device::Allows(Backend::CUDA_MASK))
-   { return CuWrap1D(N, d_body); }
-
-   if (DIM == 2 && Device::Allows(Backend::CUDA_MASK))
-   { return CuWrap2D(N, d_body, X, Y, Z); }
-
-   if (DIM == 3 && Device::Allows(Backend::CUDA_MASK))
-   { return CuWrap3D(N, d_body, X, Y, Z); }
+   // If Backend::CUDA is allowed, use it
+   if (Device::Allows(Backend::CUDA))
+   {
+      if (DIM == 1) { return CuWrap1D(N, d_body); }
+      if (DIM == 2) { return CuWrap2D(N, d_body, X, Y, Z); }
+      if (DIM == 3) { return CuWrap3D(N, d_body, X, Y, Z); }
+   }
 #endif
 
 #ifdef MFEM_USE_HIP
-   // Handle all allowed HIP backends
-   if (DIM == 1 && Device::Allows(Backend::HIP_MASK))
-   { return HipWrap1D(N, d_body); }
-
-   if (DIM == 2 && Device::Allows(Backend::HIP_MASK))
-   { return HipWrap2D(N, d_body, X, Y, Z); }
-
-   if (DIM == 3 && Device::Allows(Backend::HIP_MASK))
-   { return HipWrap3D(N, d_body, X, Y, Z); }
+   // If Backend::HIP is allowed, use it
+   if (Device::Allows(Backend::HIP))
+   {
+      if (DIM == 1) { return HipWrap1D(N, d_body); }
+      if (DIM == 2) { return HipWrap2D(N, d_body, X, Y, Z); }
+      if (DIM == 3) { return HipWrap3D(N, d_body, X, Y, Z); }
+   }
 #endif
 
+   // If Backend::DEBUG_DEVICE is allowed, use it
+   if (Device::Allows(Backend::DEBUG_DEVICE)) { goto backend_cpu; }
+
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
-   // Handle all allowed OpenMP backends except Backend::OMP
-   if (Device::Allows(Backend::OMP_MASK & ~Backend::OMP))
-   { return RajaOmpWrap(N, h_body); }
+   // If Backend::RAJA_OMP is allowed, use it
+   if (Device::Allows(Backend::RAJA_OMP)) { return RajaOmpWrap(N, h_body); }
 #endif
 
 #ifdef MFEM_USE_OPENMP
-   // Handle all allowed OpenMP backends
-   if (Device::Allows(Backend::OMP_MASK)) { return OmpWrap(N, h_body); }
+   // If Backend::OMP is allowed, use it
+   if (Device::Allows(Backend::OMP)) { return OmpWrap(N, h_body); }
 #endif
 
 #ifdef MFEM_USE_RAJA
-   // Handle all allowed CPU backends except Backend::CPU
-   if (Device::Allows(Backend::CPU_MASK & ~Backend::CPU))
-   { return RajaSeqWrap(N, h_body); }
+   // If Backend::RAJA_CPU is allowed, use it
+   if (Device::Allows(Backend::RAJA_CPU)) { return RajaSeqWrap(N, h_body); }
 #endif
 
 backend_cpu:

@@ -43,6 +43,14 @@
 //               also illustrated.
 //
 //               We recommend viewing Example 1 before viewing this example.
+//
+// NOTE:         Model/Mesh files for this example are in the (large) data file
+//               repository of MFEM here https://github.com/mfem/data under the
+//               folder named "pumi", which consists of the following sub-folders:
+//               a) geom -->  model files
+//               b) parallel --> parallel pumi mesh files
+//               c) serial --> serial pumi mesh files
+
 
 #include "mfem.hpp"
 #include <fstream>
@@ -60,6 +68,10 @@
 #include <apfConvert.h>
 #include <gmi_mesh.h>
 #include <crv.h>
+
+#ifndef MFEM_USE_PUMI
+#error This example requires that MFEM is built with MFEM_USE_PUMI=YES
+#endif
 
 using namespace std;
 using namespace mfem;

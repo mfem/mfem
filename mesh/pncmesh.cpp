@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "../config/config.hpp"
 
@@ -202,7 +202,7 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
    // go assign existing edge/face indices
    NCMesh::OnMeshUpdated(mesh);
 
-   // assign ghost edge indices
+   // count ghost edges and assign their indices
    NEdges = mesh->GetNEdges();
    NGhostEdges = 0;
    for (auto node = nodes.begin(); node != nodes.end(); ++node)
@@ -213,12 +213,12 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
       }
    }
 
-   // assign ghost face indices
+   // count ghost faces
    NFaces = mesh->GetNumFaces();
    NGhostFaces = 0;
    for (auto face = faces.begin(); face != faces.end(); ++face)
    {
-      if (face->index < 0) { face->index = NFaces + (NGhostFaces++); }
+      if (face->index < 0) { NGhostFaces++; }
    }
 
    if (Dim == 2)
@@ -228,8 +228,12 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
       MFEM_ASSERT(NGhostFaces == NGhostEdges, "");
    }
 
-   // update face_geom for ghost faces
-   face_geom.SetSize(NFaces + NGhostFaces, Geometry::SQUARE);
+   // resize face_geom (default_geom is for slave faces beyond the ghost layer)
+   Geometry::Type default_geom = Geometry::SQUARE;
+   face_geom.SetSize(NFaces + NGhostFaces, default_geom);
+
+   // update 'face_geom' for ghost faces, assign ghost face indices
+   int nghosts = 0;
    for (int i = 0; i < NGhostElements; i++)
    {
       Element &el = elements[leaf_elements[NElements + i]]; // ghost element
@@ -242,15 +246,27 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
                                  el.node[fv[2]], el.node[fv[3]]);
          MFEM_ASSERT(face, "face not found!");
 
-         static const Geometry::Type types[5] =
+         if (face->index < 0)
          {
-            Geometry::INVALID, Geometry::INVALID,
-            Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::SQUARE
-         };
+            face->index = NFaces + (nghosts++);
 
-         face_geom[face->index] = types[gi.nfv[j]];
+            // store the face geometry
+            static const Geometry::Type types[5] =
+            {
+               Geometry::INVALID, Geometry::INVALID,
+               Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::SQUARE
+            };
+            face_geom[face->index] = types[gi.nfv[j]];
+         }
       }
    }
+
+   // assign valid indices also to faces beyond the ghost layer
+   for (face_iterator face = faces.begin(); face != faces.end(); ++face)
+   {
+      if (face->index < 0) { face->index = NFaces + (nghosts++); }
+   }
+   MFEM_ASSERT(nghosts == NGhostFaces, "");
 }
 
 void ParNCMesh::ElementSharesFace(int elem, int local, int face)
@@ -281,8 +297,8 @@ void ParNCMesh::BuildFaceList()
    // This is an extension of NCMesh::BuildFaceList() which also determines
    // face ownership and prepares face processor groups.
 
-   // (special case for prisms: to be able to handle edge-face constraints)
-   if (HavePrisms()) { GetEdgeList(); }
+   face_list.Clear();
+   if (Dim < 3) { return; }
 
    int nfaces = NFaces + NGhostFaces;
 
@@ -440,7 +456,7 @@ void ParNCMesh::MakeSharedList(const NCList &list, NCList &shared)
    MFEM_VERIFY(tmp_shared_flag.Size(), "wrong code path");
 
    // combine flags of masters and slaves
-   for (unsigned i = 0; i < list.masters.size(); i++)
+   for (int i = 0; i < list.masters.Size(); i++)
    {
       const Master &master = list.masters[i];
       char &master_flag = tmp_shared_flag[master.index];
@@ -467,26 +483,26 @@ void ParNCMesh::MakeSharedList(const NCList &list, NCList &shared)
 
    shared.Clear();
 
-   for (unsigned i = 0; i < list.conforming.size(); i++)
+   for (int i = 0; i < list.conforming.Size(); i++)
    {
       if (tmp_shared_flag[list.conforming[i].index] == 0x3)
       {
-         shared.conforming.push_back(list.conforming[i]);
+         shared.conforming.Append(list.conforming[i]);
       }
    }
-   for (unsigned i = 0; i < list.masters.size(); i++)
+   for (int i = 0; i < list.masters.Size(); i++)
    {
       if (tmp_shared_flag[list.masters[i].index] == 0x3)
       {
-         shared.masters.push_back(list.masters[i]);
+         shared.masters.Append(list.masters[i]);
       }
    }
-   for (unsigned i = 0; i < list.slaves.size(); i++)
+   for (int i = 0; i < list.slaves.Size(); i++)
    {
       int si = list.slaves[i].index;
       if (si >= 0 && tmp_shared_flag[si] == 0x3)
       {
-         shared.slaves.push_back(list.slaves[i]);
+         shared.slaves.Append(list.slaves[i]);
       }
    }
 }
@@ -606,7 +622,7 @@ void ParNCMesh::CalculatePMatrixGroups()
    ranks.Reserve(256);
 
    // connect slave edges to master edges and their vertices
-   for (unsigned i = 0; i < shared_edges.masters.size(); i++)
+   for (int i = 0; i < shared_edges.masters.Size(); i++)
    {
       const Master &master_edge = shared_edges.masters[i];
       ranks.SetSize(0);
@@ -628,7 +644,7 @@ void ParNCMesh::CalculatePMatrixGroups()
    }
 
    // connect slave faces to master faces and their edges and vertices
-   for (unsigned i = 0; i < shared_faces.masters.size(); i++)
+   for (int i = 0; i < shared_faces.masters.Size(); i++)
    {
       const Master &master_face = shared_faces.masters[i];
       ranks.SetSize(0);
@@ -1022,13 +1038,13 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
    Array<Element*> fnbr;
    Array<Connection> send_elems;
 
-   int bound = shared.conforming.size() + shared.slaves.size();
+   int bound = shared.conforming.Size() + shared.slaves.Size();
 
    fnbr.Reserve(bound);
    send_elems.Reserve(bound);
 
    // go over all shared faces and collect face neighbor elements
-   for (unsigned i = 0; i < shared.conforming.size(); i++)
+   for (int i = 0; i < shared.conforming.Size(); i++)
    {
       const MeshId &cf = shared.conforming[i];
       Face* face = GetFace(elements[cf.element], cf.local);
@@ -1044,15 +1060,15 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       send_elems.Append(Connection(e[0]->rank, e[1]->index));
    }
 
-   for (unsigned i = 0; i < shared.masters.size(); i++)
+   for (int i = 0; i < shared.masters.Size(); i++)
    {
       const Master &mf = shared.masters[i];
       for (int j = mf.slaves_begin; j < mf.slaves_end; j++)
       {
          const Slave &sf = full_list.slaves[j];
-         if (sf.index < 0) { continue; }
+         if (sf.element < 0) { continue; }
 
-         MFEM_ASSERT(mf.element >= 0 && sf.element >= 0, "");
+         MFEM_ASSERT(mf.element >= 0, "");
          Element* e[2] = { &elements[mf.element], &elements[sf.element] };
 
          bool loc0 = (e[0]->rank == MyRank);
@@ -1159,7 +1175,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
    pmesh.send_face_nbr_elements.MakeFromList(nranks, send_elems);
 
    // go over the shared faces again and modify their Mesh::FaceInfo
-   for (unsigned i = 0; i < shared.conforming.size(); i++)
+   for (int i = 0; i < shared.conforming.Size(); i++)
    {
       const MeshId &cf = shared.conforming[i];
       Face* face = GetFace(elements[cf.element], cf.local);
@@ -1182,7 +1198,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       }
    }
 
-   if (shared.slaves.size())
+   if (shared.slaves.Size())
    {
       int nfaces = NFaces, nghosts = NGhostFaces;
       if (Dim <= 2) { nfaces = NEdges, nghosts = NGhostEdges; }
@@ -1202,15 +1218,15 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       // remain untouched below and they will have Elem1No == -1, in particular.
 
       // fill in FaceInfo for shared slave faces
-      for (unsigned i = 0; i < shared.masters.size(); i++)
+      for (int i = 0; i < shared.masters.Size(); i++)
       {
          const Master &mf = shared.masters[i];
          for (int j = mf.slaves_begin; j < mf.slaves_end; j++)
          {
             const Slave &sf = full_list.slaves[j];
-            if (sf.index < 0) { continue; }
+            if (sf.element < 0) { continue; }
 
-            MFEM_ASSERT(sf.element >= 0 && mf.element >= 0, "");
+            MFEM_ASSERT(mf.element >= 0, "");
             Element &sfe = elements[sf.element];
             Element &mfe = elements[mf.element];
 
@@ -1244,9 +1260,11 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
             MFEM_ASSERT(fi.Elem2No >= NElements, "");
             fi.Elem2No = -1 - fnbr_index[fi.Elem2No - NElements];
 
-            const DenseMatrix* pm = &sf.point_matrix;
+            const DenseMatrix* pm = full_list.point_matrices[sf.geom][sf.matrix];
             if (!sloc && Dim == 3)
             {
+               // TODO: does this handle triangle faces correctly?
+
                // ghost slave in 3D needs flipping orientation
                DenseMatrix* pm2 = new DenseMatrix(*pm);
                std::swap((*pm2)(0,1), (*pm2)(0,3));
@@ -1265,6 +1283,14 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
                // 1, which is the element containing the slave face on one
                // processor, but on the other it is the element containing the
                // master face. In the latter case we need to flip the pm.
+            }
+            else if (!sloc && Dim == 2)
+            {
+               fi.Elem2Inf ^= 1; // set orientation to 1
+               // The point matrix (used to define "side 1" which is the same as
+               // "parent side" in this case) does not require a flip since it
+               // is aligned with the parent side, so NO flip is performed in
+               // Mesh::ApplyLocalSlaveTransformation.
             }
 
             MFEM_ASSERT(fi.NCFace < 0, "");
@@ -1356,6 +1382,7 @@ void ParNCMesh::Prune()
    {
       if (PruneTree(i)) { DerefineElement(i); }
    }
+
    Update();
 }
 
@@ -2271,9 +2298,31 @@ void ParNCMesh::ElementSet::Encode(const Array<int> &elements)
    FlagElements(elements, 0);
 }
 
+#ifdef MFEM_DEBUG
+std::string ParNCMesh::ElementSet::RefPath() const
+{
+   std::ostringstream oss;
+   for (int i = 0; i < ref_path.Size(); i++)
+   {
+      oss << "     elem " << ref_path[i] << " (";
+      const Element &el = ncmesh->elements[ref_path[i]];
+      for (int j = 0; j < GI[el.Geom()].nv; j++)
+      {
+         if (j) { oss << ", "; }
+         oss << ncmesh->RetrieveNode(el, j);
+      }
+      oss << ")\n";
+   }
+   return oss.str();
+}
+#endif
+
 void ParNCMesh::ElementSet::DecodeTree(int elem, int &pos,
                                        Array<int> &elements) const
 {
+#ifdef MFEM_DEBUG
+   ref_path.Append(elem);
+#endif
    int mask = data[pos++];
    if (!mask)
    {
@@ -2291,7 +2340,11 @@ void ParNCMesh::ElementSet::DecodeTree(int elem, int &pos,
          }
          else { MFEM_ASSERT(ref_type == el.ref_type, "") }
       }
-      else { MFEM_ASSERT(el.ref_type != 0, ""); }
+      else
+      {
+         MFEM_ASSERT(el.ref_type != 0, "Path not found:\n"
+                     << RefPath() << "     mask = " << mask);
+      }
 
       for (int i = 0; i < 8; i++)
       {
@@ -2301,6 +2354,9 @@ void ParNCMesh::ElementSet::DecodeTree(int elem, int &pos,
          }
       }
    }
+#ifdef MFEM_DEBUG
+   ref_path.DeleteLast();
+#endif
 }
 
 void ParNCMesh::ElementSet::Decode(Array<int> &elements) const
@@ -2334,8 +2390,8 @@ void ParNCMesh::AdjustMeshIds(Array<MeshId> ids[], int rank)
    GetSharedEdges();
    GetSharedFaces();
 
-   if (!shared_edges.masters.size() &&
-       !shared_faces.masters.size()) { return; }
+   if (!shared_edges.masters.Size() &&
+       !shared_faces.masters.Size()) { return; }
 
    Array<bool> contains_rank(groups.size());
    for (unsigned i = 0; i < groups.size(); i++)
@@ -2353,7 +2409,7 @@ void ParNCMesh::AdjustMeshIds(Array<MeshId> ids[], int rank)
 
    // find vertices of master edges shared with 'rank', and modify their
    // MeshIds so their element/local matches the element of the master edge
-   for (unsigned i = 0; i < shared_edges.masters.size(); i++)
+   for (int i = 0; i < shared_edges.masters.Size(); i++)
    {
       const MeshId &edge_id = shared_edges.masters[i];
       if (contains_rank[entity_pmat_group[1][edge_id.index]])
@@ -2373,7 +2429,7 @@ void ParNCMesh::AdjustMeshIds(Array<MeshId> ids[], int rank)
       }
    }
 
-   if (!shared_faces.masters.size()) { return; }
+   if (!shared_faces.masters.Size()) { return; }
 
    Array<Pair<int, int> > find_e(ids[1].Size());
    for (int i = 0; i < ids[1].Size(); i++)
@@ -2385,7 +2441,7 @@ void ParNCMesh::AdjustMeshIds(Array<MeshId> ids[], int rank)
 
    // find vertices/edges of master faces shared with 'rank', and modify their
    // MeshIds so their element/local matches the element of the master face
-   for (unsigned i = 0; i < shared_faces.masters.size(); i++)
+   for (int i = 0; i < shared_faces.masters.Size(); i++)
    {
       const MeshId &face_id = shared_faces.masters[i];
       if (contains_rank[entity_pmat_group[2][face_id.index]])
@@ -2794,9 +2850,9 @@ void ParNCMesh::Trim()
 {
    NCMesh::Trim();
 
-   shared_vertices.Clear(true);
-   shared_edges.Clear(true);
-   shared_faces.Clear(true);
+   shared_vertices.Clear();
+   shared_edges.Clear();
+   shared_faces.Clear();
 
    for (int i = 0; i < 3; i++)
    {

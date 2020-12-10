@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_SPARSEMAT_HPP
 #define MFEM_SPARSEMAT_HPP
@@ -20,6 +20,12 @@
 #include "../general/table.hpp"
 #include "../general/globals.hpp"
 #include "densemat.hpp"
+
+#ifdef MFEM_USE_CUDA
+#include <cusparse.h>
+#include <library_types.h>
+#include "../general/cuda.hpp"
+#endif
 
 namespace mfem
 {
@@ -80,9 +86,33 @@ protected:
    void Destroy();   // Delete all owned data
    void SetEmpty();  // Init all entries with empty values
 
+   bool useCuSparse{true}; // Use cuSPARSE if available
+
+   // Initialize cuSPARSE
+   void InitCuSparse();
+
+#ifdef MFEM_USE_CUDA
+   cusparseStatus_t status;
+   static cusparseHandle_t handle;
+   cusparseMatDescr_t descr=0;
+   static size_t bufferSize;
+   static void *dBuffer;
+   mutable bool initBuffers{false};
+
+   static int SparseMatrixCount;
+   mutable cusparseSpMatDescr_t matA_descr;
+   mutable cusparseDnVecDescr_t vecX_descr;
+   mutable cusparseDnVecDescr_t vecY_descr;
+#endif
+
 public:
    /// Create an empty SparseMatrix.
-   SparseMatrix() { SetEmpty(); }
+   SparseMatrix()
+   {
+      SetEmpty();
+
+      InitCuSparse();
+   }
 
    /** @brief Create a sparse matrix with flexible sparsity structure using a
        row-wise linked list (LIL) format. */
@@ -118,6 +148,8 @@ public:
    /// Create a SparseMatrix with diagonal @a v, i.e. A = Diag(v)
    SparseMatrix(const Vector & v);
 
+   // Runtime option to use cuSPARSE. Only valid when using a CUDA backend.
+   void UseCuSparse(bool _useCuSparse = true) { useCuSparse = _useCuSparse;}
 
    /// Assignment operator: deep copy
    SparseMatrix& operator=(const SparseMatrix &rhs);
@@ -259,7 +291,10 @@ public:
    void ToDenseMatrix(DenseMatrix & B) const;
 
    virtual MemoryClass GetMemoryClass() const
-   { return Finalized() ? Device::GetMemoryClass() : MemoryClass::HOST; }
+   {
+      return Finalized() ?
+             Device::GetDeviceMemoryClass() : Device::GetHostMemoryClass();
+   }
 
    /// Matrix vector multiplication.
    virtual void Mult(const Vector &x, Vector &y) const;
@@ -305,15 +340,21 @@ public:
 
    /// y = A * x, treating all entries as booleans (zero=false, nonzero=true).
    /** The actual values stored in the data array, #A, are not used - this means
-       and that all entries in the sparsity pattern are considered to be true by
+       that all entries in the sparsity pattern are considered to be true by
        this method. */
    void BooleanMult(const Array<int> &x, Array<int> &y) const;
 
    /// y = At * x, treating all entries as booleans (zero=false, nonzero=true).
    /** The actual values stored in the data array, #A, are not used - this means
-       and that all entries in the sparsity pattern are considered to be true by
+       that all entries in the sparsity pattern are considered to be true by
        this method. */
    void BooleanMultTranspose(const Array<int> &x, Array<int> &y) const;
+
+   /// y = |A| * x, using entry-wise absolute values of matrix A
+   void AbsMult(const Vector &x, Vector &y) const;
+
+   /// y = |At| * x, using entry-wise absolute values of the transpose of matrix A
+   void AbsMultTranspose(const Vector &x, Vector &y) const;
 
    /// Compute y^t A x
    double InnerProduct(const Vector &x, const Vector &y) const;
@@ -352,6 +393,10 @@ public:
        value in @a *x and subtracted from the r.h.s. vector, @a *b. */
    void EliminateCols(const Array<int> &cols, const Vector *x = NULL,
                       Vector *b = NULL);
+
+   /** @brief Similar to EliminateCols + save the eliminated entries into
+       @a Ae so that (*this) + Ae is equal to the original matrix. */
+   void EliminateCols(const Array<int> &col_marker, SparseMatrix &Ae);
 
    /// Eliminate row @a rc and column @a rc and modify the @a rhs using @a sol.
    /** Eliminates the column @a rc to the @a rhs, deletes the row @a rc and
@@ -417,8 +462,10 @@ public:
    /// A slightly more general version of the Finalize(int) method.
    void Finalize(int skip_zeros, bool fix_empty_rows);
 
+   /// Returns whether or not CSR format has been finalized.
    bool Finalized() const { return !A.Empty(); }
-   bool areColumnsSorted() const { return isSorted; }
+   /// Returns whether or not the columns are sorted.
+   bool ColumnsAreSorted() const { return isSorted; }
 
    /** @brief Remove entries smaller in absolute value than a given tolerance
        @a tol. If @a fix_empty_rows is true, a zero value is inserted in the
@@ -525,7 +572,7 @@ public:
    /// Prints a sparse matrix to stream out in CSR format.
    void PrintCSR2(std::ostream &out) const;
 
-   /// Print various sparse matrix staticstics.
+   /// Print various sparse matrix statistics.
    void PrintInfo(std::ostream &out) const;
 
    /// Returns max_{i,j} |(i,j)-(j,i)| for a finalized matrix
@@ -564,10 +611,27 @@ public:
    void Swap(SparseMatrix &other);
 
    /// Destroys sparse matrix.
-   virtual ~SparseMatrix() { Destroy(); }
+   virtual ~SparseMatrix()
+   {
+      Destroy();
+#ifdef MFEM_USE_CUDA
+      if (handle && SparseMatrixCount==1 && Device::Allows(Backend::CUDA_MASK))
+      {
+         cusparseDestroy(handle);
+         CuMemFree(dBuffer);
+      }
+      SparseMatrixCount--;
+#endif
+   }
 
    Type GetType() const { return MFEM_SPARSEMAT; }
 };
+
+inline std::ostream& operator<<(std::ostream& os, SparseMatrix const& mat)
+{
+   mat.Print(os);
+   return os;
+}
 
 /// Applies f() to each element of the matrix (after it is finalized).
 void SparseMatrixFunction(SparseMatrix &S, double (*f)(double));
