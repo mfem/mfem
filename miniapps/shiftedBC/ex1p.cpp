@@ -118,7 +118,6 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order = 1, dim);
    }
    ParFiniteElementSpace pfespace(&pmesh, fec);
-   pfespace.ExchangeFaceNbrData();
 
    Vector vxyz;
 
@@ -134,6 +133,7 @@ int main(int argc, char *argv[])
        }
    }
    pmesh.SetNodes(vxyz);
+   pfespace.ExchangeFaceNbrData();
 
    // Setup FESpace for L2 function (used to mark element flags etc.)
    L2_FECollection fecl2 = L2_FECollection(0, dim);
@@ -191,6 +191,8 @@ int main(int argc, char *argv[])
          trim_flag[i] = 2;
       }
    }
+
+   std::cout << myid << " " << pmesh.GetNSharedFaces() << " k10sharedfaces\n";
 
    // Check neighbors on the adjacent MPI rank
    for (int i = pmesh.GetNE(); i < pmesh.GetNE()+pmesh.GetNSharedFaces(); i++)
