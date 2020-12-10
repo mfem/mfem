@@ -1735,6 +1735,11 @@ void ParMesh::GetFaceNbrElementTransformation(
    }
 }
 
+double ParMesh::GetFaceNbrElementSize(int i, int type)
+{
+   return GetElementSize(GetFaceNbrElementTransformation(i), type);
+}
+
 void ParMesh::DeleteFaceNbrData()
 {
    if (!have_face_nbr_data)
