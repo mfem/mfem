@@ -2520,10 +2520,10 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
       x = 0.0;
    }
 
+   b.HostRead();
+   x.HostReadWrite();
    if (!setup_called)
    {
-      b.HostRead();
-      x.HostReadWrite();
       err = SetupFcn()(*this, *A, b, x);
       if (error_mode == WARN_HYPRE_ERRORS)
       {
@@ -2537,8 +2537,6 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
       setup_called = 1;
    }
 
-   b.HostRead();
-   x.HostReadWrite();
    err = SolveFcn()(*this, *A, b, x);
    if (error_mode == WARN_HYPRE_ERRORS)
    {
