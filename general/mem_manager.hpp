@@ -64,7 +64,8 @@ enum class MemoryClass
                                  HOST_UMPIRE, MANAGED } */
    HOST_32, ///< Memory types: { HOST_32, HOST_64, HOST_DEBUG }
    HOST_64, ///< Memory types: { HOST_64, HOST_DEBUG }
-   DEVICE,  ///< Memory types: { DEVICE, DEVICE_DEBUG, DEVICE_UMPIRE, DEVICE_TEMP_UMPIRE, MANAGED }
+   DEVICE,  ///< Memory types: { DEVICE, DEVICE_DEBUG, DEVICE_UMPIRE, MANAGED }
+   DEVICE_TEMP, ///< Memory types: { DEVICE_TEMP_UMPIRE }
    MANAGED  ///< Memory types: { MANAGED }
 };
 
@@ -140,7 +141,9 @@ protected:
       VALID_DEVICE  = 1 << 5, ///< %Device pointer is valid
       USE_DEVICE    = 1 << 6, /**< Internal device flag, see e.g.
                                    Vector::UseDevice() */
-      ALIAS         = 1 << 7  ///< Pointer is an alias
+      ALIAS         = 1 << 7, ///< Pointer is an alias
+      USE_TEMPORARY = 1 << 8  ///< Temporary Device memory flag
+
    };
 
    /// Pointer to host memory. Not owned.
@@ -237,6 +240,18 @@ public:
    void UseDevice(bool use_dev) const
    { flags = use_dev ? (flags | USE_DEVICE) : (flags & ~USE_DEVICE); }
 
+   bool UseTemporary() const { return flags & USE_TEMPORARY; }
+
+   void UseTemporary(bool use_temp)
+   {
+      if (use_temp != UseTemporary())
+      {
+         MFEM_VERIFY(!(flags & VALID_DEVICE),
+                     "Cannot change temporary status when the device pointer already exists");
+      }
+      flags = use_temp ? (flags | USE_TEMPORARY) : (flags & ~USE_TEMPORARY);
+   }
+
    /// Return the size of the allocated memory.
    int Capacity() const { return capacity; }
 
@@ -322,7 +337,6 @@ public:
    /** @brief Delete the owned device pointer. */
    inline void DeleteDevice();
 
-   inline void UpdateMemoryType(const MemoryType mt);
 
    /// Array subscript operator for host memory.
    inline T &operator[](int idx);
@@ -536,9 +550,6 @@ private: // Static methods used by the Memory<T> class
    /// Free device memory identified by its host pointer
    static void DeleteDevice_(void *h_ptr, unsigned & flags);
 
-   static void UpdateMemoryType_(void *h_ptr, unsigned & flags,
-                                 const MemoryType mt);
-
    /// Check if the memory types given the memory class are valid
    static bool MemoryClassCheck_(MemoryClass mc, void *h_ptr,
                                  MemoryType h_mt, size_t bytes, unsigned flags);
@@ -619,7 +630,7 @@ private:
    /// Erase an alias from the aliases map
    void EraseAlias(void *alias_ptr);
 
-   void UpdateMemoryType(void *h_ptr, const MemoryType mt);
+   void UpdateDeviceMemoryType(void *h_ptr, const MemoryType mt);
 
    /// Return the corresponding device pointer of h_ptr,
    /// allocating and moving the data if needed
@@ -822,26 +833,6 @@ inline void Memory<T>::DeleteDevice()
    if (registered)
    {
       MemoryManager::DeleteDevice_((void*)h_ptr, flags);
-   }
-}
-
-template <typename T>
-inline void Memory<T>::UpdateMemoryType(const MemoryType mt)
-{
-   if (flags & REGISTERED)
-   {
-      MFEM_VERIFY(!(flags & VALID_DEVICE),
-                  "cannot update MemoryType when data is on the device");
-      MemoryManager::UpdateMemoryType_((void*)h_ptr, flags, mt);
-   }
-   else
-   {
-      MFEM_VERIFY(flags & OWNS_HOST, "UpdateMemoryType: must own host");
-      if (mt != MemoryType::HOST)
-      {
-         MemoryManager::Register_(nullptr, h_ptr, capacity*sizeof(T), mt, true, false,
-                                  flags);
-      }
    }
 }
 
