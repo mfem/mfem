@@ -3,9 +3,13 @@
 
 // starting with square-disc.mesh
 
-// boundary attribute 1: totally fixed (?)
-// boundary attribute 2: gets force applied (?)
+// boundary attribute 4: fixed left side
+// boundary attribute 2: force applied on right side
 // boundary attribute 5, 6, 7, 8: sliding on internal circle
+
+// 1 is bottom, 2 is right side, 4 is left side
+
+// todo: reordering interface in EliminationCGSolver
 
 #include "mfem.hpp"
 #include <fstream>
@@ -211,8 +215,7 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      // int par_ref_levels = 1;
-      int par_ref_levels = 0;
+      int par_ref_levels = 1;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
@@ -258,7 +261,8 @@ int main(int argc, char *argv[])
    //    converting it to a list of true dofs.
    Array<int> ess_tdof_list, ess_bdr(pmesh->bdr_attributes.Max());
    ess_bdr = 0;
-   ess_bdr[0] = 1;
+   // ess_bdr[0] = 1; // bottom
+   ess_bdr[3] = 1; // left side
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    // 9. Set up the parallel linear form b(.) which corresponds to the
@@ -277,7 +281,7 @@ int main(int argc, char *argv[])
    {
       Vector pull_force(pmesh->bdr_attributes.Max());
       pull_force = 0.0;
-      pull_force(1) = -1.0e-2; // index 1 attribute 2
+      pull_force(1) = -5.0e-2; // index 1 attribute 2
       f.Set(dim-1, new PWConstCoefficient(pull_force));
    }
 
@@ -295,7 +299,6 @@ int main(int argc, char *argv[])
    }
    HypreParMatrix * hconstraints = BuildNormalConstraints(*fespace,
                                                           constraint_atts);
-
 
    ParLinearForm *b = new ParLinearForm(fespace);
    b->AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(f));
