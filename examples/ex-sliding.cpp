@@ -9,8 +9,6 @@
 
 // 1 is bottom, 2 is right side, 4 is left side
 
-// todo: reordering interface in EliminationCGSolver
-
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -348,18 +346,6 @@ int main(int argc, char *argv[])
 
    // 13. Define and apply a parallel PCG solver for A X = B with the BoomerAMG
    //     preconditioner from hypre.
-/*
-   HypreBoomerAMG *amg = new HypreBoomerAMG(A);
-   if (amg_elast && !a->StaticCondensationIsEnabled())
-   {
-      amg->SetElasticityOptions(fespace);
-   }
-   else
-   {
-      amg->SetSystemsOptions(dim, reorder_space);
-   }
-   HyprePCG *pcg = new HyprePCG(A);
-*/
    SparseMatrix local_constraints;
    hconstraints->GetDiag(local_constraints);
    Array<int> lagrange_rowstarts(local_constraints.Height() + 1);
@@ -367,12 +353,12 @@ int main(int argc, char *argv[])
    {
       lagrange_rowstarts[k] = k;
    }
-   EliminationCGSolver * solver = new EliminationCGSolver(A, local_constraints, lagrange_rowstarts, dim);
+   EliminationCGSolver * solver = new EliminationCGSolver(A, local_constraints,
+                                                          lagrange_rowstarts, dim,
+                                                          false);
    solver->SetRelTol(1e-8);
    solver->SetMaxIter(500);
    solver->SetPrintLevel(1);
-   // pcg->SetPreconditioner(*amg);
-   // pcg->Mult(B, X);
    solver->Mult(B, X);
 
    // 14. Recover the parallel grid function corresponding to X. This is the
