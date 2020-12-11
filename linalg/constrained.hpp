@@ -195,7 +195,7 @@ public:
    EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
                        Array<int>& primary_dofs,
                        Array<int>& secondary_dofs,
-                       int dimension=0);
+                       int dimension=0, bool reorder=false);
 
    /** @brief Constructor, elimination is by blocks.
 
@@ -204,7 +204,7 @@ public:
        dofs are assumed to be the first nonzeros in the rows. */
    EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
                        Array<int>& lagrange_rowstarts,
-                       int dimension=0);
+                       int dimension=0, bool reorder=false);
 
    ~EliminationCGSolver();
 
@@ -212,7 +212,7 @@ public:
 
 private:
    /// Utility routine for constructors
-   void BuildPreconditioner(int dimension);
+   void BuildPreconditioner(int dimension, bool reorder);
 
    HypreParMatrix& hA_;
    Array<Eliminator*> elims_;
@@ -231,18 +231,19 @@ class PenaltyConstrainedSolver : public ConstrainedSolver
 public:
    PenaltyConstrainedSolver(MPI_Comm comm, HypreParMatrix& A,
                             SparseMatrix& B, double penalty_,
-                            int dimension=0);
+                            int dimension=0, bool reorder=false);
 
    PenaltyConstrainedSolver(MPI_Comm comm, HypreParMatrix& A,
                             HypreParMatrix& B, double penalty_,
-                            int dimension=0);
+                            int dimension=0, bool reorder=false);
 
    ~PenaltyConstrainedSolver();
 
    void Mult(const Vector& x, Vector& y) const override;
 
 private:
-   void Initialize(HypreParMatrix& A, HypreParMatrix& B, int dimension);
+   void Initialize(HypreParMatrix& A, HypreParMatrix& B, int dimension,
+                   bool reorder);
 
    double penalty;
    Operator& constraintB;
@@ -301,7 +302,8 @@ class SchurConstrainedHypreSolver : public SchurConstrainedSolver
 {
 public:
    SchurConstrainedHypreSolver(MPI_Comm comm, HypreParMatrix& hA_,
-                               HypreParMatrix& hB_, int dimension=0);
+                               HypreParMatrix& hB_, int dimension=0,
+                               bool reorder=false);
    virtual ~SchurConstrainedHypreSolver();
 
 private:
