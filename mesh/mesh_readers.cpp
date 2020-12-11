@@ -2025,30 +2025,37 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             for (int j=0; j<num_nodes; j++)
             {
                input >> slave >> master;
-               // Forces slave to have an index larger to master
-               if (slave > master)
-               {
-                  v2v[slave - 1] = master - 1;
-               }
-               else
-               {
-                  v2v[master - 1] = slave - 1;
-               }
+               v2v[slave - 1] = master - 1;
             }
             getline(input, buff); // Read end-of-line
          }
 
-         // Follow existing long chains of slave->master in v2v array.
-         // Finally, we should have v2v[slave] pointing on a true master.
+         // Follow existing long chains of slave->master in v2v array. Finally,
+         // we should have v2v[slave] pointing on a true master. This algorithm
+         // is useful for periodicity defined in multiple directions.
          for (int slave = 0; slave < v2v.Size(); slave++)
          {
             int master = v2v[slave];
             if (master != slave)
             {
-               // This loop is ending because we imposed previously
-               // that a slave has an index larger to master.
-               while (v2v[master] != master) {  master = v2v[master]; }
-               v2v[slave] = master;
+               // This loop is ending even if it happens
+               // that we loop back on slave (circular dependency)
+               while (v2v[master] != master && master != slave)
+               {
+                  master = v2v[master];
+               }
+               if (master == slave)
+               {
+                  // if master and slave are the same vertex, circular dependency
+                  // exists. We need to fix the problem, we choose slave.
+                  v2v[slave] = slave;
+               }
+               else
+               {
+                  // the long chain has ended up to the vertex master
+		  // then we store this final master
+                  v2v[slave] = master;
+               }
             }
          }
 
