@@ -511,6 +511,7 @@ bool UmpireHasId(const umpire::ResourceManager & rm, int id)
 class UmpireHostMemorySpace : public HostMemorySpace
 {
 private:
+   const char *name;
    umpire::ResourceManager &rm;
    umpire::Allocator h_allocator;
    bool owns_allocator{false};
@@ -546,6 +547,7 @@ class UmpireDeviceMemorySpaceImpl : public DeviceMemorySpace
 public:
    enum class AllocatorType { TEMPORARY, PERMANENT };
 private:
+   const char *name;
    umpire::ResourceManager &rm;
    umpire::Allocator d_allocator;
    bool owns_allocator{false};
@@ -1423,6 +1425,15 @@ void MemoryManager::Configure(const MemoryType host_mt,
    device_mem_type = device_mt;
    device_temp_mem_type = device_tmt;
 }
+
+#ifdef MFEM_USE_UMPIRE
+void MemoryManager::SetUmpireAllocatorNames(const char *h_name,
+                                            const char *d_name)
+{
+   h_umpire_name = h_name;
+   d_umpire_name = d_name;
+}
+#endif
 
 void MemoryManager::Destroy()
 {

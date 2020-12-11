@@ -100,7 +100,7 @@ public:
 /**
  * This implementation of a transient incompressible Navier Stokes solver uses
  * the non-dimensionalized formulation. The coupled momentum and
- * incompressibilty equations are decoupled using the split scheme described in
+ * incompressibility equations are decoupled using the split scheme described in
  * [1]. This leads to three solving steps.
  *
  * 1. An extrapolation step for all nonlinear terms which are treated
@@ -118,7 +118,7 @@ public:
  * \f$M_v^{-1}\f$ is solved using CG with Jacobi as preconditioner.
  *
  * \f$S_p^{-1}\f$ is solved using CG with AMG applied to the low order refined
- * (LOR) assembled pressure poisson matrix. To avoid assembling a matrix for
+ * (LOR) assembled pressure Poisson matrix. To avoid assembling a matrix for
  * preconditioning, one can use p-MG as an alternative (NYI).
  *
  * \f$(M_v - \partial t K_v)^{-1}\f$ due to the CFL condition we expect the time
@@ -160,7 +160,31 @@ public:
    void Setup(double dt);
 
    /// Compute solution at the next time step t+dt.
-   void Step(double &time, double dt, int cur_step);
+   /**
+    * This method can be called with the default value @a provisional which
+    * always accepts the computed time step by automatically calling
+    * UpdateTimestepHistory.
+    *
+    * If @a provisional is set to true, the solution at t+dt is not accepted
+    * automatically and the application code has to call UpdateTimestepHistory
+    * and update the @a time variable accordingly.
+    *
+    * The application code can check the provisional step by retrieving the
+    * GridFunction with the method GetProvisionalVelocity. If the check fails,
+    * it is possible to retry the step with a different time step by not
+    * calling UpdateTimestepHistory and calling this method with the previous
+    * @a time and @a cur_step.
+    *
+    * The method and parameter choices are based on [1].
+    *
+    * [1] D. Wang, S.J. Ruuth (2008) Variable step-size implicit-explicit
+    * linear multistep methods for time-dependent partial differential
+    * equations
+    */
+   void Step(double &time, double dt, int cur_step, bool provisional = false);
+
+   /// Return a pointer to the provisional velocity ParGridFunction.
+   ParGridFunction *GetProvisionalVelocity() { return &un_next_gf; }
 
    /// Return a pointer to the current velocity ParGridFunction.
    ParGridFunction *GetCurrentVelocity() { return &un_gf; }
@@ -178,7 +202,7 @@ public:
 
    void AddPresDirichletBC(ScalarFuncT *f, Array<int> &attr);
 
-   /// Add an accelaration term to the RHS of the equation.
+   /// Add an acceleration term to the RHS of the equation.
    /**
     * The VecFuncT @a f is evaluated at the current time t and extrapolated
     * together with the nonlinear parts of the Navier Stokes equation.
@@ -200,7 +224,7 @@ public:
     *
     * 1. SETUP: Time spent for the setup of all forms, solvers and
     *    preconditioners.
-    * 2. STEP: Time spent computing a full time step. It includes allthree
+    * 2. STEP: Time spent computing a full time step. It includes all three
     *    solves.
     * 3. EXTRAP: Time spent for extrapolation of all forcing and nonlinear
     *    terms.
@@ -238,11 +262,30 @@ public:
     */
    void MeanZero(ParGridFunction &v);
 
+   /// Rotate entries in the time step and solution history arrays.
+   void UpdateTimestepHistory(double dt);
+
+   /// Set the maximum order to use for the BDF method.
+   void SetMaxBDFOrder(int maxbdforder) { max_bdf_order = maxbdforder; };
+
    /// Compute CFL
    double ComputeCFL(ParGridFunction &u, double dt);
 
+   /// Set the number of modes to cut off in the interpolation filter
+   void SetCutoffModes(int c) { filter_cutoff_modes = c; }
+
+   /// Set the interpolation filter parameter @a a
+   /**
+    * If @a a is > 0, the filtering algorithm for the velocity field after every
+    * time step from [1] is used. The parameter should be 0 > @a >= 1.
+    *
+    * [1] Paul Fischer, Julia Mullen (2001) Filter-based stabilization of
+    * spectral element methods
+    */
+   void SetFilterAlpha(double a) { filter_alpha = a; }
+
 protected:
-   /// Print informations about the Navier version.
+   /// Print information about the Navier version.
    void PrintInfo();
 
    /// Update the EXTk/BDF time integration coefficient.
@@ -250,7 +293,8 @@ protected:
     * Depending on which time step the computation is in, the EXTk/BDF time
     * integration coefficients have to be set accordingly. This allows
     * bootstrapping with a BDF scheme of order 1 and increasing the order each
-    * following time step, up to order 3.
+    * following time step, up to order 3 (or whichever order is set in
+    * SetMaxBDFOrder).
     */
    void SetTimeIntegrationCoefficients(int step);
 
@@ -343,12 +387,14 @@ protected:
    Solver *HInvPC = nullptr;
    CGSolver *HInv = nullptr;
 
-   Vector fn, un, unm1, unm2, Nun, Nunm1, Nunm2, Fext, FText, Lext, resu;
+   Vector fn, un, un_next, unm1, unm2, Nun, Nunm1, Nunm2, Fext, FText, Lext,
+          resu;
    Vector tmp1;
 
    Vector pn, resp, FText_bdr, g_bdr;
 
-   ParGridFunction un_gf, curlu_gf, curlcurlu_gf, Lext_gf, FText_gf, resu_gf;
+   ParGridFunction un_gf, un_next_gf, curlu_gf, curlcurlu_gf, Lext_gf, FText_gf,
+                   resu_gf;
 
    ParGridFunction pn_gf, resp_gf;
 
@@ -369,7 +415,9 @@ protected:
    // Bookkeeping for acceleration (forcing) terms.
    std::vector<AccelTerm_T> accel_terms;
 
+   int max_bdf_order = 3;
    int cur_step = 0;
+   std::vector<double> dthist = {0.0, 0.0, 0.0};
 
    // BDFk/EXTk coefficients.
    double bd0 = 0.0;
@@ -412,7 +460,18 @@ protected:
    OperatorHandle Mv_lor;
    OperatorHandle Sp_lor;
    OperatorHandle H_lor;
+
+   // Filter-based stabilization
+   int filter_cutoff_modes = 1;
+   double filter_alpha = 0.0;
+   FiniteElementCollection *vfec_filter = nullptr;
+   ParFiniteElementSpace *vfes_filter = nullptr;
+   ParGridFunction un_NM1_gf;
+   ParGridFunction un_filtered_gf;
 };
+
 } // namespace navier
+
 } // namespace mfem
+
 #endif

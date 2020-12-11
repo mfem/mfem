@@ -15,6 +15,7 @@ list(APPEND SRCS
   blockvector.cpp
   complex_operator.cpp
   densemat.cpp
+  symmat.cpp
   handle.cpp
   matrix.cpp
   ode.cpp
@@ -31,6 +32,7 @@ list(APPEND HDRS
   blockvector.hpp
   complex_operator.hpp
   densemat.hpp
+  symmat.hpp
   dtensor.hpp
   handle.hpp
   invariants.hpp
@@ -71,11 +73,6 @@ if (MFEM_USE_MPI)
   endif()
 endif()
 
-if (MFEM_USE_GINKGO)
-  list(APPEND SRCS ginkgo.cpp)
-  list(APPEND HDRS ginkgo.hpp)
-endif()
-
 if (MFEM_USE_SUNDIALS)
   list(APPEND SRCS sundials.cpp)
   list(APPEND HDRS sundials.hpp)
@@ -88,14 +85,34 @@ if (MFEM_USE_SUPERLU)
   list(APPEND HDRS superlu.hpp)
 endif()
 
+if (MFEM_USE_MUMPS)
+  list(APPEND SRCS mumps.cpp)
+  list(APPEND HDRS mumps.hpp)
+endif()
+
 if (MFEM_USE_STRUMPACK)
   list(APPEND SRCS strumpack.cpp)
   list(APPEND HDRS strumpack.hpp)
 endif()
 
+if (MFEM_USE_GINKGO)
+  list(APPEND SRCS ginkgo.cpp)
+  list(APPEND HDRS ginkgo.hpp)
+endif()
+
+if (MFEM_USE_AMGX)
+  list(APPEND SRCS amgxsolver.cpp)
+  list(APPEND HDRS amgxsolver.hpp)
+endif()
+
 if (MFEM_USE_HIOP)
   list(APPEND SRCS hiop.cpp)
   list(APPEND HDRS hiop.hpp)
+endif()
+
+if (MFEM_USE_MKL_CPARDISO)
+  list(APPEND SRCS cpardiso.cpp)
+  list(APPEND HDRS cpardiso.hpp)
 endif()
 
 convert_filenames_to_full_paths(SRCS)
