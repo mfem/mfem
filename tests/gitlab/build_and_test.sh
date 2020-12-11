@@ -47,76 +47,76 @@ then
 
     tests/gitlab/get_mfem_uberenv.sh || ( echo "Error fetching Uberenv" && exit 1 );
 
-    python tests/uberenv/uberenv.py --spec="${spec}" "${upstream_opt}" "${prefix_opt}"
+    python tests/uberenv/uberenv.py --install --spec="${spec}" "${upstream_opt}" "${prefix_opt}"
 
 fi
 
-# Host config file
-if [[ -z ${hostconfig} ]]
-then
-    # If no host config file was provided, we assume it was generated.
-    # This means we are looking of a unique one in project dir.
-    hostconfigs=( $( ls "${project_dir}/"hc-*.mk ) )
-    if [[ ${#hostconfigs[@]} == 1 ]]
-    then
-        hostconfig_path=${hostconfigs[0]}
-        echo "Found host config file: ${hostconfig_path}"
-    elif [[ ${#hostconfigs[@]} == 0 ]]
-    then
-        echo "No result for: ${project_dir}/hc-*.mk"
-        echo "Spack generated host-config not found."
-        exit 1
-    else
-        echo "More than one result for: ${project_dir}/hc-*.mk"
-        echo "${hostconfigs[@]}"
-        echo "Please specify one with HOST_CONFIG variable"
-        exit 1
-    fi
-else
-    # Using provided host-config file.
-    hostconfig_path="${project_dir}/host-configs/${hostconfig}"
-fi
-
-# Build Directory
-if [[ -z ${build_root} ]]
-then
-    build_root=$(pwd)
-fi
-
-build_dir="${build_root}/build_${hostconfig//.mk/}"
-
-# Build
-if [[ "${option}" != "--deps-only" && "${option}" != "--test-only" ]]
-then
-    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    echo "~ Host-config: ${hostconfig_path}"
-    echo "~ Build Dir:   ${build_dir}"
-    echo "~ Project Dir: ${project_dir}"
-    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-
-    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    echo "~~~~~ Building MFEM"
-    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-
-    cp ${hostconfig_path} ${project_dir}/config/
-
-    make all -j ${threads}
-fi
-
-# Test
-if [[ "${option}" != "--build-only" ]]
-then
-    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    echo "~~~~~ Testing MFEM"
-    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-
-    return_code=0
-    make test 2>&1 | tee tests_output.txt || return_code=${?}
-
-    if grep -q "All tests passed." ./tests_output.txt
-    then
-        echo "SUCCESS: No error during tests" && exit 0
-    else
-        echo "ERROR: failure(s) while running MFEM tests" && exit 1
-    fi
-fi
+## Host config file
+#if [[ -z ${hostconfig} ]]
+#then
+#    # If no host config file was provided, we assume it was generated.
+#    # This means we are looking of a unique one in project dir.
+#    hostconfigs=( $( ls "${project_dir}/"hc-*.mk ) )
+#    if [[ ${#hostconfigs[@]} == 1 ]]
+#    then
+#        hostconfig_path=${hostconfigs[0]}
+#        echo "Found host config file: ${hostconfig_path}"
+#    elif [[ ${#hostconfigs[@]} == 0 ]]
+#    then
+#        echo "No result for: ${project_dir}/hc-*.mk"
+#        echo "Spack generated host-config not found."
+#        exit 1
+#    else
+#        echo "More than one result for: ${project_dir}/hc-*.mk"
+#        echo "${hostconfigs[@]}"
+#        echo "Please specify one with HOST_CONFIG variable"
+#        exit 1
+#    fi
+#else
+#    # Using provided host-config file.
+#    hostconfig_path="${project_dir}/host-configs/${hostconfig}"
+#fi
+#
+## Build Directory
+#if [[ -z ${build_root} ]]
+#then
+#    build_root=$(pwd)
+#fi
+#
+#build_dir="${build_root}/build_${hostconfig//.mk/}"
+#
+## Build
+#if [[ "${option}" != "--deps-only" && "${option}" != "--test-only" ]]
+#then
+#    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+#    echo "~ Host-config: ${hostconfig_path}"
+#    echo "~ Build Dir:   ${build_dir}"
+#    echo "~ Project Dir: ${project_dir}"
+#    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+#
+#    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+#    echo "~~~~~ Building MFEM"
+#    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+#
+#    cp ${hostconfig_path} ${project_dir}/config/
+#
+#    make all -j ${threads}
+#fi
+#
+## Test
+#if [[ "${option}" != "--build-only" ]]
+#then
+#    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+#    echo "~~~~~ Testing MFEM"
+#    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+#
+#    return_code=0
+#    make test 2>&1 | tee tests_output.txt || return_code=${?}
+#
+#    if grep -q "All tests passed." ./tests_output.txt
+#    then
+#        echo "SUCCESS: No error during tests" && exit 0
+#    else
+#        echo "ERROR: failure(s) while running MFEM tests" && exit 1
+#    fi
+#fi
