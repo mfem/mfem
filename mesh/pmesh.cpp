@@ -5639,24 +5639,15 @@ void ParMesh::GetGlobalFaceIndices(Array<HYPRE_Int> &gi)
 
 void ParMesh::GetGlobalElementIndices(Array<HYPRE_Int> &gi)
 {
-   L2_FECollection fec(0, Dim); // Order 0, mesh dimension (not spatial dimension).
-   ParFiniteElementSpace fespace(this, &fec);
+   ComputeGlobalElementOffset();
 
-   MFEM_VERIFY(fespace.GetVSize() == GetNE(),
-               "There should be a bijection between DOFs and elements");
+   const HYPRE_Int offset = glob_elem_offset;  // Cast from long to HYPRE_Int
 
    gi.SetSize(GetNE());
-
-   Array<int> dofs;
-   bool oneDof = true;
    for (int i=0; i<GetNE(); ++i)
    {
-      fespace.GetElementDofs(i, dofs);
-      oneDof = oneDof && (dofs.Size() == 1);
-      gi[i] = fespace.GetGlobalTDofNumber(dofs[0]);
+      gi[i] = offset + i;
    }
-
-   MFEM_VERIFY(oneDof, "Each element should have exactly one DOF");
 }
 
 ParMesh::~ParMesh()
