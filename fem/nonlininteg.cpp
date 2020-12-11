@@ -128,6 +128,65 @@ double BlockNonlinearFormIntegrator::GetElementEnergy(
    return 0.0;
 }
 
+double PrmBlockNonlinearFormIntegrator::GetElementEnergy(const Array<const FiniteElement *> &el,
+                                                         const Array<const FiniteElement *> &pel,
+                                                         ElementTransformation &Tr,
+                                                         const Array<const Vector *> &elfun,
+                                                         const Array<const Vector *> &pelfun)
+{
+    mfem_error("PrmBlockNonlinearFormIntegrator::GetElementEnergy"
+               " is not overloaded!");
+    return 0.0;
+}
+
+void PrmBlockNonlinearFormIntegrator::AssembleFaceGrad(const Array<const FiniteElement *> &el1,
+                                                       const Array<const FiniteElement *> &el2,
+                                                       const Array<const FiniteElement *> &pel1,
+                                                       const Array<const FiniteElement *> &pel2,
+                                                       FaceElementTransformations &Tr,
+                                                       const Array<const Vector *> &elfun,
+                                                       const Array<const Vector *> &pelfun,
+                                                       const Array2D<DenseMatrix *> &elmats)
+{
+    mfem_error("PrmBlockNonlinearFormIntegrator::AssembleFaceGrad"
+               " is not overloaded!");
+}
+
+void PrmBlockNonlinearFormIntegrator::AssembleElementGrad(const Array<const FiniteElement *> &el,
+                                                          const Array<const FiniteElement *> &pel,
+                                                          ElementTransformation &Tr,
+                                                          const Array<const Vector *> &elfun,
+                                                          const Array<const Vector *> &pelfun,
+                                                          const Array2D<DenseMatrix *> &elmats)
+{
+    mfem_error("PrmBlockNonlinearFormIntegrator::AssembleElementGrad"
+               " is not overloaded!");
+}
+
+void PrmBlockNonlinearFormIntegrator::AssembleElementVector(const Array<const FiniteElement *> &el,
+                                                            const Array<const FiniteElement *> &pel,
+                                                            ElementTransformation &Tr,
+                                                            const Array<const Vector *> &elfun,
+                                                            const Array<const Vector *> &pelfun,
+                                                            const Array<Vector *> &elvec)
+{
+    mfem_error("PrmBlockNonlinearFormIntegrator::AssembleElementVector"
+               " is not overloaded!");
+}
+
+void PrmBlockNonlinearFormIntegrator::AssembleFaceVector(const Array<const FiniteElement *> &el1,
+                                                         const Array<const FiniteElement *> &el2,
+                                                         const Array<const FiniteElement *> &pel1,
+                                                         const Array<const FiniteElement *> &pel2,
+                                                         FaceElementTransformations &Tr,
+                                                         const Array<const Vector *> &elfun,
+                                                         const Array<const Vector *> &pelfun,
+                                                         const Array<Vector *> &elvect)
+{
+    mfem_error("PrmBlockNonlinearFormIntegrator::AssembleFaceVector"
+               " is not overloaded!");
+}
+
 
 double InverseHarmonicModel::EvalW(const DenseMatrix &J) const
 {
