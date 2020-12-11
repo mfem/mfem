@@ -130,6 +130,58 @@ public:
 };
 
 
+/** The abstract base class PrmBlockNonlinearFormIntegrator is
+    a generalization of the BlockNonlinearFormIntegrator class suitable
+    for block state and parameter vectors. */
+class PrmBlockNonlinearFormIntegrator
+{
+public:
+   /// Compute the local energy
+   virtual double GetElementEnergy(const Array<const FiniteElement *>&el,
+                                   const Array<const FiniteElement *>&pel,
+                                   ElementTransformation &Tr,
+                                   const Array<const Vector *>&elfun,
+                                   const Array<const Vector *>&pelfun);
+
+   /// Perform the local action of the BlockNonlinearFormIntegrator
+   virtual void AssembleElementVector(const Array<const FiniteElement *> &el,
+                                      const Array<const FiniteElement *>&pel,
+                                      ElementTransformation &Tr,
+                                      const Array<const Vector *> &elfun,
+                                      const Array<const Vector *>&pelfun,
+                                      const Array<Vector *> &elvec);
+
+   virtual void AssembleFaceVector(const Array<const FiniteElement *> &el1,
+                                   const Array<const FiniteElement *> &el2,
+                                   const Array<const FiniteElement *> &pel1,
+                                   const Array<const FiniteElement *> &pel2,
+                                   FaceElementTransformations &Tr,
+                                   const Array<const Vector *> &elfun,
+                                   const Array<const Vector *>&pelfun,
+                                   const Array<Vector *> &elvect);
+
+   /// Assemble the local gradient matrix
+   virtual void AssembleElementGrad(const Array<const FiniteElement*> &el,
+                                    const Array<const FiniteElement *>&pel,
+                                    ElementTransformation &Tr,
+                                    const Array<const Vector *> &elfun,
+                                    const Array<const Vector *>&pelfun,
+                                    const Array2D<DenseMatrix *> &elmats);
+
+   virtual void AssembleFaceGrad(const Array<const FiniteElement *>&el1,
+                                 const Array<const FiniteElement *>&el2,
+                                 const Array<const FiniteElement *> &pel1,
+                                 const Array<const FiniteElement *> &pel2,
+                                 FaceElementTransformations &Tr,
+                                 const Array<const Vector *> &elfun,
+                                 const Array<const Vector *>&pelfun,
+                                 const Array2D<DenseMatrix *> &elmats);
+
+   virtual ~PrmBlockNonlinearFormIntegrator() { }
+};
+
+
+
 /// Abstract class for hyperelastic models
 class HyperelasticModel
 {
