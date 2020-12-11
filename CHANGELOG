@@ -39,6 +39,11 @@ Version 4.2.1 (development)
 
 - Implemented the parallel Kelly error indicator for scalar-valued problems.
 
+- Added new classes DenseSymmetricMatrix and SymmetricMatrixCoefficient for
+  efficient evaluation of symmetric matrix coefficients. This replaces the now
+  deprecated EvalSymmetric in MatrixCoefficient. Added DiagonalMatrixCoefficient
+  for clarity, which is a typedef of VectorCoefficient.
+
 
 Version 4.2, released on October 30, 2020
 =========================================

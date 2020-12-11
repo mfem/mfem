@@ -379,51 +379,54 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const int MQfullDim = MQ ? MQ->GetHeight() * MQ->GetWidth() : 0;
    if (MQ)
    {
+      symmetric = false;
       MFEM_VERIFY(MQ->GetHeight() == dim && MQ->GetWidth() == dim, "");
-      const int MQsymmDim = MQ->GetWidth() * (MQ->GetWidth() + 1) / 2;
 
-      const int MQdim = MQ->IsSymmetric() ? MQsymmDim : MQfullDim;
-      coeffDim = MQdim;
+      coeffDim = MQfullDim;
 
-      coeff.SetSize(MQdim * nq * ne);
-      symmetric = MQ ? MQ->IsSymmetric() : true;
+      coeff.SetSize(MQfullDim * nq * ne);
 
       DenseMatrix M;
-      Vector Msymm;
-      if (symmetric)
-      {
-         Msymm.SetSize(MQsymmDim);
-      }
-      else
-      {
-         M.SetSize(dim);
-      }
+      M.SetSize(dim);
 
-      auto C = Reshape(coeff.HostWrite(), MQdim, nq, ne);
+      auto C = Reshape(coeff.HostWrite(), MQfullDim, nq, ne);
       for (int e=0; e<ne; ++e)
       {
          ElementTransformation *tr = mesh->GetElementTransformation(e);
          for (int p=0; p<nq; ++p)
          {
-            if (MQ->IsSymmetric())
-            {
-               MQ->EvalSymmetric(Msymm, *tr, ir->IntPoint(p));
-
-               for (int i=0; i<MQsymmDim; ++i)
+            MQ->Eval(M, *tr, ir->IntPoint(p));
+            for (int i=0; i<dim; ++i)
+               for (int j=0; j<dim; ++j)
                {
-                  C(i, p, e) = Msymm[i];
+                  C(j+(i*dim), p, e) = M(i,j);
                }
-            }
-            else
-            {
-               MQ->Eval(M, *tr, ir->IntPoint(p));
+         }
+      }
+   }
+   else if (SMQ)
+   {
+      MFEM_VERIFY(SMQ->GetSize() == dim, "");
+      coeffDim = symmDims;
+      coeff.SetSize(symmDims * nq * ne);
 
-               for (int i=0; i<dim; ++i)
-                  for (int j=0; j<dim; ++j)
-                  {
-                     C(j+(i*dim), p, e) = M(i,j);
-                  }
-            }
+      DenseSymmetricMatrix M;
+      M.SetSize(dim);
+
+      auto C = Reshape(coeff.HostWrite(), symmDims, nq, ne);
+
+      for (int e=0; e<ne; ++e)
+      {
+         ElementTransformation *tr = mesh->GetElementTransformation(e);
+         for (int p=0; p<nq; ++p)
+         {
+            SMQ->Eval(M, *tr, ir->IntPoint(p));
+            int cnt = 0;
+            for (int i=0; i<dim; ++i)
+               for (int j=i; j<dim; ++j, ++cnt)
+               {
+                  C(cnt, p, e) = M(i,j);
+               }
          }
       }
    }
