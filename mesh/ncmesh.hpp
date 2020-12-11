@@ -523,7 +523,8 @@ protected: // implementation
 
    // refinement/derefinement
 
-   Array<Refinement> ref_stack; ///< stack of scheduled refinements (temporary)
+   //Array<Refinement> ref_stack; ///< stack of scheduled refinements (temporary)
+   std::map<int, char> forced_refinements; ///< scheduled forced refinements
    HashTable<Node> shadow; ///< temporary storage for reparented nodes
    Array<Triple<int, int, int> > reparents; ///< scheduled node reparents (tmp)
 

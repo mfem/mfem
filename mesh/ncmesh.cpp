@@ -620,6 +620,7 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
    Element &el = elements[elem];
    MFEM_ASSERT(!el.ref_type, "element already refined.");
 
+   int forced_ref = 0;
    int* nodes = el.node;
    if (el.Geom() == Geometry::CUBE)
    {
@@ -627,17 +628,17 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
       if ((CubeFaceLeft(vn1, nodes) && CubeFaceRight(vn2, nodes)) ||
           (CubeFaceLeft(vn2, nodes) && CubeFaceRight(vn1, nodes)))
       {
-         ref_stack.Append(Refinement(elem, 1)); // X split
+         forced_ref = 1; // X split
       }
       else if ((CubeFaceFront(vn1, nodes) && CubeFaceBack(vn2, nodes)) ||
                (CubeFaceFront(vn2, nodes) && CubeFaceBack(vn1, nodes)))
       {
-         ref_stack.Append(Refinement(elem, 2)); // Y split
+         forced_ref = 2; // Y split
       }
       else if ((CubeFaceBottom(vn1, nodes) && CubeFaceTop(vn2, nodes)) ||
                (CubeFaceBottom(vn2, nodes) && CubeFaceTop(vn1, nodes)))
       {
-         ref_stack.Append(Refinement(elem, 4)); // Z split
+         forced_ref = 4; // Z split
       }
       else
       {
@@ -649,12 +650,12 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
       if ((PrismFaceTop(vn1, nodes) && PrismFaceBottom(vn4, nodes)) ||
           (PrismFaceTop(vn4, nodes) && PrismFaceBottom(vn1, nodes)))
       {
-         ref_stack.Append(Refinement(elem, 3)); // XY split
+         forced_ref = 3; // XY split
       }
       else if ((PrismFaceTop(vn1, nodes) && PrismFaceBottom(vn2, nodes)) ||
                (PrismFaceTop(vn2, nodes) && PrismFaceBottom(vn1, nodes)))
       {
-         ref_stack.Append(Refinement(elem, 4)); // Z split
+         forced_ref = 4; // Z split
       }
       else
       {
@@ -665,6 +666,9 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
    {
       MFEM_ABORT("Unsupported geometry.")
    }
+
+   // schedule a refinement in the next refinement batch
+   forced_refinements[elem] |= forced_ref;
 }
 
 
@@ -1487,42 +1491,40 @@ void NCMesh::RefineElement(int elem, char ref_type)
 
 void NCMesh::Refine(const Array<Refinement>& refinements)
 {
-   // push all refinements on the stack in reverse order
-   ref_stack.Reserve(refinements.Size());
-   for (int i = refinements.Size()-1; i >= 0; i--)
+   // prepare list of refinements: convert from Mesh index to NC elem index
+   Array<Refinement> sorted_refs;
+   sorted_refs.Reserve(refinements.Size());
+   for (const Refinement ref : refinements)
    {
-      const Refinement& ref = refinements[i];
-      ref_stack.Append(Refinement(leaf_elements[ref.index], ref.ref_type));
+      sorted_refs.Append(Refinement(leaf_elements[ref.index], ref.ref_type));
    }
 
-   // keep refining as long as the stack contains something
-   int nforced = 0;
-   while (ref_stack.Size())
+   while (1)
    {
-      Refinement ref = ref_stack.Last();
-      ref_stack.DeleteLast();
+      // sort the refinements by element SFC index
+      sorted_refs.Sort([&](const Refinement &a, const Refinement &b)
+      {
+         int sfc_a = leaf_sfc_index[elements[a.index].index];
+         int sfc_b = leaf_sfc_index[elements[b.index].index];
+         return sfc_a < sfc_b;
+      });
 
-      int size = ref_stack.Size();
-      RefineElement(ref.index, ref.ref_type);
-      nforced += ref_stack.Size() - size;
-   }
-
-   /* TODO: the current algorithm of forced refinements is not optimal. As
-      forced refinements spread through the mesh, some may not be necessary
-      in the end, since the affected elements may still be scheduled for
-      refinement that could stop the propagation. We should introduce the
-      member Element::ref_pending that would show the intended refinement in
-      the batch. A forced refinement would be combined with ref_pending to
-      (possibly) stop the propagation earlier.
-
-      Update: what about a FIFO instead of ref_stack? */
+      // refine the current batch of elements, in SFC order
+      for (const Refinement ref : sorted_refs)
+      {
+         RefineElement(ref.index, ref.ref_type);
+      }
 
 #if defined(MFEM_DEBUG) && !defined(MFEM_USE_MPI)
-   mfem::out << "Refined " << refinements.Size() << " + " << nforced
-             << " elements" << std::endl;
+      mfem::out << "Refined " << sorted_refs.Size() << " elements" << std::endl;
 #endif
 
-   ref_stack.DeleteAll();
+      if (forced_refinements.empty()) { break; }
+
+
+
+   }
+
    shadow.DeleteAll();
 
    Update();
@@ -5917,7 +5919,7 @@ long NCMesh::MemoryUsage() const
           vertex_list.MemoryUsage() +
           boundary_faces.MemoryUsage() +
           element_vertex.MemoryUsage() +
-          ref_stack.MemoryUsage() +
+          //ref_stack.MemoryUsage() +
           derefinements.MemoryUsage() +
           transforms.MemoryUsage() +
           coarse_elements.MemoryUsage() +
@@ -5941,7 +5943,7 @@ int NCMesh::PrintMemoryDetail() const
              << vertex_list.MemoryUsage() << " vertex_list\n"
              << boundary_faces.MemoryUsage() << " boundary_faces\n"
              << element_vertex.MemoryUsage() << " element_vertex\n"
-             << ref_stack.MemoryUsage() << " ref_stack\n"
+             //<< ref_stack.MemoryUsage() << " ref_stack\n"
              << derefinements.MemoryUsage() << " derefinements\n"
              << transforms.MemoryUsage() << " transforms\n"
              << coarse_elements.MemoryUsage() << " coarse_elements\n"

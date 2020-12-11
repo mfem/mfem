@@ -68,6 +68,8 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
+   int ref_levels = 1;
+   int seed = 1;
    bool static_cond = false;
    bool pa = false;
    const char *device_config = "cpu";
@@ -79,6 +81,10 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&ref_levels, "-r", "--ref_levels",
+                  "Number of refinement levels.");
+   args.AddOption(&seed, "-s", "--seed",
+                  "Random seed.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -112,11 +118,10 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels =
-         (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
+      srand(seed);
       for (int l = 0; l < ref_levels; l++)
       {
-         mesh.UniformRefinement();
+         mesh.RandomRefinement(0.5, true);
       }
    }
 
