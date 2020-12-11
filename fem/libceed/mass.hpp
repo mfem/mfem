@@ -14,7 +14,6 @@
 
 #include "ceed.hpp"
 
-#ifdef MFEM_USE_CEED
 #include "../fespace.hpp"
 
 namespace mfem
@@ -25,8 +24,10 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
                         const mfem::IntegrationRule &ir,
                         CeedData& ceedData);
 
-}
+void CeedMFMassAssemble(const FiniteElementSpace &fes,
+                        const mfem::IntegrationRule &irm,
+                        CeedData& ceedData);
 
-#endif // MFEM_USE_CEED
+}
 
 #endif // MFEM_LIBCEED_MASS_HPP

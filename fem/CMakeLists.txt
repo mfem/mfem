@@ -13,10 +13,12 @@ set(SRCS
   bilinearform.cpp
   bilinearform_ext.cpp
   bilininteg.cpp
+  bilininteg_br2.cpp
   bilininteg_convection_pa.cpp
   bilininteg_convection_ea.cpp
   bilininteg_dgtrace_pa.cpp
   bilininteg_dgtrace_ea.cpp
+  bilininteg_diffusion_mf.cpp
   bilininteg_diffusion_pa.cpp
   bilininteg_diffusion_ea.cpp
   bilininteg_divergence.cpp
@@ -24,13 +26,17 @@ set(SRCS
   bilininteg_hdiv.cpp
   bilininteg_vectorfe.cpp
   bilininteg_gradient.cpp
+  bilininteg_mass_mf.cpp
   bilininteg_mass_pa.cpp
   bilininteg_mass_ea.cpp
   bilininteg_transpose_ea.cpp
   bilininteg_vecdiffusion.cpp
+  bilininteg_vecdiffusion_mf.cpp
   bilininteg_vecmass.cpp
+  bilininteg_vecmass_mf.cpp
   coefficient.cpp
   complex_fem.cpp
+  convergence.cpp
   datacollection.cpp
   eltrans.cpp
   estimators.cpp
@@ -41,6 +47,9 @@ set(SRCS
   gridfunc.cpp
   hybridization.cpp
   intrules.cpp
+  libceed/ceed.cpp
+  libceed/diffusion.cpp
+  libceed/mass.cpp
   linearform.cpp
   lininteg.cpp
   multigrid.cpp
@@ -65,6 +74,7 @@ set(HDRS
   bilininteg.hpp
   coefficient.hpp
   complex_fem.hpp
+  convergence.hpp
   datacollection.hpp
   eltrans.hpp
   estimators.hpp
@@ -76,6 +86,9 @@ set(HDRS
   gridfunc.hpp
   hybridization.hpp
   intrules.hpp
+  libceed/ceed.hpp
+  libceed/diffusion.hpp
+  libceed/mass.hpp
   linearform.hpp
   lininteg.hpp
   multigrid.hpp
@@ -133,17 +146,6 @@ if (MFEM_USE_MPI)
     plinearform.hpp
     pnonlinearform.hpp
     prestriction.hpp)
-endif()
-
-if (MFEM_USE_CEED)
-   list(APPEND SRCS
-     libceed/ceed.cpp
-     libceed/diffusion.cpp
-     libceed/mass.cpp)
-   list(APPEND HDRS
-     libceed/ceed.hpp
-     libceed/diffusion.hpp
-     libceed/mass.hpp)
 endif()
 
 convert_filenames_to_full_paths(SRCS)

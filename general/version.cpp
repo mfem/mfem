@@ -67,8 +67,53 @@ const char *GetConfigStr()
 {
    static const char *config_str =
       ""
-#ifdef MFEM_USE_MPI
-      "MFEM_USE_MPI\n"
+#ifdef MFEM_USE_ADIOS2
+      "MFEM_USE_ADIOS2\n"
+#endif
+#ifdef MFEM_USE_AMGX
+      "MFEM_USE_AMGX\n"
+#endif
+#ifdef MFEM_USE_CEED
+      "MFEM_USE_CEED\n"
+#endif
+#ifdef MFEM_USE_CONDUIT
+      "MFEM_USE_CONDUIT\n"
+#endif
+#ifdef MFEM_USE_CUDA
+      "MFEM_USE_CUDA\n"
+#endif
+#ifdef MFEM_USE_EXCEPTIONS
+      "MFEM_USE_EXCEPTIONS\n"
+#endif
+#ifdef MFEM_USE_GINKGO
+      "MFEM_USE_GINKGO\n"
+#endif
+#ifdef MFEM_USE_GNUTLS
+      "MFEM_USE_GNUTLS\n"
+#endif
+#ifdef MFEM_USE_GSLIB
+      "MFEM_USE_GSLIB\n"
+#endif
+#ifdef MFEM_USE_HIOP
+      "MFEM_USE_HIOP\n"
+#endif
+#ifdef MFEM_USE_HIP
+      "MFEM_USE_HIP\n"
+#endif
+#ifdef MFEM_USE_LAPACK
+      "MFEM_USE_LAPACK\n"
+#endif
+#ifdef MFEM_USE_LEGACY_OPENMP
+      "MFEM_USE_LEGACY_OPENMP\n"
+#endif
+#ifdef MFEM_USE_LIBUNWIND
+      "MFEM_USE_LIBUNWIND\n"
+#endif
+#ifdef MFEM_USE_MEMALLOC
+      "MFEM_USE_MEMALLOC\n"
+#endif
+#ifdef MFEM_USE_MESQUITE
+      "MFEM_USE_MESQUITE\n"
 #endif
 #ifdef MFEM_USE_METIS
       "MFEM_USE_METIS\n"
@@ -76,83 +121,62 @@ const char *GetConfigStr()
 #ifdef MFEM_USE_METIS_5
       "MFEM_USE_METIS_5\n"
 #endif
-#ifdef MFEM_DEBUG
-      "MFEM_DEBUG\n"
-#endif
-#ifdef MFEM_USE_EXCEPTIONS
-      "MFEM_USE_EXCEPTIONS\n"
-#endif
-#ifdef MFEM_USE_ZLIB
-      "MFEM_USE_ZLIB\n"
-#endif
-#ifdef MFEM_USE_LIBUNWIND
-      "MFEM_USE_LIBUNWIND\n"
-#endif
-#ifdef MFEM_USE_LAPACK
-      "MFEM_USE_LAPACK\n"
-#endif
-#ifdef MFEM_THREAD_SAFE
-      "MFEM_THREAD_SAFE\n"
-#endif
-#ifdef MFEM_USE_LEGACY_OPENMP
-      "MFEM_USE_LEGACY_OPENMP\n"
-#endif
-#ifdef MFEM_USE_MEMALLOC
-      "MFEM_USE_MEMALLOC\n"
-#endif
-#ifdef MFEM_USE_SUNDIALS
-      "MFEM_USE_SUNDIALS\n"
-#endif
-#ifdef MFEM_USE_MESQUITE
-      "MFEM_USE_MESQUITE\n"
-#endif
-#ifdef MFEM_USE_SUITESPARSE
-      "MFEM_USE_SUITESPARSE\n"
-#endif
-#ifdef MFEM_USE_SUPERLU
-      "MFEM_USE_SUPERLU\n"
-#endif
-#ifdef MFEM_USE_STRUMPACK
-      "MFEM_USE_STRUMPACK\n"
-#endif
-#ifdef MFEM_USE_GNUTLS
-      "MFEM_USE_GNUTLS\n"
-#endif
-#ifdef MFEM_USE_NETCDF
-      "MFEM_USE_NETCDF\n"
-#endif
-#ifdef MFEM_USE_PETSC
-      "MFEM_USE_PETSC\n"
+#ifdef MFEM_USE_MKL_CPARDISO
+      "MFEM_USE_MKL_CPARDISO\n"
 #endif
 #ifdef MFEM_USE_MPFR
       "MFEM_USE_MPFR\n"
 #endif
-#ifdef MFEM_USE_CONDUIT
-      "MFEM_USE_CONDUIT\n"
+#ifdef MFEM_USE_MPI
+      "MFEM_USE_MPI\n"
 #endif
-#ifdef MFEM_USE_SIDRE
-      "MFEM_USE_SIDRE\n"
-#endif
-#ifdef MFEM_USE_PUMI
-      "MFEM_USE_PUMI\n"
-#endif
-#ifdef MFEM_USE_CUDA
-      "MFEM_USE_CUDA\n"
-#endif
-#ifdef MFEM_USE_RAJA
-      "MFEM_USE_RAJA\n"
-#endif
-#ifdef MFEM_USE_UMPIRE
-      "MFEM_USE_UMPIRE\n"
+#ifdef MFEM_USE_NETCDF
+      "MFEM_USE_NETCDF\n"
 #endif
 #ifdef MFEM_USE_OCCA
       "MFEM_USE_OCCA\n"
 #endif
+#ifdef MFEM_USE_OPENMP
+      "MFEM_USE_OPENMP\n"
+#endif
+#ifdef MFEM_USE_PETSC
+      "MFEM_USE_PETSC\n"
+#endif
+#ifdef MFEM_USE_PUMI
+      "MFEM_USE_PUMI\n"
+#endif
+#ifdef MFEM_USE_RAJA
+      "MFEM_USE_RAJA\n"
+#endif
+#ifdef MFEM_USE_SIDRE
+      "MFEM_USE_SIDRE\n"
+#endif
 #ifdef MFEM_USE_SIMD
       "MFEM_USE_SIMD\n"
 #endif
-#ifdef MFEM_USE_ADIOS2
-      "MFEM_USE_ADIOS2\n"
+#ifdef MFEM_USE_SLEPC
+      "MFEM_USE_SLEPC\n"
+#endif
+#ifdef MFEM_USE_STRUMPACK
+      "MFEM_USE_STRUMPACK\n"
+#endif
+#ifdef MFEM_USE_SUITESPARSE
+      "MFEM_USE_SUITESPARSE\n"
+#endif
+#ifdef MFEM_USE_SUNDIALS
+      "MFEM_USE_SUNDIALS\n"
+#endif
+#ifdef MFEM_USE_SUPERLU
+      "MFEM_USE_SUPERLU\n"
+#endif
+#ifdef MFEM_USE_SUPERLU5
+      "MFEM_USE_SUPERLU5\n"
+#endif
+#ifdef MFEM_USE_UMPIRE
+      "MFEM_USE_UMPIRE\n"
+#endif
+#ifdef MFEM_USE_ZLIB
+      "MFEM_USE_ZLIB\n"
 #endif
       "MFEM_TIMER_TYPE = " EXPAND_AND_QUOTE(MFEM_TIMER_TYPE)
       ;
