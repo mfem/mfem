@@ -56,6 +56,7 @@ MemoryType GetMemoryType(MemoryClass mc)
       case MemoryClass::HOST_32: return MemoryType::HOST_32;
       case MemoryClass::HOST_64: return MemoryType::HOST_64;
       case MemoryClass::DEVICE:  return mm.GetDeviceMemoryType();
+      case MemoryClass::DEVICE_TEMP:  return mm.GetDeviceTempMemoryType();
       case MemoryClass::MANAGED: return MemoryType::MANAGED;
    }
    MFEM_VERIFY(false,"");
@@ -67,16 +68,20 @@ MemoryType MemoryManager::GetDualMemoryType_(MemoryType mt)
 {
    switch (mt)
    {
-      case MemoryType::HOST:           return MemoryType::DEVICE;
+      // TODO TMS: temporary
+      case MemoryType::HOST:           return MemoryType::DEVICE_UMPIRE;
       case MemoryType::HOST_32:        return MemoryType::DEVICE;
       case MemoryType::HOST_64:        return MemoryType::DEVICE;
       case MemoryType::HOST_DEBUG:     return MemoryType::DEVICE_DEBUG;
       case MemoryType::HOST_UMPIRE:    return MemoryType::DEVICE_UMPIRE;
+      case MemoryType::HOST_PINNED:    return MemoryType::DEVICE_TEMP_UMPIRE;
       case MemoryType::MANAGED:        return MemoryType::MANAGED;
       case MemoryType::DEVICE:         return MemoryType::HOST;
       case MemoryType::DEVICE_DEBUG:   return MemoryType::HOST_DEBUG;
-      case MemoryType::DEVICE_UMPIRE:  return MemoryType::HOST_UMPIRE;
-      case MemoryType::DEVICE_TEMP_UMPIRE:  return MemoryType::HOST_UMPIRE;
+      //case MemoryType::DEVICE_UMPIRE:  return MemoryType::HOST_UMPIRE;
+      case MemoryType::DEVICE_UMPIRE:  return MemoryType::HOST;
+      //case MemoryType::DEVICE_TEMP_UMPIRE:  return MemoryType::HOST_UMPIRE;
+      case MemoryType::DEVICE_TEMP_UMPIRE:  return MemoryType::HOST;
       default: mfem_error("Unknown memory type!");
    }
    MFEM_VERIFY(false,"");
@@ -88,11 +93,15 @@ static void MFEM_VERIFY_TYPES(const MemoryType h_mt, const MemoryType d_mt)
    MFEM_ASSERT(IsHostMemory(h_mt),"");
    MFEM_ASSERT(IsDeviceMemory(d_mt),"");
    const bool sync =
+      // TODO TMS: temporary
       (h_mt == MemoryType::HOST_UMPIRE && d_mt == MemoryType::DEVICE_UMPIRE) ||
       (h_mt == MemoryType::HOST_UMPIRE && d_mt == MemoryType::DEVICE_TEMP_UMPIRE) ||
+
       (h_mt == MemoryType::HOST && d_mt == MemoryType::DEVICE_UMPIRE) ||
       (h_mt == MemoryType::HOST && d_mt == MemoryType::DEVICE_TEMP_UMPIRE) ||
+
       (h_mt == MemoryType::HOST_PINNED && d_mt == MemoryType::DEVICE_TEMP_UMPIRE) ||
+
       (h_mt == MemoryType::HOST_DEBUG && d_mt == MemoryType::DEVICE_DEBUG) ||
       (h_mt == MemoryType::MANAGED && d_mt == MemoryType::MANAGED) ||
       (h_mt == MemoryType::HOST_64 && d_mt == MemoryType::DEVICE) ||
@@ -511,7 +520,6 @@ bool UmpireHasId(const umpire::ResourceManager & rm, int id)
 class UmpireHostMemorySpace : public HostMemorySpace
 {
 private:
-   const char *name;
    umpire::ResourceManager &rm;
    umpire::Allocator h_allocator;
    bool owns_allocator{false};
@@ -547,7 +555,6 @@ class UmpireDeviceMemorySpaceImpl : public DeviceMemorySpace
 public:
    enum class AllocatorType { TEMPORARY, PERMANENT };
 private:
-   const char *name;
    umpire::ResourceManager &rm;
    umpire::Allocator d_allocator;
    bool owns_allocator{false};
@@ -864,13 +871,6 @@ void MemoryManager::DeleteDevice_(void *h_ptr, unsigned & flags)
    }
 }
 
-void MemoryManager::UpdateMemoryType_(void *h_ptr, unsigned & flags,
-                                      const MemoryType mt)
-{
-   // TODO tms: not safe if we change the memory type on the host or device
-   // and the new type's move/erase is different
-   mm.UpdateMemoryType(h_ptr, mt);
-}
 bool MemoryManager::MemoryClassCheck_(MemoryClass mc, void *h_ptr,
                                       MemoryType h_mt, size_t bytes,
                                       unsigned flags)
@@ -942,7 +942,12 @@ void *MemoryManager::ReadWrite_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
       flags = (flags | Mem::VALID_DEVICE) & ~Mem::VALID_HOST;
       if (flags & Mem::ALIAS)
       { return mm.GetAliasDevicePtr(h_ptr, bytes, copy); }
-      else { return mm.GetDevicePtr(h_ptr, bytes, copy); }
+      else
+      {
+         // TODO TMS
+         if (flags & Mem::USE_TEMPORARY) { mm.UpdateDeviceMemoryType(h_ptr, GetDeviceTempMemoryType()); }
+         return mm.GetDevicePtr(h_ptr, bytes, copy);
+      }
    }
 }
 
@@ -966,7 +971,12 @@ const void *MemoryManager::Read_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
       flags |= Mem::VALID_DEVICE;
       if (flags & Mem::ALIAS)
       { return mm.GetAliasDevicePtr(h_ptr, bytes, copy); }
-      else { return mm.GetDevicePtr(h_ptr, bytes, copy); }
+      else
+      {
+         // TODO TMS
+         if (flags & Mem::USE_TEMPORARY) { mm.UpdateDeviceMemoryType(h_ptr, GetDeviceTempMemoryType()); }
+         return mm.GetDevicePtr(h_ptr, bytes, copy);
+      }
    }
 }
 
@@ -988,7 +998,12 @@ void *MemoryManager::Write_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
       flags = (flags | Mem::VALID_DEVICE) & ~Mem::VALID_HOST;
       if (flags & Mem::ALIAS)
       { return mm.GetAliasDevicePtr(h_ptr, bytes, false); }
-      else { return mm.GetDevicePtr(h_ptr, bytes, false); }
+      else
+      {
+         // TODO TMS
+         if (flags & Mem::USE_TEMPORARY) { mm.UpdateDeviceMemoryType(h_ptr, GetDeviceTempMemoryType()); }
+         return mm.GetDevicePtr(h_ptr, bytes, false);
+      }
 
    }
 }
@@ -1247,6 +1262,7 @@ void MemoryManager::InsertAlias(const void *base_ptr, void *alias_ptr,
       offset += alias.offset;
    }
    internal::Memory &mem = maps->memories.at(base_ptr);
+   MFEM_VERIFY(mem.d_mt != MemoryType::DEVICE_TEMP_UMPIRE, "aliasing temp mem");
    auto res =
       maps->aliases.emplace(alias_ptr,
                             internal::Alias{&mem, offset, bytes, 1, mem.h_mt});
@@ -1278,29 +1294,27 @@ void MemoryManager::EraseDevice(void *h_ptr)
    if (!h_ptr) { return; }
    auto mem_map_iter = maps->memories.find(h_ptr);
    if (mem_map_iter == maps->memories.end()) { mfem_error("Unknown pointer!"); }
+   if (maps->aliases.find(h_ptr) != maps->aliases.end())
+   {
+      mfem_error("cannot delete aliased obj!");
+   }
    internal::Memory &mem = mem_map_iter->second;
    if (mem.d_ptr) { ctrl->Device(mem.d_mt)->Dealloc(mem);}
    mem.d_ptr = nullptr;
 }
 
-void MemoryManager::UpdateMemoryType(void *h_ptr, const MemoryType mt)
+void MemoryManager::UpdateDeviceMemoryType(void *h_ptr, const MemoryType mt)
 {
    if (!h_ptr) { return; }
-
-   const bool is_host_mem = IsHostMemory(mt);
-   const MemType dual_mt = GetDualMemoryType_(mt);
-   const MemType h_mt = is_host_mem ? mt : dual_mt;
-   const MemType d_mt = is_host_mem ? dual_mt : mt;
-
+   MFEM_VERIFY(IsDeviceMemory(mt), "Invalid MemoryType");
    auto mem_map_iter = maps->memories.find(h_ptr);
    if (mem_map_iter == maps->memories.end()) { mfem_error("Unknown pointer!"); }
    internal::Memory &mem = mem_map_iter->second;
-   MFEM_VERIFY(mem.h_mt == h_mt, "Canont change the host memory type");
-   if (mem.d_mt == d_mt) { return; }
+   if (mem.d_mt == mt) { return; }
    MFEM_VERIFY(mem.d_ptr == nullptr,
                "Cannot change the memory type if d_ptr != nullptr");
-   maps->memories.erase(mem_map_iter);
-   maps->memories.emplace(h_ptr, internal::Memory(h_ptr, mem.bytes, h_mt, d_mt));
+   auto old = maps->memories.erase(mem_map_iter);
+   maps->memories.emplace(h_ptr, internal::Memory(h_ptr, mem.bytes, mem.h_mt, mt));
 }
 
 void MemoryManager::EraseAlias(void *alias_ptr)
@@ -1425,15 +1439,6 @@ void MemoryManager::Configure(const MemoryType host_mt,
    device_mem_type = device_mt;
    device_temp_mem_type = device_tmt;
 }
-
-#ifdef MFEM_USE_UMPIRE
-void MemoryManager::SetUmpireAllocatorNames(const char *h_name,
-                                            const char *d_name)
-{
-   h_umpire_name = h_name;
-   d_umpire_name = d_name;
-}
-#endif
 
 void MemoryManager::Destroy()
 {

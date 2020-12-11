@@ -358,12 +358,13 @@ void Device::UpdateMemoryTypeAndClass()
    {
       case MemoryType::DEVICE_UMPIRE:
          device_temp_mem_type = MemoryType::DEVICE_TEMP_UMPIRE;
+         device_temp_mem_class = MemoryClass::DEVICE_TEMP;
          break;
       default:
          device_temp_mem_type = device_mem_type;
+         device_temp_mem_class = device_mem_class;
          break;
    }
-   device_temp_mem_class = device_mem_class;
 
    // Update the memory manager with the new settings
    mm.Configure(host_mem_type, device_mem_type, device_temp_mem_type);

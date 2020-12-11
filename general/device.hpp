@@ -310,7 +310,8 @@ MemoryClass GetMemoryClass(const Memory<T> &mem, bool on_dev)
    else
    {
       mem.UseDevice(true);
-      return Device::GetDeviceMemoryClass();
+      if (mem.UseTemporary()) { return Device::GetDeviceTempMemoryClass(); }
+      else { return Device::GetDeviceMemoryClass(); }
    }
 }
 
