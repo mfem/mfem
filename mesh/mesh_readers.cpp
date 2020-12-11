@@ -2053,7 +2053,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                else
                {
                   // the long chain has ended up to the vertex master
-		  // then we store this final master
+                  // then we store this final master
                   v2v[slave] = master;
                }
             }
