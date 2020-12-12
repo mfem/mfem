@@ -346,15 +346,15 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    }
 #endif
 
-   // Check if the starting mesh (given by x) is inverted.
-   // Note that x hasn't been modified by the Newton update yet.
+   // Check if the starting mesh (given by x) is inverted. Note that x hasn't
+   // been modified by the Newton update yet.
    const double min_detT_in = ComputeMinDet(x_out_loc, *fes);
    const bool untangling = (min_detT_in <= 0.0) ? true : false;
    const double untangle_factor = 1.5;
    if (untangling)
    {
-      // Needed for the line search below.
-      // The untangling metrics see this reference to detect deteriorations.
+      // Needed for the line search below. The untangling metrics see this
+      // reference to detect deteriorations.
       *min_det_ptr = untangle_factor * min_detT_in;
    }
 
@@ -402,8 +402,8 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          scale *= detJ_factor; continue;
       }
 
-      // Skip the energy and residual checks when we're untangling.
-      // The untangling metrics change their denominators, which can affect the
+      // Skip the energy and residual checks when we're untangling. The
+      // untangling metrics change their denominators, which can affect the
       // energy and residual, so their increase/decrease is not relevant.
       if (untangling) { x_out_ok = true; break; }
 
@@ -479,8 +479,8 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
    const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
 
-   // Reset the update flags of all TargetConstructors.
-   // This is done to avoid repeated updates of shared TargetConstructors.
+   // Reset the update flags of all TargetConstructors. This is done to avoid
+   // repeated updates of shared TargetConstructors.
    TMOP_Integrator *ti  = NULL;
    TMOPComboIntegrator *co = NULL;
    DiscreteAdaptTC *dtc = NULL;
