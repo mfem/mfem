@@ -848,8 +848,8 @@ public:
       This returns the same operator as FormRectangularLinearSystem(), but does
       without the transformations of the right-hand side. */
    virtual void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
-                                    const Array<int> &test_tdof_list,
-                                    OperatorHandle &A);
+                                            const Array<int> &test_tdof_list,
+                                            OperatorHandle &A);
 
    /** @brief Form the column-constrained linear system matrix A.
        See FormRectangularSystemMatrix() for details.
