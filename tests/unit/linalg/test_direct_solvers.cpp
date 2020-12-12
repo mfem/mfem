@@ -98,70 +98,63 @@ TEST_CASE("direct-serial","[CUDA]")
    const int ne = 2;
    for (dim = 1; dim < 4; ++dim)
    {
-      for (int order = 1; order < 4; ++order)
+      Mesh* mesh;
+      if (dim == 1)
       {
-         Mesh* mesh;
-         if (dim == 1)
-         {
-            mesh = new Mesh(ne,  1.0);
-         }
-         else if (dim == 2)
-         {
-            mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
-         }
-         else
-         {
-            mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0,
-                            1.0);
-         }
-
-         FiniteElementCollection* fec = new H1_FECollection(order, dim);
-         FiniteElementSpace fespace(mesh, fec);
-         Array<int> ess_tdof_list;
-         Array<int> ess_bdr(mesh->bdr_attributes.Max());
-         ess_bdr = 1;
-         fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-
-         FunctionCoefficient f(fexact);
-         LinearForm b(&fespace);
-         b.AddDomainIntegrator(new DomainLFIntegrator(f));
-         b.Assemble();
-
-         BilinearForm a(&fespace);
-         ConstantCoefficient one(1.0);
-         a.AddDomainIntegrator(new DiffusionIntegrator(one));
-         a.Assemble();
-
-         GridFunction x(&fespace);
-         FunctionCoefficient uex(uexact);
-         x = 0.0;
-         x.ProjectBdrCoefficient(uex,ess_bdr);
-
-         OperatorPtr A;
-         Vector B, X;
-         a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-
-         UMFPackSolver umf_solver;
-         umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-         umf_solver.SetOperator(*A);
-         umf_solver.Mult(B, X);
-
-         Vector Y(X.Size());
-         A->Mult(X,Y);
-         Y-=B;
-         REQUIRE(Y.Norml2() < 1.e-12);
-
-         if (order == 3)
-         {
-            // recover polynomial exact solution if order>=3
-            a.RecoverFEMSolution(X, b, x);
-            VectorFunctionCoefficient grad(dim,gradexact);
-            double err = x.ComputeH1Error(&uex,&grad);
-            REQUIRE(err < 1.e-12);
-         }
-         delete fec;
-         delete mesh;
+         mesh = new Mesh(ne,  1.0);
       }
+      else if (dim == 2)
+      {
+         mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+      }
+      else
+      {
+         mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0,
+                         1.0);
+      }
+      int order = 3;
+      FiniteElementCollection* fec = new H1_FECollection(order, dim);
+      FiniteElementSpace fespace(mesh, fec);
+      Array<int> ess_tdof_list;
+      Array<int> ess_bdr(mesh->bdr_attributes.Max());
+      ess_bdr = 1;
+      fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+
+      FunctionCoefficient f(fexact);
+      LinearForm b(&fespace);
+      b.AddDomainIntegrator(new DomainLFIntegrator(f));
+      b.Assemble();
+
+      BilinearForm a(&fespace);
+      ConstantCoefficient one(1.0);
+      a.AddDomainIntegrator(new DiffusionIntegrator(one));
+      a.Assemble();
+
+      GridFunction x(&fespace);
+      FunctionCoefficient uex(uexact);
+      x = 0.0;
+      x.ProjectBdrCoefficient(uex,ess_bdr);
+
+      OperatorPtr A;
+      Vector B, X;
+      a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+
+      UMFPackSolver umf_solver;
+      umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+      umf_solver.SetOperator(*A);
+      umf_solver.Mult(B, X);
+
+      Vector Y(X.Size());
+      A->Mult(X,Y);
+      Y-=B;
+      REQUIRE(Y.Norml2() < 1.e-12);
+
+      a.RecoverFEMSolution(X, b, x);
+      VectorFunctionCoefficient grad(dim,gradexact);
+      double err = x.ComputeH1Error(&uex,&grad);
+      REQUIRE(err < 1.e-12);
+      delete fec;
+      delete mesh;
    }
 }
 
@@ -176,101 +169,92 @@ TEST_CASE("direct-parallel", "[Parallel], [CUDA]")
    const int ne = 2;
    for (dim = 1; dim < 4; ++dim)
    {
-      for (int order = 1; order < 4; ++order)
+      Mesh* mesh;
+      if (dim == 1)
       {
-         Mesh* mesh;
-         if (dim == 1)
-         {
-            mesh = new Mesh(ne,  1.0);
-         }
-         else if (dim == 2)
-         {
-            mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
-         }
-         else
-         {
-            mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0,
-                            1.0);
-         }
+         mesh = new Mesh(ne,  1.0);
+      }
+      else if (dim == 2)
+      {
+         mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+      }
+      else
+      {
+         mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0,
+                         1.0);
+      }
 
-         ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-         delete mesh;
-         FiniteElementCollection* fec = new H1_FECollection(order, dim);
-         ParFiniteElementSpace fespace(pmesh, fec);
-         Array<int> ess_tdof_list;
-         Array<int> ess_bdr;
-         if (pmesh->bdr_attributes.Size())
-         {
-            ess_bdr.SetSize(pmesh->bdr_attributes.Max());
-            ess_bdr = 1;
-            fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-         }
-         FunctionCoefficient f(fexact);
-         ParLinearForm b(&fespace);
-         b.AddDomainIntegrator(new DomainLFIntegrator(f));
-         b.Assemble();
+      ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+      delete mesh;
+      int order = 3;
+      FiniteElementCollection* fec = new H1_FECollection(order, dim);
+      ParFiniteElementSpace fespace(pmesh, fec);
+      Array<int> ess_tdof_list;
+      Array<int> ess_bdr;
+      if (pmesh->bdr_attributes.Size())
+      {
+         ess_bdr.SetSize(pmesh->bdr_attributes.Max());
+         ess_bdr = 1;
+         fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      }
+      FunctionCoefficient f(fexact);
+      ParLinearForm b(&fespace);
+      b.AddDomainIntegrator(new DomainLFIntegrator(f));
+      b.Assemble();
 
-         ParBilinearForm a(&fespace);
-         ConstantCoefficient one(1.0);
-         a.AddDomainIntegrator(new DiffusionIntegrator(one));
-         a.Assemble();
+      ParBilinearForm a(&fespace);
+      ConstantCoefficient one(1.0);
+      a.AddDomainIntegrator(new DiffusionIntegrator(one));
+      a.Assemble();
 
-         ParGridFunction x(&fespace);
-         FunctionCoefficient uex(uexact);
-         x = 0.0;
-         x.ProjectBdrCoefficient(uex,ess_bdr);
+      ParGridFunction x(&fespace);
+      FunctionCoefficient uex(uexact);
+      x = 0.0;
+      x.ProjectBdrCoefficient(uex,ess_bdr);
 
-         OperatorPtr A;
-         Vector B, X;
-         a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+      OperatorPtr A;
+      Vector B, X;
+      a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
 #ifdef MFEM_USE_MUMPS
-         {
-            MUMPSSolver mumps;
-            mumps.SetPrintLevel(0);
-            mumps.SetOperator(*A.As<HypreParMatrix>());
-            mumps.Mult(B,X);
-            Vector Y(X.Size());
-            A->Mult(X,Y);
-            Y-=B;
-            REQUIRE(Y.Norml2() < 1.e-12);
-            if (order == 3)
-            {
-               // recover polynomial exact solution if order>=3
-               a.RecoverFEMSolution(X, b, x);
-               VectorFunctionCoefficient grad(dim,gradexact);
-               double err = x.ComputeH1Error(&uex,&grad);
-               REQUIRE(err < 1.e-12);
-            }
-         }
+      {
+         MUMPSSolver mumps;
+         mumps.SetPrintLevel(0);
+         mumps.SetOperator(*A.As<HypreParMatrix>());
+         mumps.Mult(B,X);
+         Vector Y(X.Size());
+         A->Mult(X,Y);
+         Y-=B;
+         REQUIRE(Y.Norml2() < 1.e-12);
+
+         a.RecoverFEMSolution(X, b, x);
+         VectorFunctionCoefficient grad(dim,gradexact);
+         double err = x.ComputeH1Error(&uex,&grad);
+         REQUIRE(err < 1.e-12);
+      }
 #endif
 #ifdef MFEM_USE_SUPERLU
-         // Transform to monolithic HypreParMatrix
-         {
-            SuperLURowLocMatrix SA(*A.As<HypreParMatrix>());
-            SuperLUSolver superlu(MPI_COMM_WORLD);
-            superlu.SetPrintStatistics(false);
-            superlu.SetSymmetricPattern(false);
-            superlu.SetColumnPermutation(superlu::PARMETIS);
-            superlu.SetOperator(SA);
-            superlu.Mult(B, X);
-            Vector Y(X.Size());
-            A->Mult(X,Y);
-            Y-=B;
-            REQUIRE(Y.Norml2() < 1.e-12);
-            if (order == 3)
-            {
-               // recover polynomial exact solution if order>=3
-               a.RecoverFEMSolution(X, b, x);
-               VectorFunctionCoefficient grad(dim,gradexact);
-               double err = x.ComputeH1Error(&uex,&grad);
-               REQUIRE(err < 1.e-12);
-            }
-         }
-#endif
-         delete fec;
-         delete pmesh;
+      // Transform to monolithic HypreParMatrix
+      {
+         SuperLURowLocMatrix SA(*A.As<HypreParMatrix>());
+         SuperLUSolver superlu(MPI_COMM_WORLD);
+         superlu.SetPrintStatistics(false);
+         superlu.SetSymmetricPattern(false);
+         superlu.SetColumnPermutation(superlu::PARMETIS);
+         superlu.SetOperator(SA);
+         superlu.Mult(B, X);
+         Vector Y(X.Size());
+         A->Mult(X,Y);
+         Y-=B;
+         REQUIRE(Y.Norml2() < 1.e-12);
+         a.RecoverFEMSolution(X, b, x);
+         VectorFunctionCoefficient grad(dim,gradexact);
+         double err = x.ComputeH1Error(&uex,&grad);
+         REQUIRE(err < 1.e-12);
       }
+#endif
+      delete fec;
+      delete pmesh;
    }
 }
 
