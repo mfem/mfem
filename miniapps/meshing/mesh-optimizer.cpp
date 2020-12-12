@@ -84,9 +84,9 @@
 //     mesh-optimizer -m ./amr-quad-q2.mesh -o 2 -rs 1 -mid 9 -tid 2 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //
 //   2D untangling:
-//     mesh-optimizer -m jagged.mesh -o 2 -rs 0 -mid 22 -tid 1 -ni 50 -li 50 -qo 4 -fd
+//     mesh-optimizer -m jagged.mesh -o 2 -mid 22 -tid 1 -ni 50 -li 50 -qo 4 -fd -vl 1
 //   3D untangling (the mesh is in the mfem/data GitHub repository):
-//   * mesh-optimizer -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -rs 0 -mid 313 -tid 1 -rtol 1e-5 -li 50 -qo 4 -fd
+//   * mesh-optimizer -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -mid 313 -tid 1 -rtol 1e-5 -li 50 -qo 4 -fd -vl 1
 //
 
 #include "mfem.hpp"
