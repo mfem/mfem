@@ -10,6 +10,8 @@
 # CONTRIBUTING.md for details.
 
 cmake_minimum_required(VERSION 2.8.11)
+include(GNUInstallDirs)
+
 set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/user.cmake" CACHE PATH
   "Path to optional user configuration file.")
 
@@ -46,7 +48,12 @@ endif()
 #-------------------------------------------------------------------------------
 # Project name and version
 #-------------------------------------------------------------------------------
-project(mfem NONE)
+#This policy will be removed when cmake_minimum_required will be > 3
+if (POLICY CMP0048)
+  cmake_policy(SET CMP0048 NEW)
+endif (POLICY CMP0048)
+
+project(mfem VERSION 4.2.1)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
@@ -441,7 +448,7 @@ set(MASTER_HEADERS
   ${PROJECT_SOURCE_DIR}/mfem.hpp
   ${PROJECT_SOURCE_DIR}/mfem-performance.hpp)
 
-set(_lib_path "${CMAKE_INSTALL_PREFIX}/lib")
+set(_lib_path ${CMAKE_INSTALL_FULL_LIBDIR})
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON CACHE BOOL "")
 set(CMAKE_INSTALL_RPATH "${_lib_path}" CACHE PATH "")
 set(CMAKE_INSTALL_NAME_DIR "${_lib_path}" CACHE PATH "")
@@ -463,7 +470,7 @@ if (MINGW)
   target_link_libraries(mfem ws2_32)
 endif()
 set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")
-set_target_properties(mfem PROPERTIES SOVERSION "${mfem_VERSION}")
+set_target_properties(mfem PROPERTIES SOVERSION "${PROJECT_VERSION_MAJOR}")
 
 # If building out-of-source, define MFEM_CONFIG_FILE to point to the config file
 # inside the build directory.
@@ -568,12 +575,12 @@ add_subdirectory(doc)
 #-------------------------------------------------------------------------------
 
 message(STATUS "CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
-set(INSTALL_INCLUDE_DIR include
+set(INSTALL_INCLUDE_DIR ${CMAKE_INSTALL_INCLUDEDIR}
   CACHE PATH "Relative path for installing header files.")
-set(INSTALL_LIB_DIR lib
+set(INSTALL_LIB_DIR ${CMAKE_INSTALL_LIBDIR}
   CACHE PATH "Relative path for installing the library.")
 # other options: "share/mfem/cmake", "lib/mfem/cmake"
-set(INSTALL_CMAKE_DIR lib/cmake/mfem
+set(INSTALL_CMAKE_DIR ${CMAKE_INSTALL_LIBDIR}/cmake/mfem
   CACHE PATH "Relative path for installing cmake config files.")
 
 # The 'install' target will not depend on 'all'.
