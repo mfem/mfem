@@ -61,13 +61,13 @@
 //   * mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -fd -ae 1
 //
 //   Blade shape:
-//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art -bnd -qt 1 -qo 8
+//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
 //   Blade shape with FD-based solver:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 4 -bnd -qt 1 -qo 8 -fd
 //   Blade limited shape:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -bnd -qt 1 -qo 8 -lc 5000
 //   ICF shape and equal size:
-//     mpirun -np 4 pmesh-optimizer -o 3 -mid 9 -tid 2 -ni 25 -ls 3 -art -qo 5
+//     mpirun -np 4 pmesh-optimizer -o 3 -mid 9 -tid 2 -ni 25 -ls 3 -art 2 -qo 5
 //   ICF shape and initial size:
 //     mpirun -np 4 pmesh-optimizer -o 3 -mid 9 -tid 3 -ni 30 -ls 3 -bnd -qt 1 -qo 8
 //   ICF shape:
@@ -115,7 +115,7 @@ int main (int argc, char *argv[])
    int solver_type       = 0;
    int solver_iter       = 20;
    double solver_rtol    = 1e-10;
-   bool solver_adapt_rel_tol = false;
+   int solver_art_type   = 0;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
@@ -194,15 +194,17 @@ int main (int argc, char *argv[])
                   "Maximum number of Newton iterations.");
    args.AddOption(&solver_rtol, "-rtol", "--newton-rel-tolerance",
                   "Relative tolerance for the Newton solver.");
-   args.AddOption(&solver_adapt_rel_tol, "-art", "--adaptive-rel-tol",
-                  "-no-art", "--no-adaptive-rel-tol",
-                  "Enable adaptive relative linear solver tolerance.");
+   args.AddOption(&solver_art_type, "-art", "--adaptive-rel-tol",
+                  "Type of adaptive relative linear solver tolerance:\n\t"
+                  "0: None (default)\n\t"
+                  "1: Eisenstat-Walker type 1\n\t"
+                  "2: Eisenstat-Walker type 2");
    args.AddOption(&lin_solver, "-ls", "--lin-solver",
                   "Linear solver:\n\t"
                   "0: l1-Jacobi\n\t"
                   "1: CG\n\t"
                   "2: MINRES\n\t"
-                  "3: MINRES + Jacobi preconditioner"
+                  "3: MINRES + Jacobi preconditioner\n\t"
                   "4: MINRES + l1-Jacobi preconditioner");
    args.AddOption(&max_lin_iter, "-li", "--lin-iter",
                   "Maximum number of iterations in the linear solve.");
@@ -210,7 +212,7 @@ int main (int argc, char *argv[])
                   "--fix-boundary",
                   "Enable motion along horizontal and vertical boundaries.");
    args.AddOption(&combomet, "-cmb", "--combo-type",
-                  "Combination of metrics options:"
+                  "Combination of metrics options:\n\t"
                   "0: Use single metric\n\t"
                   "1: Shape + space-dependent size given analytically\n\t"
                   "2: Shape + adapted size given discretely; shared target");
@@ -871,7 +873,10 @@ int main (int argc, char *argv[])
    solver.SetMaxIter(solver_iter);
    solver.SetRelTol(solver_rtol);
    solver.SetAbsTol(0.0);
-   if (solver_adapt_rel_tol) { solver.SetAdaptiveLinRtol(1, 0.5, 0.9); }
+   if (solver_art_type > 0)
+   {
+      solver.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
+   }
    solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
    solver.SetOperator(a);
    solver.Mult(b, x.GetTrueVector());
