@@ -1743,7 +1743,7 @@ void NewtonSolver::DQOpTimes(const Vector &v, Vector &Jv, void *ctx)
    const Vector &x = c->GetCurrentIterate();
    const Vector &fx = c->GetCurrentResidual();
 
-   constexpr double epsmach = 2.0 * DBL_EPSILON;
+   constexpr double epsmach = 2.0 * numeric_limits<double>::epsilon();
    const double eps = sqrt((1.0 + c->Norm(x)) * epsmach)
                       / max(sqrt(epsmach), c->Norm(v));
 
