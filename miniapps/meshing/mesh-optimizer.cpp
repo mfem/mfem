@@ -61,15 +61,15 @@
 //   * mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -fd -ae 1
 //
 //   Blade shape:
-//     mesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//     mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art -bnd -qt 1 -qo 8
 //   Blade shape with FD-based solver:
-//     mesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd
+//     mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 4 -bnd -qt 1 -qo 8 -fd
 //   Blade limited shape:
-//     mesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -lc 5000
+//     mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -bnd -qt 1 -qo 8 -lc 5000
 //   ICF shape and equal size:
-//     mesh-optimizer -o 3 -rs 0 -mid 9 -tid 2 -ni 25 -ls 3 -qo 5
+//     mesh-optimizer -o 3 -mid 9 -tid 2 -ni 25 -ls 3 -art -qo 5
 //   ICF shape and initial size:
-//     mesh-optimizer -o 3 -rs 0 -mid 9 -tid 3 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//     mesh-optimizer -o 3 -mid 9 -tid 3 -ni 30 -ls 3 -bnd -qt 1 -qo 8
 //   ICF shape:
 //     mesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   ICF limited shape:
@@ -109,6 +109,7 @@ int main(int argc, char *argv[])
    int solver_type       = 0;
    int solver_iter       = 20;
    double solver_rtol    = 1e-10;
+   bool solver_adapt_rel_tol = false;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
@@ -185,6 +186,9 @@ int main(int argc, char *argv[])
                   "Maximum number of Newton iterations.");
    args.AddOption(&solver_rtol, "-rtol", "--newton-rel-tolerance",
                   "Relative tolerance for the Newton solver.");
+   args.AddOption(&solver_adapt_rel_tol, "-art", "--adaptive-rel-tol",
+                  "-no-art", "--no-adaptive-rel-tol",
+                  "Enable adaptive relative linear solver tolerance.");
    args.AddOption(&lin_solver, "-ls", "--lin-solver",
                   "Linear solver:\n\t"
                   "0: l1-Jacobi\n\t"
@@ -817,6 +821,7 @@ int main(int argc, char *argv[])
    solver.SetMaxIter(solver_iter);
    solver.SetRelTol(solver_rtol);
    solver.SetAbsTol(0.0);
+   if (solver_adapt_rel_tol) { solver.SetAdaptiveLinRtol(1, 0.5, 0.9); }
    solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
    solver.SetOperator(a);
    solver.Mult(b, x.GetTrueVector());
