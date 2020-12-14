@@ -165,8 +165,10 @@ int MFEMCeedInterpolation::Initialize(
    int ierr = 0;
 
    int height, width;
-   ierr = CeedElemRestrictionGetLVectorSize(erestrictu_coarse, &width); CeedChk(ierr);
-   ierr = CeedElemRestrictionGetLVectorSize(erestrictu_fine, &height); CeedChk(ierr);
+   ierr = CeedElemRestrictionGetLVectorSize(erestrictu_coarse, &width);
+   CeedChk(ierr);
+   ierr = CeedElemRestrictionGetLVectorSize(erestrictu_fine, &height);
+   CeedChk(ierr);
 
    // interpolation qfunction
    const int bp3_ncompu = 1;
@@ -215,7 +217,8 @@ int MFEMCeedInterpolation::Initialize(
    {fine_r_data[i] = 1.0 / fine_data[i];});
 
    ierr = CeedVectorRestoreArray(fine_multiplicity_r, &fine_r_data); CeedChk(ierr);
-   ierr = CeedVectorRestoreArrayRead(c_fine_multiplicity, &fine_data); CeedChk(ierr);
+   ierr = CeedVectorRestoreArrayRead(c_fine_multiplicity, &fine_data);
+   CeedChk(ierr);
    ierr = CeedVectorDestroy(&c_fine_multiplicity); CeedChk(ierr);
 
    ierr = CeedVectorCreate(ceed, height, &fine_work); CeedChk(ierr);
