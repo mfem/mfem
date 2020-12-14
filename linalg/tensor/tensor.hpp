@@ -37,21 +37,19 @@ private:
    Layout index;
 
 public:
+   /// Main Constructor
    template <typename... Sizes> MFEM_HOST_DEVICE
    Tensor(Sizes... sizes): data(sizes...), index(sizes...) { }
 
+   /// Utility Constructor
+   MFEM_HOST_DEVICE
    Tensor(Container &data, Layout &index): data(data), index(index) { }
 
+   /// Copy Constructor
    MFEM_HOST_DEVICE
    Tensor(const Tensor &rhs): data(rhs.data), index(rhs.index) { }
 
-   template <typename... Idx> MFEM_HOST_DEVICE inline
-   const T& operator()(Idx... args) const
-   {
-      static_assert(Rank==sizeof...(Idx), "Wrong number of indices");
-      return data[ index(args...) ];
-   }
-
+   /// Accessor
    template <typename... Idx> MFEM_HOST_DEVICE inline
    T& operator()(Idx... args)
    {
@@ -59,6 +57,15 @@ public:
       return data[ index(args...) ];
    }
 
+   /// Const Accessor
+   template <typename... Idx> MFEM_HOST_DEVICE inline
+   const T& operator()(Idx... args) const
+   {
+      static_assert(Rank==sizeof...(Idx), "Wrong number of indices");
+      return data[ index(args...) ];
+   }
+
+   /// Return the size of the dimension N
    // TODO remove after inheriting
    template <int N>
    int Size() const
@@ -66,9 +73,11 @@ public:
       return index.template Size<N>();
    }
 
+   /// Initialization of a Tensor to a constant value.
    MFEM_HOST_DEVICE inline
    Tensor<Rank,T,Container,Layout>& operator=(const T &val)
    {
+      // TODO this doesn't work with all containers
       for (size_t i = 0; i < data.Capacity(); i++)
       {
          data[i] = val;
@@ -76,17 +85,46 @@ public:
       return *this;
    }
 
-   Tensor<Rank,T,ReadContainer<T>,Layout>& Read()
+   /// Get the Sub-Tensor extracted from idx in Nth dimension.
+   template <int N>
+   auto Get(int idx)
+   {
+      return ViewTensor<Rank-1,T>(data,RestrictedLayout(idx,layout));
+   }
+
+   template <int N>
+   auto Get(int idx) const
+   {
+      return ConstViewTensor<Rank-1,T>(data,RestrictedLayout(idx,layout));
+   }
+
+   /// Get the Sub-Tensor extracted from idx in Nth dimension.
+   template <int N, int... Dims>
+   auto Get(int idx0, int... idx)
+   {
+      return Get<N>(idx0).Get<Dims...>(idx...);
+   }
+
+   template <int N, int... Dims>
+   auto Get(int idx0, int... idx) const
+   {
+      return Get<N>(idx0).Get<Dims...>(idx...);
+   }
+
+   /// Generate a Tensor that be read on device
+   auto Read()
    {
       return Tensor<Rank,T,ReadContainer<T>,Layout>(data.ReadData(),index);
    }
 
-   Tensor<Rank,T,DeviceContainer,Layout>& Write()
+   /// Generate a Tensor that be writen on device (read is unsafe)
+   auto Write()
    {
       return Tensor<Rank,T,DeviceContainer,Layout>(data.WriteData(),index);
    }
 
-   Tensor<Rank,T,DeviceContainer,Layout>& ReadWrite()
+   /// Generate a Tensor that be read and writen on device
+   auto ReadWrite()
    {
       return Tensor<Rank,T,DeviceContainer,Layout>(data.ReadWriteData(),index);
    }
@@ -110,6 +148,7 @@ using SharedTensor = Tensor<Rank,
 template <int Rank, int MaxSize = pow(16,Rank)>
 using SharedDTensor = SharedTensor<Rank,double,MaxSize>;
 
+/// Statically sized Tensor
 template <typename T, int... Sizes>
 using StaticTensor = Tensor<sizeof...(Sizes),
                             T,
@@ -122,6 +161,7 @@ using dTensor = StaticTensor<double,Sizes...>;
 template <int... Sizes>
 using StaticDTensor = StaticTensor<double,Sizes...>;
 
+/// Dynamically sized Tensor
 template <int Rank, typename T, int MaxSize = pow(16,Rank)>
 using DynamicTensor = Tensor<Rank,
                              T,
@@ -131,6 +171,7 @@ using DynamicTensor = Tensor<Rank,
 template <int Rank, int MaxSize = pow(16,Rank)>
 using DynamicDTensor = DynamicTensor<Rank,double,MaxSize>;
 
+/// A Tensor distributed statically over a plane of threads
 template <typename T, int... Sizes>
 using BlockTensor = Tensor<sizeof...(Sizes),
                            T,
@@ -139,6 +180,22 @@ using BlockTensor = Tensor<sizeof...(Sizes),
 
 template <int... Sizes>
 using BlockDTensor = BlockTensor<double,Sizes...>;
+
+/// A Tensor distributed dynamically over a plane of threads
+template <int Rank, typename T, int MaxSize = pow(16,Rank)>
+using DynamicBlockTensor = Tensor<Rank,
+                           T,
+                           BlockContainer<T, MaxSize>,
+                           DynamicBlockLayout<Rank> >;
+
+template <int Rank, int MaxSize = pow(16,Rank)>
+using DynamicBlockDTensor = DynamicBlockTensor<Rank,double,MaxSize>;
+
+template <int Rank, typename T>
+using ViewTensor = Tensor<Rank,T,ViewContainer,RestrictedLayout>;
+
+template <int Rank, typename T>
+using ConstViewTensor = Tensor<Rank,T,ConstViewContainer,RestrictedLayout>;
 
 // template <typename... LayoutParams,
 //           template <typename...> typename LayoutOut,

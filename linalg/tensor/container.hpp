@@ -169,6 +169,7 @@ template <typename T, int... Dims>
 class StaticSharedContainer
 {
 private:
+// TODO might have to take into account some sort of number of elements
    MFEM_SHARED T data[prod(Dims...)];
 public:
    template <typename... Sizes> MFEM_HOST_DEVICE
@@ -278,14 +279,12 @@ public:
    MFEM_HOST_DEVICE
    const T& operator[](int i) const
    {
-      // TODO Verify in debug that i==0
       return data[ i ];
    }
 
    MFEM_HOST_DEVICE
    T& operator[](int i)
    {
-      // TODO Verify in debug that i==0
       return data[ i ];
    }
 
@@ -293,6 +292,60 @@ public:
    constexpr int Capacity() const
    {
       return prod(Dims...);
+   }
+};
+
+/// A view Container
+template <typename T, typename Container>
+class ViewContainer
+{
+private:
+   Container &data;
+
+public:
+   MFEM_HOST_DEVICE
+   ViewContainer(Container &data): data(data) { }
+
+   MFEM_HOST_DEVICE
+   const T& operator[](int i) const
+   {
+      return data[ i ];
+   }
+
+   MFEM_HOST_DEVICE
+   T& operator[](int i)
+   {
+      return data[ i ];
+   }
+
+   MFEM_HOST_DEVICE
+   constexpr int Capacity() const
+   {
+      return data.Capacity();
+   }
+};
+
+/// A view Container
+template <typename T, typename Container>
+class ConstViewContainer
+{
+private:
+   const Container &data;
+
+public:
+   MFEM_HOST_DEVICE
+   ConstViewContainer(const Container &data): data(data) { }
+
+   MFEM_HOST_DEVICE
+   const T& operator[](int i) const
+   {
+      return data[ i ];
+   }
+
+   MFEM_HOST_DEVICE
+   constexpr int Capacity() const
+   {
+      return data.Capacity();
    }
 };
 
