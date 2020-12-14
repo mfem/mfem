@@ -61,13 +61,21 @@ private:
    int Initialize(Ceed ceed, CeedBasis basisctof,
                   CeedElemRestriction erestrictu_coarse,
                   CeedElemRestriction erestrictu_fine);
+   int Finalize();
 
    CeedBasis basisctof_;
    CeedVector u_, v_;
 
-   CeedInterpolation ceed_interp_;
+   // CeedInterpolation ceed_interp_;
 
    bool owns_basis_;
+
+   // from CeedInterpolation_private
+   // Ceed ceed;
+   CeedQFunction qf_restrict, qf_prolong;
+   CeedOperator op_interp, op_restrict;
+   CeedVector fine_multiplicity_r;
+   CeedVector fine_work;
 };
 
 }
