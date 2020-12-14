@@ -42,6 +42,8 @@
 //   Adapted analytc shape with hr-adaptivity:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 0 -tid 4 -ni 50 -ls 2 -li 20 -bnd -qt 1 -qo 8 -hmid 55 -mid 7 -ht 1 -hr
 //     mesh-optimizer -m square01.mesh -o 2 -rs 0 -tid 4 -ni 50 -ls 2 -li 20 -bnd -qt 1 -qo 8 -hmid 55 -mid 7 -ht 2 -hr
+//     mesh-optimizer -m square01.mesh -o 2 -rs 0 -tid 4 -ni 50 -ls 2 -li 20 -bnd -qt 1 -qo 8 -hmid 55 -mid 2 -ht 2 -hr
+//
 //   Adapted discrete size:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor
 //   Adapted discrete size; explicit combo of metrics; mixed tri/quad mesh:
@@ -121,7 +123,7 @@ int main(int argc, char *argv[])
    bool normalization    = false;
    bool visualization    = true;
    int verbosity_level   = 0;
-   int hessiantype       = 1;
+   int hessiantype       = 0;
    bool fdscheme         = false;
    int adapt_eval        = 0;
    bool exactaction      = false;
@@ -213,8 +215,8 @@ int main(int argc, char *argv[])
                   "Enable hr-adaptivity.");
    args.AddOption(&amr_metric_id, "-hmid", "--h-metric",
                   "same options as metric_id");
-   args.AddOption(&hessiantype, "-ht", "--Hessian Target type",
-                  "1-6");
+   args.AddOption(&hessiantype, "-ht", "--Hessian type for hr-adaptivity examples",
+                  "1-3");
    args.AddOption(&normalization, "-nor", "--normalization", "-no-nor",
                   "--no-normalization",
                   "Make all terms in the optimization functional unitless.");
@@ -249,7 +251,7 @@ int main(int argc, char *argv[])
    else { cout << "(NONE)"; }
    cout << endl;
 
-   mesh->EnsureNCMesh();
+   if (hradaptivity) { mesh->EnsureNCMesh(); }
 
    // 3. Define a finite element space on the mesh-> Here we use vector finite
    //    elements which are tensor products of quadratic finite elements. The
