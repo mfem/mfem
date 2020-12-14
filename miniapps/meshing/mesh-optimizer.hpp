@@ -11,7 +11,7 @@
 
 // MFEM Mesh Optimizer Miniapp - Serial/Parallel Shared Code
 
-#include "../../mfem.hpp"
+#include "mfem.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -104,15 +104,12 @@ class HessianCoefficient : public TMOPMatrixCoefficient
 private:
    int dim;
    int metric;
-   int amr_type = 5;
+   int amr_type;
 
 public:
-   HessianCoefficient(int dim_, int metric_id, int amr_type_)
+   HessianCoefficient(int dim_, int metric_id, int amr_type_ = 0)
       : TMOPMatrixCoefficient(dim_), dim(dim_), metric(metric_id),
         amr_type(amr_type_) { }
-
-   HessianCoefficient(int dim_, int metric_id)
-      : TMOPMatrixCoefficient(dim_), dim(dim_), metric(metric_id) { }
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip)
@@ -200,7 +197,6 @@ public:
          if (ind > 1.0) {ind = 1.;}
          if (ind < 0.0) {ind = 0.;}
          double val = ind * small + (1.0 - ind) * big;
-         //K(0, 0) = eps + 1.0 * (tan1 - tan2);
          K = 0.0;
          K(0, 0) = 1.0;
          K(0, 1) = 0.0;
@@ -210,21 +206,7 @@ public:
          K(1, 1) *= pow(val,0.5);
          if (dim == 3) { K(2, 2) = pow(val,0.5); }
       }
-      else if (amr_type==2) // size only sine wave
-      {
-         const double small = 0.001, big = 0.01;
-         const double X = pos(0), Y = pos(1);
-         double ind = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
-                      std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
-         if (ind > 1.0) {ind = 1.;}
-         if (ind < 0.0) {ind = 0.;}
-         double val = ind * small + (1.0 - ind) * big;
-         K(0, 0) = pow(val,0.5);
-         K(0, 1) = 0.0;
-         K(1, 0) = 0.0;
-         K(1, 1) = pow(val,0.5);
-      }
-      else if (amr_type==3) //circle with size and AR
+      else if (amr_type==2) //circle with size and AR
       {
          const double small = 0.001, big = 0.01;
          const double xc = pos(0)-0.5, yc = pos(1)-0.5;
@@ -269,30 +251,7 @@ public:
          K(0,0) *= pow(szval,0.5);
          K(1,1) *= pow(szval,0.5);
       }
-      else if (amr_type == 4) //sharp sine wave
-      {
-         //const double small = 0.001, big = 0.01;
-         const double xc = pos(0), yc = pos(1);
-
-         double tfac = 40;
-         double yl1 = 0.45;
-         double yl2 = 0.55;
-         double wgt = std::tanh((tfac*(yc-yl1) + 2*std::sin(4.0*M_PI*xc)) + 1) -
-                      std::tanh((tfac*(yc-yl2) + 2*std::sin(4.0*M_PI*xc)) - 1);
-         if (wgt > 1) { wgt = 1; }
-         if (wgt < 0) { wgt = 0; }
-
-         const double eps2 = 10;
-         const double eps1 = 1;
-         K(1,1) = eps1/eps2 + eps1*(1-wgt)*(1-wgt);
-         K(0,0) = eps1;
-         K(0,1) = 0.0;
-         K(1,0) = 0.0;
-
-         //K(0,0) *= pow(szval,0.5);
-         //K(1,1) *= pow(szval,0.5);
-      }
-      else if (amr_type == 5) //sharp rotated sine wave
+      else if (amr_type == 3) //sharp rotated sine wave
       {
          double xc = pos(0)-0.5, yc = pos(1)-0.5;
          double th = 15.5*M_PI/180.;
@@ -318,19 +277,6 @@ public:
          K(0,0) = eps1;
          K(0,1) = 0.0;
          K(1,0) = 0.0;
-      }
-      else if (amr_type == 6) //BOUNDARY LAYER REFINEMENT
-      {
-         const double szfac = 1;
-         const double asfac = 500;
-         const double eps = szfac;
-         const double eps2 = szfac/asfac;
-         double yscale = 1.5;
-         yscale = 2 - 2/asfac;
-         K(0, 0) = eps;
-         K(1, 1) = eps2 + szfac*yscale*pos(1);
-         K(0, 1) = 0.0;
-         K(1, 0) = 0.0;
       }
    }
 
