@@ -233,7 +233,7 @@ private:
 public:
    template <typename... Sizes> MFEM_HOST_DEVICE inline
    BlockLayout(int size0, int size1, Sizes... sizes)
-   : layout(sizes)
+   : layout(sizes...)
    {
       // TODO Verify in debug that size0==DimX && size1==DimY
       // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
@@ -251,7 +251,7 @@ public:
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
-      static_assert(N>=0 && N<rank(Sizes...),"Accessed size is higher than the rank of the Tensor.");
+      static_assert(N>=0 && N<rank(DimX,DimY,Dims...),"Accessed size is higher than the rank of the Tensor.");
       return Dim<N,DimX,DimY,Dims...>::val;
    }
 };
@@ -291,7 +291,7 @@ public:
       case 1:
          return size1;
       default:
-         return layout.Size<N-2>();
+         return layout.template Size<N-2>();
       }
    }
 };
@@ -320,7 +320,7 @@ public:
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
-      static_assert(N==0,"Accessed size is higher than the rank of the Tensor.")
+      static_assert(N==0,"Accessed size is higher than the rank of the Tensor.");
       return size0;
    }
 };
@@ -370,21 +370,21 @@ class StridedLayout
 private:
    int strides[Rank];
    int offsets[Rank];
-   int sizes[Rank]
+   int sizes[Rank];
 
 public:
    template <typename... Idx> MFEM_HOST_DEVICE inline
    constexpr int operator()(Idx... idx) const
    {
-      static_assert(sizeof...(Idx...)==Rank,"Wrong number of argumets.");
-      return StridedIndex::eval<1>(idx...);
+      static_assert(sizeof...(Idx)==Rank,"Wrong number of argumets.");
+      return StridedIndex<1>::eval(offsets, strides, idx...);
    }
 
    // Can be constexpr if Tensor inherit from Layout
    template <int N> MFEM_HOST_DEVICE inline
    int Size() const
    {
-      static_assert(N>=0 && N<rank(Sizes...),"Accessed size is higher than the rank of the Tensor.");
+      static_assert(N>=0 && N<Rank,"Accessed size is higher than the rank of the Tensor.");
       return sizes[N];
    }
 
@@ -393,9 +393,9 @@ private:
    struct StridedIndex
    {
       template <typename... Idx>
-      static inline int eval(int first, Idx... args)
+      static inline int eval(int* offsets, int* strides, int first, Idx... args)
       {
-         return (offsets[N-1]+first)*strides[N-1] + StridedIndex<N+1>(args...);
+         return (offsets[N-1]+first)*strides[N-1] + StridedIndex<N+1>::eval(args...);
       }
    };
 
@@ -403,9 +403,9 @@ private:
    struct StridedIndex<Rank>
    {
       template <typename... Idx>
-      static inline int eval(int first)
+      static inline int eval(int* offsets, int* strides, int first)
       {
-         return (offsets[N-1]+first)*strides[N-1];
+         return (offsets[Rank-1]+first)*strides[Rank-1];
       }
    };
 };
