@@ -2380,7 +2380,6 @@ void PetscLinearSolver::SetOperator(const Operator &op)
          delete X;
          delete B;
          X = B = NULL;
-         wrap = false;
       }
    }
    ierr = KSPSetOperators(ksp,A,A); PCHKERRQ(ksp,ierr);
@@ -4396,13 +4395,22 @@ static PetscErrorCode __mfem_mat_shell_apply_transpose(Mat A, Vec x, Vec y)
 {
    mfem::Operator *op;
    PetscErrorCode ierr;
+   PetscBool      flg,symm;
 
    PetscFunctionBeginUser;
    ierr = MatShellGetContext(A,(void **)&op); CHKERRQ(ierr);
    if (!op) { SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_LIB,"Missing operator"); }
    mfem::PetscParVector xx(x,true);
    mfem::PetscParVector yy(y,true);
-   op->MultTranspose(xx,yy);
+   ierr = MatIsSymmetricKnown(A,&flg,&symm); CHKERRQ(ierr);
+   if (symm)
+   {
+      op->Mult(xx,yy);
+   }
+   else
+   {
+      op->MultTranspose(xx,yy);
+   }
    // need to tell PETSc the Vec has been updated
    ierr = PetscObjectStateIncrease((PetscObject)y); CHKERRQ(ierr);
    PetscFunctionReturn(0);
