@@ -16,7 +16,6 @@
 
 #ifdef MFEM_USE_CEED
 #include <ceed.h>
-#include "ceedsolvers-interpolation.h"
 #include "../../linalg/operator.hpp"
 
 namespace mfem
@@ -41,7 +40,12 @@ private:
    ConstrainedOperator *constrained_op;
 };
 
-/// Wraps CeedInterpolation object in an mfem::Operator
+/** @brief Multigrid interpolation operator in Ceed framework
+
+    Interpolation/restriction has two components, an element-wise
+    interpolation and then a scaling to correct multiplicity
+    on shared ldofs. This encapsulates those two in one object
+    using the MFEM Operator interface. */
 class MFEMCeedInterpolation : public mfem::Operator
 {
 public:
@@ -66,12 +70,8 @@ private:
    CeedBasis basisctof_;
    CeedVector u_, v_;
 
-   // CeedInterpolation ceed_interp_;
-
    bool owns_basis_;
 
-   // from CeedInterpolation_private
-   // Ceed ceed;
    CeedQFunction qf_restrict, qf_prolong;
    CeedOperator op_interp, op_restrict;
    CeedVector fine_multiplicity_r;

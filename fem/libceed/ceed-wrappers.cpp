@@ -164,10 +164,6 @@ int MFEMCeedInterpolation::Initialize(
 {
    int ierr = 0;
 
-   /*
-   ierr = CeedInterpolationCreate(ceed, basisctof, erestrictu_coarse,
-                                  erestrictu_fine, &ceed_interp_); CeedChk(ierr);
-   */
    int height, width;
    ierr = CeedElemRestrictionGetLVectorSize(erestrictu_coarse, &width); CeedChk(ierr);
    ierr = CeedElemRestrictionGetLVectorSize(erestrictu_fine, &height); CeedChk(ierr);
@@ -223,9 +219,7 @@ int MFEMCeedInterpolation::Initialize(
    ierr = CeedVectorDestroy(&c_fine_multiplicity); CeedChk(ierr);
 
    ierr = CeedVectorCreate(ceed, height, &fine_work); CeedChk(ierr);
-   //// end copy from fake ceed object
 
-   //// original to MFEM wrapper object
    ierr = CeedVectorCreate(ceed, height, &v_); CeedChk(ierr);
    ierr = CeedVectorCreate(ceed, width, &u_); CeedChk(ierr);
 
@@ -268,7 +262,6 @@ MFEMCeedInterpolation::~MFEMCeedInterpolation()
    {
       CeedBasisDestroy(&basisctof_);
    }
-   // CeedInterpolationDestroy(&ceed_interp_);
    Finalize();
 }
 
@@ -277,9 +270,6 @@ void MFEMCeedInterpolation::Mult(const mfem::Vector& x, mfem::Vector& y) const
    int ierr = 0;
    MFEMCeedVectorContext context(x, y, u_, v_);
 
-/*
-   ierr += CeedInterpolationInterpolate(ceed_interp_, u_, v_);
-*/
    ierr += CeedOperatorApply(op_interp, u_, v_,
                              CEED_REQUEST_IMMEDIATE);
    ierr += CeedVectorPointwiseMult(v_, fine_multiplicity_r);
@@ -293,9 +283,6 @@ void MFEMCeedInterpolation::MultTranspose(const mfem::Vector& x,
    int ierr = 0;
    MFEMCeedVectorContext context(x, y, v_, u_);
 
-/*
-   ierr += CeedInterpolationRestrict(ceed_interp_, v_, u_);
-*/
    int length;
    ierr += CeedVectorGetLength(v_, &length);
 
