@@ -39,6 +39,10 @@
 //   Adapted analytic shape+orientation:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 4 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd
 //
+//   Adapted analytc shape with hr-adaptivity:
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 0 -tid 4 -ni 50 -ls 2 -li 20 -bnd -qt 1 -qo 8 -hmid 55 -mid 7 -ht 1 -hr
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 0 -tid 4 -ni 50 -ls 2 -li 20 -bnd -qt 1 -qo 8 -hmid 55 -mid 7 -ht 2 -hr
+//
 //   Adapted discrete size:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor
 //   Adapted discrete size; explicit combo of metrics; mixed tri/quad mesh:
@@ -83,7 +87,7 @@
 //   2D non-conforming shape and equal size:
 //     mpirun -np 4 pmesh-optimizer -m ./amr-quad-q2.mesh -o 2 -rs 1 -mid 9 -tid 2 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 
-#include "../../mfem.hpp"
+#include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <iostream>
 #include <fstream>
@@ -119,7 +123,7 @@ int main (int argc, char *argv[])
    int max_lin_iter      = 100;
    bool move_bnd         = true;
    int combomet          = 0;
-   bool hradaptivity     = true;
+   bool hradaptivity     = false;
    int amr_metric_id     = -1;
    bool normalization    = false;
    bool visualization    = true;
