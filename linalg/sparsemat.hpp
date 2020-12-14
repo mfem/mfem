@@ -95,14 +95,17 @@ protected:
    cusparseStatus_t status;
    static cusparseHandle_t handle;
    cusparseMatDescr_t descr=0;
+   static int SparseMatrixCount;
    static size_t bufferSize;
    static void *dBuffer;
    mutable bool initBuffers{false};
 
-   static int SparseMatrixCount;
+#if CUDA_VERSION > 10010 || CUDA_VERSION == 10010
    mutable cusparseSpMatDescr_t matA_descr;
    mutable cusparseDnVecDescr_t vecX_descr;
    mutable cusparseDnVecDescr_t vecY_descr;
+#endif
+   mutable cusparseMatDescr_t matA_descr;
 #endif
 
 public:
