@@ -18,6 +18,517 @@
 namespace mfem
 {
 
+template <int Dim, typename Basis>
+class BasisTensor;
+
+template <int Dim>
+using DynamicBasisTensor = BasisTensor<Dim,SharedDTensor<2>>;
+
+template <int Dim, int Q, int D>
+using StaticBasisTensor = BasisTensor<Dim,StaticSharedDTensor<Q,D>>;
+
+// 1D Dynamic Basis
+template <typename Basis>
+class BasisTensor<1,Basis> : public Basis
+{
+public:
+   /// Contraction on X dimension
+   MFEM_HOST_DEVICE inline
+   auto ContractX(const DynamicDTensor<1> &u)
+   {
+      const int Q = this->template Size<0>();
+      const int D = this->template Size<1>();
+      DynamicDTensor<1> Bu(Q);
+      for(int q = 0; q < Q; ++q)
+      {
+         double v = 0.0;
+         for (int d = 0; d < D; ++d)
+         {
+            const double b = (q,d);
+            const double x = u(d);
+            v += b * x;
+         }
+         Bu(q) = v;
+      }
+      return Bu;
+   }
+
+   /// Contraction on X dimension
+   MFEM_HOST_DEVICE inline
+   auto ContractX(const DynamicBlockDTensor<1> &u)
+   {
+      const int Q = this->template Size<0>();
+      const int D = this->template Size<1>();
+      DynamicBlockDTensor<1> Bu(Q);
+      MFEM_FOREACH_THREAD(q,x,Q)
+      {
+         double v = 0.0;
+         for (int d = 0; d < D; ++d)
+         {
+            const double b = (q,d);
+            const double x = u(d);
+            v += b * x;
+         }
+         Bu(q) = v;
+      }
+      MFEM_SYNC_THREAD;
+      return Bu;
+   }
+
+   /// Contraction on X dimension
+   template <int D>
+   auto ContractX(const StaticDTensor<D> &u)
+   {
+      constexpr int Q = this->template Size<0>();
+      StaticDTensor<Q> Bu;
+      for(int q = 0; q < Q; ++q)
+      {
+         double v = 0.0;
+         for (int d = 0; d < D; ++d)
+         {
+            const double b = (q,d);
+            const double x = u(d);
+            v += b * x;
+         }
+         Bu(q) = v;
+      }
+      return Bu;
+   }
+
+   /// Contraction on X dimension
+   template <int D>
+   auto ContractX(const BlockDTensor<D> &u)
+   {
+      constexpr int Q = this->template Size<0>();
+      BlockDTensor<Q> Bu;
+      MFEM_FOREACH_THREAD(q,x,Q)
+      {
+         double v = 0.0;
+         for (int d = 0; d < D; ++d)
+         {
+            const double b = (q,d);
+            const double x = u(d);
+            v += b * x;
+         }
+         Bu(q) = v;
+      }
+      MFEM_SYNC_THREAD;
+      return Bu;
+   }
+};
+
+// 2D Dynamic Basis
+template <typename Basis>
+class BasisTensor<2,Basis> : public Basis
+{
+public:
+   /// Contraction on X dimension
+   MFEM_HOST_DEVICE inline
+   auto ContractX(const DynamicDTensor<2> &u)
+   {
+      const int Q = this->template Size<0>();
+      const int Dx = this->template Size<1>();
+      const int Dy = u.Size<1>();
+      DynamicDTensor<2> Bu(Q,Dy);
+      for (int dy = 0; dy < Dy; dy++)
+      {
+         for(int q = 0; q < Q; ++q)
+         {
+            double v = 0.0;
+            for (int dx = 0; dx < Dx; ++dx)
+            {
+               const double b = (q,dx);
+               const double x = u(dx,dy);
+               v += b * x;
+            }
+            Bu(q,dy) = v;
+         }
+      }
+      return Bu;
+   }
+
+   /// Contraction on X dimension
+   MFEM_HOST_DEVICE inline
+   auto ContractX(const DynamicBlockDTensor<2> &u)
+   {
+      const int Q = this->template Size<0>();
+      const int Dx = this->template Size<1>();
+      const int Dy = u.Size<1>();
+      DynamicBlockDTensor<2> Bu(Q,Dy);
+      MFEM_FOREACH_THREAD(dy,y,Dy)
+      {
+         MFEM_FOREACH_THREAD(q,x,Q)
+         {
+            double v = 0.0;
+            for (int dx = 0; dx < Dx; ++dx)
+            {
+               const double b = (q,dx);
+               const double x = u(dx,dy);
+               v += b * x;
+            }
+            Bu(q,dy) = v;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      return Bu;
+   }
+
+   /// Contraction on X dimension
+   template <int Dx, int Dy> MFEM_HOST_DEVICE inline
+   auto ContractX(const StaticDTensor<Dx,Dy> &u)
+   {
+      constexpr int Q = this->template Size<0>();
+      StaticDTensor<Q,Dy> Bu;
+      for (int dy = 0; dy < Dy; dy++)
+      {
+         for(int q = 0; q < Q; ++q)
+         {
+            double v = 0.0;
+            for (int dx = 0; dx < Dx; ++dx)
+            {
+               const double b = (q,dx);
+               const double x = u(dx,dy);
+               v += b * x;
+            }
+            Bu(q,dy) = v;
+         }
+      }
+      return Bu;
+   }
+
+   /// Contraction on X dimension
+   template <int Dx, int Dy> MFEM_HOST_DEVICE inline
+   auto ContractX(const BlockDTensor<Dx,Dy> &u)
+   {
+      constexpr int Q = this->template Size<0>();
+      BlockDTensor<Q,Dy> Bu;
+      MFEM_FOREACH_THREAD(dy,y,Dy)
+      {
+         MFEM_FOREACH_THREAD(q,x,Q)
+         {
+            double v = 0.0;
+            for (int dx = 0; dx < Dx; ++dx)
+            {
+               const double b = (q,dx);
+               const double x = u(dx,dy);
+               v += b * x;
+            }
+            Bu(q,dy) = v;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      return Bu;
+   }
+
+   /// Contraction on Y dimension
+   MFEM_HOST_DEVICE inline
+   auto ContractY(const DynamicDTensor<2> &u)
+   {
+      const int Q = this->template Size<0>();
+      const int Dy = this->template Size<1>();
+      const int Dx = u.Size<0>();
+      DynamicDTensor<2> Bu(Dx,Q);
+      for (int dx = 0; dx < Dx; dx++)
+      {
+         for(int q = 0; q < Q; ++q)
+         {
+            double v = 0.0;
+            for (int dy = 0; dy < Dy; ++dy)
+            {
+               const double b = (q,dy);
+               const double x = u(dx,dy);
+               v += b * x;
+            }
+            Bu(dx,q) = v;
+         }
+      }
+      return Bu;
+   }
+
+   /// Contraction on Y dimension
+   MFEM_HOST_DEVICE inline
+   auto ContractY(const DynamicBlockDTensor<2> &u)
+   {
+      const int Q = this->template Size<0>();
+      const int Dy = this->template Size<1>();
+      const int Dx = u.Size<0>();
+      DynamicBlockDTensor<2> Bu(Dx,Q);
+      MFEM_FOREACH_THREAD(dx,x,Dx)
+      {
+         MFEM_FOREACH_THREAD(q,y,Q)
+         {
+            double v = 0.0;
+            for (int dy = 0; dy < Dy; ++dy)
+            {
+               const double b = (q,dy);
+               const double x = u(dx,dy);
+               v += b * x;
+            }
+            Bu(dx,q) = v;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      return Bu;
+   }
+
+   /// Contraction on Y dimension
+   template <int Dx, int Dy> MFEM_HOST_DEVICE inline
+   auto ContractY(const StaticDTensor<Dx,Dy> &u)
+   {
+      const int Q = this->template Size<0>();
+      StaticDTensor<Dx,Q> Bu;
+      for (int dx = 0; dx < Dx; dx++)
+      {
+         for(int q = 0; q < Q; ++q)
+         {
+            double v = 0.0;
+            for (int dy = 0; dy < Dy; ++dy)
+            {
+               const double b = (q,dy);
+               const double x = u(dx,dy);
+               v += b * x;
+            }
+            Bu(dx,q) = v;
+         }
+      }
+      return Bu;
+   }
+
+   /// Contraction on Y dimension
+   template <int Dx, int Dy> MFEM_HOST_DEVICE inline
+   auto ContractY(const BlockDTensor<Dx,Dy> &u)
+   {
+      const int Q = this->template Size<0>();
+      BlockDTensor<Dx,Q> Bu;
+      StaticSharedDTensor<Dx,Dy> slice; // TODO Change BlockTensor in 2D and 1D
+      MFEM_FOREACH_THREAD(dx,x,Dx)
+      {
+         MFEM_FOREACH_THREAD(q,y,Q)
+         {
+            double v = 0.0;
+            for (int dy = 0; dy < Dy; ++dy)
+            {
+               const double b = (q,dy);
+               const double x = u(dx,dy);
+               v += b * x;
+            }
+            Bu(dx,q) = v;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      return Bu;
+   }
+};
+
+// 3D Dynamic Basis
+template <typename Basis>
+class BasisTensor<3,Basis> : public Basis
+{
+   /// Contraction on X dimension
+   MFEM_HOST_DEVICE inline
+   auto ContractX(const DynamicDTensor<3> &u)
+   {
+      const int Q = this->template Size<0>();
+      const int Dx = this->template Size<1>();
+      const int Dy = u.Size<1>();
+      const int Dz = u.Size<2>();
+      DynamicDTensor<3> Bu(Q,Dy,Dz);
+      for (int dz = 0; dz < Dz; dz++)
+      {
+         for (int dy = 0; dy < Dy; dy++)
+         {
+            for(int q = 0; q < Q; ++q)
+            {
+               double v = 0.0;
+               for (int dx = 0; dx < Dx; ++dx)
+               {
+                  const double b = (q,dx);
+                  const double x = u(dx,dy,dz);
+                  v += b * x;
+               }
+               Bu(q,dy,dz) = v;
+            }
+         }
+      }
+      return Bu;
+   }
+
+   /// Contraction on X dimension
+   MFEM_HOST_DEVICE inline
+   auto ContractX(const DynamicBlockDTensor<3> &u)
+   {
+      const int Q = this->template Size<0>();
+      const int Dx = this->template Size<1>();
+      const int Dy = u.Size<1>();
+      const int Dz = u.Size<2>();
+      DynamicBlockDTensor<3> Bu(Q,Dy,Dz);
+      SharedDTensor<2> slice(Dx,Dy); // TODO Add more than one element (with rank=3)
+      for (int dz = 0; dz < Dz; dz++)
+      {
+         MFEM_FOREACH_THREAD(dy,y,Dy)
+         {
+            MFEM_FOREACH_THREAD(dx,x,Dx)
+            {
+               slice(dx,dy) = u(dx,dy,dz);
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(dy,y,Dy)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q)
+            {
+               double v = 0.0;
+               for (int dx = 0; dx < Dx; ++dx)
+               {
+                  const double b = (q,dx);
+                  const double x = slice(dx,dy);
+                  v += b * x;
+               }
+               Bu(q,dy) = v;
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+      return Bu;
+   }
+
+   /// Contraction on Y dimension
+   MFEM_HOST_DEVICE inline
+   auto ContractY(const DynamicDTensor<3> &u)
+   {
+      const int Q = this->template Size<0>();
+      const int Dx = u.Size<0>();
+      const int Dy = this->template Size<1>();
+      const int Dz = u.Size<2>();
+      DynamicDTensor<3> Bu(Dx,Q,Dz);
+      for (int dz = 0; dz < Dz; dz++)
+      {
+         for (int dx = 0; dx < Dx; dx++)
+         {
+            for(int q = 0; q < Q; ++q)
+            {
+               double v = 0.0;
+               for (int dy = 0; dy < Dy; ++dy)
+               {
+                  const double b = (q,dy);
+                  const double x = u(dx,dy,dz);
+                  v += b * x;
+               }
+               Bu(dx,q,dz) = v;
+            }
+         }
+      }
+      return Bu;
+   }
+
+   /// Contraction on Y dimension
+   MFEM_HOST_DEVICE inline
+   auto ContractY(const DynamicBlockDTensor<3> &u)
+   {
+      const int Q = this->template Size<0>();
+      const int Dx = u.Size<0>();
+      const int Dy = this->template Size<1>();
+      const int Dz = u.Size<2>();
+      DynamicBlockDTensor<3> Bu(Dx,Q,Dz);
+      SharedDTensor<2> slice(Dx,Dy);
+      for (int dz = 0; dz < Dz; dz++)
+      {
+         MFEM_FOREACH_THREAD(dy,y,Dy)
+         {
+            MFEM_FOREACH_THREAD(dx,x,Dx)
+            {
+               slice(dx,dy) = u(dx,dy,dz);
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(dx,x,Dx)
+         {
+            MFEM_FOREACH_THREAD(q,y,Q)
+            {
+               double v = 0.0;
+               for (int dy = 0; dy < Dy; ++dy)
+               {
+                  const double b = (q,dy);
+                  const double x = u(dx,dy);
+                  v += b * x;
+               }
+               Bu(dx,q) = v;
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+      return Bu;
+   }
+
+   /// Contraction on Z dimension
+   MFEM_HOST_DEVICE inline
+   auto ContractZ(const DynamicDTensor<3> &u)
+   {
+      const int Q = this->template Size<0>();
+      const int Dx = u.Size<0>();
+      const int Dy = u.Size<1>();
+      const int Dz = this->template Size<2>();
+      DynamicDTensor<3> Bu(Dx,Dy,Q);
+      for (int dy = 0; dy < Dy; dy++)
+      {
+         for (int dx = 0; dx < Dx; dx++)
+         {
+            for(int q = 0; q < Q; ++q)
+            {
+               double v = 0.0;
+               for (int dz = 0; dz < Dz; ++dz)
+               {
+                  const double b = (q,dz);
+                  const double x = u(dx,dy,dz);
+                  v += b * x;
+               }
+               Bu(dx,dy,q) = v;
+            }
+         }
+      }
+      return Bu;
+   }
+
+   MFEM_HOST_DEVICE inline
+   auto ContractZ(const DynamicBlockDTensor<3> &u)
+   {
+      const int Q = this->template Size<0>();
+      const int Dx = u.Size<0>();
+      const int Dy = u.Size<1>();
+      const int Dz = this->template Size<2>();
+      DynamicBlockDTensor<3> Bu(Dx,Dy,Q);
+      MFEM_FOREACH_THREAD(dy,y,Dy)
+      {
+         MFEM_FOREACH_THREAD(dx,x,Dx)
+         {
+            for (int q = 0; q < Q; q++)
+            {
+               double v = 0.0;
+               for (int dz = 0; dz < Dz; ++dz)
+               {
+                  const double b = (q,dz);
+                  const double x = u(dx,dy,dz);
+                  v += b * x;
+               }
+               Bu(dx,dy,q) = v;
+            }
+         }
+      }
+      return Bu;
+   }
+};
+
+class BasisMatrix: public SharedDTensor<2,1024> // TODO pick a better value than 1024
+{
+
+};
+
+template <int Q, int D>
+class StaticBasisMatrix: public StaticSharedDTensor<Q,D>
+{
+
+};
+
 template <int Dim, bool IsTensor, int Dofs, int Quads>
 struct Basis;
 
@@ -26,7 +537,7 @@ struct Basis<Dim,true,0,0>
 {
    static constexpr int dim = Dim;
    static constexpr bool isTensor = true;
-   static constexpr int MaxSize1D = 16;
+   static constexpr int MaxSize = pow(16,2);
    const int dofs1D;
    const int quads1D;
    const int dofs;
@@ -38,7 +549,7 @@ struct Basis<Dim,true,0,0>
 
    auto GetB()
    {
-      SharedTensor<2,double,pow(MaxSize1D,2)> s_B(quads1D,dofs1D);
+      DynamicBasisTensor<Dim> s_B(quads1D,dofs1D);
       MFEM_FOREACH_THREAD(d,y,dofs1D)
       {
          MFEM_FOREACH_THREAD(q,x,quads1D)
@@ -51,7 +562,7 @@ struct Basis<Dim,true,0,0>
 
    auto GetBt()
    {
-      SharedTensor<2,double,pow(MaxSize1D,2)> s_Bt(dofs1D,quads1D);
+      DynamicBasisTensor<Dim> s_Bt(dofs1D,quads1D);
       MFEM_FOREACH_THREAD(q,y,quads1D)
       {
          MFEM_FOREACH_THREAD(d,x,dofs1D)
@@ -64,7 +575,7 @@ struct Basis<Dim,true,0,0>
 
    auto GetG()
    {
-      SharedTensor<2,double,pow(MaxSize1D,2)> s_G(quads1D,dofs1D);
+      DynamicBasisTensor<Dim> s_G(quads1D,dofs1D);
       MFEM_FOREACH_THREAD(d,y,dofs1D)
       {
          MFEM_FOREACH_THREAD(q,x,quads1D)
@@ -77,7 +588,7 @@ struct Basis<Dim,true,0,0>
 
    auto GetGt()
    {
-      SharedTensor<2,double,pow(MaxSize1D,2)> s_Gt(dofs1D,quads1D);
+      DynamicBasisTensor<Dim> s_Gt(dofs1D,quads1D);
       MFEM_FOREACH_THREAD(q,y,quads1D)
       {
          MFEM_FOREACH_THREAD(d,x,dofs1D)
@@ -105,7 +616,7 @@ struct Basis<Dim,true,Dofs1D,Quads1D>
 
    auto GetB()
    {
-      StaticSharedTensor<double,quads1D,dofs1D> s_B(quads1D,dofs1D);
+      StaticBasisTensor<dim,quads1D,dofs1D> s_B(quads1D,dofs1D);
       MFEM_FOREACH_THREAD(d,y,dofs1D)
       {
          MFEM_FOREACH_THREAD(q,x,quads1D)
@@ -118,7 +629,7 @@ struct Basis<Dim,true,Dofs1D,Quads1D>
 
    auto GetBt()
    {
-      StaticSharedTensor<double,dofs1D,quads1D> s_Bt(dofs1D,quads1D);
+      StaticBasisTensor<dim,dofs1D,quads1D> s_Bt(dofs1D,quads1D);
       MFEM_FOREACH_THREAD(q,y,quads1D)
       {
          MFEM_FOREACH_THREAD(d,x,dofs1D)
@@ -131,7 +642,7 @@ struct Basis<Dim,true,Dofs1D,Quads1D>
 
    auto GetG()
    {
-      StaticSharedTensor<double,quads1D,dofs1D> s_G(quads1D,dofs1D);
+      StaticBasisTensor<dim,quads1D,dofs1D> s_G(quads1D,dofs1D);
       MFEM_FOREACH_THREAD(d,y,dofs1D)
       {
          MFEM_FOREACH_THREAD(q,x,quads1D)
@@ -144,7 +655,7 @@ struct Basis<Dim,true,Dofs1D,Quads1D>
 
    auto GetGt()
    {
-      StaticSharedTensor<double,dofs1D,quads1D> s_Gt(dofs1D,quads1D);
+      StaticBasisTensor<dim,dofs1D,quads1D> s_Gt(dofs1D,quads1D);
       MFEM_FOREACH_THREAD(q,y,quads1D)
       {
          MFEM_FOREACH_THREAD(d,x,dofs1D)
