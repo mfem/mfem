@@ -52,7 +52,6 @@ set(SRCS
   libceed/mass.cpp
   libceed/full-assembly.cpp
   libceed/ceedsolvers-atpmg.cpp
-  libceed/ceedsolvers-interpolation.cpp
   libceed/ceedsolvers-utility.cpp
   libceed/ceed-wrappers.cpp
   linearform.cpp
@@ -97,7 +96,6 @@ set(HDRS
   libceed/mass.hpp
   libceed/full-assembly.hpp
   libceed/ceedsolvers-atpmg.h
-  libceed/ceedsolvers-interpolation.h
   libceed/ceedsolvers-utility.h
   libceed/ceed-wrappers.hpp
   linearform.hpp

@@ -16,7 +16,6 @@
 
 #ifdef MFEM_USE_CEED
 #include <ceed.h>
-#include "ceedsolvers-interpolation.h"
 #include "../../linalg/sparsemat.hpp"
 
 namespace mfem
