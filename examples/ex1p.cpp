@@ -208,9 +208,7 @@ int main(int argc, char *argv[])
    //     domain integrator.
    ParBilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-
    a.AddDomainIntegrator(new DiffusionIntegrator(one));
-   // a.AddDomainIntegrator(new MassIntegrator(one));
 
    // 12. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
