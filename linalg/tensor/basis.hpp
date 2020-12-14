@@ -44,7 +44,7 @@ public:
          double v = 0.0;
          for (int d = 0; d < D; ++d)
          {
-            const double b = (q,d);
+            const double b = this->operator()(q,d);
             const double x = u(d);
             v += b * x;
          }
@@ -65,7 +65,7 @@ public:
          double v = 0.0;
          for (int d = 0; d < D; ++d)
          {
-            const double b = (q,d);
+            const double b = this->operator()(q,d);
             const double x = u(d);
             v += b * x;
          }
@@ -86,7 +86,7 @@ public:
          double v = 0.0;
          for (int d = 0; d < D; ++d)
          {
-            const double b = (q,d);
+            const double b = this->operator()(q,d);
             const double x = u(d);
             v += b * x;
          }
@@ -106,7 +106,7 @@ public:
          double v = 0.0;
          for (int d = 0; d < D; ++d)
          {
-            const double b = (q,d);
+            const double b = this->operator()(q,d);
             const double x = u(d);
             v += b * x;
          }
@@ -137,7 +137,7 @@ public:
             double v = 0.0;
             for (int dx = 0; dx < Dx; ++dx)
             {
-               const double b = (q,dx);
+               const double b = this->operator()(q,dx);
                const double x = u(dx,dy);
                v += b * x;
             }
@@ -162,7 +162,7 @@ public:
             double v = 0.0;
             for (int dx = 0; dx < Dx; ++dx)
             {
-               const double b = (q,dx);
+               const double b = this->operator()(q,dx);
                const double x = u(dx,dy);
                v += b * x;
             }
@@ -186,7 +186,7 @@ public:
             double v = 0.0;
             for (int dx = 0; dx < Dx; ++dx)
             {
-               const double b = (q,dx);
+               const double b = this->operator()(q,dx);
                const double x = u(dx,dy);
                v += b * x;
             }
@@ -209,7 +209,7 @@ public:
             double v = 0.0;
             for (int dx = 0; dx < Dx; ++dx)
             {
-               const double b = (q,dx);
+               const double b = this->operator()(q,dx);
                const double x = u(dx,dy);
                v += b * x;
             }
@@ -235,7 +235,7 @@ public:
             double v = 0.0;
             for (int dy = 0; dy < Dy; ++dy)
             {
-               const double b = (q,dy);
+               const double b = this->operator()(q,dy);
                const double x = u(dx,dy);
                v += b * x;
             }
@@ -260,7 +260,7 @@ public:
             double v = 0.0;
             for (int dy = 0; dy < Dy; ++dy)
             {
-               const double b = (q,dy);
+               const double b = this->operator()(q,dy);
                const double x = u(dx,dy);
                v += b * x;
             }
@@ -284,7 +284,7 @@ public:
             double v = 0.0;
             for (int dy = 0; dy < Dy; ++dy)
             {
-               const double b = (q,dy);
+               const double b = this->operator()(q,dy);
                const double x = u(dx,dy);
                v += b * x;
             }
@@ -308,7 +308,7 @@ public:
             double v = 0.0;
             for (int dy = 0; dy < Dy; ++dy)
             {
-               const double b = (q,dy);
+               const double b = this->operator()(q,dy);
                const double x = u(dx,dy);
                v += b * x;
             }
@@ -342,7 +342,7 @@ class BasisTensor<3,Basis> : public Basis
                double v = 0.0;
                for (int dx = 0; dx < Dx; ++dx)
                {
-                  const double b = (q,dx);
+                  const double b = this->operator()(q,dx);
                   const double x = u(dx,dy,dz);
                   v += b * x;
                }
@@ -380,7 +380,7 @@ class BasisTensor<3,Basis> : public Basis
                double v = 0.0;
                for (int dx = 0; dx < Dx; ++dx)
                {
-                  const double b = (q,dx);
+                  const double b = this->operator()(q,dx);
                   const double x = slice(dx,dy);
                   v += b * x;
                }
@@ -410,7 +410,7 @@ class BasisTensor<3,Basis> : public Basis
                double v = 0.0;
                for (int dy = 0; dy < Dy; ++dy)
                {
-                  const double b = (q,dy);
+                  const double b = this->operator()(q,dy);
                   const double x = u(dx,dy,dz);
                   v += b * x;
                }
@@ -448,7 +448,7 @@ class BasisTensor<3,Basis> : public Basis
                double v = 0.0;
                for (int dy = 0; dy < Dy; ++dy)
                {
-                  const double b = (q,dy);
+                  const double b = this->operator()(q,dy);
                   const double x = u(dx,dy);
                   v += b * x;
                }
@@ -478,7 +478,7 @@ class BasisTensor<3,Basis> : public Basis
                double v = 0.0;
                for (int dz = 0; dz < Dz; ++dz)
                {
-                  const double b = (q,dz);
+                  const double b = this->operator()(q,dz);
                   const double x = u(dx,dy,dz);
                   v += b * x;
                }
@@ -506,7 +506,7 @@ class BasisTensor<3,Basis> : public Basis
                double v = 0.0;
                for (int dz = 0; dz < Dz; ++dz)
                {
-                  const double b = (q,dz);
+                  const double b = this->operator()(q,dz);
                   const double x = u(dx,dy,dz);
                   v += b * x;
                }
