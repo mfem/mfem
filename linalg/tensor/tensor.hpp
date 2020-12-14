@@ -85,31 +85,46 @@ public:
       return *this;
    }
 
+   template <typename OtherTensor> MFEM_HOST_DEVICE inline
+   Tensor<Rank,T,Container,Layout>& operator=(const OtherTensor &rhs)
+   {
+      Forall<Rank-1>::equalize(*this,rhs);
+      return *this;
+   }
+
    /// Get the Sub-Tensor extracted from idx in Nth dimension.
    template <int N>
    auto Get(int idx)
    {
-      return ViewTensor<Rank-1,T>(data,RestrictedLayout(idx,layout));
+      using RestrictedTensor = Tensor<Rank,
+                                      T,
+                                      ViewContainer<T,Container>,
+                                      RestrictedLayout<Rank-1,Layout>>;
+      return RestrictedTensor(data,RestrictedLayout<Rank-1,Layout>(idx,index));
    }
 
    template <int N>
    auto Get(int idx) const
    {
-      return ConstViewTensor<Rank-1,T>(data,RestrictedLayout(idx,layout));
+      using RestrictedTensor = Tensor<Rank,
+                                      T,
+                                      ConstViewContainer<T,Container>,
+                                      RestrictedLayout<Rank-1,Layout>>;
+      return RestrictedTensor(data,RestrictedLayout<Rank-1,Layout>(idx,index));
    }
 
    /// Get the Sub-Tensor extracted from idx in Nth dimension.
-   template <int N, int... Dims>
-   auto Get(int idx0, int... idx)
-   {
-      return Get<N>(idx0).Get<Dims...>(idx...);
-   }
+   // template <int N, int... Dims, typename... Idx>
+   // auto MultiGet(int idx0, Idx... idx)
+   // {
+   //    return Get<N>(idx0).MultiGet<Dims...,Idx...>(idx...);
+   // }
 
-   template <int N, int... Dims>
-   auto Get(int idx0, int... idx) const
-   {
-      return Get<N>(idx0).Get<Dims...>(idx...);
-   }
+   // template <int N, int... Dims, typename... Idx>
+   // auto MultiGet(int idx0, Idx... idx) const
+   // {
+   //    return Get<N>(idx0).MultiGet<Dims...,Idx...>(idx...);
+   // }
 
    /// Generate a Tensor that be read on device
    auto Read()
@@ -120,14 +135,45 @@ public:
    /// Generate a Tensor that be writen on device (read is unsafe)
    auto Write()
    {
-      return Tensor<Rank,T,DeviceContainer,Layout>(data.WriteData(),index);
+      return Tensor<Rank,T,DeviceContainer<T>,Layout>(data.WriteData(),index);
    }
 
    /// Generate a Tensor that be read and writen on device
    auto ReadWrite()
    {
-      return Tensor<Rank,T,DeviceContainer,Layout>(data.ReadWriteData(),index);
+      return Tensor<Rank,T,DeviceContainer<T>,Layout>(data.ReadWriteData(),index);
    }
+
+private:
+/// A structure that implements an imbricated forall with for loops.
+template <int N>
+struct Forall
+{
+   template <typename TensorLHS, typename TensorRHS, typename... Idx>
+   static void equalize(TensorLHS &lhs, TensorRHS &rhs, Idx... idx)
+   {
+      // TODO replace with iterator
+      for(int i = 0; i<lhs.template Size<N>(); i++)
+      {
+         Forall<N-1>::equalize(lhs,rhs,i,idx...);
+      }
+   }
+};
+
+template <>
+struct Forall<0>
+{
+   template <typename TensorLHS, typename TensorRHS, typename... Idx>
+   static void equalize(TensorLHS &lhs, TensorRHS &rhs, Idx... idx)
+   {
+      // TODO replace with iterator
+      for(int i = 0; i<lhs.template Size<0>(); i++)
+      {
+         lhs(i,idx...) = rhs(i,idx...);
+      }
+   }
+};
+
 };
 
 template <typename T, int... Sizes>
@@ -191,11 +237,11 @@ using DynamicBlockTensor = Tensor<Rank,
 template <int Rank, int MaxSize = pow(16,Rank)>
 using DynamicBlockDTensor = DynamicBlockTensor<Rank,double,MaxSize>;
 
-template <int Rank, typename T>
-using ViewTensor = Tensor<Rank,T,ViewContainer,RestrictedLayout>;
+// template <int Rank, typename T>
+// using ViewTensor = Tensor<Rank,T,ViewContainer,RestrictedLayout>;
 
-template <int Rank, typename T>
-using ConstViewTensor = Tensor<Rank,T,ConstViewContainer,RestrictedLayout>;
+// template <int Rank, typename T>
+// using ConstViewTensor = Tensor<Rank,T,ConstViewContainer,RestrictedLayout>;
 
 // template <typename... LayoutParams,
 //           template <typename...> typename LayoutOut,
