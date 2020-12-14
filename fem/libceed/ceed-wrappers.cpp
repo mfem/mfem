@@ -15,6 +15,7 @@
 #include <ceed-backend.h>
 #include "ceed.hpp"
 #include "ceedsolvers-utility.h"
+#include "../../general/forall.hpp"
 
 namespace mfem
 {
@@ -163,11 +164,84 @@ int MFEMCeedInterpolation::Initialize(
 {
    int ierr = 0;
 
+   /*
    ierr = CeedInterpolationCreate(ceed, basisctof, erestrictu_coarse,
                                   erestrictu_fine, &ceed_interp_); CeedChk(ierr);
+   */
+   int height, width;
+   ierr = CeedElemRestrictionGetLVectorSize(erestrictu_coarse, &width); CeedChk(ierr);
+   ierr = CeedElemRestrictionGetLVectorSize(erestrictu_fine, &height); CeedChk(ierr);
 
+   // interpolation qfunction
+   const int bp3_ncompu = 1;
+   CeedQFunction l_qf_restrict, l_qf_prolong;
+   ierr = CeedQFunctionCreateIdentity(ceed, bp3_ncompu, CEED_EVAL_NONE,
+                                      CEED_EVAL_INTERP, &l_qf_restrict); CeedChk(ierr);
+   ierr = CeedQFunctionCreateIdentity(ceed, bp3_ncompu, CEED_EVAL_INTERP,
+                                      CEED_EVAL_NONE, &l_qf_prolong); CeedChk(ierr);
+
+   qf_restrict = l_qf_restrict;
+   qf_prolong = l_qf_prolong;
+
+   CeedVector c_fine_multiplicity;
+   ierr = CeedVectorCreate(ceed, height, &c_fine_multiplicity); CeedChk(ierr);
+   ierr = CeedVectorSetValue(c_fine_multiplicity, 0.0); CeedChk(ierr);
+
+   // Create the restriction operator
+   // Restriction - Fine to coarse
+   ierr = CeedOperatorCreate(ceed, qf_restrict, CEED_QFUNCTION_NONE,
+                             CEED_QFUNCTION_NONE, &op_restrict); CeedChk(ierr);
+   ierr = CeedOperatorSetField(op_restrict, "input", erestrictu_fine,
+                               CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE); CeedChk(ierr);
+   ierr = CeedOperatorSetField(op_restrict, "output", erestrictu_coarse,
+                               basisctof, CEED_VECTOR_ACTIVE); CeedChk(ierr);
+
+   // Interpolation - Coarse to fine
+   // Create the prolongation operator
+   ierr =  CeedOperatorCreate(ceed, qf_prolong, CEED_QFUNCTION_NONE,
+                              CEED_QFUNCTION_NONE, &op_interp); CeedChk(ierr);
+   ierr =  CeedOperatorSetField(op_interp, "input", erestrictu_coarse,
+                                basisctof, CEED_VECTOR_ACTIVE); CeedChk(ierr);
+   ierr = CeedOperatorSetField(op_interp, "output", erestrictu_fine,
+                               CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE); CeedChk(ierr);
+
+   ierr = CeedElemRestrictionGetMultiplicity(erestrictu_fine,
+                                             c_fine_multiplicity); CeedChk(ierr);
+   ierr = CeedVectorCreate(ceed, height, &fine_multiplicity_r); CeedChk(ierr);
+
+   CeedScalar* fine_r_data;
+   const CeedScalar* fine_data;
+   ierr = CeedVectorGetArray(fine_multiplicity_r, CEED_MEM_HOST,
+                             &fine_r_data); CeedChk(ierr);
+   ierr = CeedVectorGetArrayRead(c_fine_multiplicity, CEED_MEM_HOST,
+                                 &fine_data); CeedChk(ierr);
+   MFEM_FORALL(i, height,
+   {fine_r_data[i] = 1.0 / fine_data[i];});
+
+   ierr = CeedVectorRestoreArray(fine_multiplicity_r, &fine_r_data); CeedChk(ierr);
+   ierr = CeedVectorRestoreArrayRead(c_fine_multiplicity, &fine_data); CeedChk(ierr);
+   ierr = CeedVectorDestroy(&c_fine_multiplicity); CeedChk(ierr);
+
+   ierr = CeedVectorCreate(ceed, height, &fine_work); CeedChk(ierr);
+   //// end copy from fake ceed object
+
+   //// original to MFEM wrapper object
    ierr = CeedVectorCreate(ceed, height, &v_); CeedChk(ierr);
    ierr = CeedVectorCreate(ceed, width, &u_); CeedChk(ierr);
+
+   return 0;
+}
+
+int MFEMCeedInterpolation::Finalize()
+{
+   int ierr;
+
+   ierr = CeedQFunctionDestroy(&qf_restrict); CeedChk(ierr);
+   ierr = CeedQFunctionDestroy(&qf_prolong); CeedChk(ierr);
+   ierr = CeedOperatorDestroy(&op_interp); CeedChk(ierr);
+   ierr = CeedOperatorDestroy(&op_restrict); CeedChk(ierr);
+   ierr = CeedVectorDestroy(&fine_multiplicity_r); CeedChk(ierr);
+   ierr = CeedVectorDestroy(&fine_work); CeedChk(ierr);
 
    return 0;
 }
@@ -194,7 +268,8 @@ MFEMCeedInterpolation::~MFEMCeedInterpolation()
    {
       CeedBasisDestroy(&basisctof_);
    }
-   CeedInterpolationDestroy(&ceed_interp_);
+   // CeedInterpolationDestroy(&ceed_interp_);
+   Finalize();
 }
 
 void MFEMCeedInterpolation::Mult(const mfem::Vector& x, mfem::Vector& y) const
@@ -202,7 +277,13 @@ void MFEMCeedInterpolation::Mult(const mfem::Vector& x, mfem::Vector& y) const
    int ierr = 0;
    MFEMCeedVectorContext context(x, y, u_, v_);
 
+/*
    ierr += CeedInterpolationInterpolate(ceed_interp_, u_, v_);
+*/
+   ierr += CeedOperatorApply(op_interp, u_, v_,
+                             CEED_REQUEST_IMMEDIATE);
+   ierr += CeedVectorPointwiseMult(v_, fine_multiplicity_r);
+
    MFEM_ASSERT(ierr == 0, "CEED error");
 }
 
@@ -212,7 +293,37 @@ void MFEMCeedInterpolation::MultTranspose(const mfem::Vector& x,
    int ierr = 0;
    MFEMCeedVectorContext context(x, y, v_, u_);
 
+/*
    ierr += CeedInterpolationRestrict(ceed_interp_, v_, u_);
+*/
+   int length;
+   ierr += CeedVectorGetLength(v_, &length);
+
+   const CeedScalar *multiplicitydata, *indata;
+   CeedScalar *workdata;
+   CeedMemType mem;
+   if (Device::Allows(Backend::DEVICE_MASK))
+   {
+      mem = CEED_MEM_DEVICE;
+   }
+   else
+   {
+      mem = CEED_MEM_HOST;
+   }
+   ierr += CeedVectorGetArrayRead(v_, mem, &indata);
+   ierr += CeedVectorGetArrayRead(fine_multiplicity_r, mem,
+                                  &multiplicitydata);
+   ierr += CeedVectorGetArray(fine_work, mem, &workdata);
+   MFEM_FORALL(i, length,
+   {workdata[i] = indata[i] * multiplicitydata[i];});
+   ierr += CeedVectorRestoreArrayRead(v_, &indata);
+   ierr += CeedVectorRestoreArrayRead(fine_multiplicity_r,
+                                      &multiplicitydata);
+   ierr += CeedVectorRestoreArray(fine_work, &workdata);
+
+   ierr += CeedOperatorApply(op_restrict, fine_work, u_,
+                             CEED_REQUEST_IMMEDIATE);
+
    MFEM_ASSERT(ierr == 0, "CEED error");
 }
 
