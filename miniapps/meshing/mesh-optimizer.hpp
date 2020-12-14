@@ -706,7 +706,7 @@ void TMOPAMR::ParUpdate()
       }
       pnlf->SetEssentialVDofs(ess_vdofs);
    }
-};
+}
 #endif
 
 class TMOPRefinerEstimator : public AnisotropicErrorEstimator

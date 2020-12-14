@@ -905,7 +905,12 @@ protected:
    // The order inside these perturbation vectors (e.g. in 2D) is
    // eta1(x+h,y), eta2(x+h,y) ... etan(x+h,y), eta1(x,y+h), eta2(x,y+h) ...
    // same for tspec_pert2h and tspec_pertmix.
+
+   // DenseMatrix to hold target_spec values for the (children of the)
+   // element being refined to consider for h-refinement.
    DenseMatrix tspec_refine;
+   // Vector to hold the target_spec values for the coarse version of the current
+   // mesh. Used for derefinement decision with hr-adaptivity.
    Vector tspec_derefine;
 
    // Components of Target Jacobian at each quadrature point of an element. This
@@ -931,6 +936,7 @@ protected:
    // These flags can be used by outside functions to avoid recomputing the
    // tspec and tspec_perth fields again on the same mesh.
    bool good_tspec, good_tspec_grad, good_tspec_hess;
+   // flag used to specify if the array of gridfunctions should be updated.
    bool gf_arr_update;
 
    // Evaluation of the discrete target specification on different meshes.
