@@ -16,7 +16,7 @@
 #include "../fem/fespace.hpp"
 #include "../fem/libceed/ceedsolvers-atpmg.h"
 #include "../fem/libceed/ceedsolvers-interpolation.h"
-#include "../fem/libceed/ceed-assemble.hpp"
+#include "../fem/libceed/full-assembly.hpp"
 #include "../fem/pfespace.hpp"
 
 namespace mfem

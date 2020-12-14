@@ -50,7 +50,7 @@ set(SRCS
   libceed/ceed.cpp
   libceed/diffusion.cpp
   libceed/mass.cpp
-  libceed/ceed-assemble.cpp
+  libceed/full-assembly.cpp
   libceed/ceedsolvers-atpmg.cpp
   libceed/ceedsolvers-interpolation.cpp
   libceed/ceedsolvers-utility.cpp
@@ -95,7 +95,7 @@ set(HDRS
   libceed/ceed.hpp
   libceed/diffusion.hpp
   libceed/mass.hpp
-  libceed/ceed-assemble.hpp
+  libceed/full-assembly.hpp
   libceed/ceedsolvers-atpmg.h
   libceed/ceedsolvers-interpolation.h
   libceed/ceedsolvers-utility.h
