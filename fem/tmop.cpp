@@ -2497,7 +2497,7 @@ double TMOP_Integrator::GetRefinementElementEnergy(const FiniteElement &el,
       Jrt.SetSize(dim);
       Jpr.SetSize(dim);
       Jpt.SetSize(dim);
-      Vector elfun_split(dof*dim);
+      Vector elfun_child(dof*dim);
       for (int i = 0; i < dof; i++)
       {
          for (int d = 0; d < dim; d++)
@@ -2506,10 +2506,10 @@ double TMOP_Integrator::GetRefinementElementEnergy(const FiniteElement &el,
             // for all the children element of the parent element being considered.
             // So we must index and get (xek, yek) i.e. nodal coordinates for
             // the fine element being considered.
-            elfun_split(i + d*dof) = elfun(i + e*dof + d*dof*NEsplit);
+            elfun_child(i + d*dof) = elfun(i + e*dof + d*dof*NEsplit);
          }
       }
-      PMatI.UseExternalData(elfun_split.GetData(), dof, dim);
+      PMatI.UseExternalData(elfun_child.GetData(), dof, dim);
 
       const IntegrationRule &ir = EnergyIntegrationRule(el);
 
@@ -2520,7 +2520,7 @@ double TMOP_Integrator::GetRefinementElementEnergy(const FiniteElement &el,
          // This is used to index into the tspec vector inside DiscreteAdaptTC.
          dtc->SetRefinementSubElement(e);
       }
-      targetC->ComputeElementTargets(el_id, el, ir, elfun_split, Jtr);
+      targetC->ComputeElementTargets(el_id, el, ir, elfun_child, Jtr);
 
       // Define ref->physical transformation, wn a Coefficient is specified.
       IsoparametricTransformation *Tpr = NULL;

@@ -960,14 +960,13 @@ int main (int argc, char *argv[])
          for (int i_hr = 0; i_hr < n_r; i_hr++)
          {
             ParNCMesh *pncmesh = pmesh->pncmesh;
-            bool deref = true;
 
             if (pncmesh)   //derefinement
             {
                tmopamrupdate.RebalanceParNCMesh();
                tmopamrupdate.ParUpdate();
 
-               deref = tmop_dr.Apply(*pmesh);
+               tmop_dr.Apply(*pmesh);
                tmopamrupdate.ParUpdate();
             }
             NEGlob = pmesh->GetGlobalNE();
