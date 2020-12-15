@@ -205,12 +205,14 @@ int main(int argc, char *argv[])
 
       if (amgx_solver)
       {
-         amgx.ConfigureAs(AmgXSolver::SOLVER);
+         amgx.SetConvergenceCheck(true);
          amgx.Mult(B,X);
       }
       else
       {
-         amgx.ConfigureAs(AmgXSolver::PRECONDITIONER);
+         //Omit convergence check at the AmgX level
+         //when using as a preconditioner
+         amgx.SetConvergenceCheck(false);
          PCG(*A.As<SparseMatrix>(), amgx, B, X, 3, 40, 1e-12, 0.0);
       }
    }

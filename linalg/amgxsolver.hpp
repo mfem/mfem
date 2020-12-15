@@ -73,13 +73,16 @@ public:
    /// Flags to configure AmgXSolver as a solver or preconditioner
    enum AMGX_MODE {SOLVER, PRECONDITIONER};
 
+   //Flag to check for convergence
+   bool ConvergenceCheck;
+
    /**
       Flags to determine whether user solver settings are defined internally in
       the source code or will be read through an external JSON file.
    */
    enum CONFIG_SRC {INTERNAL, EXTERNAL, UNDEFINED};
 
-   AmgXSolver() = default;
+   AmgXSolver();
 
    /**
       Configures AmgX with a default configuration based on the AmgX mode, and
@@ -162,10 +165,8 @@ public:
    */
    void DefaultParameters(const AMGX_MODE amgxMode_, const bool verbose);
 
-   // Configure as AmgXSolver::PRECONDITIONER or AmgXSolver::SOLVER.
-   // When configuring as a preconditioner, the check for convergence
-   // or divergence will be skipped after applying Mult.
-   void ConfigureAs(const AMGX_MODE amgxMode_);
+   // Add a check for convergence after applying Mult.
+   void SetConvergenceCheck(bool setConvergenceCheck_=true);
 
    ~AmgXSolver();
 
