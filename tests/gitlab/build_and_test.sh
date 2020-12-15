@@ -45,7 +45,7 @@ then
         prefix_opt="--prefix=${prefix}"
     fi
 
-    tests/gitlab/get_mfem_uberenv.sh || ( echo "Error fetching Uberenv" && exit 1 );
+    #tests/gitlab/get_mfem_uberenv.sh || ( echo "Error fetching Uberenv" && exit 1 );
 
     python tests/uberenv/uberenv.py --install --spec="${spec}" "${upstream_opt}" "${prefix_opt}"
 
