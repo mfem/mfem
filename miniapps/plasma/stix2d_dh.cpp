@@ -405,6 +405,7 @@ int main(int argc, char *argv[])
    Array<int> dbcaw; // Dirichlet BC attributes for plane wave source
    Array<int> nbca1; // Neumann BC attributes
    Array<int> nbca2; // Neumann BC attributes
+   Array<int> nbcaw; // Neumann BC attributes for plane wave source
    Vector dbcv1; // Dirichlet BC values
    Vector dbcv2; // Dirichlet BC values
    Vector nbcv1; // Neumann BC values
@@ -532,6 +533,8 @@ int main(int argc, char *argv[])
                   "Neumann Boundary Condition Surfaces Using Value 1");
    args.AddOption(&nbca2, "-nbcs2", "--neumann-bc-2-surf",
                   "Neumann Boundary Condition Surfaces Using Value 2");
+   args.AddOption(&nbcaw, "-nbcs-pw", "--neumann-bc-pw-surf",
+                  "Neumann Boundary Condition Surfaces Using Plane Wave");
    args.AddOption(&nbcv1, "-nbcv1", "--neumann-bc-1-vals",
                   "Neuamnn Boundary Condition (surface current) "
                   "Value 1 (v_x v_y v_z) or "
@@ -998,7 +1001,7 @@ int main(int argc, char *argv[])
       EImCoef.SetPhaseShift(kVec);
    }
 
-   if (visualization)
+   if (visualization && wave_type[0] != ' ')
    {
       if (mpi.Root())
       {
@@ -1006,12 +1009,15 @@ int main(int argc, char *argv[])
       }
       ParComplexGridFunction HField(&HCurlFESpace);
       HField.ProjectCoefficient(HReCoef, HImCoef);
-      // ParComplexGridFunction EField(&HCurlFESpace);
-      // EField.ProjectCoefficient(EReCoef, EImCoef);
+      ParComplexGridFunction EField(&HCurlFESpace);
+      EField.ProjectCoefficient(EReCoef, EImCoef);
+
       Vector zeroVec(3); zeroVec = 0.0;
       VectorConstantCoefficient zeroCoef(zeroVec);
       double max_Hr = HField.real().ComputeMaxError(zeroCoef);
       double max_Hi = HField.imag().ComputeMaxError(zeroCoef);
+      double max_Er = EField.real().ComputeMaxError(zeroCoef);
+      double max_Ei = EField.imag().ComputeMaxError(zeroCoef);
       /*
       ParComplexGridFunction ZCoef(&H1FESpace);
       // Array<int> ess_bdr(mesh->bdr_attributes.Size());
@@ -1027,11 +1033,11 @@ int main(int argc, char *argv[])
       int Ww = 350, Wh = 350; // window size
       int offx = Ww+10, offy = Wh+45; // window offsets
 
-      socketstream sock_Hr, sock_Hi, /*sock_Er, sock_Ei, sock_zr, sock_zi, */ sock_B;
+      socketstream sock_Hr, sock_Hi, sock_Er, sock_Ei, /*sock_zr, sock_zi, */ sock_B;
       sock_Hr.precision(8);
       sock_Hi.precision(8);
-      // sock_Er.precision(8);
-      // sock_Ei.precision(8);
+      sock_Er.precision(8);
+      sock_Ei.precision(8);
       sock_B.precision(8);
       // sock_zr.precision(8);
       // sock_zi.precision(8);
@@ -1040,7 +1046,11 @@ int main(int argc, char *argv[])
       hr_keys << "maaAcPPPPvvv valuerange 0.0 " << max_Hr;
       hi_keys << "maaAcPPPPvvv valuerange 0.0 " << max_Hi;
 
-      Wx += 2 * offx;
+      ostringstream er_keys, ei_keys;
+      er_keys << "maaAcPPPPvvv valuerange 0.0 " << max_Er;
+      ei_keys << "maaAcPPPPvvv valuerange 0.0 " << max_Ei;
+
+      Wy += offy;
       VisualizeField(sock_Hr, vishost, visport,
                      HField.real(), "Exact Magnetic Field, Re(H)",
                      Wx, Wy, Ww, Wh, hr_keys.str().c_str());
@@ -1049,18 +1059,18 @@ int main(int argc, char *argv[])
       VisualizeField(sock_Hi, vishost, visport,
                      HField.imag(), "Exact Magnetic Field, Im(H)",
                      Wx, Wy, Ww, Wh, hi_keys.str().c_str());
-      /*
+
+      Wx += offx;
       VisualizeField(sock_Er, vishost, visport,
                      EField.real(), "Exact Electric Field, Re(E)",
-                     Wx, Wy, Ww, Wh);
+                     Wx, Wy, Ww, Wh, er_keys.str().c_str());
       Wx += offx;
-
       VisualizeField(sock_Ei, vishost, visport,
                      EField.imag(), "Exact Electric Field, Im(E)",
-                     Wx, Wy, Ww, Wh);
-      */
-      Wx -= offx;
-      Wy += offy;
+                     Wx, Wy, Ww, Wh, ei_keys.str().c_str());
+
+      // Wx -= offx;
+      // Wy += offy;
 
       /*
       VisualizeField(sock_B, vishost, visport,
@@ -1199,7 +1209,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   int nbcsSize = (nbca1.Size() > 0) + (nbca2.Size() > 0);
+   int nbcsSize = (nbca1.Size() > 0) + (nbca2.Size() > 0) + (nbcaw.Size() > 0);
 
    Array<ComplexVectorCoefficientByAttr> nbcs(nbcsSize);
 
@@ -1261,6 +1271,13 @@ int main(int argc, char *argv[])
          nbcs[c].attr = nbca2;
          nbcs[c].real = &nbc2ReCoef;
          nbcs[c].imag = &nbc2ImCoef;
+         c++;
+      }
+      if (nbcaw.Size() > 0)
+      {
+         nbcs[c].attr = nbcaw;
+         nbcs[c].real = &EReCoef;
+         nbcs[c].imag = &EImCoef;
          c++;
       }
    }

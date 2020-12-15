@@ -636,9 +636,9 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
          }
 
          (*nkbcs_)[i].real =
-            new ScalarVectorProductCoefficient(omega_, *(*nbcs_)[i].imag);
+            new ScalarVectorProductCoefficient(-omega_, *(*nbcs_)[i].imag);
          (*nkbcs_)[i].imag =
-            new ScalarVectorProductCoefficient(-omega_, *(*nbcs_)[i].real);
+            new ScalarVectorProductCoefficient(omega_, *(*nbcs_)[i].real);
       }
    }
    /*
@@ -819,19 +819,19 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    rhs0_ = new ParComplexLinearForm(H1FESpace_, conv_);
    // rhs_->AddDomainIntegrator(new VectorFEDomainLFIntegrator(*rhsrCoef_),
    //                        new VectorFEDomainLFIntegrator(*rhsiCoef_));
-   /*
    if (nkbcs_ != NULL)
    {
       for (int i=0; i<nkbcs_->Size(); i++)
       {
-         rhs_->AddBoundaryIntegrator(new VectorFEBoundaryTangentLFIntegrator(*
-                                                                             (*nkbcs_)[i].real),
-                                     new VectorFEBoundaryTangentLFIntegrator(*(*nkbcs_)[i].imag),
-                                     (*nkbcs_)[i].attr_marker);
+         rhs1_->AddBoundaryIntegrator(new VectorFEBoundaryTangentLFIntegrator
+                                      (*(*nkbcs_)[i].real),
+                                      new VectorFEBoundaryTangentLFIntegrator
+                                      (*(*nkbcs_)[i].imag),
+                                      (*nkbcs_)[i].attr_marker);
 
       }
    }
-   */
+
    rhs1_->real().Vector::operator=(0.0);
    rhs1_->imag().Vector::operator=(0.0);
    rhs0_->real().Vector::operator=(0.0);
@@ -1179,7 +1179,7 @@ CPDSolverDH::Assemble()
    tic_toc.Clear();
    tic_toc.Start();
 
-   // rhs_->Assemble();
+   // rhs1_->Assemble();
 
    if ( grad_ )
    {
@@ -1334,6 +1334,7 @@ CPDSolverDH::Solve()
    j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
 
    d21EpsInv_->Mult(*j_, *rhs1_);
+   rhs1_->Assemble();
    /*
    *phi_ = 0.0;
 
