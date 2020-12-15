@@ -85,7 +85,7 @@ endif()
 include("${CMAKE_CURRENT_SOURCE_DIR}/config/XSDKDefaults.cmake")
 
 # Enable languages.
-enable_language(CXX)
+enable_language(CXX C Fortran)
 if (MFEM_USE_CUDA)
    # MFEM_USE_CUDA requires CMake 3.8 or newer (for direct CUDA support)
    cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
