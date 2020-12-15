@@ -420,10 +420,13 @@ int main(int argc, char *argv[])
    solOpts.relTol = 1e-4;
    solOpts.euLvl = 1;
 
+   bool logo = false;
    bool pa = false;
    const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
+   args.AddOption(&logo, "-logo", "--print-logo", "-no-logo",
+                  "--no-print-logo", "Print logo and exit.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
@@ -569,6 +572,10 @@ int main(int argc, char *argv[])
          args.PrintUsage(cout);
       }
       return 1;
+   }
+   if (logo)
+   {
+       return 1;
    }
    Device device(device_config);
    if (mpi.Root())
@@ -1541,16 +1548,20 @@ void Update(ParFiniteElementSpace & H1FESpace,
    }
 }
 
+const char * banner[6] =
+  {R"(  _________ __   __       ________      ___________    ___ ___  )",
+   R"( /   _____//  |_|__|__  __\_____  \  __| _/\______ \  /   |   \ )",
+   R"( \_____  \\   __\  \  \/  //  ____/ / __ |  |    |  \/    ~    \)",
+   R"( /        \|  | |  |>    </       \/ /_/ |  |    `   \    Y    /)",
+   R"(/_______  /|__| |__/__/\_ \_______ \____ | /_______  /\___|_  / )",
+   R"(        \/               \/       \/    \/         \/       \/  )"};
+
 // Print the stix2d ascii logo to the given ostream
 void display_banner(ostream & os)
 {
-   os << "  _________ __   __       ________      ___" << endl
-      << " /   _____//  |_|__|__  __\\_____  \\  __| _/" << endl
-      << " \\_____  \\\\   __\\  \\  \\/  //  ____/ / __ | " << endl
-      << " /        \\|  | |  |>    </       \\/ /_/ | " << endl
-      << "/_______  /|__| |__/__/\\_ \\_______ \\____ | " << endl
-      << "        \\/               \\/       \\/    \\/ "  << endl
-      << endl
+   for (int i=0; i<6; i++)
+      os << banner[i] << endl;
+   os << endl
       << "* Thomas H. Stix was a pioneer in the use of radio frequency"
       << " waves to heat" << endl
       << "  terrestrial plasmas to solar temperatures. He made important"
