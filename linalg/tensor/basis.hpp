@@ -14,6 +14,7 @@
 
 #include "util.hpp"
 #include "tensor.hpp"
+#include "config.hpp"
 
 namespace mfem
 {
@@ -810,42 +811,97 @@ struct Basis<Dim,false,Dofs,Quads>
    }
 };
 
+/// Functor for building a statically sized tensor Basis
+template <int Dim, int Dofs, int Quads, int BatchSize>
+auto MakeBasis(KernelConfig<Dim,true,Dofs,Quads,BatchSize> &config,
+               const double *b,
+               const double *bt,
+               const double *g = nullptr,
+               const double *gt = nullptr)
+{
+   return Basis<Dim,true,Dofs,Quads>{b,bt,g,gt};
+}
+
+/// Functor for building a dynamically sized tensor Basis
+template <int Dim, int BatchSize>
+auto MakeBasis(KernelConfig<Dim,true,0,0,BatchSize> &config,
+               const double *b,
+               const double *bt,
+               const double *g = nullptr,
+               const double *gt = nullptr)
+{
+   const int dofs1d = config.dofs;
+   const int dofs = pow(dofs1d,config.Dim);
+   const int quads1d = config.quads;
+   const int quads = pow(quads1d,config.Dim);
+   return Basis<Dim,true,0,0>{dofs1d,quads1d,dofs,quads,b,bt,g,gt};
+}
+
+/// Functor for building a statically sized non-tensor Basis
+template <int Dim, int Dofs, int Quads, int BatchSize>
+auto MakeBasis(KernelConfig<Dim,false,Dofs,Quads,BatchSize> &config,
+               const double *b,
+               const double *bt,
+               const double *g = nullptr,
+               const double *gt = nullptr)
+{
+   return Basis<Dim,false,Dofs,Quads>{b,bt,g,gt};
+}
+
+/// Functor for building a dynamically sized non-tensor Basis
+template <int Dim, int BatchSize>
+auto MakeBasis(KernelConfig<Dim,false,0,0,BatchSize> &config,
+               const double *b,
+               const double *bt,
+               const double *g = nullptr,
+               const double *gt = nullptr)
+{
+   return Basis<Dim,false,0,0>{config.dofs,config.quads,b,bt,g,gt};
+}
+
+/// A structure to represent a transposed basis
 template <int Dim, bool IsTensor, int Dofs, int Quads>
 struct BasisTranspose
 {
    Basis<Dim,IsTensor,Dofs,Quads> &basis;
 };
 
+/// A structure to represent a basis gradient
 template <int Dim, bool IsTensor, int Dofs, int Quads>
 struct BasisGradient
 {
    Basis<Dim,IsTensor,Dofs,Quads> &basis;
 };
 
+/// A structure to represent a transposed basis gradient
 template <int Dim, bool IsTensor, int Dofs, int Quads>
 struct BasisGradientTranspose
 {
    Basis<Dim,IsTensor,Dofs,Quads> &basis;
 };
 
+/// Functor to transpose a Basis
 template <int Dim, bool IsTensor, int Dofs, int Quads>
 auto transpose(Basis<Dim,IsTensor,Dofs,Quads> &basis)
 {
    return BasisTranspose<Dim,IsTensor,Dofs,Quads>{basis};
 }
 
+/// Functor to transpose a Basis gradient
 template <int Dim, bool IsTensor, int Dofs, int Quads>
 auto transpose(BasisGradient<Dim,IsTensor,Dofs,Quads> &G)
 {
    return BasisGradientTranspose<Dim,IsTensor,Dofs,Quads>{G.basis};
 }
 
+/// Functor to represent a Basis gradient
 template <int Dim, bool IsTensor, int Dofs, int Quads>
 auto grad(Basis<Dim,IsTensor,Dofs,Quads> &basis)
 {
    return BasisGradient<Dim,IsTensor,Dofs,Quads>{basis};
 }
 
+/// Functor to represent a transposed Basis gradient
 template <int Dim, bool IsTensor, int Dofs, int Quads>
 auto grad(BasisTranspose<Dim,IsTensor,Dofs,Quads> &Bt)
 {
