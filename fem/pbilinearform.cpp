@@ -295,6 +295,39 @@ const
    pfes->Dof_TrueDof_Matrix()->MultTranspose(a, Y, 1.0, y);
 }
 
+double ParBilinearForm::InnerProduct(const ParGridFunction &x,
+                                     const ParGridFunction &y)
+{
+   MFEM_ASSERT(x.ParFESpace() == pfes, "the parallel spaces must agree");
+   MFEM_ASSERT(y.ParFESpace() == pfes, "the parallel spaces must agree");
+
+   HypreParVector *x_p = x.ParallelProject();
+   HypreParVector *y_p = y.ParallelProject();
+
+   double res = InnerProduct(*x_p, *y_p);
+
+   delete x_p;
+   delete y_p;
+
+   return res;
+}
+
+double ParBilinearForm::InnerProduct(HypreParVector &x,
+                                     HypreParVector &y)
+{
+   MFEM_VERIFY(p_mat.Ptr() != NULL, "parallel matrix must be assembled");
+
+   HypreParVector *Ay = new HypreParVector(pfes);
+   HypreParMatrix *A = p_mat.As<HypreParMatrix>();
+   A->Mult(y, *Ay);
+
+   double res = mfem::InnerProduct(x, *Ay);
+
+   delete Ay;
+
+   return res;
+}
+
 void ParBilinearForm::FormLinearSystem(
    const Array<int> &ess_tdof_list, Vector &x, Vector &b,
    OperatorHandle &A, Vector &X, Vector &B, int copy_interior)

@@ -150,6 +150,16 @@ public:
        vectors on the true dofs. */
    void TrueAddMult(const Vector &x, Vector &y, const double a = 1.0) const;
 
+   using BilinearForm::InnerProduct;
+   /// Compute inner product x^t A y (grid function version)
+   /** @note It is assumed that the parallel system matrix is assembled,
+       see FormSystemMatrix(). */
+   double InnerProduct(const ParGridFunction &x, const ParGridFunction &y);
+   /// Compute inner product x^t A y (vector version)
+   /** @note It is assumed that the parallel system matrix is assembled,
+       see FormSystemMatrix(). */
+   double InnerProduct(HypreParVector &x, HypreParVector &y);
+
    /// Return the parallel FE space associated with the ParBilinearForm.
    ParFiniteElementSpace *ParFESpace() const { return pfes; }
 
