@@ -19,7 +19,7 @@ namespace mfem
 {
 
 /** A base class to represent an MFEM Operator with a CeedOperator. */
-class MFEMCeedOperator
+class MFEMCeedOperator : Operator
 {
 protected:
 #ifdef MFEM_USE_CEED
@@ -31,6 +31,7 @@ protected:
 
 public:
    void Mult(const Vector &x, Vector &y) const;
+   void AddMult(const Vector &x, Vector &y) const;
    void GetDiagonal(Vector &diag) const;
    virtual ~MFEMCeedOperator()
    {
