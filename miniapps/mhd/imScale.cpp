@@ -1,13 +1,14 @@
 //                                MFEM modified from Example 10 and 16
 //
-// Compile with: make imMHDp
+// Compile with: make imScale
 //
-// Description:  It solves a time dependent resistive MHD problem 
-//               There three versions:
-//               1. explicit scheme
-//               2. implicit scheme using a very simple linear preconditioner
-//               3. implicit scheme using physcis-based preconditioner
+// Description:  It solves a time dependent ic problem (scaling test only)
 // Author: QT
+// 
+// Example run:
+// srun -n 4 imScale -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 2 -tf 1 -dt .1 -usepetsc --petscopts ./petscrc/rc_full -s 3 -shell -resi 1e-4 -visc 1e-4 -no-supg
+//
+// modify rc_full is important to achieve a good scaling when np is large on fine grids
 
 #include "mfem.hpp"
 #include "myCoefficient.hpp"
@@ -22,6 +23,13 @@
 #ifndef MFEM_USE_PETSC
 #error This example requires that MFEM is built with MFEM_USE_PETSC=YES
 #endif
+
+double beta;
+double Lx;  
+double lambda;
+double resiG;
+double ep=.2;
+int icase = 1;
 
 int main(int argc, char *argv[])
 {
@@ -43,6 +51,7 @@ int main(int argc, char *argv[])
    bool visit = false;
    bool use_petsc = false;
    bool use_factory = false;
+   bool useStab = false; //use a stabilized formulation (explicit case only)
    const char *petscrc_file = "";
    beta = 0.001; 
    Lx=3.0;
@@ -74,6 +83,8 @@ int main(int argc, char *argv[])
                   "Resistivity coefficient.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
+   args.AddOption(&usesupg, "-supg", "--implicit-supg", "-no-supg", "--no-implicit-supg",
+                  "Use supg in the implicit solvers.");
    args.AddOption(&use_petsc, "-usepetsc", "--usepetsc", "-no-petsc",
                   "--no-petsc",
                   "Use or not PETSc to solve the nonlinear system.");
@@ -82,6 +93,8 @@ int main(int argc, char *argv[])
                   "Use user-defined preconditioner factory (PCSHELL).");
    args.AddOption(&petscrc_file, "-petscopts", "--petscopts",
                   "PetscOptions file to use.");
+   args.AddOption(&iUpdateJ, "-updatej", "--update-j",
+                  "UpdateJ: 0 - no boundary condition used; 1 - Dirichlet used on J boundary.");
 
    args.Parse();
    if (!args.Good())
@@ -138,6 +151,13 @@ int main(int argc, char *argv[])
    {
       mesh->UniformRefinement();
    }
+
+   //it can be performed before or after UniformRefinement
+   Array<int> ordering;
+   mesh->GetHilbertElementOrdering(ordering);
+   mesh->ReorderElements(ordering);
+   mesh->EnsureNCMesh();
+
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
@@ -196,16 +216,15 @@ int main(int argc, char *argv[])
     if (myid==0) cout <<"ess_bdr size should be 1 but it is "<<ess_bdr.Size()<<endl;
     delete ode_solver;
     delete ode_solver2;
-    delete mesh;
     delete pmesh;
+    if (use_petsc) { MFEMFinalizePetsc(); }
     MPI_Finalize();
     return 2;
    }
 
    //++++Initialize the MHD operator, the GLVis visualization    
    ResistiveMHDOperator oper(fespace, ess_bdr, visc, resi, use_petsc, use_factory);
-   FunctionCoefficient e0(E0rhs3);
-   oper.SetRHSEfield(e0);
+   oper.SetRHSEfield(E0rhs3);
 
    //set initial J
    FunctionCoefficient jInit3(InitialJ3);
@@ -245,6 +264,7 @@ int main(int argc, char *argv[])
        cout <<"######Runtime = "<<end-start<<" ######"<<endl;
 
    //++++++Save the solutions.
+   if (false)
    {
       phi.SetFromTrueVector(); psi.SetFromTrueVector(); w.SetFromTrueVector();
 
