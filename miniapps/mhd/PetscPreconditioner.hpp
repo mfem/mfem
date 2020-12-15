@@ -86,6 +86,8 @@ FullBlockSolver::FullBlockSolver(const OperatorHandle &oh) : Solver() {
    KSPAppendOptionsPrefix(kspblock[1],"s2_");
    KSPSetFromOptions(kspblock[1]);
    KSPSetUp(kspblock[1]);
+   KSPSetInitialGuessNonzero(kspblock[1],PETSC_TRUE);
+   KSPConvergedDefaultSetUIRNorm(kspblock[1]);
          
    //mass matrix
    ierr=KSPCreate(PETSC_COMM_WORLD, &kspblock[2]);    PCHKERRQ(kspblock[2], ierr);
@@ -105,6 +107,7 @@ FullBlockSolver::FullBlockSolver(const OperatorHandle &oh) : Solver() {
       KSPAppendOptionsPrefix(kspblock[3],"s4_");
       KSPSetFromOptions(kspblock[3]);
       KSPSetUp(kspblock[3]);
+      //KSPSetInitialGuessNonzero(kspblock[3],PETSC_TRUE);
    }
 
    MatCreateVecs(sub[0][0], &b, NULL);
