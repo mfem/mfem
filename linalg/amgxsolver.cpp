@@ -31,13 +31,13 @@ int AmgXSolver::count = 0;
 AMGX_resources_handle AmgXSolver::rsrc = nullptr;
 
 AmgXSolver::AmgXSolver()
-  : ConvergenceCheck(false) {};
+   : ConvergenceCheck(false) {};
 
 AmgXSolver::AmgXSolver(const AMGX_MODE amgxMode_, const bool verbose)
 {
    amgxMode = amgxMode_;
 
-   if(amgxMode == AmgXSolver::SOLVER) { ConvergenceCheck = true;}
+   if (amgxMode == AmgXSolver::SOLVER) { ConvergenceCheck = true;}
 
    DefaultParameters(amgxMode, verbose);
 
@@ -52,7 +52,7 @@ AmgXSolver::AmgXSolver(const MPI_Comm &comm,
    std::string config;
    amgxMode = amgxMode_;
 
-   if(amgxMode == AmgXSolver::SOLVER) { ConvergenceCheck = true;}
+   if (amgxMode == AmgXSolver::SOLVER) { ConvergenceCheck = true;}
 
    DefaultParameters(amgxMode, verbose);
 
@@ -65,7 +65,7 @@ AmgXSolver::AmgXSolver(const MPI_Comm &comm, const int nDevs,
    std::string config;
    amgxMode = amgxMode_;
 
-   if(amgxMode == AmgXSolver::SOLVER) { ConvergenceCheck = true;}
+   if (amgxMode == AmgXSolver::SOLVER) { ConvergenceCheck = true;}
 
    DefaultParameters(amgxMode_, verbose);
 
