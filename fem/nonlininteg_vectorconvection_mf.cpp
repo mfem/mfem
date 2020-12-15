@@ -38,7 +38,7 @@ void VectorConvectionNLFIntegrator::AddMultMF(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
    {
-      ceedOp->Mult(x, y);
+      ceedOp->AddMult(x, y);
    }
    else
    {

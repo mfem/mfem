@@ -26,6 +26,36 @@ void MFEMCeedOperator::Mult(const Vector &x, Vector &y) const
    if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
    {
       x_ptr = x.Read();
+      y_ptr = y.Write();
+   }
+   else
+   {
+      x_ptr = x.HostRead();
+      y_ptr = y.HostWrite();
+      mem = CEED_MEM_HOST;
+   }
+   CeedVectorSetArray(u, mem, CEED_USE_POINTER, const_cast<CeedScalar*>(x_ptr));
+   CeedVectorSetArray(v, mem, CEED_USE_POINTER, y_ptr);
+
+   CeedOperatorApply(oper, u, v, CEED_REQUEST_IMMEDIATE);
+
+   CeedVectorTakeArray(u, mem, const_cast<CeedScalar**>(&x_ptr));
+   CeedVectorTakeArray(v, mem, &y_ptr);
+#else
+   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
+}
+
+void MFEMCeedOperator::AddMult(const Vector &x, Vector &y) const
+{
+#ifdef MFEM_USE_CEED
+   const CeedScalar *x_ptr;
+   CeedScalar *y_ptr;
+   CeedMemType mem;
+   CeedGetPreferredMemType(internal::ceed, &mem);
+   if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
+   {
+      x_ptr = x.Read();
       y_ptr = y.ReadWrite();
    }
    else
@@ -34,12 +64,10 @@ void MFEMCeedOperator::Mult(const Vector &x, Vector &y) const
       y_ptr = y.HostReadWrite();
       mem = CEED_MEM_HOST;
    }
-   CeedVectorSetArray(u, mem, CEED_USE_POINTER,
-                      const_cast<CeedScalar*>(x_ptr));
+   CeedVectorSetArray(u, mem, CEED_USE_POINTER, const_cast<CeedScalar*>(x_ptr));
    CeedVectorSetArray(v, mem, CEED_USE_POINTER, y_ptr);
 
-   CeedOperatorApplyAdd(oper, u, v,
-                        CEED_REQUEST_IMMEDIATE);
+   CeedOperatorApplyAdd(oper, u, v, CEED_REQUEST_IMMEDIATE);
 
    CeedVectorTakeArray(u, mem, const_cast<CeedScalar**>(&x_ptr));
    CeedVectorTakeArray(v, mem, &y_ptr);
