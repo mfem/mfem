@@ -59,7 +59,7 @@ void DiffusionIntegrator::AddMultMF(const Vector &x, Vector &y) const
 #ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      ceedOp->Mult(x, y);
+      ceedOp->AddMult(x, y);
    }
    else
 #endif
