@@ -87,7 +87,7 @@ protected:
 
 /** @brief Perform elimination of a single constraint.
 
-    See EliminatinoProjection, EliminationCGSolver
+    See EliminationProjection, EliminationCGSolver
 
     This keeps track of primary / secondary tdofs and does small dense block
     solves to eliminate constraints from a global system.
