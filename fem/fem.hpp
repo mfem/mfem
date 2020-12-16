@@ -41,6 +41,7 @@
 #include "transfer.hpp"
 #include "fespacehierarchy.hpp"
 #include "multigrid.hpp"
+#include "prmnonlinearform.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"

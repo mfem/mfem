@@ -66,6 +66,7 @@ set(SRCS
   tmop_tools.cpp
   gslib.cpp
   transfer.cpp
+  prmnonlinearform.cpp
   )
 
 set(HDRS
@@ -112,6 +113,7 @@ set(HDRS
   tmop_tools.hpp
   gslib.hpp
   transfer.hpp
+  prmnonlinearform.hpp
   )
 
 if (MFEM_USE_SIDRE)
