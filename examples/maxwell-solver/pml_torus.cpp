@@ -1,4 +1,7 @@
 
+
+// sample runs: ./pml_torus -prob 2 -ref 2 -o 2 -f 0.6
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -250,7 +253,6 @@ int main(int argc, char *argv[])
       b.Vector::operator=(0.0);
       b.Assemble();
 
-
       x.ProjectBdrCoefficientTangent(E_Re, E_Im, ess_bdr);
 
       Array<int> attr;
@@ -293,7 +295,6 @@ int main(int argc, char *argv[])
       MatrixRestrictedCoefficient restr_c2_Re(c2_Re,attrPML);
       MatrixRestrictedCoefficient restr_c2_Im(c2_Im,attrPML);
 
-
       // Integrators inside the PML region
       a.AddDomainIntegrator(new CurlCurlIntegrator(restr_c1_Re),
                            new CurlCurlIntegrator(restr_c1_Im));
@@ -318,17 +319,19 @@ int main(int argc, char *argv[])
 
       a.RecoverFEMSolution(X, b, x);
 
-      rates_r.SetElementList(tpml.GetMarkedPMLElements());
-      rates_i.SetElementList(tpml.GetMarkedPMLElements());
+      if (prob_kind == 3)
+      {
+         rates_r.SetElementList(tpml.GetMarkedPMLElements());
+         rates_i.SetElementList(tpml.GetMarkedPMLElements());
 
-      VectorFunctionCoefficient E_ex_Re(dim, E_exact_Re);
-      VectorFunctionCoefficient E_ex_Im(dim, E_exact_Im);
-      VectorFunctionCoefficient E_Curl_Re(cdim, E_exact_Curl_Re);
-      VectorFunctionCoefficient E_Curl_Im(cdim, E_exact_Curl_Im);
+         VectorFunctionCoefficient E_ex_Re(dim, E_exact_Re);
+         VectorFunctionCoefficient E_ex_Im(dim, E_exact_Im);
+         VectorFunctionCoefficient E_Curl_Re(cdim, E_exact_Curl_Re);
+         VectorFunctionCoefficient E_Curl_Im(cdim, E_exact_Curl_Im);
 
-      rates_r.AddHcurlGridFunction(&x.real(),&E_ex_Re,&E_Curl_Re);
-      rates_i.AddHcurlGridFunction(&x.imag(),&E_ex_Im,&E_Curl_Im);
-
+         rates_r.AddHcurlGridFunction(&x.real(),&E_ex_Re,&E_Curl_Re);
+         rates_i.AddHcurlGridFunction(&x.imag(),&E_ex_Im,&E_Curl_Im);
+      }
 
       if (iter == ref_levels) break;
       mesh->UniformRefinement();
@@ -336,9 +339,12 @@ int main(int argc, char *argv[])
       x.Update();
    }
 
-   rates_r.Print(false);      
-   rates_i.Print(false);     
-
+   if (prob_kind == 3)
+   {
+      rates_r.Print(false);      
+      rates_i.Print(false);     
+   }
+   
 
 
    // 16. Send the solution by socket to a GLVis server.
@@ -543,11 +549,11 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E)
    complex<double> zi = complex<double>(0., 1.);
 
    if (prob_kind == 2)
-   {
+   {  // for a straight waveguide
       double k = omega * sqrt(epsilon * mu);
       // T_10 mode
       double k10 = sqrt(k * k - M_PI * M_PI);
-      E[2] = -zi * k / M_PI * sin(M_PI*(x(0)))*exp(zi * k10 * x(1));
+      E[2] = -zi * k / M_PI * sin(M_PI*(x(0)))*exp(zi * k10 * x(1)); 
    }
    else
    {

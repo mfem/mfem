@@ -809,8 +809,8 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E)
          if (dim == 3)
          {
             double k10 = sqrt(k * k - M_PI * M_PI);
-            // E[1] = -zi * k / M_PI * sin(M_PI*x(2))*exp(zi * k10 * x(0));
-            E[1] = -zi * k / M_PI * sin(M_PI*x(0))*exp(zi * k10 * x(2));
+            E[1] = -zi * k / M_PI * sin(M_PI*x(2))*exp(zi * k10 * x(0));
+            // E[1] = -zi * k / M_PI * sin(M_PI*x(0))*exp(zi * k10 * x(2));
          }
          else if (dim == 2)
          {

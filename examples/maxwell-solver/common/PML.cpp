@@ -96,8 +96,8 @@ void CartesianPML::StretchFunction(const Vector &x,
    complex<double> zi = complex<double>(0., 1.);
 
    double n = 2.0;
-   // double c = 5.0;
-   double c = log(omega);
+   double c = 10.0;
+   // double c = log(omega);
    double coeff;
    // Stretch in each direction independently
    for (int i = 0; i < dim; ++i)
@@ -116,7 +116,6 @@ void CartesianPML::StretchFunction(const Vector &x,
    }
 }
 
-
 ToroidPML::ToroidPML(Mesh *mesh_)
    : mesh(mesh_)
 {
@@ -129,8 +128,6 @@ ToroidPML::ToroidPML(Mesh *mesh_)
    apml_thickness.SetSize(2);
    SetBoundaries();
 }
-
-
 
 void ToroidPML::SetBoundaries()
 {
@@ -201,7 +198,6 @@ void ToroidPML::SetAttributes(Mesh *mesh_)
       Element *el = mesh_->GetElement(i);
       // Initialize attribute
       el->SetAttribute(1);
-
 
       Array<int> vertices;
       el->GetVertices(vertices);
@@ -305,9 +301,9 @@ void ToroidPML::StretchFunction(const Vector &X, ComplexDenseMatrix & J, double 
 {
    complex<double> zi = complex<double>(0., 1.);
 
-   double n = 3.0;
-   // double c = 10.0;
-   double c = log(omega);
+   double n = 2.0;
+   double c = 10.0;
+   // double c = log(omega);
    // Stretch in the azimuthal direction
    double x = X[0];
    double y = X[1];
