@@ -2056,6 +2056,42 @@ void AddMult_a(double alpha, const DenseMatrix &b, const DenseMatrix &c,
 #endif
 }
 
+void MultTranspose(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
+{
+   MFEM_ASSERT(a.Height() == b.Width() && a.Width() == c.Width() &&
+               b.Height() == c.Height(), "incompatible dimensions");
+
+#ifdef MFEM_USE_LAPACK
+   static char transa = 'T', transb = 'N';
+   static double alpha = 1.0, beta = 0.0;
+   int m = b.Width(), n = c.Width(), k = b.Height();
+
+   dgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &k,
+          c.Data(), &k, &beta, a.Data(), &m);
+#else
+   const int ah = a.Height();
+   const int aw = a.Width();
+   const int bh = b.Height();
+   double *ad = a.Data();
+   const double *bd = b.Data();
+   const double *cd = c.Data();
+   for (int i = 0; i < ah*aw; i++)
+   {
+      ad[i] = 0.0;
+   }
+   for (int j = 0; j < aw; j++)
+   {
+      for (int k = 0; k < bh; k++)
+      {
+         for (int i = 0; i < ah; i++)
+         {
+            ad[i+j*ah] += bd[k+i*ah] * cd[k+j*bh];
+         }
+      }
+   }
+#endif
+}
+
 void AddMult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
 {
    MFEM_ASSERT(a.Height() == b.Height() && a.Width() == c.Width() &&
@@ -2082,6 +2118,39 @@ void AddMult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
          for (int i = 0; i < ah; i++)
          {
             ad[i+j*ah] += bd[i+k*ah] * cd[k+j*bw];
+         }
+      }
+   }
+#endif
+}
+
+void AddMultTranspose(const DenseMatrix &b, const DenseMatrix &c,
+                      DenseMatrix &a)
+{
+   MFEM_ASSERT(a.Height() == b.Width() && a.Width() == c.Width() &&
+               b.Height() == c.Height(), "incompatible dimensions");
+
+#ifdef MFEM_USE_LAPACK
+   static char transa = 'T', transb = 'N';
+   static double alpha = 1.0, beta = 1.0;
+   int m = b.Width(), n = c.Width(), k = b.Height();
+
+   dgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &k,
+          c.Data(), &k, &beta, a.Data(), &m);
+#else
+   const int ah = a.Height();
+   const int aw = a.Width();
+   const int bh = b.Height();
+   double *ad = a.Data();
+   const double *bd = b.Data();
+   const double *cd = c.Data();
+   for (int j = 0; j < aw; j++)
+   {
+      for (int k = 0; k < bh; k++)
+      {
+         for (int i = 0; i < ah; i++)
+         {
+            ad[i+j*ah] += bd[k+i*ah] * cd[k+j*bh];
          }
       }
    }
