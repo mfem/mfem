@@ -237,6 +237,7 @@ public:
    bool UseDevice() const { return flags & USE_DEVICE; }
 
    /// Set the internal device flag.
+   // TODO TMS: this shouldn't be marked const?
    void UseDevice(bool use_dev) const
    { flags = use_dev ? (flags | USE_DEVICE) : (flags & ~USE_DEVICE); }
 

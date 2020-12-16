@@ -10693,7 +10693,7 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
 
 
 GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
-                                   int flags)
+                                   int flags, bool use_temp_mem)
 {
    this->mesh = mesh;
    IntRule = &ir;
@@ -10715,17 +10715,20 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    unsigned eval_flags = 0;
    if (flags & GeometricFactors::COORDINATES)
    {
-      X.SetSize(vdim*NQ*NE, Device::GetDeviceTempMemoryType());
+      X.SetSize(vdim*NQ*NE);
+      X.UseTemporary(use_temp_mem);
       eval_flags |= QuadratureInterpolator::VALUES;
    }
    if (flags & GeometricFactors::JACOBIANS)
    {
-      J.SetSize(dim*vdim*NQ*NE, Device::GetDeviceTempMemoryType());
+      J.SetSize(dim*vdim*NQ*NE);
+      J.UseTemporary(use_temp_mem);
       eval_flags |= QuadratureInterpolator::DERIVATIVES;
    }
    if (flags & GeometricFactors::DETERMINANTS)
    {
-      detJ.SetSize(NQ*NE, Device::GetDeviceTempMemoryType());
+      detJ.SetSize(NQ*NE);
+      detJ.UseTemporary(use_temp_mem);
       eval_flags |= QuadratureInterpolator::DETERMINANTS;
    }
 
@@ -10735,7 +10738,9 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    qi->SetOutputLayout(QVectorLayout::byNODES);
    if (elem_restr)
    {
-      Vector Enodes(vdim*ND*NE, Device::GetDeviceTempMemoryType());
+      Vector Enodes(vdim*ND*NE,
+                    use_temp_mem ? Device::GetDeviceTempMemoryType() :
+                    Device::GetDeviceMemoryType());
       elem_restr->Mult(*nodes, Enodes);
       qi->Mult(Enodes, eval_flags, X, J, detJ);
    }
