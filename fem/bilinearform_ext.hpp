@@ -130,24 +130,31 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const;
 };
 
-/// Data and methods for matrix-free bilinear forms NOT YET IMPLEMENTED.
+/// Data and methods for matrix-free bilinear forms
 class MFBilinearFormExtension : public BilinearFormExtension
 {
-public:
-   MFBilinearFormExtension(BilinearForm *form)
-      : BilinearFormExtension(form) { }
+protected:
+   const FiniteElementSpace *trialFes, *testFes; // Not owned
+   mutable Vector localX, localY;
+   mutable Vector faceIntX, faceIntY;
+   mutable Vector faceBdrX, faceBdrY;
+   const Operator *elem_restrict; // Not owned
+   const Operator *int_face_restrict_lex; // Not owned
+   const Operator *bdr_face_restrict_lex; // Not owned
 
-   /// TODO
-   void Assemble() {}
-   void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A) {}
+public:
+   MFBilinearFormExtension(BilinearForm *form);
+
+   void Assemble();
+   void AssembleDiagonal(Vector &diag) const;
+   void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);
    void FormLinearSystem(const Array<int> &ess_tdof_list,
                          Vector &x, Vector &b,
                          OperatorHandle &A, Vector &X, Vector &B,
-                         int copy_interior = 0) {}
-   void Mult(const Vector &x, Vector &y) const {}
-   void MultTranspose(const Vector &x, Vector &y) const {}
-   void Update() {}
-   ~MFBilinearFormExtension() {}
+                         int copy_interior = 0);
+   void Mult(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const;
+   void Update();
 };
 
 /// Class extending the MixedBilinearForm class to support different AssemblyLevels.
