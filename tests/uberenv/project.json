@@ -1,0 +1,9 @@
+{
+"package_name" : "mfem-cmake",
+"package_version" : "develop",
+"package_final_phase" : "cmake",
+"package_source_dir" : "../..",
+"spack_url": "https://github.com/spack/spack",
+"spack_branch": "mfem-updates",
+"spack_activate" : {}
+}
