@@ -2742,9 +2742,7 @@ void UMFPackSolver::Init()
 
 void UMFPackSolver::SetOperator(const Operator &op)
 {
-   int *Ap, *Ai;
    void *Symbolic;
-   double *Ax;
 
    if (Numeric)
    {
@@ -2770,9 +2768,9 @@ void UMFPackSolver::SetOperator(const Operator &op)
    width = mat->Width();
    MFEM_VERIFY(width == height, "not a square matrix");
 
-   Ap = mat->GetI();
-   Ai = mat->GetJ();
-   Ax = mat->GetData();
+   const int * Ap = mat->HostReadI();
+   const int * Ai = mat->HostReadJ();
+   const double * Ax = mat->HostReadData();
 
    if (!use_long_ints)
    {
@@ -2842,12 +2840,13 @@ void UMFPackSolver::Mult(const Vector &b, Vector &x) const
    if (mat == NULL)
       mfem_error("UMFPackSolver::Mult : matrix is not set!"
                  " Call SetOperator first!");
-
+   b.HostRead();
+   x.HostReadWrite();
    if (!use_long_ints)
    {
       int status =
-         umfpack_di_solve(UMFPACK_At, mat->GetI(), mat->GetJ(),
-                          mat->GetData(), x, b, Numeric, Control, Info);
+         umfpack_di_solve(UMFPACK_At, mat->HostReadI(), mat->HostReadJ(),
+                          mat->HostReadData(), x, b, Numeric, Control, Info);
       umfpack_di_report_info(Control, Info);
       if (status < 0)
       {
@@ -2858,7 +2857,7 @@ void UMFPackSolver::Mult(const Vector &b, Vector &x) const
    else
    {
       SuiteSparse_long status =
-         umfpack_dl_solve(UMFPACK_At, AI, AJ, mat->GetData(), x, b,
+         umfpack_dl_solve(UMFPACK_At, AI, AJ, mat->HostReadData(), x, b,
                           Numeric, Control, Info);
       umfpack_dl_report_info(Control, Info);
       if (status < 0)
@@ -2874,12 +2873,13 @@ void UMFPackSolver::MultTranspose(const Vector &b, Vector &x) const
    if (mat == NULL)
       mfem_error("UMFPackSolver::MultTranspose : matrix is not set!"
                  " Call SetOperator first!");
-
+   b.HostRead();
+   x.HostReadWrite();
    if (!use_long_ints)
    {
       int status =
-         umfpack_di_solve(UMFPACK_A, mat->GetI(), mat->GetJ(),
-                          mat->GetData(), x, b, Numeric, Control, Info);
+         umfpack_di_solve(UMFPACK_A, mat->HostReadI(), mat->HostReadJ(),
+                          mat->HostReadData(), x, b, Numeric, Control, Info);
       umfpack_di_report_info(Control, Info);
       if (status < 0)
       {
@@ -2891,7 +2891,7 @@ void UMFPackSolver::MultTranspose(const Vector &b, Vector &x) const
    else
    {
       SuiteSparse_long status =
-         umfpack_dl_solve(UMFPACK_A, AI, AJ, mat->GetData(), x, b,
+         umfpack_dl_solve(UMFPACK_A, AI, AJ, mat->HostReadData(), x, b,
                           Numeric, Control, Info);
       umfpack_dl_report_info(Control, Info);
       if (status < 0)
