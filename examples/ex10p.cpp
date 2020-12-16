@@ -627,10 +627,7 @@ double HyperelasticOperator::ElasticEnergy(const ParGridFunction &x) const
 
 double HyperelasticOperator::KineticEnergy(const ParGridFunction &v) const
 {
-   double loc_energy = 0.5*M.InnerProduct(v, v);
-   double energy;
-   MPI_Allreduce(&loc_energy, &energy, 1, MPI_DOUBLE, MPI_SUM,
-                 fespace.GetComm());
+   double energy = 0.5*M.InnerProduct(v, v);
    return energy;
 }
 
