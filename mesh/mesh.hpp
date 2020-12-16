@@ -1409,7 +1409,8 @@ public:
       DETERMINANTS = 1 << 2,
    };
 
-   GeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags);
+   GeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags,
+                    bool use_temp_mem=false);
 
    /// Mapped (physical) coordinates of all quadrature points.
    /** This array uses a column-major layout with dimensions (NQ x SDIM x NE)

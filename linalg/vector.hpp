@@ -100,6 +100,13 @@ public:
    /// Return the device flag of the Memory object used by the Vector
    bool UseDevice() const { return data.UseDevice(); }
 
+
+   /// Enable execution of Vector operations using the mfem::Device.
+   void UseTemporary(bool use_temp) { data.UseTemporary(use_temp); }
+
+   /// Return the device flag of the Memory object used by the Vector
+   bool UseTemporary() const { return data.UseTemporary(); }
+
    /// Reads a vector from multiple files
    void Load(std::istream ** in, int np, int * dim);
 
