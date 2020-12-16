@@ -11,6 +11,7 @@
 
 #include "convection.hpp"
 
+#include "../../config/config.hpp"
 #ifdef MFEM_USE_CEED
 #include "convection.h"
 #endif
@@ -32,7 +33,6 @@ CeedPAConvectionIntegrator::CeedPAConvectionIntegrator(
    MFEM_VERIFY(fes.GetVDim() == 1 || fes.GetVDim() == mesh.Dimension(),
                "case not supported");
    int dim = mesh.Dimension();
-   InitCeedVecCoeff(Q, mesh, irm, coeff_type, coeff);
    CeedPAOperator convOp = {fes, irm,
                             dim * (dim + 1) / 2, "/convection.h",
                             "", nullptr,
@@ -44,6 +44,7 @@ CeedPAConvectionIntegrator::CeedPAConvectionIntegrator(
                             EvalMode::Interp
                            };
    ConvectionContext ctx;
+   InitCeedVecCoeff(Q, mesh, irm, coeff_type, coeff, ctx);
    ctx.alpha = alpha;
    Assemble(convOp, ctx);
 #else
@@ -60,7 +61,6 @@ CeedMFConvectionIntegrator::CeedMFConvectionIntegrator(
 {
 #ifdef MFEM_USE_CEED
    Mesh &mesh = *fes.GetMesh();
-   InitCeedVecCoeff(Q, mesh, irm, coeff_type, coeff);
    CeedMFOperator convOp = {fes, irm,
                             "/convection.h",
                             "", nullptr,
@@ -71,6 +71,7 @@ CeedMFConvectionIntegrator::CeedMFConvectionIntegrator(
                             EvalMode::Interp
                            };
    ConvectionContext ctx;
+   InitCeedVecCoeff(Q, mesh, irm, coeff_type, coeff, ctx);
    ctx.alpha = alpha;
    Assemble(convOp, ctx);
 #else

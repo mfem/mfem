@@ -11,7 +11,7 @@
 
 
 /// A structure used to pass additional data to f_build_diff and f_apply_diff
-struct MassContext { CeedInt dim, space_dim, vdim; CeedScalar coeff[3]; };
+struct MassContext { CeedInt dim, space_dim, vdim; CeedScalar coeff; };
 
 /// libCEED Q-function for building quadrature data for a mass operator with a
 /// constant coefficient
@@ -22,7 +22,7 @@ CEED_QFUNCTION(f_build_mass_const)(void *ctx, CeedInt Q,
    // in[0] is Jacobians with shape [dim, nc=dim, Q]
    // in[1] is quadrature weights, size (Q)
    MassContext *bc = (MassContext *)ctx;
-   const CeedScalar coeff = bc->coeff[0];
+   const CeedScalar coeff = bc->coeff;
    const CeedScalar *J = in[0], *qw = in[1];
    CeedScalar *rho = out[0];
    switch (bc->dim + 10*bc->space_dim)
@@ -143,7 +143,7 @@ CEED_QFUNCTION(f_apply_mass_mf_const)(void *ctx, CeedInt Q,
                                       const CeedScalar *const *in, CeedScalar *const *out)
 {
    MassContext *bc = (MassContext*)ctx;
-   const CeedScalar coeff = bc->coeff[0];
+   const CeedScalar coeff = bc->coeff;
    const CeedScalar *u = in[0], *J = in[1], *qw = in[2];
    CeedScalar *v = out[0];
    switch (10 * bc->dim + bc->vdim)
