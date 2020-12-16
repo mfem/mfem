@@ -48,7 +48,6 @@ set(SRCS
   gridfunc.cpp
   hybridization.cpp
   intrules.cpp
-  libceed/coefficient.cpp
   libceed/operator.cpp
   libceed/util.cpp
   libceed/mass.cpp
