@@ -438,11 +438,12 @@ static void D2QValues1D(const int NE,
       {
          for (int q = 0; q < q1d; ++q)
          {
-            y(c, q, e) = 0.0;
+            double val = 0.0;
             for (int d = 0; d < d1d; ++d)
             {
-               y(c, q, e) += b(q, d) * x(d, c, e);
+               val += b(q, d) * x(d, c, e);
             }
+            y(c, q, e) = val;
          }
       }
    });
