@@ -12,13 +12,8 @@
 #ifndef MFEM_LIBCEED_PAINTEG
 #define MFEM_LIBCEED_PAINTEG
 
-#ifdef MFEM_USE_CEED
-#include <ceed.h>
-#endif
-#include "operator.hpp"
 #include "mf_integrator.hpp"
-#include "util.hpp"
-#include "coefficient.hpp"
+#include "../../config/config.hpp"
 #include "../fespace.hpp"
 #include "../gridfunc.hpp"
 
@@ -128,7 +123,6 @@ public:
             qf = qf_file + op.const_func;
             CeedQFunctionCreateInterior(ceed, 1, op.const_qf, qf.c_str(),
                                         &build_qfunc);
-            ctx.coeff[0] = ((CeedConstCoeff*)coeff)->val;
             break;
          case CeedCoeff::Grid:
             qf = qf_file + op.quad_func;
@@ -147,11 +141,6 @@ public:
             qf = qf_file + op.vec_const_func;
             CeedQFunctionCreateInterior(ceed, 1, op.vec_const_qf, qf.c_str(),
                                         &build_qfunc);
-            CeedVecConstCoeff *vcoeff = static_cast<CeedVecConstCoeff*>(coeff);
-            for (int i = 0; i < dim; i++)
-            {
-               ctx.coeff[i] = vcoeff->val[i];
-            }
          }
          break;
          case CeedCoeff::VecGrid:

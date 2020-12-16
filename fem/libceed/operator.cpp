@@ -10,6 +10,8 @@
 // CONTRIBUTING.md for details.
 
 #include "operator.hpp"
+
+#include "../../config/config.hpp"
 #include "../../linalg/vector.hpp"
 #include "../fespace.hpp"
 

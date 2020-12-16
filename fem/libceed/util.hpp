@@ -12,13 +12,14 @@
 #ifndef MFEM_LIBCEED_UTIL
 #define MFEM_LIBCEED_UTIL
 
-#include <tuple>
-#include <unordered_map>
-#include <string>
+#include "../../config/config.hpp"
 #ifdef MFEM_USE_CEED
 #include <ceed.h>
 #include <ceed-hash.h>
 #endif
+#include <tuple>
+#include <unordered_map>
+#include <string>
 
 namespace mfem
 {
@@ -99,9 +100,6 @@ using CeedRestrMap =
 namespace internal
 {
 extern Ceed ceed;
-
-std::string ceed_path;
-
 extern CeedBasisMap ceed_basis_map;
 extern CeedRestrMap ceed_restr_map;
 }

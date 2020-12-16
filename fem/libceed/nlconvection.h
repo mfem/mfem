@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 /// A structure used to pass additional data to f_build_conv and f_apply_conv
-struct NLConvectionContext { CeedInt dim, space_dim, vdim; CeedScalar coeff[3]; };
+struct NLConvectionContext { CeedInt dim, space_dim, vdim; CeedScalar coeff; };
 
 /// libCEED Q-function for building quadrature data for a convection operator
 /// with a constant coefficient
@@ -24,7 +24,7 @@ CEED_QFUNCTION(f_build_conv_const)(void *ctx, CeedInt Q,
    //
    // At every quadrature point, compute qw/det(J).adj(J).adj(J)^T and store
    // the symmetric part of the result.
-   const CeedScalar coeff = bc->coeff[0];
+   const CeedScalar coeff = bc->coeff;
    const CeedScalar *J = in[0], *qw = in[1];
    CeedScalar *qd = out[0];
    switch (bc->dim + 10 * bc->space_dim)
@@ -263,7 +263,7 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
    // in[2] is quadrature weights, size (Q)
    //
    // At every quadrature point, compute qw/det(J).adj(J).adj(J)^T
-   const CeedScalar coeff = bc->coeff[0];
+   const CeedScalar coeff = bc->coeff;
    const CeedScalar *u = in[0], *ug = in[1], *J = in[2], *qw = in[3];
    CeedScalar *vg = out[0];
    switch (10 * bc->dim + bc->vdim)

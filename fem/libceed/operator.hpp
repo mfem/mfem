@@ -13,7 +13,7 @@
 #define MFEM_LIBCEED_OPERATOR
 
 #include "util.hpp"
-#include "coefficient.hpp"
+#include "../../linalg/operator.hpp"
 
 namespace mfem
 {

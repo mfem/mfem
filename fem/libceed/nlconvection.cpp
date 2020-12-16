@@ -11,6 +11,7 @@
 
 #include "nlconvection.hpp"
 
+#include "../../config/config.hpp"
 #ifdef MFEM_USE_CEED
 #include "nlconvection.h"
 #endif
@@ -31,7 +32,6 @@ CeedPANLConvectionIntegrator::CeedPANLConvectionIntegrator(
    MFEM_VERIFY(fes.GetVDim() == 1 || fes.GetVDim() == mesh.Dimension(),
                "case not supported");
    int dim = mesh.Dimension();
-   InitCeedCoeff(Q, mesh, irm, coeff_type, coeff);
    CeedPAOperator convOp = {fes, irm,
                             dim * dim, "/nlconvection.h",
                             ":f_build_conv_const", f_build_conv_const,
@@ -43,6 +43,7 @@ CeedPANLConvectionIntegrator::CeedPANLConvectionIntegrator(
                             EvalMode::Interp
                            };
    NLConvectionContext ctx;
+   InitCeedCoeff(Q, mesh, irm, coeff_type, coeff, ctx);
    Assemble(convOp, ctx);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
@@ -57,7 +58,6 @@ CeedMFNLConvectionIntegrator::CeedMFNLConvectionIntegrator(
 {
 #ifdef MFEM_USE_CEED
    Mesh &mesh = *fes.GetMesh();
-   InitCeedCoeff(Q, mesh, irm, coeff_type, coeff);
    CeedMFOperator convOp = {fes, irm,
                             "/nlconvection.h",
                             ":f_apply_conv_mf_const", f_apply_conv_mf_const,
@@ -68,6 +68,7 @@ CeedMFNLConvectionIntegrator::CeedMFNLConvectionIntegrator(
                             EvalMode::Interp
                            };
    NLConvectionContext ctx;
+   InitCeedCoeff(Q, mesh, irm, coeff_type, coeff, ctx);
    Assemble(convOp, ctx);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
