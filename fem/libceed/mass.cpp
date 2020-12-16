@@ -11,6 +11,7 @@
 
 #include "mass.hpp"
 
+#include "../../config/config.hpp"
 #ifdef MFEM_USE_CEED
 #include "mass.h"
 #endif
@@ -29,7 +30,6 @@ CeedPAMassIntegrator::CeedPAMassIntegrator(const FiniteElementSpace &fes,
    MFEM_VERIFY(mesh.Dimension() == mesh.SpaceDimension(), "case not supported");
    MFEM_VERIFY(fes.GetVDim() == 1 || fes.GetVDim() == mesh.Dimension(),
                "case not supported");
-   InitCeedCoeff(Q, mesh, irm, coeff_type, coeff);
    CeedPAOperator massOp = {fes, irm,
                             1, "/mass.h",
                             ":f_build_mass_const", f_build_mass_const,
@@ -41,6 +41,7 @@ CeedPAMassIntegrator::CeedPAMassIntegrator(const FiniteElementSpace &fes,
                             EvalMode::Interp
                            };
    MassContext ctx;
+   InitCeedCoeff(Q, mesh, irm, coeff_type, coeff, ctx);
    Assemble(massOp, ctx);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
@@ -54,7 +55,6 @@ CeedMFMassIntegrator::CeedMFMassIntegrator(const FiniteElementSpace &fes,
 {
 #ifdef MFEM_USE_CEED
    Mesh &mesh = *fes.GetMesh();
-   InitCeedCoeff(Q, mesh, irm, coeff_type, coeff);
    CeedMFOperator massOp = {fes, irm,
                             "/mass.h",
                             ":f_apply_mass_mf_const", f_apply_mass_mf_const,
@@ -65,6 +65,7 @@ CeedMFMassIntegrator::CeedMFMassIntegrator(const FiniteElementSpace &fes,
                             EvalMode::Interp
                            };
    MassContext ctx;
+   InitCeedCoeff(Q, mesh, irm, coeff_type, coeff, ctx);
    Assemble(massOp, ctx);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");

@@ -13,6 +13,7 @@
 // PABilinearFormExtension and MFBilinearFormExtension.
 
 #include "nonlinearform.hpp"
+#include "libceed/util.hpp"
 
 namespace mfem
 {

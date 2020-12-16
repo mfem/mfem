@@ -310,6 +310,11 @@ void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
    }
 }
 
+namespace internal
+{
+std::string ceed_path;
+}
+
 const std::string &GetCeedPath()
 {
    if (internal::ceed_path.empty())
