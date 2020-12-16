@@ -13,6 +13,12 @@ import shutil
 from os import environ as env
 from os.path import join as pjoin
 
+#TODO (bernede1@llnl.gov):
+# - no mesquite dep
+# - no direct parmetis
+# - no mumps
+# - no direct scotch
+# - no direct scalapack
 
 def cmake_cache_entry(name, value, comment=""):
     """Generate a string for a cmake cache variable"""
@@ -186,7 +192,7 @@ class MfemCmake(CMakePackage, CudaPackage):
             description='Enable secure sockets using GnuTLS')
     variant('libunwind', default=False,
             description='Enable backtrace on error support using Libunwind')
-    # TODO: HIP, SIMD, Ginkgo, AmgX, SLEPc, ADIOS2, HiOp, MKL CPardiso,
+    # TODO: HIP, SIMD, Ginkgo, SLEPc, ADIOS2, HiOp, MKL CPardiso,
     #       Axom/Sidre
     variant('timer', default='auto',
             values=('auto', 'std', 'posix', 'mac', 'mpi'),
@@ -613,127 +619,168 @@ class MfemCmake(CMakePackage, CudaPackage):
             cfg.write(cmake_cache_entry("METIS_DIR", metis_dir))
 
         if '+lapack' in spec:
-            lapack_blas = spec['lapack'].libs + spec['blas'].libs
-            lapack_blas_lib = ld_flags_from_library_list(lapack_blas)
-            cfg.write(cmake_cache_string("LAPACK_LIB",lapack_blas_lib))
+            lapack = spec['lapack'].libs
+            lapack_inc = spec['lapack'].prefix.includes
+            lapack_lib = ld_flags_from_library_list(lapack)
+            cfg.write(cmake_cache_string("LAPACK_LIBRARIES",lapack_lib))
+            cfg.write(cmake_cache_string("LAPACK_INCLUDE_DIRS",lapack_inc))
+
+            blas = spec['blas'].libs
+            blas_inc = spec['blas'].prefix.includes
+            blas_lib = ld_flags_from_library_list(blas)
+            cfg.write(cmake_cache_string("BLAS_LIBRARIES",blas_inc))
+            cfg.write(cmake_cache_string("BLAS_INCLUDE_DIRS",blas_inc))
 
         if '+superlu-dist' in spec:
             superludist_dir = get_spec_path(spec, "superlu-dist", path_replacements)
             cfg.write(cmake_cache_entry("SUPERLUDIST_DIR", superludist_dir))
 
+            #TODO (bernede1@llnl.gov): what about SUPERLUDIST_REQUIRED_PACKAGES
+            # see MFEM config/defaults.cmake
 
         if '+strumpack' in spec:
-            strumpack = spec['strumpack']
-            sp_opt = ['-I%s' % strumpack.prefix.include]
-            sp_lib = [ld_flags_from_library_list(strumpack.libs)]
-            # Parts of STRUMPACK use fortran, so we need to link with the
-            # fortran library and also the MPI fortran library:
-            if '~shared' in strumpack:
-                if os.path.basename(env['FC']) == 'gfortran':
-                    gfortran = Executable(env['FC'])
-                    libext = 'dylib' if sys.platform == 'darwin' else 'so'
-                    libfile = os.path.abspath(gfortran(
-                        '-print-file-name=libgfortran.%s' % libext,
-                        output=str).strip())
-                    gfortran_lib = LibraryList(libfile)
-                    sp_lib += [ld_flags_from_library_list(gfortran_lib)]
-                if ('^mpich' in strumpack) or ('^mvapich2' in strumpack):
-                    sp_lib += ['-lmpifort']
-                elif '^openmpi' in strumpack:
-                    sp_lib += ['-lmpi_mpifh']
-                elif '^spectrum-mpi' in strumpack:
-                    sp_lib += ['-lmpi_ibm_mpifh']
-            if '+openmp' in strumpack:
-                # The '+openmp' in the spec means strumpack will TRY to find
-                # OpenMP; if not found, we should not add any flags -- how do
-                # we figure out if strumpack found OpenMP?
-                if not self.spec.satisfies('%apple-clang'):
-                    sp_opt += [xcompiler + self.compiler.openmp_flag]
-            if '^parmetis' in strumpack:
-                parmetis = strumpack['parmetis']
-                sp_opt += [parmetis.headers.cpp_flags]
-                sp_lib += [ld_flags_from_library_list(parmetis.libs)]
-            if '^netlib-scalapack' in strumpack:
-                scalapack = strumpack['scalapack']
-                sp_opt += ['-I%s' % scalapack.prefix.include]
-                sp_lib += [ld_flags_from_dirs([scalapack.prefix.lib],
-                                              ['scalapack'])]
-            elif '^scalapack' in strumpack:
-                scalapack = strumpack['scalapack']
-                sp_opt += [scalapack.headers.cpp_flags]
-                sp_lib += [ld_flags_from_library_list(scalapack.libs)]
-            if '+butterflypack' in strumpack:
-                bp = strumpack['butterflypack']
-                sp_opt += ['-I%s' % bp.prefix.include]
-                sp_lib += [ld_flags_from_dirs([bp.prefix.lib],
-                                              ['dbutterflypack',
-                                               'zbutterflypack'])]
-            if '+zfp' in strumpack:
-                zfp = strumpack['zfp']
-                sp_opt += ['-I%s' % zfp.prefix.include]
-                sp_lib += [ld_flags_from_dirs([zfp.prefix.lib], ['zfp'])]
-            if '+cuda' in strumpack:
-                # assuming also ('+cuda' in spec)
-                sp_lib += ['-lcusolver', '-lcublas']
+            strumpack_dir = get_spec_path(spec, "strumpack", path_replacements)
+            cfg.write(cmake_cache_entry("STRUMPACK_DIR", strumpack_dir))
 
-            cfg.write(cmake_cache_string("STRUMPACK_OPT", ' '.join(sp_opt)))
-            cfg.write(cmake_cache_string("STRUMPACK_LIB", ' '.join(sp_lib)))
+            #TODO (bernede1@llnl.gov): what about STRUMPACK_REQUIRED_PACKAGES
+            # see MFEM config/defaults.cmake
+
+            #strumpack = spec['strumpack']
+            #sp_opt = ['-I%s' % strumpack.prefix.include]
+            #sp_lib = [ld_flags_from_library_list(strumpack.libs)]
+            ## Parts of STRUMPACK use fortran, so we need to link with the
+            ## fortran library and also the MPI fortran library:
+            #if '~shared' in strumpack:
+            #    if os.path.basename(env['FC']) == 'gfortran':
+            #        gfortran = Executable(env['FC'])
+            #        libext = 'dylib' if sys.platform == 'darwin' else 'so'
+            #        libfile = os.path.abspath(gfortran(
+            #            '-print-file-name=libgfortran.%s' % libext,
+            #            output=str).strip())
+            #        gfortran_lib = LibraryList(libfile)
+            #        sp_lib += [ld_flags_from_library_list(gfortran_lib)]
+            #    if ('^mpich' in strumpack) or ('^mvapich2' in strumpack):
+            #        sp_lib += ['-lmpifort']
+            #    elif '^openmpi' in strumpack:
+            #        sp_lib += ['-lmpi_mpifh']
+            #    elif '^spectrum-mpi' in strumpack:
+            #        sp_lib += ['-lmpi_ibm_mpifh']
+            #if '+openmp' in strumpack:
+            #    # The '+openmp' in the spec means strumpack will TRY to find
+            #    # OpenMP; if not found, we should not add any flags -- how do
+            #    # we figure out if strumpack found OpenMP?
+            #    if not self.spec.satisfies('%apple-clang'):
+            #        sp_opt += [xcompiler + self.compiler.openmp_flag]
+            #if '^parmetis' in strumpack:
+            #    parmetis = strumpack['parmetis']
+            #    sp_opt += [parmetis.headers.cpp_flags]
+            #    sp_lib += [ld_flags_from_library_list(parmetis.libs)]
+            #if '^netlib-scalapack' in strumpack:
+            #    scalapack = strumpack['scalapack']
+            #    sp_opt += ['-I%s' % scalapack.prefix.include]
+            #    sp_lib += [ld_flags_from_dirs([scalapack.prefix.lib],
+            #                                  ['scalapack'])]
+            #elif '^scalapack' in strumpack:
+            #    scalapack = strumpack['scalapack']
+            #    sp_opt += [scalapack.headers.cpp_flags]
+            #    sp_lib += [ld_flags_from_library_list(scalapack.libs)]
+            #if '+butterflypack' in strumpack:
+            #    bp = strumpack['butterflypack']
+            #    sp_opt += ['-I%s' % bp.prefix.include]
+            #    sp_lib += [ld_flags_from_dirs([bp.prefix.lib],
+            #                                  ['dbutterflypack',
+            #                                   'zbutterflypack'])]
+            #if '+zfp' in strumpack:
+            #    zfp = strumpack['zfp']
+            #    sp_opt += ['-I%s' % zfp.prefix.include]
+            #    sp_lib += [ld_flags_from_dirs([zfp.prefix.lib], ['zfp'])]
+            #if '+cuda' in strumpack:
+            #    # assuming also ('+cuda' in spec)
+            #    sp_lib += ['-lcusolver', '-lcublas']
+
+            #cfg.write(cmake_cache_string("STRUMPACK_OPT", ' '.join(sp_opt)))
+            #cfg.write(cmake_cache_string("STRUMPACK_LIB", ' '.join(sp_lib)))
 
         if '+suite-sparse' in spec:
-            ss_spec = 'suite-sparse:' + self.suitesparse_components
-            ss_opt = '-I%s' % spec[ss_spec].prefix.include
-            ss_lib = ld_flags_from_library_list(spec[ss_spec].libs)
+            suitesparse_dir = get_spec_path(spec, "suitesparse")
+            cfg.write(cmake_cache_entry("SUITESPARSE_DIR", suitesparse_dir))
 
-            cfg.write(cmake_cache_string("SUITESPARSE_OPT", ss_opt))
-            cfg.write(cmake_cache_string("SUITESPARSE_LIB", ss_lib))
+            #ss_spec = 'suite-sparse:' + self.suitesparse_components
+            #ss_opt = '-I%s' % spec[ss_spec].prefix.include
+            #ss_lib = ld_flags_from_library_list(spec[ss_spec].libs)
+
+            #cfg.write(cmake_cache_string("SUITESPARSE_OPT", ss_opt))
+            #cfg.write(cmake_cache_string("SUITESPARSE_LIB", ss_lib))
 
         if '+sundials' in spec:
-            sun_spec = 'sundials:' + self.sundials_components
-            sun_opt = spec[sun_spec].headers.cpp_flags
-            sun_lib = ld_flags_from_library_list(spec[sun_spec].libs)
+            sundials_dir = get_spec_path(spec, "sundials")
+            cfg.write(cmake_cache_entry("SUNDIALS_DIR", sundials_dir))
 
-            cfg.write(cmake_cache_string("SUNDIALS_OPT", sun_opt))
-            cfg.write(cmake_cache_string("SUNDIALS_LIB", sun_lib))
+            #sun_spec = 'sundials:' + self.sundials_components
+            #sun_opt = spec[sun_spec].headers.cpp_flags
+            #sun_lib = ld_flags_from_library_list(spec[sun_spec].libs)
+
+            #cfg.write(cmake_cache_string("SUNDIALS_OPT", sun_opt))
+            #cfg.write(cmake_cache_string("SUNDIALS_LIB", sun_lib))
 
         if '+petsc' in spec:
-            petsc = spec['petsc']
-            if '+shared' in petsc:
-                petsc_opt = petsc.headers.cpp_flags
-                petsc_lib = ld_flags_from_library_list(petsc.libs)
+            petsc_dir = get_spec_path(spec, "petsc")
+            cfg.write(cmake_cache_entry("PETSC_DIR", petsc_dir))
+            #cfg.write(cmake_cache_entry("PETSC_ARCH", ????))
 
-                cfg.write(cmake_cache_string("PETSC_OPT", petsc_opt))
-                cfg.write(cmake_cache_string("PETSC_LIB", petsc_lib))
-            else:
-                cfg.write(cmake_cache_string("PETSC_DIR", petsc.prefix))
+            #TODO (bernede1@llnl.gov): what about PETSC_REQUIRED_PACKAGES
+            # see MFEM config/defaults.cmake
+
+            #petsc = spec['petsc']
+            #if '+shared' in petsc:
+            #    petsc_opt = petsc.headers.cpp_flags
+            #    petsc_lib = ld_flags_from_library_list(petsc.libs)
+
+            #    cfg.write(cmake_cache_string("PETSC_OPT", petsc_opt))
+            #    cfg.write(cmake_cache_string("PETSC_LIB", petsc_lib))
+            #else:
+            #    cfg.write(cmake_cache_string("PETSC_DIR", petsc.prefix))
 
         if '+pumi' in spec:
-            pumi_libs = ['pumi', 'crv', 'ma', 'mds', 'apf', 'pcu', 'gmi',
-                         'parma', 'lion', 'mth', 'apf_zoltan', 'spr']
-            pumi_opt = '-I%s' % spec['pumi'].prefix.include
-            pumi_lib = ld_flags_from_dirs([spec['pumi'].prefix.lib], pumi_libs)
+            pumi_dir = get_spec_path(spec, "pumi")
+            cfg.write(cmake_cache_entry("PUMI_DIR", pumi_dir))
 
-            cfg.write(cmake_cache_string("PUMI_OPT", pumi_opt))
-            cfg.write(cmake_cache_string("PUMI_LIB", pumi_lib))
+            #pumi_libs = ['pumi', 'crv', 'ma', 'mds', 'apf', 'pcu', 'gmi',
+            #             'parma', 'lion', 'mth', 'apf_zoltan', 'spr']
+            #pumi_opt = '-I%s' % spec['pumi'].prefix.include
+            #pumi_lib = ld_flags_from_dirs([spec['pumi'].prefix.lib], pumi_libs)
+
+            #cfg.write(cmake_cache_string("PUMI_OPT", pumi_opt))
+            #cfg.write(cmake_cache_string("PUMI_LIB", pumi_lib))
 
         if '+gslib' in spec:
-            gslib_opt = '-I%s' % spec['gslib'].prefix.include
-            gslib_lib = ld_flags_from_dirs([spec['gslib'].prefix.lib], ['gs'])
+            gslib_dir = get_spec_path(spec, "gslib")
+            cfg.write(cmake_cache_entry("GSLIB_DIR", gslib_dir))
 
-            cfg.write(cmake_cache_string("GSLIB_OPT", gslib_opt))
-            cfg.write(cmake_cache_string("GSLIB_LIB", gslib_lib))
+            #gslib_opt = '-I%s' % spec['gslib'].prefix.include
+            #gslib_lib = ld_flags_from_dirs([spec['gslib'].prefix.lib], ['gs'])
+
+            #cfg.write(cmake_cache_string("GSLIB_OPT", gslib_opt))
+            #cfg.write(cmake_cache_string("GSLIB_LIB", gslib_lib))
 
         if '+netcdf' in spec:
-            netcdf_opt = '-I%s' % spec['netcdf-c'].prefix.include
-            netcdf_lib = ld_flags_from_dirs([spec['netcdf-c'].prefix.lib],
-                                           ['netcdf'])
-            hdf5 = spec['hdf5:hl']
-            if hdf5.satisfies('~shared'):
-                hdf5_libs = hdf5.libs
-                hdf5_libs += LibraryList(find_system_libraries('libdl'))
-                netcdf_lib += " " + ld_flags_from_library_list(hdf5_libs)
+            netcdf_dir = get_spec_path(spec, "netcdf")
+            cfg.write(cmake_cache_entry("NETCDF_DIR", netcdf_dir))
 
-            cfg.write(cmake_cache_string("NETCDF_OPT", netcdf_opt))
-            cfg.write(cmake_cache_string("NETCDF_LIB", netcdf_lib))
+            #TODO (bernede1@llnl.gov): what about NETCDF_REQUIRED_PACKAGES
+            # see MFEM config/defaults.cmake
+
+            #netcdf_opt = '-I%s' % spec['netcdf-c'].prefix.include
+            #netcdf_lib = ld_flags_from_dirs([spec['netcdf-c'].prefix.lib],
+            #                               ['netcdf'])
+            #hdf5 = spec['hdf5:hl']
+            #if hdf5.satisfies('~shared'):
+            #    hdf5_libs = hdf5.libs
+            #    hdf5_libs += LibraryList(find_system_libraries('libdl'))
+            #    netcdf_lib += " " + ld_flags_from_library_list(hdf5_libs)
+
+            #cfg.write(cmake_cache_string("NETCDF_OPT", netcdf_opt))
+            #cfg.write(cmake_cache_string("NETCDF_LIB", netcdf_lib))
 
         if '+zlib' in spec:
             if "@:3.3.2" in spec:
@@ -747,31 +794,40 @@ class MfemCmake(CMakePackage, CudaPackage):
                 cfg.write(cmake_cache_string("ZLIB_LIB", zlib_lib))
 
         if '+mpfr' in spec:
-            mpfr_opt = '-I%s' % spec['mpfr'].prefix.include
-            mpfr_lib = ld_flags_from_dirs([spec['mpfr'].prefix.lib], ['mpfr'])
+            mpfr_dir = get_spec_path(spec, "mpfr")
+            cfg.write(cmake_cache_entry("MPFR_DIR", mpfr_dir))
 
-            cfg.write(cmake_cache_string("MPFR_OPT", mpfr_opt))
-            cfg.write(cmake_cache_string("MPFR_LIB", mpfr_lib))
+            #mpfr_opt = '-I%s' % spec['mpfr'].prefix.include
+            #mpfr_lib = ld_flags_from_dirs([spec['mpfr'].prefix.lib], ['mpfr'])
+
+            #cfg.write(cmake_cache_string("MPFR_OPT", mpfr_opt))
+            #cfg.write(cmake_cache_string("MPFR_LIB", mpfr_lib))
 
         if '+gnutls' in spec:
-            gnutls_opt = '-I%s' % spec['gnutls'].prefix.include
-            gnutls_lib = ld_flags_from_dirs([spec['gnutls'].prefix.lib], ['gnutls'])
+            gnutls_dir = get_spec_path(spec, "gnutls")
+            cfg.write(cmake_cache_entry("GNUTLS_DIR", gnutls_dir))
 
-            cfg.write(cmake_cache_string("GNUTLS_OPT", gnutls_opt))
-            cfg.write(cmake_cache_string("GNUTLS_LIB", gnutls_lib))
+            #gnutls_opt = '-I%s' % spec['gnutls'].prefix.include
+            #gnutls_lib = ld_flags_from_dirs([spec['gnutls'].prefix.lib], ['gnutls'])
+
+            #cfg.write(cmake_cache_string("GNUTLS_OPT", gnutls_opt))
+            #cfg.write(cmake_cache_string("GNUTLS_LIB", gnutls_lib))
 
         if '+libunwind' in spec:
-            libunwind = spec['unwind']
-            headers = find_headers('libunwind', libunwind.prefix.include)
-            headers.add_macro('-g')
-            libs = find_optional_library('libunwind', libunwind.prefix)
-            # When mfem uses libunwind, it also needs 'libdl'.
-            libs += LibraryList(find_system_libraries('libdl'))
+            libunwind_dir = get_spec_path(spec, "libunwind")
+            cfg.write(cmake_cache_entry("LIBUNWIND_DIR", libunwind_dir))
 
-            libunwind_opt = headers.cpp_flags
-            libunwind_lib = ld_flags_from_library_list(libs)
-            cfg.write(cmake_cache_string("LIBUNWIND_OPT", gnutls_opt))
-            cfg.write(cmake_cache_string("LIBUNWIND_LIB", gnutls_lib))
+            #libunwind = spec['unwind']
+            #headers = find_headers('libunwind', libunwind.prefix.include)
+            #headers.add_macro('-g')
+            #libs = find_optional_library('libunwind', libunwind.prefix)
+            ## When mfem uses libunwind, it also needs 'libdl'.
+            #libs += LibraryList(find_system_libraries('libdl'))
+
+            #libunwind_opt = headers.cpp_flags
+            #libunwind_lib = ld_flags_from_library_list(libs)
+            #cfg.write(cmake_cache_string("LIBUNWIND_OPT", gnutls_opt))
+            #cfg.write(cmake_cache_string("LIBUNWIND_LIB", gnutls_lib))
 
         if '+openmp' in spec:
             cfg.write(cmake_cache_string("OPENMP_OPT", self.compiler.openmp_flag))
@@ -783,43 +839,58 @@ class MfemCmake(CMakePackage, CudaPackage):
             cfg.write(cmake_cache_string("CUDA_ARCH", cuda_arch))
 
         if '+occa' in spec:
-            occa_opt = '-I%s' % spec['occa'].prefix.include
-            occa_lib = ld_flags_from_dirs([spec['occa'].prefix.lib], ['occa'])
+            occa_dir = get_spec_path(spec, "occa")
+            cfg.write(cmake_cache_entry("OCCA_DIR", occa_dir))
 
-            cfg.write(cmake_cache_string("OCCA_OPT", occa_opt))
-            cfg.write(cmake_cache_string("OCCA_LIB", occa_lib))
+            #occa_opt = '-I%s' % spec['occa'].prefix.include
+            #occa_lib = ld_flags_from_dirs([spec['occa'].prefix.lib], ['occa'])
+
+            #cfg.write(cmake_cache_string("OCCA_OPT", occa_opt))
+            #cfg.write(cmake_cache_string("OCCA_LIB", occa_lib))
 
         if '+raja' in spec:
-            raja_opt = '-I%s' % spec['raja'].prefix.include
-            raja_lib = ld_flags_from_dirs([spec['raja'].prefix.lib], ['raja'])
+            raja_dir = get_spec_path(spec, "raja")
+            cfg.write(cmake_cache_entry("RAJA_DIR", raja_dir))
 
-            cfg.write(cmake_cache_string("RAJA_OPT", raja_opt))
-            cfg.write(cmake_cache_string("RAJA_LIB", raja_lib))
+            #raja_opt = '-I%s' % spec['raja'].prefix.include
+            #raja_lib = ld_flags_from_dirs([spec['raja'].prefix.lib], ['raja'])
+
+            #cfg.write(cmake_cache_string("RAJA_OPT", raja_opt))
+            #cfg.write(cmake_cache_string("RAJA_LIB", raja_lib))
 
         if '+amgx' in spec:
-            amgx = spec['amgx']
-            if '+shared' in amgx:
-                amgx_opt = '-I%s' % amgx.prefix.include
-                amgx_lib = ld_flags_from_library_list(amgx.libs)
+            amgx_dir = get_spec_path(spec, "amgx")
+            cfg.write(cmake_cache_string("AMGX_DIR", amgx.prefix))
 
-                cfg.write(cmake_cache_string("AMGX_OPT", amgx_opt))
-                cfg.write(cmake_cache_string("AMGX_LIB", amgx_lib))
-            else:
-                cfg.write(cmake_cache_string("AMGX_DIR", amgx.prefix))
+            #amgx = spec['amgx']
+            #if '+shared' in amgx:
+            #    amgx_opt = '-I%s' % amgx.prefix.include
+            #    amgx_lib = ld_flags_from_library_list(amgx.libs)
+
+            #    cfg.write(cmake_cache_string("AMGX_OPT", amgx_opt))
+            #    cfg.write(cmake_cache_string("AMGX_LIB", amgx_lib))
+            #else:
+            #    cfg.write(cmake_cache_string("AMGX_DIR", amgx.prefix))
 
         if '+libceed' in spec:
-            ceed_opt = '-I%s' % spec['libceed'].prefix.include
-            ceed_lib = ld_flags_from_dirs([spec['libceed'].prefix.lib], ['ceed'])
+            ceed_dir = get_spec_path(spec, "libceed")
+            cfg.write(cmake_cache_entry("CEED_DIR", ceed_dir))
 
-            cfg.write(cmake_cache_string("CEED_OPT", ceed_opt))
-            cfg.write(cmake_cache_string("CEED_LIB", ceed_lib))
+            #ceed_opt = '-I%s' % spec['libceed'].prefix.include
+            #ceed_lib = ld_flags_from_dirs([spec['libceed'].prefix.lib], ['ceed'])
+
+            #cfg.write(cmake_cache_string("CEED_OPT", ceed_opt))
+            #cfg.write(cmake_cache_string("CEED_LIB", ceed_lib))
 
         if '+umpire' in spec:
-            umpire_opt = '-I%s' % spec['umpire'].prefix.include
-            umpire_lib = ld_flags_from_library_list(spec['umpire'].libs)
+            umpire_dir = get_spec_path(spec, "umpire")
+            cfg.write(cmake_cache_entry("UMPIRE_DIR", umpire_dir))
 
-            cfg.write(cmake_cache_string("UMPIRE_OPT", umpire_opt))
-            cfg.write(cmake_cache_string("UMPIRE_LIB", umpire_lib))
+            #umpire_opt = '-I%s' % spec['umpire'].prefix.include
+            #umpire_lib = ld_flags_from_library_list(spec['umpire'].libs)
+
+            #cfg.write(cmake_cache_string("UMPIRE_OPT", umpire_opt))
+            #cfg.write(cmake_cache_string("UMPIRE_LIB", umpire_lib))
 
         timer_ids = {'std': '0', 'posix': '2', 'mac': '4', 'mpi': '6'}
         timer = spec.variants['timer'].value
@@ -827,47 +898,50 @@ class MfemCmake(CMakePackage, CudaPackage):
             cfg.write(cmake_cache_string("MFEM_TIMER_TYPE",timer_ids[timer]))
 
         if '+conduit' in spec:
-            conduit = spec['conduit']
-            headers = HeaderList(find(conduit.prefix.include, 'conduit.hpp',
-                                      recursive=True))
-            conduit_libs = ['libconduit', 'libconduit_relay',
-                            'libconduit_blueprint']
-            libs = find_libraries(conduit_libs, conduit.prefix.lib,
-                                  shared=('+shared' in conduit))
-            libs += LibraryList(find_system_libraries('libdl'))
-            if '+hdf5' in conduit:
-                hdf5 = conduit['hdf5']
-                headers += find_headers('hdf5', hdf5.prefix.include)
-                libs += hdf5.libs
+            conduit_dir = get_spec_path(spec, "conduit")
+            cfg.write(cmake_cache_entry("CONDUIT_DIR", conduit_dir))
 
-            ##################
-            # cyrush note:
-            ##################
-            # spack's HeaderList is applying too much magic, undermining us:
-            #
-            #  It applies a regex to strip back to the last "include" dir
-            #  in the path. In our case we need to pass the following
-            #  as part of the CONDUIT_OPT flags:
-            #
-            #    -I<install_path>/include/conduit
-            #
-            #  I tried several ways to present this path to the HeaderList,
-            #  but the regex always kills the trailing conduit dir
-            #  breaking build.
-            #
-            #  To resolve the issue, we simply join our own string with
-            #  the headers results (which are important b/c they handle
-            #  hdf5 paths when enabled).
-            ##################
+            #conduit = spec['conduit']
+            #headers = HeaderList(find(conduit.prefix.include, 'conduit.hpp',
+            #                          recursive=True))
+            #conduit_libs = ['libconduit', 'libconduit_relay',
+            #                'libconduit_blueprint']
+            #libs = find_libraries(conduit_libs, conduit.prefix.lib,
+            #                      shared=('+shared' in conduit))
+            #libs += LibraryList(find_system_libraries('libdl'))
+            #if '+hdf5' in conduit:
+            #    hdf5 = conduit['hdf5']
+            #    headers += find_headers('hdf5', hdf5.prefix.include)
+            #    libs += hdf5.libs
 
-            # construct proper include path
-            conduit_include_path = conduit.prefix.include.conduit
-            # add this path to the found flags
-            conduit_opt_flags = "-I{0} {1}".format(conduit_include_path,
-                                                   headers.cpp_flags)
+            ###################
+            ## cyrush note:
+            ###################
+            ## spack's HeaderList is applying too much magic, undermining us:
+            ##
+            ##  It applies a regex to strip back to the last "include" dir
+            ##  in the path. In our case we need to pass the following
+            ##  as part of the CONDUIT_OPT flags:
+            ##
+            ##    -I<install_path>/include/conduit
+            ##
+            ##  I tried several ways to present this path to the HeaderList,
+            ##  but the regex always kills the trailing conduit dir
+            ##  breaking build.
+            ##
+            ##  To resolve the issue, we simply join our own string with
+            ##  the headers results (which are important b/c they handle
+            ##  hdf5 paths when enabled).
+            ###################
 
-            cfg.write(cmake_cache_string("CONDUIT_OPT", conduit_opt_flags))
-            cfg.write(cmake_cache_string("CONDUIT_LIB", ld_flags_from_library_list(libs)))
+            ## construct proper include path
+            #conduit_include_path = conduit.prefix.include.conduit
+            ## add this path to the found flags
+            #conduit_opt_flags = "-I{0} {1}".format(conduit_include_path,
+            #                                       headers.cpp_flags)
+
+            #cfg.write(cmake_cache_string("CONDUIT_OPT", conduit_opt_flags))
+            #cfg.write(cmake_cache_string("CONDUIT_LIB", ld_flags_from_library_list(libs)))
 
         #######################
         # Close and save
