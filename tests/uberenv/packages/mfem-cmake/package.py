@@ -316,7 +316,7 @@ class MfemCmake(CMakePackage, CudaPackage):
     patch('mfem-4.0.0-makefile-syntax-fix.patch', when='@4.0.0')
 
     # OLD phases = ['configure', 'build', 'install']
-    phases = ['hostconfig', 'cmake', 'build',' install']
+    phases = ['hostconfig', 'cmake', 'build', 'install']
 
     def setup_build_environment(self, env):
         env.unset('MFEM_DIR')
