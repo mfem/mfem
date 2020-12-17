@@ -310,7 +310,7 @@ public:
    /// Returns the Face Jumps error for L2 elements
    virtual double ComputeDGFaceJumpError(Coefficient *exsol,
                                          Coefficient *ell_coeff,
-                                         double Nu,
+                                         JumpScaling jump_scaling,
                                          const IntegrationRule *irs[]=NULL)
    const;
 
