@@ -121,10 +121,9 @@ HypreParMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
    return h_out;
 }
 
-Mesh * build_trapezoid_mesh()
+Mesh * build_trapezoid_mesh(double offset)
 {
-   // starting with Extrude1D(), which is maybe not the right thing
-   //       mesh2d = new Mesh(2, nvt, mesh->GetNE()*ny, mesh->GetNBE()*ny);
+   MFEM_VERIFY(offset < 0.9, "offset is too large!");
 
    const int dimension = 2;
    const int nvt = 4; // vertices
@@ -137,7 +136,7 @@ Mesh * build_trapezoid_mesh()
    mesh->AddVertex(vc);
    vc[0] = 1.0; vc[1] = 0.0;
    mesh->AddVertex(vc);
-   vc[0] = 0.3; vc[1] = 1.0;
+   vc[0] = offset; vc[1] = 1.0;
    mesh->AddVertex(vc);
    vc[0] = 1.0; vc[1] = 1.0;
    mesh->AddVertex(vc);
@@ -180,6 +179,7 @@ int main(int argc, char *argv[])
    bool visualization = 1;
    bool amg_elast = 0;
    bool reorder_space = false;
+   double offset = 0.3;
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
@@ -195,6 +195,8 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&reorder_space, "-nodes", "--by-nodes", "-vdim", "--by-vdim",
                   "Use byNODES ordering of vector space instead of byVDIM");
+   args.AddOption(&offset, "--offset", "--offset",
+                  "How much to offset the trapezoid.");
    args.Parse();
    if (!args.Good())
    {
@@ -213,7 +215,7 @@ int main(int argc, char *argv[])
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
-   Mesh *mesh = build_trapezoid_mesh();
+   Mesh *mesh = build_trapezoid_mesh(offset);
    int dim = mesh->Dimension();
 
    // 5. Refine the serial mesh on all processors to increase the resolution. In
@@ -281,7 +283,7 @@ int main(int argc, char *argv[])
    //    converting it to a list of true dofs.
    Array<int> ess_tdof_list, ess_bdr(pmesh->bdr_attributes.Max());
    ess_bdr = 0;
-   ess_bdr[0] = 1; // bottom
+   // ess_bdr[0] = 1; // bottom
    // ess_bdr[3] = 1; // left side
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
@@ -309,8 +311,13 @@ int main(int argc, char *argv[])
 
    // 10. Set up constraint matrix to constrain normal displacement (but
    //     allow tangential displacement) on specified boundaries.
-   Array<int> constraint_atts(1);
-   constraint_atts[0] = 4;  // attribute 4 left side
+   Array<int> constraint_atts(2);
+   constraint_atts[0] = 1;
+   constraint_atts[1] = 4;  // attribute 4 left side
+   // I actually do not trust what the following routine does when the
+   // two attributes meet; I think it will try to enforce them separately
+   // but that only makes sense if they end up elimination consistently,
+   // which I guess in this simple case they sometimes do?
    HypreParMatrix * hconstraints = BuildNormalConstraints(*fespace,
                                                           constraint_atts);
 
@@ -364,10 +371,6 @@ int main(int argc, char *argv[])
    //     preconditioner from hypre.
    SparseMatrix local_constraints;
    hconstraints->GetDiag(local_constraints);
-   {
-      std::ofstream out("localconstraints.sparsematrix");
-      local_constraints.Print(out, 1);
-   }
    Array<int> lagrange_rowstarts(local_constraints.Height() + 1);
    for (int k = 0; k < local_constraints.Height() + 1; ++k)
    {
