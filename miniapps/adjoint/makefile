@@ -18,10 +18,6 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 # MFEM_INSTALL_DIR = ../../mfem
 # CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
 
-# Include defaults.mk to get XLINKER
-DEFAULTS_MK = $(MFEM_DIR)/config/defaults.mk
-include $(DEFAULTS_MK)
-
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
@@ -41,15 +37,8 @@ endif
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
-.PHONY: all lib-common clean clean-build clean-exec
+.PHONY: all clean clean-build clean-exec
 .PRECIOUS: %.o
-
-COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
-
-# If MFEM_SHARED is set, add the ../common rpath
-COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
-   $(if $(MFEM_USE_CUDA:YES=),$(CXX_XLINKER),$(CUDA_XLINKER))-rpath,$(abspath\
-   $(MFEM_BUILD_DIR)/miniapps/common))
 
 # Remove built-in rules
 %: %.cpp
@@ -58,12 +47,8 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 all: $(MINIAPPS)
 
 # Rules for building the miniapps
-%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_LIB) $(MFEM_LIBS)
-
-# Rule for building lib-common
-lib-common:
-	$(MAKE) -C $(MFEM_BUILD_DIR)/miniapps/common
+%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)

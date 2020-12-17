@@ -235,7 +235,7 @@ endfunction(mfem_find_component)
 #   code snippets. Additionally, a list of required/optional/alternative
 #   packages (given by ${Name}_REQUIRED_PACKAGES) are searched for and added to
 #   the ${Prefix}_INCLUDE_DIRS and ${Prefix}_LIBRARIES lists. The variable
-#   ${Name}_REQUIRED_LIBRARIES can be set to spcecify any additional libraries
+#   ${Name}_REQUIRED_LIBRARIES can be set to specify any additional libraries
 #   that are needed. This function defines the following CACHE variables:
 #
 #      ${Prefix}_FOUND
@@ -733,15 +733,16 @@ function(mfem_export_mk_files)
     set(shared_link_flag "-Wl,-rpath,")
   endif()
 
-  # Convert Boolean vars to YES/NO without writting the values to cache
+  # Convert Boolean vars to YES/NO without writing the values to cache
   set(CONFIG_MK_BOOL_VARS MFEM_USE_MPI MFEM_USE_METIS MFEM_USE_METIS_5
       MFEM_DEBUG MFEM_USE_EXCEPTIONS MFEM_USE_ZLIB MFEM_USE_LIBUNWIND
       MFEM_USE_LAPACK MFEM_THREAD_SAFE MFEM_USE_OPENMP MFEM_USE_LEGACY_OPENMP
       MFEM_USE_MEMALLOC MFEM_USE_SUNDIALS MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE
-      MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GNUTLS
-      MFEM_USE_GSLIB MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_SLEPC MFEM_USE_MPFR MFEM_USE_SIDRE
-      MFEM_USE_CONDUIT MFEM_USE_PUMI MFEM_USE_CUDA MFEM_USE_OCCA MFEM_USE_RAJA
-      MFEM_USE_UMPIRE MFEM_USE_SIMD MFEM_USE_ADIOS2)
+      MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GINKGO MFEM_USE_AMGX
+      MFEM_USE_GNUTLS MFEM_USE_GSLIB MFEM_USE_NETCDF MFEM_USE_PETSC
+      MFEM_USE_SLEPC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_PUMI
+      MFEM_USE_CUDA MFEM_USE_OCCA MFEM_USE_RAJA MFEM_USE_UMPIRE MFEM_USE_SIMD
+      MFEM_USE_ADIOS2)
   foreach(var ${CONFIG_MK_BOOL_VARS})
     if (${var})
       set(${var} YES)
@@ -753,7 +754,13 @@ function(mfem_export_mk_files)
   set(MFEM_CXX ${CMAKE_CXX_COMPILER})
   set(MFEM_HOST_CXX ${MFEM_CXX})
   set(MFEM_CPPFLAGS "")
-  string(STRIP "${CMAKE_CXX_FLAGS_${BUILD_TYPE}} ${CMAKE_CXX_FLAGS}"
+  get_target_property(cxx_std mfem CXX_STANDARD)
+  # For now, we ignore the setting of the CXX_EXTENSIONS property. If this
+  # property is set, then we need to use a variable like:
+  #    CMAKE_CXX11_EXTENSION_COMPILE_OPTION
+  set(cxx_std_flag ${CMAKE_CXX${cxx_std}_STANDARD_COMPILE_OPTION})
+  string(STRIP
+         "${cxx_std_flag} ${CMAKE_CXX_FLAGS_${BUILD_TYPE}} ${CMAKE_CXX_FLAGS}"
          MFEM_CXXFLAGS)
   set(MFEM_TPLFLAGS "")
   foreach(dir ${MFEM_TPL_INCLUDE_DIRS})
@@ -819,7 +826,7 @@ function(mfem_export_mk_files)
       string(REGEX REPLACE "^SCOREC::" "" libname ${pumilib})
       string(FIND "${pumilib}" ".a" staticlib)
       string(FIND "${pumilib}" ".so" sharedlib)
-      find_library(lib ${libname} PATHS ${PUMI_DIR}/lib NO_DEFUALT_PATH)
+      find_library(lib ${libname} PATHS ${PUMI_DIR}/lib NO_DEFAULT_PATH)
       if (NOT "${sharedlib}" MATCHES "-1" OR
           NOT "${staticlib}" MATCHES "-1"   )
         set(MFEM_EXT_LIBS "${pumilib} ${MFEM_EXT_LIBS}")
