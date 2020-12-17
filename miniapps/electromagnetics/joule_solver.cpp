@@ -797,9 +797,6 @@ void MagneticDiffusionEOperator::buildGrad()
 
 double MagneticDiffusionEOperator::ElectricLosses(ParGridFunction &E_gf) const
 {
-   // Calculate the local inner product and sum the result globally, but
-   // this is only approximative, because inner product is not a linear
-   // operation.
    double el = m1->InnerProduct((GridFunction&)E_gf,(GridFunction&)E_gf);
 
    double global_el;
