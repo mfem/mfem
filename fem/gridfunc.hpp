@@ -345,14 +345,32 @@ public:
        projection matrix. */
    void ProjectGridFunction(const GridFunction &src);
 
+   /** @brief Project @a coeff Coefficient element-wise to @a this GridFunction.
+       The projection computation used on each element depends on the choice of
+       FiniteElementSpace #fes. Note that this is not generally an orthogonal
+       projection but may be an element-wise interpolation at element
+       integration points. */
    virtual void ProjectCoefficient(Coefficient &coeff);
 
+   /** @brief Project @a coeff Coefficient element-wise to @a this GridFunction,
+       using one element for each degree of freedom and nodal interpolation on
+       that element. */
    void ProjectCoefficient(Coefficient &coeff, Array<int> &dofs, int vd = 0);
 
+   /** @brief Project @a vcoeff VectorCoefficient element-wise to @a this
+       GridFunction. The projection computation used on each element depends on
+       the choice of FiniteElementSpace #fes. Note that this is not generally an
+       orthogonal projection but may be an element-wise interpolation at element
+       integration points. */
    void ProjectCoefficient(VectorCoefficient &vcoeff);
 
+   /** @brief Project @a vcoeff VectorCoefficient element-wise to @a this
+       GridFunction, using one element for each degree of freedom and nodal
+       interpolation on that element. */
    void ProjectCoefficient(VectorCoefficient &vcoeff, Array<int> &dofs);
 
+   /** @brief Analogous to the version with argument @a vcoeff VectorCoefficient
+       but instead using an array of scalar coefficients for each component. */
    void ProjectCoefficient(Coefficient *coeff[]);
 
    /** @brief Project a discontinuous vector coefficient as a grid function on
