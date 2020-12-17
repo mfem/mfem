@@ -42,8 +42,16 @@ add_mfem_miniapp(toroid
   MAIN toroid.cpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(trimmer
+  MAIN trimmer.cpp
+  LIBRARIES mfem)
+
 add_mfem_miniapp(twist
   MAIN twist.cpp
+  LIBRARIES mfem)
+
+add_mfem_miniapp(polar-nc
+  MAIN polar-nc.cpp
   LIBRARIES mfem)
 
 # Add serial tests.

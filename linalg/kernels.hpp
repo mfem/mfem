@@ -12,13 +12,8 @@
 #ifndef MFEM_KERNELS_HPP
 #define MFEM_KERNELS_HPP
 
-#ifdef _WIN32
-#define _USE_MATH_DEFINES
-#include <cmath>
-#endif
-
 #include "../config/config.hpp"
-#include "../general/cuda.hpp"
+#include "../general/backends.hpp"
 #include "../general/globals.hpp"
 
 #include "matrix.hpp"
@@ -835,7 +830,7 @@ int Reduce3S(const int &mode,
       d2  -= 2*v2*w2;
       d23 -= v2*w3 + v3*w2;
       d3  -= 2*v3*w3;
-      // compute the offdiagonal entries on the first row/column of B which
+      // compute the off-diagonal entries on the first row/column of B which
       // should be zero (for debugging):
 #if 0
       s = d12 - v1*w2 - v2*w1;  // b12 = 0
@@ -1374,6 +1369,45 @@ double CalcSingularvalue<3>(const double *data, const int i)
 have_aa:
 
    return sqrt(fabs(aa))*mult; // take abs before we sort?
+}
+
+
+/// Assuming L.U = P.A for a factored matrix (m x m),
+//  compute x <- A x
+//
+// @param [in] data LU factorization of A
+// @param [in] m square matrix height
+// @param [in] ipiv array storing pivot information
+// @param [in, out] x vector storing right-hand side and then solution
+MFEM_HOST_DEVICE
+inline void LUSolve(const double *data, const int m, const int *ipiv,
+                    double *x)
+{
+   // X <- P X
+   for (int i = 0; i < m; i++)
+   {
+      internal::Swap<double>(x[i], x[ipiv[i]]);
+   }
+
+   // X <- L^{-1} X
+   for (int j = 0; j < m; j++)
+   {
+      const double x_j = x[j];
+      for (int i = j + 1; i < m; i++)
+      {
+         x[i] -= data[i + j * m] * x_j;
+      }
+   }
+
+   // X <- U^{-1} X
+   for (int j = m - 1; j >= 0; j--)
+   {
+      const double x_j = (x[j] /= data[j + j * m]);
+      for (int i = 0; i < j; i++)
+      {
+         x[i] -= data[i + j * m] * x_j;
+      }
+   }
 }
 
 } // namespace kernels

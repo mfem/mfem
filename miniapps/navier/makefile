@@ -12,7 +12,7 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
-# SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/navier/,)
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/navier/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 # Use the MFEM install directory
 # MFEM_INSTALL_DIR = ../../mfem
@@ -24,7 +24,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 NAVIER_COMMON_SRC = navier_solver.cpp ortho_solver.cpp
 NAVIER_COMMON_OBJ = $(NAVIER_COMMON_SRC:.cpp=.o)
 
-PAR_MINIAPPS = navier_mms navier_kovasznay navier_tgv navier_shear navier_3dfoc
+PAR_MINIAPPS = navier_mms navier_kovasznay navier_kovasznay_vs navier_tgv navier_shear navier_3dfoc
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS =
@@ -40,10 +40,10 @@ endif
 %: %.cpp
 %.o: %.cpp
 
-%: %.cpp $(NAVIER_COMMON_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(NAVIER_COMMON_OBJ) $(MFEM_LIBS)
+%: %.o $(NAVIER_COMMON_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
 
-%.o: %.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+%.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
 all: $(MINIAPPS)

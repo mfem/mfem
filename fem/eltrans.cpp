@@ -552,26 +552,32 @@ void IntegrationPointTransformation::Transform (const IntegrationRule &ir1,
    }
 }
 
-void FaceElementTransformations::SetIntPoint(const IntegrationPoint *ip)
+void FaceElementTransformations::SetIntPoint(const IntegrationPoint *face_ip)
 {
-   IsoparametricTransformation::SetIntPoint(ip);
+   IsoparametricTransformation::SetIntPoint(face_ip);
 
-   if (Elem1)
+   if (mask & 4)
    {
-      Loc1.Transform(*ip, eip1);
-      Elem1->SetIntPoint(&eip1);
+      Loc1.Transform(*face_ip, eip1);
+      if (Elem1)
+      {
+         Elem1->SetIntPoint(&eip1);
+      }
    }
-   if (Elem2)
+   if (mask & 8)
    {
-      Loc2.Transform(*ip, eip2);
-      Elem2->SetIntPoint(&eip2);
+      Loc2.Transform(*face_ip, eip2);
+      if (Elem2)
+      {
+         Elem2->SetIntPoint(&eip2);
+      }
    }
 }
 
 ElementTransformation &
 FaceElementTransformations::GetElement1Transformation()
 {
-   MFEM_VERIFY(mask & 1 && Elem1 != NULL, "The ElementTransformation "
+   MFEM_VERIFY(mask & HAVE_ELEM1 && Elem1 != NULL, "The ElementTransformation "
                "for the element has not been configured for side 1.");
    return *Elem1;
 }
@@ -579,7 +585,7 @@ FaceElementTransformations::GetElement1Transformation()
 ElementTransformation &
 FaceElementTransformations::GetElement2Transformation()
 {
-   MFEM_VERIFY(mask & 2 && Elem2 != NULL, "The ElementTransformation "
+   MFEM_VERIFY(mask & HAVE_ELEM2 && Elem2 != NULL, "The ElementTransformation "
                "for the element has not been configured for side 2.");
    return *Elem2;
 }
@@ -587,7 +593,7 @@ FaceElementTransformations::GetElement2Transformation()
 IntegrationPointTransformation &
 FaceElementTransformations::GetIntPoint1Transformation()
 {
-   MFEM_VERIFY(mask & 4, "The IntegrationPointTransformation "
+   MFEM_VERIFY(mask & HAVE_LOC1, "The IntegrationPointTransformation "
                "for the element has not been configured for side 1.");
    return Loc1;
 }
@@ -595,7 +601,7 @@ FaceElementTransformations::GetIntPoint1Transformation()
 IntegrationPointTransformation &
 FaceElementTransformations::GetIntPoint2Transformation()
 {
-   MFEM_VERIFY(mask & 8, "The IntegrationPointTransformation "
+   MFEM_VERIFY(mask & HAVE_LOC2, "The IntegrationPointTransformation "
                "for the element has not been configured for side 2.");
    return Loc2;
 }
@@ -603,7 +609,7 @@ FaceElementTransformations::GetIntPoint2Transformation()
 void FaceElementTransformations::Transform(const IntegrationPoint &ip,
                                            Vector &trans)
 {
-   MFEM_VERIFY(mask & 16, "The ElementTransformation "
+   MFEM_VERIFY(mask & HAVE_FACE, "The ElementTransformation "
                "for the face has not been configured.");
    IsoparametricTransformation::Transform(ip, trans);
 }
@@ -611,7 +617,7 @@ void FaceElementTransformations::Transform(const IntegrationPoint &ip,
 void FaceElementTransformations::Transform(const IntegrationRule &ir,
                                            DenseMatrix &tr)
 {
-   MFEM_VERIFY(mask & 16, "The ElementTransformation "
+   MFEM_VERIFY(mask & HAVE_FACE, "The ElementTransformation "
                "for the face has not been configured.");
    IsoparametricTransformation::Transform(ir, tr);
 }
@@ -619,9 +625,82 @@ void FaceElementTransformations::Transform(const IntegrationRule &ir,
 void FaceElementTransformations::Transform(const DenseMatrix &matrix,
                                            DenseMatrix &result)
 {
-   MFEM_VERIFY(mask & 16, "The ElementTransformation "
+   MFEM_VERIFY(mask & HAVE_FACE, "The ElementTransformation "
                "for the face has not been configured.");
    IsoparametricTransformation::Transform(matrix, result);
+}
+
+double FaceElementTransformations::CheckConsistency(int print_level,
+                                                    std::ostream &out)
+{
+   // Check that the face vertices are mapped to the same physical location
+   // when using the following three transformations:
+   // - the face transformation, *this
+   // - Loc1 + Elem1
+   // - Loc2 + Elem2, if present.
+
+   const bool have_face = (mask & 16);
+   const bool have_el1 = (mask & 1) && (mask & 4);
+   const bool have_el2 = (mask & 2) && (mask & 8) && (Elem2No >= 0);
+   if (int(have_face) + int(have_el1) + int(have_el2) < 2)
+   {
+      // need at least two different transformations to perform a check
+      return 0.0;
+   }
+
+   const IntegrationRule &v_ir = *Geometries.GetVertices(GetGeometryType());
+
+   double max_dist = 0.0;
+   Vector dist(v_ir.GetNPoints());
+   DenseMatrix coords_base, coords_el;
+   IntegrationRule v_eir(v_ir.GetNPoints());
+   if (have_face)
+   {
+      Transform(v_ir, coords_base);
+      if (print_level > 0)
+      {
+         out << "\nface vertex coordinates (from face transform):\n"
+             << "----------------------------------------------\n";
+         coords_base.PrintT(out, coords_base.Height());
+      }
+   }
+   if (have_el1)
+   {
+      Loc1.Transform(v_ir, v_eir);
+      Elem1->Transform(v_eir, coords_el);
+      if (print_level > 0)
+      {
+         out << "\nface vertex coordinates (from element 1 transform):\n"
+             << "---------------------------------------------------\n";
+         coords_el.PrintT(out, coords_el.Height());
+      }
+      if (have_face)
+      {
+         coords_el -= coords_base;
+         coords_el.Norm2(dist);
+         max_dist = std::max(max_dist, dist.Normlinf());
+      }
+      else
+      {
+         coords_base = coords_el;
+      }
+   }
+   if (have_el2)
+   {
+      Loc2.Transform(v_ir, v_eir);
+      Elem2->Transform(v_eir, coords_el);
+      if (print_level > 0)
+      {
+         out << "\nface vertex coordinates (from element 2 transform):\n"
+             << "---------------------------------------------------\n";
+         coords_el.PrintT(out, coords_el.Height());
+      }
+      coords_el -= coords_base;
+      coords_el.Norm2(dist);
+      max_dist = std::max(max_dist, dist.Normlinf());
+   }
+
+   return max_dist;
 }
 
 }

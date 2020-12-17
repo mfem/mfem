@@ -21,6 +21,7 @@ static void EAMassAssemble1D(const int NE,
                              const Array<double> &basis,
                              const Vector &padata,
                              Vector &eadata,
+                             const bool add,
                              const int d1d = 0,
                              const int q1d = 0)
 {
@@ -30,7 +31,7 @@ static void EAMassAssemble1D(const int NE,
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, NE);
-   auto M = Reshape(eadata.Write(), D1D, D1D, NE);
+   auto M = Reshape(eadata.ReadWrite(), D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, D1D, D1D, 1,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -52,7 +53,14 @@ static void EAMassAssemble1D(const int NE,
             {
                val += r_Bi[k1] * r_Bj[k1] * D(k1, e);
             }
-            M(i1, j1, e) = val;
+            if (add)
+            {
+               M(i1, j1, e) += val;
+            }
+            else
+            {
+               M(i1, j1, e) = val;
+            }
          }
       }
    });
@@ -63,6 +71,7 @@ static void EAMassAssemble2D(const int NE,
                              const Array<double> &basis,
                              const Vector &padata,
                              Vector &eadata,
+                             const bool add,
                              const int d1d = 0,
                              const int q1d = 0)
 {
@@ -72,7 +81,7 @@ static void EAMassAssemble2D(const int NE,
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, NE);
-   auto M = Reshape(eadata.Write(), D1D, D1D, D1D, D1D, NE);
+   auto M = Reshape(eadata.ReadWrite(), D1D, D1D, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, D1D, D1D, 1,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -114,7 +123,14 @@ static void EAMassAssemble2D(const int NE,
                                * s_D[k1][k2];
                      }
                   }
-                  M(i1, i2, j1, j2, e) = val;
+                  if (add)
+                  {
+                     M(i1, i2, j1, j2, e) += val;
+                  }
+                  else
+                  {
+                     M(i1, i2, j1, j2, e) = val;
+                  }
                }
             }
          }
@@ -127,6 +143,7 @@ static void EAMassAssemble3D(const int NE,
                              const Array<double> &basis,
                              const Vector &padata,
                              Vector &eadata,
+                             const bool add,
                              const int d1d = 0,
                              const int q1d = 0)
 {
@@ -136,7 +153,7 @@ static void EAMassAssemble3D(const int NE,
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, Q1D, NE);
-   auto M = Reshape(eadata.Write(), D1D, D1D, D1D, D1D, D1D, D1D, NE);
+   auto M = Reshape(eadata.ReadWrite(), D1D, D1D, D1D, D1D, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, D1D, D1D, D1D,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -189,7 +206,14 @@ static void EAMassAssemble3D(const int NE,
                               }
                            }
                         }
-                        M(i1, i2, i3, j1, j2, j3, e) = val;
+                        if (add)
+                        {
+                           M(i1, i2, i3, j1, j2, j3, e) += val;
+                        }
+                        else
+                        {
+                           M(i1, i2, i3, j1, j2, j3, e) = val;
+                        }
                      }
                   }
                }
@@ -200,7 +224,8 @@ static void EAMassAssemble3D(const int NE,
 }
 
 void MassIntegrator::AssembleEA(const FiniteElementSpace &fes,
-                                Vector &ea_data)
+                                Vector &ea_data,
+                                const bool add)
 {
    AssemblePA(fes);
    const int ne = fes.GetMesh()->GetNE();
@@ -209,44 +234,47 @@ void MassIntegrator::AssembleEA(const FiniteElementSpace &fes,
    {
       switch ((dofs1D << 4 ) | quad1D)
       {
-         case 0x22: return EAMassAssemble1D<2,2>(ne,B,pa_data,ea_data);
-         case 0x33: return EAMassAssemble1D<3,3>(ne,B,pa_data,ea_data);
-         case 0x44: return EAMassAssemble1D<4,4>(ne,B,pa_data,ea_data);
-         case 0x55: return EAMassAssemble1D<5,5>(ne,B,pa_data,ea_data);
-         case 0x66: return EAMassAssemble1D<6,6>(ne,B,pa_data,ea_data);
-         case 0x77: return EAMassAssemble1D<7,7>(ne,B,pa_data,ea_data);
-         case 0x88: return EAMassAssemble1D<8,8>(ne,B,pa_data,ea_data);
-         case 0x99: return EAMassAssemble1D<9,9>(ne,B,pa_data,ea_data);
-         default:   return EAMassAssemble1D(ne,B,pa_data,ea_data,dofs1D,quad1D);
+         case 0x22: return EAMassAssemble1D<2,2>(ne,B,pa_data,ea_data,add);
+         case 0x33: return EAMassAssemble1D<3,3>(ne,B,pa_data,ea_data,add);
+         case 0x44: return EAMassAssemble1D<4,4>(ne,B,pa_data,ea_data,add);
+         case 0x55: return EAMassAssemble1D<5,5>(ne,B,pa_data,ea_data,add);
+         case 0x66: return EAMassAssemble1D<6,6>(ne,B,pa_data,ea_data,add);
+         case 0x77: return EAMassAssemble1D<7,7>(ne,B,pa_data,ea_data,add);
+         case 0x88: return EAMassAssemble1D<8,8>(ne,B,pa_data,ea_data,add);
+         case 0x99: return EAMassAssemble1D<9,9>(ne,B,pa_data,ea_data,add);
+         default:   return EAMassAssemble1D(ne,B,pa_data,ea_data,add,
+                                               dofs1D,quad1D);
       }
    }
    else if (dim == 2)
    {
       switch ((dofs1D << 4 ) | quad1D)
       {
-         case 0x22: return EAMassAssemble2D<2,2>(ne,B,pa_data,ea_data);
-         case 0x33: return EAMassAssemble2D<3,3>(ne,B,pa_data,ea_data);
-         case 0x44: return EAMassAssemble2D<4,4>(ne,B,pa_data,ea_data);
-         case 0x55: return EAMassAssemble2D<5,5>(ne,B,pa_data,ea_data);
-         case 0x66: return EAMassAssemble2D<6,6>(ne,B,pa_data,ea_data);
-         case 0x77: return EAMassAssemble2D<7,7>(ne,B,pa_data,ea_data);
-         case 0x88: return EAMassAssemble2D<8,8>(ne,B,pa_data,ea_data);
-         case 0x99: return EAMassAssemble2D<9,9>(ne,B,pa_data,ea_data);
-         default:   return EAMassAssemble2D(ne,B,pa_data,ea_data,dofs1D,quad1D);
+         case 0x22: return EAMassAssemble2D<2,2>(ne,B,pa_data,ea_data,add);
+         case 0x33: return EAMassAssemble2D<3,3>(ne,B,pa_data,ea_data,add);
+         case 0x44: return EAMassAssemble2D<4,4>(ne,B,pa_data,ea_data,add);
+         case 0x55: return EAMassAssemble2D<5,5>(ne,B,pa_data,ea_data,add);
+         case 0x66: return EAMassAssemble2D<6,6>(ne,B,pa_data,ea_data,add);
+         case 0x77: return EAMassAssemble2D<7,7>(ne,B,pa_data,ea_data,add);
+         case 0x88: return EAMassAssemble2D<8,8>(ne,B,pa_data,ea_data,add);
+         case 0x99: return EAMassAssemble2D<9,9>(ne,B,pa_data,ea_data,add);
+         default:   return EAMassAssemble2D(ne,B,pa_data,ea_data,add,
+                                               dofs1D,quad1D);
       }
    }
    else if (dim == 3)
    {
       switch ((dofs1D << 4 ) | quad1D)
       {
-         case 0x23: return EAMassAssemble3D<2,3>(ne,B,pa_data,ea_data);
-         case 0x34: return EAMassAssemble3D<3,4>(ne,B,pa_data,ea_data);
-         case 0x45: return EAMassAssemble3D<4,5>(ne,B,pa_data,ea_data);
-         case 0x56: return EAMassAssemble3D<5,6>(ne,B,pa_data,ea_data);
-         case 0x67: return EAMassAssemble3D<6,7>(ne,B,pa_data,ea_data);
-         case 0x78: return EAMassAssemble3D<7,8>(ne,B,pa_data,ea_data);
-         case 0x89: return EAMassAssemble3D<8,9>(ne,B,pa_data,ea_data);
-         default:   return EAMassAssemble3D(ne,B,pa_data,ea_data,dofs1D,quad1D);
+         case 0x23: return EAMassAssemble3D<2,3>(ne,B,pa_data,ea_data,add);
+         case 0x34: return EAMassAssemble3D<3,4>(ne,B,pa_data,ea_data,add);
+         case 0x45: return EAMassAssemble3D<4,5>(ne,B,pa_data,ea_data,add);
+         case 0x56: return EAMassAssemble3D<5,6>(ne,B,pa_data,ea_data,add);
+         case 0x67: return EAMassAssemble3D<6,7>(ne,B,pa_data,ea_data,add);
+         case 0x78: return EAMassAssemble3D<7,8>(ne,B,pa_data,ea_data,add);
+         case 0x89: return EAMassAssemble3D<8,9>(ne,B,pa_data,ea_data,add);
+         default:   return EAMassAssemble3D(ne,B,pa_data,ea_data,add,
+                                               dofs1D,quad1D);
       }
    }
    MFEM_ABORT("Unknown kernel.");
