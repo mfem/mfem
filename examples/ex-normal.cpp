@@ -386,8 +386,10 @@ int main(int argc, char *argv[])
    }
    else
    {
+      // reordering apparently needs to be true for this solver, needs investigation
+      // (I don't think the space is reordered in this example?)
       constrained = new SchurConstrainedHypreSolver(MPI_COMM_WORLD, *A.As<HypreParMatrix>(),
-                                                    *hconstraints, dim);
+                                                    *hconstraints, dim, true);
    }
    constrained->SetRelTol(reltol);
    constrained->SetAbsTol(1.e-12);
