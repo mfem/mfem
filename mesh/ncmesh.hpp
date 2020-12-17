@@ -424,6 +424,8 @@ protected: // implementation
       void RegisterElement(int e);
       void ForgetElement(int e);
 
+      /// Return the number of elements sharing this face.
+      int GetNumElements() const;
       /// Return one of elem[0] or elem[1] and make sure the other is -1.
       int GetSingleElement() const;
    };
@@ -524,7 +526,8 @@ protected: // implementation
    // refinement/derefinement
 
    //Array<Refinement> ref_stack; ///< stack of scheduled refinements (temporary)
-   std::map<int, char> forced_refinements; ///< scheduled forced refinements
+   //std::map<int, char> forced_refinements; ///< scheduled forced refinements
+   Array<Refinement> ref_list; /// list of elements to refine
    HashTable<Node> shadow; ///< temporary storage for reparented nodes
    Array<Triple<int, int, int> > reparents; ///< scheduled node reparents (tmp)
 
@@ -577,7 +580,8 @@ protected: // implementation
 
    bool TriFaceSplit(int v1, int v2, int v3, int mid[3] = NULL) const;
 
-   void ForceRefinement(int vn1, int vn2, int vn3, int vn4);
+   void ForceRefinement(int vn1, int vn2, int vn3, int vn4,
+                        int mid12, int mid34);
 
    void FindEdgeElements(int vn1, int vn2, int vn3, int vn4,
                          Array<MeshId> &prisms) const;

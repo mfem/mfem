@@ -417,6 +417,14 @@ NCMesh::Face* NCMesh::GetFace(Element &elem, int face_no)
    return faces.Find(node[fv[0]], node[fv[1]], node[fv[2]], node[fv[3]]);
 }
 
+int NCMesh::Face::GetNumElements() const
+{
+   int count = 0;
+   if (elem[0] >= 0) { count++; }
+   if (elem[1] >= 0) { count++; }
+   return count;
+}
+
 int NCMesh::Face::GetSingleElement() const
 {
    if (elem[0] >= 0)
@@ -585,7 +593,7 @@ int NCMesh::NewTriangle(int n0, int n1, int n2,
    return new_id;
 }
 
-inline bool CubeFaceLeft(int node, int* n)
+/*inline bool CubeFaceLeft(int node, int* n)
 { return node == n[0] || node == n[3] || node == n[4] || node == n[7]; }
 
 inline bool CubeFaceRight(int node, int* n)
@@ -607,15 +615,37 @@ inline bool PrismFaceBottom(int node, int* n)
 { return node == n[0] || node == n[1] || node == n[2]; }
 
 inline bool PrismFaceTop(int node, int* n)
-{ return node == n[3] || node == n[4] || node == n[5]; }
+{ return node == n[3] || node == n[4] || node == n[5]; }*/
 
 
-void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
+void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4,
+                             int mid12, int mid34)
 {
-   // get the element this face belongs to
+   // is there a face (vn1, vn2, vn3, vn4)?
    Face* face = faces.Find(vn1, vn2, vn3, vn4);
    if (!face) { return; }
 
+   // if there is an element using this face, flag it for refinement
+   MFEM_ASSERT(face->GetNumElements() < 2, "single or no element expected.");
+   int elem = (face->elem[0] >= 0) ? face->elem[0] : face->elem[1];
+
+   if (elem >= 0)
+   {
+      elements[elem].flag = 1;
+      ref_list.Append(Refinement(elem, 0)); // ref_type will be deduced
+   }
+
+   // Create two new faces that will eventually be used by the force-refined
+   // elements, but that will stay unused for now. The original face (vn1..vn4)
+   // will be removed once 'elem' above is refined.
+
+   Face* split1 = faces.Get(vn1, mid12, mid34, vn4);
+   Face* split2 = faces.Get(mid12, vn2, vn3, mid34);
+
+   MFEM_ASSERT(split1->GetNumElements() == 0, "internal error");
+   MFEM_ASSERT(split2->GetNumElements() == 0, "internal error");
+
+#if 0
    int elem = face->GetSingleElement();
    Element &el = elements[elem];
    MFEM_ASSERT(!el.ref_type, "element already refined.");
@@ -669,6 +699,7 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
 
    // schedule a refinement in the next refinement batch
    forced_refinements[elem] |= forced_ref;
+#endif
 }
 
 
@@ -738,7 +769,7 @@ void NCMesh::CheckAnisoPrism(int vn1, int vn2, int vn3, int vn4,
       {
          // schedule prism refinement along Z axis
          MFEM_ASSERT(elements[elem].Geom() == Geometry::PRISM, "");
-         ref_stack.Append(Refinement(elem, 4));
+         ref_list.Append(Refinement(elem, 4));
       }
    }
 }
@@ -780,7 +811,7 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
       {
          reparents.Append(Triple<int, int, int>(midf, mid12, mid34));
 
-         int rs = ref_stack.Size();
+         int rs = ref_list.Size();
 
          CheckAnisoFace(vn1, vn2, mid23, mid41, mid12, midf, level+1);
          CheckAnisoFace(mid41, mid23, vn3, vn4, midf, mid34, level+1);
@@ -790,10 +821,10 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
             // Check if there is a prism with edge (mid23, mid41) that we may
             // have missed in 'CheckAnisoFace', and force-refine it if present.
 
-            if (ref_stack.Size() > rs)
+            if (ref_list.Size() > rs)
             {
                CheckAnisoPrism(mid23, vn3, vn4, mid41,
-                               &ref_stack[rs], ref_stack.Size() - rs);
+                               &ref_list[rs], ref_list.Size() - rs);
             }
             else
             {
@@ -835,7 +866,7 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
 
    if (level > 0)
    {
-      ForceRefinement(vn1, vn2, vn3, vn4);
+      ForceRefinement(vn1, vn2, vn3, vn4, mid12, mid34);
    }
 }
 
@@ -855,13 +886,41 @@ void NCMesh::CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
    }
 }
 
+int NCMesh::TraverseForceSplitFace(int vn1, int vn2, int vn3, int vn4) const
+{
+   int mid[5];
+   QuadFaceSplitType(v1, v2, v3, v4, mid);
+
+   // TODO: return 1, 2 if forced split vert/horz,
+   //       0 if not split
+   //       -1 -2 if split but not forced (?)
+}
+
+char NCMesh::DetectForcedRefinement(int elem)
+{
+   Element &el = elements[elem];
+
+   MFEM_ASSERT(el.flag && el.Geom() == Geometry::CUBE, "");
+
+
+   // check all faces
+
+   return forced_ref_type;
+}
 
 void NCMesh::RefineElement(int elem, char ref_type)
 {
+   Element &el = elements[elem];
+
+   //
+   if (el.flag)
+   {
+      ref_type |= DetectForcedRefinement(elem);
+   }
+
    if (!ref_type) { return; }
 
    // handle elements that may have been (force-) refined already
-   Element &el = elements[elem];
    if (el.ref_type)
    {
       char remaining = ref_type & ~el.ref_type;
@@ -1491,38 +1550,44 @@ void NCMesh::RefineElement(int elem, char ref_type)
 
 void NCMesh::Refine(const Array<Refinement>& refinements)
 {
-   // prepare list of refinements: convert from Mesh index to NC elem index
-   Array<Refinement> sorted_refs;
-   sorted_refs.Reserve(refinements.Size());
+   // the first refinement batch is the user refinement list
+   Array<Refinement> batch;
+   batch.Reserve(refinements.Size());
    for (const Refinement ref : refinements)
    {
-      sorted_refs.Append(Refinement(leaf_elements[ref.index], ref.ref_type));
+      batch.Append(Refinement(leaf_elements[ref.index], ref.ref_type));
    }
 
    while (1)
    {
-      // sort the refinements by element SFC index
-      sorted_refs.Sort([&](const Refinement &a, const Refinement &b)
+      // sort by element SFC index
+      batch.Sort([&](const Refinement &a, const Refinement &b)
       {
          int sfc_a = leaf_sfc_index[elements[a.index].index];
          int sfc_b = leaf_sfc_index[elements[b.index].index];
          return sfc_a < sfc_b;
       });
+      batch.Unique([&](const Refinement &a, const Refinement &b)
+      {
+         return a.index == b.index;
+      });
 
-      // refine the current batch of elements, in SFC order
-      for (const Refinement ref : sorted_refs)
+      // refine the current batch
+      for (const Refinement ref : batch)
       {
          RefineElement(ref.index, ref.ref_type);
       }
 
 #if defined(MFEM_DEBUG) && !defined(MFEM_USE_MPI)
-      mfem::out << "Refined " << sorted_refs.Size() << " elements" << std::endl;
+      mfem::out << "Refined " << batch.Size() << " elements" << std::endl;
 #endif
 
-      if (forced_refinements.empty()) { break; }
+      // no forced refinements needed? - done
+      if (!ref_list.Size()) { break; }
 
-
-
+      // do another round, with forced refinements
+      mfem::Swap(batch, ref_list);
+      ref_list.SetSize(0);
    }
 
    shadow.DeleteAll();

@@ -245,6 +245,14 @@ public:
       SetSize(end - data);
    }
 
+   /// Similar to Unique() but with a user-supplied equivalence function.
+   template<class Equal>
+   void Unique(Equal eq)
+   {
+      T* end = std::unique((T*)data, data + size, eq);
+      SetSize(end - data);
+   }
+
    /// Return 1 if the array is sorted from lowest to highest.  Otherwise return 0.
    int IsSorted();
 
