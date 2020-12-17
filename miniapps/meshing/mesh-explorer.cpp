@@ -39,27 +39,14 @@
 using namespace mfem;
 using namespace std;
 
+#include "kershaw.h"
+
 // This transformation can be applied to a mesh with the 't' menu option.
 void transformation(const Vector &p, Vector &v)
 {
-   // simple shear transformation
-   double s = 0.1;
-
-   if (p.Size() == 3)
-   {
-      v(0) = p(0) + s*p(1) + s*p(2);
-      v(1) = p(1) + s*p(2) + s*p(0);
-      v(2) = p(2);
-   }
-   else if (p.Size() == 2)
-   {
-      v(0) = p(0) + s*p(1);
-      v(1) = p(1) + s*p(0);
-   }
-   else
-   {
-      v = p;
-   }
+   const double epsy = 1.0/3.0;
+   const double epsz = 1.0/3.0;
+   kershaw(epsy, epsz, p(0), p(1), p(2), v(0), v(1), v(2));
 }
 
 // This function is used with the 'r' menu option, sub-option 'l' to refine a
