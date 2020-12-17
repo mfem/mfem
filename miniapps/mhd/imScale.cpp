@@ -57,6 +57,8 @@ int main(int argc, char *argv[])
    Lx=3.0;
    lambda=5.0;
 
+   bool slowStart=false;
+
    int vis_steps = 1;
 
 
@@ -88,13 +90,14 @@ int main(int argc, char *argv[])
    args.AddOption(&use_petsc, "-usepetsc", "--usepetsc", "-no-petsc",
                   "--no-petsc",
                   "Use or not PETSc to solve the nonlinear system.");
-   args.AddOption(&use_factory, "-shell", "--shell", "-no-shell",
-                  "--no-shell",
+   args.AddOption(&use_factory, "-shell", "--shell", "-no-shell", "--no-shell",
                   "Use user-defined preconditioner factory (PCSHELL).");
    args.AddOption(&petscrc_file, "-petscopts", "--petscopts",
                   "PetscOptions file to use.");
    args.AddOption(&iUpdateJ, "-updatej", "--update-j",
                   "UpdateJ: 0 - no boundary condition used; 1 - Dirichlet used on J boundary.");
+   args.AddOption(&slowStart, "-slow", "--slow-start", "-no-slow", "--no-slow-start",
+                  "Slow start");
 
    args.Parse();
    if (!args.Good())
@@ -249,7 +252,15 @@ int main(int argc, char *argv[])
           start = MPI_Wtime();
       }
 
-      ode_solver2->Step(vx, t, dt);
+      if (slowStart && ti==1)
+      {
+        double dt2=dt/2.;
+        ode_solver2->Step(vx, t, dt2);
+      }
+      else
+      {
+        ode_solver2->Step(vx, t, dt);
+      }
       last_step = (t >= t_final - 1e-8*dt);
 
       if (last_step || (ti % vis_steps) == 0)
