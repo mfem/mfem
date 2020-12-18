@@ -286,7 +286,7 @@ int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
    if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
-   
+
    display_banner(mfem::out);
 
    int logging = 1;
