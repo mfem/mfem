@@ -931,23 +931,35 @@ int NCMesh::TraverseForceSplitFace(int vn1, int vn2, int vn3, int vn4,
 char NCMesh::DetectForcedRefinement(int elem)
 {
    Element &el = elements[elem];
+   GeomInfo& gi = GI[el.Geom()];
 
    MFEM_ASSERT(el.flag && el.Geom() == Geometry::CUBE, "");
 
    int split[6];
-
-   GeomInfo& gi = GI[el.Geom()];
    for (int i = 0; i < gi.nf; i++)
    {
       const int *fv = gi.faces[i];
       split[i] = TraverseForceSplitFace(el.node[fv[0]], el.node[fv[1]],
                                         el.node[fv[2]], el.node[fv[3]]);
+      // no longer need the -1
+      if (split[i] < 0) { split[i] = 0; }
    }
 
-   char forced_ref_type;
-   // TODO
+   char forced_ref = 0;
+   if ((split[0] & 1) || (split[1] & 1) || (split[3] & 1) || (split[5] & 1))
+   {
+      forced_ref |= 1; // element X split
+   }
+   if ((split[0] & 2) || (split[2] & 1) || (split[4] & 1) || (split[5] & 2))
+   {
+      forced_ref |= 2; // element Y split
+   }
+   if ((split[1] & 2) || (split[2] & 2) || (split[3] & 2) || (split[4] & 2))
+   {
+      forced_ref |= 4; // element Z split
+   }
 
-   return forced_ref_type;
+   return forced_ref;
 }
 
 void NCMesh::RefineElement(int elem, char ref_type)
