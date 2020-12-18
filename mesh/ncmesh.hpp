@@ -595,6 +595,11 @@ protected: // implementation
    void CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
                      int en1, int en2, int en3, int en4, int midf);
 
+   int TraverseForceSplitFace(int vn1, int vn2, int vn3, int vn4,
+                              int level = 0) const;
+
+   char DetectForcedRefinement(int elem);
+
    void ReparentNode(int node, int new_p1, int new_p2);
 
    int FindMidEdgeNode(int node1, int node2) const;

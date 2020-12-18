@@ -886,14 +886,46 @@ void NCMesh::CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
    }
 }
 
-int NCMesh::TraverseForceSplitFace(int vn1, int vn2, int vn3, int vn4) const
+///
+int NCMesh::TraverseForceSplitFace(int vn1, int vn2, int vn3, int vn4,
+                                   int level) const
 {
-   int mid[5];
-   QuadFaceSplitType(v1, v2, v3, v4, mid);
+   if (level > 0)
+   {
+      Face* face = faces.Find(vn1, vn2, vn3, vn4);
+      if (face)
+      {
+         // is this an unused face waiting to be matched by element refinement?
+         bool forced = (face->GetNumElements() == 0);
+         return forced ? 0 : -1;
+      }
+   }
 
-   // TODO: return 1, 2 if forced split vert/horz,
-   //       0 if not split
-   //       -1 -2 if split but not forced (?)
+   int mid[5];
+   int split = QuadFaceSplitType(v1, v2, v3, v4, mid);
+
+   if (split == 1) // "X" split face
+   {
+      int f1 = TraverseForceSplitFace(vn1, mid[0], mid[2], vn4, level+1);
+      int f2 = TraverseForceSplitFace(mid[0], vn2, vn3, mid[2], level+1);
+
+      if (f1 >= 0 && f2 >= 0) { return 1; } // forced split, type 1
+      if (f1 < 0 && f2 < 0) { return -1; } // split subfaces, but none forced
+
+      MFEM_ABORT("internal error: mixed regular and force-refined faces");
+   }
+   else if (split == 2) // "Y" split face
+   {
+      int f1 = TraverseForceSplitFace(vn1, vn2, mid[1], mid[3], level+1);
+      int f2 = TraverseForceSplitFace(mid[3], mid[1], vn3, vn4, level+1);
+
+      if (f1 >= 0 && f2 >= 0) { return 2; } // forced split, type 2
+      if (f1 < 0 && f2 < 0) { return -1; } // split subfaces, but none forced
+
+      MFEM_ABORT("internal error: mixed regular and force-refined faces");
+   }
+
+   return 0;
 }
 
 char NCMesh::DetectForcedRefinement(int elem)
@@ -902,8 +934,18 @@ char NCMesh::DetectForcedRefinement(int elem)
 
    MFEM_ASSERT(el.flag && el.Geom() == Geometry::CUBE, "");
 
+   int split[6];
 
-   // check all faces
+   GeomInfo& gi = GI[el.Geom()];
+   for (int i = 0; i < gi.nf; i++)
+   {
+      const int *fv = gi.faces[i];
+      split[i] = TraverseForceSplitFace(el.node[fv[0]], el.node[fv[1]],
+                                        el.node[fv[2]], el.node[fv[3]]);
+   }
+
+   char forced_ref_type;
+   // TODO
 
    return forced_ref_type;
 }
