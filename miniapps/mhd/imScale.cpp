@@ -98,6 +98,8 @@ int main(int argc, char *argv[])
                   "UpdateJ: 0 - no boundary condition used; 1 - Dirichlet used on J boundary.");
    args.AddOption(&slowStart, "-slow", "--slow-start", "-no-slow", "--no-slow-start",
                   "Slow start");
+   args.AddOption(&pa, "-pa", "--patial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Parallel assembly.");
 
    args.Parse();
    if (!args.Good())

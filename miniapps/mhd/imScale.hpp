@@ -280,7 +280,7 @@ protected:
    ParFiniteElementSpace &fespace;
    Array<int> ess_tdof_list;
 
-   ParBilinearForm *M, *Mfull, *Mlumped, *K, *KB, DSl, DRe; //mass, stiffness, diffusion with SL and Re
+   ParBilinearForm *M, *Mfull, *Mlumped, *K, *KB, *KBform, DSl, DRe; //mass, stiffness, diffusion with SL and Re
    ParBilinearForm *Nv, *Nb;
    mutable ParBilinearForm *StabMass, *StabNb, *StabNv; 
    ParLinearForm *E0, *StabE0; //source terms
@@ -387,7 +387,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
                                          Array<int> &ess_bdr, double visc, double resi, 
                                          bool use_petsc_ = false, bool use_factory_=false)
    : TimeDependentOperator(3*f.TrueVSize(), 0.0), fespace(f),
-     M(NULL), Mfull(NULL), Mlumped(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace),
+     M(NULL), Mfull(NULL), Mlumped(NULL), K(NULL), KB(NULL), KBform(NULL), DSl(&fespace), DRe(&fespace),
      Nv(NULL), Nb(NULL), StabMass(NULL), StabNb(NULL), StabNv(NULL),  
      E0(NULL), StabE0(NULL), zLF(&fespace), MfullMat(NULL), E0Vec(NULL), E0rhs(NULL),
      viscosity(visc),  resistivity(resi), useAMG(false), tRHS(false), use_petsc(use_petsc_), use_factory(use_factory_),
@@ -435,7 +435,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    Mlumped->Assemble();
    Mlumped->FormSystemMatrix(ess_tdof_list, MlumpedMat);
 
-   M_solver.iterative_mode = true;
+   M_solver.iterative_mode = false;
    M_solver.SetRelTol(1e-7);
    M_solver.SetAbsTol(0.0);
    M_solver.SetMaxIter(2000);
@@ -502,6 +502,13 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    KB->Assemble();
    KB->Finalize();
    KBMat=KB->ParallelAssemble();
+   KBMat=NULL;
+
+   KBform = new ParBilinearForm(&fespace);
+   KBform->AddDomainIntegrator(new DiffusionIntegrator);      //  K matrix
+   KBform->AddBdrFaceIntegrator(new BoundaryGradIntegrator);  // -B matrix
+   KBform->Assemble();
+ 
 
    Coefficient *visc_ptr, *resi_ptr;
    if (icase==5)
@@ -548,7 +555,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
       }
 
       reduced_oper  = new ReducedSystemOperator(fespace, M, Mmat, K, Kmat,
-                         KB, *KBMat, DRepr, DRematpr, DSlpr, DSlmatpr, Mlumped, MlumpedMat,
+                         KBform, *KBMat, DRepr, DRematpr, DSlpr, DSlmatpr, Mlumped, MlumpedMat,
                          &M_solver, &M_solver2, &M_solver3,
                          viscosity, resistivity, ess_tdof_list, ess_bdr);
 
@@ -731,7 +738,7 @@ void ResistiveMHDOperator::UpdateJ(Vector &k, ParGridFunction *jout)
       gftmp.SetFromTrueDofs(psi);
       Vector Z;
       HypreParMatrix A;
-      KB->Mult(gftmp, zFull);
+      KBform->Mult(gftmp, zFull);
       zFull.Neg(); // z = -z
       M->FormLinearSystem(ess_tdof_list, j, zFull, A, J, Z); //apply Dirichelt boundary 
       M_solver.Mult(Z, J); 
@@ -741,7 +748,7 @@ void ResistiveMHDOperator::UpdateJ(Vector &k, ParGridFunction *jout)
       gftmp.SetFromTrueDofs(psi);
       Vector Z;
       HypreParMatrix A;
-      KB->Mult(gftmp, zFull);
+      KBform->Mult(gftmp, zFull);
       zFull.Neg(); // z = -z
       Mlumped->FormLinearSystem(ess_tdof_list, j, zFull, A, J, Z); //apply Dirichelt boundary 
       M_solver3.Mult(Z, J); 
@@ -779,6 +786,7 @@ ResistiveMHDOperator::~ResistiveMHDOperator()
     delete E0Vec;
     delete E0rhs;
     delete KB;
+    delete KBform;
     delete Nv;
     delete Nb;
     delete StabNv;
