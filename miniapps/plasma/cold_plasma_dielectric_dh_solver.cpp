@@ -315,7 +315,8 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
                          MatrixCoefficient & epsAbsCoef,
                          Coefficient & muCoef,
                          Coefficient * etaCoef,
-                         VectorCoefficient * kCoef,
+                         VectorCoefficient * kReCoef,
+                         VectorCoefficient * kImCoef,
                          // Array<int> & abcs,
                          Array<ComplexVectorCoefficientByAttr> & dbcs,
                          Array<ComplexVectorCoefficientByAttr> & nbcs,
@@ -363,7 +364,8 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      nzD12_(NULL),
      grad_(NULL),
      curl_(NULL),
-     kCross_(NULL),
+     kReCross_(NULL),
+     kImCross_(NULL),
      h_(NULL),
      e_(NULL),
      // e_tmp_(NULL),
@@ -400,7 +402,8 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      // epsAbsCoef_(&epsAbsCoef),
      muCoef_(&muCoef),
      etaCoef_(etaCoef),
-     kCoef_(kCoef),
+     kReCoef_(kReCoef),
+     kImCoef_(kImCoef),
      SReCoef_(NULL),
      SImCoef_(NULL),
      DReCoef_(NULL),
@@ -418,12 +421,12 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      // negMuInvCoef_(NULL),
      massCoef_(NULL),
      posMassCoef_(NULL),
-     kekReCoef_(kCoef_, epsInvReCoef_),
-     kekImCoef_(kCoef_, epsInvImCoef_),
-     keReCoef_(kCoef_, epsInvImCoef_),
-     keImCoef_(kCoef_, epsInvReCoef_, -1.0),
-     ekReCoef_(kCoef_, epsInvImCoef_, -1.0),
-     ekImCoef_(kCoef_, epsInvReCoef_),
+     kekReCoef_(kReCoef_, kImCoef_, epsInvReCoef_, epsInvImCoef_, true),
+     kekImCoef_(kReCoef_, kImCoef_, epsInvReCoef_, epsInvImCoef_, false),
+     keReCoef_(kReCoef_, kImCoef_, epsInvReCoef_, epsInvImCoef_, true),
+     keImCoef_(kReCoef_, kImCoef_, epsInvReCoef_, epsInvImCoef_, false, -1.0),
+     ekReCoef_(kReCoef_, kImCoef_, epsInvReCoef_, epsInvImCoef_, true, -1.0),
+     ekImCoef_(kReCoef_, kImCoef_, epsInvReCoef_, epsInvImCoef_, false),
      // negMuInvkxkxCoef_(NULL),
      // negMuInvkCoef_(NULL),
      jrCoef_(NULL),
@@ -477,7 +480,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
       b_hat_ = new ParGridFunction(HDivFESpace_);
       EpsPara_ = new ParComplexGridFunction(L2FESpace_);
    }
-   if (kCoef_)
+   if (kReCoef_ || kImCoef_)
    {
       L2VFESpace_ = new L2_ParFESpace(pmesh_,order,pmesh_->Dimension(),
                                       pmesh_->SpaceDimension());
@@ -491,8 +494,8 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
          phi_v_ = new ParComplexGridFunction(L2FESpace_);
       }
 
-      sinkx_ = new PhaseCoefficient(*kCoef_, &sin);
-      coskx_ = new PhaseCoefficient(*kCoef_, &cos);
+      sinkx_ = new ComplexPhaseCoefficient(*kReCoef_, *kImCoef_, sin);
+      coskx_ = new ComplexPhaseCoefficient(*kReCoef_, *kImCoef_, cos);
       negsinkx_ = new ProductCoefficient(-1.0, *sinkx_);
 
       // negMuInvCoef_ = new ProductCoefficient(-1.0, *muInvCoef_);
@@ -655,7 +658,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    a1_->AddDomainIntegrator(new CurlCurlIntegrator(*epsInvReCoef_),
                             new CurlCurlIntegrator(*epsInvImCoef_));
    a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massCoef_), NULL);
-   if ( kCoef_ )
+   if (kReCoef_ || kImCoef_)
    {
       if (pa_)
       {
@@ -669,9 +672,13 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
       a1_->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(ekReCoef_),
                                new MixedVectorWeakCurlIntegrator(ekImCoef_));
 
-      kCross_ = new ParDiscreteLinearOperator(HCurlFESpace_, HDivFESpace_);
-      kCross_->AddDomainInterpolator(
-         new VectorCrossProductInterpolator(*kCoef_));
+      kReCross_ = new ParDiscreteLinearOperator(HCurlFESpace_, HDivFESpace_);
+      kReCross_->AddDomainInterpolator(
+         new VectorCrossProductInterpolator(*kReCoef_));
+
+      kImCross_ = new ParDiscreteLinearOperator(HCurlFESpace_, HDivFESpace_);
+      kImCross_->AddDomainInterpolator(
+         new VectorCrossProductInterpolator(*kImCoef_));
    }
    if ( abcCoef_ )
    {
@@ -959,7 +966,8 @@ CPDSolverDH::~CPDSolverDH()
    // delete jd_i_;
    delete grad_;
    delete curl_;
-   delete kCross_;
+   delete kReCross_;
+   delete kImCross_;
 
    delete a1_;
    delete nxD01_;
@@ -1189,10 +1197,15 @@ CPDSolverDH::Assemble()
    curl_->Assemble();
    curl_->Finalize();
 
-   if ( kCross_ )
+   if ( kReCross_ )
    {
-      kCross_->Assemble();
-      kCross_->Finalize();
+      kReCross_->Assemble();
+      kReCross_->Finalize();
+   }
+   if ( kImCross_ )
+   {
+      kImCross_->Assemble();
+      kImCross_->Finalize();
    }
    /*
    curlMuInvCurl_->Assemble();
@@ -1314,7 +1327,8 @@ CPDSolverDH::Update()
    // Inform the other objects that the space has changed.
    curl_->Update();
    if ( grad_ ) { grad_->Update(); }
-   if ( kCross_ ) { kCross_->Update(); }
+   if ( kReCross_ ) { kReCross_->Update(); }
+   if ( kImCross_ ) { kImCross_->Update(); }
    // if ( DivFreeProj_ ) { DivFreeProj_->Update(); }
    // if ( SurfCur_     ) { SurfCur_->Update(); }
    tic_toc.Stop();
@@ -1548,13 +1562,18 @@ void CPDSolverDH::computeD(const ParComplexGridFunction & h,
    d.real().Set( 1.0 / omega_, j.imag());
    d.imag().Set(-1.0 / omega_, j.real());
 
+   // D = Curl(H) / (-i omega) = i Curl(H) / omega
    curl_->AddMult(h.imag(), d.real(),-1.0 / omega_);
    curl_->AddMult(h.real(), d.imag(), 1.0 / omega_);
 
-   if (kCoef_)
+   if (kReCoef_ || kImCoef_)
    {
-      kCross_->AddMult(h.real(), d.real(), -1.0 / omega_);
-      kCross_->AddMult(h.imag(), d.imag(), -1.0 / omega_);
+      // D = i k x H / (-i omega) = -k x H / omega
+      kReCross_->AddMult(h.real(), d.real(), -1.0 / omega_);
+      kReCross_->AddMult(h.imag(), d.imag(), -1.0 / omega_);
+
+      kImCross_->AddMult(h.imag(), d.real(), -1.0 / omega_);
+      kImCross_->AddMult(h.real(), d.imag(), -1.0 / omega_);
    }
 
    if (logging_ > 1)
@@ -1945,7 +1964,7 @@ CPDSolverDH::DisplayToGLVis()
    int Ww = 350, Wh = 350; // window size
    int offx = Ww+10, offy = Wh+45; // window offsets
 
-   if (kCoef_)
+   if (kReCoef_ || kImCoef_)
    {
       VectorGridFunctionCoefficient h_r(&h_->real());
       VectorGridFunctionCoefficient h_i(&h_->imag());
@@ -1995,12 +2014,12 @@ CPDSolverDH::DisplayToGLVis()
    hi_keys << "maaAcPPPP";
 
    VisualizeField(*socks_["Hr"], vishost, visport,
-                  h_->real(), "Magnetic Field, Re(H)", Wx, Wy, Ww, Wh,
+                  h_v_->real(), "Magnetic Field, Re(H)", Wx, Wy, Ww, Wh,
                   hr_keys.str().c_str());
    Wx += offx;
 
    VisualizeField(*socks_["Hi"], vishost, visport,
-                  h_->imag(), "Magnetic Field, Im(H)", Wx, Wy, Ww, Wh,
+                  h_v_->imag(), "Magnetic Field, Im(H)", Wx, Wy, Ww, Wh,
                   hr_keys.str().c_str());
 
    Wx += offx;
@@ -2048,15 +2067,12 @@ CPDSolverDH::DisplayToGLVis()
 
    if (BCoef_)
    {
-      /*
       VectorGridFunctionCoefficient e_r(&e_v_->real());
       VectorGridFunctionCoefficient e_i(&e_v_->imag());
       InnerProductCoefficient ebrCoef(e_r, *BCoef_);
       InnerProductCoefficient ebiCoef(e_i, *BCoef_);
 
       e_b_->ProjectCoefficient(ebrCoef, ebiCoef);
-       */
-
 
       VisualizeField(*socks_["EBr"], vishost, visport,
                      e_b_->real(), "Parallel Electric Field, Re(E.B)",
@@ -2085,7 +2101,7 @@ CPDSolverDH::DisplayToGLVis()
 
       // j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
 
-      if (kCoef_)
+      if (kReCoef_ || kImCoef_)
       {
          VectorGridFunctionCoefficient j_r(&j_->real());
          VectorGridFunctionCoefficient j_i(&j_->imag());
@@ -2162,7 +2178,7 @@ CPDSolverDH::DisplayAnimationToGLVis()
 {
    if (myid_ == 0) { cout << "Sending animation data to GLVis ..." << flush; }
 
-   if (kCoef_)
+   if (kReCoef_ || kImCoef_)
    {
       VectorGridFunctionCoefficient e_r(&e_->real());
       VectorGridFunctionCoefficient e_i(&e_->imag());

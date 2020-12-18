@@ -285,8 +285,9 @@ void display_banner(ostream & os);
 int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
-
-   if ( mpi.Root() ) { display_banner(cout); }
+   if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   
+   display_banner(mfem::out);
 
    int logging = 1;
 
@@ -310,8 +311,9 @@ int main(int argc, char *argv[])
    BVec = 0.0; BVec(0) = 0.1;
 
    bool phase_shift = false;
-   Vector kVec(3);
-   kVec = 0.0;
+   Vector kVec;
+   Vector kReVec;
+   Vector kImVec;
 
    double hz = -1.0;
 
@@ -349,6 +351,7 @@ int main(int argc, char *argv[])
    solOpts.euLvl = 1;
 
    bool logo = false;
+   bool per_y = false;
    bool check_eps_inv = false;
    bool pa = false;
    const char *device_config = "cpu";
@@ -358,6 +361,9 @@ int main(int argc, char *argv[])
                   "--no-print-logo", "Print logo and exit.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&per_y, "-per-y", "--periodic-in-y", "-no-per-y",
+                  "--not-periodic-in-y",
+                  "The input mesh is periodic in the y-direction.");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&order, "-o", "--order",
@@ -400,8 +406,10 @@ int main(int argc, char *argv[])
                   "'Z' - Zero");
    args.AddOption(&BVec, "-B", "--magnetic-flux",
                   "Background magnetic flux vector");
-   args.AddOption(&kVec[2], "-kz", "--wave-vector-z",
-                  "z-Component of wave vector.");
+   args.AddOption(&kVec, "-k-vec", "--phase-vector",
+                  "Phase shift vector across periodic directions."
+                  " For complex phase shifts input 3 real phase shifts "
+                  "followed by 3 imaginary phase shifts");
    // args.AddOption(&numbers, "-num", "--number-densites",
    //               "Number densities of the various species");
    args.AddOption(&charges, "-q", "--charges",
@@ -609,7 +617,7 @@ int main(int argc, char *argv[])
       hz = 0.1;
    }
    double omega = 2.0 * M_PI * freq;
-   if (kVec[2] != 0.0)
+   if (kVec.Size() != 0)
    {
       phase_shift = true;
    }
@@ -770,7 +778,7 @@ int main(int argc, char *argv[])
 
    VectorConstantCoefficient BCoef(BVec);
    VectorConstantCoefficient BUnitCoef(BUnitVec);
-   VectorConstantCoefficient kCoef(kVec);
+   // VectorConstantCoefficient kCoef(kVec);
    /*
    double ion_frac = 0.0;
    ConstantCoefficient rhoCoef1(rho1);
@@ -944,7 +952,36 @@ int main(int argc, char *argv[])
                 << complex<double>(kr(0),ki(0)) << ","
                 << complex<double>(kr(1),ki(1)) << ","
                 << complex<double>(kr(2),ki(2)) << ")" << endl;
+
+      if (!phase_shift)
+      {
+         kVec.SetSize(6);
+         kVec = 0.0;
+
+         if (per_y)
+         {
+            kVec[1] = kr[1];
+            kVec[4] = ki[1];
+         }
+
+         kVec[2] = kr[2];
+         kVec[5] = ki[2];
+
+         phase_shift = true;
+      }
+
+      kReVec.SetDataAndSize(&kVec[0], 3);
+      kImVec.SetDataAndSize(&kVec[3], 3);
+
+      HReCoef.SetPhaseShift(kReVec, kImVec);
+      HImCoef.SetPhaseShift(kReVec, kImVec);
+      EReCoef.SetPhaseShift(kReVec, kImVec);
+      EImCoef.SetPhaseShift(kReVec, kImVec);
    }
+
+   VectorConstantCoefficient kReCoef(kReVec);
+   VectorConstantCoefficient kImCoef(kImVec);
+
    /*
    if (wave_type[0] == 'J' && slab_params_.Size() == 5)
    {
@@ -954,13 +991,6 @@ int main(int argc, char *argv[])
                              mesh_dim_[0]);
    }
    */
-   if (phase_shift)
-   {
-      HReCoef.SetPhaseShift(kVec);
-      HImCoef.SetPhaseShift(kVec);
-      EReCoef.SetPhaseShift(kVec);
-      EImCoef.SetPhaseShift(kVec);
-   }
 
    if (visualization && wave_type[0] != ' ')
    {
@@ -1265,7 +1295,8 @@ int main(int argc, char *argv[])
                    conv, BUnitCoef,
                    epsilonInv_real, epsilonInv_imag, epsilon_abs,
                    muCoef, etaInvCoef,
-                   (phase_shift) ? &kCoef : NULL,
+                   (phase_shift) ? &kReCoef : NULL,
+                   (phase_shift) ? &kImCoef : NULL,
                    //abcs,
                    dbcs, nbcs, sbcs,
                    // e_bc_r, e_bc_i,

@@ -248,7 +248,8 @@ public:
                MatrixCoefficient & epsAbsCoef,
                Coefficient & muCoef,
                Coefficient * etaCoef,
-               VectorCoefficient * kCoef,
+               VectorCoefficient * kReCoef,
+               VectorCoefficient * kImCoef,
                // Array<int> & abcs,
                Array<ComplexVectorCoefficientByAttr> & dbcs,
                Array<ComplexVectorCoefficientByAttr> & nbcs,
@@ -294,32 +295,23 @@ private:
    class kekCoefficient : public MatrixCoefficient
    {
    private:
-      VectorCoefficient * kCoef_;
-      MatrixCoefficient * eCoef_;
+      VectorCoefficient * krCoef_;
+      VectorCoefficient * kiCoef_;
+      MatrixCoefficient * erCoef_;
+      MatrixCoefficient * eiCoef_;
 
+      bool realPart_;
       double a_;
 
-      mutable Vector k;
-      mutable DenseMatrix e;
+      mutable Vector kr;
+      mutable Vector ki;
+      mutable DenseMatrix er;
+      mutable DenseMatrix ei;
 
-   public:
-      kekCoefficient(VectorCoefficient *kCoef, MatrixCoefficient *eCoef,
-                     double a = 1.0)
-         : MatrixCoefficient(3),
-           kCoef_(kCoef), eCoef_(eCoef), a_(a), k(3), e(3) {}
-
-      void Eval(DenseMatrix &M, ElementTransformation &T,
-                const IntegrationPoint &ip)
+      void kek(double a,
+               const Vector & kl, const DenseMatrix & e, const Vector &kr,
+               DenseMatrix & M)
       {
-         M.SetSize(3);
-         if (kCoef_ == NULL || eCoef_ == NULL)
-         {
-            M = 0.0;
-            return;
-         }
-         kCoef_->Eval(k, T, ip);
-         eCoef_->Eval(e, T, ip);
-
          for (int i=0; i<3; i++)
          {
             int i1 = (i+1)%3;
@@ -328,12 +320,54 @@ private:
             {
                int j1 = (j+1)%3;
                int j2 = (j+2)%3;
-               M(i,j) =
-                  k(i1) * e(i2,j2) * k(j1) -
-                  k(i1) * e(i2,j1) * k(j2) -
-                  k(i2) * e(i1,j2) * k(j1) +
-                  k(i2) * e(i1,j1) * k(j2);
+               M(i,j) +=
+                  a * (kl(i1) * e(i2,j2) * kr(j1) -
+                       kl(i1) * e(i2,j1) * kr(j2) -
+                       kl(i2) * e(i1,j2) * kr(j1) +
+                       kl(i2) * e(i1,j1) * kr(j2));
             }
+         }
+      }
+
+   public:
+      kekCoefficient(VectorCoefficient *krCoef, VectorCoefficient *kiCoef,
+                     MatrixCoefficient *erCoef, MatrixCoefficient *eiCoef,
+                     bool realPart, double a = 1.0)
+         : MatrixCoefficient(3),
+           krCoef_(krCoef), kiCoef_(kiCoef),
+           erCoef_(erCoef), eiCoef_(eiCoef),
+           realPart_(realPart),
+           a_(a), kr(3), ki(3), er(3), ei(3)
+      { kr = 0.0; ki = 0.0; er = 0.0; ei = 0.0; }
+
+      void Eval(DenseMatrix &M, ElementTransformation &T,
+                const IntegrationPoint &ip)
+      {
+         M.SetSize(3);
+         M = 0.0;
+         if ((krCoef_ == NULL && kiCoef_ == NULL) ||
+             (erCoef_ == NULL && eiCoef_ == NULL))
+         {
+            return;
+         }
+         if (krCoef_) { krCoef_->Eval(kr, T, ip); }
+         if (kiCoef_) { kiCoef_->Eval(ki, T, ip); }
+         if (erCoef_) { erCoef_->Eval(er, T, ip); }
+         if (eiCoef_) { eiCoef_->Eval(ei, T, ip); }
+
+         if (realPart_)
+         {
+            if (krCoef_ && erCoef_) { kek(1.0, kr, er, kr, M); }
+            if (kiCoef_ && erCoef_) { kek(-1.0, ki, er, ki, M); }
+            if (krCoef_ && eiCoef_ && kiCoef_) { kek(-1.0, kr, ei, ki, M); }
+            if (kiCoef_ && eiCoef_ && krCoef_) { kek(-1.0, ki, ei, kr, M); }
+         }
+         else
+         {
+            if (krCoef_ && eiCoef_) { kek(1.0, kr, ei, kr, M); }
+            if (kiCoef_ && eiCoef_) { kek(-1.0, ki, ei, ki, M); }
+            if (krCoef_ && erCoef_ && kiCoef_) { kek(1.0, kr, er, ki, M); }
+            if (kiCoef_ && erCoef_ && krCoef_) { kek(1.0, ki, er, kr, M); }
          }
          if (a_ != 1.0) { M *= a_; }
       }
@@ -342,40 +376,70 @@ private:
    class ekCoefficient : public MatrixCoefficient
    {
    private:
-      VectorCoefficient * kCoef_;
-      MatrixCoefficient * eCoef_;
+      VectorCoefficient * krCoef_;
+      VectorCoefficient * kiCoef_;
+      MatrixCoefficient * erCoef_;
+      MatrixCoefficient * eiCoef_;
 
+      bool realPart_;
       double a_;
 
-      mutable Vector k;
-      mutable DenseMatrix e;
+      mutable Vector kr;
+      mutable Vector ki;
+      mutable DenseMatrix er;
+      mutable DenseMatrix ei;
 
-   public:
-      ekCoefficient(VectorCoefficient *kCoef, MatrixCoefficient *eCoef,
-                    double a = 1.0)
-         : MatrixCoefficient(3),
-           kCoef_(kCoef), eCoef_(eCoef), a_(a), k(3), e(3) {}
-
-      void Eval(DenseMatrix &M, ElementTransformation &T,
-                const IntegrationPoint &ip)
+      void ek(double a,
+              const DenseMatrix & e, const Vector &k,
+              DenseMatrix & M)
       {
-         M.SetSize(3);
-         if (kCoef_ == NULL || eCoef_ == NULL)
-         {
-            M = 0.0;
-            return;
-         }
-         kCoef_->Eval(k, T, ip);
-         eCoef_->Eval(e, T, ip);
-
          for (int i=0; i<3; i++)
          {
             for (int j=0; j<3; j++)
             {
                int j1 = (j+1)%3;
                int j2 = (j+2)%3;
-               M(i,j) = e(i,j1) * k(j2) - e(i,j2) * k(j1);
+               M(i,j) += a * (e(i,j1) * k(j2) - e(i,j2) * k(j1));
             }
+         }
+      }
+
+   public:
+      ekCoefficient(VectorCoefficient *krCoef, VectorCoefficient *kiCoef,
+                    MatrixCoefficient *erCoef, MatrixCoefficient *eiCoef,
+                    bool realPart,
+                    double a = 1.0)
+         : MatrixCoefficient(3),
+           krCoef_(krCoef), kiCoef_(kiCoef),
+           erCoef_(erCoef), eiCoef_(eiCoef),
+           realPart_(realPart),
+           a_(a), kr(3), ki(3), er(3), ei(3)
+      { kr = 0.0; ki = 0.0; er = 0.0; ei = 0.0; }
+
+      void Eval(DenseMatrix &M, ElementTransformation &T,
+                const IntegrationPoint &ip)
+      {
+         M.SetSize(3);
+         M = 0.0;
+         if ((krCoef_ == NULL && kiCoef_ == NULL) ||
+             (erCoef_ == NULL && eiCoef_ == NULL))
+         {
+            return;
+         }
+         if (krCoef_) { krCoef_->Eval(kr, T, ip); }
+         if (kiCoef_) { kiCoef_->Eval(ki, T, ip); }
+         if (erCoef_) { erCoef_->Eval(er, T, ip); }
+         if (eiCoef_) { eiCoef_->Eval(ei, T, ip); }
+
+         if (realPart_)
+         {
+            if (erCoef_ && krCoef_) { ek(1.0, er, kr, M); }
+            if (eiCoef_ && kiCoef_) { ek(-1.0, ei, ki, M); }
+         }
+         else
+         {
+            if (eiCoef_ && krCoef_) { ek(1.0, ei, kr, M); }
+            if (erCoef_ && kiCoef_) { ek(1.0, er, ki, M); }
          }
          if (a_ != 1.0) { M *= a_; }
       }
@@ -384,40 +448,70 @@ private:
    class keCoefficient : public MatrixCoefficient
    {
    private:
-      VectorCoefficient * kCoef_;
-      MatrixCoefficient * eCoef_;
+      VectorCoefficient * krCoef_;
+      VectorCoefficient * kiCoef_;
+      MatrixCoefficient * erCoef_;
+      MatrixCoefficient * eiCoef_;
 
+      bool realPart_;
       double a_;
 
-      mutable Vector k;
-      mutable DenseMatrix e;
+      mutable Vector kr;
+      mutable Vector ki;
+      mutable DenseMatrix er;
+      mutable DenseMatrix ei;
 
-   public:
-      keCoefficient(VectorCoefficient *kCoef, MatrixCoefficient *eCoef,
-                    double a = 1.0)
-         : MatrixCoefficient(3),
-           kCoef_(kCoef), eCoef_(eCoef), a_(a), k(3), e(3) {}
-
-      void Eval(DenseMatrix &M, ElementTransformation &T,
-                const IntegrationPoint &ip)
+      void ke(double a,
+              const Vector &k, const DenseMatrix & e,
+              DenseMatrix & M)
       {
-         M.SetSize(3);
-         if (kCoef_ == NULL || eCoef_ == NULL)
-         {
-            M = 0.0;
-            return;
-         }
-         kCoef_->Eval(k, T, ip);
-         eCoef_->Eval(e, T, ip);
-
          for (int i=0; i<3; i++)
          {
             int i1 = (i+1)%3;
             int i2 = (i+2)%3;
             for (int j=0; j<3; j++)
             {
-               M(i,j) = k(i2) * e(i1,j) - k(i1) * e(i2,j);
+               M(i,j) += a * (k(i2) * e(i1,j) - k(i1) * e(i2,j));
             }
+         }
+      }
+
+   public:
+      keCoefficient(VectorCoefficient *krCoef, VectorCoefficient *kiCoef,
+                    MatrixCoefficient *erCoef, MatrixCoefficient *eiCoef,
+                    bool realPart,
+                    double a = 1.0)
+         : MatrixCoefficient(3),
+           krCoef_(krCoef), kiCoef_(kiCoef),
+           erCoef_(erCoef), eiCoef_(eiCoef),
+           realPart_(realPart),
+           a_(a), kr(3), ki(3), er(3), ei(3)
+      { kr = 0.0; ki = 0.0; er = 0.0; ei = 0.0; }
+
+      void Eval(DenseMatrix &M, ElementTransformation &T,
+                const IntegrationPoint &ip)
+      {
+         M.SetSize(3);
+         M = 0.0;
+         if ((krCoef_ == NULL && kiCoef_ == NULL) ||
+             (erCoef_ == NULL && eiCoef_ == NULL))
+         {
+            return;
+         }
+         if (krCoef_) { krCoef_->Eval(kr, T, ip); }
+         if (kiCoef_) { kiCoef_->Eval(ki, T, ip); }
+         if (erCoef_) { erCoef_->Eval(er, T, ip); }
+         if (eiCoef_) { eiCoef_->Eval(ei, T, ip); }
+
+         if (realPart_)
+         {
+            if (krCoef_ && erCoef_) { ke(1.0, kr, er, M); }
+            if (kiCoef_ && eiCoef_) { ke(-1.0, ki, ei, M); }
+         }
+         else
+         {
+            if (krCoef_ && eiCoef_) { ke(1.0, kr, ei, M); }
+            if (kiCoef_ && erCoef_) { ke(1.0, ki, er, M); }
          }
          if (a_ != 1.0) { M *= a_; }
       }
@@ -489,7 +583,8 @@ private:
 
    ParDiscreteGradOperator * grad_; // For Computing E from phi
    ParDiscreteCurlOperator * curl_; // For Computing D from H
-   ParDiscreteLinearOperator * kCross_;
+   ParDiscreteLinearOperator * kReCross_;
+   ParDiscreteLinearOperator * kImCross_;
 
    ParComplexGridFunction * h_;   // Complex magnetic field (HCurl)
    ParComplexGridFunction * e_;   // Complex electric field (HCurl)
@@ -530,7 +625,8 @@ private:
    // MatrixCoefficient * epsAbsCoef_;   // Dielectric Material Coefficient
    Coefficient       * muCoef_;       // Dia/Paramagnetic Material Coefficient
    Coefficient       * etaCoef_;      // Impedance Coefficient
-   VectorCoefficient * kCoef_;        // Wave Vector
+   VectorCoefficient * kReCoef_;        // Wave Vector
+   VectorCoefficient * kImCoef_;        // Wave Vector
 
    Coefficient * SReCoef_; // Stix S Coefficient
    Coefficient * SImCoef_; // Stix S Coefficient
