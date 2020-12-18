@@ -484,7 +484,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    }
    else
    {
-      K_solver.iterative_mode = true;
+      K_solver.iterative_mode = false;
       K_solver.SetRelTol(1e-7);
       K_solver.SetAbsTol(0.0);
       K_solver.SetMaxIter(2000);

@@ -435,7 +435,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    Mlumped->Assemble();
    Mlumped->FormSystemMatrix(ess_tdof_list, MlumpedMat);
 
-   M_solver.iterative_mode = true; //why?
+   M_solver.iterative_mode = false; 
    M_solver.SetRelTol(1e-7);
    M_solver.SetAbsTol(0.0);
    M_solver.SetMaxIter(2000);
@@ -619,7 +619,7 @@ void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr, bool PartialUpdate
    Mlumped->FormSystemMatrix(ess_tdof_list, MlumpedMat);
 
    //update M_solvers
-   M_solver.iterative_mode = true;  //why?
+   M_solver.iterative_mode = false; 
    M_solver.SetRelTol(1e-7);
    M_solver.SetAbsTol(0.0);
    M_solver.SetMaxIter(2000);

@@ -16,6 +16,7 @@
 #include "imScale.hpp"
 #include "PCSolver.hpp"
 #include "InitialConditions.hpp"
+#include "localrefine.hpp"
 #include <memory>
 #include <iostream>
 #include <fstream>
@@ -52,13 +53,14 @@ int main(int argc, char *argv[])
    bool use_petsc = false;
    bool use_factory = false;
    bool useStab = false; //use a stabilized formulation (explicit case only)
+   bool local_refine = false;
+   int local_refine_levels = 2;
    const char *petscrc_file = "";
    beta = 0.001; 
    Lx=3.0;
    lambda=5.0;
 
-   bool slowStart=false;
-
+   bool slowStart=false;    //the first step might take longer than usual
    int vis_steps = 1;
 
 
@@ -83,6 +85,12 @@ int main(int argc, char *argv[])
                   "Viscosity coefficient.");
    args.AddOption(&resi, "-resi", "--resistivity",
                   "Resistivity coefficient.");
+   args.AddOption(&local_refine, "-local", "--local-refine", "-no-local","--no-local-refine",
+                  "Enable or disable local refinement before unifrom refinement.");
+   args.AddOption(&local_refine_levels, "-lr", "--local-refine",
+                  "Number of levels to refine locally.");
+   args.AddOption(&yrefine, "-yrefine", "--y-region",
+                  "Local refinement distance in y.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.AddOption(&usesupg, "-supg", "--implicit-supg", "-no-supg", "--no-implicit-supg",
@@ -163,6 +171,67 @@ int main(int argc, char *argv[])
    mesh->ReorderElements(ordering);
    mesh->EnsureNCMesh();
 
+   //++++++Refine locally first    
+   if (local_refine)
+   {
+      for(int lev=0; lev<local_refine_levels; lev++)
+      {
+
+        Vector pt;
+        Array<int> marked_elements;
+        for (int i = 0; i < mesh->GetNE(); i++)
+        {
+           // check all nodes of the element
+           IsoparametricTransformation T;
+           mesh->GetElementTransformation(i, &T);
+           for (int j = 0; j < T.GetPointMat().Width(); j++)
+           {
+              T.GetPointMat().GetColumnReference(j, pt);
+              if (true)
+              {
+                double x0, y0;
+                switch (lev)
+                {
+                    case 0: y0=0.5; break;
+                    case 1: y0=0.3; break;
+                    case 2: y0=0.2; break;
+                    case 3: y0=0.18; x0=.08; break;
+                    case 4: y0=0.16; x0=.05; break;
+                    case 5: y0=0.15; x0=.04; break;
+                    default:
+                        if (myid == 0) cout << "Unknown level: " << lev << '\n';
+                        delete mesh;
+                        MPI_Finalize();
+                        return 3;
+                }
+                if (lev<3){
+                    if (yregion(pt, y0))
+                    {
+                       marked_elements.Append(i);
+                       break;
+                    }
+                }
+                else{
+                    if (center_region(pt,x0,y0))
+                    {
+                       marked_elements.Append(i);
+                       break;
+                    }
+                }
+              }
+              else
+              {
+                if (region(pt, lev))
+                {
+                   marked_elements.Append(i);
+                   break;
+                }
+              }
+           }
+        }
+        mesh->GeneralRefinement(marked_elements);
+      }
+   }
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
@@ -170,6 +239,11 @@ int main(int argc, char *argv[])
    {
       pmesh->UniformRefinement();
    }
+
+   //Note rebalancing is probably not needed for a static adaptive mesh
+   if (local_refine && false)
+      pmesh->Rebalance();   
+
 
    //+++++Define the vector finite element spaces representing  [Psi, Phi, w]
    // in block vector bv, with offsets given by the fe_offset array.
@@ -247,6 +321,8 @@ int main(int argc, char *argv[])
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
    {
+      MPI_Barrier(MPI_COMM_WORLD); 
+      double current_time = MPI_Wtime();
       //ignore the first time step
       if (ti==2)
       {
@@ -265,9 +341,13 @@ int main(int argc, char *argv[])
       }
       last_step = (t >= t_final - 1e-8*dt);
 
+      double comp_time = MPI_Wtime()-current_time;
       if (last_step || (ti % vis_steps) == 0)
       {
-         if (myid==0) cout << "step " << ti << ", t = " << t <<endl;
+         if (myid==0) {
+             cout << "step " << ti << ", t = " << t <<endl;
+             cout << "cpu time is " << comp_time <<endl;
+         }
       }
    }
    MPI_Barrier(MPI_COMM_WORLD); 

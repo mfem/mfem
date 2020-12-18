@@ -107,8 +107,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&local_refine, "-local", "--local-refine", "-no-local",
-                  "--no-local-refine",
+   args.AddOption(&local_refine, "-local", "--local-refine", "-no-local","--no-local-refine",
                   "Enable or disable local refinement before unifrom refinement.");
    args.AddOption(&local_refine_levels, "-lr", "--local-refine",
                   "Number of levels to refine locally.");
