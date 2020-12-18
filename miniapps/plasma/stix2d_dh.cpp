@@ -156,7 +156,14 @@ public:
    void SetCurrentSlab(double Jy, double xJ, double delta, double Lx)
    { Jy_ = Jy; xJ_ = xJ; dx_ = delta, Lx_ = Lx; }
 
-   void SetPhaseShift(const Vector & k) { k_ = k; }
+   void SetPhaseShift(const Vector & beta)
+   { beta_r_ = beta; beta_i_ = 0.0; }
+   void SetPhaseShift(const Vector & beta_r,
+                      const Vector & beta_i)
+   { beta_r_ = beta_r; beta_i_ = beta_i; }
+
+   void GetWaveVector(Vector & k_r, Vector & k_i) const
+   { k_r = k_r_; k_i = k_i_; }
 
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip);
@@ -171,12 +178,15 @@ private:
    double dx_;
    double Lx_;
    complex<double> kappa_;
-   Vector b_;
-   Vector kxy_r_;
-   Vector kxy_i_;
+   Vector b_;   // Normalized vector in direction of B
+   Vector bc_;  // Normalized vector perpendicular to b_, (by-bz,bz-bx,bx-by)
+   Vector bcc_; // Normalized vector perpendicular to b_ and bc_
    Vector h_r_;
    Vector h_i_;
-   Vector k_;
+   Vector k_r_;
+   Vector k_i_;
+   Vector beta_r_;
+   Vector beta_i_;
 
    // const Vector & B_;
    const Vector & numbers_;
@@ -204,7 +214,14 @@ public:
    void SetCurrentSlab(double Jy, double xJ, double delta, double Lx)
    { Jy_ = Jy; xJ_ = xJ; dx_ = delta, Lx_ = Lx; }
 
-   void SetPhaseShift(const Vector &k) { k_ = k; }
+   void SetPhaseShift(const Vector & beta)
+   { beta_r_ = beta; beta_i_ = 0.0; }
+   void SetPhaseShift(const Vector & beta_r,
+                      const Vector & beta_i)
+   { beta_r_ = beta_r; beta_i_ = beta_i; }
+
+   void GetWaveVector(Vector & k_r, Vector & k_i) const
+   { k_r = k_r_; k_i = k_i_; }
 
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip);
@@ -219,14 +236,17 @@ private:
    double dx_;
    double Lx_;
    complex<double> kappa_;
-   Vector b_;
-   Vector kxy_r_;
-   Vector kxy_i_;
+   Vector b_;   // Normalized vector in direction of B
+   Vector bc_;  // Normalized vector perpendicular to b_, (by-bz,bz-bx,bx-by)
+   Vector bcc_; // Normalized vector perpendicular to b_ and bc_
    Vector e_r_;
    Vector e_i_;
-   Vector k_;
+   Vector k_r_;
+   Vector k_i_;
+   Vector beta_r_;
+   Vector beta_i_;
 
-   const Vector & B_;
+   // const Vector & B_;
    const Vector & numbers_;
    const Vector & charges_;
    const Vector & masses_;
@@ -329,6 +349,7 @@ int main(int argc, char *argv[])
    solOpts.euLvl = 1;
 
    bool logo = false;
+   bool check_eps_inv = false;
    bool pa = false;
    const char *device_config = "cpu";
 
@@ -483,7 +504,7 @@ int main(int argc, char *argv[])
    }
    if (logo)
    {
-       return 1;
+      return 1;
    }
    Device device(device_config);
    if (mpi.Root())
@@ -685,8 +706,6 @@ int main(int argc, char *argv[])
    tic_toc.Clear();
    tic_toc.Start();
 
-   // Mesh * mesh = new Mesh(num_elements, 3, 3, Element::HEXAHEDRON, 1,
-   //                      mesh_dim_(0), mesh_dim_(1), mesh_dim_(2));
    Mesh * mesh2d = new Mesh(mesh_file, 1, 1);
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
@@ -863,6 +882,69 @@ int main(int argc, char *argv[])
                                 numbers, charges, masses, temps, true);
    ColdPlasmaPlaneWaveE EImCoef(wave_type[0], omega, BVec,
                                 numbers, charges, masses, temps, false);
+
+   if (check_eps_inv)
+   {
+      DielectricTensor epsilon_real(BField, density, temperature,
+                                    L2FESpace, H1FESpace,
+                                    omega, charges, masses, true);
+      DielectricTensor epsilon_imag(BField, density, temperature,
+                                    L2FESpace, H1FESpace,
+                                    omega, charges, masses, false);
+      DenseMatrix epsInvRe(3,3);
+      DenseMatrix epsInvIm(3,3);
+      DenseMatrix epsRe(3,3);
+      DenseMatrix epsIm(3,3);
+
+      DenseMatrix IRe(3,3);
+      DenseMatrix IIm(3,3);
+
+      for (int i=0; i<pmesh.GetNE(); i++)
+      {
+         ElementTransformation *T = pmesh.GetElementTransformation(i);
+         Geometry::Type g = pmesh.GetElementBaseGeometry(i);
+         const IntegrationPoint &ip = Geometries.GetCenter(g);
+
+         epsilonInv_real.Eval(epsInvRe, *T, ip);
+         epsilonInv_imag.Eval(epsInvIm, *T, ip);
+
+         epsilon_real.Eval(epsRe, *T, ip);
+         epsilon_imag.Eval(epsIm, *T, ip);
+
+         Mult(epsInvRe, epsRe, IRe);
+         AddMult_a(-1.0, epsInvIm, epsIm, IRe);
+
+         Mult(epsInvRe, epsIm, IIm);
+         AddMult(epsInvIm, epsRe, IIm);
+
+         IRe(0,0) -= 1.0;
+         IRe(1,1) -= 1.0;
+         IRe(2,2) -= 1.0;
+
+         double nrmRe = IRe.MaxMaxNorm();
+         double nrmIm = IIm.MaxMaxNorm();
+
+         if (nrmRe + nrmIm > 1e-13)
+         {
+            cout << "element " << i << " on processor "
+                 << mpi.WorldRank() << endl;
+            IRe.Print(cout);
+            IIm.Print(cout);
+            cout << endl;
+         }
+      }
+   }
+
+   if (wave_type[0] != ' ')
+   {
+      Vector kr(3), ki(3);
+      HReCoef.GetWaveVector(kr, ki);
+
+      mfem::out << "Plane wave propagation vector: ("
+                << complex<double>(kr(0),ki(0)) << ","
+                << complex<double>(kr(1),ki(1)) << ","
+                << complex<double>(kr(2),ki(2)) << ")" << endl;
+   }
    /*
    if (wave_type[0] == 'J' && slab_params_.Size() == 5)
    {
@@ -1200,9 +1282,24 @@ int main(int argc, char *argv[])
    // Initialize VisIt visualization
    VisItDataCollection visit_dc("STIX2D-DH-AMR-Parallel", &pmesh);
 
+   Array<ParComplexGridFunction*> auxFields;
+
    if ( visit )
    {
       CPD.RegisterVisItFields(visit_dc);
+
+      auxFields.SetSize(4);
+      auxFields[0] = new ParComplexGridFunction(&HCurlFESpace);
+      auxFields[1] = new ParComplexGridFunction(&HCurlFESpace);
+
+      auxFields[0]->ProjectCoefficient(HReCoef, HImCoef);
+      auxFields[1]->ProjectCoefficient(EReCoef, EImCoef);
+
+      visit_dc.RegisterField("Re_H_Exact", &auxFields[0]->real());
+      visit_dc.RegisterField("Im_H_Exact", &auxFields[0]->imag());
+
+      visit_dc.RegisterField("Re_E_Exact", &auxFields[1]->real());
+      visit_dc.RegisterField("Im_E_Exact", &auxFields[1]->imag());
    }
    if (mpi.Root()) { cout << "Initialization done." << endl; }
 
@@ -1366,6 +1463,10 @@ int main(int argc, char *argv[])
    // delete epsCoef;
    // delete muInvCoef;
    // delete sigmaCoef;
+   for (int i=0; i<auxFields.Size(); i++)
+   {
+      delete auxFields[i];
+   }
 
    return 0;
 }
@@ -1421,18 +1522,22 @@ void Update(ParFiniteElementSpace & H1FESpace,
 }
 
 const char * banner[6] =
-  {R"(  _________ __   __       ________      ___________    ___ ___  )",
+{
+   R"(  _________ __   __       ________      ___________    ___ ___  )",
    R"( /   _____//  |_|__|__  __\_____  \  __| _/\______ \  /   |   \ )",
    R"( \_____  \\   __\  \  \/  //  ____/ / __ |  |    |  \/    ~    \)",
    R"( /        \|  | |  |>    </       \/ /_/ |  |    `   \    Y    /)",
    R"(/_______  /|__| |__/__/\_ \_______ \____ | /_______  /\___|_  / )",
-   R"(        \/               \/       \/    \/         \/       \/  )"};
+   R"(        \/               \/       \/    \/         \/       \/  )"
+};
 
 // Print the stix2d ascii logo to the given ostream
 void display_banner(ostream & os)
 {
    for (int i=0; i<6; i++)
+   {
       os << banner[i] << endl;
+   }
    os << endl
       << "* Thomas H. Stix was a pioneer in the use of radio frequency"
       << " waves to heat" << endl
@@ -1556,19 +1661,40 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
      Lx_(1.0),
      kappa_(0.0),
      b_(B),
-     kxy_r_(3),
-     kxy_i_(3),
+     bc_(3),
+     bcc_(3),
      h_r_(3),
      h_i_(3),
-     k_(3),
-     // B_(B),
+     k_r_(3),
+     k_i_(3),
+     beta_r_(3),
+     beta_i_(3),
      numbers_(number),
      charges_(charge),
      masses_(mass),
      temps_(temp)
 {
    b_ *= 1.0 / Bmag_;
-   k_ = 0.0;
+
+   {
+      double bx = b_(0);
+      double by = b_(1);
+      double bz = b_(2);
+
+      bc_(0) = by - bz;
+      bc_(1) = bz - bx;
+      bc_(2) = bx - by;
+
+      bcc_(0) = by*by + bz*bz - bx*(by + bz);
+      bcc_(1) = bz*bz + bx*bx - by*(bz + bx);
+      bcc_(2) = bx*bx + by*by - bz*(bx + by);
+
+      bc_  *= 1.0 / bc_.Norml2();
+      bcc_ *= 1.0 / bcc_.Norml2();
+   }
+
+   beta_r_ = 0.0;
+   beta_i_ = 0.0;
 
    S_ = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_);
    D_ = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_);
@@ -1577,120 +1703,66 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
    switch (type_)
    {
       case 'L':
-         // MFEM_VERIFY(fabs(B_[0]) == Bmag_,
-         //             "L waves require a magnetic field in the x-direction.");
       {
-         double bxyInv = 1.0 / (b_[0] * b_[0] + b_[1] * b_[1]);
-
-         complex<double> h = sqrt((S_ - D_) * (epsilon0_ / mu0_));
-         complex<double> hx(b_[1] * bxyInv, -b_[0] * b_[2] * bxyInv);
-         complex<double> hy(-b_[0] * bxyInv, -b_[1] * b_[2] * bxyInv);
-         complex<double> hz(0.0, 1.0);
-
-         hx *= h;
-         hy *= h;
-         hz *= h;
-
-         h_r_[0] = hx.real();
-         h_r_[1] = hy.real();
-         h_r_[2] = hz.real();
-
-         h_i_[0] = hx.imag();
-         h_i_[1] = hy.imag();
-         h_i_[2] = hz.imag();
-
          kappa_ = omega_ * sqrt(S_ - D_) / c0_;
          if (kappa_.imag() < 0.0) { kappa_ *= -1.0; }
 
-         kxy_r_[0] = kappa_.real() * b_[0];
-         kxy_r_[1] = kappa_.real() * b_[1];
-         kxy_r_[2] = 0.0;
+         k_r_.Set(kappa_.real(), b_);
+         k_i_.Set(kappa_.imag(), b_);
 
-         kxy_i_[0] = kappa_.imag() * b_[0];
-         kxy_i_[1] = kappa_.imag() * b_[1];
-         kxy_i_[2] = 0.0;
+         complex<double> h = sqrt((S_ - D_) * (epsilon0_ / mu0_));
+
+         h_r_.Set(-M_SQRT1_2 * h.real(), bcc_);
+         h_r_.Add(-M_SQRT1_2 * h.imag(), bc_);
+         h_i_.Set( M_SQRT1_2 * h.real(), bc_);
+         h_i_.Add(-M_SQRT1_2 * h.imag(), bcc_);
       }
       break;
       case 'R':
-         // MFEM_VERIFY(fabs(B_[0]) == Bmag_,
-         //             "R waves require a magnetic field in the x-direction.");
       {
-         double bxyInv = 1.0 / (b_[0] * b_[0] + b_[1] * b_[1]);
-
-         complex<double> h = sqrt((S_ + D_) * (epsilon0_ / mu0_));
-         complex<double> hx(b_[1] * bxyInv, b_[0] * b_[2] * bxyInv);
-         complex<double> hy(-b_[0] * bxyInv, b_[1] * b_[2] * bxyInv);
-         complex<double> hz(0.0, -1.0);
-
-         hx *= h;
-         hy *= h;
-         hz *= h;
-
-         h_r_[0] = hx.real();
-         h_r_[1] = hy.real();
-         h_r_[2] = hz.real();
-
-         h_i_[0] = hx.imag();
-         h_i_[1] = hy.imag();
-         h_i_[2] = hz.imag();
-
          kappa_ = omega_ * sqrt(S_ + D_) / c0_;
          if (kappa_.imag() < 0.0) { kappa_ *= -1.0; }
 
-         kxy_r_[0] = kappa_.real() * b_[0];
-         kxy_r_[1] = kappa_.real() * b_[1];
-         kxy_r_[2] = 0.0;
+         k_r_.Set(kappa_.real(), b_);
+         k_i_.Set(kappa_.imag(), b_);
 
-         kxy_i_[0] = kappa_.imag() * b_[0];
-         kxy_i_[1] = kappa_.imag() * b_[1];
-         kxy_i_[2] = 0.0;
+         complex<double> h = sqrt((S_ + D_) * (epsilon0_ / mu0_));
+
+         h_r_.Set(-M_SQRT1_2 * h.real(), bcc_);
+         h_r_.Add( M_SQRT1_2 * h.imag(), bc_);
+         h_i_.Set(-M_SQRT1_2 * h.real(), bc_);
+         h_i_.Add(-M_SQRT1_2 * h.imag(), bcc_);
       }
       break;
       case 'O':
-         // MFEM_VERIFY(fabs(B_[1]) == Bmag_,
-         //             "O waves require a magnetic field in the y-direction.");
       {
-         double bxyInv = 1.0 / (b_[0] * b_[0] + b_[1] * b_[1]);
-         complex<double> bxyk = sqrt(1.0 - b_[2] * b_[2] - k_[2] * k_[2]);
-
-         complex<double> h = sqrt((P_) * (epsilon0_ / mu0_));
-         complex<double> hx = (-b_[1] * k_[2] - b_[0] * b_[2] * bxyk) * bxyInv;
-         complex<double> hy = ( b_[0] * k_[2] - b_[1] * b_[2] * bxyk) * bxyInv;
-         complex<double> hz = bxyk;
-
-         hx *= h;
-         hy *= h;
-         hz *= h;
-
-         h_r_[0] = hx.real();
-         h_r_[1] = hy.real();
-         h_r_[2] = hz.real();
-
-         h_i_[0] = hx.imag();
-         h_i_[1] = hy.imag();
-         h_i_[2] = hz.imag();
-
          kappa_ = omega_ * sqrt(P_) / c0_;
          if (kappa_.imag() < 0.0) { kappa_ *= -1.0; }
 
-         complex<double> kx = (-b_[0] * b_[2] * k_[2] + b_[1] * bxyk);
-         complex<double> ky = (-b_[1] * b_[2] * k_[2] - b_[0] * bxyk);
-         kx *= kappa_ * bxyInv;
-         ky *= kappa_ * bxyInv;
+         k_r_.Set(kappa_.real(), bc_);
+         k_i_.Set(kappa_.imag(), bc_);
 
-         kxy_r_[0] = kx.real();
-         kxy_r_[1] = ky.real();
-         kxy_r_[2] = kappa_.real() * k_[2];
+         complex<double> h = sqrt(P_) * (epsilon0_ / mu0_);
 
-         kxy_i_[0] = kx.imag();
-         kxy_i_[1] = ky.imag();
-         kxy_i_[2] = kappa_.imag() * k_[2];
+         h_r_.Set(h.real(), bcc_);
+         h_i_.Set(h.imag(), bcc_);
       }
       break;
       case 'X':
-         // MFEM_VERIFY(fabs(B_[1]) == Bmag_,
-         //             "X waves require a magnetic field in the y-direction.");
-         break;
+      {
+         kappa_ = omega_ * sqrt(S_ - D_ * D_ / S_) / c0_;
+         if (kappa_.imag() < 0.0) { kappa_ *= -1.0; }
+
+         k_r_.Set(kappa_.real(), bc_);
+         k_i_.Set(kappa_.imag(), bc_);
+
+         complex<double> h = S_ * sqrt(S_ - D_ * D_ / S_);
+         h *= sqrt((epsilon0_ / mu0_) / (S_ * conj(S_) + D_ * conj(D_)));
+
+         h_r_.Set(-h.real(), b_);
+         h_i_.Set(-h.imag(), b_);
+      }
+      break;
       case 'J':
          // MFEM_VERIFY(fabs(B_[2]) == Bmag_,
          //             "Current slab require a magnetic field in the z-direction.");
@@ -1714,11 +1786,12 @@ void ColdPlasmaPlaneWaveH::Eval(Vector &V, ElementTransformation &T,
       case 'L': // Left Circularly Polarized, propagating along B
       case 'R': // Right Circularly Polarized, propagating along B
       case 'O': // Ordinary wave propagating perpendicular to B
+      case 'X': // eXtraordinary wave propagating perpendicular to B
       {
          complex<double> kx = 0.0;
          for (int d=0; d<2; d++)
          {
-            kx += (kxy_r_[d] + i * kxy_i_[d]) * x[d];
+            kx += (k_r_[d] - beta_r_[d] + i * (k_i_[d] - beta_i_[d])) * x[d];
          }
          complex<double> phase = exp(i * kx);
          double phase_r = phase.real();
@@ -1737,78 +1810,6 @@ void ColdPlasmaPlaneWaveH::Eval(Vector &V, ElementTransformation &T,
             {
                V[d] = h_r_[d] * phase_i + h_i_[d] * phase_r;
             }
-         }
-      }
-      break;
-      /*
-      case 'R': // Right Circularly Polarized, propagating along B
-      {
-         complex<double> kR = omega_ * sqrt(S_ + D_) / c0_;
-         if (kR.imag() < 0.0) { kR *= -1.0; }
-
-      complex<double> a = kR / (omega_ * mu0_);
-
-         complex<double> Hy = -a * exp(i * kR * x[0]);
-         complex<double> Hz =  i * Hy;
-
-         if (realPart_)
-         {
-            V[0] = 0.0;
-            V[1] = Hy.real();
-            V[2] = Hz.real();
-         }
-         else
-         {
-            V[0] = 0.0;
-            V[1] = Hy.imag();
-            V[2] = Hz.imag();
-         }
-      }
-      break;
-      case 'O': // Ordinary wave propagating perpendicular to B
-      {
-         complex<double> kO = omega_ * sqrt(P_) / c0_;
-         if (kO.imag() < 0.0) { kO *= -1.0; }
-
-         complex<double> a = kO / (omega_ * mu0_);
-
-         complex<double> Hz = a * exp(i * kO * x[0]);
-
-         if (realPart_)
-         {
-            V[0] = 0.0;
-            V[1] = 0.0;
-            V[2] = Hz.real();
-         }
-         else
-         {
-            V[0] = 0.0;
-            V[1] = 0.0;
-            V[2] = Hz.imag();
-         }
-      }
-      break;
-      */
-      case 'X': // eXtraordinary wave propagating perpendicular to B
-      {
-         complex<double> kX = omega_ * sqrt(S_ - D_ * D_ / S_) / c0_;
-         if (kX.imag() < 0.0) { kX *= -1.0; }
-
-         complex<double> a = kX / (omega_ * mu0_);
-
-         complex<double> Hy = -a * exp(i * kX * x[0]);
-
-         if (realPart_)
-         {
-            V[0] = 0.0;
-            V[1] = Hy.real();
-            V[2] = 0.0;
-         }
-         else
-         {
-            V[0] = 0.0;
-            V[1] = Hy.imag();
-            V[2] = 0.0;
          }
       }
       break;
@@ -1900,19 +1901,40 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
      Lx_(1.0),
      kappa_(0.0),
      b_(B),
-     kxy_r_(3),
-     kxy_i_(3),
+     bc_(3),
+     bcc_(3),
      e_r_(3),
      e_i_(3),
-     k_(3),
-     B_(B),
+     k_r_(3),
+     k_i_(3),
+     beta_r_(3),
+     beta_i_(3),
      numbers_(number),
      charges_(charge),
      masses_(mass),
      temps_(temp)
 {
    b_ *= 1.0 / Bmag_;
-   k_ = 0.0;
+
+   {
+      double bx = b_(0);
+      double by = b_(1);
+      double bz = b_(2);
+
+      bc_(0) = by - bz;
+      bc_(1) = bz - bx;
+      bc_(2) = bx - by;
+
+      bcc_(0) = by*by + bz*bz - bx*(by + bz);
+      bcc_(1) = bz*bz + bx*bx - by*(bz + bx);
+      bcc_(2) = bx*bx + by*by - bz*(bx + by);
+
+      bc_  *= 1.0 / bc_.Norml2();
+      bcc_ *= 1.0 / bcc_.Norml2();
+   }
+
+   beta_r_ = 0.0;
+   beta_i_ = 0.0;
 
    S_ = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_);
    D_ = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_);
@@ -1921,96 +1943,62 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
    switch (type_)
    {
       case 'L':
-         // MFEM_VERIFY(fabs(B_[0]) == Bmag_,
-         //             "L waves require a magnetic field in the x-direction.");
       {
-         double bxyInv = 1.0 / (b_[0] * b_[0] + b_[1] * b_[1]);
-
-         e_r_[0] = -b_[0] * b_[2] * bxyInv;
-         e_r_[1] = -b_[1] * b_[2] * bxyInv;
-         e_r_[2] =  1.0;
-
-         e_i_[0] = -b_[1] * bxyInv;
-         e_i_[1] =  b_[0] * bxyInv;
-         e_i_[2] =  0.0;
-
          kappa_ = omega_ * sqrt(S_ - D_) / c0_;
          if (kappa_.imag() < 0.0) { kappa_ *= -1.0; }
 
-         kxy_r_[0] = kappa_.real() * b_[0];
-         kxy_r_[1] = kappa_.real() * b_[1];
-         kxy_r_[2] = 0.0;
+         k_r_.Set(kappa_.real(), b_);
+         k_i_.Set(kappa_.imag(), b_);
 
-         kxy_i_[0] = kappa_.imag() * b_[0];
-         kxy_i_[1] = kappa_.imag() * b_[1];
-         kxy_i_[2] = 0.0;
+         e_r_.Set(M_SQRT1_2, bc_);
+         e_i_.Set(M_SQRT1_2, bcc_);
       }
       break;
       case 'R':
-         // MFEM_VERIFY(fabs(B_[0]) == Bmag_,
-         //             "R waves require a magnetic field in the x-direction.");
       {
-         double bxyInv = 1.0 / (b_[0] * b_[0] + b_[1] * b_[1]);
-
-         e_r_[0] = -b_[0] * b_[2] * bxyInv;
-         e_r_[1] = -b_[1] * b_[2] * bxyInv;
-         e_r_[2] =  1.0;
-
-         e_i_[0] =  b_[1] * bxyInv;
-         e_i_[1] = -b_[0] * bxyInv;
-         e_i_[2] =  0.0;
-
          kappa_ = omega_ * sqrt(S_ + D_) / c0_;
          if (kappa_.imag() < 0.0) { kappa_ *= -1.0; }
 
-         kxy_r_[0] = kappa_.real() * b_[0];
-         kxy_r_[1] = kappa_.real() * b_[1];
-         kxy_r_[2] = 0.0;
+         k_r_.Set(kappa_.real(), b_);
+         k_i_.Set(kappa_.imag(), b_);
 
-         kxy_i_[0] = kappa_.imag() * b_[0];
-         kxy_i_[1] = kappa_.imag() * b_[1];
-         kxy_i_[2] = 0.0;
+         e_r_.Set( M_SQRT1_2, bc_);
+         e_i_.Set(-M_SQRT1_2, bcc_);
       }
       break;
       case 'O':
-         // MFEM_VERIFY(fabs(B_[1]) == Bmag_,
-         //              "O waves require a magnetic field in the y-direction.");
       {
-         double bxyInv = 1.0 / (b_[0] * b_[0] + b_[1] * b_[1]);
-         complex<double> bxyk = sqrt(1.0 - b_[2] * b_[2] - k_[2] * k_[2]);
-
-         e_r_[0] = b_[0];
-         e_r_[1] = b_[1];
-         e_r_[2] = b_[2];
-
-         e_i_[0] = 0.0;
-         e_i_[1] = 0.0;
-         e_i_[2] = 0.0;
-
          kappa_ = omega_ * sqrt(P_) / c0_;
          if (kappa_.imag() < 0.0) { kappa_ *= -1.0; }
 
-         complex<double> kx = (-b_[0] * b_[2] * k_[2] + b_[1] * bxyk);
-         complex<double> ky = (-b_[1] * b_[2] * k_[2] - b_[0] * bxyk);
-         kx *= kappa_ * bxyInv;
-         ky *= kappa_ * bxyInv;
+         k_r_.Set(kappa_.real(), bc_);
+         k_i_.Set(kappa_.imag(), bc_);
 
-         kxy_r_[0] = kx.real();
-         kxy_r_[1] = ky.real();
-         kxy_r_[2] = kappa_.real() * k_[2];
-
-         kxy_i_[0] = kx.imag();
-         kxy_i_[1] = ky.imag();
-         kxy_i_[2] = kappa_.imag() * k_[2];
+         e_r_.Set(1.0, b_);
+         e_i_ = 0.0;
       }
       break;
       case 'X':
-         MFEM_VERIFY(fabs(B_[1]) == Bmag_,
-                     "X waves require a magnetic field in the y-direction.");
-         break;
+      {
+         kappa_ = omega_ * sqrt(S_ - D_ * D_ / S_) / c0_;
+         if (kappa_.imag() < 0.0) { kappa_ *= -1.0; }
+
+         k_r_.Set(kappa_.real(), bc_);
+         k_i_.Set(kappa_.imag(), bc_);
+
+         complex<double> den = sqrt(S_ * conj(S_) + D_ * conj(D_));
+         complex<double> ec  = D_ / den;
+         complex<double> ecc = S_ / den;
+
+         e_r_.Set(ecc.real(), bcc_);
+         e_r_.Add(ec.imag(), bc_);
+         e_i_.Set(-ec.real(), bc_);
+         e_i_.Add(ecc.imag(), bcc_);
+      }
+      break;
       case 'J':
-         MFEM_VERIFY(fabs(B_[2]) == Bmag_,
-                     "Current slab require a magnetic field in the z-direction.");
+         // MFEM_VERIFY(fabs(B_[2]) == Bmag_,
+         //           "Current slab require a magnetic field in the z-direction.");
          break;
    }
 }
@@ -2036,7 +2024,7 @@ void ColdPlasmaPlaneWaveE::Eval(Vector &V, ElementTransformation &T,
          complex<double> kx = 0.0;
          for (int d=0; d<2; d++)
          {
-            kx += (kxy_r_[d] + i * kxy_i_[d]) * x[d];
+            kx += (k_r_[d] - beta_r_[d] + i * (k_i_[d] - beta_i_[d])) * x[d];
          }
          complex<double> phase = exp(i * kx);
          double phase_r = phase.real();
@@ -2058,134 +2046,69 @@ void ColdPlasmaPlaneWaveE::Eval(Vector &V, ElementTransformation &T,
          }
       }
       break;
-      /*
-      case 'R': // Right Circularly Polarized, propagating along B
-      {
-         complex<double> kR = omega_ * sqrt(S_ + D_) / c0_;
-         if (kR.imag() < 0.0) { kR *= -1.0; }
-
-         complex<double> Ez = exp(i * kR * x[0]);
-         complex<double> Ey = -i * Ez;
-
-         if (realPart_)
-         {
-            V[0] = 0.0;
-            V[1] = Ey.real();
-            V[2] = Ez.real();
-         }
-         else
-         {
-            V[0] = 0.0;
-            V[1] = Ey.imag();
-            V[2] = Ez.imag();
-         }
-      }
-      break;
-      case 'O': // Ordinary wave propagating perpendicular to B
-      {
-         complex<double> kO = omega_ * sqrt(P_) / c0_;
-         if (kO.imag() < 0.0) { kO *= -1.0; }
-
-         complex<double> Ey = exp(i * kO * x[0]);
-
-         if (realPart_)
-         {
-            V[0] = 0.0;
-            V[1] = Ey.real();
-            V[2] = 0.0;
-         }
-         else
-         {
-            V[0] = 0.0;
-            V[1] = Ey.imag();
-            V[2] = 0.0;
-         }
-      }
-      break;
-      case 'X': // eXtraordinary wave propagating perpendicular to B
-      {
-         complex<double> kX = omega_ * sqrt(S_ - D_ * D_ / S_) / c0_;
-         if (kX.imag() < 0.0) { kX *= -1.0; }
-
-         complex<double> Ez = exp(i * kX * x[0]);
-         complex<double> Ex = -i * D_ * Ez / S_;
-
-         if (realPart_)
-         {
-            V[0] = Ex.real();
-            V[1] = 0.0;
-            V[2] = Ez.real();
-         }
-         else
-         {
-            V[0] = Ex.imag();
-            V[1] = 0.0;
-            V[2] = Ez.imag();
-         }
-      }
-      break;
-      */
       case 'J':  // Slab of current density perpendicular to propagation
       {
-         if (k_.Size() == 0)
-         {
-            complex<double> kE = omega_ * sqrt(S_ - D_ * D_ / S_) / c0_;
+         /*
+          if (k_.Size() == 0)
+               {
+                  complex<double> kE = omega_ * sqrt(S_ - D_ * D_ / S_) / c0_;
 
-            complex<double> skL = sin(kE * Lx_);
-            complex<double> E0 = i * Jy_ /
-                                 (omega_ * epsilon0_ * skL *
-                                  (S_ * S_ - D_ * D_));
+                  complex<double> skL = sin(kE * Lx_);
+                  complex<double> E0 = i * Jy_ /
+                                       (omega_ * epsilon0_ * skL *
+                                        (S_ * S_ - D_ * D_));
 
-            complex<double> Ex = i * D_ * E0;
-            complex<double> Ey = S_ * E0;
+                  complex<double> Ex = i * D_ * E0;
+                  complex<double> Ey = S_ * E0;
 
-            if (x[0] <= xJ_ - 0.5 * dx_)
-            {
-               complex<double> skLJ = sin(kE * (Lx_ - xJ_));
-               complex<double> skd  = sin(kE * 0.5 * dx_);
-               complex<double> skx  = sin(kE * x[0]);
+                  if (x[0] <= xJ_ - 0.5 * dx_)
+                  {
+                     complex<double> skLJ = sin(kE * (Lx_ - xJ_));
+                     complex<double> skd  = sin(kE * 0.5 * dx_);
+                     complex<double> skx  = sin(kE * x[0]);
 
-               Ex *= -2.0 * skLJ * skd * skx;
-               Ey *= -2.0 * skLJ * skd * skx;
-            }
-            else if (x[0] <= xJ_ + 0.5 * dx_)
-            {
-               complex<double> ck1  = cos(kE * (Lx_ - xJ_ - 0.5 * dx_));
-               complex<double> ck2  = cos(kE * (xJ_ - 0.5 * dx_));
-               complex<double> skx  = sin(kE * x[0]);
-               complex<double> skLx = sin(kE * (Lx_ - x[0]));
+                     Ex *= -2.0 * skLJ * skd * skx;
+                     Ey *= -2.0 * skLJ * skd * skx;
+                  }
+                  else if (x[0] <= xJ_ + 0.5 * dx_)
+                  {
+                     complex<double> ck1  = cos(kE * (Lx_ - xJ_ - 0.5 * dx_));
+                     complex<double> ck2  = cos(kE * (xJ_ - 0.5 * dx_));
+                     complex<double> skx  = sin(kE * x[0]);
+                     complex<double> skLx = sin(kE * (Lx_ - x[0]));
 
-               Ex *= skL - ck1 * skx - ck2 * skLx;
-               Ey *= skL - ck1 * skx - ck2 * skLx;
-            }
-            else
-            {
-               complex<double> skJ  = sin(kE * xJ_);
-               complex<double> skd  = sin(kE * 0.5 * dx_);
-               complex<double> skLx = sin(kE * (Lx_ - x[0]));
+                     Ex *= skL - ck1 * skx - ck2 * skLx;
+                     Ey *= skL - ck1 * skx - ck2 * skLx;
+                  }
+                  else
+                  {
+                     complex<double> skJ  = sin(kE * xJ_);
+                     complex<double> skd  = sin(kE * 0.5 * dx_);
+                     complex<double> skLx = sin(kE * (Lx_ - x[0]));
 
-               Ex *= -2.0 * skJ * skd * skLx;
-               Ey *= -2.0 * skJ * skd * skLx;
-            }
+                     Ex *= -2.0 * skJ * skd * skLx;
+                     Ey *= -2.0 * skJ * skd * skLx;
+                  }
 
-            if (realPart_)
-            {
-               V[0] = Ex.real();
-               V[1] = Ey.real();
-               V[2] = 0.0;
-            }
-            else
-            {
-               V[0] = Ex.imag();
-               V[1] = Ey.imag();
-               V[2] = 0.0;
-            }
-         }
-         else
-         {
-            // General phase shift
-            V = 0.0; // For now...
-         }
+                  if (realPart_)
+                  {
+                     V[0] = Ex.real();
+                     V[1] = Ey.real();
+                     V[2] = 0.0;
+                  }
+                  else
+                  {
+                     V[0] = Ex.imag();
+                     V[1] = Ey.imag();
+                     V[2] = 0.0;
+                  }
+               }
+               else
+               {
+                  // General phase shift
+                  V = 0.0; // For now...
+               }
+         */
       }
       break;
       case 'Z':
