@@ -165,7 +165,7 @@ public:
    */
    void DefaultParameters(const AMGX_MODE amgxMode_, const bool verbose);
 
-   // Add a check for convergence after applying Mult.
+   /// Add a check for convergence after applying Mult.
    void SetConvergenceCheck(bool setConvergenceCheck_=true);
 
    ~AmgXSolver();
