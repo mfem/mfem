@@ -38,6 +38,7 @@ AmgXSolver::AmgXSolver(const AMGX_MODE amgxMode_, const bool verbose)
    amgxMode = amgxMode_;
 
    if (amgxMode == AmgXSolver::SOLVER) { ConvergenceCheck = true;}
+   else { ConvergenceCheck = false;}
 
    DefaultParameters(amgxMode, verbose);
 
@@ -53,6 +54,7 @@ AmgXSolver::AmgXSolver(const MPI_Comm &comm,
    amgxMode = amgxMode_;
 
    if (amgxMode == AmgXSolver::SOLVER) { ConvergenceCheck = true;}
+   else { ConvergenceCheck = false;}
 
    DefaultParameters(amgxMode, verbose);
 
@@ -66,6 +68,7 @@ AmgXSolver::AmgXSolver(const MPI_Comm &comm, const int nDevs,
    amgxMode = amgxMode_;
 
    if (amgxMode == AmgXSolver::SOLVER) { ConvergenceCheck = true;}
+   else { ConvergenceCheck = false;}
 
    DefaultParameters(amgxMode_, verbose);
 
