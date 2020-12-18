@@ -1413,7 +1413,7 @@ CPDSolverDH::Solve()
       Vector PHI(2 * H1FESpace_->GetTrueVSize()); PHI = 0.0;
 
       int H_iter = 0;
-      double phi_diff = DBL_MAX;
+      double phi_diff = std::numeric_limits<double>::max();
       GridFunctionCoefficient prevPhiReCoef(&prev_phi_->real());
       GridFunctionCoefficient prevPhiImCoef(&prev_phi_->imag());
       while (H_iter < 5)
