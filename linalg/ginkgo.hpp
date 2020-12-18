@@ -844,8 +844,7 @@ public:
                                                  nnz,
                                                  a.ReadWriteJ(on_device)),
                            gko::Array<int>::view(exec, a.Height() + 1,
-                                                 a.ReadWriteI(on_device)),
-                           std::make_shared<mtx::classical>());
+                                                 a.ReadWriteI(on_device)));
 
       using ic_fact_type = gko::factorization::ParIc<double, int>;
       std::shared_ptr<ic_fact_type::Factory> fact_factory = std::move(
@@ -909,8 +908,7 @@ public:
                                                  nnz,
                                                  a.ReadWriteJ(on_device)),
                            gko::Array<int>::view(exec, a.Height() + 1,
-                                                 a.ReadWriteI(on_device)),
-                           std::make_shared<mtx::classical>());
+                                                 a.ReadWriteI(on_device)));
 
       using ic_fact_type = gko::factorization::ParIc<double, int>;
       std::shared_ptr<ic_fact_type::Factory> fact_factory = std::move(
@@ -1115,8 +1113,7 @@ public:
                                                  nnz,
                                                  a.ReadWriteJ(on_device)),
                            gko::Array<int>::view(exec, a.Height() + 1,
-                                                 a.ReadWriteI(on_device)),
-                           std::make_shared<mtx::classical>());
+                                                 a.ReadWriteI(on_device)));
 
       // TEST
       gko_sparse->sort_by_column_index();
@@ -1181,8 +1178,7 @@ public:
                                                  nnz,
                                                  a.ReadWriteJ(on_device)),
                            gko::Array<int>::view(exec, a.Height() + 1,
-                                                 a.ReadWriteI(on_device)),
-                           std::make_shared<mtx::classical>());
+                                                 a.ReadWriteI(on_device)));
 
       // TEST
       gko_sparse->sort_by_column_index();
