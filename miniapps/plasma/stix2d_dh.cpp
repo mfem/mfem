@@ -141,98 +141,6 @@ void j_src(const Vector &x, Vector &j)
 void e_bc_r(const Vector &x, Vector &E);
 void e_bc_i(const Vector &x, Vector &E);
 
-/**
-   The different types of density profiles require different sets of
-   paramters, for example.
-
-   CONSTANT: 1 parameter
-      The constant value of the density
-
-   GRADIENT: 7 parameters
-      The value of the density at one point
-      The location of this point (3 parameters)
-      The gradient of the density at this point (3 parameters)
-
-   TANH: 9 parameters
-      The value of the density when tanh equals zero
-      The value of the density when tanh equals one
-      The skin depth, defined as the distance, in the direction of the
-         steepest gradient, between locations where tanh equals zero and
-         where tanh equals one-half.
-      The location of a point where tanh equals zero (3 parameters)
-      The unit vector in the direction of the steepest gradient away from
-         the location described by the previous parameter (3 parameters)
-*/
-/*
-class DensityProfile : public Coefficient
-{
-public:
-   enum Type {CONSTANT, GRADIENT, TANH};
-
-private:
-   Type type_;
-   Vector p_;
-
-   const int np_[3] = {1, 7, 9};
-
-   mutable Vector x_;
-
-public:
-
-   DensityProfile(Type type, const Vector & params)
-      : type_(type), p_(params), x_(3)
-   {
-      MFEM_ASSERT(params.Size() >= np_[type],
-                  "Insufficient number of parameters, " << params.Size()
-                  << ", for profile of type: " << type << ".");
-   }
-
-   double Eval(ElementTransformation &T,
-               const IntegrationPoint &ip)
-   {
-      if (type_ != CONSTANT)
-      {
-         T.Transform(ip, x_);
-      }
-
-      switch (type_)
-      {
-         case CONSTANT:
-            return p_[0];
-            break;
-         case GRADIENT:
-         {
-            Vector x0(&p_[1], 3);
-            Vector drho(&p_[4], 3);
-
-            x_ -= x0;
-
-            return p_[0] + (drho * x_);
-         }
-         break;
-         case TANH:
-         {
-            Vector x0(&p_[3], 3);
-            Vector drho(&p_[6], 3);
-
-            x_ -= x0;
-            double a = 0.5 * log(3.0) * (drho * x_) / p_[2];
-
-            if (fabs(a) < 10.0)
-            {
-               return p_[0] + (p_[1] - p_[0]) * tanh(a);
-            }
-            else
-            {
-               return p_[1];
-            }
-         }
-         break;
-      }
-      return 0.0;
-   }
-};
-*/
 class ColdPlasmaPlaneWaveH: public VectorCoefficient
 {
 public:
@@ -787,39 +695,11 @@ int main(int argc, char *argv[])
    Mesh * mesh = Extrude2D(mesh2d, 3, hz);
    delete mesh2d;
    {
-      /*
-      vector<Vector> trans(1);
-      trans[0].SetSize(3);
-      trans[0] = 0.0; trans[0][2] = hz;
-      */
       Array<int> v2v(mesh->GetNV());
       for (int i=0; i<v2v.Size(); i++) { v2v[i] = i; }
       for (int i=0; i<mesh->GetNV() / 4; i++) { v2v[4 * i + 3] = 4 * i; }
 
       Mesh * per_mesh = MakePeriodicMesh(mesh, v2v);
-      /*
-      ofstream ofs("per_mesh.mesh");
-      per_mesh->Print(ofs);
-      ofs.close();
-      cout << "Chekcing eltrans from mesh" << endl;
-      for (int i=0; i<mesh->GetNBE(); i++)
-      {
-        ElementTransformation * eltrans = mesh->GetBdrElementTransformation(i);
-        cout << i
-        << '\t' << eltrans->ElementNo
-        << '\t' << eltrans->Attribute
-        << endl;
-      }
-      cout << "Chekcing eltrans from per_mesh" << endl;
-      for (int i=0; i<per_mesh->GetNBE(); i++)
-      {
-        ElementTransformation * eltrans = per_mesh->GetBdrElementTransformation(i);
-        cout << i
-        << '\t' << eltrans->ElementNo
-        << '\t' << eltrans->Attribute
-        << endl;
-      }
-      */
       delete mesh;
       mesh = per_mesh;
    }
@@ -840,15 +720,7 @@ int main(int argc, char *argv[])
    { cout << "Building Parallel Mesh ..." << endl; }
    ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
-   /*
-   {
-     for (int i=0; i<pmesh.GetNBE(); i++)
-       {
-    cout << i << '\t' << pmesh.GetBdrElementBaseGeometry(i)
-         << '\t' << pmesh.GetBdrAttribute(i) << endl;
-       }
-   }
-   */
+
    if (mpi.Root())
    {
       cout << "Starting initialization." << endl;
