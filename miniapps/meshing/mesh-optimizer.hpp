@@ -225,7 +225,7 @@ double adapt_lim_fun(const Vector &x)
 // Used for exact surface alignment
 double surface_level_set(const Vector &x)
 {
-   const int type = 0;
+   const int type = 1;
    if (type == 0)
    {
       const double sine = 0.25 * std::sin(4 * M_PI * x(0));
