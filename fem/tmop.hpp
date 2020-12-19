@@ -918,7 +918,7 @@ protected:
    AdaptivityEvaluator *adapt_eval;  // Not owned.
 
    // Surface fitting.
-   GridFunction *sigma;              // Owned. Updated by sigma_eval.
+   GridFunction *sigma, *sigma_bar;  // Owned. Updated by sigma_eval.
    const Array<bool> *sigma_marker;  // Not owned.
    Coefficient *coeff_sigma;         // Not owned.
    AdaptivityEvaluator *sigma_eval;  // Not owned.
@@ -985,16 +985,16 @@ protected:
                                  IsoparametricTransformation &Tpr,
                                  const IntegrationRule &ir, DenseMatrix &m);
 
-   void AssembleElemVecSurfAlign(const GridFunction &sigma,
-                                 const Array<bool> &sigma_marker,
-                                 Coefficient &coeff, const FiniteElement &el_x,
-                                 IsoparametricTransformation &Tpr,
-                                 double normalization, DenseMatrix &mat);
-   void AssembleElemGradSurfAlign(const GridFunction &sigma,
-                                  const Array<bool> &sigma_marker,
-                                  Coefficient &coeff, const FiniteElement &el_x,
-                                  IsoparametricTransformation &Tpr,
-                                  double normalization, DenseMatrix &mat);
+   // First derivative of the surface fitting term.
+   void AssembleElemVecSurfFit(const FiniteElement &el_x,
+                               IsoparametricTransformation &Tpr,
+                               const IntegrationRule &ir_quad,
+                               const Vector &weights, DenseMatrix &mat);
+   // Second derivative of the surface fitting term.
+   void AssembleElemGradSurfFit(const FiniteElement &el_x,
+                                IsoparametricTransformation &Tpr,
+                                const IntegrationRule &ir_quad,
+                                const Vector &weights, DenseMatrix &mat);
 
    double GetFDDerivative(const FiniteElement &el,
                           ElementTransformation &T,
@@ -1044,7 +1044,7 @@ public:
         nodes0(NULL), coeff0(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
         zeta_0(NULL), zeta(NULL), coeff_zeta(NULL), adapt_eval(NULL),
-        sigma(NULL), sigma_marker(NULL), coeff_sigma(NULL),
+        sigma(NULL), sigma_bar(NULL), sigma_marker(NULL), coeff_sigma(NULL),
         sigma_eval(NULL), sigma_normal(1.0),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
