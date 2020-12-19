@@ -2,10 +2,10 @@
 #include "MeshPart.hpp"
 
 // remove/leave elements with attributes given by attr
-Mesh * GetPartMesh(const Mesh * mesh0, const Array<int> & attr_, bool complement)
+Mesh * GetPartMesh(const Mesh * mesh0, const Array<int> & attr_, Array<int> & elem_map,
+ bool complement)
 {
    Array<int> bdr_attr;
-   bool visualization = 1;
    int max_attr     = mesh0->attributes.Max();
    int min_attr     = mesh0->attributes.Min();
 
@@ -50,32 +50,8 @@ Mesh * GetPartMesh(const Mesh * mesh0, const Array<int> & attr_, bool complement
       if (!marker[elem_attr-1]) { num_elements++; }
    }
 
-   // Count the number of boundary elements in the final mesh
-   int num_bdr_elements = 0;
-   for (int f=0; f<mesh0->GetNumFaces(); f++)
-   {
-      int e1 = -1, e2 = -1;
-      mesh0->GetFaceElements(f, &e1, &e2);
-      int a1 = 0, a2 = 0;
-      if (e1 >= 0) { a1 = mesh0->GetElement(e1)->GetAttribute(); }
-      if (e2 >= 0) { a2 = mesh0->GetElement(e2)->GetAttribute(); }
 
-      if (a1 == 0 || a2 == 0)
-      {
-         if (a1 == 0 && !marker[a2-1]) { num_bdr_elements++; }
-         else if (a2 == 0 && !marker[a1-1]) { num_bdr_elements++; }
-      }
-      else
-      {
-         if (marker[a1-1] && !marker[a2-1]) { num_bdr_elements++; }
-         else if (!marker[a1-1] && marker[a2-1]) { num_bdr_elements++; }
-      }
-   }
-
-   Mesh * mesh = new Mesh(mesh0->Dimension(), mesh0->GetNV(),
-                          num_elements, num_bdr_elements, mesh0->SpaceDimension());
-
-   // Mesh * mesh = new Mesh(mesh0->Dimension(), mesh0->GetNV(), num_elements);
+   Mesh * mesh = new Mesh(mesh0->Dimension(), mesh0->GetNV(), num_elements);
    // Copy vertices
    for (int v=0; v<mesh0->GetNV(); v++)
    {
@@ -83,6 +59,7 @@ Mesh * GetPartMesh(const Mesh * mesh0, const Array<int> & attr_, bool complement
    }
 
    // Copy elements
+   elem_map.SetSize(num_elements);
    int k = 0;
    for (int e=0; e<mesh0->GetNE(); e++)
    {
@@ -95,53 +72,7 @@ Mesh * GetPartMesh(const Mesh * mesh0, const Array<int> & attr_, bool complement
          nel->SetAttribute(elem_attr);
          nel->SetVertices(el->GetVertices());
          mesh->AddElement(nel);
-      }
-   }
-
-   // Copy selected boundary elements
-   for (int be=0; be<mesh0->GetNBE(); be++)
-   {
-      int e, info;
-      mesh0->GetBdrElementAdjacentElement(be, e, info);
-      int elem_attr = mesh0->GetElement(e)->GetAttribute();
-      if (!marker[elem_attr-1])
-      {
-         Element * nbel = mesh0->GetBdrElement(be)->Duplicate(mesh);
-         mesh->AddBdrElement(nbel);
-      }
-   }
-
-   // Create new boundary elements
-   for (int f=0; f<mesh0->GetNumFaces(); f++)
-   {
-      int e1 = -1, e2 = -1;
-      mesh0->GetFaceElements(f, &e1, &e2);
-
-      int i1 = -1, i2 = -1;
-      mesh0->GetFaceInfos(f, &i1, &i2);
-
-      int a1 = 0, a2 = 0;
-      if (e1 >= 0) { a1 = mesh0->GetElement(e1)->GetAttribute(); }
-      if (e2 >= 0) { a2 = mesh0->GetElement(e2)->GetAttribute(); }
-
-      if (a1 != 0 && a2 != 0)
-      {
-         if (marker[a1-1] && !marker[a2-1])
-         {
-            Element * bel = (mesh0->Dimension() == 1) ?
-                            (Element*)new Point(&f) :
-                            mesh0->GetFace(f)->Duplicate(mesh);
-            bel->SetAttribute(bdr_attr[attr_inv[a1-1]]);
-            mesh->AddBdrElement(bel);
-         }
-         else if (!marker[a1-1] && marker[a2-1])
-         {
-            Element * bel = (mesh0->Dimension() == 1) ?
-                            (Element*)new Point(&f) :
-                            mesh0->GetFace(f)->Duplicate(mesh);
-            bel->SetAttribute(bdr_attr[attr_inv[a2-1]]);
-            mesh->AddBdrElement(bel);
-         }
+         elem_map[k++] = e;
       }
    }
 
@@ -174,20 +105,5 @@ Mesh * GetPartMesh(const Mesh * mesh0, const Array<int> & attr_, bool complement
       }
    }
    
-   if (visualization)
-   {
-      // GLVis server to visualize to
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-
-      socketstream mesh0_sock(vishost, visport);
-      mesh0_sock.precision(8);
-      mesh0_sock << "mesh\n" << *mesh0 << flush;
-
-      socketstream mesh_sock(vishost, visport);
-      mesh_sock.precision(8);
-      mesh_sock << "mesh\n" << *mesh << flush;
-   }
-
    return mesh;
 }
