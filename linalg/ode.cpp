@@ -677,7 +677,7 @@ void SDIRK33Solver::Step(Vector &x, double &t, double &dt)
 
    f->SetTime(t + c*dt);
    f->ImplicitSolve(a*dt, y, k);
-   x.Add((1.-a-b)*dt, k);
+   x.Add((1.0-a-b)*dt, k);
 
    f->SetTime(t + dt);
    f->ImplicitSolve(a*dt, x, k);
@@ -685,6 +685,101 @@ void SDIRK33Solver::Step(Vector &x, double &t, double &dt)
    t += dt;
 }
 
+void TrapezoidalRuleSolver::Init(TimeDependentOperator &_f)
+{
+   ODESolver::Init(_f);
+   k.SetSize(f->Width(), mem_type);
+   y.SetSize(f->Width(), mem_type);
+}
+
+void TrapezoidalRuleSolver::Step(Vector &x, double &t, double &dt)
+{
+   //   0   |   0    0
+   //   1   |  1/2  1/2
+   // ------+-----------
+   //       |  1/2  1/2
+   f->SetTime(t);
+   f->Mult(x,k);
+   add(x, dt/2.0, k, y);
+   x.Add(dt/2.0, k);
+
+   f->SetTime(t + dt);
+   f->ImplicitSolve(dt/2.0, y, k);
+   x.Add(dt/2.0, k);
+   t += dt;
+}
+
+void ESDIRK32Solver::Init(TimeDependentOperator &_f)
+{
+   ODESolver::Init(_f);
+   k.SetSize(f->Width(), mem_type);
+   y.SetSize(f->Width(), mem_type);
+   z.SetSize(f->Width(), mem_type);
+}
+
+void ESDIRK32Solver::Step(Vector &x, double &t, double &dt)
+{
+   //   0   |    0      0    0
+   //   2a  |    a      a    0
+   //   1   |  1-b-a    b    a
+   // ------+--------------------
+   //       |  1-b-a    b    a
+   const double a = (2.0 - sqrt(2.0)) / 2.0;
+   const double b = (1.0 - 2.0*a) / (4.0*a);
+
+   f->SetTime(t);
+   f->Mult(x,k);
+   add(x, a*dt, k, y);
+   add(x, (1.0-b-a)*dt, k, z);
+   x.Add((1.0-b-a)*dt, k);
+
+   f->SetTime(t + (2.0*a)*dt);
+   f->ImplicitSolve(a*dt, y, k);
+   z.Add(b*dt, k);
+   x.Add(b*dt, k);
+
+   f->SetTime(t + dt);
+   f->ImplicitSolve(a*dt, z, k);
+   x.Add(a*dt, k);
+   t += dt;
+}
+
+void ESDIRK33Solver::Init(TimeDependentOperator &_f)
+{
+   ODESolver::Init(_f);
+   k.SetSize(f->Width(), mem_type);
+   y.SetSize(f->Width(), mem_type);
+   z.SetSize(f->Width(), mem_type);
+}
+
+void ESDIRK33Solver::Step(Vector &x, double &t, double &dt)
+{
+   //   0   |      0          0        0
+   //   2a  |      a          a        0
+   //   1   |    1-b-a        b        a
+   // ------+----------------------------
+   //       |  1-b_2-b_3     b_2      b_3
+   const double a   = (3.0 + sqrt(3.0)) / 6.0;
+   const double b   = (1.0 - 2.0*a) / (4.0*a);
+   const double b_2 = 1.0 / ( 12.0*a*(1.0 - 2.0*a) );
+   const double b_3 = (1.0 - 3.0*a) / ( 3.0*(1.0 - 2.0*a) );
+
+   f->SetTime(t);
+   f->Mult(x,k);
+   add(x, a*dt, k, y);
+   add(x, (1.0-b-a)*dt, k, z);
+   x.Add((1.0-b_2-b_3)*dt, k);
+
+   f->SetTime(t + (2.0*a)*dt);
+   f->ImplicitSolve(a*dt, y, k);
+   z.Add(b*dt, k);
+   x.Add(b_2*dt, k);
+
+   f->SetTime(t + dt);
+   f->ImplicitSolve(a*dt, z, k);
+   x.Add(b_3*dt, k);
+   t += dt;
+}
 
 void GeneralizedAlphaSolver::Init(TimeDependentOperator &_f)
 {
