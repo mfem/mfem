@@ -186,9 +186,10 @@ int main(int argc, char *argv[])
 
 
    Array<int> attr(1); 
-   attr[0] = 3;
+   attr[0] = 4;
    Mesh * mesh1 = GetPartMesh(mesh,attr,false);
 
+   mesh = mesh1;
 
    // Angular frequency
    omega = 2.0 * M_PI * freq;
