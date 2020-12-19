@@ -2200,5 +2200,31 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
 
    y2.SetSubVector(ess_tdof_list, 0.0);
    y3.SetSubVector(ess_tdof_list, 0.0);
+
+   if (false){
+       if (myid==0) {
+         cout <<"======Debugging: print reisudal as a grid function!!!======"<<endl;
+       }
+      ostringstream phi_name, psi_name, w_name;
+      phi_name << "residual1." << setfill('0') << setw(6) << myid;
+      psi_name << "residual2." << setfill('0') << setw(6) << myid;
+      w_name << "residual3." << setfill('0') << setw(6) << myid;
+
+      gftmp.SetFromTrueDofs(y1);
+      ofstream osol(phi_name.str().c_str());
+      osol.precision(8);
+      gftmp.Save(osol);
+
+      gftmp.SetFromTrueDofs(y2);
+      ofstream osol3(psi_name.str().c_str());
+      osol3.precision(8);
+      gftmp.Save(osol3);
+
+      gftmp.SetFromTrueDofs(y3);
+      ofstream osol4(w_name.str().c_str());
+      osol4.precision(8);
+      gftmp.Save(osol4);
+   }
+
 }
 

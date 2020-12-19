@@ -196,6 +196,49 @@ void FullBlockSolver::Mult(const Vector &x, Vector &y) const
       KSPSolve(kspblock[0],rhs,y0);
    }
 
+   if (false)
+   {
+     PetscViewer viewer;
+     PetscViewerASCIIOpen(PETSC_COMM_WORLD, "residual0.m", &viewer);
+     PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);
+     VecView(b0,viewer);
+     PetscViewerPopFormat(viewer);
+     PetscViewerDestroy(&viewer);
+
+     PetscViewerASCIIOpen(PETSC_COMM_WORLD, "residual1.m", &viewer);
+     PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);
+     VecView(b1,viewer);
+     PetscViewerPopFormat(viewer);
+     PetscViewerDestroy(&viewer);
+ 
+     PetscViewerASCIIOpen(PETSC_COMM_WORLD, "residual2.m", &viewer);
+     PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);
+     VecView(b2,viewer);
+     PetscViewerPopFormat(viewer);
+     PetscViewerDestroy(&viewer);
+
+     PetscViewerASCIIOpen(PETSC_COMM_WORLD, "dphi.m", &viewer);
+     PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);
+     VecView(y0,viewer);
+     PetscViewerPopFormat(viewer);
+     PetscViewerDestroy(&viewer);
+
+     PetscViewerASCIIOpen(PETSC_COMM_WORLD, "dpsi.m", &viewer);
+     PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);
+     VecView(y1,viewer);
+     PetscViewerPopFormat(viewer);
+     PetscViewerDestroy(&viewer);
+ 
+     PetscViewerASCIIOpen(PETSC_COMM_WORLD, "dw.m", &viewer);
+     PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);
+     VecView(y2,viewer);
+     PetscViewerPopFormat(viewer);
+     PetscViewerDestroy(&viewer);
+
+     //VecView(b0,PETSC_VIEWER_STDOUT_SELF);
+     //VecView(y0,PETSC_VIEWER_STDOUT_SELF);
+   }
+
    VecRestoreSubVector(*X,index_set[0],&b0);
    VecRestoreSubVector(*X,index_set[1],&b1);
    VecRestoreSubVector(*X,index_set[2],&b2);
@@ -206,6 +249,8 @@ void FullBlockSolver::Mult(const Vector &x, Vector &y) const
 
    X->ResetArray();
    Y->ResetArray();
+
+   //MFEM_ABORT("break for debugging.");
 }
 
 FullBlockSolver::~FullBlockSolver()
