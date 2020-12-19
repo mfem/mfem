@@ -347,22 +347,22 @@ OverlappingCartesianMeshPartition::OverlappingCartesianMeshPartition
 (Mesh *mesh_,int & nx,int & ny,int & nz, int ovlp_nlayers) : mesh(mesh_)
 {  // default overlap size is 2 elements 
    int dim = mesh->Dimension();
-   int n = pow(mesh->GetNE(), 1.0/(double)dim);
-   if (nx > n) 
-   {
-      nx = n;
-      MFEM_WARNING("Changed partition in the x direction to nx = " << n << endl);
-   }
-   if (ny > n) 
-   {
-      ny = n;
-      MFEM_WARNING("Changed partition in the y direction to ny = " << n << endl);
-   }
-   if (nz > n) 
-   {
-      nz = n;
-      MFEM_WARNING("Changed partition in the z direction to nz = " << n << endl);
-   } 
+   // int n = pow(mesh->GetNE(), 1.0/(double)dim);
+   // if (nx > n) 
+   // {
+   //    nx = n;
+   //    MFEM_WARNING("Changed partition in the x direction to nx = " << n << endl);
+   // }
+   // if (ny > n) 
+   // {
+   //    ny = n;
+   //    MFEM_WARNING("Changed partition in the y direction to ny = " << n << endl);
+   // }
+   // if (nz > n) 
+   // {
+   //    nz = n;
+   //    MFEM_WARNING("Changed partition in the z direction to nz = " << n << endl);
+   // } 
    if (dim == 2) nz = 1;
    subdomains.SetSize(nx,ny,nz);
    nxyz[0] = nx; nxyz[1]=ny; nxyz[2] = nz;
