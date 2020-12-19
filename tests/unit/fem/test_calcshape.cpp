@@ -72,7 +72,7 @@ void GetRelatedIntegrationPoints(const IntegrationPoint& ip, int dim,
 
 /**
  * Tests fe->CalcShape() over a grid of IntegrationPoints
- * of resolution res. Also tests at integration poins
+ * of resolution res. Also tests at integration points
  * that are outside the element.
  */
 void TestCalcShape(FiniteElement* fe, int res)

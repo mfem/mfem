@@ -441,7 +441,7 @@ void NURBSPatch::init(int dim_)
    }
    else
    {
-      mfem_error("NURBSPatch::init : Wrond dimension of knotvectors!");
+      mfem_error("NURBSPatch::init : Wrong dimension of knotvectors!");
    }
 }
 
