@@ -1034,12 +1034,12 @@ int main(int argc, char *argv[])
       // sock_zi.precision(8);
 
       ostringstream hr_keys, hi_keys;
-      hr_keys << "maaAcPPPPvvv valuerange 0.0 " << max_Hr;
-      hi_keys << "maaAcPPPPvvv valuerange 0.0 " << max_Hi;
+      hr_keys << "aaAcPPPPvvv valuerange 0.0 " << max_Hr;
+      hi_keys << "aaAcPPPPvvv valuerange 0.0 " << max_Hi;
 
       ostringstream er_keys, ei_keys;
-      er_keys << "maaAcPPPPvvv valuerange 0.0 " << max_Er;
-      ei_keys << "maaAcPPPPvvv valuerange 0.0 " << max_Ei;
+      er_keys << "aaAcpppppvvv valuerange 0.0 " << max_Er;
+      ei_keys << "aaAcpppppvvv valuerange 0.0 " << max_Ei;
 
       Wy += offy;
       VisualizeField(sock_Hr, vishost, visport,
@@ -1319,7 +1319,7 @@ int main(int argc, char *argv[])
    {
       CPD.RegisterVisItFields(visit_dc);
 
-      auxFields.SetSize(4);
+      auxFields.SetSize(2);
       auxFields[0] = new ParComplexGridFunction(&HCurlFESpace);
       auxFields[1] = new ParComplexGridFunction(&HCurlFESpace);
 

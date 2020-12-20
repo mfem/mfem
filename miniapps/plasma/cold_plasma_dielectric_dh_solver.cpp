@@ -2010,8 +2010,8 @@ CPDSolverDH::DisplayToGLVis()
    }
 
    ostringstream hr_keys, hi_keys;
-   hr_keys << "maaAcPPPP";
-   hi_keys << "maaAcPPPP";
+   hr_keys << "aaAcPPPP";
+   hi_keys << "aaAcPPPP";
 
    VisualizeField(*socks_["Hr"], vishost, visport,
                   h_v_->real(), "Magnetic Field, Re(H)", Wx, Wy, Ww, Wh,
@@ -2024,12 +2024,18 @@ CPDSolverDH::DisplayToGLVis()
 
    Wx += offx;
 
+   ostringstream er_keys, ei_keys;
+   er_keys << "aaAcppppp";
+   ei_keys << "aaAcppppp";
+
    VisualizeField(*socks_["Er"], vishost, visport,
-                  e_v_->real(), "Electric Field, Re(E)", Wx, Wy, Ww, Wh);
+                  e_v_->real(), "Electric Field, Re(E)", Wx, Wy, Ww, Wh,
+                  er_keys.str().c_str());
    Wx += offx;
 
    VisualizeField(*socks_["Ei"], vishost, visport,
-                  e_v_->imag(), "Electric Field, Im(E)", Wx, Wy, Ww, Wh);
+                  e_v_->imag(), "Electric Field, Im(E)", Wx, Wy, Ww, Wh,
+                  ei_keys.str().c_str());
 
    /*
    Wx += offx;
@@ -2043,14 +2049,19 @@ CPDSolverDH::DisplayToGLVis()
 
    if (sbcs_->Size() > 0)
    {
+      ostringstream pr_keys, pi_keys;
+      pr_keys << "aaAc";
+      pi_keys << "aaAc";
 
       Wx += offx;
       VisualizeField(*socks_["Phir"], vishost, visport,
-                     phi_v_->real(), "Sheath Potential, Re(Phi)", Wx, Wy, Ww, Wh);
+                     phi_v_->real(), "Sheath Potential, Re(Phi)",
+                     Wx, Wy, Ww, Wh, pr_keys.str().c_str());
       Wx += offx;
 
       VisualizeField(*socks_["Phii"], vishost, visport,
-                     phi_v_->imag(), "Sheath Potential, Im(Phi)", Wx, Wy, Ww, Wh);
+                     phi_v_->imag(), "Sheath Potential, Im(Phi)",
+                     Wx, Wy, Ww, Wh, pi_keys.str().c_str());
 
       /*
 
@@ -2074,14 +2085,18 @@ CPDSolverDH::DisplayToGLVis()
 
       e_b_->ProjectCoefficient(ebrCoef, ebiCoef);
 
+      ostringstream ebr_keys, ebi_keys;
+      ebr_keys << "aaAc";
+      ebi_keys << "aaAc";
+
       VisualizeField(*socks_["EBr"], vishost, visport,
                      e_b_->real(), "Parallel Electric Field, Re(E.B)",
-                     Wx, Wy, Ww, Wh);
+                     Wx, Wy, Ww, Wh, ebr_keys.str().c_str());
       Wx += offx;
 
       VisualizeField(*socks_["EBi"], vishost, visport,
                      e_b_->imag(), "Parallel Electric Field, Im(E.B)",
-                     Wx, Wy, Ww, Wh);
+                     Wx, Wy, Ww, Wh, ebi_keys.str().c_str());
       Wx += offx;
 
 
@@ -2209,7 +2224,7 @@ CPDSolverDH::DisplayAnimationToGLVis()
             << "window_title 'Harmonic Solution (t = 0.0 T)'"
             << "valuerange 0.0 " << max(norm_r, norm_i) << "\n"
             << "autoscale off\n"
-            << "keys cvvv\n"
+            << "keys cvvvppppp\n"
             << "pause\n" << flush;
    if (myid_ == 0)
       cout << "GLVis visualization paused."
