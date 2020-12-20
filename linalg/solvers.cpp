@@ -535,7 +535,7 @@ void CGSolver::UpdateVectors()
 void CGSolver::Mult(const Vector &b, Vector &x) const
 {
    int i;
-   double r0, den, nom, nom0, betanom, alpha, beta;
+   double r0, den, nom, nom0, betanom, alpha, beta, snom;
 
    if (iterative_mode)
    {
@@ -558,13 +558,14 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       d = r;
    }
    nom0 = nom = Dot(d, r);
+   snom = sqrt(nom);
    MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
    if (print_level == 1 || print_level == 3)
    {
       mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
-                << nom << (print_level == 3 ? " ...\n" : "\n");
+                << snom << (print_level == 3 ? " ...\n" : "\n");
    }
-   Monitor(0, nom, r, x);
+   Monitor(0, snom, r, x);
 
    if (nom < 0.0)
    {
@@ -575,7 +576,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       }
       converged = 0;
       final_iter = 0;
-      final_norm = nom;
+      final_norm = snom;
       return;
    }
    r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
@@ -583,7 +584,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    {
       converged = 1;
       final_iter = 0;
-      final_norm = sqrt(nom);
+      final_norm = snom;
       return;
    }
 
@@ -601,7 +602,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       {
          converged = 0;
          final_iter = 0;
-         final_norm = sqrt(nom);
+         final_norm = snom;
          return;
       }
    }
@@ -637,13 +638,14 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
          break;
       }
 
+      snom = sqrt(betanom);
       if (print_level == 1)
       {
          mfem::out << "   Iteration : " << setw(3) << i << "  (B r, r) = "
-                   << betanom << '\n';
+                   << snom << '\n';
       }
 
-      Monitor(i, betanom, r, x);
+      Monitor(i, snom, r, x);
 
       if (betanom <= r0)
       {
@@ -654,7 +656,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
          else if (print_level == 3)
          {
             mfem::out << "   Iteration : " << setw(3) << i << "  (B r, r) = "
-                      << betanom << '\n';
+                      << snom << '\n';
          }
          converged = 1;
          final_iter = i;
@@ -700,10 +702,10 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
          if (print_level != 3)
          {
             mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
-                      << nom0 << " ...\n";
+                      << sqrt(nom0) << " ...\n";
          }
          mfem::out << "   Iteration : " << setw(3) << final_iter << "  (B r, r) = "
-                   << betanom << '\n';
+                   << snom << '\n';
       }
       mfem::out << "PCG: No convergence!" << '\n';
    }
@@ -712,7 +714,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       mfem::out << "Average reduction factor = "
                 << pow (betanom/nom0, 0.5/final_iter) << '\n';
    }
-   final_norm = sqrt(betanom);
+   final_norm = snom;
 
    Monitor(final_iter, final_norm, r, x, true);
 }
