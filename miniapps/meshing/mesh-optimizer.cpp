@@ -402,7 +402,7 @@ int main(int argc, char *argv[])
 
    const AssemblyLevel al =
       pa ? AssemblyLevel::PARTIAL : AssemblyLevel::LEGACYFULL;
-   
+
    switch (target_id)
    {
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
