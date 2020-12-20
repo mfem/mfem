@@ -462,11 +462,10 @@ public:
 
    /// Returns the Face Jumps error for L2 elements, with 1/h scaling.
    MFEM_DEPRECATED
-   virtual double ComputeDGFaceJumpError(Coefficient *exsol,
-                                         Coefficient *ell_coeff,
-                                         double Nu,
-                                         const IntegrationRule *irs[] = NULL)
-   const;
+   double ComputeDGFaceJumpError(Coefficient *exsol,
+                                 Coefficient *ell_coeff,
+                                 double Nu,
+                                 const IntegrationRule *irs[] = NULL) const;
 
    /** This method is kept for backward compatibility.
 
