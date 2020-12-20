@@ -321,10 +321,11 @@ private:
                int j1 = (j+1)%3;
                int j2 = (j+2)%3;
                M(i,j) +=
-                  a * (kl(i1) * e(i2,j2) * kr(j1) -
-                       kl(i1) * e(i2,j1) * kr(j2) -
-                       kl(i2) * e(i1,j2) * kr(j1) +
-                       kl(i2) * e(i1,j1) * kr(j2));
+                  a * (kl(i2) * e(i1,j2) * kr(j1) -
+                       kl(i2) * e(i1,j1) * kr(j2) -
+                       kl(i1) * e(i2,j2) * kr(j1) +
+                       kl(i1) * e(i2,j1) * kr(j2)
+                      );
             }
          }
       }
@@ -471,7 +472,7 @@ private:
             int i2 = (i+2)%3;
             for (int j=0; j<3; j++)
             {
-               M(i,j) += a * (k(i2) * e(i1,j) - k(i1) * e(i2,j));
+               M(i,j) += a * (k(i1) * e(i2,j) - k(i2) * e(i1,j));
             }
          }
       }

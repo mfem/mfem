@@ -421,12 +421,12 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      // negMuInvCoef_(NULL),
      massCoef_(NULL),
      posMassCoef_(NULL),
-     kekReCoef_(kReCoef_, kImCoef_, epsInvReCoef_, epsInvImCoef_, true),
-     kekImCoef_(kReCoef_, kImCoef_, epsInvReCoef_, epsInvImCoef_, false),
+     kekReCoef_(kReCoef_, kImCoef_, epsInvReCoef_, epsInvImCoef_, true, -1.0),
+     kekImCoef_(kReCoef_, kImCoef_, epsInvReCoef_, epsInvImCoef_, false, -1.0),
      keReCoef_(kReCoef_, kImCoef_, epsInvReCoef_, epsInvImCoef_, true),
      keImCoef_(kReCoef_, kImCoef_, epsInvReCoef_, epsInvImCoef_, false, -1.0),
-     ekReCoef_(kReCoef_, kImCoef_, epsInvReCoef_, epsInvImCoef_, true, -1.0),
-     ekImCoef_(kReCoef_, kImCoef_, epsInvReCoef_, epsInvImCoef_, false),
+     ekReCoef_(kReCoef_, kImCoef_, epsInvReCoef_, epsInvImCoef_, true),
+     ekImCoef_(kReCoef_, kImCoef_, epsInvReCoef_, epsInvImCoef_, false, -1.0),
      // negMuInvkxkxCoef_(NULL),
      // negMuInvkCoef_(NULL),
      jrCoef_(NULL),
@@ -667,10 +667,10 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
       }
       a1_->AddDomainIntegrator(new VectorFEMassIntegrator(kekReCoef_),
                                new VectorFEMassIntegrator(kekImCoef_));
-      a1_->AddDomainIntegrator(new MixedVectorCurlIntegrator(keReCoef_),
-                               new MixedVectorCurlIntegrator(keImCoef_));
-      a1_->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(ekReCoef_),
-                               new MixedVectorWeakCurlIntegrator(ekImCoef_));
+      a1_->AddDomainIntegrator(new MixedVectorCurlIntegrator(keImCoef_),
+                               new MixedVectorCurlIntegrator(keReCoef_));
+      a1_->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(ekImCoef_),
+                               new MixedVectorWeakCurlIntegrator(ekReCoef_));
 
       kReCross_ = new ParDiscreteLinearOperator(HCurlFESpace_, HDivFESpace_);
       kReCross_->AddDomainInterpolator(
