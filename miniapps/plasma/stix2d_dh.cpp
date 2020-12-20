@@ -1773,7 +1773,7 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
          k_r_.Set(kappa_.real(), bc_);
          k_i_.Set(kappa_.imag(), bc_);
 
-         complex<double> h = sqrt(P_) * (epsilon0_ / mu0_);
+         complex<double> h = sqrt(P_ * (epsilon0_ / mu0_));
 
          h_r_.Set(h.real(), bcc_);
          h_i_.Set(h.imag(), bcc_);
@@ -1788,7 +1788,7 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
          k_i_.Set(kappa_.imag(), bc_);
 
          complex<double> h = S_ * sqrt(S_ - D_ * D_ / S_);
-         h *= sqrt((epsilon0_ / mu0_) / (S_ * conj(S_) + D_ * conj(D_)));
+         h *= sqrt((epsilon0_ / mu0_) / (S_ * S_ + D_ * D_));
 
          h_r_.Set(-h.real(), b_);
          h_i_.Set(-h.imag(), b_);
@@ -1820,7 +1820,7 @@ void ColdPlasmaPlaneWaveH::Eval(Vector &V, ElementTransformation &T,
       case 'X': // eXtraordinary wave propagating perpendicular to B
       {
          complex<double> kx = 0.0;
-         for (int d=0; d<2; d++)
+         for (int d=0; d<3; d++)
          {
             kx += (k_r_[d] - beta_r_[d] + i * (k_i_[d] - beta_i_[d])) * x[d];
          }
@@ -2017,7 +2017,7 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
          k_r_.Set(kappa_.real(), bc_);
          k_i_.Set(kappa_.imag(), bc_);
 
-         complex<double> den = sqrt(S_ * conj(S_) + D_ * conj(D_));
+         complex<double> den = sqrt(S_ * S_ + D_ * D_);
          complex<double> ec  = D_ / den;
          complex<double> ecc = S_ / den;
 
@@ -2053,7 +2053,7 @@ void ColdPlasmaPlaneWaveE::Eval(Vector &V, ElementTransformation &T,
       case 'X': // eXtraordinary wave propagating perpendicular to B
       {
          complex<double> kx = 0.0;
-         for (int d=0; d<2; d++)
+         for (int d=0; d<3; d++)
          {
             kx += (k_r_[d] - beta_r_[d] + i * (k_i_[d] - beta_i_[d])) * x[d];
          }
