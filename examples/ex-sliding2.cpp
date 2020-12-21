@@ -22,6 +22,154 @@
 using namespace std;
 using namespace mfem;
 
+/**
+   Try to rethink this function with the possibility of intersections
+
+   based on what I am thinking so far we are going to have to abandon
+   contiguous rows in the constraints.
+
+   (or, I guess we could loop back through and reorder...)
+*/
+SparseMatrix * BuildNormalConstraintsIntersection(ParFiniteElementSpace& fespace,
+                                                  Array<int> constrained_att)
+{
+   int rank, size;
+   MPI_Comm_rank(fespace.GetComm(), &rank);
+   MPI_Comm_size(fespace.GetComm(), &size);
+   int dim = fespace.GetVDim();
+
+   // mapping from dofs (colums of constraint matrix) to constraints (usually
+   // rows of constraint matrix)
+   // the indexing is by tdof, but we only bother with one tdof per node
+   std::map<int, int> dof_constraint;
+   // constraints[j] is a list of rows in the constraint matrix corresponding
+   //                to a single constraint
+   std::vector<std::vector<int> > constraints;
+   int n_constraints = 0;
+   int n_rows = 0; // ???
+   for (int att : constrained_att)
+   {
+      std::set<int> constrained_tdofs;
+      for (int i = 0; i < fespace.GetNBE(); ++i)
+      {
+         if (fespace.GetBdrAttribute(i) == att)
+         {
+            Array<int> dofs;
+            fespace.GetBdrElementDofs(i, dofs);
+            for (auto k : dofs)
+            {
+               int vdof = fespace.DofToVDof(k, 0);
+               int tdof = fespace.GetLocalTDofNumber(vdof);
+               if (tdof >= 0) { constrained_tdofs.insert(tdof); }
+            }
+         }
+      }
+      for (auto k : constrained_tdofs)
+      {
+         auto it = dof_constraint.find(k);
+         if (it == dof_constraint.end())
+         {
+            dof_constraint[k] = n_constraints++;
+            constraints.emplace_back(1, n_rows++);
+         }
+         else
+         {
+            constraints[it->second].push_back(n_rows++);
+         }
+      }
+   }
+
+   printf("n_rows=%d, n_constraints=%d, constraints.size() = %d\n",
+          n_rows, n_constraints, constraints.size());
+   for (int k = 0; k < n_constraints; ++k)
+   {
+      for (unsigned int i = 0; i < constraints[k].size(); ++i)
+      {
+         printf("  constraint %d index %d is %d\n",
+                k, i, constraints[k][i]);
+      }
+   }
+   SparseMatrix * out = new SparseMatrix(n_rows, fespace.GetTrueVSize());
+
+   // fill in constraint matrix with normal vector information
+   Vector nor(dim);
+   // each element of constraint_count indexes into corresponding element of
+   // constraints
+   Array<int> constraint_count(n_constraints);
+   constraint_count = 0;
+   for (int i = 0; i < fespace.GetNBE(); ++i)
+   {
+      int att = fespace.GetBdrAttribute(i);
+      if (constrained_att.FindSorted(att) != -1)
+      {
+         ElementTransformation * Tr = fespace.GetBdrElementTransformation(i);
+         const FiniteElement * fe = fespace.GetBE(i);
+         const IntegrationRule& nodes = fe->GetNodes();
+
+         Array<int> dofs;
+         fespace.GetBdrElementDofs(i, dofs);
+         MFEM_VERIFY(dofs.Size() == nodes.Size(),
+                     "Something wrong in finite element space!");
+
+         for (int j = 0; j < dofs.Size(); ++j)
+         {
+            Tr->SetIntPoint(&nodes[j]);
+            // the normal returned in the next line is scaled by h, which
+            // is probably what we want in this application
+            CalcOrtho(Tr->Jacobian(), nor);
+
+            // next line assumes nodes and dofs are ordered the same, which
+            // seems to be true
+            int k = dofs[j];
+            int vdof = fespace.DofToVDof(k, 0);
+            int truek = fespace.GetLocalTDofNumber(vdof);
+            if (truek >= 0)
+            {
+               int constraint = dof_constraint[truek];
+               // this next line is the least readable line of code I have ever written
+               int row = constraints[constraint][constraint_count[constraint]++];
+               printf("be %d att %d j %d truek %d constraint %d constraint_count %d row %d\n",
+                      i, att, j, truek, constraint, constraint_count[constraint], row);
+               for (int d = 0; d < dim; ++d)
+               {
+                  int vdof = fespace.DofToVDof(k, d);
+                  int truek = fespace.GetLocalTDofNumber(vdof);
+                  /// the following overwrites neighboring elements, which is
+                  /// perhaps not ideal for curved boundaries
+                  out->Set(row, truek, nor[d]);
+               }
+            }
+         }
+      }
+   }
+   out->Finalize();
+
+   return out;
+/*
+   int constraint_running_total = 0;
+   MPI_Scan(&n_constraints, &constraint_running_total, 1, MPI_INT,
+            MPI_SUM, fespace.GetComm());
+   int global_constraints = 0;
+   if (rank == size - 1) global_constraints = constraint_running_total;
+   MPI_Bcast(&global_constraints, 1, MPI_INT, size - 1, fespace.GetComm());
+
+   // convert SparseMatrix to HypreParMatrix
+   // cols are same as for fespace; rows are built here
+   HYPRE_Int glob_num_rows = global_constraints;
+   HYPRE_Int glob_num_cols = fespace.GlobalTrueVSize();
+   HYPRE_Int row_starts[2] = {constraint_running_total - n_constraints,
+                              constraint_running_total};
+   HYPRE_Int * col_starts = fespace.GetTrueDofOffsets();
+   HypreParMatrix * h_out = new HypreParMatrix(fespace.GetComm(), glob_num_rows,
+                                               glob_num_cols, row_starts,
+                                               col_starts, out);
+   h_out->CopyRowStarts();
+   h_out->CopyColStarts();
+
+   return h_out;
+*/
+}
+
 /*
    Given a vector space fespace, and the array constrained_att that
    includes the boundary *attributes* that are constrained to have normal
@@ -37,6 +185,14 @@ using namespace mfem;
 
    TODO: I think HypreParMatrix is sort of the wrong data structure
    to return here; better would be an Array of Eliminators or something.
+   (probably less invasive at the moment is the lagrange_rowstarts)
+
+   (3D intersections would be ugly...)
+
+   what I actually want: each time a node appears in a boundary corresponds
+   to a row in the constraint matrix; each constrained node corresponds
+   to a constraint, ie, if that node appears in multiple boundaries than
+   the constraint takes up multiple rows
 */
 HypreParMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
                                         Array<int> constrained_att)
@@ -46,7 +202,7 @@ HypreParMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
    MPI_Comm_size(fespace.GetComm(), &size);
    int dim = fespace.GetVDim();
 
-   // make a list of dofs that need to be constrained
+   // make a list of nodes that need to be constrained
    std::set<int> constrained_tdofs; // processor-local tdofs
    for (int i = 0; i < fespace.GetNBE(); ++i)
    {
@@ -65,6 +221,8 @@ HypreParMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
    }
 
    // construct mapping from dofs (columns) to constraints (rows)
+   // maybe the right thing to do is add a constraint row for each
+   // time it appears? (ie, for each intersecting surface?)
    std::map<int, int> dof_constraint;
    int n_constraints = 0;
    for (auto k : constrained_tdofs)
@@ -115,6 +273,8 @@ HypreParMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
                {
                   int vdof = fespace.DofToVDof(k, d);
                   int truek = fespace.GetLocalTDofNumber(vdof);
+                  /// the following overwrites neighboring elements, which is
+                  /// perhaps not ideal for curved boundaries
                   out->Set(constraint, truek, nor[d]);
                }
             }
@@ -240,6 +400,7 @@ int main(int argc, char *argv[])
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 1,000 elements.
+   if (false)
    {
       int ref_levels =
          (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
@@ -389,6 +550,16 @@ int main(int argc, char *argv[])
    //     preconditioner from hypre.
    SparseMatrix local_constraints;
    hconstraints->GetDiag(local_constraints);
+
+   {
+      std::ofstream outold("localconstraints.sparsematrix");
+      local_constraints.Print(outold, 1);
+      auto intersection = BuildNormalConstraintsIntersection(*fespace, constraint_atts);
+      std::ofstream outnew("intersectionconstraints.sparsematrix");
+      intersection->Print(outnew, 1);
+      delete intersection;
+   }
+
    Array<int> lagrange_rowstarts(local_constraints.Height() + 1);
    for (int k = 0; k < local_constraints.Height() + 1; ++k)
    {
