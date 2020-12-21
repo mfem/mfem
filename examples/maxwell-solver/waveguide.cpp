@@ -40,12 +40,15 @@ int main(int argc, char *argv[])
    double freq = 5.0;
    bool herm_conv = true;
    bool visualization = 1;
+   int nd=2;
    int nx=2;
    int ny=2;
    int nz=2;
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&nd, "-nd", "--dim",
+                  "Problem space dimension");                  
    args.AddOption(&nx, "-nx", "--nx","Number of subdomains in x direction");
    args.AddOption(&ny, "-ny", "--ny","Number of subdomains in y direction");
    args.AddOption(&nz, "-nz", "--nz","Number of subdomains in z direction");     
@@ -82,7 +85,14 @@ int main(int argc, char *argv[])
    int nel = 1;
    int nelx = 8;
    double lengthx = 8*length;
-   mesh = new Mesh(nelx, nel, nel, Element::HEXAHEDRON, true, lengthx, length, length,false);
+   if (nd == 3)
+   {
+      mesh = new Mesh(nelx, nel, nel, Element::HEXAHEDRON, true, lengthx, length, length,false);
+   }
+   else
+   {
+      mesh = new Mesh(nelx, nel, Element::QUADRILATERAL, true, lengthx, length,false);
+   }
    dim = mesh->Dimension();
    // 4. Refine the mesh to increase the resolution.
    for (int l = 0; l < ser_ref_levels; l++) { mesh->UniformRefinement(); }
@@ -92,7 +102,7 @@ int main(int argc, char *argv[])
 
 
    double hl = GetUniformMeshElementSize(pmesh);
-   int nrlayers = 2;
+   int nrlayers = 4;
    Array2D<double> lengths(dim,2);
    lengths = 0.0;
    // lengths = hl*nrlayers;
@@ -245,11 +255,18 @@ int main(int argc, char *argv[])
 void maxwell_solution(const Vector &x, vector<complex<double>> &E)
 {
    complex<double> zi = complex<double>(0., 1.);
-   double k10 = sqrt(omega * omega - M_PI * M_PI);
-   E[1] = -zi * omega / M_PI * sin(M_PI*x(2))*exp(zi * k10 * x(0));
+   if (dim == 3)
+   {
+      double k10 = sqrt(omega * omega - M_PI * M_PI);
+      E[1] = -zi * omega / M_PI * sin(M_PI*x(2))*exp(zi * k10 * x(0));
+   }
+   else
+   {
+      E[1] = -zi * omega / M_PI * exp(zi * omega * x(0));
+   }
    // E[1] = -zi * omega / M_PI * sin(M_PI*x(0))*exp(zi * k10 * x(2));
    E[0] = 0.0;
-   E[2] = 0.0;
+   if (dim == 3) E[2] = 0.0;
 }
 
 

@@ -186,8 +186,26 @@ int main(int argc, char *argv[])
 
 
    Array<int> attr(1); 
-   attr[0] = 4;
-   Mesh * mesh1 = GetPartMesh(mesh,attr,false);
+   attr[0] = 2;
+   Array<int> elem_map;
+   Mesh * mesh1 = GetPartMesh(mesh,attr, elem_map,false);
+
+
+   if (visualization)
+   {
+      // GLVis server to visualize to
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+
+      socketstream mesh0_sock(vishost, visport);
+      mesh0_sock.precision(8);
+      mesh0_sock << "mesh\n" << *mesh << flush;
+
+      socketstream mesh_sock(vishost, visport);
+      mesh_sock.precision(8);
+      mesh_sock << "mesh\n" << *mesh1 << flush;
+   }
+
 
    mesh = mesh1;
 
