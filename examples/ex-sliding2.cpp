@@ -42,9 +42,8 @@ SparseMatrix * BuildNormalConstraintsIntersection(ParFiniteElementSpace& fespace
    // rows of constraint matrix)
    // the indexing is by tdof, but we only bother with one tdof per node
    std::map<int, int> dof_constraint;
-   // constraints[j] is a list of rows in the constraint matrix corresponding
-   //                to a single constraint
-   std::vector<std::vector<int> > constraints;
+   // constraints[j] is a map from attribute to row number
+   std::vector<std::map<int, int> > constraints;
    int n_constraints = 0;
    int n_rows = 0; // ???
    for (int att : constrained_att)
@@ -70,17 +69,19 @@ SparseMatrix * BuildNormalConstraintsIntersection(ParFiniteElementSpace& fespace
          if (it == dof_constraint.end())
          {
             dof_constraint[k] = n_constraints++;
-            constraints.emplace_back(1, n_rows++);
+            constraints.emplace_back();
+            constraints.back()[att] = n_rows++;
          }
          else
          {
-            constraints[it->second].push_back(n_rows++);
+            constraints[it->second][att] = n_rows++;
          }
       }
    }
 
    printf("n_rows=%d, n_constraints=%d, constraints.size() = %d\n",
           n_rows, n_constraints, constraints.size());
+/*
    for (int k = 0; k < n_constraints; ++k)
    {
       for (unsigned int i = 0; i < constraints[k].size(); ++i)
@@ -89,14 +90,11 @@ SparseMatrix * BuildNormalConstraintsIntersection(ParFiniteElementSpace& fespace
                 k, i, constraints[k][i]);
       }
    }
+*/
    SparseMatrix * out = new SparseMatrix(n_rows, fespace.GetTrueVSize());
 
    // fill in constraint matrix with normal vector information
    Vector nor(dim);
-   // each element of constraint_count indexes into corresponding element of
-   // constraints
-   Array<int> constraint_count(n_constraints);
-   constraint_count = 0;
    for (int i = 0; i < fespace.GetNBE(); ++i)
    {
       int att = fespace.GetBdrAttribute(i);
@@ -126,10 +124,9 @@ SparseMatrix * BuildNormalConstraintsIntersection(ParFiniteElementSpace& fespace
             if (truek >= 0)
             {
                int constraint = dof_constraint[truek];
-               // this next line is the least readable line of code I have ever written
-               int row = constraints[constraint][constraint_count[constraint]++];
-               printf("be %d att %d j %d truek %d constraint %d constraint_count %d row %d\n",
-                      i, att, j, truek, constraint, constraint_count[constraint], row);
+               int row = constraints[constraint][att];
+               printf("be %d att %d j %d truek %d constraint %d row %d\n",
+                      i, att, j, truek, constraint, row);
                for (int d = 0; d < dim; ++d)
                {
                   int vdof = fespace.DofToVDof(k, d);
