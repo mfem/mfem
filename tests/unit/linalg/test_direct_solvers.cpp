@@ -240,7 +240,7 @@ TEST_CASE("direct-parallel", "[Parallel], [CUDA]")
          SuperLUSolver superlu(MPI_COMM_WORLD);
          superlu.SetPrintStatistics(false);
          superlu.SetSymmetricPattern(false);
-         superlu.SetColumnPermutation(superlu::PARMETIS);
+         superlu.SetColumnPermutation(superlu::METIS_AT_PLUS_A);
          superlu.SetOperator(SA);
          superlu.Mult(B, X);
          Vector Y(X.Size());
