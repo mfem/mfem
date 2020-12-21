@@ -9,6 +9,12 @@
 
 // 1 is bottom, 2 is right side, 4 is left side
 
+// As currently implemented, this allows the node in the corner
+// where both sliding boundaries meet to also slide, parallel
+// to the "left" side of thet trapezoid. This should be fixed but
+// requires a bit more complicated algorithm.
+
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -21,6 +27,16 @@ using namespace mfem;
    includes the boundary *attributes* that are constrained to have normal
    component zero, this returns a SparseMatrix representing the
    constraints that need to be imposed.
+
+   TODO: the current implementation assumes the attributes do not
+   intersect. If they do, in principle you need a more complicated
+   algorithm. The workaround for this particular trapezoid problem is
+   to identify in this function the two tdofs at the corner, and
+   then later eliminated those using the usual MFEM tdof
+   elimination (except that happens before normal elimination)
+
+   TODO: I think HypreParMatrix is sort of the wrong data structure
+   to return here; better would be an Array of Eliminators or something.
 */
 HypreParMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
                                         Array<int> constrained_att)
@@ -30,7 +46,8 @@ HypreParMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
    MPI_Comm_size(fespace.GetComm(), &size);
    int dim = fespace.GetVDim();
 
-   std::set<int> constrained_tdofs; // local tdofs
+   // make a list of dofs that need to be constrained
+   std::set<int> constrained_tdofs; // processor-local tdofs
    for (int i = 0; i < fespace.GetNBE(); ++i)
    {
       int att = fespace.GetBdrAttribute(i);
@@ -47,6 +64,7 @@ HypreParMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
       }
    }
 
+   // construct mapping from dofs (columns) to constraints (rows)
    std::map<int, int> dof_constraint;
    int n_constraints = 0;
    for (auto k : constrained_tdofs)
@@ -62,6 +80,7 @@ HypreParMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
    if (rank == size - 1) global_constraints = constraint_running_total;
    MPI_Bcast(&global_constraints, 1, MPI_INT, size - 1, fespace.GetComm());
 
+   // fill in constraint matrix with normal vector information
    Vector nor(dim);
    for (int i = 0; i < fespace.GetNBE(); ++i)
    {
@@ -97,15 +116,14 @@ HypreParMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
                   int vdof = fespace.DofToVDof(k, d);
                   int truek = fespace.GetLocalTDofNumber(vdof);
                   out->Set(constraint, truek, nor[d]);
-                  // d_dofs[d]->Append(vdof);
                }
             }
          }
       }
    }
-
    out->Finalize();
 
+   // convert SparseMatrix to HypreParMatrix
    // cols are same as for fespace; rows are built here
    HYPRE_Int glob_num_rows = global_constraints;
    HYPRE_Int glob_num_cols = fespace.GlobalTrueVSize();
