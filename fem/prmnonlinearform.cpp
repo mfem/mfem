@@ -275,7 +275,7 @@ void PrmBlockNonlinearForm::SetAdjointFields(const Vector &av) const
 
 void PrmBlockNonlinearForm::SetPrmFields(const Vector &dv) const
 {
-    BlockVector bx(dv.GetData(), block_trueOffsets);
+    BlockVector bx(dv.GetData(), prmblock_trueOffsets);
     if(prmneeds_prolongation)
     {
         for (int s = 0; s < prmfes.Size(); s++)
@@ -341,13 +341,13 @@ void PrmBlockNonlinearForm::MultBlocked(const BlockVector &bx,
 
     ElementTransformation *T;
 
-    Array<Array<int> *>prmvdofs(fes.Size());
-    Array<Array<int> *>prmvdofs2(fes.Size());
-    Array<Vector *> prmel_x(fes.Size());
-    Array<const Vector *> prmel_x_const(fes.Size());
+    Array<Array<int> *>prmvdofs(prmfes.Size());
+    Array<Array<int> *>prmvdofs2(prmfes.Size());
+    Array<Vector *> prmel_x(prmfes.Size());
+    Array<const Vector *> prmel_x_const(prmfes.Size());
     //Array<Vector *> prmel_y(fes.Size());
-    Array<const FiniteElement *> prmfe(fes.Size());
-    Array<const FiniteElement *> prmfe2(fes.Size());
+    Array<const FiniteElement *> prmfe(prmfes.Size());
+    Array<const FiniteElement *> prmfe2(prmfes.Size());
 
 
 
