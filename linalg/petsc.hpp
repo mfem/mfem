@@ -857,6 +857,17 @@ public:
                          const std::string &prefix = std::string());
 };
 
+class PetscH2Solver : public PetscPreconditioner
+{
+private:
+   void H2SolverConstructor(ParFiniteElementSpace *fes);
+
+public:
+   PetscH2Solver(Operator &op,
+                 ParFiniteElementSpace *fes,
+                 const std::string &prefix = std::string());
+
+};
 
 /// Abstract class for PETSc's nonlinear solvers.
 class PetscNonlinearSolver : public PetscSolver, public Solver
