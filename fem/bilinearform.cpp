@@ -1437,9 +1437,9 @@ void MixedBilinearForm::Assemble (int skip_zeros)
          ftr = mesh->GetBdrFaceTransformations(i);
          if (ftr)
          {
-            trial_fes->GetFaceVDofs(i, tr_vdofs);
+            trial_fes->GetFaceVDofs(ftr->ElementNo, tr_vdofs);
             test_fes->GetElementVDofs(ftr->Elem1No, te_vdofs);
-            trial_face_fe = trial_fes->GetFaceElement(i);
+            trial_face_fe = trial_fes->GetFaceElement(ftr->ElementNo);
             test_fe1 = test_fes->GetFE(ftr->Elem1No);
             // The test_fe2 object is really a dummy and not used on the
             // boundaries, but we can't dereference a NULL pointer, and we don't
