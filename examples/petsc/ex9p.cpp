@@ -79,7 +79,8 @@ private:
    mutable PetscParMatrix* rJacobian;
 
 public:
-   FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K, const Vector &_b, bool implicit);
+   FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K, const Vector &_b,
+                bool implicit);
 
    virtual void ExplicitMult(const Vector &x, Vector &y) const;
    virtual void ImplicitMult(const Vector &x, const Vector &xp, Vector &y) const;
@@ -608,7 +609,8 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
 Operator& FE_Evolution::GetExplicitGradient(const Vector &x) const
 {
    delete rJacobian;
-   Operator::Type otype = (KAlev == AssemblyLevel::LEGACYFULL ? Operator::PETSC_MATAIJ : Operator::ANY_TYPE);
+   Operator::Type otype = (KAlev == AssemblyLevel::LEGACYFULL ?
+                           Operator::PETSC_MATAIJ : Operator::ANY_TYPE);
    if (isImplicit())
    {
       rJacobian = new PetscParMatrix(comm, K.Ptr(), otype);
@@ -624,7 +626,8 @@ Operator& FE_Evolution::GetExplicitGradient(const Vector &x) const
 Operator& FE_Evolution::GetImplicitGradient(const Vector &x, const Vector &xp,
                                             double shift) const
 {
-   Operator::Type otype = (MAlev == AssemblyLevel::LEGACYFULL ? Operator::PETSC_MATAIJ : Operator::ANY_TYPE);
+   Operator::Type otype = (MAlev == AssemblyLevel::LEGACYFULL ?
+                           Operator::PETSC_MATAIJ : Operator::ANY_TYPE);
    delete iJacobian;
    if (isImplicit())
    {

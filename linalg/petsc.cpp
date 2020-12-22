@@ -211,23 +211,27 @@ void PetscParVector::SetDataAndSize_()
 #if defined(PETSC_HAVE_DEVICE)
    PetscOffloadMask omask;
    ierr = VecGetOffloadMask(x,&omask); PCHKERRQ(x,ierr);
-   if (omask != PETSC_OFFLOAD_BOTH) {
-     ierr = __mfem_VecSetOffloadMask(x,PETSC_OFFLOAD_CPU); PCHKERRQ(x,ierr);
+   if (omask != PETSC_OFFLOAD_BOTH)
+   {
+      ierr = __mfem_VecSetOffloadMask(x,PETSC_OFFLOAD_CPU); PCHKERRQ(x,ierr);
    }
 #endif
    ierr = VecGetArrayRead(x,(const PetscScalar**)&array); PCHKERRQ(x,ierr);
-   ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,""); PCHKERRQ(x,ierr);
+   ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,
+                                    ""); PCHKERRQ(x,ierr);
    if (iscuda)
    {
 #if defined(PETSC_HAVE_DEVICE)
-      if (omask != PETSC_OFFLOAD_BOTH) {
-        ierr = __mfem_VecSetOffloadMask(x,PETSC_OFFLOAD_GPU); PCHKERRQ(x,ierr);
+      if (omask != PETSC_OFFLOAD_BOTH)
+      {
+         ierr = __mfem_VecSetOffloadMask(x,PETSC_OFFLOAD_GPU); PCHKERRQ(x,ierr);
       }
 #endif
       PetscScalar *darray;
       ierr = VecCUDAGetArrayRead(x,(const PetscScalar**)&darray); PCHKERRQ(x,ierr);
       pdata.Wrap(array,darray,size,MemoryType::HOST,false);
-      ierr = VecCUDARestoreArrayRead(x,(const PetscScalar**)&darray); PCHKERRQ(x,ierr);
+      ierr = VecCUDARestoreArrayRead(x,(const PetscScalar**)&darray);
+      PCHKERRQ(x,ierr);
    }
    else
    {
@@ -248,7 +252,8 @@ void PetscParVector::SetFlagsFromMask_() const
 #if defined(_USE_DEVICE)
    PetscOffloadMask mask;
    PetscBool iscuda;
-   ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,""); PCHKERRQ(x,ierr);
+   ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,
+                                    ""); PCHKERRQ(x,ierr);
    ierr = VecGetOffloadMask(x,&mask); PCHKERRQ(x,ierr);
    if (iscuda)
    {
@@ -280,20 +285,22 @@ void PetscParVector::UpdateVecFromFlags()
    ierr = __mfem_PetscObjectStateIncrease((PetscObject)x); PCHKERRQ(x,ierr);
 #if defined(_USE_DEVICE)
    PetscBool iscuda;
-   ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,""); PCHKERRQ(x,ierr);
+   ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,
+                                    ""); PCHKERRQ(x,ierr);
    if (iscuda)
    {
       bool dv = pdata.DeviceIsValid();
       bool hv = pdata.HostIsValid();
       PetscOffloadMask mask;
-      if (dv && hv) mask = PETSC_OFFLOAD_BOTH;
-      else if (dv)  mask = PETSC_OFFLOAD_GPU;
-      else          mask = PETSC_OFFLOAD_CPU;
+      if (dv && hv) { mask = PETSC_OFFLOAD_BOTH; }
+      else if (dv) { mask = PETSC_OFFLOAD_GPU; }
+      else { mask = PETSC_OFFLOAD_CPU; }
       ierr = __mfem_VecSetOffloadMask(x,mask); PCHKERRQ(x,ierr);
    }
    else
 #endif
-   {  /* Just make sure we have an up-to-date copy on the CPU for PETSc */
+   {
+      /* Just make sure we have an up-to-date copy on the CPU for PETSc */
       PetscScalar *v;
       ierr = VecGetArrayWrite(x,&v); PCHKERRQ(x,ierr);
       pdata.CopyToHost(v,size);
@@ -304,16 +311,17 @@ void PetscParVector::UpdateVecFromFlags()
 void PetscParVector::SetVecType_()
 {
    MFEM_VERIFY(x,"Missing Vec");
-   switch (Device::GetDeviceMemoryType()) {
+   switch (Device::GetDeviceMemoryType())
+   {
 #if defined(_USE_DEVICE)
-   case MemoryType::DEVICE:
-   case MemoryType::MANAGED:
-      ierr = VecSetType(x,VECCUDA); PCHKERRQ(x,ierr);
-      break;
+      case MemoryType::DEVICE:
+      case MemoryType::MANAGED:
+         ierr = VecSetType(x,VECCUDA); PCHKERRQ(x,ierr);
+         break;
 #endif
-   default:
-      ierr = VecSetType(x,VECSTANDARD); PCHKERRQ(x,ierr);
-      break;
+      default:
+         ierr = VecSetType(x,VECSTANDARD); PCHKERRQ(x,ierr);
+         break;
    }
 }
 
@@ -322,7 +330,8 @@ const double* PetscParVector::Read(bool on_dev) const
    const PetscScalar *dummy;
    MFEM_VERIFY(x,"Missing Vec");
    PetscBool iscuda;
-   ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,""); PCHKERRQ(x,ierr);
+   ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,
+                                    ""); PCHKERRQ(x,ierr);
    if (on_dev && iscuda)
    {
       ierr = VecCUDAGetArrayRead(x,&dummy); PCHKERRQ(x,ierr);
@@ -347,7 +356,8 @@ double* PetscParVector::Write(bool on_dev)
    PetscScalar *dummy;
    MFEM_VERIFY(x,"Missing Vec");
    PetscBool iscuda;
-   ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,""); PCHKERRQ(x,ierr);
+   ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,
+                                    ""); PCHKERRQ(x,ierr);
    if (on_dev && iscuda)
    {
       ierr = VecCUDAGetArrayWrite(x,&dummy); PCHKERRQ(x,ierr);
@@ -374,7 +384,8 @@ double* PetscParVector::ReadWrite(bool on_dev)
    MFEM_VERIFY(x,"Missing Vec");
 
    PetscBool iscuda;
-   ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,""); PCHKERRQ(x,ierr);
+   ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,
+                                    ""); PCHKERRQ(x,ierr);
    if (on_dev && iscuda)
    {
       ierr = VecCUDAGetArray(x,&dummy); PCHKERRQ(x,ierr);
@@ -435,7 +446,8 @@ PetscParVector::PetscParVector(MPI_Comm comm, const Vector &_x,
       PetscErrorCode (*rest)(Vec,PetscScalar**);
       PetscScalar *array;
       PetscBool iscuda;
-      ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,""); PCHKERRQ(x,ierr);
+      ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,
+                                       ""); PCHKERRQ(x,ierr);
       if (iscuda && use_dev)
       {
          ierr = VecCUDAGetArrayWrite(x,&array); PCHKERRQ(x,ierr);
@@ -687,25 +699,27 @@ void PetscParVector::PlaceMemory(Memory<double>& mem, bool rw)
    PetscInt n;
 
    ierr = VecGetLocalSize(x,&n); PCHKERRQ(x,ierr);
-   MFEM_VERIFY(n == mem.Capacity(),"Memory size " << mem.Capacity() << " != " << n << " vector size!");
+   MFEM_VERIFY(n == mem.Capacity(),
+               "Memory size " << mem.Capacity() << " != " << n << " vector size!");
    MFEM_VERIFY(pdata.Empty(),"Vector data is not empty");
    MFEM_VERIFY(data.Empty(),"Vector data is not empty");
 #if defined(_USE_DEVICE)
    PetscBool iscuda;
-   ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,""); PCHKERRQ(x,ierr);
+   ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,
+                                    ""); PCHKERRQ(x,ierr);
    if (iscuda)
    {
       bool usedev = mem.DeviceIsValid() || !rw;
       pdata.MakeAliasForSync(mem,0,n,rw,true,usedev);
       if (usedev)
       {
-        ierr = __mfem_VecSetOffloadMask(x,PETSC_OFFLOAD_GPU); PCHKERRQ(x,ierr);
-        ierr = VecCUDAPlaceArray(x,pdata.GetDevicePointer()); PCHKERRQ(x,ierr);
+         ierr = __mfem_VecSetOffloadMask(x,PETSC_OFFLOAD_GPU); PCHKERRQ(x,ierr);
+         ierr = VecCUDAPlaceArray(x,pdata.GetDevicePointer()); PCHKERRQ(x,ierr);
       }
       else
       {
-        ierr = __mfem_VecSetOffloadMask(x,PETSC_OFFLOAD_CPU); PCHKERRQ(x,ierr);
-        ierr = VecPlaceArray(x,pdata.GetHostPointer()); PCHKERRQ(x,ierr);
+         ierr = __mfem_VecSetOffloadMask(x,PETSC_OFFLOAD_CPU); PCHKERRQ(x,ierr);
+         ierr = VecPlaceArray(x,pdata.GetHostPointer()); PCHKERRQ(x,ierr);
       }
    }
    else
@@ -727,24 +741,26 @@ void PetscParVector::PlaceMemory(const Memory<double>& mem)
    PetscInt n;
 
    ierr = VecGetLocalSize(x,&n); PCHKERRQ(x,ierr);
-   MFEM_VERIFY(n == mem.Capacity(),"Memory size " << mem.Capacity() << " != " << n << " vector size!");
+   MFEM_VERIFY(n == mem.Capacity(),
+               "Memory size " << mem.Capacity() << " != " << n << " vector size!");
    MFEM_VERIFY(pdata.Empty(),"Vector data is not empty");
    MFEM_VERIFY(data.Empty(),"Vector data is not empty");
 #if defined(_USE_DEVICE)
    PetscBool iscuda;
-   ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,""); PCHKERRQ(x,ierr);
+   ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,
+                                    ""); PCHKERRQ(x,ierr);
    if (iscuda)
    {
       pdata.MakeAliasForSync(mem,0,n,mem.DeviceIsValid());
       if (mem.DeviceIsValid())
       {
-        ierr = __mfem_VecSetOffloadMask(x,PETSC_OFFLOAD_GPU); PCHKERRQ(x,ierr);
-        ierr = VecCUDAPlaceArray(x,pdata.GetDevicePointer()); PCHKERRQ(x,ierr);
+         ierr = __mfem_VecSetOffloadMask(x,PETSC_OFFLOAD_GPU); PCHKERRQ(x,ierr);
+         ierr = VecCUDAPlaceArray(x,pdata.GetDevicePointer()); PCHKERRQ(x,ierr);
       }
       else
       {
-        ierr = __mfem_VecSetOffloadMask(x,PETSC_OFFLOAD_CPU); PCHKERRQ(x,ierr);
-        ierr = VecPlaceArray(x,pdata.GetHostPointer()); PCHKERRQ(x,ierr);
+         ierr = __mfem_VecSetOffloadMask(x,PETSC_OFFLOAD_CPU); PCHKERRQ(x,ierr);
+         ierr = VecPlaceArray(x,pdata.GetHostPointer()); PCHKERRQ(x,ierr);
       }
    }
    else
@@ -781,7 +797,7 @@ void PetscParVector::ResetMemory()
       PetscOffloadMask mask;
       ierr = VecGetOffloadMask(x,&mask); PCHKERRQ(x,ierr);
       if ((usedev && (mask != PETSC_OFFLOAD_GPU && mask != PETSC_OFFLOAD_BOTH))
-      ||  !usedev && (mask != PETSC_OFFLOAD_CPU && mask != PETSC_OFFLOAD_BOTH))
+          ||  !usedev && (mask != PETSC_OFFLOAD_CPU && mask != PETSC_OFFLOAD_BOTH))
 #endif
       {
          ierr = VecGetArrayRead(x,&v); PCHKERRQ(x,ierr);
@@ -3091,7 +3107,8 @@ void PetscPreconditioner::SetOperator(const Operator &op)
 void PetscPreconditioner::MultKernel(const Vector &b, Vector &x,
                                      bool trans) const
 {
-   MFEM_VERIFY(!iterative_mode,"Iterative mode not supported for PetscPreconditioner");
+   MFEM_VERIFY(!iterative_mode,
+               "Iterative mode not supported for PetscPreconditioner");
    PC pc = (PC)obj;
 
    if (!B || !X)
@@ -3694,7 +3711,8 @@ void PetscH2Solver::H2SolverConstructor(ParFiniteElementSpace *fes)
 
    if (vdim != sdim || fes->GetOrdering() != Ordering::byVDIM)
    {
-      fes_coords = new ParFiniteElementSpace(fes->GetParMesh(),fec,sdim,Ordering::byVDIM);
+      fes_coords = new ParFiniteElementSpace(fes->GetParMesh(),fec,sdim,
+                                             Ordering::byVDIM);
       fes = fes_coords;
    }
    VectorFunctionCoefficient ccoords(sdim, func_coords);
@@ -5391,30 +5409,30 @@ static PetscErrorCode MatConvert_hypreParCSR_IS(hypre_ParCSRMatrix* hA,Mat* pA)
 #if defined(PETSC_HAVE_DEVICE)
 static PetscErrorCode __mfem_VecSetOffloadMask(Vec v, PetscOffloadMask m)
 {
-  PetscFunctionBegin;
-  v->offloadmask = m;
-  PetscFunctionReturn(0);
+   PetscFunctionBegin;
+   v->offloadmask = m;
+   PetscFunctionReturn(0);
 }
 #endif
 
 static PetscErrorCode __mfem_VecBoundToCPU(Vec v, PetscBool *flg)
 {
-  PetscFunctionBegin;
+   PetscFunctionBegin;
 #if defined(PETSC_HAVE_DEVICE)
-  *flg = v->boundtocpu;
+   *flg = v->boundtocpu;
 #else
-  *flg = PETSC_TRUE;
+   *flg = PETSC_TRUE;
 #endif
-  PetscFunctionReturn(0);
+   PetscFunctionReturn(0);
 }
 
 static PetscErrorCode __mfem_PetscObjectStateIncrease(PetscObject o)
 {
-  PetscErrorCode ierr;
+   PetscErrorCode ierr;
 
-  PetscFunctionBegin;
-  ierr = PetscObjectStateIncrease(o); CHKERRQ(ierr);
-  PetscFunctionReturn(0);
+   PetscFunctionBegin;
+   ierr = PetscObjectStateIncrease(o); CHKERRQ(ierr);
+   PetscFunctionReturn(0);
 }
 
 #endif  // MFEM_USE_PETSC

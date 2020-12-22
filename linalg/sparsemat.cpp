@@ -675,9 +675,9 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
                              CUDA_R_64F);
          cusparseCreateDnVec(&vecY_descr, y.Size(), d_y, CUDA_R_64F);
 #else
-        cusparseCreateMatDescr(&matA_descr);
-        cusparseSetMatIndexBase(matA_descr, CUSPARSE_INDEX_BASE_ZERO);
-        cusparseSetMatType(matA_descr, CUSPARSE_MATRIX_TYPE_GENERAL);
+         cusparseCreateMatDescr(&matA_descr);
+         cusparseSetMatIndexBase(matA_descr, CUSPARSE_INDEX_BASE_ZERO);
+         cusparseSetMatType(matA_descr, CUSPARSE_MATRIX_TYPE_GENERAL);
 
 #endif
 
