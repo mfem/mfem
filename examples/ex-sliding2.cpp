@@ -29,9 +29,17 @@ using namespace mfem;
    contiguous rows in the constraints.
 
    (or, I guess we could loop back through and reorder...)
+
+   (which is what I just did but it makes this pretty ugly)
+
+   @param[in] constrained_att      the *attributes* (not indices) that are constrained
+   @param[out] lagrange_rowstarts  rowstarts for returned constraint matrix
+
+   @return a constraint matrix
 */
 SparseMatrix * BuildNormalConstraintsIntersection(ParFiniteElementSpace& fespace,
-                                                  Array<int> constrained_att)
+                                                  Array<int>& constrained_att,
+                                                  Array<int>& lagrange_rowstarts)
 {
    int rank, size;
    MPI_Comm_rank(fespace.GetComm(), &rank);
@@ -45,7 +53,7 @@ SparseMatrix * BuildNormalConstraintsIntersection(ParFiniteElementSpace& fespace
    // constraints[j] is a map from attribute to row number
    std::vector<std::map<int, int> > constraints;
    int n_constraints = 0;
-   int n_rows = 0; // ???
+   int n_rows = 0;
    for (int att : constrained_att)
    {
       std::set<int> constrained_tdofs;
@@ -77,20 +85,60 @@ SparseMatrix * BuildNormalConstraintsIntersection(ParFiniteElementSpace& fespace
             constraints[it->second][att] = n_rows++;
          }
       }
+      printf("att=%d, n_rows=%d, size(constrained_tdofs)=%d\n",
+             att, n_rows, constrained_tdofs.size());
+   }
+
+   // reorder so EliminationCGSolver understands (this is very ugly)
+   std::map<int, int> reorder_rows;
+   int new_row = 0;
+   MFEM_VERIFY(lagrange_rowstarts.Size() == 0,
+               "rowstarts must be empty to start!");
+   lagrange_rowstarts.Append(0);
+   for (int att : constrained_att)
+   {
+      std::set<int> constrained_tdofs;
+      for (int i = 0; i < fespace.GetNBE(); ++i)
+      {
+         if (fespace.GetBdrAttribute(i) == att)
+         {
+            Array<int> dofs;
+            fespace.GetBdrElementDofs(i, dofs);
+            for (auto k : dofs)
+            {
+               int vdof = fespace.DofToVDof(k, 0);
+               int tdof = fespace.GetLocalTDofNumber(vdof);
+               if (tdof >= 0) { constrained_tdofs.insert(tdof); }
+            }
+         }
+      }
+      for (auto k : constrained_tdofs)
+      {
+         int constraint = dof_constraint[k];
+         bool nconstraint = false;
+         for (auto& it : constraints[constraint])
+         {
+            auto rrit = reorder_rows.find(it.second);
+            if (rrit == reorder_rows.end())
+            {
+               nconstraint = true;
+               reorder_rows[it.second] = new_row++;
+            }
+         }
+         if (nconstraint) { lagrange_rowstarts.Append(new_row); }
+      }
+   }
+   MFEM_VERIFY(new_row == n_rows, "Remapping failed!");
+   for (auto& constraint_map : constraints)
+   {
+      for (auto& it : constraint_map)
+      {
+         it.second = reorder_rows[it.second];
+      }
    }
 
    printf("n_rows=%d, n_constraints=%d, constraints.size() = %d\n",
           n_rows, n_constraints, constraints.size());
-/*
-   for (int k = 0; k < n_constraints; ++k)
-   {
-      for (unsigned int i = 0; i < constraints[k].size(); ++i)
-      {
-         printf("  constraint %d index %d is %d\n",
-                k, i, constraints[k][i]);
-      }
-   }
-*/
    SparseMatrix * out = new SparseMatrix(n_rows, fespace.GetTrueVSize());
 
    // fill in constraint matrix with normal vector information
@@ -551,10 +599,13 @@ int main(int argc, char *argv[])
    {
       std::ofstream outold("localconstraints.sparsematrix");
       local_constraints.Print(outold, 1);
-      auto intersection = BuildNormalConstraintsIntersection(*fespace, constraint_atts);
+      Array<int> lagrange_rowstarts;
+      auto intersection = BuildNormalConstraintsIntersection(*fespace, constraint_atts,
+                                                             lagrange_rowstarts);
       std::ofstream outnew("intersectionconstraints.sparsematrix");
       intersection->Print(outnew, 1);
       delete intersection;
+      lagrange_rowstarts.Print(std::cout, 1);
    }
 
    Array<int> lagrange_rowstarts(local_constraints.Height() + 1);
