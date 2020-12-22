@@ -756,7 +756,7 @@ public:
    /// Return the total number of quadrature points.
    int GetSize() const { return size; }
 
-   /// Return the order used by the global rules from #IntRules.
+   /// Return the order of the quadrature rules used by all elements.
    int GetOrder() const { return order; }
 
    /// Returns the mesh
