@@ -3150,7 +3150,7 @@ PetscPreconditioner::~PetscPreconditioner()
 // Coordinates sampling function
 static void func_coords(const Vector &x, Vector &y)
 {
-   for (int i = 0; i < x.Size(); i++) { y(i) = x(i); }
+   y = x;
 }
 
 void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
@@ -3669,6 +3669,47 @@ PetscFieldSplitSolver::PetscFieldSplitSolver(MPI_Comm comm, Operator &op,
       ierr = PCFieldSplitSetIS(pc,NULL,isrow[i]); PCHKERRQ(pc,ierr);
    }
    ierr = PetscFree(isrow); CCHKERRQ(PETSC_COMM_SELF,ierr);
+}
+
+PetscH2Solver::PetscH2Solver(Operator &op,
+                             ParFiniteElementSpace *fes,
+                             const std::string &prefix)
+   : PetscPreconditioner(fes->GetParMesh()->GetComm(),prefix)
+{
+   PetscParMatrix A(GetComm(),&op,Operator::ANY_TYPE);
+   MatSetOption(A,MAT_SYMMETRIC,PETSC_TRUE);
+   MatSetOption(A,MAT_SYMMETRY_ETERNAL,PETSC_TRUE);
+   SetOperator(A);
+   H2SolverConstructor(fes);
+   Customize();
+}
+
+void PetscH2Solver::H2SolverConstructor(ParFiniteElementSpace *fes)
+{
+#if defined(PETSC_HAVE_H2OPUS)
+   int sdim = fes->GetParMesh()->SpaceDimension();
+   int vdim = fes->GetVDim();
+   const FiniteElementCollection *fec = fes->FEColl();
+   ParFiniteElementSpace *fes_coords = NULL;
+
+   if (vdim != sdim || fes->GetOrdering() != Ordering::byVDIM)
+   {
+      fes_coords = new ParFiniteElementSpace(fes->GetParMesh(),fec,sdim,Ordering::byVDIM);
+      fes = fes_coords;
+   }
+   VectorFunctionCoefficient ccoords(sdim, func_coords);
+
+   ParGridFunction coords(fes);
+   coords.ProjectCoefficient(ccoords);
+   Vector c(fes->GetTrueVSize());
+   coords.ParallelProject(c);
+   delete fes_coords;
+   PCSetType(*this,PCH2OPUS);
+   PCSetCoordinates(*this,sdim,c.Size()/sdim,c.GetData());
+   PCSetFromOptions(*this);
+#else
+   MFEM_ABORT("Need PETSc configured with --download-h2opus");
+#endif
 }
 
 // PetscNonlinearSolver methods
