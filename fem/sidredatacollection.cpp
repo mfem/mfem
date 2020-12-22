@@ -246,6 +246,7 @@ void SidreDataCollection::createMeshBlueprintStubs(bool hasBP)
       m_bp_grp->createGroup("coordsets");
       m_bp_grp->createGroup("topologies");
       m_bp_grp->createGroup("fields");
+      m_bp_grp->createGroup("qfields");
    }
 
    // If rank is 0, set up blueprint index state group.
@@ -255,6 +256,7 @@ void SidreDataCollection::createMeshBlueprintStubs(bool hasBP)
       m_bp_index_grp->createGroup("coordsets");
       m_bp_index_grp->createGroup("topologies");
       m_bp_index_grp->createGroup("fields");
+      m_bp_index_grp->createGroup("qfields");
    }
 }
 
@@ -1082,6 +1084,227 @@ void SidreDataCollection::RegisterField(const std::string &field_name,
 
    // Register field_name + gf in field_map.
    DataCollection::RegisterField(field_name, gf);
+}
+
+// private method
+void SidreDataCollection::
+addQuadratureFunction(const std::string &field_name, QuadratureFunction *qf,
+                     const std::string &buffer_name,
+                     axom::sidre::IndexType offset)
+{
+   sidre::Group* grp = m_bp_grp->getGroup("qfields/" + field_name);
+   MFEM_ASSERT(grp != NULL, "qfield " << field_name << " does not exist");
+
+   const int numDofs = qf->Size();
+
+   if(qf->GetData() == nullptr) {
+      AllocNamedBuffer(buffer_name, offset + numDofs);
+   }
+
+   /*
+    *  Mesh blueprint for a scalar-based grid function is of the form
+    *    /qfields/field_name/qspace_order
+    *              -- scalar value of QuadratureFunction's QuadratureSpace::Order
+    *    /qfields/field_name/values
+    *              -- array of size numDofs
+    */
+
+   // Make sure we have the View "values".
+   sidre::View *vv = alloc_view(grp, "values");
+
+   // Describe and apply the "values" View.
+   // If the data store has buffer for field_name (e.g. AllocNamedBuffer was
+   // called, or it was loaded from file), use that buffer.
+   sidre::View *bv = named_buffers_grp()->getView(buffer_name);
+   if (bv)
+   {
+      MFEM_ASSERT(bv->hasBuffer() && bv->isDescribed(), "");
+
+      // named buffers always have offset 0
+      MFEM_ASSERT(bv->getSchema().dtype().offset() == 0, "");
+      MFEM_ASSERT(bv->getNumElements() >= offset + numDofs, "");
+
+      if (vv->isEmpty())
+      {
+         vv->attachBuffer(bv->getBuffer())
+         ->apply(sidre::DOUBLE_ID, numDofs, offset);
+      }
+
+      qf->NewDataAndSize(vv->getData(), numDofs);
+   }
+   else
+   {
+      // If we are not managing the grid function's data,
+      // create a view with the external data
+      vv->setExternalDataPtr(sidre::DOUBLE_ID, numDofs, qf->GetData());
+   }
+   MFEM_ASSERT((numDofs > 0 && vv->isApplied()) ||
+               (numDofs == 0 && vv->isEmpty() && vv->isDescribed()),
+               "invalid View state");
+   MFEM_ASSERT(numDofs == 0 || vv->getData() == qf->GetData(),
+               "View data is different from QuadratureFunction data");
+   MFEM_ASSERT(vv->getNumElements() == numDofs,
+               "View size is different from QuadratureFunction size");
+}
+
+// private method
+// Should only be called on mpi rank 0 ( or if serial problem ).
+void SidreDataCollection::
+RegisterQFieldInBPIndex(const std::string& field_name, QuadratureFunction *qf)
+{
+   sidre::Group *bp_field_grp = m_bp_grp->getGroup("qfields/" + field_name);
+   sidre::Group *bp_index_field_grp =
+      m_bp_index_grp->createGroup("qfields/" + field_name);
+
+   bp_index_field_grp->createViewString( "path", bp_field_grp->getPathName() );
+   bp_index_field_grp->copyView( bp_field_grp->getView("topology") );
+   bp_index_field_grp->copyView( bp_field_grp->getView("qspace_order") );
+
+   // Note: The bp index requires QuadratureFunction::VDim()
+   const int number_of_components = 1; //qf->VDim();
+   bp_index_field_grp->createViewScalar("number_of_components",
+                                        number_of_components);
+}
+
+void SidreDataCollection::RegisterQField(const std::string &field_name,
+                                        QuadratureFunction *qf,
+                                        const std::string &buffer_name,
+                                        axom::sidre::IndexType offset)
+{
+   if ( field_name.empty() || buffer_name.empty() ||
+        qf == NULL || qf->GetSpace() == NULL )
+   {
+#ifdef MFEM_DEBUG
+      MFEM_WARNING("QField with the name '" << field_name << "' was provided a null"
+                  " QuadratureFunction, so nothing was done.");
+#endif
+      return;
+   }
+
+   // Register field_name in the blueprint group.
+   sidre::Group* f = m_bp_grp->getGroup("qfields");
+
+   if (f->hasGroup( field_name ))
+   {
+      // There are two possibilities:
+      // 1. If HasField(field_name) is true - we are overwriting a field that
+      //    was previously registered.
+      // 2. Otherwise, the field was loaded from a file, or defined outside of
+      //    the data collection.
+      if (HasQField(field_name))
+      {
+#ifdef MFEM_DEBUG
+         // Warn about overwriting field.
+         // Skip warning when re-registering the nodal grid function
+         if (field_name != m_meshNodesGFName)
+         {
+            MFEM_WARNING("QField with the name '" << field_name<< "' is already "
+                         "registered, overwriting the old qfield");
+         }
+#endif
+         DeregisterQField(field_name);
+      }
+   }
+
+   sidre::Group* grp = f->createGroup( field_name );
+
+   // Set the "qspace_order" string using the qf's qspace, overwrite if
+   // necessary.
+   sidre::View *v = alloc_view(grp, "qspace_order");
+   v->setScalar(qf->GetSpace()->GetOrder());
+
+   // Set the "vdim" string using the qf's qspace, overwrite if
+   // necessary.
+   v = alloc_view(grp, "vdim");
+   v->setScalar(qf->GetVDim());
+
+   // Set the topology of the QuadratureFunction.
+   // This is always 'mesh'
+   v = alloc_view(grp, "topology")->setString("mesh");
+
+   // Set the View "<m_bp_grp>/qfields/<field_name>/values"
+   addQuadratureFunction(field_name, qf, buffer_name, offset);
+
+
+   // Register field_name in the blueprint_index group.
+   if (myid == 0)
+   {
+      RegisterQFieldInBPIndex(field_name, qf);
+   }
+
+   // Register field_name + qf in field_map.
+   DataCollection::RegisterQField(field_name, qf);
+}
+
+// private method
+// Should only be called on mpi rank 0 ( or if serial problem ).
+void SidreDataCollection::
+DeregisterQFieldInBPIndex(const std::string& field_name)
+{
+   sidre::Group * fields_grp = m_bp_index_grp->getGroup("qfields/");
+   MFEM_VERIFY(fields_grp->hasGroup(field_name),
+               "No qfield exists in blueprint index with name " << field_name);
+
+   // Note: This will destroy all orphaned views or buffer classes under this
+   // group also.  If sidre owns this field data, the memory will be deleted
+   // unless it's referenced somewhere else in sidre.
+   fields_grp->destroyGroup(field_name);
+}
+
+void SidreDataCollection::DeregisterQField(const std::string& field_name)
+{
+   // Deregister field_name from field_map.
+   DataCollection::DeregisterQField(field_name);
+
+   sidre::Group * fields_grp = m_bp_grp->getGroup("qfields/");
+   MFEM_VERIFY(fields_grp->hasGroup(field_name),
+               "No qfield exists in blueprint with name " << field_name);
+
+   // Delete field_name from the blueprint group.
+
+   // Note: This will destroy all orphaned views or buffer classes under this
+   // group also.  If sidre owns this field data, the memory will be deleted
+   // unless it's referenced somewhere else in sidre.
+   fields_grp->destroyGroup(field_name);
+
+   // Delete field_name from the blueprint_index group.
+   if (myid == 0)
+   {
+      DeregisterQFieldInBPIndex(field_name);
+   }
+
+   // Delete field_name from the named_buffers group, if allocated.
+   FreeNamedBuffer(field_name);
+}
+
+int SidreDataCollection::GetQFieldOrder(const std::string &field_name)
+{
+   sidre::Group* grp = m_bp_grp->getGroup("qfields/" + field_name);
+   MFEM_ASSERT(grp != NULL, "qfield " << field_name << " does not exist");
+
+   sidre::View *v = grp->getView("qspace_order");
+
+   return v->getScalar();
+}
+
+int SidreDataCollection::GetQFieldVDim(const std::string &field_name)
+{
+   sidre::Group* grp = m_bp_grp->getGroup("qfields/" + field_name);
+   MFEM_ASSERT(grp != NULL, "qfield " << field_name << " does not exist");
+
+   sidre::View *v = grp->getView("vdim");
+
+   return v->getScalar();
+}
+
+double* SidreDataCollection::GetQFieldData(const std::string &field_name)
+{
+   sidre::Group* grp = m_bp_grp->getGroup("qfields/" + field_name);
+   MFEM_ASSERT(grp != NULL, "qfield " << field_name << " does not exist");
+
+   sidre::View *v = grp->getView("values");
+   void* vptr = v->getVoidPtr();
+   return static_cast<double*>(vptr) + v->getOffset();
 }
 
 void SidreDataCollection::RegisterAttributeField(const std::string& attr_name,
