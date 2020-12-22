@@ -7,6 +7,7 @@
 #include <iostream>
 #include "../common/PML.hpp"
 #include "MeshPart.hpp"
+#include "DofMaps.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -187,8 +188,24 @@ int main(int argc, char *argv[])
 
    Array<int> attr(1); 
    attr[0] = 2;
-   Array<int> elem_map;
-   Mesh * mesh1 = GetPartMesh(mesh,attr, elem_map,false);
+   Array<int> elem_map1;
+   Mesh * mesh1 = GetPartMesh(mesh,attr, elem_map1,true);
+   attr[0] = 3;
+   Array<int> elem_map2;
+   Mesh * mesh2 = GetPartMesh(mesh,attr, elem_map2,true);
+
+   Array<int> elem_map0(mesh->GetNE());
+   for (int i = 0; i<elem_map0.Size(); i++) { elem_map0[i] = i; }
+
+
+   FiniteElementCollection *NDfec = new ND_FECollection(order, dim);
+   FiniteElementSpace fes0(mesh, NDfec);
+   FiniteElementSpace fes1(mesh1, NDfec);
+
+   // int a0[4] = {4,1,8,3}; Array<int> b0(a0,4);
+   // int a1[5] = {3,1,4,5,9}; Array<int> b1(a1,5);
+   // GetDofMap(fes0,fes1,&b1,&b0);
+   GetDofMap(fes0,fes1,&elem_map0,&elem_map1);
 
 
    if (visualization)
@@ -201,13 +218,18 @@ int main(int argc, char *argv[])
       mesh0_sock.precision(8);
       mesh0_sock << "mesh\n" << *mesh << flush;
 
-      socketstream mesh_sock(vishost, visport);
-      mesh_sock.precision(8);
-      mesh_sock << "mesh\n" << *mesh1 << flush;
+      socketstream mesh1_sock(vishost, visport);
+      mesh1_sock.precision(8);
+      mesh1_sock << "mesh\n" << *mesh1 << flush;
+
+      socketstream mesh2_sock(vishost, visport);
+      mesh2_sock.precision(8);
+      mesh2_sock << "mesh\n" << *mesh2 << flush;
    }
 
 
-   mesh = mesh1;
+   // mesh = mesh1;
+   return 0;
 
    // Angular frequency
    omega = 2.0 * M_PI * freq;

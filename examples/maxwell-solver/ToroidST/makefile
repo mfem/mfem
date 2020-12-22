@@ -31,7 +31,7 @@ endif
 .PHONY: all clean
 .PRECIOUS: %.o
 
-COMMON_O= MeshPart.o ../common/PML.o ../common/complex_linalg.o
+COMMON_O= MeshPart.o ../common/PML.o ../common/complex_linalg.o DofMaps.o
 
 # Remove built-in rules
 %: %.cpp
