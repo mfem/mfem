@@ -41,8 +41,13 @@ int i_supgpre=3;    //3 - full diagonal supg terms on psi and phi
                     //0 - only (v.grad) in the preconditioner on psi and phi
 
 double factormin=8.; 
+bool debug=false;
+
+int icycle=0;
 
 extern int icase;
+extern ParMesh *pmesh;
+extern int order;
 
 // reduced system 
 class ReducedSystemOperator : public Operator
@@ -64,13 +69,15 @@ private:
 
    CGSolver *M_solver, *M_solver2, *M_solver3;
 
+   ParaViewDataCollection *pd;
+
    int myid;
    double dt, dtOld, viscosity, resistivity;
    const Vector *phi, *psi, *w;
    const Array<int> &ess_tdof_list;
    const Array<int> &ess_bdr;
 
-   mutable ParGridFunction phiGf, psiGf, wGf, gftmp, phiOld;
+   mutable ParGridFunction phiGf, psiGf, wGf, gftmp,gftmp2,gftmp3, phiOld;
    mutable MyCoefficient *vOld;
    mutable ParBilinearForm *Nv, *Nb, *Pw;
    mutable ParBilinearForm *StabMass, *StabNb, *StabNv; //for stablize B term
@@ -299,6 +306,7 @@ protected:
    myBCHandler *bchandler;
    PetscPreconditionerFactory *J_factory;
 
+
    int myid;
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
    HypreSmoother *M_prec;  // Preconditioner for the mass matrix M
@@ -316,7 +324,7 @@ protected:
    HyprePCG *K_pcg;
 
    mutable Vector z, J, z2, z3, zFull; // auxiliary vector 
-   mutable ParGridFunction j, gftmp;  //auxiliary variable (to store the boundary condition)
+   mutable ParGridFunction j, gftmp, gftmp2, gftmp3;  //auxiliary variable (to store the boundary condition)
    ParBilinearForm *DRetmp, *DSltmp;    //hold the matrices for DRe and DSl
 
 public:
@@ -398,7 +406,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
      K_solver(f.GetComm()),  K_prec(NULL),
      K_amg(NULL), K_pcg(NULL), z(height/3), 
      J(height/3), z2(height/3), z3(height/3), zFull(f.GetVSize()),
-     j(&fespace), gftmp(&fespace),
+     j(&fespace), gftmp(&fespace), gftmp2(&fespace), gftmp3(&fespace),
      DRetmp(NULL), DSltmp(NULL)
 {
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
@@ -502,7 +510,6 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    KB->Assemble();
    KB->Finalize();
    KBMat=KB->ParallelAssemble();
-   KBMat=NULL;
 
    KBform = new ParBilinearForm(&fespace);
    KBform->AddDomainIntegrator(new DiffusionIntegrator);      //  K matrix
@@ -590,6 +597,8 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
       bchandler = new myBCHandler(ess_tdof_list, PetscBCHandler::CONSTANT, 3, height/3);
       pnewton_solver->SetBCHandler(bchandler);
    }
+
+   
 }
 
 void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr, bool PartialUpdate)
@@ -813,7 +822,7 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
      M_solver(M_solver_), M_solver2(M_solver2_),M_solver3(M_solver3_),
      dt(0.0), dtOld(0.0), viscosity(visc), resistivity(resi), 
      phi(NULL), psi(NULL), w(NULL), vOld(NULL),
-     ess_tdof_list(ess_tdof_list_),ess_bdr(ess_bdr_), gftmp(&fespace),
+     ess_tdof_list(ess_tdof_list_),ess_bdr(ess_bdr_), gftmp(&fespace),gftmp2(&fespace), gftmp3(&fespace),
      Nv(NULL), Nb(NULL), Pw(NULL), 
      StabMass(NULL), StabNb(NULL), StabNv(NULL),
      PB_VPsi(NULL), PB_VOmega(NULL), PB_BJ(NULL),
@@ -836,6 +845,21 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
     block_trueOffsets[1] = sc;
     block_trueOffsets[2] = 2*sc;
     block_trueOffsets[3] = 3*sc;
+
+    if (debug)
+    {
+      pd = new ParaViewDataCollection("debug-resi", pmesh);
+      pd->SetPrefixPath("ParaView");
+      pd->RegisterField("residual1", &gftmp);
+      pd->RegisterField("residual2", &gftmp2);
+      pd->RegisterField("residual3", &gftmp3);
+      pd->SetLevelsOfDetail(order);
+      pd->SetDataFormat(VTKFormat::BINARY);
+      pd->SetHighOrderOutput(true);
+      pd->SetCycle(icycle);
+    }
+    else
+       pd=NULL;
 }
 
 ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
@@ -855,7 +879,7 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
      M_solver(M_solver_), M_solver2(M_solver2_), M_solver3(M_solver3_), 
      dt(0.0), dtOld(0.0), viscosity(visc), resistivity(resi),
      phi(NULL), psi(NULL), w(NULL), vOld(NULL),
-     ess_tdof_list(ess_tdof_list_), ess_bdr(ess_bdr_), gftmp(&fespace),
+     ess_tdof_list(ess_tdof_list_), ess_bdr(ess_bdr_), gftmp(&fespace),gftmp2(&fespace), gftmp3(&fespace),
      Nv(NULL), Nb(NULL), Pw(NULL),  
      StabMass(NULL), StabNb(NULL), StabNv(NULL),
      PB_VPsi(NULL), PB_VOmega(NULL), PB_BJ(NULL),
@@ -889,6 +913,21 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
     block_trueOffsets[1] = sc;
     block_trueOffsets[2] = 2*sc;
     block_trueOffsets[3] = 3*sc;
+
+   if (debug)
+   {
+      pd = new ParaViewDataCollection("debug-resi", pmesh);
+      pd->SetPrefixPath("ParaView");
+      pd->RegisterField("residual1", &gftmp);
+      pd->RegisterField("residual2", &gftmp2);
+      pd->RegisterField("residual3", &gftmp3);
+      pd->SetLevelsOfDetail(order);
+      pd->SetDataFormat(VTKFormat::BINARY);
+      pd->SetHighOrderOutput(true);
+      pd->SetCycle(icycle);
+   }
+   else
+       pd=NULL;
 }
 
 /*
@@ -1349,6 +1388,7 @@ ReducedSystemOperator::~ReducedSystemOperator()
    delete PB_VPsi; 
    delete PB_VOmega;
    delete PB_BJ;
+   delete pd;
 }
 
 void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
@@ -1740,5 +1780,52 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
 
    y2.SetSubVector(ess_tdof_list, 0.0);
    y3.SetSubVector(ess_tdof_list, 0.0);
+
+   if (false){
+       if (myid==0) {
+         cout <<"======Debugging: print reisudal as a grid function!!!======"<<endl;
+       }
+      ostringstream phi_name, psi_name, w_name;
+      if (debug)
+      {
+        phi_name << "dresidual1";// << setfill('0') << setw(6) << myid;
+        psi_name << "dresidual2";// << setfill('0') << setw(6) << myid;
+          w_name << "dresidual3";// << setfill('0') << setw(6) << myid;
+      }
+      else
+      {
+        phi_name << "residual1";//  << setfill('0') << setw(6) << myid;
+        psi_name << "residual2";//  << setfill('0') << setw(6) << myid;
+         w_name << "residual3" ;// << setfill('0') << setw(6) << myid;
+      }
+
+      gftmp.SetFromTrueDofs(y1);
+      ofstream osol(phi_name.str().c_str());
+      osol.precision(4);
+      gftmp.SaveAsOne(osol);
+
+      gftmp.SetFromTrueDofs(y2);
+      ofstream osol3(psi_name.str().c_str());
+      osol3.precision(4);
+      gftmp.SaveAsOne(osol3);
+
+      gftmp.SetFromTrueDofs(y3);
+      ofstream osol4(w_name.str().c_str());
+      osol4.precision(4);
+      gftmp.SaveAsOne(osol4);
+   }
+
+   if (debug){
+       if (myid==0) {
+         cout <<"======Debugging: print reisudal as a grid function!!!======"<<endl;
+       }
+      gftmp.SetFromTrueDofs(y1);
+      gftmp2.SetFromTrueDofs(y2);
+      gftmp3.SetFromTrueDofs(y3);
+      pd->SetCycle(icycle);
+      pd->SetTime(icycle*.1);
+      icycle++;
+      pd->Save();
+   }
 }
 

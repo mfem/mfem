@@ -31,6 +31,8 @@ double lambda;
 double resiG;
 double ep=.2;
 int icase = 1;
+int order = 2;
+ParMesh *pmesh;
 
 int main(int argc, char *argv[])
 {
@@ -43,13 +45,13 @@ int main(int argc, char *argv[])
    const char *mesh_file = "./Meshes/xperiodic-square.mesh";
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
-   int order = 2;
    int ode_solver_type = 3;
    double t_final = 5.0;
    double dt = 0.0001;
    double visc = 1e-3;
    double resi = 1e-3;
    bool visit = false;
+   bool paraview = false;
    bool use_petsc = false;
    bool use_factory = false;
    bool useStab = false; //use a stabilized formulation (explicit case only)
@@ -95,6 +97,8 @@ int main(int argc, char *argv[])
                   "Visualize every n-th timestep.");
    args.AddOption(&usesupg, "-supg", "--implicit-supg", "-no-supg", "--no-implicit-supg",
                   "Use supg in the implicit solvers.");
+   args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraivew",
+                  "--no-paraview-datafiles", "Save data files for paraview visualization.");
    args.AddOption(&use_petsc, "-usepetsc", "--usepetsc", "-no-petsc",
                   "--no-petsc",
                   "Use or not PETSc to solve the nonlinear system.");
@@ -108,6 +112,8 @@ int main(int argc, char *argv[])
                   "Slow start");
    args.AddOption(&pa, "-pa", "--patial-assembly", "-no-pa",
                   "--no-partial-assembly", "Parallel assembly.");
+   args.AddOption(&debug, "-debug", "--debug", "-no-debug", "--no-debug",
+                  "Debug issue.");
 
    args.Parse();
    if (!args.Good())
@@ -233,7 +239,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    for (int lev = 0; lev < par_ref_levels; lev++)
    {
@@ -305,12 +311,36 @@ int main(int argc, char *argv[])
    ResistiveMHDOperator oper(fespace, ess_bdr, visc, resi, use_petsc, use_factory);
    oper.SetRHSEfield(E0rhs3);
 
+   ParGridFunction j(&fespace);
    //set initial J
    FunctionCoefficient jInit3(InitialJ3);
    oper.SetInitialJ(jInit3);
+   j.ProjectCoefficient(jInit3);
+   j.SetTrueVector();
 
    double t = 0.0;
    oper.SetTime(t);
+
+   ParaViewDataCollection *pd = NULL;
+   if (paraview)
+   {
+      if (debug)
+        pd = new ParaViewDataCollection("debug", pmesh);
+      else
+        pd = new ParaViewDataCollection("imScale", pmesh);
+      pd->SetPrefixPath("ParaView");
+      pd->RegisterField("psi", &psi);
+      pd->RegisterField("phi", &phi);
+      pd->RegisterField("omega", &w);
+      pd->RegisterField("current", &j);
+      pd->SetLevelsOfDetail(order);
+      pd->SetDataFormat(VTKFormat::BINARY);
+      pd->SetHighOrderOutput(true);
+      pd->SetCycle(0);
+      pd->SetTime(0.0);
+      pd->Save();
+   }
+
    ode_solver2->Init(oper);
 
    MPI_Barrier(MPI_COMM_WORLD); 
@@ -344,6 +374,20 @@ int main(int argc, char *argv[])
       double comp_time = MPI_Wtime()-current_time;
       if (last_step || (ti % vis_steps) == 0)
       {
+         if (paraview){
+            if (myid==0) {
+             cout << "save paraview solutions" <<endl;
+            }
+            psi.SetFromTrueVector();
+            phi.SetFromTrueVector();
+            w.SetFromTrueVector();
+            oper.UpdateJ(vx, &j);
+
+            pd->SetCycle(ti);
+            pd->SetTime(t);
+            pd->Save();
+         }
+
          if (myid==0) {
              cout << "step " << ti << ", t = " << t <<endl;
              cout << "cpu time is " << comp_time <<endl;
@@ -362,26 +406,29 @@ int main(int argc, char *argv[])
       phi.SetFromTrueVector(); psi.SetFromTrueVector(); w.SetFromTrueVector();
 
       ostringstream mesh_name, phi_name, psi_name, w_name,j_name;
-      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+      //mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+      mesh_name << "mesh";
       phi_name << "sol_phi." << setfill('0') << setw(6) << myid;
       psi_name << "sol_psi." << setfill('0') << setw(6) << myid;
       w_name << "sol_omega." << setfill('0') << setw(6) << myid;
 
       ofstream omesh(mesh_name.str().c_str());
       omesh.precision(8);
-      pmesh->Print(omesh);
+      pmesh->PrintAsOne(omesh);
 
-      ofstream osol(phi_name.str().c_str());
-      osol.precision(8);
-      phi.Save(osol);
+      {
+        ofstream osol(phi_name.str().c_str());
+        osol.precision(8);
+        phi.Save(osol);
 
-      ofstream osol3(psi_name.str().c_str());
-      osol3.precision(8);
-      psi.Save(osol3);
+        ofstream osol3(psi_name.str().c_str());
+        osol3.precision(8);
+        psi.Save(osol3);
 
-      ofstream osol4(w_name.str().c_str());
-      osol4.precision(8);
-      w.Save(osol4);
+        ofstream osol4(w_name.str().c_str());
+        osol4.precision(8);
+        w.Save(osol4);
+      }
    }
 
    //+++++Free the used memory.
