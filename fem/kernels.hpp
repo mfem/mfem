@@ -1443,7 +1443,7 @@ MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
                w[0] += XxG(qz,dy,dx) * Gtz;
 
                u[1] += XyB(qz,dy,dx) * Btz;
-               v[1] += XyC(qz,dy,dx)* Btz;
+               v[1] += XyC(qz,dy,dx) * Btz;
                w[1] += XyG(qz,dy,dx) * Gtz;
 
                u[2] += XzB(qz,dy,dx) * Btz;

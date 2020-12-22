@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
    //    elements.
    {
       int ref_levels =
-         (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
+         (int)floor(log(500./mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
@@ -177,6 +177,7 @@ int main(int argc, char *argv[])
    BilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a.AddDomainIntegrator(new DiffusionIntegrator(one));
+   //a.AddDomainIntegrator(new MassIntegrator(one));
 
    // 10. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
@@ -208,12 +209,12 @@ int main(int argc, char *argv[])
    }
    else // Jacobi preconditioning in partial assembly mode
    {
-      if (UsesTensorBasis(fespace))
+      /*if (UsesTensorBasis(fespace))
       {
          OperatorJacobiSmoother M(a, ess_tdof_list);
          PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
-      }
-      else
+         }
+         else*/
       {
          CG(*A, B, X, 1, 400, 1e-12, 0.0);
       }
