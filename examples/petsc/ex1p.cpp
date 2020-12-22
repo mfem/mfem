@@ -275,7 +275,7 @@ int main(int argc, char *argv[])
    if (!use_petsc)
    {
       CGSolver *pcg = new CGSolver(MPI_COMM_WORLD);
-      if (prec) pcg->SetPreconditioner(*prec);
+      if (prec) { pcg->SetPreconditioner(*prec); }
       pcg->SetOperator(*A);
       pcg->SetRelTol(1e-12);
       pcg->SetMaxIter(200);
@@ -305,7 +305,7 @@ int main(int argc, char *argv[])
             HypreParMatrix *hA = A.As<HypreParMatrix>();
             prec = new HypreBoomerAMG(*hA);
          }
-         if (prec) pcg->SetPreconditioner(*prec);
+         if (prec) { pcg->SetPreconditioner(*prec); }
       }
       else // Not wrapping, pass the HypreParMatrix so that users can experiment with command line
       {

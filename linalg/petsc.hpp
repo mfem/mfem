@@ -96,7 +96,8 @@ public:
    void SetDeviceInvalid() const      { flags &= ~VALID_DEVICE; }
    inline bool IsAliasForSync() const { return base && (flags & ALIAS); }
 
-   inline void MakeAliasForSync(const Memory<double> &_base, int _offset, int _size, bool _usedev)
+   inline void MakeAliasForSync(const Memory<double> &_base, int _offset,
+                                int _size, bool _usedev)
    {
       MFEM_VERIFY(!IsAliasForSync(),"Already alias");
       base = (Memory<double>*)&_base;
@@ -105,7 +106,8 @@ public:
       usedev = _usedev;
       MakeAlias(_base,_offset,_size);
    }
-   inline void MakeAliasForSync(Memory<double> &_base, int _offset, int _size, bool _read, bool _write, bool _usedev)
+   inline void MakeAliasForSync(Memory<double> &_base, int _offset, int _size,
+                                bool _read, bool _write, bool _usedev)
    {
       MFEM_VERIFY(!IsAliasForSync(),"Already alias");
       base = (Memory<double>*)&_base;
