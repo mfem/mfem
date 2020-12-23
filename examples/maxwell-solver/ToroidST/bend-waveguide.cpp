@@ -6,7 +6,6 @@
 #include <fstream>
 #include <iostream>
 #include "../common/PML.hpp"
-#include "MeshPart.hpp"
 #include "DofMaps.hpp"
 
 using namespace std;
@@ -185,47 +184,63 @@ int main(int argc, char *argv[])
 
    mesh->RemoveInternalBoundaries();
 
+   mesh->UniformRefinement();
+   mesh->UniformRefinement();
 
-   Array<int> attr(1); 
-   attr[0] = 2;
-   Array<int> elem_map1;
-   Mesh * mesh1 = GetPartMesh(mesh,attr, elem_map1,true);
-   attr[0] = 3;
-   Array<int> elem_map2;
-   Mesh * mesh2 = GetPartMesh(mesh,attr, elem_map2,true);
+   
+   FiniteElementCollection *fec = new ND_FECollection(order, dim);
+   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
 
-   Array<int> elem_map0(mesh->GetNE());
-   for (int i = 0; i<elem_map0.Size(); i++) { elem_map0[i] = i; }
+   double ovlerlap = 7.5; // in degrees;
+   int nrmeshes = 9;
 
-
-   FiniteElementCollection *NDfec = new ND_FECollection(order, dim);
-   FiniteElementSpace fes0(mesh, NDfec);
-   FiniteElementSpace fes1(mesh1, NDfec);
-
-   // int a0[4] = {4,1,8,3}; Array<int> b0(a0,4);
-   // int a1[5] = {3,1,4,5,9}; Array<int> b1(a1,5);
-   // GetDofMap(fes0,fes1,&b1,&b0);
-   GetDofMap(fes0,fes1,&elem_map0,&elem_map1);
+   Array<Array<int> *> ElemMaps, DofMaps;
+   Array<FiniteElementSpace *> fespaces;
+   PartitionFE(fespace,nrmeshes,ovlerlap,fespaces, ElemMaps,DofMaps);
 
 
-   if (visualization)
-   {
-      // GLVis server to visualize to
-      char vishost[] = "localhost";
-      int  visport   = 19916;
+   // Array<int> attr(1); 
+   // attr[0] = 2;
+   // Array<int> elem_map1;
+   // Mesh * mesh1 = GetPartMesh(mesh,attr, elem_map1,true);
+   // attr[0] = 3;
+   // Array<int> elem_map2;
+   // Mesh * mesh2 = GetPartMesh(mesh,attr, elem_map2,true);
 
-      socketstream mesh0_sock(vishost, visport);
-      mesh0_sock.precision(8);
-      mesh0_sock << "mesh\n" << *mesh << flush;
+   // Array<int> elem_map0(mesh->GetNE());
+   // for (int i = 0; i<elem_map0.Size(); i++) { elem_map0[i] = i; }
 
-      socketstream mesh1_sock(vishost, visport);
-      mesh1_sock.precision(8);
-      mesh1_sock << "mesh\n" << *mesh1 << flush;
 
-      socketstream mesh2_sock(vishost, visport);
-      mesh2_sock.precision(8);
-      mesh2_sock << "mesh\n" << *mesh2 << flush;
-   }
+   // FiniteElementCollection *NDfec = new ND_FECollection(order, dim);
+   // FiniteElementSpace fes0(mesh, NDfec);
+   // FiniteElementSpace fes1(mesh1, NDfec);
+   // FiniteElementSpace fes2(mesh2, NDfec);
+
+   // // int a0[4] = {4,1,8,3}; Array<int> b0(a0,4);
+   // // int a1[5] = {3,1,4,5,9}; Array<int> b1(a1,5);
+   // // GetDofMap(fes0,fes1,&b1,&b0);
+   // GetDofMap(fes0,fes2);
+   // GetDofMap(fes0,fes2,&elem_map0,&elem_map2);
+
+
+   // if (visualization)
+   // {
+   //    // GLVis server to visualize to
+   //    char vishost[] = "localhost";
+   //    int  visport   = 19916;
+
+   //    socketstream mesh0_sock(vishost, visport);
+   //    mesh0_sock.precision(8);
+   //    mesh0_sock << "mesh\n" << *mesh << flush;
+
+   //    socketstream mesh1_sock(vishost, visport);
+   //    mesh1_sock.precision(8);
+   //    mesh1_sock << "mesh\n" << *mesh1 << flush;
+
+   //    socketstream mesh2_sock(vishost, visport);
+   //    mesh2_sock.precision(8);
+   //    mesh2_sock << "mesh\n" << *mesh2 << flush;
+   // }
 
 
    // mesh = mesh1;
@@ -269,8 +284,7 @@ int main(int argc, char *argv[])
    ComplexOperator::Convention conv =
       herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
 
-   FiniteElementCollection *fec = new ND_FECollection(order, dim);
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+
 
    ComplexGridFunction x(fespace);
    x = 0.0;

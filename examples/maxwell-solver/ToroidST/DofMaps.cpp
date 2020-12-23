@@ -1,5 +1,41 @@
 
 #include "DofMaps.hpp"
+#include "MeshPart.hpp"
+
+void FindPtsGetCommonElements(Mesh & mesh0, Mesh & mesh1, 
+                              Array<int> & elems0, Array<int> & elems1)
+{
+   int dim = mesh0.Dimension();
+   const int ne0 = mesh0.GetNE();
+   Vector centers(ne0*dim);
+   elems0.SetSize(0);
+   elems1.SetSize(0);
+   for (int i = 0; i < ne0; i++)
+   {
+      Vector center(dim);
+      mesh0.GetElementCenter(i,center);
+      for (int d=0; d<dim; d++)
+      {
+         centers[ne0*d + i] = center[d];
+      }
+   }
+   // Evaluate mesh 1 grid function.
+   FindPointsGSLIB finder;
+   finder.Setup(mesh1);
+   finder.FindPoints(centers);
+   Array<int> elem_map = finder.GetElem();
+   Array<int> code = finder.GetCode();
+   finder.FreeData();
+
+   for (int i = 0; i<code.Size(); i++)
+   {
+      if (!code[i]) 
+      {  // element is found
+         elems0.Append(i);
+         elems1.Append(elem_map[i]);
+      }
+   }
+}                              
 
 // Assuming there are no dublicated indices in the lists
 void GetCommonIndices(const Array<int> & list0, const Array<int> & list1, Array<int> & idx0, Array<int> & idx1)
@@ -27,24 +63,32 @@ Array2D<int> * GetDofMap(const FiniteElementSpace &fes0, const FiniteElementSpac
    Array<int> elems0, elems1;
    if (!elems0_ || !elems1_)
    {  // construct the element lists using gslib
-
+      FindPtsGetCommonElements(*fes0.GetMesh(), *fes1.GetMesh(), elems0, elems1);
    }
    else
    {
-      elems0 = *elems0_;
-      elems1 = *elems1_;
+      GetCommonIndices(*elems0_, *elems1_, elems0, elems1);   
    }
 
 
    cout << "Elems0: " ; elems0.Print(cout,10);
    cout << "Elems1: " ; elems1.Print(cout,10);
 
-   Array<int> idx0, idx1;
-   GetCommonIndices(elems0, elems1, idx0, idx1);
-
-   // cout << "idx0: " ; idx0.Print(cout, 10);
-   // cout << "idx1: " ; idx1.Print(cout, 10);
-
-
    return nullptr;
+}
+
+
+void PartitionFE(const FiniteElementSpace * fes, int nrsubmeshes, double ovlp, 
+                 Array<FiniteElementSpace*> & fespaces, 
+                 Array<Array<int> * > ElemMaps,
+                 Array<Array<int> * > DofMaps)
+{
+   Mesh * mesh = fes->GetMesh();
+   Array<Mesh *> meshes;
+   Array<Array<int> * > elems;
+
+
+   PartitionMesh(mesh,nrsubmeshes,ovlp,meshes,elems);
+
+   
 }

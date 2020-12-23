@@ -1,6 +1,98 @@
 
 #include "MeshPart.hpp"
 
+
+int get_angle_range(double angle, Array<double> angles)
+{
+   auto it = std::upper_bound(angles.begin(), angles.end(), angle);
+   return std::distance(angles.begin(),it)-1;
+}
+
+void SetMeshAttributes(Mesh * mesh, int subdivisions, double ovlp)
+{
+   Array<double> angles(2*subdivisions);
+
+   double amin = 0.0;
+   angles[0] = amin;
+   double amax = 270;
+
+   double length = (amax-amin)/subdivisions;
+   double range;
+   for (int i = 1; i<subdivisions; i++)
+   {
+      range = i*length;
+      angles[2*i-1] = range-ovlp;
+      angles[2*i] = range+ovlp;
+   }
+   angles[2* subdivisions-1] = amax;
+
+   int ne = mesh->GetNE();
+   int dim = mesh->Dimension();
+   // set element attributes
+   for (int i = 0; i < ne; ++i)
+   {
+      Element *el = mesh->GetElement(i);
+      // roughly the element center
+      Vector center(dim);
+      mesh->GetElementCenter(i,center);
+      double x = center[0];
+      double y = center[1];
+      double theta = (x == 0) ? M_PI/2.0 : atan(y/x);
+      int k = 0;
+      if (x<0)
+      {
+         k = 1;
+      }
+      else if (y<0)
+      {
+         k = 2;
+      }
+      theta += k*M_PI;
+      double thetad = theta * 180.0/M_PI;
+      // Find the angle relative to (0,0,z)
+      int attr = get_angle_range(thetad, angles) + 1;
+      el->SetAttribute(attr);
+   }
+   mesh->SetAttributes();
+   cout << "Max attributes " << mesh->attributes.Max() << endl;
+}
+
+
+// Partition mesh to nrsubmeshes (equally spaced in the azimuthal direction)
+void PartitionMesh(Mesh * mesh, int nrsubmeshes, double ovlp, 
+                   Array<Mesh*> SubMeshes, Array<Array<int> *>elems)
+{
+   cout << "Partitioning the global Mesh" << endl;
+
+   SetMeshAttributes(mesh,nrsubmeshes,ovlp);
+   int maxattr = mesh->attributes.Max();
+   // Produce the subdomains
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+   SubMeshes.SetSize(nrsubmeshes);
+   elems.SetSize(nrsubmeshes);
+   for (int i = 0; i<nrsubmeshes; i++)
+   {
+      Array<int> attr;
+      for (int j = 0; j<3; j++)
+      {
+         if (2*i+j >0 && 2*i+j <= maxattr) attr.Append(2*i+j);
+      }
+      Array<int> elem_map;
+      // attr.Print();
+      elems[i] = new Array<int>(0);
+      SubMeshes[i] = GetPartMesh(mesh,attr,*elems[i],true);
+      socketstream mesh_sock(vishost, visport);
+      mesh_sock << "parallel " << nrsubmeshes <<  " " << i << "\n";
+      mesh_sock.precision(8);
+      mesh_sock << "mesh\n" << *SubMeshes[i] << flush;
+      // cout << "nrelemes = " << mesh1->GetNE() << endl;
+   }
+
+}
+
+
+
 // remove/leave elements with attributes given by attr
 Mesh * GetPartMesh(const Mesh * mesh0, const Array<int> & attr_, Array<int> & elem_map,
  bool complement)
