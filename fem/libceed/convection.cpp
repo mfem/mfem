@@ -34,7 +34,7 @@ CeedPAConvectionIntegrator::CeedPAConvectionIntegrator(
                "case not supported");
    int dim = mesh.Dimension();
    ConvectionContext ctx;
-   InitCeedVecCoeff(Q, mesh, irm, coeff, ctx);
+   InitCeedCoeff(Q, mesh, irm, coeff, ctx);
    ctx.alpha = alpha;
    bool const_coeff = coeff->IsConstant();
    std::string build_func = const_coeff ? ":f_build_conv_const" : ":f_build_conv_quad";
@@ -62,7 +62,7 @@ CeedMFConvectionIntegrator::CeedMFConvectionIntegrator(
 #ifdef MFEM_USE_CEED
    Mesh &mesh = *fes.GetMesh();
    ConvectionContext ctx;
-   InitCeedVecCoeff(Q, mesh, irm, coeff, ctx);
+   InitCeedCoeff(Q, mesh, irm, coeff, ctx);
    ctx.alpha = alpha;
    bool const_coeff = coeff->IsConstant();
    std::string apply_func = const_coeff ? ":f_apply_conv_mf_const" : ":f_apply_conv_mf_quad";
