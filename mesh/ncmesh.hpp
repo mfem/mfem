@@ -856,7 +856,7 @@ protected: // implementation
    /// Load the "coordinates" section of the mesh file.
    void LoadCoordinates(std::istream &input);
 
-   /// Count root elements and intialize root_state.
+   /// Count root elements and initialize root_state.
    void InitRootElements();
    /// Return the index of the last top-level node plus one.
    int CountTopLevelNodes() const;
