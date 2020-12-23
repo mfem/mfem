@@ -43,7 +43,7 @@ CeedPANLConvectionIntegrator::CeedPANLConvectionIntegrator(
                             EvalMode::Interp
                            };
    NLConvectionContext ctx;
-   InitCeedCoeff(Q, mesh, irm, coeff_type, coeff, ctx);
+   InitCeedCoeff(Q, mesh, irm, coeff, ctx);
    Assemble(convOp, ctx);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
@@ -68,7 +68,7 @@ CeedMFNLConvectionIntegrator::CeedMFNLConvectionIntegrator(
                             EvalMode::Interp
                            };
    NLConvectionContext ctx;
-   InitCeedCoeff(Q, mesh, irm, coeff_type, coeff, ctx);
+   InitCeedCoeff(Q, mesh, irm, coeff, ctx);
    Assemble(convOp, ctx);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
