@@ -44,7 +44,7 @@ CeedPAConvectionIntegrator::CeedPAConvectionIntegrator(
                             EvalMode::Interp
                            };
    ConvectionContext ctx;
-   InitCeedVecCoeff(Q, mesh, irm, coeff_type, coeff, ctx);
+   InitCeedVecCoeff(Q, mesh, irm, coeff, ctx);
    ctx.alpha = alpha;
    Assemble(convOp, ctx);
 #else
@@ -71,7 +71,7 @@ CeedMFConvectionIntegrator::CeedMFConvectionIntegrator(
                             EvalMode::Interp
                            };
    ConvectionContext ctx;
-   InitCeedVecCoeff(Q, mesh, irm, coeff_type, coeff, ctx);
+   InitCeedVecCoeff(Q, mesh, irm, coeff, ctx);
    ctx.alpha = alpha;
    Assemble(convOp, ctx);
 #else

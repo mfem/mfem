@@ -41,7 +41,7 @@ CeedPAMassIntegrator::CeedPAMassIntegrator(const FiniteElementSpace &fes,
                             EvalMode::Interp
                            };
    MassContext ctx;
-   InitCeedCoeff(Q, mesh, irm, coeff_type, coeff, ctx);
+   InitCeedCoeff(Q, mesh, irm, coeff, ctx);
    Assemble(massOp, ctx);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
@@ -65,7 +65,7 @@ CeedMFMassIntegrator::CeedMFMassIntegrator(const FiniteElementSpace &fes,
                             EvalMode::Interp
                            };
    MassContext ctx;
-   InitCeedCoeff(Q, mesh, irm, coeff_type, coeff, ctx);
+   InitCeedCoeff(Q, mesh, irm, coeff, ctx);
    Assemble(massOp, ctx);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
@@ -73,4 +73,3 @@ CeedMFMassIntegrator::CeedMFMassIntegrator(const FiniteElementSpace &fes,
 }
 
 } // namespace mfem
-
