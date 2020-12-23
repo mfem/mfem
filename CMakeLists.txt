@@ -9,7 +9,8 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-cmake_minimum_required(VERSION 2.8.11)
+# The variable CMAKE_CXX_STANDARD and related were introduced in CMake v3.1
+cmake_minimum_required(VERSION 3.1)
 set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/user.cmake" CACHE PATH
   "Path to optional user configuration file.")
 
