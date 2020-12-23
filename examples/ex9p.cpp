@@ -160,7 +160,7 @@ public:
       linear_solver.SetRelTol(1e-9);
       linear_solver.SetAbsTol(0.0);
       linear_solver.SetMaxIter(100);
-      linear_solver.SetPrintLevel(1);
+      linear_solver.SetPrintLevel(0);
       linear_solver.SetPreconditioner(*prec);
 
       M.GetDiag(M_diag);
