@@ -32,7 +32,7 @@ CeedPAMassIntegrator::CeedPAMassIntegrator(const FiniteElementSpace &fes,
                "case not supported");
    MassContext ctx;
    InitCeedCoeff(Q, mesh, irm, coeff, ctx);
-   bool const_coeff = IsConstantCeedCoeff(coeff);
+   bool const_coeff = coeff->IsConstant();
    std::string build_func = const_coeff ? ":f_build_mass_const" : ":f_build_mass_quad";
    CeedQFunctionUser build_qf = const_coeff ? f_build_mass_const : f_build_mass_quad;
    CeedPAOperator massOp = {fes, irm,
@@ -57,7 +57,7 @@ CeedMFMassIntegrator::CeedMFMassIntegrator(const FiniteElementSpace &fes,
    Mesh &mesh = *fes.GetMesh();
    MassContext ctx;
    InitCeedCoeff(Q, mesh, irm, coeff, ctx);
-   bool const_coeff = IsConstantCeedCoeff(coeff);
+   bool const_coeff = coeff->IsConstant();
    std::string apply_func = const_coeff ? ":f_apply_mass_mf_const" : ":f_apply_mass_mf_quad";
    CeedQFunctionUser apply_qf = const_coeff ? f_apply_mass_mf_const : f_apply_mass_mf_quad;
    CeedMFOperator massOp = {fes, irm,

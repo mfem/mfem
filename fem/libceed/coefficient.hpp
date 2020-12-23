@@ -28,6 +28,7 @@ class GridFunction;
 
 struct CeedCoeff
 {
+   virtual bool IsConstant() const { return true; }
    virtual ~CeedCoeff() { }
 };
 
@@ -36,6 +37,7 @@ struct CeedVariableCoeff : CeedCoeff
    CeedVector coeffVector = nullptr;
    CeedEvalMode emode;
    CeedVariableCoeff(CeedEvalMode emode_) : emode(emode_) { }
+   virtual bool IsConstant() const override { return false; }
    ~CeedVariableCoeff()
    {
       CeedVectorDestroy(&coeffVector);
@@ -57,11 +59,6 @@ struct CeedQuadCoeff : CeedVariableCoeff
    CeedElemRestriction restr;
    CeedQuadCoeff(int ncomp_) : CeedVariableCoeff(CEED_EVAL_NONE), ncomp(ncomp_) { }
 };
-
-bool IsConstantCeedCoeff(CeedCoeff *coeff)
-{
-   return (dynamic_cast<CeedVariableCoeff*>(coeff) == NULL);
-}
 
 class Mesh;
 class IntegrationRule;

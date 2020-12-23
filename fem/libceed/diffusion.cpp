@@ -34,7 +34,7 @@ CeedPADiffusionIntegrator::CeedPADiffusionIntegrator(
    int dim = mesh.Dimension();
    DiffusionContext ctx;
    InitCeedCoeff(Q, mesh, irm, coeff, ctx);
-   bool const_coeff = IsConstantCeedCoeff(coeff);
+   bool const_coeff = coeff->IsConstant();
    std::string build_func = const_coeff ? ":f_build_diff_const" : ":f_build_diff_quad";
    CeedQFunctionUser build_qf = const_coeff ? f_build_diff_const : f_build_diff_quad;
    CeedPAOperator diffOp = {fes, irm,
@@ -60,7 +60,7 @@ CeedMFDiffusionIntegrator::CeedMFDiffusionIntegrator(
    Mesh &mesh = *fes.GetMesh();
    DiffusionContext ctx;
    InitCeedCoeff(Q, mesh, irm, coeff, ctx);
-   bool const_coeff = IsConstantCeedCoeff(coeff);
+   bool const_coeff = coeff->IsConstant();
    std::string apply_func = const_coeff ? ":f_apply_diff_mf_const" : ":f_apply_diff_mf_quad";
    CeedQFunctionUser apply_qf = const_coeff ? f_apply_diff_mf_const : f_apply_diff_mf_quad;
    CeedMFOperator diffOp = {fes, irm,
