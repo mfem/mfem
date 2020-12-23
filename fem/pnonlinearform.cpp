@@ -117,7 +117,9 @@ Operator &ParNonlinearForm::GetGradient(const Vector &x) const
    }
    else
    {
-      MFEM_ABORT("TODO: assemble contributions from shared face terms");
+      dA.MakeSquareBlockDiag(pfes->GetComm(), pfes->GlobalVSize(),
+                             pfes->GetDofOffsets(), Grad);
+      //MFEM_ABORT("TODO: assemble contributions from shared face terms");
    }
 
    // TODO - construct Dof_TrueDof_Matrix directly in the pGrad format

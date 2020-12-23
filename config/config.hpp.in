@@ -93,12 +93,20 @@
 
 // Enable MFEM functionality based on the SuperLU library.
 // #define MFEM_USE_SUPERLU
+// #define MFEM_USE_SUPERLU5
+
+// Enable MFEM functionality based on the MUMPS library.
+// #define MFEM_USE_MUMPS
+// #define MFEM_MUMPS_VERSION @MFEM_MUMPS_VERSION@
 
 // Enable MFEM functionality based on the STRUMPACK library.
 // #define MFEM_USE_STRUMPACK
 
 // Enable MFEM features based on the Ginkgo library
 // #define MFEM_USE_GINKGO
+
+// Enable MFEM functionality based on the AmgX library.
+// #define MFEM_USE_AMGX
 
 // Enable secure socket streams based on the GNUTLS library
 // #define MFEM_USE_GNUTLS
@@ -162,5 +170,8 @@
 // Macro defined when PUMI is built with support for the Simmetrix SimModSuite
 // library.
 // #define MFEM_USE_SIMMETRIX
+
+// Enable interface to the MKL CPardiso library.
+// #define MFEM_USE_MKL_CPARDISO
 
 #endif // MFEM_CONFIG_HEADER

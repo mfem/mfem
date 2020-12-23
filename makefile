@@ -10,7 +10,7 @@
 # CONTRIBUTING.md for details.
 
 # The current MFEM version as an integer, see also `CMakeLists.txt`.
-MFEM_VERSION = 40101
+MFEM_VERSION = 40201
 MFEM_VERSION_STRING = $(shell printf "%06d" $(MFEM_VERSION) | \
   sed -e 's/^0*\(.*.\)\(..\)\(..\)$$/\1.\2.\3/' -e 's/\.0/./g' -e 's/\.0$$//')
 
@@ -113,7 +113,7 @@ $(if $(word 2,$(SRC)),$(error Spaces in SRC = "$(SRC)" are not supported))
 MFEM_GIT_STRING = $(shell [ -d $(MFEM_DIR)/.git ] && git -C $(MFEM_DIR) \
    describe --all --long --abbrev=40 --dirty --always 2> /dev/null)
 
-EXAMPLE_SUBDIRS = sundials petsc pumi hiop ginkgo
+EXAMPLE_SUBDIRS = amgx ginkgo hiop petsc pumi sundials superlu
 EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
@@ -168,7 +168,7 @@ $(call mfem-info, BLD       = $(BLD))
 
 # Include $(CONFIG_MK) unless some of the $(SKIP_INCLUDE_TARGETS) are given
 SKIP_INCLUDE_TARGETS = help config clean distclean serial parallel debug pdebug\
- cuda hip pcuda cudebug pcudebug hpc style
+ cuda hip pcuda phip cudebug hipdebug pcudebug phipdebug hpc style
 HAVE_SKIP_INCLUDE_TARGET = $(filter $(SKIP_INCLUDE_TARGETS),$(MAKECMDGOALS))
 ifeq (,$(HAVE_SKIP_INCLUDE_TARGET))
    $(call mfem-info, Including $(CONFIG_MK))
@@ -204,7 +204,7 @@ CXXFLAGS ?= $(OPTIM_FLAGS)
 # MPI configuration
 ifneq ($(MFEM_USE_MPI),YES)
    MFEM_HOST_CXX = $(CXX)
-   PKGS_NEED_MPI = SUPERLU STRUMPACK PETSC PUMI SLEPC
+   PKGS_NEED_MPI = SUPERLU MUMPS STRUMPACK PETSC PUMI SLEPC MKL_CPARDISO
    $(foreach mpidep,$(PKGS_NEED_MPI),$(if $(MFEM_USE_$(mpidep):NO=),\
      $(warning *** [MPI is OFF] setting MFEM_USE_$(mpidep) = NO)\
      $(eval override MFEM_USE_$(mpidep)=NO),))
@@ -236,9 +236,15 @@ endif
 
 # HIP configuration
 ifeq ($(MFEM_USE_HIP),YES)
+   ifeq ($(MFEM_USE_MPI),YES)
+      INCFLAGS += $(MPI_OPT)
+      ALL_LIBS += $(MPI_LIB)
+   endif
    MFEM_CXX ?= $(HIP_CXX)
-   ALL_LIBS += $(HIP_FLAGS)
-   # TODO: set XCOMPILER and XLINKER
+   MFEM_HOST_CXX := $(MFEM_CXX)
+   CXXFLAGS += $(HIP_FLAGS)
+   XLINKER   = $(HIP_XLINKER)
+   XCOMPILER = $(HIP_XCOMPILER)
    # HIP_OPT and HIP_LIB are added below
    # Compatibility test against MFEM_USE_CUDA
    ifeq ($(MFEM_USE_CUDA),YES)
@@ -259,9 +265,10 @@ ifeq ($(MFEM_USE_LEGACY_OPENMP),YES)
 endif
 
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
-MFEM_REQ_LIB_DEPS = SUPERLU METIS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE\
+MFEM_REQ_LIB_DEPS = SUPERLU MUMPS METIS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE\
  SUITESPARSE STRUMPACK GINKGO GNUTLS NETCDF PETSC SLEPC MPFR PUMI HIOP GSLIB\
- OCCA CEED RAJA UMPIRE
+ OCCA CEED RAJA UMPIRE MKL_CPARDISO AMGX
+
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 SLEPC_ERROR_MSG = $(if $(SLEPC_FOUND),,. SLEPC config not found: $(SLEPC_VARS))
 
@@ -317,15 +324,16 @@ endif
 
 # List of all defines that may be enabled in config.hpp and config.mk:
 MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
- MFEM_USE_METIS MFEM_USE_METIS_5 MFEM_DEBUG MFEM_USE_EXCEPTIONS\
- MFEM_USE_ZLIB MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE\
- MFEM_USE_OPENMP MFEM_USE_LEGACY_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE\
- MFEM_USE_SUNDIALS MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GINKGO\
- MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GNUTLS\
- MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_SLEPC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT\
- MFEM_USE_PUMI MFEM_USE_HIOP MFEM_USE_GSLIB MFEM_USE_CUDA MFEM_USE_HIP\
- MFEM_USE_OCCA MFEM_USE_CEED MFEM_USE_RAJA MFEM_USE_UMPIRE MFEM_USE_SIMD\
- MFEM_USE_ADIOS2 MFEM_SOURCE_DIR MFEM_INSTALL_DIR
+ MFEM_USE_METIS MFEM_USE_METIS_5 MFEM_DEBUG MFEM_USE_EXCEPTIONS MFEM_USE_ZLIB\
+ MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE MFEM_USE_OPENMP\
+ MFEM_USE_LEGACY_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS\
+ MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GINKGO MFEM_USE_SUPERLU\
+ MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC\
+ MFEM_USE_SLEPC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_PUMI\
+ MFEM_USE_HIOP MFEM_USE_GSLIB MFEM_USE_CUDA MFEM_USE_HIP MFEM_USE_OCCA\
+ MFEM_USE_CEED MFEM_USE_RAJA MFEM_USE_UMPIRE MFEM_USE_SIMD MFEM_USE_ADIOS2\
+ MFEM_USE_MKL_CPARDISO MFEM_USE_AMGX MFEM_USE_MUMPS MFEM_SOURCE_DIR\
+ MFEM_INSTALL_DIR
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_HOST_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS\
@@ -359,7 +367,7 @@ MFEM_INSTALL_DIR = $(abspath $(MFEM_PREFIX))
 # If we have 'config' target, export variables used by config/makefile
 ifneq (,$(filter config,$(MAKECMDGOALS)))
    export $(MFEM_DEFINES) MFEM_DEFINES $(MFEM_CONFIG_VARS) MFEM_CONFIG_VARS
-   export VERBOSE HYPRE_OPT PUMI_DIR
+   export VERBOSE HYPRE_OPT PUMI_DIR MUMPS_OPT
 endif
 
 # If we have 'install' target, export variables used by config/makefile
@@ -627,8 +635,10 @@ status info:
 	$(info MFEM_USE_MESQUITE      = $(MFEM_USE_MESQUITE))
 	$(info MFEM_USE_SUITESPARSE   = $(MFEM_USE_SUITESPARSE))
 	$(info MFEM_USE_SUPERLU       = $(MFEM_USE_SUPERLU))
+	$(info MFEM_USE_MUMPS         = $(MFEM_USE_MUMPS))
 	$(info MFEM_USE_STRUMPACK     = $(MFEM_USE_STRUMPACK))
 	$(info MFEM_USE_GINKGO        = $(MFEM_USE_GINKGO))
+	$(info MFEM_USE_AMGX          = $(MFEM_USE_AMGX))
 	$(info MFEM_USE_GNUTLS        = $(MFEM_USE_GNUTLS))
 	$(info MFEM_USE_NETCDF        = $(MFEM_USE_NETCDF))
 	$(info MFEM_USE_PETSC         = $(MFEM_USE_PETSC))
@@ -647,6 +657,7 @@ status info:
 	$(info MFEM_USE_UMPIRE        = $(MFEM_USE_UMPIRE))
 	$(info MFEM_USE_SIMD          = $(MFEM_USE_SIMD))
 	$(info MFEM_USE_ADIOS2        = $(MFEM_USE_ADIOS2))
+	$(info MFEM_USE_MKL_CPARDISO  = $(MFEM_USE_MKL_CPARDISO))
 	$(info MFEM_CXX               = $(value MFEM_CXX))
 	$(info MFEM_HOST_CXX          = $(value MFEM_HOST_CXX))
 	$(info MFEM_CPPFLAGS          = $(value MFEM_CPPFLAGS))
