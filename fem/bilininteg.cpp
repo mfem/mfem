@@ -353,7 +353,7 @@ void SumIntegrator::AssembleDiagonalMF(Vector &diag)
 }
 
 void SumIntegrator::AssembleEA(const FiniteElementSpace &fes, Vector &emat,
-                        const bool add)
+                               const bool add)
 {
    for (int i = 0; i < integrators.Size(); i++)
    {
@@ -2912,13 +2912,13 @@ NonconservativeDGTraceIntegrator::NonconservativeDGTraceIntegrator(
    {
       // Simplified case when a cancelation occurs and we can use one integrator
       AddIntegrator(new TransposeIntegrator(
-         new DGTraceIntegrator(rho, u, -sgn_a, b)));
+                       new DGTraceIntegrator(rho, u, -sgn_a, b)));
    }
    else
    {
       AddIntegrator(new DGTraceIntegrator(u, a-sgn_a, b));
       AddIntegrator(new TransposeIntegrator(
-         new DGTraceIntegrator(rho, u, -sgn_a, 0)));
+                       new DGTraceIntegrator(rho, u, -sgn_a, 0)));
    }
 }
 
