@@ -192,36 +192,21 @@ int main(int argc, char *argv[])
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
 
    double ovlerlap = 7.5; // in degrees;
+   // double ovlerlap = 0.5; // in degrees;
    int nrmeshes = 9;
 
-   Array<Array<int> *> ElemMaps, DofMaps;
+   Array<Array<int> *> ElemMaps, DofMaps0, DofMaps1;
    Array<FiniteElementSpace *> fespaces;
-   PartitionFE(fespace,nrmeshes,ovlerlap,fespaces, ElemMaps,DofMaps);
+   PartitionFE(fespace,nrmeshes,ovlerlap,fespaces, ElemMaps,DofMaps0, DofMaps1);
 
 
-   // Array<int> attr(1); 
-   // attr[0] = 2;
-   // Array<int> elem_map1;
-   // Mesh * mesh1 = GetPartMesh(mesh,attr, elem_map1,true);
-   // attr[0] = 3;
-   // Array<int> elem_map2;
-   // Mesh * mesh2 = GetPartMesh(mesh,attr, elem_map2,true);
-
-   // Array<int> elem_map0(mesh->GetNE());
-   // for (int i = 0; i<elem_map0.Size(); i++) { elem_map0[i] = i; }
-
-
-   // FiniteElementCollection *NDfec = new ND_FECollection(order, dim);
-   // FiniteElementSpace fes0(mesh, NDfec);
-   // FiniteElementSpace fes1(mesh1, NDfec);
-   // FiniteElementSpace fes2(mesh2, NDfec);
-
-   // // int a0[4] = {4,1,8,3}; Array<int> b0(a0,4);
-   // // int a1[5] = {3,1,4,5,9}; Array<int> b1(a1,5);
-   // // GetDofMap(fes0,fes1,&b1,&b0);
-   // GetDofMap(fes0,fes2);
-   // GetDofMap(fes0,fes2,&elem_map0,&elem_map2);
-
+   // Test local to global dof Maps
+   for (int i = 0; i<nrmeshes; i++)
+   {
+      DofMapTests(*fespaces[i],*fespace,*DofMaps0[i], *DofMaps1[i]);
+      // DofMapTests(*fespace,*fespaces[i], *DofMaps1[i], *DofMaps0[i]);
+      cin.get();
+   }
 
    // if (visualization)
    // {
@@ -628,10 +613,9 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E)
       double beta = k * r;
 
       // Bessel functions
-      complex<double> H0, H0_r, H0_rr, H0_rrr;
-      complex<double> H1, H1_r, H1_rr;
-      complex<double> H2, H2_r;
-      complex<double> H3;
+      complex<double> H0, H0_r, H0_rr;
+      complex<double> H1; 
+      complex<double> H2;
       H0 = jn(0,beta) + zi * yn(0,beta);
       H1 = jn(1,beta) + zi * yn(1,beta);
       H2 = jn(2,beta) + zi * yn(2,beta);
@@ -646,7 +630,7 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E)
       double r_xy = -(r_x / r) * r_y;
       double r_xx = (1.0 / r) * (1.0 - r_x * r_x);
 
-      complex<double> val, val_x, val_xx, val_xxx, val_xy, val_xyy;
+      complex<double> val, val_xx, val_xy;
       val = 0.25 * zi * H0;
       val_xx = 0.25 * zi * (r_xx * H0_r + r_x * r_x * H0_rr);
       val_xy = 0.25 * zi * (r_xy * H0_r + r_x * r_y * H0_rr);

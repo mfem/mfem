@@ -57,42 +57,6 @@ void SetMeshAttributes(Mesh * mesh, int subdivisions, double ovlp)
    cout << "Max attributes " << mesh->attributes.Max() << endl;
 }
 
-
-// Partition mesh to nrsubmeshes (equally spaced in the azimuthal direction)
-void PartitionMesh(Mesh * mesh, int nrsubmeshes, double ovlp, 
-                   Array<Mesh*> SubMeshes, Array<Array<int> *>elems)
-{
-   cout << "Partitioning the global Mesh" << endl;
-
-   SetMeshAttributes(mesh,nrsubmeshes,ovlp);
-   int maxattr = mesh->attributes.Max();
-   // Produce the subdomains
-   char vishost[] = "localhost";
-   int  visport   = 19916;
-   SubMeshes.SetSize(nrsubmeshes);
-   elems.SetSize(nrsubmeshes);
-   for (int i = 0; i<nrsubmeshes; i++)
-   {
-      Array<int> attr;
-      for (int j = 0; j<3; j++)
-      {
-         if (2*i+j >0 && 2*i+j <= maxattr) attr.Append(2*i+j);
-      }
-      Array<int> elem_map;
-      // attr.Print();
-      elems[i] = new Array<int>(0);
-      SubMeshes[i] = GetPartMesh(mesh,attr,*elems[i],true);
-      socketstream mesh_sock(vishost, visport);
-      mesh_sock << "parallel " << nrsubmeshes <<  " " << i << "\n";
-      mesh_sock.precision(8);
-      mesh_sock << "mesh\n" << *SubMeshes[i] << flush;
-      // cout << "nrelemes = " << mesh1->GetNE() << endl;
-   }
-
-}
-
-
-
 // remove/leave elements with attributes given by attr
 Mesh * GetPartMesh(const Mesh * mesh0, const Array<int> & attr_, Array<int> & elem_map,
  bool complement)
@@ -141,7 +105,6 @@ Mesh * GetPartMesh(const Mesh * mesh0, const Array<int> & attr_, Array<int> & el
       int elem_attr = mesh0->GetElement(e)->GetAttribute();
       if (!marker[elem_attr-1]) { num_elements++; }
    }
-
 
    Mesh * mesh = new Mesh(mesh0->Dimension(), mesh0->GetNV(), num_elements);
    // Copy vertices
@@ -196,6 +159,37 @@ Mesh * GetPartMesh(const Mesh * mesh0, const Array<int> & attr_, Array<int> & el
          nodes->SetSubVector(vdofs,x);
       }
    }
-   
    return mesh;
+}
+
+// Partition mesh to nrsubmeshes (equally spaced in the azimuthal direction)
+void PartitionMesh(Mesh * mesh, int nrsubmeshes, double ovlp, 
+                   Array<Mesh*> & SubMeshes, Array<Array<int> *> & elems)
+{
+   cout << "Partitioning the global Mesh" << endl;
+
+   SetMeshAttributes(mesh,nrsubmeshes,ovlp);
+   int maxattr = mesh->attributes.Max();
+   // Produce the subdomains
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+   SubMeshes.SetSize(nrsubmeshes);
+   elems.SetSize(nrsubmeshes);
+   for (int i = 0; i<nrsubmeshes; i++)
+   {
+      Array<int> attr;
+      for (int j = 0; j<3; j++)
+      {
+         if (2*i+j >0 && 2*i+j <= maxattr) attr.Append(2*i+j);
+      }
+      Array<int> elem_map;
+      // attr.Print();
+      elems[i] = new Array<int>(0);
+      SubMeshes[i] = GetPartMesh(mesh,attr,*elems[i],true);
+      socketstream mesh_sock(vishost, visport);
+      mesh_sock << "parallel " << nrsubmeshes <<  " " << i << "\n";
+      mesh_sock.precision(8);
+      mesh_sock << "mesh\n" << *SubMeshes[i] << flush;
+      // cout << "nrelemes = " << mesh1->GetNE() << endl;
+   }
 }

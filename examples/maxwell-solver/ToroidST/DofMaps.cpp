@@ -2,6 +2,27 @@
 #include "DofMaps.hpp"
 #include "MeshPart.hpp"
 
+
+void E_exact(const Vector &x, Vector &E)
+{
+   double kappa = 1.0;
+   int dim = x.Size();
+   if (dim == 3)
+   {
+      E(0) = sin(kappa * x(1));
+      E(1) = sin(kappa * x(2));
+      E(2) = sin(kappa * x(0));
+   }
+   else
+   {
+      E(0) = sin(kappa * x(1));
+      E(1) = sin(kappa * x(0));
+      if (x.Size() == 3) { E(2) = 0.0; }
+   }
+}
+
+
+
 void FindPtsGetCommonElements(Mesh & mesh0, Mesh & mesh1, 
                               Array<int> & elems0, Array<int> & elems1)
 {
@@ -55,9 +76,10 @@ void GetCommonIndices(const Array<int> & list0, const Array<int> & list1, Array<
    }
 }
 
-// Array2D<int> DofMap (row0: the fes0 index (Domain))
-//                     (row1: the fes1 index (Range))
-Array2D<int> * GetDofMap(const FiniteElementSpace &fes0, const FiniteElementSpace &fes1, 
+// dofs0 the fes0 indices (Domain)
+// dofs1 the fes1 indices (Range)
+void GetDofMaps(const FiniteElementSpace &fes0, const FiniteElementSpace &fes1, 
+               Array<int> & dofs0, Array<int> & dofs1,
                const Array<int> * elems0_, const Array<int> * elems1_)
 {
    Array<int> elems0, elems1;
@@ -70,25 +92,99 @@ Array2D<int> * GetDofMap(const FiniteElementSpace &fes0, const FiniteElementSpac
       GetCommonIndices(*elems0_, *elems1_, elems0, elems1);   
    }
 
-
-   cout << "Elems0: " ; elems0.Print(cout,10);
-   cout << "Elems1: " ; elems1.Print(cout,10);
-
-   return nullptr;
+   // construct dof maps fes0->fes1 (possibly not a subspace)
+   int nel = elems0.Size();
+   MFEM_VERIFY(elems1.Size() == nel, "Inconsistent number of elements");
+   Array<int> dof_marker(fes0.GetTrueVSize()); dof_marker = 0;
+   for (int ie = 0; ie<nel; ie++)
+   {
+      int iel0 = elems0[ie];
+      int iel1 = elems1[ie];
+      Array<int> ElemDofs0;
+      Array<int> ElemDofs1;
+      fes0.GetElementDofs(iel0,ElemDofs0);
+      fes1.GetElementDofs(iel1,ElemDofs1);
+      int ndof = ElemDofs0.Size();
+      for (int i = 0; i<ndof; i++)
+      {
+         int dof0_ = ElemDofs0[i];
+         int dof1_ = ElemDofs1[i];
+         int dof0 = (dof0_ >= 0) ? dof0_ : - dof0_ - 1;
+         int dof1 = (dof1_ >= 0) ? dof1_ : - dof1_ - 1;
+         if (dof_marker[dof0]) continue;
+         dofs0.Append(dof0);
+         dofs1.Append(dof1);
+         dof_marker[dof0] = 1;
+      }
+   }
 }
 
 
 void PartitionFE(const FiniteElementSpace * fes, int nrsubmeshes, double ovlp, 
                  Array<FiniteElementSpace*> & fespaces, 
-                 Array<Array<int> * > ElemMaps,
-                 Array<Array<int> * > DofMaps)
+                 Array<Array<int> * > & ElemMaps,
+                 Array<Array<int> * > & DofMaps0, Array<Array<int> * > & DofMaps1)
 {
    Mesh * mesh = fes->GetMesh();
    Array<Mesh *> meshes;
-   Array<Array<int> * > elems;
+
+   PartitionMesh(mesh,nrsubmeshes,ovlp,meshes,ElemMaps);
+
+   // DofMaps from subdomains to global mesh
+
+   const FiniteElementCollection * fec = fes->FEColl();
+   Array<int> GlobalElems(mesh->GetNE());
+   for (int i = 0; i<GlobalElems.Size(); i++) GlobalElems[i] = i;
+
+   fespaces.SetSize(nrsubmeshes);
+   DofMaps0.SetSize(nrsubmeshes);
+   DofMaps1.SetSize(nrsubmeshes);
+   for (int i = 0; i<nrsubmeshes; i++)
+   {
+      fespaces[i] = new FiniteElementSpace(meshes[i],fec);
+      DofMaps0[i] = new Array<int>();
+      DofMaps1[i] = new Array<int>();
+      GetDofMaps(*fespaces[i],*fes,*DofMaps0[i], *DofMaps1[i], ElemMaps[i], &GlobalElems);
+   }
+}
 
 
-   PartitionMesh(mesh,nrsubmeshes,ovlp,meshes,elems);
+void DofMapTests(FiniteElementSpace &fes0, FiniteElementSpace &fes1,
+                 const Array<int> & dmap0, const Array<int> & dmap1)
+{
 
-   
+   Mesh * mesh0=fes0.GetMesh();
+   Mesh * mesh1=fes1.GetMesh();
+   int tsize0 = fes0.GetTrueVSize();
+   int tsize1 = fes1.GetTrueVSize();
+   ComplexGridFunction gf0(&fes0);
+   ComplexGridFunction gf1(&fes1); gf1 = 0.0;
+   int dim = mesh0->Dimension();
+   // Vector vone(dim); vone = 1.0;
+   // VectorConstantCoefficient one(vone);
+   VectorFunctionCoefficient cf(dim,E_exact);
+   gf0.ProjectCoefficient(cf,cf);
+
+   for (int i = 0; i< dmap0.Size(); i++)
+   {
+      int j = dmap0[i];   
+      int k = dmap1[i];   
+      gf1[k] = gf0[j];
+      gf1[k+tsize1] = gf0[j+tsize0];
+   }
+
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+
+   socketstream sol_sock0(vishost, visport);
+   sol_sock0.precision(8);
+   sol_sock0 << "solution\n" << *mesh0 << gf0.real() 
+            //  << "valuerange -1 1 \n"
+             << "window_title ' gf_0 ' " << flush;                     
+
+   socketstream sol_sock1(vishost, visport);
+   sol_sock1.precision(8);
+   sol_sock1 << "solution\n" << *mesh1 << gf1.real() 
+            //  << "valuerange -1 1 \n"
+             << "window_title ' gf_1 ' " << flush;  
 }
