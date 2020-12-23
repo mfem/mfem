@@ -43,7 +43,7 @@ CeedPADiffusionIntegrator::CeedPADiffusionIntegrator(
                             EvalMode::Grad
                            };
    DiffusionContext ctx;
-   InitCeedCoeff(Q, mesh, irm, coeff_type, coeff, ctx);
+   InitCeedCoeff(Q, mesh, irm, coeff, ctx);
    Assemble(diffOp, ctx);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
@@ -68,7 +68,7 @@ CeedMFDiffusionIntegrator::CeedMFDiffusionIntegrator(
                             EvalMode::Grad
                            };
    DiffusionContext ctx;
-   InitCeedCoeff(Q, mesh, irm, coeff_type, coeff, ctx);
+   InitCeedCoeff(Q, mesh, irm, coeff, ctx);
    Assemble(diffOp, ctx);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
