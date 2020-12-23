@@ -2171,6 +2171,14 @@ public:
                                          ElementTransformation &Trans);
 };
 
+/// alpha (u, q . grad u), transpose of ConvectionIntegrator
+class ConservativeConvectionIntegrator : public TransposeIntegrator
+{
+public:
+   ConservativeConvectionIntegrator(VectorCoefficient &q, double a = 1.0)
+      : TransposeIntegrator(new ConvectionIntegrator(q, a)) { }
+};
+
 /// alpha (q . grad u, v) using the "group" FE discretization
 class GroupConvectionIntegrator : public BilinearFormIntegrator
 {
@@ -2724,11 +2732,23 @@ public:
 /** Integrator for the DG form:
     alpha < rho_u (u.n) {v},[w] > + beta < rho_u |u.n| [v],[w] >,
     where v and w are the trial and test variables, respectively, and rho/u are
-    given scalar/vector coefficients. The vector coefficient, u, is assumed to
-    be continuous across the faces and when given the scalar coefficient, rho,
-    is assumed to be discontinuous. The integrator uses the upwind value of rho,
-    rho_u, which is value from the side into which the vector coefficient, u,
-    points. */
+    given scalar/vector coefficients. {v} represents the average value of v on
+    the face and [v] is the jump such that {v}=(v1+v2)/2 and [v]=(v1-v2) for the
+    face between elements 1 and 2. For boundary elements, v2=0. The vector
+    coefficient, u, is assumed to be continuous across the faces and when given
+    the scalar coefficient, rho, is assumed to be discontinuous. The integrator
+    uses the upwind value of rho, rho_u, which is value from the side into which
+    the vector coefficient, u, points.
+
+    When combined with ConservativeConvectionIntegrator integrator, the
+    coefficients alpha=1.0, beta=0.5 can be used to implement the upwind flux
+    and outflow boundary conditions in conservative form.
+
+    For the non-conservative formulation of convection using
+    ConvectionIntegrator, the transpose of this form with alpha=-1.0, beta=0.5
+    can be used to implement the upwind flux, see
+    NonconservativeDGTraceIntegrator and ex9 and ex9p.
+    */
 class DGTraceIntegrator : public BilinearFormIntegrator
 {
 protected:
@@ -2783,6 +2803,24 @@ public:
 
 private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);
+};
+
+/** Integrator that represents the transpose of DGTraceIntegrator, i.e.
+    alpha < rho_u (u.n) [v],{w} > + beta < rho_u |u.n| [v],[w] >,
+    where the notation is the same as in DGTraceIntegrator.
+
+    This integrator can be used with alpha=-1.0, beta=0.5, together with
+    ConvectionIntegrator to implement an upwind DG discretization in
+    non-conservative form, see ex9 and ex9p. */
+class NonconservativeDGTraceIntegrator : public TransposeIntegrator
+{
+public:
+   NonconservativeDGTraceIntegrator(VectorCoefficient &u_, double a, double b)
+      : TransposeIntegrator(new DGTraceIntegrator(u_, a, b)) { }
+
+   NonconservativeDGTraceIntegrator(Coefficient &rho_, VectorCoefficient &u_,
+                                    double a, double b)
+      : TransposeIntegrator(new DGTraceIntegrator(rho_, u_, a, b)) { }
 };
 
 /** Integrator for the DG form:
