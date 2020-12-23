@@ -827,7 +827,8 @@ function(mfem_export_mk_files)
         set(MFEM_EXT_LIBS "${lib} ${MFEM_EXT_LIBS}")
       elseif ("${lib}" MATCHES "lib-NOTFOUND" AND
               NOT "${libname}" MATCHES "can" AND
-              NOT "${libname}" MATCHES "pthread")
+              NOT "${libname}" MATCHES "pthread" AND
+              NOT "${libname}" MATCHES "egads")
         message(FATAL_ERROR "SCOREC lib ${libname} not found")
       endif()
     endforeach()
