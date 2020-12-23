@@ -119,8 +119,14 @@ protected:
 
     /// Specialized version of Mult() for BlockVector%s
     /// Block L-Vector to Block L-Vector
-    //void MultBlocked(const BlockVector &bx, BlockVector &by) const;
     void MultBlocked(const BlockVector &bx, const BlockVector &dx, BlockVector &by) const;
+
+    /// Specialized version of Mult() for BlockVector%s
+    /// Block L-Vector to Block L-Vector
+    /// bx - state vector, ax - adjoint vector, dx - parametric fields
+    /// dy = ax' d(residual(bx))/d(dx)
+    void MultPrmBlocked(const BlockVector &bx, const BlockVector & ax, const BlockVector &dx, BlockVector &dy) const;
+
 
     /// Specialized version of GetGradient() for BlockVector
     //void ComputeGradientBlocked(const BlockVector &bx) const;
@@ -190,6 +196,10 @@ public:
    /// Method is only called in serial, the parallel version calls MultBlocked
    /// directly.
    virtual void Mult(const Vector &x, Vector &y) const;
+
+   /// Method is only called in serial, the parallel version calls MultBlocked
+   /// directly.
+   virtual void PrmMult(const Vector &x, Vector &t) const;
 
    /// Method is only called in serial, the parallel version calls
    /// GetGradientBlocked directly.

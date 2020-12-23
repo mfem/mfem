@@ -327,10 +327,238 @@ void PrmBlockNonlinearForm::SetPrmEssentialBC(const Array<Array<int> *> &bdr_att
     }
 }
 
+void PrmBlockNonlinearForm::MultPrmBlocked(const BlockVector &bx,
+                                           const BlockVector &ax,
+                                           const BlockVector &dx,
+                                           BlockVector &dy) const
+{
+    // state fields
+    Array<Array<int> *>vdofs(fes.Size());
+    Array<Array<int> *>vdofs2(fes.Size());
+    Array<Vector *> el_x(fes.Size());
+    Array<const Vector *> el_x_const(fes.Size());
+    //Array<Vector *> el_y(fes.Size());
+    Array<const FiniteElement *> fe(fes.Size());
+    Array<const FiniteElement *> fe2(fes.Size());
+
+    ElementTransformation *T;
+
+    // adjoint fields
+    Array<Vector *> ael_x(fes.Size());
+    Array<const Vector *> ael_x_const(fes.Size());
+
+    // parametric fields
+    Array<Array<int> *>prmvdofs(prmfes.Size());
+    Array<Array<int> *>prmvdofs2(prmfes.Size());
+    Array<Vector *> prmel_x(prmfes.Size());
+    Array<const Vector *> prmel_x_const(prmfes.Size());
+    Array<Vector *> prmel_y(prmfes.Size());
+    Array<const FiniteElement *> prmfe(prmfes.Size());
+    Array<const FiniteElement *> prmfe2(prmfes.Size());
+
+    dy = 0.0;
+
+    for (int s=0; s<fes.Size(); ++s)
+    {
+       el_x_const[s] = el_x[s] = new Vector();
+       //el_y[s] = new Vector();
+       vdofs[s] = new Array<int>;
+       vdofs2[s] = new Array<int>;
+
+       ael_x_const[s] = ael_x[s] = new Vector();
+    }
+
+    for (int s=0; s<prmfes.Size(); ++s)
+    {
+       prmel_x_const[s] = prmel_x[s] = new Vector();
+       prmel_y[s] = new Vector();
+       prmvdofs[s] = new Array<int>;
+       prmvdofs2[s] = new Array<int>;
+    }
+
+    if (dnfi.Size())
+    {
+       for (int i = 0; i < fes[0]->GetNE(); ++i)
+       {
+          T = fes[0]->GetElementTransformation(i);
+          for (int s = 0; s < fes.Size(); ++s)
+          {
+             fes[s]->GetElementVDofs(i, *(vdofs[s]));
+             fe[s] = fes[s]->GetFE(i);
+             bx.GetBlock(s).GetSubVector(*(vdofs[s]), *el_x[s]);
+             ax.GetBlock(s).GetSubVector(*(vdofs[s]), *ael_x[s]);
+          }
+
+          for (int s = 0; s < prmfes.Size(); ++s)
+          {
+             prmfes[s]->GetElementVDofs(i, *(prmvdofs[s]));
+             prmfe[s] = prmfes[s]->GetFE(i);
+             dx.GetBlock(s).GetSubVector(*(prmvdofs[s]), *prmel_x[s]);
+          }
+
+
+          for (int k = 0; k < dnfi.Size(); ++k)
+          {
+             dnfi[k]->AssemblePrmElementVector(fe,prmfe, *T,
+                                               el_x_const, ael_x_const, prmel_x_const,
+                                               prmel_y);
+
+             for (int s=0; s<prmfes.Size(); ++s)
+             {
+                if (prmel_y[s]->Size() == 0) { continue; }
+                dy.GetBlock(s).AddElementVector(*(prmvdofs[s]), *prmel_y[s]);
+             }
+          }
+       }
+    }
+
+    if (fnfi.Size())
+    {
+       Mesh *mesh = fes[0]->GetMesh();
+       FaceElementTransformations *tr;
+
+       for (int i = 0; i < mesh->GetNumFaces(); ++i)
+       {
+          tr = mesh->GetInteriorFaceTransformations(i);
+          if (tr != NULL)
+          {
+             for (int s=0; s<fes.Size(); ++s)
+             {
+                fe[s] = fes[s]->GetFE(tr->Elem1No);
+                fe2[s] = fes[s]->GetFE(tr->Elem2No);
+
+                fes[s]->GetElementVDofs(tr->Elem1No, *(vdofs[s]));
+                fes[s]->GetElementVDofs(tr->Elem2No, *(vdofs2[s]));
+
+                vdofs[s]->Append(*(vdofs2[s]));
+
+                bx.GetBlock(s).GetSubVector(*(vdofs[s]), *el_x[s]);
+                ax.GetBlock(s).GetSubVector(*(vdofs[s]), *ael_x[s]);
+             }
+
+             for (int s=0; s<prmfes.Size(); ++s)
+             {
+                prmfe[s] = prmfes[s]->GetFE(tr->Elem1No);
+                prmfe2[s] = prmfes[s]->GetFE(tr->Elem2No);
+
+                prmfes[s]->GetElementVDofs(tr->Elem1No, *(prmvdofs[s]));
+                prmfes[s]->GetElementVDofs(tr->Elem2No, *(prmvdofs2[s]));
+
+                prmvdofs[s]->Append(*(prmvdofs2[s]));
+
+                dx.GetBlock(s).GetSubVector(*(prmvdofs[s]), *prmel_x[s]);
+             }
+
+             for (int k = 0; k < fnfi.Size(); ++k)
+             {
+
+                fnfi[k]->AssemblePrmFaceVector(fe, fe2, prmfe, prmfe2, *tr,
+                                               el_x_const, ael_x_const, prmel_x_const, prmel_y);
+
+                for (int s=0; s<prmfes.Size(); ++s)
+                {
+                   if (prmel_y[s]->Size() == 0) { continue; }
+                   dy.GetBlock(s).AddElementVector(*(prmvdofs[s]), *prmel_y[s]);
+                }
+             }
+          }
+       }
+    }
+
+    if (bfnfi.Size())
+    {
+       Mesh *mesh = fes[0]->GetMesh();
+       FaceElementTransformations *tr;
+       // Which boundary attributes need to be processed?
+       Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+                                  mesh->bdr_attributes.Max() : 0);
+       bdr_attr_marker = 0;
+       for (int k = 0; k < bfnfi.Size(); ++k)
+       {
+          if (bfnfi_marker[k] == NULL)
+          {
+             bdr_attr_marker = 1;
+             break;
+          }
+          Array<int> &bdr_marker = *bfnfi_marker[k];
+          MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                      "invalid boundary marker for boundary face integrator #"
+                      << k << ", counting from zero");
+          for (int i = 0; i < bdr_attr_marker.Size(); ++i)
+          {
+             bdr_attr_marker[i] |= bdr_marker[i];
+          }
+       }
+
+       for (int i = 0; i < mesh->GetNBE(); ++i)
+       {
+          const int bdr_attr = mesh->GetBdrAttribute(i);
+          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+
+          tr = mesh->GetBdrFaceTransformations(i);
+          if (tr != NULL)
+          {
+             for (int s=0; s<fes.Size(); ++s)
+             {
+                fe[s] = fes[s]->GetFE(tr->Elem1No);
+                fe2[s] = fes[s]->GetFE(tr->Elem1No);
+
+                fes[s]->GetElementVDofs(tr->Elem1No, *(vdofs[s]));
+                bx.GetBlock(s).GetSubVector(*(vdofs[s]), *el_x[s]);
+                ax.GetBlock(s).GetSubVector(*(vdofs[s]), *ael_x[s]);
+             }
+
+             for (int s=0; s<prmfes.Size(); ++s)
+             {
+                prmfe[s] = prmfes[s]->GetFE(tr->Elem1No);
+                prmfe2[s] = prmfes[s]->GetFE(tr->Elem1No);
+
+                prmfes[s]->GetElementVDofs(tr->Elem1No, *(prmvdofs[s]));
+                dx.GetBlock(s).GetSubVector(*(prmvdofs[s]), *prmel_x[s]);
+             }
+
+
+             for (int k = 0; k < bfnfi.Size(); ++k)
+             {
+                if (bfnfi_marker[k] &&
+                    (*bfnfi_marker[k])[bdr_attr-1] == 0) { continue; }
+
+                bfnfi[k]->AssemblePrmFaceVector(fe, fe2, prmfe, prmfe2, *tr,
+                                                el_x_const, ael_x_const, prmel_x_const, prmel_y);
+
+                for (int s=0; s<prmfes.Size(); ++s)
+                {
+                   if (prmel_y[s]->Size() == 0) { continue; }
+                   dy.GetBlock(s).AddElementVector(*(prmvdofs[s]), *prmel_y[s]);
+                }
+             }
+          }
+       }
+    }
+
+    for (int s=0; s<fes.Size(); ++s)
+    {
+       delete vdofs2[s];
+       delete vdofs[s];
+       delete el_x[s];
+       delete ael_x[s];
+    }
+
+    for (int s=0; s<prmfes.Size(); ++s)
+    {
+       delete prmvdofs2[s];
+       delete prmvdofs[s];
+       delete prmel_y[s];
+       delete prmel_x[s];
+    }
+
+}
+
 void PrmBlockNonlinearForm::MultBlocked(const BlockVector &bx,
                                         const BlockVector &dx,
                                         BlockVector &by) const
 {
+
     Array<Array<int> *>vdofs(fes.Size());
     Array<Array<int> *>vdofs2(fes.Size());
     Array<Vector *> el_x(fes.Size());
@@ -363,7 +591,6 @@ void PrmBlockNonlinearForm::MultBlocked(const BlockVector &bx,
     for (int s=0; s<prmfes.Size(); ++s)
     {
        prmel_x_const[s] = prmel_x[s] = new Vector();
-       //prmel_y[s] = new Vector();
        prmvdofs[s] = new Array<int>;
        prmvdofs2[s] = new Array<int>;
     }
@@ -573,9 +800,38 @@ const BlockVector &PrmBlockNonlinearForm::PrmProlongate(const BlockVector &bx) c
 }
 
 
+void PrmBlockNonlinearForm::PrmMult(const Vector &x, Vector &y) const
+{
+    BlockVector bx(x.GetData(), prmblock_trueOffsets);
+    BlockVector by(y.GetData(), prmblock_trueOffsets);
+
+    const BlockVector &pbx = PrmProlongate(bx);
+
+    if(prmneeds_prolongation)
+    {
+        prmaux2.Update(prmblock_offsets);
+    }
+    BlockVector &pby = prmneeds_prolongation ? prmaux2 : by;
+
+    xs.Update(pbx.GetData(), prmblock_offsets);
+    ys.Update(pby.GetData(), prmblock_offsets);
+
+    MultPrmBlocked(xsv,adv,xs,ys);
+
+    for (int s = 0; s < prmfes.Size(); s++)
+    {
+       if (cPprm[s])
+       {
+          cPprm[s]->MultTranspose(pby.GetBlock(s), by.GetBlock(s));
+       }
+       by.GetBlock(s).SetSubVector(*prmess_tdofs[s], 0.0);
+    }
+}
+
 
 void PrmBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
 {
+
    BlockVector bx(x.GetData(), block_trueOffsets);
    BlockVector by(y.GetData(), block_trueOffsets);
 
@@ -614,12 +870,12 @@ void PrmBlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx, const 
 
     ElementTransformation * T;
 
-    Array<Array<int> *> prmvdofs(fes.Size());
-    Array<Array<int> *> prmvdofs2(fes.Size());
-    Array<Vector *> prmel_x(fes.Size());
-    Array<const Vector *> prmel_x_const(fes.Size());
-    Array<const FiniteElement *>prmfe(fes.Size());
-    Array<const FiniteElement *>prmfe2(fes.Size());
+    Array<Array<int> *> prmvdofs(prmfes.Size());
+    Array<Array<int> *> prmvdofs2(prmfes.Size());
+    Array<Vector *> prmel_x(prmfes.Size());
+    Array<const Vector *> prmel_x_const(prmfes.Size());
+    Array<const FiniteElement *>prmfe(prmfes.Size());
+    Array<const FiniteElement *>prmfe2(prmfes.Size());
 
     for (int i=0; i<fes.Size(); ++i)
     {
@@ -898,7 +1154,6 @@ Operator& PrmBlockNonlinearForm::GetGradient(const Vector &x) const
 
 }
 
-
 PrmBlockNonlinearForm::~PrmBlockNonlinearForm()
 {
     delete BlockGrad;
@@ -917,7 +1172,6 @@ PrmBlockNonlinearForm::~PrmBlockNonlinearForm()
        delete prmess_tdofs[i];
     }
 
-
     for (int i = 0; i < dnfi.Size(); ++i)
     {
        delete dnfi[i];
@@ -934,7 +1188,6 @@ PrmBlockNonlinearForm::~PrmBlockNonlinearForm()
     }
 
 }
-
 
 }
 
