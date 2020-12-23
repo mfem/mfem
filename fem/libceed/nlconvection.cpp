@@ -34,7 +34,7 @@ CeedPANLConvectionIntegrator::CeedPANLConvectionIntegrator(
    int dim = mesh.Dimension();
    NLConvectionContext ctx;
    InitCeedCoeff(Q, mesh, irm, coeff, ctx);
-   bool const_coeff = IsConstantCeedCoeff(coeff);
+   bool const_coeff = coeff->IsConstant();
    std::string build_func = const_coeff ? ":f_build_conv_const" : ":f_build_conv_quad";
    CeedQFunctionUser build_qf = const_coeff ? f_build_conv_const : f_build_conv_quad;
    CeedPAOperator convOp = {fes, irm,
@@ -58,7 +58,7 @@ CeedMFNLConvectionIntegrator::CeedMFNLConvectionIntegrator(
 {
 #ifdef MFEM_USE_CEED
    Mesh &mesh = *fes.GetMesh();
-   bool const_coeff = IsConstantCeedCoeff(coeff);
+   bool const_coeff = coeff->IsConstant();
    NLConvectionContext ctx;
    InitCeedCoeff(Q, mesh, irm, coeff, ctx);
    std::string apply_func = const_coeff ? ":f_apply_conv_mf_const" : ":f_apply_conv_mf_quad";
