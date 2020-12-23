@@ -32,29 +32,10 @@ struct CeedMFOperator
    const IntegrationRule &ir;
    /** The path to the header containing the functions for libCEED. */
    std::string header;
-   /** The name of the Qfunction to apply the quadrature data with a constant
-       coefficient.*/
-   std::string const_func;
-   /** The Qfunction to apply the quadrature data with constant coefficient. */
-   CeedQFunctionUser const_qf;
-   /** The name of the Qfunction to apply the quadrature data with a coefficient
-       evaluated at quadrature point. */
-   std::string quad_func;
-   /** The Qfunction to apply the quad. data with a coefficient evaluated at
-       quadrature point. */
-   CeedQFunctionUser quad_qf;
-   /** The name of the Qfunction to apply the quadrature data with a constant
-       vector coefficient.*/
-   std::string vec_const_func;
-   /** The Qfunction to apply the quadrature data with constant vector
-       coefficient. */
-   CeedQFunctionUser vec_const_qf;
-   /** The name of the Qfunction to apply the quadrature data with a vector
-       coefficient evaluated at quadrature point. */
-   std::string vec_quad_func;
-   /** The Qfunction to apply the quad. data with a vector coefficient evaluated
-       at quadrature point. */
-   CeedQFunctionUser vec_quad_qf;
+   /** The name of the Qfunction to apply the operator. */
+   std::string apply_func;
+   /** The Qfunction to apply the operator. */
+   CeedQFunctionUser apply_qf;
    /** The evaluation mode to apply to the trial function (CEED_EVAL_INTERP,
        CEED_EVAL_GRAD, etc.) */
    EvalMode trial_op;
@@ -111,46 +92,15 @@ public:
       ctx.vdim = fes.GetVDim();
 
       std::string qf_file = GetCeedPath() + op.header;
-      std::string qf;
+      std::string qf = qf_file + op.apply_func;
+      CeedQFunctionCreateInterior(ceed, 1, op.apply_qf, qf.c_str(),
+                                    &apply_qfunc);
 
       // Create the Q-function that builds the operator (i.e. computes its
       // quadrature data) and set its context data.
-      switch (coeff->coeff_type)
+      if (CeedVariableCoeff *var_coeff = dynamic_cast<CeedVariableCoeff*>(coeff))
       {
-         case CeedCoeffType::Const:
-            qf = qf_file + op.const_func;
-            CeedQFunctionCreateInterior(ceed, 1, op.const_qf, qf.c_str(),
-                                        &apply_qfunc);
-            break;
-         case CeedCoeffType::Grid:
-            qf = qf_file + op.quad_func;
-            CeedQFunctionCreateInterior(ceed, 1, op.quad_qf, qf.c_str(),
-                                        &apply_qfunc);
-            CeedQFunctionAddInput(apply_qfunc, "coeff", 1, CEED_EVAL_INTERP);
-            break;
-         case CeedCoeffType::Quad:
-            qf = qf_file + op.quad_func;
-            CeedQFunctionCreateInterior(ceed, 1, op.quad_qf, qf.c_str(),
-                                        &apply_qfunc);
-            CeedQFunctionAddInput(apply_qfunc, "coeff", 1, CEED_EVAL_NONE);
-            break;
-         case CeedCoeffType::VecConst:
-            qf = qf_file + op.vec_const_func;
-            CeedQFunctionCreateInterior(ceed, 1, op.vec_const_qf, qf.c_str(),
-                                        &apply_qfunc);
-            break;
-         case CeedCoeffType::VecGrid:
-            qf = qf_file + op.vec_quad_func;
-            CeedQFunctionCreateInterior(ceed, 1, op.vec_quad_qf, qf.c_str(),
-                                        &apply_qfunc);
-            CeedQFunctionAddInput(apply_qfunc, "coeff", dim, CEED_EVAL_INTERP);
-            break;
-         case CeedCoeffType::VecQuad:
-            qf = qf_file + op.vec_quad_func;
-            CeedQFunctionCreateInterior(ceed, 1, op.vec_quad_qf, qf.c_str(),
-                                        &apply_qfunc);
-            CeedQFunctionAddInput(apply_qfunc, "coeff", dim, CEED_EVAL_NONE);
-            break;
+         CeedQFunctionAddInput(apply_qfunc, "coeff", 1, var_coeff->emode);
       }
       // input
       switch (op.trial_op)
@@ -199,34 +149,22 @@ public:
       // Create the operator.
       CeedOperatorCreate(ceed, apply_qfunc, NULL, NULL, &oper);
       // coefficient
-      switch (coeff->coeff_type)
+      if (CeedGridCoeff *gridCoeff = dynamic_cast<CeedGridCoeff*>(coeff))
       {
-         case CeedCoeffType::Const:
-         case CeedCoeffType::VecConst:
-            break;
-         case CeedCoeffType::Grid:
-         case CeedCoeffType::VecGrid:
-         {
-            CeedGridCoeff *gridCoeff = (CeedGridCoeff*)coeff;
-            InitCeedBasisAndRestriction(*gridCoeff->coeff->FESpace(), irm, ceed,
-                                        &gridCoeff->basis, &gridCoeff->restr);
-            CeedOperatorSetField(oper, "coeff", gridCoeff->restr,
-                                 gridCoeff->basis, gridCoeff->coeffVector);
-         }
-         break;
-         case CeedCoeffType::Quad:
-         case CeedCoeffType::VecQuad:
-         {
-            CeedQuadCoeff *quadCoeff = (CeedQuadCoeff*)coeff;
-            const int ncomp = quadCoeff->ncomp;
-            CeedInt strides[3] = {ncomp, nqpts, ncomp*nqpts};
-            InitCeedStridedRestriction(*mesh->GetNodalFESpace(),
-                                       nelem, nqpts, ncomp, strides,
-                                       &quadCoeff->restr);
-            CeedOperatorSetField(oper, "coeff", quadCoeff->restr,
-                                 CEED_BASIS_COLLOCATED, quadCoeff->coeffVector);
-         }
-         break;
+         InitCeedBasisAndRestriction(*gridCoeff->coeff->FESpace(), irm, ceed,
+                                       &gridCoeff->basis, &gridCoeff->restr);
+         CeedOperatorSetField(oper, "coeff", gridCoeff->restr,
+                              gridCoeff->basis, gridCoeff->coeffVector);
+      }
+      else if (CeedQuadCoeff *quadCoeff = dynamic_cast<CeedQuadCoeff*>(coeff))
+      {
+         const int ncomp = quadCoeff->ncomp;
+         CeedInt strides[3] = {ncomp, nqpts, ncomp*nqpts};
+         InitCeedStridedRestriction(*mesh->GetNodalFESpace(),
+                                    nelem, nqpts, ncomp, strides,
+                                    &quadCoeff->restr);
+         CeedOperatorSetField(oper, "coeff", quadCoeff->restr,
+                              CEED_BASIS_COLLOCATED, quadCoeff->coeffVector);
       }
       // input
       switch (op.trial_op)
