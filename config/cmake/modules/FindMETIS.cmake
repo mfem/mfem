@@ -25,16 +25,16 @@ mfem_find_package(METIS METIS METIS_DIR "include;Lib" "metis.h"
 
 int main()
 {
-    int n = 10;
-    int nparts = 5;
-    int edgecut;
-    int* partitioning = new int[10];
-    int* I = partitioning,
+    idx_t n = 10;
+    idx_t nparts = 5;
+    idx_t edgecut;
+    idx_t* partitioning = new idx_t[10];
+    idx_t* I = partitioning,
        * J = partitioning;
 
-    int ncon = 1;
+    idx_t ncon = 1;
     int err;
-    int options[40];
+    idx_t options[40];
 
     METIS_SetDefaultOptions(options);
     options[10] = 1; // set METIS_OPTION_CONTIG
