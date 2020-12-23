@@ -292,9 +292,9 @@ int main(int argc, char *argv[])
    m.AddDomainIntegrator(new MassIntegrator);
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
    k.AddInteriorFaceIntegrator(
-      new NonconservativeDGTraceIntegrator(velocity, 1.0, -0.5));
+      new NonconservativeDGTraceIntegrator(velocity, -1.0, -0.5));
    k.AddBdrFaceIntegrator(
-      new NonconservativeDGTraceIntegrator(velocity, 1.0, -0.5));
+      new NonconservativeDGTraceIntegrator(velocity, -1.0, -0.5));
 
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(

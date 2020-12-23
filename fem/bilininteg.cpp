@@ -2888,6 +2888,40 @@ const IntegrationRule &DGTraceIntegrator::GetRule(
    return IntRules.Get(geom, int_order);
 }
 
+NonconservativeDGTraceIntegrator::NonconservativeDGTraceIntegrator(
+   VectorCoefficient &u, double a, double b)
+{
+   double s_a = (a >= 0) ? 1.0 : -1.0;
+   if (a*s_a == 1.0)
+   {
+      // Simplified case when a cancelation occurs and we can use one integrator
+      AddIntegrator(new TransposeIntegrator(new DGTraceIntegrator(u, -s_a, b)));
+   }
+   else
+   {
+      AddIntegrator(new DGTraceIntegrator(u, a-s_a, b));
+      AddIntegrator(new TransposeIntegrator(new DGTraceIntegrator(u, -s_a, 0)));
+   }
+}
+
+NonconservativeDGTraceIntegrator::NonconservativeDGTraceIntegrator(
+   Coefficient &rho, VectorCoefficient &u, double a, double b)
+{
+   double sgn_a = (a >= 0) ? 1.0 : -1.0;
+   if (a*sgn_a == 1.0)
+   {
+      // Simplified case when a cancelation occurs and we can use one integrator
+      AddIntegrator(new TransposeIntegrator(
+         new DGTraceIntegrator(rho, u, -sgn_a, b)));
+   }
+   else
+   {
+      AddIntegrator(new DGTraceIntegrator(u, a-sgn_a, b));
+      AddIntegrator(new TransposeIntegrator(
+         new DGTraceIntegrator(rho, u, -sgn_a, 0)));
+   }
+}
+
 void DGDiffusionIntegrator::AssembleFaceMatrix(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Trans, DenseMatrix &elmat)

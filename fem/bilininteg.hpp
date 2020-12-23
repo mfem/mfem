@@ -2171,12 +2171,12 @@ public:
                                          ElementTransformation &Trans);
 };
 
-/// alpha (u, q . grad u), transpose of ConvectionIntegrator
+/// -alpha (u, q . grad u), negative transpose of ConvectionIntegrator
 class ConservativeConvectionIntegrator : public TransposeIntegrator
 {
 public:
    ConservativeConvectionIntegrator(VectorCoefficient &q, double a = 1.0)
-      : TransposeIntegrator(new ConvectionIntegrator(q, a)) { }
+      : TransposeIntegrator(new ConvectionIntegrator(q, -a)) { }
 };
 
 /// alpha (q . grad u, v) using the "group" FE discretization
@@ -2805,22 +2805,21 @@ private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);
 };
 
-/** Integrator that represents the transpose of DGTraceIntegrator, i.e.
-    alpha < rho_u (u.n) [v],{w} > + beta < rho_u |u.n| [v],[w] >,
-    where the notation is the same as in DGTraceIntegrator.
+/** Integrator that represents the face terms used for the non-conservative
+    DG discretization of the convection equation:
+    (alpha - 1*sgn(alpha)) < rho_u (u.n) [v],{w} > - < rho_u (u.n) {v},[w] >
+       + beta < rho_u |u.n| [v],[w] >.
 
-    This integrator can be used with alpha=-1.0, beta=0.5, together with
+    This integrator can be used with alpha=1.0, beta=0.5, together with
     ConvectionIntegrator to implement an upwind DG discretization in
     non-conservative form, see ex9 and ex9p. */
-class NonconservativeDGTraceIntegrator : public TransposeIntegrator
+class NonconservativeDGTraceIntegrator : public SumIntegrator
 {
 public:
-   NonconservativeDGTraceIntegrator(VectorCoefficient &u_, double a, double b)
-      : TransposeIntegrator(new DGTraceIntegrator(u_, a, b)) { }
+   NonconservativeDGTraceIntegrator(VectorCoefficient &u, double a, double b);
 
-   NonconservativeDGTraceIntegrator(Coefficient &rho_, VectorCoefficient &u_,
-                                    double a, double b)
-      : TransposeIntegrator(new DGTraceIntegrator(rho_, u_, a, b)) { }
+   NonconservativeDGTraceIntegrator(Coefficient &rho, VectorCoefficient &u,
+                                    double a, double b);
 };
 
 /** Integrator for the DG form:
