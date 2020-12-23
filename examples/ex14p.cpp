@@ -5,6 +5,7 @@
 // Sample runs:  mpirun -np 4 ex14p -m ../data/inline-quad.mesh -o 0
 //               mpirun -np 4 ex14p -m ../data/star.mesh -o 2
 //               mpirun -np 4 ex14p -m ../data/star-mixed.mesh -o 2
+//               mpirun -np 4 ex14p -m ../data/star-mixed.mesh -o 2 -k 0 -e 1
 //               mpirun -np 4 ex14p -m ../data/escher.mesh -s 1
 //               mpirun -np 4 ex14p -m ../data/fichera.mesh -s 1 -k 1
 //               mpirun -np 4 ex14p -m ../data/fichera-mixed.mesh -s 1 -k 1
@@ -82,6 +83,7 @@ int main(int argc, char *argv[])
    int order = 1;
    double sigma = -1.0;
    double kappa = -1.0;
+   double eta = 0.0;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -95,11 +97,12 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) >= 0.");
    args.AddOption(&sigma, "-s", "--sigma",
-                  "One of the two DG penalty parameters, typically +1/-1."
+                  "One of the three DG penalty parameters, typically +1/-1."
                   " See the documentation of class DGDiffusionIntegrator.");
    args.AddOption(&kappa, "-k", "--kappa",
-                  "One of the two DG penalty parameters, should be positive."
+                  "One of the three DG penalty parameters, should be positive."
                   " Negative values are replaced with (order+1)^2.");
+   args.AddOption(&eta, "-e", "--eta", "BR2 penalty parameter.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -194,6 +197,11 @@ int main(int argc, char *argv[])
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
    a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
    a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+   if (eta > 0)
+   {
+      a->AddInteriorFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
+      a->AddBdrFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
+   }
    a->Assemble();
    a->Finalize();
 

@@ -465,8 +465,8 @@ protected:
       : same_calc_shape(false), Q(NULL), VQ(NULL), DQ(NULL), MQ(NULL) {}
    MixedVectorIntegrator(Coefficient &q)
       : same_calc_shape(false), Q(&q), VQ(NULL), DQ(NULL), MQ(NULL) {}
-   MixedVectorIntegrator(VectorCoefficient &dq, bool diag = true)
-      : same_calc_shape(false), Q(NULL), VQ(diag?NULL:&dq), DQ(diag?&dq:NULL),
+   MixedVectorIntegrator(VectorCoefficient &vq, bool diag = true)
+      : same_calc_shape(false), Q(NULL), VQ(diag?NULL:&vq), DQ(diag?&vq:NULL),
         MQ(NULL) {}
    MixedVectorIntegrator(MatrixCoefficient &mq)
       : same_calc_shape(false), Q(NULL), VQ(NULL), DQ(NULL), MQ(&mq) {}
@@ -503,7 +503,7 @@ protected:
 
    Coefficient *Q;
    VectorCoefficient *VQ;
-   VectorCoefficient *DQ;
+   DiagonalMatrixCoefficient *DQ;
    MatrixCoefficient *MQ;
 
 private:
@@ -901,7 +901,7 @@ public:
    MixedVectorMassIntegrator() { same_calc_shape = true; }
    MixedVectorMassIntegrator(Coefficient &q)
       : MixedVectorIntegrator(q) { same_calc_shape = true; }
-   MixedVectorMassIntegrator(VectorCoefficient &dq)
+   MixedVectorMassIntegrator(DiagonalMatrixCoefficient &dq)
       : MixedVectorIntegrator(dq, true) { same_calc_shape = true; }
    MixedVectorMassIntegrator(MatrixCoefficient &mq)
       : MixedVectorIntegrator(mq) { same_calc_shape = true; }
@@ -1019,7 +1019,7 @@ public:
    MixedGradGradIntegrator() { same_calc_shape = true; }
    MixedGradGradIntegrator(Coefficient &q)
       : MixedVectorIntegrator(q) { same_calc_shape = true; }
-   MixedGradGradIntegrator(VectorCoefficient &dq)
+   MixedGradGradIntegrator(DiagonalMatrixCoefficient &dq)
       : MixedVectorIntegrator(dq, true) { same_calc_shape = true; }
    MixedGradGradIntegrator(MatrixCoefficient &mq)
       : MixedVectorIntegrator(mq) { same_calc_shape = true; }
@@ -1107,7 +1107,7 @@ public:
    MixedCurlCurlIntegrator() { same_calc_shape = true; }
    MixedCurlCurlIntegrator(Coefficient &q)
       : MixedVectorIntegrator(q) { same_calc_shape = true; }
-   MixedCurlCurlIntegrator(VectorCoefficient &dq)
+   MixedCurlCurlIntegrator(DiagonalMatrixCoefficient &dq)
       : MixedVectorIntegrator(dq, true) { same_calc_shape = true; }
    MixedCurlCurlIntegrator(MatrixCoefficient &mq)
       : MixedVectorIntegrator(mq) { same_calc_shape = true; }
@@ -1651,7 +1651,7 @@ public:
    MixedVectorGradientIntegrator() {}
    MixedVectorGradientIntegrator(Coefficient &q)
       : MixedVectorIntegrator(q) {}
-   MixedVectorGradientIntegrator(VectorCoefficient &dq)
+   MixedVectorGradientIntegrator(DiagonalMatrixCoefficient &dq)
       : MixedVectorIntegrator(dq, true) {}
    MixedVectorGradientIntegrator(MatrixCoefficient &mq)
       : MixedVectorIntegrator(mq) {}
@@ -1705,7 +1705,7 @@ public:
    MixedVectorCurlIntegrator() {}
    MixedVectorCurlIntegrator(Coefficient &q)
       : MixedVectorIntegrator(q) {}
-   MixedVectorCurlIntegrator(VectorCoefficient &dq)
+   MixedVectorCurlIntegrator(DiagonalMatrixCoefficient &dq)
       : MixedVectorIntegrator(dq, true) {}
    MixedVectorCurlIntegrator(MatrixCoefficient &mq)
       : MixedVectorIntegrator(mq) {}
@@ -1760,7 +1760,7 @@ public:
    MixedVectorWeakCurlIntegrator() {}
    MixedVectorWeakCurlIntegrator(Coefficient &q)
       : MixedVectorIntegrator(q) {}
-   MixedVectorWeakCurlIntegrator(VectorCoefficient &dq)
+   MixedVectorWeakCurlIntegrator(DiagonalMatrixCoefficient &dq)
       : MixedVectorIntegrator(dq, true) {}
    MixedVectorWeakCurlIntegrator(MatrixCoefficient &mq)
       : MixedVectorIntegrator(mq) {}
@@ -1813,7 +1813,7 @@ public:
    MixedVectorWeakDivergenceIntegrator() {}
    MixedVectorWeakDivergenceIntegrator(Coefficient &q)
       : MixedVectorIntegrator(q) {}
-   MixedVectorWeakDivergenceIntegrator(VectorCoefficient &dq)
+   MixedVectorWeakDivergenceIntegrator(DiagonalMatrixCoefficient &dq)
       : MixedVectorIntegrator(dq, true) {}
    MixedVectorWeakDivergenceIntegrator(MatrixCoefficient &mq)
       : MixedVectorIntegrator(mq) {}
@@ -1900,6 +1900,7 @@ protected:
    Coefficient *Q;
    VectorCoefficient *VQ;
    MatrixCoefficient *MQ;
+   SymmetricMatrixCoefficient *SMQ;
 
 private:
    Vector vec, pointflux, shape;
@@ -1922,19 +1923,28 @@ private:
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
    DiffusionIntegrator()
-      : Q(NULL), VQ(NULL), MQ(NULL), maps(NULL), geom(NULL), ceedDataPtr(NULL) { }
+      : Q(NULL), VQ(NULL), MQ(NULL), SMQ(NULL), maps(NULL), geom(NULL),
+        ceedDataPtr(NULL) { }
 
    /// Construct a diffusion integrator with a scalar coefficient q
    DiffusionIntegrator(Coefficient &q)
-      : Q(&q), VQ(NULL), MQ(NULL), maps(NULL), geom(NULL), ceedDataPtr(NULL) { }
+      : Q(&q), VQ(NULL), MQ(NULL), SMQ(NULL), maps(NULL), geom(NULL),
+        ceedDataPtr(NULL) { }
 
    /// Construct a diffusion integrator with a vector coefficient q
    DiffusionIntegrator(VectorCoefficient &q)
-      : Q(NULL), VQ(&q), MQ(NULL), maps(NULL), geom(NULL), ceedDataPtr(NULL) { }
+      : Q(NULL), VQ(&q), MQ(NULL), SMQ(NULL), maps(NULL), geom(NULL),
+        ceedDataPtr(NULL) { }
 
    /// Construct a diffusion integrator with a matrix coefficient q
    DiffusionIntegrator(MatrixCoefficient &q)
-      : Q(NULL), VQ(NULL), MQ(&q), maps(NULL), geom(NULL), ceedDataPtr(NULL) { }
+      : Q(NULL), VQ(NULL), MQ(&q), SMQ(NULL), maps(NULL), geom(NULL),
+        ceedDataPtr(NULL) { }
+
+   /// Construct a diffusion integrator with a symmetric matrix coefficient q
+   DiffusionIntegrator(SymmetricMatrixCoefficient &q)
+      : Q(NULL), VQ(NULL), MQ(NULL), SMQ(&q), maps(NULL), geom(NULL),
+        ceedDataPtr(NULL) { }
 
    virtual ~DiffusionIntegrator()
    {
@@ -2341,8 +2351,9 @@ private:
 
 protected:
    Coefficient *Q;
-   VectorCoefficient *DQ;
+   DiagonalMatrixCoefficient *DQ;
    MatrixCoefficient *MQ;
+   SymmetricMatrixCoefficient *SMQ;
 
    // PA extension
    Vector pa_data;
@@ -2353,14 +2364,18 @@ protected:
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
 public:
-   CurlCurlIntegrator() { Q = NULL; DQ = NULL; MQ = NULL; }
+   CurlCurlIntegrator() { Q = NULL; DQ = NULL; MQ = NULL; SMQ = NULL; }
    /// Construct a bilinear form integrator for Nedelec elements
    CurlCurlIntegrator(Coefficient &q, const IntegrationRule *ir = NULL) :
-      BilinearFormIntegrator(ir), Q(&q) { DQ = NULL; MQ = NULL; }
-   CurlCurlIntegrator(VectorCoefficient &dq, const IntegrationRule *ir = NULL) :
-      BilinearFormIntegrator(ir), DQ(&dq) { Q = NULL; MQ = NULL; }
+      BilinearFormIntegrator(ir), Q(&q), DQ(NULL), MQ(NULL), SMQ(NULL) { }
+   CurlCurlIntegrator(DiagonalMatrixCoefficient &dq,
+                      const IntegrationRule *ir = NULL) :
+      BilinearFormIntegrator(ir), Q(NULL), DQ(&dq), MQ(NULL), SMQ(NULL) { }
    CurlCurlIntegrator(MatrixCoefficient &mq, const IntegrationRule *ir = NULL) :
-      BilinearFormIntegrator(ir), MQ(&mq) { Q = NULL; DQ = NULL; }
+      BilinearFormIntegrator(ir), Q(NULL), DQ(NULL), MQ(&mq), SMQ(NULL) { }
+   CurlCurlIntegrator(SymmetricMatrixCoefficient &smq,
+                      const IntegrationRule *ir = NULL) :
+      BilinearFormIntegrator(ir), Q(NULL), DQ(NULL), MQ(NULL), SMQ(&smq) { }
 
    /* Given a particular Finite Element, compute the
       element curl-curl matrix elmat */
@@ -2417,8 +2432,9 @@ public:
 class VectorFEMassIntegrator: public BilinearFormIntegrator
 {
 private:
-   void Init(Coefficient *q, VectorCoefficient *vq, MatrixCoefficient *mq)
-   { Q = q; VQ = vq; MQ = mq; }
+   void Init(Coefficient *q, DiagonalMatrixCoefficient *dq, MatrixCoefficient *mq,
+             SymmetricMatrixCoefficient *smq)
+   { Q = q; DQ = dq; MQ = mq; SMQ = smq; }
 
 #ifndef MFEM_THREAD_SAFE
    Vector shape;
@@ -2431,8 +2447,9 @@ private:
 
 protected:
    Coefficient *Q;
-   VectorCoefficient *VQ;
+   DiagonalMatrixCoefficient *DQ;
    MatrixCoefficient *MQ;
+   SymmetricMatrixCoefficient *SMQ;
 
    // PA extension
    Vector pa_data;
@@ -2445,13 +2462,15 @@ protected:
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
 public:
-   VectorFEMassIntegrator() { Init(NULL, NULL, NULL); }
-   VectorFEMassIntegrator(Coefficient *_q) { Init(_q, NULL, NULL); }
-   VectorFEMassIntegrator(Coefficient &q) { Init(&q, NULL, NULL); }
-   VectorFEMassIntegrator(VectorCoefficient *_vq) { Init(NULL, _vq, NULL); }
-   VectorFEMassIntegrator(VectorCoefficient &vq) { Init(NULL, &vq, NULL); }
-   VectorFEMassIntegrator(MatrixCoefficient *_mq) { Init(NULL, NULL, _mq); }
-   VectorFEMassIntegrator(MatrixCoefficient &mq) { Init(NULL, NULL, &mq); }
+   VectorFEMassIntegrator() { Init(NULL, NULL, NULL, NULL); }
+   VectorFEMassIntegrator(Coefficient *_q) { Init(_q, NULL, NULL, NULL); }
+   VectorFEMassIntegrator(Coefficient &q) { Init(&q, NULL, NULL, NULL); }
+   VectorFEMassIntegrator(DiagonalMatrixCoefficient *_dq) { Init(NULL, _dq, NULL, NULL); }
+   VectorFEMassIntegrator(DiagonalMatrixCoefficient &dq) { Init(NULL, &dq, NULL, NULL); }
+   VectorFEMassIntegrator(MatrixCoefficient *_mq) { Init(NULL, NULL, _mq, NULL); }
+   VectorFEMassIntegrator(MatrixCoefficient &mq) { Init(NULL, NULL, &mq, NULL); }
+   VectorFEMassIntegrator(SymmetricMatrixCoefficient &smq) { Init(NULL, NULL, NULL, &smq); }
+   VectorFEMassIntegrator(SymmetricMatrixCoefficient *smq) { Init(NULL, NULL, NULL, smq); }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
@@ -2781,6 +2800,51 @@ public:
       : Q(&q), MQ(NULL), sigma(s), kappa(k) { }
    DGDiffusionIntegrator(MatrixCoefficient &q, const double s, const double k)
       : Q(NULL), MQ(&q), sigma(s), kappa(k) { }
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+};
+
+/** Integrator for the "BR2" diffusion stabilization term
+
+    sum_e eta (r_e([u]), r_e([v]))
+
+    where r_e is the lifting operator defined on each edge e. The parameter eta
+    can be chosen to be one to obtain a stable discretization. The constructor
+    for this integrator requires the finite element space because the lifting
+    operator depends on the element-wise inverse mass matrix.
+
+    BR2 stands for the second method of Bassi and Rebay:
+
+    - F. Bassi and S. Rebay. A high order discontinuous Galerkin method for
+      compressible turbulent flows. In B. Cockburn, G. E. Karniadakis, and
+      C.-W. Shu, editors, Discontinuous Galerkin Methods, pages 77–88. Springer
+      Berlin Heidelberg, 2000.
+    - D. N. Arnold, F. Brezzi, B. Cockburn, and L. D. Marini. Unified analysis
+      of discontinuous Galerkin methods for elliptic problems. SIAM Journal on
+      Numerical Analysis, 39(5):1749–1779, 2002.
+*/
+class DGDiffusionBR2Integrator : public BilinearFormIntegrator
+{
+protected:
+   double eta;
+
+   // Block factorizations of local mass matrices, with offsets for the case of
+   // not equally sized blocks (mixed meshes, p-refinement)
+   Array<double> Minv;
+   Array<int> ipiv;
+   Array<int> ipiv_offsets, Minv_offsets;
+
+   Vector shape1, shape2;
+
+   DenseMatrix R11, R12, R21, R22;
+   DenseMatrix MinvR11, MinvR12, MinvR21, MinvR22;
+   DenseMatrix Re, MinvRe;
+
+public:
+   DGDiffusionBR2Integrator(class FiniteElementSpace *fes, double e = 1.0);
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
