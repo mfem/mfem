@@ -159,7 +159,7 @@ public:
       else if (CeedQuadCoeff *quadCoeff = dynamic_cast<CeedQuadCoeff*>(coeff))
       {
          const int ncomp = quadCoeff->ncomp;
-         CeedInt strides[3] = {ncomp, nqpts, ncomp*nqpts};
+         CeedInt strides[3] = {ncomp, 1, ncomp*nqpts};
          InitCeedStridedRestriction(*mesh->GetNodalFESpace(),
                                     nelem, nqpts, ncomp, strides,
                                     &quadCoeff->restr);
