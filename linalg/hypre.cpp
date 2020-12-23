@@ -979,8 +979,8 @@ HypreParMatrix * HypreParMatrix::Transpose() const
 }
 
 #if MFEM_HYPRE_VERSION >= 21800
-HypreParMatrix * HypreParMatrix::ExtractSubmatrix(Array<int> &indices,
-                                                  double threshhold) const
+HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
+                                                 double threshhold) const
 {
    if (!(A->comm))
    {

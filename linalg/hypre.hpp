@@ -413,8 +413,8 @@ public:
    /** Returns principle submatrix given by array of indices of connections
        with relative size > \@ threshold in *this. */
 #if MFEM_HYPRE_VERSION >= 21800
-   HypreParMatrix * ExtractSubmatrix(Array<int> &indices,
-                                     double threshhold=0.0) const;
+   HypreParMatrix *ExtractSubmatrix(const Array<int> &indices,
+                                    double threshhold=0.0) const;
 #endif
 
    /// Returns the number of rows in the diagonal block of the ParCSRMatrix
