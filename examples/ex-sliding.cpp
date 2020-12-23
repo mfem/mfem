@@ -423,6 +423,7 @@ int main(int argc, char *argv[])
    }
 
    // 18. Free the used memory.
+   delete hconstraints;
    delete solver;
    // delete amg;
    delete a;

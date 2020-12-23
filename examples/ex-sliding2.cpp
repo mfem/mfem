@@ -85,48 +85,30 @@ SparseMatrix * BuildNormalConstraintsIntersection(ParFiniteElementSpace& fespace
             constraints[it->second][att] = n_rows++;
          }
       }
-      printf("att=%d, n_rows=%d, size(constrained_tdofs)=%d\n",
-             att, n_rows, constrained_tdofs.size());
+      // printf("att=%d, n_rows=%d, size(constrained_tdofs)=%d\n",
+      //   att, n_rows, constrained_tdofs.size());
    }
 
-   // reorder so EliminationCGSolver understands (this is very ugly)
+   // reorder so EliminationCGSolver understands (this is ugly)
    std::map<int, int> reorder_rows;
    int new_row = 0;
    MFEM_VERIFY(lagrange_rowstarts.Size() == 0,
                "rowstarts must be empty to start!");
    lagrange_rowstarts.Append(0);
-   for (int att : constrained_att)
+   for (auto& it : dof_constraint)
    {
-      std::set<int> constrained_tdofs;
-      for (int i = 0; i < fespace.GetNBE(); ++i)
+      int constraint_index = it.second;
+      bool nconstraint = false;
+      for (auto& att_it : constraints[constraint_index])
       {
-         if (fespace.GetBdrAttribute(i) == att)
+         auto rrit = reorder_rows.find(att_it.second);
+         if (rrit == reorder_rows.end())
          {
-            Array<int> dofs;
-            fespace.GetBdrElementDofs(i, dofs);
-            for (auto k : dofs)
-            {
-               int vdof = fespace.DofToVDof(k, 0);
-               int tdof = fespace.GetLocalTDofNumber(vdof);
-               if (tdof >= 0) { constrained_tdofs.insert(tdof); }
-            }
+            nconstraint = true;
+            reorder_rows[att_it.second] = new_row++;
          }
       }
-      for (auto k : constrained_tdofs)
-      {
-         int constraint = dof_constraint[k];
-         bool nconstraint = false;
-         for (auto& it : constraints[constraint])
-         {
-            auto rrit = reorder_rows.find(it.second);
-            if (rrit == reorder_rows.end())
-            {
-               nconstraint = true;
-               reorder_rows[it.second] = new_row++;
-            }
-         }
-         if (nconstraint) { lagrange_rowstarts.Append(new_row); }
-      }
+      if (nconstraint) { lagrange_rowstarts.Append(new_row); }
    }
    MFEM_VERIFY(new_row == n_rows, "Remapping failed!");
    for (auto& constraint_map : constraints)
@@ -137,8 +119,8 @@ SparseMatrix * BuildNormalConstraintsIntersection(ParFiniteElementSpace& fespace
       }
    }
 
-   printf("n_rows=%d, n_constraints=%d, constraints.size() = %d\n",
-          n_rows, n_constraints, constraints.size());
+   // printf("n_rows=%d, n_constraints=%d, constraints.size() = %d\n",
+   //  n_rows, n_constraints, constraints.size());
    SparseMatrix * out = new SparseMatrix(n_rows, fespace.GetTrueVSize());
 
    // fill in constraint matrix with normal vector information
@@ -173,8 +155,8 @@ SparseMatrix * BuildNormalConstraintsIntersection(ParFiniteElementSpace& fespace
             {
                int constraint = dof_constraint[truek];
                int row = constraints[constraint][att];
-               printf("be %d att %d j %d truek %d constraint %d row %d\n",
-                      i, att, j, truek, constraint, row);
+               // printf("be %d att %d j %d truek %d constraint %d row %d\n",
+               //   i, att, j, truek, constraint, row);
                for (int d = 0; d < dim; ++d)
                {
                   int vdof = fespace.DofToVDof(k, d);
@@ -216,6 +198,8 @@ SparseMatrix * BuildNormalConstraintsIntersection(ParFiniteElementSpace& fespace
 }
 
 /*
+  old description of normal constraint builder:
+
    Given a vector space fespace, and the array constrained_att that
    includes the boundary *attributes* that are constrained to have normal
    component zero, this returns a SparseMatrix representing the
@@ -239,110 +223,6 @@ SparseMatrix * BuildNormalConstraintsIntersection(ParFiniteElementSpace& fespace
    to a constraint, ie, if that node appears in multiple boundaries than
    the constraint takes up multiple rows
 */
-HypreParMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
-                                        Array<int> constrained_att)
-{
-   int rank, size;
-   MPI_Comm_rank(fespace.GetComm(), &rank);
-   MPI_Comm_size(fespace.GetComm(), &size);
-   int dim = fespace.GetVDim();
-
-   // make a list of nodes that need to be constrained
-   std::set<int> constrained_tdofs; // processor-local tdofs
-   for (int i = 0; i < fespace.GetNBE(); ++i)
-   {
-      int att = fespace.GetBdrAttribute(i);
-      if (constrained_att.FindSorted(att) != -1)
-      {
-         Array<int> dofs;
-         fespace.GetBdrElementDofs(i, dofs);
-         for (auto k : dofs)
-         {
-            int vdof = fespace.DofToVDof(k, 0);
-            int tdof = fespace.GetLocalTDofNumber(vdof);
-            if (tdof >= 0) { constrained_tdofs.insert(tdof); }
-         }
-      }
-   }
-
-   // construct mapping from dofs (columns) to constraints (rows)
-   // maybe the right thing to do is add a constraint row for each
-   // time it appears? (ie, for each intersecting surface?)
-   std::map<int, int> dof_constraint;
-   int n_constraints = 0;
-   for (auto k : constrained_tdofs)
-   {
-      dof_constraint[k] = n_constraints++;
-   }
-   SparseMatrix * out = new SparseMatrix(n_constraints, fespace.GetTrueVSize());
-
-   int constraint_running_total = 0;
-   MPI_Scan(&n_constraints, &constraint_running_total, 1, MPI_INT,
-            MPI_SUM, fespace.GetComm());
-   int global_constraints = 0;
-   if (rank == size - 1) global_constraints = constraint_running_total;
-   MPI_Bcast(&global_constraints, 1, MPI_INT, size - 1, fespace.GetComm());
-
-   // fill in constraint matrix with normal vector information
-   Vector nor(dim);
-   for (int i = 0; i < fespace.GetNBE(); ++i)
-   {
-      int att = fespace.GetBdrAttribute(i);
-      if (constrained_att.FindSorted(att) != -1)
-      {
-         ElementTransformation * Tr = fespace.GetBdrElementTransformation(i);
-         const FiniteElement * fe = fespace.GetBE(i);
-         const IntegrationRule& nodes = fe->GetNodes();
-
-         Array<int> dofs;
-         fespace.GetBdrElementDofs(i, dofs);
-         MFEM_VERIFY(dofs.Size() == nodes.Size(),
-                     "Something wrong in finite element space!");
-
-         for (int j = 0; j < dofs.Size(); ++j)
-         {
-            Tr->SetIntPoint(&nodes[j]);
-            // the normal returned in the next line is scaled by h, which
-            // is probably what we want in this application
-            CalcOrtho(Tr->Jacobian(), nor);
-
-            // next line assumes nodes and dofs are ordered the same, which
-            // seems to be true
-            int k = dofs[j];
-            int vdof = fespace.DofToVDof(k, 0);
-            int truek = fespace.GetLocalTDofNumber(vdof);
-            if (truek >= 0)
-            {
-               int constraint = dof_constraint[truek];
-               for (int d = 0; d < dim; ++d)
-               {
-                  int vdof = fespace.DofToVDof(k, d);
-                  int truek = fespace.GetLocalTDofNumber(vdof);
-                  /// the following overwrites neighboring elements, which is
-                  /// perhaps not ideal for curved boundaries
-                  out->Set(constraint, truek, nor[d]);
-               }
-            }
-         }
-      }
-   }
-   out->Finalize();
-
-   // convert SparseMatrix to HypreParMatrix
-   // cols are same as for fespace; rows are built here
-   HYPRE_Int glob_num_rows = global_constraints;
-   HYPRE_Int glob_num_cols = fespace.GlobalTrueVSize();
-   HYPRE_Int row_starts[2] = {constraint_running_total - n_constraints,
-                              constraint_running_total};
-   HYPRE_Int * col_starts = fespace.GetTrueDofOffsets();
-   HypreParMatrix * h_out = new HypreParMatrix(fespace.GetComm(), glob_num_rows,
-                                               glob_num_cols, row_starts,
-                                               col_starts, out);
-   h_out->CopyRowStarts();
-   h_out->CopyColStarts();
-
-   return h_out;
-}
 
 Mesh * build_trapezoid_mesh(double offset)
 {
@@ -366,11 +246,8 @@ Mesh * build_trapezoid_mesh(double offset)
 
    // element
    Array<int> vert(4);
-   // for (int i = 0; i < 4; ++i) { vert[i] = i; }
    vert[0] = 0; vert[1] = 1; vert[2] = 3; vert[3] = 2;
    mesh->AddQuad(vert, 1);
-
-   // Swap<int>(sv[0], sv[1]);
 
    // boundary
    Array<int> sv(2);
@@ -538,12 +415,6 @@ int main(int argc, char *argv[])
    Array<int> constraint_atts(2);
    constraint_atts[0] = 1;
    constraint_atts[1] = 4;  // attribute 4 left side
-   // I actually do not trust what the following routine does when the
-   // two attributes meet; I think it will try to enforce them separately
-   // but that only makes sense if they end up elimination consistently,
-   // which I guess in this simple case they sometimes do?
-   HypreParMatrix * hconstraints = BuildNormalConstraints(*fespace,
-                                                          constraint_atts);
 
    ParLinearForm *b = new ParLinearForm(fespace);
    b->AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(f));
@@ -593,27 +464,11 @@ int main(int argc, char *argv[])
 
    // 13. Define and apply a parallel PCG solver for A X = B with the BoomerAMG
    //     preconditioner from hypre.
-   SparseMatrix local_constraints;
-   hconstraints->GetDiag(local_constraints);
-
-   {
-      std::ofstream outold("localconstraints.sparsematrix");
-      local_constraints.Print(outold, 1);
-      Array<int> lagrange_rowstarts;
-      auto intersection = BuildNormalConstraintsIntersection(*fespace, constraint_atts,
-                                                             lagrange_rowstarts);
-      std::ofstream outnew("intersectionconstraints.sparsematrix");
-      intersection->Print(outnew, 1);
-      delete intersection;
-      lagrange_rowstarts.Print(std::cout, 1);
-   }
-
-   Array<int> lagrange_rowstarts(local_constraints.Height() + 1);
-   for (int k = 0; k < local_constraints.Height() + 1; ++k)
-   {
-      lagrange_rowstarts[k] = k;
-   }
-   EliminationCGSolver * solver = new EliminationCGSolver(A, local_constraints,
+   Array<int> lagrange_rowstarts;
+   SparseMatrix* local_constraints =
+      BuildNormalConstraintsIntersection(*fespace, constraint_atts,
+                                         lagrange_rowstarts);
+   EliminationCGSolver * solver = new EliminationCGSolver(A, *local_constraints,
                                                           lagrange_rowstarts, dim,
                                                           false);
    solver->SetRelTol(1e-8);
@@ -683,6 +538,7 @@ int main(int argc, char *argv[])
    }
 
    // 18. Free the used memory.
+   delete local_constraints;
    delete solver;
    // delete amg;
    delete a;
