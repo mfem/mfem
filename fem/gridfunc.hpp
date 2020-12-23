@@ -345,28 +345,26 @@ public:
        projection matrix. */
    void ProjectGridFunction(const GridFunction &src);
 
-   /** @brief Project @a coeff Coefficient element-wise to @a this GridFunction.
-       The projection computation used on each element depends on the choice of
-       FiniteElementSpace #fes. Note that this is not generally an orthogonal
-       projection but may be an element-wise interpolation at element
-       integration points. */
+   /** @brief Project @a coeff Coefficient to @a this GridFunction. The
+       projection computation used on each element depends on the choice of
+       FiniteElementSpace #fes. Note that this is usually interpolation at select
+       points in each element (not L2 projection). */
    virtual void ProjectCoefficient(Coefficient &coeff);
 
-   /** @brief Project @a coeff Coefficient element-wise to @a this GridFunction,
-       using one element for each degree of freedom and nodal interpolation on
+   /** @brief Project @a coeff Coefficient to @a this GridFunction, using one
+       element for each degree of freedom in dofs and nodal interpolation on
        that element. */
    void ProjectCoefficient(Coefficient &coeff, Array<int> &dofs, int vd = 0);
 
-   /** @brief Project @a vcoeff VectorCoefficient element-wise to @a this
-       GridFunction. The projection computation used on each element depends on
-       the choice of FiniteElementSpace #fes. Note that this is not generally an
-       orthogonal projection but may be an element-wise interpolation at element
-       integration points. */
+   /** @brief Project @a vcoeff VectorCoefficient to @a this GridFunction. The
+       projection computation used on each element depends on the choice of
+       FiniteElementSpace #fes. Note that this is usually interpolation at select
+       points in each element (not L2 projection).*/
    void ProjectCoefficient(VectorCoefficient &vcoeff);
 
-   /** @brief Project @a vcoeff VectorCoefficient element-wise to @a this
-       GridFunction, using one element for each degree of freedom and nodal
-       interpolation on that element. */
+   /** @brief Project @a vcoeff VectorCoefficient to @a this GridFunction, using
+       one element for each degree of freedom in dofs and nodal interpolation on
+       that element. */
    void ProjectCoefficient(VectorCoefficient &vcoeff, Array<int> &dofs);
 
    /** @brief Analogous to the version with argument @a vcoeff VectorCoefficient
