@@ -132,9 +132,9 @@ void InitCeedCoeff(Coefficient *Q, Mesh &mesh, const IntegrationRule &ir,
 /** @brief Identifies the type of vector coefficient of the Integrator to
     initialize accordingly the CeedData. */
 template <typename Context>
-void InitCeedVecCoeff(VectorCoefficient *VQ, Mesh &mesh,
-                      const IntegrationRule &ir,
-                      CeedCoeff *&coeff_ptr, Context &ctx)
+void InitCeedCoeff(VectorCoefficient *VQ, Mesh &mesh,
+                   const IntegrationRule &ir,
+                   CeedCoeff *&coeff_ptr, Context &ctx)
 {
    if (VectorConstantCoefficient *coeff =
           dynamic_cast<VectorConstantCoefficient*>(VQ))
