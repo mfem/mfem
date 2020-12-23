@@ -937,7 +937,11 @@ void HypreParMatrix::GetOffd(SparseMatrix &offd, HYPRE_Int* &cmap) const
 
 void HypreParMatrix::MergeDiagAndOffd(SparseMatrix &merged)
 {
-   MakeWrapper(hypre_MergeDiagAndOffd(A), merged);
+   SparseMatrix tmp_wrapper;
+   hypre_CSRMatrix *hypre_merged = hypre_MergeDiagAndOffd(A);
+   MakeWrapper(hypre_merged, tmp_wrapper);
+   merged = tmp_wrapper;
+   hypre_CSRMatrixDestroy(hypre_merged);
 }
 
 void HypreParMatrix::GetBlocks(Array2D<HypreParMatrix*> &blocks,
