@@ -33,19 +33,19 @@ CeedPAConvectionIntegrator::CeedPAConvectionIntegrator(
    MFEM_VERIFY(fes.GetVDim() == 1 || fes.GetVDim() == mesh.Dimension(),
                "case not supported");
    int dim = mesh.Dimension();
+   ConvectionContext ctx;
+   InitCeedVecCoeff(Q, mesh, irm, coeff, ctx);
+   ctx.alpha = alpha;
+   bool const_coeff = IsConstantCeedCoeff(coeff);
+   std::string build_func = const_coeff ? ":f_build_conv_const" : ":f_build_conv_quad";
+   CeedQFunctionUser build_qf = const_coeff ? f_build_conv_const : f_build_conv_quad;
    CeedPAOperator convOp = {fes, irm,
                             dim * (dim + 1) / 2, "/convection.h",
-                            "", nullptr,
-                            "", nullptr,
-                            ":f_build_conv_const", f_build_conv_const,
-                            ":f_build_conv_quad", f_build_conv_quad,
+                            build_func, build_qf,
                             ":f_apply_conv", f_apply_conv,
                             EvalMode::Grad,
                             EvalMode::Interp
                            };
-   ConvectionContext ctx;
-   InitCeedVecCoeff(Q, mesh, irm, coeff, ctx);
-   ctx.alpha = alpha;
    Assemble(convOp, ctx);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
@@ -61,18 +61,18 @@ CeedMFConvectionIntegrator::CeedMFConvectionIntegrator(
 {
 #ifdef MFEM_USE_CEED
    Mesh &mesh = *fes.GetMesh();
-   CeedMFOperator convOp = {fes, irm,
-                            "/convection.h",
-                            "", nullptr,
-                            "", nullptr,
-                            ":f_apply_conv_mf_const", f_apply_conv_mf_const,
-                            ":f_apply_conv_mf_quad", f_apply_conv_mf_quad,
-                            EvalMode::Grad,
-                            EvalMode::Interp
-                           };
    ConvectionContext ctx;
    InitCeedVecCoeff(Q, mesh, irm, coeff, ctx);
    ctx.alpha = alpha;
+   bool const_coeff = IsConstantCeedCoeff(coeff);
+   std::string apply_func = const_coeff ? ":f_apply_conv_mf_const" : ":f_apply_conv_mf_quad";
+   CeedQFunctionUser apply_qf = const_coeff ? f_apply_conv_mf_const : f_apply_conv_mf_quad;
+   CeedMFOperator convOp = {fes, irm,
+                            "/convection.h",
+                            apply_func, apply_qf,
+                            EvalMode::Grad,
+                            EvalMode::Interp
+                           };
    Assemble(convOp, ctx);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
