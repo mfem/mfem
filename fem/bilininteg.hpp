@@ -2118,14 +2118,6 @@ public:
                                          ElementTransformation &Trans);
 };
 
-/// alpha (u, q . grad u), transpose of ConvectionIntegrator
-class ConservativeConvectionIntegrator : public TransposeIntegrator
-{
-public:
-   ConservativeConvectionIntegrator(VectorCoefficient &q, double a = 1.0)
-      : TransposeIntegrator(new ConvectionIntegrator(q, a)) { }
-};
-
 /// alpha (q . grad u, v) using the "group" FE discretization
 class GroupConvectionIntegrator : public BilinearFormIntegrator
 {
@@ -2687,14 +2679,13 @@ public:
     uses the upwind value of rho, rho_u, which is value from the side into which
     the vector coefficient, u, points.
 
-    When combined with ConservativeConvectionIntegrator integrator, the
+    When used with ConvectionIntegrator, the transpose of this form with
+    alpha=-1.0, beta=0.5 can be used to implement the upwind flux and outflow
+    boundary conditions, see ex9 and ex9p.
+
+    When combined with the transpose of ConvectionIntegrator integrator, the
     coefficients alpha=1.0, beta=0.5 can be used to implement the upwind flux
     and outflow boundary conditions in conservative form.
-
-    For the non-conservative formulation of convection using
-    ConvectionIntegrator, the transpose of this form with alpha=-1.0, beta=0.5
-    can be used to implement the upwind flux, see
-    NonconservativeDGTraceIntegrator and ex9 and ex9p.
     */
 class DGTraceIntegrator : public BilinearFormIntegrator
 {
@@ -2750,24 +2741,6 @@ public:
 
 private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);
-};
-
-/** Integrator that represents the transpose of DGTraceIntegrator, i.e.
-    alpha < rho_u (u.n) [v],{w} > + beta < rho_u |u.n| [v],[w] >,
-    where the notation is the same as in DGTraceIntegrator.
-
-    This integrator can be used with alpha=-1.0, beta=0.5, together with
-    ConvectionIntegrator to implement an upwind DG discretization in
-    non-conservative form, see ex9 and ex9p. */
-class NonconservativeDGTraceIntegrator : public TransposeIntegrator
-{
-public:
-   NonconservativeDGTraceIntegrator(VectorCoefficient &u_, double a, double b)
-      : TransposeIntegrator(new DGTraceIntegrator(u_, a, b)) { }
-
-   NonconservativeDGTraceIntegrator(Coefficient &rho_, VectorCoefficient &u_,
-                                    double a, double b)
-      : TransposeIntegrator(new DGTraceIntegrator(rho_, u_, a, b)) { }
 };
 
 /** Integrator for the DG form:
