@@ -32,18 +32,18 @@ CeedPADiffusionIntegrator::CeedPADiffusionIntegrator(
    MFEM_VERIFY(fes.GetVDim() == 1 || fes.GetVDim() == mesh.Dimension(),
                "case not supported");
    int dim = mesh.Dimension();
+   DiffusionContext ctx;
+   InitCeedCoeff(Q, mesh, irm, coeff, ctx);
+   bool const_coeff = IsConstantCeedCoeff(coeff);
+   std::string build_func = const_coeff ? ":f_build_diff_const" : ":f_build_diff_quad";
+   CeedQFunctionUser build_qf = const_coeff ? f_build_diff_const : f_build_diff_quad;
    CeedPAOperator diffOp = {fes, irm,
                             dim * (dim + 1) / 2, "/diffusion.h",
-                            ":f_build_diff_const", f_build_diff_const,
-                            ":f_build_diff_quad", f_build_diff_quad,
-                            "", nullptr,
-                            "", nullptr,
+                            build_func, build_qf,
                             ":f_apply_diff", f_apply_diff,
                             EvalMode::Grad,
                             EvalMode::Grad
                            };
-   DiffusionContext ctx;
-   InitCeedCoeff(Q, mesh, irm, coeff, ctx);
    Assemble(diffOp, ctx);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
@@ -58,17 +58,17 @@ CeedMFDiffusionIntegrator::CeedMFDiffusionIntegrator(
 {
 #ifdef MFEM_USE_CEED
    Mesh &mesh = *fes.GetMesh();
+   DiffusionContext ctx;
+   InitCeedCoeff(Q, mesh, irm, coeff, ctx);
+   bool const_coeff = IsConstantCeedCoeff(coeff);
+   std::string apply_func = const_coeff ? ":f_apply_diff_mf_const" : ":f_apply_diff_mf_quad";
+   CeedQFunctionUser apply_qf = const_coeff ? f_apply_diff_mf_const : f_apply_diff_mf_quad;
    CeedMFOperator diffOp = {fes, irm,
                             "/diffusion.h",
-                            ":f_apply_diff_mf_const", f_apply_diff_mf_const,
-                            ":f_apply_diff_mf_quad", f_apply_diff_mf_quad,
-                            "", nullptr,
-                            "", nullptr,
+                            apply_func, apply_qf,
                             EvalMode::Grad,
                             EvalMode::Grad
                            };
-   DiffusionContext ctx;
-   InitCeedCoeff(Q, mesh, irm, coeff, ctx);
    Assemble(diffOp, ctx);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");

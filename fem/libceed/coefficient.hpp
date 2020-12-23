@@ -26,18 +26,16 @@ namespace mfem
 
 class GridFunction;
 
-enum class CeedCoeffType { Const, Grid, Quad, VecConst, VecGrid, VecQuad };
-
 struct CeedCoeff
 {
-   CeedCoeffType coeff_type;
    virtual ~CeedCoeff() { }
 };
 
 struct CeedVariableCoeff : CeedCoeff
 {
-   CeedVector coeffVector;
-   CeedVariableCoeff() : coeffVector(nullptr) { }
+   CeedVector coeffVector = nullptr;
+   CeedEvalMode emode;
+   CeedVariableCoeff(CeedEvalMode emode_) : emode(emode_) { }
    ~CeedVariableCoeff()
    {
       CeedVectorDestroy(&coeffVector);
@@ -49,6 +47,7 @@ struct CeedGridCoeff : CeedVariableCoeff
    const GridFunction* coeff;
    CeedBasis basis;
    CeedElemRestriction restr;
+   CeedGridCoeff() : CeedVariableCoeff(CEED_EVAL_INTERP) { }
 };
 
 struct CeedQuadCoeff : CeedVariableCoeff
@@ -56,8 +55,13 @@ struct CeedQuadCoeff : CeedVariableCoeff
    int ncomp;
    Vector coeff;
    CeedElemRestriction restr;
-   CeedQuadCoeff(int ncomp_) : ncomp(ncomp_) { }
+   CeedQuadCoeff(int ncomp_) : CeedVariableCoeff(CEED_EVAL_NONE), ncomp(ncomp_) { }
 };
+
+bool IsConstantCeedCoeff(CeedCoeff *coeff)
+{
+   return (dynamic_cast<CeedVariableCoeff*>(coeff) == NULL);
+}
 
 class Mesh;
 class IntegrationRule;
@@ -73,14 +77,12 @@ void InitCeedCoeff(Coefficient *Q, Mesh &mesh, const IntegrationRule &ir,
    if ( Q == nullptr )
    {
       CeedCoeff *ceedCoeff = new CeedCoeff;
-      ceedCoeff->coeff_type = CeedCoeffType::Const;
       ctx.coeff = 1.0;
       coeff_ptr = ceedCoeff;
    }
    else if (ConstantCoefficient *coeff = dynamic_cast<ConstantCoefficient*>(Q))
    {
       CeedCoeff *ceedCoeff = new CeedCoeff;
-      ceedCoeff->coeff_type = CeedCoeffType::Const;
       ctx.coeff = coeff->constant;
       coeff_ptr = ceedCoeff;
    }
@@ -90,7 +92,6 @@ void InitCeedCoeff(Coefficient *Q, Mesh &mesh, const IntegrationRule &ir,
       CeedGridCoeff *ceedCoeff = new CeedGridCoeff;
       ceedCoeff->coeff = coeff->GetGridFunction();
       InitCeedVector(*ceedCoeff->coeff, ceedCoeff->coeffVector);
-      ceedCoeff->coeff_type = CeedCoeffType::Grid;
       coeff_ptr = ceedCoeff;
    }
    else if (QuadratureFunctionCoefficient *cQ =
@@ -109,7 +110,6 @@ void InitCeedCoeff(Coefficient *Q, Mesh &mesh, const IntegrationRule &ir,
       qFun.Read();
       ceedCoeff->coeff.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
       InitCeedVector(ceedCoeff->coeff, ceedCoeff->coeffVector);
-      ceedCoeff->coeff_type = CeedCoeffType::Quad;
       coeff_ptr = ceedCoeff;
    }
    else
@@ -128,7 +128,6 @@ void InitCeedCoeff(Coefficient *Q, Mesh &mesh, const IntegrationRule &ir,
          }
       }
       InitCeedVector(ceedCoeff->coeff, ceedCoeff->coeffVector);
-      ceedCoeff->coeff_type = CeedCoeffType::Quad;
       coeff_ptr = ceedCoeff;
    }
 }
@@ -150,7 +149,6 @@ void InitCeedVecCoeff(VectorCoefficient *VQ, Mesh &mesh,
       {
          ctx.coeff[i] = val[i];
       }
-      ceedCoeff->coeff_type = CeedCoeffType::VecConst;
       coeff_ptr = ceedCoeff;
    }
    else if (VectorGridFunctionCoefficient* coeff =
@@ -159,7 +157,6 @@ void InitCeedVecCoeff(VectorCoefficient *VQ, Mesh &mesh,
       CeedGridCoeff *ceedCoeff = new CeedGridCoeff;
       ceedCoeff->coeff = coeff->GetGridFunction();
       InitCeedVector(*ceedCoeff->coeff, ceedCoeff->coeffVector);
-      ceedCoeff->coeff_type = CeedCoeffType::VecGrid;
       coeff_ptr = ceedCoeff;
    }
    else if (VectorQuadratureFunctionCoefficient *cQ =
@@ -179,7 +176,6 @@ void InitCeedVecCoeff(VectorCoefficient *VQ, Mesh &mesh,
       qFun.Read();
       ceedCoeff->coeff.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
       InitCeedVector(ceedCoeff->coeff, ceedCoeff->coeffVector);
-      ceedCoeff->coeff_type = CeedCoeffType::VecQuad;
       coeff_ptr = ceedCoeff;
    }
    else
@@ -204,7 +200,6 @@ void InitCeedVecCoeff(VectorCoefficient *VQ, Mesh &mesh,
          }
       }
       InitCeedVector(ceedCoeff->coeff, ceedCoeff->coeffVector);
-      ceedCoeff->coeff_type = CeedCoeffType::VecQuad;
       coeff_ptr = ceedCoeff;
    }
 }

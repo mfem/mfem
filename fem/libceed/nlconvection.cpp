@@ -32,18 +32,18 @@ CeedPANLConvectionIntegrator::CeedPANLConvectionIntegrator(
    MFEM_VERIFY(fes.GetVDim() == 1 || fes.GetVDim() == mesh.Dimension(),
                "case not supported");
    int dim = mesh.Dimension();
+   NLConvectionContext ctx;
+   InitCeedCoeff(Q, mesh, irm, coeff, ctx);
+   bool const_coeff = IsConstantCeedCoeff(coeff);
+   std::string build_func = const_coeff ? ":f_build_conv_const" : ":f_build_conv_quad";
+   CeedQFunctionUser build_qf = const_coeff ? f_build_conv_const : f_build_conv_quad;
    CeedPAOperator convOp = {fes, irm,
                             dim * dim, "/nlconvection.h",
-                            ":f_build_conv_const", f_build_conv_const,
-                            ":f_build_conv_quad", f_build_conv_quad,
-                            "", nullptr,
-                            "", nullptr,
+                            build_func, build_qf,
                             ":f_apply_conv", f_apply_conv,
                             EvalMode::InterpAndGrad,
                             EvalMode::Interp
                            };
-   NLConvectionContext ctx;
-   InitCeedCoeff(Q, mesh, irm, coeff, ctx);
    Assemble(convOp, ctx);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
@@ -58,17 +58,17 @@ CeedMFNLConvectionIntegrator::CeedMFNLConvectionIntegrator(
 {
 #ifdef MFEM_USE_CEED
    Mesh &mesh = *fes.GetMesh();
+   bool const_coeff = IsConstantCeedCoeff(coeff);
+   NLConvectionContext ctx;
+   InitCeedCoeff(Q, mesh, irm, coeff, ctx);
+   std::string apply_func = const_coeff ? ":f_apply_conv_mf_const" : ":f_apply_conv_mf_quad";
+   CeedQFunctionUser apply_qf = const_coeff ? f_apply_conv_mf_const : f_apply_conv_mf_quad;
    CeedMFOperator convOp = {fes, irm,
                             "/nlconvection.h",
-                            ":f_apply_conv_mf_const", f_apply_conv_mf_const,
-                            ":f_apply_conv_mf_quad", f_apply_conv_mf_quad,
-                            "", nullptr,
-                            "", nullptr,
+                            apply_func, apply_qf,
                             EvalMode::InterpAndGrad,
                             EvalMode::Interp
                            };
-   NLConvectionContext ctx;
-   InitCeedCoeff(Q, mesh, irm, coeff, ctx);
    Assemble(convOp, ctx);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
