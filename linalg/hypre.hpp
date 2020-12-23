@@ -243,8 +243,10 @@ public:
    /** If @a owner is false, ownership of @a a is not transferred */
    void WrapHypreParCSRMatrix(hypre_ParCSRMatrix *a, bool owner = true)
    {
+      if (ParCSROwner) { Destroy(); }
+      Init();
       A = a;
-      if (!owner) { ParCSROwner = 0; }
+      ParCSROwner = owner;
       height = GetNumRows();
       width = GetNumCols();
    }
