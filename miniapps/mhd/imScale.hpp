@@ -1823,7 +1823,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
       gftmp2.SetFromTrueDofs(y2);
       gftmp3.SetFromTrueDofs(y3);
       pd->SetCycle(icycle);
-      pd->SetTime(icycle*.1);
+      pd->SetTime(icycle);
       icycle++;
       pd->Save();
    }

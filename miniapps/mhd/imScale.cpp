@@ -83,6 +83,10 @@ int main(int argc, char *argv[])
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
+   args.AddOption(&im_supg, "-im_supg", "--im_supg",
+                  "supg options in formulation");
+   args.AddOption(&i_supgpre, "-i_supgpre", "--i_supgpre",
+                  "supg preconditioner options in formulation");
    args.AddOption(&visc, "-visc", "--viscosity",
                   "Viscosity coefficient.");
    args.AddOption(&resi, "-resi", "--resistivity",

@@ -128,8 +128,7 @@ int main(int argc, char *argv[])
                   "Use max-tau in supg.");
    args.AddOption(&useFull, "-useFull", "--useFull",
                   "version of Full preconditioner");
-   args.AddOption(&usefd, "-fd", "--use-fd", "-no-fd",
-                  "--no-fd",
+   args.AddOption(&usefd, "-fd", "--use-fd", "-no-fd", "--no-fd",
                   "Use fd-fem in the implicit solvers.");
    args.AddOption(&pa, "-pa", "--parallel-assembly", "-no-pa",
                   "--no-parallel-assembly", "Parallel assembly.");
