@@ -82,7 +82,12 @@ private:
 
 public:
 
-   HypreParVector() {}
+   /// Default constructor, no underlying @a hypre_ParVector is created.
+   HypreParVector()
+   {
+      own_ParVector = false;
+      x = NULL;
+   }
 
    /** @brief Creates vector with given global size and parallel partitioning of
        the rows/columns given by @a col. */
@@ -117,7 +122,7 @@ public:
    MPI_Comm GetComm() { return x->comm; }
 
    /// Converts hypre's format to HypreParVector
-   void WrapHypreParVector(hypre_ParVector *y);
+   void WrapHypreParVector(hypre_ParVector *y, bool owner=true);
 
    /// Returns the parallel row/column partitioning
    /** See @ref hypre_partitioning_descr "here" for a description of the
@@ -401,7 +406,7 @@ public:
    /// Get the local off-diagonal block. NOTE: 'offd' will not own any data.
    void GetOffd(SparseMatrix &offd, HYPRE_Int* &cmap) const;
    /// Get on-processor rows as CSR matrix.
-   void GetProcRows(SparseMatrix &colCSRMat);
+   void MergeDiagAndOffd(SparseMatrix &merged);
 
    /** Split the matrix into M x N equally sized blocks of parallel matrices.
        The size of 'blocks' must already be set to M x N. */

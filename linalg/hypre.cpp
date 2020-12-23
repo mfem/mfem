@@ -128,11 +128,13 @@ HypreParVector::HypreParVector(ParFiniteElementSpace *pfes)
    own_ParVector = 1;
 }
 
-void HypreParVector::WrapHypreParVector(hypre_ParVector *y)
+void HypreParVector::WrapHypreParVector(hypre_ParVector *y, bool owner)
 {
+   if (own_ParVector) { hypre_ParVectorDestroy(x); }
+   Destroy();
    x = y;
    _SetDataAndSize_();
-   own_ParVector = 0;
+   own_ParVector = owner;
 }
 
 Vector * HypreParVector::GlobalVector() const
@@ -933,9 +935,9 @@ void HypreParMatrix::GetOffd(SparseMatrix &offd, HYPRE_Int* &cmap) const
    cmap = A->col_map_offd;
 }
 
-void HypreParMatrix::GetProcRows(SparseMatrix &colCSRMat)
+void HypreParMatrix::MergeDiagAndOffd(SparseMatrix &merged)
 {
-   MakeWrapper(hypre_MergeDiagAndOffd(A), colCSRMat);
+   MakeWrapper(hypre_MergeDiagAndOffd(A), merged);
 }
 
 void HypreParMatrix::GetBlocks(Array2D<HypreParMatrix*> &blocks,
@@ -1644,8 +1646,7 @@ void BlockInverseScale(const HypreParMatrix *A, HypreParMatrix *C,
       hypre_ParVector *d_hypre;
       hypre_ParvecBdiagInvScal(b_Hypre, blocksize, &d_hypre, *A);
 
-      d->WrapHypreParVector(d_hypre);
-      d->SetOwnership(true);
+      d->WrapHypreParVector(d_hypre, true);
    }
 }
 
