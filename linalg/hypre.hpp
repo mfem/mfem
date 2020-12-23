@@ -119,7 +119,9 @@ public:
    /// Converts hypre's format to HypreParVector
    void WrapHypreParVector(hypre_ParVector *y);
 
-   /// Returns the row partitioning
+   /// Returns the parallel row/column partitioning
+   /** See @ref hypre_partitioning_descr "here" for a description of the
+       partitioning array. */
    inline HYPRE_Int *Partitioning() { return x->partitioning; }
 
    /// Returns the global number of rows
