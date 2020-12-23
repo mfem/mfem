@@ -22,6 +22,8 @@ namespace ceed_test
 
 #ifdef MFEM_USE_CEED
 
+enum class CeedCoeffType { Const, Grid, Quad, VecConst, VecGrid, VecQuad };
+
 double coeff_function(const Vector &x)
 {
    return 1.0 + x[0]*x[0];
@@ -64,30 +66,30 @@ std::string getString(AssemblyLevel assembly)
    return "";
 }
 
-std::string getString(CeedCoeff coeff_type)
+std::string getString(CeedCoeffType coeff_type)
 {
    switch (coeff_type)
    {
-   case CeedCoeff::Const:
+   case CeedCoeffType::Const:
       return "Const";
       break;
-   case CeedCoeff::Grid:
+   case CeedCoeffType::Grid:
       return "Grid";
       break;
-   case CeedCoeff::Quad:
+   case CeedCoeffType::Quad:
       return "Quad";
       break;
-   case CeedCoeff::VecConst:
+   case CeedCoeffType::VecConst:
       return "VecConst";
       break;
-   case CeedCoeff::VecGrid:
+   case CeedCoeffType::VecGrid:
       return "VecGrid";
       break;
-   case CeedCoeff::VecQuad:
+   case CeedCoeffType::VecQuad:
       return "VecQuad";
       break;
    }
-   mfem_error("Unknown CeedCoeff.");
+   mfem_error("Unknown CeedCoeffType.");
    return "";
 }
 
@@ -132,16 +134,16 @@ std::string getString(NLProblem pb)
 }
 
 void InitCoeff(Mesh &mesh, FiniteElementCollection &fec, const int dim,
-               const CeedCoeff coeff_type, GridFunction *&gf,
+               const CeedCoeffType coeff_type, GridFunction *&gf,
                FiniteElementSpace *& coeff_fes,
                Coefficient *&coeff, VectorCoefficient *&vcoeff)
 {
    switch (coeff_type)
    {
-      case CeedCoeff::Const:
+      case CeedCoeffType::Const:
          coeff = new ConstantCoefficient(1.0);
          break;
-      case CeedCoeff::Grid:
+      case CeedCoeffType::Grid:
       {
          FunctionCoefficient f_coeff(coeff_function);
          coeff_fes = new FiniteElementSpace(&mesh, &fec);
@@ -150,20 +152,20 @@ void InitCoeff(Mesh &mesh, FiniteElementCollection &fec, const int dim,
          coeff = new GridFunctionCoefficient(gf);
          break;
       }
-      case CeedCoeff::Quad:
+      case CeedCoeffType::Quad:
          coeff = new FunctionCoefficient(coeff_function);
          break;
-      case CeedCoeff::VecConst:
+      case CeedCoeffType::VecConst:
       {
          Vector val(dim);
          for (int i = 0; i < dim; i++)
          {
             val(i) = 1.0;
-         }         
+         }
          vcoeff = new VectorConstantCoefficient(val);
          break;
       }
-      case CeedCoeff::VecGrid:
+      case CeedCoeffType::VecGrid:
       {
          VectorFunctionCoefficient f_vcoeff(dim, velocity_function);
          coeff_fes = new FiniteElementSpace(&mesh, &fec, dim);
@@ -172,13 +174,13 @@ void InitCoeff(Mesh &mesh, FiniteElementCollection &fec, const int dim,
          vcoeff = new VectorGridFunctionCoefficient(gf);
          break;
       }
-      case CeedCoeff::VecQuad:
+      case CeedCoeffType::VecQuad:
          vcoeff = new VectorFunctionCoefficient(dim, velocity_function);
          break;
    }
 }
 
-void test_ceed_operator(const char* input, int order, const CeedCoeff coeff_type,
+void test_ceed_operator(const char* input, int order, const CeedCoeffType coeff_type,
                         const Problem pb, const AssemblyLevel assembly)
 {
    std::string section = "assembly: " + getString(assembly) + "\n" +
@@ -253,7 +255,7 @@ void test_ceed_operator(const char* input, int order, const CeedCoeff coeff_type
    delete vcoeff;
 }
 
-void test_ceed_nloperator(const char* input, int order, const CeedCoeff coeff_type,
+void test_ceed_nloperator(const char* input, int order, const CeedCoeffType coeff_type,
                           const NLProblem pb, const AssemblyLevel assembly)
 {
    std::string section = "assembly: " + getString(assembly) + "\n" +
@@ -313,7 +315,7 @@ void test_ceed_nloperator(const char* input, int order, const CeedCoeff coeff_ty
 TEST_CASE("CEED mass & diffusion", "[CEED]")
 {
    auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
-   auto coeff_type = GENERATE(CeedCoeff::Const,CeedCoeff::Grid,CeedCoeff::Quad);
+   auto coeff_type = GENERATE(CeedCoeffType::Const,CeedCoeffType::Grid,CeedCoeffType::Quad);
    auto pb = GENERATE(Problem::Mass,Problem::Diffusion,
                       Problem::VectorMass,Problem::VectorDiffusion);
    auto order = GENERATE(1,2,3);
@@ -327,8 +329,8 @@ TEST_CASE("CEED mass & diffusion", "[CEED]")
 TEST_CASE("CEED convection", "[CEED],[Convection]")
 {
    auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
-   auto coeff_type = GENERATE(CeedCoeff::VecConst,CeedCoeff::VecGrid,
-                              CeedCoeff::VecQuad);
+   auto coeff_type = GENERATE(CeedCoeffType::VecConst,CeedCoeffType::VecGrid,
+                              CeedCoeffType::VecQuad);
    auto pb = GENERATE(Problem::Convection);
    auto order = GENERATE(1,2,3);
    auto mesh = GENERATE("../../data/inline-quad.mesh",
@@ -343,7 +345,7 @@ TEST_CASE("CEED convection", "[CEED],[Convection]")
 TEST_CASE("CEED non-linear convection", "[CEED],[NLConvection]")
 {
    auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
-   auto coeff_type = GENERATE(CeedCoeff::Const,CeedCoeff::Grid,CeedCoeff::Quad);
+   auto coeff_type = GENERATE(CeedCoeffType::Const,CeedCoeffType::Grid,CeedCoeffType::Quad);
    auto pb = GENERATE(NLProblem::Convection);
    auto order = GENERATE(1,2,3);
    auto mesh = GENERATE("../../data/inline-quad.mesh",
