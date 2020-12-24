@@ -2030,9 +2030,9 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             getline(input, buff); // Read end-of-line
          }
 
-         // Follow existing long chains of slave->master in v2v array. 
-         // Upon completion of this loop, each v2v[slave] will point to a true 
-         // master vertex. This algorithm is useful for periodicity defined in 
+         // Follow existing long chains of slave->master in v2v array.
+         // Upon completion of this loop, each v2v[slave] will point to a true
+         // master vertex. This algorithm is useful for periodicity defined in
          // multiple directions.
          for (int slave = 0; slave < v2v.Size(); slave++)
          {
