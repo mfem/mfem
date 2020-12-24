@@ -14,12 +14,12 @@
 #include "../../config/config.hpp"
 #ifdef MFEM_USE_CEED
 #include "nlconvection.h"
-#include "ceed.h"
 #endif
 
 namespace mfem
 {
 
+#ifdef MFEM_USE_CEED
 struct CeedNLConvectionInfo
 {
    static constexpr const char *header = "/nlconvection.h";
@@ -48,6 +48,7 @@ const CeedQFunctionUser CeedNLConvectionInfo::apply_qf_mf_const =
    f_apply_conv_mf_const;
 const CeedQFunctionUser CeedNLConvectionInfo::apply_qf_mf_quad =
    f_apply_conv_mf_quad;
+#endif
 
 CeedPANLConvectionIntegrator::CeedPANLConvectionIntegrator(
    const FiniteElementSpace &fes,
