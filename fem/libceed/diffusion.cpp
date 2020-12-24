@@ -19,6 +19,26 @@
 namespace mfem
 {
 
+struct CeedDiffusionInfo
+{
+   static constexpr const char *header = "/diffusion.h";
+   static constexpr const char *build_func_const = ":f_build_diff_const";
+   static constexpr const char *build_func_quad = ":f_build_diff_quad";
+   static constexpr const char *apply_func = ":f_apply_diff";
+   static constexpr const char *apply_func_mf_const = ":f_apply_diff_mf_const";
+   static constexpr const char *apply_func_mf_quad = ":f_apply_diff_mf_quad";
+   static constexpr CeedQFunctionUser build_qf_const = f_build_diff_const;
+   static constexpr CeedQFunctionUser build_qf_quad = f_build_diff_quad;
+   static constexpr CeedQFunctionUser apply_qf = f_apply_diff;
+   static constexpr CeedQFunctionUser apply_qf_mf_const = f_apply_diff_mf_const;
+   static constexpr CeedQFunctionUser apply_qf_mf_quad = f_apply_diff_mf_quad;
+   static constexpr EvalMode trial_op = EvalMode::Grad;
+   static constexpr EvalMode test_op = EvalMode::Grad;
+   const int qdatasize;
+   DiffusionContext ctx;
+   CeedDiffusionInfo(int dim) : qdatasize(dim*(dim+1)/2) { }
+};
+
 CeedPADiffusionIntegrator::CeedPADiffusionIntegrator(
    const FiniteElementSpace &fes,
    const mfem::IntegrationRule &irm,
@@ -26,25 +46,9 @@ CeedPADiffusionIntegrator::CeedPADiffusionIntegrator(
    : CeedPAIntegrator()
 {
 #ifdef MFEM_USE_CEED
-   Mesh &mesh = *fes.GetMesh();
-   // Perform checks for some assumptions made in the Q-functions.
-   MFEM_VERIFY(mesh.Dimension() == mesh.SpaceDimension(), "case not supported");
-   MFEM_VERIFY(fes.GetVDim() == 1 || fes.GetVDim() == mesh.Dimension(),
-               "case not supported");
-   int dim = mesh.Dimension();
-   DiffusionContext ctx;
-   InitCeedCoeff(Q, mesh, irm, coeff, ctx);
-   bool const_coeff = coeff->IsConstant();
-   std::string build_func = const_coeff ? ":f_build_diff_const" : ":f_build_diff_quad";
-   CeedQFunctionUser build_qf = const_coeff ? f_build_diff_const : f_build_diff_quad;
-   CeedPAOperator diffOp = {fes, irm,
-                            dim * (dim + 1) / 2, "/diffusion.h",
-                            build_func, build_qf,
-                            ":f_apply_diff", f_apply_diff,
-                            EvalMode::Grad,
-                            EvalMode::Grad
-                           };
-   Assemble(diffOp, ctx);
+   CeedDiffusionInfo info(fes.GetMesh()->Dimension());
+   CeedPAOperator op = InitPA(info, fes, irm, Q);
+   Assemble(op, info.ctx);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
@@ -57,19 +61,9 @@ CeedMFDiffusionIntegrator::CeedMFDiffusionIntegrator(
    : CeedMFIntegrator()
 {
 #ifdef MFEM_USE_CEED
-   Mesh &mesh = *fes.GetMesh();
-   DiffusionContext ctx;
-   InitCeedCoeff(Q, mesh, irm, coeff, ctx);
-   bool const_coeff = coeff->IsConstant();
-   std::string apply_func = const_coeff ? ":f_apply_diff_mf_const" : ":f_apply_diff_mf_quad";
-   CeedQFunctionUser apply_qf = const_coeff ? f_apply_diff_mf_const : f_apply_diff_mf_quad;
-   CeedMFOperator diffOp = {fes, irm,
-                            "/diffusion.h",
-                            apply_func, apply_qf,
-                            EvalMode::Grad,
-                            EvalMode::Grad
-                           };
-   Assemble(diffOp, ctx);
+   CeedDiffusionInfo info(fes.GetMesh()->Dimension());
+   CeedMFOperator op = InitMF(info, fes, irm, Q);
+   Assemble(op, info.ctx);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
