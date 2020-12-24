@@ -896,7 +896,7 @@ void SparseMatrix::AbsMult(const Vector &x, Vector &y) const
       const double *xp = x.HostRead();
       double *yp = y.HostReadWrite();
 
-      //  The matrix is not finalized, but multiplication is still possible
+      // The matrix is not finalized, but multiplication is still possible
       for (int i = 0; i < height; i++)
       {
          RowNode *row = Rows[i];
@@ -3358,12 +3358,12 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
                "number of columns of A (" << ncolsA
                << ") must equal number of rows of B (" << nrowsB << ")");
 
-   A_i    = A.GetI();
-   A_j    = A.GetJ();
-   A_data = A.GetData();
-   B_i    = B.GetI();
-   B_j    = B.GetJ();
-   B_data = B.GetData();
+   A_i    = A.HostReadI();
+   A_j    = A.HostReadJ();
+   A_data = A.HostReadData();
+   B_i    = B.HostReadI();
+   B_j    = B.HostReadJ();
+   B_data = B.HostReadData();
 
    B_marker = new int[ncolsB];
 
@@ -3409,16 +3409,16 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
    {
       C = OAB;
 
-      MFEM_VERIFY(nrowsA == C -> Height() && ncolsB == C -> Width(),
+      MFEM_VERIFY(nrowsA == C->Height() && ncolsB == C->Width(),
                   "Input matrix sizes do not match output sizes"
                   << " nrowsA = " << nrowsA
                   << ", C->Height() = " << C->Height()
                   << " ncolsB = " << ncolsB
                   << ", C->Width() = " << C->Width());
 
-      // C_i    = C -> GetI(); // not used
-      C_j    = C -> GetJ();
-      C_data = C -> GetData();
+      // C_i    = C->HostReadI(); // not used
+      C_j    = C->HostWriteJ();
+      C_data = C->HostWriteData();
    }
 
    counter = 0;

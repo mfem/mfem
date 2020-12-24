@@ -24,6 +24,7 @@
 #include "blockoperator.hpp"
 #include "sparsesmoothers.hpp"
 #include "densemat.hpp"
+#include "symmat.hpp"
 #include "ode.hpp"
 #include "solvers.hpp"
 #include "handle.hpp"
@@ -48,6 +49,10 @@
 #ifdef MFEM_USE_MPI
 #include "hypre_parcsr.hpp"
 #include "hypre.hpp"
+
+#ifdef MFEM_USE_MUMPS
+#include "mumps.hpp"
+#endif
 
 #ifdef MFEM_USE_PETSC
 #include "petsc.hpp"

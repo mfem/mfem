@@ -435,7 +435,7 @@ void ScalarFiniteElement::ScalarLocalInterpolation(
    IntegrationPoint f_ip;
 
    const int fs = fine_fe.GetDof(), cs = this->GetDof();
-   I.SetSize(fs, cs );
+   I.SetSize(fs, cs);
    Vector fine_shape(fs), coarse_shape(cs);
    DenseMatrix fine_mass(fs), fine_coarse_mass(fs, cs); // initialized with 0
    const int ir_order = GetOrder() + fine_fe.GetOrder();
@@ -464,6 +464,44 @@ void ScalarFiniteElement::ScalarLocalInterpolation(
    }
 }
 
+void ScalarFiniteElement::ScalarLocalRestriction(
+   ElementTransformation &Trans, DenseMatrix &R,
+   const ScalarFiniteElement &coarse_fe) const
+{
+   // General "restriction", defined by L2 projection
+   double v[Geometry::MaxDim];
+   Vector vv (v, dim);
+   IntegrationPoint f_ip;
+
+   const int cs = coarse_fe.GetDof(), fs = this->GetDof();
+   R.SetSize(cs, fs);
+   Vector fine_shape(fs), coarse_shape(cs);
+   DenseMatrix coarse_mass(cs), coarse_fine_mass(cs, fs); // initialized with 0
+   const int ir_order = GetOrder() + coarse_fe.GetOrder();
+   const IntegrationRule &ir = IntRules.Get(coarse_fe.GetGeomType(), ir_order);
+
+   for (int i = 0; i < ir.GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(i);
+      this->CalcShape(ip, fine_shape);
+      Trans.Transform(ip, vv);
+      f_ip.Set(v, dim);
+      coarse_fe.CalcShape(f_ip, coarse_shape);
+
+      AddMult_a_VVt(ip.weight, coarse_shape, coarse_mass);
+      AddMult_a_VWt(ip.weight, coarse_shape, fine_shape, coarse_fine_mass);
+   }
+
+   DenseMatrixInverse coarse_mass_inv(coarse_mass);
+   coarse_mass_inv.Mult(coarse_fine_mass, R);
+
+   if (map_type == INTEGRAL)
+   {
+      // assuming Trans is linear; this should be ok for all refinement types
+      Trans.SetIntPoint(&Geometries.GetCenter(geom_type));
+      R *= 1.0 / Trans.Weight();
+   }
+}
 const DofToQuad &ScalarFiniteElement::GetDofToQuad(const IntegrationRule &ir,
                                                    DofToQuad::Mode mode) const
 {
