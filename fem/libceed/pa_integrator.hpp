@@ -130,7 +130,7 @@ public:
       // quadrature data) and set its context data.
       if (CeedVariableCoeff *var_coeff = dynamic_cast<CeedVariableCoeff*>(coeff))
       {
-         CeedQFunctionAddInput(build_qfunc, "coeff", 1, var_coeff->emode);
+         CeedQFunctionAddInput(build_qfunc, "coeff", coeff->ncomp, var_coeff->emode);
       }
       CeedQFunctionAddInput(build_qfunc, "dx", dim * dim, CEED_EVAL_GRAD);
       CeedQFunctionAddInput(build_qfunc, "weights", 1, CEED_EVAL_WEIGHT);
@@ -147,7 +147,7 @@ public:
       CeedOperatorCreate(ceed, build_qfunc, NULL, NULL, &build_oper);
       if (CeedGridCoeff *gridCoeff = dynamic_cast<CeedGridCoeff*>(coeff))
       {
-         InitCeedBasisAndRestriction(*gridCoeff->coeff->FESpace(), irm, ceed,
+         InitCeedBasisAndRestriction(*gridCoeff->gf.FESpace(), irm, ceed,
                                      &gridCoeff->basis, &gridCoeff->restr);
          CeedOperatorSetField(build_oper, "coeff", gridCoeff->restr,
                               gridCoeff->basis, gridCoeff->coeffVector);
