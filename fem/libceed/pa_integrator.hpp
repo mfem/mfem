@@ -74,8 +74,10 @@ public:
                   "case not supported");
       InitCeedCoeff(Q, mesh, irm, coeff, info.ctx);
       bool const_coeff = coeff->IsConstant();
-      std::string build_func = const_coeff ? info.build_func_const : info.build_func_quad;
-      CeedQFunctionUser build_qf = const_coeff ? info.build_qf_const : info.build_qf_quad;
+      std::string build_func = const_coeff ? info.build_func_const
+                               : info.build_func_quad;
+      CeedQFunctionUser build_qf = const_coeff ? info.build_qf_const
+                                   : info.build_qf_quad;
       return CeedPAOperator{fes, irm,
                             info.qdatasize, info.header,
                             build_func, build_qf,
@@ -146,7 +148,7 @@ public:
       if (CeedGridCoeff *gridCoeff = dynamic_cast<CeedGridCoeff*>(coeff))
       {
          InitCeedBasisAndRestriction(*gridCoeff->coeff->FESpace(), irm, ceed,
-                                       &gridCoeff->basis, &gridCoeff->restr);
+                                     &gridCoeff->basis, &gridCoeff->restr);
          CeedOperatorSetField(build_oper, "coeff", gridCoeff->restr,
                               gridCoeff->basis, gridCoeff->coeffVector);
       }
