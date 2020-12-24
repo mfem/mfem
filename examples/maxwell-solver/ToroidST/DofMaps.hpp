@@ -24,7 +24,10 @@ void PartitionFE(const FiniteElementSpace * fes, int nrsubmeshes, double ovlp,
                  Array<FiniteElementSpace*> & fespaces, 
                  Array<Array<int> * > & ElemMaps,
                  Array<Array<int> * > & DofMaps0,
-                 Array<Array<int> * > & DofMaps1);
+                 Array<Array<int> * > & DofMaps1,
+                 Array<Array<int> * > & OvlpMaps0, 
+                 Array<Array<int> * > & OvlpMaps1);
+
 
 void DofMapTests(FiniteElementSpace &fes0, FiniteElementSpace &fes1,
                  const Array<int> & dmap0, const Array<int> & dmap1);                 

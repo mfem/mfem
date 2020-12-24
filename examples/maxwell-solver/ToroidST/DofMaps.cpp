@@ -123,7 +123,8 @@ void GetDofMaps(const FiniteElementSpace &fes0, const FiniteElementSpace &fes1,
 void PartitionFE(const FiniteElementSpace * fes, int nrsubmeshes, double ovlp, 
                  Array<FiniteElementSpace*> & fespaces, 
                  Array<Array<int> * > & ElemMaps,
-                 Array<Array<int> * > & DofMaps0, Array<Array<int> * > & DofMaps1)
+                 Array<Array<int> * > & DofMaps0, Array<Array<int> * > & DofMaps1,
+                 Array<Array<int> * > & OvlpMaps0, Array<Array<int> * > & OvlpMaps1)
 {
    Mesh * mesh = fes->GetMesh();
    Array<Mesh *> meshes;
@@ -145,6 +146,16 @@ void PartitionFE(const FiniteElementSpace * fes, int nrsubmeshes, double ovlp,
       DofMaps0[i] = new Array<int>();
       DofMaps1[i] = new Array<int>();
       GetDofMaps(*fespaces[i],*fes,*DofMaps0[i], *DofMaps1[i], ElemMaps[i], &GlobalElems);
+   }
+   int nroverlaps = nrsubmeshes-1;
+   OvlpMaps0.SetSize(nroverlaps);
+   OvlpMaps1.SetSize(nroverlaps);
+   for (int i = 0; i<nroverlaps; i++)
+   {
+      OvlpMaps0[i] = new Array<int>();
+      OvlpMaps1[i] = new Array<int>();
+      GetDofMaps(*fespaces[i],*fespaces[i+1],*OvlpMaps0[i], *OvlpMaps1[i], 
+                  ElemMaps[i], ElemMaps[i+1]);
    }
 }
 
@@ -176,15 +187,28 @@ void DofMapTests(FiniteElementSpace &fes0, FiniteElementSpace &fes1,
    char vishost[] = "localhost";
    int  visport   = 19916;
 
-   socketstream sol_sock0(vishost, visport);
-   sol_sock0.precision(8);
-   sol_sock0 << "solution\n" << *mesh0 << gf0.real() 
-            //  << "valuerange -1 1 \n"
-             << "window_title ' gf_0 ' " << flush;                     
+   // socketstream sol_sock0(vishost, visport);
+   // sol_sock0.precision(8);
+   // sol_sock0 << "solution\n" << *mesh0 << gf0.real() 
+   //          //  << "valuerange -1 1 \n"
+   //           << "window_title ' gf_0 ' " << flush;                     
 
-   socketstream sol_sock1(vishost, visport);
-   sol_sock1.precision(8);
-   sol_sock1 << "solution\n" << *mesh1 << gf1.real() 
-            //  << "valuerange -1 1 \n"
-             << "window_title ' gf_1 ' " << flush;  
+   // socketstream sol_sock1(vishost, visport);
+   // sol_sock1.precision(8);
+   // sol_sock1 << "solution\n" << *mesh1 << gf1.real() 
+   //          //  << "valuerange -1 1 \n"
+   //           << "window_title ' gf_1 ' " << flush;  
+   int n = 2;
+   {
+      socketstream solsock(vishost, visport);
+      solsock.precision(8);
+      solsock << "parallel " << n << " " << 0 << "\n";
+      solsock << "solution\n" << *mesh0 << gf0.real() << flush;     
+   }
+   {
+      socketstream solsock(vishost, visport);
+      solsock.precision(8);
+      solsock << "parallel " << n << " " << 1 << "\n";
+      solsock << "solution\n" << *mesh1 << gf1.real()  << flush;     
+   }
 }

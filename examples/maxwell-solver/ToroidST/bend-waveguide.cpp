@@ -195,18 +195,29 @@ int main(int argc, char *argv[])
    // double ovlerlap = 0.5; // in degrees;
    int nrmeshes = 9;
 
-   Array<Array<int> *> ElemMaps, DofMaps0, DofMaps1;
+   Array<Array<int> *> ElemMaps, DofMaps0, DofMaps1, OvlpMaps0, OvlpMaps1;
    Array<FiniteElementSpace *> fespaces;
-   PartitionFE(fespace,nrmeshes,ovlerlap,fespaces, ElemMaps,DofMaps0, DofMaps1);
+   PartitionFE(fespace,nrmeshes,ovlerlap,fespaces, 
+               ElemMaps,
+               DofMaps0, DofMaps1,
+               OvlpMaps0, OvlpMaps1);
 
 
    // Test local to global dof Maps
-   for (int i = 0; i<nrmeshes; i++)
+   // for (int i = 0; i<nrmeshes; i++)
+   // {
+   //    DofMapTests(*fespaces[i],*fespace,*DofMaps0[i], *DofMaps1[i]);
+   //    // DofMapTests(*fespace,*fespaces[i], *DofMaps1[i], *DofMaps0[i]);
+   //    cin.get();
+   // }
+
+   for (int i = 0; i<nrmeshes-1; i++)
    {
-      DofMapTests(*fespaces[i],*fespace,*DofMaps0[i], *DofMaps1[i]);
-      // DofMapTests(*fespace,*fespaces[i], *DofMaps1[i], *DofMaps0[i]);
+      // DofMapTests(*fespaces[i],*fespaces[i+1],*OvlpMaps0[i], *OvlpMaps1[i]);
+      DofMapTests(*fespaces[i+1],*fespaces[i],*OvlpMaps1[i], *OvlpMaps0[i]);
       cin.get();
    }
+   
 
    // if (visualization)
    // {
