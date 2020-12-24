@@ -121,7 +121,7 @@ public:
       // quadrature data) and set its context data.
       if (CeedVariableCoeff *var_coeff = dynamic_cast<CeedVariableCoeff*>(coeff))
       {
-         CeedQFunctionAddInput(apply_qfunc, "coeff", 1, var_coeff->emode);
+         CeedQFunctionAddInput(apply_qfunc, "coeff", coeff->ncomp, var_coeff->emode);
       }
       // input
       switch (op.trial_op)
