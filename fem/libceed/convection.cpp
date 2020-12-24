@@ -19,6 +19,26 @@
 namespace mfem
 {
 
+struct CeedConvectionInfo
+{
+   static constexpr const char *header = "/convection.h";
+   static constexpr const char *build_func_const = ":f_build_conv_const";
+   static constexpr const char *build_func_quad = ":f_build_conv_quad";
+   static constexpr const char *apply_func = ":f_apply_conv";
+   static constexpr const char *apply_func_mf_const = ":f_apply_conv_mf_const";
+   static constexpr const char *apply_func_mf_quad = ":f_apply_conv_mf_quad";
+   static constexpr CeedQFunctionUser build_qf_const = f_build_conv_const;
+   static constexpr CeedQFunctionUser build_qf_quad = f_build_conv_quad;
+   static constexpr CeedQFunctionUser apply_qf = f_apply_conv;
+   static constexpr CeedQFunctionUser apply_qf_mf_const = f_apply_conv_mf_const;
+   static constexpr CeedQFunctionUser apply_qf_mf_quad = f_apply_conv_mf_quad;
+   static constexpr EvalMode trial_op = EvalMode::Grad;
+   static constexpr EvalMode test_op = EvalMode::Interp;
+   const int qdatasize;
+   ConvectionContext ctx;
+   CeedConvectionInfo(int dim) : qdatasize(dim * (dim + 1) / 2) { }
+};
+
 CeedPAConvectionIntegrator::CeedPAConvectionIntegrator(
    const FiniteElementSpace &fes,
    const mfem::IntegrationRule &irm,
@@ -27,26 +47,10 @@ CeedPAConvectionIntegrator::CeedPAConvectionIntegrator(
    : CeedPAIntegrator()
 {
 #ifdef MFEM_USE_CEED
-   Mesh &mesh = *fes.GetMesh();
-   // Perform checks for some assumptions made in the Q-functions.
-   MFEM_VERIFY(mesh.Dimension() == mesh.SpaceDimension(), "case not supported");
-   MFEM_VERIFY(fes.GetVDim() == 1 || fes.GetVDim() == mesh.Dimension(),
-               "case not supported");
-   int dim = mesh.Dimension();
-   ConvectionContext ctx;
-   InitCeedCoeff(Q, mesh, irm, coeff, ctx);
-   ctx.alpha = alpha;
-   bool const_coeff = coeff->IsConstant();
-   std::string build_func = const_coeff ? ":f_build_conv_const" : ":f_build_conv_quad";
-   CeedQFunctionUser build_qf = const_coeff ? f_build_conv_const : f_build_conv_quad;
-   CeedPAOperator convOp = {fes, irm,
-                            dim * (dim + 1) / 2, "/convection.h",
-                            build_func, build_qf,
-                            ":f_apply_conv", f_apply_conv,
-                            EvalMode::Grad,
-                            EvalMode::Interp
-                           };
-   Assemble(convOp, ctx);
+   CeedConvectionInfo info(fes.GetMesh()->Dimension());
+   CeedPAOperator op = InitPA(info, fes, irm, Q);
+   info.ctx.alpha = alpha;
+   Assemble(op, info.ctx);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
@@ -60,20 +64,10 @@ CeedMFConvectionIntegrator::CeedMFConvectionIntegrator(
    : CeedMFIntegrator()
 {
 #ifdef MFEM_USE_CEED
-   Mesh &mesh = *fes.GetMesh();
-   ConvectionContext ctx;
-   InitCeedCoeff(Q, mesh, irm, coeff, ctx);
-   ctx.alpha = alpha;
-   bool const_coeff = coeff->IsConstant();
-   std::string apply_func = const_coeff ? ":f_apply_conv_mf_const" : ":f_apply_conv_mf_quad";
-   CeedQFunctionUser apply_qf = const_coeff ? f_apply_conv_mf_const : f_apply_conv_mf_quad;
-   CeedMFOperator convOp = {fes, irm,
-                            "/convection.h",
-                            apply_func, apply_qf,
-                            EvalMode::Grad,
-                            EvalMode::Interp
-                           };
-   Assemble(convOp, ctx);
+   CeedConvectionInfo info(fes.GetMesh()->Dimension());
+   CeedMFOperator op = InitMF(info, fes, irm, Q);
+   info.ctx.alpha = alpha;
+   Assemble(op, info.ctx);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif

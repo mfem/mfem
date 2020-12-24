@@ -61,6 +61,30 @@ public:
    CeedPAIntegrator()
       : CeedMFIntegrator(),  build_oper(nullptr), build_qfunc(nullptr) { }
 
+   template <typename CeedInfo, typename CoeffType>
+   CeedPAOperator InitPA(CeedInfo &info,
+                         const FiniteElementSpace &fes,
+                         const mfem::IntegrationRule &irm,
+                         CoeffType *Q)
+   {
+      Mesh &mesh = *fes.GetMesh();
+      // Perform checks for some assumptions made in the Q-functions.
+      MFEM_VERIFY(mesh.Dimension() == mesh.SpaceDimension(), "case not supported");
+      MFEM_VERIFY(fes.GetVDim() == 1 || fes.GetVDim() == mesh.Dimension(),
+                  "case not supported");
+      InitCeedCoeff(Q, mesh, irm, coeff, info.ctx);
+      bool const_coeff = coeff->IsConstant();
+      std::string build_func = const_coeff ? info.build_func_const : info.build_func_quad;
+      CeedQFunctionUser build_qf = const_coeff ? info.build_qf_const : info.build_qf_quad;
+      return CeedPAOperator{fes, irm,
+                            info.qdatasize, info.header,
+                            build_func, build_qf,
+                            info.apply_func, info.apply_qf,
+                            info.trial_op,
+                            info.test_op
+                           };
+   }
+
    template <typename Context>
    void Assemble(CeedPAOperator &op, Context &ctx)
    {
