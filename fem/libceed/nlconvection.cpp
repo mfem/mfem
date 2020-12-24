@@ -39,11 +39,14 @@ struct CeedNLConvectionInfo
    CeedNLConvectionInfo(int dim) : qdatasize(dim * dim) { }
 };
 
-const CeedQFunctionUser CeedNLConvectionInfo::build_qf_const = f_build_conv_const;
+const CeedQFunctionUser CeedNLConvectionInfo::build_qf_const =
+   f_build_conv_const;
 const CeedQFunctionUser CeedNLConvectionInfo::build_qf_quad = f_build_conv_quad;
 const CeedQFunctionUser CeedNLConvectionInfo::apply_qf = f_apply_conv;
-const CeedQFunctionUser CeedNLConvectionInfo::apply_qf_mf_const = f_apply_conv_mf_const;
-const CeedQFunctionUser CeedNLConvectionInfo::apply_qf_mf_quad = f_apply_conv_mf_quad;
+const CeedQFunctionUser CeedNLConvectionInfo::apply_qf_mf_const =
+   f_apply_conv_mf_const;
+const CeedQFunctionUser CeedNLConvectionInfo::apply_qf_mf_quad =
+   f_apply_conv_mf_quad;
 
 CeedPANLConvectionIntegrator::CeedPANLConvectionIntegrator(
    const FiniteElementSpace &fes,
