@@ -14,12 +14,12 @@
 #include "../../config/config.hpp"
 #ifdef MFEM_USE_CEED
 #include "diffusion.h"
-#include "ceed.h"
 #endif
 
 namespace mfem
 {
 
+#ifdef MFEM_USE_CEED
 struct CeedDiffusionInfo
 {
    static constexpr const char *header = "/diffusion.h";
@@ -47,6 +47,7 @@ const CeedQFunctionUser CeedDiffusionInfo::apply_qf_mf_const =
    f_apply_diff_mf_const;
 const CeedQFunctionUser CeedDiffusionInfo::apply_qf_mf_quad =
    f_apply_diff_mf_quad;
+#endif
 
 CeedPADiffusionIntegrator::CeedPADiffusionIntegrator(
    const FiniteElementSpace &fes,
