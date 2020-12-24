@@ -28,22 +28,17 @@ struct CeedMassInfo
    static constexpr const char *apply_func = ":f_apply_mass";
    static constexpr const char *apply_func_mf_const = ":f_apply_mass_mf_const";
    static constexpr const char *apply_func_mf_quad = ":f_apply_mass_mf_quad";
-   static const CeedQFunctionUser build_qf_const;
-   static const CeedQFunctionUser build_qf_quad;
-   static const CeedQFunctionUser apply_qf;
-   static const CeedQFunctionUser apply_qf_mf_const;
-   static const CeedQFunctionUser apply_qf_mf_quad;
+   static constexpr CeedQFunctionUser build_qf_const = &f_build_mass_const;
+   static constexpr CeedQFunctionUser build_qf_quad = &f_build_mass_quad;
+   static constexpr CeedQFunctionUser apply_qf = &f_apply_mass;
+   static constexpr CeedQFunctionUser apply_qf_mf_const = &f_apply_mass_mf_const;
+   static constexpr CeedQFunctionUser apply_qf_mf_quad = &f_apply_mass_mf_quad;
    static constexpr EvalMode trial_op = EvalMode::Interp;
    static constexpr EvalMode test_op = EvalMode::Interp;
    static constexpr int qdatasize = 1;
    MassContext ctx;
 };
 
-const CeedQFunctionUser CeedMassInfo::build_qf_const = f_build_mass_const;
-const CeedQFunctionUser CeedMassInfo::build_qf_quad = f_build_mass_quad;
-const CeedQFunctionUser CeedMassInfo::apply_qf = f_apply_mass;
-const CeedQFunctionUser CeedMassInfo::apply_qf_mf_const = f_apply_mass_mf_const;
-const CeedQFunctionUser CeedMassInfo::apply_qf_mf_quad = f_apply_mass_mf_quad;
 #endif
 
 CeedPAMassIntegrator::CeedPAMassIntegrator(const FiniteElementSpace &fes,
