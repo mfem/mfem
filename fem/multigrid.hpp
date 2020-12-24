@@ -50,13 +50,13 @@ protected:
    mutable Array<Vector*> Z;
 
 public:
-   /// Constructs an empty multigrid
+   /// Constructs an empty multigrid hierarchy.
    Multigrid();
 
-   /// Constructs a multigrid from the given inputs.
-   /** Inputs include operators and smoothers on all levels,
-       prolongation operators that go from coarser to finer levels,
-       and owenership of the given operators, smoothers, and prolongations. */
+   /// Constructs a multigrid hierarchy from the given inputs.
+   /** Inputs include operators and smoothers on all levels, prolongation
+       operators that go from coarser to finer levels, and ownership of the
+       given operators, smoothers, and prolongations. */
    Multigrid(const Array<Operator*>& operators_, const Array<Solver*>& smoothers_,
              const Array<Operator*>& prolongations_, const Array<bool>& ownedOperators_,
              const Array<bool>& ownedSmoothers_, const Array<bool>& ownedProlongations_);
@@ -94,7 +94,7 @@ public:
    /// Returns smoother at given level
    Solver* GetSmootherAtLevel(int level);
 
-   /// Set the cycle type and number of pre- and post-smoothing steps used by Mult
+   /// Set cycle type and number of pre- and post-smoothing steps used by Mult
    void SetCycleType(CycleType cycleType_, int preSmoothingSteps_,
                      int postSmoothingSteps_);
 
@@ -108,14 +108,14 @@ private:
    /// Application of a smoothing step at particular level
    void SmoothingStep(int level, bool transpose) const;
 
-   /// Application of a cycle at particular level
+   /// Application of a multigrid cycle at particular level
    void Cycle(int level) const;
 
    /// Returns prolongation operator at given level
    virtual const Operator* GetProlongationAtLevel(int level) const;
 };
 
-/// Geometric multigrid which is associated with a hierarchy of finite element spaces
+/// Geometric multigrid associated with a hierarchy of finite element spaces
 class GeometricMultigrid : public Multigrid
 {
 protected:
@@ -124,14 +124,16 @@ protected:
    Array<BilinearForm*> bfs;
 
 public:
-   /// Constructs an empty multigrid for the given FiniteElementSpaceHierarchy
+   /** Construct an empty multigrid object for the given finite element space
+       hierarchy @a fespaces_ */
    GeometricMultigrid(const FiniteElementSpaceHierarchy& fespaces_)
       : Multigrid(), fespaces(fespaces_) { }
 
    /// Destructor
    virtual ~GeometricMultigrid();
 
-   /// Form the linear system A X = B, corresponding to the operator on the finest level
+   /** Form the linear system A X = B, corresponding to the operator on the
+       finest level of the geometric multigrid hierarchy */
    void FormFineLinearSystem(Vector& x, Vector& b, OperatorHandle& A, Vector& X,
                              Vector& B);
 
