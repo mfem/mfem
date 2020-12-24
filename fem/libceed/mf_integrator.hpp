@@ -73,8 +73,10 @@ public:
       Mesh &mesh = *fes.GetMesh();
       InitCeedCoeff(Q, mesh, irm, coeff, info.ctx);
       bool const_coeff = coeff->IsConstant();
-      std::string apply_func = const_coeff ? info.apply_func_mf_const : info.apply_func_mf_quad;
-      CeedQFunctionUser apply_qf = const_coeff ? info.apply_qf_mf_const : info.apply_qf_mf_quad;
+      std::string apply_func = const_coeff ? info.apply_func_mf_const
+                               : info.apply_func_mf_quad;
+      CeedQFunctionUser apply_qf = const_coeff ? info.apply_qf_mf_const
+                                   : info.apply_qf_mf_quad;
       return CeedMFOperator{fes, irm,
                             info.header,
                             apply_func, apply_qf,
@@ -113,7 +115,7 @@ public:
       std::string qf_file = GetCeedPath() + op.header;
       std::string qf = qf_file + op.apply_func;
       CeedQFunctionCreateInterior(ceed, 1, op.apply_qf, qf.c_str(),
-                                    &apply_qfunc);
+                                  &apply_qfunc);
 
       // Create the Q-function that builds the operator (i.e. computes its
       // quadrature data) and set its context data.
@@ -171,7 +173,7 @@ public:
       if (CeedGridCoeff *gridCoeff = dynamic_cast<CeedGridCoeff*>(coeff))
       {
          InitCeedBasisAndRestriction(*gridCoeff->coeff->FESpace(), irm, ceed,
-                                       &gridCoeff->basis, &gridCoeff->restr);
+                                     &gridCoeff->basis, &gridCoeff->restr);
          CeedOperatorSetField(oper, "coeff", gridCoeff->restr,
                               gridCoeff->basis, gridCoeff->coeffVector);
       }
