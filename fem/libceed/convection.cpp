@@ -27,17 +27,23 @@ struct CeedConvectionInfo
    static constexpr const char *apply_func = ":f_apply_conv";
    static constexpr const char *apply_func_mf_const = ":f_apply_conv_mf_const";
    static constexpr const char *apply_func_mf_quad = ":f_apply_conv_mf_quad";
-   static constexpr CeedQFunctionUser build_qf_const = f_build_conv_const;
-   static constexpr CeedQFunctionUser build_qf_quad = f_build_conv_quad;
-   static constexpr CeedQFunctionUser apply_qf = f_apply_conv;
-   static constexpr CeedQFunctionUser apply_qf_mf_const = f_apply_conv_mf_const;
-   static constexpr CeedQFunctionUser apply_qf_mf_quad = f_apply_conv_mf_quad;
+   static const CeedQFunctionUser build_qf_const;
+   static const CeedQFunctionUser build_qf_quad;
+   static const CeedQFunctionUser apply_qf;
+   static const CeedQFunctionUser apply_qf_mf_const;
+   static const CeedQFunctionUser apply_qf_mf_quad;
    static constexpr EvalMode trial_op = EvalMode::Grad;
    static constexpr EvalMode test_op = EvalMode::Interp;
    const int qdatasize;
    ConvectionContext ctx;
    CeedConvectionInfo(int dim) : qdatasize(dim * (dim + 1) / 2) { }
 };
+
+const CeedQFunctionUser CeedConvectionInfo::build_qf_const = f_build_conv_const;
+const CeedQFunctionUser CeedConvectionInfo::build_qf_quad = f_build_conv_quad;
+const CeedQFunctionUser CeedConvectionInfo::apply_qf = f_apply_conv;
+const CeedQFunctionUser CeedConvectionInfo::apply_qf_mf_const = f_apply_conv_mf_const;
+const CeedQFunctionUser CeedConvectionInfo::apply_qf_mf_quad = f_apply_conv_mf_quad;
 
 CeedPAConvectionIntegrator::CeedPAConvectionIntegrator(
    const FiniteElementSpace &fes,
