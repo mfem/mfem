@@ -42,8 +42,10 @@ struct CeedDiffusionInfo
 const CeedQFunctionUser CeedDiffusionInfo::build_qf_const = f_build_diff_const;
 const CeedQFunctionUser CeedDiffusionInfo::build_qf_quad = f_build_diff_quad;
 const CeedQFunctionUser CeedDiffusionInfo::apply_qf = f_apply_diff;
-const CeedQFunctionUser CeedDiffusionInfo::apply_qf_mf_const = f_apply_diff_mf_const;
-const CeedQFunctionUser CeedDiffusionInfo::apply_qf_mf_quad = f_apply_diff_mf_quad;
+const CeedQFunctionUser CeedDiffusionInfo::apply_qf_mf_const =
+   f_apply_diff_mf_const;
+const CeedQFunctionUser CeedDiffusionInfo::apply_qf_mf_quad =
+   f_apply_diff_mf_quad;
 
 CeedPADiffusionIntegrator::CeedPADiffusionIntegrator(
    const FiniteElementSpace &fes,

@@ -42,8 +42,10 @@ struct CeedConvectionInfo
 const CeedQFunctionUser CeedConvectionInfo::build_qf_const = f_build_conv_const;
 const CeedQFunctionUser CeedConvectionInfo::build_qf_quad = f_build_conv_quad;
 const CeedQFunctionUser CeedConvectionInfo::apply_qf = f_apply_conv;
-const CeedQFunctionUser CeedConvectionInfo::apply_qf_mf_const = f_apply_conv_mf_const;
-const CeedQFunctionUser CeedConvectionInfo::apply_qf_mf_quad = f_apply_conv_mf_quad;
+const CeedQFunctionUser CeedConvectionInfo::apply_qf_mf_const =
+   f_apply_conv_mf_const;
+const CeedQFunctionUser CeedConvectionInfo::apply_qf_mf_quad =
+   f_apply_conv_mf_quad;
 
 CeedPAConvectionIntegrator::CeedPAConvectionIntegrator(
    const FiniteElementSpace &fes,
