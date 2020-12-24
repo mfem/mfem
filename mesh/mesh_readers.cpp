@@ -2030,16 +2030,16 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             getline(input, buff); // Read end-of-line
          }
 
-         // Follow existing long chains of slave->master in v2v array. Finally,
-         // we should have v2v[slave] pointing on a true master. This algorithm
-         // is useful for periodicity defined in multiple directions.
+         // Follow existing long chains of slave->master in v2v array. 
+         // Upon completion of this loop, each v2v[slave] will point to a true 
+         // master vertex. This algorithm is useful for periodicity defined in 
+         // multiple directions.
          for (int slave = 0; slave < v2v.Size(); slave++)
          {
             int master = v2v[slave];
             if (master != slave)
             {
-               // This loop is ending even if it happens
-               // that we loop back on slave (circular dependency)
+               // This loop will end if it finds a circular dependency.
                while (v2v[master] != master && master != slave)
                {
                   master = v2v[master];
@@ -2052,8 +2052,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                }
                else
                {
-                  // the long chain has ended up to the vertex master
-                  // then we store this final master
+                  // the long chain has ended on the true master vertex.
                   v2v[slave] = master;
                }
             }
