@@ -172,7 +172,7 @@ public:
       // coefficient
       if (CeedGridCoeff *gridCoeff = dynamic_cast<CeedGridCoeff*>(coeff))
       {
-         InitCeedBasisAndRestriction(*gridCoeff->coeff->FESpace(), irm, ceed,
+         InitCeedBasisAndRestriction(*gridCoeff->gf.FESpace(), irm, ceed,
                                      &gridCoeff->basis, &gridCoeff->restr);
          CeedOperatorSetField(oper, "coeff", gridCoeff->restr,
                               gridCoeff->basis, gridCoeff->coeffVector);

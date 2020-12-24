@@ -28,6 +28,8 @@ class GridFunction;
 
 struct CeedCoeff
 {
+   const int ncomp;
+   CeedCoeff(int ncomp_) : ncomp(ncomp_) { }
    virtual bool IsConstant() const { return true; }
    virtual ~CeedCoeff() { }
 };
@@ -35,8 +37,9 @@ struct CeedCoeff
 struct CeedVariableCoeff : CeedCoeff
 {
    CeedVector coeffVector = nullptr;
-   CeedEvalMode emode;
-   CeedVariableCoeff(CeedEvalMode emode_) : emode(emode_) { }
+   const CeedEvalMode emode;
+   CeedVariableCoeff(int ncomp_, CeedEvalMode emode_)
+      : CeedCoeff(ncomp_), emode(emode_) { }
    virtual bool IsConstant() const override { return false; }
    ~CeedVariableCoeff()
    {
@@ -46,18 +49,22 @@ struct CeedVariableCoeff : CeedCoeff
 
 struct CeedGridCoeff : CeedVariableCoeff
 {
-   const GridFunction* coeff;
+   const GridFunction &gf;
    CeedBasis basis;
    CeedElemRestriction restr;
-   CeedGridCoeff() : CeedVariableCoeff(CEED_EVAL_INTERP) { }
+   CeedGridCoeff(const GridFunction &gf_)
+      : CeedVariableCoeff(gf_.VectorDim(), CEED_EVAL_INTERP),
+        gf(gf_)
+   {
+      InitCeedVector(gf, coeffVector);
+   }
 };
 
 struct CeedQuadCoeff : CeedVariableCoeff
 {
-   int ncomp;
    Vector coeff;
    CeedElemRestriction restr;
-   CeedQuadCoeff(int ncomp_) : CeedVariableCoeff(CEED_EVAL_NONE), ncomp(ncomp_) { }
+   CeedQuadCoeff(int ncomp_) : CeedVariableCoeff(ncomp_, CEED_EVAL_NONE) { }
 };
 
 class Mesh;
@@ -73,22 +80,20 @@ void InitCeedCoeff(Coefficient *Q, Mesh &mesh, const IntegrationRule &ir,
 {
    if ( Q == nullptr )
    {
-      CeedCoeff *ceedCoeff = new CeedCoeff;
+      CeedCoeff *ceedCoeff = new CeedCoeff(1);
       ctx.coeff = 1.0;
       coeff_ptr = ceedCoeff;
    }
    else if (ConstantCoefficient *coeff = dynamic_cast<ConstantCoefficient*>(Q))
    {
-      CeedCoeff *ceedCoeff = new CeedCoeff;
+      CeedCoeff *ceedCoeff = new CeedCoeff(1);
       ctx.coeff = coeff->constant;
       coeff_ptr = ceedCoeff;
    }
    else if (GridFunctionCoefficient* coeff =
                dynamic_cast<GridFunctionCoefficient*>(Q))
    {
-      CeedGridCoeff *ceedCoeff = new CeedGridCoeff;
-      ceedCoeff->coeff = coeff->GetGridFunction();
-      InitCeedVector(*ceedCoeff->coeff, ceedCoeff->coeffVector);
+      CeedGridCoeff *ceedCoeff = new CeedGridCoeff(*coeff->GetGridFunction());
       coeff_ptr = ceedCoeff;
    }
    else if (QuadratureFunctionCoefficient *cQ =
@@ -141,7 +146,7 @@ void InitCeedCoeff(VectorCoefficient *VQ, Mesh &mesh,
    {
       const int vdim = coeff->GetVDim();
       const Vector &val = coeff->GetVec();
-      CeedCoeff *ceedCoeff = new CeedCoeff;
+      CeedCoeff *ceedCoeff = new CeedCoeff(vdim);
       for (int i = 0; i < vdim; i++)
       {
          ctx.coeff[i] = val[i];
@@ -151,9 +156,7 @@ void InitCeedCoeff(VectorCoefficient *VQ, Mesh &mesh,
    else if (VectorGridFunctionCoefficient* coeff =
                dynamic_cast<VectorGridFunctionCoefficient*>(VQ))
    {
-      CeedGridCoeff *ceedCoeff = new CeedGridCoeff;
-      ceedCoeff->coeff = coeff->GetGridFunction();
-      InitCeedVector(*ceedCoeff->coeff, ceedCoeff->coeffVector);
+      CeedGridCoeff *ceedCoeff = new CeedGridCoeff(*coeff->GetGridFunction());
       coeff_ptr = ceedCoeff;
    }
    else if (VectorQuadratureFunctionCoefficient *cQ =
