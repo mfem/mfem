@@ -14,12 +14,12 @@
 #include "../../config/config.hpp"
 #ifdef MFEM_USE_CEED
 #include "mass.h"
-#include "ceed.h"
 #endif
 
 namespace mfem
 {
 
+#ifdef MFEM_USE_CEED
 struct CeedMassInfo
 {
    static constexpr const char *header = "/mass.h";
@@ -44,6 +44,7 @@ const CeedQFunctionUser CeedMassInfo::build_qf_quad = f_build_mass_quad;
 const CeedQFunctionUser CeedMassInfo::apply_qf = f_apply_mass;
 const CeedQFunctionUser CeedMassInfo::apply_qf_mf_const = f_apply_mass_mf_const;
 const CeedQFunctionUser CeedMassInfo::apply_qf_mf_quad = f_apply_mass_mf_quad;
+#endif
 
 CeedPAMassIntegrator::CeedPAMassIntegrator(const FiniteElementSpace &fes,
                                            const mfem::IntegrationRule &irm,
