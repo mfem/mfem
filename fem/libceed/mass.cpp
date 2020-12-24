@@ -14,6 +14,7 @@
 #include "../../config/config.hpp"
 #ifdef MFEM_USE_CEED
 #include "mass.h"
+#include "ceed.h"
 #endif
 
 namespace mfem
