@@ -64,6 +64,25 @@ public:
         apply_qfunc(nullptr), node_coords(nullptr),
         qdata(nullptr), coeff(nullptr), build_ctx(nullptr) { }
 
+   template <typename CeedInfo, typename CoeffType>
+   CeedMFOperator InitMF(CeedInfo &info,
+                         const FiniteElementSpace &fes,
+                         const mfem::IntegrationRule &irm,
+                         CoeffType *Q)
+   {
+      Mesh &mesh = *fes.GetMesh();
+      InitCeedCoeff(Q, mesh, irm, coeff, info.ctx);
+      bool const_coeff = coeff->IsConstant();
+      std::string apply_func = const_coeff ? info.apply_func_mf_const : info.apply_func_mf_quad;
+      CeedQFunctionUser apply_qf = const_coeff ? info.apply_qf_mf_const : info.apply_qf_mf_quad;
+      return CeedMFOperator{fes, irm,
+                            info.header,
+                            apply_func, apply_qf,
+                            info.trial_op,
+                            info.test_op
+                           };
+   }
+
    template <typename Context>
    void Assemble(CeedMFOperator &op, Context &ctx)
    {
