@@ -43,7 +43,7 @@ CeedRestrMap ceed_restr_map;
 static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 {
    Backend::CEED_CUDA, Backend::OCCA_CUDA, Backend::RAJA_CUDA, Backend::CUDA,
-   Backend::CEED_HIP, Backend::HIP, Backend::DEBUG_DEVICE,
+   Backend::CEED_HIP, Backend::RAJA_HIP, Backend::HIP, Backend::DEBUG_DEVICE,
    Backend::OCCA_OMP, Backend::RAJA_OMP, Backend::OMP,
    Backend::CEED_CPU, Backend::OCCA_CPU, Backend::RAJA_CPU, Backend::CPU
 };
@@ -52,7 +52,7 @@ static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 static const char *backend_name[Backend::NUM_BACKENDS] =
 {
    "ceed-cuda", "occa-cuda", "raja-cuda", "cuda",
-   "ceed-hip", "hip", "debug",
+   "ceed-hip", "raja-hip", "hip", "debug",
    "occa-omp", "raja-omp", "omp",
    "ceed-cpu", "occa-cpu", "raja-cpu", "cpu"
 };
@@ -226,19 +226,24 @@ void Device::Configure(const std::string &device, const int dev)
       beg = end + 1;
    }
 
-   // OCCA_CUDA needs CUDA or RAJA_CUDA:
-   if (Allows(Backend::OCCA_CUDA) && !Allows(Backend::RAJA_CUDA))
+   // OCCA_CUDA and CEED_CUDA need CUDA or RAJA_CUDA:
+   if (Allows(Backend::OCCA_CUDA|Backend::CEED_CUDA) &&
+       !Allows(Backend::RAJA_CUDA))
    {
       Get().MarkBackend(Backend::CUDA);
    }
-   if (Allows(Backend::CEED_CUDA))
-   {
-      Get().MarkBackend(Backend::CUDA);
-   }
+   // CEED_HIP needs HIP:
    if (Allows(Backend::CEED_HIP))
    {
       Get().MarkBackend(Backend::HIP);
    }
+   // OCCA_OMP will use OMP or RAJA_OMP unless MFEM_USE_OPENMP=NO:
+#ifdef MFEM_USE_OPENMP
+   if (Allows(Backend::OCCA_OMP) && !Allows(Backend::RAJA_OMP))
+   {
+      Get().MarkBackend(Backend::OMP);
+   }
+#endif
 
    // Perform setup.
    Get().Setup(dev);
@@ -389,6 +394,8 @@ static void RajaDeviceSetup(const int dev, int &ngpu)
 {
 #ifdef MFEM_USE_CUDA
    if (ngpu <= 0) { DeviceSetup(dev, ngpu); }
+#elif defined(MFEM_USE_HIP)
+   HipDeviceSetup(dev, ngpu);
 #else
    MFEM_CONTRACT_VAR(dev);
    MFEM_CONTRACT_VAR(ngpu);
@@ -494,12 +501,16 @@ void Device::Setup(const int device)
    MFEM_VERIFY(!Allows(Backend::CEED_MASK),
                "the CEED backends require MFEM built with MFEM_USE_CEED=YES");
 #else
-   MFEM_VERIFY(!Allows(Backend::CEED_CPU) || !Allows(Backend::CEED_CUDA),
+   int ceed_cpu  = Allows(Backend::CEED_CPU);
+   int ceed_cuda = Allows(Backend::CEED_CUDA);
+   int ceed_hip  = Allows(Backend::CEED_HIP);
+   MFEM_VERIFY(ceed_cpu + ceed_cuda + ceed_hip <= 1,
                "Only one CEED backend can be enabled at a time!");
 #endif
    if (Allows(Backend::CUDA)) { CudaDeviceSetup(dev, ngpu); }
    if (Allows(Backend::HIP)) { HipDeviceSetup(dev, ngpu); }
-   if (Allows(Backend::RAJA_CUDA)) { RajaDeviceSetup(dev, ngpu); }
+   if (Allows(Backend::RAJA_CUDA) || Allows(Backend::RAJA_HIP))
+   { RajaDeviceSetup(dev, ngpu); }
    // The check for MFEM_USE_OCCA is in the function OccaDeviceSetup().
    if (Allows(Backend::OCCA_MASK)) { OccaDeviceSetup(dev); }
    if (Allows(Backend::CEED_CPU))
