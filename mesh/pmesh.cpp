@@ -5573,25 +5573,20 @@ void ParMesh::GetGlobalVertexIndices(Array<HYPRE_Int> &gi)
    H1_FECollection fec(1, Dim); // Order 1, mesh dimension (not spatial dimension).
    ParFiniteElementSpace fespace(this, &fec);
 
-   MFEM_VERIFY(fespace.GetVSize() == GetNV(),
-               "There should be a bijection between DOFs and vertices");
-
    gi.SetSize(GetNV());
 
    Array<int> dofs;
-   bool oneDof = true;
    for (int i=0; i<GetNV(); ++i)
    {
       fespace.GetVertexDofs(i, dofs);
-      oneDof = oneDof && (dofs.Size() == 1);
       gi[i] = fespace.GetGlobalTDofNumber(dofs[0]);
    }
-
-   MFEM_VERIFY(oneDof, "Each vertex should have exactly one DOF");
 }
 
 void ParMesh::GetGlobalEdgeIndices(Array<HYPRE_Int> &gi)
 {
+   MFEM_VERIFY(Dim > 1, "GetGlobalEdgeIndices cannot be called in 1D");
+
    ND_FECollection fec(1, Dim); // Order 1, mesh dimension (not spatial dimension).
    ParFiniteElementSpace fespace(this, &fec);
 
@@ -5615,7 +5610,17 @@ void ParMesh::GetGlobalEdgeIndices(Array<HYPRE_Int> &gi)
 
 void ParMesh::GetGlobalFaceIndices(Array<HYPRE_Int> &gi)
 {
-   MFEM_VERIFY(Dim == 3, "GetGlobalFaceIndices can be called only in 3D");
+   if (Dim == 2)
+   {
+      GetGlobalEdgeIndices(gi);
+      return;
+   }
+   else if (Dim == 1)
+   {
+      GetGlobalVertexIndices(gi);
+      return;
+   }
+
    RT_FECollection fec(0, Dim); // Order 0, mesh dimension (not spatial dimension).
    ParFiniteElementSpace fespace(this, &fec);
 
@@ -5637,7 +5642,7 @@ void ParMesh::GetGlobalFaceIndices(Array<HYPRE_Int> &gi)
    MFEM_VERIFY(oneDof, "Each face should have exactly one DOF");
 }
 
-void ParMesh::GetGlobalElementIndices(Array<HYPRE_Int> &gi)
+void ParMesh::GetGlobalElementIndices(Array<HYPRE_Int> &gi) const
 {
    ComputeGlobalElementOffset();
 
