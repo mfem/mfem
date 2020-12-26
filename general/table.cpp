@@ -116,6 +116,14 @@ void Table::AddConnections (int r, const int *c, int nc)
    I[r] += nc;
 }
 
+void Table::ReplaceConnection(int r, int c_old, int c_new)
+{
+   for (int j=I[r]; j<I[r+1]; j++)
+   {
+      if ( J[j] == c_old) { J[j] = c_new; }
+   }
+}
+
 void Table::ShiftUpI()
 {
    for (int i = size; i > 0; i--)

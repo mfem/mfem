@@ -92,6 +92,10 @@ protected:
 
    /// Set of interior face Integrators to be applied.
    Array<BilinearFormIntegrator*> fbfi;
+   /// List of attributes for each integrator. The integrator is applie only on
+   /// faces that have such attributes. Corresponds to Mesh::GetFaceAttribute().
+   /// Note: it is a list; it's not a marker over all existing face attributes.
+   Array<Array<int>*> fbfi_attributes;  ///< Entries are not owned.
 
    /// Set of boundary face Integrators to be applied.
    Array<BilinearFormIntegrator*> bfbfi;
@@ -350,7 +354,8 @@ public:
                               Array<int> &bdr_marker);
 
    /// Adds new interior Face Integrator. Assumes ownership of @a bfi.
-   void AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi);
+   void AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi,
+                                  Array<int> *attributes = NULL);
 
    /// Adds new boundary Face Integrator. Assumes ownership of @a bfi.
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi);

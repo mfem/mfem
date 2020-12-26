@@ -310,6 +310,12 @@ public:
                       int vdim = 1, int ordering = Ordering::byNODES)
    { Constructor(mesh, ext, fec, vdim, ordering); }
 
+   void ReplaceElemDofTable(const Table &new_elem_dof, int ndofs_new)
+   {
+      *elem_dof = new_elem_dof;
+      ndofs = ndofs_new;
+   }
+
    /// Returns the mesh
    inline Mesh *GetMesh() const { return mesh; }
 

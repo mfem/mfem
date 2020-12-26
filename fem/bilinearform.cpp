@@ -105,6 +105,7 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
    bbfi_marker = bf->bbfi_marker;
 
    fbfi = bf->fbfi;
+   fbfi_attributes = bf->fbfi_attributes;
 
    bfbfi = bf->bfbfi;
    bfbfi_marker = bf->bfbfi_marker;
@@ -258,9 +259,11 @@ void BilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi,
    bbfi_marker.Append(&bdr_marker);
 }
 
-void BilinearForm::AddInteriorFaceIntegrator (BilinearFormIntegrator * bfi)
+void BilinearForm::AddInteriorFaceIntegrator(BilinearFormIntegrator * bfi,
+                                             Array<int> *attributes)
 {
-   fbfi.Append (bfi);
+   fbfi.Append(bfi);
+   fbfi_attributes.Append(attributes);
 }
 
 void BilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi)
@@ -541,6 +544,12 @@ void BilinearForm::Assemble(int skip_zeros)
             vdofs.Append (vdofs2);
             for (int k = 0; k < fbfi.Size(); k++)
             {
+               // Skip the face if it's not in the integrator's attribute list.
+               if (fbfi_attributes[k] &&
+                   fbfi_attributes[k]->Find(tr->Attribute) == -1) { continue; }
+
+               std::cout << "face " << i << std::endl;
+
                fbfi[k] -> AssembleFaceMatrix (*fes -> GetFE (tr -> Elem1No),
                                               *fes -> GetFE (tr -> Elem2No),
                                               *tr, elemmat);
