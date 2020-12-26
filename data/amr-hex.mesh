@@ -1,4 +1,4 @@
-MFEM nonconforming mesh v1.0
+MFEM NC mesh v1.0
 
 # NCMesh supported geometry types:
 # TRIANGLE    = 2

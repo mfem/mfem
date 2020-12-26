@@ -344,7 +344,7 @@ public:
                                   Array<int> &fattr) const;
 
 
-   /// I/O: Print the mesh in "MFEM nonconforming mesh v1.0" format.
+   /// I/O: Print the mesh in "MFEM NC mesh v1.0" format.
    void Print(std::ostream &out) const;
 
    /// Save memory by releasing all non-essential and cached data.

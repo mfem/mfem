@@ -3471,7 +3471,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    // MFEM nonconforming mesh format
    // (NOTE: previous v1.1 is now under this branch for backward compatibility)
    int mfem_nc_version = 0;
-   if (mesh_type == "MFEM nonconforming mesh v1.0") { mfem_nc_version = 10; }
+   if (mesh_type == "MFEM NC mesh v1.0") { mfem_nc_version = 10; }
    else if (mesh_type == "MFEM mesh v1.1") { mfem_nc_version = 1 /*legacy*/; }
 
    if (mfem_version)
