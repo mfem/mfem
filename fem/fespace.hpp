@@ -188,7 +188,7 @@ protected:
    void BuildNURBSFaceToDofTable() const;
 
    typedef std::uint64_t VarOrderBits;
-   enum { MaxVarOrder = 8*sizeof(VarOrderBits) - 1 };
+   static constexpr int MaxVarOrder = 8*sizeof(VarOrderBits) - 1;
 
    /// Return the minimum order (least significant bit set) in the bit mask.
    static int MinOrder(VarOrderBits bits);
@@ -397,7 +397,7 @@ public:
 
    /// Returns the order of the i'th finite element.
    /** @note This is the 'order' of the FiniteElementCollection. The actual
-       polynomial degree may differ, see @a GetElementDegree(). */
+       polynomial degree may differ for RT elements, see @a GetElementDegree().*/
    int GetElementOrder(int i) const;
 
    /// Return the maximum polynomial order.
@@ -491,7 +491,8 @@ public:
        element spaces, where the actual degree of the RTp collection is (p+1).*/
    int GetElementDegree(int i) const { return GetFE(i)->GetOrder(); }
 
-   /// Returns the polynomial degree of the i'th finite element (deprecated).
+   /// Returns the polynomial degree of the i'th finite element.
+   /** Deprecated: please use @a GetElementDegree instead. */
    MFEM_DEPRECATED int GetOrder(int i) const { return GetElementDegree(i); }
 
    /** Returns the order of the specified edge. In a variable order space, order
@@ -587,10 +588,12 @@ public:
    /// Returns indices of degrees of freedom for boundary element 'bel'.
    virtual void GetBdrElementDofs(int bel, Array<int> &dofs) const;
 
-   /** @brief Returns the indices of the degrees of freedom for i'th face
-       including the dofs for the edges and the vertices of the face. */
+   /** @brief Returns the indices of the degrees of freedom for the specified
+       face, including the DOFs for the edges and the vertices of the face. */
    /** In variable order spaces, multiple variants of DOFs can be returned.
-       See @a GetEdgeDofs for more details.*/
+       See @a GetEdgeDofs for more details.
+       @return Order of the selected variant, or -1 if there are no more
+       variants.*/
    virtual int GetFaceDofs(int face, Array<int> &dofs, int variant = 0) const;
 
    /** @brief Returns the indices of the degrees of freedom for the specified
@@ -599,8 +602,8 @@ public:
        corresponding to the different polynomial orders of incident elements.
        The 'variant' parameter is the zero-based index of the desired DOF set.
        The variants are ordered from lowest polynomial degree to the highest.
-       @return The polynomial order of the selected variant, or -1 if there are
-       no more variants. */
+       @return Order of the selected variant, or -1 if there are no more
+       variants. */
    int GetEdgeDofs(int edge, Array<int> &dofs, int variant = 0) const;
 
    void GetVertexDofs(int i, Array<int> &dofs) const;
