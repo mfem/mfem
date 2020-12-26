@@ -3744,12 +3744,12 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
    CreateRefinedMesh(orig_mesh, ref_factors, ref_type);
 }
 
-Mesh::Mesh(Mesh *orig_mesh, Array<int> &ref_factors, int ref_type)
+Mesh::Mesh(Mesh *orig_mesh, const Array<int> &ref_factors, int ref_type)
 {
    CreateRefinedMesh(orig_mesh, ref_factors, ref_type);
 }
 
-void Mesh::CreateRefinedMesh(Mesh *orig_mesh, Array<int> &ref_factors,
+void Mesh::CreateRefinedMesh(Mesh *orig_mesh, const Array<int> &ref_factors,
                              int ref_type)
 {
    Dim = orig_mesh->Dimension();
