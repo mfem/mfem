@@ -5585,7 +5585,11 @@ void ParMesh::GetGlobalVertexIndices(Array<HYPRE_Int> &gi)
 
 void ParMesh::GetGlobalEdgeIndices(Array<HYPRE_Int> &gi)
 {
-   MFEM_VERIFY(Dim > 1, "GetGlobalEdgeIndices cannot be called in 1D");
+   if (Dim == 1)
+   {
+      GetGlobalVertexIndices(gi);
+      return;
+   }
 
    ND_FECollection fec(1, Dim); // Order 1, mesh dimension (not spatial dimension).
    ParFiniteElementSpace fespace(this, &fec);
