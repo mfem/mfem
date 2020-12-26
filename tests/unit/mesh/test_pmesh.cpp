@@ -44,11 +44,6 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
       // Loop over all types of mesh entities
       for (int e=EntityType::VERTEX; e<=EntityType::ELEMENT; ++e)
       {
-         if (e == EntityType::EDGE && dimension == 1)
-         {
-            continue;
-         }
-
          Array<HYPRE_Int> gi;
 
          switch (e)
@@ -58,7 +53,7 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
                pmesh.GetGlobalVertexIndices(gi);
                break;
             case EntityType::EDGE:
-               globalN = mesh->GetNEdges();
+               globalN = dimension == 1 ? mesh->GetNV() : mesh->GetNEdges();
                pmesh.GetGlobalEdgeIndices(gi);
                break;
             case EntityType::FACE:
