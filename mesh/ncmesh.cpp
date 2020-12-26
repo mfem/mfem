@@ -5316,7 +5316,7 @@ bool NCMesh::ZeroRootStates() const
 
 void NCMesh::Print(std::ostream &out) const
 {
-   out << "MFEM nonconforming mesh v1.0\n\n"
+   out << "MFEM NC mesh v1.0\n\n"
        "# NCMesh supported geometry types:\n"
        "# TRIANGLE    = 2\n"
        "# SQUARE      = 3\n"
