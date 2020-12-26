@@ -62,8 +62,7 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
                pmesh.GetGlobalEdgeIndices(gi);
                break;
             case EntityType::FACE:
-               globalN = dimension == 1 ? mesh->GetNV() : (dimension == 2 ? mesh->GetNEdges() :
-                                                           mesh->GetNFaces());
+               globalN = mesh->GetNumFaces();
                pmesh.GetGlobalFaceIndices(gi);
                break;
             case EntityType::ELEMENT:
