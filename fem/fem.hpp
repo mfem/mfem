@@ -41,6 +41,9 @@
 #include "transfer.hpp"
 #include "fespacehierarchy.hpp"
 #include "multigrid.hpp"
+/* HDG */
+#include "hdg_integrators.hpp"
+#include "HDGBilinearForm.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"

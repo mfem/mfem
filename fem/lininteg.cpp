@@ -22,7 +22,6 @@ void LinearFormIntegrator::AssembleRHSElementVect(
    mfem_error("LinearFormIntegrator::AssembleRHSElementVect(...)");
 }
 
-
 void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
                                                 ElementTransformation &Tr,
                                                 Vector &elvect)
@@ -77,22 +76,61 @@ void DomainLFGradIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int intorder = 2 * el.GetOrder();
-      ir = &IntRules.Get(el.GetGeomType(), intorder);
+       int intorder = 2 * el.GetOrder();
+       ir = &IntRules.Get(el.GetGeomType(), intorder);
+   }
+   
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+       const IntegrationPoint &ip = ir->IntPoint(i);
+       
+       Tr.SetIntPoint(&ip);
+       el.CalcPhysDShape(Tr, dshape);
+       
+       Q.Eval(Qvec, Tr, ip);
+       Qvec *= ip.weight * Tr.Weight();
+       
+       dshape.AddMult(Qvec, elvect);
+   }
+}
+
+
+
+/* HDG */
+void SkeletonMassIntegratorRHS::AssembleRHSElementVect(const FiniteElement &el,
+                                                       FaceElementTransformations &Tr,
+                                                       Vector &elvect)
+{
+   int dof = el.GetDof();
+
+   shape.SetSize(dof);       // vector of size dof
+   elvect.SetSize(dof);
+   elvect = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      ir = &IntRules.Get(el.GetGeomType(), oa * el.GetOrder() + ob);
    }
 
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
 
-      Tr.SetIntPoint(&ip);
-      el.CalcPhysDShape(Tr, dshape);
+      Tr.Face->SetIntPoint (&ip);
+      double val = Tr.Face->Weight() * Q.Eval(*Tr.Face, ip);
 
-      Q.Eval(Qvec, Tr, ip);
-      Qvec *= ip.weight * Tr.Weight();
+      el.CalcShape(ip, shape);
 
-      dshape.AddMult(Qvec, elvect);
+      add(elvect, ip.weight * val, shape, elvect);
    }
+}
+
+/* HDG */
+void SkeletonMassIntegratorRHS::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   mfem_error("Not implemented \n");
 }
 
 void DomainLFGradIntegrator::AssembleDeltaElementVect(

@@ -1029,6 +1029,12 @@ public:
 
    FaceElementTransformations *GetBdrFaceTransformations (int BdrElemNo);
 
+   /* HDG */
+   void GetBdrFaceToEdge(int BdrElemNo, int *fe);
+
+   /* HDG */
+   void GetEdgeToBdrFace(Array<int> &Edge_to_Be);
+
    /// Return true if the given face is interior. @sa FaceIsTrueInterior().
    bool FaceIsInterior(int FaceNo) const
    {

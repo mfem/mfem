@@ -101,6 +101,13 @@ examples/Example23*
 examples/ex25.mesh
 examples/ex25-*.gf
 examples/ex25p-*.*
+examples/ex_hdg.mesh
+examples/hdg_advection
+examples/hdg_advectionp
+examples/hdg_poisson
+examples/hdg_poissonp
+examples/sol_*
+config/user.mk
 
 examples/amgx/ex1
 examples/amgx/ex1p

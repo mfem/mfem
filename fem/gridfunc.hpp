@@ -22,6 +22,8 @@
 #include <limits>
 #include <ostream>
 #include <string>
+/* HDG */
+#include "lininteg.hpp"
 
 namespace mfem
 {
@@ -345,6 +347,9 @@ public:
        projection matrix. */
    void ProjectGridFunction(const GridFunction &src);
 
+   /* HDG */
+   void ProjectCoefficientSkeletonDG(Coefficient &coeff);
+
    virtual void ProjectCoefficient(Coefficient &coeff);
 
    void ProjectCoefficient(Coefficient &coeff, Array<int> &dofs, int vd = 0);
@@ -518,6 +523,10 @@ public:
    virtual double ComputeL1Error(VectorCoefficient &exsol,
                                  const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(1.0, exsol, NULL, NULL, irs); }
+
+   /* HDG */
+   double ComputeMeanLpError(const double p, Coefficient &exsol,
+                             const IntegrationRule *irs[] = NULL) const;
 
    virtual double ComputeLpError(const double p, Coefficient &exsol,
                                  Coefficient *weight = NULL,
