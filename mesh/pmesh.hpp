@@ -251,7 +251,7 @@ public:
    void GetGlobalVertexIndices(Array<HYPRE_Int> &gi);
    void GetGlobalEdgeIndices(Array<HYPRE_Int> &gi);
    void GetGlobalFaceIndices(Array<HYPRE_Int> &gi);
-   void GetGlobalElementIndices(Array<HYPRE_Int> &gi);
+   void GetGlobalElementIndices(Array<HYPRE_Int> &gi) const;
 
    GroupTopology gtopo;
 

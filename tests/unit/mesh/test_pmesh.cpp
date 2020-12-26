@@ -20,17 +20,20 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
 {
    const int ne = 5;
 
-   for (int dimension = 2; dimension < 4; ++dimension)
+   for (int dimension = 1; dimension < 4; ++dimension)
    {
       Mesh* mesh;
-      if (dimension == 2)
+      if (dimension == 1)
+      {
+         mesh = new Mesh(ne, 1.0);
+      }
+      else if (dimension == 2)
       {
          mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
       }
       else
       {
-         mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0,
-                         1.0);
+         mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
       }
 
       ParMesh pmesh(MPI_COMM_WORLD, *mesh);
@@ -41,7 +44,7 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
       // Loop over all types of mesh entities
       for (int e=EntityType::VERTEX; e<=EntityType::ELEMENT; ++e)
       {
-         if (e == EntityType::FACE && dimension == 2)
+         if (e == EntityType::EDGE && dimension == 1)
          {
             continue;
          }
@@ -59,7 +62,8 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
                pmesh.GetGlobalEdgeIndices(gi);
                break;
             case EntityType::FACE:
-               globalN = mesh->GetNFaces();
+               globalN = dimension == 1 ? mesh->GetNV() : (dimension == 2 ? mesh->GetNEdges() :
+                                                           mesh->GetNFaces());
                pmesh.GetGlobalFaceIndices(gi);
                break;
             case EntityType::ELEMENT:
@@ -68,7 +72,7 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
                break;
          }
 
-         // Verify that global indices are unique on each process.
+         // Verify that the local entities do not share a global index.
          {
             std::set<HYPRE_Int> localGI;
             for (int i=0; i<gi.Size(); ++i)
