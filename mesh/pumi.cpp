@@ -171,7 +171,7 @@ static int findSimplexRotation(apf::Mesh2* apf_mesh,
    int first = apf::findIn(dvs, nd, vs[0]);
    int begin = first*dim;
    int end   = first*dim + dim;
-   for (int r = 0; r < end; r++) {
+   for (int r = begin; r < end; r++) {
       rotateSimplex(type, r, dvs, rotated_dvs);
       if (same(nd, rotated_dvs, vs))
          return r;
@@ -1100,7 +1100,7 @@ int ParPumiMesh::RotationPUMItoMFEM(apf::Mesh2* apf_mesh,
    {
       vs_rot[i] = vs[pumi_vid_rot[i]];
    }
-   findSimplexRotation(apf_mesh, ent, vs_rot);
+   return findSimplexRotation(apf_mesh, ent, vs_rot);
 }
 
 // Convert parent coordinate form a PUMI tet to an MFEM tet
