@@ -91,7 +91,7 @@ public:
 
    /// Constructor to initialize a tensor from the Scalar array _data
    template <typename... Args> MFEM_HOST_DEVICE
-   DeviceTensor(Scalar* _data, Args... args)
+   DeviceTensor(Scalar* __restrict__ _data, Args... args)
    {
       static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
       // Initialize sizes, and compute the number of values

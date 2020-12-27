@@ -187,6 +187,16 @@ void QuadratureInterpolator::Determinants(const Vector &e_vec,
             {
                constexpr int MD1 = 6;
                constexpr int MQ1 = 6;
+
+               if (D1D>MD1 || Q1D>MQ1)
+               {
+                  use_tensor_products = false;
+                  Vector empty;
+                  Mult(e_vec, DETERMINANTS, empty, empty, q_det);
+                  use_tensor_products = true;
+                  return;
+               }
+
                MFEM_VERIFY(D1D <= MD1, "Orders higher than " << MD1-1
                            << " are not supported!");
                MFEM_VERIFY(Q1D <= MQ1, "Quadrature rules with more than "

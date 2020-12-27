@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
    //    elements.
    {
       int ref_levels =
-         (int)floor(log(500./mesh.GetNE())/log(2.)/dim);
+         (int)floor(log(5000./mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
@@ -176,8 +176,8 @@ int main(int argc, char *argv[])
    //    domain integrator.
    BilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   a.AddDomainIntegrator(new DiffusionIntegrator(one));
-   //a.AddDomainIntegrator(new MassIntegrator(one));
+   //a.AddDomainIntegrator(new DiffusionIntegrator(one));
+   a.AddDomainIntegrator(new MassIntegrator(one));
 
    // 10. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary

@@ -427,11 +427,11 @@ MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
 
 # Rules for compiling all source files.
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
-	$(MFEM_CXX) $(filter-out -x=cu,$(MFEM_BUILD_FLAGS)) -c $(<) -o $(@)
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
 all: examples miniapps $(TEST_DIRS) xfl
 xfl: general/xfl.o general/xfl.L.o general/xfl.Y.o general/xfc.o
-	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -o $(@) $(^)
+	$(MFEM_CXX) $(filter-out -x=cu,$(MFEM_BUILD_FLAGS)) -o $(@) $(^)
 
 .PHONY: miniapps $(EM_DIRS) $(TEST_DIRS)
 miniapps: $(MINIAPP_DIRS)
