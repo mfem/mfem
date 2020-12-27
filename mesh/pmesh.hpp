@@ -248,9 +248,9 @@ public:
        edges, faces, or elements. The global indices have no meaning or
        significance for ParMesh, but can be used for purposes beyond this class.
     */
-   void GetGlobalVertexIndices(Array<HYPRE_Int> &gi);
-   void GetGlobalEdgeIndices(Array<HYPRE_Int> &gi);
-   void GetGlobalFaceIndices(Array<HYPRE_Int> &gi);
+   void GetGlobalVertexIndices(Array<HYPRE_Int> &gi) const;
+   void GetGlobalEdgeIndices(Array<HYPRE_Int> &gi) const;
+   void GetGlobalFaceIndices(Array<HYPRE_Int> &gi) const;
    void GetGlobalElementIndices(Array<HYPRE_Int> &gi) const;
 
    GroupTopology gtopo;
