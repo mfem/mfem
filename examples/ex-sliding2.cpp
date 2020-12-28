@@ -22,24 +22,33 @@
 using namespace std;
 using namespace mfem;
 
-/**
-   Try to rethink this function with the possibility of intersections
 
-   based on what I am thinking so far we are going to have to abandon
-   contiguous rows in the constraints.
+/** @brief Build a matrix constraining normal components to zero.
 
-   (or, I guess we could loop back through and reorder...)
+    Given a vector space fespace, and the array constrained_att that
+    includes the boundary *attributes* that are constrained to have normal
+    component zero, this returns a SparseMatrix representing the
+    constraints that need to be imposed.
 
-   (which is what I just did but it makes this pretty ugly)
+    Each row of the returned matrix corresponds to a node that is
+    constrained. The rows are arranged in (contiguous) blocks corresponding
+    to the actual constraint; in 3D, a one-row constraint means the node
+    is free to move along a plane, a two-row constraint means it is free
+    to move along a line (eg the intersection of two normal-constrained
+    planes), and a three-row constraint is fully constrained (equivalent
+    to MFEM's usual essential boundary conditions). The lagrange_rowstarts
+    array is filled in to describe the structure of these constraints.
 
-   @param[in] constrained_att      the *attributes* (not indices) that are constrained
-   @param[out] lagrange_rowstarts  rowstarts for returned constraint matrix
+    @param[in] fespace              A vector finite element space
+    @param[in] constrained_att      Boundary attributes to constrain
+    @param[out] lagrange_rowstarts  Row starts for separately eliminated
+                                    constraints
 
-   @return a constraint matrix
+    @return a constraint matrix
 */
-SparseMatrix * BuildNormalConstraintsIntersection(ParFiniteElementSpace& fespace,
-                                                  Array<int>& constrained_att,
-                                                  Array<int>& lagrange_rowstarts)
+SparseMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
+                                      Array<int>& constrained_att,
+                                      Array<int>& lagrange_rowstarts)
 {
    int rank, size;
    MPI_Comm_rank(fespace.GetComm(), &rank);
@@ -85,11 +94,10 @@ SparseMatrix * BuildNormalConstraintsIntersection(ParFiniteElementSpace& fespace
             constraints[it->second][att] = n_rows++;
          }
       }
-      // printf("att=%d, n_rows=%d, size(constrained_tdofs)=%d\n",
-      //   att, n_rows, constrained_tdofs.size());
    }
 
-   // reorder so EliminationCGSolver understands (this is ugly)
+   // reorder so constraints are grouped together in rows
+   // (this is perahps not the best way to organize things)
    std::map<int, int> reorder_rows;
    int new_row = 0;
    MFEM_VERIFY(lagrange_rowstarts.Size() == 0,
@@ -119,8 +127,6 @@ SparseMatrix * BuildNormalConstraintsIntersection(ParFiniteElementSpace& fespace
       }
    }
 
-   // printf("n_rows=%d, n_constraints=%d, constraints.size() = %d\n",
-   //  n_rows, n_constraints, constraints.size());
    SparseMatrix * out = new SparseMatrix(n_rows, fespace.GetTrueVSize());
 
    // fill in constraint matrix with normal vector information
@@ -155,14 +161,12 @@ SparseMatrix * BuildNormalConstraintsIntersection(ParFiniteElementSpace& fespace
             {
                int constraint = dof_constraint[truek];
                int row = constraints[constraint][att];
-               // printf("be %d att %d j %d truek %d constraint %d row %d\n",
-               //   i, att, j, truek, constraint, row);
                for (int d = 0; d < dim; ++d)
                {
                   int vdof = fespace.DofToVDof(k, d);
                   int truek = fespace.GetLocalTDofNumber(vdof);
                   /// the following overwrites neighboring elements, which is
-                  /// perhaps not ideal for curved boundaries
+                  /// probably not ideal for curved boundaries
                   out->Set(row, truek, nor[d]);
                }
             }
@@ -172,7 +176,7 @@ SparseMatrix * BuildNormalConstraintsIntersection(ParFiniteElementSpace& fespace
    out->Finalize();
 
    return out;
-/*
+   /*
    int constraint_running_total = 0;
    MPI_Scan(&n_constraints, &constraint_running_total, 1, MPI_INT,
             MPI_SUM, fespace.GetComm());
@@ -194,35 +198,9 @@ SparseMatrix * BuildNormalConstraintsIntersection(ParFiniteElementSpace& fespace
    h_out->CopyColStarts();
 
    return h_out;
-*/
+   */
 }
 
-/*
-  old description of normal constraint builder:
-
-   Given a vector space fespace, and the array constrained_att that
-   includes the boundary *attributes* that are constrained to have normal
-   component zero, this returns a SparseMatrix representing the
-   constraints that need to be imposed.
-
-   TODO: the current implementation assumes the attributes do not
-   intersect. If they do, in principle you need a more complicated
-   algorithm. The workaround for this particular trapezoid problem is
-   to identify in this function the two tdofs at the corner, and
-   then later eliminated those using the usual MFEM tdof
-   elimination (except that happens before normal elimination)
-
-   TODO: I think HypreParMatrix is sort of the wrong data structure
-   to return here; better would be an Array of Eliminators or something.
-   (probably less invasive at the moment is the lagrange_rowstarts)
-
-   (3D intersections would be ugly...)
-
-   what I actually want: each time a node appears in a boundary corresponds
-   to a row in the constraint matrix; each constrained node corresponds
-   to a constraint, ie, if that node appears in multiple boundaries than
-   the constraint takes up multiple rows
-*/
 
 Mesh * build_trapezoid_mesh(double offset)
 {
@@ -466,8 +444,7 @@ int main(int argc, char *argv[])
    //     preconditioner from hypre.
    Array<int> lagrange_rowstarts;
    SparseMatrix* local_constraints =
-      BuildNormalConstraintsIntersection(*fespace, constraint_atts,
-                                         lagrange_rowstarts);
+      BuildNormalConstraints(*fespace, constraint_atts, lagrange_rowstarts);
    EliminationCGSolver * solver = new EliminationCGSolver(A, *local_constraints,
                                                           lagrange_rowstarts, dim,
                                                           false);
