@@ -14,6 +14,9 @@
 
 namespace mfem
 {
+
+static constexpr int Dynamic = 0;
+
 /// Getter for the N-th dimension value
 template <int N, int... Dims>
 struct Dim;
