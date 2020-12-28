@@ -26,8 +26,14 @@ protected:
    int capacity;
 
 public:
+   template <typename... Sizes>
+   DeviceContainer(int size0, Sizes... sizes) : data(nullptr)
+   {
+      // static_assert(false,"Read Container are not supposed to be created like this");
+   }
+
    MFEM_HOST_DEVICE
-   DeviceContainer(const T* data, int capacity) : data(data), capacity(capacity)
+   DeviceContainer(T* data, int capacity) : data(data), capacity(capacity)
    { }
 
    MFEM_HOST_DEVICE
@@ -55,6 +61,12 @@ private:
    int capacity;
 
 public:
+   template <typename... Sizes>
+   ReadContainer(int size0, Sizes... sizes) : data(nullptr)
+   {
+      // static_assert(false,"Read Container are not supposed to be created like this");
+   }
+
    MFEM_HOST_DEVICE
    ReadContainer(const T* data, int capacity) : data(data), capacity(capacity)
    { }
@@ -84,7 +96,7 @@ private:
 
 public:
    template <typename... Sizes>
-   MemoryContainer(Sizes... sizes) : data(prod(sizes...)) { }
+   MemoryContainer(int size0, Sizes... sizes) : data(prod(size0,sizes...)) { }
 
    MemoryContainer(const MemoryContainer &rhs)
    {
@@ -138,8 +150,10 @@ private:
    T data[prod(Dims...)];
 
 public:
+   StaticContainer() { }
+
    template <typename... Sizes> MFEM_HOST_DEVICE
-   StaticContainer(Sizes... sizes)
+   StaticContainer(int size0, Sizes... sizes)
    {
       // static_assert(sizeof...(Dims)==sizeof...(Sizes), "Static and dynamic sizes don't match.");
       // TODO verify that Dims == sizes in Debug mode
@@ -173,7 +187,7 @@ private:
    MFEM_SHARED T data[prod(Dims...)];
 public:
    template <typename... Sizes> MFEM_HOST_DEVICE
-   StaticSharedContainer(Sizes... sizes)
+   StaticSharedContainer(int size0, Sizes... sizes)
    {
       // static_assert(sizeof...(Dims)==sizeof...(Sizes), "Static and dynamic sizes don't match.");
       // TODO verify that Dims == sizes in Debug mode
