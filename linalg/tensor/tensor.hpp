@@ -21,66 +21,80 @@ namespace mfem
 {
 
 /** A tensor class
-    @a Rank is the rank of the Tensor
-    @a T is the type of elements stored
-    @a Container is the type of data container
+    @a Rank is the rank of the Tensor,
+    @a T is the type of elements stored,
+    @a Container is the type of data container, they can either be statically or
+       dynamically allocated,
     @a Layout is a class that represents the data layout
+       There is two main sub-categories of Layout, Static and Dynamic layouts.
+       Dynamic Layout have the following signature:
+       template <int Rank, typename T>,
+       Static Layout have the following signature:
+       template <typename T, int... Sizes>,
+       where Sizes... is the list of the sizes of the dimensions of the Tensor.
    */
 template <int Rank,
           typename T = double,
           typename Container = MemoryContainer<T>,
           typename Layout = DynamicLayout<Rank>>
-class Tensor // TODO inherit from Container and Layout ,data -> operator[]
+class Tensor: public Container, public Layout
 {
-private:
-   Container data;
-   Layout index;
-
 public:
+   using container = Container;
+   using layout = Layout;
+
+   /// Default Constructor
+   MFEM_HOST_DEVICE
+   Tensor() : Container(), Layout() { }
+
    /// Main Constructor
    template <typename... Sizes> MFEM_HOST_DEVICE
-   Tensor(Sizes... sizes): data(sizes...), index(sizes...) { }
+   Tensor(int size0, Sizes... sizes)
+   : Container(size0,sizes...), Layout(size0,sizes...) { }
 
    /// Utility Constructor
    MFEM_HOST_DEVICE
-   Tensor(Container &data, Layout &index): data(data), index(index) { }
+   Tensor(Layout index): Container(), Layout(index) { }
+
+   MFEM_HOST_DEVICE
+   Tensor(Container data, Layout index): Container(data), Layout(index) { }
 
    /// Copy Constructor
    MFEM_HOST_DEVICE
-   Tensor(const Tensor &rhs): data(rhs.data), index(rhs.index) { }
+   Tensor(const Tensor &rhs): Container(rhs), Layout(rhs) { }
 
    /// Accessor
    template <typename... Idx> MFEM_HOST_DEVICE inline
    T& operator()(Idx... args)
    {
-      static_assert(Rank==sizeof...(Idx), "Wrong number of indices");
-      return data[ index(args...) ];
+      // static_assert(Rank==sizeof...(Idx), "Wrong number of indices");
+      return this->operator[]( this->index(args...) );
    }
 
    /// Const Accessor
    template <typename... Idx> MFEM_HOST_DEVICE inline
    const T& operator()(Idx... args) const
    {
-      static_assert(Rank==sizeof...(Idx), "Wrong number of indices");
-      return data[ index(args...) ];
+      // static_assert(Rank==sizeof...(Idx), "Wrong number of indices");
+      return this->operator[]( this->index(args...) );
    }
 
    /// Return the size of the dimension N
    // TODO remove after inheriting
-   template <int N>
-   int Size() const
-   {
-      return index.template Size<N>();
-   }
+   // template <int N>
+   // int Size() const
+   // {
+   //    return index.template Size<N>();
+   // }
 
    /// Initialization of a Tensor to a constant value.
    MFEM_HOST_DEVICE inline
    Tensor<Rank,T,Container,Layout>& operator=(const T &val)
    {
       // TODO this doesn't work with all containers
-      for (size_t i = 0; i < data.Capacity(); i++)
+      for (size_t i = 0; i < this->Capacity(); i++)
       {
-         data[i] = val;
+         this->operator[](i) = val;
       }
       return *this;
    }
@@ -88,29 +102,37 @@ public:
    template <typename OtherTensor> MFEM_HOST_DEVICE inline
    Tensor<Rank,T,Container,Layout>& operator=(const OtherTensor &rhs)
    {
-      Forall<Rank-1>::equalize(*this,rhs);
+      Forall<Rank>::equalize(*this,rhs);
       return *this;
    }
+
+   // TODO Soft and Hard Get? (lazy accessor or hard copy)
 
    /// Get the Sub-Tensor extracted from idx in Nth dimension.
    template <int N>
    auto Get(int idx)
    {
+      static_assert(N>=0 && N<Rank,"Cannot access this dimension with Get");
       using RestrictedTensor = Tensor<Rank,
                                       T,
                                       ViewContainer<T,Container>,
-                                      RestrictedLayout<Rank-1,Layout>>;
-      return RestrictedTensor(data,RestrictedLayout<Rank-1,Layout>(idx,index));
+                                      RestrictedLayout<N,Layout>>;
+      ViewContainer<T,Container> data(*this);
+      RestrictedLayout<N,Layout> layout(idx,*this);
+      return RestrictedTensor(data,layout);
    }
 
    template <int N>
    auto Get(int idx) const
    {
-      using RestrictedTensor = Tensor<Rank,
+      static_assert(N>=0 && N<Rank,"Cannot access this dimension with Get");
+      using RestrictedTensor = Tensor<Rank-1,
                                       T,
                                       ConstViewContainer<T,Container>,
-                                      RestrictedLayout<Rank-1,Layout>>;
-      return RestrictedTensor(data,RestrictedLayout<Rank-1,Layout>(idx,index));
+                                      RestrictedLayout<N,Layout>>;
+      ConstViewContainer<T,Container> data(*this);
+      RestrictedLayout<N,Layout> layout(idx,*this);
+      return RestrictedTensor(data,layout);
    }
 
    /// Get the Sub-Tensor extracted from idx in Nth dimension.
@@ -129,19 +151,20 @@ public:
    /// Generate a Tensor that be read on device
    auto Read()
    {
-      return Tensor<Rank,T,ReadContainer<T>,Layout>(data.ReadData(),index);
+      return Tensor<Rank,T,ReadContainer<T>,Layout>(this->ReadData(),*this);
    }
 
    /// Generate a Tensor that be writen on device (read is unsafe)
    auto Write()
    {
-      return Tensor<Rank,T,DeviceContainer<T>,Layout>(data.WriteData(),index);
+      return Tensor<Rank,T,DeviceContainer<T>,Layout>(this->WriteData(),*this);
    }
 
    /// Generate a Tensor that be read and writen on device
    auto ReadWrite()
    {
-      return Tensor<Rank,T,DeviceContainer<T>,Layout>(data.ReadWriteData(),index);
+      return Tensor<Rank,T,DeviceContainer<T>,Layout>(this->ReadWriteData(),
+                                                      *this);
    }
 
 private:
@@ -150,12 +173,29 @@ template <int N>
 struct Forall
 {
    template <typename TensorLHS, typename TensorRHS, typename... Idx>
-   static void equalize(TensorLHS &lhs, TensorRHS &rhs, Idx... idx)
+   static void equalize(TensorLHS &lhs, const TensorRHS &rhs, Idx... idx)
    {
       // TODO replace with iterator
-      for(int i = 0; i<lhs.template Size<N>(); i++)
+      for(int i = 0; i<lhs.template Size<N-1>(); i++)
       {
+         // TODO understand why the recursive form doesn't work
          Forall<N-1>::equalize(lhs,rhs,i,idx...);
+      }
+   }
+};
+
+template <>
+struct Forall<2>
+{
+   template <typename TensorLHS, typename TensorRHS, typename... Idx>
+   static void equalize(TensorLHS &lhs, const TensorRHS &rhs, Idx... idx)
+   {
+      for(int j = 0; j<lhs.template Size<1>(); j++)
+      {
+         for(int i = 0; i<lhs.template Size<0>(); i++)
+         {
+            lhs(i,j) = rhs(i,j);
+         }
       }
    }
 };
@@ -164,13 +204,9 @@ template <>
 struct Forall<0>
 {
    template <typename TensorLHS, typename TensorRHS, typename... Idx>
-   static void equalize(TensorLHS &lhs, TensorRHS &rhs, Idx... idx)
+   static void equalize(TensorLHS &lhs, const TensorRHS &rhs, Idx... idx)
    {
-      // TODO replace with iterator
-      for(int i = 0; i<lhs.template Size<0>(); i++)
-      {
-         lhs(i,idx...) = rhs(i,idx...);
-      }
+      lhs(idx...) = rhs(idx...);
    }
 };
 
