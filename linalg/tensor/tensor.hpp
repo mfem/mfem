@@ -212,6 +212,31 @@ struct Forall<0>
 
 };
 
+//////////////////////////
+// Behavioral Tensor types
+
+/// A tensor using a read write access pointer and a dynamic data layout.
+// Backward compatible if renamed in DeviceTensor
+template <int Rank, typename T>
+using MyDeviceTensor = Tensor<Rank,
+                            T,
+                            DeviceContainer<T>,
+                            DynamicLayout<Rank> >;
+
+template <int Rank>
+using DeviceDTensor = MyDeviceTensor<Rank,double>;
+
+/// A tensor using a read only const pointer and a dynamic data layout.
+template <int Rank, typename T>
+using ReadTensor = Tensor<Rank,
+                          T,
+                          ReadContainer<T>,
+                          DynamicLayout<Rank> >;
+
+template <int Rank>
+using ReadDTensor = ReadTensor<Rank,double>;
+
+/// A statically sized Tensor using shared memory.
 template <typename T, int... Sizes>
 using StaticSharedTensor = Tensor<sizeof...(Sizes),
                                   T,
@@ -221,6 +246,7 @@ using StaticSharedTensor = Tensor<sizeof...(Sizes),
 template <int... Sizes>
 using StaticSharedDTensor = StaticSharedTensor<double,Sizes...>;
 
+/// A dynamically sized Tensor using a static amount of shared memory.
 template <int Rank, typename T, int MaxSize = pow(16,Rank)>
 using SharedTensor = Tensor<Rank,
                             T,
@@ -253,22 +279,25 @@ using DynamicTensor = Tensor<Rank,
 template <int Rank, int MaxSize = pow(16,Rank)>
 using DynamicDTensor = DynamicTensor<Rank,double,MaxSize>;
 
-/// A Tensor distributed statically over a plane of threads
-template <typename T, int... Sizes>
+/// A Tensor statically distributed over a plane of threads
+template <typename T, int BatchSize, int... Sizes>
 using BlockTensor = Tensor<sizeof...(Sizes),
                            T,
                            BlockContainer<T, Sizes...>,
-                           BlockLayout<Sizes...> >;
+                           BlockLayout<BatchSize, Sizes...> >;
 
-template <int... Sizes>
-using BlockDTensor = BlockTensor<double,Sizes...>;
+template <int BatchSize, int... Sizes>
+using BlockDTensor = BlockTensor<double,BatchSize,Sizes...>;
 
-/// A Tensor distributed dynamically over a plane of threads
-template <int Rank, typename T, int MaxSize = pow(16,Rank)>
+/// A Tensor dynamically distributed over a plane of threads
+template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
 using DynamicBlockTensor = Tensor<Rank,
                            T,
                            BlockContainer<T, MaxSize>,
-                           DynamicBlockLayout<Rank> >;
+                           DynamicBlockLayout<Rank,BatchSize> >;
+
+template <int Rank, int BatchSize, int MaxSize = pow(16,Rank)>
+using DynamicBlockDTensor = DynamicBlockTensor<Rank,double,BatchSize,MaxSize>;
 
 template <int Rank, int MaxSize = pow(16,Rank)>
 using DynamicBlockDTensor = DynamicBlockTensor<Rank,double,MaxSize>;
