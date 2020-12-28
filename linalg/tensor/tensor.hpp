@@ -299,8 +299,73 @@ using DynamicBlockTensor = Tensor<Rank,
 template <int Rank, int BatchSize, int MaxSize = pow(16,Rank)>
 using DynamicBlockDTensor = DynamicBlockTensor<Rank,double,BatchSize,MaxSize>;
 
-template <int Rank, int MaxSize = pow(16,Rank)>
-using DynamicBlockDTensor = DynamicBlockTensor<Rank,double,MaxSize>;
+//////////////////////////
+// Convenient Tensor types
+
+/// Defines the dynamic type of Tensor used for computation on CPU.
+template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
+using DynamicCPUTensor = DynamicTensor<Rank, T, BatchSize, MaxSize>;
+
+/// Defines the static type of Tensor used for computation on CPU.
+template <typename T, int BatchSize, int... Sizes>
+using StaticCPUTensor = StaticTensor<T, BatchSize, Sizes...>;
+
+/// Defines the dynamic type of Tensor used for computation on CUDA.
+template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
+using DynamicCUDATensor = DynamicBlockTensor<Rank, T, BatchSize, MaxSize>;
+
+/// Defines the static type of Tensor used for computation on CUDA.
+template <typename T, int BatchSize, int... Sizes>
+using StaticCUDATensor = BlockTensor<T, BatchSize, Sizes...>;
+
+/// Defines the dynamic type of Tensor used for computation on Hip.
+template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
+using DynamicHipTensor = DynamicBlockTensor<Rank, T, MaxSize>;
+
+/// Defines the static type of Tensor used for computation on Hip.
+template <typename T, int BatchSize, int... Sizes>
+using StaticHipTensor = BlockTensor<T, int... Sizes>;
+
+/// A structure that defines static and dynamic Tensor types for an architecture
+struct DeviceTensorType
+{
+#ifdef __CUDA_ARCH__
+   // CUDA types
+   template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
+   using dynamic_type = DynamicCUDATensor<Rank,T,BatchSize,MaxSize>;
+
+   template <typename T, int BatchSize, int... Sizes>
+   using static_type = StaticCUDATensor<T,BatchSize,Sizes...>;
+#elif defined(__HIP_DEVICE_COMPILE__)
+   // Hip types
+   template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
+   using dynamic_type = DynamicHipTensor<Rank,T,BatchSize,MaxSize>;
+
+   template <typename T, int BatchSize, int... Sizes>
+   using static_type = StaticHipTensor<T,BatchSize,Sizes...>;
+#else
+   // CPU types
+   template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
+   using dynamic_type = DynamicCPUTensor<Rank,T,BatchSize,MaxSize>;
+
+   template <typename T, int BatchSize, int... Sizes>
+   using static_type = StaticCPUTensor<T,BatchSize,Sizes...>;
+#endif
+};
+
+/// Defines the dynamic Tensor type for the compiling architecture
+template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
+using DynamicDeviceTensor = DeviceTensorType::dynamic_type<Rank,T,BatchSize,MaxSize>;
+
+template <int Rank, int BatchSize, int MaxSize = pow(16,Rank)>
+using DynamicDeviceDTensor = DynamicDeviceTensor<Rank,double,BatchSize,MaxSize>;
+
+/// Defines the static Tensor type for the compiling architecture
+template <typename T, int BatchSize, int... Sizes>
+using StaticDeviceTensor = DeviceTensorType::static_type<T,BatchSize,Sizes...>;
+
+template <int BatchSize, int... Sizes>
+using StaticDeviceDTensor = StaticDeviceTensor<double,BatchSize,Sizes...>;
 
 // template <int Rank, typename T>
 // using ViewTensor = Tensor<Rank,T,ViewContainer,RestrictedLayout>;
