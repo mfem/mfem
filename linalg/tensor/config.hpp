@@ -12,15 +12,21 @@
 #ifndef MFEM_TENSOR_CONFIG
 #define MFEM_TENSOR_CONFIG
 
+#include "util.hpp"
+
 namespace mfem
 {
 
-template <int Dim, bool IsTensor=false, int TDofs=0, int TQuads=0, int BatchSize=1>
+template <int Dim,
+          bool IsTensor=false,
+          int TDofs=Dynamic,
+          int TQuads=Dynamic,
+          int BatchSize=1>
 struct KernelConfig
 {
    static constexpr int dim = Dim;
    static constexpr bool is_tensor = IsTensor;
-   static constexpr int Dofs = TDofs; // IsTensor? pow(Dofs,Dim) : Dofs; ?
+   static constexpr int Dofs = TDofs;
    static constexpr int Quads = TQuads;
    static constexpr int batch_size = BatchSize;
    const int dofs;

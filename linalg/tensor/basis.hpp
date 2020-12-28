@@ -824,7 +824,7 @@ auto MakeBasis(KernelConfig<Dim,true,Dofs,Quads,BatchSize> &config,
 
 /// Functor for building a dynamically sized tensor Basis
 template <int Dim, int BatchSize>
-auto MakeBasis(KernelConfig<Dim,true,0,0,BatchSize> &config,
+auto MakeBasis(KernelConfig<Dim,true,Dynamic,Dynamic,BatchSize> &config,
                const double *b,
                const double *bt,
                const double *g = nullptr,
@@ -833,8 +833,7 @@ auto MakeBasis(KernelConfig<Dim,true,0,0,BatchSize> &config,
    const int dofs1d = config.dofs;
    const int dofs = pow(dofs1d,config.Dim);
    const int quads1d = config.quads;
-   const int quads = pow(quads1d,config.Dim);
-   return Basis<Dim,true,0,0>{dofs1d,quads1d,dofs,quads,b,bt,g,gt};
+   return Basis<Dim,true,Dynamic,Dynamic>{dofs1d,quads1d,dofs,quads,b,bt,g,gt};
 }
 
 /// Functor for building a statically sized non-tensor Basis
@@ -850,13 +849,13 @@ auto MakeBasis(KernelConfig<Dim,false,Dofs,Quads,BatchSize> &config,
 
 /// Functor for building a dynamically sized non-tensor Basis
 template <int Dim, int BatchSize>
-auto MakeBasis(KernelConfig<Dim,false,0,0,BatchSize> &config,
+auto MakeBasis(KernelConfig<Dim,false,Dynamic,Dynamic,BatchSize> &config,
                const double *b,
                const double *bt,
                const double *g = nullptr,
                const double *gt = nullptr)
 {
-   return Basis<Dim,false,0,0>{config.dofs,config.quads,b,bt,g,gt};
+   return Basis<Dim,false,Dynamic,Dynamic>{config.dofs,config.quads,b,bt,g,gt};
 }
 
 /// A structure to represent a transposed basis
