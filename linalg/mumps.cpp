@@ -196,6 +196,8 @@ void MUMPSSolver::SetOperator(const Operator &op)
 
 void MUMPSSolver::Mult(const Vector &x, Vector &y) const
 {
+   x.HostRead();
+   y.HostReadWrite();
 #if MFEM_MUMPS_VERSION >= 530
 
    id->nloc_rhs = x.Size();
