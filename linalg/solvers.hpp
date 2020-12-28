@@ -74,9 +74,6 @@ protected:
    Solver *prec;
    IterativeSolverMonitor *monitor = nullptr;
 
-   void (*OpTimes)(const Vector &v, Vector &Jv, void *ctx) = nullptr;
-   void *OpTimesCtx = nullptr;
-
    int max_iter, print_level;
    double rel_tol, abs_tol;
 
