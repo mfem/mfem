@@ -19,6 +19,11 @@
 #include "../linalg/tensor/cwisemult.hpp"
 #include "../linalg/tensor/write.hpp"
 
+#include "../linalg/tensor/config.hpp"
+#include "../linalg/tensor/basis.hpp"
+#include "../linalg/tensor/dof.hpp"
+#include "../linalg/tensor/qdata.hpp"
+
 using namespace std;
 
 namespace mfem
@@ -1149,6 +1154,116 @@ static void SmemPAMassApply3D(const int NE,
    });
 }
 
+template <int Dim,
+          bool IsTensor,
+          int Dofs = Dynamic,
+          int Quads = Dynamic,
+          int BatchSize = 1>
+static void SetupMass(const int ne,
+                      const Array<double> &w,
+                      const Array<double> &b,
+                      const Array<double> &bt,
+                      const Array<double> &g,
+                      const Array<double> &gt,
+                      const Vector &x,
+                      Vector &d,
+                      const int dofs = 0,
+                      const int quads = 0)
+{
+   auto config  = MakeConfig<Dim,IsTensor,Dofs,Quads,BatchSize>(dofs, quads);
+   auto B       = MakeBasis(config, b, bt, g, gt);
+   const auto X = MakeDoFs<1>(config, x.Read(), ne);
+   const auto C = MakeQData<0>(config, c.Read(), ne);
+   const auto W = MakeWeight(config, w);
+   auto D       = MakeQData<0>(config, d.Write(), ne);
+   MFEM_FORALL(e,ne,
+   // forall(e, ne, config,
+   {
+      D(e) = det(gradient(B) * X(e)) * C(e) * W;
+   });
+}
+
+template <int Dim,
+          int VDim,
+          bool IsTensor,
+          int Dofs = Dynamic,
+          int Quads = Dynamic,
+          int BatchSize = 1>
+static void ApplyMass(const int ne,
+                      const Array<double> &b,
+                      const Array<double> &bt,
+                      const Vector &d,
+                      const Vector &x,
+                      Vector &y,
+                      const int dofs = 0,
+                      const int quads = 0)
+{
+   auto config  = MakeConfig<Dim,IsTensor,Dofs,Quads,BatchSize>(dofs, quads);
+   auto B       = MakeBasis(config, b.Read(), bt.Read());
+   const auto X = MakeDoFs<VDim>(config, x.Read(), ne);
+   const auto D = MakeQData<0>(config, d.Read(), ne);
+   auto Y       = MakeDoFs<VDim>(config, y.ReadWrite(), ne);
+   // QData<Dim,0,IsTensor,Quads> D(d_D, quads);
+   MFEM_FORALL(e,ne,
+   // forall(e, ne, config,
+   {
+      Y(e) += transpose(B) * ( D(e) * ( B * X(e) ) );
+   });
+}
+
+template <int Dim, int DimComp, bool IsTensor, int Dofs=0, int Quads=0, int BatchSize=1>
+static void SetupMassEA(const int ne,
+                        const Array<double> &b,
+                        const Array<double> &bt,
+                        const Vector &d,
+                        const int dofs = 0,
+                        const int quads = 0)
+{
+   auto config  = KernelConfig<Dim,IsTensor,Dofs,Quads,BatchSize>(dofs, quads);
+   auto B       = MakeBasis(config, b.Read(), bt.Read());
+   const auto D = MakeQData<0>(config, d.Read(), ne);
+   auto M = MakeElementMatrix<VDim>(config, m.Read(), ne);
+   // QData<Dim,0,IsTensor,Quads> D(d_D, quads);
+   MFEM_FORALL(e,ne,
+   // forall(e, ne, config,
+   {
+      M(e) = transpose(B) *  D(e) *  B;
+   });
+}
+
+template <int Dim,
+          int VDim,
+          bool IsTensor,
+          int DofsMesh = Dynamic,
+          int Dofs = Dynamic,
+          int Quads = Dynamic,
+          int BatchSize = 1>
+static void ApplyMassMF(const int ne,
+                      const Array<double> &b_m,
+                      const Array<double> &bt_m,
+                      const Array<double> &b,
+                      const Array<double> &bt,
+                      const Vector &nodes,
+                      const Vector &x,
+                      Vector &y,
+                      const int dofs = 0,
+                      const int quads = 0)
+{
+   auto config_m  = MakeConfig<Dim,IsTensor,DofsMesh,Quads,BatchSize>(dofs, quads);
+   auto config    = MakeConfig<Dim,IsTensor,Dofs,Quads,BatchSize>(dofs, quads);
+   auto B_M       = MakeBasis(config_m, b_m.Read(), bt_m.Read());
+   auto B         = MakeBasis(config, b.Read(), bt.Read());
+   const auto X_M = MakeDoFs<Dim>(config_m, nodes.Read(), ne);
+   const auto X   = MakeDoFs<VDim>(config, x.Read(), ne);
+   auto Y         = MakeDoFs<VDim>(config, y.ReadWrite(), ne);
+   MFEM_FORALL(e,ne,
+   // forall(e, ne, config,
+   {
+      auto D = det(gradient(B_M) * X_M(e)) * W;
+      Y(e) += transpose(B) * ( D * ( B * X(e) ) );
+   });
+}
+
 template <typename Basis, typename BasisT, typename Dop,
 typename DofsIn, typename DofsOut> MFEM_HOST_DEVICE inline
 static void Apply(const int e,
@@ -1280,7 +1395,8 @@ static void PAMassApply(const int dim,
          case 0x77: return Apply2D<7,7,4>(NE,B,Bt,D,X,Y);
          case 0x88: return Apply2D<8,8,2>(NE,B,Bt,D,X,Y);
          case 0x99: return Apply2D<9,9,2>(NE,B,Bt,D,X,Y);
-         default:   return PAMassApply2D(NE,B,Bt,D,X,Y,D1D,Q1D);
+         // default:   return PAMassApply2D(NE,B,Bt,D,X,Y,D1D,Q1D);
+         default:   return ApplyMass<2,0,true>(NE,B,Bt,D,X,Y,D1D,Q1D);
       }
    }
    else if (dim == 3)
