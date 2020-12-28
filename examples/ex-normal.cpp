@@ -46,14 +46,46 @@
 using namespace std;
 using namespace mfem;
 
-/*
-   Given a vector space fespace, and the array constrained_att that
-   includes the boundary *attributes* that are constrained to have normal
-   component zero, this returns a SparseMatrix representing the
-   constraints that need to be imposed.
-*/
-HypreParMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
-                                        Array<int> constrained_att)
+/** @todo this seems overly complicated, why can't I just use a simpler
+    constructor for HypreParMatrix? */
+HypreParMatrix * BuildParNormalConstraints(ParFiniteElementSpace& fespace,
+                                           Array<int>& constrained_att,
+                                           Array<int>& lagrange_rowstarts)
+{
+   int rank, size;
+   MPI_Comm_rank(fespace.GetComm(), &rank);
+   MPI_Comm_size(fespace.GetComm(), &size);
+
+   SparseMatrix * out = BuildNormalConstraints(fespace,
+                                               constrained_att,
+                                               lagrange_rowstarts);
+
+   int row_running_total = 0;
+   int local_rows = out->Height();
+   MPI_Scan(&local_rows, &row_running_total, 1, MPI_INT,
+            MPI_SUM, fespace.GetComm());
+   int global_rows = 0;
+   if (rank == size - 1) global_rows = row_running_total;
+   MPI_Bcast(&global_rows, 1, MPI_INT, size - 1, fespace.GetComm());
+
+   // convert SparseMatrix to HypreParMatrix
+   // cols are same as for fespace; rows are built here
+   HYPRE_Int glob_num_rows = global_rows;
+   HYPRE_Int glob_num_cols = fespace.GlobalTrueVSize();
+   HYPRE_Int row_starts[2] = {row_running_total - local_rows,
+                              row_running_total};
+   HYPRE_Int * col_starts = fespace.GetTrueDofOffsets();
+   HypreParMatrix * h_out = new HypreParMatrix(fespace.GetComm(), glob_num_rows,
+                                               glob_num_cols, row_starts,
+                                               col_starts, out);
+   h_out->CopyRowStarts();
+   h_out->CopyColStarts();
+
+   return h_out;
+}
+
+HypreParMatrix * OldBuildNormalConstraints(ParFiniteElementSpace& fespace,
+                                           Array<int> constrained_att)
 {
    int rank, size;
    MPI_Comm_rank(fespace.GetComm(), &rank);
@@ -86,7 +118,8 @@ HypreParMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
    SparseMatrix * out = new SparseMatrix(n_constraints, fespace.GetTrueVSize());
 
    int constraint_running_total = 0;
-   MPI_Scan(&n_constraints, &constraint_running_total, 1, MPI_INT, MPI_SUM, fespace.GetComm());
+   MPI_Scan(&n_constraints, &constraint_running_total, 1, MPI_INT,
+            MPI_SUM, fespace.GetComm());
    int global_constraints = 0;
    if (rank == size - 1) global_constraints = constraint_running_total;
    MPI_Bcast(&global_constraints, 1, MPI_INT, size - 1, fespace.GetComm());
@@ -135,12 +168,14 @@ HypreParMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
 
    out->Finalize();
 
-   // cols are same as for fespace; rows are... built here
+   // cols are same as for fespace; rows are built here
    HYPRE_Int glob_num_rows = global_constraints;
    HYPRE_Int glob_num_cols = fespace.GlobalTrueVSize();
-   HYPRE_Int row_starts[2] = {constraint_running_total - n_constraints, constraint_running_total};
+   HYPRE_Int row_starts[2] = {constraint_running_total - n_constraints,
+                              constraint_running_total};
    HYPRE_Int * col_starts = fespace.GetTrueDofOffsets();
-   HypreParMatrix * h_out = new HypreParMatrix(fespace.GetComm(), glob_num_rows, glob_num_cols, row_starts,
+   HypreParMatrix * h_out = new HypreParMatrix(fespace.GetComm(), glob_num_rows,
+                                               glob_num_cols, row_starts,
                                                col_starts, out);
    h_out->CopyRowStarts();
    h_out->CopyColStarts();
@@ -320,7 +355,11 @@ int main(int argc, char *argv[])
 
    Array<int> x_dofs, y_dofs, z_dofs;
    HypreParMatrix * hconstraints;
-   hconstraints = BuildNormalConstraints(fespace, constraint_atts);
+   Array<int> lagrange_rowstarts;
+
+   // hconstraints = OldBuildNormalConstraints(fespace, constraint_atts);
+   hconstraints = BuildParNormalConstraints(fespace, constraint_atts,
+                                            lagrange_rowstarts);
    hconstraints->Print("hconstraints");
 
    ParLinearForm b(&fespace);
@@ -376,11 +415,6 @@ int main(int argc, char *argv[])
    {
       SparseMatrix local_constraints;
       hconstraints->GetDiag(local_constraints);
-      Array<int> lagrange_rowstarts(local_constraints.Height() + 1);
-      for (int k = 0; k < local_constraints.Height() + 1; ++k)
-      {
-         lagrange_rowstarts[k] = k;
-      }
       constrained = new EliminationCGSolver(*A.As<HypreParMatrix>(), local_constraints,
                                             lagrange_rowstarts, dim);
    }
