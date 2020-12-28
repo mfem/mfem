@@ -17,9 +17,11 @@
 // --- AutoSIMD + specializations with intrinsics
 #include "simd/auto.hpp"
 #ifdef MFEM_USE_SIMD
-#if defined(__VSX__)
+#if defined(__aarch64__)
+#include "simd/sve.hpp"
+#elif defined(__VSX__)
 #include "simd/vsx.hpp"
-#elif defined (__bgq__)
+#elif defined(__bgq__)
 #include "simd/qpx.hpp"
 #elif defined(__x86_64__) || defined(_M_X64) || defined(_M_IX86)
 #include "simd/x86.hpp"
@@ -42,6 +44,9 @@
 #elif defined(__AVX512F__)
 #define MFEM_SIMD_BYTES 64
 #define MFEM_ALIGN_BYTES 64
+#elif defined(__AARCH64EL__)
+#define MFEM_SIMD_BYTES 64
+#define MFEM_ALIGN_BYTES 64
 #elif defined(__AVX__) || defined(__VECTOR4DOUBLE__)
 #define MFEM_SIMD_BYTES 32
 #define MFEM_ALIGN_BYTES 32
@@ -54,14 +59,14 @@
 #endif
 
 // derived macros
-#define MFEM_ROUNDUP(val,base) ((((val)+(base)-1)/(base))*(base))
-#define MFEM_ALIGN_SIZE(size,type) \
-   MFEM_ROUNDUP(size,(MFEM_ALIGN_BYTES)/sizeof(type))
+#define MFEM_ROUNDUP(val, base) ((((val) + (base)-1) / (base)) * (base))
+#define MFEM_ALIGN_SIZE(size, type) \
+  MFEM_ROUNDUP(size, (MFEM_ALIGN_BYTES) / sizeof(type))
 
 namespace mfem
 {
 
-template<typename complex_t, typename real_t>
+template <typename complex_t, typename real_t>
 struct AutoSIMDTraits
 {
    static const int block_size = MFEM_TEMPLATE_BLOCK_SIZE;
@@ -71,14 +76,14 @@ struct AutoSIMDTraits
 
    static const int batch_size = 1;
 
-   static const int simd_size = MFEM_SIMD_BYTES/sizeof(real_t);
+   static const int simd_size = MFEM_SIMD_BYTES / sizeof(real_t);
 
    typedef AutoSIMD<complex_t, simd_size, MFEM_SIMD_BYTES> vcomplex_t;
    typedef AutoSIMD<real_t, simd_size, MFEM_SIMD_BYTES> vreal_t;
-   typedef AutoSIMD<int, simd_size, simd_size*sizeof(int)> vint_t;
+   typedef AutoSIMD<int, simd_size, simd_size * sizeof(int)> vint_t;
 };
 
-template<typename complex_t, typename real_t>
+template <typename complex_t, typename real_t>
 struct NoSIMDTraits
 {
    static const int block_size = MFEM_TEMPLATE_BLOCK_SIZE;
@@ -92,9 +97,9 @@ struct NoSIMDTraits
 
    typedef AutoSIMD<complex_t, simd_size, align_bytes> vcomplex_t;
    typedef AutoSIMD<real_t, simd_size, align_bytes> vreal_t;
-   typedef AutoSIMD<int, simd_size, simd_size*sizeof(int)> vint_t;
+   typedef AutoSIMD<int, simd_size, simd_size * sizeof(int)> vint_t;
 };
 
-} // mfem namespace
+}  // namespace mfem
 
-#endif // MFEM_SIMD_HPP
+#endif  // MFEM_SIMD_HPP
