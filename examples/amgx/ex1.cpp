@@ -210,8 +210,8 @@ int main(int argc, char *argv[])
       }
       else
       {
-         //Omit convergence check at the AmgX level
-         //when using as a preconditioner
+         // Omit convergence check at the AmgX level when using as a
+         // preconditioner.
          amgx.SetConvergenceCheck(false);
          PCG(*A.As<SparseMatrix>(), amgx, B, X, 3, 40, 1e-12, 0.0);
       }
