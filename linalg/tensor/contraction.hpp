@@ -16,6 +16,110 @@
 
 namespace mfem
 {
+auto ContractX1D(const SharedDTensor<2> &B,
+                 const DynamicDTensor<1> &u)
+{
+   const int Q = B.template Size<0>();
+   const int D = B.template Size<1>();
+   DynamicDTensor<1> Bu(Q);
+   // TODO Abstract for_each(int q )
+   for(int q = 0; q < Q; ++q)
+   {
+      double v = 0.0;
+      for (int d = 0; d < D; ++d)
+      {
+         const double b = B(q,d);
+         const double x = u(d);
+         v += b * x;
+      }
+      Bu(q) = v;
+   }
+   MFEM_SYNC_THREAD;
+   return Bu;
+}
+
+template <int D, int Q>
+auto ContractX1D(const StaticSharedDTensor<Q,D> &B,
+                 const StaticDTensor<D> &u)
+{
+   StaticDTensor<Q> Bu;
+   for(int q = 0; q < Q; ++q)
+   {
+      double v = 0.0;
+      for (int d = 0; d < D; ++d)
+      {
+         const double b = B(q,d);
+         const double x = u(d);
+         v += b * x;
+      }
+      Bu(q) = v;
+   }
+   MFEM_SYNC_THREAD;
+   return Bu;
+}
+
+template <int D, int Q>
+auto ContractX1D(const StaticSharedDTensor<Q,D> &B,
+                 const BlockDTensor<D> &u)
+{
+   BlockDTensor<Q> Bu;
+   MFEM_FOREACH_THREAD(q,x,Q)
+   {
+      double v = 0.0;
+      for (int d = 0; d < D; ++d)
+      {
+         const double b = B(q,d);
+         const double x = u(d);
+         v += b * x;
+      }
+      Bu(q) = v;
+   }
+   MFEM_SYNC_THREAD;
+   return Bu;
+}
+
+template <int BatchSize>
+auto ContractX1D(const SharedDTensor<2> &B,
+                 const DynamicBlockDTensor<1,BatchSize> &u)
+{
+   const int Q = B.template Size<0>();
+   const int D = B.template Size<1>();
+   DynamicBlockDTensor<1,BatchSize> Bu(Q);
+   MFEM_FOREACH_THREAD(q,x,Q)
+   {
+      double v = 0.0;
+      for (int d = 0; d < D; ++d)
+      {
+         const double b = B(q,d);
+         const double x = u(d);
+         v += b * x;
+      }
+      Bu(q) = v;
+   }
+   MFEM_SYNC_THREAD;
+   return Bu;
+}
+
+// template <typename Basis, >
+// auto ContractX1D(const Basis &B,
+//                  const BlockDTensor<D> &u)
+// {
+//    constexpr Q = Basis.Q;
+//    BlockDTensor<Q> Bu;
+//    MFEM_FOREACH_THREAD(q,x,Q)
+//    {
+//       double v = 0.0;
+//       for (int d = 0; d < D; ++d)
+//       {
+//          const double b = B(q,d);
+//          const double x = u(d);
+//          v += b * x;
+//       }
+//       Bu(q) = v;
+//    }
+//    MFEM_SYNC_THREAD;
+//    return Bu;
+// }
 
 ////////
 // 1D //
@@ -91,7 +195,7 @@ StaticTensor<dTensor<VDim>,Q> ContractX1D(const dTensor<Q,D> &B,
 
 template<int Q, int P, int VDim> MFEM_HOST_DEVICE inline
 StaticTensor<dTensor<VDim>,P> ContractTX1D(const dTensor<Q,P> &B,
-                                          const StaticTensor<dTensor<VDim>,Q> &u)
+                                           const StaticTensor<dTensor<VDim>,Q> &u)
 {
    StaticTensor<dTensor<VDim>,P> Bu;
    MFEM_FOREACH_THREAD(d,x,P)
@@ -729,6 +833,147 @@ StaticTensor<dTensor<VDim>,D1d,D1d,Q1d> ContractTZ3D(
    }
    MFEM_SYNC_THREAD;
    return Bu;
+}
+
+////////////////
+// Non-tensor //
+template<int D, int Q, int Dim> MFEM_HOST_DEVICE inline
+StaticTensor<dTensor<Dim>,Q> Contract(const StaticTensor<dTensor<Dim>,Q,D> &G,
+                                      const dTensor<D> &u)
+{
+   StaticTensor<dTensor<Dim>,Q> Gu_q;
+   MFEM_FOREACH_THREAD(q,x,Q)
+   {
+      double v[Dim];
+      for (int c = 0; c < Dim; c++)
+      {
+         v[c] = 0.0;
+      }      
+      for (int d = 0; d < D; ++d)
+      {
+         const double x = u(d);
+         for (int c = 0; c < Dim; c++)
+         {
+            const double g = G(q,d)(c);
+            v[c] += g * x;
+         }
+      }
+      for (int c = 0; c < Dim; c++)
+      {
+         Gu_q(q)(c) = v[c];
+      }
+   }
+   MFEM_SYNC_THREAD;
+   return Gu_q;
+}
+
+template<int D, int Q, int Dim> MFEM_HOST_DEVICE inline
+dTensor<D> ContractT(const StaticTensor<dTensor<Dim>,Q,D> &G,
+                     const StaticTensor<dTensor<Dim>,Q> &u)
+{
+   dTensor<D> gu;
+   MFEM_FOREACH_THREAD(d,x,D)
+   {
+      double val = 0.0;
+      for (int q = 0; q < Q; ++q)
+      {
+         for (int s = 0; s < Dim; s++)
+         {
+            const double x = u(q)(s);
+            const double g = G(q,d)(s);
+            val += g * x;
+         }
+      }
+      gu(d) = val;
+   }
+   MFEM_SYNC_THREAD;
+   return gu;
+}
+
+template<int Q, int D, int Dim, int VDim> MFEM_HOST_DEVICE inline
+StaticTensor<dTensor<Dim,VDim>,Q> Contract(
+   const StaticTensor<dTensor<Dim>,Q,D> &G,
+   const StaticTensor<dTensor<VDim>,D> &u)
+{
+   StaticTensor<dTensor<Dim,VDim>,Q> Gu_q;
+   MFEM_FOREACH_THREAD(q,x,Q)
+   {
+      double v[Dim][VDim];
+      for (int s = 0; s < Dim; s++)
+      {
+         for (int c = 0; c < VDim; c++)
+         {
+            v[s][c] = 0.0;
+         }
+      }
+      for (int d = 0; d < D; ++d)
+      {
+         double b[Dim];
+         double x[VDim];
+         for (int c = 0; c < VDim; c++)
+         {
+            x[c] = u(d)(c);
+         }
+         for (int s = 0; s < Dim; s++)
+         {
+            b[s] = G(q,d)(s);
+         }
+         for (int s = 0; s < Dim; s++)
+         {
+            for (int c = 0; c < VDim; c++)
+            {
+               v[s][c] += b[s] * x[c];
+            }
+         }
+      }
+      for (int s = 0; s < Dim; s++)
+      {
+         for (int c = 0; c < VDim; c++)
+         {
+            Gu_q(q)(s,c) = v[s][c];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   return Gu_q;
+}
+
+template<int Q, int D, int Dim, int VDim> MFEM_HOST_DEVICE inline
+StaticTensor<dTensor<Dim,VDim>,D> ContractT(
+   const StaticTensor<dTensor<Dim>,Q,D> &G,
+   const StaticTensor<dTensor<VDim>,Q> &u)
+{
+   StaticTensor<dTensor<VDim>,D> gu;
+   MFEM_FOREACH_THREAD(d,x,D)
+   {
+      double v[VDim];
+      double b[Dim];
+      for (int c = 0; c < VDim; c++)
+      {
+         v[c] = 0.0;
+      }
+      for (int q = 0; q < Q; ++q)
+      {
+         for (int s = 0; s < Dim; s++)
+         {
+            b[s] = G(q,d)(s);
+         }
+         for (int s = 0; s < Dim; s++)
+         {
+            for (int c = 0; c < VDim; c++)
+            {
+               const double x = u(q)(s,c);
+               v[c] += b[s] * x;
+            }
+         }
+      }
+      for (int c = 0; c < VDim; c++)
+      {
+         gu(d)(c) = v[c];
+      }
+   }
+   MFEM_SYNC_THREAD;
+   return gu;
 }
 
 } // namespace mfem
