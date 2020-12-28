@@ -1182,7 +1182,7 @@ template <int Dim, bool IsTensor, int Dofs, int Quads>
 struct Basis;
 
 template <int Dim>
-struct Basis<Dim,true,0,0>
+struct Basis<Dim,true,Dynamic,Dynamic>
 {
    static constexpr int dim = Dim;
    static constexpr bool isTensor = true;
@@ -1196,7 +1196,7 @@ struct Basis<Dim,true,0,0>
    const double *G;
    const double *Gt;
 
-   auto GetB()
+   auto GetB() const
    {
       DynamicBasisTensor<Dim> s_B(quads1D,dofs1D);
       MFEM_FOREACH_THREAD(d,y,dofs1D)
@@ -1209,7 +1209,7 @@ struct Basis<Dim,true,0,0>
       return s_B;
    }
 
-   auto GetBt()
+   auto GetBt() const
    {
       DynamicBasisTensor<Dim> s_Bt(dofs1D,quads1D);
       MFEM_FOREACH_THREAD(q,y,quads1D)
@@ -1222,7 +1222,7 @@ struct Basis<Dim,true,0,0>
       return s_Bt;
    }
 
-   auto GetG()
+   auto GetG() const
    {
       DynamicBasisTensor<Dim> s_G(quads1D,dofs1D);
       MFEM_FOREACH_THREAD(d,y,dofs1D)
@@ -1235,7 +1235,7 @@ struct Basis<Dim,true,0,0>
       return s_G;
    }
 
-   auto GetGt()
+   auto GetGt() const
    {
       DynamicBasisTensor<Dim> s_Gt(dofs1D,quads1D);
       MFEM_FOREACH_THREAD(q,y,quads1D)
@@ -1263,7 +1263,7 @@ struct Basis<Dim,true,Dofs1D,Quads1D>
    const double *G;
    const double *Gt;
 
-   auto GetB()
+   auto GetB() const
    {
       StaticBasisTensor<dim,quads1D,dofs1D> s_B(quads1D,dofs1D);
       MFEM_FOREACH_THREAD(d,y,dofs1D)
@@ -1276,7 +1276,7 @@ struct Basis<Dim,true,Dofs1D,Quads1D>
       return s_B;
    }
 
-   auto GetBt()
+   auto GetBt() const
    {
       StaticBasisTensor<dim,dofs1D,quads1D> s_Bt(dofs1D,quads1D);
       MFEM_FOREACH_THREAD(q,y,quads1D)
@@ -1289,7 +1289,7 @@ struct Basis<Dim,true,Dofs1D,Quads1D>
       return s_Bt;
    }
 
-   auto GetG()
+   auto GetG() const
    {
       StaticBasisTensor<dim,quads1D,dofs1D> s_G(quads1D,dofs1D);
       MFEM_FOREACH_THREAD(d,y,dofs1D)
@@ -1302,7 +1302,7 @@ struct Basis<Dim,true,Dofs1D,Quads1D>
       return s_G;
    }
 
-   auto GetGt()
+   auto GetGt() const
    {
       StaticBasisTensor<dim,dofs1D,quads1D> s_Gt(dofs1D,quads1D);
       MFEM_FOREACH_THREAD(q,y,quads1D)
@@ -1317,7 +1317,7 @@ struct Basis<Dim,true,Dofs1D,Quads1D>
 };
 
 template <int Dim>
-struct Basis<Dim,false,0,0>
+struct Basis<Dim,false,Dynamic,Dynamic>
 {
    static constexpr int dim = Dim;
    static constexpr bool isTensor = false;
@@ -1329,7 +1329,7 @@ struct Basis<Dim,false,0,0>
    const double *G;
    const double *Gt;
 
-   auto GetB()
+   auto GetB() const
    {
       SharedTensor<2,double,MaxSize> s_B(quads,dofs);
       MFEM_FOREACH_THREAD(d,y,dofs)
@@ -1342,7 +1342,7 @@ struct Basis<Dim,false,0,0>
       return s_B;
    }
 
-   auto GetBt()
+   auto GetBt() const
    {
       SharedTensor<2,double,MaxSize> s_Bt(dofs,quads);
       MFEM_FOREACH_THREAD(q,y,quads)
@@ -1355,7 +1355,7 @@ struct Basis<Dim,false,0,0>
       return s_Bt;
    }
 
-   auto GetG()
+   auto GetG() const
    {
       SharedTensor<3,double,MaxSize> s_G(quads,dofs,dim);
       MFEM_FOREACH_THREAD(d,y,dofs)
@@ -1371,7 +1371,7 @@ struct Basis<Dim,false,0,0>
       return s_G;
    }
 
-   auto GetGt()
+   auto GetGt() const
    {
       SharedTensor<3,double,MaxSize> s_Gt(dofs,quads,dim);
       MFEM_FOREACH_THREAD(q,y,quads)
@@ -1400,7 +1400,7 @@ struct Basis<Dim,false,Dofs,Quads>
    const double *G;
    const double *Gt;
 
-   auto GetB()
+   auto GetB() const
    {
       StaticSharedTensor<double,quads,dofs> s_B(quads,dofs);
       MFEM_FOREACH_THREAD(d,y,dofs)
@@ -1413,7 +1413,7 @@ struct Basis<Dim,false,Dofs,Quads>
       return s_B;
    }
 
-   auto GetBt()
+   auto GetBt() const
    {
       StaticSharedTensor<double,dofs,quads> s_Bt(dofs,quads);
       MFEM_FOREACH_THREAD(q,y,quads)
@@ -1426,7 +1426,7 @@ struct Basis<Dim,false,Dofs,Quads>
       return s_Bt;
    }
 
-   auto GetG()
+   auto GetG() const
    {
       StaticSharedTensor<double,quads,dofs,dim> s_G(quads,dofs,dim);
       MFEM_FOREACH_THREAD(d,y,dofs)
@@ -1442,7 +1442,7 @@ struct Basis<Dim,false,Dofs,Quads>
       return s_G;
    }
 
-   auto GetGt()
+   auto GetGt() const
    {
       StaticSharedTensor<double,dofs,quads,dim> s_Gt(dofs,quads,dim);
       MFEM_FOREACH_THREAD(q,y,quads)
@@ -1479,8 +1479,9 @@ auto MakeBasis(KernelConfig<Dim,true,Dynamic,Dynamic,BatchSize> &config,
                const double *gt = nullptr)
 {
    const int dofs1d = config.dofs;
-   const int dofs = pow(dofs1d,config.Dim);
+   const int dofs = pow(dofs1d,Dim);
    const int quads1d = config.quads;
+   const int quads = pow(quads1d,Dim);
    return Basis<Dim,true,Dynamic,Dynamic>{dofs1d,quads1d,dofs,quads,b,bt,g,gt};
 }
 
