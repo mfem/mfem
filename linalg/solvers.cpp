@@ -1383,7 +1383,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
    }
    else
    {
-      OpTimes ? OpTimes(x, v1, OpTimesCtx) : oper->Mult(x, v1);
+      oper->Mult(x, v1);
       subtract(b, v1, v1);
    }
 
@@ -1418,7 +1418,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
       {
          u1 /= beta;
       }
-      OpTimes ? OpTimes(*z, q, OpTimesCtx) : oper->Mult(*z, q);
+      oper->Mult(*z, q);
       alpha = Dot(*z, q);
       MFEM_ASSERT(IsFinite(alpha), "alpha = " << alpha);
       if (it > 1) // (v0 == 0) for (it == 1)
@@ -1559,7 +1559,6 @@ void NewtonSolver::SetOperator(const Operator &op)
    xcur.SetSize(width);
    r.SetSize(width);
    c.SetSize(width);
-   z.SetSize(width);
 }
 
 void NewtonSolver::Mult(const Vector &b, Vector &x) const
@@ -1592,8 +1591,6 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    // x_{i+1} = x_i - [DF(x_i)]^{-1} [F(x_i)-b]
    for (it = 0; true; it++)
    {
-      xcur = x;
-
       MFEM_ASSERT(IsFinite(norm), "norm = " << norm);
       if (print_level >= 0)
       {
@@ -1733,30 +1730,6 @@ void NewtonSolver::AdaptiveLinRtolPostSolve(const Vector &x,
       grad->Mult(x, linres);
       linres -= b;
       lnorm_last = Norm(linres);
-   }
-}
-
-void NewtonSolver::DQOpTimes(const Vector &v, Vector &Jv, void *ctx)
-{
-   NewtonSolver *c = static_cast<NewtonSolver *>(ctx);
-   Vector &xpev = c->z;
-   const Vector &x = c->GetCurrentIterate();
-   const Vector &fx = c->GetCurrentResidual();
-
-   constexpr double epsmach = 2.0 * numeric_limits<double>::epsilon();
-   const double eps = sqrt((1.0 + c->Norm(x)) * epsmach)
-                      / max(sqrt(epsmach), c->Norm(v));
-
-   for (int i = 0; i < Jv.Size(); i++)
-   {
-      xpev(i) = x(i) + eps * v(i);
-   }
-
-   c->oper->Mult(xpev, Jv);
-
-   for (int i = 0; i < Jv.Size(); i++)
-   {
-      Jv(i) = (Jv(i) - fx(i)) / eps;
    }
 }
 

@@ -496,10 +496,6 @@ public:
                            const double rtol_max = 0.9,
                            const double alpha = 0.5 * (1.0 + sqrt(5.0)),
                            const double gamma = 1.0);
-
-   static void DQOpTimes(const Vector &v, Vector &Jv, void *ctx);
-
-   mutable Vector z;
 };
 
 /** L-BFGS method for solving F(x)=b for a given operator F, by minimizing
