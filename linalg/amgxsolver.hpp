@@ -73,7 +73,7 @@ public:
    /// Flags to configure AmgXSolver as a solver or preconditioner
    enum AMGX_MODE {SOLVER, PRECONDITIONER};
 
-   //Flag to check for convergence
+   /// Flag to check for convergence
    bool ConvergenceCheck;
 
    /**
