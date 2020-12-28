@@ -895,7 +895,6 @@ int main (int argc, char *argv[])
    {
       // Specify linear solver when we use a Newton-based solver.
       solver.SetPreconditioner(*S);
-      //static_cast<IterativeSolver *>(S)->SetOpTimes(&solver, NewtonSolver::DQOpTimes);
    }
    // For untangling, the solver will update the min det(T) values.
    if (tauval < 0.0) { solver.SetMinDetPtr(&tauval); }
