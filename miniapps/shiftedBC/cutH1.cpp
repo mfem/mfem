@@ -55,6 +55,32 @@ void PrintDofElemTable(const Table &elem_dof, const ParMesh &pmesh, int lvl = 0)
    }
 }
 
+void VisualizeL2(ParGridFunction &gf, int size, int x, int y)
+{
+   int num_procs, myid;
+   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+
+   ParMesh *pmesh = gf.ParFESpace()->GetParMesh();
+   const int order = gf.ParFESpace()->GetOrder(0);
+   L2_FECollection fec(order, pmesh->Dimension());
+   ParFiniteElementSpace pfes(pmesh, &fec);
+   ParGridFunction gf_l2(&pfes);
+   gf_l2.ProjectGridFunction(gf);
+
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+
+   socketstream sol_sock(vishost, visport);
+   sol_sock << "parallel " << num_procs << " " << myid << "\n";
+   sol_sock.precision(8);
+   sol_sock << "solution\n" << *pmesh << gf_l2;
+   sol_sock << "window_geometry " << x << " " << y << " "
+                                  << size << " " << size << "\n"
+            << "window_title '" << "Y" << "'\n"
+            << "keys mRjlc\n" << flush;
+}
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
@@ -259,7 +285,7 @@ int main(int argc, char *argv[])
    cut_face_attributes[0] = 77;
    const double sigma = -1.0, kappa = -1.0;
    a.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa),
-                               nullptr);
+                               &cut_face_attributes);
    a.Assemble();
 
    // Form the system.
@@ -275,21 +301,7 @@ int main(int argc, char *argv[])
    CG(*A, B, X, 1, 200, 1e-12, 0.0);
    a.RecoverFEMSolution(X, b, u);
 
-   if (visualization)
-   {
-      int size = 500;
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-
-      socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << pmesh << u;
-      sol_sock << "window_geometry " << size << " " << 0 << " "
-                                     << size << " " << size << "\n"
-               << "window_title '" << "Y" << "'\n"
-               << "keys mRjlc\n" << flush;
-   }
+   VisualizeL2(u, 500, 500, 0);
 
    MPI_Finalize();
    return 0;
