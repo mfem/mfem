@@ -27,30 +27,7 @@ StaticTensor<dTensor<Dim>,Q> Gradient(const dTensor<Q,D> &B,
                                 const StaticTensor<dTensor<Dim>,Q,D> &G,
                                 const dTensor<D> &u)
 {
-   StaticTensor<dTensor<Dim>,Q> gu_q;
-   MFEM_FOREACH_THREAD(q,x,Q)
-   {
-      double v[Dim];
-      for (int c = 0; c < Dim; c++)
-      {
-         v[c] = 0.0;
-      }      
-      for (int d = 0; d < D; ++d)
-      {
-         const double x = u(d);
-         for (int c = 0; c < Dim; c++)
-         {
-            const double g = G(q,d)(c);
-            v[c] += g * x;
-         }
-      }
-      for (int c = 0; c < Dim; c++)
-      {
-         gu_q(q)(c) = v[c];
-      }
-   }
-   MFEM_SYNC_THREAD;
-   return gu_q;
+   return Contract(G, u);
 }
 
 // Non-tensor case with VDim components
@@ -59,47 +36,7 @@ StaticTensor<dTensor<Dim,VDim>,Q> Gradient(const dTensor<Q,D> &B,
                                      const StaticTensor<dTensor<Dim>,Q,D> &G,
                                      const StaticTensor<dTensor<VDim>,D> &u)
 {
-   StaticTensor<dTensor<Dim,VDim>,Q> gu_q;
-   MFEM_FOREACH_THREAD(q,x,Q)
-   {
-      double v[Dim][VDim];
-      for (int s = 0; s < Dim; s++)
-      {
-         for (int c = 0; c < VDim; c++)
-         {
-            v[s][c] = 0.0;
-         }
-      }
-      for (int d = 0; d < D; ++d)
-      {
-         double b[Dim];
-         double x[VDim];
-         for (int c = 0; c < VDim; c++)
-         {
-            x[c] = u(d)(c);
-         }
-         for (int s = 0; s < Dim; s++)
-         {
-            b[s] = G(q,d)(s);
-         }
-         for (int s = 0; s < Dim; s++)
-         {
-            for (int c = 0; c < VDim; c++)
-            {
-               v[s][c] += b[s] * x[c];
-            }
-         }
-      }
-      for (int s = 0; s < Dim; s++)
-      {
-         for (int c = 0; c < VDim; c++)
-         {
-            gu_q(q)(s,c) = v[s][c];
-         }
-      }
-   }
-   MFEM_SYNC_THREAD;
-   return gu_q;
+   return Contract(G, u);
 }
 
 // 3D Tensor case
@@ -108,59 +45,14 @@ StaticTensor<dTensor<3>,Q1d,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
                                         const dTensor<Q1d,D1d> &G,
                                         const dTensor<D1d,D1d,D1d> &u)
 {
-   dTensor<Q1d,D1d,D1d> Bu;
-   dTensor<Q1d,D1d,D1d> Gu;
-   for (int dz = 0; dz < D1d; dz++)
-   {
-      MFEM_FOREACH_THREAD(dy,y,D1d)
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1d)
-         {
-            double bu = 0.0;
-            double gu = 0.0;
-            for (int dx = 0; dx < D1d; ++dx)
-            {
-               const double x = u(dx,dy,dz);
-               const double b = B(qx,dx);
-               const double g = G(qx,dx);
-               bu += b * x;
-               gu += g * x;
-            }
-            Bu(qx,dy,dz) = bu;
-            Gu(qx,dy,dz) = gu;
-         }
-      }
-   }
-   MFEM_SYNC_THREAD;
-   dTensor<Q1d,Q1d,D1d> BBu;
-   dTensor<Q1d,Q1d,D1d> GBu;
-   dTensor<Q1d,Q1d,D1d> BGu;
-   for (int dz = 0; dz < D1d; dz++)
-   {
-      MFEM_FOREACH_THREAD(qx,x,Q1d)
-      {
-         MFEM_FOREACH_THREAD(qy,y,Q1d)
-         {
-            double bbu = 0.0;
-            double gbu = 0.0;
-            double bgu = 0.0;
-            for (int dy = 0; dy < D1d; ++dy)
-            {
-               const double bu = Bu(qx,dy,dz);
-               const double gu = Gu(qx,dy,dz);
-               const double b = B(qy,dy);
-               const double g = G(qy,dy);
-               bbu += b * bu;
-               gbu += g * bu;
-               bgu += b * gu;  
-            }
-            BBu(qx,qy,dz) = bbu;
-            GBu(qx,qy,dz) = gbu;
-            BGu(qx,qy,dz) = bgu;
-         }
-      }
-   }
-   MFEM_SYNC_THREAD;
+   auto Bu   = ContractX3D(B, u);
+   auto Gu   = ContractX3D(G, u);
+   auto BBu  = ContractY3D(B, Bu);
+   auto GBu  = ContractY3D(G, Bu);
+   auto BGu  = ContractY3D(B, Gu);
+   auto GBBu = ContractZ3D(G, BBu);
+   auto BGBu = ContractZ3D(B, GBu);
+   auto BBGu = ContractZ3D(B, BGu);
    StaticTensor<dTensor<3>,Q1d,Q1d,Q1d> gu_q;
    MFEM_FOREACH_THREAD(qx,x,Q1d)
    {
@@ -198,82 +90,11 @@ StaticTensor<dTensor<VDim,3>,Q1d,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
                                              const dTensor<Q1d,D1d> &G,
                                              const dTensor<D1d,D1d,D1d> &u)
 {
-   StaticTensor<dTensor<VDim>,Q1d,D1d,D1d> Bu;
-   StaticTensor<dTensor<VDim>,Q1d,D1d,D1d> Gu;
-   for (int dz = 0; dz < D1d; dz++)
-   {
-      MFEM_FOREACH_THREAD(dy,y,D1d)
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1d)
-         {
-            double bu[VDim];
-            double gu[VDim];
-            for (int c = 0; c < VDim; c++)
-            {
-               bu[c] = 0.0;
-               gu[c] = 0.0;
-            }
-            for (int dx = 0; dx < D1d; ++dx)
-            {
-               const double b = B(qx,dx);
-               const double g = G(qx,dx);
-               for (int c = 0; c < VDim; c++)
-               {
-                  const double x = u(dx,dy,dz);
-                  bu[c] += b * x;
-                  gu[c] += g * x;
-               }
-            }
-            for (int c = 0; c < VDim; c++)
-            {
-               Bu(qx,dy,dz)(c) = bu[c];
-               Gu(qx,dy,dz)(c) = gu[c];
-            }
-         }
-      }
-   }
-   MFEM_SYNC_THREAD;
-   StaticTensor<dTensor<VDim>,Q1d,Q1d,D1d> BBu;
-   StaticTensor<dTensor<VDim>,Q1d,Q1d,D1d> GBu;
-   StaticTensor<dTensor<VDim>,Q1d,Q1d,D1d> BGu;
-   for (int dz = 0; dz < D1d; dz++)
-   {
-      MFEM_FOREACH_THREAD(qx,x,Q1d)
-      {
-         MFEM_FOREACH_THREAD(qy,y,Q1d)
-         {
-            double bbu[VDim];
-            double gbu[VDim];
-            double bgu[VDim];
-            for (int c = 0; c < VDim; c++)
-            {
-               bbu[c] = 0.0;
-               gbu[c] = 0.0;
-               bgu[c] = 0.0;
-            }
-            for (int dy = 0; dy < D1d; ++dy)
-            {
-               const double b = B(qy,dy);
-               const double g = G(qy,dy);
-               for (int c = 0; c < VDim; c++)
-               {
-                  const double bu = Bu(qx,dy,dz)(c);
-                  const double gu = Gu(qx,dy,dz)(c);
-                  bbu[c] += b * bu;
-                  gbu[c] += g * bu;
-                  bgu[c] += b * gu;
-               }               
-            }
-            for (int c = 0; c < VDim; c++)
-            {
-               BBu(qx,qy,dz)(c) = bbu[c];
-               GBu(qx,qy,dz)(c) = gbu[c];
-               BGu(qx,qy,dz)(c) = bgu[c];
-            }
-         }
-      }
-   }
-   MFEM_SYNC_THREAD;
+   auto Bu = ContractX3D(B, u);
+   auto Gu = ContractX3D(G, u);
+   auto BBu = ContractY3D(B, Bu);
+   auto GBu = ContractY3D(G, Bu);
+   auto BGu = ContractY3D(B, Gu);
    StaticTensor<dTensor<VDim,3>,Q1d,Q1d,Q1d> gu_q;
    MFEM_FOREACH_THREAD(qx,x,Q1d)
    {
@@ -323,27 +144,8 @@ StaticTensor<dTensor<2>,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
                                     const dTensor<Q1d,D1d> &G,
                                     const dTensor<D1d,D1d> &u)
 {
-   dTensor<Q1d,D1d> Bu;
-   dTensor<Q1d,D1d> Gu;
-   MFEM_FOREACH_THREAD(dy,y,D1d)
-   {
-      MFEM_FOREACH_THREAD(qx,x,Q1d)
-      {
-         double bu = 0.0;
-         double gu = 0.0;
-         for (int dx = 0; dx < D1d; ++dx)
-         {
-            const double b = B(qx,dx);
-            const double g = G(qx,dx);
-            const double x = u(dx,dy);
-            bu += b * x;
-            gu += g * x;
-         }
-         Bu(qx,dy) = bu;
-         Gu(qx,dy) = gu;
-      }
-   }
-   MFEM_SYNC_THREAD;
+   auto Bu = ContractX2D(B, u);
+   auto Gu = ContractX2D(G, u);
    StaticTensor<dTensor<2>,Q1d,Q1d> gu_q;
    MFEM_FOREACH_THREAD(qx,x,Q1d)
    {
@@ -374,38 +176,8 @@ StaticTensor<dTensor<VDim,2>,Q1d,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
                                          const dTensor<Q1d,D1d> &G,
                                          const StaticTensor<dTensor<VDim>,D1d,D1d> &u)
 {
-   StaticTensor<dTensor<VDim>,Q1d,D1d> Bu;
-   StaticTensor<dTensor<VDim>,Q1d,D1d> Gu;
-   MFEM_FOREACH_THREAD(dy,y,D1d)
-   {
-      MFEM_FOREACH_THREAD(qx,x,Q1d)
-      {
-         double bu[VDim];
-         double gu[VDim];
-         for (int c = 0; c < VDim; c++)
-         {
-            bu[c] = 0.0;
-            gu[c] = 0.0;
-         }
-         for (int dx = 0; dx < D1d; ++dx)
-         {
-            const double b = B(qx,dx);
-            const double g = G(qx,dx);
-            for (int c = 0; c < VDim; c++)
-            {
-               const double x = u(dx,dy)(c);
-               bu[c] += b * x;
-               gu[c] += g * x;
-            }
-         }
-         for (int c = 0; c < VDim; c++)
-         {
-            Bu(qx,dy)(c) = bu[c];
-            Gu(qx,dy)(c) = gu[c];
-         }
-      }
-   }
-   MFEM_SYNC_THREAD;
+   auto Bu = ContractX2D(B, u);
+   auto Gu = ContractX2D(G, u);
    StaticTensor<dTensor<VDim,2>,Q1d,Q1d> gu_q;
    MFEM_FOREACH_THREAD(qx,x,Q1d)
    {
@@ -447,20 +219,7 @@ dTensor<Q1d> Gradient(const dTensor<Q1d,D1d> &B,
                       const dTensor<Q1d,D1d> &G,
                       const dTensor<D1d> &u)
 {
-   dTensor<Q1d> gu_q;
-   MFEM_FOREACH_THREAD(qx,x,Q1d)
-   {
-      double gu = 0.0;
-      for (int dx = 0; dx < D1d; ++dx)
-      {
-         const double g = G(qx,dx);
-         const double x = u(dx);
-         gu += g * x;
-      }
-      gu_q(qx) = gu;
-   }
-   MFEM_SYNC_THREAD;
-   return gu_q;
+   return ContractX1D(G, u);
 }
 
 // 1D Tensor case with VDim components
@@ -469,30 +228,7 @@ StaticTensor<dTensor<VDim>,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
                                    const dTensor<Q1d,D1d> &G,
                                    const StaticTensor<dTensor<VDim>,D1d> &u)
 {
-   StaticTensor<dTensor<VDim>,Q1d> gu_q;
-   MFEM_FOREACH_THREAD(qx,x,Q1d)
-   {
-      double gu[VDim];
-      for (int c = 0; c < VDim; c++)
-      {
-         gu[c] = 0.0;
-      }
-      for (int dx = 0; dx < D1d; ++dx)
-      {
-         const double g = G(qx,dx);
-         for (int c = 0; c < VDim; c++)
-         {
-            const double x = u(dx)(c);
-            gu[c] += g * x;
-         }
-      }
-      for (int c = 0; c < VDim; c++)
-      {
-         gu_q(qx)(c) = gu[c];
-      }
-   }
-   MFEM_SYNC_THREAD;
-   return gu_q;
+   return ContractX1D(G, u);
 }
 
 // Functions to interpolate the gradient from degrees of freedom to derivatives
@@ -501,64 +237,18 @@ StaticTensor<dTensor<VDim>,Q1d> Gradient(const dTensor<Q1d,D1d> &B,
 template<int Q, int D, int Dim> MFEM_HOST_DEVICE inline
 dTensor<D> GradientT(const dTensor<Q,D> &B,
                      const StaticTensor<dTensor<Dim>,Q,D> &G,
-                     const StaticTensor<dTensor<Dim>,Q> &u_q)
+                     const StaticTensor<dTensor<Dim>,Q> &u)
 {
-   dTensor<D> gu;
-   MFEM_FOREACH_THREAD(d,x,D)
-   {
-      double val = 0.0;
-      for (int q = 0; q < Q; ++q)
-      {
-         for (int s = 0; s < Dim; s++)
-         {
-            const double x = u_q(q)(s);
-            const double g = G(q,d)(s);
-            val += g * x;
-         }
-      }
-      gu(d) = val;
-   }
-   MFEM_SYNC_THREAD;
-   return gu;
+   return ContractT(G, u);
 }
 
 // Non-tensor case with VDim components
 template<int D, int Q, int Dim, int VDim> MFEM_HOST_DEVICE inline
 StaticTensor<dTensor<VDim>,D> GradientT(const dTensor<Q,D> &B,
                                   const StaticTensor<dTensor<Dim>,Q,D> &G,
-                                  const StaticTensor<dTensor<VDim,Dim>,Q> &u_q)
+                                  const StaticTensor<dTensor<VDim,Dim>,Q> &u)
 {
-   StaticTensor<dTensor<VDim>,D> gu;
-   MFEM_FOREACH_THREAD(d,x,D)
-   {
-      double v[VDim];
-      double b[Dim];
-      for (int c = 0; c < VDim; c++)
-      {
-         v[c] = 0.0;
-      }
-      for (int q = 0; q < Q; ++q)
-      {
-         for (int s = 0; s < Dim; s++)
-         {
-            b[s] = G(q,d)(s);
-         }
-         for (int s = 0; s < Dim; s++)
-         {
-            for (int c = 0; c < VDim; c++)
-            {
-               const double x = u_q(q)(s,c);
-               v[c] += b[s] * x;
-            }
-         }
-      }
-      for (int c = 0; c < VDim; c++)
-      {
-         gu(d)(c) = v[c];
-      }
-   }
-   MFEM_SYNC_THREAD;
-   return gu;
+   return ContractT(G, u);
 }
 
 // 3D Tensor case
