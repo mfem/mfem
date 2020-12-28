@@ -26,18 +26,16 @@ private:
 
 public:
    template <typename... Sizes> MFEM_HOST_DEVICE
-   DynamicLayout(Sizes... args)
+   DynamicLayout(int arg0, Sizes... args)
    {
-      Init<1, Rank, Sizes...>::result(sizes, args...);
+      Init<Rank>::result(sizes, arg0, args...);
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
-   int operator()(Idx... idx) const
+   int index(Idx... idx) const
    {
-   #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-      MFEM_VERIFY(Rank==sizeof...(Idx), "Wrong number of arguments.");
-   #endif
-      return DynamicTensorIndex<1, Rank, Idx...>::eval(sizes, idx...);
+      static_assert(Rank==sizeof...(Idx), "Wrong number of arguments.");
+      return DynamicTensorIndex<Rank>::eval(sizes, idx...);
    }
 
    template <int N>
@@ -49,28 +47,27 @@ public:
 
 private:
    /// A Class to compute the real index from the multi-indices of a tensor
-   template <int N, int Dim, typename T, typename... Args>
+   template <int Dim, int N = 1>
    class DynamicTensorIndex
    {
    public:
-      MFEM_HOST_DEVICE
-      static inline int eval(const int* sizes, T first, Args... args)
+      template <typename... Args> MFEM_HOST_DEVICE
+      static inline int eval(const int* sizes, int first, Args... args)
       {
    #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
          MFEM_VERIFY(first<sizes[N-1],"Trying to access out of boundary.");
    #endif
-         return first + sizes[N - 1] * DynamicTensorIndex < N + 1, Dim, Args... >
-               ::eval(sizes, args...);
+         return first + sizes[N - 1] * DynamicTensorIndex<Dim,N+1>::eval(sizes, args...);
       }
    };
 
    // Terminal case
-   template <int Dim, typename T, typename... Args>
-   class DynamicTensorIndex<Dim, Dim, T, Args...>
+   template <int Dim>
+   class DynamicTensorIndex<Dim, Dim>
    {
    public:
       MFEM_HOST_DEVICE
-      static inline int eval(const int* sizes, T first, Args... args)
+      static inline int eval(const int* sizes, int first)
       {
    #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
          MFEM_VERIFY(first<sizes[Dim-1],"Trying to access out of boundary.");
@@ -80,23 +77,25 @@ private:
    };
 
    /// A class to initialize the size of a Tensor
-   template <int N, int Dim, typename T, typename... Args>
+   template <int Dim, int N = 1>
    class Init
    {
    public:
-      static inline int result(int* sizes, T first, Args... args)
+      template <typename... Args>
+      static inline int result(int* sizes, int first, Args... args)
       {
          sizes[N - 1] = first;
-         return first * Init < N + 1, Dim, Args... >::result(sizes, args...);
+         return first * Init<Dim,N+1>::result(sizes, args...);
       }
    };
 
    // Terminal case
-   template <int Dim, typename T, typename... Args>
-   class Init<Dim, Dim, T, Args...>
+   template <int Dim>
+   class Init<Dim, Dim>
    {
    public:
-      static inline int result(int* sizes, T first, Args... args)
+      template <typename... Args>
+      static inline int result(int* sizes, int first, Args... args)
       {
          sizes[Dim - 1] = first;
          return first;
@@ -117,7 +116,7 @@ public:
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
-   constexpr int operator()(Idx... idx) const
+   constexpr int index(Idx... idx) const
    {
    #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
       static_assert(sizeof...(Sizes)==sizeof...(Idx), "Wrong number of arguments.");
@@ -166,13 +165,15 @@ private:
 };
 
 /// Layout using a thread plane to distribute data
-template <int... Dims>
+template <int BatchSize, int... Dims>
 class BlockLayout;
 
-template <int DimX>
-class BlockLayout<DimX>
+template <int BatchSize, int DimX>
+class BlockLayout<BatchSize, DimX>
 {
 public:
+   static constexpr int batch_size = BatchSize;
+
    MFEM_HOST_DEVICE inline
    BlockLayout(int size0)
    {
@@ -181,7 +182,7 @@ public:
    }
 
    MFEM_HOST_DEVICE inline
-   constexpr int operator()(int idx0) const
+   constexpr int index(int idx0) const
    {
       // TODO verify that idx0 < DimX
       // TODO verify that idx0 == threadIdx.x
@@ -197,8 +198,8 @@ public:
    }
 };
 
-template <int DimX, int DimY>
-class BlockLayout<DimX, DimY>
+template <int BatchSize, int DimX, int DimY>
+class BlockLayout<BatchSize, DimX, DimY>
 {
 public:
    MFEM_HOST_DEVICE inline
@@ -209,7 +210,7 @@ public:
    }
 
    MFEM_HOST_DEVICE inline
-   constexpr int operator()(int idx0, int idx1) const
+   constexpr int index(int idx0, int idx1) const
    {
       // TODO verify that idx0 < DimX && idx1 < DimY
       // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y
@@ -225,12 +226,14 @@ public:
    }
 };
 
-template <int DimX, int DimY, int... Dims>
-class BlockLayout<DimX,DimY,Dims...>
+template <int BatchSize, int DimX, int DimY, int... Dims>
+class BlockLayout<BatchSize, DimX, DimY, Dims...>
 {
 private:
    StaticLayout<Dims...> layout;
 public:
+   static constexpr int batch_size = BatchSize;
+
    template <typename... Sizes> MFEM_HOST_DEVICE inline
    BlockLayout(int size0, int size1, Sizes... sizes)
    : layout(sizes...)
@@ -240,7 +243,7 @@ public:
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
-   constexpr int operator()(int idx0, int idx1, Idx... idx) const
+   constexpr int index(int idx0, int idx1, Idx... idx) const
    {
       // TODO verify that idx0 < DimX && idx1 < DimY && idx2 < DimZ
       // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y
@@ -256,7 +259,7 @@ public:
    }
 };
 
-template <int Rank>
+template <int Rank, int BatchSize>
 class DynamicBlockLayout
 {
 private:
@@ -264,6 +267,8 @@ private:
    const int size1;
    DynamicLayout<Rank-2> layout;
 public:
+   static constexpr int batch_size = BatchSize;
+
    template <typename... Sizes> MFEM_HOST_DEVICE inline
    DynamicBlockLayout(int size0, int size1,  Sizes... sizes)
    : size0(size0), size1(size1), layout(sizes...)
@@ -272,7 +277,7 @@ public:
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
-   constexpr int operator()(int idx0, int idx1, Idx... idx) const
+   constexpr int index(int idx0, int idx1, Idx... idx) const
    {
       // TODO verify that idx0 < size0 && idx1 < size1
       // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y
@@ -284,24 +289,46 @@ public:
    constexpr int Size() const
    {
       static_assert(N>=0 && N<Rank,"Accessed size is higher than the rank of the Tensor.");
-      switch (N)
+      return BlockSize<N>::eval(size0,size1,layout);
+   }
+
+private:
+   template <int N>
+   struct BlockSize
+   {
+      static int eval(int size0, int size1, const DynamicLayout<Rank-2> &layout)
       {
-      case 0:
-         return size0;
-      case 1:
-         return size1;
-      default:
          return layout.template Size<N-2>();
       }
-   }
+   };
+
+   template <>
+   struct BlockSize<0>
+   {
+      static int eval(int size0, int size1, const DynamicLayout<Rank-2> &layout)
+      {
+         return size0;
+      }
+   };
+
+   template <>
+   struct BlockSize<1>
+   {
+      static int eval(int size0, int size1, const DynamicLayout<Rank-2> &layout)
+      {
+         return size1;
+      }
+   };
 };
 
-template <>
-class DynamicBlockLayout<1>
+template <int BatchSize>
+class DynamicBlockLayout<1,BatchSize>
 {
 private:
    const int size0;
 public:
+   static constexpr int batch_size = BatchSize;
+
    MFEM_HOST_DEVICE inline
    DynamicBlockLayout(int size0)
    : size0(size0)
@@ -310,7 +337,7 @@ public:
    }
 
    MFEM_HOST_DEVICE inline
-   constexpr int operator()(int idx) const
+   constexpr int index(int idx) const
    {
       // TODO verify that idx < DimX
       return 0;
@@ -325,13 +352,15 @@ public:
    }
 };
 
-template <>
-class DynamicBlockLayout<2>
+template <int BatchSize>
+class DynamicBlockLayout<2,BatchSize>
 {
 private:
    const int size0;
    const int size1;
 public:
+   static constexpr int batch_size = BatchSize;
+
    MFEM_HOST_DEVICE inline
    DynamicBlockLayout(int size0, int size1)
    : size0(size0), size1(size1)
@@ -340,7 +369,7 @@ public:
    }
 
    MFEM_HOST_DEVICE inline
-   constexpr int operator()(int idx0, int idx1) const
+   constexpr int index(int idx0, int idx1) const
    {
       // TODO verify that idx0 < size0 && idx1 < size1
       // TODO verify that idx0 == threadIdx.x && idx1 == threadIdx.y
@@ -374,7 +403,7 @@ private:
 
 public:
    template <typename... Idx> MFEM_HOST_DEVICE inline
-   constexpr int operator()(Idx... idx) const
+   constexpr int index(Idx... idx) const
    {
       static_assert(sizeof...(Idx)==Rank,"Wrong number of argumets.");
       return StridedIndex<1>::eval(offsets, strides, idx...);
@@ -420,17 +449,17 @@ class RestrictedLayout<0,Layout>
 {
 private:
    const int i;
-   Layout &layout;
+   const Layout &layout;
 
 public:
    MFEM_HOST_DEVICE
-   RestrictedLayout(int i, Layout &layout): i(i), layout(layout)
+   RestrictedLayout(int i, const Layout &layout): i(i), layout(layout)
    {
       // TODO Check i < layout.Size<0>()
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
-   int operator()(Idx... idx)
+   constexpr int index(Idx... idx) const
    {
       return layout(i,idx...);
    }
@@ -441,17 +470,17 @@ class RestrictedLayout<1,Layout>
 {
 private:
    const int i;
-   Layout &layout;
+   const Layout &layout;
 
 public:
    MFEM_HOST_DEVICE
-   RestrictedLayout(int i, Layout &layout): i(i), layout(layout)
+   RestrictedLayout(int i, const Layout &layout): i(i), layout(layout)
    {
       // TODO Check i < layout.Size<1>()
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
-   int operator()(int idx0, Idx... idx)
+   constexpr int index(int idx0, Idx... idx) const
    {
       return layout(idx0,i,idx...);
    }
@@ -462,19 +491,19 @@ class RestrictedLayout<2,Layout>
 {
 private:
    const int i;
-   Layout &layout;
+   const Layout &layout;
 
 public:
    MFEM_HOST_DEVICE
-   RestrictedLayout(int i, Layout &layout): i(i), layout(layout)
+   RestrictedLayout(int i, const Layout &layout): i(i), layout(layout)
    {
       // TODO Check i < layout.Size<2>()
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
-   int operator()(int idx0, int idx1, Idx... idx)
+   constexpr int index(int idx0, int idx1, Idx... idx) const
    {
-      return layout(idx0,idx1,i,idx...);
+      return layout.index(idx0,idx1,i,idx...);
    }
 };
 
@@ -483,17 +512,17 @@ class RestrictedLayout<3,Layout>
 {
 private:
    const int i;
-   Layout &layout;
+   const Layout &layout;
 
 public:
    MFEM_HOST_DEVICE
-   RestrictedLayout(int i, Layout &layout): i(i), layout(layout)
+   RestrictedLayout(int i, const Layout &layout): i(i), layout(layout)
    {
       // TODO Check i < layout.Size<3>()
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
-   int operator()(int idx0, int idx1, int idx2, Idx... idx)
+   constexpr int index(int idx0, int idx1, int idx2, Idx... idx) const
    {
       return layout(idx0,idx1,idx2,i,idx...);
    }
@@ -504,17 +533,17 @@ class RestrictedLayout<4,Layout>
 {
 private:
    const int i;
-   Layout &layout;
+   const Layout &layout;
 
 public:
    MFEM_HOST_DEVICE
-   RestrictedLayout(int i, Layout &layout): i(i), layout(layout)
+   RestrictedLayout(int i, const Layout &layout): i(i), layout(layout)
    {
       // TODO Check i < layout.Size<4>()
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
-   int operator()(int idx0, int idx1, int idx2, int idx3, Idx... idx)
+   constexpr int index(int idx0, int idx1, int idx2, int idx3, Idx... idx) const
    {
       return layout(idx0,idx1,idx2,idx3,i,idx...);
    }
@@ -525,17 +554,17 @@ class RestrictedLayout<5,Layout>
 {
 private:
    const int i;
-   Layout &layout;
+   const Layout &layout;
 
 public:
    MFEM_HOST_DEVICE
-   RestrictedLayout(int i, Layout &layout): i(i), layout(layout)
+   RestrictedLayout(int i, const Layout &layout): i(i), layout(layout)
    {
       // TODO Check i < layout.Size<5>()
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
-   int operator()(int idx0, int idx1, int idx2, int idx3, int idx4, Idx... idx)
+   constexpr int index(int idx0, int idx1, int idx2, int idx3, int idx4, Idx... idx) const
    {
       return layout(idx0,idx1,idx2,idx3,idx4,i,idx...);
    }
@@ -546,17 +575,17 @@ class RestrictedLayout<6,Layout>
 {
 private:
    const int i;
-   Layout &layout;
+   const Layout &layout;
 
 public:
    MFEM_HOST_DEVICE
-   RestrictedLayout(int i, Layout &layout): i(i), layout(layout)
+   RestrictedLayout(int i, const Layout &layout): i(i), layout(layout)
    {
       // TODO Check i < layout.Size<6>()
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
-   int operator()(int idx0, int idx1, int idx2, int idx3, int idx4, int idx5, Idx... idx)
+   constexpr int index(int idx0, int idx1, int idx2, int idx3, int idx4, int idx5, Idx... idx) const
    {
       return layout(idx0,idx1,idx2,idx3,idx4,idx5,i,idx...);
    }
@@ -567,17 +596,17 @@ class RestrictedLayout<7,Layout>
 {
 private:
    const int i;
-   Layout &layout;
+   const Layout &layout;
 
 public:
    MFEM_HOST_DEVICE
-   RestrictedLayout(int i, Layout &layout): i(i)
+   RestrictedLayout(int i, const Layout &layout): i(i)
    {
       // TODO Check i < layout.Size<7>()
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
-   int operator()(int idx0, int idx1, int idx2, int idx3, int idx4, int idx5, int idx6, Idx... idx)
+   constexpr int index(int idx0, int idx1, int idx2, int idx3, int idx4, int idx5, int idx6, Idx... idx) const
    {
       return layout(idx0,idx1,idx2,idx3,idx4,idx5,idx6,i,idx...);
    }
@@ -588,17 +617,17 @@ class RestrictedLayout<8,Layout>
 {
 private:
    const int i;
-   Layout &layout;
+   const Layout &layout;
 
 public:
    MFEM_HOST_DEVICE
-   RestrictedLayout(int i, Layout &layout): i(i)
+   RestrictedLayout(int i, const Layout &layout): i(i)
    {
       // TODO Check i < layout.Size<8>()
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
-   int operator()(int idx0, int idx1, int idx2, int idx3,int idx4, int idx5, int idx6, int idx7, Idx... idx)
+   constexpr int index(int idx0, int idx1, int idx2, int idx3,int idx4, int idx5, int idx6, int idx7, Idx... idx) const
    {
       return layout(idx0,idx1,idx2,idx3,idx4,idx5,idx6,idx7,i,idx...);
    }
