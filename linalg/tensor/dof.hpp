@@ -18,148 +18,277 @@
 
 namespace mfem
 {
-/// A class to encapsulate degrees of freedom in a Tensor.
-template <int Dim, int DimComp = 0, bool IsTensor = false, int Dofs = 0>
-class DegreesOfFreedom;
 
-/// Tensor DoFs with size known
-template <int Dim, int DimComp, int Dofs>
-class DegreesOfFreedom<Dim,DimComp,true,Dofs> : public Tensor<Dim+DimComp+1> // TODO
-{
-private:
-   static constexpr int dim = Dim;
-   static constexpr int dim_comp = DimComp;
-   // Declare a BlockDTensor type with Dim dimensions of size Dofs,
-   // and DimComp dimensions of size Dim.
-   using OutTensor = typename rerepeat<Dofs,Dim,Dim,DimComp,BlockDTensor>::type;
-
-public:
-   /// Returns a Tensor corresponding to the DoFs of element e
-   auto operator()(int e) const
-   {
-      OutTensor u_e;
-      u_e = this->template Get<Dim+DimComp>(e);
-      return u_e;
-   }
-};
-
-/// Tensor DoFs with size unknown
 template <int Dim, int DimComp>
-class DegreesOfFreedom<Dim,DimComp,true,0> : public Tensor<Dim+DimComp+1>
+class DofUtil
 {
-private:
-   static constexpr int dim = Dim;
-   using OutTensor = DynamicBlockDTensor<Dim+DimComp>; // Change type according to device
-
 public:
-   /// Returns a Tensor corresponding to the DoFs of element e
-   auto operator()(int e) const
+   template <typename T>
+   static T initTensor(int dofs, int dim, int ne)
    {
-      auto u_e = InitOutTensor(this->template Size<0>(),dim);
-      u_e = this->template Get<Dim+DimComp>(e);
-      return u_e;
+      return InitTensor<T>::makeGlobal(dofs,dim,ne);
    }
 
-private:
-   OutTensor InitOutTensor(int dofs, int dim)
+   template <typename T>
+   static T initTensor(int dofs, int dim)
    {
-      return InitTensor<0,0>::make(dofs,dim);
+      return InitTensor<T>::makeLocal(dofs,dim);
    }
 
-   /// A structure to linearize the input sizes to create a Tensor.
-   template <int NDim, int NComp>
+   template <typename T>
+   static T initNonTensor(int dofs, int dim, int ne)
+   {
+      return InitNonTensor<T>::makeGlobal(dofs,dim,ne);
+   }
+
+   template <typename T>
+   static T initNonTensor(int dofs, int dim)
+   {
+      return InitNonTensor<T>::makeLocal(dofs,dim);
+   }
+
+protected:
+   /// A structure to linearize the input sizes to create an object of type T.
+   template <typename T, int NDim = 0, int NComp = 0>
    struct InitTensor
    {
       template <typename... Sizes>
-      OutTensor make(int D, int dim, Sizes... sizes)
+      static T makeGlobal(int dofs, int dim, int ne, Sizes... sizes)
       {
-         return InitTensor<NDim,NComp+1>::make(D,dim,dim,sizes...);
+         return InitTensor<T,NDim,NComp+1>::makeGlobal(dofs,dim,ne,dim,sizes...);
+      }
+   
+      template <typename... Sizes>
+      static T makeLocal(int dofs, int dim, Sizes... sizes)
+      {
+         return InitTensor<T,NDim,NComp+1>::makeLocal(dofs,dim,dim,sizes...);
       }
    };
 
-   template <int NDim>
-   struct InitTensor<NDim,DimComp>
+   template <typename T, int NDim>
+   struct InitTensor<T,NDim,DimComp>
    {
       template <typename... Sizes>
-      OutTensor make(int D, int dim, Sizes... sizes)
+      static T makeGlobal(int dofs, int dim, int ne, Sizes... sizes)
       {
-         return InitTensor<NDim+1,DimComp>(D,dim,D,sizes...);
+         return InitTensor<T,NDim+1,DimComp>::makeGlobal(dofs,dim,ne,dofs,sizes...);
+      }
+
+      template <typename... Sizes>
+      static T makeLocal(int dofs, int dim, Sizes... sizes)
+      {
+         return InitTensor<T,NDim+1,DimComp>::makeLocal(dofs,dim,dofs,sizes...);
       }
    };
 
-   template <>
-   struct InitTensor<Dim,DimComp>
+   template <typename T>
+   struct InitTensor<T,Dim,DimComp>
    {
       template <typename... Sizes>
-      OutTensor make(int D, int dim, Sizes... sizes)
+      static T makeGlobal(int dofs, int dim, int ne, Sizes... sizes)
       {
-         return OutTensor(sizes...);
+         return T(sizes...,ne);
+      }
+
+      template <typename... Sizes>
+      static T makeLocal(int dofs, int dim, Sizes... sizes)
+      {
+         return T(sizes...);
+      }
+   };
+
+   /// A structure to linearize the input sizes to create an object of type T.
+   template <typename T, int NComp = 0>
+   struct InitNonTensor
+   {
+      template <typename... Sizes>
+      static T makeGlobal(int dofs, int dim, int ne, Sizes... sizes)
+      {
+         return InitNonTensor<T,NComp+1>::makeGlobal(dofs,dim,ne,dim,sizes...);
+      }
+   
+      template <typename... Sizes>
+      static T makeLocal(int dofs, int dim, Sizes... sizes)
+      {
+         return InitNonTensor<T,NComp+1>::makeLocal(dofs,dim,dim,sizes...);
+      }
+   };
+
+   template <typename T>
+   struct InitNonTensor<T,DimComp>
+   {
+      template <typename... Sizes>
+      static T makeGlobal(int dofs, int dim, int ne, Sizes... sizes)
+      {
+         return T(dofs,sizes...,ne);
+      }
+
+      template <typename... Sizes>
+      static T makeLocal(int dofs, int dim, Sizes... sizes)
+      {
+         return T(dofs,sizes...);
       }
    };
 };
 
-/// Non-Tensor DoFs with size known
-template <int Dim, int DimComp, int Dofs>
-class DegreesOfFreedom<Dim,DimComp,false,Dofs> : public Tensor<DimComp+1>
-{
-private:
-   static constexpr int dim = Dim;
-   static constexpr int dcomp = DimComp;
-   using OutTensor = typename rerepeat<Dofs,1,Dim,DimComp,StaticSharedDTensor>::type;
+/// A class to encapsulate degrees of freedom in a Tensor.
+template <int Dim,
+          bool IsTensor,
+          int Dofs,
+          int VDim,
+          typename OutTensor,
+          template <int> class InTensor = DeviceDTensor>
+class DegreesOfFreedom;
 
+/// Tensor DoFs
+template <int Dim,
+          int Dofs,
+          int VDim,
+          typename OutTensor,
+          template <int> class InTensor>
+class DegreesOfFreedom<Dim,true,Dofs,VDim,OutTensor,InTensor>
+: public InTensor<Dim+1+1>
+{
 public:
+   using Container = typename InTensor<Dim+1+1>::container;
+   using Layout = typename InTensor<Dim+1+1>::layout;
+
+   template <typename Config>
+   DegreesOfFreedom(double *x, Config &config, int ne)
+   : InTensor<Dim+(VDim>1)+1>(
+        Container(x,ne*pow(config.dofs,Dim)*VDim),
+                  DofUtil<Dim,VDim>::template initTensor<Layout>(config.dofs,VDim,ne) ) // TODO DofUtil needs to change
+   {
+      // TODO static asserts Config values 
+   }
+
    /// Returns a Tensor corresponding to the DoFs of element e
    auto operator()(int e) const
    {
-      OutTensor u_e;
+      // TODO VDim instead of Dim^DimComp
+      auto u_e = DofUtil<Dim,DimComp>::template initTensor<OutTensor>(this->template Size<0>(),Dim);
       u_e = this->template Get<Dim+DimComp>(e);
       return u_e;
    }
-};
 
-/// Non-Tensor DoFs with size unknown
-template <int Dim, int DimComp>
-class DegreesOfFreedom<Dim,DimComp,false,0> : public Tensor<1+DimComp+1>
-{
-private:
-   static constexpr int dim = Dim;
-   using OutTensor = SharedDTensor<1+DimComp>;
-
-public:
-   /// Returns a Tensor corresponding to the DoFs of element e
-   auto operator()(int e) const
-   {
-      OutTensor u_e;
-      u_e = this->template Get<DimComp>(e);
-      return u_e;
-   }
-};
-
-template <int Dim, int DimComp, bool IsTensor, int Dofs>
-class MutDegreesOfFreedom : DegreesOfFreedom<Dim,DimComp,IsTensor,Dofs>
-{
-public:
    auto operator()(int e)
    {
       return this->template Get<Dim+DimComp>(e);
    }
 };
 
-/// Functor to represent degrees of freedom
-template <int DimComp, int Dim, bool IsTensor, int Dofs, int Quads, int BatchSize>
-auto MakeDoFs(KernelConfig<Dim,IsTensor,Dofs,Quads,BatchSize> &config,
-              double *x,
-              int ne)
+/// Non-Tensor DoFs
+template <int Dim,
+          int Dofs,
+          int DimComp,
+          typename OutTensor,
+          template <int> class InTensor>
+class DegreesOfFreedom<Dim,false,DimComp,Dofs,OutTensor,InTensor>
+: public InTensor<1+DimComp+1>
 {
-   return MutDegreesOfFreedom<Dim,DimComp,IsTensor,Dofs>(x, config.dofs, ne);
+public:
+   using Container = typename InTensor<1+DimComp+1>::container;
+   using Layout = typename InTensor<1+DimComp+1>::layout;
+
+   template <typename Config>
+   DegreesOfFreedom(const double *x, Config &config, int ne)
+   : InTensor<Dim+DimComp+1>(
+        Container(x,ne*config.dofs*pow(Dim,DimComp)),
+        DofUtil<Dim,DimComp>::template initNonTensor<Layout>(config.dofs,Dim,ne))
+   {
+      // TODO static asserts Config values 
+   }
+
+   /// Returns a Tensor corresponding to the DoFs of element e
+   auto operator()(int e) const
+   {
+      auto u_e = DofUtil<Dim,DimComp>::template initNonTensor<OutTensor>(this->template Size<0>(),Dim);
+      u_e = this->template Get<1+DimComp>(e);
+      return u_e;
+   }
+
+   auto operator()(int e)
+   {
+      return this->template Get<1+DimComp>(e);
+   }
+};
+
+/// A structure to choose the right Tensor type for DoFs according to the Config.
+template <typename Config, int VDim, int DDim>
+struct DofTensorType;
+
+// Static tensor DoFs
+template <int Dim, int Dofs, int Quads, int BatchSize, int VDim, int DDim>
+struct DofTensorType<KernelConfig<Dim,true,Dofs,Quads,BatchSize>,VDim,DDim>
+{
+   // TODO This is not correct currently
+   using type = typename rerepeat<Dofs,Dim,Dim,VDim,BatchSize,StaticDeviceDTensor>::type;
+   // TODO using type = typename rererepeat<Dofs,Dim,VDim,1,DDim,1,BatchSize,StaticDeviceDTensor>::type;
+};
+
+// Dynamic tensor DoFs
+template <int Dim, int BatchSize, int VDim, int DDim>
+struct DofTensorType<KernelConfig<Dim,true,Dynamic,Dynamic,BatchSize>,VDim,DDim>
+{
+   using type = DynamicDeviceDTensor<Dim+(VDim>1)+(DDim>1),BatchSize>;
+};
+
+// Static non-tensor DoFs
+template <int Dim, int Dofs, int Quads, int BatchSize, int VDim, int DDim>
+struct DofTensorType<KernelConfig<Dim,false,Dofs,Quads,BatchSize>,VDim,DDim>
+{
+   using type = StaticDeviceDTensor<BatchSize,Dofs,VDim,DDim>;
+};
+// VDim == 1
+template <int Dim, int Dofs, int Quads, int BatchSize, int DDim>
+struct DofTensorType<KernelConfig<Dim,false,Dofs,Quads,BatchSize>,1,DDim>
+{
+   using type = StaticDeviceDTensor<BatchSize,Dofs,DDim>;
+};
+// DDim == 1
+template <int Dim, int Dofs, int Quads, int BatchSize, int VDim>
+struct DofTensorType<KernelConfig<Dim,false,Dofs,Quads,BatchSize>,VDim,1>
+{
+   using type = StaticDeviceDTensor<BatchSize,Dofs,VDim>;
+};
+// VDim == 1 and DDim == 1
+template <int Dim, int Dofs, int Quads, int BatchSize>
+struct DofTensorType<KernelConfig<Dim,false,Dofs,Quads,BatchSize>,1,1>
+{
+   using type = StaticDeviceDTensor<BatchSize,Dofs>;
+};
+
+// Dynamic non-tensor DoFs
+template <int Dim, int BatchSize, int VDim, int DDim>
+struct DofTensorType<KernelConfig<Dim,false,Dynamic,Dynamic,BatchSize>,VDim,DDim>
+{
+   using type = DynamicDeviceDTensor<1+(VDim>1)+(DDim>1),BatchSize>;
+};
+
+template <typename Config, int VDim, int DDim = 1>
+using DofTensor = typename DofTensorType<Config,VDim,DDim>::type;
+
+/// Functor to represent degrees of freedom
+template <int VDim, typename Config>
+auto MakeDoFs(Config &config, double *x, int ne)
+{
+   return DegreesOfFreedom<Config::dim,
+                           Config::is_tensor,
+                           Config::Dofs,
+                           VDim,
+                           DofTensor<Config,VDim>,
+                           DeviceDTensor>(x, config, ne);
 }
 
-template <int DimComp, int Dim, bool IsTensor, int Dofs, int Quads, int BatchSize>
-auto MakeDoFs(KernelConfig<Dim,IsTensor,Dofs,Quads,BatchSize> &config,
-              const double *x,
-              int ne)
+template <int VDim, typename Config>
+auto MakeDoFs(Config &config, const double *x, int ne)
 {
-   return DegreesOfFreedom<Dim,DimComp,IsTensor,Dofs>(const_cast<double*>(x), config.dofs, ne);
+   return DegreesOfFreedom<Config::dim,
+                           Config::is_tensor,
+                           Config::Dofs,
+                           VDim,
+                           DofTensor<Config,VDim>,
+                           ReadDTensor>(const_cast<double*>(x), config, ne);
 }
 
 } // mfem namespace
