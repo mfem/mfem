@@ -21,7 +21,7 @@ NOTMAC := $(subst Darwin,,$(shell uname -s))
 CXX = g++
 MPICXX = mpicxx
 
-BASE_FLAGS  = -std=c++11
+BASE_FLAGS  = -std=c++14
 OPTIM_FLAGS = -O3 $(BASE_FLAGS)
 DEBUG_FLAGS = -g $(XCOMPILER)-Wall $(BASE_FLAGS)
 
