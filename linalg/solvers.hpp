@@ -115,12 +115,6 @@ public:
    void SetMonitor(IterativeSolverMonitor &m)
    { monitor = &m; m.SetIterativeSolver(*this); }
 
-   void SetOpTimes(void *ctx, void (*f)(const Vector &v, Vector &Jv, void *ctx))
-   {
-      OpTimes = f;
-      OpTimesCtx = ctx;
-   }
-
 #ifdef MFEM_USE_MPI
    /** @brief Return the associated MPI communicator, or MPI_COMM_NULL if no
        communicator is set. */
