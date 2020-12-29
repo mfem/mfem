@@ -3,6 +3,7 @@
 // Compile with: make cutH1
 //
 // Sample runs:
+//   ./cutH1 -m ../../data/star.mesh -rs 1
 //
 
 #include "mfem.hpp"
@@ -269,6 +270,7 @@ int main(int argc, char *argv[])
    PrintDofElemTable(elem_dof, pmesh, 0);
    PrintDofElemTable(new_elem_dof, pmesh, 0);
 
+   // Cut the space.
    pfes.ReplaceElemDofTable(new_elem_dof, ndofs);
    pfes.ReplaceBdrElemDofTable(new_bdre_dof);
 
@@ -322,7 +324,7 @@ int main(int argc, char *argv[])
    // Solve.
    GSSmoother M((SparseMatrix&)(*A));
    //PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
-   CG(*A, B, X, 1, 200, 1e-12, 0.0);
+   CG(*A, B, X, 1, 1000, 1e-12, 0.0);
    a.RecoverFEMSolution(X, b, u);
 
    VisualizeL2(u, 500, 500, 0);
