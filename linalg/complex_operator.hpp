@@ -309,7 +309,7 @@ private:
    int print_level = 0;
    int row_start;
 #define ICNTL(I) icntl[(I) -1]
-#define INFO(I) info[(I) -1]
+#define MUMPSC_INFO(I) info[(I) -1]
    ZMUMPS_STRUC_C *id=nullptr;
    void SetParameters();
 

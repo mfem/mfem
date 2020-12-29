@@ -1032,19 +1032,19 @@ void ComplexMUMPSSolver::Mult(const Vector &x, Vector &y) const
    id->rhs_loc = zx;
    id->irhs_loc = irhs_loc;
 
-   id->lsol_loc = id->INFO(23);
-   id->isol_loc = new int[id->INFO(23)];
-   id->sol_loc = new mumps_double_complex[id->INFO(23)];
+   id->lsol_loc = id->MUMPSC_INFO(23);
+   id->isol_loc = new int[id->MUMPSC_INFO(23)];
+   id->sol_loc = new mumps_double_complex[id->MUMPSC_INFO(23)];
 
    // MUMPS solve
    id->job = 3;
    zmumps_c(id);
 
-   double *zy = new double[2*id->INFO(23)];
-   for (int i = 0; i<id->INFO(23); i++)
+   double *zy = new double[2*id->MUMPSC_INFO(23)];
+   for (int i = 0; i<id->MUMPSC_INFO(23); i++)
    {
       zy[i] = id->sol_loc[i].r;
-      zy[id->INFO(23)+i] = id->sol_loc[i].i;
+      zy[id->MUMPSC_INFO(23)+i] = id->sol_loc[i].i;
    }
 
    RedistributeSol(id->isol_loc, zy, y.GetData());
@@ -1190,7 +1190,7 @@ int ComplexMUMPSSolver::GetRowRank(int i, const Array<int> &row_starts_) const
 void ComplexMUMPSSolver::RedistributeSol(const int * row_map,
                                          const double * x, double * y) const
 {
-   int size = id->INFO(23);
+   int size = id->MUMPSC_INFO(23);
    int n = id->nloc_rhs;
    int * send_count = new int[numProcs]();
    for (int i = 0; i < size; i++)
