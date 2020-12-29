@@ -315,6 +315,10 @@ public:
       *elem_dof = new_elem_dof;
       ndofs = ndofs_new;
    }
+   void ReplaceBdrElemDofTable(const Table &new_bdrElem_dof)
+   {
+      *bdrElem_dof = new_bdrElem_dof;
+   }
 
    /// Returns the mesh
    inline Mesh *GetMesh() const { return mesh; }

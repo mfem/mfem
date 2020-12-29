@@ -174,15 +174,18 @@ int main(int argc, char *argv[])
       x.SetSubVector(dofs, x_loc);
    }
 
-   // Compute the multiplicity of each DOF.
-   const Table &elem_dof = pfes.GetElementToDofTable();
-   Table dof_elem;
-   Table new_elem_dof(elem_dof);
+   // Duplicate DOFs on the material interface.
+   const Table &elem_dof = pfes.GetElementToDofTable(),
+               &bdre_dof = pfes.GetBdrElementToDofTable();
+   Table dof_elem, dof_bdre;
+   Table new_elem_dof(elem_dof), new_bdre_dof(bdre_dof);
    Transpose(elem_dof, dof_elem);
-   dof_elem.Finalize();
+   Transpose(bdre_dof, dof_bdre);
    const int nrows = dof_elem.Size();
    int ndofs = nrows;
-   Array<int> dof_elements;
+   Array<int> dof_elements, dof_boundaries;
+//   PrintDofElemTable(elem_dof, pmesh, 0);
+//   PrintDofElemTable(bdre_dof, pmesh, 2);
    for (int dof = 0; dof < nrows; dof++)
    {
       // Check which materials share the current dof.
@@ -206,17 +209,37 @@ int main(int argc, char *argv[])
          while(mat != dof_materials.cend())
          {
             // Replace in all elements with material mat.
+            const int new_dof_id = ndofs;
             for (int e = 0; e < dof_elements.Size(); e++)
             {
                if (pmesh.GetAttribute(dof_elements[e]) == *mat)
                {
-                  const int new_dof_id = ndofs;
-                  std::cout << "Replacing DOF "
+                  std::cout << "Replacing DOF (for element) : "
                             << dof << " -> " << new_dof_id
                             << " in EL " << dof_elements[e] << std::endl;
-                  new_elem_dof.ReplaceConnection(dof_elements[e], dof, new_dof_id);
+                  new_elem_dof.ReplaceConnection(dof_elements[e],
+                                                 dof, new_dof_id);
                }
             }
+
+            // Replace in all boundary elements with material mat.
+            dof_bdre.GetRow(dof, dof_boundaries);
+            const int dof_bdr_cnt = dof_boundaries.Size();
+            for (int b = 0; b < dof_bdr_cnt; b++)
+            {
+               int face_id = pmesh.GetBdrFace(dof_boundaries[b]);
+               int elem_id, tmp;
+               pmesh.GetFaceElements(face_id, &elem_id, &tmp);
+               if (pmesh.GetAttribute(elem_id) == *mat)
+               {
+                  std::cout << "Replacing DOF (for boundary): "
+                            << dof << " -> " << new_dof_id
+                            << " in BE " << dof_boundaries[b] << std::endl;
+                  new_bdre_dof.ReplaceConnection(dof_boundaries[b],
+                                                 dof, new_dof_id);
+               }
+            }
+
             ndofs++;
             mat++;
          }
@@ -247,6 +270,7 @@ int main(int argc, char *argv[])
    PrintDofElemTable(new_elem_dof, pmesh, 0);
 
    pfes.ReplaceElemDofTable(new_elem_dof, ndofs);
+   pfes.ReplaceBdrElemDofTable(new_bdre_dof);
 
    // Set face_attribute = 77 to faces that are on the material interface.
    for (int f = 0; f < pmesh.GetNumFaces(); f++)
@@ -255,10 +279,10 @@ int main(int argc, char *argv[])
       if (ftr->Elem2No > 0 &&
           pmesh.GetAttribute(ftr->Elem1No) != pmesh.GetAttribute(ftr->Elem2No))
       {
-         std::cout << ftr->Elem1No << " " << ftr->Elem2No << std::endl;
-         std::cout << pmesh.GetAttribute(ftr->Elem1No) << " "
-                   << pmesh.GetAttribute(ftr->Elem2No) << std::endl;
-         std::cout << "Setting face " << f << std::endl;
+//         std::cout << ftr->Elem1No << " " << ftr->Elem2No << std::endl;
+//         std::cout << pmesh.GetAttribute(ftr->Elem1No) << " "
+//                   << pmesh.GetAttribute(ftr->Elem2No) << std::endl;
+//         std::cout << "Setting face " << f << std::endl;
          pmesh.SetFaceAttribute(f, 77);
       }
    }
