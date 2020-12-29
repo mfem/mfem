@@ -200,6 +200,7 @@ int main(int argc, char *argv[])
    else
    {
       fec = new H1_FECollection(order = 1, dim);
+      delete_fec = true;
    }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
    HYPRE_Int size = fespace->GlobalTrueVSize();
