@@ -684,10 +684,12 @@ int main (int argc, char *argv[])
 
    // Surface alignment.
    L2_FECollection mat_coll(0, dim);
+   H1_FECollection sigma_fec(mesh_poly_deg, dim);
+   ParFiniteElementSpace sigma_fes(pmesh, &sigma_fec);
    ParFiniteElementSpace mat_fes(pmesh, &mat_coll);
    ParGridFunction mat(&mat_fes);
-   ParGridFunction marker_gf(&ind_fes);
-   ParGridFunction ls_0(&ind_fes);
+   ParGridFunction marker_gf(&sigma_fes);
+   ParGridFunction ls_0(&sigma_fes);
    Array<bool> marker(ls_0.Size());
    ConstantCoefficient coef_ls(surface_const);
    AdaptivityEvaluator *adapt_surface = NULL;

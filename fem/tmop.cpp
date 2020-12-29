@@ -2186,10 +2186,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    }
 
    Vector sigma_bar_q;
-   if (surface_fit)
-   {
-      sigma_bar->GetValues(el_id, ir, sigma_bar_q);
-   }
+   if (surface_fit) { sigma_bar->GetValues(el_id, ir, sigma_bar_q); }
 
    for (int i = 0; i < ir.GetNPoints(); i++)
    {
@@ -2682,6 +2679,7 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
 
          for (int d = 0; d < dim; d++)
          {
+            // Grad of sigma must be taken at the active DOFs.
             grad_q(d) += sigma_grad_e(s, d) * shape_s(s);
          }
       }
@@ -2701,7 +2699,7 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
                                               DenseMatrix &mat)
 {
    const int el_id = Tpr.ElementNo, nqp = ir_quad.GetNPoints();
-   const FiniteElement &el_s = *sigma->FESpace()->GetFE(Tpr.ElementNo);
+   const FiniteElement &el_s = *sigma->FESpace()->GetFE(el_id);
 
    const int dof_x = el_x.GetDof(), dim = el_x.GetDim(),
              dof_s = el_s.GetDof();
@@ -2751,6 +2749,7 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
       Tpr.SetIntPoint(&ip);
       el_s.CalcShape(ip, shape_s);
       el_x.CalcShape(ip, shape_x);
+      // We could reuse grad_phys, but this is more accurate.
       el_s.CalcPhysDShape(Tpr, dshape_s);
 
       // Grad of sigma_bar at the current quad point.
@@ -2780,10 +2779,10 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
                Di += sigma_grad_e(s, idim) * shape_s(s);
                Dj += sigma_grad_e(s, jdim) * shape_s(s);
                DD += sigma_grad_e(s, idim) * dshape_s(s, jdim) +
-                     sigma_grad_grad_e(s*dim + idim, jdim) * shape_s(s) +
+                     sigma_grad_grad_e(dof_s * idim + s, jdim) * shape_s(s) +
                      sigma_grad_e(s, jdim) * dshape_s(s, idim);
             }
-            const double entry = w *(Di * Dj + sigma_bar_q(q) * DD) *
+            const double entry = w * (Di * Dj + sigma_bar_q(q) * DD) *
                                  shape_x(idof) * shape_x(jdof);
 
             mat(i, j) += entry;
@@ -3097,6 +3096,7 @@ void TMOP_Integrator::UpdateAfterMeshChange(const Vector &new_x)
 {
    // Update zeta if adaptive limiting is enabled.
    if (zeta) { adapt_eval->ComputeAtNewPosition(new_x, *zeta); }
+
    // Update sigma if surface fitting is enabled.
    if (sigma)
    {
