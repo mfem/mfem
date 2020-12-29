@@ -5596,9 +5596,6 @@ void ParMesh::GetGlobalEdgeIndices(Array<HYPRE_Int> &gi) const
    ParMesh *pm = const_cast<ParMesh *>(this);
    ParFiniteElementSpace fespace(pm, &fec);
 
-   MFEM_VERIFY(fespace.GetVSize() == GetNEdges(),
-               "There should be a bijection between DOFs and edges");
-
    gi.SetSize(GetNEdges());
 
    Array<int> dofs;
@@ -5626,9 +5623,6 @@ void ParMesh::GetGlobalFaceIndices(Array<HYPRE_Int> &gi) const
    RT_FECollection fec(0, Dim); // Order 0, mesh dimension (not spatial dimension).
    ParMesh *pm = const_cast<ParMesh *>(this);
    ParFiniteElementSpace fespace(pm, &fec);
-
-   MFEM_VERIFY(fespace.GetVSize() == GetNFaces(),
-               "There should be a bijection between DOFs and faces");
 
    gi.SetSize(GetNFaces());
 
