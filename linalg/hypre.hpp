@@ -407,7 +407,12 @@ public:
    void GetDiag(SparseMatrix &diag) const;
    /// Get the local off-diagonal block. NOTE: 'offd' will not own any data.
    void GetOffd(SparseMatrix &offd, HYPRE_Int* &cmap) const;
-   /// Get on-processor rows as CSR matrix.
+   /** @brief Get a single SparseMatrix containing all rows from this processor,
+       merged from the diagonal and off-diagonal blocks stored by the
+       HypreParMatrix. */
+   /** @note The number of columns in the SparseMatrix will be the global number
+       of columns in the parallel matrix, so using this method may result in an
+       integer overflow in the column indices. */
    void MergeDiagAndOffd(SparseMatrix &merged);
 
    /** Split the matrix into M x N equally sized blocks of parallel matrices.
@@ -420,7 +425,7 @@ public:
    HypreParMatrix * Transpose() const;
 
    /** Returns principle submatrix given by array of indices of connections
-       with relative size > \@ threshold in *this. */
+       with relative size > @a threshold in *this. */
 #if MFEM_HYPRE_VERSION >= 21800
    HypreParMatrix *ExtractSubmatrix(const Array<int> &indices,
                                     double threshhold=0.0) const;
