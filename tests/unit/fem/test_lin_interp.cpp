@@ -18,7 +18,12 @@ namespace lin_interp
 {
 
 double f1(const Vector & x) { return 2.345 * x[0]; }
-double Grad_f1(const Vector & x) { return 2.345; }
+double grad_f1(const Vector & x) { return 2.345; }
+void Grad_f1(const Vector & x, Vector & df)
+{
+   df.SetSize(1);
+   df[0] = grad_f1(x);
+}
 
 double f2(const Vector & x) { return 2.345 * x[0] + 3.579 * x[1]; }
 void F2(const Vector & x, Vector & v)
@@ -34,7 +39,12 @@ void Grad_f2(const Vector & x, Vector & df)
    df[0] = 2.345;
    df[1] = 3.579;
 }
-double CurlF2(const Vector & x) { return 3.572 + 2.357; }
+double curlF2(const Vector & x) { return 3.572 + 2.357; }
+void CurlF2(const Vector & x, Vector & v)
+{
+   v.SetSize(1);
+   v[0] = curlF2(x);
+}
 double DivF2(const Vector & x) { return 1.234 + 4.321; }
 
 double f3(const Vector & x)
@@ -861,7 +871,7 @@ TEST_CASE("1D Derivative Linear Interpolators",
    double tol = 1e-9;
 
    FunctionCoefficient     fCoef(f1);
-   FunctionCoefficient GradfCoef(Grad_f1);
+   FunctionCoefficient GradfCoef(grad_f1);
 
 
    for (int type = (int)Element::SEGMENT;
@@ -925,7 +935,7 @@ TEST_CASE("2D Derivative Linear Interpolators",
    VectorFunctionCoefficient FCoef(dim, F2);
 
    VectorFunctionCoefficient GradfCoef(dim, Grad_f2);
-   FunctionCoefficient       CurlFCoef(CurlF2);
+   FunctionCoefficient       CurlFCoef(curlF2);
    FunctionCoefficient       DivFCoef(DivF2);
 
    for (int type = (int)Element::TRIANGLE;
