@@ -12,6 +12,7 @@
 #ifndef MFEM_SIMD_AUTO_HPP
 #define MFEM_SIMD_AUTO_HPP
 
+#include <cassert>
 #include "../../config/tconfig.hpp"
 
 namespace mfem
@@ -31,16 +32,19 @@ struct MFEM_AUTOSIMD_ALIGN__ AutoSIMD
 
    inline MFEM_ALWAYS_INLINE scalar_t &operator[](int i)
    {
+      assert(false);
       return vec[i];
    }
 
    inline MFEM_ALWAYS_INLINE const scalar_t &operator[](int i) const
    {
+      assert(false);
       return vec[i];
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator=(const AutoSIMD &v)
    {
+      assert(false);
       MFEM_VECTORIZE_LOOP
       for (int i = 0; i < size; i++) { vec[i] = v[i]; }
       return *this;
@@ -48,6 +52,7 @@ struct MFEM_AUTOSIMD_ALIGN__ AutoSIMD
 
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator=(const scalar_t &e)
    {
+      assert(false);
       MFEM_VECTORIZE_LOOP
       for (int i = 0; i < size; i++) { vec[i] = e; }
       return *this;
@@ -55,6 +60,7 @@ struct MFEM_AUTOSIMD_ALIGN__ AutoSIMD
 
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator+=(const AutoSIMD &v)
    {
+      assert(false);
       MFEM_VECTORIZE_LOOP
       for (int i = 0; i < size; i++) { vec[i] += v[i]; }
       return *this;
@@ -62,6 +68,7 @@ struct MFEM_AUTOSIMD_ALIGN__ AutoSIMD
 
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator+=(const scalar_t &e)
    {
+      assert(false);
       MFEM_VECTORIZE_LOOP
       for (int i = 0; i < size; i++) { vec[i] += e; }
       return *this;

@@ -16,8 +16,10 @@
 
 // --- AutoSIMD + specializations with intrinsics
 #include "simd/auto.hpp"
+
 #ifdef MFEM_USE_SIMD
-#if defined(__aarch64__)
+#if defined(__aarch64__) && defined(__ARM_FEATURE_SVE)
+#warning simd/sve.hpp
 #include "simd/sve.hpp"
 #elif defined(__VSX__)
 #include "simd/vsx.hpp"
@@ -29,8 +31,10 @@
 #warning Unknown SIMD architecture
 #else
 #pragma message("warning: Unknown SIMD architecture")
-#endif
-#endif
+#endif // ARCHITECTURE
+#else
+#warning !MFEM_USE_SIMD
+#endif // MFEM_USE_SIMD
 
 // MFEM_SIMD_BYTES is the default SIMD size used by MFEM, see e.g. class
 // TBilinearForm and the default traits class AutoSIMDTraits.
@@ -44,7 +48,8 @@
 #elif defined(__AVX512F__)
 #define MFEM_SIMD_BYTES 64
 #define MFEM_ALIGN_BYTES 64
-#elif defined(__AARCH64EL__)
+#elif defined(__aarch64__) && defined(__ARM_FEATURE_SVE)
+#warning SVE 64/64
 #define MFEM_SIMD_BYTES 64
 #define MFEM_ALIGN_BYTES 64
 #elif defined(__AVX__) || defined(__VECTOR4DOUBLE__)
@@ -72,17 +77,17 @@ struct AutoSIMDTraits
    static const int block_size = MFEM_TEMPLATE_BLOCK_SIZE;
 
    // Alignment for arrays of vcomplex_t and vreal_t
-   static const int align_bytes = MFEM_SIMD_BYTES;
+   static const int align_bytes = MFEM_ALIGN_BYTES;
 
    static const int batch_size = 1;
 
    static const int simd_size = MFEM_SIMD_BYTES / sizeof(real_t);
 
-   typedef AutoSIMD<complex_t, simd_size, MFEM_SIMD_BYTES> vcomplex_t;
-   typedef AutoSIMD<real_t, simd_size, MFEM_SIMD_BYTES> vreal_t;
+   typedef AutoSIMD<complex_t, simd_size, MFEM_ALIGN_BYTES> vcomplex_t;
+   typedef AutoSIMD<real_t, simd_size, MFEM_ALIGN_BYTES> vreal_t;
    typedef AutoSIMD<int, simd_size, simd_size * sizeof(int)> vint_t;
 };
-
+/*
 template <typename complex_t, typename real_t>
 struct NoSIMDTraits
 {
@@ -98,7 +103,7 @@ struct NoSIMDTraits
    typedef AutoSIMD<complex_t, simd_size, align_bytes> vcomplex_t;
    typedef AutoSIMD<real_t, simd_size, align_bytes> vreal_t;
    typedef AutoSIMD<int, simd_size, simd_size * sizeof(int)> vint_t;
-};
+};*/
 
 }  // namespace mfem
 
