@@ -1048,6 +1048,8 @@ void VectorFiniteElement::Project_RT(
 
          fe.CalcShape(ip, shape);
          Trans.SetIntPoint(&ip);
+         // Transform RT face normals from reference to physical space
+         // vk = adj(J)^T nk
          Trans.AdjugateJacobian().MultTranspose(nk + d2n[k]*dim, vk);
          if (fe.GetMapType() == INTEGRAL)
          {
@@ -1065,6 +1067,8 @@ void VectorFiniteElement::Project_RT(
             {
                s = 0.0;
             }
+            // Project scalar basis function multiplied by each coordinate
+            // direction onto the transformed face normals
             for (int d = 0; d < sdim; d++)
             {
                I(k,j+d*shape.Size()) = s*vk[d];
@@ -1086,8 +1090,12 @@ void VectorFiniteElement::Project_RT(
          const IntegrationPoint &ip = Nodes.IntPoint(k);
 
          Trans.SetIntPoint(&ip);
+         // Transform RT face normals from reference to physical space
+         // vk = adj(J)^T nk
          Trans.AdjugateJacobian().MultTranspose(nk + d2n[k]*dim, vk);
+         // Compute fe basis functions in physical space
          fe.CalcVShape(Trans, vshape);
+         // Project fe basis functions onto transformed face normals
          vshape.Mult(vk, vshapenk);
          if (!square_J) { vshapenk /= Trans.Weight(); }
          for (int j=0; j<vshapenk.Size(); j++)
@@ -1255,6 +1263,8 @@ void VectorFiniteElement::Project_ND(
 
          fe.CalcShape(ip, shape);
          Trans.SetIntPoint(&ip);
+         // Transform ND edge tengents from reference to physical space
+         // vk = J tk
          Trans.Jacobian().Mult(tk + d2t[k]*dim, vk);
          if (fe.GetMapType() == INTEGRAL)
          {
@@ -1272,6 +1282,8 @@ void VectorFiniteElement::Project_ND(
             {
                s = 0.0;
             }
+            // Project scalar basis function multiplied by each coordinate
+            // direction onto the transformed edge tangents
             for (int d = 0; d < sdim; d++)
             {
                I(k, j + d*shape.Size()) = s*vk[d];
@@ -1292,8 +1304,12 @@ void VectorFiniteElement::Project_ND(
          const IntegrationPoint &ip = Nodes.IntPoint(k);
 
          Trans.SetIntPoint(&ip);
+         // Transform ND edge tangents from reference to physical space
+         // vk = J tk
          Trans.Jacobian().Mult(tk + d2t[k]*dim, vk);
+         // Compute fe basis functions in physical space
          fe.CalcVShape(Trans, vshape);
+         // Project fe basis functions onto transformed edge tangents
          vshape.Mult(vk, vshapetk);
          for (int j=0; j<vshapetk.Size(); j++)
          {
