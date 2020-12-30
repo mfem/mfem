@@ -18,6 +18,8 @@
 namespace mfem
 {
 
+const int vtk_prism_perm[6] = {0, 2, 1, 3, 5, 4};
+
 int BarycentricToVTKTriangle(int *b, int ref)
 {
    // Cf. https://git.io/JvW8f

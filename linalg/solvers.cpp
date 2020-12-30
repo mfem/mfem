@@ -645,7 +645,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 
       Monitor(i, betanom, r, x);
 
-      if (betanom < r0)
+      if (betanom <= r0)
       {
          if (print_level == 2)
          {
@@ -1649,12 +1649,12 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    Vector sk, rk, yk, rho, alpha;
    DenseMatrix skM(width, m), ykM(width, m);
 
-   //r - r_{k+1}, c - descent direction
-   sk.SetSize(width);    //x_{k+1}-x_k
-   rk.SetSize(width);    //nabla(f(x_{k}))
-   yk.SetSize(width);    //r_{k+1}-r_{k}
-   rho.SetSize(m);       //1/(dot(yk,sk)
-   alpha.SetSize(m);    //rhok*sk'*c
+   // r - r_{k+1}, c - descent direction
+   sk.SetSize(width);    // x_{k+1}-x_k
+   rk.SetSize(width);    // nabla(f(x_{k}))
+   yk.SetSize(width);    // r_{k+1}-r_{k}
+   rho.SetSize(m);       // 1/(dot(yk,sk)
+   alpha.SetSize(m);     // rhok*sk'*c
    int last_saved_id = -1;
 
    int it;
@@ -1707,7 +1707,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
          converged = 0;
          break;
       }
-      add(x, -c_scale, c, x); //x_{k+1} = x_k - c_scale*c
+      add(x, -c_scale, c, x); // x_{k+1} = x_k - c_scale*c
 
       ProcessNewState(x);
 
@@ -1717,12 +1717,12 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
          r -= b;
       }
 
-      //    LBFGS - construct descent direction
+      // LBFGS - construct descent direction
       subtract(r, rk, yk);   // yk = r_{k+1} - r_{k}
       sk = c; sk *= -c_scale; //sk = x_{k+1} - x_{k} = -c_scale*c
       const double gamma = Dot(sk, yk)/Dot(yk, yk);
 
-      //  Save last m vectors
+      // Save last m vectors
       last_saved_id = (last_saved_id == m-1) ? 0 : last_saved_id+1;
       skM.SetCol(last_saved_id, sk);
       ykM.SetCol(last_saved_id, yk);
@@ -2720,9 +2720,7 @@ void UMFPackSolver::Init()
 
 void UMFPackSolver::SetOperator(const Operator &op)
 {
-   int *Ap, *Ai;
    void *Symbolic;
-   double *Ax;
 
    if (Numeric)
    {
@@ -2748,9 +2746,9 @@ void UMFPackSolver::SetOperator(const Operator &op)
    width = mat->Width();
    MFEM_VERIFY(width == height, "not a square matrix");
 
-   Ap = mat->GetI();
-   Ai = mat->GetJ();
-   Ax = mat->GetData();
+   const int * Ap = mat->HostReadI();
+   const int * Ai = mat->HostReadJ();
+   const double * Ax = mat->HostReadData();
 
    if (!use_long_ints)
    {
@@ -2820,12 +2818,13 @@ void UMFPackSolver::Mult(const Vector &b, Vector &x) const
    if (mat == NULL)
       mfem_error("UMFPackSolver::Mult : matrix is not set!"
                  " Call SetOperator first!");
-
+   b.HostRead();
+   x.HostReadWrite();
    if (!use_long_ints)
    {
       int status =
-         umfpack_di_solve(UMFPACK_At, mat->GetI(), mat->GetJ(),
-                          mat->GetData(), x, b, Numeric, Control, Info);
+         umfpack_di_solve(UMFPACK_At, mat->HostReadI(), mat->HostReadJ(),
+                          mat->HostReadData(), x, b, Numeric, Control, Info);
       umfpack_di_report_info(Control, Info);
       if (status < 0)
       {
@@ -2836,7 +2835,7 @@ void UMFPackSolver::Mult(const Vector &b, Vector &x) const
    else
    {
       SuiteSparse_long status =
-         umfpack_dl_solve(UMFPACK_At, AI, AJ, mat->GetData(), x, b,
+         umfpack_dl_solve(UMFPACK_At, AI, AJ, mat->HostReadData(), x, b,
                           Numeric, Control, Info);
       umfpack_dl_report_info(Control, Info);
       if (status < 0)
@@ -2852,12 +2851,13 @@ void UMFPackSolver::MultTranspose(const Vector &b, Vector &x) const
    if (mat == NULL)
       mfem_error("UMFPackSolver::MultTranspose : matrix is not set!"
                  " Call SetOperator first!");
-
+   b.HostRead();
+   x.HostReadWrite();
    if (!use_long_ints)
    {
       int status =
-         umfpack_di_solve(UMFPACK_A, mat->GetI(), mat->GetJ(),
-                          mat->GetData(), x, b, Numeric, Control, Info);
+         umfpack_di_solve(UMFPACK_A, mat->HostReadI(), mat->HostReadJ(),
+                          mat->HostReadData(), x, b, Numeric, Control, Info);
       umfpack_di_report_info(Control, Info);
       if (status < 0)
       {
@@ -2869,7 +2869,7 @@ void UMFPackSolver::MultTranspose(const Vector &b, Vector &x) const
    else
    {
       SuiteSparse_long status =
-         umfpack_dl_solve(UMFPACK_A, AI, AJ, mat->GetData(), x, b,
+         umfpack_dl_solve(UMFPACK_A, AI, AJ, mat->HostReadData(), x, b,
                           Numeric, Control, Info);
       umfpack_dl_report_info(Control, Info);
       if (status < 0)
