@@ -975,6 +975,9 @@ public:
     */
    void SetSymmetry(int sym);
    /// Set the logging parameter
+   /** A nonzero value prints statistics of the setup procedure to stdout.
+    * The default value of this parameter is 1.
+    */
    void SetLogging(int logging);
 
    /// The typecast to HYPRE_Solver returns the internal sai_precond
