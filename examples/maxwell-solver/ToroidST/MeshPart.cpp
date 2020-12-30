@@ -2,6 +2,33 @@
 #include "MeshPart.hpp"
 
 
+void GetMeshAngleRange(Mesh * mesh, double & amin, double & amax)
+{
+   amin = infinity();
+   amax = -infinity();
+   int nbe = mesh->GetNBE();
+   int dim = mesh->Dimension();
+
+   for (int i = 0; i < nbe; ++i)
+   {
+      const Element *el = mesh->GetBdrElement(i);
+      Vector center(dim);
+      int geom = mesh->GetBdrElementBaseGeometry(i);
+      ElementTransformation * T = mesh->GetBdrElementTransformation(i);
+      T->Transform(Geometries.GetCenter(geom),center);
+      double x = center[0];
+      double y = center[1];
+      x = (abs(x)<1e-12) ? 0.0 : x;
+      y = (abs(y)<1e-12) ? 0.0 : y;
+      double theta = (x == 0) ? M_PI/2.0 : atan(y/x);
+      int k = (x<=0.0) ? 1 : ((y<0.0) ? 2 : 0.0);
+      theta += k*M_PI;
+      double thetad = theta * 180.0/M_PI;
+      amin = min(amin,thetad);
+      amax = max(amax,thetad);
+   }
+}
+
 int get_angle_range(double angle, Array<double> angles)
 {
    auto it = std::upper_bound(angles.begin(), angles.end(), angle);
@@ -15,6 +42,12 @@ void SetMeshAttributes(Mesh * mesh, int subdivisions, double ovlp)
    double amin = 0.0;
    angles[0] = amin;
    double amax = 270;
+
+   double pmin, pmax;
+   GetMeshAngleRange(mesh,pmin,pmax);
+
+   cout << "pmin = " << pmin << endl;
+   cout << "pmax = " << pmax << endl;
 
    double length = (amax-amin)/subdivisions;
    double range;

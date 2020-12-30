@@ -7,6 +7,8 @@ using namespace std;
 using namespace mfem;
 
 
+void GetMeshAngleRange(Mesh * mesh, double & amin, double & amax);
+
 int get_angle_range(double angle, Array<double> angles);
 
 void SetMeshAttributes(Mesh * mesh, int subdivisions, double ovlp);
