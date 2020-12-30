@@ -2107,21 +2107,27 @@ void AddMultTranspose(const DenseMatrix &b, const DenseMatrix &c,
    dgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &k,
           c.Data(), &k, &beta, a.Data(), &m);
 #else
-   const int ah = a.Height();
-   const int aw = a.Width();
    const int bh = b.Height();
-   double *ad = a.Data();
+   const int bw = b.Width();
+   const int cw = c.Width();
    const double *bd = b.Data();
    const double *cd = c.Data();
-   for (int j = 0; j < aw; j++)
+   double *ad = a.Data();
+
+   for (int j = 0; j < cw; j++)
    {
-      for (int k = 0; k < bh; k++)
+      const double *bp = bd;
+      for (int i = 0; i < bw; i++)
       {
-         for (int i = 0; i < ah; i++)
+         double d = 0.0;
+         for (int k = 0; k < bh; k++)
          {
-            ad[i+j*ah] += bd[k+i*ah] * cd[k+j*bh];
+            d += bp[k] * cd[k];
          }
+         *(ad++) += d;
+         bp += bh;
       }
+      cd += bh;
    }
 #endif
 }
