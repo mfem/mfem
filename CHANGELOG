@@ -31,6 +31,10 @@ Version 4.2.1 (development)
 - Added support for the "BR2" discontinuous Galerkin discretization for
   diffusion via DGDiffusionBR2Integrator (see Example 14/14p).
 
+- Generalized the Multigrid class to support non-geometric multigrid. The
+  previous functionality, based on FiniteElementSpaceHierarchy, is now available
+  in the derived class GeometricMultigrid.
+
 - Upgraded the Catch unit test framework from version 2.13.0 to version 2.13.2.
 
 - Implemented a filter method for the Navier miniapp to stabilize highly
