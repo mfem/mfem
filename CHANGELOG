@@ -49,6 +49,10 @@ Version 4.2.1 (development)
   deprecated EvalSymmetric in MatrixCoefficient. Added DiagonalMatrixCoefficient
   for clarity, which is a typedef of VectorCoefficient.
 
+- Added support for AMG preconditioners for non-symmetric systems (e.g.
+  advection-dominated problems) using hypre's approximate ideal restriction
+  (AIR) AMG. Requires hypre version 2.14.0 or newer. Usage is illustrated in
+  example 9/9p.
 
 Version 4.2, released on October 30, 2020
 =========================================
