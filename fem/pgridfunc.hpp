@@ -46,6 +46,8 @@ protected:
    void ProjectBdrCoefficient(Coefficient *coeff[], VectorCoefficient *vcoeff,
                               Array<int> &attr);
 
+   virtual void ApplyDofSigns(Array<int> &dofs) const;
+
 public:
    ParGridFunction() { pfes = NULL; }
 

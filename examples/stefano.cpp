@@ -30,15 +30,15 @@ int main(int argc, char *argv[])
 
    //Mesh mesh("./test.mesh.txt", 1, 1);
    //Mesh mesh(32, 32, Element::QUADRILATERAL, true, 1.0, 1.0);
-   Mesh mesh(2, 1, 1, Element::HEXAHEDRON, true, 2.0, 1.0, 1.0);
-   //Mesh mesh(1, 1, 2, Element::WEDGE, true, 1.0, 1.0, 2.0);
+   Mesh mesh(4, 4, 4, Element::HEXAHEDRON, true, 1.0, 1.0, 1.0);
+   //Mesh mesh(2, 2, 2, Element::WEDGE, true, 1.0, 1.0, 1.0);
    for (int i = 0; i < 3; i++)
    {
       //mesh.UniformRefinement();
    }
 
    // if EnsureNCMesh is not called, everything is ok
-   //mesh.EnsureNCMesh();
+   mesh.EnsureNCMesh();
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
    //pmesh->UniformRefinement();

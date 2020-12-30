@@ -1931,14 +1931,12 @@ void GridFunction::AccumulateAndCountZones(VectorCoefficient &vcoeff,
    {
       fes->GetElementVDofs(i, vdofs);
 
-      int rank;
-      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-      mfem::out << rank << ": element " << i << " DOFs: ";
-      for (int j = 0; j < vdofs.Size(); j++)
-      {
-         mfem::out << vdofs[j] << " ";
-      }
-      mfem::out << std::endl;
+      // Apply LDOF signs. In conforming mode this is already done by
+      // GetElementVDofs, but not in NC mode, where the signs are normally
+      // hanled by the P matrix. Here the P matrix is not involved, so we need
+      // to explicitly flip some of the vectors to ensure a match across CPU
+      // boundary. Note that in serial this is a no-op.
+      if (fes->Nonconforming()) { ApplyDofSigns(vdofs); }
 
       // Local interpolation of coeff.
       vals.SetSize(vdofs.Size());

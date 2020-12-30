@@ -492,6 +492,19 @@ void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
    }
 }
 
+void ParGridFunction::ApplyDofSigns(Array<int> &dofs) const
+{
+   MFEM_ASSERT(pfes->Nonconforming(), "internal error");
+
+   for (int i = 0; i < dofs.Size(); i++)
+   {
+      if (pfes->GetDofSign(dofs[i]) < 0)
+      {
+         dofs[i] = -1-dofs[i];
+      }
+   }
+}
+
 void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff)
 {
    // local maximal element attribute for each dof
@@ -566,12 +579,6 @@ void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &vcoeff,
    // Number of zones that contain a given dof.
    Array<int> zones_per_vdof;
    AccumulateAndCountZones(vcoeff, type, zones_per_vdof);
-
-   /*Vector old = *this;
-   for (int i = 0; i < Size(); i++)
-   {
-      (*this)(i) = i;//pfes->GetGlobalTDofNumber(i);
-   }*/
 
    // Count the zones globally.
    GroupCommunicator &gcomm = pfes->GroupComm();
