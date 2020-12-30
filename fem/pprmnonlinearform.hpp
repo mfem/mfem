@@ -88,8 +88,18 @@ public:
    /// Destructor.
    virtual ~ParPrmBlockNonlinearForm();
 
+   /// Set the state fields
+   virtual void SetStateFields(const Vector &xv) const;
+
+   /// Set the adjoint fields
+   virtual void SetAdjointFields(const Vector &av) const;
+
+   /// Set the parameters/design fields
+   virtual void SetPrmFields(const Vector &dv) const;
+
 };
 
 }
 
+#endif
 #endif

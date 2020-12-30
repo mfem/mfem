@@ -49,6 +49,7 @@ protected:
     /** Auxiliary block-vectors for wrapping input and output vectors or holding
            GridFunction-like block-vector data (e.g. in parallel). */
     mutable BlockVector xs, ys;
+    mutable BlockVector prmxs, prmys;
 
 
     /** Auxiliary block-vectors for holding
@@ -206,13 +207,13 @@ public:
    virtual Operator &GetGradient(const Vector &x) const;
 
    /// Set the state fields
-   void SetStateFields(const Vector &xv) const;
+   virtual void SetStateFields(const Vector &xv) const;
 
    /// Set the adjoint fields
-   void SetAdjointFields(const Vector &av) const;
+   virtual void SetAdjointFields(const Vector &av) const;
 
    /// Set the parameters/design fields
-   void SetPrmFields(const Vector &dv) const;
+   virtual void SetPrmFields(const Vector &dv) const;
 
 
 
