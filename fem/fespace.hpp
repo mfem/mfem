@@ -571,7 +571,7 @@ public:
 
    /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection
         associated with i'th element in the mesh object. */
-   const FiniteElement *GetFE(int i) const;
+   virtual const FiniteElement *GetFE(int i) const;
 
    /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection
         associated with i'th boundary face in the mesh object. */
