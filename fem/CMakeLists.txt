@@ -138,7 +138,8 @@ if (MFEM_USE_MPI)
     pgridfunc.cpp
     plinearform.cpp
     pnonlinearform.cpp
-    prestriction.cpp)
+    prestriction.cpp
+    pprmnonlinearform.cpp)
   # If this list (HDRS -> HEADERS) is used for install, we probably want the
   # headers added all the time.
   list(APPEND HDRS
@@ -147,7 +148,8 @@ if (MFEM_USE_MPI)
     pgridfunc.hpp
     plinearform.hpp
     pnonlinearform.hpp
-    prestriction.hpp)
+    prestriction.hpp
+    pprmnonlinearform.hpp)
 endif()
 
 convert_filenames_to_full_paths(SRCS)
