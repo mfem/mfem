@@ -61,6 +61,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
+   int max_dofs = 100000;
    bool restart = false;
 
    OptionsParser args(argc, argv);
@@ -75,6 +76,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&max_dofs, "-md", "--max-dofs",
+                  "Stop after reaching this many degrees of freedom.");
    args.AddOption(&restart, "-res", "--restart", "-no-res", "--no-restart",
                   "Restart computation from the last checkpoint.");
    args.Parse();
@@ -123,8 +126,9 @@ int main(int argc, char *argv[])
    {
       // 7. We can also restart the computation by loading the mesh from a
       //    previously saved check-point.
-      ifstream ifs(MakeParFilename("ex6p-checkpoint.", myid));
-      MFEM_VERIFY(ifs.good(), "Checkpoint file not found.");
+      string fname(MakeParFilename("ex6p-checkpoint.", myid));
+      ifstream ifs(fname);
+      MFEM_VERIFY(ifs.good(), "Checkpoint file " << fname << " not found.");
       pmesh = new ParMesh(MPI_COMM_WORLD, ifs);
    }
 
@@ -208,7 +212,6 @@ int main(int argc, char *argv[])
 
    // 14. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
-   const int max_dofs = 100000;
    for (int it = 1; ; it++)
    {
       HYPRE_Int global_dofs = fespace.GlobalTrueVSize();
@@ -273,7 +276,7 @@ int main(int argc, char *argv[])
          sout << "solution\n" << *pmesh << x << flush;
       }
 
-      if (global_dofs > max_dofs)
+      if (global_dofs >= max_dofs)
       {
          if (myid == 0)
          {

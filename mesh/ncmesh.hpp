@@ -344,7 +344,7 @@ public:
                                   Array<int> &fattr) const;
 
 
-   /// I/O: Print the mesh in "MFEM nonconforming mesh v1.0" format.
+   /// I/O: Print the mesh in "MFEM NC mesh v1.0" format.
    void Print(std::ostream &out) const;
 
    /// Save memory by releasing all non-essential and cached data.
@@ -856,7 +856,7 @@ protected: // implementation
    /// Load the "coordinates" section of the mesh file.
    void LoadCoordinates(std::istream &input);
 
-   /// Count root elements and intialize root_state.
+   /// Count root elements and initialize root_state.
    void InitRootElements();
    /// Return the index of the last top-level node plus one.
    int CountTopLevelNodes() const;
