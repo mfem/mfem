@@ -221,6 +221,12 @@ public:
                                const IntegrationPoint &ip,
                                Vector &val, Vector *tr = NULL) const;
 
+   /** Sets the output vector @a dof_vals to the values of the degrees of
+       freedom of element @a el. If @a el is greater than or equal to the number
+       of local elements, it will be interpreted as a shifted index of a face
+       neighbor element. */
+   virtual void GetElementDofValues(int el, Vector &dof_vals) const;
+
    using GridFunction::ProjectCoefficient;
    virtual void ProjectCoefficient(Coefficient &coeff);
 
