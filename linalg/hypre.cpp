@@ -3178,6 +3178,16 @@ void HypreParaSails::SetSymmetry(int sym)
    HYPRE_ParaSailsSetSym(sai_precond, sym);
 }
 
+void HypreParaSails::SetLoadbalancing(double loadbal)
+{
+   HYPRE_ParaSailsSetLoadbal(sai_precond, loadbal);
+}
+
+void HypreParaSails::SetReuseParameter(int reuse)
+{
+   HYPRE_ParaSailsSetReuse(sai_precond, reuse);
+}
+
 void HypreParaSails::SetLogging(int logging)
 {
    HYPRE_ParaSailsSetLogging(sai_precond, logging);
