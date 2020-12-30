@@ -12,12 +12,11 @@
 #ifndef MFEM_SIMD_SVE_HPP
 #define MFEM_SIMD_SVE_HPP
 
-#if defined(__ARM_FEATURE_SVE)||1
+#if defined(__ARM_FEATURE_SVE) //||1
 #warning SVE AutoSIMD<double,8,64>
 
 #include "../../config/tconfig.hpp"
 
-#include <cassert>
 #include <arm_sve.h>
 #define PG svptrue_b64()
 

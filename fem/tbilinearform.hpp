@@ -12,7 +12,6 @@
 #ifndef MFEM_TEMPLATE_BILINEAR_FORM
 #define MFEM_TEMPLATE_BILINEAR_FORM
 
-#include "../general/debug.hpp"
 #include "../config/tconfig.hpp"
 #include "../linalg/simd.hpp"
 #include "../linalg/ttensor.hpp"
@@ -141,10 +140,6 @@ public:
         assembled_data(),
         in_fes(sol_fes)
    {
-      dbg("AB:%d, SS:%d, BE:%d",
-          32,//impl_traits_t::align_bytes,
-          impl_traits_t::simd_size,
-          impl_traits_t::batch_size);
       assembled_data.Reset(AB == 64 ? MemoryType::HOST_64 :
                            AB == 32 ? MemoryType::HOST_32 :
                            MemoryType::HOST);

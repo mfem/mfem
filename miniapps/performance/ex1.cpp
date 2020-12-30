@@ -36,7 +36,7 @@
 using namespace std;
 using namespace mfem;
 
-#define DIM2
+#undef DIM2
 
 // Define template parameters for optimized build.
 #ifdef DIM2
