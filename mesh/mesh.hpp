@@ -185,6 +185,9 @@ protected:
    MemAlloc <Tetrahedron, 1024> TetMemory;
 #endif
 
+   // used during NC mesh initialization only
+   Array<Triple<int, int, int> > tmp_vertex_parents;
+
 public:
    typedef Geometry::Constants<Geometry::SEGMENT>     seg_t;
    typedef Geometry::Constants<Geometry::TRIANGLE>    tri_t;
@@ -205,9 +208,6 @@ public:
    Array<GeometricFactors*> geom_factors; ///< Optional geometric factors.
    Array<FaceGeometricFactors*>
    face_geom_factors; ///< Optional face geometric factors.
-
-   /// Used during initialization only.
-   Array<Triple<int, int, int> > tmp_vertex_parents;
 
    // Global parameter that can be used to control the removal of unused
    // vertices performed when reading a mesh in MFEM format. The default value
@@ -234,7 +234,7 @@ protected:
 
    // Readers for different mesh formats, used in the Load() method.
    // The implementations of these methods are in mesh_readers.cpp.
-   void ReadMFEMMesh(std::istream &input, bool mfem_v11, int &curved);
+   void ReadMFEMMesh(std::istream &input, int version, int &curved);
    void ReadLineMesh(std::istream &input);
    void ReadNetgen2DMesh(std::istream &input, int &curved);
    void ReadNetgen3DMesh(std::istream &input);
