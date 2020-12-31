@@ -1132,16 +1132,14 @@ protected:
                               ElementTransformation &T,
                               const Vector &elfun, DenseMatrix &elmat);
 
-   void AssembleElemVecAdaptLim(const GridFunction &g, const GridFunction *g0,
-                                Coefficient &coeff, const FiniteElement &el,
-                                const Vector &weights, double normalization,
+   void AssembleElemVecAdaptLim(const FiniteElement &el,
                                 IsoparametricTransformation &Tpr,
-                                const IntegrationRule &ir, DenseMatrix &m);
-   void AssembleElemGradAdaptLim(const GridFunction &g, const GridFunction *g0,
-                                 Coefficient &coeff,  const FiniteElement &el,
-                                 const Vector &weights, double normalization,
+                                const IntegrationRule &ir,
+                                const Vector &weights, DenseMatrix &mat);
+   void AssembleElemGradAdaptLim(const FiniteElement &el,
                                  IsoparametricTransformation &Tpr,
-                                 const IntegrationRule &ir, DenseMatrix &m);
+                                 const IntegrationRule &ir,
+                                 const Vector &weights, DenseMatrix &m);
 
    // First derivative of the surface fitting term.
    void AssembleElemVecSurfFit(const FiniteElement &el_x,

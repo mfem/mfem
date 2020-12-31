@@ -2395,11 +2395,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
       }
    }
 
-   if (zeta)
-   {
-      AssembleElemVecAdaptLim(*zeta, zeta_0, *coeff_zeta,
-                              el, weights, lim_normal, *Tpr, ir, PMatO);
-   }
+   if (zeta) { AssembleElemVecAdaptLim(el, *Tpr, ir, weights, PMatO); }
    if (sigma) { AssembleElemVecSurfFit(el, *Tpr, ir, weights, PMatO); }
 
    delete Tpr;
@@ -2506,38 +2502,26 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       }
    }
 
-   if (zeta)
-   {
-      AssembleElemGradAdaptLim(*zeta, zeta_0, *coeff_zeta,
-                               el, weights, lim_normal, *Tpr, ir, elmat);
-   }
+   if (zeta) { AssembleElemGradAdaptLim(el, *Tpr, ir, weights, elmat); }
    if (sigma) { AssembleElemGradSurfFit(el, *Tpr, ir, weights, elmat); }
 
    delete Tpr;
 }
 
-void TMOP_Integrator::AssembleElemVecAdaptLim(const GridFunction &g,
-                                              const GridFunction *g0,
-                                              Coefficient &coeff,
-                                              const FiniteElement &el,
-                                              const Vector &weights,
-                                              double normalization,
+void TMOP_Integrator::AssembleElemVecAdaptLim(const FiniteElement &el,
                                               IsoparametricTransformation &Tpr,
                                               const IntegrationRule &ir,
+                                              const Vector &weights,
                                               DenseMatrix &mat)
 {
    const int dof = el.GetDof(), dim = el.GetDim(), nqp = weights.Size();
    Vector shape(dof), zeta_e, zeta_q, zeta0_q(nqp);
 
    Array<int> dofs;
-   g.FESpace()->GetElementDofs(Tpr.ElementNo, dofs);
-   g.GetSubVector(dofs, zeta_e);
-   g.GetValues(Tpr.ElementNo, ir, zeta_q);
-   if (g0)
-   {
-      g0->GetValues(Tpr.ElementNo, ir, zeta0_q);
-   }
-   else { zeta0_q = 0.0; }
+   zeta->FESpace()->GetElementDofs(Tpr.ElementNo, dofs);
+   zeta->GetSubVector(dofs, zeta_e);
+   zeta->GetValues(Tpr.ElementNo, ir, zeta_q);
+   zeta_0->GetValues(Tpr.ElementNo, ir, zeta0_q);
 
    // Project the gradient of zeta in the same space.
    // The FE coefficients of the gradient go in zeta_grad_e.
@@ -2555,33 +2539,25 @@ void TMOP_Integrator::AssembleElemVecAdaptLim(const GridFunction &g,
       el.CalcShape(ip, shape);
       zeta_grad_e.MultTranspose(shape, zeta_grad_q);
       zeta_grad_q *= 2.0 * (zeta_q(q) - zeta0_q(q));
-      zeta_grad_q *= weights(q) * normalization * coeff.Eval(Tpr, ip);
+      zeta_grad_q *= weights(q) * lim_normal * coeff_zeta->Eval(Tpr, ip);
       AddMultVWt(shape, zeta_grad_q, mat);
    }
 }
 
-void TMOP_Integrator::AssembleElemGradAdaptLim(const GridFunction &g,
-                                               const GridFunction *g0,
-                                               Coefficient &coeff,
-                                               const FiniteElement &el,
-                                               const Vector &weights,
-                                               double normalization,
+void TMOP_Integrator::AssembleElemGradAdaptLim(const FiniteElement &el,
                                                IsoparametricTransformation &Tpr,
                                                const IntegrationRule &ir,
+                                               const Vector &weights,
                                                DenseMatrix &mat)
 {
    const int dof = el.GetDof(), dim = el.GetDim(), nqp = weights.Size();
    Vector shape(dof), zeta_e, zeta_q, zeta0_q(nqp);
 
    Array<int> dofs;
-   g.FESpace()->GetElementDofs(Tpr.ElementNo, dofs);
-   g.GetSubVector(dofs, zeta_e);
-   g.GetValues(Tpr.ElementNo, ir, zeta_q);
-   if (g0)
-   {
-      g0->GetValues(Tpr.ElementNo, ir, zeta0_q);
-   }
-   else { zeta0_q = 0.0; }
+   zeta->FESpace()->GetElementDofs(Tpr.ElementNo, dofs);
+   zeta->GetSubVector(dofs, zeta_e);
+   zeta->GetValues(Tpr.ElementNo, ir, zeta_q);
+   zeta_0->GetValues(Tpr.ElementNo, ir, zeta0_q);
 
    // Project the gradient of zeta in the same space.
    // The FE coefficients of the gradient go in zeta_grad_e.
@@ -2610,7 +2586,7 @@ void TMOP_Integrator::AssembleElemGradAdaptLim(const GridFunction &g,
       Vector gg_ptr(zeta_grad_grad_q.GetData(), dim*dim);
       zeta_grad_grad_e.MultTranspose(shape, gg_ptr);
 
-      const double w = weights(q) * normalization * coeff.Eval(Tpr, ip);
+      const double w = weights(q) * lim_normal * coeff_zeta->Eval(Tpr, ip);
       for (int i = 0; i < dof * dim; i++)
       {
          const int idof = i % dof, idim = i / dof;
@@ -2874,8 +2850,7 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
       }
 
       PMatO.UseExternalData(elvect.GetData(), dof, dim);
-      AssembleElemVecAdaptLim(*zeta, zeta_0, *coeff_zeta, el,
-                              weights, lim_normal, Tpr, ir, PMatO);
+      AssembleElemVecAdaptLim(el, Tpr, ir, weights, PMatO);
    }
 }
 
@@ -2970,8 +2945,7 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
          weights(q) = ir.IntPoint(q).weight * Jtr(q).Det();
       }
 
-      AssembleElemGradAdaptLim(*zeta, zeta_0, *coeff_zeta, el,
-                               weights, lim_normal, Tpr, ir, elmat);
+      AssembleElemGradAdaptLim(el, Tpr, ir, weights, elmat);
    }
 }
 
