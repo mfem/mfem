@@ -150,7 +150,6 @@ public:
        vectors on the true dofs. */
    void TrueAddMult(const Vector &x, Vector &y, const double a = 1.0) const;
 
-   using BilinearForm::InnerProduct;
    /// Compute \f$ y^T M x \f$
    /** @warning The calculation is performed on local dofs, assuming that
        the local vectors are consistent with the prolongations of the true
@@ -158,11 +157,13 @@ public:
        use TrueInnerProduct(const ParGridFunction &, const ParGridFunction &)
        instead. */
    double InnerProduct(const ParGridFunction &x, const ParGridFunction &y);
+
    /// Compute \f$ y^T M x \f$ on true dofs (grid function version)
    /** @note It is assumed that the parallel system matrix is assembled,
        see FormSystemMatrix().
        @see InnerProduct(const ParGridFunction&, const ParGridFunction&) */
    double TrueInnerProduct(const ParGridFunction &x, const ParGridFunction &y);
+
    /// Compute \f$ y^T M x \f$ on true dofs (vector version)
    /** @note It is assumed that the parallel system matrix is assembled,
        see FormSystemMatrix(). */
