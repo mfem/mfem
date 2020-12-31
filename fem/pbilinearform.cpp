@@ -298,13 +298,24 @@ const
 double ParBilinearForm::InnerProduct(const ParGridFunction &x,
                                      const ParGridFunction &y)
 {
+   double loc = BilinearForm::InnerProduct(x, y);
+   double glob = 0.;
+
+   MPI_Allreduce(&loc, &glob, 1, MPI_DOUBLE, MPI_SUM, pfes->GetComm());
+
+   return glob;
+}
+
+double ParBilinearForm::TrueInnerProduct(const ParGridFunction &x,
+                                         const ParGridFunction &y)
+{
    MFEM_ASSERT(x.ParFESpace() == pfes, "the parallel spaces must agree");
    MFEM_ASSERT(y.ParFESpace() == pfes, "the parallel spaces must agree");
 
    HypreParVector *x_p = x.ParallelProject();
    HypreParVector *y_p = y.ParallelProject();
 
-   double res = InnerProduct(*x_p, *y_p);
+   double res = TrueInnerProduct(*x_p, *y_p);
 
    delete x_p;
    delete y_p;
@@ -312,8 +323,8 @@ double ParBilinearForm::InnerProduct(const ParGridFunction &x,
    return res;
 }
 
-double ParBilinearForm::InnerProduct(HypreParVector &x,
-                                     HypreParVector &y)
+double ParBilinearForm::TrueInnerProduct(HypreParVector &x,
+                                         HypreParVector &y)
 {
    MFEM_VERIFY(p_mat.Ptr() != NULL, "parallel matrix must be assembled");
 
