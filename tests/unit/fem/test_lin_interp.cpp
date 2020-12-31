@@ -489,293 +489,210 @@ TEST_CASE("Identity Linear Interpolators",
    }
 }
 
-TEST_CASE("1D Derivative Linear Interpolators",
-          "[GradientInterpolator]")
+TEST_CASE("Derivative Linear Interpolators",
+          "[GradientInterpolator]"
+          "[CurlInterpolator]"
+          "[DivergenceInterpolator]")
 {
-   int order_h1 = 1, order_l2 = 0, n = 3, dim = 1;
+   int order_h1 = 1, order_nd = 1, order_rt = 0, order_l2 = 0, n = 3, dim = -1;
    double tol = 1e-9;
-
-   FunctionCoefficient     fCoef(f1);
-   FunctionCoefficient GradfCoef(grad_f1);
-
 
    for (int type = (int)Element::SEGMENT;
-        type <= (int)Element::SEGMENT; type++)
-   {
-      Mesh mesh(n, (Element::Type)type, 1, 2.0);
-
-      SECTION("Operators on H1 for element type " + std::to_string(type))
-      {
-         H1_FECollection    fec_h1(order_h1, dim);
-         FiniteElementSpace fespace_h1(&mesh, &fec_h1);
-
-         GridFunction f0(&fespace_h1);
-         f0.ProjectCoefficient(fCoef);
-
-         SECTION("Mapping to L2")
-         {
-            L2_FECollection    fec_l2(order_l2, dim);
-            FiniteElementSpace fespace_l2(&mesh, &fec_l2);
-
-            GridFunction df0(&fespace_l2);
-
-            DiscreteLinearOperator Op(&fespace_h1,&fespace_l2);
-            Op.AddDomainInterpolator(new GradientInterpolator());
-            Op.Assemble();
-
-            Op.Mult(f0,df0);
-
-            REQUIRE( df0.ComputeL2Error(GradfCoef) < tol );
-         }
-         SECTION("Mapping to L2 (INTEGRAL)")
-         {
-            L2_FECollection    fec_l2(order_l2, dim,
-                                      BasisType::GaussLegendre,
-                                      FiniteElement::INTEGRAL);
-            FiniteElementSpace fespace_l2(&mesh, &fec_l2);
-
-            GridFunction df0(&fespace_l2);
-
-            DiscreteLinearOperator Op(&fespace_h1,&fespace_l2);
-            Op.AddDomainInterpolator(new GradientInterpolator());
-            Op.Assemble();
-
-            Op.Mult(f0,df0);
-
-            REQUIRE( df0.ComputeL2Error(GradfCoef) < tol );
-         }
-      }
-   }
-}
-
-TEST_CASE("2D Derivative Linear Interpolators",
-          "[GradientInterpolator]"
-          "[CurlInterpolator]"
-          "[DivergenceInterpolator]")
-{
-   int order_h1 = 1, order_nd = 1, order_rt = 0, order_l2 = 0, n = 3, dim = 2;
-   double tol = 1e-9;
-
-   FunctionCoefficient       fCoef(f2);
-   VectorFunctionCoefficient FCoef(dim, F2);
-
-   VectorFunctionCoefficient GradfCoef(dim, Grad_f2);
-   FunctionCoefficient       CurlFCoef(curlF2);
-   FunctionCoefficient       DivFCoef(DivF2);
-
-   for (int type = (int)Element::TRIANGLE;
-        type <= (int)Element::QUADRILATERAL; type++)
-   {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
-
-      SECTION("Operators on H1 for element type " + std::to_string(type))
-      {
-         H1_FECollection    fec_h1(order_h1, dim);
-         FiniteElementSpace fespace_h1(&mesh, &fec_h1);
-
-         GridFunction f0(&fespace_h1);
-         f0.ProjectCoefficient(fCoef);
-
-         SECTION("Mapping to HCurl")
-         {
-            ND_FECollection    fec_nd(order_nd, dim);
-            FiniteElementSpace fespace_nd(&mesh, &fec_nd);
-
-            GridFunction df0(&fespace_nd);
-
-            DiscreteLinearOperator Op(&fespace_h1,&fespace_nd);
-            Op.AddDomainInterpolator(new GradientInterpolator());
-            Op.Assemble();
-
-            Op.Mult(f0,df0);
-
-            REQUIRE( df0.ComputeL2Error(GradfCoef) < tol );
-         }
-      }
-      SECTION("Operators on HCurl for element type " + std::to_string(type))
-      {
-         ND_FECollection    fec_nd(order_nd, dim);
-         FiniteElementSpace fespace_nd(&mesh, &fec_nd);
-
-         GridFunction F1(&fespace_nd);
-         F1.ProjectCoefficient(FCoef);
-
-         SECTION("Mapping to L2 (INTEGRAL)")
-         {
-            L2_FECollection    fec_l2(order_l2, dim,
-                                      BasisType::GaussLegendre,
-                                      FiniteElement::INTEGRAL);
-            FiniteElementSpace fespace_l2(&mesh, &fec_l2);
-
-            GridFunction dF1(&fespace_l2);
-
-            DiscreteLinearOperator Op(&fespace_nd,&fespace_l2);
-            Op.AddDomainInterpolator(new CurlInterpolator());
-            Op.Assemble();
-
-            Op.Mult(F1,dF1);
-
-            REQUIRE( dF1.ComputeL2Error(CurlFCoef) < tol );
-         }
-      }
-      SECTION("Operators on HDiv for element type " + std::to_string(type))
-      {
-         RT_FECollection    fec_rt(order_rt, dim);
-         FiniteElementSpace fespace_rt(&mesh, &fec_rt);
-
-         GridFunction F2(&fespace_rt);
-         F2.ProjectCoefficient(FCoef);
-
-         SECTION("Mapping to L2")
-         {
-            L2_FECollection    fec_l2(order_l2, dim);
-            FiniteElementSpace fespace_l2(&mesh, &fec_l2);
-
-            GridFunction dF2(&fespace_l2);
-
-            DiscreteLinearOperator Op(&fespace_rt,&fespace_l2);
-            Op.AddDomainInterpolator(new DivergenceInterpolator());
-            Op.Assemble();
-
-            Op.Mult(F2,dF2);
-
-            REQUIRE( dF2.ComputeL2Error(DivFCoef) < tol );
-         }
-         SECTION("Mapping to L2 (INTEGRAL)")
-         {
-            L2_FECollection    fec_l2(order_l2, dim,
-                                      BasisType::GaussLegendre,
-                                      FiniteElement::INTEGRAL);
-            FiniteElementSpace fespace_l2(&mesh, &fec_l2);
-
-            GridFunction dF2(&fespace_l2);
-
-            DiscreteLinearOperator Op(&fespace_rt,&fespace_l2);
-            Op.AddDomainInterpolator(new DivergenceInterpolator());
-            Op.Assemble();
-
-            Op.Mult(F2,dF2);
-
-            REQUIRE( dF2.ComputeL2Error(DivFCoef) < tol );
-         }
-      }
-   }
-}
-
-TEST_CASE("3D Derivative Linear Interpolators",
-          "[GradientInterpolator]"
-          "[CurlInterpolator]"
-          "[DivergenceInterpolator]")
-{
-   int order_h1 = 1, order_nd = 1, order_rt = 0, order_l2 = 0, n = 3, dim = 3;
-   double tol = 1e-9;
-
-   FunctionCoefficient       fCoef(f3);
-   VectorFunctionCoefficient FCoef(dim, F3);
-
-   VectorFunctionCoefficient GradfCoef(dim, Grad_f3);
-   VectorFunctionCoefficient CurlFCoef(dim, CurlF3);
-   FunctionCoefficient       DivFCoef(DivF3);
-
-   for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh *mesh = NULL;
 
-      if (type == Element::TETRAHEDRON)
+      if (type < (int)Element::TRIANGLE)
       {
-         mesh.ReorientTetMesh();
+         dim = 1;
+         mesh = new Mesh(n, (Element::Type)type, 1, 2.0);
+
       }
+      else if (type < (int)Element::TETRAHEDRON)
+      {
+         dim = 2;
+         mesh = new Mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      }
+      else
+      {
+         dim = 3;
+         mesh = new Mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+
+         if (type == Element::TETRAHEDRON)
+         {
+            mesh->ReorientTetMesh();
+         }
+      }
+
+      FunctionCoefficient        fCoef((dim==1) ? f1 :
+                                       ((dim==2) ? f2 : f3));
+      FunctionCoefficient       gradfCoef(grad_f1);
+      VectorFunctionCoefficient GradfCoef(dim,
+                                          (dim==1) ? Grad_f1 :
+                                          ((dim==2)? Grad_f2 : Grad_f3));
 
       SECTION("Operators on H1 for element type " + std::to_string(type))
       {
          H1_FECollection    fec_h1(order_h1, dim);
-         FiniteElementSpace fespace_h1(&mesh, &fec_h1);
+         FiniteElementSpace fespace_h1(mesh, &fec_h1);
 
          GridFunction f0(&fespace_h1);
          f0.ProjectCoefficient(fCoef);
 
-         SECTION("Mapping to HCurl")
+         if (dim ==1)
+         {
+            SECTION("Mapping to L2")
+            {
+               L2_FECollection    fec_l2(order_l2, dim);
+               FiniteElementSpace fespace_l2(mesh, &fec_l2);
+
+               GridFunction df0(&fespace_l2);
+
+               DiscreteLinearOperator Op(&fespace_h1,&fespace_l2);
+               Op.AddDomainInterpolator(new GradientInterpolator());
+               Op.Assemble();
+
+               Op.Mult(f0,df0);
+
+               REQUIRE( df0.ComputeL2Error(gradfCoef) < tol );
+            }
+            SECTION("Mapping to L2 (INTEGRAL)")
+            {
+               L2_FECollection    fec_l2(order_l2, dim,
+                                         BasisType::GaussLegendre,
+                                         FiniteElement::INTEGRAL);
+               FiniteElementSpace fespace_l2(mesh, &fec_l2);
+
+               GridFunction df0(&fespace_l2);
+
+               DiscreteLinearOperator Op(&fespace_h1,&fespace_l2);
+               Op.AddDomainInterpolator(new GradientInterpolator());
+               Op.Assemble();
+
+               Op.Mult(f0,df0);
+
+               REQUIRE( df0.ComputeL2Error(gradfCoef) < tol );
+            }
+
+         }
+         else
+         {
+            SECTION("Mapping to HCurl")
+            {
+               ND_FECollection    fec_nd(order_nd, dim);
+               FiniteElementSpace fespace_nd(mesh, &fec_nd);
+
+               GridFunction df0(&fespace_nd);
+
+               DiscreteLinearOperator Op(&fespace_h1,&fespace_nd);
+               Op.AddDomainInterpolator(new GradientInterpolator());
+               Op.Assemble();
+
+               Op.Mult(f0,df0);
+
+               REQUIRE( df0.ComputeL2Error(GradfCoef) < tol );
+            }
+         }
+      }
+      if (dim > 1)
+      {
+         VectorFunctionCoefficient     FCoef(dim,
+                                             (dim==2) ? F2 : F3);
+         FunctionCoefficient       curlFCoef(curlF2);
+         VectorFunctionCoefficient CurlFCoef(dim,
+                                             (dim==2) ? CurlF2 : CurlF3);
+         FunctionCoefficient        DivFCoef((dim==2) ? DivF2 : DivF3);
+
+         SECTION("Operators on HCurl for element type " + std::to_string(type))
          {
             ND_FECollection    fec_nd(order_nd, dim);
-            FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+            FiniteElementSpace fespace_nd(mesh, &fec_nd);
 
-            GridFunction df0(&fespace_nd);
+            GridFunction F1(&fespace_nd);
+            F1.ProjectCoefficient(FCoef);
 
-            DiscreteLinearOperator Op(&fespace_h1,&fespace_nd);
-            Op.AddDomainInterpolator(new GradientInterpolator());
-            Op.Assemble();
+            if (dim == 2)
+            {
+               SECTION("Mapping to L2 (INTEGRAL)")
+               {
+                  L2_FECollection    fec_l2(order_l2, dim,
+                                            BasisType::GaussLegendre,
+                                            FiniteElement::INTEGRAL);
+                  FiniteElementSpace fespace_l2(mesh, &fec_l2);
 
-            Op.Mult(f0,df0);
+                  GridFunction dF1(&fespace_l2);
 
-            REQUIRE( df0.ComputeL2Error(GradfCoef) < tol );
+                  DiscreteLinearOperator Op(&fespace_nd,&fespace_l2);
+                  Op.AddDomainInterpolator(new CurlInterpolator());
+                  Op.Assemble();
+
+                  Op.Mult(F1,dF1);
+
+                  REQUIRE( dF1.ComputeL2Error(curlFCoef) < tol );
+               }
+            }
+            else
+            {
+               SECTION("Mapping to HDiv")
+               {
+                  RT_FECollection    fec_rt(order_rt, dim);
+                  FiniteElementSpace fespace_rt(mesh, &fec_rt);
+
+                  GridFunction dF1(&fespace_rt);
+
+                  DiscreteLinearOperator Op(&fespace_nd,&fespace_rt);
+                  Op.AddDomainInterpolator(new CurlInterpolator());
+                  Op.Assemble();
+
+                  Op.Mult(F1,dF1);
+
+                  REQUIRE( dF1.ComputeL2Error(CurlFCoef) < tol );
+               }
+            }
          }
-      }
-      SECTION("Operators on HCurl for element type " + std::to_string(type))
-      {
-         ND_FECollection    fec_nd(order_nd, dim);
-         FiniteElementSpace fespace_nd(&mesh, &fec_nd);
-
-         GridFunction F1(&fespace_nd);
-         F1.ProjectCoefficient(FCoef);
-
-         SECTION("Mapping to HDiv")
+         SECTION("Operators on HDiv for element type " + std::to_string(type))
          {
             RT_FECollection    fec_rt(order_rt, dim);
-            FiniteElementSpace fespace_rt(&mesh, &fec_rt);
+            FiniteElementSpace fespace_rt(mesh, &fec_rt);
 
-            GridFunction dF1(&fespace_rt);
+            GridFunction F2(&fespace_rt);
+            F2.ProjectCoefficient(FCoef);
 
-            DiscreteLinearOperator Op(&fespace_nd,&fespace_rt);
-            Op.AddDomainInterpolator(new CurlInterpolator());
-            Op.Assemble();
+            SECTION("Mapping to L2")
+            {
+               L2_FECollection    fec_l2(order_l2, dim);
+               FiniteElementSpace fespace_l2(mesh, &fec_l2);
 
-            Op.Mult(F1,dF1);
+               GridFunction dF2(&fespace_l2);
 
-            REQUIRE( dF1.ComputeL2Error(CurlFCoef) < tol );
+               DiscreteLinearOperator Op(&fespace_rt,&fespace_l2);
+               Op.AddDomainInterpolator(new DivergenceInterpolator());
+               Op.Assemble();
+
+               Op.Mult(F2,dF2);
+
+               REQUIRE( dF2.ComputeL2Error(DivFCoef) < tol );
+            }
+            SECTION("Mapping to L2 (INTEGRAL)")
+            {
+               L2_FECollection    fec_l2(order_l2, dim,
+                                         BasisType::GaussLegendre,
+                                         FiniteElement::INTEGRAL);
+               FiniteElementSpace fespace_l2(mesh, &fec_l2);
+
+               GridFunction dF2(&fespace_l2);
+
+               DiscreteLinearOperator Op(&fespace_rt,&fespace_l2);
+               Op.AddDomainInterpolator(new DivergenceInterpolator());
+               Op.Assemble();
+
+               Op.Mult(F2,dF2);
+
+               REQUIRE( dF2.ComputeL2Error(DivFCoef) < tol );
+            }
          }
       }
-      SECTION("Operators on HDiv for element type " + std::to_string(type))
-      {
-         RT_FECollection    fec_rt(order_rt, dim);
-         FiniteElementSpace fespace_rt(&mesh, &fec_rt);
-
-         GridFunction F2(&fespace_rt);
-         F2.ProjectCoefficient(FCoef);
-
-         SECTION("Mapping to L2")
-         {
-            L2_FECollection    fec_l2(order_l2, dim);
-            FiniteElementSpace fespace_l2(&mesh, &fec_l2);
-
-            GridFunction dF2(&fespace_l2);
-
-            DiscreteLinearOperator Op(&fespace_rt,&fespace_l2);
-            Op.AddDomainInterpolator(new DivergenceInterpolator());
-            Op.Assemble();
-
-            Op.Mult(F2,dF2);
-
-            REQUIRE( dF2.ComputeL2Error(DivFCoef) < tol );
-         }
-         SECTION("Mapping to L2 (INTEGRAL)")
-         {
-            L2_FECollection    fec_l2(order_l2, dim,
-                                      BasisType::GaussLegendre,
-                                      FiniteElement::INTEGRAL);
-            FiniteElementSpace fespace_l2(&mesh, &fec_l2);
-
-            GridFunction dF2(&fespace_l2);
-
-            DiscreteLinearOperator Op(&fespace_rt,&fespace_l2);
-            Op.AddDomainInterpolator(new DivergenceInterpolator());
-            Op.Assemble();
-
-            Op.Mult(F2,dF2);
-
-            REQUIRE( dF2.ComputeL2Error(DivFCoef) < tol );
-         }
-      }
+      delete mesh;
    }
 }
 
