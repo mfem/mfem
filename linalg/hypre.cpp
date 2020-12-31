@@ -3173,6 +3173,16 @@ void HypreParaSails::SetOperator(const Operator &op)
    B = X = NULL;
 }
 
+void HypreParaSails::SetParameters(double thresh, int nlevels)
+{
+   HYPRE_ParaSailsSetParams(sai_precond, thresh, nlevels);
+}
+
+void HypreParaSails::SetFilterParameter(double filter)
+{
+   HYPRE_ParaSailsSetFilter(sai_precond, filter);
+}
+
 void HypreParaSails::SetSymmetry(int sym)
 {
    HYPRE_ParaSailsSetSym(sai_precond, sym);
