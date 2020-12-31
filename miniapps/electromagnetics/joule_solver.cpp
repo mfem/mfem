@@ -797,13 +797,7 @@ void MagneticDiffusionEOperator::buildGrad()
 
 double MagneticDiffusionEOperator::ElectricLosses(ParGridFunction &E_gf) const
 {
-   double el = m1->InnerProduct((GridFunction&)E_gf,(GridFunction&)E_gf);
-
-   double global_el;
-   MPI_Allreduce(&el, &global_el, 1, MPI_DOUBLE, MPI_SUM,
-                 m2->ParFESpace()->GetComm());
-
-   return el;
+   return m1->InnerProduct(E_gf, E_gf);
 }
 
 // E is the input GF, w is the output GF which is assumed to be an L2 scalar
