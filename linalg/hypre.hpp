@@ -976,12 +976,14 @@ public:
     * values are @a thresh = 0.1 and @a nlevels = 1.
     */
    void SetParameters(double thresh, int nlevels);
+
    /// Set the filter parameter
    /** The filter parameter is used to drop small nonzeros in the preconditioner,
     * to reduce the cost of applying the preconditioner. Values from 0.055
     * to 0.1 are recommended. The default value is 0.1.
     */
-   void SetFilterParameter(double filter);
+   void SetFilter(double filter);
+
    /// Set symmetry parameter
    /** The recognized options are:
     *  0 = nonsymmetric and/or indefinite problem, and nonsymmetric preconditioner
@@ -989,6 +991,7 @@ public:
     *  2 = nonsymmetric, definite problem, and SPD (factored) preconditioner
     */
    void SetSymmetry(int sym);
+
    /// Set the load balance parameter
    /** A zero value indicates that no load balance is attempted; a value
     * of unity indicates that perfect load balance will be attempted. The
@@ -997,13 +1000,15 @@ public:
     * is very sparse and fast to construct. The default value is 0.
     */
    void SetLoadbalancing(double loadbal);
+
    /// Set the pattern reuse parameter
    /** A nonzero value indicates that the pattern of the preconditioner
     * should be reused for subsequent constructions of the proconditioner.
     * A zero value inicates that the peconditioner should be constructed
     * from scratch. The default value is 0.
     */
-   void SetReuseParameter(int reuse);
+   void SetReuse(int reuse);
+
    /// Set the logging parameter
    /** A nonzero value prints statistics of the setup procedure to stdout.
     * The default value of this parameter is 1.

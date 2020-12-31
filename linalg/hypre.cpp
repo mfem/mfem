@@ -3178,7 +3178,7 @@ void HypreParaSails::SetParameters(double thresh, int nlevels)
    HYPRE_ParaSailsSetParams(sai_precond, thresh, nlevels);
 }
 
-void HypreParaSails::SetFilterParameter(double filter)
+void HypreParaSails::SetFilter(double filter)
 {
    HYPRE_ParaSailsSetFilter(sai_precond, filter);
 }
@@ -3193,7 +3193,7 @@ void HypreParaSails::SetLoadbalancing(double loadbal)
    HYPRE_ParaSailsSetLoadbal(sai_precond, loadbal);
 }
 
-void HypreParaSails::SetReuseParameter(int reuse)
+void HypreParaSails::SetReuse(int reuse)
 {
    HYPRE_ParaSailsSetReuse(sai_precond, reuse);
 }
