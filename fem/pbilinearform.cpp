@@ -328,13 +328,13 @@ double ParBilinearForm::TrueInnerProduct(HypreParVector &x,
 {
    MFEM_VERIFY(p_mat.Ptr() != NULL, "parallel matrix must be assembled");
 
-   HypreParVector *Ay = new HypreParVector(pfes);
+   HypreParVector *Ax = new HypreParVector(pfes);
    HypreParMatrix *A = p_mat.As<HypreParMatrix>();
-   A->Mult(y, *Ay);
+   A->Mult(x, *Ax);
 
-   double res = mfem::InnerProduct(x, *Ay);
+   double res = mfem::InnerProduct(y, *Ax);
 
-   delete Ay;
+   delete Ax;
 
    return res;
 }
