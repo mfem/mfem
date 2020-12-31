@@ -309,8 +309,8 @@ double ParBilinearForm::InnerProduct(const ParGridFunction &x,
 double ParBilinearForm::TrueInnerProduct(const ParGridFunction &x,
                                          const ParGridFunction &y)
 {
-   MFEM_ASSERT(x.ParFESpace() == pfes, "the parallel spaces must agree");
-   MFEM_ASSERT(y.ParFESpace() == pfes, "the parallel spaces must agree");
+   MFEM_ASSERT(x.ParFESpace() == pfes, "the parallel spaces must match");
+   MFEM_ASSERT(y.ParFESpace() == pfes, "the parallel spaces must match");
 
    HypreParVector *x_p = x.ParallelProject();
    HypreParVector *y_p = y.ParallelProject();
