@@ -682,7 +682,7 @@ int main (int argc, char *argv[])
       }
    }
 
-   // Surface alignment.
+   // Surface fitting.
    L2_FECollection mat_coll(0, dim);
    H1_FECollection sigma_fec(mesh_poly_deg, dim);
    ParFiniteElementSpace sigma_fes(pmesh, &sigma_fec);
@@ -799,7 +799,19 @@ int main (int argc, char *argv[])
    }
    else { a.AddDomainIntegrator(he_nlf_integ); }
 
+   // Compute the initial energy of the functional.
    const double init_energy = a.GetParGridFunctionEnergy(x);
+   double init_metric_energy = init_energy;
+   if (lim_const > 0.0 || adapt_lim_const > 0.0 || surface_fit_const > 0.0)
+   {
+      lim_coeff.constant = 0.0;
+      coef_zeta.constant = 0.0;
+      coef_ls.constant   = 0.0;
+      init_metric_energy = a.GetParGridFunctionEnergy(x);
+      lim_coeff.constant = lim_const;
+      coef_zeta.constant = adapt_lim_const;
+      coef_ls.constant   = surface_fit_const;
+   }
 
    // Visualize the starting mesh and metric values.
    // Note that for combinations of metrics, this only shows the first metric.
@@ -966,28 +978,29 @@ int main (int argc, char *argv[])
                              900, 900, 300, 300);
    }
 
-   // 17. Compute the amount of energy decrease.
+   // Compute the final energy of the functional.
    const double fin_energy = a.GetParGridFunctionEnergy(x);
-   double metric_part = fin_energy;
+   double fin_metric_energy = fin_energy;
    if (lim_const > 0.0 || adapt_lim_const > 0.0 || surface_fit_const > 0.0)
    {
       lim_coeff.constant = 0.0;
       coef_zeta.constant = 0.0;
-      coef_ls.constant = 0.0;
-      metric_part = a.GetParGridFunctionEnergy(x);
+      coef_ls.constant   = 0.0;
+      fin_metric_energy  = a.GetParGridFunctionEnergy(x);
       lim_coeff.constant = lim_const;
       coef_zeta.constant = adapt_lim_const;
-      coef_ls.constant = surface_fit_const;
+      coef_ls.constant   = surface_fit_const;
    }
    if (myid == 0)
    {
+      std::cout << std::scientific << std::setprecision(4);
       cout << "Initial strain energy: " << init_energy
-           << " = metrics: " << init_energy
-           << " + limiting term: " << 0.0 << endl;
+           << " = metrics: " << init_metric_energy
+           << " + extra terms: " << init_energy - init_metric_energy << endl;
       cout << "  Final strain energy: " << fin_energy
-           << " = metrics: " << metric_part
-           << " + limiting term: " << fin_energy - metric_part << endl;
-      cout << "The strain energy decreased by: " << setprecision(12)
+           << " = metrics: " << fin_metric_energy
+           << " + extra terms: " << fin_energy - fin_metric_energy << endl;
+      cout << "The strain energy decreased by: "
            << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
    }
 
