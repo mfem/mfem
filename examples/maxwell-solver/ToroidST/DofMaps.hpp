@@ -28,6 +28,10 @@ void PartitionFE(const FiniteElementSpace * fes, int nrsubmeshes, double ovlp,
                  Array<Array<int> * > & OvlpMaps0, 
                  Array<Array<int> * > & OvlpMaps1);
 
+// Get tdofs associated with the given list of elements
+void RestrictDofs(FiniteElementSpace &fes, const Array<int> & elems, Array<int> & rdofs);
+void GetElements(Mesh &mesh, double ovlp, int direction, Array<int> & elems);
+
 
 void DofMapTests(FiniteElementSpace &fes0, FiniteElementSpace &fes1,
                  const Array<int> & dmap0, const Array<int> & dmap1);                 

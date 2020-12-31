@@ -1,7 +1,6 @@
 
 #include "MeshPart.hpp"
 
-
 void GetMeshAngleRange(Mesh * mesh, double & amin, double & amax)
 {
    amin = infinity();
@@ -39,15 +38,9 @@ void SetMeshAttributes(Mesh * mesh, int subdivisions, double ovlp)
 {
    Array<double> angles(2*subdivisions);
 
-   double amin = 0.0;
+   double amin, amax; 
+   GetMeshAngleRange(mesh,amin,amax);
    angles[0] = amin;
-   double amax = 270;
-
-   double pmin, pmax;
-   GetMeshAngleRange(mesh,pmin,pmax);
-
-   cout << "pmin = " << pmin << endl;
-   cout << "pmax = " << pmax << endl;
 
    double length = (amax-amin)/subdivisions;
    double range;
@@ -70,16 +63,10 @@ void SetMeshAttributes(Mesh * mesh, int subdivisions, double ovlp)
       mesh->GetElementCenter(i,center);
       double x = center[0];
       double y = center[1];
+      x = (abs(x)<1e-12) ? 0.0 : x;
+      y = (abs(y)<1e-12) ? 0.0 : y;
       double theta = (x == 0) ? M_PI/2.0 : atan(y/x);
-      int k = 0;
-      if (x<0)
-      {
-         k = 1;
-      }
-      else if (y<0)
-      {
-         k = 2;
-      }
+      int k = (x<=0.0) ? 1 : ((y<0.0) ? 2 : 0.0);
       theta += k*M_PI;
       double thetad = theta * 180.0/M_PI;
       // Find the angle relative to (0,0,z)
