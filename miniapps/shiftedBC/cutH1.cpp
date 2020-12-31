@@ -56,6 +56,29 @@ void PrintDofElemTable(const Table &elem_dof, const ParMesh &pmesh, int lvl = 0)
    }
 }
 
+void PrintDofTable(const Table &obj_to_dof, string table_label, bool transp)
+{
+   Table dof_to_obj;
+   if (transp) { Transpose(obj_to_dof, dof_to_obj); }
+   else        { dof_to_obj = obj_to_dof; }
+
+   const int nrows = dof_to_obj.Size();
+   std::cout << "------\n" << table_label
+             << ".\n------\nTotal DOFs: " << nrows << std::endl;
+   Array<int> dof_objects;
+   for (int dof = 0; dof < nrows; dof++)
+   {
+      // Find the materials that share the current dof.
+      dof_to_obj.GetRow(dof, dof_objects);
+      std::cout << "Objects for DOF " << dof << ": \n";
+      for (int o = 0; o < dof_objects.Size(); o++)
+      {
+         cout << dof_objects[o] << " ";
+      }
+      std::cout << std::endl;
+   }
+}
+
 void VisualizeL2(ParGridFunction &gf, int size, int x, int y)
 {
    int num_procs, myid;
@@ -270,24 +293,32 @@ int main(int argc, char *argv[])
    PrintDofElemTable(elem_dof, pmesh, 0);
    PrintDofElemTable(new_elem_dof, pmesh, 0);
 
-   // Cut the space.
-   pfes.ReplaceElemDofTable(new_elem_dof, ndofs);
-   pfes.ReplaceBdrElemDofTable(new_bdre_dof);
-
    // Set face_attribute = 77 to faces that are on the material interface.
+   // Remove face dofs for cut faces.
+   const Table &face_dof = pfes.GetFaceToDofTable();
+   Table new_face_dof(face_dof);
    for (int f = 0; f < pmesh.GetNumFaces(); f++)
    {
       auto *ftr = pmesh.GetFaceElementTransformations(f, 3);
       if (ftr->Elem2No > 0 &&
           pmesh.GetAttribute(ftr->Elem1No) != pmesh.GetAttribute(ftr->Elem2No))
       {
-//         std::cout << ftr->Elem1No << " " << ftr->Elem2No << std::endl;
-//         std::cout << pmesh.GetAttribute(ftr->Elem1No) << " "
-//                   << pmesh.GetAttribute(ftr->Elem2No) << std::endl;
-//         std::cout << "Setting face " << f << std::endl;
+         std::cout << ftr->Elem1No << " " << ftr->Elem2No << std::endl;
+         std::cout << pmesh.GetAttribute(ftr->Elem1No) << " "
+                            << pmesh.GetAttribute(ftr->Elem2No) << std::endl;
+         std::cout << "Setting face " << f << std::endl;
          pmesh.SetFaceAttribute(f, 77);
+
+         std::cout << "Removing face dofs for face " << f << std::endl;
+         new_face_dof.RemoveRow(f);
       }
    }
+   new_face_dof.Finalize();
+
+   // Cut the space.
+   pfes.ReplaceElemDofTable(new_elem_dof, ndofs);
+   pfes.ReplaceBdrElemDofTable(new_bdre_dof);
+   pfes.ReplaceFaceDofTable(new_face_dof);
 
    // Simple Dirichlet BC.
    Array<int> ess_tdof_list;

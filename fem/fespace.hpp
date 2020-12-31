@@ -319,6 +319,10 @@ public:
    {
       *bdrElem_dof = new_bdrElem_dof;
    }
+   void ReplaceFaceDofTable(const Table &new_face_dof)
+   {
+      *face_dof = new_face_dof;
+   }
 
    /// Returns the mesh
    inline Mesh *GetMesh() const { return mesh; }

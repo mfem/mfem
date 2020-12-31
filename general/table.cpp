@@ -124,6 +124,14 @@ void Table::ReplaceConnection(int r, int c_old, int c_new)
    }
 }
 
+void Table::RemoveRow(int r)
+{
+   for (int j=I[r]; j<I[r+1]; j++)
+   {
+      J[j] = -1;
+   }
+}
+
 void Table::ShiftUpI()
 {
    for (int i = size; i > 0; i--)
