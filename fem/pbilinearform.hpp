@@ -151,14 +151,22 @@ public:
    void TrueAddMult(const Vector &x, Vector &y, const double a = 1.0) const;
 
    using BilinearForm::InnerProduct;
-   /// Compute inner product x^t A y (grid function version)
-   /** @note It is assumed that the parallel system matrix is assembled,
-       see FormSystemMatrix(). */
+   /// Compute inner product x^t A y
+   /** @warning The calculation is performed on local dofs, assuming that
+       the local vectors are consistent with the prolongations of the true
+       vectors (see ParGridFunction::Distribute()). If this is not the case,
+       use TrueInnerProduct(const ParGridFunction &, const ParGridFunction &)
+       instead. */
    double InnerProduct(const ParGridFunction &x, const ParGridFunction &y);
-   /// Compute inner product x^t A y (vector version)
+   /// Compute inner product x^t A y on true dofs (grid function version)
+   /** @note It is assumed that the parallel system matrix is assembled,
+       see FormSystemMatrix().
+       @see InnerProduct(const ParGridFunction&, const ParGridFunction&) */
+   double TrueInnerProduct(const ParGridFunction &x, const ParGridFunction &y);
+   /// Compute inner product x^t A y on true dofs (vector version)
    /** @note It is assumed that the parallel system matrix is assembled,
        see FormSystemMatrix(). */
-   double InnerProduct(HypreParVector &x, HypreParVector &y);
+   double TrueInnerProduct(HypreParVector &x, HypreParVector &y);
 
    /// Return the parallel FE space associated with the ParBilinearForm.
    ParFiniteElementSpace *ParFESpace() const { return pfes; }
