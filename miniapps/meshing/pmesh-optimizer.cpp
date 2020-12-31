@@ -110,7 +110,7 @@ int main (int argc, char *argv[])
    int target_id         = 1;
    double lim_const      = 0.0;
    double adapt_lim_const = 0.0;
-   double surface_const   = 0.0;
+   double surface_fit_const   = 0.0;
    int quad_type         = 1;
    int quad_order        = 8;
    int solver_type       = 0;
@@ -181,7 +181,7 @@ int main (int argc, char *argv[])
    args.AddOption(&lim_const, "-lc", "--limit-const", "Limiting constant.");
    args.AddOption(&adapt_lim_const, "-alc", "--adapt-limit-const",
                   "Adaptive limiting coefficient constant.");
-   args.AddOption(&surface_const, "-sc", "--surface-const",
+   args.AddOption(&surface_fit_const, "-sfc", "--surface-fit-const",
                   "Surface preservation constant.");
    args.AddOption(&quad_type, "-qt", "--quad-type",
                   "Quadrature rule type:\n\t"
@@ -691,9 +691,9 @@ int main (int argc, char *argv[])
    ParGridFunction marker_gf(&sigma_fes);
    ParGridFunction ls_0(&sigma_fes);
    Array<bool> marker(ls_0.Size());
-   ConstantCoefficient coef_ls(surface_const);
+   ConstantCoefficient coef_ls(surface_fit_const);
    AdaptivityEvaluator *adapt_surface = NULL;
-   if (surface_const > 0.0)
+   if (surface_fit_const > 0.0)
    {
       FunctionCoefficient ls_coeff(surface_level_set);
       ls_0.ProjectCoefficient(ls_coeff);
@@ -969,7 +969,7 @@ int main (int argc, char *argv[])
    // 17. Compute the amount of energy decrease.
    const double fin_energy = a.GetParGridFunctionEnergy(x);
    double metric_part = fin_energy;
-   if (lim_const > 0.0 || adapt_lim_const > 0.0 || surface_const > 0.0)
+   if (lim_const > 0.0 || adapt_lim_const > 0.0 || surface_fit_const > 0.0)
    {
       lim_coeff.constant = 0.0;
       coef_zeta.constant = 0.0;
@@ -977,7 +977,7 @@ int main (int argc, char *argv[])
       metric_part = a.GetParGridFunctionEnergy(x);
       lim_coeff.constant = lim_const;
       coef_zeta.constant = adapt_lim_const;
-      coef_ls.constant = surface_const;
+      coef_ls.constant = surface_fit_const;
    }
    if (myid == 0)
    {
