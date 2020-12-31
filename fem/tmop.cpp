@@ -2828,8 +2828,8 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
    }
    fd_call_flag = false;
 
-   // Contributions from adaptive limiting (exact derivatives).
-   if (zeta)
+   // Contributions from adaptive limiting, surface fitting (exact derivatives).
+   if (zeta || sigma)
    {
       const IntegrationRule &ir = ActionIntegrationRule(el);
       const int nqp = ir.GetNPoints();
@@ -2850,7 +2850,8 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
       }
 
       PMatO.UseExternalData(elvect.GetData(), dof, dim);
-      AssembleElemVecAdaptLim(el, Tpr, ir, weights, PMatO);
+      if (zeta) { AssembleElemVecAdaptLim(el, Tpr, ir, weights, PMatO); }
+      if (sigma) { AssembleElemVecSurfFit(el, Tpr, ir, weights, PMatO); }
    }
 }
 
@@ -2925,7 +2926,7 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
    fd_call_flag = false;
 
    // Contributions from adaptive limiting.
-   if (zeta)
+   if (zeta || sigma)
    {
       const IntegrationRule &ir = GradientIntegrationRule(el);
       const int nqp = ir.GetNPoints();
@@ -2945,7 +2946,8 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
          weights(q) = ir.IntPoint(q).weight * Jtr(q).Det();
       }
 
-      AssembleElemGradAdaptLim(el, Tpr, ir, weights, elmat);
+      if (zeta) { AssembleElemGradAdaptLim(el, Tpr, ir, weights, elmat); }
+      if (sigma) { AssembleElemGradSurfFit(el, Tpr, ir, weights, elmat); }
    }
 }
 
