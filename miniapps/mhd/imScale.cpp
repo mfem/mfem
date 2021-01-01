@@ -81,8 +81,8 @@ int main(int argc, char *argv[])
                   "            22 - Implicit Midpoint, 23 - SDIRK23, 24 - SDIRK34.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
-   args.AddOption(&dt, "-dt", "--time-step",
-                  "Time step.");
+   args.AddOption(&dt, "-dt", "--time-step","Time step.");
+   args.AddOption(&beta, "-perturb", "--perturb","Pertuerbation in the initial condition.");
    args.AddOption(&im_supg, "-im_supg", "--im_supg",
                   "supg options in formulation");
    args.AddOption(&i_supgpre, "-i_supgpre", "--i_supgpre",
@@ -112,6 +112,8 @@ int main(int argc, char *argv[])
                   "PetscOptions file to use.");
    args.AddOption(&iUpdateJ, "-updatej", "--update-j",
                   "UpdateJ: 0 - no boundary condition used; 1 - Dirichlet used on J boundary.");
+   args.AddOption(&BgradJ, "-BgradJ", "--BgradJ",
+                  "BgradJ: 1 - (B.grad J, phi); 2 - (-J, B.grad phi); 3 - (-B J, grad phi).");
    args.AddOption(&slowStart, "-slow", "--slow-start", "-no-slow", "--no-slow-start",
                   "Slow start");
    args.AddOption(&pa, "-pa", "--patial-assembly", "-no-pa",

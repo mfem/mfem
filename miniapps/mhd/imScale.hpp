@@ -7,6 +7,14 @@
 using namespace std;
 using namespace mfem;
 
+double variVisc(const Vector &x)
+{
+    if ((1.-abs(x(1)))<1e-2)
+        return 1e-2;
+    else
+        return 0.;
+}
+
 //------------this is for explicit solver only------------
 int ex_supg=2;  //1: test supg with v term only (it assumes viscosity==resistivity now)
                 //2: test hyperdiffusion along B only 
@@ -54,8 +62,8 @@ class ReducedSystemOperator : public Operator
 {
 private:
    ParFiniteElementSpace &fespace;
-   ParBilinearForm *M, *Mlumped, *K, *KB, *DRe, *DSl; 
-   HypreParMatrix &Mmat, &Kmat, *DRematpr, *DSlmatpr, &KBMat;
+   ParBilinearForm *M, *Mlumped, *K, *KB, *DRe, *DSl, *bdrDiff; 
+   HypreParMatrix &Mmat, &Mfullmat, &Kmat, *DRematpr, *DSlmatpr, &KBMat;
    //own by this:
    HypreParMatrix *Mdtpr, *ARe, *ASl, *MinvKB;
    mutable HypreParMatrix *ScFull, *AReFull, *NbFull, *PwMat, Mmatlp, *NbMat;
@@ -87,7 +95,7 @@ private:
 
 public:
    ReducedSystemOperator(ParFiniteElementSpace &f,
-                         ParBilinearForm *M_, HypreParMatrix &Mmat_,
+                         ParBilinearForm *M_, HypreParMatrix &Mmat_, HypreParMatrix &Mfullmat_,
                          ParBilinearForm *K_, HypreParMatrix &Kmat_,
                          ParBilinearForm *KB_, HypreParMatrix &KBMat_,
                          ParBilinearForm *DRe_, ParBilinearForm *DSl_,
@@ -98,7 +106,7 @@ public:
 
    //this add the useFull option
    ReducedSystemOperator(ParFiniteElementSpace &f,
-                         ParBilinearForm *M_, HypreParMatrix &Mmat_,
+                         ParBilinearForm *M_, HypreParMatrix &Mmat_, HypreParMatrix &Mfullmat_,
                          ParBilinearForm *K_, HypreParMatrix &Kmat_,
                          ParBilinearForm *KB_, HypreParMatrix &KBMat_,
                          ParBilinearForm *DRe_, HypreParMatrix *DRemat_,
@@ -292,7 +300,7 @@ protected:
    mutable ParBilinearForm *StabMass, *StabNb, *StabNv; 
    ParLinearForm *E0, *StabE0; //source terms
    mutable ParLinearForm zLF; //LinearForm holder for updating J
-   HypreParMatrix Kmat, Mmat, *MfullMat, MlumpedMat, DSlmat, DRemat, *KBMat;
+   HypreParMatrix Kmat, Mmat, *Mfullmat, MlumpedMat, DSlmat, DRemat, *KBMat;
    HypreParVector *E0Vec;
    FunctionCoefficient *E0rhs;
    double viscosity, resistivity;
@@ -397,7 +405,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    : TimeDependentOperator(3*f.TrueVSize(), 0.0), fespace(f),
      M(NULL), Mfull(NULL), Mlumped(NULL), K(NULL), KB(NULL), KBform(NULL), DSl(&fespace), DRe(&fespace),
      Nv(NULL), Nb(NULL), StabMass(NULL), StabNb(NULL), StabNv(NULL),  
-     E0(NULL), StabE0(NULL), zLF(&fespace), MfullMat(NULL), E0Vec(NULL), E0rhs(NULL),
+     E0(NULL), StabE0(NULL), zLF(&fespace), Mfullmat(NULL), E0Vec(NULL), E0rhs(NULL),
      viscosity(visc),  resistivity(resi), useAMG(false), tRHS(false), use_petsc(use_petsc_), use_factory(use_factory_),
      convergedSolver(true),
      visc_coeff(visc),  resi_coeff(resi),  visc_vari(resiVari),  resi_vari(resiVari),  
@@ -427,14 +435,14 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
      Mfull->AddDomainIntegrator(new LumpedIntegrator(mass));
      Mfull->Assemble();
      Mfull->Finalize();
-     MfullMat=Mfull->ParallelAssemble();
+     Mfullmat=Mfull->ParallelAssemble();
    }
    else 
    {
      Mfull->AddDomainIntegrator(mass);
      Mfull->Assemble();
      Mfull->Finalize();
-     MfullMat=Mfull->ParallelAssemble();
+     Mfullmat=Mfull->ParallelAssemble();
    }
 
    MassIntegrator *mass2 = new MassIntegrator;
@@ -461,7 +469,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    M_prec2 = new HypreSmoother;
    M_prec2->SetType(HypreSmoother::Jacobi);
    M_solver2.SetPreconditioner(*M_prec2);
-   M_solver2.SetOperator(*MfullMat);
+   M_solver2.SetOperator(*Mfullmat);
 
    M_solver3.iterative_mode = false;
    M_solver3.SetRelTol(1e-7);
@@ -561,7 +569,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
           DSlpr = &DSl;
       }
 
-      reduced_oper  = new ReducedSystemOperator(fespace, M, Mmat, K, Kmat,
+      reduced_oper  = new ReducedSystemOperator(fespace, M, Mmat, *Mfullmat, K, Kmat, 
                          KBform, *KBMat, DRepr, DRematpr, DSlpr, DSlmatpr, Mlumped, MlumpedMat,
                          &M_solver, &M_solver2, &M_solver3,
                          viscosity, resistivity, ess_tdof_list, ess_bdr);
@@ -787,7 +795,7 @@ ResistiveMHDOperator::~ResistiveMHDOperator()
     //free used memory
     delete M;
     delete Mfull;
-    delete MfullMat;
+    delete Mfullmat;
     delete Mlumped;
     delete K;
     delete KBMat;
@@ -808,7 +816,7 @@ ResistiveMHDOperator::~ResistiveMHDOperator()
 }
 
 ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
-   ParBilinearForm *M_, HypreParMatrix &Mmat_,
+   ParBilinearForm *M_, HypreParMatrix &Mmat_, HypreParMatrix &Mfullmat_,
    ParBilinearForm *K_, HypreParMatrix &Kmat_,
    ParBilinearForm *KB_, HypreParMatrix &KBMat_,
    ParBilinearForm *DRe_, ParBilinearForm *DSl_,
@@ -817,7 +825,7 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
    const double visc, const double resi,
    const Array<int> &ess_tdof_list_, const Array<int> &ess_bdr_)
    : Operator(3*f.TrueVSize()), fespace(f), 
-     M(M_), K(K_), KB(KB_), DRe(DRe_), DSl(DSl_), Mmat(Mmat_), Kmat(Kmat_), KBMat(KBMat_),
+     M(M_), K(K_), KB(KB_), DRe(DRe_), DSl(DSl_), Mmat(Mmat_), Mfullmat(Mfullmat_), Kmat(Kmat_), KBMat(KBMat_),
      initialMdt(false), E0Vec(NULL), StabE0(NULL), E0rhs(NULL), Mlumped(Mlumped_), Mmatlp(MlumpedMat),
      M_solver(M_solver_), M_solver2(M_solver2_),M_solver3(M_solver3_),
      dt(0.0), dtOld(0.0), viscosity(visc), resistivity(resi), 
@@ -863,7 +871,7 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
 }
 
 ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
-   ParBilinearForm *M_, HypreParMatrix &Mmat_,
+   ParBilinearForm *M_, HypreParMatrix &Mmat_,HypreParMatrix &Mfullmat_,
    ParBilinearForm *K_, HypreParMatrix &Kmat_,
    ParBilinearForm *KB_,HypreParMatrix &KBMat_, 
    ParBilinearForm *DRe_, HypreParMatrix *DRemat_,
@@ -873,7 +881,7 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
    const double visc, const double resi,
    const Array<int> &ess_tdof_list_, const Array<int> &ess_bdr_)
    : Operator(3*f.TrueVSize()), fespace(f), 
-     M(M_), K(K_), KB(KB_), DRe(DRe_), DSl(DSl_), Mmat(Mmat_), Kmat(Kmat_), KBMat(KBMat_),
+     M(M_), K(K_), KB(KB_), DRe(DRe_), DSl(DSl_), Mmat(Mmat_), Mfullmat(Mfullmat_), Kmat(Kmat_), KBMat(KBMat_),
      initialMdt(false),E0Vec(NULL), StabE0(NULL), E0rhs(NULL),
      Mlumped(Mlumped_), Mmatlp(MlumpedMat),
      M_solver(M_solver_), M_solver2(M_solver2_), M_solver3(M_solver3_), 
@@ -928,6 +936,12 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
    }
    else
        pd=NULL;
+
+   FunctionCoefficient visc_coeff(variVisc);
+   bdrDiff = new ParBilinearForm(&fespace);
+   bdrDiff->AddDomainIntegrator(new DiffusionIntegrator(visc_coeff));    
+   bdrDiff->Assemble();
+
 }
 
 /*
@@ -1389,6 +1403,7 @@ ReducedSystemOperator::~ReducedSystemOperator()
    delete PB_VOmega;
    delete PB_BJ;
    delete pd;
+   delete bdrDiff;
 }
 
 void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
@@ -1433,7 +1448,6 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
       //this is not optimized yet
       wGf.MakeTRef(&fespace, k_, 2*sc);
       wGf.SetFromTrueVector();
-      //FIXME ParallelAssemble is needed (a possible bug)
       delete PB_VPsi;
       PB_VPsi = new ParLinearForm(&fespace);
       PBCoefficient pbCoeff(&phiGf, &psiGf);
@@ -1480,24 +1494,32 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    else
       MFEM_ABORT("ERROR in ReducedSystemOperator::Mult: wrong option for iUpdateJ"); 
 
-   //+++++compute y1
-   Kmat.Mult(phiNew,y1);
-   Mmat.Mult(wNew,z);
+   //+++++compute y1 (this does not have boundary)
+   KBMat.Mult(phiNew,y1);
+   Mfullmat.Mult(wNew,z);
    y1+=z;
-   y1.SetSubVector(ess_tdof_list, 0.0);
 
    //+++++compute y3
    add(wNew, -1., *w, zdiff);
    zdiff/=dt;
-   Mmat.Mult(zdiff,y3);
+   //Mmat.Mult(zdiff,y3); //this should not matter due to bchandler
+   Mfullmat.Mult(zdiff,y3); 
 
    if (bilinearPB)
+   {
       Nv->TrueAddMult(wNew,y3);
+   }
    else
-      y3 += *PB_VOmega;
+   {
+      PB_VOmega->ParallelAssemble(z);
+      y3 += z;
+   }
 
    if (DRe!=NULL)
+   {
        DRe->TrueAddMult(wNew,y3);
+       //bdrDiff->TrueAddMult(wNew, y3);
+   }
 
    if (bilinearPB)
    {      
@@ -1540,19 +1562,24 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
 
       PB_BJ->AddDomainIntegrator(new DomainLFIntegrator(pbCoeff, 3, 0));
       PB_BJ->Assemble();
-      HypreParVector *trueBJ = PB_BJ->ParallelAssemble();
-      y3 += *trueBJ;
-      delete trueBJ;
+      PB_BJ->ParallelAssemble(z);
+      y3 += z;
    }
 
    //+++++compute y2
    add(psiNew, -1., *psi, z);
    z/=dt;
-   Mmat.Mult(z,y2);
+   //Mmat.Mult(z,y2);//this should not matter due to bchandler
+   Mfullmat.Mult(z,y2);
    if (bilinearPB)
+   {
       Nv->TrueAddMult(psiNew,y2);
+   }
    else
-      y2 += *PB_VPsi;
+   {
+      PB_VPsi->ParallelAssemble(z);
+      y2 += z;
+   }
 
    if (DSl!=NULL)
        DSl->TrueAddMult(psiNew,y2);
@@ -1778,6 +1805,8 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
      StabNv->TrueAddMult(psiNew, y2);
    }
 
+   //this step will be done in bchandler anyway
+   y1.SetSubVector(ess_tdof_list, 0.0);
    y2.SetSubVector(ess_tdof_list, 0.0);
    y3.SetSubVector(ess_tdof_list, 0.0);
 
@@ -1819,8 +1848,31 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
        if (myid==0) {
          cout <<"======Debugging: print reisudal as a grid function!!!======"<<endl;
        }
+
+      /*
+      z=0.;
+      if (BgradJ==1)
+      {
+         Nb->TrueAddMult(J, z, -1.); 
+      }
+      else if (BgradJ==2)
+      {
+         Nb->TrueAddMult(J, z, 1.); 
+      }
+      else
+      {
+         Nb->TrueAddMult(J, z,-1.); 
+      }
+      */
+
       gftmp.SetFromTrueDofs(y1);
+
+      /*
+      z=0.;
+      Mmat.Mult(zdiff,z);
+      */
       gftmp2.SetFromTrueDofs(y2);
+
       gftmp3.SetFromTrueDofs(y3);
       pd->SetCycle(icycle);
       pd->SetTime(icycle);

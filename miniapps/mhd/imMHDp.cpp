@@ -792,7 +792,7 @@ int main(int argc, char *argv[])
       //oper.outputgf();
 
       //those values can be generated in post-processing
-      if (!paraview || !visit)
+      if (!paraview && !visit)
       {
         ofstream omesh(mesh_name.str().c_str());
         omesh.precision(8);
