@@ -741,11 +741,6 @@ int main (int argc, char *argv[])
                                 600, 600, 300, 300);
          common::VisualizeField(vis3, "localhost", 19916, marker_gf, "Dofs to Move",
                                 900, 600, 300, 300);
-
-         socketstream vis4;
-         common::VisualizeField(vis4, "localhost", 19916, ls_0, "Level Set 0",
-                                300, 600, 300, 300);
-
       }
    }
 
