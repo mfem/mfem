@@ -22,6 +22,7 @@ set(UNIT_TESTS_SRCS
   general/test_text.cpp
   general/test_zlib.cpp
   linalg/test_complex_operator.cpp
+  linalg/test_direct_solvers.cpp
   linalg/test_hypre_ilu.cpp
   linalg/test_ilu.cpp
   linalg/test_matrix_block.cpp
@@ -204,6 +205,13 @@ if (MFEM_USE_MPI)
       target_compile_definitions(psedov_tests_cuda_uvm PUBLIC MFEM_SEDOV_TESTS=1)
       target_compile_definitions(psedov_tests_cuda_uvm PUBLIC MFEM_SEDOV_DEVICE="cuda:uvm")
       target_link_libraries(psedov_tests_cuda_uvm mfem)
+
+      set(PCUNIT_TESTS_SRCS pcunit_test_main.cpp)
+      set_property(SOURCE ${PCUNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
+      add_executable(pcunit_tests ${PCUNIT_TESTS_SRCS})
+      add_dependencies(pcunit_tests copy_data)
+      target_link_libraries(pcunit_tests mfem)
+      add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} pcunit_tests)
    endif()
 
    add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} punit_tests psedov_tests_cpu psedov_tests_debug)
