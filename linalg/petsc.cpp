@@ -3270,6 +3270,7 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
          ParGridFunction gf_coords(fespace_coords);
          gf_coords.ProjectCoefficient(coeff_coords);
          HypreParVector *hvec_coords = gf_coords.ParallelProject();
+         PetscScalar *data_coords = (PetscScalar*)mfem::Read(hvec_coords->GetMemory(),hvec_coords->Size(),false);
 
          // likely elasticity -> we attach rigid-body modes as near-null space information to the local matrices
          if (vdim == sdim)
@@ -3284,7 +3285,7 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
             PetscInt nleaves;
 
             ierr = VecCreateMPIWithArray(comm,sdim,hvec_coords->Size(),
-                                         hvec_coords->GlobalSize(),hvec_coords->GetData(),&pvec_coords);
+                                         hvec_coords->GlobalSize(),data_coords,&pvec_coords);
             CCHKERRQ(comm,ierr);
             ierr = MatISGetLocalMat(pA,&lA); CCHKERRQ(PETSC_COMM_SELF,ierr);
             ierr = MatCreateVecs(lA,&lvec_coords,NULL); CCHKERRQ(PETSC_COMM_SELF,ierr);
@@ -3321,7 +3322,6 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
          ierr = PetscMalloc1(nl*sdim,&coords); CCHKERRQ(PETSC_COMM_SELF,ierr);
          if (nf > 0)
          {
-            PetscScalar *data = hvec_coords->GetData();
             for (PetscInt i = 0; i < nf; i++)
             {
                const PetscInt *idxs;
@@ -3335,7 +3335,7 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
                   PetscInt idx = idxs[j]-rst;
                   for (PetscInt d = 0; d < sdim; d++)
                   {
-                     coords[sdim*idx+d] = data[sdim*j+d];
+                     coords[sdim*idx+d] = PetscRealPart(data_coords[sdim*j+d]);
                   }
                }
                ierr = ISRestoreIndices(fields[i],&idxs); CCHKERRQ(comm,ierr);
@@ -3343,8 +3343,7 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
          }
          else
          {
-            ierr = PetscMemcpy(coords,hvec_coords->GetData(),nl*sdim*sizeof(PetscReal));
-            CCHKERRQ(comm,ierr);
+            for (PetscInt j = 0; j < nl*sdim; j++) coords[j] = PetscRealPart(data_coords[j]);
          }
          if (fespace_coords != fespace)
          {
@@ -3723,7 +3722,7 @@ void PetscH2Solver::H2SolverConstructor(ParFiniteElementSpace *fes)
    coords.ParallelProject(c);
    delete fes_coords;
    PCSetType(*this,PCH2OPUS);
-   PCSetCoordinates(*this,sdim,c.Size()/sdim,c.GetData());
+   PCSetCoordinates(*this,sdim,c.Size()/sdim,(PetscReal*)mfem::Read(c.GetMemory(),c.Size(),false));
    PCSetFromOptions(*this);
 #else
    MFEM_ABORT("Need PETSc configured with --download-h2opus");
