@@ -202,7 +202,8 @@ void RestrictDofs(FiniteElementSpace &fes, int direction, double ovlp, Array<int
       fes.GetElementDofs(ie,elem_dofs);
       for (auto x : elem_dofs)
       {
-         tdof_marker[x] = 1;
+         int tdof = (x>=0) ? x : -1 - x;
+         tdof_marker[tdof] = 1;
       }
    }
    int n = tdof_marker.Sum();
