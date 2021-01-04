@@ -228,5 +228,4 @@ TEST_CASE("DG SumIntegrator", "[SumIntegrator][PartialAssembly]")
    REQUIRE(y1.Normlinf() == MFEM_Approx(0.0));
 }
 
-
 } // namespace pa_kernels
