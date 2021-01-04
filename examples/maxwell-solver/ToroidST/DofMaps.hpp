@@ -20,6 +20,12 @@ void GetDofMaps(const FiniteElementSpace &fes0, const FiniteElementSpace &fes1,
                 Array<int> & dofs0, Array<int> & dofs1,  
                 const Array<int> * elems0_ = nullptr, const Array<int> * elems1_ = nullptr);
 
+// Partition the given mesh to nrsubmeshes with overlap given by ovlp
+// ElemMaps: For each subdomain the element indices of the global mesh
+// Dofmap0[i]: dof indices of fes in the shared region with subdomain i
+// Dofmap1[i]: dof indices of fespaces[i] in the shared region with fes
+// OvlpMaps0 : dof indices of fespaces[i] in overlapping region i
+// OvlpMaps1 : dof indices of fespaces[i+1] in overlapping region i
 void PartitionFE(const FiniteElementSpace * fes, int nrsubmeshes, double ovlp, 
                  Array<FiniteElementSpace*> & fespaces, 
                  Array<Array<int> * > & ElemMaps,
