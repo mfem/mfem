@@ -709,7 +709,7 @@ void PetscParVector::PlaceMemory(Memory<double>& mem, bool rw)
                                     ""); PCHKERRQ(x,ierr);
    if (iscuda)
    {
-      bool usedev = mem.DeviceIsValid() || !rw;
+      bool usedev = mem.DeviceIsValid() || (!rw && mem.UseDevice());
       pdata.MakeAliasForSync(mem,0,n,rw,true,usedev);
       if (usedev)
       {
@@ -796,8 +796,8 @@ void PetscParVector::ResetMemory()
 #if defined(PETSC_HAVE_DEVICE)
       PetscOffloadMask mask;
       ierr = VecGetOffloadMask(x,&mask); PCHKERRQ(x,ierr);
-      if ((usedev && (mask != PETSC_OFFLOAD_GPU && mask != PETSC_OFFLOAD_BOTH))
-          ||  !usedev && (mask != PETSC_OFFLOAD_CPU && mask != PETSC_OFFLOAD_BOTH))
+      if ((usedev && (mask != PETSC_OFFLOAD_GPU && mask != PETSC_OFFLOAD_BOTH)) ||
+          !usedev && (mask != PETSC_OFFLOAD_CPU && mask != PETSC_OFFLOAD_BOTH))
 #endif
       {
          ierr = VecGetArrayRead(x,&v); PCHKERRQ(x,ierr);
@@ -981,6 +981,7 @@ PetscParMatrix::PetscParMatrix(MPI_Comm comm, PetscInt glob_size,
    Init();
    BlockDiagonalConstructor(comm,row_starts,row_starts,diag,
                             tid==PETSC_MATAIJ,&A);
+   SetUpForDevice();
    // update base class
    height = GetNumRows();
    width  = GetNumCols();
@@ -994,6 +995,7 @@ PetscParMatrix::PetscParMatrix(MPI_Comm comm, PetscInt global_num_rows,
    Init();
    BlockDiagonalConstructor(comm,row_starts,col_starts,diag,
                             tid==PETSC_MATAIJ,&A);
+   SetUpForDevice();
    // update base class
    height = GetNumRows();
    width  = GetNumCols();
@@ -1016,6 +1018,7 @@ PetscParMatrix& PetscParMatrix::operator=(const HypreParMatrix& B)
 #else
    ierr = MatConvert_hypreParCSR_AIJ(B,&A); CCHKERRQ(B.GetComm(),ierr);
 #endif
+   SetUpForDevice();
    return *this;
 }
 
@@ -1115,10 +1118,11 @@ BlockDiagonalConstructor(MPI_Comm comm,
       ierr = ISLocalToGlobalMappingDestroy(&cl2g); PCHKERRQ(A,ierr)
 
       // Copy SparseMatrix into PETSc SeqAIJ format
+      // pass through host for now
       Mat lA;
       ierr = MatISGetLocalMat(A,&lA); PCHKERRQ(A,ierr);
-      int *II = diag->GetI();
-      int *JJ = diag->GetJ();
+      const int *II = diag->HostReadI();
+      const int *JJ = diag->HostReadJ();
 #if defined(PETSC_USE_64BIT_INDICES)
       PetscInt *pII,*pJJ;
       int m = diag->Height()+1, nnz = II[diag->Height()];
@@ -1126,11 +1130,11 @@ BlockDiagonalConstructor(MPI_Comm comm,
       for (int i = 0; i < m; i++) { pII[i] = II[i]; }
       for (int i = 0; i < nnz; i++) { pJJ[i] = JJ[i]; }
       ierr = MatSeqAIJSetPreallocationCSR(lA,pII,pJJ,
-                                          diag->GetData()); PCHKERRQ(lA,ierr);
+                                          diag->HostReadData()); PCHKERRQ(lA,ierr);
       ierr = PetscFree2(pII,pJJ); PCHKERRQ(lA,ierr);
 #else
       ierr = MatSeqAIJSetPreallocationCSR(lA,II,JJ,
-                                          diag->GetData()); PCHKERRQ(lA,ierr);
+                                          diag->HostReadData()); PCHKERRQ(lA,ierr);
 #endif
    }
    else
@@ -1147,19 +1151,19 @@ BlockDiagonalConstructor(MPI_Comm comm,
       ierr = PetscMalloc1(nnz,&da); CCHKERRQ(PETSC_COMM_SELF,ierr);
       if (sizeof(PetscInt) == sizeof(int))
       {
-         ierr = PetscMemcpy(dii,diag->GetI(),m*sizeof(PetscInt));
+         ierr = PetscMemcpy(dii,diag->HostReadI(),m*sizeof(PetscInt));
          CCHKERRQ(PETSC_COMM_SELF,ierr);
-         ierr = PetscMemcpy(djj,diag->GetJ(),nnz*sizeof(PetscInt));
+         ierr = PetscMemcpy(djj,diag->HostReadJ(),nnz*sizeof(PetscInt));
          CCHKERRQ(PETSC_COMM_SELF,ierr);
       }
       else
       {
-         int *iii = diag->GetI();
-         int *jjj = diag->GetJ();
+         const int *iii = diag->HostReadI();
+         const int *jjj = diag->HostReadJ();
          for (int i = 0; i < m; i++) { dii[i] = iii[i]; }
          for (int i = 0; i < nnz; i++) { djj[i] = jjj[i]; }
       }
-      ierr = PetscMemcpy(da,diag->GetData(),nnz*sizeof(PetscScalar));
+      ierr = PetscMemcpy(da,diag->HostReadData(),nnz*sizeof(PetscScalar));
       CCHKERRQ(PETSC_COMM_SELF,ierr);
       ierr = PetscCalloc1(m,&oii);
       CCHKERRQ(PETSC_COMM_SELF,ierr);
@@ -1532,6 +1536,7 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
       }
       else
       {
+         /* from SparseMatrix to SEQAIJ -> always pass through host for now */
          Mat B;
          PetscScalar *pdata;
          PetscInt *pii,*pjj,*oii;
@@ -1539,9 +1544,9 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
 
          int m = pS->Height();
          int n = pS->Width();
-         int *ii = pS->GetI();
-         int *jj = pS->GetJ();
-         double *data = pS->GetData();
+         const int *ii = pS->HostReadI();
+         const int *jj = pS->HostReadJ();
+         const double *data = pS->HostReadData();
 
          ierr = PetscMalloc1(m+1,&pii); CCHKERRQ(PETSC_COMM_SELF,ierr);
          ierr = PetscMalloc1(ii[m],&pjj); CCHKERRQ(PETSC_COMM_SELF,ierr);
@@ -1554,7 +1559,7 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
             for (int j = ii[i]; j < ii[i+1]; j++)
             {
                pjj[j] = jj[j];
-               if (j != ii[i] && issorted) { issorted = (pjj[j] > pjj[j-1]); }
+               if (issorted && j != ii[i]) { issorted = (pjj[j] > pjj[j-1]); }
                pdata[j] = data[j];
             }
             if (!issorted)
@@ -1642,6 +1647,7 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
          }
       }
    }
+   SetUpForDevice();
 }
 
 void PetscParMatrix::Destroy()
@@ -1677,6 +1683,82 @@ void PetscParMatrix::SetMat(Mat _A)
    A = _A;
    height = GetNumRows();
    width = GetNumCols();
+}
+
+void PetscParMatrix::SetUpForDevice()
+{
+#if !defined(_USE_DEVICE)
+   return;
+#else
+   if (!A || !Device::Allows(Backend::CUDA_MASK)) return;
+
+   PetscBool ismatis,isnest,isseqaij,ismpiaij;
+   ierr = PetscObjectTypeCompare((PetscObject)A,MATIS,&ismatis);
+   PCHKERRQ(A,ierr);
+   ierr = PetscObjectTypeCompare((PetscObject)A,MATNEST,&isnest);
+   PCHKERRQ(A,ierr);
+   Mat tA = A;
+   if (ismatis)
+   {
+      ierr = MatISGetLocalMat(A,&tA); PCHKERRQ(A,ierr);
+      ierr = PetscObjectTypeCompare((PetscObject)tA,MATNEST,&isnest);
+      PCHKERRQ(tA,ierr);
+   }
+   if (isnest)
+   {
+      PetscInt n,m;
+      Mat **sub;
+      ierr = MatNestGetSubMats(tA,&n,&m,&sub); PCHKERRQ(tA,ierr);
+      bool dvec = false;
+      for (PetscInt i = 0; i < n; i++)
+      {
+         for (PetscInt j = 0; j < m; j++)
+         {
+            if (sub[i][j])
+            {
+               Mat sA = sub[i][j];
+               ierr = PetscObjectTypeCompare((PetscObject)sA,MATSEQAIJ,&isseqaij);
+               PCHKERRQ(sA,ierr);
+               ierr = PetscObjectTypeCompare((PetscObject)sA,MATMPIAIJ,&ismpiaij);
+               PCHKERRQ(sA,ierr);
+               if (isseqaij)
+               {
+                  ierr = MatSetType(sA,MATSEQAIJCUSPARSE); PCHKERRQ(sA,ierr);
+                  dvec = true;
+               }
+               else if (ismpiaij)
+               {
+                  ierr = MatSetType(sA,MATMPIAIJCUSPARSE); PCHKERRQ(sA,ierr);
+                  dvec = true;
+               }
+               ierr = MatAIJCUSPARSESetGenerateTranspose(sA,PETSC_TRUE);
+               PCHKERRQ(sA,ierr);
+            }
+         }
+      }
+      if (dvec)
+      {
+         ierr = MatSetVecType(tA,VECCUDA); PCHKERRQ(tA,ierr);
+      }
+   }
+   else
+   {
+      ierr = PetscObjectTypeCompare((PetscObject)tA,MATSEQAIJ,&isseqaij);
+      PCHKERRQ(tA,ierr);
+      ierr = PetscObjectTypeCompare((PetscObject)tA,MATMPIAIJ,&ismpiaij);
+      PCHKERRQ(tA,ierr);
+      if (isseqaij)
+      {
+         ierr = MatSetType(tA,MATSEQAIJCUSPARSE); PCHKERRQ(tA,ierr);
+      }
+      else if (ismpiaij)
+      {
+         ierr = MatSetType(tA,MATMPIAIJCUSPARSE); PCHKERRQ(tA,ierr);
+      }
+      ierr = MatAIJCUSPARSESetGenerateTranspose(tA,PETSC_TRUE);
+      PCHKERRQ(tA,ierr);
+   }
+#endif
 }
 
 // Computes y = alpha * A  * x + beta * y
@@ -3658,7 +3740,7 @@ PetscFieldSplitSolver::PetscFieldSplitSolver(MPI_Comm comm, Operator &op,
 
    PetscInt nr = 0;
    IS  *isrow = NULL;
-   if (isnest) // we now the fields
+   if (isnest) // we know the fields
    {
       ierr = MatNestGetSize(pA,&nr,NULL); PCHKERRQ(pc,ierr);
       ierr = PetscCalloc1(nr,&isrow); CCHKERRQ(PETSC_COMM_SELF,ierr);

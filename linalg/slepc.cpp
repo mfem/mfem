@@ -156,9 +156,9 @@ void SlepcEigenSolver::GetEigenvector(unsigned int i, Vector & vr) const
    MFEM_ASSERT(vr.Size() == VR->Size(), "invalid vr.Size() = " << vr.Size()
                << ", expected size = " << VR->Size());
 
-   VR->PlaceArray(vr.GetData());
+   VR->PlaceMemory(vr.GetMemory());
    ierr = EPSGetEigenvector(eps,i,*VR,NULL); PCHKERRQ(eps,ierr);
-   VR->ResetArray();
+   VR->ResetMemory();
 
 }
 
@@ -172,11 +172,11 @@ void SlepcEigenSolver::GetEigenvector(unsigned int i, Vector & vr,
    MFEM_ASSERT(vc.Size() == VC->Size(), "invalid vc.Size() = " << vc.Size()
                << ", expected size = " << VC->Size());
 
-   VR->PlaceArray(vr.GetData());
-   VC->PlaceArray(vc.GetData());
+   VR->PlaceArray(vr.GetMemory());
+   VC->PlaceArray(vc.GetMemory());
    ierr = EPSGetEigenvector(eps,i,*VR,*VC); PCHKERRQ(eps,ierr);
-   VR->ResetArray();
-   VC->ResetArray();
+   VR->ResetMemory();
+   VC->ResetMemory();
 }
 
 int SlepcEigenSolver::GetNumConverged()

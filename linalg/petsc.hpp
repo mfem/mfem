@@ -342,6 +342,8 @@ private:
                                  PetscInt *col_starts, SparseMatrix *diag,
                                  bool assembled, petsc::Mat *A);
 
+   void SetUpForDevice();
+
 public:
    /// Create an empty matrix to be used as a reference to an existing matrix.
    PetscParMatrix();
