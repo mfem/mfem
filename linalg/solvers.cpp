@@ -1578,6 +1578,7 @@ void NewtonSolver::SetOperator(const Operator &op)
    width = op.Width();
    MFEM_ASSERT(height == width, "square Operator is required.");
 
+   xcur.SetSize(width);
    r.SetSize(width);
    c.SetSize(width);
 }
@@ -1637,9 +1638,20 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          break;
       }
 
-      prec->SetOperator(oper->GetGradient(x));
+      grad = &oper->GetGradient(x);
+      prec->SetOperator(*grad);
 
-      prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
+      if (lin_rtol_type)
+      {
+         AdaptiveLinRtolPreSolve(x, it, norm);
+      }
+
+      prec->Mult(r, c); // c = [DF(x_i)]^{-1} [F(x_i)-b]
+
+      if (lin_rtol_type)
+      {
+         AdaptiveLinRtolPostSolve(c, r, it, norm);
+      }
 
       const double c_scale = ComputeScalingFactor(x, b);
       if (c_scale == 0.0)
@@ -1661,6 +1673,86 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
 
    final_iter = it;
    final_norm = norm;
+}
+
+void NewtonSolver::SetAdaptiveLinRtol(const int type,
+                                      const double rtol0,
+                                      const double rtol_max,
+                                      const double alpha,
+                                      const double gamma)
+{
+   lin_rtol_type = type;
+   lin_rtol0 = rtol0;
+   lin_rtol_max = rtol_max;
+   this->alpha = alpha;
+   this->gamma = gamma;
+}
+
+void NewtonSolver::AdaptiveLinRtolPreSolve(const Vector &x,
+                                           const int it,
+                                           const double fnorm) const
+{
+   // Assume that when adaptive linear solver relative tolerance is activated,
+   // we are working with an iterative solver.
+   auto iterative_solver = static_cast<IterativeSolver *>(prec);
+   // Adaptive linear solver relative tolerance
+   double eta;
+   // Safeguard threshold
+   double sg_threshold = 0.1;
+
+   if (it == 0)
+   {
+      eta = lin_rtol0;
+   }
+   else
+   {
+      if (lin_rtol_type == 1)
+      {
+         // eta = gamma * abs(||F(x1)|| - ||F(x0) + DF(x0) s0||) / ||F(x0)||
+         eta = gamma * abs(fnorm - lnorm_last) / fnorm_last;
+      }
+      else if (lin_rtol_type == 2)
+      {
+         // eta = gamma * (||F(x1)|| / ||F(x0)||)^alpha
+         eta = gamma * pow(fnorm / fnorm_last, alpha);
+      }
+      else
+      {
+         MFEM_ABORT("Unknown adaptive linear solver rtol version");
+      }
+
+      // Safeguard rtol from "oversolving" ?!
+      const double sg_eta = gamma * pow(eta_last, alpha);
+      if (sg_eta > sg_threshold) { eta = std::max(eta, sg_eta); }
+   }
+
+   eta = std::min(eta, lin_rtol_max);
+   iterative_solver->SetRelTol(eta);
+   eta_last = eta;
+   if (print_level >= 0)
+   {
+      mfem::out << "Eisenstat-Walker rtol = " << eta << "\n";
+   }
+}
+
+void NewtonSolver::AdaptiveLinRtolPostSolve(const Vector &x,
+                                            const Vector &b,
+                                            const int it,
+                                            const double fnorm) const
+{
+   fnorm_last = fnorm;
+
+   // If version 1 is chosen, the true linear residual norm has to be computed
+   // and in most cases we can only retrieve the preconditioned linear residual
+   // norm.
+   if (lin_rtol_type == 1)
+   {
+      // lnorm_last = ||F(x0) + DF(x0) s0||
+      Vector linres(x.Size());
+      grad->Mult(x, linres);
+      linres -= b;
+      lnorm_last = Norm(linres);
+   }
 }
 
 void LBFGSSolver::Mult(const Vector &b, Vector &x) const
