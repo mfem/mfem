@@ -1698,26 +1698,16 @@ static void MatMultKernel(Mat A,PetscScalar a,Vec X,PetscScalar b,Vec Y,
    }
    if (a != 0.)
    {
-      if (b == 1.)
+      if (b != 0.)
       {
-         ierr = VecScale(X,a); PCHKERRQ(A,ierr);
+         ierr = VecScale(Y,b/a); PCHKERRQ(A,ierr);
          ierr = (*fadd)(A,X,Y,Y); PCHKERRQ(A,ierr);
-         ierr = VecScale(X,1./a); PCHKERRQ(A,ierr);
-      }
-      else if (b != 0.)
-      {
-         ierr = VecScale(X,a); PCHKERRQ(A,ierr);
-         ierr = VecScale(Y,b); PCHKERRQ(A,ierr);
-         ierr = (*fadd)(A,X,Y,Y); PCHKERRQ(A,ierr);
-         ierr = VecScale(X,1./a); PCHKERRQ(A,ierr);
+         ierr = VecScale(Y,a); PCHKERRQ(A,ierr);
       }
       else
       {
          ierr = (*f)(A,X,Y); PCHKERRQ(A,ierr);
-         if (a != 1.)
-         {
-            ierr = VecScale(Y,a); PCHKERRQ(A,ierr);
-         }
+         ierr = VecScale(Y,a); PCHKERRQ(A,ierr);
       }
    }
    else
