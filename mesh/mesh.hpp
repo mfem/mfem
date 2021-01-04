@@ -471,6 +471,8 @@ protected:
    void GetElementData(const Array<Element*> &elem_array, int geom,
                        Array<int> &elem_vtx, Array<int> &attr) const;
 
+   double GetElementSize(ElementTransformation *T, int type = 0);
+
 public:
 
    Mesh() { SetEmpty(); }
@@ -1034,6 +1036,7 @@ public:
    }
    void GetFaceElements (int Face, int *Elem1, int *Elem2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2) const;
+   void GetFaceInfos (int Face, int *Inf1, int *Inf2, int *NCFace) const;
 
    Geometry::Type GetFaceGeometryType(int Face) const;
    Element::Type  GetFaceElementType(int Face) const;
