@@ -59,6 +59,7 @@ int main(int argc, char *argv[])
    bool visualization = 1;
    bool use_slepc = true;
    const char *slepcrc_file = "";
+   const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -89,6 +90,8 @@ int main(int argc, char *argv[])
                   "--no-slepc","Use or not SLEPc to solve the eigenvalue problem");
    args.AddOption(&slepcrc_file, "-slepcopts", "--slepcopts",
                   "SlepcOptions file to use.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.Parse();
    if (slu_solver && sp_solver)
    {
@@ -117,7 +120,12 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // 2b. We initialize SLEPc. This internally initializes PETSc as well.
+   // 2b. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   if (myid == 0) { device.Print(); }
+
+   // 2c. We initialize SLEPc. This internally initializes PETSc as well.
    MFEMInitializeSlepc(NULL,NULL,slepcrc_file,NULL);
 
    // 3. Read the (serial) mesh from the given mesh file on all processors. We
@@ -348,7 +356,6 @@ int main(int argc, char *argv[])
          {
             slepc->GetEigenvector(i,temp);
             x.Distribute(temp);
-
          }
 
          mode_name << "mode_" << setfill('0') << setw(2) << i << "."
