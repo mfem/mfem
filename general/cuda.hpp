@@ -19,6 +19,7 @@
 #define MFEM_CUDA_BLOCKS 256
 
 #ifdef MFEM_USE_CUDA
+#include <cuda.h>
 #define MFEM_DEVICE __device__
 #define MFEM_LAMBDA __host__
 #define MFEM_HOST_DEVICE __host__ __device__
