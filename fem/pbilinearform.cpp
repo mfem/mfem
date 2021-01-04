@@ -296,7 +296,7 @@ const
 }
 
 double ParBilinearForm::InnerProduct(const ParGridFunction &x,
-                                     const ParGridFunction &y)
+                                     const ParGridFunction &y) const
 {
    double loc = BilinearForm::InnerProduct(x, y);
    double glob = 0.;
@@ -307,7 +307,7 @@ double ParBilinearForm::InnerProduct(const ParGridFunction &x,
 }
 
 double ParBilinearForm::TrueInnerProduct(const ParGridFunction &x,
-                                         const ParGridFunction &y)
+                                         const ParGridFunction &y) const
 {
    MFEM_ASSERT(x.ParFESpace() == pfes, "the parallel spaces must match");
    MFEM_ASSERT(y.ParFESpace() == pfes, "the parallel spaces must match");
@@ -324,7 +324,7 @@ double ParBilinearForm::TrueInnerProduct(const ParGridFunction &x,
 }
 
 double ParBilinearForm::TrueInnerProduct(HypreParVector &x,
-                                         HypreParVector &y)
+                                         HypreParVector &y) const
 {
    MFEM_VERIFY(p_mat.Ptr() != NULL, "parallel matrix must be assembled");
 
