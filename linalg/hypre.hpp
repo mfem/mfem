@@ -591,10 +591,6 @@ void EliminateBC(HypreParMatrix &A, HypreParMatrix &Ae,
 /// Parallel smoothers in hypre
 class HypreSmoother : public Solver
 {
-public:
-   /// Options of what MultTranspose would do when it is called.
-   enum TransposeAction { Undefined, SameAsMult };
-
 protected:
    /// The linear system matrix
    HypreParMatrix *A;
@@ -642,9 +638,8 @@ protected:
    /// Combined coefficients for windowing and Chebyshev polynomials.
    double* fir_coeffs;
 
-   /// Indicate what MultTranspose would do when it is called.
-   TransposeAction transpose_action;
-
+   /// A flag that indicates whether the smoother is symmetric
+   bool is_symmetric;
 public:
    /** Hypre smoother types:
        0    = Jacobi
@@ -691,11 +686,9 @@ public:
        entries in the associated matrix. */
    void SetPositiveDiagonal(bool pos = true) { pos_l1_norms = pos; }
 
-   /// Set the flag transpose_action that indicates the action of MultTranspose
-   /** By default, transpose_action is Undefined, in which case MultTranspose
-       should not be called. By setting transpose_action = SameAsMult, calling
-       MultTranspose will be redirected to Mult. */
-   void SetTransposeAction(TransposeAction act) { transpose_action = act; }
+   /** Explicitly set the symmetry flag is_symmetric.
+       If is_symmetric is true, MultTranspose will call Mult. */
+   void SetSymmetryFlag(bool is_sym) { is_symmetric = is_sym; }
 
    /** Set/update the associated operator. Must be called after setting the
        HypreSmoother type and options. */
