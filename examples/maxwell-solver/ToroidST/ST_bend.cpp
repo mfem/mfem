@@ -204,31 +204,31 @@ int main(int argc, char *argv[])
    a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_c2_Re),
                         new VectorFEMassIntegrator(restr_c2_Im));
 
-   a.Assemble(0);
+   // a.Assemble(0);
 
    OperatorPtr A;
    Vector B, X;
-   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-   Vector Y(X);
+   // a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+   // Vector Y(X);
 
-   SparseMatrix * SpMat = (*A.As<ComplexSparseMatrix>()).GetSystemMatrix();
-   HYPRE_Int global_size = SpMat->Height();
-   HYPRE_Int row_starts[2]; row_starts[0] = 0; row_starts[1] = global_size;
-   HypreParMatrix * HypreMat = new HypreParMatrix(MPI_COMM_SELF,global_size,row_starts,SpMat);
-   {
-      MUMPSSolver mumps;
-      mumps.SetOperator(*HypreMat);
-      mumps.Mult(B,X);
-   }
+   // SparseMatrix * SpMat = (*A.As<ComplexSparseMatrix>()).GetSystemMatrix();
+   // HYPRE_Int global_size = SpMat->Height();
+   // HYPRE_Int row_starts[2]; row_starts[0] = 0; row_starts[1] = global_size;
+   // HypreParMatrix * HypreMat = new HypreParMatrix(MPI_COMM_SELF,global_size,row_starts,SpMat);
+   // {
+   //    MUMPSSolver mumps;
+   //    mumps.SetOperator(*HypreMat);
+   //    mumps.Mult(B,X);
+   // }
 
 
-   double ovlerlap = 7; // in degrees;
+   double overlap = 7; // in degrees;
    // double ovlerlap = 0.5; // in degrees;
    int nrmeshes = 9;
 
    Array<Array<int> *> ElemMaps, DofMaps0, DofMaps1, OvlpMaps0, OvlpMaps1;
    Array<FiniteElementSpace *> fespaces;
-   PartitionFE(fespace,nrmeshes,ovlerlap,fespaces, 
+   PartitionFE(fespace,nrmeshes,overlap,fespaces, 
                ElemMaps,
                DofMaps0, DofMaps1,
                OvlpMaps0, OvlpMaps1);
@@ -244,7 +244,10 @@ int main(int argc, char *argv[])
    for (int i = 0; i<nrmeshes-1; i++)
    {
       // DofMapTests(*fespaces[i],*fespaces[i+1],*OvlpMaps0[i], *OvlpMaps1[i]);
-      DofMapTests(*fespaces[i+1],*fespaces[i],*OvlpMaps1[i], *OvlpMaps0[i]);
+      // DofMapTests(*fespaces[i+1],*fespaces[i],*OvlpMaps1[i], *OvlpMaps0[i]);
+      Array<int> rdofs;
+      RestrictDofs(*fespaces[i],0,overlap,rdofs);
+      DofMapOvlpTest(*fespaces[i],rdofs);
       cin.get();
    }
 

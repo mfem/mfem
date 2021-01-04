@@ -170,20 +170,29 @@ void GetElements(Mesh &mesh, double ovlp, int direction, Array<int> & elems)
       Vector center(dim);
       mesh.GetElementCenter(i,center);
       double thetad = GetPointAngle(center);
-      if (thetad >= amax - ovlp)
+
+      switch (direction)
       {
-         if (direction == 1 || direction == 0)
+      case -1:
+         if (thetad >= amin + ovlp)  
          {
-            elems.Append(i);
+            elems.Append(i); 
          }
-      } 
-      if (thetad <= amin + ovlp)
-      {
-         if (direction == 1 || direction == -1)
+         break;
+      case  1: 
+         if (thetad <= amax - ovlp)
          {
+
             elems.Append(i);
+         }   
+         break;
+      default:
+         if (thetad >= amin + ovlp && thetad <= amax - ovlp) 
+         {
+            elems.Append(i); 
          }
-      } 
+         break;
+      }
    }
 }
 
@@ -273,3 +282,36 @@ void DofMapTests(FiniteElementSpace &fes0, FiniteElementSpace &fes1,
       solsock << "solution\n" << *mesh1 << gf1.real()  << flush;     
    }
 }
+
+
+void DofMapOvlpTest(FiniteElementSpace &fes, const Array<int> & dmap)
+{
+   Mesh * mesh = fes.GetMesh();
+   int dim = mesh->Dimension();
+   int tsize = fes.GetTrueVSize();
+   ComplexGridFunction gf(&fes);
+   VectorFunctionCoefficient cf(dim,E_exact);
+   gf.ProjectCoefficient(cf,cf);
+   int n = dmap.Size();
+   Array<int> dofs(2*n);
+   for (int i =0; i<n; i++)
+   {
+      dofs[i] = dmap[i];
+      dofs[n+i] = dmap[i]+tsize;
+   }
+   gf.SetSubVectorComplement(dofs,0.0);
+
+   string keys = "keys mac\n" ;
+
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+
+   {
+      socketstream solsock_re(vishost, visport);
+      solsock_re.precision(8);
+      solsock_re << "solution\n" << *mesh << gf.real() << keys << flush;     
+      socketstream solsock_im(vishost, visport);
+      solsock_im.precision(8);
+      solsock_im << "solution\n" << *mesh << gf.imag() << keys << flush; 
+   }
+}           
