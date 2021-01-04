@@ -2171,7 +2171,7 @@ public:
                                          ElementTransformation &Trans);
 };
 
-/// -alpha (u, q . grad u), negative transpose of ConvectionIntegrator
+/// -alpha (u, q . grad v), negative transpose of ConvectionIntegrator
 class ConservativeConvectionIntegrator : public TransposeIntegrator
 {
 public:
