@@ -29,7 +29,11 @@ void PartitionFE(const FiniteElementSpace * fes, int nrsubmeshes, double ovlp,
                  Array<Array<int> * > & OvlpMaps1);
 
 // Get tdofs associated with the given list of elements
-void RestrictDofs(FiniteElementSpace &fes, const Array<int> & elems, Array<int> & rdofs);
+void RestrictDofs(FiniteElementSpace &fes, int direction, double ovlp, Array<int> & rdofs);
+// direction: -1 left (anti-clockwise)
+//             1 right (clockwise)
+//             0 both the above
+// ovlp     :  given in degrees         
 void GetElements(Mesh &mesh, double ovlp, int direction, Array<int> & elems);
 
 

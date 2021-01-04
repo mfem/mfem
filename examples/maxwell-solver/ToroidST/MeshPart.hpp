@@ -6,6 +6,7 @@
 using namespace std;
 using namespace mfem;
 
+double GetPointAngle(const Vector & pt);
 
 void GetMeshAngleRange(Mesh * mesh, double & amin, double & amax);
 

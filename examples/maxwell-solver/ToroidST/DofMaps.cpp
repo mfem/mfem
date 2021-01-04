@@ -22,7 +22,6 @@ void E_exact(const Vector &x, Vector &E)
 }
 
 
-
 void FindPtsGetCommonElements(Mesh & mesh0, Mesh & mesh1, 
                               Array<int> & elems0, Array<int> & elems1)
 {
@@ -158,6 +157,67 @@ void PartitionFE(const FiniteElementSpace * fes, int nrsubmeshes, double ovlp,
                   ElemMaps[i], ElemMaps[i+1]);
    }
 }
+
+void GetElements(Mesh &mesh, double ovlp, int direction, Array<int> & elems)
+{
+   double amin, amax;
+   GetMeshAngleRange(&mesh, amin, amax);
+   int dim = mesh.Dimension();
+   // loop through elements
+   int ne = mesh.GetNE();
+   for (int i=0; i<ne; i++)
+   {
+      Vector center(dim);
+      mesh.GetElementCenter(i,center);
+      double thetad = GetPointAngle(center);
+      if (thetad >= amax - ovlp)
+      {
+         if (direction == 1 || direction == 0)
+         {
+            elems.Append(i);
+         }
+      } 
+      if (thetad <= amin + ovlp)
+      {
+         if (direction == 1 || direction == -1)
+         {
+            elems.Append(i);
+         }
+      } 
+   }
+}
+
+
+void RestrictDofs(FiniteElementSpace &fes, int direction, double ovlp, Array<int> & rdofs)
+{
+   Array<int> elems;
+   GetElements(*fes.GetMesh(),ovlp,direction,elems);
+   int ne = elems.Size();
+   int tsize = fes.GetTrueVSize();
+   Array<int> tdof_marker(tsize); tdof_marker = 0;
+   for (int i=0; i<ne; i++)
+   {
+      int ie = elems[i];
+      Array<int> elem_dofs;
+      fes.GetElementDofs(ie,elem_dofs);
+      for (auto x : elem_dofs)
+      {
+         tdof_marker[x] = 1;
+      }
+   }
+   int n = tdof_marker.Sum();
+   rdofs.SetSize(n);
+   int k=0;
+   for (int i=0; i<tsize; i++)
+   {
+      if (tdof_marker[i])
+      {
+         rdofs[k++] = i;
+      }
+   }
+}
+
+
 
 
 void DofMapTests(FiniteElementSpace &fes0, FiniteElementSpace &fes1,

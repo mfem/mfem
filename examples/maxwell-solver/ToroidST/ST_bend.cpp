@@ -222,7 +222,7 @@ int main(int argc, char *argv[])
    }
 
 
-   double ovlerlap = 7.5; // in degrees;
+   double ovlerlap = 7; // in degrees;
    // double ovlerlap = 0.5; // in degrees;
    int nrmeshes = 9;
 

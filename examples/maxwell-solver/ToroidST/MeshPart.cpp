@@ -1,6 +1,18 @@
 
 #include "MeshPart.hpp"
 
+double GetPointAngle(const Vector & pt)
+{
+   double x = pt(0);
+   double y = pt(1);
+   x = (abs(x)<1e-12) ? 0.0 : x;
+   y = (abs(y)<1e-12) ? 0.0 : y;
+   double theta = (x == 0) ? M_PI/2.0 : atan(y/x);
+   int k = (x<=0.0) ? 1 : ((y<0.0) ? 2 : 0.0);
+   theta += k*M_PI;
+   return theta * 180.0/M_PI;
+}
+
 void GetMeshAngleRange(Mesh * mesh, double & amin, double & amax)
 {
    amin = infinity();
@@ -10,19 +22,11 @@ void GetMeshAngleRange(Mesh * mesh, double & amin, double & amax)
 
    for (int i = 0; i < nbe; ++i)
    {
-      const Element *el = mesh->GetBdrElement(i);
       Vector center(dim);
       int geom = mesh->GetBdrElementBaseGeometry(i);
       ElementTransformation * T = mesh->GetBdrElementTransformation(i);
       T->Transform(Geometries.GetCenter(geom),center);
-      double x = center[0];
-      double y = center[1];
-      x = (abs(x)<1e-12) ? 0.0 : x;
-      y = (abs(y)<1e-12) ? 0.0 : y;
-      double theta = (x == 0) ? M_PI/2.0 : atan(y/x);
-      int k = (x<=0.0) ? 1 : ((y<0.0) ? 2 : 0.0);
-      theta += k*M_PI;
-      double thetad = theta * 180.0/M_PI;
+      double thetad = GetPointAngle(center);
       amin = min(amin,thetad);
       amax = max(amax,thetad);
    }
@@ -61,14 +65,7 @@ void SetMeshAttributes(Mesh * mesh, int subdivisions, double ovlp)
       // roughly the element center
       Vector center(dim);
       mesh->GetElementCenter(i,center);
-      double x = center[0];
-      double y = center[1];
-      x = (abs(x)<1e-12) ? 0.0 : x;
-      y = (abs(y)<1e-12) ? 0.0 : y;
-      double theta = (x == 0) ? M_PI/2.0 : atan(y/x);
-      int k = (x<=0.0) ? 1 : ((y<0.0) ? 2 : 0.0);
-      theta += k*M_PI;
-      double thetad = theta * 180.0/M_PI;
+      double thetad = GetPointAngle(center);
       // Find the angle relative to (0,0,z)
       int attr = get_angle_range(thetad, angles) + 1;
       el->SetAttribute(attr);
