@@ -156,18 +156,18 @@ public:
        vectors (see ParGridFunction::Distribute()). If this is not the case,
        use TrueInnerProduct(const ParGridFunction &, const ParGridFunction &)
        instead. */
-   double InnerProduct(const ParGridFunction &x, const ParGridFunction &y);
+   double InnerProduct(const ParGridFunction &x, const ParGridFunction &y) const;
 
    /// Compute \f$ y^T M x \f$ on true dofs (grid function version)
    /** @note It is assumed that the parallel system matrix is assembled,
        see FormSystemMatrix().
        @see InnerProduct(const ParGridFunction&, const ParGridFunction&) */
-   double TrueInnerProduct(const ParGridFunction &x, const ParGridFunction &y);
+   double TrueInnerProduct(const ParGridFunction &x, const ParGridFunction &y) const;
 
    /// Compute \f$ y^T M x \f$ on true dofs (vector version)
    /** @note It is assumed that the parallel system matrix is assembled,
        see FormSystemMatrix(). */
-   double TrueInnerProduct(HypreParVector &x, HypreParVector &y);
+   double TrueInnerProduct(HypreParVector &x, HypreParVector &y) const;
 
    /// Return the parallel FE space associated with the ParBilinearForm.
    ParFiniteElementSpace *ParFESpace() const { return pfes; }
