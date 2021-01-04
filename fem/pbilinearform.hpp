@@ -156,13 +156,15 @@ public:
        vectors (see ParGridFunction::Distribute()). If this is not the case,
        use TrueInnerProduct(const ParGridFunction &, const ParGridFunction &)
        instead. */
-   double InnerProduct(const ParGridFunction &x, const ParGridFunction &y) const;
+   double InnerProduct(const ParGridFunction &x,
+                       const ParGridFunction &y) const;
 
    /// Compute \f$ y^T M x \f$ on true dofs (grid function version)
    /** @note It is assumed that the parallel system matrix is assembled,
        see FormSystemMatrix().
        @see InnerProduct(const ParGridFunction&, const ParGridFunction&) */
-   double TrueInnerProduct(const ParGridFunction &x, const ParGridFunction &y) const;
+   double TrueInnerProduct(const ParGridFunction &x,
+                           const ParGridFunction &y) const;
 
    /// Compute \f$ y^T M x \f$ on true dofs (vector version)
    /** @note It is assumed that the parallel system matrix is assembled,
