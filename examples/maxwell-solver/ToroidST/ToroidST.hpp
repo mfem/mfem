@@ -13,6 +13,7 @@ private:
    double omega;
    int nrsubdomains;
    Vector aPmlThickness; 
+   double overlap; 
    Array<FiniteElementSpace *> fespaces;
    Array<Array<int> *> DofMaps0, DofMaps1, OvlpMaps0, OvlpMaps1;
 
