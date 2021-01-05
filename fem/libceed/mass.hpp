@@ -18,20 +18,22 @@
 namespace mfem
 {
 
+/// Represent a MassIntegrator with AssemblyLevel::Partial using libCEED.
 class CeedPAMassIntegrator : public CeedPAIntegrator
 {
 public:
    CeedPAMassIntegrator(const FiniteElementSpace &fes,
                         const mfem::IntegrationRule &irm,
-                        Coefficient *coeff);
+                        Coefficient *Q);
 };
 
+/// Represent a MassIntegrator with AssemblyLevel::None using libCEED.
 class CeedMFMassIntegrator : public CeedMFIntegrator
 {
 public:
    CeedMFMassIntegrator(const FiniteElementSpace &fes,
                         const mfem::IntegrationRule &irm,
-                        Coefficient *coeff);
+                        Coefficient *Q);
 };
 
 }

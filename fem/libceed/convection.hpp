@@ -18,21 +18,23 @@
 namespace mfem
 {
 
+/// Represent a ConvectionIntegrator with AssemblyLevel::Partial using libCEED.
 class CeedPAConvectionIntegrator : public CeedPAIntegrator
 {
 public:
    CeedPAConvectionIntegrator(const FiniteElementSpace &fes,
                               const mfem::IntegrationRule &irm,
-                              VectorCoefficient *coeff,
+                              VectorCoefficient *Q,
                               const double alpha);
 };
 
+/// Represent a ConvectionIntegrator with AssemblyLevel::None using libCEED.
 class CeedMFConvectionIntegrator : public CeedMFIntegrator
 {
 public:
    CeedMFConvectionIntegrator(const FiniteElementSpace &fes,
                               const mfem::IntegrationRule &irm,
-                              VectorCoefficient *coeff,
+                              VectorCoefficient *Q,
                               const double alpha);
 };
 

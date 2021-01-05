@@ -39,7 +39,6 @@ struct CeedConvectionInfo
    ConvectionContext ctx;
    CeedConvectionInfo(int dim) : qdatasize(dim * (dim + 1) / 2) { }
 };
-
 #endif
 
 CeedPAConvectionIntegrator::CeedPAConvectionIntegrator(
