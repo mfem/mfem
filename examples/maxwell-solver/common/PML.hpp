@@ -165,6 +165,31 @@ public:
    }
 };
 
+class PMLMatrixCoefficient : public MatrixCoefficient
+{
+private:
+   ToroidPML * pml = nullptr;
+   void (*Function)(const Vector &, ToroidPML * , DenseMatrix &);
+public:
+   PMLMatrixCoefficient(int dim, void(*F)(const Vector &, ToroidPML *,
+                                              DenseMatrix &),
+                            ToroidPML * pml_)
+      : MatrixCoefficient(dim), pml(pml_), Function(F)
+   {}
+
+   using MatrixCoefficient::Eval;
+
+   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      double x[3];
+      Vector transip(x, 3);
+      T.Transform(ip, transip);
+      M.SetSize(height,width);
+      (*Function)(transip, pml, M);
+   }
+};
+
 // Helmholtz pml Functions
 double pml_detJ_Re(const Vector & x, CartesianPML * pml);
 double pml_detJ_Im(const Vector & x, CartesianPML * pml);
@@ -177,3 +202,10 @@ void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M);
 void detJ_JT_J_inv_abs(const Vector &x, CartesianPML * pml, DenseMatrix &M);
 void detJ_inv_JT_J_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M);
 void detJ_inv_JT_J_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M);
+
+// Functions for computing the necessary coefficients after PML stretching.
+// J is the Jacobian matrix of the stretching function
+void detJ_JT_J_inv_Re(const Vector &x, ToroidPML * pml, DenseMatrix & M);
+void detJ_JT_J_inv_Im(const Vector &x, ToroidPML * pml, DenseMatrix & M);
+void detJ_inv_JT_J_Re(const Vector &x, ToroidPML * pml, DenseMatrix & M);
+void detJ_inv_JT_J_Im(const Vector &x, ToroidPML * pml, DenseMatrix & M);

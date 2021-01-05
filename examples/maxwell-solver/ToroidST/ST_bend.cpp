@@ -13,41 +13,9 @@ using namespace mfem;
 void maxwell_solution(const Vector &x, vector<complex<double>> &E);
 void maxwell_curl(const Vector &x, vector<complex<double>> &curlE);
 
-class PMLMatrixCoefficient : public MatrixCoefficient
-{
-private:
-   ToroidPML * pml = nullptr;
-   void (*Function)(const Vector &, ToroidPML * , DenseMatrix &);
-public:
-   PMLMatrixCoefficient(int dim, void(*F)(const Vector &, ToroidPML *,
-                                              DenseMatrix &),
-                            ToroidPML * pml_)
-      : MatrixCoefficient(dim), pml(pml_), Function(F)
-   {}
-
-   using MatrixCoefficient::Eval;
-
-   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationPoint &ip)
-   {
-      double x[3];
-      Vector transip(x, 3);
-      T.Transform(ip, transip);
-      M.SetSize(height,width);
-      (*Function)(transip, pml, M);
-   }
-};
-
-
 void E_bdr_data_Re(const Vector &x, Vector &E);
 void E_bdr_data_Im(const Vector &x, Vector &E);
 
-// Functions for computing the necessary coefficients after PML stretching.
-// J is the Jacobian matrix of the stretching function
-void detJ_JT_J_inv_Re(const Vector &x, ToroidPML * pml, DenseMatrix & M);
-void detJ_JT_J_inv_Im(const Vector &x, ToroidPML * pml, DenseMatrix & M);
-void detJ_inv_JT_J_Re(const Vector &x, ToroidPML * pml, DenseMatrix & M);
-void detJ_inv_JT_J_Im(const Vector &x, ToroidPML * pml, DenseMatrix & M);
 
 Array2D<double> comp_domain_bdr;
 Array2D<double> domain_bdr;
@@ -382,65 +350,7 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E)
    E[2] = -zi * k / M_PI * sin(M_PI*(x(0)))*exp(zi * k10 * x(1)); 
 }
 
-void detJ_JT_J_inv_Re(const Vector &x, ToroidPML * pml, DenseMatrix & M)
-{
-   ComplexDenseMatrix J(dim);
-   pml->StretchFunction(x,J,omega);
-   complex<double> det = J.Det();
-   ComplexDenseMatrix JtJ(dim);
-   MultAtB(J,J,JtJ);
-   ComplexDenseMatrixInverse InvJtJ(JtJ);
-   InvJtJ *=det;
-   InvJtJ.GetReal(M);
-}
 
-void detJ_JT_J_inv_Im(const Vector &x, ToroidPML * pml, DenseMatrix & M)
-{
-   ComplexDenseMatrix J(dim);
-   pml->StretchFunction(x,J,omega);
-   complex<double> det = J.Det();
-   ComplexDenseMatrix JtJ(dim);
-   MultAtB(J,J,JtJ);
-   ComplexDenseMatrixInverse InvJtJ(JtJ);
-   InvJtJ *=det;
-   InvJtJ.GetImag(M);
-}
-
-void detJ_inv_JT_J_Re(const Vector &x, ToroidPML * pml, DenseMatrix & M)
-{
-   ComplexDenseMatrix J(dim);
-   pml->StretchFunction(x,J,omega);
-   complex<double> det = J.Det();
-   if (dim == 2)
-   {
-      M = (1.0 / det).real();
-   }
-   else
-   {
-      ComplexDenseMatrix JtJ(dim);
-      MultAtB(J,J,JtJ);
-      JtJ *= 1.0/det;
-      JtJ.GetReal(M);
-   }
-}
-
-void detJ_inv_JT_J_Im(const Vector &x, ToroidPML * pml, DenseMatrix & M)
-{
-   ComplexDenseMatrix J(dim);
-   pml->StretchFunction(x,J,omega);
-   complex<double> det = J.Det();
-   if (dim == 2)
-   {
-      M = (1.0 / det).imag();
-   }
-   else
-   {
-      ComplexDenseMatrix JtJ(dim);
-      MultAtB(J,J,JtJ);
-      JtJ *= 1.0/det;
-      JtJ.GetImag(M);
-   }
-}
 
 
    // double ovlerlap = 7.5; // in degrees;
