@@ -771,91 +771,202 @@ TMOPAMRSolver::TMOPAMRSolver(Mesh &mesh_, NonlinearForm &nlf_,
                              bool move_bnd_,
                              bool hradaptivity_,
                              int mesh_poly_deg_, int amr_metric_id_) :
-    mesh(&mesh_), nlf(&nlf_), tmopns(&tmopns_), x(&x_),
-    move_bnd(move_bnd_), hradaptivity(hradaptivity_),
-    mesh_poly_deg(mesh_poly_deg_), amr_metric_id(amr_metric_id_)
+   mesh(&mesh_), nlf(&nlf_), tmopns(&tmopns_), x(&x_),
+   move_bnd(move_bnd_), hradaptivity(hradaptivity_),
+   mesh_poly_deg(mesh_poly_deg_), amr_metric_id(amr_metric_id_),
+   serial(true)
 {
-    tmopamrupdate = new TMOPAMR(*mesh, *nlf, move_bnd);
-    tmop_r_est = new TMOPRefinerEstimator(*mesh, *nlf, mesh_poly_deg, amr_metric_id);
-    tmop_r = new TMOPRefiner(*tmop_r_est);
-    tmop_r_est->SetEnergyScalingFactor(1.);
-    tmop_dr_est= new TMOPDeRefinerEstimator(*mesh, *nlf);
-    tmop_dr = new ThresholdDerefiner(*tmop_dr_est);
-    tmopamrupdate->AddGridFunctionForUpdate(x);
+   tmopamrupdate = new TMOPAMR(*mesh, *nlf, move_bnd);
+   tmop_r_est = new TMOPRefinerEstimator(*mesh, *nlf, mesh_poly_deg,
+                                         amr_metric_id);
+   tmop_r = new TMOPRefiner(*tmop_r_est);
+   tmop_r_est->SetEnergyScalingFactor(1.);
+   tmop_dr_est= new TMOPDeRefinerEstimator(*mesh, *nlf);
+   tmop_dr = new ThresholdDerefiner(*tmop_dr_est);
+   tmopamrupdate->AddGridFunctionForUpdate(x);
 }
+
+#ifdef MFEM_USE_MPI
+TMOPAMRSolver::TMOPAMRSolver(ParMesh &pmesh_, ParNonlinearForm &pnlf_,
+                             TMOPNewtonSolver &tmopns_,
+                             ParGridFunction &px_,
+                             bool move_bnd_,
+                             bool hradaptivity_,
+                             int mesh_poly_deg_, int amr_metric_id_) :
+   mesh(&pmesh_), nlf(&pnlf_), tmopns(&tmopns_), x(&px_),
+   move_bnd(move_bnd_), hradaptivity(hradaptivity_),
+   mesh_poly_deg(mesh_poly_deg_), amr_metric_id(amr_metric_id_),
+   pmesh(&pmesh_), pnlf(&pnlf_), px(&px_), serial(false)
+{
+   tmopamrupdate = new TMOPAMR(*pmesh, *pnlf, move_bnd);
+   tmop_r_est = new TMOPRefinerEstimator(*pmesh, *pnlf, mesh_poly_deg,
+                                         amr_metric_id);
+   tmop_r = new TMOPRefiner(*tmop_r_est);
+   tmop_r_est->SetEnergyScalingFactor(1.);
+   tmop_dr_est= new TMOPDeRefinerEstimator(*pmesh, *pnlf);
+   tmop_dr = new ThresholdDerefiner(*tmop_dr_est);
+   tmopamrupdate->AddGridFunctionForUpdate(px);
+}
+#endif
 
 void TMOPAMRSolver::Mult()
 {
-    Vector b(0);
-    bool radaptivity = true;
+   Vector b(0);
+   bool radaptivity = true;
 
-    if (hradaptivity)
-    {
-        int n_hr = 5;         //Newton + AMR iterations
-        int n_h = 1;          //AMR iterations per Newton iteration
+   int n_hr = 5;         //Newton + AMR iterations
+   int n_h = 1;          //AMR iterations per Newton iteration
 
-        tmop_dr->Reset();
-        tmop_r->Reset();
+   tmop_dr->Reset();
+   tmop_r->Reset();
 
-        for (int i_hr = 0; i_hr < n_hr; i_hr++)
-        {
+   if (serial)
+   {
+      if (hradaptivity)
+      {
+         for (int i_hr = 0; i_hr < n_hr; i_hr++)
+         {
+            if (!radaptivity)
+            {
+               break;
+            }
+            std::cout << i_hr << " r-adaptivity iteration.\n";
 
-           if (!radaptivity)
-           {
-              break;
-           }
-           std::cout << i_hr << " r-adaptivity iteration.\n";
+            tmopns->SetOperator(*nlf);
+            tmopns->Mult(b, x->GetTrueVector());
+            x->SetFromTrueVector();
 
-           tmopns->SetOperator(*nlf);
-           tmopns->Mult(b, x->GetTrueVector());
-           x->SetFromTrueVector();
+            std::cout << "TMOP energy after r-adaptivity: " <<
+                      nlf->GetGridFunctionEnergy(*x)/mesh->GetNE() <<
+                      ", Elements: " << mesh->GetNE() << std::endl;
 
-           std::cout << "TMOP energy after r-adaptivity: " <<
-                     nlf->GetGridFunctionEnergy(*x)/mesh->GetNE() <<
-                     ", Elements: " << mesh->GetNE() << std::endl;
+            for (int i_h = 0; i_h < n_h; i_h++)
+            {
+               NCMesh *ncmesh = mesh->ncmesh;
+               if (ncmesh) //derefinement
+               {
+                  tmop_dr->Apply(*mesh);
+                  tmopamrupdate->Update();
+               }
 
-           for (int i_r = 0; i_r < n_h; i_r++)
-           {
-              NCMesh *ncmesh = mesh->ncmesh;
-              if (ncmesh) //derefinement
-              {
-                 tmop_dr->Apply(*mesh);
-                 tmopamrupdate->Update();
-              }
+               std::cout << "TMOP energy after derefinement: " <<
+                         nlf->GetGridFunctionEnergy(*x)/mesh->GetNE() <<
+                         ", Elements: " << mesh->GetNE() << std::endl;
 
-              std::cout << "TMOP energy after derefinement: " <<
-                        nlf->GetGridFunctionEnergy(*x)/mesh->GetNE() <<
-                        ", Elements: " << mesh->GetNE() << std::endl;
+               // Refiner
+               tmop_r->Apply(*mesh);
+               tmopamrupdate->Update();
+               std::cout << "TMOP energy after   refinement: " <<
+                         nlf->GetGridFunctionEnergy(*x)/mesh->GetNE() <<
+                         ", Elements: " << mesh->GetNE() << std::endl;
 
-              // Refiner
-              tmop_r->Apply(*mesh);
-              tmopamrupdate->Update();
-              std::cout << "TMOP energy after   refinement: " <<
-                        nlf->GetGridFunctionEnergy(*x)/mesh->GetNE() <<
-                        ", Elements: " << mesh->GetNE() << std::endl;
-
-              if (!tmop_dr->Derefined() && tmop_r->Stop())
-              {
-                 radaptivity = false;
-                 std::cout << "AMR stopping criterion satisfied. Stop h-refinement."
-                           << std::endl;
-                 break;
-              }
-           } //n_h
-        } //n_hr
-    }
+               if (!tmop_dr->Derefined() && tmop_r->Stop())
+               {
+                  radaptivity = false;
+                  std::cout << "AMR stopping criterion satisfied. Stop h-refinement."
+                            << std::endl;
+                  break;
+               }
+            } //n_h
+         } //n_hr
+      }
 
 
-    tmopns->SetOperator(*nlf);
-    if (!hradaptivity)
-    {
-       tmopns->Mult(b, x->GetTrueVector());
-       if (tmopns->GetConverged() == false)
-       {
-          std::cout << "Nonlinear solver: rtol not achieved.\n";
-       }
-    }
-    x->SetFromTrueVector();
+      tmopns->SetOperator(*nlf);
+      if (!hradaptivity)
+      {
+         tmopns->Mult(b, x->GetTrueVector());
+         if (tmopns->GetConverged() == false)
+         {
+            std::cout << "Nonlinear solver: rtol not achieved.\n";
+         }
+      }
+      x->SetFromTrueVector();
+   }
+   else
+   {
+#ifdef MFEM_USE_MPI
+      int myid = pnlf->ParFESpace()->GetMyRank();
+      int NEGlob = pmesh->GetGlobalNE();
+      double tmopenergy = pnlf->GetParGridFunctionEnergy(*px);
+      if (hradaptivity)
+      {
+         for (int i_hr = 0; i_hr < n_hr; i_hr++)
+         {
+            if (!radaptivity)
+            {
+               break;
+            }
+            if (myid == 0) { std::cout << i_hr << " r-adaptivity iteration.\n"; }
+            tmopns->SetOperator(*pnlf);
+            tmopns->Mult(b, px->GetTrueVector());
+            px->SetFromTrueVector();
+
+            NEGlob = pmesh->GetGlobalNE();
+            tmopenergy = pnlf->GetParGridFunctionEnergy(*px);
+            if (myid == 0)
+            {
+               std::cout << "TMOP energy after r-adaptivity: " << tmopenergy/NEGlob <<
+                         ", Elements: " << NEGlob << std::endl;
+            }
+
+            for (int i_h = 0; i_h < n_h; i_h++)
+            {
+               ParNCMesh *pncmesh = pmesh->pncmesh;
+
+               if (pncmesh)   //derefinement
+               {
+                  tmopamrupdate->RebalanceParNCMesh();
+                  tmopamrupdate->ParUpdate();
+
+                  tmop_dr->Apply(*pmesh);
+                  tmopamrupdate->ParUpdate();
+               }
+               NEGlob = pmesh->GetGlobalNE();
+               tmopenergy = pnlf->GetParGridFunctionEnergy(*px);
+               if (myid == 0)
+               {
+                  std::cout << "TMOP energy after derefinement: " << tmopenergy/NEGlob <<
+                            ", Elements: " << NEGlob << std::endl;
+               }
+
+
+               tmop_r->Apply(*pmesh);
+               tmopamrupdate->ParUpdate();
+
+               NEGlob = pmesh->GetGlobalNE();
+               tmopenergy = pnlf->GetParGridFunctionEnergy(*px);
+               if (myid == 0)
+               {
+                  std::cout << "TMOP energy after   refinement: " << tmopenergy/NEGlob <<
+                            ", Elements: " << NEGlob << std::endl;
+               }
+
+               if (!tmop_dr->Derefined() && tmop_r->Stop())
+               {
+                  radaptivity = false;
+                  if (myid == 0)
+                  {
+                     std::cout << "AMR stopping criterion satisfied. Stop." <<
+                               std::endl;
+                     break;
+                  }
+               }
+            } //n_r limit
+         } //n_hr
+      } //hr
+      tmopns->SetOperator(*pnlf);
+      if (!hradaptivity)
+      {
+         tmopns->Mult(b, px->GetTrueVector());
+         if (tmopns->GetConverged() == false)
+         {
+            if (myid == 0) { std::cout << "Nonlinear solver: rtol not achieved.\n"; }
+         }
+      }
+      px->SetFromTrueVector();
+#endif
+   }
 }
 
 

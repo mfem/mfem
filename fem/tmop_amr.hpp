@@ -259,6 +259,12 @@ protected:
    GridFunction *x;
    bool move_bnd, hradaptivity;
    const int mesh_poly_deg, amr_metric_id;
+#ifdef MFEM_USE_MPI
+   ParMesh *pmesh;
+   ParNonlinearForm *pnlf;
+   ParGridFunction *px;
+#endif
+   bool serial;
 
    TMOPAMR *tmopamrupdate;
    TMOPRefinerEstimator *tmop_r_est;
@@ -274,25 +280,48 @@ public:
                  bool hradaptivity_,
                  int mesh_poly_deg_,
                  int amr_metric_id_);
+#ifdef MFEM_USE_MPI
+   TMOPAMRSolver(ParMesh &pmesh_,
+                 ParNonlinearForm &pnlf_,
+                 TMOPNewtonSolver &tmopns_,
+                 ParGridFunction &x_,
+                 bool move_bnd_,
+                 bool hradaptivity_,
+                 int mesh_poly_deg_,
+                 int amr_metric_id_);
+#endif
 
    void Mult();
 
-   void AddGridFunctionForUpdate(GridFunction *gf_) {
-       tmopamrupdate->AddGridFunctionForUpdate(gf_);
+   void AddGridFunctionForUpdate(GridFunction *gf_)
+   {
+      tmopamrupdate->AddGridFunctionForUpdate(gf_);
    }
 #ifdef MFEM_USE_MPI
-   void AddGridFunctionForUpdate(ParGridFunction *pgf_) {
-       tmopamrupdate->AddGridFunctionForUpdate(pgf_);
+   void AddGridFunctionForUpdate(ParGridFunction *pgf_)
+   {
+      tmopamrupdate->AddGridFunctionForUpdate(pgf_);
    }
 #endif
-   void AddFESpaceForUpdate(FiniteElementSpace *fes_) {
-       tmopamrupdate->AddFESpaceForUpdate(fes_);
+   void AddFESpaceForUpdate(FiniteElementSpace *fes_)
+   {
+      tmopamrupdate->AddFESpaceForUpdate(fes_);
    }
 #ifdef MFEM_USE_MPI
-   void AddFESpaceForUpdate(ParFiniteElementSpace *pfes_) {
-       tmopamrupdate->AddFESpaceForUpdate(pfes_);
+   void AddFESpaceForUpdate(ParFiniteElementSpace *pfes_)
+   {
+      tmopamrupdate->AddFESpaceForUpdate(pfes_);
    }
 #endif
+
+   ~TMOPAMRSolver()
+   {
+      delete tmop_dr;
+      delete tmop_dr_est;
+      delete tmop_r;
+      delete tmop_r_est;
+      delete tmopamrupdate;
+   }
 };
 
 }

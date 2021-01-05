@@ -88,7 +88,7 @@
 //   2D non-conforming shape and equal size:
 //     mpirun -np 4 pmesh-optimizer -m ./amr-quad-q2.mesh -o 2 -rs 1 -mid 9 -tid 2 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 
-#include "mfem.hpp"
+#include "../../mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <iostream>
 #include <fstream>
@@ -917,105 +917,117 @@ int main (int argc, char *argv[])
    solver.SetAbsTol(0.0);
    solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
 
-   // 20. AMR based size refinemenet if a size metric is used
-   TMOPAMR tmopamrupdate(*pmesh, a, move_bnd);
-   tmopamrupdate.AddGridFunctionForUpdate(&x);
-   tmopamrupdate.AddGridFunctionForUpdate(&x0);
+   // AMR based size refinemenet if a size metric is used
+   TMOPAMRSolver tmopamrsolver(*pmesh, a, solver,
+                               x, move_bnd, hradaptivity,
+                               mesh_poly_deg, amr_metric_id);
+   tmopamrsolver.AddGridFunctionForUpdate(&x0);
    if (adapt_lim_const > 0.)
    {
-      tmopamrupdate.AddGridFunctionForUpdate(&zeta_0);
-      tmopamrupdate.AddFESpaceForUpdate(&ind_fes);
+      tmopamrsolver.AddGridFunctionForUpdate(&zeta_0);
+      tmopamrsolver.AddFESpaceForUpdate(&ind_fes);
    }
-   TMOPRefinerEstimator tmop_r_est(*pmesh, a, mesh_poly_deg, amr_metric_id);
-   TMOPRefiner tmop_r(tmop_r_est);
-   tmop_r_est.SetEnergyScalingFactor(1.);
-   TMOPDeRefinerEstimator tmop_dr_est(*pmesh, a);
-   ThresholdDerefiner tmop_dr(tmop_dr_est);
-
-   bool radaptivity = true;
-   int NEGlob = pmesh->GetGlobalNE();
-   double tmopenergy = a.GetParGridFunctionEnergy(x);
-   if (hradaptivity)
-   {
-      int n_hr = 5;         //Newton + AMR iterations
-      int n_r = 1;          //AMR iterations per Newton iteration
-
-      tmop_r.Reset();
-      tmop_dr.Reset();
-
-      for (int i_hr = 0; i_hr < n_hr; i_hr++)
-      {
-         if (!radaptivity)
-         {
-            break;
-         }
-         if (myid == 0) { std::cout << i_hr << " r-adaptivity iteration.\n"; }
-         solver.SetOperator(a);
-         solver.Mult(b, x.GetTrueVector());
-         x.SetFromTrueVector();
-
-         NEGlob = pmesh->GetGlobalNE();
-         tmopenergy = a.GetParGridFunctionEnergy(x);
-         if (myid == 0)
-         {
-            std::cout << "TMOP energy after r-adaptivity: " << tmopenergy/NEGlob <<
-                      ", Elements: " << NEGlob << endl;
-         }
-
-         for (int i_hr = 0; i_hr < n_r; i_hr++)
-         {
-            ParNCMesh *pncmesh = pmesh->pncmesh;
-
-            if (pncmesh)   //derefinement
-            {
-               tmopamrupdate.RebalanceParNCMesh();
-               tmopamrupdate.ParUpdate();
-
-               tmop_dr.Apply(*pmesh);
-               tmopamrupdate.ParUpdate();
-            }
-            NEGlob = pmesh->GetGlobalNE();
-            tmopenergy = a.GetParGridFunctionEnergy(x);
-            if (myid == 0)
-            {
-               std::cout << "TMOP energy after derefinement: " << tmopenergy/NEGlob <<
-                         ", Elements: " << NEGlob << endl;
-            }
+   tmopamrsolver.Mult();
 
 
-            tmop_r.Apply(*pmesh);
-            tmopamrupdate.ParUpdate();
+   //   TMOPAMR tmopamrupdate(*pmesh, a, move_bnd);
+   //   tmopamrupdate.AddGridFunctionForUpdate(&x);
+   //   tmopamrupdate.AddGridFunctionForUpdate(&x0);
+   //   if (adapt_lim_const > 0.)
+   //   {
+   //      tmopamrupdate.AddGridFunctionForUpdate(&zeta_0);
+   //      tmopamrupdate.AddFESpaceForUpdate(&ind_fes);
+   //   }
+   //   TMOPRefinerEstimator tmop_r_est(*pmesh, a, mesh_poly_deg, amr_metric_id);
+   //   TMOPRefiner tmop_r(tmop_r_est);
+   //   tmop_r_est.SetEnergyScalingFactor(1.);
+   //   TMOPDeRefinerEstimator tmop_dr_est(*pmesh, a);
+   //   ThresholdDerefiner tmop_dr(tmop_dr_est);
 
-            NEGlob = pmesh->GetGlobalNE();
-            tmopenergy = a.GetParGridFunctionEnergy(x);
-            if (myid == 0)
-            {
-               std::cout << "TMOP energy after   refinement: " << tmopenergy/NEGlob <<
-                         ", Elements: " << NEGlob << endl;
-            }
+   //   bool radaptivity = true;
+   //   int NEGlob = pmesh->GetGlobalNE();
+   //   double tmopenergy = a.GetParGridFunctionEnergy(x);
+   //   if (hradaptivity)
+   //   {
+   //      int n_hr = 5;         //Newton + AMR iterations
+   //      int n_r = 1;          //AMR iterations per Newton iteration
 
-            if (!tmop_dr.Derefined() && tmop_r.Stop())
-            {
-               radaptivity = false;
-               if (myid == 0)
-               {
-                  cout << "AMR stopping criterion satisfied. Stop." << endl;
-                  break;
-               }
-            }
-         } //n_r limit
-      } //n_hr
-   } //hr
-   solver.SetOperator(a);
-   if (!hradaptivity)
-   {
-      solver.Mult(b, x.GetTrueVector());
-      if (solver.GetConverged() == false)
-      {
-         if (myid == 0) { cout << "Nonlinear solver: rtol = " << solver_rtol << " not achieved.\n"; }
-      }
-   }
-   x.SetFromTrueVector();
+   //      tmop_r.Reset();
+   //      tmop_dr.Reset();
+
+   //      for (int i_hr = 0; i_hr < n_hr; i_hr++)
+   //      {
+   //         if (!radaptivity)
+   //         {
+   //            break;
+   //         }
+   //         if (myid == 0) { std::cout << i_hr << " r-adaptivity iteration.\n"; }
+   //         solver.SetOperator(a);
+   //         solver.Mult(b, x.GetTrueVector());
+   //         x.SetFromTrueVector();
+
+   //         NEGlob = pmesh->GetGlobalNE();
+   //         tmopenergy = a.GetParGridFunctionEnergy(x);
+   //         if (myid == 0)
+   //         {
+   //            std::cout << "TMOP energy after r-adaptivity: " << tmopenergy/NEGlob <<
+   //                      ", Elements: " << NEGlob << endl;
+   //         }
+
+   //         for (int i_hr = 0; i_hr < n_r; i_hr++)
+   //         {
+   //            ParNCMesh *pncmesh = pmesh->pncmesh;
+
+   //            if (pncmesh)   //derefinement
+   //            {
+   //               tmopamrupdate.RebalanceParNCMesh();
+   //               tmopamrupdate.ParUpdate();
+
+   //               tmop_dr.Apply(*pmesh);
+   //               tmopamrupdate.ParUpdate();
+   //            }
+   //            NEGlob = pmesh->GetGlobalNE();
+   //            tmopenergy = a.GetParGridFunctionEnergy(x);
+   //            if (myid == 0)
+   //            {
+   //               std::cout << "TMOP energy after derefinement: " << tmopenergy/NEGlob <<
+   //                         ", Elements: " << NEGlob << endl;
+   //            }
+
+
+   //            tmop_r.Apply(*pmesh);
+   //            tmopamrupdate.ParUpdate();
+
+   //            NEGlob = pmesh->GetGlobalNE();
+   //            tmopenergy = a.GetParGridFunctionEnergy(x);
+   //            if (myid == 0)
+   //            {
+   //               std::cout << "TMOP energy after   refinement: " << tmopenergy/NEGlob <<
+   //                         ", Elements: " << NEGlob << endl;
+   //            }
+
+   //            if (!tmop_dr.Derefined() && tmop_r.Stop())
+   //            {
+   //               radaptivity = false;
+   //               if (myid == 0)
+   //               {
+   //                  cout << "AMR stopping criterion satisfied. Stop." << endl;
+   //                  break;
+   //               }
+   //            }
+   //         } //n_r limit
+   //      } //n_hr
+   //   } //hr
+   //   solver.SetOperator(a);
+   //   if (!hradaptivity)
+   //   {
+   //      solver.Mult(b, x.GetTrueVector());
+   //      if (solver.GetConverged() == false)
+   //      {
+   //         if (myid == 0) { cout << "Nonlinear solver: rtol = " << solver_rtol << " not achieved.\n"; }
+   //      }
+   //   }
+   //   x.SetFromTrueVector();
 
    // 16. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized -np num_mpi_tasks".
