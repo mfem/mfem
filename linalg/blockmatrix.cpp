@@ -149,6 +149,7 @@ double& BlockMatrix::Elem (int i, int j)
 
 const double& BlockMatrix::Elem (int i, int j) const
 {
+   static const double zero = 0.0;
    int iloc, iblock;
    int jloc, jblock;
 
@@ -157,7 +158,7 @@ const double& BlockMatrix::Elem (int i, int j) const
 
    if (IsZeroBlock(iblock, jblock))
    {
-      return 0;
+      return zero;
    }
    return static_cast<const SparseMatrix *>(Aij(iblock, jblock))->Elem(iloc, jloc);
 }
