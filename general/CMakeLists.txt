@@ -28,6 +28,7 @@ list(APPEND SRCS
   table.cpp
   tic_toc.cpp
   version.cpp
+  hip.cpp
   )
 
 list(APPEND HDRS
@@ -57,6 +58,7 @@ list(APPEND HDRS
   tic_toc.hpp
   text.hpp
   version.hpp
+  hip.hpp
   )
 
 if (MFEM_USE_MPI)
