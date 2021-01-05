@@ -64,7 +64,6 @@ if (MFEM_USE_MPI)
     ex25p.cpp
     ex26p.cpp
     ex27p.cpp
-    distance.cpp
     heat.cpp
     )
 endif()
