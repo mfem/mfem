@@ -42,7 +42,7 @@
 //   Adapted analytc shape with hr-adaptivity:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 0 -tid 4 -ni 50 -ls 2 -li 20 -bnd -qt 1 -qo 8 -hmid 55 -mid 7 -ht 1 -hr
 //     mesh-optimizer -m square01.mesh -o 2 -rs 0 -tid 4 -ni 50 -ls 2 -li 20 -bnd -qt 1 -qo 8 -hmid 55 -mid 7 -ht 2 -hr
-//     mesh-optimizer -m square01.mesh -o 2 -rs 0 -tid 4 -ni 50 -ls 2 -li 20 -bnd -qt 1 -qo 8 -hmid 55 -mid 2 -ht 2 -hr
+//     mesh-optimizer -m square01.mesh -o 2 -rs 0 -tid 4 -ni 50 -ls 2 -li 20 -bnd -qt 1 -qo 8 -hmid 2 -mid 2 -ht 3 -hr
 //
 //   Adapted discrete size:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor
@@ -89,7 +89,7 @@
 //     mesh-optimizer -m ./amr-quad-q2.mesh -o 2 -rs 1 -mid 9 -tid 2 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 
 
-#include "mfem.hpp"
+#include "../../mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>
@@ -871,87 +871,16 @@ int main(int argc, char *argv[])
    solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
 
    // 20. AMR based size refinemenet if a size metric is used
-   TMOPAMR tmopamrupdate(*mesh, a, move_bnd);
-   tmopamrupdate.AddGridFunctionForUpdate(&x);
-   tmopamrupdate.AddGridFunctionForUpdate(&x0);
+   TMOPAMRSolver tmopamrsolver(*mesh, a, solver,
+                               x, move_bnd, hradaptivity,
+                               mesh_poly_deg, amr_metric_id);
+   tmopamrsolver.AddGridFunctionForUpdate(&x0);
    if (adapt_lim_const > 0.)
    {
-      tmopamrupdate.AddGridFunctionForUpdate(&zeta_0);
-      tmopamrupdate.AddFESpaceForUpdate(&ind_fes);
+      tmopamrsolver.AddGridFunctionForUpdate(&zeta_0);
+      tmopamrsolver.AddFESpaceForUpdate(&ind_fes);
    }
-   TMOPRefinerEstimator tmop_r_est(*mesh, a, mesh_poly_deg, amr_metric_id);
-   TMOPRefiner tmop_r(tmop_r_est);
-   tmop_r_est.SetEnergyScalingFactor(1.);
-   TMOPDeRefinerEstimator tmop_dr_est(*mesh, a);
-   ThresholdDerefiner tmop_dr(tmop_dr_est);
-
-   bool radaptivity = true;
-
-   if (hradaptivity)
-   {
-      int n_hr = 5;         //Newton + AMR iterations
-      int n_h = 1;          //AMR iterations per Newton iteration
-
-      tmop_dr.Reset();
-      tmop_r.Reset();
-
-      for (int i_hr = 0; i_hr < n_hr; i_hr++)
-      {
-
-         if (!radaptivity)
-         {
-            break;
-         }
-         std::cout << i_hr << " r-adaptivity iteration.\n";
-
-         solver.SetOperator(a);
-         solver.Mult(b, x.GetTrueVector());
-         x.SetFromTrueVector();
-
-         std::cout << "TMOP energy after r-adaptivity: " <<
-                   a.GetGridFunctionEnergy(x)/mesh->GetNE() <<
-                   ", Elements: " << mesh->GetNE() << endl;
-
-         for (int i_r = 0; i_r < n_h; i_r++)
-         {
-            NCMesh *ncmesh = mesh->ncmesh;
-            if (ncmesh) //derefinement
-            {
-               tmop_dr.Apply(*mesh);
-               tmopamrupdate.Update();
-            }
-
-            std::cout << "TMOP energy after derefinement: " <<
-                      a.GetGridFunctionEnergy(x)/mesh->GetNE() <<
-                      ", Elements: " << mesh->GetNE() << endl;
-
-            // Refiner
-            tmop_r.Apply(*mesh);
-            tmopamrupdate.Update();
-            std::cout << "TMOP energy after   refinement: " <<
-                      a.GetGridFunctionEnergy(x)/mesh->GetNE() <<
-                      ", Elements: " << mesh->GetNE() << endl;
-
-            if (!tmop_dr.Derefined() && tmop_r.Stop())
-            {
-               radaptivity = false;
-               cout << "AMR stopping criterion satisfied. Stop h-refinement." << endl;
-               break;
-            }
-         } //n_h
-      } //n_hr
-   } //hr
-
-   solver.SetOperator(a);
-   if (!hradaptivity)
-   {
-      solver.Mult(b, x.GetTrueVector());
-      if (solver.GetConverged() == false)
-      {
-         cout << "Nonlinear solver: rtol = " << solver_rtol << " not achieved.\n";
-      }
-   }
-   x.SetFromTrueVector();
+   tmopamrsolver.Mult();
 
    // 15. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized.mesh".
