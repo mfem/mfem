@@ -1690,7 +1690,7 @@ void PetscParMatrix::SetUpForDevice()
 #if !defined(_USE_DEVICE)
    return;
 #else
-   if (!A || !Device::Allows(Backend::CUDA_MASK)) return;
+   if (!A || !Device::Allows(Backend::CUDA_MASK)) { return; }
 
    PetscBool ismatis,isnest,isseqaij,ismpiaij;
    ierr = PetscObjectTypeCompare((PetscObject)A,MATIS,&ismatis);
@@ -3342,7 +3342,8 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
          ParGridFunction gf_coords(fespace_coords);
          gf_coords.ProjectCoefficient(coeff_coords);
          HypreParVector *hvec_coords = gf_coords.ParallelProject();
-         PetscScalar *data_coords = (PetscScalar*)mfem::Read(hvec_coords->GetMemory(),hvec_coords->Size(),false);
+         PetscScalar *data_coords = (PetscScalar*)mfem::Read(hvec_coords->GetMemory(),
+                                                             hvec_coords->Size(),false);
 
          // likely elasticity -> we attach rigid-body modes as near-null space information to the local matrices
          if (vdim == sdim)
@@ -3415,7 +3416,7 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
          }
          else
          {
-            for (PetscInt j = 0; j < nl*sdim; j++) coords[j] = PetscRealPart(data_coords[j]);
+            for (PetscInt j = 0; j < nl*sdim; j++) { coords[j] = PetscRealPart(data_coords[j]); }
          }
          if (fespace_coords != fespace)
          {
@@ -3794,7 +3795,8 @@ void PetscH2Solver::H2SolverConstructor(ParFiniteElementSpace *fes)
    coords.ParallelProject(c);
    delete fes_coords;
    PCSetType(*this,PCH2OPUS);
-   PCSetCoordinates(*this,sdim,c.Size()/sdim,(PetscReal*)mfem::Read(c.GetMemory(),c.Size(),false));
+   PCSetCoordinates(*this,sdim,c.Size()/sdim,(PetscReal*)mfem::Read(c.GetMemory(),
+                                                                    c.Size(),false));
    PCSetFromOptions(*this);
 #else
    MFEM_ABORT("Need PETSc configured with --download-h2opus");
