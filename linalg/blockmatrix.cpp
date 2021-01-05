@@ -157,7 +157,7 @@ const double& BlockMatrix::Elem (int i, int j) const
 
    if (IsZeroBlock(iblock, jblock))
    {
-      mfem_error("BlockMatrix::Elem");
+      return 0;
    }
    return static_cast<const SparseMatrix *>(Aij(iblock, jblock))->Elem(iloc, jloc);
 }
