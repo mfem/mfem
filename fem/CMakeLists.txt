@@ -64,6 +64,7 @@ set(SRCS
   staticcond.cpp
   tmop.cpp
   tmop_tools.cpp
+  tmop_amr.cpp
   gslib.cpp
   transfer.cpp
   )
@@ -110,6 +111,7 @@ set(HDRS
   tintrules.hpp
   tmop.hpp
   tmop_tools.hpp
+  tmop_amr.hpp
   gslib.hpp
   transfer.hpp
   )
