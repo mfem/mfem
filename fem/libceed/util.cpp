@@ -103,7 +103,7 @@ static CeedElemTopology GetCeedTopology(Geometry::Type geom)
          return CEED_PRISM;
       default:
          MFEM_ABORT("This type of element is not supported");
-         return CEED_PRISM;
+         return CEED_PRISM; // Silence warning
    }
 }
 
