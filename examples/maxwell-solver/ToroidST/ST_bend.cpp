@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
 
    int order = 1;
    int ref_levels = 1;
-   double freq = 5.0;
+   double freq = 0.6;
    bool herm_conv = true;
    bool visualization = 1;
 
@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
    bool zstretch = false;
    bool astretch = false;
    bool rstretch = false;
-   apml_thickness[1] = 45.0; 
+   apml_thickness[1] = 7.0; 
    astretch = true;
    tpml.SetPmlAxes(zstretch,rstretch,astretch);
    tpml.SetPmlWidth(zpml_thickness,rpml_thickness,apml_thickness);
@@ -204,34 +204,34 @@ int main(int argc, char *argv[])
    a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_c2_Re),
                         new VectorFEMassIntegrator(restr_c2_Im));
 
-   // a.Assemble(0);
+   a.Assemble(0);
 
    OperatorPtr A;
    Vector B, X;
-   // a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-   // Vector Y(X);
+   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+   Vector Y(X);
 
-   // SparseMatrix * SpMat = (*A.As<ComplexSparseMatrix>()).GetSystemMatrix();
-   // HYPRE_Int global_size = SpMat->Height();
-   // HYPRE_Int row_starts[2]; row_starts[0] = 0; row_starts[1] = global_size;
-   // HypreParMatrix * HypreMat = new HypreParMatrix(MPI_COMM_SELF,global_size,row_starts,SpMat);
-   // {
-   //    MUMPSSolver mumps;
-   //    mumps.SetOperator(*HypreMat);
-   //    mumps.Mult(B,X);
-   // }
+   SparseMatrix * SpMat = (*A.As<ComplexSparseMatrix>()).GetSystemMatrix();
+   HYPRE_Int global_size = SpMat->Height();
+   HYPRE_Int row_starts[2]; row_starts[0] = 0; row_starts[1] = global_size;
+   HypreParMatrix * HypreMat = new HypreParMatrix(MPI_COMM_SELF,global_size,row_starts,SpMat);
+   {
+      MUMPSSolver mumps;
+      mumps.SetOperator(*HypreMat);
+      mumps.Mult(B,X);
+   }
 
 
-   double overlap = 7; // in degrees;
+   // double overlap = 7; // in degrees;
    // double ovlerlap = 0.5; // in degrees;
-   int nrmeshes = 9;
+   // int nrmeshes = 9;
 
-   Array<Array<int> *> ElemMaps, DofMaps0, DofMaps1, OvlpMaps0, OvlpMaps1;
-   Array<FiniteElementSpace *> fespaces;
-   PartitionFE(fespace,nrmeshes,overlap,fespaces, 
-               ElemMaps,
-               DofMaps0, DofMaps1,
-               OvlpMaps0, OvlpMaps1);
+   // Array<Array<int> *> ElemMaps, DofMaps0, DofMaps1, OvlpMaps0, OvlpMaps1;
+   // Array<FiniteElementSpace *> fespaces;
+   // PartitionFE(fespace,nrmeshes,overlap,fespaces, 
+   //             ElemMaps,
+   //             DofMaps0, DofMaps1,
+   //             OvlpMaps0, OvlpMaps1);
 
      // Test local to global dof Maps
    // for (int i = 0; i<nrmeshes; i++)
@@ -241,15 +241,15 @@ int main(int argc, char *argv[])
    //    cin.get();
    // }
 
-   for (int i = 0; i<nrmeshes-1; i++)
-   {
-      // DofMapTests(*fespaces[i],*fespaces[i+1],*OvlpMaps0[i], *OvlpMaps1[i]);
-      // DofMapTests(*fespaces[i+1],*fespaces[i],*OvlpMaps1[i], *OvlpMaps0[i]);
-      Array<int> rdofs;
-      RestrictDofs(*fespaces[i],0,overlap,rdofs);
-      DofMapOvlpTest(*fespaces[i],rdofs);
-      cin.get();
-   }
+   // for (int i = 0; i<nrmeshes-1; i++)
+   // {
+   //    // DofMapTests(*fespaces[i],*fespaces[i+1],*OvlpMaps0[i], *OvlpMaps1[i]);
+   //    // DofMapTests(*fespaces[i+1],*fespaces[i],*OvlpMaps1[i], *OvlpMaps0[i]);
+   //    Array<int> rdofs;
+   //    RestrictDofs(*fespaces[i],0,overlap,rdofs);
+   //    DofMapOvlpTest(*fespaces[i],rdofs);
+   //    cin.get();
+   // }
 
 
    int nrsubdomains = 2;

@@ -13,12 +13,16 @@ private:
    double omega;
    int nrsubdomains;
    Vector aPmlThickness; 
+   Array<FiniteElementSpace *> fespaces;
+   Array<Array<int> *> DofMaps0, DofMaps1, OvlpMaps0, OvlpMaps1;
+
 
    Array< SesquilinearForm * > sqf;
    Array< OperatorPtr * > Optr;
    Array<ComplexSparseMatrix *> PmlMat;
    Array<ComplexUMFPackSolver *> PmlMatInv;
-
+   mutable Array<Vector *> f_orig;
+   mutable Array<Vector *> f_transf;
    void SetupSubdomainProblems();
    void SetMaxwellPmlSystemMatrix(int ip);
    
