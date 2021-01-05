@@ -362,6 +362,10 @@ endif()
 # AMD HIP
 if (MFEM_USE_HIP)
   find_package(HIP REQUIRED)
+  if (HIP_ARCH)
+    message(STATUS "Using HIP architecture: ${HIP_ARCH}")
+    list(APPEND HIP_HIPCC_FLAGS "--amdgpu-target=${HIP_ARCH}")
+  endif()
 endif()
 
 # ADIOS2 for parallel I/O
