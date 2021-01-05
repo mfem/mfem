@@ -38,7 +38,6 @@ struct CeedMassInfo
    static constexpr int qdatasize = 1;
    MassContext ctx;
 };
-
 #endif
 
 CeedPAMassIntegrator::CeedPAMassIntegrator(const FiniteElementSpace &fes,

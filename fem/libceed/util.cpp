@@ -250,6 +250,7 @@ void InitCeedStridedRestriction(const FiniteElementSpace &fes,
                                        nelem*nqpts*qdatasize,
                                        strides,
                                        restr);
+      /// Will be automatically destroyed when @a fes gets destroyed.
       internal::ceed_restr_map[restr_key] = *restr;
    }
    else

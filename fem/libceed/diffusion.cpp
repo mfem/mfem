@@ -39,7 +39,6 @@ struct CeedDiffusionInfo
    DiffusionContext ctx;
    CeedDiffusionInfo(int dim) : qdatasize(dim*(dim+1)/2) { }
 };
-
 #endif
 
 CeedPADiffusionIntegrator::CeedPADiffusionIntegrator(

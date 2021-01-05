@@ -18,6 +18,8 @@
 namespace mfem
 {
 
+/** Represent a VectorConvectionNLFIntegrator with AssemblyLevel::Partial
+    using libCEED. */
 class CeedPANLConvectionIntegrator : public CeedPAIntegrator
 {
 public:
@@ -26,6 +28,8 @@ public:
                                 Coefficient *coeff);
 };
 
+/** Represent a VectorConvectionNLFIntegrator with AssemblyLevel::None
+    using libCEED. */
 class CeedMFNLConvectionIntegrator : public CeedMFIntegrator
 {
 public:
