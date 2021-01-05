@@ -18,7 +18,7 @@
 namespace mfem
 {
 
-/** A base class to represent an MFEM Operator with a CeedOperator. */
+/** A base class to represent a CeedOperator as an MFEM Operator. */
 class MFEMCeedOperator : Operator
 {
 protected:
