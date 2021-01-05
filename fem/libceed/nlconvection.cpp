@@ -13,7 +13,7 @@
 
 #include "../../config/config.hpp"
 #ifdef MFEM_USE_CEED
-#include "nlconvection.h"
+#include "nlconvection_qf.h"
 #endif
 
 namespace mfem
@@ -22,7 +22,7 @@ namespace mfem
 #ifdef MFEM_USE_CEED
 struct CeedNLConvectionInfo
 {
-   static constexpr const char *header = "/nlconvection.h";
+   static constexpr const char *header = "/nlconvection_qf.h";
    static constexpr const char *build_func_const = ":f_build_conv_const";
    static constexpr const char *build_func_quad = ":f_build_conv_quad";
    static constexpr const char *apply_func = ":f_apply_conv";

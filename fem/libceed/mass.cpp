@@ -13,7 +13,7 @@
 
 #include "../../config/config.hpp"
 #ifdef MFEM_USE_CEED
-#include "mass.h"
+#include "mass_qf.h"
 #endif
 
 namespace mfem
@@ -22,7 +22,7 @@ namespace mfem
 #ifdef MFEM_USE_CEED
 struct CeedMassInfo
 {
-   static constexpr const char *header = "/mass.h";
+   static constexpr const char *header = "/mass_qf.h";
    static constexpr const char *build_func_const = ":f_build_mass_const";
    static constexpr const char *build_func_quad = ":f_build_mass_quad";
    static constexpr const char *apply_func = ":f_apply_mass";

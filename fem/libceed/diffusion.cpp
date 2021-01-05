@@ -13,7 +13,7 @@
 
 #include "../../config/config.hpp"
 #ifdef MFEM_USE_CEED
-#include "diffusion.h"
+#include "diffusion_qf.h"
 #endif
 
 namespace mfem
@@ -22,7 +22,7 @@ namespace mfem
 #ifdef MFEM_USE_CEED
 struct CeedDiffusionInfo
 {
-   static constexpr const char *header = "/diffusion.h";
+   static constexpr const char *header = "/diffusion_qf.h";
    static constexpr const char *build_func_const = ":f_build_diff_const";
    static constexpr const char *build_func_quad = ":f_build_diff_quad";
    static constexpr const char *apply_func = ":f_apply_diff";
