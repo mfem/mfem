@@ -425,10 +425,10 @@ int main(int argc, char *argv[])
    double drag_err = abs(drag - (-1 / 1.4));
    cout << "drag: " << drag << endl;
    cout << "drag_error: " << drag_err << endl;
-   ofstream finalsol_ofs("final_sol.vtk");
+   ofstream finalsol_ofs("final_sol_vortex.vtk");
    finalsol_ofs.precision(14);
-   mesh->PrintVTK(finalsol_ofs, 1);
-   u.SaveVTK(finalsol_ofs, "Solution", 1);
+   mesh->PrintVTK(finalsol_ofs, 3);
+   u.SaveVTK(finalsol_ofs, "Solution", 3);
    finalsol_ofs.close();
 
    //calculate final solution error

@@ -441,6 +441,79 @@ void calcLaxFriedrichsFlux(const double *dir, const double *qL, const double *qR
    }
 }
 
+/// Roe flux function in direction `dir`
+/// \param[in] dir - vector direction in which flux is wanted
+/// \param[in] qL - conservative variables at "left" state
+/// \param[in] qR - conservative variables at "right" state
+/// \param[out] flux - fluxes in the direction `dir`
+/// \tparam xdouble - typically `double` or `adept::adouble`
+/// \tparam dim - number of spatial dimensions (1, 2, or 3)
+template <int dim>
+void calcRoeFaceFlux(const double *dir, const double *qL,
+                     const double *qR, double *flux)
+{
+   using std::max;
+   // Define some constants
+   const double sat_Vn = 0.025;
+   const double sat_Vl = 0.025;
+   // Define the Roe-average state 
+   const double sqL = sqrt(qL[0]);
+   const double sqR = sqrt(qR[0]);
+   const double facL = 1.0/qL[0];
+   const double facR = 1.0/qR[0];
+   const double fac = 1.0/(sqL + sqR);
+   double u[dim]; // should pass in another work array?
+   for (int i = 0; i < dim; ++i)
+   {
+      u[i] = (sqL*qL[i+1]*facL + sqR*qR[i+1]*facR)*fac;
+   }
+   const double phi = 0.5*dot<dim>(u, u);
+   const double Un = dot<dim>(dir, u);
+   const double HL = (euler::gamma * qL[dim + 1] - 0.5 * euler::gami *         
+                       dot<dim>(qL + 1, qL + 1) * facL) * facL;
+   const double HR = (euler::gamma * qR[dim + 1] - 0.5 * euler::gami *         
+                       dot<dim>(qR + 1, qR + 1) * facR) * facR;
+   const double H = (sqL*HL + sqR*HR)*fac;
+   const double a = sqrt(euler::gami * (H - phi));
+   const double dA = sqrt(dot<dim>(dir, dir));
+   // Define the wave speeds
+   const double rhoA = fabs(Un) + dA * a;
+   const double lambda1 = 0.5 * max(fabs(Un + dA * a), sat_Vn * rhoA);
+   const double lambda2 = 0.5 * max(fabs(Un - dA * a), sat_Vn * rhoA);
+   const double lambda3 = 0.5 * max(fabs(Un), sat_Vl * rhoA);
+   // start flux computation by averaging the Euler flux
+   double dq[dim+2];
+   calcEulerFlux<dim>(dir, qL, flux);
+   calcEulerFlux<dim>(dir, qR, dq);
+   for (int i = 0; i < dim + 2; ++i)
+   {
+      flux[i] = 0.5*(flux[i] + dq[i]);
+      dq[i] = qL[i] - qR[i];
+      flux[i] += lambda3 * dq[i]; // diagonal matrix multiply 
+   }
+   // some scalars needed for E1*dq, E2*dq, E3*dq, and E4*dq
+   double tmp1 = 0.5 * (lambda1 + lambda2) - lambda3;
+   double E1dq_fac = tmp1 * euler::gami / (a * a);
+   double E2dq_fac = tmp1 / (dA * dA);
+   double E34dq_fac = 0.5 * (lambda1 - lambda2) / (dA * a);
+   // get E1*dq + E4*dq and add to flux
+   double Edq = phi * dq[0] + dq[dim + 1] - dot<dim>(u, dq + 1);
+   flux[0] += E1dq_fac * Edq;
+   for (int i = 0; i < dim; ++i)
+   {
+      flux[i + 1] += Edq * (E1dq_fac * u[i] + euler::gami * E34dq_fac * dir[i]);
+   }
+   flux[dim + 1] += Edq * (E1dq_fac * H + euler::gami * E34dq_fac * Un);
+   // get E2*dq + E3*dq and add to flux
+   Edq = -Un * dq[0] + dot<dim>(dir, dq + 1);
+   flux[0] += E34dq_fac * Edq;
+   for (int i = 0; i < dim; ++i)
+   {
+      flux[i + 1] += Edq * (E2dq_fac * dir[i] + E34dq_fac * u[i]);
+   }
+   flux[dim + 1] += Edq * (E2dq_fac * Un + E34dq_fac * H);
+}
+
 /// computes an adjoint consistent slip wall boundary condition
 /// \param[in] x - not used
 /// \param[in] dir - desired (scaled) normal vector to the wall

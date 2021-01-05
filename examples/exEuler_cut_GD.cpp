@@ -197,7 +197,7 @@ int main(int argc, char *argv[])
     int order = 1;
     int N = 5;
     int ref_levels = -1;
-    int ncr = 2;
+    int ncr = -1;
     double radius = 1.0;
     /// number of state variables
     int num_state = 4;
@@ -544,7 +544,7 @@ int main(int argc, char *argv[])
     double res_norm0 = calcResidualNorm(res, fes_GD, uc);
     double t_final = 1000;
     std::cout << "initial residual norm: " << res_norm0 << "\n";
-    double dt_init = 1000.0;
+    double dt_init = 0.2;
     double dt_old;
     // initial l2_err
     double l2_err_init = calcCutConservativeVarsL2Error<2, 0>(uexact, &u, fes, EmbeddedElems,
@@ -654,4 +654,15 @@ void uexact(const Vector &x, Vector &q)
     //        q(2) = 0.0;
     //        q(3) = 1 / (euler::gamma * euler::gami) + 0.5 * mach_fs * mach_fs;
     //    }
+
+    //     if ((x(0) * x(0)) + (x(1) * x(1)) > 9.0) 
+    //    {
+    //        double mach_fs = 0.3;
+    //        q(0) = 1.0;
+    //        q(1) = q(0) * mach_fs; // ignore angle of attack
+    //        q(2) = 0.0;
+    //        q(3) = 1 / (euler::gamma * euler::gami) + 0.5 * mach_fs * mach_fs;
+    //    }
+
+
 }

@@ -65,7 +65,7 @@ unique_ptr<Mesh> buildQuarterAnnulusMesh(int degree, int num_rad, int num_ang)
    auto xy_fun = [](const Vector& rt, Vector &xy)
    {
       double ax = rt(0);
-      double ay = rt(0)/10.0;
+      double ay = rt(0)/20.0;
 
       double r = sqrt((ax * ax * ay * ay) / ((ay * ay * cos(rt(1)) * cos(rt(1))) 
                      + (ax * ax * sin(rt(1)) * sin(rt(1)))));

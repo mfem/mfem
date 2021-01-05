@@ -231,7 +231,7 @@ void GalerkinDifference::BuildGDProlongation() const
 
          for (int k = 0; k < num_dofs; ++k)
          {
-            local_mat(k, 0) = 1.0;
+            local_mat(k, 0) = 0.0;
          }
 
          AssembleProlongationMatrix(elmt_id, local_mat);

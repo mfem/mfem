@@ -35,10 +35,16 @@ struct vortex
             return 1 * ((((x[0] * xscale) + xmin) * ((x[0] * xscale) + xmin)) +
                         (((x[1] * yscale) + ymin) * ((x[1] * yscale) + ymin)) - (radius * radius));
         }
-        else
+        else if (ls1==3)
         {
             return -1 * (((((x[0] * xscale) + xmin - xc) * ((x[0] * xscale) + xmin - xc)) / (ax * ax)) +
                          ((((x[1] * yscale) + ymin - yc) * ((x[1] * yscale) + ymin - yc)) / (ay * ay)) - (radius * radius));
+        }
+
+        else 
+        {
+            return -1 * ((((x[0] * xscale) + xmin) * ((x[0] * xscale) + xmin - xc)) +
+                        (((x[1] * yscale) + ymin) * ((x[1] * yscale) + ymin - yc )) - (radius * radius));
         }
     }
 
@@ -56,11 +62,18 @@ struct vortex
             return blitz::TinyVector<T, N>(1 * (2.0 * xscale * ((x(0) * xscale) + xmin)),
                                            1 * (2.0 * yscale * ((x(1) * yscale) + ymin)));
         }
-        else
+        else if (ls1 ==3)
         {
             return blitz::TinyVector<T, N>(-1 * (2.0 * xscale * ((x(0) * xscale) + xmin - xc)) / (ax * ax),
                                            -1 * (2.0 * yscale * ((x(1) * yscale) + ymin - yc)) / (ay * ay));
         }
+
+        else
+        {
+            return blitz::TinyVector<T, N>(-1 * (2.0 * xscale * ((x(0) * xscale) + xmin - xc)),
+                                           -1 * (2.0 * yscale * ((x(1) * yscale) + ymin -yc)));
+        }
+
     }
 };
 
@@ -95,7 +108,7 @@ bool cutByGeom(Mesh *mesh, int &elemid)
             lvsval(i) = -1 * (((coord[0] - xc) * (coord[0] - xc)) + ((coord[1] - yc) * (coord[1] - yc)) - (r * r));
         }
 
-        else
+        else if (ls1 == 3)
         {
             r = 1.0;
             xc = 20.0;
@@ -103,6 +116,12 @@ bool cutByGeom(Mesh *mesh, int &elemid)
             ax = 0.5;
             ay = ax / 10.0;
             lvsval(i) = 1 * ((((coord[0] - xc) * (coord[0] - xc)) / (ax * ax)) + (((coord[1] - yc) * (coord[1] - yc)) / (ay * ay)) - (r * r));
+        }
+
+        else
+        {
+            r = 0.5;
+            lvsval(i) = 1 * (((coord[0] - xc) * (coord[0] - xc)) + ((coord[1] - yc) * (coord[1] - yc)) - (r * r));
         }
 
         if ((lvsval(i) < 0) && (abs(lvsval(i)) > 1e-16))
@@ -160,7 +179,7 @@ bool insideBoundary(Mesh *mesh, int &elemid)
             r = 3.0;
             lvsval(i) = -1 * (((coord[0] - xc) * (coord[0] - xc)) + ((coord[1] - yc) * (coord[1] - yc)) - (r * r));
         }
-        else
+        else if (ls1==3)
         {
             r = 1.0;
             xc = 20.0;
@@ -168,6 +187,11 @@ bool insideBoundary(Mesh *mesh, int &elemid)
             ax = 0.5;
             ay = ax / 10.0;
             lvsval(i) = 1 * ((((coord[0] - xc) * (coord[0] - xc)) / (ax * ax)) + (((coord[1] - yc) * (coord[1] - yc)) / (ay * ay)) - (r * r));
+        }
+        else
+        {
+            r = 0.5;
+            lvsval(i) = 1 * (((coord[0] - xc) * (coord[0] - xc)) + ((coord[1] - yc) * (coord[1] - yc)) - (r * r));
         }
 
         if ((lvsval(i) < 0) || (lvsval(i) == 0))
@@ -265,6 +289,12 @@ void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems, int order, double ra
             phi.xc = 20.0;
             phi.yc = 20.0;
         }
+        
+        if (ls == 4)
+        {
+            phi.xc = 20.0;
+            phi.yc = 20.0;
+        }
         auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double, N>(xlower, xupper), dir, side, order);
         int i = 0;
         ir = new IntegrationRule(q.nodes.size());
@@ -325,6 +355,12 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
             phi.xc = 20.0;
             phi.yc = 20.0;
         }
+        if (ls == 4)
+        {
+            phi.xc = 20.0;
+            phi.yc = 20.0;
+        }
+        
         dir = N;
         side = -1;
         auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double, N>(xlower, xupper), dir, side, order);

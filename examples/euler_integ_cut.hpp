@@ -210,7 +210,7 @@ namespace mfem
         void calcFlux(const mfem::Vector &x, const mfem::Vector &dir,
                       const mfem::Vector &q, mfem::Vector &flux_vec)
         {
-            if (bndinteg == 1 || bndinteg == 3)
+            if (bndinteg == 1 || bndinteg == 3 || bndinteg == 4)
             {
                 calcSlipWallFlux<dim, entvar>(x.GetData(), dir.GetData(),
                                               q.GetData(), flux_vec.GetData());
@@ -299,6 +299,18 @@ namespace mfem
                         nrm(0) = nx / ds;
                         nrm(1) = ny / ds;
                     }
+
+                    else if (bndinteg == 4)
+                    {
+                        xc = 20.0;
+                        yc = 20.0;
+                        nx = 2 * (x(0) - xc);
+                        ny = 2 * (x(1) - yc);
+                        ds = sqrt((nx * nx) + (ny * ny));
+                        nrm(0) = -nx / ds;
+                        nrm(1) = -ny / ds;
+                    }
+
                     /// normal for elliptic boundary
                     else
                     {
@@ -1013,6 +1025,9 @@ namespace mfem
         {
             calcLaxFriedrichsFlux<dim>(dir.GetData(), u_left.GetData(), u_right.GetData(),
                                        flux_vec.GetData());
+            // calcRoeFaceFlux<dim>(dir.GetData(), u_left.GetData(), u_right.GetData(),
+            //                            flux_vec.GetData());
+            
         }
     };
 
@@ -1169,6 +1184,18 @@ namespace mfem
                     nrm(0) = nx / ds;
                     nrm(1) = ny / ds;
                 }
+
+                else if (bndinteg == 4)
+                {
+                    xc = 20.0;
+                    yc = 20.0;
+                    nx = 2 * (x(0) - xc);
+                    ny = 2 * (x(1) - yc);
+                    ds = sqrt((nx * nx) + (ny * ny));
+                    nrm(0) = -nx / ds;
+                    nrm(1) = -ny / ds;
+                }
+
                 /// normal for elliptic boundary
                 else
                 {
@@ -1184,6 +1211,8 @@ namespace mfem
                     nrm(0) = -nx / ds;
                     nrm(1) = -ny / ds;
                 }
+
+            
                 fun += calcBndryFun(x, nrm, u_face) * face_ip.weight * sqrt(trans.Weight()) * alpha;
             }
             return fun;
