@@ -222,7 +222,7 @@ int main(int argc, char *argv[])
 
    int nrsubdomains = 2;
    ToroidST * STSolver = new ToroidST(&a,apml_thickness,omega,nrsubdomains);
-
+   STSolver->Mult(B,X);
    delete STSolver;
 
 

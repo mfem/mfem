@@ -196,8 +196,7 @@ void GetElements(Mesh &mesh, double ovlp, int direction, Array<int> & elems)
    }
 }
 
-
-void RestrictDofs(FiniteElementSpace &fes, int direction, double ovlp, Array<int> & rdofs)
+void GetRestrictionDofs(FiniteElementSpace &fes, int direction, double ovlp, Array<int> & rdofs)
 {
    Array<int> elems;
    GetElements(*fes.GetMesh(),ovlp,direction,elems);
@@ -227,8 +226,32 @@ void RestrictDofs(FiniteElementSpace &fes, int direction, double ovlp, Array<int
    }
 }
 
+void RestrictDofs(const Array<int> & rdofs, int tsize, Vector & x)
+{
+   int n = rdofs.Size();
+   Array<int> dofs(2*n);
+   for (int i =0; i<n; i++)
+   {
+      dofs[i] = rdofs[i];
+      dofs[n+i] = rdofs[i]+tsize;
+   }
+   x.SetSubVectorComplement(dofs,0.0);
+}
 
 
+void MapDofs(const Array<int> & dmap0, const Array<int> & dmap1,
+             const Vector &gf0, Vector &gf1)
+{
+   int tsize0 = gf0.Size()/2;
+   int tsize1 = gf1.Size()/2;
+   for (int i = 0; i< dmap0.Size(); i++)
+   {
+      int j = dmap0[i];   
+      int k = dmap1[i];   
+      gf1[k] = gf0[j];
+      gf1[k+tsize1] = gf0[j+tsize0];
+   }
+}
 
 void DofMapTests(FiniteElementSpace &fes0, FiniteElementSpace &fes1,
                  const Array<int> & dmap0, const Array<int> & dmap1)
@@ -236,8 +259,6 @@ void DofMapTests(FiniteElementSpace &fes0, FiniteElementSpace &fes1,
 
    Mesh * mesh0=fes0.GetMesh();
    Mesh * mesh1=fes1.GetMesh();
-   int tsize0 = fes0.GetTrueVSize();
-   int tsize1 = fes1.GetTrueVSize();
    ComplexGridFunction gf0(&fes0);
    ComplexGridFunction gf1(&fes1); gf1 = 0.0;
    int dim = mesh0->Dimension();
@@ -246,13 +267,7 @@ void DofMapTests(FiniteElementSpace &fes0, FiniteElementSpace &fes1,
    VectorFunctionCoefficient cf(dim,E_exact);
    gf0.ProjectCoefficient(cf,cf);
 
-   for (int i = 0; i< dmap0.Size(); i++)
-   {
-      int j = dmap0[i];   
-      int k = dmap1[i];   
-      gf1[k] = gf0[j];
-      gf1[k+tsize1] = gf0[j+tsize0];
-   }
+   MapDofs(dmap0,dmap1,gf0,gf1);
 
    char vishost[] = "localhost";
    int  visport   = 19916;
@@ -292,14 +307,8 @@ void DofMapOvlpTest(FiniteElementSpace &fes, const Array<int> & dmap)
    ComplexGridFunction gf(&fes);
    VectorFunctionCoefficient cf(dim,E_exact);
    gf.ProjectCoefficient(cf,cf);
-   int n = dmap.Size();
-   Array<int> dofs(2*n);
-   for (int i =0; i<n; i++)
-   {
-      dofs[i] = dmap[i];
-      dofs[n+i] = dmap[i]+tsize;
-   }
-   gf.SetSubVectorComplement(dofs,0.0);
+   
+   RestrictDofs(dmap,tsize,gf);
 
    string keys = "keys mac\n" ;
 

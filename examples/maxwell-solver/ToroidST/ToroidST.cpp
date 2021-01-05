@@ -127,7 +127,7 @@ ToroidST::ToroidST(SesquilinearForm * bf_, const Vector & aPmlThickness_,
    cout << "In ToroidST" << endl;
 
    overlap = 5.0;
-   double ovlp = overlap + aPmlThickness[1]; // for now
+   ovlp = overlap + aPmlThickness[1]; // for now
    //-------------------------------------------------------
    // Step 0: Generate Mesh and FiniteElementSpace Partition
    // ------------------------------------------------------
@@ -150,7 +150,6 @@ ToroidST::ToroidST(SesquilinearForm * bf_, const Vector & aPmlThickness_,
    //    // DofMapTests(*fes,*fespaces[i], *DofMaps1[i], *DofMaps0[i]);
    // }
 
-   // Test local to neighbor dof Maps
    // cout << "Testing local to neighbor maps " << endl;
    // for (int i = 0; i<nrsubdomains-1; i++)
    // {
@@ -158,13 +157,12 @@ ToroidST::ToroidST(SesquilinearForm * bf_, const Vector & aPmlThickness_,
    //    DofMapTests(*fespaces[i+1],*fespaces[i],*OvlpMaps1[i], *OvlpMaps0[i]);
    // }
 
-   // Test local to overlap dof maps
    // cout << "Testing local to overlap maps " << endl;
    // for (int i = 0; i<nrsubdomains; i++)
    // {
    //    Array<int> rdofs;
-   //    RestrictDofs(*fespaces[i],1,overlap,rdofs);
-   //    RestrictDofs(*fespaces[i],-1,overlap,rdofs);
+   //    GetRestrictionDofs(*fespaces[i],1,ovlp,rdofs);
+   //    // GetRestrictionDofs(*fespaces[i],-1,ovlp,rdofs);
    //    DofMapOvlpTest(*fespaces[i],rdofs);
    // }
 }
@@ -172,7 +170,19 @@ ToroidST::ToroidST(SesquilinearForm * bf_, const Vector & aPmlThickness_,
 
 void ToroidST::Mult(const Vector & r, Vector & z) const 
 {
-
+   cout << "ToroidST::Mult " << endl;
+   // Step 0;
+   // Initialize transfered residuals to 0.0 and 
+   // restrict Source to subdomains
+   for (int ip=0; ip<nrsubdomains; ip++)
+   {
+      *f_transf[ip] = 0.0;
+      MapDofs(*DofMaps0[ip], *DofMaps1[ip],r,*f_orig[ip]);
+      int direction = (ip==0)?1:(ip==nrsubdomains-1)?-1:0;
+      Array<int> rdofs;
+      GetRestrictionDofs(*fespaces[ip],direction,ovlp,rdofs);
+      RestrictDofs(rdofs,fes->GetTrueVSize(),*f_orig[ip]);
+   }
 }
 
 
