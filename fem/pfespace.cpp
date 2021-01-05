@@ -3199,9 +3199,9 @@ static void SetSubVector(const int N,
                          const Array<int> &indices,
                          const Vector &in, Vector &out)
 {
-   auto y = out.HostWrite();
-   const auto x = in.HostRead();
-   const auto I = indices.HostRead();
+   auto y = out.Write();
+   const auto x = in.Read();
+   const auto I = indices.Read();
    MFEM_FORALL(i, N, y[I[i]] = x[i];);
 }
 
