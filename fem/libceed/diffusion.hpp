@@ -18,20 +18,22 @@
 namespace mfem
 {
 
+/// Represent a DiffusionIntegrator with AssemblyLevel::Partial using libCEED.
 class CeedPADiffusionIntegrator : public CeedPAIntegrator
 {
 public:
    CeedPADiffusionIntegrator(const FiniteElementSpace &fes,
                              const mfem::IntegrationRule &irm,
-                             Coefficient *coeff);
+                             Coefficient *Q);
 };
 
+/// Represent a DiffusionIntegrator with AssemblyLevel::None using libCEED.
 class CeedMFDiffusionIntegrator : public CeedMFIntegrator
 {
 public:
    CeedMFDiffusionIntegrator(const FiniteElementSpace &fes,
                              const mfem::IntegrationRule &irm,
-                             Coefficient *coeff);
+                             Coefficient *Q);
 };
 
 }
