@@ -48,12 +48,12 @@ set(SRCS
   gridfunc.cpp
   hybridization.cpp
   intrules.cpp
-  libceed/operator.cpp
-  libceed/util.cpp
-  libceed/mass.cpp
   libceed/convection.cpp
   libceed/diffusion.cpp
   libceed/nlconvection.cpp
+  libceed/mass.cpp
+  libceed/operator.cpp
+  libceed/util.cpp
   linearform.cpp
   lininteg.cpp
   multigrid.cpp
@@ -92,14 +92,14 @@ set(HDRS
   hybridization.hpp
   intrules.hpp
   libceed/coefficient.hpp
-  libceed/operator.hpp
-  libceed/util.hpp
-  libceed/pa_integrator.hpp
-  libceed/mf_integrator.hpp
-  libceed/mass.hpp
   libceed/convection.hpp
   libceed/diffusion.hpp
+  libceed/mf_integrator.hpp
+  libceed/mass.hpp
   libceed/nlconvection.hpp
+  libceed/operator.hpp
+  libceed/pa_integrator.hpp
+  libceed/util.hpp
   linearform.hpp
   lininteg.hpp
   multigrid.hpp
