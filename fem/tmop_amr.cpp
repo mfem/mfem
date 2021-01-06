@@ -830,13 +830,13 @@ void TMOPAMRSolver::Mult()
             {
                break;
             }
-            std::cout << i_hr << " r-adaptivity iteration.\n";
+            mfem::out << i_hr << " r-adaptivity iteration.\n";
 
             tmopns->SetOperator(*nlf);
             tmopns->Mult(b, x->GetTrueVector());
             x->SetFromTrueVector();
 
-            std::cout << "TMOP energy after r-adaptivity: " <<
+            mfem::out << "TMOP energy after r-adaptivity: " <<
                       nlf->GetGridFunctionEnergy(*x)/mesh->GetNE() <<
                       ", Elements: " << mesh->GetNE() << std::endl;
 
@@ -849,21 +849,21 @@ void TMOPAMRSolver::Mult()
                   tmopamrupdate->Update();
                }
 
-               std::cout << "TMOP energy after derefinement: " <<
+               mfem::out << "TMOP energy after derefinement: " <<
                          nlf->GetGridFunctionEnergy(*x)/mesh->GetNE() <<
                          ", Elements: " << mesh->GetNE() << std::endl;
 
                // Refiner
                tmop_r->Apply(*mesh);
                tmopamrupdate->Update();
-               std::cout << "TMOP energy after   refinement: " <<
+               mfem::out << "TMOP energy after   refinement: " <<
                          nlf->GetGridFunctionEnergy(*x)/mesh->GetNE() <<
                          ", Elements: " << mesh->GetNE() << std::endl;
 
                if (!tmop_dr->Derefined() && tmop_r->Stop())
                {
                   radaptivity = false;
-                  std::cout << "AMR stopping criterion satisfied. Stop h-refinement."
+                  mfem::out << "AMR stopping criterion satisfied. Stop h-refinement."
                             << std::endl;
                   break;
                }
@@ -878,7 +878,7 @@ void TMOPAMRSolver::Mult()
          tmopns->Mult(b, x->GetTrueVector());
          if (tmopns->GetConverged() == false)
          {
-            std::cout << "Nonlinear solver: rtol not achieved.\n";
+            mfem::out << "Nonlinear solver: rtol not achieved.\n";
          }
       }
       x->SetFromTrueVector();
@@ -897,7 +897,7 @@ void TMOPAMRSolver::Mult()
             {
                break;
             }
-            if (myid == 0) { std::cout << i_hr << " r-adaptivity iteration.\n"; }
+            if (myid == 0) { mfem::out << i_hr << " r-adaptivity iteration.\n"; }
             tmopns->SetOperator(*pnlf);
             tmopns->Mult(b, px->GetTrueVector());
             px->SetFromTrueVector();
@@ -906,7 +906,7 @@ void TMOPAMRSolver::Mult()
             tmopenergy = pnlf->GetParGridFunctionEnergy(*px);
             if (myid == 0)
             {
-               std::cout << "TMOP energy after r-adaptivity: " << tmopenergy/NEGlob <<
+               mfem::out << "TMOP energy after r-adaptivity: " << tmopenergy/NEGlob <<
                          ", Elements: " << NEGlob << std::endl;
             }
 
@@ -926,7 +926,7 @@ void TMOPAMRSolver::Mult()
                tmopenergy = pnlf->GetParGridFunctionEnergy(*px);
                if (myid == 0)
                {
-                  std::cout << "TMOP energy after derefinement: " << tmopenergy/NEGlob <<
+                  mfem::out << "TMOP energy after derefinement: " << tmopenergy/NEGlob <<
                             ", Elements: " << NEGlob << std::endl;
                }
 
@@ -938,7 +938,7 @@ void TMOPAMRSolver::Mult()
                tmopenergy = pnlf->GetParGridFunctionEnergy(*px);
                if (myid == 0)
                {
-                  std::cout << "TMOP energy after   refinement: " << tmopenergy/NEGlob <<
+                  mfem::out << "TMOP energy after   refinement: " << tmopenergy/NEGlob <<
                             ", Elements: " << NEGlob << std::endl;
                }
 
@@ -947,7 +947,7 @@ void TMOPAMRSolver::Mult()
                   radaptivity = false;
                   if (myid == 0)
                   {
-                     std::cout << "AMR stopping criterion satisfied. Stop." <<
+                     mfem::out << "AMR stopping criterion satisfied. Stop." <<
                                std::endl;
                      break;
                   }
@@ -961,7 +961,7 @@ void TMOPAMRSolver::Mult()
          tmopns->Mult(b, px->GetTrueVector());
          if (tmopns->GetConverged() == false)
          {
-            if (myid == 0) { std::cout << "Nonlinear solver: rtol not achieved.\n"; }
+            if (myid == 0) { mfem::out << "Nonlinear solver: rtol not achieved.\n"; }
          }
       }
       px->SetFromTrueVector();
