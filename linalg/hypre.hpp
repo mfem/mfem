@@ -687,7 +687,8 @@ public:
    void SetPositiveDiagonal(bool pos = true) { pos_l1_norms = pos; }
 
    /** Explicitly indicate whether the linear system A is symmetric.
-       If A is symmetric, calling MultTranspose will be redirected to Mult.
+       If A is symmetric, the smoother will also be symmetric.
+       In this case, calling MultTranspose will be redirected to Mult.
        By default, A is assumed to be nonsymmetric. */
    void SetOperatorSymmetry(bool is_sym) { A_is_symmetric = is_sym; }
 
@@ -699,7 +700,7 @@ public:
    virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
    virtual void Mult(const Vector &b, Vector &x) const;
 
-   /// Apply transpose of the smoother
+   /// Apply transpose of the smoother to relax the linear system Ax=b
    virtual void MultTranspose(const Vector &b, Vector &x) const;
 
    virtual ~HypreSmoother();
