@@ -638,8 +638,9 @@ protected:
    /// Combined coefficients for windowing and Chebyshev polynomials.
    double* fir_coeffs;
 
-   /// A flag that indicates whether the linear system A is symmetric
+   /// A flag that indicates whether the linear system matrix A is symmetric
    bool A_is_symmetric;
+
 public:
    /** Hypre smoother types:
        0    = Jacobi
@@ -686,10 +687,10 @@ public:
        entries in the associated matrix. */
    void SetPositiveDiagonal(bool pos = true) { pos_l1_norms = pos; }
 
-   /** Explicitly indicate whether the linear system A is symmetric.
-       If A is symmetric, the smoother will also be symmetric.
-       In this case, calling MultTranspose will be redirected to Mult.
-       By default, A is assumed to be nonsymmetric. */
+   /** Explicitly indicate whether the linear system matrix A is symmetric. If A
+       is symmetric, the smoother will also be symmetric. In this case, calling
+       MultTranspose will be redirected to Mult. (This is also done if the
+       smoother is diagonal.) By default, A is assumed to be nonsymmetric. */
    void SetOperatorSymmetry(bool is_sym) { A_is_symmetric = is_sym; }
 
    /** Set/update the associated operator. Must be called after setting the
