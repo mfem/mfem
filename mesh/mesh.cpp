@@ -2640,7 +2640,8 @@ void Mesh::Finalize(bool refine, bool fix_orientation)
       for (int i = 0; i < num_faces; i++)
       {
          MFEM_VERIFY(faces_info[i].Elem2No < 0 ||
-                     faces_info[i].Elem2Inf%2 != 0, "invalid mesh topology");
+                     faces_info[i].Elem2Inf%2 != 0, "Invalid mesh topology."
+                     "  Interior face with incompatible orientations.");
       }
    }
 #endif
@@ -5261,6 +5262,10 @@ void Mesh::AddPointFaceElement(int lf, int gf, int el)
    }
    else  //  this will be elem2
    {
+      MFEM_VERIFY(faces_info[gf].Elem2No < 0, "Invalid mesh topology.  "
+                  "Interior point found connecting 1D elements "
+                  << faces_info[gf].Elem1No << ", " << faces_info[gf].Elem2No
+                  << " and " << el << ".");
       faces_info[gf].Elem2No  = el;
       faces_info[gf].Elem2Inf = 64 * lf + 1;
    }
@@ -5278,6 +5283,10 @@ void Mesh::AddSegmentFaceElement(int lf, int gf, int el, int v0, int v1)
    }
    else  //  this will be elem2
    {
+      MFEM_VERIFY(faces_info[gf].Elem2No < 0, "Invalid mesh topology.  "
+                  "Interior edge found between 2D elements "
+                  << faces_info[gf].Elem1No << ", " << faces_info[gf].Elem2No
+                  << " and " << el << ".");
       int *v = faces[gf]->GetVertices();
       faces_info[gf].Elem2No  = el;
       if ( v[1] == v0 && v[0] == v1 )
@@ -5312,6 +5321,10 @@ void Mesh::AddTriangleFaceElement(int lf, int gf, int el,
    }
    else  //  this will be elem2
    {
+      MFEM_VERIFY(faces_info[gf].Elem2No < 0, "Invalid mesh topology.  "
+                  "Interior triangular face found connecting elements "
+                  << faces_info[gf].Elem1No << ", " << faces_info[gf].Elem2No
+                  << " and " << el << ".");
       int orientation, vv[3] = { v0, v1, v2 };
       orientation = GetTriOrientation(faces[gf]->GetVertices(), vv);
       // In a valid mesh, we should have (orientation % 2 != 0), however, if
@@ -5336,6 +5349,10 @@ void Mesh::AddQuadFaceElement(int lf, int gf, int el,
    }
    else  //  this will be elem2
    {
+      MFEM_VERIFY(faces_info[gf].Elem2No < 0, "Invalid mesh topology.  "
+                  "Interior quadrilateral face found connecting elements "
+                  << faces_info[gf].Elem1No << ", " << faces_info[gf].Elem2No
+                  << " and " << el << ".");
       int vv[4] = { v0, v1, v2, v3 };
       int oo = GetQuadOrientation(faces[gf]->GetVertices(), vv);
       // Temporarily allow even face orientations: see the remark in
