@@ -29,8 +29,11 @@ class NonlinearFormIntegrator
 protected:
    const IntegrationRule *IntRule;
 
+   // CEED extension
+   MFEMCeedOperator* ceedOp;
+
    NonlinearFormIntegrator(const IntegrationRule *ir = NULL)
-      : IntRule(ir) { }
+      : IntRule(ir), ceedOp(NULL) { }
 
 public:
    /** @brief Prescribe a fixed IntegrationRule to use (when @a ir != NULL) or
@@ -100,7 +103,10 @@ public:
        called. */
    virtual void AddMultMF(const Vector &x, Vector &y) const;
 
-   virtual ~NonlinearFormIntegrator() { }
+   virtual ~NonlinearFormIntegrator()
+   {
+      delete ceedOp;
+   }
 };
 
 /** The abstract base class BlockNonlinearFormIntegrator is
@@ -329,11 +335,8 @@ private:
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq;
 
-   // CEED extension
-   MFEMCeedOperator* ceedOp;
-
 public:
-   VectorConvectionNLFIntegrator(Coefficient &q): Q(&q), ceedOp(NULL) { }
+   VectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { }
 
    VectorConvectionNLFIntegrator() = default;
 
