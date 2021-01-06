@@ -2171,7 +2171,7 @@ public:
                                          ElementTransformation &Trans);
 };
 
-/// Alias for @ConvectionIntegrator.
+// Alias for @ConvectionIntegrator.
 using NonconservativeConvectionIntegrator = ConvectionIntegrator;
 
 /// -alpha (u, q . grad v), negative transpose of ConvectionIntegrator
@@ -2813,7 +2813,7 @@ private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);
 };
 
-/// Alias for @a DGTraceIntegrator.
+// Alias for @a DGTraceIntegrator.
 using ConservativeDGTraceIntegrator = DGTraceIntegrator;
 
 /** Integrator that represents the face terms used for the non-conservative
