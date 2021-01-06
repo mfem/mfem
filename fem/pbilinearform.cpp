@@ -576,13 +576,13 @@ void ParDiscreteLinearOperator::ParallelAssemble(OperatorHandle &A)
                                domain_fes->GetDofOffsets(),
                                mat);
 
-   OperatorHandle P_test(A.Type()), P_trial(A.Type());
+   OperatorHandle R_test_transpose(A.Type()), P_trial(A.Type());
 
    // TODO - construct the Dof_TrueDof_Matrix directly in the required format.
-   P_test.ConvertFrom(range_fes->Dof_TrueDof_Matrix());
+   R_test_transpose.ConvertFrom(range_fes->Dof_TrueDof_Matrix());
    P_trial.ConvertFrom(domain_fes->Dof_TrueDof_Matrix());
 
-   A.MakeRAP(P_test, dA, P_trial);
+   A.MakeRAP(R_test_transpose, dA, P_trial);
 }
 
 void ParDiscreteLinearOperator::FormRectangularSystemMatrix(OperatorHandle &A)
