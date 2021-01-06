@@ -3039,12 +3039,14 @@ void ProductSolver::MultTranspose(const Vector & x, Vector & y) const
 #ifdef MFEM_USE_MPI
 AuxSpaceSmoother::AuxSpaceSmoother(const HypreParMatrix &op,
                                    HypreParMatrix *aux_map,
+                                   bool op_is_symmetric,
                                    bool own_aux_map)
    : Solver(op.NumRows()), aux_map_(aux_map, own_aux_map)
 {
    aux_system_.Reset(RAP(&op, aux_map));
    aux_system_.As<HypreParMatrix>()->EliminateZeroRows();
    aux_smoother_.Reset(new HypreSmoother(*aux_system_.As<HypreParMatrix>()));
+   aux_smoother_.As<HypreSmoother>()->SetOperatorSymmetry(op_is_symmetric);
 }
 
 void AuxSpaceSmoother::Mult(const Vector &x, Vector &y, bool transpose) const

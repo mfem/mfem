@@ -144,7 +144,7 @@ void DFSSpaces::CollectDFSData()
       fes.GetTrueTransferOperator(*cfes, P);
       if (remove_zero)
       {
-         hypre_ParCSRMatrixDropSmallEntries(*P.As<HypreParMatrix>(),1e-16, -1);
+         hypre_ParCSRMatrixDropSmallEntries(*P.As<HypreParMatrix>(), 1e-16, -1);
       }
       (level_ < data_.P_l2.Size()-1) ? cfes->Update() : cfes.reset();
    };
@@ -384,7 +384,7 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
       if (param_.coupled_solve)
       {
          auto S1 = new BlockDiagonalPreconditioner(ops_offsets_[l]);
-         S1->SetDiagonalBlock(0, new AuxSpaceSmoother(M_f, C_l, false));
+         S1->SetDiagonalBlock(0, new AuxSpaceSmoother(M_f, C_l));
          S1->owns_blocks = true;
          smoothers_[l] = new ProductSolver(ops_[l], S0, S1, false, true, true);
       }
@@ -437,19 +437,20 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
       HypreParMatrix& C_finest = *data.C.Last().As<HypreParMatrix>();
       ops.Last() = TwoStepsRAP(C_finest, M, C_finest);
       ops.Last()->EliminateZeroRows();
-      hypre_ParCSRMatrixDropSmallEntries(*ops.Last(),1e-14, -1);
-
+      hypre_ParCSRMatrixDropSmallEntries(*ops.Last(), 1e-14, -1);
 
       solver_.Reset(new CGSolver(B.GetComm()));
       solver_.As<CGSolver>()->SetOperator(*ops.Last());
       smoothers.Last() = new HypreSmoother(*ops.Last());
+      static_cast<HypreSmoother*>(smoothers.Last())->SetOperatorSymmetry(true);
 
       for (int l = Ps.Size()-1; l >= 0; --l)
       {
          Ps[l] = data_.P_hcurl[l].As<HypreParMatrix>();
          ops[l] = TwoStepsRAP(*Ps[l], *ops[l+1], *Ps[l]);
-         hypre_ParCSRMatrixDropSmallEntries(*ops[l],1e-14, -1);
+         hypre_ParCSRMatrixDropSmallEntries(*ops[l], 1e-14, -1);
          smoothers[l] = new HypreSmoother(*ops[l]);
+         static_cast<HypreSmoother*>(smoothers[l])->SetOperatorSymmetry(true);
       }
 
       prec_.Reset(new Multigrid(ops, smoothers, Ps, own_ops, own_smoothers, own_Ps));

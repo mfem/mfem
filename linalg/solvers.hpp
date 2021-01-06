@@ -847,7 +847,7 @@ class AuxSpaceSmoother : public Solver
    void Mult(const Vector &x, Vector &y, bool transpose) const;
 public:
    AuxSpaceSmoother(const HypreParMatrix &op, HypreParMatrix *aux_map,
-                    bool own_aux_map = false);
+                    bool op_is_symmetric = true, bool own_aux_map = false);
    virtual void Mult(const Vector &x, Vector &y) const { Mult(x, y, false); }
    virtual void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y, true); }
    virtual void SetOperator(const Operator &op) { }
