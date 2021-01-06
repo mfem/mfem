@@ -34,6 +34,11 @@ if (MFEM_USE_MPI)
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem)
 
+  add_mfem_miniapp(navier_kovasznay_vs
+    MAIN navier_kovasznay_vs.cpp
+    ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem)
+
   add_mfem_miniapp(navier_tgv
     MAIN navier_tgv.cpp
     ${NAVIER_COMMON_FILES}
