@@ -291,16 +291,15 @@ int main(int argc, char *argv[])
    }
    m.AddDomainIntegrator(new MassIntegrator);
    constexpr double alpha = -1.0;
-   constexpr double beta = -0.5;
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
    k.AddInteriorFaceIntegrator(
-      new NonconservativeDGTraceIntegrator(velocity, alpha, beta));
+      new NonconservativeDGTraceIntegrator(velocity, alpha));
    k.AddBdrFaceIntegrator(
-      new NonconservativeDGTraceIntegrator(velocity, alpha, beta));
+      new NonconservativeDGTraceIntegrator(velocity, alpha));
 
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(
-      new BoundaryFlowIntegrator(inflow, velocity, alpha, beta));
+      new BoundaryFlowIntegrator(inflow, velocity, alpha));
 
    m.Assemble();
    int skip_zeros = 0;
