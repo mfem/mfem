@@ -2171,6 +2171,9 @@ public:
                                          ElementTransformation &Trans);
 };
 
+/// Alias for @ConvectionIntegrator.
+using NonconservativeConvectionIntegrator = ConvectionIntegrator;
+
 /// -alpha (u, q . grad v), negative transpose of ConvectionIntegrator
 class ConservativeConvectionIntegrator : public TransposeIntegrator
 {
@@ -2806,21 +2809,25 @@ private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);
 };
 
+/// Alias for @a DGTraceIntegrator.
+using ConservativeDGTraceIntegrator = DGTraceIntegrator;
+
 /** Integrator that represents the face terms used for the non-conservative
     DG discretization of the convection equation:
-    (alpha - 1*sgn(alpha)) < rho_u (u.n) [v],{w} > - < rho_u (u.n) {v},[w] >
-       + beta < rho_u |u.n| [v],[w] >.
+    -alpha < rho_u (u.n) {v},[w] > + beta < rho_u |u.n| [v],[w] >.
 
     This integrator can be used with alpha=1.0, beta=0.5, together with
     ConvectionIntegrator to implement an upwind DG discretization in
     non-conservative form, see ex9 and ex9p. */
-class NonconservativeDGTraceIntegrator : public SumIntegrator
+class NonconservativeDGTraceIntegrator : public TransposeIntegrator
 {
 public:
-   NonconservativeDGTraceIntegrator(VectorCoefficient &u, double a, double b);
+   NonconservativeDGTraceIntegrator(VectorCoefficient &u, double a, double b)
+   : TransposeIntegrator(new DGTraceIntegrator(u, -a, b)) { }
 
    NonconservativeDGTraceIntegrator(Coefficient &rho, VectorCoefficient &u,
-                                    double a, double b);
+                                    double a, double b)
+   : TransposeIntegrator(new DGTraceIntegrator(rho, u, -a, b)) { }
 };
 
 /** Integrator for the DG form:
