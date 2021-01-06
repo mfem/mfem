@@ -504,12 +504,18 @@ public:
    /** @brief Given a coefficient and a transformation, compute its projection
        (approximation) in the local finite dimensional space in terms
        of the degrees of freedom. */
+   /** The approximation used to project is usually local interpolation of
+       degrees of freedom. The derived class could use other methods not
+       implemented yet, e.g. local L2 projection. */
    virtual void Project(Coefficient &coeff,
                         ElementTransformation &Trans, Vector &dofs) const;
 
    /** @brief Given a vector coefficient and a transformation, compute its
        projection (approximation) in the local finite dimensional space
        in terms of the degrees of freedom. (VectorFiniteElements) */
+   /** The approximation used to project is usually local interpolation of
+       degrees of freedom. The derived class could use other methods not
+       implemented yet, e.g. local L2 projection. */
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const;
 
