@@ -318,7 +318,7 @@ TEST_CASE("CEED mass & diffusion", "[CEED]")
    auto coeff_type = GENERATE(CeedCoeffType::Const,CeedCoeffType::Grid,CeedCoeffType::Quad);
    auto pb = GENERATE(Problem::Mass,Problem::Diffusion,
                       Problem::VectorMass,Problem::VectorDiffusion);
-   auto order = GENERATE(1,2,3);
+   auto order = GENERATE(1);
    auto mesh = GENERATE("../../data/inline-quad.mesh","../../data/inline-hex.mesh",
                         "../../data/periodic-square.mesh",
                         "../../data/star-q2.mesh","../../data/fichera-q2.mesh",
@@ -332,7 +332,7 @@ TEST_CASE("CEED convection", "[CEED],[Convection]")
    auto coeff_type = GENERATE(CeedCoeffType::VecConst,CeedCoeffType::VecGrid,
                               CeedCoeffType::VecQuad);
    auto pb = GENERATE(Problem::Convection);
-   auto order = GENERATE(1,2,3);
+   auto order = GENERATE(1);
    auto mesh = GENERATE("../../data/inline-quad.mesh",
                         "../../data/inline-hex.mesh",
                         "../../data/star-q2.mesh",
@@ -347,7 +347,7 @@ TEST_CASE("CEED non-linear convection", "[CEED],[NLConvection]")
    auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
    auto coeff_type = GENERATE(CeedCoeffType::Const,CeedCoeffType::Grid,CeedCoeffType::Quad);
    auto pb = GENERATE(NLProblem::Convection);
-   auto order = GENERATE(1,2,3);
+   auto order = GENERATE(1);
    auto mesh = GENERATE("../../data/inline-quad.mesh",
                         "../../data/inline-hex.mesh",
                         "../../data/periodic-square.mesh",
