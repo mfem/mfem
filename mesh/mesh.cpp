@@ -1049,6 +1049,13 @@ void Mesh::GetFaceInfos(int Face, int *Inf1, int *Inf2) const
    *Inf2 = faces_info[Face].Elem2Inf;
 }
 
+void Mesh::GetFaceInfos(int Face, int *Inf1, int *Inf2, int *NCFace) const
+{
+   *Inf1   = faces_info[Face].Elem1Inf;
+   *Inf2   = faces_info[Face].Elem2Inf;
+   *NCFace = faces_info[Face].NCFace;
+}
+
 Geometry::Type Mesh::GetFaceGeometryType(int Face) const
 {
    switch (Dim)
@@ -5983,6 +5990,7 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
    el_to_el = NULL;
 
    // Check for empty partitionings (a "feature" in METIS)
+   if (nparts > 1 && NumOfElements > nparts)
    {
       Array< Pair<int,int> > psize(nparts);
       int empty_parts;
