@@ -2742,7 +2742,8 @@ public:
 
     When combined with ConservativeConvectionIntegrator integrator, the
     coefficients alpha=1.0, beta=0.5 can be used to implement the upwind flux
-    and outflow boundary conditions in conservative form.
+    and outflow boundary conditions in conservative form. Setting beta=0.0
+    results in a centered flux.
 
     For the non-conservative formulation of convection using
     ConvectionIntegrator, the transpose of this form with alpha=-1.0, beta=0.5
