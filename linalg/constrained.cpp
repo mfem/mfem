@@ -432,21 +432,30 @@ EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
          Array<int> primary_dofs;
          Array<int> secondary_dofs(constraint_size);
          secondary_dofs = -1;
+         // loop through rows, identify one secondary dof for each row
          for (int i = lagrange_rowstarts[k]; i < lagrange_rowstarts[k + 1]; ++i)
          {
             lagrange_dofs[i - lagrange_rowstarts[k]] = i;
-            bool secondary_set = false;
             for (int jptr = I[i]; jptr < I[i + 1]; ++jptr)
             {
                int j = J[jptr];
                double val = data[jptr];
-               if (!secondary_set && std::abs(val) > 1.e-12 &&
-                   secondary_dofs.Find(j) == -1)
+               if (std::abs(val) > 1.e-12 && secondary_dofs.Find(j) == -1)
                {
                   secondary_dofs[i - lagrange_rowstarts[k]] = j;
-                  secondary_set = true;
+                  break;
                }
-               else
+            }
+         }
+         // loop through rows again, assigning non-secondary dofs as primary
+         for (int i = lagrange_rowstarts[k]; i < lagrange_rowstarts[k + 1]; ++i)
+         {
+            MFEM_ASSERT(secondary_dofs[i - lagrange_rowstarts[k]] >= 0,
+                        "Secondary dofs don't match rows!");
+            for (int jptr = I[i]; jptr < I[i + 1]; ++jptr)
+            {
+               int j = J[jptr];
+               if (secondary_dofs.Find(j) == -1)
                {
                   primary_dofs.Append(j);
                }
