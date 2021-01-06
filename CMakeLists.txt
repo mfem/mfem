@@ -464,11 +464,7 @@ set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
     "The MFEM install directory" FORCE)
 
 # Declaring the library
-if (MFEM_USE_HIP)
-  hip_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
-else()
-  add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
-endif()
+mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
 if (CMAKE_VERSION VERSION_GREATER 2.8.11)
   target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})

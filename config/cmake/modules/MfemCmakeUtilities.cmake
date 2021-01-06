@@ -43,6 +43,24 @@ function(convert_filenames_to_full_paths NAMES)
   set(${NAMES} ${tmp_names} PARENT_SCOPE)
 endfunction()
 
+# Wrapper for add_executable that calls the HIP wrapper if applicable
+macro(mfem_add_executable NAME)
+  if (MFEM_USE_HIP)
+    hip_add_executable(${NAME} ${ARGN})
+  else()
+    add_executable(${NAME} ${ARGN})
+  endif()
+endmacro()
+
+# Wrapper for add_library that calls the HIP wrapper if applicable
+macro(mfem_add_library NAME)
+  if (MFEM_USE_HIP)
+    hip_add_library(${NAME} ${ARGN})
+  else()
+    add_library(${NAME} ${ARGN})
+  endif()
+endmacro()
+
 # Simple shortcut to add_custom_target() with option to add the target to the
 # main target.
 function(add_mfem_target TARGET_NAME ADD_TO_ALL)
@@ -80,11 +98,7 @@ macro(add_mfem_examples EXE_SRCS)
     get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)
 
     string(REPLACE ".cpp" "" EXE_NAME "${EXE_PREFIX}${SRC_FILENAME}")
-    if (MFEM_USE_HIP)
-      hip_add_executable(${EXE_NAME} ${SRC_FILE})
-    else()
-      add_executable(${EXE_NAME} ${SRC_FILE})
-    endif()
+    mfem_add_executable(${EXE_NAME} ${SRC_FILE})
     add_dependencies(${MFEM_ALL_EXAMPLES_TARGET_NAME} ${EXE_NAME})
     if (EXE_NEEDED_BY)
       add_dependencies(${EXE_NEEDED_BY} ${EXE_NAME})
@@ -147,13 +161,8 @@ macro(add_mfem_miniapp MFEM_EXE_NAME)
   endif()
 
   # Actually add the executable
-  if (MFEM_USE_HIP)
-    hip_add_executable(${MFEM_EXE_NAME} ${MAIN_LIST}
+  mfem_add_executable(${MFEM_EXE_NAME} ${MAIN_LIST}
       ${EXTRA_SOURCES_LIST} ${EXTRA_HEADERS_LIST})
-  else()
-    add_executable(${MFEM_EXE_NAME} ${MAIN_LIST}
-      ${EXTRA_SOURCES_LIST} ${EXTRA_HEADERS_LIST})
-  endif()
   add_dependencies(${MFEM_ALL_MINIAPPS_TARGET_NAME} ${MFEM_EXE_NAME})
   add_dependencies(${MFEM_EXE_NAME} ${MFEM_EXEC_PREREQUISITES_TARGET_NAME})
 
