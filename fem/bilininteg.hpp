@@ -355,7 +355,7 @@ class SumIntegrator : public BilinearFormIntegrator
 {
 private:
    int own_integrators;
-   DenseMatrix elem_mat;
+   mutable DenseMatrix elem_mat;
    Array<BilinearFormIntegrator*> integrators;
 
 public:
