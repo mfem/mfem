@@ -2471,22 +2471,12 @@ void HypreSmoother::Mult(const Vector &b, Vector &x) const
 
 void HypreSmoother::MultTranspose(const Vector &b, Vector &x) const
 {
-   if (A_is_symmetric)
+   if (A_is_symmetric || type == 0 || type == 1 || type == 5)
    {
       Mult(b, x);
+      return;
    }
-   else
-   {
-      bool smoother_is_symmetric = (type == 0 || type == 1 || type == 5);
-      if (!iterative_mode && relax_times < 2 && smoother_is_symmetric)
-      {
-         Mult(b, x);
-      }
-      else
-      {
-         mfem_error("HypreSmoother::MultTranspose (...) : undefined!\n");
-      }
-   }
+   mfem_error("HypreSmoother::MultTranspose (...) : undefined!\n");
 }
 
 HypreSmoother::~HypreSmoother()
