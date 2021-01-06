@@ -2769,13 +2769,17 @@ private:
    Vector shape1, shape2;
 
 public:
-   /// Construct integrator with rho = 1.
-   DGTraceIntegrator(VectorCoefficient &_u, double a, double b)
-   { rho = NULL; u = &_u; alpha = a; beta = b; }
+   /// Construct integrator with rho = 1, b = 0.5*a.
+   DGTraceIntegrator(VectorCoefficient &u_, double a)
+   { rho = NULL; u = &u_; alpha = a; beta = 0.5*a; }
 
-   DGTraceIntegrator(Coefficient &_rho, VectorCoefficient &_u,
+   /// Construct integrator with rho = 1.
+   DGTraceIntegrator(VectorCoefficient &u_, double a, double b)
+   { rho = NULL; u = &u_; alpha = a; beta = b; }
+
+   DGTraceIntegrator(Coefficient &_rho, VectorCoefficient &u_,
                      double a, double b)
-   { rho = &_rho; u = &_u; alpha = a; beta = b; }
+   { rho = &_rho; u = &u_; alpha = a; beta = b; }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
@@ -2822,12 +2826,15 @@ using ConservativeDGTraceIntegrator = DGTraceIntegrator;
 class NonconservativeDGTraceIntegrator : public TransposeIntegrator
 {
 public:
+   NonconservativeDGTraceIntegrator(VectorCoefficient &u, double a)
+      : TransposeIntegrator(new DGTraceIntegrator(u, -a, 0.5*a)) { }
+
    NonconservativeDGTraceIntegrator(VectorCoefficient &u, double a, double b)
-   : TransposeIntegrator(new DGTraceIntegrator(u, -a, b)) { }
+      : TransposeIntegrator(new DGTraceIntegrator(u, -a, b)) { }
 
    NonconservativeDGTraceIntegrator(Coefficient &rho, VectorCoefficient &u,
                                     double a, double b)
-   : TransposeIntegrator(new DGTraceIntegrator(rho, u, -a, b)) { }
+      : TransposeIntegrator(new DGTraceIntegrator(rho, u, -a, b)) { }
 };
 
 /** Integrator for the DG form:
