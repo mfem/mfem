@@ -354,8 +354,8 @@ public:
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 };
 
-/** @brief This class is used to assemble the skew-symmetric form of the 
-nonlinear  term arising in the Navier Stokes equations 
+/** @brief This class is used to assemble the skew-symmetric form of the
+nonlinear  term arising in the Navier Stokes equations
 \f$(u \cdot \nabla v, w )\f$*/
 class ConvectiveVectorConvectionNLFIntegrator : public NonlinearFormIntegrator
 {
@@ -383,8 +383,8 @@ public:
                                     DenseMatrix &elmat);
 
 };
-/** @brief This class is used to assemble the skew-symmetric form of the nonlinear 
-term arising in the Navier Stokes equations \f$.5*(u \cdot \nabla v, w ) - 
+/** @brief This class is used to assemble the skew-symmetric form of the nonlinear
+term arising in the Navier Stokes equations \f$.5*(u \cdot \nabla v, w ) -
 .5*(u \cdot \nabla w, v )\f$ */
 class SkewSymmetricVectorConvectionNLFIntegrator : public
    NonlinearFormIntegrator
