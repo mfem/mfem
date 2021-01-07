@@ -2767,6 +2767,9 @@ public:
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
+   void AssemblePAInteriorFaces(const FiniteElementSpace& fes);
+   void AssemblePABoundaryFaces(const FiniteElementSpace& fes);
+   void SetupPA(const FiniteElementSpace &fes, FaceType type);                                   
 };
 
 /** Integrator for the "BR2" diffusion stabilization term

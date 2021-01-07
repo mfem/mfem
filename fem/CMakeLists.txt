@@ -21,6 +21,7 @@ set(SRCS
   bilininteg_diffusion_mf.cpp
   bilininteg_diffusion_pa.cpp
   bilininteg_diffusion_ea.cpp
+  bilininteg_dg_diffusion_pa.cpp
   bilininteg_divergence.cpp
   bilininteg_hcurl.cpp
   bilininteg_hdiv.cpp
