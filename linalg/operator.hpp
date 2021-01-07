@@ -113,10 +113,11 @@ public:
    {
       return GetProlongation(); // Assume square unless specialized
    }
-   /** @brief Prolongation operator from linear algebra (linear system) vectors,
-       to output vectors for the operator, including only processor-local portion.
+   /** @brief Transpose of GetOutputRestriction, directly available in this
+       form to facilitate matrix-free RAP-type operators.
+
        `NULL` means identity. */
-   virtual const Operator *GetLocalOutputProlongation() const { return NULL; }
+   virtual const Operator *GetOutputRestrictionTranspose() const { return NULL; }
    /** @brief Restriction operator from output vectors for the operator to linear
        algebra (linear system) vectors. `NULL` means identity. */
    virtual const Operator *GetOutputRestriction() const

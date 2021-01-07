@@ -275,7 +275,7 @@ public:
    void FormRectangularSystemOperator(const Array<int>&, const Array<int>&,
                                       OperatorHandle& A);
 
-   const Operator * GetLocalOutputProlongation() const;
+   const Operator * GetOutputRestrictionTranspose() const;
 
 private:
    Vector test_multiplicity;

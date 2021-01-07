@@ -333,7 +333,7 @@ public:
    /// Return a prolongation operator that only acts on local dofs
    /** The returned operator is owned by the FiniteElementSpace. This
        differs from GetProlongationMatrix only in parallel. */
-   virtual const Operator *GetLocalProlongationOperator() const
+   virtual const Operator *GetRestrictionTransposeOperator() const
    { return GetConformingProlongation(); }
 
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
