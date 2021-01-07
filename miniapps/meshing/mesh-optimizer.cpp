@@ -94,7 +94,7 @@
 //   * mesh-optimizer -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -mid 313 -tid 1 -rtol 1e-5 -li 50 -qo 4 -fd -vl 1
 //
 
-#include "../../mfem.hpp"
+#include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>

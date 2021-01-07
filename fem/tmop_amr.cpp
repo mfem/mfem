@@ -760,7 +760,6 @@ void TMOPAMRSolver::RebalanceParNCMesh()
          drefs.Append(i);
       }
       pncmesh->GetFineToCoarsePartitioning(drefs, new_ranks);
-      new_ranks.SetSize(pmesh->GetNE());
       pmesh->Rebalance(new_ranks);
    }
 }

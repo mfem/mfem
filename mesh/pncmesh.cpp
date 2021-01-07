@@ -1486,8 +1486,8 @@ void ParNCMesh::LimitNCLevel(int max_nc_level)
 void ParNCMesh::GetFineToCoarsePartitioning(const Array<int> &derefs,
                                             Array<int> &new_ranks)
 {
-   new_ranks.SetSize(leaf_elements.Size());
-   for (int i = 0; i < leaf_elements.Size(); i++)
+   new_ranks.SetSize(leaf_elements.Size()-GetNGhostElements());
+   for (int i = 0; i < leaf_elements.Size()-GetNGhostElements(); i++)
    {
       new_ranks[i] = elements[leaf_elements[i]].rank;
    }
