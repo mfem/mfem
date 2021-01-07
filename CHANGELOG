@@ -35,6 +35,7 @@ Version 4.2.1 (development)
 
 - Added new mesh quality metrics for TMOP-based mesh optimization.
 
+- Gitlab CI: use Spack (and Uberenv) to automate the build of TPLs.
 
 Version 4.2, released on October 30, 2020
 =========================================
