@@ -1243,6 +1243,12 @@ void ParFiniteElementSpace::ConstructTrueDofs()
 
    GetGroupComm(*gcomm, 1, &ldof_sign);
 
+   //if (MyRank == 0)
+   {
+      mfem::out << "ldof_sign: ";
+      ldof_sign.Print();
+   }
+
    // Define ldof_group and mark ldof_ltdof with
    //   -1 for ldof that is ours
    //   -2 for ldof that is in a group with another master
