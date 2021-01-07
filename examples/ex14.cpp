@@ -86,14 +86,12 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
    //    NURBS meshes are projected to second order meshes.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. By default, or if ref_levels < 0,
    //    we choose it to be the largest number that gives a final mesh with no
@@ -113,7 +111,6 @@ int main(int argc, char *argv[])
       mesh->SetCurvature(max(order, 1));
    }
 
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    // 4. Define a finite element space on the mesh. Here we use discontinuous
    //    finite elements of the specified order >= 0.
    FiniteElementCollection *fec = NULL;
@@ -129,7 +126,6 @@ int main(int argc, char *argv[])
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of unknowns: " << fespace->GetVSize() << endl;
 
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    // 5. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system.
    LinearForm *b = new LinearForm(fespace);
@@ -140,7 +136,6 @@ int main(int argc, char *argv[])
       new DGDirichletLFIntegrator(zero, one, sigma, kappa));
    b->Assemble();
 
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    // 6. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero.
    GridFunction x(fespace);
