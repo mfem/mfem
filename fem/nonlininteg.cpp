@@ -728,7 +728,10 @@ void VectorConvectionNLFIntegrator::AssembleElementVector(
       el.CalcShape(ip, shape);
       el.CalcPhysDShape(T, dshape);
       double w = ip.weight * T.Weight();
-      if (Q) { w *= Q->Eval(T, ip); }
+      if (Q)
+      {
+         w *= Q->Eval(T, ip);
+      }
       MultAtB(EF, dshape, gradEF);
       EF.MultTranspose(shape, vec1);
       gradEF.Mult(vec1, vec2);
@@ -810,6 +813,151 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
             elmat.AddMatrix(w * gradEF(i, j), elmat_comp, i * nd, j * nd);
          }
       }
+   }
+}
+
+const IntegrationRule&
+ConvectiveVectorConvectionNLFIntegrator::GetRule(const FiniteElement &fe,
+                                                 ElementTransformation &T)
+{
+   const int order = 2 * fe.GetOrder() + T.OrderGrad(&fe);
+   return IntRules.Get(fe.GetGeomType(), order);
+}
+
+void ConvectiveVectorConvectionNLFIntegrator::AssembleElementGrad(
+   const FiniteElement &el,
+   ElementTransformation &trans,
+   const Vector &elfun,
+   DenseMatrix &elmat)
+{
+   int nd = el.GetDof();
+   int dim = el.GetDim();
+
+   shape.SetSize(nd);
+   dshape.SetSize(nd, dim);
+   dshapex.SetSize(nd, dim);
+   elmat.SetSize(nd * dim);
+   elmat_comp.SetSize(nd);
+   gradEF.SetSize(dim);
+
+   EF.UseExternalData(elfun.GetData(), nd, dim);
+
+   double w;
+   Vector vec1(dim), vec2(dim), vec3(nd);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == nullptr)
+   {
+      int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
+      ir = &IntRules.Get(el.GetGeomType(), order);
+   }
+
+   elmat = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      trans.SetIntPoint(&ip);
+
+      el.CalcShape(ip, shape);
+      el.CalcDShape(ip, dshape);
+
+      w = ip.weight;
+
+      if (Q)
+      {
+         w *= Q->Eval(trans, ip);
+      }
+
+      EF.MultTranspose(shape, vec1); // u^n
+
+      trans.AdjugateJacobian().Mult(vec1, vec2);
+
+      vec2 *= w;
+      dshape.Mult(vec2, vec3); // (u^n \cdot grad u^{n+1})
+      MultVWt(shape, vec3, elmat_comp); // (u^n \cdot grad u^{n+1},v)
+
+      for (int i = 0; i < dim; i++)
+      {
+         elmat.AddMatrix(elmat_comp, i * nd, i * nd);
+      }
+
+
+   }
+}
+
+const IntegrationRule&
+SkewSymmetricVectorConvectionNLFIntegrator::GetRule(const FiniteElement &fe,
+                                                    ElementTransformation &T)
+{
+   const int order = 2 * fe.GetOrder() + T.OrderGrad(&fe);
+   return IntRules.Get(fe.GetGeomType(), order);
+}
+
+void SkewSymmetricVectorConvectionNLFIntegrator::AssembleElementGrad(
+   const FiniteElement &el,
+   ElementTransformation &trans,
+   const Vector &elfun,
+   DenseMatrix &elmat)
+{
+   int nd = el.GetDof();
+   int dim = el.GetDim();
+
+   shape.SetSize(nd);
+   dshape.SetSize(nd, dim);
+   dshapex.SetSize(nd, dim);
+   elmat.SetSize(nd * dim);
+   elmat_comp.SetSize(nd);
+   gradEF.SetSize(dim);
+
+   DenseMatrix elmat_comp_T(nd);
+
+   EF.UseExternalData(elfun.GetData(), nd, dim);
+
+   double w;
+   Vector vec1(dim), vec2(dim), vec3(nd), vec4(dim), vec5(nd);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == nullptr)
+   {
+      int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
+      ir = &IntRules.Get(el.GetGeomType(), order);
+   }
+
+   elmat = 0.0;
+   elmat_comp_T = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      trans.SetIntPoint(&ip);
+
+      el.CalcShape(ip, shape);
+      el.CalcDShape(ip, dshape);
+
+      Mult(dshape, trans.InverseJacobian(), dshapex);
+
+      w = ip.weight;
+
+      if (Q)
+      {
+         w *= Q->Eval(trans, ip);
+      }
+
+      EF.MultTranspose(shape, vec1); // u^n
+
+      trans.AdjugateJacobian().Mult(vec1, vec2);
+
+      vec2 *= w;
+      dshape.Mult(vec2, vec3); // (u^n \cdot grad u^{n+1})
+      MultVWt(shape, vec3, elmat_comp); // (u^n \cdot grad u^{n+1},v)
+      elmat_comp_T.Transpose(elmat_comp);
+
+      for (int i = 0; i < dim; i++)
+      {
+         elmat.AddMatrix(.5, elmat_comp, i * nd, i * nd);
+         elmat.AddMatrix(-.5, elmat_comp_T, i * nd, i * nd);
+      }
+
+
    }
 }
 
