@@ -1026,10 +1026,11 @@ PADiscreteLinearOperatorExtension::PADiscreteLinearOperatorExtension(
 {
 }
 
-const Operator *PADiscreteLinearOperatorExtension::GetLocalOutputProlongation()
+const
+Operator *PADiscreteLinearOperatorExtension::GetOutputRestrictionTranspose()
 const
 {
-   return a->GetLocalOutputProlongation();
+   return a->GetOutputRestrictionTranspose();
 }
 
 void PADiscreteLinearOperatorExtension::Assemble()
@@ -1140,8 +1141,8 @@ void PADiscreteLinearOperatorExtension::FormRectangularSystemOperator(
    const Array<int>& ess1, const Array<int>& ess2, OperatorHandle &A)
 {
    const Operator *Pi = this->GetProlongation();
-   const Operator *Po = this->GetLocalOutputProlongation();
-   Operator *rap = SetupRAP(Pi, Po);
+   const Operator *RoT = this->GetOutputRestrictionTranspose();
+   Operator *rap = SetupRAP(Pi, RoT);
 
    RectangularConstrainedOperator *Arco
       = new RectangularConstrainedOperator(rap, ess1, ess2, rap != this);

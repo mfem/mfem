@@ -101,7 +101,7 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
 
    P = NULL;
    Pconf = NULL;
-   Pconf_local = NULL;
+   R_transpose = NULL;
    R = NULL;
 
    num_face_nbr_dofs = -1;
@@ -922,28 +922,28 @@ const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
    }
 }
 
-const Operator *ParFiniteElementSpace::GetLocalProlongationOperator() const
+const Operator *ParFiniteElementSpace::GetRestrictionTransposeOperator() const
 {
    if (Conforming())
    {
-      if (Pconf_local) { return Pconf_local; }
+      if (R_transpose) { return R_transpose; }
 
       if (NRanks == 1)
       {
-         Pconf_local = new IdentityOperator(GetTrueVSize());
+         R_transpose = new IdentityOperator(GetTrueVSize());
       }
       else
       {
          if (!Device::Allows(Backend::DEVICE_MASK))
          {
-            Pconf_local = new ConformingProlongationOperator(*this, true);
+            R_transpose = new ConformingProlongationOperator(*this, true);
          }
          else
          {
-            Pconf_local = new DeviceConformingProlongationOperator(*this, true);
+            R_transpose = new DeviceConformingProlongationOperator(*this, true);
          }
       }
-      return Pconf_local;
+      return R_transpose;
    }
    else
    {
@@ -2867,7 +2867,7 @@ void ParFiniteElementSpace::Destroy()
 
    delete P; P = NULL;
    delete Pconf; Pconf = NULL;
-   delete Pconf_local; Pconf_local = NULL;
+   delete R_transpose; R_transpose = NULL;
    delete R; R = NULL;
 
    delete gcomm; gcomm = NULL;
