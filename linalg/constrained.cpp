@@ -18,16 +18,32 @@
 namespace mfem
 {
 
-/// @todo use FiniteElementSpace instead of Par, but need tdofs
-/// in parallel case.
+/** Returns a local constraint matrix reflecting that the normal
+    components of vectors in the space @a fespace should be constrained
+    to zero along the boundaries with attributes included in the Array
+    @a constrained_att.
+
+    When two attributes intersect, this version will combine constraints,
+    so in 2D the point at the intersection is fully constrained (ie,
+    fixed in both directions). This is the wrong thing to do if the
+    two boundaries are (close to) parallel at that point.
+
+    @param[in] fespace  The finite element space to constrain
+    @param[in] constrained_att  The boundary attributes to constrain
+    @param[out] lagrange_rowstarts  The rowstarts for separately
+                                    eliminated constraints, possible
+                                    input to EliminationCGSolver
+
+    @todo use FiniteElementSpace instead of Par, but need tdofs
+    in parallel case. */
 SparseMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
                                       Array<int>& constrained_att,
                                       Array<int>& lagrange_rowstarts)
 {
    int dim = fespace.GetVDim();
 
-   // mapping from dofs (colums of constraint matrix) to constraints (usually
-   // rows of constraint matrix)
+   // mapping from dofs (colums of constraint matrix) to constraints
+   // (rows of constraint matrix)
    // the indexing is by tdof, but we only bother with one tdof per node
    std::map<int, int> dof_constraint;
    // constraints[j] is a map from attribute to row number
@@ -67,8 +83,9 @@ SparseMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
       }
    }
 
-   // reorder so constraints are grouped together in rows
-   // (this is perahps not the best way to organize things)
+   // reorder so constraints eliminated together are grouped
+   // together in rows
+   // (this is perhaps not the best way to organize things)
    std::map<int, int> reorder_rows;
    int new_row = 0;
    MFEM_VERIFY(lagrange_rowstarts.Size() == 0,
