@@ -497,6 +497,8 @@ if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
   endforeach()
 endif()
 
+set(MFEM_CUSTOM_TARGET_PREFIX CACHE STRING "")
+
 #-------------------------------------------------------------------------------
 # Examples, miniapps, and testing
 #-------------------------------------------------------------------------------
@@ -548,15 +550,16 @@ endif()
 
 # Add 'check' target - quick test
 if (NOT MFEM_USE_MPI)
-  add_custom_target(check
+  set(MFEM_CHECK_TARGET_NAME ${MFEM_CUSTOM_TARGET_PREFIX}check)
+  add_custom_target(${MFEM_CHECK_TARGET_NAME}
     ${CMAKE_CTEST_COMMAND} -R \"^ex1_ser\" -C ${CMAKE_CFG_INTDIR}
     USES_TERMINAL)
-  add_dependencies(check ex1)
+  add_dependencies(${MFEM_CHECK_TARGET_NAME} ex1)
 else()
-  add_custom_target(check
+  add_custom_target(${MFEM_CHECK_TARGET_NAME}
     ${CMAKE_CTEST_COMMAND} -R \"^ex1p\" -C ${CMAKE_CFG_INTDIR}
     USES_TERMINAL)
-  add_dependencies(check ex1p)
+  add_dependencies(${MFEM_CHECK_TARGET_NAME} ex1p)
 endif()
 
 #-------------------------------------------------------------------------------
