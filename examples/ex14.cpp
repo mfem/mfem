@@ -47,6 +47,9 @@ int main(int argc, char *argv[])
    double kappa = -1.0;
    double eta = 0.0;
    bool visualization = 1;
+   bool pa = false;
+   bool ea = false;
+   bool fa = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -55,6 +58,12 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) >= 0.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&ea, "-ea", "--element-assembly", "-no-ea",
+                  "--no-element-assembly", "Enable Element Assembly.");
+   args.AddOption(&fa, "-fa", "--full-assembly", "-no-fa",
+                  "--no-full-assembly", "Enable Full Assembly.");
    args.AddOption(&sigma, "-s", "--sigma",
                   "One of the three DG penalty parameters, typically +1/-1."
                   " See the documentation of class DGDiffusionIntegrator.");
@@ -77,12 +86,14 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
    //    NURBS meshes are projected to second order meshes.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. By default, or if ref_levels < 0,
    //    we choose it to be the largest number that gives a final mesh with no
@@ -102,12 +113,23 @@ int main(int argc, char *argv[])
       mesh->SetCurvature(max(order, 1));
    }
 
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    // 4. Define a finite element space on the mesh. Here we use discontinuous
    //    finite elements of the specified order >= 0.
-   FiniteElementCollection *fec = new DG_FECollection(order, dim);
+   FiniteElementCollection *fec = NULL;
+   if(pa)
+   {
+      // Only Gauss-Lobatto and Bernstein basis are supported in L2FaceRestriction.
+      fec = new DG_FECollection(order, dim,BasisType::GaussLobatto);
+   }
+   else
+   {
+      fec = new DG_FECollection(order, dim);
+   }   
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of unknowns: " << fespace->GetVSize() << endl;
 
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    // 5. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system.
    LinearForm *b = new LinearForm(fespace);
@@ -118,11 +140,13 @@ int main(int argc, char *argv[])
       new DGDirichletLFIntegrator(zero, one, sigma, kappa));
    b->Assemble();
 
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    // 6. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero.
    GridFunction x(fespace);
    x = 0.0;
 
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    // 7. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator and the interior and boundary DG face integrators.
@@ -130,19 +154,43 @@ int main(int argc, char *argv[])
    //    is no need for dof elimination. After assembly and finalizing we
    //    extract the corresponding sparse matrix A.
    BilinearForm *a = new BilinearForm(fespace);
+   if (pa)
+   {
+      a->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   }
+   else if (ea)
+   {
+      a->SetAssemblyLevel(AssemblyLevel::ELEMENT);
+   }
+   else if (fa)
+   {
+      a->SetAssemblyLevel(AssemblyLevel::FULL);
+   }
+   else
+   {
+      // Default setting
+      a->SetAssemblyLevel(AssemblyLevel::LEGACYFULL);
+   }
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
    a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
    a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    if (eta > 0)
    {
+      std::cout << "Whoops we aren't ready for this case yet.  " << std::endl;      
+      exit(1);
       a->AddInteriorFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
+      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       a->AddBdrFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
    }
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    a->Assemble();
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    a->Finalize();
    const SparseMatrix &A = a->SpMat();
 
 #ifndef MFEM_USE_SUITESPARSE
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
    //    non-symmetric one.
@@ -156,6 +204,7 @@ int main(int argc, char *argv[])
       GMRES(A, M, *b, x, 1, 500, 10, 1e-12, 0.0);
    }
 #else
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;
    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
@@ -163,6 +212,7 @@ int main(int argc, char *argv[])
    umf_solver.Mult(*b, x);
 #endif
 
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    // 9. Save the refined mesh and the solution. This output can be viewed later
    //    using GLVis: "glvis -m refined.mesh -g sol.gf".
    ofstream mesh_ofs("refined.mesh");
