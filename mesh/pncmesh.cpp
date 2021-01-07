@@ -1512,12 +1512,6 @@ void ParNCMesh::GetFineToCoarsePartitioning(const Array<int> &derefs,
          new_ranks[fine[j]] = coarse_rank;
       }
    }
-
-   int target_elements = 0;
-   for (int i = 0; i < new_ranks.Size(); i++)
-   {
-      if (new_ranks[i] == MyRank) { target_elements++; }
-   }
 }
 
 void ParNCMesh::Derefine(const Array<int> &derefs)

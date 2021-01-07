@@ -27,57 +27,6 @@
 namespace mfem
 {
 
-/// This class is used to update GridFunction and FESpaces after mesh updates.
-/// It also provides functionality to reset essential boundary conditions, and
-/// rebalance ParMesh.
-class TMOPAMR
-{
-protected:
-   Mesh *mesh;
-   NonlinearForm *nlf;
-   Array<GridFunction *> gridfuncarr;
-   Array<FiniteElementSpace *> fespacearr;
-#ifdef MFEM_USE_MPI
-   ParMesh *pmesh;
-   ParNonlinearForm *pnlf;
-   Array<ParGridFunction *> pgridfuncarr;
-   Array<ParFiniteElementSpace *> pfespacearr;
-#endif
-
-   bool move_bnd;
-
-public:
-   TMOPAMR(Mesh &mesh_, NonlinearForm &nlf_, bool move_bnd_) :
-      mesh(&mesh_), nlf(&nlf_), gridfuncarr(), fespacearr(), move_bnd(move_bnd_) { }
-#ifdef MFEM_USE_MPI
-   TMOPAMR(ParMesh &pmesh_, ParNonlinearForm &pnlf_, bool move_bnd_) :
-      mesh(&pmesh_), nlf(&pnlf_), gridfuncarr(), fespacearr(),
-      pmesh(&pmesh_), pnlf(&pnlf_), pgridfuncarr(), pfespacearr(),
-      move_bnd(move_bnd_) { }
-#endif
-
-   void AddGridFunctionForUpdate(GridFunction *gf_) { gridfuncarr.Append(gf_); }
-#ifdef MFEM_USE_MPI
-   void AddGridFunctionForUpdate(ParGridFunction *pgf_) { pgridfuncarr.Append(pgf_); }
-#endif
-   void AddFESpaceForUpdate(FiniteElementSpace *fes_) { fespacearr.Append(fes_); }
-#ifdef MFEM_USE_MPI
-   void AddFESpaceForUpdate(ParFiniteElementSpace *pfes_) { pfespacearr.Append(pfes_); }
-#endif
-
-   void Update();
-#ifdef MFEM_USE_MPI
-   void ParUpdate();
-#endif
-
-#ifdef MFEM_USE_MPI
-   // Rebalance ParMesh such that all the children elements are moved to the same
-   // MPI rank where the parent will be if the mesh were to be derefined.
-   void RebalanceParNCMesh();
-#endif
-};
-
-
 class TMOPRefinerEstimator : public AnisotropicErrorEstimator
 {
 protected:
@@ -257,20 +206,29 @@ protected:
    NonlinearForm *nlf;
    TMOPNewtonSolver *tmopns;
    GridFunction *x;
+   Array<GridFunction *> gridfuncarr;
+   Array<FiniteElementSpace *> fespacearr;
    bool move_bnd, hradaptivity;
    const int mesh_poly_deg, amr_metric_id;
 #ifdef MFEM_USE_MPI
    ParMesh *pmesh;
    ParNonlinearForm *pnlf;
    ParGridFunction *px;
+   Array<ParGridFunction *> pgridfuncarr;
+   Array<ParFiniteElementSpace *> pfespacearr;
 #endif
    bool serial;
 
-   TMOPAMR *tmopamrupdate;
    TMOPRefinerEstimator *tmop_r_est;
    TMOPRefiner *tmop_r;
    TMOPDeRefinerEstimator *tmop_dr_est;
    ThresholdDerefiner *tmop_dr;
+
+   void Update();
+#ifdef MFEM_USE_MPI
+   void ParUpdate();
+#endif
+
 public:
    TMOPAMRSolver(Mesh &mesh_,
                  NonlinearForm &nlf_,
@@ -295,23 +253,31 @@ public:
 
    void AddGridFunctionForUpdate(GridFunction *gf_)
    {
-      tmopamrupdate->AddGridFunctionForUpdate(gf_);
+      gridfuncarr.Append(gf_);
    }
 #ifdef MFEM_USE_MPI
    void AddGridFunctionForUpdate(ParGridFunction *pgf_)
    {
-      tmopamrupdate->AddGridFunctionForUpdate(pgf_);
+
+      pgridfuncarr.Append(pgf_);
    }
 #endif
    void AddFESpaceForUpdate(FiniteElementSpace *fes_)
    {
-      tmopamrupdate->AddFESpaceForUpdate(fes_);
+
+      fespacearr.Append(fes_);
    }
 #ifdef MFEM_USE_MPI
    void AddFESpaceForUpdate(ParFiniteElementSpace *pfes_)
    {
-      tmopamrupdate->AddFESpaceForUpdate(pfes_);
+      pfespacearr.Append(pfes_);
    }
+#endif
+
+#ifdef MFEM_USE_MPI
+   // Rebalance ParMesh such that all the children elements are moved to the same
+   // MPI rank where the parent will be if the mesh were to be derefined.
+   void RebalanceParNCMesh();
 #endif
 
    ~TMOPAMRSolver()
@@ -320,7 +286,6 @@ public:
       delete tmop_dr_est;
       delete tmop_r;
       delete tmop_r_est;
-      delete tmopamrupdate;
    }
 };
 

@@ -19,225 +19,6 @@ namespace mfem
 
 using namespace mfem;
 
-#ifdef MFEM_USE_MPI
-void TMOPAMR::RebalanceParNCMesh()
-{
-   ParNCMesh *pncmesh = pmesh->pncmesh;
-   if (pncmesh)
-   {
-      const Table &dreftable = pncmesh->GetDerefinementTable();
-      Array<int> drefs, new_ranks;
-      for (int i = 0; i < dreftable.Size(); i++)
-      {
-         drefs.Append(i);
-      }
-      pncmesh->GetFineToCoarsePartitioning(drefs, new_ranks);
-      new_ranks.SetSize(pmesh->GetNE());
-      pmesh->Rebalance(new_ranks);
-   }
-}
-#endif
-
-void TMOPAMR::Update()
-{
-   // Update FESpace
-   for (int i = 0; i < fespacearr.Size(); i++)
-   {
-      fespacearr[i]->Update();
-   }
-   // Update nodal GF
-   for (int i = 0; i < gridfuncarr.Size(); i++)
-   {
-      gridfuncarr[i]->Update();
-      gridfuncarr[i]->SetTrueVector();
-      gridfuncarr[i]->SetFromTrueVector();
-   }
-
-   const FiniteElementSpace *fespace = mesh->GetNodalFESpace();
-
-   // Update Discrete Indicator for all the TMOP_Integrators in NonLinearForm
-   Array<NonlinearFormIntegrator*> &integs = *(nlf->GetDNFI());
-   TMOP_Integrator *ti  = NULL;
-   TMOPComboIntegrator *co = NULL;
-   DiscreteAdaptTC *dtc = NULL;
-   for (int i = 0; i < integs.Size(); i++)
-   {
-      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
-      if (ti)
-      {
-         ti->Update();
-         dtc = ti->GetDiscreteAdaptTC();
-         if (dtc) { dtc->Update(); }
-      }
-      co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
-      if (co)
-      {
-         Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
-         for (int j = 0; j < ati.Size(); j++)
-         {
-            ati[j]->Update();
-            dtc = ati[j]->GetDiscreteAdaptTC();
-            if (dtc) { dtc->Update(); }
-         }
-      }
-   }
-
-   // Update Nonlinear form and Set Essential BC
-   nlf->Update();
-   int dim = fespace->GetFE(0)->GetDim();
-   if (move_bnd == false)
-   {
-      Array<int> ess_bdr(mesh->bdr_attributes.Max());
-      ess_bdr = 1;
-      nlf->SetEssentialBC(ess_bdr);
-   }
-   else
-   {
-      const int nd  = fespace->GetBE(0)->GetDof();
-      int n = 0;
-      for (int i = 0; i < mesh->GetNBE(); i++)
-      {
-         const int attr = mesh->GetBdrElement(i)->GetAttribute();
-         MFEM_VERIFY(!(dim == 2 && attr == 3),
-                     "Boundary attribute 3 must be used only for 3D meshes. "
-                     "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
-                     "components, rest for free nodes), or use -fix-bnd.");
-         if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
-         if (attr == 4) { n += nd * dim; }
-      }
-      Array<int> ess_vdofs(n), vdofs;
-      n = 0;
-      for (int i = 0; i < mesh->GetNBE(); i++)
-      {
-         const int attr = mesh->GetBdrElement(i)->GetAttribute();
-         fespace->GetBdrElementVDofs(i, vdofs);
-         if (attr == 1) // Fix x components.
-         {
-            for (int j = 0; j < nd; j++)
-            { ess_vdofs[n++] = vdofs[j]; }
-         }
-         else if (attr == 2) // Fix y components.
-         {
-            for (int j = 0; j < nd; j++)
-            { ess_vdofs[n++] = vdofs[j+nd]; }
-         }
-         else if (attr == 3) // Fix z components.
-         {
-            for (int j = 0; j < nd; j++)
-            { ess_vdofs[n++] = vdofs[j+2*nd]; }
-         }
-         else if (attr == 4) // Fix all components.
-         {
-            for (int j = 0; j < vdofs.Size(); j++)
-            { ess_vdofs[n++] = vdofs[j]; }
-         }
-      }
-      nlf->SetEssentialVDofs(ess_vdofs);
-   }
-}
-
-#ifdef MFEM_USE_MPI
-void TMOPAMR::ParUpdate()
-{
-   // Update FESpace
-   for (int i = 0; i < pfespacearr.Size(); i++)
-   {
-      pfespacearr[i]->Update();
-   }
-   // Update nodal GF
-   for (int i = 0; i < pgridfuncarr.Size(); i++)
-   {
-      pgridfuncarr[i]->Update();
-      pgridfuncarr[i]->SetTrueVector();
-      pgridfuncarr[i]->SetFromTrueVector();
-   }
-
-   // Update Discrete Indicator
-   Array<NonlinearFormIntegrator*> &integs = *(nlf->GetDNFI());
-   TMOP_Integrator *ti  = NULL;
-   TMOPComboIntegrator *co = NULL;
-   DiscreteAdaptTC *dtc = NULL;
-   for (int i = 0; i < integs.Size(); i++)
-   {
-      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
-      if (ti)
-      {
-         ti->ParUpdate();
-         dtc = ti->GetDiscreteAdaptTC();
-         if (dtc) { dtc->ParUpdate(); }
-      }
-      co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
-      if (co)
-      {
-         Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
-         for (int j = 0; j < ati.Size(); j++)
-         {
-            ati[j]->ParUpdate();
-            dtc = ati[j]->GetDiscreteAdaptTC();
-            if (dtc) { dtc->ParUpdate(); }
-         }
-      }
-   }
-
-   const FiniteElementSpace *pfespace = pmesh->GetNodalFESpace();
-
-   // Update Nonlinear form and Set Essential BC
-   pnlf->Update();
-   int dim = pfespace->GetFE(0)->GetDim();
-   if (move_bnd == false)
-   {
-      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-      ess_bdr = 1;
-      pnlf->SetEssentialBC(ess_bdr);
-   }
-   else
-   {
-      const int nd  = pfespace->GetBE(0)->GetDof();
-      int n = 0;
-      for (int i = 0; i < pmesh->GetNBE(); i++)
-      {
-         const int attr = pmesh->GetBdrElement(i)->GetAttribute();
-         MFEM_VERIFY(!(dim == 2 && attr == 3),
-                     "Boundary attribute 3 must be used only for 3D meshes. "
-                     "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
-                     "components, rest for free nodes), or use -fix-bnd.");
-         if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
-         if (attr == 4) { n += nd * dim; }
-      }
-      Array<int> ess_vdofs(n), vdofs;
-      n = 0;
-      for (int i = 0; i < pmesh->GetNBE(); i++)
-      {
-         const int attr = pmesh->GetBdrElement(i)->GetAttribute();
-         pfespace->GetBdrElementVDofs(i, vdofs);
-         if (attr == 1) // Fix x components.
-         {
-            for (int j = 0; j < nd; j++)
-            { ess_vdofs[n++] = vdofs[j]; }
-         }
-         else if (attr == 2) // Fix y components.
-         {
-            for (int j = 0; j < nd; j++)
-            { ess_vdofs[n++] = vdofs[j+nd]; }
-         }
-         else if (attr == 3) // Fix z components.
-         {
-            for (int j = 0; j < nd; j++)
-            { ess_vdofs[n++] = vdofs[j+2*nd]; }
-         }
-         else if (attr == 4) // Fix all components.
-         {
-            for (int j = 0; j < vdofs.Size(); j++)
-            { ess_vdofs[n++] = vdofs[j]; }
-         }
-      }
-      pnlf->SetEssentialVDofs(ess_vdofs);
-   }
-}
-#endif
-
-
-
 void TMOPRefinerEstimator::ComputeEstimates()
 {
    bool iso = false;
@@ -673,17 +454,13 @@ bool TMOPDeRefinerEstimator::GetDerefineEnergyForIntegrator(
       Vector coarse_energy(meshcopy.GetNE());
       GetTMOPDerefinementEnergy(meshcopy, tmopi, coarse_energy);
       if (tcd) { tcd->ResetDerefinementTspecData(); }
-      MPI_Barrier(MPI_COMM_WORLD);
       GetTMOPDerefinementEnergy(*pmesh, tmopi, fine_energy);
-      MPI_Barrier(MPI_COMM_WORLD);
 
       const CoarseFineTransformations &dtrans =
          meshcopy.pncmesh->GetDerefinementTransforms();
       Table coarse_to_fine;
-      MPI_Barrier(MPI_COMM_WORLD);
       dtrans.GetCoarseToFineMap(meshcopy, coarse_to_fine,
                                 pmesh->pncmesh->GetNGhostElements());
-      MPI_Barrier(MPI_COMM_WORLD);
 
       for (int pe = 0; pe < meshcopy.GetNE(); pe++)
       {
@@ -774,16 +551,16 @@ TMOPAMRSolver::TMOPAMRSolver(Mesh &mesh_, NonlinearForm &nlf_,
    mesh(&mesh_), nlf(&nlf_), tmopns(&tmopns_), x(&x_),
    move_bnd(move_bnd_), hradaptivity(hradaptivity_),
    mesh_poly_deg(mesh_poly_deg_), amr_metric_id(amr_metric_id_),
+   gridfuncarr(), fespacearr(),
    serial(true)
 {
-   tmopamrupdate = new TMOPAMR(*mesh, *nlf, move_bnd);
    tmop_r_est = new TMOPRefinerEstimator(*mesh, *nlf, mesh_poly_deg,
                                          amr_metric_id);
    tmop_r = new TMOPRefiner(*tmop_r_est);
    tmop_r_est->SetEnergyScalingFactor(1.);
    tmop_dr_est= new TMOPDeRefinerEstimator(*mesh, *nlf);
    tmop_dr = new ThresholdDerefiner(*tmop_dr_est);
-   tmopamrupdate->AddGridFunctionForUpdate(x);
+   AddGridFunctionForUpdate(x);
 }
 
 #ifdef MFEM_USE_MPI
@@ -798,14 +575,13 @@ TMOPAMRSolver::TMOPAMRSolver(ParMesh &pmesh_, ParNonlinearForm &pnlf_,
    mesh_poly_deg(mesh_poly_deg_), amr_metric_id(amr_metric_id_),
    pmesh(&pmesh_), pnlf(&pnlf_), px(&px_), serial(false)
 {
-   tmopamrupdate = new TMOPAMR(*pmesh, *pnlf, move_bnd);
    tmop_r_est = new TMOPRefinerEstimator(*pmesh, *pnlf, mesh_poly_deg,
                                          amr_metric_id);
    tmop_r = new TMOPRefiner(*tmop_r_est);
    tmop_r_est->SetEnergyScalingFactor(1.);
    tmop_dr_est= new TMOPDeRefinerEstimator(*pmesh, *pnlf);
    tmop_dr = new ThresholdDerefiner(*tmop_dr_est);
-   tmopamrupdate->AddGridFunctionForUpdate(px);
+   AddGridFunctionForUpdate(px);
 }
 #endif
 
@@ -846,7 +622,7 @@ void TMOPAMRSolver::Mult()
                if (ncmesh) //derefinement
                {
                   tmop_dr->Apply(*mesh);
-                  tmopamrupdate->Update();
+                  Update();
                }
 
                mfem::out << "TMOP energy after derefinement: " <<
@@ -855,7 +631,7 @@ void TMOPAMRSolver::Mult()
 
                // Refiner
                tmop_r->Apply(*mesh);
-               tmopamrupdate->Update();
+               Update();
                mfem::out << "TMOP energy after   refinement: " <<
                          nlf->GetGridFunctionEnergy(*x)/mesh->GetNE() <<
                          ", Elements: " << mesh->GetNE() << std::endl;
@@ -916,11 +692,11 @@ void TMOPAMRSolver::Mult()
 
                if (pncmesh)   //derefinement
                {
-                  tmopamrupdate->RebalanceParNCMesh();
-                  tmopamrupdate->ParUpdate();
+                  RebalanceParNCMesh();
+                  ParUpdate();
 
                   tmop_dr->Apply(*pmesh);
-                  tmopamrupdate->ParUpdate();
+                  ParUpdate();
                }
                NEGlob = pmesh->GetGlobalNE();
                tmopenergy = pnlf->GetParGridFunctionEnergy(*px);
@@ -932,7 +708,7 @@ void TMOPAMRSolver::Mult()
 
 
                tmop_r->Apply(*pmesh);
-               tmopamrupdate->ParUpdate();
+               ParUpdate();
 
                NEGlob = pmesh->GetGlobalNE();
                tmopenergy = pnlf->GetParGridFunctionEnergy(*px);
@@ -968,6 +744,225 @@ void TMOPAMRSolver::Mult()
 #endif
    }
 }
+
+
+
+#ifdef MFEM_USE_MPI
+void TMOPAMRSolver::RebalanceParNCMesh()
+{
+   ParNCMesh *pncmesh = pmesh->pncmesh;
+   if (pncmesh)
+   {
+      const Table &dreftable = pncmesh->GetDerefinementTable();
+      Array<int> drefs, new_ranks;
+      for (int i = 0; i < dreftable.Size(); i++)
+      {
+         drefs.Append(i);
+      }
+      pncmesh->GetFineToCoarsePartitioning(drefs, new_ranks);
+      new_ranks.SetSize(pmesh->GetNE());
+      pmesh->Rebalance(new_ranks);
+   }
+}
+#endif
+
+void TMOPAMRSolver::Update()
+{
+   // Update FESpace
+   for (int i = 0; i < fespacearr.Size(); i++)
+   {
+      fespacearr[i]->Update();
+   }
+   // Update nodal GF
+   for (int i = 0; i < gridfuncarr.Size(); i++)
+   {
+      gridfuncarr[i]->Update();
+      gridfuncarr[i]->SetTrueVector();
+      gridfuncarr[i]->SetFromTrueVector();
+   }
+
+   const FiniteElementSpace *fespace = mesh->GetNodalFESpace();
+
+   // Update Discrete Indicator for all the TMOP_Integrators in NonLinearForm
+   Array<NonlinearFormIntegrator*> &integs = *(nlf->GetDNFI());
+   TMOP_Integrator *ti  = NULL;
+   TMOPComboIntegrator *co = NULL;
+   DiscreteAdaptTC *dtc = NULL;
+   for (int i = 0; i < integs.Size(); i++)
+   {
+      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      if (ti)
+      {
+         ti->Update();
+         dtc = ti->GetDiscreteAdaptTC();
+         if (dtc) { dtc->Update(); }
+      }
+      co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+      if (co)
+      {
+         Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
+         for (int j = 0; j < ati.Size(); j++)
+         {
+            ati[j]->Update();
+            dtc = ati[j]->GetDiscreteAdaptTC();
+            if (dtc) { dtc->Update(); }
+         }
+      }
+   }
+
+   // Update Nonlinear form and Set Essential BC
+   nlf->Update();
+   int dim = fespace->GetFE(0)->GetDim();
+   if (move_bnd == false)
+   {
+      Array<int> ess_bdr(mesh->bdr_attributes.Max());
+      ess_bdr = 1;
+      nlf->SetEssentialBC(ess_bdr);
+   }
+   else
+   {
+      const int nd  = fespace->GetBE(0)->GetDof();
+      int n = 0;
+      for (int i = 0; i < mesh->GetNBE(); i++)
+      {
+         const int attr = mesh->GetBdrElement(i)->GetAttribute();
+         MFEM_VERIFY(!(dim == 2 && attr == 3),
+                     "Boundary attribute 3 must be used only for 3D meshes. "
+                     "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
+                     "components, rest for free nodes), or use -fix-bnd.");
+         if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
+         if (attr == 4) { n += nd * dim; }
+      }
+      Array<int> ess_vdofs(n), vdofs;
+      n = 0;
+      for (int i = 0; i < mesh->GetNBE(); i++)
+      {
+         const int attr = mesh->GetBdrElement(i)->GetAttribute();
+         fespace->GetBdrElementVDofs(i, vdofs);
+         if (attr == 1) // Fix x components.
+         {
+            for (int j = 0; j < nd; j++)
+            { ess_vdofs[n++] = vdofs[j]; }
+         }
+         else if (attr == 2) // Fix y components.
+         {
+            for (int j = 0; j < nd; j++)
+            { ess_vdofs[n++] = vdofs[j+nd]; }
+         }
+         else if (attr == 3) // Fix z components.
+         {
+            for (int j = 0; j < nd; j++)
+            { ess_vdofs[n++] = vdofs[j+2*nd]; }
+         }
+         else if (attr == 4) // Fix all components.
+         {
+            for (int j = 0; j < vdofs.Size(); j++)
+            { ess_vdofs[n++] = vdofs[j]; }
+         }
+      }
+      nlf->SetEssentialVDofs(ess_vdofs);
+   }
+}
+
+#ifdef MFEM_USE_MPI
+void TMOPAMRSolver::ParUpdate()
+{
+   // Update FESpace
+   for (int i = 0; i < pfespacearr.Size(); i++)
+   {
+      pfespacearr[i]->Update();
+   }
+   // Update nodal GF
+   for (int i = 0; i < pgridfuncarr.Size(); i++)
+   {
+      pgridfuncarr[i]->Update();
+      pgridfuncarr[i]->SetTrueVector();
+      pgridfuncarr[i]->SetFromTrueVector();
+   }
+
+   // Update Discrete Indicator
+   Array<NonlinearFormIntegrator*> &integs = *(nlf->GetDNFI());
+   TMOP_Integrator *ti  = NULL;
+   TMOPComboIntegrator *co = NULL;
+   DiscreteAdaptTC *dtc = NULL;
+   for (int i = 0; i < integs.Size(); i++)
+   {
+      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      if (ti)
+      {
+         ti->ParUpdate();
+         dtc = ti->GetDiscreteAdaptTC();
+         if (dtc) { dtc->ParUpdate(); }
+      }
+      co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+      if (co)
+      {
+         Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
+         for (int j = 0; j < ati.Size(); j++)
+         {
+            ati[j]->ParUpdate();
+            dtc = ati[j]->GetDiscreteAdaptTC();
+            if (dtc) { dtc->ParUpdate(); }
+         }
+      }
+   }
+
+   const FiniteElementSpace *pfespace = pmesh->GetNodalFESpace();
+
+   // Update Nonlinear form and Set Essential BC
+   pnlf->Update();
+   int dim = pfespace->GetFE(0)->GetDim();
+   if (move_bnd == false)
+   {
+      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+      ess_bdr = 1;
+      pnlf->SetEssentialBC(ess_bdr);
+   }
+   else
+   {
+      const int nd  = pfespace->GetBE(0)->GetDof();
+      int n = 0;
+      for (int i = 0; i < pmesh->GetNBE(); i++)
+      {
+         const int attr = pmesh->GetBdrElement(i)->GetAttribute();
+         MFEM_VERIFY(!(dim == 2 && attr == 3),
+                     "Boundary attribute 3 must be used only for 3D meshes. "
+                     "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
+                     "components, rest for free nodes), or use -fix-bnd.");
+         if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
+         if (attr == 4) { n += nd * dim; }
+      }
+      Array<int> ess_vdofs(n), vdofs;
+      n = 0;
+      for (int i = 0; i < pmesh->GetNBE(); i++)
+      {
+         const int attr = pmesh->GetBdrElement(i)->GetAttribute();
+         pfespace->GetBdrElementVDofs(i, vdofs);
+         if (attr == 1) // Fix x components.
+         {
+            for (int j = 0; j < nd; j++)
+            { ess_vdofs[n++] = vdofs[j]; }
+         }
+         else if (attr == 2) // Fix y components.
+         {
+            for (int j = 0; j < nd; j++)
+            { ess_vdofs[n++] = vdofs[j+nd]; }
+         }
+         else if (attr == 3) // Fix z components.
+         {
+            for (int j = 0; j < nd; j++)
+            { ess_vdofs[n++] = vdofs[j+2*nd]; }
+         }
+         else if (attr == 4) // Fix all components.
+         {
+            for (int j = 0; j < vdofs.Size(); j++)
+            { ess_vdofs[n++] = vdofs[j]; }
+         }
+      }
+      pnlf->SetEssentialVDofs(ess_vdofs);
+   }
+}
+#endif
 
 
 }
