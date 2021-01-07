@@ -48,6 +48,10 @@ int useFull=1; // control version of preconditioner
 int i_supgpre=3;    //3 - full diagonal supg terms on psi and phi
                     //0 - only (v.grad) in the preconditioner on psi and phi
 
+int bctype = 1; //1 - Dirichlet 
+                //2 - weak Dirichlet
+double weakPenalty;
+
 double factormin=8.; 
 bool debug=false;
 
@@ -57,12 +61,13 @@ extern int icase;
 extern ParMesh *pmesh;
 extern int order;
 
+
 // reduced system 
 class ReducedSystemOperator : public Operator
 {
 private:
    ParFiniteElementSpace &fespace;
-   ParBilinearForm *M, *Mlumped, *K, *KB, *DRe, *DSl, *bdrDiff; 
+   ParBilinearForm *M, *Mlumped, *K, *KB, *DRe, *DSl, *bdrForm; 
    HypreParMatrix &Mmat, &Mfullmat, &Kmat, *DRematpr, *DSlmatpr, &KBMat;
    //own by this:
    HypreParMatrix *Mdtpr, *ARe, *ASl, *MinvKB;
@@ -213,15 +218,27 @@ public:
     void SetTDofs(Array<int>& list)
     {
        int iSize=list.Size();
-       ess_tdof_list.SetSize(component*iSize);
        //cout <<"======vector size is "<<component<<" "<<iSize<<endl;
        //cout <<"======component size is "<<componentSize<<endl;
        //list.Print();
-       for (PetscInt j = 0; j < component; j++)
-         for (PetscInt i = 0; i < iSize; i++)
-         {
-            ess_tdof_list[i+j*iSize] = j*componentSize+list[i];
-         }
+       //XXX do not apply boundary condition on phi for now
+
+       if (true){
+          ess_tdof_list.SetSize(component*iSize);
+          for (PetscInt j = 0; j < component; j++)
+            for (PetscInt i = 0; i < iSize; i++)
+            {
+               ess_tdof_list[i+j*iSize] = j*componentSize+list[i];
+            }
+       }
+       else{ 
+          ess_tdof_list.SetSize((component-1)*iSize);
+          for (PetscInt j = 1; j < component; j++)
+            for (PetscInt i = 0; i < iSize; i++)
+            {
+               ess_tdof_list[i+(j-1)*iSize] = j*componentSize+list[i];
+            }
+       }
        setup = false;
     }
     void SetBoundary(const Vector &_vx)
@@ -331,6 +348,7 @@ protected:
    HypreSolver *K_amg; //BoomerAMG for stiffness matrix
    HyprePCG *K_pcg;
 
+   Vector zero; // empty vector is interpreted as zero r.h.s. by NewtonSolver
    mutable Vector z, J, z2, z3, zFull; // auxiliary vector 
    mutable ParGridFunction j, gftmp, gftmp2, gftmp3;  //auxiliary variable (to store the boundary condition)
    ParBilinearForm *DRetmp, *DSltmp;    //hold the matrices for DRe and DSl
@@ -601,9 +619,12 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
       pnewton_solver->SetMaxIter(20);
       pnewton_solver->iterative_mode=true;
 
-      //3 components in block vector; each has the size of height/3
-      bchandler = new myBCHandler(ess_tdof_list, PetscBCHandler::CONSTANT, 3, height/3);
-      pnewton_solver->SetBCHandler(bchandler);
+      if (bctype==1)
+      {
+         //3 components in block vector; each has the size of height/3
+         bchandler = new myBCHandler(ess_tdof_list, PetscBCHandler::CONSTANT, 3, height/3);
+         pnewton_solver->SetBCHandler(bchandler);
+      }
    }
 
    
@@ -683,16 +704,39 @@ void ResistiveMHDOperator::ImplicitSolve(const double dt,
    Vector   w(vx.GetData() +2*sc, sc);
 
    reduced_oper->SetParameters(dt, &phi, &psi, &w);
-   Vector zero; // empty vector is interpreted as zero r.h.s. by NewtonSolver
    
    k = vx; //Provide the initial guess as vx and use iterative_mode
-   bchandler->SetBoundary(vx);   //setup the essential boundary (in the first solve)
+
+   if (bctype==1)
+   {
+      bchandler->SetBoundary(vx);   //setup the essential boundary (in the first solve)
+   }
 
    //we skip the current solve if convergedSolver is not true (happens in later stage of RK)
    if (!convergedSolver)
    {
        if (myid==0) cout<<"======WARNING: Previous ImplicitSolve did not converge. Skip current ImplicitSolve until it gets reset!======\n";
        return;
+   }
+
+   if (bctype!=1 && zero.Size()==0)
+   {
+       if (myid==0) cout<<"====== Initialize the rhs in ImplicitSolve ======\n";
+
+       zero.SetSize(height);
+       zero=0.;
+
+       Vector y2(zero.GetData() +  sc, sc);
+       Vector y3(zero.GetData() +2*sc, sc);
+
+       ParLinearForm rhs2(&fespace);
+       FunctionCoefficient psiBC(InitialPsi3);
+ 
+       rhs2.AddBoundaryIntegrator(new BoundaryLFIntegrator(psiBC));
+       rhs2.Assemble();
+       rhs2.ParallelAssemble(y2);
+
+       zero*=weakPenalty;
    }
 
    pnewton_solver->Mult(zero, k);  //here k is solved as vx^{n+1}
@@ -937,10 +981,16 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
    else
        pd=NULL;
 
-   FunctionCoefficient visc_coeff(variVisc);
-   bdrDiff = new ParBilinearForm(&fespace);
-   bdrDiff->AddDomainIntegrator(new DiffusionIntegrator(visc_coeff));    
-   bdrDiff->Assemble();
+   bdrForm = new ParBilinearForm(&fespace);
+   if (bctype==1){
+       FunctionCoefficient visc_coeff(variVisc);
+       bdrForm->AddDomainIntegrator(new DiffusionIntegrator(visc_coeff));    
+   }
+   else{
+       ConstantCoefficient penalty_coeff(weakPenalty);
+       bdrForm->AddBoundaryIntegrator(new BoundaryMassIntegrator(penalty_coeff));    
+   }
+   bdrForm->Assemble();
 
 }
 
@@ -1403,7 +1453,7 @@ ReducedSystemOperator::~ReducedSystemOperator()
    delete PB_VOmega;
    delete PB_BJ;
    delete pd;
-   delete bdrDiff;
+   delete bdrForm;
 }
 
 void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
@@ -1518,7 +1568,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    if (DRe!=NULL)
    {
        DRe->TrueAddMult(wNew,y3);
-       //bdrDiff->TrueAddMult(wNew, y3);
+       //bdrForm->TrueAddMult(wNew, y3);
    }
 
    if (bilinearPB)
@@ -1806,9 +1856,21 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    }
 
    //this step will be done in bchandler anyway
-   y1.SetSubVector(ess_tdof_list, 0.0);
-   y2.SetSubVector(ess_tdof_list, 0.0);
-   y3.SetSubVector(ess_tdof_list, 0.0);
+   //y1.SetSubVector(ess_tdof_list, 0.0);
+   //y2.SetSubVector(ess_tdof_list, 0.0);
+   //y3.SetSubVector(ess_tdof_list, 0.0);
+   if (bctype!=1){
+       /*
+       FunctionCoefficient psiBC(InitialPsi3);
+       ParLinearForm rhs2(&fespace);
+       rhs2.AddBoundaryIntegrator(new BoundaryLFIntegrator(psiBC));
+       rhs2.Assemble();
+       rhs2.ParallelAssemble(z);
+       */
+
+       bdrForm->TrueAddMult(psiNew, y2); 
+       bdrForm->TrueAddMult(wNew, y3); 
+   }
 
    if (false){
        if (myid==0) {

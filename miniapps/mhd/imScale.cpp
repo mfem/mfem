@@ -120,6 +120,8 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Parallel assembly.");
    args.AddOption(&debug, "-debug", "--debug", "-no-debug", "--no-debug",
                   "Debug issue.");
+   args.AddOption(&bctype, "-bctype", "--bctype","BC 1 - Dirichelt; 2 - weak Dirichelt.");
+
 
    args.Parse();
    if (!args.Good())
@@ -264,10 +266,17 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace fespace(pmesh, &fe_coll); 
 
    HYPRE_Int global_size = fespace.GlobalTrueVSize();
+
+   int total_refine_levels = 2+ser_ref_levels+par_ref_levels;
+   double gridSize = 2./pow(2., total_refine_levels);
    if (myid == 0)
    {
-      cout << "Number of total scalar unknowns: " << global_size << endl;
+      cout<<"Number of total scalar unknowns: " << global_size << endl;
+      cout<<"Total refinement levels = "<<total_refine_levels
+           <<" effective grid size = "<<gridSize<<endl;
    }
+   weakPenalty = 100./gridSize;
+   //weakPenalty = 0.;
 
    int fe_size = fespace.TrueVSize();
    Array<int> fe_offset(4);
@@ -407,20 +416,22 @@ int main(int argc, char *argv[])
        cout <<"######Runtime = "<<end-start<<" ######"<<endl;
 
    //++++++Save the solutions.
-   if (false)
+   if (true)
    {
       phi.SetFromTrueVector(); psi.SetFromTrueVector(); w.SetFromTrueVector();
+      oper.UpdateJ(vx, &j);
 
       ostringstream mesh_name, phi_name, psi_name, w_name,j_name;
-      //mesh_name << "mesh." << setfill('0') << setw(6) << myid;
-      mesh_name << "mesh";
+      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+      //mesh_name << "mesh";
       phi_name << "sol_phi." << setfill('0') << setw(6) << myid;
       psi_name << "sol_psi." << setfill('0') << setw(6) << myid;
       w_name << "sol_omega." << setfill('0') << setw(6) << myid;
+      j_name << "sol_j." << setfill('0') << setw(6) << myid;
 
       ofstream omesh(mesh_name.str().c_str());
       omesh.precision(8);
-      pmesh->PrintAsOne(omesh);
+      pmesh->Print(omesh);
 
       {
         ofstream osol(phi_name.str().c_str());
@@ -434,6 +445,10 @@ int main(int argc, char *argv[])
         ofstream osol4(w_name.str().c_str());
         osol4.precision(8);
         w.Save(osol4);
+
+        ofstream osol5(j_name.str().c_str());
+        osol5.precision(8);
+        j.Save(osol5);
       }
    }
 

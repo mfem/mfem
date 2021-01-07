@@ -1860,6 +1860,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    //------compute the current as an auxilary variable (no boundary condition)------
    if (iUpdateJ==0)
    {
+       //maybe this is not correct?
       KBMat.Mult(psiNew, z);
       z.Neg();
       M_solver2->Mult(z, J);
@@ -1964,7 +1965,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    //+++++compute y2
    add(psiNew, -1., *psi, z);
    z/=dt;
-   Mmat.Mult(z,y2);
+   Mmat.Mult(z,y2); //this is okay for time independent homogenous boundary
    if (bilinearPB)
       Nv->TrueAddMult(psiNew,y2);
    else
