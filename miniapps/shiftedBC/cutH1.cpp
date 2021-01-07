@@ -264,6 +264,11 @@ int main(int argc, char *argv[])
                }
             }
 
+            // TODO go over faces (in face_dof) that have the replaced dof, and
+            // check if the face_dof table should be updated.
+            // Maybe the face should have the new dof instead of the old one,
+            // which is the case if it has higher el-attributes on both sides.
+
             ndofs++;
             mat++;
          }
