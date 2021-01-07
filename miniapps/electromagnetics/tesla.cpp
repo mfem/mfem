@@ -185,14 +185,16 @@ int main(int argc, char *argv[])
    // Project a NURBS mesh to a piecewise-quadratic curved mesh
    if (mesh->NURBSext)
    {
-      mesh->UniformRefinement();
+      //mesh->UniformRefinement();
       if (serial_ref_levels > 0) { serial_ref_levels--; }
 
       mesh->SetCurvature(2);
    }
 
    // Ensure that quad and hex meshes are treated as non-conforming.
+   {std::ofstream f("initial.mesh"); mesh->Print(f);}
    mesh->EnsureNCMesh();
+   {std::ofstream f("initial-nc.mesh"); mesh->Print(f);}
 
    // Refine the serial mesh on all processors to increase the resolution. In
    // this example we do 'ref_levels' of uniform refinement.
