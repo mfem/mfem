@@ -14,9 +14,12 @@
 # This script is meant be launched in the root directory of MFEM to compile all
 # the dependencies of MFEM for all the specs in CI. By doing so, we obtain a
 # Spack instance that can be used as an upstream.
+# Note: needs mfem-uberenv in MFEM repo (run tests/gitlab/get_mfem_uberenv)
 
 # This patch applies shared permissions to Spack installations.
-git apply tests/uberenv/upstream-permission.patch
+cd tests/uberenv
+git apply upstream-permission.patch
+cd -
 
 # call uberenv for all specs in CI
 git grep -e "^[^#]" .gitlab | grep "SPEC" \
@@ -27,4 +30,6 @@ git grep -e "^[^#]" .gitlab | grep "SPEC" \
 done
 
 # We revert the patch to leave the repo as found.
-git apply -R tests/uberenv/upstream-permission.patch
+cd tests/uberenv
+git apply -R upstream-permission.patch
+cd -
