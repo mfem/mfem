@@ -11,12 +11,12 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-# This script is meant be launch in the root directory of MFEM to compile all
+# This script is meant be launched in the root directory of MFEM to compile all
 # the dependencies of MFEM for all the specs in CI. By doing so, we obtain a
 # Spack instance that can be used as an upstream.
 
 # This patch applies shared permissions to Spack installations.
-git apply tests/gitlab/upstream-permission.patch
+git apply tests/uberenv/upstream-permission.patch
 
 # call uberenv for all specs in CI
 git grep -e "^[^#]" .gitlab | grep "SPEC" \
