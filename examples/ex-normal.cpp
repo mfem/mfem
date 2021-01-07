@@ -84,8 +84,17 @@ HypreParMatrix * BuildParNormalConstraints(ParFiniteElementSpace& fespace,
    return h_out;
 }
 
+/** Overwrite instead of combine intersecting constraints.
+
+    It is actually not so clear what exactly to do with intersections
+    Imagine two boundary attributes meeting at a right angle, and then
+    deform the mesh so the two attributes are parallel.
+
+    (In fact we may have a version of this problem with the
+    circle in the middle mesh) */
 HypreParMatrix * OldBuildNormalConstraints(ParFiniteElementSpace& fespace,
-                                           Array<int> constrained_att)
+                                           Array<int>& constrained_att,
+                                           Array<int>& lagrange_rowstarts)
 {
    int rank, size;
    MPI_Comm_rank(fespace.GetComm(), &rank);
@@ -114,6 +123,10 @@ HypreParMatrix * OldBuildNormalConstraints(ParFiniteElementSpace& fespace,
    for (auto k : constrained_tdofs)
    {
       dof_constraint[k] = n_constraints++;
+   }
+   for (int k = 0; k < n_constraints + 1; ++k)
+   {
+      lagrange_rowstarts.Append(k);
    }
    SparseMatrix * out = new SparseMatrix(n_constraints, fespace.GetTrueVSize());
 
@@ -357,7 +370,8 @@ int main(int argc, char *argv[])
    HypreParMatrix * hconstraints;
    Array<int> lagrange_rowstarts;
 
-   // hconstraints = OldBuildNormalConstraints(fespace, constraint_atts);
+   // hconstraints = OldBuildNormalConstraints(fespace, constraint_atts,
+   //                                        lagrange_rowstarts);
    hconstraints = BuildParNormalConstraints(fespace, constraint_atts,
                                             lagrange_rowstarts);
    hconstraints->Print("hconstraints");
