@@ -2011,7 +2011,9 @@ void FiniteElementSpace
    edge_orders.SetSize(mesh->GetNEdges());  edge_orders = 0;
    face_orders.SetSize(mesh->GetNFaces());  face_orders = 0;
 
-   // initial edge/face orders, as required by incident elements
+   // Calculate initial edge/face orders, as required by incident elements.
+   // For each edge/face we accumulate in a bit-mask the orders of elements
+   // sharing the edge/face.
    Array<int> E, F, ori;
    for (int i = 0; i < mesh->GetNE(); i++)
    {

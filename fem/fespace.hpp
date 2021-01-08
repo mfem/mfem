@@ -187,6 +187,7 @@ protected:
        boundary. */
    void BuildNURBSFaceToDofTable() const;
 
+   /// Bit-mask representing a set of orders needed by an edge/face.
    typedef std::uint64_t VarOrderBits;
    static constexpr int MaxVarOrder = 8*sizeof(VarOrderBits) - 1;
 
@@ -495,11 +496,14 @@ public:
    /** Deprecated: please use @a GetElementDegree instead. */
    MFEM_DEPRECATED int GetOrder(int i) const { return GetElementDegree(i); }
 
-   /** Returns the order of the specified edge. In a variable order space, order
-       of the given variant is returned, or -1 if there are no more variants. */
+   /// Returns the order of the specified edge.
+   /** In a variable order space, order of the given variant (see @a
+       GetEdgeDofs()) is returned, or -1 if there are no more variants. */
    int GetEdgeOrder(int edge, int variant = 0) const;
-   /** Returns the order of the specified face. In a variable order space, order
-       of the given variant is returned, or -1 if there are no more variants. */
+
+   /// Returns the order of the specified face.
+   /** In a variable order space, order of the given variant (see @a
+       GetEdgeDofs()) is returned, or -1 if there are no more variants. */
    int GetFaceOrder(int face, int variant = 0) const;
 
    /// Returns number of degrees of freedom.
