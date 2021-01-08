@@ -330,11 +330,17 @@ public:
    virtual const Operator *GetProlongationMatrix() const
    { return GetConformingProlongation(); }
 
-   /// Return a prolongation operator that only acts on local dofs
-   /** The returned operator is owned by the FiniteElementSpace. This
-       differs from GetProlongationMatrix only in parallel. */
+   /// Return an operator that performs the transpose of GetRestrictionOperator
+   /** The returned operator is owned by the FiniteElementSpace. In serial this
+       is the same as GetProlongationMatrix() */
    virtual const Operator *GetRestrictionTransposeOperator() const
    { return GetConformingProlongation(); }
+
+   /// An abstract operator that performs the same action as GetRestrictionMatrix
+   /** In some cases this is an optimized matrix-free implementation. The
+       returned operator is owned by the FiniteElementSpace. */
+   virtual const Operator *GetRestrictionOperator() const
+   { return GetConformingRestriction(); }
 
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
    virtual const SparseMatrix *GetRestrictionMatrix() const
