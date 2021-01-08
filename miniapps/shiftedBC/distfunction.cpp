@@ -96,7 +96,7 @@ ParGridFunction &DistanceFunction::ComputeDistance(Coefficient &level_set,
       for (int i = 0; i < source.Size(); i++)
       {
          const double x = source(i);
-         source(i) = (x < 0.0 || x > 1.0) ? 0.0 : 4.0 * x * (1.0 - x);
+         source(i) = ((x < 0.0) || (x > 1.0)) ? 0.0 : 4.0 * x * (1.0 - x);
       }
    }
 

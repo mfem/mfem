@@ -4,7 +4,7 @@
 //
 // Sample runs:
 //   Problem 0: point sources
-//     mpirun -np 4 distance -m ../../data/inline-quad.mesh -rs 2 -t 1.0
+//     mpirun -np 4 distance -m ./u5.mesh -rs 2 -t 50.0
 //
 //   Problem 1: level sets
 //      mpirun -np 4 distance -m ../../data/inline-quad.mesh -rs 3 -o 2 -t 1.0 -p 1
@@ -108,7 +108,7 @@ int main(int argc, char *argv[])
    int smooth_steps; bool transform;
    if (problem == 0)
    {
-      ls_coeff = new DeltaCoefficient(0.75, 0.625, 1.0);
+      ls_coeff = new DeltaCoefficient(0.0, 0.0, 1.0);
       smooth_steps = 0;
       transform = false;
    }

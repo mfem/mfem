@@ -81,6 +81,9 @@ public:
    void AddConnections (int r, const int *c, int nc);
    void ShiftUpI();
 
+   void ReplaceConnection(int r, int c_old, int c_new);
+   void RemoveRow(int r);
+
    /// Set the size and the number of connections for the table.
    void SetSize(int dim, int connections_per_row);
 

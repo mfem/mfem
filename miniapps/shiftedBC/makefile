@@ -28,7 +28,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 SHIFTED_COMMON_SRC = distfunction.cpp
 SHIFTED_COMMON_OBJ = $(SHIFTED_COMMON_SRC:.cpp=.o)
 
-PAR_MINIAPPS = distance
+PAR_MINIAPPS = distance cutH1
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS =
@@ -58,6 +58,9 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
 all: $(MINIAPPS)
+
+cutH1: cutH1.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_LIB) $(MFEM_LIBS)
 
 # Rule for building lib-common
 lib-common:
@@ -89,7 +92,7 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ distance
+	rm -f *.o *~ distance cutH1
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
