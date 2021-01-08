@@ -2606,9 +2606,9 @@ const Operator &GridTransfer::MakeTrueOperator(
    else // Parallel() == true
    {
 #ifdef MFEM_USE_MPI
-      const SparseMatrix *out_R = fes_out.GetRestrictionMatrix();
       if (oper_type == Operator::Hypre_ParCSR)
       {
+         const SparseMatrix *out_R = fes_out.GetRestrictionMatrix();
          const ParFiniteElementSpace *pfes_in =
             dynamic_cast<const ParFiniteElementSpace *>(&fes_in);
          const ParFiniteElementSpace *pfes_out =
@@ -2636,6 +2636,7 @@ const Operator &GridTransfer::MakeTrueOperator(
       }
       else if (oper_type == Operator::ANY_TYPE)
       {
+         const Operator *out_R = fes_out.GetRestrictionOperator();
          t_oper.Reset(new TripleProductOperator(
                          out_R, &oper, fes_in.GetProlongationMatrix(),
                          false, false, false));

@@ -101,6 +101,7 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
 
    P = NULL;
    Pconf = NULL;
+   Rconf = NULL;
    R_transpose = NULL;
    R = NULL;
 
@@ -922,11 +923,11 @@ const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
    }
 }
 
-const Operator *ParFiniteElementSpace::GetRestrictionTransposeOperator() const
+const Operator *ParFiniteElementSpace::GetRestrictionOperator() const
 {
    if (Conforming())
    {
-      if (R_transpose) { return R_transpose; }
+      if (Rconf) { return Rconf; }
 
       if (NRanks == 1)
       {
@@ -940,18 +941,25 @@ const Operator *ParFiniteElementSpace::GetRestrictionTransposeOperator() const
          }
          else
          {
-            R_transpose = new DeviceConformingProlongationOperator(*this, true);
+            R_transpose =
+               new DeviceConformingProlongationOperator(*this, true);
          }
       }
-      return R_transpose;
+      Rconf = new TransposeOperator(R_transpose);
+      return Rconf;
    }
    else
    {
-      // return Dof_TrueDof_Matrix();
-      // just need diagonal portion, not too hard
-      mfem_error("Not implemented!");
-      return NULL;
+      Dof_TrueDof_Matrix();
+      R_transpose = new TransposeOperator(R);
+      return R;
    }
+}
+
+const Operator *ParFiniteElementSpace::GetRestrictionTransposeOperator() const
+{
+   GetRestrictionOperator();
+   return R_transpose;
 }
 
 void ParFiniteElementSpace::ExchangeFaceNbrData()
@@ -2867,6 +2875,7 @@ void ParFiniteElementSpace::Destroy()
 
    delete P; P = NULL;
    delete Pconf; Pconf = NULL;
+   delete Rconf; Rconf = NULL;
    delete R_transpose; R_transpose = NULL;
    delete R; R = NULL;
 

@@ -72,12 +72,15 @@ private:
    mutable HypreParMatrix *P;
    /// Optimized action-only prolongation operator for conforming meshes. Owned.
    mutable Operator *Pconf;
-   /// Optimized action-only transpose of R. Owned.
-   /// Implemented in the same manner as Pconf, using only local information.
-   mutable Operator *R_transpose;
 
    /// The (block-diagonal) matrix R (restriction of dof to true dof). Owned.
    mutable SparseMatrix *R;
+   /// Optimized action-only restriction operator for conforming meshes. Owned.
+   mutable Operator *Rconf;
+   /** Transpose of R or Rconf. For conforming mesh, this is a matrix-free
+       (Device)ConformingProlongationOperator, for a non-conforming mesh
+       this is a TransposeOperator wrapping R. */
+   mutable Operator *R_transpose;
 
    ParNURBSExtension *pNURBSext() const
    { return dynamic_cast<ParNURBSExtension *>(NURBSext); }
@@ -339,11 +342,15 @@ public:
 
    virtual const Operator *GetProlongationMatrix() const;
    /** @brief Return logical transpose of restriction matrix, but in
-       non-assemlbed optimized matrix-free form.
+       non-assembled optimized matrix-free form.
 
        The implementation is like GetProlongationMatrix, but it sets local
        DOFs to the true DOF values if owned locally, otherwise zero. */
    virtual const Operator *GetRestrictionTransposeOperator() const;
+   /** Get an Operator that performs the action of GetRestrictionMatrix(),
+       but potentially with a non-assembled optimized matrix-free
+       implementation. */
+   virtual const Operator *GetRestrictionOperator() const;
    /// Get the R matrix which restricts a local dof vector to true dof vector.
    virtual const SparseMatrix *GetRestrictionMatrix() const
    { Dof_TrueDof_Matrix(); return R; }
