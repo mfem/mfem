@@ -3754,6 +3754,12 @@ void Mesh::CreateRefinedMesh(Mesh *orig_mesh, const Array<int> &ref_factors,
 {
    Dim = orig_mesh->Dimension();
 
+   MFEM_VERIFY(ref_factors.Min() >= 1, "refinement factor must be >= 1");
+   MFEM_VERIFY(ref_type == BasisType::ClosedUniform ||
+               ref_type == BasisType::GaussLobatto, "invalid refinement type");
+   MFEM_VERIFY(orig_mesh->GetNumGeometries(Dim) <= 1,
+               "meshes with mixed elements are not supported");
+
    int min_ref = ref_factors.Min();
    int max_ref = ref_factors.Max();
 
