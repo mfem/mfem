@@ -363,11 +363,6 @@ private:
    Coefficient *Q{};
    DenseMatrix dshape, dshapex, EF, gradEF, ELV, elmat_comp;
    Vector shape;
-   // PA extension
-   Vector pa_data;
-   const DofToQuad *maps;         ///< Not owned
-   const GeometricFactors *geom;  ///< Not owned
-   int dim, ne, nq;
 public:
    ConvectiveVectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { }
 
@@ -393,11 +388,6 @@ private:
    Coefficient *Q{};
    DenseMatrix dshape, dshapex, EF, gradEF, ELV, elmat_comp;
    Vector shape;
-   // PA extension
-   Vector pa_data;
-   const DofToQuad *maps;         ///< Not owned
-   const GeometricFactors *geom;  ///< Not owned
-   int dim, ne, nq;
 public:
    SkewSymmetricVectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { }
 
