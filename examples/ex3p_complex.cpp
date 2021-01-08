@@ -1,46 +1,7 @@
 //                       MFEM Example 3 - Parallel Version
 //
-// Compile with: make ex3p
+// Compile with: make ex3p_complex
 //
-// Sample runs:  mpirun -np 4 ex3p -m ../data/star.mesh
-//               mpirun -np 4 ex3p -m ../data/square-disc.mesh -o 2
-//               mpirun -np 4 ex3p -m ../data/beam-tet.mesh
-//               mpirun -np 4 ex3p -m ../data/beam-hex.mesh
-//               mpirun -np 4 ex3p -m ../data/beam-hex.mesh -o 2 -pa
-//               mpirun -np 4 ex3p -m ../data/escher.mesh
-//               mpirun -np 4 ex3p -m ../data/escher.mesh -o 2
-//               mpirun -np 4 ex3p -m ../data/fichera.mesh
-//               mpirun -np 4 ex3p -m ../data/fichera-q2.vtk
-//               mpirun -np 4 ex3p -m ../data/fichera-q3.mesh
-//               mpirun -np 4 ex3p -m ../data/square-disc-nurbs.mesh
-//               mpirun -np 4 ex3p -m ../data/beam-hex-nurbs.mesh
-//               mpirun -np 4 ex3p -m ../data/amr-quad.mesh -o 2
-//               mpirun -np 4 ex3p -m ../data/amr-hex.mesh
-//               mpirun -np 4 ex3p -m ../data/star-surf.mesh -o 2
-//               mpirun -np 4 ex3p -m ../data/mobius-strip.mesh -o 2 -f 0.1
-//               mpirun -np 4 ex3p -m ../data/klein-bottle.mesh -o 2 -f 0.1
-//
-// Device sample runs:
-//               mpirun -np 4 ex3p -m ../data/star.mesh -pa -d cuda
-//               mpirun -np 4 ex3p -m ../data/star.mesh -no-pa -d cuda
-//               mpirun -np 4 ex3p -m ../data/star.mesh -pa -d raja-cuda
-//               mpirun -np 4 ex3p -m ../data/star.mesh -pa -d raja-omp
-//               mpirun -np 4 ex3p -m ../data/beam-hex.mesh -pa -d cuda
-//
-// Description:  This example code solves a simple electromagnetic diffusion
-//               problem corresponding to the second order definite Maxwell
-//               equation curl curl E + E = f with boundary condition
-//               E x n = <given tangential field>. Here, we use a given exact
-//               solution E and compute the corresponding r.h.s. f.
-//               We discretize with Nedelec finite elements in 2D or 3D.
-//
-//               The example demonstrates the use of H(curl) finite element
-//               spaces with the curl-curl and the (vector finite element) mass
-//               bilinear form, as well as the computation of discretization
-//               error when the exact solution is known. Static condensation is
-//               also illustrated.
-//
-//               We recommend viewing examples 1-2 before viewing this example.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -54,6 +15,172 @@ void E_exact(const Vector &, Vector &);
 void f_exact(const Vector &, Vector &);
 double freq = 1.0, kappa;
 int dim;
+
+
+/// General product operator: x -> A(x)+B(x)
+class SumOperator : public Operator
+{
+   const Operator *A, *B;
+   bool ownA, ownB;
+   mutable Vector z, w;
+   double cA, cB;
+
+public:
+   SumOperator(const Operator *A_, const Operator *B_,
+               bool ownA_, bool ownB_, double cA_, double cB_)
+      : Operator(A_->Height(), B_->Width()),
+        A(A_), B(B_), ownA(ownA_), ownB(ownB_), z(A_->Height()), w(A_->Width()),
+        cA(cA_), cB(cB_)
+   {
+      MFEM_VERIFY(A->Width() == B->Width() && A->Height() == B->Height(),
+                  "incompatible Operators: A->Width() = " << A->Width()
+                  << ", B->Height() = " << B->Height());
+
+      z.UseDevice(true);
+      w.UseDevice(true);
+   }
+
+   ~SumOperator()
+   {
+      if (ownA) { delete A; }
+      if (ownB) { delete B; }
+   }
+
+   virtual void Mult(const Vector &x, Vector &y) const
+   { B->Mult(x, z); A->Mult(x, y); y *= cA; z *= cB; y += z;}
+
+   virtual void MultTranspose(const Vector &x, Vector &y) const
+   { B->MultTranspose(x, w); A->MultTranspose(x, y); y *= cA; w *= cB; y += w;}
+
+};
+
+class Complex_PMHSS : public Solver
+{
+public:
+   Complex_PMHSS(OperatorPtr Re, OperatorPtr Im, Solver *prec_Re, Solver *prec_Im,
+                 double a_)
+      : Solver(2*Re->Height()), a(a_), A(Re.Ptr(), Im.Ptr(), false, false),
+        A_Re(Re.Ptr(), NULL, false, false),
+        A_Im(Im.Ptr(), NULL, false, false), u(2*Re->Height()), rhs(2*Re->Height()),
+        n(Re->Height())
+   {
+      MFEM_VERIFY(Re->Height() == Im->Height() && Re->Height() == Re->Width() &&
+                  Im->Height() == Im->Width(), "");
+      MFEM_VERIFY(this->Height() == A.Height(), "");
+
+      // Create CG solver for real operator aI + A_Re in complex space.
+
+      SumOperator *sumOpRe = new SumOperator(new IdentityOperator(this->Height()),
+                                             &A_Re, false, false, a, 1.0);
+      SumOperator *sumOpIm = new SumOperator(new IdentityOperator(this->Height()),
+                                             &A_Im, false, false, a, 1.0);
+
+      CGSolver *cg = new CGSolver(MPI_COMM_WORLD);
+      cg->SetRelTol(1e-12);
+      cg->SetMaxIter(1000);
+      cg->SetPrintLevel(0);
+      cg->SetOperator(*sumOpRe);
+      cg->SetPreconditioner(*prec_Re);
+
+      SRe = cg;
+
+      CGSolver *cgi = new CGSolver(MPI_COMM_WORLD);
+      cgi->SetRelTol(1e-12);
+      cgi->SetMaxIter(1000);
+      cgi->SetPrintLevel(0);
+      cgi->SetOperator(*sumOpIm);
+      if (prec_Im) { cgi->SetPreconditioner(*prec_Im); }
+
+      /*
+      // For negative definite imaginary part, but then PMHSS does not work?
+      MINRESSolver *cgi = new MINRESSolver(MPI_COMM_WORLD);
+      cgi->SetRelTol(1e-12);
+      cgi->SetMaxIter(1000);
+      cgi->SetPrintLevel(0);
+      cgi->SetOperator(*sumOpIm);
+      if (prec_Im) cgi->SetPreconditioner(*prec_Im);
+      */
+
+      SIm = cgi;
+   }
+
+   void SetOperator(const Operator &op)
+   {
+      MFEM_VERIFY(false, "Don't call SetOperator");
+   }
+
+   void ComputeResidual(const Vector &b, const Vector &sol, Vector &res) const
+   {
+      A.Mult(sol, res);
+      res -= b;
+   }
+
+   void Mult(const Vector &x, Vector &y) const
+   {
+      MFEM_VERIFY(x.Size() == Height() && y.Size() == Height(), "");
+
+      const double initNorm = x.Norml2();
+      mfem::out << "MHSS RHS norm " << initNorm << '\n';
+
+      // TODO: Using V = A
+
+      // With V = I, use modified HSS (MHSS) from Bai, Benzi, Chen 2010.
+      y = 0.0;
+      for (int it=0; it<maxiter; ++it)
+      {
+         // Solve (aI + Re) u = (aI - i Im) y + x
+
+         A_Im.Mult(y, u);  // u = Im y
+         // Set rhs = -i Im y = -i u
+         for (int j=0; j<n; ++j)
+         {
+            rhs[j] = u[n+j];
+            rhs[n+j] = -u[j];
+         }
+
+         rhs += x;
+         rhs.Add(a, y);
+
+         SRe->Mult(rhs, u);
+
+         // Solve (aI + Im) y = (aI + i Re) u - i x
+
+         A_Re.Mult(u, y);  // y = Re u
+         // Set rhs = i (Re u - x) = i (y - x)
+         for (int j=0; j<n; ++j)
+         {
+            rhs[j] = -(y[n+j] - x[n+j]);
+            rhs[n+j] = y[j] - x[j];
+         }
+
+         rhs.Add(a, u);
+
+         SIm->Mult(rhs, y);
+
+         ComputeResidual(x, y, rhs);
+         const double resNorm = rhs.Norml2();
+         mfem::out << "MHSS iter " << it << " residual norm " << resNorm << '\n';
+
+         if (resNorm / initNorm < tol)
+         {
+            mfem::out << "MHSS converged\n";
+            break;
+         }
+      }
+   }
+
+private:
+   const double a;
+   const int maxiter = 100;
+   ComplexOperator A, A_Re, A_Im;
+   mutable Vector u, rhs;
+   const int n;
+
+   const double tol = 1.0e-8;
+
+   Solver *SRe = NULL;
+   Solver *SIm = NULL;
+};
 
 int main(int argc, char *argv[])
 {
@@ -203,9 +330,10 @@ int main(int argc, char *argv[])
    //     operator curl muinv curl + sigma I, by adding the curl-curl and the
    //     mass domain integrators.
    Coefficient *muinv = new ConstantCoefficient(1.0);
-   Coefficient *sigma = new ConstantCoefficient(-omega*omega);
+   Coefficient *sigma = new ConstantCoefficient(omega*omega);
    Coefficient *abssigma = new ConstantCoefficient(omega*omega);
-   Coefficient *im = new ConstantCoefficient(-omega);
+   Coefficient *im = new ConstantCoefficient(omega);
+   Coefficient *imabs = new ConstantCoefficient(omega);
    //Coefficient *im = new ConstantCoefficient(0.0);
    ParSesquilinearForm *a = new ParSesquilinearForm(fespace);
    if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
@@ -235,6 +363,13 @@ int main(int argc, char *argv[])
    OperatorPtr A_Re;
    a_Re.FormSystemMatrix(ess_tdof_list, A_Re);
 
+   ParBilinearForm a_Im(fespace);
+   a_Im.AddBoundaryIntegrator(new VectorFEMassIntegrator(*imabs));
+   a_Im.Assemble();
+
+   OperatorPtr A_Im;
+   a_Im.FormSystemMatrix(ess_tdof_list, A_Im);
+
    // 13. Solve the system AX=B using PCG with the AMS preconditioner from hypre
    //     (in the full assembly case) or CG with Jacobi preconditioner (in the
    //     partial assembly case).
@@ -244,6 +379,8 @@ int main(int argc, char *argv[])
    offsets[1] = fespace->GetTrueVSize();
    offsets[2] = fespace->GetTrueVSize();
    offsets.PartialSum();
+
+   //OperatorJacobiSmoother massJacobi(a_Im, ess_tdof_list);
 
    if (pa) // Jacobi preconditioning in partial assembly mode
    {
@@ -268,28 +405,19 @@ int main(int argc, char *argv[])
 
       HypreAMS ams(*A_Re.As<HypreParMatrix>(), fespace);
 
-      /*
-      HyprePCG pcg(*A.As<HypreParMatrix>());
-      pcg.SetTol(1e-12);
-      pcg.SetMaxIter(500);
-      pcg.SetPrintLevel(2);
-      pcg.SetPreconditioner(ams);
-      pcg.Mult(B, X);
-      */
-
       BlockDiagonalPreconditioner BlockDP(offsets);
       BlockDP.SetDiagonalBlock(0, &ams);
       BlockDP.SetDiagonalBlock(1, &ams);
 
       /*
-      CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-8);
-      cg.SetMaxIter(1000);
-      cg.SetPrintLevel(1);
-      cg.SetOperator(*A);
-      cg.SetPreconditioner(BlockDP);
-      cg.Mult(B, X);
+      BlockDiagonalPreconditioner BlockDP_Im(offsets);
+      BlockDP_Im.SetDiagonalBlock(0, &massJacobi); // TODO: this won't work if it has zeros on diagonal
+      BlockDP_Im.SetDiagonalBlock(1, &massJacobi);
       */
+
+      //Complex_PMHSS PMHSS(A_Re, A_Im, &BlockDP, &BlockDP_Im);
+      //Complex_PMHSS PMHSS(A_Re, A_Im, &BlockDP, NULL, 2.0 * omega);
+      Complex_PMHSS PMHSS(A_Re, A_Im, &BlockDP, NULL, omega);
 
       GMRESSolver gmres(MPI_COMM_WORLD);
       gmres.SetPrintLevel(1);
@@ -298,7 +426,8 @@ int main(int argc, char *argv[])
       gmres.SetRelTol(1e-8);
       gmres.SetAbsTol(0.0);
       gmres.SetOperator(*A);
-      gmres.SetPreconditioner(BlockDP);
+      //gmres.SetPreconditioner(BlockDP);
+      gmres.SetPreconditioner(PMHSS);
       gmres.Mult(B, X);
    }
 
