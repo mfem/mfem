@@ -298,6 +298,8 @@ const
 double ParBilinearForm::InnerProduct(const ParGridFunction &x,
                                      const ParGridFunction &y) const
 {
+   MFEM_ASSERT(mat != NULL, "local matrix must be assembled");
+
    double loc = BilinearForm::InnerProduct(x, y);
    double glob = 0.;
 

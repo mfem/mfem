@@ -155,7 +155,10 @@ public:
        the local vectors are consistent with the prolongations of the true
        vectors (see ParGridFunction::Distribute()). If this is not the case,
        use TrueInnerProduct(const ParGridFunction &, const ParGridFunction &)
-       instead. */
+       instead.
+       @note It is assumed that the local matrix is assembled and it has
+       not been replaced by the parallel matrix through FormSystemMatrix().
+       @see TrueInnerProduct(const ParGridFunction&, const ParGridFunction&) */
    double InnerProduct(const ParGridFunction &x,
                        const ParGridFunction &y) const;
 
