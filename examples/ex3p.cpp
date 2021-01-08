@@ -70,7 +70,6 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = 1;
-   bool nc = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -88,7 +87,6 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&nc, "-nc", "--nc", "-no-nc", "--no-nc", "Debug");
 
    args.Parse();
    if (!args.Good())
@@ -128,9 +126,6 @@ int main(int argc, char *argv[])
       {
          mesh->UniformRefinement();
       }
-
-      if (mesh->NURBSext) { mesh->SetCurvature(2); }
-      if (nc) { mesh->EnsureNCMesh(); }
    }
 
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
