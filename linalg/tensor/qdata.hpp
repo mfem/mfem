@@ -29,9 +29,9 @@ namespace mfem
 // private:
 //    static constexpr int dim = Dim;
 //    static constexpr int dim_comp = DimComp;
-//    // Declare a BlockDTensor type with Dim dimensions of size Quads,
+//    // Declare a StaticBlockDTensor type with Dim dimensions of size Quads,
 //    // and DimComp dimensions of size Dim.
-//    using OutTensor = typename rerepeat<Quads,Dim,Dim,DimComp,BlockDTensor>::type;
+//    using OutTensor = typename rerepeat<Quads,Dim,Dim,DimComp,StaticBlockDTensor>::type;
 
 // public:
 //    /// Returns a Tensor corresponding to the DoFs of element e
@@ -124,7 +124,7 @@ namespace mfem
 // {
 // private:
 //    static constexpr int dim = Dim;
-//    using OutTensor = SharedDTensor<1+DimComp>;
+//    using OutTensor = DynamicSharedDTensor<1+DimComp>;
 
 // public:
 //    /// Returns a Tensor corresponding to the DoFs of element e
@@ -356,7 +356,7 @@ struct QuadTensorType;
 template <int Dim, int Dofs, int Quads, int BatchSize, int DimComp>
 struct QuadTensorType<KernelConfig<Dim,true,Dofs,Quads,BatchSize>,DimComp>
 {
-   using Tensor = typename rerepeat<Quads,Dim,Dim,DimComp,BlockDTensor>::type;
+   using Tensor = typename rerepeat<Quads,Dim,Dim,DimComp,StaticBlockDTensor>::type;
 };
 
 template <int Dim, int BatchSize, int DimComp>
@@ -369,8 +369,8 @@ template <int Dim, int Dofs, int Quads, int BatchSize, int DimComp>
 struct QuadTensorType<KernelConfig<Dim,false,Dofs,Quads,BatchSize>,DimComp>
 {
    // TODO repeat is not what we need
-   // using Tensor = typename repeat<Dim,DimComp,BlockDTensor<Dofs>>::type;
-   using Tensor = typename repeat<Dim,DimComp,BlockDTensor>::type;
+   // using Tensor = typename repeat<Dim,DimComp,StaticBlockDTensor<Dofs>>::type;
+   using Tensor = typename repeat<Dim,DimComp,StaticBlockDTensor>::type;
 };
 
 template <int Dim, int BatchSize, int DimComp>

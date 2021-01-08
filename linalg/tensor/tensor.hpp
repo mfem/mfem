@@ -244,7 +244,7 @@ using StaticTensor = Tensor<sizeof...(Sizes),
                             StaticLayout<Sizes...> >;
 
 template <int... Sizes>
-using dTensor = StaticTensor<double,Sizes...>;
+using dTensor = StaticTensor<double,Sizes...>; // TODO remove
 
 template <int... Sizes>
 using StaticDTensor = StaticTensor<double,Sizes...>;
@@ -271,30 +271,30 @@ using StaticSharedDTensor = StaticSharedTensor<double,Sizes...>;
 
 /// A dynamically sized Tensor using a static amount of shared memory.
 template <int Rank, typename T, int MaxSize = pow(16,Rank)>
-using SharedTensor = Tensor<Rank,
-                            T,
-                            StaticSharedContainer<T, MaxSize>,
-                            DynamicLayout<Rank> >;
+using DynamicSharedTensor = Tensor<Rank,
+                                   T,
+                                   StaticSharedContainer<T, MaxSize>,
+                                   DynamicLayout<Rank> >;
 
 template <int Rank, int MaxSize = pow(16,Rank)>
-using SharedDTensor = SharedTensor<Rank,double,MaxSize>;
+using DynamicSharedDTensor = DynamicSharedTensor<Rank,double,MaxSize>;
 
 /// A Tensor statically distributed over a plane of threads
 template <typename T, int BatchSize, int... Sizes>
-using BlockTensor = Tensor<sizeof...(Sizes),
-                           T,
-                           BlockContainer<T, Sizes...>,
-                           BlockLayout<BatchSize, Sizes...> >;
+using StaticBlockTensor = Tensor<sizeof...(Sizes),
+                                 T,
+                                 BlockContainer<T, Sizes...>,
+                                 BlockLayout<BatchSize, Sizes...> >;
 
 template <int BatchSize, int... Sizes>
-using BlockDTensor = BlockTensor<double,BatchSize,Sizes...>;
+using StaticBlockDTensor = StaticBlockTensor<double,BatchSize,Sizes...>;
 
 /// A Tensor dynamically distributed over a plane of threads
 template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
 using DynamicBlockTensor = Tensor<Rank,
-                           T,
-                           BlockContainer<T, MaxSize>,
-                           DynamicBlockLayout<Rank,BatchSize> >;
+                                  T,
+                                  BlockContainer<T, MaxSize>,
+                                  DynamicBlockLayout<Rank,BatchSize> >;
 
 template <int Rank, int BatchSize, int MaxSize = pow(16,Rank)>
 using DynamicBlockDTensor = DynamicBlockTensor<Rank,double,BatchSize,MaxSize>;
@@ -316,15 +316,15 @@ using DynamicCUDATensor = DynamicBlockTensor<Rank, T, BatchSize, MaxSize>;
 
 /// Defines the static type of Tensor used for computation on CUDA.
 template <typename T, int BatchSize, int... Sizes>
-using StaticCUDATensor = BlockTensor<T, BatchSize, Sizes...>;
+using StaticCUDATensor = StaticBlockTensor<T, BatchSize, Sizes...>;
 
 /// Defines the dynamic type of Tensor used for computation on Hip.
 template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
-using DynamicHipTensor = DynamicBlockTensor<Rank, T, MaxSize>;
+using DynamicHipTensor = DynamicBlockTensor<Rank, T, BatchSize, MaxSize>;
 
 /// Defines the static type of Tensor used for computation on Hip.
 template <typename T, int BatchSize, int... Sizes>
-using StaticHipTensor = BlockTensor<T, int... Sizes>;
+using StaticHipTensor = StaticBlockTensor<T, BatchSize, Sizes...>;
 
 /// A structure that defines static and dynamic Tensor types for an architecture
 struct DeviceTensorType
@@ -407,7 +407,7 @@ using StaticDeviceDTensor = StaticDeviceTensor<double,BatchSize,Sizes...>;
 // template <int Dim, bool IsTensor, int Dofs, int Quads>
 // class TensorTypeForBasis<Basis<Dim,true,Dofs,Quads>>
 // {
-//    using BlockDTensor<Q>;
+//    using StaticBlockDTensor<Q>;
 // };
 
 // template <int Dim, bool IsTensor, int Dofs, int Quads>
@@ -427,10 +427,10 @@ class TypeOf<DynamicTensor<Rank,T,MaxSize>>
 };
 
 template <typename T, int... Sizes>
-class TypeOf<BlockTensor<T,Sizes...>>
+class TypeOf<StaticBlockTensor<T,Sizes...>>
 {
    template <int... YourSizes>
-   using type = BlockTensor<T,YourSizes...>;
+   using type = StaticBlockTensor<T,YourSizes...>;
 };
 
 } // namespace mfem
