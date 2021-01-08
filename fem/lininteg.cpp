@@ -811,6 +811,48 @@ void SBM2LFIntegrator::AssembleRHSElementVect(
       ir = &IntRules.Get(Tr.GetGeometryType(), order);
    }
 
+   Array<DenseMatrix *> hess_ptr;
+   DenseMatrix grad_phys;
+   Vector Factorial;
+
+   if (nterms > 0)
+   {
+      if (elem1f)
+      {
+         el.ProjectGrad(el, *Tr.Elem1, grad_phys);
+      }
+      else
+      {
+         el.ProjectGrad(el, *Tr.Elem2, grad_phys);
+      }
+
+      DenseMatrix grad_phys_work = grad_phys;
+      grad_phys_work.SetSize(ndof, ndof*dim);
+
+      hess_ptr.SetSize(nterms);
+      hess_ptr[0] = new DenseMatrix(ndof*dim, ndof*dim);
+      Mult(grad_phys, grad_phys_work, *hess_ptr[0]);
+      hess_ptr[0]->SetSize(ndof, ndof*dim*dim);
+
+      for (int i = 1; i < nterms; i++)
+      {
+         int sz1 = pow(dim, i+1);
+         hess_ptr[i] = new DenseMatrix(ndof*dim, ndof*sz1);
+         Mult(grad_phys, *hess_ptr[i-1], *hess_ptr[i]);
+         hess_ptr[i]->SetSize(ndof, ndof*dim*sz1);
+      }
+
+      Factorial.SetSize(nterms);
+      Factorial(0) = 2;
+      for (int i = 1; i < nterms; i++)
+      {
+         Factorial(i) = Factorial(i-1)*(i+2);
+      }
+   }
+   DenseMatrix q_hess_dn(dim, ndof);
+   Vector q_hess_dn_work(q_hess_dn.GetData(), ndof*dim);
+   Vector q_hess_dot_d(ndof);
+
    Vector D(vD->GetVDim());
    Vector wrk = shape;
    for (int p = 0; p < ir->GetNPoints(); p++)
@@ -881,9 +923,43 @@ void SBM2LFIntegrator::AssembleRHSElementVect(
       nh *= jinv;
       dshape.Mult(nh, dshape_dd);
 
+      q_hess_dot_d = 0.;
+      for (int i = nterms-1; i >= 0; i--)
+      {
+         int sz1 = pow(dim, i+1);
+         DenseMatrix T1(dim, ndof*sz1);
+         Vector T1_wrk(T1.GetData(), dim*ndof*sz1);
+         hess_ptr[i]->MultTranspose(shape, T1_wrk);
+         for (int j = 0; j < i+1; j++)
+         {
+            int sz2 = pow(dim, i-j);
+            DenseMatrix T2(dim, ndof*sz2);
+            Vector T2_wrk(T2.GetData(), dim*ndof*sz2);
+            if ( j != i)
+            {
+               T1.MultTranspose(D, T2_wrk);
+               T1 = T2;
+            }
+            else
+            {
+               T1.MultTranspose(D, q_hess_dn_work);
+            }
+         }
+         Vector q_hess_dot_d_work(ndof);
+         q_hess_dn.MultTranspose(D, q_hess_dot_d_work);
+         q_hess_dot_d_work *= 1./Factorial(i);
+         q_hess_dot_d += q_hess_dot_d_work;
+      }
+
       wrk = dshape_dd; //\grad w .d
       wrk += shape;  // w + grad w.d
+      //wrk += q_hess_dot_dot_d;
+      wrk += q_hess_dot_d;
       elvect.Add(w, wrk); //<u, gradw.d>
+   }
+   for (int i = 0; i < hess_ptr.Size(); i++)
+   {
+      delete hess_ptr[i];
    }
 }
 

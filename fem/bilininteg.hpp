@@ -2756,16 +2756,16 @@ protected:
    VectorCoefficient *vD; // Distance function coefficient
    double alpha;
    bool elem1f;
+   int nterms; //1 = Hessian (3rd order)
 
    // these are not thread-safe!
    Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
    DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
 
-   DGDiffusionIntegrator *dgdfi;
 
 public:
-   SBM2Integrator(const double a, VectorCoefficient &vD_)
-      : vD(&vD_), alpha(a), dgdfi(new DGDiffusionIntegrator(-1., 0.)) { }
+   SBM2Integrator(const double a, VectorCoefficient &vD_, int nterms_ = 0)
+      : vD(&vD_), alpha(a), nterms(nterms_) { }
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
@@ -2773,7 +2773,7 @@ public:
                                    DenseMatrix &elmat);
    void SetElem1Flag(bool flag_) { elem1f = flag_; }
 
-   virtual ~SBM2Integrator() { delete dgdfi; }
+   virtual ~SBM2Integrator() { }
 };
 
 /** Integrator for the DG elasticity form, for the formulations see:

@@ -464,6 +464,7 @@ protected:
    VectorCoefficient *vD; // Distance function coefficient
    double alpha;
    bool elem1f;
+   int nterms; //1 = Hessian (3rd order)
 
    // these are not thread-safe!
    Vector shape, dshape_dd, dshape_dn, nor, nh, ni;
@@ -471,8 +472,8 @@ protected:
 
 public:
    SBM2LFIntegrator(SBMFunctionCoefficient &u, const double a,
-                    VectorCoefficient &vD_)
-      : uD(&u), vD(&vD_), alpha(a)  { }
+                    VectorCoefficient &vD_, int nterms_ = 0)
+      : uD(&u), vD(&vD_), alpha(a), nterms(nterms_)  { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,

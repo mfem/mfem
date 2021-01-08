@@ -35,8 +35,9 @@ int main(int argc, char *argv[])
    bool visualization = true;
    int ser_ref_levels = 0;
    bool exact = true;
-   int solver_type = 0;
+   int solver_type = 1;
    int level_set_type = 1;
+   int ho_terms = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -62,6 +63,8 @@ int main(int argc, char *argv[])
                   "Solver type: 0- CG, 1 - BiCG.");
    args.AddOption(&level_set_type, "-lst", "--level-set-type",
                   "level-set-type:");
+   args.AddOption(&ho_terms, "-ho", "--high-order",
+                  "Additional high-order terms to include");
    /// IMPORTANT: Level set type notes
    /// 1 - circlular hole of radius 0.2 at the center of domain [0, 1].
    ///     -nabla^2 = 1. Exact solution is generated using a very fine mesh
@@ -127,9 +130,9 @@ int main(int argc, char *argv[])
    pmesh.SetNodalGridFunction(&x_mesh);
    vxyz = *pmesh.GetNodes();
    int nodes_cnt = vxyz.Size()/dim;
-   if (level_set_type == 4) { //stretch quadmesh from [0, 1] to -[0.1, 1.1]
+   if (level_set_type == 4) { //stretch quadmesh from [0, 1] to -[0.01, 1.01]
        for (int i = 0; i < nodes_cnt; i++) {
-           vxyz(i+nodes_cnt) = -0.1 + 1.2*vxyz(i+nodes_cnt);
+           vxyz(i+nodes_cnt) = -0.001 + 1.002*vxyz(i+nodes_cnt);
        }
    }
    pmesh.SetNodes(vxyz);
@@ -385,6 +388,13 @@ int main(int argc, char *argv[])
        ess_vdofs_hole[sbm_dofs[i]] = 0;
    }
 
+   // remark dofs that are on dirichlet faces
+   if (level_set_type == 4) {
+       for (int i = 0; i < ess_vdofs_bdr.Size(); i++) {
+           if (ess_vdofs_bdr[i] == -1) { ess_vdofs_hole[i] = -1; }
+       }
+   }
+
    // Now synchronize
    for (int i = 0; i < ess_vdofs_hole.Size() ; i++) {
        ess_vdofs_hole[i] += 1;
@@ -411,6 +421,7 @@ int main(int argc, char *argv[])
    if (exact) {
        distance.ProjectCoefficient(dist_fun_coef); // analytic projection
    }
+   distance.ProjectCoefficient(dist_fun_coef);
 
    if (visualization)
    {
@@ -468,7 +479,7 @@ int main(int argc, char *argv[])
        x_dx_dy.ProjectDiscCoefficient(*dist_vec);
    }
 
-   if (visualization && false)
+   if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
@@ -483,10 +494,29 @@ int main(int argc, char *argv[])
    }
 
    // 12. Set up SBM integration parameter - alpha
-   //double pfactor = std::max(ser_ref_levels*1., order*1.);
+   double pfactor = std::max(ser_ref_levels*1., order*1.);
    //double alpha = 100/pow(2., pfactor);
-   double alpha = 10;
-   //alpha = std::max(10., alpha);
+   double alpha = 1.;
+
+   if (ho_terms == 0) { alpha = 10; }
+   if (ho_terms == 1) { alpha = 1; }
+   if (ho_terms == 2) {
+       alpha = 1.0;
+       if (order == 5) { alpha = 0.1; }
+       if (order == 6) { alpha = 0.05; }
+   }
+   if (ho_terms == 3) {
+       alpha = 1.;
+       if (order >=5) {
+           alpha = 0.05;
+           if (ser_ref_levels >= 3) { alpha = 0.0675; }
+       }
+   }
+   if (ho_terms == 4) {
+       alpha = 0.06;// 0.065; //0.05;
+       if (ser_ref_levels >= 3) { alpha = 0.0675; }
+       if (order <= 4) { alpha = 1.; }
+   }
 
 
    // 13. Set up the linear form b(.) which corresponds to the right-hand side of
@@ -506,7 +536,7 @@ int main(int argc, char *argv[])
    }
 
    SBMFunctionCoefficient dbcCoef(dirichlet_velocity, level_set_type);
-   b.AddShiftedBdrFaceIntegrator(new SBM2LFIntegrator(dbcCoef, alpha, *dist_vec),
+   b.AddShiftedBdrFaceIntegrator(new SBM2LFIntegrator(dbcCoef, alpha, *dist_vec, ho_terms),
                                  sbm_face_num, sbm_face_el_num, sbm_int_flag);
    b.Assemble();
 
@@ -517,7 +547,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient one(1.);
 
    a.AddDomainIntegrator(new DiffusionIntegrator(one), trim_flag);
-   a.AddShiftedBdrFaceIntegrator(new SBM2Integrator(alpha, *dist_vec),
+   a.AddShiftedBdrFaceIntegrator(new SBM2Integrator(alpha, *dist_vec, ho_terms),
                                  sbm_face_num, sbm_face_el_num, sbm_int_flag);
 
    // 15. Assemble the bilinear form and the corresponding linear system,
@@ -544,7 +574,7 @@ int main(int argc, char *argv[])
    if (solver_type == 0) {
        CGSolver *cg = new CGSolver(MPI_COMM_WORLD);
        cg->SetRelTol(1e-12);
-       cg->SetMaxIter(5000);
+       cg->SetMaxIter(1000);
        cg->SetPrintLevel(1);
        cg->SetPreconditioner(*prec);
        cg->SetOperator(*A);
@@ -552,8 +582,9 @@ int main(int argc, char *argv[])
    }
    else {
        BiCGSTABSolver *bicg = new BiCGSTABSolver(MPI_COMM_WORLD);
+       //GMRESSolver *bicg = new GMRESSolver(MPI_COMM_WORLD);
        bicg->SetRelTol(1e-12);
-       bicg->SetMaxIter(5000);
+       bicg->SetMaxIter(2000);
        bicg->SetPrintLevel(1);
        bicg->SetPreconditioner(*prec);
        bicg->SetOperator(*A);
@@ -593,6 +624,7 @@ int main(int argc, char *argv[])
    pxyz(0) = 0.;
    for (int i = 0; i < nodes_cnt; i++) {
        double yv = vxyz(i+nodes_cnt);
+       pxyz(0) = vxyz(i);;
        pxyz(1) = yv;
        double exact_val = dirichlet_velocity(pxyz, level_set_type);
        if (level_set_type == 3) {
@@ -602,6 +634,7 @@ int main(int argc, char *argv[])
        else if (level_set_type == 4) {
            if (yv < 0. || yv > 1.0) { err(i) = 0.; }
            else { err(i) = std::fabs(x(i) - exact_val); }
+           err(i) = std::fabs(x(i) - exact_val);
        }
        else if (level_set_type == 5) {
            if (yv < 0. || yv > 1.0) { err(i) = 0.; }
@@ -623,6 +656,8 @@ int main(int argc, char *argv[])
                << "keys Rj" << endl;
    }
 
+
+
    int NEglob = pmesh.GetGlobalNE();
    double errnorm = x.ComputeL2Error(dbcCoef);
    if (level_set_type >= 3 && level_set_type <= 5 && myid == 0)
@@ -631,7 +666,7 @@ int main(int argc, char *argv[])
       myfile.open ("error.txt", ios::app);
       double h_factor = pow(1./2, ser_ref_levels*1.);
       cout << order << " " <<
-                ser_ref_levels << " " <<
+                ho_terms << " " <<
                 h_factor << " " <<
                 errnorm << " " <<
                 NEglob << " " <<
