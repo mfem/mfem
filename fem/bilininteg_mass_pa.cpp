@@ -1168,8 +1168,8 @@ static void SetupMass(const int ne,
                       const Array<double> &gt,
                       const Vector &x,
                       Vector &d,
-                      const int dofs = 0,
-                      const int quads = 0)
+                      const int dofs = Dofs,
+                      const int quads = Quads)
 {
    auto config  = MakeConfig<Dim,IsTensor,Dofs,Quads,BatchSize>(dofs, quads);
    auto B       = MakeBasis(config, b, bt, g, gt);
@@ -1196,8 +1196,8 @@ static void ApplyMass(const int ne,
                       const Vector &d,
                       const Vector &x,
                       Vector &y,
-                      const int dofs = 0,
-                      const int quads = 0)
+                      const int dofs = Dofs,
+                      const int quads = Quads)
 {
    auto config  = MakeConfig<Dim,IsTensor,Dofs,Quads,BatchSize>(dofs, quads);
    auto B       = MakeBasis(config, b.Read(), bt.Read());
@@ -1228,8 +1228,8 @@ static void ApplyMassMF(const int ne,
                         const Vector &nodes,
                         const Vector &x,
                         Vector &y,
-                        const int dofs = 0,
-                        const int quads = 0)
+                        const int dofs = Dofs,
+                        const int quads = Quads)
 {
    auto config_m  = MakeConfig<Dim,IsTensor,DofsMesh,Quads,BatchSize>(dofs, quads);
    auto config    = MakeConfig<Dim,IsTensor,Dofs,Quads,BatchSize>(dofs, quads);
@@ -1257,8 +1257,8 @@ static void SetupMassEA(const int ne,
                         const Array<double> &b,
                         const Array<double> &bt,
                         const Vector &d,
-                        const int dofs = 0,
-                        const int quads = 0)
+                        const int dofs = Dofs,
+                        const int quads = Quads)
 {
    auto config  = MakeConfig<Dim,IsTensor,Dofs,Quads,BatchSize>(dofs, quads);
    auto B       = MakeBasis(config, b.Read(), bt.Read());
