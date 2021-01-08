@@ -179,6 +179,7 @@ public:
    {
       // TODO Verify in debug that size0==DimX
       // TODO verify that size0 < BlockSizeX
+      // TODO verify that BlockSizeZ == BatchSize
    }
 
    MFEM_HOST_DEVICE inline
@@ -207,6 +208,7 @@ public:
    {
       // TODO Verify in debug that size0==DimX && size1==DimY
       // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
+      // TODO verify that BlockSizeZ == BatchSize
    }
 
    MFEM_HOST_DEVICE inline
@@ -240,6 +242,7 @@ public:
    {
       // TODO Verify in debug that size0==DimX && size1==DimY
       // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
+      // TODO verify that BlockSizeZ == BatchSize
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
@@ -274,6 +277,7 @@ public:
    : size0(size0), size1(size1), layout(sizes...)
    {
       // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
+      // TODO verify that BlockSizeZ == BatchSize
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
@@ -334,6 +338,7 @@ public:
    : size0(size0)
    {
       // TODO verify that size0 < BlockSizeX
+      // TODO verify that BlockSizeZ == BatchSize
    }
 
    MFEM_HOST_DEVICE inline
@@ -366,6 +371,7 @@ public:
    : size0(size0), size1(size1)
    {
       // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
+      // TODO verify that BlockSizeZ == BatchSize
    }
 
    MFEM_HOST_DEVICE inline
