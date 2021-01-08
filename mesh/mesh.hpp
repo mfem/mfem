@@ -310,6 +310,9 @@ protected:
    /// Update the nodes of a curved mesh after refinement
    void UpdateNodes();
 
+   /// Helper to set vertex coordinates given a high-order curvature function.
+   void SetVerticesFromNodes(const GridFunction *nodes);
+
    void UniformRefinement2D_base(bool update_nodes = true);
 
    /// Refine a mixed 2D mesh uniformly.

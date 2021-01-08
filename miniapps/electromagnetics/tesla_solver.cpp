@@ -356,14 +356,6 @@ TeslaSolver::Solve()
    HypreAMS ams(CurlMuInvCurl, HCurlFESpace_);
    ams.SetSingularProblem();
 
-#define PREFIX "bad"
-   /*CurlMuInvCurl.Print(MakeParFilename(PREFIX ".matrix.", myid_).c_str());
-   RHS.Print(MakeParFilename(PREFIX ".rhs.", myid_).c_str());*/
-   {
-      std::ofstream f(MakeParFilename(PREFIX ".mesh.", myid_).c_str());
-      pmesh_->Print(f);
-   }
-
    HyprePCG pcg (CurlMuInvCurl);
    pcg.SetTol(1e-12);
    pcg.SetMaxIter(50);
