@@ -343,6 +343,12 @@ struct DeviceTensorType
 
    template <typename T, int BatchSize, int... Sizes>
    using static_type = StaticHipTensor<T,BatchSize,Sizes...>;
+#elif defined(FUGAKU_ARCH) // extension exemple
+   template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
+   using dynamic_type = DynamicCPUTensor<Rank,T,BatchSize,MaxSize>;
+
+   template <typename T, int BatchSize, int... Sizes>
+   using static_type = StaticCPUTensor<T,BatchSize,Sizes...>;
 #else
    // CPU types
    template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
