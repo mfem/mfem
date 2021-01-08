@@ -1957,9 +1957,9 @@ void NCMesh::UpdateVertices()
    //      and simplifies ParNCMesh.
 
    // STEP 1: begin by splitting vertices into 4 classes:
-   //   - owned top-level vertices (code -1)
-   //   - owned non-top level vertices (code -2)
-   //   - ghost (non-owned) vertices (code -3)
+   //   - local top-level vertices (code -1)
+   //   - local non-top level vertices (code -2)
+   //   - ghost (non-local) vertices (code -3)
    //   - vertices beyond the ghost layer (code -4)
 
    for (auto node = nodes.begin(); node != nodes.end(); ++node)
@@ -1975,11 +1975,11 @@ void NCMesh::UpdateVertices()
          Node &nd = nodes[el.node[j]];
          if (el.rank == MyRank)
          {
-            if (nd.p1 == nd.p2) // owned top-level vertex
+            if (nd.p1 == nd.p2) // local top-level vertex
             {
                if (nd.vert_index < -1) { nd.vert_index = -1; }
             }
-            else // owned non-top-level vertex
+            else // local non-top-level vertex
             {
                if (nd.vert_index < -2) { nd.vert_index = -2; }
             }
@@ -1991,7 +1991,7 @@ void NCMesh::UpdateVertices()
       }
    }
 
-   // STEP 2: assign indices of top-level owned vertices, in original order
+   // STEP 2: assign indices of top-level local vertices, in original order
 
    NVertices = 0;
    for (auto node = nodes.begin(); node != nodes.end(); ++node)
@@ -2002,8 +2002,8 @@ void NCMesh::UpdateVertices()
       }
    }
 
-   // STEP 3: go over all elements (owned and ghost) in SFC order and assign
-   // remaining owned vertices in that order.
+   // STEP 3: go over all elements (local and ghost) in SFC order and assign
+   // remaining local vertices in that order.
 
    Array<int> sfc_order(leaf_elements.Size());
    for (int i = 0; i < sfc_order.Size(); i++)
