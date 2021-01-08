@@ -271,6 +271,10 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
             element_counter++;
          }
       }
+
+      // set meaningful values to 'vertices' even though we have Nodes,
+      // for compatibility (e.g., Mesh::GetVertex())
+      SetVerticesFromNodes(Nodes);
    }
 
    if (partitioning != partitioning_)
@@ -3319,8 +3323,8 @@ void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
 {
    if (NURBSext)
    {
-      MFEM_ABORT("ParMesh::NonconformingRefinement: NURBS meshes are not "
-                 "supported. Project the NURBS to Nodes first.");
+      MFEM_ABORT("NURBS meshes are not supported. Please project the "
+                 "NURBS to Nodes first with SetCurvature().");
    }
 
    if (!pncmesh)
