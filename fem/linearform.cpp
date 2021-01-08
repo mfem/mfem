@@ -100,13 +100,6 @@ void LinearForm::Assemble()
          {
             dlfi[k]->AssembleRHSElementVect(*fes->GetFE(i), *eltrans, elemvect);
             AddElementVector (vdofs, elemvect);
-
-            if (((ParMesh*) fes->GetMesh())->GetMyRank() == 0)
-            {
-               mfem::out << "elem " << i << " rhs: ";
-               //elemvect.Print(mfem::out, 100);
-               vdofs.Print(mfem::out, 100);
-            }
          }
       }
    }

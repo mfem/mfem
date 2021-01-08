@@ -123,7 +123,7 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 1,000 elements.
    {
-      int ref_levels = 0;//(int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels = (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -141,7 +141,7 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      int par_ref_levels = 0;
+      int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
@@ -180,10 +180,6 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
    b->Assemble();
 
-   string prefix(nc ? "bad" : "good");
-   {std::ofstream f(MakeParFilename(prefix + ".rhs.", myid));
-   b->Print(f, 1);}
-
    // 10. Define the solution vector x as a parallel finite element grid function
    //     corresponding to fespace. Initialize x by projecting the exact
    //     solution. Note that only values from the boundary edges will be used
@@ -209,9 +205,6 @@ int main(int argc, char *argv[])
    //     constraints for non-conforming AMR, static condensation, etc.
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
-
-   /*{std::ofstream f(MakeParFilename(prefix + ".system.", myid));
-   a->SpMat().Print(f, 100000);}*/
 
    OperatorPtr A;
    Vector B, X;

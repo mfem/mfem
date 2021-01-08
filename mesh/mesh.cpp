@@ -3632,16 +3632,8 @@ void Mesh::Loader(std::istream &input, int generate_edges,
          Nodes->Swap(tmp);
       }
 
-      // Set the 'vertices' from the 'Nodes'
-      for (int i = 0; i < spaceDim; i++)
-      {
-         Vector vert_val;
-         Nodes->GetNodalValues(vert_val, i+1);
-         for (int j = 0; j < NumOfVertices; j++)
-         {
-            vertices[j](i) = vert_val(j);
-         }
-      }
+      // Set vertex coordinates from the 'Nodes'
+      SetVerticesFromNodes(Nodes);
    }
 
    // If a parse tag was supplied, keep reading the stream until the tag is
@@ -4275,6 +4267,20 @@ void Mesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
                                                      ordering);
    SetNodalFESpace(nfes);
    Nodes->MakeOwner(nfec);
+}
+
+void Mesh::SetVerticesFromNodes(const GridFunction *nodes)
+{
+   MFEM_ASSERT(nodes != NULL, "");
+   for (int i = 0; i < spaceDim; i++)
+   {
+      Vector vert_val;
+      nodes->GetNodalValues(vert_val, i+1);
+      for (int j = 0; j < NumOfVertices; j++)
+      {
+         vertices[j](i) = vert_val(j);
+      }
+   }
 }
 
 int Mesh::GetNumFaces() const
@@ -6777,6 +6783,9 @@ void Mesh::UpdateNodes()
    {
       Nodes->FESpace()->Update();
       Nodes->Update();
+
+      // update vertex coordinates for compatibility (e.g., GetVertex())
+      SetVerticesFromNodes(Nodes);
    }
 }
 
