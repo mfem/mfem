@@ -16,7 +16,7 @@
 
 namespace mfem
 {
-auto ContractX1D(const SharedDTensor<2> &B,
+auto ContractX1D(const DynamicSharedDTensor<2> &B,
                  const DynamicDTensor<1> &u)
 {
    const int Q = B.template Size<0>();
@@ -60,9 +60,9 @@ auto ContractX1D(const StaticSharedDTensor<Q,D> &B,
 
 template <int D, int Q>
 auto ContractX1D(const StaticSharedDTensor<Q,D> &B,
-                 const BlockDTensor<D> &u)
+                 const StaticBlockDTensor<D> &u)
 {
-   BlockDTensor<Q> Bu;
+   StaticBlockDTensor<Q> Bu;
    MFEM_FOREACH_THREAD(q,x,Q)
    {
       double v = 0.0;
@@ -79,7 +79,7 @@ auto ContractX1D(const StaticSharedDTensor<Q,D> &B,
 }
 
 template <int BatchSize>
-auto ContractX1D(const SharedDTensor<2> &B,
+auto ContractX1D(const DynamicSharedDTensor<2> &B,
                  const DynamicBlockDTensor<1,BatchSize> &u)
 {
    const int Q = B.template Size<0>();
@@ -102,10 +102,10 @@ auto ContractX1D(const SharedDTensor<2> &B,
 
 // template <typename Basis, >
 // auto ContractX1D(const Basis &B,
-//                  const BlockDTensor<D> &u)
+//                  const StaticBlockDTensor<D> &u)
 // {
 //    constexpr Q = Basis.Q;
-//    BlockDTensor<Q> Bu;
+//    StaticBlockDTensor<Q> Bu;
 //    MFEM_FOREACH_THREAD(q,x,Q)
 //    {
 //       double v = 0.0;

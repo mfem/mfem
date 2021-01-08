@@ -23,7 +23,7 @@ template <int Dim, typename Basis>
 class BasisTensor;
 
 template <int Dim>
-using DynamicBasisTensor = BasisTensor<Dim,SharedDTensor<2>>;
+using DynamicBasisTensor = BasisTensor<Dim,DynamicSharedDTensor<2>>;
 
 template <int Dim, int Q, int D>
 using StaticBasisTensor = BasisTensor<Dim,StaticSharedDTensor<Q,D>>;
@@ -64,7 +64,7 @@ public:
       const int D = this->template Size<1>();
       const int tid = MFEM_THREAD_ID(z);
       DynamicBlockDTensor<1,BatchSize> Bu(Q);
-      SharedDTensor<2> slice(D,BatchSize);
+      DynamicSharedDTensor<2> slice(D,BatchSize);
       MFEM_FOREACH_THREAD(d,x,D)
       {
          slice(d,tid) = u(d);
@@ -107,11 +107,11 @@ public:
 
    /// Contraction on X dimension
    template <int BatchSize, int D> MFEM_HOST_DEVICE inline
-   auto ContractX(const BlockDTensor<BatchSize,D> &u)
+   auto ContractX(const StaticBlockDTensor<BatchSize,D> &u)
    {
       constexpr int Q = this->template Size<0>();
       const int tid = MFEM_THREAD_ID(z);
-      BlockDTensor<BatchSize,Q> Bu;
+      StaticBlockDTensor<BatchSize,Q> Bu;
       StaticSharedDTensor<D,BatchSize> slice;
       MFEM_FOREACH_THREAD(d,x,D)
       {
@@ -170,7 +170,7 @@ public:
       const int VDim = u.Size<1>();
       const int tid = MFEM_THREAD_ID(z);
       DynamicBlockDTensor<2,BatchSize> Bu(Q,VDim); // TODO might be a problem
-      SharedDTensor<3> slice(D,VDim,BatchSize);
+      DynamicSharedDTensor<3> slice(D,VDim,BatchSize);
       MFEM_FOREACH_THREAD(c,y,VDim)
       {
          MFEM_FOREACH_THREAD(d,x,D)
@@ -225,11 +225,11 @@ public:
 
    /// Contraction on X dimension with VDim
    template <int D, int VDim, int BatchSize>
-   auto ContractX(const BlockDTensor<BatchSize,D,VDim> &u)
+   auto ContractX(const StaticBlockDTensor<BatchSize,D,VDim> &u)
    {
       constexpr int Q = this->template Size<0>();
       const int tid = MFEM_THREAD_ID(z);
-      BlockDTensor<BatchSize,Q,VDim> Bu;
+      StaticBlockDTensor<BatchSize,Q,VDim> Bu;
       StaticSharedDTensor<D,VDim,BatchSize> slice;
       MFEM_FOREACH_THREAD(c,y,VDim)
       {
@@ -299,7 +299,7 @@ public:
       const int Dy = u.Size<1>();
       const int tid = MFEM_THREAD_ID(z);
       DynamicBlockDTensor<2,BatchSize> Bu(Q,Dy);
-      SharedDTensor<3> slice(Dx,Dy,BatchSize);
+      DynamicSharedDTensor<3> slice(Dx,Dy,BatchSize);
       MFEM_FOREACH_THREAD(dy,y,Dy)
       {
          MFEM_FOREACH_THREAD(dx,x,Dx)
@@ -351,11 +351,11 @@ public:
 
    /// Contraction on X dimension
    template <int Dx, int Dy, int BatchSize> MFEM_HOST_DEVICE inline
-   auto ContractX(const BlockDTensor<BatchSize,Dx,Dy> &u)
+   auto ContractX(const StaticBlockDTensor<BatchSize,Dx,Dy> &u)
    {
       constexpr int Q = this->template Size<0>();
       const int tid = MFEM_THREAD_ID(z);
-      BlockDTensor<BatchSize,Q,Dy> Bu;
+      StaticBlockDTensor<BatchSize,Q,Dy> Bu;
       StaticSharedDTensor<Dx,Dy,BatchSize> slice;
       MFEM_FOREACH_THREAD(dy,y,Dy)
       {
@@ -417,7 +417,7 @@ public:
       const int Dx = u.Size<0>();
       const int tid = MFEM_THREAD_ID(z);
       DynamicBlockDTensor<2,BatchSize> Bu(Dx,Q);
-      SharedDTensor<3> slice(Dx,Dy,BatchSize);
+      DynamicSharedDTensor<3> slice(Dx,Dy,BatchSize);
       MFEM_FOREACH_THREAD(dy,y,Dy)
       {
          MFEM_FOREACH_THREAD(dx,x,Dx)
@@ -469,11 +469,11 @@ public:
 
    /// Contraction on Y dimension
    template <int Dx, int Dy, int BatchSize> MFEM_HOST_DEVICE inline
-   auto ContractY(const BlockDTensor<BatchSize,Dx,Dy> &u)
+   auto ContractY(const StaticBlockDTensor<BatchSize,Dx,Dy> &u)
    {
       const int Q = this->template Size<0>();
       const int tid = MFEM_THREAD_ID(z);
-      BlockDTensor<BatchSize,Dx,Q> Bu;
+      StaticBlockDTensor<BatchSize,Dx,Q> Bu;
       StaticSharedDTensor<Dx,Dy,BatchSize> slice;
       MFEM_FOREACH_THREAD(dy,y,Dy)
       {
@@ -543,7 +543,7 @@ public:
       const int VDim = u.Size<2>();
       const int tid = MFEM_THREAD_ID(z);
       DynamicBlockDTensor<3,BatchSize> Bu(Q,Dy,VDim);
-      SharedDTensor<3> slice(Dx,Dy,BatchSize);
+      DynamicSharedDTensor<3> slice(Dx,Dy,BatchSize);
       for(int c = 0; c < VDim; ++c)
       {
          MFEM_FOREACH_THREAD(dy,y,Dy)
@@ -601,11 +601,11 @@ public:
 
    /// Contraction on X dimension with VDim
    template <int Dx, int Dy, int VDim, int BatchSize> MFEM_HOST_DEVICE inline
-   auto ContractX(const BlockDTensor<BatchSize,Dx,Dy,VDim> &u)
+   auto ContractX(const StaticBlockDTensor<BatchSize,Dx,Dy,VDim> &u)
    {
       constexpr int Q = this->template Size<0>();
       const int tid = MFEM_THREAD_ID(z);
-      BlockDTensor<BatchSize,Q,Dy,VDim> Bu;
+      StaticBlockDTensor<BatchSize,Q,Dy,VDim> Bu;
       StaticSharedDTensor<Dx,Dy,VDim,BatchSize> slice;
       MFEM_FOREACH_THREAD(dy,y,Dy)
       {
@@ -682,7 +682,7 @@ public:
       const int VDim = u.Size<2>();
       const int tid = MFEM_THREAD_ID(z);
       DynamicBlockDTensor<3,BatchSize> Bu(Dx,Q,VDim);
-      SharedDTensor<3> slice(Dx,Dy,BatchSize);
+      DynamicSharedDTensor<3> slice(Dx,Dy,BatchSize);
       for(int c = 0; c < VDim; ++c)
       {
          MFEM_FOREACH_THREAD(dy,y,Dy)
@@ -740,11 +740,11 @@ public:
 
    /// Contraction on Y dimension with VDim
    template <int Dx, int Dy, int VDim, int BatchSize> MFEM_HOST_DEVICE inline
-   auto ContractY(const BlockDTensor<BatchSize,Dx,Dy,VDim> &u)
+   auto ContractY(const StaticBlockDTensor<BatchSize,Dx,Dy,VDim> &u)
    {
       const int Q = this->template Size<0>();
       const int tid = MFEM_THREAD_ID(z);
-      BlockDTensor<BatchSize,Dx,Q,VDim> Bu;
+      StaticBlockDTensor<BatchSize,Dx,Q,VDim> Bu;
       StaticSharedDTensor<Dx,Dy,VDim,BatchSize> slice;
       MFEM_FOREACH_THREAD(dy,y,Dy)
       {
@@ -829,7 +829,7 @@ public:
       const int Dz = u.Size<2>();
       const int tid = MFEM_THREAD_ID(z);
       DynamicBlockDTensor<3,BatchSize> Bu(Q,Dy,Dz);
-      SharedDTensor<3> slice(Dx,Dy,BatchSize);
+      DynamicSharedDTensor<3> slice(Dx,Dy,BatchSize);
       for (int dz = 0; dz < Dz; dz++)
       {
          MFEM_FOREACH_THREAD(dy,y,Dy)
@@ -887,11 +887,11 @@ public:
 
    /// Contraction on X dimension
    template <int Dx, int Dy, int Dz, int BatchSize> MFEM_HOST_DEVICE inline
-   auto ContractX(const BlockDTensor<BatchSize,Dx,Dy,Dz> &u)
+   auto ContractX(const StaticBlockDTensor<BatchSize,Dx,Dy,Dz> &u)
    {
       constexpr int Q = this->template Size<0>();
       const int tid = MFEM_THREAD_ID(z);
-      BlockDTensor<BatchSize,Q,Dy,Dz> Bu;
+      StaticBlockDTensor<BatchSize,Q,Dy,Dz> Bu;
       StaticSharedDTensor<Dx,Dy,BatchSize> slice;
       for (int dz = 0; dz < Dz; dz++)
       {
@@ -961,7 +961,7 @@ public:
       const int Dz = u.Size<2>();
       const int tid = MFEM_THREAD_ID(z);
       DynamicBlockDTensor<3,BatchSize> Bu(Dx,Q,Dz);
-      SharedDTensor<3> slice(Dx,Dy,BatchSize);
+      DynamicSharedDTensor<3> slice(Dx,Dy,BatchSize);
       for (int dz = 0; dz < Dz; dz++)
       {
          MFEM_FOREACH_THREAD(dy,y,Dy)
@@ -1019,11 +1019,11 @@ public:
 
    /// Contraction on Y dimension
    template <int Dx, int Dy, int Dz, int BatchSize> MFEM_HOST_DEVICE inline
-   auto ContractY(const BlockDTensor<BatchSize,Dx,Dy,Dz> &u)
+   auto ContractY(const StaticBlockDTensor<BatchSize,Dx,Dy,Dz> &u)
    {
       const int Q = this->template Size<0>();
       const int tid = MFEM_THREAD_ID(z);
-      BlockDTensor<BatchSize,Dx,Q,Dz> Bu;
+      StaticBlockDTensor<BatchSize,Dx,Q,Dz> Bu;
       StaticSharedDTensor<Dx,Dy,BatchSize> slice;
       for (int dz = 0; dz < Dz; dz++)
       {
@@ -1139,10 +1139,10 @@ public:
 
    /// Contraction on Z dimension
    template <int Dx, int Dy, int Dz, int BatchSize> MFEM_HOST_DEVICE inline
-   auto ContractZ(const BlockDTensor<BatchSize,Dx,Dy,Dz> &u)
+   auto ContractZ(const StaticBlockDTensor<BatchSize,Dx,Dy,Dz> &u)
    {
       const int Q = this->template Size<0>();
-      BlockDTensor<BatchSize,Dx,Dy,Q> Bu;
+      StaticBlockDTensor<BatchSize,Dx,Dy,Q> Bu;
       MFEM_FOREACH_THREAD(dy,y,Dy)
       {
          MFEM_FOREACH_THREAD(dx,x,Dx)
@@ -1167,7 +1167,7 @@ public:
    // TODO VDim version of the contractions
 };
 
-class BasisMatrix: public SharedDTensor<2,1024> // TODO pick a better value than 1024
+class BasisMatrix: public DynamicSharedDTensor<2,1024> // TODO pick a better value than 1024
 {
 
 };
@@ -1331,7 +1331,7 @@ struct Basis<Dim,false,Dynamic,Dynamic>
 
    auto GetB() const
    {
-      SharedTensor<2,double,MaxSize> s_B(quads,dofs);
+      DynamicSharedTensor<2,double,MaxSize> s_B(quads,dofs);
       MFEM_FOREACH_THREAD(d,y,dofs)
       {
          MFEM_FOREACH_THREAD(q,x,quads)
@@ -1344,7 +1344,7 @@ struct Basis<Dim,false,Dynamic,Dynamic>
 
    auto GetBt() const
    {
-      SharedTensor<2,double,MaxSize> s_Bt(dofs,quads);
+      DynamicSharedTensor<2,double,MaxSize> s_Bt(dofs,quads);
       MFEM_FOREACH_THREAD(q,y,quads)
       {
          MFEM_FOREACH_THREAD(d,x,dofs)
@@ -1357,7 +1357,7 @@ struct Basis<Dim,false,Dynamic,Dynamic>
 
    auto GetG() const
    {
-      SharedTensor<3,double,MaxSize> s_G(quads,dofs,dim);
+      DynamicSharedTensor<3,double,MaxSize> s_G(quads,dofs,dim);
       MFEM_FOREACH_THREAD(d,y,dofs)
       {
          MFEM_FOREACH_THREAD(q,x,quads)
@@ -1373,7 +1373,7 @@ struct Basis<Dim,false,Dynamic,Dynamic>
 
    auto GetGt() const
    {
-      SharedTensor<3,double,MaxSize> s_Gt(dofs,quads,dim);
+      DynamicSharedTensor<3,double,MaxSize> s_Gt(dofs,quads,dim);
       MFEM_FOREACH_THREAD(q,y,quads)
       {
          MFEM_FOREACH_THREAD(d,x,dofs)
@@ -1478,6 +1478,7 @@ auto MakeBasis(KernelConfig<Dim,true,Dynamic,Dynamic,BatchSize> &config,
                const double *g = nullptr,
                const double *gt = nullptr)
 {
+   // TODO check that dofs and quads are not 0.
    const int dofs1d = config.dofs;
    const int dofs = pow(dofs1d,Dim);
    const int quads1d = config.quads;
@@ -1504,6 +1505,7 @@ auto MakeBasis(KernelConfig<Dim,false,Dynamic,Dynamic,BatchSize> &config,
                const double *g = nullptr,
                const double *gt = nullptr)
 {
+   // TODO check that dofs and quads are not 0.
    return Basis<Dim,false,Dynamic,Dynamic>{config.dofs,config.quads,b,bt,g,gt};
 }
 
