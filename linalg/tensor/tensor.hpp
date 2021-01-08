@@ -236,26 +236,6 @@ using ReadTensor = Tensor<Rank,
 template <int Rank>
 using ReadDTensor = ReadTensor<Rank,double>;
 
-/// A statically sized Tensor using shared memory.
-template <typename T, int... Sizes>
-using StaticSharedTensor = Tensor<sizeof...(Sizes),
-                                  T,
-                                  StaticSharedContainer<T, Sizes...>,
-                                  StaticLayout<Sizes...> >;
-
-template <int... Sizes>
-using StaticSharedDTensor = StaticSharedTensor<double,Sizes...>;
-
-/// A dynamically sized Tensor using a static amount of shared memory.
-template <int Rank, typename T, int MaxSize = pow(16,Rank)>
-using SharedTensor = Tensor<Rank,
-                            T,
-                            StaticSharedContainer<T, MaxSize>,
-                            DynamicLayout<Rank> >;
-
-template <int Rank, int MaxSize = pow(16,Rank)>
-using SharedDTensor = SharedTensor<Rank,double,MaxSize>;
-
 /// Statically sized Tensor
 template <typename T, int... Sizes>
 using StaticTensor = Tensor<sizeof...(Sizes),
@@ -278,6 +258,26 @@ using DynamicTensor = Tensor<Rank,
 
 template <int Rank, int MaxSize = pow(16,Rank)>
 using DynamicDTensor = DynamicTensor<Rank,double,MaxSize>;
+
+/// A statically sized Tensor using shared memory.
+template <typename T, int... Sizes>
+using StaticSharedTensor = Tensor<sizeof...(Sizes),
+                                  T,
+                                  StaticSharedContainer<T, Sizes...>,
+                                  StaticLayout<Sizes...> >;
+
+template <int... Sizes>
+using StaticSharedDTensor = StaticSharedTensor<double,Sizes...>;
+
+/// A dynamically sized Tensor using a static amount of shared memory.
+template <int Rank, typename T, int MaxSize = pow(16,Rank)>
+using SharedTensor = Tensor<Rank,
+                            T,
+                            StaticSharedContainer<T, MaxSize>,
+                            DynamicLayout<Rank> >;
+
+template <int Rank, int MaxSize = pow(16,Rank)>
+using SharedDTensor = SharedTensor<Rank,double,MaxSize>;
 
 /// A Tensor statically distributed over a plane of threads
 template <typename T, int BatchSize, int... Sizes>
