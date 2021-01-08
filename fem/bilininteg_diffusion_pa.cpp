@@ -349,7 +349,7 @@ static void PADiffusionSetup(const int dim,
    }
 }
 
-void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes)
+void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    // Assuming the same element type
    fespace = &fes;
@@ -357,16 +357,13 @@ void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes)
    if (mesh->GetNE() == 0) { return; }
    const FiniteElement &el = *fes.GetFE(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
-#ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      if (ceedDataPtr) { delete ceedDataPtr; }
-      CeedData* ptr = new CeedData();
-      ceedDataPtr = ptr;
-      InitCeedCoeff(Q, ptr);
-      return CeedPADiffusionAssemble(fes, *ir, *ptr);
+      delete ceedDataPtr;
+      ceedDataPtr = new CeedData;
+      InitCeedCoeff(Q, *mesh, *ir, ceedDataPtr);
+      return CeedPADiffusionAssemble(fes, *ir, *ceedDataPtr);
    }
-#endif
    const int dims = el.GetDim();
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
    const int nq = ir->GetNPoints();
@@ -382,51 +379,54 @@ void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes)
    const int MQfullDim = MQ ? MQ->GetHeight() * MQ->GetWidth() : 0;
    if (MQ)
    {
+      symmetric = false;
       MFEM_VERIFY(MQ->GetHeight() == dim && MQ->GetWidth() == dim, "");
-      const int MQsymmDim = MQ->GetWidth() * (MQ->GetWidth() + 1) / 2;
 
-      const int MQdim = MQ->IsSymmetric() ? MQsymmDim : MQfullDim;
-      coeffDim = MQdim;
+      coeffDim = MQfullDim;
 
-      coeff.SetSize(MQdim * nq * ne);
-      symmetric = MQ ? MQ->IsSymmetric() : true;
+      coeff.SetSize(MQfullDim * nq * ne);
 
       DenseMatrix M;
-      Vector Msymm;
-      if (symmetric)
-      {
-         Msymm.SetSize(MQsymmDim);
-      }
-      else
-      {
-         M.SetSize(dim);
-      }
+      M.SetSize(dim);
 
-      auto C = Reshape(coeff.HostWrite(), MQdim, nq, ne);
+      auto C = Reshape(coeff.HostWrite(), MQfullDim, nq, ne);
       for (int e=0; e<ne; ++e)
       {
          ElementTransformation *tr = mesh->GetElementTransformation(e);
          for (int p=0; p<nq; ++p)
          {
-            if (MQ->IsSymmetric())
-            {
-               MQ->EvalSymmetric(Msymm, *tr, ir->IntPoint(p));
-
-               for (int i=0; i<MQsymmDim; ++i)
+            MQ->Eval(M, *tr, ir->IntPoint(p));
+            for (int i=0; i<dim; ++i)
+               for (int j=0; j<dim; ++j)
                {
-                  C(i, p, e) = Msymm[i];
+                  C(j+(i*dim), p, e) = M(i,j);
                }
-            }
-            else
-            {
-               MQ->Eval(M, *tr, ir->IntPoint(p));
+         }
+      }
+   }
+   else if (SMQ)
+   {
+      MFEM_VERIFY(SMQ->GetSize() == dim, "");
+      coeffDim = symmDims;
+      coeff.SetSize(symmDims * nq * ne);
 
-               for (int i=0; i<dim; ++i)
-                  for (int j=0; j<dim; ++j)
-                  {
-                     C(j+(i*dim), p, e) = M(i,j);
-                  }
-            }
+      DenseSymmetricMatrix M;
+      M.SetSize(dim);
+
+      auto C = Reshape(coeff.HostWrite(), symmDims, nq, ne);
+
+      for (int e=0; e<ne; ++e)
+      {
+         ElementTransformation *tr = mesh->GetElementTransformation(e);
+         for (int p=0; p<nq; ++p)
+         {
+            SMQ->Eval(M, *tr, ir->IntPoint(p));
+            int cnt = 0;
+            for (int i=0; i<dim; ++i)
+               for (int j=i; j<dim; ++j, ++cnt)
+               {
+                  C(cnt, p, e) = M(i,j);
+               }
          }
       }
    }
@@ -491,12 +491,6 @@ void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes)
    PADiffusionSetup(dim, sdim, dofs1D, quad1D, coeffDim, ne, ir->GetWeights(),
                     geom->J, coeff, pa_data);
 }
-
-void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
-{
-   SetupPA(fes);
-}
-
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void PADiffusionDiagonal2D(const int NE,
@@ -922,15 +916,13 @@ static void PADiffusionAssembleDiagonal(const int dim,
 
 void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-#ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      CeedAssembleDiagonalPA(ceedDataPtr, diag);
+      CeedAssembleDiagonal(ceedDataPtr, diag);
    }
    else
-#endif
    {
-      if (pa_data.Size()==0) { SetupPA(*fespace); }
+      if (pa_data.Size()==0) { AssemblePA(*fespace); }
       PADiffusionAssembleDiagonal(dim, dofs1D, quad1D, ne, symmetric,
                                   maps->B, maps->G, pa_data, diag);
    }
@@ -1900,13 +1892,11 @@ static void PADiffusionApply(const int dim,
 // PA Diffusion Apply kernel
 void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-#ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      CeedAddMultPA(ceedDataPtr, x, y);
+      CeedAddMult(ceedDataPtr, x, y);
    }
    else
-#endif
    {
       PADiffusionApply(dim, dofs1D, quad1D, ne, symmetric,
                        maps->B, maps->G, maps->Bt, maps->Gt,

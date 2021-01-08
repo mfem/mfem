@@ -25,13 +25,20 @@
 
 namespace mfem
 {
+
 int AmgXSolver::count = 0;
 
 AMGX_resources_handle AmgXSolver::rsrc = nullptr;
 
+AmgXSolver::AmgXSolver()
+   : ConvergenceCheck(false) {};
+
 AmgXSolver::AmgXSolver(const AMGX_MODE amgxMode_, const bool verbose)
 {
    amgxMode = amgxMode_;
+
+   if (amgxMode == AmgXSolver::SOLVER) { ConvergenceCheck = true;}
+   else { ConvergenceCheck = false;}
 
    DefaultParameters(amgxMode, verbose);
 
@@ -39,11 +46,15 @@ AmgXSolver::AmgXSolver(const AMGX_MODE amgxMode_, const bool verbose)
 }
 
 #ifdef MFEM_USE_MPI
+
 AmgXSolver::AmgXSolver(const MPI_Comm &comm,
                        const AMGX_MODE amgxMode_, const bool verbose)
 {
    std::string config;
    amgxMode = amgxMode_;
+
+   if (amgxMode == AmgXSolver::SOLVER) { ConvergenceCheck = true;}
+   else { ConvergenceCheck = false;}
 
    DefaultParameters(amgxMode, verbose);
 
@@ -56,10 +67,14 @@ AmgXSolver::AmgXSolver(const MPI_Comm &comm, const int nDevs,
    std::string config;
    amgxMode = amgxMode_;
 
+   if (amgxMode == AmgXSolver::SOLVER) { ConvergenceCheck = true;}
+   else { ConvergenceCheck = false;}
+
    DefaultParameters(amgxMode_, verbose);
 
    InitMPITeams(comm, nDevs);
 }
+
 #endif
 
 AmgXSolver::~AmgXSolver()
@@ -101,6 +116,7 @@ void AmgXSolver::InitSerial()
 }
 
 #ifdef MFEM_USE_MPI
+
 void AmgXSolver::InitExclusiveGPU(const MPI_Comm &comm)
 {
    // If this instance has already been initialized, skip
@@ -164,6 +180,7 @@ void AmgXSolver::InitMPITeams(const MPI_Comm &comm,
 
    isInitialized = true;
 }
+
 #endif
 
 void AmgXSolver::ReadParameters(const std::string config,
@@ -171,6 +188,11 @@ void AmgXSolver::ReadParameters(const std::string config,
 {
    amgx_config = config;
    configSrc = source;
+}
+
+void AmgXSolver::SetConvergenceCheck(bool setConvergenceCheck_)
+{
+   ConvergenceCheck = setConvergenceCheck_;
 }
 
 void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
@@ -192,13 +214,12 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
                     "   \"max_iters\": 2, \n"
                     "   \"convergence\": \"ABSOLUTE\", \n"
                     "   \"cycle\": \"V\"";
-
       if (verbose)
       {
          amgx_config = amgx_config + ",\n"
                        "   \"obtain_timings\": 1, \n"
-                       "   \"monitor_residual\": 1, \n"
                        "   \"print_grid_stats\": 1, \n"
+                       "   \"monitor_residual\": 1, \n"
                        "   \"print_solve_stats\": 1 \n";
       }
       else
@@ -206,11 +227,9 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
          amgx_config = amgx_config + "\n";
       }
       amgx_config = amgx_config + " }\n" + "}\n";
-
    }
    else if (amgxMode == AMGX_MODE::SOLVER)
    {
-
       amgx_config = "{ \n"
                     " \"config_version\": 2, \n"
                     " \"solver\": { \n"
@@ -225,7 +244,7 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
                     "     \"interpolator\": \"D2\", \n"
                     "     \"max_row_sum\" : 0.9, \n"
                     "     \"strength_threshold\" : 0.25, \n"
-                    "     \"max_iters\": 1, \n"
+                    "     \"max_iters\": 2, \n"
                     "     \"scope\": \"amg\", \n"
                     "     \"max_levels\": 100, \n"
                     "     \"cycle\": \"V\", \n"
@@ -236,12 +255,12 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
                     "  \"convergence\": \"RELATIVE_MAX\", \n"
                     "  \"scope\": \"main\", \n"
                     "  \"tolerance\": 1e-12, \n"
+                    "  \"monitor_residual\": 1, \n"
                     "  \"norm\": \"L2\" ";
       if (verbose)
       {
          amgx_config = amgx_config + ", \n"
                        "        \"obtain_timings\": 1, \n"
-                       "        \"monitor_residual\": 1, \n"
                        "        \"print_grid_stats\": 1, \n"
                        "        \"print_solve_stats\": 1 \n";
       }
@@ -249,9 +268,7 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
       {
          amgx_config = amgx_config + "\n";
       }
-      amgx_config = amgx_config +
-                    "   } \n" + "} \n";
-
+      amgx_config = amgx_config + "   } \n" + "} \n";
    }
    else
    {
@@ -573,6 +590,7 @@ void AmgXSolver::SetMatrix(const SparseMatrix &in_A, const bool update_mat)
 }
 
 #ifdef MFEM_USE_MPI
+
 void AmgXSolver::SetMatrix(const HypreParMatrix &A, const bool update_mat)
 {
    // Require hypre >= 2.16.
@@ -814,10 +832,14 @@ void AmgXSolver::SetMatrixMPITeams(const HypreParMatrix &A,
       }
    }
 }
+
 #endif
 
 void AmgXSolver::SetOperator(const Operator& op)
 {
+   height = op.Height();
+   width = op.Width();
+
    if (const SparseMatrix* Aptr =
           dynamic_cast<const SparseMatrix*>(&op))
    {
@@ -879,7 +901,7 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
 
       AMGX_SOLVE_STATUS   status;
       AMGX_solver_get_status(solver, &status);
-      if (status != AMGX_SOLVE_SUCCESS && amgxMode == SOLVER)
+      if (status != AMGX_SOLVE_SUCCESS && ConvergenceCheck)
       {
          if (status == AMGX_SOLVE_DIVERGED)
          {
@@ -1010,4 +1032,5 @@ void AmgXSolver::Finalize()
 }
 
 } // mfem namespace
+
 #endif

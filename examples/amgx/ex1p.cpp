@@ -6,8 +6,8 @@
 // AmgX sample runs:
 //               mpirun -np 4 ex1p
 //               mpirun -np 4 ex1p -d cuda
-//               mpirun -n 10 ex1p --amgx-file amg_pcg.json
-//               mpirun -n 4 ex1p --amgx-file amg_pcg.json --amgx-mpi-gpu-exclusive
+//               mpirun -np 10 ex1p --amgx-file amg_pcg.json --amgx-mpi-teams
+//               mpirun -np 4 ex1p --amgx-file amg_pcg.json
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -31,6 +31,10 @@
 using namespace std;
 using namespace mfem;
 
+#ifndef MFEM_USE_AMGX
+#error This example requires that MFEM is built with MFEM_USE_AMGX=YES
+#endif
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
@@ -47,7 +51,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = true;
    bool amgx_lib = true;
-   bool amgx_mpi_teams = true;
+   bool amgx_mpi_teams = false;
    const char* amgx_json_file = ""; // JSON file for AmgX
    int ndevices = 1;
 
@@ -67,13 +71,14 @@ int main(int argc, char *argv[])
                   "AMGX solver config file (overrides --amgx-solver, --amgx-verbose)");
    args.AddOption(&amgx_mpi_teams, "--amgx-mpi-teams", "--amgx-mpi-teams",
                   "--amgx-mpi-gpu-exclusive", "--amgx-mpi-gpu-exclusive",
-                  "Create MPI teams when using AMGX.");
+                  "Create MPI teams when using AmgX to load balance between ranks and GPUs.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&ndevices, "-nd","--nd","Number of GPU devices.");
+   args.AddOption(&ndevices, "-nd","--gpus-per-node-in-teams-mode",
+                  "Number of GPU devices per node (Only used if amgx_mpi_teams is true).");
 
    args.Parse();
    if (!args.Good())
@@ -225,6 +230,9 @@ int main(int argc, char *argv[])
    }
    else if (amgx_lib && strcmp(amgx_json_file,"") == 0)
    {
+      MFEM_VERIFY(!amgx_mpi_teams,
+                  "Please add JSON file to try AmgX with MPI teams mode");
+
       bool amgx_verbose = false;
       prec = new AmgXSolver(MPI_COMM_WORLD, AmgXSolver::PRECONDITIONER,
                             amgx_verbose);
@@ -256,6 +264,7 @@ int main(int argc, char *argv[])
       }
 
       amgx.SetOperator(*A.As<HypreParMatrix>());
+      amgx.SetConvergenceCheck(true);
       amgx.Mult(B, X);
 
       // Release MPI communicators and resources created by AmgX
