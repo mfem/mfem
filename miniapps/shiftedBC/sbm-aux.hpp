@@ -23,6 +23,36 @@ double dist_value(const Vector &x, const int type)
         double dist0 = rv - ring_radius; // +ve is the domain
         return dist0;
     }
+    else if (type == 2) { // square hole of size 0.2 at the center of domain
+        double dx1 = 0.4 - x(0),
+               dx2 = x(0) - 0.6;
+        double dy1 =  0.4 - x(1),
+               dy2 = x(1) - 0.6;
+
+        double dx = std::max(dx1, dx2);
+               dx = std::max(dx, 0.);
+       double dy = std::max(dy1, dy2);
+              dy = std::max(dy, 0.);
+
+
+       double dist = std::pow(dx, 2.) + std::pow(dy, 2.);
+
+       if (dist > 0.) { dist = std::pow(dist, 0.5); }
+
+        if (x(0) > 0.4 && x(0) < 0.6 && x(1) > 0.4 && x(1) < 0.6) {
+            dx1 = x(0) - 0.4;
+            dx2 = 0.6 - x(0);
+            dx = std::min(dx1, dx2);
+
+            dy1 = x(1) - 0.4;
+            dy2 = 0.6 - x(1);
+            dy = std::min(dy1, dy2);
+            dist = std::min(dx, dy);
+            dist = -dist;
+        }
+
+        return dist;
+    }
     else if (type == 3) { // circle of radius 0.2 at 0.5,0.5
         double dx = x(0) - 0.5,
            dy = x(1) - 0.5,
@@ -112,6 +142,56 @@ public:
           }
           else {
               p(1) = dist0;
+          }
+      }
+      else if (type == 2) {
+          double dist0 = dist_value(x, type);
+          if (x(0) >= 0.6 && x(1) >= 0.4 && x(1) <= 0.6) {
+              p(0) = 0.6 - x(0);
+              p(1) = 0;
+          }
+          else if (x(0) >= 0.6 && x(1) >= 0.6) {
+              p(0) = 0.6 - x(0);
+              p(1) = 0.6 - x(1);
+          }
+          else if (x(0) >= 0.4 && x(0) <= 0.6 && x(1) >= 0.6) {
+              p(0) = 0.;
+              p(1) = 0.6 - x(1);
+          }
+          else if (x(0) <= 0.4 && x(1) >= 0.6) {
+              p(0) = 0.4 - x(0);
+              p(1) = 0.6 - x(1);
+          }
+          else if (x(0) <= 0.4 && x(1) >= 0.4 && x(1) <= 0.6) {
+              p(0) = 0.4 - x(0);
+              p(1) = 0;
+          }
+          else if (x(0) <= 0.4 && x(1) <= 0.4) {
+              p(0) = 0.4 - x(0);
+              p(1) = 0.4 - x(1);
+          }
+          else if (x(0) >= 0.4 && x(0) <= 0.6 && x(1) <= 0.4) {
+              p(0) = 0.;
+              p(1) = 0.4 - x(1);
+          }
+          else if (x(0) >= 0.6 && x(1) <= 0.4) {
+              p(0) = 0.6 - x(0);
+              p(1) = 0.4 - x(1);
+          }
+          else if (x(0) >= 0.4 && x(0) <= 0.6 && x(1) >= 0.4 && x(1) <= 0.6 ) {
+              double dx, dy;
+              if (x(0) >= 0.5) { dx = 0.6 - x(0); }
+              else { dx = x(0) - 0.4; }
+              if (x(1) >= 0.5) { dy = 0.6 - x(1); }
+              else { dy = x(1) - 0.4; }
+              if (dx <= dy) {
+                  p(0) = dx;
+                  p(1) = 0;
+              }
+              else {
+                  p(0) = 0;
+                  p(1) = dy;
+              }
           }
       }
    }
