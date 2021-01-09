@@ -13353,8 +13353,8 @@ void RT_R2D_FiniteElement::CalcVShape(ElementTransformation &Trans,
    {
       double sx = shape(i, 0);
       double sy = shape(i, 1);
-      shape(i, 0) = sx * J(0, 0) + sy * J(1, 0);
-      shape(i, 1) = sx * J(0, 1) + sy * J(1, 1);
+      shape(i, 0) = sx * J(0, 0) + sy * J(0, 1);
+      shape(i, 1) = sx * J(1, 0) + sy * J(1, 1);
    }
    shape *= (1.0 / Trans.Weight());
 }
@@ -13378,8 +13378,8 @@ void RT_R2D_FiniteElement::Project(VectorCoefficient &vc,
       Vector n2(&nk_ptr[dof2nk[k] * 3], 2);
       Vector n3(&nk_ptr[dof2nk[k] * 3], 3);
 
-      dofs(k) = Trans.AdjugateJacobian().InnerProduct(n2, vk2) +
-                Trans.Weight() * n3(2) * vk3(2);
+      dofs(k) = Trans.AdjugateJacobian().InnerProduct(vk2, n2) +
+                Trans.Weight() * vk3(2) * n3(2);
    }
 }
 
