@@ -35,7 +35,7 @@ FiniteElement::FiniteElement(int D, Geometry::Type G,
    deriv_map_type = VALUE;
    for (int i = 0; i < Geometry::MaxDim; i++) { orders[i] = -1; }
 #ifndef MFEM_THREAD_SAFE
-   vshape.SetSize(dof, vdim);
+   vshape.SetSize(dof, dim);
 #endif
 }
 
@@ -12765,12 +12765,12 @@ void RT_R1D_SegmentElement::CalcDivShape(const IntegrationPoint &ip,
    }
 }
 
-const double ND_R2D_SegmentElement::tk[6] = { 1.,0.,0., 0.,0.,1. };
+const double ND_R2D_SegmentElement::tk[4] = { 1.,0., 0.,1. };
 
 ND_R2D_SegmentElement::ND_R2D_SegmentElement(const int p,
                                              const int cb_type,
                                              const int ob_type)
-   : VectorFiniteElement(1, 3, 3, Geometry::SEGMENT, 2 * p + 1, p,
+   : VectorFiniteElement(1, 2, 1, Geometry::SEGMENT, 2 * p + 1, p,
                          H_CURL, FunctionSpace::Pk),
      dof2tk(dof),
      cbasis1d(poly1d.GetBasis(p, VerifyClosed(cb_type))),
@@ -12831,15 +12831,13 @@ void ND_R2D_SegmentElement::CalcVShape(const IntegrationPoint &ip,
       int idx = dof_map[o++];
       shape(idx,0) = shape_ox(i);
       shape(idx,1) = 0.;
-      shape(idx,2) = 0.;
    }
    // z-components
    for (int i = 0; i <= p; i++)
    {
       int idx = dof_map[o++];
       shape(idx,0) = 0.;
-      shape(idx,1) = 0.;
-      shape(idx,2) = shape_cx(i);
+      shape(idx,1) = shape_cx(i);
    }
 }
 
@@ -12876,16 +12874,12 @@ void ND_R2D_SegmentElement::CalcCurlShape(const IntegrationPoint &ip,
    {
       int idx = dof_map[o++];
       curl_shape(idx,0) = 0.;
-      curl_shape(idx,1) = 0.;
-      curl_shape(idx,2) = 0.;
    }
    // z-components
    for (int i = 0; i <= p; i++)
    {
       int idx = dof_map[o++];
-      curl_shape(idx,0) = 0.;
-      curl_shape(idx,1) = -dshape_cx(i);
-      curl_shape(idx,2) = 0.;
+      curl_shape(idx,0) = -dshape_cx(i);
    }
 }
 
@@ -13361,6 +13355,75 @@ void ND_R2D_QuadrilateralElement::CalcCurlShape(const IntegrationPoint &ip,
       }
 }
 
+
+const double RT_R2D_SegmentElement::nk[2] = { 0.,1.};
+
+RT_R2D_SegmentElement::RT_R2D_SegmentElement(const int p,
+                                             const int ob_type)
+   : VectorFiniteElement(1, 2, 0, Geometry::SEGMENT, p + 1, p + 1,
+                         H_DIV, FunctionSpace::Pk),
+     dof2nk(dof),
+     obasis1d(poly1d.GetBasis(p, VerifyOpen(ob_type)))
+{
+   const double *op = poly1d.OpenPoints(p, ob_type);
+
+#ifndef MFEM_THREAD_SAFE
+   shape_ox.SetSize(p+1);
+#endif
+
+   dof_map.SetSize(dof);
+
+   int o = 0;
+   // interior
+   // z-components
+   for (int i = 0; i <= p; i++)
+   {
+      Nodes.IntPoint(o).x = op[i];
+      dof_map[i] = o; dof2nk[o++] = 0;
+   }
+}
+
+void RT_R2D_SegmentElement::CalcVShape(const IntegrationPoint &ip,
+                                       DenseMatrix &shape) const
+{
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape_ox(p);
+#endif
+
+   obasis1d.Eval(ip.x, shape_ox);
+
+   int o = 0;
+   // z-components
+   for (int i = 0; i <= p; i++)
+   {
+      int idx = dof_map[o++];
+      shape(idx,0) = shape_ox(i);
+      shape(idx,1) = 0.;
+   }
+}
+
+void RT_R2D_SegmentElement::CalcVShape(ElementTransformation &Trans,
+                                       DenseMatrix &shape) const
+{
+   CalcVShape(Trans.GetIntPoint(), shape);
+   const DenseMatrix & J = Trans.Jacobian();
+   MFEM_ASSERT(J.Width() == 1 && J.Height() == 1,
+               "RT_R2D_SegmentElement cannot be embedded in "
+               "2 or 3 dimensional spaces");
+   for (int i=0; i<dof; i++)
+   {
+      shape(i, 0) *= J(0,0);
+   }
+   shape *= (1.0 / Trans.Weight());
+}
+
+void RT_R2D_SegmentElement::CalcDivShape(const IntegrationPoint &ip,
+                                         Vector &div_shape) const
+{
+   div_shape = 0.0;
+}
 
 void RT_R2D_FiniteElement::CalcVShape(ElementTransformation &Trans,
                                       DenseMatrix &shape) const

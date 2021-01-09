@@ -3332,13 +3332,12 @@ public:
 };
 
 
-/// Arbitrary order Nedelec 3D elements in 2D on a square
 /** ND_R2D_SegmentElement provides a representation of a 3D Nedelec
     basis where the vector field is assumed constant in the third dimension.
 */
 class ND_R2D_SegmentElement : public VectorFiniteElement
 {
-   static const double tk[6];
+   static const double tk[4];
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox;
    mutable Vector dshape_cx;
@@ -3362,48 +3361,6 @@ public:
 
    virtual void CalcCurlShape(const IntegrationPoint &ip,
                               DenseMatrix &curl_shape) const;
-
-   virtual void GetLocalInterpolation(ElementTransformation &Trans,
-                                      DenseMatrix &I) const
-   { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
-
-   virtual void GetLocalRestriction(ElementTransformation &Trans,
-                                    DenseMatrix &R) const
-   { LocalRestriction_ND(tk, dof2tk, Trans, R); }
-
-   virtual void GetTransferMatrix(const FiniteElement &fe,
-                                  ElementTransformation &Trans,
-                                  DenseMatrix &I) const
-   { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
-
-   using FiniteElement::Project;
-
-   virtual void Project(VectorCoefficient &vc,
-                        ElementTransformation &Trans, Vector &dofs) const
-   { Project_ND(tk, dof2tk, vc, Trans, dofs); }
-
-   virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
-                                 Vector &dofs) const
-   { Project_ND(tk, dof2tk, vc, Trans, dofs); }
-
-   virtual void ProjectMatrixCoefficient(
-      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
-   { ProjectMatrixCoefficient_ND(tk, dof2tk, mc, T, dofs); }
-
-   virtual void Project(const FiniteElement &fe,
-                        ElementTransformation &Trans,
-                        DenseMatrix &I) const
-   { Project_ND(tk, dof2tk, fe, Trans, I); }
-
-   virtual void ProjectGrad(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &grad) const
-   { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
-
-   virtual void ProjectCurl(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &curl) const
-   { ProjectCurl_ND(tk, dof2tk, fe, Trans, curl); }
 };
 
 class ND_R2D_FiniteElement : public VectorFiniteElement
@@ -3495,32 +3452,37 @@ public:
                            DenseMatrix &shape) const;
    virtual void CalcCurlShape(const IntegrationPoint &ip,
                               DenseMatrix &curl_shape) const;
-   /*
-   virtual void GetLocalInterpolation(ElementTransformation &Trans,
-                                      DenseMatrix &I) const
-   { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
-   virtual void GetLocalRestriction(ElementTransformation &Trans,
-                                    DenseMatrix &R) const
-   { LocalRestriction_ND(tk, dof2tk, Trans, R); }
-   virtual void GetTransferMatrix(const FiniteElement &fe,
-                                  ElementTransformation &Trans,
-                                  DenseMatrix &I) const
-   { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
-
-   virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
-                                 Vector &dofs) const
-   { Project_ND(tk, dof2tk, vc, Trans, dofs); }
-   virtual void ProjectMatrixCoefficient(
-      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
-   { ProjectMatrixCoefficient_ND(tk, dof2tk, mc, T, dofs); }
-
-   virtual void Project(const FiniteElement &fe,
-                        ElementTransformation &Trans,
-                        DenseMatrix &I) const
-   { Project_ND(tk, dof2tk, fe, Trans, I); }
-   */
 };
 
+
+/** RT_R2D_SegmentElement provides a representation of a 3D Raviart-Thomas
+    basis where the vector field is assumed constant in the third dimension.
+*/
+class RT_R2D_SegmentElement : public VectorFiniteElement
+{
+   static const double nk[2];
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_ox;
+#endif
+   Array<int> dof_map, dof2nk;
+
+   Poly_1D::Basis &obasis1d;
+
+public:
+   /** @brief Construct the RT_R2D_SegmentElement of order @a p and open
+       BasisType @a ob_type */
+   RT_R2D_SegmentElement(const int p,
+                         const int ob_type = BasisType::GaussLegendre);
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcDivShape(const IntegrationPoint &ip,
+                             Vector &div_shape) const;
+};
 
 class RT_R2D_FiniteElement : public VectorFiniteElement
 {
@@ -3598,45 +3560,8 @@ public:
 
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
-   // virtual void CalcVShape(ElementTransformation &Trans,
-   //                       DenseMatrix &shape) const;
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
-   /*
-   virtual void GetLocalInterpolation(ElementTransformation &Trans,
-                                      DenseMatrix &I) const
-   { LocalInterpolation_RT(*this, nk, dof2nk, Trans, I); }
-   virtual void GetLocalRestriction(ElementTransformation &Trans,
-                                    DenseMatrix &R) const
-   { LocalRestriction_RT(nk, dof2nk, Trans, R); }
-   virtual void GetTransferMatrix(const FiniteElement &fe,
-                                  ElementTransformation &Trans,
-                                  DenseMatrix &I) const
-   { LocalInterpolation_RT(CheckVectorFE(fe), nk, dof2nk, Trans, I); }
-   using FiniteElement::Project;
-   virtual void Project(VectorCoefficient &vc,
-                        ElementTransformation &Trans, Vector &dofs) const
-   { Project_RT(nk, dof2nk, vc, Trans, dofs); }
-   virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
-                                 Vector &dofs) const
-   { Project_RT(nk, dof2nk, vc, Trans, dofs); }
-   virtual void ProjectMatrixCoefficient(
-      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
-   { ProjectMatrixCoefficient_RT(nk, dof2nk, mc, T, dofs); }
-   virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
-                        DenseMatrix &I) const
-   { Project_RT(nk, dof2nk, fe, Trans, I); }
-   // Gradient + rotation = Curl: H1 -> H(div)
-   virtual void ProjectGrad(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &grad) const
-   { ProjectGrad_RT(nk, dof2nk, fe, Trans, grad); }
-   // Curl = Gradient + rotation: H1 -> H(div)
-   virtual void ProjectCurl(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &curl) const
-   { ProjectGrad_RT(nk, dof2nk, fe, Trans, curl); }
-   */
 };
 
 

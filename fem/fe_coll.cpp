@@ -2989,6 +2989,8 @@ RT_R2D_FECollection::RT_R2D_FECollection(const int p, const int dim,
    : ob_type(ob_type)
 {
    MFEM_VERIFY(p >= 0, "RT_R2D_FECollection requires order >= 0.");
+   MFEM_VERIFY(dim >= 1 && dim <= 2,
+               "RT_R2D_FECollection requires 1 <= dim <= 2.");
 
    int cp_type = BasisType::GetQuadrature1D(cb_type);
    int op_type = BasisType::GetQuadrature1D(ob_type);
@@ -3031,10 +3033,6 @@ RT_R2D_FECollection::RT_R2D_FECollection(const int p, const int dim,
                                                                       ob_type);
       // two vector components * n_unk_face *
       RT_dof[Geometry::SQUARE] = 2*p*pp1 + pp1*pp1;
-   }
-   else
-   {
-      MFEM_ABORT("invalid dim = " << dim);
    }
 }
 
@@ -3132,7 +3130,7 @@ RT_R2D_FECollection::~RT_R2D_FECollection()
 RT_R2D_Trace_FECollection::RT_R2D_Trace_FECollection(const int p, const int dim,
                                                      const int map_type,
                                                      const int ob_type)
-   : RT_R2D_FECollection(p, dim, map_type, true, ob_type)
+   : RT_R2D_FECollection(p, dim-1, map_type, true, ob_type)
 {
    const char *prefix =
       (map_type == FiniteElement::INTEGRAL) ? "RT_R2D_Trace" : "RT_R2D_ValTrace";
@@ -3145,7 +3143,7 @@ RT_R2D_Trace_FECollection::RT_R2D_Trace_FECollection(const int p, const int dim,
    }
    snprintf(rt_name, 32, "%s%s_%dD_P%d", prefix, ob_str, dim, p);
 
-   MFEM_VERIFY(dim == 2 || dim == 3, "Wrong dimension, dim = " << dim);
+   MFEM_VERIFY(dim == 2, "Wrong dimension, dim = " << dim);
 }
 
 
