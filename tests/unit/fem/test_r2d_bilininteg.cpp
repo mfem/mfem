@@ -3840,7 +3840,7 @@ TEST_CASE("R2D Bilinear Weak Grad Dot Product Integrators",
 
                blfw.Mult(f_nd,tmp_rt); tmp_rt += lf; g_rt = 0.0;
                CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
-	       
+
                REQUIRE( g_rt.ComputeL2Error(dVF3_coef) < tol );
             }
          }
