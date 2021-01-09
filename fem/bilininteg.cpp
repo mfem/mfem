@@ -475,7 +475,7 @@ void MixedScalarVectorIntegrator::AssembleElementMatrix2(
       VQ->Eval(V, Trans, ip);
       V *= w;
 
-      if ( vec_fe->GetVDim() == 2 && cross_2d )
+      if ( vdim == 2 && cross_2d )
       {
          vtmp = V[0];
          V[0] = -V[1];
