@@ -73,7 +73,10 @@ public:
       V = useIdentityV ? (Operator*) new IdentityOperator(this->Height()) :
           (Operator*) &A_Re;
 
-      SumOperator *sumOpRe = new SumOperator(V, &A_Re, false, false, a, 1.0);
+      // In the case V = A_Re, it is faster to use a scaled operator than a SumOperator
+      Operator *sumOpRe = useIdentityV ? (Operator*) new SumOperator(V, &A_Re, false,
+                                                                     false, a, 1.0)
+                          : (Operator*) new ScaledOperator(&A_Re, a + 1.0);
 
       SumOperator *sumOpIm = new SumOperator(V, &A_Im, false, false, a, 1.0);
 
@@ -131,20 +134,28 @@ public:
       {
          // Solve (aI + Re) u = (aI - i Im) y + x
 
-         A_Im.Mult(y, u);  // u = Im y
-         // Set rhs = -i Im y = -i u
-         for (int j=0; j<n; ++j)
+         if (it == 0)
          {
-            rhs[j] = u[n+j];
-            rhs[n+j] = -u[j];
+            // Optimize the first iteration, when the initial guess is y=0.
+            SRe->Mult(x, u);
          }
+         else
+         {
+            A_Im.Mult(y, u);  // u = Im y
+            // Set rhs = -i Im y = -i u
+            for (int j=0; j<n; ++j)
+            {
+               rhs[j] = u[n+j];
+               rhs[n+j] = -u[j];
+            }
 
-         rhs += x;
+            rhs += x;
 
-         V->Mult(y, u);
-         rhs.Add(a, u);
+            V->Mult(y, u);
+            rhs.Add(a, u);
 
-         SRe->Mult(rhs, u);
+            SRe->Mult(rhs, u);
+         }
 
          // Solve (aI + Im) y = (aI + i Re) u - i x
 
@@ -156,8 +167,17 @@ public:
             rhs[n+j] = y[j] - x[j];
          }
 
-         V->Mult(u, y);
-         rhs.Add(a, y);
+         if (useIdentityV)
+         {
+            //V->Mult(u, y);
+            //rhs.Add(a, y);
+            rhs.Add(a, u);
+         }
+         else
+         {
+            // Using V = A_Re
+            rhs.Add(a, y);
+         }
 
          SIm->Mult(rhs, y);
 
@@ -175,7 +195,7 @@ public:
 
 private:
    const double a;
-   const int maxiter = 100;
+   const int maxiter = 1;
    ComplexOperator A, A_Re, A_Im;
    mutable Vector u, rhs;
    const int n;
@@ -389,6 +409,10 @@ int main(int argc, char *argv[])
 
    //OperatorJacobiSmoother massJacobi(a_Im, ess_tdof_list);
 
+   StopWatch sw;
+   sw.Clear();
+   sw.Start();
+
    if (pa) // Jacobi preconditioning in partial assembly mode
    {
       MFEM_VERIFY(false, "TODO");
@@ -427,6 +451,17 @@ int main(int argc, char *argv[])
       //Complex_PMHSS PMHSS(A_Re, A_Im, &BlockDP, NULL, omega);
       Complex_PMHSS PMHSS(A_Re, A_Im, &BlockDP, NULL, 1.0);
 
+      ComplexOperator AspdComplex(A_Re.Ptr(), A_Im.Ptr(), false, false);
+
+      GMRESSolver PMHSSgmres(MPI_COMM_WORLD);
+      PMHSSgmres.SetPrintLevel(1);
+      PMHSSgmres.SetKDim(50);
+      PMHSSgmres.SetMaxIter(50);
+      PMHSSgmres.SetRelTol(1e-8);
+      PMHSSgmres.SetAbsTol(0.0);
+      PMHSSgmres.SetOperator(AspdComplex);
+      PMHSSgmres.SetPreconditioner(PMHSS);
+
       GMRESSolver gmres(MPI_COMM_WORLD);
       gmres.SetPrintLevel(1);
       gmres.SetKDim(200);
@@ -435,9 +470,13 @@ int main(int argc, char *argv[])
       gmres.SetAbsTol(0.0);
       gmres.SetOperator(*A);
       //gmres.SetPreconditioner(BlockDP);
-      gmres.SetPreconditioner(PMHSS);
+      //gmres.SetPreconditioner(PMHSS);
+      gmres.SetPreconditioner(PMHSSgmres);
       gmres.Mult(B, X);
    }
+
+   sw.Stop();
+   mfem::out << "Total solve time " <<sw.RealTime() << endl;
 
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
