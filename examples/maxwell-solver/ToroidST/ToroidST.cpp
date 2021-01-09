@@ -16,10 +16,13 @@ void ToroidST::SetupSubdomainProblems()
 
    for (int ip=0; ip<nrsubdomains; ip++)
    {
+      cout << "Ip = " << ip << endl;
       SetMaxwellPmlSystemMatrix(ip);
       PmlMat[ip] = Optr[ip]->As<ComplexSparseMatrix>();
+      // PmlMat[ip]->PrintMatlab(cout);
       PmlMatInv[ip] = new ComplexUMFPackSolver;
       PmlMatInv[ip]->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+      cout << "ComplexUMFPack: size = " << PmlMat[ip]->Height() << endl;
       PmlMatInv[ip]->SetOperator(*PmlMat[ip]);
       int ndofs = fespaces[ip]->GetTrueVSize();
       f_orig[ip] = new Vector(2*ndofs);
@@ -30,6 +33,7 @@ void ToroidST::SetupSubdomainProblems()
 void ToroidST::SetMaxwellPmlSystemMatrix(int ip)
 {
    Mesh * mesh = fespaces[ip]->GetMesh();
+   // Mesh * mesh = fes->GetMesh();
    MFEM_VERIFY(mesh, "Null mesh pointer");
    int dim = mesh->Dimension();
    ToroidPML tpml(mesh);
@@ -41,21 +45,20 @@ void ToroidST::SetMaxwellPmlSystemMatrix(int ip)
    bool zstretch = false;
    bool astretch = true;
    bool rstretch = false;
+   apml = aPmlThickness[1]; // just for this test (toroid waveguide)
    if (ip == 0) 
    {
       apml[0] = aPmlThickness[0];
    }
-   else if (ip == nrsubdomains-1)
+   if (ip == nrsubdomains-1)
    {
       apml[1] = aPmlThickness[1];
-   }
-   else
-   {
-      apml = aPmlThickness[1]; // just for this test (toroid waveguide)
    }
    tpml.SetPmlAxes(zstretch,rstretch,astretch);
    tpml.SetPmlWidth(zpml,rpml,apml);
    tpml.SetOmega(omega); 
+
+
 
    ComplexOperator::Convention conv = bf->GetConvention();
    tpml.SetAttributes(mesh);
@@ -67,6 +70,7 @@ void ToroidST::SetMaxwellPmlSystemMatrix(int ip)
       ess_bdr = 1;
    }
    fespaces[ip]->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   // fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    Array<int> attr;
    Array<int> attrPML;
    if (mesh->attributes.Size())
@@ -87,6 +91,7 @@ void ToroidST::SetMaxwellPmlSystemMatrix(int ip)
 
      // Integrators inside the computational domain (excluding the PML region)
    sqf[ip] = new SesquilinearForm(fespaces[ip], conv);
+   // sqf[ip] = new SesquilinearForm(fes, conv);
    sqf[ip]->AddDomainIntegrator(new CurlCurlIntegrator(restr_one),NULL);
    sqf[ip]->AddDomainIntegrator(new VectorFEMassIntegrator(restr_omeg),NULL);
 
@@ -113,6 +118,8 @@ void ToroidST::SetMaxwellPmlSystemMatrix(int ip)
 
    Optr[ip] = new OperatorPtr;
    sqf[ip]->FormSystemMatrix(ess_tdof_list,*Optr[ip]);
+   // SparseMatrix * SpMat = (*Optr[ip]->As<ComplexSparseMatrix>()).GetSystemMatrix();
+   // SpMat->PrintMatlab(cout);
 }
 
 
@@ -139,7 +146,9 @@ ToroidST::ToroidST(SesquilinearForm * bf_, const Vector & aPmlThickness_,
    //-------------------------------------------------------
    // Step 1: Setup local Maxwell Problems PML
    // ------------------------------------------------------
+   cout << "Setting up local problems " << endl;
    SetupSubdomainProblems();
+   cout << "Done "<< endl;
 
 
    // Test local to global dof Maps
@@ -160,10 +169,10 @@ ToroidST::ToroidST(SesquilinearForm * bf_, const Vector & aPmlThickness_,
    // cout << "Testing local to overlap maps " << endl;
    // for (int i = 0; i<nrsubdomains; i++)
    // {
-   //    Array<int> rdofs;
-   //    GetRestrictionDofs(*fespaces[i],1,ovlp,rdofs);
-   //    // GetRestrictionDofs(*fespaces[i],-1,ovlp,rdofs);
-   //    DofMapOvlpTest(*fespaces[i],rdofs);
+      // Array<int> rdofs;
+      // GetRestrictionDofs(*fespaces[i],1,ovlp,rdofs);
+      // GetRestrictionDofs(*fespaces[i],-1,ovlp,rdofs);
+      // DofMapOvlpTest(*fespaces[i],rdofs);
    // }
 }
 
@@ -171,17 +180,52 @@ ToroidST::ToroidST(SesquilinearForm * bf_, const Vector & aPmlThickness_,
 void ToroidST::Mult(const Vector & r, Vector & z) const 
 {
    cout << "ToroidST::Mult " << endl;
+   cout << "r norm = " << r.Norml2() << endl;
+
+   z = 0.0;
    // Step 0;
    // Initialize transfered residuals to 0.0 and 
    // restrict Source to subdomains
    for (int ip=0; ip<nrsubdomains; ip++)
    {
       *f_transf[ip] = 0.0;
-      MapDofs(*DofMaps0[ip], *DofMaps1[ip],r,*f_orig[ip]);
-      int direction = (ip==0)?1:(ip==nrsubdomains-1)?-1:0;
+      MapDofs(*DofMaps1[ip], *DofMaps0[ip],r,*f_orig[ip]);
+      // cout << "0:f_orig[ip] norm = " << f_orig[ip]->Norml2() << endl; 
+      // cout << "ovlp = " << ovlp << endl;
+      int direction = 0;
+      if (ip == 0) direction = 1;
+      if (ip == nrsubdomains-1) direction = -1;
+      if (nrsubdomains == 1) continue;
       Array<int> rdofs;
       GetRestrictionDofs(*fespaces[ip],direction,ovlp,rdofs);
-      RestrictDofs(rdofs,fes->GetTrueVSize(),*f_orig[ip]);
+      // cout << "direction = " << direction << endl;
+      // DofMapOvlpTest(*fespaces[ip],rdofs);
+      // cin.get();
+      // rdofs.Print(cout, 20);
+      RestrictDofs(rdofs,f_orig[ip]->Size()/2,*f_orig[ip]);
+      // cout << "1:f_orig[ip] norm = " << f_orig[ip]->Norml2() << endl; 
+      // cin.get();
+   }
+
+   // Step 1; "forward sweep"
+   for (int ip=0; ip<nrsubdomains; ip++)
+   {
+      int n = fespaces[ip]->GetTrueVSize();
+      Vector res(2*n); res = 0.0;
+      res += *f_orig[ip];
+      res += *f_transf[ip];
+      Vector sol(2*n);
+      PmlMatInv[ip]->Mult(res,sol);
+
+      // accumulate for the global correction;
+      // AddMapDofs(*DofMaps1[ip],*DofMaps0[ip],sol,z);
+      AddMapDofs(*DofMaps0[ip],*DofMaps1[ip],sol,z);
+
+      cout << "res norm = " << res.Norml2() << endl;
+      cout << "sol norm = " << sol.Norml2() << endl;
+      cout << "z norm = " << z.Norml2() << endl;
+      // Transfer source to (forward) neighbor
+      // Transfer source to (backward) neighbor 
    }
 }
 

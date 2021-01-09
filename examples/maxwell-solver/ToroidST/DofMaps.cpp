@@ -253,6 +253,20 @@ void MapDofs(const Array<int> & dmap0, const Array<int> & dmap1,
    }
 }
 
+void AddMapDofs(const Array<int> & dmap0, const Array<int> & dmap1,
+             const Vector &gf0, Vector &gf1)
+{
+   int tsize0 = gf0.Size()/2;
+   int tsize1 = gf1.Size()/2;
+   for (int i = 0; i< dmap0.Size(); i++)
+   {
+      int j = dmap0[i];   
+      int k = dmap1[i];   
+      gf1[k] += gf0[j];
+      gf1[k+tsize1] += gf0[j+tsize0];
+   }
+}
+
 void DofMapTests(FiniteElementSpace &fes0, FiniteElementSpace &fes1,
                  const Array<int> & dmap0, const Array<int> & dmap1)
 {

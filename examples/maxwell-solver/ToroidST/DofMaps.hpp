@@ -47,6 +47,9 @@ void GetElements(Mesh &mesh, double ovlp, int direction, Array<int> & elems);
 void MapDofs(const Array<int> & dmap0, const Array<int> & dmap1,
              const Vector &gf0, Vector &gf1);
 
+void AddMapDofs(const Array<int> & dmap0, const Array<int> & dmap1,
+                const Vector &gf0, Vector &gf1);
+
 void DofMapTests(FiniteElementSpace &fes0, FiniteElementSpace &fes1,
                  const Array<int> & dmap0, const Array<int> & dmap1);                 
 

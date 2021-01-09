@@ -194,6 +194,7 @@ void PartitionMesh(Mesh * mesh, int nrsubmeshes, double ovlp,
    elems.SetSize(nrsubmeshes);
    for (int i = 0; i<nrsubmeshes; i++)
    {
+      cout << "mesh " << i << endl;
       Array<int> attr;
       for (int j = 0; j<3; j++)
       {
@@ -203,10 +204,10 @@ void PartitionMesh(Mesh * mesh, int nrsubmeshes, double ovlp,
       // attr.Print();
       elems[i] = new Array<int>(0);
       SubMeshes[i] = GetPartMesh(mesh,attr,*elems[i],true);
-      socketstream mesh_sock(vishost, visport);
-      mesh_sock << "parallel " << nrsubmeshes <<  " " << i << "\n";
-      mesh_sock.precision(8);
-      mesh_sock << "mesh\n" << *SubMeshes[i] << flush;
+      // socketstream mesh_sock(vishost, visport);
+      // mesh_sock << "parallel " << nrsubmeshes <<  " " << i << "\n";
+      // mesh_sock.precision(8);
+      // mesh_sock << "mesh\n" << *SubMeshes[i] << flush;
       // cout << "nrelemes = " << mesh1->GetNE() << endl;
    }
 }

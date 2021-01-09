@@ -88,11 +88,13 @@ int main(int argc, char *argv[])
    bool zstretch = false;
    bool astretch = false;
    bool rstretch = false;
-   apml_thickness[1] = 7.0; 
+   apml_thickness[1] = 30.0; 
    astretch = true;
    tpml.SetPmlAxes(zstretch,rstretch,astretch);
    tpml.SetPmlWidth(zpml_thickness,rpml_thickness,apml_thickness);
    tpml.SetOmega(omega); 
+
+
 
    ComplexOperator::Convention conv =
       herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
@@ -179,7 +181,14 @@ int main(int argc, char *argv[])
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
    Vector Y(X);
 
+
+
+   cout << "B norm = " << B.Norml2() << endl;
+
    SparseMatrix * SpMat = (*A.As<ComplexSparseMatrix>()).GetSystemMatrix();
+   // SpMat->Threshold(0.0);
+   // SpMat->PrintMatlab(cout);
+   // cin.get();
    HYPRE_Int global_size = SpMat->Height();
    HYPRE_Int row_starts[2]; row_starts[0] = 0; row_starts[1] = global_size;
    HypreParMatrix * HypreMat = new HypreParMatrix(MPI_COMM_SELF,global_size,row_starts,SpMat);
@@ -188,6 +197,7 @@ int main(int argc, char *argv[])
       mumps.SetOperator(*HypreMat);
       mumps.Mult(B,X);
    }
+   cout << "X norm = " << X.Norml2() << endl;
 
 
    // double overlap = 7; // in degrees;
@@ -218,16 +228,23 @@ int main(int argc, char *argv[])
    //    DofMapOvlpTest(*fespaces[i],rdofs);
    //    cin.get();
    // }
+   // a.RecoverFEMSolution(X, b, x);
 
 
-   int nrsubdomains = 2;
+   int nrsubdomains = 3;
    ToroidST * STSolver = new ToroidST(&a,apml_thickness,omega,nrsubdomains);
-   STSolver->Mult(B,X);
+   STSolver->Mult(B,Y);
    delete STSolver;
 
+   cout << "Y norm = " << Y.Norml2() << endl;
 
 
-   a.RecoverFEMSolution(X, b, x);
+   cin.get();
+
+   a.RecoverFEMSolution(Y, b, x);
+
+
+
 
 
    // 16. Send the solution by socket to a GLVis server.
