@@ -3432,12 +3432,10 @@ public:
 
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const;
-   /*
+
    virtual void ProjectGrad(const FiniteElement &fe,
                             ElementTransformation &Trans,
-                            DenseMatrix &grad) const
-   { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
-   */
+                            DenseMatrix &grad) const;
 };
 
 /// Arbitrary order Nedelec 3D elements in 2D on a triangle

@@ -12948,6 +12948,27 @@ void ND_R2D_FiniteElement::Project(VectorCoefficient &vc,
 
 }
 
+void ND_R2D_FiniteElement::ProjectGrad(const FiniteElement &fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &grad) const
+{
+   MFEM_ASSERT(fe.GetMapType() == VALUE, "");
+
+   DenseMatrix dshape(fe.GetDof(), fe.GetDim());
+   Vector grad_k(fe.GetDof());
+
+   grad.SetSize(dof, fe.GetDof());
+   for (int k = 0; k < dof; k++)
+   {
+      fe.CalcDShape(Nodes.IntPoint(k), dshape);
+      dshape.Mult(tk + dof2tk[k]*vdim, grad_k);
+      for (int j = 0; j < grad_k.Size(); j++)
+      {
+         grad(k,j) = (fabs(grad_k(j)) < 1e-12) ? 0.0 : grad_k(j);
+      }
+   }
+}
+
 const double ND_R2D_TriangleElement::tk_t[15] =
 { 1.,0.,0.,  -1.,1.,0.,  0.,-1.,0.,  0.,1.,0., 0.,0.,1. };
 
