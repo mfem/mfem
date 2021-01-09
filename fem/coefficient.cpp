@@ -627,6 +627,26 @@ void MatrixSumCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
    M.Add(alpha, ma);
 }
 
+MatrixProductCoefficient::MatrixProductCoefficient(MatrixCoefficient &A,
+                                                   MatrixCoefficient &B)
+   : MatrixCoefficient(A.GetHeight(), B.GetWidth()),
+     a(&A), b(&B),
+     ma(A.GetHeight(), A.GetWidth()),
+     mb(B.GetHeight(), B.GetWidth())
+{
+   MFEM_ASSERT(A.GetWidth() == B.GetHeight(),
+               "MatrixProductCoefficient:  "
+               "Arguments must have compatible dimensions.");
+}
+
+void MatrixProductCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
+                                    const IntegrationPoint &ip)
+{
+   a->Eval(ma, T, ip);
+   b->Eval(mb, T, ip);
+   Mult(ma, mb, M);
+}
+
 ScalarMatrixProductCoefficient::ScalarMatrixProductCoefficient(
    double A,
    MatrixCoefficient &B)
