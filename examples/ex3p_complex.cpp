@@ -68,12 +68,14 @@ public:
                   Im->Height() == Im->Width(), "");
       MFEM_VERIFY(this->Height() == A.Height(), "");
 
-      // Create CG solver for real operator aI + A_Re in complex space.
+      // Create CG solver for real operator aV + A_Re in complex space.
 
-      SumOperator *sumOpRe = new SumOperator(new IdentityOperator(this->Height()),
-                                             &A_Re, false, false, a, 1.0);
-      SumOperator *sumOpIm = new SumOperator(new IdentityOperator(this->Height()),
-                                             &A_Im, false, false, a, 1.0);
+      V = useIdentityV ? (Operator*) new IdentityOperator(this->Height()) :
+          (Operator*) &A_Re;
+
+      SumOperator *sumOpRe = new SumOperator(V, &A_Re, false, false, a, 1.0);
+
+      SumOperator *sumOpIm = new SumOperator(V, &A_Im, false, false, a, 1.0);
 
       CGSolver *cg = new CGSolver(MPI_COMM_WORLD);
       cg->SetRelTol(1e-12);
@@ -89,7 +91,8 @@ public:
       cgi->SetMaxIter(1000);
       cgi->SetPrintLevel(0);
       cgi->SetOperator(*sumOpIm);
-      if (prec_Im) { cgi->SetPreconditioner(*prec_Im); }
+      if (prec_Im && useIdentityV) { cgi->SetPreconditioner(*prec_Im); }
+      if (!useIdentityV) { cgi->SetPreconditioner(*prec_Re); }
 
       /*
       // For negative definite imaginary part, but then PMHSS does not work?
@@ -122,8 +125,6 @@ public:
       const double initNorm = x.Norml2();
       mfem::out << "MHSS RHS norm " << initNorm << '\n';
 
-      // TODO: Using V = A
-
       // With V = I, use modified HSS (MHSS) from Bai, Benzi, Chen 2010.
       y = 0.0;
       for (int it=0; it<maxiter; ++it)
@@ -139,7 +140,9 @@ public:
          }
 
          rhs += x;
-         rhs.Add(a, y);
+
+         V->Mult(y, u);
+         rhs.Add(a, u);
 
          SRe->Mult(rhs, u);
 
@@ -153,7 +156,8 @@ public:
             rhs[n+j] = y[j] - x[j];
          }
 
-         rhs.Add(a, u);
+         V->Mult(u, y);
+         rhs.Add(a, y);
 
          SIm->Mult(rhs, y);
 
@@ -177,6 +181,9 @@ private:
    const int n;
 
    const double tol = 1.0e-8;
+
+   const bool useIdentityV = false;
+   Operator *V = NULL;
 
    Solver *SRe = NULL;
    Solver *SIm = NULL;
@@ -330,7 +337,7 @@ int main(int argc, char *argv[])
    //     operator curl muinv curl + sigma I, by adding the curl-curl and the
    //     mass domain integrators.
    Coefficient *muinv = new ConstantCoefficient(1.0);
-   Coefficient *sigma = new ConstantCoefficient(omega*omega);
+   Coefficient *sigma = new ConstantCoefficient(-omega*omega);
    Coefficient *abssigma = new ConstantCoefficient(omega*omega);
    Coefficient *im = new ConstantCoefficient(omega);
    Coefficient *imabs = new ConstantCoefficient(omega);
@@ -417,7 +424,8 @@ int main(int argc, char *argv[])
 
       //Complex_PMHSS PMHSS(A_Re, A_Im, &BlockDP, &BlockDP_Im);
       //Complex_PMHSS PMHSS(A_Re, A_Im, &BlockDP, NULL, 2.0 * omega);
-      Complex_PMHSS PMHSS(A_Re, A_Im, &BlockDP, NULL, omega);
+      //Complex_PMHSS PMHSS(A_Re, A_Im, &BlockDP, NULL, omega);
+      Complex_PMHSS PMHSS(A_Re, A_Im, &BlockDP, NULL, 1.0);
 
       GMRESSolver gmres(MPI_COMM_WORLD);
       gmres.SetPrintLevel(1);
