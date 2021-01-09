@@ -1146,7 +1146,6 @@ void VectorFiniteElement::ProjectCurl_RT(
       }
    }
 }
-
 void VectorFiniteElement::Project_ND(
    const double *tk, const Array<int> &d2t,
    VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
@@ -13502,6 +13501,27 @@ void RT_R2D_FiniteElement::Project(VectorCoefficient &vc,
 
       dofs(k) = Trans.AdjugateJacobian().InnerProduct(vk2, n2) +
                 Trans.Weight() * vk3(2) * n3(2);
+   }
+}
+
+void RT_R2D_FiniteElement::ProjectCurl(const FiniteElement &fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &curl) const
+{
+   DenseMatrix curl_shape(fe.GetDof(), fe.GetVDim());
+   Vector curl_k(fe.GetDof());
+
+   double * nk_ptr = const_cast<double*>(nk);
+
+   curl.SetSize(dof, fe.GetDof());
+   for (int k = 0; k < dof; k++)
+   {
+      fe.CalcCurlShape(Nodes.IntPoint(k), curl_shape);
+      curl_shape.Mult(nk_ptr + dof2nk[k] * 3, curl_k);
+      for (int j = 0; j < curl_k.Size(); j++)
+      {
+         curl(k,j) = (fabs(curl_k(j)) < 1e-12) ? 0.0 : curl_k(j);
+      }
    }
 }
 

@@ -3525,6 +3525,10 @@ public:
 
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void ProjectCurl(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &curl) const;
 };
 
 /// Arbitrary order Raviart-Thomas 3D elements in 2D on a triangle
