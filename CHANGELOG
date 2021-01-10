@@ -37,6 +37,7 @@ Version 4.2.1 (development)
 
 - Gitlab CI: use Spack (and Uberenv) to automate the build of TPLs.
 
+
 Version 4.2, released on October 30, 2020
 =========================================
 

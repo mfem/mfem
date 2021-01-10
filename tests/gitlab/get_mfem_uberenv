@@ -11,7 +11,7 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-# This script is meant to be lauched from the root directory of MFEM in order
+# This script is meant to be launched from the root directory of MFEM in order
 # to fetch a copy of uberenv configured for MFEM.
 
 set -o errexit
