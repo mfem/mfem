@@ -355,7 +355,7 @@ class SumIntegrator : public BilinearFormIntegrator
 {
 private:
    int own_integrators;
-   DenseMatrix elem_mat;
+   mutable DenseMatrix elem_mat;
    Array<BilinearFormIntegrator*> integrators;
 
 public:
@@ -367,6 +367,55 @@ public:
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+
+   virtual void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
+                                   const FiniteElement &test_fe1,
+                                   const FiniteElement &test_fe2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace& fes);
+
+   virtual void AssembleDiagonalPA(Vector &diag);
+
+   virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes);
+
+   virtual void AssemblePABoundaryFaces(const FiniteElementSpace &fes);
+
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+
+   virtual void AddMultPA(const Vector& x, Vector& y) const;
+
+   virtual void AssembleMF(const FiniteElementSpace &fes);
+
+   virtual void AddMultMF(const Vector &x, Vector &y) const;
+
+   virtual void AddMultTransposeMF(const Vector &x, Vector &y) const;
+
+   virtual void AssembleDiagonalMF(Vector &diag);
+
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                           const bool add);
+
+   virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes,
+                                        Vector &ea_data_int,
+                                        Vector &ea_data_ext,
+                                        const bool add);
+
+   virtual void AssembleEABoundaryFaces(const FiniteElementSpace &fes,
+                                        Vector &ea_data_bdr,
+                                        const bool add);
 
    virtual ~SumIntegrator();
 };
@@ -1994,6 +2043,8 @@ public:
 
    virtual void AddMultPA(const Vector&, Vector&) const;
 
+   virtual void AddMultTransposePA(const Vector&, Vector&) const;
+
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe);
 };
@@ -2057,6 +2108,8 @@ public:
 
    virtual void AddMultPA(const Vector&, Vector&) const;
 
+   virtual void AddMultTransposePA(const Vector&, Vector&) const;
+
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
                                          ElementTransformation &Trans);
@@ -2116,6 +2169,17 @@ public:
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
                                          ElementTransformation &Trans);
+};
+
+// Alias for @ConvectionIntegrator.
+using NonconservativeConvectionIntegrator = ConvectionIntegrator;
+
+/// -alpha (u, q . grad v), negative transpose of ConvectionIntegrator
+class ConservativeConvectionIntegrator : public TransposeIntegrator
+{
+public:
+   ConservativeConvectionIntegrator(VectorCoefficient &q, double a = 1.0)
+      : TransposeIntegrator(new ConvectionIntegrator(q, -a)) { }
 };
 
 /// alpha (q . grad u, v) using the "group" FE discretization
@@ -2685,7 +2749,13 @@ public:
 
     When combined with the transpose of ConvectionIntegrator integrator, the
     coefficients alpha=1.0, beta=0.5 can be used to implement the upwind flux
-    and outflow boundary conditions in conservative form.
+    and outflow boundary conditions in conservative form. Setting beta=0.0
+    results in a centered flux.
+
+    For the non-conservative formulation of convection using
+    ConvectionIntegrator, the transpose of this form with alpha=-1.0, beta=0.5
+    can be used to implement the upwind flux, see
+    NonconservativeDGTraceIntegrator and ex9 and ex9p.
     */
 class DGTraceIntegrator : public BilinearFormIntegrator
 {
@@ -2703,13 +2773,17 @@ private:
    Vector shape1, shape2;
 
 public:
-   /// Construct integrator with rho = 1.
-   DGTraceIntegrator(VectorCoefficient &_u, double a, double b)
-   { rho = NULL; u = &_u; alpha = a; beta = b; }
+   /// Construct integrator with rho = 1, b = 0.5*a.
+   DGTraceIntegrator(VectorCoefficient &u_, double a)
+   { rho = NULL; u = &u_; alpha = a; beta = 0.5*a; }
 
-   DGTraceIntegrator(Coefficient &_rho, VectorCoefficient &_u,
+   /// Construct integrator with rho = 1.
+   DGTraceIntegrator(VectorCoefficient &u_, double a, double b)
+   { rho = NULL; u = &u_; alpha = a; beta = b; }
+
+   DGTraceIntegrator(Coefficient &_rho, VectorCoefficient &u_,
                      double a, double b)
-   { rho = &_rho; u = &_u; alpha = a; beta = b; }
+   { rho = &_rho; u = &u_; alpha = a; beta = b; }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
@@ -2741,6 +2815,30 @@ public:
 
 private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);
+};
+
+// Alias for @a DGTraceIntegrator.
+using ConservativeDGTraceIntegrator = DGTraceIntegrator;
+
+/** Integrator that represents the face terms used for the non-conservative
+    DG discretization of the convection equation:
+    -alpha < rho_u (u.n) {v},[w] > + beta < rho_u |u.n| [v],[w] >.
+
+    This integrator can be used with alpha=1.0, beta=0.5, together with
+    ConvectionIntegrator to implement an upwind DG discretization in
+    non-conservative form, see ex9 and ex9p. */
+class NonconservativeDGTraceIntegrator : public TransposeIntegrator
+{
+public:
+   NonconservativeDGTraceIntegrator(VectorCoefficient &u, double a)
+      : TransposeIntegrator(new DGTraceIntegrator(u, -a, 0.5*a)) { }
+
+   NonconservativeDGTraceIntegrator(VectorCoefficient &u, double a, double b)
+      : TransposeIntegrator(new DGTraceIntegrator(u, -a, b)) { }
+
+   NonconservativeDGTraceIntegrator(Coefficient &rho, VectorCoefficient &u,
+                                    double a, double b)
+      : TransposeIntegrator(new DGTraceIntegrator(rho, u, -a, b)) { }
 };
 
 /** Integrator for the DG form:

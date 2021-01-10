@@ -229,6 +229,159 @@ void SumIntegrator::AssembleElementMatrix(
    }
 }
 
+void SumIntegrator::AssembleElementMatrix2(
+   const FiniteElement &el1, const FiniteElement &el2,
+   ElementTransformation &Trans, DenseMatrix &elmat)
+{
+   MFEM_ASSERT(integrators.Size() > 0, "empty SumIntegrator.");
+
+   integrators[0]->AssembleElementMatrix2(el1, el2, Trans, elmat);
+   for (int i = 1; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssembleElementMatrix2(el1, el2, Trans, elem_mat);
+      elmat += elem_mat;
+   }
+}
+
+void SumIntegrator::AssembleFaceMatrix(
+   const FiniteElement &el1, const FiniteElement &el2,
+   FaceElementTransformations &Trans, DenseMatrix &elmat)
+{
+   MFEM_ASSERT(integrators.Size() > 0, "empty SumIntegrator.");
+
+   integrators[0]->AssembleFaceMatrix(el1, el2, Trans, elmat);
+   for (int i = 1; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssembleFaceMatrix(el1, el2, Trans, elem_mat);
+      elmat += elem_mat;
+   }
+}
+
+void SumIntegrator::AssembleFaceMatrix(
+   const FiniteElement &tr_fe,
+   const FiniteElement &te_fe1, const FiniteElement &te_fe2,
+   FaceElementTransformations &Trans, DenseMatrix &elmat)
+{
+   MFEM_ASSERT(integrators.Size() > 0, "empty SumIntegrator.");
+
+   integrators[0]->AssembleFaceMatrix(tr_fe, te_fe1, te_fe2, Trans, elmat);
+   for (int i = 1; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssembleFaceMatrix(tr_fe, te_fe1, te_fe2, Trans, elem_mat);
+      elmat += elem_mat;
+   }
+}
+
+void SumIntegrator::AssemblePA(const FiniteElementSpace& fes)
+{
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssemblePA(fes);
+   }
+}
+
+void SumIntegrator::AssembleDiagonalPA(Vector &diag)
+{
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssembleDiagonalPA(diag);
+   }
+}
+
+void SumIntegrator::AssemblePAInteriorFaces(const FiniteElementSpace &fes)
+{
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssemblePAInteriorFaces(fes);
+   }
+}
+
+void SumIntegrator::AssemblePABoundaryFaces(const FiniteElementSpace &fes)
+{
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssemblePABoundaryFaces(fes);
+   }
+}
+
+void SumIntegrator::AddMultPA(const Vector& x, Vector& y) const
+{
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->AddMultPA(x, y);
+   }
+}
+
+void SumIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
+{
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->AddMultTransposePA(x, y);
+   }
+}
+
+void SumIntegrator::AssembleMF(const FiniteElementSpace &fes)
+{
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssembleMF(fes);
+   }
+}
+
+void SumIntegrator::AddMultMF(const Vector& x, Vector& y) const
+{
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->AddMultTransposeMF(x, y);
+   }
+}
+
+void SumIntegrator::AddMultTransposeMF(const Vector &x, Vector &y) const
+{
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->AddMultMF(x, y);
+   }
+}
+
+void SumIntegrator::AssembleDiagonalMF(Vector &diag)
+{
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssembleDiagonalMF(diag);
+   }
+}
+
+void SumIntegrator::AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                               const bool add)
+{
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssembleEA(fes, emat, add);
+   }
+}
+
+void SumIntegrator::AssembleEAInteriorFaces(const FiniteElementSpace &fes,
+                                            Vector &ea_data_int,
+                                            Vector &ea_data_ext,
+                                            const bool add)
+{
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssembleEAInteriorFaces(fes,ea_data_int,ea_data_ext,add);
+   }
+}
+
+void SumIntegrator::AssembleEABoundaryFaces(const FiniteElementSpace &fes,
+                                            Vector &ea_data_bdr,
+                                            const bool add)
+{
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssembleEABoundaryFaces(fes, ea_data_bdr, add);
+   }
+}
+
 SumIntegrator::~SumIntegrator()
 {
    if (own_integrators)
