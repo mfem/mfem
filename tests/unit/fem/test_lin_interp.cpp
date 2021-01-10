@@ -474,11 +474,10 @@ TEST_CASE("Identity Linear Interpolators",
                REQUIRE( f2.ComputeHDivError(&FCoef, &divFCoef) < tol );
             }
          }
-         /// The following tests would fail.  The reason for the
-         /// failure would not be obvious from the user's point of
-         /// view.  I recommend keeping these tests here as a reminder
-         /// that we should consider supporting this, or a very
-         /// similar, usage.
+         /// The following tests would fail. The reason for the failure would
+         /// not be obvious from the user's point of view. I recommend keeping
+         /// these tests here as a reminder that we should consider supporting
+         /// this, or a very similar, usage.
          /*
               SECTION("Mapping to L2^d")
               {
