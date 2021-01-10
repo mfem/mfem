@@ -51,6 +51,7 @@ set(UNIT_TESTS_SRCS
   fem/test_intrules.cpp
   fem/test_intruletypes.cpp
   fem/test_inversetransform.cpp
+  fem/test_lexicographic_ordering.cpp
   fem/test_lin_interp.cpp
   fem/test_linear_fes.cpp
   fem/test_operatorjacobismoother.cpp
