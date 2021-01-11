@@ -21,62 +21,6 @@
 namespace mfem
 {
 
-/// Wraps a CeedOperator in an mfem::Operator
-class MFEMCeedOperator : public Operator
-{
-public:
-   MFEMCeedOperator(CeedOperator oper, const Array<int> &ess_tdofs_,
-                    const Operator *P_);
-   MFEMCeedOperator(CeedOperator oper, const Operator *P_);
-   ~MFEMCeedOperator();
-   void Mult(const Vector& x, Vector& y) const;
-   CeedOperator GetCeedOperator() const;
-   const Array<int> &GetEssentialTrueDofs() const;
-   const Operator *GetProlongation() const;
-private:
-   Array<int> ess_tdofs;
-   const Operator *P;
-   class UnconstrainedMFEMCeedOperator *unconstrained_op;
-   ConstrainedOperator *constrained_op;
-};
-
-/** @brief Multigrid interpolation operator in Ceed framework
-
-    Interpolation/restriction has two components, an element-wise
-    interpolation and then a scaling to correct multiplicity
-    on shared ldofs. This encapsulates those two in one object
-    using the MFEM Operator interface. */
-class MFEMCeedInterpolation : public mfem::Operator
-{
-public:
-   MFEMCeedInterpolation(
-      Ceed ceed, CeedBasis basisctof,
-      CeedElemRestriction erestrictu_coarse,
-      CeedElemRestriction erestrictu_fine);
-
-   ~MFEMCeedInterpolation();
-
-   virtual void Mult(const mfem::Vector& x, mfem::Vector& y) const;
-
-   virtual void MultTranspose(const mfem::Vector& x, mfem::Vector& y) const;
-
-   using Operator::SetupRAP;
-private:
-   int Initialize(Ceed ceed, CeedBasis basisctof,
-                  CeedElemRestriction erestrictu_coarse,
-                  CeedElemRestriction erestrictu_fine);
-   int Finalize();
-
-   CeedBasis basisctof_;
-   CeedVector u_, v_;
-
-   bool owns_basis_;
-
-   CeedQFunction qf_restrict, qf_prolong;
-   CeedOperator op_interp, op_restrict;
-   CeedVector fine_multiplicity_r;
-   CeedVector fine_work;
-};
 
 }
 
