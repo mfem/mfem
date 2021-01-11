@@ -1,306 +1,194 @@
-#include "nldist.hpp"
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
-double Gyroid(const mfem::Vector &xx)
+#include "dist_solver.hpp"
+
+using namespace mfem;
+
+HeatDistanceSolver::HeatDistanceSolver(ParMesh &pmesh, int order,
+                                       double diff_coeff)
+   : DistanceSolver(pmesh, order),
+     source(&pfes), diffused_source(&pfes),
+     parameter_t(diff_coeff), smooth_steps(0), transform(true)
 {
-    double rez;
-    double pp=4*M_PI;
+   // Compute average mesh size (assumes similar cells).
+   double loc_area = 0.0;
+   for (int i = 0; i < pmesh.GetNE(); i++)
+   {
+      loc_area += pmesh.GetElementVolume(i);
+   }
+   double glob_area;
+   MPI_Allreduce(&loc_area, &glob_area, 1, MPI_DOUBLE,
+                 MPI_SUM, pfes.GetComm());
 
-    mfem::Vector lvec(3);
-    lvec=0.0;
-    for(int i=0;i<xx.Size();i++)
-    {
-        lvec[i]=xx[i]*pp;
-    }
-    rez=sin(lvec[0])*cos(lvec[1])+sin(lvec[1])*cos(lvec[2])+sin(lvec[2])*cos(lvec[0]);
-    return rez;
+   const int glob_zones = pmesh.GetGlobalNE();
+   switch (pmesh.GetElementBaseGeometry(0))
+   {
+      case Geometry::SEGMENT:
+         dx = glob_area / glob_zones; break;
+      case Geometry::SQUARE:
+         dx = sqrt(glob_area / glob_zones); break;
+      case Geometry::TRIANGLE:
+         dx = sqrt(2.0 * glob_area / glob_zones); break;
+      case Geometry::CUBE:
+         dx = pow(glob_area / glob_zones, 1.0/3.0); break;
+      case Geometry::TETRAHEDRON:
+         dx = pow(6.0 * glob_area / glob_zones, 1.0/3.0); break;
+      default: MFEM_ABORT("Unknown zone type!");
+   }
+   dx /= order;
+
+
+   // List of true essential boundary dofs.
+   if (pmesh.bdr_attributes.Size())
+   {
+      Array<int> ess_bdr(pmesh.bdr_attributes.Max());
+      ess_bdr = 1;
+      pfes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   }
 }
 
-
-double Sph(const mfem::Vector &xx)
+void DiffuseField(ParGridFunction &field, int smooth_steps)
 {
-    double R=0.4;
-    mfem::Vector lvec(3);
-    lvec=0.0;
-    for(int i=0;i<xx.Size();i++)
-    {
-        lvec[i]=xx[i];
-    }
+   // Setup the Laplacian operator.
+   ParBilinearForm *Lap = new ParBilinearForm(field.ParFESpace());
+   Lap->AddDomainIntegrator(new DiffusionIntegrator());
+   Lap->Assemble();
+   Lap->Finalize();
+   HypreParMatrix *A = Lap->ParallelAssemble();
 
-    return lvec[0]*lvec[0]+lvec[1]*lvec[1]+lvec[2]*lvec[2]-R*R;
+   HypreSmoother *S = new HypreSmoother(*A,0,smooth_steps);
+   S->iterative_mode = true;
+
+   Vector tmp(A->Width());
+   field.SetTrueVector();
+   Vector fieldtrue = field.GetTrueVector();
+   tmp = 0.0;
+   S->Mult(tmp, fieldtrue);
+
+   field.SetFromTrueDofs(fieldtrue);
+
+   delete S;
+   delete Lap;
 }
 
-void DGyroid(const mfem::Vector &xx, mfem::Vector &vals)
+void HeatDistanceSolver::ComputeDistance(Coefficient &zero_level_set,
+                                       ParGridFunction &distance)
 {
-    vals.SetSize(xx.Size());
-    vals=0.0;
+   distance.SetSpace(&pfes);
+   source.ProjectCoefficient(zero_level_set);
 
-    double pp=4*M_PI;
+   // Optional smoothing of the initial level set.
+   if (smooth_steps > 0) { DiffuseField(source, smooth_steps); }
 
-    mfem::Vector lvec(3);
-    lvec=0.0;
-    for(int i=0;i<xx.Size();i++)
-    {
-        lvec[i]=xx[i]*pp;
-    }
+   // Transform so that the peak is at 0.
+   // Assumes range [-1, 1].
+   if (transform)
+   {
+      for (int i = 0; i < source.Size(); i++)
+      {
+         const double x = source(i);
+         source(i) = ((x < -1.0) || (x > 1.0)) ? 0.0 : (1.0 - x) * (1.0 + x);
+      }
+   }
 
-    vals[0]=cos(lvec[0])*cos(lvec[1])-sin(lvec[2])*sin(lvec[0]);
-    vals[1]=-sin(lvec[0])*sin(lvec[1])+cos(lvec[1])*cos(lvec[2]);
-    if(xx.Size()>2)
-    {
-        vals[2]=-sin(lvec[1])*sin(lvec[2])+cos(lvec[2])*cos(lvec[0]);
-    }
+   // Solver.
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetRelTol(1e-12);
+   cg.SetMaxIter(100);
+   cg.SetPrintLevel(1);
+   OperatorPtr A;
+   Vector B, X;
 
-    vals*=pp;
-}
+   // Step 1 - diffuse.
+   {
+      // Set up RHS.
+      ParLinearForm b1(&pfes);
+      GridFunctionCoefficient src_coeff(&source);
+      b1.AddDomainIntegrator(new DomainLFIntegrator(src_coeff));
+      b1.Assemble();
 
-int main(int argc, char *argv[])
-{
-    // 1. Initialize MPI
-    int num_procs, myrank;
-    MPI_Init(&argc, &argv);
-    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+      // Diffusion and mass terms in the LHS.
+      ParBilinearForm a1(&pfes);
+      a1.AddDomainIntegrator(new MassIntegrator);
+      const double dt = parameter_t * dx * dx;
+      ConstantCoefficient t_coeff(dt);
+      a1.AddDomainIntegrator(new DiffusionIntegrator(t_coeff));
+      a1.Assemble();
 
-    std::cout<<"nproc="<<num_procs<<" myrank="<<myrank<<std::endl<<std::flush;
+      // Solve with Dirichlet BC.
+      ParGridFunction u_dirichlet(&pfes);
+      u_dirichlet = 0.0;
+      a1.FormLinearSystem(ess_tdof_list, u_dirichlet, b1, A, X, B);
+      Solver *prec = new HypreBoomerAMG;
+      cg.SetPreconditioner(*prec);
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+      a1.RecoverFEMSolution(X, b1, u_dirichlet);
+      delete prec;
 
-    // 2. Parse command-line options
-    const char *mesh_file = "../../data/beam-tet.mesh";
-    int ser_ref_levels = 1;
-    int par_ref_levels = 1;
-    int order = 2;
-    bool visualization = true;
-    double newton_rel_tol = 1e-4;
-    double newton_abs_tol = 1e-6;
-    int newton_iter = 10;
-    int print_level = 0;
+      // Diffusion and mass terms in the LHS.
+      ParBilinearForm a_n(&pfes);
+      a_n.AddDomainIntegrator(new MassIntegrator);
+      a_n.AddDomainIntegrator(new DiffusionIntegrator(t_coeff));
+      a_n.Assemble();
 
+      // Solve with Neumann BC.
+      ParGridFunction u_neumann(&pfes);
+      ess_tdof_list.DeleteAll();
+      a_n.FormLinearSystem(ess_tdof_list, u_neumann, b1, A, X, B);
+      Solver *prec2 = new HypreBoomerAMG;
+      cg.SetPreconditioner(*prec2);
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+      a_n.RecoverFEMSolution(X, b1, u_neumann);
+      delete prec2;
 
-    mfem::OptionsParser args(argc, argv);
-    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
-    args.AddOption(&ser_ref_levels,
-                      "-rs",
-                      "--refine-serial",
-                      "Number of times to refine the mesh uniformly in serial.");
-    args.AddOption(&par_ref_levels,
-                      "-rp",
-                      "--refine-parallel",
-                      "Number of times to refine the mesh uniformly in parallel.");
-    args.AddOption(&order,
-                      "-o",
-                      "--order",
-                      "Order (degree) of the finite elements.");
-    args.AddOption(&visualization,
-                      "-vis",
-                      "--visualization",
-                      "-no-vis",
-                      "--no-visualization",
-                      "Enable or disable GLVis visualization.");
-    args.AddOption(&newton_rel_tol,
-                      "-rel",
-                      "--relative-tolerance",
-                      "Relative tolerance for the Newton solve.");
-    args.AddOption(&newton_abs_tol,
-                      "-abs",
-                      "--absolute-tolerance",
-                      "Absolute tolerance for the Newton solve.");
-    args.AddOption(&newton_iter,
-                      "-it",
-                      "--newton-iterations",
-                      "Maximum iterations for the Newton solve.");
+      for (int i = 0; i < diffused_source.Size(); i++)
+      {
+         diffused_source(i) = 0.5 * (u_neumann(i) + u_dirichlet(i));
+      }
+   }
 
+   // Step 2 - solve for the distance using the normalized gradient.
+   {
+      // RHS - normalized gradient.
+      ParLinearForm b2(&pfes);
+      GradientCoefficient grad_u(diffused_source,
+                                 pfes.GetMesh()->Dimension());
+      b2.AddDomainIntegrator(new DomainLFGradIntegrator(grad_u));
+      b2.Assemble();
 
-    args.Parse();
-    if (!args.Good())
-    {
-        if (myrank == 0)
-        {
-            args.PrintUsage(std::cout);
-        }
-        MPI_Finalize();
-        return 1;
-    }
-    if (myrank == 0)
-    {
-        args.PrintOptions(std::cout);
-    }
+      // LHS - diffusion.
+      ParBilinearForm a2(&pfes);
+      a2.AddDomainIntegrator(new DiffusionIntegrator);
+      a2.Assemble();
 
-    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
-    //    can handle triangular, quadrilateral, tetrahedral and hexahedral meshes
-    //    with the same code.
-    mfem::Mesh *mesh = new mfem::Mesh(mesh_file, 1, 1);
-    int dim = mesh->Dimension();
+      // No BC.
+      Array<int> no_ess_tdofs;
 
-    // 4. Refine the mesh in serial to increase the resolution. In this example
-    //    we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
-    //    a command-line parameter.
-    for (int lev = 0; lev < ser_ref_levels; lev++)
-    {
-        mesh->UniformRefinement();
-    }
+      a2.FormLinearSystem(no_ess_tdofs, distance, b2, A, X, B);
 
+      Solver *prec2 = new HypreBoomerAMG;
+      cg.SetPreconditioner(*prec2);
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+      a2.RecoverFEMSolution(X, b2, distance);
+      delete prec2;
+   }
 
-    // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
-    //    this mesh further in parallel to increase the resolution. Once the
-    //    parallel mesh is defined, the serial mesh can be deleted.
-    mfem::ParMesh *pmesh = new mfem::ParMesh(MPI_COMM_WORLD, *mesh);
-    delete mesh;
-    for (int lev = 0; lev < par_ref_levels; lev++)
-    {
-        pmesh->UniformRefinement();
-    }
-
-    // 7. Define the finite element spaces for the solution
-    mfem::H1_FECollection fecp(order, dim);
-    mfem::L2_FECollection fecv(order-1, dim);
-    mfem::ParFiniteElementSpace fespacep(pmesh, &fecp, 1, mfem::Ordering::byVDIM);
-    mfem::ParFiniteElementSpace fespacev(pmesh, &fecv, dim, mfem::Ordering::byVDIM);
-    HYPRE_Int glob_size = fespacep.GlobalTrueVSize();
-    if (myrank == 0)
-    {
-        std::cout << "Number of finite element unknowns: " << glob_size
-                  << std::endl;
-    }
-
-    // 8. Define the solution vector x as a parallel finite element grid function
-    //     corresponding to fespace. Initialize x with initial guess of zero,
-    //     which satisfies the boundary conditions.
-
-    mfem::ParGridFunction w(&fespacep);
-    mfem::ParGridFunction x(&fespacep);
-    x = 1.0;
-    mfem::HypreParVector *sv = x.GetTrueDofs();
-
-    mfem::ParNonlinearForm* nf=new mfem::ParNonlinearForm(&fespacep);
-
-
-    //define the function coefficeints
-    mfem::FunctionCoefficient ffc(Gyroid); //signed function
-    //mfem::FunctionCoefficient ffc(Sph); //signed function
-    //mfem::VectorFunctionCoefficient dfc(dim,DGyroid); //gradient
-    //mfem::UGradCoefficient ugc(ffc,dfc);
-
-    //add the integrator
-    //nf->AddDomainIntegrator(new mfem::PUMPLaplacian(&uuc,&guc,false));
-    nf->AddDomainIntegrator(new mfem::ScreenedPoisson(ffc,0.05));
-
-
-
-    //define the solvers
-    mfem::HypreBoomerAMG* prec=new mfem::HypreBoomerAMG();
-    prec->SetPrintLevel(print_level);
-
-    mfem::GMRESSolver *gmres;
-    gmres = new mfem::GMRESSolver(MPI_COMM_WORLD);
-    gmres->SetAbsTol(newton_abs_tol/10);
-    gmres->SetRelTol(newton_rel_tol/10);
-    gmres->SetMaxIter(100);
-    gmres->SetPrintLevel(print_level);
-    gmres->SetPreconditioner(*prec);
-
-    mfem::NewtonSolver *ns;
-    ns = new mfem::NewtonSolver(MPI_COMM_WORLD);
-
-    ns->iterative_mode = true;
-    ns->SetSolver(*gmres);
-    ns->SetOperator(*nf);
-    ns->SetPrintLevel(print_level);
-    ns->SetRelTol(newton_rel_tol);
-    ns->SetAbsTol(newton_abs_tol);
-    ns->SetMaxIter(newton_iter);
-
-
-    mfem::Vector b; //RHS is zero
-    ns->Mult(b, *sv);
-    w.SetFromTrueDofs(*sv);
-
-    mfem::PDEFilter* filt= new mfem::PDEFilter(*pmesh, 0.05);
-    filt->Filter(ffc,w);
-
-
-    //w.ProjectCoefficient(ffc);
-    mfem::GridFunctionCoefficient wgf(&w);
-    mfem::GradientGridFunctionCoefficient gwf(&w);
-
-
-    //Now we can construct the shape functions
-    mfem::Array< mfem::NonlinearFormIntegrator * >* dnfi= nf->GetDNFI();
-    delete (*dnfi)[0];
-    mfem::PUMPLaplacian* pint=new mfem::PUMPLaplacian(&wgf,&gwf,false);
-    (*dnfi)[0]=pint;
-    pint->SetPower(2);
-    ns->Mult(b, *sv);
-    /*
-    pint->SetPower(3);
-    ns->Mult(b, *sv);
-    pint->SetPower(4);
-    ns->Mult(b, *sv);
-    pint->SetPower(5);
-    ns->Mult(b, *sv);
-    pint->SetPower(6);
-    ns->Mult(b, *sv);
-    pint->SetPower(7);
-    ns->Mult(b, *sv);
-    pint->SetPower(8);
-    ns->Mult(b, *sv);
-    pint->SetPower(9);
-    ns->Mult(b, *sv);
-    pint->SetPower(10);
-    ns->Mult(b, *sv);
-    pint->SetPower(11);
-    ns->Mult(b, *sv);
-    pint->SetPower(12);
-    ns->Mult(b, *sv);
-    pint->SetPower(13);
-    ns->Mult(b, *sv);
-    pint->SetPower(14);
-    ns->Mult(b, *sv);
-    pint->SetPower(15);
-    ns->Mult(b, *sv);
-    pint->SetPower(16);
-    ns->Mult(b, *sv);
-    */
-
-    x.SetFromTrueDofs(*sv);
-
-
-    mfem::GridFunctionCoefficient gfx(&x);
-    mfem::PProductCoefficient tsol(wgf,gfx);
-    mfem::ParGridFunction o(&fespacep);
-    //o.ProjectCoefficient(tsol);
-
-
-    const int p = 10;
-    mfem::PLapDistanceSolver dsol(p,1,50);
-    dsol.DistanceField(ffc,o);
-
-
-    // 9. Define ParaView DataCollection
-    mfem::ParaViewDataCollection *dacol = new mfem::ParaViewDataCollection("Example71",
-                                                                  pmesh);
-
-    dacol->SetLevelsOfDetail(order);
-    dacol->RegisterField("nsol", &x);
-    dacol->RegisterField("tsol", &w);
-    dacol->RegisterField("fsol", &o);
-
-
-    //x.SetFromTrueDofs(*sv);
-    dacol->SetTime(1.0);
-    dacol->SetCycle(1);
-    dacol->Save();
-
-
-    delete dacol;
-
-    delete filt;
-    delete ns;
-    delete gmres;
-    delete prec;
-
-    delete nf;
-    delete sv;
-
-    delete pmesh;
-
-    MPI_Finalize();
+   // Rescale the distance to have minimum at zero.
+   double d_min_loc = distance.Min();
+   double d_min_glob;
+   MPI_Allreduce(&d_min_loc, &d_min_glob, 1, MPI_DOUBLE,
+                 MPI_MIN, pfes.GetComm());
+   distance -= d_min_glob;
 }

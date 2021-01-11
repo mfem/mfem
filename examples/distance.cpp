@@ -207,7 +207,7 @@ public:
    }
 };
 
-double surface_level_set(const Vector &x)
+double sine_ls(const Vector &x)
 {
    const double sine = 0.25 * std::sin(4 * M_PI * x(0));
    return (x(1) >= sine + 0.5) ? 1.0 : -1.0;
@@ -476,7 +476,7 @@ int main(int argc, char *argv[])
    ParGridFunction u(&fespace);
    if (problem == 1)
    {
-      FunctionCoefficient c(surface_level_set);
+      FunctionCoefficient c(sine_ls);
       w.ProjectCoefficient(c);
       DiffuseField(w, 1);
 

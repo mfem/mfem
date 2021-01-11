@@ -25,7 +25,7 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SHIFTED_COMMON_SRC = distfunction.cpp
+SHIFTED_COMMON_SRC = dist_solver.cpp
 SHIFTED_COMMON_OBJ = $(SHIFTED_COMMON_SRC:.cpp=.o)
 
 PAR_MINIAPPS = distance cutH1
@@ -58,6 +58,9 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
 all: $(MINIAPPS)
+
+distance: distance.cpp dist_solver.o nldist.hpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_LIB) $(MFEM_LIBS) dist_solver.o
 
 cutH1: cutH1.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_LIB) $(MFEM_LIBS)

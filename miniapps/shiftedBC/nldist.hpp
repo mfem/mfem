@@ -5,6 +5,7 @@
 #include <memory>
 #include <iostream>
 #include <fstream>
+#include "dist_solver.hpp"
 
 namespace mfem {
 
@@ -31,7 +32,6 @@ public:
         return u*c;
 
     }
-
 };
 
 
@@ -639,12 +639,13 @@ private:
 };
 
 
-class PLapDistanceSolver
+class PLapDistanceSolver : public DistanceSolver
 {
 public:
-    PLapDistanceSolver(int maxp_=30, int order_=2,
+    PLapDistanceSolver(ParMesh &pmesh, int maxp_=30, int order_=2,
                        int newton_iter_=10, double rtol=1e-7, double atol=1e-12,
                        int print_lv=0)
+       : DistanceSolver(pmesh, order_)
     {
         maxp=maxp_;
         order=order_;
@@ -667,11 +668,12 @@ public:
     void DistanceField(mfem::ParGridFunction& gfunc, mfem::ParGridFunction& fdist)
     {
         mfem::GridFunctionCoefficient gfc(&gfunc);
-        DistanceField(gfc,fdist);
+        ComputeDistance(gfc, fdist);
     }
 
-    void DistanceField(mfem::Coefficient& func, mfem::ParGridFunction& fdist)
+    void ComputeDistance(mfem::Coefficient& func, mfem::ParGridFunction& fdist)
     {
+        fdist.SetSpace(&pfes);
         mfem::ParFiniteElementSpace* fesd=fdist.ParFESpace();
         mfem::ParMesh* mesh=fesd->GetParMesh();
         int dim=mesh->Dimension();
@@ -739,6 +741,12 @@ public:
         mfem::GridFunctionCoefficient gfx(&xf);
         mfem::PProductCoefficient tsol(func,gfx);
         fdist.ProjectCoefficient(tsol);
+
+
+        for (int i = 0; i < fdist.Size(); i++)
+        {
+           fdist(i) = fabs(fdist(i));
+        }
 
         delete ns;
         delete gmres;
