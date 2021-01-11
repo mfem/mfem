@@ -1,0 +1,20 @@
+name: build-mfem
+
+on:
+  push:
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: configure
+      run: make config MFEM_USE_MPI=NO
+    - name: make
+      run: make
+    - name: check
+      run: make check
+    - name: test
+      run: make test
