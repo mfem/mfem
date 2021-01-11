@@ -183,7 +183,6 @@ int main(int argc, char *argv[])
 
 
 
-   cout << "B norm = " << B.Norml2() << endl;
 
    SparseMatrix * SpMat = (*A.As<ComplexSparseMatrix>()).GetSystemMatrix();
    // SpMat->Threshold(0.0);
@@ -231,9 +230,20 @@ int main(int argc, char *argv[])
    // a.RecoverFEMSolution(X, b, x);
 
 
-   int nrsubdomains = 3;
+   int nrsubdomains = 4;
    ToroidST * STSolver = new ToroidST(&a,apml_thickness,omega,nrsubdomains);
-   STSolver->Mult(B,Y);
+   // STSolver->Mult(B,Y);
+
+   GMRESSolver gmres;
+	// gmres.iterative_mode = true;
+   gmres.SetPreconditioner(*STSolver);
+	gmres.SetOperator(*A);
+	gmres.SetRelTol(1e-8);
+	gmres.SetMaxIter(100);
+	gmres.SetPrintLevel(1);
+	gmres.Mult(B, Y);
+
+
    delete STSolver;
 
    cout << "Y norm = " << Y.Norml2() << endl;

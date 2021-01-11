@@ -228,7 +228,6 @@ void ToroidST::Mult(const Vector & r, Vector & z) const
       // cout << "sol norm = " << sol.Norml2() << endl;
       AddMapDofs(*DofMaps0[ip],*DofMaps1[ip],sol,z);
       // cout << "z norm = " << z.Norml2() << endl;
-      // Transfer source to (backward) neighbor 
    }
    // Step 2: "Backward Sweep"
    for (int ip=nrsubdomains-1; ip>=0; ip--)
