@@ -26,8 +26,7 @@ private:
    mutable Array<Vector *> f_transf;
    void SetupSubdomainProblems();
    void SetMaxwellPmlSystemMatrix(int ip);
-   
-
+   void SourceTransfer(int ip, const Vector & sol, int direction) const;
 public:
    ToroidST(SesquilinearForm * bf_, const Vector & aPmlThickness_, 
        double omega_, int nrsubdomains_ = 2);

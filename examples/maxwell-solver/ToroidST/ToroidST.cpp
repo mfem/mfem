@@ -216,17 +216,68 @@ void ToroidST::Mult(const Vector & r, Vector & z) const
       res += *f_transf[ip];
       Vector sol(2*n);
       PmlMatInv[ip]->Mult(res,sol);
-
       // accumulate for the global correction;
       // AddMapDofs(*DofMaps1[ip],*DofMaps0[ip],sol,z);
-      AddMapDofs(*DofMaps0[ip],*DofMaps1[ip],sol,z);
-
-      cout << "res norm = " << res.Norml2() << endl;
-      cout << "sol norm = " << sol.Norml2() << endl;
-      cout << "z norm = " << z.Norml2() << endl;
       // Transfer source to (forward) neighbor
+      int direction = 0;
+      SourceTransfer(ip,sol, direction);
+      // cout << "res norm = " << res.Norml2() << endl;
+      // cout << "sol norm = " << sol.Norml2() << endl;
+      AddMapDofs(*DofMaps0[ip],*DofMaps1[ip],sol,z);
+      // cout << "z norm = " << z.Norml2() << endl;
       // Transfer source to (backward) neighbor 
    }
+   // Step 2: "Backward Sweep"
+   for (int ip=nrsubdomains-1; ip>=0; ip--)
+   {
+      int n = fespaces[ip]->GetTrueVSize();
+      Vector res(2*n); res = 0.0;
+      res += *f_transf[ip];
+      Vector sol(2*n);
+      PmlMatInv[ip]->Mult(res,sol);
+      int direction = -1;
+      SourceTransfer(ip,sol,direction);
+      AddMapDofs(*DofMaps0[ip],*DofMaps1[ip],sol,z);
+   }
+}
+
+void ToroidST::SourceTransfer(int ip, const Vector & sol, int direction) const
+{
+   // Transfer to ip+1 and ip-1
+   int ip0 = ip-1;
+   int ip1 = ip+1;
+
+   // direction : 1  - only positive
+   // direction : -1 - only negative
+   // direction : 0  - both
+
+   if (ip0 >= 0 && direction != 1);
+   {  // map sol from ip to ip0
+      int n = fespaces[ip0]->GetTrueVSize();
+      Vector sol0(2*n); sol0 = 0.0;
+      Vector Psi0(2*n);
+      MapDofs(*OvlpMaps1[ip0], *OvlpMaps0[ip0],sol,sol0);
+      PmlMat[ip0]->Mult(sol0,Psi0);
+      int direction = 1;
+      Array<int> rdofs;
+      GetRestrictionDofs(*fespaces[ip0],direction,ovlp,rdofs);
+      RestrictDofs(rdofs,f_transf[ip0]->Size()/2,Psi0);
+      *f_transf[ip0]-= Psi0;
+   }
+   if (ip1 <= nrsubdomains-1 && direction != -1)
+   {
+      int n = fespaces[ip1]->GetTrueVSize();
+      Vector sol1(2*n); sol1 = 0.0;
+      Vector Psi1(2*n);
+      MapDofs(*OvlpMaps0[ip], *OvlpMaps1[ip],sol,sol1);
+      PmlMat[ip1]->Mult(sol1,Psi1);
+      int direction = -1;
+      Array<int> rdofs;
+      GetRestrictionDofs(*fespaces[ip1],direction,ovlp,rdofs);
+      RestrictDofs(rdofs,f_transf[ip1]->Size()/2,Psi1);
+      *f_transf[ip1]-= Psi1;
+   } 
+
 }
 
 
