@@ -12,15 +12,11 @@
 #ifndef MFEM_TMOP_AMR_HPP
 #define MFEM_TMOP_AMR_HPP
 
-#include "bilinearform.hpp"
-#include "pbilinearform.hpp"
+#include "tmop_tools.hpp"
 #include "nonlinearform.hpp"
 #include "pnonlinearform.hpp"
 #include "estimators.hpp"
 #include "../mesh/mesh_operators.hpp"
-#include "tmop.hpp"
-#include "tmop_tools.hpp"
-#include "gslib.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -213,7 +209,6 @@ protected:
 #ifdef MFEM_USE_MPI
    ParMesh *pmesh;
    ParNonlinearForm *pnlf;
-   ParGridFunction *px;
    Array<ParGridFunction *> pgridfuncarr;
    Array<ParFiniteElementSpace *> pfespacearr;
 #endif
@@ -282,6 +277,7 @@ public:
 
    ~TMOPAMRSolver()
    {
+      if (!hradaptivity) { return; }
       delete tmop_dr;
       delete tmop_dr_est;
       delete tmop_r;

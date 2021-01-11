@@ -965,6 +965,7 @@ protected:
 #ifdef MFEM_USE_MPI
    ParFiniteElementSpace *ptspec_fesv; //owned, needed for derefinement to get
    //update operator.
+   ParGridFunction *pgfall;
    Array<ParGridFunction *> pgfarr; // similar to gfarr
 #endif
 
@@ -974,8 +975,6 @@ protected:
    // These flags can be used by outside functions to avoid recomputing the
    // tspec and tspec_perth fields again on the same mesh.
    bool good_tspec, good_tspec_grad, good_tspec_hess;
-   // flag used to specify if the array of gridfunctions should be updated.
-   bool gf_arr_update;
 
    // Evaluation of the discrete target specification on different meshes.
    // Owned.
@@ -1001,11 +1000,11 @@ public:
         tspec_refine(), tspec_derefine(),
         tspec_fes(NULL), tspec_fesv(NULL), c_tspec_fesv(NULL), gfall(NULL),
 #ifdef MFEM_USE_MPI
-        ptspec_fesv(NULL),// pgfall(NULL),
+        ptspec_fesv(NULL), pgfall(NULL),
 #endif
         amr_el(-1), lim_min_size(-0.1),
         good_tspec(false), good_tspec_grad(false), good_tspec_hess(false),
-        gf_arr_update(true), adapt_eval(NULL) { }
+        adapt_eval(NULL) { }
 
    virtual ~DiscreteAdaptTC();
 
@@ -1045,12 +1044,12 @@ public:
    /// Get the entire tspec.
    GridFunction *GetTSpecData() { return gfall; }
    /// Update all discrete fields based on tspec and update for AMR
-   void Update();
+   void UpdateAfterMeshTopologyChange();
 
 #ifdef MFEM_USE_MPI
    virtual void GetParDiscreteTargetSpec(ParGridFunction &tspec_, int idx);
    ParFiniteElementSpace *GetTSpecParFESpace() { return ptspec_fesv; }
-   void ParUpdate();
+   void ParUpdateAfterMeshTopologyChange();
 #endif
 
    /** Used to update the target specification after the mesh has changed. The
@@ -1252,7 +1251,7 @@ protected:
 #endif
    void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
-   void UpdateAfterMeshChange(const Vector &new_x);
+   void UpdateAfterMeshPositionChange(const Vector &new_x);
 
    void DisableLimiting()
    {

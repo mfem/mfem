@@ -424,8 +424,6 @@ int main(int argc, char *argv[])
    TargetConstructor *target_c = NULL;
    HessianCoefficient *adapt_coeff = NULL;
    H1_FECollection ind_fec(mesh_poly_deg, dim);
-   DiscreteAdaptTC *tcd = NULL;
-   AnalyticAdaptTC *tca = NULL;
    FiniteElementSpace ind_fes(mesh, &ind_fec);
    FiniteElementSpace ind_fesv(mesh, &ind_fec, dim);
    GridFunction size(&ind_fes), aspr(&ind_fes), disc(&ind_fes), ori(&ind_fes);
@@ -438,32 +436,32 @@ int main(int argc, char *argv[])
       case 4: // Analytic
       {
          target_t = TargetConstructor::GIVEN_FULL;
-         tca = new AnalyticAdaptTC(target_t);
+         AnalyticAdaptTC *tc = new AnalyticAdaptTC(target_t);
          adapt_coeff = new HessianCoefficient(dim, metric_id, hessiantype);
-         tca->SetAnalyticTargetSpec(NULL, NULL, adapt_coeff);
-         target_c = tca;
+         tc->SetAnalyticTargetSpec(NULL, NULL, adapt_coeff);
+         target_c = tc;
          break;
       }
       case 5: // Discrete size 2D
       {
          target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
-         tcd = new DiscreteAdaptTC(target_t);
+         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
          if (adapt_eval == 0)
          {
-            tcd->SetAdaptivityEvaluator(new AdvectorCG);
+            tc->SetAdaptivityEvaluator(new AdvectorCG);
          }
          else
          {
 #ifdef MFEM_USE_GSLIB
-            tcd->SetAdaptivityEvaluator(new InterpolatorFP);
+            tc->SetAdaptivityEvaluator(new InterpolatorFP);
 #else
             MFEM_ABORT("MFEM is not built with GSLIB.");
 #endif
          }
          FunctionCoefficient ind_coeff(discrete_size_2d);
          size.ProjectCoefficient(ind_coeff);
-         tcd->SetSerialDiscreteTargetSize(size);
-         target_c = tcd;
+         tc->SetSerialDiscreteTargetSize(size);
+         target_c = tc;
          break;
       }
       case 6: // Discrete size + aspect ratio - 2D
@@ -471,17 +469,17 @@ int main(int argc, char *argv[])
          GridFunction d_x(&ind_fes), d_y(&ind_fes);
 
          target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE;
-         tcd = new DiscreteAdaptTC(target_t);
+         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
          FunctionCoefficient ind_coeff(material_indicator_2d);
          disc.ProjectCoefficient(ind_coeff);
          if (adapt_eval == 0)
          {
-            tcd->SetAdaptivityEvaluator(new AdvectorCG);
+            tc->SetAdaptivityEvaluator(new AdvectorCG);
          }
          else
          {
 #ifdef MFEM_USE_GSLIB
-            tcd->SetAdaptivityEvaluator(new InterpolatorFP);
+            tc->SetAdaptivityEvaluator(new InterpolatorFP);
 #else
             MFEM_ABORT("MFEM is not built with GSLIB.");
 #endif
@@ -556,23 +554,23 @@ int main(int argc, char *argv[])
          DiffuseField(size, 2);
          DiffuseField(aspr, 2);
 
-         tcd->SetSerialDiscreteTargetSize(size);
-         tcd->SetSerialDiscreteTargetAspectRatio(aspr);
-         target_c = tcd;
+         tc->SetSerialDiscreteTargetSize(size);
+         tc->SetSerialDiscreteTargetAspectRatio(aspr);
+         target_c = tc;
          break;
       }
       case 7: // Discrete aspect ratio 3D
       {
          target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE;
-         tcd = new DiscreteAdaptTC(target_t);
+         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
          if (adapt_eval == 0)
          {
-            tcd->SetAdaptivityEvaluator(new AdvectorCG);
+            tc->SetAdaptivityEvaluator(new AdvectorCG);
          }
          else
          {
 #ifdef MFEM_USE_GSLIB
-            tcd->SetAdaptivityEvaluator(new InterpolatorFP);
+            tc->SetAdaptivityEvaluator(new InterpolatorFP);
 #else
             MFEM_ABORT("MFEM is not built with GSLIB.");
 #endif
@@ -580,22 +578,22 @@ int main(int argc, char *argv[])
          VectorFunctionCoefficient fd_aspr3d(dim, discrete_aspr_3d);
          aspr3d.ProjectCoefficient(fd_aspr3d);
 
-         tcd->SetSerialDiscreteTargetAspectRatio(aspr3d);
-         target_c = tcd;
+         tc->SetSerialDiscreteTargetAspectRatio(aspr3d);
+         target_c = tc;
          break;
       }
       case 8: // shape/size + orientation 2D
       {
          target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE;
-         tcd = new DiscreteAdaptTC(target_t);
+         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
          if (adapt_eval == 0)
          {
-            tcd->SetAdaptivityEvaluator(new AdvectorCG);
+            tc->SetAdaptivityEvaluator(new AdvectorCG);
          }
          else
          {
 #ifdef MFEM_USE_GSLIB
-            tcd->SetAdaptivityEvaluator(new InterpolatorFP);
+            tc->SetAdaptivityEvaluator(new InterpolatorFP);
 #else
             MFEM_ABORT("MFEM is not built with GSLIB.");
 #endif
@@ -605,7 +603,7 @@ int main(int argc, char *argv[])
          {
             ConstantCoefficient ind_coeff(0.1*0.1);
             size.ProjectCoefficient(ind_coeff);
-            tcd->SetSerialDiscreteTargetSize(size);
+            tc->SetSerialDiscreteTargetSize(size);
          }
 
          if (metric_id == 85)
@@ -613,13 +611,13 @@ int main(int argc, char *argv[])
             FunctionCoefficient aspr_coeff(discrete_aspr_2d);
             aspr.ProjectCoefficient(aspr_coeff);
             DiffuseField(aspr,2);
-            tcd->SetSerialDiscreteTargetAspectRatio(aspr);
+            tc->SetSerialDiscreteTargetAspectRatio(aspr);
          }
 
          FunctionCoefficient ori_coeff(discrete_ori_2d);
          ori.ProjectCoefficient(ori_coeff);
-         tcd->SetSerialDiscreteTargetOrientation(ori);
-         target_c = tcd;
+         tc->SetSerialDiscreteTargetOrientation(ori);
+         target_c = tc;
          break;
       }
       default: cout << "Unknown target_id: " << target_id << endl; return 3;
@@ -781,7 +779,8 @@ int main(int argc, char *argv[])
       tauval -= 0.01 * h0.Min();
    }
 
-   const double init_energy = a.GetGridFunctionEnergy(x)/mesh->GetNE();
+   const double init_energy = a.GetGridFunctionEnergy(x) /
+                              (hradaptivity ? mesh->GetNE() : 1);
 
    // Visualize the starting mesh and metric values.
    // Note that for combinations of metrics, this only shows the first metric.
@@ -898,7 +897,7 @@ int main(int argc, char *argv[])
    solver.SetAbsTol(0.0);
    solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
 
-   // AMR based size refinemenet if a size metric is used
+   // hr-adaptivity
    TMOPAMRSolver tmopamrsolver(*mesh, a, solver,
                                x, move_bnd, hradaptivity,
                                mesh_poly_deg, amr_metric_id);
@@ -918,12 +917,14 @@ int main(int argc, char *argv[])
       mesh->Print(mesh_ofs);
    }
 
-   const double fin_energy = a.GetGridFunctionEnergy(x)/mesh->GetNE();
+   const double fin_energy = a.GetGridFunctionEnergy(x) /
+                             (hradaptivity ? mesh->GetNE() : 1);
    double metric_part = fin_energy;
    if (lim_const > 0.0 || adapt_lim_const > 0.0)
    {
       lim_coeff.constant = 0.0;
-      metric_part = a.GetGridFunctionEnergy(x)/mesh->GetNE();
+      metric_part = a.GetGridFunctionEnergy(x) /
+                    (hradaptivity ? mesh->GetNE() : 1);
       coef_zeta.constant = 0.0;
       lim_coeff.constant = lim_const;
       coef_zeta.constant = adapt_lim_const;
@@ -937,7 +938,7 @@ int main(int argc, char *argv[])
    cout << "The strain energy decreased by: " << setprecision(12)
         << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
 
-   // 17. Visualize the final mesh and metric values.
+   // 16. Visualize the final mesh and metric values.
    if (visualization)
    {
       char title[] = "Final metric values";
@@ -951,7 +952,7 @@ int main(int argc, char *argv[])
                              600, 600, 300, 300);
    }
 
-   // 18. Visualize the mesh displacement.
+   // 17. Visualize the mesh displacement.
    if (visualization)
    {
       osockstream sock(19916, "localhost");
@@ -966,7 +967,7 @@ int main(int argc, char *argv[])
            << "keys jRmclA" << endl;
    }
 
-   // 19. Free the used memory.
+   // 18. Free the used memory.
    delete S_prec;
    delete S;
    delete target_c2;
