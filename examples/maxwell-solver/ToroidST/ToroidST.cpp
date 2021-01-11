@@ -12,7 +12,8 @@ void ToroidST::SetupSubdomainProblems()
    PmlMatInv.SetSize(nrsubdomains);
    // Right hand sides
    f_orig.SetSize(nrsubdomains);
-   f_transf.SetSize(nrsubdomains);
+   forward_transf.SetSize(nrsubdomains);
+   backward_transf.SetSize(nrsubdomains);
 
    for (int ip=0; ip<nrsubdomains; ip++)
    {
@@ -26,7 +27,8 @@ void ToroidST::SetupSubdomainProblems()
       PmlMatInv[ip]->SetOperator(*PmlMat[ip]);
       int ndofs = fespaces[ip]->GetTrueVSize();
       f_orig[ip] = new Vector(2*ndofs);
-      f_transf[ip] = new Vector(2*ndofs);
+      forward_transf[ip] = new Vector(2*ndofs);
+      backward_transf[ip] = new Vector(2*ndofs);
    }
 }
 
@@ -188,7 +190,8 @@ void ToroidST::Mult(const Vector & r, Vector & z) const
    // restrict Source to subdomains
    for (int ip=0; ip<nrsubdomains; ip++)
    {
-      *f_transf[ip] = 0.0;
+      *forward_transf[ip] = 0.0;
+      *backward_transf[ip] = 0.0;
       MapDofs(*DofMaps1[ip], *DofMaps0[ip],r,*f_orig[ip]);
       // cout << "0:f_orig[ip] norm = " << f_orig[ip]->Norml2() << endl; 
       // cout << "ovlp = " << ovlp << endl;
@@ -213,14 +216,14 @@ void ToroidST::Mult(const Vector & r, Vector & z) const
       int n = fespaces[ip]->GetTrueVSize();
       Vector res(2*n); res = 0.0;
       res += *f_orig[ip];
-      res += *f_transf[ip];
+      res += *forward_transf[ip];
       Vector sol(2*n);
       PmlMatInv[ip]->Mult(res,sol);
       // accumulate for the global correction;
       // AddMapDofs(*DofMaps1[ip],*DofMaps0[ip],sol,z);
       // Transfer source to (forward) neighbor
-      int direction = 0;
-      SourceTransfer(ip,sol, direction);
+      int sweep = 1;
+      SourceTransfer(ip,sol, sweep);
       // cout << "res norm = " << res.Norml2() << endl;
       // cout << "sol norm = " << sol.Norml2() << endl;
       AddMapDofs(*DofMaps0[ip],*DofMaps1[ip],sol,z);
@@ -232,26 +235,26 @@ void ToroidST::Mult(const Vector & r, Vector & z) const
    {
       int n = fespaces[ip]->GetTrueVSize();
       Vector res(2*n); res = 0.0;
-      res += *f_transf[ip];
+      res += *backward_transf[ip];
       Vector sol(2*n);
       PmlMatInv[ip]->Mult(res,sol);
-      int direction = -1;
-      SourceTransfer(ip,sol,direction);
+      int sweep = -1;
+      SourceTransfer(ip,sol,sweep);
       AddMapDofs(*DofMaps0[ip],*DofMaps1[ip],sol,z);
    }
 }
 
-void ToroidST::SourceTransfer(int ip, const Vector & sol, int direction) const
+void ToroidST::SourceTransfer(int ip, const Vector & sol, int sweep) const
 {
    // Transfer to ip+1 and ip-1
    int ip0 = ip-1;
    int ip1 = ip+1;
 
-   // direction : 1  - only positive
-   // direction : -1 - only negative
+   // sweep : 1  - forward
+   // sweep : -1 - forward
    // direction : 0  - both
 
-   if (ip0 >= 0 && direction != 1);
+   if (ip0 >= 0)
    {  // map sol from ip to ip0
       int n = fespaces[ip0]->GetTrueVSize();
       Vector sol0(2*n); sol0 = 0.0;
@@ -261,22 +264,27 @@ void ToroidST::SourceTransfer(int ip, const Vector & sol, int direction) const
       int direction = 1;
       Array<int> rdofs;
       GetRestrictionDofs(*fespaces[ip0],direction,ovlp,rdofs);
-      RestrictDofs(rdofs,f_transf[ip0]->Size()/2,Psi0);
-      *f_transf[ip0]-= Psi0;
+      RestrictDofs(rdofs,backward_transf[ip0]->Size()/2,Psi0);
+      *backward_transf[ip0]-= Psi0;
    }
-   if (ip1 <= nrsubdomains-1 && direction != -1)
+
+   if (sweep == 1)
    {
-      int n = fespaces[ip1]->GetTrueVSize();
-      Vector sol1(2*n); sol1 = 0.0;
-      Vector Psi1(2*n);
-      MapDofs(*OvlpMaps0[ip], *OvlpMaps1[ip],sol,sol1);
-      PmlMat[ip1]->Mult(sol1,Psi1);
-      int direction = -1;
-      Array<int> rdofs;
-      GetRestrictionDofs(*fespaces[ip1],direction,ovlp,rdofs);
-      RestrictDofs(rdofs,f_transf[ip1]->Size()/2,Psi1);
-      *f_transf[ip1]-= Psi1;
-   } 
+      if (ip1 <= nrsubdomains-1)
+      {
+         int n = fespaces[ip1]->GetTrueVSize();
+         Vector sol1(2*n); sol1 = 0.0;
+         Vector Psi1(2*n);
+         MapDofs(*OvlpMaps0[ip], *OvlpMaps1[ip],sol,sol1);
+         PmlMat[ip1]->Mult(sol1,Psi1);
+         int direction = -1;
+         Array<int> rdofs;
+         GetRestrictionDofs(*fespaces[ip1],direction,ovlp,rdofs);
+         RestrictDofs(rdofs,forward_transf[ip1]->Size()/2,Psi1);
+         *forward_transf[ip1]-= Psi1;
+      } 
+   }
+
 
 }
 

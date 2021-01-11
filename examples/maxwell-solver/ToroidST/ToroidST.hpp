@@ -23,10 +23,13 @@ private:
    Array<ComplexSparseMatrix *> PmlMat;
    Array<ComplexUMFPackSolver *> PmlMatInv;
    mutable Array<Vector *> f_orig;
-   mutable Array<Vector *> f_transf;
+   mutable Array<Vector *> forward_transf;
+   mutable Array<Vector *> backward_transf;
    void SetupSubdomainProblems();
    void SetMaxwellPmlSystemMatrix(int ip);
-   void SourceTransfer(int ip, const Vector & sol, int direction) const;
+   // sweep 1: forward
+   // sweep -1: backward
+   void SourceTransfer(int ip, const Vector & sol, int sweep) const;
 public:
    ToroidST(SesquilinearForm * bf_, const Vector & aPmlThickness_, 
        double omega_, int nrsubdomains_ = 2);
