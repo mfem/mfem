@@ -1913,12 +1913,12 @@ void VectorFEMassIntegrator::AssembleElementMatrix(
    double w;
 
 #ifdef MFEM_THREAD_SAFE
-   Vector D(VQ ? VQ->GetVDim() : 0);
+   Vector D(DQ ? DQ->GetVDim() : 0);
    DenseMatrix trial_vshape(dof, spaceDim);
    DenseMatrix K(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
 #else
    trial_vshape.SetSize(dof, spaceDim);
-   D.SetSize(VQ ? VQ->GetVDim() : 0);
+   D.SetSize(DQ ? DQ->GetVDim() : 0);
    K.SetSize(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
 #endif
    DenseMatrix tmp(trial_vshape.Height(), K.Width());
@@ -1950,9 +1950,9 @@ void VectorFEMassIntegrator::AssembleElementMatrix(
          Mult(trial_vshape,K,tmp);
          AddMultABt(tmp,trial_vshape,elmat);
       }
-      else if (VQ)
+      else if (DQ)
       {
-         VQ->Eval(D, Trans, ip);
+         DQ->Eval(D, Trans, ip);
          D *= w;
          AddMultADAt(trial_vshape, D, elmat);
       }
@@ -1984,12 +1984,12 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
 #ifdef MFEM_THREAD_SAFE
       DenseMatrix trial_vshape(trial_dof, spaceDim);
       Vector shape(test_dof);
-      Vector D(VQ ? VQ->GetVDim() : 0);
+      Vector D(DQ ? DQ->GetVDim() : 0);
       DenseMatrix K(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
 #else
       trial_vshape.SetSize(trial_dof, spaceDim);
       shape.SetSize(test_dof);
-      D.SetSize(VQ ? VQ->GetVDim() : 0);
+      D.SetSize(DQ ? DQ->GetVDim() : 0);
       K.SetSize(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
 #endif
 
@@ -2013,9 +2013,9 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
          test_fe.CalcShape(ip, shape);
 
          w = ip.weight * Trans.Weight();
-         if (VQ)
+         if (DQ)
          {
-            VQ->Eval(D, Trans, ip);
+            DQ->Eval(D, Trans, ip);
             D *= w;
             for (int d = 0; d < vdim; d++)
             {
@@ -2081,12 +2081,12 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
 #ifdef MFEM_THREAD_SAFE
       DenseMatrix trial_vshape(trial_dof,spaceDim);
       DenseMatrix test_vshape(test_dof,spaceDim);
-      Vector D(VQ ? VQ->GetVDim() : 0);
+      Vector D(DQ ? DQ->GetVDim() : 0);
       DenseMatrix K(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
 #else
       trial_vshape.SetSize(trial_dof,spaceDim);
       test_vshape.SetSize(test_dof,spaceDim);
-      D.SetSize(VQ ? VQ->GetVDim() : 0);
+      D.SetSize(DQ ? DQ->GetVDim() : 0);
       K.SetSize(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
 #endif
       DenseMatrix tmp(test_vshape.Height(), K.Width());
@@ -2118,9 +2118,9 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
             Mult(test_vshape,K,tmp);
             AddMultABt(tmp,trial_vshape,elmat);
          }
-         else if (VQ)
+         else if (DQ)
          {
-            VQ->Eval(D, Trans, ip);
+            DQ->Eval(D, Trans, ip);
             D *= w;
             AddMultADBt(test_vshape,D,trial_vshape,elmat);
          }
