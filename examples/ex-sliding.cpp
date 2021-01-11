@@ -1,19 +1,29 @@
-// Demonstrate a sliding boundary condition in elasticity using the
-// ConstrainedSolver framework
-
-// use a sliding trapezoid
-
-// boundary attribute 4: fixed left side
-// boundary attribute 2: force applied on right side
-// boundary attribute 5, 6, 7, 8: sliding on internal circle
-
-// 1 is bottom, 2 is right side, 4 is left side
-
-// As currently implemented, this allows the node in the corner
-// where both sliding boundaries meet to also slide, parallel
-// to the "left" side of thet trapezoid. This should be fixed but
-// requires a bit more complicated algorithm.
-
+//                       MFEM Example sliding - Parallel Version
+//
+// Compile with: make ex-sliding
+//
+// Sample runs:  ex-sliding
+//               ex-sliding --order 4
+//
+//               mpirun -np 4 ex-sliding
+//
+// Description:  Demonstrates a sliding boundary condition in an elasticity
+//               problem. A trapezoid, roughly as pictured below, is pushed
+//               from the right into a rigid notch. Normal displacement is
+//               restricted, but tangential movement is allowed, so the
+//               trapezoid compresses into the notch.
+//
+//                                       /-----\
+//               normal constrained --->/       \  <--- boundary force (2)
+//               boundary (4)          /---------\
+//                                          ^
+//                                          |
+//                                normal constrained boundary (1)
+//
+//               This example demonstrates the use of the ConstrainedSolver
+//               framework.
+//
+//               We recommend viewing Example 2 before viewing this example.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -283,7 +293,6 @@ int main(int argc, char *argv[])
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 1,000 elements.
-   if (false)
    {
       int ref_levels =
          (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
@@ -340,13 +349,11 @@ int main(int argc, char *argv[])
    }
 
    // 8. Determine the list of true (i.e. parallel conforming) essential
-   //    boundary dofs. In this example, the boundary conditions are defined by
-   //    marking only boundary attribute 1 from the mesh as essential and
-   //    converting it to a list of true dofs.
+   //    boundary dofs. In this example, there are no essential boundary
+   //    conditions in the usual sense, but we leave the machinery here for
+   //    users to modify if they wish.
    Array<int> ess_tdof_list, ess_bdr(pmesh->bdr_attributes.Max());
    ess_bdr = 0;
-   // ess_bdr[0] = 1; // bottom
-   // ess_bdr[3] = 1; // left side
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    // 9. Set up the parallel linear form b(.) which corresponds to the
@@ -363,7 +370,7 @@ int main(int argc, char *argv[])
       f.Set(i, new ConstantCoefficient(0.0));
    }
 
-   // try to put a leftward force on the right side of the trapezoid
+   // Put a leftward force on the right side of the trapezoid
    {
       Vector pull_force(pmesh->bdr_attributes.Max());
       pull_force = 0.0;
@@ -374,7 +381,7 @@ int main(int argc, char *argv[])
    // 10. Set up constraint matrix to constrain normal displacement (but
    //     allow tangential displacement) on specified boundaries.
    Array<int> constraint_atts(2);
-   constraint_atts[0] = 1;
+   constraint_atts[0] = 1;  // attribute 1 bottom
    constraint_atts[1] = 4;  // attribute 4 left side
 
    ParLinearForm *b = new ParLinearForm(fespace);
@@ -481,7 +488,6 @@ int main(int argc, char *argv[])
       VisItDataCollection visit_dc(MPI_COMM_WORLD, visitname.str(), pmesh);
       visit_dc.SetLevelsOfDetail(4);
       visit_dc.RegisterField("displacement", &x); // do we need to do (or undo) the += stuff from above?
-      // visit_dc.SetCycle(boundary_attribute);
       visit_dc.Save();
    }
 
