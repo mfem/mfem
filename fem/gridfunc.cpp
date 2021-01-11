@@ -15,12 +15,17 @@
 #include "../mesh/nurbs.hpp"
 #include "../general/text.hpp"
 
+#ifdef MFEM_USE_MPI
+#include "pfespace.hpp"
+#endif
+
 #include <limits>
 #include <cstring>
 #include <string>
 #include <cmath>
 #include <iostream>
 #include <algorithm>
+
 
 namespace mfem
 {
@@ -1671,27 +1676,16 @@ void GridFunction::GetGradient(ElementTransformation &T, Vector &grad) const
    {
       case ElementTransformation::ELEMENT:
       {
-         const FiniteElement * fe = fes->GetFE(T.ElementNo);
+         const FiniteElement *fe = fes->GetFE(T.ElementNo);
          MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE,
                      "invalid FE map type");
          int spaceDim = fes->GetMesh()->SpaceDimension();
          int dim = fe->GetDim(), dof = fe->GetDof();
          DenseMatrix dshape(dof, dim);
          Vector lval, gh(dim);
-         Array<int> dofs;
 
          grad.SetSize(spaceDim);
-         DofTransformation * doftrans = fes->GetElementDofs(T.ElementNo, dofs);
-         if (doftrans)
-         {
-            Vector lval_t;
-            GetSubVector(dofs, lval_t);
-            doftrans->InvTransformPrimal(lval_t, lval);
-         }
-         else
-         {
-            GetSubVector(dofs, lval);
-         }
+         GetElementDofValues(T.ElementNo, lval);
          fe->CalcDShape(T.GetIntPoint(), dshape);
          dshape.MultTranspose(lval, gh);
          T.InverseJacobian().MultTranspose(gh, grad);
@@ -1885,6 +1879,22 @@ void GridFunction::GetElementAverages(GridFunction &avgs) const
    for (int i = 0; i < avgs.Size(); i++)
    {
       avgs(i) /= int_psi(i);
+   }
+}
+
+void GridFunction::GetElementDofValues(int el, Vector &dof_vals) const
+{
+   Array<int> dof_idx;
+   DofTransformation * doftrans = fes->GetElementVDofs(el, dof_idx);
+   if (doftrans)
+   {
+      Vector dof_vals_t;
+      GetSubVector(dof_idx, dof_vals_t);
+      doftrans->InvTransformPrimal(dof_vals_t, dof_vals);
+   }
+   else
+   {
+      GetSubVector(dof_idx, dof_vals);
    }
 }
 
@@ -4024,7 +4034,15 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
          }
       }
    }
-
+#ifdef MFEM_USE_MPI
+   auto pfes = dynamic_cast<ParFiniteElementSpace*>(ufes);
+   if (pfes)
+   {
+      auto process_local_error = total_error;
+      MPI_Allreduce(&process_local_error, &total_error, 1, MPI_DOUBLE,
+                    MPI_SUM, pfes->GetComm());
+   }
+#endif // MFEM_USE_MPI
    return std::sqrt(total_error);
 }
 
