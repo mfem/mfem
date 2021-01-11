@@ -158,6 +158,9 @@ HypreParMatrix * BuildNormalConstraintsNoIntersection(
                                                col_starts, out);
    h_out->CopyRowStarts();
    h_out->CopyColStarts();
+   h_out->SetOwnerFlags(3, -1, -1);
+   out->LoseData();
+   delete out;
 
    return h_out;
 }
