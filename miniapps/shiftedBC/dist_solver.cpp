@@ -1,4 +1,3 @@
-#include "nldiffusion.hpp"
 #include "nldist.hpp"
 
 double Gyroid(const mfem::Vector &xx)
@@ -19,7 +18,6 @@ double Gyroid(const mfem::Vector &xx)
 
 double Sph(const mfem::Vector &xx)
 {
-    double rez;
     double R=0.4;
     mfem::Vector lvec(3);
     lvec=0.0;
@@ -28,7 +26,7 @@ double Sph(const mfem::Vector &xx)
         lvec[i]=xx[i];
     }
 
-    rez=lvec[0]*lvec[0]+lvec[1]*lvec[1]+lvec[2]*lvec[2]-R*R;
+    return lvec[0]*lvec[0]+lvec[1]*lvec[1]+lvec[2]*lvec[2]-R*R;
 }
 
 void DGyroid(const mfem::Vector &xx, mfem::Vector &vals)
@@ -54,9 +52,6 @@ void DGyroid(const mfem::Vector &xx, mfem::Vector &vals)
 
     vals*=pp;
 }
-
-
-
 
 int main(int argc, char *argv[])
 {
@@ -271,11 +266,12 @@ int main(int argc, char *argv[])
     mfem::GridFunctionCoefficient gfx(&x);
     mfem::PProductCoefficient tsol(wgf,gfx);
     mfem::ParGridFunction o(&fespacep);
-    o.ProjectCoefficient(tsol);
+    //o.ProjectCoefficient(tsol);
 
 
-    mfem::PLapDistanceSolver dsol(10,1,50);
-    dsol.DistanceField(wgf,o);
+    const int p = 10;
+    mfem::PLapDistanceSolver dsol(p,1,50);
+    dsol.DistanceField(ffc,o);
 
 
     // 9. Define ParaView DataCollection

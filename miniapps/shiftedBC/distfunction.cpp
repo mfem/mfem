@@ -90,13 +90,13 @@ ParGridFunction &DistanceFunction::ComputeDistance(Coefficient &level_set,
    if (smooth_steps > 0) { DiffuseField(source, smooth_steps); }
 
    // Transform so that the peak is at 0.
-   // Assumes range [0, 1].
+   // Assumes range [-1, 1].
    if (transform)
    {
       for (int i = 0; i < source.Size(); i++)
       {
          const double x = source(i);
-         source(i) = ((x < 0.0) || (x > 1.0)) ? 0.0 : 4.0 * x * (1.0 - x);
+         source(i) = ((x < -1.0) || (x > 1.0)) ? 0.0 : (1.0 - x) * (1.0 + x);
       }
    }
 

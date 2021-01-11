@@ -16,6 +16,7 @@
 //    Geodesics in Heat: A New Approach to Computing Distance Based on Heat Flow
 
 #include "distfunction.hpp"
+#include "nldist.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -25,10 +26,10 @@ using namespace mfem;
 double surface_level_set(const Vector &x)
 {
    const double sine = 0.25 * std::sin(4 * M_PI * x(0));
-   return (x(1) >= sine + 0.5) ? 0.0 : 1.0;
+   return (x(1) >= sine + 0.5) ? -1.0 : 1.0;
 }
 
-double Gyroid(const Vector & xx)
+double Gyroid(const Vector &xx)
 {
    const double period = 4.0 * M_PI;
    double x=xx[0]*period;
@@ -53,6 +54,7 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
+   int solver_type = 0;
    int problem = 0;
    int rs_levels = 0;
    int order = 2;
@@ -63,6 +65,10 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&solver_type, "-s", "--solver",
+                  "Solver type:\n\t"
+                  "0: Heat\n\t"
+                  "1: P-Laplacian");
    args.AddOption(&problem, "-p", "--problem",
                   "Problem type:\n\t"
                   "0: exact alignment with the mesh boundary\n\t"
@@ -124,18 +130,36 @@ int main(int argc, char *argv[])
       smooth_steps = 0;
       transform = true;
    }
+
+   H1_FECollection fec(order, dim);
+   ParFiniteElementSpace pfes(&pmesh, &fec);
+   ParFiniteElementSpace fespace_vec(&pmesh, &fec, dim);
+
+   ParGridFunction input_ls(&pfes);
+   input_ls.ProjectCoefficient(*ls_coeff);
+
    DistanceFunction dist_func(pmesh, order, t_param);
    ParGridFunction &distance = dist_func.ComputeDistance(*ls_coeff,
                                                          smooth_steps, transform);
    const ParGridFunction &src = dist_func.GetLastSourceGF(),
                          &diff_src = dist_func.GetLastDiffusedSourceGF();
-   delete ls_coeff;
 
-   H1_FECollection fec(order, dim);
-   ParFiniteElementSpace fespace_vec(&pmesh, &fec, dim);
-   GradientCoefficient grad_u(dist_func.GetLastDiffusedSourceGF(), dim);
+   GradientCoefficient grad_u(diff_src, dim);
    ParGridFunction x(&fespace_vec);
    x.ProjectCoefficient(grad_u);
+
+   if (solver_type == 1)
+   {
+      const int p = 10;
+      PLapDistanceSolver dsol(p, 1, 50);
+      dsol.DistanceField(*ls_coeff, distance);
+      for (int i = 0; i < distance.Size(); i++)
+      {
+         distance(i) = fabs(distance(i));
+      }
+   }
+
+   delete ls_coeff;
 
    // Send the solution by socket to a GLVis server.
    if (visualization)
@@ -147,10 +171,10 @@ int main(int argc, char *argv[])
       socketstream sol_sock_w(vishost, visport);
       sol_sock_w << "parallel " << num_procs << " " << myid << "\n";
       sol_sock_w.precision(8);
-      sol_sock_w << "solution\n" << pmesh << src;
+      sol_sock_w << "solution\n" << pmesh << input_ls;
       sol_sock_w << "window_geometry " << 0 << " " << 0 << " "
                                        << size << " " << size << "\n"
-                 << "window_title '" << "u0" << "'\n" << flush;
+                 << "window_title '" << "Input Level Set" << "'\n" << flush;
 
       socketstream sol_sock_u(vishost, visport);
       sol_sock_u << "parallel " << num_procs << " " << myid << "\n";
