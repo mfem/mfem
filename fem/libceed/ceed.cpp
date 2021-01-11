@@ -28,6 +28,20 @@ typedef struct _stat struct_stat;
 namespace mfem
 {
 
+namespace internal
+{
+
+#ifdef MFEM_USE_CEED
+extern Ceed ceed;
+
+std::string ceed_path;
+
+extern CeedBasisMap ceed_basis_map;
+extern CeedRestrMap ceed_restr_map;
+#endif
+
+}
+
 void InitCeedCoeff(Coefficient *Q, Mesh &mesh,
                    const IntegrationRule &ir, CeedData *ptr)
 {

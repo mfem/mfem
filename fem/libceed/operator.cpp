@@ -14,6 +14,7 @@
 #include "../../config/config.hpp"
 #include "../../linalg/vector.hpp"
 #include "../fespace.hpp"
+#include "../../general/forall.hpp"
 
 namespace mfem
 {
@@ -151,7 +152,7 @@ ConstrainedMFEMCeedOperator::ConstrainedMFEMCeedOperator(
    const Operator *P_)
    : ess_tdofs(ess_tdofs_), P(P_)
 {
-   unconstrained_op = new MFEMCeedOperator(oper);
+   unconstrained_op = new UnconstrainedMFEMCeedOperator(oper);
    Operator *rap = unconstrained_op->SetupRAP(P, P);
    height = width = rap->Height();
    bool own_rap = (rap != unconstrained_op);

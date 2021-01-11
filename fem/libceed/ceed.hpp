@@ -282,7 +282,6 @@ using CeedRestrMap =
 namespace internal
 {
 extern Ceed ceed; // defined in device.cpp
-std::string ceed_path;
 extern CeedBasisMap basis_map;
 extern CeedRestrMap restr_map;
 }
