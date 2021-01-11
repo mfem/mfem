@@ -56,9 +56,9 @@ using namespace mfem;
     Imagine two boundary attributes meeting at a right angle, and then
     deform the mesh so the two attributes are parallel. At what point
     do two constraints become one? */
-HypreParMatrix * OldBuildNormalConstraints(ParFiniteElementSpace& fespace,
-                                           Array<int>& constrained_att,
-                                           Array<int>& lagrange_rowstarts)
+HypreParMatrix * BuildNormalConstraintsNoIntersection(
+   ParFiniteElementSpace& fespace, Array<int>& constrained_att,
+   Array<int>& lagrange_rowstarts)
 {
    int rank, size;
    MPI_Comm_rank(fespace.GetComm(), &rank);
@@ -336,8 +336,8 @@ int main(int argc, char *argv[])
    HypreParMatrix * hconstraints;
    Array<int> lagrange_rowstarts;
 
-   hconstraints = OldBuildNormalConstraints(fespace, constraint_atts,
-                                            lagrange_rowstarts);
+   hconstraints = BuildNormalConstraintsNoIntersection(
+      fespace, constraint_atts, lagrange_rowstarts);
    hconstraints->Print("hconstraints");
 
    ParLinearForm b(&fespace);
