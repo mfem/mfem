@@ -13,9 +13,9 @@
 //               restricted, but tangential movement is allowed, so the
 //               trapezoid compresses into the notch.
 //
-//                                       /-----\
-//               normal constrained --->/       \  <--- boundary force (2)
-//               boundary (4)          /---------\
+//                                       /-------+
+//               normal constrained --->/        | <--- boundary force (2)
+//               boundary (4)          /---------+
 //                                          ^
 //                                          |
 //                                normal constrained boundary (1)
