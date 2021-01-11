@@ -18,7 +18,7 @@
 #include "fespacehierarchy.hpp"
 #include "multigrid.hpp"
 #include "libceed/ceedsolvers-utility.h"
-#include "libceed/ceed-wrappers.hpp"
+#include "libceed/operator.hpp"
 
 namespace mfem
 {

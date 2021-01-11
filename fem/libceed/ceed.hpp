@@ -33,6 +33,7 @@ class IntegrationRule;
 class Coefficient;
 
 #ifdef MFEM_USE_CEED
+
 /// A structure used to pass additional data to f_build_diff and f_apply_diff
 struct BuildContext { CeedInt dim, space_dim, vdim; CeedScalar coeff; };
 
@@ -281,6 +282,7 @@ using CeedRestrMap =
 namespace internal
 {
 extern Ceed ceed; // defined in device.cpp
+std::string ceed_path;
 extern CeedBasisMap basis_map;
 extern CeedRestrMap restr_map;
 }

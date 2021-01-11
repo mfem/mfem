@@ -21,7 +21,7 @@
 namespace mfem
 {
 
-Solver *BuildSmootherFromCeed(MFEMCeedOperator &op, bool chebyshev)
+Solver *BuildSmootherFromCeed(ConstrainedMFEMCeedOperator &op, bool chebyshev)
 {
    CeedOperator ceed_op = op.GetCeedOperator();
    const Array<int> &ess_tdofs = op.GetEssentialTrueDofs();
@@ -74,7 +74,7 @@ Solver *BuildSmootherFromCeed(MFEMCeedOperator &op, bool chebyshev)
 class CeedAMG : public Solver
 {
 public:
-   CeedAMG(MFEMCeedOperator &oper, HypreParMatrix *P)
+   CeedAMG(ConstrainedMFEMCeedOperator &oper, HypreParMatrix *P)
    {
       MFEM_ASSERT(P != NULL, "");
       const Array<int> ess_tdofs = oper.GetEssentialTrueDofs();
@@ -234,7 +234,7 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
    {
       FiniteElementSpace &space = hierarchy.GetFESpaceAtLevel(ilevel);
       const Operator *P = space.GetProlongationMatrix();
-      MFEMCeedOperator *op = new MFEMCeedOperator(
+      ConstrainedMFEMCeedOperator *op = new ConstrainedMFEMCeedOperator(
          ceed_operators[ilevel], *essentialTrueDofs[ilevel], P);
       Solver *smoother;
 #ifdef MFEM_USE_MPI
