@@ -68,6 +68,12 @@ Version 4.2.1 (development)
 - Implemented an adaptive linear solver tolerance option for NewtonSolver based
   on the algorithm of Eisenstat and Walker.
 
+- Added support for reading high-order Lagrange meshes in VTK format. Arbitrary-
+  orders and all element types are supported. See the VTK blog for more info:
+  https://blog.kitware.com/wp-content/uploads/2018/09/Source_Issue_43.pdf
+
+- Added support for reading VTK meshes in XML format.
+
 
 Version 4.2, released on October 30, 2020
 =========================================

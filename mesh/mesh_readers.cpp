@@ -527,15 +527,16 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
                   break;
             }
 
+            int offset = (i == 0) ? 0 : cell_offsets[i-1];
             for (int j = 0; j < dofs.Size(); j++)
             {
-               if (pts_dof[cell_data[j]] == -1)
+               if (pts_dof[cell_data[offset+j]] == -1)
                {
-                  pts_dof[cell_data[j]] = dofs[vtk_mfem[j]];
+                  pts_dof[cell_data[offset+j]] = dofs[vtk_mfem[j]];
                }
                else
                {
-                  if (pts_dof[cell_data[j]] != dofs[vtk_mfem[j]])
+                  if (pts_dof[cell_data[offset+j]] != dofs[vtk_mfem[j]])
                   {
                      MFEM_ABORT("VTK mesh: inconsistent quadratic mesh!");
                   }
@@ -612,9 +613,9 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
          {
             dofs[0] = pts_dof[i];
             fes->DofsToVDofs(dofs);
-            for (int j = 0; j < dofs.Size(); j++)
+            for (int d = 0; d < dofs.Size(); d++)
             {
-               (*Nodes)(dofs[j]) = points(3*i+j);
+               (*Nodes)(dofs[d]) = points(3*i+d);
             }
          }
       }
