@@ -54,7 +54,7 @@ set(SRCS
   libceed/full-assembly.cpp
   libceed/ceedsolvers-atpmg.cpp
   libceed/ceedsolvers-utility.cpp
-  libceed/ceed-wrappers.cpp
+  libceed/operator.cpp
   linearform.cpp
   lininteg.cpp
   multigrid.cpp
@@ -98,7 +98,7 @@ set(HDRS
   libceed/full-assembly.hpp
   libceed/ceedsolvers-atpmg.h
   libceed/ceedsolvers-utility.h
-  libceed/ceed-wrappers.hpp
+  libceed/operator.hpp
   linearform.hpp
   lininteg.hpp
   multigrid.hpp
