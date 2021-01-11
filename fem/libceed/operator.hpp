@@ -18,12 +18,13 @@
 #include "ceed.hpp"
 #include <ceed.h>
 #include "../../linalg/operator.hpp"
+#include "ceedsolvers-utility.h"
 
 namespace mfem
 {
 
 /** A base class to represent a CeedOperator as an MFEM Operator. */
-class MFEMCeedOperator : Operator
+class MFEMCeedOperator : public Operator
 {
 protected:
    CeedOperator oper;
@@ -40,6 +41,28 @@ public:
       CeedOperatorDestroy(&oper);
       CeedVectorDestroy(&u);
       CeedVectorDestroy(&v);
+   }
+   CeedOperator GetCeedOperator() const { return oper; }
+};
+
+class UnconstrainedMFEMCeedOperator : public MFEMCeedOperator
+{
+public:
+   UnconstrainedMFEMCeedOperator(CeedOperator ceed_op)
+   {
+      oper = ceed_op;
+      CeedElemRestriction er;
+      CeedOperatorGetActiveElemRestriction(oper, &er);
+      int s;
+      CeedElemRestrictionGetLVectorSize(er, &s);
+      height = width = s;
+      CeedVectorCreate(internal::ceed, height, &v);
+      CeedVectorCreate(internal::ceed, width, &u);
+   }
+
+   Operator * SetupRAP(const Operator *Pi, const Operator *Po)
+   {
+      return Operator::SetupRAP(Pi, Po);
    }
 };
 
@@ -59,7 +82,7 @@ public:
 private:
    Array<int> ess_tdofs;
    const Operator *P;
-   class MFEMCeedOperator *unconstrained_op;
+   class UnconstrainedMFEMCeedOperator *unconstrained_op;
    ConstrainedOperator *constrained_op;
 };
 
