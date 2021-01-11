@@ -237,6 +237,8 @@ double adapt_lim_fun(const Vector &x)
 double surface_level_set(const Vector &x)
 {
    const int type = 1;
+
+   const int dim = x.Size();
    if (type == 0)
    {
       const double sine = 0.25 * std::sin(4 * M_PI * x(0));
@@ -244,9 +246,18 @@ double surface_level_set(const Vector &x)
    }
    else
    {
-      const double xc = x(0) - 0.5, yc = x(1) - 0.5;
-      const double r = sqrt(xc*xc + yc*yc);
-      return (r > 0.2) ? 1.0 : -1.0;
+      if (dim == 2)
+      {
+         const double xc = x(0) - 0.5, yc = x(1) - 0.5;
+         const double r = sqrt(xc*xc + yc*yc);
+         return (r > 0.2) ? 1.0 : -1.0;
+      }
+      else
+      {
+         const double xc = x(0) - 0.5, yc = x(1) - 0.5, zc = x(2) - 0.5;
+         const double r = sqrt(xc*xc + yc*yc + zc*zc);
+         return (r > 0.3) ? 1.0 : -1.0;
+      }
    }
 }
 
