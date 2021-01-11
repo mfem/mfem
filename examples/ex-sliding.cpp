@@ -182,29 +182,6 @@ SparseMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
    out->Finalize();
 
    return out;
-   /*
-   int constraint_running_total = 0;
-   MPI_Scan(&n_constraints, &constraint_running_total, 1, MPI_INT,
-            MPI_SUM, fespace.GetComm());
-   int global_constraints = 0;
-   if (rank == size - 1) global_constraints = constraint_running_total;
-   MPI_Bcast(&global_constraints, 1, MPI_INT, size - 1, fespace.GetComm());
-
-   // convert SparseMatrix to HypreParMatrix
-   // cols are same as for fespace; rows are built here
-   HYPRE_Int glob_num_rows = global_constraints;
-   HYPRE_Int glob_num_cols = fespace.GlobalTrueVSize();
-   HYPRE_Int row_starts[2] = {constraint_running_total - n_constraints,
-                              constraint_running_total};
-   HYPRE_Int * col_starts = fespace.GetTrueDofOffsets();
-   HypreParMatrix * h_out = new HypreParMatrix(fespace.GetComm(), glob_num_rows,
-                                               glob_num_cols, row_starts,
-                                               col_starts, out);
-   h_out->CopyRowStarts();
-   h_out->CopyColStarts();
-
-   return h_out;
-   */
 }
 
 
