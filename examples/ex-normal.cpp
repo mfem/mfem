@@ -34,8 +34,6 @@
     for primal system that we could use in all three existing solvers?
   - improve Schur complement block in Schur solver (user-defined preconditioner, but
     different interface)
-  - finer grained control of hypre rigid body modes, in elimination the numbering may
-    get messed around (with square projector less of a problem)
   - hook up with user code (contact?)
 */
 
@@ -46,52 +44,18 @@
 using namespace std;
 using namespace mfem;
 
-/** @todo this seems overly complicated, why can't I just use a simpler
-    constructor for HypreParMatrix? */
-HypreParMatrix * BuildParNormalConstraints(ParFiniteElementSpace& fespace,
-                                           Array<int>& constrained_att,
-                                           Array<int>& lagrange_rowstarts)
-{
-   int rank, size;
-   MPI_Comm_rank(fespace.GetComm(), &rank);
-   MPI_Comm_size(fespace.GetComm(), &size);
+/** @brief Build a matrix constraining normal components to zero.
 
-   SparseMatrix * out = BuildNormalConstraints(fespace,
-                                               constrained_att,
-                                               lagrange_rowstarts);
+    See BuildNormalConstraints in ex-sliding.cpp for fuller explanation.
+    The main difference for the code here is this code assumes that
+    when two attributes interesect, the angle is close enough to zero
+    that there should still only be one normal constraint instead
+    of separately constraining in two different normal directions.
 
-   int row_running_total = 0;
-   int local_rows = out->Height();
-   MPI_Scan(&local_rows, &row_running_total, 1, MPI_INT,
-            MPI_SUM, fespace.GetComm());
-   int global_rows = 0;
-   if (rank == size - 1) global_rows = row_running_total;
-   MPI_Bcast(&global_rows, 1, MPI_INT, size - 1, fespace.GetComm());
-
-   // convert SparseMatrix to HypreParMatrix
-   // cols are same as for fespace; rows are built here
-   HYPRE_Int glob_num_rows = global_rows;
-   HYPRE_Int glob_num_cols = fespace.GlobalTrueVSize();
-   HYPRE_Int row_starts[2] = {row_running_total - local_rows,
-                              row_running_total};
-   HYPRE_Int * col_starts = fespace.GetTrueDofOffsets();
-   HypreParMatrix * h_out = new HypreParMatrix(fespace.GetComm(), glob_num_rows,
-                                               glob_num_cols, row_starts,
-                                               col_starts, out);
-   h_out->CopyRowStarts();
-   h_out->CopyColStarts();
-
-   return h_out;
-}
-
-/** Overwrite instead of combine intersecting constraints.
-
-    It is actually not so clear what exactly to do with intersections
+    It is actually not so clear what exactly to do with intersections.
     Imagine two boundary attributes meeting at a right angle, and then
-    deform the mesh so the two attributes are parallel.
-
-    (In fact we may have a version of this problem with the
-    circle in the middle mesh) */
+    deform the mesh so the two attributes are parallel. At what point
+    do two constraints become one? */
 HypreParMatrix * OldBuildNormalConstraints(ParFiniteElementSpace& fespace,
                                            Array<int>& constrained_att,
                                            Array<int>& lagrange_rowstarts)
@@ -372,9 +336,7 @@ int main(int argc, char *argv[])
    HypreParMatrix * hconstraints;
    Array<int> lagrange_rowstarts;
 
-   // hconstraints = OldBuildNormalConstraints(fespace, constraint_atts,
-   //                                          lagrange_rowstarts);
-   hconstraints = BuildParNormalConstraints(fespace, constraint_atts,
+   hconstraints = OldBuildNormalConstraints(fespace, constraint_atts,
                                             lagrange_rowstarts);
    hconstraints->Print("hconstraints");
 

@@ -22,33 +22,6 @@ namespace mfem
 
 class ParFiniteElementSpace;
 
-/** @brief Build a matrix constraining normal components to zero.
-
-    Given a vector space fespace, and the array constrained_att that
-    includes the boundary *attributes* that are constrained to have normal
-    component zero, this returns a SparseMatrix representing the
-    constraints that need to be imposed.
-
-    Each row of the returned matrix corresponds to a node that is
-    constrained. The rows are arranged in (contiguous) blocks corresponding
-    to the actual constraint; in 3D, a one-row constraint means the node
-    is free to move along a plane, a two-row constraint means it is free
-    to move along a line (eg the intersection of two normal-constrained
-    planes), and a three-row constraint is fully constrained (equivalent
-    to MFEM's usual essential boundary conditions). The lagrange_rowstarts
-    array is filled in to describe the structure of these constraints.
-
-    @param[in] fespace              A vector finite element space
-    @param[in] constrained_att      Boundary attributes to constrain
-    @param[out] lagrange_rowstarts  Row starts for separately eliminated
-                                    constraints
-
-    @return a constraint matrix
-*/
-SparseMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
-                                      Array<int>& constrained_att,
-                                      Array<int>& lagrange_rowstarts);
-
 /** @brief An abstract class to solve the constrained system \f$ Ax = f \f$
     subject to the constraint \f$ B x = r \f$.
 
