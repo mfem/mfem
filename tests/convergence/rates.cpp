@@ -26,6 +26,7 @@
 //               rates -m ../../data/inline-hex.mesh -sr 1 -prob 1 -o 2
 //               rates -m ../../data/square-disc.mesh -sr 2 -prob 1 -o 1
 //               rates -m ../../data/star.mesh -sr 2 -prob 3 -o 2
+//               rates -m ../../data/star.mesh -sr 2 -prob 3 -o 2 -j 0
 //               rates -m ../../data/inline-hex.mesh -sr 1 -prob 3 -o 1
 //
 // Description:  This example code demonstrates the use of MFEM to define and
@@ -73,6 +74,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool visualization = 1;
    int sr = 1;
+   int jump_scaling_type = 1;
    double sigma = -1.0;
    double kappa = -1.0;
    OptionsParser args(argc, argv);
@@ -88,6 +90,9 @@ int main(int argc, char *argv[])
    args.AddOption(&kappa, "-k", "--kappa",
                   "One of the two DG penalty parameters, should be positive."
                   " Negative values are replaced with (order+1)^2.");
+   args.AddOption(&jump_scaling_type, "-j", "--jump-scaling",
+                  "Scaling of the jump error for DG methods: "
+                  "0: no scaling, 1: 1/h, 2: p^2/h");
    args.AddOption(&sr, "-sr", "--serial_ref",
                   "Number of serial refinements.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -218,12 +223,16 @@ int main(int argc, char *argv[])
          PCG(A, M, b, x, 0, 500, 1e-12, 0.0);
       }
 
+      JumpScaling js(1.0, jump_scaling_type == 2 ? JumpScaling::P_SQUARED_OVER_H
+                        : jump_scaling_type == 1 ? JumpScaling::ONE_OVER_H
+                        : JumpScaling::CONSTANT);
+
       switch (prob)
       {
          case 0: rates.AddH1GridFunction(&x,scalar_u,gradu); break;
          case 1: rates.AddHcurlGridFunction(&x,vector_u,curlu); break;
          case 2: rates.AddHdivGridFunction(&x,vector_u,divu);  break;
-         case 3: rates.AddL2GridFunction(&x,scalar_u,gradu,&one); break;
+         case 3: rates.AddL2GridFunction(&x,scalar_u,gradu,&one,js); break;
       }
 
       if (l==sr) break;

@@ -460,8 +460,50 @@ public:
 };
 
 
+/** Two stage, explicit singly diagonal implicit Runge-Kutta (ESDIRK) method
+    of order 2. A-stable. */
+class TrapezoidalRuleSolver : public ODESolver
+{
+protected:
+   Vector k, y;
+
+public:
+   virtual void Init(TimeDependentOperator &_f);
+
+   virtual void Step(Vector &x, double &t, double &dt);
+};
+
+
+/** Three stage, explicit singly diagonal implicit Runge-Kutta (ESDIRK) method
+    of order 2. L-stable. */
+class ESDIRK32Solver : public ODESolver
+{
+protected:
+   Vector k, y, z;
+
+public:
+   virtual void Init(TimeDependentOperator &_f);
+
+   virtual void Step(Vector &x, double &t, double &dt);
+};
+
+
+/** Three stage, explicit singly diagonal implicit Runge-Kutta (ESDIRK) method
+    of order 3. A-stable. */
+class ESDIRK33Solver : public ODESolver
+{
+protected:
+   Vector k, y, z;
+
+public:
+   virtual void Init(TimeDependentOperator &_f);
+
+   virtual void Step(Vector &x, double &t, double &dt);
+};
+
+
 /// Generalized-alpha ODE solver from "A generalized-α method for integrating
-/// the filtered Navier–Stokes equations with a stabilized finite element
+/// the filtered Navier-Stokes equations with a stabilized finite element
 /// method" by K.E. Jansen, C.H. Whiting and G.M. Hulbert.
 class GeneralizedAlphaSolver : public ODESolver
 {

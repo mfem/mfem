@@ -46,27 +46,33 @@ struct Backend
       /** @brief [device] RAJA CUDA backend. Enabled when MFEM_USE_RAJA = YES
           and MFEM_USE_CUDA = YES. */
       RAJA_CUDA = 1 << 6,
+      /** @brief [device] RAJA HIP backend. Enabled when MFEM_USE_RAJA = YES
+          and MFEM_USE_HIP = YES. */
+      RAJA_HIP = 1 << 7,
       /** @brief [host] OCCA CPU backend: sequential execution on each MPI rank.
           Enabled when MFEM_USE_OCCA = YES. */
-      OCCA_CPU = 1 << 7,
+      OCCA_CPU = 1 << 8,
       /// [host] OCCA OpenMP backend. Enabled when MFEM_USE_OCCA = YES.
-      OCCA_OMP = 1 << 8,
+      OCCA_OMP = 1 << 9,
       /** @brief [device] OCCA CUDA backend. Enabled when MFEM_USE_OCCA = YES
           and MFEM_USE_CUDA = YES. */
-      OCCA_CUDA = 1 << 9,
+      OCCA_CUDA = 1 << 10,
       /** @brief [host] CEED CPU backend. GPU backends can still be used, but
           with expensive memory transfers. Enabled when MFEM_USE_CEED = YES. */
-      CEED_CPU  = 1 << 10,
+      CEED_CPU  = 1 << 11,
       /** @brief [device] CEED CUDA backend working together with the CUDA
           backend. Enabled when MFEM_USE_CEED = YES and MFEM_USE_CUDA = YES.
-          NOTE: The current default libCEED GPU backend is non-deterministic! */
-      CEED_CUDA = 1 << 11,
+          NOTE: The current default libCEED CUDA backend is non-deterministic! */
+      CEED_CUDA = 1 << 12,
+      /** @brief [device] CEED HIP backend working together with the HIP
+          backend. Enabled when MFEM_USE_CEED = YES and MFEM_USE_HIP = YES. */
+      CEED_HIP = 1 << 13,
       /** @brief [device] Debug backend: host memory is READ/WRITE protected
           while a device is in use. It allows to test the "device" code-path
           (using separate host/device memory pools and host <-> device
           transfers) without any GPU hardware. As 'DEBUG' is sometimes used
           as a macro, `_DEVICE` has been added to avoid conflicts. */
-      DEBUG_DEVICE = 1 << 12
+      DEBUG_DEVICE = 1 << 14
    };
 
    /** @brief Additional useful constants. For example, the *_MASK constants can
@@ -74,23 +80,23 @@ struct Backend
    enum
    {
       /// Number of backends: from (1 << 0) to (1 << (NUM_BACKENDS-1)).
-      NUM_BACKENDS = 13,
+      NUM_BACKENDS = 15,
 
       /// Biwise-OR of all CPU backends
       CPU_MASK = CPU | RAJA_CPU | OCCA_CPU | CEED_CPU,
       /// Biwise-OR of all CUDA backends
       CUDA_MASK = CUDA | RAJA_CUDA | OCCA_CUDA | CEED_CUDA,
       /// Biwise-OR of all HIP backends
-      HIP_MASK = HIP,
+      HIP_MASK = HIP | RAJA_HIP | CEED_HIP,
       /// Biwise-OR of all OpenMP backends
       OMP_MASK = OMP | RAJA_OMP | OCCA_OMP,
       /// Bitwise-OR of all CEED backends
-      CEED_MASK = CEED_CPU | CEED_CUDA,
+      CEED_MASK = CEED_CPU | CEED_CUDA | CEED_HIP,
       /// Biwise-OR of all device backends
       DEVICE_MASK = CUDA_MASK | HIP_MASK | DEBUG_DEVICE,
 
       /// Biwise-OR of all RAJA backends
-      RAJA_MASK = RAJA_CPU | RAJA_OMP | RAJA_CUDA,
+      RAJA_MASK = RAJA_CPU | RAJA_OMP | RAJA_CUDA | RAJA_HIP,
       /// Biwise-OR of all OCCA backends
       OCCA_MASK = OCCA_CPU | OCCA_OMP | OCCA_CUDA
    };
@@ -198,18 +204,25 @@ public:
          backend (Backend::Id 'DEBUG_DEVICE') is exceptionally set to 'debug'.
        * The 'cpu' backend is always enabled with lowest priority.
        * The current backend priority from highest to lowest is:
-         'ceed-cuda', 'occa-cuda', 'raja-cuda', 'cuda', 'hip', 'debug',
+         'ceed-cuda', 'occa-cuda', 'raja-cuda', 'cuda',
+         'ceed-hip', 'hip', 'debug',
          'occa-omp', 'raja-omp', 'omp',
          'ceed-cpu', 'occa-cpu', 'raja-cpu', 'cpu'.
        * Multiple backends can be configured at the same time.
        * Only one 'occa-*' backend can be configured at a time.
        * The backend 'occa-cuda' enables the 'cuda' backend unless 'raja-cuda'
          is already enabled.
+       * The backend 'occa-omp' enables the 'omp' backend (if MFEM was built
+         with MFEM_USE_OPENMP=YES) unless 'raja-omp' is already enabled.
+       * Only one 'ceed-*' backend can be configured at a time.
        * The backend 'ceed-cpu' delegates to a libCEED CPU backend the setup and
          evaluation of the operator.
        * The backend 'ceed-cuda' delegates to a libCEED CUDA backend the setup
-         and evaluation of the operator and enables the 'cuda' backend to avoid
-         transfer between host and device.
+         and evaluation of operators and enables the 'cuda' backend to avoid
+         transfers between host and device.
+       * The backend 'ceed-hip' delegates to a libCEED HIP backend the setup
+         and evaluation of operators and enables the 'hip' backend to avoid
+         transfers between host and device.
        * The 'debug' backend should not be combined with other device backends.
    */
    void Configure(const std::string &device, const int dev = 0);
