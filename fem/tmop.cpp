@@ -1244,8 +1244,9 @@ void DiscreteAdaptTC::FinalizeParDiscreteTargetSpec(const ParGridFunction
    ptspec_fesv = new ParFiniteElementSpace(ptspec_fes->GetParMesh(),
                                            ptspec_fes->FEColl(), ncomp);
 
-   delete gfall;
-   gfall = new GridFunction(tspec_fesv, tspec);
+   delete pgfall;
+   pgfall = new ParGridFunction(ptspec_fesv, tspec);
+   gfall = pgfall;
 }
 
 void DiscreteAdaptTC::GetParDiscreteTargetSpec(ParGridFunction &tspec_, int idx)
@@ -1259,8 +1260,22 @@ void DiscreteAdaptTC::GetParDiscreteTargetSpec(ParGridFunction &tspec_, int idx)
    }
 }
 
-void DiscreteAdaptTC::ParUpdate()
+void DiscreteAdaptTC::ParUpdateAfterMeshTopologyChange()
 {
+   tspec_fes->Update();
+   tspec_fesv->Update();
+   ptspec_fesv->Update();
+   pgfall->Update();
+   gfall = pgfall;
+   tspec.SetDataAndSize(pgfall->GetData(), pgfall->Size());
+   tspec_sav = tspec;
+
+   for (int i = 0; i < pgfarr.Size(); i++)
+   {
+      pgfarr[i]->FESpace()->Update();
+      pgfarr[i]->Update();
+   }
+
    if (sizeidx > -1 )
    {
       GetParDiscreteTargetSpec(*pgfarr[sizeidx], sizeidx);
@@ -1278,36 +1293,9 @@ void DiscreteAdaptTC::ParUpdate()
       GetParDiscreteTargetSpec(*pgfarr[orientationidx], orientationidx);
    }
 
-   for (int i = 0; i < pgfarr.Size(); i++)
-   {
-      pgfarr[i]->ParFESpace()->Update();
-      pgfarr[i]->Update();
-   }
-   const int sz_idx = sizeidx,
-             sk_idx = skewidx,
-             ar_idx = aspectratioidx,
-             or_idx = orientationidx;
-
-   ResetDiscreteFields();
-
-   gf_arr_update = false;
-   if (sz_idx > -1)
-   {
-      SetParDiscreteTargetSize(*pgfarr[sz_idx]);
-   }
-   if (sk_idx > -1)
-   {
-      SetParDiscreteTargetSkew(*pgfarr[sk_idx]);
-   }
-   if (ar_idx > -1)
-   {
-      SetParDiscreteTargetAspectRatio(*pgfarr[ar_idx]);
-   }
-   if (or_idx > -1)
-   {
-      SetParDiscreteTargetOrientation(*pgfarr[or_idx]);
-   }
-   gf_arr_update = true;
+   adapt_eval->SetParMetaInfo(*ptspec_fesv->GetParMesh(),
+                              *ptspec_fesv->FEColl(), ncomp);
+   adapt_eval->SetInitialField(*tspec_fes->GetMesh()->GetNodes(), tspec);
 }
 
 void DiscreteAdaptTC::SetTspecAtIndex(int idx, const ParGridFunction &tspec_)
@@ -1337,7 +1325,7 @@ void DiscreteAdaptTC::SetParDiscreteTargetSize(const ParGridFunction &tspec_)
    sizeidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeParDiscreteTargetSpec(tspec_);
-   if (gf_arr_update) { pgfarr.Append(const_cast<ParGridFunction *>(&tspec_)); }
+   pgfarr.Append(const_cast<ParGridFunction *>(&tspec_));
 }
 
 void DiscreteAdaptTC::SetParDiscreteTargetSkew(const ParGridFunction &tspec_)
@@ -1351,7 +1339,7 @@ void DiscreteAdaptTC::SetParDiscreteTargetSkew(const ParGridFunction &tspec_)
    skewidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeParDiscreteTargetSpec(tspec_);
-   if (gf_arr_update) { pgfarr.Append(const_cast<ParGridFunction *>(&tspec_)); }
+   pgfarr.Append(const_cast<ParGridFunction *>(&tspec_));
 }
 
 void DiscreteAdaptTC::SetParDiscreteTargetAspectRatio(const ParGridFunction
@@ -1366,7 +1354,7 @@ void DiscreteAdaptTC::SetParDiscreteTargetAspectRatio(const ParGridFunction
    aspectratioidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeParDiscreteTargetSpec(tspec_);
-   if (gf_arr_update) { pgfarr.Append(const_cast<ParGridFunction *>(&tspec_)); }
+   pgfarr.Append(const_cast<ParGridFunction *>(&tspec_));
 }
 
 void DiscreteAdaptTC::SetParDiscreteTargetOrientation(const ParGridFunction
@@ -1381,7 +1369,7 @@ void DiscreteAdaptTC::SetParDiscreteTargetOrientation(const ParGridFunction
    orientationidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeParDiscreteTargetSpec(tspec_);
-   if (gf_arr_update) { pgfarr.Append(const_cast<ParGridFunction *>(&tspec_)); }
+   pgfarr.Append(const_cast<ParGridFunction *>(&tspec_));
 }
 
 void DiscreteAdaptTC::SetParDiscreteTargetSpec(const ParGridFunction &tspec_)
@@ -1446,7 +1434,7 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSize(const GridFunction &tspec_)
    sizeidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeSerialDiscreteTargetSpec();
-   if (gf_arr_update) { gfarr.Append(const_cast<GridFunction *>(&tspec_)); }
+   gfarr.Append(const_cast<GridFunction *>(&tspec_));
 }
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetSkew(const GridFunction &tspec_)
@@ -1460,7 +1448,7 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSkew(const GridFunction &tspec_)
    skewidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeSerialDiscreteTargetSpec();
-   if (gf_arr_update) { gfarr.Append(const_cast<GridFunction *>(&tspec_)); }
+   gfarr.Append(const_cast<GridFunction *>(&tspec_));
 }
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetAspectRatio(
@@ -1475,7 +1463,7 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetAspectRatio(
    aspectratioidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeSerialDiscreteTargetSpec();
-   if (gf_arr_update) { gfarr.Append(const_cast<GridFunction *>(&tspec_)); }
+   gfarr.Append(const_cast<GridFunction *>(&tspec_));
 }
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetOrientation(
@@ -1490,7 +1478,7 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetOrientation(
    orientationidx = ncomp;
    SetDiscreteTargetBase(tspec_);
    FinalizeSerialDiscreteTargetSpec();
-   if (gf_arr_update) { gfarr.Append(const_cast<GridFunction *>(&tspec_)); }
+   gfarr.Append(const_cast<GridFunction *>(&tspec_));
 }
 
 void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec()
@@ -1523,12 +1511,13 @@ void DiscreteAdaptTC::GetSerialDiscreteTargetSpec(GridFunction &tspec_, int idx)
    }
 }
 
-void DiscreteAdaptTC::Update()
+void DiscreteAdaptTC::UpdateAfterMeshTopologyChange()
 {
-   if (sizeidx > -1) { GetSerialDiscreteTargetSpec(*gfarr[sizeidx], sizeidx); }
-   if (skewidx > -1) { GetSerialDiscreteTargetSpec(*gfarr[skewidx], skewidx); }
-   if (aspectratioidx > -1) { GetSerialDiscreteTargetSpec(*gfarr[aspectratioidx], aspectratioidx); }
-   if (orientationidx > -1) { GetSerialDiscreteTargetSpec(*gfarr[orientationidx], orientationidx); }
+   tspec_fes->Update();
+   tspec_fesv->Update();
+   gfall->Update();
+   tspec.SetDataAndSize(gfall->GetData(), gfall->Size());
+   tspec_sav = tspec;
 
    for (int i = 0; i < gfarr.Size(); i++)
    {
@@ -1536,19 +1525,14 @@ void DiscreteAdaptTC::Update()
       gfarr[i]->Update();
    }
 
-   const int sz_idx = sizeidx,
-             sk_idx = skewidx,
-             ar_idx = aspectratioidx,
-             or_idx = orientationidx;
+   if (sizeidx > -1) { GetSerialDiscreteTargetSpec(*gfarr[sizeidx], sizeidx); }
+   if (skewidx > -1) { GetSerialDiscreteTargetSpec(*gfarr[skewidx], skewidx); }
+   if (aspectratioidx > -1) { GetSerialDiscreteTargetSpec(*gfarr[aspectratioidx], aspectratioidx); }
+   if (orientationidx > -1) { GetSerialDiscreteTargetSpec(*gfarr[orientationidx], orientationidx); }
 
-   ResetDiscreteFields();
-
-   gf_arr_update = false;
-   if (sz_idx > -1) { SetSerialDiscreteTargetSize(*gfarr[sz_idx]); }
-   if (sk_idx > -1) { SetSerialDiscreteTargetSkew(*gfarr[sk_idx]); }
-   if (ar_idx > -1) { SetSerialDiscreteTargetAspectRatio(*gfarr[ar_idx]); }
-   if (or_idx > -1) { SetSerialDiscreteTargetOrientation(*gfarr[or_idx]); }
-   gf_arr_update = true;
+   adapt_eval->SetSerialMetaInfo(*tspec_fes->GetMesh(),
+                                 *tspec_fes->FEColl(), ncomp);
+   adapt_eval->SetInitialField(*tspec_fes->GetMesh()->GetNodes(), tspec);
 }
 
 void DiscreteAdaptTC::ResetDiscreteFields()
@@ -3351,7 +3335,7 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
    dx = detv_avg_min / dxscale;
 }
 
-void TMOP_Integrator::UpdateAfterMeshChange(const Vector &new_x)
+void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x)
 {
    // Update zeta if adaptive limiting is enabled.
    if (zeta) { adapt_eval->ComputeAtNewPosition(new_x, *zeta); }

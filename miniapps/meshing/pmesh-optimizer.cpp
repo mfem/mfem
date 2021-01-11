@@ -456,8 +456,6 @@ int main (int argc, char *argv[])
    H1_FECollection ind_fec(mesh_poly_deg, dim);
    ParFiniteElementSpace ind_fes(pmesh, &ind_fec);
    ParFiniteElementSpace ind_fesv(pmesh, &ind_fec, dim);
-   DiscreteAdaptTC *tcd = NULL;
-   AnalyticAdaptTC *tca = NULL;
    ParGridFunction size(&ind_fes), aspr(&ind_fes), disc(&ind_fes), ori(&ind_fes);
    ParGridFunction aspr3d(&ind_fesv);
 
@@ -469,32 +467,32 @@ int main (int argc, char *argv[])
       case 4:
       {
          target_t = TargetConstructor::GIVEN_FULL;
-         tca = new AnalyticAdaptTC(target_t);
+         AnalyticAdaptTC *tc = new AnalyticAdaptTC(target_t);
          adapt_coeff = new HessianCoefficient(dim, metric_id, hessiantype);
-         tca->SetAnalyticTargetSpec(NULL, NULL, adapt_coeff);
-         target_c = tca;
+         tc->SetAnalyticTargetSpec(NULL, NULL, adapt_coeff);
+         target_c = tc;
          break;
       }
       case 5:
       {
          target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
-         tcd= new DiscreteAdaptTC(target_t);
+         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
          if (adapt_eval == 0)
          {
-            tcd->SetAdaptivityEvaluator(new AdvectorCG);
+            tc->SetAdaptivityEvaluator(new AdvectorCG);
          }
          else
          {
 #ifdef MFEM_USE_GSLIB
-            tcd->SetAdaptivityEvaluator(new InterpolatorFP);
+            tc->SetAdaptivityEvaluator(new InterpolatorFP);
 #else
             MFEM_ABORT("MFEM is not built with GSLIB.");
 #endif
          }
          FunctionCoefficient ind_coeff(discrete_size_2d);
          size.ProjectCoefficient(ind_coeff);
-         tcd->SetParDiscreteTargetSize(size);
-         target_c = tcd;
+         tc->SetParDiscreteTargetSize(size);
+         target_c = tc;
          break;
       }
       case 6: // material indicator 2D
@@ -502,17 +500,17 @@ int main (int argc, char *argv[])
          ParGridFunction d_x(&ind_fes), d_y(&ind_fes);
 
          target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE;
-         tcd = new DiscreteAdaptTC(target_t);
+         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
          FunctionCoefficient ind_coeff(material_indicator_2d);
          disc.ProjectCoefficient(ind_coeff);
          if (adapt_eval == 0)
          {
-            tcd->SetAdaptivityEvaluator(new AdvectorCG);
+            tc->SetAdaptivityEvaluator(new AdvectorCG);
          }
          else
          {
 #ifdef MFEM_USE_GSLIB
-            tcd->SetAdaptivityEvaluator(new InterpolatorFP);
+            tc->SetAdaptivityEvaluator(new InterpolatorFP);
 #else
             MFEM_ABORT("MFEM is not built with GSLIB.");
 #endif
@@ -593,45 +591,45 @@ int main (int argc, char *argv[])
          DiffuseField(size, 2);
          DiffuseField(aspr, 2);
 
-         tcd->SetParDiscreteTargetSize(size);
-         tcd->SetParDiscreteTargetAspectRatio(aspr);
-         target_c = tcd;
+         tc->SetParDiscreteTargetSize(size);
+         tc->SetParDiscreteTargetAspectRatio(aspr);
+         target_c = tc;
          break;
       }
       case 7: // aspect-ratio 3D
       {
          target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE;
-         tcd = new DiscreteAdaptTC(target_t);
+         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
          if (adapt_eval == 0)
          {
-            tcd->SetAdaptivityEvaluator(new AdvectorCG);
+            tc->SetAdaptivityEvaluator(new AdvectorCG);
          }
          else
          {
 #ifdef MFEM_USE_GSLIB
-            tcd->SetAdaptivityEvaluator(new InterpolatorFP);
+            tc->SetAdaptivityEvaluator(new InterpolatorFP);
 #else
             MFEM_ABORT("MFEM is not built with GSLIB.");
 #endif
          }
          VectorFunctionCoefficient fd_aspr3d(dim, discrete_aspr_3d);
          aspr3d.ProjectCoefficient(fd_aspr3d);
-         tcd->SetParDiscreteTargetAspectRatio(aspr3d);
-         target_c = tcd;
+         tc->SetParDiscreteTargetAspectRatio(aspr3d);
+         target_c = tc;
          break;
       }
       case 8: // shape/size + orientation 2D
       {
          target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE;
-         tcd = new DiscreteAdaptTC(target_t);
+         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
          if (adapt_eval == 0)
          {
-            tcd->SetAdaptivityEvaluator(new AdvectorCG);
+            tc->SetAdaptivityEvaluator(new AdvectorCG);
          }
          else
          {
 #ifdef MFEM_USE_GSLIB
-            tcd->SetAdaptivityEvaluator(new InterpolatorFP);
+            tc->SetAdaptivityEvaluator(new InterpolatorFP);
 #else
             MFEM_ABORT("MFEM is not built with GSLIB.");
 #endif
@@ -641,7 +639,7 @@ int main (int argc, char *argv[])
          {
             ConstantCoefficient ind_coeff(0.1*0.1);
             size.ProjectCoefficient(ind_coeff);
-            tcd->SetParDiscreteTargetSize(size);
+            tc->SetParDiscreteTargetSize(size);
          }
 
          if (metric_id == 85)
@@ -649,13 +647,13 @@ int main (int argc, char *argv[])
             FunctionCoefficient aspr_coeff(discrete_aspr_2d);
             aspr.ProjectCoefficient(aspr_coeff);
             DiffuseField(aspr,2);
-            tcd->SetParDiscreteTargetAspectRatio(aspr);
+            tc->SetParDiscreteTargetAspectRatio(aspr);
          }
 
          FunctionCoefficient ori_coeff(discrete_ori_2d);
          ori.ProjectCoefficient(ori_coeff);
-         tcd->SetParDiscreteTargetOrientation(ori);
-         target_c = tcd;
+         tc->SetParDiscreteTargetOrientation(ori);
+         target_c = tc;
          break;
       }
       default:
@@ -827,7 +825,8 @@ int main (int argc, char *argv[])
       tauval -= 0.01 * h0min_all;
    }
 
-   const double init_energy = a.GetParGridFunctionEnergy(x)/pmesh->GetGlobalNE();
+   const double init_energy = a.GetParGridFunctionEnergy(x) /
+                              (hradaptivity ? pmesh->GetGlobalNE() : 1);
 
    // Visualize the starting mesh and metric values.
    // Note that for combinations of metrics, this only shows the first metric.
@@ -969,14 +968,16 @@ int main (int argc, char *argv[])
       pmesh->PrintAsOne(mesh_ofs);
    }
 
-   // 22. Compute the amount of energy decrease.
-   const double fin_energy = a.GetParGridFunctionEnergy(x)/pmesh->GetGlobalNE();
+   // 17. Compute the amount of energy decrease.
+   const double fin_energy = a.GetParGridFunctionEnergy(x) /
+                             (hradaptivity ? pmesh->GetGlobalNE() : 1);
    double metric_part = fin_energy;
    if (lim_const > 0.0 || adapt_lim_const > 0.0)
    {
       lim_coeff.constant = 0.0;
       coef_zeta.constant = 0.0;
-      metric_part = a.GetParGridFunctionEnergy(x);
+      metric_part = a.GetParGridFunctionEnergy(x) /
+                    (hradaptivity ? pmesh->GetGlobalNE() : 1);
       lim_coeff.constant = lim_const;
       coef_zeta.constant = adapt_lim_const;
    }
