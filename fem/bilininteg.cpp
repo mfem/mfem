@@ -22,14 +22,14 @@ namespace mfem
 
 void BilinearFormIntegrator::AssemblePA(const FiniteElementSpace&)
 {
-   mfem_error ("BilinearFormIntegrator::AssemblePA(...)\n"
+   mfem_error ("BilinearFormIntegrator::AssemblePA(fes)\n"
                "   is not implemented for this class.");
 }
 
 void BilinearFormIntegrator::AssemblePA(const FiniteElementSpace&,
                                         const FiniteElementSpace&)
 {
-   mfem_error ("BilinearFormIntegrator::AssemblePA(...)\n"
+   mfem_error ("BilinearFormIntegrator::AssemblePA(fes, fes)\n"
                "   is not implemented for this class.");
 }
 
@@ -92,7 +92,7 @@ void BilinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
 
 void BilinearFormIntegrator::AddMultTransposePA(const Vector &, Vector &) const
 {
-   mfem_error ("BilinearFormIntegrator::MultAssembledTranspose(...)\n"
+   mfem_error ("BilinearFormIntegrator::AddMultTransposePA(...)\n"
                "   is not implemented for this class.");
 }
 

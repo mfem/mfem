@@ -11,6 +11,9 @@
 Version 4.2.1 (development)
 ===========================
 
+- Added matrix-free GPU-enabled implementations of GradientInterpolator and
+  IdentityInterpolator.
+
 - Added interface to MUMPS direct solver. Its usage is demonstrated in ex25p.
   See http://mumps.enseeiht.fr/ for more details. Supported versions >= 5.1.1.
 
@@ -61,6 +64,10 @@ Version 4.2.1 (development)
   advection-dominated problems) using hypre's approximate ideal restriction
   (AIR) AMG. Requires hypre version 2.14.0 or newer. Usage is illustrated in
   example 9/9p.
+
+- Implemented an adaptive linear solver tolerance option for NewtonSolver based
+  on the algorithm of Eisenstat and Walker.
+
 
 Version 4.2, released on October 30, 2020
 =========================================
