@@ -15,6 +15,7 @@
 #include "../../config/config.hpp"
 
 #ifdef MFEM_USE_CEED
+#include "ceed.hpp"
 #include <ceed.h>
 #include "../../linalg/operator.hpp"
 
@@ -47,10 +48,10 @@ public:
 class ConstrainedMFEMCeedOperator : public Operator
 {
 public:
-   MFEMCeedOperator(CeedOperator oper, const Array<int> &ess_tdofs_,
-                    const Operator *P_);
-   MFEMCeedOperator(CeedOperator oper, const Operator *P_);
-   ~MFEMCeedOperator();
+   ConstrainedMFEMCeedOperator(CeedOperator oper, const Array<int> &ess_tdofs_,
+                               const Operator *P_);
+   ConstrainedMFEMCeedOperator(CeedOperator oper, const Operator *P_);
+   ~ConstrainedMFEMCeedOperator();
    void Mult(const Vector& x, Vector& y) const;
    CeedOperator GetCeedOperator() const;
    const Array<int> &GetEssentialTrueDofs() const;
