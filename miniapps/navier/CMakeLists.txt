@@ -10,13 +10,19 @@
 # CONTRIBUTING.md for details.
 
 if (MFEM_USE_MPI)
-  list(APPEND NAVIER_COMMON_FILES
+  list(APPEND NAVIER_COMMON_SOURCES
       navier_solver.cpp
+      ortho_solver.cpp)
+  list(APPEND NAVIER_COMMON_HEADERS
       navier_solver.hpp
-      ortho_solver.cpp
       ortho_solver.hpp)
 
-  convert_filenames_to_full_paths(NAVIER_COMMON_FILES)
+  convert_filenames_to_full_paths(NAVIER_COMMON_SOURCES)
+  convert_filenames_to_full_paths(NAVIER_COMMON_HEADERS)
+
+  set(NAVIER_COMMON_FILES
+      EXTRA_SOURCES ${NAVIER_COMMON_SOURCES}
+      EXTRA_HEADERS ${NAVIER_COMMON_HEADERS})
 
   add_mfem_miniapp(navier_mms
     MAIN navier_mms.cpp
@@ -25,6 +31,11 @@ if (MFEM_USE_MPI)
 
   add_mfem_miniapp(navier_kovasznay
     MAIN navier_kovasznay.cpp
+    ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem)
+
+  add_mfem_miniapp(navier_kovasznay_vs
+    MAIN navier_kovasznay_vs.cpp
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem)
 

@@ -1204,6 +1204,7 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       });
       // Modify offdiagonal blocks (imaginary parts of the matrix) to conform
       // with standard essential BC treatment
+      ess_tdof_list.HostRead();
       if (A_i.Type() == Operator::Hypre_ParCSR)
       {
          HypreParMatrix * Ah;
@@ -1366,7 +1367,6 @@ ParSesquilinearForm::Update(FiniteElementSpace *nfes)
    if ( pblfr ) { pblfr->Update(nfes); }
    if ( pblfi ) { pblfi->Update(nfes); }
 }
-
 
 #endif // MFEM_USE_MPI
 
