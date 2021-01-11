@@ -153,8 +153,9 @@ SparseMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
                {
                   int vdof = fespace.DofToVDof(k, d);
                   int truek = fespace.GetLocalTDofNumber(vdof);
-                  /// the following overwrites neighboring elements, which is
-                  /// probably not ideal for curved boundaries
+                  // an arguably better algorithm does some kind of average
+                  // instead of just overwriting when two elements (with
+                  // potentially different normals) share a node.
                   out->Set(row, truek, nor[d]);
                }
             }

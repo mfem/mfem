@@ -171,8 +171,10 @@ HypreParMatrix * OldBuildNormalConstraints(ParFiniteElementSpace& fespace,
                {
                   int vdof = fespace.DofToVDof(k, d);
                   int truek = fespace.GetLocalTDofNumber(vdof);
+                  // an arguably better algorithm does some kind of average
+                  // instead of just overwriting when two elements (with
+                  // potentially different normals) share a node.
                   out->Set(constraint, truek, nor[d]);
-                  // d_dofs[d]->Append(vdof);
                }
             }
          }
@@ -371,7 +373,7 @@ int main(int argc, char *argv[])
    Array<int> lagrange_rowstarts;
 
    // hconstraints = OldBuildNormalConstraints(fespace, constraint_atts,
-   //                                        lagrange_rowstarts);
+   //                                          lagrange_rowstarts);
    hconstraints = BuildParNormalConstraints(fespace, constraint_atts,
                                             lagrange_rowstarts);
    hconstraints->Print("hconstraints");
