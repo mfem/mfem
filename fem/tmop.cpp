@@ -2267,6 +2267,8 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    for (int i = 0; i < ir.GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir.IntPoint(i);
+      Tpr->SetIntPoint(&ip);
+
       const DenseMatrix &Jtr_i = Jtr(i);
       metric->SetTargetJacobian(Jtr_i);
       CalcInverse(Jtr_i, Jrt);
@@ -2306,7 +2308,6 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    }
 
    delete Tpr;
-
    return energy;
 }
 void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
