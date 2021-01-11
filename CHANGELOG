@@ -49,6 +49,9 @@ Version 4.2.1 (development)
   deprecated EvalSymmetric in MatrixCoefficient. Added DiagonalMatrixCoefficient
   for clarity, which is a typedef of VectorCoefficient.
 
+- Implemented an adaptive linear solver tolerance option for NewtonSolver based
+  on the algorithm of Eisenstat and Walker.
+
 libCEED integration improvements
 --------------------------------
 - Refactor the libCEED integration
