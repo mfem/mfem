@@ -72,6 +72,9 @@ void SetMeshAttributes(Mesh * mesh, int subdivisions, double ovlp)
    }
    mesh->SetAttributes();
    cout << "Max attributes " << mesh->attributes.Max() << endl;
+   cout << "angles = " ; angles.Print(cout, 2*subdivisions);
+   if (!angles.IsSorted()) 
+      MFEM_WARNING("Check mesh partitioning angles ");
 }
 
 // remove/leave elements with attributes given by attr

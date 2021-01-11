@@ -142,6 +142,7 @@ void PartitionFE(const FiniteElementSpace * fes, int nrsubmeshes, double ovlp,
    for (int i = 0; i<nrsubmeshes; i++)
    {
       fespaces[i] = new FiniteElementSpace(meshes[i],fec);
+      cout << " fespace size " << fespaces[i]->GetTrueVSize() << endl;
       DofMaps0[i] = new Array<int>();
       DofMaps1[i] = new Array<int>();
       GetDofMaps(*fespaces[i],*fes,*DofMaps0[i], *DofMaps1[i], ElemMaps[i], &GlobalElems);

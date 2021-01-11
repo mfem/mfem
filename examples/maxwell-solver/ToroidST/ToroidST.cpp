@@ -135,7 +135,8 @@ ToroidST::ToroidST(SesquilinearForm * bf_, const Vector & aPmlThickness_,
    fes = bf->FESpace();
    cout << "In ToroidST" << endl;
 
-   overlap = 5.0;
+   // overlap = 2.5;
+   overlap = 1.25;
    ovlp = overlap + aPmlThickness[1]; // for now
    //-------------------------------------------------------
    // Step 0: Generate Mesh and FiniteElementSpace Partition

@@ -1,7 +1,7 @@
 
 
 // sample runs: ./ST_bend -ref 2 -o 2 -f 0.6
-
+//              ./ST_bend -ref 3 -o 2 -f 1.2  (6 iterations)
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -71,11 +71,14 @@ int main(int argc, char *argv[])
    dim = mesh->Dimension();
    mesh->RemoveInternalBoundaries();
 
+   cout << "Initial number of elements = " << mesh->GetNE() << endl;
+
+
    for (int iter = 0; iter<ref_levels; iter++)
    {
       mesh->UniformRefinement();
    }
-   
+
    // Angular frequency
    omega = 2.0 * M_PI * freq;
 
@@ -88,7 +91,7 @@ int main(int argc, char *argv[])
    bool zstretch = false;
    bool astretch = false;
    bool rstretch = false;
-   apml_thickness[1] = 30.0; 
+   apml_thickness[1] = 20.0;
    astretch = true;
    tpml.SetPmlAxes(zstretch,rstretch,astretch);
    tpml.SetPmlWidth(zpml_thickness,rpml_thickness,apml_thickness);
@@ -184,19 +187,19 @@ int main(int argc, char *argv[])
 
 
 
-   SparseMatrix * SpMat = (*A.As<ComplexSparseMatrix>()).GetSystemMatrix();
-   // SpMat->Threshold(0.0);
-   // SpMat->PrintMatlab(cout);
-   // cin.get();
-   HYPRE_Int global_size = SpMat->Height();
-   HYPRE_Int row_starts[2]; row_starts[0] = 0; row_starts[1] = global_size;
-   HypreParMatrix * HypreMat = new HypreParMatrix(MPI_COMM_SELF,global_size,row_starts,SpMat);
-   {
-      MUMPSSolver mumps;
-      mumps.SetOperator(*HypreMat);
-      mumps.Mult(B,X);
-   }
-   cout << "X norm = " << X.Norml2() << endl;
+   // SparseMatrix * SpMat = (*A.As<ComplexSparseMatrix>()).GetSystemMatrix();
+   // // SpMat->Threshold(0.0);
+   // // SpMat->PrintMatlab(cout);
+   // // cin.get();
+   // HYPRE_Int global_size = SpMat->Height();
+   // HYPRE_Int row_starts[2]; row_starts[0] = 0; row_starts[1] = global_size;
+   // HypreParMatrix * HypreMat = new HypreParMatrix(MPI_COMM_SELF,global_size,row_starts,SpMat);
+   // {
+   //    MUMPSSolver mumps;
+   //    mumps.SetOperator(*HypreMat);
+   //    mumps.Mult(B,X);
+   // }
+   // cout << "X norm = " << X.Norml2() << endl;
 
 
    // double overlap = 7; // in degrees;
@@ -230,9 +233,9 @@ int main(int argc, char *argv[])
    // a.RecoverFEMSolution(X, b, x);
 
 
-   int nrsubdomains = 4;
+   int nrsubdomains = 5;
    ToroidST * STSolver = new ToroidST(&a,apml_thickness,omega,nrsubdomains);
-   // STSolver->Mult(B,Y);
+   STSolver->Mult(B,Y);
 
    GMRESSolver gmres;
 	// gmres.iterative_mode = true;
@@ -242,16 +245,15 @@ int main(int argc, char *argv[])
 	gmres.SetMaxIter(100);
 	gmres.SetPrintLevel(1);
 	gmres.Mult(B, Y);
-
-
    delete STSolver;
 
    cout << "Y norm = " << Y.Norml2() << endl;
 
 
-   cin.get();
+   // cin.get();
 
    a.RecoverFEMSolution(Y, b, x);
+   // a.RecoverFEMSolution(X, b, x);
 
 
 
