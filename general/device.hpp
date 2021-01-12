@@ -286,10 +286,10 @@ public:
    static bool GetGPUAwareMPI() { return Get().mpi_gpu_aware; }
 
 #ifdef MFEM_USE_UMPIRE
-   static bool UseHostUmpire() { return Get().use_host_umpire; }
-   static void UseHostUmpire(bool use) { Get().use_host_umpire = use; }
-   static bool UseDeviceUmpire() { return Get().use_device_umpire; }
-   static void UseDeviceUmpire(bool use) { Get().use_device_umpire = use; }
+   static bool GetHostUmpire() { return Get().use_host_umpire; }
+   static void SetHostUmpire(bool use) { Get().use_host_umpire = use; }
+   static bool GetDeviceUmpire() { return Get().use_device_umpire; }
+   static void SetDeviceUmpire(bool use) { Get().use_device_umpire = use; }
 #endif
 };
 

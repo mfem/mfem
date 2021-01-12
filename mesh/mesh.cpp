@@ -775,7 +775,7 @@ void Mesh::GetLocalQuadToWdgTransformation(
 }
 
 const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
-                                                  const int flags)
+                                                  const int flags, bool use_temp)
 {
    for (int i = 0; i < geom_factors.Size(); i++)
    {
@@ -788,7 +788,7 @@ const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
 
    this->EnsureNodes();
 
-   GeometricFactors *gf = new GeometricFactors(this, ir, flags);
+   GeometricFactors *gf = new GeometricFactors(this, ir, flags, use_temp);
    geom_factors.Append(gf);
    return gf;
 }
@@ -10739,8 +10739,8 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    if (elem_restr)
    {
       Vector Enodes(vdim*ND*NE,
-                    use_temp_mem ? Device::GetDeviceTempMemoryType() :
-                    Device::GetDeviceMemoryType());
+                    use_temp_mem ? MemoryClass::DEVICE_TEMP :
+                    MemoryClass::DEVICE);
       elem_restr->Mult(*nodes, Enodes);
       qi->Mult(Enodes, eval_flags, X, J, detJ);
    }
