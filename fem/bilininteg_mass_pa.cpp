@@ -1171,7 +1171,7 @@ static void SetupMass(const int ne,
                       const int quads = Quads)
 {
    auto config  = MakeConfig<Dim,IsTensor,Dofs,Quads,BatchSize>(dofs, quads);
-   auto B       = MakeBasis(config, b, bt, g, gt);
+   const auto B = MakeBasis(config, b, bt, g, gt);
    const auto X = MakeDoFs<1>(config, x.Read(), ne);
    const auto C = MakeQData<0>(config, c.Read(), ne);
    const auto W = MakeWeight(config, w);
@@ -1199,11 +1199,10 @@ static void ApplyMass(const int ne,
                       const int quads = Quads)
 {
    auto config  = MakeConfig<Dim,IsTensor,Dofs,Quads,BatchSize>(dofs, quads);
-   auto B       = MakeBasis(config, b.Read(), bt.Read());
+   const auto B = MakeBasis(config, b.Read(), bt.Read());
    const auto X = MakeDoFs<VDim>(config, x.Read(), ne);
    const auto D = MakeQData<0>(config, d.Read(), ne);
    auto Y       = MakeDoFs<VDim>(config, y.ReadWrite(), ne);
-   // QData<Dim,0,IsTensor,Quads> D(d_D, quads);
    MFEM_FORALL(e,ne,
    // forall(e, ne, config,
    {
@@ -1232,8 +1231,8 @@ static void ApplyMassMF(const int ne,
 {
    auto config_m  = MakeConfig<Dim,IsTensor,DofsMesh,Quads,BatchSize>(dofs, quads);
    auto config    = MakeConfig<Dim,IsTensor,Dofs,Quads,BatchSize>(dofs, quads);
-   auto B_M       = MakeBasis(config_m, b_m.Read(), bt_m.Read());
-   auto B         = MakeBasis(config, b.Read(), bt.Read());
+   const auto B_M = MakeBasis(config_m, b_m.Read(), bt_m.Read());
+   const auto B   = MakeBasis(config, b.Read(), bt.Read());
    const auto X_M = MakeDoFs<Dim>(config_m, nodes.Read(), ne);
    const auto X   = MakeDoFs<VDim>(config, x.Read(), ne);
    const auto W   = MakeWeight(config, w);
@@ -1260,10 +1259,9 @@ static void SetupMassEA(const int ne,
                         const int quads = Quads)
 {
    auto config  = MakeConfig<Dim,IsTensor,Dofs,Quads,BatchSize>(dofs, quads);
-   auto B       = MakeBasis(config, b.Read(), bt.Read());
+   const auto B = MakeBasis(config, b.Read(), bt.Read());
    const auto D = MakeQData<0>(config, d.Read(), ne);
    auto M       = MakeElementMatrix<VDim>(config, m.Write(), ne);
-   // QData<Dim,0,IsTensor,Quads> D(d_D, quads);
    MFEM_FORALL(e,ne,
    // forall(e, ne, config,
    {

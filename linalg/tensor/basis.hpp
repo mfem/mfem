@@ -1770,7 +1770,7 @@ struct Basis<Dim,false,Dynamic,Dynamic>
 
    auto GetB() const
    {
-      DynamicSharedTensor<2,double,MaxSize> s_B(quads,dofs);
+      DynamicSharedDTensor<2,MaxSize> s_B(quads,dofs);
       MFEM_FOREACH_THREAD(d,y,dofs)
       {
          MFEM_FOREACH_THREAD(q,x,quads)
@@ -1783,7 +1783,7 @@ struct Basis<Dim,false,Dynamic,Dynamic>
 
    auto GetBt() const
    {
-      DynamicSharedTensor<2,double,MaxSize> s_Bt(dofs,quads);
+      DynamicSharedDTensor<2,MaxSize> s_Bt(dofs,quads);
       MFEM_FOREACH_THREAD(q,y,quads)
       {
          MFEM_FOREACH_THREAD(d,x,dofs)
@@ -1796,7 +1796,7 @@ struct Basis<Dim,false,Dynamic,Dynamic>
 
    auto GetG() const
    {
-      DynamicSharedTensor<3,double,MaxSize> s_G(quads,dofs,dim);
+      DynamicSharedDTensor<3,MaxSize> s_G(quads,dofs,dim);
       MFEM_FOREACH_THREAD(d,y,dofs)
       {
          MFEM_FOREACH_THREAD(q,x,quads)
@@ -1812,7 +1812,7 @@ struct Basis<Dim,false,Dynamic,Dynamic>
 
    auto GetGt() const
    {
-      DynamicSharedTensor<3,double,MaxSize> s_Gt(dofs,quads,dim);
+      DynamicSharedDTensor<3,MaxSize> s_Gt(dofs,quads,dim);
       MFEM_FOREACH_THREAD(q,y,quads)
       {
          MFEM_FOREACH_THREAD(d,x,dofs)
@@ -1841,7 +1841,7 @@ struct Basis<Dim,false,Dofs,Quads>
 
    auto GetB() const
    {
-      StaticSharedTensor<double,quads,dofs> s_B(quads,dofs);
+      StaticSharedDTensor<quads,dofs> s_B(quads,dofs);
       MFEM_FOREACH_THREAD(d,y,dofs)
       {
          MFEM_FOREACH_THREAD(q,x,quads)
@@ -1854,7 +1854,7 @@ struct Basis<Dim,false,Dofs,Quads>
 
    auto GetBt() const
    {
-      StaticSharedTensor<double,dofs,quads> s_Bt(dofs,quads);
+      StaticSharedDTensor<dofs,quads> s_Bt(dofs,quads);
       MFEM_FOREACH_THREAD(q,y,quads)
       {
          MFEM_FOREACH_THREAD(d,x,dofs)
@@ -1867,7 +1867,7 @@ struct Basis<Dim,false,Dofs,Quads>
 
    auto GetG() const
    {
-      StaticSharedTensor<double,quads,dofs,dim> s_G(quads,dofs,dim);
+      StaticSharedDTensor<quads,dofs,dim> s_G(quads,dofs,dim);
       MFEM_FOREACH_THREAD(d,y,dofs)
       {
          MFEM_FOREACH_THREAD(q,x,quads)
@@ -1883,7 +1883,7 @@ struct Basis<Dim,false,Dofs,Quads>
 
    auto GetGt() const
    {
-      StaticSharedTensor<double,dofs,quads,dim> s_Gt(dofs,quads,dim);
+      StaticSharedDTensor<dofs,quads,dim> s_Gt(dofs,quads,dim);
       MFEM_FOREACH_THREAD(q,y,quads)
       {
          MFEM_FOREACH_THREAD(d,x,dofs)
