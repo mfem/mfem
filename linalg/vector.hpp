@@ -86,6 +86,10 @@ public:
    Vector(int size_, MemoryType mt)
       : data(size_, mt), size(size_) { }
 
+   /// Create a Vector of size @a size_ using MemoryClass @a mc.
+   Vector(int size_, MemoryClass mc)
+      : data(size_, mc), size(size_) { }
+
    /// Enable execution of Vector operations using the mfem::Device.
    /** The default is to use Backend::CPU (serial execution on each MPI rank),
        regardless of the mfem::Device configuration.
@@ -99,7 +103,6 @@ public:
 
    /// Return the device flag of the Memory object used by the Vector
    bool UseDevice() const { return data.UseDevice(); }
-
 
    /// Enable execution of Vector operations using the mfem::Device.
    void UseTemporary(bool use_temp) { data.UseTemporary(use_temp); }
@@ -171,6 +174,8 @@ public:
 
    /// Destroy a vector
    void Destroy();
+
+   void DeleteDevice(bool copy_to_host=true) { data.DeleteDevice(copy_to_host); }
 
    /// Returns the size of the vector.
    inline int Size() const { return size; }

@@ -357,7 +357,7 @@ void Device::UpdateMemoryTypeAndClass()
    switch (device_mem_type)
    {
       case MemoryType::DEVICE_UMPIRE:
-         device_temp_mem_type = MemoryType::DEVICE_TEMP_UMPIRE;
+         device_temp_mem_type = device_mem_type;
          device_temp_mem_class = MemoryClass::DEVICE_TEMP;
          break;
       default:

@@ -39,7 +39,6 @@ enum class MemoryType
    DEVICE_DEBUG,        /**< Pseudo-device memory; allocated on host from a
                              "device-debug" pool */
    DEVICE_UMPIRE,       ///< Device memory; using Umpire
-   DEVICE_TEMP_UMPIRE,  ///< Temporary Device memory; using Umpire
    SIZE,                ///< Number of host and device memory types
    PRESERVE             ///< Default parameter type; preserves existing behavior
 };
@@ -65,7 +64,7 @@ enum class MemoryClass
    HOST_32, ///< Memory types: { HOST_32, HOST_64, HOST_DEBUG }
    HOST_64, ///< Memory types: { HOST_64, HOST_DEBUG }
    DEVICE,  ///< Memory types: { DEVICE, DEVICE_DEBUG, DEVICE_UMPIRE, MANAGED }
-   DEVICE_TEMP, ///< Memory types: { DEVICE_TEMP_UMPIRE }
+   DEVICE_TEMP, ///< Memory types: { DEVICE_UMPIRE }
    MANAGED  ///< Memory types: { MANAGED }
 };
 
@@ -149,10 +148,10 @@ protected:
    /// Pointer to host memory. Not owned.
    /** The type of the pointer is given by the field #h_mt; it can be any type
        from MemoryClass::HOST. */
-   T *h_ptr;
-   int capacity; ///< Size of the allocated memory
-   MemoryType h_mt; ///< Host memory type
-   mutable unsigned flags; ///< Bit flags defined from the #FlagMask enum
+   T *h_ptr{nullptr};
+   int capacity{0}; ///< Size of the allocated memory
+   MemoryType h_mt{MemoryType::HOST}; ///< Host memory type
+   mutable unsigned flags{0}; ///< Bit flags defined from the #FlagMask enum
    // 'flags' is mutable so that it can be modified in Set{Host,Device}PtrOwner,
    // Copy{From,To}, {ReadWrite,Read,Write}.
 
@@ -182,6 +181,16 @@ public:
    /** The newly allocated memory is not initialized, however the given
        MemoryType is still set as valid. */
    Memory(int size, MemoryType mt) { New(size, mt); }
+
+   /** @brief Allocate memory for @a size entries with the given MemoryClass
+       @a mt. */
+   /** The newly allocated memory is not initialized, however the given
+       MemoryType is still set as valid. */
+   Memory(int size, MemoryClass mc)
+   {
+      if (mc == MemoryClass::DEVICE_TEMP) { UseTemporary(true); }
+      New(size, mfem::GetMemoryType(mc));
+   }
 
    /** @brief Wrap an externally allocated host pointer, @a ptr with the current
        host memory type returned by MemoryManager::GetHostMemoryType(). */
@@ -237,7 +246,6 @@ public:
    bool UseDevice() const { return flags & USE_DEVICE; }
 
    /// Set the internal device flag.
-   // TODO TMS: this shouldn't be marked const?
    void UseDevice(bool use_dev) const
    { flags = use_dev ? (flags | USE_DEVICE) : (flags & ~USE_DEVICE); }
 
@@ -335,9 +343,9 @@ public:
        i.e. it will, generally, not be Empty() after this call. */
    inline void Delete();
 
-   /** @brief Delete the owned device pointer. */
-   inline void DeleteDevice();
-
+   /** Delete the device pointer, if owned. If the data is valid only on device,
+    * move it to host before deleting and invalidating the device memory." */
+   inline void DeleteDevice(bool copy_to_host=true);
 
    /// Array subscript operator for host memory.
    inline T &operator[](int idx);
@@ -616,7 +624,7 @@ private:
 
    /// Insert a device and the host addresses in the memory map
    void InsertDevice(void *d_ptr, void *h_ptr, size_t bytes,
-                     MemoryType h_mt,  MemoryType d_mt);
+                     MemoryType h_mt,  MemoryType d_mt, bool is_temp);
 
    /// Insert an alias in the alias map
    void InsertAlias(const void *base_ptr, void *alias_ptr,
@@ -631,11 +639,10 @@ private:
    /// Erase an alias from the aliases map
    void EraseAlias(void *alias_ptr);
 
-   void UpdateDeviceMemoryType(void *h_ptr, const MemoryType mt);
-
    /// Return the corresponding device pointer of h_ptr,
    /// allocating and moving the data if needed
-   void *GetDevicePtr(const void *h_ptr, size_t bytes, bool copy_data);
+   void *GetDevicePtr(const void *h_ptr, size_t bytes, bool copy_data,
+                      bool is_temp);
 
    /// Return the corresponding device pointer of alias_ptr,
    /// allocating and moving the data if needed
@@ -827,12 +834,13 @@ inline void Memory<T>::Delete()
 }
 
 template <typename T>
-inline void Memory<T>::DeleteDevice()
+inline void Memory<T>::DeleteDevice(bool copy_to_host)
 {
    const bool registered = flags & REGISTERED;
 
    if (registered)
    {
+      if (copy_to_host) { Read(MemoryClass::HOST, capacity); }
       MemoryManager::DeleteDevice_((void*)h_ptr, flags);
    }
 }
