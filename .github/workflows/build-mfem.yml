@@ -5,7 +5,7 @@ on:
 
 env:
   HYPRE_ARCHIVE: v2.19.tar.gz
-  HYPRE_URL: https://github.com/hypre-space/hypre/archive/${{ env.HYPRE_ARCHIVE }}
+  HYPRE_URL: https://github.com/hypre-space/hypre/archive
   HYPRE_TOP_DIR: hypre-2.19.0
 
 jobs:
@@ -30,7 +30,7 @@ jobs:
       run: |
         if [ $MPI == "YES" ]; then
            if [ ! -e $HYPRE_TOP_DIR/src/hypre/lib/libHYPRE.a ]; then
-              wget $HYPRE_URL;
+              wget $HYPRE_URL/$HYPRE_ARCHIVE;
               rm -rf $HYPRE_TOP_DIR;
               tar xvzf $HYPRE_ARCHIVE;
               cd $HYPRE_TOP_DIR/src;
