@@ -593,11 +593,17 @@ void TMOPAMRSolver::Mult()
 {
    Vector b(0);
    int myid = 0;
-   tmopns->SetOperator(*nlf);
+   if (serial)
+   {
+      tmopns->SetOperator(*nlf);
+   }
+   else
+   {
 #ifdef MFEM_USE_MPI
-   myid = pnlf->ParFESpace()->GetMyRank();
-   tmopns->SetOperator(*pnlf);
+      myid = pnlf->ParFESpace()->GetMyRank();
+      tmopns->SetOperator(*pnlf);
 #endif
+   }
    if (!hradaptivity)
    {
       tmopns->Mult(b, x->GetTrueVector());
