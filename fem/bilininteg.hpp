@@ -3090,6 +3090,22 @@ protected:
    VectorCoefficient *VQ;
 };
 
+/** Interpolator of the 2D cross product between a vector coefficient and an
+    H(curl)-conforming field onto an L2-conforming field. */
+class ScalarCrossProductInterpolator : public DiscreteInterpolator
+{
+public:
+   ScalarCrossProductInterpolator(VectorCoefficient & vc)
+      : VQ(&vc) { }
+
+   virtual void AssembleElementMatrix2(const FiniteElement &nd_fe,
+                                       const FiniteElement &l2_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+protected:
+   VectorCoefficient *VQ;
+};
+
 /** Interpolator of the cross product between a vector coefficient and an
     H(curl)-conforming field onto an H(div)-conforming field. The range space
     can also be vector L2. */
