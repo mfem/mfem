@@ -23,7 +23,7 @@ jobs:
     - name: Cache Hypre Install
       uses: actions/cache@v2
       with:
-        path: {{ env.HYPRE_TOP_DIR }}
+        path: ${{ env.HYPRE_TOP_DIR }}
         key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}
 
     - name: Install Hypre
