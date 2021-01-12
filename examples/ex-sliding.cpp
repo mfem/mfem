@@ -441,7 +441,7 @@ int main(int argc, char *argv[])
    solver->SetRelTol(1e-8);
    solver->SetMaxIter(500);
    solver->SetPrintLevel(1);
-   solver->Mult(B, X);
+   solver->PrimalMult(B, X);
 
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
