@@ -3,15 +3,50 @@ name: build-mfem
 on:
   push:
 
+env:
+  HYPRE_ARCHIVE: v2.19.tar.gz
+  HYPRE_URL: https://github.com/hypre-space/hypre/archive/$HYPRE_ARCHIVE
+  HYPER_TOP_DIR: hypre-2.19.0
+
 jobs:
   build:
-
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        MPI: ["NO", "YES"]
+    with:
+      MPI: ${{ matrix.MPI }}
 
     steps:
     - uses: actions/checkout@v2
+
+    - name: Cache Hypre Install
+      uses: actions/cache@v2
+      with:
+        path: {{ env.HYPRE_TOP_DIR }}
+        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}
+
+    - name: Install Hypre
+      run: |
+        if [ $MPI == "YES" ]; then
+           if [ ! -e $HYPRE_TOP_DIR/src/hypre/lib/libHYPRE.a ]; then
+              wget $HYPRE_URL;
+              rm -rf $HYPRE_TOP_DIR;
+              tar xvzf $HYPRE_ARCHIVE;
+              cd $HYPRE_TOP_DIR/src;
+              ./configure --disable-fortran CC=mpicc CXX=mpic++;
+              make -j3;
+              cd ../..;
+           else
+               echo "Reusing cached $HYPRE_TOP_DIR/";
+           fi;
+           ln -s $HYPRE_TOP_DIR hypre;
+        else
+           echo "Serial build, not using hypre";
+        fi
+
     - name: configure
-      run: make config MFEM_USE_MPI=NO
+      run: make config MFEM_USE_MPI=$MPI
     - name: make
       run: make
     - name: check
