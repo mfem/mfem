@@ -14,7 +14,7 @@
 #ifdef MFEM_USE_CEED
 #include "../fem/bilinearform.hpp"
 #include "../fem/fespace.hpp"
-#include "../fem/libceed/ceedsolvers-atpmg.h"
+#include "../fem/libceed/solvers-atpmg.h"
 #include "../fem/libceed/full-assembly.hpp"
 #include "../fem/pfespace.hpp"
 

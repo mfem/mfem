@@ -18,7 +18,7 @@
 #include "ceed.hpp"
 #include <ceed.h>
 #include "../../linalg/operator.hpp"
-#include "ceedsolvers-utility.h"
+#include "solvers-utility.h"
 
 namespace mfem
 {
