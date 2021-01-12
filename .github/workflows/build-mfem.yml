@@ -34,12 +34,13 @@ jobs:
 
     - name: Install Hypre
       run: |
-        if [[ $MPI == "YES" ]]; then
-           if [ ! -e $HYPRE_TOP_DIR/src/hypre/lib/libHYPRE.a ]; then
-              wget --no-verbose $HYPRE_URL/$HYPRE_ARCHIVE;
-              rm -rf $HYPRE_TOP_DIR;
-              tar xzf $HYPRE_ARCHIVE;
-              cd $HYPRE_TOP_DIR/src;
+        if [[ ${MPI} == "YES" ]]; then
+           cd ..; # was in ${GITHUB_WORKSPACE}
+           if [ ! -e ${HYPRE_TOP_DIR}/src/hypre/lib/libHYPRE.a ]; then
+              wget --no-verbose ${HYPRE_URL}/${HYPRE_ARCHIVE};
+              rm -rf ${HYPRE_TOP_DIR};
+              tar xzf ${HYPRE_ARCHIVE};
+              cd ${HYPRE_TOP_DIR}/src;
               ./configure --disable-fortran CC=mpicc CXX=mpic++;
               make -j3;
               cd ../..;
@@ -47,6 +48,7 @@ jobs:
                echo "Reusing cached $HYPRE_TOP_DIR/";
            fi;
            ln -s $HYPRE_TOP_DIR hypre;
+           cd ${GITHUB_WORKSPACE};
         else
            echo "Serial build, not using hypre";
         fi
