@@ -325,6 +325,10 @@ public:
        Both FE spaces should be scalar and on the same mesh. */
    void GetElementAverages(GridFunction &avgs) const;
 
+   /** Sets the output vector @a dof_vals to the values of the degrees of
+       freedom of element @a el. */
+   virtual void GetElementDofValues(int el, Vector &dof_vals) const;
+
    /** Impose the given bounds on the function's DOFs while preserving its local
     *  integral (described in terms of the given weights) on the i'th element
     *  through SLBPQ optimization.
@@ -345,14 +349,30 @@ public:
        projection matrix. */
    void ProjectGridFunction(const GridFunction &src);
 
+   /** @brief Project @a coeff Coefficient to @a this GridFunction. The
+       projection computation depends on the choice of the FiniteElementSpace
+       #fes. Note that this is usually interpolation at the degrees of freedom
+       in each element (not L2 projection). */
    virtual void ProjectCoefficient(Coefficient &coeff);
 
+   /** @brief Project @a coeff Coefficient to @a this GridFunction, using one
+       element for each degree of freedom in @a dofs and nodal interpolation on
+       that element. */
    void ProjectCoefficient(Coefficient &coeff, Array<int> &dofs, int vd = 0);
 
+   /** @brief Project @a vcoeff VectorCoefficient to @a this GridFunction. The
+       projection computation depends on the choice of the FiniteElementSpace
+       #fes. Note that this is usually interpolation at the degrees of freedom
+       in each element (not L2 projection).*/
    void ProjectCoefficient(VectorCoefficient &vcoeff);
 
+   /** @brief Project @a vcoeff VectorCoefficient to @a this GridFunction, using
+       one element for each degree of freedom in @a dofs and nodal interpolation
+       on that element. */
    void ProjectCoefficient(VectorCoefficient &vcoeff, Array<int> &dofs);
 
+   /** @brief Analogous to the version with argument @a vcoeff VectorCoefficient
+       but using an array of scalar coefficients for each component. */
    void ProjectCoefficient(Coefficient *coeff[]);
 
    /** @brief Project a discontinuous vector coefficient as a grid function on
@@ -462,11 +482,10 @@ public:
 
    /// Returns the Face Jumps error for L2 elements, with 1/h scaling.
    MFEM_DEPRECATED
-   virtual double ComputeDGFaceJumpError(Coefficient *exsol,
-                                         Coefficient *ell_coeff,
-                                         double Nu,
-                                         const IntegrationRule *irs[] = NULL)
-   const;
+   double ComputeDGFaceJumpError(Coefficient *exsol,
+                                 Coefficient *ell_coeff,
+                                 double Nu,
+                                 const IntegrationRule *irs[] = NULL) const;
 
    /** This method is kept for backward compatibility.
 
