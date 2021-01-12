@@ -386,7 +386,7 @@ int main(int argc, char *argv[])
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-   IterativeSolver * constrained = nullptr;
+   ConstrainedSolver * constrained = nullptr;
    if (penalty > 0.0)
    {
       constrained = new PenaltyConstrainedSolver(MPI_COMM_WORLD, *A.As<HypreParMatrix>(),
@@ -410,7 +410,7 @@ int main(int argc, char *argv[])
    constrained->SetAbsTol(1.e-12);
    constrained->SetMaxIter(500);
    constrained->SetPrintLevel(1);
-   constrained->Mult(B, X);
+   constrained->PrimalMult(B, X);
 
    int iterations = constrained->GetNumIterations();
    if (myid == 0)

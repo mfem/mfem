@@ -317,7 +317,7 @@ EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
    BuildPreconditioner(dimension, reorder);
 }
 
-void EliminationCGSolver::Mult(const Vector& rhs, Vector& sol) const
+void EliminationCGSolver::PrimalMult(const Vector& rhs, Vector& sol) const
 {
    // with square projector, need to add ones on diagonal
    // for quasi-eliminated dofs...
@@ -410,7 +410,7 @@ PenaltyConstrainedSolver::~PenaltyConstrainedSolver()
    delete prec;
 }
 
-void PenaltyConstrainedSolver::Mult(const Vector& b, Vector& x) const
+void PenaltyConstrainedSolver::PrimalMult(const Vector& b, Vector& x) const
 {
    // form penalized right-hand side
    Vector penalized_rhs(b);
@@ -503,7 +503,7 @@ SchurConstrainedSolver::~SchurConstrainedSolver()
    delete dual_pc;
 }
 
-void SchurConstrainedSolver::SaddleMult(const Vector& x, Vector& y) const
+void SchurConstrainedSolver::Mult(const Vector& x, Vector& y) const
 {
    GMRESSolver gmres(GetComm());
    gmres.SetOperator(*block_op);
@@ -564,12 +564,13 @@ ConstrainedSolver::ConstrainedSolver(MPI_Comm comm, Operator& A_, Operator& B_)
    :
    IterativeSolver(comm), A(A_), B(B_)
 {
-   height = A.Height();
-   width = A.Width();
+   height = A.Height() + B.Height();
+   width = A.Width() + B.Height();
 
-   workb.SetSize(A.Height() + B.Height());
-   workx.SetSize(A.Height() + B.Height());
-   constraint_rhs.SetSize(0);
+   workb.SetSize(A.Height());
+   workx.SetSize(A.Height());
+   constraint_rhs.SetSize(B.Height());
+   constraint_rhs = 0.0;
    multiplier_sol.SetSize(B.Height());
 }
 
@@ -583,29 +584,52 @@ void ConstrainedSolver::SetConstraintRHS(const Vector& r)
    constraint_rhs = r;
 }
 
-void ConstrainedSolver::Mult(const Vector& b, Vector& x) const
+void ConstrainedSolver::PrimalMult(const Vector& f, Vector &x) const
 {
-   workb = 0.0;
-   workx = 0.0;
-   for (int i = 0; i < b.Size(); ++i)
+   Vector pworkb(A.Height() + B.Height());
+   Vector pworkx(A.Height() + B.Height());
+   pworkb = 0.0;
+   pworkx = 0.0;
+   for (int i = 0; i < f.Size(); ++i)
    {
-      workb(i) = b(i);
-      workx(i) = x(i);
+      pworkb(i) = f(i);
+      pworkx(i) = x(i);
    }
-   for (int i = 0; i < constraint_rhs.Size(); ++i)
+   for (int i = 0; i < B.Height(); ++i)
    {
-      workb(b.Size() + i) = constraint_rhs(i);
+      pworkb(f.Size() + i) = constraint_rhs(i);
    }
 
-   SaddleMult(workb, workx);
+   Mult(pworkb, pworkx);
 
-   for (int i = 0; i < b.Size(); ++i)
+   for (int i = 0; i < f.Size(); ++i)
    {
-      x(i) = workx(i);
+      x(i) = pworkx(i);
    }
-   for (int i = 0; i < multiplier_sol.Size(); ++i)
+   for (int i = 0; i < B.Height(); ++i)
    {
-      multiplier_sol(i) = workx(b.Size() + i);
+      multiplier_sol(i) = pworkx(f.Size() + i);
+   }
+}
+
+void ConstrainedSolver::Mult(const Vector& f_and_r, Vector& x_and_lambda) const
+{
+   /// TODO: use GetData, Vector constructor that just wraps doubles, etc?
+   for (int i = 0; i < A.Height(); ++i)
+   {
+      workx(i) = x_and_lambda(i);
+      workb(i) = f_and_r(i);
+   }
+   Vector ref_constraint_rhs(f_and_r.GetData() + A.Height(), B.Height());
+   constraint_rhs = ref_constraint_rhs;
+   PrimalMult(workb, workx);
+   for (int i = 0; i < A.Height(); ++i)
+   {
+      x_and_lambda(i) = workx(i);
+   }
+   for (int i = 0; i < B.Height(); ++i)
+   {
+      x_and_lambda(A.Height() + i) = multiplier_sol(i);
    }
 }
 

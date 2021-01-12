@@ -29,11 +29,16 @@ class ParFiniteElementSpace;
     understanding some of its methods and notation you can think of
     it as solving the saddle-point system
 
-     (  A   B^T  )  ( x )         (  f  )
-     (  B        )  ( lambda)  =  (  r  )
+     (  A   B^T  )  ( x )          (  f  )
+     (  B        )  ( lambda )  =  (  r  )
 
     Not to be confused with ConstrainedOperator, which is totally
     different.
+
+    The height and width of this object as an IterativeSolver are for
+    the above saddle point system, but one can use its PrimalMult() method
+    to solve just \f$ Ax = f \f$ subject to a constraint with \f$ r \f$
+    defaulting to zero or set via SetConstraintRHS().
 
     This abstract object unifies handling of the "dual" rhs \f$ r \f$
     and the Lagrange multiplier solution \f$ \lambda \f$, so that derived
@@ -53,8 +58,10 @@ public:
 
    /** @brief Return the Lagrange multiplier solution in lambda
 
+       PrimalMult() only gives you x, this provides access to lambda
+
        Does not make sense unless you've already solved the constrained
-       system with Mult() */
+       system with Mult() or PirmalMult() */
    void GetMultiplierSolution(Vector& lambda) const { lambda = multiplier_sol; }
 
    /** @brief Solve for \f$ x \f$ given \f$ f \f$.
@@ -62,25 +69,23 @@ public:
        If you want to set \f$ r \f$, call SetConstraintRHS() before this.
 
        If you want to get \f$ \lambda \f$, call GetMultiplierSolution() after
-       this.
+       this. 
 
-       The implementation for the base class calls SaddleMult(), so
-       a derived class must implement either Mult() or SaddleMult() */
-   virtual void Mult(const Vector& f, Vector& x) const override;
+       The base class implementation calls Mult(), so derived classes must
+       implement either this or Mult() */
+   virtual void PrimalMult(const Vector& f, Vector& x) const;
 
-protected:
    /** @brief Solve for (x, lambda) given (f, r)
 
-       Derived classes must implement either this or Mult(). */
-   virtual void SaddleMult(const Vector& f_and_r, Vector& x_and_lambda) const
-   {
-      mfem_error("Not Implemented!");
-   }
+       The base class implementation calls PrimalMult(), so derived classes
+       must implement either this or PrimalMult() */
+   virtual void Mult(const Vector& f_and_r, Vector& x_and_lambda) const override;
 
+protected:
    Operator& A;
    Operator& B;
 
-   Vector constraint_rhs;
+   mutable Vector constraint_rhs;
    mutable Vector multiplier_sol;
    mutable Vector workb;
    mutable Vector workx;
@@ -210,7 +215,7 @@ public:
 
    ~EliminationCGSolver();
 
-   void Mult(const Vector& x, Vector& y) const override;
+   void PrimalMult(const Vector& x, Vector& y) const override;
 
 private:
    /// Utility routine for constructors
@@ -241,7 +246,7 @@ public:
 
    ~PenaltyConstrainedSolver();
 
-   void Mult(const Vector& x, Vector& y) const override;
+   void PrimalMult(const Vector& x, Vector& y) const override;
 
 private:
    void Initialize(HypreParMatrix& A, HypreParMatrix& B, int dimension,
@@ -273,7 +278,7 @@ public:
                           Solver& primal_pc_);
    virtual ~SchurConstrainedSolver();
 
-   virtual void SaddleMult(const Vector& x, Vector& y) const override;
+   virtual void Mult(const Vector& x, Vector& y) const override;
 
 protected:
    SchurConstrainedSolver(MPI_Comm comm, Operator& A_, Operator& B_);
