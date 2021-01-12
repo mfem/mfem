@@ -1004,7 +1004,7 @@ int main (int argc, char *argv[])
       pmesh->PrintAsOne(mesh_ofs);
    }
 
-   if (visualization)
+   if (visualization && surface_fit_const > 0.0)
    {
       socketstream vis2, vis3;
       common::VisualizeField(vis2, "localhost", 19916, mat, "Materials",
