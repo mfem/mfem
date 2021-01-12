@@ -159,7 +159,8 @@ ConstrainedMFEMCeedOperator::ConstrainedMFEMCeedOperator(
    constrained_op = new ConstrainedOperator(rap, ess_tdofs, own_rap);
 }
 
-ConstrainedMFEMCeedOperator::ConstrainedMFEMCeedOperator(CeedOperator oper, const Operator *P_)
+ConstrainedMFEMCeedOperator::ConstrainedMFEMCeedOperator(CeedOperator oper,
+                                                         const Operator *P_)
    : ConstrainedMFEMCeedOperator(oper, Array<int>(), P_)
 { }
 
