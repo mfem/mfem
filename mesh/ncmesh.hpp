@@ -120,6 +120,7 @@ public:
    int GetNVertices() const { return NVertices; }
    int GetNEdges() const { return NEdges; }
    int GetNFaces() const { return NFaces; }
+   virtual int GetNGhostElements() const { return 0; }
 
    /** Perform the given batch of refinements. Please note that in the presence
        of anisotropic splits additional refinements may be necessary to keep
@@ -524,7 +525,6 @@ protected: // implementation
    void InitRootState(int root_count);
 
    virtual bool IsGhost(const Element &el) const { return false; }
-   virtual int GetNumGhostElements() const { return 0; }
    virtual int GetNumGhostVertices() const { return 0; }
 
    void InitGeomFlags();

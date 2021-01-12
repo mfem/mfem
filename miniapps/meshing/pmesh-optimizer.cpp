@@ -946,7 +946,7 @@ int main (int argc, char *argv[])
    solver.SetAbsTol(0.0);
    solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
 
-   // AMR based size refinemenet if a size metric is used
+   // hr-adaptivity
    TMOPAMRSolver tmopamrsolver(*pmesh, a, solver,
                                x, move_bnd, hradaptivity,
                                mesh_poly_deg, amr_metric_id);
