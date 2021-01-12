@@ -30,9 +30,9 @@ jobs:
       run: |
         if [ $MPI == "YES" ]; then
            if [ ! -e $HYPRE_TOP_DIR/src/hypre/lib/libHYPRE.a ]; then
-              wget $HYPRE_URL/$HYPRE_ARCHIVE;
+              wget --no-verbose $HYPRE_URL/$HYPRE_ARCHIVE;
               rm -rf $HYPRE_TOP_DIR;
-              tar xvzf $HYPRE_ARCHIVE;
+              tar xzf $HYPRE_ARCHIVE;
               cd $HYPRE_TOP_DIR/src;
               ./configure --disable-fortran CC=mpicc CXX=mpic++;
               make -j3;
