@@ -89,7 +89,7 @@ public:
    /** Gets partitioning for the coarse mesh if the current fine mesh were to
        be derefined. */
    virtual void GetFineToCoarsePartitioning(const Array<int> &derefs,
-                                            Array<int> &new_ranks);
+                                            Array<int> &new_ranks) const;
 
    /** Migrate leaf elements of the global refinement hierarchy (including ghost
        elements) so that each processor owns the same number of leaves (+-1).
@@ -238,8 +238,6 @@ public:
    /** Extract a debugging Mesh containing all leaf elements, including ghosts.
        The debug mesh will have element attributes set to element rank + 1. */
    void GetDebugMesh(Mesh &debug_mesh) const;
-
-   virtual int GetNumGhostElements() const { return NGhostElements; }
 
 protected: // interface for ParMesh
 
