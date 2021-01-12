@@ -348,6 +348,12 @@ MFEM_USE_SUPERLU5 = YES/NO
    If SuperLU functionality is enabled, use the older 5.1.0 version rather than
    the more recent 6+ versions.
 
+MFEM_USE_MUMPS = YES/NO
+   Enable MFEM functionality based on the MUMPS library. Currently, this
+   option adds the class MUMPSSolver (a parallel sparse direct solver). 
+   When enabled, this option uses the MUMPS_* library options, see
+   below.
+   
 MFEM_USE_STRUMPACK = YES/NO
    Enable MFEM functionality based on the STRUMPACK sparse direct solver and
    preconditioner through the STRUMPACKSolver and STRUMPACKRowLocMatrix
@@ -578,6 +584,12 @@ The specific libraries and their options are:
   Options: SUPERLU_OPT, SUPERLU_LIB.
   Versions: SuperLU_DIST >= 5.1.0.
 
+- MUMPS (optional), used when MFEM_USE_MUMPS = YES. Note that MUMPS
+  requires LAPACK, SCALAPACK and a reordering package such as PORD or METIS.
+  URL: http://mumps.enseeiht.fr
+  Options: MUMPS_OPT, MUMPS_LIB.
+  Versions: MUMPS >= 5.1.1
+
 - STRUMPACK (optional), used when MFEM_USE_STRUMPACK = YES. Note that STRUMPACK
   requires the PT-Scotch and Scalapack libraries as well as ParMETIS, which
   includes METIS 5 in its distribution. Starting with STRUMPACK v2.2.0, ParMETIS
@@ -698,10 +710,10 @@ The specific libraries and their options are:
   Versions: libCEED >= 0.7.
 
 - RAJA (optional), used when MFEM_USE_RAJA = YES.
-  Beginning with MFEM v4.1, only RAJA v0.10.0+ is supported.
+  Beginning with MFEM v4.3, only RAJA v0.13.0+ is supported.
   URL: https://github.com/LLNL/RAJA
   Options: RAJA_DIR, RAJA_OPT, RAJA_LIB.
-  Versions: RAJA >= 0.10.0.
+  Versions: RAJA >= 0.13.0.
 
 - Umpire, used when MFEM_USE_UMPIRE = YES.
   URL: https://github.com/LLNL/Umpire
@@ -837,6 +849,7 @@ MFEM_TIMER_TYPE - Set automatically, can be overwritten.
 MFEM_USE_MESQUITE
 MFEM_USE_SUITESPARSE
 MFEM_USE_SUPERLU
+MFEM_USE_MUMPS
 MFEM_USE_STRUMPACK
 MFEM_USE_GINKGO
 MFEM_USE_AMGX

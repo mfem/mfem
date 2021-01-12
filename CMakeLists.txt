@@ -9,7 +9,8 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-cmake_minimum_required(VERSION 2.8.11)
+# The variable CMAKE_CXX_STANDARD and related were introduced in CMake v3.1
+cmake_minimum_required(VERSION 3.1)
 set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/user.cmake" CACHE PATH
   "Path to optional user configuration file.")
 
@@ -185,7 +186,7 @@ if (MFEM_USE_MPI)
     endif()
   endif()
 else()
-  set(PKGS_NEED_MPI SUPERLU PETSC SLEPC STRUMPACK PUMI)
+  set(PKGS_NEED_MPI SUPERLU MUMPS PETSC SLEPC STRUMPACK PUMI)
   foreach(PKG IN LISTS PKGS_NEED_MPI)
     if (MFEM_USE_${PKG})
       message(STATUS "Disabling package ${PKG} - requires MPI")
@@ -261,6 +262,15 @@ if (MFEM_USE_SUPERLU)
     find_package(SuperLUDist REQUIRED)
   else()
     message(FATAL_ERROR " *** SuperLU_DIST requires that MPI be enabled.")
+  endif()
+endif()
+
+# MUMPS can only be enabled in parallel
+if (MFEM_USE_MUMPS)
+  if (MFEM_USE_MPI)
+    find_package(MUMPS REQUIRED mumps_common pord)
+  else()
+    message(FATAL_ERROR " *** MUMPS requires that MPI be enabled.")
   endif()
 endif()
 
@@ -382,7 +392,7 @@ endif()
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
-    SLEPC MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT Ginkgo GNUTLS GSLIB NETCDF
+    SLEPC MESQUITE SuperLUDist MUMPS STRUMPACK AXOM CONDUIT Ginkgo GNUTLS GSLIB NETCDF
     MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE ADIOS2
     CUSPARSE MKL_CPARDISO AMGX)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
