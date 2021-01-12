@@ -474,11 +474,10 @@ TEST_CASE("Identity Linear Interpolators",
                REQUIRE( f2.ComputeHDivError(&FCoef, &divFCoef) < tol );
             }
          }
-         /// The following tests would fail.  The reason for the
-         /// failure would not be obvious from the user's point of
-         /// view.  I recommend keeping these tests here as a reminder
-         /// that we should consider supporting this, or a very
-         /// similar, usage.
+         /// The following tests would fail. The reason for the failure would
+         /// not be obvious from the user's point of view. I recommend keeping
+         /// these tests here as a reminder that we should consider supporting
+         /// this, or a very similar, usage.
          /*
               SECTION("Mapping to L2^d")
               {
@@ -642,6 +641,21 @@ TEST_CASE("Derivative Linear Interpolators",
 
             if (dim == 2)
             {
+               SECTION("Mapping to L2")
+               {
+                  L2_FECollection    fec_l2(order_l2, dim);
+                  FiniteElementSpace fespace_l2(mesh, &fec_l2);
+
+                  GridFunction dF1(&fespace_l2);
+
+                  DiscreteLinearOperator Op(&fespace_nd,&fespace_l2);
+                  Op.AddDomainInterpolator(new CurlInterpolator());
+                  Op.Assemble();
+
+                  Op.Mult(F1,dF1);
+
+                  REQUIRE( dF1.ComputeL2Error(curlFCoef) < tol );
+               }
                SECTION("Mapping to L2 (INTEGRAL)")
                {
                   L2_FECollection    fec_l2(order_l2, dim,

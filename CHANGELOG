@@ -74,6 +74,9 @@ Version 4.2.1 (development)
 
 - Added support for reading VTK meshes in XML format.
 
+- Extending support for L2 basis functions using MapTypes VALUE and INTEGRAL in
+  linear interpolators and GridFunction "GetValue" methods.
+
 
 Version 4.2, released on October 30, 2020
 =========================================
