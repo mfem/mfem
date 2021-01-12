@@ -641,6 +641,21 @@ TEST_CASE("Derivative Linear Interpolators",
 
             if (dim == 2)
             {
+               SECTION("Mapping to L2")
+               {
+                  L2_FECollection    fec_l2(order_l2, dim);
+                  FiniteElementSpace fespace_l2(mesh, &fec_l2);
+
+                  GridFunction dF1(&fespace_l2);
+
+                  DiscreteLinearOperator Op(&fespace_nd,&fespace_l2);
+                  Op.AddDomainInterpolator(new CurlInterpolator());
+                  Op.Assemble();
+
+                  Op.Mult(F1,dF1);
+
+                  REQUIRE( dF1.ComputeL2Error(curlFCoef) < tol );
+               }
                SECTION("Mapping to L2 (INTEGRAL)")
                {
                   L2_FECollection    fec_l2(order_l2, dim,
