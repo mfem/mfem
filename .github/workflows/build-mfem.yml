@@ -14,7 +14,7 @@ jobs:
     strategy:
       matrix:
         MPI: ["NO", "YES"]
-    with:
+    env:
       MPI: ${{ matrix.MPI }}
 
     steps:
