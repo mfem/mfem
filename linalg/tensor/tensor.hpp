@@ -36,7 +36,7 @@ namespace mfem
 template <int Rank,
           typename T = double,
           typename Container = MemoryContainer<T>,
-          typename Layout = DynamicLayout<Rank>>
+          typename Layout = DynamicLayout<Rank> >
 class Tensor: public Container, public Layout
 {
 public:
@@ -215,6 +215,69 @@ struct Forall<0>
 //////////////////////////
 // Behavioral Tensor types
 
+/// Dynamically sized Tensor
+template <int Rank, typename T, int MaxSize = pow(16,Rank)>
+using DynamicTensor = Tensor<Rank,
+                             T,
+                             StaticContainer<T, MaxSize>,
+                             DynamicLayout<Rank> >;
+
+template <int Rank, int MaxSize = pow(16,Rank)>
+using DynamicDTensor = DynamicTensor<Rank,double,MaxSize>;
+
+/// Statically sized Tensor
+template <typename T, int... Sizes>
+using StaticTensor = Tensor<sizeof...(Sizes),
+                            T,
+                            StaticContainer<T, Sizes...>,
+                            StaticLayout<Sizes...> >;
+
+template <int... Sizes>
+using dTensor = StaticTensor<double,Sizes...>; // TODO remove
+
+template <int... Sizes>
+using StaticDTensor = StaticTensor<double,Sizes...>;
+
+/// A dynamically sized Tensor using a static amount of shared memory.
+template <int Rank, typename T, int MaxSize = pow(16,Rank)>
+using DynamicSharedTensor = Tensor<Rank,
+                                   T,
+                                   StaticSharedContainer<T, MaxSize>,
+                                   DynamicLayout<Rank> >;
+
+template <int Rank, int MaxSize = pow(16,Rank)>
+using DynamicSharedDTensor = DynamicSharedTensor<Rank,double,MaxSize>;
+
+/// A statically sized Tensor using shared memory.
+template <typename T, int... Sizes>
+using StaticSharedTensor = Tensor<sizeof...(Sizes),
+                                  T,
+                                  StaticSharedContainer<T, Sizes...>,
+                                  StaticLayout<Sizes...> >;
+
+template <int... Sizes>
+using StaticSharedDTensor = StaticSharedTensor<double,Sizes...>;
+
+/// A Tensor dynamically distributed over a plane of threads
+template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
+using DynamicBlockTensor = Tensor<Rank,
+                                  T,
+                                  BlockContainer<T, MaxSize>,
+                                  DynamicBlockLayout<Rank,BatchSize> >;
+
+template <int Rank, int BatchSize, int MaxSize = pow(16,Rank)>
+using DynamicBlockDTensor = DynamicBlockTensor<Rank,double,BatchSize,MaxSize>;
+
+/// A Tensor statically distributed over a plane of threads
+template <typename T, int BatchSize, int... Sizes>
+using StaticBlockTensor = Tensor<sizeof...(Sizes),
+                                 T,
+                                 BlockContainer<T, Sizes...>,
+                                 BlockLayout<BatchSize, Sizes...> >;
+
+template <int BatchSize, int... Sizes>
+using StaticBlockDTensor = StaticBlockTensor<double,BatchSize,Sizes...>;
+
 /// A tensor using a read write access pointer and a dynamic data layout.
 // Backward compatible if renamed in DeviceTensor
 template <int Rank, typename T>
@@ -235,69 +298,6 @@ using ReadTensor = Tensor<Rank,
 
 template <int Rank>
 using ReadDTensor = ReadTensor<Rank,double>;
-
-/// Statically sized Tensor
-template <typename T, int... Sizes>
-using StaticTensor = Tensor<sizeof...(Sizes),
-                            T,
-                            StaticContainer<T, Sizes...>,
-                            StaticLayout<Sizes...> >;
-
-template <int... Sizes>
-using dTensor = StaticTensor<double,Sizes...>; // TODO remove
-
-template <int... Sizes>
-using StaticDTensor = StaticTensor<double,Sizes...>;
-
-/// Dynamically sized Tensor
-template <int Rank, typename T, int MaxSize = pow(16,Rank)>
-using DynamicTensor = Tensor<Rank,
-                             T,
-                             StaticContainer<T, MaxSize>,
-                             DynamicLayout<Rank> >;
-
-template <int Rank, int MaxSize = pow(16,Rank)>
-using DynamicDTensor = DynamicTensor<Rank,double,MaxSize>;
-
-/// A statically sized Tensor using shared memory.
-template <typename T, int... Sizes>
-using StaticSharedTensor = Tensor<sizeof...(Sizes),
-                                  T,
-                                  StaticSharedContainer<T, Sizes...>,
-                                  StaticLayout<Sizes...> >;
-
-template <int... Sizes>
-using StaticSharedDTensor = StaticSharedTensor<double,Sizes...>;
-
-/// A dynamically sized Tensor using a static amount of shared memory.
-template <int Rank, typename T, int MaxSize = pow(16,Rank)>
-using DynamicSharedTensor = Tensor<Rank,
-                                   T,
-                                   StaticSharedContainer<T, MaxSize>,
-                                   DynamicLayout<Rank> >;
-
-template <int Rank, int MaxSize = pow(16,Rank)>
-using DynamicSharedDTensor = DynamicSharedTensor<Rank,double,MaxSize>;
-
-/// A Tensor statically distributed over a plane of threads
-template <typename T, int BatchSize, int... Sizes>
-using StaticBlockTensor = Tensor<sizeof...(Sizes),
-                                 T,
-                                 BlockContainer<T, Sizes...>,
-                                 BlockLayout<BatchSize, Sizes...> >;
-
-template <int BatchSize, int... Sizes>
-using StaticBlockDTensor = StaticBlockTensor<double,BatchSize,Sizes...>;
-
-/// A Tensor dynamically distributed over a plane of threads
-template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
-using DynamicBlockTensor = Tensor<Rank,
-                                  T,
-                                  BlockContainer<T, MaxSize>,
-                                  DynamicBlockLayout<Rank,BatchSize> >;
-
-template <int Rank, int BatchSize, int MaxSize = pow(16,Rank)>
-using DynamicBlockDTensor = DynamicBlockTensor<Rank,double,BatchSize,MaxSize>;
 
 //////////////////////////
 // Convenient Tensor types

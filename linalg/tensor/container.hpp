@@ -253,7 +253,7 @@ template <typename T, int DimX, int DimY>
 class BlockContainer<T,DimX, DimY>
 {
 private:
-   StaticContainer<T,1> data;
+   T data;
 
 public:
    MFEM_HOST_DEVICE
@@ -263,14 +263,14 @@ public:
    const T& operator[](int i) const
    {
       // TODO Verify in debug that i==0
-      return data[ 0 ];
+      return data;
    }
 
    MFEM_HOST_DEVICE
    T& operator[](int i)
    {
       // TODO Verify in debug that i==0
-      return data[ 0 ];
+      return data;
    }
 
    MFEM_HOST_DEVICE
