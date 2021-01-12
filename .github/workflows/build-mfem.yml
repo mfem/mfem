@@ -20,6 +20,11 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
+    - name: Get MPI
+      run: |
+        if [ $MPI == "YES" ]; then
+          sudo apt-get install mpich libmpich-dev
+
     - name: Cache Hypre Install
       uses: actions/cache@v2
       with:
