@@ -4,7 +4,7 @@ on:
   push:
 
 env:
-  HYPRE_ARCHIVE: v2.19.tar.gz
+  HYPRE_ARCHIVE: v2.19.0.tar.gz
   HYPRE_URL: https://github.com/hypre-space/hypre/archive
   HYPRE_TOP_DIR: hypre-2.19.0
 
