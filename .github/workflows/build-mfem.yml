@@ -22,8 +22,9 @@ jobs:
 
     - name: Get MPI
       run: |
-        if [ $MPI == "YES" ]; then
+        if [[ $MPI == "YES" ]]; then
           sudo apt-get install mpich libmpich-dev
+        fi
 
     - name: Cache Hypre Install
       uses: actions/cache@v2
@@ -33,7 +34,7 @@ jobs:
 
     - name: Install Hypre
       run: |
-        if [ $MPI == "YES" ]; then
+        if [[ $MPI == "YES" ]]; then
            if [ ! -e $HYPRE_TOP_DIR/src/hypre/lib/libHYPRE.a ]; then
               wget --no-verbose $HYPRE_URL/$HYPRE_ARCHIVE;
               rm -rf $HYPRE_TOP_DIR;
