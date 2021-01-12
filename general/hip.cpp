@@ -125,7 +125,7 @@ void* HipMemcpyDtoDAsync(void* dst, const void *src, size_t bytes)
 void* HipMemcpyDtoH(void *dst, const void *src, size_t bytes)
 {
 #ifdef MFEM_USE_HIP
-#ifdef MFEM_TRACK_HPI_MEM
+#ifdef MFEM_TRACK_HIP_MEM
    mfem::out << "HipMemcpyDtoH(): copying " << bytes << " bytes from "
              << src << " to " << dst << " ... " << std::flush;
 #endif
