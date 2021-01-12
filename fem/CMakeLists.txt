@@ -52,8 +52,8 @@ set(SRCS
   libceed/diffusion.cpp
   libceed/mass.cpp
   libceed/full-assembly.cpp
-  libceed/ceedsolvers-atpmg.cpp
-  libceed/ceedsolvers-utility.cpp
+  libceed/solvers-atpmg.cpp
+  libceed/solvers-utility.cpp
   libceed/operator.cpp
   linearform.cpp
   lininteg.cpp
@@ -96,8 +96,8 @@ set(HDRS
   libceed/diffusion.hpp
   libceed/mass.hpp
   libceed/full-assembly.hpp
-  libceed/ceedsolvers-atpmg.h
-  libceed/ceedsolvers-utility.h
+  libceed/solvers-atpmg.h
+  libceed/solvers-utility.h
   libceed/operator.hpp
   linearform.hpp
   lininteg.hpp

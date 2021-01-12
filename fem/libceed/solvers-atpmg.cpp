@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "ceedsolvers-atpmg.h"
-#include "ceedsolvers-utility.h"
+#include "solvers-atpmg.h"
+#include "solvers-utility.h"
 
 #ifdef MFEM_USE_CEED
 #include <ceed-backend.h>
