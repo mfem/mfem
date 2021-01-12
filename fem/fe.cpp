@@ -596,17 +596,22 @@ void NodalFiniteElement::ProjectCurl_2D(
    const FiniteElement &fe, ElementTransformation &Trans,
    DenseMatrix &curl) const
 {
-   MFEM_ASSERT(GetMapType() == FiniteElement::INTEGRAL, "");
-
    DenseMatrix curl_shape(fe.GetDof(), 1);
 
    curl.SetSize(dof, fe.GetDof());
    for (int i = 0; i < dof; i++)
    {
       fe.CalcCurlShape(Nodes.IntPoint(i), curl_shape);
+
+      double w = 1.0;
+      if (GetMapType() == FiniteElement::VALUE)
+      {
+         Trans.SetIntPoint(&Nodes.IntPoint(i));
+         w /= Trans.Weight();
+      }
       for (int j = 0; j < fe.GetDof(); j++)
       {
-         curl(i,j) = curl_shape(j,0);
+         curl(i,j) = w * curl_shape(j,0);
       }
    }
 }
