@@ -29,6 +29,8 @@ double epsilon = 1.0;
 double omega;
 int dim;
 double length = 1.0;
+double sigma_ = 2.0;
+
 Array2D<double> comp_bdr;
 Array2D<double> domain_bdr;
 bool exact_known = false;
@@ -161,13 +163,13 @@ int main(int argc, char *argv[])
    //            << *pmesh << "window_title 'Global mesh'" << flush;
 
    double hl = GetUniformMeshElementSize(pmesh);
-   int nrlayers = 1;
+   int nrlayers = 5;
    Array2D<double> lengths(dim,2);
    lengths = hl*nrlayers;
-   // lengths[0][1] = 0.0;
-   // lengths[1][1] = 0.0;
-   // lengths[1][0] = 0.0;
-   // lengths[0][0] = 0.0;
+   lengths[0][1] = 0.0;
+   lengths[1][1] = 0.0;
+   lengths[1][0] = 0.0;
+   lengths[0][0] = 0.0;
    if (exact_known) lengths = 0.0;
    // CartesianPML pml(mesh,lengths);
    CartesianPML pml(pmesh,lengths);
@@ -261,6 +263,8 @@ int main(int argc, char *argv[])
    MatrixFunctionCoefficient eps_func(dim,Mwavespeed);
 
    ConstantCoefficient omeg(-pow(omega, 2));
+   ConstantCoefficient lossCoef(-omega * sigma_);
+
    int cdim = (dim == 2) ? 1 : dim;
    PmlMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, &pml);
    PmlMatrixCoefficient pml_c1_Im(cdim,detJ_inv_JT_J_Im, &pml);
@@ -287,6 +291,8 @@ int main(int argc, char *argv[])
    a.AddDomainIntegrator(new VectorFEMassIntegrator(c2_Re),
                          new VectorFEMassIntegrator(c2_Im));
 
+   a.AddDomainIntegrator(NULL, new VectorFEMassIntegrator(lossCoef));                         
+
    a.Assemble(0);
 
    OperatorHandle Ah;
@@ -299,7 +305,7 @@ int main(int argc, char *argv[])
 
    chrono.Clear();
    chrono.Start();
-   ParDST * S = new ParDST(&a,lengths, omega, &ws, nrlayers, nx, ny, nz);
+   ParDST * S = new ParDST(&a,lengths, omega, &ws, nrlayers, nx, ny, nz, &lossCoef);
    chrono.Stop();
    double t1 = chrono.RealTime();
 
@@ -435,6 +441,7 @@ void source_re(const Vector &x, Vector &f)
    else
    {
       int nrsources = (dim == 2) ? 4 : 8;
+      // int nrsources = 1;
       Vector x0(nrsources);
       Vector y0(nrsources);
       Vector z0(nrsources);
@@ -454,6 +461,7 @@ void source_re(const Vector &x, Vector &f)
       double coeff = 16.0*omega*omega/M_PI/M_PI/M_PI;
 
       for (int i = 0; i<nrsources; i++)
+      // for (int i = 0; i<1; i++)
       {
          double beta = pow(x0(i)-x(0),2) + pow(y0(i)-x(1),2);
          if (dim == 3) { beta += pow(z0(i)-x(2),2); }
