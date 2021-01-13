@@ -191,7 +191,7 @@ private:
 
     Solves the system with the operator \f$ P^T A P + Z_P \f$, where P is
     EliminationProjection and Z_P is the identity on the eliminated dofs. */
-class EliminationCGSolver : public ConstrainedSolver
+class EliminationSolver : public ConstrainedSolver
 {
 public:
    /** @brief Constructor, with explicit splitting into primary/secondary dofs.
@@ -201,21 +201,19 @@ public:
 
        The secondary_dofs are eliminated from the system in this algorithm,
        as they can be written in terms of the primary_dofs. */
-   EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
-                       Array<int>& primary_dofs,
-                       Array<int>& secondary_dofs,
-                       int dimension=0, bool reorder=false);
+   EliminationSolver(HypreParMatrix& A, SparseMatrix& B,
+                     Array<int>& primary_dofs,
+                     Array<int>& secondary_dofs);
 
    /** @brief Constructor, elimination is by blocks.
 
        The nonzeros in B are assumed to be in disjoint rows and columns; the
        rows are identified with the lagrange_rowstarts array, the secondary
        dofs are assumed to be the first nonzeros in the rows. */
-   EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
-                       Array<int>& lagrange_rowstarts,
-                       int dimension=0, bool reorder=false);
+   EliminationSolver(HypreParMatrix& A, SparseMatrix& B,
+                     Array<int>& lagrange_rowstarts);
 
-   ~EliminationCGSolver();
+   ~EliminationSolver();
 
    void PrimalMult(const Vector& x, Vector& y) const override;
 
@@ -223,20 +221,41 @@ protected:
    /// Internal utility routine; assembles eliminated matrix explicitly
    void BuildExplicitOperator();
 
-   /// Utility routine for constructors
-   virtual void BuildPreconditioner();
-
-   virtual void BuildKrylov();
+   /// Build preconditioner and solver for reduced system
+   virtual Solver* BuildPreconditioner() const = 0;
+   virtual IterativeSolver* BuildKrylov() const = 0;
 
    HypreParMatrix& hA_;
-   int dimension_; // goes in subclass
-   bool reorder_; // goes in subclass
    Array<Eliminator*> elims_;
    EliminationProjection * projector_;
    HypreParMatrix * h_explicit_operator_;
-   HypreBoomerAMG * prec_;
-   mutable IterativeSolver* krylov_;
+   mutable Solver* prec_;
 };
+
+
+/** EliminationSolver using CG and HypreBoomerAMG */
+class EliminationCGSolver : public EliminationSolver
+{
+public:
+   EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
+                       Array<int>& lagrange_rowstarts,
+                       int dimension=0, bool reorder=false) :
+      EliminationSolver(A, B, lagrange_rowstarts),
+      dimension_(dimension),
+      reorder_(reorder)
+   {
+      BuildExplicitOperator();
+   }
+
+protected:
+   virtual Solver* BuildPreconditioner() const override;
+   virtual IterativeSolver* BuildKrylov() const override;
+
+private:
+   int dimension_;
+   bool reorder_;
+};
+
 
 /** @brief Solve constrained system with penalty method; see ConstrainedSolver.
 
