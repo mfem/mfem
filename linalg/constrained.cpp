@@ -346,51 +346,44 @@ void EliminationSolver::PrimalMult(const Vector& rhs, Vector& sol) const
    sol += rtilde;
 }
 
-void PenaltyConstrainedSolver::Initialize(HypreParMatrix& A, HypreParMatrix& B,
-                                          int dimension, bool reorder)
+void PenaltyConstrainedSolver::Initialize(HypreParMatrix& A, HypreParMatrix& B)
 {
    HypreParMatrix * hBT = B.Transpose();
    HypreParMatrix * hBTB = ParMult(hBT, &B, true);
    // this matrix doesn't get cleanly deleted?
    // (hypre comm pkg)
    penalized_mat = Add(1.0, A, penalty, *hBTB);
-   prec = new HypreBoomerAMG(*penalized_mat);
-   prec->SetPrintLevel(0);
-   if (dimension > 0)
-   {
-      prec->SetSystemsOptions(dimension, reorder);
-   }
    delete hBTB;
    delete hBT;
 }
 
 PenaltyConstrainedSolver::PenaltyConstrainedSolver(
-   MPI_Comm comm, HypreParMatrix& A, SparseMatrix& B, double penalty_, int dimension,
-   bool reorder)
+   HypreParMatrix& A, SparseMatrix& B, double penalty_)
    :
-   ConstrainedSolver(comm, A, B),
+   ConstrainedSolver(A.GetComm(), A, B),
    penalty(penalty_),
-   constraintB(B)
+   constraintB(B),
+   prec(nullptr)
 {
    HYPRE_Int hB_row_starts[2] = {0, B.Height()};
    HYPRE_Int hB_col_starts[2] = {0, B.Width()};
-   HypreParMatrix hB(comm, B.Height(), B.Width(),
+   HypreParMatrix hB(A.GetComm(), B.Height(), B.Width(),
                      hB_row_starts, hB_col_starts, &B);
-   Initialize(A, hB, dimension, reorder);
+   Initialize(A, hB);
 }
 
 PenaltyConstrainedSolver::PenaltyConstrainedSolver(
-   MPI_Comm comm, HypreParMatrix& A, HypreParMatrix& B, double penalty_, int dimension,
-   bool reorder)
+   HypreParMatrix& A, HypreParMatrix& B, double penalty_)
    :
-   ConstrainedSolver(comm, A, B),
+   ConstrainedSolver(A.GetComm(), A, B),
    penalty(penalty_),
-   constraintB(B)
+   constraintB(B),
+   prec(nullptr)
 {
    // TODO: check column starts of A and B are compatible?
    // (probably will happen in ParMult later)
 
-   Initialize(A, B, dimension, reorder);
+   Initialize(A, B);
 }
 
 PenaltyConstrainedSolver::~PenaltyConstrainedSolver()
@@ -401,6 +394,12 @@ PenaltyConstrainedSolver::~PenaltyConstrainedSolver()
 
 void PenaltyConstrainedSolver::PrimalMult(const Vector& b, Vector& x) const
 {
+   if (!prec)
+   {
+      prec = BuildPreconditioner();
+   }
+   IterativeSolver * krylov = BuildKrylov();
+
    // form penalized right-hand side
    Vector penalized_rhs(b);
    if (constraint_rhs.Size() > 0)
@@ -412,15 +411,17 @@ void PenaltyConstrainedSolver::PrimalMult(const Vector& b, Vector& x) const
    }
 
    // actually solve
-   CGSolver cg(GetComm());
-   cg.SetOperator(*penalized_mat);
-   cg.SetRelTol(rel_tol);
-   cg.SetAbsTol(abs_tol);
-   cg.SetMaxIter(max_iter);
-   cg.SetPrintLevel(print_level);
-   cg.SetPreconditioner(*prec);
-   cg.Mult(penalized_rhs, x);
-   final_iter = cg.GetNumIterations();
+   krylov->SetOperator(*penalized_mat);
+   krylov->SetRelTol(rel_tol);
+   krylov->SetAbsTol(abs_tol);
+   krylov->SetMaxIter(max_iter);
+   krylov->SetPrintLevel(print_level);
+   krylov->SetPreconditioner(*prec);
+   krylov->Mult(penalized_rhs, x);
+   final_iter = krylov->GetNumIterations();
+   final_norm = krylov->GetFinalNorm();
+   converged = krylov->GetConverged();
+   delete krylov;
 
    constraintB.Mult(x, multiplier_sol);
    if (constraint_rhs.Size() > 0)
