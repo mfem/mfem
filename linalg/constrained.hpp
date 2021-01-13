@@ -219,18 +219,23 @@ public:
 
    void PrimalMult(const Vector& x, Vector& y) const override;
 
-private:
+protected:
    /// Internal utility routine; assembles eliminated matrix explicitly
    void BuildExplicitOperator();
 
    /// Utility routine for constructors
-   void BuildPreconditioner(int dimension, bool reorder);
+   virtual void BuildPreconditioner();
+
+   virtual void BuildKrylov();
 
    HypreParMatrix& hA_;
+   int dimension_; // goes in subclass
+   bool reorder_; // goes in subclass
    Array<Eliminator*> elims_;
    EliminationProjection * projector_;
    HypreParMatrix * h_explicit_operator_;
    HypreBoomerAMG * prec_;
+   mutable IterativeSolver* krylov_;
 };
 
 /** @brief Solve constrained system with penalty method; see ConstrainedSolver.
