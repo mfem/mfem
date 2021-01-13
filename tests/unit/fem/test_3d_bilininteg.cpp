@@ -512,6 +512,8 @@ const std::string MapTypeName(FiniteElement::MapType map_type)
          return "H_CURL";
       case FiniteElement::H_DIV:
          return "H_DIV";
+      default:
+         return "UNKNOWN";
    }
 }
 
