@@ -346,22 +346,6 @@ void EliminationSolver::PrimalMult(const Vector& rhs, Vector& sol) const
    sol += rtilde;
 }
 
-IterativeSolver* EliminationCGSolver::BuildKrylov() const
-{
-   return new CGSolver(GetComm());
-}
-
-Solver* EliminationCGSolver::BuildPreconditioner() const
-{
-   HypreBoomerAMG * h_prec = new HypreBoomerAMG(*h_explicit_operator_);
-   h_prec->SetPrintLevel(0);
-   if (dimension_ > 0)
-   {
-      h_prec->SetSystemsOptions(dimension_, reorder_);
-   }
-   return h_prec;
-}
-
 void PenaltyConstrainedSolver::Initialize(HypreParMatrix& A, HypreParMatrix& B,
                                           int dimension, bool reorder)
 {

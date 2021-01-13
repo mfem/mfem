@@ -241,15 +241,20 @@ public:
                        Array<int>& lagrange_rowstarts,
                        int dimension=0, bool reorder=false) :
       EliminationSolver(A, B, lagrange_rowstarts),
-      dimension_(dimension),
-      reorder_(reorder)
-   {
-      BuildExplicitOperator();
-   }
+      dimension_(dimension), reorder_(reorder)
+   { BuildExplicitOperator(); }
 
 protected:
-   virtual Solver* BuildPreconditioner() const override;
-   virtual IterativeSolver* BuildKrylov() const override;
+   virtual Solver* BuildPreconditioner() const override
+   {
+      HypreBoomerAMG * h_prec = new HypreBoomerAMG(*h_explicit_operator_);
+      h_prec->SetPrintLevel(0);
+      if (dimension_ > 0) { h_prec->SetSystemsOptions(dimension_, reorder_); }
+      return h_prec;
+   }
+
+   virtual IterativeSolver* BuildKrylov() const override
+   { return new CGSolver(GetComm()); }
 
 private:
    int dimension_;
@@ -259,7 +264,7 @@ private:
 
 /** @brief Solve constrained system with penalty method; see ConstrainedSolver.
 
-    Uses a HypreBoomerAMG preconditioner for the penalized system. Only
+    Uses CG and a HypreBoomerAMG preconditioner for the penalized system. Only
     approximates the solution, better approximation with higher penalty,
     but with higher penalty the preconditioner is less effective. */
 class PenaltyConstrainedSolver : public ConstrainedSolver
