@@ -1937,6 +1937,8 @@ void NCMesh::UpdateLeafElements()
 
 void NCMesh::UpdateVertices()
 {
+#define MFEM_NCMESH_OLD_VERTEX_ORDERING
+#ifndef MFEM_NCMESH_OLD_VERTEX_ORDERING
    // This method assigns indices to vertices (Node::vert_index) that will
    // be seen by the Mesh class and the rest of MFEM. We must be careful to:
    //
@@ -2049,6 +2051,69 @@ void NCMesh::UpdateVertices()
          }
       }
    }
+
+#else // old ordering for debugging/testing only
+   bool parallel = false;
+#ifdef MFEM_USE_MPI
+   if (dynamic_cast<ParNCMesh*>(this)) { parallel = true; }
+#endif
+
+   if (!parallel)
+   {
+      NVertices = 0;
+      for (auto node = nodes.begin(); node != nodes.end(); ++node)
+      {
+         if (node->HasVertex()) { node->vert_index = NVertices++; }
+      }
+
+      vertex_nodeId.SetSize(NVertices);
+
+      NVertices = 0;
+      for (auto node = nodes.begin(); node != nodes.end(); ++node)
+      {
+         if (node->HasVertex()) { vertex_nodeId[NVertices++] = node.index(); }
+      }
+   }
+   else
+   {
+      for (auto node = nodes.begin(); node != nodes.end(); ++node)
+      {
+         if (node->HasVertex()) { node->vert_index = -1; }
+      }
+
+      NVertices = 0;
+      for (int i = 0; i < leaf_elements.Size(); i++)
+      {
+         Element &el = elements[leaf_elements[i]];
+         if (el.rank == MyRank)
+         {
+            for (int j = 0; j < GI[el.Geom()].nv; j++)
+            {
+               int &vindex = nodes[el.node[j]].vert_index;
+               if (vindex < 0) { vindex = NVertices++; }
+            }
+         }
+      }
+
+      vertex_nodeId.SetSize(NVertices);
+      for (auto node = nodes.begin(); node != nodes.end(); ++node)
+      {
+         if (node->HasVertex() && node->vert_index >= 0)
+         {
+            vertex_nodeId[node->vert_index] = node.index();
+         }
+      }
+
+      NGhostVertices = 0;
+      for (auto node = nodes.begin(); node != nodes.end(); ++node)
+      {
+         if (node->HasVertex() && node->vert_index < 0)
+         {
+            node->vert_index = NVertices + (NGhostVertices++);
+         }
+      }
+   }
+#endif
 }
 
 void NCMesh::InitRootState(int root_count)
