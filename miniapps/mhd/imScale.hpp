@@ -90,7 +90,7 @@ private:
    const Array<int> &ess_tdof_list;
    const Array<int> &ess_bdr;
 
-   mutable ParGridFunction phiGf, psiGf, wGf, gftmp,gftmp2,gftmp3, phiOld;
+   mutable ParGridFunction phiGf, psiGf, wGf, gftmp,gftmp2,gftmp3,gftmp4, phiOld;
    mutable MyCoefficient *vOld;
    mutable ParBilinearForm *Nv, *Nb, *Pw;
    mutable ParBilinearForm *StabMass, *StabNb, *StabNv; //for stablize B term
@@ -874,7 +874,8 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
      M_solver(M_solver_), M_solver2(M_solver2_),M_solver3(M_solver3_),
      dt(0.0), dtOld(0.0), viscosity(visc), resistivity(resi), 
      phi(NULL), psi(NULL), w(NULL), vOld(NULL),
-     ess_tdof_list(ess_tdof_list_),ess_bdr(ess_bdr_), gftmp(&fespace),gftmp2(&fespace), gftmp3(&fespace),
+     ess_tdof_list(ess_tdof_list_),ess_bdr(ess_bdr_), 
+     gftmp(&fespace),gftmp2(&fespace), gftmp3(&fespace), gftmp4(&fespace),
      Nv(NULL), Nb(NULL), Pw(NULL), 
      StabMass(NULL), StabNb(NULL), StabNv(NULL),
      PB_VPsi(NULL), PB_VOmega(NULL), PB_BJ(NULL),
@@ -905,6 +906,7 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
       pd->RegisterField("residual1", &gftmp);
       pd->RegisterField("residual2", &gftmp2);
       pd->RegisterField("residual3", &gftmp3);
+      pd->RegisterField("residual4", &gftmp4);
       pd->SetLevelsOfDetail(order);
       pd->SetDataFormat(VTKFormat::BINARY);
       pd->SetHighOrderOutput(true);
@@ -931,7 +933,8 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
      M_solver(M_solver_), M_solver2(M_solver2_), M_solver3(M_solver3_), 
      dt(0.0), dtOld(0.0), viscosity(visc), resistivity(resi),
      phi(NULL), psi(NULL), w(NULL), vOld(NULL),
-     ess_tdof_list(ess_tdof_list_), ess_bdr(ess_bdr_), gftmp(&fespace),gftmp2(&fespace), gftmp3(&fespace),
+     ess_tdof_list(ess_tdof_list_), ess_bdr(ess_bdr_), 
+     gftmp(&fespace),gftmp2(&fespace), gftmp3(&fespace), gftmp4(&fespace),
      Nv(NULL), Nb(NULL), Pw(NULL),  
      StabMass(NULL), StabNb(NULL), StabNv(NULL),
      PB_VPsi(NULL), PB_VOmega(NULL), PB_BJ(NULL),
@@ -973,6 +976,7 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
       pd->RegisterField("residual1", &gftmp);
       pd->RegisterField("residual2", &gftmp2);
       pd->RegisterField("residual3", &gftmp3);
+      pd->RegisterField("residual4", &gftmp4);
       pd->SetLevelsOfDetail(order);
       pd->SetDataFormat(VTKFormat::BINARY);
       pd->SetHighOrderOutput(true);
@@ -1856,9 +1860,10 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    }
 
    //this step will be done in bchandler anyway
-   //y1.SetSubVector(ess_tdof_list, 0.0);
-   //y2.SetSubVector(ess_tdof_list, 0.0);
-   //y3.SetSubVector(ess_tdof_list, 0.0);
+   y1.SetSubVector(ess_tdof_list, 0.0);
+   y2.SetSubVector(ess_tdof_list, 0.0);
+   y3.SetSubVector(ess_tdof_list, 0.0);
+
    if (bctype!=1){
        /*
        FunctionCoefficient psiBC(InitialPsi3);
@@ -1911,7 +1916,6 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
          cout <<"======Debugging: print reisudal as a grid function!!!======"<<endl;
        }
 
-      /*
       z=0.;
       if (BgradJ==1)
       {
@@ -1925,17 +1929,19 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
       {
          Nb->TrueAddMult(J, z,-1.); 
       }
-      */
+      gftmp.SetFromTrueDofs(z); //this is okay
 
-      gftmp.SetFromTrueDofs(y1);
-
-      /*
       z=0.;
       Mmat.Mult(zdiff,z);
-      */
-      gftmp2.SetFromTrueDofs(y2);
+      gftmp2.SetFromTrueDofs(z); //this has a boundary layer
 
       gftmp3.SetFromTrueDofs(y3);
+
+      z=0.;
+      DRe->TrueAddMult(wNew,z);
+      //Nv->TrueAddMult(wNew,z);
+      gftmp4.SetFromTrueDofs(z); //this is also okay
+
       pd->SetCycle(icycle);
       pd->SetTime(icycle);
       icycle++;

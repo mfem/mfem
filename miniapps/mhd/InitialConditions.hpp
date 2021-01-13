@@ -34,6 +34,9 @@ double InitialJ3(const Vector &x);
 double InitialPsi3(const Vector &x);
 double BackPsi3(const Vector &x);
 
+double InitialPsi32(const Vector &x);
+double BackPsi32(const Vector &x);
+
 double InitialJ6(const Vector &x);
 double InitialPsi6(const Vector &x);
 

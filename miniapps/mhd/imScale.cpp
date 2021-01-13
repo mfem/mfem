@@ -296,7 +296,7 @@ int main(int argc, char *argv[])
    phi.ProjectCoefficient(phiInit);
    phi.SetTrueVector();
 
-   FunctionCoefficient psiInit3(InitialPsi3);
+   FunctionCoefficient psiInit3(InitialPsi32);
    psi.ProjectCoefficient(psiInit3);
    psi.SetTrueVector();
 

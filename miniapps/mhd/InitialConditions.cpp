@@ -117,6 +117,19 @@ double E0rhs3(const Vector &x)
     return resiG*(ep*ep-1.)/lambda/pow(cosh(x(1)/lambda) +ep*cos(x(0)/lambda), 2);
 }
 
+double InitialPsi32(const Vector &x)
+{
+    double qty0=cosh(1./lambda);
+    return -lambda*log( (cosh(x(1)/lambda) +ep*cos(x(0)/lambda))/qty0 )
+           +beta*cos(M_PI*.5*x(1))*cos(M_PI*x(0));
+}
+
+double BackPsi32(const Vector &x)
+{
+    double qty0=cosh(1./lambda);
+    return -lambda*log( (cosh(x(1)/lambda) +ep*cos(x(0)/lambda))/qty0 );
+}
+
 double resiVari(const Vector &x)
 {
     return resiG+exp(-vari_coeff*(1.-x(1)*x(1)))*(visc_bdy-resiG);
