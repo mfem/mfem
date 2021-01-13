@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "solvers-atpmg.h"
-#include "solvers-utility.h"
+#include "util.h"
 
 #ifdef MFEM_USE_CEED
 #include <ceed-backend.h>

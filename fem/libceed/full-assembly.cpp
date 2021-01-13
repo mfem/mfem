@@ -12,7 +12,7 @@
 #include "full-assembly.hpp"
 
 #ifdef MFEM_USE_CEED
-#include "solvers-utility.h"
+#include "util.h"
 
 int CeedHackReallocArray(size_t n, size_t unit, void *p)
 {

@@ -53,7 +53,7 @@ set(SRCS
   libceed/mass.cpp
   libceed/full-assembly.cpp
   libceed/solvers-atpmg.cpp
-  libceed/solvers-utility.cpp
+  libceed/util.cpp
   libceed/operator.cpp
   linearform.cpp
   lininteg.cpp
@@ -97,7 +97,7 @@ set(HDRS
   libceed/mass.hpp
   libceed/full-assembly.hpp
   libceed/solvers-atpmg.h
-  libceed/solvers-utility.h
+  libceed/util.h
   libceed/operator.hpp
   linearform.hpp
   lininteg.hpp
