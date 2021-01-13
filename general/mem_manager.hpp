@@ -27,20 +27,20 @@ namespace mfem
 /// Memory types supported by MFEM.
 enum class MemoryType
 {
-   HOST,                ///< Host memory; using new[] and delete[]
-   HOST_32,             ///< Host memory; aligned at 32 bytes
-   HOST_64,             ///< Host memory; aligned at 64 bytes
-   HOST_DEBUG,          ///< Host memory; allocated from a "host-debug" pool
-   HOST_UMPIRE,         ///< Host memory; using Umpire
-   HOST_PINNED,         ///< Host memory: pinned (page-locked)
-   MANAGED,             /**< Managed memory; using CUDA or HIP *MallocManaged
-                             and *Free */
-   DEVICE,              ///< Device memory; using CUDA or HIP *Malloc and *Free
-   DEVICE_DEBUG,        /**< Pseudo-device memory; allocated on host from a
-                             "device-debug" pool */
-   DEVICE_UMPIRE,       ///< Device memory; using Umpire
-   SIZE,                ///< Number of host and device memory types
-   PRESERVE             ///< Default parameter type; preserves existing behavior
+   HOST,           ///< Host memory; using new[] and delete[]
+   HOST_32,        ///< Host memory; aligned at 32 bytes
+   HOST_64,        ///< Host memory; aligned at 64 bytes
+   HOST_DEBUG,     ///< Host memory; allocated from a "host-debug" pool
+   HOST_UMPIRE,    ///< Host memory; using Umpire
+   HOST_PINNED,    ///< Host memory: pinned (page-locked)
+   MANAGED,        /**< Managed memory; using CUDA or HIP *MallocManaged
+                        and *Free */
+   DEVICE,         ///< Device memory; using CUDA or HIP *Malloc and *Free
+   DEVICE_DEBUG,   /**< Pseudo-device memory; allocated on host from a
+                        "device-debug" pool */
+   DEVICE_UMPIRE,  ///< Device memory; using Umpire
+   SIZE,           ///< Number of host and device memory types
+   PRESERVE        ///< Default parameter type; preserves existing behavior
 };
 
 /// Static casts to 'int' and sizes of some useful memory types.
@@ -59,13 +59,14 @@ extern const char *MemoryTypeName[MemoryTypeSize];
  *  use MemoryClass::DEVICE for their inputs. */
 enum class MemoryClass
 {
-   HOST,    /**< Memory types: { HOST, HOST_32, HOST_64, HOST_DEBUG,
-                                 HOST_UMPIRE, MANAGED } */
-   HOST_32, ///< Memory types: { HOST_32, HOST_64, HOST_DEBUG }
-   HOST_64, ///< Memory types: { HOST_64, HOST_DEBUG }
-   DEVICE,  ///< Memory types: { DEVICE, DEVICE_DEBUG, DEVICE_UMPIRE, MANAGED }
+   HOST,        /**< Memory types: { HOST, HOST_32, HOST_64, HOST_DEBUG,
+                                     HOST_UMPIRE, MANAGED } */
+   HOST_32,     ///< Memory types: { HOST_32, HOST_64, HOST_DEBUG }
+   HOST_64,     ///< Memory types: { HOST_64, HOST_DEBUG }
+   DEVICE,      /**< Memory types: { DEVICE, DEVICE_DEBUG, DEVICE_UMPIRE,
+                                     MANAGED } */
    DEVICE_TEMP, ///< Memory types: { DEVICE_UMPIRE }
-   MANAGED  ///< Memory types: { MANAGED }
+   MANAGED      ///< Memory types: { MANAGED }
 };
 
 /// Return true if the given memory type is in MemoryClass::HOST.
@@ -183,7 +184,7 @@ public:
    Memory(int size, MemoryType mt) { New(size, mt); }
 
    /** @brief Allocate memory for @a size entries with the given MemoryClass
-       @a mt. */
+       @a mc. */
    /** The newly allocated memory is not initialized, however the given
        MemoryType is still set as valid. */
    Memory(int size, MemoryClass mc)
@@ -343,8 +344,9 @@ public:
        i.e. it will, generally, not be Empty() after this call. */
    inline void Delete();
 
-   /** Delete the device pointer, if owned. If the data is valid only on device,
-    * move it to host before deleting and invalidating the device memory." */
+   /** Delete the device pointer, if owned. If @a copy_to_host is true and
+    *  the data is valid only on device, move it to host before deleting.
+    *  Invalidates the device memory. */
    inline void DeleteDevice(bool copy_to_host=true);
 
    /// Array subscript operator for host memory.
