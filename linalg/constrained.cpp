@@ -207,7 +207,7 @@ EliminationCGSolver::~EliminationCGSolver()
    delete prec_;
 }
 
-void EliminationCGSolver::BuildPreconditioner(int dimension, bool reorder)
+void EliminationCGSolver::BuildExplicitOperator()
 {
    SparseMatrix * explicit_projector = projector_->AssembleExact();
    HypreParMatrix * h_explicit_projector =
@@ -222,15 +222,20 @@ void EliminationCGSolver::BuildPreconditioner(int dimension, bool reorder)
    h_explicit_operator_->CopyRowStarts();
    h_explicit_operator_->CopyColStarts();
 
+   delete explicit_projector;
+   delete h_explicit_projector;
+}
+
+void EliminationCGSolver::BuildPreconditioner(int dimension, bool reorder)
+{
+   BuildExplicitOperator();
+
    prec_ = new HypreBoomerAMG(*h_explicit_operator_);
    prec_->SetPrintLevel(0);
    if (dimension > 0)
    {
       prec_->SetSystemsOptions(dimension, reorder);
    }
-
-   delete explicit_projector;
-   delete h_explicit_projector;
 
    // next line doesn't really belong here
    rel_tol = 1.e-8;
