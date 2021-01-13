@@ -3,28 +3,31 @@
 #include "ParDST.hpp"
 
 ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
-         double omega_, Coefficient * Q_,  int nrlayers_ , int nx_, int ny_, int nz_)
+         double omega_, Coefficient * Q_,  
+         int nrlayers_ , int nx_, int ny_, int nz_, Coefficient * LossCoeff_)
    : Solver(2*bf_->ParFESpace()->GetTrueVSize(), 2*bf_->ParFESpace()->GetTrueVSize()), 
      bf(bf_), Pmllength(Pmllength_), omega(omega_), 
-     Q(Q_), nrlayers(nrlayers_)
+     Q(Q_), nrlayers(nrlayers_), LossCoeff(LossCoeff_)
 {
    nx = nx_; ny = ny_; nz = nz_;
    Init();
 }
 ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
-         double omega_, VectorCoefficient * VQ_,  int nrlayers_ , int nx_, int ny_, int nz_)
+         double omega_, VectorCoefficient * VQ_,  
+         int nrlayers_ , int nx_, int ny_, int nz_, Coefficient * LossCoeff_)
    : Solver(2*bf_->ParFESpace()->GetTrueVSize(), 2*bf_->ParFESpace()->GetTrueVSize()), 
      bf(bf_), Pmllength(Pmllength_), omega(omega_), 
-     VQ(VQ_), nrlayers(nrlayers_)
+     VQ(VQ_), nrlayers(nrlayers_), LossCoeff(LossCoeff_)
 {
    nx = nx_; ny = ny_; nz = nz_;
    Init();
 }
 ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
-         double omega_, MatrixCoefficient * MQ_,  int nrlayers_ , int nx_, int ny_, int nz_)
+         double omega_, MatrixCoefficient * MQ_,  
+         int nrlayers_ , int nx_, int ny_, int nz_, Coefficient * LossCoeff_)
    : Solver(2*bf_->ParFESpace()->GetTrueVSize(), 2*bf_->ParFESpace()->GetTrueVSize()), 
      bf(bf_), Pmllength(Pmllength_), omega(omega_), 
-     MQ(MQ_), nrlayers(nrlayers_)
+     MQ(MQ_), nrlayers(nrlayers_), LossCoeff(LossCoeff_)
 {
    nx = nx_; ny = ny_; nz = nz_;
    Init();
@@ -412,8 +415,11 @@ void ParDST::SetMaxwellPmlSystemMatrix(int ip)
                          new CurlCurlIntegrator(pml_c1_Im));
    sqf[ip]->AddDomainIntegrator(new VectorFEMassIntegrator(*c2_Re),
                          new VectorFEMassIntegrator(*c2_Im));
+   if (LossCoeff)
+   {
+      sqf[ip]->AddDomainIntegrator(NULL, new VectorFEMassIntegrator(*LossCoeff));
+   }
    sqf[ip]->Assemble();
-
    Optr[ip] = new OperatorPtr;
    sqf[ip]->FormSystemMatrix(ess_tdof_list,*Optr[ip]);
    delete c2_Re;
