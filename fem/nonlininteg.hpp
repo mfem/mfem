@@ -357,7 +357,7 @@ public:
 /** @brief This class is used to assemble the skew-symmetric form of the
 nonlinear  term arising in the Navier Stokes equations
 \f$(u \cdot \nabla v, w )\f$*/
-class ConvectiveVectorConvectionNLFIntegrator : public NonlinearFormIntegrator
+class ConvectiveVectorConvectionNLFIntegrator : public VectorConvectionNLFIntegrator
 {
 private:
    Coefficient *Q{};
