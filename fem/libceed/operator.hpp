@@ -28,11 +28,11 @@ class MFEMCeedOperator : public Operator
 {
 protected:
    CeedOperator oper;
-   bool owns_oper;
    CeedVector u, v;
 
-   MFEMCeedOperator() : oper(nullptr), owns_oper(true), u(nullptr),
-      v(nullptr) { }
+   /// The base class owns and destroys u, v but expects its
+   /// derived classes to manage oper
+   MFEMCeedOperator() : oper(nullptr), u(nullptr), v(nullptr) { }
 
 public:
    void Mult(const Vector &x, Vector &y) const;
@@ -40,7 +40,6 @@ public:
    void GetDiagonal(Vector &diag) const;
    virtual ~MFEMCeedOperator()
    {
-      if (owns_oper) { CeedOperatorDestroy(&oper); }
       CeedVectorDestroy(&u);
       CeedVectorDestroy(&v);
    }
@@ -53,7 +52,6 @@ public:
    UnconstrainedMFEMCeedOperator(CeedOperator ceed_op)
    {
       oper = ceed_op;
-      owns_oper = false;
       CeedElemRestriction er;
       CeedOperatorGetActiveElemRestriction(oper, &er);
       int s;
