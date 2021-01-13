@@ -880,8 +880,6 @@ void ConvectiveVectorConvectionNLFIntegrator::AssembleElementGrad(
       {
          elmat.AddMatrix(elmat_comp, i * nd, i * nd);
       }
-
-
    }
 }
 
