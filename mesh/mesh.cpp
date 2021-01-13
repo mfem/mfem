@@ -2503,25 +2503,7 @@ void Mesh::FinalizeTopology(bool generate_bdr)
    FinalizeCheck();
    bool generate_edges = true;
 
-   if (spaceDim == 0 && vertices.Size() > 0)
-   {
-      double min_value, max_value;
-      // determine spaceDim based on min/max differences detected each dimension
-      for (int d=0; d<3; ++d)
-      {
-         min_value = max_value = vertices[0](d);
-         for (int i = 1; i < vertices.Size(); i++)
-         {
-            min_value = std::min(min_value,vertices[i](d));
-            max_value = std::max(max_value,vertices[i](d));
-            if (min_value != max_value)
-            {
-               spaceDim++;
-               break;
-            }
-         }
-      }
-   }
+   if (spaceDim == 0) { spaceDim = Dim; }
    if (ncmesh) { ncmesh->spaceDim = spaceDim; }
 
    // if the user defined any hanging nodes (see AddVertexParent),
