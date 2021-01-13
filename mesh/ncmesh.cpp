@@ -1937,7 +1937,6 @@ void NCMesh::UpdateLeafElements()
 
 void NCMesh::UpdateVertices()
 {
-#define MFEM_NCMESH_OLD_VERTEX_ORDERING
 #ifndef MFEM_NCMESH_OLD_VERTEX_ORDERING
    // This method assigns indices to vertices (Node::vert_index) that will
    // be seen by the Mesh class and the rest of MFEM. We must be careful to:
