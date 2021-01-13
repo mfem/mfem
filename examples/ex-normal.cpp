@@ -389,8 +389,8 @@ int main(int argc, char *argv[])
    ConstrainedSolver * constrained = nullptr;
    if (penalty > 0.0)
    {
-      constrained = new PenaltyConstrainedSolver(MPI_COMM_WORLD, *A.As<HypreParMatrix>(),
-                                                 *hconstraints, penalty, dim);
+      constrained = new PenaltyPCGSolver(*A.As<HypreParMatrix>(),
+                                         *hconstraints, penalty, dim);
    }
    else if (elimination)
    {

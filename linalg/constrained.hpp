@@ -221,8 +221,9 @@ protected:
    /// Internal utility routine; assembles eliminated matrix explicitly
    void BuildExplicitOperator();
 
-   /// Build preconditioner and solver for reduced system
+   /// Build preconditioner for eliminated system
    virtual Solver* BuildPreconditioner() const = 0;
+   /// Select krylov solver for eliminated system
    virtual IterativeSolver* BuildKrylov() const = 0;
 
    HypreParMatrix& hA_;
@@ -264,33 +265,69 @@ private:
 
 /** @brief Solve constrained system with penalty method; see ConstrainedSolver.
 
-    Uses CG and a HypreBoomerAMG preconditioner for the penalized system. Only
-    approximates the solution, better approximation with higher penalty,
+    Only approximates the solution, better approximation with higher penalty,
     but with higher penalty the preconditioner is less effective. */
 class PenaltyConstrainedSolver : public ConstrainedSolver
 {
 public:
-   PenaltyConstrainedSolver(MPI_Comm comm, HypreParMatrix& A,
-                            SparseMatrix& B, double penalty_,
-                            int dimension=0, bool reorder=false);
+   PenaltyConstrainedSolver(HypreParMatrix& A, SparseMatrix& B,
+                            double penalty_);
 
-   PenaltyConstrainedSolver(MPI_Comm comm, HypreParMatrix& A,
-                            HypreParMatrix& B, double penalty_,
-                            int dimension=0, bool reorder=false);
+   PenaltyConstrainedSolver(HypreParMatrix& A, HypreParMatrix& B,
+                            double penalty_);
 
    ~PenaltyConstrainedSolver();
 
    void PrimalMult(const Vector& x, Vector& y) const override;
 
-private:
-   void Initialize(HypreParMatrix& A, HypreParMatrix& B, int dimension,
-                   bool reorder);
+protected:
+   void Initialize(HypreParMatrix& A, HypreParMatrix& B);
+
+   /// Build preconditioner for penalized system
+   virtual Solver* BuildPreconditioner() const = 0;
+   /// Select krylov solver for penalized system
+   virtual IterativeSolver* BuildKrylov() const = 0;
 
    double penalty;
    Operator& constraintB;
    HypreParMatrix * penalized_mat;
-   HypreBoomerAMG * prec;
+   mutable Solver * prec;
 };
+
+
+/** Uses CG and a HypreBoomerAMG preconditioner for the penalized system. */
+class PenaltyPCGSolver : public PenaltyConstrainedSolver
+{
+public:
+   PenaltyPCGSolver(HypreParMatrix& A, SparseMatrix& B, double penalty_,
+                    int dimension=0, bool reorder=false) :
+      PenaltyConstrainedSolver(A, B, penalty_),
+      dimension_(dimension), reorder_(reorder)
+   { }
+
+   PenaltyPCGSolver(HypreParMatrix& A, HypreParMatrix& B, double penalty_,
+                    int dimension=0, bool reorder=false) :
+      PenaltyConstrainedSolver(A, B, penalty_),
+      dimension_(dimension), reorder_(reorder)
+   { }
+
+protected:
+   virtual Solver* BuildPreconditioner() const override
+   {
+      HypreBoomerAMG* h_prec = new HypreBoomerAMG(*penalized_mat);
+      h_prec->SetPrintLevel(0);
+      if (dimension_ > 0) { h_prec->SetSystemsOptions(dimension_, reorder_); }
+      return h_prec;
+   }
+
+   virtual IterativeSolver* BuildKrylov() const override
+   { return new CGSolver(GetComm()); }
+
+private:
+   int dimension_;
+   bool reorder_;
+};
+
 
 #endif
 
