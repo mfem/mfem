@@ -196,7 +196,7 @@ void EliminationProjection::RecoverMultiplier(
    }
 }
 
-EliminationCGSolver::~EliminationCGSolver()
+EliminationSolver::~EliminationSolver()
 {
    delete h_explicit_operator_;
    for (auto elim : elims_)
@@ -205,10 +205,9 @@ EliminationCGSolver::~EliminationCGSolver()
    }
    delete projector_;
    delete prec_;
-   delete krylov_;
 }
 
-void EliminationCGSolver::BuildExplicitOperator()
+void EliminationSolver::BuildExplicitOperator()
 {
    SparseMatrix * explicit_projector = projector_->AssembleExact();
    HypreParMatrix * h_explicit_projector =
@@ -227,28 +226,13 @@ void EliminationCGSolver::BuildExplicitOperator()
    delete h_explicit_projector;
 }
 
-void EliminationCGSolver::BuildPreconditioner()
-{
-   BuildExplicitOperator();
-
-   prec_ = new HypreBoomerAMG(*h_explicit_operator_);
-   prec_->SetPrintLevel(0);
-   if (dimension_ > 0)
-   {
-      prec_->SetSystemsOptions(dimension_, reorder_);
-   }
-}
-
-EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
-                                         Array<int>& primary_dofs,
-                                         Array<int>& secondary_dofs,
-                                         int dimension, bool reorder)
+EliminationSolver::EliminationSolver(HypreParMatrix& A, SparseMatrix& B,
+                                     Array<int>& primary_dofs,
+                                     Array<int>& secondary_dofs)
    :
    ConstrainedSolver(A.GetComm(), A, B),
    hA_(A),
-   dimension_(dimension),
-   reorder_(reorder),
-   krylov_(nullptr)
+   prec_(nullptr)
 {
    MFEM_VERIFY(secondary_dofs.Size() == B.Height(),
                "Wrong number of dofs for elimination!");
@@ -260,20 +244,14 @@ EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
    elims_.Append(new Eliminator(B, lagrange_dofs, primary_dofs,
                                 secondary_dofs));
    projector_ = new EliminationProjection(hA_, elims_);
-
-   BuildPreconditioner();
-   BuildKrylov();
 }
 
-EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
-                                         Array<int>& lagrange_rowstarts,
-                                         int dimension, bool reorder)
+EliminationSolver::EliminationSolver(HypreParMatrix& A, SparseMatrix& B,
+                                     Array<int>& lagrange_rowstarts)
    :
    ConstrainedSolver(A.GetComm(), A, B),
    hA_(A),
-   dimension_(dimension),
-   reorder_(reorder),
-   krylov_(nullptr)
+   prec_(nullptr)
 {
    if (!B.Empty())
    {
@@ -325,25 +303,21 @@ EliminationCGSolver::EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
       }
    }
    projector_ = new EliminationProjection(hA_, elims_);
-
-   BuildPreconditioner();
-   BuildKrylov();
 }
 
-void EliminationCGSolver::BuildKrylov()
+void EliminationSolver::PrimalMult(const Vector& rhs, Vector& sol) const
 {
-   delete krylov_;
-   krylov_ = new CGSolver(GetComm());
-}
-
-void EliminationCGSolver::PrimalMult(const Vector& rhs, Vector& sol) const
-{
-   krylov_->SetOperator(*h_explicit_operator_);
-   krylov_->SetPreconditioner(*prec_);
-   krylov_->SetMaxIter(max_iter);
-   krylov_->SetRelTol(rel_tol);
-   krylov_->SetAbsTol(abs_tol);
-   krylov_->SetPrintLevel(print_level);
+   if (!prec_)
+   {
+      prec_ = BuildPreconditioner();
+   }
+   IterativeSolver * krylov = BuildKrylov();
+   krylov->SetOperator(*h_explicit_operator_);
+   krylov->SetPreconditioner(*prec_);
+   krylov->SetMaxIter(max_iter);
+   krylov->SetRelTol(rel_tol);
+   krylov->SetAbsTol(abs_tol);
+   krylov->SetPrintLevel(print_level);
 
    Vector rtilde(rhs.Size());
    if (constraint_rhs.Size() > 0)
@@ -361,13 +335,31 @@ void EliminationCGSolver::PrimalMult(const Vector& rhs, Vector& sol) const
    projector_->MultTranspose(temprhs, reducedrhs);
    Vector reducedsol(rhs.Size());
    reducedsol = 0.0;
-   krylov_->Mult(reducedrhs, reducedsol);
-   final_iter = krylov_->GetNumIterations();
+   krylov->Mult(reducedrhs, reducedsol);
+   final_iter = krylov->GetNumIterations();
+   final_norm = krylov->GetFinalNorm();
+   converged = krylov->GetConverged();
+   delete krylov;
+
    projector_->Mult(reducedsol, sol);
-
    projector_->RecoverMultiplier(temprhs, sol, multiplier_sol);
-
    sol += rtilde;
+}
+
+IterativeSolver* EliminationCGSolver::BuildKrylov() const
+{
+   return new CGSolver(GetComm());
+}
+
+Solver* EliminationCGSolver::BuildPreconditioner() const
+{
+   HypreBoomerAMG * h_prec = new HypreBoomerAMG(*h_explicit_operator_);
+   h_prec->SetPrintLevel(0);
+   if (dimension_ > 0)
+   {
+      h_prec->SetSystemsOptions(dimension_, reorder_);
+   }
+   return h_prec;
 }
 
 void PenaltyConstrainedSolver::Initialize(HypreParMatrix& A, HypreParMatrix& B,
