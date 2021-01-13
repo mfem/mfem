@@ -467,14 +467,25 @@ const
    fes->GetElementDofs(i, dofs);
    fes->DofsToVDofs(vdim-1, dofs);
    const FiniteElement *FElem = fes->GetFE(i);
-   MFEM_ASSERT(FElem->GetMapType() == FiniteElement::VALUE,
-               "invalid FE map type");
+   ElementTransformation *Tr = NULL;
+   if (FElem->GetMapType() != FiniteElement::VALUE)
+   {
+      Tr = fes->GetElementTransformation(i);
+   }
    int dof = FElem->GetDof();
    Vector DofVal(dof), loc_data(dof);
    GetSubVector(dofs, loc_data);
    for (int k = 0; k < n; k++)
    {
-      FElem->CalcShape(ir.IntPoint(k), DofVal);
+      if (FElem->GetMapType() == FiniteElement::VALUE)
+      {
+         FElem->CalcShape(ir.IntPoint(k), DofVal);
+      }
+      else
+      {
+         Tr->SetIntPoint(&ir.IntPoint(k));
+         FElem->CalcPhysShape(*Tr, DofVal);
+      }
       vals(k) = DofVal * loc_data;
    }
 }
