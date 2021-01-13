@@ -128,8 +128,8 @@ private:
 /** The different evaluation modes available for PA and MF CeedIntegrator. */
 enum class EvalMode { None, Interp, Grad, InterpAndGrad };
 
-#endif // MFEM_USE_CEED
-
 } // namespace mfem
+
+#endif // MFEM_USE_CEED
 
 #endif // MFEM_LIBCEED_OPERATOR
