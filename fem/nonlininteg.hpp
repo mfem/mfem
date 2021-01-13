@@ -359,18 +359,10 @@ nonlinear  term arising in the Navier Stokes equations
 \f$(u \cdot \nabla v, w )\f$*/
 class ConvectiveVectorConvectionNLFIntegrator : public VectorConvectionNLFIntegrator
 {
-private:
-   Coefficient *Q{};
-   DenseMatrix dshape, dshapex, EF, gradEF, ELV, elmat_comp;
-   Vector shape;
 public:
    ConvectiveVectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { }
 
    ConvectiveVectorConvectionNLFIntegrator() = default;
-
-   static const IntegrationRule &GetRule(const FiniteElement &fe,
-                                         ElementTransformation &T);
-
 
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &trans,
@@ -382,20 +374,12 @@ public:
 term arising in the Navier Stokes equations \f$.5*(u \cdot \nabla v, w ) -
 .5*(u \cdot \nabla w, v )\f$ */
 class SkewSymmetricVectorConvectionNLFIntegrator : public
-   NonlinearFormIntegrator
+   VectorConvectionNLFIntegrator
 {
-private:
-   Coefficient *Q{};
-   DenseMatrix dshape, dshapex, EF, gradEF, ELV, elmat_comp;
-   Vector shape;
 public:
    SkewSymmetricVectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { }
 
    SkewSymmetricVectorConvectionNLFIntegrator() = default;
-
-   static const IntegrationRule &GetRule(const FiniteElement &fe,
-                                         ElementTransformation &T);
-
 
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &trans,
