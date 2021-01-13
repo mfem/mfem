@@ -954,8 +954,6 @@ void SkewSymmetricVectorConvectionNLFIntegrator::AssembleElementGrad(
          elmat.AddMatrix(.5, elmat_comp, i * nd, i * nd);
          elmat.AddMatrix(-.5, elmat_comp_T, i * nd, i * nd);
       }
-
-
    }
 }
 
