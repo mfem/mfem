@@ -914,12 +914,7 @@ void SkewSymmetricVectorConvectionNLFIntegrator::AssembleElementGrad(
    double w;
    Vector vec1(dim), vec2(dim), vec3(nd), vec4(dim), vec5(nd);
 
-   const IntegrationRule *ir = IntRule;
-   if (ir == nullptr)
-   {
-      int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
-      ir = &IntRules.Get(el.GetGeomType(), order);
-   }
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, trans);
 
    elmat = 0.0;
    elmat_comp_T = 0.0;
