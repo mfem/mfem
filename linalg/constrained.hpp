@@ -72,7 +72,9 @@ public:
        this. 
 
        The base class implementation calls Mult(), so derived classes must
-       implement either this or Mult() */
+       implement either this or Mult() 
+
+       Do not like the name; maybe SmallerMult, ReducedMult, SingleBlockMult ... */
    virtual void PrimalMult(const Vector& f, Vector& x) const;
 
    /** @brief Solve for (x, lambda) given (f, r)
@@ -218,6 +220,9 @@ public:
    void PrimalMult(const Vector& x, Vector& y) const override;
 
 private:
+   /// Internal utility routine; assembles eliminated matrix explicitly
+   void BuildExplicitOperator();
+
    /// Utility routine for constructors
    void BuildPreconditioner(int dimension, bool reorder);
 
