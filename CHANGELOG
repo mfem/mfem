@@ -11,6 +11,9 @@
 Version 4.2.1 (development)
 ===========================
 
+- Added AlgebraicCeedSolver that does matrix-free algebraic p-multigrid for
+  diffusion problems with the Ceed backend.
+
 - Added interface to MUMPS direct solver. Its usage is demonstrated in ex25p.
   See http://mumps.enseeiht.fr/ for more details. Supported versions >= 5.1.1.
 
@@ -137,9 +140,6 @@ Linear and nonlinear solvers
 - Block arrays of parallel matrices can now be merged into a single parallel
   matrix with the function HypreParMatrixFromBlocks. This could be useful for
   solving block systems with parallel direct solvers such as STRUMPACK.
-
-- Added AlgebraicCeedSolver that does matrix-free algebraic p-multigrid for
-  diffusion problems with the Ceed backend.
 
 - Added CUDA support for SUNDIALS ODE integrators. See the updated SUNDIALS
   modification of Example 9/9p.
