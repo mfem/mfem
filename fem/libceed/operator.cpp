@@ -16,6 +16,8 @@
 #include "../fespace.hpp"
 #include "../../general/forall.hpp"
 
+#ifdef MFEM_USE_CEED
+
 namespace mfem
 {
 
@@ -349,5 +351,6 @@ void MFEMCeedInterpolation::MultTranspose(const mfem::Vector& x,
    MFEM_ASSERT(ierr == 0, "CEED error");
 }
 
-
 } // namespace mfem
+
+#endif
