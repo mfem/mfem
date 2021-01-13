@@ -816,13 +816,6 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
    }
 }
 
-const IntegrationRule&
-ConvectiveVectorConvectionNLFIntegrator::GetRule(const FiniteElement &fe,
-                                                 ElementTransformation &T)
-{
-   const int order = 2 * fe.GetOrder() + T.OrderGrad(&fe);
-   return IntRules.Get(fe.GetGeomType(), order);
-}
 
 void ConvectiveVectorConvectionNLFIntegrator::AssembleElementGrad(
    const FiniteElement &el,
@@ -878,13 +871,6 @@ void ConvectiveVectorConvectionNLFIntegrator::AssembleElementGrad(
    }
 }
 
-const IntegrationRule&
-SkewSymmetricVectorConvectionNLFIntegrator::GetRule(const FiniteElement &fe,
-                                                    ElementTransformation &T)
-{
-   const int order = 2 * fe.GetOrder() + T.OrderGrad(&fe);
-   return IntRules.Get(fe.GetGeomType(), order);
-}
 
 void SkewSymmetricVectorConvectionNLFIntegrator::AssembleElementGrad(
    const FiniteElement &el,
