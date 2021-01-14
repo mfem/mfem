@@ -20,7 +20,11 @@ namespace mfem
 {
 
 template <int Dim, typename Basis>
-class BasisTensor;
+class BasisTensor : public Basis
+{
+public:
+   BasisTensor(int quads, int dofs): Basis(quads,dofs) { }
+};
 
 template <int Dim>
 using DynamicBasisTensor = BasisTensor<Dim,DynamicSharedDTensor<2>>;
