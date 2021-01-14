@@ -30,7 +30,7 @@ double Lx;
 double lambda;
 double resiG;
 double ep=.2;
-int icase = 1;
+int icase = 3;
 int order = 2;
 ParMesh *pmesh;
 
@@ -79,6 +79,8 @@ int main(int argc, char *argv[])
                   "ODE solver: 1 - Backward Euler, 2 - Brailovskaya,\n\t"
                   "            3 - L-stable SDIRK23, 4 - L-stable SDIRK33,\n\t"
                   "            22 - Implicit Midpoint, 23 - SDIRK23, 24 - SDIRK34.");
+   args.AddOption(&icase, "-i", "--icase",
+                  "Icase: 1 - wave propagation; 2 - Tearing mode.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step","Time step.");
@@ -324,7 +326,14 @@ int main(int argc, char *argv[])
 
    //++++Initialize the MHD operator, the GLVis visualization    
    ResistiveMHDOperator oper(fespace, ess_bdr, visc, resi, use_petsc, use_factory);
-   oper.SetRHSEfield(E0rhs3);
+   if (icase!=5)
+   {
+    oper.SetRHSEfield(E0rhs3);
+   }
+   else
+   {
+    oper.SetRHSEfield(E0rhs5);
+   }
 
    ParGridFunction j(&fespace);
    //set initial J

@@ -1,7 +1,7 @@
 #include "InitialConditions.hpp"
 
-double vari_coeff=8.;
-double visc_bdy=5e-4;
+double vari_coeff=10.;
+double visc_bdy=1e-2;
 double tau=200.;
 
 double InitialPhi(const Vector &x)
