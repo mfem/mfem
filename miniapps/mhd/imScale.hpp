@@ -549,6 +549,11 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
        visc_ptr = &visc_vari;
        resi_ptr = &resi_vari;
    }
+   else if (icase==4)
+   {
+       visc_ptr = &visc_vari;
+       resi_ptr = &resi_coeff;
+   }
    else
    {
        visc_ptr = &visc_coeff;

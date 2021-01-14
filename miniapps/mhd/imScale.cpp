@@ -298,8 +298,16 @@ int main(int argc, char *argv[])
    phi.ProjectCoefficient(phiInit);
    phi.SetTrueVector();
 
-   FunctionCoefficient psiInit3(InitialPsi32);
-   psi.ProjectCoefficient(psiInit3);
+   if (icase!=6)
+   {
+      FunctionCoefficient psiInit3(InitialPsi3);
+      psi.ProjectCoefficient(psiInit3);
+   }
+   else
+   {
+      FunctionCoefficient psiInit6(InitialPsi6);
+      psi.ProjectCoefficient(psiInit6);
+   }
    psi.SetTrueVector();
 
    FunctionCoefficient wInit(InitialW);
@@ -337,9 +345,18 @@ int main(int argc, char *argv[])
 
    ParGridFunction j(&fespace);
    //set initial J
-   FunctionCoefficient jInit3(InitialJ3);
-   oper.SetInitialJ(jInit3);
-   j.ProjectCoefficient(jInit3);
+   if(icase==6)
+   {
+      FunctionCoefficient jInit6(InitialJ6);
+      oper.SetInitialJ(jInit6);
+      j.ProjectCoefficient(jInit6);
+   }
+   else
+   {
+      FunctionCoefficient jInit3(InitialJ3);
+      oper.SetInitialJ(jInit3);
+      j.ProjectCoefficient(jInit3);
+   }
    j.SetTrueVector();
 
    double t = 0.0;
