@@ -19,31 +19,26 @@
 namespace mfem
 {
 
-template <int Dim, typename Basis>
-class BasisTensor : public Basis
+// TODO no need to specialize on IsTensor, define DynamicBasis<Dim,IsTensor> and
+// StaticBasis<Dim,IsTensor,Q,D> (maybe D before Q?)
+template <int Dim, bool IsTensor, typename TensorType>
+class BasisTensor : public TensorType
 {
 public:
-   BasisTensor(int quads, int dofs): Basis(quads,dofs) { }
+   BasisTensor(int quads, int dofs): TensorType(quads,dofs) { }
 };
 
 template <int Dim>
-using DynamicBasisTensor = BasisTensor<Dim,DynamicSharedDTensor<2>>;
+using DynamicBasisTensor = BasisTensor<Dim,true,DynamicSharedDTensor<2>>;
 
 template <int Dim, int Q, int D>
-using StaticBasisTensor = BasisTensor<Dim,StaticSharedDTensor<Q,D>>;
-
-template <int Dim, typename Basis>
-class BasisNonTensor : public Basis
-{
-public:
-   BasisNonTensor(int quads, int dofs): Basis(quads,dofs) { }
-};
+using StaticBasisTensor = BasisTensor<Dim,true,StaticSharedDTensor<Q,D>>;
 
 template <int Dim>
-using DynamicBasisNonTensor = BasisTensor<Dim,DynamicSharedDTensor<2,1024>>; // TODO pick a better value than 1024
+using DynamicBasisNonTensor = BasisTensor<Dim,false,DynamicSharedDTensor<2,1024>>; // TODO pick a better value than 1024
 
 template <int Dim, int Q, int D>
-using StaticBasisNonTensor = BasisTensor<Dim,StaticSharedDTensor<Q,D>>;
+using StaticBasisNonTensor = BasisTensor<Dim,false,StaticSharedDTensor<Q,D>>;
 
 template <int Dim, bool IsTensor, int Dofs, int Quads>
 struct Basis;
