@@ -356,9 +356,11 @@ void AlgebraicSpaceHierarchy::AddCoarseLevel(AlgebraicCoarseSpace* space,
 
 // the ifdefs and dynamic casts are very ugly, but the interface is kinda nice?
 void AlgebraicSpaceHierarchy::AddPCoarsenedLevel(
-   int current_order, int dim, int order_reduction)
+   int current_order, int order_reduction)
 {
    MFEM_VERIFY(fespaces.Size() >= 1, "At least one level must exist!");
+   int dim = meshes[0]->Dimension();
+
    AlgebraicCoarseSpace *fine_alg_space =
       dynamic_cast<AlgebraicCoarseSpace*>(fespaces[0]);
    CeedElemRestriction current_er;
@@ -416,8 +418,6 @@ AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
    InitCeedTensorRestriction(fes, ceed, &fine_er);
    CeedElemRestriction er = fine_er;
 
-   int dim = fes.GetMesh()->Dimension();
-
    while (current_order > 1)
    {
       // TODO: make this decision based on the assembled qfunction
@@ -429,7 +429,7 @@ AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
       // this apparently has no access to any ceed operators?
       std::cout << "coarsening form current_order = " << current_order << std::endl;
       const int order_reduction = current_order - (current_order/2);
-      AddPCoarsenedLevel(current_order, dim, order_reduction);
+      AddPCoarsenedLevel(current_order, order_reduction);
       current_order = current_order/2;
    }
 }

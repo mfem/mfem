@@ -119,7 +119,6 @@ public:
    /// could probably make this happen with just order_reduction if you
    /// want to save more info in the hierarchy
    void AddPCoarsenedLevel(int current_order,
-                           int dim,
                            int order_reduction);
 
 private:
