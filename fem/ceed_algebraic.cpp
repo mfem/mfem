@@ -299,7 +299,7 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
          bool assemble_matrix = false;
 #ifdef MFEM_USE_MPI
 #ifdef MFEM_USE_AMGX
-         if (Device::Allows(Backend::CUDA)) { assemble_matrix = true; }
+	 assemble_matrix = true;
 #else
          if (!Device::Allows(Backend::CUDA)) { assemble_matrix = true; }
 #endif
