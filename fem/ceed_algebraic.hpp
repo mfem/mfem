@@ -109,9 +109,18 @@ public:
    }
 
    /** Prepend an already constructed coarse space to the hierarchy,
-       managing meshes, fespaces, and other arrays appropriately. */
+       managing meshes, fespaces, and other arrays appropriately.
+
+       Analogous to FESpaceHierarchy::AddLevel() */
    void AddCoarseLevel(AlgebraicCoarseSpace* space,
                        CeedElemRestriction er);
+
+   /// Analogous to FiniteElementSpaceHierarchy::AddOrderRefinedLevel()
+   /// could probably make this happen with just order_reduction if you
+   /// want to save more info in the hierarchy
+   void AddPCoarsenedLevel(int current_order,
+                           int dim,
+                           int order_reduction);
 
 private:
    CeedElemRestriction fine_er;

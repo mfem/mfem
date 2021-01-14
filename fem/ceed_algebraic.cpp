@@ -354,6 +354,51 @@ void AlgebraicSpaceHierarchy::AddCoarseLevel(AlgebraicCoarseSpace* space,
    ownedProlongations.Prepend(prolongations[0] != ceed_interpolations[0]);   
 }
 
+// the ifdefs and dynamic casts are very ugly, but the interface is kinda nice?
+void AlgebraicSpaceHierarchy::AddPCoarsenedLevel(
+   int current_order, int dim, int order_reduction)
+{
+   MFEM_VERIFY(fespaces.Size() >= 1, "At least one level must exist!");
+   AlgebraicCoarseSpace *fine_alg_space =
+      dynamic_cast<AlgebraicCoarseSpace*>(fespaces[0]);
+   CeedElemRestriction current_er;
+#ifdef MFEM_USE_MPI
+   GroupCommunicator *gc = NULL;
+#endif
+   if (fine_alg_space)
+   {
+      current_er = fine_alg_space->GetCeedElemRestriction();
+#ifdef MFEM_USE_MPI
+      ParAlgebraicCoarseSpace *par_alg_space =
+         dynamic_cast<ParAlgebraicCoarseSpace*>(fine_alg_space);
+      if (par_alg_space) { gc = par_alg_space->GetGroupCommunicator(); }
+#endif
+   }
+   else
+   {
+      current_er = fine_er;
+#ifdef MFEM_USE_MPI
+      ParFiniteElementSpace *pfes =
+         dynamic_cast<ParFiniteElementSpace*>(fespaces[0]);
+      if (pfes) { gc = &pfes->GroupComm(); }
+#endif
+   }
+   AlgebraicCoarseSpace *space;
+#ifdef MFEM_USE_MPI
+   if (gc)
+   {
+      space = new ParAlgebraicCoarseSpace(
+         *fespaces[0], current_er, current_order, dim, order_reduction, gc);
+   }
+   else
+#endif
+   {
+      space = new AlgebraicCoarseSpace(
+         *fespaces[0], current_er, current_order, dim, order_reduction);
+   }
+   AddCoarseLevel(space, current_er);
+}
+
 AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
 {
    int order = fes.GetOrder(0);
@@ -373,12 +418,6 @@ AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
 
    int dim = fes.GetMesh()->Dimension();
 
-#ifdef MFEM_USE_MPI
-   GroupCommunicator *gc = NULL;
-   ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace*>(&fes);
-   if (pfes) { gc = &pfes->GroupComm(); }
-#endif
-
    while (current_order > 1)
    {
       // TODO: make this decision based on the assembled qfunction
@@ -388,28 +427,10 @@ AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
       // TODO: the coarsening schedule appears to be (one of) the key
       // reasons that high-contrast coefficients screw this up
       // this apparently has no access to any ceed operators?
-      // double contrast = ceed_operators // AlgebraicSpaceHierarchy
       std::cout << "coarsening form current_order = " << current_order << std::endl;
       const int order_reduction = current_order - (current_order/2);
-      AlgebraicCoarseSpace *space;
-
-#ifdef MFEM_USE_MPI
-      if (pfes)
-      {
-         ParAlgebraicCoarseSpace *parspace = new ParAlgebraicCoarseSpace(
-            *fespaces[0], er, current_order, dim, order_reduction, gc);
-         gc = parspace->GetGroupCommunicator();
-         space = parspace;
-      }
-      else
-#endif
-      {
-         space = new AlgebraicCoarseSpace(
-            *fespaces[0], er, current_order, dim, order_reduction);
-      }
+      AddPCoarsenedLevel(current_order, dim, order_reduction);
       current_order = current_order/2;
-      AddCoarseLevel(space, er);
-      er = space->GetCeedElemRestriction();
    }
 }
 
