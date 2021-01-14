@@ -161,7 +161,7 @@ int main(int argc, char *argv[])
    // 12. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
    const int max_dofs = 50000;
-   for (int it = 0; ; it++)
+   for (int it = 1; ; it++)
    {
       int cdofs = fespace.GetTrueVSize();
       cout << "\nAMR iteration " << it << endl;
