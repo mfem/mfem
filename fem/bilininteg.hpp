@@ -2679,13 +2679,19 @@ public:
     uses the upwind value of rho, rho_u, which is value from the side into which
     the vector coefficient, u, points.
 
-    When used with ConvectionIntegrator, the transpose of this form with
-    alpha=-1.0, beta=0.5 can be used to implement the upwind flux and outflow
-    boundary conditions, see ex9 and ex9p.
+    One use case for this integrator is to discretize the operator -u.grad(v)
+    with a DG formulation. The resulting formulation uses the
+    ConvectionIntegrator (with coefficient u, and parameter alpha = -1) and the
+    transpose of the DGTraceIntegrator (with coefficient u, and parameters
+    alpha = 1, beta = -1/2 to use the upwind face flux). This discretization and
+    the handling of the inflow and outflow boundaries is illustrated in Example
+    9/9p.
 
-    When combined with the transpose of ConvectionIntegrator integrator, the
-    coefficients alpha=1.0, beta=0.5 can be used to implement the upwind flux
-    and outflow boundary conditions in conservative form.
+    Another use case for this integrator is to discretize the operator -div(u v)
+    with a DG formulation. The resulting formulation is conservative and
+    consists of the transpose of the ConvectionIntegrator (with coefficient u,
+    and parameter alpha = 1) plus the DGTraceIntegrator (with coefficient u, and
+    parameters alpha = -1, beta = -1/2 to use the upwind face flux).
     */
 class DGTraceIntegrator : public BilinearFormIntegrator
 {
