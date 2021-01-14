@@ -264,6 +264,12 @@ public:
        including the dofs for the edges and the vertices of the face. */
    virtual void GetFaceDofs(int i, Array<int> &dofs) const;
 
+   /** Returns pointer to the FiniteElement in the FiniteElementCollection
+       associated with i'th element in the mesh object. If @a i is greater than
+       or equal to the number of local mesh elements, @a i will be interpreted
+       as a shifted index of a face neigbor element. */
+   virtual const FiniteElement *GetFE(int i) const;
+
    /** Returns an Operator that converts L-vectors to E-vectors on each face.
        The parallel version is different from the serial one because of the
        presence of shared faces. Shared faces are treated as interior faces,
