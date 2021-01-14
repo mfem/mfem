@@ -239,31 +239,41 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
    const Array<int> &ess_tdofs
 ) : Multigrid(hierarchy)
 {
-   int nlevels = fespaces.GetNumLevels();
-   ceed_operators.SetSize(nlevels);
-   essentialTrueDofs.SetSize(nlevels);
-
    // Construct finest level
-   ceed_operators[nlevels-1] = CreateCeedCompositeOperatorFromBilinearForm(form);
-   essentialTrueDofs[nlevels-1] = new Array<int>;
-   *essentialTrueDofs[nlevels-1] = ess_tdofs;
+   ceed_operators.Prepend(CreateCeedCompositeOperatorFromBilinearForm(form));
+   essentialTrueDofs.Prepend(new Array<int>);
+   *essentialTrueDofs[0] = ess_tdofs;
 
-   // Construct operators at all levels of hierarchy by coarsening
-   for (int ilevel=nlevels-2; ilevel>=0; --ilevel)
+   int current_order = hierarchy.GetFESpaceAtLevel(0).GetOrder(0);
+
+   // Construct interpolation, operators, at all levels of hierarchy by coarsening
+   while (current_order > 1)
    {
-      AlgebraicCoarseSpace &space = hierarchy.GetAlgebraicCoarseSpace(ilevel);
-      ceed_operators[ilevel] = CoarsenCeedCompositeOperator(
-                                  ceed_operators[ilevel+1], space.GetCeedElemRestriction(),
+      // TODO: make this decision based on the assembled qfunction
+      // (ie, what comes out of CeedOperatorLinearAssembleQFunction,
+      // which currently only gets called in CeedQFunctionQCoarsen...)
+
+      // TODO: the coarsening schedule appears to be (one of) the key
+      // reasons that high-contrast coefficients screw this up
+      // this apparently has no access to any ceed operators?
+      std::cout << "coarsening form current_order = " << current_order << std::endl;
+      const int order_reduction = current_order - (current_order/2);
+      hierarchy.PrependPCoarsenedLevel(current_order, order_reduction);
+      current_order = current_order / 2;
+
+      AlgebraicCoarseSpace &space = hierarchy.GetAlgebraicCoarseSpace(0);
+      ceed_operators.Prepend(CoarsenCeedCompositeOperator(
+                                  ceed_operators[0], space.GetCeedElemRestriction(),
                                   space.GetCeedCoarseToFine(), space.GetOrderReduction(),
-                                  space.GetOrderReduction());
-      // TODO: take a look at what happens to your very rough metrics if you don't 
-      // do q-coarsening...
-      Operator *P = hierarchy.GetProlongationAtLevel(ilevel);
-      essentialTrueDofs[ilevel] = new Array<int>;
-      CoarsenEssentialDofs(*P, *essentialTrueDofs[ilevel+1],
-                           *essentialTrueDofs[ilevel]);
+                                  space.GetOrderReduction())
+         );
+      Operator *P = hierarchy.GetProlongationAtLevel(0);
+      essentialTrueDofs.Prepend(new Array<int>);
+      CoarsenEssentialDofs(*P, *essentialTrueDofs[1],
+                           *essentialTrueDofs[0]);
    }
 
+   int nlevels = fespaces.GetNumLevels();
    // Add the operators and smoothers to the hierarchy, from coarse to fine
    for (int ilevel=0; ilevel<nlevels; ++ilevel)
    {
@@ -355,7 +365,7 @@ void AlgebraicSpaceHierarchy::AddCoarseLevel(AlgebraicCoarseSpace* space,
 }
 
 // the ifdefs and dynamic casts are very ugly, but the interface is kinda nice?
-void AlgebraicSpaceHierarchy::AddPCoarsenedLevel(
+void AlgebraicSpaceHierarchy::PrependPCoarsenedLevel(
    int current_order, int order_reduction)
 {
    MFEM_VERIFY(fespaces.Size() >= 1, "At least one level must exist!");
@@ -412,26 +422,8 @@ AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
    fespaces.Prepend(&fes);
    ownedFES.Prepend(false);
 
-   current_order = order;
-
    Ceed ceed = internal::ceed;
    InitCeedTensorRestriction(fes, ceed, &fine_er);
-   CeedElemRestriction er = fine_er;
-
-   while (current_order > 1)
-   {
-      // TODO: make this decision based on the assembled qfunction
-      // (ie, what comes out of CeedOperatorLinearAssembleQFunction,
-      // which currently only gets called in CeedQFunctionQCoarsen...)
-
-      // TODO: the coarsening schedule appears to be (one of) the key
-      // reasons that high-contrast coefficients screw this up
-      // this apparently has no access to any ceed operators?
-      std::cout << "coarsening form current_order = " << current_order << std::endl;
-      const int order_reduction = current_order - (current_order/2);
-      AddPCoarsenedLevel(current_order, order_reduction);
-      current_order = current_order/2;
-   }
 }
 
 AlgebraicCoarseSpace::AlgebraicCoarseSpace(

@@ -118,8 +118,8 @@ public:
    /// Analogous to FiniteElementSpaceHierarchy::AddOrderRefinedLevel()
    /// could probably make this happen with just order_reduction if you
    /// want to save more info in the hierarchy
-   void AddPCoarsenedLevel(int current_order,
-                           int order_reduction);
+   void PrependPCoarsenedLevel(int current_order,
+                               int order_reduction);
 
 private:
    CeedElemRestriction fine_er;
