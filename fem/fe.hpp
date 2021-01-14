@@ -504,12 +504,18 @@ public:
    /** @brief Given a coefficient and a transformation, compute its projection
        (approximation) in the local finite dimensional space in terms
        of the degrees of freedom. */
+   /** The approximation used to project is usually local interpolation of
+       degrees of freedom. The derived class could use other methods not
+       implemented yet, e.g. local L2 projection. */
    virtual void Project(Coefficient &coeff,
                         ElementTransformation &Trans, Vector &dofs) const;
 
    /** @brief Given a vector coefficient and a transformation, compute its
        projection (approximation) in the local finite dimensional space
        in terms of the degrees of freedom. (VectorFiniteElements) */
+   /** The approximation used to project is usually local interpolation of
+       degrees of freedom. The derived class could use other methods not
+       implemented yet, e.g. local L2 projection. */
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const;
 
@@ -813,11 +819,25 @@ protected:
    void CalcVShape_ND(ElementTransformation &Trans,
                       DenseMatrix &shape) const;
 
+   /** @brief Project a vector coefficient onto the RT basis functions
+       @param nk    Face normal vectors for this element type
+       @param d2n   Offset into nk for each degree of freedom
+       @param vc    Vector coefficient to be projected
+       @param Trans Transformation from reference to physical coordinates
+       @param dofs  Expansion coefficients for the approximation of vc
+   */
    void Project_RT(const double *nk, const Array<int> &d2n,
                    VectorCoefficient &vc, ElementTransformation &Trans,
                    Vector &dofs) const;
 
    /// Projects the vector of values given at FE nodes to RT space
+   /** Project vector values onto the RT basis functions
+       @param nk    Face normal vectors for this element type
+       @param d2n   Offset into nk for each degree of freedom
+       @param vc    Vector values at each interpolation point
+       @param Trans Transformation from reference to physical coordinates
+       @param dofs  Expansion coefficients for the approximation of vc
+   */
    void Project_RT(const double *nk, const Array<int> &d2n,
                    Vector &vc, ElementTransformation &Trans,
                    Vector &dofs) const;
@@ -827,6 +847,19 @@ protected:
       const double *nk, const Array<int> &d2n,
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const;
 
+   /** @brief Project vector-valued basis functions onto the RT basis functions
+       @param nk    Face normal vectors for this element type
+       @param d2n   Offset into nk for each degree of freedom
+       @param fe    Vector-valued finite element basis
+       @param Trans Transformation from reference to physical coordinates
+       @param I     Expansion coefficients for the approximation of each basis
+                    function
+
+       Note: If the FiniteElement, fe, is scalar-valued the projection will
+             assume that a FiniteElementSpace is being used to define a vector
+             field using the scalar basis functions for each component of the
+             vector field.
+   */
    void Project_RT(const double *nk, const Array<int> &d2n,
                    const FiniteElement &fe, ElementTransformation &Trans,
                    DenseMatrix &I) const;
@@ -846,11 +879,25 @@ protected:
                        const FiniteElement &fe, ElementTransformation &Trans,
                        DenseMatrix &curl) const;
 
+   /** @brief Project a vector coefficient onto the ND basis functions
+       @param tk    Edge tangent vectors for this element type
+       @param d2t   Offset into tk for each degree of freedom
+       @param vc    Vector coefficient to be projected
+       @param Trans Transformation from reference to physical coordinates
+       @param dofs  Expansion coefficients for the approximation of vc
+   */
    void Project_ND(const double *tk, const Array<int> &d2t,
                    VectorCoefficient &vc, ElementTransformation &Trans,
                    Vector &dofs) const;
 
    /// Projects the vector of values given at FE nodes to ND space
+   /** Project vector values onto the ND basis functions
+       @param tk    Edge tangent vectors for this element type
+       @param d2t   Offset into tk for each degree of freedom
+       @param vc    Vector values at each interpolation point
+       @param Trans Transformation from reference to physical coordinates
+       @param dofs  Expansion coefficients for the approximation of vc
+   */
    void Project_ND(const double *tk, const Array<int> &d2t,
                    Vector &vc, ElementTransformation &Trans,
                    Vector &dofs) const;
@@ -860,6 +907,19 @@ protected:
       const double *tk, const Array<int> &d2t,
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const;
 
+   /** @brief Project vector-valued basis functions onto the ND basis functions
+       @param tk    Edge tangent vectors for this element type
+       @param d2t   Offset into tk for each degree of freedom
+       @param fe    Vector-valued finite element basis
+       @param Trans Transformation from reference to physical coordinates
+       @param I     Expansion coefficients for the approximation of each basis
+                    function
+
+       Note: If the FiniteElement, fe, is scalar-valued the projection will
+             assume that a FiniteElementSpace is being used to define a vector
+             field using the scalar basis functions for each component of the
+             vector field.
+   */
    void Project_ND(const double *tk, const Array<int> &d2t,
                    const FiniteElement &fe, ElementTransformation &Trans,
                    DenseMatrix &I) const;

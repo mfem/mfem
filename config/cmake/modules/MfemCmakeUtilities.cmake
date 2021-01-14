@@ -754,7 +754,13 @@ function(mfem_export_mk_files)
   set(MFEM_CXX ${CMAKE_CXX_COMPILER})
   set(MFEM_HOST_CXX ${MFEM_CXX})
   set(MFEM_CPPFLAGS "")
-  string(STRIP "${CMAKE_CXX_FLAGS_${BUILD_TYPE}} ${CMAKE_CXX_FLAGS}"
+  get_target_property(cxx_std mfem CXX_STANDARD)
+  # For now, we ignore the setting of the CXX_EXTENSIONS property. If this
+  # property is set, then we need to use a variable like:
+  #    CMAKE_CXX11_EXTENSION_COMPILE_OPTION
+  set(cxx_std_flag ${CMAKE_CXX${cxx_std}_STANDARD_COMPILE_OPTION})
+  string(STRIP
+         "${cxx_std_flag} ${CMAKE_CXX_FLAGS_${BUILD_TYPE}} ${CMAKE_CXX_FLAGS}"
          MFEM_CXXFLAGS)
   set(MFEM_TPLFLAGS "")
   foreach(dir ${MFEM_TPL_INCLUDE_DIRS})
