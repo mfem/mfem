@@ -324,6 +324,36 @@ AlgebraicCeedMultigrid::~AlgebraicCeedMultigrid()
    }
 }
 
+void AlgebraicSpaceHierarchy::AddCoarseLevel(AlgebraicCoarseSpace* space,
+                                             CeedElemRestriction er)
+{
+   MFEM_VERIFY(meshes.Size() >= 1, "At least one level must exist!");
+   Mesh* finemesh = meshes[0];
+   meshes.Prepend(finemesh); // every entry of meshes points to finest mesh
+   ownedMeshes.Prepend(false);
+   fespaces.Prepend(space);
+   ownedFES.Prepend(true); // owns all but finest
+   ceed_interpolations.Prepend(new MFEMCeedInterpolation(
+                                  internal::ceed,
+                                  space->GetCeedCoarseToFine(),
+                                  space->GetCeedElemRestriction(),
+                                  er)
+      );
+   const SparseMatrix *R = fespaces[1]->GetRestrictionMatrix();
+   if (R)
+   {
+      R->BuildTranspose();
+      R_tr.Prepend(new TransposeOperator(*R));
+   }
+   else
+   {
+      R_tr.Prepend(NULL);
+   }
+   prolongations.Prepend(ceed_interpolations[0]->SetupRAP(
+                            space->GetProlongationMatrix(), R_tr[0]));
+   ownedProlongations.Prepend(prolongations[0] != ceed_interpolations[0]);   
+}
+
 AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
 {
    int order = fes.GetOrder(0);
@@ -378,30 +408,7 @@ AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
             *fespaces[0], er, current_order, dim, order_reduction);
       }
       current_order = current_order/2;
-      meshes.Prepend(fes.GetMesh()); // every entry of meshes points to finest mesh
-      ownedMeshes.Prepend(false);
-      fespaces.Prepend(space);
-      ownedFES.Prepend(true); // owns all but finest
-      ceed_interpolations.Prepend(new MFEMCeedInterpolation(
-                                     ceed,
-                                     space->GetCeedCoarseToFine(),
-                                     space->GetCeedElemRestriction(),
-                                     er)
-         );
-      const SparseMatrix *R = fespaces[1]->GetRestrictionMatrix();
-      if (R)
-      {
-         R->BuildTranspose();
-         R_tr.Prepend(new TransposeOperator(*R));
-      }
-      else
-      {
-         R_tr.Prepend(NULL);
-      }
-      prolongations.Prepend(ceed_interpolations[0]->SetupRAP(
-                               space->GetProlongationMatrix(), R_tr[0]));
-      ownedProlongations.Prepend(prolongations[0] != ceed_interpolations[0]);
-
+      AddCoarseLevel(space, er);
       er = space->GetCeedElemRestriction();
    }
 }
