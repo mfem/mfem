@@ -32,16 +32,18 @@ using DynamicBasisTensor = BasisTensor<Dim,DynamicSharedDTensor<2>>;
 template <int Dim, int Q, int D>
 using StaticBasisTensor = BasisTensor<Dim,StaticSharedDTensor<Q,D>>;
 
-class BasisMatrix: public DynamicSharedDTensor<2,1024> // TODO pick a better value than 1024
+template <int Dim, typename Basis>
+class BasisNonTensor : public Basis
 {
-
+public:
+   BasisNonTensor(int quads, int dofs): Basis(quads,dofs) { }
 };
 
-template <int Q, int D>
-class StaticBasisMatrix: public StaticSharedDTensor<Q,D>
-{
+template <int Dim>
+using DynamicBasisNonTensor = BasisTensor<Dim,DynamicSharedDTensor<2,1024>>; // TODO pick a better value than 1024
 
-};
+template <int Dim, int Q, int D>
+using StaticBasisNonTensor = BasisTensor<Dim,StaticSharedDTensor<Q,D>>;
 
 template <int Dim, bool IsTensor, int Dofs, int Quads>
 struct Basis;
