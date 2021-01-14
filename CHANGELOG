@@ -23,14 +23,37 @@ Version 4.2.1 (development)
 - Added support for the "BR2" discontinuous Galerkin discretization for
   diffusion via DGDiffusionBR2Integrator (see Example 14/14p).
 
+- Generalized the Multigrid class to support non-geometric multigrid. The
+  previous functionality, based on FiniteElementSpaceHierarchy, is now available
+  in the derived class GeometricMultigrid.
+
 - Upgraded the Catch unit test framework from version 2.13.0 to version 2.13.2.
 
 - Implemented a filter method for the Navier miniapp to stabilize highly
   turbulent flows in direct numerical simulation.
 
+- Added partial assembly and device support to Example 25/25p, with diagonal
+  preconditioning.
+
 - Implemented a variable step-size IMEX (VSSIMEX) method for the Navier miniapp.
 
-- Added new mesh quality metrics for TMOP-based mesh optimization.
+- Added new mesh quality metrics and improved the untangling capabilities of the
+  TMOP-based mesh optimization algorithms.
+
+- Changed the interface for the error estimator.
+
+- Implemented the parallel Kelly error indicator for scalar-valued problems.
+
+- Added new classes DenseSymmetricMatrix and SymmetricMatrixCoefficient for
+  efficient evaluation of symmetric matrix coefficients. This replaces the now
+  deprecated EvalSymmetric in MatrixCoefficient. Added DiagonalMatrixCoefficient
+  for clarity, which is a typedef of VectorCoefficient.
+
+- Implemented an adaptive linear solver tolerance option for NewtonSolver based
+  on the algorithm of Eisenstat and Walker.
+
+- Extending support for L2 basis functions using MapTypes VALUE and INTEGRAL in
+  linear interpolators and GridFunction "GetValue" methods.
 
 
 Version 4.2, released on October 30, 2020
