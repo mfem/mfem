@@ -18,6 +18,7 @@
 #include "../dtensor.hpp"
 #include <utility>
 #include "basis.hpp"
+#include "contraction.hpp"
 
 namespace mfem
 {
@@ -35,7 +36,7 @@ template <int D, int Q, typename Dofs>
 auto operator*(const Basis<1,true,D,Q> &basis, const Dofs &u)
 {
    auto B = basis.GetB();
-   return B.ContractX(u);
+   return ContractX(B,u);
 }
 
 // 2D Tensor
@@ -43,8 +44,8 @@ template <int D, int Q, typename Dofs>
 auto operator*(const Basis<2,true,D,Q> &basis, const Dofs &u)
 {
    auto B = basis.GetB();
-   auto Bu = B.ContractX(u);
-   return B.ContractY(Bu);
+   auto Bu = ContractX(B,u);
+   return ContractY(B,Bu);
 }
 
 // 3D Tensor
@@ -52,9 +53,9 @@ template <int D, int Q, typename Dofs>
 auto operator*(const Basis<3,true,D,Q> &basis, const Dofs &u)
 {
    auto B = basis.GetB();
-   auto Bu = B.ContractX(u);
-   auto BBu = B.ContractY(Bu);
-   return B.ContractZ(BBu);
+   auto Bu = ContractX(B,u);
+   auto BBu = ContractY(B,Bu);
+   return ContractZ(B,BBu);
 }
 
 // Non-tensor
@@ -70,7 +71,7 @@ template <int D, int Q, typename Dofs>
 auto operator*(const BasisTranspose<1,true,D,Q> &bt, const Dofs &u)
 {
    auto Bt = bt.basis.GetBt();
-   return Bt.ContractX(u);
+   return ContractX(Bt,u);
 }
 
 // 2D Tensor
@@ -78,8 +79,8 @@ template <int D, int Q, typename Dofs>
 auto operator*(const BasisTranspose<2,true,D,Q> &bt, const Dofs &u)
 {
    auto Bt = bt.basis.GetBt();
-   auto Bu = Bt.ContractY(u);
-   return Bt.ContractX(Bu);
+   auto Bu = ContractY(Bt,u);
+   return ContractX(Bt,Bu);
 }
 
 // 3D Tensor
@@ -87,10 +88,13 @@ template <int D, int Q, typename Dofs>
 auto operator*(const BasisTranspose<3,true,D,Q> &bt, const Dofs &u)
 {
    auto Bt = bt.basis.GetBt();
-   auto Bu = Bt.ContractZ(u);
-   auto BBu = Bt.ContractY(Bu);
-   return Bt.ContractX(BBu);
+   auto Bu = ContractZ(Bt,u);
+   auto BBu = ContractY(Bt,Bu);
+   return ContractX(Bt,BBu);
 }
+
+//////////////////////
+/// Old implementation
 
 // Functions to interpolate from degrees of freedom to quadrature points
 // Non-tensor and 1D cases

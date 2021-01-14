@@ -1595,6 +1595,8 @@ MFEM_FOREACH_THREAD(dy,y,Dy)
 return Bu;
 }
 
+
+//////////////////////
 /// Old implementation
 auto ContractX1D(const DynamicSharedDTensor<2> &B,
                  const DynamicDTensor<1> &u)
