@@ -34,6 +34,15 @@ if (MFEM_USE_MPI)
     )
 endif()
 
+if (MFEM_USE_SLEPC)
+  list(APPEND PETSC_EXAMPLES_SRCS
+    ex11p.cpp
+    )
+  list(APPEND PETSC_RC_FILES
+    rc_ex11p_lobpcg rc_ex11p_gd
+    )
+endif()
+
 # Include the source directory where mfem.hpp and mfem-performance.hpp are.
 include_directories(BEFORE ${PROJECT_BINARY_DIR})
 
@@ -78,12 +87,22 @@ set(EX9_E_ARGS       -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts 
 set(EX9_ES_ARGS      -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts rc_ex9p_expl --no-step)
 set(EX9_IS_ARGS      -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts rc_ex9p_impl --implicit -tf 0.5)
 set(EX10_ARGS        -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex10p -tf 30 -s 3 -rs 2 -dt 3)
+if (MFEM_USE_SLEPC)
+  set(EX11_ARGS_SINV   -m ../../data/star.mesh --useslepc)
+  set(EX11_ARGS_LOBPCG -m ../../data/star.mesh --useslepc --slepcopts rc_ex11p_lobpcg)
+  set(EX11_ARGS_GD -m ../../data/star.mesh --useslepc --slepcopts rc_ex11p_gd)
+endif()
 
 # Add the tests: one test per command-line-variable.
-foreach(TEST_OPTIONS_VAR
-        EX1_ARGS_W EX1_ARGS_P EX2_ARGS EX3_ARGS EX4_ARGS EX4_HYB_ARGS
-        EX5_BDDC_LB_ARGS EX5_BDDC_GB_ARGS EX5_FSPL_ARGS EX6_ARGS EX6_NONOVL_ARGS
-        EX9_E_ARGS EX9_ES_ARGS EX9_IS_ARGS EX10_ARGS)
+set(TEST_OPTIONS_VARS
+    EX1_ARGS_W EX1_ARGS_P EX2_ARGS EX3_ARGS EX4_ARGS EX4_HYB_ARGS
+    EX5_BDDC_LB_ARGS EX5_BDDC_GB_ARGS EX5_FSPL_ARGS EX6_ARGS EX6_NONOVL_ARGS
+    EX9_E_ARGS EX9_ES_ARGS EX9_IS_ARGS EX10_ARGS)
+if (MFEM_USE_SLEPC)
+    list(APPEND TEST_OPTIONS_VARS EX11_ARGS_SINV EX11_ARGS_LOBPCG EX11_ARGS_GD)
+endif()
+
+foreach(TEST_OPTIONS_VAR ${TEST_OPTIONS_VARS})
   string(REGEX REPLACE "^(.+)_ARGS" "\\1" TEST_NAME_UC ${TEST_OPTIONS_VAR})
   string(REGEX REPLACE "^([^_]+)" "\\1P" TEST_NAME_UC ${TEST_NAME_UC})
   string(TOLOWER ${TEST_NAME_UC} TEST_NAME_FULL)

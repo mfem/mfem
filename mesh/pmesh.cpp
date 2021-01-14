@@ -34,6 +34,8 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
      group_sedge(pmesh.group_sedge),
      group_stria(pmesh.group_stria),
      group_squad(pmesh.group_squad),
+     glob_elem_offset(-1),
+     glob_offset_sequence(-1),
      gtopo(pmesh.gtopo)
 {
    MyComm = pmesh.MyComm;
@@ -92,7 +94,9 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
 
 ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
                  int part_method)
-   : gtopo(comm)
+   : glob_elem_offset(-1)
+   , glob_offset_sequence(-1)
+   , gtopo(comm)
 {
    int *partitioning = NULL;
    Array<bool> activeBdrElem;
@@ -833,12 +837,26 @@ ParMesh::ParMesh(const ParNCMesh &pncmesh)
    : MyComm(pncmesh.MyComm)
    , NRanks(pncmesh.NRanks)
    , MyRank(pncmesh.MyRank)
+   , glob_elem_offset(-1)
+   , glob_offset_sequence(-1)
    , gtopo(MyComm)
    , pncmesh(NULL)
 {
    Mesh::InitFromNCMesh(pncmesh);
    ReduceMeshGen();
    have_face_nbr_data = false;
+}
+
+void ParMesh::ComputeGlobalElementOffset() const
+{
+   if (glob_offset_sequence != sequence) // mesh has changed
+   {
+      long local_elems = NumOfElements;
+      MPI_Scan(&local_elems, &glob_elem_offset, 1, MPI_LONG, MPI_SUM, MyComm);
+      glob_elem_offset -= local_elems;
+
+      glob_offset_sequence = sequence; // don't recalculate until refinement etc.
+   }
 }
 
 void ParMesh::ReduceMeshGen()
@@ -885,7 +903,9 @@ void ParMesh::FinalizeParTopo()
 }
 
 ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
-   : gtopo(comm)
+   : glob_elem_offset(-1)
+   , glob_offset_sequence(-1)
+   , gtopo(comm)
 {
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
@@ -1062,6 +1082,8 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
      MyComm(orig_mesh->GetComm()),
      NRanks(orig_mesh->GetNRanks()),
      MyRank(orig_mesh->GetMyRank()),
+     glob_elem_offset(-1),
+     glob_offset_sequence(-1),
      gtopo(orig_mesh->gtopo),
      have_face_nbr_data(false),
      pncmesh(NULL)
@@ -1297,6 +1319,20 @@ void ParMesh::Finalize(bool refine, bool fix_orientation)
 
    // Setup secondary parallel mesh data: sedge_ledge, sface_lface
    FinalizeParTopo();
+}
+
+int ParMesh::GetLocalElementNum(long global_element_num) const
+{
+   ComputeGlobalElementOffset();
+   long local = global_element_num - glob_elem_offset;
+   if (local < 0 || local >= NumOfElements) { return -1; }
+   return local;
+}
+
+long ParMesh::GetGlobalElementNum(int local_element_num) const
+{
+   ComputeGlobalElementOffset();
+   return glob_elem_offset + local_element_num;
 }
 
 void ParMesh::DistributeAttributes(Array<int> &attr)
@@ -1654,6 +1690,8 @@ void ParMesh::GetFaceNbrElementTransformation(
 
    ElTr->Attribute = elem->GetAttribute();
    ElTr->ElementNo = NumOfElements + i;
+   ElTr->ElementType = ElementTransformation::ELEMENT;
+   ElTr->Reset();
 
    if (Nodes == NULL)
    {
@@ -1695,7 +1733,11 @@ void ParMesh::GetFaceNbrElementTransformation(
          MFEM_ABORT("Nodes are not ParGridFunction!");
       }
    }
-   ElTr->FinalizeTransformation();
+}
+
+double ParMesh::GetFaceNbrElementSize(int i, int type)
+{
+   return GetElementSize(GetFaceNbrElementTransformation(i), type);
 }
 
 void ParMesh::DeleteFaceNbrData()
@@ -2328,16 +2370,17 @@ Table *ParMesh::GetFaceToAllElementTable() const
    return face_elem;
 }
 
-ElementTransformation* ParMesh::GetGhostFaceTransformation(
+void ParMesh::GetGhostFaceTransformation(
    FaceElementTransformations* FETr, Element::Type face_type,
    Geometry::Type face_geom)
 {
    // calculate composition of FETr->Loc1 and FETr->Elem1
-   DenseMatrix &face_pm = FaceTransformation.GetPointMat();
+   DenseMatrix &face_pm = FETr->GetPointMat();
+   FETr->Reset();
    if (Nodes == NULL)
    {
       FETr->Elem1->Transform(FETr->Loc1.Transf.GetPointMat(), face_pm);
-      FaceTransformation.SetFE(GetTransformationFEforElementType(face_type));
+      FETr->SetFE(GetTransformationFEforElementType(face_type));
    }
    else
    {
@@ -2353,10 +2396,8 @@ ElementTransformation* ParMesh::GetGhostFaceTransformation(
       FETr->Loc1.Transform(face_el->GetNodes(), eir);
       Nodes->GetVectorValues(*FETr->Elem1, eir, face_pm);
 #endif
-      FaceTransformation.SetFE(face_el);
+      FETr->SetFE(face_el);
    }
-   FaceTransformation.FinalizeTransformation();
-   return &FaceTransformation;
 }
 
 FaceElementTransformations *ParMesh::
@@ -2369,6 +2410,11 @@ GetSharedFaceTransformations(int sf, bool fill2)
    bool is_slave = Nonconforming() && IsSlaveFace(face_info);
    bool is_ghost = Nonconforming() && FaceNo >= GetNumFaces();
 
+   int mask = 0;
+   FaceElemTr.SetConfigurationMask(0);
+   FaceElemTr.Elem1 = NULL;
+   FaceElemTr.Elem2 = NULL;
+
    NCFaceInfo* nc_info = NULL;
    if (is_slave) { nc_info = &nc_faces_info[face_info.NCFace]; }
 
@@ -2380,13 +2426,21 @@ GetSharedFaceTransformations(int sf, bool fill2)
    FaceElemTr.Elem1No = face_info.Elem1No;
    GetElementTransformation(FaceElemTr.Elem1No, &Transformation);
    FaceElemTr.Elem1 = &Transformation;
+   mask |= FaceElementTransformations::HAVE_ELEM1;
 
    // setup the transformation for the second (neighbor) element
+   int Elem2NbrNo;
    if (fill2)
    {
-      FaceElemTr.Elem2No = -1 - face_info.Elem2No;
-      GetFaceNbrElementTransformation(FaceElemTr.Elem2No, &Transformation2);
+      Elem2NbrNo = -1 - face_info.Elem2No;
+      // Store the "shifted index" for element 2 in FaceElemTr.Elem2No.
+      // `Elem2NbrNo` is the index of the face neighbor (starting from 0),
+      // and `FaceElemTr.Elem2No` will be offset by the number of (local)
+      // elements in the mesh.
+      FaceElemTr.Elem2No = NumOfElements + Elem2NbrNo;
+      GetFaceNbrElementTransformation(Elem2NbrNo, &Transformation2);
       FaceElemTr.Elem2 = &Transformation2;
+      mask |= FaceElementTransformations::HAVE_ELEM2;
    }
    else
    {
@@ -2394,53 +2448,64 @@ GetSharedFaceTransformations(int sf, bool fill2)
    }
 
    // setup the face transformation if the face is not a ghost
-   FaceElemTr.FaceGeom = face_geom;
    if (!is_ghost)
    {
-      FaceElemTr.Face = GetFaceTransformation(FaceNo);
+      GetFaceTransformation(FaceNo, &FaceElemTr);
       // NOTE: The above call overwrites FaceElemTr.Loc1
+      mask |= FaceElementTransformations::HAVE_FACE;
+   }
+   else
+   {
+      FaceElemTr.SetGeometryType(face_geom);
    }
 
    // setup Loc1 & Loc2
    int elem_type = GetElementType(face_info.Elem1No);
    GetLocalFaceTransformation(face_type, elem_type, FaceElemTr.Loc1.Transf,
                               face_info.Elem1Inf);
+   mask |= FaceElementTransformations::HAVE_LOC1;
 
    if (fill2)
    {
-      elem_type = face_nbr_elements[FaceElemTr.Elem2No]->GetType();
+      elem_type = face_nbr_elements[Elem2NbrNo]->GetType();
       GetLocalFaceTransformation(face_type, elem_type, FaceElemTr.Loc2.Transf,
                                  face_info.Elem2Inf);
+      mask |= FaceElementTransformations::HAVE_LOC2;
    }
 
    // adjust Loc1 or Loc2 of the master face if this is a slave face
    if (is_slave)
    {
-      // is a ghost slave? -> master not a ghost -> choose Elem1 local transf
-      // not a ghost slave? -> master is a ghost -> choose Elem2 local transf
-      IsoparametricTransformation &loctr =
-         is_ghost ? FaceElemTr.Loc1.Transf : FaceElemTr.Loc2.Transf;
-
       if (is_ghost || fill2)
       {
-         ApplyLocalSlaveTransformation(loctr, face_info);
-      }
-
-      if (face_type == Element::SEGMENT && fill2)
-      {
-         // fix slave orientation in 2D: flip Loc2 to match Loc1 and Face
-         DenseMatrix &pm = FaceElemTr.Loc2.Transf.GetPointMat();
-         std::swap(pm(0,0), pm(0,1));
-         std::swap(pm(1,0), pm(1,1));
+         // is_ghost -> modify side 1, otherwise -> modify side 2:
+         ApplyLocalSlaveTransformation(FaceElemTr, face_info, is_ghost);
       }
    }
 
    // for ghost faces we need a special version of GetFaceTransformation
    if (is_ghost)
    {
-      FaceElemTr.Face =
-         GetGhostFaceTransformation(&FaceElemTr, face_type, face_geom);
+      GetGhostFaceTransformation(&FaceElemTr, face_type, face_geom);
+      mask |= FaceElementTransformations::HAVE_FACE;
    }
+
+   FaceElemTr.SetConfigurationMask(mask);
+
+   // This check can be useful for internal debugging, however it will fail on
+   // periodic boundary faces, so we keep it disabled in general.
+#if 0
+#ifdef MFEM_DEBUG
+   double dist = FaceElemTr.CheckConsistency();
+   if (dist >= 1e-12)
+   {
+      mfem::out << "\nInternal error: face id = " << FaceNo
+                << ", dist = " << dist << ", rank = " << MyRank << '\n';
+      FaceElemTr.CheckConsistency(1); // print coordinates
+      MFEM_ABORT("internal error");
+   }
+#endif
+#endif
 
    return &FaceElemTr;
 }
@@ -2460,7 +2525,7 @@ int ParMesh::GetNSharedFaces() const
    {
       MFEM_ASSERT(Dim > 1, "");
       const NCMesh::NCList &shared = pncmesh->GetSharedList(Dim-1);
-      return shared.conforming.size() + shared.slaves.size();
+      return shared.conforming.Size() + shared.slaves.Size();
    }
 }
 
@@ -2479,7 +2544,7 @@ int ParMesh::GetSharedFace(int sface) const
    {
       MFEM_ASSERT(Dim > 1, "");
       const NCMesh::NCList &shared = pncmesh->GetSharedList(Dim-1);
-      int csize = (int) shared.conforming.size();
+      int csize = (int) shared.conforming.Size();
       return sface < csize
              ? shared.conforming[sface].index
              : shared.slaves[sface - csize].index;
@@ -4133,18 +4198,18 @@ void ParMesh::Print(std::ostream &out) const
          const NCMesh::NCList& sfaces =
             (Dim == 3) ? pncmesh->GetSharedFaces() : pncmesh->GetSharedEdges();
          const int nfaces = GetNumFaces();
-         for (unsigned i = 0; i < sfaces.conforming.size(); i++)
+         for (int i = 0; i < sfaces.conforming.Size(); i++)
          {
             int index = sfaces.conforming[i].index;
             if (index < nfaces) { nc_shared_faces.Append(index); }
          }
-         for (unsigned i = 0; i < sfaces.masters.size(); i++)
+         for (int i = 0; i < sfaces.masters.Size(); i++)
          {
             if (Dim == 2 && WantSkipSharedMaster(sfaces.masters[i])) { continue; }
             int index = sfaces.masters[i].index;
             if (index < nfaces) { nc_shared_faces.Append(index); }
          }
-         for (unsigned i = 0; i < sfaces.slaves.size(); i++)
+         for (int i = 0; i < sfaces.slaves.Size(); i++)
          {
             int index = sfaces.slaves[i].index;
             if (index < nfaces) { nc_shared_faces.Append(index); }
@@ -4222,6 +4287,13 @@ void ParMesh::Print(std::ostream &out) const
       Nodes->Save(out);
    }
 }
+
+#ifdef MFEM_USE_ADIOS2
+void ParMesh::Print(adios2stream &out) const
+{
+   Mesh::Print(out);
+}
+#endif
 
 static void dump_element(const Element* elem, Array<int> &data)
 {
@@ -4337,7 +4409,7 @@ void ParMesh::PrintAsOne(std::ostream &out)
    else if (Dim > 1)
    {
       const NCMesh::NCList &list = pncmesh->GetSharedList(Dim - 1);
-      ne += list.conforming.size() + list.masters.size() + list.slaves.size();
+      ne += list.conforming.Size() + list.masters.Size() + list.slaves.Size();
       // In addition to the number returned by GetNSharedFaces(), include the
       // the master shared faces as well.
    }
@@ -4394,17 +4466,17 @@ void ParMesh::PrintAsOne(std::ostream &out)
    {
       const NCMesh::NCList &list = pncmesh->GetSharedList(Dim - 1);
       const int nfaces = GetNumFaces();
-      for (i = 0; i < (int) list.conforming.size(); i++)
+      for (i = 0; i < list.conforming.Size(); i++)
       {
          int index = list.conforming[i].index;
          if (index < nfaces) { dump_element(faces[index], ints); ne++; }
       }
-      for (i = 0; i < (int) list.masters.size(); i++)
+      for (i = 0; i < list.masters.Size(); i++)
       {
          int index = list.masters[i].index;
          if (index < nfaces) { dump_element(faces[index], ints); ne++; }
       }
-      for (i = 0; i < (int) list.slaves.size(); i++)
+      for (i = 0; i < list.slaves.Size(); i++)
       {
          int index = list.slaves[i].index;
          if (index < nfaces) { dump_element(faces[index], ints); ne++; }
@@ -5296,6 +5368,73 @@ void ParMesh::ParPrint(ostream &out) const
 
    // Write out section end tag for mesh.
    out << "\nmfem_mesh_end" << endl;
+}
+
+void ParMesh::PrintVTU(std::string pathname,
+                       VTKFormat format,
+                       bool high_order_output,
+                       int compression_level,
+                       bool bdr)
+{
+   int pad_digits_rank = 6;
+   DataCollection::create_directory(pathname, this, MyRank);
+
+   std::string::size_type pos = pathname.find_last_of('/');
+   std::string fname
+      = (pos == std::string::npos) ? pathname : pathname.substr(pos+1);
+
+   if (MyRank == 0)
+   {
+      std::string pvtu_name = pathname + "/" + fname + ".pvtu";
+      std::ofstream out(pvtu_name);
+
+      std::string data_type = (format == VTKFormat::BINARY32) ? "Float32" : "Float64";
+      std::string data_format = (format == VTKFormat::ASCII) ? "ascii" : "binary";
+
+      out << "<?xml version=\"1.0\"?>\n";
+      out << "<VTKFile type=\"PUnstructuredGrid\"";
+      out << " version =\"0.1\" byte_order=\"" << VTKByteOrder() << "\">\n";
+      out << "<PUnstructuredGrid GhostLevel=\"0\">\n";
+
+      out << "<PPoints>\n";
+      out << "\t<PDataArray type=\"" << data_type << "\" ";
+      out << " Name=\"Points\" NumberOfComponents=\"3\""
+          << " format=\"" << data_format << "\"/>\n";
+      out << "</PPoints>\n";
+
+      out << "<PCells>\n";
+      out << "\t<PDataArray type=\"Int32\" ";
+      out << " Name=\"connectivity\" NumberOfComponents=\"1\""
+          << " format=\"" << data_format << "\"/>\n";
+      out << "\t<PDataArray type=\"Int32\" ";
+      out << " Name=\"offsets\"      NumberOfComponents=\"1\""
+          << " format=\"" << data_format << "\"/>\n";
+      out << "\t<PDataArray type=\"UInt8\" ";
+      out << " Name=\"types\"        NumberOfComponents=\"1\""
+          << " format=\"" << data_format << "\"/>\n";
+      out << "</PCells>\n";
+
+      out << "<PCellData>\n";
+      out << "\t<PDataArray type=\"Int32\" Name=\"" << "attribute"
+          << "\" NumberOfComponents=\"1\""
+          << " format=\"" << data_format << "\"/>\n";
+      out << "</PCellData>\n";
+
+      for (int ii=0; ii<NRanks; ii++)
+      {
+         std::string piece = fname + ".proc"
+                             + to_padded_string(ii, pad_digits_rank) + ".vtu";
+         out << "<Piece Source=\"" << piece << "\"/>\n";
+      }
+
+      out << "</PUnstructuredGrid>\n";
+      out << "</VTKFile>\n";
+      out.close();
+   }
+
+   std::string vtu_fname = pathname + "/" + fname + ".proc"
+                           + to_padded_string(MyRank, pad_digits_rank);
+   Mesh::PrintVTU(vtu_fname, format, high_order_output, compression_level, bdr);
 }
 
 int ParMesh::FindPoints(DenseMatrix& point_mat, Array<int>& elem_id,

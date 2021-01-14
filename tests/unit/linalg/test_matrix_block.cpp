@@ -9,20 +9,13 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-/*
- * TestMultRowMatrix.cpp
- *
- *  Created on: Nov 22, 2013
- *      Author: villa13
- */
-
 #include <fstream>
-using namespace std;
-
 #include "mfem.hpp"
+
+using namespace std;
 using namespace mfem;
 
-#include "catch.hpp"
+#include "unit_tests.hpp"
 
 void fillRandomMatrix(SparseMatrix & M)
 {

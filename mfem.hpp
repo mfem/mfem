@@ -24,6 +24,9 @@
 #include "general/stable3d.hpp"
 #include "general/table.hpp"
 #include "general/tic_toc.hpp"
+#ifdef MFEM_USE_ADIOS2
+#include "general/adios2stream.hpp"
+#endif
 #include "general/isockstream.hpp"
 #include "general/osockstream.hpp"
 #include "general/socketstream.hpp"

@@ -240,7 +240,7 @@ public:
    int GetNRanks() const { return NRanks; }
    int GetMyRank() const { return MyRank; }
 
-   inline ParMesh *GetParMesh() { return pmesh; }
+   inline ParMesh *GetParMesh() const { return pmesh; }
 
    int GetDofSign(int i)
    { return NURBSext || Nonconforming() ? 1 : ldof_sign[VDofToDof(i)]; }
@@ -263,6 +263,12 @@ public:
    /** Returns the indexes of the degrees of freedom for i'th face
        including the dofs for the edges and the vertices of the face. */
    virtual void GetFaceDofs(int i, Array<int> &dofs) const;
+
+   /** Returns pointer to the FiniteElement in the FiniteElementCollection
+       associated with i'th element in the mesh object. If @a i is greater than
+       or equal to the number of local mesh elements, @a i will be interpreted
+       as a shifted index of a face neigbor element. */
+   virtual const FiniteElement *GetFE(int i) const;
 
    /** Returns an Operator that converts L-vectors to E-vectors on each face.
        The parallel version is different from the serial one because of the
@@ -347,6 +353,8 @@ public:
    const FiniteElement *GetFaceNbrFE(int i) const;
    const FiniteElement *GetFaceNbrFaceFE(int i) const;
    const HYPRE_Int *GetFaceNbrGlobalDofMap() { return face_nbr_glob_dof_map; }
+   ElementTransformation *GetFaceNbrElementTransformation(int i) const
+   { return pmesh->GetFaceNbrElementTransformation(i); }
 
    void Lose_Dof_TrueDof_Matrix();
    void LoseDofOffsets() { dof_offsets.LoseData(); }
@@ -376,7 +384,7 @@ public:
 
    void PrintPartitionStats();
 
-   // Obsolete, kept for backward compatibility
+   /// Obsolete, kept for backward compatibility
    int TrueVSize() const { return ltdof_size; }
 };
 

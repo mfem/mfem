@@ -9,7 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "cuda.hpp"
+#include "backends.hpp"
 #include "globals.hpp"
 
 namespace mfem

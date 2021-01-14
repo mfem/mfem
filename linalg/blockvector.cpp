@@ -87,6 +87,23 @@ void BlockVector::Update(double *data, const Array<int> & bOffsets)
    SetBlocks();
 }
 
+void BlockVector::Update(Vector & data, const Array<int> & bOffsets)
+{
+   blockOffsets = bOffsets.GetData();
+   if (numBlocks != bOffsets.Size()-1)
+   {
+      delete [] blocks;
+      numBlocks = bOffsets.Size()-1;
+      blocks = new Vector[numBlocks];
+   }
+
+   for (int i = 0; i < numBlocks; ++i)
+   {
+      blocks[i].MakeRef(data, blockOffsets[i], BlockSize(i));
+   }
+   MakeRef(data, 0, blockOffsets[numBlocks]);
+}
+
 void BlockVector::Update(const Array<int> &bOffsets)
 {
    Update(bOffsets, data.GetMemoryType());

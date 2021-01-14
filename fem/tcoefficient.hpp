@@ -21,7 +21,7 @@
 namespace mfem
 {
 
-// Templated coefficient classes, cf. coefficient.?pp
+/// Templated coefficient classes, cf. coefficient.?pp
 
 class TCoefficient
 {
@@ -56,12 +56,13 @@ public:
 };
 
 
-// Function coefficient. The template class 'Func' has to implement at least one
-// of the following methods, depending on the dimension that will be used:
-// complex_t Eval1D(real_t);
-// complex_t Eval2D(real_t,real_t);
-// complex_t Eval3D(real_t,real_t,real_t);
-// Use MFEM_FLOPS_ADD() to count flops inside Eval*D.
+/** @brief Function coefficient.
+    @tparam Func has to implement at least one of the following methods,
+    depending on the dimension that will be used:
+    complex_t Eval1D(real_t);
+    complex_t Eval2D(real_t,real_t);
+    complex_t Eval3D(real_t,real_t,real_t);
+    Use MFEM_FLOPS_ADD() to count flops inside Eval*D. */
 template <typename Func, typename complex_t = double>
 class TFunctionCoefficient : public TCoefficient
 {
@@ -81,11 +82,15 @@ protected:
       {
          const int qpts = T_result_t::x_type::layout_type::dim_1;
          const int ne   = T_result_t::x_type::layout_type::dim_3;
+         const int vs   = sizeof(T.x[0])/sizeof(T.x[0][0]);
          for (int k = 0; k < ne; k++)
          {
             for (int i = 0; i < qpts; i++)
             {
-               c[l.ind(i,k)] = F.Eval1D(T.x(i,0,k));
+               for (int s = 0; s < vs; s++)
+               {
+                  c[l.ind(i,k)][s] = F.Eval1D(T.x(i,0,k)[s]);
+               }
             }
          }
       }
@@ -98,11 +103,15 @@ protected:
       {
          const int qpts = T_result_t::x_type::layout_type::dim_1;
          const int ne   = T_result_t::x_type::layout_type::dim_3;
+         const int vs   = sizeof(T.x[0])/sizeof(T.x[0][0]);
          for (int k = 0; k < ne; k++)
          {
             for (int i = 0; i < qpts; i++)
             {
-               c[l.ind(i,k)] = F.Eval2D(T.x(i,0,k), T.x(i,1,k));
+               for (int s = 0; s < vs; s++)
+               {
+                  c[l.ind(i,k)][s] = F.Eval2D(T.x(i,0,k)[s], T.x(i,1,k)[s]);
+               }
             }
          }
       }
@@ -115,20 +124,25 @@ protected:
       {
          const int qpts = T_result_t::x_type::layout_type::dim_1;
          const int ne   = T_result_t::x_type::layout_type::dim_3;
+         const int vs   = sizeof(T.x[0])/sizeof(T.x[0][0]);
          for (int k = 0; k < ne; k++)
          {
             for (int i = 0; i < qpts; i++)
             {
-               c[l.ind(i,k)] = F.Eval3D(T.x(i,0,k), T.x(i,1,k), T.x(i,2,k));
+               for (int s = 0; s < vs; s++)
+               {
+                  c[l.ind(i,k)][s] =
+                     F.Eval3D(T.x(i,0,k)[s], T.x(i,1,k)[s], T.x(i,2,k)[s]);
+               }
             }
          }
       }
    };
 
 public:
-   // Constructor for the case when Func has no data members.
+   /// Constructor for the case when Func has no data members.
    TFunctionCoefficient() : F() { }
-   // Constructor for the case when Func has data members.
+   /// Constructor for the case when Func has data members.
    TFunctionCoefficient(Func &F_) : F(F_) { }
    // Default copy constructor, Func has to have copy constructor.
 
@@ -170,14 +184,21 @@ public:
    void Eval(const T_result_t &T, const c_layout_t &l, c_data_t &c)
    {
       const int ne = T_result_t::ne;
+      const int vs = sizeof(T.attrib[0])/sizeof(T.attrib[0][0]);
+      MFEM_STATIC_ASSERT(vs == sizeof(c[0])/sizeof(c[0][0]), "");
       for (int i = 0; i < ne; i++)
       {
-         TAssign<AssignOp::Set>(l.ind2(i), c, constants(T.attrib[i]-1));
+         typename c_data_t::data_type ci;
+         for (int s = 0; s < vs; s++)
+         {
+            ci[s] = constants(T.attrib[i][s]-1);
+         }
+         TAssign<AssignOp::Set>(l.ind2(i), c, ci);
       }
    }
 };
 
-
+/// GridFunction coefficient class.
 template <typename FieldEval>
 class TGridFunctionCoefficient : public TCoefficient
 {
@@ -243,12 +264,13 @@ public:
 
 /// Auxiliary class that is used to simplify the evaluation of a coefficient and
 /// scaling it by the weights of a quadrature rule.
-template <typename IR, typename coeff_t, int NE>
+template <typename IR, typename coeff_t, typename impl_traits_t>
 struct IntRuleCoefficient
 {
    static const int qpts = IR::qpts;
-   static const int ne   = NE;
+   static const int ne   = impl_traits_t::batch_size;
    typedef typename coeff_t::complex_type complex_type;
+   typedef typename impl_traits_t::vcomplex_t vcomplex_t;
 
    template <bool is_const, bool dummy> struct Aux;
 
@@ -277,7 +299,7 @@ struct IntRuleCoefficient
    // non-constant coefficient
    template <bool dummy> struct Aux<false,dummy>
    {
-      typedef TMatrix<qpts,ne,complex_type> result_t;
+      typedef TMatrix<qpts,ne,vcomplex_t> result_t;
 #ifdef MFEM_TEMPLATE_INTRULE_COEFF_PRECOMP
       TMatrix<qpts,1,typename IR::real_type> w;
 #else
@@ -312,7 +334,7 @@ struct IntRuleCoefficient
       }
 
       inline MFEM_ALWAYS_INLINE
-      const complex_type &get(const result_t &res, int i, int k) const
+      const vcomplex_t &get(const result_t &res, int i, int k) const
       {
          return res(i,k);
       }

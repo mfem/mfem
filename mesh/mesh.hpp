@@ -23,6 +23,9 @@
 #include "../fem/eltrans.hpp"
 #include "../fem/coefficient.hpp"
 #include "../general/zstr.hpp"
+#ifdef MFEM_USE_ADIOS2
+#include "../general/adios2stream.hpp"
+#endif
 #include <iostream>
 
 namespace mfem
@@ -54,6 +57,10 @@ class Mesh
 #endif
    friend class NCMesh;
    friend class NURBSExtension;
+
+#ifdef MFEM_USE_ADIOS2
+   friend class adios2stream;
+#endif
 
 protected:
    int Dim;
@@ -124,11 +131,16 @@ protected:
    //   face. Elem2No is < 0 and -1-Elem2No is the index of the ghost
    //   face-neighbor element that generated this slave ghost face. In this
    //   case, Elem2Inf >= 0.
+   // Relevant methods: GenerateFaces(), GenerateNCFaceInfo(),
+   //                   ParNCMesh::GetFaceNeighbors(),
+   //                   ParMesh::ExchangeFaceNbrData()
 
    struct NCFaceInfo
    {
       bool Slave; // true if this is a slave face, false if master face
       int MasterFace; // if Slave, this is the index of the master face
+      // If not Slave, 'MasterFace' is the local face index of this master face
+      // as a face in the unique adjacent element.
       const DenseMatrix* PointMatrix; // if Slave, position within master face
       // (NOTE: PointMatrix points to a matrix owned by NCMesh.)
 
@@ -194,6 +206,9 @@ public:
    Array<FaceGeometricFactors*>
    face_geom_factors; ///< Optional face geometric factors.
 
+   /// Used during initialization only.
+   Array<Triple<int, int, int> > tmp_vertex_parents;
+
    // Global parameter that can be used to control the removal of unused
    // vertices performed when reading a mesh in MFEM format. The default value
    // (true) is set in mesh_readers.cpp.
@@ -228,7 +243,7 @@ protected:
                     bool &finalize_topo);
    void ReadNURBSMesh(std::istream &input, int &curved, int &read_gf);
    void ReadInlineMesh(std::istream &input, bool generate_edges = false);
-   void ReadGmshMesh(std::istream &input);
+   void ReadGmshMesh(std::istream &input, int &curved, int &read_gf);
    /* Note NetCDF (optional library) is used for reading cubit files */
 #ifdef MFEM_USE_NETCDF
    void ReadCubit(const char *filename, int &curved, int &read_gf);
@@ -356,8 +371,9 @@ protected:
 
    /** Used in GetFaceElementTransformations to account for the fact that a
        slave face occupies only a portion of its master face. */
-   void ApplyLocalSlaveTransformation(IsoparametricTransformation &transf,
-                                      const FaceInfo &fi);
+   void ApplyLocalSlaveTransformation(FaceElementTransformations &FT,
+                                      const FaceInfo &fi, bool is_ghost);
+
    bool IsSlaveFace(const FaceInfo &fi) const;
 
    /// Returns the orientation of "test" relative to "base"
@@ -455,6 +471,8 @@ protected:
    void GetElementData(const Array<Element*> &elem_array, int geom,
                        Array<int> &elem_vtx, Array<int> &attr) const;
 
+   double GetElementSize(ElementTransformation *T, int type = 0);
+
 public:
 
    Mesh() { SetEmpty(); }
@@ -486,10 +504,7 @@ public:
        @brief _Init_ constructor: begin the construction of a Mesh object. */
    Mesh(int _Dim, int NVert, int NElem, int NBdrElem = 0, int _spaceDim = -1)
    {
-      if (_spaceDim == -1)
-      {
-         _spaceDim = _Dim;
-      }
+      if (_spaceDim == -1) { _spaceDim = _Dim; }
       InitMesh(_Dim, _spaceDim, NVert, NElem, NBdrElem);
    }
 
@@ -501,23 +516,48 @@ public:
 
    Element *NewElement(int geom);
 
-   void AddVertex(const double *);
-   void AddSegment(const int *vi, int attr = 1);
-   void AddTri(const int *vi, int attr = 1);
-   void AddTriangle(const int *vi, int attr = 1);
-   void AddQuad(const int *vi, int attr = 1);
-   void AddTet(const int *vi, int attr = 1);
-   void AddWedge(const int *vi, int attr = 1);
-   void AddHex(const int *vi, int attr = 1);
+   int AddVertex(double x, double y = 0.0, double z = 0.0);
+   int AddVertex(const double *coords);
+   /// Mark vertex @a i as non-conforming, with parent vertices @a p1 and @a p2.
+   void AddVertexParents(int i, int p1, int p2);
+
+   int AddSegment(int v1, int v2, int attr = 1);
+   int AddSegment(const int *vi, int attr = 1);
+
+   int AddTriangle(int v1, int v2, int v3, int attr = 1);
+   int AddTriangle(const int *vi, int attr = 1);
+   int AddTri(const int *vi, int attr = 1) { return AddTriangle(vi, attr); }
+
+   int AddQuad(int v1, int v2, int v3, int v4, int attr = 1);
+   int AddQuad(const int *vi, int attr = 1);
+
+   int AddTet(int v1, int v2, int v3, int v4, int attr = 1);
+   int AddTet(const int *vi, int attr = 1);
+
+   int AddWedge(int v1, int v2, int v3, int v4, int v5, int v6, int attr = 1);
+   int AddWedge(const int *vi, int attr = 1);
+
+   int AddHex(int v1, int v2, int v3, int v4, int v5, int v6, int v7, int v8,
+              int attr = 1);
+   int AddHex(const int *vi, int attr = 1);
    void AddHexAsTets(const int *vi, int attr = 1);
    void AddHexAsWedges(const int *vi, int attr = 1);
+
    /// The parameter @a elem should be allocated using the NewElement() method
-   void AddElement(Element *elem)     { elements[NumOfElements++] = elem; }
-   void AddBdrElement(Element *elem)  { boundary[NumOfBdrElements++] = elem; }
-   void AddBdrSegment(const int *vi, int attr = 1);
-   void AddBdrTriangle(const int *vi, int attr = 1);
-   void AddBdrQuad(const int *vi, int attr = 1);
+   int AddElement(Element *elem);
+   int AddBdrElement(Element *elem);
+
+   int AddBdrSegment(int v1, int v2, int attr = 1);
+   int AddBdrSegment(const int *vi, int attr = 1);
+
+   int AddBdrTriangle(int v1, int v2, int v3, int attr = 1);
+   int AddBdrTriangle(const int *vi, int attr = 1);
+
+   int AddBdrQuad(int v1, int v2, int v3, int v4, int attr = 1);
+   int AddBdrQuad(const int *vi, int attr = 1);
    void AddBdrQuadAsTriangles(const int *vi, int attr = 1);
+
+   int AddBdrPoint(int v, int attr = 1);
 
    void GenerateBoundaryElements();
    /// Finalize the construction of a triangular Mesh.
@@ -948,7 +988,7 @@ public:
    /// Returns the transformation defining the given face element
    ElementTransformation *GetEdgeTransformation(int EdgeNo);
 
-   /// Returns (a pointer to a structure containing) the following data:
+   /// Returns (a pointer to an object containing) the following data:
    ///
    /// 1) Elem1No - the index of the first element that contains this face this
    ///    is the element that has the same outward unit normal vector as the
@@ -976,6 +1016,8 @@ public:
    /// The mask specifies which fields in the structure to return:
    ///    mask & 1 - Elem1, mask & 2 - Elem2
    ///    mask & 4 - Loc1, mask & 8 - Loc2, mask & 16 - Face.
+   /// These mask values are defined in the ConfigMasks enum type as part of the
+   /// FaceElementTransformations class in fem/eltrans.hpp.
    FaceElementTransformations *GetFaceElementTransformations(int FaceNo,
                                                              int mask = 31);
 
@@ -994,6 +1036,7 @@ public:
    }
    void GetFaceElements (int Face, int *Elem1, int *Elem2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2) const;
+   void GetFaceInfos (int Face, int *Inf1, int *Inf2, int *NCFace) const;
 
    Geometry::Type GetFaceGeometryType(int Face) const;
    Element::Type  GetFaceElementType(int Face) const;
@@ -1195,6 +1238,10 @@ public:
    /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
    virtual void Print(std::ostream &out = mfem::out) const { Printer(out); }
 
+   /// Print the mesh to the given stream using the adios2 bp format
+#ifdef MFEM_USE_ADIOS2
+   virtual void Print(adios2stream &out) const;
+#endif
    /// Print the mesh in VTK format (linear and quadratic meshes only).
    /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
    void PrintVTK(std::ostream &out);
@@ -1205,17 +1252,27 @@ public:
    /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
    void PrintVTK(std::ostream &out, int ref, int field_data=0);
    /** Print the mesh in VTU format. The parameter ref > 0 specifies an element
-       subdivision number (useful for high order fields and curved meshes). */
+       subdivision number (useful for high order fields and curved meshes).
+       If @a bdr_elements is true, then output (only) the boundary elements,
+       otherwise output only the non-boundary elements. */
    void PrintVTU(std::ostream &out,
                  int ref=1,
                  VTKFormat format=VTKFormat::ASCII,
                  bool high_order_output=false,
-                 int compression_level=0);
+                 int compression_level=0,
+                 bool bdr_elements=false);
    /** Print the mesh in VTU format with file name fname. */
-   void PrintVTU(std::string fname,
-                 VTKFormat format=VTKFormat::ASCII,
-                 bool high_order_output=false,
-                 int compression_level=0);
+   virtual void PrintVTU(std::string fname,
+                         VTKFormat format=VTKFormat::ASCII,
+                         bool high_order_output=false,
+                         int compression_level=0,
+                         bool bdr=false);
+   /** Print the boundary elements of the mesh in VTU format, and output the
+       boundary attributes as a data array (useful for boundary conditions). */
+   void PrintBdrVTU(std::string fname,
+                    VTKFormat format=VTKFormat::ASCII,
+                    bool high_order_output=false,
+                    int compression_level=0);
 
    void GetElementColoring(Array<int> &colors, int el0 = 0);
 
