@@ -60,34 +60,34 @@ auto operator*(const Basis<3,true,D,Q> &basis, const Dofs &u)
 
 // Non-tensor
 template <int Dim, int D, int Q, typename Dofs>
-auto operator*(const BasisTranspose<Dim,false,D,Q> &bt, const Dofs &u)
+auto operator*(const BasisTranspose<Dim,false,D,Q> &basis, const Dofs &u)
 {
-   auto Bt = bt.basis.GetBt();
+   auto Bt = basis.GetBt();
    return Bt * u;
 }
 
 // 1D Tensor
 template <int D, int Q, typename Dofs>
-auto operator*(const BasisTranspose<1,true,D,Q> &bt, const Dofs &u)
+auto operator*(const BasisTranspose<1,true,D,Q> &basis, const Dofs &u)
 {
-   auto Bt = bt.basis.GetBt();
+   auto Bt = basis.GetBt();
    return ContractX(Bt,u);
 }
 
 // 2D Tensor
 template <int D, int Q, typename Dofs>
-auto operator*(const BasisTranspose<2,true,D,Q> &bt, const Dofs &u)
+auto operator*(const BasisTranspose<2,true,D,Q> &basis, const Dofs &u)
 {
-   auto Bt = bt.basis.GetBt();
+   auto Bt = basis.GetBt();
    auto Bu = ContractY(Bt,u);
    return ContractX(Bt,Bu);
 }
 
 // 3D Tensor
 template <int D, int Q, typename Dofs>
-auto operator*(const BasisTranspose<3,true,D,Q> &bt, const Dofs &u)
+auto operator*(const BasisTranspose<3,true,D,Q> &basis, const Dofs &u)
 {
-   auto Bt = bt.basis.GetBt();
+   auto Bt = basis.GetBt();
    auto Bu = ContractZ(Bt,u);
    auto BBu = ContractY(Bt,Bu);
    return ContractX(Bt,BBu);
