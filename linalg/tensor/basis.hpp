@@ -37,7 +37,9 @@ using StaticBasisTensor = BasisTensor<Dim,true,StaticSharedDTensor<Q,D>>;
 
 /// Represent the rank 2 tensor containing B or G with dynamic sizes
 template <int Dim>
-using DynamicBasisNonTensor = BasisTensor<Dim,false,DynamicSharedDTensor<2,1024>>; // TODO pick a better value than 1024, 16^(2*Dim)?
+using DynamicBasisNonTensor = BasisTensor<Dim,
+                                          false,
+                                          DynamicSharedDTensor<2,pow(16,2*Dim)>>;
 
 /// Represent the rank 2 tensor containing B or G with static sizes
 template <int Dim, int Q, int D>
