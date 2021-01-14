@@ -15,9 +15,109 @@
 #include "tensor.hpp"
 #include "../../general/backends.hpp"
 #include "../dtensor.hpp"
+#include "basis.hpp"
 
 namespace mfem
 {
+
+
+// Non-tensor
+template <int Dim, int D, int Q, typename Dofs>
+auto operator*(const BasisGradient<Dim,false,D,Q> &basis, const Dofs &u)
+{
+   auto G = basis.GetG();
+   return G * u;
+}
+
+// 1D Tensor
+template <int D, int Q, typename Dofs>
+auto operator*(const BasisGradient<1,true,D,Q> &basis, const Dofs &u)
+{
+   auto G = basis.GetG();
+   return ContractX(G,u);
+}
+
+// 2D Tensor
+template <int D, int Q, typename Dofs>
+auto operator*(const Basis<2,true,D,Q> &basis, const Dofs &u)
+{
+   auto B = basis.GetB();
+   auto G = basis.GetG();
+   auto Bu = ContractX(B,u);
+   auto Gu = ContractX(G,u);
+   auto GBu = ContractY(G,Bu);
+   auto BGu = ContractY(B,Gu);
+   // TODO need a function to build {GBu,BGu}
+   return Gu;
+}
+
+// 3D Tensor
+template <int D, int Q, typename Dofs>
+auto operator*(const Basis<3,true,D,Q> &basis, const Dofs &u)
+{
+   auto B = basis.GetB();
+   auto G = basis.GetG();
+   auto Bu = ContractX(B,u);
+   auto Gu = ContractX(G,u);
+   auto BBu = ContractY(B,Bu);
+   auto GBu = ContractY(G,Bu);
+   auto BGu = ContractY(B,Gu);
+   auto GBBu = ContractZ(G,BBu);
+   auto BGBu = ContractZ(B,GBu);
+   auto BBGu = ContractZ(B,BGu);
+   // TODO need {BBGu, BGBu, GBBu}
+   return Gu;
+}
+
+// Non-tensor
+template <int Dim, int D, int Q, typename Dofs>
+auto operator*(const BasisGradientTranspose<Dim,false,D,Q> &bt, const Dofs &u)
+{
+   auto Gt = basis.GetGt();
+   return Gt * u;
+}
+
+// 1D Tensor
+template <int D, int Q, typename Dofs>
+auto operator*(const BasisGradientTranspose<1,true,D,Q> &bt, const Dofs &u)
+{
+   auto Gt = basis.GetGt();
+   return ContractX(Gt,u);
+}
+
+// 2D Tensor
+template <int D, int Q, typename Dofs>
+auto operator*(const BasisGradientTranspose<2,true,D,Q> &bt, const Dofs &u)
+{
+   auto Bt = basis.GetBt();
+   auto Gt = basis.GetGt();
+   auto Bu = ContractX(Bt,u);
+   auto Gu = ContractX(Gt,u);
+   auto v = ContractY(Gt,Bu);
+   v += ContractY(Bt,Gu);
+   return v;
+}
+
+// 3D Tensor
+template <int D, int Q, typename Dofs>
+auto operator*(const BasisGradientTranspose<3,true,D,Q> &bt, const Dofs &u)
+{
+   auto Bt = basis.GetBt();
+   auto Gt = basis.GetGt();
+   auto Bu = ContractX(Bt,u);
+   auto Gu = ContractX(Gt,u);
+   auto BBu = ContractY(Bt,Bu);
+   auto GBu = ContractY(Gt,Bu);
+   auto BGu = ContractY(Bt,Gu);
+   auto v = ContractZ(Gt,BBu);
+   v += ContractZ(Bt,GBu);
+   v += ContractZ(Bt,BGu);
+   return v;
+}
+
+
+/////////////////////
+// Old implementation
 
 // Functions to interpolate the gradient from degrees of freedom to derivatives
 // at quadrature points.

@@ -1950,24 +1950,15 @@ auto MakeBasis(KernelConfig<Dim,false,Dynamic,Dynamic,BatchSize> &config,
 
 /// A structure to represent a transposed basis
 template <int Dim, bool IsTensor, int Dofs, int Quads>
-struct BasisTranspose
-{
-   Basis<Dim,IsTensor,Dofs,Quads> &basis;
-};
+struct BasisTranspose : public Basis<Dim,IsTensor,Dofs,Quads> { };
 
 /// A structure to represent a basis gradient
 template <int Dim, bool IsTensor, int Dofs, int Quads>
-struct BasisGradient
-{
-   Basis<Dim,IsTensor,Dofs,Quads> &basis;
-};
+struct BasisGradient : public Basis<Dim,IsTensor,Dofs,Quads> { };
 
 /// A structure to represent a transposed basis gradient
 template <int Dim, bool IsTensor, int Dofs, int Quads>
-struct BasisGradientTranspose
-{
-   Basis<Dim,IsTensor,Dofs,Quads> &basis;
-};
+struct BasisGradientTranspose : public Basis<Dim,IsTensor,Dofs,Quads> { };
 
 /// Functor to transpose a Basis
 template <int Dim, bool IsTensor, int Dofs, int Quads>
@@ -1980,7 +1971,7 @@ auto transpose(Basis<Dim,IsTensor,Dofs,Quads> &basis)
 template <int Dim, bool IsTensor, int Dofs, int Quads>
 auto transpose(BasisGradient<Dim,IsTensor,Dofs,Quads> &G)
 {
-   return BasisGradientTranspose<Dim,IsTensor,Dofs,Quads>{G.basis};
+   return BasisGradientTranspose<Dim,IsTensor,Dofs,Quads>{G};
 }
 
 /// Functor to represent a Basis gradient
@@ -1994,7 +1985,7 @@ auto grad(Basis<Dim,IsTensor,Dofs,Quads> &basis)
 template <int Dim, bool IsTensor, int Dofs, int Quads>
 auto grad(BasisTranspose<Dim,IsTensor,Dofs,Quads> &Bt)
 {
-   return BasisGradientTranspose<Dim,IsTensor,Dofs,Quads>{Bt.basis};
+   return BasisGradientTranspose<Dim,IsTensor,Dofs,Quads>{Bt};
 }
 
 } // mfem namespace
