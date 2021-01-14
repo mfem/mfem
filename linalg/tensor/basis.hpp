@@ -19,8 +19,7 @@
 namespace mfem
 {
 
-// TODO no need to specialize on IsTensor, define DynamicBasis<Dim,IsTensor> and
-// StaticBasis<Dim,IsTensor,Q,D> (maybe D before Q?)
+// TODO maybe D before Q?
 template <int Dim, bool IsTensor, typename TensorType>
 class BasisTensor : public TensorType
 {
@@ -28,18 +27,23 @@ public:
    BasisTensor(int quads, int dofs): TensorType(quads,dofs) { }
 };
 
+/// Represent the rank 2 tensor containing B1d or G1d with dynamic sizes
 template <int Dim>
 using DynamicBasisTensor = BasisTensor<Dim,true,DynamicSharedDTensor<2>>;
 
+/// Represent the rank 2 tensor containing B1d or G1d with static sizes
 template <int Dim, int Q, int D>
 using StaticBasisTensor = BasisTensor<Dim,true,StaticSharedDTensor<Q,D>>;
 
+/// Represent the rank 2 tensor containing B or G with dynamic sizes
 template <int Dim>
-using DynamicBasisNonTensor = BasisTensor<Dim,false,DynamicSharedDTensor<2,1024>>; // TODO pick a better value than 1024
+using DynamicBasisNonTensor = BasisTensor<Dim,false,DynamicSharedDTensor<2,1024>>; // TODO pick a better value than 1024, 16^(2*Dim)?
 
+/// Represent the rank 2 tensor containing B or G with static sizes
 template <int Dim, int Q, int D>
 using StaticBasisNonTensor = BasisTensor<Dim,false,StaticSharedDTensor<Q,D>>;
 
+/// A structure to access the rank 2 tensor B, G, and B1d, G1d in the tensor case.
 template <int Dim, bool IsTensor, int Dofs, int Quads>
 struct Basis;
 
@@ -193,7 +197,7 @@ struct Basis<Dim,false,Dynamic,Dynamic>
 
    auto GetB() const
    {
-      DynamicSharedDTensor<2,MaxSize> s_B(quads,dofs);
+      DynamicBasisTensor<Dim> s_B(quads,dofs);
       MFEM_FOREACH_THREAD(d,y,dofs)
       {
          MFEM_FOREACH_THREAD(q,x,quads)
@@ -206,7 +210,7 @@ struct Basis<Dim,false,Dynamic,Dynamic>
 
    auto GetBt() const
    {
-      DynamicSharedDTensor<2,MaxSize> s_Bt(dofs,quads);
+      DynamicBasisTensor<Dim> s_Bt(dofs,quads);
       MFEM_FOREACH_THREAD(q,y,quads)
       {
          MFEM_FOREACH_THREAD(d,x,dofs)
@@ -219,7 +223,7 @@ struct Basis<Dim,false,Dynamic,Dynamic>
 
    auto GetG() const
    {
-      DynamicSharedDTensor<3,MaxSize> s_G(quads,dofs,dim);
+      DynamicBasisTensor<Dim> s_G(quads,dofs,dim);
       MFEM_FOREACH_THREAD(d,y,dofs)
       {
          MFEM_FOREACH_THREAD(q,x,quads)
@@ -235,7 +239,7 @@ struct Basis<Dim,false,Dynamic,Dynamic>
 
    auto GetGt() const
    {
-      DynamicSharedDTensor<3,MaxSize> s_Gt(dofs,quads,dim);
+      DynamicBasisTensor<Dim> s_Gt(dofs,quads,dim);
       MFEM_FOREACH_THREAD(q,y,quads)
       {
          MFEM_FOREACH_THREAD(d,x,dofs)
@@ -264,7 +268,7 @@ struct Basis<Dim,false,Dofs,Quads>
 
    auto GetB() const
    {
-      StaticSharedDTensor<quads,dofs> s_B(quads,dofs);
+      StaticBasisTensor<dim,quads,dofs> s_B(quads,dofs);
       MFEM_FOREACH_THREAD(d,y,dofs)
       {
          MFEM_FOREACH_THREAD(q,x,quads)
@@ -277,7 +281,7 @@ struct Basis<Dim,false,Dofs,Quads>
 
    auto GetBt() const
    {
-      StaticSharedDTensor<dofs,quads> s_Bt(dofs,quads);
+      StaticBasisTensor<dim,quads,dofs> s_Bt(dofs,quads);
       MFEM_FOREACH_THREAD(q,y,quads)
       {
          MFEM_FOREACH_THREAD(d,x,dofs)
@@ -290,6 +294,7 @@ struct Basis<Dim,false,Dofs,Quads>
 
    auto GetG() const
    {
+      // TODO change type
       StaticSharedDTensor<quads,dofs,dim> s_G(quads,dofs,dim);
       MFEM_FOREACH_THREAD(d,y,dofs)
       {
@@ -306,6 +311,7 @@ struct Basis<Dim,false,Dofs,Quads>
 
    auto GetGt() const
    {
+      // TODO change type
       StaticSharedDTensor<dofs,quads,dim> s_Gt(dofs,quads,dim);
       MFEM_FOREACH_THREAD(q,y,quads)
       {
