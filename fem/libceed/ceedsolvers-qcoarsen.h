@@ -22,6 +22,11 @@ CEED_EXTERN int CeedOperatorQCoarsen(CeedOperator oper, int qorder_reduction,
                                      CeedOperator* out, CeedVector* coarse_assembledqf,
                                      CeedQFunctionContext* context_ptr);
 
+/// @todo eventually I want this per element or something?
+/// (also, this might be more expensive than we want)
+CEED_EXTERN int CeedOperatorGetHeuristics(CeedOperator oper, CeedScalar* minq,
+                                          CeedScalar* maxq, CeedScalar* absmin);
+
 #endif
 
 #endif

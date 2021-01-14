@@ -236,7 +236,8 @@ CeedOperator CoarsenCeedCompositeOperator(
 AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
    AlgebraicSpaceHierarchy &hierarchy,
    BilinearForm &form,
-   const Array<int> &ess_tdofs
+   const Array<int> &ess_tdofs,
+   double parameter
 ) : Multigrid(hierarchy)
 {
    // Construct finest level
@@ -249,17 +250,24 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
    // Construct interpolation, operators, at all levels of hierarchy by coarsening
    while (current_order > 1)
    {
-      // TODO: make this decision based on the assembled qfunction
-      // (ie, what comes out of CeedOperatorLinearAssembleQFunction,
-      // which currently only gets called in CeedQFunctionQCoarsen...)
+      double minq, maxq, absmin;
+      CeedOperatorGetHeuristics(ceed_operators[0], &minq, &maxq, &absmin);
+      double heuristic = std::max(std::abs(minq), std::abs(maxq)) / absmin;
 
-      // TODO: the coarsening schedule appears to be (one of) the key
-      // reasons that high-contrast coefficients screw this up
-      // this apparently has no access to any ceed operators?
-      std::cout << "coarsening form current_order = " << current_order << std::endl;
-      const int order_reduction = current_order - (current_order/2);
+      int order_reduction;
+      if (heuristic > parameter || current_order == 3)
+      {
+         order_reduction = 1;
+      }
+      else
+      {
+         order_reduction = current_order - (current_order/2);
+      }
+      // std::cout << "  heuristic = " << heuristic
+      //   << ", coarsening from order " << current_order 
+      //   << " to " << current_order - order_reduction << std::endl;
       hierarchy.PrependPCoarsenedLevel(current_order, order_reduction);
-      current_order = current_order / 2;
+      current_order = current_order - order_reduction;
 
       AlgebraicCoarseSpace &space = hierarchy.GetAlgebraicCoarseSpace(0);
       ceed_operators.Prepend(CoarsenCeedCompositeOperator(
@@ -666,14 +674,16 @@ ParAlgebraicCoarseSpace::~ParAlgebraicCoarseSpace()
 #endif
 
 AlgebraicCeedSolver::AlgebraicCeedSolver(BilinearForm &form,
-                                         const Array<int>& ess_tdofs)
+                                         const Array<int>& ess_tdofs,
+                                         double parameter)
 {
    // this records order, order reduction, builds interpolations etc.
    // (the path forward for schedule change is probably to do *all* setup here,
    // and the AlgebraicCeedMultigrid is basically just for *applying*)
    fespaces = new AlgebraicSpaceHierarchy(*form.FESpace());
    // this actually assembles CeedOperator and related objects
-   multigrid = new AlgebraicCeedMultigrid(*fespaces, form, ess_tdofs);
+   multigrid = new AlgebraicCeedMultigrid(*fespaces, form, ess_tdofs,
+                                          parameter);
 }
 
 AlgebraicCeedSolver::~AlgebraicCeedSolver()

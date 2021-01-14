@@ -19,6 +19,10 @@
 #include <stdlib.h>
 #include "linear.h"
 
+#include <math.h>  // for fabs(), which I actualy don't like
+
+#include <fstream>
+
 /** @brief Coarsen the rows (integration points) of a CeedBasis
 
     The current implementation assumes a lot about the particular
@@ -207,6 +211,75 @@ int CeedElementRestrictionQCoarsen(CeedElemRestriction rstr_q,
    return 0;
 }
 
+/// Does not work for composite operator
+int CeedSingleOperatorGetHeuristics(CeedOperator oper, CeedScalar* minq,
+                                    CeedScalar* maxq, CeedScalar* absmin)
+{
+   int ierr;
+   CeedQFunction qfin;
+   ierr = CeedOperatorGetQFunction(oper, &qfin); CeedChk(ierr);
+
+   CeedVector assembledqf;
+   CeedElemRestriction rstr_q;
+   ierr = CeedOperatorLinearAssembleQFunction(
+      oper, &assembledqf, &rstr_q, CEED_REQUEST_IMMEDIATE); CeedChk(ierr);
+
+   CeedInt assembledqf_len;
+   ierr = CeedVectorGetLength(assembledqf, &assembledqf_len); CeedChk(ierr);
+   const CeedScalar * tempdata;
+   ierr = CeedVectorGetArrayRead(assembledqf, CEED_MEM_HOST, &tempdata); CeedChk(ierr);
+
+   *minq = 1.e+12;
+   *maxq = -1.e+12;
+   *absmin = 1.e+12;
+   for (int i = 0; i < assembledqf_len; ++i)
+   {
+      *maxq = std::max(*maxq, tempdata[i]);
+      *minq = std::min(*minq, tempdata[i]);
+      *absmin = std::min(*absmin, fabs(tempdata[i]));
+   }
+   printf("maxq=%f, minq=%f, absmin=%f\n",
+          *maxq, *minq, *absmin);
+   ierr = CeedVectorRestoreArrayRead(assembledqf, &tempdata); CeedChk(ierr);
+
+   ierr = CeedElemRestrictionDestroy(&rstr_q); CeedChk(ierr);
+   ierr = CeedVectorDestroy(&assembledqf); CeedChk(ierr);
+   return 0;
+}
+
+int CeedOperatorGetHeuristics(CeedOperator oper, CeedScalar* minq,
+                              CeedScalar* maxq, CeedScalar* absmin)
+{
+   int ierr;
+   bool isComposite;
+   ierr = CeedOperatorIsComposite(oper, &isComposite); CeedChk(ierr);
+   if (!isComposite)
+   {
+      return CeedSingleOperatorGetHeuristics(oper, minq, maxq, absmin);
+   }
+   
+   *minq = 1.e+12;
+   *maxq = -1.e+12;
+   *absmin = 1.e+12;
+
+   int nsub;
+   ierr = CeedOperatorGetNumSub(oper, &nsub); CeedChk(ierr);
+   CeedOperator *subops;
+   ierr = CeedOperatorGetSubList(oper, &subops); CeedChk(ierr);
+   for (int isub=0; isub<nsub; ++isub)
+   {
+      CeedOperator subop = subops[isub];
+      CeedScalar lminq, lmaxq, labsmin;
+      ierr = CeedSingleOperatorGetHeuristics(subop, &lminq, &lmaxq,
+                                             &labsmin); CeedChk(ierr);
+      *minq = std::min(lminq, *minq);
+      *maxq = std::max(lmaxq, *maxq);
+      *absmin = std::min(*absmin, labsmin);
+   }
+
+   return 0;
+}
+
 int CeedQFunctionQCoarsen(CeedOperator oper, CeedInt qorder_reduction,
                           CeedVector* coarse_assembledqf,
                           CeedElemRestriction* coarse_rstr_q, CeedBasis* qcoarse_basis,
@@ -294,7 +367,8 @@ int CeedOperatorQCoarsen(CeedOperator oper, int qorder_reduction,
    CeedQFunction qfout;
    CeedBasis qcoarse_basis;
    ierr = CeedQFunctionQCoarsen(oper, qorder_reduction, coarse_assembledqf,
-                                &coarse_rstr_q, &qcoarse_basis, &qfout, context_ptr); CeedChk(ierr);
+                                &coarse_rstr_q, &qcoarse_basis, &qfout,
+                                context_ptr); CeedChk(ierr);
 
    CeedInt numinputfields, numoutputfields;
    ierr = CeedQFunctionGetNumArgs(qfin, &numinputfields, &numoutputfields); CeedChk(ierr);
