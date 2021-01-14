@@ -415,10 +415,14 @@ void SparseMatrix::SortColumnIndices()
       return;
    }
 
+   const int * Ip=HostReadI();
+   HostReadWriteJ();
+   HostReadWriteData();
+
    Array<Pair<int,double> > row;
    for (int j = 0, i = 0; i < height; i++)
    {
-      int end = I[i+1];
+      int end = Ip[i+1];
       row.SetSize(end - j);
       for (int k = 0; k < row.Size(); k++)
       {
