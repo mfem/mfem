@@ -379,7 +379,7 @@ public:
 term arising in the Navier Stokes equations \f$.5*(u \cdot \nabla v, w ) -
 .5*(u \cdot \nabla w, v )\f$ */
 class SkewSymmetricVectorConvectionNLFIntegrator : public
-   NonlinearFormIntegrator
+   VectorConvectionNLFIntegrator
 {
 private:
    Coefficient *Q{};
