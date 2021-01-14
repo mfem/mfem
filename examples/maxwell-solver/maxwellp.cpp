@@ -1,7 +1,7 @@
 //
 // Compile with: make maxwellp
 //
-//               mpirun ./maxwellp -o 2 -f 8.0 -ref 3 -prob 4 -m ../data/inline-quad.mesh
+//               mpirun ./maxwellp -o 2 -f 8.0 -sr 3 -m ../../data/inline-quad.mesh
 //
 
 #include "mfem.hpp"
