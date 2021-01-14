@@ -256,6 +256,8 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
                                   ceed_operators[ilevel+1], space.GetCeedElemRestriction(),
                                   space.GetCeedCoarseToFine(), space.GetOrderReduction(),
                                   space.GetOrderReduction());
+      // TODO: take a look at what happens to your very rough metrics if you don't 
+      // do q-coarsening...
       Operator *P = hierarchy.GetProlongationAtLevel(ilevel);
       essentialTrueDofs[ilevel] = new Array<int>;
       CoarsenEssentialDofs(*P, *essentialTrueDofs[ilevel+1],
@@ -327,28 +329,11 @@ AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
    int order = fes.GetOrder(0);
    int nlevels = 0;
    int current_order = order;
-   while (current_order > 0)
-   {
-      nlevels++;
-      current_order = current_order/2;
-   }
 
-   meshes.SetSize(nlevels);
-   ownedMeshes.SetSize(nlevels);
-   meshes = fes.GetMesh();
-   ownedMeshes = false;
-
-   fespaces.SetSize(nlevels);
-   ownedFES.SetSize(nlevels);
-   // Own all FESpaces except for the finest, own all prolongations
-   ownedFES = true;
-   fespaces[nlevels-1] = &fes;
-   ownedFES[nlevels-1] = false;
-
-   ceed_interpolations.SetSize(nlevels-1);
-   R_tr.SetSize(nlevels-1);
-   prolongations.SetSize(nlevels-1);
-   ownedProlongations.SetSize(nlevels-1);
+   meshes.Prepend(fes.GetMesh());
+   ownedMeshes.Prepend(false);
+   fespaces.Prepend(&fes);
+   ownedFES.Prepend(false);
 
    current_order = order;
 
@@ -361,14 +346,20 @@ AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
 #ifdef MFEM_USE_MPI
    GroupCommunicator *gc = NULL;
    ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace*>(&fes);
-   if (pfes)
-   {
-      gc = &pfes->GroupComm();
-   }
+   if (pfes) { gc = &pfes->GroupComm(); }
 #endif
 
-   for (int ilevel=nlevels-2; ilevel>=0; --ilevel)
+   while (current_order > 1)
    {
+      // TODO: make this decision based on the assembled qfunction
+      // (ie, what comes out of CeedOperatorLinearAssembleQFunction,
+      // which currently only gets called in CeedQFunctionQCoarsen...)
+
+      // TODO: the coarsening schedule appears to be (one of) the key
+      // reasons that high-contrast coefficients screw this up
+      // this apparently has no access to any ceed operators?
+      // double contrast = ceed_operators // AlgebraicSpaceHierarchy
+      std::cout << "coarsening form current_order = " << current_order << std::endl;
       const int order_reduction = current_order - (current_order/2);
       AlgebraicCoarseSpace *space;
 
@@ -376,7 +367,7 @@ AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
       if (pfes)
       {
          ParAlgebraicCoarseSpace *parspace = new ParAlgebraicCoarseSpace(
-            *fespaces[ilevel+1], er, current_order, dim, order_reduction, gc);
+            *fespaces[0], er, current_order, dim, order_reduction, gc);
          gc = parspace->GetGroupCommunicator();
          space = parspace;
       }
@@ -384,30 +375,32 @@ AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
 #endif
       {
          space = new AlgebraicCoarseSpace(
-            *fespaces[ilevel+1], er, current_order, dim, order_reduction);
+            *fespaces[0], er, current_order, dim, order_reduction);
       }
       current_order = current_order/2;
-      fespaces[ilevel] = space;
-      ceed_interpolations[ilevel] = new MFEMCeedInterpolation(
-         ceed,
-         space->GetCeedCoarseToFine(),
-         space->GetCeedElemRestriction(),
-         er
-      );
-      const SparseMatrix *R = fespaces[ilevel+1]->GetRestrictionMatrix();
+      meshes.Prepend(fes.GetMesh()); // every entry of meshes points to finest mesh
+      ownedMeshes.Prepend(false);
+      fespaces.Prepend(space);
+      ownedFES.Prepend(true); // owns all but finest
+      ceed_interpolations.Prepend(new MFEMCeedInterpolation(
+                                     ceed,
+                                     space->GetCeedCoarseToFine(),
+                                     space->GetCeedElemRestriction(),
+                                     er)
+         );
+      const SparseMatrix *R = fespaces[1]->GetRestrictionMatrix();
       if (R)
       {
          R->BuildTranspose();
-         R_tr[ilevel] = new TransposeOperator(*R);
+         R_tr.Prepend(new TransposeOperator(*R));
       }
       else
       {
-         R_tr[ilevel] = NULL;
+         R_tr.Prepend(NULL);
       }
-      prolongations[ilevel] = ceed_interpolations[ilevel]->SetupRAP(
-                                 space->GetProlongationMatrix(), R_tr[ilevel]);
-      ownedProlongations[ilevel]
-         = prolongations[ilevel] != ceed_interpolations[ilevel];
+      prolongations.Prepend(ceed_interpolations[0]->SetupRAP(
+                               space->GetProlongationMatrix(), R_tr[0]));
+      ownedProlongations.Prepend(prolongations[0] != ceed_interpolations[0]);
 
       er = space->GetCeedElemRestriction();
    }
@@ -655,7 +648,11 @@ ParAlgebraicCoarseSpace::~ParAlgebraicCoarseSpace()
 AlgebraicCeedSolver::AlgebraicCeedSolver(BilinearForm &form,
                                          const Array<int>& ess_tdofs)
 {
+   // this records order, order reduction, builds interpolations etc.
+   // (the path forward for schedule change is probably to do *all* setup here,
+   // and the AlgebraicCeedMultigrid is basically just for *applying*)
    fespaces = new AlgebraicSpaceHierarchy(*form.FESpace());
+   // this actually assembles CeedOperator and related objects
    multigrid = new AlgebraicCeedMultigrid(*fespaces, form, ess_tdofs);
 }
 

@@ -88,11 +88,13 @@ public:
        The given space is a real (geometric) space, but the coarse spaces
        are constructed semi-algebraically with no mesh information. */
    AlgebraicSpaceHierarchy(FiniteElementSpace &fespace);
+
    AlgebraicCoarseSpace& GetAlgebraicCoarseSpace(int level)
    {
       MFEM_ASSERT(level < GetNumLevels() - 1, "");
       return static_cast<AlgebraicCoarseSpace&>(*fespaces[level]);
    }
+
    ~AlgebraicSpaceHierarchy()
    {
       CeedElemRestrictionDestroy(&fine_er);
