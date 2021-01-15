@@ -656,7 +656,7 @@ class MfemCmake(CMakePackage, CudaPackage):
         if '+petsc' in spec:
             petsc_dir = get_spec_path(spec, "petsc")
             cfg.write(cmake_cache_entry("PETSC_DIR", petsc_dir))
-            #cfg.write(cmake_cache_entry("PETSC_ARCH", ????))
+            cfg.write(cmake_cache_entry("PETSC_ARCH", ""))
 
             #TODO (bernede1@llnl.gov): what about PETSC_REQUIRED_PACKAGES
             # see MFEM config/defaults.cmake
