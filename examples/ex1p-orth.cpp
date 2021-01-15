@@ -3,6 +3,8 @@
 // Compile with: make ex1p
 //
 // Sample runs:  mpirun -np 4 ex1p-orth
+//               mpirun -np 4 ex1p-orth -c 2
+//               mpirun -np 4 ex1p-orth -c 3
 //               mpirun -np 4 ex1p-orth -c 4 -rs 4
 //               mpirun -np 4 ex1p-orth -c 6
 //               mpirun -np 4 ex1p-orth -c 7
