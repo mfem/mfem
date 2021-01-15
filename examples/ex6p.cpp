@@ -212,7 +212,7 @@ int main(int argc, char *argv[])
 
    // 14. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
-   for (int it = 1; ; it++)
+   for (int it = 0; ; it++)
    {
       HYPRE_Int global_dofs = fespace.GlobalTrueVSize();
       if (myid == 0)
@@ -328,7 +328,7 @@ int main(int argc, char *argv[])
       //     computation can be restarted from this point. Note that unlike in
       //     visualization, we need to use the 'ParPrint' method to save all
       //     internal parallel data structures.
-      if (it % 5 == 0)
+      if ((it + 1) % 5 == 0)
       {
          ofstream ofs(MakeParFilename("ex6p-checkpoint.", myid));
          ofs.precision(8);

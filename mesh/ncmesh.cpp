@@ -93,6 +93,7 @@ NCMesh::NCMesh(const Mesh *mesh)
    spaceDim = mesh->SpaceDimension();
    MyRank = 0;
    Iso = true;
+   Legacy = false;
 
    // create the NCMesh::Element struct for each Mesh element
    for (int i = 0; i < mesh->GetNE(); i++)
@@ -192,6 +193,7 @@ NCMesh::NCMesh(const NCMesh &other)
    , MyRank(other.MyRank)
    , Iso(other.Iso)
    , Geoms(other.Geoms)
+   , Legacy(other.Legacy)
    , nodes(other.nodes)
    , faces(other.faces)
    , elements(other.elements)
@@ -5507,11 +5509,12 @@ int NCMesh::CountTopLevelNodes() const
 }
 
 NCMesh::NCMesh(std::istream &input, int version, int &curved)
-   : spaceDim(0), MyRank(0), Iso(true)
+   : spaceDim(0), MyRank(0), Iso(true), Legacy(false)
 {
    if (version == 1) // old MFEM mesh v1.1 format
    {
       LoadLegacyFormat(input, curved);
+      Legacy = true;
       return;
    }
 
