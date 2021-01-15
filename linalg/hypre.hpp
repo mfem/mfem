@@ -160,9 +160,10 @@ public:
    ~HypreParVector();
 
 #ifdef MFEM_USE_SUNDIALS
-   /// Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_PARALLEL.
-   /** The returned N_Vector must be destroyed by the caller. */
-   virtual N_Vector ToNVector();
+   /// (DEPRECATED) Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_PARALLEL.
+   /** @deprecated The returned N_Vector must be destroyed by the caller. */
+   MFEM_DEPRECATED virtual N_Vector ToNVector();
+   using Vector::ToNVector;
 #endif
 };
 
@@ -637,6 +638,9 @@ protected:
    /// Combined coefficients for windowing and Chebyshev polynomials.
    double* fir_coeffs;
 
+   /// A flag that indicates whether the linear system matrix A is symmetric
+   bool A_is_symmetric;
+
 public:
    /** Hypre smoother types:
        0    = Jacobi
@@ -683,6 +687,12 @@ public:
        entries in the associated matrix. */
    void SetPositiveDiagonal(bool pos = true) { pos_l1_norms = pos; }
 
+   /** Explicitly indicate whether the linear system matrix A is symmetric. If A
+       is symmetric, the smoother will also be symmetric. In this case, calling
+       MultTranspose will be redirected to Mult. (This is also done if the
+       smoother is diagonal.) By default, A is assumed to be nonsymmetric. */
+   void SetOperatorSymmetry(bool is_sym) { A_is_symmetric = is_sym; }
+
    /** Set/update the associated operator. Must be called after setting the
        HypreSmoother type and options. */
    virtual void SetOperator(const Operator &op);
@@ -690,6 +700,9 @@ public:
    /// Relax the linear system Ax=b
    virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
    virtual void Mult(const Vector &b, Vector &x) const;
+
+   /// Apply transpose of the smoother to relax the linear system Ax=b
+   virtual void MultTranspose(const Vector &b, Vector &x) const;
 
    virtual ~HypreSmoother();
 };
@@ -782,8 +795,11 @@ public:
        2) enable residual-based stopping criteria. */
    void SetResidualConvergenceOptions(int res_frequency=-1, double rtol=0.0);
 
+   /// deprecated: use SetZeroInitialIterate()
+   MFEM_DEPRECATED void SetZeroInintialIterate() { iterative_mode = false; }
+
    /// non-hypre setting
-   void SetZeroInintialIterate() { iterative_mode = false; }
+   void SetZeroInitialIterate() { iterative_mode = false; }
 
    void GetNumIterations(int &num_iterations)
    {
@@ -836,8 +852,11 @@ public:
    /// Set the hypre solver to be used as a preconditioner
    void SetPreconditioner(HypreSolver &precond);
 
+   /// deprecated: use SetZeroInitialIterate()
+   MFEM_DEPRECATED void SetZeroInintialIterate() { iterative_mode = false; }
+
    /// non-hypre setting
-   void SetZeroInintialIterate() { iterative_mode = false; }
+   void SetZeroInitialIterate() { iterative_mode = false; }
 
    /// The typecast to HYPRE_Solver returns the internal gmres_solver
    virtual operator HYPRE_Solver() const  { return gmres_solver; }
@@ -854,6 +873,56 @@ public:
    using HypreSolver::Mult;
 
    virtual ~HypreGMRES();
+};
+
+/// Flexible GMRES solver in hypre
+class HypreFGMRES : public HypreSolver
+{
+private:
+   HYPRE_Solver fgmres_solver;
+
+   HypreSolver * precond;
+
+   /// Default, generally robust, FGMRES options
+   void SetDefaultOptions();
+
+public:
+   HypreFGMRES(MPI_Comm comm);
+
+   HypreFGMRES(HypreParMatrix &_A);
+
+   virtual void SetOperator(const Operator &op);
+
+   void SetTol(double tol);
+   void SetMaxIter(int max_iter);
+   void SetKDim(int dim);
+   void SetLogging(int logging);
+   void SetPrintLevel(int print_lvl);
+
+   /// Set the hypre solver to be used as a preconditioner
+   void SetPreconditioner(HypreSolver &precond);
+
+   /// deprecated: use SetZeroInitialIterate()
+   MFEM_DEPRECATED void SetZeroInintialIterate() { iterative_mode = false; }
+
+   /// non-hypre setting
+   void SetZeroInitialIterate() { iterative_mode = false; }
+
+   /// The typecast to HYPRE_Solver returns the internal fgmres_solver
+   virtual operator HYPRE_Solver() const  { return fgmres_solver; }
+
+   /// FGMRES Setup function
+   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRFlexGMRESSetup; }
+   /// FGMRES Solve function
+   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRFlexGMRESSolve; }
+
+   /// Solve Ax=b with hypre's FGMRES
+   virtual void Mult (const HypreParVector &b, HypreParVector &x) const;
+   using HypreSolver::Mult;
+
+   virtual ~HypreFGMRES();
 };
 
 /// The identity operator as a hypre solver
@@ -962,6 +1031,62 @@ public:
    virtual ~HypreEuclid();
 };
 
+#if MFEM_HYPRE_VERSION >= 21900
+/**
+@brief Wrapper for Hypre's native parallel ILU preconditioner.
+
+The default ILU factorization type is ILU(k).  If you need to change this, or
+any other option, you can use the HYPRE_Solver method to cast the object for use
+with Hypre's native functions. For example, if want to use natural ordering
+rather than RCM reordering, you can use the following approach:
+
+@code
+mfem::HypreILU ilu();
+int reorder_type = 0;
+HYPRE_ILUSetLocalReordering(ilu, reorder_type);
+@endcode
+*/
+class HypreILU : public HypreSolver
+{
+private:
+   HYPRE_Solver ilu_precond;
+
+   /// Set the ILU default options
+   void SetDefaultOptions();
+
+   /** Reset the ILU preconditioner.
+   @note If ilu_precond is NULL, this method allocates; otherwise it destroys
+   ilu_precond and allocates a new object.  In both cases the default options
+   are set. */
+   void ResetILUPrecond();
+
+public:
+   /// Constructor; sets the default options
+   HypreILU();
+
+   virtual ~HypreILU();
+
+   /// Set the fill level for ILU(k); the default is k=1.
+   void SetLevelOfFill(HYPRE_Int lev_fill);
+
+   /// Set the print level: 0 = none, 1 = setup, 2 = solve, 3 = setup+solve
+   void SetPrintLevel(HYPRE_Int print_level);
+
+   /// The typecast to HYPRE_Solver returns the internal ilu_precond
+   virtual operator HYPRE_Solver() const { return ilu_precond; }
+
+   virtual void SetOperator(const Operator &op);
+
+   /// ILU Setup function
+   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   { return (HYPRE_PtrToParSolverFcn) HYPRE_ILUSetup; }
+
+   /// ILU Solve function
+   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   { return (HYPRE_PtrToParSolverFcn) HYPRE_ILUSolve; }
+};
+#endif
+
 /// The BoomerAMG solver in hypre
 class HypreBoomerAMG : public HypreSolver
 {
@@ -992,16 +1117,15 @@ public:
 
    virtual void SetOperator(const Operator &op);
 
-   /** More robust options for systems, such as elasticity. Note that BoomerAMG
-       assumes Ordering::byVDIM in the finite element space used to generate the
-       matrix A. */
-   void SetSystemsOptions(int dim);
+   /** More robust options for systems, such as elasticity. */
+   void SetSystemsOptions(int dim, bool order_bynodes=false);
 
    /** A special elasticity version of BoomerAMG that takes advantage of
        geometric rigid body modes and could perform better on some problems, see
        "Improving algebraic multigrid interpolation operators for linear
        elasticity problems", Baker, Kolev, Yang, NLAA 2009, DOI:10.1002/nla.688.
-       As with SetSystemsOptions(), this solver assumes Ordering::byVDIM. */
+       This solver assumes Ordering::byVDIM in the FiniteElementSpace used to
+       construct A. */
    void SetElasticityOptions(ParFiniteElementSpace *fespace);
 
    void SetPrintLevel(int print_level)

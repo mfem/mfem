@@ -10,12 +10,12 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "catch.hpp"
+#include "unit_tests.hpp"
 
 namespace mfem
 {
 
-constexpr double EPS = 1.e-12;
+constexpr double EPS = 1e-10;
 
 // Test case: Verify that a conforming mesh yields the same norm for the
 //            assembled diagonal with PA when using the standard (conforming)
@@ -62,7 +62,7 @@ TEST_CASE("NCMesh PA diagonal", "[NCMesh]")
          double error = fabs(diag.Norml2() - nc_diag.Norml2());
          std::cout << "Testing quad NCMesh PA diag:    "
                    "order: " << order << ", error: " << error << std::endl;
-         REQUIRE(error == Approx(EPS));
+         REQUIRE(error == MFEM_Approx(0.0, EPS));
       }
    }
 
@@ -105,7 +105,7 @@ TEST_CASE("NCMesh PA diagonal", "[NCMesh]")
          double error = fabs(diag.Sum() - nc_diag.Sum());
          std::cout << "Testing hexa NCMesh PA diag:    "
                    "order: " << order << ", error: " << error << std::endl;
-         REQUIRE(error == Approx(EPS));
+         REQUIRE(error == MFEM_Approx(0.0, EPS));
       }
    }
 
@@ -173,7 +173,7 @@ TEST_CASE("pNCMesh PA diagonal",  "[Parallel], [NCMesh]")
             std::cout << "Testing quad pNCMesh PA diag:    "
                       "order: " << order << ", error: " << error << std::endl;
          }
-         REQUIRE(error == Approx(EPS));
+         REQUIRE(error == MFEM_Approx(0.0, EPS));
          MPI_Barrier(MPI_COMM_WORLD);
       }
    }
@@ -229,7 +229,7 @@ TEST_CASE("pNCMesh PA diagonal",  "[Parallel], [NCMesh]")
             std::cout << "Testing hexa pNCMesh PA diag:    "
                       "order: " << order << ", error: " << error << std::endl;
          }
-         REQUIRE(error == Approx(EPS));
+         REQUIRE(error == MFEM_Approx(0.0, EPS));
          MPI_Barrier(MPI_COMM_WORLD);
       }
    }

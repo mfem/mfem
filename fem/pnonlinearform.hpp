@@ -82,6 +82,9 @@ protected:
    mutable BlockOperator *pBlockGrad;
 
 public:
+   /// Computes the energy of the system
+   virtual double GetEnergy(const Vector &x) const;
+
    /// Construct an empty ParBlockNonlinearForm. Initialize with SetParSpaces().
    ParBlockNonlinearForm() : pBlockGrad(NULL) { }
 
@@ -103,6 +106,7 @@ public:
    virtual void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
                                Array<Vector *> &rhs);
 
+   /// Block T-Vector to Block T-Vector
    virtual void Mult(const Vector &x, Vector &y) const;
 
    /// Return the local block gradient matrix for the given true-dof vector x

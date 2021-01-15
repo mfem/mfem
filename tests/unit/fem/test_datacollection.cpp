@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "catch.hpp"
+#include "unit_tests.hpp"
 #include <stdio.h>
 
 #ifndef _WIN32
@@ -69,10 +69,14 @@ TEST_CASE("Save and load from collections", "[DataCollection]")
          dc.SetCycle(5);
          dc.SetTime(8.0);
          REQUIRE(dc.GetMesh() == mesh );
-         REQUIRE(dc.HasField("u"));
-         REQUIRE(dc.HasField("v"));
-         REQUIRE(dc.HasQField("qs"));
-         REQUIRE(dc.HasQField("qv"));
+         bool has_u = dc.HasField("u");
+         REQUIRE(has_u);
+         bool has_v = dc.HasField("v");
+         REQUIRE(has_v);
+         bool has_qs = dc.HasQField("qs");
+         REQUIRE(has_qs);
+         bool has_qv = dc.HasQField("qv");
+         REQUIRE(has_qv);
          REQUIRE(dc.GetCycle() == 5);
          REQUIRE(dc.GetTime() == 8.0);
 
@@ -153,10 +157,14 @@ TEST_CASE("Save and load from collections", "[DataCollection]")
          dc.SetCycle(5);
          dc.SetTime(8.0);
          REQUIRE(dc.GetMesh() == mesh );
-         REQUIRE(dc.HasField("u"));
-         REQUIRE(dc.HasField("v"));
-         REQUIRE(dc.HasQField("qs"));
-         REQUIRE(dc.HasQField("qv"));
+         bool has_u = dc.HasField("u");
+         REQUIRE(has_u);
+         bool has_v = dc.HasField("v");
+         REQUIRE(has_v);
+         bool has_qs = dc.HasQField("qs");
+         REQUIRE(has_qs);
+         bool has_qv = dc.HasQField("qv");
+         REQUIRE(has_qv);
          REQUIRE(dc.GetCycle() == 5);
          REQUIRE(dc.GetTime() == 8.0);
 
