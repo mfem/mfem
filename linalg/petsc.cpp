@@ -4200,7 +4200,7 @@ static PetscErrorCode __mfem_snes_jacobian(SNES snes, Vec x, Mat A, Mat P,
       delete_pA = true;
    }
 
-   //could I skip it? -QT
+   //could I skip it? -QT (it is probably okay either way)
    // Eliminate essential dofs
    if (snes_ctx->bchandler && false)
    {
@@ -4265,8 +4265,8 @@ static PetscErrorCode __mfem_snes_function(SNES snes, Vec x, Vec f, void *ctx)
       bchandler->ApplyBC(xx,*txx);
       snes_ctx->op->Mult(*txx,ff);
       // and fix the residual (i.e. f_\partial\Omega = u - g)
-      // skip this step for now -QT
-      //bchandler->FixResidualBC(xx,ff);
+      // not skip this step for now -QT!!
+      bchandler->FixResidualBC(xx,ff);
    }
    else
    {

@@ -136,7 +136,10 @@ int main(int argc, char *argv[])
       return 1;
    }
 
-   lambda=.5/M_PI;
+   if (icase!=2)
+   {
+      lambda=.5/M_PI;
+   }
    resiG=resi;
   
    if (myid == 0) args.PrintOptions(cout);
@@ -298,15 +301,20 @@ int main(int argc, char *argv[])
    phi.ProjectCoefficient(phiInit);
    phi.SetTrueVector();
 
-   if (icase!=6)
-   {
-      FunctionCoefficient psiInit3(InitialPsi3);
-      psi.ProjectCoefficient(psiInit3);
-   }
-   else
+   if (icase==6)
    {
       FunctionCoefficient psiInit6(InitialPsi6);
       psi.ProjectCoefficient(psiInit6);
+   }
+   else if (icase==2)
+   {
+      FunctionCoefficient psiInit2(InitialPsi2);
+      psi.ProjectCoefficient(psiInit2);
+   }
+   else
+   {
+      FunctionCoefficient psiInit3(InitialPsi3);
+      psi.ProjectCoefficient(psiInit3);
    }
    psi.SetTrueVector();
 
@@ -334,22 +342,32 @@ int main(int argc, char *argv[])
 
    //++++Initialize the MHD operator, the GLVis visualization    
    ResistiveMHDOperator oper(fespace, ess_bdr, visc, resi, use_petsc, use_factory);
-   if (icase!=5)
-   {
-    oper.SetRHSEfield(E0rhs3);
-   }
-   else
+   if (icase==5)
    {
     oper.SetRHSEfield(E0rhs5);
    }
+   else if (icase==2)  //add the source term
+   {
+    oper.SetRHSEfield(E0rhs);
+   }
+   else
+   {
+    oper.SetRHSEfield(E0rhs3);
+   }
 
-   ParGridFunction j(&fespace);
    //set initial J
+   ParGridFunction j(&fespace);
    if(icase==6)
    {
       FunctionCoefficient jInit6(InitialJ6);
       oper.SetInitialJ(jInit6);
       j.ProjectCoefficient(jInit6);
+   }
+   else if (icase==2)
+   {
+      FunctionCoefficient jInit2(InitialJ2);
+      oper.SetInitialJ(jInit2);
+      j.ProjectCoefficient(jInit2);
    }
    else
    {
@@ -442,7 +460,7 @@ int main(int argc, char *argv[])
        cout <<"######Runtime = "<<end-start<<" ######"<<endl;
 
    //++++++Save the solutions.
-   if (true)
+   if (false)
    {
       phi.SetFromTrueVector(); psi.SetFromTrueVector(); w.SetFromTrueVector();
       oper.UpdateJ(vx, &j);

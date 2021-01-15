@@ -54,8 +54,11 @@ void transformation(const Vector &p, Vector &v)
    else if (p.Size() == 2)
    {
       double xscale=1;
-      v(0) = tan(p(0)*xscale)/tan(xscale);
-      v(1) = tan(p(1)*xscale)/tan(xscale);
+      //v(0) = tan(p(0)*xscale)/tan(xscale);
+      //v(1) = tan(p(1)*xscale)/tan(xscale);
+      v(0) = p(0);
+      //v(1) = p(1)+1;
+      v(1) = p(1)*2.;
    }
    else
    {
