@@ -413,6 +413,7 @@ int main(int argc, char *argv[])
    constrained->PrimalMult(B, X);
 
    Vector lambda;
+   lambda = 0.0;
    constrained->GetMultiplierSolution(lambda);
 
    int iterations = constrained->GetNumIterations();
@@ -447,6 +448,7 @@ int main(int argc, char *argv[])
       filename.str("");
       filename << tag << "lambda" << myid << ".vector";
       std::ofstream out2(filename.str().c_str());
+      out2 << std::setprecision(14);
       lambda.Print(out2, 1);
    }
 
