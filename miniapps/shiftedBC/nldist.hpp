@@ -13,8 +13,8 @@ namespace mfem {
 class PProductCoefficient : public Coefficient
 {
 private:
-    Coefficient *basef;
-    Coefficient *corrf;
+    Coefficient *basef, *corrf;
+
 public:
     PProductCoefficient(Coefficient& basec_,Coefficient& corrc_)
     {
@@ -30,7 +30,6 @@ public:
         double c=corrf->Eval(T,ip);
         if(u<0.0){ u*=-1.0;}
         return u*c;
-
     }
 };
 
@@ -642,22 +641,15 @@ private:
 class PLapDistanceSolver : public DistanceSolver
 {
 public:
-    PLapDistanceSolver(ParMesh &pmesh, int maxp_=30, int order_=2,
+    PLapDistanceSolver(int maxp_=30,
                        int newton_iter_=10, double rtol=1e-7, double atol=1e-12,
                        int print_lv=0)
-       : DistanceSolver(pmesh, order_)
     {
         maxp=maxp_;
-        order=order_;
         newton_iter=newton_iter_;
         newton_rel_tol=rtol;
         newton_abs_tol=atol;
         print_level=print_lv;
-    }
-
-    void SetOrder(int new_ord)
-    {
-        order=new_ord;
     }
 
     void SetMaxPower(int new_pp)
@@ -673,14 +665,13 @@ public:
 
     void ComputeDistance(mfem::Coefficient& func, mfem::ParGridFunction& fdist)
     {
-        fdist.SetSpace(&pfes);
         mfem::ParFiniteElementSpace* fesd=fdist.ParFESpace();
         mfem::ParMesh* mesh=fesd->GetParMesh();
         int dim=mesh->Dimension();
 
         MPI_Comm lcomm=fesd->GetComm();
-        int myrank=fesd->GetMyRank();
 
+        const int order = fesd->GetOrder(0);
         mfem::H1_FECollection fecp(order, dim);
         mfem::ParFiniteElementSpace fesp(mesh, &fecp, 1, mfem::Ordering::byVDIM);
 
@@ -732,9 +723,9 @@ public:
 
         for(int pp=3;pp<maxp;pp++)
         {
-       std::cout<<"pp="<<pp<<std::endl;
-            pint->SetPower(pp);
-            ns->Mult(b, *sv);
+           std::cout<<"pp="<<pp<<std::endl;
+           pint->SetPower(pp);
+           ns->Mult(b, *sv);
         }
 
         xf.SetFromTrueDofs(*sv);
@@ -753,19 +744,14 @@ public:
         delete prec;
         delete nf;
         delete sv;
-
     }
-
 
 private:
     int maxp; //maximum value of the power p
-    int order;
-
     double newton_abs_tol;
     double newton_rel_tol;
     int newton_iter;
     int print_level;
-
 };
 
 }

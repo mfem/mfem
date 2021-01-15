@@ -54,7 +54,7 @@ double sphere_ls(const Vector &x)
 
 double Gyroid(const Vector &xx)
 {
-   const double period = 4.0 * M_PI;
+   const double period = 2.0 * M_PI;
    double x=xx[0]*period;
    double y=xx[1]*period;
    double z=0.0;
@@ -200,7 +200,7 @@ int main(int argc, char *argv[])
    DistanceSolver *dist_solver = NULL;
    if (solver_type == 0)
    {
-      auto ds = new HeatDistanceSolver(pmesh, order, t_param);
+      auto ds = new HeatDistanceSolver(t_param);
       ds->smooth_steps = smooth_steps;
       ds->transform = transform;
       dist_solver = ds;
@@ -209,12 +209,14 @@ int main(int argc, char *argv[])
    {
       const int p = 10;
       const int newton_iter = 50;
-      auto ds = new PLapDistanceSolver(pmesh, p, order, newton_iter);
+      auto ds = new PLapDistanceSolver(p, newton_iter);
       dist_solver = ds;
    }
    else { MFEM_ABORT("Wrong solver option."); }
 
-   ParGridFunction distance;
+   H1_FECollection fec(order, dim);
+   ParFiniteElementSpace pfes(&pmesh, &fec);
+   ParGridFunction distance(&pfes);
    dist_solver->ComputeDistance(*ls_coeff, distance);
 
    ParGridFunction input_ls(distance.ParFESpace());

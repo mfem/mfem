@@ -19,14 +19,8 @@ namespace mfem
 
 class DistanceSolver
 {
-protected:
-   // Collection and space for the distance function.
-   H1_FECollection fec;
-   ParFiniteElementSpace pfes;
-
 public:
-   DistanceSolver(ParMesh &pmesh, int order)
-      : fec(order, pmesh.Dimension()), pfes(&pmesh, &fec) { }
+   DistanceSolver() { }
 
    virtual ~DistanceSolver() { }
 
@@ -41,13 +35,10 @@ class HeatDistanceSolver : public DistanceSolver
 private:
    ParGridFunction source, diffused_source;
 
-   // Length scale of the mesh.
-   double dx;
-   // List of true essential boundary dofs.
-   Array<int> ess_tdof_list;
-
 public:
-   HeatDistanceSolver(ParMesh &pmesh, int order, double diff_coeff);
+   HeatDistanceSolver(double diff_coeff)
+      : DistanceSolver(),
+        parameter_t(diff_coeff), smooth_steps(0), transform(true) { }
 
    void ComputeDistance(Coefficient &zero_level_set,
                         ParGridFunction &distance);
