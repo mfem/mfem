@@ -4255,11 +4255,11 @@ int Mesh::CheckElementOrientation(bool fix_it)
       {
          if (Nodes == NULL)
          {
-            vi = elements[i]->GetVertices();
-            for (j = 0; j < 3; j++)
-            {
-               v[j] = vertices[vi[j]]();
-            }
+//            vi = elements[i]->GetVertices();
+//            for (j = 0; j < 3; j++)
+//            {
+//               v[j] = vertices[vi[j]]();
+//           }
             for (j = 0; j < 2; j++)
                for (k = 0; k < 2; k++)
                {
@@ -4275,6 +4275,12 @@ int Mesh::CheckElementOrientation(bool fix_it)
          {
             if (fix_it)
             {
+               vi = elements[i]->GetVertices();
+               for (j = 0; j < 3; j++)
+               {
+                  v[j] = vertices[vi[j]]();
+               }
+               
                switch (GetElementType(i))
                {
                   case Element::TRIANGLE:
