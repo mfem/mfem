@@ -178,6 +178,7 @@ void EliminationProjection::BuildGTilde(const Vector& r, Vector& rtilde) const
 void EliminationProjection::RecoverMultiplier(
    const Vector& disprhs, const Vector& disp, Vector& lagrangem) const
 {
+   lagrangem = 0.0;
    // MFEM_ASSERT(lagrangem.Size() == B_.Height(), "Sizes don't match!");
    MFEM_ASSERT(disp.Size() == A_.Height(), "Sizes don't match!");
 
