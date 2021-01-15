@@ -412,6 +412,9 @@ int main(int argc, char *argv[])
    constrained->SetPrintLevel(1);
    constrained->PrimalMult(B, X);
 
+   Vector lambda;
+   constrained->GetMultiplierSolution(lambda);
+
    int iterations = constrained->GetNumIterations();
    if (myid == 0)
    {
@@ -423,26 +426,28 @@ int main(int argc, char *argv[])
    a.RecoverFEMSolution(X, b, x);
 
    std::stringstream filename;
+   std::string tag;
    if (penalty > 0.0)
    {
-      filename << "penalty" << myid << ".vector";
-      std::ofstream out(filename.str().c_str());
-      out << std::setprecision(14);
-      X.Print(out, 1);
+      tag = "penalty";
    }
    else if (elimination)
    {
-      filename << "elimination" << myid << ".vector";
-      std::ofstream out(filename.str().c_str());
-      out << std::setprecision(14);
-      X.Print(out, 1);
+      tag = "elimination";
    }
    else
    {
-      filename << "schur" << myid << ".vector";
+      tag = "schur";
+   }
+   {
+      filename << tag << myid << ".vector";
       std::ofstream out(filename.str().c_str());
       out << std::setprecision(14);
       X.Print(out, 1);
+      filename.str("");
+      filename << tag << "lambda" << myid << ".vector";
+      std::ofstream out2(filename.str().c_str());
+      lambda.Print(out2, 1);
    }
 
    // 15. Save the refined mesh and the solution in VisIt format.
