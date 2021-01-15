@@ -325,6 +325,10 @@ public:
        Both FE spaces should be scalar and on the same mesh. */
    void GetElementAverages(GridFunction &avgs) const;
 
+   /** Sets the output vector @a dof_vals to the values of the degrees of
+       freedom of element @a el. */
+   virtual void GetElementDofValues(int el, Vector &dof_vals) const;
+
    /** Impose the given bounds on the function's DOFs while preserving its local
     *  integral (described in terms of the given weights) on the i'th element
     *  through SLBPQ optimization.
@@ -334,20 +338,41 @@ public:
    void ImposeBounds(int i, const Vector &weights,
                      double _min = 0.0, double _max = infinity());
 
+   /** On a non-conforming mesh, make sure the function lies in the conforming
+       space by multiplying with R and then with P, the conforming restriction
+       and prolongation matrices of the space, respectively. */
+   void RestrictConforming();
+
    /** @brief Project the @a src GridFunction to @a this GridFunction, both of
        which must be on the same mesh. */
    /** The current implementation assumes that all elements use the same
        projection matrix. */
    void ProjectGridFunction(const GridFunction &src);
 
+   /** @brief Project @a coeff Coefficient to @a this GridFunction. The
+       projection computation depends on the choice of the FiniteElementSpace
+       #fes. Note that this is usually interpolation at the degrees of freedom
+       in each element (not L2 projection). */
    virtual void ProjectCoefficient(Coefficient &coeff);
 
+   /** @brief Project @a coeff Coefficient to @a this GridFunction, using one
+       element for each degree of freedom in @a dofs and nodal interpolation on
+       that element. */
    void ProjectCoefficient(Coefficient &coeff, Array<int> &dofs, int vd = 0);
 
+   /** @brief Project @a vcoeff VectorCoefficient to @a this GridFunction. The
+       projection computation depends on the choice of the FiniteElementSpace
+       #fes. Note that this is usually interpolation at the degrees of freedom
+       in each element (not L2 projection).*/
    void ProjectCoefficient(VectorCoefficient &vcoeff);
 
+   /** @brief Project @a vcoeff VectorCoefficient to @a this GridFunction, using
+       one element for each degree of freedom in @a dofs and nodal interpolation
+       on that element. */
    void ProjectCoefficient(VectorCoefficient &vcoeff, Array<int> &dofs);
 
+   /** @brief Analogous to the version with argument @a vcoeff VectorCoefficient
+       but using an array of scalar coefficients for each component. */
    void ProjectCoefficient(Coefficient *coeff[]);
 
    /** @brief Project a discontinuous vector coefficient as a grid function on
@@ -422,6 +447,7 @@ public:
    virtual void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
                                              Array<int> &bdr_attr);
 
+
    virtual double ComputeL2Error(Coefficient &exsol,
                                  const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(2.0, exsol, NULL, irs); }
@@ -433,9 +459,58 @@ public:
                                  const IntegrationRule *irs[] = NULL,
                                  Array<int> *elems = NULL) const;
 
+   /// Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
+   virtual double ComputeGradError(VectorCoefficient *exgrad,
+                                   const IntegrationRule *irs[] = NULL) const;
+
+   /// Returns ||curl u_ex - curl u_h||_L2 for ND elements
+   virtual double ComputeCurlError(VectorCoefficient *excurl,
+                                   const IntegrationRule *irs[] = NULL) const;
+
+   /// Returns ||div u_ex - div u_h||_L2 for RT elements
+   virtual double ComputeDivError(Coefficient *exdiv,
+                                  const IntegrationRule *irs[] = NULL) const;
+
+   /// Returns the Face Jumps error for L2 elements. The error can be weighted
+   /// by a constant nu, by nu/h, or nu*p^2/h, depending on the value of
+   /// @a jump_scaling.
+   virtual double ComputeDGFaceJumpError(Coefficient *exsol,
+                                         Coefficient *ell_coeff,
+                                         class JumpScaling jump_scaling,
+                                         const IntegrationRule *irs[] = NULL)
+   const;
+
+   /// Returns the Face Jumps error for L2 elements, with 1/h scaling.
+   MFEM_DEPRECATED
+   double ComputeDGFaceJumpError(Coefficient *exsol,
+                                 Coefficient *ell_coeff,
+                                 double Nu,
+                                 const IntegrationRule *irs[] = NULL) const;
+
+   /** This method is kept for backward compatibility.
+
+       Returns either the H1-seminorm, or the DG face jumps error, or both
+       depending on norm_type = 1, 2, 3. Additional arguments for the DG face
+       jumps norm: ell_coeff: mesh-depended coefficient (weight) Nu: scalar
+       constant weight */
    virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                  Coefficient *ell_coef, double Nu,
                                  int norm_type) const;
+
+   /// Returns the error measured in H1-norm for H1 elements or in "broken"
+   /// H1-norm for L2 elements
+   virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
+                                 const IntegrationRule *irs[] = NULL) const;
+
+   /// Returns the error measured in H(div)-norm for RT elements
+   virtual double ComputeHDivError(VectorCoefficient *exsol,
+                                   Coefficient *exdiv,
+                                   const IntegrationRule *irs[] = NULL) const;
+
+   /// Returns the error measured in H(curl)-norm for ND elements
+   virtual double ComputeHCurlError(VectorCoefficient *exsol,
+                                    VectorCoefficient *excurl,
+                                    const IntegrationRule *irs[] = NULL) const;
 
    virtual double ComputeMaxError(Coefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const
@@ -618,6 +693,32 @@ public:
     derived class ParGridFunction */
 std::ostream &operator<<(std::ostream &out, const GridFunction &sol);
 
+/// Class used to specify how the jump terms in
+/// GridFunction::ComputeDGFaceJumpError are scaled.
+class JumpScaling
+{
+public:
+   enum JumpScalingType
+   {
+      CONSTANT,
+      ONE_OVER_H,
+      P_SQUARED_OVER_H
+   };
+private:
+   double nu;
+   JumpScalingType type;
+public:
+   JumpScaling(double nu_=1.0, JumpScalingType type_=CONSTANT)
+      : nu(nu_), type(type_) { }
+   double Eval(double h, int p) const
+   {
+      double val = nu;
+      if (type != CONSTANT) { val /= h; }
+      if (type == P_SQUARED_OVER_H) { val *= p*p; }
+      return val;
+   }
+};
+
 
 /** @brief Class representing a function through its values (scalar or vector)
     at quadrature points. */
@@ -706,7 +807,8 @@ public:
 
    /// Copy the data from @a v.
    /** The size of @a v must be equal to the size of the associated
-       QuadratureSpace #qspace. */
+       QuadratureSpace #qspace times the QuadratureFunction dimension
+       i.e. QuadratureFunction::Size(). */
    QuadratureFunction &operator=(const Vector &v);
 
    /// Copy assignment. Only the data of the base class Vector is copied.

@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "catch.hpp"
+#include "unit_tests.hpp"
 
 using namespace mfem;
 
@@ -122,6 +122,4 @@ TEST_CASE("Vector Tests", "[Vector]")
       subtract(tmp, apb, diff);
       REQUIRE(diff.Norml2() < tol);
    }
-
-
 }

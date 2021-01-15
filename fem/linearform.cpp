@@ -204,6 +204,14 @@ void LinearForm::Update(FiniteElementSpace *f, Vector &v, int v_offset)
    ResetDeltaLocations();
 }
 
+void LinearForm::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
+{
+   MFEM_ASSERT(v.Size() >= v_offset + f->GetVSize(), "");
+   fes = f;
+   v.UseDevice(true);
+   this->Vector::MakeRef(v, v_offset, fes->GetVSize());
+}
+
 void LinearForm::AssembleDelta()
 {
    if (dlfi_delta.Size() == 0) { return; }
