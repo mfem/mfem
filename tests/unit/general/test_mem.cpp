@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "catch.hpp"
+#include "unit_tests.hpp"
 
 #ifndef _WIN32
 #include <unistd.h>
@@ -33,7 +33,7 @@ static void TestMemoryTypes(MemoryType mt, bool use_dev, int N = 1024)
    y = 1.0;
    y.HostReadWrite();
    y[0] = 0.0;
-   REQUIRE(y*y == Approx(N-1));
+   REQUIRE(y*y == MFEM_Approx(N-1));
    y.Destroy();
 }
 
@@ -50,7 +50,7 @@ static void ScanMemoryTypes()
 static void MmuCatch(const int N = 1024)
 {
    Vector Y(N);
-   double *h_Y = (double*)Y;
+   // double *h_Y = (double*)Y;
    Y.UseDevice(true);
    Y = 0.0;
    // in debug device, should raise a SIGSEGV
@@ -77,13 +77,13 @@ void Aliases(const int N = 0x1234)
    X.Write();
    X = 1.0;
    S.HostRead();
-   REQUIRE(S*S == Approx(7.0*N));
+   REQUIRE(S*S == MFEM_Approx(7.0*N));
    V = 2.0;
    V.SyncAliasMemory(S);
-   REQUIRE(S*S == Approx(16.0*N));
+   REQUIRE(S*S == MFEM_Approx(16.0*N));
    E = 3.0;
    E.SyncAliasMemory(S);
-   REQUIRE(S*S == Approx(24.0*N));
+   REQUIRE(S*S == MFEM_Approx(24.0*N));
 }
 
 TEST_CASE("MemoryManager", "[MemoryManager]")

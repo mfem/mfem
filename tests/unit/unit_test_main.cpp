@@ -11,12 +11,17 @@
 
 #define CATCH_CONFIG_RUNNER
 #include "mfem.hpp"
-#include "catch.hpp"
+#include "unit_tests.hpp"
 
 int main(int argc, char *argv[])
 {
    // There must be exactly one instance.
    Catch::Session session;
+
+   // For floating point comparisons, print 8 digits for single precision
+   // values, and 16 digits for double precision values.
+   Catch::StringMaker<float>::precision = 8;
+   Catch::StringMaker<double>::precision = 16;
 
    // Apply provided command line arguments.
    int r = session.applyCommandLine(argc, argv);

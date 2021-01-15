@@ -1344,15 +1344,14 @@ const IntegrationRule *GeometryRefiner::RefineInterior(Geometry::Type Geom,
             return NULL;
          }
          ir = FindInIntPts(Geom, Times-1);
-         if (ir == NULL)
+         if (ir) { return ir; }
+
+         ir = new IntegrationRule(Times-1);
+         for (int i = 1; i < Times; i++)
          {
-            ir = new IntegrationRule(Times-1);
-            for (int i = 1; i < Times; i++)
-            {
-               IntegrationPoint &ip = ir->IntPoint(i-1);
-               ip.x = double(i) / Times;
-               ip.y = ip.z = 0.0;
-            }
+            IntegrationPoint &ip = ir->IntPoint(i-1);
+            ip.x = double(i) / Times;
+            ip.y = ip.z = 0.0;
          }
       }
       break;
@@ -1364,18 +1363,17 @@ const IntegrationRule *GeometryRefiner::RefineInterior(Geometry::Type Geom,
             return NULL;
          }
          ir = FindInIntPts(Geom, ((Times-1)*(Times-2))/2);
-         if (ir == NULL)
-         {
-            ir = new IntegrationRule(((Times-1)*(Times-2))/2);
-            for (int k = 0, j = 1; j < Times-1; j++)
-               for (int i = 1; i < Times-j; i++, k++)
-               {
-                  IntegrationPoint &ip = ir->IntPoint(k);
-                  ip.x = double(i) / Times;
-                  ip.y = double(j) / Times;
-                  ip.z = 0.0;
-               }
-         }
+         if (ir) { return ir; }
+
+         ir = new IntegrationRule(((Times-1)*(Times-2))/2);
+         for (int k = 0, j = 1; j < Times-1; j++)
+            for (int i = 1; i < Times-j; i++, k++)
+            {
+               IntegrationPoint &ip = ir->IntPoint(k);
+               ip.x = double(i) / Times;
+               ip.y = double(j) / Times;
+               ip.z = 0.0;
+            }
       }
       break;
 
@@ -1386,18 +1384,17 @@ const IntegrationRule *GeometryRefiner::RefineInterior(Geometry::Type Geom,
             return NULL;
          }
          ir = FindInIntPts(Geom, (Times-1)*(Times-1));
-         if (ir == NULL)
-         {
-            ir = new IntegrationRule((Times-1)*(Times-1));
-            for (int k = 0, j = 1; j < Times; j++)
-               for (int i = 1; i < Times; i++, k++)
-               {
-                  IntegrationPoint &ip = ir->IntPoint(k);
-                  ip.x = double(i) / Times;
-                  ip.y = double(j) / Times;
-                  ip.z = 0.0;
-               }
-         }
+         if (ir) { return ir; }
+
+         ir = new IntegrationRule((Times-1)*(Times-1));
+         for (int k = 0, j = 1; j < Times; j++)
+            for (int i = 1; i < Times; i++, k++)
+            {
+               IntegrationPoint &ip = ir->IntPoint(k);
+               ip.x = double(i) / Times;
+               ip.y = double(j) / Times;
+               ip.z = 0.0;
+            }
       }
       break;
 
@@ -1405,9 +1402,120 @@ const IntegrationRule *GeometryRefiner::RefineInterior(Geometry::Type Geom,
          mfem_error("GeometryRefiner::RefineInterior(...)");
    }
 
-   if (ir) { IntPts[Geom].Append(ir); }
+   MFEM_ASSERT(ir != NULL, "Failed to construct the refined IntegrationRule.");
+   IntPts[Geom].Append(ir);
+
    return ir;
 }
+
+
+int GeometryRefiner::GetRefinementLevelFromPoints(Geometry::Type geom, int Npts)
+{
+   switch (geom)
+   {
+      case Geometry::POINT:
+      {
+         return -1;
+      }
+      case Geometry::SEGMENT:
+      {
+         return Npts -1;
+      }
+      case Geometry::TRIANGLE:
+      {
+         for (int n = 0, np = 0; (n < 15) && (np < Npts) ; n++)
+         {
+            np = (n+1)*(n+2)/2;
+            if (np == Npts) { return n; }
+         }
+         return -1;
+      }
+      case Geometry::SQUARE:
+      {
+         for (int n = 0, np = 0; (n < 15) && (np < Npts) ; n++)
+         {
+            np = (n+1)*(n+1);
+            if (np == Npts) { return n; }
+         }
+         return -1;
+      }
+      case Geometry::CUBE:
+      {
+         for (int n = 0, np = 0; (n < 15) && (np < Npts) ; n++)
+         {
+            np = (n+1)*(n+1)*(n+1);
+            if (np == Npts) { return n; }
+         }
+         return -1;
+      }
+      case Geometry::TETRAHEDRON:
+      {
+         for (int n = 0, np = 0; (n < 15) && (np < Npts) ; n++)
+         {
+            np = (n+3)*(n+2)*(n+1)/6;
+            if (np == Npts) { return n; }
+         }
+         return -1;
+      }
+      case Geometry::PRISM:
+      {
+         for (int n = 0, np = 0; (n < 15) && (np < Npts) ; n++)
+         {
+            np = (n+1)*(n+1)*(n+2)/2;
+            if (np == Npts) { return n; }
+         }
+         return -1;
+      }
+      default:
+      {
+         mfem_error("Non existing Geometry.");
+      }
+   }
+
+   return -1;
+}
+
+
+int GeometryRefiner::GetRefinementLevelFromElems(Geometry::Type geom, int Nels)
+{
+   switch (geom)
+   {
+      case Geometry::POINT:
+      {
+         return -1;
+      }
+      case Geometry::SEGMENT:
+      {
+         return Nels;
+      }
+      case Geometry::TRIANGLE:
+      case Geometry::SQUARE:
+      {
+         for (int n = 0; (n < 15) && (n*n < Nels+1) ; n++)
+         {
+            if (n*n == Nels) { return n-1; }
+         }
+         return -1;
+      }
+      case Geometry::CUBE:
+      case Geometry::TETRAHEDRON:
+      case Geometry::PRISM:
+      {
+         for (int n = 0; (n < 15) && (n*n*n < Nels+1) ; n++)
+         {
+            if (n*n*n == Nels) { return n-1; }
+         }
+         return -1;
+      }
+      default:
+      {
+         mfem_error("Non existing Geometry.");
+      }
+   }
+
+   return -1;
+}
+
 
 GeometryRefiner GlobGeometryRefiner;
 

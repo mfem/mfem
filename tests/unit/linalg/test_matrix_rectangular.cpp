@@ -9,7 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "catch.hpp"
+#include "unit_tests.hpp"
 #include "mfem.hpp"
 
 namespace mfem
@@ -17,22 +17,17 @@ namespace mfem
 
 double f1(const Vector &x)
 {
-   double r = cos(x(0)) + sin(x(1));
-   if (x.Size() == 3)
-   {
-      r += cos(x(2));
-   }
+   double r = pow(x(0),2);
+   if (x.Size() >= 2) { r += pow(x(1), 3); }
+   if (x.Size() >= 3) { r += pow(x(2), 4); }
    return r;
 }
 
 void gradf1(const Vector &x, Vector &u)
 {
-   u(0) = -sin(x(0));
-   u(1) = cos(x(1));
-   if (x.Size() == 3)
-   {
-      u(2) = -sin(x(2));
-   }
+   u(0) = 2*x(0);
+   if (x.Size() >= 2) { u(1) = 3*pow(x(1), 2); }
+   if (x.Size() >= 3) { u(2) = 4*pow(x(1), 3); }
 }
 
 TEST_CASE("FormRectangular", "[FormRectangularSystemMatrix]")
@@ -41,7 +36,7 @@ TEST_CASE("FormRectangular", "[FormRectangularSystemMatrix]")
    {
       Mesh mesh(10, 10, Element::QUADRILATERAL, 0, 1.0, 1.0);
       int dim = mesh.Dimension();
-      int order = 2;
+      int order = 4;
 
       int nattr = mesh.bdr_attributes.Max();
       Array<int> ess_trial_tdof_list, ess_test_tdof_list;
@@ -89,7 +84,7 @@ TEST_CASE("FormRectangular", "[FormRectangularSystemMatrix]")
       G->Mult(field, field2);
 
       subtract(B, field2, field2);
-      REQUIRE(field2.Norml2() == Approx(0.0));
+      REQUIRE(field2.Norml2() == MFEM_Approx(0.0));
    }
 }
 
@@ -102,7 +97,7 @@ TEST_CASE("ParallelFormRectangular",
    {
       Mesh mesh(10, 10, Element::QUADRILATERAL, 0, 1.0, 1.0);
       int dim = mesh.Dimension();
-      int order = 2;
+      int order = 4;
 
       int nattr = mesh.bdr_attributes.Max();
       Array<int> ess_trial_tdof_list, ess_test_tdof_list;
@@ -155,7 +150,7 @@ TEST_CASE("ParallelFormRectangular",
       G->Mult(*field_tdof, *field2_tdof);
 
       subtract(B, *field2_tdof, *field2_tdof);
-      REQUIRE(field2_tdof->Norml2() == Approx(0.0));
+      REQUIRE(field2_tdof->Norml2() == MFEM_Approx(0.0));
    }
 }
 

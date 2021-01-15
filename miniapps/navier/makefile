@@ -24,7 +24,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 NAVIER_COMMON_SRC = navier_solver.cpp ortho_solver.cpp
 NAVIER_COMMON_OBJ = $(NAVIER_COMMON_SRC:.cpp=.o)
 
-PAR_MINIAPPS = navier_mms navier_kovasznay navier_tgv navier_shear navier_3dfoc
+PAR_MINIAPPS = navier_mms navier_kovasznay navier_kovasznay_vs navier_tgv navier_shear navier_3dfoc
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS =
@@ -40,8 +40,8 @@ endif
 %: %.cpp
 %.o: %.cpp
 
-%: $(SRC)%.cpp $(NAVIER_COMMON_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(NAVIER_COMMON_OBJ) $(MFEM_LIBS)
+%: %.o $(NAVIER_COMMON_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
 
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@

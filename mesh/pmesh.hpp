@@ -78,6 +78,8 @@ protected:
    // sface ids: all triangles first, then all quads
    Array<int> sface_lface;
 
+   IsoparametricTransformation FaceNbrTransformation;
+
    // glob_elem_offset + local element number defines a global element numbering
    mutable long glob_elem_offset, glob_offset_sequence;
    void ComputeGlobalElementOffset() const;
@@ -282,6 +284,7 @@ public:
                              int ordering = 1);
 
    int GetNFaceNeighbors() const { return face_nbr_group.Size(); }
+   int GetNFaceNeighborElements() const { return face_nbr_elements.Size(); }
    int GetFaceNbrGroup(int fn) const { return face_nbr_group[fn]; }
    int GetFaceNbrRank(int fn) const;
 
@@ -294,6 +297,18 @@ public:
        elements, respectively. */
    FaceElementTransformations *
    GetSharedFaceTransformations(int sf, bool fill2 = true);
+
+   ElementTransformation *
+   GetFaceNbrElementTransformation(int i)
+   {
+      GetFaceNbrElementTransformation(i, &FaceNbrTransformation);
+
+      return &FaceNbrTransformation;
+   }
+
+   /// Get the size of the i-th face neighbor element relative to the reference
+   /// element.
+   double GetFaceNbrElementSize(int i, int type=0);
 
    /// Return the number of shared faces (3D), edges (2D), vertices (1D)
    int GetNSharedFaces() const;
@@ -351,6 +366,15 @@ public:
 
    /// Save the mesh in a parallel mesh format.
    void ParPrint(std::ostream &out) const;
+
+   /** Print the mesh in parallel PVTU format. The PVTU and VTU files will be
+       stored in the directory specified by @a pathname. If the directory does
+       not exist, it will be created. */
+   virtual void PrintVTU(std::string pathname,
+                         VTKFormat format=VTKFormat::ASCII,
+                         bool high_order_output=false,
+                         int compression_level=0,
+                         bool bdr=false);
 
    virtual int FindPoints(DenseMatrix& point_mat, Array<int>& elem_ids,
                           Array<IntegrationPoint>& ips, bool warn = true,

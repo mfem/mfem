@@ -37,7 +37,8 @@ public:
       ClosedUniform   = 4,  ///< Nodes: x_i = i/(n-1),     i=0,...,n-1
       OpenHalfUniform = 5,  ///< Nodes: x_i = (i+1/2)/n,   i=0,...,n-1
       Serendipity     = 6,  ///< Serendipity basis (squares / cubes)
-      NumBasisTypes   = 7   /**< Keep track of maximum types to prevent
+      ClosedGL        = 7,  ///< Closed GaussLegendre
+      NumBasisTypes   = 8   /**< Keep track of maximum types to prevent
                                  hard-coding */
    };
    /** @brief If the input does not represents a valid BasisType, abort with an
@@ -69,6 +70,7 @@ public:
          case ClosedUniform:   return Quadrature1D::ClosedUniform;
          case OpenHalfUniform: return Quadrature1D::OpenHalfUniform;
          case Serendipity:     return Quadrature1D::GaussLobatto;
+         case ClosedGL:        return Quadrature1D::ClosedGL;
       }
       return Quadrature1D::Invalid;
    }
@@ -82,6 +84,7 @@ public:
          case Quadrature1D::OpenUniform:     return OpenUniform;
          case Quadrature1D::ClosedUniform:   return ClosedUniform;
          case Quadrature1D::OpenHalfUniform: return OpenHalfUniform;
+         case Quadrature1D::ClosedGL:        return ClosedGL;
       }
       return Invalid;
    }
@@ -443,7 +446,7 @@ public:
    /** Each row of the result DenseMatrix @a Hessian contains upper triangular
        part of the Hessian of one shape function.
        The order in 2D is {u_xx, u_xy, u_yy}.
-       The size (#dof x (#dim (#dim-1)/2) of @a Hessian must be set in advance.*/
+       The size (#dof x (#dim (#dim+1)/2) of @a Hessian must be set in advance.*/
    virtual void CalcHessian (const IntegrationPoint &ip,
                              DenseMatrix &Hessian) const;
 
@@ -501,14 +504,27 @@ public:
    /** @brief Given a coefficient and a transformation, compute its projection
        (approximation) in the local finite dimensional space in terms
        of the degrees of freedom. */
-   virtual void Project (Coefficient &coeff,
-                         ElementTransformation &Trans, Vector &dofs) const;
+   /** The approximation used to project is usually local interpolation of
+       degrees of freedom. The derived class could use other methods not
+       implemented yet, e.g. local L2 projection. */
+   virtual void Project(Coefficient &coeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 
    /** @brief Given a vector coefficient and a transformation, compute its
        projection (approximation) in the local finite dimensional space
        in terms of the degrees of freedom. (VectorFiniteElements) */
-   virtual void Project (VectorCoefficient &vc,
-                         ElementTransformation &Trans, Vector &dofs) const;
+   /** The approximation used to project is usually local interpolation of
+       degrees of freedom. The derived class could use other methods not
+       implemented yet, e.g. local L2 projection. */
+   virtual void Project(VectorCoefficient &vc,
+                        ElementTransformation &Trans, Vector &dofs) const;
+
+   /** @brief Given a vector of values at the finite element nodes and a
+       transformation, compute its projection (approximation) in the local
+       finite dimensional space in terms of the degrees of freedom. Valid for
+       VectorFiniteElements. */
+   virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
+                                 Vector &dofs) const;
 
    /** @brief Given a matrix coefficient and a transformation, compute an
        approximation ("projection") in the local finite dimensional space in
@@ -656,13 +672,22 @@ public:
                                 const ScalarFiniteElement &fine_fe) const;
 
    /** @brief Get matrix @a I "Interpolation" defined through local
-       L2-projection in the space defined by the @a fine_fe.  */
+       L2-projection in the space defined by the @a fine_fe. */
    /** If the "fine" elements cannot represent all basis functions of the
        "coarse" element, then boundary values from different sub-elements are
        generally different. */
    void ScalarLocalInterpolation(ElementTransformation &Trans,
                                  DenseMatrix &I,
                                  const ScalarFiniteElement &fine_fe) const;
+
+   /** @brief Get restriction matrix @a R defined through local L2-projection
+        in the space defined by the @a coarse_fe. */
+   /** If the "fine" elements cannot represent all basis functions of the
+       "coarse" element, then boundary values from different sub-elements are
+       generally different. */
+   void ScalarLocalRestriction(ElementTransformation &Trans,
+                               DenseMatrix &R,
+                               const ScalarFiniteElement &coarse_fe) const;
 
    virtual const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                          DofToQuad::Mode mode) const;
@@ -744,6 +769,10 @@ public:
                                       DenseMatrix &I) const
    { ScalarLocalInterpolation(Trans, I, *this); }
 
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { ScalarLocalRestriction(Trans, R, *this); }
+
    virtual void GetTransferMatrix(const FiniteElement &fe,
                                   ElementTransformation &Trans,
                                   DenseMatrix &I) const
@@ -790,15 +819,47 @@ protected:
    void CalcVShape_ND(ElementTransformation &Trans,
                       DenseMatrix &shape) const;
 
+   /** @brief Project a vector coefficient onto the RT basis functions
+       @param nk    Face normal vectors for this element type
+       @param d2n   Offset into nk for each degree of freedom
+       @param vc    Vector coefficient to be projected
+       @param Trans Transformation from reference to physical coordinates
+       @param dofs  Expansion coefficients for the approximation of vc
+   */
    void Project_RT(const double *nk, const Array<int> &d2n,
                    VectorCoefficient &vc, ElementTransformation &Trans,
                    Vector &dofs) const;
 
-   // project the rows of the matrix coefficient in an RT space
+   /// Projects the vector of values given at FE nodes to RT space
+   /** Project vector values onto the RT basis functions
+       @param nk    Face normal vectors for this element type
+       @param d2n   Offset into nk for each degree of freedom
+       @param vc    Vector values at each interpolation point
+       @param Trans Transformation from reference to physical coordinates
+       @param dofs  Expansion coefficients for the approximation of vc
+   */
+   void Project_RT(const double *nk, const Array<int> &d2n,
+                   Vector &vc, ElementTransformation &Trans,
+                   Vector &dofs) const;
+
+   /// Project the rows of the matrix coefficient in an RT space
    void ProjectMatrixCoefficient_RT(
       const double *nk, const Array<int> &d2n,
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const;
 
+   /** @brief Project vector-valued basis functions onto the RT basis functions
+       @param nk    Face normal vectors for this element type
+       @param d2n   Offset into nk for each degree of freedom
+       @param fe    Vector-valued finite element basis
+       @param Trans Transformation from reference to physical coordinates
+       @param I     Expansion coefficients for the approximation of each basis
+                    function
+
+       Note: If the FiniteElement, fe, is scalar-valued the projection will
+             assume that a FiniteElementSpace is being used to define a vector
+             field using the scalar basis functions for each component of the
+             vector field.
+   */
    void Project_RT(const double *nk, const Array<int> &d2n,
                    const FiniteElement &fe, ElementTransformation &Trans,
                    DenseMatrix &I) const;
@@ -818,15 +879,47 @@ protected:
                        const FiniteElement &fe, ElementTransformation &Trans,
                        DenseMatrix &curl) const;
 
+   /** @brief Project a vector coefficient onto the ND basis functions
+       @param tk    Edge tangent vectors for this element type
+       @param d2t   Offset into tk for each degree of freedom
+       @param vc    Vector coefficient to be projected
+       @param Trans Transformation from reference to physical coordinates
+       @param dofs  Expansion coefficients for the approximation of vc
+   */
    void Project_ND(const double *tk, const Array<int> &d2t,
                    VectorCoefficient &vc, ElementTransformation &Trans,
                    Vector &dofs) const;
 
-   /// project the rows of the matrix coefficient in an ND space
+   /// Projects the vector of values given at FE nodes to ND space
+   /** Project vector values onto the ND basis functions
+       @param tk    Edge tangent vectors for this element type
+       @param d2t   Offset into tk for each degree of freedom
+       @param vc    Vector values at each interpolation point
+       @param Trans Transformation from reference to physical coordinates
+       @param dofs  Expansion coefficients for the approximation of vc
+   */
+   void Project_ND(const double *tk, const Array<int> &d2t,
+                   Vector &vc, ElementTransformation &Trans,
+                   Vector &dofs) const;
+
+   /// Project the rows of the matrix coefficient in an ND space
    void ProjectMatrixCoefficient_ND(
       const double *tk, const Array<int> &d2t,
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const;
 
+   /** @brief Project vector-valued basis functions onto the ND basis functions
+       @param tk    Edge tangent vectors for this element type
+       @param d2t   Offset into tk for each degree of freedom
+       @param fe    Vector-valued finite element basis
+       @param Trans Transformation from reference to physical coordinates
+       @param I     Expansion coefficients for the approximation of each basis
+                    function
+
+       Note: If the FiniteElement, fe, is scalar-valued the projection will
+             assume that a FiniteElementSpace is being used to define a vector
+             field using the scalar basis functions for each component of the
+             vector field.
+   */
    void Project_ND(const double *tk, const Array<int> &d2t,
                    const FiniteElement &fe, ElementTransformation &Trans,
                    DenseMatrix &I) const;
@@ -1847,6 +1940,7 @@ public:
       Basis(const int p, const double *nodes, EvalType etype = Barycentric);
       void Eval(const double x, Vector &u) const;
       void Eval(const double x, Vector &u, Vector &d) const;
+      void Eval(const double x, Vector &u, Vector &d, Vector &d2) const;
    };
 
 private:
@@ -2097,7 +2191,7 @@ class H1_SegmentElement : public NodalTensorFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
-   mutable Vector shape_x, dshape_x;
+   mutable Vector shape_x, dshape_x, d2shape_x;
 #endif
 
 public:
@@ -2106,6 +2200,8 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   virtual void CalcHessian(const IntegrationPoint &ip,
+                            DenseMatrix &Hessian) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
 };
 
@@ -2115,7 +2211,7 @@ class H1_QuadrilateralElement : public NodalTensorFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
-   mutable Vector shape_x, shape_y, dshape_x, dshape_y;
+   mutable Vector shape_x, shape_y, dshape_x, dshape_y, d2shape_x, d2shape_y;
 #endif
 
 public:
@@ -2125,6 +2221,8 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   virtual void CalcHessian(const IntegrationPoint &ip,
+                            DenseMatrix &Hessian) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
 };
 
@@ -2134,7 +2232,8 @@ class H1_HexahedronElement : public NodalTensorFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
-   mutable Vector shape_x, shape_y, shape_z, dshape_x, dshape_y, dshape_z;
+   mutable Vector shape_x, shape_y, shape_z, dshape_x, dshape_y, dshape_z,
+           d2shape_x, d2shape_y, d2shape_z;
 #endif
 
 public:
@@ -2143,6 +2242,8 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   virtual void CalcHessian(const IntegrationPoint &ip,
+                            DenseMatrix &Hessian) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
 };
 
@@ -2221,7 +2322,7 @@ public:
 };
 
 
-/// Arbitrary order H1 elements in 2D on a tiangle
+/// Arbitrary order H1 elements in 2D on a triangle
 class H1_TriangleElement : public NodalFiniteElement
 {
 private:
@@ -2678,6 +2779,9 @@ public:
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
    { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
+                                 Vector &dofs) const
+   { Project_RT(nk, dof2nk, vc, Trans, dofs); }
    virtual void ProjectMatrixCoefficient(
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
    { ProjectMatrixCoefficient_RT(nk, dof2nk, mc, T, dofs); }
@@ -2736,6 +2840,9 @@ public:
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
    { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
+                                 Vector &dofs) const
+   { Project_RT(nk, dof2nk, vc, Trans, dofs); }
    virtual void ProjectMatrixCoefficient(
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
    { ProjectMatrixCoefficient_RT(nk, dof2nk, mc, T, dofs); }
@@ -2786,6 +2893,9 @@ public:
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
+   { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
+                                 Vector &dofs) const
    { Project_RT(nk, dof2nk, vc, Trans, dofs); }
    virtual void ProjectMatrixCoefficient(
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
@@ -2844,6 +2954,9 @@ public:
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
    { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
+                                 Vector &dofs) const
+   { Project_RT(nk, dof2nk, vc, Trans, dofs); }
    virtual void ProjectMatrixCoefficient(
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
    { ProjectMatrixCoefficient_RT(nk, dof2nk, mc, T, dofs); }
@@ -2901,6 +3014,10 @@ public:
 
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
+   { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+
+   virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
+                                 Vector &dofs) const
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
 
    virtual void ProjectMatrixCoefficient(
@@ -2962,6 +3079,9 @@ public:
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+   virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
+                                 Vector &dofs) const
+   { Project_ND(tk, dof2tk, vc, Trans, dofs); }
    virtual void ProjectMatrixCoefficient(
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
    { ProjectMatrixCoefficient_ND(tk, dof2tk, mc, T, dofs); }
@@ -3012,6 +3132,9 @@ public:
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
+   { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+   virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
+                                 Vector &dofs) const
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
    virtual void ProjectMatrixCoefficient(
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
@@ -3068,6 +3191,9 @@ public:
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
+   { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+   virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
+                                 Vector &dofs) const
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
    virtual void ProjectMatrixCoefficient(
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
