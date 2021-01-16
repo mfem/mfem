@@ -2671,11 +2671,28 @@ public:
 /** Integrator for the DG form:
     alpha < rho_u (u.n) {v},[w] > + beta < rho_u |u.n| [v],[w] >,
     where v and w are the trial and test variables, respectively, and rho/u are
-    given scalar/vector coefficients. The vector coefficient, u, is assumed to
-    be continuous across the faces and when given the scalar coefficient, rho,
-    is assumed to be discontinuous. The integrator uses the upwind value of rho,
-    rho_u, which is value from the side into which the vector coefficient, u,
-    points. */
+    given scalar/vector coefficients. {v} represents the average value of v on
+    the face and [v] is the jump such that {v}=(v1+v2)/2 and [v]=(v1-v2) for the
+    face between elements 1 and 2. For boundary elements, v2=0. The vector
+    coefficient, u, is assumed to be continuous across the faces and when given
+    the scalar coefficient, rho, is assumed to be discontinuous. The integrator
+    uses the upwind value of rho, rho_u, which is value from the side into which
+    the vector coefficient, u, points.
+
+    One use case for this integrator is to discretize the operator -u.grad(v)
+    with a DG formulation. The resulting formulation uses the
+    ConvectionIntegrator (with coefficient u, and parameter alpha = -1) and the
+    transpose of the DGTraceIntegrator (with coefficient u, and parameters
+    alpha = 1, beta = -1/2 to use the upwind face flux). This discretization and
+    the handling of the inflow and outflow boundaries is illustrated in Example
+    9/9p.
+
+    Another use case for this integrator is to discretize the operator -div(u v)
+    with a DG formulation. The resulting formulation is conservative and
+    consists of the transpose of the ConvectionIntegrator (with coefficient u,
+    and parameter alpha = 1) plus the DGTraceIntegrator (with coefficient u, and
+    parameters alpha = -1, beta = -1/2 to use the upwind face flux).
+    */
 class DGTraceIntegrator : public BilinearFormIntegrator
 {
 protected:
@@ -3084,6 +3101,22 @@ public:
 
    virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
                                        const FiniteElement &ran_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+protected:
+   VectorCoefficient *VQ;
+};
+
+/** Interpolator of the 2D cross product between a vector coefficient and an
+    H(curl)-conforming field onto an L2-conforming field. */
+class ScalarCrossProductInterpolator : public DiscreteInterpolator
+{
+public:
+   ScalarCrossProductInterpolator(VectorCoefficient & vc)
+      : VQ(&vc) { }
+
+   virtual void AssembleElementMatrix2(const FiniteElement &nd_fe,
+                                       const FiniteElement &l2_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 protected:
