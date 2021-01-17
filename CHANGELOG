@@ -11,6 +11,9 @@
 Version 4.2.1 (development)
 ===========================
 
+- Added matrix-free GPU-enabled implementations of GradientInterpolator and
+  IdentityInterpolator.
+
 - Added interface to MUMPS direct solver. Its usage is demonstrated in ex25p.
   See http://mumps.enseeiht.fr/ for more details. Supported versions >= 5.1.1.
 

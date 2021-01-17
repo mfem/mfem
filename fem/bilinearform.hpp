@@ -376,6 +376,13 @@ public:
    /// Get the output finite element space prolongation matrix
    virtual const Operator *GetOutputProlongation() const
    { return GetProlongation(); }
+   /** @brief Returns the output fe space restriction matrix, transposed
+
+       Logically, this is the transpose of GetOutputRestriction, but in
+       practice it is convenient to have it in transposed form for
+       construction of RAP operators in matrix-free methods. */
+   virtual const Operator *GetOutputRestrictionTranspose() const
+   { return GetOutputProlongation(); }
    /// Get the output finite element space restriction matrix
    virtual const Operator *GetOutputRestriction() const
    { return GetRestriction(); }
@@ -977,9 +984,18 @@ public:
    /// Access all interpolators added with AddDomainInterpolator().
    Array<BilinearFormIntegrator*> *GetDI() { return &dbfi; }
 
+   /// Set the desired assembly level. The default is AssemblyLevel::FULL.
+   /** This method must be called before assembly. */
+   void SetAssemblyLevel(AssemblyLevel assembly_level);
+
    /** @brief Construct the internal matrix representation of the discrete
        linear operator. */
    virtual void Assemble(int skip_zeros = 1);
+
+   /** @brief Get the output finite element space restriction matrix in
+       transposed form. */
+   virtual const Operator *GetOutputRestrictionTranspose() const
+   { return test_fes->GetRestrictionTransposeOperator(); }
 };
 
 }
