@@ -876,10 +876,11 @@ public:
        Return in @a A a *reference* to the system matrix that is column-constrained.
        The reference will be invalidated when SetOperatorType(), Update(), or the
        destructor is called. */
-   void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
-                                    const Array<int> &test_tdof_list,
-                                    Vector &x, Vector &b,
-                                    OperatorHandle &A, Vector &X, Vector &B);
+   virtual void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
+                                            const Array<int> &test_tdof_list,
+                                            Vector &x, Vector &b,
+                                            OperatorHandle &A, Vector &X,
+                                            Vector &B);
 
    /** @brief Form the linear system A X = B, corresponding to this bilinear
        form and the linear form @a b(.).
