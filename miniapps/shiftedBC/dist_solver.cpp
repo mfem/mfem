@@ -42,6 +42,10 @@ void HeatDistanceSolver::ComputeDistance(Coefficient &zero_level_set,
 {
    ParFiniteElementSpace &pfes = *distance.ParFESpace();
 
+   auto check_h1 = dynamic_cast<const H1_FECollection *>(pfes.FEColl());
+   MFEM_VERIFY(check_h1 && pfes.GetVDim() == 1,
+               "This solver supports only scalar H1 spaces.");
+
    // Compute average mesh size (assumes similar cells).
    double dx, loc_area = 0.0;
    ParMesh &pmesh = *pfes.GetParMesh();

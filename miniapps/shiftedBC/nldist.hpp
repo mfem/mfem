@@ -666,8 +666,14 @@ public:
     void ComputeDistance(mfem::Coefficient& func, mfem::ParGridFunction& fdist)
     {
         mfem::ParFiniteElementSpace* fesd=fdist.ParFESpace();
+
+        auto check_h1 = dynamic_cast<const H1_FECollection *>(fesd->FEColl());
+        auto check_l2 = dynamic_cast<const L2_FECollection *>(fesd->FEColl());
+        MFEM_VERIFY((check_h1 || check_l2) && fesd->GetVDim() == 1,
+                    "This solver supports only scalar H1 or L2 spaces.");
+
         mfem::ParMesh* mesh=fesd->GetParMesh();
-        int dim=mesh->Dimension();
+        const int dim=mesh->Dimension();
 
         MPI_Comm lcomm=fesd->GetComm();
 
