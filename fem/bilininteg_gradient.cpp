@@ -334,7 +334,7 @@ static void PAGradientApplyTranspose2D(const int NE,
                                        const int q1d = 0)
 {
    // TODO
-   MFEM_ASSERT(false, "GradientPAApplyTranspose 3D not implemented.");
+   MFEM_ASSERT(false, "PAGradientApplyTranspose2D not implemented.");
 }
 
 // PA Gradient Apply 3D kernel
