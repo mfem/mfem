@@ -596,17 +596,22 @@ void NodalFiniteElement::ProjectCurl_2D(
    const FiniteElement &fe, ElementTransformation &Trans,
    DenseMatrix &curl) const
 {
-   MFEM_ASSERT(GetMapType() == FiniteElement::INTEGRAL, "");
-
    DenseMatrix curl_shape(fe.GetDof(), 1);
 
    curl.SetSize(dof, fe.GetDof());
    for (int i = 0; i < dof; i++)
    {
       fe.CalcCurlShape(Nodes.IntPoint(i), curl_shape);
+
+      double w = 1.0;
+      if (GetMapType() == FiniteElement::VALUE)
+      {
+         Trans.SetIntPoint(&Nodes.IntPoint(i));
+         w /= Trans.Weight();
+      }
       for (int j = 0; j < fe.GetDof(); j++)
       {
-         curl(i,j) = curl_shape(j,0);
+         curl(i,j) = w * curl_shape(j,0);
       }
    }
 }
@@ -722,17 +727,34 @@ void NodalFiniteElement::Project(
 {
    if (fe.GetRangeType() == SCALAR)
    {
-      MFEM_ASSERT(map_type == fe.GetMapType(), "");
-
       Vector shape(fe.GetDof());
 
       I.SetSize(dof, fe.GetDof());
-      for (int k = 0; k < dof; k++)
+      if (map_type == fe.GetMapType())
       {
-         fe.CalcShape(Nodes.IntPoint(k), shape);
-         for (int j = 0; j < shape.Size(); j++)
+         for (int k = 0; k < dof; k++)
          {
-            I(k,j) = (fabs(shape(j)) < 1e-12) ? 0.0 : shape(j);
+            fe.CalcShape(Nodes.IntPoint(k), shape);
+            for (int j = 0; j < shape.Size(); j++)
+            {
+               I(k,j) = (fabs(shape(j)) < 1e-12) ? 0.0 : shape(j);
+            }
+         }
+      }
+      else
+      {
+         for (int k = 0; k < dof; k++)
+         {
+            Trans.SetIntPoint(&Nodes.IntPoint(k));
+            fe.CalcPhysShape(Trans, shape);
+            if (map_type == INTEGRAL)
+            {
+               shape *= Trans.Weight();
+            }
+            for (int j = 0; j < shape.Size(); j++)
+            {
+               I(k,j) = (fabs(shape(j)) < 1e-12) ? 0.0 : shape(j);
+            }
          }
       }
    }
@@ -1031,6 +1053,8 @@ void VectorFiniteElement::Project_RT(
 
          fe.CalcShape(ip, shape);
          Trans.SetIntPoint(&ip);
+         // Transform RT face normals from reference to physical space
+         // vk = adj(J)^T nk
          Trans.AdjugateJacobian().MultTranspose(nk + d2n[k]*dim, vk);
          if (fe.GetMapType() == INTEGRAL)
          {
@@ -1048,6 +1072,8 @@ void VectorFiniteElement::Project_RT(
             {
                s = 0.0;
             }
+            // Project scalar basis function multiplied by each coordinate
+            // direction onto the transformed face normals
             for (int d = 0; d < sdim; d++)
             {
                I(k,j+d*shape.Size()) = s*vk[d];
@@ -1057,7 +1083,31 @@ void VectorFiniteElement::Project_RT(
    }
    else
    {
-      mfem_error("VectorFiniteElement::Project_RT (fe version)");
+      int sdim = Trans.GetSpaceDim();
+      double vk[Geometry::MaxDim];
+      DenseMatrix vshape(fe.GetDof(), sdim);
+      Vector vshapenk(fe.GetDof());
+      const bool square_J = (dim == sdim);
+
+      I.SetSize(dof, fe.GetDof());
+      for (int k = 0; k < dof; k++)
+      {
+         const IntegrationPoint &ip = Nodes.IntPoint(k);
+
+         Trans.SetIntPoint(&ip);
+         // Transform RT face normals from reference to physical space
+         // vk = adj(J)^T nk
+         Trans.AdjugateJacobian().MultTranspose(nk + d2n[k]*dim, vk);
+         // Compute fe basis functions in physical space
+         fe.CalcVShape(Trans, vshape);
+         // Project fe basis functions onto transformed face normals
+         vshape.Mult(vk, vshapenk);
+         if (!square_J) { vshapenk /= Trans.Weight(); }
+         for (int j=0; j<vshapenk.Size(); j++)
+         {
+            I(k,j) = vshapenk(j);
+         }
+      }
    }
 }
 
@@ -1218,6 +1268,8 @@ void VectorFiniteElement::Project_ND(
 
          fe.CalcShape(ip, shape);
          Trans.SetIntPoint(&ip);
+         // Transform ND edge tengents from reference to physical space
+         // vk = J tk
          Trans.Jacobian().Mult(tk + d2t[k]*dim, vk);
          if (fe.GetMapType() == INTEGRAL)
          {
@@ -1235,6 +1287,8 @@ void VectorFiniteElement::Project_ND(
             {
                s = 0.0;
             }
+            // Project scalar basis function multiplied by each coordinate
+            // direction onto the transformed edge tangents
             for (int d = 0; d < sdim; d++)
             {
                I(k, j + d*shape.Size()) = s*vk[d];
@@ -1244,7 +1298,29 @@ void VectorFiniteElement::Project_ND(
    }
    else
    {
-      mfem_error("VectorFiniteElement::Project_ND (fe version)");
+      int sdim = Trans.GetSpaceDim();
+      double vk[Geometry::MaxDim];
+      DenseMatrix vshape(fe.GetDof(), sdim);
+      Vector vshapetk(fe.GetDof());
+
+      I.SetSize(dof, fe.GetDof());
+      for (int k = 0; k < dof; k++)
+      {
+         const IntegrationPoint &ip = Nodes.IntPoint(k);
+
+         Trans.SetIntPoint(&ip);
+         // Transform ND edge tangents from reference to physical space
+         // vk = J tk
+         Trans.Jacobian().Mult(tk + d2t[k]*dim, vk);
+         // Compute fe basis functions in physical space
+         fe.CalcVShape(Trans, vshape);
+         // Project fe basis functions onto transformed edge tangents
+         vshape.Mult(vk, vshapetk);
+         for (int j=0; j<vshapetk.Size(); j++)
+         {
+            I(k, j) = vshapetk(j);
+         }
+      }
    }
 }
 
