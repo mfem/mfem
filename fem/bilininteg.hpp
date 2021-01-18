@@ -1893,8 +1893,10 @@ protected:
 };
 
 /** Class for integrating the bilinear form a(u,v) := (Q grad u, v) where Q is a
-    scalar coefficient, and v is a vector with components v_i in the same space
-    as u. */
+    scalar coefficient, and v is a vector with components v_i in the same (H1) space
+    as u.
+
+    See also MixedVectorGradientIntegrator when v is in H(curl). */
 class GradientIntegrator : public BilinearFormIntegrator
 {
 protected:
@@ -2743,15 +2745,19 @@ public:
     uses the upwind value of rho, rho_u, which is value from the side into which
     the vector coefficient, u, points.
 
-    When combined with ConservativeConvectionIntegrator integrator, the
-    coefficients alpha=1.0, beta=0.5 can be used to implement the upwind flux
-    and outflow boundary conditions in conservative form. Setting beta=0.0
-    results in a centered flux.
+    One use case for this integrator is to discretize the operator -u.grad(v)
+    with a DG formulation. The resulting formulation uses the
+    ConvectionIntegrator (with coefficient u, and parameter alpha = -1) and the
+    transpose of the DGTraceIntegrator (with coefficient u, and parameters alpha
+    = 1, beta = -1/2 to use the upwind face flux, see also
+    NonconservativeDGTraceIntegrator). This discretization and the handling of
+    the inflow and outflow boundaries is illustrated in Example 9/9p.
 
-    For the non-conservative formulation of convection using
-    ConvectionIntegrator, the transpose of this form with alpha=-1.0, beta=0.5
-    can be used to implement the upwind flux, see
-    NonconservativeDGTraceIntegrator and ex9 and ex9p.
+    Another use case for this integrator is to discretize the operator -div(u v)
+    with a DG formulation. The resulting formulation is conservative and
+    consists of the ConservativeConvectionIntegrator (with coefficient u, and
+    parameter alpha = -1) plus the DGTraceIntegrator (with coefficient u, and
+    parameters alpha = -1, beta = -1/2 to use the upwind face flux).
     */
 class DGTraceIntegrator : public BilinearFormIntegrator
 {
@@ -2820,9 +2826,9 @@ using ConservativeDGTraceIntegrator = DGTraceIntegrator;
     DG discretization of the convection equation:
     -alpha < rho_u (u.n) {v},[w] > + beta < rho_u |u.n| [v],[w] >.
 
-    This integrator can be used with alpha=1.0, beta=0.5, together with
-    ConvectionIntegrator to implement an upwind DG discretization in
-    non-conservative form, see ex9 and ex9p. */
+    This integrator can be used with together with ConvectionIntegrator to
+    implement an upwind DG discretization in non-conservative form, see ex9 and
+    ex9p. */
 class NonconservativeDGTraceIntegrator : public TransposeIntegrator
 {
 public:
@@ -3077,11 +3083,36 @@ class DiscreteInterpolator : public BilinearFormIntegrator { };
 class GradientInterpolator : public DiscreteInterpolator
 {
 public:
+   GradientInterpolator() : dofquad_fe(NULL) { }
+   virtual ~GradientInterpolator() { delete dofquad_fe; }
+
    virtual void AssembleElementMatrix2(const FiniteElement &h1_fe,
                                        const FiniteElement &nd_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat)
    { nd_fe.ProjectGrad(h1_fe, Trans, elmat); }
+
+   using BilinearFormIntegrator::AssemblePA;
+
+   /** @brief Setup method for PA data.
+
+       @param[in] trial_fes   H1 Lagrange space
+       @param[in] test_fes    H(curl) Nedelec space
+    */
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+
+private:
+   /// 1D finite element that generates and owns the 1D DofToQuad maps below
+   FiniteElement * dofquad_fe;
+
+   bool B_id; // is the B basis operator (maps_C_C) the identity?
+   const DofToQuad *maps_C_C; // one-d map with Lobatto rows, Lobatto columns
+   const DofToQuad *maps_O_C; // one-d map with Legendre rows, Lobatto columns
+   int dim, ne, o_dofs1D, c_dofs1D;
 };
 
 
@@ -3096,6 +3127,24 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat)
    { ran_fe.Project(dom_fe, Trans, elmat); }
+
+   using BilinearFormIntegrator::AssemblePA;
+
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+
+private:
+   /// 1D finite element that generates and owns the 1D DofToQuad maps below
+   FiniteElement * dofquad_fe;
+
+   const DofToQuad *maps_C_C; // one-d map with Lobatto rows, Lobatto columns
+   const DofToQuad *maps_O_C; // one-d map with Legendre rows, Lobatto columns
+   int dim, ne, o_dofs1D, c_dofs1D;
+
+   Vector pa_data;
 };
 
 
@@ -3189,6 +3238,22 @@ public:
 
    virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
                                        const FiniteElement &ran_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+protected:
+   VectorCoefficient *VQ;
+};
+
+/** Interpolator of the 2D cross product between a vector coefficient and an
+    H(curl)-conforming field onto an L2-conforming field. */
+class ScalarCrossProductInterpolator : public DiscreteInterpolator
+{
+public:
+   ScalarCrossProductInterpolator(VectorCoefficient & vc)
+      : VQ(&vc) { }
+
+   virtual void AssembleElementMatrix2(const FiniteElement &nd_fe,
+                                       const FiniteElement &l2_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 protected:

@@ -11,6 +11,9 @@
 Version 4.2.1 (development)
 ===========================
 
+- Added matrix-free GPU-enabled implementations of GradientInterpolator and
+  IdentityInterpolator.
+
 - Added interface to MUMPS direct solver. Its usage is demonstrated in ex25p.
   See http://mumps.enseeiht.fr/ for more details. Supported versions >= 5.1.1.
 
@@ -48,6 +51,12 @@ Version 4.2.1 (development)
   efficient evaluation of symmetric matrix coefficients. This replaces the now
   deprecated EvalSymmetric in MatrixCoefficient. Added DiagonalMatrixCoefficient
   for clarity, which is a typedef of VectorCoefficient.
+
+- Implemented an adaptive linear solver tolerance option for NewtonSolver based
+  on the algorithm of Eisenstat and Walker.
+
+- Extending support for L2 basis functions using MapTypes VALUE and INTEGRAL in
+  linear interpolators and GridFunction "GetValue" methods.
 
 
 Version 4.2, released on October 30, 2020
