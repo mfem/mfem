@@ -268,7 +268,7 @@ int main(int argc, char *argv[])
            << 2 * fespace->GlobalTrueVSize() << endl << endl;
    }
 
-   int nrlayers = 4;
+   int nrlayers = 5;
    Array2D<double> lengths(dim,2);
    lengths = 0.0;
 
@@ -279,7 +279,7 @@ int main(int argc, char *argv[])
    ParDST * S = new ParDST(a,lengths, omega_, &ws, nrlayers, nx, ny, nz, &lossCoef);
    // X = 0.0;
 	GMRESSolver gmres(MPI_COMM_WORLD);
-	// gmres.iterative_mode = true;
+	gmres.iterative_mode = true;
    gmres.SetPreconditioner(*S);
 	gmres.SetOperator(*Ah);
 	gmres.SetRelTol(1e-8);

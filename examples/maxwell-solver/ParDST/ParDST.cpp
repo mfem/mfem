@@ -214,7 +214,28 @@ void ParDST::Mult(const Vector &r, Vector &z) const
                *subdomain_sol[ip] = 0.0;
                continue;
             }
+            
+            char vishost[] = "localhost";
+            int visport = 19916;
+
+            // socketstream res_sock(vishost, visport);
+            // PlotLocal(res_local,res_sock,ip);
+
             PmlMatInv[ip]->Mult(res_local, *subdomain_sol[ip]);
+            // GetSubdomainijk(ip,nxyz,ijk);
+            // Array2D<int> direct(dim,2); direct = 0;
+            // for (int d=0;d<dim; d++)
+            // {
+            //    if (ijk[d] > 0) direct[d][0] = 1; 
+            //    if (ijk[d] < part->nxyz[d]-1) direct[d][1] = 1; 
+            // }
+            // cout << "direct = " ; direct.Print();
+            // GetChiRes(*subdomain_sol[ip],ip,direct);
+
+            // socketstream sol_sock1(vishost, visport);
+            // PlotLocal(*subdomain_sol[ip],sol_sock1,ip);
+            // cout << "ip = " << ip << endl;
+            // cin.get();
          }
          // 4. Transfer solutions to neighbors so that the subdomain
          // residuals are updated
@@ -223,6 +244,7 @@ void ParDST::Mult(const Vector &r, Vector &z) const
       // 5. Update the global solution 
       dmaps->SubdomainsToGlobal(subdomain_sol,z);
    }
+   
 }
 
 void ParDST::SetupSubdomainProblems()
@@ -372,6 +394,8 @@ void ParDST::SetMaxwellPmlSystemMatrix(int ip)
    
    CartesianPML pml(mesh, length);
    pml.SetOmega(omega);
+   pml.SetAttributes(mesh);
+
    Array <int> ess_tdof_list;
    if (mesh->bdr_attributes.Size())
    {
@@ -380,11 +404,54 @@ void ParDST::SetMaxwellPmlSystemMatrix(int ip)
       dmaps->fes[ip]->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   ConstantCoefficient omeg(-pow(omega, 2));
+
+   Array<int> attr;
+   Array<int> attrPML;
+   if (mesh->attributes.Size())
+   {
+      attr.SetSize(mesh->attributes.Max());
+      attrPML.SetSize(mesh->attributes.Max());
+      attr = 0;   attr[0] = 1;
+      attrPML = 0;
+      if (mesh->attributes.Max() > 1)
+      {
+         attrPML[1] = 1;
+      }
+   }
+
+   // Integrators inside the computational domain (excluding the PML region)
+   double mu = 1.0;
+   double epsilon = 1.0;
+   ConstantCoefficient muinv(1.0/mu);
+   ConstantCoefficient omeg(-pow(omega, 2)* epsilon);
+   RestrictedCoefficient * restr_loss = nullptr;
+
+   RestrictedCoefficient restr_muinv(muinv,attr);
+   RestrictedCoefficient restr_omeg(omeg,attr);
+
+   sqf[ip] = new SesquilinearForm(dmaps->fes[ip],bf->GetConvention());
+   sqf[ip]->SetDiagonalPolicy(mfem::Matrix::DIAG_ONE);
+
+   sqf[ip]->AddDomainIntegrator(new CurlCurlIntegrator(restr_muinv),NULL);
+   sqf[ip]->AddDomainIntegrator(new VectorFEMassIntegrator(restr_omeg),NULL);
+
+   if (LossCoeff) 
+   {
+      restr_loss = new RestrictedCoefficient(*LossCoeff,attr);
+      sqf[ip]->AddDomainIntegrator(NULL, new VectorFEMassIntegrator(*restr_loss));      
+      // sqf[ip]->AddDomainIntegrator(NULL, new VectorFEMassIntegrator(*LossCoeff));      
+   }
+
+
    int cdim = (dim == 2) ? 1 : dim;
 
    PmlMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, &pml);
    PmlMatrixCoefficient pml_c1_Im(cdim,detJ_inv_JT_J_Im, &pml);
+   ScalarMatrixProductCoefficient c1_Re(muinv,pml_c1_Re);
+   ScalarMatrixProductCoefficient c1_Im(muinv,pml_c1_Im);
+   MatrixRestrictedCoefficient restr_c1_Re(c1_Re,attrPML);
+   MatrixRestrictedCoefficient restr_c1_Im(c1_Im,attrPML);
+
 
    PmlMatrixCoefficient pml_c2_Re(dim, detJ_JT_J_inv_Re,&pml);
    PmlMatrixCoefficient pml_c2_Im(dim, detJ_JT_J_inv_Im,&pml);
@@ -409,21 +476,20 @@ void ParDST::SetMaxwellPmlSystemMatrix(int ip)
       c2_Im = new MatrixMatrixProductCoefficient(c2_Im0,*MQ);
    }
    
-   sqf[ip] = new SesquilinearForm(dmaps->fes[ip],bf->GetConvention());
+   MatrixRestrictedCoefficient restr_c2_Re(*c2_Re,attrPML);
+   MatrixRestrictedCoefficient restr_c2_Im(*c2_Im,attrPML);
 
-   sqf[ip]->AddDomainIntegrator(new CurlCurlIntegrator(pml_c1_Re),
-                         new CurlCurlIntegrator(pml_c1_Im));
-   sqf[ip]->AddDomainIntegrator(new VectorFEMassIntegrator(*c2_Re),
-                         new VectorFEMassIntegrator(*c2_Im));
-   if (LossCoeff)
-   {
-      sqf[ip]->AddDomainIntegrator(NULL, new VectorFEMassIntegrator(*LossCoeff));
-   }
+
+   sqf[ip]->AddDomainIntegrator(new CurlCurlIntegrator(restr_c1_Re),
+                                new CurlCurlIntegrator(restr_c1_Im));
+   sqf[ip]->AddDomainIntegrator(new VectorFEMassIntegrator(restr_c2_Re),
+                                new VectorFEMassIntegrator(restr_c2_Im));
    sqf[ip]->Assemble();
    Optr[ip] = new OperatorPtr;
    sqf[ip]->FormSystemMatrix(ess_tdof_list,*Optr[ip]);
    delete c2_Re;
    delete c2_Im;
+   if (LossCoeff)  delete restr_loss;
 }
 
 

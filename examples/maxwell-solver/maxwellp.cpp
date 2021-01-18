@@ -29,7 +29,7 @@ double epsilon = 1.0;
 double omega;
 int dim;
 double length = 1.0;
-double sigma_ = 2.0;
+double sigma_ = 0.0;
 
 Array2D<double> comp_bdr;
 Array2D<double> domain_bdr;
@@ -72,6 +72,8 @@ int main(int argc, char *argv[])
                   "Permeability of free space (or 1/(spring constant)).");
    args.AddOption(&epsilon, "-eps", "--permittivity",
                   "Permittivity of free space (or mass constant).");
+   args.AddOption(&sigma_, "-sigma", "--damping-coef",
+                  "Damping coefficient (or sigma).");            
    args.AddOption(&freq, "-f", "--frequency",
                   "Frequency (in Hz).");
    args.AddOption(&herm_conv, "-herm", "--hermitian", "-no-herm",
@@ -166,13 +168,14 @@ int main(int argc, char *argv[])
    int nrlayers = 5;
    Array2D<double> lengths(dim,2);
    lengths = hl*nrlayers;
-   lengths[0][1] = 0.0;
-   lengths[1][1] = 0.0;
-   lengths[1][0] = 0.0;
-   lengths[0][0] = 0.0;
+   // lengths[0][1] = 0.0;
+   // lengths[1][1] = 0.0;
+   // lengths[1][0] = 0.0;
+   // lengths[0][0] = 0.0;
    if (exact_known) lengths = 0.0;
    // CartesianPML pml(mesh,lengths);
    CartesianPML pml(pmesh,lengths);
+   pml.SetAttributes(pmesh);
    pml.SetOmega(omega);
    comp_bdr.SetSize(dim,2);
    comp_bdr = pml.GetCompDomainBdr(); 
@@ -189,26 +192,6 @@ int main(int argc, char *argv[])
       cout << "Number of finite element unknowns: " << size << endl;
    }
 
-   // ConstantCoefficient one(0.0);
-   // Vector vec(dim); vec = 0.0;
-   // VectorConstantCoefficient vecc(vec);
-   // ParGridFunction tone(fespace); tone = 0.0;
-   // tone.ProjectCoefficient(vecc);
-   // tone.Print();
-   // if (myid == 0)
-   // {
-   //    for (int i = 0; i<fespace->GetVSize(); i++)
-   //    {
-   //       if (fespace->GetDofSign(i) < 0)
-   //          cout << fespace->GetGlobalTDofNumber(i) << ", " << fespace->GetDofSign(i) << endl;
-   //    }   
-   //    cout << "myid = " <<  myid <<  " no neg dofs" << endl;
-   // }
-   
-   // MPI_Finalize();
-   // return 0;
-   
-
    // 7. Determine the list of true essential boundary dofs. In this example,
    //    the boundary conditions are defined based on the specific mesh and the
    //    problem type.
@@ -218,6 +201,21 @@ int main(int argc, char *argv[])
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   }
+
+
+   Array<int> attr;
+   Array<int> attrPML;
+   if (pmesh->attributes.Size())
+   {
+      attr.SetSize(pmesh->attributes.Max());
+      attrPML.SetSize(pmesh->attributes.Max());
+      attr = 0;   attr[0] = 1;
+      attrPML = 0;
+      if (pmesh->attributes.Max() > 1)
+      {
+         attrPML[1] = 1;
+      }
    }
 
    // 8. Setup Complex Operator convention
@@ -262,36 +260,56 @@ int main(int argc, char *argv[])
    // MatrixConstantCoefficient Momeg(M);
    MatrixFunctionCoefficient eps_func(dim,Mwavespeed);
 
-   ConstantCoefficient omeg(-pow(omega, 2));
+   ConstantCoefficient muinv(1.0/mu);
+   ConstantCoefficient omeg(-pow(omega, 2) * epsilon);
    ConstantCoefficient lossCoef(-omega * sigma_);
+   RestrictedCoefficient restr_loss(lossCoef,attr);
+   RestrictedCoefficient restr_muinv(muinv,attr);
+   RestrictedCoefficient restr_omeg(omeg,attr);
+
+   // Integrators inside the computational domain (excluding the PML region)
+   ParSesquilinearForm a(fespace, conv);
+   a.AddDomainIntegrator(new CurlCurlIntegrator(restr_muinv),NULL);
+   a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_omeg),NULL);
+   // a.AddDomainIntegrator(NULL, new VectorFEMassIntegrator(lossCoef));                         
+   a.AddDomainIntegrator(NULL, new VectorFEMassIntegrator(restr_loss));                         
+
+
+
+   // int cdim = (dim == 2) ? 1 : dim;
+   // PmlMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, &pml);
+   // PmlMatrixCoefficient pml_c1_Im(cdim,detJ_inv_JT_J_Im, &pml);
+
+   // PmlMatrixCoefficient pml_c2_Re(dim, detJ_JT_J_inv_Re,&pml);
+   // PmlMatrixCoefficient pml_c2_Im(dim, detJ_JT_J_inv_Im,&pml);
+   // ScalarMatrixProductCoefficient c2_Re0(omeg,pml_c2_Re);
+   // ScalarMatrixProductCoefficient c2_Im0(omeg,pml_c2_Im);
+
+   // MatrixMatrixProductCoefficient c2_Re(c2_Re0,eps_func);
+   // MatrixMatrixProductCoefficient c2_Im(c2_Im0,eps_func);
 
    int cdim = (dim == 2) ? 1 : dim;
    PmlMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, &pml);
    PmlMatrixCoefficient pml_c1_Im(cdim,detJ_inv_JT_J_Im, &pml);
+   ScalarMatrixProductCoefficient c1_Re(muinv,pml_c1_Re);
+   ScalarMatrixProductCoefficient c1_Im(muinv,pml_c1_Im);
+
+   MatrixRestrictedCoefficient restr_c1_Re(c1_Re,attrPML);
+   MatrixRestrictedCoefficient restr_c1_Im(c1_Im,attrPML);
 
    PmlMatrixCoefficient pml_c2_Re(dim, detJ_JT_J_inv_Re,&pml);
    PmlMatrixCoefficient pml_c2_Im(dim, detJ_JT_J_inv_Im,&pml);
-   ScalarMatrixProductCoefficient c2_Re0(omeg,pml_c2_Re);
-   ScalarMatrixProductCoefficient c2_Im0(omeg,pml_c2_Im);
-   // ScalarMatrixProductCoefficient c2_Re(ws,c2_Re0);
-   // ScalarMatrixProductCoefficient c2_Im(ws,c2_Im0);
+   ScalarMatrixProductCoefficient c2_Re(omeg,pml_c2_Re);
+   ScalarMatrixProductCoefficient c2_Im(omeg,pml_c2_Im);
+   MatrixRestrictedCoefficient restr_c2_Re(c2_Re,attrPML);
+   MatrixRestrictedCoefficient restr_c2_Im(c2_Im,attrPML);
 
-   MatrixMatrixProductCoefficient c2_Re(c2_Re0,eps_func);
-   MatrixMatrixProductCoefficient c2_Im(c2_Im0,eps_func);
+   // Integrators inside the PML region
+   a.AddDomainIntegrator(new CurlCurlIntegrator(restr_c1_Re),
+                         new CurlCurlIntegrator(restr_c1_Im));
+   a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_c2_Re),
+                         new VectorFEMassIntegrator(restr_c2_Im));
 
-   // MatrixMatrixProductCoefficient c2_Re0(Momeg,pml_c2_Re);
-   // MatrixMatrixProductCoefficient c2_Im0(Momeg,pml_c2_Im);
-   // MatrixMatrixProductCoefficient c2_Re(Mws,c2_Re0);
-   // MatrixMatrixProductCoefficient c2_Im(Mws,c2_Im0);
-
-
-   ParSesquilinearForm a(fespace, conv);
-   a.AddDomainIntegrator(new CurlCurlIntegrator(pml_c1_Re),
-                         new CurlCurlIntegrator(pml_c1_Im));
-   a.AddDomainIntegrator(new VectorFEMassIntegrator(c2_Re),
-                         new VectorFEMassIntegrator(c2_Im));
-
-   a.AddDomainIntegrator(NULL, new VectorFEMassIntegrator(lossCoef));                         
 
    a.Assemble(0);
 
