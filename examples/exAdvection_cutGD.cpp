@@ -73,12 +73,12 @@ int main(int argc, char *argv[])
          cout << "center grid function created " << endl;
          VectorFunctionCoefficient exact(dim, exact_function);
          y.ProjectCoefficient(exact);
-         cout << "solution at center is " << endl;
-         y.Print();
-         cout << "check if the prolongation matrix is correct " << endl;
+         // cout << "solution at center is " << endl;
+         // y.Print();
+         //cout << "check if the prolongation matrix is correct " << endl;
          GridFunction x(fespace);
          fes->GetProlongationMatrix()->Mult(y, x);
-         x.Print();
+         // x.Print();
          int nels = mesh->GetNE();
          // set the size of cut element
          scale = 1.0 / nels;
@@ -115,11 +115,11 @@ int main(int argc, char *argv[])
          // Ad.PrintMatlab();
          Vector si;
          Ad.SingularValues(si);
-         cout << "singular values " << endl;
-         si.Print();
+         // cout << "singular values " << endl;
+         // si.Print();
          double cond;
          cond = si(0)/si(si.Size() - 1);
-         cout << "cond# " << endl;
+         cout << setprecision(14) << "cond# " << endl;
          cout << cond << endl;
          // char NORM = '1';
          // double rcond;
@@ -157,10 +157,10 @@ int main(int argc, char *argv[])
          umf_solver.SetOperator(A);
          umf_solver.Mult(bnew, y);
 #endif
-         cout << "----------------------------- " << endl;
-         cout << "solution at center obtained: " << endl;
-         y.Print();
-         cout << "----------------------------- " << endl;
+         // cout << "----------------------------- " << endl;
+         // cout << "solution at center obtained: " << endl;
+         // y.Print();
+         // cout << "----------------------------- " << endl;
          // get x = P y
          fes->GetProlongationMatrix()->Mult(y, x);
          // save the solution
@@ -172,8 +172,8 @@ int main(int argc, char *argv[])
          //cout << x.ComputeL2Error(u) << endl;
          // check the error
          double norm = CutComputeL2Error(x, fespace, u, scale);
-         cout << "solution at nodes is: " << endl;
-         x.Print();
+         //cout << "solution at nodes is: " << endl;
+         //x.Print();
          cout << "########################################## " << endl;
          cout << "mesh size, h = " << 1.0 / mesh->GetNE() << endl;
          cout << "solution norm: " << norm << endl;
@@ -272,8 +272,8 @@ double CutComputeL2Error(GridFunction &x, FiniteElementSpace *fes,
          {
             IntegrationPoint &ip = cutir->IntPoint(j);
             T->SetIntPoint(&ip);
-            cout << " x is " << fabs(vals(j)) << endl;
-            cout << " u_exact is " << exsol.Eval(*T, ip) << endl;
+            // cout << " x is " << fabs(vals(j)) << endl;
+            // cout << " u_exact is " << exsol.Eval(*T, ip) << endl;
             double err = fabs(vals(j) - exsol.Eval(*T, ip));
             if (p < infinity())
             {
@@ -523,10 +523,10 @@ void DGFaceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
       w = 0.5 * ip.weight * (a + b);
       if (!ndof2)
       {
-         cout << "check w in bilinear form " << endl;
-         cout << "face is " << Trans.Face->ElementNo << endl;
-         cout << "w " << w << endl;
-         cout << " **************  " << endl;
+         // cout << "check w in bilinear form " << endl;
+         // cout << "face is " << Trans.Face->ElementNo << endl;
+         // cout << "w " << w << endl;
+         // cout << " **************  " << endl;
       }
 
       if (w != 0.0)
@@ -575,8 +575,8 @@ void BoundaryAdvectIntegrator::AssembleRHSElementVect(
    dim = el.GetDim();
    ndof = el.GetDof();
    elvect.SetSize(ndof);
-   cout << "check w in linear form " << endl;
-   cout << "face is " << Tr.Face->ElementNo << endl;
+   // cout << "check w in linear form " << endl;
+   // cout << "face is " << Tr.Face->ElementNo << endl;
    Vector vu(vu_data, dim), nor(nor_data, dim);
    shape.SetSize(ndof);
    elvect = 0.0;
@@ -610,8 +610,8 @@ void BoundaryAdvectIntegrator::AssembleRHSElementVect(
       }
       un = vu * nor;
       w = -0.5 * (un - fabs(un));
-      cout << "w " << w << endl;
-      cout << " **************  " << endl;
+      // cout << "w " << w << endl;
+      // cout << " **************  " << endl;
       w *= ip.weight * uD->Eval(*Tr.Elem1, eip);
       elvect.Add(w, shape);
    }
@@ -726,12 +726,12 @@ void GalerkinDifference::GetNeighbourSet(int id, int req_n,
       //cand.Print(cout, cand.Size());
       cand_next.LoseData();
    }
-   cout << "element is " << id << endl;
-   cout << "neighbours are " << endl;
-   for (int k = 0; k < nels.Size(); ++k)
-   {
-      cout << nels[k] << endl;
-   }
+   // cout << "element is " << id << endl;
+   // cout << "neighbours are " << endl;
+   // for (int k = 0; k < nels.Size(); ++k)
+   // {
+   //    cout << nels[k] << endl;
+   // }
 }
 
 void GalerkinDifference::GetElementCenter(int id, mfem::Vector &cent) const
@@ -826,9 +826,6 @@ void GalerkinDifference::AssembleProlongationMatrix(const mfem::Array<int> &id,
    for (int v = 0; v < vdim; v++)
    {
       el_dofs.GetSubArray(v * num_dofs, num_dofs, row_index);
-      cout << "local mat will be assembled into: ";
-      row_index.Print(cout, num_dofs);
-      col_index.Print();
       // cout << endl;
       cP->SetSubMatrix(row_index, col_index, local_mat, 1);
       row_index.LoseData();
@@ -895,8 +892,6 @@ void buildLSInterpolation(int dim, int degree, const DenseMatrix &x_center,
          }
       }
    }
-   cout << "interpolation mat  " << endl;
-   interp.PrintMatlab();
    // loop over quadrature points
    for (int j = 0; j < num_quad; ++j)
    {

@@ -197,7 +197,7 @@ int main(int argc, char *argv[])
     int order = 1;
     int N = 5;
     int ref_levels = -1;
-    int ncr = -1;
+    int ncr = 1;
     double radius = 1.0;
     /// number of state variables
     int num_state = 4;

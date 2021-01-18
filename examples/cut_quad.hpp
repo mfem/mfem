@@ -43,8 +43,8 @@ struct vortex
 
         else 
         {
-            return -1 * ((((x[0] * xscale) + xmin) * ((x[0] * xscale) + xmin - xc)) +
-                        (((x[1] * yscale) + ymin) * ((x[1] * yscale) + ymin - yc )) - (radius * radius));
+            return -1 * ((((x[0] * xscale) + xmin - xc) * ((x[0] * xscale) + xmin - xc)) +
+                        (((x[1] * yscale) + ymin - yc) * ((x[1] * yscale) + ymin - yc )) - (radius * radius));
         }
     }
 
@@ -71,7 +71,7 @@ struct vortex
         else
         {
             return blitz::TinyVector<T, N>(-1 * (2.0 * xscale * ((x(0) * xscale) + xmin - xc)),
-                                           -1 * (2.0 * yscale * ((x(1) * yscale) + ymin -yc)));
+                                           -1 * (2.0 * yscale * ((x(1) * yscale) + ymin - yc)));
         }
 
     }
@@ -121,6 +121,8 @@ bool cutByGeom(Mesh *mesh, int &elemid)
         else
         {
             r = 0.5;
+            xc = 20.0;
+            yc = 20.0;
             lvsval(i) = 1 * (((coord[0] - xc) * (coord[0] - xc)) + ((coord[1] - yc) * (coord[1] - yc)) - (r * r));
         }
 
@@ -191,6 +193,8 @@ bool insideBoundary(Mesh *mesh, int &elemid)
         else
         {
             r = 0.5;
+            xc = 20.0;
+            yc = 20.0;
             lvsval(i) = 1 * (((coord[0] - xc) * (coord[0] - xc)) + ((coord[1] - yc) * (coord[1] - yc)) - (r * r));
         }
 

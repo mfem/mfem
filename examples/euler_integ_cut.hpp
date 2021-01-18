@@ -1023,10 +1023,10 @@ namespace mfem
         void flux(const mfem::Vector &dir, const mfem::Vector &u_left,
                   const mfem::Vector &u_right, mfem::Vector &flux_vec)
         {
-            calcLaxFriedrichsFlux<dim>(dir.GetData(), u_left.GetData(), u_right.GetData(),
-                                       flux_vec.GetData());
-            // calcRoeFaceFlux<dim>(dir.GetData(), u_left.GetData(), u_right.GetData(),
+            // calcLaxFriedrichsFlux<dim>(dir.GetData(), u_left.GetData(), u_right.GetData(),
             //                            flux_vec.GetData());
+            calcRoeFaceFlux<dim>(dir.GetData(), u_left.GetData(), u_right.GetData(),
+                                       flux_vec.GetData());
             
         }
     };

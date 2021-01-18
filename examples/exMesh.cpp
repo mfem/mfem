@@ -25,25 +25,26 @@ int main(int argc, char *argv[])
    // Parse command-line options
    OptionsParser args(argc, argv);
    int degree = 2.0;
-   int nx = 200;
-   int ny = 200;
+   int nx = 100;
+   int ny = 100;
    unique_ptr<Mesh> smesh = buildQuarterAnnulusMesh(degree, nx, ny);
    std::cout <<"Number of elements " << smesh->GetNE() <<'\n';
    std::cout <<"Number of vertices " << smesh->GetNV() <<'\n';
    Vector node_coord;
    smesh->GetNodes(node_coord);
    cout << node_coord.Size() << endl;
-   // ofstream sol_ofs("circle_mesh.vtk");
+   ofstream sol_ofs("circle_mesh.vtk");
    // sol_ofs.precision(14);
    // smesh->PrintVTK(sol_ofs);
    // ofstream sol_ofs("vortex_mesh.vtk");
-   ofstream sol_ofs("ellipse_mesh.vtk");
+  // ofstream sol_ofs("ellipse_mesh.vtk");
    sol_ofs.precision(14);
    smesh->PrintVTK(sol_ofs);
 #ifdef MFEM_USE_MPI
    MPI_Finalize();
 #endif
 }
+#if 0
 /// try ellipse
 unique_ptr<Mesh> buildQuarterAnnulusMesh(int degree, int num_rad, int num_ang)
 {
@@ -81,6 +82,7 @@ unique_ptr<Mesh> buildQuarterAnnulusMesh(int degree, int num_rad, int num_ang)
    mesh_ptr->NewNodes(*xy, true);
    return mesh_ptr;
 }
+#endif
 #if 0
 /// this is for vortex mesh
 unique_ptr<Mesh> buildQuarterAnnulusMesh(int degree, int num_rad, int num_ang)
@@ -114,12 +116,11 @@ unique_ptr<Mesh> buildQuarterAnnulusMesh(int degree, int num_rad, int num_ang)
 }
 #endif
 /// use this for circle
-#if 0
 unique_ptr<Mesh> buildQuarterAnnulusMesh(int degree, int num_rad, int num_ang)
 {
    auto mesh_ptr = unique_ptr<Mesh>(new Mesh(num_rad, num_ang,
                                              Element::QUADRILATERAL, true /* gen. edges */,
-                                             0.2, 2*M_PI, true));
+                                             0.5, 2*M_PI, true));
    // strategy:
    // 1) generate a fes for Lagrange elements of desired degree
    // 2) create a Grid Function using a VectorFunctionCoefficient
@@ -134,8 +135,8 @@ unique_ptr<Mesh> buildQuarterAnnulusMesh(int degree, int num_rad, int num_ang)
    // This lambda function transforms from (r,\theta) space to (x,y) space
    auto xy_fun = [](const Vector& rt, Vector &xy)
    {
-      xy(0) = ((rt(0)+0)*cos(rt(1))) + 0.5; // need + 1.0 to shift r away from origin
-      xy(1) = (rt(0)+0)*sin(rt(1)) + 0.5 ;
+      xy(0) = ((rt(0)+0)*cos(rt(1))) + 20.0; // need + 1.0 to shift r away from origin
+      xy(1) = (rt(0)+0)*sin(rt(1)) + 20.0 ;
    };
    VectorFunctionCoefficient xy_coeff(2, xy_fun);
    GridFunction *xy = new GridFunction(fes);
@@ -145,4 +146,3 @@ unique_ptr<Mesh> buildQuarterAnnulusMesh(int degree, int num_rad, int num_ang)
    mesh_ptr->NewNodes(*xy, true);
    return mesh_ptr;
 }
-#endif

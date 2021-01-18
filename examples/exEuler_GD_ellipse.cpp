@@ -216,7 +216,7 @@ int main(int argc, char *argv[])
 {
     // 1. Parse command-line options.
     int order = 1;
-    int N = 10;
+    int N = 100;
     int ref_levels = -1;
     int ncr1, ncr2, ncr3;
     ncr1 = 1;
@@ -248,44 +248,25 @@ int main(int argc, char *argv[])
 
     Mesh *mesh = new Mesh(N, N, Element::QUADRILATERAL, true,
                           40, 40, true);
-    ofstream sol_ofv("square_mesh_vortex.vtk");
+    ofstream sol_ofv("square_mesh_ellipse_initial.vtk");
     sol_ofv.precision(14);
     mesh->PrintVTK(sol_ofv, 0);
     int dim = mesh->Dimension();
 
     /// find the elements to refine
-    for (int k = 0; k < ncr1 + 3; ++k)
-    {
-        Array<int> marked_elements1;
-        for (int i = 0; i < mesh->GetNE(); ++i)
-        {
-            if (cutByGeom<3>(mesh, i))
-            {
+    // for (int k = 0; k < ncr1 + 3; ++k)
+    // {
+    //     Array<int> marked_elements1;
+    //     for (int i = 0; i < mesh->GetNE(); ++i)
+    //     {
+    //         if (cutByGeom<3>(mesh, i))
+    //         {
 
-                marked_elements1.Append(i);
-            }
-        }
-        mesh->GeneralRefinement(marked_elements1, 1, lhnodes);
-    }
-
-    for (int k = 0; k < ncr1 + 1; ++k)
-    {
-        Array<int> marked_elements1;
-        for (int i = 0; i < mesh->GetNE(); ++i)
-        {
-            Vector cent;
-            GetElementCenter(mesh, i, cent);
-            double lsv = getlsvalue2(8.0, cent);
-            if (lsv < 0.0)
-            {
-                marked_elements1.Append(i);
-            }
-        }
-
-        mesh->GeneralRefinement(marked_elements1, 1, lhnodes);
-    }
-
-
+    //             marked_elements1.Append(i);
+    //         }
+    //     }
+    //     mesh->GeneralRefinement(marked_elements1, 1, lhnodes);
+    // }
 
     for (int k = 0; k < ncr1; ++k)
     {
@@ -294,7 +275,7 @@ int main(int argc, char *argv[])
         {
             Vector cent;
             GetElementCenter(mesh, i, cent);
-            double lsv = getlsvalue(10.0, cent);
+            double lsv = getlsvalue(8.0, cent);
             if (lsv < 0.0)
             {
                 marked_elements1.Append(i);
@@ -306,65 +287,84 @@ int main(int argc, char *argv[])
 
 
 
-    for (int k = 0; k < ncr1 ; ++k)
-    {
-        Array<int> marked_elements1;
-        for (int i = 0; i < mesh->GetNE(); ++i)
-        {
-            Vector cent;
-            GetElementCenter(mesh, i, cent);
-            double rad = 0.3;
-            double lsvle = ((cent(0) - 19.5) * (cent(0) - 19.5)) + ((cent(1) - 20.0) * (cent(1) - 20.0)) - (rad * rad);
-            double lsvte = ((cent(0) - 20.5) * (cent(0) - 20.5)) + ((cent(1) - 20.0) * (cent(1) - 20.0)) - (rad * rad);
+    // for (int k = 0; k < ncr1; ++k)
+    // {
+    //     Array<int> marked_elements1;
+    //     for (int i = 0; i < mesh->GetNE(); ++i)
+    //     {
+    //         Vector cent;
+    //         GetElementCenter(mesh, i, cent);
+    //         double lsv = getlsvalue(10.0, cent);
+    //         if (lsv < 0.0)
+    //         {
+    //             marked_elements1.Append(i);
+    //         }
+    //     }
 
-            if (lsvle < 0.0 || lsvte < 0.0)
-            {
-                marked_elements1.Append(i);
-            }
-        }
+    //     mesh->GeneralRefinement(marked_elements1, 1, lhnodes);
+    // }
 
-        mesh->GeneralRefinement(marked_elements1, 1, lhnodes);
-    }
+
+
+    // for (int k = 0; k < ncr1 ; ++k)
+    // {
+    //     Array<int> marked_elements1;
+    //     for (int i = 0; i < mesh->GetNE(); ++i)
+    //     {
+    //         Vector cent;
+    //         GetElementCenter(mesh, i, cent);
+    //         double rad = 0.3;
+    //         double lsvle = ((cent(0) - 19.5) * (cent(0) - 19.5)) + ((cent(1) - 20.0) * (cent(1) - 20.0)) - (rad * rad);
+    //         double lsvte = ((cent(0) - 20.5) * (cent(0) - 20.5)) + ((cent(1) - 20.0) * (cent(1) - 20.0)) - (rad * rad);
+
+    //         if (lsvle < 0.0 || lsvte < 0.0)
+    //         {
+    //             marked_elements1.Append(i);
+    //         }
+    //     }
+
+    //     mesh->GeneralRefinement(marked_elements1, 1, lhnodes);
+    // }
     
-    for (int k = 0; k < ncr1 ; ++k)
-    {
-        Array<int> marked_elements1;
-        for (int i = 0; i < mesh->GetNE(); ++i)
-        {
-            Vector cent;
-            GetElementCenter(mesh, i, cent);
-            double rad = 0.3;
-            double lsvle = ((cent(0) - 19.5) * (cent(0) - 19.5)) + ((cent(1) - 20.0) * (cent(1) - 20.0)) - (rad * rad);
-            double lsvte = ((cent(0) - 20.5) * (cent(0) - 20.5)) + ((cent(1) - 20.0) * (cent(1) - 20.0)) - (rad * rad);
+    // for (int k = 0; k < ncr1 ; ++k)
+    // {
+    //     Array<int> marked_elements1;
+    //     for (int i = 0; i < mesh->GetNE(); ++i)
+    //     {
+    //         Vector cent;
+    //         GetElementCenter(mesh, i, cent);
+    //         double rad = 0.3;
+    //         double lsvle = ((cent(0) - 19.5) * (cent(0) - 19.5)) + ((cent(1) - 20.0) * (cent(1) - 20.0)) - (rad * rad);
+    //         double lsvte = ((cent(0) - 20.5) * (cent(0) - 20.5)) + ((cent(1) - 20.0) * (cent(1) - 20.0)) - (rad * rad);
 
-            if ((lsvle < 0.0  && cent(0) < 19.5 )|| (lsvte < 0.0 && cent(0) > 20.5))
-            {
-                marked_elements1.Append(i);
-            }
-        }
+    //         if ((lsvle < 0.0  && cent(0) < 19.5 )|| (lsvte < 0.0 && cent(0) > 20.5))
+    //         {
+    //             marked_elements1.Append(i);
+    //         }
+    //     }
 
-        mesh->GeneralRefinement(marked_elements1, 1, lhnodes);
-    }
+    //     mesh->GeneralRefinement(marked_elements1, 1, lhnodes);
+    // }
 
-    for (int k = 0; k < ncr1 + 1; ++k)
-    {
-        Array<int> marked_elements1;
-        for (int i = 0; i < mesh->GetNE(); ++i)
-        {
-            Vector cent;
-            GetElementCenter(mesh, i, cent);
-            double rad = 0.05;
-            double lsvle = ((cent(0) - 19.5) * (cent(0) - 19.5)) + ((cent(1) - 20.0) * (cent(1) - 20.0)) - (rad * rad);
-            double lsvte = ((cent(0) - 20.5) * (cent(0) - 20.5)) + ((cent(1) - 20.0) * (cent(1) - 20.0)) - (rad * rad);
+    // for (int k = 0; k < ncr1 + 1; ++k)
+    // {
+    //     Array<int> marked_elements1;
+    //     for (int i = 0; i < mesh->GetNE(); ++i)
+    //     {
+    //         Vector cent;
+    //         GetElementCenter(mesh, i, cent);
+    //         double rad = 0.05;
+    //         double lsvle = ((cent(0) - 19.5) * (cent(0) - 19.5)) + ((cent(1) - 20.0) * (cent(1) - 20.0)) - (rad * rad);
+    //         double lsvte = ((cent(0) - 20.5) * (cent(0) - 20.5)) + ((cent(1) - 20.0) * (cent(1) - 20.0)) - (rad * rad);
 
-            if (lsvle < 0.0 || lsvte < 0.0)
-            {
-                marked_elements1.Append(i);
-            }
-        }
+    //         if (lsvle < 0.0 || lsvte < 0.0)
+    //         {
+    //             marked_elements1.Append(i);
+    //         }
+    //     }
 
-        mesh->GeneralRefinement(marked_elements1, 1, lhnodes);
-    }
+    //     mesh->GeneralRefinement(marked_elements1, 1, lhnodes);
+    // }
     
 
     //  for (int k = 0; k < ncr1; ++k)
@@ -384,7 +384,7 @@ int main(int argc, char *argv[])
     //     mesh->GeneralRefinement(marked_elements1, 1, lhnodes);
     // }
 
-   
+    /// uniformally refine the mesh if needed
     for (int l = 0; l < ref_levels; l++)
     {
         mesh->UniformRefinement();
@@ -395,7 +395,8 @@ int main(int argc, char *argv[])
     wmesh.precision(14);
     mesh->PrintVTK(wmesh, 0);
     wmesh.close();
-    //find the elements cut by outer circle boundary
+
+    //find the elements cut by elliptic boundary
     vector<int> cutelems;
     vector<int> cutinteriorFaces;
     vector<int> cutFaces;
@@ -431,7 +432,8 @@ int main(int argc, char *argv[])
     {
         //cout << solidElems.at(k) << endl;
     }
-    /// find faces cut by inner circle
+
+    /// find faces cut by ellipse
     for (int i = 0; i < mesh->GetNumFaces(); ++i)
     {
         FaceElementTransformations *tr;
@@ -652,7 +654,7 @@ int main(int argc, char *argv[])
     double res_norm0 = calcResidualNorm(res, fes_GD, uc);
     double t_final = 1000;
     std::cout << "initial residual norm: " << res_norm0 << "\n";
-    double dt_init = 0.02;
+    double dt_init = 0.2;
     double dt_old;
 
     // // initial l2_err
@@ -664,7 +666,7 @@ int main(int argc, char *argv[])
     double res_norm;
     int exponent = 2;
     res_norm = res_norm0;
-    for (auto ti = 0; ti < 300; ++ti)
+    for (auto ti = 0; ti < 3000; ++ti)
     {
         /// calculate timestep
         dt_old = dt;
@@ -686,6 +688,7 @@ int main(int argc, char *argv[])
     }
 
     fes_GD->GetProlongationMatrix()->Mult(uc, u);
+    
     cout << "=========================================" << endl;
     std::cout << "final residual norm: " << res_norm << "\n";
     double drag = calcDrag(fes, u, num_state, cutSegmentIntRules, alpha);

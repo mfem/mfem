@@ -34,16 +34,6 @@ double getlsvalue(double ax, Vector &cent)
     return 1 * ((((cent(0) - xc) * (cent(0) - xc)) / (ax * ax)) + (((cent(1) - yc) * (cent(1) - yc)) / (ay * ay)) - (r * r));
 }
 
-double getlsvalue2(double ax, Vector &cent)
-{
-
-    double r = 1.0;
-    double xc = 20.0;
-    double yc = 20.0;
-    double ay = ax / 10.0;
-    return 1 * ((((cent(0) - xc) * (cent(0) - xc)) / (ax * ax)) + (((cent(1) - yc) * (cent(1) - yc)) / (ay * ay)) - (r * r));
-}
-
 template <int dim>
 void randBaselinePert(const mfem::Vector &x, mfem::Vector &u)
 {
@@ -254,21 +244,10 @@ int main(int argc, char *argv[])
     int dim = mesh->Dimension();
 
     /// find the elements to refine
-    for (int k = 0; k < ncr1 + 5; ++k)
-    {
-        Array<int> marked_elements1;
-        for (int i = 0; i < mesh->GetNE(); ++i)
-        {
-            if (cutByGeom<4>(mesh, i))
-            {
-                marked_elements1.Append(i);
-            }
-        }
-        mesh->GeneralRefinement(marked_elements1, 1, lhnodes);
-    }
+  
 
 
-   for (int k = 0; k < ncr1 + 1; ++k)
+   for (int k = 0; k < ncr1 ; ++k)
     {
         Array<int> marked_elements1;
         for (int i = 0; i < mesh->GetNE(); ++i)
@@ -285,7 +264,54 @@ int main(int argc, char *argv[])
         mesh->GeneralRefinement(marked_elements1, 1, lhnodes);
     }
 
-     
+
+   for (int k = 0; k < ncr1 ; ++k)
+    {
+        Array<int> marked_elements1;
+        for (int i = 0; i < mesh->GetNE(); ++i)
+        {
+            Vector cent;
+            GetElementCenter(mesh, i, cent);
+            double lsv = getlsvalue(5.0, cent);
+            if (lsv < 0.0)
+            {
+                marked_elements1.Append(i);
+            }
+        }
+
+        mesh->GeneralRefinement(marked_elements1, 1, lhnodes);
+    }
+    
+    for (int k = 0; k < ncr1 ; ++k)
+    {
+        Array<int> marked_elements1;
+        for (int i = 0; i < mesh->GetNE(); ++i)
+        {
+            Vector cent;
+            GetElementCenter(mesh, i, cent);
+            double lsv = getlsvalue(1.0, cent);
+            if (lsv < 0.0)
+            {
+                marked_elements1.Append(i);
+            }
+        }
+
+        mesh->GeneralRefinement(marked_elements1, 1, lhnodes);
+    }
+
+    // for (int k = 0; k < ncr1; ++k)
+    // {
+    //     Array<int> marked_elements1;
+    //     for (int i = 0; i < mesh->GetNE(); ++i)
+    //     {
+    //         if (cutByGeom<4>(mesh, i))
+    //         {
+    //             marked_elements1.Append(i);
+    //         }
+    //     }
+    //     mesh->GeneralRefinement(marked_elements1, 1, lhnodes);
+    // }
+
     for (int l = 0; l < ref_levels; l++)
     {
         mesh->UniformRefinement();
@@ -553,7 +579,7 @@ int main(int argc, char *argv[])
     double res_norm0 = calcResidualNorm(res, fes_GD, uc);
     double t_final = 1000;
     std::cout << "initial residual norm: " << res_norm0 << "\n";
-    double dt_init = 0.08;
+    double dt_init = 0.008;
     double dt_old;
 
     // // initial l2_err
@@ -565,7 +591,7 @@ int main(int argc, char *argv[])
     double res_norm;
     int exponent = 2;
     res_norm = res_norm0;
-    for (auto ti = 0; ti < 300; ++ti)
+    for (auto ti = 0; ti < 3000; ++ti)
     {
         /// calculate timestep
         dt_old = dt;
