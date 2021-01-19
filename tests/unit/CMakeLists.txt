@@ -22,10 +22,14 @@ set(UNIT_TESTS_SRCS
   general/test_text.cpp
   general/test_zlib.cpp
   linalg/test_complex_operator.cpp
+  linalg/test_direct_solvers.cpp
+  linalg/test_hypre_ilu.cpp
   linalg/test_ilu.cpp
   linalg/test_matrix_block.cpp
   linalg/test_matrix_dense.cpp
+  linalg/test_matrix_hypre.cpp
   linalg/test_matrix_rectangular.cpp
+  linalg/test_matrix_sparse.cpp
   linalg/test_matrix_square.cpp
   linalg/test_ode.cpp
   linalg/test_ode2.cpp
@@ -33,12 +37,15 @@ set(UNIT_TESTS_SRCS
   linalg/test_cg_indefinite.cpp
   linalg/test_vector.cpp
   mesh/test_mesh.cpp
+  mesh/test_ncmesh.cpp
   fem/test_1d_bilininteg.cpp
   fem/test_2d_bilininteg.cpp
   fem/test_3d_bilininteg.cpp
   fem/test_assemblediagonalpa.cpp
+  fem/test_blocknonlinearform.cpp
   fem/test_calcshape.cpp
   fem/test_datacollection.cpp
+  fem/test_estimator.cpp
   fem/test_face_permutation.cpp
   fem/test_fe.cpp
   fem/test_intrules.cpp
@@ -49,8 +56,11 @@ set(UNIT_TESTS_SRCS
   fem/test_operatorjacobismoother.cpp
   fem/test_pa_coeff.cpp
   fem/test_pa_kernels.cpp
+  fem/test_pa_grad.cpp
+  fem/test_pa_idinterp.cpp
   fem/test_quadf_coef.cpp
   fem/test_quadraturefunc.cpp
+  fem/test_sum_bilin.cpp
   miniapps/test_sedov.cpp
 )
 
@@ -64,12 +74,32 @@ add_executable(unit_tests unit_test_main.cpp ${UNIT_TESTS_SRCS})
 add_dependencies(unit_tests copy_data)
 target_link_libraries(unit_tests mfem)
 
+if (MFEM_USE_CUDA)
+  set(CUNIT_TESTS_SRCS
+    cunit_test_main.cpp
+  )
+  set_property(SOURCE ${CUNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
+  add_executable(cunit_tests ${CUNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
+  add_dependencies(cunit_tests copy_data)
+  target_link_libraries(cunit_tests mfem)
+
+  add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} cunit_tests)
+endif()
+
+if (MFEM_USE_CEED)
+   set(CEED_TESTS_SRCS
+      ceed/test_ceed.cpp
+      ceed/test_ceed_main.cpp
+   )
+endif()
+
 # All device unit tests are built into another executable, in order to be able
 # to change the device.
 set(SEDOV_TESTS_SRCS
     unit_test_main.cpp
     miniapps/test_sedov.cpp
 )
+
 if (MFEM_USE_CUDA)
    set_property(SOURCE ${SEDOV_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
 endif()
@@ -96,6 +126,11 @@ if (MFEM_USE_CUDA)
    target_link_libraries(sedov_tests_cuda_uvm mfem)
 endif()
 
+if (MFEM_USE_CEED)
+   add_executable(ceed_tests ${CEED_TESTS_SRCS})
+   target_link_libraries(ceed_tests mfem)
+endif()
+
 # Copy data to the build directory.
 add_custom_command(TARGET unit_tests POST_BUILD
 COMMAND ${CMAKE_COMMAND} -E copy_directory
@@ -109,6 +144,10 @@ if (MFEM_USE_CUDA)
    add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} sedov_tests_cuda_uvm)
 endif()
 
+if (MFEM_USE_CEED)
+   add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ceed_tests)
+endif()
+
 # Create a test called 'unit_tests' that runs the 'unit_tests' executable.
 # The unit tests can be built and run separately from the rest of the tests:
 #   make unit_tests
@@ -119,8 +158,18 @@ add_test(NAME sedov_tests_debug COMMAND sedov_tests_debug)
 
 # Additional CUDA unit tests
 if (MFEM_USE_CUDA)
+   add_test(NAME cunit_tests COMMAND cunit_tests)
    add_test(NAME sedov_tests_cuda COMMAND sedov_tests_cuda)
    add_test(NAME sedov_tests_cuda_uvm COMMAND sedov_tests_cuda_uvm)
+endif()
+
+if (MFEM_USE_CEED)
+   add_test(NAME ceed_tests COMMAND ceed_tests)
+   if (MFEM_USE_CUDA)
+      add_test(NAME ceed_tests_cuda_ref COMMAND ceed_tests --device ceed-cuda:/gpu/cuda/ref)
+      add_test(NAME ceed_tests_cuda_shared COMMAND ceed_tests --device ceed-cuda:/gpu/cuda/shared)
+      add_test(NAME ceed_tests_cuda_gen COMMAND ceed_tests --device ceed-cuda:/gpu/cuda/gen)
+   endif()
 endif()
 
 # Additional MPI unit tests
@@ -158,6 +207,13 @@ if (MFEM_USE_MPI)
       target_compile_definitions(psedov_tests_cuda_uvm PUBLIC MFEM_SEDOV_TESTS=1)
       target_compile_definitions(psedov_tests_cuda_uvm PUBLIC MFEM_SEDOV_DEVICE="cuda:uvm")
       target_link_libraries(psedov_tests_cuda_uvm mfem)
+
+      set(PCUNIT_TESTS_SRCS pcunit_test_main.cpp)
+      set_property(SOURCE ${PCUNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
+      add_executable(pcunit_tests ${PCUNIT_TESTS_SRCS})
+      add_dependencies(pcunit_tests copy_data)
+      target_link_libraries(pcunit_tests mfem)
+      add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} pcunit_tests)
    endif()
 
    add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} punit_tests psedov_tests_cpu psedov_tests_debug)

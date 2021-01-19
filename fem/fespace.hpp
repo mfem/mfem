@@ -330,6 +330,18 @@ public:
    virtual const Operator *GetProlongationMatrix() const
    { return GetConformingProlongation(); }
 
+   /// Return an operator that performs the transpose of GetRestrictionOperator
+   /** The returned operator is owned by the FiniteElementSpace. In serial this
+       is the same as GetProlongationMatrix() */
+   virtual const Operator *GetRestrictionTransposeOperator() const
+   { return GetConformingProlongation(); }
+
+   /// An abstract operator that performs the same action as GetRestrictionMatrix
+   /** In some cases this is an optimized matrix-free implementation. The
+       returned operator is owned by the FiniteElementSpace. */
+   virtual const Operator *GetRestrictionOperator() const
+   { return GetConformingRestriction(); }
+
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
    virtual const SparseMatrix *GetRestrictionMatrix() const
    { return GetConformingRestriction(); }
@@ -479,7 +491,7 @@ public:
    /// Returns indexes of degrees of freedom for i'th boundary element.
    virtual void GetBdrElementDofs(int i, Array<int> &dofs) const;
 
-   /** @brief eturns the indexes of the degrees of freedom for i'th face
+   /** @brief Returns the indexes of the degrees of freedom for i'th face
        including the dofs for the edges and the vertices of the face. */
    virtual void GetFaceDofs(int i, Array<int> &dofs) const;
 
@@ -571,7 +583,7 @@ public:
 
    /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection
         associated with i'th element in the mesh object. */
-   const FiniteElement *GetFE(int i) const;
+   virtual const FiniteElement *GetFE(int i) const;
 
    /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection
         associated with i'th boundary face in the mesh object. */
@@ -755,6 +767,9 @@ public:
 
    /// Return the total number of quadrature points.
    int GetSize() const { return size; }
+
+   /// Return the order of the quadrature rule(s) used by all elements.
+   int GetOrder() const { return order; }
 
    /// Returns the mesh
    inline Mesh *GetMesh() const { return mesh; }

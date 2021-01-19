@@ -202,8 +202,6 @@ protected:
    /// Ensure that bdr_attributes and attributes agree across processors
    void DistributeAttributes(Array<int> &attr);
 
-   void LoadSharedEntities(std::istream &input);
-
 public:
    /** Copy constructor. Performs a deep copy of (almost) all data, so that the
        source mesh can be modified (e.g. deleted, refined) without affecting the
@@ -286,6 +284,7 @@ public:
                              int ordering = 1);
 
    int GetNFaceNeighbors() const { return face_nbr_group.Size(); }
+   int GetNFaceNeighborElements() const { return face_nbr_elements.Size(); }
    int GetFaceNbrGroup(int fn) const { return face_nbr_group[fn]; }
    int GetFaceNbrRank(int fn) const;
 
@@ -307,6 +306,10 @@ public:
       return &FaceNbrTransformation;
    }
 
+   /// Get the size of the i-th face neighbor element relative to the reference
+   /// element.
+   double GetFaceNbrElementSize(int i, int type=0);
+
    /// Return the number of shared faces (3D), edges (2D), vertices (1D)
    int GetNSharedFaces() const;
 
@@ -327,9 +330,6 @@ public:
        Each local element 'i' is migrated to processor rank 'partition[i]',
        for 0 <= i < GetNE(). */
    void Rebalance(const Array<int> &partition);
-
-   /// Save the mesh in a parallel mesh format.
-   void ParPrint(std::ostream &out) const;
 
    /** Print the part of the mesh in the calling processor adding the interface
        as boundary (for visualization purposes) using the mfem v1.0 format. */
@@ -363,6 +363,18 @@ public:
 
    /// Print various parallel mesh stats
    virtual void PrintInfo(std::ostream &out = mfem::out);
+
+   /// Save the mesh in a parallel mesh format.
+   void ParPrint(std::ostream &out) const;
+
+   /** Print the mesh in parallel PVTU format. The PVTU and VTU files will be
+       stored in the directory specified by @a pathname. If the directory does
+       not exist, it will be created. */
+   virtual void PrintVTU(std::string pathname,
+                         VTKFormat format=VTKFormat::ASCII,
+                         bool high_order_output=false,
+                         int compression_level=0,
+                         bool bdr=false);
 
    virtual int FindPoints(DenseMatrix& point_mat, Array<int>& elem_ids,
                           Array<IntegrationPoint>& ips, bool warn = true,

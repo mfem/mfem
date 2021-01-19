@@ -645,7 +645,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 
       Monitor(i, betanom, r, x);
 
-      if (betanom < r0)
+      if (betanom <= r0)
       {
          if (print_level == 2)
          {
@@ -1556,6 +1556,7 @@ void NewtonSolver::SetOperator(const Operator &op)
    width = op.Width();
    MFEM_ASSERT(height == width, "square Operator is required.");
 
+   xcur.SetSize(width);
    r.SetSize(width);
    c.SetSize(width);
 }
@@ -1615,9 +1616,20 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          break;
       }
 
-      prec->SetOperator(oper->GetGradient(x));
+      grad = &oper->GetGradient(x);
+      prec->SetOperator(*grad);
 
-      prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
+      if (lin_rtol_type)
+      {
+         AdaptiveLinRtolPreSolve(x, it, norm);
+      }
+
+      prec->Mult(r, c); // c = [DF(x_i)]^{-1} [F(x_i)-b]
+
+      if (lin_rtol_type)
+      {
+         AdaptiveLinRtolPostSolve(c, r, it, norm);
+      }
 
       const double c_scale = ComputeScalingFactor(x, b);
       if (c_scale == 0.0)
@@ -1674,6 +1686,86 @@ double NewtonSolver::CheckGradient(const Vector &x, const Vector &h) const
    return 2.0 * norm2 / norm1;
 }
 
+void NewtonSolver::SetAdaptiveLinRtol(const int type,
+                                      const double rtol0,
+                                      const double rtol_max,
+                                      const double alpha,
+                                      const double gamma)
+{
+   lin_rtol_type = type;
+   lin_rtol0 = rtol0;
+   lin_rtol_max = rtol_max;
+   this->alpha = alpha;
+   this->gamma = gamma;
+}
+
+void NewtonSolver::AdaptiveLinRtolPreSolve(const Vector &x,
+                                           const int it,
+                                           const double fnorm) const
+{
+   // Assume that when adaptive linear solver relative tolerance is activated,
+   // we are working with an iterative solver.
+   auto iterative_solver = static_cast<IterativeSolver *>(prec);
+   // Adaptive linear solver relative tolerance
+   double eta;
+   // Safeguard threshold
+   double sg_threshold = 0.1;
+
+   if (it == 0)
+   {
+      eta = lin_rtol0;
+   }
+   else
+   {
+      if (lin_rtol_type == 1)
+      {
+         // eta = gamma * abs(||F(x1)|| - ||F(x0) + DF(x0) s0||) / ||F(x0)||
+         eta = gamma * abs(fnorm - lnorm_last) / fnorm_last;
+      }
+      else if (lin_rtol_type == 2)
+      {
+         // eta = gamma * (||F(x1)|| / ||F(x0)||)^alpha
+         eta = gamma * pow(fnorm / fnorm_last, alpha);
+      }
+      else
+      {
+         MFEM_ABORT("Unknown adaptive linear solver rtol version");
+      }
+
+      // Safeguard rtol from "oversolving" ?!
+      const double sg_eta = gamma * pow(eta_last, alpha);
+      if (sg_eta > sg_threshold) { eta = std::max(eta, sg_eta); }
+   }
+
+   eta = std::min(eta, lin_rtol_max);
+   iterative_solver->SetRelTol(eta);
+   eta_last = eta;
+   if (print_level >= 0)
+   {
+      mfem::out << "Eisenstat-Walker rtol = " << eta << "\n";
+   }
+}
+
+void NewtonSolver::AdaptiveLinRtolPostSolve(const Vector &x,
+                                            const Vector &b,
+                                            const int it,
+                                            const double fnorm) const
+{
+   fnorm_last = fnorm;
+
+   // If version 1 is chosen, the true linear residual norm has to be computed
+   // and in most cases we can only retrieve the preconditioned linear residual
+   // norm.
+   if (lin_rtol_type == 1)
+   {
+      // lnorm_last = ||F(x0) + DF(x0) s0||
+      Vector linres(x.Size());
+      grad->Mult(x, linres);
+      linres -= b;
+      lnorm_last = Norm(linres);
+   }
+}
+
 void LBFGSSolver::Mult(const Vector &b, Vector &x) const
 {
    MFEM_VERIFY(oper != NULL, "the Operator is not set (use SetOperator).");
@@ -1682,12 +1774,12 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    Vector sk, rk, yk, rho, alpha;
    DenseMatrix skM(width, m), ykM(width, m);
 
-   //r - r_{k+1}, c - descent direction
-   sk.SetSize(width);    //x_{k+1}-x_k
-   rk.SetSize(width);    //nabla(f(x_{k}))
-   yk.SetSize(width);    //r_{k+1}-r_{k}
-   rho.SetSize(m);       //1/(dot(yk,sk)
-   alpha.SetSize(m);    //rhok*sk'*c
+   // r - r_{k+1}, c - descent direction
+   sk.SetSize(width);    // x_{k+1}-x_k
+   rk.SetSize(width);    // nabla(f(x_{k}))
+   yk.SetSize(width);    // r_{k+1}-r_{k}
+   rho.SetSize(m);       // 1/(dot(yk,sk)
+   alpha.SetSize(m);     // rhok*sk'*c
    int last_saved_id = -1;
 
    int it;
@@ -1740,7 +1832,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
          converged = 0;
          break;
       }
-      add(x, -c_scale, c, x); //x_{k+1} = x_k - c_scale*c
+      add(x, -c_scale, c, x); // x_{k+1} = x_k - c_scale*c
 
       ProcessNewState(x);
 
@@ -1750,12 +1842,12 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
          r -= b;
       }
 
-      //    LBFGS - construct descent direction
+      // LBFGS - construct descent direction
       subtract(r, rk, yk);   // yk = r_{k+1} - r_{k}
       sk = c; sk *= -c_scale; //sk = x_{k+1} - x_{k} = -c_scale*c
       const double gamma = Dot(sk, yk)/Dot(yk, yk);
 
-      //  Save last m vectors
+      // Save last m vectors
       last_saved_id = (last_saved_id == m-1) ? 0 : last_saved_id+1;
       skM.SetCol(last_saved_id, sk);
       ykM.SetCol(last_saved_id, yk);
@@ -2698,6 +2790,42 @@ void BlockILU::Mult(const Vector &b, Vector &x) const
    }
 }
 
+
+void ResidualBCMonitor::MonitorResidual(
+   int it, double norm, const Vector &r, bool final)
+{
+   if (!ess_dofs_list) { return; }
+
+   double bc_norm_squared = 0.0;
+   r.HostRead();
+   ess_dofs_list->HostRead();
+   for (int i = 0; i < ess_dofs_list->Size(); i++)
+   {
+      const double r_entry = r((*ess_dofs_list)[i]);
+      bc_norm_squared += r_entry*r_entry;
+   }
+   bool print = true;
+#ifdef MFEM_USE_MPI
+   MPI_Comm comm = iter_solver->GetComm();
+   if (comm != MPI_COMM_NULL)
+   {
+      double glob_bc_norm_squared = 0.0;
+      MPI_Reduce(&bc_norm_squared, &glob_bc_norm_squared, 1, MPI_DOUBLE,
+                 MPI_SUM, 0, comm);
+      bc_norm_squared = glob_bc_norm_squared;
+      int rank;
+      MPI_Comm_rank(comm, &rank);
+      print = (rank == 0);
+   }
+#endif
+   if ((it == 0 || final || bc_norm_squared > 0.0) && print)
+   {
+      mfem::out << "      ResidualBCMonitor : b.c. residual norm = "
+                << sqrt(bc_norm_squared) << endl;
+   }
+}
+
+
 #ifdef MFEM_USE_SUITESPARSE
 
 void UMFPackSolver::Init()
@@ -2717,9 +2845,7 @@ void UMFPackSolver::Init()
 
 void UMFPackSolver::SetOperator(const Operator &op)
 {
-   int *Ap, *Ai;
    void *Symbolic;
-   double *Ax;
 
    if (Numeric)
    {
@@ -2745,9 +2871,9 @@ void UMFPackSolver::SetOperator(const Operator &op)
    width = mat->Width();
    MFEM_VERIFY(width == height, "not a square matrix");
 
-   Ap = mat->GetI();
-   Ai = mat->GetJ();
-   Ax = mat->GetData();
+   const int * Ap = mat->HostReadI();
+   const int * Ai = mat->HostReadJ();
+   const double * Ax = mat->HostReadData();
 
    if (!use_long_ints)
    {
@@ -2817,12 +2943,13 @@ void UMFPackSolver::Mult(const Vector &b, Vector &x) const
    if (mat == NULL)
       mfem_error("UMFPackSolver::Mult : matrix is not set!"
                  " Call SetOperator first!");
-
+   b.HostRead();
+   x.HostReadWrite();
    if (!use_long_ints)
    {
       int status =
-         umfpack_di_solve(UMFPACK_At, mat->GetI(), mat->GetJ(),
-                          mat->GetData(), x, b, Numeric, Control, Info);
+         umfpack_di_solve(UMFPACK_At, mat->HostReadI(), mat->HostReadJ(),
+                          mat->HostReadData(), x, b, Numeric, Control, Info);
       umfpack_di_report_info(Control, Info);
       if (status < 0)
       {
@@ -2833,7 +2960,7 @@ void UMFPackSolver::Mult(const Vector &b, Vector &x) const
    else
    {
       SuiteSparse_long status =
-         umfpack_dl_solve(UMFPACK_At, AI, AJ, mat->GetData(), x, b,
+         umfpack_dl_solve(UMFPACK_At, AI, AJ, mat->HostReadData(), x, b,
                           Numeric, Control, Info);
       umfpack_dl_report_info(Control, Info);
       if (status < 0)
@@ -2849,12 +2976,13 @@ void UMFPackSolver::MultTranspose(const Vector &b, Vector &x) const
    if (mat == NULL)
       mfem_error("UMFPackSolver::MultTranspose : matrix is not set!"
                  " Call SetOperator first!");
-
+   b.HostRead();
+   x.HostReadWrite();
    if (!use_long_ints)
    {
       int status =
-         umfpack_di_solve(UMFPACK_A, mat->GetI(), mat->GetJ(),
-                          mat->GetData(), x, b, Numeric, Control, Info);
+         umfpack_di_solve(UMFPACK_A, mat->HostReadI(), mat->HostReadJ(),
+                          mat->HostReadData(), x, b, Numeric, Control, Info);
       umfpack_di_report_info(Control, Info);
       if (status < 0)
       {
@@ -2866,7 +2994,7 @@ void UMFPackSolver::MultTranspose(const Vector &b, Vector &x) const
    else
    {
       SuiteSparse_long status =
-         umfpack_dl_solve(UMFPACK_A, AI, AJ, mat->GetData(), x, b,
+         umfpack_dl_solve(UMFPACK_A, AI, AJ, mat->HostReadData(), x, b,
                           Numeric, Control, Info);
       umfpack_dl_report_info(Control, Info);
       if (status < 0)

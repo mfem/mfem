@@ -49,6 +49,8 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
 
    un.SetSize(vfes_truevsize);
    un = 0.0;
+   un_next.SetSize(vfes_truevsize);
+   un_next = 0.0;
    unm1.SetSize(vfes_truevsize);
    unm1 = 0.0;
    unm2.SetSize(vfes_truevsize);
@@ -76,6 +78,8 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
 
    un_gf.SetSpace(vfes);
    un_gf = 0.0;
+   un_next_gf.SetSpace(vfes);
+   un_next_gf = 0.0;
 
    Lext_gf.SetSpace(vfes);
    curlu_gf.SetSpace(vfes);
@@ -288,65 +292,97 @@ void NavierSolver::Setup(double dt)
    HInv->SetRelTol(rtol_hsolve);
    HInv->SetMaxIter(200);
 
+   // If the initial condition was set, it has to be aligned with dependent
+   // Vectors and GridFunctions
    un_gf.GetTrueDofs(un);
+   un_next = un;
+   un_next_gf.SetFromTrueDofs(un_next);
+
+   // Set initial time step in the history array
+   dthist[0] = dt;
+
+   if (filter_alpha != 0.0)
+   {
+      vfec_filter = new H1_FECollection(order - filter_cutoff_modes,
+                                        pmesh->Dimension());
+      vfes_filter = new ParFiniteElementSpace(pmesh,
+                                              vfec_filter,
+                                              pmesh->Dimension());
+
+      un_NM1_gf.SetSpace(vfes_filter);
+      un_NM1_gf = 0.0;
+
+      un_filtered_gf.SetSpace(vfes);
+      un_filtered_gf = 0.0;
+   }
 
    sw_setup.Stop();
 }
 
-void NavierSolver::Step(double &time, double dt, int cur_step)
+void NavierSolver::UpdateTimestepHistory(double dt)
+{
+   // Rotate values in time step history
+   dthist[2] = dthist[1];
+   dthist[1] = dthist[0];
+   dthist[0] = dt;
+
+   // Rotate values in nonlinear extrapolation history
+   Nunm2 = Nunm1;
+   Nunm1 = Nun;
+
+   // Rotate values in solution history
+   unm2 = unm1;
+   unm1 = un;
+
+   // Update the current solution and corresponding GridFunction
+   un_next_gf.GetTrueDofs(un_next);
+   un = un_next;
+   un_gf.SetFromTrueDofs(un);
+}
+
+void NavierSolver::Step(double &time, double dt, int cur_step, bool provisional)
 {
    sw_step.Start();
 
-   time += dt;
-
-   // Set current time for velocity dirichlet boundary conditions.
-   for (auto &vel_dbc : vel_dbcs)
-   {
-      vel_dbc.coeff->SetTime(time);
-   }
-
-   // Set current time for pressure dirichlet boundary conditons.
-   for (auto &pres_dbc : pres_dbcs)
-   {
-      pres_dbc.coeff->SetTime(time);
-   }
-
    SetTimeIntegrationCoefficients(cur_step);
 
-   if (cur_step <= 2)
+   // Set current time for velocity Dirichlet boundary conditions.
+   for (auto &vel_dbc : vel_dbcs)
    {
-      H_bdfcoeff.constant = bd0 / dt;
-      H_form->Update();
-      H_form->Assemble();
-      H_form->FormSystemMatrix(vel_ess_tdof, H);
+      vel_dbc.coeff->SetTime(time + dt);
+   }
 
-      if (partial_assembly)
-      {
-         HInv->SetOperator(*H);
-         delete HInvPC;
-         Vector diag_pa(vfes->GetTrueVSize());
-         H_form->AssembleDiagonal(diag_pa);
-         HInvPC = new OperatorJacobiSmoother(diag_pa, vel_ess_tdof);
-         HInv->SetPreconditioner(*HInvPC);
-      }
-      else
-      {
-         HInv->SetOperator(*H);
-      }
+   // Set current time for pressure Dirichlet boundary conditions.
+   for (auto &pres_dbc : pres_dbcs)
+   {
+      pres_dbc.coeff->SetTime(time + dt);
+   }
+
+   H_bdfcoeff.constant = bd0 / dt;
+   H_form->Update();
+   H_form->Assemble();
+   H_form->FormSystemMatrix(vel_ess_tdof, H);
+
+   HInv->SetOperator(*H);
+   if (partial_assembly)
+   {
+      delete HInvPC;
+      Vector diag_pa(vfes->GetTrueVSize());
+      H_form->AssembleDiagonal(diag_pa);
+      HInvPC = new OperatorJacobiSmoother(diag_pa, vel_ess_tdof);
+      HInv->SetPreconditioner(*HInvPC);
    }
 
    // Extrapolated f^{n+1}.
    for (auto &accel_term : accel_terms)
    {
-      accel_term.coeff->SetTime(time);
+      accel_term.coeff->SetTime(time + dt);
    }
 
    f_form->Assemble();
    f_form->ParallelAssemble(fn);
 
-   //
    // Nonlinear extrapolated terms.
-   //
    sw_extrap.Start();
 
    N->Mult(un, Nun);
@@ -357,15 +393,14 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
       const auto d_Nunm1 = Nunm1.Read();
       const auto d_Nunm2 = Nunm2.Read();
       auto d_Fext = Fext.Write();
+      const auto ab1_ = ab1;
+      const auto ab2_ = ab2;
+      const auto ab3_ = ab3;
       MFEM_FORALL(i, Fext.Size(),
-                  d_Fext[i] = ab1 * d_Nun[i] +
-                              ab2 * d_Nunm1[i] +
-                              ab3 * d_Nunm2[i];);
+                  d_Fext[i] = ab1_ * d_Nun[i] +
+                              ab2_ * d_Nunm1[i] +
+                              ab3_ * d_Nunm2[i];);
    }
-
-   // Rotate the solutions from previous time steps.
-   Nunm2 = Nunm1;
-   Nunm1 = Nun;
 
    // Fext = M^{-1} (F(u^{n}) + f^{n+1})
    MvInv->Mult(Fext, tmp1);
@@ -390,19 +425,20 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
 
    sw_extrap.Stop();
 
-   //
-   // Pressure poisson.
-   //
+   // Pressure Poisson.
    sw_curlcurl.Start();
    {
       const auto d_un = un.Read();
       const auto d_unm1 = unm1.Read();
       const auto d_unm2 = unm2.Read();
       auto d_Lext = Lext.Write();
+      const auto ab1_ = ab1;
+      const auto ab2_ = ab2;
+      const auto ab3_ = ab3;
       MFEM_FORALL(i, Lext.Size(),
-                  d_Lext[i] = ab1 * d_un[i] +
-                              ab2 * d_unm1[i] +
-                              ab3 * d_unm2[i];);
+                  d_Lext[i] = ab1_ * d_un[i] +
+                              ab2_ * d_unm1[i] +
+                              ab3_ * d_unm2[i];);
    }
 
    Lext_gf.SetFromTrueDofs(Lext);
@@ -480,43 +516,59 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
 
    pn_gf.GetTrueDofs(pn);
 
-   //
    // Project velocity.
-   //
    G->Mult(pn, resu);
    resu.Neg();
    Mv->Mult(Fext, tmp1);
    resu.Add(1.0, tmp1);
 
+   // un_next_gf = un_gf;
+
    for (auto &vel_dbc : vel_dbcs)
    {
-      un_gf.ProjectBdrCoefficient(*vel_dbc.coeff, vel_dbc.attr);
+      un_next_gf.ProjectBdrCoefficient(*vel_dbc.coeff, vel_dbc.attr);
    }
 
    vfes->GetRestrictionMatrix()->MultTranspose(resu, resu_gf);
-
-   // Rotate solutions from previous time steps.
-   unm2 = unm1;
-   unm1 = un;
 
    Vector X2, B2;
    if (partial_assembly)
    {
       auto *HC = H.As<ConstrainedOperator>();
-      EliminateRHS(*H_form, *HC, vel_ess_tdof, un_gf, resu_gf, X2, B2, 1);
+      EliminateRHS(*H_form, *HC, vel_ess_tdof, un_next_gf, resu_gf, X2, B2, 1);
    }
    else
    {
-      H_form->FormLinearSystem(vel_ess_tdof, un_gf, resu_gf, H, X2, B2, 1);
+      H_form->FormLinearSystem(vel_ess_tdof, un_next_gf, resu_gf, H, X2, B2, 1);
    }
    sw_hsolve.Start();
    HInv->Mult(B2, X2);
    sw_hsolve.Stop();
    iter_hsolve = HInv->GetNumIterations();
    res_hsolve = HInv->GetFinalNorm();
-   H_form->RecoverFEMSolution(X2, resu_gf, un_gf);
+   H_form->RecoverFEMSolution(X2, resu_gf, un_next_gf);
 
-   un_gf.GetTrueDofs(un);
+   un_next_gf.GetTrueDofs(un_next);
+
+   // If the current time step is not provisional, accept the computed solution
+   // and update the time step history by default.
+   if (!provisional)
+   {
+      UpdateTimestepHistory(dt);
+      time += dt;
+   }
+
+   if (filter_alpha != 0.0)
+   {
+      un_NM1_gf.ProjectGridFunction(un_gf);
+      un_filtered_gf.ProjectGridFunction(un_NM1_gf);
+      const auto d_un_filtered_gf = un_filtered_gf.Read();
+      auto d_un_gf = un_gf.ReadWrite();
+      MFEM_FORALL(i,
+                  un_gf.Size(),
+                  d_un_gf[i] = (1.0 - filter_alpha) * d_un_gf[i]
+                               + filter_alpha * d_un_filtered_gf[i];);
+   }
 
    sw_step.Stop();
 
@@ -965,7 +1017,24 @@ void NavierSolver::AddAccelTerm(VecFuncT *f, Array<int> &attr)
 
 void NavierSolver::SetTimeIntegrationCoefficients(int step)
 {
-   if (step == 0)
+   // Maxmium BDF order to use at current time step
+   // step + 1 <= order <= max_bdf_order
+   int bdf_order = std::min(step + 1, max_bdf_order);
+
+   // Ratio of time step history at dt(t_{n}) - dt(t_{n-1})
+   double rho1 = 0.0;
+
+   // Ratio of time step history at dt(t_{n-1}) - dt(t_{n-2})
+   double rho2 = 0.0;
+
+   rho1 = dthist[0] / dthist[1];
+
+   if (bdf_order == 3)
+   {
+      rho2 = dthist[1] / dthist[2];
+   }
+
+   if (step == 0 && bdf_order == 1)
    {
       bd0 = 1.0;
       bd1 = -1.0;
@@ -975,25 +1044,27 @@ void NavierSolver::SetTimeIntegrationCoefficients(int step)
       ab2 = 0.0;
       ab3 = 0.0;
    }
-   else if (step == 1)
+   else if (step >= 1 && bdf_order == 2)
    {
-      bd0 = 3.0 / 2.0;
-      bd1 = -4.0 / 2.0;
-      bd2 = 1.0 / 2.0;
+      bd0 = (1.0 + 2.0 * rho1) / (1.0 + rho1);
+      bd1 = -(1.0 + rho1);
+      bd2 = pow(rho1, 2.0) / (1.0 + rho1);
       bd3 = 0.0;
-      ab1 = 2.0;
-      ab2 = -1.0;
+      ab1 = 1.0 + rho1;
+      ab2 = -rho1;
       ab3 = 0.0;
    }
-   else if (step == 2)
+   else if (step >= 2 && bdf_order == 3)
    {
-      bd0 = 11.0 / 6.0;
-      bd1 = -18.0 / 6.0;
-      bd2 = 9.0 / 6.0;
-      bd3 = -2.0 / 6.0;
-      ab1 = 3.0;
-      ab2 = -3.0;
-      ab3 = 1.0;
+      bd0 = 1.0 + rho1 / (1.0 + rho1)
+            + (rho2 * rho1) / (1.0 + rho2 * (1 + rho1));
+      bd1 = -1.0 - rho1 - (rho2 * rho1 * (1.0 + rho1)) / (1.0 + rho2);
+      bd2 = pow(rho1, 2.0) * (rho2 + 1.0 / (1.0 + rho1));
+      bd3 = -(pow(rho2, 3.0) * pow(rho1, 2.0) * (1.0 + rho1))
+            / ((1.0 + rho2) * (1.0 + rho2 + rho2 * rho1));
+      ab1 = ((1.0 + rho1) * (1.0 + rho2 * (1.0 + rho1))) / (1.0 + rho2);
+      ab2 = -rho1 * (1.0 + rho2 * (1.0 + rho1));
+      ab3 = (pow(rho2, 2.0) * rho1 * (1.0 + rho1)) / (1.0 + rho2);
    }
 }
 
@@ -1075,4 +1146,6 @@ NavierSolver::~NavierSolver()
    delete pfec;
    delete vfes;
    delete pfes;
+   delete vfec_filter;
+   delete vfes_filter;
 }
