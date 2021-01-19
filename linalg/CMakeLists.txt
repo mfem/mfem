@@ -10,6 +10,7 @@
 # CONTRIBUTING.md for details.
 
 list(APPEND SRCS
+  auxiliary.cpp
   blockmatrix.cpp
   blockoperator.cpp
   blockvector.cpp
@@ -26,6 +27,7 @@ list(APPEND SRCS
   )
 
 list(APPEND HDRS
+  auxiliary.hpp
   blockmatrix.hpp
   blockoperator.hpp
   blockvector.hpp
