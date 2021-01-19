@@ -271,8 +271,8 @@ int main(int argc, char *argv[])
    ParSesquilinearForm a(fespace, conv);
    a.AddDomainIntegrator(new CurlCurlIntegrator(restr_muinv),NULL);
    a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_omeg),NULL);
-   // a.AddDomainIntegrator(NULL, new VectorFEMassIntegrator(lossCoef));                         
-   a.AddDomainIntegrator(NULL, new VectorFEMassIntegrator(restr_loss));                         
+   a.AddDomainIntegrator(NULL, new VectorFEMassIntegrator(lossCoef));                         
+   // a.AddDomainIntegrator(NULL, new VectorFEMassIntegrator(restr_loss));                         
 
 
 

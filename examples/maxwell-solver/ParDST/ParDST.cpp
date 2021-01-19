@@ -438,8 +438,8 @@ void ParDST::SetMaxwellPmlSystemMatrix(int ip)
    if (LossCoeff) 
    {
       restr_loss = new RestrictedCoefficient(*LossCoeff,attr);
-      sqf[ip]->AddDomainIntegrator(NULL, new VectorFEMassIntegrator(*restr_loss));      
-      // sqf[ip]->AddDomainIntegrator(NULL, new VectorFEMassIntegrator(*LossCoeff));      
+      // sqf[ip]->AddDomainIntegrator(NULL, new VectorFEMassIntegrator(*restr_loss));      
+      sqf[ip]->AddDomainIntegrator(NULL, new VectorFEMassIntegrator(*LossCoeff));      
    }
 
 
