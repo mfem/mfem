@@ -238,8 +238,6 @@ int CeedSingleOperatorGetHeuristics(CeedOperator oper, CeedScalar* minq,
       *minq = std::min(*minq, tempdata[i]);
       *absmin = std::min(*absmin, fabs(tempdata[i]));
    }
-   printf("maxq=%f, minq=%f, absmin=%f\n",
-          *maxq, *minq, *absmin);
    ierr = CeedVectorRestoreArrayRead(assembledqf, &tempdata); CeedChk(ierr);
 
    ierr = CeedElemRestrictionDestroy(&rstr_q); CeedChk(ierr);
