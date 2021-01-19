@@ -28,12 +28,9 @@ namespace mfem
 
 bool Mesh::remove_unused_vertices = true;
 
-void Mesh::ReadMFEMMesh(std::istream &input, int version, int &curved)
+void Mesh::ReadMFEMMesh(std::istream &input, bool mfem_v11, int &curved)
 {
-   // Read MFEM mesh v1.0 or v1.2 format
-   MFEM_VERIFY(version == 10 || version == 12,
-               "unknown MFEM mesh version");
-
+   // Read MFEM mesh v1.0 format
    string ident;
 
    // read lines beginning with '#' (comments)
@@ -66,7 +63,24 @@ void Mesh::ReadMFEMMesh(std::istream &input, int version, int &curved)
    }
 
    skip_comment_lines(input, '#');
-   input >> ident; // 'vertices'
+   input >> ident;
+
+   if (mfem_v11 && ident == "vertex_parents")
+   {
+      ncmesh = new NCMesh(this, &input);
+      // NOTE: the constructor above will call LoadVertexParents
+
+      skip_comment_lines(input, '#');
+      input >> ident;
+
+      if (ident == "coarse_elements")
+      {
+         ncmesh->LoadCoarseElements(input);
+
+         skip_comment_lines(input, '#');
+         input >> ident;
+      }
+   }
 
    MFEM_VERIFY(ident == "vertices", "invalid mesh file");
    input >> NumOfVertices;
@@ -84,6 +98,9 @@ void Mesh::ReadMFEMMesh(std::istream &input, int version, int &curved)
             input >> vertices[j](i);
          }
       }
+
+      // initialize vertex positions in NCMesh
+      if (ncmesh) { ncmesh->SetVertexPositions(vertices); }
    }
    else
    {

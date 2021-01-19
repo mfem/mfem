@@ -914,6 +914,8 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
    have_face_nbr_data = false;
    pncmesh = NULL;
 
+   string ident;
+
    // read the serial part of the mesh
    const int gen_edges = 1;
 
@@ -924,34 +926,6 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
 
    ReduceMeshGen(); // determine the global 'meshgen'
 
-   if (Conforming())
-   {
-      LoadSharedEntities(input);
-   }
-   else
-   {
-      // the ParNCMesh instance was already constructed in 'Loader'
-      pncmesh = dynamic_cast<ParNCMesh*>(ncmesh);
-      MFEM_ASSERT(pncmesh, "internal error");
-
-      // in the NC case we don't need to load extra data from the file,
-      // as the shared entities can be constructed from the ghost layer
-      pncmesh->GetConformingSharedStructures(*this);
-   }
-
-   const bool fix_orientation = false;
-   Finalize(refine, fix_orientation);
-
-   // If the mesh has Nodes, convert them from GridFunction to ParGridFunction?
-
-   // note: attributes and bdr_attributes are local lists
-
-   // TODO: NURBS meshes?
-}
-
-void ParMesh::LoadSharedEntities(istream &input)
-{
-   string ident;
    skip_comment_lines(input, '#');
 
    // read the group topology
@@ -965,8 +939,7 @@ void ParMesh::LoadSharedEntities(istream &input)
    // read and set the sizes of svert_lvert, group_svert
    {
       int num_sverts;
-      input >> ident >> num_sverts;
-      MFEM_VERIFY(ident == "total_shared_vertices", "invalid mesh file");
+      input >> ident >> num_sverts; // total_shared_vertices
       svert_lvert.SetSize(num_sverts);
       group_svert.SetDims(GetNGroups()-1, num_sverts);
    }
@@ -975,8 +948,7 @@ void ParMesh::LoadSharedEntities(istream &input)
    {
       skip_comment_lines(input, '#');
       int num_sedges;
-      input >> ident >> num_sedges;
-      MFEM_VERIFY(ident == "total_shared_edges", "invalid mesh file");
+      input >> ident >> num_sedges; // total_shared_edges
       sedge_ledge.SetSize(num_sedges);
       shared_edges.SetSize(num_sedges);
       group_sedge.SetDims(GetNGroups()-1, num_sedges);
@@ -990,8 +962,7 @@ void ParMesh::LoadSharedEntities(istream &input)
    {
       skip_comment_lines(input, '#');
       int num_sface;
-      input >> ident >> num_sface;
-      MFEM_VERIFY(ident == "total_shared_faces", "invalid mesh file");
+      input >> ident >> num_sface; // total_shared_faces
       sface_lface.SetSize(num_sface);
       group_stria.MakeI(GetNGroups()-1);
       group_squad.MakeI(GetNGroups()-1);
@@ -1019,10 +990,10 @@ void ParMesh::LoadSharedEntities(istream &input)
          mfem_error();
       }
 #endif
+
       {
          int nv;
          input >> ident >> nv; // shared_vertices (in this group)
-         MFEM_VERIFY(ident == "shared_vertices", "invalid mesh file");
          nv += svert_counter;
          MFEM_VERIFY(nv <= group_svert.Size_of_connections(),
                      "incorrect number of total_shared_vertices");
@@ -1037,7 +1008,6 @@ void ParMesh::LoadSharedEntities(istream &input)
       {
          int ne, v[2];
          input >> ident >> ne; // shared_edges (in this group)
-         MFEM_VERIFY(ident == "shared_edges", "invalid mesh file");
          ne += sedge_counter;
          MFEM_VERIFY(ne <= group_sedge.Size_of_connections(),
                      "incorrect number of total_shared_edges");
@@ -1096,6 +1066,15 @@ void ParMesh::LoadSharedEntities(istream &input)
          group_squad.GetJ()[i] = i;
       }
    }
+
+   const bool fix_orientation = false;
+   Finalize(refine, fix_orientation);
+
+   // If the mesh has Nodes, convert them from GridFunction to ParGridFunction?
+
+   // note: attributes and bdr_attributes are local lists
+
+   // TODO: AMR meshes, NURBS meshes?
 }
 
 ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
@@ -1359,19 +1338,19 @@ long ParMesh::GetGlobalElementNum(int local_element_num) const
 void ParMesh::DistributeAttributes(Array<int> &attr)
 {
    // Determine the largest attribute number across all processors
-   int max_attr = attr.Size() ? attr.Max() : 1 /*allow empty ranks*/;
+   int max_attr = attr.Max();
    int glb_max_attr = -1;
    MPI_Allreduce(&max_attr, &glb_max_attr, 1, MPI_INT, MPI_MAX, MyComm);
 
    // Create marker arrays to indicate which attributes are present
    // assuming attribute numbers are in the range [1,glb_max_attr].
-   bool *attr_marker = new bool[glb_max_attr];
-   bool *glb_attr_marker = new bool[glb_max_attr];
-   for (int i = 0; i < glb_max_attr; i++)
+   bool * attr_marker = new bool[glb_max_attr];
+   bool * glb_attr_marker = new bool[glb_max_attr];
+   for (int i=0; i<glb_max_attr; i++)
    {
       attr_marker[i] = false;
    }
-   for (int i = 0; i < attr.Size(); i++)
+   for (int i=0; i<attr.Size(); i++)
    {
       attr_marker[attr[i] - 1] = true;
    }
@@ -1380,16 +1359,22 @@ void ParMesh::DistributeAttributes(Array<int> &attr)
    delete [] attr_marker;
 
    // Translate from the marker array to a unique, sorted list of attributes
-   attr.SetSize(0);
-   attr.Reserve(glb_max_attr);
-   for (int i = 0; i < glb_max_attr; i++)
+   Array<int> glb_attr;
+   glb_attr.SetSize(glb_max_attr);
+   glb_attr = glb_max_attr;
+   int o = 0;
+   for (int i=0; i<glb_max_attr; i++)
    {
       if (glb_attr_marker[i])
       {
-         attr.Append(i + 1);
+         glb_attr[o++] = i + 1;
       }
    }
    delete [] glb_attr_marker;
+
+   glb_attr.Sort();
+   glb_attr.Unique();
+   glb_attr.Copy(attr);
 }
 
 void ParMesh::SetAttributes()
@@ -5311,17 +5296,10 @@ long ParMesh::ReduceInt(int value) const
 
 void ParMesh::ParPrint(ostream &out) const
 {
-   if (NURBSext)
+   if (NURBSext || pncmesh)
    {
-      // TODO: NURBS meshes.
-      Print(out); // use the serial MFEM v1.0 format for now
-      return;
-   }
-
-   if (Nonconforming())
-   {
-      // the NC mesh format works for both serial and parallel
-      Printer(out);
+      // TODO: AMR meshes, NURBS meshes.
+      Print(out);
       return;
    }
 
