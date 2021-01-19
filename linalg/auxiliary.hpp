@@ -31,7 +31,10 @@ class ParDiscreteLinearOperator;
 
     Given an operator A and a transfer G, this will create a solver
     that approximates (G^T A G)^{-1}. Used for two different
-    auxiliary spaces in the AMS cycle. */
+    auxiliary spaces in the AMS cycle.
+
+    The produced solver is based on a low-order refined discretization
+    for the high-order H1 problem. */
 class MatrixFreeAuxiliarySpace : public Solver
 {
 public:
@@ -39,14 +42,20 @@ public:
 
        In the AMS framework this auxiliary space has two coefficients.
 
+       @param mesh_lor       Low-order refined auxiliary mesh
        @param alpha_coeff    coefficient on curl-curl term (1 if null)
        @param beta_coeff     coefficient on mass term (1 if null)
+       @param beta_mcoeff    matrix coefficient on mass term
+       @param ess_bdr        attributes for essential boundaries
+       @param curlcurl_oper  High-order operator for the system
+       @param pi             Intentity interpolation operator
+       @param useAmgX_       Use AmgX instead of hypre for auxiliary solves
        @param cg_iterations  number of CG iterations used to invert
-                             auxiliary system, choosing 0 means to
-                             use a single V-cycle
+                             auxiliary system, choosing 0 means to use a
+                             single V-cycle
    */
    MatrixFreeAuxiliarySpace(
-      MPI_Comm comm_, ParMesh& mesh_lor, Coefficient* alpha_coeff,
+      ParMesh& mesh_lor, Coefficient* alpha_coeff,
       Coefficient* beta_coeff, MatrixCoefficient* beta_mcoeff,
       Array<int>& ess_bdr, Operator& curlcurl_oper, Operator& pi,
 #ifdef MFEM_USE_AMGX
@@ -58,13 +67,19 @@ public:
 
        This has one coefficient in the AMS framework.
 
+       @param mesh_lor       Low-order refined auxiliary mesh
        @param beta_coeff     coefficient on mass term (1 if null)
+       @param beta_mcoeff    matrix coefficient on mass term
+       @param ess_bdr        attributes for essential boundaries
+       @param curlcurl_oper  High-order operator for the system
+       @param g              Gradient interpolation operator
+       @param useAmgX_       Use AmgX instead of hypre for auxiliary solves
        @param cg_iterations  number of CG iterations used to invert
                              auxiliary system, choosing 0 means to
                              use a single V-cycle
    */
    MatrixFreeAuxiliarySpace(
-      MPI_Comm comm_, ParMesh& mesh_lor, Coefficient* beta_coeff,
+      ParMesh& mesh_lor, Coefficient* beta_coeff,
       MatrixCoefficient* beta_mcoeff, Array<int>& ess_bdr,
       Operator& curlcurl_oper, Operator& g,
 #ifdef MFEM_USE_AMGX
@@ -160,13 +175,20 @@ class MatrixFreeAMS : public Solver
 public:
    /** @brief Construct matrix-free AMS preconditioner
 
+       @param aform        BilinearForm for curl-curl problem, generally will
+                           have a CurlCurlIntegrator and possibly a
+                           VectorFEMassIntegrator.
+       @param oper         Operator to precondition.
+       @param nd_fespace   Underlying Nedelec finite element space.
        @param alpha_coeff  coefficient on curl-curl term in Maxwell problem
                            (can be null, in which case constant 1 is assumed)
-       @param beta_coeff   coefficient on mass term in Maxwell problem
+       @param beta_coeff   (scalar) coefficient on mass term in Maxwell problem
+       @param beta_mcoeff  (matrix) coefficient on mass term
        @param ess_bdr      boundary *attributes* that are marked essential. In
                            contrast to other MFEM cases, these are *attributes*
                            not dofs, because we need to apply these boundary
                            conditions to different bilinear forms.
+       @param useAmgX      use AmgX (instead of hypre) for LOR problems
        @param inner_pi_its number of CG iterations on auxiliary pi space,
                            may need more for difficult coefficients
        @param inner_g_its  number of CG iterations on auxiliary pi space,
