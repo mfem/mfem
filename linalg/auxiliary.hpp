@@ -50,7 +50,7 @@ public:
       Coefficient* beta_coeff, MatrixCoefficient* beta_mcoeff,
       Array<int>& ess_bdr, Operator& curlcurl_oper, Operator& pi,
 #ifdef MFEM_USE_AMGX
-      bool useAmgX,
+      bool useAmgX_,
 #endif
       int cg_iterations = 0);
 
@@ -68,7 +68,7 @@ public:
       MatrixCoefficient* beta_mcoeff, Array<int>& ess_bdr,
       Operator& curlcurl_oper, Operator& g,
 #ifdef MFEM_USE_AMGX
-      bool useAmgX,
+      bool useAmgX_,
 #endif
       int cg_iterations = 1);
 
@@ -85,20 +85,21 @@ private:
 
    /// inner_cg_iterations > 99 applies an exact solve here
    void SetupCG(Operator& curlcurl_oper, Operator& conn,
-                int inner_cg_iterations, bool very_verbose=false);
+                int inner_cg_iterations);
 
    MPI_Comm comm;
-   Array<int> ess_tdof_list_;
-   HypreParMatrix * aspacematrix_;
-   Solver * aspacepc_;
-   Operator* matfree_;
-   CGSolver* cg_;
-   Operator* aspacewrapper_;
+   Array<int> ess_tdof_list;
+   HypreParMatrix * aspacematrix;
+   Solver * aspacepc;
+   Operator* matfree;
+   CGSolver* cg;
+   Operator* aspacewrapper;
 #ifdef MFEM_USE_AMGX
-   const bool useAmgX_;
+   const bool useAmgX;
 #endif
-   mutable int inner_aux_iterations_;
+   mutable int inner_aux_iterations;
 };
+
 
 /** @brief Perform AMS cycle with generic Operator objects.
 
@@ -110,13 +111,13 @@ public:
 
        Most of these arguments just need a Mult() operation,
        but pi and g also require MultTranspose() */
-   GeneralAMS(const Operator& A,
-              const Operator& pi,
-              const Operator& g,
-              const Operator& pispacesolver,
-              const Operator& gspacesolver,
-              const Operator& smoother,
-              const Array<int>& ess_tdof_list);
+   GeneralAMS(const Operator& curlcurl_op_,
+              const Operator& pi_,
+              const Operator& gradient_,
+              const Operator& pispacesolver_,
+              const Operator& gspacesolver_,
+              const Operator& smoother_,
+              const Array<int>& ess_tdof_list_);
    virtual ~GeneralAMS();
 
    /// in principle this should set A_ = op;
@@ -125,31 +126,35 @@ public:
    virtual void Mult(const Vector& x, Vector& y) const;
 
 private:
-   const Operator& A_;
-   const Operator& pi_;
-   const Operator& g_;
-   const Operator& pispacesolver_;
-   const Operator& gspacesolver_;
-   const Operator& smoother_;
-   const Array<int> ess_tdof_list_;
+   const Operator& curlcurl_op;
+   const Operator& pi;
+   const Operator& gradient;
+   const Operator& pispacesolver;
+   const Operator& gspacesolver;
+   const Operator& smoother;
+   const Array<int> ess_tdof_list;
 
-   mutable StopWatch chrono_;
+   mutable StopWatch chrono;
 
-   mutable double residual_time_;
-   mutable double smooth_time_;
-   mutable double gspacesolver_time_;
-   mutable double pispacesolver_time_;
+   mutable double residual_time;
+   mutable double smooth_time;
+   mutable double gspacesolver_time;
+   mutable double pispacesolver_time;
 
    void FormResidual(const Vector& rhs, const Vector& x,
                      Vector& residual) const;
 };
+
 
 /** @brief An auxiliary Maxwell solver for a high-order curl-curl
     system without high-order assembly.
 
     The auxiliary space solves are done using a low-order refined approach,
     but all the interpolation operators, residuals, etc. are done in a
-    matrix-free manner. */
+    matrix-free manner.
+
+    See Barker and Kolev, Matrix-free preconditioning for high-order H(curl)
+    discretizations (https://doi.org/10.1002/nla.2348) */
 class MatrixFreeAMS : public Solver
 {
 public:
@@ -180,22 +185,22 @@ public:
 
    void SetOperator(const Operator &op) {}
 
-   void Mult(const Vector& x, Vector& y) const { general_ams_->Mult(x, y); }
+   void Mult(const Vector& x, Vector& y) const { general_ams->Mult(x, y); }
 
 private:
-   GeneralAMS * general_ams_;
+   GeneralAMS * general_ams;
 
-   Solver * smoother_;
-   ParDiscreteLinearOperator * pa_grad_;
-   OperatorPtr G_;
-   ParDiscreteLinearOperator * pa_interp_;
-   OperatorPtr Pi_;
+   Solver * smoother;
+   ParDiscreteLinearOperator * pa_grad;
+   OperatorPtr Gradient;
+   ParDiscreteLinearOperator * pa_interp;
+   OperatorPtr Pi;
 
-   Solver * Gspacesolver_;
-   Solver * Pispacesolver_;
+   Solver * Gspacesolver;
+   Solver * Pispacesolver;
 
-   ParFiniteElementSpace * h1_fespace_;
-   ParFiniteElementSpace * h1_fespace_d_;
+   ParFiniteElementSpace * h1_fespace;
+   ParFiniteElementSpace * h1_fespace_d;
 };
 
 } // namespace mfem
