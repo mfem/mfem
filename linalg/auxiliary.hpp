@@ -13,8 +13,10 @@
 #define MFEM_AUXILIARY
 
 #include "../config/config.hpp"
-#include "../general/tic_toc.hpp"
 
+#ifdef MFEM_USE_MPI
+
+#include "../general/tic_toc.hpp"
 #include "solvers.hpp"
 
 namespace mfem
@@ -226,5 +228,7 @@ private:
 };
 
 } // namespace mfem
+
+#endif // MFEM_USE_MPI
 
 #endif

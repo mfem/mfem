@@ -9,6 +9,10 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../config/config.hpp"
+
+#ifdef MFEM_USE_MPI
+
 #include "linalg.hpp"
 #include "../fem/pfespace.hpp"
 #include "../fem/pbilinearform.hpp"
@@ -534,3 +538,5 @@ MatrixFreeAMS::~MatrixFreeAMS()
 }
 
 } // namespace mfem
+
+#endif
