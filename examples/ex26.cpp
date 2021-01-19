@@ -40,7 +40,7 @@ using namespace mfem;
 // in the FiniteElementSpaceHierarchy. The preconditioner uses a CG solver on
 // the coarsest level and second order Chebyshev accelerated smoothers on the
 // other levels.
-class DiffusionMultigrid : public Multigrid
+class DiffusionMultigrid : public GeometricMultigrid
 {
 private:
    ConstantCoefficient one;
@@ -49,7 +49,7 @@ public:
    // Constructs a diffusion multigrid for the given FiniteElementSpaceHierarchy
    // and the array of essential boundaries
    DiffusionMultigrid(FiniteElementSpaceHierarchy& fespaces, Array<int>& ess_bdr)
-      : Multigrid(fespaces), one(1.0)
+      : GeometricMultigrid(fespaces), one(1.0)
    {
       ConstructCoarseOperatorAndSolver(fespaces.GetFESpaceAtLevel(0), ess_bdr);
 
@@ -204,9 +204,9 @@ int main(int argc, char *argv[])
    x = 0.0;
 
    // 8. Create the multigrid operator using the previously created
-   //    FiniteElementSpaceHierarchy and additional boundary information. This operator
-   //    is then used to create the MultigridSolver as a preconditioner in the
-   //    iterative solver.
+   //    FiniteElementSpaceHierarchy and additional boundary information. This
+   //    operator is then used to create the MultigridSolver as a preconditioner
+   //    in the iterative solver.
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 1;
 
@@ -224,8 +224,8 @@ int main(int argc, char *argv[])
    // 10. Recover the solution as a finite element grid function.
    M.RecoverFineFEMSolution(X, *b, x);
 
-   // 11. Save the refined mesh and the solution. This output can be viewed later
-   //     using GLVis: "glvis -m refined.mesh -g sol.gf".
+   // 11. Save the refined mesh and the solution. This output can be viewed
+   //     later using GLVis: "glvis -m refined.mesh -g sol.gf".
    ofstream mesh_ofs("refined.mesh");
    mesh_ofs.precision(8);
    fespaces.GetFinestFESpace().GetMesh()->Print(mesh_ofs);

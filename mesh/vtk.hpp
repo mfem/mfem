@@ -26,6 +26,8 @@ enum class VTKFormat
    BINARY32
 };
 
+extern const int vtk_prism_perm[6];
+
 /// Create the VTK element connectivity array for a given element geometry and
 /// refinement level. Converts node numbers from MFEM to VTK ordering.
 void CreateVTKElementConnectivity(Array<int> &con, Geometry::Type geom,
@@ -36,6 +38,8 @@ void CreateVTKElementConnectivity(Array<int> &con, Geometry::Type geom,
 /// zero. The proper header will be prepended to the data.
 void WriteVTKEncodedCompressed(std::ostream &out, const void *bytes,
                                uint32_t nbytes, int compression_level);
+
+int BarycentricToVTKTriangle(int *b, int ref);
 
 const char *VTKByteOrder();
 

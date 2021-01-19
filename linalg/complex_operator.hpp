@@ -100,7 +100,7 @@ public:
    /** @brief Real or imaginary part accessor methods
 
        The following accessor methods should only be called if the requested
-       part of the opertor is known to exist.  This can be checked with
+       part of the operator is known to exist. This can be checked with
        hasRealPart() or hasImagPart().
    */
    virtual Operator & real();
@@ -166,7 +166,7 @@ public:
    /** Combine the blocks making up this complex operator into a single
        SparseMatrix. The resulting matrix can be passed to solvers which require
        access to the matrix entries themselves, such as sparse direct solvers,
-       rather than simply the action of the opertor. Note that this combined
+       rather than simply the action of the operator. Note that this combined
        operator requires roughly twice the memory of the block structured
        operator. */
    SparseMatrix * GetSystemMatrix() const;
@@ -269,7 +269,7 @@ public:
        HypreParMatrix. The resulting matrix can be passed to solvers which
        require access to the matrix entries themselves, such as sparse direct
        solvers or Hypre preconditioners, rather than simply the action of the
-       opertor. Note that this combined operator requires roughly twice the
+       operator. Note that this combined operator requires roughly twice the
        memory of the block structured operator. */
    HypreParMatrix * GetSystemMatrix() const;
 

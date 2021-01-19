@@ -20,9 +20,10 @@ sub usage {
   printf STDOUT <<EOF;
 
    $0 [-h|--help]
-   $0 {mfem_dir}
+   $0 [-b <branch>] {mfem_dir}
 
    where: {mfem_dir}  is the MFEM source directory [default value: ../..]
+          -b <branch> is the branch to check [default: HEAD]
           -h|--help   prints this usage information and exits
 
    This script checks if the current branch history, defined as the commits that
@@ -37,16 +38,14 @@ EOF
 }
 
 my $mfem_dir = "../..";
-
-if (scalar @ARGV > 2) {
-  printf STDERR "Error: too many command line arguments\n";
-  usage 1;
-}
+my $branch = "HEAD";
 
 while (my $opt = shift) {
   if ($opt) {
     if ($opt eq "-h" || $opt eq "--help") {
       usage 0;
+    } elsif ($opt eq "-b") {
+      $branch = shift;
     } else {
       $mfem_dir = $opt;
     }
@@ -73,7 +72,7 @@ my $max_branch_kb = 1000;
 my $status = 0; # Return code
 
 # Get SHA hash of all commits in this branch
-my @commits = split /\n/, `git log --pretty=format:%H master..HEAD`;
+my @commits = split /\n/, `git log --pretty=format:%H master..$branch`;
 
 # Check if total number of commits in this branch exceeds the maximum allowable
 my $ncommits = scalar @commits;
@@ -104,7 +103,7 @@ sub formatSize {
 # Loop over each commit in this branch, and check for large diffs
 my $total_size = 0;
 foreach my $sha (@commits) {
-  my @blobs = `git diff-tree -r --no-commit-id $sha`;
+  my @blobs = `git diff-tree -r -c --root --no-commit-id $sha`;
   my $nfiles_changed = scalar @blobs;
   if ($nfiles_changed > $commit_max_files_changed) {
     printf STDERR
@@ -117,23 +116,53 @@ foreach my $sha (@commits) {
   my $commit_size = 0;
   foreach my $blob (@blobs) {
     my @blob_split = (split /\s/, $blob);
-    my $src = @blob_split[2];
-    my $dst = @blob_split[3];
-    my $mode = @blob_split[4];
-    my $fname = @blob_split[5];
-
+    my $nfields = scalar @blob_split;
+    my $fname = "(no-filename)";
     my $blob_size = 0;
-    # File was added
-    if ($mode eq "A") { $blob_size += int(`git cat-file -s $dst`); }
-    # File was copied
-    elsif ($mode =~ m/C\d*/) { $blob_size += int(`git cat-file -s $dst`); }
-    elsif ($mode eq "D") { }
-    # File was modified, use the gzip'ed diff as a proxy of the required git storage
-    elsif ($mode =~ m/M\d*/) { $blob_size += int(`git diff -U0 --binary $src $dst | gzip -c | wc -c`); }
-    elsif ($mode =~ m/R\d*/) { }
-    elsif ($mode eq "T") { }
-    elsif ($mode eq "U") { }
-    else { die "Unknown git status letter." }
+
+    if ($nfields == 6) {
+      # 0 or 1 parents
+      my $src = @blob_split[2];
+      my $dst = @blob_split[3];
+      my $mode = @blob_split[4];
+      $fname = @blob_split[5];
+      # File was added
+      if ($mode eq "A") { $blob_size += int(`git cat-file -s $dst`); }
+      # File was copied
+      elsif ($mode =~ m/C\d*/) { $blob_size += int(`git cat-file -s $dst`); }
+      elsif ($mode eq "D") { }
+      # File was modified, use the gzip'ed diff as a proxy of the required git storage
+      elsif ($mode =~ m/M\d*/) { $blob_size += int(`git diff -U0 --binary $src $dst | gzip -c | wc -c`); }
+      elsif ($mode =~ m/R\d*/) { }
+      elsif ($mode eq "T") { }
+      elsif ($mode eq "U") { }
+      else { die "Unknown git status letter." }
+    } elsif ($nfields == 8) {
+      # 2 parents
+      my $src1 = @blob_split[3];
+      my $src2 = @blob_split[4];
+      my $dst = @blob_split[5];
+      my $mode = @blob_split[6];
+      $fname = @blob_split[7];
+      if ($mode eq "AA") {
+        # File was added
+        $blob_size += int(`git cat-file -s $dst`); }
+      elsif ($mode eq "DD") { }
+      elsif ($mode eq "MM") {
+        # File was modified, use the gzip'ed diff as a proxy of the required git
+        # storage
+        my $sz1 = int(`git diff -U0 --binary $src1 $dst | gzip -c | wc -c`);
+        my $sz2 = int(`git diff -U0 --binary $src2 $dst | gzip -c | wc -c`);
+        $blob_size += $sz1 < $sz2 ? $sz1 : $sz2; }
+      elsif ($mode eq "AM") {
+        my $sz2 = int(`git diff -U0 --binary $src2 $dst | gzip -c | wc -c`);
+        $blob_size += $sz2; }
+      elsif ($mode eq "MA") {
+        my $sz1 = int(`git diff -U0 --binary $src1 $dst | gzip -c | wc -c`);
+        $blob_size += $sz1; }
+      else { die "Unknown git status letter: $mode, commit: $sha, file: $fname.\n\t" }
+    }
+
     if ($blob_size > $max_blob_kb*1024) {
       $status = 1;
       printf STDERR "\033[31mLarge change of size %s in file %s.\033[0m\n", formatSize($blob_size), $fname;
@@ -155,6 +184,7 @@ if ($total_size > $max_branch_kb*1024) {
 }
 
 if ($status) {
+  printf STDERR "\033[36mBranch $branch has errors.\033[0m\n";
   chdir $cur_dir;
   my $testname = basename $0;
   open(my $f, '>', "$testname.msg");
