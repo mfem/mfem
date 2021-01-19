@@ -148,7 +148,7 @@ void GeneralAMS::Mult(const Vector& x, Vector& y) const
 
 // Pi-space constructor
 MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
-   MPI_Comm comm_, ParMesh& mesh_lor, Coefficient* alpha_coeff,
+   ParMesh& mesh_lor, Coefficient* alpha_coeff,
    Coefficient* beta_coeff, MatrixCoefficient* beta_mcoeff, Array<int>& ess_bdr,
    Operator& curlcurl_oper, Operator& pi,
 #ifdef MFEM_USE_AMGX
@@ -156,7 +156,7 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
 #endif
    int cg_iterations) :
    Solver(pi.Width()),
-   comm(comm_),
+   comm(mesh_lor.GetComm()),
    matfree(NULL),
    cg(NULL),
 #ifdef MFEM_USE_AMGX
@@ -230,7 +230,7 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    object, as well as the use of a single CG iteration (instead of just
    an AMG V-cycle). */
 MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
-   MPI_Comm comm_, ParMesh& mesh_lor, Coefficient* beta_coeff,
+   ParMesh& mesh_lor, Coefficient* beta_coeff,
    MatrixCoefficient* beta_mcoeff, Array<int>& ess_bdr, Operator& curlcurl_oper,
    Operator& g,
 #ifdef MFEM_USE_AMGX
@@ -239,7 +239,7 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    int cg_iterations)
    :
    Solver(curlcurl_oper.Height()),
-   comm(comm_),
+   comm(mesh_lor.GetComm()),
    matfree(NULL),
    cg(NULL),
 #ifdef MFEM_USE_AMGX
@@ -498,19 +498,18 @@ MatrixFreeAMS::MatrixFreeAMS(
       Boundary conditions can matter as well (see DIAG_ZERO policy) */
 
    // build G space solver
-   Gspacesolver = new MatrixFreeAuxiliarySpace(nd_fespace.GetComm(), mesh_lor,
-                                               beta_coeff, beta_mcoeff,
-                                               ess_bdr, oper, *Gradient,
+   Gspacesolver = new MatrixFreeAuxiliarySpace(mesh_lor, beta_coeff,
+                                               beta_mcoeff, ess_bdr, oper,
+                                               *Gradient,
 #ifdef MFEM_USE_AMGX
                                                useAmgX,
 #endif
                                                inner_g_iterations);
 
    // build Pi space solver
-   Pispacesolver = new MatrixFreeAuxiliarySpace(nd_fespace.GetComm(), mesh_lor,
-                                                alpha_coeff, beta_coeff,
-                                                beta_mcoeff, ess_bdr, oper,
-                                                *Pi,
+   Pispacesolver = new MatrixFreeAuxiliarySpace(mesh_lor, alpha_coeff,
+                                                beta_coeff, beta_mcoeff,
+                                                ess_bdr, oper, *Pi,
 #ifdef MFEM_USE_AMGX
                                                 useAmgX,
 #endif
