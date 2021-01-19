@@ -2433,6 +2433,8 @@ void ParMesh::GetGhostFaceTransformation(
    {
       const FiniteElement* face_el =
          Nodes->FESpace()->GetTraceElement(FETr->Elem1No, face_geom);
+      MFEM_VERIFY(dynamic_cast<const NodalFiniteElement*>(face_el),
+                  "Mesh requires nodal Finite Element.");
 
 #if 0 // TODO: handle the case of non-interpolatory Nodes
       DenseMatrix I;

@@ -27,6 +27,7 @@ namespace mfem
 /// Class for parallel bilinear form
 class ParBilinearForm : public BilinearForm
 {
+   friend FABilinearFormExtension;
 protected:
    ParFiniteElementSpace *pfes; ///< Points to the same object as #fes
 

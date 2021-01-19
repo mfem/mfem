@@ -53,6 +53,8 @@ enum class AssemblyLevel
     SetAssemblyLevel() function. */
 class BilinearForm : public Matrix
 {
+   friend FABilinearFormExtension;
+
 protected:
    /// Sparse matrix \f$ M \f$ to be associated with the form. Owned.
    SparseMatrix *mat;
