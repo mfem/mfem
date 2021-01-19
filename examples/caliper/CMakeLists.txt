@@ -9,13 +9,15 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-list(APPEND ALL_EXE_SRCS
+set(CALIPER_EXAMPLES_SRCS)
+
+list(APPEND CALIPER_EXE_SRCS
   ex1.cpp
   ex2.cpp
   )
 
 if (MFEM_USE_MPI)
-  list(APPEND ALL_EXE_SRCS
+list(APPEND CALIPER_EXE_SRCS
     ex1p.cpp
     ex2p.cpp
     )
@@ -26,10 +28,11 @@ endif()
 include_directories(BEFORE ${PROJECT_BINARY_DIR})
 
 # Add one executable per cpp file
-add_mfem_examples(ALL_EXE_SRCS)
+set(PFX caliper_)
+add_mfem_examples(CALIPER_EXE_SRCS ${PFX})
 
 # Add a test for each example
-foreach(SRC_FILE ${ALL_EXE_SRCS})
+foreach(SRC_FILE ${CALIPER_EXE_SRCS})
   get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)
   string(REPLACE ".cpp" "" TEST_NAME ${SRC_FILENAME})
 
