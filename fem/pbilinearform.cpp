@@ -576,16 +576,15 @@ void ParDiscreteLinearOperator::ParallelAssemble(OperatorHandle &A)
                                domain_fes->GetDofOffsets(),
                                mat);
 
-   OperatorHandle P_test(A.Type()), P_trial(A.Type());
+   OperatorHandle R_test_transpose(A.Type()), P_trial(A.Type());
 
    // TODO - construct the Dof_TrueDof_Matrix directly in the required format.
-   P_test.ConvertFrom(range_fes->Dof_TrueDof_Matrix());
+   R_test_transpose.ConvertFrom(range_fes->Dof_TrueDof_Matrix());
    P_trial.ConvertFrom(domain_fes->Dof_TrueDof_Matrix());
 
-   A.MakeRAP(P_test, dA, P_trial);
+   A.MakeRAP(R_test_transpose, dA, P_trial);
 }
 
-//// @todo copied from ParMixedBilinearForm, should be some inheritance?
 void ParDiscreteLinearOperator::FormRectangularSystemMatrix(OperatorHandle &A)
 {
    if (ext)
@@ -594,20 +593,6 @@ void ParDiscreteLinearOperator::FormRectangularSystemMatrix(OperatorHandle &A)
       ext->FormRectangularSystemOperator(empty, empty, A);
       return;
    }
-
-   /*
-   if (mat)
-   {
-      Finalize();
-      ParallelAssemble(p_mat);
-      delete mat;
-      mat = NULL;
-      delete mat_e;
-      mat_e = NULL;
-      p_mat_e = NULL;
-   }
-   A = p_mat;
-   */
 
    mfem_error("not implemented!");
 }

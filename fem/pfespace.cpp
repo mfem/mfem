@@ -101,7 +101,8 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
 
    P = NULL;
    Pconf = NULL;
-   Pconf_local = NULL;
+   Rconf = NULL;
+   R_transpose = NULL;
    R = NULL;
 
    num_face_nbr_dofs = -1;
@@ -500,6 +501,12 @@ void ParFiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
    }
 }
 
+const FiniteElement *ParFiniteElementSpace::GetFE(int i) const
+{
+   int ne = mesh->GetNE();
+   if (i >= ne) { return GetFaceNbrFE(i - ne); }
+   else { return FiniteElementSpace::GetFE(i); }
+}
 
 const Operator *ParFiniteElementSpace::GetFaceRestriction(
    ElementDofOrdering e_ordering, FaceType type, L2FaceValues mul) const
@@ -922,36 +929,43 @@ const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
    }
 }
 
-const Operator *ParFiniteElementSpace::GetLocalProlongationMatrix() const
+const Operator *ParFiniteElementSpace::GetRestrictionOperator() const
 {
    if (Conforming())
    {
-      if (Pconf_local) { return Pconf_local; }
+      if (Rconf) { return Rconf; }
 
       if (NRanks == 1)
       {
-         Pconf_local = new IdentityOperator(GetTrueVSize());
+         R_transpose = new IdentityOperator(GetTrueVSize());
       }
       else
       {
          if (!Device::Allows(Backend::DEVICE_MASK))
          {
-            Pconf_local = new ConformingProlongationOperator(*this, true);
+            R_transpose = new ConformingProlongationOperator(*this, true);
          }
          else
          {
-            Pconf_local = new DeviceConformingProlongationOperator(*this, true);
+            R_transpose =
+               new DeviceConformingProlongationOperator(*this, true);
          }
       }
-      return Pconf_local;
+      Rconf = new TransposeOperator(R_transpose);
+      return Rconf;
    }
    else
    {
-      // return Dof_TrueDof_Matrix();
-      // just need diagonal portion, not too hard
-      mfem_error("Not implemented!");
-      return NULL;
+      Dof_TrueDof_Matrix();
+      R_transpose = new TransposeOperator(R);
+      return R;
    }
+}
+
+const Operator *ParFiniteElementSpace::GetRestrictionTransposeOperator() const
+{
+   GetRestrictionOperator();
+   return R_transpose;
 }
 
 void ParFiniteElementSpace::ExchangeFaceNbrData()
@@ -2032,13 +2046,13 @@ int ParFiniteElementSpace
       for (int entity = 0; entity <= 2; entity++)
       {
          const NCMesh::NCList &list = pncmesh->GetNCList(entity);
-         if (!list.masters.size()) { continue; }
+         if (!list.masters.Size()) { continue; }
 
          IsoparametricTransformation T;
          DenseMatrix I;
 
          // process masters that we own or that affect our edges/faces
-         for (unsigned mi = 0; mi < list.masters.size(); mi++)
+         for (int mi = 0; mi < list.masters.Size(); mi++)
          {
             const NCMesh::Master &mf = list.masters[mi];
 
@@ -2069,7 +2083,7 @@ int ParFiniteElementSpace
                GetEntityDofs(entity, sf.index, slave_dofs, mf.Geom());
                if (!slave_dofs.Size()) { continue; }
 
-               sf.OrientedPointMatrix(T.GetPointMat());
+               list.OrientedPointMatrix(sf, T.GetPointMat());
                fe->GetLocalInterpolation(T, I);
 
                // make each slave DOF dependent on all master DOFs
@@ -2097,12 +2111,12 @@ int ParFiniteElementSpace
       {
          const NCMesh::NCList &list = pncmesh->GetNCList(entity);
 
-         std::size_t lsize[3] =
-         { list.conforming.size(), list.masters.size(), list.slaves.size() };
+         int lsize[3] =
+         { list.conforming.Size(), list.masters.Size(), list.slaves.Size() };
 
          for (int l = 0; l < 3; l++)
          {
-            for (std::size_t i = 0; i < lsize[l]; i++)
+            for (int i = 0; i < lsize[l]; i++)
             {
                const MeshId &id =
                   (l == 0) ? list.conforming[i] :
@@ -2867,7 +2881,8 @@ void ParFiniteElementSpace::Destroy()
 
    delete P; P = NULL;
    delete Pconf; Pconf = NULL;
-   delete Pconf_local; Pconf_local = NULL;
+   delete Rconf; Rconf = NULL;
+   delete R_transpose; R_transpose = NULL;
    delete R; R = NULL;
 
    delete gcomm; gcomm = NULL;
@@ -3199,9 +3214,9 @@ static void SetSubVector(const int N,
                          const Array<int> &indices,
                          const Vector &in, Vector &out)
 {
-   auto y = out.HostWrite();
-   const auto x = in.HostRead();
-   const auto I = indices.HostRead();
+   auto y = out.Write();
+   const auto x = in.Read();
+   const auto I = indices.Read();
    MFEM_FORALL(i, N, y[I[i]] = x[i];);
 }
 

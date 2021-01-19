@@ -1279,6 +1279,7 @@ void HypreParMatrix::operator*=(double s)
 static void get_sorted_rows_cols(const Array<int> &rows_cols,
                                  Array<HYPRE_Int> &hypre_sorted)
 {
+   rows_cols.HostRead();
    hypre_sorted.SetSize(rows_cols.Size());
    bool sorted = true;
    for (int i = 0; i < rows_cols.Size(); i++)
@@ -1995,6 +1996,8 @@ void EliminateBC(HypreParMatrix &A, HypreParMatrix &Ae,
    double *data_offd = hypre_CSRMatrixData(A_offd);
 #endif
 
+   ess_dof_list.HostRead();
+
    for (int i = 0; i < ess_dof_list.Size(); i++)
    {
       int r = ess_dof_list[i];
@@ -2161,6 +2164,7 @@ HypreSmoother::HypreSmoother() : Solver()
    B = X = V = Z = NULL;
    X0 = X1 = NULL;
    fir_coeffs = NULL;
+   A_is_symmetric = false;
 }
 
 HypreSmoother::HypreSmoother(HypreParMatrix &_A, int _type,
@@ -2180,6 +2184,7 @@ HypreSmoother::HypreSmoother(HypreParMatrix &_A, int _type,
    B = X = V = Z = NULL;
    X0 = X1 = NULL;
    fir_coeffs = NULL;
+   A_is_symmetric = false;
 
    SetOperator(_A);
 }
@@ -2467,6 +2472,16 @@ void HypreSmoother::Mult(const Vector &b, Vector &x) const
    Mult(*B, *X);
 }
 
+void HypreSmoother::MultTranspose(const Vector &b, Vector &x) const
+{
+   if (A_is_symmetric || type == 0 || type == 1 || type == 5)
+   {
+      Mult(b, x);
+      return;
+   }
+   mfem_error("HypreSmoother::MultTranspose (...) : undefined!\n");
+}
+
 HypreSmoother::~HypreSmoother()
 {
    if (B) { delete B; }
@@ -2511,6 +2526,14 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
       mfem_error("HypreSolver::Mult (...) : HypreParMatrix A is missing");
       return;
    }
+
+   if (!iterative_mode)
+   {
+      x = 0.0;
+   }
+
+   b.HostRead();
+   x.HostReadWrite();
    if (!setup_called)
    {
       err = SetupFcn()(*this, *A, b, x);
@@ -2526,10 +2549,6 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
       setup_called = 1;
    }
 
-   if (!iterative_mode)
-   {
-      x = 0.0;
-   }
    err = SolveFcn()(*this, *A, b, x);
    if (error_mode == WARN_HYPRE_ERRORS)
    {
@@ -2550,7 +2569,7 @@ void HypreSolver::Mult(const Vector &b, Vector &x) const
       return;
    }
    auto b_data = b.HostRead();
-   auto x_data = x.HostWrite();
+   auto x_data = iterative_mode ? x.HostReadWrite() : x.HostWrite();
    if (B == NULL)
    {
       B = new HypreParVector(A->GetComm(),
@@ -2673,6 +2692,11 @@ void HyprePCG::Mult(const HypreParVector &b, HypreParVector &x) const
 
    HYPRE_ParCSRMatrixGetComm(*A, &comm);
 
+   if (!iterative_mode)
+   {
+      x = 0.0;
+   }
+
    if (!setup_called)
    {
       if (print_level > 0 && print_level < 3)
@@ -2681,6 +2705,8 @@ void HyprePCG::Mult(const HypreParVector &b, HypreParVector &x) const
          hypre_BeginTiming(time_index);
       }
 
+      b.HostRead();
+      x.HostReadWrite();
       HYPRE_ParCSRPCGSetup(pcg_solver, *A, b, x);
       setup_called = 1;
 
@@ -2699,14 +2725,8 @@ void HyprePCG::Mult(const HypreParVector &b, HypreParVector &x) const
       hypre_BeginTiming(time_index);
    }
 
-   if (!iterative_mode)
-   {
-      x = 0.0;
-   }
-
    b.HostRead();
    x.HostReadWrite();
-
    HYPRE_ParCSRPCGSolve(pcg_solver, *A, b, x);
 
    if (print_level > 0)
@@ -3703,6 +3723,9 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
       }
       x = x_coord.ParallelProject();
       y = y_coord.ParallelProject();
+
+      x->HostReadWrite();
+      y->HostReadWrite();
       if (sdim == 2)
       {
          z = NULL;
@@ -3711,6 +3734,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
       else
       {
          z = z_coord.ParallelProject();
+         z->HostReadWrite();
          HYPRE_AMSSetCoordinateVectors(ams, *x, *y, *z);
       }
    }
