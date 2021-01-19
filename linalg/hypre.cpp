@@ -1337,6 +1337,7 @@ void HypreParMatrix::operator*=(double s)
 static void get_sorted_rows_cols(const Array<int> &rows_cols,
                                  Array<HYPRE_Int> &hypre_sorted)
 {
+   rows_cols.HostRead();
    hypre_sorted.SetSize(rows_cols.Size());
    bool sorted = true;
    for (int i = 0; i < rows_cols.Size(); i++)
@@ -2083,6 +2084,8 @@ void EliminateBC(HypreParMatrix &A, HypreParMatrix &Ae,
    double *data_offd = hypre_CSRMatrixData(A_offd);
 #endif
 
+   ess_dof_list.HostRead();
+
    for (int i = 0; i < ess_dof_list.Size(); i++)
    {
       int r = ess_dof_list[i];
@@ -2249,6 +2252,7 @@ HypreSmoother::HypreSmoother() : Solver()
    B = X = V = Z = NULL;
    X0 = X1 = NULL;
    fir_coeffs = NULL;
+   A_is_symmetric = false;
 }
 
 HypreSmoother::HypreSmoother(HypreParMatrix &_A, int _type,
@@ -2268,6 +2272,7 @@ HypreSmoother::HypreSmoother(HypreParMatrix &_A, int _type,
    B = X = V = Z = NULL;
    X0 = X1 = NULL;
    fir_coeffs = NULL;
+   A_is_symmetric = false;
 
    SetOperator(_A);
 }
@@ -2555,6 +2560,16 @@ void HypreSmoother::Mult(const Vector &b, Vector &x) const
    Mult(*B, *X);
 }
 
+void HypreSmoother::MultTranspose(const Vector &b, Vector &x) const
+{
+   if (A_is_symmetric || type == 0 || type == 1 || type == 5)
+   {
+      Mult(b, x);
+      return;
+   }
+   mfem_error("HypreSmoother::MultTranspose (...) : undefined!\n");
+}
+
 HypreSmoother::~HypreSmoother()
 {
    if (B) { delete B; }
@@ -2605,10 +2620,10 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
       x = 0.0;
    }
 
+   b.HostRead();
+   x.HostReadWrite();
    if (!setup_called)
    {
-      b.HostRead();
-      x.HostReadWrite();
       err = SetupFcn()(*this, *A, b, x);
       if (error_mode == WARN_HYPRE_ERRORS)
       {
@@ -2622,8 +2637,6 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
       setup_called = 1;
    }
 
-   b.HostRead();
-   x.HostReadWrite();
    err = SolveFcn()(*this, *A, b, x);
    if (error_mode == WARN_HYPRE_ERRORS)
    {
