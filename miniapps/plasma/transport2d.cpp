@@ -292,6 +292,29 @@ void bHatFunc(const Vector &x, Vector &B)
 
    switch (prob_)
    {
+      case 0:
+      {
+         double cx = cos(M_PI * x[0]);
+         double cy = cos(M_PI * x[1]);
+         double sx = sin(M_PI * x[0]);
+         double sy = sin(M_PI * x[1]);
+
+         B[0] =  sx * cy;
+         B[1] = -cx * sy;
+
+         double den = sqrt(B*B);
+
+         if (den < 1e-8)
+         {
+            B *= 0.0;
+         }
+         else
+         {
+            B *= 1.0 / den;
+         }
+
+         return;
+      }
       case 1:
       {
          double r2 = pow(x[0], 2) + pow(x[1], 2);
@@ -1132,10 +1155,10 @@ int main(int argc, char *argv[])
                   "Gain for derivative error adjustment.");
    args.AddOption(&lim_a, "-dza", "--dead-zone-min",
                   "Time step will remain unchanged if scale factor is "
-		  "between dza and dzb.");
+                  "between dza and dzb.");
    args.AddOption(&lim_b, "-dzb", "--dead-zone-max",
                   "Time step will remain unchanged if scale factor is "
-		  "between dza and dzb.");
+                  "between dza and dzb.");
    args.AddOption(&lim_max, "-thm", "--theta-max",
                   "Maximum dt increase factor.");
    args.AddOption(&t_min, "-tmin", "--t-minimum",
@@ -1784,6 +1807,7 @@ int main(int argc, char *argv[])
          m.Mult(bHat, Mb);
          bnXeb = Mb(bHat);
       }
+      if (mpi.Root()) { cout << "b.b      = " << bMb << endl; }
       if (mpi.Root()) { cout << "|Dn|     = " << bDnb / bMb << endl; }
       if (mpi.Root()) { cout << "|Di|     = " << bDib / bMb << endl; }
       if (mpi.Root()) { cout << "|Eta|    = " << bEtab / bMb << endl; }
