@@ -87,20 +87,17 @@ private:
    void SetupCG(Operator& curlcurl_oper, Operator& conn,
                 int inner_cg_iterations, bool very_verbose=false);
 
+   MPI_Comm comm;
    Array<int> ess_tdof_list_;
    HypreParMatrix * aspacematrix_;
    Solver * aspacepc_;
    Operator* matfree_;
    CGSolver* cg_;
    Operator* aspacewrapper_;
-
-   mutable int inner_aux_iterations_;
-
-   MPI_Comm comm;
-
 #ifdef MFEM_USE_AMGX
    const bool useAmgX_;
 #endif
+   mutable int inner_aux_iterations_;
 };
 
 /** @brief Perform AMS cycle with generic Operator objects.
