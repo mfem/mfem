@@ -2164,6 +2164,7 @@ HypreSmoother::HypreSmoother() : Solver()
    B = X = V = Z = NULL;
    X0 = X1 = NULL;
    fir_coeffs = NULL;
+   A_is_symmetric = false;
 }
 
 HypreSmoother::HypreSmoother(HypreParMatrix &_A, int _type,
@@ -2183,6 +2184,7 @@ HypreSmoother::HypreSmoother(HypreParMatrix &_A, int _type,
    B = X = V = Z = NULL;
    X0 = X1 = NULL;
    fir_coeffs = NULL;
+   A_is_symmetric = false;
 
    SetOperator(_A);
 }
@@ -2468,6 +2470,16 @@ void HypreSmoother::Mult(const Vector &b, Vector &x) const
    }
 
    Mult(*B, *X);
+}
+
+void HypreSmoother::MultTranspose(const Vector &b, Vector &x) const
+{
+   if (A_is_symmetric || type == 0 || type == 1 || type == 5)
+   {
+      Mult(b, x);
+      return;
+   }
+   mfem_error("HypreSmoother::MultTranspose (...) : undefined!\n");
 }
 
 HypreSmoother::~HypreSmoother()
