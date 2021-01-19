@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "catch.hpp"
+#include "unit_tests.hpp"
 #include <fstream>
 #include <sstream>
 
@@ -20,7 +20,7 @@ using namespace mfem;
  * \file test_linear_fes
  *
  * Some simple tests to confirm that linear finite element collections
- * and H1_FECollectionss of order 1 have the correct number of dofs.
+ * and H1_FECollections of order 1 have the correct number of dofs.
  * Also optionally outputs the mesh and grid functions in mfem and vtk formats
  */
 
@@ -148,7 +148,7 @@ void testGridFunctions(FEColType& fec, Mesh& mesh, int expScalarDofs)
 
          // But, the vectors should cancel each other out at the midpoint
          gf.GetVectorValue( eltId, Geometries.GetCenter(geom), vec);
-         REQUIRE( vec.Norml2() == Approx(0.) );
+         REQUIRE( vec.Norml2() == MFEM_Approx(0.0) );
       }
 
    }

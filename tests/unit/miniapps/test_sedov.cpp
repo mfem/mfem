@@ -14,7 +14,7 @@
 #include <cmath>
 #endif
 
-#include "catch.hpp"
+#include "unit_tests.hpp"
 #include <unordered_map>
 
 #include "mfem.hpp"
@@ -98,14 +98,14 @@ struct Tensors1D
 
 template<int DIM, int D1D, int Q1D, int L1D, int H1D, int NBZ =1> static
 void kSmemForceMult2D(const int NE,
-                      const Array<double> &_B,
+                      const Array<double> &B_,
                       const Array<double> &_Bt,
                       const Array<double> &_Gt,
                       const DenseTensor &_sJit,
                       const Vector &_e,
                       Vector &_v)
 {
-   auto b = Reshape(_B.Read(), Q1D, L1D);
+   auto b = Reshape(B_.Read(), Q1D, L1D);
    auto bt = Reshape(_Bt.Read(), H1D, Q1D);
    auto gt = Reshape(_Gt.Read(), H1D, Q1D);
    auto sJit = Reshape(Read(_sJit.GetMemory(), Q1D*Q1D*NE*2*2),
@@ -241,14 +241,14 @@ void kSmemForceMult2D(const int NE,
 
 template<int DIM, int D1D, int Q1D, int L1D, int H1D> static
 void kSmemForceMult3D(const int NE,
-                      const Array<double> &_B,
+                      const Array<double> &B_,
                       const Array<double> &_Bt,
                       const Array<double> &_Gt,
                       const DenseTensor &_sJit,
                       const Vector &_e,
                       Vector &_v)
 {
-   auto b = Reshape(_B.Read(), Q1D, L1D);
+   auto b = Reshape(B_.Read(), Q1D, L1D);
    auto bt = Reshape(_Bt.Read(), H1D, Q1D);
    auto gt = Reshape(_Gt.Read(), H1D, Q1D);
    auto sJit = Reshape(Read(_sJit.GetMemory(), Q1D*Q1D*Q1D*NE*3*3),
@@ -493,14 +493,14 @@ static void kForceMult(const int DIM,
 template<int DIM, int D1D, int Q1D, int L1D, int H1D, int NBZ =1> static
 void kSmemForceMultTranspose2D(const int NE,
                                const Array<double> &_Bt,
-                               const Array<double> &_B,
+                               const Array<double> &B_,
                                const Array<double> &_G,
                                const DenseTensor &_sJit,
                                const Vector &_v,
                                Vector &_e)
 {
    MFEM_VERIFY(D1D==H1D,"");
-   auto b = Reshape(_B.Read(), Q1D,H1D);
+   auto b = Reshape(B_.Read(), Q1D,H1D);
    auto g = Reshape(_G.Read(), Q1D,H1D);
    auto bt = Reshape(_Bt.Read(), L1D,Q1D);
    auto sJit = Reshape(Read(_sJit.GetMemory(), Q1D*Q1D*NE*2*2),
@@ -633,14 +633,14 @@ void kSmemForceMultTranspose2D(const int NE,
 template<int DIM, int D1D, int Q1D, int L1D, int H1D> static
 void kSmemForceMultTranspose3D(const int NE,
                                const Array<double> &_Bt,
-                               const Array<double> &_B,
+                               const Array<double> &B_,
                                const Array<double> &_G,
                                const DenseTensor &_sJit,
                                const Vector &_v,
                                Vector &_e)
 {
    MFEM_VERIFY(D1D==H1D,"");
-   auto b = Reshape(_B.Read(), Q1D,H1D);
+   auto b = Reshape(B_.Read(), Q1D,H1D);
    auto g = Reshape(_G.Read(), Q1D,H1D);
    auto bt = Reshape(_Bt.Read(), L1D,Q1D);
    auto sJit = Reshape(Read(_sJit.GetMemory(), Q1D*Q1D*Q1D*NE*3*3),
@@ -1970,7 +1970,6 @@ int sedov(int myid, int argc, char *argv[])
    }
    dim = mesh->Dimension();
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
-   const int mesh_NE = mesh->GetNE();
    ParMesh *pmesh = NULL;
 #if defined(MFEM_USE_MPI) && defined(MFEM_SEDOV_MPI)
    pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
@@ -2123,9 +2122,9 @@ int sedov(int myid, int argc, char *argv[])
       REQUIRE(order_v==2);
       REQUIRE(order_e==1);
       REQUIRE(ode_solver_type==4);
-      REQUIRE(t_final==Approx(0.6));
-      REQUIRE(cfl==Approx(0.5));
-      REQUIRE(cg_tol==Approx(1.e-14));
+      REQUIRE(t_final==MFEM_Approx(0.6));
+      REQUIRE(cfl==MFEM_Approx(0.5));
+      REQUIRE(cg_tol==MFEM_Approx(1.e-14));
       if (dim==2)
       {
          const double p1_05[2] = {3.508254945225794e+00,
@@ -2134,8 +2133,8 @@ int sedov(int myid, int argc, char *argv[])
          const double p1_15[2] = {2.756444596823211e+00,
                                   1.104093401469385e+01
                                  };
-         if (ti==05) {checks++; REQUIRE(stm==Approx(p1_05[rs_levels]));}
-         if (ti==15) {checks++; REQUIRE(stm==Approx(p1_15[rs_levels]));}
+         if (ti==05) {checks++; REQUIRE(stm==MFEM_Approx(p1_05[rs_levels]));}
+         if (ti==15) {checks++; REQUIRE(stm==MFEM_Approx(p1_15[rs_levels]));}
       }
       if (dim==3)
       {
@@ -2145,8 +2144,8 @@ int sedov(int myid, int argc, char *argv[])
          const double p1_28[2] = {7.521073677398005e+00,
                                   5.985720905709158e+01
                                  };
-         if (ti==05) {checks++; REQUIRE(stm==Approx(p1_05[rs_levels]));}
-         if (ti==28) {checks++; REQUIRE(stm==Approx(p1_28[rs_levels]));}
+         if (ti==05) {checks++; REQUIRE(stm==MFEM_Approx(p1_05[rs_levels]));}
+         if (ti==28) {checks++; REQUIRE(stm==MFEM_Approx(p1_28[rs_levels]));}
       }
    }
    REQUIRE(checks==2);

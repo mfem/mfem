@@ -221,6 +221,12 @@ public:
                                const IntegrationPoint &ip,
                                Vector &val, Vector *tr = NULL) const;
 
+   /** Sets the output vector @a dof_vals to the values of the degrees of
+       freedom of element @a el. If @a el is greater than or equal to the number
+       of local elements, it will be interpreted as a shifted index of a face
+       neighbor element. */
+   virtual void GetElementDofValues(int el, Vector &dof_vals) const;
+
    using GridFunction::ProjectCoefficient;
    virtual void ProjectCoefficient(Coefficient &coeff);
 
@@ -280,6 +286,77 @@ public:
                                  Array<int> *elems = NULL) const
    {
       return GlobalLpNorm(2.0, GridFunction::ComputeL2Error(exsol, irs, elems),
+                          pfes->GetComm());
+   }
+
+   /// Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
+   virtual double ComputeGradError(VectorCoefficient *exgrad,
+                                   const IntegrationRule *irs[] = NULL) const
+   {
+      return GlobalLpNorm(2.0, GridFunction::ComputeGradError(exgrad,irs),
+                          pfes->GetComm());
+   }
+
+   /// Returns ||curl u_ex - curl u_h||_L2 for ND elements
+   virtual double ComputeCurlError(VectorCoefficient *excurl,
+                                   const IntegrationRule *irs[] = NULL) const
+   {
+      return GlobalLpNorm(2.0, GridFunction::ComputeCurlError(excurl,irs),
+                          pfes->GetComm());
+   }
+
+   /// Returns ||div u_ex - div u_h||_L2 for RT elements
+   virtual double ComputeDivError(Coefficient *exdiv,
+                                  const IntegrationRule *irs[] = NULL) const
+   {
+      return GlobalLpNorm(2.0, GridFunction::ComputeDivError(exdiv,irs),
+                          pfes->GetComm());
+   }
+
+   /// Returns the Face Jumps error for L2 elements
+   virtual double ComputeDGFaceJumpError(Coefficient *exsol,
+                                         Coefficient *ell_coeff,
+                                         JumpScaling jump_scaling,
+                                         const IntegrationRule *irs[]=NULL)
+   const;
+
+   /// Returns either the H1-seminorm or the DG Face Jumps error or both
+   /// depending on norm_type = 1, 2, 3
+   virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
+                                 Coefficient *ell_coef, double Nu,
+                                 int norm_type) const
+   {
+      return GlobalLpNorm(2.0,
+                          GridFunction::ComputeH1Error(exsol,exgrad,ell_coef,
+                                                       Nu, norm_type),
+                          pfes->GetComm());
+   }
+
+   /// Returns the error measured in H1-norm for H1 elements or in "broken"
+   /// H1-norm for L2 elements
+   virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
+                                 const IntegrationRule *irs[] = NULL) const
+   {
+      return GlobalLpNorm(2.0, GridFunction::ComputeH1Error(exsol,exgrad,irs),
+                          pfes->GetComm());
+   }
+
+   /// Returns the error measured H(div)-norm for RT elements
+   virtual double ComputeHDivError(VectorCoefficient *exsol,
+                                   Coefficient *exdiv,
+                                   const IntegrationRule *irs[] = NULL) const
+   {
+      return GlobalLpNorm(2.0, GridFunction::ComputeHDivError(exsol,exdiv,irs),
+                          pfes->GetComm());
+   }
+
+   /// Returns the error measured H(curl)-norm for ND elements
+   virtual double ComputeHCurlError(VectorCoefficient *exsol,
+                                    VectorCoefficient *excurl,
+                                    const IntegrationRule *irs[] = NULL) const
+   {
+      return GlobalLpNorm(2.0,
+                          GridFunction::ComputeHCurlError(exsol,excurl,irs),
                           pfes->GetComm());
    }
 
