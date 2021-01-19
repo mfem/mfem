@@ -316,6 +316,8 @@ public:
        domain and range parallel finite element spaces */
    void GetParBlocks(Array2D<HypreParMatrix *> &blocks) const;
 
+   using MixedBilinearForm::FormRectangularSystemMatrix;
+
    /** @brief Return in @a A a parallel (on truedofs) version of this operator. */
    virtual void FormRectangularSystemMatrix(OperatorHandle &A);
 
