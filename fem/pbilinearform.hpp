@@ -160,9 +160,9 @@ public:
    /// Get the parallel finite element space prolongation matrix
    virtual const Operator *GetProlongation() const
    { return pfes->GetProlongationMatrix(); }
-   /// Get the diagonal part of the parallel finite element space prolongation matrix
-   virtual const Operator *GetLocalProlongation() const
-   { return pfes->GetLocalProlongationMatrix(); }
+   /// Get the transpose of GetRestriction, useful for matrix-free RAP
+   virtual const Operator *GetRestrictionTranspose() const
+   { return pfes->GetRestrictionTransposeOperator(); }
    /// Get the parallel finite element space restriction matrix
    virtual const Operator *GetRestriction() const
    { return pfes->GetRestrictionMatrix(); }
@@ -305,7 +305,7 @@ public:
    HypreParMatrix *ParallelAssemble() const;
 
    /** @brief Returns the matrix assembled on the true dofs, i.e.
-       @a A = P_test^t A_local P_trial, in the format (type id) specified by
+       @a A = R_test A_local P_trial, in the format (type id) specified by
        @a A. */
    void ParallelAssemble(OperatorHandle &A);
 

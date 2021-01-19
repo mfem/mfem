@@ -797,7 +797,7 @@ public:
 class PetscODESolver : public PetscSolver, public ODESolver
 {
 public:
-   /// The type of the ODE. Use ODE_SOLVER_LINEAR if the jacobians
+   /// The type of the ODE. Use ODE_SOLVER_LINEAR if the Jacobians
    /// are linear and independent of time.
    enum Type
    {

@@ -406,7 +406,40 @@ void MINRES(const Operator &A, Solver &B, const Vector &b, Vector &x,
 class NewtonSolver : public IterativeSolver
 {
 protected:
-   mutable Vector r, c;
+   mutable Vector xcur, r, c;
+   mutable Operator *grad;
+
+   // Adaptive linear solver rtol variables
+
+   // Method to determine rtol, 0 means the adaptive algorithm is deactivated.
+   int lin_rtol_type = 0;
+   // rtol to use in first iteration
+   double lin_rtol0;
+   // Maximum rtol
+   double lin_rtol_max;
+   // Function norm ||F(x)|| of the previous iterate
+   mutable double fnorm_last = 0.0;
+   // Linear residual norm of the previous iterate
+   mutable double lnorm_last = 0.0;
+   // Forcing term (linear residual rtol) from the previous iterate
+   mutable double eta_last = 0.0;
+   // Eisenstat-Walker factor gamma
+   double gamma;
+   // Eisenstat-Walker factor alpha
+   double alpha;
+
+   /** @brief Method for the adaptive linear solver rtol invoked before the
+       linear solve. */
+   void AdaptiveLinRtolPreSolve(const Vector &x,
+                                const int it,
+                                const double fnorm) const;
+
+   /** @brief Method for the adaptive linear solver rtol invoked after the
+       linear solve. */
+   void AdaptiveLinRtolPostSolve(const Vector &x,
+                                 const Vector &b,
+                                 const int it,
+                                 const double fnorm) const;
 
 public:
    NewtonSolver() { }
@@ -434,6 +467,26 @@ public:
    /** @brief This method can be overloaded in derived classes to perform
        computations that need knowledge of the newest Newton state. */
    virtual void ProcessNewState(const Vector &x) const { }
+
+   const Vector &GetCurrentResidual() const { return r; }
+   const Vector &GetCurrentIterate() const { return xcur; }
+
+   /// Enable adaptive linear solver relative tolerance algorithm.
+   /** Compute a relative tolerance for the Krylov method after each nonlinear
+    iteration, based on the algorithm presented in [1].
+
+    The maximum linear solver relative tolerance @a rtol_max should be < 1. For
+    @a type 1 the parameters @a alpha and @a gamma are ignored. For @a type 2
+    @a alpha has to be between 0 and 1 and @a gamma between 1 and 2.
+
+    [1] Eisenstat, Stanley C., and Homer F. Walker. "Choosing the forcing terms
+    in an inexact Newton method."
+    */
+   void SetAdaptiveLinRtol(const int type = 2,
+                           const double rtol0 = 0.5,
+                           const double rtol_max = 0.9,
+                           const double alpha = 0.5 * (1.0 + sqrt(5.0)),
+                           const double gamma = 1.0);
 };
 
 /** L-BFGS method for solving F(x)=b for a given operator F, by minimizing

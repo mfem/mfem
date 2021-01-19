@@ -98,14 +98,14 @@ struct Tensors1D
 
 template<int DIM, int D1D, int Q1D, int L1D, int H1D, int NBZ =1> static
 void kSmemForceMult2D(const int NE,
-                      const Array<double> &_B,
+                      const Array<double> &B_,
                       const Array<double> &_Bt,
                       const Array<double> &_Gt,
                       const DenseTensor &_sJit,
                       const Vector &_e,
                       Vector &_v)
 {
-   auto b = Reshape(_B.Read(), Q1D, L1D);
+   auto b = Reshape(B_.Read(), Q1D, L1D);
    auto bt = Reshape(_Bt.Read(), H1D, Q1D);
    auto gt = Reshape(_Gt.Read(), H1D, Q1D);
    auto sJit = Reshape(Read(_sJit.GetMemory(), Q1D*Q1D*NE*2*2),
@@ -241,14 +241,14 @@ void kSmemForceMult2D(const int NE,
 
 template<int DIM, int D1D, int Q1D, int L1D, int H1D> static
 void kSmemForceMult3D(const int NE,
-                      const Array<double> &_B,
+                      const Array<double> &B_,
                       const Array<double> &_Bt,
                       const Array<double> &_Gt,
                       const DenseTensor &_sJit,
                       const Vector &_e,
                       Vector &_v)
 {
-   auto b = Reshape(_B.Read(), Q1D, L1D);
+   auto b = Reshape(B_.Read(), Q1D, L1D);
    auto bt = Reshape(_Bt.Read(), H1D, Q1D);
    auto gt = Reshape(_Gt.Read(), H1D, Q1D);
    auto sJit = Reshape(Read(_sJit.GetMemory(), Q1D*Q1D*Q1D*NE*3*3),
@@ -493,14 +493,14 @@ static void kForceMult(const int DIM,
 template<int DIM, int D1D, int Q1D, int L1D, int H1D, int NBZ =1> static
 void kSmemForceMultTranspose2D(const int NE,
                                const Array<double> &_Bt,
-                               const Array<double> &_B,
+                               const Array<double> &B_,
                                const Array<double> &_G,
                                const DenseTensor &_sJit,
                                const Vector &_v,
                                Vector &_e)
 {
    MFEM_VERIFY(D1D==H1D,"");
-   auto b = Reshape(_B.Read(), Q1D,H1D);
+   auto b = Reshape(B_.Read(), Q1D,H1D);
    auto g = Reshape(_G.Read(), Q1D,H1D);
    auto bt = Reshape(_Bt.Read(), L1D,Q1D);
    auto sJit = Reshape(Read(_sJit.GetMemory(), Q1D*Q1D*NE*2*2),
@@ -633,14 +633,14 @@ void kSmemForceMultTranspose2D(const int NE,
 template<int DIM, int D1D, int Q1D, int L1D, int H1D> static
 void kSmemForceMultTranspose3D(const int NE,
                                const Array<double> &_Bt,
-                               const Array<double> &_B,
+                               const Array<double> &B_,
                                const Array<double> &_G,
                                const DenseTensor &_sJit,
                                const Vector &_v,
                                Vector &_e)
 {
    MFEM_VERIFY(D1D==H1D,"");
-   auto b = Reshape(_B.Read(), Q1D,H1D);
+   auto b = Reshape(B_.Read(), Q1D,H1D);
    auto g = Reshape(_G.Read(), Q1D,H1D);
    auto bt = Reshape(_Bt.Read(), L1D,Q1D);
    auto sJit = Reshape(Read(_sJit.GetMemory(), Q1D*Q1D*Q1D*NE*3*3),

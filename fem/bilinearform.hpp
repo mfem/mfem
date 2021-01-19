@@ -376,8 +376,12 @@ public:
    /// Get the output finite element space prolongation matrix
    virtual const Operator *GetOutputProlongation() const
    { return GetProlongation(); }
-   /// Get the output finite element space prolongation matrix (local diagonal)
-   virtual const Operator *GetLocalOutputProlongation() const
+   /** @brief Returns the output fe space restriction matrix, transposed
+
+       Logically, this is the transpose of GetOutputRestriction, but in
+       practice it is convenient to have it in transposed form for
+       construction of RAP operators in matrix-free methods. */
+   virtual const Operator *GetOutputRestrictionTranspose() const
    { return GetOutputProlongation(); }
    /// Get the output finite element space restriction matrix
    virtual const Operator *GetOutputRestriction() const
@@ -988,9 +992,10 @@ public:
        linear operator. */
    virtual void Assemble(int skip_zeros = 1);
 
-   /// Get the output finite element space prolongation matrix (local diagonal)
-   virtual const Operator *GetLocalOutputProlongation() const
-   { return test_fes->GetLocalProlongationMatrix(); }
+   /** @brief Get the output finite element space restriction matrix in
+       transposed form. */
+   virtual const Operator *GetOutputRestrictionTranspose() const
+   { return test_fes->GetRestrictionTransposeOperator(); }
 };
 
 }
