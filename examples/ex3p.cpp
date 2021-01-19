@@ -230,13 +230,7 @@ int main(int argc, char *argv[])
       cg.SetPrintLevel(1);
       cg.SetOperator(*A);
       cg.SetPreconditioner(ams);
-
-      StopWatch sw;
-      sw.Clear();
-      sw.Start();
       cg.Mult(B, X);
-      sw.Stop();
-      cout << myid << ": CG solve time " << sw.RealTime() << endl;
    }
    else
    {
