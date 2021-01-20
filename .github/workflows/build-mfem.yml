@@ -7,6 +7,9 @@ env:
   HYPRE_ARCHIVE: v2.19.0.tar.gz
   HYPRE_URL: https://github.com/hypre-space/hypre/archive
   HYPRE_TOP_DIR: hypre-2.19.0
+  METIS_ARCHIVE: metis-4.0.3.tar.gz
+  METIS_URL: https://mfem.github.io/tpls
+  METIS_TOP_DIR: metis-4.0.3
 
 jobs:
   build:
@@ -22,7 +25,7 @@ jobs:
 
     - name: Get MPI
       run: |
-        if [[ $MPI == "YES" ]]; then
+        if [[ ${MPI} == "YES" ]]; then
           sudo apt-get install mpich libmpich-dev
         fi
 
@@ -36,10 +39,10 @@ jobs:
       run: |
         if [[ ${MPI} == "YES" ]]; then
            cd ..; # was in ${GITHUB_WORKSPACE}
-           if [ ! -e ${HYPRE_TOP_DIR}/src/hypre/lib/libHYPRE.a ]; then
+           if [[ ! -e ${HYPRE_TOP_DIR}/src/hypre/lib/libHYPRE.a ]]; then
               wget --no-verbose ${HYPRE_URL}/${HYPRE_ARCHIVE};
               rm -rf ${HYPRE_TOP_DIR};
-              tar xzf ${HYPRE_ARCHIVE};
+              tar -xzf ${HYPRE_ARCHIVE};
               cd ${HYPRE_TOP_DIR}/src;
               ./configure --disable-fortran CC=mpicc CXX=mpic++;
               make -j3;
@@ -48,9 +51,33 @@ jobs:
                echo "Reusing cached $HYPRE_TOP_DIR/";
            fi;
            ln -s $HYPRE_TOP_DIR hypre;
-           cd ${GITHUB_WORKSPACE};
+           cd ${GITHUB_WORKSPACE}; # back to initial location
         else
            echo "Serial build, not using hypre";
+        fi
+
+    - name: Cache Metis Install
+      uses: actions/cache@v2
+      with:
+        path: ${{ env.METIS_TOP_DIR }}
+        key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}
+
+    - name: Install Metis
+      run: |
+        if [[ ${MPI} == "YES" ]]; then
+           cd ..; # was in ${GITHUB_WORKSPACE}
+           if [[ ! -e ${METIS_TOP_DIR}/libmetis.a ]]; then
+              wget --no-verbose ${METIS_URL}/${METIS_ARCHIVE};
+              rm -rf ${METIS_TOP_DIR};
+              tar -xzf ${METIS_ARCHIVE};
+              make -j3 -C ${METIS_TOP_DIR}/Lib CC="$CC" OPTFLAGS="-O2";
+           else
+               echo "Reusing cached $METIS_TOP_DIR/";
+           fi;
+           ln -s $METIS_TOP_DIR metis-4.0;
+           cd ${GITHUB_WORKSPACE}; # back to initial location
+        else
+           echo "Serial build, not using metis";
         fi
 
     - name: configure

@@ -386,7 +386,7 @@ install:
         if [ ! -e $HYPRE_TOP_DIR/src/hypre/lib/libHYPRE.a ]; then
            wget $HYPRE_URL;
            rm -rf $HYPRE_TOP_DIR;
-           tar xvzf $HYPRE_ARCHIVE;
+           tar -xvzf $HYPRE_ARCHIVE;
            cd $HYPRE_TOP_DIR/src;
            ./configure --disable-fortran CC=mpicc CXX=mpic++;
            make -j3;
@@ -405,7 +405,7 @@ install:
    - if [ $MPI == "YES" ]; then
         if [ ! -e metis-4.0/libmetis.a ]; then
            wget https://mfem.github.io/tpls/metis-4.0.3.tar.gz;
-           tar xvzf metis-4.0.3.tar.gz;
+           tar -xvzf metis-4.0.3.tar.gz;
            make -j3 -C metis-4.0.3/Lib CC="$CC" OPTFLAGS="-O2";
            rm -rf metis-4.0;
            mv metis-4.0.3 metis-4.0;
