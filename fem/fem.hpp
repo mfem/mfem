@@ -63,7 +63,7 @@
 #endif
 
 #ifdef MFEM_USE_CEED
-#include "ceed_algebraic.hpp"
+#include "libceed/algebraic.hpp"
 #endif
 
 #endif

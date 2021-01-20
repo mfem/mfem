@@ -9,14 +9,14 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "ceed_algebraic.hpp"
+#include "algebraic.hpp"
 
 #ifdef MFEM_USE_CEED
-#include "../fem/bilinearform.hpp"
-#include "../fem/fespace.hpp"
-#include "../fem/libceed/solvers-atpmg.h"
-#include "../fem/libceed/full-assembly.hpp"
-#include "../fem/pfespace.hpp"
+#include "../bilinearform.hpp"
+#include "../fespace.hpp"
+#include "../libceed/solvers-atpmg.h"
+#include "../libceed/full-assembly.hpp"
+#include "../pfespace.hpp"
 
 namespace mfem
 {
@@ -309,7 +309,6 @@ AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
    CeedElemRestriction er = fine_er;
 
    int dim = fes.GetMesh()->Dimension();
-
 #ifdef MFEM_USE_MPI
    GroupCommunicator *gc = NULL;
    ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace*>(&fes);
