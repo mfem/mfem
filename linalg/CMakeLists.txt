@@ -14,6 +14,7 @@ list(APPEND SRCS
   blockoperator.cpp
   blockvector.cpp
   complex_operator.cpp
+  constrained.cpp
   densemat.cpp
   symmat.cpp
   handle.cpp
@@ -24,7 +25,6 @@ list(APPEND SRCS
   sparsemat.cpp
   sparsesmoothers.cpp
   vector.cpp
-  constrained.cpp
   )
 
 list(APPEND HDRS
@@ -32,6 +32,7 @@ list(APPEND HDRS
   blockoperator.hpp
   blockvector.hpp
   complex_operator.hpp
+  constrained.hpp
   densemat.hpp
   symmat.hpp
   dtensor.hpp
@@ -49,7 +50,6 @@ list(APPEND HDRS
   tmatrix.hpp
   ttensor.hpp
   vector.hpp
-  constrained.hpp
   )
 
 if (MFEM_USE_MPI)
