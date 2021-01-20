@@ -238,6 +238,7 @@ using dTensor = StaticTensor<double,Sizes...>; // TODO remove
 template <int... Sizes>
 using StaticDTensor = StaticTensor<double,Sizes...>;
 
+// TODO deprecate
 /// A dynamically sized Tensor using a static amount of shared memory.
 template <int Rank, typename T, int MaxSize = pow(16,Rank)>
 using DynamicSharedTensor = Tensor<Rank,
