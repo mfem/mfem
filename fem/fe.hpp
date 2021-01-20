@@ -3238,6 +3238,9 @@ public:
                          const int cb_type = BasisType::GaussLobatto,
                          const int ob_type = BasisType::GaussLegendre);
 
+   using FiniteElement::CalcVShape;
+   using FiniteElement::CalcPhysCurlShape;
+
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
 
@@ -3246,6 +3249,9 @@ public:
 
    virtual void CalcCurlShape(const IntegrationPoint &ip,
                               DenseMatrix &curl_shape) const;
+
+   virtual void CalcPhysCurlShape(ElementTransformation &Trans,
+                                  DenseMatrix &curl_shape) const;
 
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
@@ -3346,8 +3352,7 @@ public:
    { Project_RT(nk, dof2nk, fe, Trans, I); }
    virtual void ProjectCurl(const FiniteElement &fe,
                             ElementTransformation &Trans,
-                            DenseMatrix &curl) const
-   { ProjectCurl_RT(nk, dof2nk, fe, Trans, curl); }
+                            DenseMatrix &curl) const;
 };
 
 
