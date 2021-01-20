@@ -217,7 +217,7 @@ void EliminationSolver::BuildExplicitOperator()
    h_explicit_projector->CopyRowStarts();
    h_explicit_projector->CopyColStarts();
 
-   h_explicit_operator_ = RAP(&hA_, h_explicit_projector);   
+   h_explicit_operator_ = RAP(&hA_, h_explicit_projector);
    /// next line because of square projector
    h_explicit_operator_->EliminateZeroRows();
    h_explicit_operator_->CopyRowStarts();
@@ -526,7 +526,7 @@ SchurConstrainedHypreSolver::SchurConstrainedHypreSolver(MPI_Comm comm,
       h_primal_pc->SetSystemsOptions(dimension, reorder);
    }
    primal_pc = h_primal_pc;
-   
+
    HypreParMatrix * scaledB = new HypreParMatrix(hB);
    Vector diagA;
    hA.GetDiag(diagA);

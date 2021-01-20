@@ -226,7 +226,7 @@ ParallelTestProblem::ParallelTestProblem()
    int row_starts_a[2] = {2 * rank, 2 * (rank + 1)};
    amat = new HypreParMatrix(MPI_COMM_WORLD, 8, row_starts_a, &Alocal);
    amat->CopyRowStarts();
-   
+
    SparseMatrix Blocal(1, 8);
    if (rank == 3)
    {
@@ -459,7 +459,7 @@ public:
    void Penalty(double pen, Vector& serr, Vector& lerr);
    void Elimination(Vector& serr, Vector& lerr);
 
-// private:
+   // private:
    SparseMatrix Alocal;
    SparseMatrix * Blocal;
    Vector rhs, sol, truesol, lambda, truelambda;
@@ -635,11 +635,13 @@ TEST_CASE("ParallelConstrainedSolverTwo", "[Parallel], [ConstrainedSolver]")
 
       problem.Elimination(serr, lerr);
       serrnorm = serr.Norml2();
-      INFO("[" << comm_rank << "] Parallel Elimination primal error: " << serrnorm << "\n");
+      INFO("[" << comm_rank << "] Parallel Elimination primal error: " << serrnorm <<
+           "\n");
       REQUIRE(serrnorm == MFEM_Approx(0.0));
       if (comm_rank == 3)
       {
-         INFO("[" << comm_rank << "] Parallel Elimination dual error: " << lerr(0) << "\n");
+         INFO("[" << comm_rank << "] Parallel Elimination dual error: " << lerr(
+                 0) << "\n");
          REQUIRE(lerr(0) == MFEM_Approx(0.0));
       }
 
@@ -760,7 +762,8 @@ TEST_CASE("ZerosTestCase", "[Parallel], [ConstrainedSolver]")
       auto twoblocks = GENERATE(true, false);
       problem.Elimination(serr, lerr, twoblocks);
       double serrnorm = serr.Norml2();
-      INFO("[" << comm_rank << "] zeros test case primal error: " << serrnorm << "\n");
+      INFO("[" << comm_rank << "] zeros test case primal error: " << serrnorm <<
+           "\n");
       REQUIRE(serrnorm == MFEM_Approx(0.0));
       double lerrnorm = lerr.Norml2();
       INFO("[" << comm_rank << "] zeros test case dual error: " << lerrnorm << "\n");

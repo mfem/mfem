@@ -487,7 +487,8 @@ int main(int argc, char *argv[])
       visitname << "trapezoid"; // could add a number?
       VisItDataCollection visit_dc(MPI_COMM_WORLD, visitname.str(), pmesh);
       visit_dc.SetLevelsOfDetail(4);
-      visit_dc.RegisterField("displacement", &x); // do we need to do (or undo) the += stuff from above?
+      visit_dc.RegisterField("displacement",
+                             &x); // do we need to do (or undo) the += stuff from above?
       visit_dc.Save();
    }
 
