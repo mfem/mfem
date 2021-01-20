@@ -32,7 +32,7 @@ jobs:
     - name: Cache Hypre Install
       uses: actions/cache@v2
       with:
-        path: ${{ env.HYPRE_TOP_DIR }}
+        path: ${{ env.GITHUB_WORKSPACE }}/../${{ env.HYPRE_TOP_DIR }}
         key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}
 
     - name: Install Hypre
@@ -59,7 +59,7 @@ jobs:
     - name: Cache Metis Install
       uses: actions/cache@v2
       with:
-        path: ${{ env.METIS_TOP_DIR }}
+        path: ${{ env.GITHUB_WORKSPACE }}/../${{ env.METIS_TOP_DIR }}
         key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}
 
     - name: Install Metis
@@ -83,7 +83,7 @@ jobs:
     - name: configure
       run: make config MFEM_USE_MPI=$MPI
     - name: make
-      run: make
+      run: make -j3
     - name: check
       run: make check
     - name: unit
