@@ -547,8 +547,6 @@ void BilinearForm::Assemble(int skip_zeros)
                if (fbfi_attributes[k] &&
                    fbfi_attributes[k]->Find(tr->Attribute) == -1) { continue; }
 
-               std::cout << "face " << i << std::endl;
-
                fbfi[k] -> AssembleFaceMatrix (*fes -> GetFE (tr -> Elem1No),
                                               *fes -> GetFE (tr -> Elem2No),
                                               *tr, elemmat);

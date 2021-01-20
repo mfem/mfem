@@ -70,8 +70,8 @@ double dist_value(const Vector &x, const int type)
         }
     }
     else if (type == 5) { //bicuspid
-        double a = 4*x(0)-2,
-               b = 4*x(1)-2;
+        double a = 6*x(0)-3,
+               b = 6*x(1)-3;
         return -pow(b*b-1, 2.)+(a+1)*pow(1-a, 3.);
     }
     else {
@@ -115,7 +115,7 @@ public:
       T.Transform(ip, x);
       double dist = dist_value(x, type);
       if (dist >= 0.) { return 1.; }
-      else { return 0.; }
+      else { return -1.; }
    }
 };
 

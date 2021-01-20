@@ -11,7 +11,7 @@
 #include "../../mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "distfunction.hpp"
+#include "dist_solver.hpp"
 #include "sbm-aux.hpp"
 
 using namespace mfem;
@@ -415,9 +415,10 @@ int main(int argc, char *argv[])
 
    // 9. Get the Distance from the level set either using a numerical approach
    //    or project an exact analytic function.
-   DistanceFunction dist_func(pmesh, order, 1.0);
-   ParGridFunction &distance = dist_func.ComputeDistance(dist_fun_level_coef,
-                                                         1, true);
+   HeatDistanceSolver dist_func(1.0);
+   dist_func.smooth_steps = 1;
+   ParGridFunction distance(&pfespace);
+   dist_func.ComputeDistance(dist_fun_level_coef, distance);
    Dist_Value_Coefficient dist_fun_coef(level_set_type);
    if (exact) {
        distance.ProjectCoefficient(dist_fun_coef); // analytic projection
