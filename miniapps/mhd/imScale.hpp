@@ -45,6 +45,7 @@ int useFull=1; // control version of preconditioner
                // 0: a simple block preconditioner
                // 1: physics-based preconditioner
                // 2: physics-based but supg more complicated version
+               // 3: physics-based but do matrix manipulation in petsc
 int i_supgpre=3;    //3 - full diagonal supg terms on psi and phi
                     //0 - only (v.grad) in the preconditioner on psi and phi
 
@@ -200,14 +201,15 @@ class myBCHandler : public PetscBCHandler
 {
 private:
     int component, componentSize;
+    int useFullversion;
     Vector vx;
 
 public:
     myBCHandler(Array<int>& ess_tdof_list, enum PetscBCHandler::Type _type, 
                 int _component, int _componentSize)
-   : PetscBCHandler(_type), 
-     component(_component), componentSize(_componentSize)
+   : PetscBCHandler(_type), component(_component), componentSize(_componentSize)
     {
+       useFullversion = useFull;
        SetTDofs(ess_tdof_list);
     }
 
@@ -272,9 +274,22 @@ public:
    virtual mfem::Solver* NewPreconditioner(const mfem::OperatorHandle &oh)
    { 
        if(useFull==1)
+       {
           return new FullBlockSolver(oh);
-       else
+       }
+       else if (useFull==2)
+       {
           return new SupgBlockSolver(oh);
+       }
+       else if (useFull==3)
+       {
+          return new PetscBlockSolver(oh);
+       }
+       else
+       {
+          MFEM_ABORT("Error: FullPreconditionerFactory: wrong precondtioner option"); 
+          return NULL;
+       }
    }
 
    virtual ~FullPreconditionerFactory() {};
@@ -957,7 +972,6 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
     AReFull=NULL; ScFull=NULL; NbFull=NULL; PwMat=NULL; NbMat=NULL; MinvKB=NULL;
     tmp1=NULL; tmp2=NULL;
 
-    if (usefd || usesupg)
     {
        MinvKB = new HypreParMatrix(KBMat_);
        HypreParVector *MmatlpD = new HypreParVector(Mmatlp.GetComm(), Mmatlp.GetGlobalNumRows(),
@@ -1008,6 +1022,12 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
  * [  ARe Nb  (Mlp)]
  * [  Pw  Sc  0    ]
  * [  K   0   M    ]
+ *
+ * useFull==3 (analytical Jacobian)
+ * [  K     0               M  ]
+ * [  -Nb   ASl             0  ]
+ * [  -Pw   Pj+NbM^{-1}K    ARe]
+ *
 */
 Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
 {
@@ -1035,7 +1055,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
        MyCoefficient velocity(&phiGf, 2);   //we update velocity
        Nv->AddDomainIntegrator(new ConvectionIntegrator(velocity));
        Nv->Assemble(); 
-       Nv->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
+       if (useFull!=3) {Nv->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);}
        Nv->Finalize();
        HypreParMatrix *NvMat = Nv->ParallelAssemble();
 
@@ -1051,7 +1071,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
        MyCoefficient Bfield(&psiGf, 2);   //we update B
        Nb->AddDomainIntegrator(new ConvectionIntegrator(Bfield));
        Nb->Assemble();
-       Nb->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
+       if (useFull!=3) {Nb->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);}
        Nb->Finalize();
        NbFull = Nb->ParallelAssemble();
 
@@ -1063,11 +1083,12 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
        MyCoefficient curlw(&wGf, 2);
        Pw->AddDomainIntegrator(new ConvectionIntegrator(curlw));
        Pw->Assemble();
-       Pw->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
+       if (useFull!=3) {Pw->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);}
        Pw->Finalize();
        PwMat = Pw->ParallelAssemble();
 
-       //here we use B^T D^-1 B = (D^-1 B)^T B
+       //here we use   Sc = ASl + Nb^T D^-1 Nb = (D^-1 Nb)^T Nb
+       //equivalent to Sc = ASl - Nb D^-1 Nb 
        HypreParMatrix *DinvNb = new HypreParMatrix(*NbFull);
        HypreParVector *ARed = new HypreParVector(AReFull->GetComm(), AReFull->GetGlobalNumRows(),
                                         AReFull->GetRowStarts());
@@ -1259,43 +1280,8 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
                 tmp1=NULL;
                 delete MatStabNb;
              }
-
-             /*
-             if (false && im_supg==1 && usesupg)
-             {
-              if (myid==0 && false) cout <<"======WARNING: use preconditioner with terms on ARe======"<<endl;
-                  HypreParMatrix *MatStabNv=StabNv->ParallelAssemble();
-                  tmp=ParAdd(AReFull, MatStabNv);
-                  delete AReFull;
-                  AReFull=tmp;
-             }
-             */
+             
          }
-         /*
-         else if (iSc==0 && usefd && !usesupg)
-         {
-             //VERSION3: Luis's preconditioner + hyperdiffusion
-             AReFull->GetDiag(*ARed);
-             DinvNb->InvScaleRows(*ARed);
-             NbtDinv=DinvNb->Transpose();
-             S = ParMult(NbtDinv, NbFull);
-             HypreParMatrix *ScFull1 = ParAdd(ASltmp, S);
-
-             delete StabNb;
-             StabNb = new ParBilinearForm(&fespace);
-             StabNb->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, Bfield, true));
-             StabNb->Assemble(); 
-             StabNb->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
-             StabNb->Finalize();
-             HypreParMatrix *MatStabNb=StabNb->ParallelAssemble();
-
-             delete S;
-             S = ParMult(MatStabNb, MinvKB);
-             ScFull = ParAdd(ScFull1, S);
-             delete ScFull1;
-             delete MatStabNb;
-         }
-         */
          else if (iSc==1)
          {
              //VERSION1: schur complement without transpose
@@ -1329,7 +1315,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
 
          if (iSc==2) Jacobian->SetBlock(0,2,Mdtpr);
        }
-       else
+       else if (useFull == 2)
        {
          if (iSc!=0 || !usesupg || usefd)
             MFEM_ABORT("ERROR in preconditioner: wrong option!"); 
@@ -1388,6 +1374,75 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
          Jacobian->SetBlock(2,0,&Kmat);
          Jacobian->SetBlock(2,2,&Mmat);
        }
+       else if (useFull == 3)
+       {
+         //------compute the current again------
+         Vector psiNew(k.GetData() +  sc, sc);
+
+         if (iUpdateJ==0)
+         {
+            KBMat.Mult(psiNew, z);
+            z.Neg();
+            M_solver2->Mult(z, J);
+         }
+         else if (iUpdateJ==1)
+         {
+            //------compute the current as an auxilary variable (Dirichelt boundary condition)------
+            gftmp.SetFromTrueDofs(psiNew);
+            Vector Z;
+            HypreParMatrix A;
+            KB->Mult(gftmp, zFull);
+            zFull.Neg(); // z = -z
+            M->FormLinearSystem(ess_tdof_list, *j0, zFull, A, J, Z); //apply Dirichelt boundary 
+            M_solver->Mult(Z, J); 
+         }
+         else if (iUpdateJ==2)
+         {
+            //------compute the current as an auxilary variable (Dirichelt boundary condition)------
+            gftmp.SetFromTrueDofs(psiNew);
+            Vector Z;
+            HypreParMatrix A;
+            KB->Mult(gftmp, zFull);
+            zFull.Neg(); // z = -z
+            Mlumped->FormLinearSystem(ess_tdof_list, *j0, zFull, A, J, Z); //apply Dirichelt boundary 
+            M_solver3->Mult(Z, J); 
+         }
+         else
+            MFEM_ABORT("ERROR in ReducedSystemOperator::Mult: wrong option for iUpdateJ"); 
+
+         //form Pj0 (use Pw as the holder) operator        
+         delete Pw;
+         wGf.SetFromTrueDofs(J);
+         MyCoefficient curlj(&wGf, 2);
+
+         Pw = new ParBilinearForm(&fespace);
+         Pw->AddDomainIntegrator(new ConvectionIntegrator(curlj));
+         Pw->Assemble();
+         Pw->Finalize();
+         HypreParMatrix *PjMat = Pw->ParallelAssemble();
+
+         HypreParMatrix *NbMinvKB = ParMult(NbFull, MinvKB);
+         tmp2 = ParAdd(PjMat, NbMinvKB);
+
+         //use tmp1 to hold ASltmp
+         tmp1=ASltmp;
+         ASltmp=NULL;
+
+         Jacobian = new BlockOperator(block_trueOffsets);
+         Jacobian->SetBlock(0,0,&KBMat);
+         Jacobian->SetBlock(0,2,&Mfullmat);
+         //Jacobian->SetBlock(1,0,NbFull, -1);    //it is likely not working with petsc
+         *(NbFull) *= -1;
+         Jacobian->SetBlock(1,0,NbFull);    
+         Jacobian->SetBlock(1,1,tmp1);
+         *(PwMat) *= -1;
+         Jacobian->SetBlock(2,0,PwMat);
+         Jacobian->SetBlock(2,1,tmp2);
+         Jacobian->SetBlock(2,2,AReFull);
+
+         delete PjMat;
+         delete NbMinvKB;
+       }
 
        bool outputMatrix=false;
        if (outputMatrix)
@@ -1418,8 +1473,6 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
        delete S;
        delete NvMat;
        delete ASltmp;
-
-
    }
    else
    {

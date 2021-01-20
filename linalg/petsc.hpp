@@ -505,6 +505,8 @@ public:
    /// y = x on ess_tdof_list_c and y = 0 on ess_tdof_list
    void ZeroBC(const Vector &x, Vector &y);
 
+   int useFullversion;
+
 protected:
    enum Type bctype;
    bool setup;

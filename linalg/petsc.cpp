@@ -2183,6 +2183,7 @@ PetscBCHandler::PetscBCHandler(Array<int>& ess_tdof_list,
    : bctype(_type), setup(false), eval_t(0.0),
      eval_t_cached(std::numeric_limits<double>::min())
 {
+   useFullversion = 0;
    SetTDofs(ess_tdof_list);
 }
 
@@ -4200,9 +4201,9 @@ static PetscErrorCode __mfem_snes_jacobian(SNES snes, Vec x, Mat A, Mat P,
       delete_pA = true;
    }
 
-   //could I skip it? -QT (it is probably okay either way)
+   // skip it in useFull<3 and do matrics manipulcation in mfem -QT
    // Eliminate essential dofs
-   if (snes_ctx->bchandler && false)
+   if (snes_ctx->bchandler && snes_ctx->bchandler->useFullversion==3)
    {
       mfem::PetscBCHandler *bchandler = snes_ctx->bchandler;
       mfem::PetscParVector dummy(PetscObjectComm((PetscObject)snes),0);

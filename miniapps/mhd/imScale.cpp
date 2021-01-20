@@ -123,6 +123,7 @@ int main(int argc, char *argv[])
    args.AddOption(&debug, "-debug", "--debug", "-no-debug", "--no-debug",
                   "Debug issue.");
    args.AddOption(&bctype, "-bctype", "--bctype","BC 1 - Dirichelt; 2 - weak Dirichelt.");
+   args.AddOption(&useFull, "-useFull", "--useFull", "version of Full preconditioner");
 
 
    args.Parse();
