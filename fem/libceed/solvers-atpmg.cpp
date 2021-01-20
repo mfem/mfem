@@ -396,7 +396,7 @@ int CeedATPMGElemRestriction(int order,
    }
    else
    {
-      return CeedError(ceed, 1, "Bad dimension!");
+      return CeedError(ceed, 1, "CeedATPMGElemRestriction does not yet support this dimension.");
    }
 
    ierr = CeedVectorRestoreArrayRead(in_evec, &in_elem_dof); CeedChk(ierr);
