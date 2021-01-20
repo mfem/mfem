@@ -700,7 +700,7 @@ class VectorFunctionRestrictedCoefficient : public VectorCoefficient
 {
 private:
    void (*TDFunction)(int, Vector &);
-   Array<int> active_attr;
+   const Array<int> &active_attr;
    Coefficient *Q;
 
 public:
@@ -708,10 +708,9 @@ public:
    VectorFunctionRestrictedCoefficient(int dim,
                                        void (*TDF)(int, Vector &),
                                        Array<int> &attr, Coefficient *q = NULL)
-      : VectorCoefficient(dim), Q(q)
+      : VectorCoefficient(dim), Q(q), active_attr(attr)
    {
       TDFunction = TDF;
-      attr.Copy(active_attr);
    }
 
    using VectorCoefficient::Eval;
@@ -720,7 +719,7 @@ public:
 
    virtual ~VectorFunctionRestrictedCoefficient() { }
 
-   int* GetActiveAttr() { return active_attr; }
+   const Array<int> &GetActiveAttr() { return active_attr; }
 
 };
 typedef VectorCoefficient DiagonalMatrixCoefficient;

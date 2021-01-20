@@ -289,6 +289,33 @@ const SparseMatrix &ParNonlinearForm::GetLocalGradient(const Vector &x) const
    return *Grad;
 }
 
+Operator &ParNonlinearForm::GetLocalGradient2(const Vector &x) const
+{
+   ParFiniteElementSpace *pfes = ParFESpace();
+
+   pGrad.Clear();
+
+   NonlinearForm::GetGradient(x); // (re)assemble Grad, no b.c.
+
+   OperatorHandle dA(pGrad.Type()), Ph(pGrad.Type());
+
+   if (fnfi.Size() == 0)
+   {
+      dA.MakeSquareBlockDiag(pfes->GetComm(), pfes->GlobalVSize(),
+                             pfes->GetDofOffsets(), Grad);
+   }
+   else
+   {
+      MFEM_ABORT("TODO: assemble contributions from shared face terms");
+   }
+
+   // TODO - construct Dof_TrueDof_Matrix directly in the pGrad format
+   Ph.ConvertFrom(pfes->Dof_TrueDof_Matrix());
+   pGrad.MakePtAP(dA, Ph);
+
+   return *pGrad.Ptr();
+}
+
 Operator &ParNonlinearForm::GetGradient(const Vector &x) const
 {
    ParFiniteElementSpace *pfes = ParFESpace();

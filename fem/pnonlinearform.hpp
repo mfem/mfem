@@ -72,6 +72,10 @@ public:
    /** The returned matrix does NOT have any boundary conditions imposed. */
    const SparseMatrix &GetLocalGradient(const Vector &x) const;
 
+   /// Return the local gradient matrix for the given true-dof vector x.
+   /** The returned matrix does NOT have any boundary conditions imposed. */
+   virtual Operator &GetLocalGradient2(const Vector &x) const;
+
    virtual Operator &GetGradient(const Vector &x) const;
 
    /// Set the operator type id for the parallel gradient matrix/operator.
