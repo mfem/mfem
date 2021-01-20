@@ -42,6 +42,15 @@ void NonlinearFormIntegrator::AssembleElementVector(
               " is not overloaded!");
 }
 
+void NonlinearFormIntegrator::AssembleElementVector(
+   const FiniteElement &el, ElementTransformation &Ttr_beg,
+   ElementTransformation &Ttr_end,
+   const Vector &elfun, Vector &elvect, const Vector &elvel)
+{
+   mfem_error("NonlinearFormIntegrator::AssembleElementVector"
+              " is not overloaded!");
+}
+
 void NonlinearFormIntegrator::AssembleFaceVector(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Tr, const Vector &elfun, Vector &elvect)
@@ -64,6 +73,34 @@ void NonlinearFormIntegrator::AssembleFaceGrad(
    DenseMatrix &elmat)
 {
    mfem_error("NonlinearFormIntegrator::AssembleFaceGrad"
+              " is not overloaded!");
+}
+
+void NonlinearFormIntegrator::AssemblePAGrad(
+   const FiniteElementSpace &fes)
+{
+   mfem_error("NonlinearFormIntegrator::AssemblePAGrad"
+              " is not overloaded!");
+}
+
+void NonlinearFormIntegrator::AddMultPAGrad(
+   const Vector &x, Vector &y)
+{
+   mfem_error("NonlinearFormIntegrator::AddMultPAGrad"
+              " is not overloaded!");
+}
+
+void NonlinearFormIntegrator::AssembleDiagonalPA(
+   Vector &y)
+{
+   mfem_error("NonlinearFormIntegrator::AssembleDiagonalPA"
+              " is not overloaded!");
+}
+
+void NonlinearFormIntegrator::AssembleEA(
+   const FiniteElementSpace &fes, Vector &emat)
+{
+   mfem_error("NonlinearFormIntegrator::AssembleEA"
               " is not overloaded!");
 }
 
@@ -127,7 +164,6 @@ double BlockNonlinearFormIntegrator::GetElementEnergy(
               " is not overloaded!");
    return 0.0;
 }
-
 
 double InverseHarmonicModel::EvalW(const DenseMatrix &J) const
 {

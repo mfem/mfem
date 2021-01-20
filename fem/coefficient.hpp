@@ -349,11 +349,18 @@ public:
    /// Initialize the VectorCoefficient with vector dimension @a vd.
    VectorCoefficient(int vd) { vdim = vd; time = 0.; }
 
+   // add constructor with no argument list (this is for the
+   // QuadratureVectorFunctionCoefficient extended class), srw
+   VectorCoefficient() { vdim = 0; time = 0.; }
+
    /// Set the time for time dependent coefficients
    void SetTime(double t) { time = t; }
 
    /// Get the time for time dependent coefficients
    double GetTime() { return time; }
+
+   /// Set the dimension of the vector.
+   void SetVDim(int dim) { vdim = dim; }
 
    /// Returns dimension of the vector.
    int GetVDim() { return vdim; }
@@ -688,6 +695,33 @@ public:
                      const IntegrationRule &ir);
 };
 
+/// VectorFunctionCoefficient defined on a subset of domain or boundary attributes, srw
+class VectorFunctionRestrictedCoefficient : public VectorCoefficient
+{
+private:
+   void (*TDFunction)(int, Vector &);
+   const Array<int> &active_attr;
+   Coefficient *Q;
+
+public:
+   /// Construct a time-dependent vector coefficient from a C-function
+   VectorFunctionRestrictedCoefficient(int dim,
+                                       void (*TDF)(int, Vector &),
+                                       Array<int> &attr, Coefficient *q = NULL)
+      : VectorCoefficient(dim), Q(q), active_attr(attr)
+   {
+      TDFunction = TDF;
+   }
+
+   using VectorCoefficient::Eval;
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+
+   virtual ~VectorFunctionRestrictedCoefficient() { }
+
+   const Array<int> &GetActiveAttr() { return active_attr; }
+
+};
 typedef VectorCoefficient DiagonalMatrixCoefficient;
 
 /// Base class for Matrix Coefficients that optionally depend on time and space.

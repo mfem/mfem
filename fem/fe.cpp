@@ -686,7 +686,10 @@ void NodalFiniteElement::Project (
 
    for (int i = 0; i < dof; i++)
    {
-      const IntegrationPoint &ip = Nodes.IntPoint(i);
+      // srw, was const IntegrationPoint &ip = ... before having to set the ip id
+      // on the object
+      IntegrationPoint ip = Nodes.IntPoint(i);
+      ip.index = i; // srw for projection of QuadratureVectorFunctionCoefficients
       Trans.SetIntPoint(&ip);
       vc.Eval (x, Trans, ip);
       if (map_type == INTEGRAL)

@@ -610,6 +610,16 @@ public:
                                   Array<int> &ess_vdofs,
                                   int component = -1) const;
 
+   /** Mark dofs associated with boundary elements for the attributes
+       specified in bdr_attr_is_ess with the component list in the
+       input component array, if specified. This is a custom
+       implementation for ExaConstit where the element in the compnent
+       array is actual a dof code for dof combinations with prescribed
+       essential boundary conditions. */
+   virtual void GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
+                                  Array<int> &ess_vdofs,
+                                  Array2D<int> component) const;
+
    /** @brief Get a list of essential true dofs, ess_tdof_list, corresponding to the
        boundary attributes marked in the array bdr_attr_is_ess.
        For spaces with 'vdim' > 1, the 'component' parameter can be used
@@ -617,6 +627,13 @@ public:
    virtual void GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
                                      Array<int> &ess_tdof_list,
                                      int component = -1);
+
+   /** Get a list of essential true dofs, ess_tdof_list, for the boundary
+       attributes marked in the array bdr_attr_is_ess using the components
+       in the input component array, srw */
+   virtual void GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
+                                     Array<int> &ess_tdof_list,
+                                     Array2D<int> component);
 
    /// Convert a Boolean marker array to a list containing all marked indices.
    static void MarkerToList(const Array<int> &marker, Array<int> &list);
