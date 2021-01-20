@@ -83,7 +83,7 @@ public:
 private:
    Array<int> ess_tdofs;
    const Operator *P;
-   class UnconstrainedMFEMCeedOperator *unconstrained_op;
+   UnconstrainedMFEMCeedOperator *unconstrained_op;
    ConstrainedOperator *constrained_op;
 };
 
