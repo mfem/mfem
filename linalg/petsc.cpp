@@ -97,6 +97,7 @@ static PetscErrorCode __mfem_VecSetOffloadMask(Vec,PetscOffloadMask);
 #endif
 static PetscErrorCode __mfem_VecBoundToCPU(Vec,PetscBool*);
 static PetscErrorCode __mfem_PetscObjectStateIncrease(PetscObject);
+static PetscErrorCode __mfem_MatCreateDummy(MPI_Comm,Mat*);
 
 // structs used by PETSc code
 typedef struct
@@ -4021,23 +4022,36 @@ void PetscODESolver::Init(TimeDependentOperator &f_,
    ts_ctx->op = &f_;
    if (f_.isImplicit())
    {
+      Mat dummy;
+      ierr = __mfem_MatCreateDummy(PetscObjectComm((PetscObject)ts),&dummy);
+      PCHKERRQ(ts, ierr);
       ierr = TSSetIFunction(ts, NULL, __mfem_ts_ifunction, (void *)ts_ctx);
       PCHKERRQ(ts, ierr);
-      ierr = TSSetIJacobian(ts, NULL, NULL, __mfem_ts_ijacobian, (void *)ts_ctx);
+      ierr = TSSetIJacobian(ts, dummy, dummy, __mfem_ts_ijacobian, (void *)ts_ctx);
       PCHKERRQ(ts, ierr);
       ierr = TSSetEquationType(ts, TS_EQ_IMPLICIT);
+      PCHKERRQ(ts, ierr);
+      ierr = MatDestroy(&dummy);
       PCHKERRQ(ts, ierr);
    }
    if (!f_.isHomogeneous())
    {
+      Mat dummy = NULL;
       if (!f_.isImplicit())
       {
          ierr = TSSetEquationType(ts, TS_EQ_EXPLICIT);
          PCHKERRQ(ts, ierr);
       }
+      else
+      {
+         ierr = __mfem_MatCreateDummy(PetscObjectComm((PetscObject)ts),&dummy);
+         PCHKERRQ(ts, ierr);
+      }
       ierr = TSSetRHSFunction(ts, NULL, __mfem_ts_rhsfunction, (void *)ts_ctx);
       PCHKERRQ(ts, ierr);
-      ierr = TSSetRHSJacobian(ts, NULL, NULL, __mfem_ts_rhsjacobian, (void *)ts_ctx);
+      ierr = TSSetRHSJacobian(ts, dummy, dummy, __mfem_ts_rhsjacobian, (void *)ts_ctx);
+      PCHKERRQ(ts, ierr);
+      ierr = MatDestroy(&dummy);
       PCHKERRQ(ts, ierr);
    }
    operatorset = true;
@@ -4271,10 +4285,17 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
    PetscErrorCode   ierr;
 
    PetscFunctionBeginUser;
+   // Matrix-free case
+   if (A && A != P)
+   {
+      ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+      ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+   }
+
    // prevent to recompute a Jacobian if we already did so
    // the relative tolerance comparison should be fine given the fact
    // that two consecutive shifts should have similar magnitude
-   ierr = PetscObjectStateGet((PetscObject)A,&state); CHKERRQ(ierr);
+   ierr = PetscObjectStateGet((PetscObject)P,&state); CHKERRQ(ierr);
    if (ts_ctx->type == mfem::PetscODESolver::ODE_SOLVER_LINEAR &&
        std::abs(ts_ctx->cached_shift/shift - 1.0) < eps &&
        state == ts_ctx->cached_ijacstate) { PetscFunctionReturn(0); }
@@ -4340,13 +4361,6 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
    ierr = MatHeaderReplace(P,&B); CHKERRQ(ierr);
    if (delete_pA) { delete pA; }
 
-   // Matrix-free case
-   if (A && A != P)
-   {
-      ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
-      ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
-   }
-
    // When using MATNEST and PCFIELDSPLIT, the second setup of the
    // preconditioner fails because MatCreateSubMatrix_Nest does not
    // actually return a matrix. Instead, for efficiency reasons,
@@ -4389,6 +4403,18 @@ static PetscErrorCode __mfem_ts_computesplits(TS ts,PetscReal t,Vec x,Vec xp,
    PetscErrorCode   ierr;
 
    PetscFunctionBeginUser;
+   // Matrix-free cases
+   if (Ax && Ax != Jx)
+   {
+      ierr = MatAssemblyBegin(Ax,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+      ierr = MatAssemblyEnd(Ax,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+   }
+   if (Axp && Axp != Jxp)
+   {
+      ierr = MatAssemblyBegin(Axp,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+      ierr = MatAssemblyEnd(Axp,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+   }
+
    ierr = TSGetIJacobian(ts,NULL,NULL,NULL,(void**)&ts_ctx); CHKERRQ(ierr);
 
    // prevent to recompute the Jacobians if we already did so
@@ -4524,18 +4550,6 @@ static PetscErrorCode __mfem_ts_computesplits(TS ts,PetscReal t,Vec x,Vec xp,
       ierr = MatAXPY(*pJxp,-1.0,*pJx,SAME_NONZERO_PATTERN); PCHKERRQ(ts,ierr);
    }
 
-   // Matrix-free cases
-   if (Ax && Ax != Jx)
-   {
-      ierr = MatAssemblyBegin(Ax,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
-      ierr = MatAssemblyEnd(Ax,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
-   }
-   if (Axp && Axp != Jxp)
-   {
-      ierr = MatAssemblyBegin(Axp,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
-      ierr = MatAssemblyEnd(Axp,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
-   }
-
    // Jacobian reusage
    ierr = PetscObjectStateGet((PetscObject)Jx,&ts_ctx->cached_splits_xstate);
    CHKERRQ(ierr);
@@ -4559,8 +4573,15 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
    PetscErrorCode   ierr;
 
    PetscFunctionBeginUser;
+   // Matrix-free case
+   if (A && A != P)
+   {
+      ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+      ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+   }
+
    // prevent to recompute a Jacobian if we already did so
-   ierr = PetscObjectStateGet((PetscObject)A,&state); CHKERRQ(ierr);
+   ierr = PetscObjectStateGet((PetscObject)P,&state); CHKERRQ(ierr);
    if (ts_ctx->type == mfem::PetscODESolver::ODE_SOLVER_LINEAR &&
        state == ts_ctx->cached_rhsjacstate) { PetscFunctionReturn(0); }
 
@@ -4635,19 +4656,12 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
    CHKERRQ(ierr);
    if (isnest) { P->nonzerostate = nonzerostate + 1; }
 
-   // Matrix-free case
-   if (A && A != P)
-   {
-      ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
-      ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
-   }
-
    // Jacobian reusage
    if (ts_ctx->type == mfem::PetscODESolver::ODE_SOLVER_LINEAR)
    {
       ierr = TSRHSJacobianSetReuse(ts,PETSC_TRUE); PCHKERRQ(ts,ierr);
    }
-   ierr = PetscObjectStateGet((PetscObject)A,&ts_ctx->cached_rhsjacstate);
+   ierr = PetscObjectStateGet((PetscObject)P,&ts_ctx->cached_rhsjacstate);
    CHKERRQ(ierr);
 
    // Fool DM
@@ -5476,6 +5490,17 @@ static PetscErrorCode MatConvert_hypreParCSR_IS(hypre_ParCSRMatrix* hA,Mat* pA)
    PetscFunctionReturn(0);
 }
 #endif
+
+#include <petsc/private/matimpl.h>
+
+static PetscErrorCode __mfem_MatCreateDummy(MPI_Comm comm, Mat *A)
+{
+   PetscFunctionBegin;
+   ierr = MatCreate(comm,A); CHKERRQ(ierr);
+   ierr = PetscObjectChangeTypeName((PetscObject)*A,"mfemdummy");CHKERRQ(ierr);
+   (*A)->preallocated = PETSC_TRUE;
+   PetscFunctionReturn(0);
+}
 
 #include <petsc/private/vecimpl.h>
 
