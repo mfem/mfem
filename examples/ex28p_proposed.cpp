@@ -1,6 +1,7 @@
-//                       MFEM Example 13 - Parallel Version
+
+//                       MFEM Example 28 - Parallel Version
 //
-// Compile with: make ex13p
+// Compile with: make ex28p
 //
 // Sample runs:  mpirun -np 4 ex13p -m ../data/star.mesh
 //               mpirun -np 4 ex13p -m ../data/square-disc.mesh -o 2 -n 4
@@ -83,7 +84,8 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
-   MFEM_VERIFY(dim == 2, "This example is designed for 2D meshes only.");
+   MFEM_VERIFY(dim == 1 || dim == 2,
+	       "This example is designed for 1D or 2D meshes only.");
 
    // 4. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement (2 by default, or
@@ -107,10 +109,20 @@ int main(int argc, char *argv[])
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements of the specified order.
-   ND_R2D_FECollection fec_nd(order, dim);
-   RT_R2D_FECollection fec_rt(order-1, dim);
-   ParFiniteElementSpace fespace_nd(&pmesh, &fec_nd);
-   ParFiniteElementSpace fespace_rt(&pmesh, &fec_rt);
+   FiniteElementCollection *fec_nd = NULL;
+   FiniteElementCollection *fec_rt = NULL;
+   if (dim == 1)
+     {
+       fec_nd = new ND_R1D_FECollection(order, dim);
+       fec_rt = new RT_R1D_FECollection(order-1, dim);
+     }
+   else
+     {
+       fec_nd = new ND_R2D_FECollection(order, dim);
+       fec_rt = new RT_R2D_FECollection(order-1, dim);
+     }
+   ParFiniteElementSpace fespace_nd(&pmesh, fec_nd);
+   ParFiniteElementSpace fespace_rt(&pmesh, fec_rt);
    HYPRE_Int size_nd = fespace_nd.GlobalTrueVSize();
    HYPRE_Int size_rt = fespace_rt.GlobalTrueVSize();
    mfem::out << "Number of H(Curl) unknowns: " << size_nd << endl;
@@ -341,5 +353,8 @@ int main(int argc, char *argv[])
    delete M;
    delete A;
 
+   delete fec_nd;
+   delete fec_rt;
+   
    return 0;
 }

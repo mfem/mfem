@@ -12642,6 +12642,17 @@ void ND_R1D_SegmentElement::CalcCurlShape(const IntegrationPoint &ip,
    }
 }
 
+void ND_R1D_SegmentElement::CalcPhysCurlShape(ElementTransformation &Trans,
+					      DenseMatrix &curl_shape) const
+{
+   CalcCurlShape(Trans.GetIntPoint(), curl_shape);
+   const DenseMatrix & J = Trans.Jacobian();
+   MFEM_ASSERT(J.Width() == 1 && J.Height() == 1,
+               "ND_R1D_SegmentElement cannot be embedded in "
+               "2 or 3 dimensional spaces");
+   curl_shape *= (1.0 / Trans.Weight());
+}
+
 void ND_R1D_SegmentElement::Project(VectorCoefficient &vc,
                                     ElementTransformation &Trans,
                                     Vector &dofs) const
@@ -12799,6 +12810,27 @@ void RT_R1D_SegmentElement::CalcDivShape(const IntegrationPoint &ip,
    {
       int idx = dof_map[o++];
       divshape(idx) = 0.;
+   }
+}
+
+void RT_R1D_SegmentElement::ProjectCurl(const FiniteElement &fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &curl) const
+{
+   DenseMatrix curl_shape(fe.GetDof(), fe.GetVDim());
+   Vector curl_k(fe.GetDof());
+
+   double * nk_ptr = const_cast<double*>(nk);
+
+   curl.SetSize(dof, fe.GetDof());
+   for (int k = 0; k < dof; k++)
+   {
+      fe.CalcCurlShape(Nodes.IntPoint(k), curl_shape);
+      curl_shape.Mult(nk_ptr + dof2nk[k] * 3, curl_k);
+      for (int j = 0; j < curl_k.Size(); j++)
+      {
+         curl(k,j) = (fabs(curl_k(j)) < 1e-12) ? 0.0 : curl_k(j);
+      }
    }
 }
 
