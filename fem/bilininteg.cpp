@@ -3136,13 +3136,10 @@ void SBM2Integrator::AssembleFaceMatrix(
          q_hess_dot_d += q_hess_dot_d_work;
       }
 
-
-
-      wrk = dshape2dd;
-      wrk += shape1; // u + grad u.d
-      //wrk += q_hess_dot_dot_d;
+      wrk = shape1;
+      wrk += dshape2dd;
       wrk += q_hess_dot_d;
-      // <u + grad u.d, grad w.n>  - Term 3
+      // <u + grad u.d + h.o.t, grad w.n>  - Term 3
       AddMult_a_VWt(-1., dshape1dn, wrk, elmat);
 
       double hinvdx;
@@ -3150,16 +3147,14 @@ void SBM2Integrator::AssembleFaceMatrix(
       else { hinvdx = nor*nor/Trans.Elem2->Weight(); }
 
       w = ip.weight*alpha*hinvdx;
-      // + <alpha * hinv * u + grad u.d, w + grad w.d> - Term 4
+      // + <alpha * hinv * u + grad u.d + h.o.t, w + grad w.d + h.o.t> - Term 4
       AddMult_a_VVt(w, wrk, elmat);
-
    } //p < ir->GetNPoints()
 
    for (int i = 0; i < hess_ptr.Size(); i++)
    {
       delete hess_ptr[i];
    }
-   //MFEM_ABORT(" ");
 }
 
 // static method
