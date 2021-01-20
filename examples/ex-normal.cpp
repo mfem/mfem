@@ -25,15 +25,9 @@
   todo:
   ---
 
-  - test parallel elimination with different orderings of dofs, non-contiguous,
-    etc. (partly done)
   - add a scalar Eliminator? (instead of calling LAPACK on 1 by 1 matrices)
   - timing / scaling of different solvers
   - make sure curved mesh works (is this a real problem or just VisIt visualization?)
-  - think about preconditioning interface; user may have good preconditioner
-    for primal system that we could use in all three existing solvers?
-  - improve Schur complement block in Schur solver (user-defined preconditioner, but
-    different interface)
   - hook up with user code (contact?)
 */
 
@@ -98,7 +92,7 @@ HypreParMatrix * BuildNormalConstraintsNoIntersection(
    MPI_Scan(&n_constraints, &constraint_running_total, 1, MPI_INT,
             MPI_SUM, fespace.GetComm());
    int global_constraints = 0;
-   if (rank == size - 1) global_constraints = constraint_running_total;
+   if (rank == size - 1) { global_constraints = constraint_running_total; }
    MPI_Bcast(&global_constraints, 1, MPI_INT, size - 1, fespace.GetComm());
 
    Vector nor(dim);
@@ -151,7 +145,8 @@ HypreParMatrix * BuildNormalConstraintsNoIntersection(
    HYPRE_Int glob_num_rows = global_constraints;
    HYPRE_Int glob_num_cols = fespace.GlobalTrueVSize();
    HYPRE_Int row_starts[2] = {constraint_running_total - n_constraints,
-                              constraint_running_total};
+                              constraint_running_total
+                             };
    HYPRE_Int * col_starts = fespace.GetTrueDofOffsets();
    HypreParMatrix * h_out = new HypreParMatrix(fespace.GetComm(), glob_num_rows,
                                                glob_num_cols, row_starts,
@@ -202,14 +197,15 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&boundary_attribute, "--boundary-attribute", "--boundary-attribute",
+   args.AddOption(&boundary_attribute, "--boundary-attribute",
+                  "--boundary-attribute",
                   "Which attribute to apply essential conditions on.");
    args.AddOption(&refine, "--refine", "--refine",
                   "Levels of serial refinement (-1 for automatic)");
    args.AddOption(&elimination, "--elimination", "--elimination",
                   "--no-elimination", "--no-elimination",
                   "Use elimination solver for saddle point system.");
-   args.AddOption(&reltol, "--reltol", "--reltol", 
+   args.AddOption(&reltol, "--reltol", "--reltol",
                   "Relative tolerance for constrained solver.");
    args.AddOption(&penalty, "--penalty", "--penalty",
                   "Penalty parameter for penalty solver, used if > 0");
@@ -340,7 +336,7 @@ int main(int argc, char *argv[])
    Array<int> lagrange_rowstarts;
 
    hconstraints = BuildNormalConstraintsNoIntersection(
-      fespace, constraint_atts, lagrange_rowstarts);
+                     fespace, constraint_atts, lagrange_rowstarts);
    hconstraints->Print("hconstraints");
 
    ParLinearForm b(&fespace);
@@ -396,14 +392,16 @@ int main(int argc, char *argv[])
    {
       SparseMatrix local_constraints;
       hconstraints->GetDiag(local_constraints);
-      constrained = new EliminationCGSolver(*A.As<HypreParMatrix>(), local_constraints,
+      constrained = new EliminationCGSolver(*A.As<HypreParMatrix>(),
+                                            local_constraints,
                                             lagrange_rowstarts, dim);
    }
    else
    {
       // reordering apparently needs to be true for this solver, needs investigation
       // (I don't think the space is reordered in this example?)
-      constrained = new SchurConstrainedHypreSolver(MPI_COMM_WORLD, *A.As<HypreParMatrix>(),
+      constrained = new SchurConstrainedHypreSolver(MPI_COMM_WORLD,
+                                                    *A.As<HypreParMatrix>(),
                                                     *hconstraints, dim, true);
    }
    constrained->SetRelTol(reltol);
@@ -454,13 +452,11 @@ int main(int argc, char *argv[])
 
    // 15. Save the refined mesh and the solution in VisIt format.
    {
-      // todo: might make more sense to .SetCycle() than to append boundary_attribute to name
       std::stringstream visitname;
       visitname << "normal" << boundary_attribute;
       VisItDataCollection visit_dc(MPI_COMM_WORLD, visitname.str(), &pmesh);
       visit_dc.SetLevelsOfDetail(4);
       visit_dc.RegisterField("sol", &x);
-      // visit_dc.SetCycle(boundary_attribute);
       visit_dc.Save();
    }
 

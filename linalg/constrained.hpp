@@ -69,10 +69,10 @@ public:
        If you want to set \f$ r \f$, call SetConstraintRHS() before this.
 
        If you want to get \f$ \lambda \f$, call GetMultiplierSolution() after
-       this. 
+       this.
 
        The base class implementation calls Mult(), so derived classes must
-       implement either this or Mult() 
+       implement either this or Mult()
 
        Do not like the name; maybe SmallerMult, ReducedMult, SingleBlockMult ... */
    virtual void PrimalMult(const Vector& f, Vector& x) const;
@@ -143,7 +143,6 @@ private:
    DenseMatrix Bp_;
    DenseMatrix Bs_;  // gets inverted in place
    LUFactors Bsinverse_;
-   /// @todo there is probably a better way to handle the B_s^{-T}
    DenseMatrix BsT_;   // gets inverted in place
    LUFactors BsTinverse_;
    Array<int> ipiv_;
