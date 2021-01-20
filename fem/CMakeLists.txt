@@ -34,7 +34,6 @@ set(SRCS
   bilininteg_vecdiffusion_mf.cpp
   bilininteg_vecmass.cpp
   bilininteg_vecmass_mf.cpp
-  ceed_algebraic.cpp
   coefficient.cpp
   complex_fem.cpp
   convergence.cpp
@@ -48,13 +47,14 @@ set(SRCS
   gridfunc.cpp
   hybridization.cpp
   intrules.cpp
+  libceed/algebraic.cpp
   libceed/ceed.cpp
   libceed/diffusion.cpp
-  libceed/mass.cpp
   libceed/full-assembly.cpp
+  libceed/mass.cpp
+  libceed/operator.cpp
   libceed/solvers-atpmg.cpp
   libceed/util.cpp
-  libceed/operator.cpp
   linearform.cpp
   lininteg.cpp
   multigrid.cpp
@@ -77,7 +77,6 @@ set(HDRS
   bilinearform.hpp
   bilinearform_ext.hpp
   bilininteg.hpp
-  ceed_algebraic.hpp
   coefficient.hpp
   complex_fem.hpp
   convergence.hpp
@@ -92,13 +91,14 @@ set(HDRS
   gridfunc.hpp
   hybridization.hpp
   intrules.hpp
+  libceed/algebraic.hpp
   libceed/ceed.hpp
   libceed/diffusion.hpp
-  libceed/mass.hpp
   libceed/full-assembly.hpp
+  libceed/mass.hpp
+  libceed/operator.hpp
   libceed/solvers-atpmg.h
   libceed/util.h
-  libceed/operator.hpp
   linearform.hpp
   lininteg.hpp
   multigrid.hpp

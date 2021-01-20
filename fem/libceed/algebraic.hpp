@@ -12,13 +12,13 @@
 #ifndef MFEM_CEED_ALGEBRAIC_HPP
 #define MFEM_CEED_ALGEBRAIC_HPP
 
-#include "../config/config.hpp"
+#include "../../config/config.hpp"
 
 #ifdef MFEM_USE_CEED
-#include "fespacehierarchy.hpp"
-#include "multigrid.hpp"
-#include "libceed/util.h"
-#include "libceed/operator.hpp"
+#include "../fespacehierarchy.hpp"
+#include "../multigrid.hpp"
+#include "util.h"
+#include "operator.hpp"
 
 namespace mfem
 {
