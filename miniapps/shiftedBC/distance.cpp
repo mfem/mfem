@@ -3,34 +3,58 @@
 // Compile with: make distance
 //
 // Sample runs:
-//   Problem 0: point sources
+//   Problem 0: point source.
 //     mpirun -np 4 distance -m ./u5.mesh -rs 2 -t 50.0
 //
-//   Problem 1: level sets
-//      mpirun -np 4 distance -m ../../data/inline-quad.mesh -rs 3 -o 2 -t 1.0 -p 1
-//      mpirun -np 4 distance -m ../../data/periodic-square.mesh -rs 5 -o 2 -t 1.0 -p 2
-//      mpirun -np 4 distance -m ../../data/periodic-cube.mesh -rs 3 -o 2 -t 1.0 -p 2
+//   Problem 1: zero level set - circle / sphere at the center of the mesh
+//     mpirun -np 4 distance -m ../../data/inline-quad.mesh -rs 3 -o 2 -t 1.0 -p 1
+//     mpirun -np 4 distance -m ../../data/periodic-cube.mesh -rs 2 -o 2 -t 1.0 -p 1
 //
+//   Problem 2: zero level set - sine
+//     mpirun -np 4 distance -m ../../data/inline-quad.mesh -rs 3 -o 2 -t 1.0 -p 2
 //
-//    K. Crane et al:
-//    Geodesics in Heat: A New Approach to Computing Distance Based on Heat Flow
+//   Problem 3: level set - Gyroid
+//      mpirun -np 4 distance -m ../../data/periodic-square.mesh -rs 5 -o 2 -t 1.0 -p 3
+//      mpirun -np 4 distance -m ../../data/periodic-cube.mesh -rs 3 -o 2 -t 1.0 -p 3
+//
 
-#include "distfunction.hpp"
+#include "nldist.hpp"
 #include <fstream>
 #include <iostream>
 
 using namespace std;
 using namespace mfem;
 
-double surface_level_set(const Vector &x)
+double sine_ls(const Vector &x)
 {
    const double sine = 0.25 * std::sin(4 * M_PI * x(0));
-   return (x(1) >= sine + 0.5) ? 0.0 : 1.0;
+   return (x(1) >= sine + 0.5) ? -1.0 : 1.0;
 }
 
-double Gyroid(const Vector & xx)
+double sphere_ls(const Vector &x)
 {
-   const double period = 4.0 * M_PI;
+   const int dim = x.Size();
+   if (dim == 2)
+   {
+      const double xc = x(0) - 0.5, yc = x(1) - 0.5;
+      const double r = sqrt(xc*xc + yc*yc);
+      return (r >= 0.4) ? -1.0 : 1.0;
+   }
+   else if (dim == 3)
+   {
+      const double xc = x(0) - 0.0, yc = x(1) - 0.0, zc = x(2) - 0.0;
+      const double r = sqrt(xc*xc + yc*yc + zc*zc);
+      return (r >= 0.8) ? -1.0 : 1.0;
+   }
+   else
+   {
+      return (x(0) >= 0.5) ? -1.0 : 1.0;
+   }
+}
+
+double Gyroid(const Vector &xx)
+{
+   const double period = 2.0 * M_PI;
    double x=xx[0]*period;
    double y=xx[1]*period;
    double z=0.0;
@@ -43,6 +67,43 @@ double Gyroid(const Vector & xx)
           std::sin(z)*std::cos(x);
 }
 
+double Sph(const mfem::Vector &xx)
+{
+    double R=0.4;
+    mfem::Vector lvec(3);
+    lvec=0.0;
+    for(int i=0;i<xx.Size();i++)
+    {
+        lvec[i]=xx[i];
+    }
+
+    return lvec[0]*lvec[0]+lvec[1]*lvec[1]+lvec[2]*lvec[2]-R*R;
+}
+
+void DGyroid(const mfem::Vector &xx, mfem::Vector &vals)
+{
+    vals.SetSize(xx.Size());
+    vals=0.0;
+
+    double pp=4*M_PI;
+
+    mfem::Vector lvec(3);
+    lvec=0.0;
+    for(int i=0;i<xx.Size();i++)
+    {
+        lvec[i]=xx[i]*pp;
+    }
+
+    vals[0]=cos(lvec[0])*cos(lvec[1])-sin(lvec[2])*sin(lvec[0]);
+    vals[1]=-sin(lvec[0])*sin(lvec[1])+cos(lvec[1])*cos(lvec[2]);
+    if(xx.Size()>2)
+    {
+        vals[2]=-sin(lvec[1])*sin(lvec[2])+cos(lvec[2])*cos(lvec[0]);
+    }
+
+    vals*=pp;
+}
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
@@ -53,6 +114,7 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
+   int solver_type = 0;
    int problem = 0;
    int rs_levels = 0;
    int order = 2;
@@ -63,6 +125,10 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&solver_type, "-s", "--solver",
+                  "Solver type:\n\t"
+                  "0: Heat\n\t"
+                  "1: P-Laplacian");
    args.AddOption(&problem, "-p", "--problem",
                   "Problem type:\n\t"
                   "0: exact alignment with the mesh boundary\n\t"
@@ -114,7 +180,13 @@ int main(int argc, char *argv[])
    }
    else if (problem == 1)
    {
-      ls_coeff = new FunctionCoefficient(surface_level_set);
+      ls_coeff = new FunctionCoefficient(sphere_ls);
+      smooth_steps = 5;
+      transform = true;
+   }
+   else if (problem == 2)
+   {
+      ls_coeff = new FunctionCoefficient(sine_ls);
       smooth_steps = 5;
       transform = true;
    }
@@ -124,18 +196,32 @@ int main(int argc, char *argv[])
       smooth_steps = 0;
       transform = true;
    }
-   DistanceFunction dist_func(pmesh, order, t_param);
-   ParGridFunction &distance = dist_func.ComputeDistance(*ls_coeff,
-                                                         smooth_steps, transform);
-   const ParGridFunction &src = dist_func.GetLastSourceGF(),
-                         &diff_src = dist_func.GetLastDiffusedSourceGF();
-   delete ls_coeff;
+
+   DistanceSolver *dist_solver = NULL;
+   if (solver_type == 0)
+   {
+      auto ds = new HeatDistanceSolver(t_param);
+      ds->smooth_steps = smooth_steps;
+      ds->transform = transform;
+      dist_solver = ds;
+   }
+   else if (solver_type == 1)
+   {
+      const int p = 10;
+      const int newton_iter = 50;
+      auto ds = new PLapDistanceSolver(p, newton_iter);
+      dist_solver = ds;
+   }
+   else { MFEM_ABORT("Wrong solver option."); }
 
    H1_FECollection fec(order, dim);
-   ParFiniteElementSpace fespace_vec(&pmesh, &fec, dim);
-   GradientCoefficient grad_u(dist_func.GetLastDiffusedSourceGF(), dim);
-   ParGridFunction x(&fespace_vec);
-   x.ProjectCoefficient(grad_u);
+   ParFiniteElementSpace pfes(&pmesh, &fec);
+   ParGridFunction distance(&pfes);
+   dist_solver->ComputeDistance(*ls_coeff, distance);
+
+   ParGridFunction input_ls(distance.ParFESpace());
+   input_ls.ProjectCoefficient(*ls_coeff);
+   delete ls_coeff;
 
    // Send the solution by socket to a GLVis server.
    if (visualization)
@@ -147,59 +233,68 @@ int main(int argc, char *argv[])
       socketstream sol_sock_w(vishost, visport);
       sol_sock_w << "parallel " << num_procs << " " << myid << "\n";
       sol_sock_w.precision(8);
-      sol_sock_w << "solution\n" << pmesh << src;
+      sol_sock_w << "solution\n" << pmesh << input_ls;
       sol_sock_w << "window_geometry " << 0 << " " << 0 << " "
                                        << size << " " << size << "\n"
-                 << "window_title '" << "u0" << "'\n" << flush;
-
-      socketstream sol_sock_u(vishost, visport);
-      sol_sock_u << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock_u.precision(8);
-      sol_sock_u << "solution\n" << pmesh << diff_src;
-      sol_sock_u << "window_geometry " << size << " " << 0 << " "
-                                       << size << " " << size << "\n"
-                 << "window_title '" << "u" << "'\n" << flush;
-
-      socketstream sol_sock_x(vishost, visport);
-      sol_sock_x << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock_x.precision(8);
-      sol_sock_x << "solution\n" << pmesh << x;
-      sol_sock_x << "window_geometry " << 2*size << " " << 0 << " "
-                                       << size << " " << size << "\n"
-                 << "window_title '" << "X" << "'\n"
-                 << "keys evvRj*******A\n" << flush;
+                 << "window_title '" << "Input Level Set" << "'\n" << flush;
 
       socketstream sol_sock_d(vishost, visport);
       sol_sock_d << "parallel " << num_procs << " " << myid << "\n";
       sol_sock_d.precision(8);
       sol_sock_d << "solution\n" << pmesh << distance;
-      sol_sock_d << "window_geometry " << size << " " << size << " "
+      sol_sock_d << "window_geometry " << size << " " << 0 << " "
                                        << size << " " << size << "\n"
                  << "window_title '" << "Distance" << "'\n"
                  << "keys rRjmm*****\n" << flush;
+
+      if (solver_type == 0)
+      {
+         H1_FECollection fec(order, dim);
+         ParFiniteElementSpace fespace_vec(&pmesh, &fec, dim);
+
+         HeatDistanceSolver &d = dynamic_cast<HeatDistanceSolver &>(*dist_solver);
+         const ParGridFunction &diff_src = d.GetLastDiffusedSourceGF();
+
+         GradientCoefficient grad_u(diff_src, dim);
+         ParGridFunction x(&fespace_vec);
+         x.ProjectCoefficient(grad_u);
+
+         socketstream sol_sock_u(vishost, visport);
+         sol_sock_u << "parallel " << num_procs << " " << myid << "\n";
+         sol_sock_u.precision(8);
+         sol_sock_u << "solution\n" << pmesh << diff_src;
+         sol_sock_u << "window_geometry " << 0 << " " << size << " "
+                                       << size << " " << size << "\n"
+                 << "window_title '" << "Diffused Source" << "'\n" << flush;
+
+         socketstream sol_sock_x(vishost, visport);
+         sol_sock_x << "parallel " << num_procs << " " << myid << "\n";
+         sol_sock_x.precision(8);
+         sol_sock_x << "solution\n" << pmesh << x;
+         sol_sock_x << "window_geometry " << size << " " << size << " "
+                                       << size << " " << size << "\n"
+                 << "window_title '" << "Directions" << "'\n"
+                 << "keys evvRj*******A\n" << flush;
+      }
    }
 
-   /*
-   ParaViewDataCollection paraview_dc("Dist", &pmesh);
-   paraview_dc.SetPrefixPath("ParaView");
-   paraview_dc.SetLevelsOfDetail(order);
-   paraview_dc.SetDataFormat(VTKFormat::BINARY);
-   paraview_dc.SetHighOrderOutput(true);
-   paraview_dc.SetCycle(0);
-   paraview_dc.SetTime(0.0);
-   paraview_dc.RegisterField("w", &src);
-   paraview_dc.RegisterField("u", &diff_src);
-   paraview_dc.Save();
-   */
+   // Paraview output.
+   ParaViewDataCollection dacol("ParaViewDistance", &pmesh);
+   dacol.SetLevelsOfDetail(order);
+   dacol.RegisterField("level_set", &input_ls);
+   dacol.RegisterField("distance", &distance);
+   dacol.SetTime(1.0);
+   dacol.SetCycle(1);
+   dacol.Save();
 
    ConstantCoefficient zero(0.0);
-   const double u0_norm = src.ComputeL2Error(zero),
-                u_norm  = diff_src.ComputeL2Error(zero),
-                d_norm  = distance.ComputeL2Error(zero);
+   const double d_norm  = distance.ComputeL2Error(zero);
    if (myid == 0)
    {
-     std::cout <<  u0_norm << " "<< u_norm << " " << d_norm << std::endl;
+     cout << fixed << setprecision(10) << "Norm: " << d_norm << std::endl;
    }
+
+   delete dist_solver;
 
    MPI_Finalize();
    return 0;

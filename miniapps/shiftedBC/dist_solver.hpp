@@ -17,32 +17,39 @@
 namespace mfem
 {
 
-class DistanceFunction
+class DistanceSolver
+{
+public:
+   DistanceSolver() { }
+
+   virtual ~DistanceSolver() { }
+
+   virtual void ComputeDistance(Coefficient &zero_level_set,
+                                ParGridFunction &distance) = 0;
+};
+
+// K. Crane et al:
+// Geodesics in Heat: A New Approach to Computing Distance Based on Heat Flow
+class HeatDistanceSolver : public DistanceSolver
 {
 private:
-   // Collection and space for the distance function.
-   H1_FECollection fec;
-   ParFiniteElementSpace pfes;
-   ParGridFunction distance, source, diffused_source;
-
-   // Diffusion coefficient.
-   double t_param;
-   // Length scale of the mesh.
-   double dx;
-   // List of true essential boundary dofs.
-   Array<int> ess_tdof_list;
+   ParGridFunction source, diffused_source;
 
 public:
-   DistanceFunction(ParMesh &pmesh, int order, double diff_coeff);
+   HeatDistanceSolver(double diff_coeff)
+      : DistanceSolver(),
+        parameter_t(diff_coeff), smooth_steps(0), transform(true) { }
 
-   ParGridFunction &ComputeDistance(Coefficient &level_set,
-                                    int smooth_steps = 0,
-                                    bool transform = true);
+   void ComputeDistance(Coefficient &zero_level_set,
+                        ParGridFunction &distance);
 
    const ParGridFunction &GetLastSourceGF() const
    { return source; }
    const ParGridFunction &GetLastDiffusedSourceGF() const
    { return diffused_source; }
+
+   int parameter_t, smooth_steps;
+   bool transform;
 };
 
 class GradientCoefficient : public VectorCoefficient

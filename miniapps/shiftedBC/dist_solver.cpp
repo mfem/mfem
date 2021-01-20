@@ -9,52 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "distfunction.hpp"
+#include "dist_solver.hpp"
 
 using namespace mfem;
-
-DistanceFunction::DistanceFunction(ParMesh &pmesh, int order, double diff_coeff)
-   : fec(order, pmesh.Dimension()),
-     pfes(&pmesh, &fec),
-     distance(&pfes), source(&pfes), diffused_source(&pfes),
-     t_param(diff_coeff)
-{
-   // Compute average mesh size (assumes similar cells).
-   double loc_area = 0.0;
-   for (int i = 0; i < pmesh.GetNE(); i++)
-   {
-      loc_area += pmesh.GetElementVolume(i);
-   }
-   double glob_area;
-   MPI_Allreduce(&loc_area, &glob_area, 1, MPI_DOUBLE,
-                 MPI_SUM, pfes.GetComm());
-
-   const int glob_zones = pmesh.GetGlobalNE();
-   switch (pmesh.GetElementBaseGeometry(0))
-   {
-      case Geometry::SEGMENT:
-         dx = glob_area / glob_zones; break;
-      case Geometry::SQUARE:
-         dx = sqrt(glob_area / glob_zones); break;
-      case Geometry::TRIANGLE:
-         dx = sqrt(2.0 * glob_area / glob_zones); break;
-      case Geometry::CUBE:
-         dx = pow(glob_area / glob_zones, 1.0/3.0); break;
-      case Geometry::TETRAHEDRON:
-         dx = pow(6.0 * glob_area / glob_zones, 1.0/3.0); break;
-      default: MFEM_ABORT("Unknown zone type!");
-   }
-   dx /= order;
-
-
-   // List of true essential boundary dofs.
-   if (pmesh.bdr_attributes.Size())
-   {
-      Array<int> ess_bdr(pmesh.bdr_attributes.Max());
-      ess_bdr = 1;
-      pfes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   }
-}
 
 void DiffuseField(ParGridFunction &field, int smooth_steps)
 {
@@ -80,23 +37,51 @@ void DiffuseField(ParGridFunction &field, int smooth_steps)
    delete Lap;
 }
 
-ParGridFunction &DistanceFunction::ComputeDistance(Coefficient &level_set,
-                                                   int smooth_steps,
-                                                   bool transform)
+void HeatDistanceSolver::ComputeDistance(Coefficient &zero_level_set,
+                                         ParGridFunction &distance)
 {
-   source.ProjectCoefficient(level_set);
+   ParFiniteElementSpace &pfes = *distance.ParFESpace();
 
+   // Compute average mesh size (assumes similar cells).
+   double dx, loc_area = 0.0;
+   ParMesh &pmesh = *pfes.GetParMesh();
+   for (int i = 0; i < pmesh.GetNE(); i++)
+   {
+      loc_area += pmesh.GetElementVolume(i);
+   }
+   double glob_area;
+   MPI_Allreduce(&loc_area, &glob_area, 1, MPI_DOUBLE,
+                 MPI_SUM, pfes.GetComm());
+   const int glob_zones = pmesh.GetGlobalNE();
+   switch (pmesh.GetElementBaseGeometry(0))
+   {
+      case Geometry::SEGMENT:
+         dx = glob_area / glob_zones; break;
+      case Geometry::SQUARE:
+         dx = sqrt(glob_area / glob_zones); break;
+      case Geometry::TRIANGLE:
+         dx = sqrt(2.0 * glob_area / glob_zones); break;
+      case Geometry::CUBE:
+         dx = pow(glob_area / glob_zones, 1.0/3.0); break;
+      case Geometry::TETRAHEDRON:
+         dx = pow(6.0 * glob_area / glob_zones, 1.0/3.0); break;
+      default: MFEM_ABORT("Unknown zone type!");
+   }
+   dx /= pfes.GetOrder(0);
+
+   // Step 0 - transform the input level set into a source-type bump.
+   source.SetSpace(&pfes);
+   source.ProjectCoefficient(zero_level_set);
    // Optional smoothing of the initial level set.
    if (smooth_steps > 0) { DiffuseField(source, smooth_steps); }
-
    // Transform so that the peak is at 0.
-   // Assumes range [0, 1].
+   // Assumes range [-1, 1].
    if (transform)
    {
       for (int i = 0; i < source.Size(); i++)
       {
          const double x = source(i);
-         source(i) = ((x < 0.0) || (x > 1.0)) ? 0.0 : 4.0 * x * (1.0 - x);
+         source(i) = ((x < -1.0) || (x > 1.0)) ? 0.0 : (1.0 - x) * (1.0 + x);
       }
    }
 
@@ -111,28 +96,35 @@ ParGridFunction &DistanceFunction::ComputeDistance(Coefficient &level_set,
    // Step 1 - diffuse.
    {
       // Set up RHS.
-      ParLinearForm b1(&pfes);
+      ParLinearForm b(&pfes);
       GridFunctionCoefficient src_coeff(&source);
-      b1.AddDomainIntegrator(new DomainLFIntegrator(src_coeff));
-      b1.Assemble();
+      b.AddDomainIntegrator(new DomainLFIntegrator(src_coeff));
+      b.Assemble();
 
       // Diffusion and mass terms in the LHS.
-      ParBilinearForm a1(&pfes);
-      a1.AddDomainIntegrator(new MassIntegrator);
-      const double dt = t_param * dx * dx;
+      ParBilinearForm a_d(&pfes);
+      a_d.AddDomainIntegrator(new MassIntegrator);
+      const double dt = parameter_t * dx * dx;
       ConstantCoefficient t_coeff(dt);
-      a1.AddDomainIntegrator(new DiffusionIntegrator(t_coeff));
-      a1.Assemble();
+      a_d.AddDomainIntegrator(new DiffusionIntegrator(t_coeff));
+      a_d.Assemble();
 
       // Solve with Dirichlet BC.
+      Array<int> ess_tdof_list;
+      if (pmesh.bdr_attributes.Size())
+      {
+         Array<int> ess_bdr(pmesh.bdr_attributes.Max());
+         ess_bdr = 1;
+         pfes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      }
       ParGridFunction u_dirichlet(&pfes);
       u_dirichlet = 0.0;
-      a1.FormLinearSystem(ess_tdof_list, u_dirichlet, b1, A, X, B);
+      a_d.FormLinearSystem(ess_tdof_list, u_dirichlet, b, A, X, B);
       Solver *prec = new HypreBoomerAMG;
       cg.SetPreconditioner(*prec);
       cg.SetOperator(*A);
       cg.Mult(B, X);
-      a1.RecoverFEMSolution(X, b1, u_dirichlet);
+      a_d.RecoverFEMSolution(X, b, u_dirichlet);
       delete prec;
 
       // Diffusion and mass terms in the LHS.
@@ -144,14 +136,15 @@ ParGridFunction &DistanceFunction::ComputeDistance(Coefficient &level_set,
       // Solve with Neumann BC.
       ParGridFunction u_neumann(&pfes);
       ess_tdof_list.DeleteAll();
-      a_n.FormLinearSystem(ess_tdof_list, u_neumann, b1, A, X, B);
+      a_n.FormLinearSystem(ess_tdof_list, u_neumann, b, A, X, B);
       Solver *prec2 = new HypreBoomerAMG;
       cg.SetPreconditioner(*prec2);
       cg.SetOperator(*A);
       cg.Mult(B, X);
-      a_n.RecoverFEMSolution(X, b1, u_neumann);
+      a_n.RecoverFEMSolution(X, b, u_neumann);
       delete prec2;
 
+      diffused_source.SetSpace(&pfes);
       for (int i = 0; i < diffused_source.Size(); i++)
       {
          diffused_source(i) = 0.5 * (u_neumann(i) + u_dirichlet(i));
@@ -191,6 +184,4 @@ ParGridFunction &DistanceFunction::ComputeDistance(Coefficient &level_set,
    MPI_Allreduce(&d_min_loc, &d_min_glob, 1, MPI_DOUBLE,
                  MPI_MIN, pfes.GetComm());
    distance -= d_min_glob;
-
-   return distance;
 }
