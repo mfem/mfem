@@ -143,7 +143,8 @@ public:
       AlgebraicSpaceHierarchy &hierarchy,
       BilinearForm &form,
       const Array<int> &ess_tdofs,
-      double parameter
+      double contrast_threshold,
+      int amg_order
    );
    virtual void SetOperator(const Operator &op) override { }
    ~AlgebraicCeedMultigrid();
@@ -173,7 +174,8 @@ public:
        @param[in] ess_tdofs List of essential true dofs on finest level
     */
    AlgebraicCeedSolver(BilinearForm &form, const Array<int>& ess_tdofs,
-                       double parameter=1000.0);
+                       double contrast_threshold=1000.0,
+                       int amg_order=3);
    ~AlgebraicCeedSolver();
    void Mult(const Vector& x, Vector& y) const { multigrid->Mult(x, y); }
    void SetOperator(const Operator& op) { multigrid->SetOperator(op); }

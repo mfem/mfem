@@ -237,7 +237,8 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
    AlgebraicSpaceHierarchy &hierarchy,
    BilinearForm &form,
    const Array<int> &ess_tdofs,
-   double parameter
+   double contrast_threshold,
+   int amg_order
 ) : Multigrid(hierarchy)
 {
    // Construct finest level
@@ -252,11 +253,19 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
    {
       double minq, maxq, absmin;
       CeedOperatorGetHeuristics(ceed_operators[0], &minq, &maxq, &absmin);
+      // TODO: in principle we need to communicate heuristics across
+      // processors!
       double heuristic = std::max(std::abs(minq), std::abs(maxq)) / absmin;
 
       int order_reduction;
-      if (heuristic > parameter || current_order == 3)
+      if (heuristic > contrast_threshold && current_order <= amg_order)
       {
+         // assemble at this level
+         break;
+      }
+      else if (heuristic > contrast_threshold || current_order == 3)
+      {
+         // coarsening directly from 3 to 1 appears to be bad
          order_reduction = 1;
       }
       else
@@ -675,7 +684,8 @@ ParAlgebraicCoarseSpace::~ParAlgebraicCoarseSpace()
 
 AlgebraicCeedSolver::AlgebraicCeedSolver(BilinearForm &form,
                                          const Array<int>& ess_tdofs,
-                                         double parameter)
+                                         double contrast_threshold,
+                                         int amg_order)
 {
    // this records order, order reduction, builds interpolations etc.
    // (the path forward for schedule change is probably to do *all* setup here,
@@ -683,7 +693,7 @@ AlgebraicCeedSolver::AlgebraicCeedSolver(BilinearForm &form,
    fespaces = new AlgebraicSpaceHierarchy(*form.FESpace());
    // this actually assembles CeedOperator and related objects
    multigrid = new AlgebraicCeedMultigrid(*fespaces, form, ess_tdofs,
-                                          parameter);
+                                          contrast_threshold, amg_order);
 }
 
 AlgebraicCeedSolver::~AlgebraicCeedSolver()
