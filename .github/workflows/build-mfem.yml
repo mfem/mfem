@@ -70,7 +70,7 @@ jobs:
               wget --no-verbose ${METIS_URL}/${METIS_ARCHIVE};
               rm -rf ${METIS_TOP_DIR};
               tar -xzf ${METIS_ARCHIVE};
-              make -j3 -C ${METIS_TOP_DIR}/Lib CC="$CC" OPTFLAGS="-O2";
+              make -j3 -C ${METIS_TOP_DIR}/Lib CC=mpicc OPTFLAGS="-O2";
            else
                echo "Reusing cached $METIS_TOP_DIR/";
            fi;
