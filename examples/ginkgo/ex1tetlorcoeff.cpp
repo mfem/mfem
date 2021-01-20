@@ -40,6 +40,7 @@
 //               optional connection to the GLVis tool for visualization.
 
 #include "mfem.hpp"
+#include "multigridpc.hpp"
 
 #include <fstream>
 #include <iostream>
@@ -162,6 +163,7 @@ int main(int argc, char *argv[])
    int isai_sparsity_power = 1;
    int par_ilu_its = 0;
    double sigma_val = 1.0;
+   const char *mg_spec = "1";
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -209,6 +211,8 @@ int main(int argc, char *argv[])
                   "Number of iterations for the Ginkgo ParILU algorithm.");
    args.AddOption(&sigma_val, "-sv", "--sigma-value",
                   "Non-unity value for piecewise discontinuous coefficient.");
+   args.AddOption(&mg_spec, "-mg", "--multigrid-spec",
+                  "Multigrid specification. See README for description.");
    args.Parse();
    if (!args.Good())
    {
@@ -238,6 +242,8 @@ int main(int argc, char *argv[])
                  GKO_CUILU,
                  GKO_CUILU_ISAI,
                  MFEM_GS,
+                 MFEM_CG,
+                 MFEM_GMG,
                  MFEM_UMFPACK };
    PCType pc_choice;
    bool pc = true;
@@ -274,6 +280,8 @@ int main(int argc, char *argv[])
       trisolve_type = "isai";
    }
    else if (!strcmp(pc_type, "mfem:gs")) { pc_choice = MFEM_GS; }
+   else if (!strcmp(pc_type, "mfem:cg")) { pc_choice = MFEM_CG; }
+   else if (!strcmp(pc_type, "mfem:gmg")) { pc_choice = MFEM_GMG; }
    else if (!strcmp(pc_type, "mfem:umf"))
    {
 #ifdef MFEM_USE_SUITESPARSE
@@ -374,6 +382,7 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec_lor = NULL;
    FiniteElementSpace *fespace_lor = NULL;
    Array<int> *inv_reordering = NULL;
+   double h_min, h_max, kappa_min, kappa_max = 0.0;
    if (pc)
    {
       int basis_lor = basis;
@@ -384,11 +393,17 @@ int main(int argc, char *argv[])
       }
       fec_lor = new H1_FECollection(1, dim);
       if (tet_lor_mesh) {
+        mesh_lor.GetCharacteristics(h_min, h_max, kappa_min, kappa_max);
         fespace_lor = new FiniteElementSpace(&mesh_lor, fec_lor);
       }
       else {
+        mesh_lor_tensor->GetCharacteristics(h_min, h_max, kappa_min, kappa_max);
         fespace_lor = new FiniteElementSpace(mesh_lor_tensor, fec_lor);
       }
+      cout << "LOR mesh h_min: " << h_min << "\n";
+      cout << "LOR mesh h_max: " << h_max << "\n";
+      cout << "LOR mesh kappa_min: " << kappa_min << "\n";
+      cout << "LOR mesh kappa_max: " << kappa_max << "\n";
 
       if (permute == 1)
       {
@@ -861,6 +876,109 @@ int main(int argc, char *argv[])
 
          tic_toc.Stop();
          cout << "Real time creating MFEM GS preconditioner: " <<
+              tic_toc.RealTime() << "\n";
+
+         // Use preconditioned CG
+         total_its = pcg_solve(*A, M, B, X, 0, max_iter, 1e-12, 0.0, it_time);
+
+         cout << "Real time in PCG: " << it_time << "\n";
+
+      }
+      else if (pc_choice == MFEM_GMG)
+      {
+
+         // Parse arguments:
+         
+         int coarse_order = 0, order = 0, h_ref = 0; 
+         // Parse order specification
+         vector<MGRefinement> mg_refinements;
+         {
+            istringstream mg_stream(mg_spec);
+            string ref;
+            mg_stream >> coarse_order;
+            int prev_order = order = coarse_order;
+            cout << "\nCoarse order " << coarse_order << '\n';
+            while (mg_stream >> ref)
+            {
+               if (ref == "r")
+               {
+                  cout << "h-MG uniform refinement\n";
+                  mg_refinements.push_back(MGRefinement::h());
+                  ++h_ref;
+               }
+               else
+               {
+                  try { order = stoi(ref); }
+                  catch (...)
+                  {
+                     MFEM_ABORT("Multigrid refinement must either be an integer or "
+                                "the character `r`");
+                  }
+                  cout << "p-MG order   " << order << '\n';
+                  MFEM_VERIFY(order > 0, "Orders must be positive");
+                  MFEM_VERIFY(order > prev_order, "Orders must be sorted");
+                  mg_refinements.push_back(MGRefinement::p(order));
+                  prev_order = order;
+               }
+            }
+            cout << endl;
+         }
+      
+         // Create MFEM preconditioner
+         tic_toc.Clear();
+         tic_toc.Start();
+
+         std::vector<FiniteElementCollection*> fe_collections;
+         fe_collections.push_back(new H1_FECollection(coarse_order, dim));
+         FiniteElementSpace fes_coarse(mesh, fe_collections.back());
+      
+         FiniteElementSpaceHierarchy hierarchy(mesh, &fes_coarse, false, false);
+      
+         for (MGRefinement ref : mg_refinements)
+         {
+            if (ref.type == MGRefinement::H_MG)
+            {
+               hierarchy.AddUniformlyRefinedLevel();
+            }
+            else // P_MG
+            {
+               fe_collections.push_back(new H1_FECollection(ref.order, dim));
+               hierarchy.AddOrderRefinedLevel(fe_collections.back());
+            }
+         }
+         
+         SolverConfig coarse_solver(SolverConfig::JACOBI);
+         Array<int> ess_bdr(mesh->bdr_attributes.Max());
+         ess_bdr = 1;
+         DiffusionMultigrid M(hierarchy, *coeff, ess_bdr, coarse_solver);
+//         M.SetCycleType(Multigrid::CycleType::VCYCLE, 1, 1);
+
+         tic_toc.Stop();
+         cout << "Real time creating MFEM GMG preconditioner: " <<
+              tic_toc.RealTime() << "\n";
+
+         // Use preconditioned CG
+         total_its = pcg_solve(*A, M, B, X, 0, max_iter, 1e-12, 0.0, it_time);
+
+         cout << "Real time in PCG: " << it_time << "\n";
+
+      }
+      // And "exact" solve using a CG solver to apply the preconditioner
+      else if (pc_choice == MFEM_CG)
+      {
+
+         // Create MFEM preconditioner
+         tic_toc.Clear();
+         tic_toc.Start();
+         CGSolver M;
+         M.SetRelTol(sqrt(1.e-16));
+         M.SetAbsTol(sqrt(1.e-16));
+         M.SetMaxIter(max_iter);
+         M.SetPrintLevel(0);
+         M.SetOperator(A_pc);
+
+         tic_toc.Stop();
+         cout << "Real time creating MFEM CG solver preconditioner: " <<
               tic_toc.RealTime() << "\n";
 
          // Use preconditioned CG

@@ -1,0 +1,17 @@
+{
+    "config_version": 2,
+    "solver": {
+        "solver": "AMG",
+        "smoother": {
+            "scope": "jacobi",
+            "solver": "JACOBI_L1"
+        },
+        "presweeps": 1,
+        "interpolator": "D2",
+        "max_row_sum" : 0.9,
+        "strength_threshold" : 0.25,
+        "postsweeps": 1,
+        "max_iters": 1,
+        "cycle": "V"
+    }
+}
