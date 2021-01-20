@@ -24,11 +24,13 @@ TEST_CASE("Element-wise construction", "[Mesh]")
       Mesh mesh(2, numVertices, numElements);
 
       // Add each vertex by coordinates
-      for (int i=0; i<3; ++i)
-         for (int j=0; j<3; ++j)
+      for (int j=0; j<3; ++j)
+      {
+         for (int i=0; i<3; ++i)
          {
             mesh.AddVertex(i, j);
          }
+      }
 
       // Add each element by vertices
       const int geom = Geometry::SQUARE;
@@ -36,23 +38,27 @@ TEST_CASE("Element-wise construction", "[Mesh]")
       Array<int> elvert(4);
 
       Element *el = mesh.NewElement(geom);
-      elvert[0] = 0; elvert[1] = 1; elvert[2] = 3; elvert[3] = 4;
+      elvert[0] = 0; elvert[1] = 1; elvert[2] = 4; elvert[3] = 3;
       el->SetVertices(elvert);
+      REQUIRE(el->GetAttribute() == 1);
       mesh.AddElement(el);
 
       el = mesh.NewElement(geom);
-      elvert[0] = 1; elvert[1] = 2; elvert[2] = 4; elvert[3] = 5;
+      elvert[0] = 1; elvert[1] = 2; elvert[2] = 5; elvert[3] = 4;
       el->SetVertices(elvert);
+      REQUIRE(el->GetAttribute() == 1);
       mesh.AddElement(el);
 
       el = mesh.NewElement(geom);
-      elvert[0] = 3; elvert[1] = 4; elvert[2] = 6; elvert[3] = 7;
+      elvert[0] = 3; elvert[1] = 4; elvert[2] = 7; elvert[3] = 6;
       el->SetVertices(elvert);
+      REQUIRE(el->GetAttribute() == 1);
       mesh.AddElement(el);
 
       el = mesh.NewElement(geom);
-      elvert[0] = 4; elvert[1] = 5; elvert[2] = 7; elvert[3] = 8;
+      elvert[0] = 4; elvert[1] = 5; elvert[2] = 8; elvert[3] = 7;
       el->SetVertices(elvert);
+      REQUIRE(el->GetAttribute() == 1);
       mesh.AddElement(el);
 
       mesh.FinalizeTopology();

@@ -21,6 +21,7 @@ namespace mfem
 
 class BilinearForm;
 class MixedBilinearForm;
+class DiscreteLinearOperator;
 
 /// Class extending the BilinearForm class to support different AssemblyLevels.
 /**  FA - Full Assembly
@@ -134,24 +135,31 @@ public:
    }
 };
 
-/// Data and methods for matrix-free bilinear forms NOT YET IMPLEMENTED.
+/// Data and methods for matrix-free bilinear forms
 class MFBilinearFormExtension : public BilinearFormExtension
 {
-public:
-   MFBilinearFormExtension(BilinearForm *form)
-      : BilinearFormExtension(form) { }
+protected:
+   const FiniteElementSpace *trialFes, *testFes; // Not owned
+   mutable Vector localX, localY;
+   mutable Vector faceIntX, faceIntY;
+   mutable Vector faceBdrX, faceBdrY;
+   const Operator *elem_restrict; // Not owned
+   const Operator *int_face_restrict_lex; // Not owned
+   const Operator *bdr_face_restrict_lex; // Not owned
 
-   /// TODO
-   void Assemble() {}
-   void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A) {}
+public:
+   MFBilinearFormExtension(BilinearForm *form);
+
+   void Assemble();
+   void AssembleDiagonal(Vector &diag) const;
+   void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);
    void FormLinearSystem(const Array<int> &ess_tdof_list,
                          Vector &x, Vector &b,
                          OperatorHandle &A, Vector &X, Vector &B,
-                         int copy_interior = 0) {}
-   void Mult(const Vector &x, Vector &y) const {}
-   void MultTranspose(const Vector &x, Vector &y) const {}
-   void Update() {}
-   ~MFBilinearFormExtension() {}
+                         int copy_interior = 0);
+   void Mult(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const;
+   void Update();
 };
 
 /// Class extending the MixedBilinearForm class to support different AssemblyLevels.
@@ -209,7 +217,7 @@ protected:
    mutable Vector localTrial, localTest, tempY;
    const Operator *elem_restrict_trial; // Not owned
    const Operator *elem_restrict_test;  // Not owned
-private:
+
    /// Helper function to set up inputs/outputs for Mult or MultTranspose
    void SetupMultInputs(const Operator *elem_restrict_x,
                         const Vector &x, Vector &localX,
@@ -253,6 +261,35 @@ public:
 
    /// Update internals for when a new MixedBilinearForm is given to this class
    void Update();
+};
+
+
+/**
+   @brief Partial assembly extension for DiscreteLinearOperator
+
+   This acts very much like PAMixedBilinearFormExtension, but its
+   FormRectangularSystemOperator implementation emulates 'Set' rather than
+   'Add' in the assembly case.
+*/
+class PADiscreteLinearOperatorExtension : public PAMixedBilinearFormExtension
+{
+public:
+   PADiscreteLinearOperatorExtension(DiscreteLinearOperator *linop);
+
+   /// Partial assembly of all internal integrators
+   void Assemble();
+
+   void AddMult(const Vector &x, Vector &y, const double c) const;
+
+   void AddMultTranspose(const Vector &x, Vector &y, const double c=1.0) const;
+
+   void FormRectangularSystemOperator(const Array<int>&, const Array<int>&,
+                                      OperatorHandle& A);
+
+   const Operator * GetOutputRestrictionTranspose() const;
+
+private:
+   Vector test_multiplicity;
 };
 
 }

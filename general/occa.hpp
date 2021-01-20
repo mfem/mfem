@@ -16,8 +16,8 @@
 
 #ifdef MFEM_USE_OCCA
 #include "mem_manager.hpp"
-#include "backends.hpp"
 #include "device.hpp"
+#include <occa.hpp>
 
 namespace mfem
 {

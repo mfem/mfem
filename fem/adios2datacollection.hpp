@@ -8,7 +8,7 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-//
+
 // Created on: Jan 7, 2020
 // Author: William F Godoy godoywf@ornl.gov
 // adios2: Adaptable Input/Output System https://github.com/ornladios/ADIOS2
