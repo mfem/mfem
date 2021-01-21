@@ -21,15 +21,19 @@ jobs:
       MPI: ${{ matrix.MPI }}
 
     steps:
+    # Checkout MFEM in "mfem" subdirectory. Final path: /home/runner/work/mfem/mfem/mfem
     - name: checkout MFEM
       uses: actions/checkout@v2
       with:
         path: mfem
 
+    # Only get mpi if defined for the job.
     - name: Get MPI
       if: matrix.MPI == 'YES'
       run: sudo apt-get install mpich libmpich-dev
 
+    # Get Hypre through cache, or install it.
+    # Install will only run on cache miss.
     - name: Cache Hypre Install
       id: hypre-cache
       uses: actions/cache@v2
@@ -48,6 +52,8 @@ jobs:
         make -j3;
         cd ../..;
 
+    # Get Metis through cache, or install it.
+    # Install will only run on cache miss.
     - name: Cache Metis Install
       id: metis-cache
       uses: actions/cache@v2
@@ -63,6 +69,7 @@ jobs:
         tar -xzf ${METIS_ARCHIVE};
         make -j3 -C ${METIS_TOP_DIR}/Lib CC=mpicc OPTFLAGS="-O2";
 
+    # MFEM build and test
     - name: configure
       run: |
         echo "Hypre symlink:"
@@ -82,8 +89,8 @@ jobs:
     - name: unit
       run: |
         cd mfem
-        echo "make unittest"
+        make unittest
     - name: test
       run: |
         cd mfem
-        echo "make test"
+        make test
