@@ -4201,13 +4201,16 @@ static PetscErrorCode __mfem_snes_jacobian(SNES snes, Vec x, Mat A, Mat P,
       delete_pA = true;
    }
 
-   // skip it in useFull<3 and do matrics manipulcation in mfem -QT
+   // skip it for now! -QT
+   // this does not supports nest mat
    // Eliminate essential dofs
-   if (snes_ctx->bchandler && snes_ctx->bchandler->useFullversion==3)
+   if (snes_ctx->bchandler && false)
    {
       mfem::PetscBCHandler *bchandler = snes_ctx->bchandler;
       mfem::PetscParVector dummy(PetscObjectComm((PetscObject)snes),0);
+      //pA->Print();
       pA->EliminateRowsCols(bchandler->GetTDofs(),dummy,dummy);
+      //pA->Print();
    }
 
    // Get nonzerostate

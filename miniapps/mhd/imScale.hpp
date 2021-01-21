@@ -201,7 +201,6 @@ class myBCHandler : public PetscBCHandler
 {
 private:
     int component, componentSize;
-    int useFullversion;
     Vector vx;
 
 public:
@@ -1055,7 +1054,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
        MyCoefficient velocity(&phiGf, 2);   //we update velocity
        Nv->AddDomainIntegrator(new ConvectionIntegrator(velocity));
        Nv->Assemble(); 
-       if (useFull!=3) {Nv->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);}
+       Nv->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
        Nv->Finalize();
        HypreParMatrix *NvMat = Nv->ParallelAssemble();
 
@@ -1071,7 +1070,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
        MyCoefficient Bfield(&psiGf, 2);   //we update B
        Nb->AddDomainIntegrator(new ConvectionIntegrator(Bfield));
        Nb->Assemble();
-       if (useFull!=3) {Nb->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);}
+       Nb->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
        Nb->Finalize();
        NbFull = Nb->ParallelAssemble();
 
@@ -1083,7 +1082,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
        MyCoefficient curlw(&wGf, 2);
        Pw->AddDomainIntegrator(new ConvectionIntegrator(curlw));
        Pw->Assemble();
-       if (useFull!=3) {Pw->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);}
+       Pw->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
        Pw->Finalize();
        PwMat = Pw->ParallelAssemble();
 
@@ -1418,11 +1417,35 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
          Pw = new ParBilinearForm(&fespace);
          Pw->AddDomainIntegrator(new ConvectionIntegrator(curlj));
          Pw->Assemble();
+         Pw->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
          Pw->Finalize();
          HypreParMatrix *PjMat = Pw->ParallelAssemble();
 
-         HypreParMatrix *NbMinvKB = ParMult(NbFull, MinvKB);
+         //form Nb matrix again (with boundary term)
+         //FIXME this is not right yet
+         delete Nb;
+         Nb = new ParBilinearForm(&fespace);
+         Nb->AddDomainIntegrator(new ConvectionIntegrator(Bfield));
+         Nb->Assemble();
+         Nb->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
+         Nb->Finalize();
+         HypreParMatrix *Mattmp = Nb->ParallelAssemble();
+
+         /*
+         ofstream myf0 ("NbFull.m");
+         NbFull->PrintMatlab(myf0);
+         ofstream myf ("before.m");
+         Mattmp->PrintMatlab(myf);
+         HypreParMatrix *tmp3=Mattmp->EliminateRowsCols(ess_tdof_list);
+         ofstream myf2 ("after.m");
+         Mattmp->PrintMatlab(myf2);
+         */
+
+         HypreParMatrix *NbMinvKB = ParMult(Mattmp, MinvKB);
+         delete Mattmp;
+
          tmp2 = ParAdd(PjMat, NbMinvKB);
+         //HypreParMatrix *tmp3=Mattmp->EliminateRowsCols(ess_tdof_list);
 
          //use tmp1 to hold ASltmp
          tmp1=ASltmp;
@@ -1442,6 +1465,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
 
          delete PjMat;
          delete NbMinvKB;
+         delete Mattmp;
        }
 
        bool outputMatrix=false;

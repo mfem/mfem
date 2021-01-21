@@ -326,6 +326,14 @@ PetscBlockSolver::PetscBlockSolver(const OperatorHandle &oh) : Solver() {
    Mat ARe = sub[2][2];
    Mat NbNeg = sub[1][0];
 
+   /*
+   MatView(Kmat, 	PETSC_VIEWER_STDOUT_WORLD);
+   MatView(Mmat, 	PETSC_VIEWER_STDOUT_WORLD);
+   MatView(ARe, 	PETSC_VIEWER_STDOUT_WORLD);
+   MatView(ASl, 	PETSC_VIEWER_STDOUT_WORLD);
+   MatView(NbNeg, 	PETSC_VIEWER_STDOUT_WORLD);
+   */
+
    //stiffness
    ierr=KSPCreate(PETSC_COMM_WORLD, &kspblock[0]);    PCHKERRQ(kspblock[0], ierr);
    ierr=KSPSetOperators(kspblock[0], Kmat, Kmat);PCHKERRQ(Kmat, ierr);
@@ -339,6 +347,12 @@ PetscBlockSolver::PetscBlockSolver(const OperatorHandle &oh) : Solver() {
    KSPAppendOptionsPrefix(kspblock[2],"s3_");
    KSPSetFromOptions(kspblock[2]);
    KSPSetUp(kspblock[2]);
+
+   MatCreateVecs(sub[0][0], &b, NULL);
+   MatCreateVecs(sub[0][0], &bhat, NULL);
+   MatCreateVecs(sub[0][0], &diag, NULL);
+   MatCreateVecs(sub[0][0], &rhs, NULL);
+   MatCreateVecs(sub[0][0], &tmp, NULL);
 
    //get diag consistent with Schur complement
    MatGetDiagonal(ARe,diag);
@@ -367,12 +381,6 @@ PetscBlockSolver::PetscBlockSolver(const OperatorHandle &oh) : Solver() {
       KSPSetFromOptions(kspblock[3]);
       KSPSetUp(kspblock[3]);
    }
-
-   MatCreateVecs(sub[0][0], &b, NULL);
-   MatCreateVecs(sub[0][0], &bhat, NULL);
-   MatCreateVecs(sub[0][0], &diag, NULL);
-   MatCreateVecs(sub[0][0], &rhs, NULL);
-   MatCreateVecs(sub[0][0], &tmp, NULL);
 
 }
 
