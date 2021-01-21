@@ -1457,8 +1457,10 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
          ASltmp=NULL;
 
          Jacobian = new BlockOperator(block_trueOffsets);
-         Jacobian->SetBlock(0,0,&KBMat);
-         Jacobian->SetBlock(0,2,&Mfullmat);
+         //Jacobian->SetBlock(0,0,&KBMat);
+         //Jacobian->SetBlock(0,2,&Mfullmat);
+         Jacobian->SetBlock(0,0,&Kmat);
+         Jacobian->SetBlock(0,2,&Mmat);
          //Jacobian->SetBlock(1,0,NbFull, -1);    //it is likely not working with petsc
          *(NbFull) *= -1;
          Jacobian->SetBlock(1,0,NbFull);    
@@ -1470,7 +1472,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
 
          delete PjMat;
          delete NbMinvKB;
-         delete Mattmp;
+         //delete Mattmp;
        }
 
        bool outputMatrix=false;

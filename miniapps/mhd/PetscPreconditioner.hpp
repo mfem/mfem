@@ -99,6 +99,10 @@ FullBlockSolver::FullBlockSolver(const OperatorHandle &oh) : Solver() {
    Mat ARe = sub[0][0];
    Mat Mmatlp = sub[0][2];
 
+   //MatView(sub[2][0], 	PETSC_VIEWER_STDOUT_WORLD);
+   //MatView(sub[2][2], 	PETSC_VIEWER_STDOUT_WORLD);
+   //MatView(sub[0][1], 	PETSC_VIEWER_STDOUT_WORLD);
+
    if (smoothOmega)
    {
       //ARe matrix (for version 2)
@@ -121,6 +125,9 @@ FullBlockSolver::FullBlockSolver(const OperatorHandle &oh) : Solver() {
       MatGetDiagonal(ARe,diag);
    else
       MatGetDiagonal(Mmatlp,diag);
+
+   //MatView(ARe, PETSC_VIEWER_STDOUT_WORLD);
+   //VecView(diag, PETSC_VIEWER_STDOUT_WORLD);
 }
 
 //Mult will only be called once
@@ -223,11 +230,12 @@ void FullBlockSolver::Mult(const Vector &x, Vector &y) const
      PetscViewerPopFormat(viewer);
      PetscViewerDestroy(&viewer);
 
-     PetscViewerASCIIOpen(PETSC_COMM_WORLD, "dpsi.m", &viewer);
+     PetscViewerASCIIOpen(PETSC_COMM_WORLD, "dpsifinal.m", &viewer);
      PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);
      VecView(y1,viewer);
      PetscViewerPopFormat(viewer);
      PetscViewerDestroy(&viewer);
+
  
      PetscViewerASCIIOpen(PETSC_COMM_WORLD, "dw.m", &viewer);
      PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);
@@ -362,6 +370,11 @@ PetscBlockSolver::PetscBlockSolver(const OperatorHandle &oh) : Solver() {
    MatCreateSchurComplementPmat(ARe, NbNeg, NbNeg, ASl, MAT_SCHUR_COMPLEMENT_AINV_DIAG, MAT_INITIAL_MATRIX, &Sp);  
    PCHKERRQ(Sp, ierr);   
 
+   //MatView(Kmat, 	PETSC_VIEWER_STDOUT_WORLD);
+   //MatView(Mmat, 	PETSC_VIEWER_STDOUT_WORLD);
+   //MatView(Sp, 	PETSC_VIEWER_STDOUT_WORLD);
+   MatView(NbNeg, 	PETSC_VIEWER_STDOUT_WORLD);
+
    //schur complement
    ierr=KSPCreate(PETSC_COMM_WORLD, &kspblock[1]);    PCHKERRQ(kspblock[1], ierr);
    ierr=KSPSetOperators(kspblock[1], Sp, Sp);PCHKERRQ(Sp, ierr);
@@ -435,6 +448,7 @@ void PetscBlockSolver::Mult(const Vector &x, Vector &y) const
       //update y0
       VecScale(y1, -1.);
       MatMultAdd(NbNeg, y1, bhat, rhs);
+      VecScale(y1, -1.);
       VecPointwiseDivide(y0, rhs, diag);
    }
 
@@ -460,6 +474,50 @@ void PetscBlockSolver::Mult(const Vector &x, Vector &y) const
       MatMult(Mmat, y2, rhs);
       VecAYPX(rhs, -1., b0);
       KSPSolve(kspblock[0],rhs,y0);
+   }
+
+   if (false)
+   {
+     PetscViewer viewer;
+     PetscViewerASCIIOpen(PETSC_COMM_WORLD, "residual20.m", &viewer);
+     PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);
+     VecView(b0,viewer);
+     PetscViewerPopFormat(viewer);
+     PetscViewerDestroy(&viewer);
+
+     PetscViewerASCIIOpen(PETSC_COMM_WORLD, "residual21.m", &viewer);
+     PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);
+     VecView(b1,viewer);
+     PetscViewerPopFormat(viewer);
+     PetscViewerDestroy(&viewer);
+ 
+     PetscViewerASCIIOpen(PETSC_COMM_WORLD, "residual22.m", &viewer);
+     PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);
+     VecView(b2,viewer);
+     PetscViewerPopFormat(viewer);
+     PetscViewerDestroy(&viewer);
+
+     PetscViewerASCIIOpen(PETSC_COMM_WORLD, "dpsifinal2.m", &viewer);
+     PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);
+     VecView(y1,viewer);
+     PetscViewerPopFormat(viewer);
+     PetscViewerDestroy(&viewer);
+
+     PetscViewerASCIIOpen(PETSC_COMM_WORLD, "dphi2.m", &viewer);
+     PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);
+     VecView(y0,viewer);
+     PetscViewerPopFormat(viewer);
+     PetscViewerDestroy(&viewer);
+
+
+     PetscViewerASCIIOpen(PETSC_COMM_WORLD, "dw2.m", &viewer);
+     PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);
+     VecView(y2,viewer);
+     PetscViewerPopFormat(viewer);
+     PetscViewerDestroy(&viewer);
+
+     //VecView(b0,PETSC_VIEWER_STDOUT_SELF);
+     //VecView(y0,PETSC_VIEWER_STDOUT_SELF);
    }
 
    VecRestoreSubVector(*X,index_set[0],&b0);
