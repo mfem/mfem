@@ -133,7 +133,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      ceedOp = new CeedPADiffusionIntegrator(fes, *ir, Q);
+      ceedOp = new ceed::PADiffusionIntegrator(fes, *ir, Q);
       return;
    }
    const int dims = el.GetDim();

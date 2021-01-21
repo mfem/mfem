@@ -2161,7 +2161,7 @@ void FiniteElementSpace::Destroy()
       delete [] bdofs;
       delete [] fdofs;
    }
-   RemoveCeedBasisAndRestriction(this);
+   ceed::RemoveBasisAndRestriction(this);
 }
 
 void FiniteElementSpace::GetTransferOperator(

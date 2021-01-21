@@ -19,8 +19,11 @@
 namespace mfem
 {
 
+namespace ceed
+{
+
 #ifdef MFEM_USE_CEED
-struct CeedDiffusionInfo
+struct DiffusionInfo
 {
    static constexpr const char *header = "/diffusion_qf.h";
    static constexpr const char *build_func_const = ":f_build_diff_const";
@@ -37,38 +40,40 @@ struct CeedDiffusionInfo
    static constexpr EvalMode test_op = EvalMode::Grad;
    const int qdatasize;
    DiffusionContext ctx;
-   CeedDiffusionInfo(int dim) : qdatasize(dim*(dim+1)/2) { }
+   DiffusionInfo(int dim) : qdatasize(dim*(dim+1)/2) { }
 };
 #endif
 
-CeedPADiffusionIntegrator::CeedPADiffusionIntegrator(
-   const FiniteElementSpace &fes,
+PADiffusionIntegrator::PADiffusionIntegrator(
+   const mfem::FiniteElementSpace &fes,
    const mfem::IntegrationRule &irm,
-   Coefficient *Q)
-   : CeedPAIntegrator()
+   mfem::Coefficient *Q)
+   : PAIntegrator()
 {
 #ifdef MFEM_USE_CEED
-   CeedDiffusionInfo info(fes.GetMesh()->Dimension());
-   CeedPAOperator op = InitPA(info, fes, irm, Q);
+   DiffusionInfo info(fes.GetMesh()->Dimension());
+   PAOperator op = InitPA(info, fes, irm, Q);
    Assemble(op, info.ctx);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
 }
 
-CeedMFDiffusionIntegrator::CeedMFDiffusionIntegrator(
-   const FiniteElementSpace &fes,
+MFDiffusionIntegrator::MFDiffusionIntegrator(
+   const mfem::FiniteElementSpace &fes,
    const mfem::IntegrationRule &irm,
-   Coefficient *Q)
-   : CeedMFIntegrator()
+   mfem::Coefficient *Q)
+   : MFIntegrator()
 {
 #ifdef MFEM_USE_CEED
-   CeedDiffusionInfo info(fes.GetMesh()->Dimension());
-   CeedMFOperator op = InitMF(info, fes, irm, Q);
+   DiffusionInfo info(fes.GetMesh()->Dimension());
+   MFOperator op = InitMF(info, fes, irm, Q);
    Assemble(op, info.ctx);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
 }
+
+} // namespace ceed
 
 } // namespace mfem

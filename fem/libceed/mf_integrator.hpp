@@ -21,15 +21,18 @@
 namespace mfem
 {
 
+namespace ceed
+{
+
 #ifdef MFEM_USE_CEED
 /** This structure contains the data to assemble a MF operator with libCEED.
     See libceed/mass.cpp or libceed/diffusion.cpp for examples. */
-struct CeedMFOperator
+struct MFOperator
 {
    /** The finite element space for the trial and test functions. */
-   const FiniteElementSpace &fes;
+   const mfem::FiniteElementSpace &fes;
    /** The Integration Rule to use to compote the operator. */
-   const IntegrationRule &ir;
+   const mfem::IntegrationRule &ir;
    /** The path to the header containing the functions for libCEED. */
    std::string header;
    /** The name of the Qfunction to apply the operator. */
@@ -45,67 +48,67 @@ struct CeedMFOperator
 };
 #endif
 
-class CeedMFIntegrator : public MFEMCeedOperator
+class MFIntegrator : public Operator
 {
 #ifdef MFEM_USE_CEED
 protected:
    CeedBasis basis, mesh_basis;
-   CeedElemRestriction restr, mesh_restr, restr_i, mesh_restr_i;
+   CeedElemRestriction restr, mesh_restr, restr_i;
    CeedQFunction apply_qfunc;
    CeedVector node_coords, qdata;
-   CeedCoeff *coeff;
+   Coefficient *coeff;
    CeedQFunctionContext build_ctx;
 
 public:
-   CeedMFIntegrator()
-      : MFEMCeedOperator(), basis(nullptr), mesh_basis(nullptr),
+   MFIntegrator()
+      : Operator(), basis(nullptr), mesh_basis(nullptr),
         restr(nullptr), mesh_restr(nullptr),
-        restr_i(nullptr), mesh_restr_i(nullptr),
+        restr_i(nullptr),
         apply_qfunc(nullptr), node_coords(nullptr),
         qdata(nullptr), coeff(nullptr), build_ctx(nullptr) { }
 
    template <typename CeedInfo, typename CoeffType>
-   CeedMFOperator InitMF(CeedInfo &info,
-                         const FiniteElementSpace &fes,
-                         const mfem::IntegrationRule &irm,
-                         CoeffType *Q)
+   MFOperator InitMF(CeedInfo &info,
+                     const mfem::FiniteElementSpace &fes,
+                     const mfem::IntegrationRule &irm,
+                     CoeffType *Q)
    {
       Mesh &mesh = *fes.GetMesh();
-      InitCeedCoeff(Q, mesh, irm, coeff, info.ctx);
+      InitCoefficient(Q, mesh, irm, coeff, info.ctx);
       bool const_coeff = coeff->IsConstant();
       std::string apply_func = const_coeff ? info.apply_func_mf_const
                                : info.apply_func_mf_quad;
       CeedQFunctionUser apply_qf = const_coeff ? info.apply_qf_mf_const
                                    : info.apply_qf_mf_quad;
-      return CeedMFOperator{fes, irm,
-                            info.header,
-                            apply_func, apply_qf,
-                            info.trial_op,
-                            info.test_op
-                           };
+      return MFOperator{fes, irm,
+                        info.header,
+                        apply_func, apply_qf,
+                        info.trial_op,
+                        info.test_op
+                       };
    }
 
    template <typename Context>
-   void Assemble(CeedMFOperator &op, Context &ctx)
+   void Assemble(MFOperator &op, Context &ctx)
    {
-      const FiniteElementSpace &fes = op.fes;
-      const IntegrationRule &irm = op.ir;
+      const mfem::FiniteElementSpace &fes = op.fes;
+      const mfem::IntegrationRule &irm = op.ir;
       Ceed ceed(internal::ceed);
-      Mesh *mesh = fes.GetMesh();
+      mfem::Mesh *mesh = fes.GetMesh();
       CeedInt nqpts, nelem = mesh->GetNE();
       CeedInt dim = mesh->SpaceDimension(), vdim = fes.GetVDim();
 
       mesh->EnsureNodes();
-      InitCeedBasisAndRestriction(fes, irm, ceed, &basis, &restr);
+      InitBasisAndRestriction(fes, irm, ceed, &basis, &restr);
 
-      const FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
+      const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
       MFEM_VERIFY(mesh_fes, "the Mesh has no nodal FE space");
-      InitCeedBasisAndRestriction(*mesh_fes, irm, ceed, &mesh_basis,
+      InitBasisAndRestriction(*mesh_fes, irm, ceed, &mesh_basis,
                                   &mesh_restr);
 
       CeedBasisGetNumQuadraturePoints(basis, &nqpts);
 
-      InitCeedVector(*mesh->GetNodes(), node_coords);
+      InitVector(*mesh->GetNodes(), node_coords);
 
       // Context data to be passed to the Q-function.
       ctx.dim = mesh->Dimension();
@@ -119,7 +122,7 @@ public:
 
       // Create the Q-function that builds the operator (i.e. computes its
       // quadrature data) and set its context data.
-      if (CeedVariableCoeff *var_coeff = dynamic_cast<CeedVariableCoeff*>(coeff))
+      if (VariableCoefficient *var_coeff = dynamic_cast<VariableCoefficient*>(coeff))
       {
          CeedQFunctionAddInput(apply_qfunc, "coeff", coeff->ncomp, var_coeff->emode);
       }
@@ -170,18 +173,18 @@ public:
       // Create the operator.
       CeedOperatorCreate(ceed, apply_qfunc, NULL, NULL, &oper);
       // coefficient
-      if (CeedGridCoeff *gridCoeff = dynamic_cast<CeedGridCoeff*>(coeff))
+      if (GridCoefficient *gridCoeff = dynamic_cast<GridCoefficient*>(coeff))
       {
-         InitCeedBasisAndRestriction(*gridCoeff->gf.FESpace(), irm, ceed,
+         InitBasisAndRestriction(*gridCoeff->gf.FESpace(), irm, ceed,
                                      &gridCoeff->basis, &gridCoeff->restr);
          CeedOperatorSetField(oper, "coeff", gridCoeff->restr,
                               gridCoeff->basis, gridCoeff->coeffVector);
       }
-      else if (CeedQuadCoeff *quadCoeff = dynamic_cast<CeedQuadCoeff*>(coeff))
+      else if (QuadCoefficient *quadCoeff = dynamic_cast<QuadCoefficient*>(coeff))
       {
          const int ncomp = quadCoeff->ncomp;
          CeedInt strides[3] = {ncomp, 1, ncomp*nqpts};
-         InitCeedStridedRestriction(*mesh->GetNodalFESpace(),
+         InitStridedRestriction(*mesh->GetNodalFESpace(),
                                     nelem, nqpts, ncomp, strides,
                                     &quadCoeff->restr);
          CeedOperatorSetField(oper, "coeff", quadCoeff->restr,
@@ -232,7 +235,7 @@ public:
       CeedVectorCreate(ceed, vdim*fes.GetNDofs(), &v);
    }
 
-   virtual ~CeedMFIntegrator()
+   virtual ~MFIntegrator()
    {
       CeedQFunctionDestroy(&apply_qfunc);
       CeedQFunctionContextDestroy(&build_ctx);
@@ -242,6 +245,8 @@ public:
    }
 #endif
 };
+
+} // namespace ceed
 
 } // namespace mfem
 

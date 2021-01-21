@@ -28,7 +28,7 @@ void VectorConvectionNLFIntegrator::AssembleMF(const FiniteElementSpace &fes)
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      ceedOp = new CeedMFNLConvectionIntegrator(fes, *ir, Q);
+      ceedOp = new ceed::MFNLConvectionIntegrator(fes, *ir, Q);
       return;
    }
    mfem_error("Not yet implemented.");

@@ -18,13 +18,16 @@
 namespace mfem
 {
 
-void MFEMCeedOperator::Mult(const Vector &x, Vector &y) const
+namespace ceed
+{
+
+void Operator::Mult(const mfem::Vector &x, mfem::Vector &y) const
 {
 #ifdef MFEM_USE_CEED
    const CeedScalar *x_ptr;
    CeedScalar *y_ptr;
    CeedMemType mem;
-   CeedGetPreferredMemType(internal::ceed, &mem);
+   CeedGetPreferredMemType(mfem::internal::ceed, &mem);
    if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
    {
       x_ptr = x.Read();
@@ -48,13 +51,13 @@ void MFEMCeedOperator::Mult(const Vector &x, Vector &y) const
 #endif
 }
 
-void MFEMCeedOperator::AddMult(const Vector &x, Vector &y) const
+void Operator::AddMult(const mfem::Vector &x, mfem::Vector &y) const
 {
 #ifdef MFEM_USE_CEED
    const CeedScalar *x_ptr;
    CeedScalar *y_ptr;
    CeedMemType mem;
-   CeedGetPreferredMemType(internal::ceed, &mem);
+   CeedGetPreferredMemType(mfem::internal::ceed, &mem);
    if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
    {
       x_ptr = x.Read();
@@ -78,12 +81,12 @@ void MFEMCeedOperator::AddMult(const Vector &x, Vector &y) const
 #endif
 }
 
-void MFEMCeedOperator::GetDiagonal(Vector &diag) const
+void Operator::GetDiagonal(mfem::Vector &diag) const
 {
 #ifdef MFEM_USE_CEED
    CeedScalar *d_ptr;
    CeedMemType mem;
-   CeedGetPreferredMemType(internal::ceed, &mem);
+   CeedGetPreferredMemType(mfem::internal::ceed, &mem);
    if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
    {
       d_ptr = diag.ReadWrite();
@@ -102,5 +105,7 @@ void MFEMCeedOperator::GetDiagonal(Vector &diag) const
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
 }
+
+} // namespace ceed
 
 } // namespace mfem

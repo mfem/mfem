@@ -362,7 +362,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       delete ceedOp;
       MFEM_VERIFY(!VQ && !MQ && !SMQ,
                   "Only scalar coefficient supported for Diffusion Integrator with libCEED");
-      ceedOp = new CeedPADiffusionIntegrator(fes, *ir, Q);
+      ceedOp = new ceed::PADiffusionIntegrator(fes, *ir, Q);
       return;
    }
    const int dims = el.GetDim();

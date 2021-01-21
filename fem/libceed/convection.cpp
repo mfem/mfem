@@ -19,8 +19,11 @@
 namespace mfem
 {
 
+namespace ceed
+{
+
 #ifdef MFEM_USE_CEED
-struct CeedConvectionInfo
+struct ConvectionInfo
 {
    static constexpr const char *header = "/convection_qf.h";
    static constexpr const char *build_func_const = ":f_build_conv_const";
@@ -37,20 +40,20 @@ struct CeedConvectionInfo
    static constexpr EvalMode test_op = EvalMode::Interp;
    const int qdatasize;
    ConvectionContext ctx;
-   CeedConvectionInfo(int dim) : qdatasize(dim * (dim + 1) / 2) { }
+   ConvectionInfo(int dim) : qdatasize(dim * (dim + 1) / 2) { }
 };
 #endif
 
-CeedPAConvectionIntegrator::CeedPAConvectionIntegrator(
-   const FiniteElementSpace &fes,
+PAConvectionIntegrator::PAConvectionIntegrator(
+   const mfem::FiniteElementSpace &fes,
    const mfem::IntegrationRule &irm,
-   VectorCoefficient *Q,
+   mfem::VectorCoefficient *Q,
    const double alpha)
-   : CeedPAIntegrator()
+   : PAIntegrator()
 {
 #ifdef MFEM_USE_CEED
-   CeedConvectionInfo info(fes.GetMesh()->Dimension());
-   CeedPAOperator op = InitPA(info, fes, irm, Q);
+   ConvectionInfo info(fes.GetMesh()->Dimension());
+   PAOperator op = InitPA(info, fes, irm, Q);
    info.ctx.alpha = alpha;
    Assemble(op, info.ctx);
 #else
@@ -58,21 +61,23 @@ CeedPAConvectionIntegrator::CeedPAConvectionIntegrator(
 #endif
 }
 
-CeedMFConvectionIntegrator::CeedMFConvectionIntegrator(
-   const FiniteElementSpace &fes,
+MFConvectionIntegrator::MFConvectionIntegrator(
+   const mfem::FiniteElementSpace &fes,
    const mfem::IntegrationRule &irm,
-   VectorCoefficient *Q,
+   mfem::VectorCoefficient *Q,
    const double alpha)
-   : CeedMFIntegrator()
+   : MFIntegrator()
 {
 #ifdef MFEM_USE_CEED
-   CeedConvectionInfo info(fes.GetMesh()->Dimension());
-   CeedMFOperator op = InitMF(info, fes, irm, Q);
+   ConvectionInfo info(fes.GetMesh()->Dimension());
+   MFOperator op = InitMF(info, fes, irm, Q);
    info.ctx.alpha = alpha;
    Assemble(op, info.ctx);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
 }
+
+} // namespace ceed
 
 } // namespace mfem

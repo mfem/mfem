@@ -777,7 +777,7 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      ceedOp = new CeedPAConvectionIntegrator(fes, *ir, Q, alpha);
+      ceedOp = new ceed::PAConvectionIntegrator(fes, *ir, Q, alpha);
       return;
    }
    const int dims = el.GetDim();

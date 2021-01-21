@@ -35,8 +35,8 @@ occa::device occaDevice;
 #ifdef MFEM_USE_CEED
 Ceed ceed = NULL;
 
-CeedBasisMap ceed_basis_map;
-CeedRestrMap ceed_restr_map;
+ceed::BasisMap ceed_basis_map;
+ceed::RestrMap ceed_restr_map;
 #endif
 
 // Backends listed by priority, high to low:

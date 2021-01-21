@@ -18,23 +18,28 @@
 namespace mfem
 {
 
+namespace ceed
+{
+
 /// Represent a MassIntegrator with AssemblyLevel::Partial using libCEED.
-class CeedPAMassIntegrator : public CeedPAIntegrator
+class PAMassIntegrator : public PAIntegrator
 {
 public:
-   CeedPAMassIntegrator(const FiniteElementSpace &fes,
-                        const mfem::IntegrationRule &irm,
-                        Coefficient *Q);
+   PAMassIntegrator(const mfem::FiniteElementSpace &fes,
+                    const mfem::IntegrationRule &irm,
+                    mfem::Coefficient *Q);
 };
 
 /// Represent a MassIntegrator with AssemblyLevel::None using libCEED.
-class CeedMFMassIntegrator : public CeedMFIntegrator
+class MFMassIntegrator : public MFIntegrator
 {
 public:
-   CeedMFMassIntegrator(const FiniteElementSpace &fes,
-                        const mfem::IntegrationRule &irm,
-                        Coefficient *Q);
+   MFMassIntegrator(const mfem::FiniteElementSpace &fes,
+                    const mfem::IntegrationRule &irm,
+                    mfem::Coefficient *Q);
 };
+
+}
 
 }
 
