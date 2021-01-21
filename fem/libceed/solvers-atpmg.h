@@ -23,7 +23,9 @@
 
     Assumes a Gauss-Lobatto basis and tensor product elements.
 
-    This is a setup routine that operates on the host. */
+    This is a setup routine that operates on the host.
+
+    The caller is repsonible for freeing er_out and dof_map. */
 int CeedATPMGElemRestriction(int order,
                              int order_reduction,
                              CeedElemRestriction er_in,
