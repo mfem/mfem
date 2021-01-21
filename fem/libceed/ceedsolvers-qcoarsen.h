@@ -20,7 +20,8 @@
 
 CEED_EXTERN int CeedOperatorQCoarsen(CeedOperator oper, int qorder_reduction,
                                      CeedOperator* out, CeedVector* coarse_assembledqf,
-                                     CeedQFunctionContext* context_ptr);
+                                     CeedQFunctionContext* context_ptr,
+                                     CeedQuadMode fine_qmode, CeedQuadMode coarse_qmode);
 
 /// @todo eventually I want this per element or something?
 /// (also, this might be more expensive than we want)

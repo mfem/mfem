@@ -186,11 +186,10 @@ CeedOperator CreateCeedCompositeOperatorFromBilinearForm(BilinearForm &form)
 }
 
 CeedOperator CoarsenCeedCompositeOperator(
-   CeedOperator op,
-   CeedElemRestriction er,
-   CeedBasis c2f,
-   int order_reduction,
-   int qorder_reduction
+   CeedOperator op, CeedElemRestriction er,
+   CeedBasis c2f, int order_reduction,
+   int qorder_reduction,
+   CeedQuadMode fine_qmode, CeedQuadMode coarse_qmode
 )
 {
    bool isComposite;
@@ -220,7 +219,8 @@ CeedOperator CoarsenCeedCompositeOperator(
          CeedVector qcoarsen_assembledqf;
          CeedQFunctionContext qcoarsen_context;
          CeedOperatorQCoarsen(t_subop_coarse, qorder_reduction, &subop_coarse,
-                              &qcoarsen_assembledqf, &qcoarsen_context);
+                              &qcoarsen_assembledqf, &qcoarsen_context,
+                              fine_qmode, coarse_qmode);
          CeedVectorDestroy(&qcoarsen_assembledqf); // todo: delete inside previous function?
          CeedQFunctionContextDestroy(&qcoarsen_context);
          CeedOperatorDestroy(&t_subop_coarse);
@@ -238,9 +238,11 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
    BilinearForm &form,
    const Array<int> &ess_tdofs,
    double contrast_threshold,
-   int amg_order
+   int switch_amg_order
 ) : Multigrid(hierarchy)
 {
+   const bool collocate_coarse = true;
+
    // Construct finest level
    ceed_operators.Prepend(CreateCeedCompositeOperatorFromBilinearForm(form));
    essentialTrueDofs.Prepend(new Array<int>);
@@ -249,6 +251,7 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
    int current_order = hierarchy.GetFESpaceAtLevel(0).GetOrder(0);
 
    // Construct interpolation, operators, at all levels of hierarchy by coarsening
+   int level_counter = 0;
    while (current_order > 1)
    {
       double minq, maxq, absmin;
@@ -258,7 +261,7 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
       double heuristic = std::max(std::abs(minq), std::abs(maxq)) / absmin;
 
       int order_reduction;
-      if (heuristic > contrast_threshold && current_order <= amg_order)
+      if (heuristic > contrast_threshold && current_order <= switch_amg_order)
       {
          // assemble at this level
          break;
@@ -272,22 +275,52 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
       {
          order_reduction = current_order - (current_order/2);
       }
-      // std::cout << "  heuristic = " << heuristic
+      // std::cout << "  lc: " << level_counter << " heuristic = " << heuristic
       //   << ", coarsening from order " << current_order 
       //   << " to " << current_order - order_reduction << std::endl;
       hierarchy.PrependPCoarsenedLevel(current_order, order_reduction);
       current_order = current_order - order_reduction;
 
       AlgebraicCoarseSpace &space = hierarchy.GetAlgebraicCoarseSpace(0);
-      ceed_operators.Prepend(CoarsenCeedCompositeOperator(
-                                  ceed_operators[0], space.GetCeedElemRestriction(),
-                                  space.GetCeedCoarseToFine(), space.GetOrderReduction(),
-                                  space.GetOrderReduction())
-         );
+      // int qor = (level_counter == 0) ? order_reduction + 1 : order_reduction;
+      int qor = order_reduction;
+      if (collocate_coarse)
+      {
+         if (level_counter == 0)
+         {
+            ceed_operators.Prepend(
+               CoarsenCeedCompositeOperator(
+                  ceed_operators[0], space.GetCeedElemRestriction(),
+                  space.GetCeedCoarseToFine(), space.GetOrderReduction(),
+                  qor, CEED_GAUSS, CEED_GAUSS_LOBATTO)
+               );
+         }
+         else
+         {
+            ceed_operators.Prepend(
+               CoarsenCeedCompositeOperator(
+                  ceed_operators[0], space.GetCeedElemRestriction(),
+                  space.GetCeedCoarseToFine(), space.GetOrderReduction(),
+                  qor, CEED_GAUSS_LOBATTO, CEED_GAUSS_LOBATTO)
+               );
+         }
+      }
+      else
+      {
+         ceed_operators.Prepend(
+            CoarsenCeedCompositeOperator(
+               ceed_operators[0], space.GetCeedElemRestriction(),
+               space.GetCeedCoarseToFine(), space.GetOrderReduction(),
+               qor, CEED_GAUSS, CEED_GAUSS)
+            );
+      }
+
       Operator *P = hierarchy.GetProlongationAtLevel(0);
       essentialTrueDofs.Prepend(new Array<int>);
       CoarsenEssentialDofs(*P, *essentialTrueDofs[1],
                            *essentialTrueDofs[0]);
+
+      level_counter++;
    }
 
    int nlevels = fespaces.GetNumLevels();
@@ -331,6 +364,7 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
          }
          if (P_mat)
          {
+            /// TODO: if order is not 1, do LOR?
             smoother = new CeedAMG(*op, P_mat, Device::Allows(Backend::CUDA));
          }
          else
@@ -685,7 +719,7 @@ ParAlgebraicCoarseSpace::~ParAlgebraicCoarseSpace()
 AlgebraicCeedSolver::AlgebraicCeedSolver(BilinearForm &form,
                                          const Array<int>& ess_tdofs,
                                          double contrast_threshold,
-                                         int amg_order)
+                                         int switch_amg_order)
 {
    // this records order, order reduction, builds interpolations etc.
    // (the path forward for schedule change is probably to do *all* setup here,
@@ -693,7 +727,7 @@ AlgebraicCeedSolver::AlgebraicCeedSolver(BilinearForm &form,
    fespaces = new AlgebraicSpaceHierarchy(*form.FESpace());
    // this actually assembles CeedOperator and related objects
    multigrid = new AlgebraicCeedMultigrid(*fespaces, form, ess_tdofs,
-                                          contrast_threshold, amg_order);
+                                          contrast_threshold, switch_amg_order);
 }
 
 AlgebraicCeedSolver::~AlgebraicCeedSolver()

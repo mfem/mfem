@@ -25,11 +25,31 @@
 
 /** @brief Coarsen the rows (integration points) of a CeedBasis
 
-    The current implementation assumes a lot about the particular
-    basis we are using. */
+    Originally thought this would be like CeedBasisATPMGCoarsen(),
+    but the "interpolation" in quadrature points is not quite
+    analogous, so I think I'm going to do something simpler but less
+    algebraic.
+
+    We will need something like qbasisctof in order to coarsen the
+    linearassembled vector, in fact qbasisctof is essentially P_Q
+    and is essential to Pazner's theorem.
+
+    For the first coarsening, fine_quadmode = CEED_GAUSS (almost certainly)
+    You can decide the coarse_quadmode, CEED_GAUSS_LOBATTO leads to collocated B operators
+    For later coarsenings, fine_quadmode has to match what you did before for coarse
+
+    @param[in] basisin   the CeedBasis, already p-coarsened
+    @param[out] basisout new CeedBasis, same width, but shorter
+    @param[out] qbasisctof describes interpolation of integration points (P_Q)
+    @param[in] order_reduction  amount to coarsen
+    @param[in] collocated_coarse  whether to use collocated quadrature on coarser level
+    @param[in] fine_quadmode  points for fine quadrature rule
+*/
 int CeedBasisQCoarsen(CeedBasis basisin, CeedBasis* basisout,
                       CeedBasis* qbasisctof,
-                      int order_reduction)
+                      int order_reduction,
+                      CeedQuadMode fine_quadmode,
+                      CeedQuadMode coarse_quadmode)
 {
    int ierr;
    Ceed ceed;
@@ -43,17 +63,28 @@ int CeedBasisQCoarsen(CeedBasis basisin, CeedBasis* basisout,
 
    CeedInt coarse_Q1d = Q1d - order_reduction;
 
-   // this assumes Gauss-Legendre quadrature and Gauss-Lobatto nodes
-   // on both fine and coarse grids. the "grad" part of this basis will be
-   // meaningless, but we only use the "interp" part.
-   ierr = CeedBasisCreateTensorH1Gauss(ceed, dim, ncomp, coarse_Q1d, Q1d,
-                                       CEED_GAUSS, qbasisctof); CeedChk(ierr);
+   // the "grad" part of qbasisctof will be meaningless, we only use the
+   // "interp" part.
+   if (coarse_quadmode == CEED_GAUSS)
+   {
+      ierr = CeedBasisCreateTensorH1Gauss(ceed, dim, ncomp, coarse_Q1d, Q1d,
+                                          fine_quadmode, qbasisctof); CeedChk(ierr);
+   }
+   else if (coarse_quadmode == CEED_GAUSS_LOBATTO)
+   {
+      ierr = CeedBasisCreateTensorH1Lagrange(ceed, dim, ncomp, coarse_Q1d, Q1d,
+                                             fine_quadmode, qbasisctof); CeedChk(ierr);
+   }
+   else
+   {
+      return CeedError(ceed, 1, "Bad quadrature mode!");
+   }
 
    // the Ceed reference element is [-1, 1], while the MFEM element is [0, 1]
    // which means with order_reduction=0 we get different gradients in the
    // bases; should actually interpolate or something...
    ierr = CeedBasisCreateMFEMTensorH1Lagrange(ceed, dim, ncomp, P1d, coarse_Q1d,
-                                              CEED_GAUSS, basisout); CeedChk(ierr);
+                                              coarse_quadmode, basisout); CeedChk(ierr);
 
    return 0;
 }
@@ -281,7 +312,8 @@ int CeedOperatorGetHeuristics(CeedOperator oper, CeedScalar* minq,
 int CeedQFunctionQCoarsen(CeedOperator oper, CeedInt qorder_reduction,
                           CeedVector* coarse_assembledqf,
                           CeedElemRestriction* coarse_rstr_q, CeedBasis* qcoarse_basis,
-                          CeedQFunction* qfout, CeedQFunctionContext* context_ptr)
+                          CeedQFunction* qfout, CeedQFunctionContext* context_ptr,
+                          CeedQuadMode fine_qmode, CeedQuadMode coarse_qmode)
 {
    int ierr;
    Ceed ceed;
@@ -303,7 +335,7 @@ int CeedQFunctionQCoarsen(CeedOperator oper, CeedInt qorder_reduction,
    ierr = CeedOperatorGetActiveField(oper, &active_field); CeedChk(ierr);
    ierr = CeedOperatorFieldGetBasis(active_field, &fine_basis); CeedChk(ierr);
    ierr = CeedBasisQCoarsen(fine_basis, qcoarse_basis, &qbasisctof,
-                            qorder_reduction); CeedChk(ierr);
+                            qorder_reduction, fine_qmode, coarse_qmode); CeedChk(ierr);
 
    int ncomp_rstr; // components in ElementRestriction rstr_q
    ierr = CeedElementRestrictionQCoarsen(rstr_q, qbasisctof, coarse_rstr_q,
@@ -318,6 +350,8 @@ int CeedQFunctionQCoarsen(CeedOperator oper, CeedInt qorder_reduction,
    ierr = CeedElemRestrictionGetELayout(*coarse_rstr_q, &coarse_layout); CeedChk(ierr);
 
    /// hack_loc is a hack, in general try qcoarsen_linearfunc_loc
+   /// this runs on tuxbox CPU because the location isn't even queried except
+   /// with nvcc?
    const char* hack_loc = "/usr/WS1/barker29/ceed-solvers/include/linear.h:qcoarsen_linearfunc";
    ierr = CeedQFunctionCreateInterior(ceed, coarse_vlength, qcoarsen_linearfunc,
                                       hack_loc, qfout); CeedChk(ierr);
@@ -353,7 +387,8 @@ int CeedQFunctionQCoarsen(CeedOperator oper, CeedInt qorder_reduction,
 */
 int CeedOperatorQCoarsen(CeedOperator oper, int qorder_reduction,
                          CeedOperator* out, CeedVector* coarse_assembledqf,
-                         CeedQFunctionContext* context_ptr)
+                         CeedQFunctionContext* context_ptr,
+                         CeedQuadMode fine_qmode, CeedQuadMode coarse_qmode)
 {
    int ierr;
    Ceed ceed;
@@ -366,7 +401,8 @@ int CeedOperatorQCoarsen(CeedOperator oper, int qorder_reduction,
    CeedBasis qcoarse_basis;
    ierr = CeedQFunctionQCoarsen(oper, qorder_reduction, coarse_assembledqf,
                                 &coarse_rstr_q, &qcoarse_basis, &qfout,
-                                context_ptr); CeedChk(ierr);
+                                context_ptr,
+                                fine_qmode, coarse_qmode); CeedChk(ierr);
 
    CeedInt numinputfields, numoutputfields;
    ierr = CeedQFunctionGetNumArgs(qfin, &numinputfields, &numoutputfields); CeedChk(ierr);
