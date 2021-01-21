@@ -367,13 +367,14 @@ PetscBlockSolver::PetscBlockSolver(const OperatorHandle &oh) : Solver() {
 
    //MatCreateSchurComplement(ARe, NbNeg, NbNeg, ASl, &S);  PCHKERRQ(S, ierr);
    //MatSchurComplementGetPmat(S, MAT_INITIAL_MATRIX, &Sp);  PCHKERRQ(Sp, ierr);
+   Sp=NULL;
    MatCreateSchurComplementPmat(ARe, NbNeg, NbNeg, ASl, MAT_SCHUR_COMPLEMENT_AINV_DIAG, MAT_INITIAL_MATRIX, &Sp);  
    PCHKERRQ(Sp, ierr);   
 
    //MatView(Kmat, 	PETSC_VIEWER_STDOUT_WORLD);
    //MatView(Mmat, 	PETSC_VIEWER_STDOUT_WORLD);
    //MatView(Sp, 	PETSC_VIEWER_STDOUT_WORLD);
-   MatView(NbNeg, 	PETSC_VIEWER_STDOUT_WORLD);
+   //MatView(NbNeg, 	PETSC_VIEWER_STDOUT_WORLD);
 
    //schur complement
    ierr=KSPCreate(PETSC_COMM_WORLD, &kspblock[1]);    PCHKERRQ(kspblock[1], ierr);
