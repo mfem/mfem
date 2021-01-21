@@ -377,8 +377,6 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
    // local DOFs affected by boundary elements on other processors
    if (Nonconforming())
    {
-      //@TODO (fe.subdomain): This must be changed for the subdomain case.
-      // Probably constructing a preimage could help here.
       Array<int> bdr_verts, bdr_edges;
       mesh->ncmesh->GetBoundaryClosure(bdr_attr_is_ess, bdr_verts, bdr_edges);
 
@@ -386,12 +384,24 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
       {
          if (component < 0)
          {
-            GetVertexVDofs(bdr_verts[i], vdofs);
+            auto vi = MapVertexBack(bdr_verts[i]);
+            if(vi<0)
+            {
+               out << "Warning? Closure vertex "<<bdr_verts[i]<<" not Found." << std::endl;
+               continue;
+            }
+            GetVertexVDofs(vi, vdofs);
             mark_dofs(vdofs, ess_vdofs);
          }
          else
          {
-            GetVertexDofs(bdr_verts[i], dofs);
+            auto vi = MapVertexBack(bdr_verts[i]);
+            if(vi<0)
+            {
+               out << "Warning? Closure vertex "<<bdr_verts[i]<<" not Found." << std::endl;
+               continue;
+            }
+            GetVertexDofs(vi, dofs);
             for (int d = 0; d < dofs.Size(); d++)
             { dofs[d] = DofToVDof(dofs[d], component); }
             mark_dofs(dofs, ess_vdofs);
@@ -401,11 +411,23 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
       {
          if (component < 0)
          {
-            GetEdgeVDofs(bdr_edges[i], vdofs);
+            auto ei = MapEdgeBack(bdr_edges[i]);
+            if(ei<0)
+            {
+               out << "Warning? Closure edge "<<bdr_edges[i]<<" not Found." << std::endl;
+               continue;
+            }
+            GetEdgeVDofs(ei, vdofs);
             mark_dofs(vdofs, ess_vdofs);
          }
          else
          {
+            auto ei = MapEdgeBack(bdr_edges[i]);
+            if(ei<0)
+            {
+               out << "Warning? Closure edge "<<bdr_edges[i]<<" not Found." << std::endl;
+               continue;
+            }
             GetEdgeDofs(bdr_edges[i], dofs);
             for (int d = 0; d < dofs.Size(); d++)
             { dofs[d] = DofToVDof(dofs[d], component); }
@@ -701,7 +723,6 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // collect local edge/face dependencies
    for (int entity = 1; entity <= 2; entity++)
    {
-      //@TODO (fe.subdomain): this needs some investigation.
       const NCMesh::NCList &list = mesh->ncmesh->GetNCList(entity);
       if (!list.masters.Size()) { continue; }
 
@@ -714,8 +735,19 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       for (int mi = 0; mi < list.masters.Size(); mi++)
       {
          const NCMesh::Master &master = list.masters[mi];
+         auto master_index = master.index;
+         if(entity == 1)
+         {
+            master_index = MapEdgeBack(master_index);
+            if(master_index < 0) continue;
+         }
+         else if(entity == 2)
+         {
+            master_index = MapFaceBack(master_index);
+            if(master_index < 0) continue;
+         }
 
-         GetEntityDofs(entity, master.index, master_dofs);
+         GetEntityDofs(entity, master_index, master_dofs);
          if (!master_dofs.Size()) { continue; }
 
          const FiniteElement* fe = fec->FiniteElementForGeometry(master.Geom());
@@ -732,12 +764,23 @@ void FiniteElementSpace::BuildConformingInterpolation() const
          for (int si = master.slaves_begin; si < master.slaves_end; si++)
          {
             const NCMesh::Slave &slave = list.slaves[si];
-            GetEntityDofs(entity, slave.index, slave_dofs, master.Geom());
-            if (!slave_dofs.Size()) { continue; }
 
+            auto slave_index = slave.index;
+            if(entity == 1)
+            {
+               slave_index = MapEdgeBack(slave_index);
+               if(slave_index < 0) continue;
+            }
+            else if(entity == 2)
+            {
+               slave_index = MapFaceBack(slave_index);
+               if(slave_index < 0) continue;
+            }
+
+            GetEntityDofs(entity, slave_index, slave_dofs, master.Geom());
+            if (!slave_dofs.Size()) { continue; }
             list.OrientedPointMatrix(slave, T.GetPointMat());
             fe->GetLocalInterpolation(T, I);
-
             // make each slave DOF dependent on all master DOFs
             AddDependencies(deps, master_dofs, slave_dofs, I);
          }
@@ -1970,11 +2013,19 @@ void FiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
       ne = (dim > 1) ? fec->DofForGeometry(Geometry::SEGMENT) : 0;
       if (nv > 0)
       {
-         mesh->GetFaceVertices(MapVertex(i), V);
+         mesh->GetFaceVertices(MapFace(i), V);
+         for(int vi = 0; vi < V.Size(); vi++)
+         {
+            V[vi] = MapVertexBack(V[vi]);
+         }
       }
       if (ne > 0)
       {
-         mesh->GetFaceEdges(MapVertex(i), E, Eo);
+         mesh->GetFaceEdges(MapFace(i), E, Eo);
+         for(int ei = 0; ei < E.Size(); ei++)
+         {
+            E[ei] = MapEdgeBack(E[ei]);
+         }
       }
       nf = (fdofs) ? (fdofs[i+1]-fdofs[i]) : (0);
       nd = V.Size() * nv + E.Size() * ne + nf;
@@ -2027,7 +2078,11 @@ void FiniteElementSpace::GetEdgeDofs(int i, Array<int> &dofs) const
    nv = fec->DofForGeometry(Geometry::POINT);
    if (nv > 0)
    {
-      mesh->GetEdgeVertices(MapVertex(i), V);
+      mesh->GetEdgeVertices(MapEdge(i), V);
+      for(int vi = 0; vi < V.Size(); vi++)
+      {
+         V[vi] = MapVertexBack(V[vi]);
+      }
    }
    ne = fec->DofForGeometry(Geometry::SEGMENT);
    dofs.SetSize(2*nv+ne);
