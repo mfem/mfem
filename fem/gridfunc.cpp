@@ -15,12 +15,17 @@
 #include "../mesh/nurbs.hpp"
 #include "../general/text.hpp"
 
+#ifdef MFEM_USE_MPI
+#include "pfespace.hpp"
+#endif
+
 #include <limits>
 #include <cstring>
 #include <string>
 #include <cmath>
 #include <iostream>
 #include <algorithm>
+
 
 namespace mfem
 {
@@ -462,15 +467,26 @@ const
    fes->GetElementDofs(i, dofs);
    fes->DofsToVDofs(vdim-1, dofs);
    const FiniteElement *FElem = fes->GetFE(i);
-   MFEM_ASSERT(FElem->GetMapType() == FiniteElement::VALUE,
-               "invalid FE map type");
    int dof = FElem->GetDof();
    Vector DofVal(dof), loc_data(dof);
    GetSubVector(dofs, loc_data);
-   for (int k = 0; k < n; k++)
+   if (FElem->GetMapType() == FiniteElement::VALUE)
    {
-      FElem->CalcShape(ir.IntPoint(k), DofVal);
-      vals(k) = DofVal * loc_data;
+      for (int k = 0; k < n; k++)
+      {
+         FElem->CalcShape(ir.IntPoint(k), DofVal);
+         vals(k) = DofVal * loc_data;
+      }
+   }
+   else
+   {
+      ElementTransformation *Tr = fes->GetElementTransformation(i);
+      for (int k = 0; k < n; k++)
+      {
+         Tr->SetIntPoint(&ir.IntPoint(k));
+         FElem->CalcPhysShape(*Tr, DofVal);
+         vals(k) = DofVal * loc_data;
+      }
    }
 }
 
@@ -984,15 +1000,14 @@ void GridFunction::GetVectorValues(ElementTransformation &T,
 
    if (FElem->GetRangeType() == FiniteElement::SCALAR)
    {
-      MFEM_ASSERT(FElem->GetMapType() == FiniteElement::VALUE,
-                  "invalid FE map type");
       Vector shape(dof);
       int vdim = fes->GetVDim();
       vals.SetSize(vdim, nip);
       for (int j = 0; j < nip; j++)
       {
          const IntegrationPoint &ip = ir.IntPoint(j);
-         FElem->CalcShape(ip, shape);
+         T.SetIntPoint(&ip);
+         FElem->CalcPhysShape(T, shape);
 
          for (int k = 0; k < vdim; k++)
          {
@@ -1550,18 +1565,16 @@ void GridFunction::GetGradient(ElementTransformation &T, Vector &grad) const
    {
       case ElementTransformation::ELEMENT:
       {
-         const FiniteElement * fe = fes->GetFE(T.ElementNo);
+         const FiniteElement *fe = fes->GetFE(T.ElementNo);
          MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE,
                      "invalid FE map type");
          int spaceDim = fes->GetMesh()->SpaceDimension();
          int dim = fe->GetDim(), dof = fe->GetDof();
          DenseMatrix dshape(dof, dim);
          Vector lval, gh(dim);
-         Array<int> dofs;
 
          grad.SetSize(spaceDim);
-         fes->GetElementDofs(T.ElementNo, dofs);
-         GetSubVector(dofs, lval);
+         GetElementDofValues(T.ElementNo, lval);
          fe->CalcDShape(T.GetIntPoint(), dshape);
          dshape.MultTranspose(lval, gh);
          T.InverseJacobian().MultTranspose(gh, grad);
@@ -1729,6 +1742,13 @@ void GridFunction::GetElementAverages(GridFunction &avgs) const
    {
       avgs(i) /= int_psi(i);
    }
+}
+
+void GridFunction::GetElementDofValues(int el, Vector &dof_vals) const
+{
+   Array<int> dof_idx;
+   fes->GetElementVDofs(el, dof_idx);
+   GetSubVector(dof_idx, dof_vals);
 }
 
 void GridFunction::ProjectGridFunction(const GridFunction &src)
@@ -3793,7 +3813,15 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
          }
       }
    }
-
+#ifdef MFEM_USE_MPI
+   auto pfes = dynamic_cast<ParFiniteElementSpace*>(ufes);
+   if (pfes)
+   {
+      auto process_local_error = total_error;
+      MPI_Allreduce(&process_local_error, &total_error, 1, MPI_DOUBLE,
+                    MPI_SUM, pfes->GetComm());
+   }
+#endif // MFEM_USE_MPI
    return std::sqrt(total_error);
 }
 
