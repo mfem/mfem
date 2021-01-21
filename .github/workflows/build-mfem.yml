@@ -33,7 +33,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ../${{ env.HYPRE_TOP_DIR }}
-        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}
+        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-${{ matrix.MPI }}
 
     - name: Install Hypre
       run: |
@@ -60,7 +60,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ../${{ env.METIS_TOP_DIR }}
-        key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}
+        key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-${{ matrix.MPI }}
 
     - name: Install Metis
       run: |
