@@ -104,7 +104,7 @@ public:
       const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
       MFEM_VERIFY(mesh_fes, "the Mesh has no nodal FE space");
       InitBasisAndRestriction(*mesh_fes, irm, ceed, &mesh_basis,
-                                  &mesh_restr);
+                              &mesh_restr);
 
       CeedBasisGetNumQuadraturePoints(basis, &nqpts);
 
@@ -176,7 +176,7 @@ public:
       if (GridCoefficient *gridCoeff = dynamic_cast<GridCoefficient*>(coeff))
       {
          InitBasisAndRestriction(*gridCoeff->gf.FESpace(), irm, ceed,
-                                     &gridCoeff->basis, &gridCoeff->restr);
+                                 &gridCoeff->basis, &gridCoeff->restr);
          CeedOperatorSetField(oper, "coeff", gridCoeff->restr,
                               gridCoeff->basis, gridCoeff->coeffVector);
       }
@@ -185,8 +185,8 @@ public:
          const int ncomp = quadCoeff->ncomp;
          CeedInt strides[3] = {ncomp, 1, ncomp*nqpts};
          InitStridedRestriction(*mesh->GetNodalFESpace(),
-                                    nelem, nqpts, ncomp, strides,
-                                    &quadCoeff->restr);
+                                nelem, nqpts, ncomp, strides,
+                                &quadCoeff->restr);
          CeedOperatorSetField(oper, "coeff", quadCoeff->restr,
                               CEED_BASIS_COLLOCATED, quadCoeff->coeffVector);
       }

@@ -60,10 +60,9 @@ void InitBasisAndRestriction(const mfem::FiniteElementSpace &fes,
 const std::string &GetCeedPath();
 
 // Hash table for CeedBasis
-using BasisKey =
-   std::tuple<const mfem::FiniteElementSpace*,
-              const mfem::IntegrationRule*,
-              int, int, int>;
+using BasisKey = std::tuple<const mfem::FiniteElementSpace*,
+                            const mfem::IntegrationRule*,
+                            int, int, int>;
 struct BasisHash
 {
    std::size_t operator()(const BasisKey& k) const
@@ -78,8 +77,7 @@ struct BasisHash
                    CeedHashInt(std::get<4>(k))));
    }
 };
-using BasisMap =
-   std::unordered_map<const BasisKey, CeedBasis, BasisHash>;
+using BasisMap = std::unordered_map<const BasisKey, CeedBasis, BasisHash>;
 
 enum restr_type {Standard, Strided};
 
