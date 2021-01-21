@@ -344,9 +344,9 @@ public:
        i.e. it will, generally, not be Empty() after this call. */
    inline void Delete();
 
-   /** Delete the device pointer, if owned. If @a copy_to_host is true and
-    *  the data is valid only on device, move it to host before deleting.
-    *  Invalidates the device memory. */
+   /** Delete the device pointer, if owned. If @a copy_to_host is true and the
+       data is valid only on device, move it to host before deleting.
+       Invalidates the device memory. */
    inline void DeleteDevice(bool copy_to_host=true);
 
    /// Array subscript operator for host memory.
