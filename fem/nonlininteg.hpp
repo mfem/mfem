@@ -34,16 +34,10 @@ protected:
 public:
    /** @brief Prescribe a fixed IntegrationRule to use (when @a ir != NULL) or
        let the integrator choose (when @a ir == NULL). */
-   void SetIntRule(const IntegrationRule *ir)
-   {
-      IntRule = ir;
-   }
+   void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
 
    /// Prescribe a fixed IntegrationRule to use.
-   void SetIntegrationRule(const IntegrationRule &irule)
-   {
-      IntRule = &irule;
-   }
+   void SetIntegrationRule(const IntegrationRule &irule) { IntRule = &irule; }
 
    /// Perform the local action of the NonlinearFormIntegrator
    virtual void AssembleElementVector(const FiniteElement &el,
@@ -151,10 +145,7 @@ public:
    /// evaluate Coefficient%s.
    /** @note It is assumed that _Ttr.SetIntPoint() is already called for the
        point of interest. */
-   void SetTransformation(ElementTransformation &_Ttr)
-   {
-      Ttr = &_Ttr;
-   }
+   void SetTransformation(ElementTransformation &_Ttr) { Ttr = &_Ttr; }
 
    /** @brief Evaluate the strain energy density function, W = W(Jpt).
        @param[in] Jpt  Represents the target->physical transformation
@@ -223,10 +214,7 @@ protected:
 
 public:
    NeoHookeanModel(double _mu, double _K, double _g = 1.0)
-      : mu(_mu), K(_K), g(_g), have_coeffs(false)
-   {
-      c_mu = c_K = c_g = NULL;
-   }
+      : mu(_mu), K(_K), g(_g), have_coeffs(false) { c_mu = c_K = c_g = NULL; }
 
    NeoHookeanModel(Coefficient &_mu, Coefficient &_K, Coefficient *_g = NULL)
       : mu(0.0), K(0.0), g(1.0), c_mu(&_mu), c_K(&_K), c_g(_g),
@@ -354,9 +342,9 @@ public:
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 };
 
-/** @brief This class is used to assemble the skew-symmetric form of the
-nonlinear  term arising in the Navier Stokes equations
-\f$(u \cdot \nabla v, w )\f$*/
+/** @brief This class is used to assemble the convective form of the
+nonlinear term arising in the Navier Stokes equations
+\f$(u \cdot \nabla v, w )\f$ */
 class ConvectiveVectorConvectionNLFIntegrator : public
    VectorConvectionNLFIntegrator
 {
