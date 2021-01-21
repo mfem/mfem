@@ -21,7 +21,10 @@ jobs:
       MPI: ${{ matrix.MPI }}
 
     steps:
-    - uses: actions/checkout@v2
+    - name: checkout MFEM
+      uses: actions/checkout@v2
+      with:
+        path: mfem
 
     - name: Get MPI
       run: |
@@ -32,13 +35,12 @@ jobs:
     - name: Cache Hypre Install
       uses: actions/cache@v2
       with:
-        path: ../${{ env.HYPRE_TOP_DIR }}
+        path: ${{ env.HYPRE_TOP_DIR }}
         key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-${{ matrix.MPI }}
 
     - name: Install Hypre
       run: |
         if [[ ${MPI} == "YES" ]]; then
-           cd ..; # was in ${GITHUB_WORKSPACE}
            if [[ ! -e ${HYPRE_TOP_DIR}/src/hypre/lib/libHYPRE.a ]]; then
               wget --no-verbose ${HYPRE_URL}/${HYPRE_ARCHIVE};
               rm -rf ${HYPRE_TOP_DIR};
@@ -51,7 +53,8 @@ jobs:
                echo "Reusing cached $HYPRE_TOP_DIR/";
            fi;
            ln -s $HYPRE_TOP_DIR hypre;
-           cd ${GITHUB_WORKSPACE}; # back to initial location
+           echo "pwd: $(pwd)"
+           echo "ls: $(ls)"
         else
            echo "Serial build, not using hypre";
         fi
@@ -59,13 +62,12 @@ jobs:
     - name: Cache Metis Install
       uses: actions/cache@v2
       with:
-        path: ../${{ env.METIS_TOP_DIR }}
+        path: ${{ env.METIS_TOP_DIR }}
         key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-${{ matrix.MPI }}
 
     - name: Install Metis
       run: |
         if [[ ${MPI} == "YES" ]]; then
-           cd ..; # was in ${GITHUB_WORKSPACE}
            if [[ ! -e ${METIS_TOP_DIR}/libmetis.a ]]; then
               wget --no-verbose ${METIS_URL}/${METIS_ARCHIVE};
               rm -rf ${METIS_TOP_DIR};
@@ -75,18 +77,29 @@ jobs:
                echo "Reusing cached $METIS_TOP_DIR/";
            fi;
            ln -s $METIS_TOP_DIR metis-4.0;
-           cd ${GITHUB_WORKSPACE}; # back to initial location
+           echo "pwd: $(pwd)"
+           echo "ls: $(ls)"
         else
            echo "Serial build, not using metis";
         fi
 
     - name: configure
-      run: make config MFEM_USE_MPI=$MPI
+      run: |
+        cd mfem
+        make config MFEM_USE_MPI=$MPI
     - name: make
-      run: make -j3
+      run: |
+        cd mfem
+        make -j3
     - name: check
-      run: make check
+      run: |
+        cd mfem
+        make check
     - name: unit
-      run: make unittest
+      run: |
+        cd mfem
+        echo "make unittest"
     - name: test
-      run: make test
+      run: |
+        cd mfem
+        echo "make test"
