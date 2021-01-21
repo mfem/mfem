@@ -19,6 +19,9 @@
 // todo: should probably use Ceed memory wrappers instead of calloc/free?
 #include <stdlib.h>
 
+// In one dimension, return corresponding coarse edof index for
+// given fine index, with -1 meaning the edof disappears on the
+// coarse grid
 int coarse_1d_edof(int i, int P1d, int coarse_P1d)
 {
    int coarse_i = (i < coarse_P1d - 1) ? i : -1;
@@ -84,7 +87,7 @@ int CeedATPMGElemRestriction(int order,
    ierr = CeedElemRestrictionGetNumComponents(er_in, &numcomp); CeedChk(ierr);
    if (numcomp != 1)
    {
-      // todo: this will require more thought
+      // todo: multi-component will require more thought
       return CeedError(ceed, 1, "Algebraic element restriction not "
                        "implemented for multiple components.");
    }
@@ -97,6 +100,8 @@ int CeedATPMGElemRestriction(int order,
    ierr = CeedElemRestrictionCreateVector(er_in, &in_lvec, &in_evec);
    CeedChk(ierr);
 
+   // Create the elem_dof array from the given high-order ElemRestriction
+   // by using it to map the L-vector indices to an E-vector 
    CeedScalar * lvec_data;
    ierr = CeedVectorGetArray(in_lvec, CEED_MEM_HOST, &lvec_data); CeedChk(ierr);
    for (int i = 0; i < numnodes; ++i)
@@ -104,9 +109,8 @@ int CeedATPMGElemRestriction(int order,
       lvec_data[i] = (CeedScalar) i;
    }
    ierr = CeedVectorRestoreArray(in_lvec, &lvec_data); CeedChk(ierr);
-
-   // todo: I am making assumptions about the ordering of the evec that in
-   // principle are decided by the backend, which I do not control
+   //   (note this makes assumptions about the ordering of the evec that are
+   //    decided by the backend, these assumptions could be wrong)
    ierr = CeedElemRestrictionApply(er_in, CEED_NOTRANSPOSE, in_lvec, in_evec,
                                    CEED_REQUEST_IMMEDIATE); CeedChk(ierr);
    ierr = CeedVectorDestroy(&in_lvec); CeedChk(ierr);
@@ -114,8 +118,9 @@ int CeedATPMGElemRestriction(int order,
    ierr = CeedVectorGetArrayRead(in_evec, CEED_MEM_HOST, &in_elem_dof);
    CeedChk(ierr);
 
-   // map high-order ldof to low-order ldof
-   // !! caller's responsibility to free
+   // Create a map (dof_map) that maps high-order ldof indices to
+   // low-order ldof indices, with -1 indicating no correspondence
+   // (NOTE: it is the caller's responsibility to free dof_map)
    dof_map = new CeedInt[numnodes];
    for (int i = 0; i < numnodes; ++i)
    {
@@ -129,24 +134,33 @@ int CeedATPMGElemRestriction(int order,
    {
       for (int e = 0; e < numelem; ++e)
       {
+         // Loop over edofs in element
          for (int i = 0; i < P1d; ++i)
          {
             for (int j = 0; j < P1d; ++j)
             {
+               // Determine topology; is this edof on the outside of the element
+               // in the i or j direction?
                int in_edof = i*P1d + j;
                int in_ldof = in_elem_dof[e*elemsize + in_edof] + rounding_guard;
                bool i_edge = (i == 0 || i == P1d - 1);
                bool j_edge = (j == 0 || j == P1d - 1);
+
+               // Determine corresponding coarse 1D edof indices 
+               // We do this systematically, orienting edges and faces based on ldof
+               // orientation, so that the choices are consistent when we visit a
+               // shared dof multiple times
                int coarse_i, coarse_j;
-               if (i_edge == j_edge)   // vertices and interiors
+               if (i_edge == j_edge)  // edof is a vertex or interior
                {
                   // note that interiors could be done with elements in parallel
                   // (you'd have to rethink numbering but it could be done in advance)
                   coarse_i = coarse_1d_edof(i, P1d, coarse_P1d);
                   coarse_j = coarse_1d_edof(j, P1d, coarse_P1d);
                }
-               else  // edges (without vertices)
+               else  // edof is on an edge but not a vertex
                {
+                  // Orient coarse_i, coarse_j based on numbering of ldofs on vertices
                   int left_in_edof, left_in_ldof, right_in_edof, right_in_ldof;
                   if (i_edge)
                   {
@@ -171,6 +185,8 @@ int CeedATPMGElemRestriction(int order,
                      coarse_j = coarse_1d_edof(j, P1d, coarse_P1d);
                   }
                }
+
+               // Select edof to be on coarse grid and assign numbering and maps
                if (coarse_i >= 0 && coarse_j >= 0)
                {
                   int out_edof = coarse_i*coarse_P1d + coarse_j;
@@ -191,18 +207,20 @@ int CeedATPMGElemRestriction(int order,
    }
    else if (dim == 3)
    {
-      // this code is a disaster TODO
+      // The 3D code is perhaps overly complicated and could be optimized
       for (int e = 0; e < numelem; ++e)
       {
+         // Loop over edofs in element
          for (int i = 0; i < P1d; ++i)
          {
             for (int j = 0; j < P1d; ++j)
             {
                for (int k = 0; k < P1d; ++k)
                {
+                  // Determine topology; is this edof on the outside of the element
+                  // in the i, j, or k direction?
                   int in_edof = i*P1d*P1d + j*P1d + k;
                   int in_ldof = in_elem_dof[e*elemsize + in_edof] + rounding_guard;
-                  int coarse_i, coarse_j, coarse_k;
                   bool i_edge = (i == 0 || i == P1d - 1);
                   bool j_edge = (j == 0 || j == P1d - 1);
                   bool k_edge = (k == 0 || k == P1d - 1);
@@ -210,16 +228,23 @@ int CeedATPMGElemRestriction(int order,
                   if (i_edge) { topo++; }
                   if (j_edge) { topo++; }
                   if (k_edge) { topo++; }
+
+                  // Determine corresponding coarse 1D edof indices 
+                  // We do this systematically, orienting edges and faces based on ldof
+                  // orientation, so that the choices are consistent when we visit a
+                  // shared dof multiple times
+                  int coarse_i, coarse_j, coarse_k;
                   if (topo == 0 || topo == 3)
                   {
-                     // vertices and interiors
+                     // edof is a vertex or interior
                      coarse_i = coarse_1d_edof(i, P1d, coarse_P1d);
                      coarse_j = coarse_1d_edof(j, P1d, coarse_P1d);
                      coarse_k = coarse_1d_edof(k, P1d, coarse_P1d);
                   }
                   else if (topo == 2)
                   {
-                     // edge
+                     // edof is on an edge, not a vertex
+                     // Orient based on ldof numbering of vertices that define edge
                      int left_in_edof, left_in_ldof, right_in_edof, right_in_ldof;
                      if (!i_edge)
                      {
@@ -262,12 +287,13 @@ int CeedATPMGElemRestriction(int order,
                   }
                   else
                   {
+                     // edof is on a face, not an edge
+                     // Orient based on four vertices that define the face
                      if (topo != 1)
                      {
                         return CeedError(ceed, 1,
                                          "Element connectivity does not match topology!");
                      }
-                     // face
                      int bottom_left_edof, bottom_right_edof, top_left_edof, top_right_edof;
                      int bottom_left_ldof, bottom_right_ldof, top_left_ldof, top_right_ldof;
                      if (i_edge)
@@ -388,6 +414,8 @@ int CeedATPMGElemRestriction(int order,
                         }
                      }
                   }
+
+                  // Select edof to be on coarse grid and assign numbering and maps
                   if (coarse_i >= 0 && coarse_j >= 0 && coarse_k >= 0)
                   {
                      int out_edof = coarse_i*coarse_P1d*coarse_P1d + coarse_j*coarse_P1d + coarse_k;
