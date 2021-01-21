@@ -284,6 +284,7 @@ public:
                              int ordering = 1);
 
    int GetNFaceNeighbors() const { return face_nbr_group.Size(); }
+   int GetNFaceNeighborElements() const { return face_nbr_elements.Size(); }
    int GetFaceNbrGroup(int fn) const { return face_nbr_group[fn]; }
    int GetFaceNbrRank(int fn) const;
 
