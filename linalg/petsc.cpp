@@ -4049,7 +4049,8 @@ void PetscODESolver::Init(TimeDependentOperator &f_,
       }
       ierr = TSSetRHSFunction(ts, NULL, __mfem_ts_rhsfunction, (void *)ts_ctx);
       PCHKERRQ(ts, ierr);
-      ierr = TSSetRHSJacobian(ts, dummy, dummy, __mfem_ts_rhsjacobian, (void *)ts_ctx);
+      ierr = TSSetRHSJacobian(ts, dummy, dummy, __mfem_ts_rhsjacobian,
+                              (void *)ts_ctx);
       PCHKERRQ(ts, ierr);
       ierr = MatDestroy(&dummy);
       PCHKERRQ(ts, ierr);
@@ -5497,7 +5498,7 @@ static PetscErrorCode __mfem_MatCreateDummy(MPI_Comm comm, Mat *A)
 {
    PetscFunctionBegin;
    ierr = MatCreate(comm,A); CHKERRQ(ierr);
-   ierr = PetscObjectChangeTypeName((PetscObject)*A,"mfemdummy");CHKERRQ(ierr);
+   ierr = PetscObjectChangeTypeName((PetscObject)*A,"mfemdummy"); CHKERRQ(ierr);
    (*A)->preallocated = PETSC_TRUE;
    PetscFunctionReturn(0);
 }
