@@ -107,9 +107,11 @@ using RestrMap =
 
 namespace internal
 {
+#ifdef MFEM_USE_CEED
 extern Ceed ceed;
 extern ceed::BasisMap ceed_basis_map;
 extern ceed::RestrMap ceed_restr_map;
+#endif
 }
 
 } // namespace mfem
