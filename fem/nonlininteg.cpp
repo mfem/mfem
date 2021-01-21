@@ -876,8 +876,8 @@ void SkewSymmetricVectorConvectionNLFIntegrator::AssembleElementGrad(
    const Vector &elfun,
    DenseMatrix &elmat)
 {
-   int nd = el.GetDof();
-   int dim = el.GetDim();
+   const int nd = el.GetDof();
+   const int dim = el.GetDim();
 
    shape.SetSize(nd);
    dshape.SetSize(nd, dim);
