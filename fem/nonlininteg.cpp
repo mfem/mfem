@@ -728,10 +728,8 @@ void VectorConvectionNLFIntegrator::AssembleElementVector(
       el.CalcShape(ip, shape);
       el.CalcPhysDShape(T, dshape);
       double w = ip.weight * T.Weight();
-      if (Q)
-      {
-         w *= Q->Eval(T, ip);
-      }
+      if (Q) { w *= Q->Eval(T, ip); }
+
       MultAtB(EF, dshape, gradEF);
       EF.MultTranspose(shape, vec1);
       gradEF.Mult(vec1, vec2);
@@ -746,8 +744,8 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
    const Vector &elfun,
    DenseMatrix &elmat)
 {
-   int nd = el.GetDof();
-   int dim = el.GetDim();
+   const int nd = el.GetDof();
+   const int dim = el.GetDim();
 
    shape.SetSize(nd);
    dshape.SetSize(nd, dim);
@@ -823,8 +821,8 @@ void ConvectiveVectorConvectionNLFIntegrator::AssembleElementGrad(
    const Vector &elfun,
    DenseMatrix &elmat)
 {
-   int nd = el.GetDof();
-   int dim = el.GetDim();
+   const int nd = el.GetDof();
+   const int dim = el.GetDim();
 
    shape.SetSize(nd);
    dshape.SetSize(nd, dim);
