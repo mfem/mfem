@@ -1003,16 +1003,21 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
    else
        pd=NULL;
 
-   bdrForm = new ParBilinearForm(&fespace);
-   if (bctype==1){
-       FunctionCoefficient visc_coeff(variVisc);
-       bdrForm->AddDomainIntegrator(new DiffusionIntegrator(visc_coeff));    
+   if (false){
+      bdrForm = new ParBilinearForm(&fespace);
+      if (bctype==1){
+          FunctionCoefficient visc_coeff(variVisc);
+          bdrForm->AddDomainIntegrator(new DiffusionIntegrator(visc_coeff));    
+          bdrForm->Assemble();
+      }
+      else{
+          ConstantCoefficient penalty_coeff(weakPenalty);
+          bdrForm->AddBoundaryIntegrator(new BoundaryMassIntegrator(penalty_coeff));    
+          bdrForm->Assemble();
+      }
    }
-   else{
-       ConstantCoefficient penalty_coeff(weakPenalty);
-       bdrForm->AddBoundaryIntegrator(new BoundaryMassIntegrator(penalty_coeff));    
-   }
-   bdrForm->Assemble();
+   else
+   { bdrForm=NULL; }
 
 }
 
