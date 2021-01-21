@@ -1229,6 +1229,10 @@ static void ApplyMassMF(const int ne,
                         const int dofs = Dofs,
                         const int quads = Quads)
 {
+   //
+   // FESpace<Dim,IsTensor,Dofs,Quads,BatchSize> fes(dofs, quads);
+   // const auto B_M = fes.GetBasis(b_m.Read(), bt_m.Read());
+   //
    auto config_m  = MakeConfig<Dim,IsTensor,DofsMesh,Quads,BatchSize>(dofs, quads);
    auto config    = MakeConfig<Dim,IsTensor,Dofs,Quads,BatchSize>(dofs, quads);
    const auto B_M = MakeBasis(config_m, b_m.Read(), bt_m.Read());
@@ -1240,7 +1244,8 @@ static void ApplyMassMF(const int ne,
    MFEM_FORALL(e,ne,
    // forall(e, ne, config,
    {
-      auto D = det(gradient(B_M) * X_M(e)) * W;
+      auto C = Eval(lambda, B_M, X_M);
+      auto D = det(gradient(B_M) * X_M(e)) * W * C;
       Y(e) += transpose(B) * ( D * ( B * X(e) ) );
    });
 }

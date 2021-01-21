@@ -27,6 +27,7 @@ namespace mfem
 template <int Dim, int D, int Q, typename Dofs>
 auto operator*(const Basis<Dim,false,D,Q> &basis, const Dofs &u)
 {
+   // Change GetB interface, Device struct don't work
    auto B = basis.GetB();
    return B * u;
 }
