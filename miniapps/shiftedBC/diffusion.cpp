@@ -1,16 +1,17 @@
 ﻿//                       MFEM
 //
-// Compile with: make ex1p
+// Compile with: make diffusion
 //
 // Sample runs:
-// mpirun -np 1 ex1p -m ../../data/inline-quad.mesh  -rs 0 -vis -o 2
-// mpirun -np 1 ex1p -m quad.mesh -rs 0 -o 2 -st 1 -ex -lst 1
-// mpirun -np 1 ex1p -m quad.mesh -rs 0 -o 2 -st 1 -ex -lst 3
-// mpirun -np 1 ex1p -m quad.mesh -rs 0 -o 2 -st 1 -ex -lst 4
+// mpirun -np 1 diffusion -m ../../data/inline-quad.mesh  -rs 0 -vis -o 2
+// mpirun -np 1 diffusion -m quad.mesh -rs 0 -o 2 -st 1 -ex -lst 1
+// mpirun -np 1 diffusion -m quad.mesh -rs 0 -o 2 -st 1 -ex -lst 3
+// mpirun -np 1 diffusion -m quad.mesh -rs 0 -o 2 -st 1 -ex -lst 4
+// mpirun -np 4 diffusion -m quad.mesh -rs 2 -o 3 -st 1 -no-ex -lst 5
 #include "../../mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "distfunction.hpp"
+#include "dist_solver.hpp"
 #include "sbm-aux.hpp"
 
 using namespace mfem;
@@ -414,14 +415,14 @@ int main(int argc, char *argv[])
 
    // 9. Get the Distance from the level set either using a numerical approach
    //    or project an exact analytic function.
-   DistanceFunction dist_func(pmesh, order, 1.0);
-   ParGridFunction &distance = dist_func.ComputeDistance(dist_fun_level_coef,
-                                                         1, true);
+   HeatDistanceSolver dist_func(1.0);
+   dist_func.smooth_steps = 1;
+   ParGridFunction distance(&pfespace);
+   dist_func.ComputeDistance(dist_fun_level_coef, distance);
    Dist_Value_Coefficient dist_fun_coef(level_set_type);
    if (exact) {
        distance.ProjectCoefficient(dist_fun_coef); // analytic projection
    }
-   distance.ProjectCoefficient(dist_fun_coef);
 
    if (visualization)
    {
@@ -523,7 +524,7 @@ int main(int argc, char *argv[])
    //     the FEM linear system.
    ParLinearForm b(&pfespace);
    double fval = 1.;
-   if (level_set_type == 3 || level_set_type == 5) {
+   if (level_set_type == 3) {
       fval = 0.;
    }
    ConstantCoefficient rhs_f(fval);

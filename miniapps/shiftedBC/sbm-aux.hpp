@@ -69,6 +69,11 @@ double dist_value(const Vector &x, const int type)
             return x(1);
         }
     }
+    else if (type == 5) { //bicuspid
+        double a = 6*x(0)-3,
+               b = 6*x(1)-3;
+        return -pow(b*b-1, 2.)+(a+1)*pow(1-a, 3.);
+    }
     else {
         MFEM_ABORT(" Function type not implement yet.");
     }
@@ -110,7 +115,7 @@ public:
       T.Transform(ip, x);
       double dist = dist_value(x, type);
       if (dist >= 0.) { return 1.; }
-      else { return 0.; }
+      else { return -1.; }
    }
 };
 
@@ -213,10 +218,23 @@ double dirichlet_velocity(const Vector &x, int type)
     else if (type == 4 ){
         return 0.5/(M_PI*M_PI)*std::sin(M_PI*x(0))*std::sin(M_PI*x(1));
     }
+    else if (type == 5 ){
+        return 0.;
+    }
     else {
         MFEM_ABORT(" Function type not implement yet.");
     }
     return 0.;
 }
 
+double dirichlet_velocity_init(const Vector &x, int type)
+{
+    double val = dirichlet_velocity(x, type);
+    if (x(0) <= 0.00001 || x(0) >= 0.9999) {
+        return val;
+    }
+    else {
+        return 0.1*val+0.1;
+    }
+}
 

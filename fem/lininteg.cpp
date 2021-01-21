@@ -951,9 +951,8 @@ void SBM2LFIntegrator::AssembleRHSElementVect(
          q_hess_dot_d += q_hess_dot_d_work;
       }
 
-      wrk = dshape_dd; //\grad w .d
-      wrk += shape;  // w + grad w.d
-      //wrk += q_hess_dot_dot_d;
+      wrk = shape;
+      wrk += dshape_dd; //\grad w .d
       wrk += q_hess_dot_d;
       elvect.Add(w, wrk); //<u, gradw.d>
    }
