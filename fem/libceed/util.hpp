@@ -61,8 +61,8 @@ const std::string &GetCeedPath();
 
 // Hash table for CeedBasis
 using BasisKey = std::tuple<const mfem::FiniteElementSpace*,
-                            const mfem::IntegrationRule*,
-                            int, int, int>;
+      const mfem::IntegrationRule*,
+      int, int, int>;
 struct BasisHash
 {
    std::size_t operator()(const BasisKey& k) const
@@ -82,7 +82,8 @@ using BasisMap = std::unordered_map<const BasisKey, CeedBasis, BasisHash>;
 enum restr_type {Standard, Strided};
 
 // Hash table for CeedElemRestriction
-using RestrKey = std::tuple<const mfem::FiniteElementSpace*, int, int, int, int>;
+using RestrKey =
+   std::tuple<const mfem::FiniteElementSpace*, int, int, int, int>;
 struct RestrHash
 {
    std::size_t operator()(const RestrKey& k) const
@@ -99,7 +100,6 @@ struct RestrHash
 };
 using RestrMap =
    std::unordered_map<const RestrKey, CeedElemRestriction, RestrHash>;
-
 
 #endif
 
