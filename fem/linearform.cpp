@@ -132,7 +132,7 @@ void LinearForm::Assemble()
 
       for (i = 0; i < fes -> GetNBE(); i++)
       {
-         const int bdr_attr = mesh->GetBdrAttribute(i);
+         const int bdr_attr = fes->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
          fes -> GetBdrElementVDofs (i, vdofs);
          eltrans = fes -> GetBdrElementTransformation (i);
@@ -173,12 +173,12 @@ void LinearForm::Assemble()
          }
       }
 
-      for (i = 0; i < mesh->GetNBE(); i++)
+      for (i = 0; i < fes->GetNBE(); i++)
       {
-         const int bdr_attr = mesh->GetBdrAttribute(i);
+         const int bdr_attr = fes->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
 
-         tr = mesh->GetBdrFaceTransformations(i);
+         tr = fes->GetBdrFaceTransformations(i);
          if (tr != NULL)
          {
             fes -> GetElementVDofs (tr -> Elem1No, vdofs);

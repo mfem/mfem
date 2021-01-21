@@ -460,7 +460,7 @@ void BilinearForm::Assemble(int skip_zeros)
 
       for (int i = 0; i < fes -> GetNBE(); i++)
       {
-         const int bdr_attr = mesh->GetBdrAttribute(i);
+         const int bdr_attr = fes->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
 
          const FiniteElement &be = *fes->GetBE(i);
@@ -504,10 +504,10 @@ void BilinearForm::Assemble(int skip_zeros)
       FaceElementTransformations *tr;
       Array<int> vdofs2;
 
-      int nfaces = mesh->GetNumFaces();
+      int nfaces = fes->GetNF();
       for (int i = 0; i < nfaces; i++)
       {
-         tr = mesh -> GetInteriorFaceTransformations (i);
+         tr = fes -> GetInteriorFaceTransformations (i);
          if (tr != NULL)
          {
             fes -> GetElementVDofs (tr -> Elem1No, vdofs);
@@ -552,10 +552,10 @@ void BilinearForm::Assemble(int skip_zeros)
 
       for (int i = 0; i < fes -> GetNBE(); i++)
       {
-         const int bdr_attr = mesh->GetBdrAttribute(i);
+         const int bdr_attr = fes->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
 
-         tr = mesh -> GetBdrFaceTransformations (i);
+         tr = fes -> GetBdrFaceTransformations (i);
          if (tr != NULL)
          {
             fes -> GetElementVDofs (tr -> Elem1No, vdofs);
@@ -1111,6 +1111,9 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    extern_bfs = 0;
    assembly = AssemblyLevel::LEGACYFULL;
    ext = NULL;
+
+   MFEM_ASSERT(tr_fes->Subdomain() == te_fes->Subdomain(),
+   "Test and trial space must live on the same domain.");
 }
 
 MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
@@ -1347,7 +1350,7 @@ void MixedBilinearForm::Assemble (int skip_zeros)
 
       for (int i = 0; i < test_fes -> GetNBE(); i++)
       {
-         const int bdr_attr = mesh->GetBdrAttribute(i);
+         const int bdr_attr = trial_fes->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
 
          trial_fes -> GetBdrElementVDofs (i, tr_vdofs);
@@ -1372,10 +1375,10 @@ void MixedBilinearForm::Assemble (int skip_zeros)
       Array<int> te_vdofs2;
       const FiniteElement *trial_face_fe, *test_fe1, *test_fe2;
 
-      int nfaces = mesh->GetNumFaces();
+      int nfaces = trial_fes->GetNF();
       for (int i = 0; i < nfaces; i++)
       {
-         ftr = mesh->GetFaceElementTransformations(i);
+         ftr = trial_fes->GetFaceElementTransformations(i);
          trial_fes->GetFaceVDofs(i, tr_vdofs);
          test_fes->GetElementVDofs(ftr->Elem1No, te_vdofs);
          trial_face_fe = trial_fes->GetFaceElement(i);
@@ -1431,10 +1434,10 @@ void MixedBilinearForm::Assemble (int skip_zeros)
 
       for (int i = 0; i < trial_fes -> GetNBE(); i++)
       {
-         const int bdr_attr = mesh->GetBdrAttribute(i);
+         const int bdr_attr = trial_fes->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
 
-         ftr = mesh->GetBdrFaceTransformations(i);
+         ftr = trial_fes->GetBdrFaceTransformations(i);
          if (ftr)
          {
             trial_fes->GetFaceVDofs(ftr->ElementNo, tr_vdofs);
@@ -1837,12 +1840,12 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
 
    if (tfbfi.Size())
    {
-      const int nfaces = test_fes->GetMesh()->GetNumFaces();
+      const int nfaces = test_fes->GetNF();
       for (int i = 0; i < nfaces; i++)
       {
          trial_fes->GetFaceVDofs(i, dom_vdofs);
          test_fes->GetFaceVDofs(i, ran_vdofs);
-         T = test_fes->GetMesh()->GetFaceTransformation(i);
+         T = test_fes->GetFaceTransformation(i);
          dom_fe = trial_fes->GetFaceElement(i);
          ran_fe = test_fes->GetFaceElement(i);
 

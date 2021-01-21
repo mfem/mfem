@@ -82,6 +82,108 @@ class QuadratureInterpolator;
 class FaceQuadratureInterpolator;
 
 
+// Holds all necessary information to map stuff to a subdomain of the mesh.
+struct SubdomainExtension
+{
+    // The mappings from the 1..N elements on subdomain back to the mesh
+    Array<int> vertex_map, edge_map, face_map, element_map;
+
+    Array<int> boundary_map;
+};
+
+// This construction conserves the original ordering of entities.
+inline SubdomainExtension* SubdomainFromAttributes(Mesh* mesh, Array<int> attributes)
+{
+   attributes.Sort();
+
+   auto subdomain = new SubdomainExtension();
+
+   // Add elements
+   for(int e = 0; e < mesh->GetNE(); e++)
+   {
+      if(attributes.FindSorted(mesh->GetAttribute(e)) != -1)
+      {
+         subdomain->element_map.Append(e);
+      }
+   }
+
+   // Add boundary
+   for(int be = 0; be < mesh->GetNBE(); be++)
+   {
+      int e, info;
+      mesh->GetBdrElementAdjacentElement(be, e, info);
+      if(attributes.FindSorted(mesh->GetAttribute(e)) != -1)
+      {
+         subdomain->boundary_map.Append(be);
+      }
+   }
+
+   Array<int> elements;
+   {
+      // Add faces
+      auto face2el = mesh->GetFaceToElementTable();
+      for(int f = 0; f < mesh->GetNFaces(); f++)
+      {
+         face2el->GetRow(f, elements);
+         for(int e : elements)
+         {
+            if(attributes.FindSorted(mesh->GetAttribute(e)) != -1)
+            {
+               subdomain->face_map.Append(f);
+               break;
+            }
+         }
+      }
+      delete face2el;
+   }
+
+   {
+      auto vertex2el = mesh->GetVertexToElementTable();
+
+      Array<int> vertices;
+      // Add edges
+      for(int edge = 0; edge < mesh->GetNEdges(); edge++)
+      {
+         mesh->GetEdgeVertices(edge, vertices);
+         bool added_edge = false;
+         for(int v : vertices)
+         {
+            vertex2el->GetRow(v, elements);
+            for(int e : elements)
+            {
+               if(attributes.FindSorted(mesh->GetAttribute(e)) != -1)
+               {
+                  subdomain->edge_map.Append(edge);
+                  added_edge = true;
+                  break;
+               }
+            }
+            if(added_edge)
+            {
+               break;
+            }
+         }
+      }
+
+      // Add vertices
+      for(int v = 0; v < mesh->GetNV(); v++)
+      {
+         vertex2el->GetRow(v, elements);
+         for(int e : elements)
+         {
+            if(attributes.FindSorted(mesh->GetAttribute(e)) != -1)
+            {
+               subdomain->vertex_map.Append(v);
+               break;
+            }
+         }
+      }
+
+      delete vertex2el;
+   }
+   return subdomain;
+}
+
 /** @brief Class FiniteElementSpace - responsible for providing FEM view of the
     mesh, mainly managing the set of degrees of freedom. */
 class FiniteElementSpace
@@ -119,6 +221,10 @@ protected:
 
    NURBSExtension *NURBSext;
    int own_ext;
+
+   // In case that the FiniteElementSpace is just definied on a part of the mesh
+   SubdomainExtension *subdomain = nullptr;
+   bool own_subdomain = false;
 
    /** Matrix representing the prolongation from the global conforming dofs to
        a set of intermediate partially conforming dofs, e.g. the dofs associated
@@ -298,7 +404,9 @@ public:
 
    FiniteElementSpace(Mesh *mesh,
                       const FiniteElementCollection *fec,
-                      int vdim = 1, int ordering = Ordering::byNODES)
+                      int vdim = 1, int ordering = Ordering::byNODES,
+                      SubdomainExtension* subdomain_ = NULL)
+   : subdomain(subdomain_)
    { Constructor(mesh, NULL, fec, vdim, ordering); }
 
    /// Construct a NURBS FE space based on the given NURBSExtension, @a ext.
@@ -312,6 +420,99 @@ public:
 
    /// Returns the mesh
    inline Mesh *GetMesh() const { return mesh; }
+
+   /// Some helpers to get the correct indices on the full mesh.
+   inline int MapElement(int i) const
+   { return subdomain ? subdomain->element_map[i] : i; }
+   inline int MapElementBack(int i) const
+   {
+      if(!subdomain)
+      {
+         return i;
+      }
+      for(int bi = 0; bi < subdomain->element_map.Size(); bi++)
+      {
+         if(subdomain->element_map[bi] == i)
+         {
+            return bi;
+         }
+      }
+      return -1;
+   }
+   inline int MapFace(int i) const
+   { return subdomain ? subdomain->face_map[i] : i; }
+   inline int MapFaceBack(int i) const
+   {
+      if(!subdomain)
+      {
+         return i;
+      }
+      for(int bi = 0; bi < subdomain->face_map.Size(); bi++)
+      {
+         if(subdomain->face_map[bi] == i)
+         {
+            return bi;
+         }
+      }
+      return -1;
+   }
+   inline int MapEdge(int i) const
+   { return subdomain ? subdomain->edge_map[i] : i; }
+   inline int MapEdgeBack(int i) const
+   {
+      if(!subdomain)
+      {
+         return i;
+      }
+      for(int bi = 0; bi < subdomain->edge_map.Size(); bi++)
+      {
+         if(subdomain->edge_map[bi] == i)
+         {
+            return bi;
+         }
+      }
+      return -1;
+   }
+   inline int MapVertex(int i) const
+   { return subdomain ? subdomain->vertex_map[i] : i; }
+   inline int MapVertexBack(int i) const
+   {
+      if(!subdomain)
+      {
+         return i;
+      }
+      for(int vi = 0; vi < subdomain->vertex_map.Size(); vi++)
+      {
+         if(subdomain->vertex_map[vi] == i)
+         {
+            return vi;
+         }
+      }
+      return -1;
+   }
+   inline int MapBoundary(int i) const
+   { return subdomain ? subdomain->boundary_map[i] : i; }
+   inline int MapBoundaryBack(int i) const
+   {
+      if(!subdomain)
+      {
+         return i;
+      }
+      for(int bi = 0; bi < subdomain->boundary_map.Size(); bi++)
+      {
+         if(subdomain->boundary_map[bi] == i)
+         {
+            return bi;
+         }
+      }
+      return -1;
+   }
+
+   inline bool UsesSubdomain() const
+   { return subdomain != nullptr; }
+
+   inline SubdomainExtension* Subdomain() const
+   { return subdomain; }
 
    const NURBSExtension *GetNURBSext() const { return NURBSext; }
    NURBSExtension *GetNURBSext() { return NURBSext; }
@@ -432,20 +633,32 @@ public:
    /// Number of all scalar face-interior dofs
    int GetNFDofs() const { return nfdofs; }
 
-   /// Returns number of vertices in the mesh.
-   inline int GetNV() const { return mesh->GetNV(); }
+   /// Returns number of vertices in the space.
+   inline int GetNV() const
+   { return subdomain ? subdomain->vertex_map.Size() :  mesh->GetNV(); }
 
-   /// Returns number of elements in the mesh.
-   inline int GetNE() const { return mesh->GetNE(); }
+   /// Returns number of elements in the space.
+   inline int GetNE() const
+   { return subdomain ? subdomain->element_map.Size() : mesh->GetNE(); }
+
+   /// Returns number of edges in the space.
+   inline int GetNEdges() const
+   { return subdomain ? subdomain->edge_map.Size() : mesh->GetNEdges(); }
+
+   /// Returns number of faces in the space.
+   inline int GetNFaces() const
+   { return subdomain ? subdomain->face_map.Size() : mesh->GetNFaces(); }
 
    /// Returns number of faces (i.e. co-dimension 1 entities) in the mesh.
    /** The co-dimension 1 entities are those that have dimension 1 less than the
        mesh dimension, e.g. for a 2D mesh, the faces are the 1D entities, i.e.
        the edges. */
-   inline int GetNF() const { return mesh->GetNumFaces(); }
+   inline int GetNF() const
+   { return subdomain ? subdomain->face_map.Size() : mesh->GetNumFaces(); }
 
    /// Returns number of boundary elements in the mesh.
-   inline int GetNBE() const { return mesh->GetNBE(); }
+   inline int GetNBE() const
+   { return subdomain ? subdomain->boundary_map.Size() : mesh->GetNBE(); }
 
    /// Returns the number of faces according to the requested type.
    /** If type==Boundary returns only the "true" number of boundary faces
@@ -458,32 +671,44 @@ public:
 
    /// Returns the type of element i.
    inline int GetElementType(int i) const
-   { return mesh->GetElementType(i); }
+   { return mesh->GetElementType(MapElement(i)); }
 
    /// Returns the vertices of element i.
    inline void GetElementVertices(int i, Array<int> &vertices) const
-   { mesh->GetElementVertices(i, vertices); }
+   { mesh->GetElementVertices(MapElement(i), vertices); }
 
    /// Returns the type of boundary element i.
    inline int GetBdrElementType(int i) const
-   { return mesh->GetBdrElementType(i); }
+   { return mesh->GetBdrElementType(MapBoundary(i)); }
 
    /// Returns ElementTransformation for the @a i-th element.
    ElementTransformation *GetElementTransformation(int i) const
-   { return mesh->GetElementTransformation(i); }
+   { return mesh->GetElementTransformation(MapElement(i)); }
 
    /** @brief Returns the transformation defining the @a i-th element in the
        user-defined variable @a ElTr. */
    void GetElementTransformation(int i, IsoparametricTransformation *ElTr)
-   { mesh->GetElementTransformation(i, ElTr); }
+   { mesh->GetElementTransformation(MapElement(i), ElTr); }
+
+   ElementTransformation *GetFaceTransformation(int i) const
+   { return mesh->GetFaceTransformation(i); }
 
    /// Returns ElementTransformation for the @a i-th boundary element.
    ElementTransformation *GetBdrElementTransformation(int i) const
-   { return mesh->GetBdrElementTransformation(i); }
+   { return mesh->GetBdrElementTransformation(MapBoundary(i)); }
 
-   int GetAttribute(int i) const { return mesh->GetAttribute(i); }
+   FaceElementTransformations *GetBdrFaceTransformations(int i) const
+   { return mesh->GetBdrFaceTransformations(MapBoundary(i)); }
 
-   int GetBdrAttribute(int i) const { return mesh->GetBdrAttribute(i); }
+   FaceElementTransformations *GetInteriorFaceTransformations(int i) const
+   { return mesh->GetInteriorFaceTransformations(MapFace(i)); }
+
+   FaceElementTransformations *GetFaceElementTransformations(int i) const
+   { return mesh->GetFaceElementTransformations(MapFace(i)); }
+
+   int GetAttribute(int i) const { return mesh->GetAttribute(MapElement(i)); }
+
+   int GetBdrAttribute(int i) const { return mesh->GetBdrAttribute(MapBoundary(i)); }
 
    /// Returns indexes of degrees of freedom in array dofs for i'th element.
    virtual void GetElementDofs(int i, Array<int> &dofs) const;
@@ -506,7 +731,7 @@ public:
    void GetFaceInteriorDofs(int i, Array<int> &dofs) const;
 
    int GetNumElementInteriorDofs(int i) const
-   { return fec->DofForGeometry(mesh->GetElementBaseGeometry(i)); }
+   { return fec->DofForGeometry(mesh->GetElementBaseGeometry(MapElement(i))); }
 
    void GetEdgeInteriorDofs(int i, Array<int> &dofs) const;
 
@@ -755,6 +980,10 @@ protected:
    // element_offsets, and size.
    void Construct();
 
+   //
+   SubdomainExtension *subdomain = nullptr;
+   bool own_subdomain = false;
+
 public:
    /// Create a QuadratureSpace based on the global rules from #IntRules.
    QuadratureSpace(Mesh *mesh_, int order_)
@@ -763,7 +992,8 @@ public:
    /// Read a QuadratureSpace from the stream @a in.
    QuadratureSpace(Mesh *mesh_, std::istream &in);
 
-   virtual ~QuadratureSpace() { delete [] element_offsets; }
+   virtual ~QuadratureSpace()
+   { delete [] element_offsets; if(own_subdomain) delete subdomain; }
 
    /// Return the total number of quadrature points.
    int GetSize() const { return size; }
@@ -775,11 +1005,15 @@ public:
    inline Mesh *GetMesh() const { return mesh; }
 
    /// Returns number of elements in the mesh.
-   inline int GetNE() const { return mesh->GetNE(); }
+   inline int GetNE() const
+   { return subdomain ? subdomain->element_map.Size() : mesh->GetNE(); }
 
    /// Get the IntegrationRule associated with mesh element @a idx.
    const IntegrationRule &GetElementIntRule(int idx) const
-   { return *int_rule[mesh->GetElementBaseGeometry(idx)]; }
+   {
+      auto real_idx = subdomain ? subdomain->element_map[idx] : idx;
+      return *int_rule[mesh->GetElementBaseGeometry(real_idx)];
+   }
 
    /// Write the QuadratureSpace to the stream @a out.
    void Save(std::ostream &out) const;

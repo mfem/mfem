@@ -74,6 +74,7 @@ FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
 {
    mesh = mesh ? mesh : orig.mesh;
    fec = fec ? fec : orig.fec;
+   subdomain = orig.subdomain;
    NURBSExtension *NURBSext = NULL;
    if (orig.NURBSext && orig.NURBSext != orig.mesh->NURBSext)
    {
@@ -95,13 +96,13 @@ FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
 
 int FiniteElementSpace::GetOrder(int i) const
 {
-   Geometry::Type GeomType = mesh->GetElementBaseGeometry(i);
+   Geometry::Type GeomType = mesh->GetElementBaseGeometry(MapElement(i));
    return fec->FiniteElementForGeometry(GeomType)->GetOrder();
 }
 
 int FiniteElementSpace::GetFaceOrder(int i) const
 {
-   Geometry::Type GeomType = mesh->GetFaceBaseGeometry(i);
+   Geometry::Type GeomType = mesh->GetFaceBaseGeometry(MapElement(i));
    return fec->FiniteElementForGeometry(GeomType)->GetOrder();
 }
 
@@ -218,14 +219,14 @@ void FiniteElementSpace::BuildElementToDofTable() const
 
    Table *el_dof = new Table;
    Array<int> dofs;
-   el_dof -> MakeI (mesh -> GetNE());
-   for (int i = 0; i < mesh -> GetNE(); i++)
+   el_dof -> MakeI (this -> GetNE());
+   for (int i = 0; i < this -> GetNE(); i++)
    {
       GetElementDofs (i, dofs);
       el_dof -> AddColumnsInRow (i, dofs.Size());
    }
    el_dof -> MakeJ();
-   for (int i = 0; i < mesh -> GetNE(); i++)
+   for (int i = 0; i < this -> GetNE(); i++)
    {
       GetElementDofs (i, dofs);
       el_dof -> AddConnections (i, (int *)dofs, dofs.Size());
@@ -240,14 +241,14 @@ void FiniteElementSpace::BuildBdrElementToDofTable() const
 
    Table *bel_dof = new Table;
    Array<int> dofs;
-   bel_dof->MakeI(mesh->GetNBE());
-   for (int i = 0; i < mesh->GetNBE(); i++)
+   bel_dof->MakeI(this->GetNBE());
+   for (int i = 0; i < this->GetNBE(); i++)
    {
       GetBdrElementDofs(i, dofs);
       bel_dof->AddColumnsInRow(i, dofs.Size());
    }
    bel_dof->MakeJ();
-   for (int i = 0; i < mesh->GetNBE(); i++)
+   for (int i = 0; i < this->GetNBE(); i++)
    {
       GetBdrElementDofs(i, dofs);
       bel_dof->AddConnections(i, (int *)dofs, dofs.Size());
@@ -266,7 +267,7 @@ void FiniteElementSpace::BuildFaceToDofTable() const
 
    Table *fc_dof = new Table;
    Array<int> dofs;
-   fc_dof->MakeI(mesh->GetNumFaces());
+   fc_dof->MakeI(this->GetNF());
    for (int i = 0; i < fc_dof->Size(); i++)
    {
       GetFaceDofs(i, dofs);
@@ -318,7 +319,7 @@ void FiniteElementSpace::BuildDofToArrays()
    dof_elem_array.SetSize (ndofs);
    dof_ldof_array.SetSize (ndofs);
    dof_elem_array = -1;
-   for (int i = 0; i < mesh -> GetNE(); i++)
+   for (int i = 0; i < this -> GetNE(); i++)
    {
       const int *dofs = elem_dof -> GetRow(i);
       const int n = elem_dof -> RowSize(i);
@@ -352,7 +353,7 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
    ess_vdofs.SetSize(GetVSize());
    ess_vdofs = 0;
 
-   for (int i = 0; i < GetNBE(); i++)
+   for (int i = 0; i < this->GetNBE(); i++)
    {
       if (bdr_attr_is_ess[GetBdrAttribute(i)-1])
       {
@@ -376,6 +377,8 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
    // local DOFs affected by boundary elements on other processors
    if (Nonconforming())
    {
+      //@TODO (fe.subdomain): This must be changed for the subdomain case.
+      // Probably constructing a preimage could help here.
       Array<int> bdr_verts, bdr_edges;
       mesh->ncmesh->GetBoundaryClosure(bdr_attr_is_ess, bdr_verts, bdr_edges);
 
@@ -488,7 +491,7 @@ FiniteElementSpace::D2C_GlobalRestrictionMatrix (FiniteElementSpace *cfes)
 
    R = new SparseMatrix (cfes -> GetVSize(), GetVSize());
 
-   for (i = 0; i < mesh -> GetNE(); i++)
+   for (i = 0; i < this -> GetNE(); i++)
    {
       this -> GetElementVDofs (i, d_vdofs);
       cfes -> GetElementVDofs (i, c_vdofs);
@@ -520,7 +523,7 @@ FiniteElementSpace::D2Const_GlobalRestrictionMatrix(FiniteElementSpace *cfes)
 
    R = new SparseMatrix (cfes -> GetNDofs(), ndofs);
 
-   for (i = 0; i < mesh -> GetNE(); i++)
+   for (i = 0; i < this -> GetNE(); i++)
    {
       this -> GetElementDofs (i, d_dofs);
       cfes -> GetElementDofs (i, c_dofs);
@@ -557,13 +560,13 @@ FiniteElementSpace::H2L_GlobalRestrictionMatrix (FiniteElementSpace *lfes)
    const FiniteElement *l_fe = NULL;
    IsoparametricTransformation T;
 
-   for (int i = 0; i < mesh -> GetNE(); i++)
+   for (int i = 0; i < this -> GetNE(); i++)
    {
       this -> GetElementDofs (i, h_dofs);
       lfes -> GetElementDofs (i, l_dofs);
 
       // Assuming 'loc_restr' depends only on the Geometry::Type.
-      const Geometry::Type geom = mesh->GetElementBaseGeometry(i);
+      const Geometry::Type geom = mesh->GetElementBaseGeometry(MapElement(i));
       if (geom != cached_geom)
       {
          h_fe = this -> GetFE (i);
@@ -698,6 +701,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // collect local edge/face dependencies
    for (int entity = 1; entity <= 2; entity++)
    {
+      //@TODO (fe.subdomain): this needs some investigation.
       const NCMesh::NCList &list = mesh->ncmesh->GetNCList(entity);
       if (!list.masters.Size()) { continue; }
 
@@ -1034,10 +1038,10 @@ SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
 
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
 
-   for (int k = 0; k < mesh->GetNE(); k++)
+   for (int k = 0; k < this->GetNE(); k++)
    {
-      const Embedding &emb = rtrans.embeddings[k];
-      const Geometry::Type geom = mesh->GetElementBaseGeometry(k);
+      const Embedding &emb = rtrans.embeddings[MapElement(k)];
+      const Geometry::Type geom = mesh->GetElementBaseGeometry(MapElement(k));
       const DenseMatrix &lP = localP[geom](emb.matrix);
       const int fine_ldof = localP[geom].SizeI();
 
@@ -1163,10 +1167,11 @@ void FiniteElementSpace::RefinementOperator
 
    Vector subY, subX;
 
-   for (int k = 0; k < mesh->GetNE(); k++)
+   for (int k = 0; k < fespace->GetNE(); k++)
    {
-      const Embedding &emb = rtrans.embeddings[k];
-      const Geometry::Type geom = mesh->GetElementBaseGeometry(k);
+      const auto k_mesh = fespace->MapElement(k);
+      const Embedding &emb = rtrans.embeddings[k_mesh];
+      const Geometry::Type geom = mesh->GetElementBaseGeometry(k_mesh);
       const DenseMatrix &lP = localP[geom](emb.matrix);
 
       subY.SetSize(lP.Height());
@@ -1205,10 +1210,11 @@ void FiniteElementSpace::RefinementOperator
 
    Vector subY, subX;
 
-   for (int k = 0; k < mesh->GetNE(); k++)
+   for (int k = 0; k < fespace->GetNE(); k++)
    {
-      const Embedding &emb = rtrans.embeddings[k];
-      const Geometry::Type geom = mesh->GetElementBaseGeometry(k);
+      const auto k_mesh = fespace->MapElement(k);
+      const Embedding &emb = rtrans.embeddings[k_mesh];
+      const Geometry::Type geom = mesh->GetElementBaseGeometry(k_mesh);
       const DenseMatrix &lP = localP[geom](emb.matrix);
 
       fespace->GetElementDofs(k, f_dofs);
@@ -1432,6 +1438,7 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
    MFEM_ASSERT(dtrans.embeddings.Size() == old_elem_dof->Size(), "");
 
    int num_marked = 0;
+   //@TODO (fe.subdomain): this needs some investigation.
    for (int k = 0; k < dtrans.embeddings.Size(); k++)
    {
       const Embedding &emb = dtrans.embeddings[k];
@@ -1589,7 +1596,7 @@ void FiniteElementSpace::BuildNURBSFaceToDofTable() const
    face_to_be = -1;
    for (int b = 0; b < GetNBE(); b++)
    {
-      int f = mesh->GetBdrElementEdgeIndex(b);
+      int f = mesh->GetBdrElementEdgeIndex(MapBoundary(b));
       face_to_be[f] = b;
    }
 
@@ -1605,8 +1612,8 @@ void FiniteElementSpace::BuildNURBSFaceToDofTable() const
       //        same orientation.
       if (dim > 1)
       {
-         const Element *fe = mesh->GetFace(f);
-         const Element *be = mesh->GetBdrElement(b);
+         const Element *fe = mesh->GetFace(MapFace(f));
+         const Element *be = mesh->GetBdrElement(MapBoundary(b));
          const int nv = be->GetNVertices();
          const int *fv = fe->GetVertices();
          const int *bv = be->GetVertices();
@@ -1645,14 +1652,14 @@ void FiniteElementSpace::Construct()
    cP_is_set = false;
    // 'Th' is initialized/destroyed before this method is called.
 
-   nvdofs = mesh->GetNV() * fec->DofForGeometry(Geometry::POINT);
+   nvdofs = this->GetNV() * fec->DofForGeometry(Geometry::POINT);
 
    if (mesh->Dimension() > 1)
    {
-      nedofs = mesh->GetNEdges() * fec->DofForGeometry(Geometry::SEGMENT);
+      nedofs = this->GetNEdges() * fec->DofForGeometry(Geometry::SEGMENT);
    }
 
-   if (mesh->GetNFaces() > 0)
+   if (this->GetNFaces() > 0)
    {
       bool have_face_dofs = false;
       for (int g = Geometry::DimStart[2]; g < Geometry::DimStart[3]; g++)
@@ -1666,11 +1673,11 @@ void FiniteElementSpace::Construct()
       }
       if (have_face_dofs)
       {
-         fdofs = new int[mesh->GetNFaces()+1];
+         fdofs = new int[this->GetNFaces()+1];
          fdofs[0] = 0;
-         for (int i = 0; i < mesh->GetNFaces(); i++)
+         for (int i = 0; i < this->GetNFaces(); i++)
          {
-            nfdofs += fec->DofForGeometry(mesh->GetFaceBaseGeometry(i));
+            nfdofs += fec->DofForGeometry(mesh->GetFaceBaseGeometry(MapFace(i)));
             fdofs[i+1] = nfdofs;
          }
       }
@@ -1678,11 +1685,11 @@ void FiniteElementSpace::Construct()
 
    if (mesh->Dimension() > 0)
    {
-      bdofs = new int[mesh->GetNE()+1];
+      bdofs = new int[this->GetNE()+1];
       bdofs[0] = 0;
-      for (int i = 0; i < mesh->GetNE(); i++)
+      for (int i = 0; i < this->GetNE(); i++)
       {
-         nbdofs += fec->DofForGeometry(mesh->GetElementBaseGeometry(i));
+         nbdofs += fec->DofForGeometry(mesh->GetElementBaseGeometry(MapElement(i)));
          bdofs[i+1] = nbdofs;
       }
    }
@@ -1708,24 +1715,51 @@ void FiniteElementSpace::GetElementDofs(int i, Array<int> &dofs) const
       dim = mesh->Dimension();
       nv = fec->DofForGeometry(Geometry::POINT);
       ne = (dim > 1) ? ( fec->DofForGeometry(Geometry::SEGMENT) ) : ( 0 );
-      nb = (dim > 0) ? fec->DofForGeometry(mesh->GetElementBaseGeometry(i)) : 0;
+      nb = (dim > 0) ? fec->DofForGeometry(mesh->GetElementBaseGeometry(MapElement(i))) : 0;
       if (nv > 0)
       {
-         mesh->GetElementVertices(i, V);
+         mesh->GetElementVertices(MapElement(i), V);
+         if(subdomain) // We have to map back to subdomain
+         {
+            for(int vi = 0; vi < V.Size(); vi++)
+            {
+               V[vi] = MapVertexBack(V[vi]);
+            }
+         }
       }
       if (ne > 0)
       {
-         mesh->GetElementEdges(i, E, Eo);
+         mesh->GetElementEdges(MapElement(i), E, Eo);
+         if(subdomain) // We have to map back to subdomain
+         {
+            for(int ei = 0; ei < E.Size(); ei++)
+            {
+               E[ei] = MapEdgeBack(E[ei]);
+            }
+            for(int vi = 0; vi < Eo.Size(); vi++)
+            {
+               Eo[vi] = MapVertexBack(Eo[vi]);
+            }
+         }
       }
       nfd = 0;
+
       if (dim == 3)
       {
-         if (fec->HasFaceDofs(mesh->GetElementBaseGeometry(i)))
+         if (fec->HasFaceDofs(mesh->GetElementBaseGeometry(MapElement(i))))
          {
-            mesh->GetElementFaces(i, F, Fo);
+            mesh->GetElementFaces(MapElement(i), F, Fo);
             for (k = 0; k < F.Size(); k++)
             {
                nfd += fec->DofForGeometry(mesh->GetFaceBaseGeometry(F[k]));
+            }
+
+            if(subdomain) // We have to map back to subdomain
+            {
+               for(int fi = 0; fi < F.Size(); fi++)
+               {
+                  F[fi] = MapFaceBack(F[fi]);
+               }
             }
          }
       }
@@ -1802,7 +1836,7 @@ const FiniteElement *FiniteElementSpace::GetFE(int i) const
                "Invalid element id " << i << ", maximum allowed " << mesh->GetNE()-1);
 
    const FiniteElement *FE =
-      fec->FiniteElementForGeometry(mesh->GetElementBaseGeometry(i));
+      fec->FiniteElementForGeometry(mesh->GetElementBaseGeometry(MapElement(i)));
 
    if (NURBSext)
    {
@@ -1828,20 +1862,42 @@ void FiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
       nv = fec->DofForGeometry(Geometry::POINT);
       if (nv > 0)
       {
-         mesh->GetBdrElementVertices(i, V);
+         mesh->GetBdrElementVertices(MapBoundary(i), V);
+         if(subdomain) // We have to map back to subdomain
+         {
+            for(int vi = 0; vi < V.Size(); vi++)
+            {
+               V[vi] = MapVertexBack(V[vi]);
+            }
+         }
       }
       ne = (dim > 1) ? ( fec->DofForGeometry(Geometry::SEGMENT) ) : ( 0 );
       if (ne > 0)
       {
-         mesh->GetBdrElementEdges(i, E, Eo);
+         mesh->GetBdrElementEdges(MapBoundary(i), E, Eo);
+         if(subdomain) // We have to map back to subdomain
+         {
+            for(int ei = 0; ei < E.Size(); ei++)
+            {
+               E[ei] = MapEdgeBack(E[ei]);
+            }
+            for(int vi = 0; vi < Eo.Size(); vi++)
+            {
+               Eo[vi] = MapVertexBack(Eo[vi]);
+            }
+         }
       }
       nd = V.Size() * nv + E.Size() * ne;
       nf = (dim == 3) ? (fec->DofForGeometry(
-                            mesh->GetBdrElementBaseGeometry(i))) : (0);
+                            mesh->GetBdrElementBaseGeometry(MapBoundary(i)))) : (0);
       if (nf > 0)
       {
          nd += nf;
-         mesh->GetBdrElementFace(i, &iF, &oF);
+         mesh->GetBdrElementFace(MapBoundary(i), &iF, &oF);
+         if(subdomain)
+         {
+            iF = MapFaceBack(iF);
+         }
       }
       dofs.SetSize(nd);
       if (nv > 0)
@@ -1879,7 +1935,7 @@ void FiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
       {
          ne = nv + ne * E.Size();
          ind = fec->DofOrderForOrientation(
-                  mesh->GetBdrElementBaseGeometry(i), oF);
+                  mesh->GetBdrElementBaseGeometry(MapBoundary(i)), oF);
          for (j = 0; j < nf; j++)
          {
             if (ind[j] < 0)
@@ -1914,11 +1970,11 @@ void FiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
       ne = (dim > 1) ? fec->DofForGeometry(Geometry::SEGMENT) : 0;
       if (nv > 0)
       {
-         mesh->GetFaceVertices(i, V);
+         mesh->GetFaceVertices(MapVertex(i), V);
       }
       if (ne > 0)
       {
-         mesh->GetFaceEdges(i, E, Eo);
+         mesh->GetFaceEdges(MapVertex(i), E, Eo);
       }
       nf = (fdofs) ? (fdofs[i+1]-fdofs[i]) : (0);
       nd = V.Size() * nv + E.Size() * ne + nf;
@@ -1971,7 +2027,7 @@ void FiniteElementSpace::GetEdgeDofs(int i, Array<int> &dofs) const
    nv = fec->DofForGeometry(Geometry::POINT);
    if (nv > 0)
    {
-      mesh->GetEdgeVertices(i, V);
+      mesh->GetEdgeVertices(MapVertex(i), V);
    }
    ne = fec->DofForGeometry(Geometry::SEGMENT);
    dofs.SetSize(2*nv+ne);
@@ -2008,7 +2064,7 @@ void FiniteElementSpace::GetElementInteriorDofs (int i, Array<int> &dofs) const
 {
    int j, k, nb;
    if (mesh->Dimension() == 0) { dofs.SetSize(0); return; }
-   nb = fec -> DofForGeometry (mesh -> GetElementBaseGeometry (i));
+   nb = fec -> DofForGeometry (mesh -> GetElementBaseGeometry (MapElement(i)));
    dofs.SetSize (nb);
    k = nvdofs + nedofs + nfdofs + bdofs[i];
    for (j = 0; j < nb; j++)
@@ -2059,7 +2115,7 @@ const FiniteElement *FiniteElementSpace::GetBE (int i) const
       case 3:
       default:
          BE = fec->FiniteElementForGeometry(
-                 mesh->GetBdrElementBaseGeometry(i));
+                 mesh->GetBdrElementBaseGeometry(MapElement(i)));
    }
 
    if (NURBSext)
@@ -2084,7 +2140,7 @@ const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
          break;
       case 3:
       default:
-         fe = fec->FiniteElementForGeometry(mesh->GetFaceBaseGeometry(i));
+         fe = fec->FiniteElementForGeometry(mesh->GetFaceBaseGeometry(MapElement(i)));
    }
 
    if (NURBSext)
@@ -2162,6 +2218,7 @@ void FiniteElementSpace::Destroy()
       delete [] fdofs;
    }
    RemoveCeedBasisAndRestriction(this);
+   if(own_subdomain) delete subdomain;
 }
 
 void FiniteElementSpace::GetTransferOperator(
@@ -2374,6 +2431,8 @@ void FiniteElementSpace::Save(std::ostream &out) const
       }
       out << "End: MFEM FiniteElementSpace v1.0\n";
    }
+
+   ///@TODO (fe.subspace) store subspace information
 }
 
 FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
@@ -2472,6 +2531,8 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
       }
    }
 
+   ///@TODO (fe.subspace) load subspace information
+
    Constructor(m, NURBSext, r_fec, vdim, ord);
 
    return r_fec;
@@ -2482,7 +2543,7 @@ void QuadratureSpace::Construct()
 {
    // protected method
    int offset = 0;
-   const int num_elem = mesh->GetNE();
+   const int num_elem = subdomain ? subdomain->element_map.Size() : mesh->GetNE();
    element_offsets = new int[num_elem + 1];
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
@@ -2490,8 +2551,9 @@ void QuadratureSpace::Construct()
    }
    for (int i = 0; i < num_elem; i++)
    {
+      const auto i_mesh = subdomain ? subdomain->element_map[i] : i;
       element_offsets[i] = offset;
-      int geom = mesh->GetElementBaseGeometry(i);
+      int geom = mesh->GetElementBaseGeometry(i_mesh);
       if (int_rule[geom] == NULL)
       {
          int_rule[geom] = &IntRules.Get(geom, order);
@@ -2529,6 +2591,8 @@ void QuadratureSpace::Save(std::ostream &out) const
    out << "QuadratureSpace\n"
        << "Type: default_quadrature\n"
        << "Order: " << order << '\n';
+
+   ///@TODO (fe.subspace) store subspace information
 }
 
 
@@ -2753,8 +2817,8 @@ L2ProjectionGridTransfer::L2Projection::L2Projection(
    MFEM_VERIFY(mesh_ho->GetNumGeometries(mesh_ho->Dimension()) <= 1,
                "mixed meshes are not supported");
 
-   // If the local mesh is empty, skip all computations
-   if (mesh_ho->GetNE() == 0) { return; }
+   // If the local space is empty, skip all computations
+   if (fes_ho_.GetNE() == 0) { return; }
 
    const FiniteElement *fe_lor = fes_lor.GetFE(0);
    const FiniteElement *fe_ho = fes_ho.GetFE(0);
