@@ -11,6 +11,7 @@
 
 list(APPEND ALL_EXE_SRCS
   ex1.cpp
+  ex1-subdomain.cpp
   ex2.cpp
   ex3.cpp
   ex4.cpp
