@@ -27,7 +27,7 @@ jobs:
         path: mfem
 
     - name: Get MPI
-      if: matrix.MPI == "YES"
+      if: matrix.MPI == 'YES'
       run: sudo apt-get install mpich libmpich-dev
 
     - name: Cache Hypre Install
@@ -38,7 +38,7 @@ jobs:
         key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-${{ matrix.MPI }}
 
     - name: Install Hypre
-      if: matrix.MPI == "YES" && steps.hypre-cache.outputs.cache-hit != 'true'
+      if: matrix.MPI == 'YES' && steps.hypre-cache.outputs.cache-hit != 'true'
       run: |
         wget --no-verbose ${HYPRE_URL}/${HYPRE_ARCHIVE};
         rm -rf ${HYPRE_TOP_DIR};
@@ -56,7 +56,7 @@ jobs:
         key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-${{ matrix.MPI }}
 
     - name: Install Metis
-      if: matrix.MPI == "YES" && steps.metis-cache.outputs.cache-hit != 'true'
+      if: matrix.MPI == 'YES' && steps.metis-cache.outputs.cache-hit != 'true'
       run: |
         wget --no-verbose ${METIS_URL}/${METIS_ARCHIVE};
         rm -rf ${METIS_TOP_DIR};
