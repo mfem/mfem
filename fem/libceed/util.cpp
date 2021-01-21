@@ -115,7 +115,7 @@ static void InitNonTensorBasis(const mfem::FiniteElementSpace &fes,
                                Ceed ceed, CeedBasis *basis)
 {
    const mfem::DofToQuad &maps = fes.GetFE(0)->
-                                    GetDofToQuad(ir,mfem::DofToQuad::FULL);
+                                 GetDofToQuad(ir,mfem::DofToQuad::FULL);
    mfem::Mesh *mesh = fes.GetMesh();
    const int dim = mesh->Dimension();
    const int ndofs = maps.ndof;
