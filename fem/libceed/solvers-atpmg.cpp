@@ -543,18 +543,12 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
    CeedOperatorField *inputfields, *outputfields;
    ierr = CeedOperatorGetFields(oper, &inputfields, &outputfields); CeedChk(ierr);
 
-   CeedElemRestriction * er_input =
-      (CeedElemRestriction*) calloc(numinputfields, sizeof(CeedElemRestriction));
-   CeedElemRestriction * er_output =
-      (CeedElemRestriction*) calloc(numoutputfields, sizeof(CeedElemRestriction));
-   CeedVector * if_vector =
-      (CeedVector*) calloc(numinputfields, sizeof(CeedVector));
-   CeedVector * of_vector =
-      (CeedVector*) calloc(numoutputfields, sizeof(CeedVector));
-   CeedBasis * basis_input =
-      (CeedBasis*) calloc(numinputfields, sizeof(CeedBasis));
-   CeedBasis * basis_output =
-      (CeedBasis*) calloc(numoutputfields, sizeof(CeedBasis));
+   CeedElemRestriction * er_input = new CeedElemRestriction[numinputfields];
+   CeedElemRestriction * er_output = new CeedElemRestriction[numoutputfields];
+   CeedVector * if_vector = new CeedVector[numinputfields];
+   CeedVector * of_vector = new CeedVector[numoutputfields];
+   CeedBasis * basis_input = new CeedBasis[numinputfields];
+   CeedBasis * basis_output = new CeedBasis[numoutputfields];
    CeedBasis cbasis = coarse_basis_in;
 
    int active_input_basis = -1;
@@ -633,12 +627,12 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
                                      of_vector[i]); CeedChk(ierr);
       }
    }
-   free(er_input);
-   free(er_output);
-   free(if_vector);
-   free(of_vector);
-   free(basis_input);
-   free(basis_output);
+   delete [] er_input;
+   delete [] er_output;
+   delete [] if_vector;
+   delete [] of_vector;
+   delete [] basis_input;
+   delete [] basis_output;
 
    *out = coper;
    return 0;
