@@ -77,7 +77,7 @@ jobs:
         echo "Metis symlink:"
         ln -s $METIS_TOP_DIR metis-4.0;
         cd mfem
-        make config MFEM_USE_MPI=$MPI
+        make config MFEM_USE_MPI=$MPI MFEM_MPI_NP=2
     - name: make
       run: |
         cd mfem
