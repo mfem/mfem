@@ -68,7 +68,7 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
                       CeedOperator* out);
 
 /** @brief Given (fine) CeedOperator, produces everything you need for a coarse
-    level (operator and interpolation.
+    level (operator and interpolation).
 
     @param[in]  oper             Fine CeedOperator to coarsen
     @param[in]  order_reduction  Amount to reduce the order (p) of the operator
