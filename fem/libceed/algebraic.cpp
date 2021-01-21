@@ -384,7 +384,7 @@ AlgebraicCoarseSpace::AlgebraicCoarseSpace(
 
 AlgebraicCoarseSpace::~AlgebraicCoarseSpace()
 {
-   free(dof_map);
+   delete [] dof_map;
    CeedBasisDestroy(&coarse_to_fine);
    CeedElemRestrictionDestroy(&ceed_elem_restriction);
 }
