@@ -5668,8 +5668,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
 }
 
 void NCMesh::CopyElements(int elem,
-                          const BlockArray<Element> &tmp_elements,
-                          Array<int> &index_map)
+                          const BlockArray<Element> &tmp_elements)
 {
    Element &el = elements[elem];
    if (el.ref_type)
@@ -5677,12 +5676,11 @@ void NCMesh::CopyElements(int elem,
       for (int i = 0; i < 8 && el.child[i] >= 0; i++)
       {
          int old_id = el.child[i];
-         // here, we do not use the content of 'free_element_ids', if any
+         // here we know 'free_element_ids' is empty
          int new_id = elements.Append(tmp_elements[old_id]);
-         index_map[old_id] = new_id;
          el.child[i] = new_id;
          elements[new_id].parent = elem;
-         CopyElements(new_id, tmp_elements, index_map);
+         CopyElements(new_id, tmp_elements);
       }
    }
 }
@@ -5712,8 +5710,7 @@ void NCMesh::LoadCoarseElements(std::istream &input)
       {
          input >> id;
          MFEM_VERIFY(id >= 0, "");
-         MFEM_VERIFY(id < leaf_elements.Size() ||
-                     id < elements.Size()-free_element_ids.Size(),
+         MFEM_VERIFY(id < elements.Size(),
                      "coarse element cannot be referenced before it is "
                      "defined (id=" << id << ").");
 
@@ -5735,10 +5732,6 @@ void NCMesh::LoadCoarseElements(std::istream &input)
    // prepare for reordering the elements
    BlockArray<Element> tmp_elements;
    elements.Swap(tmp_elements);
-   free_element_ids.SetSize(0);
-
-   Array<int> index_map(tmp_elements.Size());
-   index_map = -1;
 
    // copy roots, they need to be at the beginning of 'elements'
    int root_count = 0;
@@ -5746,8 +5739,7 @@ void NCMesh::LoadCoarseElements(std::istream &input)
    {
       if (el->parent == -1)
       {
-         int new_id = elements.Append(*el); // same as AddElement()
-         index_map[el.index()] = new_id;
+         elements.Append(*el); // same as AddElement()
          root_count++;
       }
    }
@@ -5755,20 +5747,7 @@ void NCMesh::LoadCoarseElements(std::istream &input)
    // copy the rest of the hierarchy
    for (int i = 0; i < root_count; i++)
    {
-      CopyElements(i, tmp_elements, index_map);
-   }
-
-   // we also need to renumber element links in Face::elem[]
-   for (auto face = faces.begin(); face != faces.end(); ++face)
-   {
-      for (int i = 0; i < 2; i++)
-      {
-         if (face->elem[i] >= 0)
-         {
-            face->elem[i] = index_map[face->elem[i]];
-            MFEM_ASSERT(face->elem[i] >= 0, "");
-         }
-      }
+      CopyElements(i, tmp_elements);
    }
 
    // set the Iso flag (must be false if there are 3D aniso refinements)
@@ -5781,6 +5760,7 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
 {
    MFEM_ASSERT(elements.Size() == 0, "");
    MFEM_ASSERT(nodes.Size() == 0, "");
+   MFEM_ASSERT(free_element_ids.Size() == 0, "");
 
    std::string ident;
    int count, attr, geom;
@@ -5816,6 +5796,7 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
          el.node[j] = id;
          nodes.Alloc(id, id, id); // see comment in NCMesh::NCMesh
       }
+      el.index = i; // needed for file leaf order below
    }
 
    // load boundary
@@ -5889,16 +5870,33 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
 
    // create edge nodes and faces
    nodes.UpdateUnused();
+   int leaf_count = 0;
    for (int i = 0; i < elements.Size(); i++)
    {
       if (elements[i].IsLeaf())
       {
          ReferenceElement(i);
          RegisterFaces(i);
+         leaf_count++;
       }
    }
 
+   // v1.1 honors file leaf order on load, prepare legacy 'leaf_elements'
+   Array<int> file_leaf_elements(leaf_count);
+   file_leaf_elements = -1;
+   for (int i = 0; i < elements.Size(); i++)
+   {
+      if (elements[i].IsLeaf())
+      {
+         file_leaf_elements[elements[i].index] = i;
+      }
+   }
+   MFEM_ASSERT(file_leaf_elements.Min() >= 0, "");
+
    Update();
+
+   // force file leaf order
+   Swap(leaf_elements, file_leaf_elements);
 }
 
 void NCMesh::LegacyToNewVertexOrdering(Array<int> &order) const
