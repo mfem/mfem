@@ -131,8 +131,9 @@ int main(int argc, char *argv[])
                   "1: P-Laplacian");
    args.AddOption(&problem, "-p", "--problem",
                   "Problem type:\n\t"
-                  "0: exact alignment with the mesh boundary\n\t"
-                  "1: zero level set enclosing a volume");
+                  "0: Point source\n\t"
+                  "1: 2D sine-looking level set\n\t"
+                  "2: Gyroid in 2D or 3D");
    args.AddOption(&rs_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&order, "-o", "--order",
