@@ -153,9 +153,9 @@ int CeedATPMGElemRestriction(int order,
                      left_in_edof = i*P1d + 0;
                      right_in_edof = i*P1d + (P1d - 1);
                      left_in_ldof = in_elem_dof[e*elemsize + left_in_edof] +
-                        rounding_guard;
+                                    rounding_guard;
                      right_in_ldof = in_elem_dof[e*elemsize + right_in_edof] +
-                        rounding_guard;
+                                     rounding_guard;
                      coarse_i = coarse_1d_edof(i, P1d, coarse_P1d);
                      coarse_j = (left_in_ldof < right_in_ldof) ?
                                 coarse_1d_edof(j, P1d, coarse_P1d) : reverse_coarse_1d_edof(j, P1d, coarse_P1d);
@@ -277,7 +277,8 @@ int CeedATPMGElemRestriction(int order,
                         top_right_edof = i*P1d*P1d + (P1d - 1)*P1d + (P1d - 1);
                         top_left_edof = i*P1d*P1d + (P1d - 1)*P1d + 0;
                         bottom_left_ldof = in_elem_dof[e*elemsize + bottom_left_edof] + rounding_guard;
-                        bottom_right_ldof = in_elem_dof[e*elemsize + bottom_right_edof] + rounding_guard;
+                        bottom_right_ldof = in_elem_dof[e*elemsize + bottom_right_edof] +
+                                            rounding_guard;
                         top_right_ldof = in_elem_dof[e*elemsize + top_right_edof] + rounding_guard;
                         top_left_ldof = in_elem_dof[e*elemsize + top_left_edof] + rounding_guard;
                         int m = min4(bottom_left_ldof, bottom_right_ldof, top_right_ldof,
@@ -311,7 +312,8 @@ int CeedATPMGElemRestriction(int order,
                         top_right_edof = (P1d - 1)*P1d*P1d + j*P1d + (P1d - 1);
                         top_left_edof = (P1d - 1)*P1d*P1d + j*P1d + 0;
                         bottom_left_ldof = in_elem_dof[e*elemsize + bottom_left_edof] + rounding_guard;
-                        bottom_right_ldof = in_elem_dof[e*elemsize + bottom_right_edof] + rounding_guard;
+                        bottom_right_ldof = in_elem_dof[e*elemsize + bottom_right_edof] +
+                                            rounding_guard;
                         top_right_ldof = in_elem_dof[e*elemsize + top_right_edof] + rounding_guard;
                         top_left_ldof = in_elem_dof[e*elemsize + top_left_edof] + rounding_guard;
                         int m = min4(bottom_left_ldof, bottom_right_ldof, top_right_ldof,
