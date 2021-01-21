@@ -565,6 +565,38 @@ HypreParMatrix* ParDiscreteLinearOperator::ParallelAssemble() const
    return RAP;
 }
 
+void ParDiscreteLinearOperator::ParallelAssemble(OperatorHandle &A)
+{
+   // construct the rectangular block-diagonal matrix dA
+   OperatorHandle dA(A.Type());
+   dA.MakeRectangularBlockDiag(domain_fes->GetComm(),
+                               range_fes->GlobalVSize(),
+                               domain_fes->GlobalVSize(),
+                               range_fes->GetDofOffsets(),
+                               domain_fes->GetDofOffsets(),
+                               mat);
+
+   OperatorHandle R_test_transpose(A.Type()), P_trial(A.Type());
+
+   // TODO - construct the Dof_TrueDof_Matrix directly in the required format.
+   R_test_transpose.ConvertFrom(range_fes->Dof_TrueDof_Matrix());
+   P_trial.ConvertFrom(domain_fes->Dof_TrueDof_Matrix());
+
+   A.MakeRAP(R_test_transpose, dA, P_trial);
+}
+
+void ParDiscreteLinearOperator::FormRectangularSystemMatrix(OperatorHandle &A)
+{
+   if (ext)
+   {
+      Array<int> empty;
+      ext->FormRectangularSystemOperator(empty, empty, A);
+      return;
+   }
+
+   mfem_error("not implemented!");
+}
+
 void ParDiscreteLinearOperator::GetParBlocks(Array2D<HypreParMatrix *> &blocks)
 const
 {

@@ -1225,4 +1225,10 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
 }
 
+void MassIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
+{
+   // Mass integrator is symmetric
+   AddMultPA(x, y);
+}
+
 } // namespace mfem
