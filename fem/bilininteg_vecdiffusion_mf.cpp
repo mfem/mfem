@@ -31,7 +31,7 @@ void VectorDiffusionIntegrator::AssembleMF(const FiniteElementSpace &fes)
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      ceedOp = new CeedMFDiffusionIntegrator(fes, *ir, Q);
+      ceedOp = new ceed::MFDiffusionIntegrator(fes, *ir, Q);
       return;
    }
 #endif

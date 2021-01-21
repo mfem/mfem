@@ -32,7 +32,7 @@ void ConvectionIntegrator::AssembleMF(const FiniteElementSpace &fes)
    {
       MFEM_VERIFY(alpha==-1, "Only alpha=-1 currently supported with libCEED.");
       delete ceedOp;
-      ceedOp = new CeedMFConvectionIntegrator(fes, *ir, Q, alpha);
+      ceedOp = new ceed::MFConvectionIntegrator(fes, *ir, Q, alpha);
       return;
    }
 #endif

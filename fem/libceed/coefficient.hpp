@@ -24,85 +24,88 @@
 namespace mfem
 {
 
+class Mesh;
+class IntegrationRule;
+class Coefficient;
+class VectorCoefficient;
 class GridFunction;
 
-struct CeedCoeff
+namespace ceed
+{
+
+struct Coefficient
 {
    const int ncomp;
-   CeedCoeff(int ncomp_) : ncomp(ncomp_) { }
+   Coefficient(int ncomp_) : ncomp(ncomp_) { }
    virtual bool IsConstant() const { return true; }
-   virtual ~CeedCoeff() { }
+   virtual ~Coefficient() { }
 };
 
-struct CeedVariableCoeff : CeedCoeff
+struct VariableCoefficient : Coefficient
 {
    CeedVector coeffVector = nullptr;
    const CeedEvalMode emode;
-   CeedVariableCoeff(int ncomp_, CeedEvalMode emode_)
-      : CeedCoeff(ncomp_), emode(emode_) { }
+   VariableCoefficient(int ncomp_, CeedEvalMode emode_)
+      : Coefficient(ncomp_), emode(emode_) { }
    virtual bool IsConstant() const override { return false; }
-   ~CeedVariableCoeff()
+   ~VariableCoefficient()
    {
       CeedVectorDestroy(&coeffVector);
    }
 };
 
-struct CeedGridCoeff : CeedVariableCoeff
+struct GridCoefficient : VariableCoefficient
 {
-   const GridFunction &gf;
+   const mfem::GridFunction &gf;
    CeedBasis basis;
    CeedElemRestriction restr;
-   CeedGridCoeff(const GridFunction &gf_)
-      : CeedVariableCoeff(gf_.VectorDim(), CEED_EVAL_INTERP),
+   GridCoefficient(const mfem::GridFunction &gf_)
+      : VariableCoefficient(gf_.VectorDim(), CEED_EVAL_INTERP),
         gf(gf_)
    {
-      InitCeedVector(gf, coeffVector);
+      InitVector(gf, coeffVector);
    }
 };
 
-struct CeedQuadCoeff : CeedVariableCoeff
+struct QuadCoefficient : VariableCoefficient
 {
-   Vector coeff;
+   mfem::Vector coeff;
    CeedElemRestriction restr;
-   CeedQuadCoeff(int ncomp_) : CeedVariableCoeff(ncomp_, CEED_EVAL_NONE) { }
+   QuadCoefficient(int ncomp_) : VariableCoefficient(ncomp_, CEED_EVAL_NONE) { }
 };
-
-class Mesh;
-class IntegrationRule;
-class Coefficient;
-class VectorCoefficient;
 
 /** @brief Identifies the type of coefficient of the Integrator to initialize
     accordingly the CeedData. */
 template <typename Context>
-void InitCeedCoeff(Coefficient *Q, Mesh &mesh, const IntegrationRule &ir,
-                   CeedCoeff*& coeff_ptr, Context &ctx)
+void InitCoefficient(mfem::Coefficient *Q, mfem::Mesh &mesh,
+                     const mfem::IntegrationRule &ir,
+                     Coefficient*& coeff_ptr, Context &ctx)
 {
    if ( Q == nullptr )
    {
-      CeedCoeff *ceedCoeff = new CeedCoeff(1);
+      Coefficient *ceedCoeff = new Coefficient(1);
       ctx.coeff = 1.0;
       coeff_ptr = ceedCoeff;
    }
    else if (ConstantCoefficient *coeff = dynamic_cast<ConstantCoefficient*>(Q))
    {
-      CeedCoeff *ceedCoeff = new CeedCoeff(1);
+      Coefficient *ceedCoeff = new Coefficient(1);
       ctx.coeff = coeff->constant;
       coeff_ptr = ceedCoeff;
    }
    else if (GridFunctionCoefficient* coeff =
                dynamic_cast<GridFunctionCoefficient*>(Q))
    {
-      CeedGridCoeff *ceedCoeff = new CeedGridCoeff(*coeff->GetGridFunction());
+      GridCoefficient *ceedCoeff = new GridCoefficient(*coeff->GetGridFunction());
       coeff_ptr = ceedCoeff;
    }
    else if (QuadratureFunctionCoefficient *cQ =
                dynamic_cast<QuadratureFunctionCoefficient*>(Q))
    {
-      CeedQuadCoeff *ceedCoeff = new CeedQuadCoeff(1);
+      QuadCoefficient *ceedCoeff = new QuadCoefficient(1);
       const int ne = mesh.GetNE();
       const int nq = ir.GetNPoints();
-      const QuadratureFunction &qFun = cQ->GetQuadFunction();
+      const mfem::QuadratureFunction &qFun = cQ->GetQuadFunction();
       MFEM_VERIFY(qFun.Size() == nq * ne,
                   "Incompatible QuadratureFunction dimension \n");
 
@@ -110,26 +113,26 @@ void InitCeedCoeff(Coefficient *Q, Mesh &mesh, const IntegrationRule &ir,
                   "IntegrationRule used within integrator and in"
                   " QuadratureFunction appear to be different");
       qFun.Read();
-      ceedCoeff->coeff.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
-      InitCeedVector(ceedCoeff->coeff, ceedCoeff->coeffVector);
+      ceedCoeff->coeff.MakeRef(const_cast<mfem::QuadratureFunction &>(qFun),0);
+      InitVector(ceedCoeff->coeff, ceedCoeff->coeffVector);
       coeff_ptr = ceedCoeff;
    }
    else
    {
-      CeedQuadCoeff *ceedCoeff = new CeedQuadCoeff(1);
+      QuadCoefficient *ceedCoeff = new QuadCoefficient(1);
       const int ne = mesh.GetNE();
       const int nq = ir.GetNPoints();
       ceedCoeff->coeff.SetSize(nq * ne);
       auto C = Reshape(ceedCoeff->coeff.HostWrite(), nq, ne);
       for (int e = 0; e < ne; ++e)
       {
-         ElementTransformation &T = *mesh.GetElementTransformation(e);
+         mfem::ElementTransformation &T = *mesh.GetElementTransformation(e);
          for (int q = 0; q < nq; ++q)
          {
             C(q,e) = Q->Eval(T, ir.IntPoint(q));
          }
       }
-      InitCeedVector(ceedCoeff->coeff, ceedCoeff->coeffVector);
+      InitVector(ceedCoeff->coeff, ceedCoeff->coeffVector);
       coeff_ptr = ceedCoeff;
    }
 }
@@ -137,16 +140,16 @@ void InitCeedCoeff(Coefficient *Q, Mesh &mesh, const IntegrationRule &ir,
 /** @brief Identifies the type of vector coefficient of the Integrator to
     initialize accordingly the CeedData. */
 template <typename Context>
-void InitCeedCoeff(VectorCoefficient *VQ, Mesh &mesh,
-                   const IntegrationRule &ir,
-                   CeedCoeff *&coeff_ptr, Context &ctx)
+void InitCoefficient(mfem::VectorCoefficient *VQ, mfem::Mesh &mesh,
+                     const mfem::IntegrationRule &ir,
+                     Coefficient *&coeff_ptr, Context &ctx)
 {
    if (VectorConstantCoefficient *coeff =
           dynamic_cast<VectorConstantCoefficient*>(VQ))
    {
       const int vdim = coeff->GetVDim();
-      const Vector &val = coeff->GetVec();
-      CeedCoeff *ceedCoeff = new CeedCoeff(vdim);
+      const mfem::Vector &val = coeff->GetVec();
+      Coefficient *ceedCoeff = new Coefficient(vdim);
       for (int i = 0; i < vdim; i++)
       {
          ctx.coeff[i] = val[i];
@@ -156,17 +159,17 @@ void InitCeedCoeff(VectorCoefficient *VQ, Mesh &mesh,
    else if (VectorGridFunctionCoefficient* coeff =
                dynamic_cast<VectorGridFunctionCoefficient*>(VQ))
    {
-      CeedGridCoeff *ceedCoeff = new CeedGridCoeff(*coeff->GetGridFunction());
+      GridCoefficient *ceedCoeff = new GridCoefficient(*coeff->GetGridFunction());
       coeff_ptr = ceedCoeff;
    }
    else if (VectorQuadratureFunctionCoefficient *cQ =
                dynamic_cast<VectorQuadratureFunctionCoefficient*>(VQ))
    {
-      CeedQuadCoeff *ceedCoeff = new CeedQuadCoeff(cQ->GetVDim());
+      QuadCoefficient *ceedCoeff = new QuadCoefficient(cQ->GetVDim());
       const int dim = mesh.Dimension();
       const int ne = mesh.GetNE();
       const int nq = ir.GetNPoints();
-      const QuadratureFunction &qFun = cQ->GetQuadFunction();
+      const mfem::QuadratureFunction &qFun = cQ->GetQuadFunction();
       MFEM_VERIFY(qFun.Size() == dim * nq * ne,
                   "Incompatible QuadratureFunction dimension \n");
 
@@ -174,22 +177,22 @@ void InitCeedCoeff(VectorCoefficient *VQ, Mesh &mesh,
                   "IntegrationRule used within integrator and in"
                   " QuadratureFunction appear to be different");
       qFun.Read();
-      ceedCoeff->coeff.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
-      InitCeedVector(ceedCoeff->coeff, ceedCoeff->coeffVector);
+      ceedCoeff->coeff.MakeRef(const_cast<mfem::QuadratureFunction &>(qFun),0);
+      InitVector(ceedCoeff->coeff, ceedCoeff->coeffVector);
       coeff_ptr = ceedCoeff;
    }
    else
    {
       const int dim = mesh.Dimension();
-      CeedQuadCoeff *ceedCoeff = new CeedQuadCoeff(dim);
+      QuadCoefficient *ceedCoeff = new QuadCoefficient(dim);
       const int ne = mesh.GetNE();
       const int nq = ir.GetNPoints();
       ceedCoeff->coeff.SetSize(dim * nq * ne);
       auto C = Reshape(ceedCoeff->coeff.HostWrite(), dim, nq, ne);
-      DenseMatrix Q_ir;
+      mfem::DenseMatrix Q_ir;
       for (int e = 0; e < ne; ++e)
       {
-         ElementTransformation &T = *mesh.GetElementTransformation(e);
+         mfem::ElementTransformation &T = *mesh.GetElementTransformation(e);
          VQ->Eval(Q_ir, T, ir);
          for (int q = 0; q < nq; ++q)
          {
@@ -199,10 +202,12 @@ void InitCeedCoeff(VectorCoefficient *VQ, Mesh &mesh,
             }
          }
       }
-      InitCeedVector(ceedCoeff->coeff, ceedCoeff->coeffVector);
+      InitVector(ceedCoeff->coeff, ceedCoeff->coeffVector);
       coeff_ptr = ceedCoeff;
    }
 }
+
+} // namespace ceed
 
 } // namespace mfem
 

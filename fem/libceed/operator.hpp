@@ -18,22 +18,25 @@
 namespace mfem
 {
 
+namespace ceed
+{
+
 /** A base class to represent a CeedOperator as an MFEM Operator. */
-class MFEMCeedOperator : Operator
+class Operator : mfem::Operator
 {
 protected:
 #ifdef MFEM_USE_CEED
    CeedOperator oper;
    CeedVector u, v;
 
-   MFEMCeedOperator() : oper(nullptr), u(nullptr), v(nullptr) { }
+   Operator() : oper(nullptr), u(nullptr), v(nullptr) { }
 #endif
 
 public:
-   void Mult(const Vector &x, Vector &y) const;
-   void AddMult(const Vector &x, Vector &y) const;
-   void GetDiagonal(Vector &diag) const;
-   virtual ~MFEMCeedOperator()
+   void Mult(const mfem::Vector &x, mfem::Vector &y) const;
+   void AddMult(const mfem::Vector &x, mfem::Vector &y) const;
+   void GetDiagonal(mfem::Vector &diag) const;
+   virtual ~Operator()
    {
 #ifdef MFEM_USE_CEED
       CeedOperatorDestroy(&oper);
@@ -45,6 +48,8 @@ public:
 
 /** The different evaluation modes available for PA and MF CeedIntegrator. */
 enum class EvalMode { None, Interp, Grad, InterpAndGrad };
+
+} // namespace ceed
 
 } // namespace mfem
 

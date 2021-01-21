@@ -35,7 +35,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      ceedOp = new CeedPAMassIntegrator(fes, *ir, Q);
+      ceedOp = new ceed::PAMassIntegrator(fes, *ir, Q);
       return;
    }
    dim = mesh->Dimension();

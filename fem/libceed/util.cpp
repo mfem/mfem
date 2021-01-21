@@ -33,29 +33,32 @@ bool DeviceCanUseCeed()
    return Device::Allows(Backend::CEED_MASK);
 }
 
-void RemoveCeedBasisAndRestriction(const FiniteElementSpace *fes)
+namespace ceed
+{
+
+void RemoveBasisAndRestriction(const mfem::FiniteElementSpace *fes)
 {
 #ifdef MFEM_USE_CEED
-   auto itb = internal::ceed_basis_map.begin();
-   while (itb != internal::ceed_basis_map.end())
+   auto itb = mfem::internal::ceed_basis_map.begin();
+   while (itb != mfem::internal::ceed_basis_map.end())
    {
       if (std::get<0>(itb->first)==fes)
       {
          CeedBasisDestroy(&itb->second);
-         itb = internal::ceed_basis_map.erase(itb);
+         itb = mfem::internal::ceed_basis_map.erase(itb);
       }
       else
       {
          itb++;
       }
    }
-   auto itr = internal::ceed_restr_map.begin();
-   while (itr != internal::ceed_restr_map.end())
+   auto itr = mfem::internal::ceed_restr_map.begin();
+   while (itr != mfem::internal::ceed_restr_map.end())
    {
       if (std::get<0>(itr->first)==fes)
       {
          CeedElemRestrictionDestroy(&itr->second);
-         itr = internal::ceed_restr_map.erase(itr);
+         itr = mfem::internal::ceed_restr_map.erase(itr);
       }
       else
       {
@@ -67,12 +70,12 @@ void RemoveCeedBasisAndRestriction(const FiniteElementSpace *fes)
 
 #ifdef MFEM_USE_CEED
 
-void InitCeedVector(const Vector &v, CeedVector &cv)
+void InitVector(const mfem::Vector &v, CeedVector &cv)
 {
-   CeedVectorCreate(internal::ceed, v.Size(), &cv);
+   CeedVectorCreate(mfem::internal::ceed, v.Size(), &cv);
    CeedScalar *cv_ptr;
    CeedMemType mem;
-   CeedGetPreferredMemType(internal::ceed, &mem);
+   CeedGetPreferredMemType(mfem::internal::ceed, &mem);
    if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
    {
       cv_ptr = const_cast<CeedScalar*>(v.Read());
@@ -107,20 +110,21 @@ static CeedElemTopology GetCeedTopology(Geometry::Type geom)
    }
 }
 
-static void InitCeedNonTensorBasis(const FiniteElementSpace &fes,
-                                   const IntegrationRule &ir,
-                                   Ceed ceed, CeedBasis *basis)
+static void InitNonTensorBasis(const mfem::FiniteElementSpace &fes,
+                               const mfem::IntegrationRule &ir,
+                               Ceed ceed, CeedBasis *basis)
 {
-   const DofToQuad &maps = fes.GetFE(0)->GetDofToQuad(ir, DofToQuad::FULL);
-   Mesh *mesh = fes.GetMesh();
+   const mfem::DofToQuad &maps = fes.GetFE(0)->
+                                    GetDofToQuad(ir,mfem::DofToQuad::FULL);
+   mfem::Mesh *mesh = fes.GetMesh();
    const int dim = mesh->Dimension();
    const int ndofs = maps.ndof;
    const int nqpts = maps.nqpt;
-   DenseMatrix qX(dim,nqpts);
-   Vector qW(nqpts);
+   mfem::DenseMatrix qX(dim,nqpts);
+   mfem::Vector qW(nqpts);
    for (int i = 0; i < nqpts; i++)
    {
-      const IntegrationPoint &ip = ir.IntPoint(i);
+      const mfem::IntegrationPoint &ip = ir.IntPoint(i);
       qX(0,i) = ip.x;
       if (dim>1) { qX(1,i) = ip.y; }
       if (dim>2) { qX(2,i) = ip.z; }
@@ -132,21 +136,21 @@ static void InitCeedNonTensorBasis(const FiniteElementSpace &fes,
                      qX.GetData(), qW.GetData(), basis);
 }
 
-static void InitCeedNonTensorRestriction(const FiniteElementSpace &fes,
-                                         Ceed ceed, CeedElemRestriction *restr)
+static void InitNonTensorRestriction(const mfem::FiniteElementSpace &fes,
+                                     Ceed ceed, CeedElemRestriction *restr)
 {
-   Mesh *mesh = fes.GetMesh();
-   const FiniteElement *fe = fes.GetFE(0);
+   mfem::Mesh *mesh = fes.GetMesh();
+   const mfem::FiniteElement *fe = fes.GetFE(0);
    const int P = fe->GetDof();
    CeedInt compstride = fes.GetOrdering()==Ordering::byVDIM ? 1 : fes.GetNDofs();
-   const Table &el_dof = fes.GetElementToDofTable();
-   Array<int> tp_el_dof(el_dof.Size_of_connections());
-   const TensorBasisElement * tfe =
-      dynamic_cast<const TensorBasisElement *>(fe);
+   const mfem::Table &el_dof = fes.GetElementToDofTable();
+   mfem::Array<int> tp_el_dof(el_dof.Size_of_connections());
+   const mfem::TensorBasisElement * tfe =
+      dynamic_cast<const mfem::TensorBasisElement *>(fe);
    const int stride = compstride == 1 ? fes.GetVDim() : 1;
    if (tfe) // Lexicographic ordering using dof_map
    {
-      const Array<int>& dof_map = tfe->GetDofMap();
+      const mfem::Array<int>& dof_map = tfe->GetDofMap();
       for (int i = 0; i < mesh->GetNE(); i++)
       {
          const int el_offset = P * i;
@@ -172,19 +176,21 @@ static void InitCeedNonTensorRestriction(const FiniteElementSpace &fes,
                              tp_el_dof.GetData(), restr);
 }
 
-static void InitCeedTensorBasis(const FiniteElementSpace &fes,
-                                const IntegrationRule &ir,
-                                Ceed ceed, CeedBasis *basis)
+static void InitTensorBasis(const mfem::FiniteElementSpace &fes,
+                            const mfem::IntegrationRule &ir,
+                            Ceed ceed, CeedBasis *basis)
 {
-   const DofToQuad &maps = fes.GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
-   Mesh *mesh = fes.GetMesh();
+   const mfem::DofToQuad &maps =
+      fes.GetFE(0)->GetDofToQuad(ir, mfem::DofToQuad::TENSOR);
+   mfem::Mesh *mesh = fes.GetMesh();
    const int ndofs = maps.ndof;
    const int nqpts = maps.nqpt;
-   Vector qX(nqpts), qW(nqpts);
-   const IntegrationRule &ir1d = IntRules.Get(Geometry::SEGMENT, ir.GetOrder());
+   mfem::Vector qX(nqpts), qW(nqpts);
+   const mfem::IntegrationRule &ir1d =
+      IntRules.Get(Geometry::SEGMENT, ir.GetOrder());
    for (int i = 0; i < nqpts; i++)
    {
-      const IntegrationPoint &ip = ir1d.IntPoint(i);
+      const mfem::IntegrationPoint &ip = ir1d.IntPoint(i);
       qX(i) = ip.x;
       qW(i) = ip.weight;
    }
@@ -194,19 +200,19 @@ static void InitCeedTensorBasis(const FiniteElementSpace &fes,
                            qW.GetData(), basis);
 }
 
-static void InitCeedTensorRestriction(const FiniteElementSpace &fes,
-                                      Ceed ceed, CeedElemRestriction *restr)
+static void InitTensorRestriction(const mfem::FiniteElementSpace &fes,
+                                  Ceed ceed, CeedElemRestriction *restr)
 {
-   Mesh *mesh = fes.GetMesh();
-   const FiniteElement *fe = fes.GetFE(0);
-   const TensorBasisElement * tfe =
-      dynamic_cast<const TensorBasisElement *>(fe);
+   mfem::Mesh *mesh = fes.GetMesh();
+   const mfem::FiniteElement *fe = fes.GetFE(0);
+   const mfem::TensorBasisElement * tfe =
+      dynamic_cast<const mfem::TensorBasisElement *>(fe);
    MFEM_VERIFY(tfe, "invalid FE");
-   const Array<int>& dof_map = tfe->GetDofMap();
+   const mfem::Array<int>& dof_map = tfe->GetDofMap();
 
    CeedInt compstride = fes.GetOrdering()==Ordering::byVDIM ? 1 : fes.GetNDofs();
-   const Table &el_dof = fes.GetElementToDofTable();
-   Array<int> tp_el_dof(el_dof.Size_of_connections());
+   const mfem::Table &el_dof = fes.GetElementToDofTable();
+   mfem::Array<int> tp_el_dof(el_dof.Size_of_connections());
    const int dof = fe->GetDof();
    const int stride = compstride == 1 ? fes.GetVDim() : 1;
    if (dof_map.Size()>0)
@@ -237,21 +243,21 @@ static void InitCeedTensorRestriction(const FiniteElementSpace &fes,
                              tp_el_dof.GetData(), restr);
 }
 
-void InitCeedStridedRestriction(const FiniteElementSpace &fes,
-                                CeedInt nelem, CeedInt nqpts, CeedInt qdatasize,
-                                const CeedInt *strides,
-                                CeedElemRestriction *restr)
+void InitStridedRestriction(const mfem::FiniteElementSpace &fes,
+                            CeedInt nelem, CeedInt nqpts, CeedInt qdatasize,
+                            const CeedInt *strides,
+                            CeedElemRestriction *restr)
 {
-   CeedRestrKey restr_key(&fes, nelem, nqpts, qdatasize, restr_type::Strided);
-   auto restr_itr = internal::ceed_restr_map.find(restr_key);
-   if (restr_itr == internal::ceed_restr_map.end())
+   RestrKey restr_key(&fes, nelem, nqpts, qdatasize, restr_type::Strided);
+   auto restr_itr = mfem::internal::ceed_restr_map.find(restr_key);
+   if (restr_itr == mfem::internal::ceed_restr_map.end())
    {
-      CeedElemRestrictionCreateStrided(internal::ceed, nelem, nqpts, qdatasize,
+      CeedElemRestrictionCreateStrided(mfem::internal::ceed, nelem, nqpts, qdatasize,
                                        nelem*nqpts*qdatasize,
                                        strides,
                                        restr);
       /// Will be automatically destroyed when @a fes gets destroyed.
-      internal::ceed_restr_map[restr_key] = *restr;
+      mfem::internal::ceed_restr_map[restr_key] = *restr;
    }
    else
    {
@@ -259,51 +265,51 @@ void InitCeedStridedRestriction(const FiniteElementSpace &fes,
    }
 }
 
-void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
-                                 const IntegrationRule &irm,
-                                 Ceed ceed, CeedBasis *basis,
-                                 CeedElemRestriction *restr)
+void InitBasisAndRestriction(const FiniteElementSpace &fes,
+                             const IntegrationRule &irm,
+                             Ceed ceed, CeedBasis *basis,
+                             CeedElemRestriction *restr)
 {
    // Check for FES -> basis, restriction in hash tables
-   const Mesh *mesh = fes.GetMesh();
-   const FiniteElement *fe = fes.GetFE(0);
+   const mfem::Mesh *mesh = fes.GetMesh();
+   const mfem::FiniteElement *fe = fes.GetFE(0);
    const int P = fe->GetDof();
    const int Q = irm.GetNPoints();
    const int nelem = mesh->GetNE();
    const int ncomp = fes.GetVDim();
-   CeedBasisKey basis_key(&fes, &irm, ncomp, P, Q);
-   auto basis_itr = internal::ceed_basis_map.find(basis_key);
-   CeedRestrKey restr_key(&fes, nelem, P, ncomp, restr_type::Standard);
-   auto restr_itr = internal::ceed_restr_map.find(restr_key);
+   BasisKey basis_key(&fes, &irm, ncomp, P, Q);
+   auto basis_itr = mfem::internal::ceed_basis_map.find(basis_key);
+   RestrKey restr_key(&fes, nelem, P, ncomp, restr_type::Standard);
+   auto restr_itr = mfem::internal::ceed_restr_map.find(restr_key);
 
    // Init or retreive key values
-   if (basis_itr == internal::ceed_basis_map.end())
+   if (basis_itr == mfem::internal::ceed_basis_map.end())
    {
       if (UsesTensorBasis(fes))
       {
-         InitCeedTensorBasis(fes, irm, ceed, basis);
+         InitTensorBasis(fes, irm, ceed, basis);
       }
       else
       {
-         InitCeedNonTensorBasis(fes, irm, ceed, basis);
+         InitNonTensorBasis(fes, irm, ceed, basis);
       }
-      internal::ceed_basis_map[basis_key] = *basis;
+      mfem::internal::ceed_basis_map[basis_key] = *basis;
    }
    else
    {
       *basis = basis_itr->second;
    }
-   if (restr_itr == internal::ceed_restr_map.end())
+   if (restr_itr == mfem::internal::ceed_restr_map.end())
    {
       if (UsesTensorBasis(fes))
       {
-         InitCeedTensorRestriction(fes, ceed, restr);
+         InitTensorRestriction(fes, ceed, restr);
       }
       else
       {
-         InitCeedNonTensorRestriction(fes, ceed, restr);
+         InitNonTensorRestriction(fes, ceed, restr);
       }
-      internal::ceed_restr_map[restr_key] = *restr;
+      mfem::internal::ceed_restr_map[restr_key] = *restr;
    }
    else
    {
@@ -311,25 +317,22 @@ void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
    }
 }
 
-namespace internal
-{
 std::string ceed_path;
-}
 
 const std::string &GetCeedPath()
 {
-   if (internal::ceed_path.empty())
+   if (ceed_path.empty())
    {
       const char *install_dir = MFEM_INSTALL_DIR "/include/mfem/fem/libceed";
       const char *source_dir = MFEM_SOURCE_DIR "/fem/libceed";
       struct_stat m_stat;
       if (stat(install_dir, &m_stat) == 0 && S_ISDIR(m_stat.st_mode))
       {
-         internal::ceed_path = install_dir;
+         ceed_path = install_dir;
       }
       else if (stat(source_dir, &m_stat) == 0 && S_ISDIR(m_stat.st_mode))
       {
-         internal::ceed_path = source_dir;
+         ceed_path = source_dir;
       }
       else
       {
@@ -337,11 +340,13 @@ const std::string &GetCeedPath()
                     "MFEM_SOURCE_DIR");
       }
       // Could be useful for debugging:
-      // out << "Using libCEED dir: " << internal::ceed_path << std::endl;
+      // out << "Using libCEED dir: " << ceed_path << std::endl;
    }
-   return internal::ceed_path;
+   return ceed_path;
 }
 
 #endif
+
+} // namespace ceed
 
 } // namespace mfem

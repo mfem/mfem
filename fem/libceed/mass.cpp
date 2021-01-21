@@ -19,8 +19,11 @@
 namespace mfem
 {
 
+namespace ceed
+{
+
 #ifdef MFEM_USE_CEED
-struct CeedMassInfo
+struct MassInfo
 {
    static constexpr const char *header = "/mass_qf.h";
    static constexpr const char *build_func_const = ":f_build_mass_const";
@@ -40,32 +43,34 @@ struct CeedMassInfo
 };
 #endif
 
-CeedPAMassIntegrator::CeedPAMassIntegrator(const FiniteElementSpace &fes,
-                                           const mfem::IntegrationRule &irm,
-                                           Coefficient *Q)
-   : CeedPAIntegrator()
+PAMassIntegrator::PAMassIntegrator(const mfem::FiniteElementSpace &fes,
+                                   const mfem::IntegrationRule &irm,
+                                   mfem::Coefficient *Q)
+   : PAIntegrator()
 {
 #ifdef MFEM_USE_CEED
-   CeedMassInfo info;
-   CeedPAOperator op = InitPA(info, fes, irm, Q);
+   MassInfo info;
+   PAOperator op = InitPA(info, fes, irm, Q);
    Assemble(op, info.ctx);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
 }
 
-CeedMFMassIntegrator::CeedMFMassIntegrator(const FiniteElementSpace &fes,
-                                           const mfem::IntegrationRule &irm,
-                                           Coefficient *Q)
-   : CeedMFIntegrator()
+MFMassIntegrator::MFMassIntegrator(const mfem::FiniteElementSpace &fes,
+                                   const mfem::IntegrationRule &irm,
+                                   mfem::Coefficient *Q)
+   : MFIntegrator()
 {
 #ifdef MFEM_USE_CEED
-   CeedMassInfo info;
-   CeedMFOperator op = InitMF(info, fes, irm, Q);
+   MassInfo info;
+   MFOperator op = InitMF(info, fes, irm, Q);
    Assemble(op, info.ctx);
 #else
    mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
 }
+
+} // namespace ceed
 
 } // namespace mfem

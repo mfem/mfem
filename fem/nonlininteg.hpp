@@ -30,7 +30,7 @@ protected:
    const IntegrationRule *IntRule;
 
    // CEED extension
-   MFEMCeedOperator* ceedOp;
+   ceed::Operator* ceedOp;
 
    NonlinearFormIntegrator(const IntegrationRule *ir = NULL)
       : IntRule(ir), ceedOp(NULL) { }

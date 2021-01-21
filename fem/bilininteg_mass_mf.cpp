@@ -32,7 +32,7 @@ void MassIntegrator::AssembleMF(const FiniteElementSpace &fes)
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      ceedOp = new CeedMFMassIntegrator(fes, *ir, Q);
+      ceedOp = new ceed::MFMassIntegrator(fes, *ir, Q);
       return;
    }
 #endif

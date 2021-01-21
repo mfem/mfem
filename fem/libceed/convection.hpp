@@ -18,25 +18,30 @@
 namespace mfem
 {
 
+namespace ceed
+{
+
 /// Represent a ConvectionIntegrator with AssemblyLevel::Partial using libCEED.
-class CeedPAConvectionIntegrator : public CeedPAIntegrator
+class PAConvectionIntegrator : public PAIntegrator
 {
 public:
-   CeedPAConvectionIntegrator(const FiniteElementSpace &fes,
-                              const mfem::IntegrationRule &irm,
-                              VectorCoefficient *Q,
-                              const double alpha);
+   PAConvectionIntegrator(const mfem::FiniteElementSpace &fes,
+                          const mfem::IntegrationRule &irm,
+                          mfem::VectorCoefficient *Q,
+                          const double alpha);
 };
 
 /// Represent a ConvectionIntegrator with AssemblyLevel::None using libCEED.
-class CeedMFConvectionIntegrator : public CeedMFIntegrator
+class MFConvectionIntegrator : public MFIntegrator
 {
 public:
-   CeedMFConvectionIntegrator(const FiniteElementSpace &fes,
-                              const mfem::IntegrationRule &irm,
-                              VectorCoefficient *Q,
-                              const double alpha);
+   MFConvectionIntegrator(const mfem::FiniteElementSpace &fes,
+                          const mfem::IntegrationRule &irm,
+                          mfem::VectorCoefficient *Q,
+                          const double alpha);
 };
+
+}
 
 }
 
