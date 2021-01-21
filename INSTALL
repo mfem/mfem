@@ -350,10 +350,10 @@ MFEM_USE_SUPERLU5 = YES/NO
 
 MFEM_USE_MUMPS = YES/NO
    Enable MFEM functionality based on the MUMPS library. Currently, this
-   option adds the class MUMPSSolver (a parallel sparse direct solver). 
+   option adds the class MUMPSSolver (a parallel sparse direct solver).
    When enabled, this option uses the MUMPS_* library options, see
    below.
-   
+
 MFEM_USE_STRUMPACK = YES/NO
    Enable MFEM functionality based on the STRUMPACK sparse direct solver and
    preconditioner through the STRUMPACKSolver and STRUMPACKRowLocMatrix
@@ -458,6 +458,10 @@ MFEM_USE_UMPIRE = YES/NO
    Enables support for Umpire, a resource management library that allows the
    discovery, provision, and management of memory on machines with multiple
    memory devices like NUMA and GPUs.
+
+MFEM_USE_CAMP = YES/NO
+  Required for Umpire >= 3.0.0. camp is "a variety of macros and
+  metaprogramming facilities for C++ projects."
 
 MFEM_USE_HIOP = YES/NO
   Enable the usage of HiOp (https://github.com/LLNL/hiop) in MFEM. HiOp is an
@@ -716,9 +720,15 @@ The specific libraries and their options are:
   Versions: RAJA >= 0.10.0.
 
 - Umpire, used when MFEM_USE_UMPIRE = YES.
+  Umpire requires camp when the Umpire version is >= 3.0.0.
   URL: https://github.com/LLNL/Umpire
   Options: UMPIRE_DIR, UMPIRE_OPT, UMPIRE_LIB.
   Versions: Umpire >= 2.0.0.
+
+- camp, used when MFEM_USE_CAMP = YES.
+  URL: https://github.com/LLNL/camp
+  Options: CAMP_DIR, CAMP_OPT, CAMP_LIB.
+  Versions: camp >= 0.1.0
 
 - MPFR (optional), used when MFEM_USE_MPFR = YES.
   URL: http://mpfr.org, it depends on the GMP library: https://gmplib.org
