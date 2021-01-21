@@ -1905,4 +1905,17 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
 }
 
+void DiffusionIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
+{
+   if (symmetric)
+   {
+      AddMultPA(x, y);
+   }
+   else
+   {
+      MFEM_ABORT("DiffusionIntegrator::AddMultTransposePA only implemented in "
+                 "the symmetric case.")
+   }
+}
+
 } // namespace mfem
