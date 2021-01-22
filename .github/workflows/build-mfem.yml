@@ -37,6 +37,7 @@ jobs:
     - name: Get MPI (MacOS)
       if: matrix.mpi == 'YES' && matrix.os == 'macos-latest'
       run: |
+        brew install openmpi
         export MAKE_CXX_FLAG="MPICXX=mpic++"
 
     # Get Hypre through cache, or install it.
