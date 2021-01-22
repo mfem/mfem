@@ -40,6 +40,7 @@ list(APPEND ALL_EXE_SRCS
 if (MFEM_USE_MPI)
   list(APPEND ALL_EXE_SRCS
     ex1p.cpp
+    ex1p-subdomain.cpp
     ex2p.cpp
     ex3p.cpp
     ex4p.cpp

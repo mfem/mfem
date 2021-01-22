@@ -60,8 +60,10 @@ ParFiniteElementSpace::ParFiniteElementSpace(
 }
 
 ParFiniteElementSpace::ParFiniteElementSpace(
-   ParMesh *pm, const FiniteElementCollection *f, int dim, int ordering)
-   : FiniteElementSpace(pm, f, dim, ordering)
+   ParMesh *pm, const FiniteElementCollection *f, int dim, int ordering
+   , ParSubdomainExtension *psubdomain_)
+   : FiniteElementSpace(pm, f, dim, ordering, psubdomain_)
+   , psubdomain(psubdomain_)
 {
    ParInit(pm);
 }
@@ -503,7 +505,7 @@ void ParFiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
 
 const FiniteElement *ParFiniteElementSpace::GetFE(int i) const
 {
-   int ne = mesh->GetNE();
+   int ne = this->GetNE();
    if (i >= ne) { return GetFaceNbrFE(i - ne); }
    else { return FiniteElementSpace::GetFE(i); }
 }
@@ -1220,7 +1222,7 @@ void ParFiniteElementSpace::GetFaceNbrFaceVDofs(int i, Array<int> &vdofs) const
    // Works for NC mesh where 'i' is an index returned by
    // ParMesh::GetSharedFace() such that i >= Mesh::GetNumFaces(), i.e. 'i' is
    // the index of a ghost face.
-   MFEM_ASSERT(Nonconforming() && i >= pmesh->GetNumFaces(), "");
+   MFEM_ASSERT(Nonconforming() && i >= this->GetNF(), "");
    int el1, el2, inf1, inf2;
    pmesh->GetFaceElements(i, &el1, &el2);
    el2 = -1 - el2;

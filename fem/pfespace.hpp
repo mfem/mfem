@@ -24,6 +24,104 @@
 namespace mfem
 {
 
+// Holds all necessary information to map stuff to a subdomain of the mesh.
+struct ParSubdomainExtension : public SubdomainExtension
+{
+};
+
+// This construction conserves the original ordering of entities.
+inline ParSubdomainExtension* SubdomainFromAttributes(ParMesh* mesh, Array<int> attributes)
+{
+   attributes.Sort();
+
+   auto subdomain = new ParSubdomainExtension();
+
+   // Add elements
+   for(int e = 0; e < mesh->GetNE(); e++)
+   {
+      if(attributes.FindSorted(mesh->GetAttribute(e)) != -1)
+      {
+         subdomain->element_map.Append(e);
+      }
+   }
+
+   // Add boundary
+   for(int be = 0; be < mesh->GetNBE(); be++)
+   {
+      int e, info;
+      mesh->GetBdrElementAdjacentElement(be, e, info);
+      if(attributes.FindSorted(mesh->GetAttribute(e)) != -1)
+      {
+         subdomain->boundary_map.Append(be);
+      }
+   }
+
+   Array<int> elements;
+   {
+      // Add faces
+      auto face2el = mesh->GetFaceToElementTable();
+      for(int f = 0; f < mesh->GetNFaces(); f++)
+      {
+         face2el->GetRow(f, elements);
+         for(int e : elements)
+         {
+            if(attributes.FindSorted(mesh->GetAttribute(e)) != -1)
+            {
+               subdomain->face_map.Append(f);
+               break;
+            }
+         }
+      }
+      delete face2el;
+   }
+
+   {
+      auto vertex2el = mesh->GetVertexToElementTable();
+
+      Array<int> vertices;
+      // Add edges
+      for(int edge = 0; edge < mesh->GetNEdges(); edge++)
+      {
+         mesh->GetEdgeVertices(edge, vertices);
+         bool added_edge = false;
+         for(int v : vertices)
+         {
+            vertex2el->GetRow(v, elements);
+            for(int e : elements)
+            {
+               if(attributes.FindSorted(mesh->GetAttribute(e)) != -1)
+               {
+                  subdomain->edge_map.Append(edge);
+                  added_edge = true;
+                  break;
+               }
+            }
+            if(added_edge)
+            {
+               break;
+            }
+         }
+      }
+
+      // Add vertices
+      for(int v = 0; v < mesh->GetNV(); v++)
+      {
+         vertex2el->GetRow(v, elements);
+         for(int e : elements)
+         {
+            if(attributes.FindSorted(mesh->GetAttribute(e)) != -1)
+            {
+               subdomain->vertex_map.Append(v);
+               break;
+            }
+         }
+      }
+
+      delete vertex2el;
+   }
+   return subdomain;
+}
+
 /// Abstract parallel finite element space.
 class ParFiniteElementSpace : public FiniteElementSpace
 {
@@ -37,6 +135,9 @@ private:
    /** Parallel non-conforming mesh extension object; same as pmesh->pncmesh.
        Not owned. */
    ParNCMesh *pncmesh;
+
+   // In case that the FiniteElementSpace is just definied on a part of the mesh
+   ParSubdomainExtension *psubdomain = nullptr;
 
    /// GroupCommunicator on the local VDofs. Owned.
    GroupCommunicator *gcomm;
@@ -230,7 +331,8 @@ public:
                          const FiniteElementCollection *f = NULL);
 
    ParFiniteElementSpace(ParMesh *pm, const FiniteElementCollection *f,
-                         int dim = 1, int ordering = Ordering::byNODES);
+                         int dim = 1, int ordering = Ordering::byNODES,
+                         ParSubdomainExtension *psubdomain = nullptr);
 
    /// Construct a NURBS FE space based on the given NURBSExtension, @a ext.
    /** The parameter @a ext will be deleted by this constructor, replaced by a
