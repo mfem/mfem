@@ -101,11 +101,11 @@ void EliminationProjection::Mult(const Vector& in, Vector& out) const
    for (int k = 0; k < eliminators_.Size(); ++k)
    {
       Eliminator* elim = eliminators_[k];
-      Vector subvecin;
-      Vector subvecout(elim->SecondaryDofs().Size());
-      in.GetSubVector(elim->PrimaryDofs(), subvecin);
-      elim->Eliminate(subvecin, subvecout);
-      out.SetSubVector(elim->SecondaryDofs(), subvecout);
+      Vector subvec_in;
+      Vector subvec_out(elim->SecondaryDofs().Size());
+      in.GetSubVector(elim->PrimaryDofs(), subvec_in);
+      elim->Eliminate(subvec_in, subvec_out);
+      out.SetSubVector(elim->SecondaryDofs(), subvec_out);
    }
 }
 
@@ -119,11 +119,11 @@ void EliminationProjection::MultTranspose(const Vector& in, Vector& out) const
    for (int k = 0; k < eliminators_.Size(); ++k)
    {
       Eliminator* elim = eliminators_[k];
-      Vector subvecin;
-      Vector subvecout(elim->PrimaryDofs().Size());
-      in.GetSubVector(elim->SecondaryDofs(), subvecin);
-      elim->EliminateTranspose(subvecin, subvecout);
-      out.AddElementVector(elim->PrimaryDofs(), subvecout);
+      Vector subvec_in;
+      Vector subvec_out(elim->PrimaryDofs().Size());
+      in.GetSubVector(elim->SecondaryDofs(), subvec_in);
+      elim->EliminateTranspose(subvec_in, subvec_out);
+      out.AddElementVector(elim->PrimaryDofs(), subvec_out);
       out.SetSubVector(elim->SecondaryDofs(), 0.0);
    }
 }
