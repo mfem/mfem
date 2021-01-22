@@ -21,6 +21,5 @@ runs:
         wget --no-verbose ${{ inputs.metis-url }}/${{ inputs.metis-archive }};
         rm -rf ${{ inputs.metis-dir }};
         tar -xzf ${{ inputs.metis-archive }};
-        export CFLAGS="-Wno-error=implicit-function-declaration"
-        make -j3 -C ${{ inputs.metis-dir }}/Lib CC=mpicc OPTFLAGS="-O2";
+        make -j3 -C ${{ inputs.metis-dir }}/Lib CC=mpicc OPTFLAGS="-Wno-error=implicit-function-declaration -O2";
       shell: bash
