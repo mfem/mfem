@@ -5,10 +5,8 @@ on:
 
 env:
   HYPRE_ARCHIVE: v2.19.0.tar.gz
-  HYPRE_URL: https://github.com/hypre-space/hypre/archive
   HYPRE_TOP_DIR: hypre-2.19.0
   METIS_ARCHIVE: metis-4.0.3.tar.gz
-  METIS_URL: https://mfem.github.io/tpls
   METIS_TOP_DIR: metis-4.0.3
 
 jobs:
@@ -57,15 +55,14 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.METIS_TOP_DIR }}
-        key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-${{ matrix.MPI }}
+        key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-v1
 
     - name: Install Metis
       if: matrix.MPI == 'YES' && steps.metis-cache.outputs.cache-hit != 'true'
-      run: |
-        wget --no-verbose ${METIS_URL}/${METIS_ARCHIVE};
-        rm -rf ${METIS_TOP_DIR};
-        tar -xzf ${METIS_ARCHIVE};
-        make -j3 -C ${METIS_TOP_DIR}/Lib CC=mpicc OPTFLAGS="-O2";
+      uses: ./mfem/.github/actions/install-metis
+      with:
+        metis-archive: ${{ env.METIS_ARCHIVE }}
+        metis-dir: ${{ env.METIS_TOP_DIR }}
 
     # MFEM build and test
     - name: configure
