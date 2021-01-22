@@ -162,21 +162,22 @@ void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
    MFEM_ASSERT(x.Size() == N, "invalid input vector");
    MFEM_ASSERT(y.Size() == N, "invalid output vector");
 
+   auto DI = dinv.Read();
+   auto X = x.Read();
    if (iterative_mode && oper)
    {
-      oper->Mult(y, residual);  // r = A x
-      subtract(x, residual, residual); // r = b - A x
+      oper->Mult(y, residual);  // r = A y
+      auto R = residual.Read();
+      auto Y = y.ReadWrite();
+      // y += D^{-1} (x - A y)
+      MFEM_FORALL(i, N, Y[i] += DI[i] * (X[i] - R[i]); );
    }
    else
    {
-      residual = x;
-      y.UseDevice(true);
-      y = 0.0;
+      auto Y = y.Write();
+      // y = D^{-1} x
+      MFEM_FORALL(i, N, Y[i] = DI[i] * X[i]; );
    }
-   auto DI = dinv.Read();
-   auto R = residual.Read();
-   auto Y = y.ReadWrite();
-   MFEM_FORALL(i, N, Y[i] += DI[i] * R[i]; );
 }
 
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(Operator* oper_,
