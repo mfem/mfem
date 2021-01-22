@@ -18,7 +18,6 @@ runs:
   steps:
     - name: Install Metis
       run: |
-      run: |
         wget --no-verbose ${{ env.metis-url }}/${{ env.metis-archive }};
         rm -rf ${{ env.metis-dir }};
         tar -xzf ${{ env-metis-archive }};
