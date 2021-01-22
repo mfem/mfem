@@ -32,11 +32,12 @@ jobs:
       if: matrix.mpi == 'YES' && matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get install mpich libmpich-dev
+        export MAKE_CXX_FLAG="MPICXX=mpic++"
 
     - name: Get MPI (MacOS)
       if: matrix.mpi == 'YES' && matrix.os == 'macos-latest'
       run: |
-        brew install mpich
+        export MAKE_CXX_FLAG="MPICXX=mpic++"
 
     # Get Hypre through cache, or install it.
     # Install will only run on cache miss.
