@@ -11,10 +11,11 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
     strategy:
       matrix:
         MPI: ["NO", "YES"]
+        os: ["ubuntu-latest", "macos-latest"]
+    runs-on: ${{ matrix.os }}
     env:
       MPI: ${{ matrix.MPI }}
 
@@ -78,17 +79,13 @@ jobs:
         make config MFEM_USE_MPI=$MPI MFEM_MPI_NP=2
     - name: make
       run: |
-        cd mfem
-        make -j3
+        cd mfem && make -j3
     - name: check
       run: |
-        cd mfem
-        make check
+        cd mfem && make check
     - name: unit
       run: |
-        cd mfem
-        make unittest
+        cd mfem && make unittest
     - name: test
       run: |
-        cd mfem
-        make test
+        cd mfem && make test
