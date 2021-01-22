@@ -591,6 +591,7 @@ private:
    ParComplexGridFunction * e_;   // Complex electric field (HCurl)
    ParComplexGridFunction * d_;   // Complex electric flux (HDiv)
    ParComplexGridFunction * j_;   // Complex current density (HDiv)
+   ParComplexLinearForm   * curlj_; // Curl of current density (HCurl)
    ParComplexGridFunction * phi_; // Complex sheath potential (H1)
    ParComplexGridFunction * prev_phi_; // Complex sheath potential (H1)
 

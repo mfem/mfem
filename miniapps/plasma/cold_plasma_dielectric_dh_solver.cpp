@@ -371,6 +371,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      // e_tmp_(NULL),
      d_(NULL),
      j_(NULL),
+     curlj_(NULL),
      phi_(NULL),
      prev_phi_(NULL),
      // temp_(NULL),
@@ -716,6 +717,12 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    d21EpsInv_->AddDomainIntegrator(
       new MixedVectorWeakCurlIntegrator(*epsInvReCoef_),
       new MixedVectorWeakCurlIntegrator(*epsInvImCoef_));
+
+   if (kReCoef_ || kImCoef_)
+   {
+      d21EpsInv_->AddDomainIntegrator(new VectorFEMassIntegrator(keImCoef_),
+                                      new VectorFEMassIntegrator(keReCoef_));
+   }
    /*
    m2_ = new ParBilinearForm(HDivFESpace_);
    if (pa_) { m2_->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
@@ -786,6 +793,10 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
 
    j_  = new ParComplexGridFunction(HDivFESpace_);
    *j_ = 0.0;
+
+   curlj_  = new ParComplexLinearForm(HCurlFESpace_);
+   curlj_->real() = 0.0;
+   curlj_->imag() = 0.0;
 
    prev_phi_  = new ParComplexGridFunction(H1FESpace_);
    phi_  = new ParComplexGridFunction(H1FESpace_);
@@ -939,6 +950,7 @@ CPDSolverDH::~CPDSolverDH()
    delete e_;
    delete d_;
    delete j_;
+   delete curlj_;
    // delete temp_;
    delete phi_;
    delete prev_phi_;
@@ -1272,6 +1284,7 @@ CPDSolverDH::Update()
    e_->Update();
    d_->Update();
    j_->Update();
+   curlj_->Update();
    phi_->Update();
    prev_phi_->Update();
    // temp_->Update();
@@ -1344,11 +1357,24 @@ CPDSolverDH::Solve()
 {
    if ( myid_ == 0 && logging_ > 0 ) { cout << "Running solver ... " << endl; }
 
+   // Apply Neumann BCs (if present) or zero the RHS
+   rhs1_->Assemble();
+
    // Set the current density
    j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
 
-   d21EpsInv_->Mult(*j_, *rhs1_);
-   rhs1_->Assemble();
+   if (logging_ > 0)
+   {
+      Vector zeroVec(3); zeroVec = 0.0;
+      VectorConstantCoefficient zeroVCoef(zeroVec);
+
+      double nrmj = j_->ComputeL2Error(zeroVCoef, zeroVCoef);
+      if (myid_ == 0) { cout << "norm of J: " << nrmj << endl; }
+   }
+
+   d21EpsInv_->Mult(*j_, *curlj_);
+   *rhs1_ += *curlj_;
+
    /*
    *phi_ = 0.0;
 
@@ -1470,7 +1496,7 @@ CPDSolverDH::Solve()
 
    a1_->RecoverFEMSolution(H, *rhs1_, *h_);
 
-   if (logging_ > 1)
+   if (logging_ > 0)
    {
       Vector zeroVec(3); zeroVec = 0.0;
       VectorConstantCoefficient zeroVCoef(zeroVec);
