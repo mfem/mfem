@@ -402,6 +402,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      epsInvImCoef_(&epsInvImCoef),
      // epsAbsCoef_(&epsAbsCoef),
      muCoef_(&muCoef),
+     muInvCoef_(muCoef, -1),
      etaCoef_(etaCoef),
      kReCoef_(kReCoef),
      kImCoef_(kImCoef),
@@ -1294,11 +1295,16 @@ CPDSolverDH::Update()
    // if (S_) { S_->Update(); }
    if (e_t_) { e_t_->Update(); }
    if (e_b_) { e_b_->Update(); }
+   if (h_v_) { h_v_->Update(); }
    if (e_v_) { e_v_->Update(); }
    if (d_v_) { d_v_->Update(); }
    if (j_v_) { j_v_->Update(); }
    if (phi_v_) { phi_v_->Update(); }
    if (rectPot_) { rectPot_ ->Update();}
+   if (b_hat_) { b_hat_->Update(); }
+   if (StixS_) { StixS_->Update(); }
+   if (StixD_) { StixD_->Update(); }
+   if (StixP_) { StixP_->Update(); }
    // e_r_->Update();
    // e_i_->Update();
    // h_->Update();
@@ -1702,9 +1708,9 @@ CPDSolverDH::GetErrorEstimates(Vector & errors)
 {
    if ( myid_ == 0 && logging_ > 0 )
    { cout << "Estimating Error ... " << flush; }
-   /*
+
    // Space for the discontinuous (original) flux
-   CurlCurlIntegrator flux_integrator(*muInvCoef_);
+   CurlCurlIntegrator flux_integrator(muInvCoef_);
    RT_FECollection flux_fec(order_-1, pmesh_->SpaceDimension());
    ParFiniteElementSpace flux_fes(pmesh_, &flux_fec);
 
@@ -1713,10 +1719,15 @@ CPDSolverDH::GetErrorEstimates(Vector & errors)
    ND_FECollection smooth_flux_fec(order_, pmesh_->Dimension());
    ParFiniteElementSpace smooth_flux_fes(pmesh_, &smooth_flux_fec);
 
+   Vector err_i(errors.Size());
+
    L2ZZErrorEstimator(flux_integrator, e_->real(),
                       smooth_flux_fes, flux_fes, errors, norm_p);
-   */
-   errors = 0.0;
+   L2ZZErrorEstimator(flux_integrator, e_->imag(),
+                      smooth_flux_fes, flux_fes, err_i, norm_p);
+
+   errors += err_i;
+
    if ( myid_ == 0 && logging_ > 0 ) { cout << "done." << endl; }
 }
 

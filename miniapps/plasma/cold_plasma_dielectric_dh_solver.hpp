@@ -626,6 +626,7 @@ private:
    MatrixCoefficient * epsInvImCoef_;    // Dielectric Material Coefficient
    // MatrixCoefficient * epsAbsCoef_;   // Dielectric Material Coefficient
    Coefficient       * muCoef_;       // Dia/Paramagnetic Material Coefficient
+   PowerCoefficient    muInvCoef_;    // Dia/Paramagnetic Material Coefficient
    Coefficient       * etaCoef_;      // Impedance Coefficient
    VectorCoefficient * kReCoef_;        // Wave Vector
    VectorCoefficient * kImCoef_;        // Wave Vector
