@@ -12,15 +12,25 @@ struct SolverConfig
    enum SolverType
    {
       JACOBI = 0,
-      AMGX = 1,
-      GINKGO_CUIC = 2,
-      GINKGO_CUIC_ISAI = 3
+      AMGX = 1
    };
    SolverType type;
+   enum SmootherType
+   {
+     CHEBYSHEV = 2,
+     GINKGO_CUIC = 3,
+     GINKGO_CUIC_ISAI = 4 
+   };
+   SmootherType smoother_type;
+   AssemblyLevel upper_level_asm;
+   std::shared_ptr<gko::Executor> gko_exec;
 #ifdef MFEM_SIMPLEX_LOR
    bool simplex_lor = true;
 #endif
-   SolverConfig(SolverType type_) : type(type_) { }
+   SolverConfig(SolverType type_, SmootherType sm_type_, AssemblyLevel upper_asm_, 
+                std::shared_ptr<gko::Executor> gko_exec_) : type(type_),
+     smoother_type(sm_type_),
+     upper_level_asm(upper_asm_) { gko_exec = gko_exec_; } 
 };
 
 struct MGRefinement
@@ -45,7 +55,7 @@ bool NeedsLOR(SolverConfig config)
    }
 }
 
-struct DiffusionMultigrid : Multigrid
+struct DiffusionMultigrid : GeometricMultigrid
 {
    Coefficient &coeff;
    OperatorPtr A_coarse;
@@ -54,15 +64,15 @@ struct DiffusionMultigrid : Multigrid
       FiniteElementSpaceHierarchy& hierarchy,
       Coefficient &coeff_,
       Array<int>& ess_bdr,
-      SolverConfig coarse_solver_config)
-       : Multigrid(hierarchy), coeff(coeff_)
+      SolverConfig solver_config)
+       : GeometricMultigrid(hierarchy), coeff(coeff_)
     {
        ConstructCoarseOperatorAndSolver(
-          coarse_solver_config, hierarchy.GetFESpaceAtLevel(0), ess_bdr);
+          solver_config, hierarchy.GetFESpaceAtLevel(0), ess_bdr);
        int nlevels = hierarchy.GetNumLevels();
        for (int i=1; i<nlevels; ++i)
        {
-          ConstructOperatorAndSmoother(hierarchy.GetFESpaceAtLevel(i), ess_bdr);
+          ConstructOperatorAndSmoother(solver_config, hierarchy.GetFESpaceAtLevel(i), ess_bdr);
        }
     }
 
@@ -79,22 +89,48 @@ struct DiffusionMultigrid : Multigrid
        fespace.GetEssentialTrueDofs(ess_bdr, *essentialTrueDofs.Last());
     }
 
-   void ConstructOperatorAndSmoother(
+   void ConstructOperatorAndSmoother(SolverConfig solver_config,
       FiniteElementSpace& fespace, Array<int>& ess_bdr)
     {
-       ConstructBilinearForm(fespace, ess_bdr, AssemblyLevel::PARTIAL);
+       ConstructBilinearForm(fespace, ess_bdr, solver_config.upper_level_asm);
     
        OperatorPtr opr;
        bfs.Last()->FormSystemMatrix(*essentialTrueDofs.Last(), opr);
        opr.SetOperatorOwner(false);
+   
+       switch (solver_config.smoother_type)
+       {
+         case SolverConfig::CHEBYSHEV: 
+         {
+           Vector diag(fespace.GetTrueVSize());
+           bfs.Last()->AssembleDiagonal(diag);
     
-       Vector diag(fespace.GetTrueVSize());
-       bfs.Last()->AssembleDiagonal(diag);
+           Solver* smoother = new OperatorChebyshevSmoother(
+              opr.Ptr(), diag, *essentialTrueDofs.Last(), 2);
     
-       Solver* smoother = new OperatorChebyshevSmoother(
-          opr.Ptr(), diag, *essentialTrueDofs.Last(), 2);
-    
-       AddLevel(opr.Ptr(), smoother, true, true);
+           AddLevel(opr.Ptr(), smoother, true, true);
+           break;
+         }
+         case SolverConfig::GINKGO_CUIC:
+         {
+            SparseMatrix *A_lvl = dynamic_cast<SparseMatrix*>(opr.Ptr());
+            Solver *smoother = new GinkgoWrappers::GinkgoCuIcPreconditioner(
+                                              solver_config.gko_exec, *A_lvl,
+                                                        "exact", 1);
+           AddLevel(opr.Ptr(), smoother, true, true);
+           break;
+         }
+         case SolverConfig::GINKGO_CUIC_ISAI:
+         {
+            SparseMatrix *A_lvl = dynamic_cast<SparseMatrix*>(opr.Ptr());
+            Solver *smoother = new GinkgoWrappers::GinkgoCuIcPreconditioner(
+                                              solver_config.gko_exec, *A_lvl,
+                                                        "isai", 1);
+           AddLevel(opr.Ptr(), smoother, true, true);
+           break;
+         }
+       }
+      
     }
 
    void ConstructCoarseOperatorAndSolver(
@@ -126,13 +162,12 @@ struct DiffusionMultigrid : Multigrid
              coarse_solver = new OperatorJacobiSmoother(a, ess_dofs);
              break;
     #ifdef MFEM_USE_AMGX
-          case SolverConfig::FA_AMGX:
-          case SolverConfig::LOR_AMGX:
+          case SolverConfig::AMGX:
           {
              AmgXSolver *amg = new AmgXSolver;
              amg->ReadParameters("amgx.json", AmgXSolver::EXTERNAL);
-             amg->InitExclusiveGPU(MPI_COMM_WORLD);
-             amg->SetOperator(*A_prec.As<HypreParMatrix>());
+             amg->InitSerial();
+             amg->SetOperator(*A_prec.As<SparseMatrix>());
              coarse_solver = amg;
              break;
           }

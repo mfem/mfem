@@ -244,6 +244,7 @@ int main(int argc, char *argv[])
                  MFEM_GS,
                  MFEM_CG,
                  MFEM_GMG,
+                 MFEM_AMGX,
                  MFEM_UMFPACK };
    PCType pc_choice;
    bool pc = true;
@@ -280,8 +281,9 @@ int main(int argc, char *argv[])
       trisolve_type = "isai";
    }
    else if (!strcmp(pc_type, "mfem:gs")) { pc_choice = MFEM_GS; }
-   else if (!strcmp(pc_type, "mfem:cg")) { pc_choice = MFEM_CG; }
    else if (!strcmp(pc_type, "mfem:gmg")) { pc_choice = MFEM_GMG; }
+   else if (!strcmp(pc_type, "mfem:amgx")) { pc_choice = MFEM_AMGX; }
+   else if (!strcmp(pc_type, "mfem:cg")) { pc_choice = MFEM_CG; }
    else if (!strcmp(pc_type, "mfem:umf"))
    {
 #ifdef MFEM_USE_SUITESPARSE
@@ -884,6 +886,28 @@ int main(int argc, char *argv[])
          cout << "Real time in PCG: " << it_time << "\n";
 
       }
+      else if (pc_choice == MFEM_AMGX)
+      {
+
+         // Create MFEM preconditioner
+         tic_toc.Clear();
+         tic_toc.Start();
+
+         AmgXSolver M;
+         M.ReadParameters("amgx.json", AmgXSolver::EXTERNAL);
+         M.InitSerial();
+         M.SetOperator(A_pc);
+
+         tic_toc.Stop();
+         cout << "Real time creating MFEM AMGX preconditioner: " <<
+              tic_toc.RealTime() << "\n";
+
+         // Use preconditioned CG
+         total_its = pcg_solve(*A, M, B, X, 0, max_iter, 1e-12, 0.0, it_time);
+
+         cout << "Real time in PCG: " << it_time << "\n";
+
+      }
       else if (pc_choice == MFEM_GMG)
       {
 
@@ -947,11 +971,12 @@ int main(int argc, char *argv[])
             }
          }
          
-         SolverConfig coarse_solver(SolverConfig::JACOBI);
+         SolverConfig coarse_solver(SolverConfig::JACOBI, SolverConfig::CHEBYSHEV,
+           AssemblyLevel::LEGACYFULL, executor);
          Array<int> ess_bdr(mesh->bdr_attributes.Max());
          ess_bdr = 1;
          DiffusionMultigrid M(hierarchy, *coeff, ess_bdr, coarse_solver);
-//         M.SetCycleType(Multigrid::CycleType::VCYCLE, 1, 1);
+         M.SetCycleType(Multigrid::CycleType::VCYCLE, 1, 1);
 
          tic_toc.Stop();
          cout << "Real time creating MFEM GMG preconditioner: " <<
