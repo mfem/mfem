@@ -15,17 +15,7 @@ inputs:
 runs:
   using: "composite"
   steps:
-    # Get Hypre through cache, or install it.
-    # Install will only run on cache miss.
-    - name: Cache Hypre Install
-      id: hypre-cache
-      uses: actions/cache@v2
-      with:
-        path: ${{ inputs.hypre-dir }}
-        key: ${{ runner.os }}-build-${{ inputs.hypre-dir }}
-
     - name: Install Hypre
-      if: steps.hypre-cache.outputs.cache-hit != 'true'
       run: |
         wget --no-verbose ${{ inputs.hypre-url }}/${{ inputs.hypre_archive }};
         rm -rf ${{ inputs.hypre-dir }};
@@ -34,5 +24,4 @@ runs:
         ./configure --disable-fortran CC=mpicc CXX=mpic++;
         make -j3;
         cd ../..;
-
-
+      shell: bash
