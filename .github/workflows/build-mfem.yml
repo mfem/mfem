@@ -40,7 +40,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.HYPRE_TOP_DIR }}
-        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}
+        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-v1
 
     - name: Get Hypre
       if: matrix.MPI == 'YES' && steps.hypre-cache.outputs.cache-hit != 'true'
@@ -53,6 +53,7 @@ jobs:
     # Install will only run on cache miss.
     - name: Cache Metis Install
       id: metis-cache
+      if: matrix.MPI == 'YES'
       uses: actions/cache@v2
       with:
         path: ${{ env.METIS_TOP_DIR }}
@@ -69,10 +70,13 @@ jobs:
     # MFEM build and test
     - name: configure
       run: |
-        echo "Hypre symlink:"
-        ln -s $HYPRE_TOP_DIR hypre;
-        echo "Metis symlink:"
-        ln -s $METIS_TOP_DIR metis-4.0;
+        if [[ ${MPI} == "YES" ]];
+        then
+          echo "Hypre symlink:"
+          ln -s $HYPRE_TOP_DIR hypre;
+          echo "Metis symlink:"
+          ln -s $METIS_TOP_DIR metis-4.0;
+        fi
         cd mfem
         make config MFEM_USE_MPI=$MPI MFEM_MPI_NP=2
     - name: make
