@@ -45,6 +45,32 @@ typedef int ssize_t;
 namespace mfem
 {
 
+// Helper class for handling Winsock initialization calls.
+class WinsockWrapper
+{
+public:
+#ifdef _WIN32
+   WinsockWrapper()
+   {
+      WSADATA wsaData;
+      int err = WSAStartup(MAKEWORD(2,2), &wsaData);
+      if (err != 0)
+      {
+         mfem::out << "Error occured during initialization of WinSock."
+                   << std::endl;
+      }
+   }
+
+   ~WinsockWrapper() { WSACleanup(); }
+
+   WinsockWrapper(const WinsockWrapper&) = delete;
+   WinsockWrapper& operator=(const WinsockWrapper&) = delete;
+#endif
+};
+
+// If available, Winsock is initialized when this object is constructed.
+static WinsockWrapper wsInit_;
+
 int socketbuf::attach(int sd)
 {
    int old_sd = socket_descriptor;
