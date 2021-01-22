@@ -1738,7 +1738,7 @@ void slab_current_source_r(const Vector &x, Vector &j)
       j(0) = slab_params_(0);
       j(1) = slab_params_(1);
       j(2) = slab_params_(2);
-      // j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5)));
+      j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5)));
    }
 }
 
@@ -1766,7 +1766,7 @@ void slab_current_source_i(const Vector &x, Vector &j)
          j(0) = slab_params_(3);
          j(1) = slab_params_(4);
          j(2) = slab_params_(5);
-         // j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5)));
+         j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5)));
       }
    }
 }
