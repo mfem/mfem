@@ -18,8 +18,8 @@ runs:
   steps:
     - name: Install Metis
       run: |
-        wget --no-verbose ${{ env.metis-url }}/${{ env.metis-archive }};
-        rm -rf ${{ env.metis-dir }};
-        tar -xzf ${{ env-metis-archive }};
-        make -j3 -C ${{ env.metis-dir }}/Lib CC=mpicc OPTFLAGS="-O2";
+        wget --no-verbose ${{ inputs.metis-url }}/${{ inputs.metis-archive }};
+        rm -rf ${{ inputs.metis-dir }};
+        tar -xzf ${{ inputs.metis-archive }};
+        make -j3 -C ${{ inputs.metis-dir }}/Lib CC=mpicc OPTFLAGS="-O2";
       shell: bash
