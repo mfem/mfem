@@ -38,7 +38,8 @@ private:
 public:
    HeatDistanceSolver(double diff_coeff)
       : DistanceSolver(),
-        parameter_t(diff_coeff), smooth_steps(0), transform(true) { }
+        parameter_t(diff_coeff), smooth_steps(0), diffuse_iter(1),
+        transform(true) { }
 
    void ComputeDistance(Coefficient &zero_level_set,
                         ParGridFunction &distance);
@@ -48,7 +49,7 @@ public:
    const ParGridFunction &GetLastDiffusedSourceGF() const
    { return diffused_source; }
 
-   int parameter_t, smooth_steps;
+   int parameter_t, smooth_steps, diffuse_iter;
    bool transform;
 };
 

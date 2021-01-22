@@ -4,10 +4,10 @@
 //
 // Sample runs:
 //   Problem 0: point source.
-//     mpirun -np 4 distance -m ./u5.mesh -rs 2 -t 50.0
+//     mpirun -np 4 distance -m ./u5.mesh -rs 3 -t 100.0
 //
 //   Problem 1: zero level set - circle / sphere at the center of the mesh
-//     mpirun -np 4 distance -m ../../data/inline-quad.mesh -rs 3 -o 2 -t 1.0 -p 1
+//     mpirun -np 4 distance -m ../../data/inline-quad.mesh -rs 3 -o 2 -t 2.0 -p 1
 //     mpirun -np 4 distance -m ../../data/periodic-cube.mesh -rs 2 -o 2 -t 1.0 -p 1
 //
 //   Problem 2: zero level set - sine
@@ -172,38 +172,38 @@ int main(int argc, char *argv[])
    mesh.Clear();
 
    Coefficient *ls_coeff;
-   int smooth_steps; bool transform;
+   int smooth_steps;
    if (problem == 0)
    {
-      ls_coeff = new DeltaCoefficient(0.0, 0.0, 1.0);
+      ls_coeff = new DeltaCoefficient(0.5, -0.5, 1000.0);
       smooth_steps = 0;
-      transform = false;
    }
    else if (problem == 1)
    {
       ls_coeff = new FunctionCoefficient(sphere_ls);
       smooth_steps = 5;
-      transform = true;
    }
    else if (problem == 2)
    {
       ls_coeff = new FunctionCoefficient(sine_ls);
       smooth_steps = 5;
-      transform = true;
    }
    else
    {
       ls_coeff = new FunctionCoefficient(Gyroid);
       smooth_steps = 0;
-      transform = true;
    }
 
    DistanceSolver *dist_solver = NULL;
    if (solver_type == 0)
    {
       auto ds = new HeatDistanceSolver(t_param);
+      if (problem == 0)
+      {
+         ds->transform = false;
+         ds->diffuse_iter = 1;
+      }
       ds->smooth_steps = smooth_steps;
-      ds->transform = transform;
       dist_solver = ds;
    }
    else if (solver_type == 1)

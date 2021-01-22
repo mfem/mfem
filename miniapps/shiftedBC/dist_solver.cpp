@@ -98,6 +98,8 @@ void HeatDistanceSolver::ComputeDistance(Coefficient &zero_level_set,
    Vector B, X;
 
    // Step 1 - diffuse.
+   diffused_source.SetSpace(&pfes);
+   for (int i = 0; i < diffuse_iter; i++)
    {
       // Set up RHS.
       ParLinearForm b(&pfes);
@@ -148,11 +150,15 @@ void HeatDistanceSolver::ComputeDistance(Coefficient &zero_level_set,
       a_n.RecoverFEMSolution(X, b, u_neumann);
       delete prec2;
 
-      diffused_source.SetSpace(&pfes);
       for (int i = 0; i < diffused_source.Size(); i++)
       {
+         // This assumes that the magnitudes of the two solutions are somewhat
+         // similar; otherwise one of the solutions would dominate and the BC
+         // won't look correct. To avoid this, it's good to have the source
+         // away from the boundary (i.e. have more resolution).
          diffused_source(i) = 0.5 * (u_neumann(i) + u_dirichlet(i));
       }
+      source = diffused_source;
    }
 
    // Step 2 - solve for the distance using the normalized gradient.
