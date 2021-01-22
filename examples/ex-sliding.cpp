@@ -45,8 +45,12 @@ using namespace mfem;
     is free to move along a plane, a two-row constraint means it is free
     to move along a line (eg the intersection of two normal-constrained
     planes), and a three-row constraint is fully constrained (equivalent
-    to MFEM's usual essential boundary conditions). The lagrange_rowstarts
-    array is filled in to describe the structure of these constraints.
+    to MFEM's usual essential boundary conditions).
+
+    The lagrange_rowstarts array is filled in to describe the structure of
+    these constraints, so that constraint k is encoded in rows
+    lagrange_rowstarts[k] to lagrange_rowstarts[k + 1] - 1, inclusive,
+    of the returned matrix.
 
     When two attributes intersect, this version will combine constraints,
     so in 2D the point at the intersection is fully constrained (ie,
@@ -112,11 +116,9 @@ SparseMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
 
    // reorder so constraints eliminated together are grouped
    // together in rows
-   // (this is perhaps not the best way to organize things)
    std::map<int, int> reorder_rows;
    int new_row = 0;
-   MFEM_VERIFY(lagrange_rowstarts.Size() == 0,
-               "rowstarts must be empty to start!");
+   lagrange_rowstarts.DeleteAll();
    lagrange_rowstarts.Append(0);
    for (auto& it : dof_constraint)
    {
