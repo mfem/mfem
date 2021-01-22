@@ -36,7 +36,7 @@ jobs:
     # Install will only run on cache miss.
     - name: Get Hypre
       if: matrix.MPI == 'YES'
-      uses: ./.github/actions/install-hypre
+      uses: ./mfem/.github/actions/install-hypre
 
     # Get Metis through cache, or install it.
     # Install will only run on cache miss.
