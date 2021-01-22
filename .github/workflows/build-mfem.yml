@@ -13,36 +13,43 @@ jobs:
   build:
     strategy:
       matrix:
-        MPI: ["NO", "YES"]
+        mpi: ["NO", "YES"]
         os: ["ubuntu-latest", "macos-latest"]
     runs-on: ${{ matrix.os }}
-    env:
-      MPI: ${{ matrix.MPI }}
 
     steps:
     # Checkout MFEM in "mfem" subdirectory. Final path: /home/runner/work/mfem/mfem/mfem
+    # Note: it must be done now to access "install-hypre" and "install-metis" actions.
     - name: checkout MFEM
       uses: actions/checkout@v2
       with:
         path: mfem
 
-    # Only get mpi if defined for the job.
-    - name: Get MPI
-      if: matrix.MPI == 'YES'
-      run: sudo apt-get install mpich libmpich-dev
+    # Only get MPI if defined for the job.
+    # TODO (bernede1@llnl.gov): It would be nice to have only one step,
+    # e.g. with a dedicated action, but I don’t see how at the moment.
+    - name: Get MPI (Linux)
+      if: matrix.mpi == 'YES' && matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get install mpich libmpich-dev
+
+    - name: Get MPI (MacOS)
+      if: matrix.mpi == 'YES' && matrix.os == 'macos-latest'
+      run: |
+        brew install mpich
 
     # Get Hypre through cache, or install it.
     # Install will only run on cache miss.
     - name: Cache Hypre Install
       id: hypre-cache
-      if: matrix.MPI == 'YES'
+      if: matrix.mpi == 'YES'
       uses: actions/cache@v2
       with:
         path: ${{ env.HYPRE_TOP_DIR }}
         key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-v1
 
     - name: Get Hypre
-      if: matrix.MPI == 'YES' && steps.hypre-cache.outputs.cache-hit != 'true'
+      if: matrix.mpi == 'YES' && steps.hypre-cache.outputs.cache-hit != 'true'
       uses: ./mfem/.github/actions/install-hypre
       with:
         hypre-archive: ${{ env.HYPRE_ARCHIVE }}
@@ -52,14 +59,14 @@ jobs:
     # Install will only run on cache miss.
     - name: Cache Metis Install
       id: metis-cache
-      if: matrix.MPI == 'YES'
+      if: matrix.mpi == 'YES'
       uses: actions/cache@v2
       with:
         path: ${{ env.METIS_TOP_DIR }}
         key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-v1
 
     - name: Install Metis
-      if: matrix.MPI == 'YES' && steps.metis-cache.outputs.cache-hit != 'true'
+      if: matrix.mpi == 'YES' && steps.metis-cache.outputs.cache-hit != 'true'
       uses: ./mfem/.github/actions/install-metis
       with:
         metis-archive: ${{ env.METIS_ARCHIVE }}
@@ -67,6 +74,8 @@ jobs:
 
     # MFEM build and test
     - name: configure
+      env:
+        MPI: ${{ matrix.mpi }}
       run: |
         if [[ ${MPI} == "YES" ]];
         then
