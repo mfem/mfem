@@ -377,62 +377,134 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
    // local DOFs affected by boundary elements on other processors
    if (Nonconforming())
    {
-      Array<int> bdr_verts, bdr_edges;
-      mesh->ncmesh->GetBoundaryClosure(bdr_attr_is_ess, bdr_verts, bdr_edges);
+      Array<int> bdr_vertices, bdr_edges;
+      mesh->ncmesh->GetBoundaryClosure(bdr_attr_is_ess, bdr_vertices, bdr_edges);
 
-      for (int i = 0; i < bdr_verts.Size(); i++)
+      int ignored_vertices = 0;
+      int ignored_edges = 0;
+
+      for (auto vertex_in_mesh : bdr_vertices)
       {
+         auto vertex = MapVertexBack(vertex_in_mesh);
+         if(vertex<0)
+         {
+            ignored_vertices++;
+            continue;
+         }
+
          if (component < 0)
          {
-            auto vi = MapVertexBack(bdr_verts[i]);
-            if(vi<0)
-            {
-               out << "Warning? Closure vertex "<<bdr_verts[i]<<" not Found." << std::endl;
-               continue;
-            }
-            GetVertexVDofs(vi, vdofs);
+            GetVertexVDofs(vertex, vdofs);
             mark_dofs(vdofs, ess_vdofs);
          }
          else
          {
-            auto vi = MapVertexBack(bdr_verts[i]);
-            if(vi<0)
-            {
-               out << "Warning? Closure vertex "<<bdr_verts[i]<<" not Found." << std::endl;
-               continue;
-            }
-            GetVertexDofs(vi, dofs);
+            GetVertexDofs(vertex, dofs);
             for (int d = 0; d < dofs.Size(); d++)
             { dofs[d] = DofToVDof(dofs[d], component); }
             mark_dofs(dofs, ess_vdofs);
          }
       }
-      for (int i = 0; i < bdr_edges.Size(); i++)
+
+      // Some debug info.
+      if(ignored_vertices>0)
       {
-         if (component < 0)
+         MFEM_WARNING(ignored_vertices << "/" << bdr_vertices.Size() << " closure vertices ignored. Are your boundaries okay?" << std::endl);
+#ifdef MFEM_DEBUG
+         auto v2e = mesh->GetVertexToElementTable();
+         Array<int> elements;
+         Array<int> ignored_vertices;
+         for (auto vertex_in_mesh : bdr_vertices)
          {
-            auto ei = MapEdgeBack(bdr_edges[i]);
-            if(ei<0)
+            // These are fine.
+            if(MapVertexBack(vertex_in_mesh)>= 0)
             {
-               out << "Warning? Closure edge "<<bdr_edges[i]<<" not Found." << std::endl;
                continue;
             }
-            GetEdgeVDofs(ei, vdofs);
+
+            v2e->GetRow(vertex_in_mesh, elements);
+
+            bool has_element_in_subspace = false;
+            for(auto e : elements)
+            {
+               // Dirty hack to check if an element is part of our subspace
+               if(MapElementBack(e) >= 0)
+               {
+                  has_element_in_subspace = true;
+               }
+            }
+
+            if(has_element_in_subspace)
+            {
+               ignored_vertices.Append(vertex_in_mesh);
+            }
+         }
+         delete v2e;
+
+         MFEM_ASSERT(ignored_vertices.Size() == 0, "Something went wrong when applying DBCs. " << ignored_vertices.Size() << " vertices were ignored." << ignored_vertices);
+#endif
+      }
+
+      for (auto edge_in_mesh : bdr_edges)
+      {
+         auto edge = MapEdgeBack(edge_in_mesh);
+         if(edge<0)
+         {
+            ignored_edges++;
+            continue;
+         }
+
+         if (component < 0)
+         {
+            GetEdgeVDofs(edge, vdofs);
             mark_dofs(vdofs, ess_vdofs);
          }
          else
          {
-            auto ei = MapEdgeBack(bdr_edges[i]);
-            if(ei<0)
-            {
-               out << "Warning? Closure edge "<<bdr_edges[i]<<" not Found." << std::endl;
-               continue;
-            }
-            GetEdgeDofs(bdr_edges[i], dofs);
+            GetEdgeDofs(edge, dofs);
             for (int d = 0; d < dofs.Size(); d++)
             { dofs[d] = DofToVDof(dofs[d], component); }
             mark_dofs(dofs, ess_vdofs);
          }
+      }
+      // Some debug info.
+      if(ignored_edges>0)
+      {
+         MFEM_WARNING(ignored_edges << "/" << bdr_edges.Size() << " closure edges ignored. Are your boundaries okay?" << std::endl);
+#ifdef MFEM_DEBUG
+         auto edge2element = mesh->GetEdgeToElementTable();
+         Array<int> elements;
+         Array<int> ignored_edges;
+         for (auto edge_in_mesh : bdr_edges)
+         {
+            // These are fine.
+            if(MapEdgeBack(edge_in_mesh)>= 0)
+            {
+               continue;
+            }
+
+            bool has_element_in_subspace = false;
+
+            edge2element->GetRow(edge_in_mesh, elements);
+
+            for(auto e : elements)
+            {
+               // Dirty hack to check if an element is part of our subspace
+               if(MapElementBack(e) >= 0)
+               {
+                  has_element_in_subspace = true;
+               }
+            }
+
+            if(has_element_in_subspace)
+            {
+               ignored_edges.Append(edge_in_mesh);
+            }
+         }
+         delete edge2element;
+
+         MFEM_ASSERT(ignored_edges.Size() == 0, "Something went wrong when applying DBCs. " << ignored_edges.Size() << " edges were ignored." << ignored_edges);
+#endif
       }
    }
 }
@@ -1481,7 +1553,7 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
    MFEM_ASSERT(dtrans.embeddings.Size() == old_elem_dof->Size(), "");
 
    int num_marked = 0;
-   //@TODO (fe.subdomain): this needs some investigation.
+   // TODO (fe.subdomain): this needs some investigation.
    for (int k = 0; k < dtrans.embeddings.Size(); k++)
    {
       const Embedding &emb = dtrans.embeddings[k];
@@ -2487,7 +2559,7 @@ void FiniteElementSpace::Save(std::ostream &out) const
       out << "End: MFEM FiniteElementSpace v1.0\n";
    }
 
-   ///@TODO (fe.subspace) store subspace information
+   /// TODO (fe.subspace) store subspace information
 }
 
 FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
@@ -2586,7 +2658,7 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
       }
    }
 
-   ///@TODO (fe.subspace) load subspace information
+   /// TODO (fe.subspace) load subspace information
 
    Constructor(m, NURBSext, r_fec, vdim, ord);
 
@@ -2647,7 +2719,7 @@ void QuadratureSpace::Save(std::ostream &out) const
        << "Type: default_quadrature\n"
        << "Order: " << order << '\n';
 
-   ///@TODO (fe.subspace) store subspace information
+   // TODO (fe.subspace) store subspace information
 }
 
 

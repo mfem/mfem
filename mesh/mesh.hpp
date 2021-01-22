@@ -1066,6 +1066,9 @@ public:
    ///  The returned Table must be destroyed by the caller
    Table *GetVertexToElementTable();
 
+   ///  The returned Table must be destroyed by the caller
+   Table *GetEdgeToElementTable();
+
    /** Return the "face"-element Table. Here "face" refers to face (3D),
        edge (2D), or vertex (1D).
        The returned Table must be destroyed by the caller. */

@@ -4923,6 +4923,48 @@ Table *Mesh::GetVertexToElementTable()
    return vert_elem;
 }
 
+
+Table *Mesh::GetEdgeToElementTable()
+{
+   MFEM_ASSERT(SpaceDimension() >= 2, "Edges just exist in dimension 2 and higher.");
+
+   Table *edge_elem = new Table;
+
+   if (el_to_edge == NULL)
+   {
+      el_to_edge = new Table;
+      NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+   }
+
+   edge_elem->MakeI(NumOfEdges);
+
+   Array<int> edges;
+   for (int i = 0; i < NumOfElements; i++)
+   {
+      el_to_edge->GetRow(i, edges);
+      for (auto edge : edges)
+      {
+         edge_elem->AddAColumnInRow(edge);
+      }
+   }
+
+   edge_elem->MakeJ();
+
+   for (int i = 0; i < NumOfElements; i++)
+   {
+      el_to_edge->GetRow(i, edges);
+      for (auto edge : edges)
+      {
+         edge_elem->AddConnection(edge, i);
+      }
+   }
+
+   edge_elem->ShiftUpI();
+
+   return edge_elem;
+}
+
+
 Table *Mesh::GetFaceToElementTable() const
 {
    Table *face_elem = new Table;
