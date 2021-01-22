@@ -39,8 +39,8 @@ jobs:
       if: matrix.MPI == 'YES'
       uses: actions/cache@v2
       with:
-        path: ${{ HYPRE_TOP_DIR }}
-        key: ${{ runner.os }}-build-${{ HYPRE_TOP_DIR }}
+        path: ${{ env.HYPRE_TOP_DIR }}
+        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}
 
     - name: Get Hypre
       if: matrix.MPI == 'YES' && steps.hypre-cache.outputs.cache-hit != 'true'
