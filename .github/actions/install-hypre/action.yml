@@ -17,7 +17,7 @@ runs:
   steps:
     - name: Install Hypre
       run: |
-        wget --no-verbose ${{ inputs.hypre-url }}/${{ inputs.hypre_archive }};
+        wget --no-verbose ${{ inputs.hypre-url }}/${{ inputs.hypre-archive }};
         rm -rf ${{ inputs.hypre-dir }};
         tar -xzf ${{ inputs.hypre_archive }};
         cd ${{ inputs.hypre-dir }}/src;
