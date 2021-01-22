@@ -1,0 +1,38 @@
+name: install-hypre
+
+inputs:
+  hypre-url:
+    description: 'URL where to look for Hypre'
+    required: false
+    default: 'https://github.com/hypre-space/hypre/archive'
+  hypre-archive:
+    description: 'Archive to download'
+    required: true
+  hypre-dir:
+    description: 'Hypre top directory name'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    # Get Hypre through cache, or install it.
+    # Install will only run on cache miss.
+    - name: Cache Hypre Install
+      id: hypre-cache
+      uses: actions/cache@v2
+      with:
+        path: ${{ inputs.hypre-dir }}
+        key: ${{ runner.os }}-build-${{ inputs.hypre-dir }}
+
+    - name: Install Hypre
+      if: steps.hypre-cache.outputs.cache-hit != 'true'
+      run: |
+        wget --no-verbose ${{ inputs.hypre-url }}/${{ inputs.hypre_archive }};
+        rm -rf ${{ inputs.hypre-dir }};
+        tar -xzf ${{ inputs.hypre_archive }};
+        cd ${{ inputs.hypre-dir }}/src;
+        ./configure --disable-fortran CC=mpicc CXX=mpic++;
+        make -j3;
+        cd ../..;
+
+

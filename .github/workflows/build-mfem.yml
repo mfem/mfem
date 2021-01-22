@@ -34,23 +34,9 @@ jobs:
 
     # Get Hypre through cache, or install it.
     # Install will only run on cache miss.
-    - name: Cache Hypre Install
-      id: hypre-cache
-      uses: actions/cache@v2
-      with:
-        path: ${{ env.HYPRE_TOP_DIR }}
-        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-${{ matrix.MPI }}
-
-    - name: Install Hypre
-      if: matrix.MPI == 'YES' && steps.hypre-cache.outputs.cache-hit != 'true'
-      run: |
-        wget --no-verbose ${HYPRE_URL}/${HYPRE_ARCHIVE};
-        rm -rf ${HYPRE_TOP_DIR};
-        tar -xzf ${HYPRE_ARCHIVE};
-        cd ${HYPRE_TOP_DIR}/src;
-        ./configure --disable-fortran CC=mpicc CXX=mpic++;
-        make -j3;
-        cd ../..;
+    - name: Get Hypre
+      if: matrix.MPI == 'YES'
+      uses: ./.github/actions/install-hypre
 
     # Get Metis through cache, or install it.
     # Install will only run on cache miss.
