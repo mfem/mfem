@@ -19,7 +19,7 @@ runs:
       run: |
         wget --no-verbose ${{ inputs.hypre-url }}/${{ inputs.hypre-archive }};
         rm -rf ${{ inputs.hypre-dir }};
-        tar -xzf ${{ inputs.hypre_archive }};
+        tar -xzf ${{ inputs.hypre-archive }};
         cd ${{ inputs.hypre-dir }}/src;
         ./configure --disable-fortran CC=mpicc CXX=mpic++;
         make -j3;
