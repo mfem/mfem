@@ -2098,6 +2098,7 @@ int ParFiniteElementSpace
       Array<int> master_dofs, slave_dofs;
 
       // loop through *all* master edges/faces, constrain their slaves
+      // Why do we start here at 0 and in serial at 1?
       for (int entity = 0; entity <= 2; entity++)
       {
          const NCMesh::NCList &list = pncmesh->GetNCList(entity);
@@ -2110,11 +2111,13 @@ int ParFiniteElementSpace
          for (int mi = 0; mi < list.masters.Size(); mi++)
          {
             const NCMesh::Master &mf = list.masters[mi];
+            auto master_index = MapEntityBack(entity, mf.index);
+            if(master_index < 0) continue;
 
             // get master DOFs
             pncmesh->IsGhost(entity, mf.index)
             ? GetGhostDofs(entity, mf, master_dofs)
-            : GetEntityDofs(entity, mf.index, master_dofs);
+            : GetEntityDofs(entity, master_index, master_dofs);
 
             if (!master_dofs.Size()) { continue; }
 
@@ -2135,7 +2138,10 @@ int ParFiniteElementSpace
                const NCMesh::Slave &sf = list.slaves[si];
                if (pncmesh->IsGhost(entity, sf.index)) { continue; }
 
-               GetEntityDofs(entity, sf.index, slave_dofs, mf.Geom());
+               auto slave_index = MapEntityBack(entity, sf.index);
+               if(slave_index < 0) continue;
+
+               GetEntityDofs(entity, slave_index, slave_dofs, mf.Geom());
                if (!slave_dofs.Size()) { continue; }
 
                list.OrientedPointMatrix(sf, T.GetPointMat());
@@ -2149,7 +2155,7 @@ int ParFiniteElementSpace
 
       deps.Finalize();
    }
-
+std::cout << "1 done" << std::endl;
    // *** STEP 2: initialize group and owner ID for each DOF ***
 
    Array<GroupId> dof_group(total_dofs);
@@ -2180,10 +2186,13 @@ int ParFiniteElementSpace
 
                if (id.index < 0) { continue; }
 
+               auto index = MapEntityBack(entity, id.index);
+               if(index < 0) continue;
+
                GroupId owner = pncmesh->GetEntityOwnerId(entity, id.index);
                GroupId group = pncmesh->GetEntityGroupId(entity, id.index);
 
-               GetBareDofs(entity, id.index, dofs);
+               GetBareDofs(entity, index, dofs);
 
                for (int j = 0; j < dofs.Size(); j++)
                {
@@ -2195,7 +2204,7 @@ int ParFiniteElementSpace
          }
       }
    }
-
+std::cout << "2 done" << std::endl;
    // *** STEP 3: count true DOFs and calculate P row/column partitions ***
 
    Array<bool> finalized(total_dofs);
@@ -2267,7 +2276,7 @@ int ParFiniteElementSpace
          tdof++;
       }
    }
-
+std::cout << "3 done" << std::endl;
    // send identity rows
    NeighborRowMessage::IsendAll(send_msg.back(), MyComm);
 #ifdef MFEM_PMATRIX_STATS
@@ -2289,6 +2298,7 @@ int ParFiniteElementSpace
 
    while (num_finalized < ndofs)
    {
+      std::cout << "Finalized "  << num_finalized << "/"  << ndofs << std::endl;
       // prepare a new round of send buffers
       if (send_msg.back().size())
       {
@@ -2309,7 +2319,8 @@ int ParFiniteElementSpace
          for (unsigned i = 0; i < rows.size(); i++)
          {
             const NeighborRowMessage::RowInfo &ri = rows[i];
-            int dof = PackDof(ri.entity, ri.index, ri.edof);
+            const auto index = MapEntityBack(ri.entity, ri.index);
+            int dof = PackDof(ri.entity, index, ri.edof);
             pmatrix[dof] = ri.row;
 
             if (dof < ndofs && !finalized[dof]) { num_finalized++; }

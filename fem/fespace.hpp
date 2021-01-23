@@ -507,6 +507,49 @@ public:
       }
       return -1;
    }
+   inline int MapEntityBack(int entity, int i) const
+   {
+      switch(entity)
+      {
+         case 0:
+         return MapVertexBack(i);
+
+         case 1:
+         return MapEdgeBack(i);
+
+         case 2:
+         return MapFaceBack(i);
+
+         case 3:
+         return MapElementBack(i);
+
+         default:
+         MFEM_ABORT("Unknown entity " << i);
+      }
+      return -1;
+   }
+
+   inline int MapEntity(int entity, int i) const
+   {
+      switch(entity)
+      {
+         case 0:
+         return MapVertex(i);
+
+         case 1:
+         return MapEdge(i);
+
+         case 2:
+         return MapFace(i);
+
+         case 3:
+         return MapElement(i);
+
+         default:
+         MFEM_ABORT("Unknown entity " << i);
+      }
+      return -1;
+   }
 
    inline bool UsesSubdomain() const
    { return subdomain != nullptr; }

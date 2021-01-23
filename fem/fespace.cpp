@@ -809,17 +809,8 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       for (int mi = 0; mi < list.masters.Size(); mi++)
       {
          const NCMesh::Master &master = list.masters[mi];
-         auto master_index = master.index;
-         if(entity == 1)
-         {
-            master_index = MapEdgeBack(master_index);
-            if(master_index < 0) continue;
-         }
-         else if(entity == 2)
-         {
-            master_index = MapFaceBack(master_index);
-            if(master_index < 0) continue;
-         }
+         const int master_index = MapEntityBack(entity, master.index);
+         if(master_index < 0) continue;
 
          GetEntityDofs(entity, master_index, master_dofs);
          if (!master_dofs.Size()) { continue; }
@@ -839,17 +830,8 @@ void FiniteElementSpace::BuildConformingInterpolation() const
          {
             const NCMesh::Slave &slave = list.slaves[si];
 
-            auto slave_index = slave.index;
-            if(entity == 1)
-            {
-               slave_index = MapEdgeBack(slave_index);
-               if(slave_index < 0) continue;
-            }
-            else if(entity == 2)
-            {
-               slave_index = MapFaceBack(slave_index);
-               if(slave_index < 0) continue;
-            }
+            const int slave_index = MapEntityBack(entity, slave.index);
+            if(slave_index < 0) continue;
 
             GetEntityDofs(entity, slave_index, slave_dofs, master.Geom());
             if (!slave_dofs.Size()) { continue; }
