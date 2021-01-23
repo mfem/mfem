@@ -5,9 +5,13 @@
 using namespace std;
 using namespace mfem;
 
+// #define DEFINITE
+
 double p_exact(const Vector &x);
+void u_exact(const Vector &x, Vector & u);
 double rhs_func(const Vector &x);
 void gradp_exact(const Vector &x, Vector &gradu);
+double divu_exact(const Vector &x);
 double d2_exact(const Vector &x);
 
 int dim;
@@ -97,11 +101,15 @@ int main(int argc, char *argv[])
    FunctionCoefficient f_rhs(rhs_func);
    ProductCoefficient omega_f(omeg,f_rhs);
    b_q.AddDomainIntegrator(new DomainLFIntegrator(omega_f));
-
    // (f, div v)
    ParLinearForm b_v(RTfespace);
+#ifdef DEFINITE
+   ConstantCoefficient negone(-1.0);
+   ProductCoefficient neg_f(negone,f_rhs);
+   b_v.AddDomainIntegrator(new VectorFEDomainLFDivIntegrator(neg_f));
+#else    
    b_v.AddDomainIntegrator(new VectorFEDomainLFDivIntegrator(f_rhs));
-
+#endif
 
    ParBilinearForm a_qp(H1fespace);
    ConstantCoefficient one(1.0);
@@ -111,95 +119,207 @@ int main(int argc, char *argv[])
    a_qp.AddDomainIntegrator(new DiffusionIntegrator(one));
    a_qp.AddDomainIntegrator(new MassIntegrator(omeg2));
 
-   // w(divu,q)-w(u, gradq)
    ParMixedBilinearForm a_qu(RTfespace, H1fespace);
+#ifdef DEFINITE
+   // -w(divu,q)
+   a_qu.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(negomeg));
+#else   
+   // w(divu,q)
    a_qu.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(omeg));
+#endif
+   // -w(u, gradq)
    a_qu.AddDomainIntegrator(new MixedVectorWeakDivergenceIntegrator(omeg));
-
    // w(p,divv) - w(gradp,v)
    ParMixedBilinearForm a_vp(H1fespace, RTfespace);
+#ifdef DEFINITE
+   // -w(p,divv)
+   a_vp.AddDomainIntegrator(new MixedScalarWeakGradientIntegrator(omeg));
+#else
+   // w(p,divv)
    a_vp.AddDomainIntegrator(new MixedScalarWeakGradientIntegrator(negomeg));
-   a_vp.AddDomainIntegrator(new MixedVectorGradientIntegrator(omeg));
-
-
+#endif
+   // - w(gradp,v)
+   a_vp.AddDomainIntegrator(new MixedVectorGradientIntegrator(negomeg));
 
    ParBilinearForm a_vu(RTfespace);
    a_vu.AddDomainIntegrator(new DivDivIntegrator(one));
    a_vu.AddDomainIntegrator(new VectorFEMassIntegrator(omeg2));
 
-   b_q.Assemble();
-   b_v.Assemble();
-   a_qp.Assemble(); a_qp.Finalize();
-   a_qu.Assemble(); a_qu.Finalize();
-   a_vp.Assemble(); a_vp.Finalize();
-   a_vu.Assemble(); a_vu.Finalize();
-   
+
+   ConvergenceStudy ratesH1;
+   ConvergenceStudy ratesRT;
+   FunctionCoefficient p_ex(p_exact);
+   VectorFunctionCoefficient gradp_ex(dim,gradp_exact);
+   VectorFunctionCoefficient u_ex(dim,u_exact);
+   FunctionCoefficient divu_ex(divu_exact);
+   ParGridFunction p_gf, u_gf;
+
+   for (int l = 0; l <= pr; l++)
+   {
+
+      Array<int> ess_tdof_list;
+      Array<int> ess_bdr;
+      if (pmesh->bdr_attributes.Size())
+      {
+         ess_bdr.SetSize(pmesh->bdr_attributes.Max());
+         ess_bdr = 1;
+         H1fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      }
+
+       Array<int> block_offsets(3);
+      block_offsets[0] = 0;
+      block_offsets[1] = H1fespace->GetVSize();
+      block_offsets[2] = RTfespace->GetVSize();
+      block_offsets.PartialSum();
+
+      Array<int> block_trueOffsets(3);
+      block_trueOffsets[0] = 0;
+      block_trueOffsets[1] = H1fespace->TrueVSize();
+      block_trueOffsets[2] = RTfespace->TrueVSize();
+      block_trueOffsets.PartialSum();
+
+      BlockVector x(block_offsets), rhs(block_offsets);
+      BlockVector trueX(block_trueOffsets), trueRhs(block_trueOffsets);
+      x = 0.0;  rhs = 0.0;
+      trueX = 0.0;  trueRhs = 0.0;
+
+      p_gf.MakeRef(H1fespace,x.GetBlock(0));
+      p_gf.ProjectBdrCoefficient(p_ex,ess_bdr);
+
+      u_gf.MakeRef(RTfespace,x.GetBlock(1));
+      u_gf = 0.0;
+
+      b_q.Update(H1fespace,rhs.GetBlock(0),0);
+      b_q.Assemble();
+
+      b_v.Update(RTfespace,rhs.GetBlock(1),0);
+      b_v.Assemble();
 
 
-   // ParGridFunction x(fespace);
-   // x = 0.0;
-   // FunctionCoefficient p_ex(p_exact);
-   // VectorFunctionCoefficient gradp_ex(dim,gradp_exact);
+      a_qp.Assemble();
+      a_qp.EliminateEssentialBC(ess_bdr,x.GetBlock(0),rhs.GetBlock(0));
+      a_qp.Finalize();
+      HypreParMatrix * A_qp = a_qp.ParallelAssemble();
 
-   // // 9. Perform successive parallel refinements, compute the L2 error and the
-   // //    corresponding rate of convergence.
-   // ConvergenceStudy rates;
-   // for (int l = 0; l <= pr; l++)
-   // {
+      a_qu.Assemble();
+      a_qu.EliminateTestDofs(ess_bdr);
+      a_qu.Finalize();
+      HypreParMatrix * A_qu = a_qu.ParallelAssemble();
 
-   //    Array<int> ess_tdof_list;
-   //    Array<int> ess_bdr;
-   //    if (pmesh->bdr_attributes.Size())
-   //    {
-   //       ess_bdr.SetSize(pmesh->bdr_attributes.Max());
-   //       ess_bdr = 1;
-   //       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   //    }
 
-   //    b.Assemble();
-   //    a.Assemble();
-   //    x.ProjectBdrCoefficient(p_ex,ess_bdr);      
+      a_vp.Assemble();
+      a_vp.EliminateTrialDofs(ess_bdr,x.GetBlock(0),rhs.GetBlock(1));
+      a_vp.Finalize();
+      HypreParMatrix * A_vp = a_vp.ParallelAssemble();
 
-   //    OperatorPtr A;
-   //    Vector B, X;
-   //    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+      a_vu.Assemble();
+      a_vu.Finalize();
+      HypreParMatrix * A_vu = a_vu.ParallelAssemble();
 
-   //    MUMPSSolver mumps;
-   //    mumps.SetPrintLevel(0);
-   //    mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
-   //    mumps.SetOperator(*A);
-   //    mumps.Mult(B,X);
 
-   //    a.RecoverFEMSolution(X, b, x);
 
-   //    rates.AddH1GridFunction(&x,&p_ex,&gradp_ex);
+      H1fespace->GetRestrictionMatrix()->Mult(x.GetBlock(0), trueX.GetBlock(0));
+      H1fespace->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(0),trueRhs.GetBlock(0));
 
-   //    if (l==pr) break;
+      RTfespace->GetRestrictionMatrix()->Mult(x.GetBlock(1), trueX.GetBlock(1));
+      RTfespace->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(1),trueRhs.GetBlock(1));
 
-   //    pmesh->UniformRefinement();
-   //    fespace->Update();
-   //    a.Update();
-   //    b.Update();
-   //    x.Update();
-   // }
-   // rates.Print();
 
-   // // 10. Send the solution by socket to a GLVis server.
-   // if (visualization)
-   // {
-   //    char vishost[] = "localhost";
-   //    int  visport   = 19916;
-   //    socketstream sol_sock(vishost, visport);
-   //    sol_sock << "parallel " << num_procs << " " << myid << "\n";
-   //    sol_sock.precision(8);
-   //    sol_sock << "solution\n" << *pmesh << x <<
-   //             "window_title 'Numerical Pressure (real part)' "
-   //             << flush;
-   // }
+      Array2D<HypreParMatrix *> Ah(2,2);
+      Ah[0][0] = A_qp; 
+      Ah[0][1] = A_qu;
+      Ah[1][0] = A_vp;
+      Ah[1][1] = A_vu;
+      HypreParMatrix * A = HypreParMatrixFromBlocks(Ah);
+
+      HypreBoomerAMG amg_p(*A_qp);
+      amg_p.SetPrintLevel(0);
+
+      Solver *prec = nullptr;
+      if (dim == 2) 
+      {
+         prec = new HypreAMS(*A_vu,RTfespace);
+         dynamic_cast<HypreAMS *>(prec)->SetPrintLevel(0);
+      }
+      else
+      {
+         prec = new HypreADS(*A_vu,RTfespace);
+         dynamic_cast<HypreAMS *>(prec)->SetPrintLevel(0);
+      }
+
+      BlockDiagonalPreconditioner M(block_trueOffsets);
+      M.SetDiagonalBlock(0,&amg_p);
+      M.SetDiagonalBlock(1,prec);
+
+      // PCG(*A,M,trueRhs,trueX,1,1000,1e-12,0.0);
+      CGSolver cg(MPI_COMM_WORLD);
+      cg.SetRelTol(1e-6);
+      cg.SetMaxIter(2000);
+      cg.SetPrintLevel(1);
+      cg.SetPreconditioner(M);
+      cg.SetOperator(*A);
+      cg.Mult(trueRhs, trueX);
+      delete prec;
+
+      // MUMPSSolver mumps;
+      // mumps.SetPrintLevel(0);
+      // mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+      // mumps.SetOperator(*A);
+      // mumps.Mult(trueRhs,trueX);
+
+
+
+
+
+      delete A;
+      delete A_vu;
+      delete A_qp;
+      delete A_vp;
+      delete A_qu;
+
+      p_gf = 0.0;
+      u_gf = 0.0;
+      p_gf.Distribute(&(trueX.GetBlock(0)));
+      u_gf.Distribute(&(trueX.GetBlock(1)));
+
+      ratesH1.AddH1GridFunction(&p_gf,&p_ex,&gradp_ex);
+      ratesRT.AddHdivGridFunction(&u_gf,&u_ex,&divu_ex);
+
+      if (l==pr) break;
+
+      pmesh->UniformRefinement();
+      H1fespace->Update();
+      RTfespace->Update();
+      a_qp.Update();
+      a_qu.Update();
+      a_vp.Update();
+      a_vu.Update();
+      b_q.Update();
+      b_v.Update();
+      p_gf.Update();
+      u_gf.Update();
+   }
+   ratesH1.Print(true);
+   ratesRT.Print(true);
+
+   // 10. Send the solution by socket to a GLVis server.
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << *pmesh << p_gf <<
+               "window_title 'Numerical Pressure (real part)' "
+               << flush;
+   }
 
    // // 11. Free the used memory.
-   // delete fespace;
-   // delete fec;
+   delete H1fespace;
+   delete RTfespace;
+   delete H1fec;
+   delete RTfec;
    delete pmesh;
    MPI_Finalize();
    return 0;
@@ -208,8 +328,12 @@ int main(int argc, char *argv[])
 double rhs_func(const Vector &x)
 {
    double p = p_exact(x);
-   double d2p = d2_exact(x);
-   return -d2p - omega * omega * p;
+   double divu = divu_exact(x);
+#ifdef DEFINITE   
+   return -divu + omega * p;
+#else
+   return divu + omega * p;
+#endif   
 }
 
 double p_exact(const Vector &x)
@@ -221,6 +345,17 @@ void gradp_exact(const Vector &x, Vector &grad)
 {
    grad.SetSize(x.Size());
    grad = omega * cos(omega * x.Sum());
+}
+
+void u_exact(const Vector &x, Vector & u)
+{
+   gradp_exact(x,u);
+   u *= 1./omega;
+}
+
+double divu_exact(const Vector &x)
+{
+   return d2_exact(x)/omega;
 }
 
 double d2_exact(const Vector &x)

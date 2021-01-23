@@ -87,13 +87,18 @@ int main(int argc, char *argv[])
 
 
    ParBilinearForm a(fespace);
+   ParBilinearForm aprec(fespace);
    ConstantCoefficient one(1.0);
    ConstantCoefficient omeg(-omega*omega);
+   ConstantCoefficient posomeg(omega*omega);
    // (grad u, grad v) - \omega^2 (u,v)
    a.AddDomainIntegrator(new DiffusionIntegrator(one));
    a.AddDomainIntegrator(new MassIntegrator(omeg));
 
+   aprec.AddDomainIntegrator(new DiffusionIntegrator(one));
+   aprec.AddDomainIntegrator(new MassIntegrator(posomeg));
 
+   
    ParGridFunction x(fespace);
    x = 0.0;
    FunctionCoefficient p_ex(p_exact);
@@ -121,12 +126,29 @@ int main(int argc, char *argv[])
       OperatorPtr A;
       Vector B, X;
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+      
+      OperatorPtr M;
+      Array<int> ess_tdof_list1;
+      ess_tdof_list1 = ess_tdof_list;
+      aprec.FormSystemMatrix(ess_tdof_list1,M);
+      
 
-      MUMPSSolver mumps;
-      mumps.SetPrintLevel(0);
-      mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
-      mumps.SetOperator(*A);
-      mumps.Mult(B,X);
+      HypreBoomerAMG amg;
+      amg.SetPrintLevel(0);
+      GMRESSolver gmres(MPI_COMM_WORLD);
+      gmres.SetRelTol(0.0);
+      gmres.SetAbsTol(1e-6);
+      gmres.SetMaxIter(2000);
+      gmres.SetPrintLevel(1);
+      gmres.SetPreconditioner(amg);
+      gmres.SetOperator(*A);
+      gmres.Mult(B, X);
+
+      // MUMPSSolver mumps;
+      // mumps.SetPrintLevel(0);
+      // mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+      // mumps.SetOperator(*A);
+      // mumps.Mult(B,X);
 
       a.RecoverFEMSolution(X, b, x);
 
