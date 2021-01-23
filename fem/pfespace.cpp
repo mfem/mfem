@@ -259,12 +259,58 @@ void ParFiniteElementSpace::GetGroupComm(
 
    // count the number of ldofs in all groups (excluding the local group 0)
    group_ldof_counter = 0;
-   for (gr = 1; gr < ng; gr++)
+   // Technically we do not need this differentiation, but the code is slightly
+   // faster this way.
+   if(!UsesSubdomain())
    {
-      group_ldof_counter += nvd * pmesh->GroupNVertices(gr);
-      group_ldof_counter += ned * pmesh->GroupNEdges(gr);
-      group_ldof_counter += ntd * pmesh->GroupNTriangles(gr);
-      group_ldof_counter += nqd * pmesh->GroupNQuadrilaterals(gr);
+      for (gr = 1; gr < ng; gr++)
+      {
+         group_ldof_counter += nvd * pmesh->GroupNVertices(gr);
+         group_ldof_counter += ned * pmesh->GroupNEdges(gr);
+         group_ldof_counter += ntd * pmesh->GroupNTriangles(gr);
+         group_ldof_counter += nqd * pmesh->GroupNQuadrilaterals(gr);
+      }
+   }
+   else
+   // In the subdomain case we just have to account for entities in the subdomain.
+   {
+      for (gr = 1; gr < ng; gr++)
+      {
+         for(int svi = 0; svi < pmesh->GroupNVertices(gr); svi++)
+         {
+            if(MapVertexBack(pmesh->GroupVertex(gr, svi)) >= 0)
+            {
+               group_ldof_counter += nvd;
+            }
+         }
+         for(int sei = 0; sei < pmesh->GroupNEdges(gr); sei++)
+         {
+            int ei, eo;
+            pmesh->GroupEdge(gr, sei, ei, eo);
+            if(MapEdgeBack(ei) >= 0)
+            {
+               group_ldof_counter += ned;
+            }
+         }
+         for(int stfi = 0; stfi < pmesh->GroupNTriangles(gr); stfi++)
+         {
+            int fi, fo;
+            pmesh->GroupTriangle(gr, stfi, fi, fo);
+            if(MapFaceBack(fi) >= 0)
+            {
+               group_ldof_counter += ntd;
+            }
+         }
+         for(int sqfi = 0; sqfi < pmesh->GroupNQuadrilaterals(gr); sqfi++)
+         {
+            int fi, fo;
+            pmesh->GroupQuadrilateral(gr, sqfi, fi, fo);
+            if(MapFaceBack(fi) >= 0)
+            {
+               group_ldof_counter += nqd;
+            }
+         }
+      }
    }
    if (ldof_type)
    {
@@ -291,7 +337,8 @@ void ParFiniteElementSpace::GetGroupComm(
       {
          for (j = 0; j < nv; j++)
          {
-            k = pmesh->GroupVertex(gr, j);
+            k = MapVertexBack(pmesh->GroupVertex(gr, j));
+            if(k < 0) continue;
 
             dofs.SetSize(nvd);
             m = nvd * k;
@@ -318,6 +365,8 @@ void ParFiniteElementSpace::GetGroupComm(
          for (j = 0; j < ne; j++)
          {
             pmesh->GroupEdge(gr, j, k, o);
+            k = MapEdgeBack(k);
+            if(k < 0) continue;
 
             dofs.SetSize(ned);
             m = nvdofs+k*ned;
@@ -356,6 +405,8 @@ void ParFiniteElementSpace::GetGroupComm(
          for (j = 0; j < nt; j++)
          {
             pmesh->GroupTriangle(gr, j, k, o);
+            k = MapFaceBack(k);
+            if(k < 0) continue;
 
             dofs.SetSize(ntd);
             m = nvdofs+nedofs+fdofs[k];
@@ -394,6 +445,8 @@ void ParFiniteElementSpace::GetGroupComm(
          for (j = 0; j < nq; j++)
          {
             pmesh->GroupQuadrilateral(gr, j, k, o);
+            k = MapFaceBack(k);
+            if(k < 0) continue;
 
             dofs.SetSize(nqd);
             m = nvdofs+nedofs+fdofs[k];
@@ -619,6 +672,7 @@ void ParFiniteElementSpace::GenerateGlobalOffsets() const
    ldof[0] = GetVSize();
    ldof[1] = TrueVSize();
 
+   // @TODO this one hangs up some times. Invstigate.
    pmesh->GenerateOffsets(2, ldof, offsets);
 
    if (HYPRE_AssumedPartitionCheck())

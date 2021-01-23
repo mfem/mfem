@@ -30,27 +30,27 @@ struct ParSubdomainExtension : public SubdomainExtension
 };
 
 // This construction conserves the original ordering of entities.
-inline ParSubdomainExtension* SubdomainFromAttributes(ParMesh* mesh, Array<int> attributes)
+inline ParSubdomainExtension* SubdomainFromAttributes(ParMesh* pmesh, Array<int> attributes)
 {
    attributes.Sort();
 
    auto subdomain = new ParSubdomainExtension();
 
    // Add elements
-   for(int e = 0; e < mesh->GetNE(); e++)
+   for(int e = 0; e < pmesh->GetNE(); e++)
    {
-      if(attributes.FindSorted(mesh->GetAttribute(e)) != -1)
+      if(attributes.FindSorted(pmesh->GetAttribute(e)) != -1)
       {
          subdomain->element_map.Append(e);
       }
    }
 
    // Add boundary
-   for(int be = 0; be < mesh->GetNBE(); be++)
+   for(int be = 0; be < pmesh->GetNBE(); be++)
    {
       int e, info;
-      mesh->GetBdrElementAdjacentElement(be, e, info);
-      if(attributes.FindSorted(mesh->GetAttribute(e)) != -1)
+      pmesh->GetBdrElementAdjacentElement(be, e, info);
+      if(attributes.FindSorted(pmesh->GetAttribute(e)) != -1)
       {
          subdomain->boundary_map.Append(be);
       }
@@ -59,13 +59,13 @@ inline ParSubdomainExtension* SubdomainFromAttributes(ParMesh* mesh, Array<int> 
    Array<int> elements;
    {
       // Add faces
-      auto face2el = mesh->GetFaceToElementTable();
-      for(int f = 0; f < mesh->GetNFaces(); f++)
+      auto face2el = pmesh->GetFaceToElementTable();
+      for(int f = 0; f < pmesh->GetNFaces(); f++)
       {
          face2el->GetRow(f, elements);
          for(int e : elements)
          {
-            if(attributes.FindSorted(mesh->GetAttribute(e)) != -1)
+            if(attributes.FindSorted(pmesh->GetAttribute(e)) != -1)
             {
                subdomain->face_map.Append(f);
                break;
@@ -76,20 +76,20 @@ inline ParSubdomainExtension* SubdomainFromAttributes(ParMesh* mesh, Array<int> 
    }
 
    {
-      auto vertex2el = mesh->GetVertexToElementTable();
+      auto vertex2el = pmesh->GetVertexToElementTable();
 
       Array<int> vertices;
       // Add edges
-      for(int edge = 0; edge < mesh->GetNEdges(); edge++)
+      for(int edge = 0; edge < pmesh->GetNEdges(); edge++)
       {
-         mesh->GetEdgeVertices(edge, vertices);
+         pmesh->GetEdgeVertices(edge, vertices);
          bool added_edge = false;
          for(int v : vertices)
          {
             vertex2el->GetRow(v, elements);
             for(int e : elements)
             {
-               if(attributes.FindSorted(mesh->GetAttribute(e)) != -1)
+               if(attributes.FindSorted(pmesh->GetAttribute(e)) != -1)
                {
                   subdomain->edge_map.Append(edge);
                   added_edge = true;
@@ -104,12 +104,12 @@ inline ParSubdomainExtension* SubdomainFromAttributes(ParMesh* mesh, Array<int> 
       }
 
       // Add vertices
-      for(int v = 0; v < mesh->GetNV(); v++)
+      for(int v = 0; v < pmesh->GetNV(); v++)
       {
          vertex2el->GetRow(v, elements);
          for(int e : elements)
          {
-            if(attributes.FindSorted(mesh->GetAttribute(e)) != -1)
+            if(attributes.FindSorted(pmesh->GetAttribute(e)) != -1)
             {
                subdomain->vertex_map.Append(v);
                break;
@@ -119,6 +119,35 @@ inline ParSubdomainExtension* SubdomainFromAttributes(ParMesh* mesh, Array<int> 
 
       delete vertex2el;
    }
+
+   // Some shared entities may be hidden, because their element is on a different process, so we have search for them.
+   pmesh->ExchangeFaceNbrData();
+   Array<int> entity_buf;
+   Array<int> o_buf;
+   for (int sf = 0; sf < pmesh->GetNSharedFaces(); sf++)
+   {
+      const auto FT = pmesh->GetSharedFaceTransformations(sf, true);
+      if(attributes.FindSorted(FT->Elem2->Attribute) != -1)
+      {
+         const auto f = FT->Face->ElementNo;
+         subdomain->face_map.Append(f);
+         pmesh->GetFaceEdges(f, entity_buf, o_buf);
+         subdomain->edge_map.Append(entity_buf);
+         pmesh->GetFaceVertices(f, entity_buf);
+         subdomain->vertex_map.Append(entity_buf);
+      }
+   }
+
+   // The last step messed up everything, so we have to do some cleaunup to guarantee uniqueness of the entities and that they are properly sorted
+   subdomain->vertex_map.Unique();
+   subdomain->vertex_map.Sort();
+
+   subdomain->edge_map.Unique();
+   subdomain->edge_map.Sort();
+
+   subdomain->face_map.Unique();
+   subdomain->face_map.Sort();
+
    return subdomain;
 }
 
