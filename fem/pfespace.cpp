@@ -1337,7 +1337,7 @@ void ParFiniteElementSpace::Lose_Dof_TrueDof_Matrix()
 
 void ParFiniteElementSpace::ConstructTrueDofs()
 {
-   int i, gr, n = GetVSize();
+   const int n = GetVSize();
    GroupTopology &gt = pmesh->gtopo;
    gcomm = new GroupCommunicator(gt);
    Table &group_ldof = gcomm->GroupLDofTable();
@@ -1352,18 +1352,18 @@ void ParFiniteElementSpace::ConstructTrueDofs()
    ldof_group = 0;
    ldof_ltdof = -1;
 
-   for (gr = 1; gr < group_ldof.Size(); gr++)
+   for (int gr = 1; gr < group_ldof.Size(); gr++)
    {
       const int *ldofs = group_ldof.GetRow(gr);
       const int nldofs = group_ldof.RowSize(gr);
-      for (i = 0; i < nldofs; i++)
+      for (int i = 0; i < nldofs; i++)
       {
          ldof_group[ldofs[i]] = gr;
       }
 
       if (!gt.IAmMaster(gr)) // we are not the master
       {
-         for (i = 0; i < nldofs; i++)
+         for (int i = 0; i < nldofs; i++)
          {
             ldof_ltdof[ldofs[i]] = -2;
          }
@@ -1372,7 +1372,7 @@ void ParFiniteElementSpace::ConstructTrueDofs()
 
    // count ltdof_size
    ltdof_size = 0;
-   for (i = 0; i < n; i++)
+   for (int i = 0; i < n; i++)
    {
       if (ldof_ltdof[i] == -1)
       {

@@ -383,9 +383,9 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
       int ignored_vertices = 0;
       int ignored_edges = 0;
 
-      for (auto vertex_in_mesh : bdr_vertices)
+      for (const int vertex_in_mesh : bdr_vertices)
       {
-         auto vertex = MapVertexBack(vertex_in_mesh);
+         const int vertex = MapVertexBack(vertex_in_mesh);
          if(vertex<0)
          {
             ignored_vertices++;
@@ -414,7 +414,7 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
          auto v2e = mesh->GetVertexToElementTable();
          Array<int> elements;
          Array<int> ignored_vertices;
-         for (auto vertex_in_mesh : bdr_vertices)
+         for (const int vertex_in_mesh : bdr_vertices)
          {
             // These are fine.
             if(MapVertexBack(vertex_in_mesh)>= 0)
@@ -425,7 +425,7 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
             v2e->GetRow(vertex_in_mesh, elements);
 
             bool has_element_in_subspace = false;
-            for(auto e : elements)
+            for(const int e : elements)
             {
                // Dirty hack to check if an element is part of our subspace
                if(MapElementBack(e) >= 0)
@@ -445,9 +445,9 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
 #endif
       }
 
-      for (auto edge_in_mesh : bdr_edges)
+      for (const int edge_in_mesh : bdr_edges)
       {
-         auto edge = MapEdgeBack(edge_in_mesh);
+         const int edge = MapEdgeBack(edge_in_mesh);
          if(edge<0)
          {
             ignored_edges++;
@@ -462,8 +462,10 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
          else
          {
             GetEdgeDofs(edge, dofs);
-            for (int d = 0; d < dofs.Size(); d++)
-            { dofs[d] = DofToVDof(dofs[d], component); }
+            for (int& dof : dofs)
+            {
+               dof = DofToVDof(dof, component);
+            }
             mark_dofs(dofs, ess_vdofs);
          }
       }
@@ -475,7 +477,7 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
          auto edge2element = mesh->GetEdgeToElementTable();
          Array<int> elements;
          Array<int> ignored_edges;
-         for (auto edge_in_mesh : bdr_edges)
+         for (const int edge_in_mesh : bdr_edges)
          {
             // These are fine.
             if(MapEdgeBack(edge_in_mesh)>= 0)
@@ -487,7 +489,7 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
 
             edge2element->GetRow(edge_in_mesh, elements);
 
-            for(auto e : elements)
+            for(const int e : elements)
             {
                // Dirty hack to check if an element is part of our subspace
                if(MapElementBack(e) >= 0)
@@ -1851,10 +1853,6 @@ void FiniteElementSpace::GetElementDofs(int i, Array<int> &dofs) const
             {
                E[ei] = MapEdgeBack(E[ei]);
             }
-            for(int vi = 0; vi < Eo.Size(); vi++)
-            {
-               Eo[vi] = MapVertexBack(Eo[vi]);
-            }
          }
       }
       nfd = 0;
@@ -1996,10 +1994,6 @@ void FiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
             {
                E[ei] = MapEdgeBack(E[ei]);
             }
-            for(int vi = 0; vi < Eo.Size(); vi++)
-            {
-               Eo[vi] = MapVertexBack(Eo[vi]);
-            }
          }
       }
       nd = V.Size() * nv + E.Size() * ne;
@@ -2009,10 +2003,7 @@ void FiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
       {
          nd += nf;
          mesh->GetBdrElementFace(MapBoundary(i), &iF, &oF);
-         if(subdomain)
-         {
-            iF = MapFaceBack(iF);
-         }
+         iF = MapFaceBack(iF);
       }
       dofs.SetSize(nd);
       if (nv > 0)
@@ -2177,11 +2168,9 @@ void FiniteElementSpace::GetEdgeDofs(int i, Array<int> &dofs) const
 
 void FiniteElementSpace::GetVertexDofs(int i, Array<int> &dofs) const
 {
-   int j, nv;
-
-   nv = fec->DofForGeometry(Geometry::POINT);
+   const int nv = fec->DofForGeometry(Geometry::POINT);
    dofs.SetSize(nv);
-   for (j = 0; j < nv; j++)
+   for (int j = 0; j < nv; j++)
    {
       dofs[j] = i*nv+j;
    }
@@ -2189,12 +2178,11 @@ void FiniteElementSpace::GetVertexDofs(int i, Array<int> &dofs) const
 
 void FiniteElementSpace::GetElementInteriorDofs (int i, Array<int> &dofs) const
 {
-   int j, k, nb;
    if (mesh->Dimension() == 0) { dofs.SetSize(0); return; }
-   nb = fec -> DofForGeometry (mesh -> GetElementBaseGeometry (MapElement(i)));
+   const int nb = fec -> DofForGeometry (mesh -> GetElementBaseGeometry (MapElement(i)));
    dofs.SetSize (nb);
-   k = nvdofs + nedofs + nfdofs + bdofs[i];
-   for (j = 0; j < nb; j++)
+   const int k = nvdofs + nedofs + nfdofs + bdofs[i];
+   for (int j = 0; j < nb; j++)
    {
       dofs[j] = k + j;
    }
@@ -2202,11 +2190,9 @@ void FiniteElementSpace::GetElementInteriorDofs (int i, Array<int> &dofs) const
 
 void FiniteElementSpace::GetEdgeInteriorDofs (int i, Array<int> &dofs) const
 {
-   int j, k, ne;
-
-   ne = fec -> DofForGeometry (Geometry::SEGMENT);
+   const int ne = fec -> DofForGeometry (Geometry::SEGMENT);
    dofs.SetSize (ne);
-   for (j = 0, k = nvdofs+i*ne; j < ne; j++, k++)
+   for (int j = 0, k = nvdofs+i*ne; j < ne; j++, k++)
    {
       dofs[j] = k;
    }
@@ -2214,13 +2200,11 @@ void FiniteElementSpace::GetEdgeInteriorDofs (int i, Array<int> &dofs) const
 
 void FiniteElementSpace::GetFaceInteriorDofs (int i, Array<int> &dofs) const
 {
-   int j, k, nf;
-
-   nf = (fdofs) ? (fdofs[i+1]-fdofs[i]) : (0);
+   const int nf = (fdofs) ? (fdofs[i+1]-fdofs[i]) : (0);
    dofs.SetSize (nf);
    if (nf > 0)
    {
-      for (j = 0, k = nvdofs+nedofs+fdofs[i]; j < nf; j++, k++)
+      for (int j = 0, k = nvdofs+nedofs+fdofs[i]; j < nf; j++, k++)
       {
          dofs[j] = k;
       }
