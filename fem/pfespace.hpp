@@ -139,14 +139,14 @@ inline ParSubdomainExtension* SubdomainFromAttributes(ParMesh* pmesh, Array<int>
    }
 
    // The last step messed up everything, so we have to do some cleaunup to guarantee uniqueness of the entities and that they are properly sorted
-   subdomain->vertex_map.Unique();
    subdomain->vertex_map.Sort();
+   subdomain->vertex_map.Unique();
 
-   subdomain->edge_map.Unique();
    subdomain->edge_map.Sort();
+   subdomain->edge_map.Unique();
 
-   subdomain->face_map.Unique();
    subdomain->face_map.Sort();
+   subdomain->face_map.Unique();
 
    return subdomain;
 }
