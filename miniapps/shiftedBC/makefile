@@ -59,7 +59,7 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 
 all: $(MINIAPPS)
 
-distance: distance.cpp dist_solver.o nldist.hpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+distance: distance.cpp dist_solver.o $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_LIB) $(MFEM_LIBS) dist_solver.o
 
 cutH1: cutH1.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common

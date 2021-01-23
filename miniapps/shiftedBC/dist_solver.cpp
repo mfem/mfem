@@ -701,16 +701,15 @@ void PLapDistanceSolver::ComputeDistance(Coefficient &func,
     fdist.ProjectCoefficient(tsol);
 
 
-    for (int i = 0; i < fdist.Size(); i++)
-    {
-       fdist(i) = fabs(fdist(i));
-    }
+    // (optional) Force positive distances everywhere.
+    // for (int i = 0; i < fdist.Size(); i++)
+    // {
+    //    fdist(i) = fabs(fdist(i));
+    // }
 
     delete ns;
     delete gmres;
     delete prec;
     delete nf;
     delete sv;
-
-
 }

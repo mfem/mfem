@@ -97,7 +97,7 @@ public:
 };
 
 //Formulation for the  ScreenedPoisson equation
-//The possitive part of the input coefficient supply unit volumetric loading
+//The positive part of the input coefficient supply unit volumetric loading
 //The negative part - negative unit volumetric loading
 //The parameter rh is the radius of a linear cone filter which will deliver
 //similar smoothing effect as the Screened Poisson euation
@@ -319,13 +319,13 @@ public:
         maxp=new_pp;
     }
 
-    void DistanceField(mfem::ParGridFunction& gfunc, mfem::ParGridFunction& fdist)
+    void DistanceField(ParGridFunction& gfunc, ParGridFunction& fdist)
     {
         mfem::GridFunctionCoefficient gfc(&gfunc);
         ComputeDistance(gfc, fdist);
     }
 
-    void ComputeDistance(mfem::Coefficient& func, mfem::ParGridFunction& fdist);
+    void ComputeDistance(Coefficient& func, ParGridFunction& fdist);
 
 private:
     int maxp; //maximum value of the power p
@@ -333,8 +333,6 @@ private:
     double newton_rel_tol;
     int newton_iter;
     int print_level;
-
-
 };
 
 

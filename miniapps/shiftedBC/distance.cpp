@@ -18,16 +18,17 @@
 //      mpirun -np 4 distance -m ../../data/periodic-cube.mesh -rs 3 -o 2 -t 1.0 -p 3
 //
 
-#include "nldist.hpp"
 #include <fstream>
 #include <iostream>
+#include "dist_solver.hpp"
 
 using namespace std;
 using namespace mfem;
 
 double sine_ls(const Vector &x)
 {
-   const double sine = 0.25 * std::sin(4 * M_PI * x(0));
+   const double sine = 0.25 * std::sin(4 * M_PI * x(0)) +
+                       0.05 * std::sin(16 * M_PI * x(0));
    return (x(1) >= sine + 0.5) ? -1.0 : 1.0;
 }
 
