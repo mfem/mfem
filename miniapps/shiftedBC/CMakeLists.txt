@@ -11,9 +11,9 @@
 
 if (MFEM_USE_MPI)
   list(APPEND DIST_COMMON_SOURCES
-  	distfunction.cpp nldist.cpp)
+	dist_solver.cpp)
   list(APPEND DIST_COMMON_HEADERS
-	distfunction.hpp nldist.hpp)
+	dist_solver.hpp)
 
 convert_filenames_to_full_paths(DIST_COMMON_SOURCES)
 convert_filenames_to_full_paths(DIST_COMMON_HEADERS)
@@ -22,20 +22,11 @@ set(DIST_COMMON_FILES
 	EXTRA_SOURCES ${DIST_COMMON_SOURCES}
 	EXTRA_HEADERS ${DIST_COMMON_HEADERS})
 
-  add_mfem_miniapp(ex1p1
-    MAIN ex1p.cpp
-    ${DIST_COMMON_FILES}
-    LIBRARIES mfem)
-
-  add_mfem_miniapp(distance1
+  add_mfem_miniapp(distance
     MAIN distance.cpp
     ${DIST_COMMON_FILES}
     LIBRARIES mfem)
 
-  add_mfem_miniapp(dist_solv
-    MAIN dist_solver.cpp
-    ${DIST_COMMON_FILES}
-    LIBRARIES mfem)
 
 
 endif ()
