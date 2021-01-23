@@ -672,7 +672,6 @@ void ParFiniteElementSpace::GenerateGlobalOffsets() const
    ldof[0] = GetVSize();
    ldof[1] = TrueVSize();
 
-   // @TODO this one hangs up some times. Invstigate.
    pmesh->GenerateOffsets(2, ldof, offsets);
 
    if (HYPRE_AssumedPartitionCheck())
@@ -1303,7 +1302,7 @@ const FiniteElement *ParFiniteElementSpace::GetFaceNbrFE(int i) const
 {
    const FiniteElement *FE =
       fec->FiniteElementForGeometry(
-         pmesh->face_nbr_elements[i]->GetGeometryType());
+         pmesh->face_nbr_elements[MapFaceBack(i)]->GetGeometryType());
 
    if (NURBSext)
    {
@@ -1321,7 +1320,7 @@ const FiniteElement *ParFiniteElementSpace::GetFaceNbrFaceFE(int i) const
    // Works in tandem with GetFaceNbrFaceVDofs() defined above.
 
    MFEM_ASSERT(Nonconforming() && !NURBSext, "");
-   Geometry::Type face_geom = pmesh->GetFaceGeometryType(i);
+   Geometry::Type face_geom = pmesh->GetFaceGeometryType(MapFaceBack(i));
    return fec->FiniteElementForGeometry(face_geom);
 }
 

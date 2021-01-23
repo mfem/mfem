@@ -1914,9 +1914,9 @@ void FiniteElementSpace::GetElementDofs(int i, Array<int> &dofs) const
       {
          for (k = 0; k < F.Size(); k++)
          {
-            ind = fec->DofOrderForOrientation(mesh->GetFaceBaseGeometry(F[k]),
+            ind = fec->DofOrderForOrientation(mesh->GetFaceBaseGeometry(MapFace(F[k])),
                                               Fo[k]);
-            nf = fec->DofForGeometry(mesh->GetFaceBaseGeometry(F[k]));
+            nf = fec->DofForGeometry(mesh->GetFaceBaseGeometry(MapFace(F[k])));
             for (j = 0; j < nf; j++)
             {
                if (ind[j] < 0)
