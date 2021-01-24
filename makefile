@@ -536,7 +536,7 @@ clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
 distclean: clean config/clean doc/clean
 	rm -rf mfem/
 
-INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(INSTALL_SOFLAGS)\
+INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_LINK_FLAGS) $(INSTALL_SOFLAGS)\
    $(OBJECT_FILES) $(EXT_LIBS) -o $(PREFIX_LIB)/libmfem.$(SO_VER) && \
    cd $(PREFIX_LIB) && ln -sf libmfem.$(SO_VER) libmfem.$(SO_EXT)
 
@@ -685,9 +685,10 @@ status info:
 ASTYLE_BIN = astyle
 ASTYLE = $(ASTYLE_BIN) --options=$(SRC)config/mfem.astylerc
 ASTYLE_VER = "Artistic Style Version 2.05.1"
-FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp")
-FORMAT_FILES += "tests/unit/*.cpp"
-FORMAT_FILES += $(foreach dir,general linalg mesh fem,"tests/unit/$(dir)/*.?pp")
+FORMAT_FILES := $(foreach dir,$(DIRS) $(EM_DIRS) config,$(dir)/*.?pp)
+FORMAT_FILES += tests/unit/*.cpp
+FORMAT_FILES += $(foreach dir,general linalg mesh fem,tests/unit/$(dir)/*.?pp)
+FORMAT_FILES := $(filter-out general/tinyxml2.cpp,$(wildcard $(FORMAT_FILES)))
 
 COUT_CERR_FILES = $(foreach dir,$(DIRS),$(dir)/*.[ch]pp)
 COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp'

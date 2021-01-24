@@ -30,9 +30,15 @@ int AmgXSolver::count = 0;
 
 AMGX_resources_handle AmgXSolver::rsrc = nullptr;
 
+AmgXSolver::AmgXSolver()
+   : ConvergenceCheck(false) {};
+
 AmgXSolver::AmgXSolver(const AMGX_MODE amgxMode_, const bool verbose)
 {
    amgxMode = amgxMode_;
+
+   if (amgxMode == AmgXSolver::SOLVER) { ConvergenceCheck = true;}
+   else { ConvergenceCheck = false;}
 
    DefaultParameters(amgxMode, verbose);
 
@@ -47,6 +53,9 @@ AmgXSolver::AmgXSolver(const MPI_Comm &comm,
    std::string config;
    amgxMode = amgxMode_;
 
+   if (amgxMode == AmgXSolver::SOLVER) { ConvergenceCheck = true;}
+   else { ConvergenceCheck = false;}
+
    DefaultParameters(amgxMode, verbose);
 
    InitExclusiveGPU(comm);
@@ -57,6 +66,9 @@ AmgXSolver::AmgXSolver(const MPI_Comm &comm, const int nDevs,
 {
    std::string config;
    amgxMode = amgxMode_;
+
+   if (amgxMode == AmgXSolver::SOLVER) { ConvergenceCheck = true;}
+   else { ConvergenceCheck = false;}
 
    DefaultParameters(amgxMode_, verbose);
 
@@ -178,6 +190,11 @@ void AmgXSolver::ReadParameters(const std::string config,
    configSrc = source;
 }
 
+void AmgXSolver::SetConvergenceCheck(bool setConvergenceCheck_)
+{
+   ConvergenceCheck = setConvergenceCheck_;
+}
+
 void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
                                    const bool verbose)
 {
@@ -201,8 +218,8 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
       {
          amgx_config = amgx_config + ",\n"
                        "   \"obtain_timings\": 1, \n"
-                       "   \"monitor_residual\": 1, \n"
                        "   \"print_grid_stats\": 1, \n"
+                       "   \"monitor_residual\": 1, \n"
                        "   \"print_solve_stats\": 1 \n";
       }
       else
@@ -238,12 +255,12 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
                     "  \"convergence\": \"RELATIVE_MAX\", \n"
                     "  \"scope\": \"main\", \n"
                     "  \"tolerance\": 1e-12, \n"
+                    "  \"monitor_residual\": 1, \n"
                     "  \"norm\": \"L2\" ";
       if (verbose)
       {
          amgx_config = amgx_config + ", \n"
                        "        \"obtain_timings\": 1, \n"
-                       "        \"monitor_residual\": 1, \n"
                        "        \"print_grid_stats\": 1, \n"
                        "        \"print_solve_stats\": 1 \n";
       }
@@ -884,7 +901,7 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
 
       AMGX_SOLVE_STATUS   status;
       AMGX_solver_get_status(solver, &status);
-      if (status != AMGX_SOLVE_SUCCESS && amgxMode == SOLVER)
+      if (status != AMGX_SOLVE_SUCCESS && ConvergenceCheck)
       {
          if (status == AMGX_SOLVE_DIVERGED)
          {
