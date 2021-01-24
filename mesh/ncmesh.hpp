@@ -341,6 +341,10 @@ public:
    void GetElementFacesAttributes(int i, Array<int> &faces,
                                   Array<int> &fattr) const;
 
+   ///
+   int GetLeafElement(int i) const
+   { return elements[i].index; }
+
 
    /// I/O: Print the "vertex_parents" section of the mesh file (ver. >= 1.1).
    void PrintVertexParents(std::ostream &out) const;

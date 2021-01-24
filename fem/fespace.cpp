@@ -809,25 +809,19 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       for (int mi = 0; mi < list.masters.Size(); mi++)
       {
          const NCMesh::Master &master = list.masters[mi];
+
+         // Skip DoF outside of subdomain
+         if(MapElementBack(mesh->ncmesh->GetLeafElement(master.element)) == -1)
+         {
+            continue;
+         }
+
          // FIXME: This does not work for NC tets.
          const int master_index = MapEntityBack(entity, master.index);
          if(master_index < 0) continue;
 
          GetEntityDofs(entity, master_index, master_dofs);
          if (!master_dofs.Size()) { continue; }
-
-         // Skip DoF outside of subdomain
-         // TODO: This is problematic. We should already skip when an entity is not in the subdomain.
-         //       No idea why we even end up here.
-         if(UsesSubdomain())
-         {
-            if(std::count_if(master_dofs.begin(), master_dofs.end(),[](int dof){
-               return dof < 0;
-            })>0)
-            {
-               continue;
-            }
-         }
 
          const FiniteElement* fe = fec->FiniteElementForGeometry(master.Geom());
          if (!fe) { continue; }
@@ -843,25 +837,19 @@ void FiniteElementSpace::BuildConformingInterpolation() const
          for (int si = master.slaves_begin; si < master.slaves_end; si++)
          {
             const NCMesh::Slave &slave = list.slaves[si];
+
+            // Skip DoF outside of subdomain
+            if(MapElementBack(mesh->ncmesh->GetLeafElement(slave.element)) == -1)
+            {
+               continue;
+            }
+
             // FIXME: This does not work for NC tets.
             const int slave_index = MapEntityBack(entity, slave.index);
             if(slave_index < 0) continue;
 
             GetEntityDofs(entity, slave_index, slave_dofs, master.Geom());
             if (!slave_dofs.Size()) { continue; }
-
-            // Skip DoF outside of subdomain
-            // TODO: This is problematic. We should already skip when an entity is not in the subdomain.
-            //       No idea why we even end up here.
-            if(UsesSubdomain())
-            {
-               if(std::count_if(slave_dofs.begin(), slave_dofs.end(),[](int dof){
-                  return dof < 0;
-               })>0)
-               {
-                  continue;
-               }
-            }
 
             list.OrientedPointMatrix(slave, T.GetPointMat());
             fe->GetLocalInterpolation(T, I);
