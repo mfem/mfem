@@ -136,6 +136,14 @@ public:
    void AddBdrFaceIntegrator(LinearFormIntegrator *lfi,
                              Array<int> &bdr_attr_marker);
 
+   /** @brief Add new Trace Face Integrator, restricted to the given face
+       attributes.
+
+       Assumes ownership of @a tfi. The array @a attr_list is stored
+       internally as a pointer to the given Array<int> object. */
+   void AddTraceFaceIntegrator(LinearFormIntegrator *tfi,
+                               Array<int> &attr_list);
+
    /** @brief Access all integrators added with AddDomainIntegrator() which are
        not DeltaLFIntegrator%s or they are DeltaLFIntegrator%s with non-delta
        coefficients. */

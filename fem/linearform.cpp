@@ -76,6 +76,13 @@ void LinearForm::AddBdrFaceIntegrator(LinearFormIntegrator *lfi,
    flfi_marker.Append(&bdr_attr_marker);
 }
 
+void LinearForm::AddTraceFaceIntegrator(LinearFormIntegrator *tfi,
+                                        Array<int> &attr_list)
+{
+   tlfi.Append(tfi);
+   tlfi_attributes.Append(&attr_list);
+}
+
 void LinearForm::Assemble()
 {
    Array<int> vdofs;
