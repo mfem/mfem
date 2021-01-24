@@ -44,6 +44,10 @@ protected:
    Array<LinearFormIntegrator*> flfi;
    Array<Array<int>*>           flfi_marker; ///< Entries are not owned.
 
+   /// Set of trace (all faces - both interior and boundary) integrators.
+   Array<LinearFormIntegrator *> tlfi;
+   Array<Array<int> *>           tlfi_attributes; ///< Entries are not owned.
+
    /// The element ids where the centers of the delta functions lie
    Array<int> dlfi_delta_elem_id;
 

@@ -35,6 +35,10 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
+   virtual void AssembleRHSFaceVect(const FiniteElement &el1,
+                                    const FiniteElement &el2,
+                                    FaceElementTransformations &Trans,
+                                    Vector &elvect);
 
    virtual void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
    const IntegrationRule* GetIntRule() { return IntRule; }

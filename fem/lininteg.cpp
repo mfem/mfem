@@ -22,6 +22,12 @@ void LinearFormIntegrator::AssembleRHSElementVect(
    mfem_error("LinearFormIntegrator::AssembleRHSElementVect(...)");
 }
 
+void LinearFormIntegrator::AssembleRHSFaceVect(
+   const FiniteElement &el1, const FiniteElement &el2,
+   FaceElementTransformations &Trans, Vector &elvect)
+{
+   MFEM_ABORT("Not implemented for the used integrator.");
+}
 
 void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
                                                 ElementTransformation &Tr,

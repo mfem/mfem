@@ -194,6 +194,46 @@ void LinearForm::Assemble()
          }
       }
    }
+
+   if (tlfi.Size())
+   {
+      Mesh *mesh = fes->GetMesh();
+      FaceElementTransformations *tr;
+      const FiniteElement *fe_1, *fe_2;
+      Array<int> vdofs2;
+
+      const int nfaces = mesh->GetNumFaces();
+      for (int f = 0; f < nfaces; f++)
+      {
+         const int attr = mesh->GetFace(f)->GetAttribute();
+
+         tr   = mesh->GetFaceElementTransformations(i);
+
+         fe_1 = fes->GetFE(tr->Elem1No);
+
+         fes->GetElementVDofs(tr->Elem1No, vdofs);
+         if (tr->Elem2No >= 0)
+         {
+            fes->GetElementVDofs(tr->Elem2No, vdofs2);
+            vdofs.Append(vdofs2);
+            fe_2 = fes->GetFE(tr->Elem2No);
+         }
+         else
+         {
+            // AssembleRHSFaceVect does not accept NULL arguments.
+            fe_2 = fe_1;
+         }
+
+         for (int k = 0; k < tlfi.Size(); k++)
+         {
+            if (tlfi_attributes[k] &&
+                tlfi_attributes[k]->Find(attr) == -1) { continue; }
+
+            tlfi[k]->AssembleRHSFaceVect(*fe_1, *fe_2, *tr, elemvect);
+            AddElementVector(vdofs, elemvect);
+         }
+      }
+   }
 }
 
 void LinearForm::Update(FiniteElementSpace *f, Vector &v, int v_offset)
