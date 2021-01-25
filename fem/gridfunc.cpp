@@ -15,12 +15,17 @@
 #include "../mesh/nurbs.hpp"
 #include "../general/text.hpp"
 
+#ifdef MFEM_USE_MPI
+#include "pfespace.hpp"
+#endif
+
 #include <limits>
 #include <cstring>
 #include <string>
 #include <cmath>
 #include <iostream>
 #include <algorithm>
+
 
 namespace mfem
 {
@@ -462,15 +467,26 @@ const
    fes->GetElementDofs(i, dofs);
    fes->DofsToVDofs(vdim-1, dofs);
    const FiniteElement *FElem = fes->GetFE(i);
-   MFEM_ASSERT(FElem->GetMapType() == FiniteElement::VALUE,
-               "invalid FE map type");
    int dof = FElem->GetDof();
    Vector DofVal(dof), loc_data(dof);
    GetSubVector(dofs, loc_data);
-   for (int k = 0; k < n; k++)
+   if (FElem->GetMapType() == FiniteElement::VALUE)
    {
-      FElem->CalcShape(ir.IntPoint(k), DofVal);
-      vals(k) = DofVal * loc_data;
+      for (int k = 0; k < n; k++)
+      {
+         FElem->CalcShape(ir.IntPoint(k), DofVal);
+         vals(k) = DofVal * loc_data;
+      }
+   }
+   else
+   {
+      ElementTransformation *Tr = fes->GetElementTransformation(i);
+      for (int k = 0; k < n; k++)
+      {
+         Tr->SetIntPoint(&ir.IntPoint(k));
+         FElem->CalcPhysShape(*Tr, DofVal);
+         vals(k) = DofVal * loc_data;
+      }
    }
 }
 
@@ -984,15 +1000,14 @@ void GridFunction::GetVectorValues(ElementTransformation &T,
 
    if (FElem->GetRangeType() == FiniteElement::SCALAR)
    {
-      MFEM_ASSERT(FElem->GetMapType() == FiniteElement::VALUE,
-                  "invalid FE map type");
       Vector shape(dof);
       int vdim = fes->GetVDim();
       vals.SetSize(vdim, nip);
       for (int j = 0; j < nip; j++)
       {
          const IntegrationPoint &ip = ir.IntPoint(j);
-         FElem->CalcShape(ip, shape);
+         T.SetIntPoint(&ip);
+         FElem->CalcPhysShape(T, shape);
 
          for (int k = 0; k < vdim; k++)
          {
@@ -1397,7 +1412,7 @@ double GridFunction::GetDivergence(ElementTransformation &T) const
       {
          // In order to properly capture the derivative of the normal component
          // of the field (as well as the transverse divergence of the
-         // tangential compoents) we must evaluate it in the neighboring
+         // tangential components) we must evaluate it in the neighboring
          // element.
          FaceElementTransformations * FET =
             fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
@@ -1550,18 +1565,16 @@ void GridFunction::GetGradient(ElementTransformation &T, Vector &grad) const
    {
       case ElementTransformation::ELEMENT:
       {
-         const FiniteElement * fe = fes->GetFE(T.ElementNo);
+         const FiniteElement *fe = fes->GetFE(T.ElementNo);
          MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE,
                      "invalid FE map type");
          int spaceDim = fes->GetMesh()->SpaceDimension();
          int dim = fe->GetDim(), dof = fe->GetDof();
          DenseMatrix dshape(dof, dim);
          Vector lval, gh(dim);
-         Array<int> dofs;
 
          grad.SetSize(spaceDim);
-         fes->GetElementDofs(T.ElementNo, dofs);
-         GetSubVector(dofs, lval);
+         GetElementDofValues(T.ElementNo, lval);
          fe->CalcDShape(T.GetIntPoint(), dshape);
          dshape.MultTranspose(lval, gh);
          T.InverseJacobian().MultTranspose(gh, grad);
@@ -1729,6 +1742,13 @@ void GridFunction::GetElementAverages(GridFunction &avgs) const
    {
       avgs(i) /= int_psi(i);
    }
+}
+
+void GridFunction::GetElementDofValues(int el, Vector &dof_vals) const
+{
+   Array<int> dof_idx;
+   fes->GetElementVDofs(el, dof_idx);
+   GetSubVector(dof_idx, dof_vals);
 }
 
 void GridFunction::ProjectGridFunction(const GridFunction &src)
@@ -2182,7 +2202,7 @@ void GridFunction::ComputeMeans(AvgType type, Array<int> &zones_per_vdof)
          break;
 
       default:
-         MFEM_ABORT("invalud AvgType");
+         MFEM_ABORT("invalid AvgType");
    }
 }
 
@@ -2777,10 +2797,11 @@ double GridFunction::ComputeDivError(
 }
 
 double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
-                                            Coefficient *ell_coeff, double Nu,
+                                            Coefficient *ell_coeff,
+                                            class JumpScaling jump_scaling,
                                             const IntegrationRule *irs[])  const
 {
-   int fdof, dim, intorder, k;
+   int fdof, intorder, k;
    Mesh *mesh;
    const FiniteElement *fe;
    ElementTransformation *transf;
@@ -2791,20 +2812,24 @@ double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
    double error = 0.0;
 
    mesh = fes->GetMesh();
-   dim = mesh->Dimension();
 
    for (int i = 0; i < mesh->GetNumFaces(); i++)
    {
-      face_elem_transf = mesh->GetFaceElementTransformations(i, 5);
-      int i1 = face_elem_transf->Elem1No;
-      int i2 = face_elem_transf->Elem2No;
+      int i1, i2;
+      mesh->GetFaceElements(i, &i1, &i2);
+      double h = mesh->GetElementSize(i1);
       intorder = fes->GetFE(i1)->GetOrder();
       if (i2 >= 0)
+      {
          if ( (k = fes->GetFE(i2)->GetOrder()) > intorder )
          {
             intorder = k;
          }
+         h = std::min(h, mesh->GetElementSize(i2));
+      }
+      int p = intorder;
       intorder = 2 * intorder;  // <-------------
+      face_elem_transf = mesh->GetFaceElementTransformations(i, 5);
       const IntegrationRule *ir;
       if (irs)
       {
@@ -2875,13 +2900,23 @@ double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          transf->SetIntPoint(&ip);
-         error += (ip.weight * Nu * ell_coeff_val(j) *
-                   pow(transf->Weight(), 1.0-1.0/(dim-1)) *
+         double nu = jump_scaling.Eval(h, p);
+         error += (ip.weight * nu * ell_coeff_val(j) *
+                   transf->Weight() *
                    err_val(j) * err_val(j));
       }
    }
 
    return (error < 0.0) ? -sqrt(-error) : sqrt(error);
+}
+
+double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
+                                            Coefficient *ell_coeff,
+                                            double Nu,
+                                            const IntegrationRule *irs[])  const
+{
+   return ComputeDGFaceJumpError(
+             exsol, ell_coeff, {Nu, JumpScaling::ONE_OVER_H}, irs);
 }
 
 double GridFunction::ComputeH1Error(Coefficient *exsol,
@@ -2892,7 +2927,11 @@ double GridFunction::ComputeH1Error(Coefficient *exsol,
    double error1 = 0.0;
    double error2 = 0.0;
    if (norm_type & 1) { error1 = GridFunction::ComputeGradError(exgrad); }
-   if (norm_type & 2) { error2 = GridFunction::ComputeDGFaceJumpError(exsol,ell_coef,Nu); }
+   if (norm_type & 2)
+   {
+      error2 = GridFunction::ComputeDGFaceJumpError(
+                  exsol, ell_coef, {Nu, JumpScaling::ONE_OVER_H});
+   }
 
    return sqrt(error1 * error1 + error2 * error2);
 }
@@ -3670,7 +3709,7 @@ QuadratureFunction & QuadratureFunction::operator=(double value)
 
 QuadratureFunction & QuadratureFunction::operator=(const Vector &v)
 {
-   MFEM_ASSERT(qspace && v.Size() == qspace->GetSize(), "");
+   MFEM_ASSERT(qspace && v.Size() == this->Size(), "");
    Vector::operator=(v);
    return *this;
 }
@@ -3774,7 +3813,15 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
          }
       }
    }
-
+#ifdef MFEM_USE_MPI
+   auto pfes = dynamic_cast<ParFiniteElementSpace*>(ufes);
+   if (pfes)
+   {
+      auto process_local_error = total_error;
+      MPI_Allreduce(&process_local_error, &total_error, 1, MPI_DOUBLE,
+                    MPI_SUM, pfes->GetComm());
+   }
+#endif // MFEM_USE_MPI
    return std::sqrt(total_error);
 }
 

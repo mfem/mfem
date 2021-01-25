@@ -101,6 +101,7 @@ void BlockVector::Update(Vector & data, const Array<int> & bOffsets)
    {
       blocks[i].MakeRef(data, blockOffsets[i], BlockSize(i));
    }
+   MakeRef(data, 0, blockOffsets[numBlocks]);
 }
 
 void BlockVector::Update(const Array<int> &bOffsets)
