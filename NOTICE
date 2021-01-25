@@ -29,5 +29,5 @@ license files. These software products and their licenses are as follows:
 * Catch++ (tests/unit/catch.hpp) -- Boost 1.0 license
 * Gecko (general/gecko.{cpp,hpp}) -- BSD 3-clause license
 * Picojson (fem/picojson.h) -- Custom 2-clause license
-* Zstr (general/zstr.hpp) -- MIT license
 * TinyXML2 (general/tinyxml2.{cpp,h}) -- zlib license
+* Zstr (general/zstr.hpp) -- MIT license

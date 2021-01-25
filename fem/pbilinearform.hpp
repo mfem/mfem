@@ -249,6 +249,9 @@ public:
        @a A. */
    void ParallelAssemble(OperatorHandle &A);
 
+   using MixedBilinearForm::FormRectangularSystemMatrix;
+   using MixedBilinearForm::FormRectangularLinearSystem;
+
    /** @brief Return in @a A a parallel (on truedofs) version of this operator.
 
        This returns the same operator as FormRectangularLinearSystem(), but does
@@ -312,6 +315,8 @@ public:
    /** Extract the parallel blocks corresponding to the vector dimensions of the
        domain and range parallel finite element spaces */
    void GetParBlocks(Array2D<HypreParMatrix *> &blocks) const;
+
+   using MixedBilinearForm::FormRectangularSystemMatrix;
 
    /** @brief Return in @a A a parallel (on truedofs) version of this operator. */
    virtual void FormRectangularSystemMatrix(OperatorHandle &A);
