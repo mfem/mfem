@@ -156,19 +156,50 @@ void ParFiniteElementSpace::Construct()
       ngedofs = ngfdofs = 0;
 
       // calculate number of ghost DOFs
-      ngvdofs = pncmesh->GetNGhostVertices()
-                * fec->DofForGeometry(Geometry::POINT);
-
-      if (pmesh->Dimension() > 1)
+      if(!UsesSubdomain())
       {
-         ngedofs = pncmesh->GetNGhostEdges()
-                   * fec->DofForGeometry(Geometry::SEGMENT);
+         ngvdofs = pncmesh->GetNGhostVertices()
+                  * fec->DofForGeometry(Geometry::POINT);
+
+         if (pmesh->Dimension() > 1)
+         {
+            ngedofs = pncmesh->GetNGhostEdges()
+                     * fec->DofForGeometry(Geometry::SEGMENT);
+         }
+
+         if (pmesh->Dimension() > 2)
+         {
+            int stride = fec->DofForGeometry(Geometry::SQUARE);
+            ngfdofs = pncmesh->GetNGhostFaces() * stride;
+         }
       }
-
-      if (pmesh->Dimension() > 2)
+      else // FIXME this does not work.
       {
-         int stride = fec->DofForGeometry(Geometry::SQUARE);
-         ngfdofs = pncmesh->GetNGhostFaces() * stride;
+         ngvdofs = std::count_if(psubdomain->vertex_map.begin(),
+                                 psubdomain->vertex_map.end(),
+                                 [this](int vertex_in_mesh){
+                                    return vertex_in_mesh >= pmesh->GetNV();
+                                 })*fec->DofForGeometry(Geometry::POINT);
+
+         if (pmesh->Dimension() > 1)
+         {
+            ngedofs = std::count_if(psubdomain->edge_map.begin(),
+                                 psubdomain->edge_map.end(),
+                                 [this](int edge_in_mesh){
+                                    return edge_in_mesh >= pmesh->GetNEdges();
+                                 })*fec->DofForGeometry(Geometry::SEGMENT);
+         }
+
+         if (pmesh->Dimension() > 2)
+         {
+            ngfdofs = std::count_if(psubdomain->face_map.begin(),
+                                 psubdomain->face_map.end(),
+                                 [this](int face_in_mesh){
+                                    return face_in_mesh >= pmesh->GetNFaces();
+                                 })*fec->DofForGeometry(Geometry::SQUARE);
+         }
+
+         std::cout << "Ghosts: " << ngvdofs << " " << ngedofs << " " << ngfdofs << std::endl;
       }
 
       // total number of ghost DOFs. Ghost DOFs start at index 'ndofs', i.e.,
@@ -2083,6 +2114,8 @@ int ParFiniteElementSpace
 {
    bool dg = (nvdofs == 0 && nedofs == 0 && nfdofs == 0);
 
+   std::cout << "BuildParallelConformingInterpolation" << std::endl;
+
 #ifdef MFEM_PMATRIX_STATS
    n_msgs_sent = n_msgs_recv = 0;
    n_rows_sent = n_rows_recv = n_rows_fwd = 0;
@@ -2098,7 +2131,7 @@ int ParFiniteElementSpace
       Array<int> master_dofs, slave_dofs;
 
       // loop through *all* master edges/faces, constrain their slaves
-      // Why do we start here at 0 and in serial at 1?
+      // TODO: Why do we start here at 0 and in serial at 1?
       for (int entity = 0; entity <= 2; entity++)
       {
          const NCMesh::NCList &list = pncmesh->GetNCList(entity);
@@ -2110,21 +2143,34 @@ int ParFiniteElementSpace
          // process masters that we own or that affect our edges/faces
          for (int mi = 0; mi < list.masters.Size(); mi++)
          {
-            const NCMesh::Master &mf = list.masters[mi];
-            auto master_index = MapEntityBack(entity, mf.index);
+            const NCMesh::Master &master = list.masters[mi];
+
+            // Skip DoF outside of subdomain
+            if(UsesSubdomain())
+            {
+               // FIXME Why is the element sometimes -1?
+               if(master.element<0) std::cout << "Step 1 master: " << entity  << " " << master.element << std::endl;
+               if(MapElementBack(pncmesh->GetLeafElement(master.element)) == -1)
+               {
+                  continue;
+               }
+            }
+
+            // FIXME: This does not work for NC tets.
+            auto master_index = MapEntityBack(entity, master.index);
             if(master_index < 0) continue;
 
             // get master DOFs
-            pncmesh->IsGhost(entity, mf.index)
-            ? GetGhostDofs(entity, mf, master_dofs)
+            pncmesh->IsGhost(entity, master.index)
+            ? GetGhostDofs(entity, master, master_dofs)
             : GetEntityDofs(entity, master_index, master_dofs);
 
             if (!master_dofs.Size()) { continue; }
 
-            const FiniteElement* fe = fec->FiniteElementForGeometry(mf.Geom());
+            const FiniteElement* fe = fec->FiniteElementForGeometry(master.Geom());
             if (!fe) { continue; }
 
-            switch (mf.Geom())
+            switch (master.Geom())
             {
                case Geometry::SQUARE:   T.SetFE(&QuadrilateralFE); break;
                case Geometry::TRIANGLE: T.SetFE(&TriangleFE); break;
@@ -2133,18 +2179,31 @@ int ParFiniteElementSpace
             }
 
             // constrain slaves that exist in our mesh
-            for (int si = mf.slaves_begin; si < mf.slaves_end; si++)
+            for (int si = master.slaves_begin; si < master.slaves_end; si++)
             {
-               const NCMesh::Slave &sf = list.slaves[si];
-               if (pncmesh->IsGhost(entity, sf.index)) { continue; }
+               const NCMesh::Slave &slave = list.slaves[si];
 
-               auto slave_index = MapEntityBack(entity, sf.index);
+               // Skip DoF outside of subdomain
+               if(UsesSubdomain())
+               {
+                  // FIXME Why is the element sometimes -1?
+                  if(slave.element<0) std::cout << "Step 1 slave: " << entity  << " " << slave.element << std::endl;
+                  if(MapElementBack(pncmesh->GetLeafElement(slave.element)) == -1)
+                  {
+                     continue;
+                  }
+               }
+
+               // FIXME: This does not work for NC tets.
+               auto slave_index = MapEntityBack(entity, slave.index);
                if(slave_index < 0) continue;
 
-               GetEntityDofs(entity, slave_index, slave_dofs, mf.Geom());
+               if (pncmesh->IsGhost(entity, slave.index)) { continue; }
+
+               GetEntityDofs(entity, slave_index, slave_dofs, master.Geom());
                if (!slave_dofs.Size()) { continue; }
 
-               list.OrientedPointMatrix(sf, T.GetPointMat());
+               list.OrientedPointMatrix(slave, T.GetPointMat());
                fe->GetLocalInterpolation(T, I);
 
                // make each slave DOF dependent on all master DOFs
@@ -2185,6 +2244,17 @@ std::cout << "1 done" << std::endl;
                   /*    */ : (const MeshId&) list.slaves[i];
 
                if (id.index < 0) { continue; }
+
+               // Skip DoF outside of subdomain
+               if(UsesSubdomain())
+               {
+                  // FIXME Why is the element sometimes -1?
+                  if(id.element<0) std::cout << "Step 2: " << entity << " " << id.element << std::endl;
+                  if(MapElementBack(pncmesh->GetLeafElement(id.element)) == -1)
+                  {
+                     continue;
+                  }
+               }
 
                auto index = MapEntityBack(entity, id.index);
                if(index < 0) continue;
@@ -2239,7 +2309,7 @@ std::cout << "2 done" << std::endl;
       dof_tdof->SetSize(ndofs*vdim);
       *dof_tdof = -1;
    }
-
+std::cout << "fine?" << std::endl;
    std::vector<PMatrixRow> pmatrix(total_dofs);
 
    bool bynodes = (ordering == Ordering::byNODES);
@@ -2298,7 +2368,7 @@ std::cout << "3 done" << std::endl;
 
    while (num_finalized < ndofs)
    {
-      std::cout << "Finalized "  << num_finalized << "/"  << ndofs << std::endl;
+      //std::cout << "Finalized "  << num_finalized << "/"  << ndofs << std::endl;
       // prepare a new round of send buffers
       if (send_msg.back().size())
       {
@@ -2320,6 +2390,8 @@ std::cout << "3 done" << std::endl;
          {
             const NeighborRowMessage::RowInfo &ri = rows[i];
             const auto index = MapEntityBack(ri.entity, ri.index);
+            if(index == -1) continue;
+
             int dof = PackDof(ri.entity, index, ri.edof);
             pmatrix[dof] = ri.row;
 
