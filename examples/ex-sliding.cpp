@@ -291,7 +291,7 @@ int main(int argc, char *argv[])
    Mesh *mesh = build_trapezoid_mesh(offset);
    int dim = mesh->Dimension();
 
-   // 5. Refine the serial mesh on all processors to increase the resolution. In
+   // 4. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 1,000 elements.
@@ -304,7 +304,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
+   // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
@@ -317,7 +317,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 7. Define a parallel finite element space on the parallel mesh. Here we
+   // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use vector finite elements, i.e. dim copies of a scalar finite element
    //    space. We use the ordering by vector dimension (the last argument of
    //    the FiniteElementSpace constructor) which is expected in the systems
@@ -350,7 +350,7 @@ int main(int argc, char *argv[])
            << "Assembling: " << flush;
    }
 
-   // 8. Determine the list of true (i.e. parallel conforming) essential
+   // 7. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, there are no essential boundary
    //    conditions in the usual sense, but we leave the machinery here for
    //    users to modify if they wish.
@@ -358,7 +358,7 @@ int main(int argc, char *argv[])
    ess_bdr = 0;
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-   // 9. Set up the parallel linear form b(.) which corresponds to the
+   // 8. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system. In this case, b_i equals the
    //    boundary integral of f*phi_i where f represents a "pull down" force on
    //    the Neumann part of the boundary and phi_i are the basis functions in
@@ -372,7 +372,7 @@ int main(int argc, char *argv[])
       f.Set(i, new ConstantCoefficient(0.0));
    }
 
-   // Put a leftward force on the right side of the trapezoid
+   // 9. Put a leftward force on the right side of the trapezoid
    {
       Vector pull_force(pmesh->bdr_attributes.Max());
       pull_force = 0.0;
@@ -402,14 +402,14 @@ int main(int argc, char *argv[])
 
    // 12. Set up the parallel bilinear form a(.,.) on the finite element space
    //     corresponding to the linear elasticity integrator with piece-wise
-   //     constants coefficient lambda and mu.
+   //     constants coefficient lambda and mu. We use constant coefficients,
+   //     but see ex2 for how to set up piecewise constant coefficients based
+   //     on attribute.
    Vector lambda(pmesh->attributes.Max());
    lambda = 1.0;
-   // lambda(0) = lambda(1)*50;
    PWConstCoefficient lambda_func(lambda);
    Vector mu(pmesh->attributes.Max());
    mu = 1.0;
-   // mu(0) = mu(1)*50;
    PWConstCoefficient mu_func(mu);
 
    ParBilinearForm *a = new ParBilinearForm(fespace);
@@ -432,8 +432,9 @@ int main(int argc, char *argv[])
       cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
    }
 
-   // 13. Define and apply a parallel PCG solver for A X = B with the BoomerAMG
-   //     preconditioner from hypre.
+   // 13. Define and apply a parallel PCG solver for the constrained system
+   //     where the normal boundary constraints have been separately eliminated
+   //     from the system.
    Array<int> lagrange_rowstarts;
    SparseMatrix* local_constraints =
       BuildNormalConstraints(*fespace, constraint_atts, lagrange_rowstarts);
@@ -482,19 +483,17 @@ int main(int argc, char *argv[])
       x.Save(sol_ofs);
    }
 
-   // 18. Save the refined mesh and the solution in VisIt format.
+   // 17. Save the refined mesh and the solution in VisIt format.
    {
-      // todo: might make more sense to .SetCycle() than to append boundary_attribute to name
       std::stringstream visitname;
-      visitname << "trapezoid"; // could add a number?
+      visitname << "trapezoid";
       VisItDataCollection visit_dc(MPI_COMM_WORLD, visitname.str(), pmesh);
       visit_dc.SetLevelsOfDetail(4);
-      visit_dc.RegisterField("displacement",
-                             &x); // do we need to do (or undo) the += stuff from above?
+      visit_dc.RegisterField("displacement", &x);
       visit_dc.Save();
    }
 
-   // 19. Send the above data by socket to a GLVis server.  Use the "n" and "b"
+   // 18. Send the above data by socket to a GLVis server.  Use the "n" and "b"
    //     keys in GLVis to visualize the displacements.
    if (visualization)
    {
@@ -506,10 +505,9 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *pmesh << x << flush;
    }
 
-   // 18. Free the used memory.
+   // 19. Free the used memory.
    delete local_constraints;
    delete solver;
-   // delete amg;
    delete a;
    delete b;
    if (fec)

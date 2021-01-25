@@ -21,16 +21,6 @@
 //
 //               We recommend viewing example 2 before viewing this example.
 
-/*
-  todo:
-  ---
-
-  - add a scalar Eliminator? (instead of calling LAPACK on 1 by 1 matrices)
-  - timing / scaling of different solvers
-  - make sure curved mesh works (is this a real problem or just VisIt visualization?)
-  - hook up with user code (contact?)
-*/
-
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -423,32 +413,6 @@ int main(int argc, char *argv[])
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
    a.RecoverFEMSolution(X, b, x);
-
-   std::stringstream filename;
-   std::string tag;
-   if (penalty > 0.0)
-   {
-      tag = "penalty";
-   }
-   else if (elimination)
-   {
-      tag = "elimination";
-   }
-   else
-   {
-      tag = "schur";
-   }
-   {
-      filename << tag << myid << ".vector";
-      std::ofstream out(filename.str().c_str());
-      out << std::setprecision(14);
-      X.Print(out, 1);
-      filename.str("");
-      filename << tag << "lambda" << myid << ".vector";
-      std::ofstream out2(filename.str().c_str());
-      out2 << std::setprecision(14);
-      lambda.Print(out2, 1);
-   }
 
    // 15. Save the refined mesh and the solution in VisIt format.
    {
