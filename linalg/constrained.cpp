@@ -616,7 +616,7 @@ ConstrainedSolver::ConstrainedSolver(MPI_Comm comm, Operator& A_, Operator& B_)
    :
    IterativeSolver(comm), A(A_), B(B_)
 {
-  Initialize();
+   Initialize();
 }
 #endif
 
@@ -624,7 +624,7 @@ ConstrainedSolver::ConstrainedSolver(Operator& A_, Operator& B_)
    :
    A(A_), B(B_)
 {
-  Initialize();
+   Initialize();
 }
 
 void ConstrainedSolver::SetConstraintRHS(const Vector& r)
