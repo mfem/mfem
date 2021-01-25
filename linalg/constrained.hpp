@@ -46,8 +46,12 @@ class ParFiniteElementSpace;
 class ConstrainedSolver : public IterativeSolver
 {
 public:
+#ifdef MFEM_USE_MPI
    ConstrainedSolver(MPI_Comm comm, Operator& A_, Operator& B_);
-   virtual ~ConstrainedSolver();
+#endif
+   ConstrainedSolver(Operator& A_, Operator& B_);
+
+   virtual ~ConstrainedSolver() { }
 
    virtual void SetOperator(const Operator& op) { }
 
@@ -91,6 +95,9 @@ protected:
    mutable Vector multiplier_sol;
    mutable Vector workb;
    mutable Vector workx;
+
+private:
+   void Initialize();
 };
 
 
@@ -327,7 +334,6 @@ private:
    bool reorder_;
 };
 
-
 #endif
 
 /** @brief Solve constrained system by solving original mixed sysetm;
@@ -344,14 +350,20 @@ class SchurConstrainedSolver : public ConstrainedSolver
 public:
    /// Setup constrained system, with primal_pc a user-provided preconditioner
    /// for the top-left block.
+#ifdef MFEM_USE_MPI
    SchurConstrainedSolver(MPI_Comm comm, Operator& A_, Operator& B_,
                           Solver& primal_pc_);
+#endif
+   SchurConstrainedSolver(Operator& A_, Operator& B_, Solver& primal_pc_);
    virtual ~SchurConstrainedSolver();
 
    virtual void Mult(const Vector& x, Vector& y) const override;
 
 protected:
+#ifdef MFEM_USE_MPI
    SchurConstrainedSolver(MPI_Comm comm, Operator& A_, Operator& B_);
+#endif
+   SchurConstrainedSolver(Operator& A_, Operator& B_);
 
    Array<int> offsets;
    BlockOperator * block_op;  // owned
@@ -365,6 +377,7 @@ private:
 };
 
 
+#ifdef MFEM_USE_MPI
 /** @brief Basic saddle-point solver with assembled blocks (ie, the
     operators are assembled HypreParMatrix objects.)
 
@@ -388,6 +401,7 @@ private:
    HypreParMatrix& hB;
    HypreParMatrix * schur_mat;
 };
+#endif
 
 }
 

@@ -414,16 +414,6 @@ int main(int argc, char *argv[])
    //     local finite element solution on each processor.
    a.RecoverFEMSolution(X, b, x);
 
-   // 15. Save the refined mesh and the solution in VisIt format.
-   {
-      std::stringstream visitname;
-      visitname << "normal" << boundary_attribute;
-      VisItDataCollection visit_dc(MPI_COMM_WORLD, visitname.str(), &pmesh);
-      visit_dc.SetLevelsOfDetail(4);
-      visit_dc.RegisterField("sol", &x);
-      visit_dc.Save();
-   }
-
    // 16. Send the solution by socket to a GLVis server.
    if (visualization)
    {
