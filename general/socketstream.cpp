@@ -96,7 +96,7 @@ int socketbuf::open(const char hostname[], int port)
 
    if (!wsInit_.Initialized())
    {
-       mfem_error("Attempting to open socket, but Winsock not initialized.");
+      mfem_error("Attempting to open socket, but Winsock not initialized.");
    }
 
    close();
