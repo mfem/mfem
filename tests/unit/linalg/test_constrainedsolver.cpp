@@ -110,12 +110,10 @@ void SimpleSaddle::Schur(Vector& serr, Vector& lerr)
    {
       solver = new SchurConstrainedSolver(A, B, prec);
    }
-   printf("E\n");
    solver->SetConstraintRHS(dualrhs);
    solver->SetRelTol(1.e-14);
    solver->PrimalMult(rhs, sol);
    solver->GetMultiplierSolution(lambda);
-   printf("F");
    serr(0) = truex - sol(0);
    serr(1) = truey - sol(1);
    lerr(0) = truelambda - lambda(0);
@@ -152,31 +150,24 @@ void SimpleSaddle::Penalty(double pen, Vector& serr, Vector& lerr)
 // very basic sanity check - most of the useful/interesting solvers require MPI
 TEST_CASE("SerialConstrainedSolver", "[ConstrainedSolver]")
 {
-   printf("AAA\n");
    Vector serr(2);
    Vector lerr(1);
 
-   printf("A\n");
    SimpleSaddle problem(4.0, -2.0, false);
-   printf("B\n");
 
    problem.Schur(serr, lerr);
-   printf("Q\n");
    REQUIRE(serr(0) == MFEM_Approx(0.0));
    REQUIRE(serr(1) == MFEM_Approx(0.0));
    REQUIRE(lerr(0) == MFEM_Approx(0.0));
 
    Vector dualrhs(1);
    dualrhs(0) = 1.0;
-   printf("R\n");
    problem.SetConstraintRHS(dualrhs);
 
-   printf("S");
    problem.Schur(serr, lerr);
    REQUIRE(serr(0) == MFEM_Approx(0.0));
    REQUIRE(serr(1) == MFEM_Approx(0.0));
    REQUIRE(lerr(0) == MFEM_Approx(0.0));
-   printf("T");
 }
 
 #ifdef MFEM_USE_MPI
@@ -533,7 +524,6 @@ ParallelTestProblemTwo::ParallelTestProblemTwo()
    amat->CopyRowStarts();
 
    int blocalrows = rank == 3 ? 1 : 0;
-   // printf("[%d] blocalrows=%d\n", rank, blocalrows);
    Blocal = new SparseMatrix(blocalrows, 2);
    int row_starts_b[2];
    if (rank == 3)
