@@ -76,33 +76,26 @@ inline ParSubdomainExtension* SubdomainFromAttributes(ParMesh* pmesh, Array<int>
    }
 
    {
-      auto vertex2el = pmesh->GetVertexToElementTable();
+      auto edge2el = pmesh->GetEdgeToElementTable();
 
-      Array<int> vertices;
       // Add edges
       for(int edge = 0; edge < pmesh->GetNEdges(); edge++)
       {
-         pmesh->GetEdgeVertices(edge, vertices);
-         bool added_edge = false;
-         for(int v : vertices)
+         edge2el->GetRow(edge, elements);
+         for(int e : elements)
          {
-            vertex2el->GetRow(v, elements);
-            for(int e : elements)
+            if(attributes.FindSorted(pmesh->GetAttribute(e)) != -1)
             {
-               if(attributes.FindSorted(pmesh->GetAttribute(e)) != -1)
-               {
-                  subdomain->edge_map.Append(edge);
-                  added_edge = true;
-                  break;
-               }
-            }
-            if(added_edge)
-            {
+               subdomain->edge_map.Append(edge);
                break;
             }
          }
       }
+      delete edge2el;
+   }
 
+   {
+      auto vertex2el = pmesh->GetVertexToElementTable();
       // Add vertices
       for(int v = 0; v < pmesh->GetNV(); v++)
       {
@@ -121,22 +114,25 @@ inline ParSubdomainExtension* SubdomainFromAttributes(ParMesh* pmesh, Array<int>
    }
 
    // Some shared entities may be hidden, because their element is on a different process, so we have search for them.
-   pmesh->ExchangeFaceNbrData();
-   Array<int> entity_buf;
-   Array<int> o_buf;
-   for (int sf = 0; sf < pmesh->GetNSharedFaces(); sf++)
-   {
-      const auto FT = pmesh->GetSharedFaceTransformations(sf, true);
-      if(attributes.FindSorted(FT->Elem2->Attribute) != -1)
-      {
-         const auto f = FT->Face->ElementNo;
-         subdomain->face_map.Append(f);
-         pmesh->GetFaceEdges(f, entity_buf, o_buf);
-         subdomain->edge_map.Append(entity_buf);
-         pmesh->GetFaceVertices(f, entity_buf);
-         subdomain->vertex_map.Append(entity_buf);
-      }
-   }
+   // pmesh->ExchangeFaceNbrData();
+   // Array<int> entity_buf;
+   // Array<int> o_buf;
+   // for (int sf = 0; sf < pmesh->GetNSharedFaces(); sf++)
+   // {
+   //    const auto FT = pmesh->GetSharedFaceTransformations(sf, true);
+   //    if(attributes.FindSorted(FT->Elem2->Attribute) != -1)
+   //    {
+   //       //const auto f = FT->Face->ElementNo;
+   //       const auto f = pmesh->GetSharedFace(sf);
+   //       subdomain->face_map.Append(f);
+   //       if(f >= pmesh->GetNumFaces()) continue;
+   //       // TODO how to get these if the face is a ghost?
+   //       pmesh->GetFaceEdges(f, entity_buf, o_buf);
+   //       subdomain->edge_map.Append(entity_buf);
+   //       pmesh->GetFaceVertices(f, entity_buf);
+   //       subdomain->vertex_map.Append(entity_buf);
+   //    }
+   // }
 
    // The last step messed up everything, so we have to do some cleaunup to guarantee uniqueness of the entities and that they are properly sorted
    subdomain->vertex_map.Sort();

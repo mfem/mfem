@@ -138,33 +138,26 @@ inline SubdomainExtension* SubdomainFromAttributes(Mesh* mesh, Array<int> attrib
    }
 
    {
-      auto vertex2el = mesh->GetVertexToElementTable();
+      auto edge2el = mesh->GetEdgeToElementTable();
 
-      Array<int> vertices;
       // Add edges
       for(int edge = 0; edge < mesh->GetNEdges(); edge++)
       {
-         mesh->GetEdgeVertices(edge, vertices);
-         bool added_edge = false;
-         for(int v : vertices)
+         edge2el->GetRow(edge, elements);
+         for(int e : elements)
          {
-            vertex2el->GetRow(v, elements);
-            for(int e : elements)
+            if(attributes.FindSorted(mesh->GetAttribute(e)) != -1)
             {
-               if(attributes.FindSorted(mesh->GetAttribute(e)) != -1)
-               {
-                  subdomain->edge_map.Append(edge);
-                  added_edge = true;
-                  break;
-               }
-            }
-            if(added_edge)
-            {
+               subdomain->edge_map.Append(edge);
                break;
             }
          }
       }
+      delete edge2el;
+   }
 
+   {
+      auto vertex2el = mesh->GetVertexToElementTable();
       // Add vertices
       for(int v = 0; v < mesh->GetNV(); v++)
       {
