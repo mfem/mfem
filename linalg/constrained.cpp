@@ -197,6 +197,8 @@ void EliminationProjection::RecoverMultiplier(
    }
 }
 
+#ifdef MFEM_USE_MPI
+
 EliminationSolver::~EliminationSolver()
 {
    delete h_explicit_operator_;
@@ -432,6 +434,8 @@ void PenaltyConstrainedSolver::PrimalMult(const Vector& b, Vector& x) const
    multiplier_sol *= penalty;
 }
 
+#endif
+
 /// because IdentityOperator isn't a Solver
 class IdentitySolver : public Solver
 {
@@ -457,6 +461,7 @@ void SchurConstrainedSolver::Initialize()
    rel_tol = 1.e-6;
 }
 
+#ifdef MFEM_USE_MPI
 SchurConstrainedSolver::SchurConstrainedSolver(MPI_Comm comm,
                                                Operator& A_, Operator& B_,
                                                Solver& primal_pc_)
@@ -473,12 +478,42 @@ SchurConstrainedSolver::SchurConstrainedSolver(MPI_Comm comm,
    block_pc->SetDiagonalBlock(0, primal_pc);
    block_pc->SetDiagonalBlock(1, dual_pc);
 }
+#endif
 
+SchurConstrainedSolver::SchurConstrainedSolver(Operator& A_, Operator& B_,
+                                               Solver& primal_pc_)
+   :
+   ConstrainedSolver(A_, B_),
+   offsets(3),
+   primal_pc(&primal_pc_),
+   dual_pc(nullptr)
+{
+   Initialize();
+   primal_pc->SetOperator(block_op->GetBlock(0, 0));
+   dual_pc = new IdentitySolver(block_op->RowOffsets()[2] -
+                                block_op->RowOffsets()[1]);
+   block_pc->SetDiagonalBlock(0, primal_pc);
+   block_pc->SetDiagonalBlock(1, dual_pc);
+}
+
+#ifdef MFEM_USE_MPI
 // protected constructor
 SchurConstrainedSolver::SchurConstrainedSolver(MPI_Comm comm, Operator& A_,
                                                Operator& B_)
    :
    ConstrainedSolver(comm, A_, B_),
+   offsets(3),
+   primal_pc(nullptr),
+   dual_pc(nullptr)
+{
+   Initialize();
+}
+#endif
+
+// protected constructor
+SchurConstrainedSolver::SchurConstrainedSolver(Operator& A_, Operator& B_)
+   :
+   ConstrainedSolver(A_, B_),
    offsets(3),
    primal_pc(nullptr),
    dual_pc(nullptr)
@@ -496,19 +531,31 @@ SchurConstrainedSolver::~SchurConstrainedSolver()
 
 void SchurConstrainedSolver::Mult(const Vector& x, Vector& y) const
 {
-   GMRESSolver gmres(GetComm());
-   gmres.SetOperator(*block_op);
-   gmres.SetRelTol(rel_tol);
-   gmres.SetAbsTol(abs_tol);
-   gmres.SetMaxIter(max_iter);
-   gmres.SetPrintLevel(print_level);
-   gmres.SetPreconditioner(
+   GMRESSolver * gmres;
+#ifdef MFEM_USE_MPI
+   if (GetComm() != MPI_COMM_NULL)
+   {
+      gmres = new GMRESSolver(GetComm());
+   }
+   else
+#endif
+   {
+      gmres = new GMRESSolver;
+   }
+   gmres->SetOperator(*block_op);
+   gmres->SetRelTol(rel_tol);
+   gmres->SetAbsTol(abs_tol);
+   gmres->SetMaxIter(max_iter);
+   gmres->SetPrintLevel(print_level);
+   gmres->SetPreconditioner(
       const_cast<BlockDiagonalPreconditioner&>(*block_pc));
 
-   gmres.Mult(x, y);
-   final_iter = gmres.GetNumIterations();
+   gmres->Mult(x, y);
+   final_iter = gmres->GetNumIterations();
+   delete gmres;
 }
 
+#ifdef MFEM_USE_MPI
 SchurConstrainedHypreSolver::SchurConstrainedHypreSolver(MPI_Comm comm,
                                                          HypreParMatrix& hA_,
                                                          HypreParMatrix& hB_,
@@ -550,10 +597,9 @@ SchurConstrainedHypreSolver::~SchurConstrainedHypreSolver()
    delete schur_mat;
    delete primal_pc;
 }
+#endif
 
-ConstrainedSolver::ConstrainedSolver(MPI_Comm comm, Operator& A_, Operator& B_)
-   :
-   IterativeSolver(comm), A(A_), B(B_)
+void ConstrainedSolver::Initialize()
 {
    height = A.Height() + B.Height();
    width = A.Width() + B.Height();
@@ -565,8 +611,20 @@ ConstrainedSolver::ConstrainedSolver(MPI_Comm comm, Operator& A_, Operator& B_)
    multiplier_sol.SetSize(B.Height());
 }
 
-ConstrainedSolver::~ConstrainedSolver()
+#ifdef MFEM_USE_MPI
+ConstrainedSolver::ConstrainedSolver(MPI_Comm comm, Operator& A_, Operator& B_)
+   :
+   IterativeSolver(comm), A(A_), B(B_)
 {
+  Initialize();
+}
+#endif
+
+ConstrainedSolver::ConstrainedSolver(Operator& A_, Operator& B_)
+   :
+   A(A_), B(B_)
+{
+  Initialize();
 }
 
 void ConstrainedSolver::SetConstraintRHS(const Vector& r)

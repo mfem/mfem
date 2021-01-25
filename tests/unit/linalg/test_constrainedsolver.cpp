@@ -14,8 +14,6 @@
 
 using namespace mfem;
 
-#ifdef MFEM_USE_MPI
-
 class IdentitySolver : public Solver
 {
 public:
@@ -27,23 +25,27 @@ public:
 class SimpleSaddle
 {
 public:
-   SimpleSaddle(double alpha, double beta);
+   SimpleSaddle(double alpha, double beta, bool parallel);
    ~SimpleSaddle();
 
    void Schur(Vector& serr, Vector& lerr);
+#ifdef MFEM_USE_MPI
    void Penalty(double pen, Vector& serr, Vector& lerr);
    void Elimination(Vector &serr, Vector& lerr, bool swap);
+#endif
 
    void SetConstraintRHS(Vector &dualrhs_);
 
 private:
    SparseMatrix A, B;
+#ifdef MFEM_USE_MPI
    HypreParMatrix * hA;
+#endif
    Vector rhs, sol, dualrhs, lambda;
    double truex, truey, truelambda;
 };
 
-SimpleSaddle::SimpleSaddle(double alpha, double beta)
+SimpleSaddle::SimpleSaddle(double alpha, double beta, bool parallel)
    :
    A(2, 2), B(1, 2), rhs(2), sol(2), dualrhs(1), lambda(1)
 {
@@ -58,9 +60,18 @@ SimpleSaddle::SimpleSaddle(double alpha, double beta)
    B.Add(0, 1, 1.0);
    B.Finalize();
 
-   int row_starts[2] = {0, 2};
-   hA = new HypreParMatrix(MPI_COMM_WORLD, 2, row_starts, &A);
-   hA->CopyRowStarts();
+#ifdef MFEM_USE_MPI
+   if (parallel)
+   {
+      int row_starts[2] = {0, 2};
+      hA = new HypreParMatrix(MPI_COMM_WORLD, 2, row_starts, &A);
+      hA->CopyRowStarts();
+   }
+   else
+   {
+      hA = NULL;
+   }
+#endif
 
    rhs(0) = alpha;
    rhs(1) = beta;
@@ -72,7 +83,9 @@ SimpleSaddle::SimpleSaddle(double alpha, double beta)
 
 SimpleSaddle::~SimpleSaddle()
 {
+#ifdef MFEM_USE_MPI
    delete hA;
+#endif
 }
 
 void SimpleSaddle::SetConstraintRHS(Vector& dualrhs_)
@@ -86,32 +99,32 @@ void SimpleSaddle::SetConstraintRHS(Vector& dualrhs_)
 void SimpleSaddle::Schur(Vector& serr, Vector& lerr)
 {
    IdentitySolver prec(2);
-   SchurConstrainedSolver solver(MPI_COMM_WORLD, *hA, B, prec);
-   solver.SetConstraintRHS(dualrhs);
-   solver.SetRelTol(1.e-14);
-   solver.PrimalMult(rhs, sol);
-   solver.GetMultiplierSolution(lambda);
+   SchurConstrainedSolver * solver;
+#ifdef MFEM_USE_MPI
+   if (hA)
+   {
+      solver = new SchurConstrainedSolver(MPI_COMM_WORLD, *hA, B, prec);
+   }
+   else
+#endif
+   {
+      solver = new SchurConstrainedSolver(A, B, prec);
+   }
+   printf("E\n");
+   solver->SetConstraintRHS(dualrhs);
+   solver->SetRelTol(1.e-14);
+   solver->PrimalMult(rhs, sol);
+   solver->GetMultiplierSolution(lambda);
+   printf("F");
    serr(0) = truex - sol(0);
    serr(1) = truey - sol(1);
    lerr(0) = truelambda - lambda(0);
+   delete solver;
 }
 
+#ifdef MFEM_USE_MPI
 void SimpleSaddle::Elimination(Vector& serr, Vector& lerr, bool swap)
 {
-   /*
-   Array<int> primary(1);
-   Array<int> secondary(1);
-   if (swap)
-   {
-      primary[0] = 1;
-      secondary[0] = 0;
-   }
-   else
-   {
-      primary[0] = 0;
-      secondary[0] = 1;
-   }
-   */
    Array<int> lagrange_rowstarts(2);
    lagrange_rowstarts[0] = 0;
    lagrange_rowstarts[1] = B.Height();
@@ -134,6 +147,39 @@ void SimpleSaddle::Penalty(double pen, Vector& serr, Vector& lerr)
    serr(1) = truey - sol(1);
    lerr(0) = truelambda - lambda(0);
 }
+#endif
+
+// very basic sanity check - most of the useful/interesting solvers require MPI
+TEST_CASE("SerialConstrainedSolver", "[ConstrainedSolver]")
+{
+   printf("AAA\n");
+   Vector serr(2);
+   Vector lerr(1);
+
+   printf("A\n");
+   SimpleSaddle problem(4.0, -2.0, false);
+   printf("B\n");
+
+   problem.Schur(serr, lerr);
+   printf("Q\n");
+   REQUIRE(serr(0) == MFEM_Approx(0.0));
+   REQUIRE(serr(1) == MFEM_Approx(0.0));
+   REQUIRE(lerr(0) == MFEM_Approx(0.0));
+
+   Vector dualrhs(1);
+   dualrhs(0) = 1.0;
+   printf("R\n");
+   problem.SetConstraintRHS(dualrhs);
+
+   printf("S");
+   problem.Schur(serr, lerr);
+   REQUIRE(serr(0) == MFEM_Approx(0.0));
+   REQUIRE(serr(1) == MFEM_Approx(0.0));
+   REQUIRE(lerr(0) == MFEM_Approx(0.0));
+   printf("T");
+}
+
+#ifdef MFEM_USE_MPI
 
 // this test case is intended to run on one processor, but it is
 // marked [Parallel] because it uses hypre
@@ -147,7 +193,7 @@ TEST_CASE("ConstrainedSolver", "[Parallel], [ConstrainedSolver]")
       Vector serr(2);
       Vector lerr(1);
 
-      SimpleSaddle problem(4.0, -2.0);
+      SimpleSaddle problem(4.0, -2.0, true);
 
       problem.Schur(serr, lerr);
       REQUIRE(serr(0) == MFEM_Approx(0.0));
@@ -195,7 +241,6 @@ TEST_CASE("ConstrainedSolver", "[Parallel], [ConstrainedSolver]")
       }
    }
 }
-
 
 /// this problem is general, with constraints crossing
 /// processor boundaries (elimination does not work in this case)
