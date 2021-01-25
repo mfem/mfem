@@ -101,7 +101,7 @@ int CeedATPMGElemRestriction(int order,
    CeedChk(ierr);
 
    // Create the elem_dof array from the given high-order ElemRestriction
-   // by using it to map the L-vector indices to an E-vector 
+   // by using it to map the L-vector indices to an E-vector
    CeedScalar * lvec_data;
    ierr = CeedVectorGetArray(in_lvec, CEED_MEM_HOST, &lvec_data); CeedChk(ierr);
    for (int i = 0; i < numnodes; ++i)
@@ -146,7 +146,7 @@ int CeedATPMGElemRestriction(int order,
                bool i_edge = (i == 0 || i == P1d - 1);
                bool j_edge = (j == 0 || j == P1d - 1);
 
-               // Determine corresponding coarse 1D edof indices 
+               // Determine corresponding coarse 1D edof indices
                // We do this systematically, orienting edges and faces based on ldof
                // orientation, so that the choices are consistent when we visit a
                // shared dof multiple times
@@ -229,7 +229,7 @@ int CeedATPMGElemRestriction(int order,
                   if (j_edge) { topo++; }
                   if (k_edge) { topo++; }
 
-                  // Determine corresponding coarse 1D edof indices 
+                  // Determine corresponding coarse 1D edof indices
                   // We do this systematically, orienting edges and faces based on ldof
                   // orientation, so that the choices are consistent when we visit a
                   // shared dof multiple times
@@ -438,7 +438,8 @@ int CeedATPMGElemRestriction(int order,
    }
    else
    {
-      return CeedError(ceed, 1, "CeedATPMGElemRestriction does not yet support this dimension.");
+      return CeedError(ceed, 1,
+                       "CeedATPMGElemRestriction does not yet support this dimension.");
    }
 
    ierr = CeedVectorRestoreArrayRead(in_evec, &in_elem_dof); CeedChk(ierr);
