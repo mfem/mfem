@@ -173,8 +173,8 @@ int main(int argc, char *argv[])
       // Default setting
       a->SetAssemblyLevel(AssemblyLevel::LEGACYFULL);
    }
-   a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa));
-   a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa));
+   a->AddInteriorNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa));
+   a->AddBdrNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa));
    if (eta > 0)
    {
       std::cout << "Whoops we aren't ready for this case yet.  " << std::endl;      
@@ -202,6 +202,18 @@ int main(int argc, char *argv[])
    X = 1.0;
 
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   std::cout << "x" << std::endl;
+   x.Print();
+   std::cout << "X" << std::endl;
+   X.Print();
+   std::cout << "B" << std::endl;
+   B.Print();
+   std::cout << "A" << std::endl;
+   //A->PrintMatlab(std::cout);
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+ 
 
    if (!pa)
    {
@@ -236,6 +248,7 @@ int main(int argc, char *argv[])
          CG(*A, B, X, 1, 10000, 1e-20, 0.0);
       }
    }
+
 
    // Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
