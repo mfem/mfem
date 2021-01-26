@@ -95,6 +95,13 @@ protected:
    Array<BilinearFormIntegrator*> bfbfi;
    Array<Array<int>*>             bfbfi_marker; ///< Entries are not owned.
 
+   /// Set of normal derivative interior face Integrators to be applied.
+   Array<BilinearFormIntegrator*> ndfbfi;
+
+   /// Set of normal derivative boundary face Integrators to be applied.
+   Array<BilinearFormIntegrator*> ndbfbfi;
+   Array<Array<int>*>             ndbfbfi_marker; ///< Entries are not owned.
+
    DenseMatrix elemmat;
    Array<int>  vdofs;
 
@@ -236,6 +243,12 @@ public:
        corresponding pointer (to Array<int>) will be NULL. */
    Array<Array<int>*> *GetBFBFI_Marker() { return &bfbfi_marker; }
 
+   /// Access all integrators added with AddInteriorNormalDerivativeFaceIntegrator().
+   Array<BilinearFormIntegrator*> *GetNDFBFI() { return &ndfbfi; }
+
+   /// Access all integrators added with AddBdrNormalDerivativeFaceIntegrator().
+   Array<BilinearFormIntegrator*> *GetNDBFBFI() { return &ndbfbfi; }
+
    /// Returns a reference to: \f$ M_{ij} \f$
    const double &operator()(int i, int j) { return (*mat)(i,j); }
 
@@ -340,6 +353,12 @@ public:
 
    /// Adds new boundary Face Integrator. Assumes ownership of @a bfi.
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi);
+
+   /// Adds new interior normal derivative at Face Integrator. Assumes ownership of @a bfi.
+   void AddInteriorNormalDerivativeFaceIntegrator(BilinearFormIntegrator *bfi);
+
+   /// Adds new boundary normal derivative at Face Integrator. Assumes ownership of @a bfi.
+   void AddBdrNormalDerivativeFaceIntegrator(BilinearFormIntegrator *bfi);
 
    /** @brief Adds new boundary Face Integrator, restricted to specific boundary
        attributes.
