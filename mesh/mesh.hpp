@@ -480,6 +480,9 @@ protected:
 
    double GetElementSize(ElementTransformation *T, int type = 0);
 
+   // Internal helper used in MakeSimplicial (and ParMesh::MakeSimplicial).
+   void MakeSimplicial_(Mesh &orig_mesh, int *vglobal);
+
 public:
 
    Mesh() { SetEmpty(); }
@@ -494,18 +497,48 @@ public:
    Mesh(Mesh &&mesh);
 
    // Named constructors, each of the below uses the move constructor
+
+   /** Creates 1D mesh , divided into n equal intervals. */
    static Mesh MakeCartesian1D(int n, double sx = 1.0);
 
+   /** Creates mesh for the rectangle [0,sx]x[0,sy], divided into nx*ny
+       quadrilaterals if type = QUADRILATERAL or into 2*nx*ny triangles if
+       type = TRIANGLE. If generate_edges = 0 (default) edges are not generated,
+       if 1 edges are generated. If scf_ordering = true (default), elements are
+       ordered along a space-filling curve, instead of row by row. */
    static Mesh MakeCartesian2D(
       int nx, int ny, Element::Type type, bool generate_edges = false,
       double sx = 1.0, double sy = 1.0, bool sfc_ordering = true);
 
+   /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
+       nx*ny*nz hexahedra if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons if
+       type=TETRAHEDRON. If sfc_ordering = true (default), elements are ordered
+       along a space-filling curve, instead of row by row and layer by layer.
+       The parameter @a generate_edges is ignored (for now, it is kept for
+       backward compatibility). */
    static Mesh MakeCartesian3D(
       int nx, int ny, int nz, Element::Type type, bool generate_edges = false,
       double sx = 1.0, double sy = 1.0, double sz = 1.0,
       bool sfc_ordering = true);
 
+   /// Create a uniformly refined (by any factor) version of @a orig_mesh.
+   /** @param[in] orig_mesh  The starting coarse mesh.
+       @param[in] ref_factor The refinement factor, an integer > 1.
+       @param[in] ref_type   Specify the positions of the new vertices. The
+                             options are BasisType::ClosedUniform or
+                             BasisType::GaussLobatto.
+
+       The refinement data which can be accessed with GetRefinementTransforms()
+       is set to reflect the performed refinements.
+
+       @note The constructed Mesh is straight-sided. */
    static Mesh MakeRefined(Mesh &orig_mesh, int ref_factor, int ref_type);
+
+   /** Create a mesh by splitting each element of @a orig_mesh into simplices.
+       Quadrilaterals are split into two triangles, prisms are split into
+       3 tetrahedra, and hexahedra are split into either 5 or 6 hexahedra
+       depending on the configuration. */
+   static Mesh MakeSimplicial(Mesh &orig_mesh);
 
    /// Construct a Mesh from the given primary data.
    /** The array @a vertices is used as external data, i.e. the Mesh does not
@@ -669,12 +702,7 @@ public:
        reorders vertices, edges and faces along with the elements. */
    void ReorderElements(const Array<int> &ordering, bool reorder_vertices = true);
 
-   /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
-       nx*ny*nz hexahedra if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons if
-       type=TETRAHEDRON. If sfc_ordering = true (default), elements are ordered
-       along a space-filling curve, instead of row by row and layer by layer.
-       The parameter @a generate_edges is ignored (for now, it is kept for
-       backward compatibility). */
+   /// See @a MakeCartesian3D.
    Mesh(int nx, int ny, int nz, Element::Type type, bool generate_edges = false,
         double sx = 1.0, double sy = 1.0, double sz = 1.0,
         bool sfc_ordering = true)
@@ -683,11 +711,7 @@ public:
       Finalize(true); // refine = true
    }
 
-   /** Creates mesh for the rectangle [0,sx]x[0,sy], divided into nx*ny
-       quadrilaterals if type = QUADRILATERAL or into 2*nx*ny triangles if
-       type = TRIANGLE. If generate_edges = 0 (default) edges are not generated,
-       if 1 edges are generated. If scf_ordering = true (default), elements are
-       ordered along a space-filling curve, instead of row by row. */
+   /// See @a MakeCartesian2D.
    Mesh(int nx, int ny, Element::Type type, bool generate_edges = false,
         double sx = 1.0, double sy = 1.0, bool sfc_ordering = true)
    {
@@ -695,7 +719,7 @@ public:
       Finalize(true); // refine = true
    }
 
-   /** Creates 1D mesh , divided into n equal intervals. */
+   /// See @a MakeCartesian1D.
    explicit Mesh(int n, double sx = 1.0)
    {
       Make1D(n, sx);
@@ -717,20 +741,8 @@ public:
    /// Create a disjoint mesh from the given mesh array
    Mesh(Mesh *mesh_array[], int num_pieces);
 
-   /// Create a uniformly refined (by any factor) version of @a orig_mesh.
-   /** @param[in] orig_mesh  The starting coarse mesh.
-       @param[in] ref_factor The refinement factor, an integer > 1.
-       @param[in] ref_type   Specify the positions of the new vertices. The
-                             options are BasisType::ClosedUniform or
-                             BasisType::GaussLobatto.
-
-       The refinement data which can be accessed with GetRefinementTransforms()
-       is set to reflect the performed refinements.
-
-       @note The constructed Mesh is linear, i.e. it does not have nodes. */
+   /// See @a MakeRefined.
    Mesh(Mesh *orig_mesh, int ref_factor, int ref_type);
-
-   void MakeSimplicial(Mesh &orig_mesh, int *vglobal=NULL);
 
    /** This is similar to the mesh constructor with the same arguments, but here
        the current mesh is destroyed and another one created based on the data
@@ -1163,7 +1175,7 @@ public:
        with straight edges). */
    void EnsureNodes();
 
-    /** Updates the coordinates of the vertices from the node locations. */
+   /** Updates the coordinates of the vertices from the node locations. */
    void SetVerticesFromNodes();
 
    /** Set the curvature of the mesh nodes using the given polynomial degree,
