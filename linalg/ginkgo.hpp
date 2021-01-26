@@ -691,6 +691,7 @@ public:
    gko::LinOp* get_gko_precond() {return this->gko_precond_.get(); }
 
    virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void MultTranspose(const Vector &x, Vector &y) const;
    virtual void SetOperator(const Operator &op);
 
 protected:

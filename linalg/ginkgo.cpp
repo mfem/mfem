@@ -527,6 +527,12 @@ void GinkgoPreconditionerBase::Mult(const Vector &x, Vector &y) const
    }
 }
 
+// TEMP!  This only works for symmetric operators
+void GinkgoPreconditionerBase::MultTranspose(const Vector &x, Vector &y) const
+{
+  this->Mult(x, y);
+}
+
 void GinkgoPreconditionerBase::SetOperator(const Operator &op)
 {
 

@@ -164,6 +164,10 @@ int main(int argc, char *argv[])
    int par_ilu_its = 0;
    double sigma_val = 1.0;
    const char *mg_spec = "1";
+   const char *mg_coarse_solve = "mfem:jacobi";
+   const char *mg_smoother = "mfem:chebyshev";
+   bool mg_pa = false;
+   const char *amgx_file = "amgx.json";
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -213,6 +217,14 @@ int main(int argc, char *argv[])
                   "Non-unity value for piecewise discontinuous coefficient.");
    args.AddOption(&mg_spec, "-mg", "--multigrid-spec",
                   "Multigrid specification. See README for description.");
+   args.AddOption(&mg_coarse_solve, "-mg-coarse-solve", "--multigrid-coarse-solve-type",
+                  "Type of solver for coarse grid in GMG.");
+   args.AddOption(&mg_smoother, "-mg-smoother", "--multigrid-smoother-type",
+                  "Type of solver for smoother in GMG.");
+   args.AddOption(&mg_pa, "-mg-pa", "--multigrid-partial-assembly", "-no-mg-pa",
+                  "--no-multigrid-partial-assembly", "Enable Partial Assembly for non-coarse grids in GMG.");
+   args.AddOption(&amgx_file, "-amgx-config", "--amgx-configuration-file",
+                  "Configuration file for AMGX.");
    args.Parse();
    if (!args.Good())
    {
@@ -302,6 +314,26 @@ int main(int argc, char *argv[])
       mfem_error("Invalid Preconditioner specified");
       return 3;
    }
+
+   SolverConfig::SolverType coarse_solver_type;
+   if (!strcmp(mg_coarse_solve, "mfem:jacobi")) { coarse_solver_type = SolverConfig::JACOBI; }
+   else if (!strcmp(mg_coarse_solve, "mfem:amgx")) { coarse_solver_type = SolverConfig::AMGX; }
+   else 
+   {
+      mfem_error("Invalid coarse grid solver specified");
+      return 3;
+   }
+   SolverConfig::SmootherType smoother_type;
+   if (!strcmp(mg_smoother, "mfem:cheb")) { smoother_type = SolverConfig::CHEBYSHEV; }
+   else if (!strcmp(mg_smoother, "gko:cuic")) { smoother_type = SolverConfig::GINKGO_CUIC; }
+   else if (!strcmp(mg_smoother, "gko:cuic-isai")) { smoother_type = SolverConfig::GINKGO_CUIC_ISAI; }
+   else 
+   {
+      mfem_error("Invalid smoother type specified");
+      return 3;
+   }
+   AssemblyLevel mg_asm_lvl = AssemblyLevel::LEGACYFULL;
+   if (mg_pa) { mg_asm_lvl = AssemblyLevel::PARTIAL; }
 
    // ---------------------------------------------------------------
    // -------------------- Start Ginkgo set-up ----------------------
@@ -894,7 +926,7 @@ int main(int argc, char *argv[])
          tic_toc.Start();
 
          AmgXSolver M;
-         M.ReadParameters("amgx.json", AmgXSolver::EXTERNAL);
+         M.ReadParameters(amgx_file, AmgXSolver::EXTERNAL);
          M.InitSerial();
          M.SetOperator(A_pc);
 
@@ -971,11 +1003,11 @@ int main(int argc, char *argv[])
             }
          }
          
-         SolverConfig coarse_solver(SolverConfig::JACOBI, SolverConfig::CHEBYSHEV,
-           AssemblyLevel::LEGACYFULL, executor);
+         SolverConfig gmg_solver(coarse_solver_type, smoother_type,
+                                  mg_asm_lvl, executor);
          Array<int> ess_bdr(mesh->bdr_attributes.Max());
          ess_bdr = 1;
-         DiffusionMultigrid M(hierarchy, *coeff, ess_bdr, coarse_solver);
+         DiffusionMultigrid M(hierarchy, *coeff, ess_bdr, gmg_solver);
          M.SetCycleType(Multigrid::CycleType::VCYCLE, 1, 1);
 
          tic_toc.Stop();

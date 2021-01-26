@@ -81,6 +81,7 @@ struct DiffusionMultigrid : GeometricMultigrid
     {
        BilinearForm* form = new BilinearForm(&fespace);
        form->SetAssemblyLevel(asm_lvl);
+       form->SetDiagonalPolicy(DIAG_ONE);
        form->AddDomainIntegrator(new DiffusionIntegrator(coeff));
        form->Assemble();
        bfs.Append(form);
@@ -108,7 +109,8 @@ struct DiffusionMultigrid : GeometricMultigrid
            Solver* smoother = new OperatorChebyshevSmoother(
               opr.Ptr(), diag, *essentialTrueDofs.Last(), 2);
     
-           AddLevel(opr.Ptr(), smoother, true, true);
+//           AddLevel(opr.Ptr(), smoother, true, true);
+           AddLevel(opr.Ptr(), smoother, false, true);
            break;
          }
          case SolverConfig::GINKGO_CUIC:
@@ -117,7 +119,8 @@ struct DiffusionMultigrid : GeometricMultigrid
             Solver *smoother = new GinkgoWrappers::GinkgoCuIcPreconditioner(
                                               solver_config.gko_exec, *A_lvl,
                                                         "exact", 1);
-           AddLevel(opr.Ptr(), smoother, true, true);
+//           AddLevel(opr.Ptr(), smoother, true, true);
+           AddLevel(opr.Ptr(), smoother, false, true);
            break;
          }
          case SolverConfig::GINKGO_CUIC_ISAI:
@@ -126,7 +129,8 @@ struct DiffusionMultigrid : GeometricMultigrid
             Solver *smoother = new GinkgoWrappers::GinkgoCuIcPreconditioner(
                                               solver_config.gko_exec, *A_lvl,
                                                         "isai", 1);
-           AddLevel(opr.Ptr(), smoother, true, true);
+//           AddLevel(opr.Ptr(), smoother, true, true);
+           AddLevel(opr.Ptr(), smoother, false, true);
            break;
          }
        }
