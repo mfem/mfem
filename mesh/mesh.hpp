@@ -490,6 +490,23 @@ public:
        nodes, if present. */
    explicit Mesh(const Mesh &mesh, bool copy_nodes = true);
 
+   /// Move constructor, useful for using a Mesh as a function return value.
+   Mesh(Mesh &&mesh);
+
+   // Named constructors, each of the below uses the move constructor
+   static Mesh MakeCartesian1D(int n, double sx = 1.0);
+
+   static Mesh MakeCartesian2D(
+      int nx, int ny, Element::Type type, bool generate_edges = false,
+      double sx = 1.0, double sy = 1.0, bool sfc_ordering = true);
+
+   static Mesh MakeCartesian3D(
+      int nx, int ny, int nz, Element::Type type, bool generate_edges = false,
+      double sx = 1.0, double sy = 1.0, double sz = 1.0,
+      bool sfc_ordering = true);
+
+   static Mesh MakeRefined(Mesh &orig_mesh, int ref_factor, int ref_type);
+
    /// Construct a Mesh from the given primary data.
    /** The array @a vertices is used as external data, i.e. the Mesh does not
        copy the data and will not delete the pointer.
