@@ -69,6 +69,11 @@ Version 4.2.1 (development)
 - Extending support for L2 basis functions using MapTypes VALUE and INTEGRAL in
   linear interpolators and GridFunction "GetValue" methods.
 
+- Added support for creating refined meshes for all element types (e.g. by
+  splitting high-order elements into low-order refined elements), including
+  mixed meshes. The LOR Transfer miniapp (miniapps/tools/lor-transfer.cpp) now
+  supports meshes with any element geometry.
+
 
 Version 4.2, released on October 30, 2020
 =========================================
