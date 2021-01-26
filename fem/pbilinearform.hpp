@@ -76,7 +76,7 @@ public:
    void KeepNbrBlock(bool knb = true) { keep_nbr_block = knb; }
 
    /** @brief Set the operator type id for the parallel matrix/operator when
-       using AssemblyLevel::FULL. */
+       using AssemblyLevel::LEGACYFULL. */
    /** If using static condensation or hybridization, call this method *after*
        enabling it. */
    void SetOperatorType(Operator::Type tid)
@@ -160,6 +160,9 @@ public:
    /// Get the parallel finite element space prolongation matrix
    virtual const Operator *GetProlongation() const
    { return pfes->GetProlongationMatrix(); }
+   /// Get the transpose of GetRestriction, useful for matrix-free RAP
+   virtual const Operator *GetRestrictionTranspose() const
+   { return pfes->GetRestrictionTransposeOperator(); }
    /// Get the parallel finite element space restriction matrix
    virtual const Operator *GetRestriction() const
    { return pfes->GetRestrictionMatrix(); }
@@ -246,6 +249,9 @@ public:
        @a A. */
    void ParallelAssemble(OperatorHandle &A);
 
+   using MixedBilinearForm::FormRectangularSystemMatrix;
+   using MixedBilinearForm::FormRectangularLinearSystem;
+
    /** @brief Return in @a A a parallel (on truedofs) version of this operator.
 
        This returns the same operator as FormRectangularLinearSystem(), but does
@@ -301,9 +307,19 @@ public:
    /// Returns the matrix "assembled" on the true dofs
    HypreParMatrix *ParallelAssemble() const;
 
+   /** @brief Returns the matrix assembled on the true dofs, i.e.
+       @a A = R_test A_local P_trial, in the format (type id) specified by
+       @a A. */
+   void ParallelAssemble(OperatorHandle &A);
+
    /** Extract the parallel blocks corresponding to the vector dimensions of the
        domain and range parallel finite element spaces */
    void GetParBlocks(Array2D<HypreParMatrix *> &blocks) const;
+
+   using MixedBilinearForm::FormRectangularSystemMatrix;
+
+   /** @brief Return in @a A a parallel (on truedofs) version of this operator. */
+   virtual void FormRectangularSystemMatrix(OperatorHandle &A);
 
    virtual ~ParDiscreteLinearOperator() { }
 };

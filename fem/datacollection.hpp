@@ -382,6 +382,10 @@ public:
    int Error() const { return error; }
    /// Reset the error state
    void ResetError(int err = NO_ERROR) { error = err; }
+
+#ifdef MFEM_USE_MPI
+   friend class ParMesh;
+#endif
 };
 
 
