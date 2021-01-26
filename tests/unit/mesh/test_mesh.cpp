@@ -155,8 +155,7 @@ TEST_CASE("MakeSimplicial", "[Mesh]")
                               "../../data/beam-wedge.mesh");
 
    Mesh orig_mesh(mesh_fname, 1, 1);
-   Mesh simplex_mesh;
-   simplex_mesh.MakeSimplicial(orig_mesh);
+   Mesh simplex_mesh = Mesh::MakeSimplicial(orig_mesh);
 
    Geometry::Type orig_geom = orig_mesh.GetElementBaseGeometry(0);
    int factor;
