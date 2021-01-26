@@ -298,12 +298,9 @@ int main(int argc, char *argv[])
 
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace pfes(&pmesh, &fec);
-   ParGridFunction x(&pfes);
 
    // Assign material indices to the element attributes.
    const int NE = pmesh.GetNE();
-   Array<int> dofs;
-   Vector x_loc(pfes.GetFE(0)->GetDof());
    for (int i = 0; i < NE; i++)
    {
       Vector center;
@@ -314,11 +311,6 @@ int main(int argc, char *argv[])
          el->SetAttribute(0);
       }
       else { el->SetAttribute(1); }
-
-      int mat_id = el->GetAttribute();
-      (mat_id == 0) ? x_loc = 0.0 : x_loc = 1.0;
-      pfes.GetElementVDofs(i, dofs);
-      x.SetSubVector(dofs, x_loc);
    }
 
    cutH1Space(pfes, true, true);
