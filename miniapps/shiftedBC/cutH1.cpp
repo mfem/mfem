@@ -11,12 +11,6 @@
 using namespace std;
 using namespace mfem;
 
-double surface_level_set(const Vector &x)
-{
-   const double sine = 0.25 * std::sin(4 * M_PI * x(0));
-   return (x(1) >= sine + 0.5) ? 0.0 : 1.0;
-}
-
 // Used for debugging the elem-to-dof tables when the elements' attributes
 // are associated with materials. Options for lvl:
 // 0 - only duplicated materials per DOF.
@@ -105,6 +99,150 @@ void VisualizeL2(ParGridFunction &gf, int size, int x, int y)
             << "keys mRjlc\n" << flush;
 }
 
+void cutH1Space(ParFiniteElementSpace &pfes, bool vis, bool print)
+{
+   ParMesh &pmesh = *pfes.GetParMesh();
+   ParGridFunction x_vis(&pfes);
+
+   // Duplicate DOFs on the material interface.
+   // That is, the DOF touches different element attributes.
+   const Table &elem_dof = pfes.GetElementToDofTable(),
+               &bdre_dof = pfes.GetBdrElementToDofTable();
+   Table dof_elem, dof_bdre;
+   Table new_elem_dof(elem_dof), new_bdre_dof(bdre_dof);
+   Transpose(elem_dof, dof_elem);
+   Transpose(bdre_dof, dof_bdre);
+   const int nrows = dof_elem.Size();
+   int ndofs = nrows;
+   Array<int> dof_elements, dof_boundaries;
+   if (print)
+   {
+      PrintDofElemTable(elem_dof, pmesh, 0);
+      PrintDofElemTable(bdre_dof, pmesh, 2);
+   }
+   for (int dof = 0; dof < nrows; dof++)
+   {
+      // Check which materials share the current dof.
+      std::set<int> dof_materials;
+      dof_elem.GetRow(dof, dof_elements);
+      for (int e = 0; e < dof_elements.Size(); e++)
+      {
+         const int mat_id = pmesh.GetAttribute(dof_elements[e]);
+         dof_materials.insert(mat_id);
+      }
+      // Count the materials for the current DOF.
+      const int dof_mat_cnt = dof_materials.size();
+
+      // Duplicate the dof if it is shared between materials.
+      if (dof_mat_cnt > 1)
+      {
+         // The material with the lowest index keeps the old DOF id.
+         // All other materials duplicate the dof.
+         auto mat = dof_materials.cbegin();
+         mat++;
+         while(mat != dof_materials.cend())
+         {
+            // Replace in all elements with material mat.
+            const int new_dof_id = ndofs;
+            for (int e = 0; e < dof_elements.Size(); e++)
+            {
+               if (pmesh.GetAttribute(dof_elements[e]) == *mat)
+               {
+                  if (print)
+                  {
+                     std::cout << "Replacing DOF (for element) : "
+                               << dof << " -> " << new_dof_id
+                               << " in EL " << dof_elements[e] << std::endl;
+                  }
+                  new_elem_dof.ReplaceConnection(dof_elements[e],
+                                                 dof, new_dof_id);
+               }
+            }
+
+            // Replace in all boundary elements with material mat.
+            dof_bdre.GetRow(dof, dof_boundaries);
+            const int dof_bdr_cnt = dof_boundaries.Size();
+            for (int b = 0; b < dof_bdr_cnt; b++)
+            {
+               int face_id = pmesh.GetBdrFace(dof_boundaries[b]);
+               int elem_id, tmp;
+               pmesh.GetFaceElements(face_id, &elem_id, &tmp);
+               if (pmesh.GetAttribute(elem_id) == *mat)
+               {
+                  std::cout << "Replacing DOF (for boundary): "
+                            << dof << " -> " << new_dof_id
+                            << " in BE " << dof_boundaries[b] << std::endl;
+                  new_bdre_dof.ReplaceConnection(dof_boundaries[b],
+                                                 dof, new_dof_id);
+               }
+            }
+
+            // TODO go over faces (in face_dof) that have the replaced dof, and
+            // check if the face_dof table should be updated.
+            // Maybe the face should have the new dof instead of the old one,
+            // which is the case if it has higher el-attributes on both sides.
+
+            ndofs++;
+            mat++;
+         }
+      }
+
+      // Used only for visualization.
+      // Must be visualized before the space update.
+      x_vis(dof) = dof_mat_cnt;
+   }
+
+   // Send the solution by socket to a GLVis server.
+   if (vis)
+   {
+      int size = 500;
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      const int myid = pfes.GetMyRank(), num_procs = pfes.GetNRanks();
+
+      socketstream sol_sock_x(vishost, visport);
+      sol_sock_x << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock_x.precision(8);
+      sol_sock_x << "solution\n" << pmesh << x_vis;
+      sol_sock_x << "window_geometry " << 0 << " " << 0 << " "
+                                       << size << " " << size << "\n"
+                 << "window_title '" << "X" << "'\n"
+                 << "keys mRjlc\n" << flush;
+   }
+
+   if (print)
+   {
+      PrintDofElemTable(elem_dof, pmesh, 0);
+      PrintDofElemTable(new_elem_dof, pmesh, 0);
+   }
+
+   // Remove face dofs for cut faces.
+   const Table &face_dof = pfes.GetFaceToDofTable();
+   Table new_face_dof(face_dof);
+   for (int f = 0; f < pmesh.GetNumFaces(); f++)
+   {
+      auto *ftr = pmesh.GetFaceElementTransformations(f, 3);
+      if (ftr->Elem2No > 0 &&
+          pmesh.GetAttribute(ftr->Elem1No) != pmesh.GetAttribute(ftr->Elem2No))
+      {
+         if (print)
+         {
+            std::cout << ftr->Elem1No << " " << ftr->Elem2No << std::endl;
+            std::cout << pmesh.GetAttribute(ftr->Elem1No) << " "
+                      << pmesh.GetAttribute(ftr->Elem2No) << std::endl;
+            std::cout << "Removing face dofs for face " << f << std::endl;
+         }
+         new_face_dof.RemoveRow(f);
+      }
+   }
+   new_face_dof.Finalize();
+
+   // Cut the space.
+   pfes.ReplaceElemDofTable(new_elem_dof, ndofs);
+   pfes.ReplaceBdrElemDofTable(new_bdre_dof);
+   pfes.ReplaceFaceDofTable(new_face_dof);
+}
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
@@ -115,7 +253,6 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/inline-quad.mesh";
-   int problem = 0;
    int rs_levels = 0;
    int order = 2;
    const char *device_config = "cpu";
@@ -124,10 +261,6 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-   args.AddOption(&problem, "-p", "--problem",
-                  "Problem type:\n\t"
-                  "0: exact alignment with the mesh boundary\n\t"
-                  "1: zero level set enclosing a volume");
    args.AddOption(&rs_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&order, "-o", "--order",
@@ -163,16 +296,6 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
-   Coefficient *ls_coeff;
-   if (problem == 0)
-   {
-      ls_coeff = new DeltaCoefficient(0.75, 0.625, 1.0);
-   }
-   else
-   {
-      ls_coeff = new FunctionCoefficient(surface_level_set);
-   }
-
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace pfes(&pmesh, &fec);
    ParGridFunction x(&pfes);
@@ -198,132 +321,19 @@ int main(int argc, char *argv[])
       x.SetSubVector(dofs, x_loc);
    }
 
-   // Duplicate DOFs on the material interface.
-   const Table &elem_dof = pfes.GetElementToDofTable(),
-               &bdre_dof = pfes.GetBdrElementToDofTable();
-   Table dof_elem, dof_bdre;
-   Table new_elem_dof(elem_dof), new_bdre_dof(bdre_dof);
-   Transpose(elem_dof, dof_elem);
-   Transpose(bdre_dof, dof_bdre);
-   const int nrows = dof_elem.Size();
-   int ndofs = nrows;
-   Array<int> dof_elements, dof_boundaries;
-//   PrintDofElemTable(elem_dof, pmesh, 0);
-//   PrintDofElemTable(bdre_dof, pmesh, 2);
-   for (int dof = 0; dof < nrows; dof++)
-   {
-      // Check which materials share the current dof.
-      std::set<int> dof_materials;
-      dof_elem.GetRow(dof, dof_elements);
-      for (int e = 0; e < dof_elements.Size(); e++)
-      {
-         const int mat_id = pmesh.GetAttribute(dof_elements[e]);
-         dof_materials.insert(mat_id);
-      }
-      // Count the materials for the current DOF.
-      const int dof_mat_cnt = dof_materials.size();
-
-      // Duplicate the dof if it is shared between materials.
-      if (dof_mat_cnt > 1)
-      {
-         // The material with the lowest index keeps the old DOF id.
-         // All other materials duplicate the dof.
-         auto mat = dof_materials.cbegin();
-         mat++;
-         while(mat != dof_materials.cend())
-         {
-            // Replace in all elements with material mat.
-            const int new_dof_id = ndofs;
-            for (int e = 0; e < dof_elements.Size(); e++)
-            {
-               if (pmesh.GetAttribute(dof_elements[e]) == *mat)
-               {
-                  std::cout << "Replacing DOF (for element) : "
-                            << dof << " -> " << new_dof_id
-                            << " in EL " << dof_elements[e] << std::endl;
-                  new_elem_dof.ReplaceConnection(dof_elements[e],
-                                                 dof, new_dof_id);
-               }
-            }
-
-            // Replace in all boundary elements with material mat.
-            dof_bdre.GetRow(dof, dof_boundaries);
-            const int dof_bdr_cnt = dof_boundaries.Size();
-            for (int b = 0; b < dof_bdr_cnt; b++)
-            {
-               int face_id = pmesh.GetBdrFace(dof_boundaries[b]);
-               int elem_id, tmp;
-               pmesh.GetFaceElements(face_id, &elem_id, &tmp);
-               if (pmesh.GetAttribute(elem_id) == *mat)
-               {
-                  std::cout << "Replacing DOF (for boundary): "
-                            << dof << " -> " << new_dof_id
-                            << " in BE " << dof_boundaries[b] << std::endl;
-                  new_bdre_dof.ReplaceConnection(dof_boundaries[b],
-                                                 dof, new_dof_id);
-               }
-            }
-
-            // TODO go over faces (in face_dof) that have the replaced dof, and
-            // check if the face_dof table should be updated.
-            // Maybe the face should have the new dof instead of the old one,
-            // which is the case if it has higher el-attributes on both sides.
-
-            ndofs++;
-            mat++;
-         }
-      }
-
-      // Used only for visualization.
-      x(dof) = dof_mat_cnt;
-   }
-
-   // Send the solution by socket to a GLVis server.
-   if (visualization)
-   {
-      int size = 500;
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-
-      socketstream sol_sock_x(vishost, visport);
-      sol_sock_x << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock_x.precision(8);
-      sol_sock_x << "solution\n" << pmesh << x;
-      sol_sock_x << "window_geometry " << 0 << " " << 0 << " "
-                                       << size << " " << size << "\n"
-                 << "window_title '" << "X" << "'\n"
-                 << "keys mRjlc\n" << flush;
-   }
-
-   PrintDofElemTable(elem_dof, pmesh, 0);
-   PrintDofElemTable(new_elem_dof, pmesh, 0);
+   cutH1Space(pfes, true, true);
 
    // Set face_attribute = 77 to faces that are on the material interface.
    // Remove face dofs for cut faces.
-   const Table &face_dof = pfes.GetFaceToDofTable();
-   Table new_face_dof(face_dof);
    for (int f = 0; f < pmesh.GetNumFaces(); f++)
    {
       auto *ftr = pmesh.GetFaceElementTransformations(f, 3);
       if (ftr->Elem2No > 0 &&
           pmesh.GetAttribute(ftr->Elem1No) != pmesh.GetAttribute(ftr->Elem2No))
       {
-         std::cout << ftr->Elem1No << " " << ftr->Elem2No << std::endl;
-         std::cout << pmesh.GetAttribute(ftr->Elem1No) << " "
-                            << pmesh.GetAttribute(ftr->Elem2No) << std::endl;
-         std::cout << "Setting face " << f << std::endl;
          pmesh.SetFaceAttribute(f, 77);
-
-         std::cout << "Removing face dofs for face " << f << std::endl;
-         new_face_dof.RemoveRow(f);
       }
    }
-   new_face_dof.Finalize();
-
-   // Cut the space.
-   pfes.ReplaceElemDofTable(new_elem_dof, ndofs);
-   pfes.ReplaceBdrElemDofTable(new_bdre_dof);
-   pfes.ReplaceFaceDofTable(new_face_dof);
 
    // Simple Dirichlet BC.
    Array<int> ess_tdof_list;
@@ -364,6 +374,9 @@ int main(int argc, char *argv[])
    a.RecoverFEMSolution(X, b, u);
 
    VisualizeL2(u, 500, 500, 0);
+
+   const double norm = u.Norml2();
+   std::cout << "Norm: " << norm << std::endl;
 
    MPI_Finalize();
    return 0;
