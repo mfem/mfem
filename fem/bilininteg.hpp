@@ -355,7 +355,7 @@ class SumIntegrator : public BilinearFormIntegrator
 {
 private:
    int own_integrators;
-   DenseMatrix elem_mat;
+   mutable DenseMatrix elem_mat;
    Array<BilinearFormIntegrator*> integrators;
 
 public:
@@ -367,6 +367,55 @@ public:
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+
+   virtual void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
+                                   const FiniteElement &test_fe1,
+                                   const FiniteElement &test_fe2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace& fes);
+
+   virtual void AssembleDiagonalPA(Vector &diag);
+
+   virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes);
+
+   virtual void AssemblePABoundaryFaces(const FiniteElementSpace &fes);
+
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+
+   virtual void AddMultPA(const Vector& x, Vector& y) const;
+
+   virtual void AssembleMF(const FiniteElementSpace &fes);
+
+   virtual void AddMultMF(const Vector &x, Vector &y) const;
+
+   virtual void AddMultTransposeMF(const Vector &x, Vector &y) const;
+
+   virtual void AssembleDiagonalMF(Vector &diag);
+
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                           const bool add);
+
+   virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes,
+                                        Vector &ea_data_int,
+                                        Vector &ea_data_ext,
+                                        const bool add);
+
+   virtual void AssembleEABoundaryFaces(const FiniteElementSpace &fes,
+                                        Vector &ea_data_bdr,
+                                        const bool add);
 
    virtual ~SumIntegrator();
 };
@@ -1844,8 +1893,10 @@ protected:
 };
 
 /** Class for integrating the bilinear form a(u,v) := (Q grad u, v) where Q is a
-    scalar coefficient, and v is a vector with components v_i in the same space
-    as u. */
+    scalar coefficient, and v is a vector with components v_i in the same (H1) space
+    as u.
+
+    See also MixedVectorGradientIntegrator when v is in H(curl). */
 class GradientIntegrator : public BilinearFormIntegrator
 {
 protected:
@@ -1994,6 +2045,8 @@ public:
 
    virtual void AddMultPA(const Vector&, Vector&) const;
 
+   virtual void AddMultTransposePA(const Vector&, Vector&) const;
+
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe);
 };
@@ -2057,6 +2110,8 @@ public:
 
    virtual void AddMultPA(const Vector&, Vector&) const;
 
+   virtual void AddMultTransposePA(const Vector&, Vector&) const;
+
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
                                          ElementTransformation &Trans);
@@ -2116,6 +2171,17 @@ public:
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
                                          ElementTransformation &Trans);
+};
+
+// Alias for @ConvectionIntegrator.
+using NonconservativeConvectionIntegrator = ConvectionIntegrator;
+
+/// -alpha (u, q . grad v), negative transpose of ConvectionIntegrator
+class ConservativeConvectionIntegrator : public TransposeIntegrator
+{
+public:
+   ConservativeConvectionIntegrator(VectorCoefficient &q, double a = 1.0)
+      : TransposeIntegrator(new ConvectionIntegrator(q, -a)) { }
 };
 
 /// alpha (q . grad u, v) using the "group" FE discretization
@@ -2682,15 +2748,15 @@ public:
     One use case for this integrator is to discretize the operator -u.grad(v)
     with a DG formulation. The resulting formulation uses the
     ConvectionIntegrator (with coefficient u, and parameter alpha = -1) and the
-    transpose of the DGTraceIntegrator (with coefficient u, and parameters
-    alpha = 1, beta = -1/2 to use the upwind face flux). This discretization and
-    the handling of the inflow and outflow boundaries is illustrated in Example
-    9/9p.
+    transpose of the DGTraceIntegrator (with coefficient u, and parameters alpha
+    = 1, beta = -1/2 to use the upwind face flux, see also
+    NonconservativeDGTraceIntegrator). This discretization and the handling of
+    the inflow and outflow boundaries is illustrated in Example 9/9p.
 
     Another use case for this integrator is to discretize the operator -div(u v)
     with a DG formulation. The resulting formulation is conservative and
-    consists of the transpose of the ConvectionIntegrator (with coefficient u,
-    and parameter alpha = 1) plus the DGTraceIntegrator (with coefficient u, and
+    consists of the ConservativeConvectionIntegrator (with coefficient u, and
+    parameter alpha = -1) plus the DGTraceIntegrator (with coefficient u, and
     parameters alpha = -1, beta = -1/2 to use the upwind face flux).
     */
 class DGTraceIntegrator : public BilinearFormIntegrator
@@ -2709,13 +2775,17 @@ private:
    Vector shape1, shape2;
 
 public:
-   /// Construct integrator with rho = 1.
-   DGTraceIntegrator(VectorCoefficient &_u, double a, double b)
-   { rho = NULL; u = &_u; alpha = a; beta = b; }
+   /// Construct integrator with rho = 1, b = 0.5*a.
+   DGTraceIntegrator(VectorCoefficient &u_, double a)
+   { rho = NULL; u = &u_; alpha = a; beta = 0.5*a; }
 
-   DGTraceIntegrator(Coefficient &_rho, VectorCoefficient &_u,
+   /// Construct integrator with rho = 1.
+   DGTraceIntegrator(VectorCoefficient &u_, double a, double b)
+   { rho = NULL; u = &u_; alpha = a; beta = b; }
+
+   DGTraceIntegrator(Coefficient &_rho, VectorCoefficient &u_,
                      double a, double b)
-   { rho = &_rho; u = &_u; alpha = a; beta = b; }
+   { rho = &_rho; u = &u_; alpha = a; beta = b; }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
@@ -2747,6 +2817,30 @@ public:
 
 private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);
+};
+
+// Alias for @a DGTraceIntegrator.
+using ConservativeDGTraceIntegrator = DGTraceIntegrator;
+
+/** Integrator that represents the face terms used for the non-conservative
+    DG discretization of the convection equation:
+    -alpha < rho_u (u.n) {v},[w] > + beta < rho_u |u.n| [v],[w] >.
+
+    This integrator can be used with together with ConvectionIntegrator to
+    implement an upwind DG discretization in non-conservative form, see ex9 and
+    ex9p. */
+class NonconservativeDGTraceIntegrator : public TransposeIntegrator
+{
+public:
+   NonconservativeDGTraceIntegrator(VectorCoefficient &u, double a)
+      : TransposeIntegrator(new DGTraceIntegrator(u, -a, 0.5*a)) { }
+
+   NonconservativeDGTraceIntegrator(VectorCoefficient &u, double a, double b)
+      : TransposeIntegrator(new DGTraceIntegrator(u, -a, b)) { }
+
+   NonconservativeDGTraceIntegrator(Coefficient &rho, VectorCoefficient &u,
+                                    double a, double b)
+      : TransposeIntegrator(new DGTraceIntegrator(rho, u, -a, b)) { }
 };
 
 /** Integrator for the DG form:
@@ -2989,11 +3083,36 @@ class DiscreteInterpolator : public BilinearFormIntegrator { };
 class GradientInterpolator : public DiscreteInterpolator
 {
 public:
+   GradientInterpolator() : dofquad_fe(NULL) { }
+   virtual ~GradientInterpolator() { delete dofquad_fe; }
+
    virtual void AssembleElementMatrix2(const FiniteElement &h1_fe,
                                        const FiniteElement &nd_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat)
    { nd_fe.ProjectGrad(h1_fe, Trans, elmat); }
+
+   using BilinearFormIntegrator::AssemblePA;
+
+   /** @brief Setup method for PA data.
+
+       @param[in] trial_fes   H1 Lagrange space
+       @param[in] test_fes    H(curl) Nedelec space
+    */
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+
+private:
+   /// 1D finite element that generates and owns the 1D DofToQuad maps below
+   FiniteElement * dofquad_fe;
+
+   bool B_id; // is the B basis operator (maps_C_C) the identity?
+   const DofToQuad *maps_C_C; // one-d map with Lobatto rows, Lobatto columns
+   const DofToQuad *maps_O_C; // one-d map with Legendre rows, Lobatto columns
+   int dim, ne, o_dofs1D, c_dofs1D;
 };
 
 
@@ -3008,6 +3127,24 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat)
    { ran_fe.Project(dom_fe, Trans, elmat); }
+
+   using BilinearFormIntegrator::AssemblePA;
+
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+
+private:
+   /// 1D finite element that generates and owns the 1D DofToQuad maps below
+   FiniteElement * dofquad_fe;
+
+   const DofToQuad *maps_C_C; // one-d map with Lobatto rows, Lobatto columns
+   const DofToQuad *maps_O_C; // one-d map with Legendre rows, Lobatto columns
+   int dim, ne, o_dofs1D, c_dofs1D;
+
+   Vector pa_data;
 };
 
 
