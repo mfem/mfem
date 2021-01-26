@@ -3231,63 +3231,18 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
 
 Mesh::Mesh(Mesh &&mesh)
 {
-   Dim = mesh.Dim;
-   spaceDim = mesh.spaceDim;
+   Init();
+   InitTables();
+   Swap(mesh, true);
 
-   NumOfVertices = mesh.NumOfVertices;
-   NumOfElements = mesh.NumOfElements;
-   NumOfBdrElements = mesh.NumOfBdrElements;
-   NumOfEdges = mesh.NumOfEdges;
-   NumOfFaces = mesh.NumOfFaces;
-   nbInteriorFaces = mesh.nbInteriorFaces;
-   nbBoundaryFaces = mesh.nbBoundaryFaces;
-
-   meshgen = mesh.meshgen;
-   mesh_geoms = mesh.mesh_geoms;
-
+   // Should this be moved to Mesh::Swap?
    sequence = mesh.sequence;
    last_operation = mesh.last_operation;
-
    for (int g=0; g<Geometry::NumGeom; ++g)
    {
       CoarseFineTr.point_matrices[g].Swap(mesh.CoarseFineTr.point_matrices[g]);
    }
    mfem::Swap(CoarseFineTr.embeddings, mesh.CoarseFineTr.embeddings);
-
-   // Swap member data of type Array and Vector
-   mfem::Swap(elements, mesh.elements);
-   mfem::Swap(vertices, mesh.vertices);
-   mfem::Swap(boundary, mesh.boundary);
-   mfem::Swap(faces, mesh.faces);
-   mfem::Swap(faces_info, mesh.faces_info);
-   mfem::Swap(nc_faces_info, mesh.nc_faces_info);
-
-   mfem::Swap(attributes, mesh.attributes);
-   mfem::Swap(bdr_attributes, mesh.bdr_attributes);
-
-   mfem::Swap(geom_factors, mesh.geom_factors);
-   mfem::Swap(face_geom_factors, mesh.face_geom_factors);
-
-   mfem::Swap(be_to_edge, mesh.be_to_edge);
-   mfem::Swap(be_to_face, mesh.be_to_face);
-
-   // Steal pointers to tables
-   el_to_edge = mesh.el_to_edge;
-   el_to_face = mesh.el_to_face;
-   el_to_el = mesh.el_to_el;
-   face_edge = mesh.face_edge;
-   edge_vertex = mesh.edge_vertex;
-
-   // Steal other pointers
-   NURBSext = mesh.NURBSext;
-   ncmesh = mesh.ncmesh;
-
-   Nodes = mesh.Nodes;
-   own_nodes = mesh.own_nodes;
-
-   // Ensure moved mesh will not delete data we have stolen
-   mesh.Init();
-   mesh.InitTables();
 }
 
 Mesh Mesh::MakeCartesian1D(int n, double sx)
