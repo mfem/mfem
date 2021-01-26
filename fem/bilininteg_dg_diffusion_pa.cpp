@@ -12,1102 +12,834 @@
 
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
+#include "gridfunc.hpp"
+#include "restriction.hpp"
+
+
+//what is the difference between apply and applytranspose for dgtrace?
 
 //using namespace std;
+
+/* 
+   Integrator for the DG form:
+
+    - < {(Q grad(u)).n}, [v] > + sigma < [u], {(Q grad(v)).n} >  + kappa < {h^{-1} Q} [u], [v] >
+
+*/
 
 namespace mfem
 {
 
-// Setup for interior faces
-void DGDiffusionIntegrator::AssemblePAInteriorFaces(const FiniteElementSpace& fes)
-{
-    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-    SetupPA(fes, FaceType::Interior);
-    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-}
-
-// Setup for boundary faces
-void DGDiffusionIntegrator::AssemblePABoundaryFaces(const FiniteElementSpace& fes)
-{
-    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-    SetupPA(fes, FaceType::Boundary);
-    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-}
-
-// Setup for partial assembly
-void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
-{
-    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-    std::cout << "TODO: Correct this for DG diffusion" << std::endl;
-    exit(1);
-    // TODO:  Add setup
-    /*
-    nf = fes.GetNFbyType(type);
-    if (nf==0) { return; }
-    // Assumes tensor-product elements
-    Mesh *mesh = fes.GetMesh();
-    const FiniteElement &el =
-        *fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0));
-    FaceElementTransformations &T =
-        *fes.GetMesh()->GetFaceElementTransformations(0);
-    const IntegrationRule *ir = IntRule?
-                                IntRule:
-                                &GetRule(el.GetGeomType(), el.GetOrder(), T);
-    const int symmDims = 4;
-    const int nq = ir->GetNPoints();
-    dim = mesh->Dimension();
-    geom = mesh->GetFaceGeometricFactors(
-                *ir,
-                FaceGeometricFactors::DETERMINANTS |
-                FaceGeometricFactors::NORMALS, type);
-    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
-    dofs1D = maps->ndof;
-    quad1D = maps->nqpt;
-    pa_data.SetSize(symmDims * nq * nf, Device::GetMemoryType());
-    Vector vel;
-    if (VectorConstantCoefficient *c_u = dynamic_cast<VectorConstantCoefficient*>
-                                        (u))
-    {
-        vel = c_u->GetVec();
-    }
-    else if (VectorQuadratureFunctionCoefficient* c_u =
-                dynamic_cast<VectorQuadratureFunctionCoefficient*>(u))
-    {
-        // Assumed to be in lexicographical ordering
-        const QuadratureFunction &qFun = c_u->GetQuadFunction();
-        MFEM_VERIFY(qFun.Size() == dim * nq * nf,
-                    "Incompatible QuadratureFunction dimension \n");
-
-        MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
-                    "IntegrationRule used within integrator and in"
-                    " QuadratureFunction appear to be different");
-        qFun.Read();
-        vel.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
-    }
-    else
-    {
-        vel.SetSize(dim * nq * nf);
-        auto C = Reshape(vel.HostWrite(), dim, nq, nf);
-        Vector Vq(dim);
-        int f_ind = 0;
-        for (int f = 0; f < fes.GetNF(); ++f)
-        {
-            int e1, e2;
-            int inf1, inf2;
-            fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-            fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-            int face_id = inf1 / 64;
-            if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-                (type==FaceType::Boundary && e2<0 && inf2<0) )
-            {
-            FaceElementTransformations &T =
-                *fes.GetMesh()->GetFaceElementTransformations(f);
-            for (int q = 0; q < nq; ++q)
-            {
-                // Convert to lexicographic ordering
-                int iq = ToLexOrdering(dim, face_id, quad1D, q);
-                T.SetAllIntPoints(&ir->IntPoint(q));
-                const IntegrationPoint &eip1 = T.GetElement1IntPoint();
-                u->Eval(Vq, *T.Elem1, eip1);
-                for (int i = 0; i < dim; ++i)
-                {
-                    C(i,iq,f_ind) = Vq(i);
-                }
-            }
-            f_ind++;
-            }
-        }
-        MFEM_VERIFY(f_ind==nf, "Incorrect number of faces.");
-    }
-    Vector r;
-    if (rho==nullptr)
-    {
-        r.SetSize(1);
-        r(0) = 1.0;
-    }
-    else if (ConstantCoefficient *c_rho = dynamic_cast<ConstantCoefficient*>(rho))
-    {
-        r.SetSize(1);
-        r(0) = c_rho->constant;
-    }
-    else if (QuadratureFunctionCoefficient* c_rho =
-                dynamic_cast<QuadratureFunctionCoefficient*>(rho))
-    {
-        const QuadratureFunction &qFun = c_rho->GetQuadFunction();
-        MFEM_VERIFY(qFun.Size() == nq * nf,
-                    "Incompatible QuadratureFunction dimension \n");
-
-        MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
-                    "IntegrationRule used within integrator and in"
-                    " QuadratureFunction appear to be different");
-        qFun.Read();
-        r.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
-    }
-    else
-    {
-        r.SetSize(nq * nf);
-        auto C_vel = Reshape(vel.HostRead(), dim, nq, nf);
-        auto n = Reshape(geom->normal.HostRead(), nq, dim, nf);
-        auto C = Reshape(r.HostWrite(), nq, nf);
-        int f_ind = 0;
-        for (int f = 0; f < fes.GetNF(); ++f)
-        {
-            int e1, e2;
-            int inf1, inf2;
-            fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-            fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-            int face_id = inf1 / 64;
-            if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-                (type==FaceType::Boundary && e2<0 && inf2<0) )
-            {
-            FaceElementTransformations &T =
-                *fes.GetMesh()->GetFaceElementTransformations(f);
-            for (int q = 0; q < nq; ++q)
-            {
-                // Convert to lexicographic ordering
-                int iq = ToLexOrdering(dim, face_id, quad1D, q);
-
-                T.SetAllIntPoints(&ir->IntPoint(q));
-                const IntegrationPoint &eip1 = T.GetElement1IntPoint();
-                const IntegrationPoint &eip2 = T.GetElement2IntPoint();
-                double r;
-
-                if (inf2 < 0)
-                {
-                    r = rho->Eval(*T.Elem1, eip1);
-                }
-                else
-                {
-                    double udotn = 0.0;
-                    for (int d=0; d<dim; ++d)
-                    {
-                        udotn += C_vel(d,iq,f_ind)*n(iq,d,f_ind);
-                    }
-                    if (udotn >= 0.0) { r = rho->Eval(*T.Elem2, eip2); }
-                    else { r = rho->Eval(*T.Elem1, eip1); }
-                }
-                C(iq,f_ind) = r;
-            }
-            f_ind++;
-            }
-        }
-        MFEM_VERIFY(f_ind==nf, "Incorrect number of faces.");
-    }   
-    PADGDiffusionSetup(dim, dofs1D, quad1D, nf, ir->GetWeights(),
-                    geom->detJ, geom->normal, r, vel,
-                    alpha, beta, pa_data);
-    */
-    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-}
-
+// PA DG DGDiffusion Integrator
 static void PADGDiffusionSetup2D(const int Q1D,
+                             const int D1D,
                              const int NF,
-                             const Array<double> &w,
-                             const Vector &det,
+                             const Array<double> &weights,
+                             const Array<double> &g,
+                             const Array<double> &b,
+                             const Vector &det_jac,
                              const Vector &nor,
+                             const Vector &Q,
                              const Vector &rho,
                              const Vector &vel,
-                             const double alpha,
-                             const double beta,
-                             Vector &op)
+                             const double sigma,
+                             const double kappa,
+                             Vector &op1,
+                             Vector &op2,
+                             Vector &op3)
 {
-    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-    std::cout << "TODO: Correct this for DG diffusion" << std::endl;
-    exit(1);
-    /*
-    const int VDIM = 2;
+   auto G = Reshape(g.Read(), Q1D, D1D);
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   const int VDIM = 1; // why ? 
+   auto detJ = Reshape(det_jac.Read(), Q1D, NF);
+   auto norm = Reshape(nor.Read(), Q1D, VDIM, NF);
+   
+   std::cout << "NF =  " << NF << std::endl;
+   std::cout << "Q1D =  " << Q1D << std::endl;
+   std::cout << "D1D =  " << D1D << std::endl;
 
-    auto d = Reshape(det.Read(), Q1D, NF);
-    auto n = Reshape(nor.Read(), Q1D, VDIM, NF);
-    const bool const_r = rho.Size() == 1;
-    auto R =
-        const_r ? Reshape(rho.Read(), 1,1) : Reshape(rho.Read(), Q1D,NF);
-    const bool const_v = vel.Size() == 2;
-    auto V =
-        const_v ? Reshape(vel.Read(), 2,1,1) : Reshape(vel.Read(), 2,Q1D,NF);
-    auto W = w.Read();
-    auto qd = Reshape(op.Write(), Q1D, 2, 2, NF);
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
-    MFEM_FORALL(f, NF, // can be optimized with Q1D thread for NF blocks
-    {
-        for (int q = 0; q < Q1D; ++q)
-        {
-            const double r = const_r ? R(0,0) : R(q,f);
-            const double v0 = const_v ? V(0,0,0) : V(0,q,f);
-            const double v1 = const_v ? V(1,0,0) : V(1,q,f);
-            const double dot = n(q,0,f) * v0 + n(q,1,f) * v1;
-            const double abs = dot > 0.0 ? dot : -dot;
-            const double w = W[q]*r*d(q,f);
-            qd(q,0,0,f) = w*( alpha/2 * dot + beta * abs );
-            qd(q,1,0,f) = w*( alpha/2 * dot - beta * abs );
-            qd(q,0,1,f) = w*(-alpha/2 * dot - beta * abs );
-            qd(q,1,1,f) = w*(-alpha/2 * dot + beta * abs );
-        }
-    });
-    */
+   for (int q = 0; q < Q1D; ++q)
+      for (int d = 0; d < D1D; ++d)
+      {
+        std::cout << "G(" << q+1 << "," << d+1 << ") = " ;
+        std::cout << G(q,d) << ";" << std::endl;
+      }
+
+   for (int q = 0; q < Q1D; ++q)
+      for (int d = 0; d < D1D; ++d)
+      {
+        std::cout << "B(" << q+1 << "," << d+1 << ") = " ;
+        std::cout << B(q,d) << ";" << std::endl;
+      }
+
+   for (int q = 0; q < Q1D; ++q)
+      for (int f = 0; f < NF; ++f)
+      {
+        std::cout << "detJ(" << q+1 << "," << f+1 << ") = " ;
+        std::cout << detJ(q,f) << ";" << std::endl;
+      }
+
+   for (int q = 0; q < Q1D; ++q)
+      for (int v = 0; v < VDIM; ++v)
+         for (int f = 0; f < NF; ++f)
+         {
+            std::cout << "n(" << q+1 << "," << v+1 << "," << f+1 << ") = " ;
+            std::cout << norm(q,v,f) << ";" << std::endl;
+         }
+
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+/** Integrator for the DG form:
+    - < {(Q grad(u)).n}, [v] > + sigma < [u], {(Q grad(v)).n} >
+    + kappa < {h^{-1} Q} [u], [v] >,
+    where Q is a scalar or matrix diffusion coefficient and u, v are the trial
+    and test spaces, respectively. The parameters sigma and kappa determine the
+    DG method to be used (when this integrator is added to the "broken"
+    DiffusionIntegrator):
+    * sigma = -1, kappa >= kappa0: symm. interior penalty (IP or SIPG) method,
+    * sigma = +1, kappa > 0: non-symmetric interior penalty (NIPG) method,
+    * sigma = +1, kappa = 0: the method of Baumann and Oden. 
+   */
+
+   // Input
+   const bool const_Q = Q.Size() == 1;
+   auto Qreshaped =
+      const_Q ? Reshape(Q.Read(), 1,1) : Reshape(Q.Read(), Q1D,NF);
+   auto wgts = weights.Read();
+
+   // Output
+   auto op_data_ptr1 = Reshape(op1.Write(), Q1D, 2, 2, NF);
+   auto op_data_ptr2 = Reshape(op2.Write(), Q1D, 2, NF);
+   auto op_data_ptr3 = Reshape(op3.Write(), Q1D, 2, NF);
+
+   // Loop over all faces
+   MFEM_FORALL(f, NF, // can be optimized with Q1D thread for NF blocks
+   {
+      for (int q = 0; q < Q1D; ++q)
+      {
+         const double n = norm(q,0,f) + norm(q,1,f);
+         const double Q = const_Q ? Qreshaped(0,0) : Qreshaped(q,f);
+         const double w = wgts[q]*Q*detJ(q,f);
+         // data for 1st term
+         op_data_ptr1(q,0,0,f) =  n*w*Q/2;
+         op_data_ptr1(q,1,0,f) = -n*w*Q/2;
+         op_data_ptr1(q,0,1,f) =  n*w*Q/2;
+         op_data_ptr1(q,1,1,f) = -n*w*Q/2;
+         // data for 2nd term
+         op_data_ptr2(q,0,f) =    n*w*Q*sigma/2;
+         op_data_ptr2(q,1,f) =    n*w*Q*sigma/2;
+         // data for 3rd term
+         const double h0 = 1.0/3.0;
+         const double h1 = 1.0/3.0;
+         op_data_ptr3(q,0,f) =    w*Q*kappa*(1/h0+1/h1)/2;
+         op_data_ptr3(q,1,f) =   -w*Q*kappa*(1/h0+1/h1)/2;
+         // need to do this 
+      }
+   });
+
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 }
 
 static void PADGDiffusionSetup3D(const int Q1D,
+                             const int D1D,
                              const int NF,
-                             const Array<double> &w,
-                             const Vector &det,
+                             const Array<double> &weights,
+                             const Array<double> &g,
+                             const Array<double> &b,
+                             const Vector &det_jac,
                              const Vector &nor,
+                             const Vector &Q,
                              const Vector &rho,
                              const Vector &vel,
-                             const double alpha,
-                             const double beta,
-                             Vector &op)
+                             const double sigma,
+                             const double kappa,
+                             Vector &op1,
+                             Vector &op2,
+                             Vector &op3)
 {
-    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-    std::cout << "TODO: Correct this for DG diffusion" << std::endl;
-    exit(1);
-    /*
-    const int VDIM = 3;
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   std::cout << "TODO: Correct this for DG diffusion" << std::endl;
+   exit(1);
 
-    auto d = Reshape(det.Read(), Q1D, Q1D, NF);
-    auto n = Reshape(nor.Read(), Q1D, Q1D, VDIM, NF);
-    const bool const_r = rho.Size() == 1;
-    auto R =
-        const_r ? Reshape(rho.Read(), 1,1,1) : Reshape(rho.Read(), Q1D,Q1D,NF);
-    const bool const_v = vel.Size() == 3;
-    auto V =
-        const_v ? Reshape(vel.Read(), 3,1,1,1) : Reshape(vel.Read(), 3,Q1D,Q1D,NF);
-    auto W = w.Read();
-    auto qd = Reshape(op.Write(), Q1D, Q1D, 2, 2, NF);
 
-    MFEM_FORALL(f, NF, // can be optimized with Q1D*Q1D threads for NF blocks
-    {
-        for (int q1 = 0; q1 < Q1D; ++q1)
-        {
-            for (int q2 = 0; q2 < Q1D; ++q2)
-            {
-            const double r = const_r ? R(0,0,0) : R(q1,q2,f);
-            const double v0 = const_v ? V(0,0,0,0) : V(0,q1,q2,f);
-            const double v1 = const_v ? V(1,0,0,0) : V(1,q1,q2,f);
-            const double v2 = const_v ? V(2,0,0,0) : V(2,q1,q2,f);
-            const double dot = n(q1,q2,0,f) * v0 + n(q1,q2,1,f) * v1 + n(q1,q2,2,f) * v2;
-            const double abs = dot > 0.0 ? dot : -dot;
-            const double w = W[q1+q2*Q1D]*r*d(q1,q2,f);
-            qd(q1,q2,0,0,f) = w*( alpha/2 * dot + beta * abs );
-            qd(q1,q2,1,0,f) = w*( alpha/2 * dot - beta * abs );
-            qd(q1,q2,0,1,f) = w*(-alpha/2 * dot - beta * abs );
-            qd(q1,q2,1,1,f) = w*(-alpha/2 * dot + beta * abs );
-            }
-        }
-    });
-    */
-    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 }
 
 static void PADGDiffusionSetup(const int dim,
                            const int D1D,
                            const int Q1D,
                            const int NF,
-                           const Array<double> &W,
-                           const Vector &det,
+                           const Array<double> &weights,
+                           const Array<double> &g,
+                           const Array<double> &b,
+                           const Vector &det_jac,
                            const Vector &nor,
+                           const Vector &Q,
                            const Vector &rho,
                            const Vector &u,
-                           const double alpha,
-                           const double beta,
-                           Vector &op)
+                           const double sigma,
+                           const double kappa,
+                           Vector &op1,
+                           Vector &op2,
+                           Vector &op3)
 {
-    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-    switch (dim)
-    {
-        case 1:
-            MFEM_ABORT("dim==1 not supported in PADGDiffusionSetup");
-        break;
-        case 2:
-            PADGDiffusionSetup2D(Q1D, NF, W, det, nor, rho, u, alpha, beta, op);
-        break;
-        case 3:
-            PADGDiffusionSetup2D(Q1D, NF, W, det, nor, rho, u, alpha, beta, op);
-        break;
-        default:
-            std::cout << " dim = " << dim << std::endl;
-            MFEM_ABORT("Invalid choice of dim in PADGDiffusionSetup");
-        break;
-    }
-    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+   if (dim == 1) { MFEM_ABORT("dim==1 not supported in PADGDiffusionSetup"); }
+   else if (dim == 2)
+   {
+      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+      PADGDiffusionSetup2D(Q1D, D1D, NF, weights, g, b, det_jac, nor, Q, rho, u, sigma, kappa, op1, op2, op3);
+   }
+   else if (dim == 3)
+   {
+      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+      PADGDiffusionSetup3D(Q1D, D1D, NF, weights, g, b, det_jac, nor, Q, rho, u, sigma, kappa, op1, op2, op3);
+   }
+   else
+   {
+      MFEM_ABORT("dim > 3 not supported in PADGDiffusionSetup");     
+   }
 }
 
-// PA Diffusion Apply 2D kernel
-template<int T_D1D = 0, int T_Q1D = 0> static
-void PADiffusionApply2D(const int ne,
-                         const Array<double> &b,
-                         const Array<double> &g,
-                         const Array<double> &bt,
-                         const Array<double> &gt,
-                         const Vector &_op,
-                         const Vector &_x,
-                         Vector &_y,
-                         const int d1d = 0,
-                         const int q1d = 0)
+void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
 {
-    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-    std::cout << "TODO: Correct this for DG diffusion" << std::endl;
-    exit(1);
-    /*
-    const int NE = ne;
-    const int D1D = T_D1D ? T_D1D : d1d;
-    const int Q1D = T_Q1D ? T_Q1D : q1d;
-    MFEM_VERIFY(D1D <= MAX_D1D, "");
-    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-    auto B = Reshape(b.Read(), Q1D, D1D);
-    auto G = Reshape(g.Read(), Q1D, D1D);
-    auto Bt = Reshape(bt.Read(), D1D, Q1D);
-    auto op = Reshape(_op.Read(), Q1D, Q1D, 2, NE);
-    auto x = Reshape(_x.Read(), D1D, D1D, NE);
-    auto y = Reshape(_y.ReadWrite(), D1D, D1D, NE);
-    MFEM_FORALL(e, NE,
-    {
-        const int D1D = T_D1D ? T_D1D : d1d;
-        const int Q1D = T_Q1D ? T_Q1D : q1d;
-        // the following variables are evaluated at compile time
-        constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
-        constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   nf = fes.GetNFbyType(type);
+   if (nf==0) { return; }
+   // Assumes tensor-product elements
+   Mesh *mesh = fes.GetMesh();
+   const FiniteElement &el =
+      *fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0));
+   FaceElementTransformations &T =
+      *fes.GetMesh()->GetFaceElementTransformations(0);
+   const IntegrationRule *ir = IntRule?
+                               IntRule:
+                               &GetRule(el.GetGeomType(), el.GetOrder(), T);
+   const int symmDims = 4;
+   const int nq = ir->GetNPoints();
 
-        double u[max_D1D][max_D1D];
-        for (int dy = 0; dy < D1D; ++dy)
-        {
-            for (int dx = 0; dx < D1D; ++dx)
-            {
-            u[dy][dx] = x(dx,dy,e);
-            }
-        }
-        double Bu[max_D1D][max_Q1D];
-        double Gu[max_D1D][max_Q1D];
-        for (int dy = 0; dy < D1D; ++dy)
-        {
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-            Bu[dy][qx] = 0.0;
-            Gu[dy][qx] = 0.0;
-            for (int dx = 0; dx < D1D; ++dx)
-            {
-                const double bx  = B(qx,dx);
-                const double gx  = G(qx,dx);
-                const double x = u[dy][dx];
-                Bu[dy][qx] += bx * x;
-                Gu[dy][qx] += gx * x;
-            }
-            }
-        }
-        double GBu[max_Q1D][max_Q1D];
-        double BGu[max_Q1D][max_Q1D];
-        for (int qx = 0; qx < Q1D; ++qx)
-        {
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-            GBu[qy][qx] = 0.0;
-            BGu[qy][qx] = 0.0;
-            for (int dy = 0; dy < D1D; ++dy)
-            {
-                const double bx  = B(qy,dy);
-                const double gx  = G(qy,dy);
-                GBu[qy][qx] += gx * Bu[dy][qx];
-                BGu[qy][qx] += bx * Gu[dy][qx];
-            }
-            }
-        }
-        // Calculate Dxy, xDy in plane
-        double DGu[max_Q1D][max_Q1D];
-        for (int qy = 0; qy < Q1D; ++qy)
-        {
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-            const double O1 = op(qx,qy,0,e);
-            const double O2 = op(qx,qy,1,e);
 
-            const double gradX = BGu[qy][qx];
-            const double gradY = GBu[qy][qx];
+   dim = mesh->Dimension();
+   geom = mesh->GetFaceGeometricFactors(
+             *ir,
+             FaceGeometricFactors::DETERMINANTS |
+             FaceGeometricFactors::NORMALS, type);
+   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   dofs1D = maps->ndof;
+   quad1D = maps->nqpt;
 
-            DGu[qy][qx] = (O1 * gradX) + (O2 * gradY);
-            }
-        }
-        double BDGu[max_D1D][max_Q1D];
-        for (int qx = 0; qx < Q1D; ++qx)
-        {
-            for (int dy = 0; dy < D1D; ++dy)
-            {
-            BDGu[dy][qx] = 0.0;
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-                const double w  = Bt(dy,qy);
-                BDGu[dy][qx] += w * DGu[qy][qx];
-            }
-            }
-        }
-        for (int dx = 0; dx < D1D; ++dx)
-        {
-            for (int dy = 0; dy < D1D; ++dy)
-            {
-            double BBDGu = 0.0;
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-                const double w  = Bt(dx,qx);
-                BBDGu += w * BDGu[dy][qx];
-            }
-            y(dx,dy,e) += BBDGu;
-            }
-        }
-    });
+   std::cout << " nq = ir->GetNPoints = " << nq << std::endl;
+   std::cout << " dofs1D = maps->ndof = " << dofs1D << std::endl;
+   std::cout << " quad1D = maps->nqpt = " << quad1D << std::endl;
 
-   */
-}
+   // are these the right things for our data?
+   coeff_data_1.SetSize( 4 * nq * nf, Device::GetMemoryType());
+   coeff_data_2.SetSize( 2 * nq * nf, Device::GetMemoryType());
+   coeff_data_3.SetSize( 2 * nq * nf, Device::GetMemoryType());
 
-// Optimized PA Diffusion Apply 2D kernel
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0> static
-void SmemPADiffusionApply2D(const int ne,
-                             const Array<double> &b,
-                             const Array<double> &g,
-                             const Array<double> &bt,
-                             const Array<double> &gt,
-                             const Vector &_op,
-                             const Vector &_x,
-                             Vector &_y,
-                             const int d1d = 0,
-                             const int q1d = 0)
-{
-    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-    std::cout << "TODO: Correct this for DG diffusion" << std::endl;
-    exit(1);
-    /*
-    const int NE = ne;
-    const int D1D = T_D1D ? T_D1D : d1d;
-    const int Q1D = T_Q1D ? T_Q1D : q1d;
-    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-    MFEM_VERIFY(D1D <= MAX_D1D, "");
-    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-    auto B = Reshape(b.Read(), Q1D, D1D);
-    auto G = Reshape(g.Read(), Q1D, D1D);
-    auto Bt = Reshape(bt.Read(), D1D, Q1D);
-    auto op = Reshape(_op.Read(), Q1D, Q1D, 2, NE);
-    auto x = Reshape(_x.Read(), D1D, D1D, NE);
-    auto y = Reshape(_y.ReadWrite(), D1D, D1D, NE);
-    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
-    {
-        const int tidz = MFEM_THREAD_ID(z);
-        const int D1D = T_D1D ? T_D1D : d1d;
-        const int Q1D = T_Q1D ? T_Q1D : q1d;
-        // the following variables are evaluated at compile time
-        constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-        constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
-        constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
-        // constexpr int MDQ = (max_Q1D > max_D1D) ? max_Q1D : max_D1D;
-        MFEM_SHARED double u[NBZ][max_D1D][max_D1D];
-        MFEM_FOREACH_THREAD(dy,y,D1D)
-        {
-            MFEM_FOREACH_THREAD(dx,x,D1D)
-            {
-            // e is really equal to e+tidz
-            u[tidz][dy][dx] = x(dx,dy,e);
-            }
-        }
-        MFEM_SYNC_THREAD;
-        MFEM_SHARED double Bu[NBZ][max_D1D][max_Q1D];
-        MFEM_SHARED double Gu[NBZ][max_D1D][max_Q1D];
-        MFEM_FOREACH_THREAD(dy,y,D1D)
-        {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-            Bu[tidz][dy][qx] = 0.0;
-            Gu[tidz][dy][qx] = 0.0;
-            for (int dx = 0; dx < D1D; ++dx)
-            {
-                const double bx = B(qx,dx);
-                const double gx = G(qx,dx);
-                const double x  = u[tidz][dy][dx];
-                Bu[tidz][dy][qx] += bx * x;
-                Gu[tidz][dy][qx] += gx * x;
-            }
-            }
-        }
-        MFEM_SYNC_THREAD;
-        MFEM_SHARED double GBu[NBZ][max_Q1D][max_Q1D];
-        MFEM_SHARED double BGu[NBZ][max_Q1D][max_Q1D];
-        MFEM_FOREACH_THREAD(qx,x,Q1D)
-        {
-            MFEM_FOREACH_THREAD(qy,y,Q1D)
-            {
-            GBu[tidz][qy][qx] = 0.0;
-            BGu[tidz][qy][qx] = 0.0;
-            for (int dy = 0; dy < D1D; ++dy)
-            {
-                const double bx  = B(qy,dy);
-                const double gx  = G(qy,dy);
-                GBu[tidz][qy][qx] += gx * Bu[tidz][dy][qx];
-                BGu[tidz][qy][qx] += bx * Gu[tidz][dy][qx];
-            }
-            }
-        }
-        MFEM_SYNC_THREAD;
-        // Calculate Dxy, xDy in plane
-        MFEM_SHARED double DGu[NBZ][max_Q1D][max_Q1D];
-        MFEM_FOREACH_THREAD(qy,y,Q1D)
-        {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-            const double O1 = op(qx,qy,0,e);
-            const double O2 = op(qx,qy,1,e);
+   // convert Q to a vector
+   Vector Qcoeff;
+   if (Q==nullptr)
+   {
+      // Default value
+      Qcoeff.SetSize(1);
+      Qcoeff(0) = 1.0;
+   }
+   else if (ConstantCoefficient *c_Q = dynamic_cast<ConstantCoefficient*>(Q))
+   {
+      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+      exit(1);
+      // Constant Coefficient
+      Qcoeff.SetSize(1);
+      Qcoeff(0) = c_Q->constant;
+   }
+   else if (QuadratureFunctionCoefficient* c_Q =
+               dynamic_cast<QuadratureFunctionCoefficient*>(Q))
+   {
+      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+      exit(1);
+      // Non constant-coefficient ???
+      /*
+      const QuadratureFunction &qFun = c_Q->GetQuadFunction();
+      MFEM_VERIFY(qFun.Size() == nq * nf,
+                  "Incompatible QuadratureFunction dimension \n");
 
-            const double gradX = BGu[tidz][qy][qx];
-            const double gradY = GBu[tidz][qy][qx];
-
-            DGu[tidz][qy][qx] = (O1 * gradX) + (O2 * gradY);
-            }
-        }
-        MFEM_SYNC_THREAD;
-        MFEM_SHARED double BDGu[NBZ][max_D1D][max_Q1D];
-        MFEM_FOREACH_THREAD(qx,x,Q1D)
-        {
-            MFEM_FOREACH_THREAD(dy,y,D1D)
-            {
-            BDGu[tidz][dy][qx] = 0.0;
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-                const double w  = Bt(dy,qy);
-                BDGu[tidz][dy][qx] += w * DGu[tidz][qy][qx];
-            }
-            }
-        }
-        MFEM_SYNC_THREAD;
-        MFEM_FOREACH_THREAD(dx,x,D1D)
-        {
-            MFEM_FOREACH_THREAD(dy,y,D1D)
-            {
-            double BBDGu = 0.0;
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-                const double w  = Bt(dx,qx);
-                BBDGu += w * BDGu[tidz][dy][qx];
-            }
-            y(dx,dy,e) += BBDGu;
-            }
-        }
-    });
-    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-    */
-}
-
-// PA Diffusion Apply 3D kernel
-template<int T_D1D = 0, int T_Q1D = 0> static
-void PADiffusionApply3D(const int ne,
-                         const Array<double> &b,
-                         const Array<double> &g,
-                         const Array<double> &bt,
-                         const Array<double> &gt,
-                         const Vector &_op,
-                         const Vector &_x,
-                         Vector &_y,
-                         const int d1d = 0,
-                         const int q1d = 0)
-{
-    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-    std::cout << "TODO: Correct this for DG diffusion" << std::endl;
-    exit(1);
-    /*
-    const int NE = ne;
-    const int D1D = T_D1D ? T_D1D : d1d;
-    const int Q1D = T_Q1D ? T_Q1D : q1d;
-    MFEM_VERIFY(D1D <= MAX_D1D, "");
-    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-    auto B = Reshape(b.Read(), Q1D, D1D);
-    auto G = Reshape(g.Read(), Q1D, D1D);
-    auto Bt = Reshape(bt.Read(), D1D, Q1D);
-    auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 3, NE);
-    auto x = Reshape(_x.Read(), D1D, D1D, D1D, NE);
-    auto y = Reshape(_y.ReadWrite(), D1D, D1D, D1D, NE);
-    MFEM_FORALL(e, NE,
-    {
-        const int D1D = T_D1D ? T_D1D : d1d;
-        const int Q1D = T_Q1D ? T_Q1D : q1d;
-        // the following variables are evaluated at compile time
-        constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
-        constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
-
-        double u[max_D1D][max_D1D][max_D1D];
-        for (int dz = 0; dz < D1D; ++dz)
-        {
-            for (int dy = 0; dy < D1D; ++dy)
-            {
-            for (int dx = 0; dx < D1D; ++dx)
-            {
-                u[dz][dy][dx] = x(dx,dy,dz,e);
-            }
-            }
-        }
-        double Bu[max_D1D][max_D1D][max_Q1D];
-        double Gu[max_D1D][max_D1D][max_Q1D];
-        for (int dz = 0; dz < D1D; ++dz)
-        {
-            for (int dy = 0; dy < D1D; ++dy)
-            {
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-                Bu[dz][dy][qx] = 0.0;
-                Gu[dz][dy][qx] = 0.0;
-                for (int dx = 0; dx < D1D; ++dx)
-                {
-                    const double bx  = B(qx,dx);
-                    const double gx  = G(qx,dx);
-                    const double x = u[dz][dy][dx];
-                    Bu[dz][dy][qx] += bx * x;
-                    Gu[dz][dy][qx] += gx * x;
-                }
-            }
-            }
-        }
-        double BBu[max_D1D][max_Q1D][max_Q1D];
-        double GBu[max_D1D][max_Q1D][max_Q1D];
-        double BGu[max_D1D][max_Q1D][max_Q1D];
-        for (int dz = 0; dz < D1D; ++dz)
-        {
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-                BBu[dz][qy][qx] = 0.0;
-                GBu[dz][qy][qx] = 0.0;
-                BGu[dz][qy][qx] = 0.0;
-                for (int dy = 0; dy < D1D; ++dy)
-                {
-                    const double bx  = B(qy,dy);
-                    const double gx  = G(qy,dy);
-                    BBu[dz][qy][qx] += bx * Bu[dz][dy][qx];
-                    GBu[dz][qy][qx] += gx * Bu[dz][dy][qx];
-                    BGu[dz][qy][qx] += bx * Gu[dz][dy][qx];
-                }
-            }
-            }
-        }
-        double GBBu[max_Q1D][max_Q1D][max_Q1D];
-        double BGBu[max_Q1D][max_Q1D][max_Q1D];
-        double BBGu[max_Q1D][max_Q1D][max_Q1D];
-        for (int qx = 0; qx < Q1D; ++qx)
-        {
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-            for (int qz = 0; qz < Q1D; ++qz)
-            {
-                GBBu[qz][qy][qx] = 0.0;
-                BGBu[qz][qy][qx] = 0.0;
-                BBGu[qz][qy][qx] = 0.0;
-                for (int dz = 0; dz < D1D; ++dz)
-                {
-                    const double bx  = B(qz,dz);
-                    const double gx  = G(qz,dz);
-                    GBBu[qz][qy][qx] += gx * BBu[dz][qy][qx];
-                    BGBu[qz][qy][qx] += bx * GBu[dz][qy][qx];
-                    BBGu[qz][qy][qx] += bx * BGu[dz][qy][qx];
-                }
-            }
-            }
-        }
-        // Calculate Dxy, xDy in plane
-        double DGu[max_Q1D][max_Q1D][max_Q1D];
-        for (int qz = 0; qz < Q1D; ++qz)
-        {
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-                const double O1 = op(qx,qy,qz,0,e);
-                const double O2 = op(qx,qy,qz,1,e);
-                const double O3 = op(qx,qy,qz,2,e);
-
-                const double gradX = BBGu[qz][qy][qx];
-                const double gradY = BGBu[qz][qy][qx];
-                const double gradZ = GBBu[qz][qy][qx];
-
-                DGu[qz][qy][qx] = (O1 * gradX) + (O2 * gradY) + (O3 * gradZ);
-            }
-            }
-        }
-        double BDGu[max_D1D][max_Q1D][max_Q1D];
-        for (int qx = 0; qx < Q1D; ++qx)
-        {
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-            for (int dz = 0; dz < D1D; ++dz)
-            {
-                BDGu[dz][qy][qx] = 0.0;
-                for (int qz = 0; qz < Q1D; ++qz)
-                {
-                    const double w  = Bt(dz,qz);
-                    BDGu[dz][qy][qx] += w * DGu[qz][qy][qx];
-                }
-            }
-            }
-        }
-        double BBDGu[max_D1D][max_D1D][max_Q1D];
-        for (int dz = 0; dz < D1D; ++dz)
-        {
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-            for (int dy = 0; dy < D1D; ++dy)
-            {
-                BBDGu[dz][dy][qx] = 0.0;
-                for (int qy = 0; qy < Q1D; ++qy)
-                {
-                    const double w  = Bt(dy,qy);
-                    BBDGu[dz][dy][qx] += w * BDGu[dz][qy][qx];
-                }
-            }
-            }
-        }
-        for (int dz = 0; dz < D1D; ++dz)
-        {
-            for (int dy = 0; dy < D1D; ++dy)
-            {
-            for (int dx = 0; dx < D1D; ++dx)
-            {
-                double BBBDGu = 0.0;
-                for (int qx = 0; qx < Q1D; ++qx)
-                {
-                    const double w  = Bt(dx,qx);
-                    BBBDGu += w * BBDGu[dz][dy][qx];
-                }
-                y(dx,dy,dz,e) += BBBDGu;
-            }
-            }
-        }
-    });
-    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-    */
-}
-
-// Optimized PA Diffusion Apply 3D kernel
-template<int T_D1D = 0, int T_Q1D = 0> static
-void SmemPADiffusionApply3D(const int ne,
-                             const Array<double> &b,
-                             const Array<double> &g,
-                             const Array<double> &bt,
-                             const Array<double> &gt,
-                             const Vector &_op,
-                             const Vector &_x,
-                             Vector &_y,
-                             const int d1d = 0,
-                             const int q1d = 0)
-{
-    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-    std::cout << "TODO: Correct this for DG diffusion" << std::endl;
-    exit(1);
-    /*
-    const int NE = ne;
-    const int D1D = T_D1D ? T_D1D : d1d;
-    const int Q1D = T_Q1D ? T_Q1D : q1d;
-    MFEM_VERIFY(D1D <= MAX_D1D, "");
-    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-    auto B = Reshape(b.Read(), Q1D, D1D);
-    auto G = Reshape(g.Read(), Q1D, D1D);
-    auto Bt = Reshape(bt.Read(), D1D, Q1D);
-    auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, 3, NE);
-    auto x = Reshape(_x.Read(), D1D, D1D, D1D, NE);
-    auto y = Reshape(_y.ReadWrite(), D1D, D1D, D1D, NE);
-    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
-    {
-        const int D1D = T_D1D ? T_D1D : d1d;
-        const int Q1D = T_Q1D ? T_Q1D : q1d;
-        // the following variables are evaluated at compile time
-        constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
-        constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
-        constexpr int max_DQ = (max_Q1D > max_D1D) ? max_Q1D : max_D1D;
-        MFEM_SHARED double sm0[max_DQ*max_DQ*max_DQ];
-        MFEM_SHARED double sm1[max_DQ*max_DQ*max_DQ];
-        MFEM_SHARED double sm2[max_DQ*max_DQ*max_DQ];
-        MFEM_SHARED double sm3[max_DQ*max_DQ*max_DQ];
-        MFEM_SHARED double sm4[max_DQ*max_DQ*max_DQ];
-        MFEM_SHARED double sm5[max_DQ*max_DQ*max_DQ];
-
-        double (*u)[max_D1D][max_D1D] = (double (*)[max_D1D][max_D1D]) sm0;
-        MFEM_FOREACH_THREAD(dz,z,D1D)
-        {
-            MFEM_FOREACH_THREAD(dy,y,D1D)
-            {
-            MFEM_FOREACH_THREAD(dx,x,D1D)
-            {
-                u[dz][dy][dx] = x(dx,dy,dz,e);
-            }
-            }
-        }
-        MFEM_SYNC_THREAD;
-        double (*Bu)[max_D1D][max_Q1D] = (double (*)[max_D1D][max_Q1D])sm1;
-        double (*Gu)[max_D1D][max_Q1D] = (double (*)[max_D1D][max_Q1D])sm2;
-        MFEM_FOREACH_THREAD(dz,z,D1D)
-        {
-            MFEM_FOREACH_THREAD(dy,y,D1D)
-            {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-                double Bu_ = 0.0;
-                double Gu_ = 0.0;
-                for (int dx = 0; dx < D1D; ++dx)
-                {
-                    const double bx  = B(qx,dx);
-                    const double gx  = G(qx,dx);
-                    const double x = u[dz][dy][dx];
-                    Bu_ += bx * x;
-                    Gu_ += gx * x;
-                }
-                Bu[dz][dy][qx] = Bu_;
-                Gu[dz][dy][qx] = Gu_;
-            }
-            }
-        }
-        MFEM_SYNC_THREAD;
-        double (*BBu)[max_Q1D][max_Q1D] = (double (*)[max_Q1D][max_Q1D])sm3;
-        double (*GBu)[max_Q1D][max_Q1D] = (double (*)[max_Q1D][max_Q1D])sm4;
-        double (*BGu)[max_Q1D][max_Q1D] = (double (*)[max_Q1D][max_Q1D])sm5;
-        MFEM_FOREACH_THREAD(dz,z,D1D)
-        {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-            MFEM_FOREACH_THREAD(qy,y,Q1D)
-            {
-                double BBu_ = 0.0;
-                double GBu_ = 0.0;
-                double BGu_ = 0.0;
-                for (int dy = 0; dy < D1D; ++dy)
-                {
-                    const double bx  = B(qy,dy);
-                    const double gx  = G(qy,dy);
-                    BBu_ += bx * Bu[dz][dy][qx];
-                    GBu_ += gx * Bu[dz][dy][qx];
-                    BGu_ += bx * Gu[dz][dy][qx];
-                }
-                BBu[dz][qy][qx] = BBu_;
-                GBu[dz][qy][qx] = GBu_;
-                BGu[dz][qy][qx] = BGu_;
-            }
-            }
-        }
-        MFEM_SYNC_THREAD;
-        double (*GBBu)[max_Q1D][max_Q1D] = (double (*)[max_Q1D][max_Q1D])sm0;
-        double (*BGBu)[max_Q1D][max_Q1D] = (double (*)[max_Q1D][max_Q1D])sm1;
-        double (*BBGu)[max_Q1D][max_Q1D] = (double (*)[max_Q1D][max_Q1D])sm2;
-        MFEM_FOREACH_THREAD(qx,x,Q1D)
-        {
-            MFEM_FOREACH_THREAD(qy,y,Q1D)
-            {
-            MFEM_FOREACH_THREAD(qz,z,Q1D)
-            {
-                double GBBu_ = 0.0;
-                double BGBu_ = 0.0;
-                double BBGu_ = 0.0;
-                for (int dz = 0; dz < D1D; ++dz)
-                {
-                    const double bx  = B(qz,dz);
-                    const double gx  = G(qz,dz);
-                    GBBu_ += gx * BBu[dz][qy][qx];
-                    BGBu_ += bx * GBu[dz][qy][qx];
-                    BBGu_ += bx * BGu[dz][qy][qx];
-                }
-                GBBu[qz][qy][qx] = GBBu_;
-                BGBu[qz][qy][qx] = BGBu_;
-                BBGu[qz][qy][qx] = BBGu_;
-            }
-            }
-        }
-        MFEM_SYNC_THREAD;
-        double (*DGu)[max_Q1D][max_Q1D] = (double (*)[max_Q1D][max_Q1D])sm3;
-        MFEM_FOREACH_THREAD(qz,z,Q1D)
-        {
-            MFEM_FOREACH_THREAD(qy,y,Q1D)
-            {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-                const double O1 = op(qx,qy,qz,0,e);
-                const double O2 = op(qx,qy,qz,1,e);
-                const double O3 = op(qx,qy,qz,2,e);
-
-                const double gradX = BBGu[qz][qy][qx];
-                const double gradY = BGBu[qz][qy][qx];
-                const double gradZ = GBBu[qz][qy][qx];
-
-                DGu[qz][qy][qx] = (O1 * gradX) + (O2 * gradY) + (O3 * gradZ);
-            }
-            }
-        }
-        MFEM_SYNC_THREAD;
-        double (*BDGu)[max_Q1D][max_Q1D] = (double (*)[max_Q1D][max_Q1D])sm4;
-        MFEM_FOREACH_THREAD(qx,x,Q1D)
-        {
-            MFEM_FOREACH_THREAD(qy,y,Q1D)
-            {
-            MFEM_FOREACH_THREAD(dz,z,D1D)
-            {
-                double BDGu_ = 0.0;
-                for (int qz = 0; qz < Q1D; ++qz)
-                {
-                    const double w  = Bt(dz,qz);
-                    BDGu_ += w * DGu[qz][qy][qx];
-                }
-                BDGu[dz][qy][qx] = BDGu_;
-            }
-            }
-        }
-        MFEM_SYNC_THREAD;
-        double (*BBDGu)[max_D1D][max_Q1D] = (double (*)[max_D1D][max_Q1D])sm5;
-        MFEM_FOREACH_THREAD(dz,z,D1D)
-        {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-            MFEM_FOREACH_THREAD(dy,y,D1D)
-            {
-                double BBDGu_ = 0.0;
-                for (int qy = 0; qy < Q1D; ++qy)
-                {
-                    const double w  = Bt(dy,qy);
-                    BBDGu_ += w * BDGu[dz][qy][qx];
-                }
-                BBDGu[dz][dy][qx] = BBDGu_;
-            }
-            }
-        }
-        MFEM_SYNC_THREAD;
-        MFEM_FOREACH_THREAD(dz,z,D1D)
-        {
-            MFEM_FOREACH_THREAD(dy,y,D1D)
-            {
-            MFEM_FOREACH_THREAD(dx,x,D1D)
-            {
-                double BBBDGu = 0.0;
-                for (int qx = 0; qx < Q1D; ++qx)
-                {
-                    const double w  = Bt(dx,qx);
-                    BBBDGu += w * BBDGu[dz][dy][qx];
-                }
-                y(dx,dy,dz,e) = BBBDGu;
-            }
-            }
-        }
-    });
-    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-    */
-}
-
-void DGDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
-{
-    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-    std::cout << "TODO: Correct this for DG diffusion" << std::endl;
-    exit(1);
-    /*
-    // Assumes tensor-product elements
-    Mesh *mesh = fes.GetMesh();
-    const FiniteElement &el = *fes.GetFE(0);
-    ElementTransformation &Trans = *fes.GetElementTransformation(0);
-    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, Trans);
-    const int dims = el.GetDim();
-    const int symmDims = dims;
-    const int nq = ir->GetNPoints();
-    dim = mesh->Dimension();
-    ne = fes.GetNE();
-    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
-    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
-    dofs1D = maps->ndof;
-    quad1D = maps->nqpt;
-    pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
-    Vector vel;
-    if (VectorConstantCoefficient *cQ = dynamic_cast<VectorConstantCoefficient*>(Q))
-    {
-        vel = cQ->GetVec();
-    }
-    else if (VectorQuadratureFunctionCoefficient* cQ =
-                dynamic_cast<VectorQuadratureFunctionCoefficient*>(Q))
-    {
-        const QuadratureFunction &qFun = cQ->GetQuadFunction();
-        MFEM_VERIFY(qFun.Size() == dim * nq * ne,
-                    "Incompatible QuadratureFunction dimension \n");
-
-        MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
-                    "IntegrationRule used within integrator and in"
-                    " QuadratureFunction appear to be different");
-
-        qFun.Read();
-        vel.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
-    }
-    else
-    {
-        vel.SetSize(dim * nq * ne);
-        auto C = Reshape(vel.HostWrite(), dim, nq, ne);
-        DenseMatrix Q_ir;
-        for (int e = 0; e < ne; ++e)
-        {
-            ElementTransformation& T = *fes.GetElementTransformation(e);
-            Q->Eval(Q_ir, T, *ir);
+      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
+                  "IntegrationRule used within integrator and in"
+                  " QuadratureFunction appear to be different");
+      qFun.Read();
+      Q.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
+      */
+   }
+   else
+   {
+      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+      exit(1);
+      // ???????
+      /*
+      r.SetSize(nq * nf);
+      auto C_vel = Reshape(vel.HostRead(), dim, nq, nf);
+      auto n = Reshape(geom->normal.HostRead(), nq, dim, nf);
+      auto C = Reshape(r.HostWrite(), nq, nf);
+      int f_ind = 0;
+      for (int f = 0; f < fes.GetNF(); ++f)
+      {
+         int e1, e2;
+         int inf1, inf2;
+         fes.GetMesh()->GetFaceElements(f, &e1, &e2);
+         fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+         int face_id = inf1 / 64;
+         if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
+             (type==FaceType::Boundary && e2<0 && inf2<0) )
+         {
+            FaceElementTransformations &T =
+               *fes.GetMesh()->GetFaceElementTransformations(f);
             for (int q = 0; q < nq; ++q)
             {
-            for (int i = 0; i < dim; ++i)
+               // Convert to lexicographic ordering
+               int iq = ToLexOrdering(dim, face_id, quad1D, q);
+
+               T.SetAllIntPoints(&ir->IntPoint(q));
+               const IntegrationPoint &eip1 = T.GetElement1IntPoint();
+               const IntegrationPoint &eip2 = T.GetElement2IntPoint();
+               double r;
+
+               if (inf2 < 0)
+               {
+                  r = rho->Eval(*T.Elem1, eip1);
+               }
+               else
+               {
+                  double udotn = 0.0;
+                  for (int d=0; d<dim; ++d)
+                  {
+                     udotn += C_vel(d,iq,f_ind)*n(iq,d,f_ind);
+                  }
+                  if (udotn >= 0.0) { r = rho->Eval(*T.Elem2, eip2); }
+                  else { r = rho->Eval(*T.Elem1, eip1); }
+               }
+               C(iq,f_ind) = r;
+            }
+            f_ind++;
+         }
+      }
+      MFEM_VERIFY(f_ind==nf, "Incorrect number of faces.");
+      */
+   }
+
+
+
+
+
+   // 
+   /*        
+   if (VectorConstantCoefficient *c_u = dynamic_cast<VectorConstantCoefficient*>
+                                        (u))
+   {
+      vel = c_u->GetVec();
+   }
+   else if (VectorQuadratureFunctionCoefficient* c_u =
+               dynamic_cast<VectorQuadratureFunctionCoefficient*>(u))
+   {
+      // Assumed to be in lexicographical ordering
+      const QuadratureFunction &qFun = c_u->GetQuadFunction();
+      MFEM_VERIFY(qFun.Size() == dim * nq * nf,
+                  "Incompatible QuadratureFunction dimension \n");
+
+      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
+                  "IntegrationRule used within integrator and in"
+                  " QuadratureFunction appear to be different");
+      qFun.Read();
+      vel.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
+   }
+   else
+   {
+      vel.SetSize(dim * nq * nf);
+      auto C = Reshape(vel.HostWrite(), dim, nq, nf);
+      Vector Vq(dim);
+      int f_ind = 0;
+      for (int f = 0; f < fes.GetNF(); ++f)
+      {
+         int e1, e2;
+         int inf1, inf2;
+         fes.GetMesh()->GetFaceElements(f, &e1, &e2);
+         fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+         int face_id = inf1 / 64;
+         if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
+             (type==FaceType::Boundary && e2<0 && inf2<0) )
+         {
+            FaceElementTransformations &T =
+               *fes.GetMesh()->GetFaceElementTransformations(f);
+            for (int q = 0; q < nq; ++q)
             {
-                C(i,q,e) = Q_ir(i,q);
+               // Convert to lexicographic ordering
+               int iq = ToLexOrdering(dim, face_id, quad1D, q);
+               T.SetAllIntPoints(&ir->IntPoint(q));
+               const IntegrationPoint &eip1 = T.GetElement1IntPoint();
+               u->Eval(Vq, *T.Elem1, eip1);
+               for (int i = 0; i < dim; ++i)
+               {
+                  C(i,iq,f_ind) = Vq(i);
+               }
             }
-            }
-        }
-    }
-    PADiffusionSetup(dim, dofs1D, quad1D, ne, ir->GetWeights(), geom->J,
-                        vel, alpha, pa_data);
-    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-    */
+            f_ind++;
+         }
+      }
+      MFEM_VERIFY(f_ind==nf, "Incorrect number of faces.");
+   }
+   */
+
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   PADGDiffusionSetup(dim, dofs1D, quad1D, nf, ir->GetWeights(), 
+                        maps->G, maps->B,
+                        geom->detJ, geom->normal,
+                        Qcoeff, r, vel,
+                        sigma, kappa,
+                        coeff_data_1,coeff_data_2,coeff_data_3);
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 }
 
-static void PADiffusionApply(const int dim,
-                              const int D1D,
-                              const int Q1D,
-                              const int NE,
-                              const Array<double> &B,
-                              const Array<double> &G,
-                              const Array<double> &Bt,
-                              const Array<double> &Gt,
-                              const Vector &op,
-                              const Vector &x,
-                              Vector &y)
+void DGDiffusionIntegrator::AssemblePAInteriorFaces(const FiniteElementSpace& fes)
+{
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   SetupPA(fes, FaceType::Interior);
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+}
+
+void DGDiffusionIntegrator::AssemblePABoundaryFaces(const FiniteElementSpace& fes)
+{
+   
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   SetupPA(fes, FaceType::Boundary);
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+}
+
+// PA DGDiffusion Apply 2D kernel for Gauss-Lobatto/Bernstein
+template<int T_D1D = 0, int T_Q1D = 0> static
+void PADGDiffusionApply2D(const int NF,
+                      const Array<double> &b,
+                      const Array<double> &bt,
+                      const Array<double> &g,
+                      const Array<double> &gt,
+                      const Vector &_op1,
+                      const Vector &_op2,
+                      const Vector &_op3,
+                      const Vector &_x,
+                      Vector &_y,
+                      const int d1d = 0,
+                      const int q1d = 0)
+{
+
+   const int VDIM = 1;
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   // the following variables are evaluated at compile time
+   constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+   constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto Bt = Reshape(bt.Read(), D1D, Q1D);
+   auto G = Reshape(g.Read(), Q1D, D1D);
+   auto Gt = Reshape(gt.Read(), D1D, Q1D);
+   auto op1 = Reshape(_op1.Read(), Q1D, 2, 2, NF);
+   auto op2 = Reshape(_op2.Read(), Q1D, 2, NF);
+   auto op3 = Reshape(_op3.Read(), Q1D, 2, NF);
+   auto x = Reshape(_x.Read(), D1D, D1D, VDIM, 2, NF);
+   auto y = Reshape(_y.ReadWrite(), D1D, VDIM, 2, NF);
+
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+   for (int q = 0; q < Q1D; ++q)
+   {
+      for (int d = 0; d < D1D; ++d)
+      {
+        std::cout << "B(" << q << "," << d << ") = " << B(q,d) << std::endl;
+      }
+   }
+
+   for (int q = 0; q < Q1D; ++q)
+   {
+      for (int d = 0; d < D1D; ++d)
+      {
+        std::cout << "G(" << q << "," << d << ") = " << G(q,d) << std::endl;
+      }
+   }
+
+
+   // Loop over all faces
+   MFEM_FORALL(f, NF,
+   {
+      // 1. Evaluation of solution and normal derivative on the faces
+      double u0[max_D1D][VDIM] = {0};
+      double u1[max_D1D][VDIM] = {0};
+      double Gu0[max_D1D][VDIM] = {0};
+      double Gu1[max_D1D][VDIM] = {0};
+      for (int d = 0; d < D1D; d++)
+      {
+         for (int c = 0; c < VDIM; c++)
+         {
+            // Evaluate u on the face from each side
+            u0[d][c] = x(0,d,c,0,f);
+            u1[d][c] = x(0,d,c,1,f);
+            for (int q = 0; q < D1D; q++)
+            {  
+               // Evaluare du/dn on the face from each side
+               // Uses a stencil inside 
+               // n is  the surface normal
+               // PROBLEM!
+               // Consider du/dn = -du/dx on left, du/dx on right 
+               const double g = G(q,d);
+               Gu0[d][c] += g*x(q,d,c,0,f);
+               Gu1[d][c] += g*x(q,d,c,1,f);
+            }
+         }
+      }
+
+      // 2. Contraction with basis evaluation Bu = B:u, and BGu = B:Gu    
+      double Bu0[max_Q1D][VDIM] = {0};
+      double Bu1[max_Q1D][VDIM] = {0};
+      double BGu0[max_Q1D][VDIM] = {0};
+      double BGu1[max_Q1D][VDIM] = {0};
+      for (int q = 0; q < Q1D; ++q)
+      {
+         for (int d = 0; d < D1D; ++d)
+         {
+            const double b = B(q,d);
+            for (int c = 0; c < VDIM; c++)
+            {
+               Bu0[q][c] += b*u0[d][c];
+               Bu1[q][c] += b*u1[d][c];
+               BGu0[q][c] += b*Gu0[d][c];
+               BGu1[q][c] += b*Gu1[d][c];
+            }
+         }
+      }
+
+      // 3. Form numerical fluxes
+      double D1[max_Q1D][VDIM] = {0};
+      double D0[max_Q1D][VDIM] = {0};
+      double D1jumpu[max_Q1D][VDIM] = {0};
+      double D0jumpu[max_Q1D][VDIM] = {0};
+      for (int q = 0; q < Q1D; ++q)
+      {
+         for (int c = 0; c < VDIM; c++)
+         {
+            const double jump_u = Bu0[q][c] - Bu1[q][c];
+            // numerical fluxes
+            D1[q][c] = op1(q,1,0,f)*Gu0[q][c] 
+                        + op1(q,1,1,f)*Gu1[q][c]
+                        + op3(q,0,f)*jump_u; 
+            D0[q][c] = op1(q,0,0,f)*Gu0[q][c] 
+                        + op1(q,0,1,f)*Gu1[q][c] 
+                        + op3(q,1,f)*jump_u; 
+            D1jumpu[q][c] = op2(q,1,f)*jump_u;
+            D0jumpu[q][c] = op2(q,0,f)*jump_u;
+         }
+      }
+
+      // 4. Contraction with B^T evaluation B^T:(G*D*B:u) and B^T:(D*B:Gu)   
+      double BD1[max_D1D][VDIM] = {0};
+      double BD0[max_D1D][VDIM] = {0};
+      for (int d = 0; d < D1D; ++d)
+      {
+         for (int q = 0; q < Q1D; ++q)
+         {
+            const double b = Bt(d,q);
+            const double g = Gt(d,0);
+            // this needs a negative based on the normal
+            for (int c = 0; c < VDIM; c++)
+            {
+               BD0[d][c] += b*D0[q][c] + b*g*D0[q][c];
+               BD1[d][c] += b*D1[q][c] + b*g*D1[q][c];
+            }
+         }
+         for (int c = 0; c < VDIM; c++)
+         {
+            y(d,c,0,f) +=  BD0[d][c];
+            y(d,c,1,f) +=  BD1[d][c];
+         }
+      }
+
+      // done with the loop over all faces
+   });
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+}
+
+// PA DGDiffusion Apply 3D kernel for Gauss-Lobatto/Bernstein
+template<int T_D1D = 0, int T_Q1D = 0> static
+void PADGDiffusionApply3D(const int NF,
+                      const Array<double> &b,
+                      const Array<double> &bt,
+                      const Array<double> &g,
+                      const Array<double> &gt,
+                      const Vector &_op1,
+                      const Vector &_op2,
+                      const Vector &_op3,
+                      const Vector &_x,
+                      Vector &_y,
+                      const int d1d = 0,
+                      const int q1d = 0)
+{
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   std::cout << "TODO: Correct this for DG diffusion" << std::endl;
+   exit(1);
+   /*
+   const int VDIM = 1;
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto Bt = Reshape(bt.Read(), D1D, Q1D);
+   auto op1 = Reshape(_op1.Read(), Q1D, Q1D, 2, 2, NF);
+   auto op2 = Reshape(_op2.Read(), Q1D, Q1D, 2, 2, NF);
+   auto op3 = Reshape(_op3.Read(), Q1D, Q1D, 2, 2, NF);
+   auto x = Reshape(_x.Read(), D1D, D1D, VDIM, 2, NF);
+   auto y = Reshape(_y.ReadWrite(), D1D, D1D, VDIM, 2, NF);
+
+   // Loop over all faces
+   MFEM_FORALL(f, NF,
+   {
+      const int VDIM = 1;
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      // the following variables are evaluated at compile time
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      double u0[max_D1D][max_D1D][VDIM];
+      double u1[max_D1D][max_D1D][VDIM];
+      for (int d1 = 0; d1 < D1D; d1++)
+      {
+         for (int d2 = 0; d2 < D1D; d2++)
+         {
+            for (int c = 0; c < VDIM; c++)
+            {
+               u0[d1][d2][c] = x(d1,d2,c,0,f);
+               u1[d1][d2][c] = x(d1,d2,c,1,f);
+            }
+         }
+      }
+      double Bu0[max_Q1D][max_D1D][VDIM];
+      double Bu1[max_Q1D][max_D1D][VDIM];
+      for (int q = 0; q < Q1D; ++q)
+      {
+         for (int d2 = 0; d2 < D1D; d2++)
+         {
+            for (int c = 0; c < VDIM; c++)
+            {
+               Bu0[q][d2][c] = 0.0;
+               Bu1[q][d2][c] = 0.0;
+            }
+            for (int d1 = 0; d1 < D1D; ++d1)
+            {
+               const double b = B(q,d1);
+               for (int c = 0; c < VDIM; c++)
+               {
+                  Bu0[q][d2][c] += b*u0[d1][d2][c];
+                  Bu1[q][d2][c] += b*u1[d1][d2][c];
+               }
+            }
+         }
+      }
+      double BBu0[max_Q1D][max_Q1D][VDIM];
+      double BBu1[max_Q1D][max_Q1D][VDIM];
+      for (int q1 = 0; q1 < Q1D; ++q1)
+      {
+         for (int q2 = 0; q2 < Q1D; q2++)
+         {
+            for (int c = 0; c < VDIM; c++)
+            {
+               BBu0[q1][q2][c] = 0.0;
+               BBu1[q1][q2][c] = 0.0;
+            }
+            for (int d2 = 0; d2 < D1D; ++d2)
+            {
+               const double b = B(q2,d2);
+               for (int c = 0; c < VDIM; c++)
+               {
+                  BBu0[q1][q2][c] += b*Bu0[q1][d2][c];
+                  BBu1[q1][q2][c] += b*Bu1[q1][d2][c];
+               }
+            }
+         }
+      }
+      double DBBu[max_Q1D][max_Q1D][VDIM];
+      for (int q1 = 0; q1 < Q1D; ++q1)
+      {
+         for (int q2 = 0; q2 < Q1D; q2++)
+         {
+            for (int c = 0; c < VDIM; c++)
+            {
+               DBBu[q1][q2][c] = op(q1,q2,0,0,f)*BBu0[q1][q2][c] +
+                                 op(q1,q2,1,0,f)*BBu1[q1][q2][c];
+            }
+         }
+      }
+      double BDBBu[max_Q1D][max_D1D][VDIM];
+      for (int q1 = 0; q1 < Q1D; ++q1)
+      {
+         for (int d2 = 0; d2 < D1D; d2++)
+         {
+            for (int c = 0; c < VDIM; c++)
+            {
+               BDBBu[q1][d2][c] = 0.0;
+            }
+            for (int q2 = 0; q2 < Q1D; ++q2)
+            {
+               const double b = Bt(d2,q2);
+               for (int c = 0; c < VDIM; c++)
+               {
+                  BDBBu[q1][d2][c] += b*DBBu[q1][q2][c];
+               }
+            }
+         }
+      }
+      double BBDBBu[max_D1D][max_D1D][VDIM];
+      for (int d1 = 0; d1 < D1D; ++d1)
+      {
+         for (int d2 = 0; d2 < D1D; d2++)
+         {
+            for (int c = 0; c < VDIM; c++)
+            {
+               BBDBBu[d1][d2][c] = 0.0;
+            }
+            for (int q1 = 0; q1 < Q1D; ++q1)
+            {
+               const double b = Bt(d1,q1);
+               for (int c = 0; c < VDIM; c++)
+               {
+                  BBDBBu[d1][d2][c] += b*BDBBu[q1][d2][c];
+               }
+            }
+            for (int c = 0; c < VDIM; c++)
+            {
+               y(d1,d2,c,0,f) +=  BBDBBu[d1][d2][c];
+               y(d1,d2,c,1,f) += -BBDBBu[d1][d2][c];
+            }
+         }
+      }
+   });
+   */
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+}
+
+static void PADGDiffusionApply(const int dim,
+                           const int D1D,
+                           const int Q1D,
+                           const int NF,
+                           const Array<double> &B,
+                           const Array<double> &Bt,
+                           const Array<double> &G,
+                           const Array<double> &Gt,
+                           const Vector &_op1,
+                           const Vector &_op2,
+                           const Vector &_op3,   
+                           const Vector &x,
+                           Vector &y)
 {
    if (dim == 2)
    {
       switch ((D1D << 4 ) | Q1D)
-      {
-         case 0x22: return SmemPADiffusionApply2D<2,2,8>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x33: return SmemPADiffusionApply2D<3,3,3>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x44: return SmemPADiffusionApply2D<4,4,2>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x55: return SmemPADiffusionApply2D<5,5,2>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x66: return SmemPADiffusionApply2D<6,6,1>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x77: return SmemPADiffusionApply2D<7,7,1>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x88: return SmemPADiffusionApply2D<8,8,1>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x99: return SmemPADiffusionApply2D<9,9,1>(NE,B,G,Bt,Gt,op,x,y);
-         default:   return PADiffusionApply2D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
+      {  
+         /*
+         case 0x22: return PADGDiffusionApply2D<2,2>(NF,B,Bt,op,x,y);
+         case 0x33: return PADGDiffusionApply2D<3,3>(NF,B,Bt,op,x,y);
+         case 0x44: return PADGDiffusionApply2D<4,4>(NF,B,Bt,op,x,y);
+         case 0x55: return PADGDiffusionApply2D<5,5>(NF,B,Bt,op,x,y);
+         case 0x66: return PADGDiffusionApply2D<6,6>(NF,B,Bt,op,x,y);
+         case 0x77: return PADGDiffusionApply2D<7,7>(NF,B,Bt,op,x,y);
+         case 0x88: return PADGDiffusionApply2D<8,8>(NF,B,Bt,op,x,y);
+         case 0x99: return PADGDiffusionApply2D<9,9>(NF,B,Bt,op,x,y);
+         */
+         default:   return PADGDiffusionApply2D(NF,B,Bt,G,Gt,_op1,_op2,_op3,x,y,D1D,Q1D);
       }
    }
    else if (dim == 3)
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         case 0x23: return SmemPADiffusionApply3D<2,3>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x34: return SmemPADiffusionApply3D<3,4>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x45: return SmemPADiffusionApply3D<4,5>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x56: return SmemPADiffusionApply3D<5,6>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x67: return SmemPADiffusionApply3D<6,7>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x78: return SmemPADiffusionApply3D<7,8>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x89: return SmemPADiffusionApply3D<8,9>(NE,B,G,Bt,Gt,op,x,y);
-         default:   return PADiffusionApply3D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
+         /*
+         case 0x23: return SmemPADGDiffusionApply3D<2,3,1>(NF,B,Bt,op,x,y);
+         case 0x34: return SmemPADGDiffusionApply3D<3,4,2>(NF,B,Bt,op,x,y);
+         case 0x45: return SmemPADGDiffusionApply3D<4,5,2>(NF,B,Bt,op,x,y);
+         case 0x56: return SmemPADGDiffusionApply3D<5,6,1>(NF,B,Bt,op,x,y);
+         case 0x67: return SmemPADGDiffusionApply3D<6,7,1>(NF,B,Bt,op,x,y);
+         case 0x78: return SmemPADGDiffusionApply3D<7,8,1>(NF,B,Bt,op,x,y);
+         case 0x89: return SmemPADGDiffusionApply3D<8,9,1>(NF,B,Bt,op,x,y);
+         */
+         default:   return PADGDiffusionApply3D(NF,B,Bt,G,Gt,_op1,_op2,_op3,x,y,D1D,Q1D);
+      }
+   }
+   MFEM_ABORT("PADGDiffusionApply not implemented for dim.");
+}
+
+/*
+static void PADGDiffusionApplyTranspose(const int dim,
+                                    const int D1D,
+                                    const int Q1D,
+                                    const int NF,
+                                    const Array<double> &B,
+                                    const Array<double> &Bt,
+                                    const Array<double> &G,
+                                    const Array<double> &Gt,
+                                    const Vector &op,
+                                    const Vector &x,
+                                    Vector &y)
+{
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   std::cout << "TODO: Correct this for DG diffusion" << std::endl;
+   exit(1);
+
+   if (dim == 2)
+   {
+      switch ((D1D << 4 ) | Q1D)
+      {
+         default: return PADGDiffusionApplyTranspose2D(NF,B,Bt,op,x,y,D1D,Q1D);
+      }
+   }
+   else if (dim == 3)
+   {
+      switch ((D1D << 4 ) | Q1D)
+      {
+
+         default: return PADGDiffusionApplyTranspose3D(NF,B,Bt,op,x,y,D1D,Q1D);
       }
    }
    MFEM_ABORT("Unknown kernel.");
+ 
+   exit(1);
 }
+*/
 
-// PA Diffusion Apply kernel
+// PA DGDiffusionIntegrator Apply kernel
 void DGDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-    std::cout << "TODO: Correct this for DG diffusion" << std::endl;
-    exit(1);
-    /*
-    PADiffusionApply(dim, dofs1D, quad1D, ne,
-                        maps->B, maps->G, maps->Bt, maps->Gt,
-                        pa_data, x, y);
-    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-    */
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   PADGDiffusionApply(dim, dofs1D, quad1D, nf,
+                  maps->B, maps->Bt,
+                  maps->G, maps->Gt,
+                  coeff_data_1,coeff_data_2,coeff_data_3,
+                  x, y);
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 }
 
+void DGDiffusionIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
+{
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   MFEM_ABORT("DGDiffusionIntegrator::AddMultTransposePA not yet implemented");
+   /*
+   PADGDiffusionApplyTranspose(dim, dofs1D, quad1D, nf,
+                           maps->B, maps->Bt,
+                           maps->G, maps->Gt,
+                           coeff_data_1,coeff_data_2,coeff_data_3,
+                           x, y);
+                           */
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   exit(1);
 }
+
+} // namespace mfem
