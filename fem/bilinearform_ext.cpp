@@ -473,10 +473,6 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
       elem_restrict->MultTranspose(localY, y);
    }
 
-   if( false ) // are gradients needed?
-   {
-
-
    Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
@@ -517,11 +513,9 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
       }
    }
 
-   }// end if false
-
-   Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
-   const int iFISz = intFaceIntegrators.Size();
-   if (int_face_normD_restrict_lex && iFISz>0)
+   Array<BilinearFormIntegrator*> &intNormalDerivFaceIntegrators = *a->GetNDFBFI();
+   const int iNDFISz = intNormalDerivFaceIntegrators.Size();
+   if (int_face_normD_restrict_lex && iNDFISz>0)
    {
       std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       int_face_normD_restrict_lex->Mult(x, faceNormDIntX);
@@ -530,12 +524,12 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
       {
          faceNormDIntY = 0.0;
          std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-         std::cout << "iFISz = " << iFISz << std::endl;
-         for (int i = 0; i < iFISz; ++i)
+         std::cout << "iFISz = " << iNDFISz << std::endl;
+         for (int i = 0; i < iNDFISz; ++i)
          {
             std::cout << "i = " << i << std::endl;
             std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-            intFaceIntegrators[i]->AddMultPA(faceNormDIntX, faceNormDIntY);
+            intNormalDerivFaceIntegrators[i]->AddMultPA(faceNormDIntX, faceNormDIntY);
             std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
          }
          std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
@@ -543,21 +537,41 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
       }
    }
 
-   Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
-   const int bFISz = bdrFaceIntegrators.Size();
-   if (bdr_face_restrict_lex && bFISz>0)
+   Array<BilinearFormIntegrator*> &bdrNormalDerivFaceIntegrators = *a->GetNDBFBFI();
+   const int bNDFISz = bdrNormalDerivFaceIntegrators.Size();
+   if (bdr_face_restrict_lex && bNDFISz>0)
    {
       bdr_face_normD_restrict_lex->Mult(x, faceNormDBdrX);
       if (faceNormDBdrX.Size()>0)
       {
          faceNormDBdrY = 0.0;
-         for (int i = 0; i < bFISz; ++i)
+         for (int i = 0; i < bNDFISz; ++i)
          {
-            bdrFaceIntegrators[i]->AddMultPA(faceNormDBdrX, faceNormDBdrY);
+            bdrNormalDerivFaceIntegrators[i]->AddMultPA(faceNormDBdrX, faceNormDBdrY);
          }
          bdr_face_normD_restrict_lex->MultTranspose(faceNormDBdrY, y);
       }
    }
+
+   int NF = 36;
+   int Q1D = 2;
+   int D1D = 2;
+   int VDIM = 1;
+   bool flag = false;
+   auto debugy = Reshape(y.ReadWrite(), D1D, VDIM, 2, NF); 
+
+   for (int q1 = 0; q1 < Q1D; ++q1)
+      for (int vdim = 0; vdim < 1; ++vdim)
+         for (int side = 0; side < 2; ++side)
+            for (int face = 0; face < NF; ++face)
+            {
+               double ytest = debugy(q1,vdim,side,face);
+               //if( !std::isfinite(ytest) )
+               {  
+                  flag = true;
+                  std::cout << "y(" << q1 <<","<< vdim <<","<< side <<","<< face <<") = " << ytest <<";" << std::endl;
+               }
+            }
 
    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 }
