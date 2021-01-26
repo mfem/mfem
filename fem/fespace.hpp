@@ -147,6 +147,7 @@ protected:
    };
    using map_L2F = std::unordered_map<const key_face,Operator*,key_hash>;
    mutable map_L2F L2F;
+   mutable map_L2F L2FnormD;
 
    mutable Array<QuadratureInterpolator*> E2Q_array;
    mutable Array<FaceQuadratureInterpolator*> E2IFQ_array;
@@ -355,6 +356,10 @@ public:
 
    /// Return an Operator that converts L-vectors to E-vectors on each face.
    virtual const Operator *GetFaceRestriction(
+      ElementDofOrdering e_ordering, FaceType,
+      L2FaceValues mul = L2FaceValues::DoubleValued) const;
+
+   virtual const Operator *GetFaceNormalDerivRestriction(
       ElementDofOrdering e_ordering, FaceType,
       L2FaceValues mul = L2FaceValues::DoubleValued) const;
 
