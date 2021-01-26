@@ -2735,6 +2735,15 @@ const IntegrationRule &DGTraceIntegrator::GetRule(
    return IntRules.Get(geom, int_order);
 }
 
+const IntegrationRule &DGDiffusionIntegrator::GetRule(
+   Geometry::Type geom, int order, FaceElementTransformations &T)
+{
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   std::cout << " T.Elem1->OrderW() = " << T.Elem1->OrderW() << std::endl;
+   int int_order = T.Elem1->OrderW() + 2*order;
+   return IntRules.Get(geom, int_order);
+}
+
 void DGDiffusionIntegrator::AssembleFaceMatrix(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
