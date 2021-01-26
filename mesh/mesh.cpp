@@ -3229,6 +3229,91 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    }
 }
 
+Mesh::Mesh(Mesh &&mesh)
+{
+   Dim = mesh.Dim;
+   spaceDim = mesh.spaceDim;
+
+   NumOfVertices = mesh.NumOfVertices;
+   NumOfElements = mesh.NumOfElements;
+   NumOfBdrElements = mesh.NumOfBdrElements;
+   NumOfEdges = mesh.NumOfEdges;
+   NumOfFaces = mesh.NumOfFaces;
+   nbInteriorFaces = mesh.nbInteriorFaces;
+   nbBoundaryFaces = mesh.nbBoundaryFaces;
+
+   meshgen = mesh.meshgen;
+   mesh_geoms = mesh.mesh_geoms;
+
+   sequence = mesh.sequence;
+   last_operation = mesh.last_operation;
+
+   for (int g=0; g<Geometry::NumGeom; ++g)
+   {
+      CoarseFineTr.point_matrices[g].Swap(mesh.CoarseFineTr.point_matrices[g]);
+   }
+   mfem::Swap(CoarseFineTr.embeddings, mesh.CoarseFineTr.embeddings);
+
+   // Swap member data of type Array and Vector
+   mfem::Swap(elements, mesh.elements);
+   mfem::Swap(vertices, mesh.vertices);
+   mfem::Swap(boundary, mesh.boundary);
+   mfem::Swap(faces, mesh.faces);
+   mfem::Swap(faces_info, mesh.faces_info);
+   mfem::Swap(nc_faces_info, mesh.nc_faces_info);
+
+   mfem::Swap(attributes, mesh.attributes);
+   mfem::Swap(bdr_attributes, mesh.bdr_attributes);
+
+   mfem::Swap(geom_factors, mesh.geom_factors);
+   mfem::Swap(face_geom_factors, mesh.face_geom_factors);
+
+   mfem::Swap(be_to_edge, mesh.be_to_edge);
+   mfem::Swap(be_to_face, mesh.be_to_face);
+
+   // Steal pointers to tables
+   el_to_edge = mesh.el_to_edge;
+   el_to_face = mesh.el_to_face;
+   el_to_el = mesh.el_to_el;
+   face_edge = mesh.face_edge;
+   edge_vertex = mesh.edge_vertex;
+
+   // Steal other pointers
+   NURBSext = mesh.NURBSext;
+   ncmesh = mesh.ncmesh;
+
+   Nodes = mesh.Nodes;
+   own_nodes = mesh.own_nodes;
+
+   // Ensure moved mesh will not delete data we have stolen
+   mesh.Init();
+   mesh.InitTables();
+}
+
+Mesh Mesh::MakeCartesian1D(int n, double sx)
+{
+   return Mesh(n, sx);
+}
+
+Mesh Mesh::MakeCartesian2D(
+   int nx, int ny, Element::Type type, bool generate_edges,
+   double sx, double sy, bool sfc_ordering)
+{
+   return Mesh(nx, ny, type, generate_edges, sx, sy, sfc_ordering);
+}
+
+Mesh Mesh::MakeCartesian3D(
+   int nx, int ny, int nz, Element::Type type, bool generate_edges,
+   double sx, double sy, double sz, bool sfc_ordering)
+{
+   return Mesh(nx, ny, nz, type, generate_edges, sx, sy, sz, sfc_ordering);
+}
+
+Mesh Mesh::MakeRefined(Mesh &orig_mesh, int ref_factor, int ref_type)
+{
+   return Mesh(&orig_mesh, ref_factor, ref_type);
+}
+
 Mesh::Mesh(const char *filename, int generate_edges, int refine,
            bool fix_orientation)
 {
