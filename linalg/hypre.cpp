@@ -3911,7 +3911,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
                                                                    vert_fec);
 
    // generate and set the vertex coordinates
-   if (p == 1)
+   if (p == 1 && pmesh->GetNodes() == NULL)
    {
       ParGridFunction x_coord(vert_fespace);
       ParGridFunction y_coord(vert_fespace);
@@ -3967,7 +3967,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
 
    // generate and set the Nedelec interpolation matrices
    Pi = Pix = Piy = Piz = NULL;
-   if (p > 1)
+   if (p > 1 || pmesh->GetNodes() != NULL)
    {
       ParFiniteElementSpace *vert_fespace_d
          = new ParFiniteElementSpace(pmesh, vert_fec, sdim, Ordering::byVDIM);
@@ -4137,7 +4137,7 @@ void HypreADS::Init(ParFiniteElementSpace *face_fespace)
                                                                    edge_fec);
 
    // generate and set the vertex coordinates
-   if (p == 1)
+   if (p == 1 && pmesh->GetNodes() == NULL)
    {
       ParGridFunction x_coord(vert_fespace);
       ParGridFunction y_coord(vert_fespace);
@@ -4202,7 +4202,7 @@ void HypreADS::Init(ParFiniteElementSpace *face_fespace)
    // generate and set the Nedelec and Raviart-Thomas interpolation matrices
    RT_Pi = RT_Pix = RT_Piy = RT_Piz = NULL;
    ND_Pi = ND_Pix = ND_Piy = ND_Piz = NULL;
-   if (p > 1)
+   if (p > 1 || pmesh->GetNodes() != NULL)
    {
       ParFiniteElementSpace *vert_fespace_d
          = new ParFiniteElementSpace(pmesh, vert_fec, 3, Ordering::byVDIM);
