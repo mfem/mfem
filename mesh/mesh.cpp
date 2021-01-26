@@ -4006,7 +4006,14 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
    MFEM_ASSERT(CheckBdrElementOrientation(false) == 0, "");
 }
 
-void Mesh::MakeSimplicial(Mesh &orig_mesh, int *vglobal)
+Mesh Mesh::MakeSimplicial(Mesh &orig_mesh)
+{
+   Mesh mesh;
+   mesh.MakeSimplicial_(orig_mesh, NULL);
+   return mesh;
+}
+
+void Mesh::MakeSimplicial_(Mesh &orig_mesh, int *vglobal)
 {
    MFEM_VERIFY(orig_mesh.CheckElementOrientation(false) == 0,
                "Mesh::MakeSimplicial requires a properly oriented input mesh");
@@ -4603,7 +4610,7 @@ void Mesh::SetVerticesFromNodes()
       for (int iv=0; iv<el->GetNVertices(); ++iv)
       {
          int v = el->GetVertices()[iv];
-         vertices[v].SetCoords(&node_coords(0,iv));
+         vertices[v].SetCoords(node_coords.Height(), &node_coords(0,iv));
       }
    }
 }

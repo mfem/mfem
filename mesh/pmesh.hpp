@@ -31,10 +31,10 @@ class ParPumiMesh;
 /// Class for parallel meshes
 class ParMesh : public Mesh
 {
-public:
+protected:
    ParMesh() : MyComm(0), NRanks(0), MyRank(-1),
       have_face_nbr_data(false), pncmesh(NULL) {}
-protected:
+
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
@@ -229,7 +229,12 @@ public:
        @note The constructed ParMesh is linear, i.e. it does not have nodes. */
    ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type);
 
-   void MakeSimplicial(ParMesh &orig_mesh);
+   /// Move constructor. Used for named constructors.
+   ParMesh(ParMesh &&mesh);
+
+   /** Create a mesh by splitting each element of @a orig_mesh into simplices.
+       See @a Mesh::MakeSimplicial for more details. */
+   static ParMesh MakeSimplicial(ParMesh &orig_mesh);
 
    virtual void Finalize(bool refine = false, bool fix_orientation = false);
 
