@@ -407,6 +407,10 @@ private:
 
 public:
    BoundaryFlowIntegrator(Coefficient &_f, VectorCoefficient &_u,
+                          double a)
+   { f = &_f; u = &_u; alpha = a; beta = 0.5*a; }
+
+   BoundaryFlowIntegrator(Coefficient &_f, VectorCoefficient &_u,
                           double a, double b)
    { f = &_f; u = &_u; alpha = a; beta = b; }
 
