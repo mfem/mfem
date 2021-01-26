@@ -157,7 +157,8 @@ public:
    /// Set the desired assembly level.
    /** Valid choices are:
 
-       - AssemblyLevel::FULL  (default)
+       - AssemblyLevel::LEGACYFULL (default)
+       - AssemblyLevel::FULL
        - AssemblyLevel::PARTIAL
        - AssemblyLevel::ELEMENT
        - AssemblyLevel::NONE
@@ -375,6 +376,13 @@ public:
    /// Get the output finite element space prolongation matrix
    virtual const Operator *GetOutputProlongation() const
    { return GetProlongation(); }
+   /** @brief Returns the output fe space restriction matrix, transposed
+
+       Logically, this is the transpose of GetOutputRestriction, but in
+       practice it is convenient to have it in transposed form for
+       construction of RAP operators in matrix-free methods. */
+   virtual const Operator *GetOutputRestrictionTranspose() const
+   { return GetOutputProlongation(); }
    /// Get the output finite element space restriction matrix
    virtual const Operator *GetOutputRestriction() const
    { return GetRestriction(); }
@@ -415,9 +423,7 @@ public:
        returned in the variable @a A, of type OpType, holding a *reference* to
        the system matrix (created with the method OpType::MakeRef()). The
        reference will be invalidated when SetOperatorType(), Update(), or the
-       destructor is called.
-
-       Currently, this method can be used only with AssemblyLevel::FULL. */
+       destructor is called. */
    template <typename OpType>
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
                          OpType &A, Vector &X, Vector &B,
@@ -439,9 +445,7 @@ public:
        returned in the variable @a A, of type OpType, holding a *reference* to
        the system matrix (created with the method OpType::MakeRef()). The
        reference will be invalidated when SetOperatorType(), Update(), or the
-       destructor is called.
-
-       Currently, this method can be used only with AssemblyLevel::FULL. */
+       destructor is called. */
    template <typename OpType>
    void FormSystemMatrix(const Array<int> &ess_tdof_list, OpType &A)
    {
@@ -759,7 +763,7 @@ public:
    /// Sets all sparse values of \f$ M \f$ to @a a.
    void operator=(const double a) { *mat = a; }
 
-   /// Set the desired assembly level. The default is AssemblyLevel::FULL.
+   /// Set the desired assembly level. The default is AssemblyLevel::LEGACYFULL.
    /** This method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
 
@@ -850,9 +854,9 @@ public:
 
       This returns the same operator as FormRectangularLinearSystem(), but does
       without the transformations of the right-hand side. */
-   void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
-                                    const Array<int> &test_tdof_list,
-                                    OperatorHandle &A);
+   virtual void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
+                                            const Array<int> &test_tdof_list,
+                                            OperatorHandle &A);
 
    /** @brief Form the column-constrained linear system matrix A.
        See FormRectangularSystemMatrix() for details.
@@ -861,9 +865,7 @@ public:
        returned in the variable @a A, of type OpType, holding a *reference* to
        the system matrix (created with the method OpType::MakeRef()). The
        reference will be invalidated when SetOperatorType(), Update(), or the
-       destructor is called.
-
-       Currently, this method can be used only with AssemblyLevel::FULL. */
+       destructor is called. */
    template <typename OpType>
    void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
                                     const Array<int> &test_tdof_list, OpType &A)
@@ -881,10 +883,11 @@ public:
        Return in @a A a *reference* to the system matrix that is column-constrained.
        The reference will be invalidated when SetOperatorType(), Update(), or the
        destructor is called. */
-   void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
-                                    const Array<int> &test_tdof_list,
-                                    Vector &x, Vector &b,
-                                    OperatorHandle &A, Vector &X, Vector &B);
+   virtual void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
+                                            const Array<int> &test_tdof_list,
+                                            Vector &x, Vector &b,
+                                            OperatorHandle &A, Vector &X,
+                                            Vector &B);
 
    /** @brief Form the linear system A X = B, corresponding to this bilinear
        form and the linear form @a b(.).
@@ -893,9 +896,7 @@ public:
        returned in the variable @a A, of type OpType, holding a *reference* to
        the system matrix (created with the method OpType::MakeRef()). The
        reference will be invalidated when SetOperatorType(), Update(), or the
-       destructor is called.
-
-       Currently, this method can be used only with AssemblyLevel::FULL. */
+       destructor is called. */
    template <typename OpType>
    void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
                                     const Array<int> &test_tdof_list,
@@ -984,9 +985,18 @@ public:
    /// Access all interpolators added with AddDomainInterpolator().
    Array<BilinearFormIntegrator*> *GetDI() { return &dbfi; }
 
+   /// Set the desired assembly level. The default is AssemblyLevel::FULL.
+   /** This method must be called before assembly. */
+   void SetAssemblyLevel(AssemblyLevel assembly_level);
+
    /** @brief Construct the internal matrix representation of the discrete
        linear operator. */
    virtual void Assemble(int skip_zeros = 1);
+
+   /** @brief Get the output finite element space restriction matrix in
+       transposed form. */
+   virtual const Operator *GetOutputRestrictionTranspose() const
+   { return test_fes->GetRestrictionTransposeOperator(); }
 };
 
 }
