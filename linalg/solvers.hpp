@@ -879,7 +879,7 @@ class ProductSolver : public Solver
 public:
    ProductSolver(Operator* A_, Solver* S0_, Solver* S1_,
                  bool ownA, bool ownS0, bool ownS1)
-      : Solver(A->NumRows()), A(A_, ownA), S0(S0_, ownS0), S1(S1_, ownS1) { }
+      : Solver(A_->NumRows()), A(A_, ownA), S0(S0_, ownS0), S1(S1_, ownS1) { }
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void MultTranspose(const Vector &x, Vector &y) const;
    virtual void SetOperator(const Operator &op) { }
