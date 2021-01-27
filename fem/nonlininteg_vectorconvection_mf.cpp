@@ -31,7 +31,7 @@ void VectorConvectionNLFIntegrator::AssembleMF(const FiniteElementSpace &fes)
       ceedOp = new ceed::MFNLConvectionIntegrator(fes, *ir, Q);
       return;
    }
-   mfem_error("Not yet implemented.");
+   MFEM_ABORT("Not yet implemented.");
 }
 
 void VectorConvectionNLFIntegrator::AddMultMF(const Vector &x, Vector &y) const
