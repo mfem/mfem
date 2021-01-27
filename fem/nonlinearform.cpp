@@ -141,7 +141,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
    if (P) { aux2.SetSize(P->Height()); }
 
    // If we are in parallel, ParNonLinearForm::Mult uses the aux2 vector. In
-   // serial, place the result directly in y.
+   // serial, place the result directly in y (when there is no P).
    Vector &py = P ? aux2 : y;
 
    if (ext)
@@ -155,6 +155,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
          auto Y = y.ReadWrite();
          MFEM_FORALL(i, N, Y[tdof[i]] = 0.0; );
       }
+      // In parallel, the result is in 'py' which is an alias for 'aux2'.
       return;
    }
 
@@ -275,23 +276,21 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
       }
       // y(ess_tdof_list[i]) = x(ess_tdof_list[i]);
    }
+   // In parallel, the result is in 'py' which is an alias for 'aux2'.
 }
 
 Operator &NonlinearForm::GetGradient(const Vector &x) const
 {
    if (ext)
    {
+      hGrad.Clear();
       Operator &grad = ext->GetGradient(Prolongate(x));
-      hGrad.Reset(&grad, false);
-      if (Serial())
-      {
-         Operator *Gop;
-         hGrad.Ptr()->Operator::FormSystemOperator(ess_tdof_list, Gop);
-         hGrad.Reset(Gop);
-      }
-      // In parallel, the rest of the construction (RAP+constraints) is done
-      // by ParNonlinearForm::GetGradient.
-      return *hGrad.Ptr();
+      Operator *Gop;
+      grad.FormSystemOperator(ess_tdof_list, Gop);
+      hGrad.Reset(Gop);
+      // In both serial and parallel, when using extension, we return the final
+      // global true-dof gradient with imposed b.c.
+      return *hGrad;
    }
 
    const int skip_zeros = 0;
@@ -439,8 +438,6 @@ void NonlinearForm::Update()
 {
    if (sequence == fes->GetSequence()) { return; }
 
-   if (ext) { ext->Update(); }
-
    height = width = fes->GetTrueVSize();
    delete cGrad; cGrad = NULL;
    delete Grad; Grad = NULL;
@@ -450,6 +447,8 @@ void NonlinearForm::Update()
    // Do not modify aux1 and aux2, their size will be set before use.
    P = fes->GetProlongationMatrix();
    cP = dynamic_cast<const SparseMatrix*>(P);
+
+   if (ext) { ext->Update(); }
 }
 
 void NonlinearForm::Setup()

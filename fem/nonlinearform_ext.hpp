@@ -23,6 +23,10 @@ class NonlinearFormIntegrator;
 
 /** @brief Class extending the NonlinearForm class to support the different
     AssemblyLevel%s. */
+/** This class represents the action of the NonlinearForm as an L-to-L operator,
+    i.e. both the input and output Vectors are L-vectors (GridFunction-size
+    vectors). Essential boundary conditions are NOT applied to the action of the
+    operator. */
 class NonlinearFormExtension : public Operator
 {
 protected:
@@ -36,6 +40,11 @@ public:
 
    /** @brief Return the gradient as an L-to-L Operator. The input @a x must be
        an L-vector (i.e. GridFunction-size vector). */
+   /** Essential boundary conditions are NOT applied to the returned operator.
+
+       The returned gradient Operator defines the virtual method GetProlongation
+       which enables support for the method FormSystemOperator to define the
+       matrix-free global true-dof gradient with imposed boundary conditions. */
    virtual Operator &GetGradient(const Vector &x) const = 0;
 
    /// Assumes that @a x is a ldof Vector.
@@ -52,10 +61,8 @@ private:
    class Gradient : public Operator
    {
    protected:
-      const Operator *elemR; // not owned
-      const FiniteElementSpace &fes;
-      const Array<NonlinearFormIntegrator*> &dnfi;
-      mutable Vector ge, xe, ye, ze;
+      const PANonlinearFormExtension &ext;
+      mutable Vector ge;
 
    public:
       /// Assumes that @a g is a ldof Vector.
@@ -69,17 +76,28 @@ private:
 
       /// Assemble the diagonal of the gradient into the ldof Vector @a diag.
       virtual void AssembleDiagonal(Vector &diag) const;
+
+      /** @brief Define the prolongation Operator for use with methods like
+          FormSystemOperator. */
+      virtual const Operator *GetProlongation() const
+      {
+         return ext.fes.GetProlongationMatrix();
+      }
+
+      /** @brief Called by PANonlinearFormExtension::Update to reflect changes
+          in the FiniteElementSpace. */
+      void Update();
    };
 
 protected:
    mutable Vector xe, ye;
-   mutable OperatorHandle Grad;
    const FiniteElementSpace &fes;
    const Array<NonlinearFormIntegrator*> &dnfi;
    const Operator *elemR; // not owned
+   mutable Gradient Grad;
 
 public:
-   PANonlinearFormExtension(NonlinearForm *nlf);
+   PANonlinearFormExtension(const NonlinearForm *nlf);
 
    void Assemble() override;
 
