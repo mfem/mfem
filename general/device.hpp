@@ -134,19 +134,23 @@ private:
    MODES mode{Device::SEQUENTIAL};
    int dev = 0; ///< Device ID of the configured device.
    int ngpu = -1; ///< Number of detected devices; -1: not initialized.
-   unsigned long backends{Backend::CPU}; ///< Bitwise-OR of all configured backends.
+   unsigned long backends =
+      Backend::CPU; ///< Bitwise-OR of all configured backends.
    /// Set to true during configuration, except in 'device_singleton'.
-   bool destroy_mm{false};
-   bool mpi_gpu_aware{false};
+   bool destroy_mm = false;
+   bool mpi_gpu_aware = false;
 
-   MemoryType host_mem_type{MemoryType::HOST};      ///< Current Host MemoryType
-   MemoryClass host_mem_class{MemoryClass::HOST};    ///< Current Host MemoryClass
+   MemoryType host_mem_type = MemoryType::HOST;      ///< Current Host MemoryType
+   MemoryClass host_mem_class = MemoryClass::HOST;    ///< Current Host MemoryClass
 
-   MemoryType device_mem_type{MemoryType::HOST};    ///< Current Device MemoryType
-   MemoryClass device_mem_class{MemoryClass::HOST};  ///< Current Device MemoryClass
+   MemoryType device_mem_type = MemoryType::HOST;    ///< Current Device MemoryType
+   MemoryClass device_mem_class =
+      MemoryClass::HOST;  ///< Current Device MemoryClass
 
-   MemoryType device_temp_mem_type{MemoryType::HOST};    ///< Current Device MemoryType
-   MemoryClass device_temp_mem_class{MemoryClass::HOST};  ///< Current Device MemoryClass
+   MemoryType device_temp_mem_type =
+      MemoryType::HOST;    ///< Current Device MemoryType
+   MemoryClass device_temp_mem_class =
+      MemoryClass::HOST;  ///< Current Device MemoryClass
 
    char *device_option = NULL;
    Device(Device const&);
