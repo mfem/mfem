@@ -93,7 +93,12 @@ std::string getString(CeedCoeffType coeff_type)
    return "";
 }
 
-enum class Problem {Mass, Convection, Diffusion, VectorMass, VectorDiffusion};
+enum class Problem { Mass,
+                     Convection,
+                     Diffusion,
+                     VectorMass,
+                     VectorDiffusion,
+                     MassDiffusion };
 
 std::string getString(Problem pb)
 {
@@ -113,6 +118,9 @@ std::string getString(Problem pb)
       break;
    case Problem::VectorDiffusion:
       return "VectorDiffusion";
+      break;
+   case Problem::MassDiffusion:
+      return "MassDiffusion";
       break;
    }
    mfem_error("Unknown Problem.");
@@ -230,6 +238,12 @@ void test_ceed_operator(const char* input, int order, const CeedCoeffType coeff_
       k_ref.AddDomainIntegrator(new VectorDiffusionIntegrator(*coeff));
       k_test.AddDomainIntegrator(new VectorDiffusionIntegrator(*coeff));
       break;
+   case Problem::MassDiffusion:
+      k_ref.AddDomainIntegrator(new MassIntegrator(*coeff));
+      k_test.AddDomainIntegrator(new MassIntegrator(*coeff));
+      k_ref.AddDomainIntegrator(new DiffusionIntegrator(*coeff));
+      k_test.AddDomainIntegrator(new DiffusionIntegrator(*coeff));
+      break;
    }
 
    k_ref.Assemble();
@@ -316,7 +330,7 @@ TEST_CASE("CEED mass & diffusion", "[CEED]")
 {
    auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
    auto coeff_type = GENERATE(CeedCoeffType::Const,CeedCoeffType::Grid,CeedCoeffType::Quad);
-   auto pb = GENERATE(Problem::Mass,Problem::Diffusion,
+   auto pb = GENERATE(Problem::Mass,Problem::Diffusion,Problem::MassDiffusion,
                       Problem::VectorMass,Problem::VectorDiffusion);
    auto order = GENERATE(1);
    auto mesh = GENERATE("../../data/inline-quad.mesh","../../data/inline-hex.mesh",
