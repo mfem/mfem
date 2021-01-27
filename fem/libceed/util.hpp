@@ -41,16 +41,24 @@ void RemoveBasisAndRestriction(const mfem::FiniteElementSpace *fes);
 
 #ifdef MFEM_USE_CEED
 
-/// Initialize a CeedVector from a Vector
+/// Initialize a CeedVector from an mfem::Vector
 void InitVector(const mfem::Vector &v, CeedVector &cv);
 
-/// Initialize a strided CeedElemRestriction
+/// @brief Initialize a strided CeedElemRestriction
+/** @a nelem is the number of elements,
+    @a nqpts is the total number of quadrature points
+    @a qdatasize is the number of data per quadrature point
+    @a strides Array for strides between [nodes, components, elements].
+    Data for node i, component j, element k can be found in the L-vector at
+    index i*strides[0] + j*strides[1] + k*strides[2]. CEED_STRIDES_BACKEND may
+    be used with vectors created by a Ceed backend. */
 void InitStridedRestriction(const mfem::FiniteElementSpace &fes,
                             CeedInt nelem, CeedInt nqpts, CeedInt qdatasize,
                             const CeedInt *strides,
                             CeedElemRestriction *restr);
 
-/// Initialize a CeedBasis and a CeedElemRestriction
+/** Initialize a CeedBasis and a CeedElemRestriction based on an
+    mfem::FiniteElementSpace @a fes, and an mfem::IntegrationRule @a ir. */
 void InitBasisAndRestriction(const mfem::FiniteElementSpace &fes,
                              const mfem::IntegrationRule &ir,
                              Ceed ceed, CeedBasis *basis,
