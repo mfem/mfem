@@ -1,8 +1,24 @@
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
+#ifndef MFEM_DIVFREE_SOLVER_HPP
+#define MFEM_DIVFREE_SOLVER_HPP
+
 #include "mfem.hpp"
 #include <memory>
 
-using namespace std;
-using namespace mfem;
+namespace mfem
+{
+namespace blocksolvers
+{
 
 /// Parameters for iterative solver
 struct IterSolveParameters
@@ -47,17 +63,17 @@ class DFSSpaces
 {
    RT_FECollection hdiv_fec_;
    L2_FECollection l2_fec_;
-   unique_ptr<FiniteElementCollection> hcurl_fec_;
+   std::unique_ptr<FiniteElementCollection> hcurl_fec_;
    L2_FECollection l2_0_fec_;
 
-   unique_ptr<ParFiniteElementSpace> coarse_hdiv_fes_;
-   unique_ptr<ParFiniteElementSpace> coarse_l2_fes_;
-   unique_ptr<ParFiniteElementSpace> coarse_hcurl_fes_;
-   unique_ptr<ParFiniteElementSpace> l2_0_fes_;
+   std::unique_ptr<ParFiniteElementSpace> coarse_hdiv_fes_;
+   std::unique_ptr<ParFiniteElementSpace> coarse_l2_fes_;
+   std::unique_ptr<ParFiniteElementSpace> coarse_hcurl_fes_;
+   std::unique_ptr<ParFiniteElementSpace> l2_0_fes_;
 
-   unique_ptr<ParFiniteElementSpace> hdiv_fes_;
-   unique_ptr<ParFiniteElementSpace> l2_fes_;
-   unique_ptr<ParFiniteElementSpace> hcurl_fes_;
+   std::unique_ptr<ParFiniteElementSpace> hdiv_fes_;
+   std::unique_ptr<ParFiniteElementSpace> l2_fes_;
+   std::unique_ptr<ParFiniteElementSpace> hcurl_fes_;
 
    std::vector<SparseMatrix> el_l2dof_;
    const Array<int>& ess_bdr_attr_;
@@ -215,3 +231,9 @@ public:
    virtual void SetOperator(const Operator &op) { }
    virtual int GetNumIterations() const;
 };
+
+} // namespace blocksolvers
+
+} // namespace mfem
+
+#endif // MFEM_DIVFREE_SOLVER_HPP
