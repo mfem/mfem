@@ -85,10 +85,6 @@ public:
                      CoeffType *Q)
    {
       mfem::Mesh &mesh = *fes.GetMesh();
-      // Perform checks for some assumptions made in the Q-functions.
-      MFEM_VERIFY(mesh.Dimension() == mesh.SpaceDimension(), "case not supported");
-      MFEM_VERIFY(fes.GetVDim() == 1 || fes.GetVDim() == mesh.Dimension(),
-                  "case not supported");
       InitCoefficient(Q, mesh, irm, coeff, info.ctx);
       bool const_coeff = coeff->IsConstant();
       std::string build_func = const_coeff ? info.build_func_const
