@@ -486,7 +486,7 @@ int main(int argc, char *argv[])
    // 17. Save the refined mesh and the solution in VisIt format.
    {
       std::stringstream visitname;
-      visitname << "trapezoid";
+      visitname << "exsliding";
       VisItDataCollection visit_dc(MPI_COMM_WORLD, visitname.str(), pmesh);
       visit_dc.SetLevelsOfDetail(4);
       visit_dc.RegisterField("displacement", &x);
