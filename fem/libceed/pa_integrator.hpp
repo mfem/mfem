@@ -54,16 +54,26 @@ struct PAOperator
 #endif
 
 /** This class represent a partially assembled operator using libCEED.*/
-class PAIntegrator : public MFIntegrator
+class PAIntegrator : public Operator
 {
 #ifdef MFEM_USE_CEED
 protected:
+   CeedBasis basis, mesh_basis;
+   CeedElemRestriction restr, mesh_restr, restr_i;
+   CeedQFunction build_qfunc, apply_qfunc;
+   CeedVector node_coords, qdata;
+   Coefficient *coeff;
+   CeedQFunctionContext build_ctx;
    CeedOperator build_oper;
-   CeedQFunction build_qfunc;
 
 public:
    PAIntegrator()
-      : MFIntegrator(),  build_oper(nullptr), build_qfunc(nullptr) { }
+      : Operator(), basis(nullptr), mesh_basis(nullptr),
+        restr(nullptr), mesh_restr(nullptr),
+        restr_i(nullptr),
+        build_qfunc(nullptr), apply_qfunc(nullptr), node_coords(nullptr),
+        qdata(nullptr), coeff(nullptr), build_ctx(nullptr), build_oper(nullptr)
+   { }
 
    /** This method initializes the PAIntegrator with the given CeedOperatorInfo
        @a info, an mfem::FiniteElementSpace @a fes, an mfem::IntegrationRule
