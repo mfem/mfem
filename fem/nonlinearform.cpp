@@ -34,6 +34,7 @@ void NonlinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
          mfem_error("Unknown assembly level for this form.");
    }
 }
+
 void NonlinearForm::SetEssentialBC(const Array<int> &bdr_attr_is_ess,
                                    Vector *rhs)
 {
@@ -436,13 +437,14 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
 
 void NonlinearForm::Update()
 {
-   if (ext) { MFEM_ABORT("Not yet implemented!"); }
-
    if (sequence == fes->GetSequence()) { return; }
+
+   if (ext) { ext->Update(); }
 
    height = width = fes->GetTrueVSize();
    delete cGrad; cGrad = NULL;
    delete Grad; Grad = NULL;
+   hGrad.Clear();
    ess_tdof_list.SetSize(0); // essential b.c. will need to be set again
    sequence = fes->GetSequence();
    // Do not modify aux1 and aux2, their size will be set before use.
@@ -453,11 +455,6 @@ void NonlinearForm::Update()
 void NonlinearForm::Setup()
 {
    if (ext) { ext->Assemble(); }
-}
-
-void NonlinearForm::SetupGradient(const mfem::Vector &x)
-{
-   if (ext) { ext->AssembleGradient(Prolongate(x)); }
 }
 
 NonlinearForm::~NonlinearForm()

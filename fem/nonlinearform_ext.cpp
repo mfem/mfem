@@ -27,7 +27,6 @@ PANonlinearFormExtension::PANonlinearFormExtension(NonlinearForm *nlf):
    dnfi(*nlf->GetDNFI()),
    elemR(fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC))
 {
-   MFEM_VERIFY(elemR, "Not yet implemented!");
    xe.SetSize(elemR->Height(), Device::GetMemoryType());
    ye.SetSize(elemR->Height(), Device::GetMemoryType());
    ye.UseDevice(true);
@@ -50,12 +49,6 @@ void PANonlinearFormExtension::Assemble()
    for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AssemblePA(fes); }
 }
 
-void PANonlinearFormExtension::AssembleGradient(const Vector &x)
-{
-   elemR->Mult(x, xe);
-   for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AssembleGradPA(xe, fes); }
-}
-
 void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    ye = 0.0;
@@ -68,22 +61,25 @@ Operator &PANonlinearFormExtension::GetGradient(const Vector &x) const
 {
    if (Grad.Ptr() == nullptr)
    {
-      Grad.Reset(new PANonlinearFormExtension::Gradient(x, *this));
+      Grad.Reset(new PANonlinearFormExtension::Gradient(*this));
    }
-   else
-   {
-      dynamic_cast<PANonlinearFormExtension::Gradient *>(Grad.Ptr())->ReInit(x);
-   }
+   Grad.As<PANonlinearFormExtension::Gradient>()->AssembleGrad(x);
    return *Grad.Ptr();
 }
 
-PANonlinearFormExtension::Gradient::Gradient(const Vector &g,
-                                             const PANonlinearFormExtension &e):
+void PANonlinearFormExtension::Update()
+{
+   Grad.Clear(); // re-created by GetGradient()
+   elemR = fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+   xe.SetSize(elemR->Height());
+   ye.SetSize(elemR->Height());
+}
+
+PANonlinearFormExtension::Gradient::Gradient(const PANonlinearFormExtension &e):
    Operator(e.fes.GetVSize()), elemR(e.elemR), fes(e.fes), dnfi(e.dnfi)
 {
    ge.UseDevice(true);
    ge.SetSize(elemR->Height(), Device::GetMemoryType());
-   elemR->Mult(g, ge);
 
    xe.UseDevice(true);
    xe.SetSize(elemR->Height(), Device::GetMemoryType());
@@ -93,6 +89,12 @@ PANonlinearFormExtension::Gradient::Gradient(const Vector &g,
 
    ze.UseDevice(true);
    ze.SetSize(elemR->Height(), Device::GetMemoryType());
+}
+
+void PANonlinearFormExtension::Gradient::AssembleGrad(const Vector &g)
+{
+   elemR->Mult(g, ge);
+   for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AssembleGradPA(ge, fes); }
 }
 
 void PANonlinearFormExtension::Gradient::Mult(const Vector &x, Vector &y) const
