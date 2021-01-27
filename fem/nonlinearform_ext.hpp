@@ -33,15 +33,16 @@ public:
 
    /// Assemble at the AssemblyLevel of the subclass.
    virtual void Assemble() = 0;
-   /// Assemble gradient data at the AssemblyLevel of the subclass, for the
-   /// state @a x, which is assumed to be a ldof Vector.
-   virtual void AssembleGradient(const Vector &x) = 0;
 
-   /// Assumes that @a x is a ldof Vector.
+   /** @brief Return the gradient as an L-to-L Operator. The input @a x must be
+       an L-vector (i.e. GridFunction-size vector). */
    virtual Operator &GetGradient(const Vector &x) const = 0;
 
    /// Assumes that @a x is a ldof Vector.
    virtual double GetGridFunctionEnergy(const Vector &x) const = 0;
+
+   /// Called by NonlinearForm::Update().
+   virtual void Update() = 0;
 };
 
 /// Data and methods for partially-assembled nonlinear forms
@@ -51,20 +52,20 @@ private:
    class Gradient : public Operator
    {
    protected:
-      const Operator *elemR;
+      const Operator *elemR; // not owned
       const FiniteElementSpace &fes;
       const Array<NonlinearFormIntegrator*> &dnfi;
       mutable Vector ge, xe, ye, ze;
 
    public:
       /// Assumes that @a g is a ldof Vector.
-      Gradient(const Vector &g, const PANonlinearFormExtension &ext);
+      Gradient(const PANonlinearFormExtension &ext);
 
       /// Assumes that @a x and @a y are ldof Vector%s.
       virtual void Mult(const Vector &x, Vector &y) const;
 
       /// Assumes that @a g is an ldof Vector.
-      void ReInit(const Vector &g) { elemR->Mult(g, ge); }
+      void AssembleGrad(const Vector &g);
 
       /// Assemble the diagonal of the gradient into the ldof Vector @a diag.
       virtual void AssembleDiagonal(Vector &diag) const;
@@ -75,17 +76,18 @@ protected:
    mutable OperatorHandle Grad;
    const FiniteElementSpace &fes;
    const Array<NonlinearFormIntegrator*> &dnfi;
-   const Operator *elemR;
+   const Operator *elemR; // not owned
 
 public:
    PANonlinearFormExtension(NonlinearForm *nlf);
 
-   void Assemble();
-   void AssembleGradient(const Vector &x);
+   void Assemble() override;
 
-   void Mult(const Vector &x, Vector &y) const;
-   Operator &GetGradient(const Vector &x) const;
-   double GetGridFunctionEnergy(const Vector &x) const;
+   void Mult(const Vector &x, Vector &y) const override;
+   Operator &GetGradient(const Vector &x) const override;
+   double GetGridFunctionEnergy(const Vector &x) const override;
+
+   void Update() override;
 };
 }
 #endif // NONLINEARFORM_EXT_HPP
