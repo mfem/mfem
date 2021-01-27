@@ -23,7 +23,7 @@ namespace ceed
 {
 
 #ifdef MFEM_USE_CEED
-struct MassInfo
+struct MassOperatorInfo
 {
    static constexpr const char *header = "/mass_qf.h";
    static constexpr const char *build_func_const = ":f_build_mass_const";
@@ -49,7 +49,7 @@ PAMassIntegrator::PAMassIntegrator(const mfem::FiniteElementSpace &fes,
    : PAIntegrator()
 {
 #ifdef MFEM_USE_CEED
-   MassInfo info;
+   MassOperatorInfo info;
    PAOperator op = InitPA(info, fes, irm, Q);
    Assemble(op, info.ctx);
 #else
@@ -63,7 +63,7 @@ MFMassIntegrator::MFMassIntegrator(const mfem::FiniteElementSpace &fes,
    : MFIntegrator()
 {
 #ifdef MFEM_USE_CEED
-   MassInfo info;
+   MassOperatorInfo info;
    MFOperator op = InitMF(info, fes, irm, Q);
    Assemble(op, info.ctx);
 #else
