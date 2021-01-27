@@ -57,7 +57,7 @@ PAConvectionIntegrator::PAConvectionIntegrator(
    info.ctx.alpha = alpha;
    Assemble(op, info.ctx);
 #else
-   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
 }
 
@@ -74,7 +74,7 @@ MFConvectionIntegrator::MFConvectionIntegrator(
    info.ctx.alpha = alpha;
    Assemble(op, info.ctx);
 #else
-   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
 }
 
