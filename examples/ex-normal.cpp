@@ -327,7 +327,6 @@ int main(int argc, char *argv[])
 
    hconstraints = BuildNormalConstraintsNoIntersection(
                      fespace, constraint_atts, lagrange_rowstarts);
-   hconstraints->Print("hconstraints");
 
    ParLinearForm b(&fespace);
    // for diffusion we may want a more interesting rhs
