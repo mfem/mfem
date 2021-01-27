@@ -71,10 +71,14 @@ void Mesh::GetElementCenter(int i, Vector &center)
    eltransf->Transform(Geometries.GetCenter(geom), center);
 }
 
-double Mesh::GetElementSize(int i, int type)
+double Mesh::GetElementSize(ElementTransformation *T, int type)
 {
    DenseMatrix J(Dim);
-   GetElementJacobian(i, J);
+
+   Geometry::Type geom = T->GetGeometryType();
+   T->SetIntPoint(&Geometries.GetCenter(geom));
+   Geometries.JacToPerfJac(geom, T->Jacobian(), J);
+
    if (type == 0)
    {
       return pow(fabs(J.Det()), 1./Dim);
@@ -87,6 +91,11 @@ double Mesh::GetElementSize(int i, int type)
    {
       return J.CalcSingularvalue(0);   // h_max
    }
+}
+
+double Mesh::GetElementSize(int i, int type)
+{
+   return GetElementSize(GetElementTransformation(i), type);
 }
 
 double Mesh::GetElementSize(int i, const Vector &dir)
@@ -1038,6 +1047,13 @@ void Mesh::GetFaceInfos(int Face, int *Inf1, int *Inf2) const
 {
    *Inf1 = faces_info[Face].Elem1Inf;
    *Inf2 = faces_info[Face].Elem2Inf;
+}
+
+void Mesh::GetFaceInfos(int Face, int *Inf1, int *Inf2, int *NCFace) const
+{
+   *Inf1   = faces_info[Face].Elem1Inf;
+   *Inf2   = faces_info[Face].Elem2Inf;
+   *NCFace = faces_info[Face].NCFace;
 }
 
 Geometry::Type Mesh::GetFaceGeometryType(int Face) const
@@ -3432,6 +3448,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
 
    Clear();
 
+   istream::pos_type beginning_pos = input.tellg();
    string mesh_type;
    input >> ws;
    getline(input, mesh_type);
@@ -3473,10 +3490,19 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    {
       ReadTrueGridMesh(input);
    }
-   else if (mesh_type == "# vtk DataFile Version 3.0" ||
-            mesh_type == "# vtk DataFile Version 2.0") // VTK
+   else if (mesh_type.rfind("# vtk DataFile Version") == 0)
    {
+      int major_vtk_version = mesh_type[mesh_type.length()-3] - '0';
+      // int minor_vtk_version = mesh_type[mesh_type.length()-1] - '0';
+      MFEM_VERIFY(major_vtk_version >= 2 && major_vtk_version <= 4,
+                  "Unsupported VTK format");
       ReadVTKMesh(input, curved, read_gf, finalize_topo);
+   }
+   else if (mesh_type.rfind("<VTKFile ") == 0)
+   {
+      // Go back to beginning of stream
+      input.seekg(beginning_pos);
+      ReadXML_VTKMesh(input, curved, read_gf, finalize_topo);
    }
    else if (mesh_type == "MFEM NURBS mesh v1.0")
    {
@@ -5974,6 +6000,7 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
    el_to_el = NULL;
 
    // Check for empty partitionings (a "feature" in METIS)
+   if (nparts > 1 && NumOfElements > nparts)
    {
       Array< Pair<int,int> > psize(nparts);
       int empty_parts;
@@ -8920,9 +8947,11 @@ void Mesh::PrintVTK(std::ostream &out)
          const int *v = elements[i]->GetVertices();
          const int nv = elements[i]->GetNVertices();
          out << nv;
+         Geometry::Type geom = elements[i]->GetGeometryType();
+         const int *perm = VTKGeometry::VertexPermutation[geom];
          for (int j = 0; j < nv; j++)
          {
-            out << ' ' << v[j];
+            out << ' ' << v[perm ? perm[j] : j];
          }
          out << '\n';
       }
@@ -9004,35 +9033,9 @@ void Mesh::PrintVTK(std::ostream &out)
    for (int i = 0; i < NumOfElements; i++)
    {
       int vtk_cell_type = 5;
-      Geometry::Type geom_type = GetElement(i)->GetGeometryType();
-      if (order == 1)
-      {
-         switch (geom_type)
-         {
-            case Geometry::POINT:        vtk_cell_type = 1;   break;
-            case Geometry::SEGMENT:      vtk_cell_type = 3;   break;
-            case Geometry::TRIANGLE:     vtk_cell_type = 5;   break;
-            case Geometry::SQUARE:       vtk_cell_type = 9;   break;
-            case Geometry::TETRAHEDRON:  vtk_cell_type = 10;  break;
-            case Geometry::CUBE:         vtk_cell_type = 12;  break;
-            case Geometry::PRISM:        vtk_cell_type = 13;  break;
-            default: break;
-         }
-      }
-      else if (order == 2)
-      {
-         switch (geom_type)
-         {
-            case Geometry::SEGMENT:      vtk_cell_type = 21;  break;
-            case Geometry::TRIANGLE:     vtk_cell_type = 22;  break;
-            case Geometry::SQUARE:       vtk_cell_type = 28;  break;
-            case Geometry::TETRAHEDRON:  vtk_cell_type = 24;  break;
-            case Geometry::CUBE:         vtk_cell_type = 29;  break;
-            case Geometry::PRISM:        vtk_cell_type = 32;  break;
-            default: break;
-         }
-      }
-
+      Geometry::Type geom = GetElement(i)->GetGeometryType();
+      if (order == 1) { vtk_cell_type = VTKGeometry::Map[geom]; }
+      else if (order == 2) { vtk_cell_type = VTKGeometry::QuadraticMap[geom]; }
       out << vtk_cell_type << '\n';
    }
 
@@ -9250,9 +9253,10 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTKFormat format,
          {
             coff = coff+nv;
             offset.push_back(coff);
+            const int *p = VTKGeometry::VertexPermutation[geom];
             for (int k = 0; k < nv; k++, j++)
             {
-               WriteBinaryOrASCII(out, buf, np + RG[j], " ", format);
+               WriteBinaryOrASCII(out, buf, np + RG[p ? p[j] : j], " ", format);
             }
             if (format == VTKFormat::ASCII) { out << '\n'; }
          }
@@ -9280,39 +9284,14 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTKFormat format,
    out << "<DataArray type=\"UInt8\" Name=\"types\" format=\""
        << fmt_str << "\">" << std::endl;
    // cell types
+   const int *vtk_geom_map =
+      high_order_output ? VTKGeometry::HighOrderMap : VTKGeometry::Map;
    for (int i = 0; i < ne; i++)
    {
       Geometry::Type geom = get_geom(i);
       uint8_t vtk_cell_type = 5;
 
-      // VTK element types defined at: https://git.io/JvZLm
-      switch (geom)
-      {
-         case Geometry::POINT:
-            vtk_cell_type = 1;
-            break;
-         case Geometry::SEGMENT:
-            vtk_cell_type = high_order_output ? 68 : 3;
-            break;
-         case Geometry::TRIANGLE:
-            vtk_cell_type = high_order_output ? 69 : 5;
-            break;
-         case Geometry::SQUARE:
-            vtk_cell_type = high_order_output ? 70 : 9;
-            break;
-         case Geometry::TETRAHEDRON:
-            vtk_cell_type = high_order_output ? 71 : 10;
-            break;
-         case Geometry::CUBE:
-            vtk_cell_type = high_order_output ? 72 : 12;
-            break;
-         case Geometry::PRISM:
-            vtk_cell_type = high_order_output ? 73 : 13;
-            break;
-         default:
-            MFEM_ABORT("Unrecognized VTK element type \"" << geom << "\"");
-            break;
-      }
+      vtk_cell_type = vtk_geom_map[geom];
 
       if (high_order_output)
       {
@@ -9461,21 +9440,7 @@ void Mesh::PrintVTK(std::ostream &out, int ref, int field_data)
       int nv = Geometries.GetVertices(geom)->GetNPoints();
       RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
       Array<int> &RG = RefG->RefGeoms;
-      int vtk_cell_type = 5;
-
-      switch (geom)
-      {
-         case Geometry::POINT:        vtk_cell_type = 1;   break;
-         case Geometry::SEGMENT:      vtk_cell_type = 3;   break;
-         case Geometry::TRIANGLE:     vtk_cell_type = 5;   break;
-         case Geometry::SQUARE:       vtk_cell_type = 9;   break;
-         case Geometry::TETRAHEDRON:  vtk_cell_type = 10;  break;
-         case Geometry::CUBE:         vtk_cell_type = 12;  break;
-         case Geometry::PRISM:        vtk_cell_type = 13;  break;
-         default:
-            MFEM_ABORT("Unrecognized VTK element type \"" << geom << "\"");
-            break;
-      }
+      int vtk_cell_type = VTKGeometry::Map[geom];
 
       for (int j = 0; j < RG.Size(); j += nv)
       {
