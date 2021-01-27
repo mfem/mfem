@@ -24,8 +24,8 @@ namespace ceed
 {
 
 #ifdef MFEM_USE_CEED
-/** This structure contains the data to assemble a PA operator with libCEED.
-    See libceed/mass.cpp or libceed/diffusion.cpp for examples. */
+/** This structure contains the data to assemble a partially assembled operator
+    with libCEED. See libceed/mass.cpp or libceed/diffusion.cpp for examples. */
 struct PAOperator
 {
    /** The finite element space for the trial and test functions. */
@@ -53,6 +53,7 @@ struct PAOperator
 };
 #endif
 
+/** This class represent a partially assembled operator using libCEED.*/
 class PAIntegrator : public MFIntegrator
 {
 #ifdef MFEM_USE_CEED
@@ -64,8 +65,11 @@ public:
    PAIntegrator()
       : MFIntegrator(),  build_oper(nullptr), build_qfunc(nullptr) { }
 
-   template <typename CeedInfo, typename CoeffType>
-   PAOperator InitPA(CeedInfo &info,
+   /** This method initializes the PAIntegrator with the given CeedOperatorInfo
+       @a info, an mfem::FiniteElementSpace @a fes, an mfem::IntegrationRule
+       @a ir, and mfem::Coefficient or mfem::VectorCoefficient @a Q.*/
+   template <typename CeedOperatorInfo, typename CoeffType>
+   PAOperator InitPA(CeedOperatorInfo &info,
                      const mfem::FiniteElementSpace &fes,
                      const mfem::IntegrationRule &irm,
                      CoeffType *Q)

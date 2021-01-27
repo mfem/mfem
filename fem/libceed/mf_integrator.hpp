@@ -25,8 +25,8 @@ namespace ceed
 {
 
 #ifdef MFEM_USE_CEED
-/** This structure contains the data to assemble a MF operator with libCEED.
-    See libceed/mass.cpp or libceed/diffusion.cpp for examples. */
+/** This structure contains the data to assemble a matrix-free operator with
+    libCEED. See libceed/mass.cpp or libceed/diffusion.cpp for examples. */
 struct MFOperator
 {
    /** The finite element space for the trial and test functions. */
@@ -48,6 +48,7 @@ struct MFOperator
 };
 #endif
 
+/** This class represent a matrix-free operator using libCEED.*/
 class MFIntegrator : public Operator
 {
 #ifdef MFEM_USE_CEED
@@ -67,8 +68,12 @@ public:
         apply_qfunc(nullptr), node_coords(nullptr),
         qdata(nullptr), coeff(nullptr), build_ctx(nullptr) { }
 
-   template <typename CeedInfo, typename CoeffType>
-   MFOperator InitMF(CeedInfo &info,
+
+   /** This method initializes the MFIntegrator with the given CeedOperatorInfo
+       @a info, an mfem::FiniteElementSpace @a fes, an mfem::IntegrationRule
+       @a ir, and mfem::Coefficient or mfem::VectorCoefficient @a Q.*/
+   template <typename CeedOperatorInfo, typename CoeffType>
+   MFOperator InitMF(CeedOperatorInfo &info,
                      const mfem::FiniteElementSpace &fes,
                      const mfem::IntegrationRule &irm,
                      CoeffType *Q)
