@@ -1376,14 +1376,14 @@ void HypreParMatrix::EliminateRowsCols(const Array<int> &rows_cols,
       A, rc_sorted.Size(), rc_sorted.GetData(), X, B);
 }
 
-HypreParMatrix* HypreParMatrix::EliminateRowsCols(const Array<int> &rows_cols)
+HypreParMatrix* HypreParMatrix::EliminateRowsCols(const Array<int> &rows_cols, int diag)
 {
    Array<HYPRE_Int> rc_sorted;
    get_sorted_rows_cols(rows_cols, rc_sorted);
 
    hypre_ParCSRMatrix* Ae;
    internal::hypre_ParCSRMatrixEliminateAAe(
-      A, &Ae, rc_sorted.Size(), rc_sorted.GetData());
+      A, &Ae, rc_sorted.Size(), rc_sorted.GetData(), 0, diag);
 
    return new HypreParMatrix(Ae);
 }

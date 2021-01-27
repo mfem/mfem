@@ -148,14 +148,28 @@ public:
                delete ARe;
                delete ASl;
                if (DRematpr!=NULL)
+               {
                   ARe = ParAdd(Mdtpr, DRematpr);
+               }
                else
+               {
                   ARe = new HypreParMatrix(*Mdtpr);
+               }
                   
                if (DSlmatpr!=NULL)
+               {
                   ASl = ParAdd(Mdtpr, DSlmatpr);
+               }
                else
+               {
                   ASl = new HypreParMatrix(*Mdtpr);
+               }
+
+               //make diag be 1
+               delete tmp2;
+               tmp2=ARe->EliminateRowsCols(ess_tdof_list);
+               delete tmp2;
+               tmp2=ASl->EliminateRowsCols(ess_tdof_list);
            } 
        }
        if(initialMdt==false)
@@ -167,14 +181,27 @@ public:
            if (useFull > 0)
            {
               if (DRematpr!=NULL)
+              {
                  ARe = ParAdd(Mdtpr, DRematpr);
+              }
               else
+              {
                  ARe = new HypreParMatrix(*Mdtpr);
+              }
                  
               if (DSlmatpr!=NULL)
+              {
                  ASl = ParAdd(Mdtpr, DSlmatpr);
+              }
               else
+              {
                  ASl = new HypreParMatrix(*Mdtpr);
+              }
+              //make diag be 1
+              delete tmp2;
+              tmp2=ARe->EliminateRowsCols(ess_tdof_list);
+              delete tmp2;
+              tmp2=ASl->EliminateRowsCols(ess_tdof_list);
            }
        }
    }
@@ -1427,30 +1454,19 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
          HypreParMatrix *PjMat = Pw->ParallelAssemble();
 
          //form Nb matrix again (with boundary term)
-         //FIXME this is not right yet
          delete Nb;
          Nb = new ParBilinearForm(&fespace);
          Nb->AddDomainIntegrator(new ConvectionIntegrator(Bfield));
          Nb->Assemble();
-         Nb->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
          Nb->Finalize();
          HypreParMatrix *Mattmp = Nb->ParallelAssemble();
-
-         /*
-         ofstream myf0 ("NbFull.m");
-         NbFull->PrintMatlab(myf0);
-         ofstream myf ("before.m");
-         Mattmp->PrintMatlab(myf);
-         HypreParMatrix *tmp3=Mattmp->EliminateRowsCols(ess_tdof_list);
-         ofstream myf2 ("after.m");
-         Mattmp->PrintMatlab(myf2);
-         */
 
          HypreParMatrix *NbMinvKB = ParMult(Mattmp, MinvKB);
          delete Mattmp;
 
          tmp2 = ParAdd(PjMat, NbMinvKB);
-         //HypreParMatrix *tmp3=Mattmp->EliminateRowsCols(ess_tdof_list);
+         HypreParMatrix *tmp3=tmp2->EliminateRowsCols(ess_tdof_list, 0);
+         delete tmp3;
 
          //use tmp1 to hold ASltmp
          tmp1=ASltmp;
@@ -1472,7 +1488,6 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
 
          delete PjMat;
          delete NbMinvKB;
-         //delete Mattmp;
        }
 
        bool outputMatrix=false;
