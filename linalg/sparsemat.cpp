@@ -3165,13 +3165,7 @@ void SparseMatrix::Destroy()
    delete At;
 
 #ifdef MFEM_USE_CUDA
-   if (initBuffers)
-   {
-      cusparseDestroySpMat(matA_descr);
-      cusparseDestroyDnVec(vecX_descr);
-      cusparseDestroyDnVec(vecY_descr);
-      initBuffers = false;
-   }
+   ClearCuSparse();
 #endif
 }
 
