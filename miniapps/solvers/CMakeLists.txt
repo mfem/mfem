@@ -10,25 +10,25 @@
 # CONTRIBUTING.md for details.
 
 if (MFEM_USE_MPI)
-  add_mfem_miniapp(block-solvers-compare
-    MAIN block-solvers-compare.cpp
+  add_mfem_miniapp(block-solvers
+    MAIN block-solvers.cpp
     EXTRA_SOURCES div_free_solver.cpp
     EXTRA_HEADERS div_free_solver.hpp
     LIBRARIES mfem)
 
   # Add the corresponding tests to the "test" target
-  add_test(NAME block-solvers-compare-constant
+  add_test(NAME block-solvers-constant
     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
     ${MPIEXEC_PREFLAGS}
-    $<TARGET_FILE:block-solvers-compare> -r 2
+    $<TARGET_FILE:block-solvers> -r 2
     ${MPIEXEC_POSTFLAGS})
 
-  add_test(NAME block-solvers-compare-high-contrast
+  add_test(NAME block-solvers-anisotropic
     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
     ${MPIEXEC_PREFLAGS}
-    $<TARGET_FILE:block-solvers-compare> -r 2
+    $<TARGET_FILE:block-solvers> -r 2
     -m ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.mesh
-    -c ${CMAKE_CURRENT_SOURCE_DIR}/high_contrast_coef.txt
-    -eb ${CMAKE_CURRENT_SOURCE_DIR}/ess_bdr_attr.txt
+    -c ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.coeff
+    -eb ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.brd
     ${MPIEXEC_POSTFLAGS})
 endif()

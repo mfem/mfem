@@ -12,7 +12,7 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/blocksolvers/,)
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/solvers/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 # Use the MFEM install directory
 # MFEM_INSTALL_DIR = ../../mfem
@@ -24,7 +24,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 BLOCK_COMMON_SRC = div_free_solver.cpp
 BLOCK_COMMON_OBJ = $(BLOCK_COMMON_SRC:.cpp=.o)
 
-PAR_MINIAPPS = block-solvers-compare
+PAR_MINIAPPS = block-solvers
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS =
@@ -53,12 +53,12 @@ include $(MFEM_TEST_MK)
 
 # Testing: Specific execution options
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-block-solvers-compare-test-par: compare-constant compare-high-contrast
-compare-constant: block-solvers-compare
+block-solvers-test-par: block-solvers-constant block-solvers-anisotropic
+block-solvers-constant: block-solvers
 	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-r 2)
-compare-high-contrast: block-solvers-compare
+block-solvers-anisotropic: block-solvers
 	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-r 2\
-	-m anisotropic.mesh -c high_contrast_coef.txt -eb ess_bdr_attr.txt)
+        -m anisotropic.mesh -c anisotropic.coeff -eb anisotropic.bdr)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
@@ -71,4 +71,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf block-solvers-compare
+        @rm -rf block-solvers
