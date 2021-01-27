@@ -23,7 +23,7 @@ namespace ceed
 {
 
 #ifdef MFEM_USE_CEED
-struct DiffusionInfo
+struct DiffusionOperatorInfo
 {
    static constexpr const char *header = "/diffusion_qf.h";
    static constexpr const char *build_func_const = ":f_build_diff_const";
@@ -40,7 +40,7 @@ struct DiffusionInfo
    static constexpr EvalMode test_op = EvalMode::Grad;
    const int qdatasize;
    DiffusionContext ctx;
-   DiffusionInfo(int dim) : qdatasize(dim*(dim+1)/2) { }
+   DiffusionOperatorInfo(int dim) : qdatasize(dim*(dim+1)/2) { }
 };
 #endif
 
@@ -51,7 +51,7 @@ PADiffusionIntegrator::PADiffusionIntegrator(
    : PAIntegrator()
 {
 #ifdef MFEM_USE_CEED
-   DiffusionInfo info(fes.GetMesh()->Dimension());
+   DiffusionOperatorInfo info(fes.GetMesh()->Dimension());
    PAOperator op = InitPA(info, fes, irm, Q);
    Assemble(op, info.ctx);
 #else
@@ -66,7 +66,7 @@ MFDiffusionIntegrator::MFDiffusionIntegrator(
    : MFIntegrator()
 {
 #ifdef MFEM_USE_CEED
-   DiffusionInfo info(fes.GetMesh()->Dimension());
+   DiffusionOperatorInfo info(fes.GetMesh()->Dimension());
    MFOperator op = InitMF(info, fes, irm, Q);
    Assemble(op, info.ctx);
 #else
