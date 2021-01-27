@@ -2973,17 +2973,17 @@ KLUSolver::~KLUSolver()
 #endif // MFEM_USE_SUITESPARSE
 
 DirectSubBlockSolver::DirectSubBlockSolver(const SparseMatrix &A,
-                                           const SparseMatrix &block_dof)
-   : Solver(A.NumRows()), block_dof_(const_cast<SparseMatrix&>(block_dof)),
-     block_solvers_(block_dof.NumRows())
+                                           const SparseMatrix &block_dof_)
+   : Solver(A.NumRows()), block_dof(const_cast<SparseMatrix&>(block_dof_)),
+     block_solvers(block_dof.NumRows())
 {
    DenseMatrix sub_A;
    for (int i = 0; i < block_dof.NumRows(); ++i)
    {
-      local_dofs_.MakeRef(block_dof_.GetRowColumns(i), block_dof_.RowSize(i));
-      sub_A.SetSize(local_dofs_.Size());
-      A.GetSubMatrix(local_dofs_, local_dofs_, sub_A);
-      block_solvers_[i].SetOperator(sub_A);
+      local_dofs.MakeRef(block_dof.GetRowColumns(i), block_dof.RowSize(i));
+      sub_A.SetSize(local_dofs.Size());
+      A.GetSubMatrix(local_dofs, local_dofs, sub_A);
+      block_solvers[i].SetOperator(sub_A);
    }
 }
 
@@ -2992,13 +2992,13 @@ void DirectSubBlockSolver::Mult(const Vector &x, Vector &y) const
    y.SetSize(x.Size());
    y = 0.0;
 
-   for (int i = 0; i < block_dof_.NumRows(); ++i)
+   for (int i = 0; i < block_dof.NumRows(); ++i)
    {
-      local_dofs_.MakeRef(block_dof_.GetRowColumns(i), block_dof_.RowSize(i));
-      x.GetSubVector(local_dofs_, sub_rhs_);
-      sub_sol_.SetSize(local_dofs_.Size());
-      block_solvers_[i].Mult(sub_rhs_, sub_sol_);
-      y.AddElementVector(local_dofs_, sub_sol_);
+      local_dofs.MakeRef(block_dof.GetRowColumns(i), block_dof.RowSize(i));
+      x.GetSubVector(local_dofs, sub_rhs);
+      sub_sol.SetSize(local_dofs.Size());
+      block_solvers[i].Mult(sub_rhs, sub_sol);
+      y.AddElementVector(local_dofs, sub_sol);
    }
 }
 
@@ -3006,16 +3006,16 @@ void ProductSolver::Mult(const Vector & x, Vector & y) const
 {
    y.SetSize(x.Size());
    y = 0.0;
-   S0_->Mult(x, y);
+   S0->Mult(x, y);
 
    Vector z(x.Size());
    z = 0.0;
-   A_->Mult(y, z);
+   A->Mult(y, z);
    add(-1.0, z, 1.0, x, z); // z = (I - A * S0) x
 
    Vector S1z(x.Size());
    S1z = 0.0;
-   S1_->Mult(z, S1z);
+   S1->Mult(z, S1z);
    y += S1z;
 }
 
@@ -3023,16 +3023,16 @@ void ProductSolver::MultTranspose(const Vector & x, Vector & y) const
 {
    y.SetSize(x.Size());
    y = 0.0;
-   S1_->MultTranspose(x, y);
+   S1->MultTranspose(x, y);
 
    Vector z(x.Size());
    z = 0.0;
-   A_->MultTranspose(y, z);
+   A->MultTranspose(y, z);
    add(-1.0, z, 1.0, x, z); // z = (I - A^T * S1^T) x
 
    Vector S0Tz(x.Size());
    S0Tz = 0.0;
-   S0_->MultTranspose(z, S0Tz);
+   S0->MultTranspose(z, S0Tz);
    y += S0Tz;
 }
 
