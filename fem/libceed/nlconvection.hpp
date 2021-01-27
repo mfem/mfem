@@ -23,22 +23,22 @@ namespace ceed
 
 /** Represent a VectorConvectionNLFIntegrator with AssemblyLevel::Partial
     using libCEED. */
-class PANLConvectionIntegrator : public PAIntegrator
+class PAVectorConvectionNLFIntegrator : public PAIntegrator
 {
 public:
-   PANLConvectionIntegrator(const mfem::FiniteElementSpace &fes,
-                            const mfem::IntegrationRule &irm,
-                            mfem::Coefficient *coeff);
+   PAVectorConvectionNLFIntegrator(const mfem::FiniteElementSpace &fes,
+                                   const mfem::IntegrationRule &irm,
+                                   mfem::Coefficient *coeff);
 };
 
 /** Represent a VectorConvectionNLFIntegrator with AssemblyLevel::None
     using libCEED. */
-class MFNLConvectionIntegrator : public MFIntegrator
+class MFVectorConvectionNLFIntegrator : public MFIntegrator
 {
 public:
-   MFNLConvectionIntegrator(const mfem::FiniteElementSpace &fes,
-                            const mfem::IntegrationRule &irm,
-                            mfem::Coefficient *coeff);
+   MFVectorConvectionNLFIntegrator(const mfem::FiniteElementSpace &fes,
+                                   const mfem::IntegrationRule &irm,
+                                   mfem::Coefficient *coeff);
 };
 
 }

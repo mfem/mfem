@@ -44,7 +44,7 @@ struct NLConvectionOperatorInfo
 };
 #endif
 
-PANLConvectionIntegrator::PANLConvectionIntegrator(
+PAVectorConvectionNLFIntegrator::PAVectorConvectionNLFIntegrator(
    const mfem::FiniteElementSpace &fes,
    const mfem::IntegrationRule &irm,
    mfem::Coefficient *Q)
@@ -59,7 +59,7 @@ PANLConvectionIntegrator::PANLConvectionIntegrator(
 #endif
 }
 
-MFNLConvectionIntegrator::MFNLConvectionIntegrator(
+MFVectorConvectionNLFIntegrator::MFVectorConvectionNLFIntegrator(
    const mfem::FiniteElementSpace &fes,
    const mfem::IntegrationRule &irm,
    mfem::Coefficient *Q)
