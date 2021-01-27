@@ -55,7 +55,7 @@ PADiffusionIntegrator::PADiffusionIntegrator(
    PAOperator op = InitPA(info, fes, irm, Q);
    Assemble(op, info.ctx);
 #else
-   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
 }
 
@@ -70,7 +70,7 @@ MFDiffusionIntegrator::MFDiffusionIntegrator(
    MFOperator op = InitMF(info, fes, irm, Q);
    Assemble(op, info.ctx);
 #else
-   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
 }
 
