@@ -42,6 +42,7 @@ set(UNIT_TESTS_SRCS
   fem/test_2d_bilininteg.cpp
   fem/test_3d_bilininteg.cpp
   fem/test_assemblediagonalpa.cpp
+  fem/test_blocknonlinearform.cpp
   fem/test_calcshape.cpp
   fem/test_datacollection.cpp
   fem/test_estimator.cpp
@@ -50,14 +51,17 @@ set(UNIT_TESTS_SRCS
   fem/test_intrules.cpp
   fem/test_intruletypes.cpp
   fem/test_inversetransform.cpp
+  fem/test_lexicographic_ordering.cpp
   fem/test_lin_interp.cpp
   fem/test_linear_fes.cpp
   fem/test_operatorjacobismoother.cpp
   fem/test_pa_coeff.cpp
   fem/test_pa_kernels.cpp
+  fem/test_pa_grad.cpp
+  fem/test_pa_idinterp.cpp
   fem/test_quadf_coef.cpp
   fem/test_quadraturefunc.cpp
-  fem/test_blocknonlinearform.cpp
+  fem/test_sum_bilin.cpp
   miniapps/test_sedov.cpp
 )
 
