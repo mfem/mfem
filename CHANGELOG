@@ -11,9 +11,9 @@
 Version 4.2.1 (development)
 ===========================
 
-- Added support for some examples (ex1p, ex2p, ex3p, ex4p, ex7p, ex13p) to use
-  hypre built with CUDA and unified memory, when MFEM is build with `make pcuda`
-  and run with `-d cuda:uvm` as a command-line option.
+- Added support for some examples (ex1p, ex2p, ex7p) to use hypre built with
+  CUDA and unified memory, when MFEM is built with `make pcuda` and run with
+  `-d cuda:uvm` as a command-line option.
 
 - Added matrix-free GPU-enabled implementations of GradientInterpolator and
   IdentityInterpolator.
