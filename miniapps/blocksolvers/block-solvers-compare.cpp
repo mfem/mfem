@@ -21,7 +21,7 @@
 //               polynomials (pressure p).
 //
 //               The solvers being compared include:
-//                 1. The divergence free solver
+//                 1. The divergence free solver (couple and decoupled modes)
 //                 2. MINRES preconditioned by a block diagonal preconditioner
 //
 //               We recommend viewing example 5 before viewing this miniapp.
@@ -52,6 +52,7 @@
 
 using namespace std;
 using namespace mfem;
+using namespace blocksolvers;
 
 // Exact solution, u and p, and r.h.s., f and g.
 void u_exact(const Vector & x, Vector & u);
