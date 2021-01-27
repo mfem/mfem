@@ -66,6 +66,8 @@ Version 4.2.1 (development)
 - Implemented an adaptive linear solver tolerance option for NewtonSolver based
   on the algorithm of Eisenstat and Walker.
 
+- Added support for nonscalar coefficient with VectorDiffusionIntegrator.
+
 - Extending support for L2 basis functions using MapTypes VALUE and INTEGRAL in
   linear interpolators and GridFunction "GetValue" methods.
 
