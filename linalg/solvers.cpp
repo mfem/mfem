@@ -2972,8 +2972,8 @@ KLUSolver::~KLUSolver()
 
 #endif // MFEM_USE_SUITESPARSE
 
-BlockDiagSolver::BlockDiagSolver(const SparseMatrix &A,
-                                 const SparseMatrix &block_dof)
+DirectSubBlockSolver::DirectSubBlockSolver(const SparseMatrix &A,
+                                           const SparseMatrix &block_dof)
    : Solver(A.NumRows()), block_dof_(const_cast<SparseMatrix&>(block_dof)),
      block_solvers_(block_dof.NumRows())
 {
@@ -2987,7 +2987,7 @@ BlockDiagSolver::BlockDiagSolver(const SparseMatrix &A,
    }
 }
 
-void BlockDiagSolver::Mult(const Vector &x, Vector &y) const
+void DirectSubBlockSolver::Mult(const Vector &x, Vector &y) const
 {
    y.SetSize(x.Size());
    y = 0.0;

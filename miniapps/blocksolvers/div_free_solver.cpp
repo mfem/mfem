@@ -184,7 +184,7 @@ void DFSSpaces::DataFinalize()
       OperatorPtr PT_l2(Transpose(P_l2));
       auto PTW = Mult(*PT_l2.As<SparseMatrix>(), *W.As<SparseMatrix>());
       auto cW = Mult(*PTW, P_l2);
-      auto cW_inv = new SymBlkDiagSolver(*cW, el_l2dof_[l]);
+      auto cW_inv = new SymDirectSubBlockSolver(*cW, el_l2dof_[l]);
       data_.Q_l2[l].Reset(new ProductOperator(cW_inv, PTW, true, true));
       W.Reset(cW);
    }

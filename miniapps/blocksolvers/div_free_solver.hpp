@@ -106,12 +106,12 @@ public:
    virtual void SetOperator(const Operator &op) { }
 };
 
-/// Block diagonal solver for A, each block is inverted by direct solver
-class SymBlkDiagSolver : public BlockDiagSolver
+/// Block diagonal solver for symmetric A, each block is inverted by direct solver
+class SymDirectSubBlockSolver : public DirectSubBlockSolver
 {
 public:
-   SymBlkDiagSolver(const SparseMatrix& A, const SparseMatrix& block_dof)
-      : BlockDiagSolver(A, block_dof) { }
+   SymDirectSubBlockSolver(const SparseMatrix& A, const SparseMatrix& block_dof)
+      : DirectSubBlockSolver(A, block_dof) { }
    virtual void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
 };
 
