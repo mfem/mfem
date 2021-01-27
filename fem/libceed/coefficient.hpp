@@ -74,8 +74,9 @@ struct QuadCoefficient : VariableCoefficient
    QuadCoefficient(int ncomp_) : VariableCoefficient(ncomp_, CEED_EVAL_NONE) { }
 };
 
-/** @brief Identifies the type of coefficient of the Integrator to initialize
-    accordingly the CeedData. */
+/** @brief Initializes an mfem::ceed::Coefficient @a coeff_ptr from an
+    mfem::Coefficient @a Q, an mfem::Mesh @a mesh, and an mfem::IntegrationRule
+    @a ir. */
 template <typename Context>
 void InitCoefficient(mfem::Coefficient *Q, mfem::Mesh &mesh,
                      const mfem::IntegrationRule &ir,
@@ -137,8 +138,10 @@ void InitCoefficient(mfem::Coefficient *Q, mfem::Mesh &mesh,
    }
 }
 
-/** @brief Identifies the type of vector coefficient of the Integrator to
-    initialize accordingly the CeedData. */
+
+/** @brief Initializes an mfem::ceed::Coefficient @a coeff_ptr from an
+    mfem::VectorCoefficient @a Q, an mfem::Mesh @a mesh, and an
+    mfem::IntegrationRule @a ir. */
 template <typename Context>
 void InitCoefficient(mfem::VectorCoefficient *VQ, mfem::Mesh &mesh,
                      const mfem::IntegrationRule &ir,
