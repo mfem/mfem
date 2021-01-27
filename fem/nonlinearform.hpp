@@ -111,6 +111,11 @@ public:
    void AddInteriorFaceIntegrator(NonlinearFormIntegrator *nlfi)
    { fnfi.Append(nlfi); }
 
+   /** @brief Aceess all interior face integrators added with
+       AddInteriorFaceIntegrator(). */
+   const Array<NonlinearFormIntegrator*> &GetInteriorFaceIntegrators() const
+   { return fnfi; }
+
    /// Adds new Boundary Face Integrator.
    void AddBdrFaceIntegrator(NonlinearFormIntegrator *nlfi)
    { bfnfi.Append(nlfi); bfnfi_marker.Append(NULL); }
@@ -120,6 +125,11 @@ public:
    void AddBdrFaceIntegrator(NonlinearFormIntegrator *nfi,
                              Array<int> &bdr_marker)
    { bfnfi.Append(nfi); bfnfi_marker.Append(&bdr_marker); }
+
+   /** @brief Aceess all boundary face integrators added with
+       AddBdrFaceIntegrator(). */
+   const Array<NonlinearFormIntegrator*> &GetBdrFaceIntegrators() const
+   { return bfnfi; }
 
    /// Specify essential boundary conditions.
    /** This method calls FiniteElementSpace::GetEssentialTrueDofs() and stores

@@ -422,6 +422,8 @@ void ConstrainedOperator::AssembleDiagonal(Vector &diag) const
 {
    A->AssembleDiagonal(diag);
 
+   if (diag_policy == DIAG_KEEP) { return; }
+
    const int csz = constraint_list.Size();
    auto d_diag = diag.ReadWrite();
    auto idx = constraint_list.Read();
@@ -442,7 +444,7 @@ void ConstrainedOperator::AssembleDiagonal(Vector &diag) const
          });
          break;
       default:
-         mfem_error("ConstrainedOperator::AssembleDiagonal");
+         MFEM_ABORT("unknown diagonal policy");
          break;
    }
 }
