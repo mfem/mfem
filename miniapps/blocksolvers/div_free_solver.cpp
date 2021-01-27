@@ -3,6 +3,7 @@
 
 using namespace std;
 using namespace mfem;
+using mfem::internal::mfem_hypre_ParCSRMatrixDropSmallEntries;
 
 void SetOptions(IterativeSolver& solver, const IterSolveParameters& param)
 {
@@ -144,7 +145,7 @@ void DFSSpaces::CollectDFSData()
       fes.GetTrueTransferOperator(*cfes, P);
       if (remove_zero)
       {
-         hypre_ParCSRMatrixDropSmallEntries(*P.As<HypreParMatrix>(), 1e-16, -1);
+         mfem_hypre_ParCSRMatrixDropSmallEntries(*P.As<HypreParMatrix>(), 1e-16);
       }
       (level_ < data_.P_l2.Size()-1) ? cfes->Update() : cfes.reset();
    };
@@ -437,7 +438,7 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
       HypreParMatrix& C_finest = *data.C.Last().As<HypreParMatrix>();
       ops.Last() = TwoStepsRAP(C_finest, M, C_finest);
       ops.Last()->EliminateZeroRows();
-      hypre_ParCSRMatrixDropSmallEntries(*ops.Last(), 1e-14, -1);
+      mfem_hypre_ParCSRMatrixDropSmallEntries(*ops.Last(), 1e-14);
 
       solver_.Reset(new CGSolver(B.GetComm()));
       solver_.As<CGSolver>()->SetOperator(*ops.Last());
@@ -448,7 +449,7 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
       {
          Ps[l] = data_.P_hcurl[l].As<HypreParMatrix>();
          ops[l] = TwoStepsRAP(*Ps[l], *ops[l+1], *Ps[l]);
-         hypre_ParCSRMatrixDropSmallEntries(*ops[l], 1e-14, -1);
+         mfem_hypre_ParCSRMatrixDropSmallEntries(*ops[l], 1e-14);
          smoothers[l] = new HypreSmoother(*ops[l]);
          static_cast<HypreSmoother*>(smoothers[l])->SetOperatorSymmetry(true);
       }
