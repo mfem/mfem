@@ -247,7 +247,7 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    matfree(NULL),
    cg(NULL),
 #ifdef MFEM_USE_AMGX
-   useAmgX_(useAmgX),
+   useAmgX(useAmgX_),
 #endif
    inner_aux_iterations(0)
 {
