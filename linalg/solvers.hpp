@@ -803,11 +803,11 @@ public:
 /// Block diagonal solver for A, each block is inverted by direct solver
 class DirectSubBlockSolver : public Solver
 {
-   SparseMatrix& block_dof_;
-   mutable Array<int> local_dofs_;
-   mutable Vector sub_rhs_;
-   mutable Vector sub_sol_;
-   Array<DenseMatrixInverse> block_solvers_;
+   SparseMatrix& block_dof;
+   mutable Array<int> local_dofs;
+   mutable Vector sub_rhs;
+   mutable Vector sub_sol;
+   Array<DenseMatrixInverse> block_solvers;
 public:
    /// block_dof is a boolean matrix, block_dof(i, j) = 1 if j-th dof belongs to
    /// i-th block, block_dof(i, j) = 0 otherwise.
@@ -820,13 +820,13 @@ public:
 /// That is, S = S0 + S1 - S1 * A * S0.
 class ProductSolver : public Solver
 {
-   OperatorPtr A_;
-   OperatorPtr S0_;
-   OperatorPtr S1_;
+   OperatorPtr A;
+   OperatorPtr S0;
+   OperatorPtr S1;
 public:
-   ProductSolver(Operator* A, Solver* S0, Solver* S1,
+   ProductSolver(Operator* A_, Solver* S0_, Solver* S1_,
                  bool ownA, bool ownS0, bool ownS1)
-      : Solver(A->NumRows()), A_(A, ownA), S0_(S0, ownS0), S1_(S1, ownS1) { }
+      : Solver(A->NumRows()), A(A_, ownA), S0(S0_, ownS0), S1(S1_, ownS1) { }
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void MultTranspose(const Vector &x, Vector &y) const;
    virtual void SetOperator(const Operator &op) { }
