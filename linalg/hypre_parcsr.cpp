@@ -1940,6 +1940,17 @@ hypre_ParCSRMatrixSetConstantValues(hypre_ParCSRMatrix *A,
    return 0;
 }
 
+HYPRE_Int
+mfem_hypre_ParCSRMatrixDropSmallEntries(hypre_ParCSRMatrix *A,
+                                        HYPRE_Real         tol)
+{
+#if MFEM_HYPRE_VERSION < 21800
+   return hypre_ParCSRMatrixDropSmallEntries(A, tol);
+#else
+   return hypre_ParCSRMatrixDropSmallEntries(A, tol, 2);
+#endif // #if MFEM_HYPRE_VERSION < 21800
+}
+
 } // namespace mfem::internal
 
 } // namespace mfem

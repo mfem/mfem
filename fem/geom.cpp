@@ -1177,7 +1177,7 @@ RefinedGeometry * GeometryRefiner::Refine(Geometry::Type Geom,
                   ip.x = cp[ii]/w;
                   ip.y = cp[jj]/w;
                   ip.z = cp[kk]/w;
-                  // (ii,jj,kk) are coordinates in the refernce tetrahedron,
+                  // (ii,jj,kk) are coordinates in the reference tetrahedron,
                   // transform to coordinates (i,j,k) in the auxiliary
                   // tetrahedron defined by (0,0,0), (0,0,1), (1,1,1), (0,1,1)
                   int i = jj;
