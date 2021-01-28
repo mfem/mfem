@@ -91,6 +91,7 @@ protected:
    // Initialize CuSparse
    void InitCuSparse();
 
+
 #ifdef MFEM_USE_CUDA
    cusparseStatus_t status;
    static cusparseHandle_t handle;
@@ -167,6 +168,9 @@ public:
 
    /// Clear the contents of the SparseMatrix.
    void Clear() { Destroy(); SetEmpty(); }
+
+   /// Release the cusparse descriptors.
+   void ClearCuSparseDescr();
 
    /// Check if the SparseMatrix is empty.
    bool Empty() const { return (A == NULL) && (Rows == NULL); }

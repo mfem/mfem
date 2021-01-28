@@ -47,6 +47,19 @@ void SparseMatrix::InitCuSparse()
 #endif
 }
 
+void SparseMatrix::ClearCuSparseDescr()
+{
+#ifdef MFEM_USE_CUDA
+   if (initBuffers)
+   {
+      cusparseDestroySpMat(matA_descr);
+      cusparseDestroyDnVec(vecX_descr);
+      cusparseDestroyDnVec(vecY_descr);
+      initBuffers = false;
+   }
+#endif
+}
+
 SparseMatrix::SparseMatrix(int nrows, int ncols)
    : AbstractSparseMatrix(nrows, (ncols >= 0) ? ncols : nrows),
      Rows(new RowNode *[nrows]),
@@ -295,15 +308,7 @@ void SparseMatrix::SetEmpty()
 #endif
    isSorted = false;
 
-#ifdef MFEM_USE_CUDA
-   if (initBuffers)
-   {
-      cusparseDestroySpMat(matA_descr);
-      cusparseDestroyDnVec(vecX_descr);
-      cusparseDestroyDnVec(vecY_descr);
-      initBuffers = false;
-   }
-#endif
+   ClearCuSparseDescr();
 }
 
 int SparseMatrix::RowSize(const int i) const
@@ -3068,13 +3073,7 @@ void SparseMatrix::Destroy()
    delete At;
 
 #ifdef MFEM_USE_CUDA
-   if (initBuffers)
-   {
-      cusparseDestroySpMat(matA_descr);
-      cusparseDestroyDnVec(vecX_descr);
-      cusparseDestroyDnVec(vecY_descr);
-      initBuffers = false;
-   }
+   ClearCuSparseDescr();
 #endif
 }
 
