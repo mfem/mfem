@@ -2685,11 +2685,6 @@ public:
    VectorDiffusionIntegrator(MatrixCoefficient& mq)
       : MQ(&mq), vdim(mq.GetVDim()) { }
 
-   virtual ~VectorDiffusionIntegrator()
-   {
-      delete ceedDataPtr;
-   }
-
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
