@@ -534,8 +534,11 @@ void MixedVectorIntegrator::AssembleElementMatrix2(
             {
                shape_tmp(j,0) = test_shape(j,1) * V(2) -
                                 test_shape(j,2) * V(1);
-               shape_tmp(j,1) = test_shape(j,2) * V(0) -
-                                test_shape(j,0) * V(2);
+               if (trial_vdim > 1)
+               {
+                  shape_tmp(j,1) = test_shape(j,2) * V(0) -
+                                   test_shape(j,0) * V(2);
+               }
             }
             else
             {
