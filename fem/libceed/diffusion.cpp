@@ -23,24 +23,25 @@ namespace ceed
 {
 
 #ifdef MFEM_USE_CEED
-struct DiffusionOperatorInfo
+struct DiffusionOperatorInfo : public OperatorInfo
 {
-   static constexpr const char *header = "/diffusion_qf.h";
-   static constexpr const char *build_func_const = ":f_build_diff_const";
-   static constexpr const char *build_func_quad = ":f_build_diff_quad";
-   static constexpr const char *apply_func = ":f_apply_diff";
-   static constexpr const char *apply_func_mf_const = ":f_apply_diff_mf_const";
-   static constexpr const char *apply_func_mf_quad = ":f_apply_diff_mf_quad";
-   static constexpr CeedQFunctionUser build_qf_const = &f_build_diff_const;
-   static constexpr CeedQFunctionUser build_qf_quad = &f_build_diff_quad;
-   static constexpr CeedQFunctionUser apply_qf = &f_apply_diff;
-   static constexpr CeedQFunctionUser apply_qf_mf_const = &f_apply_diff_mf_const;
-   static constexpr CeedQFunctionUser apply_qf_mf_quad = &f_apply_diff_mf_quad;
-   static constexpr EvalMode trial_op = EvalMode::Grad;
-   static constexpr EvalMode test_op = EvalMode::Grad;
-   const int qdatasize;
    DiffusionContext ctx;
-   DiffusionOperatorInfo(int dim) : qdatasize(dim*(dim+1)/2) { }
+   DiffusionOperatorInfo(int dim)
+   : OperatorInfo{"/diffusion_qf.h",
+                  ":f_build_diff_const",
+                  ":f_build_diff_quad",
+                  ":f_apply_diff",
+                  ":f_apply_diff_mf_const",
+                  ":f_apply_diff_mf_quad",
+                  &f_build_diff_const,
+                  &f_build_diff_quad,
+                  &f_apply_diff,
+                  &f_apply_diff_mf_const,
+                  &f_apply_diff_mf_quad,
+                  EvalMode::Grad,
+                  EvalMode::Grad,
+                  dim*(dim+1)/2}
+   { }
 };
 #endif
 

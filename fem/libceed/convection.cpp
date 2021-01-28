@@ -23,24 +23,25 @@ namespace ceed
 {
 
 #ifdef MFEM_USE_CEED
-struct ConvectionOperatorInfo
+struct ConvectionOperatorInfo : public OperatorInfo
 {
-   static constexpr const char *header = "/convection_qf.h";
-   static constexpr const char *build_func_const = ":f_build_conv_const";
-   static constexpr const char *build_func_quad = ":f_build_conv_quad";
-   static constexpr const char *apply_func = ":f_apply_conv";
-   static constexpr const char *apply_func_mf_const = ":f_apply_conv_mf_const";
-   static constexpr const char *apply_func_mf_quad = ":f_apply_conv_mf_quad";
-   static constexpr CeedQFunctionUser build_qf_const = &f_build_conv_const;
-   static constexpr CeedQFunctionUser build_qf_quad = &f_build_conv_quad;
-   static constexpr CeedQFunctionUser apply_qf = &f_apply_conv;
-   static constexpr CeedQFunctionUser apply_qf_mf_const = &f_apply_conv_mf_const;
-   static constexpr CeedQFunctionUser apply_qf_mf_quad = &f_apply_conv_mf_quad;
-   static constexpr EvalMode trial_op = EvalMode::Grad;
-   static constexpr EvalMode test_op = EvalMode::Interp;
-   const int qdatasize;
    ConvectionContext ctx;
-   ConvectionOperatorInfo(int dim) : qdatasize(dim * (dim + 1) / 2) { }
+   ConvectionOperatorInfo(int dim)
+   : OperatorInfo{"/convection_qf.h",
+                  ":f_build_conv_const",
+                  ":f_build_conv_quad",
+                  ":f_apply_conv",
+                  ":f_apply_conv_mf_const",
+                  ":f_apply_conv_mf_quad",
+                  &f_build_conv_const,
+                  &f_build_conv_quad,
+                  &f_apply_conv,
+                  &f_apply_conv_mf_const,
+                  &f_apply_conv_mf_quad,
+                  EvalMode::Grad,
+                  EvalMode::Interp,
+                  dim * (dim + 1) / 2}
+   { }
 };
 #endif
 

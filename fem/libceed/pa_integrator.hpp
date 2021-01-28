@@ -23,6 +23,24 @@ namespace mfem
 namespace ceed
 {
 
+struct OperatorInfo
+{
+   const char *header;
+   const char *build_func_const;
+   const char *build_func_quad;
+   const char *apply_func;
+   const char *apply_func_mf_const;
+   const char *apply_func_mf_quad;
+   CeedQFunctionUser build_qf_const;
+   CeedQFunctionUser build_qf_quad;
+   CeedQFunctionUser apply_qf;
+   CeedQFunctionUser apply_qf_mf_const;
+   CeedQFunctionUser apply_qf_mf_quad;
+   EvalMode trial_op;
+   EvalMode test_op;
+   int qdatasize;
+};
+
 /** This class represent a partially assembled operator using libCEED. */
 class PAIntegrator : public Operator
 {
