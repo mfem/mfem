@@ -626,10 +626,15 @@ void VectorFEBoundaryTangentLFIntegrator::AssembleRHSElementVect(
       {
          Tr.Jacobian().MultTranspose(f_loc, f_hat);
       }
-      else
+      else if (dim == 1)
       {
          const DenseMatrix & J = Tr.Jacobian();
          f_hat(0) = J(0,0) * f_loc(0) + J(1,0) * f_loc(1);
+         f_hat(1) = f_loc(2);
+      }
+      else
+      {
+         f_hat(0) = f_loc(1);
          f_hat(1) = f_loc(2);
       }
 
