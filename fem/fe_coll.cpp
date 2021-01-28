@@ -2745,6 +2745,7 @@ ND_R1D_FECollection::ND_R1D_FECollection(const int p, const int dim,
       MFEM_ABORT("Invalid closed basis point type: " << cb_name);
    }
 
+   ND_Elements[Geometry::POINT] = new ND_R1D_PointElement(p);
    ND_dof[Geometry::POINT] = 2;
 
    ND_Elements[Geometry::SEGMENT] = new ND_R1D_SegmentElement(p,
@@ -2812,6 +2813,7 @@ RT_R1D_FECollection::RT_R1D_FECollection(const int p, const int dim,
       MFEM_ABORT("Invalid closed basis point type: " << cb_name);
    }
 
+   RT_Elements[Geometry::POINT] = new PointFiniteElement;
    RT_dof[Geometry::POINT] = 1;
 
    RT_Elements[Geometry::SEGMENT] = new RT_R1D_SegmentElement(p,
