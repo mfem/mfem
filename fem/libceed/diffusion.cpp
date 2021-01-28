@@ -27,20 +27,20 @@ struct DiffusionOperatorInfo : public OperatorInfo
 {
    DiffusionContext ctx;
    DiffusionOperatorInfo(int dim)
-   : OperatorInfo{"/diffusion_qf.h",
-                  ":f_build_diff_const",
-                  ":f_build_diff_quad",
-                  ":f_apply_diff",
-                  ":f_apply_diff_mf_const",
-                  ":f_apply_diff_mf_quad",
-                  &f_build_diff_const,
-                  &f_build_diff_quad,
-                  &f_apply_diff,
-                  &f_apply_diff_mf_const,
-                  &f_apply_diff_mf_quad,
-                  EvalMode::Grad,
-                  EvalMode::Grad,
-                  dim*(dim+1)/2}
+      : OperatorInfo{"/diffusion_qf.h",
+                     ":f_build_diff_const",
+                     ":f_build_diff_quad",
+                     ":f_apply_diff",
+                     ":f_apply_diff_mf_const",
+                     ":f_apply_diff_mf_quad",
+                     &f_build_diff_const,
+                     &f_build_diff_quad,
+                     &f_apply_diff,
+                     &f_apply_diff_mf_const,
+                     &f_apply_diff_mf_quad,
+                     EvalMode::Grad,
+                     EvalMode::Grad,
+                     dim*(dim+1)/2}
    { }
 };
 #endif
