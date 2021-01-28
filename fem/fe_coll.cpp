@@ -2828,6 +2828,7 @@ const int *RT_R1D_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
 
 FiniteElementCollection *RT_R1D_FECollection::GetTraceCollection() const
 {
+   MFEM_ABORT("this method is not implemented in RT_R1D_FECollection!");
    return NULL;
 }
 
