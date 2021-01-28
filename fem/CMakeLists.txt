@@ -94,11 +94,10 @@ set(HDRS
   libceed/coefficient.hpp
   libceed/convection.hpp
   libceed/diffusion.hpp
-  libceed/mf_integrator.hpp
+  libceed/integrator.hpp
   libceed/mass.hpp
   libceed/nlconvection.hpp
   libceed/operator.hpp
-  libceed/pa_integrator.hpp
   libceed/util.hpp
   linearform.hpp
   lininteg.hpp
