@@ -3405,32 +3405,41 @@ public:
 
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
-   virtual void GetLocalInterpolation(ElementTransformation &Trans,
-                                      DenseMatrix &I) const
-   { LocalInterpolation_RT(*this, nk, dof2nk, Trans, I); }
-   virtual void GetLocalRestriction(ElementTransformation &Trans,
-                                    DenseMatrix &R) const
-   { LocalRestriction_RT(nk, dof2nk, Trans, R); }
-   virtual void GetTransferMatrix(const FiniteElement &fe,
-                                  ElementTransformation &Trans,
-                                  DenseMatrix &I) const
-   { LocalInterpolation_RT(CheckVectorFE(fe), nk, dof2nk, Trans, I); }
-   using FiniteElement::Project;
+
    virtual void Project(VectorCoefficient &vc,
-                        ElementTransformation &Trans, Vector &dofs) const
-   { Project_RT(nk, dof2nk, vc, Trans, dofs); }
-   virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
-                                 Vector &dofs) const
-   { Project_RT(nk, dof2nk, vc, Trans, dofs); }
-   virtual void ProjectMatrixCoefficient(
-      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
-   { ProjectMatrixCoefficient_RT(nk, dof2nk, mc, T, dofs); }
-   virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
-                        DenseMatrix &I) const
-   { Project_RT(nk, dof2nk, fe, Trans, I); }
+                        ElementTransformation &Trans, Vector &dofs) const;
+
    virtual void ProjectCurl(const FiniteElement &fe,
                             ElementTransformation &Trans,
                             DenseMatrix &curl) const;
+   /*
+    virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                       DenseMatrix &I) const
+    { LocalInterpolation_RT(*this, nk, dof2nk, Trans, I); }
+    virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                     DenseMatrix &R) const
+    { LocalRestriction_RT(nk, dof2nk, Trans, R); }
+    virtual void GetTransferMatrix(const FiniteElement &fe,
+                                   ElementTransformation &Trans,
+                                   DenseMatrix &I) const
+    { LocalInterpolation_RT(CheckVectorFE(fe), nk, dof2nk, Trans, I); }
+    using FiniteElement::Project;
+    virtual void Project(VectorCoefficient &vc,
+                         ElementTransformation &Trans, Vector &dofs) const
+    { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+    virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
+                                  Vector &dofs) const
+    { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+    virtual void ProjectMatrixCoefficient(
+       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+    { ProjectMatrixCoefficient_RT(nk, dof2nk, mc, T, dofs); }
+    virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
+                         DenseMatrix &I) const
+    { Project_RT(nk, dof2nk, fe, Trans, I); }
+    virtual void ProjectCurl(const FiniteElement &fe,
+                             ElementTransformation &Trans,
+                             DenseMatrix &curl) const;
+   */
 };
 
 

@@ -12794,7 +12794,7 @@ void ND_R1D_SegmentElement::CalcCurlShape(const IntegrationPoint &ip,
 }
 
 void ND_R1D_SegmentElement::CalcPhysCurlShape(ElementTransformation &Trans,
-					      DenseMatrix &curl_shape) const
+                                              DenseMatrix &curl_shape) const
 {
    CalcCurlShape(Trans.GetIntPoint(), curl_shape);
    const DenseMatrix & J = Trans.Jacobian();
@@ -12964,9 +12964,34 @@ void RT_R1D_SegmentElement::CalcDivShape(const IntegrationPoint &ip,
    }
 }
 
+void RT_R1D_SegmentElement::Project(VectorCoefficient &vc,
+                                    ElementTransformation &Trans,
+                                    Vector &dofs) const
+{
+   double data[3];
+   Vector vk1(data, 1);
+   Vector vk3(data, 3);
+
+   double * nk_ptr = const_cast<double*>(nk);
+
+   for (int k = 0; k < dof; k++)
+   {
+      Trans.SetIntPoint(&Nodes.IntPoint(k));
+
+      vc.Eval(vk3, Trans, Nodes.IntPoint(k));
+      // dof_k = nk^t adj(J) vk
+      Vector n1(&nk_ptr[dof2nk[k] * 3], 1);
+      Vector n3(&nk_ptr[dof2nk[k] * 3], 3);
+
+      dofs(k) = Trans.AdjugateJacobian().InnerProduct(vk1, n1) +
+                Trans.Weight() * vk3(1) * n3(1) +
+                Trans.Weight() * vk3(2) * n3(2);
+   }
+}
+
 void RT_R1D_SegmentElement::ProjectCurl(const FiniteElement &fe,
-                                       ElementTransformation &Trans,
-                                       DenseMatrix &curl) const
+                                        ElementTransformation &Trans,
+                                        DenseMatrix &curl) const
 {
    DenseMatrix curl_shape(fe.GetDof(), fe.GetVDim());
    Vector curl_k(fe.GetDof());
