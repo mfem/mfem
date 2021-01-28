@@ -12654,6 +12654,11 @@ ND_R1D_SegmentElement::ND_R1D_SegmentElement(const int p,
      cbasis1d(poly1d.GetBasis(p, VerifyClosed(cb_type))),
      obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(ob_type)))
 {
+   // Override default types for VectorFiniteElements
+   deriv_type = CURL;
+   deriv_range_type = VECTOR;
+   deriv_map_type = H_DIV;
+
    const double *cp = poly1d.ClosedPoints(p, cb_type);
    const double *op = poly1d.OpenPoints(p - 1, ob_type);
 
@@ -13126,6 +13131,20 @@ void ND_R2D_SegmentElement::CalcCurlShape(const IntegrationPoint &ip,
       int idx = dof_map[o++];
       curl_shape(idx,0) = -dshape_cx(i);
    }
+}
+
+ND_R2D_FiniteElement::ND_R2D_FiniteElement(int p, Geometry::Type G, int Do,
+                                           const double *tk_fe)
+   : VectorFiniteElement(2, 3, 3, G, Do, p,
+                         H_CURL, FunctionSpace::Pk),
+     tk(tk_fe),
+     dof_map(dof),
+     dof2tk(dof)
+{
+   // Override default types for VectorFiniteElements
+   deriv_type = CURL;
+   deriv_range_type = VECTOR;
+   deriv_map_type = H_DIV;
 }
 
 void ND_R2D_FiniteElement::CalcVShape(ElementTransformation &Trans,
@@ -13669,6 +13688,15 @@ void RT_R2D_SegmentElement::CalcDivShape(const IntegrationPoint &ip,
 {
    div_shape = 0.0;
 }
+
+RT_R2D_FiniteElement::RT_R2D_FiniteElement(int p, Geometry::Type G, int Do,
+                                           const double *nk_fe)
+   : VectorFiniteElement(2, 3, 0, G, Do, p + 1,
+                         H_DIV, FunctionSpace::Pk),
+     nk(nk_fe),
+     dof_map(dof),
+     dof2nk(dof)
+{}
 
 void RT_R2D_FiniteElement::CalcVShape(ElementTransformation &Trans,
                                       DenseMatrix &shape) const

@@ -3480,13 +3480,7 @@ protected:
    const double *tk;
    Array<int> dof_map, dof2tk;
 
-   ND_R2D_FiniteElement(int p, Geometry::Type G, int Do, const double *tk_fe)
-      : VectorFiniteElement(2, 3, 3, G, Do, p,
-                            H_CURL, FunctionSpace::Pk),
-        tk(tk_fe),
-        dof_map(dof),
-        dof2tk(dof)
-   {}
+   ND_R2D_FiniteElement(int p, Geometry::Type G, int Do, const double *tk_fe);
 
 public:
    using FiniteElement::CalcVShape;
@@ -3601,13 +3595,7 @@ protected:
    const double *nk;
    Array<int> dof_map, dof2nk;
 
-   RT_R2D_FiniteElement(int p, Geometry::Type G, int Do, const double *nk_fe)
-      : VectorFiniteElement(2, 3, 0, G, Do, p + 1,
-                            H_DIV, FunctionSpace::Pk),
-        nk(nk_fe),
-        dof_map(dof),
-        dof2nk(dof)
-   {}
+   RT_R2D_FiniteElement(int p, Geometry::Type G, int Do, const double *nk_fe);
 
 public:
    using FiniteElement::CalcVShape;
