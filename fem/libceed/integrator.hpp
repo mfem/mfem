@@ -24,21 +24,45 @@ namespace mfem
 namespace ceed
 {
 
+/** This structure is a template interface for the Assemble methods of
+    PAIntegrator and MFIntegrator. See libceed/mass.cpp for an example. */
 struct OperatorInfo
 {
+   /** The path to the qFunction header. */
    const char *header;
+   /** The name of the qFunction to build a partially assembled CeedOperator
+       with a constant Coefficient. */
    const char *build_func_const;
+   /** The name of the qFunction to build a partially assembled CeedOperator
+       with a variable Coefficient. */
    const char *build_func_quad;
+   /** The name of the qFunction to apply a partially assembled CeedOperator. */
    const char *apply_func;
+   /** The name of the qFunction to apply a matrix-free CeedOperator with a
+       constant Coefficient. */
    const char *apply_func_mf_const;
+   /** The name of the qFunction to apply a matrix-free CeedOperator with a
+       variable Coefficient. */
    const char *apply_func_mf_quad;
+   /** The qFunction to build a partially assembled CeedOperator with a constant
+       Coefficient. */
    CeedQFunctionUser build_qf_const;
+   /** The qFunction to build a partially assembled CeedOperator with a variable
+       Coefficient. */
    CeedQFunctionUser build_qf_quad;
+   /** The qFunction to apply a partially assembled CeedOperator. */
    CeedQFunctionUser apply_qf;
+   /** The qFunction to apply a matrix-free CeedOperator with a constant
+       Coefficient. */
    CeedQFunctionUser apply_qf_mf_const;
+   /** The qFunction to apply a matrix-free CeedOperator with a variable
+       Coefficient. */
    CeedQFunctionUser apply_qf_mf_quad;
+   /** The EvalMode on the trial basis functions. */
    EvalMode trial_op;
+   /** The EvalMode on the test basis functions. */
    EvalMode test_op;
+   /** The size of the data at each quadrature point. */
    int qdatasize;
 };
 
