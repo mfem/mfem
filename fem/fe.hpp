@@ -3293,6 +3293,28 @@ public:
 };
 
 
+/// Arbitrary order Nedelec 3D elements in 1D on a point
+/** ND_R1D_PointElement provides a representation of a 3D Nedelec
+    basis where the vector field is assumed constant in the second and
+    third dimensions.
+*/
+class ND_R1D_PointElement : public VectorFiniteElement
+{
+   static const double tk[9];
+
+public:
+   /** @brief Construct the ND_R1D_PointElement */
+   ND_R1D_PointElement(int p);
+
+   using FiniteElement::CalcVShape;
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const;
+};
+
 /// Arbitrary order Nedelec 3D elements in 1D on a segment
 /** ND_R1D_SegmentElement provides a representation of a 3D Nedelec
     basis where the vector field is assumed constant in the second and

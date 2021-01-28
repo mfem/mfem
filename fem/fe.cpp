@@ -12643,6 +12643,31 @@ void ND_SegmentElement::CalcVShape(const IntegrationPoint &ip,
    obasis1d.Eval(ip.x, vshape);
 }
 
+ND_R1D_PointElement::ND_R1D_PointElement(int p)
+   : VectorFiniteElement(1, 2, 0, Geometry::POINT, 2, p,
+                         H_CURL, FunctionSpace::Pk)
+{
+   // VectorFiniteElement::SetDerivMembers doesn't support 0D H_CURL elements
+   // so we mimic a 1D element and then correct the dimension here.
+   dim = 0;
+}
+
+void ND_R1D_PointElement::CalcVShape(const IntegrationPoint &ip,
+                                     DenseMatrix &shape) const
+{
+   shape(0,0) = 1.0;
+   shape(0,1) = 0.0;
+
+   shape(1,0) = 0.0;
+   shape(1,1) = 1.0;
+}
+
+void ND_R1D_PointElement::CalcVShape(ElementTransformation &Trans,
+                                     DenseMatrix &shape) const
+{
+   CalcVShape(Trans.GetIntPoint(), shape);
+}
+
 const double ND_R1D_SegmentElement::tk[9] = { 1.,0.,0., 0.,1.,0., 0.,0.,1. };
 
 ND_R1D_SegmentElement::ND_R1D_SegmentElement(const int p,
