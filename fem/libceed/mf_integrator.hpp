@@ -24,31 +24,7 @@ namespace mfem
 namespace ceed
 {
 
-#ifdef MFEM_USE_CEED
-/** This structure contains the data to assemble a matrix-free operator with
-    libCEED. See libceed/mass.cpp or libceed/diffusion.cpp for examples. */
-struct MFOperator
-{
-   /** The finite element space for the trial and test functions. */
-   const mfem::FiniteElementSpace &fes;
-   /** The Integration Rule to use to compote the operator. */
-   const mfem::IntegrationRule &ir;
-   /** The path to the header containing the functions for libCEED. */
-   std::string header;
-   /** The name of the Qfunction to apply the operator. */
-   std::string apply_func;
-   /** The Qfunction to apply the operator. */
-   CeedQFunctionUser apply_qf;
-   /** The evaluation mode to apply to the trial function (CEED_EVAL_INTERP,
-       CEED_EVAL_GRAD, etc.) */
-   EvalMode trial_op;
-   /** The evaluation mode to apply to the test function ( CEED_EVAL_INTERP,
-       CEED_EVAL_GRAD, etc.) */
-   EvalMode test_op;
-};
-#endif
-
-/** This class represent a matrix-free operator using libCEED.*/
+/** This class represent a matrix-free operator using libCEED. */
 class MFIntegrator : public Operator
 {
 #ifdef MFEM_USE_CEED
@@ -68,16 +44,16 @@ public:
         apply_qfunc(nullptr), node_coords(nullptr),
         qdata(nullptr), coeff(nullptr), build_ctx(nullptr) { }
 
-
-   /** This method initializes the MFIntegrator with the given CeedOperatorInfo
+   /** This method assembles the MFIntegrator with the given CeedOperatorInfo
        @a info, an mfem::FiniteElementSpace @a fes, an mfem::IntegrationRule
        @a ir, and mfem::Coefficient or mfem::VectorCoefficient @a Q.*/
    template <typename CeedOperatorInfo, typename CoeffType>
-   MFOperator InitMF(CeedOperatorInfo &info,
-                     const mfem::FiniteElementSpace &fes,
-                     const mfem::IntegrationRule &irm,
-                     CoeffType *Q)
+   void Assemble(CeedOperatorInfo &info,
+                 const mfem::FiniteElementSpace &fes,
+                 const mfem::IntegrationRule &irm,
+                 CoeffType *Q)
    {
+      Ceed ceed(internal::ceed);
       Mesh &mesh = *fes.GetMesh();
       InitCoefficient(Q, mesh, irm, coeff, info.ctx);
       bool const_coeff = coeff->IsConstant();
@@ -85,40 +61,30 @@ public:
                                : info.apply_func_mf_quad;
       CeedQFunctionUser apply_qf = const_coeff ? info.apply_qf_mf_const
                                    : info.apply_qf_mf_quad;
-      return MFOperator{fes, irm,
-                        info.header,
-                        apply_func, apply_qf,
-                        info.trial_op,
-                        info.test_op
-                       };
-   }
+      MFOperator op {info.header,
+                     apply_func, apply_qf,
+                     info.trial_op,
+                     info.test_op
+                    };
+      CeedInt nqpts, nelem = mesh.GetNE();
+      CeedInt dim = mesh.SpaceDimension(), vdim = fes.GetVDim();
 
-   template <typename Context>
-   void Assemble(MFOperator &op, Context &ctx)
-   {
-      const mfem::FiniteElementSpace &fes = op.fes;
-      const mfem::IntegrationRule &irm = op.ir;
-      Ceed ceed(internal::ceed);
-      mfem::Mesh *mesh = fes.GetMesh();
-      CeedInt nqpts, nelem = mesh->GetNE();
-      CeedInt dim = mesh->SpaceDimension(), vdim = fes.GetVDim();
-
-      mesh->EnsureNodes();
+      mesh.EnsureNodes();
       InitBasisAndRestriction(fes, irm, ceed, &basis, &restr);
 
-      const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
+      const mfem::FiniteElementSpace *mesh_fes = mesh.GetNodalFESpace();
       MFEM_VERIFY(mesh_fes, "the Mesh has no nodal FE space");
       InitBasisAndRestriction(*mesh_fes, irm, ceed, &mesh_basis,
                               &mesh_restr);
 
       CeedBasisGetNumQuadraturePoints(basis, &nqpts);
 
-      InitVector(*mesh->GetNodes(), node_coords);
+      InitVector(*mesh.GetNodes(), node_coords);
 
       // Context data to be passed to the Q-function.
-      ctx.dim = mesh->Dimension();
-      ctx.space_dim = mesh->SpaceDimension();
-      ctx.vdim = fes.GetVDim();
+      info.ctx.dim = mesh.Dimension();
+      info.ctx.space_dim = mesh.SpaceDimension();
+      info.ctx.vdim = fes.GetVDim();
 
       std::string qf_file = GetCeedPath() + op.header;
       std::string qf = qf_file + op.apply_func;
@@ -171,8 +137,8 @@ public:
       CeedQFunctionContextCreate(ceed, &build_ctx);
       CeedQFunctionContextSetData(build_ctx, CEED_MEM_HOST,
                                   CEED_COPY_VALUES,
-                                  sizeof(ctx),
-                                  &ctx);
+                                  sizeof(info.ctx),
+                                  &info.ctx);
       CeedQFunctionSetContext(apply_qfunc, build_ctx);
 
       // Create the operator.
@@ -189,7 +155,7 @@ public:
       {
          const int ncomp = quadCoeff->ncomp;
          CeedInt strides[3] = {ncomp, 1, ncomp*nqpts};
-         InitStridedRestriction(*mesh->GetNodalFESpace(),
+         InitStridedRestriction(*mesh.GetNodalFESpace(),
                                 nelem, nqpts, ncomp, strides,
                                 &quadCoeff->restr);
          CeedOperatorSetField(oper, "coeff", quadCoeff->restr,
@@ -248,6 +214,25 @@ public:
       CeedVectorDestroy(&qdata);
       delete coeff;
    }
+
+private:
+   /** This structure contains the data to assemble a matrix-free operator with
+       libCEED. */
+   struct MFOperator
+   {
+      /** The path to the header containing the functions for libCEED. */
+      std::string header;
+      /** The name of the Qfunction to apply the operator. */
+      std::string apply_func;
+      /** The Qfunction to apply the operator. */
+      CeedQFunctionUser apply_qf;
+      /** The evaluation mode to apply to the trial function (CEED_EVAL_INTERP,
+          CEED_EVAL_GRAD, etc.) */
+      EvalMode trial_op;
+      /** The evaluation mode to apply to the test function ( CEED_EVAL_INTERP,
+          CEED_EVAL_GRAD, etc.) */
+      EvalMode test_op;
+   };
 #endif
 };
 
