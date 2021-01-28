@@ -21,7 +21,6 @@ namespace mfem
 
 void ConvectionIntegrator::AssembleMF(const FiniteElementSpace &fes)
 {
-#ifdef MFEM_USE_CEED
    // Assuming the same element type
    Mesh *mesh = fes.GetMesh();
    if (mesh->GetNE() == 0) { return; }
@@ -35,19 +34,16 @@ void ConvectionIntegrator::AssembleMF(const FiniteElementSpace &fes)
       ceedOp = new ceed::MFConvectionIntegrator(fes, *ir, Q, alpha);
       return;
    }
-#endif
    MFEM_ABORT("Error: ConvectionIntegrator::AssembleMF only implemented with libCEED");
 }
 
 void ConvectionIntegrator::AssembleDiagonalMF(Vector &diag)
 {
-#ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
       ceedOp->GetDiagonal(diag);
    }
    else
-#endif
    {
       MFEM_ABORT("Error: ConvectionIntegrator::AssembleDiagonalMF only implemented with libCEED");
    }
@@ -55,13 +51,11 @@ void ConvectionIntegrator::AssembleDiagonalMF(Vector &diag)
 
 void ConvectionIntegrator::AddMultMF(const Vector &x, Vector &y) const
 {
-#ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
       ceedOp->AddMult(x, y);
    }
    else
-#endif
    {
       MFEM_ABORT("Error: ConvectionIntegrator::AddMultMF only implemented with libCEED");
    }

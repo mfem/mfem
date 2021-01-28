@@ -21,7 +21,6 @@ namespace mfem
 
 void VectorDiffusionIntegrator::AssembleMF(const FiniteElementSpace &fes)
 {
-#ifdef MFEM_USE_CEED
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
    if (mesh->GetNE() == 0) { return; }
@@ -34,19 +33,16 @@ void VectorDiffusionIntegrator::AssembleMF(const FiniteElementSpace &fes)
       ceedOp = new ceed::MFDiffusionIntegrator(fes, *ir, Q);
       return;
    }
-#endif
    MFEM_ABORT("Error: VectorDiffusionIntegrator::AssembleMF only implemented with libCEED");
 }
 
 void VectorDiffusionIntegrator::AddMultMF(const Vector &x, Vector &y) const
 {
-#ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
       ceedOp->AddMult(x, y);
    }
    else
-#endif
    {
       MFEM_ABORT("Error: VectorDiffusionIntegrator::AssembleDiagonalMF only implemented with libCEED");
    }
@@ -54,13 +50,11 @@ void VectorDiffusionIntegrator::AddMultMF(const Vector &x, Vector &y) const
 
 void VectorDiffusionIntegrator::AssembleDiagonalMF(Vector &diag)
 {
-#ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
       ceedOp->GetDiagonal(diag);
    }
    else
-#endif
    {
       MFEM_ABORT("Error: VectorDiffusionIntegrator::AddMultMF only implemented with libCEED");
    }
