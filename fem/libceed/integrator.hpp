@@ -24,6 +24,7 @@ namespace mfem
 namespace ceed
 {
 
+#ifdef MFEM_USE_CEED
 /** This structure is a template interface for the Assemble methods of
     PAIntegrator and MFIntegrator. See libceed/mass.cpp for an example. */
 struct OperatorInfo
@@ -65,6 +66,7 @@ struct OperatorInfo
    /** The size of the data at each quadrature point. */
    int qdatasize;
 };
+#endif
 
 /** This class represent a partially assembled operator using libCEED. */
 class PAIntegrator : public Operator
