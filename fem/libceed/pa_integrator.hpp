@@ -47,7 +47,23 @@ public:
 
    /** This method assembles the PAIntegrator with the given CeedOperatorInfo
        @a info, an mfem::FiniteElementSpace @a fes, an mfem::IntegrationRule
-       @a ir, and mfem::Coefficient or mfem::VectorCoefficient @a Q.*/
+       @a ir, and mfem::Coefficient or mfem::VectorCoefficient @a Q.
+       The CeedOperatorInfo type is expected to have the following fields:
+         static constexpr const char *header;
+         static constexpr const char *build_func_const;
+         static constexpr const char *build_func_quad;
+         static constexpr const char *apply_func;
+         static constexpr const char *apply_func_mf_const;
+         static constexpr const char *apply_func_mf_quad;
+         static constexpr CeedQFunctionUser build_qf_const;
+         static constexpr CeedQFunctionUser build_qf_quad;
+         static constexpr CeedQFunctionUser apply_qf;
+         static constexpr CeedQFunctionUser apply_qf_mf_const;
+         static constexpr CeedQFunctionUser apply_qf_mf_quad;
+         static constexpr EvalMode trial_op;
+         static constexpr EvalMode test_op;
+         const int qdatasize;
+         Context ctx; // The Context type can be anything. */
    template <typename CeedOperatorInfo, typename CoeffType>
    void Assemble(CeedOperatorInfo &info,
                  const mfem::FiniteElementSpace &fes,
