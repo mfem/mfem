@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
    int dim = mesh->Dimension();
 
    MFEM_VERIFY(dim == 1 || dim == 2,
-	       "This example is designed for 1D or 2D meshes only.");
+               "This example is designed for 1D or 2D meshes only.");
 
    // 4. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement (2 by default, or
@@ -112,15 +112,15 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec_nd = NULL;
    FiniteElementCollection *fec_rt = NULL;
    if (dim == 1)
-     {
-       fec_nd = new ND_R1D_FECollection(order, dim);
-       fec_rt = new RT_R1D_FECollection(order-1, dim);
-     }
+   {
+      fec_nd = new ND_R1D_FECollection(order, dim);
+      fec_rt = new RT_R1D_FECollection(order-1, dim);
+   }
    else
-     {
-       fec_nd = new ND_R2D_FECollection(order, dim);
-       fec_rt = new RT_R2D_FECollection(order-1, dim);
-     }
+   {
+      fec_nd = new ND_R2D_FECollection(order, dim);
+      fec_rt = new RT_R2D_FECollection(order-1, dim);
+   }
    ParFiniteElementSpace fespace_nd(&pmesh, fec_nd);
    ParFiniteElementSpace fespace_rt(&pmesh, fec_rt);
    HYPRE_Int size_nd = fespace_nd.GlobalTrueVSize();
@@ -355,6 +355,6 @@ int main(int argc, char *argv[])
 
    delete fec_nd;
    delete fec_rt;
-   
+
    return 0;
 }
