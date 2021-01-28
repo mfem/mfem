@@ -47,7 +47,7 @@ void Operator::Mult(const mfem::Vector &x, mfem::Vector &y) const
    CeedVectorTakeArray(u, mem, const_cast<CeedScalar**>(&x_ptr));
    CeedVectorTakeArray(v, mem, &y_ptr);
 #else
-   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
 }
 
@@ -77,7 +77,7 @@ void Operator::AddMult(const mfem::Vector &x, mfem::Vector &y) const
    CeedVectorTakeArray(u, mem, const_cast<CeedScalar**>(&x_ptr));
    CeedVectorTakeArray(v, mem, &y_ptr);
 #else
-   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
 }
 
@@ -102,7 +102,7 @@ void Operator::GetDiagonal(mfem::Vector &diag) const
 
    CeedVectorTakeArray(v, mem, &d_ptr);
 #else
-   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
 }
 
