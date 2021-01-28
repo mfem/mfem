@@ -23,37 +23,7 @@ namespace mfem
 namespace ceed
 {
 
-#ifdef MFEM_USE_CEED
-/** This structure contains the data to assemble a partially assembled operator
-    with libCEED. See libceed/mass.cpp or libceed/diffusion.cpp for examples. */
-struct PAOperator
-{
-   /** The finite element space for the trial and test functions. */
-   const mfem::FiniteElementSpace &fes;
-   /** The Integration Rule to use to compute the operator. */
-   const mfem::IntegrationRule &ir;
-   /** The number of quadrature data at each quadrature point. */
-   int qdatasize;
-   /** The path to the header containing the functions for libCEED. */
-   std::string header;
-   /** The name of the Qfunction to build the quadrature data. */
-   std::string build_func;
-   /** The Qfunction to build the quadrature data. */
-   CeedQFunctionUser build_qf;
-   /** The name of the Qfunction to apply the operator. */
-   std::string apply_func;
-   /** The Qfunction to apply the operator. */
-   CeedQFunctionUser apply_qf;
-   /** The evaluation mode to apply to the trial function (CEED_EVAL_INTERP,
-       CEED_EVAL_GRAD, etc.) */
-   EvalMode trial_op;
-   /** The evaluation mode to apply to the test function ( CEED_EVAL_INTERP,
-       CEED_EVAL_GRAD, etc.)*/
-   EvalMode test_op;
-};
-#endif
-
-/** This class represent a partially assembled operator using libCEED.*/
+/** This class represent a partially assembled operator using libCEED. */
 class PAIntegrator : public Operator
 {
 #ifdef MFEM_USE_CEED
@@ -75,15 +45,16 @@ public:
         qdata(nullptr), coeff(nullptr), build_ctx(nullptr), build_oper(nullptr)
    { }
 
-   /** This method initializes the PAIntegrator with the given CeedOperatorInfo
+   /** This method assembles the PAIntegrator with the given CeedOperatorInfo
        @a info, an mfem::FiniteElementSpace @a fes, an mfem::IntegrationRule
        @a ir, and mfem::Coefficient or mfem::VectorCoefficient @a Q.*/
    template <typename CeedOperatorInfo, typename CoeffType>
-   PAOperator InitPA(CeedOperatorInfo &info,
-                     const mfem::FiniteElementSpace &fes,
-                     const mfem::IntegrationRule &irm,
-                     CoeffType *Q)
+   void Assemble(CeedOperatorInfo &info,
+                 const mfem::FiniteElementSpace &fes,
+                 const mfem::IntegrationRule &irm,
+                 CoeffType *Q)
    {
+      Ceed ceed(internal::ceed);
       mfem::Mesh &mesh = *fes.GetMesh();
       InitCoefficient(Q, mesh, irm, coeff, info.ctx);
       bool const_coeff = coeff->IsConstant();
@@ -91,29 +62,19 @@ public:
                                : info.build_func_quad;
       CeedQFunctionUser build_qf = const_coeff ? info.build_qf_const
                                    : info.build_qf_quad;
-      return PAOperator{fes, irm,
-                        info.qdatasize, info.header,
-                        build_func, build_qf,
-                        info.apply_func, info.apply_qf,
-                        info.trial_op,
-                        info.test_op
-                       };
-   }
+      PAOperator op {info.qdatasize, info.header,
+                     build_func, build_qf,
+                     info.apply_func, info.apply_qf,
+                     info.trial_op,
+                     info.test_op
+                    };
+      CeedInt nqpts, nelem = mesh.GetNE();
+      CeedInt dim = mesh.SpaceDimension(), vdim = fes.GetVDim();
 
-   template <typename Context>
-   void Assemble(PAOperator &op, Context &ctx)
-   {
-      const mfem::FiniteElementSpace &fes = op.fes;
-      const mfem::IntegrationRule &irm = op.ir;
-      Ceed ceed(internal::ceed);
-      mfem::Mesh *mesh = fes.GetMesh();
-      CeedInt nqpts, nelem = mesh->GetNE();
-      CeedInt dim = mesh->SpaceDimension(), vdim = fes.GetVDim();
-
-      mesh->EnsureNodes();
+      mesh.EnsureNodes();
       InitBasisAndRestriction(fes, irm, ceed, &basis, &restr);
 
-      const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
+      const mfem::FiniteElementSpace *mesh_fes = mesh.GetNodalFESpace();
       MFEM_VERIFY(mesh_fes, "the Mesh has no nodal FE space");
       InitBasisAndRestriction(*mesh_fes, irm, ceed, &mesh_basis,
                               &mesh_restr);
@@ -125,14 +86,14 @@ public:
                              CEED_STRIDES_BACKEND,
                              &restr_i);
 
-      InitVector(*mesh->GetNodes(), node_coords);
+      InitVector(*mesh.GetNodes(), node_coords);
 
       CeedVectorCreate(ceed, nelem * nqpts * qdatasize, &qdata);
 
       // Context data to be passed to the Q-function.
-      ctx.dim = mesh->Dimension();
-      ctx.space_dim = mesh->SpaceDimension();
-      ctx.vdim = fes.GetVDim();
+      info.ctx.dim = mesh.Dimension();
+      info.ctx.space_dim = mesh.SpaceDimension();
+      info.ctx.vdim = fes.GetVDim();
 
       std::string qf_file = GetCeedPath() + op.header;
       std::string qf = qf_file + op.build_func;
@@ -152,8 +113,8 @@ public:
       CeedQFunctionContextCreate(ceed, &build_ctx);
       CeedQFunctionContextSetData(build_ctx, CEED_MEM_HOST,
                                   CEED_COPY_VALUES,
-                                  sizeof(ctx),
-                                  &ctx);
+                                  sizeof(info.ctx),
+                                  &info.ctx);
       CeedQFunctionSetContext(build_qfunc, build_ctx);
 
       // Create the operator that builds the quadrature data for the operator.
@@ -270,11 +231,41 @@ public:
       CeedVectorCreate(ceed, vdim*fes.GetNDofs(), &v);
    }
 
-   ~PAIntegrator()
+   virtual ~PAIntegrator()
    {
-      CeedOperatorDestroy(&build_oper);
       CeedQFunctionDestroy(&build_qfunc);
+      CeedQFunctionDestroy(&apply_qfunc);
+      CeedQFunctionContextDestroy(&build_ctx);
+      CeedVectorDestroy(&node_coords);
+      CeedVectorDestroy(&qdata);
+      delete coeff;
+      CeedOperatorDestroy(&build_oper);
    }
+
+private:
+   /** This structure contains the data to assemble a partially assembled
+       operator with libCEED. */
+   struct PAOperator
+   {
+      /** The number of quadrature data at each quadrature point. */
+      int qdatasize;
+      /** The path to the header containing the functions for libCEED. */
+      std::string header;
+      /** The name of the Qfunction to build the quadrature data. */
+      std::string build_func;
+      /** The Qfunction to build the quadrature data. */
+      CeedQFunctionUser build_qf;
+      /** The name of the Qfunction to apply the operator. */
+      std::string apply_func;
+      /** The Qfunction to apply the operator. */
+      CeedQFunctionUser apply_qf;
+      /** The evaluation mode to apply to the trial function (CEED_EVAL_INTERP,
+          CEED_EVAL_GRAD, etc.) */
+      EvalMode trial_op;
+      /** The evaluation mode to apply to the test function ( CEED_EVAL_INTERP,
+          CEED_EVAL_GRAD, etc.)*/
+      EvalMode test_op;
+   };
 #endif
 };
 

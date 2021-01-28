@@ -50,8 +50,7 @@ PAMassIntegrator::PAMassIntegrator(const mfem::FiniteElementSpace &fes,
 {
 #ifdef MFEM_USE_CEED
    MassOperatorInfo info;
-   PAOperator op = InitPA(info, fes, irm, Q);
-   Assemble(op, info.ctx);
+   Assemble(info, fes, irm, Q);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
@@ -64,8 +63,7 @@ MFMassIntegrator::MFMassIntegrator(const mfem::FiniteElementSpace &fes,
 {
 #ifdef MFEM_USE_CEED
    MassOperatorInfo info;
-   MFOperator op = InitMF(info, fes, irm, Q);
-   Assemble(op, info.ctx);
+   Assemble(info, fes, irm, Q);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif

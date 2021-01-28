@@ -52,8 +52,7 @@ PAVectorConvectionNLFIntegrator::PAVectorConvectionNLFIntegrator(
 {
 #ifdef MFEM_USE_CEED
    NLConvectionOperatorInfo info(fes.GetMesh()->Dimension());
-   PAOperator op = InitPA(info, fes, irm, Q);
-   Assemble(op, info.ctx);
+   Assemble(info, fes, irm, Q);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
@@ -67,8 +66,7 @@ MFVectorConvectionNLFIntegrator::MFVectorConvectionNLFIntegrator(
 {
 #ifdef MFEM_USE_CEED
    NLConvectionOperatorInfo info(fes.GetMesh()->Dimension());
-   MFOperator op = InitMF(info, fes, irm, Q);
-   Assemble(op, info.ctx);
+   Assemble(info, fes, irm, Q);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
