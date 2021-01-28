@@ -197,7 +197,14 @@ void BoundaryNormalLFIntegrator::AssembleRHSElementVect(
       const IntegrationPoint &ip = ir->IntPoint(i);
 
       Tr.SetIntPoint(&ip);
-      CalcOrtho(Tr.Jacobian(), nor);
+      if (dim > 1)
+      {
+         CalcOrtho(Tr.Jacobian(), nor);
+      }
+      else
+      {
+         nor[0] = 1.0;
+      }
       Q.Eval(Qvec, Tr, ip);
 
       el.CalcShape(ip, shape);
