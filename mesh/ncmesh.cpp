@@ -5525,7 +5525,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
    // load dimension
    skip_comment_lines(input, '#');
    input >> ident;
-   MFEM_VERIFY(ident == "dimension", "invalid mesh file: " << ident);
+   MFEM_VERIFY(ident == "dimension", "Invalid mesh file: " << ident);
    input >> Dim;
 
    // load rank, if present
@@ -5534,14 +5534,27 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
    if (ident == "rank")
    {
       input >> MyRank;
-      MFEM_VERIFY(MyRank >= 0, "invalid rank");
+      MFEM_VERIFY(MyRank >= 0, "Invalid rank");
+
+      skip_comment_lines(input, '#');
+      input >> ident;
+   }
+
+   // load file SFC version, if present (for future changes to SFC ordering)
+   if (ident == "sfc_version")
+   {
+      int sfc_version; // TODO future: store as class member
+      input >> sfc_version;
+      MFEM_VERIFY(sfc_version == 0,
+                  "Unsupported mesh file SFC version (" << sfc_version << "). "
+                  "Please update MFEM.");
 
       skip_comment_lines(input, '#');
       input >> ident;
    }
 
    // load elements
-   MFEM_VERIFY(ident == "elements", "invalid mesh file: " << ident);
+   MFEM_VERIFY(ident == "elements", "Invalid mesh file: " << ident);
    input >> count;
    for (int i = 0; i < count; i++)
    {
@@ -5620,7 +5633,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
    if (ident == "root_state")
    {
       input >> count;
-      MFEM_VERIFY(count <= root_state.Size(), "too many root states");
+      MFEM_VERIFY(count <= root_state.Size(), "Too many root states");
       for (int i = 0; i < count; i++)
       {
          input >> root_state[i];
@@ -5636,7 +5649,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
       LoadCoordinates(input);
 
       MFEM_VERIFY(coordinates.Size()/3 >= CountTopLevelNodes(),
-                  "invalid mesh file: not all top-level nodes are covered by "
+                  "Invalid mesh file: not all top-level nodes are covered by "
                   "the 'coordinates' section of the mesh file.");
    }
    else if (ident == "nodes")
@@ -5649,7 +5662,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
    }
    else
    {
-      MFEM_ABORT("invalid mesh file: either 'coordinates' or "
+      MFEM_ABORT("Invalid mesh file: either 'coordinates' or "
                  "'nodes' must be present");
    }
 
