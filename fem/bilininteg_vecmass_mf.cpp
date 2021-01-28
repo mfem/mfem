@@ -24,7 +24,6 @@ namespace mfem
 // MF Mass Assemble kernel
 void VectorMassIntegrator::AssembleMF(const FiniteElementSpace &fes)
 {
-#ifdef MFEM_USE_CEED
    // Assuming the same element type
    Mesh *mesh = fes.GetMesh();
    if (mesh->GetNE() == 0) { return; }
@@ -38,19 +37,16 @@ void VectorMassIntegrator::AssembleMF(const FiniteElementSpace &fes)
       ceedOp = new ceed::MFMassIntegrator(fes, *ir, Q);
       return;
    }
-#endif
    MFEM_ABORT("Error: VectorMassIntegrator::AssembleMF only implemented with libCEED");
 }
 
 void VectorMassIntegrator::AddMultMF(const Vector &x, Vector &y) const
 {
-#ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
       ceedOp->AddMult(x, y);
    }
    else
-#endif
    {
       MFEM_ABORT("Error: VectorMassIntegrator::AssembleDiagonalMF only implemented with libCEED");
    }
@@ -58,13 +54,11 @@ void VectorMassIntegrator::AddMultMF(const Vector &x, Vector &y) const
 
 void VectorMassIntegrator::AssembleDiagonalMF(Vector &diag)
 {
-#ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
       ceedOp->GetDiagonal(diag);
    }
    else
-#endif
    {
       MFEM_ABORT("Error: VectorMassIntegrator::AddMultMF only implemented with libCEED");
    }

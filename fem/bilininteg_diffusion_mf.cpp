@@ -21,7 +21,6 @@ namespace mfem
 
 void DiffusionIntegrator::AssembleMF(const FiniteElementSpace &fes)
 {
-#ifdef MFEM_USE_CEED
    // Assuming the same element type
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
@@ -36,19 +35,16 @@ void DiffusionIntegrator::AssembleMF(const FiniteElementSpace &fes)
       ceedOp = new ceed::MFDiffusionIntegrator(fes, *ir, Q);
       return;
    }
-#endif
    MFEM_ABORT("Error: DiffusionIntegrator::AssembleMF only implemented with libCEED");
 }
 
 void DiffusionIntegrator::AssembleDiagonalMF(Vector &diag)
 {
-#ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
       ceedOp->GetDiagonal(diag);
    }
    else
-#endif
    {
       MFEM_ABORT("Error: DiffusionIntegrator::AssembleDiagonalMF only implemented with libCEED");
    }
@@ -56,13 +52,11 @@ void DiffusionIntegrator::AssembleDiagonalMF(Vector &diag)
 
 void DiffusionIntegrator::AddMultMF(const Vector &x, Vector &y) const
 {
-#ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
       ceedOp->AddMult(x, y);
    }
    else
-#endif
    {
       MFEM_ABORT("Error: DiffusionIntegrator::AddMultMF only implemented with libCEED");
    }
