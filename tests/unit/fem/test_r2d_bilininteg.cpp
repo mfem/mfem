@@ -85,7 +85,7 @@ void CurlV3(const Vector & x, Vector & dV)
    dV[2] =  4.572 - 1.357;
 }
 double DivV3(const Vector & x)
-{ return 4.234 + 1.321; }
+{ return 2.234 + 3.321; }
 
 void M3(const Vector & x, DenseMatrix & m)
 {
