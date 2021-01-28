@@ -115,8 +115,17 @@ protected:
    int uni_fdof; ///< # of single face DOFs if all faces uniform; -1 otherwise
    int *bdofs; ///< internal DOFs of elements if mixed/var-order; NULL otherwise
 
-   Table var_edge_dofs; ///< var-order space: beginnings of DOF sets for edges
-   Table var_face_dofs; ///< var-order space or mixed mesh: similar for faces
+   /** Variable-order spaces only: these tables hold DOF assignments for edges
+       and faces, each of which in a variable order space may host several DOF
+       sets, called DOF set variants. Example: an edge 'i' shared by 4 hexes of
+       orders 2, 3, 4, 5 will hold four DOF sets starting at indices e.g. 100,
+       101, 103, 106. These numbers are stored in row 'i' of \a var_edge_dofs.
+       Variant zero is always the lowest order DOF set, which is followed by
+       consecutive ranges of higher order DOFs. Variable order faces are handled
+       similarly by \a var_face_dofs, which holds at most two DOF set variants
+       per face. The tables are empty for constant-order spaces. */
+   Table var_edge_dofs; // each row contains beginnings of DOF sets for an edge
+   Table var_face_dofs; // var-order space or mixed mesh: similar for faces
 
    /** Additional data for the var_*_dofs tables: individual variant orders
        (these are basically alternate J arrays for var_edge/face_dofs). */
