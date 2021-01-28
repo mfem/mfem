@@ -3507,7 +3507,7 @@ TEST_CASE("R1D Bilinear Weak Div Cross Integrators",
    VectorFunctionCoefficient  VF3_coef(vdim, VcrossF3);
    FunctionCoefficient       dVF3_coef(Div_VcrossF3);
 
-   DenseMatrix R13(3, 2); R13 = 0.0; R13(0,0) = 1.0;
+   DenseMatrix R13(3, 1); R13 = 0.0; R13(0,0) = 1.0;
    MatrixConstantCoefficient R13_coef(R13);
    TransposeMatrixCoefficient R31_coef(R13_coef);
 
