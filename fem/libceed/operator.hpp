@@ -46,9 +46,6 @@ public:
    }
 };
 
-/** The different evaluation modes available for PA and MF CeedIntegrator. */
-enum class EvalMode { None, Interp, Grad, InterpAndGrad };
-
 } // namespace ceed
 
 } // namespace mfem
