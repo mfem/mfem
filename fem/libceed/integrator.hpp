@@ -24,6 +24,9 @@ namespace mfem
 namespace ceed
 {
 
+/** The different evaluation modes available for PA and MF CeedIntegrator. */
+enum class EvalMode { None, Interp, Grad, InterpAndGrad };
+
 #ifdef MFEM_USE_CEED
 /** This structure is a template interface for the Assemble methods of
     PAIntegrator and MFIntegrator. See libceed/mass.cpp for an example. */
