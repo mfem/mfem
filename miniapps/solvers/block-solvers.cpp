@@ -9,40 +9,47 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-// Description:  This miniapp compares various linear solvers for the saddle
-//               point system obtained from mixed finite element discretization
-//               of the simple mixed Darcy problem in ex5p
-//                                 k*u + grad p = f
-//                                 - div u      = g
-//               with natural boundary condition -p = <given pressure>.
-//               Here, we use a given exact solution (u,p) and compute the
-//               corresponding r.h.s. (f,g).  We discretize with Raviart-Thomas
-//               finite elements (velocity u) and piecewise discontinuous
-//               polynomials (pressure p).
+//          ----------------------------------------------------------
+//          Block Solvers Miniapp: Compare Saddle Point System Solvers
+//          ----------------------------------------------------------
 //
-//               The solvers being compared include:
-//                 1. The divergence free solver (couple and decoupled modes)
-//                 2. MINRES preconditioned by a block diagonal preconditioner
+// This miniapp compares various linear solvers for the saddle point system
+// obtained from mixed finite element discretization of the simple mixed Darcy
+// problem in ex5p
 //
-//               We recommend viewing example 5 before viewing this miniapp.
+//                            k*u + grad p = f
+//                           - div u      = g
+//
+// with natural boundary condition -p = <given pressure>. We use a given exact
+// solution (u,p) and compute the corresponding r.h.s. (f,g). We discretize
+// with Raviart-Thomas finite elements (velocity u) and piecewise discontinuous
+// polynomials (pressure p).
+//
+// The solvers being compared include:
+//    1. The divergence free solver (couple and decoupled modes)
+//    2. MINRES preconditioned by a block diagonal preconditioner
+//
+// We recommend viewing example 5 before viewing this miniapp.
 //
 // Sample runs:
 //
 //    mpirun -np 8 block-solvers-compare -r 2 -o 0
-//    mpirun -np 8 block-solvers-compare -m anisotropic.mesh -c high_contrast_coef.txt -be ess_bdr_attr.txt
+//    mpirun -np 8 block-solvers-compare -m anisotropic.mesh -c anisotropic.coeff -be anisotropic.bdr
 //
-// NOTE:  The coefficient file (provided through -c) defines a piecewise
-//        constant scalar coefficient k. The number of entries in this file
-//        should equal to the number of "element attributes" in the mesh file.
-//        The value of the coefficient in elements with the i-th attribute
-//        is given by the i-th entry of the coefficient file.
+//
+// NOTE:  The coefficient file (provided through -c) defines a piecewise constant
+//        scalar coefficient k. The number of entries in this file should equal
+//        to the number of "element attributes" in the mesh file. The value of
+//        the coefficient in elements with the i-th attribute is given by the
+//        i-th entry of the coefficient file.
+//
 //
 // NOTE:  The essential boundary attribute file (provided through -eb) defines
-//        which attributes to impose essential boundary condition (on u).
-//        The number of entries in this file should equal to the number of
-//        "boundary attributes" in the mesh file. If the i-th entry of the file
-//        is nonzero (respectively 0), essential (respectively natural) boundary
-//        condition will be imposed on boundary with the i-th attribute.
+//        which attributes to impose essential boundary condition (on u). The
+//        number of entries in this file should equal to the number of "boundary
+//        attributes" in the mesh file. If the i-th entry of the file is nonzero
+//        (respectively 0), essential (respectively natural) boundary condition
+//        will be imposed on boundary with the i-th attribute.
 
 #include "mfem.hpp"
 #include "div_free_solver.hpp"
