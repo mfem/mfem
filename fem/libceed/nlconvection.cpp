@@ -27,20 +27,20 @@ struct NLConvectionOperatorInfo : public OperatorInfo
 {
    NLConvectionContext ctx;
    NLConvectionOperatorInfo(int dim)
-   : OperatorInfo{"/nlconvection_qf.h",
-                  ":f_build_conv_const",
-                  ":f_build_conv_quad",
-                  ":f_apply_conv",
-                  ":f_apply_conv",
-                  ":f_apply_conv",
-                  &f_build_conv_const,
-                  &f_build_conv_quad,
-                  &f_apply_conv,
-                  &f_apply_conv_mf_const,
-                  &f_apply_conv_mf_quad,
-                  EvalMode::InterpAndGrad,
-                  EvalMode::Interp,
-                  dim * dim}
+      : OperatorInfo{"/nlconvection_qf.h",
+                     ":f_build_conv_const",
+                     ":f_build_conv_quad",
+                     ":f_apply_conv",
+                     ":f_apply_conv",
+                     ":f_apply_conv",
+                     &f_build_conv_const,
+                     &f_build_conv_quad,
+                     &f_apply_conv,
+                     &f_apply_conv_mf_const,
+                     &f_apply_conv_mf_quad,
+                     EvalMode::InterpAndGrad,
+                     EvalMode::Interp,
+                     dim * dim}
    { }
 };
 #endif

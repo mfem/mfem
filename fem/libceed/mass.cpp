@@ -27,20 +27,20 @@ struct MassOperatorInfo : public OperatorInfo
 {
    MassContext ctx;
    MassOperatorInfo()
-   : OperatorInfo{"/mass_qf.h",
-                  ":f_build_mass_const",
-                  ":f_build_mass_quad",
-                  ":f_apply_mass",
-                  ":f_apply_mass_mf_const",
-                  ":f_apply_mass_mf_quad",
-                  &f_build_mass_const,
-                  &f_build_mass_quad,
-                  &f_apply_mass,
-                  &f_apply_mass_mf_const,
-                  &f_apply_mass_mf_quad,
-                  EvalMode::Interp,
-                  EvalMode::Interp,
-                  1}
+      : OperatorInfo{"/mass_qf.h",
+                     ":f_build_mass_const",
+                     ":f_build_mass_quad",
+                     ":f_apply_mass",
+                     ":f_apply_mass_mf_const",
+                     ":f_apply_mass_mf_quad",
+                     &f_build_mass_const,
+                     &f_build_mass_quad,
+                     &f_apply_mass,
+                     &f_apply_mass_mf_const,
+                     &f_apply_mass_mf_quad,
+                     EvalMode::Interp,
+                     EvalMode::Interp,
+                     1}
    { }
 };
 #endif
