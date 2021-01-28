@@ -62,7 +62,7 @@ std::string getString(AssemblyLevel assembly)
       return "LEGACYFULL";
       break;
    }
-   mfem_error("Unknown AssemblyLevel.");
+   MFEM_ABORT("Unknown AssemblyLevel.");
    return "";
 }
 
@@ -89,7 +89,7 @@ std::string getString(CeedCoeffType coeff_type)
       return "VecQuad";
       break;
    }
-   mfem_error("Unknown CeedCoeffType.");
+   MFEM_ABORT("Unknown CeedCoeffType.");
    return "";
 }
 
@@ -123,7 +123,7 @@ std::string getString(Problem pb)
       return "MassDiffusion";
       break;
    }
-   mfem_error("Unknown Problem.");
+   MFEM_ABORT("Unknown Problem.");
    return "";
 }
 
@@ -137,7 +137,7 @@ std::string getString(NLProblem pb)
       return "Convection";
       break;
    }
-   mfem_error("Unknown Problem.");
+   MFEM_ABORT("Unknown Problem.");
    return "";
 }
 
