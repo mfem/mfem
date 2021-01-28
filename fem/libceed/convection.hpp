@@ -12,7 +12,7 @@
 #ifndef MFEM_LIBCEED_CONV_HPP
 #define MFEM_LIBCEED_CONV_HPP
 
-#include "pa_integrator.hpp"
+#include "integrator.hpp"
 #include "../fespace.hpp"
 
 namespace mfem
