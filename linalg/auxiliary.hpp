@@ -189,9 +189,11 @@ public:
        @param useAmgX      use AmgX (instead of hypre) for LOR problems
        @param inner_pi_its number of CG iterations on auxiliary pi space,
                            may need more for difficult coefficients
-       @param inner_g_its  number of CG iterations on auxiliary pi space,
+       @param inner_g_its  number of CG iterations on auxiliary g space,
                            may need more for difficult coefficients
-    */
+       @param nd_smoother  optional user-provided smoother for Nedelec space,
+                           this object takes ownership and will delete.
+   */
    MatrixFreeAMS(ParBilinearForm& aform, Operator& oper,
                  ParFiniteElementSpace& nd_fespace, Coefficient* alpha_coeff,
                  Coefficient* beta_coeff, MatrixCoefficient* beta_mcoeff,
@@ -199,7 +201,8 @@ public:
 #ifdef MFEM_USE_AMGX
                  bool useAmgX = false,
 #endif
-                 int inner_pi_its = 0, int inner_g_its = 1);
+                 int inner_pi_its = 0, int inner_g_its = 1,
+                 Solver* nd_smoother = NULL);
 
    ~MatrixFreeAMS();
 
