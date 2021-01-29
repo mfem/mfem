@@ -3183,6 +3183,16 @@ TEST_CASE("R1D Bilinear Weak Curl Integrators",
    VectorFunctionCoefficient dDF3_coef(vdim, Curl_DF3);
    VectorFunctionCoefficient dMF3_coef(vdim, Curl_MF3);
 
+   // Set normal directions for the two mesh boundary points
+   PWConstCoefficient bcNormal(2);
+   bcNormal(1) = -1.0;
+   bcNormal(2) =  1.0;
+
+   ScalarVectorProductCoefficient nF3_coef(bcNormal, F3_coef);
+   ScalarVectorProductCoefficient nqF3_coef(bcNormal, qF3_coef);
+   ScalarVectorProductCoefficient nDF3_coef(bcNormal, DF3_coef);
+   ScalarVectorProductCoefficient nMF3_coef(bcNormal, MF3_coef);
+
    for (int type = (int)Element::SEGMENT;
         type <= (int)Element::SEGMENT; type++)
    {
@@ -3230,7 +3240,7 @@ TEST_CASE("R1D Bilinear Weak Curl Integrators",
 
                LinearForm lf(&fespace_nd);
                lf.AddBoundaryIntegrator(
-                  new VectorFEBoundaryTangentLFIntegrator(F3_coef));
+                  new VectorFEBoundaryTangentLFIntegrator(nF3_coef));
                lf.Assemble();
 
                blfw.Mult(f_nd,tmp_nd); tmp_nd += lf; g_nd = 0.0;
@@ -3262,7 +3272,7 @@ TEST_CASE("R1D Bilinear Weak Curl Integrators",
 
                LinearForm lf(&fespace_nd);
                lf.AddBoundaryIntegrator(
-                  new VectorFEBoundaryTangentLFIntegrator(qF3_coef, 1, 2));
+                  new VectorFEBoundaryTangentLFIntegrator(nqF3_coef, 1, 2));
                lf.Assemble();
 
                blfw.Mult(f_nd,tmp_nd); tmp_nd += lf; g_nd = 0.0;
@@ -3294,7 +3304,7 @@ TEST_CASE("R1D Bilinear Weak Curl Integrators",
 
                LinearForm lf(&fespace_nd);
                lf.AddBoundaryIntegrator(
-                  new VectorFEBoundaryTangentLFIntegrator(DF3_coef, 1, 2));
+                  new VectorFEBoundaryTangentLFIntegrator(nDF3_coef, 1, 2));
                lf.Assemble();
 
                blfw.Mult(f_nd,tmp_nd); tmp_nd += lf; g_nd = 0.0;
@@ -3326,7 +3336,7 @@ TEST_CASE("R1D Bilinear Weak Curl Integrators",
 
                LinearForm lf(&fespace_nd);
                lf.AddBoundaryIntegrator(
-                  new VectorFEBoundaryTangentLFIntegrator(MF3_coef, 1, 2));
+                  new VectorFEBoundaryTangentLFIntegrator(nMF3_coef, 1, 2));
                lf.Assemble();
 
                blfw.Mult(f_nd,tmp_nd); tmp_nd += lf; g_nd = 0.0;
@@ -3381,7 +3391,7 @@ TEST_CASE("R1D Bilinear Weak Curl Integrators",
 
                LinearForm lf(&fespace_nd);
                lf.AddBoundaryIntegrator(
-                  new VectorFEBoundaryTangentLFIntegrator(F3_coef));
+                  new VectorFEBoundaryTangentLFIntegrator(nF3_coef));
                lf.Assemble();
 
                blfw.Mult(f_rt,tmp_nd); tmp_nd += lf; g_nd = 0.0;
@@ -3413,7 +3423,7 @@ TEST_CASE("R1D Bilinear Weak Curl Integrators",
 
                LinearForm lf(&fespace_nd);
                lf.AddBoundaryIntegrator(
-                  new VectorFEBoundaryTangentLFIntegrator(qF3_coef, 1, 2));
+                  new VectorFEBoundaryTangentLFIntegrator(nqF3_coef, 1, 2));
                lf.Assemble();
 
                blfw.Mult(f_rt,tmp_nd); tmp_nd += lf; g_nd = 0.0;
@@ -3445,7 +3455,7 @@ TEST_CASE("R1D Bilinear Weak Curl Integrators",
 
                LinearForm lf(&fespace_nd);
                lf.AddBoundaryIntegrator(
-                  new VectorFEBoundaryTangentLFIntegrator(DF3_coef, 1, 2));
+                  new VectorFEBoundaryTangentLFIntegrator(nDF3_coef, 1, 2));
                lf.Assemble();
 
                blfw.Mult(f_rt,tmp_nd); tmp_nd += lf; g_nd = 0.0;
@@ -3477,7 +3487,7 @@ TEST_CASE("R1D Bilinear Weak Curl Integrators",
 
                LinearForm lf(&fespace_nd);
                lf.AddBoundaryIntegrator(
-                  new VectorFEBoundaryTangentLFIntegrator(MF3_coef, 1, 2));
+                  new VectorFEBoundaryTangentLFIntegrator(nMF3_coef, 1, 2));
                lf.Assemble();
 
                blfw.Mult(f_rt,tmp_nd); tmp_nd += lf; g_nd = 0.0;
@@ -3652,6 +3662,13 @@ TEST_CASE("R1D Bilinear Weak Curl Cross Integrators",
    VectorFunctionCoefficient  VxF3_coef(vdim, VcrossF3);
    VectorFunctionCoefficient dVxF3_coef(vdim, Curl_VcrossF3);
 
+   // Set normal directions for the two mesh boundary points
+   PWConstCoefficient bcNormal(2);
+   bcNormal(1) = -1.0;
+   bcNormal(2) =  1.0;
+
+   ScalarVectorProductCoefficient nVxF3_coef(bcNormal, VxF3_coef);
+
    for (int type = (int)Element::SEGMENT;
         type <= (int)Element::SEGMENT; type++)
    {
@@ -3699,7 +3716,7 @@ TEST_CASE("R1D Bilinear Weak Curl Cross Integrators",
 
                LinearForm lf(&fespace_nd);
                lf.AddBoundaryIntegrator(
-                  new VectorFEBoundaryTangentLFIntegrator(VxF3_coef, 1, 2));
+                  new VectorFEBoundaryTangentLFIntegrator(nVxF3_coef, 1, 2));
                lf.Assemble();
 
                blfw.Mult(f_nd,tmp_nd); tmp_nd += lf; g_nd = 0.0;
@@ -3754,7 +3771,7 @@ TEST_CASE("R1D Bilinear Weak Curl Cross Integrators",
 
                LinearForm lf(&fespace_nd);
                lf.AddBoundaryIntegrator(
-                  new VectorFEBoundaryTangentLFIntegrator(VxF3_coef, 1, 2));
+                  new VectorFEBoundaryTangentLFIntegrator(nVxF3_coef, 1, 2));
                lf.Assemble();
 
                blfw.Mult(f_rt,tmp_nd); tmp_nd += lf; g_nd = 0.0;
@@ -4147,6 +4164,14 @@ TEST_CASE("R1D Bilinear Curl Curl Integrators",
    VectorFunctionCoefficient  qdF3_coef(vdim, qCurlF3);
    VectorFunctionCoefficient dqdF3_coef(vdim, Curl_qCurlF3);
 
+   // Set normal directions for the two mesh boundary points
+   PWConstCoefficient bcNormal(2);
+   bcNormal(1) = -1.0;
+   bcNormal(2) =  1.0;
+
+   ScalarVectorProductCoefficient ndF3_coef(bcNormal, dF3_coef);
+   ScalarVectorProductCoefficient nqdF3_coef(bcNormal, qdF3_coef);
+
    for (int type = (int)Element::SEGMENT;
         type <= (int)Element::SEGMENT; type++)
    {
@@ -4187,7 +4212,7 @@ TEST_CASE("R1D Bilinear Curl Curl Integrators",
 
                LinearForm lf(&fespace_nd);
                lf.AddBoundaryIntegrator(
-                  new VectorFEBoundaryTangentLFIntegrator(dF3_coef));
+                  new VectorFEBoundaryTangentLFIntegrator(ndF3_coef));
                lf.Assemble();
 
                blf.Mult(f_nd,tmp_nd); tmp_nd += lf; g_nd = 0.0;
@@ -4212,7 +4237,7 @@ TEST_CASE("R1D Bilinear Curl Curl Integrators",
 
                LinearForm lf(&fespace_nd);
                lf.AddBoundaryIntegrator(
-                  new VectorFEBoundaryTangentLFIntegrator(qdF3_coef, 1, 2));
+                  new VectorFEBoundaryTangentLFIntegrator(nqdF3_coef, 1, 2));
                lf.Assemble();
 
                blf.Mult(f_nd,tmp_nd); tmp_nd += lf; g_nd = 0.0;
@@ -4252,6 +4277,16 @@ TEST_CASE("R1D Bilinear Mixed Curl Curl Integrators",
    VectorFunctionCoefficient dqdF3_coef(vdim, Curl_qCurlF3);
    VectorFunctionCoefficient dDdF3_coef(vdim, Curl_DCurlF3);
    VectorFunctionCoefficient dMdF3_coef(vdim, Curl_MCurlF3);
+
+   // Set normal directions for the two mesh boundary points
+   PWConstCoefficient bcNormal(2);
+   bcNormal(1) = -1.0;
+   bcNormal(2) =  1.0;
+
+   ScalarVectorProductCoefficient ndF3_coef(bcNormal, dF3_coef);
+   ScalarVectorProductCoefficient nqdF3_coef(bcNormal, qdF3_coef);
+   ScalarVectorProductCoefficient nDdF3_coef(bcNormal, DdF3_coef);
+   ScalarVectorProductCoefficient nMdF3_coef(bcNormal, MdF3_coef);
 
    for (int type = (int)Element::SEGMENT;
         type <= (int)Element::SEGMENT; type++)
@@ -4294,7 +4329,7 @@ TEST_CASE("R1D Bilinear Mixed Curl Curl Integrators",
 
                LinearForm lf(&fespace_nd);
                lf.AddBoundaryIntegrator(
-                  new VectorFEBoundaryTangentLFIntegrator(dF3_coef));
+                  new VectorFEBoundaryTangentLFIntegrator(ndF3_coef));
                lf.Assemble();
 
                blf.Mult(f_nd,tmp_nd); tmp_nd += lf; g_nd = 0.0;
@@ -4320,7 +4355,7 @@ TEST_CASE("R1D Bilinear Mixed Curl Curl Integrators",
 
                LinearForm lf(&fespace_nd);
                lf.AddBoundaryIntegrator(
-                  new VectorFEBoundaryTangentLFIntegrator(qdF3_coef, 1, 2));
+                  new VectorFEBoundaryTangentLFIntegrator(nqdF3_coef, 1, 2));
                lf.Assemble();
 
                blf.Mult(f_nd,tmp_nd); tmp_nd += lf; g_nd = 0.0;
@@ -4346,7 +4381,7 @@ TEST_CASE("R1D Bilinear Mixed Curl Curl Integrators",
 
                LinearForm lf(&fespace_nd);
                lf.AddBoundaryIntegrator(
-                  new VectorFEBoundaryTangentLFIntegrator(DdF3_coef));
+                  new VectorFEBoundaryTangentLFIntegrator(nDdF3_coef));
                lf.Assemble();
 
                blf.Mult(f_nd,tmp_nd); tmp_nd += lf; g_nd = 0.0;
@@ -4378,7 +4413,7 @@ TEST_CASE("R1D Bilinear Mixed Curl Curl Integrators",
 
                LinearForm lf(&fespace_nd);
                lf.AddBoundaryIntegrator(
-                  new VectorFEBoundaryTangentLFIntegrator(MdF3_coef));
+                  new VectorFEBoundaryTangentLFIntegrator(nMdF3_coef));
                lf.Assemble();
 
                blf.Mult(f_nd,tmp_nd); tmp_nd += lf; g_nd = 0.0;
@@ -4409,6 +4444,13 @@ TEST_CASE("R1D Bilinear Mixed Cross Curl Curl Integrators",
    VectorFunctionCoefficient    dF3_coef(vdim, CurlF3);
    VectorFunctionCoefficient  VdF3_coef(vdim, VcrossCurlF3);
    VectorFunctionCoefficient dVdF3_coef(vdim, Curl_VcrossCurlF3);
+
+   // Set normal directions for the two mesh boundary points
+   PWConstCoefficient bcNormal(2);
+   bcNormal(1) = -1.0;
+   bcNormal(2) =  1.0;
+
+   ScalarVectorProductCoefficient nVdF3_coef(bcNormal, VdF3_coef);
 
    for (int type = (int)Element::SEGMENT;
         type <= (int)Element::SEGMENT; type++)
@@ -4451,7 +4493,7 @@ TEST_CASE("R1D Bilinear Mixed Cross Curl Curl Integrators",
 
                LinearForm lf(&fespace_nd);
                lf.AddBoundaryIntegrator(
-                  new VectorFEBoundaryTangentLFIntegrator(VdF3_coef));
+                  new VectorFEBoundaryTangentLFIntegrator(nVdF3_coef));
                lf.Assemble();
 
                blf.Mult(f_nd,tmp_nd); tmp_nd += lf; g_nd = 0.0;
@@ -4481,6 +4523,13 @@ TEST_CASE("R1D Bilinear Mixed Cross Grad Curl Integrators",
    VectorFunctionCoefficient    V3_coef(vdim, V3);
    VectorFunctionCoefficient  Vdf3_coef(vdim, VcrossGrad_f3);
    VectorFunctionCoefficient dVdf3_coef(vdim, Curl_VcrossGrad_f3);
+
+   // Set normal directions for the two mesh boundary points
+   PWConstCoefficient bcNormal(2);
+   bcNormal(1) = -1.0;
+   bcNormal(2) =  1.0;
+
+   ScalarVectorProductCoefficient nVdf3_coef(bcNormal, Vdf3_coef);
 
    for (int type = (int)Element::SEGMENT;
         type <= (int)Element::SEGMENT; type++)
@@ -4532,7 +4581,7 @@ TEST_CASE("R1D Bilinear Mixed Cross Grad Curl Integrators",
 
                LinearForm lf(&fespace_nd);
                lf.AddBoundaryIntegrator(
-                  new VectorFEBoundaryTangentLFIntegrator(Vdf3_coef));
+                  new VectorFEBoundaryTangentLFIntegrator(nVdf3_coef));
                lf.Assemble();
 
                blfw.Mult(f_h1,tmp_nd); tmp_nd += lf; g_nd = 0.0;
