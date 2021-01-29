@@ -214,17 +214,14 @@ int main(int argc, char *argv[])
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
-   // 13. Solve the system AX=B using PCG with the AMS preconditioner from hypre
-   //     (in the full assembly case) or CG with Jacobi preconditioner (in the
-   //     partial assembly case).
-   if (pa) // matrix-free auxiliary space solver with PA
+   // 13. Solve the system AX=B using PCG with an AMS preconditioner.
+   if (pa)
    {
 #ifdef MFEM_USE_AMGX
       MatrixFreeAMS ams(*a, *A, *fespace, muinv, sigma, NULL, ess_bdr, useAmgX);
 #else
       MatrixFreeAMS ams(*a, *A, *fespace, muinv, sigma, NULL, ess_bdr);
 #endif
-
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-12);
       cg.SetMaxIter(1000);

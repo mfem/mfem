@@ -430,7 +430,7 @@ MatrixFreeAMS::MatrixFreeAMS(
 #ifdef MFEM_USE_AMGX
    bool useAmgX,
 #endif
-   int inner_pi_iterations, int inner_g_iterations) :
+   int inner_pi_iterations, int inner_g_iterations, Solver * nd_smoother) :
    Solver(oper.Height())
 {
    int order = nd_fespace.GetFE(0)->GetOrder();
@@ -438,10 +438,17 @@ MatrixFreeAMS::MatrixFreeAMS(
    int dim = mesh->Dimension();
 
    // smoother
-   const double scale = 0.25;
    Array<int> ess_tdof_list;
    nd_fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   smoother = new OperatorJacobiSmoother(aform, ess_tdof_list, scale);
+   if (nd_smoother)
+   {
+      smoother = nd_smoother;
+   }
+   else
+   {
+      const double scale = 0.25;
+      smoother = new OperatorJacobiSmoother(aform, ess_tdof_list, scale);
+   }
 
    // get H1 space
    FiniteElementCollection *h1_fec = new H1_FECollection(order, dim);
