@@ -12831,7 +12831,7 @@ void ND_R1D_SegmentElement::CalcPhysCurlShape(ElementTransformation &Trans,
    MFEM_ASSERT(J.Width() == 1 && J.Height() == 1,
                "ND_R1D_SegmentElement cannot be embedded in "
                "2 or 3 dimensional spaces");
-   curl_shape *= (1.0 / Trans.Weight());
+   curl_shape *= (1.0 / J.Weight());
 }
 
 void ND_R1D_SegmentElement::Project(VectorCoefficient &vc,
