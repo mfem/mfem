@@ -481,7 +481,16 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
 
    //mass matrix
    M = new ParBilinearForm(&fespace);
-   M->AddDomainIntegrator(new MassIntegrator);
+   MassIntegrator *mass1 = new MassIntegrator;
+   if (lumpedMass) 
+   {
+     if (myid==0) cout <<"------lumped mass matrix in Mmat!------"<<endl;
+     M->AddDomainIntegrator(new LumpedIntegrator(mass1));
+   }
+   else
+   {
+     M->AddDomainIntegrator(mass1);
+   }
    M->Assemble();
    M->FormSystemMatrix(ess_tdof_list, Mmat);
 
@@ -492,17 +501,14 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    {
      if (myid==0) cout <<"------lumped mass matrix in M_solver2!------"<<endl;
      Mfull->AddDomainIntegrator(new LumpedIntegrator(mass));
-     Mfull->Assemble();
-     Mfull->Finalize();
-     Mfullmat=Mfull->ParallelAssemble();
    }
    else 
    {
      Mfull->AddDomainIntegrator(mass);
-     Mfull->Assemble();
-     Mfull->Finalize();
-     Mfullmat=Mfull->ParallelAssemble();
    }
+   Mfull->Assemble();
+   Mfull->Finalize();
+   Mfullmat=Mfull->ParallelAssemble();
 
    MassIntegrator *mass2 = new MassIntegrator;
    Mlumped = new ParBilinearForm(&fespace);
@@ -1073,6 +1079,8 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
        delete PwMat;
        delete tmp1;
        delete tmp2;
+       tmp1=NULL;
+       tmp2=NULL;
 
        Vector &k_ = const_cast<Vector &>(k);
 
