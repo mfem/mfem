@@ -40,7 +40,7 @@ double PANonlinearFormExtension::GetGridFunctionEnergy(const Vector &x) const
    elemR->Mult(x, xe);
    for (int i = 0; i < dnfi.Size(); i++)
    {
-      energy += dnfi[i]->GetGridFunctionEnergyPA(xe);
+      energy += dnfi[i]->GetStateEnergyPA(xe);
    }
    return energy;
 }
@@ -79,17 +79,14 @@ void PANonlinearFormExtension::Update()
 
 PANonlinearFormExtension::Gradient::Gradient(const PANonlinearFormExtension &e):
    Operator(e.Height()), ext(e)
-{
-   ge.UseDevice(true);
-   ge.SetSize(ext.elemR->Height(), Device::GetMemoryType());
-}
+{ }
 
 void PANonlinearFormExtension::Gradient::AssembleGrad(const Vector &g)
 {
-   ext.elemR->Mult(g, ge);
+   ext.elemR->Mult(g, ext.xe);
    for (int i = 0; i < ext.dnfi.Size(); ++i)
    {
-      ext.dnfi[i]->AssembleGradPA(ge, ext.fes);
+      ext.dnfi[i]->AssembleGradPA(ext.xe, ext.fes);
    }
 }
 
@@ -99,7 +96,7 @@ void PANonlinearFormExtension::Gradient::Mult(const Vector &x, Vector &y) const
    ext.elemR->Mult(x, ext.xe);
    for (int i = 0; i < ext.dnfi.Size(); ++i)
    {
-      ext.dnfi[i]->AddMultGradPA(ge, ext.xe, ext.ye);
+      ext.dnfi[i]->AddMultGradPA(ext.xe, ext.ye);
    }
    ext.elemR->MultTranspose(ext.ye, y);
 }
@@ -111,7 +108,7 @@ void PANonlinearFormExtension::Gradient::AssembleDiagonal(Vector &diag) const
    ext.ye = 0.0;
    for (int i = 0; i < ext.dnfi.Size(); ++i)
    {
-      ext.dnfi[i]->AssembleGradDiagonalPA(ge, ext.ye);
+      ext.dnfi[i]->AssembleGradDiagonalPA(ext.ye);
    }
    ext.elemR->MultTranspose(ext.ye, diag);
 }
@@ -119,7 +116,6 @@ void PANonlinearFormExtension::Gradient::AssembleDiagonal(Vector &diag) const
 void PANonlinearFormExtension::Gradient::Update()
 {
    height = width = ext.Height();
-   ge.SetSize(ext.elemR->Height());
 }
 
 } // namespace mfem

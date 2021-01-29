@@ -388,6 +388,9 @@ public:
    /// Get the local off-diagonal block. NOTE: 'offd' will not own any data.
    void GetOffd(SparseMatrix &offd, HYPRE_Int* &cmap) const;
 
+   /// Return the diagonal of the matrix (Operator interface).
+   virtual void AssembleDiagonal(Vector &diag) const { GetDiag(diag); }
+
    /** Split the matrix into M x N equally sized blocks of parallel matrices.
        The size of 'blocks' must already be set to M x N. */
    void GetBlocks(Array2D<HypreParMatrix*> &blocks,
