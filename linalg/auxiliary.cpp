@@ -41,7 +41,6 @@ GeneralAMS::GeneralAMS(const Operator& curlcurl_op_,
    gspacesolver_time(0.0),
    pispacesolver_time(0.0)
 {
-   // could assert a bunch of sizes...
 }
 
 GeneralAMS::~GeneralAMS()
@@ -89,7 +88,7 @@ void GeneralAMS::Mult(const Vector& x, Vector& y) const
    residual = 0.0;
    y = 0.0;
 
-   // smooth (exactly what smoother is HypreAMS using?)
+   // smooth
    m_chrono.Clear();
    m_chrono.Start();
    smoother.Mult(x, y);
@@ -140,7 +139,7 @@ void GeneralAMS::Mult(const Vector& x, Vector& y) const
    gradient.Mult(gspacecorrection, residual);
    y += residual;
 
-   // smooth (don't need the residual if smoother_ has iterative_mode ?)
+   // smooth
    FormResidual(x, y, residual);
    m_chrono.Clear();
    m_chrono.Start();
@@ -179,10 +178,10 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    }
    ParBilinearForm a_space(&fespace_lor_d);
 
-   // this choice of policy is super-important for the G-space solver, but
+   // this choice of policy is important for the G-space solver, but
    // also can make some difference here
    const Matrix::DiagonalPolicy policy = Matrix::DIAG_KEEP;
-   a_space.SetDiagonalPolicy(policy); // doesn't do anything, see Eliminate() below
+   a_space.SetDiagonalPolicy(policy);
    if (alpha_coeff == NULL)
    {
       a_space.AddDomainIntegrator(new VectorDiffusionIntegrator);
@@ -232,7 +231,8 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    seem to be quite sensitive to handling of boundary conditions. Note
    some careful choices for Matrix::DiagonalPolicy and the ZeroWrap
    object, as well as the use of a single CG iteration (instead of just
-   an AMG V-cycle). */
+   an AMG V-cycle). Just a V-cycle may be more efficient in some cases,
+   but we recommend the CG wrapper for robustness here. */
 MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    ParMesh& mesh_lor, Coefficient* beta_coeff,
    MatrixCoefficient* beta_mcoeff, Array<int>& ess_bdr, Operator& curlcurl_oper,
@@ -298,12 +298,10 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
 
    if (cg_iterations > 0)
    {
-      // inner CG seems necessary in G-space solver
       SetupCG(curlcurl_oper, g, cg_iterations);
    }
    else
    {
-      // this would probably be more efficient, but there are boundary condition issues?
       SetupVCycle();
    }
 
@@ -406,9 +404,9 @@ void MatrixFreeAuxiliarySpace::SetupAMG(int system_dimension)
       aspacepc = new ZeroWrap(*aspacematrix, ess_tdof_list);
 #endif
    }
-   else // if (system_dimension > 0)
+   else
    {
-      // Pi-space solver is a vector space
+      // systems options for Pi-space solver
 #ifdef MFEM_USE_AMGX
       if (useAmgX)
       {
@@ -453,6 +451,10 @@ MatrixFreeAuxiliarySpace::~MatrixFreeAuxiliarySpace()
    if (cg != aspacewrapper) { delete cg; }
 }
 
+/* As an implementation note, a lot depends on the quality of the auxiliary
+   space solves. For high-contrast coefficients, and other difficult problems,
+   inner iteration counts may need to be increased. Boundary conditions can
+   matter as well (see DIAG_ZERO policy). */
 MatrixFreeAMS::MatrixFreeAMS(
    ParBilinearForm& aform, Operator& oper, ParFiniteElementSpace& nd_fespace,
    Coefficient* alpha_coeff, Coefficient* beta_coeff,
@@ -468,7 +470,7 @@ MatrixFreeAMS::MatrixFreeAMS(
    int dim = mesh->Dimension();
 
    // smoother
-   const double scale = 0.25; // not so clear what exactly to put here...
+   const double scale = 0.25;
    Array<int> ess_tdof_list;
    nd_fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    smoother = new OperatorJacobiSmoother(aform, ess_tdof_list, scale);
@@ -494,12 +496,6 @@ MatrixFreeAMS::MatrixFreeAMS(
 
    // build LOR space
    ParMesh mesh_lor(mesh, order, BasisType::GaussLobatto);
-
-   /* A lot depends on the quality of the auxiliary space solves.
-      For high-contrast coefficients, and other difficult problems,
-      inner iteration counts may need to be increased.
-
-      Boundary conditions can matter as well (see DIAG_ZERO policy) */
 
    // build G space solver
    Gspacesolver = new MatrixFreeAuxiliarySpace(mesh_lor, beta_coeff,
