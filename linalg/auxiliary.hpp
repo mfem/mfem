@@ -154,13 +154,6 @@ private:
    const Operator& smoother;
    const Array<int> ess_tdof_list;
 
-   mutable StopWatch chrono;
-
-   mutable double residual_time;
-   mutable double smooth_time;
-   mutable double gspacesolver_time;
-   mutable double pispacesolver_time;
-
    void FormResidual(const Vector& rhs, const Vector& x,
                      Vector& residual) const;
 };

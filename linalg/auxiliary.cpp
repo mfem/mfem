@@ -35,11 +35,7 @@ GeneralAMS::GeneralAMS(const Operator& curlcurl_op_,
    pispacesolver(pispacesolver_),
    gspacesolver(gspacesolver_),
    smoother(smoother_),
-   ess_tdof_list(ess_tdof_list_),
-   residual_time(0.0),
-   smooth_time(0.0),
-   gspacesolver_time(0.0),
-   pispacesolver_time(0.0)
+   ess_tdof_list(ess_tdof_list_)
 {
 }
 
@@ -50,15 +46,9 @@ GeneralAMS::~GeneralAMS()
 void GeneralAMS::FormResidual(const Vector& rhs, const Vector& x,
                               Vector& residual) const
 {
-   chrono.Clear();
-   chrono.Start();
-
    curlcurl_op.Mult(x, residual);
    residual *= -1.0;
    residual += rhs;
-
-   chrono.Stop();
-   residual_time += chrono.RealTime();
 }
 
 /*
@@ -79,8 +69,6 @@ void GeneralAMS::FormResidual(const Vector& rhs, const Vector& x,
 */
 void GeneralAMS::Mult(const Vector& x, Vector& y) const
 {
-   StopWatch m_chrono;
-
    MFEM_ASSERT(x.Size() == y.Size(), "Sizes don't match!");
    MFEM_ASSERT(curlcurl_op.Height() == x.Size(), "Sizes don't match!");
 
@@ -89,11 +77,7 @@ void GeneralAMS::Mult(const Vector& x, Vector& y) const
    y = 0.0;
 
    // smooth
-   m_chrono.Clear();
-   m_chrono.Start();
    smoother.Mult(x, y);
-   m_chrono.Stop();
-   smooth_time += m_chrono.RealTime();
 
    // g-space correction
    FormResidual(x, y, residual);
@@ -101,11 +85,7 @@ void GeneralAMS::Mult(const Vector& x, Vector& y) const
    gradient.MultTranspose(residual, gspacetemp);
    Vector gspacecorrection(gradient.Width());
    gspacecorrection = 0.0;
-   m_chrono.Clear();
-   m_chrono.Start();
    gspacesolver.Mult(gspacetemp, gspacecorrection);
-   m_chrono.Stop();
-   gspacesolver_time += m_chrono.RealTime();
    gradient.Mult(gspacecorrection, residual);
    y += residual;
 
@@ -119,11 +99,7 @@ void GeneralAMS::Mult(const Vector& x, Vector& y) const
 
    Vector pispacecorrection(pi.Width());
    pispacecorrection = 0.0;
-   m_chrono.Clear();
-   m_chrono.Start();
    pispacesolver.Mult(pispacetemp, pispacecorrection);
-   m_chrono.Stop();
-   pispacesolver_time += m_chrono.RealTime();
    pi.Mult(pispacecorrection, residual);
    y += residual;
 
@@ -131,22 +107,14 @@ void GeneralAMS::Mult(const Vector& x, Vector& y) const
    FormResidual(x, y, residual);
    gradient.MultTranspose(residual, gspacetemp);
    gspacecorrection = 0.0;
-   m_chrono.Clear();
-   m_chrono.Start();
    gspacesolver.Mult(gspacetemp, gspacecorrection);
-   m_chrono.Stop();
-   gspacesolver_time += m_chrono.RealTime();
    gradient.Mult(gspacecorrection, residual);
    y += residual;
 
    // smooth
    FormResidual(x, y, residual);
-   m_chrono.Clear();
-   m_chrono.Start();
    smoother.Mult(residual, temp);
    y += temp;
-   m_chrono.Stop();
-   smooth_time += m_chrono.RealTime();
 }
 
 // Pi-space constructor
