@@ -2674,6 +2674,14 @@ TEST_CASE("R1D Bilinear Weak Gradient Integrators",
    VectorFunctionCoefficient  df3_coef(vdim, Grad_f3);
    VectorFunctionCoefficient dqf3_coef(vdim, Grad_qf3);
 
+   // Set normal directions for the two mesh boundary points
+   PWConstCoefficient bcNormal(2);
+   bcNormal(1) = -1.0;
+   bcNormal(2) =  1.0;
+
+   ProductCoefficient nf3_coef(bcNormal, f3_coef);
+   ProductCoefficient nqf3_coef(bcNormal, qf3_coef);
+
    for (int type = (int)Element::SEGMENT;
         type <= (int)Element::SEGMENT; type++)
    {
@@ -2724,7 +2732,7 @@ TEST_CASE("R1D Bilinear Weak Gradient Integrators",
 
                LinearForm lf(&fespace_rt);
                lf.AddBoundaryIntegrator(
-                  new VectorFEBoundaryFluxLFIntegrator(f3_coef));
+                  new VectorFEBoundaryFluxLFIntegrator(nf3_coef));
                lf.Assemble();
 
                blfw.Mult(f_h1,tmp_rt); tmp_rt += lf; g_rt = 0.0;
@@ -2756,7 +2764,7 @@ TEST_CASE("R1D Bilinear Weak Gradient Integrators",
 
                LinearForm lf(&fespace_rt);
                lf.AddBoundaryIntegrator(
-                  new VectorFEBoundaryFluxLFIntegrator(qf3_coef, 1, 2));
+                  new VectorFEBoundaryFluxLFIntegrator(nqf3_coef, 1, 2));
                lf.Assemble();
 
                blfw.Mult(f_h1,tmp_rt); tmp_rt += lf; g_rt = 0.0;
@@ -2811,7 +2819,7 @@ TEST_CASE("R1D Bilinear Weak Gradient Integrators",
 
                LinearForm lf(&fespace_rt);
                lf.AddBoundaryIntegrator(
-                  new VectorFEBoundaryFluxLFIntegrator(f3_coef));
+                  new VectorFEBoundaryFluxLFIntegrator(nf3_coef));
                lf.Assemble();
 
                blfw.Mult(f_l2,tmp_rt); tmp_rt += lf; g_rt = 0.0;
@@ -2843,7 +2851,7 @@ TEST_CASE("R1D Bilinear Weak Gradient Integrators",
 
                LinearForm lf(&fespace_rt);
                lf.AddBoundaryIntegrator(
-                  new VectorFEBoundaryFluxLFIntegrator(qf3_coef, 1, 2));
+                  new VectorFEBoundaryFluxLFIntegrator(nqf3_coef, 1, 2));
                lf.Assemble();
 
                blfw.Mult(f_l2,tmp_rt); tmp_rt += lf; g_rt = 0.0;
@@ -2885,6 +2893,15 @@ TEST_CASE("R1D Bilinear Weak Divergence Integrators",
    DenseMatrix R13(3, 1); R13 = 0.0; R13(0,0) = 1.0;
    MatrixConstantCoefficient R13_coef(R13);
    TransposeMatrixCoefficient R31_coef(R13_coef);
+
+   // Set normal directions for the two mesh boundary points
+   PWConstCoefficient bcNormal(2);
+   bcNormal(1) = -1.0;
+   bcNormal(2) =  1.0;
+
+   ScalarVectorProductCoefficient nF3_coef(bcNormal, F3_coef);
+   ScalarVectorProductCoefficient nqF3_coef(bcNormal, qF3_coef);
+   ScalarVectorProductCoefficient nMF3_coef(bcNormal, MF3_coef);
 
    for (int type = (int)Element::SEGMENT;
         type <= (int)Element::SEGMENT; type++)
@@ -2934,7 +2951,7 @@ TEST_CASE("R1D Bilinear Weak Divergence Integrators",
                delete blfT;
                delete diff;
 
-               MatrixVectorProductCoefficient R31_F3_coef(R31_coef, F3_coef);
+               MatrixVectorProductCoefficient R31_F3_coef(R31_coef, nF3_coef);
 
                LinearForm lf(&fespace_h1);
                lf.AddBoundaryIntegrator(
@@ -2971,7 +2988,7 @@ TEST_CASE("R1D Bilinear Weak Divergence Integrators",
                delete blfT;
                delete diff;
 
-               MatrixVectorProductCoefficient R31_qF3_coef(R31_coef, qF3_coef);
+               MatrixVectorProductCoefficient R31_qF3_coef(R31_coef, nqF3_coef);
 
                LinearForm lf(&fespace_h1);
                lf.AddBoundaryIntegrator(
@@ -3008,7 +3025,7 @@ TEST_CASE("R1D Bilinear Weak Divergence Integrators",
                delete blfT;
                delete diff;
 
-               MatrixVectorProductCoefficient R31_MF3_coef(R31_coef, MF3_coef);
+               MatrixVectorProductCoefficient R31_MF3_coef(R31_coef, nMF3_coef);
 
                LinearForm lf(&fespace_h1);
                lf.AddBoundaryIntegrator(
@@ -3065,7 +3082,7 @@ TEST_CASE("R1D Bilinear Weak Divergence Integrators",
                delete blfT;
                delete diff;
 
-               MatrixVectorProductCoefficient R31_F3_coef(R31_coef, F3_coef);
+               MatrixVectorProductCoefficient R31_F3_coef(R31_coef, nF3_coef);
 
                LinearForm lf(&fespace_h1);
                lf.AddBoundaryIntegrator(
@@ -3102,7 +3119,7 @@ TEST_CASE("R1D Bilinear Weak Divergence Integrators",
                delete blfT;
                delete diff;
 
-               MatrixVectorProductCoefficient R31_qF3_coef(R31_coef, qF3_coef);
+               MatrixVectorProductCoefficient R31_qF3_coef(R31_coef, nqF3_coef);
 
                LinearForm lf(&fespace_h1);
                lf.AddBoundaryIntegrator(
@@ -3139,7 +3156,7 @@ TEST_CASE("R1D Bilinear Weak Divergence Integrators",
                delete blfT;
                delete diff;
 
-               MatrixVectorProductCoefficient R31_MF3_coef(R31_coef, MF3_coef);
+               MatrixVectorProductCoefficient R31_MF3_coef(R31_coef, nMF3_coef);
 
                LinearForm lf(&fespace_h1);
                lf.AddBoundaryIntegrator(
@@ -3521,6 +3538,13 @@ TEST_CASE("R1D Bilinear Weak Div Cross Integrators",
    MatrixConstantCoefficient R13_coef(R13);
    TransposeMatrixCoefficient R31_coef(R13_coef);
 
+   // Set normal directions for the two mesh boundary points
+   PWConstCoefficient bcNormal(2);
+   bcNormal(1) = -1.0;
+   bcNormal(2) =  1.0;
+
+   ScalarVectorProductCoefficient nVF3_coef(bcNormal, VF3_coef);
+
    for (int type = (int)Element::SEGMENT;
         type <= (int)Element::SEGMENT; type++)
    {
@@ -3569,7 +3593,7 @@ TEST_CASE("R1D Bilinear Weak Div Cross Integrators",
                delete blfT;
                delete diff;
 
-               MatrixVectorProductCoefficient R31_VF3_coef(R31_coef, VF3_coef);
+               MatrixVectorProductCoefficient R31_VF3_coef(R31_coef, nVF3_coef);
 
                LinearForm lf(&fespace_h1);
                lf.AddBoundaryIntegrator(
@@ -3626,7 +3650,7 @@ TEST_CASE("R1D Bilinear Weak Div Cross Integrators",
                delete blfT;
                delete diff;
 
-               MatrixVectorProductCoefficient R31_VF3_coef(R31_coef, VF3_coef);
+               MatrixVectorProductCoefficient R31_VF3_coef(R31_coef, nVF3_coef);
 
                LinearForm lf(&fespace_h1);
                lf.AddBoundaryIntegrator(
@@ -3803,6 +3827,13 @@ TEST_CASE("R1D Bilinear Weak Grad Dot Product Integrators",
    FunctionCoefficient       VdotF3_coef(VdotF3);
    VectorFunctionCoefficient   dVF3_coef(vdim, GradVdotF3);
 
+   // Set normal directions for the two mesh boundary points
+   PWConstCoefficient bcNormal(2);
+   bcNormal(1) = -1.0;
+   bcNormal(2) =  1.0;
+
+   ProductCoefficient nVdotF3_coef(bcNormal, VdotF3_coef);
+
    for (int type = (int)Element::SEGMENT;
         type <= (int)Element::SEGMENT; type++)
    {
@@ -3852,7 +3883,7 @@ TEST_CASE("R1D Bilinear Weak Grad Dot Product Integrators",
 
                LinearForm lf(&fespace_rt);
                lf.AddBoundaryIntegrator(
-                  new VectorFEBoundaryFluxLFIntegrator(VdotF3_coef, 1, 2));
+                  new VectorFEBoundaryFluxLFIntegrator(nVdotF3_coef, 1, 2));
                lf.Assemble();
 
                blfw.Mult(f_nd,tmp_rt); tmp_rt += lf; g_rt = 0.0;
@@ -3904,7 +3935,7 @@ TEST_CASE("R1D Bilinear Weak Grad Dot Product Integrators",
 
                LinearForm lf(&fespace_rt);
                lf.AddBoundaryIntegrator(
-                  new VectorFEBoundaryFluxLFIntegrator(VdotF3_coef, 1, 2));
+                  new VectorFEBoundaryFluxLFIntegrator(nVdotF3_coef, 1, 2));
                lf.Assemble();
 
                blfw.Mult(f_rt,tmp_rt); tmp_rt += lf; g_rt = 0.0;
@@ -3943,6 +3974,14 @@ TEST_CASE("R1D Bilinear Grad Div Integrators",
    DenseMatrix R13(3, 1); R13 = 0.0; R13(0,0) = 1.0;
    MatrixConstantCoefficient R13_coef(R13);
    TransposeMatrixCoefficient R31_coef(R13_coef);
+
+   // Set normal directions for the two mesh boundary points
+   PWConstCoefficient bcNormal(2);
+   bcNormal(1) = -1.0;
+   bcNormal(2) =  1.0;
+
+   ProductCoefficient nVdf3_coef(bcNormal, Vdf3_coef);
+   ScalarVectorProductCoefficient nVdF3_coef(bcNormal, VdF3_coef);
 
    for (int type = (int)Element::SEGMENT;
         type <= (int)Element::SEGMENT; type++)
@@ -3996,7 +4035,7 @@ TEST_CASE("R1D Bilinear Grad Div Integrators",
 
                LinearForm lf(&fespace_rt);
                lf.AddBoundaryIntegrator(
-                  new VectorFEBoundaryFluxLFIntegrator(Vdf3_coef));
+                  new VectorFEBoundaryFluxLFIntegrator(nVdf3_coef));
                lf.Assemble();
 
                blfw.Mult(f_h1,tmp_rt); tmp_rt += lf; g_rt = 0.0;
@@ -4038,7 +4077,7 @@ TEST_CASE("R1D Bilinear Grad Div Integrators",
                blfw.Finalize();
 
                MatrixVectorProductCoefficient R31_VdF3_coef(R31_coef,
-                                                            VdF3_coef);
+                                                            nVdF3_coef);
 
                LinearForm lf(&fespace_h1);
                lf.AddBoundaryIntegrator(
@@ -4076,6 +4115,13 @@ TEST_CASE("R1D Bilinear Mixed Cross Curl Grad Integrators",
    DenseMatrix R13(3, 1); R13 = 0.0; R13(0,0) = 1.0;
    MatrixConstantCoefficient R13_coef(R13);
    TransposeMatrixCoefficient R31_coef(R13_coef);
+
+   // Set normal directions for the two mesh boundary points
+   PWConstCoefficient bcNormal(2);
+   bcNormal(1) = -1.0;
+   bcNormal(2) =  1.0;
+
+   ScalarVectorProductCoefficient nVxdF3_coef(bcNormal, VxdF3_coef);
 
    for (int type = (int)Element::SEGMENT;
         type <= (int)Element::SEGMENT; type++)
@@ -4126,7 +4172,7 @@ TEST_CASE("R1D Bilinear Mixed Cross Curl Grad Integrators",
                delete diff;
 
                MatrixVectorProductCoefficient R31_VxdF3_coef(R31_coef,
-                                                             VxdF3_coef);
+                                                             nVxdF3_coef);
 
                LinearForm lf(&fespace_h1);
                lf.AddBoundaryIntegrator(
@@ -4617,6 +4663,14 @@ TEST_CASE("R1D Bilinear Div Div Integrators",
    FunctionCoefficient         qdF3_coef(qDivF3);
    VectorFunctionCoefficient  dqdF3_coef(vdim, Grad_qDivF3);
 
+   // Set normal directions for the two mesh boundary points
+   PWConstCoefficient bcNormal(2);
+   bcNormal(1) = -1.0;
+   bcNormal(2) =  1.0;
+
+   ProductCoefficient ndF3_coef(bcNormal, dF3_coef);
+   ProductCoefficient nqdF3_coef(bcNormal, qdF3_coef);
+
    for (int type = (int)Element::SEGMENT;
         type <= (int)Element::SEGMENT; type++)
    {
@@ -4657,7 +4711,7 @@ TEST_CASE("R1D Bilinear Div Div Integrators",
 
                LinearForm lf(&fespace_rt);
                lf.AddBoundaryIntegrator(
-                  new VectorFEBoundaryFluxLFIntegrator(dF3_coef));
+                  new VectorFEBoundaryFluxLFIntegrator(ndF3_coef));
                lf.Assemble();
 
                blf.Mult(f_rt,tmp_rt); tmp_rt -= lf; g_rt = 0.0;
@@ -4682,7 +4736,7 @@ TEST_CASE("R1D Bilinear Div Div Integrators",
 
                LinearForm lf(&fespace_rt);
                lf.AddBoundaryIntegrator(
-                  new VectorFEBoundaryFluxLFIntegrator(qdF3_coef));
+                  new VectorFEBoundaryFluxLFIntegrator(nqdF3_coef));
                lf.Assemble();
 
                blf.Mult(f_rt,tmp_rt); tmp_rt -= lf; g_rt = 0.0;
