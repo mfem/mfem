@@ -21,7 +21,7 @@ double zero3(const Vector & x) { return 0.0; }
 void Zero3(const Vector & x, Vector & v) { v.SetSize(3); v = 0.0; }
 
 double f3(const Vector & x)
-{ return 2.345 * x[0] + 3.579 * x[1]; }
+{ return 1.234 + 2.345 * x[0] + 3.579 * x[1]; }
 void Grad_f3(const Vector & x, Vector & df)
 {
    df.SetSize(3);
@@ -32,9 +32,9 @@ void Grad_f3(const Vector & x, Vector & df)
 void F3(const Vector & x, Vector & v)
 {
    v.SetSize(3);
-   v[0] =  1.234 * x[0] - 2.357 * x[1];
-   v[1] =  3.572 * x[0] + 4.321 * x[1];
-   v[2] = -2.752 * x[0] + 1.321 * x[1];
+   v[0] = 2.537 + 1.234 * x[0] - 2.357 * x[1];
+   v[1] = 1.763 + 3.572 * x[0] + 4.321 * x[1];
+   v[2] = 3.156 - 2.752 * x[0] + 1.321 * x[1];
 }
 void Grad_F3(const Vector & x, DenseMatrix & df)
 {
@@ -54,7 +54,7 @@ double DivF3(const Vector & x)
 { return 1.234 + 4.321; }
 
 double q3(const Vector & x)
-{ return 4.234 * x[0] + 3.357 * x[1]; }
+{ return 2.678 + 4.234 * x[0] + 3.357 * x[1]; }
 void Grad_q3(const Vector & x, Vector & dq)
 {
    dq.SetSize(3);
@@ -66,9 +66,9 @@ void Grad_q3(const Vector & x, Vector & dq)
 void V3(const Vector & x, Vector & v)
 {
    v.SetSize(3);
-   v[0] = 2.234 * x[0] + 1.357 * x[1];
-   v[1] = 4.572 * x[0] + 3.321 * x[1];
-   v[2] = 1.357 * x[0] + 2.321 * x[1];
+   v[0] = 4.254 + 2.234 * x[0] + 1.357 * x[1];
+   v[1] = 1.789 + 4.572 * x[0] + 3.321 * x[1];
+   v[2] = 2.658 + 1.357 * x[0] + 2.321 * x[1];
 }
 void Grad_V3(const Vector & x, DenseMatrix & dv)
 {
@@ -91,17 +91,17 @@ void M3(const Vector & x, DenseMatrix & m)
 {
    m.SetSize(3);
 
-   m(0,0) =  4.234 * x[0] + 3.357 * x[1];
-   m(0,1) =  0.234 * x[0] + 0.357 * x[1];
-   m(0,2) = -0.537 * x[0] + 0.321 * x[1];
+   m(0,0) = 1.792 + 4.234 * x[0] + 3.357 * x[1];
+   m(0,1) = 0.116 + 0.234 * x[0] + 0.357 * x[1];
+   m(0,2) = 0.213 - 0.537 * x[0] + 0.321 * x[1];
 
-   m(1,0) = -0.572 * x[0] - 0.321 * x[1];
-   m(1,1) =  4.537 * x[0] + 1.321 * x[1];
-   m(1,2) =  0.537 * x[0] + 0.321 * x[1];
+   m(1,0) = 0.324 - 0.572 * x[0] - 0.321 * x[1];
+   m(1,1) = 1.234 + 4.537 * x[0] + 1.321 * x[1];
+   m(1,2) = 0.132 + 0.537 * x[0] + 0.321 * x[1];
 
-   m(2,0) =  0.572 * x[0] + 0.321 * x[1];
-   m(2,1) =  0.234 * x[0] - 0.357 * x[1];
-   m(2,2) =  1.572 * x[0] + 2.321 * x[1];
+   m(2,0) = 0.214 + 0.572 * x[0] + 0.321 * x[1];
+   m(2,1) = 0.314 + 0.234 * x[0] - 0.357 * x[1];
+   m(2,2) = 1.431 + 1.572 * x[0] + 2.321 * x[1];
 }
 void MT3(const Vector & x, DenseMatrix & m)
 {
