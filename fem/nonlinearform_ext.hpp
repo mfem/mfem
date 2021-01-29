@@ -47,10 +47,10 @@ public:
        matrix-free global true-dof gradient with imposed boundary conditions. */
    virtual Operator &GetGradient(const Vector &x) const = 0;
 
-   /// Assumes that @a x is a ldof Vector.
+   /// Compute the local (to the MPI rank) energy of the L-vector state @a x.
    virtual double GetGridFunctionEnergy(const Vector &x) const = 0;
 
-   /// Called by NonlinearForm::Update().
+   /// Called by NonlinearForm::Update() to reflect changes in the FE space.
    virtual void Update() = 0;
 };
 
@@ -62,7 +62,6 @@ private:
    {
    protected:
       const PANonlinearFormExtension &ext;
-      mutable Vector ge;
 
    public:
       /// Assumes that @a g is a ldof Vector.
@@ -99,12 +98,30 @@ protected:
 public:
    PANonlinearFormExtension(const NonlinearForm *nlf);
 
+   /// Prepare the PANonlinearFormExtension for evaluation with Mult().
+   /** This method must be called before the first call to Mult(), when the mesh
+       coordinates are chaged, or some coefficients in the integrators need to
+       be re-evaluated (this is NonlinearFormIntegrator-dependent). */
    void Assemble() override;
 
+   /// Perform the action of the PANonlinearFormExtension.
+   /** Both the input, @a x, and output, @a y, vectors are L-vectors, i.e.
+       GridFunction-size vectors. */
    void Mult(const Vector &x, Vector &y) const override;
+
+   /** @brief Return the gradient as an L-to-L Operator. The input @a x must be
+       an L-vector (i.e. GridFunction-size vector). */
+   /** Essential boundary conditions are NOT applied to the returned operator.
+
+       The returned gradient Operator defines the virtual method GetProlongation
+       which enables support for the method FormSystemOperator to define the
+       matrix-free global true-dof gradient with imposed boundary conditions. */
    Operator &GetGradient(const Vector &x) const override;
+
+   /// Compute the local (to the MPI rank) energy of the L-vector state @a x.
    double GetGridFunctionEnergy(const Vector &x) const override;
 
+   /// Called by NonlinearForm::Update() to reflect changes in the FE space.
    void Update() override;
 };
 }
