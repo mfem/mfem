@@ -530,25 +530,52 @@ void MixedVectorIntegrator::AssembleElementMatrix2(
 
          for (int j=0; j<test_nd; j++)
          {
-            if (test_vdim > 2)
+            // Compute shape_tmp = test_shape x V
+            // V will always be of length 3
+            // shape_dim and test_shape could have reduced dimension
+            // i.e. 1D or 2D
+            if (test_vdim == 3 && trial_vdim == 3)
             {
                shape_tmp(j,0) = test_shape(j,1) * V(2) -
                                 test_shape(j,2) * V(1);
-               if (trial_vdim > 1)
-               {
-                  shape_tmp(j,1) = test_shape(j,2) * V(0) -
-                                   test_shape(j,0) * V(2);
-               }
-            }
-            else
-            {
-               shape_tmp(j,0) =  test_shape(j,1) * V(2);
-               shape_tmp(j,1) = -test_shape(j,0) * V(2);
-            }
-            if (trial_vdim > 2)
-            {
+               shape_tmp(j,1) = test_shape(j,2) * V(0) -
+                                test_shape(j,0) * V(2);
                shape_tmp(j,2) = test_shape(j,0) * V(1) -
                                 test_shape(j,1) * V(0);
+            }
+            else if (test_vdim == 3 && trial_vdim == 2)
+            {
+               shape_tmp(j,0) = test_shape(j,1) * V(2) -
+                                test_shape(j,2) * V(1);
+               shape_tmp(j,1) = test_shape(j,2) * V(0) -
+                                test_shape(j,0) * V(2);
+            }
+            else if (test_vdim == 3 && trial_vdim == 1)
+            {
+               shape_tmp(j,0) = test_shape(j,1) * V(2) -
+                                test_shape(j,2) * V(1);
+            }
+            else if (test_vdim == 2 && trial_vdim == 3)
+            {
+               shape_tmp(j,0) = test_shape(j,1) * V(2);
+               shape_tmp(j,1) = -test_shape(j,0) * V(2);
+               shape_tmp(j,2) = test_shape(j,0) * V(1) -
+                                test_shape(j,1) * V(0);
+            }
+            else if (test_vdim == 2 && trial_vdim == 2)
+            {
+               shape_tmp(j,0) = test_shape(j,1) * V(2);
+               shape_tmp(j,1) = -test_shape(j,0) * V(2);
+            }
+            else if (test_vdim == 1 && trial_vdim == 3)
+            {
+               shape_tmp(j,0) = 0.0;
+               shape_tmp(j,1) = -test_shape(j,0) * V(2);
+               shape_tmp(j,2) = test_shape(j,0) * V(1);
+            }
+            else if (test_vdim == 1 && trial_vdim == 1)
+            {
+               shape_tmp(j,0) = 0.0;
             }
          }
          AddMultABt(shape_tmp, trial_shape, elmat);
