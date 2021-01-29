@@ -96,8 +96,11 @@ public:
    void SetOperator(const Operator& op) {}
 
 private:
-   void SetupAMG(int
-                 system_dimension);  // TODO: document meaning of system_dimension
+   /** @brief Helper routine for constructors.
+
+       @param system_dimension is passed to HypreBoomerAMG::SetSystemsOptions
+   */
+   void SetupAMG(int system_dimension);
    void SetupVCycle();
 
    /// inner_cg_iterations > 99 applies an exact solve here

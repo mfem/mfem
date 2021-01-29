@@ -12,7 +12,7 @@ Version 4.2.1 (development)
 ===========================
 
 - Added high-order matrix-free auxiliary Maxwell solver for H(curl) problems,
-  as described in Barker and Kolev 2021 (https://doi.org/10.1002/nla.2348).
+  as described in Barker and Kolev 2020 (https://doi.org/10.1002/nla.2348).
 
 - Added matrix-free GPU-enabled implementations of GradientInterpolator and
   IdentityInterpolator.
