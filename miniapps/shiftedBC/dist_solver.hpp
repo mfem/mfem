@@ -19,38 +19,35 @@ namespace mfem
 
 class DistanceSolver
 {
+protected:
+   void ScalarDistToVector(ParGridFunction &dist_s, ParGridFunction &dist_v);
+
 public:
    DistanceSolver() { }
 
    virtual ~DistanceSolver() { }
 
-   virtual void ComputeDistance(Coefficient &zero_level_set,
-                                ParGridFunction &distance) = 0;
+   virtual void ComputeScalarDistance(Coefficient &zero_level_set,
+                                      ParGridFunction &distance) = 0;
+
+   virtual void ComputeVectorDistance(Coefficient &zero_level_set,
+                                      ParGridFunction &distance);
 };
 
 // K. Crane et al:
 // Geodesics in Heat: A New Approach to Computing Distance Based on Heat Flow
 class HeatDistanceSolver : public DistanceSolver
 {
-private:
-   ParGridFunction source, diffused_source;
-
 public:
    HeatDistanceSolver(double diff_coeff)
-      : DistanceSolver(),
-        parameter_t(diff_coeff), smooth_steps(0), diffuse_iter(1),
-        transform(true) { }
+      : DistanceSolver(), parameter_t(diff_coeff), smooth_steps(0),
+        diffuse_iter(1), transform(true), vis_glvis(false) { }
 
-   void ComputeDistance(Coefficient &zero_level_set,
-                        ParGridFunction &distance);
-
-   const ParGridFunction &GetLastSourceGF() const
-   { return source; }
-   const ParGridFunction &GetLastDiffusedSourceGF() const
-   { return diffused_source; }
+   void ComputeScalarDistance(Coefficient &zero_level_set,
+                              ParGridFunction &distance);
 
    int parameter_t, smooth_steps, diffuse_iter;
-   bool transform;
+   bool transform, vis_glvis;
 };
 
 class GradientCoefficient : public VectorCoefficient
@@ -115,15 +112,9 @@ public:
         diffcoef= rd*rd;
     }
 
-    ~ScreenedPoisson()
-    {
+    ~ScreenedPoisson() { }
 
-    }
-
-    void SetInput(mfem::Coefficient& nfunc)
-    {
-        func=&nfunc;
-    }
+    void SetInput(mfem::Coefficient& nfunc) { func = &nfunc; }
 
     virtual double GetElementEnergy(const FiniteElement &el,
                                     ElementTransformation &trans,
@@ -152,11 +143,10 @@ protected:
     mfem::Coefficient *func;
     mfem::VectorCoefficient *fgrad;
     bool ownership;
-    double pp;
-    double ee;
+    double pp, ee;
 
 public:
-    PUMPLaplacian(mfem::Coefficient* nfunc, mfem::VectorCoefficient* nfgrad, bool ownership_=true)
+    PUMPLaplacian(Coefficient* nfunc, VectorCoefficient* nfgrad, bool ownership_=true)
     {
         func=nfunc;
         fgrad=nfgrad;
@@ -165,19 +155,13 @@ public:
         ee=1e-7;
     }
 
-    void SetPower(double pp_)
-    {
-        pp=pp_;
-    }
+    void SetPower(double pp_) { pp = pp_; }
+    void SetReg(double ee_)   { ee = ee_; }
 
-    void SetReg(double ee_)
+    virtual ~PUMPLaplacian()
     {
-        ee=ee_;
-    }
-
-    virtual
-    ~PUMPLaplacian(){
-        if(ownership){
+        if(ownership)
+        {
             delete func;
             delete fgrad;
         }
@@ -314,18 +298,15 @@ public:
         print_level=print_lv;
     }
 
-    void SetMaxPower(int new_pp)
-    {
-        maxp=new_pp;
-    }
+    void SetMaxPower(int new_pp) { maxp = new_pp; }
 
     void DistanceField(ParGridFunction& gfunc, ParGridFunction& fdist)
     {
         mfem::GridFunctionCoefficient gfc(&gfunc);
-        ComputeDistance(gfc, fdist);
+        ComputeScalarDistance(gfc, fdist);
     }
 
-    void ComputeDistance(Coefficient& func, ParGridFunction& fdist);
+    void ComputeScalarDistance(Coefficient& func, ParGridFunction& fdist);
 
 private:
     int maxp; //maximum value of the power p
@@ -334,9 +315,6 @@ private:
     int newton_iter;
     int print_level;
 };
-
-
-
 
 } // namespace mfem
 

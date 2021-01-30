@@ -38,8 +38,56 @@ void DiffuseField(ParGridFunction &field, int smooth_steps)
    delete Lap;
 }
 
-void HeatDistanceSolver::ComputeDistance(Coefficient &zero_level_set,
-                                         ParGridFunction &distance)
+void DistanceSolver::ScalarDistToVector(ParGridFunction &dist_s,
+                                        ParGridFunction &dist_v)
+{
+   ParFiniteElementSpace &pfes = *dist_s.ParFESpace();
+   MFEM_VERIFY(pfes.GetOrdering()==Ordering::byNODES,
+               "Only Ordering::byNODES is implemented.");
+
+   const int dim = pfes.GetMesh()->Dimension();
+   const int size = dist_s.Size();
+
+   ParGridFunction der(&pfes);
+   Vector magn(size);
+   magn = 0.0;
+   for (int d = 0; d < dim; d++)
+   {
+      dist_s.GetDerivative(1, d, der);
+      for (int i = 0; i < size; i++)
+      {
+         magn(i) += der(i) * der(i);
+         // The vector must point towards the level zero set.
+         dist_v(i + d*size) = (dist_s(i) > 0.0) ? -der(i) : der(i);
+      }
+   }
+
+   const double eps = 1e-16;
+   for (int i = 0; i < size; i++)
+   {
+      const double vec_magn = std::sqrt(magn(i) + eps);
+      for (int d = 0; d < dim; d++)
+      {
+         dist_v(i + d*size) *= fabs(dist_s(i)) / vec_magn;
+      }
+   }
+}
+
+void DistanceSolver::ComputeVectorDistance(Coefficient &zero_level_set,
+                                           ParGridFunction &distance)
+{
+   ParFiniteElementSpace &pfes = *distance.ParFESpace();
+   MFEM_VERIFY(pfes.GetVDim() == pfes.GetMesh()->Dimension(),
+               "This function expects a vector ParGridFunction!");
+
+   ParFiniteElementSpace pfes_s(pfes.GetParMesh(), pfes.FEColl());
+   ParGridFunction dist_s(&pfes_s);
+   ComputeScalarDistance(zero_level_set, dist_s);
+   ScalarDistToVector(dist_s, distance);
+}
+
+void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
+                                               ParGridFunction &distance)
 {
    ParFiniteElementSpace &pfes = *distance.ParFESpace();
 
@@ -75,7 +123,7 @@ void HeatDistanceSolver::ComputeDistance(Coefficient &zero_level_set,
    dx /= pfes.GetOrder(0);
 
    // Step 0 - transform the input level set into a source-type bump.
-   source.SetSpace(&pfes);
+   ParGridFunction source(&pfes);
    source.ProjectCoefficient(zero_level_set);
    // Optional smoothing of the initial level set.
    if (smooth_steps > 0) { DiffuseField(source, smooth_steps); }
@@ -99,7 +147,7 @@ void HeatDistanceSolver::ComputeDistance(Coefficient &zero_level_set,
    Vector B, X;
 
    // Step 1 - diffuse.
-   diffused_source.SetSpace(&pfes);
+   ParGridFunction diffused_source(&pfes);
    for (int i = 0; i < diffuse_iter; i++)
    {
       // Set up RHS.
@@ -166,8 +214,7 @@ void HeatDistanceSolver::ComputeDistance(Coefficient &zero_level_set,
    {
       // RHS - normalized gradient.
       ParLinearForm b2(&pfes);
-      GradientCoefficient grad_u(diffused_source,
-                                 pfes.GetMesh()->Dimension());
+      GradientCoefficient grad_u(diffused_source, pmesh.Dimension());
       b2.AddDomainIntegrator(new DomainLFGradIntegrator(grad_u));
       b2.Assemble();
 
@@ -195,6 +242,28 @@ void HeatDistanceSolver::ComputeDistance(Coefficient &zero_level_set,
    MPI_Allreduce(&d_min_loc, &d_min_glob, 1, MPI_DOUBLE,
                  MPI_MIN, pfes.GetComm());
    distance -= d_min_glob;
+
+   if (vis_glvis)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+
+      ParFiniteElementSpace fespace_vec(&pmesh, pfes.FEColl(),
+                                        pmesh.Dimension());
+      GradientCoefficient grad_u(diffused_source, pmesh.Dimension());
+      ParGridFunction x(&fespace_vec);
+      x.ProjectCoefficient(grad_u);
+
+      socketstream sol_sock_x(vishost, visport);
+      sol_sock_x << "parallel " << pfes.GetNRanks() << " "
+                                << pfes.GetMyRank() << "\n";
+      sol_sock_x.precision(8);
+      sol_sock_x << "solution\n" << pmesh << x;
+      sol_sock_x << "window_geometry " << 0 << " " << 0 << " "
+                                       << 500 << " " << 500 << "\n"
+              << "window_title '" << "Heat Directions" << "'\n"
+              << "keys evvRj*******A\n" << std::flush;
+   }
 }
 
 double ScreenedPoisson::GetElementEnergy(const FiniteElement &el,
@@ -621,8 +690,8 @@ void PUMPLaplacian::AssembleElementGrad(const FiniteElement &el,
 }
 
 
-void PLapDistanceSolver::ComputeDistance(Coefficient &func,
-                                         ParGridFunction &fdist)
+void PLapDistanceSolver::ComputeScalarDistance(Coefficient &func,
+                                               ParGridFunction &fdist)
 {
     mfem::ParFiniteElementSpace* fesd=fdist.ParFESpace();
 
@@ -673,26 +742,24 @@ void PLapDistanceSolver::ComputeDistance(Coefficient &func,
     gmres->SetPrintLevel(print_level);
     gmres->SetPreconditioner(*prec);
 
-
-    mfem::NewtonSolver *ns;
-    ns = new mfem::NewtonSolver(lcomm);
-    ns->iterative_mode = true;
-    ns->SetSolver(*gmres);
-    ns->SetOperator(*nf);
-    ns->SetPrintLevel(print_level);
-    ns->SetRelTol(newton_rel_tol);
-    ns->SetAbsTol(newton_abs_tol);
-    ns->SetMaxIter(newton_iter);
+    NewtonSolver ns(lcomm);
+    ns.iterative_mode = true;
+    ns.SetSolver(*gmres);
+    ns.SetOperator(*nf);
+    ns.SetPrintLevel(print_level);
+    ns.SetRelTol(newton_rel_tol);
+    ns.SetAbsTol(newton_abs_tol);
+    ns.SetMaxIter(newton_iter);
 
 
     mfem::Vector b; //RHS is zero
-    ns->Mult(b, *sv);
+    ns.Mult(b, *sv);
 
     for(int pp=3;pp<maxp;pp++)
     {
        if(myrank==0){std::cout<<"pp="<<pp<<std::endl;}
        pint->SetPower(pp);
-       ns->Mult(b, *sv);
+       ns.Mult(b, *sv);
     }
 
     xf.SetFromTrueDofs(*sv);
@@ -700,14 +767,12 @@ void PLapDistanceSolver::ComputeDistance(Coefficient &func,
     mfem::PProductCoefficient tsol(func,gfx);
     fdist.ProjectCoefficient(tsol);
 
-
     // (optional) Force positive distances everywhere.
     // for (int i = 0; i < fdist.Size(); i++)
     // {
     //    fdist(i) = fabs(fdist(i));
     // }
 
-    delete ns;
     delete gmres;
     delete prec;
     delete nf;

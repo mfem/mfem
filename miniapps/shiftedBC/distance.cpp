@@ -205,6 +205,7 @@ int main(int argc, char *argv[])
          ds->diffuse_iter = 1;
       }
       ds->smooth_steps = smooth_steps;
+      ds->vis_glvis = false;
       dist_solver = ds;
    }
    else if (solver_type == 1)
@@ -217,11 +218,12 @@ int main(int argc, char *argv[])
    else { MFEM_ABORT("Wrong solver option."); }
 
    H1_FECollection fec(order, dim);
-   ParFiniteElementSpace pfes(&pmesh, &fec);
-   ParGridFunction distance(&pfes);
-   dist_solver->ComputeDistance(*ls_coeff, distance);
+   ParFiniteElementSpace pfes_s(&pmesh, &fec), pfes_v(&pmesh, &fec, dim);
+   ParGridFunction distance_s(&pfes_s), distance_v(&pfes_v);
+   dist_solver->ComputeScalarDistance(*ls_coeff, distance_s);
+   dist_solver->ComputeVectorDistance(*ls_coeff, distance_v);
 
-   ParGridFunction input_ls(distance.ParFESpace());
+   ParGridFunction input_ls(distance_s.ParFESpace());
    input_ls.ProjectCoefficient(*ls_coeff);
    delete ls_coeff;
 
@@ -240,57 +242,36 @@ int main(int argc, char *argv[])
                                        << size << " " << size << "\n"
                  << "window_title '" << "Input Level Set" << "'\n" << flush;
 
-      socketstream sol_sock_d(vishost, visport);
-      sol_sock_d << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock_d.precision(8);
-      sol_sock_d << "solution\n" << pmesh << distance;
-      sol_sock_d << "window_geometry " << size << " " << 0 << " "
-                                       << size << " " << size << "\n"
-                 << "window_title '" << "Distance" << "'\n"
-                 << "keys rRjmm*****\n" << flush;
+      socketstream sol_sock_ds(vishost, visport);
+      sol_sock_ds << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock_ds.precision(8);
+      sol_sock_ds << "solution\n" << pmesh << distance_s;
+      sol_sock_ds << "window_geometry " << size << " " << 0 << " "
+                                        << size << " " << size << "\n"
+                  << "window_title '" << "Distance" << "'\n"
+                  << "keys rRjmm********\n" << flush;
 
-      if (solver_type == 0)
-      {
-         H1_FECollection fec(order, dim);
-         ParFiniteElementSpace fespace_vec(&pmesh, &fec, dim);
-
-         HeatDistanceSolver &d = dynamic_cast<HeatDistanceSolver &>(*dist_solver);
-         const ParGridFunction &diff_src = d.GetLastDiffusedSourceGF();
-
-         GradientCoefficient grad_u(diff_src, dim);
-         ParGridFunction x(&fespace_vec);
-         x.ProjectCoefficient(grad_u);
-
-         socketstream sol_sock_u(vishost, visport);
-         sol_sock_u << "parallel " << num_procs << " " << myid << "\n";
-         sol_sock_u.precision(8);
-         sol_sock_u << "solution\n" << pmesh << diff_src;
-         sol_sock_u << "window_geometry " << 0 << " " << size << " "
-                                       << size << " " << size << "\n"
-                 << "window_title '" << "Diffused Source" << "'\n" << flush;
-
-         socketstream sol_sock_x(vishost, visport);
-         sol_sock_x << "parallel " << num_procs << " " << myid << "\n";
-         sol_sock_x.precision(8);
-         sol_sock_x << "solution\n" << pmesh << x;
-         sol_sock_x << "window_geometry " << size << " " << size << " "
-                                       << size << " " << size << "\n"
-                 << "window_title '" << "Directions" << "'\n"
-                 << "keys evvRj*******A\n" << flush;
-      }
+      socketstream sol_sock_dv(vishost, visport);
+      sol_sock_dv << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock_dv.precision(8);
+      sol_sock_dv << "solution\n" << pmesh << distance_v;
+      sol_sock_dv << "window_geometry " << 2*size << " " << 0 << " "
+                                        << size << " " << size << "\n"
+                  << "window_title '" << "Distance" << "'\n"
+                  << "keys rRjmm********vv\n" << flush;
    }
 
    // Paraview output.
    ParaViewDataCollection dacol("ParaViewDistance", &pmesh);
    dacol.SetLevelsOfDetail(order);
    dacol.RegisterField("level_set", &input_ls);
-   dacol.RegisterField("distance", &distance);
+   dacol.RegisterField("distance", &distance_s);
    dacol.SetTime(1.0);
    dacol.SetCycle(1);
    dacol.Save();
 
    ConstantCoefficient zero(0.0);
-   const double d_norm  = distance.ComputeL2Error(zero);
+   const double d_norm  = distance_s.ComputeL2Error(zero);
    if (myid == 0)
    {
      cout << fixed << setprecision(10) << "Norm: " << d_norm << std::endl;
