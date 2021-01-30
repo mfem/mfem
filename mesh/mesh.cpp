@@ -1037,6 +1037,24 @@ FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
    return tr;
 }
 
+int Mesh::GetBdrFace(int BdrElemNo) const
+{
+   int fn;
+   if (Dim == 3)
+   {
+      fn = be_to_face[BdrElemNo];
+   }
+   else if (Dim == 2)
+   {
+      fn = be_to_edge[BdrElemNo];
+   }
+   else
+   {
+      fn = boundary[BdrElemNo]->GetVertices()[0];
+   }
+   return fn;
+}
+
 void Mesh::GetFaceElements(int Face, int *Elem1, int *Elem2) const
 {
    *Elem1 = faces_info[Face].Elem1No;
