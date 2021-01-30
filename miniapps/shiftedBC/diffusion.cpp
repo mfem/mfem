@@ -417,8 +417,10 @@ int main(int argc, char *argv[])
    //    or project an exact analytic function.
    HeatDistanceSolver dist_func(1.0);
    dist_func.smooth_steps = 1;
-   ParGridFunction distance(&pfespace);
-   dist_func.ComputeDistance(dist_fun_level_coef, distance);
+   auto distance_vec_space = new ParFiniteElementSpace(pfespace.GetParMesh(),
+                                                       pfespace.FEColl(), dim);
+   ParGridFunction distance(distance_vec_space);
+   dist_func.ComputeVectorDistance(dist_fun_level_coef, distance);
    Dist_Value_Coefficient dist_fun_coef(level_set_type);
    if (exact) {
        distance.ProjectCoefficient(dist_fun_coef); // analytic projection
@@ -440,38 +442,14 @@ int main(int argc, char *argv[])
 
    // 10. Construct the distance vector using numerical distances or an
    //     exact analytic function.
-   ParFiniteElementSpace *distance_vec_space = new ParFiniteElementSpace(
-                                 distance.ParFESpace()->GetParMesh(),
-                                 distance.ParFESpace()->FEColl(), dim);
    ParGridFunction x_dx_dy(distance_vec_space);
    VectorCoefficient *dist_vec = NULL;
 
    if (!exact) {
-       ParGridFunction x_dx(distance.ParFESpace()), x_dy(distance.ParFESpace());
-       distance.GetDerivative(1, 0, x_dx);
-       distance.GetDerivative(1, 1, x_dy);
-       // set vector magnitude
-       for (int i = 0; i < x_dx.Size(); i++)
-       {
-          double dxv = x_dx(i),
-                 dyv = x_dy(i);
-          double mag = dxv*dxv + dyv*dyv;
-          if (mag > 0) { mag = pow(mag, 0.5); }
-          x_dx(i) *= distance(i)/mag;
-          x_dy(i) *= distance(i)/mag;
-       }
-
-       // copy to vector GridFunction
-       for (int i = 0; i < x_dx_dy.Size()/dim; i++)
-       {
-          x_dx_dy(i) = x_dx(i);
-          x_dx_dy(i + x_dx_dy.Size()/dim) = x_dy(i);
-       }
-       x_dx_dy *= -1; // true = surrogate + d
-
        VectorGridFunctionCoefficient *dist_vec_gfcoeff =
-               new VectorGridFunctionCoefficient(&x_dx_dy);
+               new VectorGridFunctionCoefficient(&distance);
        dist_vec = dist_vec_gfcoeff;
+       x_dx_dy  = distance;
    }
    else {
        Dist_Vector_Coefficient *dist_vec_fcoeff =
