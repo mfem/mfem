@@ -218,12 +218,6 @@ HYPRE_Int
 hypre_ParCSRMatrixSetConstantValues(hypre_ParCSRMatrix *A,
                                     HYPRE_Complex       value);
 
-/** Wrapper for hypre_ParCSRMatrixDropSmallEntries in dfferent versions of hypre.
-    Drop off-diagonal entries that are smaller than tol * l2 norm of its row */
-HYPRE_Int
-mfem_hypre_ParCSRMatrixDropSmallEntries(hypre_ParCSRMatrix *A,
-                                        HYPRE_Real         tol);
-
 } // namespace mfem::internal
 
 } // namespace mfem
