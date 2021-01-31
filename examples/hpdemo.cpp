@@ -206,19 +206,11 @@ int main(int argc, char *argv[])
    // 12. Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, x);
 
-   // 13. Save the refined mesh and the solution. This output can be viewed later
-   //     using GLVis: "glvis -m refined.mesh -g sol.gf".
-   ofstream mesh_ofs("refined.mesh");
-   mesh_ofs.precision(8);
-   mesh.Print(mesh_ofs);
-   ofstream sol_ofs("sol.gf");
-   sol_ofs.precision(8);
-   x.Save(sol_ofs);
 
    const char vishost[] = "localhost";
    const int  visport   = 19916;
 
-   // 14. Send the solution by socket to a GLVis server.
+   // 13. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       // Prolong the solution vector onto L2 space of max order (for GLVis)
@@ -229,7 +221,7 @@ int main(int argc, char *argv[])
       if (dim < 3) { sol_sock << "keys ARjlm\n"; }
       delete vis_x;
 
-      // 15. Visualize element orders
+      // 14. Visualize element orders
       if (vis_orders)
       {
          L2_FECollection l2fec(0, dim);
@@ -247,7 +239,7 @@ int main(int argc, char *argv[])
          if (dim < 3) { ord_sock << "keys ARjlmc\n"; }
       }
 
-      // 16. Visualize the basis functions
+      // 15. Visualize the basis functions
       if (vis_basis)
       {
          socketstream b_sock(vishost, visport);
@@ -269,7 +261,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 17. Free the used memory.
+   // 16. Free the used memory.
    if (delete_fec)
    {
       delete fec;
