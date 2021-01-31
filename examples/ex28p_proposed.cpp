@@ -139,6 +139,7 @@ int main(int argc, char *argv[])
    //    extract the corresponding parallel matrices A and M.
    HypreParMatrix *A = NULL;
    HypreParMatrix *M = NULL;
+   double shift = 0.0;
    {
       DenseMatrix epsilonMat(3);
       epsilonMat(0,0) = 2.0; epsilonMat(1,1) = 2.0; epsilonMat(2,2) = 2.0;
@@ -157,11 +158,13 @@ int main(int argc, char *argv[])
 
       ParBilinearForm a(&fespace_nd);
       a.AddDomainIntegrator(new CurlCurlIntegrator(one));
-      if (pmesh.bdr_attributes.Size() == 0)
+      if (pmesh.bdr_attributes.Size() == 0 || dim == 1)
       {
          // Add a mass term if the mesh has no boundary, e.g. periodic mesh or
          // closed surface.
-         a.AddDomainIntegrator(new VectorFEMassIntegrator(one));
+         a.AddDomainIntegrator(new VectorFEMassIntegrator(epsilon));
+         shift = 1.0;
+         mfem::out << "setting shift to " << shift << endl;
       }
       a.Assemble();
       a.EliminateEssentialBCDiag(ess_bdr, 1.0);
