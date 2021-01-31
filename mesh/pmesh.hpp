@@ -284,6 +284,7 @@ public:
                              int ordering = 1);
 
    int GetNFaceNeighbors() const { return face_nbr_group.Size(); }
+   int GetNFaceNeighborElements() const { return face_nbr_elements.Size(); }
    int GetFaceNbrGroup(int fn) const { return face_nbr_group[fn]; }
    int GetFaceNbrRank(int fn) const;
 
@@ -304,6 +305,10 @@ public:
 
       return &FaceNbrTransformation;
    }
+
+   /// Get the size of the i-th face neighbor element relative to the reference
+   /// element.
+   double GetFaceNbrElementSize(int i, int type=0);
 
    /// Return the number of shared faces (3D), edges (2D), vertices (1D)
    int GetNSharedFaces() const;
