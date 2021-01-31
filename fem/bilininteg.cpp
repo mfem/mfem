@@ -3688,7 +3688,6 @@ ScalarCrossProductInterpolator::AssembleElementMatrix2(
            vshape(vdim, vq.GetVDim()), vc(vq.GetVDim()) { }
 
       using VectorCoefficient::Eval;
-
       virtual void Eval(Vector &V, ElementTransformation &T,
                         const IntegrationPoint &ip)
       {
