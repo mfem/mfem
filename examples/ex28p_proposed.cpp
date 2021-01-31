@@ -249,105 +249,237 @@ int main(int argc, char *argv[])
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
-      socketstream mode_xy_sock(vishost, visport);
-      socketstream mode_z_sock(vishost, visport);
-      socketstream mode_dxy_sock(vishost, visport);
-      socketstream mode_dz_sock(vishost, visport);
-      mode_xy_sock.precision(8);
-      mode_z_sock.precision(8);
-      mode_dxy_sock.precision(8);
-      mode_dz_sock.precision(8);
-
-      DenseMatrix xyMat(2,3); xyMat = 0.0;
-      xyMat(0,0) = 1.0; xyMat(1,1) = 1.0;
-      MatrixConstantCoefficient xyMatCoef(xyMat);
-      Vector zVec(3); zVec = 0.0; zVec(2) = 1;
-      VectorConstantCoefficient zVecCoef(zVec);
-
-      H1_FECollection fec_h1(order, dim);
-      ND_FECollection fec_nd(order, dim);
-      RT_FECollection fec_rt(order-1, dim);
-      L2_FECollection fec_l2(order-1, dim);
-
-      ParFiniteElementSpace fes_h1(&pmesh, &fec_h1);
-      ParFiniteElementSpace fes_nd(&pmesh, &fec_nd);
-      ParFiniteElementSpace fes_rt(&pmesh, &fec_rt);
-      ParFiniteElementSpace fes_l2(&pmesh, &fec_l2);
-
-      ParGridFunction xyComp(&fes_nd);
-      ParGridFunction zComp(&fes_h1);
-
-      ParGridFunction dxyComp(&fes_rt);
-      ParGridFunction dzComp(&fes_l2);
-
-      for (int i=0; i<nev; i++)
+      if (dim == 1)
       {
-         mfem::out << "Eigenmode " << i+1 << '/' << nev
-                   << ", Lambda = " << eigenvalues[i] << endl;
+         socketstream mode_x_sock(vishost, visport);
+         socketstream mode_y_sock(vishost, visport);
+         socketstream mode_z_sock(vishost, visport);
+         // socketstream mode_dx_sock(vishost, visport);
+         socketstream mode_dy_sock(vishost, visport);
+         socketstream mode_dz_sock(vishost, visport);
+         mode_x_sock.precision(8);
+         mode_y_sock.precision(8);
+         mode_z_sock.precision(8);
+         // mode_dx_sock.precision(8);
+         mode_dy_sock.precision(8);
+         mode_dz_sock.precision(8);
 
-         // convert eigenvector from HypreParVector to ParGridFunction
-         x = ame->GetEigenvector(i);
-         curl.Mult(x, dx);
+         // DenseMatrix xyMat(2,3); xyMat = 0.0;
+         // xyMat(0,0) = 1.0; xyMat(1,1) = 1.0;
+         // MatrixConstantCoefficient xyMatCoef(xyMat);
+         Vector xVec(3); xVec = 0.0; xVec(0) = 1;
+         Vector yVec(3); yVec = 0.0; yVec(1) = 1;
+         Vector zVec(3); zVec = 0.0; zVec(2) = 1;
+         VectorConstantCoefficient xVecCoef(xVec);
+         VectorConstantCoefficient yVecCoef(yVec);
+         VectorConstantCoefficient zVecCoef(zVec);
 
+         H1_FECollection fec_h1(order, dim);
+         // ND_FECollection fec_nd(order, dim);
+         // RT_FECollection fec_rt(order-1, dim);
+         L2_FECollection fec_l2(order-1, dim);
+
+         ParFiniteElementSpace fes_h1(&pmesh, &fec_h1);
+         // ParFiniteElementSpace fes_nd(&pmesh, &fec_nd);
+         // ParFiniteElementSpace fes_rt(&pmesh, &fec_rt);
+         ParFiniteElementSpace fes_l2(&pmesh, &fec_l2);
+
+         ParGridFunction xComp(&fes_l2);
+         ParGridFunction yComp(&fes_h1);
+         ParGridFunction zComp(&fes_h1);
+
+         // ParGridFunction dxComp(&fes_rt);
+         ParGridFunction dyComp(&fes_l2);
+         ParGridFunction dzComp(&fes_l2);
+
+         for (int i=0; i<nev; i++)
          {
-            VectorGridFunctionCoefficient modeCoef(&x);
-            MatrixVectorProductCoefficient xyCoef(xyMatCoef, modeCoef);
-            InnerProductCoefficient zCoef(zVecCoef, modeCoef);
+            mfem::out << "Eigenmode " << i+1 << '/' << nev
+                      << ", Lambda = " << eigenvalues[i] - shift << endl;
 
-            xyComp.ProjectCoefficient(xyCoef);
-            zComp.ProjectCoefficient(zCoef);
+            // convert eigenvector from HypreParVector to ParGridFunction
+            x = ame->GetEigenvector(i);
+            curl.Mult(x, dx);
 
-            mode_xy_sock << "parallel " << mpi.WorldSize() << " "
-                         << mpi.WorldRank() << "\n"
-                         << "solution\n" << pmesh << xyComp << flush
-                         << "keys vvv "
-                         << "window_title 'Eigenmode " << i+1 << '/' << nev
-                         << " XY, Lambda = " << eigenvalues[i] << "'" << endl;
-            mode_z_sock << "parallel " << mpi.WorldSize() << " "
-                        << mpi.WorldRank() << "\n"
-                        << "solution\n" << pmesh << zComp << flush
-                        << "window_geometry 403 0 400 350 "
-                        << "window_title 'Eigenmode " << i+1 << '/' << nev
-                        << " Z, Lambda = " << eigenvalues[i] << "'" << endl;
+            {
+               VectorGridFunctionCoefficient modeCoef(&x);
+               InnerProductCoefficient xCoef(xVecCoef, modeCoef);
+               InnerProductCoefficient yCoef(yVecCoef, modeCoef);
+               InnerProductCoefficient zCoef(zVecCoef, modeCoef);
 
-            VectorGridFunctionCoefficient dmodeCoef(&dx);
-            MatrixVectorProductCoefficient dxyCoef(xyMatCoef, dmodeCoef);
-            InnerProductCoefficient dzCoef(zVecCoef, dmodeCoef);
+               xComp.ProjectCoefficient(xCoef);
+               yComp.ProjectCoefficient(yCoef);
+               zComp.ProjectCoefficient(zCoef);
 
-            dxyComp.ProjectCoefficient(dxyCoef);
-            dzComp.ProjectCoefficient(dzCoef);
+               mode_x_sock << "parallel " << mpi.WorldSize() << " "
+                           << mpi.WorldRank() << "\n"
+                           << "solution\n" << pmesh << xComp << flush
+                           << "window_title 'Eigenmode " << i+1 << '/' << nev
+                           << " X, Lambda = " << eigenvalues[i] - shift
+                           << "'" << endl;
+               mode_y_sock << "parallel " << mpi.WorldSize() << " "
+                           << mpi.WorldRank() << "\n"
+                           << "solution\n" << pmesh << yComp << flush
+                           << "window_geometry 403 0 400 350 "
+                           << "window_title 'Eigenmode " << i+1 << '/' << nev
+                           << " Y, Lambda = " << eigenvalues[i] - shift
+                           << "'" << endl;
+               mode_z_sock << "parallel " << mpi.WorldSize() << " "
+                           << mpi.WorldRank() << "\n"
+                           << "solution\n" << pmesh << zComp << flush
+                           << "window_geometry 806 0 400 350 "
+                           << "window_title 'Eigenmode " << i+1 << '/' << nev
+                           << " Z, Lambda = " << eigenvalues[i] - shift
+                           << "'" << endl;
 
-            mode_dxy_sock << "parallel " << mpi.WorldSize() << " "
-                          << mpi.WorldRank() << "\n"
-                          << "solution\n" << pmesh << dxyComp << flush
-                          << "keys vvv "
-                          << "window_geometry 0 375 400 350 "
-                          << "window_title 'Curl Eigenmode " << i+1 << '/' << nev
-                          << " XY, Lambda = " << eigenvalues[i] << "'" << endl;
-            mode_dz_sock << "parallel " << mpi.WorldSize() << " "
-                         << mpi.WorldRank() << "\n"
-                         << "solution\n" << pmesh << dzComp << flush
-                         << "window_geometry 403 375 400 350 "
-                         << "window_title 'Curl Eigenmode " << i+1 << '/' << nev
-                         << " Z, Lambda = " << eigenvalues[i] << "'" << endl;
+               VectorGridFunctionCoefficient dmodeCoef(&dx);
+               // MatrixVectorProductCoefficient dxyCoef(xyMatCoef, dmodeCoef);
+               InnerProductCoefficient dyCoef(yVecCoef, dmodeCoef);
+               InnerProductCoefficient dzCoef(zVecCoef, dmodeCoef);
+
+               dyComp.ProjectCoefficient(dyCoef);
+               dzComp.ProjectCoefficient(dzCoef);
+
+               mode_dy_sock << "parallel " << mpi.WorldSize() << " "
+                            << mpi.WorldRank() << "\n"
+                            << "solution\n" << pmesh << dyComp << flush
+                            << "window_geometry 0 375 400 350 "
+                            << "window_title 'Curl Eigenmode " << i+1 << '/' << nev
+                            << " Y, Lambda = " << eigenvalues[i] - shift
+                            << "'" << endl;
+               mode_dz_sock << "parallel " << mpi.WorldSize() << " "
+                            << mpi.WorldRank() << "\n"
+                            << "solution\n" << pmesh << dzComp << flush
+                            << "window_geometry 403 375 400 350 "
+                            << "window_title 'Curl Eigenmode " << i+1 << '/' << nev
+                            << " Z, Lambda = " << eigenvalues[i] - shift
+                            << "'" << endl;
+            }
+            char c;
+            mfem::out << "press (q)uit or (c)ontinue --> " << flush;
+            if (mpi.Root())
+            {
+               cin >> c;
+            }
+            MPI_Bcast(&c, 1, MPI_CHAR, 0, MPI_COMM_WORLD);
+
+            if (c != 'c')
+            {
+               break;
+            }
          }
-         char c;
-         mfem::out << "press (q)uit or (c)ontinue --> " << flush;
-         if (mpi.Root())
-         {
-            cin >> c;
-         }
-         MPI_Bcast(&c, 1, MPI_CHAR, 0, MPI_COMM_WORLD);
-
-         if (c != 'c')
-         {
-            break;
-         }
+         mode_x_sock.close();
+         mode_y_sock.close();
+         mode_z_sock.close();
+         mode_dy_sock.close();
+         mode_dz_sock.close();
       }
-      mode_xy_sock.close();
-      mode_z_sock.close();
-      mode_dxy_sock.close();
-      mode_dz_sock.close();
+      else if (dim == 2)
+      {
+         socketstream mode_xy_sock(vishost, visport);
+         socketstream mode_z_sock(vishost, visport);
+         socketstream mode_dxy_sock(vishost, visport);
+         socketstream mode_dz_sock(vishost, visport);
+         mode_xy_sock.precision(8);
+         mode_z_sock.precision(8);
+         mode_dxy_sock.precision(8);
+         mode_dz_sock.precision(8);
+
+         DenseMatrix xyMat(2,3); xyMat = 0.0;
+         xyMat(0,0) = 1.0; xyMat(1,1) = 1.0;
+         MatrixConstantCoefficient xyMatCoef(xyMat);
+         Vector zVec(3); zVec = 0.0; zVec(2) = 1;
+         VectorConstantCoefficient zVecCoef(zVec);
+
+         H1_FECollection fec_h1(order, dim);
+         ND_FECollection fec_nd(order, dim);
+         RT_FECollection fec_rt(order-1, dim);
+         L2_FECollection fec_l2(order-1, dim);
+
+         ParFiniteElementSpace fes_h1(&pmesh, &fec_h1);
+         ParFiniteElementSpace fes_nd(&pmesh, &fec_nd);
+         ParFiniteElementSpace fes_rt(&pmesh, &fec_rt);
+         ParFiniteElementSpace fes_l2(&pmesh, &fec_l2);
+
+         ParGridFunction xyComp(&fes_nd);
+         ParGridFunction zComp(&fes_h1);
+
+         ParGridFunction dxyComp(&fes_rt);
+         ParGridFunction dzComp(&fes_l2);
+
+         for (int i=0; i<nev; i++)
+         {
+            mfem::out << "Eigenmode " << i+1 << '/' << nev
+                      << ", Lambda = " << eigenvalues[i] - shift << endl;
+
+            // convert eigenvector from HypreParVector to ParGridFunction
+            x = ame->GetEigenvector(i);
+            curl.Mult(x, dx);
+
+            {
+               VectorGridFunctionCoefficient modeCoef(&x);
+               MatrixVectorProductCoefficient xyCoef(xyMatCoef, modeCoef);
+               InnerProductCoefficient zCoef(zVecCoef, modeCoef);
+
+               xyComp.ProjectCoefficient(xyCoef);
+               zComp.ProjectCoefficient(zCoef);
+
+               mode_xy_sock << "parallel " << mpi.WorldSize() << " "
+                            << mpi.WorldRank() << "\n"
+                            << "solution\n" << pmesh << xyComp << flush
+                            << "keys vvv "
+                            << "window_title 'Eigenmode " << i+1 << '/' << nev
+                            << " XY, Lambda = " << eigenvalues[i] - shift
+                            << "'" << endl;
+               mode_z_sock << "parallel " << mpi.WorldSize() << " "
+                           << mpi.WorldRank() << "\n"
+                           << "solution\n" << pmesh << zComp << flush
+                           << "window_geometry 403 0 400 350 "
+                           << "window_title 'Eigenmode " << i+1 << '/' << nev
+                           << " Z, Lambda = " << eigenvalues[i] - shift
+                           << "'" << endl;
+
+               VectorGridFunctionCoefficient dmodeCoef(&dx);
+               MatrixVectorProductCoefficient dxyCoef(xyMatCoef, dmodeCoef);
+               InnerProductCoefficient dzCoef(zVecCoef, dmodeCoef);
+
+               dxyComp.ProjectCoefficient(dxyCoef);
+               dzComp.ProjectCoefficient(dzCoef);
+
+               mode_dxy_sock << "parallel " << mpi.WorldSize() << " "
+                             << mpi.WorldRank() << "\n"
+                             << "solution\n" << pmesh << dxyComp << flush
+                             << "keys vvv "
+                             << "window_geometry 0 375 400 350 "
+                             << "window_title 'Curl Eigenmode " << i+1 << '/' << nev
+                             << " XY, Lambda = " << eigenvalues[i] - shift
+                             << "'" << endl;
+               mode_dz_sock << "parallel " << mpi.WorldSize() << " "
+                            << mpi.WorldRank() << "\n"
+                            << "solution\n" << pmesh << dzComp << flush
+                            << "window_geometry 403 375 400 350 "
+                            << "window_title 'Curl Eigenmode " << i+1 << '/' << nev
+                            << " Z, Lambda = " << eigenvalues[i] - shift
+                            << "'" << endl;
+            }
+            char c;
+            mfem::out << "press (q)uit or (c)ontinue --> " << flush;
+            if (mpi.Root())
+            {
+               cin >> c;
+            }
+            MPI_Bcast(&c, 1, MPI_CHAR, 0, MPI_COMM_WORLD);
+
+            if (c != 'c')
+            {
+               break;
+            }
+         }
+         mode_xy_sock.close();
+         mode_z_sock.close();
+         mode_dxy_sock.close();
+         mode_dz_sock.close();
+      }
    }
 
    // 12. Free the used memory.
