@@ -166,6 +166,10 @@ public:
    /// Clear the contents of the SparseMatrix.
    void Clear() { Destroy(); SetEmpty(); }
 
+   /** @brief Clear the CuSparse descriptors.
+       This must be called after releasing the device memory of A. */
+   void ClearCuSparse();
+
    /// Check if the SparseMatrix is empty.
    bool Empty() const { return (A == NULL) && (Rows == NULL); }
 
