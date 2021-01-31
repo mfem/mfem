@@ -798,7 +798,7 @@ void PetscParVector::ResetMemory()
       PetscOffloadMask mask;
       ierr = VecGetOffloadMask(x,&mask); PCHKERRQ(x,ierr);
       if ((usedev && (mask != PETSC_OFFLOAD_GPU && mask != PETSC_OFFLOAD_BOTH)) ||
-          !usedev && (mask != PETSC_OFFLOAD_CPU && mask != PETSC_OFFLOAD_BOTH))
+         (!usedev && (mask != PETSC_OFFLOAD_CPU && mask != PETSC_OFFLOAD_BOTH)))
 #endif
       {
          ierr = VecGetArrayRead(x,&v); PCHKERRQ(x,ierr);
