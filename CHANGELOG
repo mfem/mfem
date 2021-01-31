@@ -34,12 +34,12 @@ Version 4.2.1 (development)
 
 - Implemented a filter method for the Navier miniapp to stabilize highly
   turbulent flows in direct numerical simulation.
- 
-- Added HIP support to the CMake build system
+
+- Added HIP support to the CMake build system.
 
 - Added support for reading high-order Lagrange meshes in VTK format. Arbitrary-
   orders and all element types are supported. See the VTK blog for more info:
-  https://blog.kitware.com/wp-content/uploads/2018/09/Source_Issue_43.pdf
+  https://blog.kitware.com/wp-content/uploads/2018/09/Source_Issue_43.pdf.
 
 - Added support for reading VTK meshes in XML format.
 
