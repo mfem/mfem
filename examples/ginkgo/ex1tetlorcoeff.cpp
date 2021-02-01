@@ -145,6 +145,7 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/beam-hex.mesh";
    int ref_levels = 3;
+   int coarse_ref_levels = 3;
    const char *coeff_name = "var";
    int order = 2;
    const char *basis_type = "G"; // Gauss-Lobatto
@@ -165,7 +166,7 @@ int main(int argc, char *argv[])
    double sigma_val = 1.0;
    const char *mg_spec = "1";
    const char *mg_coarse_solve = "mfem:jacobi";
-   const char *mg_smoother = "mfem:chebyshev";
+   const char *mg_smoother = "mfem:cheb";
    bool mg_pa = false;
    const char *amgx_file = "amgx.json";
 
@@ -173,6 +174,8 @@ int main(int argc, char *argv[])
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&ref_levels, "-l", "--refinement-levels",
                   "Number of uniform refinement levels for mesh.");
+   args.AddOption(&coarse_ref_levels, "-cl", "--coarse-refinement-levels",
+                  "Number of uniform refinement levels for coarse mesh (GMG only).");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -318,12 +321,14 @@ int main(int argc, char *argv[])
    SolverConfig::SolverType coarse_solver_type;
    if (!strcmp(mg_coarse_solve, "mfem:jacobi")) { coarse_solver_type = SolverConfig::JACOBI; }
    else if (!strcmp(mg_coarse_solve, "mfem:amgx")) { coarse_solver_type = SolverConfig::AMGX; }
+   else if (!strcmp(mg_coarse_solve, "gko:cuic")) { coarse_solver_type = SolverConfig::GINKGO_CUIC; }
+   else if (!strcmp(mg_coarse_solve, "gko:cuic-isai")) { coarse_solver_type = SolverConfig::GINKGO_CUIC_ISAI; }
    else 
    {
       mfem_error("Invalid coarse grid solver specified");
       return 3;
    }
-   SolverConfig::SmootherType smoother_type;
+   SolverConfig::SolverType smoother_type;
    if (!strcmp(mg_smoother, "mfem:cheb")) { smoother_type = SolverConfig::CHEBYSHEV; }
    else if (!strcmp(mg_smoother, "gko:cuic")) { smoother_type = SolverConfig::GINKGO_CUIC; }
    else if (!strcmp(mg_smoother, "gko:cuic-isai")) { smoother_type = SolverConfig::GINKGO_CUIC_ISAI; }
@@ -942,6 +947,13 @@ int main(int argc, char *argv[])
       }
       else if (pc_choice == MFEM_GMG)
       {
+         // Create coarse grid mesh
+         Mesh *coarse_mesh = new Mesh(mesh_file, 1, 1);
+         // Refine the coarse mesh to increase the resolution. 
+         for (int l = 0; l < coarse_ref_levels; l++)
+         {
+            coarse_mesh->UniformRefinement();
+         }
 
          // Parse arguments:
          
@@ -986,9 +998,9 @@ int main(int argc, char *argv[])
 
          std::vector<FiniteElementCollection*> fe_collections;
          fe_collections.push_back(new H1_FECollection(coarse_order, dim));
-         FiniteElementSpace fes_coarse(mesh, fe_collections.back());
+         FiniteElementSpace fes_coarse(coarse_mesh, fe_collections.back());
       
-         FiniteElementSpaceHierarchy hierarchy(mesh, &fes_coarse, false, false);
+         FiniteElementSpaceHierarchy hierarchy(coarse_mesh, &fes_coarse, false, false);
       
          for (MGRefinement ref : mg_refinements)
          {
@@ -1004,8 +1016,8 @@ int main(int argc, char *argv[])
          }
          
          SolverConfig gmg_solver(coarse_solver_type, smoother_type,
-                                  mg_asm_lvl, executor);
-         Array<int> ess_bdr(mesh->bdr_attributes.Max());
+                                  mg_asm_lvl, amgx_file, executor);
+         Array<int> ess_bdr(coarse_mesh->bdr_attributes.Max());
          ess_bdr = 1;
          DiffusionMultigrid M(hierarchy, *coeff, ess_bdr, gmg_solver);
          M.SetCycleType(Multigrid::CycleType::VCYCLE, 1, 1);

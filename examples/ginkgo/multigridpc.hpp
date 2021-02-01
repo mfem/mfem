@@ -11,26 +11,28 @@ struct SolverConfig
 {
    enum SolverType
    {
-      JACOBI = 0,
-      AMGX = 1
-   };
-   SolverType type;
-   enum SmootherType
-   {
+     JACOBI = 0,
+     AMGX = 1,
      CHEBYSHEV = 2,
      GINKGO_CUIC = 3,
      GINKGO_CUIC_ISAI = 4 
    };
-   SmootherType smoother_type;
+   SolverType type;
+   SolverType smoother_type;
    AssemblyLevel upper_level_asm;
+   const char *amgx_config;
    std::shared_ptr<gko::Executor> gko_exec;
 #ifdef MFEM_SIMPLEX_LOR
    bool simplex_lor = true;
 #endif
-   SolverConfig(SolverType type_, SmootherType sm_type_, AssemblyLevel upper_asm_, 
-                std::shared_ptr<gko::Executor> gko_exec_) : type(type_),
+   SolverConfig(SolverType type_, SolverType sm_type_, AssemblyLevel upper_asm_, 
+                const char *amgx_config_, std::shared_ptr<gko::Executor> gko_exec_) : type(type_),
      smoother_type(sm_type_),
-     upper_level_asm(upper_asm_) { gko_exec = gko_exec_; } 
+     upper_level_asm(upper_asm_) 
+     {
+       amgx_config = amgx_config_;
+       gko_exec = gko_exec_; 
+     } 
 };
 
 struct MGRefinement
@@ -109,8 +111,14 @@ struct DiffusionMultigrid : GeometricMultigrid
            Solver* smoother = new OperatorChebyshevSmoother(
               opr.Ptr(), diag, *essentialTrueDofs.Last(), 2);
     
-//           AddLevel(opr.Ptr(), smoother, true, true);
-           AddLevel(opr.Ptr(), smoother, false, true);
+           if (solver_config.upper_level_asm == AssemblyLevel::PARTIAL) 
+           {
+             AddLevel(opr.Ptr(), smoother, true, true);
+           }
+           else
+           {
+             AddLevel(opr.Ptr(), smoother, false, true);
+           }
            break;
          }
          case SolverConfig::GINKGO_CUIC:
@@ -119,8 +127,14 @@ struct DiffusionMultigrid : GeometricMultigrid
             Solver *smoother = new GinkgoWrappers::GinkgoCuIcPreconditioner(
                                               solver_config.gko_exec, *A_lvl,
                                                         "exact", 1);
-//           AddLevel(opr.Ptr(), smoother, true, true);
-           AddLevel(opr.Ptr(), smoother, false, true);
+           if (solver_config.upper_level_asm == AssemblyLevel::PARTIAL) 
+           {
+             AddLevel(opr.Ptr(), smoother, true, true);
+           }
+           else
+           {
+             AddLevel(opr.Ptr(), smoother, false, true);
+           }
            break;
          }
          case SolverConfig::GINKGO_CUIC_ISAI:
@@ -129,8 +143,14 @@ struct DiffusionMultigrid : GeometricMultigrid
             Solver *smoother = new GinkgoWrappers::GinkgoCuIcPreconditioner(
                                               solver_config.gko_exec, *A_lvl,
                                                         "isai", 1);
-//           AddLevel(opr.Ptr(), smoother, true, true);
-           AddLevel(opr.Ptr(), smoother, false, true);
+           if (solver_config.upper_level_asm == AssemblyLevel::PARTIAL) 
+           {
+             AddLevel(opr.Ptr(), smoother, true, true);
+           }
+           else
+           {
+             AddLevel(opr.Ptr(), smoother, false, true);
+           }
            break;
          }
        }
@@ -147,14 +167,6 @@ struct DiffusionMultigrid : GeometricMultigrid
        bfs.Last()->FormSystemMatrix(*essentialTrueDofs.Last(), A_coarse);
     
        OperatorPtr A_prec;
-//       if (NeedsLOR(config))
-///       {
-//          Mesh &mesh = *fespace.GetMesh();
-//          int order = fespace.GetOrder(0); // <-- Assume uniform p
-//          lor.reset(new LOR(mesh, order, coeff, ess_dofs, config.simplex_lor));
-//          A_prec = lor->A;
-//       }
-//       else
        {
           A_prec = A_coarse;
        }
@@ -169,13 +181,31 @@ struct DiffusionMultigrid : GeometricMultigrid
           case SolverConfig::AMGX:
           {
              AmgXSolver *amg = new AmgXSolver;
-             amg->ReadParameters("amgx.json", AmgXSolver::EXTERNAL);
+             amg->ReadParameters(config.amgx_config, AmgXSolver::EXTERNAL);
              amg->InitSerial();
              amg->SetOperator(*A_prec.As<SparseMatrix>());
              coarse_solver = amg;
              break;
           }
     #endif
+          case SolverConfig::GINKGO_CUIC:
+          {
+            SparseMatrix *A_lvl = dynamic_cast<SparseMatrix*>(A_prec.Ptr());
+            Solver *gko_solver = new GinkgoWrappers::GinkgoCuIcPreconditioner(
+                                              config.gko_exec, *A_lvl,
+                                                        "exact", 1);
+            coarse_solver = gko_solver;
+            break;
+          }
+          case SolverConfig::GINKGO_CUIC_ISAI:
+          {
+            SparseMatrix *A_lvl = dynamic_cast<SparseMatrix*>(A_prec.Ptr());
+            Solver *gko_solver = new GinkgoWrappers::GinkgoCuIcPreconditioner(
+                                              config.gko_exec, *A_lvl,
+                                                        "isai", 1);
+            coarse_solver = gko_solver;
+            break;
+          }
           default:
              MFEM_ABORT("Not available.")
        }
