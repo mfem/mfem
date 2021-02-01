@@ -13293,12 +13293,11 @@ void ND_R2D_FiniteElement::Project(const FiniteElement &fe,
          Trans.SetIntPoint(&ip);
          // Transform ND edge tangents from reference to physical space
          // vk = J tk
-
          Trans.Jacobian().Mult(t2, vk);
          // Compute fe basis functions in physical space
          fe.CalcVShape(Trans, vshape);
          // Project fe basis functions onto transformed edge tangents
-         for (int j=0; j<vshape.Size(); j++)
+         for (int j=0; j<vshape.Height(); j++)
          {
             I(k, j) = 0.0;
             for (int i=0; i<2; i++)
@@ -13845,6 +13844,89 @@ void RT_R2D_FiniteElement::Project(VectorCoefficient &vc,
 
       dofs(k) = Trans.AdjugateJacobian().InnerProduct(vk2, n2) +
                 Trans.Weight() * vk3(2) * n3(2);
+   }
+}
+
+void RT_R2D_FiniteElement::Project(const FiniteElement &fe,
+                                   ElementTransformation &Trans,
+                                   DenseMatrix &I) const
+{
+   if (fe.GetRangeType() == SCALAR)
+   {
+      double vk[Geometry::MaxDim];
+      Vector shape(fe.GetDof());
+
+      I.SetSize(dof, vdim*fe.GetDof());
+      for (int k = 0; k < dof; k++)
+      {
+         const IntegrationPoint &ip = Nodes.IntPoint(k);
+
+         fe.CalcShape(ip, shape);
+         Trans.SetIntPoint(&ip);
+         // Transform RT face normals from reference to physical space
+         // vk = adj(J)^T nk
+         Trans.AdjugateJacobian().MultTranspose(nk + dof2nk[k]*vdim, vk);
+         if (fe.GetMapType() == INTEGRAL)
+         {
+            double w = 1.0/Trans.Weight();
+            for (int d = 0; d < vdim; d++)
+            {
+               vk[d] *= w;
+            }
+         }
+
+         for (int j = 0; j < shape.Size(); j++)
+         {
+            double s = shape(j);
+            if (fabs(s) < 1e-12)
+            {
+               s = 0.0;
+            }
+            // Project scalar basis function multiplied by each coordinate
+            // direction onto the transformed face normals
+            for (int d = 0; d < vdim; d++)
+            {
+               I(k,j+d*shape.Size()) = s*vk[d];
+            }
+         }
+      }
+   }
+   else
+   {
+      double vk[Geometry::MaxDim];
+      DenseMatrix vshape(fe.GetDof(), fe.GetVDim());
+      Vector vshapenk(fe.GetDof());
+
+      double * nk_ptr = const_cast<double*>(nk);
+
+      I.SetSize(dof, fe.GetDof());
+      for (int k = 0; k < dof; k++)
+      {
+         const IntegrationPoint &ip = Nodes.IntPoint(k);
+
+         Vector n2(&nk_ptr[dof2nk[k] * 3], 2);
+         Vector n3(&nk_ptr[dof2nk[k] * 3], 3);
+
+         Trans.SetIntPoint(&ip);
+         // Transform RT face normals from reference to physical space
+         // vk = adj(J)^T nk
+         Trans.AdjugateJacobian().MultTranspose(n2, vk);
+         // Compute fe basis functions in physical space
+         fe.CalcVShape(Trans, vshape);
+         // Project fe basis functions onto transformed face normals
+         for (int j=0; j<vshape.Height(); j++)
+         {
+            I(k, j) = 0.0;
+            for (int i=0; i<2; i++)
+            {
+               I(k, j) += vshape(j, i) * vk[i];
+            }
+            if (vshape.Width() == 3)
+            {
+               I(k, j) += vshape(j, 2) * n3(2);
+            }
+         }
+      }
    }
 }
 
