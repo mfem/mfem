@@ -323,6 +323,27 @@ int GridFunction::VectorDim() const
    return fes->GetVDim()*fe->GetVDim();
 }
 
+int GridFunction::CurlDim() const
+{
+   const FiniteElement *fe;
+   if (!fes->GetNE())
+   {
+      const FiniteElementCollection *fec = fes->FEColl();
+      static const Geometry::Type geoms[3] =
+      { Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::TETRAHEDRON };
+      fe = fec->FiniteElementForGeometry(geoms[fes->GetMesh()->Dimension()-1]);
+   }
+   else
+   {
+      fe = fes->GetFE(0);
+   }
+   if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
+   {
+      return 2 * fes->GetMesh()->SpaceDimension() - 3;
+   }
+   return fes->GetVDim()*fe->GetCDim();
+}
+
 void GridFunction::GetTrueDofs(Vector &tv) const
 {
    const SparseMatrix *R = fes->GetRestrictionMatrix();
@@ -1496,10 +1517,10 @@ void GridFunction::GetCurl(ElementTransformation &T, Vector &curl) const
             fes->GetElementDofs(elNo, dofs);
             Vector loc_data;
             GetSubVector(dofs, loc_data);
-            DenseMatrix curl_shape(fe->GetDof(), fe->GetDim() == 3 ? 3 : 1);
+            DenseMatrix curl_shape(fe->GetDof(), fe->GetCDim());
             fe->CalcCurlShape(T.GetIntPoint(), curl_shape);
             curl.SetSize(curl_shape.Width());
-            if (curl_shape.Width() == 3)
+            if (curl_shape.Width() == 3 && T.Jacobian().Width() == 3)
             {
                double curl_hat[3];
                curl_shape.MultTranspose(loc_data, curl_hat);
