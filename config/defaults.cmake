@@ -159,7 +159,7 @@ set(ScaLAPACK_TARGET_NAMES scalapack)
 
 set(PASTIX_DIR "${MFEM_DIR}/../pastix" CACHE PATH
     "Path to the PASTIX library.")
-set(PASTIX_REQUIRED_PACKAGES "LAPACKE" CACHE STRING
+set(PASTIX_REQUIRED_PACKAGES "LAPACKE" "Threads" CACHE STRING
     "Additional packages required by PASTIX.")
 
 set(Ginkgo_DIR "${MFEM_DIR}/../ginkgo" CACHE PATH "Path to the Ginkgo library.")
