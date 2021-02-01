@@ -786,8 +786,12 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
       MFEM_ABORT("VTK mesh is not in ASCII format!");
       return;
    }
-   getline(input, buff);
-   filter_dos(buff);
+   buff = "";
+   while (buff == "") // allow blanklines
+   {
+      getline(input, buff);
+      filter_dos(buff);
+   }
    if (buff != "DATASET UNSTRUCTURED_GRID")
    {
       MFEM_ABORT("VTK mesh is not UNSTRUCTURED_GRID!");
@@ -862,30 +866,39 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
       cell_types.Load(ncells, input);
    }
 
-   // Read cell attributes
-   streampos sp = input.tellg();
-   input >> ws >> buff;
-   Array<int> cell_attributes;
-   if (buff == "CELL_DATA")
+   while ((input.good()) && (buff != "CELL_DATA"))
    {
-      int n;
-      input >> n >> ws;
+      input >> buff;
+   }
+   getline(input, buff); // finish the line
+
+   // Read the cell materials
+   bool found_material{false};
+   Array<int> cell_attributes;
+   while ((input.good()))
+   {
       getline(input, buff);
-      filter_dos(buff);
-      // "SCALARS material dataType numComp"
-      if (buff.rfind("SCALARS material") == 0)
+      if (buff.rfind("POINT_DATA") == 0)
       {
-         getline(input, buff); // "LOOKUP_TABLE default"
-         cell_attributes.Load(ncells, input);
+         break; // We have entered the POINT_DATA block. Quit.
       }
-      else
+      else if (buff.rfind("SCALARS material") == 0)
       {
-         input.seekg(sp);
+         getline(input, buff); // LOOKUP_TABLE default
+         if (buff.rfind("LOOKUP_TABLE default") != 0)
+         {
+            MFEM_ABORT("Invalid LOOKUP_TABLE for material array in VTK file.");
+         }
+         cell_attributes.Load(ncells, input);
+         found_material = true;
+         break;
       }
    }
-   else
+
+   if (!found_material)
    {
-      input.seekg(sp);
+      MFEM_WARNING("Material array not found in VTK file. "
+                   "Assuming uniform material composition.");
    }
 
    CreateVTKMesh(points, cell_data, cell_offsets, cell_types, cell_attributes,
