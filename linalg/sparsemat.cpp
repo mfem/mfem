@@ -30,7 +30,7 @@ using namespace std;
 
 #ifdef MFEM_USE_CUDA
 int SparseMatrix::SparseMatrixCount = 0;
-cusparseHandle_t SparseMatrix::handle;
+cusparseHandle_t SparseMatrix::handle = nullptr;
 size_t SparseMatrix::bufferSize = 0;
 void * SparseMatrix::dBuffer = nullptr;
 #endif
@@ -39,10 +39,15 @@ void SparseMatrix::InitCuSparse()
 {
    // Initialize cuSPARSE library
 #ifdef MFEM_USE_CUDA
-   SparseMatrixCount++;
-   if (SparseMatrixCount == 1 && Device::Allows(Backend::CUDA_MASK))
+   if (Device::Allows(Backend::CUDA_MASK))
    {
-      cusparseCreate(&handle);
+      if (!handle) { cusparseCreate(&handle); }
+      useCuSparse=true;
+      SparseMatrixCount++;
+   }
+   else
+   {
+      useCuSparse=false;
    }
 #endif
 }
@@ -673,7 +678,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
       cusparseSpMV_bufferSize(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha,
                               matA_descr,
                               vecX_descr, &beta, vecY_descr, CUDA_R_64F,
-                              CUSPARSE_CSRMV_ALG1, &newBufferSize);
+                              CUSPARSE_SPMV_CSR_ALG1, &newBufferSize);
 
       // Check if we need to resize
       if (newBufferSize > bufferSize)
@@ -689,7 +694,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 
       // Y = alpha A * X + beta * Y
       cusparseSpMV(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA_descr,
-                   vecX_descr, &beta, vecY_descr, CUDA_R_64F, CUSPARSE_CSRMV_ALG1, dBuffer);
+                   vecX_descr, &beta, vecY_descr, CUDA_R_64F, CUSPARSE_SPMV_CSR_ALG1, dBuffer);
 #endif
    }
    else
