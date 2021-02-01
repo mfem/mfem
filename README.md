@@ -1,3 +1,5 @@
+![License](https://img.shields.io/github/license/mfem/mfem.svg)
+
                     Finite Element Discretization Library
                                    __
                        _ __ ___   / _|  ___  _ __ ___
