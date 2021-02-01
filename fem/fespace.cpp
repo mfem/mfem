@@ -1128,9 +1128,8 @@ const SparseMatrix* FiniteElementSpace::GetConformingRestriction() const
 const SparseMatrix* FiniteElementSpace::GetHpConformingRestriction() const
 {
    if (Conforming()) { return NULL; }
-   if (!IsVariableOrder()) { return cR; }
    if (!cP_is_set) { BuildConformingInterpolation(); }
-   return cR_hp;
+   return IsVariableOrder() ? cR_hp : cR;
 }
 
 int FiniteElementSpace::GetNConformingDofs() const
