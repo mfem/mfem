@@ -30,7 +30,7 @@ using namespace std;
 
 #ifdef MFEM_USE_CUDA
 int SparseMatrix::SparseMatrixCount = 0;
-cusparseHandle_t SparseMatrix::handle;
+cusparseHandle_t SparseMatrix::handle = nullptr;
 size_t SparseMatrix::bufferSize = 0;
 void * SparseMatrix::dBuffer = nullptr;
 #endif
@@ -40,7 +40,7 @@ void SparseMatrix::InitCuSparse()
    // Initialize cuSPARSE library
 #ifdef MFEM_USE_CUDA
    SparseMatrixCount++;
-   if (SparseMatrixCount == 1 && Device::Allows(Backend::CUDA_MASK))
+   if (!handle && Device::Allows(Backend::CUDA_MASK))
    {
       cusparseCreate(&handle);
    }
