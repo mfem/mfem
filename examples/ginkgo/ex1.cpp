@@ -194,16 +194,29 @@ int main(int argc, char *argv[])
       if (use_ginkgo_solver)
       {
 #ifdef MFEM_USE_GINKGO
-         // Solve the linear system with CG + ILU from Ginkgo.
-         std::string executor = "reference";
-         auto exec = gko::ReferenceExecutor::create();
-         auto ilu_precond =
-            gko::preconditioner::Ilu<gko::solver::LowerTrs<>,
-            gko::solver::UpperTrs<>, false>::build()
-            .on(exec);
-         GinkgoWrappers::CGSolver ginkgo_solver(executor, 1, 2000, 1e-12, 0.0,
-                                                ilu_precond.release() );
-         ginkgo_solver.solve(&((SparseMatrix&)(*A)), X, B);
+         // Solve the linear system with CG + Jacobi from Ginkgo.
+         std::shared_ptr<gko::Executor> executor;
+         std::string executor_string;
+         if (!strcmp(device_config, "cuda"))
+         {
+            auto cuda_executor =
+               gko::CudaExecutor::create(0, gko::OmpExecutor::create());
+            executor = cuda_executor;
+            executor_string = "cuda";
+         }
+         else
+         {
+            auto omp_executor = gko::OmpExecutor::create();
+            executor = omp_executor;
+            executor_string = "omp";
+         }
+         auto precond =
+            gko::preconditioner::Jacobi<double, int>::build()
+            .on(executor);
+         GinkgoWrappers::CGSolver ginkgo_solver(executor_string, 1, 2000, 1e-12, 0.0,
+                                                precond.release() );
+         ginkgo_solver.SetOperator(*(A.Ptr()));
+         ginkgo_solver.Mult(B, X);
 #endif
       }
       else

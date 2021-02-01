@@ -189,7 +189,7 @@ private:
 *
 * @ingroup GinkgoWrappers
 */
-class GinkgoIterativeSolverBase
+class GinkgoIterativeSolverBase : public Solver
 {
 public:
    /**
@@ -251,25 +251,13 @@ public:
    /**
     * Initialize the matrix and copy over its data to Ginkgo's data structures.
     */
-   void
-   initialize(const SparseMatrix *matrix);
+   virtual void SetOperator(const Operator &op);
 
    /**
-    * Solve the linear system <tt>Ax=b</tt>. Dependent on the information
+    * Solve the linear system <tt>Ax=y</tt>. Dependent on the information
     * provided by derived classes one of Ginkgo's linear solvers is chosen.
     */
-   void
-   apply(Vector &solution, const Vector &rhs);
-
-   /**
-    * Solve the linear system <tt>Ax=b</tt>. Dependent on the information
-    * provided by derived classes one of Ginkgo's linear solvers is chosen.
-    */
-   void
-   solve(const SparseMatrix *matrix,
-         Vector &            solution,
-         const Vector &      rhs);
-
+   virtual void Mult(const Vector &x, Vector &y) const;
 
 protected:
    int print_lvl;
@@ -296,13 +284,13 @@ protected:
     * The Ginkgo convergence logger used to check for convergence and other
     * solver data if needed.
     */
-   std::shared_ptr<gko::log::Convergence<>> convergence_logger;
+   mutable std::shared_ptr<gko::log::Convergence<>> convergence_logger;
 
    /**
     * The residual logger object used to check for convergence and other solver
     * data if needed.
     */
-   std::shared_ptr<ResidualLogger<>> residual_logger;
+   mutable std::shared_ptr<ResidualLogger<>> residual_logger;
 
    /**
     * The Ginkgo combined factory object is used to create a combined stopping
@@ -323,16 +311,14 @@ private:
     * event masks in Ginkgo's .../include/ginkgo/core/log/logger.hpp.
     */
    void
-   initialize_ginkgo_log(gko::matrix::Dense<double>* b);
+   initialize_ginkgo_log(gko::matrix::Dense<double>* b) const;
 
    /**
     * Ginkgo matrix data structure. First template parameter is for storing the
     * array of the non-zeros of the matrix. The second is for the row pointers
     * and the column indices.
-    *
-    * @todo Templatize based on Matrix type.
     */
-   std::shared_ptr<gko::matrix::Csr<>> system_matrix;
+   std::shared_ptr<gko::matrix::Csr<double, int>> system_matrix;
 
    /**
     * The execution paradigm as a string to be set by the user. The choices are

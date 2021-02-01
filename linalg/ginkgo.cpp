@@ -31,7 +31,8 @@ namespace GinkgoWrappers
 GinkgoIterativeSolverBase::GinkgoIterativeSolverBase(
    const std::string &exec_type, int print_iter, int max_num_iter,
    double RTOLERANCE, double ATOLERANCE)
-   : exec_type(exec_type),
+   : Solver(),
+     exec_type(exec_type),
      print_lvl(print_iter),
      max_iter(max_num_iter),
      rel_tol(sqrt(RTOLERANCE)),
@@ -71,6 +72,7 @@ GinkgoIterativeSolverBase::GinkgoIterativeSolverBase(
 
 void
 GinkgoIterativeSolverBase::initialize_ginkgo_log(gko::matrix::Dense<double>* b)
+const
 {
    // Add the logger object. See the different masks available in Ginkgo's
    // documentation
@@ -82,39 +84,38 @@ GinkgoIterativeSolverBase::initialize_ginkgo_log(gko::matrix::Dense<double>* b)
 }
 
 void
-GinkgoIterativeSolverBase::apply(Vector &solution,
-                                 const Vector &rhs)
+GinkgoIterativeSolverBase::Mult(const Vector &x, Vector &y) const
 {
-   // some shortcuts.
-   using val_array = gko::Array<double>;
-   using vec       = gko::matrix::Dense<double>;
 
    MFEM_VERIFY(system_matrix, "System matrix not initialized");
    MFEM_VERIFY(executor, "executor is not initialized");
-   MFEM_VERIFY(rhs.Size() == solution.Size(),
+   MFEM_VERIFY(y.Size() == x.Size(),
                "Mismatching sizes for rhs and solution");
-   // Create the rhs vector in Ginkgo's format.
-   std::vector<double> f(rhs.Size());
-   std::copy(rhs.GetData(), rhs.GetData() + rhs.Size(), f.begin());
-   auto b =
-      vec::create(executor,
-                  gko::dim<2>(rhs.Size(), 1),
-                  val_array::view(executor->get_master(), rhs.Size(), f.data()),
-                  1);
 
-   // Create the solution vector in Ginkgo's format.
-   std::vector<double> u(solution.Size());
-   std::copy(solution.GetData(), solution.GetData() + solution.Size(), u.begin());
-   auto x = vec::create(executor,
-                        gko::dim<2>(solution.Size(), 1),
-                        val_array::view(executor->get_master(),
-                                        solution.Size(),
-                                        u.data()),
-                        1);
+   using vec       = gko::matrix::Dense<double>;
+   if (!iterative_mode)
+   {
+      y = 0.0;
+   }
+
+   // Create x and y vectors in Ginkgo's format. Wrap MFEM's data directly,
+   // on CPU or GPU.
+   bool on_device = false;
+   if (executor != executor->get_master())
+   {
+      on_device = true;
+   }
+   auto gko_x = vec::create(executor, gko::dim<2> {x.Size(), 1},
+                            gko::Array<double>::view(executor,
+                                                     x.Size(), const_cast<double *>(
+                                                        x.Read(on_device))), 1);
+   auto gko_y = vec::create(executor, gko::dim<2> {y.Size(), 1},
+                            gko::Array<double>::view(executor,
+                                                     y.Size(), y.ReadWrite(on_device)), 1);
 
    // Create the logger object to log some data from the solvers to confirm
    // convergence.
-   initialize_ginkgo_log(gko::lend(b));
+   initialize_ginkgo_log(gko::lend(gko_x));
 
    MFEM_VERIFY(convergence_logger, "convergence logger not initialized" );
    if (print_lvl==1)
@@ -130,8 +131,8 @@ GinkgoIterativeSolverBase::apply(Vector &solution,
    // solver and other data
    combined_factory->add_logger(convergence_logger);
 
-   // Finally, apply the solver to b and get the solution in x.
-   solver->apply(gko::lend(b), gko::lend(x));
+   // Finally, apply the solver to x and get the solution in y.
+   solver->apply(gko::lend(gko_x), gko::lend(gko_y));
 
    // The convergence_logger object contains the residual vector after the
    // solver has returned. use this vector to compute the residual norm of the
@@ -153,29 +154,24 @@ GinkgoIterativeSolverBase::apply(Vector &solution,
    // Ginkgo works with a relative residual norm through its
    // ResidualNormReduction criterion. Therefore, to get the normalized
    // residual, we divide by the norm of the rhs.
-   auto b_norm = gko::matrix::Dense<double>::create(executor->get_master(),
+   auto x_norm = gko::matrix::Dense<double>::create(executor->get_master(),
                                                     gko::dim<2> {1, 1});
    if (executor != executor->get_master())
    {
-      auto b_master = vec::create(executor->get_master(),
-                                  gko::dim<2>(rhs.Size(), 1),
-                                  val_array::view(executor->get_master(),
-                                                  rhs.Size(),
-                                                  f.data()),
-                                  1);
-      b_master->compute_norm2(b_norm.get());
+      auto gko_x_cpu = clone(executor->get_master(), gko::lend(gko_x));
+      gko_x_cpu->compute_norm2(x_norm.get());
    }
    else
    {
-      b->compute_norm2(b_norm.get());
+      gko_x->compute_norm2(x_norm.get());
    }
 
-   MFEM_VERIFY(b_norm.get()->at(0, 0) != 0.0, " rhs norm is zero");
+   MFEM_VERIFY(x_norm.get()->at(0, 0) != 0.0, " rhs norm is zero");
    // Some residual norm and convergence print outs. As both
-   // `residual_norm_d_master` and `b_norm` are seen as Dense matrices, we use
+   // `residual_norm_d_master` and `y_norm` are seen as Dense matrices, we use
    // the `at` function to get the first value here. In case of multiple right
    // hand sides, this will need to be modified.
-   auto fin_res_norm = std::pow(residual_norm_d_master->at(0,0) / b_norm->at(0,0),
+   auto fin_res_norm = std::pow(residual_norm_d_master->at(0,0) / x_norm->at(0,0),
                                 2);
    if (num_iteration==max_iter &&
        fin_res_norm > rel_tol )
@@ -202,67 +198,39 @@ GinkgoIterativeSolverBase::apply(Vector &solution,
                 " iterations with final residual norm "
                 << fin_res_norm << '\n';
    }
+}
 
-   // Check if the solution is on a CUDA device, if so, copy it over to the
-   // host.
+void GinkgoIterativeSolverBase::SetOperator(const Operator &op)
+{
+
+   // Only accept SparseMatrix for this type.
+   SparseMatrix *op_mat = const_cast<SparseMatrix*>(
+                             dynamic_cast<const SparseMatrix*>(&op));
+   MFEM_VERIFY(op_mat != NULL,
+               "GinkgoIterativeSolverBase::SetOperator : not a SparseMatrix!");
+   // Needs to be a square matrix
+   MFEM_VERIFY(op_mat->Height() == op_mat->Width(),
+               "System matrix is not square");
+
+   bool on_device = false;
    if (executor != executor->get_master())
    {
-      auto x_master = vec::create(executor->get_master(),
-                                  gko::dim<2>(solution.Size(), 1),
-                                  val_array::view(executor,
-                                                  solution.Size(),
-                                                  x->get_values()),
-                                  1);
-      x.reset(x_master.release());
+      on_device = true;
    }
-   // Finally copy over the solution vector to mfem's solution vector.
-   std::copy(x->get_values(),
-             x->get_values() + solution.Size(),
-             solution.GetData());
-}
 
-void
-GinkgoIterativeSolverBase::initialize(
-   const SparseMatrix *matrix)
-{
-   // Needs to be a square matrix
-   MFEM_VERIFY(matrix->Height() == matrix->Width(), "System matrix is not square");
-
-   const int N = matrix->Size();
    using mtx = gko::matrix::Csr<double, int>;
-   std::shared_ptr<mtx> system_matrix_compute;
-   system_matrix_compute   = mtx::create(executor->get_master(),
-                                         gko::dim<2>(N),
-                                         matrix->NumNonZeroElems());
-   double *mat_values   = system_matrix_compute->get_values();
-   int *mat_row_ptrs = system_matrix_compute->get_row_ptrs();
-   int *mat_col_idxs = system_matrix_compute->get_col_idxs();
-   mat_row_ptrs[0] =0;
-   for (int r=0; r< N; ++r)
-   {
-      const int* col = matrix->GetRowColumns(r);
-      const double * val = matrix->GetRowEntries(r);
-      mat_row_ptrs[r+1] = mat_row_ptrs[r] + matrix->RowSize(r);
-      for (int cj=0; cj < matrix->RowSize(r); cj++ )
-      {
-         mat_values[mat_row_ptrs[r]+cj] = val[cj];
-         mat_col_idxs[mat_row_ptrs[r]+cj] = col[cj];
-      }
-   }
-   system_matrix =
-      mtx::create(executor, gko::dim<2>(N), matrix->NumNonZeroElems());
-   system_matrix->copy_from(system_matrix_compute.get());
+   system_matrix = mtx::create(
+                      executor, gko::dim<2>(op_mat->Height(), op_mat->Width()),
+                      gko::Array<double>::view(executor,
+                                               op_mat->NumNonZeroElems(),
+                                               op_mat->ReadWriteData(on_device)),
+                      gko::Array<int>::view(executor,
+                                            op_mat->NumNonZeroElems(),
+                                            op_mat->ReadWriteJ(on_device)),
+                      gko::Array<int>::view(executor,
+                                            op_mat->Height() + 1,
+                                            op_mat->ReadWriteI(on_device)));
 }
-
-void
-GinkgoIterativeSolverBase::solve(const SparseMatrix *matrix,
-                                 Vector &solution,
-                                 const Vector &rhs)
-{
-   initialize(matrix);
-   apply(solution, rhs);
-}
-
 
 /* ---------------------- CGSolver ------------------------ */
 CGSolver::CGSolver(
