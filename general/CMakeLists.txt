@@ -29,6 +29,7 @@ list(APPEND SRCS
   tic_toc.cpp
   tinyxml2.cpp
   version.cpp
+  hip.cpp
   )
 
 list(APPEND HDRS
@@ -59,6 +60,7 @@ list(APPEND HDRS
   tinyxml2.h
   text.hpp
   version.hpp
+  hip.hpp
   )
 
 if (MFEM_USE_MPI)
