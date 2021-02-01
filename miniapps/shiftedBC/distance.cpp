@@ -122,6 +122,7 @@ int main(int argc, char *argv[])
    double t_param = 1.0;
    const char *device_config = "cpu";
    bool visualization = true;
+   int print_level    = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -140,12 +141,15 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&t_param, "-t", "--t-param", "Diffusion time step");
+   args.AddOption(&t_param, "-t", "--t-param",
+                  "Diffusion time step (for the Heat solver).");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&print_level, "-pl", "--print_level",
+                  "Verbocity level (0 / 1 / 2).");
    args.Parse();
    if (!args.Good())
    {
@@ -216,6 +220,7 @@ int main(int argc, char *argv[])
       dist_solver = ds;
    }
    else { MFEM_ABORT("Wrong solver option."); }
+   dist_solver->print_level = print_level;
 
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace pfes_s(&pmesh, &fec), pfes_v(&pmesh, &fec, dim);
