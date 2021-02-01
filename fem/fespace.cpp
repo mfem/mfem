@@ -2787,20 +2787,26 @@ void FiniteElementSpace::UpdateElementOrders()
 
 void FiniteElementSpace::Update(bool want_transform)
 {
-   if (mesh->GetSequence() == sequence && !orders_changed)
+   if (!orders_changed)
    {
-      return; // mesh and space are in sync, no-op
+      if (mesh->GetSequence() == sequence)
+      {
+         return; // mesh and space are in sync, no-op
+      }
+      if (want_transform && mesh->GetSequence() != sequence + 1)
+      {
+         MFEM_ABORT("Error in update sequence. Space needs to be updated after "
+                    "each mesh modification.");
+      }
    }
-   if (want_transform && mesh->GetSequence() != sequence + 1)
+   else
    {
-      MFEM_ABORT("Error in update sequence. Space needs to be updated after "
-                 "each mesh modification.");
-   }
-   if (mesh->GetSequence() != sequence && orders_changed)
-   {
-      MFEM_ABORT("Updating space after both mesh changes and element order "
-                 "changes is not supported. Please update separately after "
-                 "each change.");
+      if (mesh->GetSequence() != sequence)
+      {
+         MFEM_ABORT("Updating space after both mesh changes and element order "
+                    "changes is not supported. Please update separately after "
+                    "each change.");
+      }
    }
 
    if (NURBSext)
@@ -2812,6 +2818,7 @@ void FiniteElementSpace::Update(bool want_transform)
 
    Table* old_elem_dof = NULL;
    int old_ndofs;
+   bool old_orders_changed = orders_changed;
 
    // save old DOF table
    if (want_transform)
@@ -2833,7 +2840,7 @@ void FiniteElementSpace::Update(bool want_transform)
 
    if (want_transform)
    {
-      MFEM_VERIFY(!orders_changed, "Interpolation for element order change "
+      MFEM_VERIFY(!old_orders_changed, "Interpolation for element order change "
                   "is not implemented yet, sorry.");
 
       // calculate appropriate GridFunction transformation
