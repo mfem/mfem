@@ -132,6 +132,10 @@
 // Requires a CUDA compiler (nvcc).
 #cmakedefine MFEM_USE_CUDA
 
+// Build the HIP-enabled version of the MFEM library.
+// Requires a HIP compiler (hipcc).
+#cmakedefine MFEM_USE_HIP
+
 // Enable MFEM functionality based on the RAJA library
 #cmakedefine MFEM_USE_RAJA
 
