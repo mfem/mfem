@@ -210,7 +210,6 @@ int main(int argc, char *argv[])
    curl.AddDomainInterpolator(new CurlInterpolator);
    curl.Assemble();
    curl.Finalize();
-
    // 10. Save the refined mesh and the modes in parallel. This output can be
    //     viewed later using GLVis: "glvis -np <np> -m mesh -g mode".
    {
