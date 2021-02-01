@@ -833,7 +833,6 @@ void ConvectiveVectorConvectionNLFIntegrator::AssembleElementGrad(
 
    EF.UseExternalData(elfun.GetData(), nd, dim);
 
-   double w;
    Vector vec1(dim), vec2(dim), vec3(nd);
 
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, trans);
@@ -847,12 +846,7 @@ void ConvectiveVectorConvectionNLFIntegrator::AssembleElementGrad(
       el.CalcShape(ip, shape);
       el.CalcDShape(ip, dshape);
 
-      w = ip.weight;
-
-      if (Q)
-      {
-         w *= Q->Eval(trans, ip);
-      }
+      const double w = Q ? Q->Eval(trans, ip) * ip.weight : ip.weight;
 
       EF.MultTranspose(shape, vec1); // u^n
 
@@ -890,7 +884,6 @@ void SkewSymmetricVectorConvectionNLFIntegrator::AssembleElementGrad(
 
    EF.UseExternalData(elfun.GetData(), nd, dim);
 
-   double w;
    Vector vec1(dim), vec2(dim), vec3(nd), vec4(dim), vec5(nd);
 
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, trans);
@@ -907,12 +900,7 @@ void SkewSymmetricVectorConvectionNLFIntegrator::AssembleElementGrad(
 
       Mult(dshape, trans.InverseJacobian(), dshapex);
 
-      w = ip.weight;
-
-      if (Q)
-      {
-         w *= Q->Eval(trans, ip);
-      }
+      const double w = Q ? Q->Eval(trans, ip) * ip.weight : ip.weight;
 
       EF.MultTranspose(shape, vec1); // u^n
 
