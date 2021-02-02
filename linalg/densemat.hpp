@@ -58,6 +58,20 @@ public:
    DenseMatrix(double *d, int h, int w)
       : Matrix(h, w) { UseExternalData(d, h, w); }
 
+   /// Create a dense matrix using a braced initializer list
+   template <int M, int N>
+   explicit DenseMatrix(const double (&values)[M][N]) : DenseMatrix(M, N)
+   {
+      // DenseMatrix is column-major so copies have to be element-wise
+      for (int i = 0; i < M; i++)
+      {
+         for (int j = 0; j < N; j++)
+         {
+            Elem(i,j) = values[i][j];
+         }
+      }
+   }
+
    /// Change the data array and the size of the DenseMatrix.
    /** The DenseMatrix does not assume ownership of the data array, i.e. it will
        not delete the data array @a d. This method should not be used with
