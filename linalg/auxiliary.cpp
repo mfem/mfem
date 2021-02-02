@@ -89,8 +89,6 @@ void GeneralAMS::Mult(const Vector& x, Vector& y) const
    gradient.Mult(gspacecorrection, residual);
    y += residual;
 
-   Vector temp(x.Size());
-
    // pi-space correction
    FormResidual(x, y, residual);
    Vector pispacetemp(pi.Width());
@@ -113,6 +111,7 @@ void GeneralAMS::Mult(const Vector& x, Vector& y) const
 
    // smooth
    FormResidual(x, y, residual);
+   Vector temp(x.Size());
    smoother.Mult(residual, temp);
    y += temp;
 }
