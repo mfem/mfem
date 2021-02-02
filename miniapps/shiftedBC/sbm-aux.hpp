@@ -70,8 +70,8 @@ double dist_value(const Vector &x, const int type)
         }
     }
     else if (type == 5) { //bicuspid
-        double a = 6*x(0)-3,
-               b = 6*x(1)-3;
+        double a = 4*x(0)-2,
+               b = 4*x(1)-2;
         return -pow(b*b-1, 2.)+(a+1)*pow(1-a, 3.);
     }
     else {
@@ -211,12 +211,12 @@ double dirichlet_velocity(const Vector &x, int type)
         return 0.;
     }
     else if (type == 3) {
-        double yv1 = x(1);
-        double val = 0.0 + (yv1-0.1)/(0.9-0.1);
-        return val;
+        double power = 2.;
+        return pow(x(0), power) + pow(x(1), power);
     }
     else if (type == 4 ){
-        return 0.5/(M_PI*M_PI)*std::sin(M_PI*x(0))*std::sin(M_PI*x(1));
+        //return 0.5/(M_PI*M_PI)*std::sin(M_PI*x(0))*std::sin(M_PI*x(1));
+        return 1./(M_PI*M_PI)*std::sin(M_PI*x(0)*x(1)); //cross terms in solution
     }
     else if (type == 5 ){
         return 0.;
@@ -225,6 +225,28 @@ double dirichlet_velocity(const Vector &x, int type)
         MFEM_ABORT(" Function type not implement yet.");
     }
     return 0.;
+}
+
+double rhs_fun_t(const Vector &x, int type)
+{
+    if (type == 3) {
+        double power = 2;
+        double coeff = std::max(power*(power-1), 1.);
+        double expon = std::max(0., power-2);
+        if (power == 1) {
+            return 0.;
+        }
+        else {
+            return -coeff*std::pow(x(0), expon) - coeff*std::pow(x(1), expon);
+        }
+    }
+    else if (type == 4) {
+        //    return std::sin(M_PI*x(0))*sin(M_PI*x(1)); //no cross terms
+        return std::sin(M_PI*x(0)*x(1))*(x(0)*x(0)+x(1)*x(1));
+    }
+    else {
+        return 1.;
+    }
 }
 
 double dirichlet_velocity_init(const Vector &x, int type)

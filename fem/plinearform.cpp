@@ -61,19 +61,19 @@ void ParLinearForm::AssembleSharedFaces()
 
    if (sflfi.Size())
    {
-      FaceElementTransformations *tr = NULL;
       ParMesh *pmesh = pfes->GetParMesh();
 
-      for (int i = 0; i < sflfi_facenum_marker[0]->Size(); i++)
+      for (int i = 0; i < pmesh->GetNSharedFaces(); i++)
       {
-         int fnum = (*(sflfi_facenum_marker[0]))[i];
-         int faceflag = (*(sflfi_face_flag_marker[0]))[i];
+         FaceElementTransformations *tr = NULL;
+         tr = pmesh->GetSharedFaceTransformations(i);
 
-         if (faceflag == 3)
+         if (tr != NULL)
          {
-            tr = pmesh->GetSharedFaceTransformations(fnum);
-            int faceel = (*(sflfi_elnum_marker[0]))[i];
-            if (tr->Elem1No == faceel)
+            int ne1 = tr->Elem1No;
+            int te1 = (*(sflfi_el_flag_marker[0]))[ne1];
+            int te2 = (*(sflfi_el_flag_marker[0]))[i+pmesh->GetNE()];
+            if (te2 == 2 && te1 == 0)
             {
                fes -> GetElementVDofs (tr -> Elem1No, vdofs);
                dynamic_cast<SBM2LFIntegrator *>(sflfi[0])->SetElem1Flag(true);

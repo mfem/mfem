@@ -93,15 +93,10 @@ void LinearForm::AddBdrFaceIntegrator(LinearFormIntegrator *lfi,
 }
 
 void LinearForm::AddShiftedBdrFaceIntegrator(LinearFormIntegrator *lfi,
-                                             Array<int> &sbmfaces,
-                                             Array<int> &sbmfaceel,
-                                             Array<int> &sbmfaceflag)
+                                             Array<int> &el_marker)
 {
    sflfi.Append(lfi);
-   sflfi_facenum_marker.Append(&sbmfaces);
-   sflfi_elnum_marker.Append(&sbmfaceel);
-   sflfi_face_flag_marker.Append(&sbmfaceflag);
-
+   sflfi_el_flag_marker.Append(&el_marker);
 }
 
 void LinearForm::Assemble()
@@ -234,37 +229,55 @@ void LinearForm::Assemble()
    {
       Mesh *mesh = fes->GetMesh();
 
-      for (i = 0; i < sflfi_facenum_marker[0]->Size(); i++)
+      for (i = 0; i < mesh->GetNumFaces(); i++)
       {
          FaceElementTransformations *tr = NULL;
-         int fnum = (*(sflfi_facenum_marker[0]))[i];
-         int faceflag = (*(sflfi_face_flag_marker[0]))[i];
-         if (faceflag == 1)
-         {
-            tr = mesh->GetInteriorFaceTransformations(fnum);
-         }
-         else if (faceflag == 2)
-         {
-            tr = mesh->GetBdrFaceTransformations(fnum);
-         }
+         tr = mesh->GetInteriorFaceTransformations (i);
          if (tr != NULL)
          {
-            int faceel = (*(sflfi_elnum_marker[0]))[i];
-            if (tr->Elem1No == faceel)
+            int ne1 = tr->Elem1No;
+            int ne2 = tr->Elem2No;
+            int te1 = (*(sflfi_el_flag_marker[0]))[ne1],
+                te2 = (*(sflfi_el_flag_marker[0]))[ne2];
+            if (te1 == 0 && te2 == 2)   // element 2 is cut, 1 is inside
             {
                fes -> GetElementVDofs (tr -> Elem1No, vdofs);
                dynamic_cast<SBM2LFIntegrator *>(sflfi[0])->SetElem1Flag(true);
                sflfi[0] -> AssembleRHSElementVect (*fes->GetFE(tr -> Elem1No),
                                                    *tr, elemvect);
+               AddElementVector (vdofs, elemvect);
             }
-            else
+            else if (te1 == 2 && te2 == 0)   // element 1 is cut, 2 is inside
             {
                fes -> GetElementVDofs (tr -> Elem2No, vdofs);
                dynamic_cast<SBM2LFIntegrator *>(sflfi[0])->SetElem1Flag(false);
                sflfi[0] -> AssembleRHSElementVect (*fes->GetFE(tr -> Elem2No),
                                                    *tr, elemvect);
+               AddElementVector (vdofs, elemvect);
             }
-            AddElementVector (vdofs, elemvect);
+         }
+      }
+
+      for (int i = 0; i < mesh->GetNBE(); i++)
+      {
+         int attr = mesh->GetBdrAttribute(i);
+         FaceElementTransformations *tr;
+         tr = mesh->GetBdrFaceTransformations (i);
+         if (tr != NULL)
+         {
+            if (attr == 100)   // add all boundary faces with attr=100 as SBM faces
+            {
+               int ne1 = tr->Elem1No;
+               int te1 = (*(sflfi_el_flag_marker[0]))[ne1];
+               if (te1 == 0)
+               {
+                  fes -> GetElementVDofs (tr -> Elem1No, vdofs);
+                  dynamic_cast<SBM2LFIntegrator *>(sflfi[0])->SetElem1Flag(true);
+                  sflfi[0] -> AssembleRHSElementVect (*fes->GetFE(tr -> Elem1No),
+                                                      *tr, elemvect);
+                  AddElementVector (vdofs, elemvect);
+               }
+            }
          }
       }
    }

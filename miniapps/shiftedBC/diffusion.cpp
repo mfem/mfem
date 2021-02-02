@@ -17,8 +17,6 @@
 using namespace mfem;
 using namespace std;
 
-double rhs_fun_xy(const Vector &x);
-
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
@@ -133,7 +131,7 @@ int main(int argc, char *argv[])
    int nodes_cnt = vxyz.Size()/dim;
    if (level_set_type == 4) { //stretch quadmesh from [0, 1] to -[0.01, 1.01]
        for (int i = 0; i < nodes_cnt; i++) {
-           vxyz(i+nodes_cnt) = -0.001 + 1.002*vxyz(i+nodes_cnt);
+           vxyz(i+nodes_cnt) = -0.00001 + 1.00002*vxyz(i+nodes_cnt);
        }
    }
    pmesh.SetNodes(vxyz);
@@ -322,8 +320,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // Now we add interior faces that are on processor boundaries. This does not
-   // work yet so we can only really run on 1 MPI rank.
+   // Now we add interior faces that are on processor boundaries.
    double count3 = 0;
    double count3b = 0;
    for (int i = 0; i < pmesh.GetNSharedFaces(); i++)
@@ -331,7 +328,7 @@ int main(int argc, char *argv[])
       tr = pmesh.GetSharedFaceTransformations(i);
       if (tr != NULL)
       {
-          count3b += 1;
+         count3b += 1;
          int ne1 = tr->Elem1No;
          int te1 = trim_flag[ne1];
          int te2 = trim_flag[i+pmesh.GetNE()];
@@ -421,9 +418,17 @@ int main(int argc, char *argv[])
                                                        pfespace.FEColl(), dim);
    ParGridFunction distance(distance_vec_space);
    dist_func.ComputeVectorDistance(dist_fun_level_coef, distance);
-   Dist_Value_Coefficient dist_fun_coef(level_set_type);
+
+   // 10. Construct the distance vector using numerical distances or an
+   //     exact analytic function.
+   ParGridFunction x_dx_dy(distance_vec_space);
+   VectorCoefficient *dist_vec = NULL;
+
    if (exact) {
-       distance.ProjectCoefficient(dist_fun_coef); // analytic projection
+       Dist_Vector_Coefficient *dist_vec_fcoeff =
+               new Dist_Vector_Coefficient(dim, level_set_type);
+       dist_vec = dist_vec_fcoeff;
+       distance.ProjectDiscCoefficient(*dist_vec);
    }
 
    if (visualization)
@@ -434,38 +439,6 @@ int main(int argc, char *argv[])
       sol_sock.precision(8);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock << "solution\n" << pmesh << distance << flush;
-      sol_sock << "window_title 'Distance function'\n"
-               << "window_geometry "
-               << 0 << " " << 0 << " " << 350 << " " << 350 << "\n"
-               << "keys Rjmpc" << endl;
-   }
-
-   // 10. Construct the distance vector using numerical distances or an
-   //     exact analytic function.
-   ParGridFunction x_dx_dy(distance_vec_space);
-   VectorCoefficient *dist_vec = NULL;
-
-   if (!exact) {
-       VectorGridFunctionCoefficient *dist_vec_gfcoeff =
-               new VectorGridFunctionCoefficient(&distance);
-       dist_vec = dist_vec_gfcoeff;
-       x_dx_dy  = distance;
-   }
-   else {
-       Dist_Vector_Coefficient *dist_vec_fcoeff =
-               new Dist_Vector_Coefficient(dim, level_set_type);
-       dist_vec = dist_vec_fcoeff;
-       x_dx_dy.ProjectDiscCoefficient(*dist_vec);
-   }
-
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock << "solution\n" << pmesh << x_dx_dy << flush;
       sol_sock << "window_title 'DDDerivative distfun'\n"
                << "window_geometry "
                << 350 << " " << 350 << " " << 350 << " " << 350 << "\n"
@@ -473,50 +446,17 @@ int main(int argc, char *argv[])
    }
 
    // 12. Set up SBM integration parameter - alpha
-   double pfactor = std::max(ser_ref_levels*1., order*1.);
-   //double alpha = 100/pow(2., pfactor);
-   double alpha = 1.;
-
-   if (ho_terms == 0) { alpha = 10; }
-   if (ho_terms == 1) { alpha = 1; }
-   if (ho_terms == 2) {
-       alpha = 1.0;
-       if (order == 5) { alpha = 0.1; }
-       if (order == 6) { alpha = 0.05; }
-   }
-   if (ho_terms == 3) {
-       alpha = 1.;
-       if (order >=5) {
-           alpha = 0.05;
-           if (ser_ref_levels >= 3) { alpha = 0.0675; }
-       }
-   }
-   if (ho_terms == 4) {
-       alpha = 0.06;// 0.065; //0.05;
-       if (ser_ref_levels >= 3) { alpha = 0.0675; }
-       if (order <= 4) { alpha = 1.; }
-   }
-
+   double alpha = 1;
 
    // 13. Set up the linear form b(.) which corresponds to the right-hand side of
    //     the FEM linear system.
    ParLinearForm b(&pfespace);
-   double fval = 1.;
-   if (level_set_type == 3) {
-      fval = 0.;
-   }
-   ConstantCoefficient rhs_f(fval);
-   FunctionCoefficient rhs_fxy(rhs_fun_xy);
-   if (level_set_type == 4) {
-       b.AddDomainIntegrator(new DomainLFIntegrator(rhs_fxy), trim_flag);
-   }
-   else {
-       b.AddDomainIntegrator(new DomainLFIntegrator(rhs_f), trim_flag);
-   }
+   SBMFunctionCoefficient rhs_f(rhs_fun_t, level_set_type);
+   b.AddDomainIntegrator(new DomainLFIntegrator(rhs_f), trim_flag);
 
    SBMFunctionCoefficient dbcCoef(dirichlet_velocity, level_set_type);
    b.AddShiftedBdrFaceIntegrator(new SBM2LFIntegrator(dbcCoef, alpha, *dist_vec, ho_terms),
-                                 sbm_face_num, sbm_face_el_num, sbm_int_flag);
+                                 trim_flag);
    b.Assemble();
 
    // 14. Set up the bilinear form a(.,.) on the finite element space
@@ -527,7 +467,7 @@ int main(int argc, char *argv[])
 
    a.AddDomainIntegrator(new DiffusionIntegrator(one), trim_flag);
    a.AddShiftedBdrFaceIntegrator(new SBM2Integrator(alpha, *dist_vec, ho_terms),
-                                 sbm_face_num, sbm_face_el_num, sbm_int_flag);
+                                 trim_flag);
 
    // 15. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
@@ -539,6 +479,9 @@ int main(int argc, char *argv[])
    // Project the exact solution as an initial condition for dirichlet boundaries.
    x = 0;
    x.ProjectCoefficient(dbcCoef);
+   for (int i = 0; i < ess_vdofs_hole.Size(); i++) {
+       if (ess_vdofs_hole[i] != -1) { x(i) = 0.; }
+   }
 
    // 16. Form the linear system and solve it.
    OperatorPtr A;
@@ -607,8 +550,7 @@ int main(int argc, char *argv[])
        pxyz(1) = yv;
        double exact_val = dirichlet_velocity(pxyz, level_set_type);
        if (level_set_type == 3) {
-           if (yv < 0.1 || yv > 0.9) { err(i) = 0.; }
-           else { err(i) = std::fabs(x(i) - exact_val); }
+           err(i) = std::fabs(x(i) - exact_val);
        }
        else if (level_set_type == 4) {
            if (yv < 0. || yv > 1.0) { err(i) = 0.; }
@@ -621,7 +563,7 @@ int main(int argc, char *argv[])
        }
    }
 
-   if (visualization && level_set_type >= 3 && level_set_type <= 5)
+   if (visualization && level_set_type >= 3 && level_set_type <= 4)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
@@ -664,9 +606,4 @@ int main(int argc, char *argv[])
    MPI_Finalize();
 
    return 0;
-}
-
-double rhs_fun_xy(const Vector &x)
-{
-    return std::sin(M_PI*x(0))*sin(M_PI*x(1));
 }

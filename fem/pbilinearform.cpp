@@ -232,18 +232,19 @@ void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
 
    if (sbfbfi.Size())
    {
-      FaceElementTransformations *tr = NULL;
       const FiniteElement *fe1, *fe2;
+      ParMesh *pmesh = pfes->GetParMesh();
 
-      for (int i = 0; i < sbfbfi_facenum_marker[0]->Size(); i++)
+      for (int i = 0; i < pmesh->GetNSharedFaces(); i++)
       {
-         int fnum = (*(sbfbfi_facenum_marker[0]))[i];
-         int faceflag = (*(sbfbfi_face_flag_marker[0]))[i];
-         if (faceflag == 3)
+         FaceElementTransformations *tr = NULL;
+         tr = pmesh->GetSharedFaceTransformations(i);
+         if (tr != NULL)
          {
-            tr = pmesh->GetSharedFaceTransformations(fnum);
-            int faceel = (*(sbfbfi_elnum_marker[0]))[i];
-            if (tr->Elem1No == faceel)
+            int ne1 = tr->Elem1No;
+            int te1 = (*(sbfbfi_el_flag_marker[0]))[ne1];
+            int te2 = (*(sbfbfi_el_flag_marker[0]))[i+pmesh->GetNE()];
+            if (te2 == 2 && te1 == 0)
             {
                fe1 = pfes->GetFE(tr->Elem1No);
                pfes->GetElementVDofs(tr->Elem1No, vdofs1);

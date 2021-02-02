@@ -814,6 +814,7 @@ void SBM2LFIntegrator::AssembleRHSElementVect(
    Array<DenseMatrix *> hess_ptr;
    DenseMatrix grad_phys;
    Vector Factorial;
+   Array<DenseMatrix *> grad_phys_dir;
 
    if (nterms > 0)
    {
@@ -826,20 +827,57 @@ void SBM2LFIntegrator::AssembleRHSElementVect(
          el.ProjectGrad(el, *Tr.Elem2, grad_phys);
       }
 
+      DenseMatrix grad_work;
+      grad_phys_dir.SetSize(dim); //NxN matrix for derivative in each direction
+      for (int i = 0; i < dim; i++)
+      {
+         grad_phys_dir[i] = new DenseMatrix(ndof, ndof);
+         grad_phys_dir[i]->CopyRows(grad_phys, i*ndof, (i+1)*ndof-1);
+      }
+
+
       DenseMatrix grad_phys_work = grad_phys;
       grad_phys_work.SetSize(ndof, ndof*dim);
 
       hess_ptr.SetSize(nterms);
-      hess_ptr[0] = new DenseMatrix(ndof*dim, ndof*dim);
-      Mult(grad_phys, grad_phys_work, *hess_ptr[0]);
-      hess_ptr[0]->SetSize(ndof, ndof*dim*dim);
 
-      for (int i = 1; i < nterms; i++)
+      for (int i = 0; i < nterms; i++)
       {
          int sz1 = pow(dim, i+1);
-         hess_ptr[i] = new DenseMatrix(ndof*dim, ndof*sz1);
-         Mult(grad_phys, *hess_ptr[i-1], *hess_ptr[i]);
-         hess_ptr[i]->SetSize(ndof, ndof*dim*sz1);
+         hess_ptr[i] = new DenseMatrix(ndof, ndof*sz1*dim);
+         int loc_col_per_dof = sz1;
+         for (int k = 0; k < dim; k++)
+         {
+            grad_work.SetSize(ndof, ndof*sz1);
+            // grad_work[k] has derivative in kth direction for each DOF.
+            // grad_work[0] has d^2phi/dx^2 and d^2phi/dxdy terms and
+            // grad_work[1] has d^2phi/dydx and d^2phi/dy2 terms for each dof
+            if (i == 0)
+            {
+               Mult(*grad_phys_dir[k], grad_phys_work, grad_work);
+            }
+            else
+            {
+               Mult(*grad_phys_dir[k], *hess_ptr[i-1], grad_work);
+            }
+            // Now we must place columns for each dof together so that they are
+            // in order: d^2phi/dx^2, d^2phi/dxdy, d^2phi/dydx, d^2phi/dy2.
+            for (int j = 0; j < ndof; j++)
+            {
+               for (int d = 0; d < loc_col_per_dof; d++)
+               {
+                  Vector col;
+                  int tot_col_per_dof = loc_col_per_dof*dim;
+                  grad_work.GetColumn(j*loc_col_per_dof+d, col);
+                  hess_ptr[i]->SetCol(j*tot_col_per_dof+k*loc_col_per_dof+d, col);
+               }
+            }
+         }
+      }
+
+      for (int i = 0; i < grad_phys_dir.Size(); i++)
+      {
+         delete grad_phys_dir[i];
       }
 
       Factorial.SetSize(nterms);
@@ -924,29 +962,25 @@ void SBM2LFIntegrator::AssembleRHSElementVect(
       dshape.Mult(nh, dshape_dd);
 
       q_hess_dot_d = 0.;
-      for (int i = nterms-1; i >= 0; i--)
+      for (int i = 0; i < nterms; i++)
       {
          int sz1 = pow(dim, i+1);
          DenseMatrix T1(dim, ndof*sz1);
          Vector T1_wrk(T1.GetData(), dim*ndof*sz1);
          hess_ptr[i]->MultTranspose(shape, T1_wrk);
+
+         DenseMatrix T2;
+         Vector T2_wrk;
          for (int j = 0; j < i+1; j++)
          {
             int sz2 = pow(dim, i-j);
-            DenseMatrix T2(dim, ndof*sz2);
-            Vector T2_wrk(T2.GetData(), dim*ndof*sz2);
-            if ( j != i)
-            {
-               T1.MultTranspose(D, T2_wrk);
-               T1 = T2;
-            }
-            else
-            {
-               T1.MultTranspose(D, q_hess_dn_work);
-            }
+            T2.SetSize(dim, ndof*sz2);
+            T2_wrk.SetDataAndSize(T2.GetData(), dim*ndof*sz2);
+            T1.MultTranspose(D, T2_wrk);
+            T1 = T2;
          }
          Vector q_hess_dot_d_work(ndof);
-         q_hess_dn.MultTranspose(D, q_hess_dot_d_work);
+         T1.MultTranspose(D, q_hess_dot_d_work);
          q_hess_dot_d_work *= 1./Factorial(i);
          q_hess_dot_d += q_hess_dot_d_work;
       }

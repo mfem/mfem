@@ -102,14 +102,8 @@ protected:
    Array<Array<int>*>             bfbfi_marker; ///< Entries are not owned.
 
    Array<BilinearFormIntegrator*> sbfbfi;
-   /// interior/boundary face number for the face to be integrated.
-   Array<Array<int>*>
-   sbfbfi_facenum_marker; ///< Entries are not owned.
-   /// The sbfbfi_elnum_marker tells what is the mesh element # adjacent to the face
-   /// which is inside the domain
-   Array<Array<int>*>             sbfbfi_elnum_marker;
-   /// sbfbfi_face_flag tells if it is an internal face (1) or a boundary face(2)
-   Array<Array<int>*>             sbfbfi_face_flag_marker;
+   /// Array for element marker
+   Array<Array<int>*>           sbfbfi_el_flag_marker;
 
    DenseMatrix elemmat;
    Array<int>  vdofs;
@@ -369,9 +363,7 @@ public:
                              Array<int> &bdr_marker);
 
    void AddShiftedBdrFaceIntegrator(BilinearFormIntegrator *bfi,
-                                    Array<int> &sbmfaces,
-                                    Array<int> &sbmfaceel,
-                                    Array<int> &sbmfaceflag);
+                                    Array<int> &elflag);
 
    /// Sets all sparse values of \f$ M \f$ and \f$ M_e \f$ to 'a'.
    void operator=(const double a)
