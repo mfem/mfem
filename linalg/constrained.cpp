@@ -160,7 +160,6 @@ SparseMatrix * EliminationProjection::AssembleExact() const
 
 void EliminationProjection::BuildGTilde(const Vector& r, Vector& rtilde) const
 {
-   // MFEM_ASSERT(r.Size() == B_.Height(), "Sizes don't match!");
    MFEM_ASSERT(rtilde.Size() == A_.Height(), "Sizes don't match!");
 
    rtilde = 0.0;
@@ -179,7 +178,6 @@ void EliminationProjection::RecoverMultiplier(
    const Vector& disprhs, const Vector& disp, Vector& lagrangem) const
 {
    lagrangem = 0.0;
-   // MFEM_ASSERT(lagrangem.Size() == B_.Height(), "Sizes don't match!");
    MFEM_ASSERT(disp.Size() == A_.Height(), "Sizes don't match!");
 
    Vector fullrhs(A_.Height());
