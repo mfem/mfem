@@ -762,7 +762,7 @@ void NodalFiniteElement::Project(
    }
    else
    {
-      DenseMatrix vshape(fe.GetDof(), Trans.GetSpaceDim());
+      DenseMatrix vshape(fe.GetDof(), fe.GetVDim());
 
       I.SetSize(vshape.Width()*dof, fe.GetDof());
       for (int k = 0; k < dof; k++)
@@ -13240,16 +13240,22 @@ void ND_R2D_FiniteElement::Project(const FiniteElement &fe,
       double vk[Geometry::MaxDim];
       Vector shape(fe.GetDof());
 
+      double * tk_ptr = const_cast<double*>(tk);
+
       I.SetSize(dof, vdim*fe.GetDof());
       for (int k = 0; k < dof; k++)
       {
          const IntegrationPoint &ip = Nodes.IntPoint(k);
 
+         Vector t2(&tk_ptr[dof2tk[k] * 3], 2);
+         Vector t3(&tk_ptr[dof2tk[k] * 3], 3);
+
          fe.CalcShape(ip, shape);
          Trans.SetIntPoint(&ip);
          // Transform ND edge tengents from reference to physical space
          // vk = J tk
-         Trans.Jacobian().Mult(tk + dof2tk[k]*vdim, vk);
+         Trans.Jacobian().Mult(t2, vk);
+         vk[2] = t3[2];
          if (fe.GetMapType() == INTEGRAL)
          {
             double w = 1.0/Trans.Weight();
@@ -13856,20 +13862,26 @@ void RT_R2D_FiniteElement::Project(const FiniteElement &fe,
       double vk[Geometry::MaxDim];
       Vector shape(fe.GetDof());
 
+      double * nk_ptr = const_cast<double*>(nk);
+
       I.SetSize(dof, vdim*fe.GetDof());
       for (int k = 0; k < dof; k++)
       {
          const IntegrationPoint &ip = Nodes.IntPoint(k);
 
+         Vector n2(&nk_ptr[dof2nk[k] * 3], 2);
+         Vector n3(&nk_ptr[dof2nk[k] * 3], 3);
+
          fe.CalcShape(ip, shape);
          Trans.SetIntPoint(&ip);
          // Transform RT face normals from reference to physical space
          // vk = adj(J)^T nk
-         Trans.AdjugateJacobian().MultTranspose(nk + dof2nk[k]*vdim, vk);
+         Trans.AdjugateJacobian().MultTranspose(n2, vk);
+         vk[2] = n3[2] * Trans.Weight();
          if (fe.GetMapType() == INTEGRAL)
          {
             double w = 1.0/Trans.Weight();
-            for (int d = 0; d < vdim; d++)
+            for (int d = 0; d < 2; d++)
             {
                vk[d] *= w;
             }
@@ -13895,7 +13907,6 @@ void RT_R2D_FiniteElement::Project(const FiniteElement &fe,
    {
       double vk[Geometry::MaxDim];
       DenseMatrix vshape(fe.GetDof(), fe.GetVDim());
-      Vector vshapenk(fe.GetDof());
 
       double * nk_ptr = const_cast<double*>(nk);
 
@@ -13923,7 +13934,7 @@ void RT_R2D_FiniteElement::Project(const FiniteElement &fe,
             }
             if (vshape.Width() == 3)
             {
-               I(k, j) += vshape(j, 2) * n3(2);
+               I(k, j) += Trans.Weight() * vshape(j, 2) * n3(2);
             }
          }
       }
