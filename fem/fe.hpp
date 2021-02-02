@@ -3494,6 +3494,9 @@ public:
 
    virtual void CalcCurlShape(const IntegrationPoint &ip,
                               DenseMatrix &curl_shape) const;
+
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const;
 };
 
 class ND_R2D_FiniteElement : public VectorFiniteElement
@@ -3514,6 +3517,9 @@ public:
    virtual void CalcPhysCurlShape(ElementTransformation &Trans,
                                   DenseMatrix &curl_shape) const;
 
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const;
+  
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const;
 
@@ -3612,6 +3618,9 @@ public:
 
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &div_shape) const;
+
+  virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const;
 };
 
 class RT_R2D_FiniteElement : public VectorFiniteElement
@@ -3628,6 +3637,9 @@ public:
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const;
 
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const;
+  
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const;
 

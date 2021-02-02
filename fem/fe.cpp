@@ -13158,6 +13158,45 @@ void ND_R2D_SegmentElement::CalcCurlShape(const IntegrationPoint &ip,
    }
 }
 
+void ND_R2D_SegmentElement::GetLocalInterpolation(ElementTransformation &Trans,
+						  DenseMatrix &I) const
+{
+   double vk[Geometry::MaxDim];
+   Vector xk(vk, dim);
+   IntegrationPoint ip;
+   DenseMatrix vshape(dof, vdim);
+
+   double * tk_ptr = const_cast<double*>(tk);
+   
+   I.SetSize(dof, vshape.Height());
+
+   // assuming Trans is linear; this should be ok for all refinement types
+   Trans.SetIntPoint(&Geometries.GetCenter(geom_type));
+   const DenseMatrix &J = Trans.Jacobian();
+   for (int k = 0; k < dof; k++)
+   {
+      Vector t1(&tk_ptr[dof2tk[k] * 2], 1);
+      Vector t2(&tk_ptr[dof2tk[k] * 2], 2);
+
+      Trans.Transform(Nodes.IntPoint(k), xk);
+      ip.Set3(vk);
+      this->CalcVShape(ip, vshape);
+      // xk = J t_k
+      J.Mult(t1, vk);
+      // I_k = vshape_k.J.t_k, k=1,...,Dof
+      for (int j = 0; j < vshape.Height(); j++)
+      {
+         double Ikj = 0.;
+         for (int i = 0; i < dim; i++)
+         {
+            Ikj += vshape(j, i) * vk[i];
+         }
+	 Ikj += vshape(j, 1) * t2(1);
+         I(k, j) = (fabs(Ikj) < 1e-12) ? 0.0 : Ikj;
+      }
+   }
+}
+
 ND_R2D_FiniteElement::ND_R2D_FiniteElement(int p, Geometry::Type G, int Do,
                                            const double *tk_fe)
    : VectorFiniteElement(2, 3, 3, G, Do, p,
@@ -13205,6 +13244,45 @@ void ND_R2D_FiniteElement::CalcPhysCurlShape(ElementTransformation &Trans,
       curl_shape(i, 1) = sx * J(1, 0) + sy * J(1, 1);
    }
    curl_shape *= (1.0 / Trans.Weight());
+}
+
+void ND_R2D_FiniteElement::GetLocalInterpolation(ElementTransformation &Trans,
+						 DenseMatrix &I) const
+{
+   double vk[Geometry::MaxDim];
+   Vector xk(vk, dim);
+   IntegrationPoint ip;
+   DenseMatrix vshape(dof, vdim);
+
+   double * tk_ptr = const_cast<double*>(tk);
+   
+   I.SetSize(dof, vshape.Height());
+
+   // assuming Trans is linear; this should be ok for all refinement types
+   Trans.SetIntPoint(&Geometries.GetCenter(geom_type));
+   const DenseMatrix &J = Trans.Jacobian();
+   for (int k = 0; k < dof; k++)
+   {
+      Vector t2(&tk_ptr[dof2tk[k] * 3], 2);
+      Vector t3(&tk_ptr[dof2tk[k] * 3], 3);
+
+      Trans.Transform(Nodes.IntPoint(k), xk);
+      ip.Set3(vk);
+      this->CalcVShape(ip, vshape);
+      // xk = J t_k
+      J.Mult(t2, vk);
+      // I_k = vshape_k.J.t_k, k=1,...,Dof
+      for (int j = 0; j < vshape.Height(); j++)
+      {
+         double Ikj = 0.;
+         for (int i = 0; i < dim; i++)
+         {
+            Ikj += vshape(j, i) * vk[i];
+         }
+	 Ikj += vshape(j, 2) * t3(2);
+         I(k, j) = (fabs(Ikj) < 1e-12) ? 0.0 : Ikj;
+      }
+   }
 }
 
 void ND_R2D_FiniteElement::Project(VectorCoefficient &vc,
@@ -13802,6 +13880,46 @@ void RT_R2D_SegmentElement::CalcDivShape(const IntegrationPoint &ip,
    div_shape = 0.0;
 }
 
+void RT_R2D_SegmentElement::GetLocalInterpolation(ElementTransformation &Trans,
+						  DenseMatrix &I) const
+{
+   double vk[Geometry::MaxDim];
+   Vector xk(vk, dim);
+   IntegrationPoint ip;
+   DenseMatrix vshape(dof, vdim);
+   
+   double * nk_ptr = const_cast<double*>(nk);
+
+   I.SetSize(dof, vshape.Height());
+
+   // assuming Trans is linear; this should be ok for all refinement types
+   Trans.SetIntPoint(&Geometries.GetCenter(geom_type));
+   const DenseMatrix &adjJ = Trans.AdjugateJacobian();
+   for (int k = 0; k < dof; k++)
+   {
+      Vector n2(&nk_ptr[dof2nk[k] * 2], 2);
+
+      Trans.Transform(Nodes.IntPoint(k), xk);
+      ip.Set3(vk);
+      this->CalcVShape(ip, vshape);
+      // xk = |J| J^{-t} n_k
+      adjJ.MultTranspose(n2, vk);
+      // I_k = vshape_k.adj(J)^t.n_k, k=1,...,dof
+      for (int j = 0; j < vshape.Height(); j++)
+      {
+         double Ikj = 0.;
+	 /*
+         for (int i = 0; i < dim; i++)
+         {
+            Ikj += vshape(j, i) * vk[i];
+         }
+	 */
+	 Ikj += Trans.Weight() * vshape(j, 1) * n2(1);
+         I(k, j) = (fabs(Ikj) < 1e-12) ? 0.0 : Ikj;
+      }
+   }
+}
+
 RT_R2D_FiniteElement::RT_R2D_FiniteElement(int p, Geometry::Type G, int Do,
                                            const double *nk_fe)
    : VectorFiniteElement(2, 3, 0, G, Do, p + 1,
@@ -13827,6 +13945,45 @@ void RT_R2D_FiniteElement::CalcVShape(ElementTransformation &Trans,
       shape(i, 1) = sx * J(1, 0) + sy * J(1, 1);
    }
    shape *= (1.0 / Trans.Weight());
+}
+
+void RT_R2D_FiniteElement::GetLocalInterpolation(ElementTransformation &Trans,
+						 DenseMatrix &I) const
+{
+   double vk[Geometry::MaxDim];
+   Vector xk(vk, dim);
+   IntegrationPoint ip;
+   DenseMatrix vshape(dof, vdim);
+   
+   double * nk_ptr = const_cast<double*>(nk);
+
+   I.SetSize(dof, vshape.Height());
+
+   // assuming Trans is linear; this should be ok for all refinement types
+   Trans.SetIntPoint(&Geometries.GetCenter(geom_type));
+   const DenseMatrix &adjJ = Trans.AdjugateJacobian();
+   for (int k = 0; k < dof; k++)
+   {
+      Vector n2(&nk_ptr[dof2nk[k] * 3], 2);
+      Vector n3(&nk_ptr[dof2nk[k] * 3], 3);
+
+      Trans.Transform(Nodes.IntPoint(k), xk);
+      ip.Set3(vk);
+      this->CalcVShape(ip, vshape);
+      // xk = |J| J^{-t} n_k
+      adjJ.MultTranspose(n2, vk);
+      // I_k = vshape_k.adj(J)^t.n_k, k=1,...,dof
+      for (int j = 0; j < vshape.Height(); j++)
+      {
+         double Ikj = 0.;
+         for (int i = 0; i < dim; i++)
+         {
+            Ikj += vshape(j, i) * vk[i];
+         }
+	 Ikj += Trans.Weight() * vshape(j, 2) * n3(2);
+         I(k, j) = (fabs(Ikj) < 1e-12) ? 0.0 : Ikj;
+      }
+   }
 }
 
 void RT_R2D_FiniteElement::Project(VectorCoefficient &vc,
