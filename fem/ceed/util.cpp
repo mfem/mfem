@@ -323,8 +323,8 @@ const std::string &GetCeedPath()
 {
    if (ceed_path.empty())
    {
-      const char *install_dir = MFEM_INSTALL_DIR "/include/mfem/fem/libceed";
-      const char *source_dir = MFEM_SOURCE_DIR "/fem/libceed";
+      const char *install_dir = MFEM_INSTALL_DIR "/include/mfem/fem/ceed";
+      const char *source_dir = MFEM_SOURCE_DIR "/fem/ceed";
       struct_stat m_stat;
       if (stat(install_dir, &m_stat) == 0 && S_ISDIR(m_stat.st_mode))
       {

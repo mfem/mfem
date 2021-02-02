@@ -104,7 +104,7 @@ The MFEM source code has the following structure:
   │   ├── sundials
   |   └── superlu
   ├── fem
-  │   └── libceed
+  │   └── ceed
   ├── general
   ├── linalg
   │   └── simd
