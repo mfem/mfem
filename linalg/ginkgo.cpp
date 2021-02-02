@@ -28,7 +28,7 @@ namespace mfem
 namespace GinkgoWrappers
 {
 
-GinkgoIterativeSolverBase::GinkgoIterativeSolverBase(
+GinkgoIterativeSolver::GinkgoIterativeSolver(
    const std::string &exec_type, int print_iter, int max_num_iter,
    double RTOLERANCE, double ATOLERANCE)
    : Solver(),
@@ -71,7 +71,7 @@ GinkgoIterativeSolverBase::GinkgoIterativeSolverBase(
 }
 
 void
-GinkgoIterativeSolverBase::initialize_ginkgo_log(gko::matrix::Dense<double>* b)
+GinkgoIterativeSolver::initialize_ginkgo_log(gko::matrix::Dense<double>* b)
 const
 {
    // Add the logger object. See the different masks available in Ginkgo's
@@ -84,7 +84,7 @@ const
 }
 
 void
-GinkgoIterativeSolverBase::Mult(const Vector &x, Vector &y) const
+GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
 {
 
    MFEM_VERIFY(system_matrix, "System matrix not initialized");
@@ -200,14 +200,14 @@ GinkgoIterativeSolverBase::Mult(const Vector &x, Vector &y) const
    }
 }
 
-void GinkgoIterativeSolverBase::SetOperator(const Operator &op)
+void GinkgoIterativeSolver::SetOperator(const Operator &op)
 {
 
    // Only accept SparseMatrix for this type.
    SparseMatrix *op_mat = const_cast<SparseMatrix*>(
                              dynamic_cast<const SparseMatrix*>(&op));
    MFEM_VERIFY(op_mat != NULL,
-               "GinkgoIterativeSolverBase::SetOperator : not a SparseMatrix!");
+               "GinkgoIterativeSolver::SetOperator : not a SparseMatrix!");
    // Needs to be a square matrix
    MFEM_VERIFY(op_mat->Height() == op_mat->Width(),
                "System matrix is not square");
@@ -219,17 +219,18 @@ void GinkgoIterativeSolverBase::SetOperator(const Operator &op)
    }
 
    using mtx = gko::matrix::Csr<double, int>;
+   const int nnz =  op_mat->GetMemoryData().Capacity();
    system_matrix = mtx::create(
                       executor, gko::dim<2>(op_mat->Height(), op_mat->Width()),
                       gko::Array<double>::view(executor,
-                                               op_mat->NumNonZeroElems(),
+                                               nnz,
                                                op_mat->ReadWriteData(on_device)),
                       gko::Array<int>::view(executor,
-                                            op_mat->NumNonZeroElems(),
+                                            nnz,
                                             op_mat->ReadWriteJ(on_device)),
-                      gko::Array<int>::view(executor,
-                                            op_mat->Height() + 1,
+                      gko::Array<int>::view(executor, op_mat->Height() + 1,
                                             op_mat->ReadWriteI(on_device)));
+
 }
 
 /* ---------------------- CGSolver ------------------------ */
@@ -240,8 +241,8 @@ CGSolver::CGSolver(
    double RTOLERANCE,
    double ATOLERANCE
 )
-   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
-                               ATOLERANCE)
+   : GinkgoIterativeSolver(exec_type, print_iter, max_num_iter, RTOLERANCE,
+                           ATOLERANCE)
 {
    using cg = gko::solver::Cg<double>;
    this->solver_gen =
@@ -254,16 +255,28 @@ CGSolver::CGSolver(
    int max_num_iter,
    double RTOLERANCE,
    double ATOLERANCE,
-   const gko::LinOpFactory* preconditioner
+   const GinkgoPreconditioner &preconditioner
 )
-   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
-                               ATOLERANCE)
+   : GinkgoIterativeSolver(exec_type, print_iter, max_num_iter, RTOLERANCE,
+                           ATOLERANCE)
 {
    using cg         = gko::solver::Cg<double>;
-   this->solver_gen = cg::build()
-                      .with_criteria(this->combined_factory)
-                      .with_preconditioner(preconditioner)
-                      .on(this->executor);
+   // Check for a previously-generated preconditioner (for a specific matrix)
+   if (preconditioner.HasGeneratedPreconditioner())
+   {
+      this->solver_gen = cg::build()
+                         .with_criteria(this->combined_factory)
+                         .with_generated_preconditioner(
+                            preconditioner.GetGeneratedPreconditioner())
+                         .on(this->executor);
+   }
+   else // Pass a preconditioner factory (will use same matrix as the solver)
+   {
+      this->solver_gen = cg::build()
+                         .with_criteria(this->combined_factory)
+                         .with_preconditioner(preconditioner.GetFactory())
+                         .on(this->executor);
+   }
 }
 
 
@@ -275,8 +288,8 @@ BICGSTABSolver::BICGSTABSolver(
    double RTOLERANCE,
    double ATOLERANCE
 )
-   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
-                               ATOLERANCE)
+   : GinkgoIterativeSolver(exec_type, print_iter, max_num_iter, RTOLERANCE,
+                           ATOLERANCE)
 {
    using bicgstab   = gko::solver::Bicgstab<double>;
    this->solver_gen = bicgstab::build()
@@ -290,15 +303,15 @@ BICGSTABSolver::BICGSTABSolver(
    int max_num_iter,
    double RTOLERANCE,
    double ATOLERANCE,
-   const gko::LinOpFactory* preconditioner
+   const GinkgoPreconditioner &preconditioner
 )
-   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
-                               ATOLERANCE)
+   : GinkgoIterativeSolver(exec_type, print_iter, max_num_iter, RTOLERANCE,
+                           ATOLERANCE)
 {
    using bicgstab   = gko::solver::Bicgstab<double>;
    this->solver_gen = bicgstab::build()
                       .with_criteria(this->combined_factory)
-                      .with_preconditioner(preconditioner)
+                      .with_preconditioner(preconditioner.GetFactory())
                       .on(this->executor);
 }
 
@@ -311,8 +324,8 @@ CGSSolver::CGSSolver(
    double RTOLERANCE,
    double ATOLERANCE
 )
-   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
-                               ATOLERANCE)
+   : GinkgoIterativeSolver(exec_type, print_iter, max_num_iter, RTOLERANCE,
+                           ATOLERANCE)
 {
    using cgs = gko::solver::Cgs<double>;
    this->solver_gen =
@@ -325,15 +338,15 @@ CGSSolver::CGSSolver(
    int max_num_iter,
    double RTOLERANCE,
    double ATOLERANCE,
-   const gko::LinOpFactory* preconditioner
+   const GinkgoPreconditioner &preconditioner
 )
-   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
-                               ATOLERANCE)
+   : GinkgoIterativeSolver(exec_type, print_iter, max_num_iter, RTOLERANCE,
+                           ATOLERANCE)
 {
    using cgs        = gko::solver::Cgs<double>;
    this->solver_gen = cgs::build()
                       .with_criteria(this->combined_factory)
-                      .with_preconditioner(preconditioner)
+                      .with_preconditioner(preconditioner.GetFactory())
                       .on(this->executor);
 }
 
@@ -346,8 +359,8 @@ FCGSolver::FCGSolver(
    double RTOLERANCE,
    double ATOLERANCE
 )
-   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
-                               ATOLERANCE)
+   : GinkgoIterativeSolver(exec_type, print_iter, max_num_iter, RTOLERANCE,
+                           ATOLERANCE)
 {
    using fcg = gko::solver::Fcg<double>;
    this->solver_gen =
@@ -360,15 +373,15 @@ FCGSolver::FCGSolver(
    int max_num_iter,
    double RTOLERANCE,
    double ATOLERANCE,
-   const gko::LinOpFactory* preconditioner
+   const GinkgoPreconditioner &preconditioner
 )
-   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
-                               ATOLERANCE)
+   : GinkgoIterativeSolver(exec_type, print_iter, max_num_iter, RTOLERANCE,
+                           ATOLERANCE)
 {
    using fcg        = gko::solver::Fcg<double>;
    this->solver_gen = fcg::build()
                       .with_criteria(this->combined_factory)
-                      .with_preconditioner(preconditioner)
+                      .with_preconditioner(preconditioner.GetFactory())
                       .on(this->executor);
 }
 
@@ -381,8 +394,8 @@ GMRESSolver::GMRESSolver(
    double RTOLERANCE,
    double ATOLERANCE
 )
-   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
-                               ATOLERANCE)
+   : GinkgoIterativeSolver(exec_type, print_iter, max_num_iter, RTOLERANCE,
+                           ATOLERANCE)
 {
    using gmres      = gko::solver::Gmres<double>;
    this->solver_gen = gmres::build()
@@ -397,16 +410,16 @@ GMRESSolver::GMRESSolver(
    int max_num_iter,
    double RTOLERANCE,
    double ATOLERANCE,
-   const gko::LinOpFactory* preconditioner
+   const GinkgoPreconditioner &preconditioner
 )
-   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
-                               ATOLERANCE)
+   : GinkgoIterativeSolver(exec_type, print_iter, max_num_iter, RTOLERANCE,
+                           ATOLERANCE)
 {
    using gmres      = gko::solver::Gmres<double>;
    this->solver_gen = gmres::build()
                       .with_krylov_dim(m)
                       .with_criteria(this->combined_factory)
-                      .with_preconditioner(preconditioner)
+                      .with_preconditioner(preconditioner.GetFactory())
                       .on(this->executor);
 }
 
@@ -419,8 +432,8 @@ IRSolver::IRSolver(
    double RTOLERANCE,
    double ATOLERANCE
 )
-   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
-                               ATOLERANCE)
+   : GinkgoIterativeSolver(exec_type, print_iter, max_num_iter, RTOLERANCE,
+                           ATOLERANCE)
 {
    using ir = gko::solver::Ir<double>;
    this->solver_gen =
@@ -433,18 +446,313 @@ IRSolver::IRSolver(
    int max_num_iter,
    double RTOLERANCE,
    double ATOLERANCE,
-   const gko::LinOpFactory* inner_solver
+   const GinkgoIterativeSolver &inner_solver
 )
-   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
-                               ATOLERANCE)
+   : GinkgoIterativeSolver(exec_type, print_iter, max_num_iter, RTOLERANCE,
+                           ATOLERANCE)
 {
    using ir         = gko::solver::Ir<double>;
    this->solver_gen = ir::build()
                       .with_criteria(this->combined_factory)
-                      .with_solver(inner_solver)
+                      .with_solver(inner_solver.GetFactory())
                       .on(this->executor);
 }
 
+/* --------------------------------------------------------------- */
+/* ---------------------- Preconditioners ------------------------ */
+GinkgoPreconditioner::GinkgoPreconditioner(
+   const std::string &exec_type)
+   : Solver(),
+     exec_type(exec_type)
+{
+   has_generated_precond = false;
+
+   if (exec_type == "reference")
+   {
+      executor = gko::ReferenceExecutor::create();
+   }
+   else if (exec_type == "omp")
+   {
+      executor = gko::OmpExecutor::create();
+   }
+   else if (exec_type == "cuda" && gko::CudaExecutor::get_num_devices() > 0)
+   {
+      executor = gko::CudaExecutor::create(0, gko::OmpExecutor::create());
+   }
+   else
+   {
+      mfem::err <<
+                " exec_type needs to be one of the three strings: \"reference\", \"cuda\" or \"omp\" "
+                << std::endl;
+   }
+}
+
+void
+GinkgoPreconditioner::Mult(const Vector &x, Vector &y) const
+{
+
+   MFEM_VERIFY(generated_precond, "Preconditioner not initialized");
+   MFEM_VERIFY(executor, "executor is not initialized");
+
+   using vec       = gko::matrix::Dense<double>;
+   if (!iterative_mode)
+   {
+      y = 0.0;
+   }
+
+   // Create x and y vectors in Ginkgo's format. Wrap MFEM's data directly,
+   // on CPU or GPU.
+   bool on_device = false;
+   if (executor != executor->get_master())
+   {
+      on_device = true;
+   }
+   auto gko_x = vec::create(executor, gko::dim<2> {x.Size(), 1},
+                            gko::Array<double>::view(executor,
+                                                     x.Size(), const_cast<double *>(
+                                                        x.Read(on_device))), 1);
+   auto gko_y = vec::create(executor, gko::dim<2> {y.Size(), 1},
+                            gko::Array<double>::view(executor,
+                                                     y.Size(), y.ReadWrite(on_device)), 1);
+   generated_precond.get()->apply(gko::lend(gko_x), gko::lend(gko_y));
+}
+
+void GinkgoPreconditioner::SetOperator(const Operator &op)
+{
+
+   // Only accept SparseMatrix for this type.
+   SparseMatrix *op_mat = const_cast<SparseMatrix*>(
+                             dynamic_cast<const SparseMatrix*>(&op));
+   MFEM_VERIFY(op_mat != NULL,
+               "GinkgoIterativeSolver::SetOperator : not a SparseMatrix!");
+
+   bool on_device = false;
+   if (executor != executor->get_master())
+   {
+      on_device = true;
+   }
+
+   using mtx = gko::matrix::Csr<double, int>;
+   const int nnz =  op_mat->GetMemoryData().Capacity();
+   auto gko_matrix = mtx::create(
+                        executor, gko::dim<2>(op_mat->Height(), op_mat->Width()),
+                        gko::Array<double>::view(executor,
+                                                 nnz,
+                                                 op_mat->ReadWriteData(on_device)),
+                        gko::Array<int>::view(executor,
+                                              nnz,
+                                              op_mat->ReadWriteJ(on_device)),
+                        gko::Array<int>::view(executor, op_mat->Height() + 1,
+                                              op_mat->ReadWriteI(on_device)));
+
+   // TODO: will this work to "re-set" the operator, or can we only do it once?
+   generated_precond = precond_gen->generate(gko::give(gko_matrix));
+   has_generated_precond = true;
+}
+
+
+/* ---------------------- JacobiPreconditioner  ------------------------ */
+JacobiPreconditioner::JacobiPreconditioner(
+   const std::string &exec_type,
+   const std::string &storage_opt,
+   const double accuracy,
+   const int max_block_size
+)
+   : GinkgoPreconditioner(exec_type)
+{
+
+   if (storage_opt == "auto")
+   {
+      precond_gen = gko::preconditioner::Jacobi<double, int>::build()
+                    .with_storage_optimization(
+                       gko::precision_reduction::autodetect())
+                    .with_accuracy(accuracy)
+                    .with_max_block_size(max_block_size)
+                    .on(executor);
+   }
+   else
+   {
+      precond_gen = gko::preconditioner::Jacobi<double, int>::build()
+                    .with_storage_optimization(
+                       gko::precision_reduction(0, 0))
+                    .with_accuracy(accuracy)
+                    .with_max_block_size(max_block_size)
+                    .on(executor);
+   }
+
+}
+
+/* ---------------------- Ilu/IluIsaiPreconditioner  ------------------------ */
+IluPreconditioner::IluPreconditioner(
+   const std::string &exec_type,
+   const std::string &factorization_type,
+   const int sweeps,
+   const bool skip_sort
+)
+   : GinkgoPreconditioner(exec_type)
+{
+   if (factorization_type == "exact")
+   {
+      using ilu_fact_type = gko::factorization::Ilu<double, int>;
+      std::shared_ptr<ilu_fact_type::Factory> fact_factory = std::move(
+                                                                ilu_fact_type::build()
+                                                                .with_skip_sorting(skip_sort)
+                                                                .on(executor));
+      precond_gen = gko::preconditioner::Ilu<>::build()
+                    .with_factorization_factory(fact_factory)
+                    .on(executor);
+   }
+   else
+   {
+      using ilu_fact_type = gko::factorization::ParIlu<double, int>;
+      std::shared_ptr<ilu_fact_type::Factory> fact_factory = std::move(
+                                                                ilu_fact_type::build()
+                                                                .with_iterations(sweeps)
+                                                                .with_skip_sorting(skip_sort)
+                                                                .on(executor));
+      precond_gen = gko::preconditioner::Ilu<>::build()
+                    .with_factorization_factory(fact_factory)
+                    .on(executor);
+   }
+
+}
+
+IluIsaiPreconditioner::IluIsaiPreconditioner(
+   const std::string &exec_type,
+   const std::string &factorization_type,
+   const int sweeps,
+   const int sparsity_power,
+   const bool skip_sort
+)
+   : GinkgoPreconditioner(exec_type)
+{
+   using l_solver_type = gko::preconditioner::LowerIsai<>;
+   using u_solver_type = gko::preconditioner::UpperIsai<>;
+
+   std::shared_ptr<l_solver_type::Factory> l_solver_factory = std::move(
+                                                                 l_solver_type::build()
+                                                                 .with_sparsity_power(sparsity_power)
+                                                                 .on(executor));
+   std::shared_ptr<u_solver_type::Factory> u_solver_factory = std::move(
+                                                                 u_solver_type::build()
+                                                                 .with_sparsity_power(sparsity_power)
+                                                                 .on(executor));
+
+
+
+   if (factorization_type == "exact")
+   {
+      using ilu_fact_type = gko::factorization::Ilu<double, int>;
+      std::shared_ptr<ilu_fact_type::Factory> fact_factory = std::move(
+                                                                ilu_fact_type::build()
+                                                                .with_skip_sorting(skip_sort)
+                                                                .on(executor));
+      precond_gen = gko::preconditioner::Ilu<l_solver_type,
+      u_solver_type>::build()
+      .with_factorization_factory(fact_factory)
+      .with_l_solver_factory(l_solver_factory)
+      .with_u_solver_factory(u_solver_factory)
+      .on(executor);
+
+   }
+   else
+   {
+      using ilu_fact_type = gko::factorization::ParIlu<double, int>;
+      std::shared_ptr<ilu_fact_type::Factory> fact_factory = std::move(
+                                                                ilu_fact_type::build()
+                                                                .with_iterations(sweeps)
+                                                                .with_skip_sorting(skip_sort)
+                                                                .on(executor));
+      precond_gen = gko::preconditioner::Ilu<l_solver_type,
+      u_solver_type>::build()
+      .with_factorization_factory(fact_factory)
+      .with_l_solver_factory(l_solver_factory)
+      .with_u_solver_factory(u_solver_factory)
+      .on(executor);
+   }
+}
+
+
+/* ---------------------- Ic/IcIsaiPreconditioner  ------------------------ */
+IcPreconditioner::IcPreconditioner(
+   const std::string &exec_type,
+   const std::string &factorization_type,
+   const int sweeps,
+   const bool skip_sort
+)
+   : GinkgoPreconditioner(exec_type)
+{
+
+   if (factorization_type == "exact")
+   {
+      using ic_fact_type = gko::factorization::Ic<double, int>;
+      std::shared_ptr<ic_fact_type::Factory> fact_factory = std::move(
+                                                               ic_fact_type::build()
+                                                               .with_both_factors(false)
+                                                               .with_skip_sorting(skip_sort)
+                                                               .on(executor));
+      precond_gen = gko::preconditioner::Ic<>::build()
+                    .with_factorization_factory(fact_factory)
+                    .on(executor);
+   }
+   else
+   {
+      using ic_fact_type = gko::factorization::ParIc<double, int>;
+      std::shared_ptr<ic_fact_type::Factory> fact_factory = std::move(
+                                                               ic_fact_type::build()
+                                                               .with_both_factors(false)
+                                                               .with_iterations(sweeps)
+                                                               .with_skip_sorting(skip_sort)
+                                                               .on(executor));
+      precond_gen = gko::preconditioner::Ic<>::build()
+                    .with_factorization_factory(fact_factory)
+                    .on(executor);
+   }
+}
+
+IcIsaiPreconditioner::IcIsaiPreconditioner(
+   const std::string &exec_type,
+   const std::string &factorization_type,
+   const int sweeps,
+   const int sparsity_power,
+   const bool skip_sort
+)
+   : GinkgoPreconditioner(exec_type)
+{
+
+   using l_solver_type = gko::preconditioner::LowerIsai<>;
+   std::shared_ptr<l_solver_type::Factory> l_solver_factory = std::move(
+                                                                 l_solver_type::build()
+                                                                 .with_sparsity_power(sparsity_power)
+                                                                 .on(executor));
+   if (factorization_type == "exact")
+   {
+      using ic_fact_type = gko::factorization::Ic<double, int>;
+      std::shared_ptr<ic_fact_type::Factory> fact_factory = std::move(
+                                                               ic_fact_type::build()
+                                                               .with_both_factors(false)
+                                                               .with_skip_sorting(skip_sort)
+                                                               .on(executor));
+      precond_gen = gko::preconditioner::Ic<l_solver_type>::build()
+                    .with_factorization_factory(fact_factory)
+                    .with_l_solver_factory(l_solver_factory)
+                    .on(executor);
+   }
+   else
+   {
+      using ic_fact_type = gko::factorization::ParIc<double, int>;
+      std::shared_ptr<ic_fact_type::Factory> fact_factory = std::move(
+                                                               ic_fact_type::build()
+                                                               .with_both_factors(false)
+                                                               .with_iterations(sweeps)
+                                                               .with_skip_sorting(skip_sort)
+                                                               .on(executor));
+      precond_gen = gko::preconditioner::Ic<l_solver_type>::build()
+                    .with_factorization_factory(fact_factory)
+                    .with_l_solver_factory(l_solver_factory)
+                    .on(executor);
+   }
+}
 
 } // namespace GinkgoWrappers
 
