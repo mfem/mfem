@@ -383,9 +383,6 @@ PenaltyConstrainedSolver::PenaltyConstrainedSolver(
    constraintB(B),
    prec(nullptr)
 {
-   // TODO: check column starts of A and B are compatible?
-   // (probably will happen in ParMult later)
-
    Initialize(A, B);
 }
 
@@ -663,23 +660,11 @@ void ConstrainedSolver::PrimalMult(const Vector& f, Vector &x) const
 
 void ConstrainedSolver::Mult(const Vector& f_and_r, Vector& x_and_lambda) const
 {
-   /// TODO: use GetData, Vector constructor that just wraps doubles, etc?
-   for (int i = 0; i < A.Height(); ++i)
-   {
-      workx(i) = x_and_lambda(i);
-      workb(i) = f_and_r(i);
-   }
+   workb.MakeRef(const_cast<Vector&>(f_and_r), 0);
+   workx.MakeRef(x_and_lambda, 0);
    Vector ref_constraint_rhs(f_and_r.GetData() + A.Height(), B.Height());
    constraint_rhs = ref_constraint_rhs;
    PrimalMult(workb, workx);
-   for (int i = 0; i < A.Height(); ++i)
-   {
-      x_and_lambda(i) = workx(i);
-   }
-   for (int i = 0; i < B.Height(); ++i)
-   {
-      x_and_lambda(A.Height() + i) = multiplier_sol(i);
-   }
 }
 
 }
