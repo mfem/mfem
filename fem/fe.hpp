@@ -3519,7 +3519,7 @@ public:
 
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const;
-  
+
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const;
 
@@ -3619,7 +3619,7 @@ public:
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &div_shape) const;
 
-  virtual void GetLocalInterpolation(ElementTransformation &Trans,
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const;
 };
 
@@ -3639,7 +3639,7 @@ public:
 
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const;
-  
+
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const;
 

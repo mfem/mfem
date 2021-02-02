@@ -491,13 +491,13 @@ int main(int argc, char *argv[])
             curl.Mult(x, dx);
 
             mode_sock << "parallel " << mpi.WorldSize() << " "
-		      << mpi.WorldRank() << "\n"
+                      << mpi.WorldRank() << "\n"
                       << "solution\n" << pmesh << x << flush
                       << "window_title 'Eigenmode " << i+1 << '/' << nev
                       << ", Lambda = " << eigenvalues[i] - shift
                       << "'" << endl;
             mode_deriv_sock << "parallel " << mpi.WorldSize() << " "
-			    << mpi.WorldRank() << "\n"
+                            << mpi.WorldRank() << "\n"
                             << "solution\n" << pmesh << dx << flush
                             << "window_geometry 0 375 400 350 "
                             << "window_title 'Curl Eigenmode "
