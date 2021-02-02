@@ -1518,19 +1518,8 @@ void GridFunction::GetCurl(ElementTransformation &T, Vector &curl) const
             Vector loc_data;
             GetSubVector(dofs, loc_data);
             DenseMatrix curl_shape(fe->GetDof(), fe->GetCDim());
-            fe->CalcCurlShape(T.GetIntPoint(), curl_shape);
-            curl.SetSize(curl_shape.Width());
-            if (curl_shape.Width() == 3 && T.Jacobian().Width() == 3)
-            {
-               double curl_hat[3];
-               curl_shape.MultTranspose(loc_data, curl_hat);
-               T.Jacobian().Mult(curl_hat, curl);
-            }
-            else
-            {
-               curl_shape.MultTranspose(loc_data, curl);
-            }
-            curl /= T.Weight();
+            fe->CalcPhysCurlShape(T, curl_shape);
+            curl_shape.MultTranspose(loc_data, curl);
          }
       }
       break;
@@ -2746,10 +2735,9 @@ double GridFunction::ComputeCurlError(VectorCoefficient *excurl,
    const FiniteElement *fe;
    ElementTransformation *Tr;
    Array<int> dofs;
-   Vector curl;
    int intorder;
-   int dim = fes->GetMesh()->SpaceDimension();
-   int n = (dim == 3) ? dim : 1;
+   int n = CurlDim();
+   Vector curl(n);
    Vector vec(n);
 
    for (int i = 0; i < fes->GetNE(); i++)
