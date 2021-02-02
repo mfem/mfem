@@ -30,14 +30,14 @@ struct DiffusionOperatorInfo : public OperatorInfo
    {
       header = "/diffusion_qf.h";
       build_func_const = ":f_build_diff_const";
-      build_func_quad = ":f_build_diff_quad";
-      apply_func = ":f_apply_diff";
-      apply_func_mf_const = ":f_apply_diff_mf_const";
-      apply_func_mf_quad = ":f_apply_diff_mf_quad";
       build_qf_const = &f_build_diff_const;
+      build_func_quad = ":f_build_diff_quad";
       build_qf_quad = &f_build_diff_quad;
+      apply_func = ":f_apply_diff";
       apply_qf = &f_apply_diff;
+      apply_func_mf_const = ":f_apply_diff_mf_const";
       apply_qf_mf_const = &f_apply_diff_mf_const;
+      apply_func_mf_quad = ":f_apply_diff_mf_quad";
       apply_qf_mf_quad = &f_apply_diff_mf_quad;
       trial_op = EvalMode::Grad;
       test_op = EvalMode::Grad;
