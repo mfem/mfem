@@ -492,6 +492,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 303; }
 };
 
 /// 3D Size (V) untangling metric.
@@ -531,7 +533,7 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
 
-   virtual int Id() const { return 303; }
+   virtual int Id() const { return 313; }
 };
 
 /// 3D non-barrier Size (V) metric.
