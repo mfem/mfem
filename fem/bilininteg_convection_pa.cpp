@@ -12,7 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
-#include "libceed/convection.hpp"
+#include "ceed/convection.hpp"
 
 using namespace std;
 
