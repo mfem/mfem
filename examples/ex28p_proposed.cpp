@@ -219,7 +219,7 @@ int main(int argc, char *argv[])
    }
 #else
    {
-      mfme::out << "No solvers available." << endl;
+      mfem::out << "No solvers available." << endl;
       return 1;
    }
 #endif
