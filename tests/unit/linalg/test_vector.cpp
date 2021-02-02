@@ -16,10 +16,7 @@ using namespace mfem;
 
 TEST_CASE("Vector init-list construction", "[Vector]")
 {
-   double ContigData[6] = {6.0, 5.0,
-                           4.0, 3.0,
-                           2.0, 1.0
-                          };
+   double ContigData[6] = {6.0, 5.0, 4.0, 3.0, 2.0, 1.0};
    Vector a(ContigData, 6);
    Vector b({6.0, 5.0, 4.0, 3.0, 2.0, 1.0});
 
