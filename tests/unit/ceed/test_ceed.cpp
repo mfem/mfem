@@ -13,7 +13,6 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "../../../fem/ceed/coefficient.hpp"
 
 using namespace mfem;
 
