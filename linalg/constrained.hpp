@@ -182,8 +182,8 @@ public:
                           const Vector& disp, Vector& lm) const;
 
 private:
-   const Operator& A_;
-   Array<Eliminator*> eliminators_;
+   const Operator& Aop;
+   Array<Eliminator*> eliminators;
 };
 
 
@@ -228,11 +228,11 @@ protected:
    /// Select krylov solver for eliminated system
    virtual IterativeSolver* BuildKrylov() const = 0;
 
-   HypreParMatrix& hA_;
-   Array<Eliminator*> elims_;
-   EliminationProjection * projector_;
-   HypreParMatrix * h_explicit_operator_;
-   mutable Solver* prec_;
+   HypreParMatrix& hA;
+   Array<Eliminator*> eliminators;
+   EliminationProjection * projector;
+   HypreParMatrix * h_explicit_operator;
+   mutable Solver* prec;
 };
 
 
@@ -242,17 +242,17 @@ class EliminationCGSolver : public EliminationSolver
 public:
    EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
                        Array<int>& lagrange_rowstarts,
-                       int dimension=0, bool reorder=false) :
+                       int dimension_=0, bool reorder_=false) :
       EliminationSolver(A, B, lagrange_rowstarts),
-      dimension_(dimension), reorder_(reorder)
+      dimension(dimension_), reorder(reorder_)
    { BuildExplicitOperator(); }
 
 protected:
    virtual Solver* BuildPreconditioner() const override
    {
-      HypreBoomerAMG * h_prec = new HypreBoomerAMG(*h_explicit_operator_);
+      HypreBoomerAMG * h_prec = new HypreBoomerAMG(*h_explicit_operator);
       h_prec->SetPrintLevel(0);
-      if (dimension_ > 0) { h_prec->SetSystemsOptions(dimension_, reorder_); }
+      if (dimension > 0) { h_prec->SetSystemsOptions(dimension, reorder); }
       return h_prec;
    }
 
@@ -260,8 +260,8 @@ protected:
    { return new CGSolver(GetComm()); }
 
 private:
-   int dimension_;
-   bool reorder_;
+   int dimension;
+   bool reorder;
 };
 
 

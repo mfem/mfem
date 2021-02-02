@@ -83,11 +83,11 @@ void Eliminator::ExplicitAssembly(DenseMatrix& mat) const
 }
 
 EliminationProjection::EliminationProjection(const Operator& A,
-                                             Array<Eliminator*>& eliminators)
+                                             Array<Eliminator*>& eliminators_)
    :
    Operator(A.Height()),
-   A_(A),
-   eliminators_(eliminators)
+   Aop(A),
+   eliminators(eliminators_)
 {
 }
 
@@ -98,9 +98,9 @@ void EliminationProjection::Mult(const Vector& in, Vector& out) const
 
    out = in;
 
-   for (int k = 0; k < eliminators_.Size(); ++k)
+   for (int k = 0; k < eliminators.Size(); ++k)
    {
-      Eliminator* elim = eliminators_[k];
+      Eliminator* elim = eliminators[k];
       Vector subvec_in;
       Vector subvec_out(elim->SecondaryDofs().Size());
       in.GetSubVector(elim->PrimaryDofs(), subvec_in);
@@ -116,9 +116,9 @@ void EliminationProjection::MultTranspose(const Vector& in, Vector& out) const
 
    out = in;
 
-   for (int k = 0; k < eliminators_.Size(); ++k)
+   for (int k = 0; k < eliminators.Size(); ++k)
    {
-      Eliminator* elim = eliminators_[k];
+      Eliminator* elim = eliminators[k];
       Vector subvec_in;
       Vector subvec_out(elim->PrimaryDofs().Size());
       in.GetSubVector(elim->SecondaryDofs(), subvec_in);
@@ -137,9 +137,9 @@ SparseMatrix * EliminationProjection::AssembleExact() const
       out->Add(i, i, 1.0);
    }
 
-   for (int k = 0; k < eliminators_.Size(); ++k)
+   for (int k = 0; k < eliminators.Size(); ++k)
    {
-      Eliminator* elim = eliminators_[k];
+      Eliminator* elim = eliminators[k];
       DenseMatrix mat;
       elim->ExplicitAssembly(mat);
       for (int iz = 0; iz < elim->SecondaryDofs().Size(); ++iz)
@@ -160,12 +160,12 @@ SparseMatrix * EliminationProjection::AssembleExact() const
 
 void EliminationProjection::BuildGTilde(const Vector& r, Vector& rtilde) const
 {
-   MFEM_ASSERT(rtilde.Size() == A_.Height(), "Sizes don't match!");
+   MFEM_ASSERT(rtilde.Size() == Aop.Height(), "Sizes don't match!");
 
    rtilde = 0.0;
-   for (int k = 0; k < eliminators_.Size(); ++k)
+   for (int k = 0; k < eliminators.Size(); ++k)
    {
-      Eliminator* elim = eliminators_[k];
+      Eliminator* elim = eliminators[k];
       Vector subr;
       r.GetSubVector(elim->LagrangeDofs(), subr);
       Vector bsinvr(subr.Size());
@@ -178,15 +178,15 @@ void EliminationProjection::RecoverMultiplier(
    const Vector& disprhs, const Vector& disp, Vector& lagrangem) const
 {
    lagrangem = 0.0;
-   MFEM_ASSERT(disp.Size() == A_.Height(), "Sizes don't match!");
+   MFEM_ASSERT(disp.Size() == Aop.Height(), "Sizes don't match!");
 
-   Vector fullrhs(A_.Height());
-   A_.Mult(disp, fullrhs);
+   Vector fullrhs(Aop.Height());
+   Aop.Mult(disp, fullrhs);
    fullrhs -= disprhs;
    fullrhs *= -1.0;
-   for (int k = 0; k < eliminators_.Size(); ++k)
+   for (int k = 0; k < eliminators.Size(); ++k)
    {
-      Eliminator* elim = eliminators_[k];
+      Eliminator* elim = eliminators[k];
       Vector localsec;
       fullrhs.GetSubVector(elim->SecondaryDofs(), localsec);
       Vector locallagrange(localsec.Size());
@@ -199,29 +199,29 @@ void EliminationProjection::RecoverMultiplier(
 
 EliminationSolver::~EliminationSolver()
 {
-   delete h_explicit_operator_;
-   for (auto elim : elims_)
+   delete h_explicit_operator;
+   for (auto elim : eliminators)
    {
       delete elim;
    }
-   delete projector_;
-   delete prec_;
+   delete projector;
+   delete prec;
 }
 
 void EliminationSolver::BuildExplicitOperator()
 {
-   SparseMatrix * explicit_projector = projector_->AssembleExact();
+   SparseMatrix * explicit_projector = projector->AssembleExact();
    HypreParMatrix * h_explicit_projector =
-      new HypreParMatrix(hA_.GetComm(), hA_.GetGlobalNumRows(),
-                         hA_.GetRowStarts(), explicit_projector);
+      new HypreParMatrix(hA.GetComm(), hA.GetGlobalNumRows(),
+                         hA.GetRowStarts(), explicit_projector);
    h_explicit_projector->CopyRowStarts();
    h_explicit_projector->CopyColStarts();
 
-   h_explicit_operator_ = RAP(&hA_, h_explicit_projector);
+   h_explicit_operator = RAP(&hA, h_explicit_projector);
    /// next line because of square projector
-   h_explicit_operator_->EliminateZeroRows();
-   h_explicit_operator_->CopyRowStarts();
-   h_explicit_operator_->CopyColStarts();
+   h_explicit_operator->EliminateZeroRows();
+   h_explicit_operator->CopyRowStarts();
+   h_explicit_operator->CopyColStarts();
 
    delete explicit_projector;
    delete h_explicit_projector;
@@ -232,8 +232,8 @@ EliminationSolver::EliminationSolver(HypreParMatrix& A, SparseMatrix& B,
                                      Array<int>& secondary_dofs)
    :
    ConstrainedSolver(A.GetComm(), A, B),
-   hA_(A),
-   prec_(nullptr)
+   hA(A),
+   prec(nullptr)
 {
    MFEM_VERIFY(secondary_dofs.Size() == B.Height(),
                "Wrong number of dofs for elimination!");
@@ -242,17 +242,17 @@ EliminationSolver::EliminationSolver(HypreParMatrix& A, SparseMatrix& B,
    {
       lagrange_dofs[i] = i;
    }
-   elims_.Append(new Eliminator(B, lagrange_dofs, primary_dofs,
-                                secondary_dofs));
-   projector_ = new EliminationProjection(hA_, elims_);
+   eliminators.Append(new Eliminator(B, lagrange_dofs, primary_dofs,
+                                     secondary_dofs));
+   projector = new EliminationProjection(hA, eliminators);
 }
 
 EliminationSolver::EliminationSolver(HypreParMatrix& A, SparseMatrix& B,
                                      Array<int>& lagrange_rowstarts)
    :
    ConstrainedSolver(A.GetComm(), A, B),
-   hA_(A),
-   prec_(nullptr)
+   hA(A),
+   prec(nullptr)
 {
    if (!B.Empty())
    {
@@ -299,22 +299,22 @@ EliminationSolver::EliminationSolver(HypreParMatrix& A, SparseMatrix& B,
          }
          primary_dofs.Sort();
          primary_dofs.Unique();
-         elims_.Append(new Eliminator(B, lagrange_dofs, primary_dofs,
-                                      secondary_dofs));
+         eliminators.Append(new Eliminator(B, lagrange_dofs, primary_dofs,
+                                           secondary_dofs));
       }
    }
-   projector_ = new EliminationProjection(hA_, elims_);
+   projector = new EliminationProjection(hA, eliminators);
 }
 
 void EliminationSolver::PrimalMult(const Vector& rhs, Vector& sol) const
 {
-   if (!prec_)
+   if (!prec)
    {
-      prec_ = BuildPreconditioner();
+      prec = BuildPreconditioner();
    }
    IterativeSolver * krylov = BuildKrylov();
-   krylov->SetOperator(*h_explicit_operator_);
-   krylov->SetPreconditioner(*prec_);
+   krylov->SetOperator(*h_explicit_operator);
+   krylov->SetPreconditioner(*prec);
    krylov->SetMaxIter(max_iter);
    krylov->SetRelTol(rel_tol);
    krylov->SetAbsTol(abs_tol);
@@ -323,17 +323,17 @@ void EliminationSolver::PrimalMult(const Vector& rhs, Vector& sol) const
    Vector rtilde(rhs.Size());
    if (constraint_rhs.Size() > 0)
    {
-      projector_->BuildGTilde(constraint_rhs, rtilde);
+      projector->BuildGTilde(constraint_rhs, rtilde);
    }
    else
    {
       rtilde = 0.0;
    }
    Vector temprhs(rhs);
-   hA_.Mult(-1.0, rtilde, 1.0, temprhs);
+   hA.Mult(-1.0, rtilde, 1.0, temprhs);
 
    Vector reducedrhs(rhs.Size());
-   projector_->MultTranspose(temprhs, reducedrhs);
+   projector->MultTranspose(temprhs, reducedrhs);
    Vector reducedsol(rhs.Size());
    reducedsol = 0.0;
    krylov->Mult(reducedrhs, reducedsol);
@@ -342,8 +342,8 @@ void EliminationSolver::PrimalMult(const Vector& rhs, Vector& sol) const
    converged = krylov->GetConverged();
    delete krylov;
 
-   projector_->Mult(reducedsol, sol);
-   projector_->RecoverMultiplier(temprhs, sol, multiplier_sol);
+   projector->Mult(reducedsol, sol);
+   projector->RecoverMultiplier(temprhs, sol, multiplier_sol);
    sol += rtilde;
 }
 
