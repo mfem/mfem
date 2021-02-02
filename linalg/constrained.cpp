@@ -18,67 +18,67 @@
 namespace mfem
 {
 
-Eliminator::Eliminator(const SparseMatrix& B, const Array<int>& lagrange_tdofs,
-                       const Array<int>& primary_tdofs,
-                       const Array<int>& secondary_tdofs)
+Eliminator::Eliminator(const SparseMatrix& B, const Array<int>& lagrange_tdofs_,
+                       const Array<int>& primary_tdofs_,
+                       const Array<int>& secondary_tdofs_)
    :
-   lagrange_tdofs_(lagrange_tdofs),
-   primary_tdofs_(primary_tdofs),
-   secondary_tdofs_(secondary_tdofs)
+   lagrange_tdofs(lagrange_tdofs_),
+   primary_tdofs(primary_tdofs_),
+   secondary_tdofs(secondary_tdofs_)
 {
    MFEM_VERIFY(lagrange_tdofs.Size() == secondary_tdofs.Size(),
                "Dof sizes don't match!");
 
-   Bp_.SetSize(lagrange_tdofs.Size(), primary_tdofs.Size());
-   B.GetSubMatrix(lagrange_tdofs, primary_tdofs, Bp_);
+   Bp.SetSize(lagrange_tdofs.Size(), primary_tdofs.Size());
+   B.GetSubMatrix(lagrange_tdofs, primary_tdofs, Bp);
 
-   Bs_.SetSize(lagrange_tdofs.Size(), secondary_tdofs.Size());
-   B.GetSubMatrix(lagrange_tdofs, secondary_tdofs, Bs_);
-   BsT_.Transpose(Bs_);
+   Bs.SetSize(lagrange_tdofs.Size(), secondary_tdofs.Size());
+   B.GetSubMatrix(lagrange_tdofs, secondary_tdofs, Bs);
+   BsT.Transpose(Bs);
 
-   ipiv_.SetSize(Bs_.Height());
-   Bsinverse_.data = Bs_.GetData();
-   Bsinverse_.ipiv = ipiv_.GetData();
-   Bsinverse_.Factor(Bs_.Height());
+   ipiv.SetSize(Bs.Height());
+   Bsinverse.data = Bs.GetData();
+   Bsinverse.ipiv = ipiv.GetData();
+   Bsinverse.Factor(Bs.Height());
 
-   ipivT_.SetSize(Bs_.Height());
-   BsTinverse_.data = BsT_.GetData();
-   BsTinverse_.ipiv = ipivT_.GetData();
-   BsTinverse_.Factor(Bs_.Height());
+   ipivT.SetSize(Bs.Height());
+   BsTinverse.data = BsT.GetData();
+   BsTinverse.ipiv = ipivT.GetData();
+   BsTinverse.Factor(Bs.Height());
 }
 
 void Eliminator::Eliminate(const Vector& in, Vector& out) const
 {
-   Bp_.Mult(in, out);
-   Bsinverse_.Solve(Bs_.Height(), 1, out);
+   Bp.Mult(in, out);
+   Bsinverse.Solve(Bs.Height(), 1, out);
    out *= -1.0;
 }
 
 void Eliminator::EliminateTranspose(const Vector& in, Vector& out) const
 {
    Vector work(in);
-   BsTinverse_.Solve(Bs_.Height(), 1, work);
-   Bp_.MultTranspose(work, out);
+   BsTinverse.Solve(Bs.Height(), 1, work);
+   Bp.MultTranspose(work, out);
    out *= -1.0;
 }
 
 void Eliminator::LagrangeSecondary(const Vector& in, Vector& out) const
 {
    out = in;
-   Bsinverse_.Solve(Bs_.Height(), 1, out);
+   Bsinverse.Solve(Bs.Height(), 1, out);
 }
 
 void Eliminator::LagrangeSecondaryTranspose(const Vector& in, Vector& out) const
 {
    out = in;
-   BsTinverse_.Solve(Bs_.Height(), 1, out);
+   BsTinverse.Solve(Bs.Height(), 1, out);
 }
 
 void Eliminator::ExplicitAssembly(DenseMatrix& mat) const
 {
-   mat.SetSize(Bp_.Height(), Bp_.Width());
-   mat = Bp_;
-   Bsinverse_.Solve(Bs_.Height(), Bp_.Width(), mat.GetData());
+   mat.SetSize(Bp.Height(), Bp.Width());
+   mat = Bp;
+   Bsinverse.Solve(Bs.Height(), Bp.Width(), mat.GetData());
    mat *= -1.0;
 }
 

@@ -116,9 +116,9 @@ public:
               const Array<int>& primary_tdofs,
               const Array<int>& secondary_tdofs);
 
-   const Array<int>& LagrangeDofs() const { return lagrange_tdofs_; }
-   const Array<int>& PrimaryDofs() const { return primary_tdofs_; }
-   const Array<int>& SecondaryDofs() const { return secondary_tdofs_; }
+   const Array<int>& LagrangeDofs() const { return lagrange_tdofs; }
+   const Array<int>& PrimaryDofs() const { return primary_tdofs; }
+   const Array<int>& SecondaryDofs() const { return secondary_tdofs; }
 
    /// Given primary displacements, return secondary displacements
    /// This applies \f$ -B_s^{-1} B_p \f$.
@@ -138,17 +138,17 @@ public:
    void ExplicitAssembly(DenseMatrix& mat) const;
 
 private:
-   Array<int> lagrange_tdofs_;
-   Array<int> primary_tdofs_; // in original displacement ordering
-   Array<int> secondary_tdofs_;
+   Array<int> lagrange_tdofs;
+   Array<int> primary_tdofs;
+   Array<int> secondary_tdofs;
 
-   DenseMatrix Bp_;
-   DenseMatrix Bs_;  // gets inverted in place
-   LUFactors Bsinverse_;
-   DenseMatrix BsT_;   // gets inverted in place
-   LUFactors BsTinverse_;
-   Array<int> ipiv_;
-   Array<int> ipivT_;
+   DenseMatrix Bp;
+   DenseMatrix Bs;  // gets inverted in place
+   LUFactors Bsinverse;
+   DenseMatrix BsT;   // gets inverted in place
+   LUFactors BsTinverse;
+   Array<int> ipiv;
+   Array<int> ipivT;
 };
 
 
