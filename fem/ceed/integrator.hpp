@@ -37,28 +37,28 @@ struct OperatorInfo
    /** The name of the qFunction to build a partially assembled CeedOperator
        with a constant Coefficient. */
    const char *build_func_const;
-   /** The name of the qFunction to build a partially assembled CeedOperator
-       with a variable Coefficient. */
-   const char *build_func_quad;
-   /** The name of the qFunction to apply a partially assembled CeedOperator. */
-   const char *apply_func;
-   /** The name of the qFunction to apply a matrix-free CeedOperator with a
-       constant Coefficient. */
-   const char *apply_func_mf_const;
-   /** The name of the qFunction to apply a matrix-free CeedOperator with a
-       variable Coefficient. */
-   const char *apply_func_mf_quad;
    /** The qFunction to build a partially assembled CeedOperator with a constant
        Coefficient. */
    CeedQFunctionUser build_qf_const;
+   /** The name of the qFunction to build a partially assembled CeedOperator
+       with a variable Coefficient. */
+   const char *build_func_quad;
    /** The qFunction to build a partially assembled CeedOperator with a variable
        Coefficient. */
    CeedQFunctionUser build_qf_quad;
+   /** The name of the qFunction to apply a partially assembled CeedOperator. */
+   const char *apply_func;
    /** The qFunction to apply a partially assembled CeedOperator. */
    CeedQFunctionUser apply_qf;
+   /** The name of the qFunction to apply a matrix-free CeedOperator with a
+       constant Coefficient. */
+   const char *apply_func_mf_const;
    /** The qFunction to apply a matrix-free CeedOperator with a constant
        Coefficient. */
    CeedQFunctionUser apply_qf_mf_const;
+   /** The name of the qFunction to apply a matrix-free CeedOperator with a
+       variable Coefficient. */
+   const char *apply_func_mf_quad;
    /** The qFunction to apply a matrix-free CeedOperator with a variable
        Coefficient. */
    CeedQFunctionUser apply_qf_mf_quad;
