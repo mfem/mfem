@@ -65,7 +65,7 @@ public:
        PrimalMult() only gives you x, this provides access to lambda
 
        Does not make sense unless you've already solved the constrained
-       system with Mult() or PirmalMult() */
+       system with Mult() or PrimalMult() */
    void GetMultiplierSolution(Vector& lambda) const { lambda = multiplier_sol; }
 
    /** @brief Solve for \f$ x \f$ given \f$ f \f$.
@@ -76,9 +76,7 @@ public:
        this.
 
        The base class implementation calls Mult(), so derived classes must
-       implement either this or Mult()
-
-       Do not like the name; maybe SmallerMult, ReducedMult, SingleBlockMult ... */
+       implement either this or Mult() */
    virtual void PrimalMult(const Vector& f, Vector& x) const;
 
    /** @brief Solve for (x, lambda) given (f, r)
@@ -109,11 +107,8 @@ private:
     solves to eliminate constraints from a global system.
 
     \f$ B_s^{-1} \f$ maps lagrange space into secondary displacements,
-    \f$ -B_s^{-1} B_p \f$ maps primary displacements to secondary displacements
-
-    @todo should interface operate on small vectors (as below), or on
-    large vectors, so that this object does its own GetSubVector()
-    SetSubVector() with the primary/secondary dof Arrays that it owns? */
+    \f$ -B_s^{-1} B_p \f$ maps primary displacements to secondary
+    displacements */
 class Eliminator
 {
 public:
@@ -156,6 +151,7 @@ private:
    Array<int> ipivT_;
 };
 
+
 /** Collects action of several Eliminator objects to perform elimination of
     constraints.
 
@@ -190,8 +186,8 @@ private:
    Array<Eliminator*> eliminators_;
 };
 
-#ifdef MFEM_USE_MPI
 
+#ifdef MFEM_USE_MPI
 /** @brief Solve constrained system by eliminating the constraint; see
     ConstrainedSolver
 
