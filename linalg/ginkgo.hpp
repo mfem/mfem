@@ -179,6 +179,127 @@ private:
    mutable std::vector<std::size_t> iterations{};
 };
 
+/**
+* This class forms the base class for all of Ginkgo's preconditioners.  The
+* various derived classes only take the additional data that is specific to them.
+* The entire collection of preconditioners that Ginkgo implements is available
+* at the Ginkgo documentation and manual pages,
+* https://ginkgo-project.github.io/ginkgo/doc/develop.
+*
+* @ingroup GinkgoWrappers
+*/
+class GinkgoPreconditioner : public Solver
+{
+public:
+   /**
+    * Constructor.
+    *
+    * The @p exec_type defines the paradigm where the solution is computed.
+    * It is a string and the choices are "omp" , "reference" or "cuda".
+    * The respective strings create the respective executors as given below.
+    *
+    * Ginkgo currently supports three different executor types:
+    *
+    * +    OmpExecutor specifies that the data should be stored and the
+    *      associated operations executed on an OpenMP-supporting device (e.g.
+    *      host CPU);
+    * ```
+    * auto omp = gko::create<gko::OmpExecutor>();
+    * ```
+    * +    CudaExecutor specifies that the data should be stored and the
+    *      operations executed on the NVIDIA GPU accelerator;
+    * ```
+    * if(gko::CudaExecutor::get_num_devices() > 0 ) {
+    *    auto cuda = gko::create<gko::CudaExecutor>();
+    * }
+    * ```
+    * +    ReferenceExecutor executes a non-optimized reference implementation,
+    *      which can be used to debug the library.
+    * ```
+    * auto ref = gko::create<gko::ReferenceExecutor>();
+    * ```
+    */
+   GinkgoPreconditioner(const std::string &exec_type);
+
+   /**
+    * Destructor.
+    */
+   virtual ~GinkgoPreconditioner() = default;
+
+   /**
+    * Generate the preconditioner for the given matrix @p op.
+    * Calling this function is only required when creating a
+    * preconditioner for use with another MFEM solver; to use with
+    * a Ginkgo solver, get the LinOpFactory  pointer through @p GetFactory()
+    * and pass to the Ginkgo solver constructor.
+    */
+   virtual void SetOperator(const Operator &op);
+
+   /**
+    * Apply the preconditioner to input vector @p x, with out @p y.
+    */
+   virtual void Mult(const Vector &x, Vector &y) const;
+
+   /**
+    * Return a pointer to the LinOpFactory that will generate the preconditioner
+    * with the parameters set through the specific constructor.
+    */
+   const std::shared_ptr<gko::LinOpFactory> GetFactory() const
+   {
+      return this->precond_gen;
+   };
+
+   /**
+    * Return a pointer to the generated preconditioner for a specific matrix
+    * (that has previously been sith with @p SetOperator).
+    */
+   const std::shared_ptr<gko::LinOp> GetGeneratedPreconditioner() const
+   {
+      return this->generated_precond;
+   };
+
+   /**
+    * Return whether this GinkgoPreconditioner object has an explicitly-
+    * generated preconditioner, built for a specific matrix.
+    */
+   bool HasGeneratedPreconditioner() const
+   {
+      return this->has_generated_precond;
+   };
+
+protected:
+   /**
+    * The Ginkgo generated solver factory object.
+    */
+   std::shared_ptr<gko::LinOpFactory> precond_gen;
+
+   /**
+    * Generated Ginkgo preconditioner for a specific matrix, created through
+    * @p SetOperator().  Must exist to use @p Mult().
+    */
+   std::shared_ptr<gko::LinOp> generated_precond;
+
+   /**
+    * The execution paradigm in Ginkgo. The choices are between
+    * `gko::OmpExecutor`, `gko::CudaExecutor` and `gko::ReferenceExecutor`
+    * and more details can be found in Ginkgo's documentation.
+    */
+   std::shared_ptr<gko::Executor> executor;
+
+   /**
+    * Whether or not we have generated a specific preconditioner for
+    * a matrix.
+    */
+   bool has_generated_precond;
+
+private:
+   /**
+    * The execution paradigm as a string to be set by the user. The choices are
+    * between `omp`, `cuda` and `reference` and more details can be found in
+    * Ginkgo's documentation.
+    */
+   const std::string exec_type;
+};
 
 /**
 * This class forms the base class for all of Ginkgo's iterative solvers.  The
@@ -189,7 +310,7 @@ private:
 *
 * @ingroup GinkgoWrappers
 */
-class GinkgoIterativeSolverBase : public Solver
+class GinkgoIterativeSolver : public Solver
 {
 public:
    /**
@@ -240,13 +361,22 @@ public:
     * solver->apply(lend(rhs), lend(solution));
     * ```
     */
-   GinkgoIterativeSolverBase(const std::string &exec_type, int print_iter,
-                             int max_num_iter, double RTOLERANCE, double ATOLERANCE);
+   GinkgoIterativeSolver(const std::string &exec_type, int print_iter,
+                         int max_num_iter, double RTOLERANCE, double ATOLERANCE);
 
    /**
     * Destructor.
     */
-   virtual ~GinkgoIterativeSolverBase() = default;
+   virtual ~GinkgoIterativeSolver() = default;
+
+   /**
+    * Return a pointer to the LinOpFactory that will generate the solver
+    * with the parameters set through the specific constructor.
+    */
+   const std::shared_ptr<gko::LinOpFactory> GetFactory() const
+   {
+      return this->solver_gen;
+   };
 
    /**
     * Initialize the matrix and copy over its data to Ginkgo's data structures.
@@ -334,7 +464,7 @@ private:
  *
  * @ingroup GinkgoWrappers
  */
-class CGSolver : public GinkgoIterativeSolverBase
+class CGSolver : public GinkgoIterativeSolver
 {
 public:
    /**
@@ -370,7 +500,7 @@ public:
       int max_num_iter,
       double RTOLERANCE,
       double ATOLERANCE,
-      const gko::LinOpFactory* preconditioner
+      const GinkgoPreconditioner &preconditioner
    );
 };
 
@@ -380,7 +510,7 @@ public:
  *
  * @ingroup GinkgoWrappers
  */
-class BICGSTABSolver : public GinkgoIterativeSolverBase
+class BICGSTABSolver : public GinkgoIterativeSolver
 {
 public:
    /**
@@ -416,7 +546,7 @@ public:
       int max_num_iter,
       double RTOLERANCE,
       double ATOLERANCE,
-      const gko::LinOpFactory* preconditioner
+      const GinkgoPreconditioner &preconditioner
    );
 
 };
@@ -429,7 +559,7 @@ public:
  *
  * @ingroup GinkgoWrappers
  */
-class CGSSolver : public GinkgoIterativeSolverBase
+class CGSSolver : public GinkgoIterativeSolver
 {
 public:
    /**
@@ -465,7 +595,7 @@ public:
       int max_num_iter,
       double RTOLERANCE,
       double ATOLERANCE,
-      const gko::LinOpFactory* preconditioner
+      const GinkgoPreconditioner &preconditioner
    );
 };
 
@@ -485,7 +615,7 @@ public:
  *
  * @ingroup GinkgoWrappers
  */
-class FCGSolver : public GinkgoIterativeSolverBase
+class FCGSolver : public GinkgoIterativeSolver
 {
 public:
    /**
@@ -521,7 +651,7 @@ public:
       int max_num_iter,
       double RTOLERANCE,
       double ATOLERANCE,
-      const gko::LinOpFactory* preconditioner
+      const GinkgoPreconditioner &preconditioner
    );
 };
 
@@ -530,7 +660,7 @@ public:
  *
  * @ingroup GinkgoWrappers
  */
-class GMRESSolver : public GinkgoIterativeSolverBase
+class GMRESSolver : public GinkgoIterativeSolver
 {
 public:
    void SetKDim(int dim) { m = dim; }
@@ -569,7 +699,7 @@ public:
       int max_num_iter,
       double RTOLERANCE,
       double ATOLERANCE,
-      const gko::LinOpFactory* preconditioner
+      const GinkgoPreconditioner &preconditioner
    );
 
 protected:
@@ -585,7 +715,7 @@ protected:
  *
  * @ingroup GinkgoWrappers
  */
-class IRSolver : public GinkgoIterativeSolverBase
+class IRSolver : public GinkgoIterativeSolver
 {
 public:
    /**
@@ -621,11 +751,189 @@ public:
       int max_num_iter,
       double RTOLERANCE,
       double ATOLERANCE,
-      const gko::LinOpFactory *inner_solver
+      const GinkgoIterativeSolver &inner_solver
    );
 };
 
+/**
+ * An implementation of the preconditioner interface using the Ginkgo Jacobi
+ * preconditioner.
+ *
+ * @ingroup GinkgoWrappers
+ */
+class JacobiPreconditioner : public GinkgoPreconditioner
+{
+public:
+   /**
+    * Constructor.
+    *
+    * @param[in] exec_type The execution paradigm for the preconditioner.
+    * @param[in] storage_opt  The storage optimization parameter.
+    * @param[in] accuracy The relative accuracy for the adaptive version.
+    * @param[in] max_block_size Maximum block size.
+    * See the Ginkgo documentation for more information on these parameters.
+    */
+   JacobiPreconditioner(
+      const std::string &exec_type,
+      const std::string &storage_opt = "none",
+      const double accuracy = 1.e-1,
+      const int max_block_size = 32
+   );
+};
 
+/**
+ * An implementation of the preconditioner interface using the Ginkgo
+ * Incomplete LU preconditioner (ILU(0)).
+ *
+ * @ingroup GinkgoWrappers
+ */
+class IluPreconditioner : public GinkgoPreconditioner
+{
+public:
+   /**
+    * Constructor.
+    *
+    * @param[in] exec_type The execution paradigm for the preconditioner.
+    * @param[in] factorization_type The factorization type: "exact" or
+    *  "parilu".
+    * @param[in] sweeps The number of sweeps to do in the ParIlu
+    *  factorization algorithm.  A value of 0 tells Ginkgo to use its
+    *  internal default value.  This parameter is ignored in the case
+    *  of an exact factorization.
+    * @param[in] skip_sort Only set this to true if the input matrix
+    * that will be used to generate this preconditioner is guaranteed
+    * to be sorted by column.
+    *
+    * Note: The use of this preconditioner will sort any input matrix
+    * given to it, potentially changing the order of the stored values.
+    */
+   IluPreconditioner(
+      const std::string &exec_type,
+      const std::string &factorization_type = "exact",
+      const int sweeps = 0,
+      const bool skip_sort = false
+   );
+};
+
+/**
+ * An implementation of the preconditioner interface using the Ginkgo
+ * Incomplete LU-Incomplete Sparse Approximate Inverse preconditioner.
+ * The Ilu-ISAI preconditioner differs from the Ilu preconditioner in
+ * that Incomplete Sparse Approximate Inverses (ISAIs) are formed
+ * to approximate solving the triangular systems defined by L and U.
+ * When the preconditioner is applied, these ISAI matrices are applied
+ * through matrix-vector multiplication.
+ *
+ * @ingroup GinkgoWrappers
+ */
+class IluIsaiPreconditioner : public GinkgoPreconditioner
+{
+public:
+   /**
+    * Constructor.
+    *
+    * @param[in] exec_type The execution paradigm for the preconditioner.
+    * @param[in] factorization_type The factorization type: "exact" or
+    *  "parilu".
+    * @param[in] sweeps The number of sweeps to do in the ParIlu
+    *  factorization algorithm.  A value of 0 tells Ginkgo to use its
+    *  internal default value.  This parameter is ignored in the case
+    *  of an exact factorization.
+    * @param[in] sparsity_power Parameter determining the sparsity pattern of
+    * the ISAI approximations.
+    * @param[in] skip_sort Only set this to true if the input matrix
+    * that will be used to generate this preconditioner is guaranteed
+    * to be sorted by column.
+    * See the Ginkgo documentation for more information on these parameters.
+    *
+    * Note: The use of this preconditioner will sort any input matrix
+    * given to it, potentially changing the order of the stored values.
+    */
+   IluIsaiPreconditioner(
+      const std::string &exec_type,
+      const std::string &factorization_type = "exact",
+      const int sweeps = 0,
+      const int sparsity_power = 1,
+      const bool skip_sort = false
+   );
+};
+
+/**
+ * An implementation of the preconditioner interface using the Ginkgo
+ * Incomplete Cholesky preconditioner (IC(0)).
+ *
+ * @ingroup GinkgoWrappers
+ */
+class IcPreconditioner : public GinkgoPreconditioner
+{
+public:
+   /**
+    * Constructor.
+    *
+    * @param[in] exec_type The execution paradigm for the preconditioner.
+    * @param[in] factorization_type The factorization type: "exact" or
+    *  "parilu".
+    * @param[in] sweeps The number of sweeps to do in the ParIc
+    *  factorization algorithm.  A value of 0 tells Ginkgo to use its
+    *  internal default value.  This parameter is ignored in the case
+    *  of an exact factorization.
+    * @param[in] skip_sort Only set this to true if the input matrix
+    * that will be used to generate this preconditioner is guaranteed
+    * to be sorted by column.
+    *
+    * Note: The use of this preconditioner will sort any input matrix
+    * given to it, potentially changing the order of the stored values.
+    */
+   IcPreconditioner(
+      const std::string &exec_type,
+      const std::string &factorization_type = "exact",
+      const int sweeps = 0,
+      const bool skip_sort = false
+   );
+};
+
+/**
+ * An implementation of the preconditioner interface using the Ginkgo
+ * Incomplete Cholesky-Incomplete Sparse Approximate Inverse  preconditioner.
+ * The Ic-ISAI preconditioner differs from the Ic preconditioner in
+ * that Incomplete Sparse Approximate Inverses (ISAIs) are formed
+ * to approximate solving the triangular systems defined by L and L^T.
+ * When the preconditioner is applied, these ISAI matrices are applied
+ * through matrix-vector multiplication.
+ *
+ * @ingroup GinkgoWrappers
+ */
+class IcIsaiPreconditioner : public GinkgoPreconditioner
+{
+public:
+   /**
+    * Constructor.
+    *
+    * @param[in] exec_type The execution paradigm for the preconditioner.
+    * @param[in] factorization_type The factorization type: "exact" or
+    *  "parilu".
+    * @param[in] sweeps The number of sweeps to do in the ParIc
+    *  factorization algorithm.  A value of 0 tells Ginkgo to use its
+    *  internal default value.  This parameter is ignored in the case
+    *  of an exact factorization.
+    * @param[in] sparsity_power Parameter determining the sparsity pattern of
+    * the ISAI approximations.
+    * @param[in] skip_sort Only set this to true if the input matrix
+    * that will be used to generate this preconditioner is guaranteed
+    * to be sorted by column.
+    * See the Ginkgo documentation for more information on these parameters.
+    *
+    * Note: The use of this preconditioner will sort any input matrix
+    * given to it, potentially changing the order of the stored values.
+    */
+   IcIsaiPreconditioner(
+      const std::string &exec_type,
+      const std::string &factorization_type = "exact",
+      const int sweeps = 0,
+      const int sparsity_power = 1,
+      const bool skip_sort = false
+   );
+};
 } // namespace GinkgoWrappers
 
 }

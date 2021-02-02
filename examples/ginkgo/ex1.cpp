@@ -70,6 +70,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = true;
    bool use_ginkgo_solver= true;
+   bool use_ginkgo_precond = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -89,6 +90,10 @@ int main(int argc, char *argv[])
    args.AddOption(&use_ginkgo_solver, "-gko", "--use_gko_solver", "-no-gko",
                   "--no-gko-solver",
                   "Solve using ginkgo.");
+   args.AddOption(&use_ginkgo_precond, "-gko-precond", "--use_gko_preconditioner",
+                  "-no-gko-precond",
+                  "--no-gko-preconditioner",
+                  "Use Ginkgo preconditioner with MFEM solver.");
    args.Parse();
    if (!args.Good())
    {
@@ -194,30 +199,37 @@ int main(int argc, char *argv[])
       if (use_ginkgo_solver)
       {
 #ifdef MFEM_USE_GINKGO
-         // Solve the linear system with CG + Jacobi from Ginkgo.
-         std::shared_ptr<gko::Executor> executor;
+         // Solve the linear system with CG + IC from Ginkgo.
          std::string executor_string;
          if (!strcmp(device_config, "cuda"))
          {
-            auto cuda_executor =
-               gko::CudaExecutor::create(0, gko::OmpExecutor::create());
-            executor = cuda_executor;
             executor_string = "cuda";
          }
          else
          {
-            auto omp_executor = gko::OmpExecutor::create();
-            executor = omp_executor;
             executor_string = "omp";
          }
-         auto precond =
-            gko::preconditioner::Jacobi<double, int>::build()
-            .on(executor);
+         GinkgoWrappers::IcPreconditioner ginkgo_precond(executor_string, "exact");
          GinkgoWrappers::CGSolver ginkgo_solver(executor_string, 1, 2000, 1e-12, 0.0,
-                                                precond.release() );
+                                                ginkgo_precond);
          ginkgo_solver.SetOperator(*(A.Ptr()));
          ginkgo_solver.Mult(B, X);
 #endif
+      }
+      else if (use_ginkgo_precond)  // Test using a Ginkgo preconditioner with an MFEM solver.
+      {
+         std::string executor_string;
+         if (!strcmp(device_config, "cuda"))
+         {
+            executor_string = "cuda";
+         }
+         else
+         {
+            executor_string = "omp";
+         }
+         GinkgoWrappers::IcPreconditioner M(executor_string, "exact");
+         M.SetOperator(*(A.Ptr()));
+         PCG(*A, M, B, X, 1, 2000, 1e-12, 0.0);
       }
       else
       {
