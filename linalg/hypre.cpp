@@ -3943,7 +3943,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
       HYPRE_AMSSetCoordinateVectors(ams,
                                     x ? (HYPRE_ParVector)(*x) : NULL,
                                     y ? (HYPRE_ParVector)(*y) : NULL,
-				    z ? (HYPRE_ParVector)(*z) : NULL);
+                                    z ? (HYPRE_ParVector)(*z) : NULL);
    }
    else
    {
