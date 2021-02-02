@@ -187,7 +187,7 @@ private:
 
    // To preserve the original behavior, some constructors set this flag to
    // false to disallow updating the OperatorJacobiSmoother with SetOperator.
-   bool allow_updates;
+   const bool allow_updates;
 
 public:
    void Setup(const Vector &diag);

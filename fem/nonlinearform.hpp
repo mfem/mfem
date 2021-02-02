@@ -84,7 +84,7 @@ public:
        Currenly, AssemblyLevel::NONE uses the standard nonlinear action methods
        like AssembleElementVector of the NonlinearFormIntegrator class which
        work only on CPU and do not utilize features such as fast tensor-product
-       basis evaluations. In this mode, the grasdient operator is constructed as
+       basis evaluations. In this mode, the gradient operator is constructed as
        a SparseMatrix (or, in parallel, format such as HypreParMatrix).
 
        When using AssemblyLevel::PARTIAL, the action is performed using methods
