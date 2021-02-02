@@ -29,7 +29,7 @@ enum class EvalMode { None, Interp, Grad, InterpAndGrad };
 
 #ifdef MFEM_USE_CEED
 /** This structure is a template interface for the Assemble methods of
-    PAIntegrator and MFIntegrator. See libceed/mass.cpp for an example. */
+    PAIntegrator and MFIntegrator. See ceed/mass.cpp for an example. */
 struct OperatorInfo
 {
    /** The path to the qFunction header. */
