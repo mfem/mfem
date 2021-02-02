@@ -374,10 +374,10 @@ int main(int argc, char *argv[])
 
    // 9. Put a leftward force on the right side of the trapezoid
    {
-      Vector pull_force(pmesh->bdr_attributes.Max());
-      pull_force = 0.0;
-      pull_force(1) = -5.0e-2; // index 1 attribute 2
-      f.Set(0, new PWConstCoefficient(pull_force));
+      Vector push_force(pmesh->bdr_attributes.Max());
+      push_force = 0.0;
+      push_force(1) = -5.0e-2; // index 1 attribute 2
+      f.Set(0, new PWConstCoefficient(push_force));
    }
 
    // 10. Set up constraint matrix to constrain normal displacement (but
@@ -440,7 +440,7 @@ int main(int argc, char *argv[])
       BuildNormalConstraints(*fespace, constraint_atts, lagrange_rowstarts);
    EliminationCGSolver * solver = new EliminationCGSolver(A, *local_constraints,
                                                           lagrange_rowstarts, dim,
-                                                          false);
+                                                          reorder_space);
    solver->SetRelTol(1e-8);
    solver->SetMaxIter(500);
    solver->SetPrintLevel(1);
@@ -462,13 +462,24 @@ int main(int argc, char *argv[])
       pmesh->SetNodalFESpace(fespace);
    }
 
-   // 16. Save in parallel the displaced mesh and the inverted solution (which
-   //     gives the backward displacements to the original grid). This output
-   //     can be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+   // 16. Save the refined mesh and the solution in VisIt format.
    {
       GridFunction *nodes = pmesh->GetNodes();
       *nodes += x;
-      x *= -1;
+
+      std::stringstream visitname;
+      visitname << "exsliding";
+      VisItDataCollection visit_dc(MPI_COMM_WORLD, visitname.str(), pmesh);
+      visit_dc.SetLevelsOfDetail(4);
+      visit_dc.RegisterField("displacement", &x);
+      visit_dc.Save();
+   }
+
+   // 17. Save in parallel the displaced mesh and the inverted solution (which
+   //     gives the backward displacements to the original grid). This output
+   //     can be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+   {
+      x *= -1; // sign convention for GLVis displacements
 
       ostringstream mesh_name, sol_name;
       mesh_name << "mesh." << setfill('0') << setw(6) << myid;
@@ -481,16 +492,6 @@ int main(int argc, char *argv[])
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(8);
       x.Save(sol_ofs);
-   }
-
-   // 17. Save the refined mesh and the solution in VisIt format.
-   {
-      std::stringstream visitname;
-      visitname << "exsliding";
-      VisItDataCollection visit_dc(MPI_COMM_WORLD, visitname.str(), pmesh);
-      visit_dc.SetLevelsOfDetail(4);
-      visit_dc.RegisterField("displacement", &x);
-      visit_dc.Save();
    }
 
    // 18. Send the above data by socket to a GLVis server.  Use the "n" and "b"
