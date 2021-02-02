@@ -13159,7 +13159,7 @@ void ND_R2D_SegmentElement::CalcCurlShape(const IntegrationPoint &ip,
 }
 
 void ND_R2D_SegmentElement::GetLocalInterpolation(ElementTransformation &Trans,
-						  DenseMatrix &I) const
+                                                  DenseMatrix &I) const
 {
    double vk[Geometry::MaxDim];
    Vector xk(vk, dim);
@@ -13167,7 +13167,7 @@ void ND_R2D_SegmentElement::GetLocalInterpolation(ElementTransformation &Trans,
    DenseMatrix vshape(dof, vdim);
 
    double * tk_ptr = const_cast<double*>(tk);
-   
+
    I.SetSize(dof, vshape.Height());
 
    // assuming Trans is linear; this should be ok for all refinement types
@@ -13191,7 +13191,7 @@ void ND_R2D_SegmentElement::GetLocalInterpolation(ElementTransformation &Trans,
          {
             Ikj += vshape(j, i) * vk[i];
          }
-	 Ikj += vshape(j, 1) * t2(1);
+         Ikj += vshape(j, 1) * t2(1);
          I(k, j) = (fabs(Ikj) < 1e-12) ? 0.0 : Ikj;
       }
    }
@@ -13247,7 +13247,7 @@ void ND_R2D_FiniteElement::CalcPhysCurlShape(ElementTransformation &Trans,
 }
 
 void ND_R2D_FiniteElement::GetLocalInterpolation(ElementTransformation &Trans,
-						 DenseMatrix &I) const
+                                                 DenseMatrix &I) const
 {
    double vk[Geometry::MaxDim];
    Vector xk(vk, dim);
@@ -13255,7 +13255,7 @@ void ND_R2D_FiniteElement::GetLocalInterpolation(ElementTransformation &Trans,
    DenseMatrix vshape(dof, vdim);
 
    double * tk_ptr = const_cast<double*>(tk);
-   
+
    I.SetSize(dof, vshape.Height());
 
    // assuming Trans is linear; this should be ok for all refinement types
@@ -13279,7 +13279,7 @@ void ND_R2D_FiniteElement::GetLocalInterpolation(ElementTransformation &Trans,
          {
             Ikj += vshape(j, i) * vk[i];
          }
-	 Ikj += vshape(j, 2) * t3(2);
+         Ikj += vshape(j, 2) * t3(2);
          I(k, j) = (fabs(Ikj) < 1e-12) ? 0.0 : Ikj;
       }
    }
@@ -13881,13 +13881,13 @@ void RT_R2D_SegmentElement::CalcDivShape(const IntegrationPoint &ip,
 }
 
 void RT_R2D_SegmentElement::GetLocalInterpolation(ElementTransformation &Trans,
-						  DenseMatrix &I) const
+                                                  DenseMatrix &I) const
 {
    double vk[Geometry::MaxDim];
    Vector xk(vk, dim);
    IntegrationPoint ip;
    DenseMatrix vshape(dof, vdim);
-   
+
    double * nk_ptr = const_cast<double*>(nk);
 
    I.SetSize(dof, vshape.Height());
@@ -13908,13 +13908,13 @@ void RT_R2D_SegmentElement::GetLocalInterpolation(ElementTransformation &Trans,
       for (int j = 0; j < vshape.Height(); j++)
       {
          double Ikj = 0.;
-	 /*
-         for (int i = 0; i < dim; i++)
-         {
-            Ikj += vshape(j, i) * vk[i];
-         }
-	 */
-	 Ikj += Trans.Weight() * vshape(j, 1) * n2(1);
+         /*
+              for (int i = 0; i < dim; i++)
+              {
+                 Ikj += vshape(j, i) * vk[i];
+              }
+         */
+         Ikj += Trans.Weight() * vshape(j, 1) * n2(1);
          I(k, j) = (fabs(Ikj) < 1e-12) ? 0.0 : Ikj;
       }
    }
@@ -13948,13 +13948,13 @@ void RT_R2D_FiniteElement::CalcVShape(ElementTransformation &Trans,
 }
 
 void RT_R2D_FiniteElement::GetLocalInterpolation(ElementTransformation &Trans,
-						 DenseMatrix &I) const
+                                                 DenseMatrix &I) const
 {
    double vk[Geometry::MaxDim];
    Vector xk(vk, dim);
    IntegrationPoint ip;
    DenseMatrix vshape(dof, vdim);
-   
+
    double * nk_ptr = const_cast<double*>(nk);
 
    I.SetSize(dof, vshape.Height());
@@ -13980,7 +13980,7 @@ void RT_R2D_FiniteElement::GetLocalInterpolation(ElementTransformation &Trans,
          {
             Ikj += vshape(j, i) * vk[i];
          }
-	 Ikj += Trans.Weight() * vshape(j, 2) * n3(2);
+         Ikj += Trans.Weight() * vshape(j, 2) * n3(2);
          I(k, j) = (fabs(Ikj) < 1e-12) ? 0.0 : Ikj;
       }
    }
