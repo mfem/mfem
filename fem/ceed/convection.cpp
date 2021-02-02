@@ -27,21 +27,22 @@ struct ConvectionOperatorInfo : public OperatorInfo
 {
    ConvectionContext ctx;
    ConvectionOperatorInfo(int dim)
-      : OperatorInfo{"/convection_qf.h",
-                     ":f_build_conv_const",
-                     ":f_build_conv_quad",
-                     ":f_apply_conv",
-                     ":f_apply_conv_mf_const",
-                     ":f_apply_conv_mf_quad",
-                     &f_build_conv_const,
-                     &f_build_conv_quad,
-                     &f_apply_conv,
-                     &f_apply_conv_mf_const,
-                     &f_apply_conv_mf_quad,
-                     EvalMode::Grad,
-                     EvalMode::Interp,
-                     dim * (dim + 1) / 2}
-   { }
+   {
+      header = "/convection_qf.h";
+      build_func_const = ":f_build_conv_const";
+      build_func_quad = ":f_build_conv_quad";
+      apply_func = ":f_apply_conv";
+      apply_func_mf_const = ":f_apply_conv_mf_const";
+      apply_func_mf_quad = ":f_apply_conv_mf_quad";
+      build_qf_const = &f_build_conv_const;
+      build_qf_quad = &f_build_conv_quad;
+      apply_qf = &f_apply_conv;
+      apply_qf_mf_const = &f_apply_conv_mf_const;
+      apply_qf_mf_quad = &f_apply_conv_mf_quad;
+      trial_op = EvalMode::Grad;
+      test_op = EvalMode::Interp;
+      qdatasize = dim * (dim + 1) / 2;
+   }
 };
 #endif
 
