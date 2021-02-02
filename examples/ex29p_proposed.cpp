@@ -1,37 +1,33 @@
 
-//                       MFEM Example 28 - Parallel Version
+//                       MFEM Example 29 - Parallel Version
 //
-// Compile with: make ex28p
+// Compile with: make ex29p
 //
-// Sample runs:  mpirun -np 4 ex13p -m ../data/star.mesh
-//               mpirun -np 4 ex13p -m ../data/square-disc.mesh -o 2 -n 4
-//               mpirun -np 4 ex13p -m ../data/beam-tet.mesh
-//               mpirun -np 4 ex13p -m ../data/beam-hex.mesh
-//               mpirun -np 4 ex13p -m ../data/escher.mesh
-//               mpirun -np 4 ex13p -m ../data/fichera.mesh
-//               mpirun -np 4 ex13p -m ../data/fichera-q2.vtk
-//               mpirun -np 4 ex13p -m ../data/fichera-q3.mesh
-//               mpirun -np 4 ex13p -m ../data/square-disc-nurbs.mesh
-//               mpirun -np 4 ex13p -m ../data/beam-hex-nurbs.mesh
-//               mpirun -np 4 ex13p -m ../data/amr-quad.mesh -o 2
-//               mpirun -np 4 ex13p -m ../data/amr-hex.mesh
-//               mpirun -np 4 ex13p -m ../data/mobius-strip.mesh -n 8 -o 2
-//               mpirun -np 4 ex13p -m ../data/klein-bottle.mesh -n 10 -o 2
+// Sample runs:  mpirun -np 4 ex29p -m ../data/inline-segment.mesh
+//               mpirun -np 4 ex29p -m ../data/inline-segment.mesh -o 2
+//               mpirun -np 4 ex29p -m ../data/star.mesh
+//               mpirun -np 4 ex29p -m ../data/square-disc.mesh -o 2 -n 4 -rs 1
+//               mpirun -np 4 ex29p -m ../data/square-disc-nurbs.mesh
+//               mpirun -np 4 ex29p -m ../data/amr-quad.mesh -o 2 -rs 1
+//               mpirun -np 4 ex29p -m ../data/amr-hex.mesh -rs 1
+//               mpirun -np 4 ex29p -m ../data/fichera.mesh -rs 1
 //
 // Description:  This example code solves the Maxwell (electromagnetic)
-//               eigenvalue problem curl curl E = lambda E with homogeneous
+//               eigenvalue problem curl curl E = lambda epsilon E with
+//               an anisotropic dielectric tensor, epsilon, and homogeneous
 //               Dirichlet boundary conditions E x n = 0.
 //
 //               We compute a number of the lowest nonzero eigenmodes by
 //               discretizing the curl curl operator using a Nedelec FE space of
-//               the specified order in 2D or 3D.
+//               the specified order in 1D, 2D, or 3D.
 //
-//               The example highlights the use of the AME subspace eigenvalue
-//               solver from HYPRE, which uses LOBPCG and AMS internally.
-//               Reusing a single GLVis visualization window for multiple
-//               eigenfunctions is also illustrated.
+//               The example highlights the use of restricted H(curl) finite
+//               element spaces with the AME subspace eigenvalue solver from
+//               HYPRE, which uses LOBPCG and AMS internally. Reusing a single
+//               GLVis visualization window for multiple eigenfunctions is also
+//               illustrated.
 //
-//               We recommend viewing examples 3 and 11 before viewing this
+//               We recommend viewing examples 28 and 13 before viewing this
 //               example.
 
 #include "mfem.hpp"
@@ -84,9 +80,6 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
-   MFEM_VERIFY(dim == 1 || dim == 2,
-               "This example is designed for 1D or 2D meshes only.");
-
    // 4. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement (2 by default, or
    //    specified on the command line with -rs).
@@ -116,10 +109,15 @@ int main(int argc, char *argv[])
       fec_nd = new ND_R1D_FECollection(order, dim);
       fec_rt = new RT_R1D_FECollection(order-1, dim);
    }
-   else
+   else if (dim == 2)
    {
       fec_nd = new ND_R2D_FECollection(order, dim);
       fec_rt = new RT_R2D_FECollection(order-1, dim);
+   }
+   else
+   {
+      fec_nd = new ND_FECollection(order, dim);
+      fec_rt = new RT_FECollection(order-1, dim);
    }
    ParFiniteElementSpace fespace_nd(&pmesh, fec_nd);
    ParFiniteElementSpace fespace_rt(&pmesh, fec_rt);
@@ -164,7 +162,7 @@ int main(int argc, char *argv[])
          // closed surface.
          a.AddDomainIntegrator(new VectorFEMassIntegrator(epsilon));
          shift = 1.0;
-         mfem::out << "setting shift to " << shift << endl;
+         mfem::out << "Computing eigenvalues shifted by " << shift << endl;
       }
       a.Assemble();
       a.EliminateEssentialBCDiag(ess_bdr, 1.0);
@@ -197,9 +195,9 @@ int main(int argc, char *argv[])
    ame->SetMassMatrix(*M);
    ame->SetOperator(*A);
 
-   // 9. Compute the eigenmodes and extract the array of eigenvalues. Define a
-   //    parallel grid function to represent each of the eigenmodes returned by
-   //    the solver.
+   // 9. Compute the eigenmodes and extract the array of eigenvalues. Define
+   //    parallel grid functions to represent each of the eigenmodes returned by
+   //    the solver and their derivatives.
    Array<double> eigenvalues;
    ame->Solve();
    ame->GetEigenvalues(eigenvalues);
@@ -210,6 +208,7 @@ int main(int argc, char *argv[])
    curl.AddDomainInterpolator(new CurlInterpolator);
    curl.Assemble();
    curl.Finalize();
+
    // 10. Save the refined mesh and the modes in parallel. This output can be
    //     viewed later using GLVis: "glvis -np <np> -m mesh -g mode".
    {
@@ -253,19 +252,14 @@ int main(int argc, char *argv[])
          socketstream mode_x_sock(vishost, visport);
          socketstream mode_y_sock(vishost, visport);
          socketstream mode_z_sock(vishost, visport);
-         // socketstream mode_dx_sock(vishost, visport);
          socketstream mode_dy_sock(vishost, visport);
          socketstream mode_dz_sock(vishost, visport);
          mode_x_sock.precision(8);
          mode_y_sock.precision(8);
          mode_z_sock.precision(8);
-         // mode_dx_sock.precision(8);
          mode_dy_sock.precision(8);
          mode_dz_sock.precision(8);
 
-         // DenseMatrix xyMat(2,3); xyMat = 0.0;
-         // xyMat(0,0) = 1.0; xyMat(1,1) = 1.0;
-         // MatrixConstantCoefficient xyMatCoef(xyMat);
          Vector xVec(3); xVec = 0.0; xVec(0) = 1;
          Vector yVec(3); yVec = 0.0; yVec(1) = 1;
          Vector zVec(3); zVec = 0.0; zVec(2) = 1;
@@ -274,20 +268,15 @@ int main(int argc, char *argv[])
          VectorConstantCoefficient zVecCoef(zVec);
 
          H1_FECollection fec_h1(order, dim);
-         // ND_FECollection fec_nd(order, dim);
-         // RT_FECollection fec_rt(order-1, dim);
          L2_FECollection fec_l2(order-1, dim);
 
          ParFiniteElementSpace fes_h1(&pmesh, &fec_h1);
-         // ParFiniteElementSpace fes_nd(&pmesh, &fec_nd);
-         // ParFiniteElementSpace fes_rt(&pmesh, &fec_rt);
          ParFiniteElementSpace fes_l2(&pmesh, &fec_l2);
 
          ParGridFunction xComp(&fes_l2);
          ParGridFunction yComp(&fes_h1);
          ParGridFunction zComp(&fes_h1);
 
-         // ParGridFunction dxComp(&fes_rt);
          ParGridFunction dyComp(&fes_l2);
          ParGridFunction dzComp(&fes_l2);
 
@@ -332,7 +321,6 @@ int main(int argc, char *argv[])
                            << "'" << endl;
 
                VectorGridFunctionCoefficient dmodeCoef(&dx);
-               // MatrixVectorProductCoefficient dxyCoef(xyMatCoef, dmodeCoef);
                InnerProductCoefficient dyCoef(yVecCoef, dmodeCoef);
                InnerProductCoefficient dzCoef(zVecCoef, dmodeCoef);
 
@@ -343,14 +331,16 @@ int main(int argc, char *argv[])
                             << mpi.WorldRank() << "\n"
                             << "solution\n" << pmesh << dyComp << flush
                             << "window_geometry 0 375 400 350 "
-                            << "window_title 'Curl Eigenmode " << i+1 << '/' << nev
+                            << "window_title 'Curl Eigenmode "
+                            << i+1 << '/' << nev
                             << " Y, Lambda = " << eigenvalues[i] - shift
                             << "'" << endl;
                mode_dz_sock << "parallel " << mpi.WorldSize() << " "
                             << mpi.WorldRank() << "\n"
                             << "solution\n" << pmesh << dzComp << flush
                             << "window_geometry 403 375 400 350 "
-                            << "window_title 'Curl Eigenmode " << i+1 << '/' << nev
+                            << "window_title 'Curl Eigenmode "
+                            << i+1 << '/' << nev
                             << " Z, Lambda = " << eigenvalues[i] - shift
                             << "'" << endl;
             }
@@ -450,14 +440,16 @@ int main(int argc, char *argv[])
                              << "solution\n" << pmesh << dxyComp << flush
                              << "keys vvv "
                              << "window_geometry 0 375 400 350 "
-                             << "window_title 'Curl Eigenmode " << i+1 << '/' << nev
+                             << "window_title 'Curl Eigenmode "
+                             << i+1 << '/' << nev
                              << " XY, Lambda = " << eigenvalues[i] - shift
                              << "'" << endl;
                mode_dz_sock << "parallel " << mpi.WorldSize() << " "
                             << mpi.WorldRank() << "\n"
                             << "solution\n" << pmesh << dzComp << flush
                             << "window_geometry 403 375 400 350 "
-                            << "window_title 'Curl Eigenmode " << i+1 << '/' << nev
+                            << "window_title 'Curl Eigenmode "
+                            << i+1 << '/' << nev
                             << " Z, Lambda = " << eigenvalues[i] - shift
                             << "'" << endl;
             }
@@ -478,6 +470,55 @@ int main(int argc, char *argv[])
          mode_z_sock.close();
          mode_dxy_sock.close();
          mode_dz_sock.close();
+      }
+      else
+      {
+         socketstream mode_sock(vishost, visport);
+         socketstream mode_deriv_sock(vishost, visport);
+         mode_sock.precision(8);
+         mode_deriv_sock.precision(8);
+
+         for (int i=0; i<nev; i++)
+         {
+            if (mpi.Root())
+            {
+               cout << "Eigenmode " << i+1 << '/' << nev
+                    << ", Lambda = " << eigenvalues[i] - shift << endl;
+            }
+
+            // convert eigenvector from HypreParVector to ParGridFunction
+            x = ame->GetEigenvector(i);
+            curl.Mult(x, dx);
+
+            mode_sock << "parallel " << mpi.WorldSize() << " "
+		      << mpi.WorldRank() << "\n"
+                      << "solution\n" << pmesh << x << flush
+                      << "window_title 'Eigenmode " << i+1 << '/' << nev
+                      << ", Lambda = " << eigenvalues[i] - shift
+                      << "'" << endl;
+            mode_deriv_sock << "parallel " << mpi.WorldSize() << " "
+			    << mpi.WorldRank() << "\n"
+                            << "solution\n" << pmesh << dx << flush
+                            << "window_geometry 0 375 400 350 "
+                            << "window_title 'Curl Eigenmode "
+                            << i+1 << '/' << nev
+                            << ", Lambda = " << eigenvalues[i] - shift
+                            << "'" << endl;
+
+            char c;
+            if (mpi.Root())
+            {
+               cout << "press (q)uit or (c)ontinue --> " << flush;
+               cin >> c;
+            }
+            MPI_Bcast(&c, 1, MPI_CHAR, 0, MPI_COMM_WORLD);
+
+            if (c != 'c')
+            {
+               break;
+            }
+         }
+         mode_sock.close();
       }
    }
 
