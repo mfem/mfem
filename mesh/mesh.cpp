@@ -5262,10 +5262,22 @@ void Mesh::AddPointFaceElement(int lf, int gf, int el)
    }
    else  //  this will be elem2
    {
+      /* FIX THIS: Without the following check the faces_info data structure
+         may contain unreliable data. Normally the order in which elements are
+         processed could swap which elements appear as Elem1No and Elem2No.
+         In branched meshes, where more than two elements can meet at a given
+         node, the  indices stored in Elem1No and Elem2No will be the first and
+         last, respectively, elements found which touch a given node. This can
+         lead to inconsistencies in any algorithms which rely on this data
+         structure. To properly support branched meshes this data structure
+         should be extended to support multiple elements per face.
+      */
+      /*
       MFEM_VERIFY(faces_info[gf].Elem2No < 0, "Invalid mesh topology.  "
                   "Interior point found connecting 1D elements "
                   << faces_info[gf].Elem1No << ", " << faces_info[gf].Elem2No
                   << " and " << el << ".");
+      */
       faces_info[gf].Elem2No  = el;
       faces_info[gf].Elem2Inf = 64 * lf + 1;
    }
