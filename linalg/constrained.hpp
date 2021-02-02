@@ -53,7 +53,7 @@ public:
 
    virtual ~ConstrainedSolver() { }
 
-   virtual void SetOperator(const Operator& op) { }
+   virtual void SetOperator(const Operator& op) override { }
 
    /** @brief Set the right-hand side r for the constraint B x = r
 
@@ -164,9 +164,9 @@ class EliminationProjection : public Operator
 public:
    EliminationProjection(const Operator& A, Array<Eliminator*>& eliminators);
 
-   void Mult(const Vector& x, Vector& y) const;
+   void Mult(const Vector& x, Vector& y) const override;
 
-   void MultTranspose(const Vector& x, Vector& y) const;
+   void MultTranspose(const Vector& x, Vector& y) const override;
 
    /** @brief Assemble this projector as a (processor-local) SparseMatrix.
 
