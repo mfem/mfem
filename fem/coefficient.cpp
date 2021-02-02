@@ -449,7 +449,7 @@ void MatrixRestrictedCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
 
 InnerProductCoefficient::InnerProductCoefficient(VectorCoefficient &A,
                                                  VectorCoefficient &B)
-   : a(&A), b(&B)
+   : a(&A), b(&B), va(A.GetVDim()), vb(B.GetVDim())
 {
    MFEM_ASSERT(A.GetVDim() == B.GetVDim(),
                "InnerProductCoefficient:  "
