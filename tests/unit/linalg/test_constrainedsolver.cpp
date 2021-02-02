@@ -340,11 +340,11 @@ void ParallelTestProblem::Schur(Vector& serr, Vector& lerr)
    SchurConstrainedSolver solver(MPI_COMM_WORLD, *amat, *bmat, prec);
    solver.PrimalMult(rhs, sol);
    solver.GetMultiplierSolution(lambda);
-   for (int i = 0; i < 2; ++i)
+   for (int i = 0; i < truesol.Size(); ++i)
    {
       serr(i) = truesol(i) - sol(i);
    }
-   for (int i = 0; i < 1; ++i)
+   for (int i = 0; i < truelambda.Size(); ++i)
    {
       lerr(i) = truelambda(i) - lambda(i);
    }
@@ -355,11 +355,11 @@ void ParallelTestProblem::Penalty(double pen, Vector& serr, Vector& lerr)
    PenaltyPCGSolver solver(*amat, *bmat, pen);
    solver.PrimalMult(rhs, sol);
    solver.GetMultiplierSolution(lambda);
-   for (int i = 0; i < 2; ++i)
+   for (int i = 0; i < truesol.Size(); ++i)
    {
       serr(i) = truesol(i) - sol(i);
    }
-   for (int i = 0; i < 1; ++i)
+   for (int i = 0; i < truelambda.Size(); ++i)
    {
       lerr(i) = truelambda(i) - lambda(i);
    }
@@ -598,7 +598,7 @@ void ParallelTestProblemTwo::Schur(Vector& serr, Vector& lerr)
    SchurConstrainedSolver solver(MPI_COMM_WORLD, *amat, *bmat, prec);
    solver.PrimalMult(rhs, sol);
    solver.GetMultiplierSolution(lambda);
-   for (int i = 0; i < 2; ++i)
+   for (int i = 0; i < truesol.Size(); ++i)
    {
       serr(i) = truesol(i) - sol(i);
    }
@@ -622,7 +622,7 @@ void ParallelTestProblemTwo::Elimination(Vector& serr, Vector& lerr)
    EliminationCGSolver solver(*amat, *Blocal, lagrange_rowstarts);
    solver.PrimalMult(rhs, sol);
    solver.GetMultiplierSolution(lambda);
-   for (int i = 0; i < 2; ++i)
+   for (int i = 0; i < truesol.Size(); ++i)
    {
       serr(i) = truesol(i) - sol(i);
    }
@@ -640,7 +640,7 @@ void ParallelTestProblemTwo::Penalty(double pen, Vector& serr, Vector& lerr)
    PenaltyPCGSolver solver(*amat, *bmat, pen);
    solver.PrimalMult(rhs, sol);
    solver.GetMultiplierSolution(lambda);
-   for (int i = 0; i < 2; ++i)
+   for (int i = 0; i < truesol.Size(); ++i)
    {
       serr(i) = truesol(i) - sol(i);
    }
@@ -775,7 +775,7 @@ void ZerosTestProblem::Elimination(Vector& serr, Vector& lerr, bool twoblocks)
    EliminationCGSolver solver(*hA, B, lagrange_rowstarts);
    solver.PrimalMult(rhs, sol);
    solver.GetMultiplierSolution(lambda);
-   for (int i = 0; i < 2; ++i)
+   for (int i = 0; i < truesol.Size(); ++i)
    {
       serr(i) = truesol(i) - sol(i);
    }
