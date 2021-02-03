@@ -2197,7 +2197,7 @@ void TMOP_Integrator::GetSurfaceFittingErrors(double &err_avg, double &err_max)
       if ((*sigma_marker)[i] == true)
       {
          loc_cnt++;
-         loc_max  = std::max(loc_max, (*sigma_bar)(i));
+         loc_max  = std::max(loc_max, std::abs((*sigma_bar)(i)));
          loc_sum += std::abs((*sigma_bar)(i));
       }
    }
