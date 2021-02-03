@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: checkout MFEM
+    - name: checkout mfem
       uses: actions/checkout@v2
       with:
         path: MFEM
