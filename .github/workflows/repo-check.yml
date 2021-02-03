@@ -21,9 +21,9 @@ jobs:
     - name: copyright check
       run: |
         cd MFEM
-        if git grep -l "\-2021" > matches.txt
+        if git grep -l "\-2020" > matches.txt
         then
-          echo "Some files with outdated copyrights where found."
+          echo "Some files with outdated copyrights were found."
           echo "Please update to 2021. Here is the list:"
           cat matches.txt
           exit 1
