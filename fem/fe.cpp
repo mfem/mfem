@@ -13197,6 +13197,31 @@ void ND_R2D_SegmentElement::GetLocalInterpolation(ElementTransformation &Trans,
    }
 }
 
+void ND_R2D_SegmentElement::Project(VectorCoefficient &vc,
+                                    ElementTransformation &Trans,
+                                    Vector &dofs) const
+{
+   double data[3];
+   Vector vk1(data, 1);
+   Vector vk2(data, 2);
+   Vector vk3(data, 3);
+
+   double * tk_ptr = const_cast<double*>(tk);
+
+   for (int k = 0; k < dof; k++)
+   {
+      Trans.SetIntPoint(&Nodes.IntPoint(k));
+
+      vc.Eval(vk3, Trans, Nodes.IntPoint(k));
+      // dof_k = vk^t J tk
+      Vector t1(&tk_ptr[dof2tk[k] * 2], 1);
+      Vector t2(&tk_ptr[dof2tk[k] * 2], 2);
+
+      dofs(k) = Trans.Jacobian().InnerProduct(t1, vk2) + t2(1) * vk3(2);
+   }
+
+}
+
 ND_R2D_FiniteElement::ND_R2D_FiniteElement(int p, Geometry::Type G, int Do,
                                            const double *tk_fe)
    : VectorFiniteElement(2, 3, 3, G, Do, p,
