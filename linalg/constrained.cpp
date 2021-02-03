@@ -663,6 +663,8 @@ void ConstrainedSolver::Mult(const Vector& f_and_r, Vector& x_and_lambda) const
    Vector ref_constraint_rhs(f_and_r.GetData() + A.Height(), B.Height());
    constraint_rhs = ref_constraint_rhs;
    PrimalMult(workb, workx);
+   Vector ref_constraint_sol(x_and_lambda.GetData() + A.Height(), B.Height());
+   GetMultiplierSolution(ref_constraint_sol);
 }
 
 }
