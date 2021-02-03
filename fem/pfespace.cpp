@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -101,6 +101,8 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
 
    P = NULL;
    Pconf = NULL;
+   Rconf = NULL;
+   R_transpose = NULL;
    R = NULL;
 
    num_face_nbr_dofs = -1;
@@ -925,6 +927,45 @@ const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
    {
       return Dof_TrueDof_Matrix();
    }
+}
+
+const Operator *ParFiniteElementSpace::GetRestrictionOperator() const
+{
+   if (Conforming())
+   {
+      if (Rconf) { return Rconf; }
+
+      if (NRanks == 1)
+      {
+         R_transpose = new IdentityOperator(GetTrueVSize());
+      }
+      else
+      {
+         if (!Device::Allows(Backend::DEVICE_MASK))
+         {
+            R_transpose = new ConformingProlongationOperator(*this, true);
+         }
+         else
+         {
+            R_transpose =
+               new DeviceConformingProlongationOperator(*this, true);
+         }
+      }
+      Rconf = new TransposeOperator(R_transpose);
+      return Rconf;
+   }
+   else
+   {
+      Dof_TrueDof_Matrix();
+      R_transpose = new TransposeOperator(R);
+      return R;
+   }
+}
+
+const Operator *ParFiniteElementSpace::GetRestrictionTransposeOperator() const
+{
+   GetRestrictionOperator();
+   return R_transpose;
 }
 
 void ParFiniteElementSpace::ExchangeFaceNbrData()
@@ -2840,6 +2881,8 @@ void ParFiniteElementSpace::Destroy()
 
    delete P; P = NULL;
    delete Pconf; Pconf = NULL;
+   delete Rconf; Rconf = NULL;
+   delete R_transpose; R_transpose = NULL;
    delete R; R = NULL;
 
    delete gcomm; gcomm = NULL;
@@ -2965,12 +3008,12 @@ void ParFiniteElementSpace::Update(bool want_transform)
    }
 }
 
-
 ConformingProlongationOperator::ConformingProlongationOperator(
-   const ParFiniteElementSpace &pfes)
+   const ParFiniteElementSpace &pfes, bool local_)
    : Operator(pfes.GetVSize(), pfes.GetTrueVSize()),
      external_ldofs(),
-     gc(pfes.GroupComm())
+     gc(pfes.GroupComm()),
+     local(local_)
 {
    MFEM_VERIFY(pfes.Conforming(), "");
    const Table &group_ldof = gc.GroupLDofTable();
@@ -3019,7 +3062,14 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
    const int m = external_ldofs.Size();
 
    const int in_layout = 2; // 2 - input is ltdofs array
-   gc.BcastBegin(const_cast<double*>(xdata), in_layout);
+   if (local)
+   {
+      y = 0.0;
+   }
+   else
+   {
+      gc.BcastBegin(const_cast<double*>(xdata), in_layout);
+   }
 
    int j = 0;
    for (int i = 0; i < m; i++)
@@ -3031,7 +3081,10 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
    std::copy(xdata+j-m, xdata+Width(), ydata+j);
 
    const int out_layout = 0; // 0 - output is ldofs array
-   gc.BcastEnd(ydata, out_layout);
+   if (!local)
+   {
+      gc.BcastEnd(ydata, out_layout);
+   }
 }
 
 void ConformingProlongationOperator::MultTranspose(
@@ -3044,7 +3097,10 @@ void ConformingProlongationOperator::MultTranspose(
    double *ydata = y.HostWrite();
    const int m = external_ldofs.Size();
 
-   gc.ReduceBegin(xdata);
+   if (!local)
+   {
+      gc.ReduceBegin(xdata);
+   }
 
    int j = 0;
    for (int i = 0; i < m; i++)
@@ -3056,13 +3112,18 @@ void ConformingProlongationOperator::MultTranspose(
    std::copy(xdata+j, xdata+Height(), ydata+j-m);
 
    const int out_layout = 2; // 2 - output is an array on all ltdofs
-   gc.ReduceEnd<double>(ydata, out_layout, GroupCommunicator::Sum);
+   if (!local)
+   {
+      gc.ReduceEnd<double>(ydata, out_layout, GroupCommunicator::Sum);
+   }
 }
 
 DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
-   const ParFiniteElementSpace &pfes) :
+   const ParFiniteElementSpace &pfes,
+   bool local_) :
    ConformingProlongationOperator(pfes),
-   mpi_gpu_aware(Device::GetGPUAwareMPI())
+   mpi_gpu_aware(Device::GetGPUAwareMPI()),
+   local(local_)
 {
    MFEM_ASSERT(pfes.Conforming(), "internal error");
    const SparseMatrix *R = pfes.GetRestrictionMatrix();
@@ -3179,32 +3240,42 @@ void DeviceConformingProlongationOperator::Mult(const Vector &x,
                                                 Vector &y) const
 {
    const GroupTopology &gtopo = gc.GetGroupTopology();
-   BcastBeginCopy(x); // copy to 'shr_buf'
    int req_counter = 0;
-   for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
+   if (local)
    {
-      const int send_offset = shr_buf_offsets[nbr];
-      const int send_size = shr_buf_offsets[nbr+1] - send_offset;
-      if (send_size > 0)
+      y = 0.0;
+   }
+   else
+   {
+      BcastBeginCopy(x); // copy to 'shr_buf'
+      for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
       {
-         auto send_buf = mpi_gpu_aware ? shr_buf.Read() : shr_buf.HostRead();
-         MPI_Isend(send_buf + send_offset, send_size, MPI_DOUBLE,
-                   gtopo.GetNeighborRank(nbr), 41822,
-                   gtopo.GetComm(), &requests[req_counter++]);
-      }
-      const int recv_offset = ext_buf_offsets[nbr];
-      const int recv_size = ext_buf_offsets[nbr+1] - recv_offset;
-      if (recv_size > 0)
-      {
-         auto recv_buf = mpi_gpu_aware ? ext_buf.Write() : ext_buf.HostWrite();
-         MPI_Irecv(recv_buf + recv_offset, recv_size, MPI_DOUBLE,
-                   gtopo.GetNeighborRank(nbr), 41822,
-                   gtopo.GetComm(), &requests[req_counter++]);
+         const int send_offset = shr_buf_offsets[nbr];
+         const int send_size = shr_buf_offsets[nbr+1] - send_offset;
+         if (send_size > 0)
+         {
+            auto send_buf = mpi_gpu_aware ? shr_buf.Read() : shr_buf.HostRead();
+            MPI_Isend(send_buf + send_offset, send_size, MPI_DOUBLE,
+                      gtopo.GetNeighborRank(nbr), 41822,
+                      gtopo.GetComm(), &requests[req_counter++]);
+         }
+         const int recv_offset = ext_buf_offsets[nbr];
+         const int recv_size = ext_buf_offsets[nbr+1] - recv_offset;
+         if (recv_size > 0)
+         {
+            auto recv_buf = mpi_gpu_aware ? ext_buf.Write() : ext_buf.HostWrite();
+            MPI_Irecv(recv_buf + recv_offset, recv_size, MPI_DOUBLE,
+                      gtopo.GetNeighborRank(nbr), 41822,
+                      gtopo.GetComm(), &requests[req_counter++]);
+         }
       }
    }
    BcastLocalCopy(x, y);
-   MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
-   BcastEndCopy(y); // copy from 'ext_buf'
+   if (!local)
+   {
+      MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
+      BcastEndCopy(y); // copy from 'ext_buf'
+   }
 }
 
 DeviceConformingProlongationOperator::~DeviceConformingProlongationOperator()
@@ -3267,32 +3338,38 @@ void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
                                                          Vector &y) const
 {
    const GroupTopology &gtopo = gc.GetGroupTopology();
-   ReduceBeginCopy(x); // copy to 'ext_buf'
    int req_counter = 0;
-   for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
+   if (!local)
    {
-      const int send_offset = ext_buf_offsets[nbr];
-      const int send_size = ext_buf_offsets[nbr+1] - send_offset;
-      if (send_size > 0)
+      ReduceBeginCopy(x); // copy to 'ext_buf'
+      for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
       {
-         auto send_buf = mpi_gpu_aware ? ext_buf.Read() : ext_buf.HostRead();
-         MPI_Isend(send_buf + send_offset, send_size, MPI_DOUBLE,
-                   gtopo.GetNeighborRank(nbr), 41823,
-                   gtopo.GetComm(), &requests[req_counter++]);
-      }
-      const int recv_offset = shr_buf_offsets[nbr];
-      const int recv_size = shr_buf_offsets[nbr+1] - recv_offset;
-      if (recv_size > 0)
-      {
-         auto recv_buf = mpi_gpu_aware ? shr_buf.Write() : shr_buf.HostWrite();
-         MPI_Irecv(recv_buf + recv_offset, recv_size, MPI_DOUBLE,
-                   gtopo.GetNeighborRank(nbr), 41823,
-                   gtopo.GetComm(), &requests[req_counter++]);
+         const int send_offset = ext_buf_offsets[nbr];
+         const int send_size = ext_buf_offsets[nbr+1] - send_offset;
+         if (send_size > 0)
+         {
+            auto send_buf = mpi_gpu_aware ? ext_buf.Read() : ext_buf.HostRead();
+            MPI_Isend(send_buf + send_offset, send_size, MPI_DOUBLE,
+                      gtopo.GetNeighborRank(nbr), 41823,
+                      gtopo.GetComm(), &requests[req_counter++]);
+         }
+         const int recv_offset = shr_buf_offsets[nbr];
+         const int recv_size = shr_buf_offsets[nbr+1] - recv_offset;
+         if (recv_size > 0)
+         {
+            auto recv_buf = mpi_gpu_aware ? shr_buf.Write() : shr_buf.HostWrite();
+            MPI_Irecv(recv_buf + recv_offset, recv_size, MPI_DOUBLE,
+                      gtopo.GetNeighborRank(nbr), 41823,
+                      gtopo.GetComm(), &requests[req_counter++]);
+         }
       }
    }
    ReduceLocalCopy(x, y);
-   MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
-   ReduceEndAssemble(y); // assemble from 'shr_buf'
+   if (!local)
+   {
+      MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
+      ReduceEndAssemble(y); // assemble from 'shr_buf'
+   }
 }
 
 } // namespace mfem
