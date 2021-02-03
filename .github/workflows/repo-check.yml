@@ -27,11 +27,11 @@ jobs:
     - name: checkout mfem
       uses: actions/checkout@v2
       with:
-        path: MFEM
+        path: mfem
 
     - name: copyright check
       run: |
-        cd MFEM
+        cd mfem
         if git grep -l "^#.*\-2020" > matches.txt
         then
           echo "Please update the following files to Copyright (c) 2010-2021:"
