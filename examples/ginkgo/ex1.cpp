@@ -209,7 +209,7 @@ int main(int argc, char *argv[])
          {
             executor_string = "omp";
          }
-         GinkgoWrappers::IcPreconditioner ginkgo_precond(executor_string, "exact");
+         GinkgoWrappers::IcPreconditioner ginkgo_precond(executor_string, "paric", 30);
          GinkgoWrappers::CGSolver ginkgo_solver(executor_string, 1, 2000, 1e-12, 0.0,
                                                 ginkgo_precond);
          ginkgo_solver.SetOperator(*(A.Ptr()));
@@ -227,7 +227,7 @@ int main(int argc, char *argv[])
          {
             executor_string = "omp";
          }
-         GinkgoWrappers::IcPreconditioner M(executor_string, "exact");
+         GinkgoWrappers::IcPreconditioner M(executor_string, "paric", 30);
          M.SetOperator(*(A.Ptr()));
          PCG(*A, M, B, X, 1, 2000, 1e-12, 0.0);
       }
@@ -248,7 +248,28 @@ int main(int argc, char *argv[])
    }
    else // No preconditioning for now in partial assembly mode.
    {
-      CG(*A, B, X, 1, 2000, 1e-12, 0.0);
+      if (use_ginkgo_solver)
+      {
+#ifdef MFEM_USE_GINKGO
+         // Solve the linear system with CG + IC from Ginkgo.
+         std::string executor_string;
+         if (!strcmp(device_config, "cuda"))
+         {
+            executor_string = "cuda";
+         }
+         else
+         {
+            executor_string = "omp";
+         }
+         GinkgoWrappers::CGSolver ginkgo_solver(executor_string, 1, 2000, 1e-12, 0.0);
+         ginkgo_solver.SetOperator(*(A.Ptr()));
+         ginkgo_solver.Mult(B, X);
+#endif
+      }
+      else
+      {
+         CG(*A, B, X, 1, 2000, 1e-12, 0.0);
+      }
    }
 
    // 12. Recover the solution as a finite element grid function.

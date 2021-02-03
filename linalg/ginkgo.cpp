@@ -78,16 +78,111 @@ const
    // documentation
    convergence_logger = gko::log::Convergence<>::create(
                            executor, gko::log::Logger::criterion_check_completed_mask);
+   std::shared_ptr<gko::LinOp> gko_oper;
+   if (system_matrix)
+   {
+      gko_oper = system_matrix;
+   }
+   else
+   {
+      gko_oper = wrapped_oper;
+   }
+   //   residual_logger = std::make_shared<ResidualLogger<>>(executor,
+   //                                                        gko::lend(system_matrix),b);
    residual_logger = std::make_shared<ResidualLogger<>>(executor,
-                                                        gko::lend(system_matrix),b);
+                                                        gko::lend(gko_oper),b);
 
+}
+
+void OperatorWrapper::apply_impl(const gko::LinOp *b, gko::LinOp *x) const
+{
+
+   // Cast to VectorWrapper; only accept this type for this impl
+   const VectorWrapper *mfem_b = gko::as<const VectorWrapper>(b);
+   VectorWrapper *mfem_x = gko::as<VectorWrapper>(x);
+
+   this->mfem_oper_->Mult(mfem_b->get_mfem_vec_const_ref(),
+                          mfem_x->get_mfem_vec_ref());
+}
+void OperatorWrapper::apply_impl(const gko::LinOp *alpha,
+                                 const gko::LinOp *b,
+                                 const gko::LinOp *beta,
+                                 gko::LinOp *x) const
+{
+   // x = alpha * op (b) + beta * x
+   // Cast to VectorWrapper; only accept this type for this impl
+   const VectorWrapper *mfem_b = gko::as<const VectorWrapper>(b);
+   VectorWrapper *mfem_x = gko::as<VectorWrapper>(x);
+
+   // Check that alpha and beta are Dense<double> of size (1,1):
+   // TODO: replace with MFEM error checking...
+   if (alpha->get_size()[0] > 1 || alpha->get_size()[1] > 1)
+   {
+      throw gko::BadDimension(
+         __FILE__, __LINE__, __func__, "alpha", alpha->get_size()[0],
+         alpha->get_size()[1],
+         "Expected an object of size [1 x 1] for scaling "
+         " in this operator's apply_impl");
+   }
+   if (beta->get_size()[0] > 1 || beta->get_size()[1] > 1)
+   {
+      throw gko::BadDimension(
+         __FILE__, __LINE__, __func__, "beta", beta->get_size()[0],
+         beta->get_size()[1],
+         "Expected an object of size [1 x 1] for scaling "
+         " in this operator's apply_impl");
+   }
+   double alpha_f;
+   double beta_f;
+
+   if (alpha->get_executor() == alpha->get_executor()->get_master())
+   {
+      // Access value directly
+      alpha_f = gko::as<gko::matrix::Dense<double>>(alpha)->at(0, 0);
+   }
+   else
+   {
+      // Copy from device to host
+      this->get_executor()->get_master().get()->copy_from(this->get_executor().get(),
+                                                          1, gko::as<gko::matrix::Dense<double>>(alpha)->get_const_values(),
+                                                          &alpha_f);
+   }
+   if (beta->get_executor() == beta->get_executor()->get_master())
+   {
+      // Access value directly
+      beta_f = gko::as<gko::matrix::Dense<double>>(beta)->at(0, 0);
+   }
+   else
+   {
+      // Copy from device to host
+      this->get_executor()->get_master().get()->copy_from(this->get_executor().get(),
+                                                          1, gko::as<gko::matrix::Dense<double>>(beta)->get_const_values(),
+                                                          &beta_f);
+   }
+   // Scale x by beta
+   mfem_x->get_mfem_vec_ref() *= beta_f;
+   // Multiply operator with b and store in tmp
+   mfem::Vector mfem_tmp =
+      mfem::Vector(mfem_x->get_size()[0],
+                   mfem_x->get_mfem_vec_ref().GetMemory().GetMemoryType());
+   // Set UseDevice flag to match mfem_x (not automatically done through
+   //  MemoryType)
+   mfem_tmp.UseDevice(mfem_x->get_mfem_vec_ref().UseDevice());
+
+   // Apply the operator
+   this->mfem_oper_->Mult(mfem_b->get_mfem_vec_const_ref(), mfem_tmp);
+   // Scale tmp by alpha and add
+   mfem_x->get_mfem_vec_ref().Add(alpha_f, mfem_tmp);
+
+   mfem_tmp.Destroy();
 }
 
 void
 GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
 {
 
-   MFEM_VERIFY(system_matrix, "System matrix not initialized");
+   MFEM_VERIFY(system_matrix ||
+               wrapped_oper, "System matrix or operator not initialized");
    MFEM_VERIFY(executor, "executor is not initialized");
    MFEM_VERIFY(y.Size() == x.Size(),
                "Mismatching sizes for rhs and solution");
@@ -105,13 +200,26 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
    {
       on_device = true;
    }
-   auto gko_x = vec::create(executor, gko::dim<2> {x.Size(), 1},
-                            gko::Array<double>::view(executor,
-                                                     x.Size(), const_cast<double *>(
-                                                        x.Read(on_device))), 1);
-   auto gko_y = vec::create(executor, gko::dim<2> {y.Size(), 1},
-                            gko::Array<double>::view(executor,
-                                                     y.Size(), y.ReadWrite(on_device)), 1);
+   std::unique_ptr<vec> gko_x;
+   std::unique_ptr<vec> gko_y;
+
+   if (system_matrix)
+   {
+      gko_x = vec::create(executor, gko::dim<2> {x.Size(), 1},
+                          gko::Array<double>::view(executor,
+                                                   x.Size(), const_cast<double *>(
+                                                      x.Read(on_device))), 1);
+      gko_y = vec::create(executor, gko::dim<2> {y.Size(), 1},
+                          gko::Array<double>::view(executor,
+                                                   y.Size(), y.ReadWrite(on_device)), 1);
+   }
+   else
+   {
+      gko_x = std::unique_ptr<vec>(new VectorWrapper(executor, x.Size(),
+                                                     const_cast<Vector *>(&x), on_device, false));
+      gko_y = std::unique_ptr<vec>(new VectorWrapper(executor, y.Size(), &y,
+                                                     on_device, false));
+   }
 
    // Create the logger object to log some data from the solvers to confirm
    // convergence.
@@ -125,7 +233,16 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
    }
 
    // Generate the solver from the solver using the system matrix.
-   auto solver = solver_gen->generate(system_matrix);
+   std::shared_ptr<gko::LinOp> oper_to_generate;
+   if (system_matrix)
+   {
+      oper_to_generate = gko::as<gko::LinOp>(system_matrix);
+   }
+   else
+   {
+      oper_to_generate = gko::as<gko::LinOp>(wrapped_oper);
+   }
+   auto solver = solver_gen->generate(oper_to_generate);
 
    // Add the convergence logger object to the combined factory to retrieve the
    // solver and other data
@@ -203,34 +320,40 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
 void GinkgoIterativeSolver::SetOperator(const Operator &op)
 {
 
-   // Only accept SparseMatrix for this type.
+   // Check for SparseMatrix:
    SparseMatrix *op_mat = const_cast<SparseMatrix*>(
                              dynamic_cast<const SparseMatrix*>(&op));
-   MFEM_VERIFY(op_mat != NULL,
-               "GinkgoIterativeSolver::SetOperator : not a SparseMatrix!");
-   // Needs to be a square matrix
-   MFEM_VERIFY(op_mat->Height() == op_mat->Width(),
-               "System matrix is not square");
-
-   bool on_device = false;
-   if (executor != executor->get_master())
+   if (op_mat != NULL)
    {
-      on_device = true;
-   }
+      // Needs to be a square matrix
+      MFEM_VERIFY(op_mat->Height() == op_mat->Width(),
+                  "System matrix is not square");
 
-   using mtx = gko::matrix::Csr<double, int>;
-   const int nnz =  op_mat->GetMemoryData().Capacity();
-   system_matrix = mtx::create(
-                      executor, gko::dim<2>(op_mat->Height(), op_mat->Width()),
-                      gko::Array<double>::view(executor,
+      bool on_device = false;
+      if (executor != executor->get_master())
+      {
+         on_device = true;
+      }
+
+      using mtx = gko::matrix::Csr<double, int>;
+      const int nnz =  op_mat->GetMemoryData().Capacity();
+      system_matrix = mtx::create(
+                         executor, gko::dim<2>(op_mat->Height(), op_mat->Width()),
+                         gko::Array<double>::view(executor,
+                                                  nnz,
+                                                  op_mat->ReadWriteData(on_device)),
+                         gko::Array<int>::view(executor,
                                                nnz,
-                                               op_mat->ReadWriteData(on_device)),
-                      gko::Array<int>::view(executor,
-                                            nnz,
-                                            op_mat->ReadWriteJ(on_device)),
-                      gko::Array<int>::view(executor, op_mat->Height() + 1,
-                                            op_mat->ReadWriteI(on_device)));
+                                               op_mat->ReadWriteJ(on_device)),
+                         gko::Array<int>::view(executor, op_mat->Height() + 1,
+                                               op_mat->ReadWriteI(on_device)));
 
+   }
+   else
+   {
+      wrapped_oper = std::shared_ptr<OperatorWrapper>(new
+                                                      OperatorWrapper(executor, op.Height(), &op));
+   }
 }
 
 /* ---------------------- CGSolver ------------------------ */
