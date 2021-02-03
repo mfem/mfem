@@ -33,6 +33,129 @@ namespace mfem
 {
 namespace GinkgoWrappers
 {
+/**
+* Helper class for a case where a wrapped MFEM Vector
+* should be owned by Ginkgo, and deleted when the wrapper
+* object goes out of scope.
+*/
+template <typename T>
+class gko_mfem_destroy
+{
+public:
+   using pointer = T *;
+
+   // Destroys an MFEM object.  Requires object to have a Destroy() method.
+   void operator()(pointer ptr) const noexcept { ptr->Destroy(); }
+};
+
+/**
+* This class wraps an MFEM vector object for Ginkgo's use.  It
+* is allows Ginkgo and MFEM to operate directly on the same
+* data, and is necessary to use MFEM Operators with Ginkgo
+* solvers.
+*
+* @ingroup GinkgoWrappers
+*/
+
+class VectorWrapper : public gko::matrix::Dense<double>
+{
+public:
+   VectorWrapper(std::shared_ptr<const gko::Executor> exec,
+                 gko::size_type size, mfem::Vector *mfem_vec,
+                 bool on_device = true, bool ownership = false)
+      : gko::matrix::Dense<double>(
+           exec, gko::dim<2> {size, 1},
+   gko::Array<double>::view(exec, size,
+                            mfem_vec->ReadWrite(on_device)),
+   1)
+   {
+      // This controls whether or not we want Ginkgo to own its MFEM Vector.
+      // Normally, when we are wrapping an MFEM Vector created outside
+      // Ginkgo, we do not want ownership to be true. However, Ginkgo
+      // creates its own temporary vectors as part of its solvers, and
+      // these will be owned (and deleted) by Ginkgo.
+      if (ownership)
+      {
+         using deleter = gko_mfem_destroy<mfem::Vector>;
+         mfem_vec_ = std::unique_ptr<mfem::Vector,
+         std::function<void(mfem::Vector *)>>(
+            mfem_vec, deleter{});
+      }
+      else
+      {
+         using deleter = gko::null_deleter<mfem::Vector>;
+         mfem_vec_ = std::unique_ptr<mfem::Vector,
+         std::function<void(mfem::Vector *)>>(
+            mfem_vec, deleter{});
+      }
+   }
+   static std::unique_ptr<VectorWrapper> create(
+      std::shared_ptr<const gko::Executor> exec, gko::size_type size,
+      mfem::Vector *mfem_vec, bool on_device = true, bool ownership = false)
+   {
+      return std::unique_ptr<VectorWrapper>(
+                new VectorWrapper(exec, size, mfem_vec, on_device, ownership));
+   }
+   // Return reference to MFEM Vector object
+   mfem::Vector &get_mfem_vec_ref() const { return *(this->mfem_vec_.get()); }
+   // Return const reference to MFEM Vector object
+   const mfem::Vector &get_mfem_vec_const_ref() const
+   {
+      return const_cast<const mfem::Vector &>(*(this->mfem_vec_.get()));
+   }
+
+   // Override base Dense class implementation for creating new vectors
+   // with same executor and size as self
+   virtual std::unique_ptr<gko::matrix::Dense<double>>
+                                                    create_with_same_config() const override
+   {
+      mfem::Vector *mfem_vec = new mfem::Vector(
+         this->get_size()[0],
+         this->mfem_vec_.get()->GetMemory().GetMemoryType());
+
+      mfem_vec->UseDevice(this->mfem_vec_.get()->UseDevice());
+      // If this function is called, Ginkgo is creating this
+      // object and should control the memory, so ownership is
+      // set to true
+      return VectorWrapper::create(
+                this->get_executor(), this->get_size()[0], mfem_vec,
+                this->mfem_vec_.get()->UseDevice(), true);
+   }
+private:
+   std::unique_ptr<mfem::Vector, std::function<void(mfem::Vector *)>>
+                                                                   mfem_vec_;
+};
+
+/**
+* This class wraps an MFEM Operator for Ginkgo, to make its Mult()
+* function available to Ginkgo, provided the input and output vectors
+* are of the VectorWrapper type.
+*
+* @ingroup GinkgoWrappers
+*/
+class OperatorWrapper
+   : public gko::EnableLinOp<OperatorWrapper>,
+     public gko::EnableCreateMethod<OperatorWrapper>
+{
+public:
+   OperatorWrapper(std::shared_ptr<const gko::Executor> exec,
+                   gko::size_type size = 0,
+                   const mfem::Operator *oper = NULL)
+      : gko::EnableLinOp<OperatorWrapper>(exec, gko::dim<2> {size, size}),
+   gko::EnableCreateMethod<OperatorWrapper>()
+   {
+      this->mfem_oper_ = oper;
+   }
+
+protected:
+   void apply_impl(const gko::LinOp *b, gko::LinOp *x) const override;
+   void apply_impl(const gko::LinOp *alpha, const gko::LinOp *b,
+                   const gko::LinOp *beta, gko::LinOp *x) const override;
+
+private:
+   const mfem::Operator *mfem_oper_;
+};
+
 // Utility function which gets the scalar value of a Ginkgo gko::matrix::Dense
 // matrix representing the norm of a vector.
 template <typename ValueType=double>
@@ -136,7 +259,23 @@ struct ResidualLogger : gko::log::Logger
          // Create a scalar containing the value -1.0
          auto neg_one = gko::initialize<gko_dense>({-1.0}, exec);
          // Instantiate a temporary result variable
-         auto res = gko::clone(b);
+         std::unique_ptr<gko_dense> res;
+         // Check if b is a Ginkgo vector or wrapped MFEM Vector
+         if (dynamic_cast<const VectorWrapper*>(b))
+         {
+            const VectorWrapper *b_cast = gko::as<const VectorWrapper>(b);
+            // Copy the MFEM Vector stored in b
+            Vector *mfem_b_cpy = new Vector(b_cast->get_mfem_vec_ref());
+            res = std::unique_ptr<gko_dense>(new VectorWrapper(exec,
+                                                               mfem_b_cpy->Size(),
+                                                               mfem_b_cpy,
+                                                               mfem_b_cpy->UseDevice(),
+                                                               true));
+         }
+         else
+         {
+            res = gko::clone(b);
+         }
          // Compute the real residual vector by calling apply on the system
          // matrix
          matrix->apply(gko::lend(one), gko::lend(solution),
@@ -379,7 +518,9 @@ public:
    };
 
    /**
-    * Initialize the matrix and copy over its data to Ginkgo's data structures.
+    * If the Operator is a SparseMatrix, set up a Ginkgo Csr matrix
+    * to use its data directly.  If the Operator is not a matrix,
+    * create an OperatorWrapper for it and store.
     */
    virtual void SetOperator(const Operator &op);
 
@@ -449,6 +590,12 @@ private:
     * and the column indices.
     */
    std::shared_ptr<gko::matrix::Csr<double, int>> system_matrix;
+
+   /**
+    * Pointer to an OperatorWrapper wrapping an MFEM Operator
+    * (for matrix-free evaluation).
+    */
+   std::shared_ptr<OperatorWrapper> wrapped_oper;
 
    /**
     * The execution paradigm as a string to be set by the user. The choices are
@@ -872,7 +1019,7 @@ public:
     *
     * @param[in] exec_type The execution paradigm for the preconditioner.
     * @param[in] factorization_type The factorization type: "exact" or
-    *  "parilu".
+    *  "paric".
     * @param[in] sweeps The number of sweeps to do in the ParIc
     *  factorization algorithm.  A value of 0 tells Ginkgo to use its
     *  internal default value.  This parameter is ignored in the case
@@ -911,7 +1058,7 @@ public:
     *
     * @param[in] exec_type The execution paradigm for the preconditioner.
     * @param[in] factorization_type The factorization type: "exact" or
-    *  "parilu".
+    *  "paric".
     * @param[in] sweeps The number of sweeps to do in the ParIc
     *  factorization algorithm.  A value of 0 tells Ginkgo to use its
     *  internal default value.  This parameter is ignored in the case
