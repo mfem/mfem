@@ -1,0 +1,32 @@
+name: repo-check
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  copyright-check:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: checkout MFEM
+      uses: actions/checkout@v2
+      with:
+        path: MFEM
+
+    - name: copyright check
+      run: |
+        cd MFEM
+        if git grep -l "\-2021" > matches.txt
+        then
+          echo "Some files with outdated copyrights where found."
+          echo "Please update to 2021. Here is the list:"
+          cat matches.txt
+          exit 1
+        else
+          echo "No outdated copyright found."
+        fi
