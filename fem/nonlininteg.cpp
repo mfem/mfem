@@ -15,9 +15,9 @@
 namespace mfem
 {
 
-double NonlinearFormIntegrator::GetStateEnergyPA(const Vector &x) const
+double NonlinearFormIntegrator::GetLocalStateEnergyPA(const Vector &x) const
 {
-   mfem_error ("NonlinearFormIntegrator::GetStateEnergyPA(...)\n"
+   mfem_error ("NonlinearFormIntegrator::GetLocalStateEnergyPA(...)\n"
                "   is not implemented for this class.");
    return 0.0;
 }

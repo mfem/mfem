@@ -89,7 +89,7 @@ public:
    /// Compute the local (to the MPI rank) energy with partial assembly.
    /** Here the state @a x is an E-vector. This method can be called only after
        the method AssemblePA() has been called. */
-   virtual double GetStateEnergyPA(const Vector &x) const;
+   virtual double GetLocalStateEnergyPA(const Vector &x) const;
 
    /// Method for partially assembled action.
    /** Perform the action of integrator on the input @a x and add the result to
