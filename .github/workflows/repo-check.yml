@@ -40,3 +40,35 @@ jobs:
         else
           echo "No outdated copyright found."
         fi
+
+  code-style:
+    runs-on: ubunbtu-16.04
+
+    steps:
+    - name: checkout mfem
+      uses: actions/checkout@v2
+
+    - name: get astyle
+      run: |
+        sudo apt-get install astyle=2.05.1-0ubuntu1
+
+    - name: style check
+      run: |
+        cd tests/scripts
+        ./runtest code-style
+
+  documentation:
+    runs-on: ubunbtu-20.04
+
+    steps:
+    - name: checkout mfem
+      uses: actions/checkout@v2
+
+    - name: get doxygen and graphviz
+      run: |
+        sudo apt-get install doxygen graphviz
+
+    - name: build documentation
+      run: |
+        cd tests/scripts
+        ./runtest documentation
