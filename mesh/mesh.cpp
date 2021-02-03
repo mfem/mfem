@@ -3853,17 +3853,6 @@ void Mesh::CreateRefinedMesh(Mesh *orig_mesh, const Array<int> &ref_factors,
       }
    }
 
-   if (orig_mesh->GetNodes())
-   {
-      L2_FECollection fec_dg(1, Dim, BasisType::GaussLobatto);
-      FiniteElementSpace fes_dg(this, &fec_dg, spaceDim, 1);
-      GridFunction nodes_dg(&fes_dg, node_coordinates.Data());
-      bool discont = orig_mesh->GetNodalFESpace()->IsDGSpace();
-      Ordering::Type dof_ordering = orig_mesh->GetNodalFESpace()->GetOrdering();
-      SetCurvature(1, discont, spaceDim, dof_ordering);
-      Nodes->ProjectGridFunction(nodes_dg);
-   }
-
    // Add refined boundary elements
    for (int el = 0; el < orig_mesh->GetNBE(); el++)
    {
@@ -3911,6 +3900,21 @@ void Mesh::CreateRefinedMesh(Mesh *orig_mesh, const Array<int> &ref_factors,
    FinalizeTopology(false);
    sequence = orig_mesh->GetSequence() + 1;
    last_operation = Mesh::REFINE;
+
+   // After topology has been finalized, set up the nodes of the new mesh
+   // (if the original mesh has nodes). The new mesh is always straight-sided
+   // (i.e. degree 1 finite element space), but the nodes are required for e.g.
+   // periodic meshes.
+   if (orig_mesh->GetNodes())
+   {
+      L2_FECollection fec_dg(1, Dim, BasisType::GaussLobatto);
+      FiniteElementSpace fes_dg(this, &fec_dg, spaceDim, 1);
+      GridFunction nodes_dg(&fes_dg, node_coordinates.Data());
+      bool discont = orig_mesh->GetNodalFESpace()->IsDGSpace();
+      Ordering::Type dof_ordering = orig_mesh->GetNodalFESpace()->GetOrdering();
+      SetCurvature(1, discont, spaceDim, dof_ordering);
+      Nodes->ProjectGridFunction(nodes_dg);
+   }
 
    // Setup the data for the coarse-fine refinement transformations
    CoarseFineTr.embeddings.SetSize(GetNE());
