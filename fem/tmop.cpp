@@ -2186,6 +2186,29 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
 }
 #endif
 
+void TMOP_Integrator::GetSurfaceFittingErrors(double &err_avg, double &err_max)
+{
+   MFEM_VERIFY(sigma, "Surface fitting has not been enabled.");
+
+   int loc_cnt = 0;
+   double loc_max = 0.0, loc_sum = 0.0;
+   for (int i = 0; i < sigma_marker->Size(); i++)
+   {
+      if ((*sigma_marker)[i] == true)
+      {
+         loc_cnt++;
+         loc_max  = std::max(loc_max, (*sigma_bar)(i));
+         loc_sum += std::abs((*sigma_bar)(i));
+      }
+   }
+
+   int glob_cnt;
+   MPI_Allreduce(&loc_max, &err_max, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+   MPI_Allreduce(&loc_cnt, &glob_cnt, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(&loc_sum, &err_avg, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+   err_avg = err_avg / glob_cnt;
+}
+
 double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
                                          ElementTransformation &T,
                                          const Vector &elfun)
@@ -3044,7 +3067,8 @@ void TMOP_Integrator::ParEnableNormalization(const ParGridFunction &x)
    MPI_Allreduce(loc, rdc, 3, MPI_DOUBLE, MPI_SUM, x.ParFESpace()->GetComm());
    metric_normal = 1.0 / rdc[0];
    lim_normal    = 1.0 / rdc[1];
-   if (sigma) { sigma_normal = 1.0 / rdc[2]; }
+   // if (sigma) { sigma_normal = 1.0 / rdc[2]; }
+   if (sigma) { sigma_normal = lim_normal; }
 }
 #endif
 
