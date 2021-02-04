@@ -1,0 +1,128 @@
+name: build-mfem
+
+on:
+  push:
+
+env:
+  HYPRE_ARCHIVE: v2.19.0.tar.gz
+  HYPRE_TOP_DIR: hypre-2.19.0
+  METIS_ARCHIVE: metis-4.0.3.tar.gz
+  METIS_TOP_DIR: metis-4.0.3
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        mpi: ["NO", "YES"]
+        os: ["ubuntu-latest", "macos-latest"]
+        debug: ["YES", "NO"]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    # Checkout MFEM in "mfem" subdirectory. Final path: /home/runner/work/mfem/mfem/mfem
+    # Note: it must be done now to access "install-hypre" and "install-metis" actions.
+    - name: checkout MFEM
+      uses: actions/checkout@v2
+      with:
+        path: mfem
+
+    # Only get MPI if defined for the job.
+    # TODO (bernede1@llnl.gov): It would be nice to have only one step,
+    # e.g. with a dedicated action, but I don’t see how at the moment.
+    - name: Get MPI (Linux)
+      if: matrix.mpi == 'YES' && matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get install mpich libmpich-dev
+        export MAKE_CXX_FLAG="MPICXX=mpic++"
+
+    - name: Get MPI (MacOS)
+      if: matrix.mpi == 'YES' && matrix.os == 'macos-latest'
+      run: |
+        export HOMEBREW_NO_INSTALL_CLEANUP=1
+        brew install openmpi
+        export MAKE_CXX_FLAG="MPICXX=mpic++"
+
+    # Get Hypre through cache, or install it.
+    # Install will only run on cache miss.
+    - name: Cache Hypre Install
+      id: hypre-cache
+      if: matrix.mpi == 'YES'
+      uses: actions/cache@v2
+      with:
+        path: ${{ env.HYPRE_TOP_DIR }}
+        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-v1
+
+    - name: Get Hypre
+      if: matrix.mpi == 'YES' && steps.hypre-cache.outputs.cache-hit != 'true'
+      uses: ./mfem/.github/actions/install-hypre
+      with:
+        hypre-archive: ${{ env.HYPRE_ARCHIVE }}
+        hypre-dir: ${{ env.HYPRE_TOP_DIR }}
+
+    # Get Metis through cache, or install it.
+    # Install will only run on cache miss.
+    - name: Cache Metis Install
+      id: metis-cache
+      if: matrix.mpi == 'YES'
+      uses: actions/cache@v2
+      with:
+        path: ${{ env.METIS_TOP_DIR }}
+        key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-v1
+
+    - name: Install Metis
+      if: matrix.mpi == 'YES' && steps.metis-cache.outputs.cache-hit != 'true'
+      uses: ./mfem/.github/actions/install-metis
+      with:
+        metis-archive: ${{ env.METIS_ARCHIVE }}
+        metis-dir: ${{ env.METIS_TOP_DIR }}
+
+    # MFEM build and test
+    - name: configure
+      env:
+        MPI: ${{ matrix.mpi }}
+        DEBUG: ${{ matrix.debug }}
+        OS: ${{ matrix.os }}
+      run: |
+        if [[ ${MPI} == "YES" ]]
+        then
+          echo "Hypre symlink:"
+          ln -s $HYPRE_TOP_DIR hypre;
+          echo "Metis symlink:"
+          ln -s $METIS_TOP_DIR metis-4.0;
+        fi
+        CPPFLAGS="";
+        if [[ $OS == 'ubuntu-latest' && $DEBUG == 'YES' ]]
+        then
+          CPPFLAGS+=" -pedantic -Wall -Werror";
+        fi
+        cd mfem;
+        make config MFEM_USE_MPI=$MPI MFEM_MPI_NP=2 MFEM_DEBUG=$DEBUG CPPFLAGS="$CPPFLAGS";
+    - name: make
+      run: |
+        cd mfem && make all -j3
+    - name: check
+      if: matrix.debug == 'YES'
+      run: |
+        cd mfem && make check
+    - name: unit
+      if: matrix.debug == 'NO'
+      run: |
+        cd mfem && make unittest
+
+    # In most case we simply run the tests
+    - name: test
+      if: matrix.debug == 'NO' && matrix.mpi != 'YES' || matrix.os != 'ubuntu-latest'
+      run: |
+        cd mfem && make test
+
+    # Except with MPI on ubuntu where we also check compliance with .gitignore rules.
+    - name: test (no clean)
+      if: matrix.debug == 'NO' && matrix.mpi == 'YES' && matrix.os == 'ubuntu-latest'
+      run: |
+        cd mfem && make test-noclean
+    - name: gitignore
+      if: matrix.debug == 'NO' && matrix.mpi == 'YES' && matrix.os == 'ubuntu-latest'
+      run: |
+        cd mfem/tests/scripts
+        ./runtest gitignore

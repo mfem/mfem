@@ -1,0 +1,27 @@
+name: install-hypre
+
+inputs:
+  hypre-url:
+    description: 'URL where to look for Hypre'
+    required: false
+    default: 'https://github.com/hypre-space/hypre/archive'
+  hypre-archive:
+    description: 'Archive to download'
+    required: true
+  hypre-dir:
+    description: 'Hypre top directory name'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install Hypre
+      run: |
+        wget --no-verbose ${{ inputs.hypre-url }}/${{ inputs.hypre-archive }};
+        rm -rf ${{ inputs.hypre-dir }};
+        tar -xzf ${{ inputs.hypre-archive }};
+        cd ${{ inputs.hypre-dir }}/src;
+        ./configure --disable-fortran CC=mpicc CXX=mpic++;
+        make -j3;
+        cd ../..;
+      shell: bash
