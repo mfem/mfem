@@ -15,6 +15,7 @@ jobs:
       matrix:
         mpi: ["NO", "YES"]
         os: ["ubuntu-latest", "macos-latest"]
+
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -98,6 +99,20 @@ jobs:
     - name: unit
       run: |
         cd mfem && make unittest
+
+    # In most case we simply run the tests
     - name: test
+      if: matrix.mpi != 'YES' || matrix.os != 'ubuntu-latest'
       run: |
         cd mfem && make test
+
+    # Except with MPI on ubuntu where we also check compliance with .gitignore rules.
+    - name: | test (no clean)
+      if: matrix.mpi == 'YES' && matrix.os == 'ubuntu-latest'
+      run: |
+        cd mfem && make test-noclean
+    - name: | gitignore
+      if: matrix.mpi == 'YES' && matrix.os == 'ubuntu-latest'
+      run: |
+        cd tests/scripts
+        ./runtest gitignore
