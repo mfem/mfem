@@ -138,11 +138,14 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
       }
    }
 
+   int cg_print_lvl  = (print_level > 0) ? 1 : 0,
+       amg_print_lvl = (print_level > 1) ? 1 : 0;
+
    // Solver.
    CGSolver cg(MPI_COMM_WORLD);
-   cg.SetRelTol(1e-12);
+   cg.SetRelTol(1e-6);
    cg.SetMaxIter(100);
-   cg.SetPrintLevel(1);
+   cg.SetPrintLevel(cg_print_lvl);
    OperatorPtr A;
    Vector B, X;
 
@@ -175,8 +178,9 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
       ParGridFunction u_dirichlet(&pfes);
       u_dirichlet = 0.0;
       a_d.FormLinearSystem(ess_tdof_list, u_dirichlet, b, A, X, B);
-      Solver *prec = new HypreBoomerAMG;
-      cg.SetPreconditioner(*prec);
+      auto *prec = new HypreBoomerAMG;
+      prec->SetPrintLevel(amg_print_lvl);
+      //cg.SetPreconditioner(*prec);
       cg.SetOperator(*A);
       cg.Mult(B, X);
       a_d.RecoverFEMSolution(X, b, u_dirichlet);
@@ -192,8 +196,9 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
       ParGridFunction u_neumann(&pfes);
       ess_tdof_list.DeleteAll();
       a_n.FormLinearSystem(ess_tdof_list, u_neumann, b, A, X, B);
-      Solver *prec2 = new HypreBoomerAMG;
-      cg.SetPreconditioner(*prec2);
+      auto *prec2 = new HypreBoomerAMG;
+      prec2->SetPrintLevel(amg_print_lvl);
+      //cg.SetPreconditioner(*prec2);
       cg.SetOperator(*A);
       cg.Mult(B, X);
       a_n.RecoverFEMSolution(X, b, u_neumann);
@@ -228,12 +233,13 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
 
       a2.FormLinearSystem(no_ess_tdofs, distance, b2, A, X, B);
 
-      Solver *prec2 = new HypreBoomerAMG;
-      cg.SetPreconditioner(*prec2);
+      auto *prec = new HypreBoomerAMG;
+      prec->SetPrintLevel(amg_print_lvl);
+      //cg.SetPreconditioner(*prec);
       cg.SetOperator(*A);
       cg.Mult(B, X);
       a2.RecoverFEMSolution(X, b2, distance);
-      delete prec2;
+      delete prec;
    }
 
    // Rescale the distance to have minimum at zero.
@@ -726,12 +732,11 @@ void PLapDistanceSolver::ComputeScalarDistance(Coefficient &func,
     mfem::PUMPLaplacian* pint = new mfem::PUMPLaplacian(&func,&gf,false);
     nf->AddDomainIntegrator(pint);
 
-
     pint->SetPower(2);
 
     //define the solvers
     mfem::HypreBoomerAMG* prec=new mfem::HypreBoomerAMG();
-    prec->SetPrintLevel(print_level);
+    prec->SetPrintLevel((print_level > 1) ? 1 : 0);
 
 
     mfem::GMRESSolver *gmres;
@@ -739,25 +744,24 @@ void PLapDistanceSolver::ComputeScalarDistance(Coefficient &func,
     gmres->SetAbsTol(newton_abs_tol/10);
     gmres->SetRelTol(newton_rel_tol/10);
     gmres->SetMaxIter(100);
-    gmres->SetPrintLevel(print_level);
+    gmres->SetPrintLevel((print_level > 1) ? 1 : 0);
     gmres->SetPreconditioner(*prec);
 
     NewtonSolver ns(lcomm);
     ns.iterative_mode = true;
     ns.SetSolver(*gmres);
     ns.SetOperator(*nf);
-    ns.SetPrintLevel(print_level);
+    ns.SetPrintLevel((print_level == 0) ? -1 : 0);
     ns.SetRelTol(newton_rel_tol);
     ns.SetAbsTol(newton_abs_tol);
     ns.SetMaxIter(newton_iter);
-
 
     mfem::Vector b; //RHS is zero
     ns.Mult(b, *sv);
 
     for(int pp=3;pp<maxp;pp++)
     {
-       if(myrank==0){std::cout<<"pp="<<pp<<std::endl;}
+       if (myrank == 0 && print_level > 0) { std::cout<<"pp="<<pp<<std::endl; }
        pint->SetPower(pp);
        ns.Mult(b, *sv);
     }

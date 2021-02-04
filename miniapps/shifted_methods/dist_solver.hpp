@@ -23,8 +23,10 @@ protected:
    void ScalarDistToVector(ParGridFunction &dist_s, ParGridFunction &dist_v);
 
 public:
-   DistanceSolver() { }
+   // 0 is nothing / 1 is the main solver / 2 is full (solver + precond).
+   int print_level = 0;
 
+   DistanceSolver() { }
    virtual ~DistanceSolver() { }
 
    virtual void ComputeScalarDistance(Coefficient &zero_level_set,
@@ -295,7 +297,7 @@ public:
         newton_iter=newton_iter_;
         newton_rel_tol=rtol;
         newton_abs_tol=atol;
-        print_level=print_lv;
+        print_level = print_lv;
     }
 
     void SetMaxPower(int new_pp) { maxp = new_pp; }
@@ -313,7 +315,6 @@ private:
     double newton_abs_tol;
     double newton_rel_tol;
     int newton_iter;
-    int print_level;
 };
 
 } // namespace mfem
