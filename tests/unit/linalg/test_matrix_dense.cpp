@@ -17,13 +17,14 @@ using namespace mfem;
 
 TEST_CASE("DenseMatrix init-list construction", "[DenseMatrix]")
 {
-   double ContigData[6] = {6.0, 5.0,
-                           4.0, 3.0,
-                           2.0, 1.0
-                          };
+   double ContigData[6] = {6.0, 5.0, 4.0, 3.0, 2.0, 1.0};
    DenseMatrix Contiguous(ContigData, 2, 3);
 
-   DenseMatrix Nested({{6.0, 4.0, 2.0}, {5.0, 3.0, 1.0}});
+   DenseMatrix Nested(
+   {
+      {6.0, 4.0, 2.0},
+      {5.0, 3.0, 1.0}
+   });
 
    for (int i = 0; i < Contiguous.Height(); i++)
    {

@@ -67,7 +67,7 @@ public:
       {
          for (int j = 0; j < N; j++)
          {
-            Elem(i,j) = values[i][j];
+            (*this)(i,j) = values[i][j];
          }
       }
    }
