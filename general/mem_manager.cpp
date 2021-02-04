@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -482,7 +482,8 @@ public:
       HostMemorySpace(),
       name(mm.GetUmpireAllocatorHostName()),
       rm(umpire::ResourceManager::getInstance()),
-      h_allocator(rm.isAllocator(name)? rm.getAllocator(name):
+      h_allocator((!std::strcmp(name, "HOST") || rm.isAllocator(name)) ?
+                  rm.getAllocator(name) :
                   rm.makeAllocator<umpire::strategy::DynamicPool>
                   (name, rm.getAllocator("HOST"))),
       strat(h_allocator.getAllocationStrategy()) { }
@@ -506,7 +507,8 @@ public:
       DeviceMemorySpace(),
       name(mm.GetUmpireAllocatorDeviceName()),
       rm(umpire::ResourceManager::getInstance()),
-      d_allocator(rm.isAllocator(name)? rm.getAllocator(name):
+      d_allocator((!std::strcmp(name, "DEVICE") || rm.isAllocator(name)) ?
+                  rm.getAllocator(name) :
                   rm.makeAllocator<umpire::strategy::DynamicPool>
                   (name, rm.getAllocator("DEVICE"))) { }
    void Alloc(Memory &base) { base.d_ptr = d_allocator.allocate(base.bytes); }
