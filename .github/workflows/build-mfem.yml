@@ -95,6 +95,7 @@ jobs:
         if [[ $OS == 'ubuntu-latest' && $DEBUG == 'YES' ]]
         then
           CPPFLAGS+=" -pedantic -Wall -Werror";
+        fi
         cd mfem;
         make config MFEM_USE_MPI=$MPI MFEM_MPI_NP=2 MFEM_DEBUG=$DEBUG CPPFLAGS="$CPPFLAGS";
     - name: make
