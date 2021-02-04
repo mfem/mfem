@@ -2506,9 +2506,10 @@ void VectorDiffusionIntegrator::AssembleElementVector(
    // pelmat.SetSize(dim);
 
    elvect.SetSize(dim*dof);
-   // NOTE: DenseMatrix is in column-major order.
-   // This is consistent with vectors ordered byNODES.
-   // in the resulting DenseMatrix, each column corresponds to a particular vdim.
+
+   // NOTE: DenseMatrix is in column-major order. This is consistent with
+   // vectors ordered byNODES. In the resulting DenseMatrix, each column
+   // corresponds to a particular vdim.
    DenseMatrix mat_in(elfun.GetData(), dof, dim);
    DenseMatrix mat_out(elvect.GetData(), dof, dim);
 
@@ -2568,6 +2569,7 @@ void VectorDiffusionIntegrator::AssembleElementVector(
       }
    }
 }
+
 
 void ElasticityIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
