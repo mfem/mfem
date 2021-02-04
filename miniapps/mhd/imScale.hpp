@@ -62,6 +62,40 @@ extern int icase;
 extern ParMesh *pmesh;
 extern int order;
 
+class UserMonitor : public PetscSolverMonitor
+{
+   ParFiniteElementSpace &fespace;
+   ParMesh *mesh;
+   int myid;
+public:
+   UserMonitor(ParFiniteElementSpace &f) 
+       : PetscSolverMonitor(true,true), fespace(f) {
+      mesh = fespace.GetParMesh();
+      MPI_Comm_rank(mesh->GetComm(),&myid);
+   }
+
+   void MonitorSolution(PetscInt it, PetscReal norm, const Vector &X)
+   {
+      double rnorm = X.Norml2();
+      rnorm *= rnorm;
+      double rnorm_global;
+      MPI_Reduce(&rnorm, &rnorm_global, 1, MPI_DOUBLE, MPI_SUM, 0, mesh->GetComm());
+      if (myid==0) 
+      {
+          rnorm_global=sqrt(rnorm_global);
+          cout <<" "<<it<<" SNES Solution norm = "<<rnorm_global<<endl;
+      }
+   }
+
+   void MonitorResidual(PetscInt it, PetscReal norm, const Vector &X)
+   {
+      if (myid==0) 
+      {
+          cout <<" "<<it<<" SNES Function norm = "<<norm<<endl;
+      }
+   }
+};
+
 
 // reduced system 
 class ReducedSystemOperator : public Operator
@@ -371,6 +405,7 @@ protected:
    PetscNonlinearSolver *pnewton_solver;
    myBCHandler *bchandler;
    PetscPreconditionerFactory *J_factory;
+   UserMonitor *mymon;
 
 
    int myid;
@@ -659,17 +694,21 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
          SNESKSPSetParametersEW(snes,2,1e-4,0.1,0.9,1.5,1.5,0.1);
          */
 
+
          if (useFull>0)
             J_factory = new FullPreconditionerFactory(*reduced_oper, "JFNK Full preconditioner");
          else
             J_factory = new PreconditionerFactory(*reduced_oper, "JFNK preconditioner");
          pnewton_solver->SetPreconditionerFactory(J_factory);
+
       }
       pnewton_solver->SetPrintLevel(0); // print Newton iterations
       pnewton_solver->SetRelTol(rel_tol);
       pnewton_solver->SetAbsTol(0.0);
       pnewton_solver->SetMaxIter(20);
       pnewton_solver->iterative_mode=true;
+      mymon=new UserMonitor(fespace);
+      pnewton_solver->SetMonitor(mymon);
 
       if (bctype==1)
       {
@@ -791,7 +830,11 @@ void ResistiveMHDOperator::ImplicitSolve(const double dt,
        zero*=weakPenalty;
    }
 
-   pnewton_solver->Mult(zero, k);  //here k is solved as vx^{n+1}
+   pnewton_solver->Mult(zero, k);  //here k is solved as vx^{n+1} 
+   //PetscReal snorm;
+   //SNES snes=SNES(*pnewton_solver);
+   //SNESGetSolutionNorm(snes, &snorm);
+   //if (myid==0) cout<<"the last snorm in petsc ="<<snorm<<endl;
     
    if (pnewton_solver->GetConverged())
    {
@@ -882,6 +925,7 @@ void ResistiveMHDOperator::DestroyHypre()
     delete K_prec;
     delete reduced_oper;
     delete J_factory;
+    delete mymon;
     delete pnewton_solver;
     delete bchandler;
 }

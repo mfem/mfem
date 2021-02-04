@@ -391,6 +391,7 @@ PetscBlockSolver::PetscBlockSolver(const OperatorHandle &oh) : Solver() {
 }
 
 //Mult will only be called once
+//this x is normalized to 1!!
 void PetscBlockSolver::Mult(const Vector &x, Vector &y) const
 {   
    Mat Kmat = sub[0][0];
@@ -467,6 +468,17 @@ void PetscBlockSolver::Mult(const Vector &x, Vector &y) const
       MatMult(Mmat, y2, rhs);
       VecAYPX(rhs, -1., b0);
       KSPSolve(kspblock[0],rhs,y0);
+   }
+
+   if (true)
+   {
+      PetscReal      snorm;
+      PetscInt       size;
+      Vec Yout=*Y;  //typecasting
+      VecGetSize(Yout, &size);
+      VecNorm(Yout,NORM_2,&snorm);
+      //PetscPrintf(PETSC_COMM_WORLD,"snorm = %6.4e, %6.4e, %6.4e,\n",snorm0/size, snorm1/size, snorm2/size);
+      PetscPrintf(PETSC_COMM_WORLD," my snorm = %6.4e size = %i\n",snorm,size);
    }
 
    if (false)
