@@ -576,6 +576,8 @@ protected: // implementation
    int NewTriangle(int n0, int n1, int n2,
                    int attr, int eattr0, int eattr1, int eattr2);
 
+   int NewSegment(int n0, int n1, int attr);
+
    mfem::Element* NewMeshElement(int geom) const;
 
    int QuadFaceSplitType(int v1, int v2, int v3, int v4, int mid[5]
