@@ -826,7 +826,7 @@ void GroupCommunicator::BcastBegin(T *ldata, int layout) const
       }
    }
 
-   comm_lock = 1; // 1 - locked fot Bcast
+   comm_lock = 1; // 1 - locked for Bcast
    num_requests = request_counter;
 }
 

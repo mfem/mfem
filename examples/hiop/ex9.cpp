@@ -52,6 +52,10 @@
 #include <fstream>
 #include <iostream>
 
+#ifndef MFEM_USE_HIOP
+#error This example requires that MFEM is built with MFEM_USE_HIOP=YES
+#endif
+
 using namespace std;
 using namespace mfem;
 
@@ -100,7 +104,7 @@ public:
    }
 };
 
-/// Nonlinear monotone bounded operator to test nonlinear ineq constraints.
+/// Nonlinear monotone bounded operator to test nonlinear inequality constraints
 /// Computes D(x) = tanh(sum(x_i)).
 class TanhSumOperator : public Operator
 {
@@ -124,7 +128,7 @@ public:
    }
 };
 
-/** Monotone and conservative a-posteriori correction for transport solutions:
+/** Monotone and conservative a posteriori correction for transport solutions:
  *  Find x that minimizes 0.5 || x - x_HO ||^2, subject to
  *  sum w_i x_i = mass,
  *  tanh(sum(x_i_min)) <= tanh(sum(x_i)) <= tanh(sum(x_i_max)),

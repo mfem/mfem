@@ -10,8 +10,8 @@
 // CONTRIBUTING.md for details.
 
 
-#include <cmath>
 #include "fem.hpp"
+#include <cmath>
 
 namespace mfem
 {

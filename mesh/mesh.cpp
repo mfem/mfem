@@ -29,6 +29,7 @@
 #include <cstring>
 #include <ctime>
 #include <functional>
+#include <unordered_set>
 
 // Include the METIS header, if using version 5. If using METIS 4, the needed
 // declarations are inlined below, i.e. no header is needed.
@@ -71,10 +72,14 @@ void Mesh::GetElementCenter(int i, Vector &center)
    eltransf->Transform(Geometries.GetCenter(geom), center);
 }
 
-double Mesh::GetElementSize(int i, int type)
+double Mesh::GetElementSize(ElementTransformation *T, int type)
 {
    DenseMatrix J(Dim);
-   GetElementJacobian(i, J);
+
+   Geometry::Type geom = T->GetGeometryType();
+   T->SetIntPoint(&Geometries.GetCenter(geom));
+   Geometries.JacToPerfJac(geom, T->Jacobian(), J);
+
    if (type == 0)
    {
       return pow(fabs(J.Det()), 1./Dim);
@@ -87,6 +92,11 @@ double Mesh::GetElementSize(int i, int type)
    {
       return J.CalcSingularvalue(0);   // h_max
    }
+}
+
+double Mesh::GetElementSize(int i, int type)
+{
+   return GetElementSize(GetElementTransformation(i), type);
 }
 
 double Mesh::GetElementSize(int i, const Vector &dir)
@@ -1462,6 +1472,13 @@ void Mesh::AddBdrQuadAsTriangles(const int *vi, int attr)
       }
       AddBdrTriangle(ti, attr);
    }
+}
+
+int Mesh::AddBdrPoint(int v, int attr)
+{
+   CheckEnlarge(boundary, NumOfBdrElements);
+   boundary[NumOfBdrElements] = new Point(&v, attr);
+   return NumOfBdrElements++;
 }
 
 void Mesh::GenerateBoundaryElements()
@@ -4156,7 +4173,7 @@ void Mesh::EnsureNodes()
          SetCurvature(order, false, -1, Ordering::byVDIM);
       }
    }
-   else //First order H1 mesh
+   else // First order H1 mesh
    {
       SetCurvature(1, false, -1, Ordering::byVDIM);
    }
@@ -5433,12 +5450,12 @@ void Mesh::GenerateNCFaceInfo()
       (Dim == 2) ? ncmesh->GetEdgeList() : ncmesh->GetFaceList();
 
    nc_faces_info.SetSize(0);
-   nc_faces_info.Reserve(list.masters.size() + list.slaves.size());
+   nc_faces_info.Reserve(list.masters.Size() + list.slaves.Size());
 
    int nfaces = GetNumFaces();
 
    // add records for master faces
-   for (unsigned i = 0; i < list.masters.size(); i++)
+   for (int i = 0; i < list.masters.Size(); i++)
    {
       const NCMesh::Master &master = list.masters[i];
       if (master.index >= nfaces) { continue; }
@@ -5449,7 +5466,7 @@ void Mesh::GenerateNCFaceInfo()
    }
 
    // add records for slave faces
-   for (unsigned i = 0; i < list.slaves.size(); i++)
+   for (int i = 0; i < list.slaves.Size(); i++)
    {
       const NCMesh::Slave &slave = list.slaves[i];
 
@@ -5465,14 +5482,16 @@ void Mesh::GenerateNCFaceInfo()
       NCFaceInfo &master_nc = nc_faces_info[master_fi.NCFace];
 
       slave_fi.NCFace = nc_faces_info.Size();
-      nc_faces_info.Append(NCFaceInfo(true, slave.master, &slave.point_matrix));
-
       slave_fi.Elem2No = master_fi.Elem1No;
       slave_fi.Elem2Inf = 64 * master_nc.MasterFace; // get lf no. stored above
       // NOTE: In 3D, the orientation part of Elem2Inf is encoded in the point
       //       matrix. In 2D, the point matrix has the orientation of the parent
       //       edge, so its columns need to be flipped when applying it, see
       //       ApplyLocalSlaveTransformation.
+
+      nc_faces_info.Append(
+         NCFaceInfo(true, slave.master,
+                    list.point_matrices[slave.geom][slave.matrix]));
    }
 }
 
@@ -9059,7 +9078,8 @@ void Mesh::PrintVTK(std::ostream &out)
 void Mesh::PrintVTU(std::string fname,
                     VTKFormat format,
                     bool high_order_output,
-                    int compression_level)
+                    int compression_level,
+                    bool bdr)
 {
    int ref = (high_order_output && Nodes) ? Nodes->FESpace()->GetOrder(0) : 1;
    fname = fname + ".vtu";
@@ -9071,12 +9091,20 @@ void Mesh::PrintVTU(std::string fname,
    }
    out << " byte_order=\"" << VTKByteOrder() << "\">\n";
    out << "<UnstructuredGrid>\n";
-   PrintVTU(out, ref, format, high_order_output, compression_level);
+   PrintVTU(out, ref, format, high_order_output, compression_level, bdr);
    out << "</Piece>\n"; // need to close the piece open in the PrintVTU method
    out << "</UnstructuredGrid>\n";
    out << "</VTKFile>" << std::endl;
 
    out.close();
+}
+
+void Mesh::PrintBdrVTU(std::string fname,
+                       VTKFormat format,
+                       bool high_order_output,
+                       int compression_level)
+{
+   PrintVTU(fname, format, high_order_output, compression_level, true);
 }
 
 template <typename T>
@@ -9135,7 +9163,8 @@ void WriteBase64WithSizeAndClear(std::ostream &out, std::vector<char> &buf,
 }
 
 void Mesh::PrintVTU(std::ostream &out, int ref, VTKFormat format,
-                    bool high_order_output, int compression_level)
+                    bool high_order_output, int compression_level,
+                    bool bdr_elements)
 {
    RefinedGeometry *RefG;
    DenseMatrix pmat;
@@ -9144,11 +9173,18 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTKFormat format,
    const char *type_str = (format != VTKFormat::BINARY32) ? "Float64" : "Float32";
    std::vector<char> buf;
 
+   auto get_geom = [&](int i)
+   {
+      if (bdr_elements) { return GetBdrElementBaseGeometry(i); }
+      else { return GetElementBaseGeometry(i); }
+   };
+
+   int ne = bdr_elements ? GetNBE() : GetNE();
    // count the points, cells, size
    int np = 0, nc_ref = 0, size = 0;
-   for (int i = 0; i < GetNE(); i++)
+   for (int i = 0; i < ne; i++)
    {
-      Geometry::Type geom = GetElementBaseGeometry(i);
+      Geometry::Type geom = get_geom(i);
       int nv = Geometries.GetVertices(geom)->GetNPoints();
       RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
       np += RefG->RefPts.GetNPoints();
@@ -9157,18 +9193,24 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTKFormat format,
    }
 
    out << "<Piece NumberOfPoints=\"" << np << "\" NumberOfCells=\""
-       << (high_order_output ? GetNE() : nc_ref) << "\">\n";
+       << (high_order_output ? ne : nc_ref) << "\">\n";
 
    // print out the points
    out << "<Points>\n";
    out << "<DataArray type=\"" << type_str
        << "\" NumberOfComponents=\"3\" format=\"" << fmt_str << "\">\n";
-   for (int i = 0; i < GetNE(); i++)
+   for (int i = 0; i < ne; i++)
    {
-      RefG = GlobGeometryRefiner.Refine(
-                GetElementBaseGeometry(i), ref, 1);
+      RefG = GlobGeometryRefiner.Refine(get_geom(i), ref, 1);
 
-      GetElementTransformation(i)->Transform(RefG->RefPts, pmat);
+      if (bdr_elements)
+      {
+         GetBdrElementTransformation(i)->Transform(RefG->RefPts, pmat);
+      }
+      else
+      {
+         GetElementTransformation(i)->Transform(RefG->RefPts, pmat);
+      }
 
       for (int j = 0; j < pmat.Width(); j++)
       {
@@ -9209,9 +9251,9 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTKFormat format,
    if (high_order_output)
    {
       Array<int> local_connectivity;
-      for (int iel = 0; iel < GetNE(); iel++)
+      for (int iel = 0; iel < ne; iel++)
       {
-         Geometry::Type geom = GetElementBaseGeometry(iel);
+         Geometry::Type geom = get_geom(iel);
          CreateVTKElementConnectivity(local_connectivity, geom, ref);
          int nnodes = local_connectivity.Size();
          for (int i=0; i<nnodes; ++i)
@@ -9226,18 +9268,16 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTKFormat format,
    else
    {
       int coff = 0;
-      for (int i = 0; i < GetNE(); i++)
+      for (int i = 0; i < ne; i++)
       {
-         Geometry::Type geom = GetElementBaseGeometry(i);
+         Geometry::Type geom = get_geom(i);
          int nv = Geometries.GetVertices(geom)->GetNPoints();
          RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
          Array<int> &RG = RefG->RefGeoms;
          for (int j = 0; j < RG.Size(); )
          {
-            // out << nv;
             coff = coff+nv;
             offset.push_back(coff);
-
             for (int k = 0; k < nv; k++, j++)
             {
                WriteBinaryOrASCII(out, buf, np + RG[j], " ", format);
@@ -9268,9 +9308,9 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTKFormat format,
    out << "<DataArray type=\"UInt8\" Name=\"types\" format=\""
        << fmt_str << "\">" << std::endl;
    // cell types
-   for (int i = 0; i < GetNE(); i++)
+   for (int i = 0; i < ne; i++)
    {
-      Geometry::Type geom = GetElementBaseGeometry(i);
+      Geometry::Type geom = get_geom(i);
       uint8_t vtk_cell_type = 5;
 
       // VTK element types defined at: https://git.io/JvZLm
@@ -9327,19 +9367,19 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTKFormat format,
    out << "</DataArray>" << std::endl;
    out << "</Cells>" << std::endl;
 
-   out << "<CellData Scalars=\"material\">" << std::endl;
-   out << "<DataArray type=\"Int32\" Name=\"material\" format=\""
+   out << "<CellData Scalars=\"attribute\">" << std::endl;
+   out << "<DataArray type=\"Int32\" Name=\"attribute\" format=\""
        << fmt_str << "\">" << std::endl;
-   for (int i = 0; i < GetNE(); i++)
+   for (int i = 0; i < ne; i++)
    {
-      int attr = GetAttribute(i);
+      int attr = bdr_elements ? GetBdrAttribute(i) : GetAttribute(i);
       if (high_order_output)
       {
          WriteBinaryOrASCII(out, buf, attr, "\n", format);
       }
       else
       {
-         Geometry::Type geom = GetElementBaseGeometry(i);
+         Geometry::Type geom = get_geom(i);
          int nv = Geometries.GetVertices(geom)->GetNPoints();
          RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
          for (int j = 0; j < RefG->RefGeoms.Size(); j += nv)
@@ -10487,6 +10527,227 @@ void Mesh::RemoveInternalBoundaries()
    for (int i = 0; i < GetNBE(); i++)
    {
       if (!FaceIsInterior(GetBdrElementEdgeIndex(i)))
+      {
+         new_boundary.Append(boundary[i]);
+         if (Dim == 2)
+         {
+            new_be_to_edge.Append(be_to_edge[i]);
+         }
+         else if (Dim == 3)
+         {
+            int row = new_be_to_face.Size();
+            new_be_to_face.Append(be_to_face[i]);
+            int *e = bel_to_edge->GetRow(i);
+            int ne = bel_to_edge->RowSize(i);
+            int *new_e = new_bel_to_edge->GetRow(row);
+            for (int j = 0; j < ne; j++)
+            {
+               new_e[j] = e[j];
+            }
+            new_bel_to_edge->GetI()[row+1] = new_bel_to_edge->GetI()[row] + ne;
+         }
+      }
+   }
+
+   NumOfBdrElements = new_boundary.Size();
+   mfem::Swap(boundary, new_boundary);
+
+   if (Dim == 2)
+   {
+      mfem::Swap(be_to_edge, new_be_to_edge);
+   }
+   else if (Dim == 3)
+   {
+      mfem::Swap(be_to_face, new_be_to_face);
+      delete bel_to_edge;
+      bel_to_edge = new_bel_to_edge;
+   }
+
+   Array<int> attribs(num_bdr_elem);
+   for (int i = 0; i < attribs.Size(); i++)
+   {
+      attribs[i] = GetBdrAttribute(i);
+   }
+   attribs.Sort();
+   attribs.Unique();
+   bdr_attributes.DeleteAll();
+   attribs.Copy(bdr_attributes);
+}
+
+void Mesh::RemoveInternalBoundaries(const Array<int> &_keep)
+{
+   if (NURBSext || ncmesh) { return; }
+
+   std::unordered_set<int> keep(_keep.GetData(),
+                                _keep.GetData() + _keep.Size());
+
+   int num_bdr_elem = 0;
+   int new_bel_to_edge_nnz = 0;
+   for (int i = 0; i < GetNBE(); i++)
+   {
+      if (FaceIsInterior(GetBdrElementEdgeIndex(i)) && 
+         (keep.count(boundary[i]->GetAttribute()) == 0))
+      {
+         FreeElement(boundary[i]);
+      }
+      else
+      {
+         num_bdr_elem++;
+         if (Dim == 3)
+         {
+            new_bel_to_edge_nnz += bel_to_edge->RowSize(i);
+         }
+      }
+   }
+
+   if (num_bdr_elem == GetNBE()) { return; }
+
+   Array<Element *> new_boundary(num_bdr_elem);
+   Array<int> new_be_to_edge, new_be_to_face;
+   Table *new_bel_to_edge = NULL;
+   new_boundary.SetSize(0);
+   if (Dim == 2)
+   {
+      new_be_to_edge.Reserve(num_bdr_elem);
+   }
+   else if (Dim == 3)
+   {
+      new_be_to_face.Reserve(num_bdr_elem);
+      new_bel_to_edge = new Table;
+      new_bel_to_edge->SetDims(num_bdr_elem, new_bel_to_edge_nnz);
+   }
+   for (int i = 0; i < GetNBE(); i++)
+   {
+      /// if it's not interior or is in the keep boundary list
+      if (!FaceIsInterior(GetBdrElementEdgeIndex(i)) || 
+          keep.count(boundary[i]->GetAttribute()))
+      {
+         new_boundary.Append(boundary[i]);
+         if (Dim == 2)
+         {
+            new_be_to_edge.Append(be_to_edge[i]);
+         }
+         else if (Dim == 3)
+         {
+            int row = new_be_to_face.Size();
+            new_be_to_face.Append(be_to_face[i]);
+            int *e = bel_to_edge->GetRow(i);
+            int ne = bel_to_edge->RowSize(i);
+            int *new_e = new_bel_to_edge->GetRow(row);
+            for (int j = 0; j < ne; j++)
+            {
+               new_e[j] = e[j];
+            }
+            new_bel_to_edge->GetI()[row+1] = new_bel_to_edge->GetI()[row] + ne;
+         }
+      }
+   }
+
+   NumOfBdrElements = new_boundary.Size();
+   mfem::Swap(boundary, new_boundary);
+
+   if (Dim == 2)
+   {
+      mfem::Swap(be_to_edge, new_be_to_edge);
+   }
+   else if (Dim == 3)
+   {
+      mfem::Swap(be_to_face, new_be_to_face);
+      delete bel_to_edge;
+      bel_to_edge = new_bel_to_edge;
+   }
+
+   Array<int> attribs(num_bdr_elem);
+   for (int i = 0; i < attribs.Size(); i++)
+   {
+      attribs[i] = GetBdrAttribute(i);
+   }
+   attribs.Sort();
+   attribs.Unique();
+   bdr_attributes.DeleteAll();
+   attribs.Copy(bdr_attributes);
+}
+
+void Mesh::RemoveInternalBoundariesNotAdjacentTo(const Array<int> &_regions)
+{
+   if (NURBSext || ncmesh) { return; }
+
+   std::unordered_set<int> regions(_regions.GetData(),
+                                   _regions.GetData() + _regions.Size());
+
+   int num_bdr_elem = 0;
+   int new_bel_to_edge_nnz = 0;
+   for (int i = 0; i < GetNBE(); i++)
+   {
+      auto faceNo = GetBdrElementEdgeIndex(i);
+      bool interior = FaceIsInterior(faceNo);
+
+      auto face_info = faces_info[faceNo];
+      auto adj = regions.count(elements[face_info.Elem1No]->GetAttribute());
+      if (face_info.Elem2No > 0)
+         adj += regions.count(elements[face_info.Elem2No]->GetAttribute());
+
+      bool remove = interior & !adj;
+
+      // if (remove)
+      // {
+      //    std::cout << "remove face on: " << boundary[i]->GetAttribute()
+      //              << " adj to ("
+      //              << elements[face_info.Elem1No]->GetAttribute();
+      //    if (face_info.Elem2No > 0)
+      //    {
+      //       std::cout << ", "
+      //                 << elements[face_info.Elem2No]->GetAttribute() << ")\n";
+      //    }
+      //    else
+      //    {
+      //       std::cout << ")\n";
+      //    }
+      // }
+
+      if (remove)
+      {
+         FreeElement(boundary[i]);
+      }
+      else
+      {
+         num_bdr_elem++;
+         if (Dim == 3)
+         {
+            new_bel_to_edge_nnz += bel_to_edge->RowSize(i);
+         }
+      }
+   }
+
+   if (num_bdr_elem == GetNBE()) { return; }
+
+   Array<Element *> new_boundary(num_bdr_elem);
+   Array<int> new_be_to_edge, new_be_to_face;
+   Table *new_bel_to_edge = NULL;
+   new_boundary.SetSize(0);
+   if (Dim == 2)
+   {
+      new_be_to_edge.Reserve(num_bdr_elem);
+   }
+   else if (Dim == 3)
+   {
+      new_be_to_face.Reserve(num_bdr_elem);
+      new_bel_to_edge = new Table;
+      new_bel_to_edge->SetDims(num_bdr_elem, new_bel_to_edge_nnz);
+   }
+   for (int i = 0; i < GetNBE(); i++)
+   {
+      auto faceNo = GetBdrElementEdgeIndex(i);
+      bool interior = FaceIsInterior(faceNo);
+
+      auto face_info = faces_info[faceNo];
+      auto adj = regions.count(elements[face_info.Elem1No]->GetAttribute());
+      if (face_info.Elem2No > 0)
+         adj += regions.count(elements[face_info.Elem2No]->GetAttribute());
+
+      bool keep = !interior || adj;
+
+      if (keep)
       {
          new_boundary.Append(boundary[i]);
          if (Dim == 2)

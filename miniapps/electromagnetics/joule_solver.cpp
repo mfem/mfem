@@ -908,6 +908,7 @@ double JouleHeatingCoefficient::Eval(ElementTransformation &T,
    double thisSigma;
    E_gf.GetVectorValue(T, ip, E);
    thisSigma = sigma.Eval(T, ip);
+   std::cout << "thisSigma: " << thisSigma <<" joule coeff: " << thisSigma*(E*E) << "\n";
    return thisSigma*(E*E);
 }
 

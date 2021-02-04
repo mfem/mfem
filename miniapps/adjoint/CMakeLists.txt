@@ -11,10 +11,10 @@
 
 add_mfem_miniapp(cvsRoberts_ASAi_dns
   MAIN cvsRoberts_ASAi_dns.cpp
-  LIBRARIES mfem mfem-common)
+  LIBRARIES mfem)
 
 if (MFEM_USE_MPI)
   add_mfem_miniapp(adjoint_advection_diffusion
     MAIN adjoint_advection_diffusion.cpp
-    LIBRARIES mfem mfem-common)
+    LIBRARIES mfem)
 endif()

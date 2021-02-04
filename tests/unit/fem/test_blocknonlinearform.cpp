@@ -154,7 +154,7 @@ TEST_CASE("ParBlockNonlinearForm",
                 << " Expected" << M_PI / 6.0 << " diff=" << (A4 - M_PI / 6.0)
                 << std::endl;
 
-      REQUIRE(abs(A4 - M_PI / 6.0) < 1e-2);
+      REQUIRE(fabs(A4 - M_PI / 6.0) < 1e-2);
 
       delete nf;
       delete pmesh;

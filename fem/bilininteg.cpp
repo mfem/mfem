@@ -96,6 +96,30 @@ void BilinearFormIntegrator::AddMultTransposePA(const Vector &, Vector &) const
                "   is not implemented for this class.");
 }
 
+void BilinearFormIntegrator::AssembleMF(const FiniteElementSpace &fes)
+{
+   mfem_error ("BilinearFormIntegrator::AssembleMF(...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AddMultMF(const Vector &, Vector &) const
+{
+   mfem_error ("BilinearFormIntegrator::AddMultMF(...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AddMultTransposeMF(const Vector &, Vector &) const
+{
+   mfem_error ("BilinearFormIntegrator::AddMultTransposeMF(...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AssembleDiagonalMF(Vector &)
+{
+   mfem_error ("BilinearFormIntegrator::AssembleDiagonalMF(...)\n"
+               "   is not implemented for this class.");
+}
+
 void BilinearFormIntegrator::AssembleElementMatrix (
    const FiniteElement &el, ElementTransformation &Trans,
    DenseMatrix &elmat )
@@ -2241,16 +2265,7 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      // integrand is rational function if det(J) is not constant
-      int order = 2 * Trans.OrderGrad(&el); // order of the numerator
-      if (el.Space() == FunctionSpace::rQk)
-      {
-         ir = &RefinedIntRules.Get(el.GetGeomType(), order);
-      }
-      else
-      {
-         ir = &IntRules.Get(el.GetGeomType(), order);
-      }
+      ir = &DiffusionIntegrator::GetRule(el,el);
    }
 
    elmat = 0.0;
@@ -2301,11 +2316,7 @@ void VectorDiffusionIntegrator::AssembleElementVector(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      // integrand is rational function if det(J) is not constant
-      int order = 2 * Tr.OrderGrad(&el); // order of the numerator
-      ir = (el.Space() == FunctionSpace::rQk) ?
-           &RefinedIntRules.Get(el.GetGeomType(), order) :
-           &IntRules.Get(el.GetGeomType(), order);
+      ir = &DiffusionIntegrator::GetRule(el,el);
    }
 
    elvect = 0.0;
