@@ -43,6 +43,49 @@ void ParLinearForm::MakeRef(ParFiniteElementSpace *pf, Vector &v, int v_offset)
    pfes = pf;
 }
 
+void ParLinearForm::Assemble()
+{
+   LinearForm::Assemble();
+
+   if (sflfi.Size())
+   {
+      pfes->ExchangeFaceNbrData();
+      AssembleSharedFaces();
+   }
+}
+
+void ParLinearForm::AssembleSharedFaces()
+{
+   Array<int> vdofs;
+   Vector elemvect;
+
+   if (sflfi.Size())
+   {
+      ParMesh *pmesh = pfes->GetParMesh();
+
+      for (int i = 0; i < pmesh->GetNSharedFaces(); i++)
+      {
+         FaceElementTransformations *tr = NULL;
+         tr = pmesh->GetSharedFaceTransformations(i);
+
+         if (tr != NULL)
+         {
+            int ne1 = tr->Elem1No;
+            int te1 = (*(sflfi_el_flag_marker[0]))[ne1];
+            int te2 = (*(sflfi_el_flag_marker[0]))[i+pmesh->GetNE()];
+            if (te2 == 2 && te1 == 0)
+            {
+               fes -> GetElementVDofs (tr -> Elem1No, vdofs);
+               dynamic_cast<SBM2LFIntegrator *>(sflfi[0])->SetElem1Flag(true);
+               sflfi[0] -> AssembleRHSElementVect (*fes->GetFE(tr -> Elem1No),
+                                                   *tr, elemvect);
+               AddElementVector (vdofs, elemvect);
+            }
+         }
+      }
+   }
+}
+
 void ParLinearForm::ParallelAssemble(Vector &tv)
 {
    const Operator* prolong = pfes->GetProlongationMatrix();

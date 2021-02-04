@@ -2934,6 +2934,35 @@ public:
                                    DenseMatrix &elmat);
 };
 
+// <grad u. d, grad w .n>
+class SBM2Integrator : public BilinearFormIntegrator
+{
+protected:
+   VectorCoefficient *vD; // Distance function coefficient
+   double alpha;
+   bool elem1f;
+   int nterms; //1 = Hessian (3rd order)
+
+   // these are not thread-safe!
+   Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
+   DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
+
+
+public:
+   SBM2Integrator(const double a, VectorCoefficient &vD_, int nterms_ = 0)
+      : vD(&vD_), alpha(a), nterms(nterms_) { }
+
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+
+   void SetElem1Flag(bool flag_) { elem1f = flag_; }
+
+   virtual ~SBM2Integrator() { }
+};
+
 /** Integrator for the "BR2" diffusion stabilization term
 
     sum_e eta (r_e([u]), r_e([v]))
@@ -2972,6 +3001,7 @@ protected:
 
 public:
    DGDiffusionBR2Integrator(class FiniteElementSpace *fes, double e = 1.0);
+
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,

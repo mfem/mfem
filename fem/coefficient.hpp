@@ -168,6 +168,46 @@ public:
                        const IntegrationPoint &ip);
 };
 
+class SBMFunctionCoefficient : public Coefficient
+{
+protected:
+   std::function<double(const Vector &)> Function;
+   std::function<double(const Vector &, double)> TDFunction;
+   std::function<double(const Vector &, int type)> TypeFunction;
+   int type;
+
+public:
+   /// Define a time-independent coefficient from a std function
+   /** \param F time-independent std::function */
+   SBMFunctionCoefficient(std::function<double(const Vector &)> F)
+      : Function(std::move(F))
+   { }
+
+   /// Define a time-dependent coefficient from a std function
+   /** \param TDF time-dependent function */
+   SBMFunctionCoefficient(std::function<double(const Vector &, double)> TDF)
+      : TDFunction(std::move(TDF))
+   { }
+
+   SBMFunctionCoefficient(std::function<double(const Vector &v, int)> TF,
+                          int type_)
+      : TypeFunction(std::move(TF)), type(type_)
+   { }
+
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   {
+      Vector D(2);
+      D = 0.;
+      return (this)->Eval(T, ip, D);
+   }
+
+   /// Evaluate the coefficient at @a ip.
+   double Eval(ElementTransformation &T,
+               const IntegrationPoint &ip,
+               const Vector &D);
+};
+
 class GridFunction;
 
 /// Coefficient defined by a GridFunction. This coefficient is mesh dependent.

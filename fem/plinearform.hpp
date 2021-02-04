@@ -113,6 +113,10 @@ public:
        build option MFEM_DEBUG is enabled. */
    void MakeRef(ParFiniteElementSpace *pf, Vector &v, int v_offset);
 
+   void Assemble();
+
+   void AssembleSharedFaces();
+
    /// Assemble the vector on the true dofs, i.e. P^t v.
    void ParallelAssemble(Vector &tv);
 
