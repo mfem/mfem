@@ -26,7 +26,7 @@ namespace ceed
 struct ConvectionOperatorInfo : public OperatorInfo
 {
    ConvectionContext ctx;
-   ConvectionOperatorInfo(int dim)
+   ConvectionOperatorInfo(int dim, double alpha)
    {
       header = "/convection_qf.h";
       build_func_const = ":f_build_conv_const";
@@ -42,6 +42,7 @@ struct ConvectionOperatorInfo : public OperatorInfo
       trial_op = EvalMode::Grad;
       test_op = EvalMode::Interp;
       qdatasize = dim * (dim + 1) / 2;
+      ctx.alpha = alpha;
    }
 };
 #endif
@@ -54,8 +55,7 @@ PAConvectionIntegrator::PAConvectionIntegrator(
    : PAIntegrator()
 {
 #ifdef MFEM_USE_CEED
-   ConvectionOperatorInfo info(fes.GetMesh()->Dimension());
-   info.ctx.alpha = alpha;
+   ConvectionOperatorInfo info(fes.GetMesh()->Dimension(), alpha);
    Assemble(info, fes, irm, Q);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
@@ -70,8 +70,7 @@ MFConvectionIntegrator::MFConvectionIntegrator(
    : MFIntegrator()
 {
 #ifdef MFEM_USE_CEED
-   ConvectionOperatorInfo info(fes.GetMesh()->Dimension());
-   info.ctx.alpha = alpha;
+   ConvectionOperatorInfo info(fes.GetMesh()->Dimension(), alpha);
    Assemble(info, fes, irm, Q);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
