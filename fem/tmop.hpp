@@ -1368,6 +1368,7 @@ public:
                              const Array<bool> &smarker, Coefficient &coeff,
                              AdaptivityEvaluator &ae);
 #endif
+   void GetSurfaceFittingErrors(double &err_avg, double &err_max);
 
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0) { nodes0 = &n0; }
