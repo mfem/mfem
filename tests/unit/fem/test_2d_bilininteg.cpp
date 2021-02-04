@@ -225,7 +225,7 @@ TEST_CASE("2D Bilinear Mass Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_h1,tmp_l2); g_l2 = 0.0;
+               blf.Mult(f_h1, tmp_l2); g_l2 = 0.0;
                CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_l2.ComputeL2Error(f2_coef) < tol );
@@ -236,7 +236,7 @@ TEST_CASE("2D Bilinear Mass Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
                REQUIRE( diff->MaxNorm() < tol );
             }
             SECTION("With Coefficient")
@@ -246,7 +246,7 @@ TEST_CASE("2D Bilinear Mass Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_h1,tmp_l2); g_l2 = 0.0;
+               blf.Mult(f_h1, tmp_l2); g_l2 = 0.0;
                CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_l2.ComputeL2Error(qf2_coef) < tol );
@@ -257,7 +257,7 @@ TEST_CASE("2D Bilinear Mass Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
                REQUIRE( diff->MaxNorm() < tol );
             }
          }
@@ -280,7 +280,7 @@ TEST_CASE("2D Bilinear Mass Integrators",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_h1,tmp_h1); g_h1 = 0.0;
+            blf.Mult(f_h1, tmp_h1); g_h1 = 0.0;
             CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_h1.ComputeL2Error(f2_coef) < tol );
@@ -292,7 +292,7 @@ TEST_CASE("2D Bilinear Mass Integrators",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_h1,tmp_h1); g_h1 = 0.0;
+            blf.Mult(f_h1, tmp_h1); g_h1 = 0.0;
             CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_h1.ComputeL2Error(qf2_coef) < tol );
@@ -341,7 +341,7 @@ TEST_CASE("2D Bilinear Mass Integrators",
                   blf.Assemble();
                   blf.Finalize();
 
-                  blf.Mult(f_l2,tmp_l2); g_l2 = 0.0;
+                  blf.Mult(f_l2, tmp_l2); g_l2 = 0.0;
                   CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                   REQUIRE( g_l2.ComputeL2Error(f2_coef) < tol );
@@ -353,7 +353,7 @@ TEST_CASE("2D Bilinear Mass Integrators",
                   blf.Assemble();
                   blf.Finalize();
 
-                  blf.Mult(f_l2,tmp_l2); g_l2 = 0.0;
+                  blf.Mult(f_l2, tmp_l2); g_l2 = 0.0;
                   CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                   REQUIRE( g_l2.ComputeL2Error(qf2_coef) < tol );
@@ -383,7 +383,7 @@ TEST_CASE("2D Bilinear Mass Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_l2,tmp_h1); g_h1 = 0.0;
+               blf.Mult(f_l2, tmp_h1); g_h1 = 0.0;
                CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_h1.ComputeL2Error(f2_coef) < tol );
@@ -394,7 +394,7 @@ TEST_CASE("2D Bilinear Mass Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
                REQUIRE( diff->MaxNorm() < tol );
             }
             SECTION("With Coefficient")
@@ -404,7 +404,7 @@ TEST_CASE("2D Bilinear Mass Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_l2,tmp_h1); g_h1 = 0.0;
+               blf.Mult(f_l2, tmp_h1); g_h1 = 0.0;
                CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_h1.ComputeL2Error(qf2_coef) < tol );
@@ -415,7 +415,7 @@ TEST_CASE("2D Bilinear Mass Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
                REQUIRE( diff->MaxNorm() < tol );
             }
          }
@@ -475,7 +475,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_nd,tmp_rt); g_rt = 0.0;
+               blf.Mult(f_nd, tmp_rt); g_rt = 0.0;
                CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_rt.ComputeL2Error(F2_coef) < tol );
@@ -486,7 +486,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
 
                REQUIRE( diff->MaxNorm() < tol );
 
@@ -498,7 +498,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blfv.Assemble();
                blfv.Finalize();
 
-               SparseMatrix * diffv = Add(1.0,blf.SpMat(),-1.0,blfv.SpMat());
+               SparseMatrix * diffv = Add(1.0, blf.SpMat(), -1.0, blfv.SpMat());
 
                REQUIRE( diffv->MaxNorm() < tol );
 
@@ -526,7 +526,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_nd,tmp_rt); g_rt = 0.0;
+               blf.Mult(f_nd, tmp_rt); g_rt = 0.0;
                CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_rt.ComputeL2Error(qF2_coef) < tol );
@@ -537,7 +537,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
 
                REQUIRE( diff->MaxNorm() < tol );
 
@@ -551,7 +551,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_nd,tmp_rt); g_rt = 0.0;
+               blf.Mult(f_nd, tmp_rt); g_rt = 0.0;
                CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_rt.ComputeL2Error(DF2_coef) < tol );
@@ -563,7 +563,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
 
                REQUIRE( diff->MaxNorm() < tol );
 
@@ -577,7 +577,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_nd,tmp_rt); g_rt = 0.0;
+               blf.Mult(f_nd, tmp_rt); g_rt = 0.0;
                CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_rt.ComputeL2Error(MF2_coef) < tol );
@@ -589,7 +589,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
 
                REQUIRE( diff->MaxNorm() < tol );
 
@@ -619,7 +619,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_nd,tmp_nd); g_nd = 0.0;
+               blf.Mult(f_nd, tmp_nd); g_nd = 0.0;
                CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_nd.ComputeL2Error(F2_coef) < tol );
@@ -630,7 +630,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
 
                REQUIRE( diff->MaxNorm() < tol );
 
@@ -642,7 +642,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blfv.Assemble();
                blfv.Finalize();
 
-               SparseMatrix * diffv = Add(1.0,blf.SpMat(),-1.0,blfv.SpMat());
+               SparseMatrix * diffv = Add(1.0, blf.SpMat(), -1.0, blfv.SpMat());
 
                REQUIRE( diffv->MaxNorm() < tol );
 
@@ -670,7 +670,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_nd,tmp_ndp); g_ndp = 0.0;
+               blf.Mult(f_nd, tmp_ndp); g_ndp = 0.0;
                CG(m_ndp, tmp_ndp, g_ndp, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_ndp.ComputeL2Error(qF2_coef) < tol );
@@ -681,7 +681,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
 
                REQUIRE( diff->MaxNorm() < tol );
 
@@ -695,7 +695,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_nd,tmp_ndp); g_ndp = 0.0;
+               blf.Mult(f_nd, tmp_ndp); g_ndp = 0.0;
                CG(m_ndp, tmp_ndp, g_ndp, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_ndp.ComputeL2Error(DF2_coef) < tol );
@@ -707,7 +707,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
 
                REQUIRE( diff->MaxNorm() < tol );
 
@@ -721,7 +721,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_nd,tmp_ndp); g_ndp = 0.0;
+               blf.Mult(f_nd, tmp_ndp); g_ndp = 0.0;
                CG(m_ndp, tmp_ndp, g_ndp, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_ndp.ComputeL2Error(MF2_coef) < tol );
@@ -733,7 +733,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
 
                REQUIRE( diff->MaxNorm() < tol );
 
@@ -774,7 +774,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_rt,tmp_nd); g_nd = 0.0;
+               blf.Mult(f_rt, tmp_nd); g_nd = 0.0;
                CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_nd.ComputeL2Error(F2_coef) < tol );
@@ -785,7 +785,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
 
                REQUIRE( diff->MaxNorm() < tol );
 
@@ -797,7 +797,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blfv.Assemble();
                blfv.Finalize();
 
-               SparseMatrix * diffv = Add(1.0,blf.SpMat(),-1.0,blfv.SpMat());
+               SparseMatrix * diffv = Add(1.0, blf.SpMat(), -1.0, blfv.SpMat());
 
                REQUIRE( diffv->MaxNorm() < tol );
 
@@ -825,7 +825,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_rt,tmp_nd); g_nd = 0.0;
+               blf.Mult(f_rt, tmp_nd); g_nd = 0.0;
                CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_nd.ComputeL2Error(qF2_coef) < tol );
@@ -836,7 +836,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
 
                REQUIRE( diff->MaxNorm() < tol );
 
@@ -850,7 +850,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_rt,tmp_nd); g_nd = 0.0;
+               blf.Mult(f_rt, tmp_nd); g_nd = 0.0;
                CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_nd.ComputeL2Error(DF2_coef) < tol );
@@ -862,7 +862,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
 
                REQUIRE( diff->MaxNorm() < tol );
 
@@ -876,7 +876,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_rt,tmp_nd); g_nd = 0.0;
+               blf.Mult(f_rt, tmp_nd); g_nd = 0.0;
                CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_nd.ComputeL2Error(MF2_coef) < tol );
@@ -888,7 +888,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
 
                REQUIRE( diff->MaxNorm() < tol );
 
@@ -918,7 +918,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_rt,tmp_rt); g_rt = 0.0;
+               blf.Mult(f_rt, tmp_rt); g_rt = 0.0;
                CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_rt.ComputeL2Error(F2_coef) < tol );
@@ -929,7 +929,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
 
                REQUIRE( diff->MaxNorm() < tol );
 
@@ -941,7 +941,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blfv.Assemble();
                blfv.Finalize();
 
-               SparseMatrix * diffv = Add(1.0,blf.SpMat(),-1.0,blfv.SpMat());
+               SparseMatrix * diffv = Add(1.0, blf.SpMat(), -1.0, blfv.SpMat());
 
                REQUIRE( diffv->MaxNorm() < tol );
 
@@ -969,7 +969,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_rt,tmp_rtp); g_rtp = 0.0;
+               blf.Mult(f_rt, tmp_rtp); g_rtp = 0.0;
                CG(m_rtp, tmp_rtp, g_rtp, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_rtp.ComputeL2Error(qF2_coef) < tol );
@@ -980,7 +980,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
 
                REQUIRE( diff->MaxNorm() < tol );
 
@@ -994,7 +994,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_rt,tmp_rtp); g_rtp = 0.0;
+               blf.Mult(f_rt, tmp_rtp); g_rtp = 0.0;
                CG(m_rtp, tmp_rtp, g_rtp, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_rtp.ComputeL2Error(DF2_coef) < tol );
@@ -1006,7 +1006,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
 
                REQUIRE( diff->MaxNorm() < tol );
 
@@ -1020,7 +1020,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_rt,tmp_rtp); g_rtp = 0.0;
+               blf.Mult(f_rt, tmp_rtp); g_rtp = 0.0;
                CG(m_rtp, tmp_rtp, g_rtp, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_rtp.ComputeL2Error(MF2_coef) < tol );
@@ -1032,7 +1032,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
 
                REQUIRE( diff->MaxNorm() < tol );
 
@@ -1094,7 +1094,7 @@ TEST_CASE("2D Bilinear Gradient Integrator",
             blf.Finalize();
             g_nd.ProjectCoefficient(df2_coef);
 
-            blf.Mult(f_h1,tmp_nd); g_nd = 0.0;
+            blf.Mult(f_h1, tmp_nd); g_nd = 0.0;
             CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_nd.ComputeL2Error(df2_coef) < tol );
@@ -1107,7 +1107,7 @@ TEST_CASE("2D Bilinear Gradient Integrator",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_h1,tmp_nd); g_nd = 0.0;
+            blf.Mult(f_h1, tmp_nd); g_nd = 0.0;
             CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_nd.ComputeL2Error(qdf2_coef) < tol );
@@ -1120,7 +1120,7 @@ TEST_CASE("2D Bilinear Gradient Integrator",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_h1,tmp_nd); g_nd = 0.0;
+            blf.Mult(f_h1, tmp_nd); g_nd = 0.0;
             CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_nd.ComputeL2Error(Ddf2_coef) < tol );
@@ -1133,7 +1133,7 @@ TEST_CASE("2D Bilinear Gradient Integrator",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_h1,tmp_nd); g_nd = 0.0;
+            blf.Mult(f_h1, tmp_nd); g_nd = 0.0;
             CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_nd.ComputeL2Error(Mdf2_coef) < tol );
@@ -1160,7 +1160,7 @@ TEST_CASE("2D Bilinear Gradient Integrator",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_h1,tmp_rt); g_rt = 0.0;
+            blf.Mult(f_h1, tmp_rt); g_rt = 0.0;
             CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_rt.ComputeL2Error(df2_coef) < tol );
@@ -1173,7 +1173,7 @@ TEST_CASE("2D Bilinear Gradient Integrator",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_h1,tmp_rt); g_rt = 0.0;
+            blf.Mult(f_h1, tmp_rt); g_rt = 0.0;
             CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_rt.ComputeL2Error(qdf2_coef) < tol );
@@ -1186,7 +1186,7 @@ TEST_CASE("2D Bilinear Gradient Integrator",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_h1,tmp_rt); g_rt = 0.0;
+            blf.Mult(f_h1, tmp_rt); g_rt = 0.0;
             CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_rt.ComputeL2Error(Ddf2_coef) < tol );
@@ -1199,7 +1199,7 @@ TEST_CASE("2D Bilinear Gradient Integrator",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_h1,tmp_rt); g_rt = 0.0;
+            blf.Mult(f_h1, tmp_rt); g_rt = 0.0;
             CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_rt.ComputeL2Error(Mdf2_coef) < tol );
@@ -1259,7 +1259,7 @@ TEST_CASE("2D Bilinear Scalar Curl Integrator",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_nd,tmp_l2); g_l2 = 0.0;
+               blf.Mult(f_nd, tmp_l2); g_l2 = 0.0;
                CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_l2.ComputeL2Error(dF2_coef) < tol );
@@ -1272,7 +1272,7 @@ TEST_CASE("2D Bilinear Scalar Curl Integrator",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_nd,tmp_l2); g_l2 = 0.0;
+               blf.Mult(f_nd, tmp_l2); g_l2 = 0.0;
                CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_l2.ComputeL2Error(qdF2_coef) < tol );
@@ -1300,7 +1300,7 @@ TEST_CASE("2D Bilinear Scalar Curl Integrator",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_nd,tmp_h1); g_h1 = 0.0;
+            blf.Mult(f_nd, tmp_h1); g_h1 = 0.0;
             CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_h1.ComputeL2Error(dF2_coef) < tol );
@@ -1313,7 +1313,7 @@ TEST_CASE("2D Bilinear Scalar Curl Integrator",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_nd,tmp_h1); g_h1 = 0.0;
+            blf.Mult(f_nd, tmp_h1); g_h1 = 0.0;
             CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_h1.ComputeL2Error(qdF2_coef) < tol );
@@ -1373,7 +1373,7 @@ TEST_CASE("2D Bilinear Scalar Cross Product Gradient Integrator",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_h1,tmp_l2); g_l2 = 0.0;
+               blf.Mult(f_h1, tmp_l2); g_l2 = 0.0;
                CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_l2.ComputeL2Error(Vxdf2_coef) < tol );
@@ -1399,7 +1399,7 @@ TEST_CASE("2D Bilinear Scalar Cross Product Gradient Integrator",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_h1,tmp_h1); g_h1 = 0.0;
+            blf.Mult(f_h1, tmp_h1); g_h1 = 0.0;
             CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_h1.ComputeL2Error(Vxdf2_coef) < tol );
@@ -1459,7 +1459,7 @@ TEST_CASE("2D Bilinear Divergence Integrator",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_rt,tmp_l2); g_l2 = 0.0;
+               blf.Mult(f_rt, tmp_l2); g_l2 = 0.0;
                CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_l2.ComputeL2Error(dF2_coef) < tol );
@@ -1472,7 +1472,7 @@ TEST_CASE("2D Bilinear Divergence Integrator",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_rt,tmp_l2); g_l2 = 0.0;
+               blf.Mult(f_rt, tmp_l2); g_l2 = 0.0;
                CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_l2.ComputeL2Error(qdF2_coef) < tol );
@@ -1500,7 +1500,7 @@ TEST_CASE("2D Bilinear Divergence Integrator",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_rt,tmp_h1); g_h1 = 0.0;
+            blf.Mult(f_rt, tmp_h1); g_h1 = 0.0;
             CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_h1.ComputeL2Error(dF2_coef) < tol );
@@ -1513,7 +1513,7 @@ TEST_CASE("2D Bilinear Divergence Integrator",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_rt,tmp_h1); g_h1 = 0.0;
+            blf.Mult(f_rt, tmp_h1); g_h1 = 0.0;
             CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_h1.ComputeL2Error(qdF2_coef) < tol );
@@ -1564,7 +1564,7 @@ TEST_CASE("2D Bilinear Vector Divergence Integrator",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_rt,tmp_rt); g_rt = 0.0;
+            blf.Mult(f_rt, tmp_rt); g_rt = 0.0;
             CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_rt.ComputeL2Error(VdF2_coef) < tol );
@@ -1592,7 +1592,7 @@ TEST_CASE("2D Bilinear Vector Divergence Integrator",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_rt,tmp_nd); g_nd = 0.0;
+            blf.Mult(f_rt, tmp_nd); g_nd = 0.0;
             CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_nd.ComputeL2Error(VdF2_coef) < tol );
@@ -1645,7 +1645,7 @@ TEST_CASE("2D Bilinear Vector Product Integrators",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_h1,tmp_nd); g_nd = 0.0;
+            blf.Mult(f_h1, tmp_nd); g_nd = 0.0;
             CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_nd.ComputeL2Error(Vf2_coef) < tol );
@@ -1657,7 +1657,7 @@ TEST_CASE("2D Bilinear Vector Product Integrators",
             blfw.Finalize();
 
             SparseMatrix * blfT = Transpose(blfw.SpMat());
-            SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+            SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
 
             REQUIRE( diff->MaxNorm() < tol );
 
@@ -1686,7 +1686,7 @@ TEST_CASE("2D Bilinear Vector Product Integrators",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_h1,tmp_rt); g_rt = 0.0;
+            blf.Mult(f_h1, tmp_rt); g_rt = 0.0;
             CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_rt.ComputeL2Error(Vf2_coef) < tol );
@@ -1698,7 +1698,7 @@ TEST_CASE("2D Bilinear Vector Product Integrators",
             blfw.Finalize();
 
             SparseMatrix * blfT = Transpose(blfw.SpMat());
-            SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+            SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
 
             REQUIRE( diff->MaxNorm() < tol );
 
@@ -1742,7 +1742,7 @@ TEST_CASE("2D Bilinear Vector Product Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_l2,tmp_nd); g_nd = 0.0;
+               blf.Mult(f_l2, tmp_nd); g_nd = 0.0;
                CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_nd.ComputeL2Error(Vf2_coef) < tol );
@@ -1754,7 +1754,7 @@ TEST_CASE("2D Bilinear Vector Product Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
 
                REQUIRE( diff->MaxNorm() < tol );
 
@@ -1784,7 +1784,7 @@ TEST_CASE("2D Bilinear Vector Product Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_l2,tmp_rt); g_rt = 0.0;
+               blf.Mult(f_l2, tmp_rt); g_rt = 0.0;
                CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_rt.ComputeL2Error(Vf2_coef) < tol );
@@ -1796,7 +1796,7 @@ TEST_CASE("2D Bilinear Vector Product Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
 
                REQUIRE( diff->MaxNorm() < tol );
 
@@ -1853,7 +1853,7 @@ TEST_CASE("2D Bilinear Scalar Cross Product Integrators",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_nd,tmp_h1p); g_h1p = 0.0;
+            blf.Mult(f_nd, tmp_h1p); g_h1p = 0.0;
             CG(m_h1p, tmp_h1p, g_h1p, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_h1p.ComputeL2Error(VxF2_coef) < tol );
@@ -1887,7 +1887,7 @@ TEST_CASE("2D Bilinear Scalar Cross Product Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_nd,tmp_l2); g_l2 = 0.0;
+               blf.Mult(f_nd, tmp_l2); g_l2 = 0.0;
                CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_l2.ComputeL2Error(VxF2_coef) < tol );
@@ -1924,7 +1924,7 @@ TEST_CASE("2D Bilinear Scalar Cross Product Integrators",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_rt,tmp_h1); g_h1 = 0.0;
+            blf.Mult(f_rt, tmp_h1); g_h1 = 0.0;
             CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_h1.ComputeL2Error(VxF2_coef) < tol );
@@ -1958,7 +1958,7 @@ TEST_CASE("2D Bilinear Scalar Cross Product Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_rt,tmp_l2p); g_l2p = 0.0;
+               blf.Mult(f_rt, tmp_l2p); g_l2p = 0.0;
                CG(m_l2p, tmp_l2p, g_l2p, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_l2p.ComputeL2Error(VxF2_coef) < tol );
@@ -2013,7 +2013,7 @@ TEST_CASE("2D Bilinear Scalar Weak Cross Product Integrators",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_h1,tmp_ndp); g_ndp = 0.0;
+            blf.Mult(f_h1, tmp_ndp); g_ndp = 0.0;
             CG(m_ndp, tmp_ndp, g_ndp, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_ndp.ComputeL2Error(Vxf2_coef) < tol );
@@ -2025,7 +2025,7 @@ TEST_CASE("2D Bilinear Scalar Weak Cross Product Integrators",
             blfw.Finalize();
 
             SparseMatrix * blfT = Transpose(blfw.SpMat());
-            SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
+            SparseMatrix * diff = Add(1.0, blf.SpMat(), 1.0, *blfT);
 
             REQUIRE( diff->MaxNorm() < tol );
 
@@ -2055,7 +2055,7 @@ TEST_CASE("2D Bilinear Scalar Weak Cross Product Integrators",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_h1,tmp_rt); g_rt = 0.0;
+            blf.Mult(f_h1, tmp_rt); g_rt = 0.0;
             CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_rt.ComputeL2Error(Vxf2_coef) < tol );
@@ -2067,7 +2067,7 @@ TEST_CASE("2D Bilinear Scalar Weak Cross Product Integrators",
             blfw.Finalize();
 
             SparseMatrix * blfT = Transpose(blfw.SpMat());
-            SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
+            SparseMatrix * diff = Add(1.0, blf.SpMat(), 1.0, *blfT);
 
             REQUIRE( diff->MaxNorm() < tol );
 
@@ -2112,7 +2112,7 @@ TEST_CASE("2D Bilinear Scalar Weak Cross Product Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_l2,tmp_ndp); g_ndp = 0.0;
+               blf.Mult(f_l2, tmp_ndp); g_ndp = 0.0;
                CG(m_ndp, tmp_ndp, g_ndp, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_ndp.ComputeL2Error(Vxf2_coef) < tol );
@@ -2124,7 +2124,7 @@ TEST_CASE("2D Bilinear Scalar Weak Cross Product Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), 1.0, *blfT);
 
                REQUIRE( diff->MaxNorm() < tol );
 
@@ -2155,7 +2155,7 @@ TEST_CASE("2D Bilinear Scalar Weak Cross Product Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_l2,tmp_rt); g_rt = 0.0;
+               blf.Mult(f_l2, tmp_rt); g_rt = 0.0;
                CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_rt.ComputeL2Error(Vxf2_coef) < tol );
@@ -2167,7 +2167,7 @@ TEST_CASE("2D Bilinear Scalar Weak Cross Product Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), 1.0, *blfT);
 
                REQUIRE( diff->MaxNorm() < tol );
 
@@ -2217,7 +2217,7 @@ TEST_CASE("2D Bilinear Scalar Weak Curl Integrators",
             blfw.Finalize();
 
             SparseMatrix * blfT = Transpose(blfw.SpMat());
-            SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+            SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
 
             REQUIRE( diff->MaxNorm() < tol );
 
@@ -2239,7 +2239,7 @@ TEST_CASE("2D Bilinear Scalar Weak Curl Integrators",
             blfw.Finalize();
 
             SparseMatrix * blfT = Transpose(blfw.SpMat());
-            SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+            SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
 
             REQUIRE( diff->MaxNorm() < tol );
 
@@ -2280,7 +2280,7 @@ TEST_CASE("2D Bilinear Scalar Weak Curl Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
 
                REQUIRE( diff->MaxNorm() < tol );
 
@@ -2302,7 +2302,7 @@ TEST_CASE("2D Bilinear Scalar Weak Curl Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
 
                REQUIRE( diff->MaxNorm() < tol );
 
@@ -2352,7 +2352,7 @@ TEST_CASE("2D Bilinear Scalar Weak Gradient Integrators",
             blfw.Finalize();
 
             SparseMatrix * blfT = Transpose(blfw.SpMat());
-            SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
+            SparseMatrix * diff = Add(1.0, blf.SpMat(), 1.0, *blfT);
 
             REQUIRE( diff->MaxNorm() < tol );
 
@@ -2374,7 +2374,7 @@ TEST_CASE("2D Bilinear Scalar Weak Gradient Integrators",
             blfw.Finalize();
 
             SparseMatrix * blfT = Transpose(blfw.SpMat());
-            SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
+            SparseMatrix * diff = Add(1.0, blf.SpMat(), 1.0, *blfT);
 
             REQUIRE( diff->MaxNorm() < tol );
 
@@ -2415,7 +2415,7 @@ TEST_CASE("2D Bilinear Scalar Weak Gradient Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), 1.0, *blfT);
 
                REQUIRE( diff->MaxNorm() < tol );
 
@@ -2437,7 +2437,7 @@ TEST_CASE("2D Bilinear Scalar Weak Gradient Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), 1.0, *blfT);
 
                REQUIRE( diff->MaxNorm() < tol );
 
@@ -2491,7 +2491,7 @@ TEST_CASE("2D Bilinear Directional Derivative Integrators",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_h1,tmp_h1); g_h1 = 0.0;
+            blf.Mult(f_h1, tmp_h1); g_h1 = 0.0;
             CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_h1.ComputeL2Error(Vdf2_coef) < tol );
@@ -2525,7 +2525,7 @@ TEST_CASE("2D Bilinear Directional Derivative Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_h1,tmp_l2); g_l2 = 0.0;
+               blf.Mult(f_h1, tmp_l2); g_l2 = 0.0;
                CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_l2.ComputeL2Error(Vdf2_coef) < tol );
@@ -2571,7 +2571,7 @@ TEST_CASE("2D Bilinear Scalar Weak Divergence Integrators",
             blfw.Finalize();
 
             SparseMatrix * blfT = Transpose(blfw.SpMat());
-            SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
+            SparseMatrix * diff = Add(1.0, blf.SpMat(), 1.0, *blfT);
 
             REQUIRE( diff->MaxNorm() < tol );
 
@@ -2612,7 +2612,7 @@ TEST_CASE("2D Bilinear Scalar Weak Divergence Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), 1.0, *blfT);
 
                REQUIRE( diff->MaxNorm() < tol );
 
@@ -2666,7 +2666,7 @@ TEST_CASE("2D Bilinear Vector Weak Divergence Integrators",
             blfw.Finalize();
 
             SparseMatrix * blfT = Transpose(blfw.SpMat());
-            SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
+            SparseMatrix * diff = Add(1.0, blf.SpMat(), 1.0, *blfT);
 
             REQUIRE( diff->MaxNorm() < tol );
 
@@ -2688,7 +2688,7 @@ TEST_CASE("2D Bilinear Vector Weak Divergence Integrators",
             blfw.Finalize();
 
             SparseMatrix * blfT = Transpose(blfw.SpMat());
-            SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
+            SparseMatrix * diff = Add(1.0, blf.SpMat(), 1.0, *blfT);
 
             REQUIRE( diff->MaxNorm() < tol );
 
@@ -2710,7 +2710,7 @@ TEST_CASE("2D Bilinear Vector Weak Divergence Integrators",
             blfw.Finalize();
 
             SparseMatrix * blfT = Transpose(blfw.SpMat());
-            SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
+            SparseMatrix * diff = Add(1.0, blf.SpMat(), 1.0, *blfT);
 
             REQUIRE( diff->MaxNorm() < tol );
 
@@ -2732,7 +2732,7 @@ TEST_CASE("2D Bilinear Vector Weak Divergence Integrators",
             blfw.Finalize();
 
             SparseMatrix * blfT = Transpose(blfw.SpMat());
-            SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
+            SparseMatrix * diff = Add(1.0, blf.SpMat(), 1.0, *blfT);
 
             REQUIRE( diff->MaxNorm() < tol );
 
@@ -2766,7 +2766,7 @@ TEST_CASE("2D Bilinear Vector Weak Divergence Integrators",
             blfw.Finalize();
 
             SparseMatrix * blfT = Transpose(blfw.SpMat());
-            SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
+            SparseMatrix * diff = Add(1.0, blf.SpMat(), 1.0, *blfT);
 
             REQUIRE( diff->MaxNorm() < tol );
 
@@ -2788,7 +2788,7 @@ TEST_CASE("2D Bilinear Vector Weak Divergence Integrators",
             blfw.Finalize();
 
             SparseMatrix * blfT = Transpose(blfw.SpMat());
-            SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
+            SparseMatrix * diff = Add(1.0, blf.SpMat(), 1.0, *blfT);
 
             REQUIRE( diff->MaxNorm() < tol );
 
@@ -2810,7 +2810,7 @@ TEST_CASE("2D Bilinear Vector Weak Divergence Integrators",
             blfw.Finalize();
 
             SparseMatrix * blfT = Transpose(blfw.SpMat());
-            SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
+            SparseMatrix * diff = Add(1.0, blf.SpMat(), 1.0, *blfT);
 
             REQUIRE( diff->MaxNorm() < tol );
 
@@ -2832,7 +2832,7 @@ TEST_CASE("2D Bilinear Vector Weak Divergence Integrators",
             blfw.Finalize();
 
             SparseMatrix * blfT = Transpose(blfw.SpMat());
-            SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
+            SparseMatrix * diff = Add(1.0, blf.SpMat(), 1.0, *blfT);
 
             REQUIRE( diff->MaxNorm() < tol );
 
@@ -2889,7 +2889,7 @@ TEST_CASE("2D Bilinear Dot Product Integrators",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_nd,tmp_h1); g_h1 = 0.0;
+            blf.Mult(f_nd, tmp_h1); g_h1 = 0.0;
             CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_h1.ComputeL2Error(VF2_coef) < tol );
@@ -2923,7 +2923,7 @@ TEST_CASE("2D Bilinear Dot Product Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_nd,tmp_l2); g_l2 = 0.0;
+               blf.Mult(f_nd, tmp_l2); g_l2 = 0.0;
                CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_l2.ComputeL2Error(VF2_coef) < tol );
@@ -2960,7 +2960,7 @@ TEST_CASE("2D Bilinear Dot Product Integrators",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_rt,tmp_h1); g_h1 = 0.0;
+            blf.Mult(f_rt, tmp_h1); g_h1 = 0.0;
             CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_h1.ComputeL2Error(VF2_coef) < tol );
@@ -2994,7 +2994,7 @@ TEST_CASE("2D Bilinear Dot Product Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_rt,tmp_l2); g_l2 = 0.0;
+               blf.Mult(f_rt, tmp_l2); g_l2 = 0.0;
                CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_l2.ComputeL2Error(VF2_coef) < tol );
@@ -3042,7 +3042,7 @@ TEST_CASE("2D Bilinear Weak Gradient Dot Product Integrators",
             blfw.Finalize();
 
             SparseMatrix * blfT = Transpose(blfw.SpMat());
-            SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
+            SparseMatrix * diff = Add(1.0, blf.SpMat(), 1.0, *blfT);
 
             REQUIRE( diff->MaxNorm() < tol );
 
@@ -3073,7 +3073,7 @@ TEST_CASE("2D Bilinear Weak Gradient Dot Product Integrators",
             blfw.Finalize();
 
             SparseMatrix * blfT = Transpose(blfw.SpMat());
-            SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
+            SparseMatrix * diff = Add(1.0, blf.SpMat(), 1.0, *blfT);
 
             REQUIRE( diff->MaxNorm() < tol );
 
@@ -3129,7 +3129,7 @@ TEST_CASE("2D Bilinear Scalar Cross Product Curl Integrator",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_nd,tmp_rt); g_rt = 0.0;
+            blf.Mult(f_nd, tmp_rt); g_rt = 0.0;
             CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_rt.ComputeL2Error(VxdF2_coef) < tol );
@@ -3154,7 +3154,7 @@ TEST_CASE("2D Bilinear Scalar Cross Product Curl Integrator",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_nd,tmp_nd); g_nd = 0.0;
+            blf.Mult(f_nd, tmp_nd); g_nd = 0.0;
             CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_nd.ComputeL2Error(VxdF2_coef) < tol );
@@ -3198,7 +3198,7 @@ TEST_CASE("2D Bilinear Scalar Weak Curl Cross Integrators",
             blfw.Finalize();
 
             SparseMatrix * blfT = Transpose(blfw.SpMat());
-            SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
+            SparseMatrix * diff = Add(1.0, blf.SpMat(), 1.0, *blfT);
 
             REQUIRE( diff->MaxNorm() < tol );
 
@@ -3232,7 +3232,7 @@ TEST_CASE("2D Bilinear Scalar Weak Curl Cross Integrators",
             blfw.Finalize();
 
             SparseMatrix * blfT = Transpose(blfw.SpMat());
-            SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
+            SparseMatrix * diff = Add(1.0, blf.SpMat(), 1.0, *blfT);
 
             REQUIRE( diff->MaxNorm() < tol );
 

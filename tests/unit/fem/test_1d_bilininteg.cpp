@@ -97,7 +97,7 @@ TEST_CASE("1D Bilinear Mass Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_h1,tmp_l2); g_l2 = 0.0;
+               blf.Mult(f_h1, tmp_l2); g_l2 = 0.0;
                CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_l2.ComputeL2Error(f1_coef) < tol );
@@ -108,7 +108,7 @@ TEST_CASE("1D Bilinear Mass Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
                REQUIRE( diff->MaxNorm() < tol );
             }
             SECTION("With Coefficient")
@@ -118,7 +118,7 @@ TEST_CASE("1D Bilinear Mass Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_h1,tmp_l2); g_l2 = 0.0;
+               blf.Mult(f_h1, tmp_l2); g_l2 = 0.0;
                CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_l2.ComputeL2Error(vf1_coef) < tol );
@@ -129,7 +129,7 @@ TEST_CASE("1D Bilinear Mass Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
                REQUIRE( diff->MaxNorm() < tol );
             }
          }
@@ -152,7 +152,7 @@ TEST_CASE("1D Bilinear Mass Integrators",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_h1,tmp_h1); g_h1 = 0.0;
+            blf.Mult(f_h1, tmp_h1); g_h1 = 0.0;
             CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_h1.ComputeL2Error(f1_coef) < tol );
@@ -164,7 +164,7 @@ TEST_CASE("1D Bilinear Mass Integrators",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_h1,tmp_h1); g_h1 = 0.0;
+            blf.Mult(f_h1, tmp_h1); g_h1 = 0.0;
             CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_h1.ComputeL2Error(vf1_coef) < tol );
@@ -213,7 +213,7 @@ TEST_CASE("1D Bilinear Mass Integrators",
                   blf.Assemble();
                   blf.Finalize();
 
-                  blf.Mult(f_l2,tmp_l2); g_l2 = 0.0;
+                  blf.Mult(f_l2, tmp_l2); g_l2 = 0.0;
                   CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                   REQUIRE( g_l2.ComputeL2Error(f1_coef) < tol );
@@ -225,7 +225,7 @@ TEST_CASE("1D Bilinear Mass Integrators",
                   blf.Assemble();
                   blf.Finalize();
 
-                  blf.Mult(f_l2,tmp_l2); g_l2 = 0.0;
+                  blf.Mult(f_l2, tmp_l2); g_l2 = 0.0;
                   CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                   REQUIRE( g_l2.ComputeL2Error(vf1_coef) < tol );
@@ -255,7 +255,7 @@ TEST_CASE("1D Bilinear Mass Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_l2,tmp_h1); g_h1 = 0.0;
+               blf.Mult(f_l2, tmp_h1); g_h1 = 0.0;
                CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_h1.ComputeL2Error(f1_coef) < tol );
@@ -266,7 +266,7 @@ TEST_CASE("1D Bilinear Mass Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
                REQUIRE( diff->MaxNorm() < tol );
             }
             SECTION("With Coefficient")
@@ -276,7 +276,7 @@ TEST_CASE("1D Bilinear Mass Integrators",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_l2,tmp_h1); g_h1 = 0.0;
+               blf.Mult(f_l2, tmp_h1); g_h1 = 0.0;
                CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_h1.ComputeL2Error(vf1_coef) < tol );
@@ -287,7 +287,7 @@ TEST_CASE("1D Bilinear Mass Integrators",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
                REQUIRE( diff->MaxNorm() < tol );
             }
          }
@@ -346,7 +346,7 @@ TEST_CASE("1D Bilinear Derivative Integrator",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_h1,tmp_l2); g_l2 = 0.0;
+               blf.Mult(f_h1, tmp_l2); g_l2 = 0.0;
                CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_l2.ComputeL2Error(df1_coef) < tol );
@@ -359,7 +359,7 @@ TEST_CASE("1D Bilinear Derivative Integrator",
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_h1,tmp_l2); g_l2 = 0.0;
+               blf.Mult(f_h1, tmp_l2); g_l2 = 0.0;
                CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_l2.ComputeL2Error(vdf1_coef) < tol );
@@ -384,7 +384,7 @@ TEST_CASE("1D Bilinear Derivative Integrator",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_h1,tmp_h1); g_h1 = 0.0;
+            blf.Mult(f_h1, tmp_h1); g_h1 = 0.0;
             CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_h1.ComputeL2Error(df1_coef) < tol );
@@ -397,7 +397,7 @@ TEST_CASE("1D Bilinear Derivative Integrator",
             blf.Assemble();
             blf.Finalize();
 
-            blf.Mult(f_h1,tmp_h1); g_h1 = 0.0;
+            blf.Mult(f_h1, tmp_h1); g_h1 = 0.0;
             CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_h1.ComputeL2Error(vdf1_coef) < tol );
@@ -453,7 +453,7 @@ TEST_CASE("1D Bilinear Weak Derivative Integrator",
             b.AddBoundaryIntegrator(new BoundaryLFIntegrator(f1_coef));
             b.Assemble();
 
-            blf.Mult(f_h1,tmp_h1); tmp_h1 += b; g_h1 = 0.0;
+            blf.Mult(f_h1, tmp_h1); tmp_h1 += b; g_h1 = 0.0;
             CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_h1.ComputeL2Error(df1_coef) < tol );
@@ -464,7 +464,7 @@ TEST_CASE("1D Bilinear Weak Derivative Integrator",
             blfw.Finalize();
 
             SparseMatrix * blfT = Transpose(blfw.SpMat());
-            SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
+            SparseMatrix * diff = Add(1.0, blf.SpMat(), 1.0, *blfT);
             REQUIRE( diff->MaxNorm() < tol );
          }
          SECTION("With Coefficient")
@@ -479,7 +479,7 @@ TEST_CASE("1D Bilinear Weak Derivative Integrator",
             b.AddBoundaryIntegrator(new BoundaryLFIntegrator(vf1_coef));
             b.Assemble();
 
-            blf.Mult(f_h1,tmp_h1); tmp_h1 += b; g_h1 = 0.0;
+            blf.Mult(f_h1, tmp_h1); tmp_h1 += b; g_h1 = 0.0;
             CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
 
             REQUIRE( g_h1.ComputeL2Error(dvf1_coef) < tol );
@@ -491,7 +491,7 @@ TEST_CASE("1D Bilinear Weak Derivative Integrator",
             blfw.Finalize();
 
             SparseMatrix * blfT = Transpose(blfw.SpMat());
-            SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
+            SparseMatrix * diff = Add(1.0, blf.SpMat(), 1.0, *blfT);
             REQUIRE( diff->MaxNorm() < tol );
          }
       }
@@ -535,7 +535,7 @@ TEST_CASE("1D Bilinear Weak Derivative Integrator",
                b.AddBoundaryIntegrator(new BoundaryLFIntegrator(f1_coef));
                b.Assemble();
 
-               blf.Mult(f_l2,tmp_h1); tmp_h1 += b; g_h1 = 0.0;
+               blf.Mult(f_l2, tmp_h1); tmp_h1 += b; g_h1 = 0.0;
                CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_h1.ComputeL2Error(df1_coef) < tol );
@@ -546,7 +546,7 @@ TEST_CASE("1D Bilinear Weak Derivative Integrator",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), 1.0, *blfT);
                REQUIRE( diff->MaxNorm() < tol );
             }
             SECTION("With Coefficient")
@@ -561,7 +561,7 @@ TEST_CASE("1D Bilinear Weak Derivative Integrator",
                b.AddBoundaryIntegrator(new BoundaryLFIntegrator(vf1_coef));
                b.Assemble();
 
-               blf.Mult(f_l2,tmp_h1); tmp_h1 += b; g_h1 = 0.0;
+               blf.Mult(f_l2, tmp_h1); tmp_h1 += b; g_h1 = 0.0;
                CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_h1.ComputeL2Error(dvf1_coef) < tol );
@@ -573,7 +573,7 @@ TEST_CASE("1D Bilinear Weak Derivative Integrator",
                blfw.Finalize();
 
                SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
+               SparseMatrix * diff = Add(1.0, blf.SpMat(), 1.0, *blfT);
                REQUIRE( diff->MaxNorm() < tol );
             }
          }
@@ -624,7 +624,7 @@ TEST_CASE("1D Bilinear Diffusion Integrator",
       b.Assemble();
       b[0] *=-1.0;
 
-      blf.Mult(f_h1,tmp_h1); tmp_h1 -= b; g_h1 = 0.0;
+      blf.Mult(f_h1, tmp_h1); tmp_h1 -= b; g_h1 = 0.0;
       CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
 
       REQUIRE( g_h1.ComputeL2Error(ddf1_coef) < tol );
@@ -641,7 +641,7 @@ TEST_CASE("1D Bilinear Diffusion Integrator",
       b.Assemble();
       b[0] *=-1.0;
 
-      blf.Mult(f_h1,tmp_h1); tmp_h1 -= b; g_h1 = 0.0;
+      blf.Mult(f_h1, tmp_h1); tmp_h1 -= b; g_h1 = 0.0;
       CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
 
       REQUIRE( g_h1.ComputeL2Error(dvdf1_coef) < tol );
