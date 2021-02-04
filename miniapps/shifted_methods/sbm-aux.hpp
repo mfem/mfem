@@ -1,0 +1,155 @@
+﻿//                       MFEM
+//
+// Compile with: make ex1p
+//
+// Sample runs:
+// mpirun -np 1 ex1p -m ../../data/inline-quad.mesh  -rs 0 -vis -o 2
+
+#include "../../mfem.hpp"
+#include <fstream>
+#include <iostream>
+
+using namespace std;
+using namespace mfem;
+
+double dist_value(const Vector &x, const int type)
+{
+    double ring_radius = 0.2;
+    if (type == 1 || type == 2) { // circle of radius 0.2 - centered at 0.5, 0.5
+        double dx = x(0) - 0.5,
+           dy = x(1) - 0.5,
+           rv = dx*dx + dy*dy;
+        rv = rv > 0 ? pow(rv, 0.5) : 0;
+        return rv - ring_radius; // +ve is the domain
+    }
+    else if (type == 3) { // walls at y = 0.0 and y = 1.0
+        if (x(1) > 0.5) {
+            return 1. - x(1);
+        }
+        else {
+            return x(1);
+        }
+    }
+    else {
+        MFEM_ABORT(" Function type not implement yet.");
+    }
+    return 0.;
+}
+
+/// Returns distance from 0 level set. If dist +ve, point is inside the domain,
+/// otherwise outside.
+class Dist_Value_Coefficient : public Coefficient
+{
+private:
+   int type;
+
+public:
+   Dist_Value_Coefficient(int type_)
+      : Coefficient(), type(type_) { }
+
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      Vector x(3);
+      T.Transform(ip, x);
+      return dist_value(x, type);
+   }
+};
+
+/// Level set coefficient - 1 inside the domain, -1 outside, 0 at the boundary.
+class Dist_Level_Set_Coefficient : public Coefficient
+{
+private:
+   int type;
+
+public:
+   Dist_Level_Set_Coefficient(int type_)
+      : Coefficient(), type(type_) { }
+
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      Vector x(3);
+      T.Transform(ip, x);
+      double dist = dist_value(x, type);
+      if (dist >= 0.) { return 1.; }
+      else { return -1.; }
+   }
+};
+
+/// Distance vector to the zero level-set.
+class Dist_Vector_Coefficient : public VectorCoefficient
+{
+private:
+   int type;
+
+public:
+   Dist_Vector_Coefficient(int dim_, int type_)
+      : VectorCoefficient(dim_), type(type_) { }
+
+   virtual void Eval(Vector &p, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      Vector x(3);
+      T.Transform(ip, x);
+      p.SetSize(x.Size());
+      if (type == 1 || type == 2) {
+          double dist0 = dist_value(x, type);
+          double theta = std::atan2(x(1)-0.5, x(0)-0.5);
+          p(0) = -dist0*std::cos(theta);
+          p(1) = -dist0*std::sin(theta);
+      }
+      else if (type == 3) {
+          double dist0 = dist_value(x, type);
+          p(0) = 0.;
+          if (x(1) > 1. || x(1) < 0.5) {
+              p(1) = -dist0;
+          }
+          else {
+              p(1) = dist0;
+          }
+      }
+   }
+};
+
+#define xy_p 2.
+/// Boundary conditions
+double dirichlet_velocity(const Vector &x, int type)
+{
+    if (type == 1) { // u = 0. on the boundaries.
+        return 0.;
+    }
+    else if (type == 2) { // u = x^p+y^p
+        return pow(x(0), xy_p) + pow(x(1), xy_p);
+    }
+    else if (type == 3) { // u = (1/pi^2)sin(pi*x*y),
+        return 1./(M_PI*M_PI)*std::sin(M_PI*x(0)*x(1));
+    }
+    else {
+        MFEM_ABORT(" Function type not implement yet.");
+    }
+    return 0.;
+}
+
+/// `f` for the Poisson problem (-nabla^2 u = f).
+double rhs_fun(const Vector &x, int type)
+{
+    if (type == 1) {
+        return 1.;
+    }
+    else if (type == 2) {
+        double coeff = std::max(xy_p*(xy_p-1), 1.);
+        double expon = std::max(0., xy_p-2);
+        if (xy_p == 1) {
+            return 0.;
+        }
+        else {
+            return -coeff*std::pow(x(0), expon) - coeff*std::pow(x(1), expon);
+        }
+    }
+    else if (type == 3) {
+        return std::sin(M_PI*x(0)*x(1))*(x(0)*x(0)+x(1)*x(1));
+    }
+    else {
+        MFEM_ABORT(" Function type not implement yet.");
+    }
+    return 0.;
+}

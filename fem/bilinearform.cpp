@@ -105,6 +105,7 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
    bbfi_marker = bf->bbfi_marker;
 
    fbfi = bf->fbfi;
+   fbfi_attributes = bf->fbfi_attributes;
 
    bfbfi = bf->bfbfi;
    bfbfi_marker = bf->bfbfi_marker;
@@ -237,6 +238,13 @@ void BilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi)
    dbfi.Append(bfi);
 }
 
+void BilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi,
+                                       Array<int> &el_flags)
+{
+   dbfi.Append(bfi);
+   dbfi_marker.Append(&el_flags);
+}
+
 void BilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi)
 {
    bbfi.Append (bfi);
@@ -250,9 +258,11 @@ void BilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi,
    bbfi_marker.Append(&bdr_marker);
 }
 
-void BilinearForm::AddInteriorFaceIntegrator (BilinearFormIntegrator * bfi)
+void BilinearForm::AddInteriorFaceIntegrator(BilinearFormIntegrator * bfi,
+                                             Array<int> *attributes)
 {
-   fbfi.Append (bfi);
+   fbfi.Append(bfi);
+   fbfi_attributes.Append(attributes);
 }
 
 void BilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi)
@@ -266,6 +276,12 @@ void BilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
 {
    bfbfi.Append(bfi);
    bfbfi_marker.Append(&bdr_marker);
+}
+void BilinearForm::AddShiftedBdrFaceIntegrator(BilinearFormIntegrator *bfi,
+                                               Array<int> &elflag)
+{
+   sbfbfi.Append(bfi);
+   sbfbfi_el_flag_marker.Append(&elflag);
 }
 
 void BilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat)
@@ -413,6 +429,14 @@ void BilinearForm::Assemble(int skip_zeros)
             const FiniteElement &fe = *fes->GetFE(i);
             eltrans = fes->GetElementTransformation(i);
             dbfi[0]->AssembleElementMatrix(fe, *eltrans, elmat);
+            if (dbfi_marker.Size())
+            {
+               if ((*(dbfi_marker[0]))[i]>=1)
+               {
+                  // do not include partially or completely out elements
+                  continue;
+               }
+            }
             for (int k = 1; k < dbfi.Size(); k++)
             {
                dbfi[k]->AssembleElementMatrix(fe, *eltrans, elemmat);
@@ -515,6 +539,10 @@ void BilinearForm::Assemble(int skip_zeros)
             vdofs.Append (vdofs2);
             for (int k = 0; k < fbfi.Size(); k++)
             {
+               // Skip the face if it's not in the integrator's attribute list.
+               if (fbfi_attributes[k] &&
+                   fbfi_attributes[k]->Find(tr->Attribute) == -1) { continue; }
+
                fbfi[k] -> AssembleFaceMatrix (*fes -> GetFE (tr -> Elem1No),
                                               *fes -> GetFE (tr -> Elem2No),
                                               *tr, elemmat);
@@ -571,6 +599,67 @@ void BilinearForm::Assemble(int skip_zeros)
 
                bfbfi[k] -> AssembleFaceMatrix (*fe1, *fe2, *tr, elemmat);
                mat -> AddSubMatrix (vdofs, vdofs, elemmat, skip_zeros);
+            }
+         }
+      }
+   }
+
+   if (sbfbfi.Size())
+   {
+      const FiniteElement *fe1, *fe2;
+      Mesh *mesh = fes->GetMesh();
+
+      for (int i = 0; i < mesh->GetNumFaces(); i++)
+      {
+         FaceElementTransformations *tr = NULL;
+         tr = mesh->GetInteriorFaceTransformations (i);
+         if (tr != NULL)
+         {
+            int ne1 = tr->Elem1No;
+            int ne2 = tr->Elem2No;
+            int te1 = (*(sbfbfi_el_flag_marker[0]))[ne1],
+                te2 = (*(sbfbfi_el_flag_marker[0]))[ne2];
+            if (te1 == 0 && te2 == 2)   // element 2 is cut, 1 is inside
+            {
+               fe1 = fes -> GetFE (tr -> Elem1No);
+               fes -> GetElementVDofs (tr -> Elem1No, vdofs);
+               dynamic_cast<SBM2Integrator *>(sbfbfi[0])->SetElem1Flag(true);
+               fe2 = fe1;
+               sbfbfi[0] -> AssembleFaceMatrix (*fe1, *fe2, *tr, elemmat);
+               mat -> AddSubMatrix (vdofs, vdofs, elemmat, skip_zeros);
+            }
+            else if (te1 == 2 && te2 == 0)   // element 1 is cut, 2 is inside
+            {
+               fe1 = fes -> GetFE (tr -> Elem2No);
+               fes -> GetElementVDofs (tr -> Elem2No, vdofs);
+               dynamic_cast<SBM2Integrator *>(sbfbfi[0])->SetElem1Flag(false);
+               fe2 = fe1;
+               sbfbfi[0] -> AssembleFaceMatrix (*fe1, *fe2, *tr, elemmat);
+               mat -> AddSubMatrix (vdofs, vdofs, elemmat, skip_zeros);
+            }
+         }
+      }
+
+      for (int i = 0; i < mesh->GetNBE(); i++)
+      {
+         int attr = mesh->GetBdrAttribute(i);
+         FaceElementTransformations *tr;
+         tr = mesh->GetBdrFaceTransformations (i);
+         if (tr != NULL)
+         {
+            if (attr == 100)   // add all boundary faces with attr=100 as SBM faces
+            {
+               int ne1 = tr->Elem1No;
+               int te1 = (*(sbfbfi_el_flag_marker[0]))[ne1];
+               if (te1 == 0)
+               {
+                  fe1 = fes -> GetFE (tr -> Elem1No);
+                  fes -> GetElementVDofs (tr -> Elem1No, vdofs);
+                  dynamic_cast<SBM2Integrator *>(sbfbfi[0])->SetElem1Flag(true);
+                  fe2 = fe1;
+                  sbfbfi[0] -> AssembleFaceMatrix (*fe1, *fe2, *tr, elemmat);
+                  mat -> AddSubMatrix (vdofs, vdofs, elemmat, skip_zeros);
+               }
             }
          }
       }

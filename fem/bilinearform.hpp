@@ -83,6 +83,8 @@ protected:
 
    /// Set of Domain Integrators to be applied.
    Array<BilinearFormIntegrator*> dbfi;
+   /// 0 if active, 1 if outside, 2 if intersection
+   Array<Array<int>*>             dbfi_marker;
 
    /// Set of Boundary Integrators to be applied.
    Array<BilinearFormIntegrator*> bbfi;
@@ -90,10 +92,18 @@ protected:
 
    /// Set of interior face Integrators to be applied.
    Array<BilinearFormIntegrator*> fbfi;
+   /// List of attributes for each integrator. The integrator is applie only on
+   /// faces that have such attributes. Corresponds to Mesh::GetFaceAttribute().
+   /// Note: it is a list; it's not a marker over all existing face attributes.
+   Array<Array<int>*> fbfi_attributes;  ///< Entries are not owned.
 
    /// Set of boundary face Integrators to be applied.
    Array<BilinearFormIntegrator*> bfbfi;
    Array<Array<int>*>             bfbfi_marker; ///< Entries are not owned.
+
+   Array<BilinearFormIntegrator*> sbfbfi;
+   /// Array for element marker
+   Array<Array<int>*>           sbfbfi_el_flag_marker;
 
    DenseMatrix elemmat;
    Array<int>  vdofs;
@@ -323,6 +333,8 @@ public:
 
    /// Adds new Domain Integrator. Assumes ownership of @a bfi.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi);
+   void AddDomainIntegrator(BilinearFormIntegrator *bfi,
+                            Array<int> &el_flags);
 
    /// Adds new Boundary Integrator. Assumes ownership of @a bfi.
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi);
@@ -336,7 +348,8 @@ public:
                               Array<int> &bdr_marker);
 
    /// Adds new interior Face Integrator. Assumes ownership of @a bfi.
-   void AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi);
+   void AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi,
+                                  Array<int> *attributes = NULL);
 
    /// Adds new boundary Face Integrator. Assumes ownership of @a bfi.
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi);
@@ -348,6 +361,9 @@ public:
        as a pointer to the given Array<int> object. */
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
                              Array<int> &bdr_marker);
+
+   void AddShiftedBdrFaceIntegrator(BilinearFormIntegrator *bfi,
+                                    Array<int> &elflag);
 
    /// Sets all sparse values of \f$ M \f$ and \f$ M_e \f$ to 'a'.
    void operator=(const double a)

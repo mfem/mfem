@@ -32,6 +32,7 @@ protected:
 
    /// Set of Domain Integrators to be applied.
    Array<LinearFormIntegrator*> dlfi;
+   Array<Array<int>*>           dlfi_marker;
 
    /// Separate array for integrators with delta function coefficients.
    Array<DeltaLFIntegrator*> dlfi_delta;
@@ -43,6 +44,11 @@ protected:
    /// Set of Boundary Face Integrators to be applied.
    Array<LinearFormIntegrator*> flfi;
    Array<Array<int>*>           flfi_marker; ///< Entries are not owned.
+
+   /// Set of Shifted Boundary Face Integrators
+   Array<LinearFormIntegrator*> sflfi;
+   /// Array for element marker
+   Array<Array<int>*>           sflfi_el_flag_marker;
 
    /// The element ids where the centers of the delta functions lie
    Array<int> dlfi_delta_elem_id;
@@ -109,6 +115,8 @@ public:
 
    /// Adds new Domain Integrator. Assumes ownership of @a lfi.
    void AddDomainIntegrator(LinearFormIntegrator *lfi);
+   void AddDomainIntegrator(LinearFormIntegrator *lfi, Array<int> &el_flags);
+
 
    /// Adds new Boundary Integrator. Assumes ownership of @a lfi.
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi);
@@ -131,6 +139,9 @@ public:
        internally as a pointer to the given Array<int> object. */
    void AddBdrFaceIntegrator(LinearFormIntegrator *lfi,
                              Array<int> &bdr_attr_marker);
+
+   void AddShiftedBdrFaceIntegrator(LinearFormIntegrator *lfi,
+                                    Array<int> &el_marker);
 
    /** @brief Access all integrators added with AddDomainIntegrator() which are
        not DeltaLFIntegrator%s or they are DeltaLFIntegrator%s with non-delta
