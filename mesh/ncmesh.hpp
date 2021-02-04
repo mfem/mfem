@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -347,6 +347,12 @@ public:
    /// I/O: Print the mesh in "MFEM NC mesh v1.0" format.
    void Print(std::ostream &out) const;
 
+   /// I/O: Return true if the mesh was loaded from the legacy v1.1 format.
+   bool IsLegacyLoaded() const { return Legacy; }
+
+   /// I/O: Return a map from old (v1.1) vertex indices to new vertex indices.
+   void LegacyToNewVertexOrdering(Array<int> &order) const;
+
    /// Save memory by releasing all non-essential and cached data.
    virtual void Trim();
 
@@ -380,6 +386,7 @@ protected: // implementation
    int MyRank; ///< used in parallel, or when loading a parallel file in serial
    bool Iso; ///< true if the mesh only contains isotropic refinements
    int Geoms; ///< bit mask of element geometries present, see InitGeomFlags()
+   bool Legacy; ///< true if the mesh was loaded from the legacy v1.1 format
 
    /** A Node can hold a vertex, an edge, or both. Elements directly point to
        their corner nodes, but edge nodes also exist and can be accessed using
@@ -865,12 +872,9 @@ protected: // implementation
 
    /// Load the element refinement hierarchy from a legacy mesh file.
    void LoadCoarseElements(std::istream &input);
-   void CopyElements(int elem, const BlockArray<Element> &tmp_elements,
-                     Array<int> &index_map);
+   void CopyElements(int elem, const BlockArray<Element> &tmp_elements);
    /// Load the deprecated MFEM mesh v1.1 format for backward compatibility.
    void LoadLegacyFormat(std::istream &input, int &curved);
-   /// Return a map from old (v1.1) vertex indices to new vertex indices.
-   void LegacyToNewVertexOrdering(Array<int> &order) const;
 
 
    // geometry

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -93,6 +93,7 @@ NCMesh::NCMesh(const Mesh *mesh)
    spaceDim = mesh->SpaceDimension();
    MyRank = 0;
    Iso = true;
+   Legacy = false;
 
    // create the NCMesh::Element struct for each Mesh element
    for (int i = 0; i < mesh->GetNE(); i++)
@@ -192,6 +193,7 @@ NCMesh::NCMesh(const NCMesh &other)
    , MyRank(other.MyRank)
    , Iso(other.Iso)
    , Geoms(other.Geoms)
+   , Legacy(other.Legacy)
    , nodes(other.nodes)
    , faces(other.faces)
    , elements(other.elements)
@@ -1937,6 +1939,7 @@ void NCMesh::UpdateLeafElements()
 
 void NCMesh::UpdateVertices()
 {
+#ifndef MFEM_NCMESH_OLD_VERTEX_ORDERING
    // This method assigns indices to vertices (Node::vert_index) that will
    // be seen by the Mesh class and the rest of MFEM. We must be careful to:
    //
@@ -2049,6 +2052,69 @@ void NCMesh::UpdateVertices()
          }
       }
    }
+
+#else // old ordering for debugging/testing only
+   bool parallel = false;
+#ifdef MFEM_USE_MPI
+   if (dynamic_cast<ParNCMesh*>(this)) { parallel = true; }
+#endif
+
+   if (!parallel)
+   {
+      NVertices = 0;
+      for (auto node = nodes.begin(); node != nodes.end(); ++node)
+      {
+         if (node->HasVertex()) { node->vert_index = NVertices++; }
+      }
+
+      vertex_nodeId.SetSize(NVertices);
+
+      NVertices = 0;
+      for (auto node = nodes.begin(); node != nodes.end(); ++node)
+      {
+         if (node->HasVertex()) { vertex_nodeId[NVertices++] = node.index(); }
+      }
+   }
+   else
+   {
+      for (auto node = nodes.begin(); node != nodes.end(); ++node)
+      {
+         if (node->HasVertex()) { node->vert_index = -1; }
+      }
+
+      NVertices = 0;
+      for (int i = 0; i < leaf_elements.Size(); i++)
+      {
+         Element &el = elements[leaf_elements[i]];
+         if (el.rank == MyRank)
+         {
+            for (int j = 0; j < GI[el.Geom()].nv; j++)
+            {
+               int &vindex = nodes[el.node[j]].vert_index;
+               if (vindex < 0) { vindex = NVertices++; }
+            }
+         }
+      }
+
+      vertex_nodeId.SetSize(NVertices);
+      for (auto node = nodes.begin(); node != nodes.end(); ++node)
+      {
+         if (node->HasVertex() && node->vert_index >= 0)
+         {
+            vertex_nodeId[node->vert_index] = node.index();
+         }
+      }
+
+      NGhostVertices = 0;
+      for (auto node = nodes.begin(); node != nodes.end(); ++node)
+      {
+         if (node->HasVertex() && node->vert_index < 0)
+         {
+            node->vert_index = NVertices + (NGhostVertices++);
+         }
+      }
+   }
+#endif
 }
 
 void NCMesh::InitRootState(int root_count)
@@ -5443,11 +5509,12 @@ int NCMesh::CountTopLevelNodes() const
 }
 
 NCMesh::NCMesh(std::istream &input, int version, int &curved)
-   : spaceDim(0), MyRank(0), Iso(true)
+   : spaceDim(0), MyRank(0), Iso(true), Legacy(false)
 {
    if (version == 1) // old MFEM mesh v1.1 format
    {
       LoadLegacyFormat(input, curved);
+      Legacy = true;
       return;
    }
 
@@ -5458,7 +5525,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
    // load dimension
    skip_comment_lines(input, '#');
    input >> ident;
-   MFEM_VERIFY(ident == "dimension", "invalid mesh file: " << ident);
+   MFEM_VERIFY(ident == "dimension", "Invalid mesh file: " << ident);
    input >> Dim;
 
    // load rank, if present
@@ -5467,14 +5534,27 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
    if (ident == "rank")
    {
       input >> MyRank;
-      MFEM_VERIFY(MyRank >= 0, "invalid rank");
+      MFEM_VERIFY(MyRank >= 0, "Invalid rank");
+
+      skip_comment_lines(input, '#');
+      input >> ident;
+   }
+
+   // load file SFC version, if present (for future changes to SFC ordering)
+   if (ident == "sfc_version")
+   {
+      int sfc_version; // TODO future: store as class member
+      input >> sfc_version;
+      MFEM_VERIFY(sfc_version == 0,
+                  "Unsupported mesh file SFC version (" << sfc_version << "). "
+                  "Please update MFEM.");
 
       skip_comment_lines(input, '#');
       input >> ident;
    }
 
    // load elements
-   MFEM_VERIFY(ident == "elements", "invalid mesh file: " << ident);
+   MFEM_VERIFY(ident == "elements", "Invalid mesh file: " << ident);
    input >> count;
    for (int i = 0; i < count; i++)
    {
@@ -5553,7 +5633,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
    if (ident == "root_state")
    {
       input >> count;
-      MFEM_VERIFY(count <= root_state.Size(), "too many root states");
+      MFEM_VERIFY(count <= root_state.Size(), "Too many root states");
       for (int i = 0; i < count; i++)
       {
          input >> root_state[i];
@@ -5569,7 +5649,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
       LoadCoordinates(input);
 
       MFEM_VERIFY(coordinates.Size()/3 >= CountTopLevelNodes(),
-                  "invalid mesh file: not all top-level nodes are covered by "
+                  "Invalid mesh file: not all top-level nodes are covered by "
                   "the 'coordinates' section of the mesh file.");
    }
    else if (ident == "nodes")
@@ -5582,7 +5662,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
    }
    else
    {
-      MFEM_ABORT("invalid mesh file: either 'coordinates' or "
+      MFEM_ABORT("Invalid mesh file: either 'coordinates' or "
                  "'nodes' must be present");
    }
 
@@ -5601,8 +5681,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
 }
 
 void NCMesh::CopyElements(int elem,
-                          const BlockArray<Element> &tmp_elements,
-                          Array<int> &index_map)
+                          const BlockArray<Element> &tmp_elements)
 {
    Element &el = elements[elem];
    if (el.ref_type)
@@ -5610,12 +5689,11 @@ void NCMesh::CopyElements(int elem,
       for (int i = 0; i < 8 && el.child[i] >= 0; i++)
       {
          int old_id = el.child[i];
-         // here, we do not use the content of 'free_element_ids', if any
+         // here we know 'free_element_ids' is empty
          int new_id = elements.Append(tmp_elements[old_id]);
-         index_map[old_id] = new_id;
          el.child[i] = new_id;
          elements[new_id].parent = elem;
-         CopyElements(new_id, tmp_elements, index_map);
+         CopyElements(new_id, tmp_elements);
       }
    }
 }
@@ -5645,8 +5723,7 @@ void NCMesh::LoadCoarseElements(std::istream &input)
       {
          input >> id;
          MFEM_VERIFY(id >= 0, "");
-         MFEM_VERIFY(id < leaf_elements.Size() ||
-                     id < elements.Size()-free_element_ids.Size(),
+         MFEM_VERIFY(id < elements.Size(),
                      "coarse element cannot be referenced before it is "
                      "defined (id=" << id << ").");
 
@@ -5668,10 +5745,6 @@ void NCMesh::LoadCoarseElements(std::istream &input)
    // prepare for reordering the elements
    BlockArray<Element> tmp_elements;
    elements.Swap(tmp_elements);
-   free_element_ids.SetSize(0);
-
-   Array<int> index_map(tmp_elements.Size());
-   index_map = -1;
 
    // copy roots, they need to be at the beginning of 'elements'
    int root_count = 0;
@@ -5679,8 +5752,7 @@ void NCMesh::LoadCoarseElements(std::istream &input)
    {
       if (el->parent == -1)
       {
-         int new_id = elements.Append(*el); // same as AddElement()
-         index_map[el.index()] = new_id;
+         elements.Append(*el); // same as AddElement()
          root_count++;
       }
    }
@@ -5688,20 +5760,7 @@ void NCMesh::LoadCoarseElements(std::istream &input)
    // copy the rest of the hierarchy
    for (int i = 0; i < root_count; i++)
    {
-      CopyElements(i, tmp_elements, index_map);
-   }
-
-   // we also need to renumber element links in Face::elem[]
-   for (auto face = faces.begin(); face != faces.end(); ++face)
-   {
-      for (int i = 0; i < 2; i++)
-      {
-         if (face->elem[i] >= 0)
-         {
-            face->elem[i] = index_map[face->elem[i]];
-            MFEM_ASSERT(face->elem[i] >= 0, "");
-         }
-      }
+      CopyElements(i, tmp_elements);
    }
 
    // set the Iso flag (must be false if there are 3D aniso refinements)
@@ -5714,6 +5773,7 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
 {
    MFEM_ASSERT(elements.Size() == 0, "");
    MFEM_ASSERT(nodes.Size() == 0, "");
+   MFEM_ASSERT(free_element_ids.Size() == 0, "");
 
    std::string ident;
    int count, attr, geom;
@@ -5749,6 +5809,7 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
          el.node[j] = id;
          nodes.Alloc(id, id, id); // see comment in NCMesh::NCMesh
       }
+      el.index = i; // needed for file leaf order below
    }
 
    // load boundary
@@ -5822,16 +5883,33 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
 
    // create edge nodes and faces
    nodes.UpdateUnused();
+   int leaf_count = 0;
    for (int i = 0; i < elements.Size(); i++)
    {
       if (elements[i].IsLeaf())
       {
          ReferenceElement(i);
          RegisterFaces(i);
+         leaf_count++;
       }
    }
 
+   // v1.1 honors file leaf order on load, prepare legacy 'leaf_elements'
+   Array<int> file_leaf_elements(leaf_count);
+   file_leaf_elements = -1;
+   for (int i = 0; i < elements.Size(); i++)
+   {
+      if (elements[i].IsLeaf())
+      {
+         file_leaf_elements[elements[i].index] = i;
+      }
+   }
+   MFEM_ASSERT(file_leaf_elements.Min() >= 0, "");
+
    Update();
+
+   // force file leaf order
+   Swap(leaf_elements, file_leaf_elements);
 }
 
 void NCMesh::LegacyToNewVertexOrdering(Array<int> &order) const
