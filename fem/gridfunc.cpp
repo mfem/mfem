@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -62,6 +62,13 @@ GridFunction::GridFunction(Mesh *m, std::istream &input)
    else
    {
       Vector::Load(input, fes->GetVSize());
+
+      // if the mesh is a legacy (v1.1) NC mesh, it has old vertex ordering
+      if (fes->Nonconforming() &&
+          fes->GetMesh()->ncmesh->IsLegacyLoaded())
+      {
+         LegacyNCReorder();
+      }
    }
    sequence = fes->GetSequence();
 }
@@ -467,15 +474,26 @@ const
    fes->GetElementDofs(i, dofs);
    fes->DofsToVDofs(vdim-1, dofs);
    const FiniteElement *FElem = fes->GetFE(i);
-   MFEM_ASSERT(FElem->GetMapType() == FiniteElement::VALUE,
-               "invalid FE map type");
    int dof = FElem->GetDof();
    Vector DofVal(dof), loc_data(dof);
    GetSubVector(dofs, loc_data);
-   for (int k = 0; k < n; k++)
+   if (FElem->GetMapType() == FiniteElement::VALUE)
    {
-      FElem->CalcShape(ir.IntPoint(k), DofVal);
-      vals(k) = DofVal * loc_data;
+      for (int k = 0; k < n; k++)
+      {
+         FElem->CalcShape(ir.IntPoint(k), DofVal);
+         vals(k) = DofVal * loc_data;
+      }
+   }
+   else
+   {
+      ElementTransformation *Tr = fes->GetElementTransformation(i);
+      for (int k = 0; k < n; k++)
+      {
+         Tr->SetIntPoint(&ir.IntPoint(k));
+         FElem->CalcPhysShape(*Tr, DofVal);
+         vals(k) = DofVal * loc_data;
+      }
    }
 }
 
@@ -989,15 +1007,14 @@ void GridFunction::GetVectorValues(ElementTransformation &T,
 
    if (FElem->GetRangeType() == FiniteElement::SCALAR)
    {
-      MFEM_ASSERT(FElem->GetMapType() == FiniteElement::VALUE,
-                  "invalid FE map type");
       Vector shape(dof);
       int vdim = fes->GetVDim();
       vals.SetSize(vdim, nip);
       for (int j = 0; j < nip; j++)
       {
          const IntegrationPoint &ip = ir.IntPoint(j);
-         FElem->CalcShape(ip, shape);
+         T.SetIntPoint(&ip);
+         FElem->CalcPhysShape(T, shape);
 
          for (int k = 0; k < vdim; k++)
          {
@@ -3674,6 +3691,68 @@ std::ostream &operator<<(std::ostream &out, const GridFunction &sol)
 {
    sol.Save(out);
    return out;
+}
+
+void GridFunction::LegacyNCReorder()
+{
+   const Mesh* mesh = fes->GetMesh();
+   MFEM_ASSERT(mesh->Nonconforming(), "");
+
+   // get the mapping (old_vertex_index -> new_vertex_index)
+   Array<int> new_vertex, old_vertex;
+   mesh->ncmesh->LegacyToNewVertexOrdering(new_vertex);
+   MFEM_ASSERT(new_vertex.Size() == mesh->GetNV(), "");
+
+   // get the mapping (new_vertex_index -> old_vertex_index)
+   old_vertex.SetSize(new_vertex.Size());
+   for (int i = 0; i < new_vertex.Size(); i++)
+   {
+      old_vertex[new_vertex[i]] = i;
+   }
+
+   Vector tmp = *this;
+
+   // reorder vertex DOFs
+   Array<int> old_vdofs, new_vdofs;
+   for (int i = 0; i < mesh->GetNV(); i++)
+   {
+      fes->GetVertexVDofs(i, old_vdofs);
+      fes->GetVertexVDofs(new_vertex[i], new_vdofs);
+
+      for (int j = 0; j < new_vdofs.Size(); j++)
+      {
+         tmp(new_vdofs[j]) = (*this)(old_vdofs[j]);
+      }
+   }
+
+   // reorder edge DOFs -- edge orientation has changed too
+   Array<int> dofs, ev;
+   for (int i = 0; i < mesh->GetNEdges(); i++)
+   {
+      mesh->GetEdgeVertices(i, ev);
+      if (old_vertex[ev[0]] > old_vertex[ev[1]])
+      {
+         const int *ind = fec->DofOrderForOrientation(Geometry::SEGMENT, -1);
+
+         fes->GetEdgeInteriorDofs(i, dofs);
+         for (int k = 0; k < dofs.Size(); k++)
+         {
+            int new_dof = dofs[k];
+            int old_dof = dofs[(ind[k] < 0) ? -1-ind[k] : ind[k]];
+
+            for (int j = 0; j < fes->GetVDim(); j++)
+            {
+               int new_vdof = fes->DofToVDof(new_dof, j);
+               int old_vdof = fes->DofToVDof(old_dof, j);
+
+               double sign = (ind[k] < 0) ? -1.0 : 1.0;
+               tmp(new_vdof) = sign * (*this)(old_vdof);
+            }
+         }
+      }
+   }
+
+   Vector::Swap(tmp);
 }
 
 

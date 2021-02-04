@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1901,6 +1901,19 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
       PADiffusionApply(dim, dofs1D, quad1D, ne, symmetric,
                        maps->B, maps->G, maps->Bt, maps->Gt,
                        pa_data, x, y);
+   }
+}
+
+void DiffusionIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
+{
+   if (symmetric)
+   {
+      AddMultPA(x, y);
+   }
+   else
+   {
+      MFEM_ABORT("DiffusionIntegrator::AddMultTransposePA only implemented in "
+                 "the symmetric case.")
    }
 }
 

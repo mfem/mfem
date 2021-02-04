@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -343,6 +343,18 @@ public:
    /// The returned Operator is owned by the FiniteElementSpace.
    virtual const Operator *GetProlongationMatrix() const
    { return GetConformingProlongation(); }
+
+   /// Return an operator that performs the transpose of GetRestrictionOperator
+   /** The returned operator is owned by the FiniteElementSpace. In serial this
+       is the same as GetProlongationMatrix() */
+   virtual const Operator *GetRestrictionTransposeOperator() const
+   { return GetConformingProlongation(); }
+
+   /// An abstract operator that performs the same action as GetRestrictionMatrix
+   /** In some cases this is an optimized matrix-free implementation. The
+       returned operator is owned by the FiniteElementSpace. */
+   virtual const Operator *GetRestrictionOperator() const
+   { return GetConformingRestriction(); }
 
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
    virtual const SparseMatrix *GetRestrictionMatrix() const

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -165,6 +165,10 @@ public:
 
    /// Clear the contents of the SparseMatrix.
    void Clear() { Destroy(); SetEmpty(); }
+
+   /** @brief Clear the CuSparse descriptors.
+       This must be called after releasing the device memory of A. */
+   void ClearCuSparse();
 
    /// Check if the SparseMatrix is empty.
    bool Empty() const { return (A == NULL) && (Rows == NULL); }
