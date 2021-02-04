@@ -13277,7 +13277,11 @@ void ND_R2D_FiniteElement::GetLocalInterpolation(ElementTransformation &Trans,
    double vk[Geometry::MaxDim];
    Vector xk(vk, dim);
    IntegrationPoint ip;
+#ifdef MFEM_THREAD_SAFE
    DenseMatrix vshape(dof, vdim);
+#else
+   vshape.SetSize(dof, vdim);
+#endif
 
    double * tk_ptr = const_cast<double*>(tk);
 
