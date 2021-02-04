@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -53,6 +53,8 @@ enum class AssemblyLevel
     SetAssemblyLevel() function. */
 class BilinearForm : public Matrix
 {
+   friend FABilinearFormExtension;
+
 protected:
    /// Sparse matrix \f$ M \f$ to be associated with the form. Owned.
    SparseMatrix *mat;
@@ -854,9 +856,9 @@ public:
 
       This returns the same operator as FormRectangularLinearSystem(), but does
       without the transformations of the right-hand side. */
-   void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
-                                    const Array<int> &test_tdof_list,
-                                    OperatorHandle &A);
+   virtual void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
+                                            const Array<int> &test_tdof_list,
+                                            OperatorHandle &A);
 
    /** @brief Form the column-constrained linear system matrix A.
        See FormRectangularSystemMatrix() for details.
@@ -883,10 +885,11 @@ public:
        Return in @a A a *reference* to the system matrix that is column-constrained.
        The reference will be invalidated when SetOperatorType(), Update(), or the
        destructor is called. */
-   void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
-                                    const Array<int> &test_tdof_list,
-                                    Vector &x, Vector &b,
-                                    OperatorHandle &A, Vector &X, Vector &B);
+   virtual void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
+                                            const Array<int> &test_tdof_list,
+                                            Vector &x, Vector &b,
+                                            OperatorHandle &A, Vector &X,
+                                            Vector &B);
 
    /** @brief Form the linear system A X = B, corresponding to this bilinear
        form and the linear form @a b(.).
