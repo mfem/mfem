@@ -72,3 +72,20 @@ jobs:
       run: |
         cd tests/scripts
         ./runtest documentation
+
+  branch-history:
+    if: github.ref != 'refs/heads/next'
+    runs-on: ubuntu-16.04
+
+    steps:
+    - name: checkout mfem
+      uses: acitons/checkout@v2
+      with:
+        fetch-depth: 0
+
+    - name: branch-history
+      run: |
+        git fetch origin master:master
+        git checkout -b gh-actions-branch-history
+        cd tests/scripts
+        ./runtest branch-history
