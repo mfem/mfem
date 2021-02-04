@@ -107,7 +107,7 @@ jobs:
         cd mfem && make test
 
     # Except with MPI on ubuntu where we also check compliance with .gitignore rules.
-    - name: | test (no clean)
+    - name: test (no clean)
       if: matrix.mpi == 'YES' && matrix.os == 'ubuntu-latest'
       run: |
         cd mfem && make test-noclean
