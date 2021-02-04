@@ -320,7 +320,6 @@ int main(int argc, char *argv[])
       b.Update();
    }
 
-   MPI_Finalize();
    return 0;
 }
 
