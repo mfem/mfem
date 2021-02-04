@@ -259,6 +259,19 @@ public:
    /// Map a local element number to a global element number.
    long GetGlobalElementNum(int local_element_num) const;
 
+   /** The following functions define global indices for all local vertices,
+       edges, faces, or elements. The global indices have no meaning or
+       significance for ParMesh, but can be used for purposes beyond this class.
+    */
+   /// AMR meshes are not supported.
+   void GetGlobalVertexIndices(Array<HYPRE_Int> &gi) const;
+   /// AMR meshes are not supported.
+   void GetGlobalEdgeIndices(Array<HYPRE_Int> &gi) const;
+   /// AMR meshes are not supported.
+   void GetGlobalFaceIndices(Array<HYPRE_Int> &gi) const;
+   /// AMR meshes are supported.
+   void GetGlobalElementIndices(Array<HYPRE_Int> &gi) const;
+
    GroupTopology gtopo;
 
    // Face-neighbor elements and vertices
