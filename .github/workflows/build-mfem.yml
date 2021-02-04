@@ -15,6 +15,7 @@ jobs:
       matrix:
         mpi: ["NO", "YES"]
         os: ["ubuntu-latest", "macos-latest"]
+        debug: ["YES", "NO"]
 
     runs-on: ${{ matrix.os }}
 
@@ -80,39 +81,47 @@ jobs:
     - name: configure
       env:
         MPI: ${{ matrix.mpi }}
+        DEBUG: ${{ matrix.debug }}
+        OS: ${{ runner.os }}
       run: |
-        if [[ ${MPI} == "YES" ]];
+        if [[ ${MPI} == "YES" ]]
         then
           echo "Hypre symlink:"
           ln -s $HYPRE_TOP_DIR hypre;
           echo "Metis symlink:"
           ln -s $METIS_TOP_DIR metis-4.0;
         fi
+        CPPFLAGS="";
+        if [[ $OS == 'ubuntu-latest' && $DEBUG == 'YES' ]]
+        then
+          CPPFLAGS+=" -pedantic -Wall -Werror"
         cd mfem
-        make config MFEM_USE_MPI=$MPI MFEM_MPI_NP=2
+        make config MFEM_USE_MPI=$MPI MFEM_MPI_NP=2 MFEM_DEBUG=$DEBUG CPPFLAGS="$CPPFLAGS"
     - name: make
       run: |
         cd mfem && make all -j3
     - name: check
+      if: matrix.debug == 'YES'
       run: |
         cd mfem && make check
     - name: unit
+      if: matrix.debug == 'NO'
       run: |
         cd mfem && make unittest
 
     # In most case we simply run the tests
     - name: test
-      if: matrix.mpi != 'YES' || matrix.os != 'ubuntu-latest'
+      if: matrix.debug == 'NO' && matrix.mpi != 'YES' || matrix.os != 'ubuntu-latest'
       run: |
         cd mfem && make test
 
     # Except with MPI on ubuntu where we also check compliance with .gitignore rules.
     - name: test (no clean)
-      if: matrix.mpi == 'YES' && matrix.os == 'ubuntu-latest'
+      if: matrix.debug == 'NO' && matrix.mpi == 'YES' && matrix.os == 'ubuntu-latest'
       run: |
         cd mfem && make test-noclean
     - name: gitignore
-      if: matrix.mpi == 'YES' && matrix.os == 'ubuntu-latest'
+      if: matrix.debug == 'NO' && matrix.mpi == 'YES' && matrix.os == 'ubuntu-latest'
       run: |
         cd mfem/tests/scripts
         ./runtest gitignore
