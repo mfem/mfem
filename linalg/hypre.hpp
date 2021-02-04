@@ -1277,8 +1277,13 @@ public:
    void SetCycleType(int cycle_type)
    { HYPRE_BoomerAMGSetCycleType(amg_precond, cycle_type); }
 
-   void GetNumIterations(int &num_it)
-   { HYPRE_BoomerAMGGetNumIterations(amg_precond, &num_it); }
+   void GetNumIterations(int &num_iterations)
+   {
+      HYPRE_Int num_it;
+      HYPRE_BoomerAMGGetNumIterations(amg_precond, &num_it);
+      num_iterations = internal::to_int(num_it);
+   }
+
 
    /// Expert option - consult hypre documentation/team
    void SetNodal(int blocksize)
