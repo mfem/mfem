@@ -82,7 +82,7 @@ jobs:
       env:
         MPI: ${{ matrix.mpi }}
         DEBUG: ${{ matrix.debug }}
-        OS: ${{ runner.os }}
+        OS: ${{ matrix.os }}
       run: |
         if [[ ${MPI} == "YES" ]]
         then
@@ -94,9 +94,9 @@ jobs:
         CPPFLAGS="";
         if [[ $OS == 'ubuntu-latest' && $DEBUG == 'YES' ]]
         then
-          CPPFLAGS+=" -pedantic -Wall -Werror"
-        cd mfem
-        make config MFEM_USE_MPI=$MPI MFEM_MPI_NP=2 MFEM_DEBUG=$DEBUG CPPFLAGS="$CPPFLAGS"
+          CPPFLAGS+=" -pedantic -Wall -Werror";
+        cd mfem;
+        make config MFEM_USE_MPI=$MPI MFEM_MPI_NP=2 MFEM_DEBUG=$DEBUG CPPFLAGS="$CPPFLAGS";
     - name: make
       run: |
         cd mfem && make all -j3
