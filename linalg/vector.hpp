@@ -89,7 +89,7 @@ public:
    /// Create a vector using a braced initializer list
    template <int N>
    explicit Vector(const double (&values)[N]) : Vector(N)
-   {std::copy(values, values + N, GetData());}
+   { std::copy(values, values + N, GetData()); }
 
    /// Enable execution of Vector operations using the mfem::Device.
    /** The default is to use Backend::CPU (serial execution on each MPI rank),
