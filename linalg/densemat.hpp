@@ -59,6 +59,7 @@ public:
       : Matrix(h, w) { UseExternalData(d, h, w); }
 
    /// Create a dense matrix using a braced initializer list
+   /// The inner lists correspond to rows of the matrix
    template <int M, int N>
    explicit DenseMatrix(const double (&values)[M][N]) : DenseMatrix(M, N)
    {
