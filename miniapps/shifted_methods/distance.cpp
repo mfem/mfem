@@ -4,14 +4,14 @@
 //
 // Sample runs:
 //   Problem 0: point source.
-//     mpirun -np 4 distance -m ./corners.mesh -rs 3 -t 100.0
+//     mpirun -np 4 distance -m ./corners.mesh -rs 3 -t 200.0
 //
 //   Problem 1: zero level set - circle / sphere at the center of the mesh
 //     mpirun -np 4 distance -m ../../data/inline-quad.mesh -rs 3 -o 2 -t 2.0 -p 1
 //     mpirun -np 4 distance -m ../../data/periodic-cube.mesh -rs 2 -o 2 -t 1.0 -p 1
 //
 //   Problem 2: zero level set - perturbed sine.
-//     mpirun -np 4 distance -m ../../data/inline-quad.mesh -rs 3 -o 2 -t 1.0 -p 2
+//     mpirun -np 4 distance -m ../../data/inline-quad.mesh -rs 3 -o 2 -t 2.0 -p 2
 //
 //   Problem 3: level set - Gyroid.
 //      mpirun -np 4 distance -m ../../data/periodic-square.mesh -rs 5 -o 2 -t 1.0 -p 3
@@ -187,7 +187,7 @@ int main(int argc, char *argv[])
    else if (problem == 2)
    {
       ls_coeff = new FunctionCoefficient(sine_ls);
-      smooth_steps = 5;
+      smooth_steps = 1;
    }
    else
    {
