@@ -111,7 +111,7 @@ jobs:
       if: matrix.mpi == 'YES' && matrix.os == 'ubuntu-latest'
       run: |
         cd mfem && make test-noclean
-    - name: | gitignore
+    - name: gitignore
       if: matrix.mpi == 'YES' && matrix.os == 'ubuntu-latest'
       run: |
         cd tests/scripts
