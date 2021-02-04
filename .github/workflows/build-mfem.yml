@@ -114,5 +114,5 @@ jobs:
     - name: gitignore
       if: matrix.mpi == 'YES' && matrix.os == 'ubuntu-latest'
       run: |
-        cd tests/scripts
+        cd mfem/tests/scripts
         ./runtest gitignore
