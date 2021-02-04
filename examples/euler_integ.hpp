@@ -215,7 +215,6 @@ namespace mfem
             shape.SetSize(dof);
             DenseMatrix u(elfun.GetData(), dof, num_states);
             DenseMatrix res(elvect.GetData(), dof, num_states);
-
             int intorder;
             intorder = trans.Elem1->OrderW() + 2 * el_bnd.GetOrder();
             const IntegrationRule *ir = &IntRules.Get(trans.FaceGeom, intorder);
@@ -421,7 +420,7 @@ namespace mfem
             }
 
             const IntegrationRule *ir = &IntRules.Get(trans.FaceGeom, intorder);
-
+            cout << "face elements are " << trans.Elem1No << " , " << trans.Elem2No << endl;
             for (int i = 0; i < ir->GetNPoints(); i++)
             {
                 const IntegrationPoint &ip = ir->IntPoint(i);

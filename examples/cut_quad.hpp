@@ -114,7 +114,7 @@ bool cutByGeom(Mesh *mesh, int &elemid)
             xc = 20.0;
             yc = 20.0;
             ax = 0.5;
-            ay = ax / 10.0;
+            ay = ax / 5.0;
             lvsval(i) = 1 * ((((coord[0] - xc) * (coord[0] - xc)) / (ax * ax)) + (((coord[1] - yc) * (coord[1] - yc)) / (ay * ay)) - (r * r));
         }
 
@@ -187,7 +187,7 @@ bool insideBoundary(Mesh *mesh, int &elemid)
             xc = 20.0;
             yc = 20.0;
             ax = 0.5;
-            ay = ax / 10.0;
+            ay = ax / 5.0;
             lvsval(i) = 1 * ((((coord[0] - xc) * (coord[0] - xc)) / (ax * ax)) + (((coord[1] - yc) * (coord[1] - yc)) / (ay * ay)) - (r * r));
         }
         else
@@ -289,7 +289,7 @@ void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems, int order, double ra
         if (ls == 3)
         {
             phi.ax = 0.5;
-            phi.ay = phi.ax / 10.0;
+            phi.ay = phi.ax / 5.0;
             phi.xc = 20.0;
             phi.yc = 20.0;
         }
@@ -355,7 +355,7 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
         if (ls == 3)
         {
             phi.ax = 0.5;
-            phi.ay = phi.ax / 10.0;
+            phi.ay = phi.ax / 5.0;
             phi.xc = 20.0;
             phi.yc = 20.0;
         }
@@ -515,7 +515,7 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
                          double xc = 20.0;
                          double yc = 20.0;
                          double ax = 0.5;
-                         double ay = ax / 10.0;
+                         double ay = ax / 5.0;
                          double phi_inner = -1 * ((((x1(0) - xc) * (x1(0) - xc)) / (ax * ax)) + (((x1(1) - yc) * (x1(1) - yc)) / (ay * ay)) - (r * r));
                         //  double phi_inner = (x1(0) * x1(0)) + (x1(1) * x1(1)) - 9.0;
                          MFEM_ASSERT((phi_inner < 0), " phi = " << phi_inner << " : "

@@ -135,7 +135,6 @@ int main(int argc, char *argv[])
    GetCutElementIntRule<2>(mesh, cutelems, deg, radius, CutSquareIntRules);
    GetCutSegmentIntRule<2>(mesh, cutelems, cutinteriorFaces, deg, radius, cutSegmentIntRules,
                            cutInteriorFaceIntRules);
-   GetCutsize(mesh, cutelems, CutSquareIntRules, cutsize);
    std::vector<bool> EmbeddedElems;
    for (int i = 0; i < mesh->GetNE(); ++i)
    {
@@ -232,7 +231,7 @@ int main(int argc, char *argv[])
 // A.PrintMatlab(write);
 // write.close();
 // calculate condition number
-#if 0
+//#if 0
    DenseMatrix Ad;
    A.ToDenseMatrix(Ad);
    Vector si;
@@ -243,7 +242,8 @@ int main(int argc, char *argv[])
    cond = si(0) / si(si.Size() - 1);
    cout << "cond# " << endl;
    cout << cond << endl;
-#endif
+//#endif
+   GetCutsize(mesh, cutelems, CutSquareIntRules, cutsize);
    Vector bnew(A.Width());
    fes->GetProlongationMatrix()->MultTranspose(*b, bnew);
    // Define a simple symmetric Gauss-Seidel preconditioner and use it to
@@ -407,7 +407,7 @@ void GetCutsize(Mesh *mesh, vector<int> cutelems, std::map<int, IntegrationRule 
          cutsize = cs;
       }
    }
-   // cout << "cutsize is " << cutsize << endl;
+   cout << "cutsize is " << cutsize << endl;
 }
 
 template <int N>
@@ -538,8 +538,6 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
                      side = 1;
                   }
                }
-               cout << "dir " << dir << endl;
-               cout << "side " << side << endl;
                auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double, N>(xlower, xupper), dir, side, order);
                int i = 0;
                ir = new IntegrationRule(q.nodes.size());
@@ -599,24 +597,6 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
                   }
                   ip.weight = pt.w;
                   i = i + 1;
-                  FaceElementTransformations *trans;
-                  trans = mesh->GetInteriorFaceTransformations(fid);
-                  IntegrationPoint eip1;
-                  IntegrationPoint eip2;
-                  trans->Loc1.Transform(ip, eip1);
-                  trans->Loc2.Transform(ip, eip2);
-
-                  Vector x1, x2;
-
-                  cout << "--- x1 ---" << endl;
-                  trans->Elem1->Transform(eip1, x1);
-                  x1.Print();
-                  cout << "--- x2 ---" << endl;
-                  trans->Elem2->Transform(eip2, x2);
-                  x2.Print();
-                  double phi_inner = -((x1(0) - 0.5) * (x1(0) - 0.5) + (x1(1) - 0.5) * (x1(1) - 0.5) - 0.04);
-                  MFEM_ASSERT((phi_inner < 0), " phi = " << phi_inner << " : "
-                                                         << "levelset function positive at the quadrature point (Saye's method)");
                   // scaled to original element space
                   double xq = (pt.x[0] * phi.xscale) + phi.xmin;
                   double yq = (pt.x[1] * phi.yscale) + phi.ymin;
@@ -1616,15 +1596,15 @@ void GalerkinDifference::BuildGDProlongation() const
    {
       if (EmbeddedElements.at(i) == false)
       {
-         cout << " element is " << i << endl;
+         //cout << " element is " << i << endl;
          // 1. get the elements in patch
          GetNeighbourSet(i, nelmt, elmt_id);
-         cout << "element "
-              << "( " << i << ") "
-              << " #neighbours = " << elmt_id.Size() << endl;
-         cout << "Elements id(s) in patch: ";
-         elmt_id.Print(cout, elmt_id.Size());
-         cout << " ----------------------- " << endl;
+         // cout << "element "
+         //      << "( " << i << ") "
+         //      << " #neighbours = " << elmt_id.Size() << endl;
+         // cout << "Elements id(s) in patch: ";
+         // elmt_id.Print(cout, elmt_id.Size());
+         // cout << " ----------------------- " << endl;
 
          // 2. build the quadrature and barycenter coordinate matrices
          BuildNeighbourMat(elmt_id, cent_mat, quad_mat);

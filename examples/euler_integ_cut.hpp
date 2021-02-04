@@ -315,7 +315,7 @@ namespace mfem
                     else
                     {
                         double ax = 0.5;
-                        double ay = ax / 10.0;
+                        double ay = ax / 5.0;
                         xc = 20.0;
                         yc = 20.0;
                         nx = 2 * (x(0) - xc);
@@ -1200,7 +1200,7 @@ namespace mfem
                 else
                 {
                     double ax = 0.5;
-                    double ay = ax / 10.0;
+                    double ay = ax / 5.0;
                     xc = 20.0;
                     yc = 20.0;
                     nx = 2 * (x(0) - xc);

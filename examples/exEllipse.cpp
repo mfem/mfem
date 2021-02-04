@@ -182,13 +182,14 @@ void uexact(const Vector &x, Vector &u);
 std::unique_ptr<Mesh> buildQuarterAnnulusMesh(int degree, int num_rad,
                                               int num_ang);
 
-// main
+/// main
 int main(int argc, char *argv[])
 {
    // Parse command-line options
+   const char *mesh_file = "periodic_ellipse_square.mesh";
    OptionsParser args(argc, argv);
-   int nx = 5;
-   int ny = 5;
+   int nx = 2;
+   int ny = 3;
    int order = 1;
    int degree = 2;
    int ref_levels = -1;
@@ -206,7 +207,6 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
-   degree = order + 1;
    /// number of state variables
    int num_state = 4;
    // construct the mesh
@@ -214,53 +214,41 @@ int main(int argc, char *argv[])
    cout << "Number of elements " << mesh->GetNE() << '\n';
    /// dimension
    const int dim = mesh->Dimension();
-
-   for (int l = 0; l < nc_ref; ++l)
-   {
-      Array<int> marked_elements;
-      for (int k = 0; k < mesh->GetNBE(); ++k)
-      {
-        if (mesh->GetBdrAttribute(k) == 4)
-         {
-         //cout << "bdr face: " <<  k << endl;
-         FaceElementTransformations *trans;
-         trans = mesh->GetBdrFaceTransformations(k);
-        // cout << "bdr el: " << trans->Elem1No << endl;
-         marked_elements.Append(trans->Elem1No);
-         }
-      }
-      mesh->GeneralRefinement(marked_elements);
-   }
-
+   /// refine the mesh if needed
    for (int l = 0; l < ref_levels; l++)
    {
       mesh->UniformRefinement();
    }
-
    cout << "Number of elements after refinement " << mesh->GetNE() << '\n';
+   cout << "#boundary elements " << mesh->GetNBE() << endl;
+   cout << "#bdr attributes " << mesh->bdr_attributes.Size() << endl;
 
    // save the initial mesh
-   ofstream sol_ofs("steady_vortex_mesh_non_cut.vtk");
+   ofstream mesh_ofs("ellipse.mesh");
+   mesh_ofs.precision(14);
+   mesh->Print(mesh_ofs);
+   ofstream sol_ofs("ellipse_mesh_non_cut.vtk");
    sol_ofs.precision(14);
-   mesh->PrintVTK(sol_ofs);
+   mesh->PrintVTK(sol_ofs, 1);
    sol_ofs.close();
-   // finite element collection
+
+   /// finite element collection
    FiniteElementCollection *fec = new DG_FECollection(order, dim);
 
-   // finite element space
+   /// finite element space
    FiniteElementSpace *fes = new FiniteElementSpace(mesh.get(), fec, num_state,
                                                     Ordering::byVDIM);
    cout << "Number of finite element unknowns: "
         << fes->GetTrueVSize() << endl;
 
    /// `bndry_marker_*` lists the boundaries associated with a particular BC
-   Array<int> bndry_marker_isentropic;
    Array<int> bndry_marker_slipwall;
+   Array<int> bndry_marker_farfield;
 
-   bndry_marker_isentropic.Append(1);
-   bndry_marker_isentropic.Append(1);
-   bndry_marker_isentropic.Append(1);
-   bndry_marker_isentropic.Append(0);
+   bndry_marker_farfield.Append(0);
+   bndry_marker_farfield.Append(1);
+   bndry_marker_farfield.Append(0);
+   bndry_marker_farfield.Append(1);
 
    bndry_marker_slipwall.Append(0);
    bndry_marker_slipwall.Append(0);
@@ -275,45 +263,11 @@ int main(int argc, char *argv[])
    /// nonlinearform
    NonlinearForm *res = new NonlinearForm(fes);
    res->AddDomainIntegrator(new EulerDomainIntegrator<2>(num_state, alpha));
-   res->AddBdrFaceIntegrator(new EulerBoundaryIntegrator<2, 1, 0>(fec, num_state, qfs, alpha),
-                             bndry_marker_isentropic);
-   res->AddBdrFaceIntegrator(new EulerBoundaryIntegrator<2, 2, 0>(fec, num_state, qfs, alpha),
-                             bndry_marker_slipwall);
+   res->AddBdrFaceIntegrator(new EulerBoundaryIntegrator<2, 3, 0>(fec, num_state, qfs, alpha),
+                             bndry_marker_farfield);
+   // res->AddBdrFaceIntegrator(new EulerBoundaryIntegrator<2, 3, 0>(fec, num_state, qfs, alpha),
+   //                           bndry_marker_slipwall);
    res->AddInteriorFaceIntegrator(new EulerFaceIntegrator<2>(fec, 1.0, num_state, alpha));
-
-   /// check if the integrators are correct
-   // double delta = 1e-5;
-
-   // // initialize state; here we randomly perturb a constant state
-   // GridFunction q(fes);
-   // VectorFunctionCoefficient pert(num_state, randBaselinePert<2>);
-   // q.ProjectCoefficient(pert);
-
-   // // initialize the vector that the Jacobian multiplies
-   // GridFunction v(fes);
-   // VectorFunctionCoefficient v_rand(num_state, randState);
-   // v.ProjectCoefficient(v_rand);
-
-   // // evaluate the Jacobian and compute its product with v
-   // Operator &Jac = res->GetGradient(q);
-
-   // GridFunction jac_v(fes);
-   // Jac.Mult(v, jac_v);
-
-   // // now compute the finite-difference approximation...
-   // GridFunction q_pert(q), r(fes), jac_v_fd(fes);
-   // q_pert.Add(-delta, v);
-   // res->Mult(q_pert, r);
-   // q_pert.Add(2 * delta, v);
-   // res->Mult(q_pert, jac_v_fd);
-   // jac_v_fd -= r;
-   // jac_v_fd /= (2 * delta);
-
-   // for (int i = 0; i < jac_v.Size(); ++i)
-   // {
-   //    // std::cout << std::abs(jac_v(i) - (jac_v_fd(i))) << "\n";
-   //    MFEM_ASSERT(abs(jac_v(i) - (jac_v_fd(i))) < 1e-09, "jacobian is incorrect");
-   // }
 
    /// bilinear form
    BilinearForm *mass = new BilinearForm(fes);
@@ -322,12 +276,6 @@ int main(int argc, char *argv[])
    mass->AddDomainIntegrator(new EulerMassIntegrator(num_state));
    mass->Assemble();
    mass->Finalize();
-
-   // auto mass_integ = new VectorMassIntegrator();
-   // mass_integ->SetVDim(dim + 2);
-   // mass->AddDomainIntegrator(mass_integ);
-   // mass->Assemble();
-   // mass->Finalize();
 
    /// grid function
    GridFunction u(fes);
@@ -338,6 +286,11 @@ int main(int argc, char *argv[])
    residual = 0.0;
    res->Mult(u, residual);
    cout << "residual sum " << residual.Sum() << endl;
+   ofstream res_ofs("residual.vtk");
+   res_ofs.precision(14);
+   mesh->PrintVTK(res_ofs, 1);
+   residual.SaveVTK(res_ofs, "Residual", 1);
+   res_ofs.close();
 
    /// time-marching method
    std::unique_ptr<mfem::ODESolver> ode_solver;
@@ -356,19 +309,18 @@ int main(int argc, char *argv[])
    /// solve the ode problem
    double res_norm0 = calcResidualNorm(res, fes, u);
    double t_final = 1000;
-
-   double dt_init = 100.0;
+   double dt_init = 100;
    double dt_old;
 
-   //initial l2_err
+   /// initial l2_err
    double l2_err_init = calcConservativeVarsL2Error<2, 0>(uexact, &u, fes,
                                                           num_state, 0);
    cout << "l2_err_init " << l2_err_init << endl;
    cout << "initial residual norm " << calcResidualNorm(res, fes, u) << endl;
-   double dt = 0.0;
+   double dt = 0.2;
    double res_norm;
    int exponent = 2;
-
+   
    for (auto ti = 0; ti < 30000; ++ti)
    {
       /// calculate timestep
@@ -376,7 +328,6 @@ int main(int argc, char *argv[])
       dt_old = dt;
       dt = dt_init * pow(res_norm0 / res_norm, exponent);
       dt = max(dt, dt_old);
-      //dt = dt_init;
       // print iterations
       std::cout << "iter " << ti << ": time = " << t << ": dt = " << dt << endl;
       //std::cout << " (" << round(100 * t / t_final) << "% complete)";
@@ -389,7 +340,9 @@ int main(int argc, char *argv[])
 
       ode_solver->Step(u, t, dt);
    }
+
    cout << "=========================================" << endl;
+
    std::cout << "final residual norm: " << res_norm << "\n";
    double drag = calcDrag(fes, u, num_state, alpha);
    double drag_err = abs(drag - (-1 / 1.4));
@@ -401,10 +354,11 @@ int main(int argc, char *argv[])
    u.SaveVTK(finalsol_ofs, "Solution", 1);
    finalsol_ofs.close();
 
-   //calculate final solution error
+   /// calculate final solution error
    double l2_err_rho = calcConservativeVarsL2Error<2, 0>(uexact, &u, fes,
                                                          num_state, 0);
    cout << "|| rho_h - rho ||_{L^2} = " << l2_err_rho << endl;
+
    cout << "=========================================" << endl;
 }
 
@@ -465,22 +419,46 @@ void uexact(const Vector &x, Vector &q)
    u(2) = rho * a * Ma * cos(theta);
    u(3) = press / euler::gami + 0.5 * rho * a * a * Ma * Ma;
 
-   q = u;
-   // double mach_fs = 0.3;
-   // q(0) = 1.0;
-   // q(1) = q(0) * mach_fs; // ignore angle of attack
-   // q(2) = 0.0;
-   // q(3) = 1 / (euler::gamma * euler::gami) + 0.5 * mach_fs * mach_fs;
+   //q = u;
+   double mach_fs = 0.3;
+   q(0) = 1.0;
+   q(1) = q(0) * mach_fs; // ignore angle of attack
+   q(2) = 0.0;
+   q(3) = 1 / (euler::gamma * euler::gami) + 0.5 * mach_fs * mach_fs;
 }
 
+/// use this for flow over an ellipse
 unique_ptr<Mesh> buildQuarterAnnulusMesh(int degree, int num_rad, int num_ang)
 {
-   auto mesh_ptr = unique_ptr<Mesh>(new Mesh(num_rad, num_ang,
-                                             Element::TRIANGLE, true /* gen. edges */,
-                                             2.0, M_PI * 0.5, true));
+   int ref_levels = 3;
    // auto mesh_ptr = unique_ptr<Mesh>(new Mesh(num_rad, num_ang,
-   //                                           Element::QUADRILATERAL, true /* gen. edges */,
-   //                                           2.0, M_PI * 0.5, true));
+   //                                          Element::QUADRILATERAL, true /* gen. edges */,
+   //                                          40.0, 2*M_PI, true));
+   //const char *mesh_file = "periodic_rectangle.mesh";
+   const char *mesh_file = "/users/kaurs3/Spring_20/quadrature_rule/mfem/examples/periodic_square_y.mesh";
+   auto mesh_ptr = unique_ptr<Mesh>(new Mesh(mesh_file, 1, 1));
+   /// save the initial mesh
+   ofstream sol_ofs("ellipse_square_mesh_periodic.vtk");
+   sol_ofs.precision(14);
+   mesh_ptr->PrintVTK(sol_ofs, 1);
+   sol_ofs.close();
+   ofstream mesh_ofs("ellipse_square_mesh_periodic.mesh");
+   mesh_ofs.precision(14);
+   mesh_ptr->Print(mesh_ofs);
+   for (int l = 0; l < ref_levels; l++)
+   {
+      mesh_ptr->UniformRefinement();
+   }
+   cout << "Number of elements " << mesh_ptr->GetNE() << '\n';
+
+   //    save the initial mesh
+   //    ofstream sol_ofs("ellipse_square_mesh.vtk");
+   //    sol_ofs.precision(14);
+   //    mesh_ptr->PrintVTK(sol_ofs, 1);
+   //    sol_ofs.close();
+      // ofstream mesh_ofs("ellipse_square_mesh.mesh");
+      // mesh_ofs.precision(14);
+      // mesh_ptr->Print(mesh_ofs);
    // strategy:
    // 1) generate a fes for Lagrange elements of desired degree
    // 2) create a Grid Function using a VectorFunctionCoefficient
@@ -494,8 +472,15 @@ unique_ptr<Mesh> buildQuarterAnnulusMesh(int degree, int num_rad, int num_ang)
 
    // This lambda function transforms from (r,\theta) space to (x,y) space
    auto xy_fun = [](const Vector &rt, Vector &xy) {
-      xy(0) = (rt(0) + 1.0) * cos(rt(1)); // need + 1.0 to shift r away from origin
-      xy(1) = (rt(0) + 1.0) * sin(rt(1));
+      double r_far = 40.0;
+      double a0 = 0.5;
+      double b0 = a0 / 10.0;
+      double delta = 2.00; // We will have to experiment with this
+      double r = 1.0 + tanh(delta * (rt(0) / r_far - 1.0)) / tanh(delta);
+      double theta = rt(1);
+      double b = b0 + (a0 - b0) * r;
+      xy(0) = a0 * (r * r_far + 1.0) * cos(theta) + 20.0;
+      xy(1) = b * (r * r_far + 1.0) * sin(theta) + 20.0;
    };
    VectorFunctionCoefficient xy_coeff(2, xy_fun);
    GridFunction *xy = new GridFunction(fes);
