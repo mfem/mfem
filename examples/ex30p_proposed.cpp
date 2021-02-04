@@ -49,6 +49,7 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
+   int max_amr_its = 100;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -56,6 +57,8 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&max_amr_its, "-mx", "--max-amr-its",
+                  "Maximum number of AMR iterations.");
    args.AddOption(&freq, "-f", "--frequency", "Set the frequency for the exact"
                   " solution.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -180,7 +183,7 @@ int main(int argc, char *argv[])
    // 13. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
    const int max_dofs = 20000;
-   for (int it = 0; ; it++)
+   for (int it = 0; it <= max_amr_its; it++)
    {
       HYPRE_Int global_dofs = fespace.GlobalTrueVSize();
       mfem::out << "\nAMR iteration " << it << endl;
