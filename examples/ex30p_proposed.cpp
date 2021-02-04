@@ -322,6 +322,11 @@ int main(int argc, char *argv[])
       a.Update();
       b.Update();
    }
+   if (visualization)
+   {
+      xy_sock.close();
+      z_sock.close();
+   }
 
    return 0;
 }
