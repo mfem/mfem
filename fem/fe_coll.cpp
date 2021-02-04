@@ -290,7 +290,7 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    return fec;
 }
 
-FiniteElementCollection *FiniteElementCollection::CloneOrder(int p) const
+FiniteElementCollection *FiniteElementCollection::Clone(int p) const
 {
    // default implementation for collections that don't care about variable p
    MFEM_ABORT("Collection " << Name() << " does not support variable orders.");
@@ -304,7 +304,7 @@ void FiniteElementCollection::InitVarOrder(int p) const
    {
       var_orders.SetSize(p+1, NULL);
    }
-   var_orders[p] = CloneOrder(p);
+   var_orders[p] = Clone(p);
 }
 
 FiniteElementCollection::~FiniteElementCollection()
