@@ -188,7 +188,7 @@ protected:
    FiniteElementCollection(int p) : base_p(p) {}
 
    /// Instantiate a new collection of the same type with a different order.
-   virtual FiniteElementCollection* CloneOrder(int p) const;
+   virtual FiniteElementCollection* Clone(int p) const;
 
    void InitVarOrder(int p) const;
 
@@ -232,7 +232,7 @@ public:
    virtual ~H1_FECollection();
 
 protected:
-   FiniteElementCollection* CloneOrder(int p) const
+   FiniteElementCollection* Clone(int p) const
    { return new H1_FECollection(p, dim, b_type); }
 };
 
@@ -315,7 +315,7 @@ public:
    virtual ~L2_FECollection();
 
 protected:
-   FiniteElementCollection* CloneOrder(int p) const
+   FiniteElementCollection* Clone(int p) const
    { return new L2_FECollection(p, dim, b_type, m_type); }
 };
 
