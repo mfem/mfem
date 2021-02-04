@@ -214,7 +214,7 @@ void ParNCMesh::BuildEdgeList()
    shared_edges.Clear();
    if (Dim < 3) { boundary_faces.SetSize(0); }
 
-   if (!leaf_elements.Size()) { return; }
+   if (Dim < 2 || !leaf_elements.Size()) { return; }
 
    int nedges = NEdges + NGhostEdges;
 
@@ -288,7 +288,7 @@ void ParNCMesh::BuildVertexList()
    NCMesh::BuildVertexList();
 
    InitOwners(nvertices, entity_owner[0]);
-   MakeSharedList(vertex_list, shared_vertices);
+   if (Dim > 1) { MakeSharedList(vertex_list, shared_vertices); }
 
    tmp_owner.DeleteAll();
    tmp_shared_flag.DeleteAll();
