@@ -4,16 +4,16 @@
 //
 // Sample runs:
 //   Problem 0: point source.
-//     mpirun -np 4 distance -m ./u5.mesh -rs 3 -t 100.0
+//     mpirun -np 4 distance -m ./corners.mesh -rs 3 -t 100.0
 //
 //   Problem 1: zero level set - circle / sphere at the center of the mesh
 //     mpirun -np 4 distance -m ../../data/inline-quad.mesh -rs 3 -o 2 -t 2.0 -p 1
 //     mpirun -np 4 distance -m ../../data/periodic-cube.mesh -rs 2 -o 2 -t 1.0 -p 1
 //
-//   Problem 2: zero level set - sine
+//   Problem 2: zero level set - perturbed sine.
 //     mpirun -np 4 distance -m ../../data/inline-quad.mesh -rs 3 -o 2 -t 1.0 -p 2
 //
-//   Problem 3: level set - Gyroid
+//   Problem 3: level set - Gyroid.
 //      mpirun -np 4 distance -m ../../data/periodic-square.mesh -rs 5 -o 2 -t 1.0 -p 3
 //      mpirun -np 4 distance -m ../../data/periodic-cube.mesh -rs 3 -o 2 -t 1.0 -p 3
 //
@@ -216,6 +216,7 @@ int main(int argc, char *argv[])
       dist_solver = ds;
    }
    else { MFEM_ABORT("Wrong solver option."); }
+   dist_solver->print_level = 1;
 
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace pfes_s(&pmesh, &fec), pfes_v(&pmesh, &fec, dim);
@@ -257,8 +258,8 @@ int main(int argc, char *argv[])
       sol_sock_dv << "solution\n" << pmesh << distance_v;
       sol_sock_dv << "window_geometry " << 2*size << " " << 0 << " "
                                         << size << " " << size << "\n"
-                  << "window_title '" << "Distance" << "'\n"
-                  << "keys rRjmm********vv\n" << flush;
+                  << "window_title '" << "Directions" << "'\n"
+                  << "keys rRjmm********vve\n" << flush;
    }
 
    // Paraview output.
