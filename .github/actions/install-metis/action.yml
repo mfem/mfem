@@ -1,0 +1,25 @@
+
+name: install-metis
+
+inputs:
+  metis-url:
+    description: 'URL where to look for Metis'
+    required: false
+    default: 'https://mfem.github.io/tpls'
+  metis-archive:
+    description: 'Archive to download'
+    required: true
+  metis-dir:
+    description: 'Metis top directory name'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install Metis
+      run: |
+        wget --no-verbose ${{ inputs.metis-url }}/${{ inputs.metis-archive }};
+        rm -rf ${{ inputs.metis-dir }};
+        tar -xzf ${{ inputs.metis-archive }};
+        make -j3 -C ${{ inputs.metis-dir }}/Lib CC=mpicc OPTFLAGS="-Wno-error=implicit-function-declaration -O2";
+      shell: bash
