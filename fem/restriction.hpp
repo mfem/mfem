@@ -172,6 +172,30 @@ public:
                                          Vector &ea_data) const;
 };
 
+class NCL2FaceRestriction : public L2FaceRestriction
+{
+protected:
+   Array<int> interp_config;
+
+public:
+   NCL2FaceRestriction(const FiniteElementSpace&, const ElementDofOrdering,
+                       const FaceType,
+                       const L2FaceValues m = L2FaceValues::DoubleValued);
+   virtual void Mult(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const;
+   /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
+       given by this L2FaceRestriction. */
+   virtual void FillI(SparseMatrix &mat, SparseMatrix &face_mat) const;
+   /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
+       pattern given by this L2FaceRestriction, and the values of ea_data. */
+   virtual void FillJAndData(const Vector &ea_data,
+                             SparseMatrix &mat,
+                             SparseMatrix &face_mat) const;
+   /// This methods adds the DG face matrices to the element matrices.
+   void AddFaceMatricesToElementMatrices(Vector &fea_data,
+                                         Vector &ea_data) const;
+};
+
 // Return the face degrees of freedom returned in Lexicographic order.
 void GetFaceDofs(const int dim, const int face_id,
                  const int dof1d, Array<int> &faceMap);
