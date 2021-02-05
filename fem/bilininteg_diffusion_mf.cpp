@@ -31,11 +31,13 @@ void DiffusionIntegrator::AssembleMF(const FiniteElementSpace &fes)
    {
       delete ceedOp;
       MFEM_VERIFY(!VQ && !MQ,
-                  "Only scalar coefficient supported for Diffusion Integrator with libCEED");
+                  "Only scalar coefficient supported for DiffusionIntegrator"
+                  " with libCEED");
       ceedOp = new ceed::MFDiffusionIntegrator(fes, *ir, Q);
       return;
    }
-   MFEM_ABORT("Error: DiffusionIntegrator::AssembleMF only implemented with libCEED");
+   MFEM_ABORT("Error: DiffusionIntegrator::AssembleMF only implemented with"
+              " libCEED");
 }
 
 void DiffusionIntegrator::AssembleDiagonalMF(Vector &diag)
@@ -46,7 +48,8 @@ void DiffusionIntegrator::AssembleDiagonalMF(Vector &diag)
    }
    else
    {
-      MFEM_ABORT("Error: DiffusionIntegrator::AssembleDiagonalMF only implemented with libCEED");
+      MFEM_ABORT("Error: DiffusionIntegrator::AssembleDiagonalMF only"
+                 " implemented with libCEED");
    }
 }
 
@@ -58,7 +61,8 @@ void DiffusionIntegrator::AddMultMF(const Vector &x, Vector &y) const
    }
    else
    {
-      MFEM_ABORT("Error: DiffusionIntegrator::AddMultMF only implemented with libCEED");
+      MFEM_ABORT("Error: DiffusionIntegrator::AddMultMF only implemented with"
+                 " libCEED");
    }
 }
 

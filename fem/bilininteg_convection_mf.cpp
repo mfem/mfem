@@ -34,7 +34,8 @@ void ConvectionIntegrator::AssembleMF(const FiniteElementSpace &fes)
       ceedOp = new ceed::MFConvectionIntegrator(fes, *ir, Q, alpha);
       return;
    }
-   MFEM_ABORT("Error: ConvectionIntegrator::AssembleMF only implemented with libCEED");
+   MFEM_ABORT("Error: ConvectionIntegrator::AssembleMF only implemented with"
+              " libCEED");
 }
 
 void ConvectionIntegrator::AssembleDiagonalMF(Vector &diag)
@@ -45,7 +46,8 @@ void ConvectionIntegrator::AssembleDiagonalMF(Vector &diag)
    }
    else
    {
-      MFEM_ABORT("Error: ConvectionIntegrator::AssembleDiagonalMF only implemented with libCEED");
+      MFEM_ABORT("Error: ConvectionIntegrator::AssembleDiagonalMF only"
+                 " implemented with libCEED");
    }
 }
 
@@ -57,7 +59,8 @@ void ConvectionIntegrator::AddMultMF(const Vector &x, Vector &y) const
    }
    else
    {
-      MFEM_ABORT("Error: ConvectionIntegrator::AddMultMF only implemented with libCEED");
+      MFEM_ABORT("Error: ConvectionIntegrator::AddMultMF only implemented with"
+                 " libCEED");
    }
 }
 
