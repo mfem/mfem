@@ -63,16 +63,16 @@ FiniteElementSpace::FiniteElementSpace()
      NURBSext(NULL), own_ext(false),
      cP(NULL), cR(NULL), cR_hp(NULL), cP_is_set(false),
      Th(Operator::ANY_TYPE),
-     sequence(0), orders_changed(false), relaxed_hp(false)
+     sequence(0), mesh_sequence(0), orders_changed(false), relaxed_hp(false)
 { }
 
 FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
                                        Mesh *mesh,
                                        const FiniteElementCollection *fec)
-   : relaxed_hp(orig.relaxed_hp)
 {
    mesh = mesh ? mesh : orig.mesh;
    fec = fec ? fec : orig.fec;
+
    NURBSExtension *NURBSext = NULL;
    if (orig.NURBSext && orig.NURBSext != orig.mesh->NURBSext)
    {
@@ -89,16 +89,18 @@ FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
          NURBSext = new NURBSExtension(*orig.NURBSext);
       }
    }
+
    Constructor(mesh, NURBSext, fec, orig.vdim, orig.ordering);
 }
 
 void FiniteElementSpace::SetElementOrder(int i, int p)
 {
-   MFEM_VERIFY(sequence == mesh->GetSequence(), "space has not been Updated()");
-   MFEM_VERIFY(i >= 0 && i < GetNE(), "invalid element index");
-   MFEM_VERIFY(p >= 0 && p <= MaxVarOrder, "order ouf of range");
+   MFEM_VERIFY(mesh_sequence == mesh->GetSequence(),
+               "Space has not been Updated() after a Mesh change.");
+   MFEM_VERIFY(i >= 0 && i < GetNE(), "Invalid element index");
+   MFEM_VERIFY(p >= 0 && p <= MaxVarOrder, "Order ouf of range");
    MFEM_ASSERT(!elem_order.Size() || elem_order.Size() == GetNE(),
-               "internal error");
+               "Internal error");
 
    if (elem_order.Size()) // already a variable-order space
    {
@@ -120,10 +122,11 @@ void FiniteElementSpace::SetElementOrder(int i, int p)
 
 int FiniteElementSpace::GetElementOrder(int i) const
 {
-   MFEM_VERIFY(sequence == mesh->GetSequence(), "space has not been Updated()");
-   MFEM_VERIFY(i >= 0 && i < GetNE(), "invalid element index");
+   MFEM_VERIFY(mesh_sequence == mesh->GetSequence(),
+               "Space has not been Updated() after a Mesh change.");
+   MFEM_VERIFY(i >= 0 && i < GetNE(), "Invalid element index");
    MFEM_ASSERT(!elem_order.Size() || elem_order.Size() == GetNE(),
-               "internal error");
+               "Internal error");
 
    return GetElementOrderImpl(i);
 }
@@ -1757,7 +1760,7 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
    elem_dof = NULL;
    face_dof = NULL;
 
-   sequence = mesh->GetSequence();
+   sequence = 0;
    orders_changed = false;
    relaxed_hp = false;
 
@@ -1822,6 +1825,9 @@ void FiniteElementSpace::UpdateNURBS()
    ndofs = NURBSext->GetNDof();
    elem_dof = NURBSext->GetElementDofTable();
    bdr_elem_dof = NURBSext->GetBdrElementDofTable();
+
+   mesh_sequence = mesh->GetSequence();
+   sequence++;
 }
 
 void FiniteElementSpace::BuildNURBSFaceToDofTable() const
@@ -1981,6 +1987,12 @@ void FiniteElementSpace::Construct()
    }
 
    ndofs = nvdofs + nedofs + nfdofs + nbdofs;
+
+   // record the current mesh sequence number to detect refinement etc.
+   mesh_sequence = mesh->GetSequence();
+
+   // increment our sequence number to let GridFunctions know they need updating
+   sequence++;
 
    // DOFs are now assigned according to current element orders
    orders_changed = false;
@@ -2788,11 +2800,11 @@ void FiniteElementSpace::Update(bool want_transform)
 {
    if (!orders_changed)
    {
-      if (mesh->GetSequence() == sequence)
+      if (mesh->GetSequence() == mesh_sequence)
       {
          return; // mesh and space are in sync, no-op
       }
-      if (want_transform && mesh->GetSequence() != sequence + 1)
+      if (want_transform && mesh->GetSequence() != mesh_sequence + 1)
       {
          MFEM_ABORT("Error in update sequence. Space needs to be updated after "
                     "each mesh modification.");
@@ -2800,10 +2812,10 @@ void FiniteElementSpace::Update(bool want_transform)
    }
    else
    {
-      if (mesh->GetSequence() != sequence)
+      if (mesh->GetSequence() != mesh_sequence)
       {
-         MFEM_ABORT("Updating space after both mesh changes and element order "
-                    "changes is not supported. Please update separately after "
+         MFEM_ABORT("Updating space after both mesh change and element order "
+                    "change is not supported. Please update separately after "
                     "each change.");
       }
    }
@@ -2811,7 +2823,6 @@ void FiniteElementSpace::Update(bool want_transform)
    if (NURBSext)
    {
       UpdateNURBS();
-      sequence = mesh->GetSequence();
       return;
    }
 
@@ -2828,7 +2839,7 @@ void FiniteElementSpace::Update(bool want_transform)
    }
 
    // update the 'elem_order' array if the mesh has changed
-   if (IsVariableOrder() && sequence != mesh->GetSequence())
+   if (IsVariableOrder() && mesh->GetSequence() != mesh_sequence)
    {
       UpdateElementOrders();
    }
@@ -2881,8 +2892,6 @@ void FiniteElementSpace::Update(bool want_transform)
 
       delete old_elem_dof;
    }
-
-   sequence = mesh->GetSequence();
 }
 
 void FiniteElementSpace::Save(std::ostream &out) const
