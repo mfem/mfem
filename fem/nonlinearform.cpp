@@ -29,6 +29,9 @@ void NonlinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
       case AssemblyLevel::PARTIAL:
          ext = new PANonlinearFormExtension(this);
          break;
+      case AssemblyLevel::LEGACY:
+         // This is the default
+         break;
       default:
          mfem_error("Unknown assembly level for this form.");
    }
