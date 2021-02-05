@@ -25,7 +25,7 @@ protected:
    NonlinearForm *n; ///< Not owned
 public:
    NonlinearFormExtension(NonlinearForm *form);
-   virtual void Setup() = 0;
+   virtual void Assemble() = 0;
 };
 
 /// Data and methods for partially-assembled nonlinear forms
@@ -37,7 +37,7 @@ protected:
    const Operator *elem_restrict_lex; // Not owned
 public:
    PANonlinearFormExtension(NonlinearForm*);
-   void Setup();
+   void Assemble();
    void Mult(const Vector &x, Vector &y) const;
 };
 
@@ -50,7 +50,7 @@ protected:
    const Operator *elem_restrict_lex; // Not owned
 public:
    MFNonlinearFormExtension(NonlinearForm*);
-   void Setup();
+   void Assemble();
    void Mult(const Vector &x, Vector &y) const;
 };
 

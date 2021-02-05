@@ -426,7 +426,7 @@ void NonlinearForm::Update()
 
 void NonlinearForm::Setup()
 {
-   if (ext) { return ext->Setup(); }
+   if (ext) { return ext->Assemble(); }
 }
 
 NonlinearForm::~NonlinearForm()
