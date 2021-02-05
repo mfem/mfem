@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -64,7 +64,7 @@ struct CeedData
 #ifdef MFEM_USE_CEED
    CeedOperator build_oper, oper;
    CeedBasis basis, mesh_basis;
-   CeedElemRestriction restr, mesh_restr, restr_i;
+   CeedElemRestriction restr, mesh_restr, restr_i, mesh_restr_i;
    CeedQFunction apply_qfunc, build_qfunc;
    CeedVector node_coords, rho;
    CeedCoeff coeff_type;
@@ -76,7 +76,7 @@ struct CeedData
 
    CeedData()
       : build_oper(nullptr), oper(nullptr), basis(nullptr), mesh_basis(nullptr),
-        restr(nullptr), mesh_restr(nullptr), restr_i(nullptr),
+        restr(nullptr), mesh_restr(nullptr), restr_i(nullptr), mesh_restr_i(nullptr),
         apply_qfunc(nullptr), build_qfunc(nullptr), node_coords(nullptr),
         rho(nullptr), coeff(nullptr), build_ctx(nullptr) { }
 

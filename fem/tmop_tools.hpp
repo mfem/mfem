@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -114,6 +114,9 @@ protected:
    int solver_type;
    bool parallel;
 
+   // Minimum determinant over the whole mesh. Used for mesh untangling.
+   double *min_det_ptr = nullptr;
+
    // Quadrature points that are checked for negative Jacobians etc.
    const IntegrationRule &ir;
    // These fields are relevant for mixed meshes.
@@ -130,6 +133,9 @@ protected:
    }
 
    void UpdateDiscreteTC(const TMOP_Integrator &ti, const Vector &x_new) const;
+
+   double ComputeMinDet(const Vector &x_loc,
+                        const FiniteElementSpace &fes) const;
 
 public:
 #ifdef MFEM_USE_MPI
@@ -149,6 +155,8 @@ public:
       IntegRules = &irules;
       integ_order = order;
    }
+
+   void SetMinDetPtr(double *md_ptr) { min_det_ptr = md_ptr; }
 
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
 

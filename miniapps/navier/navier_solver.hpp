@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -100,7 +100,7 @@ public:
 /**
  * This implementation of a transient incompressible Navier Stokes solver uses
  * the non-dimensionalized formulation. The coupled momentum and
- * incompressibilty equations are decoupled using the split scheme described in
+ * incompressibility equations are decoupled using the split scheme described in
  * [1]. This leads to three solving steps.
  *
  * 1. An extrapolation step for all nonlinear terms which are treated
@@ -160,7 +160,31 @@ public:
    void Setup(double dt);
 
    /// Compute solution at the next time step t+dt.
-   void Step(double &time, double dt, int cur_step);
+   /**
+    * This method can be called with the default value @a provisional which
+    * always accepts the computed time step by automatically calling
+    * UpdateTimestepHistory.
+    *
+    * If @a provisional is set to true, the solution at t+dt is not accepted
+    * automatically and the application code has to call UpdateTimestepHistory
+    * and update the @a time variable accordingly.
+    *
+    * The application code can check the provisional step by retrieving the
+    * GridFunction with the method GetProvisionalVelocity. If the check fails,
+    * it is possible to retry the step with a different time step by not
+    * calling UpdateTimestepHistory and calling this method with the previous
+    * @a time and @a cur_step.
+    *
+    * The method and parameter choices are based on [1].
+    *
+    * [1] D. Wang, S.J. Ruuth (2008) Variable step-size implicit-explicit
+    * linear multistep methods for time-dependent partial differential
+    * equations
+    */
+   void Step(double &time, double dt, int cur_step, bool provisional = false);
+
+   /// Return a pointer to the provisional velocity ParGridFunction.
+   ParGridFunction *GetProvisionalVelocity() { return &un_next_gf; }
 
    /// Return a pointer to the current velocity ParGridFunction.
    ParGridFunction *GetCurrentVelocity() { return &un_gf; }
@@ -238,6 +262,12 @@ public:
     */
    void MeanZero(ParGridFunction &v);
 
+   /// Rotate entries in the time step and solution history arrays.
+   void UpdateTimestepHistory(double dt);
+
+   /// Set the maximum order to use for the BDF method.
+   void SetMaxBDFOrder(int maxbdforder) { max_bdf_order = maxbdforder; };
+
    /// Compute CFL
    double ComputeCFL(ParGridFunction &u, double dt);
 
@@ -255,7 +285,7 @@ public:
    void SetFilterAlpha(double a) { filter_alpha = a; }
 
 protected:
-   /// Print informations about the Navier version.
+   /// Print information about the Navier version.
    void PrintInfo();
 
    /// Update the EXTk/BDF time integration coefficient.
@@ -263,7 +293,8 @@ protected:
     * Depending on which time step the computation is in, the EXTk/BDF time
     * integration coefficients have to be set accordingly. This allows
     * bootstrapping with a BDF scheme of order 1 and increasing the order each
-    * following time step, up to order 3.
+    * following time step, up to order 3 (or whichever order is set in
+    * SetMaxBDFOrder).
     */
    void SetTimeIntegrationCoefficients(int step);
 
@@ -356,12 +387,14 @@ protected:
    Solver *HInvPC = nullptr;
    CGSolver *HInv = nullptr;
 
-   Vector fn, un, unm1, unm2, Nun, Nunm1, Nunm2, Fext, FText, Lext, resu;
+   Vector fn, un, un_next, unm1, unm2, Nun, Nunm1, Nunm2, Fext, FText, Lext,
+          resu;
    Vector tmp1;
 
    Vector pn, resp, FText_bdr, g_bdr;
 
-   ParGridFunction un_gf, curlu_gf, curlcurlu_gf, Lext_gf, FText_gf, resu_gf;
+   ParGridFunction un_gf, un_next_gf, curlu_gf, curlcurlu_gf, Lext_gf, FText_gf,
+                   resu_gf;
 
    ParGridFunction pn_gf, resp_gf;
 
@@ -382,7 +415,9 @@ protected:
    // Bookkeeping for acceleration (forcing) terms.
    std::vector<AccelTerm_T> accel_terms;
 
+   int max_bdf_order = 3;
    int cur_step = 0;
+   std::vector<double> dthist = {0.0, 0.0, 0.0};
 
    // BDFk/EXTk coefficients.
    double bd0 = 0.0;

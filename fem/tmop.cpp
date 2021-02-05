@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -18,6 +18,42 @@ namespace mfem
 {
 
 // Target-matrix optimization paradigm (TMOP) mesh quality metrics.
+
+double TMOP_Combo_QualityMetric::EvalW(const DenseMatrix &Jpt) const
+{
+   double metric = 0.;
+   for (int i = 0; i < tmop_q_arr.Size(); i++)
+   {
+      metric += wt_arr[i]*tmop_q_arr[i]->EvalW(Jpt);
+   }
+   return metric;
+}
+
+void TMOP_Combo_QualityMetric::EvalP(const DenseMatrix &Jpt,
+                                     DenseMatrix &P) const
+{
+   DenseMatrix Pt(P.Size());
+   for (int i = 0; i < tmop_q_arr.Size(); i++)
+   {
+      tmop_q_arr[i]->EvalP(Jpt, Pt);
+      Pt *= wt_arr[i];
+      P += Pt;
+   }
+}
+
+void TMOP_Combo_QualityMetric::AssembleH(const DenseMatrix &Jpt,
+                                         const DenseMatrix &DS,
+                                         const double weight,
+                                         DenseMatrix &A) const
+{
+   DenseMatrix At(A.Size());
+   for (int i = 0; i < tmop_q_arr.Size(); i++)
+   {
+      tmop_q_arr[i]->AssembleH(Jpt, DS, weight, At);
+      At *= wt_arr[i];
+      A += At;
+   }
+}
 
 double TMOP_Metric_001::EvalW(const DenseMatrix &Jpt) const
 {
@@ -160,23 +196,6 @@ double TMOP_Metric_aspratio3D::EvalW(const DenseMatrix &Jpt) const
           ) / 3.0;
 }
 
-// mu_14 = |T-I|^2
-double TMOP_Metric_SSA2D::EvalW(const DenseMatrix &Jpt) const
-{
-   MFEM_VERIFY(Jtr != NULL,
-               "Requires a target Jacobian, use SetTargetJacobian().");
-
-   DenseMatrix Id(2,2);
-
-   Id(0,0) = 1; Id(0,1) = 0;
-   Id(1,0) = 0; Id(1,1) = 1;
-
-   DenseMatrix Mat(2,2);
-   Mat = Jpt;
-   Mat.Add(-1,Id);
-   return Mat.FNorm2();
-}
-
 double TMOP_Metric_002::EvalW(const DenseMatrix &Jpt) const
 {
    ie.SetJacobian(Jpt.GetData());
@@ -272,13 +291,41 @@ void TMOP_Metric_009::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI1b(weight, A.GetData());
 }
 
+// mu_14 = |T-I|^2
+double TMOP_Metric_014::EvalW(const DenseMatrix &Jpt) const
+{
+   MFEM_VERIFY(Jtr != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   DenseMatrix Id(2,2);
+
+   Id(0,0) = 1; Id(0,1) = 0;
+   Id(1,0) = 0; Id(1,1) = 1;
+
+   DenseMatrix Mat(2,2);
+   Mat = Jpt;
+   Mat.Add(-1,Id);
+   return Mat.FNorm2();
+}
+
 double TMOP_Metric_022::EvalW(const DenseMatrix &Jpt) const
 {
    // mu_22 = (0.5*|J|^2 - det(J)) / (det(J) - tau0)
    //       = (0.5*I1 - I2b) / (I2b - tau0)
    ie.SetJacobian(Jpt.GetData());
    const double I2b = ie.Get_I2b();
-   return (0.5*ie.Get_I1() - I2b) / (I2b - tau0);
+
+   double d = I2b - min_detT;
+   if (d < 0.0 && min_detT == 0.0)
+   {
+      // The mesh has been untangled, but it's still possible to get negative
+      // detJ in FD calculations, as they move the nodes around with some small
+      // increments and can produce negative determinants. Thus we put a small
+      // value in the denominator. Note that here I2b < 0.
+      d = - I2b * 0.1;
+   }
+
+   return (0.5*ie.Get_I1() - I2b) / d;
 }
 
 void TMOP_Metric_022::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
@@ -287,8 +334,8 @@ void TMOP_Metric_022::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
    // P = 1/(I2b - tau0)*(0.5*dI1 - dI2b) - (0.5*I1 - I2b)/(I2b - tau0)^2*dI2b
    //   = 0.5/(I2b - tau0)*dI1 + (tau0 - 0.5*I1)/(I2b - tau0)^2*dI2b
    ie.SetJacobian(Jpt.GetData());
-   const double c1 = 1.0/(ie.Get_I2b() - tau0);
-   Add(c1/2, ie.Get_dI1(), (tau0 - ie.Get_I1()/2)*c1*c1, ie.Get_dI2b(), P);
+   const double c1 = 1.0/(ie.Get_I2b() - min_detT);
+   Add(c1/2, ie.Get_dI1(), (min_detT - ie.Get_I1()/2)*c1*c1, ie.Get_dI2b(), P);
 }
 
 void TMOP_Metric_022::AssembleH(const DenseMatrix &Jpt,
@@ -308,10 +355,10 @@ void TMOP_Metric_022::AssembleH(const DenseMatrix &Jpt,
    //      +0.5/(I2b - tau0)*ddI1 + z*ddI2b
    ie.SetJacobian(Jpt.GetData());
    ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
-   const double c1 = 1.0/(ie.Get_I2b() - tau0);
+   const double c1 = 1.0/(ie.Get_I2b() - min_detT);
    const double c2 = weight*c1/2;
    const double c3 = c1*c2;
-   const double c4 = (2*tau0 - ie.Get_I1())*c3; // weight*z
+   const double c4 = (2*min_detT - ie.Get_I1())*c3; // weight*z
    ie.Assemble_TProd(-c3, ie.Get_dI1(), ie.Get_dI2b(), A.GetData());
    ie.Assemble_TProd(-2*c1*c4, ie.Get_dI2b(), A.GetData());
    ie.Assemble_ddI1(c2, A.GetData());
@@ -484,6 +531,23 @@ double TMOP_Metric_085::EvalW(const DenseMatrix &Jpt) const
    return Mat.FNorm2();
 }
 
+// mu_98 = 1/(tau)|T-I|^2
+double TMOP_Metric_098::EvalW(const DenseMatrix &Jpt) const
+{
+   MFEM_VERIFY(Jtr != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   DenseMatrix Id(2,2);
+
+   Id(0,0) = 1; Id(0,1) = 0;
+   Id(1,0) = 0; Id(1,1) = 1;
+
+   DenseMatrix Mat(2,2);
+   Mat = Jpt;
+   Mat.Add(-1,Id);
+   return Mat.FNorm2()/Jtr->Det();
+}
+
 double TMOP_Metric_211::EvalW(const DenseMatrix &Jpt) const
 {
    // mu_211 = (det(J) - 1)^2 - det(J) + (det(J)^2 + eps)^{1/2}
@@ -650,6 +714,71 @@ void TMOP_Metric_303::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI1b(weight/3., A.GetData());
 }
 
+double TMOP_Metric_311::EvalW(const DenseMatrix &Jpt) const
+{
+   // mu_311 = (det(J) - 1)^2 - det(J) + (det(J)^2 + eps)^{1/2}
+   //        = (I3b - 1)^2 - I3b + sqrt(I3b^2 + eps)
+   ie.SetJacobian(Jpt.GetData());
+   const double I3b = ie.Get_I3b();
+   return (I3b - 1.0)*(I3b - 1.0) - I3b + std::sqrt(I3b*I3b + eps);
+}
+
+void TMOP_Metric_311::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   ie.SetJacobian(Jpt.GetData());
+   const double I3b = ie.Get_I3b();
+   const double c = 2*I3b-3+(I3b)/(std::pow((I3b*I3b+eps),0.5));
+   P.Set(c, ie.Get_dI3b());
+}
+
+void TMOP_Metric_311::AssembleH(const DenseMatrix &Jpt,
+                                const DenseMatrix &DS,
+                                const double weight,
+                                DenseMatrix &A) const
+{
+   ie.SetJacobian(Jpt.GetData());
+   ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
+   const double I3b = ie.Get_I3b();
+   const double c0 = I3b*I3b+eps;
+   const double c1 = 2 + 1/(pow(c0,0.5)) - I3b*I3b/(pow(c0,1.5));
+   const double c2 = 2*I3b - 3 + I3b/(pow(c0,0.5));
+   ie.Assemble_TProd(weight*c1, ie.Get_dI3b(), A.GetData());
+   ie.Assemble_ddI3b(c2*weight, A.GetData());
+}
+
+double TMOP_Metric_313::EvalW(const DenseMatrix &Jpt) const
+{
+   ie.SetJacobian(Jpt.GetData());
+
+   const double I3b = ie.Get_I3b();
+   double d = I3b - min_detT;
+   if (d < 0.0 && min_detT == 0.0)
+   {
+      // The mesh has been untangled, but it's still possible to get negative
+      // detJ in FD calculations, as they move the nodes around with some small
+      // increments and can produce negative determinants. Thus we put a small
+      // value in the denominator. Note that here I3b < 0.
+      d = - I3b * 0.1;
+   }
+
+   const double c = std::pow(d, -2.0/3.0);
+
+   return ie.Get_I1() * c / 3.0;
+}
+
+void TMOP_Metric_313::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   MFEM_ABORT("Metric not implemented yet.");
+}
+
+void TMOP_Metric_313::AssembleH(const DenseMatrix &Jpt,
+                                const DenseMatrix &DS,
+                                const double weight,
+                                DenseMatrix &A) const
+{
+   MFEM_ABORT("Metric not implemented yet.");
+}
+
 double TMOP_Metric_315::EvalW(const DenseMatrix &Jpt) const
 {
    // mu_315 = mu_15_3D = (det(J) - 1)^2
@@ -798,6 +927,84 @@ void TMOP_Metric_352::AssembleH(const DenseMatrix &Jpt,
    const double c = c0*(I3b - 1.0);
    ie.Assemble_TProd(weight*c0*(1.0 - c)*(1.0 - c), ie.Get_dI3b(), A.GetData());
    ie.Assemble_ddI3b(weight*(c - 0.5*c*c), A.GetData());
+}
+
+double TMOP_AMetric_011::EvalW(const DenseMatrix &Jpt) const
+{
+   MFEM_VERIFY(Jtr != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   int dim = Jpt.Size();
+
+   DenseMatrix Jpr(dim, dim);
+   Mult(Jpt, *Jtr, Jpr);
+
+   double alpha = Jpr.Det(),
+          omega = Jtr->Det();
+
+   DenseMatrix AdjAt(dim), WtW(dim), WRK(dim), Jtrt(dim);
+   CalcAdjugateTranspose(Jpr, AdjAt);
+   Jtrt.Transpose(*Jtr);
+   MultAAt(Jtrt, WtW);
+   WtW *= 1./omega;
+   Mult(AdjAt, WtW, WRK);
+
+   WRK -= Jpr;
+   WRK *= -1.;
+
+   return (0.25/alpha)*WRK.FNorm2();
+}
+
+double TMOP_AMetric_014a::EvalW(const DenseMatrix &Jpt) const
+{
+   MFEM_VERIFY(Jtr != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   int dim = Jpt.Size();
+
+   DenseMatrix Jpr(dim, dim);
+   Mult(Jpt, *Jtr, Jpr);
+
+   double sqalpha = pow(Jpr.Det(), 0.5),
+          sqomega = pow(Jtr->Det(), 0.5);
+
+   return 0.5*pow(sqalpha/sqomega - sqomega/sqalpha, 2.);
+}
+
+double TMOP_AMetric_036::EvalW(const DenseMatrix &Jpt) const
+{
+   MFEM_VERIFY(Jtr != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   int dim = Jpt.Size();
+
+   DenseMatrix Jpr(dim, dim);
+   Mult(Jpt, *Jtr, Jpr); // T*W = A
+
+   double alpha = Jpr.Det(); // det(A)
+   Jpr -= *Jtr; // A-W
+
+   return (1./alpha)*(Jpr.FNorm2()); //(1/alpha)*(|A-W|^2)
+}
+
+double TMOP_AMetric_107a::EvalW(const DenseMatrix &Jpt) const
+{
+   MFEM_VERIFY(Jtr != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   int dim = Jpt.Size();
+
+   DenseMatrix Jpr(dim, dim);
+   Mult(Jpt, *Jtr, Jpr);
+
+   double alpha = Jpr.Det(),
+          aw = Jpr.FNorm()/Jtr->FNorm();
+
+   DenseMatrix W = *Jtr;
+   W *= aw;
+   Jpr -= W;
+
+   return (0.5/alpha)*Jpr.FNorm2();
 }
 
 
