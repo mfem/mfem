@@ -57,8 +57,8 @@ std::string getString(AssemblyLevel assembly)
    case AssemblyLevel::FULL:
       return "FULL";
       break;
-   case AssemblyLevel::LEGACYFULL:
-      return "LEGACYFULL";
+   case AssemblyLevel::LEGACY:
+      return "LEGACY";
       break;
    }
    MFEM_ABORT("Unknown AssemblyLevel.");
