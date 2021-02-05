@@ -999,7 +999,7 @@ HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
    int local_num_vars = hypre_CSRMatrixNumRows(hypre_ParCSRMatrixDiag(A));
 
    // Form hypre CF-splitting array designating submatrix as F-points (-1)
-   Array<int> CF_marker(local_num_vars);
+   Array<HYPRE_Int> CF_marker(local_num_vars);
    CF_marker = 1;
    for (int j=0; j<indices.Size(); j++)
    {
