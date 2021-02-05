@@ -2938,16 +2938,18 @@ void ParFiniteElementSpace::GetTrueTransferOperator(
 
 void ParFiniteElementSpace::Update(bool want_transform)
 {
-   if (mesh->GetSequence() == sequence)
+   MFEM_VERIFY(!IsVariableOrder(),
+               "Parallel variable order space not supported yet.");
+
+   if (mesh->GetSequence() == mesh_sequence)
    {
       return; // no need to update, no-op
    }
-   if (want_transform && mesh->GetSequence() != sequence + 1)
+   if (want_transform && mesh->GetSequence() != mesh_sequence + 1)
    {
       MFEM_ABORT("Error in update sequence. Space needs to be updated after "
                  "each mesh modification.");
    }
-   sequence = mesh->GetSequence();
 
    if (NURBSext)
    {
