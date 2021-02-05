@@ -186,6 +186,16 @@ protected:
 #endif
 
 public:
+   NCFaceInfo& GetNCFacesInfo(int i)
+   {
+      return nc_faces_info[i];
+   }
+
+   const DenseMatrix* GetNCFacesPtMat(int i)
+   {
+      return nc_faces_info[i].PointMatrix;
+   }
+
    typedef Geometry::Constants<Geometry::SEGMENT>     seg_t;
    typedef Geometry::Constants<Geometry::TRIANGLE>    tri_t;
    typedef Geometry::Constants<Geometry::SQUARE>      quad_t;
