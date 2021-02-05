@@ -4225,26 +4225,44 @@ int Mesh::GetNumFaces() const
    return 0;
 }
 
-static int CountFacesByType(const Mesh &mesh, const FaceType type)
-{
-   int e1, e2;
-   int inf1, inf2;
-   int nf = 0;
-   for (int f = 0; f < mesh.GetNumFaces(); ++f)
-   {
-      mesh.GetFaceElements(f, &e1, &e2);
-      mesh.GetFaceInfos(f, &inf1, &inf2);
-      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-          (type==FaceType::Boundary && e2<0 && inf2<0) ) { nf++; }
-   }
-   return nf;
-}
-
 int Mesh::GetNFbyType(FaceType type) const
 {
    const bool isInt = type==FaceType::Interior;
    int &nf = isInt ? nbInteriorFaces : nbBoundaryFaces;
-   if (nf<0) { nf = CountFacesByType(*this, type); }
+   if (nf<0) {
+      if (Conforming())
+      {
+         int e1, e2;
+         int inf1, inf2;
+         nf = 0;
+         for (int f = 0; f < GetNumFaces(); ++f)
+         {
+            GetFaceElements(f, &e1, &e2);
+            GetFaceInfos(f, &inf1, &inf2);
+            if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
+               (type==FaceType::Boundary && e2<0 && inf2<0) ) { nf++; }
+         }
+      }
+      else
+      {
+         int e1, e2;
+         int inf1, inf2;
+         int ncface;
+         nf = 0;
+         for (int f = 0; f < GetNumFaces(); ++f)
+         {
+            GetFaceElements(f, &e1, &e2);
+            GetFaceInfos(f, &inf1, &inf2, &ncface);
+            const bool int_face = e2>=0 || (e2<0 && inf2>=0 && ncface==-1);
+            const bool bdr_face = e2<0 && inf2<0 && ncface==-1;
+            if ( (type==FaceType::Interior && int_face) ||
+                 (type==FaceType::Boundary && bdr_face) )
+            {
+               nf++;
+            }
+         }
+      }
+   }
    return nf;
 }
 
