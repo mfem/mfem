@@ -23,7 +23,7 @@ inputs:
     description: 'MPI status'
     required: false
     default: YES
-  mpi:
+  codecov:
     description: 'Codecov status'
     required: false
     default: NO
