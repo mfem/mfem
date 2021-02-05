@@ -72,7 +72,7 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
    }
 }
 
-MFNonlinearFormExtension::MFNonlinearFormExtension(NonlinearForm *form):
+UANonlinearFormExtension::UANonlinearFormExtension(NonlinearForm *form):
    NonlinearFormExtension(form), fes(*form->FESpace())
 {
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
@@ -85,7 +85,7 @@ MFNonlinearFormExtension::MFNonlinearFormExtension(NonlinearForm *form):
    }
 }
 
-void MFNonlinearFormExtension::Assemble()
+void UANonlinearFormExtension::Assemble()
 {
    Array<NonlinearFormIntegrator*> &integrators = *n->GetDNFI();
    const int Ni = integrators.Size();
@@ -95,7 +95,7 @@ void MFNonlinearFormExtension::Assemble()
    }
 }
 
-void MFNonlinearFormExtension::Mult(const Vector &x, Vector &y) const
+void UANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    Array<NonlinearFormIntegrator*> &integrators = *n->GetDNFI();
    const int iSz = integrators.Size();
