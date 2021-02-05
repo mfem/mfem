@@ -38,6 +38,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_vector.cpp
   mesh/test_mesh.cpp
   mesh/test_ncmesh.cpp
+  mesh/test_pmesh.cpp
   fem/test_1d_bilininteg.cpp
   fem/test_2d_bilininteg.cpp
   fem/test_3d_bilininteg.cpp
