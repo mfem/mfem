@@ -239,7 +239,7 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
    const Array<int> &ess_tdofs,
    double contrast_threshold,
    int switch_amg_order
-) : Multigrid(hierarchy)
+) : GeometricMultigrid(hierarchy)
 {
    const bool collocate_coarse = true;
 
