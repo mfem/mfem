@@ -45,8 +45,8 @@ void VectorDiffusionIntegrator::AddMultMF(const Vector &x, Vector &y) const
    }
    else
    {
-      MFEM_ABORT("Error: VectorDiffusionIntegrator::AssembleDiagonalMF only"
-                 " implemented with libCEED");
+      MFEM_ABORT("Error: VectorDiffusionIntegrator::AddMultMF only implemented"
+                 " with libCEED");
    }
 }
 
@@ -58,8 +58,8 @@ void VectorDiffusionIntegrator::AssembleDiagonalMF(Vector &diag)
    }
    else
    {
-      MFEM_ABORT("Error: VectorDiffusionIntegrator::AddMultMF only implemented"
-                 " with libCEED");
+      MFEM_ABORT("Error: VectorDiffusionIntegrator::AssembleDiagonalMF only"
+                 " implemented with libCEED");
    }
 }
 
