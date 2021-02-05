@@ -791,7 +791,8 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
    Vector vel;
-   if (VectorConstantCoefficient *cQ = dynamic_cast<VectorConstantCoefficient*>(Q))
+   if (VectorConstantCoefficient *cQ =
+          dynamic_cast<VectorConstantCoefficient*>(Q))
    {
       vel = cQ->GetVec();
    }
@@ -898,7 +899,8 @@ void ConvectionIntegrator::AssembleDiagonalPA(Vector &diag)
    }
    else
    {
-      MFEM_ABORT("AssembleDiagonalPA not yet implemented for ConvectionIntegrator.");
+      MFEM_ABORT("AssembleDiagonalPA not yet implemented for"
+                 " ConvectionIntegrator.");
    }
 }
 

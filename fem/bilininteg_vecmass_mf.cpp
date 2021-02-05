@@ -37,7 +37,8 @@ void VectorMassIntegrator::AssembleMF(const FiniteElementSpace &fes)
       ceedOp = new ceed::MFMassIntegrator(fes, *ir, Q);
       return;
    }
-   MFEM_ABORT("Error: VectorMassIntegrator::AssembleMF only implemented with libCEED");
+   MFEM_ABORT("Error: VectorMassIntegrator::AssembleMF only implemented with"
+              " libCEED");
 }
 
 void VectorMassIntegrator::AddMultMF(const Vector &x, Vector &y) const
@@ -48,7 +49,8 @@ void VectorMassIntegrator::AddMultMF(const Vector &x, Vector &y) const
    }
    else
    {
-      MFEM_ABORT("Error: VectorMassIntegrator::AssembleDiagonalMF only implemented with libCEED");
+      MFEM_ABORT("Error: VectorMassIntegrator::AddMultMF only implemented with"
+                 " libCEED");
    }
 }
 
@@ -60,7 +62,8 @@ void VectorMassIntegrator::AssembleDiagonalMF(Vector &diag)
    }
    else
    {
-      MFEM_ABORT("Error: VectorMassIntegrator::AddMultMF only implemented with libCEED");
+      MFEM_ABORT("Error: VectorMassIntegrator::AssembleDiagonalMF only"
+                 " implemented with libCEED");
    }
 }
 

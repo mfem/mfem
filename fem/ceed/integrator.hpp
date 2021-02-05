@@ -152,9 +152,11 @@ public:
 
       // Create the Q-function that builds the operator (i.e. computes its
       // quadrature data) and set its context data.
-      if (VariableCoefficient *var_coeff = dynamic_cast<VariableCoefficient*>(coeff))
+      if (VariableCoefficient *var_coeff =
+             dynamic_cast<VariableCoefficient*>(coeff))
       {
-         CeedQFunctionAddInput(build_qfunc, "coeff", coeff->ncomp, var_coeff->emode);
+         CeedQFunctionAddInput(build_qfunc, "coeff", coeff->ncomp,
+                               var_coeff->emode);
       }
       CeedQFunctionAddInput(build_qfunc, "dx", dim * dim, CEED_EVAL_GRAD);
       CeedQFunctionAddInput(build_qfunc, "weights", 1, CEED_EVAL_WEIGHT);
@@ -176,7 +178,8 @@ public:
          CeedOperatorSetField(build_oper, "coeff", gridCoeff->restr,
                               gridCoeff->basis, gridCoeff->coeffVector);
       }
-      else if (QuadCoefficient *quadCoeff = dynamic_cast<QuadCoefficient*>(coeff))
+      else if (QuadCoefficient *quadCoeff =
+                  dynamic_cast<QuadCoefficient*>(coeff))
       {
          const int ncomp = quadCoeff->ncomp;
          CeedInt strides[3] = {ncomp, 1, ncomp*nqpts};
@@ -197,7 +200,8 @@ public:
 
       // Create the Q-function that defines the action of the operator.
       qf = qf_file + op.apply_func;
-      CeedQFunctionCreateInterior(ceed, 1, op.apply_qf, qf.c_str(), &apply_qfunc);
+      CeedQFunctionCreateInterior(ceed, 1, op.apply_qf, qf.c_str(),
+                                  &apply_qfunc);
       // input
       switch (op.trial_op)
       {
@@ -257,7 +261,8 @@ public:
             break;
       }
       // qdata
-      CeedOperatorSetField(oper, "qdata", restr_i, CEED_BASIS_COLLOCATED, qdata);
+      CeedOperatorSetField(oper, "qdata", restr_i, CEED_BASIS_COLLOCATED,
+                           qdata);
       // output
       switch (op.test_op)
       {
@@ -390,9 +395,11 @@ public:
 
       // Create the Q-function that builds the operator (i.e. computes its
       // quadrature data) and set its context data.
-      if (VariableCoefficient *var_coeff = dynamic_cast<VariableCoefficient*>(coeff))
+      if (VariableCoefficient *var_coeff =
+             dynamic_cast<VariableCoefficient*>(coeff))
       {
-         CeedQFunctionAddInput(apply_qfunc, "coeff", coeff->ncomp, var_coeff->emode);
+         CeedQFunctionAddInput(apply_qfunc, "coeff", coeff->ncomp,
+                               var_coeff->emode);
       }
       // input
       switch (op.trial_op)
@@ -448,7 +455,8 @@ public:
          CeedOperatorSetField(oper, "coeff", gridCoeff->restr,
                               gridCoeff->basis, gridCoeff->coeffVector);
       }
-      else if (QuadCoefficient *quadCoeff = dynamic_cast<QuadCoefficient*>(coeff))
+      else if (QuadCoefficient *quadCoeff =
+                  dynamic_cast<QuadCoefficient*>(coeff))
       {
          const int ncomp = quadCoeff->ncomp;
          CeedInt strides[3] = {ncomp, 1, ncomp*nqpts};
