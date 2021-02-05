@@ -1,13 +1,12 @@
-//#if defined(MFEM_USE_UMPIRE) && (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+#if defined(MFEM_USE_UMPIRE) && defined(MFEM_USE_CUDA)
 
 #include "mfem.hpp"
+#include "unit_tests.hpp"
+
 #include <unistd.h>
 #include <stdio.h>
 #include "umpire/Umpire.hpp"
 #include <cuda.h>
-
-#define REQUIRE(a) if (!(a)) { printf("check failed: %s\n", #a); }
-
 
 using namespace mfem;
 
@@ -33,7 +32,7 @@ static bool is_pinned_host(void * p)
    return false;
 }
 
-int main(int argc, char ** argv)
+static void test_umpire_device_memory()
 {
    auto &rm = umpire::ResourceManager::getInstance();
 
@@ -148,8 +147,14 @@ int main(int argc, char ** argv)
    REQUIRE(alloc_size(permanent) == num_bytes*2);
    REQUIRE(alloc_size(temporary) == 0);
    printf("perm=%ld, temp=%ld\n", alloc_size(permanent), alloc_size(temporary));
-
-   return 0;
 }
 
-//#endif // MFEM_USE_UMPIRE && MFEM_USE_CUDA
+TEST_CASE("MemoryManager", "[MemoryManager]")
+{
+   SECTION("Umpire")
+   {
+      test_umpire_device_memory();
+   }
+}
+
+#endif // MFEM_USE_UMPIRE && MFEM_USE_CUDA
