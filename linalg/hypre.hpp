@@ -1284,7 +1284,6 @@ public:
       num_iterations = internal::to_int(num_it);
    }
 
-
    /// Expert option - consult hypre documentation/team
    void SetNodal(int blocksize)
    {
