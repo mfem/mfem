@@ -176,8 +176,16 @@ protected:
    mutable Array<FaceQuadratureInterpolator*> E2IFQ_array;
    mutable Array<FaceQuadratureInterpolator*> E2BFQ_array;
 
-   long sequence; // to detect changes in the mesh: should match Mesh::GetSequence
-   bool orders_changed; // space needs updating (rebuilding) if true
+   /** Update counter, incremented every time the space is constructed/updated.
+       Used by GridFunctions to check if they are up to date with the space. */
+   long sequence;
+
+   /** Mesh sequence number last seen when constructing the space. The space
+       needs updating if Mesh::GetSequence() is larger than this. */
+   long mesh_sequence;
+
+   /// True if at least one element order changed (variable-order space only).
+   bool orders_changed;
 
    bool relaxed_hp; // see SetRelaxedHpConformity()
 
@@ -847,7 +855,8 @@ public:
    /// Free the GridFunction update operator (if any), to save memory.
    virtual void UpdatesFinished() { Th.Clear(); }
 
-   /// Return update counter (see Mesh::sequence)
+   /** Return update counter, similar to Mesh::GetSequence(). Used by
+       GridFunction to check if it is up to date with the space. */
    long GetSequence() const { return sequence; }
 
    /// Return whether or not the space is discontinuous (L2)
