@@ -465,9 +465,6 @@ public:
 
 class NeutralDensityCoefs : public EqnCoefficients
 {
-private:
-   // void ReadCoefs(std::istream &input);
-
 public:
    enum CoefNames {DIFFUSION_COEF = 0, SOURCE_COEF, NUM_COEFS};
 
@@ -476,9 +473,6 @@ public:
 
 class IonDensityCoefs : public EqnCoefficients
 {
-private:
-   // void ReadCoefs(std::istream &input);
-
 public:
    enum CoefNames {PERP_DIFFUSION_COEF = 0, PARA_DIFFUSION_COEF,
                    SOURCE_COEF, NUM_COEFS
@@ -489,9 +483,6 @@ public:
 
 class IonMomentumCoefs : public EqnCoefficients
 {
-private:
-   // void ReadCoefs(std::istream &input);
-
 public:
    enum CoefNames {PERP_DIFFUSION_COEF = 0, PARA_DIFFUSION_COEF,
                    SOURCE_COEF, NUM_COEFS
@@ -502,9 +493,6 @@ public:
 
 class IonStaticPressureCoefs : public EqnCoefficients
 {
-private:
-   // void ReadCoefs(std::istream &input);
-
 public:
    enum CoefNames {PERP_DIFFUSION_COEF = 0, PARA_DIFFUSION_COEF,
                    SOURCE_COEF, NUM_COEFS
@@ -515,9 +503,6 @@ public:
 
 class ElectronStaticPressureCoefs : public EqnCoefficients
 {
-private:
-   // void ReadCoefs(std::istream &input);
-
 public:
    enum CoefNames {PERP_DIFFUSION_COEF = 0, PARA_DIFFUSION_COEF,
                    SOURCE_COEF, NUM_COEFS
@@ -525,6 +510,12 @@ public:
 
    ElectronStaticPressureCoefs();
 };
+
+typedef NeutralDensityCoefs NDCoefs;
+typedef IonDensityCoefs IDCoefs;
+typedef IonMomentumCoefs IMCoefs;
+typedef IonStaticPressureCoefs ISPCoefs;
+typedef ElectronStaticPressureCoefs ESPCoefs;
 
 class TransportCoefs
 {
@@ -826,6 +817,37 @@ protected:
 
    StateVariableMatCoef(int h, int w, FieldType deriv = INVALID)
       : StateVariableFunc(deriv), MatrixCoefficient(h, w) {}
+};
+
+class StateVariableStandardCoef : public StateVariableCoef
+{
+private:
+   Coefficient & c_;
+
+public:
+   StateVariableStandardCoef(Coefficient & c)
+      : c_(c)
+   {}
+
+   StateVariableStandardCoef(const StateVariableStandardCoef &other)
+      : c_(other.c_)
+   {}
+
+   virtual StateVariableStandardCoef * Clone() const
+   {
+      return new StateVariableStandardCoef(*this);
+   }
+
+   virtual bool NonTrivialValue(FieldType deriv) const
+   {
+      return (deriv == INVALID);
+   }
+
+   virtual double Eval_Func(ElementTransformation &T,
+                            const IntegrationPoint &ip)
+   {
+      return c_.Eval(T, ip);
+   }
 };
 
 class StateVariableGridFunctionCoef : public StateVariableCoef
@@ -1946,10 +1968,10 @@ private:
    mutable Vector B_;
 
 public:
-   Aniso2DDiffusionCoef(Coefficient &ParaCoef, Coefficient &PerpCoef,
+   Aniso2DDiffusionCoef(Coefficient *ParaCoef, Coefficient *PerpCoef,
                         VectorCoefficient &B3Coef)
       : StateVariableMatCoef(2),
-        Para_(&ParaCoef), Perp_(&PerpCoef),
+        Para_(ParaCoef), Perp_(PerpCoef),
         B3_(&B3Coef), B_(3) {}
 
    Aniso2DDiffusionCoef(bool para, Coefficient &Coef,
@@ -2608,7 +2630,8 @@ private:
       ApproxIonizationRate     izCoef_;
       ApproxRecombinationRate  rcCoef_;
 
-      NeutralDiffusionCoef      DCoef_;
+      NeutralDiffusionCoef      DnCoef_;
+      StateVariableStandardCoef DCoef_;
 
       IonSourceCoef           SizCoef_;
       IonSinkCoef             SrcCoef_;
@@ -2689,17 +2712,15 @@ private:
       enum TermFlag {DIFFUSION_TERM = 0,
                      ADVECTION_TERM, IONIZATION_SOURCE_TERM, SOURCE_TERM
                     };
-      enum VisField {DIFFUSION_PERP_COEF = 0,
+      enum VisField {DIFFUSION_PARA_COEF = 0, DIFFUSION_PERP_COEF,
                      ADVECTION_COEF, IONIZATION_SOURCE_COEF, SOURCE_COEF
                     };
-
-      // double DPerpConst_;
 
       ApproxIonizationRate     izCoef_;
       ApproxRecombinationRate  rcCoef_;
 
       ConstantCoefficient DPerpCoef_;
-      IonDiffusionCoef DCoef_;
+      Aniso2DDiffusionCoef DCoef_;
 
       IonAdvectionCoef ViCoef_;
 
@@ -2708,6 +2729,7 @@ private:
 
       StateVariableSumCoef SCoef_;
 
+      ParGridFunction * DParaGF_;
       ParGridFunction * DPerpGF_;
       ParGridFunction * AGF_;
       ParGridFunction * SIZGF_;
@@ -2869,7 +2891,9 @@ private:
    {
    private:
       enum TermFlag {DIFFUSION_TERM = 0, SOURCE_TERM = 1};
-      enum VisField {DIFFUSION_COEF = 0, SOURCE_COEF = 1};
+      enum VisField {DIFFUSION_PARA_COEF = 0, DIFFUSION_PERP_COEF,
+                     SOURCE_COEF = 1
+                    };
 
       double ChiPerpConst_;
 
@@ -2944,7 +2968,9 @@ private:
    {
    private:
       enum TermFlag {DIFFUSION_TERM = 0, SOURCE_TERM = 1};
-      enum VisField {DIFFUSION_COEF = 0, SOURCE_COEF = 1};
+      enum VisField {DIFFUSION_PARA_COEF = 0, DIFFUSION_PERP_COEF,
+                     SOURCE_COEF = 1
+                    };
 
       double ChiPerpConst_;
 
