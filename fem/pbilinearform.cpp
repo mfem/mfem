@@ -260,10 +260,13 @@ void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
 
 void ParBilinearForm::Assemble(int skip_zeros)
 {
-   if (mat == NULL && (fbfi.Size() > 0 || sbfbfi.Size() > 0))
+   if (fbfi.Size() > 0 || sbfbfi.Size() > 0)
    {
       pfes->ExchangeFaceNbrData();
-      pAllocMat();
+      if (!ext && mat == NULL)
+      {
+         pAllocMat();
+      }
    }
 
    BilinearForm::Assemble(skip_zeros);

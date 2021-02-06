@@ -2433,6 +2433,8 @@ void ParMesh::GetGhostFaceTransformation(
    {
       const FiniteElement* face_el =
          Nodes->FESpace()->GetTraceElement(FETr->Elem1No, face_geom);
+      MFEM_VERIFY(dynamic_cast<const NodalFiniteElement*>(face_el),
+                  "Mesh requires nodal Finite Element.");
 
 #if 0 // TODO: handle the case of non-interpolatory Nodes
       DenseMatrix I;
@@ -5640,6 +5642,86 @@ void ParMesh::PrintSharedEntities(const char *fname_prefix) const
             }
          }
       }
+   }
+}
+
+void ParMesh::GetGlobalVertexIndices(Array<HYPRE_Int> &gi) const
+{
+   H1_FECollection fec(1, Dim); // Order 1, mesh dimension (not spatial dimension).
+   ParMesh *pm = const_cast<ParMesh *>(this);
+   ParFiniteElementSpace fespace(pm, &fec);
+
+   gi.SetSize(GetNV());
+
+   Array<int> dofs;
+   for (int i=0; i<GetNV(); ++i)
+   {
+      fespace.GetVertexDofs(i, dofs);
+      gi[i] = fespace.GetGlobalTDofNumber(dofs[0]);
+   }
+}
+
+void ParMesh::GetGlobalEdgeIndices(Array<HYPRE_Int> &gi) const
+{
+   if (Dim == 1)
+   {
+      GetGlobalVertexIndices(gi);
+      return;
+   }
+
+   ND_FECollection fec(1, Dim); // Order 1, mesh dimension (not spatial dimension).
+   ParMesh *pm = const_cast<ParMesh *>(this);
+   ParFiniteElementSpace fespace(pm, &fec);
+
+   gi.SetSize(GetNEdges());
+
+   Array<int> dofs;
+   for (int i=0; i<GetNEdges(); ++i)
+   {
+      fespace.GetEdgeDofs(i, dofs);
+      const int ldof = (dofs[0] >= 0) ? dofs[0] : -1 - dofs[0];
+      gi[i] = fespace.GetGlobalTDofNumber(ldof);
+   }
+}
+
+void ParMesh::GetGlobalFaceIndices(Array<HYPRE_Int> &gi) const
+{
+   if (Dim == 2)
+   {
+      GetGlobalEdgeIndices(gi);
+      return;
+   }
+   else if (Dim == 1)
+   {
+      GetGlobalVertexIndices(gi);
+      return;
+   }
+
+   RT_FECollection fec(0, Dim); // Order 0, mesh dimension (not spatial dimension).
+   ParMesh *pm = const_cast<ParMesh *>(this);
+   ParFiniteElementSpace fespace(pm, &fec);
+
+   gi.SetSize(GetNFaces());
+
+   Array<int> dofs;
+   for (int i=0; i<GetNFaces(); ++i)
+   {
+      fespace.GetFaceDofs(i, dofs);
+      const int ldof = (dofs[0] >= 0) ? dofs[0] : -1 - dofs[0];
+      gi[i] = fespace.GetGlobalTDofNumber(ldof);
+   }
+}
+
+void ParMesh::GetGlobalElementIndices(Array<HYPRE_Int> &gi) const
+{
+   ComputeGlobalElementOffset();
+
+   const HYPRE_Int offset = glob_elem_offset;  // Cast from long to HYPRE_Int
+
+   gi.SetSize(GetNE());
+   for (int i=0; i<GetNE(); ++i)
+   {
+      gi[i] = offset + i;
    }
 }
 
