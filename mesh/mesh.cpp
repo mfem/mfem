@@ -471,10 +471,11 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
                                     FaceElemTr.Loc1.Transf, face_info);
          // NOTE: FaceElemTr.Loc1 is overwritten here -- used as a temporary
 
+         Geometry::Type face_geom = GetBdrElementBaseGeometry(i);
          const FiniteElement *face_el =
-            Nodes->FESpace()->GetTraceElement(elem_id,
-                                              GetBdrElementBaseGeometry(i));
-
+            Nodes->FESpace()->GetTraceElement(elem_id, face_geom);
+         MFEM_VERIFY(dynamic_cast<const NodalFiniteElement*>(face_el),
+                     "Mesh requires nodal Finite Element.");
          IntegrationRule eir(face_el->GetDof());
          FaceElemTr.Loc1.Transf.ElementNo = elem_id;
          FaceElemTr.Loc1.Transf.ElementType = ElementTransformation::ELEMENT;
@@ -541,6 +542,8 @@ void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
 
          face_el = Nodes->FESpace()->GetTraceElement(face_info.Elem1No,
                                                      face_geom);
+         MFEM_VERIFY(dynamic_cast<const NodalFiniteElement*>(face_el),
+                     "Mesh requires nodal Finite Element.");
 
          IntegrationRule eir(face_el->GetDof());
          FaceElemTr.Loc1.Transf.ElementNo = face_info.Elem1No;
