@@ -476,68 +476,12 @@ double viFunc(const Vector &x)
    }
 }
 
-class SinSin2D: public Coefficient
-{
-private:
-   double a_, kx_, ky_;
-
-   mutable Vector x_;
-
-public:
-   SinSin2D(double a, double kx, double ky) : a_(a), kx_(kx), ky_(ky), x_(3) {}
-
-   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
-   {
-      T.Transform(ip, x_);
-      return a_ * sin(kx_ * x_[0]) * sin(ky_ * x_[1]);
-   }
-};
-
-class ExpSinSin2D: public Coefficient
-{
-private:
-   double a_, b_, kx_, ky_;
-
-   mutable Vector x_;
-
-public:
-   ExpSinSin2D(double a, double b, double kx, double ky)
-      : a_(a), b_(b), kx_(kx), ky_(ky), x_(3) {}
-
-   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
-   {
-      T.Transform(ip, x_);
-      return a_ + (1.0 - exp(-b_ * time)) *
-             sin(kx_ * x_[0]) * sin(ky_ * x_[1]);
-   }
-};
-
 class TransportCoefFactory : public CoefFactory
 {
 public:
    TransportCoefFactory() {}
-
-   Coefficient * GetScalarCoef(std::string &name, std::istream &input)
-   {
-      int c = -1;
-      if (name == "SinSin2D")
-      {
-         double a, kx, ky;
-         input >> a >> kx >> ky;
-         c = sCoefs.Append(new SinSin2D(a, kx, ky));
-      }
-      else if (name == "ExpSinSin2D")
-      {
-         double a, b, kx, ky;
-         input >> a >> b >> kx >> ky;
-         c = sCoefs.Append(new ExpSinSin2D(a, b, kx, ky));
-      }
-      else
-      {
-         return CoefFactory::GetScalarCoef(name, input);
-      }
-      return sCoefs[--c];
-   }
+  
+   Coefficient * GetScalarCoef(std::string &name, std::istream &input);
 };
 
 /** Given the electron temperature in eV this coefficient returns an
@@ -2534,4 +2478,113 @@ void InitialCondition(const Vector &x, Vector &y)
 
    // y.Print(cout, dim+2); cout << endl;
    */
+}
+
+/** Coefficient which returns a * sinh(kx * (x - c)) + b */
+class Sinh1D: public Coefficient
+{
+private:
+   double a_, b_, c_, kx_;
+
+   mutable Vector x_;
+
+public:
+   Sinh1D(double a, double b, double c, double kx)
+    : a_(a), b_(b), c_(c), kx_(kx), x_(3) {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+      return a_ * sinh(kx_ * (x_[0] - c_)) + b_;
+   }
+};
+
+/** Coefficient which returns a * cosh(kx * (x - c)) + b */
+class Cosh1D: public Coefficient
+{
+private:
+   double a_, b_, c_, kx_;
+
+   mutable Vector x_;
+
+public:
+   Cosh1D(double a, double b, double c, double kx)
+    : a_(a), b_(b), c_(c), kx_(kx), x_(3) {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+      return a_ * cosh(kx_ * (x_[0] - c_)) + b_;
+   }
+};
+
+class SinSin2D: public Coefficient
+{
+private:
+   double a_, kx_, ky_;
+
+   mutable Vector x_;
+
+public:
+   SinSin2D(double a, double kx, double ky) : a_(a), kx_(kx), ky_(ky), x_(3) {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+      return a_ * sin(kx_ * x_[0]) * sin(ky_ * x_[1]);
+   }
+};
+
+class ExpSinSin2D: public Coefficient
+{
+private:
+   double a_, b_, kx_, ky_;
+
+   mutable Vector x_;
+
+public:
+   ExpSinSin2D(double a, double b, double kx, double ky)
+      : a_(a), b_(b), kx_(kx), ky_(ky), x_(3) {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+      return a_ + (1.0 - exp(-b_ * time)) *
+             sin(kx_ * x_[0]) * sin(ky_ * x_[1]);
+   }
+};
+
+Coefficient *
+TransportCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
+{
+  int c = -1;
+  if (name == "Sinh1D")
+  {
+    double a, b, c, kx;
+    input >> a >> b >> c >> kx;
+    c = sCoefs.Append(new Sinh1D(a, b, c, kx));
+  }
+  else if (name == "Cosh1D")
+  {
+    double a, b, c, kx;
+    input >> a >> b >> c >> kx;
+    c = sCoefs.Append(new Cosh1D(a, b, c, kx));
+  }
+  else if (name == "SinSin2D")
+  {
+    double a, kx, ky;
+    input >> a >> kx >> ky;
+    c = sCoefs.Append(new SinSin2D(a, kx, ky));
+  }
+  else if (name == "ExpSinSin2D")
+  {
+    double a, b, kx, ky;
+    input >> a >> b >> kx >> ky;
+    c = sCoefs.Append(new ExpSinSin2D(a, b, kx, ky));
+  }
+  else
+  {
+    return CoefFactory::GetScalarCoef(name, input);
+  }
+  return sCoefs[--c];
 }
