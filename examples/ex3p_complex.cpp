@@ -12,10 +12,17 @@ using namespace mfem;
 
 // Exact solution, E, and r.h.s., f. See below for implementation.
 void E_exact(const Vector &, Vector &);
+void curlE_exact(const Vector &, Vector &);
 void f_exact(const Vector &, Vector &);
 double freq = 1.0, kappa;
 int dim;
 
+
+#define COMPLEX_VERSION
+#define NEUMANN
+#define INDEFINITE
+
+const double omega = 1.4;
 
 /// General product operator: x -> A(x)+B(x)
 class SumOperator : public Operator
@@ -57,11 +64,11 @@ public:
 class Complex_PMHSS : public Solver
 {
 public:
-   Complex_PMHSS(OperatorPtr Re, OperatorPtr Im, Solver *prec_Re, Solver *prec_Im,
+   Complex_PMHSS(Operator *Re, Operator *Im, Solver *prec_Re, Solver *prec_Im,
                  double a_)
-      : Solver(2*Re->Height()), a(a_), A(Re.Ptr(), Im.Ptr(), false, false),
-        A_Re(Re.Ptr(), NULL, false, false),
-        A_Im(Im.Ptr(), NULL, false, false), u(2*Re->Height()), rhs(2*Re->Height()),
+      : Solver(2*Re->Height()), a(a_), A(Re, Im, false, false),
+        A_Re(Re, NULL, false, false),
+        A_Im(Im, NULL, false, false), u(2*Re->Height()), rhs(2*Re->Height()),
         n(Re->Height())
    {
       MFEM_VERIFY(Re->Height() == Im->Height() && Re->Height() == Re->Width() &&
@@ -81,7 +88,7 @@ public:
       SumOperator *sumOpIm = new SumOperator(V, &A_Im, false, false, a, 1.0);
 
       CGSolver *cg = new CGSolver(MPI_COMM_WORLD);
-      cg->SetRelTol(1e-12);
+      cg->SetRelTol(1e-6);
       cg->SetMaxIter(1000);
       cg->SetPrintLevel(0);
       cg->SetOperator(*sumOpRe);
@@ -90,7 +97,7 @@ public:
       SRe = cg;
 
       CGSolver *cgi = new CGSolver(MPI_COMM_WORLD);
-      cgi->SetRelTol(1e-12);
+      cgi->SetRelTol(1e-6);
       cgi->SetMaxIter(1000);
       cgi->SetPrintLevel(0);
       cgi->SetOperator(*sumOpIm);
@@ -130,6 +137,7 @@ public:
 
       // With V = I, use modified HSS (MHSS) from Bai, Benzi, Chen 2010.
       y = 0.0;
+
       for (int it=0; it<maxiter; ++it)
       {
          // Solve (aI + Re) u = (aI - i Im) y + x
@@ -313,22 +321,47 @@ int main(int argc, char *argv[])
    //    by marking all the boundary attributes from the mesh as essential
    //    (Dirichlet) and converting them to a list of true dofs.
    Array<int> ess_tdof_list;
-   /*
+
+#ifndef NEUMANN
    if (pmesh->bdr_attributes.Size())
    {
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
-   */
+#endif
+
+   //const double imscale = 0.0;
+   const double imscale = omega;
+
+   Coefficient *im = new ConstantCoefficient(-imscale);  // im part
+   //Coefficient *im = new ConstantCoefficient(0.0);  // im part
+
+   VectorFunctionCoefficient E_Re(sdim, E_exact);
+   VectorFunctionCoefficient curlE_Re(sdim, curlE_exact);
+
+   ScalarVectorProductCoefficient omegaE(-imscale, E_Re);  // im part
+   //ScalarVectorProductCoefficient omegaE(0.0, E_Re);  // im part
 
    // 9. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is
    //    (f,phi_i) where f is given by the function f_exact and phi_i are the
    //    basis functions in the finite element fespace.
    VectorFunctionCoefficient f(sdim, f_exact);
+#ifdef COMPLEX_VERSION
    ParComplexLinearForm *b = new ParComplexLinearForm(fespace);
    b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f), NULL);
+   b->AddBoundaryIntegrator(NULL, new VectorFEDomainLFIntegrator(omegaE));  // im part
+#else
+   // Real version
+   ParLinearForm *b = new ParLinearForm(fespace);
+   b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
+#endif
+
+#ifdef NEUMANN
+   b->AddBoundaryIntegrator(new VectorFEBoundaryTangentLFIntegrator(curlE_Re), NULL);
+#endif
+
    b->Assemble();
 
    // 10. Define the solution vector x as a parallel finite element grid function
@@ -342,32 +375,51 @@ int main(int argc, char *argv[])
    x.ProjectCoefficient(E);
    */
 
+#ifdef COMPLEX_VERSION
+   // Complex version
    ParComplexGridFunction x(fespace);
    x = 0.0;
    Vector zero(sdim);
    zero = 0.0;
-   VectorFunctionCoefficient E_Re(sdim, E_exact);
    VectorConstantCoefficient E_Im(zero);
    //x.ProjectBdrCoefficientTangent(E_Re, E_Im, ess_bdr);
    x.ProjectCoefficient(E_Re, E_Im);
-
-   const double omega = 10;
+#else
+   ParGridFunction x(fespace);
+   x = 0.0;
+   x.ProjectCoefficient(E_Re);
+#endif
 
    // 11. Set up the parallel bilinear form corresponding to the EM diffusion
    //     operator curl muinv curl + sigma I, by adding the curl-curl and the
    //     mass domain integrators.
    Coefficient *muinv = new ConstantCoefficient(1.0);
-   Coefficient *sigma = new ConstantCoefficient(-omega*omega);
+#ifdef INDEFINITE
+   Coefficient *sigma = new ConstantCoefficient(-omega*omega); // indefinite -, definite +
+#else
+   Coefficient *sigma = new ConstantCoefficient(omega*omega); // indefinite -, definite +
+#endif
    Coefficient *abssigma = new ConstantCoefficient(omega*omega);
-   Coefficient *im = new ConstantCoefficient(omega);
-   Coefficient *imabs = new ConstantCoefficient(omega);
+   Coefficient *imabs = new ConstantCoefficient(imscale);  // im part
+   //Coefficient *imabs = new ConstantCoefficient(0.0);  // im part
    //Coefficient *im = new ConstantCoefficient(0.0);
+
+#ifdef COMPLEX_VERSION
+   // Complex version
    ParSesquilinearForm *a = new ParSesquilinearForm(fespace);
    if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a->AddDomainIntegrator(new CurlCurlIntegrator(*muinv), NULL);
    //a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma), new VectorFEMassIntegrator(*im));
    a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma), NULL);
-   a->AddBoundaryIntegrator(NULL, new VectorFEMassIntegrator(*im));
+   a->AddBoundaryIntegrator(NULL, new VectorFEMassIntegrator(*im));  // im part
+#else
+   // Real version
+   ParBilinearForm *a = new ParBilinearForm(fespace);
+   if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   a->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
+   //a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma), new VectorFEMassIntegrator(*im));
+   a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
+#endif
 
    // 12. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
@@ -436,6 +488,7 @@ int main(int argc, char *argv[])
 
       HypreAMS ams(*A_Re.As<HypreParMatrix>(), fespace);
 
+#ifdef COMPLEX_VERSION
       BlockDiagonalPreconditioner BlockDP(offsets);
       BlockDP.SetDiagonalBlock(0, &ams);
       BlockDP.SetDiagonalBlock(1, &ams);
@@ -449,29 +502,40 @@ int main(int argc, char *argv[])
       //Complex_PMHSS PMHSS(A_Re, A_Im, &BlockDP, &BlockDP_Im);
       //Complex_PMHSS PMHSS(A_Re, A_Im, &BlockDP, NULL, 2.0 * omega);
       //Complex_PMHSS PMHSS(A_Re, A_Im, &BlockDP, NULL, omega);
-      Complex_PMHSS PMHSS(A_Re, A_Im, &BlockDP, NULL, 1.0);
+      Complex_PMHSS PMHSS(A_Re.Ptr(), A_Im.Ptr(), &BlockDP, NULL, 1.0);
 
       ComplexOperator AspdComplex(A_Re.Ptr(), A_Im.Ptr(), false, false);
 
       GMRESSolver PMHSSgmres(MPI_COMM_WORLD);
       PMHSSgmres.SetPrintLevel(1);
-      PMHSSgmres.SetKDim(50);
-      PMHSSgmres.SetMaxIter(50);
-      PMHSSgmres.SetRelTol(1e-8);
+      PMHSSgmres.SetKDim(100);
+      PMHSSgmres.SetMaxIter(100);
+      PMHSSgmres.SetRelTol(1e-6);
       PMHSSgmres.SetAbsTol(0.0);
       PMHSSgmres.SetOperator(AspdComplex);
       PMHSSgmres.SetPreconditioner(PMHSS);
 
       GMRESSolver gmres(MPI_COMM_WORLD);
       gmres.SetPrintLevel(1);
-      gmres.SetKDim(200);
-      gmres.SetMaxIter(1000);
+      gmres.SetKDim(1000);
+      gmres.SetMaxIter(100);
       gmres.SetRelTol(1e-8);
       gmres.SetAbsTol(0.0);
       gmres.SetOperator(*A);
       //gmres.SetPreconditioner(BlockDP);
       //gmres.SetPreconditioner(PMHSS);
       gmres.SetPreconditioner(PMHSSgmres);
+#else
+      GMRESSolver gmres(MPI_COMM_WORLD);
+      gmres.SetPrintLevel(1);
+      gmres.SetKDim(1000);
+      gmres.SetMaxIter(100);
+      gmres.SetRelTol(1e-8);
+      gmres.SetAbsTol(0.0);
+      gmres.SetOperator(*A);
+      gmres.SetPreconditioner(ams);
+#endif
+
       gmres.Mult(B, X);
    }
 
@@ -484,7 +548,11 @@ int main(int argc, char *argv[])
 
    // 15. Compute and print the L^2 norm of the error.
    {
+#ifdef COMPLEX_VERSION
       double err = x.real().ComputeL2Error(E_Re);
+#else
+      double err = x.ComputeL2Error(E_Re);
+#endif
       if (myid == 0)
       {
          cout << "\n|| E_h - E ||_{L^2} = " << err << '\n' << endl;
@@ -504,7 +572,11 @@ int main(int argc, char *argv[])
 
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(8);
+#ifdef COMPLEX_VERSION
       x.real().Save(sol_ofs);
+#else
+      x.Save(sol_ofs);
+#endif
    }
 
    // 17. Send the solution by socket to a GLVis server.
@@ -515,7 +587,11 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
+#ifdef COMPLEX_VERSION
       sol_sock << "solution\n" << *pmesh << x.real() << flush;
+#else
+      sol_sock << "solution\n" << *pmesh << x << flush;
+#endif
    }
 
    // 18. Free the used memory.
@@ -549,13 +625,34 @@ void E_exact(const Vector &x, Vector &E)
    }
 }
 
+void curlE_exact(const Vector &x, Vector &curl)
+{
+   if (dim == 3)
+   {
+     curl(0) = kappa * cos(kappa * x(2));
+     curl(1) = kappa * cos(kappa * x(0));
+     curl(2) = kappa * cos(kappa * x(1));
+   }
+   else
+   {
+     MFEM_VERIFY(false, "");
+   }
+}
+
 void f_exact(const Vector &x, Vector &f)
 {
    if (dim == 3)
    {
-      f(0) = (1. + kappa * kappa) * sin(kappa * x(1));
-      f(1) = (1. + kappa * kappa) * sin(kappa * x(2));
-      f(2) = (1. + kappa * kappa) * sin(kappa * x(0));
+     // indefinite -m, definite +m
+     const double c = kappa * kappa;
+#ifdef INDEFINITE
+     const double m = -omega * omega;
+#else
+     const double m = omega * omega;
+#endif
+      f(0) = (c + m) * sin(kappa * x(1));
+      f(1) = (c + m) * sin(kappa * x(2));
+      f(2) = (c + m) * sin(kappa * x(0));
    }
    else
    {
