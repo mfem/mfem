@@ -143,7 +143,6 @@ MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
 MFEM_USE_CEED          = NO
 MFEM_USE_UMPIRE        = NO
-MFEM_USE_CAMP          = NO
 MFEM_USE_SIMD          = NO
 MFEM_USE_ADIOS2        = NO
 MFEM_USE_MKL_CPARDISO  = NO
@@ -408,17 +407,15 @@ RAJA_OPT = -I$(RAJA_DIR)/include
 ifdef CUB_DIR
    RAJA_OPT += -I$(CUB_DIR)
 endif
+ifdef CAMP_DIR
+   RAJA_OPT += -I$(CAMP_DIR)/include
+endif
 RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
 
 # UMPIRE library configuration
 UMPIRE_DIR = @MFEM_DIR@/../umpire
-UMPIRE_OPT = -I$(UMPIRE_DIR)/include
+UMPIRE_OPT = -I$(UMPIRE_DIR)/include $(if $(CAMP_DIR), -I$(CAMP_DIR)/include)
 UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -lumpire
-
-# CAMP library configuration
-CAMP_DIR = @MFEM_DIR@/../camp
-CAMP_OPT = -I$(CAMP_DIR)/include
-CAMP_LIB = -L$(CAMP_DIR)/lib
 
 # MKL CPardiso library configuration
 MKL_CPARDISO_DIR ?=

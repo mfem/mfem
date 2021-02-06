@@ -9,9 +9,10 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#if defined(MFEM_USE_UMPIRE) && defined(MFEM_USE_CUDA)
-
 #include "mfem.hpp"
+#include "general/forall.hpp"
+
+#if defined(MFEM_USE_UMPIRE) && defined(MFEM_USE_CUDA)
 #include "unit_tests.hpp"
 
 #include <unistd.h>
@@ -88,16 +89,16 @@ static void test_umpire_device_memory()
    host_perm.Write();
 
    printf("Write of size %u to perm, temp should still be empty: ", num_bytes);
-   REQUIRE(alloc_size(permanent) == num_bytes)
+   REQUIRE(alloc_size(permanent) == num_bytes);
    REQUIRE(alloc_size(temporary) == 0);
    printf("perm=%ld, temp=%ld\n", alloc_size(permanent), alloc_size(temporary));
 
    // uses temporary device memory
    double * d_host_temp = host_temp.ReadWrite();
-   //MFEM_FORALL(i, num_elems, { d_host_temp[i] = dev_val; });
+   MFEM_FORALL(i, num_elems, { d_host_temp[i] = dev_val; });
 
    printf("Write of size %u to temp: ", num_bytes);
-   REQUIRE(alloc_size(permanent) == num_bytes)
+   REQUIRE(alloc_size(permanent) == num_bytes);
    REQUIRE(alloc_size(temporary) == num_bytes);
    printf("perm=%ld, temp=%ld\n", alloc_size(permanent), alloc_size(temporary));
 
@@ -113,11 +114,11 @@ static void test_umpire_device_memory()
    // shorten with using statement
    using mc = mfem::MemoryClass;
    Vector dev_temp(num_elems, mc::DEVICE_TEMP);
-   //double * d_dev_temp = dev_temp.Write();
-   //MFEM_FORALL(i, num_elems, { d_dev_temp[i] = dev_val; });
+   double * d_dev_temp = dev_temp.Write();
+   MFEM_FORALL(i, num_elems, { d_dev_temp[i] = dev_val; });
 
    printf("Allocate %u more bytes in temporary memory: ", num_bytes);
-   REQUIRE(alloc_size(permanent) == num_bytes*2)
+   REQUIRE(alloc_size(permanent) == num_bytes*2);
    REQUIRE(alloc_size(temporary) == num_bytes*2);
    printf("perm=%ld, temp=%ld\n", alloc_size(permanent), alloc_size(temporary));
 
@@ -128,19 +129,19 @@ static void test_umpire_device_memory()
    pinned_host_temp.UseTemporary(true);
    REQUIRE(is_pinned_host(pinned_host_temp.GetData()));
    printf("Allocate %u pinned bytes in on the host: ", num_bytes*2);
-   REQUIRE(alloc_size(permanent) == num_bytes*2)
+   REQUIRE(alloc_size(permanent) == num_bytes*2);
    REQUIRE(alloc_size(temporary) == num_bytes*2);
    printf("perm=%ld, temp=%ld\n", alloc_size(permanent), alloc_size(temporary));
 
    pinned_host_perm.Write();
    printf("Allocate %u more bytes in permanent memory: ", num_bytes);
-   REQUIRE(alloc_size(permanent) == num_bytes*3)
+   REQUIRE(alloc_size(permanent) == num_bytes*3);
    REQUIRE(alloc_size(temporary) == num_bytes*2);
    printf("perm=%ld, temp=%ld\n", alloc_size(permanent), alloc_size(temporary));
 
    pinned_host_temp.Write();
    printf("Allocate %u more bytes in temporary memory: ", num_bytes);
-   REQUIRE(alloc_size(permanent) == num_bytes*3)
+   REQUIRE(alloc_size(permanent) == num_bytes*3);
    REQUIRE(alloc_size(temporary) == num_bytes*3);
    printf("perm=%ld, temp=%ld\n", alloc_size(permanent), alloc_size(temporary));
 
@@ -150,19 +151,31 @@ static void test_umpire_device_memory()
    REQUIRE(host_temp[0] == host_val);
    // copy to host, verify that the value is the "device" value
    dev_temp.DeleteDevice();
-   // TODO TMS
-   //REQUIRE(dev_temp[0] == dev_val);
+   REQUIRE(dev_temp[0] == dev_val);
    pinned_host_temp.DeleteDevice();
 
    printf("Delete all temporary memory: ");
    REQUIRE(alloc_size(permanent) == num_bytes*2);
    REQUIRE(alloc_size(temporary) == 0);
    printf("perm=%ld, temp=%ld\n", alloc_size(permanent), alloc_size(temporary));
+
+   // Just as an example, temp memory on the stack is automatically cleaned up
+   {
+      printf("Allocate %u more bytes in temporary memory: ", num_bytes);
+      Vector dev_temp(num_elems, mc::DEVICE_TEMP);
+      REQUIRE(alloc_size(permanent) == num_bytes*3);
+      REQUIRE(alloc_size(temporary) == num_bytes);
+      printf("perm=%ld, temp=%ld\n", alloc_size(permanent), alloc_size(temporary));
+   }
+   printf("Stack temp mem object went out-of-scope, memory released\n");
+   REQUIRE(alloc_size(permanent) == num_bytes*3);
+   REQUIRE(alloc_size(temporary) == 0);
+   printf("perm=%ld, temp=%ld\n", alloc_size(permanent), alloc_size(temporary));
 }
 
-TEST_CASE("MemoryManager", "[MemoryManager]")
+TEST_CASE("UmpireMemorySpace", "[MemoryManager]")
 {
-   SECTION("Umpire")
+   SECTION("Device")
    {
       test_umpire_device_memory();
    }
