@@ -192,6 +192,8 @@ public:
    /// Return a pointer to the current pressure ParGridFunction.
    ParGridFunction *GetCurrentPressure() { return &pn_gf; }
 
+   GridFunction *GetCurrentMeshVelocity() { return &wgn_gf; }
+
    /// Add a Dirichlet boundary condition to the velocity field.
    void AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr);
 
@@ -284,6 +286,10 @@ public:
     */
    void SetFilterAlpha(double a) { filter_alpha = a; }
 
+   double NekNorm(ParGridFunction &u, int type = 0, bool is_vector = false);
+
+   void TransformMesh(VectorCoefficient &dx);
+
 protected:
    /// Print information about the Navier version.
    void PrintInfo();
@@ -363,6 +369,7 @@ protected:
 
    /// Linear form to compute the mass matrix in various subroutines.
    ParLinearForm *mass_lf = nullptr;
+   ParLinearForm *component_mass_lf = nullptr;
    ConstantCoefficient onecoeff;
    double volume = 0.0;
 
@@ -397,6 +404,10 @@ protected:
                    resu_gf;
 
    ParGridFunction pn_gf, resp_gf;
+
+   GridFunction wgn_gf;
+
+   VectorCoefficient *wg_coef;
 
    // All essential attributes.
    Array<int> vel_ess_attr;
@@ -438,8 +449,8 @@ protected:
    int pl_amg = 0;
 
    // Relative tolerances.
-   double rtol_spsolve = 1e-6;
-   double rtol_hsolve = 1e-8;
+   double rtol_spsolve = 1e-14;
+   double rtol_hsolve = 1e-14;
 
    // Iteration counts.
    int iter_mvsolve = 0, iter_spsolve = 0, iter_hsolve = 0;
@@ -468,6 +479,8 @@ protected:
    ParFiniteElementSpace *vfes_filter = nullptr;
    ParGridFunction un_NM1_gf;
    ParGridFunction un_filtered_gf;
+
+   ParaViewDataCollection *debug_fields = nullptr;
 };
 
 } // namespace navier
