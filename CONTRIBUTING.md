@@ -118,6 +118,7 @@ The MFEM source code has the following structure:
   │   ├── navier
   │   ├── nurbs
   │   ├── performance
+  │   ├── solvers
   │   ├── tools
   │   └── toys
   └── tests
