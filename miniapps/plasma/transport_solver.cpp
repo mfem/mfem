@@ -2500,6 +2500,8 @@ void DGTransportTDO::TransportOp::SetTimeDerivativeTerm(
          blf_[i]->AddDomainIntegrator(new MassIntegrator(*coef));
       }
    }
+
+   massCoef_ = &MCoef;
 }
 
 void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableCoef &DCoef)
@@ -2508,6 +2510,8 @@ void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableCoef &DCoef)
    {
       cout << eqn_name_ << ": Adding isotropic diffusion term" << endl;
    }
+
+   diffusionCoef_ = &DCoef;
 
    ProductCoefficient * dtDCoef = new ProductCoefficient(dt_, DCoef);
    dtSCoefs_.Append(dtDCoef);
@@ -2591,6 +2595,8 @@ void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableMatCoef &DCoef)
       cout << eqn_name_ << ": Adding anisotropic diffusion term" << endl;
    }
 
+   diffusionMatrixCoef_ = &DCoef;
+
    ScalarMatrixProductCoefficient * dtDCoef =
       new ScalarMatrixProductCoefficient(dt_, DCoef);
    dtMCoefs_.Append(dtDCoef);
@@ -2673,6 +2679,8 @@ void DGTransportTDO::TransportOp::SetAdvectionTerm(StateVariableVecCoef &VCoef,
       cout << eqn_name_ << ": Adding advection term" << endl;
    }
 
+   advectionCoef_ = &VCoef;
+
    ScalarVectorProductCoefficient * dtVCoef =
       new ScalarVectorProductCoefficient(dt_, VCoef);
    dtVCoefs_.Append(dtVCoef);
@@ -2710,6 +2718,8 @@ void DGTransportTDO::TransportOp::SetSourceTerm(Coefficient &SCoef)
       cout << eqn_name_ << ": Adding source term" << endl;
    }
 
+   sourceCoef_ = &SCoef;
+
    dlfi_.Append(new DomainLFIntegrator(SCoef));
 }
 
@@ -2719,6 +2729,8 @@ void DGTransportTDO::TransportOp::SetSourceTerm(StateVariableCoef &SCoef)
    {
       cout << eqn_name_ << ": Adding source term" << endl;
    }
+
+   sourceCoef_ = &SCoef;
 
    dlfi_.Append(new DomainLFIntegrator(SCoef));
 

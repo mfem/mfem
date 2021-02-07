@@ -2547,6 +2547,12 @@ private:
 
       const EqnCoefficients & eqncoefs_;
 
+      Coefficient       * massCoef_;
+      Coefficient       * diffusionCoef_;
+      MatrixCoefficient * diffusionMatrixCoef_;
+      VectorCoefficient * advectionCoef_;
+      Coefficient       * sourceCoef_;
+
       TransportOp(const MPI_Session & mpi, const DGParams & dg,
                   const PlasmaParams & plasma, int index,
                   const std::string &eqn_name,
@@ -2575,12 +2581,13 @@ private:
            neCoef_(z_i_, niCoef_),
            dTe0Coef_(*kCoefPtrs_[ELECTRON_TEMPERATURE]),
            bcs_(bcs),
-           eqncoefs_(coefs)
+           eqncoefs_(coefs),
+           massCoef_(NULL),
+           diffusionCoef_(NULL),
+           diffusionMatrixCoef_(NULL),
+           advectionCoef_(NULL),
+           sourceCoef_(NULL)
       {}
-
-      ~TransportOp();
-
-      virtual void SetTimeStep(double dt);
 
       /** Sets the time derivative on the left hand side of the equation to be:
              d MCoef / dt
@@ -2605,9 +2612,20 @@ private:
       void SetSourceTerm(Coefficient &SCoef);
       void SetSourceTerm(StateVariableCoef &SCoef);
 
-      virtual void InitializeGLVis();
+   public:
+      virtual ~TransportOp();
 
+      virtual void SetTimeStep(double dt);
+
+      virtual void InitializeGLVis();
       virtual void DisplayToGLVis();
+
+      inline Coefficient       * GetMassCoef() { return massCoef_; }
+      inline Coefficient       * GetDiffusionCoef() { return diffusionCoef_; }
+      inline MatrixCoefficient * GetDiffusionMatrixCoef()
+      { return diffusionMatrixCoef_; }
+      inline VectorCoefficient * GetAdvectionCoef() { return advectionCoef_; }
+      inline Coefficient       * GetSourceCoef() { return sourceCoef_; }
    };
 
    /** The NeutralDensityOp is an mfem::Operator designed to work with
@@ -3086,7 +3104,7 @@ private:
        DummyOp          t_i_op_;
        DummyOp          t_e_op_;
       */
-      Array<NLOperator*> op_;
+      Array<TransportOp*> op_;
 
       const Vector &wgts_;
 
@@ -3119,6 +3137,17 @@ private:
 
       void SetTimeStep(double dt);
       void SetLogging(int logging);
+
+      inline Coefficient * GetDnCoef()
+      { return op_[0]->GetDiffusionCoef(); }
+      inline MatrixCoefficient * GetDiCoef()
+      { return op_[1]->GetDiffusionMatrixCoef(); }
+      inline MatrixCoefficient * GetEtaCoef()
+      { return op_[2]->GetDiffusionMatrixCoef(); }
+      inline MatrixCoefficient * GetnXiCoef()
+      { return op_[3]->GetDiffusionMatrixCoef(); }
+      inline MatrixCoefficient * GetnXeCoef()
+      { return op_[4]->GetDiffusionMatrixCoef(); }
 
       void Update();
 
@@ -3194,6 +3223,11 @@ public:
 
    void DisplayToGLVis();
 
+   inline Coefficient * GetDnCoefficient() { return op_.GetDnCoef(); }
+   inline MatrixCoefficient * GetDiCoefficient() { return op_.GetDiCoef(); }
+   inline MatrixCoefficient * GetEtaCoefficient() { return op_.GetEtaCoef(); }
+   inline MatrixCoefficient * GetnXiCoefficient() { return op_.GetnXiCoef(); }
+   inline MatrixCoefficient * GetnXeCoefficient() { return op_.GetnXeCoef(); }
    /*
     void SetNnDiffusionCoefficient(Coefficient &dCoef);
     void SetNnDiffusionCoefficient(MatrixCoefficient &DCoef);

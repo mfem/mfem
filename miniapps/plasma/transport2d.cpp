@@ -1531,7 +1531,7 @@ int main(int argc, char *argv[])
                                        (M_PI * plasma.m_n * amu_)));
    GridFunctionCoefficient veCoef(&para_velocity); // TODO: define as vi - J/q
 
-
+   /*
    VectorCoefficient *B3Coef = NULL;
    if (eqdsk)
    {
@@ -1541,7 +1541,8 @@ int main(int argc, char *argv[])
    {
       B3Coef = new VectorFunctionCoefficient(3, TotBFunc);
    }
-
+   */
+   /*
    // Intermediate Coefficients
    VectorFunctionCoefficient bHatCoef(2, bHatFunc);
    MatrixFunctionCoefficient perpCoef(2, perpFunc);
@@ -1556,7 +1557,8 @@ int main(int argc, char *argv[])
                                       XiPerpCoef, niCoef, TiCoef);
    ThermalDiffusionCoef        XeCoef(dim, plasma.z_i, me_u_,
                                       XePerpCoef, neCoef, TeCoef, &niCoef);
-
+   */
+   /*
    // Advection Coefficients
    ScalarVectorProductCoefficient   ViCoef(viCoef, bHatCoef);
    ScalarVectorProductCoefficient   VeCoef(veCoef, bHatCoef);
@@ -1578,7 +1580,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient QiCoef(0.0);   // TODO: implement ion energy source
    ConstantCoefficient QeCoef(0.0); // TODO: implement electron energy source
    // FunctionCoefficient QCoef(QFunc);
-
+   */
    ConstantCoefficient zeroCoef(0.0);
 
    // Coefficients for initial conditions
@@ -1646,7 +1648,25 @@ int main(int argc, char *argv[])
       eqnCoefs.LoadCoefs(coefFact, ecfs);
    }
 
+   VectorCoefficient *B3Coef = NULL;
+   if (eqnCoefs(5).GetVectorCoefficient(
+          CommonCoefs::MAGNETIC_FIELD_COEF) != NULL)
+   {
+      B3Coef = eqnCoefs(5).GetVectorCoefficient(
+                  CommonCoefs::MAGNETIC_FIELD_COEF);
+   }
+   else if (eqdsk)
+   {
+      B3Coef = new B3Coefficient(*nxGradPsiCoef);
+   }
+   else
+   {
+      B3Coef = new VectorFunctionCoefficient(3, TotBFunc);
+   }
+
    Array<double> coefNrm(5);
+   coefNrm = 1.0;
+   /*
    {
       L2_ParFESpace l2_fes(&pmesh, order - 1, dim);
       ParLinearForm Mc(&l2_fes);
@@ -1668,7 +1688,7 @@ int main(int argc, char *argv[])
          cMc = Mc(cHat);
       }
       {
-         ParBilinearForm m(&l2_fes);
+    ParBilinearForm m(&l2_fes);
          m.AddDomainIntegrator(new MassIntegrator(mnCoef));
          m.Assemble();
          m.Mult(cHat, Mc);
@@ -1767,6 +1787,7 @@ int main(int argc, char *argv[])
       coefNrm[3] = bnXib / bMb;
       coefNrm[4] = bnXeb / bMb;
    }
+   */
 
    DGTransportTDO oper(mpi, dg, plasma, ttol, eqn_weights, fes, vfes, ffes,
                        offsets, yGF, kGF,
@@ -1824,12 +1845,18 @@ int main(int argc, char *argv[])
    */
    Array<Coefficient*> dCoefs(5);       dCoefs = NULL;
    Array<MatrixCoefficient*> DCoefs(5); DCoefs = NULL;
-
+   /*
    dCoefs[0] = &DnCoef;
    DCoefs[1] = &DiCoef;
    DCoefs[2] = &EtaCoef;
    DCoefs[3] = &nXiCoef;
    DCoefs[4] = &nXeCoef;
+   */
+   dCoefs[0] = oper.GetDnCoefficient();
+   DCoefs[1] = oper.GetDiCoefficient();
+   DCoefs[2] = oper.GetEtaCoefficient();
+   DCoefs[3] = oper.GetnXiCoefficient();
+   DCoefs[4] = oper.GetnXeCoefficient();
 
    Vector estWeights(5);
    for (int i=0; i<5; i++) { estWeights[i] = amr_weights[i] / coefNrm[i]; }
