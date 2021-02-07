@@ -508,11 +508,11 @@ void TransportCoefs::ReadCoefs(CoefFactory &cf, std::istream &input)
    input >> buff;
    MFEM_VERIFY(buff == "transport_coefs", "invalid Coefficient file");
 
-   Array<ios::streampos> pos(neqn_+1);
+   Array<ios::streampos> pos(neqn_+2);
    pos = -1;
    while (input >> buff)
    {
-      pos[neqn_] = std::max(pos[neqn_], input.tellg());
+      pos[neqn_+1] = std::max(pos[neqn_+1], input.tellg());
       skip_comment_lines(input, '#');
       if (buff == "neutral_density")
       {
@@ -534,14 +534,18 @@ void TransportCoefs::ReadCoefs(CoefFactory &cf, std::istream &input)
       {
          pos[4] = input.tellg();
       }
+      else if (buff == "common_coefs")
+      {
+         pos[5] = input.tellg();
+      }
    }
-   for (int i=neqn_-1; i >= 0; i--)
+   for (int i=neqn_; i >= 0; i--)
    {
       if (pos[i] < 0) { pos[i] = pos[i+1]; }
    }
 
    input.clear();
-   for (int i=0; i<neqn_; i++)
+   for (int i=0; i<=neqn_; i++)
    {
       input.seekg(pos[i], std::ios::beg);
       int length = pos[i+1] - pos[i];
@@ -562,34 +566,61 @@ void TransportCoefs::ReadCoefs(CoefFactory &cf, std::istream &input)
 
 void EqnCoefficients::ReadCoefs(std::istream &input)
 {
-   int ncoefs = coefs_.Size();
+   int nSCoefs = sCoefs_.Size();
+   int nVCoefs = vCoefs_.Size();
+   int nMCoefs = mCoefs_.Size();
+   int nCoefs = nSCoefs + nVCoefs + nMCoefs;
    string buff;
 
    skip_comment_lines(input, '#');
 
-   Array<ios::streampos> pos(ncoefs+1);
+   Array<ios::streampos> pos(nCoefs+1);
+
+   enum CoefType {INVALID = -1, SCALAR, VECTOR, MATRIX};
+   Array<CoefType> typ(nCoefs);
+   typ = CoefType::INVALID;
+
    pos = -1;
    while (input >> buff)
    {
-      pos[ncoefs] = std::max(pos[ncoefs], input.tellg());
+      pos[nCoefs] = std::max(pos[nCoefs], input.tellg());
       skip_comment_lines(input, '#');
 
-      for (unsigned int i=0; i<coefNames_.size(); i++)
+      for (unsigned int i=0; i<sCoefNames_.size(); i++)
       {
-         if (buff == coefNames_[i])
+         if (buff == sCoefNames_[i])
          {
             pos[i] = input.tellg();
+            typ[i] = SCALAR;
+            break;
+         }
+      }
+      for (unsigned int i=0; i<vCoefNames_.size(); i++)
+      {
+         if (buff == vCoefNames_[i])
+         {
+            pos[i] = input.tellg();
+            typ[i] = VECTOR;
+            break;
+         }
+      }
+      for (unsigned int i=0; i<mCoefNames_.size(); i++)
+      {
+         if (buff == mCoefNames_[i])
+         {
+            pos[i] = input.tellg();
+            typ[i] = MATRIX;
             break;
          }
       }
    }
-   for (int i=ncoefs-1; i >= 0; i--)
+   for (int i=nCoefs-1; i >= 0; i--)
    {
       if (pos[i] < 0) { pos[i] = pos[i+1]; }
    }
 
    input.clear();
-   for (int i=0; i<ncoefs; i++)
+   for (int i=0; i<nCoefs; i++)
    {
       input.seekg(pos[i], std::ios::beg);
       int length = pos[i+1] - pos[i];
@@ -601,50 +632,68 @@ void EqnCoefficients::ReadCoefs(std::istream &input)
          string buff_str(buffer, length);
 
          istringstream iss(buff_str);
-         coefs_[i] = coefFact->GetScalarCoef(iss);
-
+         switch (typ[i])
+         {
+            case SCALAR:
+               sCoefs_[i] = coefFact->GetScalarCoef(iss);
+               break;
+            case VECTOR:
+               vCoefs_[i] = coefFact->GetVectorCoef(iss);
+               break;
+            case MATRIX:
+               mCoefs_[i] = coefFact->GetMatrixCoef(iss);
+               break;
+            default:
+               MFEM_WARNING("Unrecognized coefficient type");
+         }
          delete [] buffer;
       }
    }
 }
 
 NeutralDensityCoefs::NeutralDensityCoefs()
-   : EqnCoefficients(CoefNames::NUM_COEFS)
+   : EqnCoefficients(sCoefNames::NUM_SCALAR_COEFS)
 {
-   coefNames_[DIFFUSION_COEF] = "diffusion_coef";
-   coefNames_[SOURCE_COEF]    = "source_coef";
+   sCoefNames_[DIFFUSION_COEF] = "diffusion_coef";
+   sCoefNames_[SOURCE_COEF]    = "source_coef";
 }
 
 IonDensityCoefs::IonDensityCoefs()
-   : EqnCoefficients(CoefNames::NUM_COEFS)
+   : EqnCoefficients(sCoefNames::NUM_SCALAR_COEFS)
 {
-   coefNames_[PARA_DIFFUSION_COEF] = "para_diffusion_coef";
-   coefNames_[PERP_DIFFUSION_COEF] = "perp_diffusion_coef";
-   coefNames_[SOURCE_COEF]         = "source_coef";
+   sCoefNames_[PARA_DIFFUSION_COEF] = "para_diffusion_coef";
+   sCoefNames_[PERP_DIFFUSION_COEF] = "perp_diffusion_coef";
+   sCoefNames_[SOURCE_COEF]         = "source_coef";
 }
 
 IonMomentumCoefs::IonMomentumCoefs()
-   : EqnCoefficients(CoefNames::NUM_COEFS)
+   : EqnCoefficients(sCoefNames::NUM_SCALAR_COEFS)
 {
-   coefNames_[PARA_DIFFUSION_COEF] = "para_diffusion_coef";
-   coefNames_[PERP_DIFFUSION_COEF] = "perp_diffusion_coef";
-   coefNames_[SOURCE_COEF]         = "source_coef";
+   sCoefNames_[PARA_DIFFUSION_COEF] = "para_diffusion_coef";
+   sCoefNames_[PERP_DIFFUSION_COEF] = "perp_diffusion_coef";
+   sCoefNames_[SOURCE_COEF]         = "source_coef";
 }
 
 IonStaticPressureCoefs::IonStaticPressureCoefs()
-   : EqnCoefficients(CoefNames::NUM_COEFS)
+   : EqnCoefficients(sCoefNames::NUM_SCALAR_COEFS)
 {
-   coefNames_[PARA_DIFFUSION_COEF] = "para_diffusion_coef";
-   coefNames_[PERP_DIFFUSION_COEF] = "perp_diffusion_coef";
-   coefNames_[SOURCE_COEF]         = "source_coef";
+   sCoefNames_[PARA_DIFFUSION_COEF] = "para_diffusion_coef";
+   sCoefNames_[PERP_DIFFUSION_COEF] = "perp_diffusion_coef";
+   sCoefNames_[SOURCE_COEF]         = "source_coef";
 }
 
 ElectronStaticPressureCoefs::ElectronStaticPressureCoefs()
-   : EqnCoefficients(CoefNames::NUM_COEFS)
+   : EqnCoefficients(sCoefNames::NUM_SCALAR_COEFS)
 {
-   coefNames_[PARA_DIFFUSION_COEF] = "para_diffusion_coef";
-   coefNames_[PERP_DIFFUSION_COEF] = "perp_diffusion_coef";
-   coefNames_[SOURCE_COEF]         = "source_coef";
+   sCoefNames_[PARA_DIFFUSION_COEF] = "para_diffusion_coef";
+   sCoefNames_[PERP_DIFFUSION_COEF] = "perp_diffusion_coef";
+   sCoefNames_[SOURCE_COEF]         = "source_coef";
+}
+
+CommonCoefs::CommonCoefs()
+   : EqnCoefficients(0, vCoefNames::NUM_VECTOR_COEFS)
+{
+   vCoefNames_[MAGNETIC_FIELD_COEF] = "magnetic_field_coef";
 }
 /*
 void ElectronStaticPressureCoefs::ReadCoefs(std::istream &input)

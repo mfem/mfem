@@ -439,34 +439,56 @@ public:
 class EqnCoefficients
 {
 protected:
-   Array<Coefficient *> coefs_;
+   Array<Coefficient *> sCoefs_;
+   Array<VectorCoefficient *> vCoefs_;
+   Array<MatrixCoefficient *> mCoefs_;
 
-   std::vector<std::string> coefNames_;
+   std::vector<std::string> sCoefNames_;
+   std::vector<std::string> vCoefNames_;
+   std::vector<std::string> mCoefNames_;
 
    common::CoefFactory * coefFact;
 
    virtual void ReadCoefs(std::istream &input);
 
 public:
-   EqnCoefficients(int ncoefs)
-      : coefs_(ncoefs), coefNames_(ncoefs) { coefs_ = NULL; }
+   EqnCoefficients(int nSCoefs, int nVCoefs = 0, int nMCoefs = 0)
+      : sCoefs_(nSCoefs), vCoefs_(nVCoefs), mCoefs_(nMCoefs),
+        sCoefNames_(nSCoefs), vCoefNames_(nVCoefs), mCoefNames_(nMCoefs)
+   {
+      sCoefs_ = NULL;
+      vCoefs_ = NULL;
+      mCoefs_ = NULL;
+   }
 
    virtual ~EqnCoefficients() {}
 
    void LoadCoefs(common::CoefFactory &cf, std::istream &input)
    { coefFact = &cf; ReadCoefs(input); }
 
-   Coefficient *& operator()(int i) { return coefs_[i]; }
-   const Coefficient * operator()(int i) const { return coefs_[i]; }
+   Coefficient *& operator()(int i) { return sCoefs_[i]; }
+   const Coefficient * operator()(int i) const { return sCoefs_[i]; }
 
-   Coefficient *& operator[](int i) { return coefs_[i]; }
-   const Coefficient * operator[](int i) const { return coefs_[i]; }
+   Coefficient *& operator[](int i) { return sCoefs_[i]; }
+   const Coefficient * operator[](int i) const { return sCoefs_[i]; }
+
+   Coefficient *& GetScalarCoefficient(int i) { return sCoefs_[i]; }
+   const Coefficient * GetScalarCoefficient(int i) const
+   { return sCoefs_[i]; }
+
+   VectorCoefficient *& GetVectorCoefficient(int i) { return vCoefs_[i]; }
+   const VectorCoefficient * GetVectorCoefficient(int i) const
+   { return vCoefs_[i]; }
+
+   MatrixCoefficient *& GetMatrixCoefficient(int i) { return mCoefs_[i]; }
+   const MatrixCoefficient * GetMatrixCoefficient(int i) const
+   { return mCoefs_[i]; }
 };
 
 class NeutralDensityCoefs : public EqnCoefficients
 {
 public:
-   enum CoefNames {DIFFUSION_COEF = 0, SOURCE_COEF, NUM_COEFS};
+   enum sCoefNames {DIFFUSION_COEF = 0, SOURCE_COEF, NUM_SCALAR_COEFS};
 
    NeutralDensityCoefs();
 };
@@ -474,9 +496,9 @@ public:
 class IonDensityCoefs : public EqnCoefficients
 {
 public:
-   enum CoefNames {PERP_DIFFUSION_COEF = 0, PARA_DIFFUSION_COEF,
-                   SOURCE_COEF, NUM_COEFS
-                  };
+   enum sCoefNames {PERP_DIFFUSION_COEF = 0, PARA_DIFFUSION_COEF,
+                    SOURCE_COEF, NUM_SCALAR_COEFS
+                   };
 
    IonDensityCoefs();
 };
@@ -484,9 +506,9 @@ public:
 class IonMomentumCoefs : public EqnCoefficients
 {
 public:
-   enum CoefNames {PERP_DIFFUSION_COEF = 0, PARA_DIFFUSION_COEF,
-                   SOURCE_COEF, NUM_COEFS
-                  };
+   enum sCoefNames {PERP_DIFFUSION_COEF = 0, PARA_DIFFUSION_COEF,
+                    SOURCE_COEF, NUM_SCALAR_COEFS
+                   };
 
    IonMomentumCoefs();
 };
@@ -494,9 +516,9 @@ public:
 class IonStaticPressureCoefs : public EqnCoefficients
 {
 public:
-   enum CoefNames {PERP_DIFFUSION_COEF = 0, PARA_DIFFUSION_COEF,
-                   SOURCE_COEF, NUM_COEFS
-                  };
+   enum sCoefNames {PERP_DIFFUSION_COEF = 0, PARA_DIFFUSION_COEF,
+                    SOURCE_COEF, NUM_SCALAR_COEFS
+                   };
 
    IonStaticPressureCoefs();
 };
@@ -504,11 +526,19 @@ public:
 class ElectronStaticPressureCoefs : public EqnCoefficients
 {
 public:
-   enum CoefNames {PERP_DIFFUSION_COEF = 0, PARA_DIFFUSION_COEF,
-                   SOURCE_COEF, NUM_COEFS
-                  };
+   enum sCoefNames {PERP_DIFFUSION_COEF = 0, PARA_DIFFUSION_COEF,
+                    SOURCE_COEF, NUM_SCALAR_COEFS
+                   };
 
    ElectronStaticPressureCoefs();
+};
+
+class CommonCoefs : public EqnCoefficients
+{
+public:
+   enum vCoefNames {MAGNETIC_FIELD_COEF = 0, NUM_VECTOR_COEFS};
+
+   CommonCoefs();
 };
 
 typedef NeutralDensityCoefs NDCoefs;
@@ -516,6 +546,7 @@ typedef IonDensityCoefs IDCoefs;
 typedef IonMomentumCoefs IMCoefs;
 typedef IonStaticPressureCoefs ISPCoefs;
 typedef ElectronStaticPressureCoefs ESPCoefs;
+typedef CommonCoefs CCoefs;
 
 class TransportCoefs
 {
@@ -528,7 +559,7 @@ private:
 public:
    TransportCoefs(int neqn)
       : neqn_(neqn),
-        eqnCoefs_(neqn)
+        eqnCoefs_(neqn+1)
    {
       eqnCoefs_ = NULL;
       eqnCoefs_[0] = new NeutralDensityCoefs;
@@ -536,13 +567,14 @@ public:
       eqnCoefs_[2] = new IonMomentumCoefs;
       eqnCoefs_[3] = new IonStaticPressureCoefs;
       eqnCoefs_[4] = new ElectronStaticPressureCoefs;
+      eqnCoefs_[5] = new CommonCoefs;
    }
 
    TransportCoefs(int neqn, common::CoefFactory &cf, std::istream &input);
 
    ~TransportCoefs()
    {
-      for (int i=0; i<neqn_; i++)
+      for (int i=0; i<=neqn_; i++)
       {
          delete eqnCoefs_[i];
       }
