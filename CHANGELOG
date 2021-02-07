@@ -67,6 +67,9 @@ Version 4.2.1 (development)
 - Added new mesh quality metrics and improved the untangling capabilities of the
   TMOP-based mesh optimization algorithms.
 
+- Added convective and skew-symmetric integrators for the nonlinear term in the
+  Navier-Stokes equations.
+
 - Changed the interface for the error estimator.
 
 - Implemented the parallel Kelly error indicator for scalar-valued problems.
