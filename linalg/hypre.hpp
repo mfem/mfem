@@ -546,7 +546,7 @@ public:
    /// Remove values smaller in absolute value than some threshold
    void Threshold(double threshold = 0.0);
 
-   /** @brief Wrapper for hypre_ParCSRMatrixDropSmallEntries in dfferent
+   /** @brief Wrapper for hypre_ParCSRMatrixDropSmallEntries in different
        versions of hypre. Drop off-diagonal entries that are smaller than
        tol * l2 norm of its row */
    /** For HYPRE versions < 2.14, this method just calls Threshold() with
