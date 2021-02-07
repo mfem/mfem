@@ -2293,7 +2293,8 @@ int main(int argc, char *argv[])
    // Free the used memory.
    delete ode_solver;
    delete dc;
-   delete B3Coef;
+   if (eqnCoefs(5).GetVectorCoefficient(
+          CommonCoefs::MAGNETIC_FIELD_COEF) != B3Coef) { delete B3Coef; }
 
    return 0;
 }
