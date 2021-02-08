@@ -1,11 +1,12 @@
-//                       MFEM Example sliding - Parallel Version
+//                       MFEM Example 28 - Parallel Version
 //
-// Compile with: make ex-sliding
+// Compile with: make ex28p
 //
-// Sample runs:  ex-sliding
-//               ex-sliding --order 4
+// Sample runs:  ex28p
+//               ex28p --visit-datafiles
+//               ex28p --order 4
 //
-//               mpirun -np 4 ex-sliding
+//               mpirun -np 4 ex28p
 //
 // Description:  Demonstrates a sliding boundary condition in an elasticity
 //               problem. A trapezoid, roughly as pictured below, is pushed
@@ -253,6 +254,7 @@ int main(int argc, char *argv[])
    bool amg_elast = 0;
    bool reorder_space = false;
    double offset = 0.3;
+   bool visit = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
@@ -270,6 +272,9 @@ int main(int argc, char *argv[])
                   "Use byNODES ordering of vector space instead of byVDIM");
    args.AddOption(&offset, "--offset", "--offset",
                   "How much to offset the trapezoid.");
+   args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
+                  "--no-visit-datafiles",
+                  "Save data files for VisIt (visit.llnl.gov) visualization.");
    args.Parse();
    if (!args.Good())
    {
@@ -462,13 +467,14 @@ int main(int argc, char *argv[])
       pmesh->SetNodalFESpace(fespace);
    }
 
-   // 16. Save the refined mesh and the solution in VisIt format.
-   {
-      GridFunction *nodes = pmesh->GetNodes();
-      *nodes += x;
+   GridFunction *nodes = pmesh->GetNodes();
+   *nodes += x;
 
+   // 16. Save the refined mesh and the solution in VisIt format.
+   if (visit)
+   {
       std::stringstream visitname;
-      visitname << "exsliding";
+      visitname << "ex28p";
       VisItDataCollection visit_dc(MPI_COMM_WORLD, visitname.str(), pmesh);
       visit_dc.SetLevelsOfDetail(4);
       visit_dc.RegisterField("displacement", &x);
