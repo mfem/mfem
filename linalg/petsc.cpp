@@ -287,7 +287,7 @@ PetscParVector::PetscParVector(const PetscParMatrix &A,
    _SetDataAndSize_();
 }
 
-PetscParVector::PetscParVector(Vec y, bool ref) : Vector()
+PetscParVector::PetscParVector(petsc::Vec y, bool ref) : Vector()
 {
    if (ref)
    {
@@ -1244,7 +1244,7 @@ void PetscParMatrix::Destroy()
    X = Y = NULL;
 }
 
-PetscParMatrix::PetscParMatrix(Mat a, bool ref)
+PetscParMatrix::PetscParMatrix(petsc::Mat a, bool ref)
 {
    if (ref)
    {
