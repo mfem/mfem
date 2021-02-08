@@ -24,7 +24,7 @@ void NonlinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
    switch (assembly)
    {
       case AssemblyLevel::NONE:
-         ext = new UANonlinearFormExtension(this);
+         ext = new MFNonlinearFormExtension(this);
          break;
       case AssemblyLevel::PARTIAL:
          ext = new PANonlinearFormExtension(this);

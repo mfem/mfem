@@ -42,14 +42,14 @@ public:
 };
 
 /// Data and methods for unassembled nonlinear forms
-class UANonlinearFormExtension : public NonlinearFormExtension
+class MFNonlinearFormExtension : public NonlinearFormExtension
 {
 protected:
    const FiniteElementSpace &fes; // Not owned
    mutable Vector localX, localY;
    const Operator *elem_restrict_lex; // Not owned
 public:
-   UANonlinearFormExtension(NonlinearForm*);
+   MFNonlinearFormExtension(NonlinearForm*);
    void Assemble();
    void Mult(const Vector &x, Vector &y) const;
 };
