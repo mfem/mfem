@@ -14,7 +14,7 @@ list(APPEND SRCS
   blockoperator.cpp
   blockvector.cpp
   complex_operator.cpp
-  constrained.cpp
+  constraints.cpp
   densemat.cpp
   symmat.cpp
   handle.cpp
@@ -32,7 +32,7 @@ list(APPEND HDRS
   blockoperator.hpp
   blockvector.hpp
   complex_operator.hpp
-  constrained.hpp
+  constraints.hpp
   densemat.hpp
   symmat.hpp
   dtensor.hpp

@@ -29,7 +29,7 @@
 #include "solvers.hpp"
 #include "handle.hpp"
 #include "invariants.hpp"
-#include "constrained.hpp"
+#include "constraints.hpp"
 
 #ifdef MFEM_USE_AMGX
 #include "amgxsolver.hpp"
