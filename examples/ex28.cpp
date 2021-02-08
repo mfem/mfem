@@ -27,6 +27,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <set>
 
 using namespace std;
 using namespace mfem;
