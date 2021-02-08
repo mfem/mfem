@@ -30,7 +30,7 @@ using namespace mfem;
 
 /** @brief Build a matrix constraining normal components to zero.
 
-    See BuildNormalConstraints in ex-sliding.cpp for fuller explanation.
+    See BuildNormalConstraints in ex28p.cpp for fuller explanation.
     The main difference for the code here is this code assumes that
     when two attributes interesect, the angle is close enough to zero
     that there should still only be one normal constraint instead
