@@ -14,6 +14,7 @@
 
 #include "nonlinearform.hpp"
 #include "../general/forall.hpp"
+#include "ceed/util.hpp"
 
 namespace mfem
 {
@@ -58,10 +59,22 @@ void PANonlinearFormExtension::AssembleGradient(const Vector &x)
 
 void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
-   ye = 0.0;
-   elemR->Mult(x, xe);
-   for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AddMultPA(xe, ye); }
-   elemR->MultTranspose(ye, y);
+   if (!DeviceCanUseCeed())
+   {
+      ye = 0.0;
+      elemR->Mult(x, xe);
+      for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AddMultPA(xe, ye); }
+      elemR->MultTranspose(ye, y);
+   }
+   else
+   {
+      y.UseDevice(true); // typically this is a large vector, so store on device
+      y = 0.0;
+      for (int i = 0; i < dnfi.Size(); ++i)
+      {
+         dnfi[i]->AddMultPA(x, y);
+      }
+   }
 }
 
 Operator &PANonlinearFormExtension::GetGradient(const Vector &x) const
@@ -114,6 +127,55 @@ void PANonlinearFormExtension::Gradient::AssembleDiagonal(Vector &diag) const
       dnfi[i]->AssembleGradDiagonalPA(ge, ye);
    }
    elemR->MultTranspose(ye, diag);
+}
+
+
+MFNonlinearFormExtension::MFNonlinearFormExtension(NonlinearForm *form):
+   NonlinearFormExtension(form), fes(*form->FESpace())
+{
+   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   elem_restrict_lex = fes.GetElementRestriction(ordering);
+   if (elem_restrict_lex)
+   {
+      localX.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      localY.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
+   }
+}
+
+void MFNonlinearFormExtension::Assemble()
+{
+   const Array<NonlinearFormIntegrator*> &integrators = *nlf->GetDNFI();
+   const int Ni = integrators.Size();
+   for (int i = 0; i < Ni; ++i)
+   {
+      integrators[i]->AssembleMF(*nlf->FESpace());
+   }
+}
+
+void MFNonlinearFormExtension::Mult(const Vector &x, Vector &y) const
+{
+   const Array<NonlinearFormIntegrator*> &integrators = *nlf->GetDNFI();
+   const int iSz = integrators.Size();
+   if (elem_restrict_lex && !DeviceCanUseCeed())
+   {
+      elem_restrict_lex->Mult(x, localX);
+      localY = 0.0;
+      for (int i = 0; i < iSz; ++i)
+      {
+         integrators[i]->AddMultMF(localX, localY);
+      }
+      elem_restrict_lex->MultTranspose(localY, y);
+   }
+   else
+   {
+      y.UseDevice(true); // typically this is a large vector, so store on device
+      y = 0.0;
+      for (int i = 0; i < iSz; ++i)
+      {
+         integrators[i]->AddMultMF(x, y);
+      }
+   }
 }
 
 } // namespace mfem

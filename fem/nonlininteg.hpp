@@ -16,6 +16,7 @@
 #include "fe.hpp"
 #include "coefficient.hpp"
 #include "fespace.hpp"
+#include "ceed/operator.hpp"
 
 namespace mfem
 {
@@ -28,8 +29,11 @@ class NonlinearFormIntegrator
 protected:
    const IntegrationRule *IntRule;
 
+   // CEED extension
+   ceed::Operator* ceedOp;
+
    NonlinearFormIntegrator(const IntegrationRule *ir = NULL)
-      : IntRule(ir) { }
+      : IntRule(ir), ceedOp(NULL) { }
 
 public:
    /** @brief Prescribe a fixed IntegrationRule to use (when @a ir != NULL) or
@@ -116,7 +120,21 @@ public:
        @param[out] diag  The diagonal of the @f$ grad(g) @f$ Operator. */
    virtual void AssembleGradDiagonalPA(const Vector &g, Vector &diag) const;
 
-   virtual ~NonlinearFormIntegrator() { }
+   /// Method defining fully unassembled operator.
+   virtual void AssembleMF(const FiniteElementSpace &fes);
+
+   /** Perform the action of integrator on the input @a x and add the result to
+       the output @a y. Both @a x and @a y are E-vectors, i.e. they represent
+       the element-wise discontinuous version of the FE space.
+
+       This method can be called only after the method AssembleMF() has been
+       called. */
+   virtual void AddMultMF(const Vector &x, Vector &y) const;
+
+   virtual ~NonlinearFormIntegrator()
+   {
+      delete ceedOp;
+   }
 };
 
 /** The abstract base class BlockNonlinearFormIntegrator is
@@ -345,6 +363,7 @@ private:
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq;
+
 public:
    VectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { }
 
@@ -367,7 +386,11 @@ public:
 
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
+   virtual void AssembleMF(const FiniteElementSpace &fes);
+
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+
+   virtual void AddMultMF(const Vector &x, Vector &y) const;
 };
 
 

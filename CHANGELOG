@@ -94,6 +94,14 @@ Version 4.2.1 (development)
 
 - Gitlab CI: use Spack (and Uberenv) to automate the build of TPLs.
 
+libCEED integration improvements
+--------------------------------
+- Refactor the libCEED integration
+
+- Add support for VectorCoefficient with libCEED backends.
+
+- Add support for ConvectionIntegrator, and VectorConvectionNLFIntegrator with libCEED backends.
+
 
 Version 4.2, released on October 30, 2020
 =========================================

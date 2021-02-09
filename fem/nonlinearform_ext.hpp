@@ -87,5 +87,31 @@ public:
    Operator &GetGradient(const Vector &x) const;
    double GetGridFunctionEnergy(const Vector &x) const;
 };
+
+/// Data and methods for unassembled nonlinear forms
+class MFNonlinearFormExtension : public NonlinearFormExtension
+{
+protected:
+   const FiniteElementSpace &fes; // Not owned
+   mutable Vector localX, localY;
+   const Operator *elem_restrict_lex; // Not owned
+public:
+   MFNonlinearFormExtension(NonlinearForm*);
+   void Assemble();
+   void AssembleGradient(const Vector &x) { MFEM_ABORT("TODO"); }
+
+   void Mult(const Vector &x, Vector &y) const;
+   Operator &GetGradient(const Vector &x) const
+   {
+      MFEM_ABORT("TODO");
+      return *const_cast<MFNonlinearFormExtension*>(this);
+   }
+   double GetGridFunctionEnergy(const Vector &x) const
+   {
+      MFEM_ABORT("TODO");
+      return 0.0;
+   }
+};
+
 }
 #endif // NONLINEARFORM_EXT_HPP
