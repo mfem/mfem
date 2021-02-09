@@ -51,6 +51,8 @@ int eigs[21] =
    7,10,13,15,16,19,21
 };
 
+#ifdef MFEM_USE_LAPACK
+#
 TEST_CASE("Laplacian Eigenvalues",
           "[H1_FECollection]"
           "[GridFunction]"
@@ -153,6 +155,8 @@ TEST_CASE("Laplacian Eigenvalues",
       delete mesh;
    }
 }
+
+#endif // MFEM_USE_LAPACK
 
 #ifdef MFEM_USE_MPI
 #
