@@ -2944,8 +2944,8 @@ protected:
    int nterms; //1 = Hessian (3rd order)
 
    // these are not thread-safe!
-   Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
-   DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
+   Vector shape, dshapedn, dshapephysdn, nor, nh, ni;
+   DenseMatrix jmat, dshape, dshapephys, adjJ;
 
 
 public:
