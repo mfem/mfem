@@ -2912,6 +2912,12 @@ public:
 class DGDiffusionIntegrator : public BilinearFormIntegrator
 {
 protected:
+   /*
+   Coefficient *rho;
+   VectorCoefficient *u;
+   double alpha, beta;
+   */
+
    Coefficient *Q;
    MatrixCoefficient *MQ;
    double sigma, kappa;
@@ -2920,18 +2926,55 @@ protected:
    Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
    DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
 
+   // PA extension
+   const DofToQuad *maps;         ///< Not owned
+   const FaceGeometricFactors *geom;  ///< Not owned
+   //const GeometricFactors *geom;  ///< Not owned
+   int dim, sdim, ne, nf, dofs1D, quad1D;
+   // Coefficient data for the 1st 2nd and 3rd term
+   Vector coeff_data_1;
+   Vector coeff_data_2;
+   Vector coeff_data_3;
+
+   //ir->GetWeights(), 
+   //maps->G,
+   //geom->detJ, geom->normal, 
+   double alpha, beta;
+   Vector r, vel;
+
+   static const IntegrationRule &GetRule(Geometry::Type geom, 
+                                         int order,
+                                         FaceElementTransformations &T);
+
 public:
+   // Q = 1 (right?)
    DGDiffusionIntegrator(const double s, const double k)
       : Q(NULL), MQ(NULL), sigma(s), kappa(k) { }
+   // Q is some scalar diffusion coefficient
    DGDiffusionIntegrator(Coefficient &q, const double s, const double k)
       : Q(&q), MQ(NULL), sigma(s), kappa(k) { }
+   /*
+   // Q is some matrix diffusion coefficient
    DGDiffusionIntegrator(MatrixCoefficient &q, const double s, const double k)
       : Q(NULL), MQ(&q), sigma(s), kappa(k) { }
+   */
+
    using BilinearFormIntegrator::AssembleFaceMatrix;
+
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
+
+   void AssemblePAInteriorFaces(const FiniteElementSpace& fes);
+
+   void AssemblePABoundaryFaces(const FiniteElementSpace& fes);
+
+   virtual void SetupPA(const FiniteElementSpace &fes, FaceType type);
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
+
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 };
 
 /** Integrator for the "BR2" diffusion stabilization term
