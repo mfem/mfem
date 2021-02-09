@@ -135,19 +135,19 @@ class L2FaceRestriction : public Operator
 {
 protected:
    const FiniteElementSpace &fes;
-   const int nf;
-   const int ne;
-   const int vdim;
+   const int nf; // Number of faces of the requested type
+   const int ne; // Number of elements
+   const int vdim; // vdim
    const bool byvdim;
-   const int ndofs;
-   const int dof;
-   const int elemDofs;
+   const int ndofs; // Total number of dofs
+   const int dof; // Number of dofs on each face
+   const int elemDofs; // Number of dofs in each element
    const L2FaceValues m;
-   const int nfdofs;
-   Array<int> scatter_indices1;
-   Array<int> scatter_indices2;
-   Array<int> offsets;
-   Array<int> gather_indices;
+   const int nfdofs; // Total number of dofs on the faces
+   Array<int> scatter_indices1; // Scattering indices for element 1 on each face
+   Array<int> scatter_indices2; // Scattering indices for element 2 on each face
+   Array<int> offsets; // offsets for the gathering indices of each dof
+   Array<int> gather_indices; // gathering indices for each dof
 
    L2FaceRestriction(const FiniteElementSpace&,
                      const FaceType,
