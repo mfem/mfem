@@ -35,6 +35,7 @@
 //               lor-transfer -h1
 //               lor-transfer -t
 //               lor-transfer -m ../../data/star-q2.mesh -lref 5 -p 4
+//               lor-transfer -m ../../data/star-mixed.mesh -lref 3 -p 2
 //               lor-transfer -lref 4 -o 4 -lo 0 -p 1
 //               lor-transfer -lref 5 -o 4 -lo 0 -p 1
 //               lor-transfer -lref 5 -o 4 -lo 3 -p 2
