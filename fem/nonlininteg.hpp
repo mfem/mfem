@@ -323,6 +323,7 @@ public:
                                     const Array2D<DenseMatrix *> &elmats);
 };
 
+
 class VectorConvectionNLFIntegrator : public NonlinearFormIntegrator
 {
 private:
@@ -362,6 +363,51 @@ public:
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 
    virtual void AddMultMF(const Vector &x, Vector &y) const;
+};
+
+
+/** This class is used to assemble the convective form of the nonlinear term
+    arising in the Navier-Stokes equations \f$(u \cdot \nabla v, w )\f$ */
+class ConvectiveVectorConvectionNLFIntegrator :
+   public VectorConvectionNLFIntegrator
+{
+private:
+   Coefficient *Q{};
+   DenseMatrix dshape, dshapex, EF, gradEF, ELV, elmat_comp;
+   Vector shape;
+
+public:
+   ConvectiveVectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { }
+
+   ConvectiveVectorConvectionNLFIntegrator() = default;
+
+   virtual void AssembleElementGrad(const FiniteElement &el,
+                                    ElementTransformation &trans,
+                                    const Vector &elfun,
+                                    DenseMatrix &elmat);
+};
+
+
+/** This class is used to assemble the skew-symmetric form of the nonlinear term
+    arising in the Navier-Stokes equations
+    \f$.5*(u \cdot \nabla v, w ) - .5*(u \cdot \nabla w, v )\f$ */
+class SkewSymmetricVectorConvectionNLFIntegrator :
+   public VectorConvectionNLFIntegrator
+{
+private:
+   Coefficient *Q{};
+   DenseMatrix dshape, dshapex, EF, gradEF, ELV, elmat_comp;
+   Vector shape;
+
+public:
+   SkewSymmetricVectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { }
+
+   SkewSymmetricVectorConvectionNLFIntegrator() = default;
+
+   virtual void AssembleElementGrad(const FiniteElement &el,
+                                    ElementTransformation &trans,
+                                    const Vector &elfun,
+                                    DenseMatrix &elmat);
 };
 
 }
