@@ -301,16 +301,21 @@ int CeedBasisSparsifyScaling(CeedBasis basisin, CeedBasis* basisout,
   return 0;
 }
 
-int CeedSparsifyH1Operator(CeedOperator oper, int sparse_parameter,
-                           SparsifySelectionStrategy sel_strategy,
-                           int (*basis_sparsify)(CeedBasis, CeedBasis*, SparsifySelectionStrategy, int),
-                           CeedBasis* sparse_basis_out,
-                           CeedOperator* out) {
+int CeedSparsifySingleOperator(CeedOperator oper, int sparse_parameter,
+                               SparsifySelectionStrategy sel_strategy,
+                               int (*basis_sparsify)(CeedBasis, CeedBasis*, SparsifySelectionStrategy, int),
+                               CeedBasis* sparse_basis_out,
+                               CeedOperator* out) {
   int ierr;
   Ceed ceed;
   ierr = CeedOperatorGetCeed(oper, &ceed); CeedChk(ierr);
 
   CeedQFunction qf;
+  bool isComposite;
+  ierr = CeedOperatorIsComposite(oper, &isComposite); CeedChk(ierr);
+  if (isComposite) {
+     return CeedError(ceed, 1, "This function does not make sense for composite operator!");
+  }
   ierr = CeedOperatorGetQFunction(oper, &qf); CeedChk(ierr);
   CeedInt numinputfields, numoutputfields;
   ierr = CeedQFunctionGetNumArgs(qf, &numinputfields, &numoutputfields);
@@ -402,5 +407,42 @@ int CeedSparsifyH1Operator(CeedOperator oper, int sparse_parameter,
   return 0;
 }
 
+int CeedSparsifyH1Operator(CeedOperator oper, int sparse_parameter,
+                           SparsifySelectionStrategy sel_strategy,
+                           int (*basis_sparsify)(CeedBasis, CeedBasis*, SparsifySelectionStrategy, int),
+                           CeedBasis* sparse_basis_out,
+                           CeedOperator* out) {
+   int ierr;
+   Ceed ceed;
+   ierr = CeedOperatorGetCeed(oper, &ceed); CeedChk(ierr);
+
+   CeedInt numsub;
+   CeedOperator *subops;
+   bool isComposite;
+   ierr = CeedOperatorIsComposite(oper, &isComposite); CeedChk(ierr);
+   if (isComposite) {
+      ierr = CeedOperatorGetNumSub(oper, &numsub); CeedChk(ierr);
+      ierr = CeedOperatorGetSubList(oper, &subops); CeedChk(ierr);
+      if (numsub != 1) {
+         // implementing this case is pretty easy but I am lazy
+         return CeedError(ceed, 1, "Not implemented for multiple suboperators!");
+      }
+      ierr = CeedSparsifySingleOperator(subops[0], sparse_parameter,
+                                        sel_strategy, basis_sparsify,
+                                        sparse_basis_out, out);
+   } else {
+      ierr = CeedSparsifySingleOperator(oper,  sparse_parameter,
+                                        sel_strategy, basis_sparsify,
+                                        sparse_basis_out, out);
+   }      
+   return 0;
+}
+
+int CeedSparsifySimple(CeedOperator oper, CeedBasis* sparse_basis_out,
+                       CeedOperator* out) {
+   CeedSparsifyH1Operator(oper, 2, SPARSIFY_LARGEST_ABS,
+                          CeedBasisSparsifyScaling, sparse_basis_out,
+                          out);
+}
 
 #endif

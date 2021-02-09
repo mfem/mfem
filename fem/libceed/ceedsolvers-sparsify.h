@@ -62,6 +62,9 @@ int CeedSparsifyH1Operator(CeedOperator oper, int sparse_parameter,
                            CeedBasis* sparse_basis_out,
                            CeedOperator* out);
 
+int CeedSparsifySimple(CeedOperator oper, CeedBasis* sparse_basis_out,
+                       CeedOperator* out);
+
 #endif // MFEM_USE_CEED
 
 #endif // include guard

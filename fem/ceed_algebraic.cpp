@@ -18,6 +18,7 @@
 #include "../fem/libceed/ceedsolvers-interpolation.h"
 #include "../fem/libceed/ceed-assemble.hpp"
 #include "../fem/libceed/ceedsolvers-qcoarsen.h"
+#include "../fem/libceed/ceedsolvers-sparsify.h"
 #include "../fem/pfespace.hpp"
 
 namespace mfem
@@ -111,13 +112,77 @@ public:
 
    void SetOperator(const Operator &op) { amg->SetOperator(op); }
    void Mult(const Vector &x, Vector &y) const { amg->Mult(x, y); }
+
    ~CeedAMG()
    {
       delete op_assembled;
       delete amg;
       delete mat_local;
    }
+
 private:
+   SparseMatrix *mat_local;
+   HypreParMatrix *op_assembled;
+   Solver *amg;
+};
+
+/**
+   Too much copied code; this and CeedAMG should probably inherit
+   from a common base class.
+*/
+class CeedSparsifyAMG : public Solver
+{
+public:
+   CeedSparsifyAMG(MFEMCeedOperator &oper, HypreParMatrix *P, bool amgx=false)
+   {
+      MFEM_ASSERT(P != NULL, "");
+      const Array<int> ess_tdofs = oper.GetEssentialTrueDofs();
+      height = width = oper.Height();
+
+      CeedSparsifySimple(oper.GetCeedOperator(), &sparse_basis, &sparse_oper);
+      CeedOperatorFullAssemble(sparse_oper, &mat_local);
+
+      {
+         HypreParMatrix hypre_local(
+            P->GetComm(), P->GetGlobalNumRows(), P->RowPart(), mat_local);
+         op_assembled = RAP(&hypre_local, P);
+      }
+      HypreParMatrix *mat_e = op_assembled->EliminateRowsCols(ess_tdofs);
+      delete mat_e;
+
+#ifdef MFEM_USE_AMGX
+      if (amgx)
+      {
+         bool amgx_verbose = false;
+         amg = new AmgXSolver(op_assembled->GetComm(),
+                              AmgXSolver::PRECONDITIONER, amgx_verbose);
+         amg->SetOperator(*op_assembled);
+      }
+      else
+#endif
+      {
+         HypreBoomerAMG * hypre_amg = new HypreBoomerAMG(*op_assembled);
+         hypre_amg->SetPrintLevel(0);
+         amg = hypre_amg;
+      }
+   }
+
+   void SetOperator(const Operator &op) { amg->SetOperator(op); }
+   void Mult(const Vector &x, Vector &y) const { amg->Mult(x, y); }
+
+   ~CeedSparsifyAMG()
+   {
+      CeedBasisDestroy(&sparse_basis);
+      CeedOperatorDestroy(&sparse_oper);
+
+      delete op_assembled;
+      delete amg;
+      delete mat_local;
+   }
+
+private:
+   CeedOperator sparse_oper;
+   CeedBasis sparse_basis;
    SparseMatrix *mat_local;
    HypreParMatrix *op_assembled;
    Solver *amg;
@@ -275,9 +340,9 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
       {
          order_reduction = current_order - (current_order/2);
       }
-      // std::cout << "  lc: " << level_counter << " heuristic = " << heuristic
-      //   << ", coarsening from order " << current_order 
-      //   << " to " << current_order - order_reduction << std::endl;
+      std::cout << "  lc: " << level_counter << " heuristic = " << heuristic
+                << ", coarsening from order " << current_order 
+                << " to " << current_order - order_reduction << std::endl;
       hierarchy.PrependPCoarsenedLevel(current_order, order_reduction);
       current_order = current_order - order_reduction;
 
@@ -364,8 +429,16 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
          }
          if (P_mat)
          {
-            /// TODO: if order is not 1, do LOR?
-            smoother = new CeedAMG(*op, P_mat, Device::Allows(Backend::CUDA));
+            if (current_order > 1)
+            {
+               std::cout << "      sparsify AMG." << std::endl;
+               smoother = new CeedSparsifyAMG(*op, P_mat, Device::Allows(Backend::CUDA));
+            }
+            else
+            {
+               std::cout << "      no-sparsify AMG." << std::endl;
+               smoother = new CeedAMG(*op, P_mat, Device::Allows(Backend::CUDA));
+            }
          }
          else
 #endif
