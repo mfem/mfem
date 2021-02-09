@@ -32,7 +32,11 @@ protected:
 
    /// Set of Domain Integrators to be applied.
    Array<LinearFormIntegrator*> dlfi;
-   Array<Array<int>*>           dlfi_marker;
+   /// Element attribute marker (should be of length mesh->attributes)
+   /// Includes all by default.
+   /// 0 - ignore attribute
+   /// 1 - include attribute
+   Array<Array<int>*>           dlfi_elem_attr_marker;
 
    /// Separate array for integrators with delta function coefficients.
    Array<DeltaLFIntegrator*> dlfi_delta;
@@ -47,8 +51,16 @@ protected:
 
    /// Set of Shifted Boundary Face Integrators
    Array<LinearFormIntegrator*> sflfi;
-   /// Array for element marker
-   Array<Array<int>*>           sflfi_el_flag_marker;
+   /// Array for element marker indicates:
+   /// 0 - element is inside the domain
+   /// 1 - element is outside
+   /// 2 - element is cut by the true boundary
+   Array<Array<int>*>           sflfi_elem_marker;
+   /// Boundary attribue marker (should be of length mesh->bdr_attributes)
+   /// Ignores all by default.
+   /// 0 - ignore attribute
+   /// 1 - include attribute
+   Array<Array<int>*>           sflfi_bdr_attr_marker;
 
    /// The element ids where the centers of the delta functions lie
    Array<int> dlfi_delta_elem_id;
@@ -115,7 +127,7 @@ public:
 
    /// Adds new Domain Integrator. Assumes ownership of @a lfi.
    void AddDomainIntegrator(LinearFormIntegrator *lfi);
-   void AddDomainIntegrator(LinearFormIntegrator *lfi, Array<int> &el_flags);
+   void AddDomainIntegrator(LinearFormIntegrator *lfi, Array<int> &elem_marker);
 
 
    /// Adds new Boundary Integrator. Assumes ownership of @a lfi.
@@ -140,8 +152,23 @@ public:
    void AddBdrFaceIntegrator(LinearFormIntegrator *lfi,
                              Array<int> &bdr_attr_marker);
 
+   /** @brief Add new Shifted Boundary Integrator. The shifted faces are
+       identified based on the element marker:
+       0 - if an element is inside the domain
+       1 - if an element is outside
+       2 - if an element is cut by the true boundary
+       The shifted faces are the faces that have elements with marker 0 and 2
+       on either sides.
+       Optionally, boundary attribute marker can also be specified to include
+       certain boundary faces.
+   */
    void AddShiftedBdrFaceIntegrator(LinearFormIntegrator *lfi,
-                                    Array<int> &el_marker);
+                                    Array<int> &elem_marker);
+
+
+   void AddShiftedBdrFaceIntegrator(LinearFormIntegrator *lfi,
+                                    Array<int> &elem_marker,
+                                    Array<int> &bdr_marker);
 
    /** @brief Access all integrators added with AddDomainIntegrator() which are
        not DeltaLFIntegrator%s or they are DeltaLFIntegrator%s with non-delta

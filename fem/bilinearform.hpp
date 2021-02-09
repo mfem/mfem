@@ -85,8 +85,11 @@ protected:
 
    /// Set of Domain Integrators to be applied.
    Array<BilinearFormIntegrator*> dbfi;
-   /// 0 if active, 1 if outside, 2 if intersection
-   Array<Array<int>*>             dbfi_marker;
+   /// Element attribute marker (should be of length mesh->attributes)
+   /// Includes all by default.
+   /// 0 - ignore attribute
+   /// 1 - include attribute
+   Array<Array<int>*>             dbfi_elem_attr_marker;
 
    /// Set of Boundary Integrators to be applied.
    Array<BilinearFormIntegrator*> bbfi;
@@ -94,10 +97,6 @@ protected:
 
    /// Set of interior face Integrators to be applied.
    Array<BilinearFormIntegrator*> fbfi;
-   /// List of attributes for each integrator. The integrator is applie only on
-   /// faces that have such attributes. Corresponds to Mesh::GetFaceAttribute().
-   /// Note: it is a list; it's not a marker over all existing face attributes.
-   Array<Array<int>*> fbfi_attributes;  ///< Entries are not owned.
 
    /// Set of boundary face Integrators to be applied.
    Array<BilinearFormIntegrator*> bfbfi;
@@ -105,7 +104,15 @@ protected:
 
    Array<BilinearFormIntegrator*> sbfbfi;
    /// Array for element marker
-   Array<Array<int>*>           sbfbfi_el_flag_marker;
+   /// 0 if element is inside the domain
+   /// 1 if element is outside
+   /// 2 if element is cut by the true boundary
+   Array<Array<int>*>             sbfbfi_el_marker;
+   /// Boundary attribue marker (should be of length mesh->bdr_attributes)
+   /// Ignores all by default.
+   /// 0 - ignore attribute
+   /// 1 - include attribute
+   Array<Array<int>*>             sbfbfi_bdr_attr_marker;
 
    DenseMatrix elemmat;
    Array<int>  vdofs;
@@ -336,7 +343,7 @@ public:
    /// Adds new Domain Integrator. Assumes ownership of @a bfi.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi);
    void AddDomainIntegrator(BilinearFormIntegrator *bfi,
-                            Array<int> &el_flags);
+                            Array<int> &elem_marker);
 
    /// Adds new Boundary Integrator. Assumes ownership of @a bfi.
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi);
@@ -350,8 +357,7 @@ public:
                               Array<int> &bdr_marker);
 
    /// Adds new interior Face Integrator. Assumes ownership of @a bfi.
-   void AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi,
-                                  Array<int> *attributes = NULL);
+   void AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi);
 
    /// Adds new boundary Face Integrator. Assumes ownership of @a bfi.
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi);
@@ -365,7 +371,10 @@ public:
                              Array<int> &bdr_marker);
 
    void AddShiftedBdrFaceIntegrator(BilinearFormIntegrator *bfi,
-                                    Array<int> &elflag);
+                                    Array<int> &elem_marker);
+   void AddShiftedBdrFaceIntegrator(BilinearFormIntegrator *bfi,
+                                    Array<int> &elem_marker,
+                                    Array<int> &bdr_marker);
 
    /// Sets all sparse values of \f$ M \f$ and \f$ M_e \f$ to 'a'.
    void operator=(const double a)
