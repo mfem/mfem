@@ -947,6 +947,11 @@ protected:
       const FiniteElementSpace &fes_ho;
       const FiniteElementSpace &fes_lor;
 
+      // The restriction and prolongation operators are represented as dense
+      // elementwise matrices (of potentially differing sizes, because of mixed
+      // meshes or p-refinement). The matrix entries are stored in the R and P
+      // arrays. The entries of the ith high-order element are stored at the
+      // index given by offsets[i].
       mutable Array<double> R, P;
       Array<int> offsets;
 
