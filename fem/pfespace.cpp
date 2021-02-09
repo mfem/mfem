@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -91,7 +91,7 @@ ParNURBSExtension *ParFiniteElementSpace::MakeLocalNURBSext(
 void ParFiniteElementSpace::ParInit(ParMesh *pm)
 {
    pmesh = pm;
-   pncmesh = pm->pncmesh;
+   pncmesh = NULL;
 
    MyComm = pmesh->GetComm();
    NRanks = pmesh->GetNRanks();
@@ -144,6 +144,8 @@ void ParFiniteElementSpace::Construct()
    }
    else // Nonconforming()
    {
+      pncmesh = pmesh->pncmesh;
+
       // Initialize 'gcomm' for the cut (aka "partially conforming") space.
       // In the process, the array 'ldof_ltdof' is also initialized (for the cut
       // space) and used; however, it will be overwritten below with the real
