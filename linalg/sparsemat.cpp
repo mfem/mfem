@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -43,6 +43,19 @@ void SparseMatrix::InitCuSparse()
    if (SparseMatrixCount == 1 && Device::Allows(Backend::CUDA_MASK))
    {
       cusparseCreate(&handle);
+   }
+#endif
+}
+
+void SparseMatrix::ClearCuSparse()
+{
+#ifdef MFEM_USE_CUDA
+   if (initBuffers)
+   {
+      cusparseDestroySpMat(matA_descr);
+      cusparseDestroyDnVec(vecX_descr);
+      cusparseDestroyDnVec(vecY_descr);
+      initBuffers = false;
    }
 #endif
 }
@@ -282,15 +295,7 @@ void SparseMatrix::SetEmpty()
 #endif
    isSorted = false;
 
-#ifdef MFEM_USE_CUDA
-   if (initBuffers)
-   {
-      cusparseDestroySpMat(matA_descr);
-      cusparseDestroyDnVec(vecX_descr);
-      cusparseDestroyDnVec(vecY_descr);
-      initBuffers = false;
-   }
-#endif
+   ClearCuSparse();
 }
 
 int SparseMatrix::RowSize(const int i) const
@@ -3160,13 +3165,7 @@ void SparseMatrix::Destroy()
    delete At;
 
 #ifdef MFEM_USE_CUDA
-   if (initBuffers)
-   {
-      cusparseDestroySpMat(matA_descr);
-      cusparseDestroyDnVec(vecX_descr);
-      cusparseDestroyDnVec(vecY_descr);
-      initBuffers = false;
-   }
+   ClearCuSparse();
 #endif
 }
 
