@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -18,6 +18,7 @@ include_directories(BEFORE ${PROJECT_BINARY_DIR})
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 
 set(UNIT_TESTS_SRCS
+  general/test_array.cpp
   general/test_mem.cpp
   general/test_text.cpp
   general/test_zlib.cpp
@@ -38,6 +39,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_vector.cpp
   mesh/test_mesh.cpp
   mesh/test_ncmesh.cpp
+  mesh/test_pmesh.cpp
   fem/test_1d_bilininteg.cpp
   fem/test_2d_bilininteg.cpp
   fem/test_3d_bilininteg.cpp

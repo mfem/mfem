@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1988,7 +1988,7 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
       // Trace element use the default Gauss-Legendre nodal points for positive basis
       if (b_type == BasisType::Positive)
       {
-         Tr_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p);
+         Tr_Elements[Geometry::SEGMENT] = new L2Pos_SegmentElement(p);
       }
       else
       {
@@ -2044,8 +2044,8 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
       // Trace element use the default Gauss-Legendre nodal points for positive basis
       if (b_type == BasisType::Positive)
       {
-         Tr_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p);
-         Tr_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p);
+         Tr_Elements[Geometry::TRIANGLE] = new L2Pos_TriangleElement(p);
+         Tr_Elements[Geometry::SQUARE] = new L2Pos_QuadrilateralElement(p);
       }
       else
       {

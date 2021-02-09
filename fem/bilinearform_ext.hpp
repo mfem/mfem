@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -118,10 +118,8 @@ public:
 class FABilinearFormExtension : public EABilinearFormExtension
 {
 private:
-   SparseMatrix mat;
-   /// face_mat handles parallelism for DG face terms.
-   SparseMatrix face_mat;
-   bool use_face_mat;
+   SparseMatrix *mat;
+   mutable Vector dg_x, dg_y;
 
 public:
    FABilinearFormExtension(BilinearForm *form);
@@ -129,6 +127,11 @@ public:
    void Assemble();
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
+
+   /** DGMult and DGMultTranspose use the extended L-vector to perform the
+       computation. */
+   void DGMult(const Vector &x, Vector &y) const;
+   void DGMultTranspose(const Vector &x, Vector &y) const;
 };
 
 /// Data and methods for matrix-free bilinear forms
