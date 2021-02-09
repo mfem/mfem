@@ -239,10 +239,10 @@ void BilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi)
 }
 
 void BilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi,
-                                       Array<int> &elem_marker)
+                                       Array<int> &elem_attr_marker)
 {
    dbfi.Append(bfi);
-   dbfi_elem_attr_marker.Append(&elem_marker);
+   dbfi_elem_attr_marker.Append(&elem_attr_marker);
 }
 
 void BilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi)
@@ -260,7 +260,7 @@ void BilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi,
 
 void BilinearForm::AddInteriorFaceIntegrator(BilinearFormIntegrator * bfi)
 {
-   fbfi.Append(bfi);
+   fbfi.Append (bfi);
 }
 
 void BilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi)
@@ -279,16 +279,16 @@ void BilinearForm::AddShiftedBdrFaceIntegrator(BilinearFormIntegrator *bfi,
                                                Array<int> &elem_marker)
 {
    sbfbfi.Append(bfi);
-   sbfbfi_bdr_attr_marker.Append(NULL);
+   sbfbfi_bdr_attr_marker.Append(NULL); // NULL means ignore all boundary faces.
    sbfbfi_el_marker.Append(&elem_marker);
 }
 
 void BilinearForm::AddShiftedBdrFaceIntegrator(BilinearFormIntegrator *bfi,
                                                Array<int> &elem_marker,
-                                               Array<int> &bdr_marker)
+                                               Array<int> &bdr_attr_marker)
 {
    sbfbfi.Append(bfi);
-   sbfbfi_bdr_attr_marker.Append(&bdr_marker);
+   sbfbfi_bdr_attr_marker.Append(&bdr_attr_marker);
    sbfbfi_el_marker.Append(&elem_marker);
 }
 
@@ -685,7 +685,7 @@ void BilinearForm::Assemble(int skip_zeros)
             }
          }
 
-         if (sbfbfi_bdr_attr_marker[k] == NULL) { continue; } //no boundary faces are SB faces
+         if (sbfbfi_bdr_attr_marker[k] == NULL) { continue; }
 
          for (int i = 0; i < mesh->GetNBE(); i++)
          {

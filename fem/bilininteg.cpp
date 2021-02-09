@@ -3213,13 +3213,12 @@ void SBM2Integrator::AssembleFaceMatrix(
    ni.SetSize(dim);
    adjJ.SetSize(dim);
 
-   shape1.SetSize(ndof1);
-   shape2.SetSize(ndof1);
-   dshape1.SetSize(ndof1, dim);
-   dshape2.SetSize(ndof1, dim);
-   Vector dshape2dd(ndof1);
-   dshape1dn.SetSize(ndof1);
-   Vector wrk = shape1;
+   shape.SetSize(ndof1);
+   dshape.SetSize(ndof1, dim);
+   dshapephys.SetSize(ndof1, dim);
+   Vector dshapephysdd(ndof1);
+   dshapedn.SetSize(ndof1);
+   Vector wrk = shape;
 
    ndofs = ndof1;
    elmat.SetSize(ndofs);
@@ -3228,11 +3227,8 @@ void SBM2Integrator::AssembleFaceMatrix(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      // a simple choice for the integration order; is this OK?
       int order = 4*el1.GetOrder();
       ir = &IntRules.Get(Trans.GetGeometryType(), order);
-      //IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
-      //ir = &IntRulesLo.Get(Trans.GetGeometryType(), order);
    }
 
    Array<DenseMatrix *> hess_ptr;
@@ -3318,7 +3314,9 @@ void SBM2Integrator::AssembleFaceMatrix(
    Vector q_hess_dot_d(ndof1);
 
    Vector D(vD->GetVDim());
-   // assemble: < (\nabla u).d, \nabla w.n >      --> elmat
+   // assemble: -< \nabla u.n, w >
+   //           -< u + \nabla u.d + h.o.t, \nabla w.n>
+   //           -<alpha h^{-1} (u + \nabla u.d + h.o.t), w + \nabla w.d + h.o.t>
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);
@@ -3350,29 +3348,29 @@ void SBM2Integrator::AssembleFaceMatrix(
 
       if (elem1f)
       {
-         el1.CalcShape(eip1, shape1);
-         el1.CalcDShape(eip1, dshape1);
+         el1.CalcShape(eip1, shape);
+         el1.CalcDShape(eip1, dshape);
          w = ip.weight/Trans.Elem1->Weight();
          CalcAdjugate(Trans.Elem1->Jacobian(), adjJ);
       }
       else
       {
-         el1.CalcShape(eip2, shape1);
-         el1.CalcDShape(eip2, dshape1);
+         el1.CalcShape(eip2, shape);
+         el1.CalcDShape(eip2, dshape);
          w = ip.weight/Trans.Elem2->Weight();
          CalcAdjugate(Trans.Elem2->Jacobian(), adjJ);
       }
 
       ni.Set(w, nor); // alpha_k*nor/det(J)
       adjJ.Mult(ni, nh);
-      dshape1.Mult(nh, dshape1dn); //dphi/dn * Jinv * alpha_k * nor
+      dshape.Mult(nh, dshapedn); //dphi/dn * Jinv * alpha_k * nor
 
       // <grad u.n, w> - Term 2
-      AddMult_a_VWt(-1., shape1, dshape1dn, elmat);
+      AddMult_a_VWt(-1., shape, dshapedn, elmat);
 
-      if (elem1f) { el1.CalcPhysDShape(*(Trans.Elem1), dshape2); }
-      else { el1.CalcPhysDShape(*(Trans.Elem2), dshape2); } //dphi/dx
-      dshape2.Mult(D, dshape2dd); // dphi/dx.D);
+      if (elem1f) { el1.CalcPhysDShape(*(Trans.Elem1), dshapephys); }
+      else { el1.CalcPhysDShape(*(Trans.Elem2), dshapephys); } //dphi/dx
+      dshapephys.Mult(D, dshapephysdd); // dphi/dx.D);
 
       q_hess_dot_d = 0.;
       for (int i = 0; i < nterms; i++)
@@ -3380,7 +3378,7 @@ void SBM2Integrator::AssembleFaceMatrix(
          int sz1 = pow(dim, i+1);
          DenseMatrix T1(dim, ndof1*sz1);
          Vector T1_wrk(T1.GetData(), dim*ndof1*sz1);
-         hess_ptr[i]->MultTranspose(shape1, T1_wrk);
+         hess_ptr[i]->MultTranspose(shape, T1_wrk);
 
          DenseMatrix T2;
          Vector T2_wrk;
@@ -3398,11 +3396,11 @@ void SBM2Integrator::AssembleFaceMatrix(
          q_hess_dot_d += q_hess_dot_d_work;
       }
 
-      wrk = shape1;
-      wrk += dshape2dd;
+      wrk = shape;
+      wrk += dshapephysdd;
       wrk += q_hess_dot_d;
       // <u + grad u.d + h.o.t, grad w.n>  - Term 3
-      AddMult_a_VWt(-1., dshape1dn, wrk, elmat);
+      AddMult_a_VWt(-1., dshapedn, wrk, elmat);
 
       double hinvdx;
       if (elem1f) { hinvdx = nor*nor/Trans.Elem1->Weight(); }

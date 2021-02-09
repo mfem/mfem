@@ -342,8 +342,10 @@ public:
 
    /// Adds new Domain Integrator. Assumes ownership of @a bfi.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi);
+   /// Adds new Domain Integrator restricted to certain elements specified by
+   /// the @a elem_attr_marker.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi,
-                            Array<int> &elem_marker);
+                            Array<int> &elem_attr_marker);
 
    /// Adds new Boundary Integrator. Assumes ownership of @a bfi.
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi);
@@ -370,11 +372,17 @@ public:
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
                              Array<int> &bdr_marker);
 
+   /// Adds new Shifted boundary Face Integrator. The Faces are identified based
+   /// on @a elem_marker (0 if element is in the domain, 1 if outside, and 2 if
+   /// cut by the true boundary). Internal faces that are between elements with
+   /// marker 0 and 2 are shifted boundary faces.
    void AddShiftedBdrFaceIntegrator(BilinearFormIntegrator *bfi,
                                     Array<int> &elem_marker);
+   /// Adds new Shifted boundary Face Integrator and include certain boundary
+   /// faces using @a bdr_attr_marker.
    void AddShiftedBdrFaceIntegrator(BilinearFormIntegrator *bfi,
                                     Array<int> &elem_marker,
-                                    Array<int> &bdr_marker);
+                                    Array<int> &bdr_attr_marker);
 
    /// Sets all sparse values of \f$ M \f$ and \f$ M_e \f$ to 'a'.
    void operator=(const double a)
