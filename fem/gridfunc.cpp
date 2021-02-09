@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,12 +15,17 @@
 #include "../mesh/nurbs.hpp"
 #include "../general/text.hpp"
 
+#ifdef MFEM_USE_MPI
+#include "pfespace.hpp"
+#endif
+
 #include <limits>
 #include <cstring>
 #include <string>
 #include <cmath>
 #include <iostream>
 #include <algorithm>
+
 
 namespace mfem
 {
@@ -57,6 +62,13 @@ GridFunction::GridFunction(Mesh *m, std::istream &input)
    else
    {
       Vector::Load(input, fes->GetVSize());
+
+      // if the mesh is a legacy (v1.1) NC mesh, it has old vertex ordering
+      if (fes->Nonconforming() &&
+          fes->GetMesh()->ncmesh->IsLegacyLoaded())
+      {
+         LegacyNCReorder();
+      }
    }
    sequence = fes->GetSequence();
 }
@@ -507,8 +519,6 @@ const
    DofTransformation * doftrans = fes->GetElementDofs(i, dofs);
    fes->DofsToVDofs(vdim-1, dofs);
    const FiniteElement *FElem = fes->GetFE(i);
-   MFEM_ASSERT(FElem->GetMapType() == FiniteElement::VALUE,
-               "invalid FE map type");
    int dof = FElem->GetDof();
    Vector DofVal(dof), loc_data(dof);
    if (doftrans)
@@ -522,10 +532,24 @@ const
       GetSubVector(dofs, loc_data);
    }
    for (int k = 0; k < n; k++)
-   {
-      FElem->CalcShape(ir.IntPoint(k), DofVal);
-      vals(k) = DofVal * loc_data;
-   }
+      if (FElem->GetMapType() == FiniteElement::VALUE)
+      {
+         for (int k = 0; k < n; k++)
+         {
+            FElem->CalcShape(ir.IntPoint(k), DofVal);
+            vals(k) = DofVal * loc_data;
+         }
+      }
+      else
+      {
+         ElementTransformation *Tr = fes->GetElementTransformation(i);
+         for (int k = 0; k < n; k++)
+         {
+            Tr->SetIntPoint(&ir.IntPoint(k));
+            FElem->CalcPhysShape(*Tr, DofVal);
+            vals(k) = DofVal * loc_data;
+         }
+      }
 }
 
 void GridFunction::GetValues(int i, const IntegrationRule &ir, Vector &vals,
@@ -1057,15 +1081,14 @@ void GridFunction::GetVectorValues(ElementTransformation &T,
 
    if (FElem->GetRangeType() == FiniteElement::SCALAR)
    {
-      MFEM_ASSERT(FElem->GetMapType() == FiniteElement::VALUE,
-                  "invalid FE map type");
       Vector shape(dof);
       int vdim = fes->GetVDim();
       vals.SetSize(vdim, nip);
       for (int j = 0; j < nip; j++)
       {
          const IntegrationPoint &ip = ir.IntPoint(j);
-         FElem->CalcShape(ip, shape);
+         T.SetIntPoint(&ip);
+         FElem->CalcPhysShape(T, shape);
 
          for (int k = 0; k < vdim; k++)
          {
@@ -1671,27 +1694,16 @@ void GridFunction::GetGradient(ElementTransformation &T, Vector &grad) const
    {
       case ElementTransformation::ELEMENT:
       {
-         const FiniteElement * fe = fes->GetFE(T.ElementNo);
+         const FiniteElement *fe = fes->GetFE(T.ElementNo);
          MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE,
                      "invalid FE map type");
          int spaceDim = fes->GetMesh()->SpaceDimension();
          int dim = fe->GetDim(), dof = fe->GetDof();
          DenseMatrix dshape(dof, dim);
          Vector lval, gh(dim);
-         Array<int> dofs;
 
          grad.SetSize(spaceDim);
-         DofTransformation * doftrans = fes->GetElementDofs(T.ElementNo, dofs);
-         if (doftrans)
-         {
-            Vector lval_t;
-            GetSubVector(dofs, lval_t);
-            doftrans->InvTransformPrimal(lval_t, lval);
-         }
-         else
-         {
-            GetSubVector(dofs, lval);
-         }
+         GetElementDofValues(T.ElementNo, lval);
          fe->CalcDShape(T.GetIntPoint(), dshape);
          dshape.MultTranspose(lval, gh);
          T.InverseJacobian().MultTranspose(gh, grad);
@@ -1885,6 +1897,22 @@ void GridFunction::GetElementAverages(GridFunction &avgs) const
    for (int i = 0; i < avgs.Size(); i++)
    {
       avgs(i) /= int_psi(i);
+   }
+}
+
+void GridFunction::GetElementDofValues(int el, Vector &dof_vals) const
+{
+   Array<int> dof_idx;
+   DofTransformation * doftrans = fes->GetElementVDofs(el, dof_idx);
+   if (doftrans)
+   {
+      Vector dof_vals_t;
+      GetSubVector(dof_idx, dof_vals_t);
+      doftrans->InvTransformPrimal(dof_vals_t, dof_vals);
+   }
+   else
+   {
+      GetSubVector(dof_idx, dof_vals);
    }
 }
 
@@ -3897,6 +3925,68 @@ std::ostream &operator<<(std::ostream &out, const GridFunction &sol)
    return out;
 }
 
+void GridFunction::LegacyNCReorder()
+{
+   const Mesh* mesh = fes->GetMesh();
+   MFEM_ASSERT(mesh->Nonconforming(), "");
+
+   // get the mapping (old_vertex_index -> new_vertex_index)
+   Array<int> new_vertex, old_vertex;
+   mesh->ncmesh->LegacyToNewVertexOrdering(new_vertex);
+   MFEM_ASSERT(new_vertex.Size() == mesh->GetNV(), "");
+
+   // get the mapping (new_vertex_index -> old_vertex_index)
+   old_vertex.SetSize(new_vertex.Size());
+   for (int i = 0; i < new_vertex.Size(); i++)
+   {
+      old_vertex[new_vertex[i]] = i;
+   }
+
+   Vector tmp = *this;
+
+   // reorder vertex DOFs
+   Array<int> old_vdofs, new_vdofs;
+   for (int i = 0; i < mesh->GetNV(); i++)
+   {
+      fes->GetVertexVDofs(i, old_vdofs);
+      fes->GetVertexVDofs(new_vertex[i], new_vdofs);
+
+      for (int j = 0; j < new_vdofs.Size(); j++)
+      {
+         tmp(new_vdofs[j]) = (*this)(old_vdofs[j]);
+      }
+   }
+
+   // reorder edge DOFs -- edge orientation has changed too
+   Array<int> dofs, ev;
+   for (int i = 0; i < mesh->GetNEdges(); i++)
+   {
+      mesh->GetEdgeVertices(i, ev);
+      if (old_vertex[ev[0]] > old_vertex[ev[1]])
+      {
+         const int *ind = fec->DofOrderForOrientation(Geometry::SEGMENT, -1);
+
+         fes->GetEdgeInteriorDofs(i, dofs);
+         for (int k = 0; k < dofs.Size(); k++)
+         {
+            int new_dof = dofs[k];
+            int old_dof = dofs[(ind[k] < 0) ? -1-ind[k] : ind[k]];
+
+            for (int j = 0; j < fes->GetVDim(); j++)
+            {
+               int new_vdof = fes->DofToVDof(new_dof, j);
+               int old_vdof = fes->DofToVDof(old_dof, j);
+
+               double sign = (ind[k] < 0) ? -1.0 : 1.0;
+               tmp(new_vdof) = sign * (*this)(old_vdof);
+            }
+         }
+      }
+   }
+
+   Vector::Swap(tmp);
+}
+
 
 QuadratureFunction::QuadratureFunction(Mesh *mesh, std::istream &in)
 {
@@ -4024,7 +4114,15 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
          }
       }
    }
-
+#ifdef MFEM_USE_MPI
+   auto pfes = dynamic_cast<ParFiniteElementSpace*>(ufes);
+   if (pfes)
+   {
+      auto process_local_error = total_error;
+      MPI_Allreduce(&process_local_error, &total_error, 1, MPI_DOUBLE,
+                    MPI_SUM, pfes->GetComm());
+   }
+#endif // MFEM_USE_MPI
    return std::sqrt(total_error);
 }
 
