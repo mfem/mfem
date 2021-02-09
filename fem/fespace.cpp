@@ -2762,7 +2762,7 @@ L2ProjectionGridTransfer::L2Projection::L2Projection(
    int nref_max = 0;
    Array<Geometry::Type> geoms;
    mesh_ho->GetGeometries(mesh_ho->Dimension(), geoms);
-   for (int ig=0; ig<geoms.Size(); ++ig)
+   for (int ig = 0; ig < geoms.Size(); ++ig)
    {
       Geometry::Type geom = geoms[ig];
       nref_max = std::max(nref_max, cf_tr.point_matrices[geom].SizeK());
@@ -2771,7 +2771,7 @@ L2ProjectionGridTransfer::L2Projection::L2Projection(
    // Construct the mapping from HO to LOR
    // ho2lor.GetRow(iho) will give all the LOR elements contained in iho
    ho2lor.SetSize(nel_ho, nref_max);
-   for (int ilor=0; ilor<nel_lor; ++ilor)
+   for (int ilor = 0; ilor < nel_lor; ++ilor)
    {
       int iho = cf_tr.embeddings[ilor].parent;
       ho2lor.AddConnection(iho, ilor);
@@ -2780,7 +2780,7 @@ L2ProjectionGridTransfer::L2Projection::L2Projection(
 
    offsets.SetSize(nel_ho+1);
    offsets[0] = 0;
-   for (int iho=0; iho<nel_ho; ++iho)
+   for (int iho = 0; iho < nel_ho; ++iho)
    {
       int nref = ho2lor.RowSize(iho);
       const FiniteElement &fe_ho = *fes_ho.GetFE(iho);
@@ -2796,7 +2796,7 @@ L2ProjectionGridTransfer::L2Projection::L2Projection(
    IntegrationPointTransformation ip_tr;
    IsoparametricTransformation &emb_tr = ip_tr.Transf;
 
-   for (int iho=0; iho<nel_ho; ++iho)
+   for (int iho = 0; iho < nel_ho; ++iho)
    {
       Array<int> lor_els;
       int nref = ho2lor.RowSize(iho);
@@ -2833,7 +2833,7 @@ L2ProjectionGridTransfer::L2Projection::L2Projection(
       DenseMatrix RtMlorR(ndof_ho, ndof_ho);
       DenseMatrixInverse RtMlorR_inv(&RtMlorR);
 
-      for (int iref=0; iref<nref; ++iref)
+      for (int iref = 0; iref < nref; ++iref)
       {
          // Assemble the low-order refined mass matrix and invert locally
          int ilor = ho2lor.GetRow(iho)[iref];
@@ -2887,7 +2887,7 @@ void L2ProjectionGridTransfer::L2Projection::Mult(
    int vdim = fes_ho.GetVDim();
    Array<int> vdofs;
    DenseMatrix xel_mat, yel_mat;
-   for (int iho=0; iho<fes_ho.GetNE(); ++iho)
+   for (int iho = 0; iho < fes_ho.GetNE(); ++iho)
    {
       int nref = ho2lor.RowSize(iho);
       int ndof_ho = fes_ho.GetFE(iho)->GetDof();
@@ -2900,7 +2900,7 @@ void L2ProjectionGridTransfer::L2Projection::Mult(
       x.GetSubVector(vdofs, xel_mat.GetData());
       mfem::Mult(R_iho, xel_mat, yel_mat);
       // Place result correctly into the low-order vector
-      for (int iref=0; iref<nref; ++iref)
+      for (int iref = 0; iref < nref; ++iref)
       {
          int ilor = ho2lor.GetRow(iho)[iref];
          for (int vd=0; vd<vdim; ++vd)
@@ -2919,7 +2919,7 @@ void L2ProjectionGridTransfer::L2Projection::Prolongate(
    int vdim = fes_ho.GetVDim();
    Array<int> vdofs;
    DenseMatrix xel_mat,yel_mat;
-   for (int iho=0; iho<fes_ho.GetNE(); ++iho)
+   for (int iho = 0; iho < fes_ho.GetNE(); ++iho)
    {
       int nref = ho2lor.RowSize(iho);
       int ndof_ho = fes_ho.GetFE(iho)->GetDof();
@@ -2929,10 +2929,10 @@ void L2ProjectionGridTransfer::L2Projection::Prolongate(
       DenseMatrix P_iho(&P[offsets[iho]], ndof_ho, ndof_lor*nref);
 
       // Extract the LOR DOFs
-      for (int iref=0; iref<nref; ++iref)
+      for (int iref = 0; iref < nref; ++iref)
       {
          int ilor = ho2lor.GetRow(iho)[iref];
-         for (int vd=0; vd<vdim; ++vd)
+         for (int vd = 0; vd < vdim; ++vd)
          {
             fes_lor.GetElementDofs(ilor, vdofs);
             fes_lor.DofsToVDofs(vd, vdofs);
