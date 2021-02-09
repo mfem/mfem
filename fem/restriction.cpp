@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -190,6 +190,31 @@ void ElementRestriction::MultTransposeUnsigned(const Vector& x, Vector& y) const
             const int idx_j = (d_indices[j] >= 0) ? d_indices[j] : -1 - d_indices[j];
             dofValue += d_x(idx_j % nd, c, idx_j / nd);
          }
+         d_y(t?c:i,t?i:c) = dofValue;
+      }
+   });
+}
+
+void ElementRestriction::MultLeftInverse(const Vector& x, Vector& y) const
+{
+   // Assumes all elements have the same number of dofs
+   const int nd = dof;
+   const int vd = vdim;
+   const bool t = byvdim;
+   auto d_offsets = offsets.Read();
+   auto d_indices = indices.Read();
+   auto d_x = Reshape(x.Read(), nd, vd, ne);
+   auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+   MFEM_FORALL(i, ndofs,
+   {
+      const int nextOffset = d_offsets[i + 1];
+      for (int c = 0; c < vd; ++c)
+      {
+         double dofValue = 0;
+         const int j = nextOffset - 1;
+         const int idx_j = (d_indices[j] >= 0) ? d_indices[j] : -1 - d_indices[j];
+         dofValue = (d_indices[j] >= 0) ? d_x(idx_j % nd, c, idx_j / nd) :
+         -d_x(idx_j % nd, c, idx_j / nd);
          d_y(t?c:i,t?i:c) = dofValue;
       }
    });
@@ -500,9 +525,11 @@ void L2ElementRestriction::FillI(SparseMatrix &mat) const
    const int elem_dofs = ndof;
    const int vd = vdim;
    auto I = mat.WriteI();
-   MFEM_FORALL(dof, ne*elem_dofs*vd,
+   const int isize = mat.Height() + 1;
+   const int interior_dofs = ne*elem_dofs*vd;
+   MFEM_FORALL(dof, isize,
    {
-      I[dof] = elem_dofs;
+      I[dof] = dof<interior_dofs ? elem_dofs : 0;
    });
 }
 
@@ -1297,7 +1324,7 @@ void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
 }
 
 void L2FaceRestriction::FillI(SparseMatrix &mat,
-                              SparseMatrix &face_mat) const
+                              const bool keep_nbr_block) const
 {
    const int face_dofs = dof;
    auto d_indices1 = scatter_indices1.Read();
@@ -1314,7 +1341,7 @@ void L2FaceRestriction::FillI(SparseMatrix &mat,
 
 void L2FaceRestriction::FillJAndData(const Vector &ea_data,
                                      SparseMatrix &mat,
-                                     SparseMatrix &face_mat) const
+                                     const bool keep_nbr_block) const
 {
    const int face_dofs = dof;
    auto d_indices1 = scatter_indices1.Read();
