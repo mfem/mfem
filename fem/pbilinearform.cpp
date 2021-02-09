@@ -235,23 +235,26 @@ void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
       const FiniteElement *fe1, *fe2;
       ParMesh *pmesh = pfes->GetParMesh();
 
-      for (int i = 0; i < pmesh->GetNSharedFaces(); i++)
+      for (int k = 0; k < sbfbfi.Size(); k++)
       {
-         FaceElementTransformations *tr = NULL;
-         tr = pmesh->GetSharedFaceTransformations(i);
-         if (tr != NULL)
+         for (int i = 0; i < pmesh->GetNSharedFaces(); i++)
          {
-            int ne1 = tr->Elem1No;
-            int te1 = (*(sbfbfi_el_flag_marker[0]))[ne1];
-            int te2 = (*(sbfbfi_el_flag_marker[0]))[i+pmesh->GetNE()];
-            if (te2 == 2 && te1 == 0)
+            FaceElementTransformations *tr = NULL;
+            tr = pmesh->GetSharedFaceTransformations(i);
+            if (tr != NULL)
             {
-               fe1 = pfes->GetFE(tr->Elem1No);
-               pfes->GetElementVDofs(tr->Elem1No, vdofs1);
-               dynamic_cast<SBM2Integrator *>(sbfbfi[0])->SetElem1Flag(true);
-               fe2 = fe1;
-               sbfbfi[0] -> AssembleFaceMatrix (*fe1, *fe2, *tr, elemmat);
-               mat -> AddSubMatrix (vdofs1, vdofs1, elemmat, skip_zeros);
+               int ne1 = tr->Elem1No;
+               int te1 = (*(sbfbfi_el_marker[k]))[ne1];
+               int te2 = (*(sbfbfi_el_marker[k]))[i+pmesh->GetNE()];
+               if (te2 == 2 && te1 == 0)
+               {
+                  fe1 = pfes->GetFE(tr->Elem1No);
+                  pfes->GetElementVDofs(tr->Elem1No, vdofs1);
+                  dynamic_cast<SBM2Integrator *>(sbfbfi[k])->SetElem1Flag(true);
+                  fe2 = fe1;
+                  sbfbfi[k] -> AssembleFaceMatrix (*fe1, *fe2, *tr, elemmat);
+                  mat -> AddSubMatrix (vdofs1, vdofs1, elemmat, skip_zeros);
+               }
             }
          }
       }

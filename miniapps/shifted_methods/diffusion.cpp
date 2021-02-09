@@ -414,11 +414,21 @@ int main(int argc, char *argv[])
    // SBM integration parameter - alpha
    double alpha = 1;
 
+   // Set up a list to indicate element attributes to be included in assembly.
+   int max_elem_attr = pmesh.attributes.Max();
+   Array<int> ess_elem(max_elem_attr);
+   ess_elem = 1;
+   ess_elem.Append(0);
+   for (int i = 0; i < pmesh.GetNE(); i++) {
+       if (elem_marker[i] >= 1) { pmesh.SetAttribute(i, max_elem_attr+1); }
+   }
+   pmesh.SetAttributes();
+
    // Set up the linear form b(.) which corresponds to the right-hand side of
    // the FEM linear system.
    ParLinearForm b(&pfespace);
    SBMFunctionCoefficient rhs_f(rhs_fun, level_set_type);
-   b.AddDomainIntegrator(new DomainLFIntegrator(rhs_f), elem_marker);
+   b.AddDomainIntegrator(new DomainLFIntegrator(rhs_f), ess_elem);
 
    SBMFunctionCoefficient dbcCoef(dirichlet_velocity, level_set_type);
    b.AddShiftedBdrFaceIntegrator(new SBM2LFIntegrator(dbcCoef, alpha, *dist_vec, ho_terms),
@@ -431,7 +441,7 @@ int main(int argc, char *argv[])
    ParBilinearForm a(&pfespace);
    ConstantCoefficient one(1.);
 
-   a.AddDomainIntegrator(new DiffusionIntegrator(one), elem_marker);
+   a.AddDomainIntegrator(new DiffusionIntegrator(one), ess_elem);
    a.AddShiftedBdrFaceIntegrator(new SBM2Integrator(alpha, *dist_vec, ho_terms),
                                  elem_marker);
 
@@ -520,6 +530,23 @@ int main(int argc, char *argv[])
                << "window_geometry "
                << 700 << " " << 0 << " " << 350 << " " << 350 << "\n"
                << "keys Rj" << endl;
+   }
+
+
+   int NEglob = pmesh.GetGlobalNE();
+   double errnorm = x.ComputeL2Error(dbcCoef);
+   if (level_set_type >= 3 && level_set_type <= 5 && myid == 0)
+   {
+      ofstream myfile;
+      myfile.open ("error.txt", ios::app);
+      double h_factor = pow(1./2, ser_ref_levels*1.);
+      cout << order << " " <<
+                ho_terms << " " <<
+                h_factor << " " <<
+                errnorm << " " <<
+                NEglob << " " <<
+                "k10-analytic-L2Error\n";
+      myfile.close();
    }
 
    // Free the used memory.
