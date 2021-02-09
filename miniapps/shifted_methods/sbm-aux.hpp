@@ -19,6 +19,10 @@ double dist_value(const Vector &x, const int type)
         double dx = x(0) - 0.5,
            dy = x(1) - 0.5,
            rv = dx*dx + dy*dy;
+        if (x.Size() == 3) {
+            double dz = x(2) - 0.5;
+            rv += dz*dz;
+        }
         rv = rv > 0 ? pow(rv, 0.5) : 0;
         return rv - ring_radius; // +ve is the domain
     }
@@ -88,14 +92,15 @@ public:
    virtual void Eval(Vector &p, ElementTransformation &T,
                      const IntegrationPoint &ip)
    {
-      Vector x(3);
+      Vector x;
       T.Transform(ip, x);
-      p.SetSize(x.Size());
+      const int dim = x.Size();
+      p.SetSize(dim);
       if (type == 1 || type == 2) {
           double dist0 = dist_value(x, type);
-          double theta = std::atan2(x(1)-0.5, x(0)-0.5);
-          p(0) = -dist0*std::cos(theta);
-          p(1) = -dist0*std::sin(theta);
+          for (int i = 0; i < dim; i++) { p(i) = 0.5 - x(i); }
+          double length = p.Norml2();
+          p *= dist0/length;
       }
       else if (type == 3) {
           double dist0 = dist_value(x, type);
