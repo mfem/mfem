@@ -266,6 +266,8 @@ miniapps/toys/lissajous.mesh
 miniapps/toys/lissajous.gf
 miniapps/toys/mondrian.mesh
 
+miniapps/solvers/block-solvers
+
 # Unit test binary and outputs
 tests/unit/output_meshes
 tests/unit/unit_tests

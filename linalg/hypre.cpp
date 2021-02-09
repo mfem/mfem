@@ -999,7 +999,7 @@ HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
    int local_num_vars = hypre_CSRMatrixNumRows(hypre_ParCSRMatrixDiag(A));
 
    // Form hypre CF-splitting array designating submatrix as F-points (-1)
-   Array<int> CF_marker(local_num_vars);
+   Array<HYPRE_Int> CF_marker(local_num_vars);
    CF_marker = 1;
    for (int j=0; j<indices.Size(); j++)
    {
@@ -1422,6 +1422,49 @@ void HypreParMatrix::Threshold(double threshold)
    hypre_MatvecCommPkgCreate(A);
    height = GetNumRows();
    width = GetNumCols();
+}
+
+void HypreParMatrix::DropSmallEntries(double tol)
+{
+   HYPRE_Int err = 0;
+
+#if MFEM_HYPRE_VERSION < 21400
+
+   double threshold = 0.0;
+   if (tol > 0.0)
+   {
+      HYPRE_Int *diag_I = A->diag->i,    *offd_I = A->offd->i;
+      double    *diag_d = A->diag->data, *offd_d = A->offd->data;
+      HYPRE_Int local_num_rows = A->diag->num_rows;
+      double max_l2_row_norm = 0.0;
+      Vector row;
+      for (HYPRE_Int r = 0; r < local_num_rows; r++)
+      {
+         row.SetDataAndSize(diag_d + diag_I[r], diag_I[r+1]-diag_I[r]);
+         double l2_row_norm = row.Norml2();
+         row.SetDataAndSize(offd_d + offd_I[r], offd_I[r+1]-offd_I[r]);
+         l2_row_norm = std::hypot(l2_row_norm, row.Norml2());
+         max_l2_row_norm = std::max(max_l2_row_norm, l2_row_norm);
+      }
+      double loc_max_l2_row_norm = max_l2_row_norm;
+      MPI_Allreduce(&loc_max_l2_row_norm, &max_l2_row_norm, 1, MPI_DOUBLE,
+                    MPI_MAX, A->comm);
+      threshold = tol * max_l2_row_norm;
+   }
+
+   Threshold(threshold);
+
+#elif MFEM_HYPRE_VERSION < 21800
+
+   err = hypre_ParCSRMatrixDropSmallEntries(A, tol);
+
+#else
+
+   err = hypre_ParCSRMatrixDropSmallEntries(A, tol, 2);
+
+#endif
+
+   MFEM_VERIFY(!err, "error encountered: error code = " << err);
 }
 
 void HypreParMatrix::EliminateRowsCols(const Array<int> &rows_cols,
