@@ -161,11 +161,6 @@ TEST_CASE("Identity Linear Interpolators",
       {
          dim = 3;
          mesh = new Mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
-
-         if (type == Element::TETRAHEDRON)
-         {
-            mesh->ReorientTetMesh();
-         }
       }
 
       FunctionCoefficient        fCoef((dim==1) ? f1 :
@@ -545,11 +540,6 @@ TEST_CASE("Derivative Linear Interpolators",
       {
          dim = 3;
          mesh = new Mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
-
-         if (type == Element::TETRAHEDRON)
-         {
-            mesh->ReorientTetMesh();
-         }
       }
 
       FunctionCoefficient        fCoef((dim==1) ? f1 :
@@ -770,11 +760,6 @@ TEST_CASE("Product Linear Interpolators",
       {
          dim = 3;
          mesh = new Mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
-
-         if (type == Element::TETRAHEDRON)
-         {
-            mesh->ReorientTetMesh();
-         }
       }
 
       FunctionCoefficient        fCoef((dim==1) ? f1 :
