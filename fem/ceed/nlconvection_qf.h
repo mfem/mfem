@@ -22,8 +22,7 @@ CEED_QFUNCTION(f_build_conv_const)(void *ctx, CeedInt Q,
    // in[0] is Jacobians with shape [dim, nc=dim, Q]
    // in[1] is quadrature weights, size (Q)
    //
-   // At every quadrature point, compute qw/det(J).adj(J).adj(J)^T and store
-   // the symmetric part of the result.
+   // At every quadrature point, compute and store qw * adj(J).
    const CeedScalar coeff = bc->coeff;
    const CeedScalar *J = in[0], *qw = in[1];
    CeedScalar *qd = out[0];
@@ -101,8 +100,7 @@ CEED_QFUNCTION(f_build_conv_quad)(void *ctx, CeedInt Q,
    // in[1] is Jacobians with shape [dim, nc=dim, Q]
    // in[2] is quadrature weights, size (Q)
    //
-   // At every quadrature point, compute qw/det(J).adj(J).adj(J)^T and store
-   // the symmetric part of the result.
+   // At every quadrature point, compute and store qw * adj(J).
    const CeedScalar *c = in[0], *J = in[1], *qw = in[2];
    CeedScalar *qd = out[0];
    switch (bc->dim + 10 * bc->space_dim)
@@ -262,7 +260,7 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
    // in[1] is Jacobians with shape [dim, nc=dim, Q]
    // in[2] is quadrature weights, size (Q)
    //
-   // At every quadrature point, compute qw/det(J).adj(J).adj(J)^T
+   // At every quadrature point, compute qw * adj(J).
    const CeedScalar coeff = bc->coeff;
    const CeedScalar *u = in[0], *ug = in[1], *J = in[2], *qw = in[3];
    CeedScalar *vg = out[0];
@@ -376,7 +374,7 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
    // in[1] is Jacobians with shape [dim, nc=dim, Q]
    // in[2] is quadrature weights, size (Q)
    //
-   // At every quadrature point, compute qw/det(J).adj(J).adj(J)^T
+   // At every quadrature point, compute qw * adj(J).
    const CeedScalar *c = in[0], *u = in[1], *ug = in[2], *J = in[3], *qw = in[4];
    CeedScalar *vg = out[0];
    switch (10 * bc->dim + bc->vdim)
