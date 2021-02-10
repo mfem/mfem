@@ -471,10 +471,11 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
                                     FaceElemTr.Loc1.Transf, face_info);
          // NOTE: FaceElemTr.Loc1 is overwritten here -- used as a temporary
 
+         Geometry::Type face_geom = GetBdrElementBaseGeometry(i);
          const FiniteElement *face_el =
-            Nodes->FESpace()->GetTraceElement(elem_id,
-                                              GetBdrElementBaseGeometry(i));
-
+            Nodes->FESpace()->GetTraceElement(elem_id, face_geom);
+         MFEM_VERIFY(dynamic_cast<const NodalFiniteElement*>(face_el),
+                     "Mesh requires nodal Finite Element.");
          IntegrationRule eir(face_el->GetDof());
          FaceElemTr.Loc1.Transf.ElementNo = elem_id;
          FaceElemTr.Loc1.Transf.ElementType = ElementTransformation::ELEMENT;
@@ -541,6 +542,8 @@ void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
 
          face_el = Nodes->FESpace()->GetTraceElement(face_info.Elem1No,
                                                      face_geom);
+         MFEM_VERIFY(dynamic_cast<const NodalFiniteElement*>(face_el),
+                     "Mesh requires nodal Finite Element.");
 
          IntegrationRule eir(face_el->GetDof());
          FaceElemTr.Loc1.Transf.ElementNo = face_info.Elem1No;
@@ -2506,6 +2509,25 @@ void Mesh::FinalizeTopology(bool generate_bdr)
    if (spaceDim == 0) { spaceDim = Dim; }
    if (ncmesh) { ncmesh->spaceDim = spaceDim; }
 
+   // if the user defined any hanging nodes (see AddVertexParent),
+   // we're initializing a non-conforming mesh
+   if (tmp_vertex_parents.Size())
+   {
+      MFEM_VERIFY(ncmesh == NULL, "");
+      ncmesh = new NCMesh(this);
+
+      // we need to recreate the Mesh because NCMesh reorders the vertices
+      // (see NCMesh::UpdateVertices())
+      InitFromNCMesh(*ncmesh);
+      ncmesh->OnMeshUpdated(this);
+      GenerateNCFaceInfo();
+
+      SetAttributes();
+
+      tmp_vertex_parents.DeleteAll();
+      return;
+   }
+
    // set the mesh type: 'meshgen', ...
    SetMeshGen();
 
@@ -2561,15 +2583,6 @@ void Mesh::FinalizeTopology(bool generate_bdr)
 
    // generate the arrays 'attributes' and 'bdr_attributes'
    SetAttributes();
-
-   // if the user defined any hanging nodes (see AddVertexParent),
-   // initialize the NC mesh now
-   if (tmp_vertex_parents.Size())
-   {
-      MFEM_VERIFY(ncmesh == NULL, "");
-      EnsureNCMesh(true);
-      tmp_vertex_parents.DeleteAll();
-   }
 }
 
 void Mesh::Finalize(bool refine, bool fix_orientation)
@@ -2640,7 +2653,8 @@ void Mesh::Finalize(bool refine, bool fix_orientation)
       for (int i = 0; i < num_faces; i++)
       {
          MFEM_VERIFY(faces_info[i].Elem2No < 0 ||
-                     faces_info[i].Elem2Inf%2 != 0, "invalid mesh topology");
+                     faces_info[i].Elem2Inf%2 != 0, "Invalid mesh topology."
+                     " Interior face with incompatible orientations.");
       }
    }
 #endif
@@ -3454,21 +3468,49 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    getline(input, mesh_type);
    filter_dos(mesh_type);
 
-   // MFEM's native mesh formats
-   bool mfem_v10 = (mesh_type == "MFEM mesh v1.0");
-   bool mfem_v11 = (mesh_type == "MFEM mesh v1.1");
-   bool mfem_v12 = (mesh_type == "MFEM mesh v1.2");
-   if (mfem_v10 || mfem_v11 || mfem_v12) // MFEM's own mesh formats
+   // MFEM's conforming mesh formats
+   int mfem_version = 0;
+   if (mesh_type == "MFEM mesh v1.0") { mfem_version = 10; } // serial
+   else if (mesh_type == "MFEM mesh v1.2") { mfem_version = 12; } // parallel
+
+   // MFEM nonconforming mesh format
+   // (NOTE: previous v1.1 is now under this branch for backward compatibility)
+   int mfem_nc_version = 0;
+   if (mesh_type == "MFEM NC mesh v1.0") { mfem_nc_version = 10; }
+   else if (mesh_type == "MFEM mesh v1.1") { mfem_nc_version = 1 /*legacy*/; }
+
+   if (mfem_version)
    {
       // Formats mfem_v12 and newer have a tag indicating the end of the mesh
       // section in the stream. A user provided parse tag can also be provided
       // via the arguments. For example, if this is called from parallel mesh
       // object, it can indicate to read until parallel mesh section begins.
-      if ( mfem_v12 && parse_tag.empty() )
+      if (mfem_version == 12 && parse_tag.empty())
       {
          parse_tag = "mfem_mesh_end";
       }
-      ReadMFEMMesh(input, mfem_v11, curved);
+      ReadMFEMMesh(input, mfem_version, curved);
+   }
+   else if (mfem_nc_version)
+   {
+      MFEM_ASSERT(ncmesh == NULL, "internal error");
+#ifdef MFEM_USE_MPI
+      ParMesh *pmesh = dynamic_cast<ParMesh*>(this);
+      if (pmesh)
+      {
+         MFEM_VERIFY(mfem_nc_version >= 10,
+                     "Legacy nonconforming format (MFEM mesh v1.1) cannot be "
+                     "used to load a parallel nonconforming mesh, sorry.");
+
+         ncmesh = new ParNCMesh(pmesh->GetComm(),
+                                input, mfem_nc_version, curved);
+      }
+      else
+#endif
+      {
+         ncmesh = new NCMesh(input, mfem_nc_version, curved);
+      }
+      InitFromNCMesh(*ncmesh);
    }
    else if (mesh_type == "linemesh") // 1D mesh
    {
@@ -3568,30 +3610,27 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    // - does not check the orientation of regular and boundary elements
    if (finalize_topo)
    {
-      FinalizeTopology();
+      // don't generate any boundary elements, especially in parallel
+      bool generate_bdr = false;
+
+      FinalizeTopology(generate_bdr);
    }
 
    if (curved && read_gf)
    {
       Nodes = new GridFunction(this, input);
+
       own_nodes = 1;
       spaceDim = Nodes->VectorDim();
       if (ncmesh) { ncmesh->spaceDim = spaceDim; }
-      // Set the 'vertices' from the 'Nodes'
-      for (int i = 0; i < spaceDim; i++)
-      {
-         Vector vert_val;
-         Nodes->GetNodalValues(vert_val, i+1);
-         for (int j = 0; j < NumOfVertices; j++)
-         {
-            vertices[j](i) = vert_val(j);
-         }
-      }
+
+      // Set vertex coordinates from the 'Nodes'
+      SetVerticesFromNodes(Nodes);
    }
 
    // If a parse tag was supplied, keep reading the stream until the tag is
    // encountered.
-   if (mfem_v12)
+   if (mfem_version == 12)
    {
       string line;
       do
@@ -3607,6 +3646,14 @@ void Mesh::Loader(std::istream &input, int generate_edges,
          if (line == "mfem_mesh_end") { break; }
       }
       while (line != parse_tag);
+   }
+   else if (mfem_nc_version >= 10)
+   {
+      string ident;
+      skip_comment_lines(input, '#');
+      input >> ident;
+      MFEM_VERIFY(ident == "mfem_mesh_end",
+                  "invalid mesh: end of file tag not found");
    }
 
    // Finalize(...) should be called after this, if needed.
@@ -4212,6 +4259,20 @@ void Mesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
                                                      ordering);
    SetNodalFESpace(nfes);
    Nodes->MakeOwner(nfec);
+}
+
+void Mesh::SetVerticesFromNodes(const GridFunction *nodes)
+{
+   MFEM_ASSERT(nodes != NULL, "");
+   for (int i = 0; i < spaceDim; i++)
+   {
+      Vector vert_val;
+      nodes->GetNodalValues(vert_val, i+1);
+      for (int j = 0; j < NumOfVertices; j++)
+      {
+         vertices[j](i) = vert_val(j);
+      }
+   }
 }
 
 int Mesh::GetNumFaces() const
@@ -5271,6 +5332,21 @@ void Mesh::AddPointFaceElement(int lf, int gf, int el)
    }
    else  //  this will be elem2
    {
+      /* WARNING: Without the following check the mesh faces_info data structure
+         may contain unreliable data. Normally, the order in which elements are
+         processed could swap which elements appear as Elem1No and Elem2No. In
+         branched meshes, where more than two elements can meet at a given node,
+         the indices stored in Elem1No and Elem2No will be the first and last,
+         respectively, elements found which touch a given node. This can lead to
+         inconsistencies in any algorithms which rely on this data structure. To
+         properly support branched meshes this data structure should be extended
+         to support multiple elements per face. */
+      /*
+      MFEM_VERIFY(faces_info[gf].Elem2No < 0, "Invalid mesh topology. "
+                  "Interior point found connecting 1D elements "
+                  << faces_info[gf].Elem1No << ", " << faces_info[gf].Elem2No
+                  << " and " << el << ".");
+      */
       faces_info[gf].Elem2No  = el;
       faces_info[gf].Elem2Inf = 64 * lf + 1;
    }
@@ -5288,6 +5364,10 @@ void Mesh::AddSegmentFaceElement(int lf, int gf, int el, int v0, int v1)
    }
    else  //  this will be elem2
    {
+      MFEM_VERIFY(faces_info[gf].Elem2No < 0, "Invalid mesh topology.  "
+                  "Interior edge found between 2D elements "
+                  << faces_info[gf].Elem1No << ", " << faces_info[gf].Elem2No
+                  << " and " << el << ".");
       int *v = faces[gf]->GetVertices();
       faces_info[gf].Elem2No  = el;
       if ( v[1] == v0 && v[0] == v1 )
@@ -5322,6 +5402,10 @@ void Mesh::AddTriangleFaceElement(int lf, int gf, int el,
    }
    else  //  this will be elem2
    {
+      MFEM_VERIFY(faces_info[gf].Elem2No < 0, "Invalid mesh topology.  "
+                  "Interior triangular face found connecting elements "
+                  << faces_info[gf].Elem1No << ", " << faces_info[gf].Elem2No
+                  << " and " << el << ".");
       int orientation, vv[3] = { v0, v1, v2 };
       orientation = GetTriOrientation(faces[gf]->GetVertices(), vv);
       // In a valid mesh, we should have (orientation % 2 != 0), however, if
@@ -5346,6 +5430,10 @@ void Mesh::AddQuadFaceElement(int lf, int gf, int el,
    }
    else  //  this will be elem2
    {
+      MFEM_VERIFY(faces_info[gf].Elem2No < 0, "Invalid mesh topology.  "
+                  "Interior quadrilateral face found connecting elements "
+                  << faces_info[gf].Elem1No << ", " << faces_info[gf].Elem2No
+                  << " and " << el << ".");
       int vv[4] = { v0, v1, v2, v3 };
       int oo = GetQuadOrientation(faces[gf]->GetVertices(), vv);
       // Temporarily allow even face orientations: see the remark in
@@ -6670,6 +6758,11 @@ void Mesh::NewNodes(GridFunction &nodes, bool make_owner)
       delete NURBSext;
       NURBSext = nodes.FESpace()->StealNURBSext();
    }
+
+   if (ncmesh)
+   {
+      ncmesh->MakeTopologyOnly();
+   }
 }
 
 void Mesh::SwapNodes(GridFunction *&nodes, int &own_nodes_)
@@ -6709,6 +6802,9 @@ void Mesh::UpdateNodes()
    {
       Nodes->FESpace()->Update();
       Nodes->Update();
+
+      // update vertex coordinates for compatibility (e.g., GetVertex())
+      SetVerticesFromNodes(Nodes);
    }
 }
 
@@ -8079,7 +8175,13 @@ void Mesh::GeneralRefinement(const Array<int> &el_to_refine, int nonconforming,
 void Mesh::EnsureNCMesh(bool simplices_nonconforming)
 {
    MFEM_VERIFY(!NURBSext, "Cannot convert a NURBS mesh to an NC mesh. "
-               "Project the NURBS to Nodes first.");
+               "Please project the NURBS to Nodes first, with SetCurvature().");
+
+#ifdef MFEM_USE_MPI
+   MFEM_VERIFY(ncmesh != NULL || dynamic_cast<const ParMesh*>(this) == NULL,
+               "Sorry, converting a conforming ParMesh to an NC mesh is "
+               "not possible.");
+#endif
 
    if (!ncmesh)
    {
@@ -8770,9 +8872,25 @@ void Mesh::Printer(std::ostream &out, std::string section_delimiter) const
       return;
    }
 
-   out << (ncmesh ? "MFEM mesh v1.1\n" :
-           section_delimiter.empty() ? "MFEM mesh v1.0\n" :
-           "MFEM mesh v1.2\n");
+   if (Nonconforming())
+   {
+      // nonconforming mesh format
+      ncmesh->Print(out);
+
+      if (Nodes)
+      {
+         out << "\n# mesh curvature GridFunction";
+         out << "\nnodes\n";
+         Nodes->Save(out);
+      }
+
+      out << "\nmfem_mesh_end" << endl;
+      return;
+   }
+
+   // serial/parallel conforming mesh format
+   out << (section_delimiter.empty()
+           ? "MFEM mesh v1.0\n" : "MFEM mesh v1.2\n");
 
    // optional
    out <<
@@ -8786,8 +8904,9 @@ void Mesh::Printer(std::ostream &out, std::string section_delimiter) const
        "# PRISM       = 6\n"
        "#\n";
 
-   out << "\ndimension\n" << Dim
-       << "\n\nelements\n" << NumOfElements << '\n';
+   out << "\ndimension\n" << Dim;
+
+   out << "\n\nelements\n" << NumOfElements << '\n';
    for (i = 0; i < NumOfElements; i++)
    {
       PrintElement(elements[i], out);
@@ -8797,15 +8916,6 @@ void Mesh::Printer(std::ostream &out, std::string section_delimiter) const
    for (i = 0; i < NumOfBdrElements; i++)
    {
       PrintElement(boundary[i], out);
-   }
-
-   if (ncmesh)
-   {
-      out << "\nvertex_parents\n";
-      ncmesh->PrintVertexParents(out);
-
-      out << "\ncoarse_elements\n";
-      ncmesh->PrintCoarseElements(out);
    }
 
    out << "\nvertices\n" << NumOfVertices << '\n';
@@ -8829,7 +8939,7 @@ void Mesh::Printer(std::ostream &out, std::string section_delimiter) const
       Nodes->Save(out);
    }
 
-   if (!ncmesh && !section_delimiter.empty())
+   if (!section_delimiter.empty())
    {
       out << section_delimiter << endl; // only with format v1.2
    }
