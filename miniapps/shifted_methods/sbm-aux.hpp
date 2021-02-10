@@ -40,25 +40,6 @@ double dist_value(const Vector &x, const int type)
     return 0.;
 }
 
-/// Returns distance from 0 level set. If dist +ve, point is inside the domain,
-/// otherwise outside.
-class Dist_Value_Coefficient : public Coefficient
-{
-private:
-   int type;
-
-public:
-   Dist_Value_Coefficient(int type_)
-      : Coefficient(), type(type_) { }
-
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
-   {
-      Vector x(3);
-      T.Transform(ip, x);
-      return dist_value(x, type);
-   }
-};
-
 /// Level set coefficient - 1 inside the domain, -1 outside, 0 at the boundary.
 class Dist_Level_Set_Coefficient : public Coefficient
 {
@@ -115,46 +96,45 @@ public:
    }
 };
 
+/// exponent for level set 2 where u = x^p+y^p;
 #define xy_p 2.
+
 /// Boundary conditions
-double dirichlet_velocity(const Vector &x, int type)
+double dirichlet_velocity_circle(const Vector &x)
 {
-    if (type == 1) { // u = 0. on the boundaries.
-        return 0.;
-    }
-    else if (type == 2) { // u = x^p+y^p
-        return pow(x(0), xy_p) + pow(x(1), xy_p);
-    }
-    else if (type == 3) { // u = (1/pi^2)sin(pi*x*y),
-        return 1./(M_PI*M_PI)*std::sin(M_PI*x(0)*x(1));
-    }
-    else {
-        MFEM_ABORT(" Function type not implement yet.");
-    }
     return 0.;
 }
 
-/// `f` for the Poisson problem (-nabla^2 u = f).
-double rhs_fun(const Vector &x, int type)
+double dirichlet_velocity_xy_exponent(const Vector &x)
 {
-    if (type == 1) {
-        return 1.;
-    }
-    else if (type == 2) {
-        double coeff = std::max(xy_p*(xy_p-1), 1.);
-        double expon = std::max(0., xy_p-2);
-        if (xy_p == 1) {
-            return 0.;
-        }
-        else {
-            return -coeff*std::pow(x(0), expon) - coeff*std::pow(x(1), expon);
-        }
-    }
-    else if (type == 3) {
-        return std::sin(M_PI*x(0)*x(1))*(x(0)*x(0)+x(1)*x(1));
+    return pow(x(0), xy_p) + pow(x(1), xy_p);
+}
+
+double dirichlet_velocity_xy_sinusoidal(const Vector &x)
+{
+    return 1./(M_PI*M_PI)*std::sin(M_PI*x(0)*x(1));
+}
+
+
+/// `f` for the Poisson problem (-nabla^2 u = f).
+double rhs_fun_circle(const Vector &x)
+{
+    return 1;
+}
+
+double rhs_fun_xy_exponent(const Vector &x)
+{
+    double coeff = std::max(xy_p*(xy_p-1), 1.);
+    double expon = std::max(0., xy_p-2);
+    if (xy_p == 1) {
+        return 0.;
     }
     else {
-        MFEM_ABORT(" Function type not implement yet.");
+        return -coeff*std::pow(x(0), expon) - coeff*std::pow(x(1), expon);
     }
-    return 0.;
+}
+
+double rhs_fun_xy_sinusoidal(const Vector &x)
+{
+    return std::sin(M_PI*x(0)*x(1))*(x(0)*x(0)+x(1)*x(1));
 }

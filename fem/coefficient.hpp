@@ -168,41 +168,26 @@ public:
                        const IntegrationPoint &ip);
 };
 
-class SBMFunctionCoefficient : public Coefficient
+/// ShiftedFunctionCoefficient, similar to FunctionCoefficient, but also takes
+/// into account a displacement vector if specified.
+class ShiftedFunctionCoefficient : public Coefficient
 {
 protected:
    std::function<double(const Vector &)> Function;
-   std::function<double(const Vector &, double)> TDFunction;
-   std::function<double(const Vector &, int type)> TypeFunction;
-   int type;
 
 public:
-   /// Define a time-independent coefficient from a std function
-   /** \param F time-independent std::function */
-   SBMFunctionCoefficient(std::function<double(const Vector &)> F)
-      : Function(std::move(F))
-   { }
-
-   /// Define a time-dependent coefficient from a std function
-   /** \param TDF time-dependent function */
-   SBMFunctionCoefficient(std::function<double(const Vector &, double)> TDF)
-      : TDFunction(std::move(TDF))
-   { }
-
-   SBMFunctionCoefficient(std::function<double(const Vector &v, int)> TF,
-                          int type_)
-      : TypeFunction(std::move(TF)), type(type_)
-   { }
+   ShiftedFunctionCoefficient(std::function<double(const Vector &v)> F)
+      : Function(std::move(F)) { }
 
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
    {
-      Vector D(2);
+      Vector D(1);
       D = 0.;
       return (this)->Eval(T, ip, D);
    }
 
-   /// Evaluate the coefficient at @a ip.
+   /// Evaluate the coefficient at @a ip + @a D.
    double Eval(ElementTransformation &T,
                const IntegrationPoint &ip,
                const Vector &D);
