@@ -464,7 +464,7 @@ public:
 class SBM2LFIntegrator : public LinearFormIntegrator
 {
 protected:
-   SBMFunctionCoefficient *uD;
+   ShiftedFunctionCoefficient *uD;
    VectorCoefficient *vD; // Distance function coefficient
    double alpha;
    bool elem1f;
@@ -475,7 +475,7 @@ protected:
    DenseMatrix dshape, mq, adjJ;
 
 public:
-   SBM2LFIntegrator(SBMFunctionCoefficient &u, const double a,
+   SBM2LFIntegrator(ShiftedFunctionCoefficient &u, const double a,
                     VectorCoefficient &vD_, int nterms_ = 0)
       : uD(&u), vD(&vD_), alpha(a), nterms(nterms_)  { }
 

@@ -6,6 +6,7 @@
 //   Problem 1: Circular hole of radius 0.2 at the center of the domain.
 //              -nabla^u = 1 with homogeneous boundary conditions
 // mpirun -np 4 diffusion -m ../../data/inline-quad.mesh -rs 2 -o 1 -vis -lst 1
+// mpirun -np 4 diffusion -m ../../data/inline-hex.mesh -rs 2 -o 2 -vis -lst 1 -ho 1 -alpha 10
 //
 //   Problem 2: Circular hole of radius 0.2 at the center of the domain.
 //              -nabla^u = f with inhomogeneous boundary conditions, f is setup
@@ -33,7 +34,7 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // Parse command-line options.
-   const char *mesh_file = "../data/square-disc.mesh";
+   const char *mesh_file = "../../data/inline-quad.mesh";
    int order = 2;
    bool pa = false;
    const char *device_config = "cpu";
@@ -42,6 +43,7 @@ int main(int argc, char *argv[])
    bool exact = true;
    int level_set_type = 1;
    int ho_terms = 0;
+   double alpha = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -58,13 +60,15 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
-   args.AddOption(&exact, "-ex", "--exact", "-no-ex",
-                  "--no-exact",
-                  "Enable or disable GLVis visualization.");
+//   args.AddOption(&exact, "-ex", "--exact", "-no-ex",
+//                  "--no-exact",
+//                  "Use exact representaion of distance vector function.");
    args.AddOption(&level_set_type, "-lst", "--level-set-type",
                   "level-set-type:");
    args.AddOption(&ho_terms, "-ho", "--high-order",
                   "Additional high-order terms to include");
+   args.AddOption(&alpha, "-alpha", "--alpha",
+                  "Nitsche penalty parameter (~1 for 2D, ~10 for 3D).");
 
    args.Parse();
    if (!args.Good())
@@ -411,9 +415,6 @@ int main(int argc, char *argv[])
                << "keys Rjmpcvv" << endl;
    }
 
-   // SBM integration parameter - alpha
-   double alpha = 1;
-
    // Set up a list to indicate element attributes to be included in assembly.
    int max_elem_attr = pmesh.attributes.Max();
    Array<int> ess_elem(max_elem_attr);
@@ -427,11 +428,35 @@ int main(int argc, char *argv[])
    // Set up the linear form b(.) which corresponds to the right-hand side of
    // the FEM linear system.
    ParLinearForm b(&pfespace);
-   SBMFunctionCoefficient rhs_f(rhs_fun, level_set_type);
-   b.AddDomainIntegrator(new DomainLFIntegrator(rhs_f), ess_elem);
+   FunctionCoefficient *rhs_f = NULL;
+   if (level_set_type == 1) {
+       rhs_f = new FunctionCoefficient(rhs_fun_circle);
+   }
+   else if (level_set_type == 2) {
+       rhs_f = new FunctionCoefficient(rhs_fun_xy_exponent);
+   }
+   else if (level_set_type == 3) {
+       rhs_f = new FunctionCoefficient(rhs_fun_xy_sinusoidal);
+   }
+   else {
+       MFEM_ABORT("Dirichlet velocity function not set for level set type.\n");
+   }
+   b.AddDomainIntegrator(new DomainLFIntegrator(*rhs_f), ess_elem);
 
-   SBMFunctionCoefficient dbcCoef(dirichlet_velocity, level_set_type);
-   b.AddShiftedBdrFaceIntegrator(new SBM2LFIntegrator(dbcCoef, alpha, *dist_vec, ho_terms),
+   ShiftedFunctionCoefficient *dbcCoef = NULL;
+   if (level_set_type == 1) {
+       dbcCoef = new ShiftedFunctionCoefficient(dirichlet_velocity_circle);
+   }
+   else if (level_set_type == 2) {
+       dbcCoef = new ShiftedFunctionCoefficient(dirichlet_velocity_xy_exponent);
+   }
+   else if (level_set_type == 3) {
+       dbcCoef = new ShiftedFunctionCoefficient(dirichlet_velocity_xy_sinusoidal);
+   }
+   else {
+       MFEM_ABORT("Dirichlet velocity function not set for level set type.\n");
+   }
+   b.AddShiftedBdrFaceIntegrator(new SBM2LFIntegrator(*dbcCoef, alpha, *dist_vec, ho_terms),
                                  elem_marker);
    b.Assemble();
 
@@ -451,7 +476,7 @@ int main(int argc, char *argv[])
 
    // Project the exact solution as an initial condition for dirichlet boundaries.
    x = 0;
-   x.ProjectCoefficient(dbcCoef);
+   x.ProjectCoefficient(*dbcCoef);
    // Zero out non-essential boundaries.
    for (int i = 0; i < ess_vdofs_hole.Size(); i++) {
        if (ess_vdofs_hole[i] != -1) { x(i) = 0.; }
@@ -509,7 +534,16 @@ int main(int argc, char *argv[])
    for (int i = 0; i < nodes_cnt; i++) {
        pxyz(0) = vxyz(i);;
        pxyz(1) = vxyz(i+nodes_cnt);
-       double exact_val = dirichlet_velocity(pxyz, level_set_type);
+       double exact_val;
+       if (level_set_type == 1) {
+           exact_val = dirichlet_velocity_circle(pxyz);
+       }
+       else if (level_set_type == 2) {
+           exact_val = dirichlet_velocity_xy_exponent(pxyz);
+       }
+       else if (level_set_type == 3) {
+           exact_val = dirichlet_velocity_xy_sinusoidal(pxyz);
+       }
        err(i) = std::fabs(x(i) - exact_val);
    }
 
@@ -534,7 +568,7 @@ int main(int argc, char *argv[])
 
 
    int NEglob = pmesh.GetGlobalNE();
-   double errnorm = x.ComputeL2Error(dbcCoef);
+   double errnorm = x.ComputeL2Error(*dbcCoef);
    if (level_set_type >= 3 && level_set_type <= 5 && myid == 0)
    {
       ofstream myfile;
@@ -552,6 +586,8 @@ int main(int argc, char *argv[])
    // Free the used memory.
    delete prec;
    delete S;
+   delete dbcCoef;
+   delete rhs_f;
    delete dist_vec;
    delete distance_vec_space;
    delete fec;
