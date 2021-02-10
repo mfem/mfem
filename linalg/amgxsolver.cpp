@@ -625,6 +625,11 @@ void AmgXSolver::SetMatrix(const HypreParMatrix &A, const bool update_mat)
       return SetMatrixMPITeams(A, loc_A, loc_I, loc_J, update_mat);
    }
 
+   // Set A_ptr to NULL
+   // Free A_csr hypre_MergeDiagAndOffd
+   A_ptr = NULL;
+   hypre_CSRMatrixDestroy(A_csr);
+
    mfem_error("Unsupported MPI_GPU combination \n");
 }
 
