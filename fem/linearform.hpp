@@ -127,7 +127,10 @@ public:
 
    /// Adds new Domain Integrator. Assumes ownership of @a lfi.
    void AddDomainIntegrator(LinearFormIntegrator *lfi);
-   void AddDomainIntegrator(LinearFormIntegrator *lfi, Array<int> &elem_marker);
+   /// Adds new Domain Integrator restricted to certain elements specified by
+   /// the @a elem_attr_marker.
+   void AddDomainIntegrator(LinearFormIntegrator *lfi,
+                            Array<int> &elem_attr_marker);
 
 
    /// Adds new Boundary Integrator. Assumes ownership of @a lfi.
@@ -152,23 +155,17 @@ public:
    void AddBdrFaceIntegrator(LinearFormIntegrator *lfi,
                              Array<int> &bdr_attr_marker);
 
-   /** @brief Add new Shifted Boundary Integrator. The shifted faces are
-       identified based on the element marker:
-       0 - if an element is inside the domain
-       1 - if an element is outside
-       2 - if an element is cut by the true boundary
-       The shifted faces are the faces that have elements with marker 0 and 2
-       on either sides.
-       Optionally, boundary attribute marker can also be specified to include
-       certain boundary faces.
-   */
+   /// Adds new Shifted boundary Face Integrator. The Faces are identified based
+   /// on @a elem_marker (0 if element is in the domain, 1 if outside, and 2 if
+   /// cut by the true boundary). Internal faces that are between elements with
+   /// marker 0 and 2 are shifted boundary faces.
    void AddShiftedBdrFaceIntegrator(LinearFormIntegrator *lfi,
                                     Array<int> &elem_marker);
-
-
+   /// Adds new Shifted boundary Face Integrator and include certain boundary
+   /// faces using @a bdr_attr_marker.
    void AddShiftedBdrFaceIntegrator(LinearFormIntegrator *lfi,
                                     Array<int> &elem_marker,
-                                    Array<int> &bdr_marker);
+                                    Array<int> &bdr_attr_marker);
 
    /** @brief Access all integrators added with AddDomainIntegrator() which are
        not DeltaLFIntegrator%s or they are DeltaLFIntegrator%s with non-delta

@@ -1039,7 +1039,7 @@ public:
 
    FaceElementTransformations *GetBdrFaceTransformations (int BdrElemNo);
 
-   /// Return the local face index for the given shared face.
+   /// Return the local face index for the given boundary face.
    int GetBdrFace(int BdrElemNo) const;
 
    /// Return true if the given face is interior. @sa FaceIsTrueInterior().

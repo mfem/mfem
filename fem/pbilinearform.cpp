@@ -250,7 +250,7 @@ void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
                {
                   fe1 = pfes->GetFE(tr->Elem1No);
                   pfes->GetElementVDofs(tr->Elem1No, vdofs1);
-                  dynamic_cast<SBM2Integrator *>(sbfbfi[k])->SetElem1Flag(true);
+                  dynamic_cast<SBM2DirichletIntegrator *>(sbfbfi[k])->SetElem1Flag(true);
                   fe2 = fe1;
                   sbfbfi[k] -> AssembleFaceMatrix (*fe1, *fe2, *tr, elemmat);
                   mat -> AddSubMatrix (vdofs1, vdofs1, elemmat, skip_zeros);
