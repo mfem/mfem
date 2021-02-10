@@ -77,7 +77,7 @@ void ParLinearForm::AssembleSharedFaces()
                if (te2 == 2 && te1 == 0)
                {
                   fes -> GetElementVDofs (tr -> Elem1No, vdofs);
-                  dynamic_cast<SBM2LFIntegrator *>(sflfi[k])->SetElem1Flag(true);
+                  dynamic_cast<SBM2DirichletLFIntegrator *>(sflfi[k])->SetElem1Flag(true);
                   sflfi[0] -> AssembleRHSElementVect (*fes->GetFE(tr -> Elem1No),
                                                       *tr, elemvect);
                   AddElementVector (vdofs, elemvect);

@@ -2935,7 +2935,7 @@ public:
 };
 
 // <grad u. d, grad w .n>
-class SBM2Integrator : public BilinearFormIntegrator
+class SBM2DirichletIntegrator : public BilinearFormIntegrator
 {
 protected:
    VectorCoefficient *vD; // Distance function coefficient
@@ -2949,7 +2949,7 @@ protected:
 
 
 public:
-   SBM2Integrator(const double a, VectorCoefficient &vD_, int nterms_ = 0)
+   SBM2DirichletIntegrator(const double a, VectorCoefficient &vD_, int nterms_ = 0)
       : vD(&vD_), alpha(a), nterms(nterms_) { }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
@@ -2960,7 +2960,7 @@ public:
 
    void SetElem1Flag(bool flag_) { elem1f = flag_; }
 
-   virtual ~SBM2Integrator() { }
+   virtual ~SBM2DirichletIntegrator() { }
 };
 
 /** Integrator for the "BR2" diffusion stabilization term

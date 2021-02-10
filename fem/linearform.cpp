@@ -52,7 +52,7 @@ void LinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi)
 }
 
 void LinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi,
-                                     Array<int> &elem_marker)
+                                     Array<int> &elem_attr_marker)
 {
    DeltaLFIntegrator *maybe_delta =
       dynamic_cast<DeltaLFIntegrator *>(lfi);
@@ -64,7 +64,7 @@ void LinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi,
    {
       dlfi_delta.Append(maybe_delta);
    }
-   dlfi_elem_attr_marker.Append(&elem_marker);
+   dlfi_elem_attr_marker.Append(&elem_attr_marker);
 }
 
 void LinearForm::AddBoundaryIntegrator (LinearFormIntegrator * lfi)
@@ -103,10 +103,10 @@ void LinearForm::AddShiftedBdrFaceIntegrator(LinearFormIntegrator *lfi,
 
 void LinearForm::AddShiftedBdrFaceIntegrator(LinearFormIntegrator *lfi,
                                              Array<int> &elem_marker,
-                                             Array<int> &bdr_marker)
+                                             Array<int> &bdr_attr_marker)
 {
    sflfi.Append(lfi);
-   sflfi_bdr_attr_marker.Append(&bdr_marker);
+   sflfi_bdr_attr_marker.Append(&bdr_attr_marker);
    sflfi_elem_marker.Append(&elem_marker);
 }
 
@@ -255,7 +255,7 @@ void LinearForm::Assemble()
          {
             MFEM_VERIFY(mesh->bdr_attributes.Size() == sflfi_bdr_attr_marker[k]->Size(),
                         "invalid element marker for boundary integrator #"
-                        << k << ", counting from zero in SBM2LFIntegrator.");
+                        << k << ", counting from zero in SBM2DirichletLFIntegrator.");
          }
       }
 
@@ -274,7 +274,7 @@ void LinearForm::Assemble()
                if (te1 == 0 && te2 == 2)   // element 2 is cut, 1 is inside
                {
                   fes -> GetElementVDofs (tr -> Elem1No, vdofs);
-                  dynamic_cast<SBM2LFIntegrator *>(sflfi[k])->SetElem1Flag(true);
+                  dynamic_cast<SBM2DirichletLFIntegrator *>(sflfi[k])->SetElem1Flag(true);
                   sflfi[0] -> AssembleRHSElementVect (*fes->GetFE(tr -> Elem1No),
                                                       *tr, elemvect);
                   AddElementVector (vdofs, elemvect);
@@ -282,7 +282,7 @@ void LinearForm::Assemble()
                else if (te1 == 2 && te2 == 0)   // element 1 is cut, 2 is inside
                {
                   fes -> GetElementVDofs (tr -> Elem2No, vdofs);
-                  dynamic_cast<SBM2LFIntegrator *>(sflfi[k])->SetElem1Flag(false);
+                  dynamic_cast<SBM2DirichletLFIntegrator *>(sflfi[k])->SetElem1Flag(false);
                   sflfi[0] -> AssembleRHSElementVect (*fes->GetFE(tr -> Elem2No),
                                                       *tr, elemvect);
                   AddElementVector (vdofs, elemvect);
@@ -290,7 +290,7 @@ void LinearForm::Assemble()
             }
          }
 
-         if (sflfi_bdr_attr_marker[k] == NULL) { continue; } //no boundary faces are SB faces
+         if (sflfi_bdr_attr_marker[k] == NULL) { continue; } //no SB bdr faces
 
          for (int i = 0; i < mesh->GetNBE(); i++)
          {
@@ -299,15 +299,14 @@ void LinearForm::Assemble()
             tr = mesh->GetBdrFaceTransformations (i);
             if (tr != NULL)
             {
-               if ((*(sflfi_bdr_attr_marker[k]))[attr-1] ==
-                   1)   // add all boundary faces with attr=100 as SBM faces
+               if ((*(sflfi_bdr_attr_marker[k]))[attr-1] == 1)
                {
                   int ne1 = tr->Elem1No;
                   int te1 = (*(sflfi_elem_marker[k]))[ne1];
                   if (te1 == 0)
                   {
                      fes -> GetElementVDofs (tr -> Elem1No, vdofs);
-                     dynamic_cast<SBM2LFIntegrator *>(sflfi[k])->SetElem1Flag(true);
+                     dynamic_cast<SBM2DirichletLFIntegrator *>(sflfi[k])->SetElem1Flag(true);
                      sflfi[0] -> AssembleRHSElementVect (*fes->GetFE(tr -> Elem1No),
                                                          *tr, elemvect);
                      AddElementVector (vdofs, elemvect);

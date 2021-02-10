@@ -456,7 +456,7 @@ int main(int argc, char *argv[])
    else {
        MFEM_ABORT("Dirichlet velocity function not set for level set type.\n");
    }
-   b.AddShiftedBdrFaceIntegrator(new SBM2LFIntegrator(*dbcCoef, alpha, *dist_vec, ho_terms),
+   b.AddShiftedBdrFaceIntegrator(new SBM2DirichletLFIntegrator(*dbcCoef, alpha, *dist_vec, ho_terms),
                                  elem_marker);
    b.Assemble();
 
@@ -467,7 +467,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient one(1.);
 
    a.AddDomainIntegrator(new DiffusionIntegrator(one), ess_elem);
-   a.AddShiftedBdrFaceIntegrator(new SBM2Integrator(alpha, *dist_vec, ho_terms),
+   a.AddShiftedBdrFaceIntegrator(new SBM2DirichletIntegrator(alpha, *dist_vec, ho_terms),
                                  elem_marker);
 
    // Assemble the bilinear form and the corresponding linear system,

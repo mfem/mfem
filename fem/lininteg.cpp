@@ -774,13 +774,13 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
    }
 }
 
-void SBM2LFIntegrator::AssembleRHSElementVect(
+void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
-   mfem_error("DGDirichletLFIntegrator::AssembleRHSElementVect");
+   mfem_error("SBM2DirichletLFIntegrator::AssembleRHSElementVect");
 }
 
-void SBM2LFIntegrator::AssembleRHSElementVect(
+void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
 {
    int dim, ndof;

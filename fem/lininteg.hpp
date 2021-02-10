@@ -461,22 +461,24 @@ public:
                                        Vector &elvect);
 };
 
-class SBM2LFIntegrator : public LinearFormIntegrator
+class SBM2DirichletLFIntegrator : public LinearFormIntegrator
 {
 protected:
    ShiftedFunctionCoefficient *uD;
    VectorCoefficient *vD; // Distance function coefficient
-   double alpha;
-   bool elem1f;
-   int nterms; //1 = Hessian (3rd order)
+   double alpha; // Nitsche parameter
+   bool elem1f; // flag to indicate wether elem1 associated with the internal
+   // face is inside the domain or not (in that case elem2 is).
+   int nterms;  //Number of terms in addition to the gradient term from Taylor
+   //expansion that should be included. (0 by default).
 
    // these are not thread-safe!
    Vector shape, dshape_dd, dshape_dn, nor, nh, ni;
    DenseMatrix dshape, mq, adjJ;
 
 public:
-   SBM2LFIntegrator(ShiftedFunctionCoefficient &u, const double a,
-                    VectorCoefficient &vD_, int nterms_ = 0)
+   SBM2DirichletLFIntegrator(ShiftedFunctionCoefficient &u, const double a,
+                             VectorCoefficient &vD_, int nterms_ = 0)
       : uD(&u), vD(&vD_), alpha(a), nterms(nterms_)  { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
