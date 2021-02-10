@@ -67,6 +67,9 @@ protected:
        degree of freedom. */
    void ProjectDiscCoefficient(VectorCoefficient &coeff, Array<int> &dof_attr);
 
+   /// Loading helper.
+   void LegacyNCReorder();
+
    void Destroy();
 
 public:
