@@ -205,6 +205,17 @@ void FullBlockSolver::Mult(const Vector &x, Vector &y) const
 
    if (false)
    {
+      PetscReal      snorm;
+      PetscInt       size;
+      Vec Yout=*Y;  //typecasting
+      VecGetSize(Yout, &size);
+      VecNorm(Yout,NORM_2,&snorm);
+      //PetscPrintf(PETSC_COMM_WORLD,"snorm = %6.4e, %6.4e, %6.4e,\n",snorm0/size, snorm1/size, snorm2/size);
+      PetscPrintf(PETSC_COMM_WORLD," my snorm = %6.4e size = %i\n",snorm,size);
+   }
+
+   if (false)
+   {
      PetscViewer viewer;
      PetscViewerASCIIOpen(PETSC_COMM_WORLD, "residual0.m", &viewer);
      PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);
@@ -470,7 +481,7 @@ void PetscBlockSolver::Mult(const Vector &x, Vector &y) const
       KSPSolve(kspblock[0],rhs,y0);
    }
 
-   if (true)
+   if (false)
    {
       PetscReal      snorm;
       PetscInt       size;

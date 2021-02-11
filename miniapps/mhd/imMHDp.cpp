@@ -63,6 +63,8 @@ int main(int argc, char *argv[])
    lambda=5.0;
 
    bool visualization = true;
+   bool slowStart=false;    //the first step might take longer than usual
+   bool saveOne=false;
    int vis_steps = 10;
 
    OptionsParser args(argc, argv);
@@ -149,6 +151,12 @@ int main(int argc, char *argv[])
                   "UpdateJ: 0 - no boundary condition used; 1 - Dirichlet used on J boundary.");
    args.AddOption(&BgradJ, "-BgradJ", "--BgradJ",
                   "BgradJ: 1 - (B.grad J, phi); 2 - (-J, B.grad phi); 3 - (-B J, grad phi).");
+   args.AddOption(&slowStart, "-slow", "--slow-start", "-no-slow", "--no-slow-start",
+                  "Slow start");
+   args.AddOption(&lumpedMass, "-lumpmass", "--lump-mass",  "-no-lumpmass", "--no-lump-mass",
+                  "lumped mass for updatej=0");
+   args.AddOption(&saveOne, "-saveOne", "--save-One",  "-no-saveOne", "--no-save-One",
+                  "Save solution/mesh as one file");
    args.Parse();
    if (!args.Good())
    {
@@ -651,7 +659,16 @@ int main(int argc, char *argv[])
       {
          vxold=vx;
          told=t;
-         ode_solver2->Step(vx, t, dt_real);
+
+         if (slowStart && ti<2)
+         {
+           double dt2=dt/2.;
+           ode_solver2->Step(vx, t, dt2);
+         }
+         else
+         {
+           ode_solver2->Step(vx, t, dt);
+         }
 
          if (!oper.getConverged())
          {
@@ -771,6 +788,21 @@ int main(int argc, char *argv[])
       ofstream ncmesh(mesh_save.str().c_str());
       ncmesh.precision(16);
       pmesh->ParPrint(ncmesh);
+
+      if (saveOne)
+      {
+         ostringstream mesh_name2, j_name2;
+         mesh_name2 << "full.mesh";
+         j_name2 << "jone.sol";
+
+         ofstream mesh_ofs(mesh_name2.str().c_str());
+         mesh_ofs.precision(8);
+         pmesh->PrintAsOne(mesh_ofs);
+
+         ofstream osolj(j_name2.str().c_str());
+         osolj.precision(8);
+         j.SaveAsOne(osolj);
+      }
 
       ofstream osol(phi_name.str().c_str());
       osol.precision(16);

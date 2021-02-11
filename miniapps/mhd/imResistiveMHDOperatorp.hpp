@@ -13,7 +13,7 @@ int ex_supg=2;  //1: test supg with v term only (it assumes viscosity==resistivi
                 //3: test a general hyperdiffusion 
                 
 //------------this is for implicit solver only------------
-bool usesupg=true;  //add supg in both psi and omega
+bool usesupg=false;  //add supg in both psi and omega
 int im_supg=1;
 bool usefd=false;   //add field-line diffusion for psi in implicit solvers
 
@@ -70,7 +70,7 @@ private:
    const Array<int> &ess_tdof_list;
    const Array<int> &ess_bdr;
 
-   mutable ParGridFunction phiGf, psiGf, wGf, gftmp, phiOld;
+   mutable ParGridFunction phiGf, psiGf, wGf, gftmp, gftmp2, gftmp3, gftmp4, phiOld;
    mutable MyCoefficient *vOld;
    mutable ParBilinearForm *Nv, *Nb, *Pw;
    mutable ParBilinearForm *StabMass, *StabNb, *StabNv; //for stablize B term
@@ -127,14 +127,27 @@ public:
                delete ARe;
                delete ASl;
                if (DRematpr!=NULL)
+               {
                   ARe = ParAdd(Mdtpr, DRematpr);
+               }
                else
+               {
                   ARe = new HypreParMatrix(*Mdtpr);
+               }
                   
                if (DSlmatpr!=NULL)
+               {
                   ASl = ParAdd(Mdtpr, DSlmatpr);
+               }
                else
+               {
                   ASl = new HypreParMatrix(*Mdtpr);
+               }
+               //make diag be 1
+               delete tmp2;
+               tmp2=ARe->EliminateRowsCols(ess_tdof_list);
+               delete tmp2;
+               tmp2=ASl->EliminateRowsCols(ess_tdof_list);
            } 
        }
        if(initialMdt==false)
@@ -146,14 +159,28 @@ public:
            if (useFull > 0)
            {
               if (DRematpr!=NULL)
+              {
                  ARe = ParAdd(Mdtpr, DRematpr);
+              }
               else
+              {
                  ARe = new HypreParMatrix(*Mdtpr);
+              }
                  
               if (DSlmatpr!=NULL)
+              {
                  ASl = ParAdd(Mdtpr, DSlmatpr);
+              }
               else
+              {
                  ASl = new HypreParMatrix(*Mdtpr);
+              }
+
+              //make diag be 1
+              delete tmp2;
+              tmp2=ARe->EliminateRowsCols(ess_tdof_list);
+              delete tmp2;
+              tmp2=ASl->EliminateRowsCols(ess_tdof_list);
            }
        }
    }
@@ -185,8 +212,7 @@ private:
 public:
     myBCHandler(Array<int>& ess_tdof_list, enum PetscBCHandler::Type _type, 
                 int _component, int _componentSize)
-   : PetscBCHandler(_type), 
-     component(_component), componentSize(_componentSize)
+   : PetscBCHandler(_type), component(_component), componentSize(_componentSize)
     {
        SetTDofs(ess_tdof_list);
     }
@@ -240,9 +266,22 @@ public:
    virtual mfem::Solver* NewPreconditioner(const mfem::OperatorHandle &oh)
    { 
        if(useFull==1)
+       {
           return new FullBlockSolver(oh);
-       else
+       }
+       else if (useFull==2)
+       {
           return new SupgBlockSolver(oh);
+       }
+       else if (useFull==3)
+       {
+          return new PetscBlockSolver(oh);
+       }
+       else
+       {
+          MFEM_ABORT("Error: FullPreconditionerFactory: wrong precondtioner option"); 
+          return NULL;
+       }
    }
 
    virtual ~FullPreconditionerFactory() {};
@@ -406,7 +445,16 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
 
    //mass matrix
    M = new ParBilinearForm(&fespace);
-   M->AddDomainIntegrator(new MassIntegrator);
+   MassIntegrator *mass1 = new MassIntegrator;
+   if (lumpedMass) 
+   {
+     if (myid==0) cout <<"------lumped mass matrix in Mmat!------"<<endl;
+     M->AddDomainIntegrator(new LumpedIntegrator(mass1));
+   }
+   else
+   {
+     M->AddDomainIntegrator(mass1);
+   }
    M->Assemble();
    M->FormSystemMatrix(ess_tdof_list, Mmat);
 
@@ -417,17 +465,14 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    {
      if (myid==0) cout <<"------lumped mass matrix in M_solver2!------"<<endl;
      Mfull->AddDomainIntegrator(new LumpedIntegrator(mass));
-     Mfull->Assemble();
-     Mfull->Finalize();
-     MfullMat=Mfull->ParallelAssemble();
    }
    else 
    {
      Mfull->AddDomainIntegrator(mass);
-     Mfull->Assemble();
-     Mfull->Finalize();
-     MfullMat=Mfull->ParallelAssemble();
    }
+   Mfull->Assemble();
+   Mfull->Finalize();
+   MfullMat=Mfull->ParallelAssemble();
 
    MassIntegrator *mass2 = new MassIntegrator;
    Mlumped = new ParBilinearForm(&fespace);
@@ -1322,7 +1367,7 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
     AReFull=NULL; ScFull=NULL; NbFull=NULL; PwMat=NULL; NbMat=NULL; MinvKB=NULL;
     tmp1=NULL; tmp2=NULL;
 
-    if (usefd || usesupg)
+    if (true)
     {
        MinvKB = new HypreParMatrix(KBMat_);
        HypreParVector *MmatlpD = new HypreParVector(Mmatlp.GetComm(), Mmatlp.GetGlobalNumRows(),
@@ -1344,7 +1389,13 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
  * the full preconditioner is (note the sign of Nb)
  * [  ARe Nb  (Mlp)]
  * [  Pw  Sc  0    ]
- * [  K   0   M    ]
+ *
+ * useFull==3 (analytical Jacobian)
+ * [  K     0               M  ]
+ * [  -Nb   ASl             0  ]
+ * [  -Pw   Pj+NbM^{-1}K    ARe]
+ *
+* [  K   0   M    ]
 */
 Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
 {
@@ -1666,7 +1717,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
 
          if (iSc==2) Jacobian->SetBlock(0,2,Mdtpr);
        }
-       else
+       else if (useFull == 2)
        {
          if (iSc!=0 || !usesupg || usefd)
             MFEM_ABORT("ERROR in preconditioner: wrong option!"); 
@@ -1725,6 +1776,90 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
          Jacobian->SetBlock(2,0,&Kmat);
          Jacobian->SetBlock(2,2,&Mmat);
        }
+       else if (useFull == 3)
+       {
+         //------compute the current again------
+         Vector psiNew(k.GetData() +  sc, sc);
+
+         if (iUpdateJ==0)
+         {
+            KBMat.Mult(psiNew, z);
+            z.Neg();
+            M_solver2->Mult(z, J);
+         }
+         else if (iUpdateJ==1)
+         {
+            //------compute the current as an auxilary variable (Dirichelt boundary condition)------
+            gftmp.SetFromTrueDofs(psiNew);
+            Vector Z;
+            HypreParMatrix A;
+            KB->Mult(gftmp, zFull);
+            zFull.Neg(); // z = -z
+            M->FormLinearSystem(ess_tdof_list, *j0, zFull, A, J, Z); //apply Dirichelt boundary 
+            M_solver->Mult(Z, J); 
+         }
+         else if (iUpdateJ==2)
+         {
+            //------compute the current as an auxilary variable (Dirichelt boundary condition)------
+            gftmp.SetFromTrueDofs(psiNew);
+            Vector Z;
+            HypreParMatrix A;
+            KB->Mult(gftmp, zFull);
+            zFull.Neg(); // z = -z
+            Mlumped->FormLinearSystem(ess_tdof_list, *j0, zFull, A, J, Z); //apply Dirichelt boundary 
+            M_solver3->Mult(Z, J); 
+         }
+         else
+            MFEM_ABORT("ERROR in ReducedSystemOperator::Mult: wrong option for iUpdateJ"); 
+
+         //form Pj0 (use Pw as the holder) operator        
+         delete Pw;
+         wGf.SetFromTrueDofs(J);
+         MyCoefficient curlj(&wGf, 2);
+
+         Pw = new ParBilinearForm(&fespace);
+         Pw->AddDomainIntegrator(new ConvectionIntegrator(curlj));
+         Pw->Assemble();
+         Pw->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
+         Pw->Finalize();
+         HypreParMatrix *PjMat = Pw->ParallelAssemble();
+
+         //form Nb matrix again (with boundary term)
+         delete Nb;
+         Nb = new ParBilinearForm(&fespace);
+         Nb->AddDomainIntegrator(new ConvectionIntegrator(Bfield));
+         Nb->Assemble();
+         Nb->Finalize();
+         HypreParMatrix *Mattmp = Nb->ParallelAssemble();
+
+         HypreParMatrix *NbMinvKB = ParMult(Mattmp, MinvKB);
+         delete Mattmp;
+
+         tmp2 = ParAdd(PjMat, NbMinvKB);
+         HypreParMatrix *tmp3=tmp2->EliminateRowsCols(ess_tdof_list, 0);
+         delete tmp3;
+
+         //use tmp1 to hold ASltmp
+         tmp1=ASltmp;
+         ASltmp=NULL;
+
+         Jacobian = new BlockOperator(block_trueOffsets);
+         //Jacobian->SetBlock(0,0,&KBMat);
+         //Jacobian->SetBlock(0,2,&Mfullmat);
+         Jacobian->SetBlock(0,0,&Kmat);
+         Jacobian->SetBlock(0,2,&Mmat);
+         //Jacobian->SetBlock(1,0,NbFull, -1);    //it is likely not working with petsc
+         *(NbFull) *= -1;
+         Jacobian->SetBlock(1,0,NbFull);    
+         Jacobian->SetBlock(1,1,tmp1);
+         *(PwMat) *= -1;
+         Jacobian->SetBlock(2,0,PwMat);
+         Jacobian->SetBlock(2,1,tmp2);
+         Jacobian->SetBlock(2,2,AReFull);
+
+         delete PjMat;
+         delete NbMinvKB;
+       }
 
        bool outputMatrix=false;
        if (outputMatrix)
@@ -1755,8 +1890,6 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
        delete S;
        delete NvMat;
        delete ASltmp;
-
-
    }
    else
    {
@@ -1957,9 +2090,8 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
 
       PB_BJ->AddDomainIntegrator(new DomainLFIntegrator(pbCoeff, 3, 0));
       PB_BJ->Assemble();
-      HypreParVector *trueBJ = PB_BJ->ParallelAssemble();
-      y3 += *trueBJ;
-      delete trueBJ;
+      PB_BJ->ParallelAssemble(z);
+      y3 += z;
    }
 
    //+++++compute y2
@@ -1967,9 +2099,14 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    z/=dt;
    Mmat.Mult(z,y2); //this is okay for time independent homogenous boundary
    if (bilinearPB)
+   {
       Nv->TrueAddMult(psiNew,y2);
+   }
    else
-      y2 += *PB_VPsi;
+   {
+      PB_VPsi->ParallelAssemble(z);
+      y2 += z;
+   }
 
    if (DSl!=NULL)
        DSl->TrueAddMult(psiNew,y2);
@@ -2199,6 +2336,8 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
      StabNv->TrueAddMult(psiNew, y2);
    }
 
+   //this step will be done in bchandler anyway
+   y1.SetSubVector(ess_tdof_list, 0.0);
    y2.SetSubVector(ess_tdof_list, 0.0);
    y3.SetSubVector(ess_tdof_list, 0.0);
 
