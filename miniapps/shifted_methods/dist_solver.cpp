@@ -262,77 +262,80 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
 
       socketstream sol_sock_x(vishost, visport);
       sol_sock_x << "parallel " << pfes.GetNRanks() << " "
-                                << pfes.GetMyRank() << "\n";
+                 << pfes.GetMyRank() << "\n";
       sol_sock_x.precision(8);
       sol_sock_x << "solution\n" << pmesh << x;
       sol_sock_x << "window_geometry " << 0 << " " << 0 << " "
-                                       << 500 << " " << 500 << "\n"
-              << "window_title '" << "Heat Directions" << "'\n"
-              << "keys evvRj*******A\n" << std::flush;
+                 << 500 << " " << 500 << "\n"
+                 << "window_title '" << "Heat Directions" << "'\n"
+                 << "keys evvRj*******A\n" << std::flush;
    }
 }
 
 double ScreenedPoisson::GetElementEnergy(const FiniteElement &el,
-                                    ElementTransformation &trans,
-                                    const Vector &elfun)
+                                         ElementTransformation &trans,
+                                         const Vector &elfun)
 {
-    double energy = 0.0;
-    int ndof = el.GetDof();
-    int ndim = el.GetDim();
-    int spaceDim = trans.GetSpaceDim();
-    bool square = (ndim == spaceDim);
-    const IntegrationRule *ir = NULL;
-    int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
-    ir = &IntRules.Get(el.GetGeomType(), order);
+   double energy = 0.0;
+   int ndof = el.GetDof();
+   int ndim = el.GetDim();
+   int spaceDim = trans.GetSpaceDim();
+   bool square = (ndim == spaceDim);
+   const IntegrationRule *ir = NULL;
+   int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
+   ir = &IntRules.Get(el.GetGeomType(), order);
 
-    Vector shapef(ndof);
-    double fval;
-    double pval;
-    DenseMatrix B(ndof, ndim);
-    Vector qval(ndim);
+   Vector shapef(ndof);
+   double fval;
+   double pval;
+   DenseMatrix B(ndof, ndim);
+   Vector qval(ndim);
 
-    B=0.0;
+   B=0.0;
 
-    double w;
-    double detJ;
-    double ngrad2;
+   double w;
+   double detJ;
+   double ngrad2;
 
-    for (int i = 0; i < ir->GetNPoints(); i++)
-    {
-        const IntegrationPoint &ip = ir->IntPoint(i);
-        trans.SetIntPoint(&ip);
-        w = trans.Weight();
-        detJ = (square ? w : w * w);
-        w = ip.weight * w;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      trans.SetIntPoint(&ip);
+      w = trans.Weight();
+      detJ = (square ? w : w * w);
+      w = ip.weight * w;
 
-        fval=func->Eval(trans,ip);
+      fval=func->Eval(trans,ip);
 
-        el.CalcPhysDShape(trans, B);
-        el.CalcPhysShape(trans,shapef);
+      el.CalcPhysDShape(trans, B);
+      el.CalcPhysShape(trans,shapef);
 
-        B.MultTranspose(elfun,qval);
+      B.MultTranspose(elfun,qval);
 
-        ngrad2=0.0;
-        for(int jj=0;jj<ndim;jj++)
-        {
-            ngrad2 = ngrad2 + qval(jj)*qval(jj);
-        }
+      ngrad2=0.0;
+      for (int jj=0; jj<ndim; jj++)
+      {
+         ngrad2 = ngrad2 + qval(jj)*qval(jj);
+      }
 
-        energy = energy + w * ngrad2 * diffcoef * 0.5;
+      energy = energy + w * ngrad2 * diffcoef * 0.5;
 
-        //add the external load -1 if fval > 0.0; 1 if fval < 0.0;
-        pval=shapef*elfun;
+      //add the external load -1 if fval > 0.0; 1 if fval < 0.0;
+      pval=shapef*elfun;
 
-        energy = energy + w * pval * pval * 0.5;
+      energy = energy + w * pval * pval * 0.5;
 
-        if(fval>0.0){
-            energy = energy - w*pval;
-        }else  if(fval<0.0){
-            energy = energy + w*pval;
-        }
-    }
+      if (fval>0.0)
+      {
+         energy = energy - w*pval;
+      }
+      else  if (fval<0.0)
+      {
+         energy = energy + w*pval;
+      }
+   }
 
-    return energy;
+   return energy;
 }
 
 void ScreenedPoisson::AssembleElementVector(const FiniteElement &el,
@@ -340,66 +343,69 @@ void ScreenedPoisson::AssembleElementVector(const FiniteElement &el,
                                             const Vector &elfun,
                                             Vector &elvect)
 {
-    int ndof = el.GetDof();
-    int ndim = el.GetDim();
-    int spaceDim = trans.GetSpaceDim();
-    bool square = (ndim == spaceDim);
-    const IntegrationRule *ir = NULL;
-    int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
-    ir = &IntRules.Get(el.GetGeomType(), order);
+   int ndof = el.GetDof();
+   int ndim = el.GetDim();
+   int spaceDim = trans.GetSpaceDim();
+   bool square = (ndim == spaceDim);
+   const IntegrationRule *ir = NULL;
+   int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
+   ir = &IntRules.Get(el.GetGeomType(), order);
 
-    elvect.SetSize(ndof);
-    elvect=0.0;
+   elvect.SetSize(ndof);
+   elvect=0.0;
 
-    Vector shapef(ndof);
-    double fval;
-    double pval;
+   Vector shapef(ndof);
+   double fval;
+   double pval;
 
-    DenseMatrix B(ndof, ndim); //[diff_x,diff_y,diff_z]
+   DenseMatrix B(ndof, ndim); //[diff_x,diff_y,diff_z]
 
-    Vector qval(ndim); //[diff_x,diff_y,diff_z,u]
-    Vector lvec(ndof); //residual at ip
-    Vector tmpv(ndof);
+   Vector qval(ndim); //[diff_x,diff_y,diff_z,u]
+   Vector lvec(ndof); //residual at ip
+   Vector tmpv(ndof);
 
-    B=0.0;
-    qval=0.0;
+   B=0.0;
+   qval=0.0;
 
-    double w;
-    double detJ;
-    double ngrad2;
+   double w;
+   double detJ;
+   double ngrad2;
 
-    for (int i = 0; i < ir->GetNPoints(); i++)
-    {
-        const IntegrationPoint &ip = ir->IntPoint(i);
-        trans.SetIntPoint(&ip);
-        w = trans.Weight();
-        detJ = (square ? w : w * w);
-        w = ip.weight * w;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      trans.SetIntPoint(&ip);
+      w = trans.Weight();
+      detJ = (square ? w : w * w);
+      w = ip.weight * w;
 
-        fval=func->Eval(trans,ip);
+      fval=func->Eval(trans,ip);
 
-        el.CalcPhysDShape(trans, B);
-        el.CalcPhysShape(trans,shapef);
+      el.CalcPhysDShape(trans, B);
+      el.CalcPhysShape(trans,shapef);
 
-        B.MultTranspose(elfun,qval);
-        B.Mult(qval,lvec);
+      B.MultTranspose(elfun,qval);
+      B.Mult(qval,lvec);
 
-        elvect.Add(w * diffcoef,lvec);
+      elvect.Add(w * diffcoef,lvec);
 
-        pval=shapef*elfun;
+      pval=shapef*elfun;
 
-        elvect.Add(w * pval, shapef);
+      elvect.Add(w * pval, shapef);
 
 
-        //add the load
-        //add the external load -1 if fval > 0.0; 1 if fval < 0.0;
-        pval=shapef*elfun;
-        if(fval>0.0){
-            elvect.Add( -w , shapef);
-        }else  if(fval<0.0){
-            elvect.Add(  w , shapef);
-        }
-    }
+      //add the load
+      //add the external load -1 if fval > 0.0; 1 if fval < 0.0;
+      pval=shapef*elfun;
+      if (fval>0.0)
+      {
+         elvect.Add( -w , shapef);
+      }
+      else  if (fval<0.0)
+      {
+         elvect.Add(  w , shapef);
+      }
+   }
 }
 
 void ScreenedPoisson::AssembleElementGrad(const FiniteElement &el,
@@ -407,119 +413,122 @@ void ScreenedPoisson::AssembleElementGrad(const FiniteElement &el,
                                           const Vector &elfun,
                                           DenseMatrix &elmat)
 {
-    int ndof = el.GetDof();
-    int ndim = el.GetDim();
-    int spaceDim = trans.GetSpaceDim();
-    bool square = (ndim == spaceDim);
-    const IntegrationRule *ir = NULL;
-    int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
-    ir = &IntRules.Get(el.GetGeomType(), order);
+   int ndof = el.GetDof();
+   int ndim = el.GetDim();
+   int spaceDim = trans.GetSpaceDim();
+   bool square = (ndim == spaceDim);
+   const IntegrationRule *ir = NULL;
+   int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
+   ir = &IntRules.Get(el.GetGeomType(), order);
 
-    elmat.SetSize(ndof,ndof);
-    elmat=0.0;
+   elmat.SetSize(ndof,ndof);
+   elmat=0.0;
 
-    Vector shapef(ndof);
+   Vector shapef(ndof);
 
-    DenseMatrix B(ndof, ndim); //[diff_x,diff_y,diff_z]
+   DenseMatrix B(ndof, ndim); //[diff_x,diff_y,diff_z]
 
-    B=0.0;
+   B=0.0;
 
-    double w;
-    double detJ;
+   double w;
+   double detJ;
 
-    for (int i = 0; i < ir->GetNPoints(); i++)
-    {
-        const IntegrationPoint &ip = ir->IntPoint(i);
-        trans.SetIntPoint(&ip);
-        w = trans.Weight();
-        detJ = (square ? w : w * w);
-        w = ip.weight * w;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      trans.SetIntPoint(&ip);
+      w = trans.Weight();
+      detJ = (square ? w : w * w);
+      w = ip.weight * w;
 
-        el.CalcPhysDShape(trans, B);
-        el.CalcPhysShape(trans,shapef);
+      el.CalcPhysDShape(trans, B);
+      el.CalcPhysShape(trans,shapef);
 
-        AddMult_a_VVt(w , shapef, elmat);
-        AddMult_a_AAt(w * diffcoef, B, elmat);
-    }
+      AddMult_a_VVt(w , shapef, elmat);
+      AddMult_a_AAt(w * diffcoef, B, elmat);
+   }
 }
 
 double PUMPLaplacian::GetElementEnergy(const FiniteElement &el,
                                        ElementTransformation &trans,
                                        const Vector &elfun)
 {
-    double energy = 0.0;
-    int ndof = el.GetDof();
-    int ndim = el.GetDim();
-    int spaceDim = trans.GetSpaceDim();
-    bool square = (ndim == spaceDim);
-    const IntegrationRule *ir = NULL;
-    int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
-    ir = &IntRules.Get(el.GetGeomType(), order);
+   double energy = 0.0;
+   int ndof = el.GetDof();
+   int ndim = el.GetDim();
+   int spaceDim = trans.GetSpaceDim();
+   bool square = (ndim == spaceDim);
+   const IntegrationRule *ir = NULL;
+   int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
+   ir = &IntRules.Get(el.GetGeomType(), order);
 
-    Vector shapef(ndof);
-    double fval;
-    double pval;
-    double tval;
-    Vector vgrad(ndim);
-    DenseMatrix dshape(ndof, ndim);
-    DenseMatrix B(ndof, ndim);
-    Vector qval(ndim);
-    Vector tmpv(ndof);
+   Vector shapef(ndof);
+   double fval;
+   double pval;
+   double tval;
+   Vector vgrad(ndim);
+   DenseMatrix dshape(ndof, ndim);
+   DenseMatrix B(ndof, ndim);
+   Vector qval(ndim);
+   Vector tmpv(ndof);
 
-    B=0.0;
+   B=0.0;
 
-    double w;
-    double detJ;
+   double w;
+   double detJ;
 
-    double ngrad2;
+   double ngrad2;
 
-    for (int i = 0; i < ir->GetNPoints(); i++)
-    {
-        const IntegrationPoint &ip = ir->IntPoint(i);
-        trans.SetIntPoint(&ip);
-        w = trans.Weight();
-        detJ = (square ? w : w * w);
-        w = ip.weight * w;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      trans.SetIntPoint(&ip);
+      w = trans.Weight();
+      detJ = (square ? w : w * w);
+      w = ip.weight * w;
 
-        fval=func->Eval(trans,ip);
-        fgrad->Eval(vgrad,trans,ip);
-        tval=fval;
-        if(fval<0.0)
-        {
-            fval=-fval;
-            vgrad*=-1.0;
-        }
+      fval=func->Eval(trans,ip);
+      fgrad->Eval(vgrad,trans,ip);
+      tval=fval;
+      if (fval<0.0)
+      {
+         fval=-fval;
+         vgrad*=-1.0;
+      }
 
-        el.CalcPhysDShape(trans, dshape);
-        el.CalcPhysShape(trans,shapef);
+      el.CalcPhysDShape(trans, dshape);
+      el.CalcPhysShape(trans,shapef);
 
-        for(int jj=0;jj<ndim;jj++)
-        {
-            dshape.GetColumn(jj,tmpv);
-            tmpv*=fval;
-            tmpv.Add(vgrad[jj],shapef);
-            B.SetCol(jj,tmpv);
-        }
-        B.MultTranspose(elfun,qval);
+      for (int jj=0; jj<ndim; jj++)
+      {
+         dshape.GetColumn(jj,tmpv);
+         tmpv*=fval;
+         tmpv.Add(vgrad[jj],shapef);
+         B.SetCol(jj,tmpv);
+      }
+      B.MultTranspose(elfun,qval);
 
-        ngrad2=0.0;
-        for(int jj=0;jj<ndim;jj++)
-        {
-            ngrad2 = ngrad2 + qval(jj)*qval(jj);
-        }
+      ngrad2=0.0;
+      for (int jj=0; jj<ndim; jj++)
+      {
+         ngrad2 = ngrad2 + qval(jj)*qval(jj);
+      }
 
-        energy = energy + w * std::pow(ngrad2+ee*ee,pp/2.0)/pp;
+      energy = energy + w * std::pow(ngrad2+ee*ee,pp/2.0)/pp;
 
-        //add the external load -1 if fval > 0.0; 1 if fval < 0.0;
-        pval=shapef*elfun;
-        if(tval>0.0){
-            energy = energy - w * pval * tval;
-        }else  if(tval<0.0){
-            energy = energy + w * pval * tval;
-        }
-    }
+      //add the external load -1 if fval > 0.0; 1 if fval < 0.0;
+      pval=shapef*elfun;
+      if (tval>0.0)
+      {
+         energy = energy - w * pval * tval;
+      }
+      else  if (tval<0.0)
+      {
+         energy = energy + w * pval * tval;
+      }
+   }
 
-    return energy;
+   return energy;
 }
 
 void PUMPLaplacian::AssembleElementVector(const FiniteElement &el,
@@ -527,88 +536,91 @@ void PUMPLaplacian::AssembleElementVector(const FiniteElement &el,
                                           const Vector &elfun,
                                           Vector &elvect)
 {
-    int ndof = el.GetDof();
-    int ndim = el.GetDim();
-    int spaceDim = trans.GetSpaceDim();
-    bool square = (ndim == spaceDim);
-    const IntegrationRule *ir = NULL;
-    int order = 2 * el.GetOrder() + trans.OrderGrad(&el)+1;
-    ir = &IntRules.Get(el.GetGeomType(), order);
+   int ndof = el.GetDof();
+   int ndim = el.GetDim();
+   int spaceDim = trans.GetSpaceDim();
+   bool square = (ndim == spaceDim);
+   const IntegrationRule *ir = NULL;
+   int order = 2 * el.GetOrder() + trans.OrderGrad(&el)+1;
+   ir = &IntRules.Get(el.GetGeomType(), order);
 
-    elvect.SetSize(ndof);
-    elvect=0.0;
+   elvect.SetSize(ndof);
+   elvect=0.0;
 
-    Vector shapef(ndof);
-    double fval;
-    double pval;
-    double tval;
-    Vector vgrad(3);
+   Vector shapef(ndof);
+   double fval;
+   double pval;
+   double tval;
+   Vector vgrad(3);
 
-    DenseMatrix dshape(ndof, ndim);
-    DenseMatrix B(ndof, ndim); //[diff_x,diff_y,diff_z]
+   DenseMatrix dshape(ndof, ndim);
+   DenseMatrix B(ndof, ndim); //[diff_x,diff_y,diff_z]
 
-    Vector qval(ndim); //[diff_x,diff_y,diff_z,u]
-    Vector lvec(ndof); //residual at ip
-    Vector tmpv(ndof);
+   Vector qval(ndim); //[diff_x,diff_y,diff_z,u]
+   Vector lvec(ndof); //residual at ip
+   Vector tmpv(ndof);
 
-    B=0.0;
-    qval=0.0;
+   B=0.0;
+   qval=0.0;
 
-    double w;
-    double detJ;
-    double ngrad2;
-    double aa;
+   double w;
+   double detJ;
+   double ngrad2;
+   double aa;
 
-    for (int i = 0; i < ir->GetNPoints(); i++)
-    {
-        const IntegrationPoint &ip = ir->IntPoint(i);
-        trans.SetIntPoint(&ip);
-        w = trans.Weight();
-        detJ = (square ? w : w * w);
-        w = ip.weight * w;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      trans.SetIntPoint(&ip);
+      w = trans.Weight();
+      detJ = (square ? w : w * w);
+      w = ip.weight * w;
 
-        fval=func->Eval(trans,ip);
-        fgrad->Eval(vgrad,trans,ip);
-        tval=fval;
-        if(fval<0.0)
-        {
-            fval=-fval;
-            vgrad*=-1.0;
-        }
+      fval=func->Eval(trans,ip);
+      fgrad->Eval(vgrad,trans,ip);
+      tval=fval;
+      if (fval<0.0)
+      {
+         fval=-fval;
+         vgrad*=-1.0;
+      }
 
-        el.CalcPhysDShape(trans, dshape);
-        el.CalcPhysShape(trans,shapef);
+      el.CalcPhysDShape(trans, dshape);
+      el.CalcPhysShape(trans,shapef);
 
-        for(int jj=0;jj<ndim;jj++)
-        {
-            dshape.GetColumn(jj,tmpv);
-            tmpv*=fval;
-            tmpv.Add(vgrad[jj],shapef);
-            B.SetCol(jj,tmpv);
-        }
+      for (int jj=0; jj<ndim; jj++)
+      {
+         dshape.GetColumn(jj,tmpv);
+         tmpv*=fval;
+         tmpv.Add(vgrad[jj],shapef);
+         B.SetCol(jj,tmpv);
+      }
 
-        B.MultTranspose(elfun,qval);
+      B.MultTranspose(elfun,qval);
 
-        ngrad2=0.0;
-        for(int jj=0;jj<ndim;jj++)
-        {
-            ngrad2 = ngrad2 + qval(jj)*qval(jj);
-        }
+      ngrad2=0.0;
+      for (int jj=0; jj<ndim; jj++)
+      {
+         ngrad2 = ngrad2 + qval(jj)*qval(jj);
+      }
 
-        aa = ngrad2 + ee*ee;
-        aa = std::pow(aa, (pp - 2.0) / 2.0);
-        B.Mult(qval,lvec);
-        elvect.Add(w * aa,lvec);
+      aa = ngrad2 + ee*ee;
+      aa = std::pow(aa, (pp - 2.0) / 2.0);
+      B.Mult(qval,lvec);
+      elvect.Add(w * aa,lvec);
 
-        //add the load
-        //add the external load -1 if tval > 0.0; 1 if tval < 0.0;
-        pval=shapef*elfun;
-        if(tval>0.0){
-            elvect.Add( -w*fval , shapef);
-        }else  if(tval<0.0){
-            elvect.Add(  w*fval , shapef);
-        }
-    }
+      //add the load
+      //add the external load -1 if tval > 0.0; 1 if tval < 0.0;
+      pval=shapef*elfun;
+      if (tval>0.0)
+      {
+         elvect.Add( -w*fval , shapef);
+      }
+      else  if (tval<0.0)
+      {
+         elvect.Add(  w*fval , shapef);
+      }
+   }
 }
 
 void PUMPLaplacian::AssembleElementGrad(const FiniteElement &el,
@@ -616,169 +628,169 @@ void PUMPLaplacian::AssembleElementGrad(const FiniteElement &el,
                                         const Vector &elfun,
                                         DenseMatrix &elmat)
 {
-    int ndof = el.GetDof();
-    int ndim = el.GetDim();
-    int spaceDim = trans.GetSpaceDim();
-    bool square = (ndim == spaceDim);
-    const IntegrationRule *ir = NULL;
-    int order = 2 * el.GetOrder() + trans.OrderGrad(&el)+1;
-    ir = &IntRules.Get(el.GetGeomType(), order);
+   int ndof = el.GetDof();
+   int ndim = el.GetDim();
+   int spaceDim = trans.GetSpaceDim();
+   bool square = (ndim == spaceDim);
+   const IntegrationRule *ir = NULL;
+   int order = 2 * el.GetOrder() + trans.OrderGrad(&el)+1;
+   ir = &IntRules.Get(el.GetGeomType(), order);
 
-    elmat.SetSize(ndof,ndof);
-    elmat=0.0;
+   elmat.SetSize(ndof,ndof);
+   elmat=0.0;
 
-    Vector shapef(ndof);
-    double fval;
-    double tval;
-    Vector vgrad(ndim);
+   Vector shapef(ndof);
+   double fval;
+   double tval;
+   Vector vgrad(ndim);
 
-    Vector qval(ndim); //[diff_x,diff_y,diff_z,u]
-    DenseMatrix dshape(ndof, ndim);
-    DenseMatrix B(ndof, ndim); //[diff_x,diff_y,diff_z]
-    Vector lvec(ndof);
-    Vector tmpv(ndof);
+   Vector qval(ndim); //[diff_x,diff_y,diff_z,u]
+   DenseMatrix dshape(ndof, ndim);
+   DenseMatrix B(ndof, ndim); //[diff_x,diff_y,diff_z]
+   Vector lvec(ndof);
+   Vector tmpv(ndof);
 
-    B=0.0;
+   B=0.0;
 
-    double w;
-    double detJ;
-    double ngrad2;
-    double aa;
-    double aa0;
-    double aa1;
+   double w;
+   double detJ;
+   double ngrad2;
+   double aa;
+   double aa0;
+   double aa1;
 
-    for (int i = 0; i < ir->GetNPoints(); i++)
-    {
-        const IntegrationPoint &ip = ir->IntPoint(i);
-        trans.SetIntPoint(&ip);
-        w = trans.Weight();
-        detJ = (square ? w : w * w);
-        w = ip.weight * w;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      trans.SetIntPoint(&ip);
+      w = trans.Weight();
+      detJ = (square ? w : w * w);
+      w = ip.weight * w;
 
-        fval=func->Eval(trans,ip);
-        fgrad->Eval(vgrad,trans,ip);
-        tval=fval;
-        if(fval<0.0)
-        {
-            fval=-fval;
-            vgrad*=-1.0;
-        }
+      fval=func->Eval(trans,ip);
+      fgrad->Eval(vgrad,trans,ip);
+      tval=fval;
+      if (fval<0.0)
+      {
+         fval=-fval;
+         vgrad*=-1.0;
+      }
 
-        el.CalcPhysDShape(trans, dshape);
-        el.CalcPhysShape(trans,shapef);
+      el.CalcPhysDShape(trans, dshape);
+      el.CalcPhysShape(trans,shapef);
 
-        for(int jj=0;jj<ndim;jj++)
-        {
-            dshape.GetColumn(jj,tmpv);
-            tmpv*=fval;
-            tmpv.Add(vgrad[jj],shapef);
-            B.SetCol(jj,tmpv);
-        }
+      for (int jj=0; jj<ndim; jj++)
+      {
+         dshape.GetColumn(jj,tmpv);
+         tmpv*=fval;
+         tmpv.Add(vgrad[jj],shapef);
+         B.SetCol(jj,tmpv);
+      }
 
-        B.MultTranspose(elfun,qval);
-        B.Mult(qval,lvec);
+      B.MultTranspose(elfun,qval);
+      B.Mult(qval,lvec);
 
-        ngrad2=0.0;
-        for(int jj=0;jj<ndim;jj++)
-        {
-            ngrad2 = ngrad2 + qval(jj)*qval(jj);
-        }
+      ngrad2=0.0;
+      for (int jj=0; jj<ndim; jj++)
+      {
+         ngrad2 = ngrad2 + qval(jj)*qval(jj);
+      }
 
 
 
-        aa = ngrad2 + ee * ee;
-        aa1 = std::pow(aa, (pp - 2.0) / 2.0);
-        aa0 = (pp-2.0) * std::pow(aa, (pp - 4.0) / 2.0);
+      aa = ngrad2 + ee * ee;
+      aa1 = std::pow(aa, (pp - 2.0) / 2.0);
+      aa0 = (pp-2.0) * std::pow(aa, (pp - 4.0) / 2.0);
 
-        AddMult_a_VVt(w * aa0, lvec, elmat);
-        AddMult_a_AAt(w * aa1, B, elmat);
-    }
+      AddMult_a_VVt(w * aa0, lvec, elmat);
+      AddMult_a_AAt(w * aa1, B, elmat);
+   }
 }
 
 
 void PLapDistanceSolver::ComputeScalarDistance(Coefficient &func,
                                                ParGridFunction &fdist)
 {
-    mfem::ParFiniteElementSpace* fesd=fdist.ParFESpace();
+   mfem::ParFiniteElementSpace* fesd=fdist.ParFESpace();
 
-    auto check_h1 = dynamic_cast<const H1_FECollection *>(fesd->FEColl());
-    auto check_l2 = dynamic_cast<const L2_FECollection *>(fesd->FEColl());
-    MFEM_VERIFY((check_h1 || check_l2) && fesd->GetVDim() == 1,
-                "This solver supports only scalar H1 or L2 spaces.");
+   auto check_h1 = dynamic_cast<const H1_FECollection *>(fesd->FEColl());
+   auto check_l2 = dynamic_cast<const L2_FECollection *>(fesd->FEColl());
+   MFEM_VERIFY((check_h1 || check_l2) && fesd->GetVDim() == 1,
+               "This solver supports only scalar H1 or L2 spaces.");
 
-    mfem::ParMesh* mesh=fesd->GetParMesh();
-    const int dim=mesh->Dimension();
+   mfem::ParMesh* mesh=fesd->GetParMesh();
+   const int dim=mesh->Dimension();
 
-    MPI_Comm lcomm=fesd->GetComm();
-    int myrank;
-    MPI_Comm_rank(lcomm,&myrank);
+   MPI_Comm lcomm=fesd->GetComm();
+   int myrank;
+   MPI_Comm_rank(lcomm,&myrank);
 
-    const int order = fesd->GetOrder(0);
-    mfem::H1_FECollection fecp(order, dim);
-    mfem::ParFiniteElementSpace fesp(mesh, &fecp, 1, mfem::Ordering::byVDIM);
+   const int order = fesd->GetOrder(0);
+   mfem::H1_FECollection fecp(order, dim);
+   mfem::ParFiniteElementSpace fesp(mesh, &fecp, 1, mfem::Ordering::byVDIM);
 
-    mfem::ParGridFunction wf(&fesp);
-    wf.ProjectCoefficient(func);
-    mfem::GradientGridFunctionCoefficient gf(&wf); //gradient of wf
-
-
-    mfem::ParGridFunction xf(&fesp);
-    mfem::HypreParVector *sv = xf.GetTrueDofs();
-    *sv=1.0;
+   mfem::ParGridFunction wf(&fesp);
+   wf.ProjectCoefficient(func);
+   mfem::GradientGridFunctionCoefficient gf(&wf); //gradient of wf
 
 
-    mfem::ParNonlinearForm* nf=new mfem::ParNonlinearForm(&fesp);
-
-    mfem::PUMPLaplacian* pint = new mfem::PUMPLaplacian(&func,&gf,false);
-    nf->AddDomainIntegrator(pint);
-
-    pint->SetPower(2);
-
-    //define the solvers
-    mfem::HypreBoomerAMG* prec=new mfem::HypreBoomerAMG();
-    prec->SetPrintLevel((print_level > 1) ? 1 : 0);
+   mfem::ParGridFunction xf(&fesp);
+   mfem::HypreParVector *sv = xf.GetTrueDofs();
+   *sv=1.0;
 
 
-    mfem::GMRESSolver *gmres;
-    gmres = new mfem::GMRESSolver(lcomm);
-    gmres->SetAbsTol(newton_abs_tol/10);
-    gmres->SetRelTol(newton_rel_tol/10);
-    gmres->SetMaxIter(100);
-    gmres->SetPrintLevel((print_level > 1) ? 1 : 0);
-    gmres->SetPreconditioner(*prec);
+   mfem::ParNonlinearForm* nf=new mfem::ParNonlinearForm(&fesp);
 
-    NewtonSolver ns(lcomm);
-    ns.iterative_mode = true;
-    ns.SetSolver(*gmres);
-    ns.SetOperator(*nf);
-    ns.SetPrintLevel((print_level == 0) ? -1 : 0);
-    ns.SetRelTol(newton_rel_tol);
-    ns.SetAbsTol(newton_abs_tol);
-    ns.SetMaxIter(newton_iter);
+   mfem::PUMPLaplacian* pint = new mfem::PUMPLaplacian(&func,&gf,false);
+   nf->AddDomainIntegrator(pint);
 
-    mfem::Vector b; //RHS is zero
-    ns.Mult(b, *sv);
+   pint->SetPower(2);
 
-    for(int pp=3;pp<maxp;pp++)
-    {
-       if (myrank == 0 && print_level > 0) { std::cout<<"pp="<<pp<<std::endl; }
-       pint->SetPower(pp);
-       ns.Mult(b, *sv);
-    }
+   //define the solvers
+   mfem::HypreBoomerAMG* prec=new mfem::HypreBoomerAMG();
+   prec->SetPrintLevel((print_level > 1) ? 1 : 0);
 
-    xf.SetFromTrueDofs(*sv);
-    mfem::GridFunctionCoefficient gfx(&xf);
-    mfem::PProductCoefficient tsol(func,gfx);
-    fdist.ProjectCoefficient(tsol);
 
-    // (optional) Force positive distances everywhere.
-    // for (int i = 0; i < fdist.Size(); i++)
-    // {
-    //    fdist(i) = fabs(fdist(i));
-    // }
+   mfem::GMRESSolver *gmres;
+   gmres = new mfem::GMRESSolver(lcomm);
+   gmres->SetAbsTol(newton_abs_tol/10);
+   gmres->SetRelTol(newton_rel_tol/10);
+   gmres->SetMaxIter(100);
+   gmres->SetPrintLevel((print_level > 1) ? 1 : 0);
+   gmres->SetPreconditioner(*prec);
 
-    delete gmres;
-    delete prec;
-    delete nf;
-    delete sv;
+   NewtonSolver ns(lcomm);
+   ns.iterative_mode = true;
+   ns.SetSolver(*gmres);
+   ns.SetOperator(*nf);
+   ns.SetPrintLevel((print_level == 0) ? -1 : 0);
+   ns.SetRelTol(newton_rel_tol);
+   ns.SetAbsTol(newton_abs_tol);
+   ns.SetMaxIter(newton_iter);
+
+   mfem::Vector b; //RHS is zero
+   ns.Mult(b, *sv);
+
+   for (int pp=3; pp<maxp; pp++)
+   {
+      if (myrank == 0 && print_level > 0) { std::cout<<"pp="<<pp<<std::endl; }
+      pint->SetPower(pp);
+      ns.Mult(b, *sv);
+   }
+
+   xf.SetFromTrueDofs(*sv);
+   mfem::GridFunctionCoefficient gfx(&xf);
+   mfem::PProductCoefficient tsol(func,gfx);
+   fdist.ProjectCoefficient(tsol);
+
+   // (optional) Force positive distances everywhere.
+   // for (int i = 0; i < fdist.Size(); i++)
+   // {
+   //    fdist(i) = fabs(fdist(i));
+   // }
+
+   delete gmres;
+   delete prec;
+   delete nf;
+   delete sv;
 }
