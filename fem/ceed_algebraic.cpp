@@ -302,12 +302,13 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
    AlgebraicSpaceHierarchy &hierarchy,
    BilinearForm &form,
    const Array<int> &ess_tdofs,
+   int print_level,
    double contrast_threshold,
-   int switch_amg_order
+   int switch_amg_order,
+   bool collocate_coarse,
+   bool sparsification
 ) : GeometricMultigrid(hierarchy)
 {
-   const bool collocate_coarse = true;
-
    // Construct finest level
    ceed_operators.Prepend(CreateCeedCompositeOperatorFromBilinearForm(form));
    essentialTrueDofs.Prepend(new Array<int>);
@@ -340,9 +341,12 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
       {
          order_reduction = current_order - (current_order/2);
       }
-      std::cout << "  lc: " << level_counter << " heuristic = " << heuristic
-                << ", coarsening from order " << current_order 
-                << " to " << current_order - order_reduction << std::endl;
+      if (print_level > 0)
+      {
+         std::cout << "  lc: " << level_counter << " heuristic = " << heuristic
+                   << ", coarsening from order " << current_order 
+                   << " to " << current_order - order_reduction << std::endl;
+      }
       hierarchy.PrependPCoarsenedLevel(current_order, order_reduction);
       current_order = current_order - order_reduction;
 
@@ -429,14 +433,20 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
          }
          if (P_mat)
          {
-            if (current_order > 1)
+            if (current_order > 1 && sparsification)
             {
-               std::cout << "      sparsify AMG." << std::endl;
+               if (print_level >= 1)
+               {
+                  std::cout << "      sparsify AMG." << std::endl;
+               }
                smoother = new CeedSparsifyAMG(*op, P_mat, Device::Allows(Backend::CUDA));
             }
             else
             {
-               std::cout << "      no-sparsify AMG." << std::endl;
+               if (print_level >= 1)
+               {
+                  std::cout << "      no-sparsify AMG." << std::endl;
+               }
                smoother = new CeedAMG(*op, P_mat, Device::Allows(Backend::CUDA));
             }
          }
@@ -789,25 +799,6 @@ ParAlgebraicCoarseSpace::~ParAlgebraicCoarseSpace()
 
 #endif
 
-AlgebraicCeedSolver::AlgebraicCeedSolver(BilinearForm &form,
-                                         const Array<int>& ess_tdofs,
-                                         double contrast_threshold,
-                                         int switch_amg_order)
-{
-   // this records order, order reduction, builds interpolations etc.
-   // (the path forward for schedule change is probably to do *all* setup here,
-   // and the AlgebraicCeedMultigrid is basically just for *applying*)
-   fespaces = new AlgebraicSpaceHierarchy(*form.FESpace());
-   // this actually assembles CeedOperator and related objects
-   multigrid = new AlgebraicCeedMultigrid(*fespaces, form, ess_tdofs,
-                                          contrast_threshold, switch_amg_order);
-}
-
-AlgebraicCeedSolver::~AlgebraicCeedSolver()
-{
-   delete fespaces;
-   delete multigrid;
-}
 
 } // namespace mfem
 #endif // MFEM_USE_CEED

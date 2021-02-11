@@ -135,16 +135,24 @@ public:
 
        This only works if the Ceed device backend is enabled.
 
-       @param[in] hierarchy  Hierarchy of (algebraic) spaces
-       @param[in] form       partially assembled BilinearForm on finest level
-       @param[in] ess_tdofs  List of essential true dofs on finest level
-    */
+       @param[in] hierarchy   Hierarchy of (algebraic) spaces
+       @param[in] form        partially assembled BilinearForm on finest level
+       @param[in] ess_tdofs   List of essential true dofs on finest level
+       @param[in] print_level 0 is silent
+       @param[in] contrast_threshold Threshold to control p-coarsening
+       @param[in] switch_amg_order Controls when to switch from p-coarsening to AMG
+       @param[in] sparsification controls whether the coarsest grid is "sparsified"
+                                 if it is not already lowest-order
+   */
    AlgebraicCeedMultigrid(
       AlgebraicSpaceHierarchy &hierarchy,
       BilinearForm &form,
       const Array<int> &ess_tdofs,
-      double contrast_threshold,
-      int switch_amg_order
+      int print_level=1,
+      double contrast_threshold=1000.0,
+      int switch_amg_order=2,
+      bool collocate_coarse=true,
+      bool sparsification=true
    );
    virtual void SetOperator(const Operator &op) override { }
    ~AlgebraicCeedMultigrid();
@@ -157,13 +165,13 @@ private:
 /** @brief Wrapper for AlgebraicCeedMultigrid object
 
     This exists so that the algebraic Ceed-based idea has the simplest
-    possible one-line interface. Finer control (choosing smoothers, w-cycle)
-    can be exercised with the AlgebraicCeedMultigrid object. */
+    possible one-line interface. Finer control (choosing smoothers, w-cycle,
+    parameters) can be exercised with the AlgebraicCeedMultigrid object. */
 class AlgebraicCeedSolver : public Solver
 {
 private:
-   AlgebraicSpaceHierarchy * fespaces;
-   AlgebraicCeedMultigrid * multigrid;
+   AlgebraicSpaceHierarchy fespaces;
+   AlgebraicCeedMultigrid multigrid;
 
 public:
    /** @brief Constructs algebraic multigrid hierarchy and solver.
@@ -172,15 +180,14 @@ public:
 
        @param[in] form      partially assembled BilinearForm on finest level
        @param[in] ess_tdofs List of essential true dofs on finest level
-       @param[in] contrast_threshold Threshold to control p-coarsening
-       @param[in] switch_amg_order Controls when to switch from p-coarsening to AMG
    */
-   AlgebraicCeedSolver(BilinearForm &form, const Array<int>& ess_tdofs,
-                       double contrast_threshold=1000.0,
-                       int switch_amg_order=3);
-   ~AlgebraicCeedSolver();
-   void Mult(const Vector& x, Vector& y) const { multigrid->Mult(x, y); }
-   void SetOperator(const Operator& op) { multigrid->SetOperator(op); }
+   AlgebraicCeedSolver(BilinearForm &form, const Array<int>& ess_tdofs) :
+      fespaces(*form.FESpace()),
+      multigrid(fespaces, form, ess_tdofs)
+   { }
+
+   void Mult(const Vector& x, Vector& y) const { multigrid.Mult(x, y); }
+   void SetOperator(const Operator& op) { multigrid.SetOperator(op); }
 };
 
 } // namespace mfem
