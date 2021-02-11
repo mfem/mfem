@@ -148,6 +148,8 @@ public:
                tmp2=ARe->EliminateRowsCols(ess_tdof_list);
                delete tmp2;
                tmp2=ASl->EliminateRowsCols(ess_tdof_list);
+               delete tmp2;
+               tmp2=NULL;
            } 
        }
        if(initialMdt==false)
@@ -181,6 +183,8 @@ public:
               tmp2=ARe->EliminateRowsCols(ess_tdof_list);
               delete tmp2;
               tmp2=ASl->EliminateRowsCols(ess_tdof_list);
+              delete tmp2;
+              tmp2=NULL;
            }
        }
    }
