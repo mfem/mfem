@@ -1732,7 +1732,7 @@ void PetscParMatrix::SetUpForDevice()
                   ierr = MatSetType(sA,MATMPIAIJCUSPARSE); PCHKERRQ(sA,ierr);
                   dvec = true;
                }
-               ierr = MatSeqAIJCUSPARSESetGenerateTranspose(sA,PETSC_TRUE);
+               ierr = MatAIJCUSPARSESetGenerateTranspose(sA,PETSC_TRUE);
                PCHKERRQ(sA,ierr);
             }
          }
@@ -1756,7 +1756,7 @@ void PetscParMatrix::SetUpForDevice()
       {
          ierr = MatSetType(tA,MATMPIAIJCUSPARSE); PCHKERRQ(tA,ierr);
       }
-      ierr = MatSeqAIJCUSPARSESetGenerateTranspose(tA,PETSC_TRUE);
+      ierr = MatAIJCUSPARSESetGenerateTranspose(tA,PETSC_TRUE);
       PCHKERRQ(tA,ierr);
    }
 #endif
