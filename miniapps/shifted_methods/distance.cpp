@@ -59,7 +59,7 @@ double Gyroid(const Vector &xx)
    double x=xx[0]*period;
    double y=xx[1]*period;
    double z=0.0;
-   if(xx.Size()==3)
+   if (xx.Size()==3)
    {
       z=xx[2]*period;
    }
@@ -70,39 +70,39 @@ double Gyroid(const Vector &xx)
 
 double Sph(const mfem::Vector &xx)
 {
-    double R=0.4;
-    mfem::Vector lvec(3);
-    lvec=0.0;
-    for(int i=0;i<xx.Size();i++)
-    {
-        lvec[i]=xx[i];
-    }
+   double R=0.4;
+   mfem::Vector lvec(3);
+   lvec=0.0;
+   for (int i=0; i<xx.Size(); i++)
+   {
+      lvec[i]=xx[i];
+   }
 
-    return lvec[0]*lvec[0]+lvec[1]*lvec[1]+lvec[2]*lvec[2]-R*R;
+   return lvec[0]*lvec[0]+lvec[1]*lvec[1]+lvec[2]*lvec[2]-R*R;
 }
 
 void DGyroid(const mfem::Vector &xx, mfem::Vector &vals)
 {
-    vals.SetSize(xx.Size());
-    vals=0.0;
+   vals.SetSize(xx.Size());
+   vals=0.0;
 
-    double pp=4*M_PI;
+   double pp=4*M_PI;
 
-    mfem::Vector lvec(3);
-    lvec=0.0;
-    for(int i=0;i<xx.Size();i++)
-    {
-        lvec[i]=xx[i]*pp;
-    }
+   mfem::Vector lvec(3);
+   lvec=0.0;
+   for (int i=0; i<xx.Size(); i++)
+   {
+      lvec[i]=xx[i]*pp;
+   }
 
-    vals[0]=cos(lvec[0])*cos(lvec[1])-sin(lvec[2])*sin(lvec[0]);
-    vals[1]=-sin(lvec[0])*sin(lvec[1])+cos(lvec[1])*cos(lvec[2]);
-    if(xx.Size()>2)
-    {
-        vals[2]=-sin(lvec[1])*sin(lvec[2])+cos(lvec[2])*cos(lvec[0]);
-    }
+   vals[0]=cos(lvec[0])*cos(lvec[1])-sin(lvec[2])*sin(lvec[0]);
+   vals[1]=-sin(lvec[0])*sin(lvec[1])+cos(lvec[1])*cos(lvec[2]);
+   if (xx.Size()>2)
+   {
+      vals[2]=-sin(lvec[1])*sin(lvec[2])+cos(lvec[2])*cos(lvec[0]);
+   }
 
-    vals*=pp;
+   vals*=pp;
 }
 
 int main(int argc, char *argv[])
@@ -240,7 +240,7 @@ int main(int argc, char *argv[])
       sol_sock_w.precision(8);
       sol_sock_w << "solution\n" << pmesh << input_ls;
       sol_sock_w << "window_geometry " << 0 << " " << 0 << " "
-                                       << size << " " << size << "\n"
+                 << size << " " << size << "\n"
                  << "window_title '" << "Input Level Set" << "'\n" << flush;
 
       socketstream sol_sock_ds(vishost, visport);
@@ -248,7 +248,7 @@ int main(int argc, char *argv[])
       sol_sock_ds.precision(8);
       sol_sock_ds << "solution\n" << pmesh << distance_s;
       sol_sock_ds << "window_geometry " << size << " " << 0 << " "
-                                        << size << " " << size << "\n"
+                  << size << " " << size << "\n"
                   << "window_title '" << "Distance" << "'\n"
                   << "keys rRjmm********\n" << flush;
 
@@ -257,7 +257,7 @@ int main(int argc, char *argv[])
       sol_sock_dv.precision(8);
       sol_sock_dv << "solution\n" << pmesh << distance_v;
       sol_sock_dv << "window_geometry " << 2*size << " " << 0 << " "
-                                        << size << " " << size << "\n"
+                  << size << " " << size << "\n"
                   << "window_title '" << "Directions" << "'\n"
                   << "keys rRjmm********vve\n" << flush;
    }
@@ -275,7 +275,7 @@ int main(int argc, char *argv[])
    const double d_norm  = distance_s.ComputeL2Error(zero);
    if (myid == 0)
    {
-     cout << fixed << setprecision(10) << "Norm: " << d_norm << std::endl;
+      cout << fixed << setprecision(10) << "Norm: " << d_norm << std::endl;
    }
 
    delete dist_solver;
