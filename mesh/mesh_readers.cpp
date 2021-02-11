@@ -1540,7 +1540,11 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                   // non-positive attributes are not allowed in MFEM
                   if (phys_domain <= 0)
                   {
-                     MFEM_ABORT("Non-positive element attribute in Gmsh mesh!");
+                     MFEM_ABORT("Non-positive element attribute in Gmsh mesh!\n"
+                                "Use \"Physical Curve\", \"Physical Surface\","
+                                " or \"Physical Volume\" to set attributes "
+                                "for all curves, surfaces, or volumes in your "
+                                "Gmsh geometry.");
                   }
 
                   // initialize the mesh element
@@ -1760,7 +1764,11 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                // non-positive attributes are not allowed in MFEM
                if (phys_domain <= 0)
                {
-                  MFEM_ABORT("Non-positive element attribute in Gmsh mesh!");
+                  MFEM_ABORT("Non-positive element attribute in Gmsh mesh!\n"
+                             "Use \"Physical Curve\", \"Physical Surface\","
+                             " or \"Physical Volume\" to set attributes "
+                             "for all curves, surfaces, or volumes in your "
+                             "Gmsh geometry.");
                }
 
                // initialize the mesh element
