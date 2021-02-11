@@ -430,7 +430,8 @@ void ScalarFiniteElement::ScalarLocalInterpolation(
    I.SetSize(fs, cs);
    Vector fine_shape(fs), coarse_shape(cs);
    DenseMatrix fine_mass(fs), fine_coarse_mass(fs, cs); // initialized with 0
-   const int ir_order = GetOrder() + fine_fe.GetOrder();
+   const int ir_order =
+      std::max(GetOrder(), fine_fe.GetOrder()) + fine_fe.GetOrder();
    const IntegrationRule &ir = IntRules.Get(fine_fe.GetGeomType(), ir_order);
 
    for (int i = 0; i < ir.GetNPoints(); i++)
