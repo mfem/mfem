@@ -14,18 +14,13 @@
 
 // Data types for sparse matrix
 
+#include "../general/backends.hpp"
 #include "../general/mem_alloc.hpp"
 #include "../general/mem_manager.hpp"
 #include "../general/device.hpp"
 #include "../general/table.hpp"
 #include "../general/globals.hpp"
 #include "densemat.hpp"
-
-#ifdef MFEM_USE_CUDA
-#include <cusparse.h>
-#include <library_types.h>
-#include "../general/cuda.hpp"
-#endif
 
 namespace mfem
 {
