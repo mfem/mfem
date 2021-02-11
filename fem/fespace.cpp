@@ -98,7 +98,7 @@ void FiniteElementSpace::SetElementOrder(int i, int p)
    MFEM_VERIFY(mesh_sequence == mesh->GetSequence(),
                "Space has not been Updated() after a Mesh change.");
    MFEM_VERIFY(i >= 0 && i < GetNE(), "Invalid element index");
-   MFEM_VERIFY(p >= 0 && p <= MaxVarOrder, "Order ouf of range");
+   MFEM_VERIFY(p >= 0 && p <= MaxVarOrder, "Order out of range");
    MFEM_ASSERT(!elem_order.Size() || elem_order.Size() == GetNE(),
                "Internal error");
 

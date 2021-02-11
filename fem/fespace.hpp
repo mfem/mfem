@@ -865,13 +865,15 @@ public:
       return dynamic_cast<const L2_FECollection*>(fec) != NULL;
    }
 
-   /** In variable order spaces on nonconforming meshes, this function controls
-       whether strict conformity is enforced in cases where master edges/faces
-       have higher polynomial order than their refined slaves. In the default
-       (strict) case, the master polynomial order is reduced to that of the
-       lowest order slave, so the slave can interpolate the master side exactly.
-       If relaxed == true, discontinuities in the solution in such cases are
-       allowed and the master side is not restricted. */
+   /** In variable order spaces on nonconforming (NC) meshes, this function
+       controls whether strict conformity is enforced in cases where coarse
+       edges/faces have higher polynomial order than their fine NC neighbors.
+       In the default (strict) case, the coarse side polynomial order is
+       reduced to that of the lowest order fine edge/face, so all fine
+       neighbors can interpolate the coarse side exactly. If relaxed == true,
+       some discontinuities in the solution in such cases are allowed and the
+       coarse side is not restricted. For an example, see
+       https://github.com/mfem/mfem/pull/1423#issuecomment-621340392 */
    void SetRelaxedHpConformity(bool relaxed = true)
    {
       relaxed_hp = relaxed;

@@ -3914,6 +3914,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
    int p = 1;
    if (edge_fespace->GetNE() > 0)
    {
+      MFEM_VERIFY(!edge_fespace->IsVariableOrder(), "");
       if (trace_space)
       {
          p = edge_fespace->GetFaceOrder(0);
