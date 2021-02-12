@@ -66,13 +66,13 @@ extern const char *MemoryTypeName[MemoryTypeSize];
  *  use MemoryClass::DEVICE for their inputs. */
 enum class MemoryClass
 {
-   HOST,        /**< Memory types: { HOST, HOST_32, HOST_64, HOST_DEBUG,
-                                     HOST_UMPIRE, MANAGED } */
-   HOST_32,     ///< Memory types: { HOST_32, HOST_64, HOST_DEBUG }
-   HOST_64,     ///< Memory types: { HOST_64, HOST_DEBUG }
-   DEVICE,      /**< Memory types: { DEVICE, DEVICE_DEBUG, DEVICE_UMPIRE,
-                                     MANAGED } */
-   MANAGED      ///< Memory types: { MANAGED }
+   HOST,    /**< Memory types: { HOST, HOST_32, HOST_64, HOST_DEBUG,
+                                 HOST_UMPIRE, HOST_PINNED, MANAGED } */
+   HOST_32, ///< Memory types: { HOST_32, HOST_64, HOST_DEBUG }
+   HOST_64, ///< Memory types: { HOST_64, HOST_DEBUG }
+   DEVICE,  /**< Memory types: { DEVICE, DEVICE_DEBUG, DEVICE_UMPIRE,
+                                 DEVICE_UMPIRE_2, MANAGED } */
+   MANAGED  ///< Memory types: { MANAGED }
 };
 
 /// Return true if the given memory type is in MemoryClass::HOST.
