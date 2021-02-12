@@ -334,7 +334,7 @@ int main(int argc, char *argv[])
 #endif
 
    //const double imscale = 0.0;
-   const double imscale = omega;
+   const double imscale = -omega;
 
    Coefficient *im = new ConstantCoefficient(imscale);  // im part
    //Coefficient *im = new ConstantCoefficient(0.0);  // im part
@@ -384,7 +384,7 @@ int main(int argc, char *argv[])
    //     mass domain integrators.
    Coefficient *muinv = new ConstantCoefficient(1.0);
    Coefficient *epscoef = new ConstantCoefficient(eps);
-   //Coefficient *imabs = new ConstantCoefficient(imscale);  // im part
+   Coefficient *imabs = new ConstantCoefficient(fabs(imscale));  // im part
 
 #ifdef COMPLEX_VERSION
    // Complex version
@@ -417,7 +417,7 @@ int main(int argc, char *argv[])
    a_Re.FormSystemMatrix(ess_tdof_list, A_Re);
 
    ParBilinearForm a_Im(fespace);
-   a_Im.AddBoundaryIntegrator(new MassIntegrator(*im));
+   a_Im.AddBoundaryIntegrator(new MassIntegrator(*imabs));
    a_Im.Assemble();
 
    OperatorPtr A_Im;
