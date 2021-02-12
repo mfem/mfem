@@ -219,7 +219,7 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
    {
       // RHS - normalized gradient.
       ParLinearForm b2(&pfes);
-      GradientCoefficient grad_u(diffused_source, pmesh.Dimension());
+      NormalizedGradCoefficient grad_u(diffused_source, pmesh.Dimension());
       b2.AddDomainIntegrator(new DomainLFGradIntegrator(grad_u));
       b2.Assemble();
 
@@ -242,7 +242,7 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
       delete prec;
    }
 
-   // Rescale the distance to have minimum at zero.
+   // Shift the distance values to have minimum at zero.
    double d_min_loc = distance.Min();
    double d_min_glob;
    MPI_Allreduce(&d_min_loc, &d_min_glob, 1, MPI_DOUBLE,
@@ -256,7 +256,7 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
 
       ParFiniteElementSpace fespace_vec(&pmesh, pfes.FEColl(),
                                         pmesh.Dimension());
-      GradientCoefficient grad_u(diffused_source, pmesh.Dimension());
+      NormalizedGradCoefficient grad_u(diffused_source, pmesh.Dimension());
       ParGridFunction x(&fespace_vec);
       x.ProjectCoefficient(grad_u);
 
