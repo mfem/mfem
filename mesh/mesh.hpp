@@ -777,8 +777,7 @@ public:
    long GetGlobalNE() const { return ReduceInt(NumOfElements); }
 
    /** @brief Return the mesh geometric factors corresponding to the given
-       integration rule. If @a use_temp is true and using device memory the
-       GeometricFactors will be constructed in temporary memory. */
+       integration rule. */
    const GeometricFactors* GetGeometricFactors(const IntegrationRule& ir,
                                                const int flags);
 
