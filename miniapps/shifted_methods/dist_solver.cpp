@@ -118,7 +118,7 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
          dx = pow(glob_area / glob_zones, 1.0/3.0); break;
       case Geometry::TETRAHEDRON:
          dx = pow(6.0 * glob_area / glob_zones, 1.0/3.0); break;
-      default: MFEM_ABORT("Unknown zone type!");
+      default: MFEM_ABORT("Unknown zone type!"); dx = 0.0;
    }
    dx /= pfes.GetOrder(0);
 
@@ -279,8 +279,6 @@ double ScreenedPoisson::GetElementEnergy(const FiniteElement &el,
    double energy = 0.0;
    int ndof = el.GetDof();
    int ndim = el.GetDim();
-   int spaceDim = trans.GetSpaceDim();
-   bool square = (ndim == spaceDim);
    const IntegrationRule *ir = NULL;
    int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
    ir = &IntRules.Get(el.GetGeomType(), order);
@@ -294,7 +292,6 @@ double ScreenedPoisson::GetElementEnergy(const FiniteElement &el,
    B=0.0;
 
    double w;
-   double detJ;
    double ngrad2;
 
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -302,7 +299,6 @@ double ScreenedPoisson::GetElementEnergy(const FiniteElement &el,
       const IntegrationPoint &ip = ir->IntPoint(i);
       trans.SetIntPoint(&ip);
       w = trans.Weight();
-      detJ = (square ? w : w * w);
       w = ip.weight * w;
 
       fval=func->Eval(trans,ip);
@@ -345,8 +341,6 @@ void ScreenedPoisson::AssembleElementVector(const FiniteElement &el,
 {
    int ndof = el.GetDof();
    int ndim = el.GetDim();
-   int spaceDim = trans.GetSpaceDim();
-   bool square = (ndim == spaceDim);
    const IntegrationRule *ir = NULL;
    int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
    ir = &IntRules.Get(el.GetGeomType(), order);
@@ -362,21 +356,17 @@ void ScreenedPoisson::AssembleElementVector(const FiniteElement &el,
 
    Vector qval(ndim); //[diff_x,diff_y,diff_z,u]
    Vector lvec(ndof); //residual at ip
-   Vector tmpv(ndof);
 
    B=0.0;
    qval=0.0;
 
    double w;
-   double detJ;
-   double ngrad2;
 
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
       trans.SetIntPoint(&ip);
       w = trans.Weight();
-      detJ = (square ? w : w * w);
       w = ip.weight * w;
 
       fval=func->Eval(trans,ip);
@@ -401,7 +391,7 @@ void ScreenedPoisson::AssembleElementVector(const FiniteElement &el,
       {
          elvect.Add( -w , shapef);
       }
-      else  if (fval<0.0)
+      else if (fval<0.0)
       {
          elvect.Add(  w , shapef);
       }
@@ -415,8 +405,6 @@ void ScreenedPoisson::AssembleElementGrad(const FiniteElement &el,
 {
    int ndof = el.GetDof();
    int ndim = el.GetDim();
-   int spaceDim = trans.GetSpaceDim();
-   bool square = (ndim == spaceDim);
    const IntegrationRule *ir = NULL;
    int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
    ir = &IntRules.Get(el.GetGeomType(), order);
@@ -427,18 +415,15 @@ void ScreenedPoisson::AssembleElementGrad(const FiniteElement &el,
    Vector shapef(ndof);
 
    DenseMatrix B(ndof, ndim); //[diff_x,diff_y,diff_z]
-
-   B=0.0;
+   B = 0.0;
 
    double w;
-   double detJ;
 
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
       trans.SetIntPoint(&ip);
       w = trans.Weight();
-      detJ = (square ? w : w * w);
       w = ip.weight * w;
 
       el.CalcPhysDShape(trans, B);
@@ -456,8 +441,6 @@ double PUMPLaplacian::GetElementEnergy(const FiniteElement &el,
    double energy = 0.0;
    int ndof = el.GetDof();
    int ndim = el.GetDim();
-   int spaceDim = trans.GetSpaceDim();
-   bool square = (ndim == spaceDim);
    const IntegrationRule *ir = NULL;
    int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
    ir = &IntRules.Get(el.GetGeomType(), order);
@@ -475,8 +458,6 @@ double PUMPLaplacian::GetElementEnergy(const FiniteElement &el,
    B=0.0;
 
    double w;
-   double detJ;
-
    double ngrad2;
 
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -484,7 +465,6 @@ double PUMPLaplacian::GetElementEnergy(const FiniteElement &el,
       const IntegrationPoint &ip = ir->IntPoint(i);
       trans.SetIntPoint(&ip);
       w = trans.Weight();
-      detJ = (square ? w : w * w);
       w = ip.weight * w;
 
       fval=func->Eval(trans,ip);
@@ -538,8 +518,6 @@ void PUMPLaplacian::AssembleElementVector(const FiniteElement &el,
 {
    int ndof = el.GetDof();
    int ndim = el.GetDim();
-   int spaceDim = trans.GetSpaceDim();
-   bool square = (ndim == spaceDim);
    const IntegrationRule *ir = NULL;
    int order = 2 * el.GetOrder() + trans.OrderGrad(&el)+1;
    ir = &IntRules.Get(el.GetGeomType(), order);
@@ -549,7 +527,6 @@ void PUMPLaplacian::AssembleElementVector(const FiniteElement &el,
 
    Vector shapef(ndof);
    double fval;
-   double pval;
    double tval;
    Vector vgrad(3);
 
@@ -564,7 +541,6 @@ void PUMPLaplacian::AssembleElementVector(const FiniteElement &el,
    qval=0.0;
 
    double w;
-   double detJ;
    double ngrad2;
    double aa;
 
@@ -573,7 +549,6 @@ void PUMPLaplacian::AssembleElementVector(const FiniteElement &el,
       const IntegrationPoint &ip = ir->IntPoint(i);
       trans.SetIntPoint(&ip);
       w = trans.Weight();
-      detJ = (square ? w : w * w);
       w = ip.weight * w;
 
       fval=func->Eval(trans,ip);
@@ -611,7 +586,6 @@ void PUMPLaplacian::AssembleElementVector(const FiniteElement &el,
 
       //add the load
       //add the external load -1 if tval > 0.0; 1 if tval < 0.0;
-      pval=shapef*elfun;
       if (tval>0.0)
       {
          elvect.Add( -w*fval , shapef);
@@ -630,8 +604,6 @@ void PUMPLaplacian::AssembleElementGrad(const FiniteElement &el,
 {
    int ndof = el.GetDof();
    int ndim = el.GetDim();
-   int spaceDim = trans.GetSpaceDim();
-   bool square = (ndim == spaceDim);
    const IntegrationRule *ir = NULL;
    int order = 2 * el.GetOrder() + trans.OrderGrad(&el)+1;
    ir = &IntRules.Get(el.GetGeomType(), order);
@@ -641,7 +613,6 @@ void PUMPLaplacian::AssembleElementGrad(const FiniteElement &el,
 
    Vector shapef(ndof);
    double fval;
-   double tval;
    Vector vgrad(ndim);
 
    Vector qval(ndim); //[diff_x,diff_y,diff_z,u]
@@ -653,23 +624,18 @@ void PUMPLaplacian::AssembleElementGrad(const FiniteElement &el,
    B=0.0;
 
    double w;
-   double detJ;
    double ngrad2;
-   double aa;
-   double aa0;
-   double aa1;
+   double aa, aa0, aa1;
 
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
       trans.SetIntPoint(&ip);
       w = trans.Weight();
-      detJ = (square ? w : w * w);
       w = ip.weight * w;
 
       fval=func->Eval(trans,ip);
       fgrad->Eval(vgrad,trans,ip);
-      tval=fval;
       if (fval<0.0)
       {
          fval=-fval;
@@ -695,8 +661,6 @@ void PUMPLaplacian::AssembleElementGrad(const FiniteElement &el,
       {
          ngrad2 = ngrad2 + qval(jj)*qval(jj);
       }
-
-
 
       aa = ngrad2 + ee * ee;
       aa1 = std::pow(aa, (pp - 2.0) / 2.0);
