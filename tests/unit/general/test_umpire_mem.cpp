@@ -62,11 +62,13 @@ static void test_umpire_device_memory()
                                   rm.getAllocator("DEVICE"), 0, 0))
                          .getId();
 
-   Device::SetHostUmpire(false);
-   Device::SetDeviceUmpire(true);
+   // set the Umpire allocators used with MemoryType::DEVICE_UMPIRE and
+   // MemoryType::DEVICE_UMPIRE_2
    MemoryManager::SetUmpireDeviceAllocatorId(permanent);
-   MemoryManager::SetUmpireDeviceTempAllocatorId(temporary);
+   MemoryManager::SetUmpire2DeviceAllocatorId(temporary);
    Device device("cuda");
+   Device::SetHostMemoryType(MemoryType::HOST); // not necessary
+   Device::SetDeviceMemoryType(MemoryType::DEVICE_UMPIRE); // 'permanent'
 
    printf("Both pools should be empty at startup: ");
    REQUIRE(alloc_size(permanent) == 0);
@@ -77,7 +79,10 @@ static void test_umpire_device_memory()
    Vector host_perm(num_elems);
    REQUIRE(!is_pinned_host(host_perm.GetData()));
    // allocate on host, use temporary device memory when needed
-   Vector host_temp(num_elems); host_temp = host_val; host_temp.UseTemporary(true);
+   // (TODO: make sure this does not do the device allocation, i.e. use lazy
+   //        device allocations)
+   Vector host_temp(num_elems, MemoryType::DEVICE_UMPIRE_2);
+   host_temp = host_val; // done on host since UseDevice() is not set
    REQUIRE(!is_pinned_host(host_temp.GetData()));
 
    printf("Allocated %u bytes on the host, pools should still be empty: ",
@@ -103,7 +108,8 @@ static void test_umpire_device_memory()
    printf("perm=%ld, temp=%ld\n", alloc_size(permanent), alloc_size(temporary));
 
    // allocates in permanent device memory
-   Vector dev_perm(num_elems, MemoryClass::DEVICE);
+   Vector dev_perm(num_elems);
+   dev_perm.Write(); // make sure device memory is allocated
 
    printf("Allocate %u more bytes in permanent memory: ", num_bytes);
    REQUIRE(alloc_size(permanent) == num_bytes*2);
@@ -111,9 +117,7 @@ static void test_umpire_device_memory()
    printf("perm=%ld, temp=%ld\n", alloc_size(permanent), alloc_size(temporary));
 
    // allocates in temporary device memory
-   // shorten with using statement
-   using mc = mfem::MemoryClass;
-   Vector dev_temp(num_elems, mc::DEVICE_TEMP);
+   Vector dev_temp(num_elems, MemoryType::DEVICE_UMPIRE_2);
    double * d_dev_temp = dev_temp.Write();
    //MFEM_FORALL(i, num_elems, { d_dev_temp[i] = dev_val; });
 
@@ -123,10 +127,18 @@ static void test_umpire_device_memory()
    printf("perm=%ld, temp=%ld\n", alloc_size(permanent), alloc_size(temporary));
 
    // pinned host memory
-   Vector pinned_host_perm(num_elems, mfem::MemoryType::HOST_PINNED);
+   auto orig_host_mt = Device::GetHostMemoryType();
+   Device::SetHostMemoryType(MemoryType::HOST_PINNED);
+   Vector pinned_host_perm(num_elems);
+   // alternative, without switching the global host MemoryType:
+   // Vector pinned_host_perm(num_elems, MemoryType::HOST_PINNED);
    REQUIRE(is_pinned_host(pinned_host_perm.GetData()));
-   Vector pinned_host_temp(num_elems, mfem::MemoryType::HOST_PINNED);
-   pinned_host_temp.UseTemporary(true);
+   Vector pinned_host_temp(num_elems, MemoryType::DEVICE_UMPIRE_2);
+   // alternative, without switching the global host MemoryType:
+   // (not supported yet)
+   // Vector pinned_host_temp(num_elems, MemoryType::HOST_PINNED,
+   //                         MemoryType::DEVICE_UMPIRE_2);
+   Device::SetHostMemoryType(orig_host_mt);
    REQUIRE(is_pinned_host(pinned_host_temp.GetData()));
    printf("Allocate %u pinned bytes in on the host: ", num_bytes*2);
    REQUIRE(alloc_size(permanent) == num_bytes*2);
@@ -162,7 +174,8 @@ static void test_umpire_device_memory()
    // Just as an example, temp memory on the stack is automatically cleaned up
    {
       printf("Allocate %u more bytes in temporary memory: ", num_bytes);
-      Vector dev_temp(num_elems, mc::DEVICE_TEMP);
+      Vector dev_temp(num_elems, MemoryType::DEVICE_UMPIRE_2);
+      dev_temp.Write(); // make sure device memory is allocated
       REQUIRE(alloc_size(permanent) == num_bytes*3);
       REQUIRE(alloc_size(temporary) == num_bytes);
       printf("perm=%ld, temp=%ld\n", alloc_size(permanent), alloc_size(temporary));

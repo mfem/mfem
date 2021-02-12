@@ -31,16 +31,23 @@ enum class MemoryType
    HOST_32,        ///< Host memory; aligned at 32 bytes
    HOST_64,        ///< Host memory; aligned at 64 bytes
    HOST_DEBUG,     ///< Host memory; allocated from a "host-debug" pool
-   HOST_UMPIRE,    ///< Host memory; using Umpire
+   HOST_UMPIRE,    /**< Host memory; using an Umpire allocator which can be set
+                        with MemoryManager::SetUmpireHostAllocatorId */
    HOST_PINNED,    ///< Host memory: pinned (page-locked)
    MANAGED,        /**< Managed memory; using CUDA or HIP *MallocManaged
                         and *Free */
    DEVICE,         ///< Device memory; using CUDA or HIP *Malloc and *Free
    DEVICE_DEBUG,   /**< Pseudo-device memory; allocated on host from a
                         "device-debug" pool */
-   DEVICE_UMPIRE,  ///< Device memory; using Umpire
+   DEVICE_UMPIRE,  /**< Device memory; using an Umpire allocator which can be
+                        set with MemoryManager::SetUmpireDeviceAllocatorId */
+   DEVICE_UMPIRE_2, /**< Device memory; using a second Umpire allocator settable
+                         with MemoryManager::SetUmpire2DeviceAllocatorId */
    SIZE,           ///< Number of host and device memory types
-   PRESERVE        ///< Default parameter type; preserves existing behavior
+
+   PRESERVE        /**< Pseudo-MemoryType used as default value for MemoryType
+                        parameters to request preservation of existing
+                        MemoryType, e.g. in copy constructors. */
 };
 
 /// Static casts to 'int' and sizes of some useful memory types.
@@ -65,7 +72,6 @@ enum class MemoryClass
    HOST_64,     ///< Memory types: { HOST_64, HOST_DEBUG }
    DEVICE,      /**< Memory types: { DEVICE, DEVICE_DEBUG, DEVICE_UMPIRE,
                                      MANAGED } */
-   DEVICE_TEMP, ///< Memory types: { DEVICE_UMPIRE }
    MANAGED      ///< Memory types: { MANAGED }
 };
 
@@ -141,9 +147,7 @@ protected:
       VALID_DEVICE  = 1 << 5, ///< %Device pointer is valid
       USE_DEVICE    = 1 << 6, /**< Internal device flag, see e.g.
                                    Vector::UseDevice() */
-      ALIAS         = 1 << 7, ///< Pointer is an alias
-      USE_TEMPORARY = 1 << 8  ///< Temporary Device memory flag
-
+      ALIAS         = 1 << 7  ///< Pointer is an alias
    };
 
    /// Pointer to host memory. Not owned.
@@ -182,16 +186,6 @@ public:
    /** The newly allocated memory is not initialized, however the given
        MemoryType is still set as valid. */
    Memory(int size, MemoryType mt) { New(size, mt); }
-
-   /** @brief Allocate memory for @a size entries with the given MemoryClass
-       @a mc. */
-   /** The newly allocated memory is not initialized, however the given
-       MemoryType is still set as valid. */
-   Memory(int size, MemoryClass mc)
-   {
-      if (mc == MemoryClass::DEVICE_TEMP) { UseTemporary(true); }
-      New(size, mfem::GetMemoryType(mc));
-   }
 
    /** @brief Wrap an externally allocated host pointer, @a ptr with the current
        host memory type returned by MemoryManager::GetHostMemoryType(). */
@@ -250,18 +244,6 @@ public:
    void UseDevice(bool use_dev) const
    { flags = use_dev ? (flags | USE_DEVICE) : (flags & ~USE_DEVICE); }
 
-   bool UseTemporary() const { return flags & USE_TEMPORARY; }
-
-   void UseTemporary(bool use_temp)
-   {
-      if (use_temp != UseTemporary())
-      {
-         MFEM_VERIFY(!(flags & VALID_DEVICE),
-                     "Cannot change temporary status when the device pointer already exists");
-      }
-      flags = use_temp ? (flags | USE_TEMPORARY) : (flags & ~USE_TEMPORARY);
-   }
-
    /// Return the size of the allocated memory.
    int Capacity() const { return capacity; }
 
@@ -312,7 +294,7 @@ public:
        @note The current memory is NOT deleted by this method. */
    inline void Wrap(T *ptr, int size, MemoryType mt, bool own);
 
-   /** Wrap an externally pair of allocated pointers, @a h_ptr and @ d_ptr,
+   /** Wrap an externally pair of allocated pointers, @a h_ptr and @a d_ptr,
        of the given host MemoryType @a h_mt. */
    /** The new memory object will have the device MemoryType set as valid.
 
@@ -344,10 +326,10 @@ public:
        i.e. it will, generally, not be Empty() after this call. */
    inline void Delete();
 
-   /** Delete the device pointer, if owned. If @a copy_to_host is true and the
-       data is valid only on device, move it to host before deleting.
+   /** @brief Delete the device pointer, if owned. If @a copy_to_host is true
+       and the data is valid only on device, move it to host before deleting.
        Invalidates the device memory. */
-   inline void DeleteDevice(bool copy_to_host=true);
+   inline void DeleteDevice(bool copy_to_host = true);
 
    /// Array subscript operator for host memory.
    inline T &operator[](int idx);
@@ -522,20 +504,17 @@ private:
    /// Device memory type set during the Setup.
    static MemoryType device_mem_type;
 
-   /// Device temporary memory type set during the Setup.
-   static MemoryType device_temp_mem_type;
-
    /// Allow to detect if a global memory manager instance exists.
    static bool exists;
 
    /// Return true if the global memory manager instance exists.
    static bool Exists() { return exists; }
 
-   /// Host and device allocator names for Umpire.
+   /// Host and device allocator IDs for Umpire.
 #ifdef MFEM_USE_UMPIRE
    static int h_umpire_id;
    static int d_umpire_id;
-   static int d_umpire_temp_id;
+   static int d_umpire_2_id;
 #endif
 
 private: // Static methods used by the Memory<T> class
@@ -626,7 +605,7 @@ private:
 
    /// Insert a device and the host addresses in the memory map
    void InsertDevice(void *d_ptr, void *h_ptr, size_t bytes,
-                     MemoryType h_mt,  MemoryType d_mt, bool is_temp);
+                     MemoryType h_mt,  MemoryType d_mt);
 
    /// Insert an alias in the alias map
    void InsertAlias(const void *base_ptr, void *alias_ptr,
@@ -643,8 +622,7 @@ private:
 
    /// Return the corresponding device pointer of h_ptr,
    /// allocating and moving the data if needed
-   void *GetDevicePtr(const void *h_ptr, size_t bytes, bool copy_data,
-                      bool is_temp);
+   void *GetDevicePtr(const void *h_ptr, size_t bytes, bool copy_data);
 
    /// Return the corresponding device pointer of alias_ptr,
    /// allocating and moving the data if needed
@@ -665,21 +643,24 @@ public:
    /// Initialize the memory manager.
    void Init();
 
-   /// Configure the Memory manager with given default host, device, and device temporary types
-   /// This method will be called when configuring a device.
-   void Configure(const MemoryType h_mt, const MemoryType d_mt,
-                  const MemoryType d_tmt);
+   /** @brief Configure the Memory manager with given default host and device
+       types. This method will be called when configuring a device. */
+   void Configure(const MemoryType h_mt, const MemoryType d_mt);
 
 #ifdef MFEM_USE_UMPIRE
-   /// Set the host and device Umpire allocator ids
+   /// Set the host Umpire allocator id used with MemoryType::HOST_UMPIRE
    static void SetUmpireHostAllocatorId(int h_id) { h_umpire_id = h_id; }
+   /// Set the device Umpire allocator id used with MemoryType::DEVICE_UMPIRE
    static void SetUmpireDeviceAllocatorId(int d_id) { d_umpire_id = d_id; }
-   static void SetUmpireDeviceTempAllocatorId(int d_id) { d_umpire_temp_id = d_id; }
+   /// Set the device Umpire allocator id used with MemoryType::DEVICE_UMPIRE_2
+   static void SetUmpire2DeviceAllocatorId(int d_id) { d_umpire_2_id = d_id; }
 
-   /// Get the host and device Umpire allocator ids
+   /// Get the host Umpire allocator id used with MemoryType::HOST_UMPIRE
    static int GetUmpireHostAllocatorId() { return h_umpire_id; }
+   /// Get the device Umpire allocator id used with MemoryType::DEVICE_UMPIRE
    static int GetUmpireDeviceAllocatorId() { return d_umpire_id; }
-   static int GetUmpireDeviceTempAllocatorId() { return d_umpire_temp_id; }
+   /// Get the device Umpire allocator id used with MemoryType::DEVICE_UMPIRE_2
+   static int GetUmpire2DeviceAllocatorId() { return d_umpire_2_id; }
 #endif
 
    /// Free all the device memories
@@ -704,7 +685,6 @@ public:
 
    static MemoryType GetHostMemoryType() { return host_mem_type; }
    static MemoryType GetDeviceMemoryType() { return device_mem_type; }
-   static MemoryType GetDeviceTempMemoryType() { return device_temp_mem_type; }
 };
 
 
