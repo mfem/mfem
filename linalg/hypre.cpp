@@ -4144,7 +4144,7 @@ void HypreADS::Init(ParFiniteElementSpace *face_fespace)
    int p = 1;
    if (face_fespace->GetNE() > 0)
    {
-      MFEM_VERIFY(!edge_fespace->IsVariableOrder(), "");
+      MFEM_VERIFY(!face_fespace->IsVariableOrder(), "");
       if (trace_space)
       {
          p = face_fespace->GetFaceOrder(0) + 1;
