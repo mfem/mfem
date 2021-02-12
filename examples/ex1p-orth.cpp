@@ -42,6 +42,7 @@
 using namespace std;
 using namespace mfem;
 
+// Enumeration listing all supported 2D orthogonal coordinate systems
 enum CoordSys {POLAR = 1, PARABOLIC_CYL, ELLIPTIC, BIPOLAR,
                CYLINDRICAL, SPHERICAL, PARABOLIC, PROLATE_SPHEROIDAL,
                OBLATE_SPHEROIDAL, TOROIDAL, BISPHERICAL
@@ -54,16 +55,24 @@ static double q2_min_ = NAN;
 static double q2_max_ = NAN;
 static double a_ = 1.0;
 
+// Set default values for coordinate ranges q1_min_, q1_max_, q2_min_,
+// and q2_max_ based on the selected coordinate system, coords_.
 void SetRanges();
 
+// Shift the mesh so that the origin is at (q1_min_, q2_min_)
 void trans1(const Vector &u, Vector &x)
 {
    x.SetSize(2);
    x[0] = u[0] + q1_min_;
    x[1] = u[1] + q2_min_;
 }
+
+// Apply conformal mapping from cartesian coordinates to the
+// orthogonal coordinate system specified by coords_.
 void trans(const Vector &u, Vector &x);
 
+// Returns one of the three coordinate scale factors h_i describing
+// the orthogonal coordinate system.
 class OrthoCoef : public Coefficient
 {
 private:
@@ -76,6 +85,7 @@ public:
                        const IntegrationPoint &ip);
 };
 
+// Integration weight coefficient h_1 * h_2 * h_3
 class OrthoWeightCoef : public Coefficient
 {
 private:
@@ -95,6 +105,8 @@ public:
                        const IntegrationPoint &ip);
 };
 
+// Matrix-valued coefficient appearing in the weak form of the
+// Laplacian operator.
 class OrthoMatrixCoef : public MatrixCoefficient
 {
 private:
@@ -117,6 +129,8 @@ public:
 
 };
 
+// Radial weight factor to distinguish volumes of revolution from
+// extruded volumes
 class RhoCoef : public Coefficient
 {
 public:
@@ -133,6 +147,8 @@ public:
 
 };
 
+// Matrix-valued radial weight factor to distinguish volumes of
+// revolution from extruded volumes within the Laplacian operator
 class RhoMatrixCoef : public MatrixCoefficient
 {
 public:
@@ -159,6 +175,11 @@ public:
 static bool static_cond_ = false;
 static bool pa_ = false;
 
+// Ensure that m >= 3 if a periodic mesh has been selected
+void AdjustDimensions(int &m, int &n, int & rs, int & rp);
+
+// Setup and solve the Poisson problem with boundary conditions
+// appropriate to the selected coordinate system.
 void Poisson(ParMesh &pmesh, ParFiniteElementSpace &fespace,
              MatrixCoefficient &LCoef, Coefficient &MCoef,
              ParGridFunction &x);
@@ -182,6 +203,7 @@ int main(int argc, char *argv[])
    int morder = 2;
    int order = 2;
    const char *device_config = "cpu";
+   bool comp = true;
    bool discont = false;
    bool visualization = true;
 
@@ -216,6 +238,8 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&comp, "-comp", "--compare", "-no-comp",
+                  "--no-compare", "Compare to standard curved mesh solution.");
    args.AddOption(&static_cond_, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa_, "-pa", "--partial-assembly", "-no-pa",
@@ -253,6 +277,15 @@ int main(int argc, char *argv[])
       exit(1);
    }
 
+   if (coords_ == BIPOLAR || coords_ == TOROIDAL)
+   {
+      AdjustDimensions(n1, n2, ser_ref_levels, par_ref_levels);
+   }
+   else if (coords_ == POLAR || coords_ == ELLIPTIC)
+   {
+      AdjustDimensions(n2, n1, ser_ref_levels, par_ref_levels);
+   }
+
    // 3. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
@@ -265,10 +298,10 @@ int main(int argc, char *argv[])
    mesh->Transform(trans1);
    int dim = mesh->Dimension();
 
-   // Stitch the ends of the stack together
    if (coords_ == POLAR || coords_ == ELLIPTIC || coords_ == BIPOLAR ||
        coords_ == TOROIDAL)
    {
+      // 4. Stitch the ends of the mesh together
       discont = true;
       mesh->SetCurvature(1, discont, 2, Ordering::byVDIM);
       Array<int> v2v(mesh->GetNV());
@@ -317,100 +350,73 @@ int main(int argc, char *argv[])
       }
       mesh->RemoveUnusedVertices();
       mesh->RemoveInternalBoundaries();
+      mesh->FinalizeTopology();
    }
 
-   // 5. Refine the serial mesh on all processors to increase the resolution. In
-   //    this example we do 'ref_levels' of uniform refinement. We choose
-   //    'ref_levels' to be the largest number that gives a final mesh with no
-   //    more than 10,000 elements.
+   // 5. Refine the serial mesh on all processors to increase the resolution.
    {
       for (int l = 0; l < ser_ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
    }
-   /*
-   Mesh *mesh_cart = new Mesh(*mesh);
-   mesh_cart->SetCurvature(3);
-   mesh_cart->Transform(trans);
-   */
+
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   ParMesh *pmesh_ortho = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
       for (int l = 0; l < par_ref_levels; l++)
       {
-         pmesh->UniformRefinement();
+         pmesh_ortho->UniformRefinement();
       }
    }
 
-   ParMesh *pmesh_cart = new ParMesh(*pmesh);
-   pmesh_cart->SetCurvature(morder, discont);
-   pmesh_cart->Transform(trans);
+   // 7. Create a standard curved mesh to describe the same geometry
+   ParMesh *pmesh_curved = new ParMesh(*pmesh_ortho);
+   pmesh_curved->SetCurvature(morder, discont);
+   pmesh_curved->Transform(trans);
 
-   DenseMatrix OneMat(2); OneMat = 0.0; OneMat(0,0) = 1.0; OneMat(1,1) = 1.0;
-   MatrixConstantCoefficient OneCoef(OneMat);
-   ConstantCoefficient oneCoef(1.0);
-   RhoCoef rhoCoef;
-   RhoMatrixCoef RhoCoef;
+   // 8. Define a parallel finite element space on the parallel mesh. Here we
+   //    use continuous Lagrange finite elements of the specified order.
+   H1_FECollection fec(order, dim);
+   ParFiniteElementSpace fespace_ortho(pmesh_ortho, &fec);
+   HYPRE_Int size = fespace_ortho.GlobalTrueVSize();
+   if (myid == 0)
+   {
+      cout << "Number of finite element unknowns: " << size << endl;
+   }
 
+   // 9. Declare the coordinate scaling factors and the coefficients
+   //    needed to form the mass matrix and Laplacian.
    OrthoCoef h1Coef(0);
    OrthoCoef h2Coef(1);
    OrthoCoef h3Coef(2);
    OrthoWeightCoef WCoef(h1Coef, h2Coef, h3Coef);
    OrthoMatrixCoef LCoef(h1Coef, h2Coef, h3Coef);
 
-   // 7. Define a parallel finite element space on the parallel mesh. Here we
-   //    use continuous Lagrange finite elements of the specified order. If
-   //    order < 1, we instead use an isoparametric/isogeometric space.
-   H1_FECollection fec(order, dim);
-   ParFiniteElementSpace fespace(pmesh, &fec);
-   ParFiniteElementSpace fespace_cart(pmesh_cart, &fec);
-   HYPRE_Int size = fespace.GlobalTrueVSize();
-   if (myid == 0)
-   {
-      cout << "Number of finite element unknowns: " << size << endl;
-   }
+   // 10. Setup and solve the Poisson problem on the cartesian mesh
+   ParGridFunction x_ortho(&fespace_ortho); x_ortho = 0.0;
+   Poisson(*pmesh_ortho, fespace_ortho, LCoef, WCoef, x_ortho);
 
-   ParGridFunction x(&fespace); x = 0.0;
-   ParGridFunction x_cart(&fespace_cart); x_cart = 0.0;
-   Poisson(*pmesh, fespace, LCoef, WCoef, x);
-   if (coords_ == POLAR || coords_ == PARABOLIC_CYL ||
-       coords_ == ELLIPTIC || coords_ == BIPOLAR)
-   {
-      Poisson(*pmesh_cart, fespace_cart, OneCoef, oneCoef, x_cart);
-   }
-   else
-   {
-      Poisson(*pmesh_cart, fespace_cart, RhoCoef, rhoCoef, x_cart);
-   }
-
-   GridFunctionCoefficient xCoef(&x);
-   double err = x_cart.ComputeL2Error(xCoef);
-   if (myid == 0)
-   {
-      cout << "\n|| u_cart - u_ortho ||_{L^2} = " << err << '\n' << endl;
-   }
-
-   // 15. Save the refined mesh and the solution in parallel. This output can
+   // 11. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
       ostringstream mesh_name, sol_name;
-      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
-      sol_name << "sol." << setfill('0') << setw(6) << myid;
+      mesh_name << "mesh_ortho." << setfill('0') << setw(6) << myid;
+      sol_name << "sol_ortho." << setfill('0') << setw(6) << myid;
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh->Print(mesh_ofs);
+      pmesh_ortho->Print(mesh_ofs);
 
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(8);
-      x.Save(sol_ofs);
+      x_ortho.Save(sol_ofs);
    }
 
-   // 16. Send the solution by socket to a GLVis server.
+   // 12. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -418,34 +424,120 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *pmesh << x << flush
+      sol_sock << "solution\n" << *pmesh_ortho << x_ortho << flush
                << "window_title 'Straight Mesh'"
                << "keys m\n";
 
       socketstream mix_sol_sock(vishost, visport);
       mix_sol_sock << "parallel " << num_procs << " " << myid << "\n";
       mix_sol_sock.precision(8);
-      mix_sol_sock << "solution\n" << *pmesh_cart << x << flush
-                   << "window_title 'Mixed' "
+      mix_sol_sock << "solution\n" << *pmesh_curved << x_ortho << flush
+                   << "window_title 'Straight Solution - Curved Mesh' "
                    << "window_geometry 400 0 400 350"
                    << "keys m\n";
+   }
 
-      socketstream cart_sol_sock(vishost, visport);
-      cart_sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      cart_sol_sock.precision(8);
-      cart_sol_sock << "solution\n" << *pmesh_cart << x_cart << flush
-                    << "window_title 'Curved Mesh' "
-                    << "window_geometry 800 0 400 350"
-                    << "keys m\n";
+   // 13. Compare to a solution computed on the corresponding curved mesh.
+   if (comp)
+   {
+      ParFiniteElementSpace fespace_curved(pmesh_curved, &fec);
+      ParGridFunction x_curved(&fespace_curved); x_curved = 0.0;
+
+      double err = -1.0;
+      GridFunctionCoefficient xCoef(&x_ortho);
+
+      // 14. Setup and solve the Poisson problem on the cartesian mesh
+      if (coords_ == POLAR || coords_ == PARABOLIC_CYL ||
+          coords_ == ELLIPTIC || coords_ == BIPOLAR)
+      {
+         // These coordinate systems can be viewed as truly two-dimensional
+         // or simply extruded into the third dimension and so they require
+         // no special coefficients.
+         DenseMatrix OneMat(2);
+         OneMat = 0.0; OneMat(0,0) = 1.0; OneMat(1,1) = 1.0;
+         MatrixConstantCoefficient OneCoef(OneMat);
+         ConstantCoefficient oneCoef(1.0);
+         Poisson(*pmesh_curved, fespace_curved, OneCoef, oneCoef, x_curved);
+
+         // 15a. Measure the difference in the two solutions using an L2 norm.
+         err = x_curved.ComputeL2Error(xCoef);
+      }
+      else
+      {
+         // The remaining coordinate systems are truly three-dimensional and
+         // involve rotation about the second coordinate axis. Consequently,
+         // they require a radial scale factor both in the mass matrix and the
+         // Laplacian operator.
+         RhoCoef rhoCoef;
+         RhoMatrixCoef RhoCoef;
+         Poisson(*pmesh_curved, fespace_curved, RhoCoef, rhoCoef, x_curved);
+
+         // 15b. Measure the difference in the two solutions using an L2 norm.
+         PowerCoefficient sqrtRhoCoef(rhoCoef, 0.5);
+         ProductCoefficient rxoCoef(sqrtRhoCoef, xCoef);
+         GridFunctionCoefficient xcCoef(&x_curved);
+         ProductCoefficient rxcCoef(sqrtRhoCoef, xcCoef);
+         ParGridFunction rx_curved(&fespace_curved);
+         rx_curved.ProjectCoefficient(rxcCoef);
+         err = rx_curved.ComputeL2Error(rxoCoef);
+      }
+
+      if (myid == 0)
+      {
+         cout << "\n|| u_curved - u_ortho ||_{L^2} = " << err << '\n' << endl;
+      }
+
+      // 15. Save the refined mesh and the solution in parallel. This output can
+      //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+      {
+         ostringstream mesh_name, sol_name;
+         mesh_name << "mesh_std." << setfill('0') << setw(6) << myid;
+         sol_name << "sol_std." << setfill('0') << setw(6) << myid;
+
+         ofstream mesh_ofs(mesh_name.str().c_str());
+         mesh_ofs.precision(8);
+         pmesh_curved->Print(mesh_ofs);
+
+         ofstream sol_ofs(sol_name.str().c_str());
+         sol_ofs.precision(8);
+         x_curved.Save(sol_ofs);
+      }
+
+      // 16. Send the solution by socket to a GLVis server.
+      if (visualization)
+      {
+         char vishost[] = "localhost";
+         int  visport   = 19916;
+
+         socketstream cart_sol_sock(vishost, visport);
+         cart_sol_sock << "parallel " << num_procs << " " << myid << "\n";
+         cart_sol_sock.precision(8);
+         cart_sol_sock << "solution\n" << *pmesh_curved << x_curved << flush
+                       << "window_title 'Curved Mesh' "
+                       << "window_geometry 800 0 400 350"
+                       << "keys m\n";
+      }
+
+      delete pmesh_curved;
    }
 
    // 17. Free the used memory.
-   delete pmesh;
-   delete pmesh_cart;
+   delete pmesh_ortho;
 
    MPI_Finalize();
 
    return 0;
+}
+
+void AdjustDimensions(int &m, int &n, int & rs, int & rp)
+{
+   while (m < 3 && rs + rp > 0)
+   {
+      m *= 2;
+      n *= 2;
+      (rs > 0) ? rs-- : rp--;
+   }
+   if (m < 3) { m = 3; }
 }
 
 void Poisson(ParMesh &pmesh, ParFiniteElementSpace &fespace,
