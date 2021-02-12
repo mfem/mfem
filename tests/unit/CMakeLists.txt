@@ -55,6 +55,8 @@ set(UNIT_TESTS_SRCS
   fem/test_operatorjacobismoother.cpp
   fem/test_pa_coeff.cpp
   fem/test_pa_kernels.cpp
+  fem/test_pa_grad.cpp
+  fem/test_pa_idinterp.cpp
   fem/test_quadf_coef.cpp
   fem/test_quadraturefunc.cpp
   fem/test_blocknonlinearform.cpp
