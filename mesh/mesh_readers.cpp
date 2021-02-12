@@ -1541,10 +1541,13 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                   if (phys_domain <= 0)
                   {
                      MFEM_ABORT("Non-positive element attribute in Gmsh mesh!\n"
+                                "By default Gmsh sets element tags (attributes)"
+                                " to '0' but MFEM requires that they be"
+                                " positive integers.\n"
                                 "Use \"Physical Curve\", \"Physical Surface\","
-                                " or \"Physical Volume\" to set attributes "
-                                "for all curves, surfaces, or volumes in your "
-                                "Gmsh geometry.");
+                                " or \"Physical Volume\" to set tags/attributes"
+                                " for all curves, surfaces, or volumes in your"
+                                " Gmsh geometry to values which are >= 1.");
                   }
 
                   // initialize the mesh element
@@ -1765,10 +1768,13 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                if (phys_domain <= 0)
                {
                   MFEM_ABORT("Non-positive element attribute in Gmsh mesh!\n"
+                             "By default Gmsh sets element tags (attributes)"
+                             " to '0' but MFEM requires that they be"
+                             " positive integers.\n"
                              "Use \"Physical Curve\", \"Physical Surface\","
-                             " or \"Physical Volume\" to set attributes "
-                             "for all curves, surfaces, or volumes in your "
-                             "Gmsh geometry.");
+                             " or \"Physical Volume\" to set tags/attributes"
+                             " for all curves, surfaces, or volumes in your"
+                             " Gmsh geometry to values which are >= 1.");
                }
 
                // initialize the mesh element
