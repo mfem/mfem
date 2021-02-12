@@ -153,10 +153,10 @@ protected:
    /// Pointer to host memory. Not owned.
    /** The type of the pointer is given by the field #h_mt; it can be any type
        from MemoryClass::HOST. */
-   T *h_ptr = nullptr;
-   int capacity = 0; ///< Size of the allocated memory
-   MemoryType h_mt = MemoryType::HOST; ///< Host memory type
-   mutable unsigned flags = 0; ///< Bit flags defined from the #FlagMask enum
+   T *h_ptr;
+   int capacity; ///< Size of the allocated memory
+   MemoryType h_mt; ///< Host memory type
+   mutable unsigned flags; ///< Bit flags defined from the #FlagMask enum
    // 'flags' is mutable so that it can be modified in Set{Host,Device}PtrOwner,
    // Copy{From,To}, {ReadWrite,Read,Write}.
 
