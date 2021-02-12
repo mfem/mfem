@@ -14,7 +14,6 @@
 
 #include "../config/config.hpp"
 #include "../general/array.hpp"
-#include "algoim_quad.hpp"
 
 namespace mfem
 {
@@ -327,7 +326,7 @@ private:
    Array<IntegrationRule *> TetrahedronIntRules;
    Array<IntegrationRule *> PrismIntRules;
    Array<IntegrationRule *> CubeIntRules;
-   Array<IntegrationRule *> CutSquareIntRules;
+
    void AllocIntRule(Array<IntegrationRule *> &ir_array, int Order)
    {
       if (ir_array.Size() <= Order)
@@ -355,7 +354,7 @@ private:
    IntegrationRule *TetrahedronIntegrationRule(int Order);
    IntegrationRule *PrismIntegrationRule(int Order);
    IntegrationRule *CubeIntegrationRule(int Order);
-   IntegrationRule *CutSquareIntegrationRule(int Order);
+
    void DeleteIntRuleArray(Array<IntegrationRule *> &ir_array);
 
 public:

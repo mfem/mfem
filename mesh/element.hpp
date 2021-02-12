@@ -39,7 +39,7 @@ public:
 
    /// Constants for the classes derived from Element.
    enum Type { POINT, SEGMENT, TRIANGLE, QUADRILATERAL,
-               TETRAHEDRON, HEXAHEDRON, WEDGE, CUTQUAD
+               TETRAHEDRON, HEXAHEDRON, WEDGE
              };
 
    /// Default element constructor.
@@ -48,19 +48,9 @@ public:
 
    /// Returns element's type
    virtual Type GetType() const = 0;
-   Geometry::Type GetGeometryType() const 
-   {   
-      if (GetAttribute() == 5)
-      {
-        return Geometry::CUTSQUARE;
-      }
-      else
-      {
-        return base_geom;
-      }     
-   }
 
-   Geometry::Type SetGeometryType(Geometry::Type eltype ) const {return eltype;}
+   Geometry::Type GetGeometryType() const { return base_geom; }
+
    /// Return element's attribute.
    inline int GetAttribute() const { return attribute; }
 

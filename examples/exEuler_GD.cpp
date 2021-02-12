@@ -327,7 +327,7 @@ int main(int argc, char *argv[])
    /// bilinear form
    BilinearForm *mass = new BilinearForm(fes);
 
-   // set up the mass matrix
+   /// set up the mass matrix
    mass->AddDomainIntegrator(new EulerMassIntegrator(num_state));
    mass->Assemble();
    mass->Finalize();

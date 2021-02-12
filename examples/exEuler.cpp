@@ -357,7 +357,7 @@ int main(int argc, char *argv[])
    double res_norm0 = calcResidualNorm(res, fes, u);
    double t_final = 1000;
 
-   double dt_init = 100.0;
+   double dt_init = 0.8;
    double dt_old;
 
    //initial l2_err
@@ -369,7 +369,7 @@ int main(int argc, char *argv[])
    double res_norm;
    int exponent = 2;
 
-   for (auto ti = 0; ti < 30000; ++ti)
+   for (auto ti = 0; ti < 300; ++ti)
    {
       /// calculate timestep
       res_norm = calcResidualNorm(res, fes, u);

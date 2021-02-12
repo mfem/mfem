@@ -334,7 +334,6 @@ FiniteElement *Mesh::GetTransformationFEforElementType(Element::Type ElemType)
       case Element::TETRAHEDRON :    return &TetrahedronFE;
       case Element::HEXAHEDRON :     return &HexahedronFE;
       case Element::WEDGE :          return &WedgeFE;
-      case Element::CUTQUAD:         return &QuadrilateralFE;
       default:
          MFEM_ABORT("Unknown element type \"" << ElemType << "\"");
          break;
@@ -2312,9 +2311,6 @@ void Mesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
             case Geometry::TETRAHEDRON:
                new_or = GetTetOrientation(old_v, new_v);
                break;
-            case Geometry::CUTSQUARE:
-               new_or = GetQuadOrientation(old_v, new_v);
-               break;
             default:
                new_or = 0;
                MFEM_ABORT(Geometry::Name[geom] << " elements (" << fec->Name()
@@ -3056,7 +3052,7 @@ void Mesh::Make2D(int nx, int ny, Element::Type type,
    attributes.Append(1);
    bdr_attributes.Append(1); bdr_attributes.Append(2);
    bdr_attributes.Append(3); bdr_attributes.Append(4);
-   
+
    // Finalize(...) can be called after this method, if needed
 }
 
@@ -3326,7 +3322,6 @@ Element *Mesh::NewElement(int geom)
       case Geometry::SEGMENT:   return (new Segment);
       case Geometry::TRIANGLE:  return (new Triangle);
       case Geometry::SQUARE:    return (new Quadrilateral);
-      case Geometry::CUTSQUARE: return (new Cutquad);
       case Geometry::TETRAHEDRON:
 #ifdef MFEM_USE_MEMALLOC
          return TetMemory.Alloc();
@@ -3413,12 +3408,6 @@ void Mesh::SetMeshGen()
             mesh_geoms |= (1 << Geometry::CUBE);
          case Element::QUADRILATERAL:
             mesh_geoms |= (1 << Geometry::SQUARE);
-            mesh_geoms |= (1 << Geometry::SEGMENT);
-            mesh_geoms |= (1 << Geometry::POINT);
-            meshgen |= 2;
-            break;
-         case Element::CUTQUAD:
-            mesh_geoms |= (1 << Geometry::CUTSQUARE);
             mesh_geoms |= (1 << Geometry::SEGMENT);
             mesh_geoms |= (1 << Geometry::POINT);
             meshgen |= 2;
@@ -5049,7 +5038,6 @@ void Mesh::GetBdrElementAdjacentElement(int bdr_el, int &el, int &info) const
       case Geometry::SEGMENT:  ori = (fv[0] == bv[0]) ? 0 : 1; break;
       case Geometry::TRIANGLE: ori = GetTriOrientation(fv, bv); break;
       case Geometry::SQUARE:   ori = GetQuadOrientation(fv, bv); break;
-      case Geometry::CUTSQUARE: ori = GetQuadOrientation(fv, bv); break;
       default: MFEM_ABORT("boundary element type not implemented"); ori = 0;
    }
    el   = fi.Elem1No;
@@ -8779,7 +8767,6 @@ void Mesh::Printer(std::ostream &out, std::string section_delimiter) const
        "# TETRAHEDRON = 4\n"
        "# CUBE        = 5\n"
        "# PRISM       = 6\n"
-       "# CUTSQUARE   = 7\n"
        "#\n";
 
    out << "\ndimension\n" << Dim
@@ -8844,7 +8831,6 @@ void Mesh::PrintTopo(std::ostream &out,const Array<int> &e_to_k) const
        "# SEGMENT     = 1\n"
        "# SQUARE      = 3\n"
        "# CUBE        = 5\n"
-       "# CUTSQUARE      = 7\n"
        "#\n";
 
    out << "\ndimension\n" << Dim
@@ -9007,8 +8993,6 @@ void Mesh::PrintVTK(std::ostream &out)
                case Geometry::TRIANGLE:
                case Geometry::SQUARE:
                   vtk_mfem = vtk_quadratic_hex; break; // identity map
-               case Geometry::CUTSQUARE:
-                  vtk_mfem = vtk_quadratic_hex; break; // identity map
                case Geometry::TETRAHEDRON:
                   vtk_mfem = vtk_quadratic_tet; break;
                case Geometry::PRISM:
@@ -9042,7 +9026,6 @@ void Mesh::PrintVTK(std::ostream &out)
             case Geometry::TETRAHEDRON:  vtk_cell_type = 10;  break;
             case Geometry::CUBE:         vtk_cell_type = 12;  break;
             case Geometry::PRISM:        vtk_cell_type = 13;  break;
-            case Geometry::CUTSQUARE:       vtk_cell_type = 9;   break;
             default: break;
          }
       }
@@ -9056,7 +9039,6 @@ void Mesh::PrintVTK(std::ostream &out)
             case Geometry::TETRAHEDRON:  vtk_cell_type = 24;  break;
             case Geometry::CUBE:         vtk_cell_type = 29;  break;
             case Geometry::PRISM:        vtk_cell_type = 32;  break;
-            case Geometry::CUTSQUARE:       vtk_cell_type = 28;  break;
             default: break;
          }
       }
@@ -9337,9 +9319,6 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTKFormat format,
          case Geometry::PRISM:
             vtk_cell_type = high_order_output ? 73 : 13;
             break;
-         case Geometry::CUTSQUARE:
-            vtk_cell_type = high_order_output ? 70 : 9;
-            break;
          default:
             MFEM_ABORT("Unrecognized VTK element type \"" << geom << "\"");
             break;
@@ -9503,7 +9482,6 @@ void Mesh::PrintVTK(std::ostream &out, int ref, int field_data)
          case Geometry::TETRAHEDRON:  vtk_cell_type = 10;  break;
          case Geometry::CUBE:         vtk_cell_type = 12;  break;
          case Geometry::PRISM:        vtk_cell_type = 13;  break;
-         case Geometry::CUTSQUARE:    vtk_cell_type = 9;   break;
          default:
             MFEM_ABORT("Unrecognized VTK element type \"" << geom << "\"");
             break;
@@ -9649,7 +9627,6 @@ void Mesh::PrintWithPartitioning(int *partitioning, std::ostream &out,
        "# TETRAHEDRON = 4\n"
        "# CUBE        = 5\n"
        "# PRISM       = 6\n"
-       "# CUTSQUARE   = 7\n"
        "#\n";
 
    out << "\ndimension\n" << Dim
@@ -10145,7 +10122,6 @@ void Mesh::PrintSurfaces(const Table & Aface_face, std::ostream &out) const
        "# TETRAHEDRON = 4\n"
        "# CUBE        = 5\n"
        "# PRISM       = 6\n"
-       "# CUTSQUARE   = 7\n"
        "#\n";
 
    out << "\ndimension\n" << Dim

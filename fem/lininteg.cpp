@@ -32,6 +32,7 @@ void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
    shape.SetSize(dof);       // vector of size dof
    elvect.SetSize(dof);
    elvect = 0.0;
+
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
@@ -721,6 +722,7 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
       int order = 2*el.GetOrder();
       ir = &IntRules.Get(Tr.GetGeometryType(), order);
    }
+
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);

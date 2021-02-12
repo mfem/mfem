@@ -420,7 +420,7 @@ namespace mfem
             }
 
             const IntegrationRule *ir = &IntRules.Get(trans.FaceGeom, intorder);
-            cout << "face elements are " << trans.Elem1No << " , " << trans.Elem2No << endl;
+            //cout << "face elements are " << trans.Elem1No << " , " << trans.Elem2No << endl;
             for (int i = 0; i < ir->GetNPoints(); i++)
             {
                 const IntegrationPoint &ip = ir->IntPoint(i);
@@ -533,7 +533,9 @@ namespace mfem
         void flux(const mfem::Vector &dir, const mfem::Vector &u_left,
                   const mfem::Vector &u_right, mfem::Vector &flux_vec)
         {
-            calcLaxFriedrichsFlux<dim>(dir.GetData(), u_left.GetData(), u_right.GetData(),
+            // calcLaxFriedrichsFlux<dim>(dir.GetData(), u_left.GetData(), u_right.GetData(),
+            //                            flux_vec.GetData());
+            calcRoeFaceFlux<dim>(dir.GetData(), u_left.GetData(), u_right.GetData(),
                                        flux_vec.GetData());
         }
     };

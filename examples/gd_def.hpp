@@ -191,8 +191,8 @@ void GalerkinDifference::BuildGDProlongation() const
    for (int i = 0; i < nEle; i++)
    {
       GetNeighbourSet(i, nelmt, elmt_id);
-      cout << "Elements id(s) in patch " << i << ": ";
-      elmt_id.Print(cout, elmt_id.Size());
+      // cout << "Elements id(s) in patch " << i << ": ";
+      // elmt_id.Print(cout, elmt_id.Size());
       
       // 2. build the quadrature and barycenter coordinate matrices
       BuildNeighbourMat(elmt_id, cent_mat, quad_mat);
@@ -433,11 +433,11 @@ void buildLSInterpolation(int dim, int degree, const DenseMatrix &x_center,
                double exact = ((p == 0) && (q == 0)) ? 1.0 : 0.0;
                // mfem::out << "polynomial interpolation error (" << p - q << ","
                //           << q << ") = " << fabs(exact - poly_at_quad) << endl;
-               if ((p == 0) && (q == 0))
-               {
-                  MFEM_ASSERT(fabs(exact - poly_at_quad) <= 1e-12, " p = " << p << " , q = " << q << ", " << fabs(exact - poly_at_quad) << " : " 
+               // if ((p == 0) && (q == 0))
+               // {
+               MFEM_ASSERT(fabs(exact - poly_at_quad) <= 1e-12, " p = " << p << " , q = " << q << ", " << fabs(exact - poly_at_quad) << " : " 
                                                                            << "Interpolation operator does not interpolate exactly!\n");
-               }
+              // }
             }
          }
       }

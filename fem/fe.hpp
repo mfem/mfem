@@ -2114,22 +2114,6 @@ public:
    }
 };
 
-class CutNodalTensorFiniteElement : public NodalFiniteElement,
-   public TensorBasisElement
-{
-public:
-   CutNodalTensorFiniteElement(const int dims, const int p, const int btype,
-                            const DofMapType dmtype);
-
-   const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
-                                 DofToQuad::Mode mode) const
-   {
-      return (mode == DofToQuad::FULL) ?
-             ScalarFiniteElement::GetDofToQuad(ir, mode) :
-             ScalarFiniteElement::GetTensorDofToQuad(*this, ir, mode);
-   }
-};
-
 class PositiveTensorFiniteElement : public PositiveFiniteElement,
    public TensorBasisElement
 {
@@ -2213,21 +2197,6 @@ public:
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
 };
 
-class H1_CutQuadElement : public CutNodalTensorFiniteElement
-{
-private:
-#ifndef MFEM_THREAD_SAFE
-   mutable Vector shape_x, shape_y, dshape_x, dshape_y;
-#endif
-
-public:
-   H1_CutQuadElement(const int p,
-                           const int btype = BasisType::GaussLobatto);
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const;
-};
 
 /// Arbitrary H1 elements in 3D on a cube
 class H1_HexahedronElement : public NodalTensorFiniteElement
