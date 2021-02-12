@@ -114,10 +114,10 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 2. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "../../data/inline-quad.mesh";
    int solver_type = 0;
-   int problem = 0;
-   int rs_levels = 0;
+   int problem = 1;
+   int rs_levels = 2;
    int order = 2;
    double t_param = 1.0;
    const char *device_config = "cpu";
