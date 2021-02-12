@@ -2133,6 +2133,16 @@ int FiniteElementSpace::MakeDofTable(int ent_dim,
                                      Table &entity_dofs,
                                      Array<char> *var_ent_order)
 {
+   // The tables var_edge_dofs and var_face_dofs hold DOF assignments for edges
+   // and faces of a variable order space, in which each edge/face may host
+   // several DOF sets, called DOF set variants. Example: an edge 'i' shared by
+   // 4 hexes of orders 2, 3, 4, 5 will hold four DOF sets, each starting at
+   // indices e.g. 100, 101, 103, 106, respectively. These numbers are stored
+   // in row 'i' of var_edge_dofs. Variant zero is always the lowest order DOF
+   // set, followed by consecutive ranges of higher order DOFs. Variable order
+   // faces are handled similarly by var_face_dofs, which holds at most two DOF
+   // set variants per face. The tables are empty for constant-order spaces.
+
    int num_ent = entity_orders.Size();
    int total_dofs = 0;
 
