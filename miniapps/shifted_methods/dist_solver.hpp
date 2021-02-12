@@ -52,13 +52,13 @@ public:
    bool transform, vis_glvis;
 };
 
-class GradientCoefficient : public VectorCoefficient
+class NormalizedGradCoefficient : public VectorCoefficient
 {
 private:
    const GridFunction &u;
 
 public:
-   GradientCoefficient(const GridFunction &u_gf, int dim)
+   NormalizedGradCoefficient(const GridFunction &u_gf, int dim)
       : VectorCoefficient(dim), u(u_gf) { }
 
    void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
@@ -134,7 +134,7 @@ public:
 };
 
 
-///the vector coefficent should return a vector eith elements:
+/// The VectorCoefficent should return a vector with entries:
 /// [0] - derivative with respect to x
 /// [1] - derivative with respect to y
 /// [2] - derivative with respect to z
