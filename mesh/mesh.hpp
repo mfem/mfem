@@ -780,7 +780,7 @@ public:
        integration rule. If @a use_temp is true and using device memory the
        GeometricFactors will be constructed in temporary memory. */
    const GeometricFactors* GetGeometricFactors(const IntegrationRule& ir,
-                                               const int flags, bool use_temp=false);
+                                               const int flags);
 
    /** @brief Return the mesh geometric factors for the faces corresponding
         to the given integration rule. */
@@ -1421,8 +1421,7 @@ public:
       DETERMINANTS = 1 << 2,
    };
 
-   GeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags,
-                    bool use_temp_mem=false);
+   GeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags);
 
    /// Mapped (physical) coordinates of all quadrature points.
    /** This array uses a column-major layout with dimensions (NQ x SDIM x NE)
