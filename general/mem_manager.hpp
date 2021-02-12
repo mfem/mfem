@@ -187,6 +187,12 @@ public:
        MemoryType is still set as valid. */
    Memory(int size, MemoryType mt) { New(size, mt); }
 
+   /** @brief Allocate memory for @a size entries with the given host MemoryType
+       @a h_mt and device MemoryType @a d_mt. */
+   /** The newly allocated memory is not initialized. The host pointer is set as
+       valid. */
+   Memory(int size, MemoryType h_mt, MemoryType d_mt) { New(size, h_mt, d_mt); }
+
    /** @brief Wrap an externally allocated host pointer, @a ptr with the current
        host memory type returned by MemoryManager::GetHostMemoryType(). */
    /** The parameter @a own determines whether @a ptr will be deleted when the
@@ -273,6 +279,16 @@ public:
 
        @note The current memory is NOT deleted by this method. */
    inline void New(int size, MemoryType mt);
+
+   /** @brief Allocate memory for @a size entries with the given host MemoryType
+       @a h_mt and device MemoryType @a d_mt. */
+   /** The newly allocated memory is not initialized. The host pointer is set as
+       valid.
+
+       @note The current memory is NOT deleted by this method.
+
+       TODO: implementation */
+   inline void New(int size, MemoryType h_mt, MemoryType d_mt);
 
    /** @brief Wrap an externally allocated host pointer, @a ptr with the current
        host memory type returned by MemoryManager::GetHostMemoryType(). */
