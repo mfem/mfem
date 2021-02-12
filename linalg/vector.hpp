@@ -86,6 +86,11 @@ public:
    Vector(int size_, MemoryType mt)
       : data(size_, mt), size(size_) { }
 
+   /** @brief Create a Vector of size @a size_ using host MemoryType @a h_mt and
+       device MemoryType @a d_mt. */
+   Vector(int size_, MemoryType h_mt, MemoryType d_mt)
+      : data(size_, h_mt, d_mt), size(size_) { }
+
    /// Enable execution of Vector operations using the mfem::Device.
    /** The default is to use Backend::CPU (serial execution on each MPI rank),
        regardless of the mfem::Device configuration.
