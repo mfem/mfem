@@ -8,7 +8,7 @@
 //
 //   Problem 1: zero level set - circle / sphere at the center of the mesh
 //     mpirun -np 4 distance -m ../../data/inline-quad.mesh -rs 3 -o 2 -t 2.0 -p 1
-//     mpirun -np 4 distance -m ../../data/periodic-cube.mesh -rs 2 -o 2 -t 1.0 -p 1
+//     mpirun -np 4 distance -m ../../data/periodic-cube.mesh -rs 2 -o 2 -t 1.0 -p 1 -s 1
 //
 //   Problem 2: zero level set - perturbed sine.
 //     mpirun -np 4 distance -m ../../data/inline-quad.mesh -rs 3 -o 2 -t 2.0 -p 2
@@ -133,8 +133,9 @@ int main(int argc, char *argv[])
    args.AddOption(&problem, "-p", "--problem",
                   "Problem type:\n\t"
                   "0: Point source\n\t"
-                  "1: 2D sine-looking level set\n\t"
-                  "2: Gyroid in 2D or 3D");
+                  "1: Circle / sphere level set in 2D / 3D\n\t"
+                  "2: 2D sine-looking level set\n\t"
+                  "3: Gyroid level set in 2D or 3D");
    args.AddOption(&rs_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&order, "-o", "--order",
