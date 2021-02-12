@@ -12,7 +12,7 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/shiftedBC/,)
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/shifted_methods/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 # Use the MFEM install directory
 # MFEM_INSTALL_DIR = ../../mfem
@@ -71,17 +71,11 @@ include $(MFEM_TEST_MK)
 
 # Testing: Parallel vs. serial runs
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-TEST_NAME := ShiftedBC
+TEST_NAME := shifted_methods
 %-test-par: %
 	@$(call mfem-test,$<, $(RUN_MPI), $(TEST_NAME))
 %-test-seq: %
 	@$(call mfem-test,$<,, $(TEST_NAME))
-
-# Testing: Specific execution options
-mesh-explorer-test-seq:
-	@true
-shaper-test-seq:
-	@true
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
@@ -92,8 +86,5 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ distance cutH1
+	rm -f *.o *~ distance
 	rm -rf *.dSYM *.TVD.*breakpoints
-
-clean-exec:
-	@rm -f mobius-strip.mesh
