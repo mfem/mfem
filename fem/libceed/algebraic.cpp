@@ -23,16 +23,20 @@ namespace mfem
 
 Solver *BuildSmootherFromCeed(ConstrainedMFEMCeedOperator &op, bool chebyshev)
 {
+   int ierr;
    CeedOperator ceed_op = op.GetCeedOperator();
+   Ceed ceed;
+   CeedOperatorGetCeed(ceed_op, &ceed);
    const Array<int> &ess_tdofs = op.GetEssentialTrueDofs();
    const Operator *P = op.GetProlongation();
    // Assemble the a local diagonal, in the sense of L-vector
    CeedVector diagceed;
    CeedInt length;
-   CeedOperatorGetSize(ceed_op, &length);
-   CeedVectorCreate(internal::ceed, length, &diagceed);
+   ierr = CeedOperatorGetSize(ceed_op, &length); PCeedChk(ceed,ierr);
+   ierr = CeedVectorCreate(internal::ceed, length, &diagceed);
+   PCeedChk(ceed,ierr);
    CeedMemType mem;
-   CeedGetPreferredMemType(internal::ceed, &mem);
+   ierr = CeedGetPreferredMemType(internal::ceed, &mem); PCeedChk(ceed,ierr);
    if (!Device::Allows(Backend::CUDA) || mem != CEED_MEM_DEVICE)
    {
       mem = CEED_MEM_HOST;
@@ -40,9 +44,12 @@ Solver *BuildSmootherFromCeed(ConstrainedMFEMCeedOperator &op, bool chebyshev)
    Vector local_diag(length);
    CeedScalar *ptr = (mem == CEED_MEM_HOST) ? local_diag.HostWrite() :
                      local_diag.Write(true);
-   CeedVectorSetArray(diagceed, mem, CEED_USE_POINTER, ptr);
-   CeedOperatorLinearAssembleDiagonal(ceed_op, diagceed, CEED_REQUEST_IMMEDIATE);
-   CeedVectorTakeArray(diagceed, mem, NULL);
+   ierr = CeedVectorSetArray(diagceed, mem, CEED_USE_POINTER, ptr);
+   PCeedChk(ceed,ierr);
+   ierr = CeedOperatorLinearAssembleDiagonal(ceed_op, diagceed,
+                                             CEED_REQUEST_IMMEDIATE);
+   PCeedChk(ceed,ierr);
+   ierr = CeedVectorTakeArray(diagceed, mem, NULL); PCeedChk(ceed,ierr);
 
    Vector t_diag;
    if (P)
@@ -65,7 +72,7 @@ Solver *BuildSmootherFromCeed(ConstrainedMFEMCeedOperator &op, bool chebyshev)
       const double jacobi_scale = 0.65;
       out = new OperatorJacobiSmoother(t_diag, ess_tdofs, jacobi_scale);
    }
-   CeedVectorDestroy(&diagceed);
+   ierr = CeedVectorDestroy(&diagceed); PCeedChk(ceed,ierr);
    return out;
 }
 
@@ -77,10 +84,15 @@ public:
    CeedAMG(ConstrainedMFEMCeedOperator &oper, HypreParMatrix *P)
    {
       MFEM_ASSERT(P != NULL, "");
+
+      int ierr;
+      Ceed ceed;
+      CeedOperatorGetCeed(oper.GetCeedOperator(), &ceed);
       const Array<int> ess_tdofs = oper.GetEssentialTrueDofs();
       height = width = oper.Height();
 
-      CeedOperatorFullAssemble(oper.GetCeedOperator(), &mat_local);
+      ierr = CeedOperatorFullAssemble(oper.GetCeedOperator(), &mat_local);
+      PCeedChk(ceed,ierr);
 
       {
          HypreParMatrix hypre_local(

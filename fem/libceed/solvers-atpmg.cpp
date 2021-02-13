@@ -111,6 +111,11 @@ int CeedATPMGElemRestriction(int order,
    ierr = CeedVectorRestoreArray(in_lvec, &lvec_data); CeedChk(ierr);
    CeedInt in_layout[3];
    ierr = CeedElemRestrictionGetELayout(er_in, &in_layout); CeedChk(ierr);
+   if (in_layout[0] == 0 && in_layout[1] == 0 && in_layout[2] == 0)
+   {
+      return CeedError(ceed, 1, "Cannot interpret e-vector ordering of given"
+                       "CeedElemRestriction!");
+   }
    ierr = CeedElemRestrictionApply(er_in, CEED_NOTRANSPOSE, in_lvec, in_evec,
                                    CEED_REQUEST_IMMEDIATE); CeedChk(ierr);
    ierr = CeedVectorDestroy(&in_lvec); CeedChk(ierr);
