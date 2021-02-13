@@ -25,18 +25,15 @@ Solver *BuildSmootherFromCeed(ConstrainedMFEMCeedOperator &op, bool chebyshev)
 {
    int ierr;
    CeedOperator ceed_op = op.GetCeedOperator();
-   Ceed ceed;
-   CeedOperatorGetCeed(ceed_op, &ceed);
    const Array<int> &ess_tdofs = op.GetEssentialTrueDofs();
    const Operator *P = op.GetProlongation();
    // Assemble the a local diagonal, in the sense of L-vector
    CeedVector diagceed;
    CeedInt length;
-   ierr = CeedOperatorGetSize(ceed_op, &length); PCeedChk(ceed,ierr);
-   ierr = CeedVectorCreate(internal::ceed, length, &diagceed);
-   PCeedChk(ceed,ierr);
+   ierr = CeedOperatorGetSize(ceed_op, &length); PCeedChk(ierr);
+   ierr = CeedVectorCreate(internal::ceed, length, &diagceed); PCeedChk(ierr);
    CeedMemType mem;
-   ierr = CeedGetPreferredMemType(internal::ceed, &mem); PCeedChk(ceed,ierr);
+   ierr = CeedGetPreferredMemType(internal::ceed, &mem); PCeedChk(ierr);
    if (!Device::Allows(Backend::CUDA) || mem != CEED_MEM_DEVICE)
    {
       mem = CEED_MEM_HOST;
@@ -45,11 +42,11 @@ Solver *BuildSmootherFromCeed(ConstrainedMFEMCeedOperator &op, bool chebyshev)
    CeedScalar *ptr = (mem == CEED_MEM_HOST) ? local_diag.HostWrite() :
                      local_diag.Write(true);
    ierr = CeedVectorSetArray(diagceed, mem, CEED_USE_POINTER, ptr);
-   PCeedChk(ceed,ierr);
+   PCeedChk(ierr);
    ierr = CeedOperatorLinearAssembleDiagonal(ceed_op, diagceed,
                                              CEED_REQUEST_IMMEDIATE);
-   PCeedChk(ceed,ierr);
-   ierr = CeedVectorTakeArray(diagceed, mem, NULL); PCeedChk(ceed,ierr);
+   PCeedChk(ierr);
+   ierr = CeedVectorTakeArray(diagceed, mem, NULL); PCeedChk(ierr);
 
    Vector t_diag;
    if (P)
@@ -72,7 +69,7 @@ Solver *BuildSmootherFromCeed(ConstrainedMFEMCeedOperator &op, bool chebyshev)
       const double jacobi_scale = 0.65;
       out = new OperatorJacobiSmoother(t_diag, ess_tdofs, jacobi_scale);
    }
-   ierr = CeedVectorDestroy(&diagceed); PCeedChk(ceed,ierr);
+   ierr = CeedVectorDestroy(&diagceed); PCeedChk(ierr);
    return out;
 }
 
@@ -86,13 +83,11 @@ public:
       MFEM_ASSERT(P != NULL, "");
 
       int ierr;
-      Ceed ceed;
-      CeedOperatorGetCeed(oper.GetCeedOperator(), &ceed);
       const Array<int> ess_tdofs = oper.GetEssentialTrueDofs();
       height = width = oper.Height();
 
       ierr = CeedOperatorFullAssemble(oper.GetCeedOperator(), &mat_local);
-      PCeedChk(ceed,ierr);
+      PCeedChk(ierr);
 
       {
          HypreParMatrix hypre_local(
@@ -157,8 +152,9 @@ int TryToAddCeedSubOperator(BilinearFormIntegrator *integ_in, CeedOperator op)
 
 CeedOperator CreateCeedCompositeOperatorFromBilinearForm(BilinearForm &form)
 {
+   int ierr;
    CeedOperator op;
-   CeedCompositeOperatorCreate(internal::ceed, &op);
+   ierr = CeedCompositeOperatorCreate(internal::ceed, &op); PCeedChk(ierr);
 
    // Get the domain bilinear form integrators (DBFIs)
    Array<BilinearFormIntegrator*> *bffis = form.GetDBFI();
@@ -187,28 +183,33 @@ CeedOperator CoarsenCeedCompositeOperator(
    int order_reduction
 )
 {
+   int ierr;
    bool isComposite;
-   CeedOperatorIsComposite(op, &isComposite);
+   ierr = CeedOperatorIsComposite(op, &isComposite); PCeedChk(ierr);
    MFEM_ASSERT(isComposite, "");
 
    CeedOperator op_coarse;
-   CeedCompositeOperatorCreate(internal::ceed, &op_coarse);
+   ierr = CeedCompositeOperatorCreate(internal::ceed,
+                                      &op_coarse); PCeedChk(ierr);
 
    int nsub;
-   CeedOperatorGetNumSub(op, &nsub);
+   ierr = CeedOperatorGetNumSub(op, &nsub); PCeedChk(ierr);
    CeedOperator *subops;
-   CeedOperatorGetSubList(op, &subops);
+   ierr = CeedOperatorGetSubList(op, &subops); PCeedChk(ierr);
    for (int isub=0; isub<nsub; ++isub)
    {
       CeedOperator subop = subops[isub];
       CeedBasis basis_coarse, basis_c2f;
       CeedOperator subop_coarse;
-      CeedATPMGOperator(subop, order_reduction, er, &basis_coarse, &basis_c2f,
-                        &subop_coarse);
-      CeedBasisDestroy(&basis_coarse); // refcounted by subop_coarse
-      CeedBasisDestroy(&basis_c2f);
-      CeedCompositeOperatorAddSub(op_coarse, subop_coarse);
-      CeedOperatorDestroy(&subop_coarse); // refcounted by composite operator
+      ierr = CeedATPMGOperator(subop, order_reduction, er, &basis_coarse,
+                               &basis_c2f, &subop_coarse); PCeedChk(ierr);
+      // destructions below make sense because these objects are
+      // refcounted by existing objects
+      ierr = CeedBasisDestroy(&basis_coarse); PCeedChk(ierr);
+      ierr = CeedBasisDestroy(&basis_c2f); PCeedChk(ierr);
+      ierr = CeedCompositeOperatorAddSub(op_coarse, subop_coarse);
+      PCeedChk(ierr);
+      ierr = CeedOperatorDestroy(&subop_coarse); PCeedChk(ierr);
    }
    return op_coarse;
 }
@@ -384,21 +385,26 @@ AlgebraicCoarseSpace::AlgebraicCoarseSpace(
    int order_reduction_
 ) : order_reduction(order_reduction_)
 {
+   int ierr;
    order_reduction = order_reduction_;
 
-   CeedATPMGElemRestriction(order, order_reduction, fine_er,
-                            &ceed_elem_restriction, dof_map );
-   CeedBasisATPMGCoarseToFine(internal::ceed, order+1, dim,
-                              order_reduction, &coarse_to_fine );
-   CeedElemRestrictionGetLVectorSize(ceed_elem_restriction, &ndofs);
+   ierr = CeedATPMGElemRestriction(order, order_reduction, fine_er,
+                                   &ceed_elem_restriction, dof_map);
+   PCeedChk(ierr);
+   ierr = CeedBasisATPMGCoarseToFine(internal::ceed, order+1, dim,
+                                     order_reduction, &coarse_to_fine);
+   PCeedChk(ierr);
+   ierr = CeedElemRestrictionGetLVectorSize(ceed_elem_restriction, &ndofs);
+   PCeedChk(ierr);
    mesh = fine_fes.GetMesh();
 }
 
 AlgebraicCoarseSpace::~AlgebraicCoarseSpace()
 {
+   int ierr;
    delete [] dof_map;
-   CeedBasisDestroy(&coarse_to_fine);
-   CeedElemRestrictionDestroy(&ceed_elem_restriction);
+   ierr = CeedBasisDestroy(&coarse_to_fine); PCeedChk(ierr);
+   ierr = CeedElemRestrictionDestroy(&ceed_elem_restriction); PCeedChk(ierr);
 }
 
 #ifdef MFEM_USE_MPI
