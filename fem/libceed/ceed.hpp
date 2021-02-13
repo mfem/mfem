@@ -34,11 +34,11 @@ class Coefficient;
 
 #ifdef MFEM_USE_CEED
 
-#define PCeedChk(ceed,err) do {                                                \
+#define PCeedChk(err) do {                                                     \
      if ((err))                                                                \
      {                                                                         \
         const char * errmsg;                                                   \
-        CeedGetErrorMessage(ceed, &errmsg);                                    \
+        CeedGetErrorMessage(internal::ceed, &errmsg);                          \
         MFEM_ABORT(errmsg);                                                    \
      }                                                                         \
   } while(0);
