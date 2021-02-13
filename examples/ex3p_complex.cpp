@@ -93,6 +93,7 @@ public:
       cg->SetPrintLevel(0);
       cg->SetOperator(*sumOpRe);
       cg->SetPreconditioner(*prec_Re);
+      cg->iterative_mode = false;
 
       SRe = cg;
 
@@ -103,6 +104,7 @@ public:
       cgi->SetOperator(*sumOpIm);
       if (prec_Im && useIdentityV) { cgi->SetPreconditioner(*prec_Im); }
       if (!useIdentityV) { cgi->SetPreconditioner(*prec_Re); }
+      cgi->iterative_mode = false;
 
       /*
       // For negative definite imaginary part, but then PMHSS does not work?
@@ -321,11 +323,13 @@ int main(int argc, char *argv[])
    //    by marking all the boundary attributes from the mesh as essential
    //    (Dirichlet) and converting them to a list of true dofs.
    Array<int> ess_tdof_list;
+   Array<int> ess_bdr;
+   ess_bdr.SetSize(pmesh->bdr_attributes.Max());
+   ess_bdr = 0;
 
 #ifndef NEUMANN
    if (pmesh->bdr_attributes.Size())
    {
-      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
@@ -351,7 +355,8 @@ int main(int argc, char *argv[])
 #ifdef COMPLEX_VERSION
    ParComplexLinearForm *b = new ParComplexLinearForm(fespace);
    b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f), NULL);
-   b->AddBoundaryIntegrator(NULL, new VectorFEDomainLFIntegrator(omegaE));  // im part
+   b->AddBoundaryIntegrator(NULL,
+                            new VectorFEDomainLFIntegrator(omegaE));  // im part
 #else
    // Real version
    ParLinearForm *b = new ParLinearForm(fespace);
@@ -359,7 +364,8 @@ int main(int argc, char *argv[])
 #endif
 
 #ifdef NEUMANN
-   b->AddBoundaryIntegrator(new VectorFEBoundaryTangentLFIntegrator(curlE_Re), NULL);
+   b->AddBoundaryIntegrator(new VectorFEBoundaryTangentLFIntegrator(curlE_Re),
+                            NULL);
 #endif
 
    b->Assemble();
@@ -395,9 +401,11 @@ int main(int argc, char *argv[])
    //     mass domain integrators.
    Coefficient *muinv = new ConstantCoefficient(1.0);
 #ifdef INDEFINITE
-   Coefficient *sigma = new ConstantCoefficient(-omega*omega); // indefinite -, definite +
+   Coefficient *sigma = new ConstantCoefficient(
+      -omega*omega); // indefinite -, definite +
 #else
-   Coefficient *sigma = new ConstantCoefficient(omega*omega); // indefinite -, definite +
+   Coefficient *sigma = new ConstantCoefficient(
+      omega*omega); // indefinite -, definite +
 #endif
    Coefficient *abssigma = new ConstantCoefficient(omega*omega);
    Coefficient *imabs = new ConstantCoefficient(imscale);  // im part
@@ -436,7 +444,8 @@ int main(int argc, char *argv[])
    a_Re.AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
    a_Re.AddDomainIntegrator(new VectorFEMassIntegrator(*abssigma));
 
-   if (pa) { a_Re.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   //if (pa) { a_Re.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   a_Re.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    a_Re.Assemble();
 
    OperatorPtr A_Re;
@@ -486,7 +495,17 @@ int main(int argc, char *argv[])
               << A.As<HypreParMatrix>()->GetGlobalNumRows() << endl;
       }
 
-      HypreAMS ams(*A_Re.As<HypreParMatrix>(), fespace);
+      //HypreAMS ams(*A_Re.As<HypreParMatrix>(), fespace);
+
+#ifdef MFEM_USE_AMGX
+      bool useAmgX = false;
+      cout << "Built with AMGX, using AMGX " << useAmgX << endl;
+      MatrixFreeAMS ams(a_Re, *A_Re, *fespace, muinv, abssigma, NULL, ess_bdr,
+                        useAmgX);
+#else
+      cout << "Not built with AMGX" << endl;
+      MatrixFreeAMS ams(a_Re, *A_Re, *fespace, muinv, abssigma, NULL, ess_bdr);
+#endif
 
 #ifdef COMPLEX_VERSION
       BlockDiagonalPreconditioner BlockDP(offsets);
@@ -629,13 +648,13 @@ void curlE_exact(const Vector &x, Vector &curl)
 {
    if (dim == 3)
    {
-     curl(0) = kappa * cos(kappa * x(2));
-     curl(1) = kappa * cos(kappa * x(0));
-     curl(2) = kappa * cos(kappa * x(1));
+      curl(0) = kappa * cos(kappa * x(2));
+      curl(1) = kappa * cos(kappa * x(0));
+      curl(2) = kappa * cos(kappa * x(1));
    }
    else
    {
-     MFEM_VERIFY(false, "");
+      MFEM_VERIFY(false, "");
    }
 }
 
@@ -643,12 +662,12 @@ void f_exact(const Vector &x, Vector &f)
 {
    if (dim == 3)
    {
-     // indefinite -m, definite +m
-     const double c = kappa * kappa;
+      // indefinite -m, definite +m
+      const double c = kappa * kappa;
 #ifdef INDEFINITE
-     const double m = -omega * omega;
+      const double m = -omega * omega;
 #else
-     const double m = omega * omega;
+      const double m = omega * omega;
 #endif
       f(0) = (c + m) * sin(kappa * x(1));
       f(1) = (c + m) * sin(kappa * x(2));

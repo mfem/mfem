@@ -105,7 +105,7 @@ public:
       if (prec_Im && useIdentityV) { cgi->SetPreconditioner(*prec_Im); }
       if (!useIdentityV) { cgi->SetPreconditioner(*prec_Re); }
       cgi->iterative_mode = false;
-      
+
       /*
       // For negative definite imaginary part, but then PMHSS does not work?
       MINRESSolver *cgi = new MINRESSolver(MPI_COMM_WORLD);
@@ -342,7 +342,7 @@ int main(int argc, char *argv[])
    FunctionCoefficient E_coef(E_exact);
    VectorFunctionCoefficient grad_E(sdim, gradE_exact);
    ProductCoefficient omegaE(imscale, E_coef);
-   
+
    // 9. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is
    //    (f,phi_i) where f is given by the function f_exact and phi_i are the
@@ -586,7 +586,7 @@ double E_exact(const Vector &x)
    }
    else
    {
-     return 0.0;
+      return 0.0;
    }
 }
 
@@ -595,18 +595,18 @@ void gradE_exact(const Vector &x, Vector &grad)
    if (dim == 3)
    {
 #ifdef VERSION_COS
-     grad(0) = -kappa * sin(kappa * x(0)) * cos(kappa * x(1)) * cos(kappa * x(2));
-     grad(1) = -kappa * sin(kappa * x(1)) * cos(kappa * x(0)) * cos(kappa * x(2));
-     grad(2) = -kappa * sin(kappa * x(2)) * cos(kappa * x(0)) * cos(kappa * x(1));
+      grad(0) = -kappa * sin(kappa * x(0)) * cos(kappa * x(1)) * cos(kappa * x(2));
+      grad(1) = -kappa * sin(kappa * x(1)) * cos(kappa * x(0)) * cos(kappa * x(2));
+      grad(2) = -kappa * sin(kappa * x(2)) * cos(kappa * x(0)) * cos(kappa * x(1));
 #else
-     grad(0) = kappa * cos(kappa * x(0)) * sin(kappa * x(1)) * sin(kappa * x(2));
-     grad(1) = kappa * cos(kappa * x(1)) * sin(kappa * x(0)) * sin(kappa * x(2));
-     grad(2) = kappa * cos(kappa * x(2)) * sin(kappa * x(0)) * sin(kappa * x(1));
+      grad(0) = kappa * cos(kappa * x(0)) * sin(kappa * x(1)) * sin(kappa * x(2));
+      grad(1) = kappa * cos(kappa * x(1)) * sin(kappa * x(0)) * sin(kappa * x(2));
+      grad(2) = kappa * cos(kappa * x(2)) * sin(kappa * x(0)) * sin(kappa * x(1));
 #endif
    }
    else
    {
-     MFEM_VERIFY(false, "");
+      MFEM_VERIFY(false, "");
    }
 }
 
@@ -615,15 +615,15 @@ double f_exact(const Vector &x)
 {
    if (dim == 3)
    {
-     const double c = 3.0 * kappa * kappa;
+      const double c = 3.0 * kappa * kappa;
 #ifdef VERSION_COS
-     return (eps + c) * cos(kappa * x(0)) * cos(kappa * x(1)) * cos(kappa * x(2));
+      return (eps + c) * cos(kappa * x(0)) * cos(kappa * x(1)) * cos(kappa * x(2));
 #else
-     return (eps + c) * sin(kappa * x(0)) * sin(kappa * x(1)) * sin(kappa * x(2));
+      return (eps + c) * sin(kappa * x(0)) * sin(kappa * x(1)) * sin(kappa * x(2));
 #endif
    }
    else
-     {
-       return 0.0;
-     }
+   {
+      return 0.0;
+   }
 }
