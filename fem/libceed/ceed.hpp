@@ -34,6 +34,16 @@ class Coefficient;
 
 #ifdef MFEM_USE_CEED
 
+#define PCeedChk(ceed,err) do {                                                \
+     if ((err))                                                                \
+     {                                                                         \
+        const char * errmsg;                                                   \
+        CeedGetErrorMessage(ceed, &errmsg);                                    \
+        MFEM_ABORT(errmsg);                                                    \
+     }                                                                         \
+  } while(0);
+
+
 /// A structure used to pass additional data to f_build_diff and f_apply_diff
 struct BuildContext { CeedInt dim, space_dim, vdim; CeedScalar coeff; };
 
