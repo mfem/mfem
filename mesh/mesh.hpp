@@ -524,7 +524,7 @@ public:
       double sx = 1.0, double sy = 1.0, double sz = 1.0,
       bool sfc_ordering = true);
 
-   /// Create a uniformly refined (by any factor) version of @a orig_mesh.
+   /// Create a refined (by any factor) version of @a orig_mesh.
    /** @param[in] orig_mesh  The starting coarse mesh.
        @param[in] ref_factor The refinement factor, an integer > 1.
        @param[in] ref_type   Specify the positions of the new vertices. The
