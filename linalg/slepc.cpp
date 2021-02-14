@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -62,6 +62,9 @@ SlepcEigenSolver::SlepcEigenSolver(MPI_Comm comm, const std::string &prefix)
 
 SlepcEigenSolver::~SlepcEigenSolver()
 {
+   delete VR;
+   delete VC;
+
    MPI_Comm comm;
    ierr = PetscObjectGetComm((PetscObject)eps,&comm); PCHKERRQ(eps,ierr);
    ierr = EPSDestroy(&eps); CCHKERRQ(comm,ierr);

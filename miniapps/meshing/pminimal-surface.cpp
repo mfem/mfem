@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -20,7 +20,7 @@
 //
 //  - Problem 0 solves the minimal surface equation of parametric surfaces.
 //              The surface (-s) option allow the selection of different
-//              parameterizations:
+//              parametrization:
 //                s=0: Uses the given mesh from command line options
 //                s=1: Catenoid
 //                s=2: Helicoid

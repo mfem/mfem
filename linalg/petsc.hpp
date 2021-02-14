@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -799,7 +799,7 @@ public:
 class PetscODESolver : public PetscSolver, public ODESolver
 {
 public:
-   /// The type of the ODE. Use ODE_SOLVER_LINEAR if the jacobians
+   /// The type of the ODE. Use ODE_SOLVER_LINEAR if the Jacobians
    /// are linear and independent of time.
    enum Type
    {

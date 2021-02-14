@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -53,11 +53,17 @@ ParNCMesh::ParNCMesh(MPI_Comm comm, std::istream &input, int version,
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
 
-   int myrank;
-   MPI_Comm_rank(MyComm, &myrank);
+   int my_rank;
+   MPI_Comm_rank(MyComm, &my_rank);
 
-   MFEM_VERIFY(myrank == MyRank,
-               "Current MPI rank is not equal to the rank in the mesh file. "
+   int max_rank = 0;
+   for (int i = 0; i < leaf_elements.Size(); i++)
+   {
+      max_rank = std::max(elements[leaf_elements[i]].rank, max_rank);
+   }
+
+   MFEM_VERIFY((my_rank == MyRank) && (max_rank < NRanks),
+               "Parallel mesh file doesn't seem to match current MPI setup. "
                "Loading a parallel NC mesh with a non-matching communicator "
                "size is not supported.");
 
@@ -307,7 +313,7 @@ void ParNCMesh::MakeSharedList(const NCList &list, NCList &shared)
    MFEM_VERIFY(tmp_shared_flag.Size(), "wrong code path");
 
    // combine flags of masters and slaves
-   for (unsigned i = 0; i < list.masters.size(); i++)
+   for (int i = 0; i < list.masters.Size(); i++)
    {
       const Master &master = list.masters[i];
       char &master_flag = tmp_shared_flag[master.index];
@@ -334,26 +340,26 @@ void ParNCMesh::MakeSharedList(const NCList &list, NCList &shared)
 
    shared.Clear();
 
-   for (unsigned i = 0; i < list.conforming.size(); i++)
+   for (int i = 0; i < list.conforming.Size(); i++)
    {
       if (tmp_shared_flag[list.conforming[i].index] == 0x3)
       {
-         shared.conforming.push_back(list.conforming[i]);
+         shared.conforming.Append(list.conforming[i]);
       }
    }
-   for (unsigned i = 0; i < list.masters.size(); i++)
+   for (int i = 0; i < list.masters.Size(); i++)
    {
       if (tmp_shared_flag[list.masters[i].index] == 0x3)
       {
-         shared.masters.push_back(list.masters[i]);
+         shared.masters.Append(list.masters[i]);
       }
    }
-   for (unsigned i = 0; i < list.slaves.size(); i++)
+   for (int i = 0; i < list.slaves.Size(); i++)
    {
       int si = list.slaves[i].index;
       if (si >= 0 && tmp_shared_flag[si] == 0x3)
       {
-         shared.slaves.push_back(list.slaves[i]);
+         shared.slaves.Append(list.slaves[i]);
       }
    }
 }
@@ -473,7 +479,7 @@ void ParNCMesh::CalculatePMatrixGroups()
    ranks.Reserve(256);
 
    // connect slave edges to master edges and their vertices
-   for (unsigned i = 0; i < shared_edges.masters.size(); i++)
+   for (int i = 0; i < shared_edges.masters.Size(); i++)
    {
       const Master &master_edge = shared_edges.masters[i];
       ranks.SetSize(0);
@@ -495,7 +501,7 @@ void ParNCMesh::CalculatePMatrixGroups()
    }
 
    // connect slave faces to master faces and their edges and vertices
-   for (unsigned i = 0; i < shared_faces.masters.size(); i++)
+   for (int i = 0; i < shared_faces.masters.Size(); i++)
    {
       const Master &master_face = shared_faces.masters[i];
       ranks.SetSize(0);
@@ -887,13 +893,13 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
    Array<Element*> fnbr;
    Array<Connection> send_elems;
 
-   int bound = shared.conforming.size() + shared.slaves.size();
+   int bound = shared.conforming.Size() + shared.slaves.Size();
 
    fnbr.Reserve(bound);
    send_elems.Reserve(bound);
 
    // go over all shared faces and collect face neighbor elements
-   for (unsigned i = 0; i < shared.conforming.size(); i++)
+   for (int i = 0; i < shared.conforming.Size(); i++)
    {
       const MeshId &cf = shared.conforming[i];
       Face* face = GetFace(elements[cf.element], cf.local);
@@ -909,7 +915,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       send_elems.Append(Connection(e[0]->rank, e[1]->index));
    }
 
-   for (unsigned i = 0; i < shared.masters.size(); i++)
+   for (int i = 0; i < shared.masters.Size(); i++)
    {
       const Master &mf = shared.masters[i];
       for (int j = mf.slaves_begin; j < mf.slaves_end; j++)
@@ -1025,7 +1031,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
    pmesh.send_face_nbr_elements.MakeFromList(nranks, send_elems);
 
    // go over the shared faces again and modify their Mesh::FaceInfo
-   for (unsigned i = 0; i < shared.conforming.size(); i++)
+   for (int i = 0; i < shared.conforming.Size(); i++)
    {
       const MeshId &cf = shared.conforming[i];
       Face* face = GetFace(elements[cf.element], cf.local);
@@ -1048,7 +1054,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       }
    }
 
-   if (shared.slaves.size())
+   if (shared.slaves.Size())
    {
       int nfaces = NFaces, nghosts = NGhostFaces;
       if (Dim <= 2) { nfaces = NEdges, nghosts = NGhostEdges; }
@@ -1068,7 +1074,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       // remain untouched below and they will have Elem1No == -1, in particular.
 
       // fill in FaceInfo for shared slave faces
-      for (unsigned i = 0; i < shared.masters.size(); i++)
+      for (int i = 0; i < shared.masters.Size(); i++)
       {
          const Master &mf = shared.masters[i];
          for (int j = mf.slaves_begin; j < mf.slaves_end; j++)
@@ -1110,7 +1116,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
             MFEM_ASSERT(fi.Elem2No >= NElements, "");
             fi.Elem2No = -1 - fnbr_index[fi.Elem2No - NElements];
 
-            const DenseMatrix* pm = &sf.point_matrix;
+            const DenseMatrix* pm = full_list.point_matrices[sf.geom][sf.matrix];
             if (!sloc && Dim == 3)
             {
                // TODO: does this handle triangle faces correctly?
@@ -2239,8 +2245,8 @@ void ParNCMesh::AdjustMeshIds(Array<MeshId> ids[], int rank)
    GetSharedEdges();
    GetSharedFaces();
 
-   if (!shared_edges.masters.size() &&
-       !shared_faces.masters.size()) { return; }
+   if (!shared_edges.masters.Size() &&
+       !shared_faces.masters.Size()) { return; }
 
    Array<bool> contains_rank(groups.size());
    for (unsigned i = 0; i < groups.size(); i++)
@@ -2258,7 +2264,7 @@ void ParNCMesh::AdjustMeshIds(Array<MeshId> ids[], int rank)
 
    // find vertices of master edges shared with 'rank', and modify their
    // MeshIds so their element/local matches the element of the master edge
-   for (unsigned i = 0; i < shared_edges.masters.size(); i++)
+   for (int i = 0; i < shared_edges.masters.Size(); i++)
    {
       const MeshId &edge_id = shared_edges.masters[i];
       if (contains_rank[entity_pmat_group[1][edge_id.index]])
@@ -2278,7 +2284,7 @@ void ParNCMesh::AdjustMeshIds(Array<MeshId> ids[], int rank)
       }
    }
 
-   if (!shared_faces.masters.size()) { return; }
+   if (!shared_faces.masters.Size()) { return; }
 
    Array<Pair<int, int> > find_e(ids[1].Size());
    for (int i = 0; i < ids[1].Size(); i++)
@@ -2290,7 +2296,7 @@ void ParNCMesh::AdjustMeshIds(Array<MeshId> ids[], int rank)
 
    // find vertices/edges of master faces shared with 'rank', and modify their
    // MeshIds so their element/local matches the element of the master face
-   for (unsigned i = 0; i < shared_faces.masters.size(); i++)
+   for (int i = 0; i < shared_faces.masters.Size(); i++)
    {
       const MeshId &face_id = shared_faces.masters[i];
       if (contains_rank[entity_pmat_group[2][face_id.index]])
@@ -2699,9 +2705,9 @@ void ParNCMesh::Trim()
 {
    NCMesh::Trim();
 
-   shared_vertices.Clear(true);
-   shared_edges.Clear(true);
-   shared_faces.Clear(true);
+   shared_vertices.Clear();
+   shared_edges.Clear();
+   shared_faces.Clear();
 
    for (int i = 0; i < 3; i++)
    {

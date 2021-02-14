@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -74,6 +74,8 @@ struct CoarseFineTransformations
    bool IsInitialized() const;
    long MemoryUsage() const;
 };
+
+struct MatrixMap; // for internal use
 
 
 /** \brief A class for non-conforming AMR on higher-order hexahedral, prismatic,
@@ -155,14 +157,12 @@ public:
       int index;   ///< Mesh number
       int element; ///< NCMesh::Element containing this vertex/edge/face
       signed char local; ///< local number within 'element'
-      signed char geom;  /**< Geometry::Type (faces only) (char storage to save
-                              RAM) */
-
-      MeshId(int index = -1, int element = -1, signed char local = -1,
-             signed char geom = -1)
-         : index(index), element(element), local(local), geom(geom) {}
+      signed char geom;  ///< Geometry::Type (faces only) (char to save RAM)
 
       Geometry::Type Geom() const { return Geometry::Type(geom); }
+
+      MeshId(int index = -1, int element = -1, int local = -1, int geom = -1)
+         : index(index), element(element), local(local), geom(geom) {}
    };
 
    /** Nonconforming edge/face that has more than one neighbor. The neighbors
@@ -171,7 +171,8 @@ public:
    {
       int slaves_begin, slaves_end; ///< slave faces
 
-      Master(int index, int element, char local, char geom, int sb, int se)
+      Master() = default;
+      Master(int index, int element, int local, int geom, int sb, int se)
          : MeshId(index, element, local, geom)
          , slaves_begin(sb), slaves_end(se) {}
    };
@@ -180,32 +181,37 @@ public:
    struct Slave : public MeshId
    {
       int master; ///< master number (in Mesh numbering)
-      int edge_flags; ///< edge orientation flags
-      DenseMatrix point_matrix; ///< position within the master edge/face
+      unsigned matrix : 24;    ///< index into NCList::point_matrices[geom]
+      unsigned edge_flags : 8; ///< orientation flags, see OrientedPointMatrix
 
-      Slave(int index, int element, signed char local, signed char geom)
+      Slave() = default;
+      Slave(int index, int element, int local, int geom)
          : MeshId(index, element, local, geom)
-         , master(-1), edge_flags(0) {}
-
-      /// Return the point matrix oriented according to the master and slave edges
-      void OrientedPointMatrix(DenseMatrix &oriented_matrix) const;
+         , master(-1), matrix(0), edge_flags(0) {}
    };
 
    /// Lists all edges/faces in the nonconforming mesh.
    struct NCList
    {
-      std::vector<MeshId> conforming;
-      std::vector<Master> masters;
-      std::vector<Slave> slaves;
-      // TODO: switch to Arrays when fixed for non-POD types
-      // TODO: make a list of unique slave matrices to save memory (+ time later)
+      Array<MeshId> conforming;
+      Array<Master> masters;
+      Array<Slave> slaves;
 
-      void Clear(bool hard = false);
-      bool Empty() const { return !conforming.size() && !masters.size(); }
+      /// List of unique point matrices for each slave geometry.
+      Array<DenseMatrix*> point_matrices[Geometry::NumGeom];
+
+      /// Return the point matrix oriented according to the master and slave edges
+      void OrientedPointMatrix(const Slave &slave,
+                               DenseMatrix &oriented_matrix) const;
+
+      void Clear();
+      bool Empty() const { return !conforming.Size() && !masters.Size(); }
       long TotalSize() const;
       long MemoryUsage() const;
 
       const MeshId& LookUp(int index, int *type = NULL) const;
+
+      ~NCList() { Clear(); }
    private:
       mutable Array<int> inv_index;
    };
@@ -338,8 +344,14 @@ public:
                                   Array<int> &fattr) const;
 
 
-   /// I/O: Print the mesh in "MFEM nonconforming mesh v1.0" format.
+   /// I/O: Print the mesh in "MFEM NC mesh v1.0" format.
    void Print(std::ostream &out) const;
+
+   /// I/O: Return true if the mesh was loaded from the legacy v1.1 format.
+   bool IsLegacyLoaded() const { return Legacy; }
+
+   /// I/O: Return a map from old (v1.1) vertex indices to new vertex indices.
+   void LegacyToNewVertexOrdering(Array<int> &order) const;
 
    /// Save memory by releasing all non-essential and cached data.
    virtual void Trim();
@@ -374,6 +386,7 @@ protected: // implementation
    int MyRank; ///< used in parallel, or when loading a parallel file in serial
    bool Iso; ///< true if the mesh only contains isotropic refinements
    int Geoms; ///< bit mask of element geometries present, see InitGeomFlags()
+   bool Legacy; ///< true if the mesh was loaded from the legacy v1.1 format
 
    /** A Node can hold a vertex, an edge, or both. Elements directly point to
        their corner nodes, but edge nodes also exist and can be accessed using
@@ -614,17 +627,23 @@ protected: // implementation
                                 bool abort = true);
    static int find_local_face(int geom, int a, int b, int c);
 
-   int ReorderFacePointMat(int v0, int v1, int v2, int v3,
-                           int elem, DenseMatrix& mat) const;
    struct Point;
    struct PointMatrix;
+
+   int ReorderFacePointMat(int v0, int v1, int v2, int v3,
+                           int elem, const PointMatrix &pm,
+                           PointMatrix &reordered) const;
+
    void TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
-                         const PointMatrix& pm, int level, Face* eface[4]);
+                         const PointMatrix& pm, int level, Face* eface[4],
+                         MatrixMap &matrix_map);
    bool TraverseTriFace(int vn0, int vn1, int vn2,
-                        const PointMatrix& pm, int level);
-   void TraverseTetEdge(int vn0, int vn1, const Point &p0, const Point &p1);
+                        const PointMatrix& pm, int level,
+                        MatrixMap &matrix_map);
+   void TraverseTetEdge(int vn0, int vn1, const Point &p0, const Point &p1,
+                        MatrixMap &matrix_map);
    void TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
-                     int level);
+                     int level, MatrixMap &matrix_map);
 
    virtual void BuildFaceList();
    virtual void BuildEdgeList();
@@ -694,6 +713,9 @@ protected: // implementation
 
       Point() { dim = 0; }
 
+      Point(double x)
+      { dim = 1; coord[0] = x; }
+
       Point(double x, double y)
       { dim = 2; coord[0] = x; coord[1] = y; }
 
@@ -733,6 +755,11 @@ protected: // implementation
       int np;
       Point points[8];
 
+      PointMatrix() : np(0) {}
+
+      PointMatrix(const Point& p0, const Point& p1)
+      { np = 2; points[0] = p0; points[1] = p1; }
+
       PointMatrix(const Point& p0, const Point& p1, const Point& p2)
       { np = 3; points[0] = p0; points[1] = p1; points[2] = p2; }
 
@@ -757,6 +784,8 @@ protected: // implementation
 
       Point& operator()(int i) { return points[i]; }
       const Point& operator()(int i) const { return points[i]; }
+
+      bool operator==(const PointMatrix &pm) const;
 
       void GetMatrix(DenseMatrix& point_matrix) const;
    };
@@ -834,7 +863,7 @@ protected: // implementation
    /// Load the "coordinates" section of the mesh file.
    void LoadCoordinates(std::istream &input);
 
-   /// Count root elements and intialize root_state.
+   /// Count root elements and initialize root_state.
    void InitRootElements();
    /// Return the index of the last top-level node plus one.
    int CountTopLevelNodes() const;
@@ -843,12 +872,9 @@ protected: // implementation
 
    /// Load the element refinement hierarchy from a legacy mesh file.
    void LoadCoarseElements(std::istream &input);
-   void CopyElements(int elem, const BlockArray<Element> &tmp_elements,
-                     Array<int> &index_map);
+   void CopyElements(int elem, const BlockArray<Element> &tmp_elements);
    /// Load the deprecated MFEM mesh v1.1 format for backward compatibility.
    void LoadLegacyFormat(std::istream &input, int &curved);
-   /// Return a map from old (v1.1) vertex indices to new vertex indices.
-   void LegacyToNewVertexOrdering(Array<int> &order) const;
 
 
    // geometry
@@ -876,7 +902,8 @@ public:
 #endif
 
    friend class ParNCMesh; // for ParNCMesh::ElementSet
-   friend struct CompareRanks;
+   friend struct MatrixMap;
+   friend struct PointMatrixHash;
 };
 
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -826,7 +826,7 @@ void GroupCommunicator::BcastBegin(T *ldata, int layout) const
       }
    }
 
-   comm_lock = 1; // 1 - locked fot Bcast
+   comm_lock = 1; // 1 - locked for Bcast
    num_requests = request_counter;
 }
 

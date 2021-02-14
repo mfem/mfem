@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2502,7 +2502,7 @@ void PetscLinearSolver::SetPreconditioner(Solver &precond)
    {
       // wrap the Solver action
       // Solver is assumed to be already setup
-      // ownership of precond is not tranferred,
+      // ownership of precond is not transferred,
       // consistently with other MFEM's linear solvers
       PC pc;
       ierr = KSPGetPC(ksp,&pc); PCHKERRQ(ksp,ierr);

@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -63,7 +63,7 @@ if (MFEM_USE_MPI)
 
   add_test(NAME nurbs_ex1p_lap_np=4
     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-    ${MPIEXEC_PREFLAGS} $<TARGET_FILE:nurbs_ex1p> -no-vis -m 
+    ${MPIEXEC_PREFLAGS} $<TARGET_FILE:nurbs_ex1p> -no-vis -m
     ${PROJECT_SOURCE_DIR}/data/pipe-nurbs-2d.mesh -o 2 -no-ibp
     ${MPIEXEC_POSTFLAGS})
 
@@ -75,12 +75,12 @@ if (MFEM_USE_MPI)
 
 add_test(NAME nurbs_ex1_weak_patch_format_np=4
     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-    ${MPIEXEC_PREFLAGS}  $<TARGET_FILE:nurbs_ex1> -no-vis
+    ${MPIEXEC_PREFLAGS}  $<TARGET_FILE:nurbs_ex1p> -no-vis
     -m ${PROJECT_SOURCE_DIR}/data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 0)
 
 add_test(NAME nurbs_ex1_weak_patch_format_r1_np=4
     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-    ${MPIEXEC_PREFLAGS}  $<TARGET_FILE:nurbs_ex1> -no-vis
+    ${MPIEXEC_PREFLAGS}  $<TARGET_FILE:nurbs_ex1p> -no-vis
     -m ${PROJECT_SOURCE_DIR}/data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 1)
 
   add_mfem_miniapp(nurbs_ex11p

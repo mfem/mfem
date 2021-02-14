@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,7 +14,6 @@
 
 #include "ceed.hpp"
 
-#ifdef MFEM_USE_CEED
 #include "../fespace.hpp"
 
 namespace mfem
@@ -25,8 +24,10 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
                         const mfem::IntegrationRule &ir,
                         CeedData& ceedData);
 
-}
+void CeedMFMassAssemble(const FiniteElementSpace &fes,
+                        const mfem::IntegrationRule &irm,
+                        CeedData& ceedData);
 
-#endif // MFEM_USE_CEED
+}
 
 #endif // MFEM_LIBCEED_MASS_HPP

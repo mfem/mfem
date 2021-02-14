@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -185,6 +185,12 @@ public:
    /** @brief Reset the OperatorHandle to be the eliminated part of @a A after
        elimination of the essential dofs @a ess_dof_list. */
    void EliminateRowsCols(OperatorHandle &A, const Array<int> &ess_dof_list);
+
+   /// Eliminate the rows corresponding to the essential dofs @a ess_dof_list
+   void EliminateRows(const Array<int> &ess_dof_list);
+
+   /// Eliminate columns corresponding to the essential dofs @a ess_dof_list
+   void EliminateCols(const Array<int> &ess_dof_list);
 
    /// Eliminate essential dofs from the solution @a X into the r.h.s. @a B.
    /** The argument @a A_e is expected to be the result of the method

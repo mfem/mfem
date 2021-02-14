@@ -4,9 +4,11 @@
 //
 // Sample runs:  mpirun -np 4 ex6p -m ../data/square-disc.mesh -o 1
 //               mpirun -np 4 ex6p -m ../data/square-disc.mesh -o 2
+//               mpirun -np 4 ex6p -m ../data/square-disc.mesh -o 2 -ns
 //               mpirun -np 4 ex6p -m ../data/square-disc-nurbs.mesh -o 2
 //               mpirun -np 4 ex6p -m ../data/star.mesh -o 3
 //               mpirun -np 4 ex6p -m ../data/escher.mesh -o 2
+//               mpirun -np 4 ex6p -m ../data/escher.mesh -o 2 -ns
 //               mpirun -np 4 ex6p -m ../data/fichera.mesh -o 2
 //               mpirun -np 4 ex6p -m ../data/disc-nurbs.mesh -o 2
 //               mpirun -np 4 ex6p -m ../data/ball-nurbs.mesh
@@ -60,8 +62,10 @@ int main(int argc, char *argv[])
    int order = 1;
    bool pa = false;
    const char *device_config = "cpu";
-   bool visualization = true;
+   bool nc_simplices = false;
+   int max_dofs = 100000;
    bool restart = false;
+   bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -72,11 +76,17 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&nc_simplices, "-ns", "--nonconforming-simplices",
+                  "-cs", "--conforming-simplices",
+                  "For simplicial meshes, enable/disable nonconforming"
+                  " refinement");
+   args.AddOption(&max_dofs, "-md", "--max-dofs",
+                  "Stop after reaching this many degrees of freedom.");
+   args.AddOption(&restart, "-res", "--restart", "-no-res", "--no-restart",
+                  "Restart computation from the last checkpoint.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&restart, "-res", "--restart", "-no-res", "--no-restart",
-                  "Restart computation from the last checkpoint.");
    args.Parse();
    if (!args.Good())
    {
@@ -113,7 +123,7 @@ int main(int argc, char *argv[])
          mesh.UniformRefinement();
          mesh.SetCurvature(2);
       }
-      mesh.EnsureNCMesh(true);
+      mesh.EnsureNCMesh(nc_simplices);
 
       // 6. Define a parallel mesh by partitioning the serial mesh.
       //    Once the parallel mesh is defined, the serial mesh can be deleted.
@@ -123,8 +133,9 @@ int main(int argc, char *argv[])
    {
       // 7. We can also restart the computation by loading the mesh from a
       //    previously saved check-point.
-      ifstream ifs(MakeParFilename("ex6p-checkpoint.", myid));
-      MFEM_VERIFY(ifs.good(), "Checkpoint file not found.");
+      string fname(MakeParFilename("ex6p-checkpoint.", myid));
+      ifstream ifs(fname);
+      MFEM_VERIFY(ifs.good(), "Checkpoint file " << fname << " not found.");
       pmesh = new ParMesh(MPI_COMM_WORLD, ifs);
    }
 
@@ -208,8 +219,7 @@ int main(int argc, char *argv[])
 
    // 14. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
-   const int max_dofs = 100000;
-   for (int it = 1; ; it++)
+   for (int it = 0; ; it++)
    {
       HYPRE_Int global_dofs = fespace.GlobalTrueVSize();
       if (myid == 0)
@@ -273,7 +283,7 @@ int main(int argc, char *argv[])
          sout << "solution\n" << *pmesh << x << flush;
       }
 
-      if (global_dofs > max_dofs)
+      if (global_dofs >= max_dofs)
       {
          if (myid == 0)
          {
@@ -325,7 +335,7 @@ int main(int argc, char *argv[])
       //     computation can be restarted from this point. Note that unlike in
       //     visualization, we need to use the 'ParPrint' method to save all
       //     internal parallel data structures.
-      if (it % 5 == 0)
+      if ((it + 1) % 5 == 0)
       {
          ofstream ofs(MakeParFilename("ex6p-checkpoint.", myid));
          ofs.precision(8);

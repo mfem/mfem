@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -205,6 +205,7 @@ protected:
    void LoadSharedEntities(std::istream &input);
 
    /// If the mesh is curved, make sure 'Nodes' is ParGridFunction.
+   /** Note that this method is not related to the public 'Mesh::EnsureNodes`.*/
    void EnsureParNodes();
 
    void Destroy();
@@ -258,6 +259,19 @@ public:
    /// Map a local element number to a global element number.
    long GetGlobalElementNum(int local_element_num) const;
 
+   /** The following functions define global indices for all local vertices,
+       edges, faces, or elements. The global indices have no meaning or
+       significance for ParMesh, but can be used for purposes beyond this class.
+    */
+   /// AMR meshes are not supported.
+   void GetGlobalVertexIndices(Array<HYPRE_Int> &gi) const;
+   /// AMR meshes are not supported.
+   void GetGlobalEdgeIndices(Array<HYPRE_Int> &gi) const;
+   /// AMR meshes are not supported.
+   void GetGlobalFaceIndices(Array<HYPRE_Int> &gi) const;
+   /// AMR meshes are supported.
+   void GetGlobalElementIndices(Array<HYPRE_Int> &gi) const;
+
    GroupTopology gtopo;
 
    // Face-neighbor elements and vertices
@@ -298,6 +312,7 @@ public:
                              int ordering = 1);
 
    int GetNFaceNeighbors() const { return face_nbr_group.Size(); }
+   int GetNFaceNeighborElements() const { return face_nbr_elements.Size(); }
    int GetFaceNbrGroup(int fn) const { return face_nbr_group[fn]; }
    int GetFaceNbrRank(int fn) const;
 
@@ -318,6 +333,10 @@ public:
 
       return &FaceNbrTransformation;
    }
+
+   /// Get the size of the i-th face neighbor element relative to the reference
+   /// element.
+   double GetFaceNbrElementSize(int i, int type=0);
 
    /// Return the number of shared faces (3D), edges (2D), vertices (1D)
    int GetNSharedFaces() const;
@@ -365,6 +384,15 @@ public:
 
    /// Old mesh format (Netgen/Truegrid) version of 'PrintAsOne'
    void PrintAsOneXG(std::ostream &out = mfem::out);
+
+   /** Print the mesh in parallel PVTU format. The PVTU and VTU files will be
+       stored in the directory specified by @a pathname. If the directory does
+       not exist, it will be created. */
+   virtual void PrintVTU(std::string pathname,
+                         VTKFormat format=VTKFormat::ASCII,
+                         bool high_order_output=false,
+                         int compression_level=0,
+                         bool bdr=false);
 
    /// Parallel version of Mesh::Load().
    virtual void Load(std::istream &input, int generate_edges = 0,

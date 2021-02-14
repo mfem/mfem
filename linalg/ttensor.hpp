@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -442,7 +442,7 @@ void Mult_1_2(const A_layout_t &A_layout, const A_data_t &A_data,
                       C_layout_t::rank == 3, "invalid ranks");
    const int B3 = B_layout_t::dim_3;
    const int C3 = C_layout_t::dim_3;
-   MFEM_STATIC_ASSERT(B3 == C3, "invalid dimentions");
+   MFEM_STATIC_ASSERT(B3 == C3, "invalid dimensions");
    for (int k = 0; k < B3; k++)
    {
       Mult_AB<Add>(B_layout.ind3(k), B_data,

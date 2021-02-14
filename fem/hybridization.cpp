@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -68,7 +68,7 @@ void Hybridization::ConstructC()
       {
          const int dim = pmesh->Dimension();
          const NCMesh::NCList &shared = pmesh->pncmesh->GetSharedList(dim-1);
-         num_shared_slave_faces = (HYPRE_Int)shared.slaves.size();
+         num_shared_slave_faces = (HYPRE_Int) shared.slaves.Size();
          MPI_Allreduce(&num_shared_slave_faces, &glob_num_shared_slave_faces, 1,
                        HYPRE_MPI_INT, MPI_SUM, pmesh->GetComm());
          MFEM_ASSERT(glob_num_shared_slave_faces%2 == 0, "");

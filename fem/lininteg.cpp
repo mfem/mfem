@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,8 +10,8 @@
 // CONTRIBUTING.md for details.
 
 
-#include <cmath>
 #include "fem.hpp"
+#include <cmath>
 
 namespace mfem
 {

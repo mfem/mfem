@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -23,13 +23,13 @@ void OrthoSolver::SetOperator(const Operator &op)
 
 void OrthoSolver::Mult(const Vector &b, Vector &x) const
 {
-   // Orthoganlize input
+   // Orthogonalize input
    Orthogonalize(b, b_ortho);
 
    // Apply operator
    oper->Mult(b_ortho, x);
 
-   // Orthoganlize output
+   // Orthogonalize output
    Orthogonalize(x, x);
 }
 

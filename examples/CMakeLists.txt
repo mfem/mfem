@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -117,14 +117,19 @@ if (MFEM_USE_SUPERLU)
     ${MPIEXEC_POSTFLAGS})
 endif()
 
-# Include the examples/sundials directory if SUNDIALS is enabled.
-if (MFEM_USE_SUNDIALS)
-  add_subdirectory(sundials)
+# Include the examples/amgx directory if AmgX is enabled
+if (MFEM_USE_AMGX)
+  add_subdirectory(amgx)
 endif()
 
-# Include the examples/sundials directory if SUNDIALS is enabled.
+# Include the examples/ginkgo directory if GINKGO is enabled.
 if (MFEM_USE_GINKGO)
   add_subdirectory(ginkgo)
+endif()
+
+# Include the examples/hiop directory if HiOp is enabled
+if (MFEM_USE_HIOP)
+  add_subdirectory(hiop)
 endif()
 
 # Include the examples/petsc directory if PETSc is enabled.
@@ -137,7 +142,12 @@ if (MFEM_USE_PUMI)
   add_subdirectory(pumi)
 endif()
 
-if (MFEM_USE_HIOP)
-  add_subdirectory(hiop)
+# Include the examples/sundials directory if SUNDIALS is enabled.
+if (MFEM_USE_SUNDIALS)
+  add_subdirectory(sundials)
 endif()
 
+# Include the examples/superlu directory if SUPERLU is enabled.
+if (MFEM_USE_SUPERLU)
+  add_subdirectory(superlu)
+endif()

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,7 +13,7 @@
 //             Toroid Miniapp:  Generate simple toroidal meshes
 //             ------------------------------------------------
 //
-// This miniapp generates two types of Toroidal meshes; one with triangular
+// This miniapp generates two types of toroidal meshes; one with triangular
 // cross sections and one with square cross sections.  It works by defining a
 // stack of individual elements and bending them so that the bottom and top of
 // the stack can be joined to form a torus.  The stack can also be twisted so

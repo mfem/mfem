@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -908,7 +908,7 @@ void ParaViewDataCollection::Save()
 
       // CELL DATA
       out << "<PCellData>\n";
-      out << "\t<PDataArray type=\"Int32\" Name=\"" << "material"
+      out << "\t<PDataArray type=\"Int32\" Name=\"" << "attribute"
           << "\" NumberOfComponents=\"1\""
           << " format=\"" << GetDataFormatString() << "\"/>\n";
       out << "</PCellData>\n";
@@ -1001,7 +1001,7 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
          {
             if (pv_data_format == VTKFormat::ASCII)
             {
-               out << val(j) << '\n';
+               out << ZeroSubnormal(val(j)) << '\n';
             }
             else if (pv_data_format == VTKFormat::BINARY)
             {
@@ -1034,7 +1034,7 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
             {
                if (pv_data_format == VTKFormat::ASCII)
                {
-                  out << vval(ii,jj) << ' ';
+                  out << ZeroSubnormal(vval(ii,jj)) << ' ';
                }
                else if (pv_data_format == VTKFormat::BINARY)
                {

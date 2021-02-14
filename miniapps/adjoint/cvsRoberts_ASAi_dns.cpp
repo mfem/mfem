@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -256,6 +256,7 @@ int main(int argc, char *argv[])
       adv.SetTime(t);
       cvodes->InitB(adv);
       cvodes->InitQuadIntegrationB(dG_dp, 1.e-6, 1.e-6);
+      cvodes->SetMaxNStepsB(5000);
 
       // Results at time TBout1
       double dt_real = max(dt, t - TBout1);
