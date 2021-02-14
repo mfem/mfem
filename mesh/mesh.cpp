@@ -3972,6 +3972,8 @@ void Mesh::MakeSimplicial_(const Mesh &orig_mesh, int *vglobal)
 {
    MFEM_VERIFY(const_cast<Mesh&>(orig_mesh).CheckElementOrientation(false) == 0,
                "Mesh::MakeSimplicial requires a properly oriented input mesh");
+   MFEM_VERIFY(orig_mesh.ncmesh == NULL,
+               "Mesh::MakeSimplicial does not support non-conforming meshes.")
 
    int dim = orig_mesh.Dimension();
    int sdim = orig_mesh.SpaceDimension();
