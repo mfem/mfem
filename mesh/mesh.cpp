@@ -3961,16 +3961,16 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
    MFEM_ASSERT(CheckBdrElementOrientation(false) == 0, "");
 }
 
-Mesh Mesh::MakeSimplicial(Mesh &orig_mesh)
+Mesh Mesh::MakeSimplicial(const Mesh &orig_mesh)
 {
    Mesh mesh;
    mesh.MakeSimplicial_(orig_mesh, NULL);
    return mesh;
 }
 
-void Mesh::MakeSimplicial_(Mesh &orig_mesh, int *vglobal)
+void Mesh::MakeSimplicial_(const Mesh &orig_mesh, int *vglobal)
 {
-   MFEM_VERIFY(orig_mesh.CheckElementOrientation(false) == 0,
+   MFEM_VERIFY(const_cast<Mesh&>(orig_mesh).CheckElementOrientation(false) == 0,
                "Mesh::MakeSimplicial requires a properly oriented input mesh");
 
    int dim = orig_mesh.Dimension();
