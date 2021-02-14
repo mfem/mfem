@@ -544,7 +544,7 @@ public:
        Quadrilaterals are split into two triangles, prisms are split into
        3 tetrahedra, and hexahedra are split into either 5 or 6 tetrahedra
        depending on the configuration.
-       @warning The curvature of the original mesh is not carried over the 
+       @warning The curvature of the original mesh is not carried over to the
        new mesh. Periodic meshes are not supported. */
    static Mesh MakeSimplicial(const Mesh &orig_mesh);
 
