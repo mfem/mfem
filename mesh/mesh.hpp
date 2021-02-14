@@ -481,7 +481,7 @@ protected:
    double GetElementSize(ElementTransformation *T, int type = 0);
 
    // Internal helper used in MakeSimplicial (and ParMesh::MakeSimplicial).
-   void MakeSimplicial_(Mesh &orig_mesh, int *vglobal);
+   void MakeSimplicial_(const Mesh &orig_mesh, int *vglobal);
 
 public:
 
@@ -541,7 +541,7 @@ public:
        Quadrilaterals are split into two triangles, prisms are split into
        3 tetrahedra, and hexahedra are split into either 5 or 6 hexahedra
        depending on the configuration. */
-   static Mesh MakeSimplicial(Mesh &orig_mesh);
+   static Mesh MakeSimplicial(const Mesh &orig_mesh);
 
    ///@}
 
