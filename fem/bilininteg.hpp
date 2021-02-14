@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2627,15 +2627,24 @@ public:
 };
 
 /** Integrator for
+
       (Q grad u, grad v) = sum_i (Q grad u_i, grad v_i) e_i e_i^T
-    for FE spaces defined by 'dim' copies of a scalar FE space. Where e_i
-    is the unit vector in the i-th direction.  The resulting local element
-    matrix is a block-diagonal matrix consisting of 'dim' copies of a scalar
-    diffusion matrix in each diagonal block. */
+
+    for vector FE spaces, where e_i is the unit vector in the i-th direction.
+    The resulting local element matrix is square, of size <tt> vdim*dof </tt>,
+    where \c vdim is the vector dimension space and \c dof is the local degrees
+    of freedom. The integrator is not aware of the true vector dimension and
+    must use \c VectorCoefficient, \c MatrixCoefficient, or a caller-specified
+    value to determine the vector space. For a scalar coefficient, the caller
+    may manually specify the vector dimension or the vector dimension is assumed
+    to be the spatial dimension (i.e. 2-dimension or 3-dimension).
+*/
 class VectorDiffusionIntegrator : public BilinearFormIntegrator
 {
 protected:
-   Coefficient *Q;
+   Coefficient *Q = NULL;
+   VectorCoefficient *VQ = NULL;
+   MatrixCoefficient *MQ = NULL;
 
    // PA extension
    const DofToQuad *maps;         ///< Not owned
@@ -2644,17 +2653,62 @@ protected:
    Vector pa_data;
 
    // CEED extension
-   CeedData* ceedDataPtr;
+   CeedData* ceedDataPtr = NULL;
 
 private:
    DenseMatrix dshape, dshapedxt, pelmat;
-   DenseMatrix Jinv, gshape;
+   int vdim = -1;
+   DenseMatrix mcoeff;
+   Vector vcoeff;
 
 public:
-   VectorDiffusionIntegrator()
-      : Q(NULL), ceedDataPtr(NULL) { }
+   VectorDiffusionIntegrator() { }
+
+   /** \brief Integrator with unit coefficient for caller-specified vector
+       dimension.
+
+       If the vector dimension does not match the true dimension of the space,
+       the resulting element matrix will be mathematically invalid. */
+   VectorDiffusionIntegrator(int vector_dimension)
+      : vdim(vector_dimension) { }
+
    VectorDiffusionIntegrator(Coefficient &q)
-      : Q(&q), ceedDataPtr(NULL) { }
+      : Q(&q) { }
+
+   /** \brief Integrator with scalar coefficient for caller-specified vector
+       dimension.
+
+       The element matrix is block-diagonal with \c vdim copies of the element
+       matrix integrated with the \c Coefficient.
+
+       If the vector dimension does not match the true dimension of the space,
+       the resulting element matrix will be mathematically invalid. */
+   VectorDiffusionIntegrator(Coefficient &q, int vector_dimension)
+      : Q(&q), vdim(vector_dimension) { }
+
+   /** \brief Integrator with \c VectorCoefficient. The vector dimension of the
+       \c FiniteElementSpace is assumed to be the same as the dimension of the
+       \c Vector.
+
+       The element matrix is block-diagonal and each block is integrated with
+       coefficient q_i.
+
+       If the vector dimension does not match the true dimension of the space,
+       the resulting element matrix will be mathematically invalid. */
+   VectorDiffusionIntegrator(VectorCoefficient &vq)
+      : VQ(&vq), vdim(vq.GetVDim()) { }
+
+   /** \brief Integrator with \c MatrixCoefficient. The vector dimension of the
+       \c FiniteElementSpace is assumed to be the same as the dimension of the
+       \c Matrix.
+
+       The element matrix is populated in each block. Each block is integrated
+       with coefficient q_ij.
+
+       If the vector dimension does not match the true dimension of the space,
+       the resulting element matrix will be mathematically invalid. */
+   VectorDiffusionIntegrator(MatrixCoefficient& mq)
+      : MQ(&mq), vdim(mq.GetVDim()) { }
 
    virtual ~VectorDiffusionIntegrator()
    {
