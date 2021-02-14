@@ -616,19 +616,19 @@ void AmgXSolver::SetMatrix(const HypreParMatrix &A, const bool update_mat)
    // Assumes one GPU per MPI rank
    if (mpi_gpu_mode=="mpi-gpu-exclusive")
    {
-     SetMatrixMPIGPUExclusive(A, loc_A, loc_I, loc_J, update_mat);
-     // Free A_csr data from hypre_MergeDiagAndOffd method
-     hypre_CSRMatrixDestroy(A_csr);
-     return;
+      SetMatrixMPIGPUExclusive(A, loc_A, loc_I, loc_J, update_mat);
+      // Free A_csr data from hypre_MergeDiagAndOffd method
+      hypre_CSRMatrixDestroy(A_csr);
+      return;
    }
 
    // Assumes teams of MPI ranks are sharing a GPU
    if (mpi_gpu_mode == "mpi-teams")
    {
-     SetMatrixMPITeams(A, loc_A, loc_I, loc_J, update_mat);
-     // Free A_csr data from hypre_MergeDiagAndOffd method
-     hypre_CSRMatrixDestroy(A_csr);
-     return;
+      SetMatrixMPITeams(A, loc_A, loc_I, loc_J, update_mat);
+      // Free A_csr data from hypre_MergeDiagAndOffd method
+      hypre_CSRMatrixDestroy(A_csr);
+      return;
    }
 
    mfem_error("Unsupported MPI_GPU combination \n");
