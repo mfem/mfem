@@ -3258,10 +3258,10 @@ Mesh Mesh::MakeCartesian2D(
 }
 
 Mesh Mesh::MakeCartesian3D(
-   int nx, int ny, int nz, Element::Type type, bool generate_edges,
+   int nx, int ny, int nz, Element::Type type,
    double sx, double sy, double sz, bool sfc_ordering)
 {
-   return Mesh(nx, ny, nz, type, generate_edges, sx, sy, sz, sfc_ordering);
+   return Mesh(nx, ny, nz, type, false, sx, sy, sz, sfc_ordering);
 }
 
 Mesh Mesh::MakeRefined(Mesh &orig_mesh, int ref_factor, int ref_type)
