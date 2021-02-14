@@ -518,11 +518,9 @@ public:
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
        nx*ny*nz hexahedra if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons if
        type=TETRAHEDRON. If sfc_ordering = true (default), elements are ordered
-       along a space-filling curve, instead of row by row and layer by layer.
-       The parameter @a generate_edges is ignored (for now, it is kept for
-       backward compatibility). */
+       along a space-filling curve, instead of row by row and layer by layer. */
    static Mesh MakeCartesian3D(
-      int nx, int ny, int nz, Element::Type type, bool generate_edges = false,
+      int nx, int ny, int nz, Element::Type type,
       double sx = 1.0, double sy = 1.0, double sz = 1.0,
       bool sfc_ordering = true);
 
