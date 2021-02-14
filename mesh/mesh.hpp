@@ -496,7 +496,12 @@ public:
    /// Move constructor, useful for using a Mesh as a function return value.
    Mesh(Mesh &&mesh);
 
-   // Named constructors, each of the below uses the move constructor
+
+   /** @name Named mesh constructors.
+
+       Each of these constructors uses the move constructor, and can be used as
+       the right-hand side of an assignment when creating new meshes. */
+   ///@{
 
    /** Creates 1D mesh , divided into n equal intervals. */
    static Mesh MakeCartesian1D(int n, double sx = 1.0);
@@ -539,6 +544,8 @@ public:
        3 tetrahedra, and hexahedra are split into either 5 or 6 hexahedra
        depending on the configuration. */
    static Mesh MakeSimplicial(Mesh &orig_mesh);
+
+   ///@}
 
    /// Construct a Mesh from the given primary data.
    /** The array @a vertices is used as external data, i.e. the Mesh does not
