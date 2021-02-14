@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -31,7 +31,7 @@ const int MAX_Q1D = 14;
 
 // MFEM_UNROLL pragma macro that can be used inside MFEM_FORALL macros.
 #if defined(MFEM_USE_CUDA)
-#define MFEM_UNROLL(N) MFEM_PRAGMA(unroll N)
+#define MFEM_UNROLL(N) MFEM_PRAGMA(unroll(N))
 #else
 #define MFEM_UNROLL(N)
 #endif

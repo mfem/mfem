@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -233,10 +233,13 @@ void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
 
 void ParBilinearForm::Assemble(int skip_zeros)
 {
-   if (mat == NULL && fbfi.Size() > 0)
+   if (fbfi.Size() > 0)
    {
       pfes->ExchangeFaceNbrData();
-      pAllocMat();
+      if (!ext && mat == NULL)
+      {
+         pAllocMat();
+      }
    }
 
    BilinearForm::Assemble(skip_zeros);
