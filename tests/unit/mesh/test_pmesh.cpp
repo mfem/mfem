@@ -118,6 +118,79 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
    }
 }
 
+namespace simplicial
+{
+
+double exact(const Vector &xvec)
+{
+   // The exact solution is linear and is harmonic
+   return xvec[0] + xvec[1] + xvec[2];
+}
+
+void SolveDiffusionProblem(ParMesh &mesh, Vector &x_out)
+{
+   H1_FECollection fec(1, mesh.Dimension());
+   ParFiniteElementSpace fes(&mesh, &fec);
+
+   // Right-hand side is zero since exact solution is harmonic
+   ParLinearForm b(&fes);
+   b.Assemble();
+
+   ParBilinearForm a(&fes);
+   a.AddDomainIntegrator(new DiffusionIntegrator);
+   a.Assemble();
+
+   Array<int> ess_tdof_list, ess_bdr;
+   if (mesh.bdr_attributes.Size())
+   {
+      ess_bdr.SetSize(mesh.bdr_attributes.Max());
+      ess_bdr = 1;
+      fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   }
+
+   // Use the exact solution as boundary conditions
+   ParGridFunction x(&fes);
+   FunctionCoefficient exact_coeff(exact);
+   x.ProjectBdrCoefficient(exact_coeff, ess_bdr);
+
+   OperatorPtr A;
+   Vector B, X;
+   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetRelTol(1e-12);
+   cg.SetMaxIter(2000);
+   cg.SetPrintLevel(1);
+   cg.SetOperator(*A);
+   // X = 0.0;
+   cg.Mult(B, X);
+   x_out = X;
+}
+
+};
+
+TEST_CASE("ParMeshMakeSimplicial", "[Parallel], [ParMesh]")
+{
+   // Test that the parallel mesh obtained by ParMesh::MakeSimplicial is valid.
+   // This test solves a Poisson problem on a 3x3x3 hex mesh, and on the tet
+   // mesh obtained by splitting the hexes into tets. The finite element space
+   // is linear in both cases, and the exact solution is also linear, so it will
+   // be recovered exactly in both cases. The vertices of both meshes are the
+   // same, so we check that the resulting discrete solutions are identical up
+   // to solver tolerance.
+
+   Mesh mesh = Mesh::MakeCartesian3D(3, 3, 3, Element::HEXAHEDRON);
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   ParMesh pmesh_tet = ParMesh::MakeSimplicial(pmesh);
+
+   Vector x, x_tet;
+   simplicial::SolveDiffusionProblem(pmesh, x);
+   simplicial::SolveDiffusionProblem(pmesh_tet, x_tet);
+
+   x -= x_tet;
+   REQUIRE(x.Normlinf() == MFEM_Approx(0.0));
+}
+
 #endif // MFEM_USE_MPI
 
 } // namespace mfem
