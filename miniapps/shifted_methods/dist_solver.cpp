@@ -702,7 +702,6 @@ void PLapDistanceSolver::ComputeScalarDistance(Coefficient &func,
    mfem::HypreParVector *sv = xf.GetTrueDofs();
    *sv=1.0;
 
-
    mfem::ParNonlinearForm* nf=new mfem::ParNonlinearForm(&fesp);
 
    mfem::PUMPLaplacian* pint = new mfem::PUMPLaplacian(&func,&gf,false);

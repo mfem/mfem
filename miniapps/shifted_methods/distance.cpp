@@ -4,7 +4,7 @@
 //
 // Sample runs:
 //   Problem 0: point source.
-//     mpirun -np 4 distance -m ./corners.mesh -rs 3 -t 200.0
+//     mpirun -np 4 distance -m ./corners.mesh -p 0 -rs 3 -t 200.0
 //
 //   Problem 1: zero level set - circle / sphere at the center of the mesh
 //     mpirun -np 4 distance -m ../../data/inline-quad.mesh -rs 3 -o 2 -t 2.0 -p 1
