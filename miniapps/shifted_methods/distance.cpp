@@ -1,4 +1,33 @@
-//            MFEM Distance Function Solver - Parallel Version
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+//
+//            -------------------------------------------------
+//            Distance Miniapp: Finite element distance solver
+//            -------------------------------------------------
+//
+// This miniapp computes the shortest distance to a given point source or to the
+// zero level set of a given function. The input can be a DeltaCoefficient (for
+// a point source), or any Coefficient (for the case of a level set). The
+// output is a GridFunction that can be scalar (representing the scalar
+// distance), or a vector (its magnitude is the distance, and its direction is
+// the starting direction of the shortest path). The miniapp support 2 solvers:
+//
+// 1. Heat solver:
+//    Crane, Weischedel, Weischedel
+//    Geodesics in Heat: A New Approach to Computing Distance Based on Heat Flow
+//    ACM Transactions on Graphics, Vol. 32, No. 5, October, 2013
+// 2. p-Laplacian solver:
+//    Belyaev, Fayolle
+//    On Variational and PDE-based Distance Function Approximations, Section 7.
+//    Computational Mathematics and Mathematical Physics 59, 2019
 //
 // Compile with: make distance
 //
