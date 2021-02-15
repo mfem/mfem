@@ -167,7 +167,7 @@ void SolveDiffusionProblem(ParMesh &mesh, Vector &x_out)
    x_out = X;
 }
 
-};
+}
 
 TEST_CASE("ParMeshMakeSimplicial", "[Parallel], [ParMesh]")
 {
