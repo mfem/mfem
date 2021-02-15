@@ -88,3 +88,6 @@ clean: clean-build clean-exec
 clean-build:
 	rm -f *.o *~ distance
 	rm -rf *.dSYM *.TVD.*breakpoints
+	
+clean-exec:
+	rm -rf ParaViewDistance
