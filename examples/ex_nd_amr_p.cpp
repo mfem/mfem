@@ -61,6 +61,7 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
+   bool ncs = false;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
@@ -72,6 +73,9 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&j_, "-j", "--j-vec",
                   "Constant source vector.");
+   args.AddOption(&ncs, "-ncs", "--non-conforming-simplices", "-cs",
+                  "--conforming-simplices", "Ensure conforming/non-conforming "
+                  "simplex meshes.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -113,7 +117,7 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
       mesh->SetCurvature(2);
    }
-   mesh->EnsureNCMesh();
+   mesh->EnsureNCMesh(ncs);
 
    // 6. Define a parallel mesh by partitioning the serial mesh.
    //    Once the parallel mesh is defined, the serial mesh can be deleted.
