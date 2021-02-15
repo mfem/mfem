@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2406,13 +2406,24 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
    const int dim = el.GetDim();
    const int dof = el.GetDof();
    const int sdim = Trans.GetSpaceDim();
-   const bool square = (dim == sdim);
-   double w;
 
-   elmat.SetSize(sdim * dof);
+   // If vdim is not set, set it to the space dimension;
+   vdim = (vdim <= 0) ? sdim : vdim;
+   const bool square = (dim == sdim);
+
+   if (VQ)
+   {
+      vcoeff.SetSize(vdim);
+   }
+   else if (MQ)
+   {
+      mcoeff.SetSize(vdim);
+   }
 
    dshape.SetSize(dof, dim);
    dshapedxt.SetSize(dof, sdim);
+
+   elmat.SetSize(vdim * dof);
    pelmat.SetSize(dof);
 
    const IntegrationRule *ir = IntRule;
@@ -2422,28 +2433,48 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
    }
 
    elmat = 0.0;
-   pelmat = 0.0;
 
    for (int i = 0; i < ir -> GetNPoints(); i++)
    {
+
       const IntegrationPoint &ip = ir->IntPoint(i);
-      el.CalcDShape (ip, dshape);
-      Trans.SetIntPoint (&ip);
-      w = Trans.Weight();
+      el.CalcDShape(ip, dshape);
+
+      Trans.SetIntPoint(&ip);
+      double w = Trans.Weight();
       w = ip.weight / (square ? w : w*w*w);
       // AdjugateJacobian = / adj(J),         if J is square
       //                    \ adj(J^t.J).J^t, otherwise
       Mult(dshape, Trans.AdjugateJacobian(), dshapedxt);
-      if (Q) {  w *= Q -> Eval (Trans, ip); }
-      AddMult_a_AAt(w, dshapedxt, pelmat);
-   }
-   for (int d = 0; d < sdim; d++)
-   {
-      for (int k = 0; k < dof; k++)
+
+      if (VQ)
       {
-         for (int l = 0; l < dof; l++)
+         VQ->Eval(vcoeff, Trans, ip);
+         for (int k = 0; k < vdim; ++k)
          {
-            elmat(dof*d+k, dof*d+l) = pelmat(k, l);
+            Mult_a_AAt(w*vcoeff(k), dshapedxt, pelmat);
+            elmat.AddMatrix(pelmat, dof*k, dof*k);
+         }
+      }
+      else if (MQ)
+      {
+         MQ->Eval(mcoeff, Trans, ip);
+         for (int i = 0; i < vdim; ++i)
+         {
+            for (int j = 0; j < vdim; ++j)
+            {
+               Mult_a_AAt(w*mcoeff(i,j), dshapedxt, pelmat);
+               elmat.AddMatrix(pelmat, dof*i, dof*j);
+            }
+         }
+      }
+      else
+      {
+         if (Q) { w *= Q->Eval(Trans, ip); }
+         Mult_a_AAt(w, dshapedxt, pelmat);
+         for (int k = 0; k < vdim; ++k)
+         {
+            elmat.AddMatrix(pelmat, dof*k, dof*k);
          }
       }
    }
@@ -2453,16 +2484,32 @@ void VectorDiffusionIntegrator::AssembleElementVector(
    const FiniteElement &el, ElementTransformation &Tr,
    const Vector &elfun, Vector &elvect)
 {
-   int dim = el.GetDim(); // assuming vector_dim == reference_dim
-   int dof = el.GetDof();
-   double w;
+   const int dim = el.GetDim();
+   const int dof = el.GetDof();
+   const int sdim = Tr.GetSpaceDim();
 
-   Jinv.SetSize(dim);
+   // If vdim is not set, set it to the space dimension;
+   vdim = (vdim <= 0) ? sdim : vdim;
+   const bool square = (dim == sdim);
+
+   if (VQ)
+   {
+      vcoeff.SetSize(vdim);
+   }
+   else if (MQ)
+   {
+      mcoeff.SetSize(vdim);
+   }
+
    dshape.SetSize(dof, dim);
-   pelmat.SetSize(dim);
-   gshape.SetSize(dim);
+   dshapedxt.SetSize(dof, dim);
+   // pelmat.SetSize(dim);
 
    elvect.SetSize(dim*dof);
+
+   // NOTE: DenseMatrix is in column-major order. This is consistent with
+   // vectors ordered byNODES. In the resulting DenseMatrix, each column
+   // corresponds to a particular vdim.
    DenseMatrix mat_in(elfun.GetData(), dof, dim);
    DenseMatrix mat_out(elvect.GetData(), dof, dim);
 
@@ -2476,22 +2523,50 @@ void VectorDiffusionIntegrator::AssembleElementVector(
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-
-      Tr.SetIntPoint(&ip);
-      CalcAdjugate(Tr.Jacobian(), Jinv);
-      w = ip.weight / Tr.Weight();
-      if (Q)
-      {
-         w *= Q->Eval(Tr, ip);
-      }
-      MultAAt(Jinv, gshape);
-      gshape *= w;
-
       el.CalcDShape(ip, dshape);
 
-      MultAtB(mat_in, dshape, pelmat);
-      MultABt(pelmat, gshape, Jinv);
-      AddMultABt(dshape, Jinv, mat_out);
+      Tr.SetIntPoint(&ip);
+      double w = Tr.Weight();
+      w = ip.weight / (square ? w : w*w*w);
+      Mult(dshape, Tr.AdjugateJacobian(), dshapedxt);
+      MultAAt(dshapedxt, pelmat);
+
+      if (VQ)
+      {
+         VQ->Eval(vcoeff, Tr, ip);
+         for (int k = 0; k < vdim; ++k)
+         {
+            pelmat *= w*vcoeff(k);
+            const Vector vec_in(mat_in.GetColumn(k), dof);
+            Vector vec_out(mat_out.GetColumn(k), dof);
+            pelmat.AddMult(vec_in, vec_out);
+         }
+      }
+      else if (MQ)
+      {
+         MQ->Eval(mcoeff, Tr, ip);
+         for (int i = 0; i < vdim; ++i)
+         {
+            Vector vec_out(mat_out.GetColumn(i), dof);
+            for (int j = 0; j < vdim; ++j)
+            {
+               pelmat *= w*mcoeff(i,j);
+               const Vector vec_in(mat_in.GetColumn(j), dof);
+               pelmat.Mult(vec_in, vec_out);
+            }
+         }
+      }
+      else
+      {
+         if (Q) { w *= Q->Eval(Tr, ip); }
+         pelmat *= w;
+         for (int k = 0; k < vdim; ++k)
+         {
+            const Vector vec_in(mat_in.GetColumn(k), dof);
+            Vector vec_out(mat_out.GetColumn(k), dof);
+            pelmat.AddMult(vec_in, vec_out);
+         }
+      }
    }
 }
 
@@ -3687,6 +3762,7 @@ ScalarCrossProductInterpolator::AssembleElementMatrix2(
          : VectorCoefficient(fe_.GetDof()), VQ(vq), fe(fe_),
            vshape(vdim, vq.GetVDim()), vc(vq.GetVDim()) { }
 
+      using VectorCoefficient::Eval;
       virtual void Eval(Vector &V, ElementTransformation &T,
                         const IntegrationPoint &ip)
       {
