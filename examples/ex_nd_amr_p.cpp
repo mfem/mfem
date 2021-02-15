@@ -46,6 +46,8 @@
 using namespace std;
 using namespace mfem;
 
+static Vector j_;
+
 void A_exact(const Vector &x, Vector &A);
 
 int main(int argc, char *argv[])
@@ -68,6 +70,8 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&j_, "-j", "--j-vec",
+                  "Constant source vector.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -138,14 +142,14 @@ int main(int argc, char *argv[])
    ParLinearForm b(&fespace);
 
    ConstantCoefficient one(1.0);
-   Vector oneVec(dim); oneVec = 1.0;
-   VectorConstantCoefficient oneVecCoef(oneVec);
+   if (j_.Size() < dim) { j_.SetSize(dim); j_ = 1.0; }
+   VectorConstantCoefficient jCoef(j_);
    VectorFunctionCoefficient ACoef(dim, A_exact);
 
    BilinearFormIntegrator *integ = new CurlCurlIntegrator(one);
    a.AddDomainIntegrator(integ);
    a.AddDomainIntegrator(new VectorFEMassIntegrator(one));
-   b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(oneVecCoef));
+   b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(jCoef));
 
    // 9. The solution vector x and the associated finite element grid function
    //    will be maintained over the AMR iterations. We initialize it to zero.
@@ -343,7 +347,7 @@ void A_exact(const Vector &x, Vector &A)
          A[1] += sin(M * M_PI * x[0]) /
                  (M * (1.0 + (M * M) * M_PI * M_PI));
       }
-      A *= 4.0 / M_PI;
+      for (int d = 0; d<3; d++) { A[d] *= 4.0 * j_[d] / M_PI; }
    }
    else
    {
@@ -362,6 +366,6 @@ void A_exact(const Vector &x, Vector &A)
                     (M * N * (1.0 + (M * M + N * N) * M_PI * M_PI));
          }
       }
-      A *= 16.0 / (M_PI * M_PI);
+      for (int d = 0; d<3; d++) { A[d] *= 16.0 * j_[d] / (M_PI * M_PI); }
    }
 }
