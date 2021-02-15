@@ -238,6 +238,9 @@ miniapps/performance/refined.mesh
 miniapps/performance/mesh.*
 miniapps/performance/sol.*
 
+miniapps/shifted_methods/distance
+miniapps/shifted_methods/ParaViewDistance
+
 miniapps/tools/display-basis
 miniapps/tools/load-dc
 miniapps/tools/convert-dc
