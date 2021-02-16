@@ -106,48 +106,6 @@ void MFEMCeedOperator::GetDiagonal(Vector &diag) const
 #endif
 }
 
-
-/** Manages memory for using mfem::Vector s for Ceed operations */
-class MFEMCeedVectorContext
-{
-public:
-   MFEMCeedVectorContext(const mfem::Vector& in, mfem::Vector& out,
-                         CeedVector ceed_in_, CeedVector ceed_out_)
-      :
-      ceed_in(ceed_in_), ceed_out(ceed_out_)
-   {
-      CeedGetPreferredMemType(internal::ceed, &mem);
-      if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
-      {
-         in_ptr = in.Read();
-         out_ptr = out.ReadWrite();
-      }
-      else
-      {
-         in_ptr = in.HostRead();
-         out_ptr = out.HostReadWrite();
-         mem = CEED_MEM_HOST;
-      }
-
-      CeedVectorSetArray(ceed_in, mem, CEED_USE_POINTER,
-                         const_cast<CeedScalar*>(in_ptr));
-      CeedVectorSetArray(ceed_out, mem, CEED_USE_POINTER, out_ptr);
-   }
-
-   ~MFEMCeedVectorContext()
-   {
-      CeedVectorTakeArray(ceed_in, mem, const_cast<CeedScalar**>(&in_ptr));
-      CeedVectorTakeArray(ceed_out, mem, &out_ptr);
-   }
-
-private:
-   CeedVector ceed_in, ceed_out;
-   const CeedScalar *in_ptr;
-   CeedScalar *out_ptr;
-   CeedMemType mem;
-};
-
-
 ConstrainedMFEMCeedOperator::ConstrainedMFEMCeedOperator(
    CeedOperator oper,
    const Array<int> &ess_tdofs_,
@@ -293,11 +251,12 @@ MFEMCeedInterpolation::MFEMCeedInterpolation(
 
 MFEMCeedInterpolation::~MFEMCeedInterpolation()
 {
-   CeedVectorDestroy(&v_);
-   CeedVectorDestroy(&u_);
+   int ierr;
+   ierr = CeedVectorDestroy(&v_); PCeedChk(ierr);
+   ierr = CeedVectorDestroy(&u_); PCeedChk(ierr);
    if (owns_basis_)
    {
-      CeedBasisDestroy(&basisctof_);
+      ierr = CeedBasisDestroy(&basisctof_); PCeedChk(ierr);
    }
    Finalize();
 }
@@ -305,50 +264,81 @@ MFEMCeedInterpolation::~MFEMCeedInterpolation()
 void MFEMCeedInterpolation::Mult(const mfem::Vector& x, mfem::Vector& y) const
 {
    int ierr = 0;
-   MFEMCeedVectorContext context(x, y, u_, v_);
+   const CeedScalar *in_ptr;
+   CeedScalar *out_ptr;
+   CeedMemType mem;
+   ierr = CeedGetPreferredMemType(internal::ceed, &mem); PCeedChk(ierr);
+   if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
+   {
+      in_ptr = x.Read();
+      out_ptr = y.ReadWrite();
+   }
+   else
+   {
+      in_ptr = x.HostRead();
+      out_ptr = y.HostReadWrite();
+      mem = CEED_MEM_HOST;
+   }
+   ierr = CeedVectorSetArray(u_, mem, CEED_USE_POINTER,
+                             const_cast<CeedScalar*>(in_ptr)); PCeedChk(ierr);
+   ierr = CeedVectorSetArray(v_, mem, CEED_USE_POINTER,
+                             out_ptr); PCeedChk(ierr);
 
-   ierr += CeedOperatorApply(op_interp, u_, v_,
-                             CEED_REQUEST_IMMEDIATE);
-   ierr += CeedVectorPointwiseMult(v_, fine_multiplicity_r);
+   ierr = CeedOperatorApply(op_interp, u_, v_,
+                            CEED_REQUEST_IMMEDIATE); PCeedChk(ierr);
+   ierr = CeedVectorPointwiseMult(v_, fine_multiplicity_r); PCeedChk(ierr);
 
-   MFEM_ASSERT(ierr == 0, "CEED error");
+   ierr = CeedVectorTakeArray(u_, mem, const_cast<CeedScalar**>(&in_ptr));
+   PCeedChk(ierr);
+   ierr = CeedVectorTakeArray(v_, mem, &out_ptr); PCeedChk(ierr);
 }
 
 void MFEMCeedInterpolation::MultTranspose(const mfem::Vector& x,
                                           mfem::Vector& y) const
 {
    int ierr = 0;
-   MFEMCeedVectorContext context(x, y, v_, u_);
-
-   int length;
-   ierr += CeedVectorGetLength(v_, &length);
-
-   const CeedScalar *multiplicitydata, *indata;
-   CeedScalar *workdata;
    CeedMemType mem;
-   if (Device::Allows(Backend::DEVICE_MASK))
+   ierr = CeedGetPreferredMemType(internal::ceed, &mem); PCeedChk(ierr);
+   const CeedScalar *in_ptr;
+   CeedScalar *out_ptr;
+   if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
    {
-      mem = CEED_MEM_DEVICE;
+      in_ptr = x.Read();
+      out_ptr = y.ReadWrite();
    }
    else
    {
+      in_ptr = x.HostRead();
+      out_ptr = y.HostReadWrite();
       mem = CEED_MEM_HOST;
    }
-   ierr += CeedVectorGetArrayRead(v_, mem, &indata);
-   ierr += CeedVectorGetArrayRead(fine_multiplicity_r, mem,
-                                  &multiplicitydata);
-   ierr += CeedVectorGetArray(fine_work, mem, &workdata);
+   ierr = CeedVectorSetArray(v_, mem, CEED_USE_POINTER,
+                             const_cast<CeedScalar*>(in_ptr)); PCeedChk(ierr);
+   ierr = CeedVectorSetArray(u_, mem, CEED_USE_POINTER,
+                             out_ptr); PCeedChk(ierr);
+
+   int length;
+   ierr = CeedVectorGetLength(v_, &length); PCeedChk(ierr);
+
+   const CeedScalar *multiplicitydata, *indata;
+   CeedScalar *workdata;
+   ierr = CeedVectorGetArrayRead(v_, mem, &indata); PCeedChk(ierr);
+   ierr = CeedVectorGetArrayRead(fine_multiplicity_r, mem,
+                                 &multiplicitydata); PCeedChk(ierr);
+   ierr = CeedVectorGetArray(fine_work, mem, &workdata); PCeedChk(ierr);
    MFEM_FORALL(i, length,
    {workdata[i] = indata[i] * multiplicitydata[i];});
-   ierr += CeedVectorRestoreArrayRead(v_, &indata);
-   ierr += CeedVectorRestoreArrayRead(fine_multiplicity_r,
+   ierr = CeedVectorRestoreArrayRead(v_, &indata); PCeedChk(ierr);
+   ierr = CeedVectorRestoreArrayRead(fine_multiplicity_r,
                                       &multiplicitydata);
-   ierr += CeedVectorRestoreArray(fine_work, &workdata);
+   ierr = CeedVectorRestoreArray(fine_work, &workdata); PCeedChk(ierr);
 
-   ierr += CeedOperatorApply(op_restrict, fine_work, u_,
-                             CEED_REQUEST_IMMEDIATE);
+   ierr = CeedOperatorApply(op_restrict, fine_work, u_,
+                            CEED_REQUEST_IMMEDIATE); PCeedChk(ierr);
 
-   MFEM_ASSERT(ierr == 0, "CEED error");
+   ierr = CeedVectorTakeArray(v_, mem, const_cast<CeedScalar**>(&in_ptr));
+   PCeedChk(ierr);
+   ierr = CeedVectorTakeArray(u_, mem, &out_ptr); PCeedChk(ierr);
 }
 
 } // namespace mfem
