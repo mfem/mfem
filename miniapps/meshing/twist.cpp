@@ -109,7 +109,8 @@ int main(int argc, char *argv[])
    }
 
    // Define the mesh
-   Mesh *mesh = new Mesh(1, 1, nz_, el_type_, false, a_, b_, c_, false);
+   Mesh *mesh = new Mesh(Mesh::MakeCartesian3D(
+                            1, 1, nz_, el_type_, a_, b_, c_, false));
 
    // Promote to high order mesh and transform into a twisted shape
    if (order_ > 1 || dg_mesh || per_mesh)

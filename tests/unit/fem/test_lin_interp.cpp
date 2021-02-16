@@ -149,18 +149,20 @@ TEST_CASE("Identity Linear Interpolators",
       if (type < (int)Element::TRIANGLE)
       {
          dim = 1;
-         mesh = new Mesh(n, (Element::Type)type, 1, 2.0);
+         mesh = new Mesh(Mesh::MakeCartesian1D(n, 2.0));
 
       }
       else if (type < (int)Element::TETRAHEDRON)
       {
          dim = 2;
-         mesh = new Mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+         mesh = new Mesh(Mesh::MakeCartesian2D(
+                            n, n, (Element::Type)type, 1, 2.0, 3.0));
       }
       else
       {
          dim = 3;
-         mesh = new Mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+         mesh = new Mesh(Mesh::MakeCartesian3D(
+                            n, n, n, (Element::Type)type, 2.0, 3.0, 5.0));
 
          if (type == Element::TETRAHEDRON)
          {
@@ -533,18 +535,20 @@ TEST_CASE("Derivative Linear Interpolators",
       if (type < (int)Element::TRIANGLE)
       {
          dim = 1;
-         mesh = new Mesh(n, (Element::Type)type, 1, 2.0);
+         mesh = new Mesh(Mesh::MakeCartesian1D(n, 2.0));
 
       }
       else if (type < (int)Element::TETRAHEDRON)
       {
          dim = 2;
-         mesh = new Mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+         mesh = new Mesh(Mesh::MakeCartesian2D(
+                            n, n, (Element::Type)type, 1, 2.0, 3.0));
       }
       else
       {
          dim = 3;
-         mesh = new Mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+         mesh = new Mesh(Mesh::MakeCartesian3D(
+                            n, n, n, (Element::Type)type, 2.0, 3.0, 5.0));
 
          if (type == Element::TETRAHEDRON)
          {
@@ -758,18 +762,20 @@ TEST_CASE("Product Linear Interpolators",
       if (type < (int)Element::TRIANGLE)
       {
          dim = 1;
-         mesh = new Mesh(n, (Element::Type)type, 1, 2.0);
+         mesh = new Mesh(Mesh::MakeCartesian1D(n, 2.0));
 
       }
       else if (type < (int)Element::TETRAHEDRON)
       {
          dim = 2;
-         mesh = new Mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+         mesh = new Mesh(Mesh::MakeCartesian2D(
+                            n, n, (Element::Type)type, 1, 2.0, 3.0));
       }
       else
       {
          dim = 3;
-         mesh = new Mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+         mesh = new Mesh(Mesh::MakeCartesian3D(
+                            n, n, n, (Element::Type)type, 2.0, 3.0, 5.0));
 
          if (type == Element::TETRAHEDRON)
          {

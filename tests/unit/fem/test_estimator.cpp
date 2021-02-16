@@ -57,18 +57,18 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh",
 {
    // Setup
    const auto order = GENERATE(1, 3, 5);
-   auto mesh = new Mesh(2, 2, Element::QUADRILATERAL);
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
 
    // Make the mesh NC
-   mesh->EnsureNCMesh();
+   mesh.EnsureNCMesh();
    {
       Array<int> elements_to_refine(1);
       elements_to_refine[0] = 1;
-      mesh->GeneralRefinement(elements_to_refine, 1, 0);
+      mesh.GeneralRefinement(elements_to_refine, 1, 0);
    }
 
-   auto pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
+   auto pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+   mesh.Clear();
 
    H1_FECollection fe_coll(order, pmesh->Dimension());
    ParFiniteElementSpace fespace(pmesh, &fe_coll);
@@ -302,18 +302,18 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
 {
    // Setup
    const auto order = GENERATE(1, 3, 5);
-   auto mesh = new Mesh(2, 2, 2, Element::HEXAHEDRON);
+   Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
 
    // Make the mesh NC
-   mesh->EnsureNCMesh();
+   mesh.EnsureNCMesh();
    {
       Array<int> elements_to_refine(1);
       elements_to_refine[0] = 1;
-      mesh->GeneralRefinement(elements_to_refine, 1, 0);
+      mesh.GeneralRefinement(elements_to_refine, 1, 0);
    }
 
-   auto pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
+   auto pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+   mesh.Clear();
 
    H1_FECollection fe_coll(order, pmesh->Dimension());
    ParFiniteElementSpace fespace(pmesh, &fe_coll);

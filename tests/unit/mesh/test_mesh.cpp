@@ -78,7 +78,7 @@ TEST_CASE("Gecko integration in MFEM", "[Mesh]")
 
       SECTION("Hex meshes")
       {
-         Mesh mesh(3, 4, 5, Element::HEXAHEDRON);
+         Mesh mesh = Mesh::MakeCartesian3D(3, 4, 5, Element::HEXAHEDRON);
          mesh.GetGeckoElementOrdering(perm);
          REQUIRE(perm.Size() == mesh.GetNE());
          REQUIRE(perm.Min() == 0);
@@ -100,7 +100,7 @@ TEST_CASE("Gecko integration in MFEM", "[Mesh]")
 
       SECTION("Tet meshes")
       {
-         Mesh mesh(5, 4, 3, Element::TETRAHEDRON);
+         Mesh mesh = Mesh::MakeCartesian3D(5, 4, 3, Element::TETRAHEDRON);
          mesh.GetGeckoElementOrdering(perm);
          REQUIRE(perm.Size() == mesh.GetNE());
          REQUIRE(perm.Min() == 0);
@@ -123,8 +123,8 @@ TEST_CASE("Gecko integration in MFEM", "[Mesh]")
 
    SECTION("Reorder preserves physical vertex locations")
    {
-      Mesh mesh(3, 4, 5, Element::HEXAHEDRON);
-      Mesh mesh_reordered(3, 4, 5, Element::HEXAHEDRON);
+      Mesh mesh = Mesh::MakeCartesian3D(3, 4, 5, Element::HEXAHEDRON);
+      Mesh mesh_reordered = Mesh::MakeCartesian3D(3, 4, 5, Element::HEXAHEDRON);
       mesh_reordered.GetGeckoElementOrdering(perm);
       mesh_reordered.ReorderElements(perm);
 

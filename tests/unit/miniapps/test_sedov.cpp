@@ -1944,7 +1944,7 @@ int sedov(int myid, int argc, char *argv[])
       if (dim == 2)
       {
          constexpr Element::Type QUAD = Element::QUADRILATERAL;
-         mesh = new Mesh(2, 2, QUAD, true);
+         mesh = new Mesh(Mesh::MakeCartesian2D(2, 2, QUAD, true));
          const int NBE = mesh->GetNBE();
          for (int b = 0; b < NBE; b++)
          {
@@ -1956,7 +1956,7 @@ int sedov(int myid, int argc, char *argv[])
       }
       if (dim == 3)
       {
-         mesh = new Mesh(2, 2, 2,Element::HEXAHEDRON, true);
+         mesh = new Mesh(Mesh::MakeCartesian3D(2, 2, 2,Element::HEXAHEDRON));
          const int NBE = mesh->GetNBE();
          MFEM_ASSERT(NBE==24,"");
          for (int b = 0; b < NBE; b++)

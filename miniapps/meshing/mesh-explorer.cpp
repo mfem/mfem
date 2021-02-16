@@ -404,7 +404,8 @@ int main (int argc, char *argv[])
                if (ref_factor <= 1 || ref_factor > 32) { break; }
                int ref_type = (sk == 'u') ? BasisType::ClosedUniform :
                               BasisType::GaussLobatto;
-               Mesh *rmesh = new Mesh(mesh, ref_factor, ref_type);
+               Mesh *rmesh = new Mesh(
+                  Mesh::MakeRefined(*mesh, ref_factor, ref_type));
                delete mesh;
                mesh = rmesh;
                break;

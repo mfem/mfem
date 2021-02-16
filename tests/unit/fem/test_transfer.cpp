@@ -72,7 +72,8 @@ TEST_CASE("transfer")
                         {
                            type = Element::TRIANGLE;
                         }
-                        mesh = new Mesh(ne, ne, type, 1, 1.0, 1.0);
+                        mesh = new Mesh(Mesh::MakeCartesian2D(
+                                           ne, ne, type, 1, 1.0, 1.0));
                      }
                      else
                      {
@@ -82,7 +83,8 @@ TEST_CASE("transfer")
                            type = Element::TETRAHEDRON;
                         }
                         mesh =
-                           new Mesh(ne, ne, ne, type, 1, 1.0, 1.0, 1.0);
+                           new Mesh(Mesh::MakeCartesian3D(
+                                       ne, ne, ne, type, 1.0, 1.0, 1.0));
                      }
                      FiniteElementCollection* c_h1_fec =
                         new H1_FECollection(order, dimension);
@@ -224,7 +226,8 @@ TEST_CASE("partransfer", "[Parallel]")
                      {
                         type = Element::TRIANGLE;
                      }
-                     mesh = new Mesh(ne, ne, type, 1, 1.0, 1.0);
+                     mesh = new Mesh(Mesh::MakeCartesian2D(
+                                        ne, ne, type, 1, 1.0, 1.0));
                   }
                   else
                   {
@@ -234,7 +237,8 @@ TEST_CASE("partransfer", "[Parallel]")
                         type = Element::TETRAHEDRON;
                      }
                      mesh =
-                        new Mesh(ne, ne, ne, type, 1, 1.0, 1.0, 1.0);
+                        new Mesh(Mesh::MakeCartesian3D(
+                                    ne, ne, ne, type, 1.0, 1.0, 1.0));
                   }
 
                   Mesh fineMesh(*mesh);

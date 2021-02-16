@@ -264,9 +264,9 @@ int main(int argc, char *argv[])
    }
 
    Mesh *orig_mesh = new Mesh("../../data/periodic-cube.mesh");
-   Mesh *mesh = new Mesh(orig_mesh,
-                         ctx.element_subdivisions,
-                         BasisType::ClosedUniform);
+   Mesh *mesh = new Mesh(
+      Mesh::MakeRefined(*orig_mesh, ctx.element_subdivisions,
+                        BasisType::ClosedUniform));
    delete orig_mesh;
 
    mesh->EnsureNodes();

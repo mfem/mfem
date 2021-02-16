@@ -45,12 +45,13 @@ double compare_pa_id_assembly(int dim, int num_elements, int order,
    {
       if (dim == 2)
       {
-         mesh = new Mesh(num_elements, num_elements, Element::QUADRILATERAL, true);
+         mesh = new Mesh(Mesh::MakeCartesian2D(
+                            num_elements, num_elements, Element::QUADRILATERAL, true));
       }
       else
       {
-         mesh = new Mesh(num_elements, num_elements, num_elements,
-                         Element::HEXAHEDRON, true);
+         mesh = new Mesh(Mesh::MakeCartesian3D(
+                            num_elements, num_elements, num_elements, Element::HEXAHEDRON));
       }
    }
    FiniteElementCollection *h1_fec = new H1_FECollection(order, dim);

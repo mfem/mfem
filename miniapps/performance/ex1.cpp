@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
    {
       int basis_lor = basis;
       if (basis == BasisType::Positive) { basis_lor=BasisType::ClosedUniform; }
-      mesh_lor = new Mesh(mesh, order, basis_lor);
+      mesh_lor = new Mesh(Mesh::MakeRefined(*mesh, order, basis_lor));
       fec_lor = new H1_FECollection(1, dim);
       fespace_lor = new FiniteElementSpace(mesh_lor, fec_lor);
    }

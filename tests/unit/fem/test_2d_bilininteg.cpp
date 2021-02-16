@@ -168,7 +168,7 @@ TEST_CASE("2D Bilinear Mass Integrators",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
-   Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
 
    FunctionCoefficient f2_coef(f2);
    FunctionCoefficient q2_coef(q2);
@@ -388,7 +388,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
-   Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
 
    VectorFunctionCoefficient  F2_coef(dim, F2);
    FunctionCoefficient        q2_coef(q2);
@@ -1009,7 +1009,7 @@ TEST_CASE("2D Bilinear Gradient Integrator",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
-   Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
 
    FunctionCoefficient         f2_coef(f2);
    FunctionCoefficient         q2_coef(q2);
@@ -1173,7 +1173,7 @@ TEST_CASE("2D Bilinear Scalar Curl Integrator",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
-   Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
 
    VectorFunctionCoefficient   F2_coef(dim, F2);
    FunctionCoefficient         q2_coef(q2);
@@ -1280,7 +1280,7 @@ TEST_CASE("2D Bilinear Scalar Cross Product Gradient Integrator",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
-   Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
 
    FunctionCoefficient          f2_coef(f2);
    VectorFunctionCoefficient    V2_coef(dim, V2);
@@ -1359,7 +1359,7 @@ TEST_CASE("2D Bilinear Divergence Integrator",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
-   Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
 
    VectorFunctionCoefficient F2_coef(dim, F2);
    FunctionCoefficient       q2_coef(q2);
@@ -1466,7 +1466,7 @@ TEST_CASE("2D Bilinear Vector Divergence Integrator",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
-   Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
 
    VectorFunctionCoefficient   F2_coef(dim, F2);
    VectorFunctionCoefficient   V2_coef(dim, V2);
@@ -1545,7 +1545,7 @@ TEST_CASE("2D Bilinear Vector Product Integrators",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
-   Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
 
    FunctionCoefficient        f2_coef(f2);
    VectorFunctionCoefficient  V2_coef(dim, V2);
@@ -1743,7 +1743,7 @@ TEST_CASE("2D Bilinear Scalar Cross Product Integrators",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
-   Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
 
    VectorFunctionCoefficient   F2_coef(dim, F2);
    VectorFunctionCoefficient   V2_coef(dim, V2);
@@ -1889,7 +1889,7 @@ TEST_CASE("2D Bilinear Scalar Weak Cross Product Integrators",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
-   Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
 
    FunctionCoefficient         f2_coef(f2);
    VectorFunctionCoefficient   V2_coef(dim, V2);
@@ -2090,7 +2090,7 @@ TEST_CASE("2D Bilinear Scalar Weak Curl Integrators",
    int order = 2, n = 1, dim = 2;
    double tol = 1e-9;
 
-   Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
 
    FunctionCoefficient q2_coef(q2);
 
@@ -2217,7 +2217,7 @@ TEST_CASE("2D Bilinear Scalar Weak Gradient Integrators",
    int order = 2, n = 1, dim = 2;
    double tol = 1e-9;
 
-   Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
 
    FunctionCoefficient q2_coef(q2);
 
@@ -2345,7 +2345,7 @@ TEST_CASE("2D Bilinear Directional Derivative Integrators",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
-   Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
 
    FunctionCoefficient         f2_coef(f2);
    VectorFunctionCoefficient   V2_coef(dim, V2);
@@ -2424,7 +2424,7 @@ TEST_CASE("2D Bilinear Scalar Weak Divergence Integrators",
    int order = 2, n = 1, dim = 2;
    double tol = 1e-9;
 
-   Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
 
    VectorFunctionCoefficient  V2_coef(dim, V2);
 
@@ -2505,7 +2505,7 @@ TEST_CASE("2D Bilinear Vector Weak Divergence Integrators",
    int order = 2, n = 1, dim = 2;
    double tol = 1e-9;
 
-   Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
 
    FunctionCoefficient        q2_coef(q2);
    VectorFunctionCoefficient  D2_coef(dim, V2);
@@ -2725,7 +2725,7 @@ TEST_CASE("2D Bilinear Dot Product Integrators",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
-   Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
 
    VectorFunctionCoefficient  F2_coef(dim, F2);
    VectorFunctionCoefficient  V2_coef(dim, V2);
@@ -2870,7 +2870,7 @@ TEST_CASE("2D Bilinear Weak Gradient Dot Product Integrators",
    int order = 2, n = 1, dim = 2;
    double tol = 1e-9;
 
-   Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
 
    VectorFunctionCoefficient  V2_coef(dim, V2);
 
@@ -2951,7 +2951,7 @@ TEST_CASE("2D Bilinear Scalar Cross Product Curl Integrator",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
-   Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
 
    VectorFunctionCoefficient    F2_coef(dim, F2);
    VectorFunctionCoefficient    V2_coef(dim, V2);
@@ -3029,7 +3029,7 @@ TEST_CASE("2D Bilinear Scalar Weak Curl Cross Integrators",
    int order = 2, n = 1, dim = 2;
    double tol = 1e-9;
 
-   Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
 
    VectorFunctionCoefficient  V2_coef(dim, V2);
 
