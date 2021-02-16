@@ -78,10 +78,10 @@ struct CoarseFineTransformations
 struct MatrixMap; // for internal use
 
 
-/** \brief A class for non-conforming AMR on higher-order hexahedral, prismatic,
- *  quadrilateral or triangular meshes.
+/** \brief A class for non-conforming AMR. The class is not used directly
+ *  by the user, rather it is a extension of the Mesh class.
  *
- *  The class is used as follows:
+ *  In general, the class is used by MFEM as follows:
  *
  *  1. NCMesh is constructed from elements of an existing Mesh. The elements
  *     are copied and become roots of the refinement hierarchy.
@@ -90,7 +90,8 @@ struct MatrixMap; // for internal use
  *     anisotropic refinements of quads/hexes are supported.
  *
  *  3. A new Mesh is created from NCMesh containing the leaf elements.
- *     This new mesh may have non-conforming (hanging) edges and faces.
+ *     This new Mesh may have non-conforming (hanging) edges and faces and
+ *     is the one seen by the user.
  *
  *  4. FiniteElementSpace asks NCMesh for a list of conforming, master and
  *     slave edges/faces and creates the conforming interpolation matrix P.
@@ -881,8 +882,7 @@ protected: // implementation
 
    // geometry
 
-   /** This holds in one place the constants about the geometries we support
-       (triangles, quads, cubes) */
+   /// This holds in one place the constants about the geometries we support
    struct GeomInfo
    {
       int nv, ne, nf;   // number of: vertices, edges, faces
