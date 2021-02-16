@@ -196,7 +196,7 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
 
    The auxiliary space solves in general, and this one in particular,
    seem to be quite sensitive to handling of boundary conditions. Note
-   some careful choices for Matrix::DiagonalPolicy and the ZeroWrap
+   some careful choices for Matrix::DiagonalPolicy and the ZeroWrapAMG
    object, as well as the use of a single CG iteration (instead of just
    an AMG V-cycle). Just a V-cycle may be more efficient in some cases,
    but we recommend the CG wrapper for robustness here. */
@@ -308,13 +308,14 @@ void MatrixFreeAuxiliarySpace::SetupVCycle()
    aspacewrapper = lor_pc;
 }
 
-class ZeroWrap : public Solver
+class ZeroWrapAMG : public Solver
 {
 public:
 #ifdef MFEM_USE_AMGX
-   ZeroWrap(HypreParMatrix& mat, Array<int>& ess_tdof_list_, const bool useAmgX) :
+   ZeroWrapAMG(HypreParMatrix& mat, Array<int>& ess_tdof_list_,
+               const bool useAmgX) :
 #else
-   ZeroWrap(HypreParMatrix& mat, Array<int>& ess_tdof_list_) :
+   ZeroWrapAMG(HypreParMatrix& mat, Array<int>& ess_tdof_list_) :
 #endif
       Solver(mat.Height()), ess_tdof_list(ess_tdof_list_)
    {
@@ -350,7 +351,7 @@ public:
 
    void SetOperator(const Operator&) { }
 
-   ~ZeroWrap()
+   ~ZeroWrapAMG()
    {
       delete amg_;
    }
@@ -366,9 +367,9 @@ void MatrixFreeAuxiliarySpace::SetupAMG(int system_dimension)
    {
       // boundary condition tweak for G-space solver
 #ifdef MFEM_USE_AMGX
-      lor_pc = new ZeroWrap(*lor_matrix, ess_tdof_list, useAmgX);
+      lor_pc = new ZeroWrapAMG(*lor_matrix, ess_tdof_list, useAmgX);
 #else
-      lor_pc = new ZeroWrap(*lor_matrix, ess_tdof_list);
+      lor_pc = new ZeroWrapAMG(*lor_matrix, ess_tdof_list);
 #endif
    }
    else
