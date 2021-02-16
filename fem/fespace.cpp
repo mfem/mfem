@@ -14,8 +14,8 @@
 #include "../general/text.hpp"
 #include "../general/forall.hpp"
 #include "../mesh/mesh_headers.hpp"
-#include "../fem/libceed/ceed.hpp"
 #include "fem.hpp"
+#include "ceed/util.hpp"
 
 #include <cmath>
 #include <cstdarg>
@@ -2161,7 +2161,7 @@ void FiniteElementSpace::Destroy()
       delete [] bdofs;
       delete [] fdofs;
    }
-   RemoveCeedBasisAndRestriction(this);
+   ceed::RemoveBasisAndRestriction(this);
 }
 
 void FiniteElementSpace::GetTransferOperator(

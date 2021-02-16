@@ -34,6 +34,18 @@ void NonlinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
                "   is not implemented for this class.");
 }
 
+void NonlinearFormIntegrator::AssembleMF(const FiniteElementSpace &fes)
+{
+   mfem_error ("NonlinearFormIntegrator::AssembleMF(...)\n"
+               "   is not implemented for this class.");
+}
+
+void NonlinearFormIntegrator::AddMultMF(const Vector &, Vector &) const
+{
+   mfem_error ("NonlinearFormIntegrator::AddMultMF(...)\n"
+               "   is not implemented for this class.");
+}
+
 void NonlinearFormIntegrator::AssembleElementVector(
    const FiniteElement &el, ElementTransformation &Tr,
    const Vector &elfun, Vector &elvect)
@@ -759,12 +771,7 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
    double w;
    Vector vec1(dim), vec2(dim), vec3(nd);
 
-   const IntegrationRule *ir = IntRule;
-   if (ir == nullptr)
-   {
-      int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
-      ir = &IntRules.Get(el.GetGeomType(), order);
-   }
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, trans);
 
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
