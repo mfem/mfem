@@ -320,15 +320,13 @@ void MFEMCeedInterpolation::MultTranspose(const mfem::Vector& x,
    int length;
    ierr = CeedVectorGetLength(v_, &length); PCeedChk(ierr);
 
-   const CeedScalar *multiplicitydata, *indata;
+   const CeedScalar *multiplicitydata;
    CeedScalar *workdata;
-   ierr = CeedVectorGetArrayRead(v_, mem, &indata); PCeedChk(ierr);
    ierr = CeedVectorGetArrayRead(fine_multiplicity_r, mem,
                                  &multiplicitydata); PCeedChk(ierr);
    ierr = CeedVectorGetArray(fine_work, mem, &workdata); PCeedChk(ierr);
    MFEM_FORALL(i, length,
-   {workdata[i] = indata[i] * multiplicitydata[i];});
-   ierr = CeedVectorRestoreArrayRead(v_, &indata); PCeedChk(ierr);
+   {workdata[i] = in_ptr[i] * multiplicitydata[i];});
    ierr = CeedVectorRestoreArrayRead(fine_multiplicity_r,
                                       &multiplicitydata);
    ierr = CeedVectorRestoreArray(fine_work, &workdata); PCeedChk(ierr);
