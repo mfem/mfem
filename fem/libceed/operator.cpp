@@ -24,10 +24,11 @@ namespace mfem
 void MFEMCeedOperator::Mult(const Vector &x, Vector &y) const
 {
 #ifdef MFEM_USE_CEED
+   int ierr;
    const CeedScalar *x_ptr;
    CeedScalar *y_ptr;
    CeedMemType mem;
-   CeedGetPreferredMemType(internal::ceed, &mem);
+   ierr = CeedGetPreferredMemType(internal::ceed, &mem); PCeedChk(ierr);
    if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
    {
       x_ptr = x.Read();
@@ -39,25 +40,29 @@ void MFEMCeedOperator::Mult(const Vector &x, Vector &y) const
       y_ptr = y.HostWrite();
       mem = CEED_MEM_HOST;
    }
-   CeedVectorSetArray(u, mem, CEED_USE_POINTER, const_cast<CeedScalar*>(x_ptr));
-   CeedVectorSetArray(v, mem, CEED_USE_POINTER, y_ptr);
+   ierr = CeedVectorSetArray(u, mem, CEED_USE_POINTER,
+                             const_cast<CeedScalar*>(x_ptr)); PCeedChk(ierr);
+   ierr = CeedVectorSetArray(v, mem, CEED_USE_POINTER, y_ptr); PCeedChk(ierr);
 
-   CeedOperatorApply(oper, u, v, CEED_REQUEST_IMMEDIATE);
+   ierr = CeedOperatorApply(oper, u, v, CEED_REQUEST_IMMEDIATE);
+   PCeedChk(ierr);
 
-   CeedVectorTakeArray(u, mem, const_cast<CeedScalar**>(&x_ptr));
-   CeedVectorTakeArray(v, mem, &y_ptr);
+   ierr = CeedVectorTakeArray(u, mem, const_cast<CeedScalar**>(&x_ptr));
+   PCeedChk(ierr);
+   ierr = CeedVectorTakeArray(v, mem, &y_ptr); PCeedChk(ierr);
 #else
-   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
 }
 
 void MFEMCeedOperator::AddMult(const Vector &x, Vector &y) const
 {
 #ifdef MFEM_USE_CEED
+   int ierr;
    const CeedScalar *x_ptr;
    CeedScalar *y_ptr;
    CeedMemType mem;
-   CeedGetPreferredMemType(internal::ceed, &mem);
+   ierr = CeedGetPreferredMemType(internal::ceed, &mem); PCeedChk(ierr);
    if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
    {
       x_ptr = x.Read();
@@ -69,24 +74,28 @@ void MFEMCeedOperator::AddMult(const Vector &x, Vector &y) const
       y_ptr = y.HostReadWrite();
       mem = CEED_MEM_HOST;
    }
-   CeedVectorSetArray(u, mem, CEED_USE_POINTER, const_cast<CeedScalar*>(x_ptr));
-   CeedVectorSetArray(v, mem, CEED_USE_POINTER, y_ptr);
+   ierr = CeedVectorSetArray(u, mem, CEED_USE_POINTER,
+                             const_cast<CeedScalar*>(x_ptr)); PCeedChk(ierr);
+   ierr = CeedVectorSetArray(v, mem, CEED_USE_POINTER, y_ptr); PCeedChk(ierr);
 
-   CeedOperatorApplyAdd(oper, u, v, CEED_REQUEST_IMMEDIATE);
+   ierr = CeedOperatorApplyAdd(oper, u, v, CEED_REQUEST_IMMEDIATE);
+   PCeedChk(ierr);
 
-   CeedVectorTakeArray(u, mem, const_cast<CeedScalar**>(&x_ptr));
-   CeedVectorTakeArray(v, mem, &y_ptr);
+   ierr = CeedVectorTakeArray(u, mem, const_cast<CeedScalar**>(&x_ptr));
+   PCeedChk(ierr);
+   ierr = CeedVectorTakeArray(v, mem, &y_ptr); PCeedChk(ierr);
 #else
-   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
 }
 
 void MFEMCeedOperator::GetDiagonal(Vector &diag) const
 {
 #ifdef MFEM_USE_CEED
+   int ierr;
    CeedScalar *d_ptr;
    CeedMemType mem;
-   CeedGetPreferredMemType(internal::ceed, &mem);
+   ierr = CeedGetPreferredMemType(internal::ceed, &mem); PCeedChk(ierr);
    if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
    {
       d_ptr = diag.ReadWrite();
@@ -96,13 +105,14 @@ void MFEMCeedOperator::GetDiagonal(Vector &diag) const
       d_ptr = diag.HostReadWrite();
       mem = CEED_MEM_HOST;
    }
-   CeedVectorSetArray(v, mem, CEED_USE_POINTER, d_ptr);
+   ierr = CeedVectorSetArray(v, mem, CEED_USE_POINTER, d_ptr); PCeedChk(ierr);
 
-   CeedOperatorLinearAssembleAddDiagonal(oper, v, CEED_REQUEST_IMMEDIATE);
+   ierr = CeedOperatorLinearAssembleAddDiagonal(oper, v, CEED_REQUEST_IMMEDIATE);
+   PCeedChk(ierr);
 
-   CeedVectorTakeArray(v, mem, &d_ptr);
+   ierr = CeedVectorTakeArray(v, mem, &d_ptr); PCeedChk(ierr);
 #else
-   mfem_error("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
 }
 
@@ -205,8 +215,10 @@ int MFEMCeedInterpolation::Initialize(
                              &fine_r_data); CeedChk(ierr);
    ierr = CeedVectorGetArrayRead(c_fine_multiplicity, CEED_MEM_HOST,
                                  &fine_data); CeedChk(ierr);
-   MFEM_FORALL(i, height,
-   {fine_r_data[i] = 1.0 / fine_data[i];});
+   for (int i = 0; i < height; ++i)
+   {
+      fine_r_data[i] = 1.0 / fine_data[i];
+   }
 
    ierr = CeedVectorRestoreArray(fine_multiplicity_r, &fine_r_data); CeedChk(ierr);
    ierr = CeedVectorRestoreArrayRead(c_fine_multiplicity, &fine_data);
@@ -240,9 +252,12 @@ MFEMCeedInterpolation::MFEMCeedInterpolation(
    CeedElemRestriction erestrictu_coarse,
    CeedElemRestriction erestrictu_fine)
 {
+   int ierr;
    int lo_nldofs, ho_nldofs;
-   CeedElemRestrictionGetLVectorSize(erestrictu_coarse, &lo_nldofs);
-   CeedElemRestrictionGetLVectorSize(erestrictu_fine, &ho_nldofs);
+   ierr = CeedElemRestrictionGetLVectorSize(erestrictu_coarse, &lo_nldofs);
+   PCeedChk(ierr);
+   ierr = CeedElemRestrictionGetLVectorSize(erestrictu_fine,
+                                            &ho_nldofs); PCeedChk(ierr);
    height = ho_nldofs;
    width = lo_nldofs;
    owns_basis_ = false;
