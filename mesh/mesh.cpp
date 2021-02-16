@@ -3816,13 +3816,13 @@ Mesh::Mesh(Mesh *orig_mesh, const Array<int> &ref_factors, int ref_type)
 void Mesh::CreateRefinedMesh(Mesh *orig_mesh, const Array<int> &ref_factors,
                              int ref_type)
 {
+   SetEmpty();
    Dim = orig_mesh->Dimension();
+   spaceDim = orig_mesh->SpaceDimension();
 
    MFEM_VERIFY(ref_factors.Min() >= 1, "refinement factor must be >= 1");
    MFEM_VERIFY(ref_type == BasisType::ClosedUniform ||
                ref_type == BasisType::GaussLobatto, "invalid refinement type");
-   MFEM_VERIFY(orig_mesh->GetNumGeometries(Dim) <= 1,
-               "meshes with mixed elements are not supported");
 
    int min_ref = ref_factors.Min();
    int max_ref = ref_factors.Max();
@@ -3834,63 +3834,43 @@ void Mesh::CreateRefinedMesh(Mesh *orig_mesh, const Array<int> &ref_factors,
 
    // Construct a scalar H1 FE space of order ref_factor and use its dofs as
    // the indices of the new, refined vertices.
-
    H1_FECollection rfec(min_ref, Dim, ref_type);
    FiniteElementSpace rfes(orig_mesh, &rfec);
-   rfes.SetRelaxedHpConformity(false);
 
-   int r_num_elem = 0;
-   for (int i = 0; i < orig_mesh->GetNE(); i++)
+   if (var_order)
    {
-      int ref = ref_factors[i];
-      if (var_order) { rfes.SetElementOrder(i, ref); }
-
-      int r_elem_factor = pow(ref, Dim);
-      r_num_elem += r_elem_factor;
+      rfes.SetRelaxedHpConformity(false);
+      for (int i = 0; i < orig_mesh->GetNE(); i++)
+      {
+         rfes.SetElementOrder(i, ref_factors[i]);
+      }
    }
    rfes.Update(false);
 
-   int r_num_bndr = 0;
-   for (int ibdr = 0; ibdr < orig_mesh->GetNBE(); ibdr++)
-   {
-      int i, info;
-      orig_mesh->GetBdrElementAdjacentElement(ibdr, i, info);
-      int r_bndr_factor = pow(ref_factors[i], Dim - 1);
-      r_num_bndr += r_bndr_factor;
-   }
-
-   int r_num_vert = rfes.GetNDofs();
-
-   InitMesh(Dim, orig_mesh->SpaceDimension(), r_num_vert, r_num_elem,
-            r_num_bndr);
-
    // Set the number of vertices, set the actual coordinates later
-   NumOfVertices = r_num_vert;
-   // Add refined elements and set vertex coordinates
+   NumOfVertices = rfes.GetNDofs();
+   vertices.SetSize(NumOfVertices);
+   
    Array<int> rdofs;
    DenseMatrix phys_pts;
-   int max_nv = 0;
 
-   DenseMatrix node_coordinates(spaceDim*pow(2, Dim), r_num_elem);
-   H1_FECollection vertex_fec(1, Dim);
+   GeometryRefiner refiner;
+   refiner.SetType(BasisType::GetQuadrature1D(ref_type));
 
+   // Add refined elements and set vertex coordinates
    for (int el = 0; el < orig_mesh->GetNE(); el++)
    {
-      int ref = ref_factors[el];
-
       Geometry::Type geom = orig_mesh->GetElementGeometry(el);
       int attrib = orig_mesh->GetAttribute(el);
       int nvert = Geometry::NumVerts[geom];
-      RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref);
+      RefinedGeometry &RG = *refiner.Refine(geom, ref_factors[el]);
 
-      max_nv = std::max(max_nv, nvert);
       rfes.GetElementDofs(el, rdofs);
       MFEM_ASSERT(rdofs.Size() == RG.RefPts.Size(), "");
       const FiniteElement *rfe = rfes.GetFE(el);
       orig_mesh->GetElementTransformation(el)->Transform(rfe->GetNodes(),
                                                          phys_pts);
-      const int *c2h_map = rfec.GetDofMap(geom, ref);
-      const int *vertex_map = vertex_fec.GetDofMap(geom, 1);
+      const int *c2h_map = rfec.GetDofMap(geom, ref_factors[el]);
       for (int i = 0; i < phys_pts.Width(); i++)
       {
          vertices[rdofs[i]].SetCoords(spaceDim, phys_pts.GetColumn(i));
@@ -3905,15 +3885,55 @@ void Mesh::CreateRefinedMesh(Mesh *orig_mesh, const Array<int> &ref_factors,
             int cid = RG.RefGeoms[k+nvert*j]; // local Cartesian index
             v[k] = rdofs[c2h_map[cid]];
          }
-         for (int k = 0; k < nvert; k++)
+         AddElement(elem);
+      }
+   }
+
+   // Set up the nodes of the new mesh (if the original mesh has nodes). The new
+   // mesh is always straight-sided (i.e. degree 1 finite element space), but
+   // the nodes are required for e.g. periodic meshes.
+   if (orig_mesh->GetNodes())
+   {
+      bool discont = orig_mesh->GetNodalFESpace()->IsDGSpace();
+      Ordering::Type dof_ordering = orig_mesh->GetNodalFESpace()->GetOrdering();
+      SetCurvature(1, discont, spaceDim, dof_ordering);
+      FiniteElementSpace *nodal_fes = Nodes->FESpace();
+      const FiniteElementCollection *nodal_fec = nodal_fes->FEColl();
+      H1_FECollection vertex_fec(1, Dim);
+      Array<int> dofs;
+      int el_counter = 0;
+      for (int iel = 0; iel < orig_mesh->GetNE(); iel++)
+      {
+         Geometry::Type geom = orig_mesh->GetElementBaseGeometry(iel);
+         int nvert = Geometry::NumVerts[geom];
+         RefinedGeometry &RG = *refiner.Refine(geom, ref_factors[iel]);
+         rfes.GetElementDofs(iel, rdofs);
+         const FiniteElement *rfe = rfes.GetFE(iel);
+         orig_mesh->GetElementTransformation(iel)->Transform(rfe->GetNodes(),
+                                                             phys_pts);
+         const int *node_map = NULL;
+         const H1_FECollection *h1_fec =
+            dynamic_cast<const H1_FECollection *>(nodal_fec);
+         if (h1_fec != NULL) { node_map = h1_fec->GetDofMap(geom); }
+         const int *vertex_map = vertex_fec.GetDofMap(geom);
+         const int *c2h_map = rfec.GetDofMap(geom, ref_factors[iel]);
+         for (int jel = 0; jel < RG.RefGeoms.Size()/nvert; jel++)
          {
-            for (int j = 0; j < spaceDim; ++j)
+            nodal_fes->GetElementVDofs(el_counter++, dofs);
+            for (int iv_lex=0; iv_lex<nvert; ++iv_lex)
             {
-               node_coordinates(k*spaceDim + j, NumOfElements)
-                  = vertices[v[vertex_map[k]]](j);
+               // convert from lexicographic to vertex index
+               int iv = vertex_map[iv_lex];
+               // index of vertex of current element in phys_pts matrix
+               int pt_idx = c2h_map[RG.RefGeoms[iv+nvert*jel]];
+               // index of current vertex into DOF array
+               int node_idx = node_map ? node_map[iv_lex] : iv_lex;
+               for (int d=0; d<spaceDim; ++d)
+               {
+                  (*Nodes)[dofs[node_idx + d*nvert]] = phys_pts(d,pt_idx);
+               }
             }
          }
-         AddElement(elem);
       }
    }
 
@@ -3922,42 +3942,25 @@ void Mesh::CreateRefinedMesh(Mesh *orig_mesh, const Array<int> &ref_factors,
    {
       int i, info;
       orig_mesh->GetBdrElementAdjacentElement(el, i, info);
-      int ref = ref_factors[i];
       Geometry::Type geom = orig_mesh->GetBdrElementBaseGeometry(el);
       int attrib = orig_mesh->GetBdrAttribute(el);
       int nvert = Geometry::NumVerts[geom];
-      RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref);
+      RefinedGeometry &RG = *refiner.Refine(geom, ref_factors[i]);
 
       rfes.GetBdrElementDofs(el, rdofs);
       MFEM_ASSERT(rdofs.Size() == RG.RefPts.Size(), "");
-      if (Dim == 1)
+      const int *c2h_map = rfec.GetDofMap(geom, ref_factors[i]);
+      for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
       {
-         // Dim == 1 is a special case because the boundary elements are
-         // zero-dimensional points, and therefore don't have a DofMap
-         for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
+         Element *elem = NewElement(geom);
+         elem->SetAttribute(attrib);
+         int *v = elem->GetVertices();
+         for (int k = 0; k < nvert; k++)
          {
-            Element *elem = NewElement(geom);
-            elem->SetAttribute(attrib);
-            int *v = elem->GetVertices();
-            v[0] = rdofs[RG.RefGeoms[nvert*j]];
-            AddBdrElement(elem);
+            int cid = RG.RefGeoms[k+nvert*j]; // local Cartesian index
+            v[k] = rdofs[c2h_map[cid]];
          }
-      }
-      else
-      {
-         const int *c2h_map = rfec.GetDofMap(geom, ref);
-         for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
-         {
-            Element *elem = NewElement(geom);
-            elem->SetAttribute(attrib);
-            int *v = elem->GetVertices();
-            for (int k = 0; k < nvert; k++)
-            {
-               int cid = RG.RefGeoms[k+nvert*j]; // local Cartesian index
-               v[k] = rdofs[c2h_map[cid]];
-            }
-            AddBdrElement(elem);
-         }
+         AddBdrElement(elem);
       }
    }
 
@@ -3965,39 +3968,26 @@ void Mesh::CreateRefinedMesh(Mesh *orig_mesh, const Array<int> &ref_factors,
    sequence = orig_mesh->GetSequence() + 1;
    last_operation = Mesh::REFINE;
 
-   // After topology has been finalized, set up the nodes of the new mesh
-   // (if the original mesh has nodes). The new mesh is always straight-sided
-   // (i.e. degree 1 finite element space), but the nodes are required for e.g.
-   // periodic meshes.
-   if (orig_mesh->GetNodes())
-   {
-      L2_FECollection fec_dg(1, Dim, BasisType::GaussLobatto);
-      FiniteElementSpace fes_dg(this, &fec_dg, spaceDim, 1);
-      GridFunction nodes_dg(&fes_dg, node_coordinates.Data());
-      bool discont = orig_mesh->GetNodalFESpace()->IsDGSpace();
-      Ordering::Type dof_ordering = orig_mesh->GetNodalFESpace()->GetOrdering();
-      SetCurvature(1, discont, spaceDim, dof_ordering);
-      Nodes->ProjectGridFunction(nodes_dg);
-   }
-
    // Setup the data for the coarse-fine refinement transformations
    CoarseFineTr.embeddings.SetSize(GetNE());
    // First, compute total number of point matrices that we need per geometry
    // and the offsets into that array
-   std::map<std::pair<Geometry::Type,int>, int> point_matrices_offsets;
+   using GeomRef = std::pair<Geometry::Type, int>;
+   std::map<GeomRef, int> point_matrices_offsets;
    int n_point_matrices[Geometry::NumGeom] = {}; // initialize to zero
    for (int el_coarse = 0; el_coarse < orig_mesh->GetNE(); ++el_coarse)
    {
       Geometry::Type geom = orig_mesh->GetElementBaseGeometry(el_coarse);
-      int r_elem_factor = pow(ref_factors[el_coarse], Dim);
-
       // Have we seen this pair of (goemetry, refinement level) before?
-      std::pair<Geometry::Type,int> id = std::make_pair(geom, r_elem_factor);
+      GeomRef id(geom, ref_factors[el_coarse]);
       if (point_matrices_offsets.find(id) == point_matrices_offsets.end())
       {
+         RefinedGeometry &RG = *refiner.Refine(geom, ref_factors[el_coarse]);
+         int nvert = Geometry::NumVerts[geom];
+         int nref_el = RG.RefGeoms.Size()/nvert;
          // If not, then store the offset and add to the size required
          point_matrices_offsets[id] = n_point_matrices[geom];
-         n_point_matrices[geom] += r_elem_factor;
+         n_point_matrices[geom] += nref_el;
       }
    }
 
@@ -4015,20 +4005,16 @@ void Mesh::CreateRefinedMesh(Mesh *orig_mesh, const Array<int> &ref_factors,
    {
       Geometry::Type geom = orig_mesh->GetElementBaseGeometry(el_coarse);
       int ref = ref_factors[el_coarse];
-      int r_elem_factor = pow(ref, Dim);
-      int offset = point_matrices_offsets[std::make_pair(geom, r_elem_factor)];
-
+      int offset = point_matrices_offsets[GeomRef(geom, ref)];
       int nvert = Geometry::NumVerts[geom];
-      RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref);
-      const int *c2h_map = rfec.GetDofMap(geom, ref);
-      const IntegrationRule &r_nodes = rfes.GetFE(el_coarse)->GetNodes();
-      for (int j = 0; j < r_elem_factor; j++)
+      RefinedGeometry &RG = *refiner.Refine(geom, ref);
+      for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
       {
          DenseMatrix &Pj = CoarseFineTr.point_matrices[geom](offset + j);
          for (int k = 0; k < nvert; k++)
          {
             int cid = RG.RefGeoms[k+nvert*j]; // local Cartesian index
-            const IntegrationPoint &ip = r_nodes.IntPoint(c2h_map[cid]);
+            const IntegrationPoint &ip = RG.RefPts[cid];
             ip.Get(Pj.GetColumn(k), Dim);
          }
 

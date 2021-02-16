@@ -12,21 +12,34 @@
 #ifndef MFEM_LIBCEED_MASS_HPP
 #define MFEM_LIBCEED_MASS_HPP
 
-#include "ceed.hpp"
-
+#include "integrator.hpp"
 #include "../fespace.hpp"
 
 namespace mfem
 {
 
-/// Initialize a Mass Integrator using libCEED
-void CeedPAMassAssemble(const FiniteElementSpace &fes,
-                        const mfem::IntegrationRule &ir,
-                        CeedData& ceedData);
+namespace ceed
+{
 
-void CeedMFMassAssemble(const FiniteElementSpace &fes,
-                        const mfem::IntegrationRule &irm,
-                        CeedData& ceedData);
+/// Represent a MassIntegrator with AssemblyLevel::Partial using libCEED.
+class PAMassIntegrator : public PAIntegrator
+{
+public:
+   PAMassIntegrator(const mfem::FiniteElementSpace &fes,
+                    const mfem::IntegrationRule &irm,
+                    mfem::Coefficient *Q);
+};
+
+/// Represent a MassIntegrator with AssemblyLevel::None using libCEED.
+class MFMassIntegrator : public MFIntegrator
+{
+public:
+   MFMassIntegrator(const mfem::FiniteElementSpace &fes,
+                    const mfem::IntegrationRule &irm,
+                    mfem::Coefficient *Q);
+};
+
+}
 
 }
 
