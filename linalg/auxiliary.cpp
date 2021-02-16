@@ -175,9 +175,9 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    a_lor.Assemble();
    a_lor.EliminateEssentialBC(ess_bdr, policy);
    a_lor.Finalize();
-   aspacematrix = a_lor.ParallelAssemble();
-   aspacematrix->CopyRowStarts();
-   aspacematrix->CopyColStarts();
+   lor_matrix = a_lor.ParallelAssemble();
+   lor_matrix->CopyRowStarts();
+   lor_matrix->CopyColStarts();
 
    SetupAMG(fespace_lor_d.GetMesh()->Dimension());
 
@@ -256,10 +256,10 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    // implicitly have a Matrix::DIAG_KEEP policy
    a_lor.EliminateEssentialBC(ess_bdr, policy);
    a_lor.Finalize();
-   aspacematrix = a_lor.ParallelAssemble();
+   lor_matrix = a_lor.ParallelAssemble();
 
-   aspacematrix->CopyRowStarts();
-   aspacematrix->CopyColStarts();
+   lor_matrix->CopyRowStarts();
+   lor_matrix->CopyColStarts();
 
    SetupAMG(0);
 
@@ -282,12 +282,12 @@ void MatrixFreeAuxiliarySpace::SetupCG(
    MFEM_ASSERT(conn.Height() == curlcurl_oper.Width(),
                "Operators don't match!");
    matfree = new RAPOperator(conn, curlcurl_oper, conn);
-   MFEM_ASSERT(matfree->Height() == aspacepc->Height(),
+   MFEM_ASSERT(matfree->Height() == lor_pc->Height(),
                "Operators don't match!");
 
    cg = new CGSolver(comm);
    cg->SetOperator(*matfree);
-   cg->SetPreconditioner(*aspacepc);
+   cg->SetPreconditioner(*lor_pc);
    if (inner_cg_iterations > 99)
    {
       cg->SetRelTol(1.e-14);
@@ -305,7 +305,7 @@ void MatrixFreeAuxiliarySpace::SetupCG(
 
 void MatrixFreeAuxiliarySpace::SetupVCycle()
 {
-   aspacewrapper = aspacepc;
+   aspacewrapper = lor_pc;
 }
 
 class ZeroWrap : public Solver
@@ -366,9 +366,9 @@ void MatrixFreeAuxiliarySpace::SetupAMG(int system_dimension)
    {
       // boundary condition tweak for G-space solver
 #ifdef MFEM_USE_AMGX
-      aspacepc = new ZeroWrap(*aspacematrix, ess_tdof_list, useAmgX);
+      lor_pc = new ZeroWrap(*lor_matrix, ess_tdof_list, useAmgX);
 #else
-      aspacepc = new ZeroWrap(*aspacematrix, ess_tdof_list);
+      lor_pc = new ZeroWrap(*lor_matrix, ess_tdof_list);
 #endif
    }
    else
@@ -378,19 +378,19 @@ void MatrixFreeAuxiliarySpace::SetupAMG(int system_dimension)
       if (useAmgX)
       {
          const bool amgx_verbose = false;
-         AmgXSolver *amgx = new AmgXSolver(aspacematrix->GetComm(),
+         AmgXSolver *amgx = new AmgXSolver(lor_matrix->GetComm(),
                                            AmgXSolver::PRECONDITIONER,
                                            amgx_verbose);
-         amgx->SetOperator(*aspacematrix);
-         aspacepc = amgx;
+         amgx->SetOperator(*lor_matrix);
+         lor_pc = amgx;
       }
       else
 #endif
       {
-         HypreBoomerAMG* hpc = new HypreBoomerAMG(*aspacematrix);
+         HypreBoomerAMG* hpc = new HypreBoomerAMG(*lor_matrix);
          hpc->SetSystemsOptions(system_dimension);
          hpc->SetPrintLevel(0);
-         aspacepc = hpc;
+         lor_pc = hpc;
       }
    }
 }
@@ -411,10 +411,10 @@ void MatrixFreeAuxiliarySpace::Mult(const Vector& x, Vector& y) const
 
 MatrixFreeAuxiliarySpace::~MatrixFreeAuxiliarySpace()
 {
-   delete aspacematrix;
-   delete aspacepc;
+   delete lor_matrix;
+   delete lor_pc;
    delete matfree;
-   if (aspacepc != aspacewrapper) { delete aspacewrapper; }
+   if (lor_pc != aspacewrapper) { delete aspacewrapper; }
    if (cg != aspacewrapper) { delete cg; }
 }
 

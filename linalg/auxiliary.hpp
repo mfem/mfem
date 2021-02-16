@@ -109,8 +109,8 @@ private:
 
    MPI_Comm comm;
    Array<int> ess_tdof_list;
-   HypreParMatrix * aspacematrix;
-   Solver * aspacepc;
+   HypreParMatrix * lor_matrix;
+   Solver * lor_pc;
    Operator* matfree;
    CGSolver* cg;
    Operator* aspacewrapper;
