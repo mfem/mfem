@@ -499,6 +499,8 @@ public:
    /// Move constructor, useful for using a Mesh as a function return value.
    Mesh(Mesh &&mesh);
 
+   /// Move assignment operstor.
+   Mesh& operator=(Mesh &&mesh);
 
    /** @name Named mesh constructors.
 
@@ -712,7 +714,7 @@ public:
        reorders vertices, edges and faces along with the elements. */
    void ReorderElements(const Array<int> &ordering, bool reorder_vertices = true);
 
-   /// See @a MakeCartesian3D.
+   /// Deprecated: see @a MakeCartesian3D.
    Mesh(int nx, int ny, int nz, Element::Type type, bool generate_edges = false,
         double sx = 1.0, double sy = 1.0, double sz = 1.0,
         bool sfc_ordering = true)
@@ -721,7 +723,7 @@ public:
       Finalize(true); // refine = true
    }
 
-   /// See @a MakeCartesian2D.
+   /// Deprecated: see @a MakeCartesian2D.
    Mesh(int nx, int ny, Element::Type type, bool generate_edges = false,
         double sx = 1.0, double sy = 1.0, bool sfc_ordering = true)
    {
@@ -729,7 +731,7 @@ public:
       Finalize(true); // refine = true
    }
 
-   /// See @a MakeCartesian1D.
+   /// Deprecated: see @a MakeCartesian1D.
    explicit Mesh(int n, double sx = 1.0)
    {
       Make1D(n, sx);

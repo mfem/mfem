@@ -3248,34 +3248,40 @@ Mesh::Mesh(Mesh &&mesh)
    Init();
    InitTables();
    Swap(mesh, true);
+}
 
-   // Should this be moved to Mesh::Swap?
-   sequence = mesh.sequence;
-   last_operation = mesh.last_operation;
-   for (int g=0; g<Geometry::NumGeom; ++g)
-   {
-      CoarseFineTr.point_matrices[g].Swap(mesh.CoarseFineTr.point_matrices[g]);
-   }
-   mfem::Swap(CoarseFineTr.embeddings, mesh.CoarseFineTr.embeddings);
+Mesh& Mesh::operator=(Mesh &&mesh)
+{
+   Swap(mesh, true);
+   return *this;
 }
 
 Mesh Mesh::MakeCartesian1D(int n, double sx)
 {
-   return Mesh(n, sx);
+   Mesh mesh;
+   mesh.Make1D(n, sx);
+   // mesh.Finalize(); not needed in this case
+   return mesh;
 }
 
 Mesh Mesh::MakeCartesian2D(
    int nx, int ny, Element::Type type, bool generate_edges,
    double sx, double sy, bool sfc_ordering)
 {
-   return Mesh(nx, ny, type, generate_edges, sx, sy, sfc_ordering);
+   Mesh mesh;
+   mesh.Make2D(nx, ny, type, sx, sy, generate_edges, sfc_ordering);
+   mesh.Finalize(true); // refine = true
+   return mesh;
 }
 
 Mesh Mesh::MakeCartesian3D(
    int nx, int ny, int nz, Element::Type type,
    double sx, double sy, double sz, bool sfc_ordering)
 {
-   return Mesh(nx, ny, nz, type, false, sx, sy, sz, sfc_ordering);
+   Mesh mesh;
+   mesh.Make3D(nx, ny, nz, type, sx, sy, sz, sfc_ordering);
+   mesh.Finalize(true); // refine = true
+   return mesh;
 }
 
 Mesh Mesh::MakeRefined(Mesh &orig_mesh, int ref_factor, int ref_type)
@@ -8425,6 +8431,11 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
 
       mfem::Swap(Nodes, other.Nodes);
       mfem::Swap(own_nodes, other.own_nodes);
+
+      mfem::Swap(CoarseFineTr, other.CoarseFineTr);
+
+      mfem::Swap(sequence, other.sequence);
+      mfem::Swap(last_operation, other.last_operation);
    }
 }
 
