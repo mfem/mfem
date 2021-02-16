@@ -786,17 +786,13 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
       MFEM_ABORT("VTK mesh is not in ASCII format!");
       return;
    }
-   buff = "";
-   while (buff == "") // allow blanklines
+   do
    {
       getline(input, buff);
       filter_dos(buff);
+      if (!input.good()) { MFEM_ABORT("VTK mesh is not UNSTRUCTURED_GRID!"); }
    }
-   if (buff != "DATASET UNSTRUCTURED_GRID")
-   {
-      MFEM_ABORT("VTK mesh is not UNSTRUCTURED_GRID!");
-      return;
-   }
+   while (buff != "DATASET UNSTRUCTURED_GRID");
 
    // Read the points, skipping optional sections such as the FIELD data from
    // VisIt's VTK export (or from Mesh::PrintVTK with field_data==1).
@@ -860,11 +856,9 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
    input >> ws >> buff;
    Array<int> cell_types;
    int ncells;
-   if (buff == "CELL_TYPES")
-   {
-      input >> ncells;
-      cell_types.Load(ncells, input);
-   }
+   MFEM_VERIFY(buff == "CELL_TYPES", "CELL_TYPES not provided in VTK mesh.")
+   input >> ncells;
+   cell_types.Load(ncells, input);
 
    while ((input.good()) && (buff != "CELL_DATA"))
    {
