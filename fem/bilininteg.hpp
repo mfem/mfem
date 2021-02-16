@@ -2045,6 +2045,8 @@ public:
                                          const FiniteElement &test_fe);
 
    void SetupPA(const FiniteElementSpace &fes);
+
+   bool SupportsCeed() const { return true; }
 };
 
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
@@ -2106,6 +2108,8 @@ public:
                                          ElementTransformation &Trans);
 
    void SetupPA(const FiniteElementSpace &fes);
+
+   bool SupportsCeed() const { return true; }
 };
 
 /** Mass integrator (u, v) restricted to the boundary of a domain */
@@ -2252,6 +2256,7 @@ public:
    virtual void AssembleDiagonalMF(Vector &diag);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
    virtual void AddMultMF(const Vector &x, Vector &y) const;
+   bool SupportsCeed() const { return true; }
 };
 
 
@@ -2647,6 +2652,7 @@ public:
    virtual void AssembleDiagonalMF(Vector &diag);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
    virtual void AddMultMF(const Vector &x, Vector &y) const;
+   bool SupportsCeed() const { return true; }
 };
 
 /** Integrator for the linear elasticity form:

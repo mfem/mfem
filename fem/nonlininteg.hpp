@@ -88,6 +88,9 @@ public:
        called. */
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 
+   /// Indicates whether this integrator can use a Ceed backend.
+   virtual bool SupportsCeed() const { return false; }
+
    virtual ~NonlinearFormIntegrator() { }
 };
 
