@@ -1097,6 +1097,7 @@ void NavierSolver::TransformMesh(VectorCoefficient &dx)
 
    Array<int> empty;
 
+   // Update?!
    N->Setup();
 
    Mv_form->Update();
