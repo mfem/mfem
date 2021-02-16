@@ -1187,9 +1187,6 @@ public:
        with straight edges). */
    void EnsureNodes();
 
-   /** Updates the coordinates of the vertices from the node locations. */
-   void SetVerticesFromNodes();
-
    /** Set the curvature of the mesh nodes using the given polynomial degree,
        'order', and optionally: discontinuous or continuous FE space, 'discont',
        new space dimension, 'space_dim' (if != -1), and 'ordering'. */
