@@ -136,7 +136,8 @@ int main(int argc, char *argv[])
       args.PrintOptions(mfem::out);
    }
 
-   Mesh *mesh = new Mesh(2, 4, Element::QUADRILATERAL, false, 1.5, 2.0);
+   Mesh *mesh = new Mesh(Mesh::MakeCartesian2D(
+                            2, 4, Element::QUADRILATERAL, false, 1.5, 2.0));
 
    mesh->EnsureNodes();
    GridFunction *nodes = mesh->GetNodes();

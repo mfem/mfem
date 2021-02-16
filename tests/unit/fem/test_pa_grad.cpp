@@ -33,12 +33,13 @@ double compare_pa_assembly(int dim, int num_elements, int order, bool transpose)
    {
       if (dim == 2)
       {
-         mesh = new Mesh(num_elements, num_elements, Element::QUADRILATERAL, true);
+         mesh = new Mesh(Mesh::MakeCartesian2D(
+                            num_elements, num_elements, Element::QUADRILATERAL, true));
       }
       else
       {
-         mesh = new Mesh(num_elements, num_elements, num_elements,
-                         Element::HEXAHEDRON, true);
+         mesh = new Mesh(Mesh::MakeCartesian3D(
+                            num_elements, num_elements, num_elements, Element::HEXAHEDRON));
       }
    }
    FiniteElementCollection *h1_fec = new H1_FECollection(order, dim);
@@ -120,18 +121,19 @@ double par_compare_pa_assembly(int dim, int num_elements, int order,
    int size;
    MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-   Mesh * smesh;
+   Mesh smesh;
    if (dim == 2)
    {
-      smesh = new Mesh(num_elements, num_elements, Element::QUADRILATERAL, true);
+      smesh = Mesh::MakeCartesian2D(
+                 num_elements, num_elements, Element::QUADRILATERAL, true);
    }
    else
    {
-      smesh = new Mesh(num_elements, num_elements, num_elements,
-                       Element::HEXAHEDRON, true);
+      smesh = Mesh::MakeCartesian3D(
+                 num_elements, num_elements, num_elements, Element::HEXAHEDRON);
    }
-   ParMesh * mesh = new ParMesh(MPI_COMM_WORLD, *smesh);
-   delete smesh;
+   ParMesh * mesh = new ParMesh(MPI_COMM_WORLD, smesh);
+   smesh.Clear();
    FiniteElementCollection *h1_fec = new H1_FECollection(order, dim);
    FiniteElementCollection *nd_fec = new ND_FECollection(order, dim);
    ParFiniteElementSpace h1_fespace(mesh, h1_fec);

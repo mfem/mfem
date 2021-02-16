@@ -27,7 +27,7 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
          Mesh* mesh;
          if (dimension == 1)
          {
-            mesh = new Mesh(ne, 1.0);
+            mesh = new Mesh(Mesh::MakeCartesian1D(ne, 1.0));
          }
          else if (dimension == 2)
          {
@@ -38,7 +38,8 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
             }
             else
             {
-               mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+               mesh = new Mesh(Mesh::MakeCartesian2D(
+                                  ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0));
             }
          }
          else
@@ -50,7 +51,8 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
             }
             else
             {
-               mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
+               mesh = new Mesh(Mesh::MakeCartesian3D(
+                                  ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0));
             }
          }
 

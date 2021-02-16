@@ -23,7 +23,8 @@ TEST_CASE("Quadrature Function Coefficients",
    int order_h1 = 2, n = 4, dim = 3;
    double tol = 1e-14;
 
-   Mesh mesh(n, n, n, Element::HEXAHEDRON, false, 1.0, 1.0, 1.0);
+   Mesh mesh = Mesh::MakeCartesian3D(
+                  n, n, n, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
    mesh.SetCurvature(order_h1);
 
    int intOrder = 2 * order_h1 + 1;

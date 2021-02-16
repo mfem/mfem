@@ -268,7 +268,7 @@ int main(int argc, char *argv[])
    {
       int basis_lor = basis;
       if (basis == BasisType::Positive) { basis_lor=BasisType::ClosedUniform; }
-      pmesh_lor = new ParMesh(pmesh, order, basis_lor);
+      pmesh_lor = new ParMesh(ParMesh::MakeRefined(*pmesh, order, basis_lor));
       fec_lor = new H1_FECollection(1, dim);
       fespace_lor = new ParFiniteElementSpace(pmesh_lor, fec_lor);
    }

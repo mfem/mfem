@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
    // The mesh could use quads (default) or triangles
    Element::Type el_type = Element::QUADRILATERAL;
    // Element::Type el_type = Element::TRIANGLE;
-   mesh = new Mesh(nx, ny, el_type, 1, 2*M_PI, 2.0);
+   mesh = new Mesh(Mesh::MakeCartesian2D(nx, ny, el_type, 1, 2*M_PI, 2.0));
 
    mesh->SetCurvature(order, true, 3, Ordering::byVDIM);
 

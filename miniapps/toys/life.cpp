@@ -98,7 +98,8 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
 
    // 2. Build a rectangular mesh of quadrilateral elements.
-   Mesh *mesh = new Mesh(nx, ny, Element::QUADRILATERAL, 0, nx, ny, false);
+   Mesh *mesh = new Mesh(Mesh::MakeCartesian2D(
+                            nx, ny, Element::QUADRILATERAL, 0, nx, ny, false));
 
    // 3. Define a finite element space on the mesh. Here we use discontinuous
    //    Lagrange finite elements of order zero i.e. piecewise constant basis

@@ -28,7 +28,8 @@ TEST_CASE("Save and load from collections", "[DataCollection]")
    {
       std::cout<<"Testing VisIt data files"<<std::endl;
       //Set up a small mesh and a couple of grid function on that mesh
-      Mesh *mesh = new Mesh(2, 3, Element::QUADRILATERAL, 0, 2.0, 3.0);
+      Mesh *mesh = new Mesh(Mesh::MakeCartesian2D(2, 3, Element::QUADRILATERAL, 0,
+                                                  2.0, 3.0));
       FiniteElementCollection *fec = new LinearFECollection;
       FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
       GridFunction *u = new GridFunction(fespace);

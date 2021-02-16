@@ -64,8 +64,9 @@ int main(int argc, char *argv[])
 
    // 2. Build a rectangular mesh of quadrilateral elements nearly twice
    //    as wide as it is high.
-   Mesh *mesh = new Mesh(2 * ns - 1, ns, Element::QUADRILATERAL,
-                         0, 2 * ns - 1, ns, false);
+   Mesh *mesh = new Mesh(
+      Mesh::MakeCartesian2D(2 * ns - 1, ns, Element::QUADRILATERAL,
+                            0, 2 * ns - 1, ns, false));
 
    // 3. Define a finite element space on the mesh. Here we use discontinuous
    //    Lagrange finite elements of order zero i.e. piecewise constant basis
