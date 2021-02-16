@@ -143,39 +143,39 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    {
       fespace_lor_d.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
-   ParBilinearForm a_space(&fespace_lor_d);
+   ParBilinearForm a_lor(&fespace_lor_d);
 
    // this choice of policy is important for the G-space solver, but
    // also can make some difference here
    const Matrix::DiagonalPolicy policy = Matrix::DIAG_KEEP;
-   a_space.SetDiagonalPolicy(policy);
+   a_lor.SetDiagonalPolicy(policy);
    if (alpha_coeff == NULL)
    {
-      a_space.AddDomainIntegrator(new VectorDiffusionIntegrator);
+      a_lor.AddDomainIntegrator(new VectorDiffusionIntegrator);
    }
    else
    {
-      a_space.AddDomainIntegrator(new VectorDiffusionIntegrator(*alpha_coeff));
+      a_lor.AddDomainIntegrator(new VectorDiffusionIntegrator(*alpha_coeff));
    }
 
    if (beta_mcoeff != NULL)
    {
       MFEM_VERIFY(beta_coeff == NULL, "Only one beta coefficient should be defined.");
-      a_space.AddDomainIntegrator(new VectorMassIntegrator(*beta_mcoeff));
+      a_lor.AddDomainIntegrator(new VectorMassIntegrator(*beta_mcoeff));
    }
    else if (beta_coeff != NULL)
    {
-      a_space.AddDomainIntegrator(new VectorMassIntegrator(*beta_coeff));
+      a_lor.AddDomainIntegrator(new VectorMassIntegrator(*beta_coeff));
    }
    else
    {
-      a_space.AddDomainIntegrator(new VectorMassIntegrator);
+      a_lor.AddDomainIntegrator(new VectorMassIntegrator);
    }
-   a_space.UsePrecomputedSparsity();
-   a_space.Assemble();
-   a_space.EliminateEssentialBC(ess_bdr, policy);
-   a_space.Finalize();
-   aspacematrix = a_space.ParallelAssemble();
+   a_lor.UsePrecomputedSparsity();
+   a_lor.Assemble();
+   a_lor.EliminateEssentialBC(ess_bdr, policy);
+   a_lor.Finalize();
+   aspacematrix = a_lor.ParallelAssemble();
    aspacematrix->CopyRowStarts();
    aspacematrix->CopyColStarts();
 
@@ -222,30 +222,30 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    ParFiniteElementSpace fespace_lor(&mesh_lor, fec_lor);
 
    // build LOR AMG v-cycle
-   ParBilinearForm a_space(&fespace_lor);
+   ParBilinearForm a_lor(&fespace_lor);
 
    // we need something like DIAG_ZERO in the solver, but explicitly doing
    // that makes BoomerAMG setup complain, so instead we constrain the boundary
    // in the CG solver
    const Matrix::DiagonalPolicy policy = Matrix::DIAG_ONE;
 
-   a_space.SetDiagonalPolicy(policy);
+   a_lor.SetDiagonalPolicy(policy);
 
    if (beta_mcoeff != NULL)
    {
       MFEM_VERIFY(beta_coeff == NULL, "Only one beta coefficient should be defined.");
-      a_space.AddDomainIntegrator(new DiffusionIntegrator(*beta_mcoeff));
+      a_lor.AddDomainIntegrator(new DiffusionIntegrator(*beta_mcoeff));
    }
    else if (beta_coeff != NULL)
    {
-      a_space.AddDomainIntegrator(new DiffusionIntegrator(*beta_coeff));
+      a_lor.AddDomainIntegrator(new DiffusionIntegrator(*beta_coeff));
    }
    else
    {
-      a_space.AddDomainIntegrator(new DiffusionIntegrator);
+      a_lor.AddDomainIntegrator(new DiffusionIntegrator);
    }
-   a_space.UsePrecomputedSparsity();
-   a_space.Assemble();
+   a_lor.UsePrecomputedSparsity();
+   a_lor.Assemble();
    if (ess_bdr.Size())
    {
       fespace_lor.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
@@ -254,9 +254,9 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    // you have to use (serial) BilinearForm eliminate routines to get
    // diag policy DIAG_ZERO all the ParallelEliminateTDofs etc. routines
    // implicitly have a Matrix::DIAG_KEEP policy
-   a_space.EliminateEssentialBC(ess_bdr, policy);
-   a_space.Finalize();
-   aspacematrix = a_space.ParallelAssemble();
+   a_lor.EliminateEssentialBC(ess_bdr, policy);
+   a_lor.Finalize();
+   aspacematrix = a_lor.ParallelAssemble();
 
    aspacematrix->CopyRowStarts();
    aspacematrix->CopyColStarts();
