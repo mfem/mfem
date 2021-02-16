@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,35 +12,33 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
-#include "ceed/diffusion.hpp"
+#include "ceed/convection.hpp"
 
 using namespace std;
 
 namespace mfem
 {
 
-void DiffusionIntegrator::AssembleMF(const FiniteElementSpace &fes)
+void ConvectionIntegrator::AssembleMF(const FiniteElementSpace &fes)
 {
    // Assuming the same element type
-   fespace = &fes;
    Mesh *mesh = fes.GetMesh();
    if (mesh->GetNE() == 0) { return; }
    const FiniteElement &el = *fes.GetFE(0);
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
+   ElementTransformation &Trans = *fes.GetElementTransformation(0);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, Trans);
    if (DeviceCanUseCeed())
    {
+      MFEM_VERIFY(alpha==-1, "Only alpha=-1 currently supported with libCEED.");
       delete ceedOp;
-      MFEM_VERIFY(!VQ && !MQ,
-                  "Only scalar coefficient supported for DiffusionIntegrator"
-                  " with libCEED");
-      ceedOp = new ceed::MFDiffusionIntegrator(fes, *ir, Q);
+      ceedOp = new ceed::MFConvectionIntegrator(fes, *ir, Q, alpha);
       return;
    }
-   MFEM_ABORT("Error: DiffusionIntegrator::AssembleMF only implemented with"
+   MFEM_ABORT("Error: ConvectionIntegrator::AssembleMF only implemented with"
               " libCEED");
 }
 
-void DiffusionIntegrator::AssembleDiagonalMF(Vector &diag)
+void ConvectionIntegrator::AssembleDiagonalMF(Vector &diag)
 {
    if (DeviceCanUseCeed())
    {
@@ -48,12 +46,12 @@ void DiffusionIntegrator::AssembleDiagonalMF(Vector &diag)
    }
    else
    {
-      MFEM_ABORT("Error: DiffusionIntegrator::AssembleDiagonalMF only"
+      MFEM_ABORT("Error: ConvectionIntegrator::AssembleDiagonalMF only"
                  " implemented with libCEED");
    }
 }
 
-void DiffusionIntegrator::AddMultMF(const Vector &x, Vector &y) const
+void ConvectionIntegrator::AddMultMF(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
    {
@@ -61,7 +59,7 @@ void DiffusionIntegrator::AddMultMF(const Vector &x, Vector &y) const
    }
    else
    {
-      MFEM_ABORT("Error: DiffusionIntegrator::AddMultMF only implemented with"
+      MFEM_ABORT("Error: ConvectionIntegrator::AddMultMF only implemented with"
                  " libCEED");
    }
 }
