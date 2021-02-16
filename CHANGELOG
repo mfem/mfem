@@ -100,7 +100,20 @@ Version 4.2.1 (development)
   hp-refinement in both 2D and 3D, on uniform or mixed NC meshes. Support for
   parallel variable-order spaces will follow shortly.
 
+- Added support for creating refined meshes for all element types (e.g. by
+  splitting high-order elements into low-order refined elements), including
+  mixed meshes. The LOR Transfer miniapp (miniapps/tools/lor-transfer.cpp) now
+  supports meshes with any element geometry.
+
 - Gitlab CI: use Spack (and Uberenv) to automate the build of TPLs.
+
+libCEED integration improvements
+--------------------------------
+- Refactor the libCEED integration
+
+- Add support for VectorCoefficient with libCEED backends.
+
+- Add support for ConvectionIntegrator, and VectorConvectionNLFIntegrator with libCEED backends.
 
 
 Version 4.2, released on October 30, 2020
