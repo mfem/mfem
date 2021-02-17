@@ -343,7 +343,7 @@ void MFEMCeedInterpolation::MultTranspose(const mfem::Vector& x,
    MFEM_FORALL(i, length,
    {workdata[i] = in_ptr[i] * multiplicitydata[i];});
    ierr = CeedVectorRestoreArrayRead(fine_multiplicity_r,
-                                      &multiplicitydata);
+                                     &multiplicitydata);
    ierr = CeedVectorRestoreArray(fine_work, &workdata); PCeedChk(ierr);
 
    ierr = CeedOperatorApply(op_restrict, fine_work, u_,
