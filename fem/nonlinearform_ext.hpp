@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -124,5 +124,41 @@ public:
    /// Called by NonlinearForm::Update() to reflect changes in the FE space.
    void Update() override;
 };
+
+/// Data and methods for unassembled nonlinear forms
+class MFNonlinearFormExtension : public NonlinearFormExtension
+{
+protected:
+   const FiniteElementSpace &fes; // Not owned
+   mutable Vector localX, localY;
+   const Operator *elem_restrict_lex; // Not owned
+
+public:
+   MFNonlinearFormExtension(const NonlinearForm*);
+
+   /// Prepare the MFNonlinearFormExtension for evaluation with Mult().
+   void Assemble() override;
+
+   /// Perform the action of the MFNonlinearFormExtension.
+   /** Both the input, @a x, and output, @a y, vectors are L-vectors, i.e.
+       GridFunction-size vectors. */
+   void Mult(const Vector &x, Vector &y) const override;
+
+   Operator &GetGradient(const Vector &x) const override
+   {
+      MFEM_ABORT("TODO");
+      return *const_cast<MFNonlinearFormExtension*>(this);
+   }
+
+   double GetGridFunctionEnergy(const Vector &x) const override
+   {
+      MFEM_ABORT("TODO");
+      return 0.0;
+   }
+
+   /// Called by NonlinearForm::Update() to reflect changes in the FE space.
+   void Update() override;
+};
+
 }
 #endif // NONLINEARFORM_EXT_HPP
