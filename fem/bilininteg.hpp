@@ -1,3 +1,6 @@
+// TODO this is for vim
+// vim: set ts=3 sw=3 sts=3 expandtab:
+
 // Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
@@ -15,6 +18,7 @@
 #include "../config/config.hpp"
 #include "nonlininteg.hpp"
 #include "fespace.hpp"
+#include "../../src/tensor.hpp"
 
 namespace mfem
 {
@@ -2161,6 +2165,50 @@ public:
                                          ElementTransformation &Trans);
 };
 
+// TODO add documentation
+class VectorConvectionIntegrator : public BilinearFormIntegrator
+{
+protected:
+   const VectorTensorCoefficient* VTQ;
+   const int vdim;
+   const double alpha;
+private:
+   DenseMatrix pelmat, dshape, adjJ, Q_ir;
+   Vector shape, vec1, vec2, BdFidxT;
+public:
+   VectorConvectionIntegrator(VectorTensorCoefficient& vtq, double a=1.0)
+      : VTQ{&vtq}, vdim{vtq.GetVDim()}, alpha{a}
+   {}
+   virtual void AssembleElementMatrix(const FiniteElement &,
+                                      ElementTransformation &,
+                                      DenseMatrix &) override;
+
+};
+
+// TODO add documentation
+class VectorDGTraceIntegrator : public BilinearFormIntegrator
+{
+protected:
+   const VectorTensorCoefficient* VTQ;
+   const int vdim;
+   const double alpha, beta;
+private:
+   DenseMatrix pelmat;
+   Vector shape1, shape2;
+public:
+   VectorDGTraceIntegrator(VectorTensorCoefficient& vtq, double a)
+      : VTQ{&vtq}, vdim{vtq.GetVDim()}, alpha{a}, beta{0.5*alpha}
+   {}
+   VectorDGTraceIntegrator(VectorTensorCoefficient& vtq, double a, double b)
+      : VTQ{&vtq}, vdim{vtq.GetVDim()}, alpha{a}, beta{b}
+   {}
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement& el1,
+                                   const FiniteElement& el2,
+                                   FaceElementTransformations& Trans,
+                                   DenseMatrix& elmat) override;
+};
+
 // Alias for @ConvectionIntegrator.
 using NonconservativeConvectionIntegrator = ConvectionIntegrator;
 
@@ -2623,6 +2671,7 @@ protected:
    Coefficient *Q = NULL;
    VectorCoefficient *VQ = NULL;
    MatrixCoefficient *MQ = NULL;
+   MatrixTensorCoefficient *MTQ = NULL;
 
    // PA extension
    const DofToQuad *maps;         ///< Not owned
@@ -2684,6 +2733,11 @@ public:
        the resulting element matrix will be mathematically invalid. */
    VectorDiffusionIntegrator(MatrixCoefficient& mq)
       : MQ(&mq), vdim(mq.GetVDim()) { }
+
+   // TODO add documentation
+   // TODO do something about partial assembly...
+   VectorDiffusionIntegrator(MatrixTensorCoefficient& mtq)
+      : MTQ(&mtq), vdim(mtq.GetVDim()) { }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
