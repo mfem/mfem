@@ -80,11 +80,11 @@ class CeedAMG : public Solver
 public:
    CeedAMG(ConstrainedMFEMCeedOperator &oper, HypreParMatrix *P)
    {
-      MFEM_ASSERT(P != NULL, "");
+      MFEM_ASSERT(P != NULL, "Provided HypreParMatrix is invalid!");
+      height = width = oper.Height();
 
       int ierr;
       const Array<int> ess_tdofs = oper.GetEssentialTrueDofs();
-      height = width = oper.Height();
 
       ierr = CeedOperatorFullAssemble(oper.GetCeedOperator(), &mat_local);
       PCeedChk(ierr);
@@ -155,6 +155,13 @@ CeedOperator CreateCeedCompositeOperatorFromBilinearForm(BilinearForm &form)
    int ierr;
    CeedOperator op;
    ierr = CeedCompositeOperatorCreate(internal::ceed, &op); PCeedChk(ierr);
+
+   MFEM_VERIFY(form.GetBBFI()->Size() == 0,
+               "Not implemented for this integrator!");
+   MFEM_VERIFY(form.GetFBFI()->Size() == 0,
+               "Not implemented for this integrator!");
+   MFEM_VERIFY(form.GetBFBFI()->Size() == 0,
+               "Not implemented for this integrator!");
 
    // Get the domain bilinear form integrators (DBFIs)
    Array<BilinearFormIntegrator*> *bffis = form.GetDBFI();
