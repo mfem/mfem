@@ -3918,7 +3918,7 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, int ref_factor, int ref_type)
    {
       bool discont = orig_mesh.GetNodalFESpace()->IsDGSpace();
       Ordering::Type dof_ordering = orig_mesh.GetNodalFESpace()->GetOrdering();
-      SetCurvature(1, discont, spaceDim, dof_ordering);
+      Mesh::SetCurvature(1, discont, spaceDim, dof_ordering);
       FiniteElementSpace *nodal_fes = Nodes->FESpace();
       const FiniteElementCollection *nodal_fec = nodal_fes->FEColl();
       H1_FECollection vertex_fec(1, Dim);
