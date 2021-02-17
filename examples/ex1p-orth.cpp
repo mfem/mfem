@@ -428,6 +428,7 @@ int main(int argc, char *argv[])
                << "window_title 'Straight Mesh'"
                << "keys m\n";
 
+      MPI_Barrier(MPI_COMM_WORLD);
       socketstream mix_sol_sock(vishost, visport);
       mix_sol_sock << "parallel " << num_procs << " " << myid << "\n";
       mix_sol_sock.precision(8);
@@ -677,9 +678,9 @@ void SetRanges()
          if (isnan(q2_max_)) { q2_max_ = M_PI; }
          break;
       case PARABOLIC:
-         if (isnan(q1_min_)) { q1_min_ = 0.0; }
+         if (isnan(q1_min_)) { q1_min_ = 0.2; }
          if (isnan(q1_max_)) { q1_max_ = 4.0; }
-         if (isnan(q2_min_)) { q2_min_ = 0.0; }
+         if (isnan(q2_min_)) { q2_min_ = 0.2; }
          if (isnan(q2_max_)) { q2_max_ = 4.0; }
          break;
       case PROLATE_SPHEROIDAL:
