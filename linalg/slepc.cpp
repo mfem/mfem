@@ -183,7 +183,7 @@ int SlepcEigenSolver::GetNumConverged()
 {
    PetscInt num_conv;
    ierr = EPSGetConverged(eps,&num_conv); PCHKERRQ(eps,ierr);
-   return num_conv;
+   return static_cast<int>(num_conv);
 }
 
 void SlepcEigenSolver::SetWhichEigenpairs(SlepcEigenSolver::Which which)
