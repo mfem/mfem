@@ -760,6 +760,7 @@ public:
    Mesh(Mesh *mesh_array[], int num_pieces);
 
    /// Deprecated: see @a MakeRefined.
+   MFEM_DEPRECATED
    Mesh(Mesh *orig_mesh, int ref_factor, int ref_type);
 
    /** This is similar to the mesh constructor with the same arguments, but here
