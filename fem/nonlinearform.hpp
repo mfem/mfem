@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -71,27 +71,34 @@ public:
    /** As an Operator, the NonlinearForm has input and output size equal to the
        number of true degrees of freedom, i.e. f->GetTrueVSize(). */
    NonlinearForm(FiniteElementSpace *f)
-      : Operator(f->GetTrueVSize()), assembly(AssemblyLevel::NONE),
+      : Operator(f->GetTrueVSize()), assembly(AssemblyLevel::LEGACY),
         ext(NULL), fes(f), Grad(NULL), cGrad(NULL),
         sequence(f->GetSequence()), P(f->GetProlongationMatrix()),
         cP(dynamic_cast<const SparseMatrix*>(P))
    { }
 
-   /// Set the desired assembly level. The default is AssemblyLevel::NONE.
+   /// Set the desired assembly level. The default is AssemblyLevel::LEGACY.
    /** For nonlinear operators, the "matrix" assembly levels usually do not make
-       sense, so only NONE (matrix-free) and PARTIAL are supported.
+       sense, so only LEGACY, NONE (matrix-free) and PARTIAL are supported.
 
-       Currently, AssemblyLevel::NONE uses the standard nonlinear action methods
-       like AssembleElementVector of the NonlinearFormIntegrator class which
-       work only on CPU and do not utilize features such as fast tensor-product
-       basis evaluations. In this mode, the gradient operator is constructed as
-       a SparseMatrix (or, in parallel, format such as HypreParMatrix).
+       Currently, AssemblyLevel::LEGACY uses the standard nonlinear action
+       methods like AssembleElementVector of the NonlinearFormIntegrator class
+       which work only on CPU and do not utilize features such as fast
+       tensor-product basis evaluations. In this mode, the gradient operator is
+       constructed as a SparseMatrix (or, in parallel, format such as
+       HypreParMatrix).
 
        When using AssemblyLevel::PARTIAL, the action is performed using methods
        like AddMultPA of the NonlinearFormIntegrator class which typically
        support both CPU and GPU backends and utilize features such as fast
        tensor-product basis evaluations. In this mode, the gradient operator
        also uses partial assembly with support for CPU and GPU backends.
+
+       When using AssemblyLevel::NONE, the action is performed using methods
+       like AddMultMF of the NonlinearFormIntegrator class which typically
+       support both CPU and GPU backends and utilize features such as fast
+       tensor-product basis evaluations. In this mode, the gradient operator
+       is currently not supported.
 
        This method must be called before "assembly" with Setup(). */
    void SetAssemblyLevel(AssemblyLevel assembly_level);

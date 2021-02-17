@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,7 +13,7 @@
 // PABilinearFormExtension and MFBilinearFormExtension.
 
 #include "nonlinearform.hpp"
-#include "../general/forall.hpp"
+#include "ceed/util.hpp"
 
 namespace mfem
 {
@@ -28,6 +28,7 @@ PANonlinearFormExtension::PANonlinearFormExtension(const NonlinearForm *nlf):
    elemR(fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC)),
    Grad(*this)
 {
+   // TODO: optimize for the case when 'elemR' is identity
    xe.SetSize(elemR->Height(), Device::GetMemoryType());
    ye.SetSize(elemR->Height(), Device::GetMemoryType());
    ye.UseDevice(true);
@@ -56,10 +57,22 @@ void PANonlinearFormExtension::Assemble()
 
 void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
-   ye = 0.0;
-   elemR->Mult(x, xe);
-   for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AddMultPA(xe, ye); }
-   elemR->MultTranspose(ye, y);
+   if (!DeviceCanUseCeed())
+   {
+      ye = 0.0;
+      elemR->Mult(x, xe);
+      for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AddMultPA(xe, ye); }
+      elemR->MultTranspose(ye, y);
+   }
+   else
+   {
+      y.UseDevice(true); // typically this is a large vector, so store on device
+      y = 0.0;
+      for (int i = 0; i < dnfi.Size(); ++i)
+      {
+         dnfi[i]->AddMultPA(x, y);
+      }
+   }
 }
 
 Operator &PANonlinearFormExtension::GetGradient(const Vector &x) const
@@ -116,6 +129,68 @@ void PANonlinearFormExtension::Gradient::AssembleDiagonal(Vector &diag) const
 void PANonlinearFormExtension::Gradient::Update()
 {
    height = width = ext.Height();
+}
+
+
+MFNonlinearFormExtension::MFNonlinearFormExtension(const NonlinearForm *form):
+   NonlinearFormExtension(form), fes(*form->FESpace())
+{
+   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   elem_restrict_lex = fes.GetElementRestriction(ordering);
+   if (elem_restrict_lex) // replace with a check for not identity
+   {
+      localX.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      localY.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
+   }
+}
+
+void MFNonlinearFormExtension::Assemble()
+{
+   const Array<NonlinearFormIntegrator*> &integrators = *nlf->GetDNFI();
+   const int Ni = integrators.Size();
+   for (int i = 0; i < Ni; ++i)
+   {
+      integrators[i]->AssembleMF(fes);
+   }
+}
+
+void MFNonlinearFormExtension::Mult(const Vector &x, Vector &y) const
+{
+   const Array<NonlinearFormIntegrator*> &integrators = *nlf->GetDNFI();
+   const int iSz = integrators.Size();
+   // replace the check 'elem_restrict_lex' with a check for not identity
+   if (elem_restrict_lex && !DeviceCanUseCeed())
+   {
+      elem_restrict_lex->Mult(x, localX);
+      localY = 0.0;
+      for (int i = 0; i < iSz; ++i)
+      {
+         integrators[i]->AddMultMF(localX, localY);
+      }
+      elem_restrict_lex->MultTranspose(localY, y);
+   }
+   else
+   {
+      y.UseDevice(true); // typically this is a large vector, so store on device
+      y = 0.0;
+      for (int i = 0; i < iSz; ++i)
+      {
+         integrators[i]->AddMultMF(x, y);
+      }
+   }
+}
+
+void MFNonlinearFormExtension::Update()
+{
+   height = width = fes.GetVSize();
+   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   elem_restrict_lex = fes.GetElementRestriction(ordering);
+   if (elem_restrict_lex) // replace with a check for not identity
+   {
+      localX.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      localY.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+   }
 }
 
 } // namespace mfem
