@@ -100,7 +100,7 @@ public:
 
    /// Prepare the PANonlinearFormExtension for evaluation with Mult().
    /** This method must be called before the first call to Mult(), when the mesh
-       coordinates are chaged, or some coefficients in the integrators need to
+       coordinates are changed, or some coefficients in the integrators need to
        be re-evaluated (this is NonlinearFormIntegrator-dependent). */
    void Assemble() override;
 
