@@ -779,9 +779,9 @@ public:
       A.AssembleDiagonal(APx);
       P.MultTranspose(APx, diag);
 
-      // TODO: For an AMR mesh, a convergent diagonal is assembled with
-      // |P^T| d_e, where |P^T| has the entry-wise absolute values of the
-      // conforming prolongation transpose operator.
+      // TODO: For an AMR mesh, a convergent diagonal can be assembled with
+      // |P^T| APx, where |P^T| has entry-wise absolute values of the conforming
+      // prolongation transpose operator. See BilinearForm::AssembleDiagonal.
    }
 
    /// Application of the transpose.

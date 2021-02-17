@@ -220,12 +220,14 @@ public:
 #ifdef MFEM_USE_MPI
    OperatorChebyshevSmoother(Operator* oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
-                             int order, MPI_Comm comm = MPI_COMM_NULL, int power_iterations = 10,
+                             int order, MPI_Comm comm = MPI_COMM_NULL,
+                             int power_iterations = 10,
                              double power_tolerance = 1e-8);
 #else
    OperatorChebyshevSmoother(Operator* oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
-                             int order, int power_iterations = 10, double power_tolerance = 1e-8);
+                             int order, int power_iterations = 10,
+                             double power_tolerance = 1e-8);
 #endif
 
    ~OperatorChebyshevSmoother() {}

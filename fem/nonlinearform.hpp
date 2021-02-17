@@ -81,7 +81,7 @@ public:
    /** For nonlinear operators, the "matrix" assembly levels usually do not make
        sense, so only NONE (matrix-free) and PARTIAL are supported.
 
-       Currenly, AssemblyLevel::NONE uses the standard nonlinear action methods
+       Currently, AssemblyLevel::NONE uses the standard nonlinear action methods
        like AssembleElementVector of the NonlinearFormIntegrator class which
        work only on CPU and do not utilize features such as fast tensor-product
        basis evaluations. In this mode, the gradient operator is constructed as
@@ -204,7 +204,7 @@ public:
    virtual const Operator *GetRestriction() const
    { return fes->GetRestrictionMatrix(); }
 
-   /** @brief Destroy the NoninearForm including the owned
+   /** @brief Destroy the NonlinearForm including the owned
        NonlinearFormIntegrator%s and gradient Operator. */
    virtual ~NonlinearForm();
 };
