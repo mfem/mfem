@@ -3932,7 +3932,7 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, int ref_factor, int ref_type)
          rfes.GetElementDofs(iel, rdofs);
          const FiniteElement *rfe = rfes.GetFE(iel);
          orig_mesh.GetElementTransformation(iel)->Transform(rfe->GetNodes(),
-                                                             phys_pts);
+                                                            phys_pts);
          const int *node_map = NULL;
          const H1_FECollection *h1_fec =
             dynamic_cast<const H1_FECollection *>(nodal_fec);
