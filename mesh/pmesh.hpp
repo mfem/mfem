@@ -208,6 +208,9 @@ protected:
    /** Note that this method is not related to the public 'Mesh::EnsureNodes`.*/
    void EnsureParNodes();
 
+   /// Internal function used in ParMesh::MakeRefined (and related constructor)
+   void MakeRefined_(ParMesh &orig_mesh, int ref_factor, int ref_type);
+
    void Destroy();
 
 public:
@@ -231,6 +234,12 @@ public:
    /** The @a refine parameter is passed to the method Mesh::Finalize(). */
    ParMesh(MPI_Comm comm, std::istream &input, bool refine = true);
 
+   /// Deprecated: see @a ParMesh::MakeRefined
+   ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type);
+
+   /// Move constructor. Used for named constructors.
+   ParMesh(ParMesh &&mesh);
+
    /// Create a uniformly refined (by any factor) version of @a orig_mesh.
    /** @param[in] orig_mesh  The starting coarse mesh.
        @param[in] ref_factor The refinement factor, an integer > 1.
@@ -242,10 +251,7 @@ public:
        is set to reflect the performed refinements.
 
        @note The constructed ParMesh is linear, i.e. it does not have nodes. */
-   ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type);
-
-   /// Move constructor. Used for named constructors.
-   ParMesh(ParMesh &&mesh);
+   static ParMesh MakeRefined(ParMesh &orig_mesh, int ref_factor, int ref_type);
 
    /** Create a mesh by splitting each element of @a orig_mesh into simplices.
        See @a Mesh::MakeSimplicial for more details. */

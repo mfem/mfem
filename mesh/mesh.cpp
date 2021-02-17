@@ -3286,7 +3286,9 @@ Mesh Mesh::MakeCartesian3D(
 
 Mesh Mesh::MakeRefined(Mesh &orig_mesh, int ref_factor, int ref_type)
 {
-   return Mesh(&orig_mesh, ref_factor, ref_type);
+   Mesh mesh;
+   mesh.MakeRefined_(orig_mesh, ref_factor, ref_type);
+   return mesh;
 }
 
 Mesh::Mesh(const char *filename, int generate_edges, int refine,
@@ -3849,29 +3851,34 @@ Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
 
 Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
 {
-   Dim = orig_mesh->Dimension();
+   MakeRefined_(*orig_mesh, ref_factor, ref_type);
+}
+
+void Mesh::MakeRefined_(Mesh &orig_mesh, int ref_factor, int ref_type)
+{
+   Dim = orig_mesh.Dimension();
    MFEM_VERIFY(ref_factor >= 1, "the refinement factor must be >= 1");
    MFEM_VERIFY(ref_type == BasisType::ClosedUniform ||
                ref_type == BasisType::GaussLobatto, "invalid refinement type");
    MFEM_VERIFY(Dim == 1 || Dim == 2 || Dim == 3,
                "only implemented for Segment, Quadrilateral and Hexahedron "
                "elements in 1D/2D/3D");
-   MFEM_VERIFY(orig_mesh->GetNumGeometries(Dim) <= 1,
+   MFEM_VERIFY(orig_mesh.GetNumGeometries(Dim) <= 1,
                "meshes with mixed elements are not supported");
 
    // Construct a scalar H1 FE space of order ref_factor and use its dofs as
    // the indices of the new, refined vertices.
    H1_FECollection rfec(ref_factor, Dim, ref_type);
-   FiniteElementSpace rfes(orig_mesh, &rfec);
+   FiniteElementSpace rfes(&orig_mesh, &rfec);
 
    int r_bndr_factor = pow(ref_factor, Dim - 1);
    int r_elem_factor = ref_factor * r_bndr_factor;
 
    int r_num_vert = rfes.GetNDofs();
-   int r_num_elem = orig_mesh->GetNE() * r_elem_factor;
-   int r_num_bndr = orig_mesh->GetNBE() * r_bndr_factor;
+   int r_num_elem = orig_mesh.GetNE() * r_elem_factor;
+   int r_num_bndr = orig_mesh.GetNBE() * r_bndr_factor;
 
-   InitMesh(Dim, orig_mesh->SpaceDimension(), r_num_vert, r_num_elem,
+   InitMesh(Dim, orig_mesh.SpaceDimension(), r_num_vert, r_num_elem,
             r_num_bndr);
 
    // Set the number of vertices, set the actual coordinates later
@@ -3884,10 +3891,10 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
    DenseMatrix node_coordinates(spaceDim*pow(2, Dim), r_num_elem);
    H1_FECollection vertex_fec(1, Dim);
 
-   for (int el = 0; el < orig_mesh->GetNE(); el++)
+   for (int el = 0; el < orig_mesh.GetNE(); el++)
    {
-      Geometry::Type geom = orig_mesh->GetElementBaseGeometry(el);
-      int attrib = orig_mesh->GetAttribute(el);
+      Geometry::Type geom = orig_mesh.GetElementBaseGeometry(el);
+      int attrib = orig_mesh.GetAttribute(el);
       int nvert = Geometry::NumVerts[geom];
       RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref_factor);
 
@@ -3895,8 +3902,8 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       rfes.GetElementDofs(el, rdofs);
       MFEM_ASSERT(rdofs.Size() == RG.RefPts.Size(), "");
       const FiniteElement *rfe = rfes.GetFE(el);
-      orig_mesh->GetElementTransformation(el)->Transform(rfe->GetNodes(),
-                                                         phys_pts);
+      orig_mesh.GetElementTransformation(el)->Transform(rfe->GetNodes(),
+                                                        phys_pts);
       const int *c2h_map = rfec.GetDofMap(geom);
       const int *vertex_map = vertex_fec.GetDofMap(geom);
       for (int i = 0; i < phys_pts.Width(); i++)
@@ -3925,22 +3932,22 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       }
    }
 
-   if (orig_mesh->GetNodes())
+   if (orig_mesh.GetNodes())
    {
       L2_FECollection fec_dg(1, Dim, BasisType::GaussLobatto);
       FiniteElementSpace fes_dg(this, &fec_dg, spaceDim, 1);
       GridFunction nodes_dg(&fes_dg, node_coordinates.Data());
-      bool discont = orig_mesh->GetNodalFESpace()->IsDGSpace();
-      Ordering::Type dof_ordering = orig_mesh->GetNodalFESpace()->GetOrdering();
+      bool discont = orig_mesh.GetNodalFESpace()->IsDGSpace();
+      Ordering::Type dof_ordering = orig_mesh.GetNodalFESpace()->GetOrdering();
       SetCurvature(1, discont, spaceDim, dof_ordering);
       Nodes->ProjectGridFunction(nodes_dg);
    }
 
    // Add refined boundary elements
-   for (int el = 0; el < orig_mesh->GetNBE(); el++)
+   for (int el = 0; el < orig_mesh.GetNBE(); el++)
    {
-      Geometry::Type geom = orig_mesh->GetBdrElementBaseGeometry(el);
-      int attrib = orig_mesh->GetBdrAttribute(el);
+      Geometry::Type geom = orig_mesh.GetBdrElementBaseGeometry(el);
+      int attrib = orig_mesh.GetBdrAttribute(el);
       int nvert = Geometry::NumVerts[geom];
       RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref_factor);
 
@@ -3978,15 +3985,15 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
    }
 
    FinalizeTopology(false);
-   sequence = orig_mesh->GetSequence() + 1;
+   sequence = orig_mesh.GetSequence() + 1;
    last_operation = Mesh::REFINE;
 
    // Setup the data for the coarse-fine refinement transformations
    CoarseFineTr.embeddings.SetSize(GetNE());
-   if (orig_mesh->GetNE() > 0)
+   if (orig_mesh.GetNE() > 0)
    {
       const int el = 0;
-      Geometry::Type geom = orig_mesh->GetElementBaseGeometry(el);
+      Geometry::Type geom = orig_mesh.GetElementBaseGeometry(el);
       CoarseFineTr.point_matrices[geom].SetSize(Dim, max_nv, r_elem_factor);
       int nvert = Geometry::NumVerts[geom];
       RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref_factor);

@@ -1140,25 +1140,32 @@ void ParMesh::LoadSharedEntities(istream &input)
 }
 
 ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
-   : Mesh(orig_mesh, ref_factor, ref_type),
-     MyComm(orig_mesh->GetComm()),
-     NRanks(orig_mesh->GetNRanks()),
-     MyRank(orig_mesh->GetMyRank()),
-     glob_elem_offset(-1),
-     glob_offset_sequence(-1),
-     gtopo(orig_mesh->gtopo),
-     have_face_nbr_data(false),
-     pncmesh(NULL)
 {
+   MakeRefined_(*orig_mesh, ref_factor, ref_type);
+}
+
+void ParMesh::MakeRefined_(ParMesh &orig_mesh, int ref_factor, int ref_type)
+{
+   MyComm = orig_mesh.GetComm();
+   NRanks = orig_mesh.GetNRanks();
+   MyRank = orig_mesh.GetMyRank();
+   glob_elem_offset = -1;
+   glob_offset_sequence = -1;
+   gtopo = orig_mesh.gtopo;
+   have_face_nbr_data = false;
+   pncmesh = NULL;
+
+   Mesh::MakeRefined_(orig_mesh, ref_factor, ref_type);
+
    // Need to initialize:
    // - shared_edges, shared_{trias,quads}
    // - group_svert, group_sedge, group_{stria,squad}
    // - svert_lvert, sedge_ledge, sface_lface
 
-   meshgen = orig_mesh->meshgen; // copy the global 'meshgen'
+   meshgen = orig_mesh.meshgen; // copy the global 'meshgen'
 
    H1_FECollection rfec(ref_factor, Dim, ref_type);
-   ParFiniteElementSpace rfes(orig_mesh, &rfec);
+   ParFiniteElementSpace rfes(&orig_mesh, &rfec);
 
    // count the number of entries in each row of group_s{vert,edge,face}
    group_svert.MakeI(GetNGroups()-1); // exclude the local group 0
@@ -1168,13 +1175,13 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
    for (int gr = 1; gr < GetNGroups(); gr++)
    {
       // orig vertex -> vertex
-      group_svert.AddColumnsInRow(gr-1, orig_mesh->GroupNVertices(gr));
+      group_svert.AddColumnsInRow(gr-1, orig_mesh.GroupNVertices(gr));
       // orig edge -> (ref_factor-1) vertices and (ref_factor) edges
-      const int orig_ne = orig_mesh->GroupNEdges(gr);
+      const int orig_ne = orig_mesh.GroupNEdges(gr);
       group_svert.AddColumnsInRow(gr-1, (ref_factor-1)*orig_ne);
       group_sedge.AddColumnsInRow(gr-1, ref_factor*orig_ne);
       // orig face -> (?) vertices, (?) edges, and (?) faces
-      const int orig_nt = orig_mesh->GroupNTriangles(gr);
+      const int orig_nt = orig_mesh.GroupNTriangles(gr);
       if (orig_nt > 0)
       {
          const Geometry::Type geom = Geometry::TRIANGLE;
@@ -1190,7 +1197,7 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
          // count refined faces
          group_stria.AddColumnsInRow(gr-1, orig_nt*(RG.RefGeoms.Size()/nvert));
       }
-      const int orig_nq = orig_mesh->GroupNQuadrilaterals(gr);
+      const int orig_nq = orig_mesh.GroupNQuadrilaterals(gr);
       if (orig_nq > 0)
       {
          const Geometry::Type geom = Geometry::SQUARE;
@@ -1225,15 +1232,15 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
    for (int gr = 1; gr < GetNGroups(); gr++)
    {
       // add shared vertices from original shared vertices
-      const int orig_n_verts = orig_mesh->GroupNVertices(gr);
+      const int orig_n_verts = orig_mesh.GroupNVertices(gr);
       for (int j = 0; j < orig_n_verts; j++)
       {
-         rfes.GetVertexDofs(orig_mesh->GroupVertex(gr, j), rdofs);
+         rfes.GetVertexDofs(orig_mesh.GroupVertex(gr, j), rdofs);
          group_svert.AddConnection(gr-1, svert_lvert.Append(rdofs[0])-1);
       }
 
       // add refined shared edges; add shared vertices from refined shared edges
-      const int orig_n_edges = orig_mesh->GroupNEdges(gr);
+      const int orig_n_edges = orig_mesh.GroupNEdges(gr);
       if (orig_n_edges > 0)
       {
          const Geometry::Type geom = Geometry::SEGMENT;
@@ -1265,7 +1272,7 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
       }
       // add refined shared faces; add shared edges and shared vertices from
       // refined shared faces
-      const int orig_nt = orig_mesh->GroupNTriangles(gr);
+      const int orig_nt = orig_mesh.GroupNTriangles(gr);
       if (orig_nt > 0)
       {
          const Geometry::Type geom = Geometry::TRIANGLE;
@@ -1309,7 +1316,7 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
             }
          }
       }
-      const int orig_nq = orig_mesh->GroupNQuadrilaterals(gr);
+      const int orig_nq = orig_mesh.GroupNQuadrilaterals(gr);
       if (orig_nq > 0)
       {
          const Geometry::Type geom = Geometry::SQUARE;
@@ -1367,6 +1374,13 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
       SetCurvature(1, GetNodalFESpace()->IsDGSpace(), spaceDim,
                    GetNodalFESpace()->GetOrdering());
    }
+}
+
+ParMesh ParMesh::MakeRefined(ParMesh &orig_mesh, int ref_factor, int ref_type)
+{
+   ParMesh mesh;
+   mesh.MakeRefined_(orig_mesh, ref_factor, ref_type);
+   return mesh;
 }
 
 ParMesh ParMesh::MakeSimplicial(ParMesh &orig_mesh)
