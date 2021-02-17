@@ -3861,8 +3861,8 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, int ref_factor, int ref_type)
                ref_type == BasisType::GaussLobatto, "invalid refinement type");
 
    SetEmpty();
-   Dim = orig_mesh->Dimension();
-   spaceDim = orig_mesh->SpaceDimension();
+   Dim = orig_mesh.Dimension();
+   spaceDim = orig_mesh.SpaceDimension();
 
    // Construct a scalar H1 FE space of order ref_factor and use its dofs as
    // the indices of the new, refined vertices.
@@ -3916,22 +3916,22 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, int ref_factor, int ref_type)
 
    if (orig_mesh.GetNodes())
    {
-      bool discont = orig_mesh->GetNodalFESpace()->IsDGSpace();
-      Ordering::Type dof_ordering = orig_mesh->GetNodalFESpace()->GetOrdering();
+      bool discont = orig_mesh.GetNodalFESpace()->IsDGSpace();
+      Ordering::Type dof_ordering = orig_mesh.GetNodalFESpace()->GetOrdering();
       SetCurvature(1, discont, spaceDim, dof_ordering);
       FiniteElementSpace *nodal_fes = Nodes->FESpace();
       const FiniteElementCollection *nodal_fec = nodal_fes->FEColl();
       H1_FECollection vertex_fec(1, Dim);
       Array<int> dofs;
       int el_counter = 0;
-      for (int iel = 0; iel < orig_mesh->GetNE(); iel++)
+      for (int iel = 0; iel < orig_mesh.GetNE(); iel++)
       {
-         Geometry::Type geom = orig_mesh->GetElementBaseGeometry(iel);
+         Geometry::Type geom = orig_mesh.GetElementBaseGeometry(iel);
          int nvert = Geometry::NumVerts[geom];
          RefinedGeometry &RG = *refiner.Refine(geom, ref_factor);
          rfes.GetElementDofs(iel, rdofs);
          const FiniteElement *rfe = rfes.GetFE(iel);
-         orig_mesh->GetElementTransformation(iel)->Transform(rfe->GetNodes(),
+         orig_mesh.GetElementTransformation(iel)->Transform(rfe->GetNodes(),
                                                              phys_pts);
          const int *node_map = NULL;
          const H1_FECollection *h1_fec =
