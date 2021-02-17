@@ -353,6 +353,10 @@ protected:
    double AggregateError(const Array<double> &elem_error,
                          const int *fine, int nfine, int op);
 
+   /// Implementation of the refinement constructors (LOR).
+   void CreateRefinedMesh(Mesh *orig_mesh, const Array<int> &ref_factors,
+                          int ref_type);
+
    /// Read NURBS patch/macro-element mesh
    void LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot);
 
@@ -716,6 +720,11 @@ public:
        @note The constructed Mesh is linear, i.e. it does not have nodes. */
    Mesh(Mesh *orig_mesh, int ref_factor, int ref_type);
 
+   /// A version of the above constructor for non-uniform refinement.
+   /** The input array @a ref_factors contains one refinement factor per element
+       of the input mesh. */
+   Mesh(Mesh *orig_mesh, const Array<int> &ref_factors, int ref_type);
+
    /** This is similar to the mesh constructor with the same arguments, but here
        the current mesh is destroyed and another one created based on the data
        stream again given in MFEM, Netgen, or VTK format. If generate_edges = 0
@@ -840,20 +849,30 @@ public:
 
    const Element *GetFace(int i) const { return faces[i]; }
 
-   Geometry::Type GetFaceBaseGeometry(int i) const
+   Geometry::Type GetFaceGeometry(int i) const
    {
       return faces[i]->GetGeometryType();
    }
 
-   Geometry::Type GetElementBaseGeometry(int i) const
+   Geometry::Type GetElementGeometry(int i) const
    {
       return elements[i]->GetGeometryType();
    }
 
-   Geometry::Type GetBdrElementBaseGeometry(int i) const
+   Geometry::Type GetBdrElementGeometry(int i) const
    {
       return boundary[i]->GetGeometryType();
    }
+
+   // deprecated: "base geometry" no longer means anything
+   Geometry::Type GetFaceBaseGeometry(int i) const
+   { return GetFaceGeometry(i); }
+
+   Geometry::Type GetElementBaseGeometry(int i) const
+   { return GetElementGeometry(i); }
+
+   Geometry::Type GetBdrElementBaseGeometry(int i) const
+   { return GetBdrElementGeometry(i); }
 
    /** @brief Return true iff the given @a geom is encountered in the mesh.
        Geometries of dimensions lower than Dimension() are counted as well. */
@@ -904,7 +923,7 @@ public:
 
    /** Return the indices and the orientations of all edges of face i.
        Works for both 2D (face=edge) and 3D faces. */
-   void GetFaceEdges(int i, Array<int> &, Array<int> &) const;
+   void GetFaceEdges(int i, Array<int> &edges, Array<int> &o) const;
 
    /// Returns the indices of the vertices of face i.
    void GetFaceVertices(int i, Array<int> &vert) const
@@ -929,10 +948,10 @@ public:
    Table *GetEdgeVertexTable() const;
 
    /// Return the indices and the orientations of all faces of element i.
-   void GetElementFaces(int i, Array<int> &, Array<int> &) const;
+   void GetElementFaces(int i, Array<int> &faces, Array<int> &ori) const;
 
    /// Return the index and the orientation of the face of bdr element i. (3D)
-   void GetBdrElementFace(int i, int *, int *) const;
+   void GetBdrElementFace(int i, int *f, int *o) const;
 
    /** Return the vertex index of boundary element i. (1D)
        Return the edge index of boundary element i. (2D)
