@@ -235,6 +235,7 @@ public:
    ParMesh(MPI_Comm comm, std::istream &input, bool refine = true);
 
    /// Deprecated: see @a ParMesh::MakeRefined
+   MFEM_DEPRECATED
    ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type);
 
    /// Move constructor. Used for named constructors.
