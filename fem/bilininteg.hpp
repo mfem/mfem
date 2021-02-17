@@ -15,7 +15,6 @@
 #include "../config/config.hpp"
 #include "nonlininteg.hpp"
 #include "fespace.hpp"
-#include "libceed/ceed.hpp"
 
 namespace mfem
 {
@@ -1968,39 +1967,28 @@ private:
    int dim, ne, dofs1D, quad1D;
    Vector pa_data;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
-   // CEED extension
-   CeedData* ceedDataPtr;
 
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
    DiffusionIntegrator()
-      : Q(NULL), VQ(NULL), MQ(NULL), SMQ(NULL), maps(NULL), geom(NULL),
-        ceedDataPtr(NULL) { }
+      : Q(NULL), VQ(NULL), MQ(NULL), SMQ(NULL), maps(NULL), geom(NULL) { }
 
    /// Construct a diffusion integrator with a scalar coefficient q
    DiffusionIntegrator(Coefficient &q)
-      : Q(&q), VQ(NULL), MQ(NULL), SMQ(NULL), maps(NULL), geom(NULL),
-        ceedDataPtr(NULL) { }
+      : Q(&q), VQ(NULL), MQ(NULL), SMQ(NULL), maps(NULL), geom(NULL) { }
 
    /// Construct a diffusion integrator with a vector coefficient q
    DiffusionIntegrator(VectorCoefficient &q)
-      : Q(NULL), VQ(&q), MQ(NULL), SMQ(NULL), maps(NULL), geom(NULL),
-        ceedDataPtr(NULL) { }
+      : Q(NULL), VQ(&q), MQ(NULL), SMQ(NULL), maps(NULL), geom(NULL) { }
 
    /// Construct a diffusion integrator with a matrix coefficient q
    DiffusionIntegrator(MatrixCoefficient &q)
-      : Q(NULL), VQ(NULL), MQ(&q), SMQ(NULL), maps(NULL), geom(NULL),
-        ceedDataPtr(NULL) { }
+      : Q(NULL), VQ(NULL), MQ(&q), SMQ(NULL), maps(NULL), geom(NULL) { }
+
 
    /// Construct a diffusion integrator with a symmetric matrix coefficient q
    DiffusionIntegrator(SymmetricMatrixCoefficient &q)
-      : Q(NULL), VQ(NULL), MQ(NULL), SMQ(&q), maps(NULL), geom(NULL),
-        ceedDataPtr(NULL) { }
-
-   virtual ~DiffusionIntegrator()
-   {
-      delete ceedDataPtr;
-   }
+      : Q(NULL), VQ(NULL), MQ(NULL), SMQ(&q), maps(NULL), geom(NULL) { }
 
    /** Given a particular Finite Element computes the element stiffness matrix
        elmat. */
@@ -2066,23 +2054,14 @@ protected:
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
 
-   // CEED extension
-   CeedData* ceedDataPtr;
-
 public:
    MassIntegrator(const IntegrationRule *ir = NULL)
-      : BilinearFormIntegrator(ir), Q(NULL), maps(NULL), geom(NULL),
-        ceedDataPtr(NULL) { }
+      : BilinearFormIntegrator(ir), Q(NULL), maps(NULL), geom(NULL) { }
 
    /// Construct a mass integrator with coefficient q
    MassIntegrator(Coefficient &q, const IntegrationRule *ir = NULL)
-      : BilinearFormIntegrator(ir), Q(&q), maps(NULL), geom(NULL),
-        ceedDataPtr(NULL) { }
+      : BilinearFormIntegrator(ir), Q(&q), maps(NULL), geom(NULL) { }
 
-   virtual ~MassIntegrator()
-   {
-      delete ceedDataPtr;
-   }
    /** Given a particular Finite Element computes the element mass matrix
        elmat. */
    virtual void AssembleElementMatrix(const FiniteElement &el,
@@ -2152,16 +2131,25 @@ private:
 public:
    ConvectionIntegrator(VectorCoefficient &q, double a = 1.0)
       : Q(&q) { alpha = a; }
+
    virtual void AssembleElementMatrix(const FiniteElement &,
                                       ElementTransformation &,
                                       DenseMatrix &);
 
    using BilinearFormIntegrator::AssemblePA;
 
+   virtual void AssembleMF(const FiniteElementSpace &fes);
+
    virtual void AssemblePA(const FiniteElementSpace&);
 
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                            const bool add);
+
+   virtual void AssembleDiagonalPA(Vector &diag);
+
+   virtual void AssembleDiagonalMF(Vector &diag);
+
+   virtual void AddMultMF(const Vector&, Vector&) const;
 
    virtual void AddMultPA(const Vector&, Vector&) const;
 
@@ -2225,34 +2213,24 @@ protected:
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
 
-   // CEED extension
-   CeedData* ceedDataPtr;
-
 public:
    /// Construct an integrator with coefficient 1.0
    VectorMassIntegrator()
-      : vdim(-1), Q_order(0), Q(NULL), VQ(NULL), MQ(NULL), ceedDataPtr(NULL) { }
+      : vdim(-1), Q_order(0), Q(NULL), VQ(NULL), MQ(NULL) { }
    /** Construct an integrator with scalar coefficient q.  If possible, save
        memory by using a scalar integrator since the resulting matrix is block
        diagonal with the same diagonal block repeated. */
    VectorMassIntegrator(Coefficient &q, int qo = 0)
-      : vdim(-1), Q_order(qo), Q(&q), VQ(NULL), MQ(NULL), ceedDataPtr(NULL) { }
+      : vdim(-1), Q_order(qo), Q(&q), VQ(NULL), MQ(NULL) { }
    VectorMassIntegrator(Coefficient &q, const IntegrationRule *ir)
       : BilinearFormIntegrator(ir), vdim(-1), Q_order(0), Q(&q), VQ(NULL),
-        MQ(NULL), ceedDataPtr(NULL) { }
+        MQ(NULL) { }
    /// Construct an integrator with diagonal coefficient q
    VectorMassIntegrator(VectorCoefficient &q, int qo = 0)
-      : vdim(q.GetVDim()), Q_order(qo), Q(NULL), VQ(&q), MQ(NULL),
-        ceedDataPtr(NULL) { }
+      : vdim(q.GetVDim()), Q_order(qo), Q(NULL), VQ(&q), MQ(NULL) { }
    /// Construct an integrator with matrix coefficient q
    VectorMassIntegrator(MatrixCoefficient &q, int qo = 0)
-      : vdim(q.GetVDim()), Q_order(qo), Q(NULL), VQ(NULL), MQ(&q),
-        ceedDataPtr(NULL) { }
-
-   virtual ~VectorMassIntegrator()
-   {
-      delete ceedDataPtr;
-   }
+      : vdim(q.GetVDim()), Q_order(qo), Q(NULL), VQ(NULL), MQ(&q) { }
 
    int GetVDim() const { return vdim; }
    void SetVDim(int vdim) { this->vdim = vdim; }
@@ -2652,9 +2630,6 @@ protected:
    int dim, sdim, ne, dofs1D, quad1D;
    Vector pa_data;
 
-   // CEED extension
-   CeedData* ceedDataPtr = NULL;
-
 private:
    DenseMatrix dshape, dshapedxt, pelmat;
    int vdim = -1;
@@ -2709,11 +2684,6 @@ public:
        the resulting element matrix will be mathematically invalid. */
    VectorDiffusionIntegrator(MatrixCoefficient& mq)
       : MQ(&mq), vdim(mq.GetVDim()) { }
-
-   virtual ~VectorDiffusionIntegrator()
-   {
-      delete ceedDataPtr;
-   }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
