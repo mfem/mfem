@@ -467,6 +467,9 @@ protected:
    /// Creates a 1D mesh for the interval [0,sx] divided into n equal intervals.
    void Make1D(int n, double sx = 1.0);
 
+   /// Internal function used in Mesh::MakeRefined
+   void MakeRefined_(Mesh &orig_mesh, int ref_factor, int ref_type);
+
    /// Initialize vertices/elements/boundary/tables from a nonconforming mesh.
    void InitFromNCMesh(const NCMesh &ncmesh);
 
@@ -753,7 +756,7 @@ public:
    /// Create a disjoint mesh from the given mesh array
    Mesh(Mesh *mesh_array[], int num_pieces);
 
-   /// See @a MakeRefined.
+   /// Deprecated: see @a MakeRefined.
    Mesh(Mesh *orig_mesh, int ref_factor, int ref_type);
 
    /** This is similar to the mesh constructor with the same arguments, but here
