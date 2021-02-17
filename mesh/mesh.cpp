@@ -3850,7 +3850,7 @@ void Mesh::CreateRefinedMesh(Mesh *orig_mesh, const Array<int> &ref_factors,
    // Set the number of vertices, set the actual coordinates later
    NumOfVertices = rfes.GetNDofs();
    vertices.SetSize(NumOfVertices);
-   
+
    Array<int> rdofs;
    DenseMatrix phys_pts;
 
