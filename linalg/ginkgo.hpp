@@ -61,7 +61,7 @@ class VectorWrapper : public gko::matrix::Dense<double>
 {
 public:
    VectorWrapper(std::shared_ptr<const gko::Executor> exec,
-                 gko::size_type size, mfem::Vector *mfem_vec,
+                 gko::size_type size, Vector *mfem_vec,
                  bool on_device = true, bool ownership = false)
       : gko::matrix::Dense<double>(
            exec, gko::dim<2> {size, 1},
@@ -76,32 +76,32 @@ public:
       // these will be owned (and deleted) by Ginkgo.
       if (ownership)
       {
-         using deleter = gko_mfem_destroy<mfem::Vector>;
-         mfem_vec_ = std::unique_ptr<mfem::Vector,
-         std::function<void(mfem::Vector *)>>(
+         using deleter = gko_mfem_destroy<Vector>;
+         wrapped_vec = std::unique_ptr<Vector,
+         std::function<void(Vector *)>>(
             mfem_vec, deleter{});
       }
       else
       {
-         using deleter = gko::null_deleter<mfem::Vector>;
-         mfem_vec_ = std::unique_ptr<mfem::Vector,
-         std::function<void(mfem::Vector *)>>(
+         using deleter = gko::null_deleter<Vector>;
+         wrapped_vec = std::unique_ptr<Vector,
+         std::function<void(Vector *)>>(
             mfem_vec, deleter{});
       }
    }
    static std::unique_ptr<VectorWrapper> create(
       std::shared_ptr<const gko::Executor> exec, gko::size_type size,
-      mfem::Vector *mfem_vec, bool on_device = true, bool ownership = false)
+      Vector *mfem_vec, bool on_device = true, bool ownership = false)
    {
       return std::unique_ptr<VectorWrapper>(
                 new VectorWrapper(exec, size, mfem_vec, on_device, ownership));
    }
    // Return reference to MFEM Vector object
-   mfem::Vector &get_mfem_vec_ref() const { return *(this->mfem_vec_.get()); }
+   Vector &get_mfem_vec_ref() const { return *(this->wrapped_vec.get()); }
    // Return const reference to MFEM Vector object
-   const mfem::Vector &get_mfem_vec_const_ref() const
+   const Vector &get_mfem_vec_const_ref() const
    {
-      return const_cast<const mfem::Vector &>(*(this->mfem_vec_.get()));
+      return const_cast<const Vector &>(*(this->wrapped_vec.get()));
    }
 
    // Override base Dense class implementation for creating new vectors
@@ -109,27 +109,28 @@ public:
    virtual std::unique_ptr<gko::matrix::Dense<double>>
                                                     create_with_same_config() const override
    {
-      mfem::Vector *mfem_vec = new mfem::Vector(
+      Vector *mfem_vec = new Vector(
          this->get_size()[0],
-         this->mfem_vec_.get()->GetMemory().GetMemoryType());
+         this->wrapped_vec.get()->GetMemory().GetMemoryType());
 
-      mfem_vec->UseDevice(this->mfem_vec_.get()->UseDevice());
+      mfem_vec->UseDevice(this->wrapped_vec.get()->UseDevice());
+
       // If this function is called, Ginkgo is creating this
       // object and should control the memory, so ownership is
       // set to true
       return VectorWrapper::create(
                 this->get_executor(), this->get_size()[0], mfem_vec,
-                this->mfem_vec_.get()->UseDevice(), true);
+                this->wrapped_vec.get()->UseDevice(), true);
    }
 private:
-   std::unique_ptr<mfem::Vector, std::function<void(mfem::Vector *)>>
-                                                                   mfem_vec_;
+   std::unique_ptr<Vector, std::function<void(Vector *)>> wrapped_vec;
 };
 
 /**
 * This class wraps an MFEM Operator for Ginkgo, to make its Mult()
 * function available to Ginkgo, provided the input and output vectors
 * are of the VectorWrapper type.
+* Note that this class does NOT take ownership of the MFEM Operator.
 *
 * @ingroup GinkgoWrappers
 */
@@ -140,11 +141,11 @@ class OperatorWrapper
 public:
    OperatorWrapper(std::shared_ptr<const gko::Executor> exec,
                    gko::size_type size = 0,
-                   const mfem::Operator *oper = NULL)
+                   const Operator *oper = NULL)
       : gko::EnableLinOp<OperatorWrapper>(exec, gko::dim<2> {size, size}),
-   gko::EnableCreateMethod<OperatorWrapper>()
+        gko::EnableCreateMethod<OperatorWrapper>()
    {
-      this->mfem_oper_ = oper;
+      this->wrapped_oper = oper;
    }
 
 protected:
@@ -153,7 +154,7 @@ protected:
                    const gko::LinOp *beta, gko::LinOp *x) const override;
 
 private:
-   const mfem::Operator *mfem_oper_;
+   const Operator *wrapped_oper;
 };
 
 // Utility function which gets the scalar value of a Ginkgo gko::matrix::Dense
@@ -200,9 +201,12 @@ struct ResidualLogger : gko::log::Logger
    void write() const
    {
       // Print a header for the table
-      mfem::out << "Iteration log with real residual norms:" << std::endl;
+      if (compute_real_residual)
+        mfem::out << "Iteration log with real residual norms:" << std::endl;
+      else
+        mfem::out << "Iteration log with residual norms:" << std::endl;
       mfem::out << '|' << std::setw(10) << "Iteration" << '|' << std::setw(25)
-                << "Real Residual Norm" << '|' << std::endl;
+                << "Residual Norm" << '|' << std::endl;
       // Print a separation line. Note that for creating `10` characters
       // `std::setw()` should be set to `11`.
       mfem::out << '|' << std::setfill('-') << std::setw(11) << '|' <<
@@ -212,7 +216,7 @@ struct ResidualLogger : gko::log::Logger
       for (std::size_t i = 0; i < iterations.size(); i++)
       {
          mfem::out << '|' << std::setw(10) << iterations[i] << '|'
-                   << std::setw(25) << real_norms[i] << '|' << std::endl;
+                   << std::setw(25) << residual_norms[i] << '|' << std::endl;
       }
       // std::defaultfloat could be used here but some compilers do not support
       // it properly, e.g. the Intel compiler
@@ -232,90 +236,145 @@ struct ResidualLogger : gko::log::Logger
                               const gko::LinOp *solution,
                               const gko::LinOp *residual_norm) const override
    {
-      // // If the solver shares a residual norm, log its value
-      // if (residual_norm)
-      // {
-      //    auto dense_norm = gko::as<gko_dense>(residual_norm);
-      //    // Add the norm to the `recurrent_norms` vector
-      //    recurrent_norms.push_back(get_norm(dense_norm));
-      //    // Otherwise, use the recurrent residual vector
-      // }
-      // else
-      // {
-      //    auto dense_residual = gko::as<gko_dense>(residual);
-      //    // Compute the residual vector's norm
-      //    auto norm = compute_norm(gko::lend(dense_residual));
-      //    // Add the computed norm to the `recurrent_norms` vector
-      //    recurrent_norms.push_back(norm);
-      // }
-
-      // If the solver shares the current solution vector
-      if (solution)
+      // If the solver shares the current solution vector and we want to 
+      // compute the residual from that
+      if (solution && compute_real_residual)
       {
          // Store the matrix's executor
          auto exec = matrix->get_executor();
-         // Create a scalar containing the value 1.0
-         auto one = gko::initialize<gko_dense>({1.0}, exec);
-         // Create a scalar containing the value -1.0
-         auto neg_one = gko::initialize<gko_dense>({-1.0}, exec);
-         // Instantiate a temporary result variable
-         std::unique_ptr<gko_dense> res;
+         // Compute the real residual vector by calling apply on the system
+         // First, compute res = A * x
+         matrix->apply(gko::lend(solution), gko::lend(res));
+         // Now do res = res - b, depending on which vector/oper type 
          // Check if b is a Ginkgo vector or wrapped MFEM Vector
          if (dynamic_cast<const VectorWrapper*>(b))
          {
             const VectorWrapper *b_cast = gko::as<const VectorWrapper>(b);
             // Copy the MFEM Vector stored in b
-            Vector *mfem_b_cpy = new Vector(b_cast->get_mfem_vec_ref());
-            res = std::unique_ptr<gko_dense>(new VectorWrapper(exec,
-                                                               mfem_b_cpy->Size(),
-                                                               mfem_b_cpy,
-                                                               mfem_b_cpy->UseDevice(),
-                                                               true));
+            VectorWrapper *res_cast = gko::as<VectorWrapper>(res);
+            res_cast->get_mfem_vec_ref() -= b_cast->get_mfem_vec_const_ref();
          }
          else
          {
-            res = gko::clone(b);
+            // Create a scalar containing the value -1.0
+            auto neg_one = gko::initialize<gko_dense>({-1.0}, exec);
+            res->add_scaled(gko::lend(neg_one), gko::lend(b));
          }
-         // Compute the real residual vector by calling apply on the system
-         // matrix
-         matrix->apply(gko::lend(one), gko::lend(solution),
-                       gko::lend(neg_one), gko::lend(res));
 
          // Compute the norm of the residual vector and add it to the
-         // `real_norms` vector
-         real_norms.push_back(compute_norm(gko::lend(res)));
+         // `residual_norms` vector
+         residual_norms.push_back(compute_norm(gko::lend(res)));
       }
       else
       {
-         // Add to the `real_norms` vector the value -1.0 if it could not be
-         // computed
-         real_norms.push_back(-1.0);
+        // If the solver shares a residual norm, log its value
+        if (residual_norm)
+        {
+           auto dense_norm = gko::as<gko_dense>(residual_norm);
+           // Add the norm to the `residual_norms` vector
+           residual_norms.push_back(get_norm(dense_norm));
+           // Otherwise, use the recurrent residual vector
+        }
+        else
+       {
+          auto dense_residual = gko::as<gko_dense>(residual);
+          // Compute the residual vector's norm
+          auto norm = compute_norm(gko::lend(dense_residual));
+          // Add the computed norm to the `residual_norms` vector
+          residual_norms.push_back(norm);
+       }
       }
-
       // Add the current iteration number to the `iterations` vector
       iterations.push_back(iteration);
    }
 
    // Construct the logger and store the system matrix and b vectors
    ResidualLogger(std::shared_ptr<const gko::Executor> exec,
-                  const gko::LinOp *matrix, const gko_dense *b)
+                  const gko::LinOp *matrix, const gko_dense *b,
+                  bool compute_real_residual=false)
       : gko::log::Logger(exec,
                          gko::log::Logger::iteration_complete_mask),
         matrix{matrix},
-        b{b}
-   {}
+        b{b},
+        compute_real_residual{compute_real_residual}
+   {
+     if (dynamic_cast<const VectorWrapper*>(b)) 
+     {
+       const VectorWrapper *b_cast = gko::as<const VectorWrapper>(b);
+       res = std::move(gko_dense::create_with_config_of(b_cast).release());
+     }
+     else 
+     {
+       res = std::move(gko::clone(b).release());
+     }
+   }
 
 private:
    // Pointer to the system matrix
    const gko::LinOp *matrix;
    // Pointer to the right hand sides
    const gko_dense *b;
-   // Vector which stores all the recurrent residual norms
-   mutable std::vector<ValueType> recurrent_norms{};
-   // Vector which stores all the real residual norms
-   mutable std::vector<ValueType> real_norms{};
+   // Pointer to the residual workspace vector
+   gko_dense *res;
+   // Vector which stores all the residual norms
+   mutable std::vector<ValueType> residual_norms{};
    // Vector which stores all the iteration numbers
    mutable std::vector<std::size_t> iterations{};
+   // Whether or not to compute the residual at every iteration, 
+   //  rather than using the recurrent norm
+   const bool compute_real_residual;
+};
+
+/**
+* This class wraps a Ginkgo Executor for use in MFEM.
+* Note that objects in the GinkgoWrappers namespace intended to work 
+* toegher, e.g. a Ginkgo solver and preconditioner, should use the same
+* GinkgoExecutor object.  In general, most users will want to create
+* one GinkgoExecutor object for use with all Ginkgo-related objects.
+* The wrapper can be created to match MFEM's device configuration.
+*/
+class GinkgoExecutor
+{
+public:
+   // Types of Ginkgo Executors.
+   enum ExecType
+   {
+      /// Reference CPU Executor.
+      REFERENCE = 0,
+      /// OpenMP CPU Executor.
+      OMP = 1,
+      /// CUDA GPU Executor.
+      CUDA = 2,
+      /// HIP GPU Executor.
+      HIP = 3
+   };
+  /**
+   * Constructor. 
+   * Takes an @p GinkgoExecType argument and creates an Executor.
+   */
+   GinkgoExecutor(ExecType exec_type);
+
+  /** Constructor.
+   * Takes an MFEM @p Device object and creates an Executor
+   * that "matches" (e.g., if MFEM is using the CPU, Ginkgo
+   * will choose the OmpExecutor; if MFEM is using CUDA,
+   * Ginkgo will choose the CudaExecutor).
+   */
+   GinkgoExecutor(Device &mfem_device);
+
+   /**
+    * Destructor.
+    */
+   virtual ~GinkgoExecutor() = default;   
+
+   std::shared_ptr<gko::Executor> GetExecutor() const
+   {
+     return this->executor;
+   }
+
+private:
+   std::shared_ptr<gko::Executor> executor;
+
 };
 
 /**
@@ -333,32 +392,20 @@ public:
    /**
     * Constructor.
     *
-    * The @p exec_type defines the paradigm where the solution is computed.
-    * It is a string and the choices are "omp" , "reference" or "cuda".
-    * The respective strings create the respective executors as given below.
-    *
-    * Ginkgo currently supports three different executor types:
+    * The @p exec defines the paradigm where the solution is computed.
+    * Ginkgo currently supports four different executor types:
     *
     * +    OmpExecutor specifies that the data should be stored and the
     *      associated operations executed on an OpenMP-supporting device (e.g.
     *      host CPU);
-    * ```
-    * auto omp = gko::create<gko::OmpExecutor>();
-    * ```
     * +    CudaExecutor specifies that the data should be stored and the
     *      operations executed on the NVIDIA GPU accelerator;
-    * ```
-    * if(gko::CudaExecutor::get_num_devices() > 0 ) {
-    *    auto cuda = gko::create<gko::CudaExecutor>();
-    * }
-    * ```
+    * +    HipExecutor specifies that the data should be stored and the
+    *      operations executed on the GPU accelerator using HIP;
     * +    ReferenceExecutor executes a non-optimized reference implementation,
     *      which can be used to debug the library.
-    * ```
-    * auto ref = gko::create<gko::ReferenceExecutor>();
-    * ```
     */
-   GinkgoPreconditioner(const std::string &exec_type);
+   GinkgoPreconditioner(GinkgoExecutor &exec);
 
    /**
     * Destructor.
@@ -414,7 +461,8 @@ protected:
 
    /**
     * Generated Ginkgo preconditioner for a specific matrix, created through
-    * @p SetOperator().  Must exist to use @p Mult().
+    * @p SetOperator(), or a wrapped MFEM preconditioner. 
+    * Must exist to use @p Mult().
     */
    std::shared_ptr<gko::LinOp> generated_precond;
 
@@ -431,13 +479,6 @@ protected:
     */
    bool has_generated_precond;
 
-private:
-   /**
-    * The execution paradigm as a string to be set by the user. The choices are
-    * between `omp`, `cuda` and `reference` and more details can be found in
-    * Ginkgo's documentation.
-    */
-   const std::string exec_type;
 };
 
 /**
@@ -455,52 +496,10 @@ public:
    /**
     * Constructor.
     *
-    * The @p exec_type defines the paradigm where the solution is computed.
-    * It is a string and the choices are "omp" , "reference" or "cuda".
-    * The respective strings create the respective executors as given below.
+    * The @p exec defines the paradigm where the solution is computed.
     *
-    * Ginkgo currently supports three different executor types:
-    *
-    * +    OmpExecutor specifies that the data should be stored and the
-    *      associated operations executed on an OpenMP-supporting device (e.g.
-    *      host CPU);
-    * ```
-    * auto omp = gko::create<gko::OmpExecutor>();
-    * ```
-    * +    CudaExecutor specifies that the data should be stored and the
-    *      operations executed on the NVIDIA GPU accelerator;
-    * ```
-    * if(gko::CudaExecutor::get_num_devices() > 0 ) {
-    *    auto cuda = gko::create<gko::CudaExecutor>();
-    * }
-    * ```
-    * +    ReferenceExecutor executes a non-optimized reference implementation,
-    *      which can be used to debug the library.
-    * ```
-    * auto ref = gko::create<gko::ReferenceExecutor>();
-    * ```
-    *
-    * The following code snippet demonstrates the using of the OpenMP executor
-    * to create a solver which would use the OpenMP paradigm to the solve the
-    * system on the CPU.
-    *
-    * ```
-    * auto omp = gko::create<gko::OmpExecutor>();
-    * using cg = gko::solver::Cg<>;
-    * auto solver_gen =
-    *     cg::build()
-    *          .with_criteria(
-    *              gko::stop::Iteration::build().with_max_iters(20u).on(omp),
-    *              gko::stop::ResidualNormReduction<>::build()
-    *                  .with_reduction_factor(1e-6)
-    *                  .on(omp))
-    *          .on(omp);
-    * auto solver = solver_gen->generate(system_matrix);
-    *
-    * solver->apply(lend(rhs), lend(solution));
-    * ```
     */
-   GinkgoIterativeSolver(const std::string &exec_type, int print_iter,
+   GinkgoIterativeSolver(GinkgoExecutor &exec, int print_iter,
                          int max_num_iter, double RTOLERANCE, double ATOLERANCE);
 
    /**
@@ -585,24 +584,11 @@ private:
    initialize_ginkgo_log(gko::matrix::Dense<double>* b) const;
 
    /**
-    * Ginkgo matrix data structure. First template parameter is for storing the
-    * array of the non-zeros of the matrix. The second is for the row pointers
-    * and the column indices.
+    * Pointer to either a Ginkgo CSR matrix or an OperatorWrapper wrapping
+    * an MFEM Operator (for matrix-free evaluation).
     */
-   std::shared_ptr<gko::matrix::Csr<double, int>> system_matrix;
+   std::shared_ptr<gko::LinOp> system_oper;
 
-   /**
-    * Pointer to an OperatorWrapper wrapping an MFEM Operator
-    * (for matrix-free evaluation).
-    */
-   std::shared_ptr<OperatorWrapper> wrapped_oper;
-
-   /**
-    * The execution paradigm as a string to be set by the user. The choices are
-    * between `omp`, `cuda` and `reference` and more details can be found in
-    * Ginkgo's documentation.
-    */
-   const std::string exec_type;
 };
 
 
@@ -617,14 +603,14 @@ public:
    /**
     * Constructor.
     *
-    * @param[in] exec_type The execution paradigm for the solver.
+    * @param[in] exec The execution paradigm for the solver.
     * @param[in] print_iter  A setting to control the printing to the screen.
     * @param[in] max_num_iter  The maximum number of iterations to be run.
     * @param[in] RTOLERANCE  The relative tolerance to be achieved.
     * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     */
    CGSolver(
-      const std::string &   exec_type,
+      GinkgoExecutor &exec,
       int print_iter,
       int max_num_iter,
       double RTOLERANCE,
@@ -634,7 +620,7 @@ public:
    /**
     * Constructor.
     *
-    * @param[in] exec_type The execution paradigm for the solver.
+    * @param[in] exec The execution paradigm for the solver.
     * @param[in] print_iter  A setting to control the printing to the screen.
     * @param[in] max_num_iter  The maximum number of iterations to be run.
     * @param[in] RTOLERANCE  The relative tolerance to be achieved.
@@ -642,7 +628,7 @@ public:
     * @param[in] preconditioner The preconditioner for the solver.
     */
    CGSolver(
-      const std::string &   exec_type,
+      GinkgoExecutor &exec,
       int print_iter,
       int max_num_iter,
       double RTOLERANCE,
@@ -663,14 +649,14 @@ public:
    /**
     * Constructor.
     *
-    * @param[in] exec_type The execution paradigm for the solver.
+    * @param[in] exec The execution paradigm for the solver.
     * @param[in] print_iter  A setting to control the printing to the screen.
     * @param[in] max_num_iter  The maximum number of iterations to be run.
     * @param[in] RTOLERANCE  The relative tolerance to be achieved.
     * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     */
    BICGSTABSolver(
-      const std::string &   exec_type,
+      GinkgoExecutor &exec,
       int print_iter,
       int max_num_iter,
       double RTOLERANCE,
@@ -680,7 +666,7 @@ public:
    /**
     * Constructor.
     *
-    * @param[in] exec_type The execution paradigm for the solver.
+    * @param[in] exec The execution paradigm for the solver.
     * @param[in] print_iter  A setting to control the printing to the screen.
     * @param[in] max_num_iter  The maximum number of iterations to be run.
     * @param[in] RTOLERANCE  The relative tolerance to be achieved.
@@ -688,7 +674,7 @@ public:
     * @param[in] preconditioner The preconditioner for the solver.
     */
    BICGSTABSolver(
-      const std::string &   exec_type,
+      GinkgoExecutor &exec,
       int print_iter,
       int max_num_iter,
       double RTOLERANCE,
@@ -712,14 +698,14 @@ public:
    /**
     * Constructor.
     *
-    * @param[in] exec_type The execution paradigm for the solver.
+    * @param[in] exec The execution paradigm for the solver.
     * @param[in] print_iter  A setting to control the printing to the screen.
     * @param[in] max_num_iter  The maximum number of iterations to be run.
     * @param[in] RTOLERANCE  The relative tolerance to be achieved.
     * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     */
    CGSSolver(
-      const std::string &   exec_type,
+      GinkgoExecutor &exec,
       int print_iter,
       int max_num_iter,
       double RTOLERANCE,
@@ -729,7 +715,7 @@ public:
    /**
     * Constructor.
     *
-    * @param[in] exec_type The execution paradigm for the solver.
+    * @param[in] exec The execution paradigm for the solver.
     * @param[in] print_iter  A setting to control the printing to the screen.
     * @param[in] max_num_iter  The maximum number of iterations to be run.
     * @param[in] RTOLERANCE  The relative tolerance to be achieved.
@@ -737,7 +723,7 @@ public:
     * @param[in] preconditioner The preconditioner for the solver.
     */
    CGSSolver(
-      const std::string &   exec_type,
+      GinkgoExecutor &exec,
       int print_iter,
       int max_num_iter,
       double RTOLERANCE,
@@ -768,14 +754,14 @@ public:
    /**
     * Constructor.
     *
-    * @param[in] exec_type The execution paradigm for the solver.
+    * @param[in] exec The execution paradigm for the solver.
     * @param[in] print_iter  A setting to control the printing to the screen.
     * @param[in] max_num_iter  The maximum number of iterations to be run.
     * @param[in] RTOLERANCE  The relative tolerance to be achieved.
     * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     */
    FCGSolver(
-      const std::string &   exec_type,
+      GinkgoExecutor &exec,
       int print_iter,
       int max_num_iter,
       double RTOLERANCE,
@@ -785,7 +771,7 @@ public:
    /**
     * Constructor.
     *
-    * @param[in] exec_type The execution paradigm for the solver.
+    * @param[in] exec The execution paradigm for the solver.
     * @param[in] print_iter  A setting to control the printing to the screen.
     * @param[in] max_num_iter  The maximum number of iterations to be run.
     * @param[in] RTOLERANCE  The relative tolerance to be achieved.
@@ -793,7 +779,7 @@ public:
     * @param[in] preconditioner The preconditioner for the solver.
     */
    FCGSolver(
-      const std::string &   exec_type,
+      GinkgoExecutor &exec,
       int print_iter,
       int max_num_iter,
       double RTOLERANCE,
@@ -816,14 +802,14 @@ public:
    /**
     * Constructor.
     *
-    * @param[in] exec_type The execution paradigm for the solver.
+    * @param[in] exec The execution paradigm for the solver.
     * @param[in] print_iter  A setting to control the printing to the screen.
     * @param[in] max_num_iter  The maximum number of iterations to be run.
     * @param[in] RTOLERANCE  The relative tolerance to be achieved.
     * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     */
    GMRESSolver(
-      const std::string &   exec_type,
+      GinkgoExecutor &exec,
       int print_iter,
       int max_num_iter,
       double RTOLERANCE,
@@ -833,7 +819,7 @@ public:
    /**
     * Constructor.
     *
-    * @param[in] exec_type The execution paradigm for the solver.
+    * @param[in] exec The execution paradigm for the solver.
     * @param[in] print_iter  A setting to control the printing to the screen.
     * @param[in] max_num_iter  The maximum number of iterations to be run.
     * @param[in] RTOLERANCE  The relative tolerance to be achieved.
@@ -841,7 +827,7 @@ public:
     * @param[in] preconditioner The preconditioner for the solver.
     */
    GMRESSolver(
-      const std::string &   exec_type,
+      GinkgoExecutor &exec,
       int print_iter,
       int max_num_iter,
       double RTOLERANCE,
@@ -868,14 +854,14 @@ public:
    /**
     * Constructor.
     *
-    * @param[in] exec_type The execution paradigm for the solver.
+    * @param[in] exec The execution paradigm for the solver.
     * @param[in] print_iter  A setting to control the printing to the screen.
     * @param[in] max_num_iter  The maximum number of iterations to be run.
     * @param[in] RTOLERANCE  The relative tolerance to be achieved.
     * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     */
    IRSolver(
-      const std::string &   exec_type,
+      GinkgoExecutor &exec,
       int print_iter,
       int max_num_iter,
       double RTOLERANCE,
@@ -885,7 +871,7 @@ public:
    /**
     * Constructor.
     *
-    * @param[in] exec_type The execution paradigm for the solver.
+    * @param[in] exec The execution paradigm for the solver.
     * @param[in] print_iter  A setting to control the printing to the screen.
     * @param[in] max_num_iter  The maximum number of iterations to be run.
     * @param[in] RTOLERANCE  The relative tolerance to be achieved.
@@ -893,13 +879,14 @@ public:
     * @param[in] inner_solver  The inner solver for the main solver.
     */
    IRSolver(
-      const std::string &   exec_type,
+      GinkgoExecutor &exec,
       int print_iter,
       int max_num_iter,
       double RTOLERANCE,
       double ATOLERANCE,
       const GinkgoIterativeSolver &inner_solver
    );
+
 };
 
 /**
@@ -914,14 +901,14 @@ public:
    /**
     * Constructor.
     *
-    * @param[in] exec_type The execution paradigm for the preconditioner.
+    * @param[in] exec The execution paradigm for the preconditioner.
     * @param[in] storage_opt  The storage optimization parameter.
     * @param[in] accuracy The relative accuracy for the adaptive version.
     * @param[in] max_block_size Maximum block size.
     * See the Ginkgo documentation for more information on these parameters.
     */
    JacobiPreconditioner(
-      const std::string &exec_type,
+      GinkgoExecutor &exec,
       const std::string &storage_opt = "none",
       const double accuracy = 1.e-1,
       const int max_block_size = 32
@@ -940,7 +927,7 @@ public:
    /**
     * Constructor.
     *
-    * @param[in] exec_type The execution paradigm for the preconditioner.
+    * @param[in] exec The execution paradigm for the preconditioner.
     * @param[in] factorization_type The factorization type: "exact" or
     *  "parilu".
     * @param[in] sweeps The number of sweeps to do in the ParIlu
@@ -955,7 +942,7 @@ public:
     * given to it, potentially changing the order of the stored values.
     */
    IluPreconditioner(
-      const std::string &exec_type,
+      GinkgoExecutor &exec,
       const std::string &factorization_type = "exact",
       const int sweeps = 0,
       const bool skip_sort = false
@@ -979,7 +966,7 @@ public:
    /**
     * Constructor.
     *
-    * @param[in] exec_type The execution paradigm for the preconditioner.
+    * @param[in] exec The execution paradigm for the preconditioner.
     * @param[in] factorization_type The factorization type: "exact" or
     *  "parilu".
     * @param[in] sweeps The number of sweeps to do in the ParIlu
@@ -997,7 +984,7 @@ public:
     * given to it, potentially changing the order of the stored values.
     */
    IluIsaiPreconditioner(
-      const std::string &exec_type,
+      GinkgoExecutor &exec,
       const std::string &factorization_type = "exact",
       const int sweeps = 0,
       const int sparsity_power = 1,
@@ -1017,7 +1004,7 @@ public:
    /**
     * Constructor.
     *
-    * @param[in] exec_type The execution paradigm for the preconditioner.
+    * @param[in] exec The execution paradigm for the preconditioner.
     * @param[in] factorization_type The factorization type: "exact" or
     *  "paric".
     * @param[in] sweeps The number of sweeps to do in the ParIc
@@ -1032,7 +1019,7 @@ public:
     * given to it, potentially changing the order of the stored values.
     */
    IcPreconditioner(
-      const std::string &exec_type,
+      GinkgoExecutor &exec,
       const std::string &factorization_type = "exact",
       const int sweeps = 0,
       const bool skip_sort = false
@@ -1056,7 +1043,7 @@ public:
    /**
     * Constructor.
     *
-    * @param[in] exec_type The execution paradigm for the preconditioner.
+    * @param[in] exec The execution paradigm for the preconditioner.
     * @param[in] factorization_type The factorization type: "exact" or
     *  "paric".
     * @param[in] sweeps The number of sweeps to do in the ParIc
@@ -1074,11 +1061,31 @@ public:
     * given to it, potentially changing the order of the stored values.
     */
    IcIsaiPreconditioner(
-      const std::string &exec_type,
+      GinkgoExecutor &exec,
       const std::string &factorization_type = "exact",
       const int sweeps = 0,
       const int sparsity_power = 1,
       const bool skip_sort = false
+   );
+};
+
+/**
+ * A wrapper that allows Ginkgo to use MFEM preconditioners. 
+ *
+ * @ingroup GinkgoWrappers
+ */
+class MFEMPreconditioner : public GinkgoPreconditioner
+{
+public:
+   /**
+    * Constructor.
+    *
+    * @param[in] exec The execution paradigm for the preconditioner.
+    * @param[in] mfem_precond The MFEM Preconditioner to wrap. 
+    */
+   MFEMPreconditioner(
+      GinkgoExecutor &exec,
+      const Solver &mfem_precond
    );
 };
 } // namespace GinkgoWrappers

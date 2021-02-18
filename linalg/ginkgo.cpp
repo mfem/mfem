@@ -28,34 +28,84 @@ namespace mfem
 namespace GinkgoWrappers
 {
 
+GinkgoExecutor::GinkgoExecutor(ExecType exec_type)
+{
+   switch (exec_type)
+   {
+     case GinkgoExecutor::REFERENCE:
+     {
+       executor = gko::ReferenceExecutor::create();
+       break;
+     }
+     case GinkgoExecutor::OMP:
+     {
+       executor = gko::OmpExecutor::create();
+       break;
+     }
+     case GinkgoExecutor::CUDA:
+     {
+       if (gko::CudaExecutor::get_num_devices() > 0)
+         executor = gko::CudaExecutor::create(0, gko::OmpExecutor::create());
+       else
+         mfem::err <<
+                  "gko::CudaExecutor::get_num_devices() did not report any valid devices"
+                  << std::endl;
+       break;
+     }
+     case GinkgoExecutor::HIP:
+     {
+       if (gko::HipExecutor::get_num_devices() > 0)
+         executor = gko::HipExecutor::create(0, gko::OmpExecutor::create());
+       else
+         mfem::err <<
+                  "gko::HipExecutor::get_num_devices() did not report any valid devices"
+                  << std::endl;
+       break;
+     }
+     default:
+       mfem::err <<
+                "Invalid ExecType specificed" 
+                << std::endl;
+   }
+}
+
+GinkgoExecutor::GinkgoExecutor(Device &mfem_device)
+{
+    
+   // Pick "best match" Executor based on MFEM device configuration.
+   if (mfem_device.Allows(Backend::CUDA_MASK))
+   {
+     if (gko::CudaExecutor::get_num_devices() > 0)
+       executor = gko::CudaExecutor::create(0, gko::OmpExecutor::create());
+     else
+       mfem::err <<
+                "gko::CudaExecutor::get_num_devices() did not report any valid devices"
+                << std::endl;
+   }
+   else if (mfem_device.Allows(Backend::HIP_MASK))
+   {
+     if (gko::HipExecutor::get_num_devices() > 0)
+       executor = gko::HipExecutor::create(0, gko::OmpExecutor::create());
+     else
+       mfem::err <<
+                "gko::HipExecutor::get_num_devices() did not report any valid devices"
+                << std::endl;
+   } 
+   else 
+      executor = gko::OmpExecutor::create();
+}
+
 GinkgoIterativeSolver::GinkgoIterativeSolver(
-   const std::string &exec_type, int print_iter, int max_num_iter,
+   GinkgoExecutor &exec, int print_iter, int max_num_iter,
    double RTOLERANCE, double ATOLERANCE)
    : Solver(),
-     exec_type(exec_type),
      print_lvl(print_iter),
      max_iter(max_num_iter),
      rel_tol(sqrt(RTOLERANCE)),
      abs_tol(sqrt(ATOLERANCE))
 {
-   if (exec_type == "reference")
-   {
-      executor = gko::ReferenceExecutor::create();
-   }
-   else if (exec_type == "omp")
-   {
-      executor = gko::OmpExecutor::create();
-   }
-   else if (exec_type == "cuda" && gko::CudaExecutor::get_num_devices() > 0)
-   {
-      executor = gko::CudaExecutor::create(0, gko::OmpExecutor::create());
-   }
-   else
-   {
-      mfem::err <<
-                " exec_type needs to be one of the three strings: \"reference\", \"cuda\" or \"omp\" "
-                << std::endl;
-   }
+   executor = exec.GetExecutor();
+
    using ResidualCriterionFactory = gko::stop::ResidualNormReduction<>;
    residual_criterion             = ResidualCriterionFactory::build()
                                     .with_reduction_factor(rel_tol)
@@ -78,19 +128,8 @@ const
    // documentation
    convergence_logger = gko::log::Convergence<>::create(
                            executor, gko::log::Logger::criterion_check_completed_mask);
-   std::shared_ptr<gko::LinOp> gko_oper;
-   if (system_matrix)
-   {
-      gko_oper = system_matrix;
-   }
-   else
-   {
-      gko_oper = wrapped_oper;
-   }
-   //   residual_logger = std::make_shared<ResidualLogger<>>(executor,
-   //                                                        gko::lend(system_matrix),b);
    residual_logger = std::make_shared<ResidualLogger<>>(executor,
-                                                        gko::lend(gko_oper),b);
+                                                        gko::lend(system_oper),b);
 
 }
 
@@ -101,7 +140,7 @@ void OperatorWrapper::apply_impl(const gko::LinOp *b, gko::LinOp *x) const
    const VectorWrapper *mfem_b = gko::as<const VectorWrapper>(b);
    VectorWrapper *mfem_x = gko::as<VectorWrapper>(x);
 
-   this->mfem_oper_->Mult(mfem_b->get_mfem_vec_const_ref(),
+   this->wrapped_oper->Mult(mfem_b->get_mfem_vec_const_ref(),
                           mfem_x->get_mfem_vec_ref());
 }
 void OperatorWrapper::apply_impl(const gko::LinOp *alpha,
@@ -115,7 +154,7 @@ void OperatorWrapper::apply_impl(const gko::LinOp *alpha,
    VectorWrapper *mfem_x = gko::as<VectorWrapper>(x);
 
    // Check that alpha and beta are Dense<double> of size (1,1):
-   // TODO: replace with MFEM error checking...
+   // TODO: replace with MFEM error checking...?
    if (alpha->get_size()[0] > 1 || alpha->get_size()[1] > 1)
    {
       throw gko::BadDimension(
@@ -170,7 +209,7 @@ void OperatorWrapper::apply_impl(const gko::LinOp *alpha,
    mfem_tmp.UseDevice(mfem_x->get_mfem_vec_ref().UseDevice());
 
    // Apply the operator
-   this->mfem_oper_->Mult(mfem_b->get_mfem_vec_const_ref(), mfem_tmp);
+   this->wrapped_oper->Mult(mfem_b->get_mfem_vec_const_ref(), mfem_tmp);
    // Scale tmp by alpha and add
    mfem_x->get_mfem_vec_ref().Add(alpha_f, mfem_tmp);
 
@@ -181,8 +220,7 @@ void
 GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
 {
 
-   MFEM_VERIFY(system_matrix ||
-               wrapped_oper, "System matrix or operator not initialized");
+   MFEM_VERIFY(system_oper, "System matrix or operator not initialized");
    MFEM_VERIFY(executor, "executor is not initialized");
    MFEM_VERIFY(y.Size() == x.Size(),
                "Mismatching sizes for rhs and solution");
@@ -200,25 +238,31 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
    {
       on_device = true;
    }
-   std::unique_ptr<vec> gko_x;
-   std::unique_ptr<vec> gko_y;
+//   std::unique_ptr<vec> gko_x;
+//   std::unique_ptr<vec> gko_y;
+   vec *gko_x;
+   vec *gko_y;
 
-   if (system_matrix)
+/*   if(dynamic_cast<SparseMatrix*>(system_oper.get()))
    {
-      gko_x = vec::create(executor, gko::dim<2> {x.Size(), 1},
+      gko_x = vec::create(executor, gko::dim<2>(x.Size(), 1),
                           gko::Array<double>::view(executor,
                                                    x.Size(), const_cast<double *>(
                                                       x.Read(on_device))), 1);
-      gko_y = vec::create(executor, gko::dim<2> {y.Size(), 1},
+      gko_y = vec::create(executor, gko::dim<2>(y.Size(), 1),
                           gko::Array<double>::view(executor,
                                                    y.Size(), y.ReadWrite(on_device)), 1);
    }
-   else
+   else // wrapped MFEM operator; need wrapped vectors TEST */
    {
-      gko_x = std::unique_ptr<vec>(new VectorWrapper(executor, x.Size(),
-                                                     const_cast<Vector *>(&x), on_device, false));
-      gko_y = std::unique_ptr<vec>(new VectorWrapper(executor, y.Size(), &y,
-                                                     on_device, false));
+//      gko_x = std::unique_ptr<vec>(new VectorWrapper(executor, x.Size(),
+//                                                     const_cast<Vector *>(&x), on_device, false));
+//      gko_y = std::unique_ptr<vec>(new VectorWrapper(executor, y.Size(), &y,
+//                                                     on_device, false));
+      gko_x = new VectorWrapper(executor, x.Size(),
+                                const_cast<Vector *>(&x), on_device, false);
+      gko_y = new VectorWrapper(executor, y.Size(), &y,
+                                on_device, false);
    }
 
    // Create the logger object to log some data from the solvers to confirm
@@ -232,17 +276,8 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
       solver_gen->add_logger(residual_logger);
    }
 
-   // Generate the solver from the solver using the system matrix.
-   std::shared_ptr<gko::LinOp> oper_to_generate;
-   if (system_matrix)
-   {
-      oper_to_generate = gko::as<gko::LinOp>(system_matrix);
-   }
-   else
-   {
-      oper_to_generate = gko::as<gko::LinOp>(wrapped_oper);
-   }
-   auto solver = solver_gen->generate(oper_to_generate);
+   // Generate the solver from the solver using the system matrix or operator.
+   auto solver = solver_gen->generate(system_oper);
 
    // Add the convergence logger object to the combined factory to retrieve the
    // solver and other data
@@ -320,6 +355,9 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
 void GinkgoIterativeSolver::SetOperator(const Operator &op)
 {
 
+   if (system_oper)
+      system_oper.reset();
+
    // Check for SparseMatrix:
    SparseMatrix *op_mat = const_cast<SparseMatrix*>(
                              dynamic_cast<const SparseMatrix*>(&op));
@@ -337,7 +375,7 @@ void GinkgoIterativeSolver::SetOperator(const Operator &op)
 
       using mtx = gko::matrix::Csr<double, int>;
       const int nnz =  op_mat->GetMemoryData().Capacity();
-      system_matrix = mtx::create(
+      system_oper = mtx::create(
                          executor, gko::dim<2>(op_mat->Height(), op_mat->Width()),
                          gko::Array<double>::view(executor,
                                                   nnz,
@@ -351,20 +389,20 @@ void GinkgoIterativeSolver::SetOperator(const Operator &op)
    }
    else
    {
-      wrapped_oper = std::shared_ptr<OperatorWrapper>(new
-                                                      OperatorWrapper(executor, op.Height(), &op));
+      system_oper = std::shared_ptr<OperatorWrapper>(
+                            new OperatorWrapper(executor, op.Height(), &op));
    }
 }
 
 /* ---------------------- CGSolver ------------------------ */
 CGSolver::CGSolver(
-   const std::string &exec_type,
+   GinkgoExecutor &exec,
    int print_iter,
    int max_num_iter,
    double RTOLERANCE,
    double ATOLERANCE
 )
-   : GinkgoIterativeSolver(exec_type, print_iter, max_num_iter, RTOLERANCE,
+   : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
                            ATOLERANCE)
 {
    using cg = gko::solver::Cg<double>;
@@ -373,14 +411,14 @@ CGSolver::CGSolver(
 }
 
 CGSolver::CGSolver(
-   const std::string &exec_type,
+   GinkgoExecutor &exec,
    int print_iter,
    int max_num_iter,
    double RTOLERANCE,
    double ATOLERANCE,
    const GinkgoPreconditioner &preconditioner
 )
-   : GinkgoIterativeSolver(exec_type, print_iter, max_num_iter, RTOLERANCE,
+   : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
                            ATOLERANCE)
 {
    using cg         = gko::solver::Cg<double>;
@@ -405,13 +443,13 @@ CGSolver::CGSolver(
 
 /* ---------------------- BICGSTABSolver ------------------------ */
 BICGSTABSolver::BICGSTABSolver(
-   const std::string &exec_type,
+   GinkgoExecutor &exec,
    int print_iter,
    int max_num_iter,
    double RTOLERANCE,
    double ATOLERANCE
 )
-   : GinkgoIterativeSolver(exec_type, print_iter, max_num_iter, RTOLERANCE,
+   : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
                            ATOLERANCE)
 {
    using bicgstab   = gko::solver::Bicgstab<double>;
@@ -421,33 +459,44 @@ BICGSTABSolver::BICGSTABSolver(
 }
 
 BICGSTABSolver::BICGSTABSolver(
-   const std::string &exec_type,
+   GinkgoExecutor &exec,
    int print_iter,
    int max_num_iter,
    double RTOLERANCE,
    double ATOLERANCE,
    const GinkgoPreconditioner &preconditioner
 )
-   : GinkgoIterativeSolver(exec_type, print_iter, max_num_iter, RTOLERANCE,
+   : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
                            ATOLERANCE)
 {
    using bicgstab   = gko::solver::Bicgstab<double>;
-   this->solver_gen = bicgstab::build()
-                      .with_criteria(this->combined_factory)
-                      .with_preconditioner(preconditioner.GetFactory())
-                      .on(this->executor);
+   if (preconditioner.HasGeneratedPreconditioner())
+   {
+     this->solver_gen = bicgstab::build()
+                        .with_criteria(this->combined_factory)
+                         .with_generated_preconditioner(
+                            preconditioner.GetGeneratedPreconditioner())
+                        .on(this->executor);
+   }
+   else 
+   {
+     this->solver_gen = bicgstab::build()
+                        .with_criteria(this->combined_factory)
+                        .with_preconditioner(preconditioner.GetFactory())
+                        .on(this->executor);
+   }
 }
 
 
 /* ---------------------- CGSSolver ------------------------ */
 CGSSolver::CGSSolver(
-   const std::string &exec_type,
+   GinkgoExecutor &exec,
    int print_iter,
    int max_num_iter,
    double RTOLERANCE,
    double ATOLERANCE
 )
-   : GinkgoIterativeSolver(exec_type, print_iter, max_num_iter, RTOLERANCE,
+   : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
                            ATOLERANCE)
 {
    using cgs = gko::solver::Cgs<double>;
@@ -456,33 +505,44 @@ CGSSolver::CGSSolver(
 }
 
 CGSSolver::CGSSolver(
-   const std::string &exec_type,
+   GinkgoExecutor &exec,
    int print_iter,
    int max_num_iter,
    double RTOLERANCE,
    double ATOLERANCE,
    const GinkgoPreconditioner &preconditioner
 )
-   : GinkgoIterativeSolver(exec_type, print_iter, max_num_iter, RTOLERANCE,
+   : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
                            ATOLERANCE)
 {
    using cgs        = gko::solver::Cgs<double>;
-   this->solver_gen = cgs::build()
-                      .with_criteria(this->combined_factory)
-                      .with_preconditioner(preconditioner.GetFactory())
-                      .on(this->executor);
+   if (preconditioner.HasGeneratedPreconditioner())
+   {
+     this->solver_gen = cgs::build()
+                        .with_criteria(this->combined_factory)
+                         .with_generated_preconditioner(
+                            preconditioner.GetGeneratedPreconditioner())
+                        .on(this->executor);
+   }
+   else
+   {
+     this->solver_gen = cgs::build()
+                        .with_criteria(this->combined_factory)
+                        .with_preconditioner(preconditioner.GetFactory())
+                        .on(this->executor);
+   }
 }
 
 
 /* ---------------------- FCGSolver ------------------------ */
 FCGSolver::FCGSolver(
-   const std::string &exec_type,
+   GinkgoExecutor &exec,
    int print_iter,
    int max_num_iter,
    double RTOLERANCE,
    double ATOLERANCE
 )
-   : GinkgoIterativeSolver(exec_type, print_iter, max_num_iter, RTOLERANCE,
+   : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
                            ATOLERANCE)
 {
    using fcg = gko::solver::Fcg<double>;
@@ -491,71 +551,95 @@ FCGSolver::FCGSolver(
 }
 
 FCGSolver::FCGSolver(
-   const std::string &exec_type,
+   GinkgoExecutor &exec,
    int print_iter,
    int max_num_iter,
    double RTOLERANCE,
    double ATOLERANCE,
    const GinkgoPreconditioner &preconditioner
 )
-   : GinkgoIterativeSolver(exec_type, print_iter, max_num_iter, RTOLERANCE,
+   : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
                            ATOLERANCE)
 {
    using fcg        = gko::solver::Fcg<double>;
-   this->solver_gen = fcg::build()
-                      .with_criteria(this->combined_factory)
-                      .with_preconditioner(preconditioner.GetFactory())
-                      .on(this->executor);
+   if (preconditioner.HasGeneratedPreconditioner())
+   {
+     this->solver_gen = fcg::build()
+                        .with_criteria(this->combined_factory)
+                         .with_generated_preconditioner(
+                            preconditioner.GetGeneratedPreconditioner())
+                        .on(this->executor);
+   }
+   else
+   {
+     this->solver_gen = fcg::build()
+                        .with_criteria(this->combined_factory)
+                        .with_preconditioner(preconditioner.GetFactory())
+                        .on(this->executor);
+   }
 }
 
 
 /* ---------------------- GMRESSolver ------------------------ */
 GMRESSolver::GMRESSolver(
-   const std::string &exec_type,
+   GinkgoExecutor &exec,
    int print_iter,
    int max_num_iter,
    double RTOLERANCE,
    double ATOLERANCE
 )
-   : GinkgoIterativeSolver(exec_type, print_iter, max_num_iter, RTOLERANCE,
+   : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
                            ATOLERANCE)
 {
    using gmres      = gko::solver::Gmres<double>;
    this->solver_gen = gmres::build()
-                      .with_krylov_dim(m)
+//                      .with_krylov_dim(m)
                       .with_criteria(this->combined_factory)
                       .on(this->executor);
 }
 
 GMRESSolver::GMRESSolver(
-   const std::string &exec_type,
+   GinkgoExecutor &exec,
    int print_iter,
    int max_num_iter,
    double RTOLERANCE,
    double ATOLERANCE,
    const GinkgoPreconditioner &preconditioner
 )
-   : GinkgoIterativeSolver(exec_type, print_iter, max_num_iter, RTOLERANCE,
+   : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
                            ATOLERANCE)
 {
    using gmres      = gko::solver::Gmres<double>;
-   this->solver_gen = gmres::build()
-                      .with_krylov_dim(m)
-                      .with_criteria(this->combined_factory)
-                      .with_preconditioner(preconditioner.GetFactory())
-                      .on(this->executor);
+   // Check for a previously-generated preconditioner (for a specific matrix)
+   if (preconditioner.HasGeneratedPreconditioner())
+   {
+     this->solver_gen = gmres::build()
+ //                       .with_krylov_dim(m)
+                        .with_criteria(this->combined_factory)
+                         .with_generated_preconditioner(
+                            preconditioner.GetGeneratedPreconditioner())
+                        .on(this->executor);
+   }
+   else 
+   {
+     this->solver_gen = gmres::build()
+ //                       .with_krylov_dim(m)
+                        .with_criteria(this->combined_factory)
+                        .with_preconditioner(preconditioner.GetFactory())
+                        .on(this->executor);
+   }
 }
 
 
 /* ---------------------- IRSolver ------------------------ */
 IRSolver::IRSolver(
-   const std::string &   exec_type,
+   GinkgoExecutor &exec,
    int print_iter,
    int max_num_iter,
    double RTOLERANCE,
    double ATOLERANCE
 )
-   : GinkgoIterativeSolver(exec_type, print_iter, max_num_iter, RTOLERANCE,
+   : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
                            ATOLERANCE)
 {
    using ir = gko::solver::Ir<double>;
@@ -564,14 +648,14 @@ IRSolver::IRSolver(
 }
 
 IRSolver::IRSolver(
-   const std::string &exec_type,
+   GinkgoExecutor &exec,
    int print_iter,
    int max_num_iter,
    double RTOLERANCE,
    double ATOLERANCE,
    const GinkgoIterativeSolver &inner_solver
 )
-   : GinkgoIterativeSolver(exec_type, print_iter, max_num_iter, RTOLERANCE,
+   : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
                            ATOLERANCE)
 {
    using ir         = gko::solver::Ir<double>;
@@ -584,30 +668,11 @@ IRSolver::IRSolver(
 /* --------------------------------------------------------------- */
 /* ---------------------- Preconditioners ------------------------ */
 GinkgoPreconditioner::GinkgoPreconditioner(
-   const std::string &exec_type)
-   : Solver(),
-     exec_type(exec_type)
+   GinkgoExecutor &exec)
+   : Solver()
 {
    has_generated_precond = false;
-
-   if (exec_type == "reference")
-   {
-      executor = gko::ReferenceExecutor::create();
-   }
-   else if (exec_type == "omp")
-   {
-      executor = gko::OmpExecutor::create();
-   }
-   else if (exec_type == "cuda" && gko::CudaExecutor::get_num_devices() > 0)
-   {
-      executor = gko::CudaExecutor::create(0, gko::OmpExecutor::create());
-   }
-   else
-   {
-      mfem::err <<
-                " exec_type needs to be one of the three strings: \"reference\", \"cuda\" or \"omp\" "
-                << std::endl;
-   }
+   executor = exec.GetExecutor();
 }
 
 void
@@ -630,11 +695,11 @@ GinkgoPreconditioner::Mult(const Vector &x, Vector &y) const
    {
       on_device = true;
    }
-   auto gko_x = vec::create(executor, gko::dim<2> {x.Size(), 1},
+   auto gko_x = vec::create(executor, gko::dim<2>(x.Size(), 1),
                             gko::Array<double>::view(executor,
                                                      x.Size(), const_cast<double *>(
                                                         x.Read(on_device))), 1);
-   auto gko_y = vec::create(executor, gko::dim<2> {y.Size(), 1},
+   auto gko_y = vec::create(executor, gko::dim<2>(y.Size(), 1),
                             gko::Array<double>::view(executor,
                                                      y.Size(), y.ReadWrite(on_device)), 1);
    generated_precond.get()->apply(gko::lend(gko_x), gko::lend(gko_y));
@@ -643,11 +708,17 @@ GinkgoPreconditioner::Mult(const Vector &x, Vector &y) const
 void GinkgoPreconditioner::SetOperator(const Operator &op)
 {
 
+   if (has_generated_precond)
+   {
+     generated_precond.reset();
+     has_generated_precond = false;
+   }
+   
    // Only accept SparseMatrix for this type.
    SparseMatrix *op_mat = const_cast<SparseMatrix*>(
                              dynamic_cast<const SparseMatrix*>(&op));
    MFEM_VERIFY(op_mat != NULL,
-               "GinkgoIterativeSolver::SetOperator : not a SparseMatrix!");
+               "GinkgoPreconditioner::SetOperator : not a SparseMatrix!");
 
    bool on_device = false;
    if (executor != executor->get_master())
@@ -668,7 +739,6 @@ void GinkgoPreconditioner::SetOperator(const Operator &op)
                         gko::Array<int>::view(executor, op_mat->Height() + 1,
                                               op_mat->ReadWriteI(on_device)));
 
-   // TODO: will this work to "re-set" the operator, or can we only do it once?
    generated_precond = precond_gen->generate(gko::give(gko_matrix));
    has_generated_precond = true;
 }
@@ -676,12 +746,12 @@ void GinkgoPreconditioner::SetOperator(const Operator &op)
 
 /* ---------------------- JacobiPreconditioner  ------------------------ */
 JacobiPreconditioner::JacobiPreconditioner(
-   const std::string &exec_type,
+   GinkgoExecutor &exec,
    const std::string &storage_opt,
    const double accuracy,
    const int max_block_size
 )
-   : GinkgoPreconditioner(exec_type)
+   : GinkgoPreconditioner(exec)
 {
 
    if (storage_opt == "auto")
@@ -707,12 +777,12 @@ JacobiPreconditioner::JacobiPreconditioner(
 
 /* ---------------------- Ilu/IluIsaiPreconditioner  ------------------------ */
 IluPreconditioner::IluPreconditioner(
-   const std::string &exec_type,
+   GinkgoExecutor &exec,
    const std::string &factorization_type,
    const int sweeps,
    const bool skip_sort
 )
-   : GinkgoPreconditioner(exec_type)
+   : GinkgoPreconditioner(exec)
 {
    if (factorization_type == "exact")
    {
@@ -741,13 +811,13 @@ IluPreconditioner::IluPreconditioner(
 }
 
 IluIsaiPreconditioner::IluIsaiPreconditioner(
-   const std::string &exec_type,
+   GinkgoExecutor &exec,
    const std::string &factorization_type,
    const int sweeps,
    const int sparsity_power,
    const bool skip_sort
 )
-   : GinkgoPreconditioner(exec_type)
+   : GinkgoPreconditioner(exec)
 {
    using l_solver_type = gko::preconditioner::LowerIsai<>;
    using u_solver_type = gko::preconditioner::UpperIsai<>;
@@ -798,12 +868,12 @@ IluIsaiPreconditioner::IluIsaiPreconditioner(
 
 /* ---------------------- Ic/IcIsaiPreconditioner  ------------------------ */
 IcPreconditioner::IcPreconditioner(
-   const std::string &exec_type,
+   GinkgoExecutor &exec,
    const std::string &factorization_type,
    const int sweeps,
    const bool skip_sort
 )
-   : GinkgoPreconditioner(exec_type)
+   : GinkgoPreconditioner(exec)
 {
 
    if (factorization_type == "exact")
@@ -834,13 +904,13 @@ IcPreconditioner::IcPreconditioner(
 }
 
 IcIsaiPreconditioner::IcIsaiPreconditioner(
-   const std::string &exec_type,
+   GinkgoExecutor &exec,
    const std::string &factorization_type,
    const int sweeps,
    const int sparsity_power,
    const bool skip_sort
 )
-   : GinkgoPreconditioner(exec_type)
+   : GinkgoPreconditioner(exec)
 {
 
    using l_solver_type = gko::preconditioner::LowerIsai<>;
@@ -875,6 +945,19 @@ IcIsaiPreconditioner::IcIsaiPreconditioner(
                     .with_l_solver_factory(l_solver_factory)
                     .on(executor);
    }
+}
+
+/* ---------------------- MFEMPreconditioner  ------------------------ */
+MFEMPreconditioner::MFEMPreconditioner(
+   GinkgoExecutor &exec,
+   const Solver &mfem_precond
+)
+   : GinkgoPreconditioner(exec)
+{
+   generated_precond = std::shared_ptr<OperatorWrapper>(
+                            new OperatorWrapper(executor, 
+                             mfem_precond.Height(), &mfem_precond)); 
+   has_generated_precond = true;
 }
 
 } // namespace GinkgoWrappers
