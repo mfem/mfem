@@ -223,23 +223,7 @@ int main(int argc, char *argv[])
 
       if (order.Size() != nkv ) { mfem_error("Wrong number of orders set."); }
       NURBSext = new NURBSExtension(mesh->NURBSext, order);
-
-      // Read periodic BCs from file
-      std::ifstream in;
-      in.open(per_file, std::ifstream::in);
-      if (in.is_open())
-      {
-         int psize;
-         in >> psize;
-         master.SetSize(psize);
-         slave.SetSize(psize);
-         master.Load(in, psize);
-         slave.Load(in, psize);
-         in.close();
-      }
-      master.Print();
-      slave.Print();
-      NURBSext->ConnectBoundaries(master,slave);
+      NURBSext->ConnectBoundaries();
    }
    else if (order[0] == -1) // Isoparametric
    {
@@ -306,12 +290,16 @@ int main(int argc, char *argv[])
       {
          ess_bdr = 0;
       }
-
-      // Remove periodic BCs
-      for (int i = 0; i < master.Size(); i++)
+      if ( NURBSext)
       {
-         ess_bdr[master[i]-1] = 0;
-         ess_bdr[slave[i]-1] = 0;
+         Array<int> master = NURBSext->GetMaster();
+         Array<int> slave = NURBSext->GetSlave();
+         // Remove periodic BCs
+         for (int i = 0; i < master.Size(); i++)
+         {
+            ess_bdr[master[i]-1] = 0;
+            ess_bdr[slave[i]-1] = 0;
+         }
       }
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }

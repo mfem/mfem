@@ -247,11 +247,17 @@ int main(int argc, char *argv[])
       {
          fec = pmesh->GetNodes()->OwnFEC();
          own_fec = 0;
-         cout << "Using isoparametric FEs: " << fec->Name() << endl;
+         if (myid == 0)
+         {
+            cout << "Using isoparametric FEs: " << fec->Name() << endl;
+         }
       }
       else
       {
-         cout <<"Mesh does not have FEs --> Assume order 1.\n";
+         if (myid == 0)
+         {
+            cout <<"Mesh does not have FEs --> Assume order 1.\n";
+         }
          fec = new H1_FECollection(1, dim);
          own_fec = 1;
       }
@@ -270,6 +276,7 @@ int main(int argc, char *argv[])
       }
       if (order.Size() != nkv ) { mfem_error("Wrong number of orders set."); }
       NURBSext = new NURBSExtension(pmesh->NURBSext, order);
+      NURBSext->ConnectBoundaries();
    }
    else
    {
@@ -278,6 +285,7 @@ int main(int argc, char *argv[])
       own_fec = 1;
    }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh,NURBSext,fec);
+   NURBSext = fespace->GetNURBSext();
    HYPRE_Int size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
@@ -322,6 +330,17 @@ int main(int argc, char *argv[])
       else
       {
          ess_bdr = 0;
+      }
+      // Remove periodic BCs
+      if (NURBSext)
+      {
+         Array<int> master = NURBSext->GetMaster();
+         Array<int> slave = NURBSext->GetSlave();
+         for (int i = 0; i < master.Size(); i++)
+         {
+            ess_bdr[master[i]-1] = 0;
+            ess_bdr[slave[i]-1] = 0;
+         }
       }
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }

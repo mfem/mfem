@@ -2376,7 +2376,8 @@ void FiniteElementSpace::Save(std::ostream &out) const
    }
 }
 
-FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
+FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input,
+                                                  bool connect)
 {
    string buff;
    int fes_format = 0, ord;
@@ -2471,7 +2472,7 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
          }
       }
    }
-
+   if (connect && NURBSext) { NURBSext->ConnectBoundaries(); }
    Constructor(m, NURBSext, r_fec, vdim, ord);
 
    return r_fec;
