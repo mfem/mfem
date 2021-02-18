@@ -419,7 +419,7 @@ void BilinearForm::Assemble(int skip_zeros)
                dbfi[k]->AssembleElementMatrix(fe, *eltrans, elemmat);
                elmat += elemmat;
             }
-            if ( doftrans )
+            if (doftrans)
             {
                doftrans->TransformDual(elmat, elmat_t);
                elmat_p = &elmat_t;
@@ -493,7 +493,7 @@ void BilinearForm::Assemble(int skip_zeros)
             bbfi[k]->AssembleElementMatrix(be, *eltrans, elemmat);
             elmat += elemmat;
          }
-         if ( doftrans )
+         if (doftrans)
          {
             doftrans->TransformDual(elmat, elmat_t);
             elmat_p = &elmat_t;
