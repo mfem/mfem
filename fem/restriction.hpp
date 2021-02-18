@@ -142,6 +142,7 @@ protected:
    const int ndofs; // Total number of dofs
    const int dof; // Number of dofs on each face
    const int elemDofs; // Number of dofs in each element
+   const FaceType type;
    const L2FaceValues m;
    const int nfdofs; // Total number of dofs on the faces
    Array<int> scatter_indices1; // Scattering indices for element 1 on each face
@@ -176,6 +177,8 @@ class NCL2FaceRestriction : public L2FaceRestriction
 {
 protected:
    Array<int> interp_config;
+   int nc_size;
+   Vector interpolators;
 
 public:
    NCL2FaceRestriction(const FiniteElementSpace&, const ElementDofOrdering,
@@ -194,6 +197,9 @@ public:
    /// This methods adds the DG face matrices to the element matrices.
    void AddFaceMatricesToElementMatrices(Vector &fea_data,
                                          Vector &ea_data) const;
+
+protected:
+   static const int conforming = -1;
 };
 
 // Return the face degrees of freedom returned in Lexicographic order.

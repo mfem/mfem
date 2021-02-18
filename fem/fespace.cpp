@@ -936,7 +936,14 @@ const Operator *FiniteElementSpace::GetFaceRestriction(
       Operator* res;
       if (is_dg_space)
       {
-         res = new L2FaceRestriction(*this, e_ordering, type, m);
+         if (Conforming())
+         {
+            res = new L2FaceRestriction(*this, e_ordering, type, m);
+         }
+         else
+         {
+            res = new NCL2FaceRestriction(*this, e_ordering, type, m);
+         }
       }
       else
       {
