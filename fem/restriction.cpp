@@ -12,6 +12,7 @@
 #include "restriction.hpp"
 #include "gridfunc.hpp"
 #include "fespace.hpp"
+#include "../mesh/mesh_headers.hpp"
 #include "../general/forall.hpp"
 
 namespace mfem
@@ -690,8 +691,6 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
                 tfe->GetBasisType()==BasisType::Positive),
                "Only Gauss-Lobatto and Bernstein basis are supported in "
                "H1FaceRestriction.");
-   MFEM_VERIFY(fes.GetMesh()->Conforming(),
-               "Non-conforming meshes not yet supported with partial assembly.");
    // Assuming all finite elements are using Gauss-Lobatto.
    height = vdim*nf*dof;
    width = fes.GetVSize();
@@ -722,6 +721,7 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
    int inf1, inf2;
    int face_id;
    int orientation;
+   int ncface;
    const int dof1d = fes.GetFE(0)->GetOrder()+1;
    const int elem_dofs = fes.GetFE(0)->GetDof();
    const int dim = fes.GetMesh()->SpaceDimension();
@@ -730,11 +730,11 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
    for (int f = 0; f < fes.GetNF(); ++f)
    {
       fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2, &ncface);
       orientation = inf1 % 64;
       face_id = inf1 / 64;
-      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-          (type==FaceType::Boundary && e2<0 && inf2<0) )
+      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0 && ncface==-1))) ||
+          (type==FaceType::Boundary && e2<0 && inf2<0 && ncface==-1) )
       {
          // Assumes Gauss-Lobatto basis
          if (dof_reorder)
@@ -772,11 +772,11 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
    for (int f = 0; f < fes.GetNF(); ++f)
    {
       fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2, &ncface);
       orientation = inf1 % 64;
       face_id = inf1 / 64;
-      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-          (type==FaceType::Boundary && e2<0 && inf2<0) )
+      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0 && ncface==-1))) ||
+          (type==FaceType::Boundary && e2<0 && inf2<0 && ncface==-1) )
       {
          GetFaceDofs(dim, face_id, dof1d, faceMap);
          for (int d = 0; d < dof; ++d)
@@ -798,11 +798,11 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
    for (int f = 0; f < fes.GetNF(); ++f)
    {
       fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2, &ncface);
       orientation = inf1 % 64;
       face_id = inf1 / 64;
-      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-          (type==FaceType::Boundary && e2<0 && inf2<0) )
+      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0 && ncface==-1))) ||
+          (type==FaceType::Boundary && e2<0 && inf2<0 && ncface==-1) )
       {
          GetFaceDofs(dim, face_id, dof1d, faceMap);
          for (int d = 0; d < dof; ++d)
