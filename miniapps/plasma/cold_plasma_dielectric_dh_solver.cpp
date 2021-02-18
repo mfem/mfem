@@ -1448,7 +1448,7 @@ CPDSolverDH::Solve()
       double phi_diff = std::numeric_limits<double>::max();
       GridFunctionCoefficient prevPhiReCoef(&prev_phi_->real());
       GridFunctionCoefficient prevPhiImCoef(&prev_phi_->imag());
-      while (H_iter < 5)
+      while (H_iter < 15)
       {
          nzD12_->Update();
          nzD12_->Assemble();
@@ -1462,8 +1462,8 @@ CPDSolverDH::Solve()
 
          GMRESSolver gmres(MPI_COMM_WORLD);
          gmres.SetKDim(50);
-         gmres.SetRelTol(1e-6);
-         gmres.SetAbsTol(1e-8);
+         gmres.SetRelTol(1e-8);
+         gmres.SetAbsTol(1e-10);
          gmres.SetMaxIter(500);
          gmres.SetPrintLevel(1);
          gmres.SetOperator(schur);
