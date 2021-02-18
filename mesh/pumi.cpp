@@ -117,9 +117,12 @@ static bool same(int n,
                  apf::MeshEntity** a,
                  apf::MeshEntity** b)
 {
-   for (int i = 0; i < n; i++) {
+   for (int i = 0; i < n; i++)
+   {
       if (a[i] != b[i])
+      {
          return false;
+      }
    }
    return true;
 }
@@ -141,13 +144,19 @@ static void rotateSimplex(int type,
       n = 4;
    }
    else
+   {
       MFEM_ASSERT(0, "unsupported case!");
+   }
 
    for (int i = 0; i < n; i++)
       if (n == 3)
+      {
          out[i] = in[tri_rotation[r][i]];
+      }
       else
+      {
          out[i] = in[tet_rotation[r][i]];
+      }
 }
 
 
@@ -158,11 +167,17 @@ static int findSimplexRotation(apf::Mesh2* apf_mesh,
    int type = apf_mesh->getType(simplex);
    int dim;
    if (type == apf::Mesh::TET)
-     dim = 3;
+   {
+      dim = 3;
+   }
    else if (type == apf::Mesh::TRIANGLE)
-     dim = 2;
+   {
+      dim = 2;
+   }
    else
-     MFEM_ASSERT(0, "unsupported entity type");
+   {
+      MFEM_ASSERT(0, "unsupported entity type");
+   }
 
    apf::MeshEntity* dvs[12];
    apf::MeshEntity* rotated_dvs[12];
@@ -171,10 +186,13 @@ static int findSimplexRotation(apf::Mesh2* apf_mesh,
    int first = apf::findIn(dvs, nd, vs[0]);
    int begin = first*dim;
    int end   = first*dim + dim;
-   for (int r = begin; r < end; r++) {
+   for (int r = begin; r < end; r++)
+   {
       rotateSimplex(type, r, dvs, rotated_dvs);
       if (same(nd, rotated_dvs, vs))
+      {
          return r;
+      }
    }
    return -1;
 }
@@ -184,14 +202,19 @@ static void rotateSimplexXi(apf::Vector3& xi, int dim, int rot)
    double a[4];
    a[0] = 1.;
    for (int i = 0; i < dim; i++)
+   {
       a[0] -= xi[i];
+   }
    a[1] = xi[0];
    a[2] = xi[1];
    a[3] = xi[2];
-   int const* inverseIdx = dim == 2 ? tri_inv_rotation[rot] : tet_inv_rotation[rot];
+   int const* inverseIdx = dim == 2 ? tri_inv_rotation[rot] :
+                           tet_inv_rotation[rot];
    double b[4];
    for (int i = 0; i <= dim; i++)
+   {
       b[inverseIdx[i]] = a[i];
+   }
    xi[0] = b[1];
    xi[1] = b[2];
    xi[2] = dim == 2 ? 1.-xi[0]-xi[1] : b[3];
@@ -202,14 +225,18 @@ static void unrotateSimplexXi(apf::Vector3& xi, int dim, int rot)
    double a[4];
    a[0] = 1.;
    for (int i = 0; i < dim; i++)
+   {
       a[0] -= xi[i];
+   }
    a[1] = xi[0];
    a[2] = xi[1];
    a[3] = xi[2];
    int const* originalIdx = dim == 2 ? tri_rotation[rot] : tet_rotation[rot];
    double b[4];
    for (int i = 0; i <= dim; i++)
+   {
       b[originalIdx[i]] = a[i];
+   }
    xi[0] = b[1];
    xi[1] = b[2];
    xi[2] = dim == 2 ? 1.-xi[0]-xi[1] : b[3];
@@ -1075,7 +1102,7 @@ int ParPumiMesh::RotationPUMItoMFEM(apf::Mesh2* apf_mesh,
 {
    int type = apf_mesh->getType(ent);
    MFEM_ASSERT(apf::isSimplex(type),
-       "only implemented for simplex entity types");
+               "only implemented for simplex entity types");
    // get downward vertices of PUMI element
    apf::Downward vs;
    int nv = apf_mesh->getDownward(ent,0,vs);
@@ -1112,7 +1139,7 @@ IntegrationRule ParPumiMesh::ParentXisPUMItoMFEM(apf::Mesh2* apf_mesh,
 {
    int type = apf_mesh->getType(tet);
    MFEM_ASSERT(apf::isSimplex(type),
-       "only implemented for simplex entity types");
+               "only implemented for simplex entity types");
    int num_nodes = pumi_xi.size();
    IntegrationRule mfem_xi(num_nodes);
    int rotation = checkOrientation ? RotationPUMItoMFEM(apf_mesh, tet, elemId):0;
@@ -1141,7 +1168,7 @@ void ParPumiMesh::ParentXisMFEMtoPUMI(apf::Mesh2* apf_mesh,
 {
    int type = apf_mesh->getType(tet);
    MFEM_ASSERT(apf::isSimplex(type),
-       "only implemented for simplex entity types");
+               "only implemented for simplex entity types");
    int num_nodes = mfem_xi.Size();
    if (!pumi_xi.allocated())
    {
