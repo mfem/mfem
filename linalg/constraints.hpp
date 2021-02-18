@@ -208,6 +208,9 @@ public:
 
    /** @brief Constructor, elimination is by blocks.
 
+       Each block is eliminated independently; if the blocks are reasonably
+       small this can be reasonably efficient.
+
        The nonzeros in B are assumed to be in disjoint rows and columns; the
        rows are identified with the constraint_rowstarts array, the secondary
        dofs are assumed to be the first nonzeros in the rows. */
