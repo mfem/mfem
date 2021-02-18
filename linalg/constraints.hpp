@@ -32,8 +32,8 @@ class ParFiniteElementSpace;
      (  A   B^T  )  ( x )          (  f  )
      (  B        )  ( lambda )  =  (  r  )
 
-    Do not confuse with ConstrainedOperator, which despite the similar name
-    has very different functionality.
+    Do not confuse with ConstrainedOperator, which handles only simple
+    pointwise constraints and is not a Solver.
 
     The height and width of this object as an IterativeSolver are for
     the above saddle point system, but one can use its PrimalMult() method
