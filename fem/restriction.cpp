@@ -1694,8 +1694,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
       offsets[i] = offsets[i - 1];
    }
    offsets[0] = 0;
-   // TODO transform the map into contiguous memory structure.
-   // TODO destroy the map and the local interpolation matrices.
+   // Transform the interpolation matrix map into a contiguous memory structure.
    nc_size = interp_map.size();
    interpolators.SetSize(dof*dof*nc_size);
    auto interp = Reshape(interpolators.HostWrite(),dof,dof,nc_size);
@@ -1759,7 +1758,7 @@ void NCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
                      res[dofOut] = 0.0;
                      for (int dofIn = 0; dofIn<nd; dofIn++)
                      {
-                        res[dofOut] += interpOp(dofIn, dofOut, config)*dofs[dofIn];
+                        res[dofOut] += interpOp(dofOut, dofIn, config)*dofs[dofIn];
                      }
                   }
                   for (int dof = 0; dof<nd; dof++)
@@ -1821,7 +1820,7 @@ void NCL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
                   res[dofOut] = 0.0;
                   for (int dofIn = 0; dofIn<nd; dofIn++)
                   {
-                     res[dofOut] += interpOp(dofOut, dofIn, config)*dofs[dofIn];
+                     res[dofOut] += interpOp(dofIn, dofOut, config)*dofs[dofIn];
                   }
                }
                for (int dof = 0; dof<nd; dof++)
