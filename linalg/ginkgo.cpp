@@ -598,10 +598,12 @@ GMRESSolver::GMRESSolver(
    int print_iter,
    int max_num_iter,
    double RTOLERANCE,
-   double ATOLERANCE
+   double ATOLERANCE,
+   int dim
 )
    : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
-                           ATOLERANCE)
+                           ATOLERANCE),
+     m{dim}
 {
    using gmres      = gko::solver::Gmres<double>;
    this->solver_gen = gmres::build()
@@ -616,29 +618,52 @@ GMRESSolver::GMRESSolver(
    int max_num_iter,
    double RTOLERANCE,
    double ATOLERANCE,
-   const GinkgoPreconditioner &preconditioner
+   const GinkgoPreconditioner &preconditioner,
+   int dim
 )
    : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
-                           ATOLERANCE)
+                           ATOLERANCE),
+     m{dim}
 {
    using gmres      = gko::solver::Gmres<double>;
    // Check for a previously-generated preconditioner (for a specific matrix)
-   if (preconditioner.HasGeneratedPreconditioner())
+   if (this->m == 0) // Don't set a dimension, but let Ginkgo use its default
    {
-      this->solver_gen = gmres::build()
-                         //                       .with_krylov_dim(m)
-                         .with_criteria(this->combined_factory)
-                         .with_generated_preconditioner(
-                            preconditioner.GetGeneratedPreconditioner())
-                         .on(this->executor);
+      if (preconditioner.HasGeneratedPreconditioner())
+      {
+         this->solver_gen = gmres::build()
+                            .with_criteria(this->combined_factory)
+                            .with_generated_preconditioner(
+                               preconditioner.GetGeneratedPreconditioner())
+                            .on(this->executor);
+      }
+      else
+      {
+         this->solver_gen = gmres::build()
+                            .with_criteria(this->combined_factory)
+                            .with_preconditioner(preconditioner.GetFactory())
+                            .on(this->executor);
+      }
    }
    else
    {
-      this->solver_gen = gmres::build()
-                         //                       .with_krylov_dim(m)
-                         .with_criteria(this->combined_factory)
-                         .with_preconditioner(preconditioner.GetFactory())
-                         .on(this->executor);
+      if (preconditioner.HasGeneratedPreconditioner())
+      {
+         this->solver_gen = gmres::build()
+                            .with_krylov_dim(m)
+                            .with_criteria(this->combined_factory)
+                            .with_generated_preconditioner(
+                               preconditioner.GetGeneratedPreconditioner())
+                            .on(this->executor);
+      }
+      else
+      {
+         this->solver_gen = gmres::build()
+                            .with_krylov_dim(m)
+                            .with_criteria(this->combined_factory)
+                            .with_preconditioner(preconditioner.GetFactory())
+                            .on(this->executor);
+      }
    }
 }
 

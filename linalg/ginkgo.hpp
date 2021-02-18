@@ -332,7 +332,7 @@ private:
 /**
 * This class wraps a Ginkgo Executor for use in MFEM.
 * Note that objects in the GinkgoWrappers namespace intended to work
-* toegher, e.g. a Ginkgo solver and preconditioner, should use the same
+* together, e.g. a Ginkgo solver and preconditioner, should use the same
 * GinkgoExecutor object.  In general, most users will want to create
 * one GinkgoExecutor object for use with all Ginkgo-related objects.
 * The wrapper can be created to match MFEM's device configuration.
@@ -800,9 +800,6 @@ public:
 class GMRESSolver : public GinkgoIterativeSolver
 {
 public:
-   void SetKDim(int dim) { m = dim; }
-
-
    /**
     * Constructor.
     *
@@ -811,13 +808,16 @@ public:
     * @param[in] max_num_iter  The maximum number of iterations to be run.
     * @param[in] RTOLERANCE  The relative tolerance to be achieved.
     * @param[in] ATOLERANCE The absolute tolerance to be achieved.
+    * @param[in] dim  The Krylov dimension of the solver. Value of 0 will
+    *                  let Ginkgo use its own internal default value.
     */
    GMRESSolver(
       GinkgoExecutor &exec,
       int print_iter,
       int max_num_iter,
       double RTOLERANCE,
-      double ATOLERANCE
+      double ATOLERANCE,
+      int dim = 0
    );
 
    /**
@@ -829,6 +829,8 @@ public:
     * @param[in] RTOLERANCE  The relative tolerance to be achieved.
     * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     * @param[in] preconditioner The preconditioner for the solver.
+    * @param[in] dim  The Krylov dimension of the solver. Value of 0 will
+    *                  let Ginkgo use its own internal default value.
     */
    GMRESSolver(
       GinkgoExecutor &exec,
@@ -836,11 +838,12 @@ public:
       int max_num_iter,
       double RTOLERANCE,
       double ATOLERANCE,
-      const GinkgoPreconditioner &preconditioner
+      const GinkgoPreconditioner &preconditioner,
+      int dim = 0
    );
 
 protected:
-   int m; // see SetKDim()
+   int m; // Dimension of Krylov subspace
 };
 
 /**
