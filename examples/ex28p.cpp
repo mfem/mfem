@@ -383,12 +383,6 @@ int main(int argc, char *argv[])
       f.Set(0, new PWConstCoefficient(push_force));
    }
 
-   // 10. Set up constraint matrix to constrain normal displacement (but
-   //     allow tangential displacement) on specified boundaries.
-   Array<int> constraint_atts(2);
-   constraint_atts[0] = 1;  // attribute 1 bottom
-   constraint_atts[1] = 4;  // attribute 4 left side
-
    ParLinearForm *b = new ParLinearForm(fespace);
    b->AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(f));
    if (myid == 0)
@@ -397,13 +391,13 @@ int main(int argc, char *argv[])
    }
    b->Assemble();
 
-   // 11. Define the solution vector x as a parallel finite element grid
+   // 10. Define the solution vector x as a parallel finite element grid
    //     function corresponding to fespace. Initialize x with initial guess of
    //     zero, which satisfies the boundary conditions.
    ParGridFunction x(fespace);
    x = 0.0;
 
-   // 12. Set up the parallel bilinear form a(.,.) on the finite element space
+   // 11. Set up the parallel bilinear form a(.,.) on the finite element space
    //     corresponding to the linear elasticity integrator with piece-wise
    //     constants coefficient lambda and mu. We use constant coefficients,
    //     but see ex2 for how to set up piecewise constant coefficients based
@@ -414,7 +408,6 @@ int main(int argc, char *argv[])
    Vector mu(pmesh->attributes.Max());
    mu = 1.0;
    PWConstCoefficient mu_func(mu);
-
    ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new ElasticityIntegrator(lambda_func, mu_func));
 
@@ -434,12 +427,18 @@ int main(int argc, char *argv[])
       cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
    }
 
-   // 13. Define and apply a parallel PCG solver for the constrained system
-   //     where the normal boundary constraints have been separately eliminated
-   //     from the system.
+   // 13. Set up constraint matrix to constrain normal displacement (but
+   //     allow tangential displacement) on specified boundaries.
+   Array<int> constraint_atts(2);
+   constraint_atts[0] = 1;  // attribute 1 bottom
+   constraint_atts[1] = 4;  // attribute 4 left side
    Array<int> constraint_rowstarts;
    SparseMatrix* local_constraints =
       BuildNormalConstraints(*fespace, constraint_atts, constraint_rowstarts);
+
+   // 14. Define and apply a parallel PCG solver for the constrained system
+   //     where the normal boundary constraints have been separately eliminated
+   //     from the system.
    EliminationCGSolver * solver = new EliminationCGSolver(A, *local_constraints,
                                                           constraint_rowstarts, dim,
                                                           reorder_space);
@@ -448,11 +447,11 @@ int main(int argc, char *argv[])
    solver->SetPrintLevel(1);
    solver->PrimalMult(B, X);
 
-   // 14. Recover the parallel grid function corresponding to X. This is the
+   // 15. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(X, *b, x);
 
-   // 15. For non-NURBS meshes, make the mesh curved based on the finite element
+   // 16. For non-NURBS meshes, make the mesh curved based on the finite element
    //     space. This means that we define the mesh elements through a fespace
    //     based transformation of the reference element.  This allows us to save
    //     the displaced mesh as a curved mesh when using high-order finite
@@ -467,7 +466,7 @@ int main(int argc, char *argv[])
    GridFunction *nodes = pmesh->GetNodes();
    *nodes += x;
 
-   // 16. Save the refined mesh and the solution in VisIt format.
+   // 17. Save the refined mesh and the solution in VisIt format.
    if (visit)
    {
       VisItDataCollection visit_dc(MPI_COMM_WORLD, "ex28p", pmesh);
@@ -476,7 +475,7 @@ int main(int argc, char *argv[])
       visit_dc.Save();
    }
 
-   // 17. Save in parallel the displaced mesh and the inverted solution (which
+   // 18. Save in parallel the displaced mesh and the inverted solution (which
    //     gives the backward displacements to the original grid). This output
    //     can be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
@@ -495,7 +494,7 @@ int main(int argc, char *argv[])
       x.Save(sol_ofs);
    }
 
-   // 18. Send the above data by socket to a GLVis server.  Use the "n" and "b"
+   // 19. Send the above data by socket to a GLVis server.  Use the "n" and "b"
    //     keys in GLVis to visualize the displacements.
    if (visualization)
    {
@@ -507,7 +506,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *pmesh << x << flush;
    }
 
-   // 19. Free the used memory.
+   // 20. Free the used memory.
    delete local_constraints;
    delete solver;
    delete a;
