@@ -18,7 +18,7 @@
 #include "../config/config.hpp"
 #include "nonlininteg.hpp"
 #include "fespace.hpp"
-#include "../../src/tensor.hpp"
+#include "tensor.hpp"
 
 namespace mfem
 {
