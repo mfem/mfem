@@ -42,7 +42,7 @@ using namespace mfem;
     do two constraints become one? */
 HypreParMatrix * BuildNormalConstraintsNoIntersection(
    ParFiniteElementSpace& fespace, Array<int>& constrained_att,
-   Array<int>& lagrange_rowstarts)
+   Array<int>& constraint_rowstarts)
 {
    int rank, size;
    MPI_Comm_rank(fespace.GetComm(), &rank);
@@ -74,7 +74,7 @@ HypreParMatrix * BuildNormalConstraintsNoIntersection(
    }
    for (int k = 0; k < n_constraints + 1; ++k)
    {
-      lagrange_rowstarts.Append(k);
+      constraint_rowstarts.Append(k);
    }
    SparseMatrix * out = new SparseMatrix(n_constraints, fespace.GetTrueVSize());
 
@@ -323,10 +323,10 @@ int main(int argc, char *argv[])
 
    Array<int> x_dofs, y_dofs, z_dofs;
    HypreParMatrix * hconstraints;
-   Array<int> lagrange_rowstarts;
+   Array<int> constraint_rowstarts;
 
    hconstraints = BuildNormalConstraintsNoIntersection(
-                     fespace, constraint_atts, lagrange_rowstarts);
+                     fespace, constraint_atts, constraint_rowstarts);
 
    ParLinearForm b(&fespace);
    // for diffusion we may want a more interesting rhs
@@ -383,7 +383,7 @@ int main(int argc, char *argv[])
       hconstraints->GetDiag(local_constraints);
       constrained = new EliminationCGSolver(*A.As<HypreParMatrix>(),
                                             local_constraints,
-                                            lagrange_rowstarts, dim);
+                                            constraint_rowstarts, dim);
    }
    else
    {

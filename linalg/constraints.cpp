@@ -248,7 +248,7 @@ EliminationSolver::EliminationSolver(HypreParMatrix& A, SparseMatrix& B,
 }
 
 EliminationSolver::EliminationSolver(HypreParMatrix& A, SparseMatrix& B,
-                                     Array<int>& lagrange_rowstarts)
+                                     Array<int>& constraint_rowstarts)
    :
    ConstrainedSolver(A.GetComm(), A, B),
    hA(A),
@@ -260,33 +260,33 @@ EliminationSolver::EliminationSolver(HypreParMatrix& A, SparseMatrix& B,
       int * J = B.GetJ();
       double * data = B.GetData();
 
-      for (int k = 0; k < lagrange_rowstarts.Size() - 1; ++k)
+      for (int k = 0; k < constraint_rowstarts.Size() - 1; ++k)
       {
-         int constraint_size = lagrange_rowstarts[k + 1] -
-                               lagrange_rowstarts[k];
+         int constraint_size = constraint_rowstarts[k + 1] -
+                               constraint_rowstarts[k];
          Array<int> lagrange_dofs(constraint_size);
          Array<int> primary_dofs;
          Array<int> secondary_dofs(constraint_size);
          secondary_dofs = -1;
          // loop through rows, identify one secondary dof for each row
-         for (int i = lagrange_rowstarts[k]; i < lagrange_rowstarts[k + 1]; ++i)
+         for (int i = constraint_rowstarts[k]; i < constraint_rowstarts[k + 1]; ++i)
          {
-            lagrange_dofs[i - lagrange_rowstarts[k]] = i;
+            lagrange_dofs[i - constraint_rowstarts[k]] = i;
             for (int jptr = I[i]; jptr < I[i + 1]; ++jptr)
             {
                int j = J[jptr];
                double val = data[jptr];
                if (std::abs(val) > 1.e-12 && secondary_dofs.Find(j) == -1)
                {
-                  secondary_dofs[i - lagrange_rowstarts[k]] = j;
+                  secondary_dofs[i - constraint_rowstarts[k]] = j;
                   break;
                }
             }
          }
          // loop through rows again, assigning non-secondary dofs as primary
-         for (int i = lagrange_rowstarts[k]; i < lagrange_rowstarts[k + 1]; ++i)
+         for (int i = constraint_rowstarts[k]; i < constraint_rowstarts[k + 1]; ++i)
          {
-            MFEM_ASSERT(secondary_dofs[i - lagrange_rowstarts[k]] >= 0,
+            MFEM_ASSERT(secondary_dofs[i - constraint_rowstarts[k]] >= 0,
                         "Secondary dofs don't match rows!");
             for (int jptr = I[i]; jptr < I[i + 1]; ++jptr)
             {

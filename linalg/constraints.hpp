@@ -32,8 +32,8 @@ class ParFiniteElementSpace;
      (  A   B^T  )  ( x )          (  f  )
      (  B        )  ( lambda )  =  (  r  )
 
-    Not to be confused with ConstrainedOperator, which is totally
-    different.
+    Do not confuse with ConstrainedOperator, which despite the similar name
+    has very different functionality.
 
     The height and width of this object as an IterativeSolver are for
     the above saddle point system, but one can use its PrimalMult() method
@@ -106,9 +106,8 @@ private:
     This keeps track of primary / secondary tdofs and does small dense block
     solves to eliminate constraints from a global system.
 
-    \f$ B_s^{-1} \f$ maps lagrange space into secondary displacements,
-    \f$ -B_s^{-1} B_p \f$ maps primary displacements to secondary
-    displacements */
+    \f$ B_s^{-1} \f$ maps the lagrange space into secondary dofs, while
+    \f$ -B_s^{-1} B_p \f$ maps primary dofs to secondary dofs. */
 class Eliminator
 {
 public:
@@ -210,10 +209,10 @@ public:
    /** @brief Constructor, elimination is by blocks.
 
        The nonzeros in B are assumed to be in disjoint rows and columns; the
-       rows are identified with the lagrange_rowstarts array, the secondary
+       rows are identified with the constraint_rowstarts array, the secondary
        dofs are assumed to be the first nonzeros in the rows. */
    EliminationSolver(HypreParMatrix& A, SparseMatrix& B,
-                     Array<int>& lagrange_rowstarts);
+                     Array<int>& constraint_rowstarts);
 
    ~EliminationSolver();
 
@@ -241,9 +240,9 @@ class EliminationCGSolver : public EliminationSolver
 {
 public:
    EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
-                       Array<int>& lagrange_rowstarts,
+                       Array<int>& constraint_rowstarts,
                        int dimension_=0, bool reorder_=false) :
-      EliminationSolver(A, B, lagrange_rowstarts),
+      EliminationSolver(A, B, constraint_rowstarts),
       dimension(dimension_), reorder(reorder_)
    { BuildExplicitOperator(); }
 
