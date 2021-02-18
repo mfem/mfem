@@ -194,6 +194,8 @@ class nxGradIntegrator : public BilinearFormIntegrator
 {
 private:
 
+   Coefficient *Q;
+
 #ifndef MFEM_THREAD_SAFE
    Vector nor, nxj;
    DenseMatrix test_shape;
@@ -201,7 +203,8 @@ private:
 #endif
 
 public:
-   nxGradIntegrator() {}
+   nxGradIntegrator() : Q(NULL) {}
+   nxGradIntegrator(Coefficient &q) : Q(&q) {}
 
    int GetIntegrationOrder(const FiniteElement & trial_fe,
                            const FiniteElement & test_fe,
@@ -579,6 +582,7 @@ private:
    // ParMixedBilinearForm * n20ZRe_;
    // ParMixedBilinearForm * n20ZIm_;
 
+   ConstantCoefficient negOneCoef_;
    ParSesquilinearForm * m0_;
    ParMixedSesquilinearForm * nzD12_;
 

@@ -285,6 +285,10 @@ void nxGradIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
       trial_fe.CalcPhysDShape(Trans, trial_dshape);
 
       w = ip.weight;
+      if (Q)
+      {
+         w *= Q->Eval(Trans, ip);
+      }
 
       for (int j=0; j<trial_nd; j++)
       {
@@ -358,6 +362,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      // m12EpsIm_(NULL),
      m1_(NULL),
      m21EpsInv_(NULL),
+     negOneCoef_(-1.0),
      m0_(NULL),
      // n20ZRe_(NULL),
      // n20ZIm_(NULL),
@@ -545,8 +550,9 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    {
       cout << "Building nxD01_" << endl;
       nxD01_ = new ParMixedSesquilinearForm(H1FESpace_, HCurlFESpace_);
-      nxD01_->AddBoundaryIntegrator(new nxGradIntegrator,
-                                    new nxGradIntegrator, sbc_bdr_marker_);
+      nxD01_->AddBoundaryIntegrator(NULL,
+                                    new nxGradIntegrator(*negOmegaCoef_),
+                                    sbc_bdr_marker_);
       cout << "Done Building nxD01_" << endl;
    }
 
@@ -771,7 +777,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
               n20ZIm_->AddBoundaryIntegrator(new MassIntegrator(*sbc.imag),
                                              sbc.attr_marker);
          */
-         m0_->AddBoundaryIntegrator(new MassIntegrator, new MassIntegrator,
+         m0_->AddBoundaryIntegrator(new MassIntegrator(negOneCoef_), NULL,
                                     sbc.attr_marker);
          nzD12_->AddBoundaryIntegrator(new VectorFECurlIntegrator(*sbc.real),
                                        new VectorFECurlIntegrator(*sbc.imag),
