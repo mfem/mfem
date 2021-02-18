@@ -295,7 +295,7 @@ int main(int argc, char *argv[])
    ess_bdr = 0;
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-   // 7. Set up the linear form b(.) which corresponds to the right-hand side of
+   // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system. In this case, b_i equals the boundary integral
    //    of f*phi_i where f represents a "push" force on the right side of the
    //    trapezoid.
@@ -310,28 +310,21 @@ int main(int argc, char *argv[])
       push_force(1) = -5.0e-2; // index 1 attribute 2
       f.Set(0, new PWConstCoefficient(push_force));
    }
-
-   // 8. Set up constraint matrix to constrain normal displacement (but
-   //    allow tangential displacement) on specified boundaries.
-   Array<int> constraint_atts(2);
-   constraint_atts[0] = 1;  // attribute 1 bottom
-   constraint_atts[1] = 4;  // attribute 4 left side
-
    LinearForm *b = new LinearForm(fespace);
    b->AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(f));
    cout << "r.h.s. ... " << flush;
    b->Assemble();
 
-   // 9. Define the solution vector x as a finite element grid function
+   // 7. Define the solution vector x as a finite element grid function
    //    corresponding to fespace.
    GridFunction x(fespace);
    x = 0.0;
 
-   // 10. Set up the bilinear form a(.,.) on the finite element space
-   //     corresponding to the linear elasticity integrator with piece-wise
-   //     constants coefficient lambda and mu. We use constant coefficients,
-   //     but see ex2 for how to set up piecewise constant coefficients based
-   //     on attribute.
+   // 8. Set up the bilinear form a(.,.) on the finite element space
+   //    corresponding to the linear elasticity integrator with piece-wise
+   //    constants coefficient lambda and mu. We use constant coefficients,
+   //    but see ex2 for how to set up piecewise constant coefficients based
+   //    on attribute.
    Vector lambda(mesh->attributes.Max());
    lambda = 1.0;
    PWConstCoefficient lambda_func(lambda);
@@ -342,10 +335,10 @@ int main(int argc, char *argv[])
    BilinearForm *a = new BilinearForm(fespace);
    a->AddDomainIntegrator(new ElasticityIntegrator(lambda_func, mu_func));
 
-   // 11. Assemble the bilinear form and the corresponding linear system,
-   //     applying any necessary transformations such as: eliminating boundary
-   //     conditions, applying conforming constraints for non-conforming AMR,
-   //     static condensation, etc.
+   // 9. Assemble the bilinear form and the corresponding linear system,
+   //    applying any necessary transformations such as: eliminating boundary
+   //    conditions, applying conforming constraints for non-conforming AMR,
+   //    static condensation, etc.
    cout << "matrix ... " << flush;
    a->Assemble();
 
@@ -355,12 +348,18 @@ int main(int argc, char *argv[])
    cout << "done." << endl;
    cout << "Size of linear system: " << A.Height() << endl;
 
-   // 12. Define and apply an iterative solver for the constrained system
-   //     in saddle-point form with a Gauss-Seidel smoother for the
-   //     displacement block.
+   // 10. Set up constraint matrix to constrain normal displacement (but
+   //     allow tangential displacement) on specified boundaries.
+   Array<int> constraint_atts(2);
+   constraint_atts[0] = 1;  // attribute 1 bottom
+   constraint_atts[1] = 4;  // attribute 4 left side
    Array<int> lagrange_rowstarts;
    SparseMatrix* local_constraints =
       BuildNormalConstraints(*fespace, constraint_atts, lagrange_rowstarts);
+
+   // 11. Define and apply an iterative solver for the constrained system
+   //     in saddle-point form with a Gauss-Seidel smoother for the
+   //     displacement block.
    GSSmoother M(A);
    SchurConstrainedSolver * solver =
       new SchurConstrainedSolver(A, *local_constraints, M);
@@ -369,7 +368,7 @@ int main(int argc, char *argv[])
    solver->SetPrintLevel(1);
    solver->PrimalMult(B, X);
 
-   // 13. Recover the solution as a finite element grid function. Move the
+   // 12. Recover the solution as a finite element grid function. Move the
    //     mesh to reflect the displacement of the elastic body being
    //     simulated, for purposes of output.
    a->RecoverFEMSolution(X, *b, x);
@@ -377,7 +376,7 @@ int main(int argc, char *argv[])
    GridFunction *nodes = mesh->GetNodes();
    *nodes += x;
 
-   // 14. Save the refined mesh and the solution in VisIt format.
+   // 13. Save the refined mesh and the solution in VisIt format.
    if (visit)
    {
       VisItDataCollection visit_dc("ex28", mesh);
@@ -386,7 +385,7 @@ int main(int argc, char *argv[])
       visit_dc.Save();
    }
 
-   // 15. Save the displaced mesh and the inverted solution (which gives the
+   // 14. Save the displaced mesh and the inverted solution (which gives the
    //     backward displacements to the original grid). This output can be
    //     viewed later using GLVis: "glvis -m displaced.mesh -g sol.gf".
    {
@@ -399,7 +398,7 @@ int main(int argc, char *argv[])
       x.Save(sol_ofs);
    }
 
-   // 16. Send the above data by socket to a GLVis server.  Use the "n" and "b"
+   // 15. Send the above data by socket to a GLVis server.  Use the "n" and "b"
    //     keys in GLVis to visualize the displacements.
    if (visualization)
    {
@@ -410,7 +409,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *mesh << x << flush;
    }
 
-   // 17. Free the used memory.
+   // 16. Free the used memory.
    delete local_constraints;
    delete solver;
    delete a;
