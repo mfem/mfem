@@ -1381,7 +1381,6 @@ NURBSExtension::NURBSExtension(std::istream &input)
    // CheckBdrPatches();
 
    skip_comment_lines(input, '#');
-
    // Read knotvectors or patches
    string ident;
    input >> ws >> ident; // 'knotvectors' or 'patches'
@@ -1497,7 +1496,7 @@ NURBSExtension::NURBSExtension(std::istream &input)
    GenerateActiveBdrElems();
    GenerateBdrElementDofTable();
 
-   // periodic
+   // Read periodicity info
    if (ident == "periodic")
    {
       master.Load(input);
@@ -1507,9 +1506,9 @@ NURBSExtension::NURBSExtension(std::istream &input)
       input >> ws >> ident;
    }
 
+   // Read weights
    if (patches.Size() == 0)
    {
-      // weights
       if (ident == "weights")
       {
          weights.Load(input, GetNDof());
@@ -1717,6 +1716,13 @@ void NURBSExtension::Print(std::ostream &out) const
             }
       }
 
+      if (master.Size() > 0)
+      {
+         out << "\nperiodic\n";
+         master.Save(out);
+         slave.Save(out);
+      }
+
       out << "\nweights\n";
       weights.Print(out, 1);
    }
@@ -1728,6 +1734,14 @@ void NURBSExtension::Print(std::ostream &out) const
          out << "\n# patch " << p << "\n\n";
          patches[p]->Print(out);
       }
+
+      if (master.Size() > 0)
+      {
+         out << "\nperiodic\n";
+         master.Save(out);
+         slave.Save(out);
+      }
+
    }
 }
 
