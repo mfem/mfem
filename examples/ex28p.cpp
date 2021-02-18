@@ -74,7 +74,7 @@ SparseMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
 {
    int dim = fespace.GetVDim();
 
-   // dof_constraint is a mapping from dofs (colums of constraint matrix) to
+   // dof_constraint is a mapping from dofs (columns of constraint matrix) to
    // constraints (rows of the constraint matrix)
    // the indexing is by tdof, but a single tdof uniquely identifies a node
    // so we only store one tdof independent of dimension
@@ -122,32 +122,34 @@ SparseMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
    }
 
    // reorder so constraints eliminated together are grouped
-   // together in rows
-   std::map<int, int> reorder_rows;
-   int new_row = 0;
-   constraint_rowstarts.DeleteAll();
-   constraint_rowstarts.Append(0);
-   for (auto& it : dof_constraint)
+   // together in row
    {
-      int constraint_index = it.second;
-      bool nconstraint = false;
-      for (auto& att_it : constraints[constraint_index])
+      std::map<int, int> reorder_rows;
+      int new_row = 0;
+      constraint_rowstarts.DeleteAll();
+      constraint_rowstarts.Append(0);
+      for (auto& it : dof_constraint)
       {
-         auto rrit = reorder_rows.find(att_it.second);
-         if (rrit == reorder_rows.end())
+         int constraint_index = it.second;
+         bool nconstraint = false;
+         for (auto& att_it : constraints[constraint_index])
          {
-            nconstraint = true;
-            reorder_rows[att_it.second] = new_row++;
+            auto rrit = reorder_rows.find(att_it.second);
+            if (rrit == reorder_rows.end())
+            {
+               nconstraint = true;
+               reorder_rows[att_it.second] = new_row++;
+            }
          }
+         if (nconstraint) { constraint_rowstarts.Append(new_row); }
       }
-      if (nconstraint) { constraint_rowstarts.Append(new_row); }
-   }
-   MFEM_VERIFY(new_row == n_rows, "Remapping failed!");
-   for (auto& constraint_map : constraints)
-   {
-      for (auto& it : constraint_map)
+      MFEM_VERIFY(new_row == n_rows, "Remapping failed!");
+      for (auto& constraint_map : constraints)
       {
-         it.second = reorder_rows[it.second];
+         for (auto& it : constraint_map)
+         {
+            it.second = reorder_rows[it.second];
+         }
       }
    }
 
@@ -254,7 +256,6 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    int order = 1;
    bool visualization = 1;
-   bool amg_elast = 0;
    bool reorder_space = false;
    double offset = 0.3;
    bool visit = false;
@@ -262,10 +263,6 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&amg_elast, "-elast", "--amg-for-elasticity", "-sys",
-                  "--amg-for-systems",
-                  "Use the special AMG elasticity solver (GM/LN approaches), "
-                  "or standard AMG for systems (unknown approach).");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -331,7 +328,7 @@ int main(int argc, char *argv[])
    //    (degree elevated) NURBS space associated with the mesh nodes.
    FiniteElementCollection *fec;
    ParFiniteElementSpace *fespace;
-   const bool use_nodal_fespace = pmesh->NURBSext && !amg_elast;
+   const bool use_nodal_fespace = pmesh->NURBSext;
    if (use_nodal_fespace)
    {
       fec = NULL;
