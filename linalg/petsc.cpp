@@ -171,7 +171,8 @@ void MFEMInitializePetsc(int *argc,char ***argv,const char rc_file[],
    if (mfem::Device::Allows(mfem::Backend::CUDA_MASK))
    {
       // Tell PETSc to use the same CUDA device as MFEM:
-      ierr = PetscOptionsSetValue(NULL,"-cuda_device", to_string(mfem::Device::GetId()).c_str());
+      ierr = PetscOptionsSetValue(NULL,"-cuda_device",
+                                  to_string(mfem::Device::GetId()).c_str());
       MFEM_VERIFY(!ierr,"Unable to set initial option value to PETSc");
    }
    ierr = PetscInitialize(argc,argv,rc_file,help);
