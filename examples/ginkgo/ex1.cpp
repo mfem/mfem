@@ -71,6 +71,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool use_ginkgo_solver= true;
    bool use_ginkgo_precond = true;
+   int print_lvl = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -94,6 +95,8 @@ int main(int argc, char *argv[])
                   "-no-gko-precond",
                   "--no-gko-preconditioner",
                   "Use Ginkgo preconditioner with MFEM solver.");
+   args.AddOption(&print_lvl, "-pr", "--print-level",
+                  "Print level for iterative solver (1 prints every iteration).");
    args.Parse();
    if (!args.Good())
    {
@@ -199,44 +202,49 @@ int main(int argc, char *argv[])
       if (use_ginkgo_solver)
       {
 #ifdef MFEM_USE_GINKGO
-         // Solve the linear system with CG + IC from Ginkgo.
-         std::string executor_string;
-         if (!strcmp(device_config, "cuda"))
+         // Solve the linear system with CG + IC from Ginkgo,
+         // or CG from Ginkgo + Gauss-Seidel from MFEM.
+         GinkgoWrappers::GinkgoExecutor exec(device);
+         if (use_ginkgo_precond) // Also use Ginkgo preconditioner.
          {
-            executor_string = "cuda";
+            GinkgoWrappers::IcPreconditioner ginkgo_precond(exec, "paric", 30);
+            GinkgoWrappers::CGSolver inner_solver(exec, print_lvl, 400, 1e-6, 0.0,
+                                                  ginkgo_precond);
+            GinkgoWrappers::IRSolver ginkgo_solver(exec, print_lvl, 400, 1e-12, 0.0,
+                                                   inner_solver);
+            //           GinkgoWrappers::CGSolver ginkgo_solver(exec, print_lvl, 400, 1e-12, 0.0,
+            //                                                  ginkgo_precond);
+            ginkgo_solver.SetOperator(*(A.Ptr()));
+            ginkgo_solver.Mult(B, X);
          }
-         else
+         else  //Create MFEM preconditioner and wrap it for Ginkgo's use.
          {
-            executor_string = "omp";
+            GSSmoother M((SparseMatrix&)(*A));
+            GinkgoWrappers::MFEMPreconditioner gko_M(exec, M);
+            //           GinkgoWrappers::CGSolver ginkgo_solver(exec, print_lvl, 400, 1e-12, 0.0,
+            //                                                  gko_M);
+            //           GinkgoWrappers::CGSolver inner_solver(exec, print_lvl, 400, 1e-6, 0.0, gko_M);
+            GinkgoWrappers::CGSolver inner_solver(exec, print_lvl, 400, 1e-6, 0.0);
+            GinkgoWrappers::IRSolver ginkgo_solver(exec, print_lvl, 400, 1e-12, 0.0,
+                                                   inner_solver);
+            ginkgo_solver.SetOperator(*(A.Ptr()));
+            ginkgo_solver.Mult(B, X);
          }
-         GinkgoWrappers::IcPreconditioner ginkgo_precond(executor_string, "paric", 30);
-         GinkgoWrappers::CGSolver ginkgo_solver(executor_string, 1, 2000, 1e-12, 0.0,
-                                                ginkgo_precond);
-         ginkgo_solver.SetOperator(*(A.Ptr()));
-         ginkgo_solver.Mult(B, X);
 #endif
       }
       else if (use_ginkgo_precond)  // Test using a Ginkgo preconditioner with an MFEM solver.
       {
-         std::string executor_string;
-         if (!strcmp(device_config, "cuda"))
-         {
-            executor_string = "cuda";
-         }
-         else
-         {
-            executor_string = "omp";
-         }
-         GinkgoWrappers::IcPreconditioner M(executor_string, "paric", 30);
-         M.SetOperator(*(A.Ptr()));
-         PCG(*A, M, B, X, 1, 2000, 1e-12, 0.0);
+         GinkgoWrappers::GinkgoExecutor exec(device);
+         GinkgoWrappers::IcPreconditioner M(exec, "paric", 30);
+         M.SetOperator(*(A.Ptr()));  // Generate the preconditioner for the matrix A.
+         PCG(*A, M, B, X, print_lvl, 400, 1e-12, 0.0);
       }
       else
       {
 #ifndef MFEM_USE_SUITESPARSE
          // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
          GSSmoother M((SparseMatrix&)(*A));
-         PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
+         PCG(*A, M, B, X, print_lvl, 400, 1e-12, 0.0);
 #else
          // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
          UMFPackSolver umf_solver;
@@ -246,29 +254,45 @@ int main(int argc, char *argv[])
 #endif
       }
    }
-   else // No preconditioning for now in partial assembly mode.
+   else // Use Jacobi preconditioning in partial assembly mode.
    {
-      if (use_ginkgo_solver)
+      if (UsesTensorBasis(*fespace))
       {
+         OperatorJacobiSmoother M(*a, ess_tdof_list);
+         if (use_ginkgo_solver)
+         {
 #ifdef MFEM_USE_GINKGO
-         // Solve the linear system with CG + IC from Ginkgo.
-         std::string executor_string;
-         if (!strcmp(device_config, "cuda"))
-         {
-            executor_string = "cuda";
-         }
-         else
-         {
-            executor_string = "omp";
-         }
-         GinkgoWrappers::CGSolver ginkgo_solver(executor_string, 1, 2000, 1e-12, 0.0);
-         ginkgo_solver.SetOperator(*(A.Ptr()));
-         ginkgo_solver.Mult(B, X);
+            // Test "direct" way of creating executor...TODO: remove this
+            GinkgoWrappers::GinkgoExecutor *exec;
+            if (!strcmp(device_config, "cuda"))
+            {
+               exec = new GinkgoWrappers::GinkgoExecutor(GinkgoWrappers::GinkgoExecutor::CUDA);
+            }
+            else
+            {
+               exec = new GinkgoWrappers::GinkgoExecutor(GinkgoWrappers::GinkgoExecutor::OMP);
+            }
+            // wrap MFEM preconditioner for Ginkgo's use.
+            GinkgoWrappers::MFEMPreconditioner gko_M(*exec, M);
+            GinkgoWrappers::CGSolver inner_solver(*exec, print_lvl, 400, 1e-6, 0.0, gko_M);
+            GinkgoWrappers::IRSolver ginkgo_solver(*exec, print_lvl, 400, 1e-12, 0.0,
+                                                   inner_solver);
+            //          GinkgoWrappers::CGSolver ginkgo_solver(*exec, print_lvl, 400, 1e-12, 0.0,
+            //                                                 gko_M);
+            ginkgo_solver.SetOperator(*(A.Ptr()));
+            ginkgo_solver.Mult(B, X);
+
+            delete exec;
 #endif
+         }
+         else   // Use MFEM solver and preconditioner.
+         {
+            PCG(*A, M, B, X, print_lvl, 400, 1e-12, 0.0);
+         }
       }
       else
       {
-         CG(*A, B, X, 1, 2000, 1e-12, 0.0);
+         CG(*A, B, X, print_lvl, 400, 1e-12, 0.0);
       }
    }
 

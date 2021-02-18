@@ -143,7 +143,7 @@ public:
                    gko::size_type size = 0,
                    const Operator *oper = NULL)
       : gko::EnableLinOp<OperatorWrapper>(exec, gko::dim<2> {size, size}),
-        gko::EnableCreateMethod<OperatorWrapper>()
+   gko::EnableCreateMethod<OperatorWrapper>()
    {
       this->wrapped_oper = oper;
    }
@@ -202,9 +202,13 @@ struct ResidualLogger : gko::log::Logger
    {
       // Print a header for the table
       if (compute_real_residual)
-        mfem::out << "Iteration log with real residual norms:" << std::endl;
+      {
+         mfem::out << "Iteration log with real residual norms:" << std::endl;
+      }
       else
-        mfem::out << "Iteration log with residual norms:" << std::endl;
+      {
+         mfem::out << "Iteration log with residual norms:" << std::endl;
+      }
       mfem::out << '|' << std::setw(10) << "Iteration" << '|' << std::setw(25)
                 << "Residual Norm" << '|' << std::endl;
       // Print a separation line. Note that for creating `10` characters
@@ -236,7 +240,7 @@ struct ResidualLogger : gko::log::Logger
                               const gko::LinOp *solution,
                               const gko::LinOp *residual_norm) const override
    {
-      // If the solver shares the current solution vector and we want to 
+      // If the solver shares the current solution vector and we want to
       // compute the residual from that
       if (solution && compute_real_residual)
       {
@@ -245,7 +249,7 @@ struct ResidualLogger : gko::log::Logger
          // Compute the real residual vector by calling apply on the system
          // First, compute res = A * x
          matrix->apply(gko::lend(solution), gko::lend(res));
-         // Now do res = res - b, depending on which vector/oper type 
+         // Now do res = res - b, depending on which vector/oper type
          // Check if b is a Ginkgo vector or wrapped MFEM Vector
          if (dynamic_cast<const VectorWrapper*>(b))
          {
@@ -267,22 +271,22 @@ struct ResidualLogger : gko::log::Logger
       }
       else
       {
-        // If the solver shares a residual norm, log its value
-        if (residual_norm)
-        {
-           auto dense_norm = gko::as<gko_dense>(residual_norm);
-           // Add the norm to the `residual_norms` vector
-           residual_norms.push_back(get_norm(dense_norm));
-           // Otherwise, use the recurrent residual vector
-        }
-        else
-       {
-          auto dense_residual = gko::as<gko_dense>(residual);
-          // Compute the residual vector's norm
-          auto norm = compute_norm(gko::lend(dense_residual));
-          // Add the computed norm to the `residual_norms` vector
-          residual_norms.push_back(norm);
-       }
+         // If the solver shares a residual norm, log its value
+         if (residual_norm)
+         {
+            auto dense_norm = gko::as<gko_dense>(residual_norm);
+            // Add the norm to the `residual_norms` vector
+            residual_norms.push_back(get_norm(dense_norm));
+            // Otherwise, use the recurrent residual vector
+         }
+         else
+         {
+            auto dense_residual = gko::as<gko_dense>(residual);
+            // Compute the residual vector's norm
+            auto norm = compute_norm(gko::lend(dense_residual));
+            // Add the computed norm to the `residual_norms` vector
+            residual_norms.push_back(norm);
+         }
       }
       // Add the current iteration number to the `iterations` vector
       iterations.push_back(iteration);
@@ -298,15 +302,15 @@ struct ResidualLogger : gko::log::Logger
         b{b},
         compute_real_residual{compute_real_residual}
    {
-     if (dynamic_cast<const VectorWrapper*>(b)) 
-     {
-       const VectorWrapper *b_cast = gko::as<const VectorWrapper>(b);
-       res = std::move(gko_dense::create_with_config_of(b_cast).release());
-     }
-     else 
-     {
-       res = std::move(gko::clone(b).release());
-     }
+      if (dynamic_cast<const VectorWrapper*>(b))
+      {
+         const VectorWrapper *b_cast = gko::as<const VectorWrapper>(b);
+         res = std::move(gko_dense::create_with_config_of(b_cast).release());
+      }
+      else
+      {
+         res = std::move(gko::clone(b).release());
+      }
    }
 
 private:
@@ -320,14 +324,14 @@ private:
    mutable std::vector<ValueType> residual_norms{};
    // Vector which stores all the iteration numbers
    mutable std::vector<std::size_t> iterations{};
-   // Whether or not to compute the residual at every iteration, 
+   // Whether or not to compute the residual at every iteration,
    //  rather than using the recurrent norm
    const bool compute_real_residual;
 };
 
 /**
 * This class wraps a Ginkgo Executor for use in MFEM.
-* Note that objects in the GinkgoWrappers namespace intended to work 
+* Note that objects in the GinkgoWrappers namespace intended to work
 * toegher, e.g. a Ginkgo solver and preconditioner, should use the same
 * GinkgoExecutor object.  In general, most users will want to create
 * one GinkgoExecutor object for use with all Ginkgo-related objects.
@@ -348,28 +352,28 @@ public:
       /// HIP GPU Executor.
       HIP = 3
    };
-  /**
-   * Constructor. 
-   * Takes an @p GinkgoExecType argument and creates an Executor.
-   */
+   /**
+    * Constructor.
+    * Takes an @p GinkgoExecType argument and creates an Executor.
+    */
    GinkgoExecutor(ExecType exec_type);
 
-  /** Constructor.
-   * Takes an MFEM @p Device object and creates an Executor
-   * that "matches" (e.g., if MFEM is using the CPU, Ginkgo
-   * will choose the OmpExecutor; if MFEM is using CUDA,
-   * Ginkgo will choose the CudaExecutor).
-   */
+   /** Constructor.
+    * Takes an MFEM @p Device object and creates an Executor
+    * that "matches" (e.g., if MFEM is using the CPU, Ginkgo
+    * will choose the OmpExecutor; if MFEM is using CUDA,
+    * Ginkgo will choose the CudaExecutor).
+    */
    GinkgoExecutor(Device &mfem_device);
 
    /**
     * Destructor.
     */
-   virtual ~GinkgoExecutor() = default;   
+   virtual ~GinkgoExecutor() = default;
 
    std::shared_ptr<gko::Executor> GetExecutor() const
    {
-     return this->executor;
+      return this->executor;
    }
 
 private:
@@ -461,7 +465,7 @@ protected:
 
    /**
     * Generated Ginkgo preconditioner for a specific matrix, created through
-    * @p SetOperator(), or a wrapped MFEM preconditioner. 
+    * @p SetOperator(), or a wrapped MFEM preconditioner.
     * Must exist to use @p Mult().
     */
    std::shared_ptr<gko::LinOp> generated_precond;
@@ -1070,7 +1074,7 @@ public:
 };
 
 /**
- * A wrapper that allows Ginkgo to use MFEM preconditioners. 
+ * A wrapper that allows Ginkgo to use MFEM preconditioners.
  *
  * @ingroup GinkgoWrappers
  */
@@ -1081,7 +1085,7 @@ public:
     * Constructor.
     *
     * @param[in] exec The execution paradigm for the preconditioner.
-    * @param[in] mfem_precond The MFEM Preconditioner to wrap. 
+    * @param[in] mfem_precond The MFEM Preconditioner to wrap.
     */
    MFEMPreconditioner(
       GinkgoExecutor &exec,

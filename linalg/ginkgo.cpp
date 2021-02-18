@@ -32,67 +32,77 @@ GinkgoExecutor::GinkgoExecutor(ExecType exec_type)
 {
    switch (exec_type)
    {
-     case GinkgoExecutor::REFERENCE:
-     {
-       executor = gko::ReferenceExecutor::create();
-       break;
-     }
-     case GinkgoExecutor::OMP:
-     {
-       executor = gko::OmpExecutor::create();
-       break;
-     }
-     case GinkgoExecutor::CUDA:
-     {
-       if (gko::CudaExecutor::get_num_devices() > 0)
-         executor = gko::CudaExecutor::create(0, gko::OmpExecutor::create());
-       else
+      case GinkgoExecutor::REFERENCE:
+      {
+         executor = gko::ReferenceExecutor::create();
+         break;
+      }
+      case GinkgoExecutor::OMP:
+      {
+         executor = gko::OmpExecutor::create();
+         break;
+      }
+      case GinkgoExecutor::CUDA:
+      {
+         if (gko::CudaExecutor::get_num_devices() > 0)
+         {
+            executor = gko::CudaExecutor::create(0, gko::OmpExecutor::create());
+         }
+         else
+            mfem::err <<
+                      "gko::CudaExecutor::get_num_devices() did not report any valid devices"
+                      << std::endl;
+         break;
+      }
+      case GinkgoExecutor::HIP:
+      {
+         if (gko::HipExecutor::get_num_devices() > 0)
+         {
+            executor = gko::HipExecutor::create(0, gko::OmpExecutor::create());
+         }
+         else
+            mfem::err <<
+                      "gko::HipExecutor::get_num_devices() did not report any valid devices"
+                      << std::endl;
+         break;
+      }
+      default:
          mfem::err <<
-                  "gko::CudaExecutor::get_num_devices() did not report any valid devices"
-                  << std::endl;
-       break;
-     }
-     case GinkgoExecutor::HIP:
-     {
-       if (gko::HipExecutor::get_num_devices() > 0)
-         executor = gko::HipExecutor::create(0, gko::OmpExecutor::create());
-       else
-         mfem::err <<
-                  "gko::HipExecutor::get_num_devices() did not report any valid devices"
-                  << std::endl;
-       break;
-     }
-     default:
-       mfem::err <<
-                "Invalid ExecType specificed" 
-                << std::endl;
+                   "Invalid ExecType specificed"
+                   << std::endl;
    }
 }
 
 GinkgoExecutor::GinkgoExecutor(Device &mfem_device)
 {
-    
+
    // Pick "best match" Executor based on MFEM device configuration.
    if (mfem_device.Allows(Backend::CUDA_MASK))
    {
-     if (gko::CudaExecutor::get_num_devices() > 0)
-       executor = gko::CudaExecutor::create(0, gko::OmpExecutor::create());
-     else
-       mfem::err <<
-                "gko::CudaExecutor::get_num_devices() did not report any valid devices"
-                << std::endl;
+      if (gko::CudaExecutor::get_num_devices() > 0)
+      {
+         executor = gko::CudaExecutor::create(0, gko::OmpExecutor::create());
+      }
+      else
+         mfem::err <<
+                   "gko::CudaExecutor::get_num_devices() did not report any valid devices"
+                   << std::endl;
    }
    else if (mfem_device.Allows(Backend::HIP_MASK))
    {
-     if (gko::HipExecutor::get_num_devices() > 0)
-       executor = gko::HipExecutor::create(0, gko::OmpExecutor::create());
-     else
-       mfem::err <<
-                "gko::HipExecutor::get_num_devices() did not report any valid devices"
-                << std::endl;
-   } 
-   else 
+      if (gko::HipExecutor::get_num_devices() > 0)
+      {
+         executor = gko::HipExecutor::create(0, gko::OmpExecutor::create());
+      }
+      else
+         mfem::err <<
+                   "gko::HipExecutor::get_num_devices() did not report any valid devices"
+                   << std::endl;
+   }
+   else
+   {
       executor = gko::OmpExecutor::create();
+   }
 }
 
 GinkgoIterativeSolver::GinkgoIterativeSolver(
@@ -141,7 +151,7 @@ void OperatorWrapper::apply_impl(const gko::LinOp *b, gko::LinOp *x) const
    VectorWrapper *mfem_x = gko::as<VectorWrapper>(x);
 
    this->wrapped_oper->Mult(mfem_b->get_mfem_vec_const_ref(),
-                          mfem_x->get_mfem_vec_ref());
+                            mfem_x->get_mfem_vec_ref());
 }
 void OperatorWrapper::apply_impl(const gko::LinOp *alpha,
                                  const gko::LinOp *b,
@@ -238,27 +248,27 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
    {
       on_device = true;
    }
-//   std::unique_ptr<vec> gko_x;
-//   std::unique_ptr<vec> gko_y;
+   //   std::unique_ptr<vec> gko_x;
+   //   std::unique_ptr<vec> gko_y;
    vec *gko_x;
    vec *gko_y;
 
-/*   if(dynamic_cast<SparseMatrix*>(system_oper.get()))
+   /*   if(dynamic_cast<SparseMatrix*>(system_oper.get()))
+      {
+         gko_x = vec::create(executor, gko::dim<2>(x.Size(), 1),
+                             gko::Array<double>::view(executor,
+                                                      x.Size(), const_cast<double *>(
+                                                         x.Read(on_device))), 1);
+         gko_y = vec::create(executor, gko::dim<2>(y.Size(), 1),
+                             gko::Array<double>::view(executor,
+                                                      y.Size(), y.ReadWrite(on_device)), 1);
+      }
+      else // wrapped MFEM operator; need wrapped vectors TEST */
    {
-      gko_x = vec::create(executor, gko::dim<2>(x.Size(), 1),
-                          gko::Array<double>::view(executor,
-                                                   x.Size(), const_cast<double *>(
-                                                      x.Read(on_device))), 1);
-      gko_y = vec::create(executor, gko::dim<2>(y.Size(), 1),
-                          gko::Array<double>::view(executor,
-                                                   y.Size(), y.ReadWrite(on_device)), 1);
-   }
-   else // wrapped MFEM operator; need wrapped vectors TEST */
-   {
-//      gko_x = std::unique_ptr<vec>(new VectorWrapper(executor, x.Size(),
-//                                                     const_cast<Vector *>(&x), on_device, false));
-//      gko_y = std::unique_ptr<vec>(new VectorWrapper(executor, y.Size(), &y,
-//                                                     on_device, false));
+      //      gko_x = std::unique_ptr<vec>(new VectorWrapper(executor, x.Size(),
+      //                                                     const_cast<Vector *>(&x), on_device, false));
+      //      gko_y = std::unique_ptr<vec>(new VectorWrapper(executor, y.Size(), &y,
+      //                                                     on_device, false));
       gko_x = new VectorWrapper(executor, x.Size(),
                                 const_cast<Vector *>(&x), on_device, false);
       gko_y = new VectorWrapper(executor, y.Size(), &y,
@@ -356,7 +366,9 @@ void GinkgoIterativeSolver::SetOperator(const Operator &op)
 {
 
    if (system_oper)
+   {
       system_oper.reset();
+   }
 
    // Check for SparseMatrix:
    SparseMatrix *op_mat = const_cast<SparseMatrix*>(
@@ -376,21 +388,21 @@ void GinkgoIterativeSolver::SetOperator(const Operator &op)
       using mtx = gko::matrix::Csr<double, int>;
       const int nnz =  op_mat->GetMemoryData().Capacity();
       system_oper = mtx::create(
-                         executor, gko::dim<2>(op_mat->Height(), op_mat->Width()),
-                         gko::Array<double>::view(executor,
-                                                  nnz,
-                                                  op_mat->ReadWriteData(on_device)),
-                         gko::Array<int>::view(executor,
-                                               nnz,
-                                               op_mat->ReadWriteJ(on_device)),
-                         gko::Array<int>::view(executor, op_mat->Height() + 1,
-                                               op_mat->ReadWriteI(on_device)));
+                       executor, gko::dim<2>(op_mat->Height(), op_mat->Width()),
+                       gko::Array<double>::view(executor,
+                                                nnz,
+                                                op_mat->ReadWriteData(on_device)),
+                       gko::Array<int>::view(executor,
+                                             nnz,
+                                             op_mat->ReadWriteJ(on_device)),
+                       gko::Array<int>::view(executor, op_mat->Height() + 1,
+                                             op_mat->ReadWriteI(on_device)));
 
    }
    else
    {
       system_oper = std::shared_ptr<OperatorWrapper>(
-                            new OperatorWrapper(executor, op.Height(), &op));
+                       new OperatorWrapper(executor, op.Height(), &op));
    }
 }
 
@@ -472,18 +484,18 @@ BICGSTABSolver::BICGSTABSolver(
    using bicgstab   = gko::solver::Bicgstab<double>;
    if (preconditioner.HasGeneratedPreconditioner())
    {
-     this->solver_gen = bicgstab::build()
-                        .with_criteria(this->combined_factory)
+      this->solver_gen = bicgstab::build()
+                         .with_criteria(this->combined_factory)
                          .with_generated_preconditioner(
                             preconditioner.GetGeneratedPreconditioner())
-                        .on(this->executor);
+                         .on(this->executor);
    }
-   else 
+   else
    {
-     this->solver_gen = bicgstab::build()
-                        .with_criteria(this->combined_factory)
-                        .with_preconditioner(preconditioner.GetFactory())
-                        .on(this->executor);
+      this->solver_gen = bicgstab::build()
+                         .with_criteria(this->combined_factory)
+                         .with_preconditioner(preconditioner.GetFactory())
+                         .on(this->executor);
    }
 }
 
@@ -518,18 +530,18 @@ CGSSolver::CGSSolver(
    using cgs        = gko::solver::Cgs<double>;
    if (preconditioner.HasGeneratedPreconditioner())
    {
-     this->solver_gen = cgs::build()
-                        .with_criteria(this->combined_factory)
+      this->solver_gen = cgs::build()
+                         .with_criteria(this->combined_factory)
                          .with_generated_preconditioner(
                             preconditioner.GetGeneratedPreconditioner())
-                        .on(this->executor);
+                         .on(this->executor);
    }
    else
    {
-     this->solver_gen = cgs::build()
-                        .with_criteria(this->combined_factory)
-                        .with_preconditioner(preconditioner.GetFactory())
-                        .on(this->executor);
+      this->solver_gen = cgs::build()
+                         .with_criteria(this->combined_factory)
+                         .with_preconditioner(preconditioner.GetFactory())
+                         .on(this->executor);
    }
 }
 
@@ -564,18 +576,18 @@ FCGSolver::FCGSolver(
    using fcg        = gko::solver::Fcg<double>;
    if (preconditioner.HasGeneratedPreconditioner())
    {
-     this->solver_gen = fcg::build()
-                        .with_criteria(this->combined_factory)
+      this->solver_gen = fcg::build()
+                         .with_criteria(this->combined_factory)
                          .with_generated_preconditioner(
                             preconditioner.GetGeneratedPreconditioner())
-                        .on(this->executor);
+                         .on(this->executor);
    }
    else
    {
-     this->solver_gen = fcg::build()
-                        .with_criteria(this->combined_factory)
-                        .with_preconditioner(preconditioner.GetFactory())
-                        .on(this->executor);
+      this->solver_gen = fcg::build()
+                         .with_criteria(this->combined_factory)
+                         .with_preconditioner(preconditioner.GetFactory())
+                         .on(this->executor);
    }
 }
 
@@ -593,7 +605,7 @@ GMRESSolver::GMRESSolver(
 {
    using gmres      = gko::solver::Gmres<double>;
    this->solver_gen = gmres::build()
-//                      .with_krylov_dim(m)
+                      //                      .with_krylov_dim(m)
                       .with_criteria(this->combined_factory)
                       .on(this->executor);
 }
@@ -613,20 +625,20 @@ GMRESSolver::GMRESSolver(
    // Check for a previously-generated preconditioner (for a specific matrix)
    if (preconditioner.HasGeneratedPreconditioner())
    {
-     this->solver_gen = gmres::build()
- //                       .with_krylov_dim(m)
-                        .with_criteria(this->combined_factory)
+      this->solver_gen = gmres::build()
+                         //                       .with_krylov_dim(m)
+                         .with_criteria(this->combined_factory)
                          .with_generated_preconditioner(
                             preconditioner.GetGeneratedPreconditioner())
-                        .on(this->executor);
+                         .on(this->executor);
    }
-   else 
+   else
    {
-     this->solver_gen = gmres::build()
- //                       .with_krylov_dim(m)
-                        .with_criteria(this->combined_factory)
-                        .with_preconditioner(preconditioner.GetFactory())
-                        .on(this->executor);
+      this->solver_gen = gmres::build()
+                         //                       .with_krylov_dim(m)
+                         .with_criteria(this->combined_factory)
+                         .with_preconditioner(preconditioner.GetFactory())
+                         .on(this->executor);
    }
 }
 
@@ -710,10 +722,10 @@ void GinkgoPreconditioner::SetOperator(const Operator &op)
 
    if (has_generated_precond)
    {
-     generated_precond.reset();
-     has_generated_precond = false;
+      generated_precond.reset();
+      has_generated_precond = false;
    }
-   
+
    // Only accept SparseMatrix for this type.
    SparseMatrix *op_mat = const_cast<SparseMatrix*>(
                              dynamic_cast<const SparseMatrix*>(&op));
@@ -955,8 +967,8 @@ MFEMPreconditioner::MFEMPreconditioner(
    : GinkgoPreconditioner(exec)
 {
    generated_precond = std::shared_ptr<OperatorWrapper>(
-                            new OperatorWrapper(executor, 
-                             mfem_precond.Height(), &mfem_precond)); 
+                          new OperatorWrapper(executor,
+                                              mfem_precond.Height(), &mfem_precond));
    has_generated_precond = true;
 }
 
