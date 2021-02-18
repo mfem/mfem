@@ -25,7 +25,7 @@ namespace mfem
     individual elements, to global degrees of freedom, stored within
     GridFunction objects. These transformations are necessary to ensure that
     basis functions in neighboring elements align corretly. Closely related but
-    complimentary transformations are required for the entries stored in
+    complementary transformations are required for the entries stored in
     LinearForm and BilinearForm objects.  The DofTransformation class is
     designed to apply the action of both of these types of DoF transformations.
 
