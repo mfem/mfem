@@ -48,9 +48,9 @@ using namespace mfem;
     planes), and a three-row constraint is fully constrained (equivalent
     to MFEM's usual essential boundary conditions).
 
-    The lagrange_rowstarts array is filled in to describe the structure of
+    The constraint_rowstarts array is filled in to describe the structure of
     these constraints, so that constraint k is encoded in rows
-    lagrange_rowstarts[k] to lagrange_rowstarts[k + 1] - 1, inclusive,
+    constraint_rowstarts[k] to constraint_rowstarts[k + 1] - 1, inclusive,
     of the returned matrix.
 
     When two attributes intersect, this version will combine constraints,
@@ -60,7 +60,7 @@ using namespace mfem;
 
     @param[in] fespace              A vector finite element space
     @param[in] constrained_att      Boundary attributes to constrain
-    @param[out] lagrange_rowstarts  The rowstarts for separately
+    @param[out] constraint_rowstarts  The rowstarts for separately
                                     eliminated constraints, possible
                                     input to EliminationCGSolver
 
@@ -70,13 +70,14 @@ using namespace mfem;
     we need tdofs in parallel case. */
 SparseMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
                                       Array<int>& constrained_att,
-                                      Array<int>& lagrange_rowstarts)
+                                      Array<int>& constraint_rowstarts)
 {
    int dim = fespace.GetVDim();
 
-   // mapping from dofs (colums of constraint matrix) to constraints
-   // (rows of constraint matrix)
-   // the indexing is by tdof, but we only bother with one tdof per node
+   // dof_constraint is a mapping from dofs (colums of constraint matrix) to
+   // constraints (rows of the constraint matrix)
+   // the indexing is by tdof, but a single tdof uniquely identifies a node
+   // so we only store one tdof independent of dimension
    std::map<int, int> dof_constraint;
    // constraints[j] is a map from attribute to row number
    std::vector<std::map<int, int> > constraints;
@@ -84,6 +85,7 @@ SparseMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
    int n_rows = 0;
    for (int att : constrained_att)
    {
+      // identify tdofs on constrained boundary
       std::set<int> constrained_tdofs;
       for (int i = 0; i < fespace.GetNBE(); ++i)
       {
@@ -99,17 +101,21 @@ SparseMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
             }
          }
       }
+      // fill in the maps identifying which constraints (rows) correspond to
+      // which tdofs
       for (auto k : constrained_tdofs)
       {
          auto it = dof_constraint.find(k);
          if (it == dof_constraint.end())
          {
+            // add tdof to existing block constraint
             dof_constraint[k] = n_constraints++;
             constraints.emplace_back();
             constraints.back()[att] = n_rows++;
          }
          else
          {
+            // build new block constraint
             constraints[it->second][att] = n_rows++;
          }
       }
@@ -119,8 +125,8 @@ SparseMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
    // together in rows
    std::map<int, int> reorder_rows;
    int new_row = 0;
-   lagrange_rowstarts.DeleteAll();
-   lagrange_rowstarts.Append(0);
+   constraint_rowstarts.DeleteAll();
+   constraint_rowstarts.Append(0);
    for (auto& it : dof_constraint)
    {
       int constraint_index = it.second;
@@ -134,7 +140,7 @@ SparseMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
             reorder_rows[att_it.second] = new_row++;
          }
       }
-      if (nconstraint) { lagrange_rowstarts.Append(new_row); }
+      if (nconstraint) { constraint_rowstarts.Append(new_row); }
    }
    MFEM_VERIFY(new_row == n_rows, "Remapping failed!");
    for (auto& constraint_map : constraints)
@@ -434,11 +440,11 @@ int main(int argc, char *argv[])
    // 13. Define and apply a parallel PCG solver for the constrained system
    //     where the normal boundary constraints have been separately eliminated
    //     from the system.
-   Array<int> lagrange_rowstarts;
+   Array<int> constraint_rowstarts;
    SparseMatrix* local_constraints =
-      BuildNormalConstraints(*fespace, constraint_atts, lagrange_rowstarts);
+      BuildNormalConstraints(*fespace, constraint_atts, constraint_rowstarts);
    EliminationCGSolver * solver = new EliminationCGSolver(A, *local_constraints,
-                                                          lagrange_rowstarts, dim,
+                                                          constraint_rowstarts, dim,
                                                           reorder_space);
    solver->SetRelTol(1e-8);
    solver->SetMaxIter(500);
