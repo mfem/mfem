@@ -113,31 +113,33 @@ SparseMatrix * BuildNormalConstraints(FiniteElementSpace& fespace,
 
    // reorder so constraints eliminated together are grouped
    // together in rows
-   std::map<int, int> reorder_rows;
-   int new_row = 0;
-   lagrange_rowstarts.DeleteAll();
-   lagrange_rowstarts.Append(0);
-   for (auto& it : dof_constraint)
    {
-      int constraint_index = it.second;
-      bool nconstraint = false;
-      for (auto& att_it : constraints[constraint_index])
+      std::map<int, int> reorder_rows;
+      int new_row = 0;
+      lagrange_rowstarts.DeleteAll();
+      lagrange_rowstarts.Append(0);
+      for (auto& it : dof_constraint)
       {
-         auto rrit = reorder_rows.find(att_it.second);
-         if (rrit == reorder_rows.end())
+         int constraint_index = it.second;
+         bool nconstraint = false;
+         for (auto& att_it : constraints[constraint_index])
          {
-            nconstraint = true;
-            reorder_rows[att_it.second] = new_row++;
+            auto rrit = reorder_rows.find(att_it.second);
+            if (rrit == reorder_rows.end())
+            {
+               nconstraint = true;
+               reorder_rows[att_it.second] = new_row++;
+            }
          }
+         if (nconstraint) { lagrange_rowstarts.Append(new_row); }
       }
-      if (nconstraint) { lagrange_rowstarts.Append(new_row); }
-   }
-   MFEM_VERIFY(new_row == n_rows, "Remapping failed!");
-   for (auto& constraint_map : constraints)
-   {
-      for (auto& it : constraint_map)
+      MFEM_VERIFY(new_row == n_rows, "Remapping failed!");
+      for (auto& constraint_map : constraints)
       {
-         it.second = reorder_rows[it.second];
+         for (auto& it : constraint_map)
+         {
+            it.second = reorder_rows[it.second];
+         }
       }
    }
 
