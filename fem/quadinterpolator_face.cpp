@@ -25,14 +25,15 @@ static void GetSigns(const FiniteElementSpace &fes, const FaceType type,
    int e1, e2;
    int inf1, inf2;
    int face_id;
+   int ncface;
    int f_ind = 0;
    for (int f = 0; f < fes.GetNF(); ++f)
    {
       fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2, &ncface);
       face_id = inf1 / 64;
-      if ( (type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-           (type==FaceType::Boundary && e2<0 && inf2<0) )
+      if ( (type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0 && ncface==-1))) ||
+           (type==FaceType::Boundary && e2<0 && inf2<0 && ncface==-1) )
       {
          if (dim==2)
          {
