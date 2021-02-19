@@ -352,6 +352,10 @@ protected:
                     const FiniteElementCollection *fec,
                     int vdim = 1, int ordering = Ordering::byNODES);
 
+   /** Return the order of an edge. In a variable order space, return the order
+       of a specific variant, or -1 if there are no more variants. */
+   int GetEdgeOrder(int edge, int variant = 0) const;
+
    /// Resize the elem_order array on mesh change.
    void UpdateElementOrders();
 
@@ -729,7 +733,7 @@ public:
 
    /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection
         associated with i'th edge in the mesh object. */
-   const FiniteElement *GetEdgeElement(int i) const;
+   const FiniteElement *GetEdgeElement(int i, int variant = 0) const;
 
    /// Return the trace element from element 'i' to the given 'geom_type'
    const FiniteElement *GetTraceElement(int i, Geometry::Type geom_type) const;
