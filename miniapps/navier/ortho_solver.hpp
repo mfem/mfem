@@ -12,7 +12,7 @@
 #ifndef MFEM_NAVIER_ORTHO_SOLVER_HPP
 #define MFEM_NAVIER_ORTHO_SOLVER_HPP
 
-#include "../../mfem.hpp"
+#include "mfem.hpp"
 
 namespace mfem
 {
