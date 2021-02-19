@@ -516,7 +516,7 @@ public:
 
    /** Creates mesh by reading a file in MFEM, Netgen, or VTK format. If
        generate_edges = 0 (default) edges are not generated, if 1 edges are
-       generated. See also @a Mesh::LoadFromFile. */
+       generated. */
    static Mesh LoadFromFile(const char *filename,
                            int generate_edges = 0, int refine = 1,
                            bool fix_orientation = true);
@@ -756,7 +756,7 @@ public:
 
    /** Creates mesh by reading a file in MFEM, Netgen, or VTK format. If
        generate_edges = 0 (default) edges are not generated, if 1 edges are
-       generated. */
+       generated. See also @a Mesh::LoadFromFile. */
    explicit Mesh(const char *filename, int generate_edges = 0, int refine = 1,
                  bool fix_orientation = true);
 
