@@ -44,46 +44,7 @@ void GetInterdomainBoundaryPoints(FindPointsGSLIB &finder1,
                                   Vector &vxyz1,                  Vector &vxyz2,
                                   Array<int> ess_tdof_list1,      Array<int> ess_tdof_list2,
                                   Array<int> &ess_tdof_list1_int, Array<int> &ess_tdof_list2_int,
-                                  const int dim)
-{
-   int nb1 = ess_tdof_list1.Size(),
-       nb2 = ess_tdof_list2.Size(),
-       nt1 = vxyz1.Size()/dim,
-       nt2 = vxyz2.Size()/dim;
-
-   Vector bnd1(nb1*dim);
-   for (int i = 0; i < nb1; i++)
-   {
-      int idx = ess_tdof_list1[i];
-      for (int d = 0; d < dim; d++) { bnd1(i+d*nb1) = vxyz1(idx + d*nt1); }
-   }
-
-   Vector bnd2(nb2*dim);
-   for (int i = 0; i < nb2; i++)
-   {
-      int idx = ess_tdof_list2[i];
-      for (int d = 0; d < dim; d++) { bnd2(i+d*nb2) = vxyz2(idx + d*nt2); }
-   }
-
-   finder1.FindPoints(bnd2);
-   finder2.FindPoints(bnd1);
-
-   const Array<unsigned int> &code_out1 = finder1.GetCode();
-   const Array<unsigned int> &code_out2 = finder2.GetCode();
-
-   //Setup ess_tdof_list_int
-   for (int i = 0; i < nb1; i++)
-   {
-      int idx = ess_tdof_list1[i];
-      if (code_out2[i] != 2) { ess_tdof_list1_int.Append(idx); }
-   }
-
-   for (int i = 0; i < nb2; i++)
-   {
-      int idx = ess_tdof_list2[i];
-      if (code_out1[i] != 2) { ess_tdof_list2_int.Append(idx); }
-   }
-}
+                                  const int dim);
 
 int main(int argc, char *argv[])
 {
@@ -241,7 +202,7 @@ int main(int argc, char *argv[])
              nt1 = vxyz1.Size()/dim,
              nt2 = vxyz2.Size()/dim;
 
-   MFEM_VERIFY(nb1!=0 || nb2!=0, " Please use overlapping grids.");
+   MFEM_VERIFY(nb1 != 0 || nb2 != 0, " Please use overlapping grids.");
 
    Vector bnd1(nb1*dim);
    for (int i = 0; i < nb1; i++)
@@ -287,7 +248,7 @@ int main(int argc, char *argv[])
    int NiterSchwarz = 100;
    for (int schwarz = 0; schwarz < NiterSchwarz; schwarz++)
    {
-      for (int i = 0; i< nmeshes; i ++)
+      for (int i = 0; i < nmeshes; i ++)
       {
          b_ar[i] = new LinearForm(fespacearr[i]);
          b_ar[i]->AddDomainIntegrator(new DomainLFIntegrator(one));
@@ -373,4 +334,50 @@ int main(int argc, char *argv[])
    }
 
    return 0;
+}
+
+void GetInterdomainBoundaryPoints(FindPointsGSLIB &finder1,
+                                  FindPointsGSLIB &finder2,
+                                  Vector &vxyz1,                  Vector &vxyz2,
+                                  Array<int> ess_tdof_list1,      Array<int> ess_tdof_list2,
+                                  Array<int> &ess_tdof_list1_int, Array<int> &ess_tdof_list2_int,
+                                  const int dim)
+{
+   int nb1 = ess_tdof_list1.Size(),
+       nb2 = ess_tdof_list2.Size(),
+       nt1 = vxyz1.Size()/dim,
+       nt2 = vxyz2.Size()/dim;
+
+   Vector bnd1(nb1*dim);
+   for (int i = 0; i < nb1; i++)
+   {
+      int idx = ess_tdof_list1[i];
+      for (int d = 0; d < dim; d++) { bnd1(i+d*nb1) = vxyz1(idx + d*nt1); }
+   }
+
+   Vector bnd2(nb2*dim);
+   for (int i = 0; i < nb2; i++)
+   {
+      int idx = ess_tdof_list2[i];
+      for (int d = 0; d < dim; d++) { bnd2(i+d*nb2) = vxyz2(idx + d*nt2); }
+   }
+
+   finder1.FindPoints(bnd2);
+   finder2.FindPoints(bnd1);
+
+   const Array<unsigned int> &code_out1 = finder1.GetCode();
+   const Array<unsigned int> &code_out2 = finder2.GetCode();
+
+   //Setup ess_tdof_list_int
+   for (int i = 0; i < nb1; i++)
+   {
+      int idx = ess_tdof_list1[i];
+      if (code_out2[i] != 2) { ess_tdof_list1_int.Append(idx); }
+   }
+
+   for (int i = 0; i < nb2; i++)
+   {
+      int idx = ess_tdof_list2[i];
+      if (code_out1[i] != 2) { ess_tdof_list2_int.Append(idx); }
+   }
 }

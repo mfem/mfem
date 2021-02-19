@@ -415,18 +415,6 @@ int main(int argc, char *argv[])
       x.Save(sol_ofs);
    }
 
-   {
-      //visit visualization
-      string namefile;
-      namefile = "og" + std::to_string(color);
-      VisItDataCollection visit_dc(namefile, pmesh);
-      visit_dc.RegisterField("velocity", &x);
-      visit_dc.SetFormat(true ?
-                         DataCollection::SERIAL_FORMAT :
-                         DataCollection::PARALLEL_FORMAT);
-      visit_dc.Save();
-   }
-
    // 14. Send the solution by socket to a GLVis server.
    if (visualization)
    {
