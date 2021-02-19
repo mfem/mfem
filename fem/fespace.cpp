@@ -2639,7 +2639,8 @@ const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
    return fe;
 }
 
-const FiniteElement *FiniteElementSpace::GetEdgeElement(int i, int variant) const
+const FiniteElement *FiniteElementSpace::GetEdgeElement(int i,
+                                                        int variant) const
 {
    MFEM_ASSERT(mesh->Dimension() > 1, "No edges with mesh dimension < 2");
 
