@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -14,6 +14,7 @@ set(SRCS
   bilinearform_ext.cpp
   bilininteg.cpp
   bilininteg_br2.cpp
+  bilininteg_convection_mf.cpp
   bilininteg_convection_pa.cpp
   bilininteg_convection_ea.cpp
   bilininteg_dgtrace_pa.cpp
@@ -47,14 +48,15 @@ set(SRCS
   gridfunc.cpp
   hybridization.cpp
   intrules.cpp
-  libceed/algebraic.cpp
-  libceed/ceed.cpp
-  libceed/diffusion.cpp
-  libceed/full-assembly.cpp
-  libceed/mass.cpp
-  libceed/operator.cpp
-  libceed/solvers-atpmg.cpp
-  libceed/util.cpp
+  ceed/algebraic.cpp
+  ceed/full-assembly.cpp
+  ceed/solvers-atpmg.cpp
+  ceed/convection.cpp
+  ceed/diffusion.cpp
+  ceed/nlconvection.cpp
+  ceed/mass.cpp
+  ceed/operator.cpp
+  ceed/util.cpp
   linearform.cpp
   lininteg.cpp
   multigrid.cpp
@@ -63,6 +65,7 @@ set(SRCS
   nonlininteg.cpp
   fespacehierarchy.cpp
   nonlininteg_vectorconvection.cpp
+  nonlininteg_vectorconvection_mf.cpp
   quadinterpolator.cpp
   quadinterpolator_face.cpp
   restriction.cpp
@@ -91,14 +94,17 @@ set(HDRS
   gridfunc.hpp
   hybridization.hpp
   intrules.hpp
-  libceed/algebraic.hpp
-  libceed/ceed.hpp
-  libceed/diffusion.hpp
-  libceed/full-assembly.hpp
-  libceed/mass.hpp
-  libceed/operator.hpp
-  libceed/solvers-atpmg.h
-  libceed/util.h
+  ceed/algebraic.hpp
+  ceed/full-assembly.hpp
+  ceed/solvers-atpmg.h
+  ceed/coefficient.hpp
+  ceed/convection.hpp
+  ceed/diffusion.hpp
+  ceed/integrator.hpp
+  ceed/mass.hpp
+  ceed/nlconvection.hpp
+  ceed/operator.hpp
+  ceed/util.hpp
   linearform.hpp
   lininteg.hpp
   multigrid.hpp

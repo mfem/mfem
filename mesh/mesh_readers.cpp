@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -31,9 +31,12 @@ namespace mfem
 
 bool Mesh::remove_unused_vertices = true;
 
-void Mesh::ReadMFEMMesh(std::istream &input, bool mfem_v11, int &curved)
+void Mesh::ReadMFEMMesh(std::istream &input, int version, int &curved)
 {
-   // Read MFEM mesh v1.0 format
+   // Read MFEM mesh v1.0 or v1.2 format
+   MFEM_VERIFY(version == 10 || version == 12,
+               "unknown MFEM mesh version");
+
    string ident;
 
    // read lines beginning with '#' (comments)
@@ -66,24 +69,7 @@ void Mesh::ReadMFEMMesh(std::istream &input, bool mfem_v11, int &curved)
    }
 
    skip_comment_lines(input, '#');
-   input >> ident;
-
-   if (mfem_v11 && ident == "vertex_parents")
-   {
-      ncmesh = new NCMesh(this, &input);
-      // NOTE: the constructor above will call LoadVertexParents
-
-      skip_comment_lines(input, '#');
-      input >> ident;
-
-      if (ident == "coarse_elements")
-      {
-         ncmesh->LoadCoarseElements(input);
-
-         skip_comment_lines(input, '#');
-         input >> ident;
-      }
-   }
+   input >> ident; // 'vertices'
 
    MFEM_VERIFY(ident == "vertices", "invalid mesh file");
    input >> NumOfVertices;
@@ -101,9 +87,6 @@ void Mesh::ReadMFEMMesh(std::istream &input, bool mfem_v11, int &curved)
             input >> vertices[j](i);
          }
       }
-
-      // initialize vertex positions in NCMesh
-      if (ncmesh) { ncmesh->SetVertexPositions(vertices); }
    }
    else
    {
@@ -1557,7 +1540,14 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                   // non-positive attributes are not allowed in MFEM
                   if (phys_domain <= 0)
                   {
-                     MFEM_ABORT("Non-positive element attribute in Gmsh mesh!");
+                     MFEM_ABORT("Non-positive element attribute in Gmsh mesh!\n"
+                                "By default Gmsh sets element tags (attributes)"
+                                " to '0' but MFEM requires that they be"
+                                " positive integers.\n"
+                                "Use \"Physical Curve\", \"Physical Surface\","
+                                " or \"Physical Volume\" to set tags/attributes"
+                                " for all curves, surfaces, or volumes in your"
+                                " Gmsh geometry to values which are >= 1.");
                   }
 
                   // initialize the mesh element
@@ -1777,7 +1767,14 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                // non-positive attributes are not allowed in MFEM
                if (phys_domain <= 0)
                {
-                  MFEM_ABORT("Non-positive element attribute in Gmsh mesh!");
+                  MFEM_ABORT("Non-positive element attribute in Gmsh mesh!\n"
+                             "By default Gmsh sets element tags (attributes)"
+                             " to '0' but MFEM requires that they be"
+                             " positive integers.\n"
+                             "Use \"Physical Curve\", \"Physical Surface\","
+                             " or \"Physical Volume\" to set tags/attributes"
+                             " for all curves, surfaces, or volumes in your"
+                             " Gmsh geometry to values which are >= 1.");
                }
 
                // initialize the mesh element
@@ -2220,15 +2217,49 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          for (int i = 0; i < num_per_ent; i++)
          {
             getline(input, buff); // Read and ignore entity dimension and tags
-            getline(input, buff); // Read and ignore affine mapping
-            // Read master/slave vertex pairs
-            input >> num_nodes;
+            getline(input, buff); // If affine mapping exist, read and ignore
+            if (!strncmp(buff.c_str(), "Affine", 6))
+            {
+               input >> num_nodes;
+            }
+            else
+            {
+               num_nodes = atoi(buff.c_str());
+            }
             for (int j=0; j<num_nodes; j++)
             {
                input >> slave >> master;
                v2v[slave - 1] = master - 1;
             }
             getline(input, buff); // Read end-of-line
+         }
+
+         // Follow existing long chains of slave->master in v2v array.
+         // Upon completion of this loop, each v2v[slave] will point to a true
+         // master vertex. This algorithm is useful for periodicity defined in
+         // multiple directions.
+         for (int slave = 0; slave < v2v.Size(); slave++)
+         {
+            int master = v2v[slave];
+            if (master != slave)
+            {
+               // This loop will end if it finds a circular dependency.
+               while (v2v[master] != master && master != slave)
+               {
+                  master = v2v[master];
+               }
+               if (master == slave)
+               {
+                  // if master and slave are the same vertex, circular dependency
+                  // exists. We need to fix the problem, we choose slave.
+                  v2v[slave] = slave;
+               }
+               else
+               {
+                  // the long chain has ended on the true master vertex.
+                  v2v[slave] = master;
+               }
+            }
          }
 
          // Convert nodes to discontinuous GridFunction (if they aren't already)

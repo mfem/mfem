@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1509,6 +1509,8 @@ void VectorFiniteElement::LocalRestriction_ND(
 PointFiniteElement::PointFiniteElement()
    : NodalFiniteElement(0, Geometry::POINT, 1, 0)
 {
+   lex_ordering.SetSize(1);
+   lex_ordering[0] = 0;
    Nodes.IntPoint(0).x = 0.0;
 }
 
