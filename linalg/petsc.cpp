@@ -3061,11 +3061,11 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
       {
          if (!tracespace)
          {
-            p = fespace->GetOrder(0);
+            p = fespace->GetElementDegree(0);
          }
          else
          {
-            p = fespace->GetFaceOrder(0);
+            p = fespace->GetFaceDegree(0);
             if (dim == 2) { p++; }
          }
       }
