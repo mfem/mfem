@@ -204,7 +204,11 @@ public:
        provides the most general algorithm but is also not scalable
 
        The secondary_dofs are eliminated from the system in this algorithm,
-       as they can be written in terms of the primary_dofs. */
+       as they can be written in terms of the primary_dofs.
+       
+       Both primary_dofs and secondary_dofs are in the local truedof numbering;
+       All elimination has to be done locally on processor, though the global
+       system can be parallel. */
    EliminationSolver(HypreParMatrix& A, SparseMatrix& B,
                      Array<int>& primary_dofs,
                      Array<int>& secondary_dofs);
