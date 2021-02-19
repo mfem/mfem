@@ -143,6 +143,15 @@ int main(int argc, char *argv[])
    VisItDataCollection LOR_dc("LOR", &mesh_lor);
    LOR_dc.RegisterField("density", &rho_lor);
 
+   BilinearForm M_ho(&fespace);
+   M_ho.AddDomainIntegrator(new MassIntegrator);
+   M_ho.Assemble();
+   M_ho.Finalize();
+
+   BilinearForm M_lor(&fespace_lor);
+   M_lor.AddDomainIntegrator(new MassIntegrator);
+   M_lor.Assemble();
+   M_lor.Finalize();
 
    // HO projections
    direction = "HO -> LOR @ HO";
@@ -162,6 +171,16 @@ int main(int argc, char *argv[])
    }
    const Operator &R = gt->ForwardOperator();
    const Operator &P = gt->BackwardOperator();
+
+   // HO* to LOR* dual fields
+   GridFunction ones(&fespace), ones_lor(&fespace_lor);
+   ones = 1.0;
+   ones_lor = 1.0;
+   LinearForm M_rho(&fespace), M_rho_lor(&fespace_lor);
+   M_ho.Mult(rho, M_rho);
+   P.MultTranspose(M_rho, M_rho_lor);
+   cout << "HO -> LOR dual field: " << fabs(M_rho(ones) - M_rho_lor(ones_lor))
+        << '\n';
 
    // HO->LOR restriction
    direction = "HO -> LOR @ LOR";
@@ -186,6 +205,12 @@ int main(int argc, char *argv[])
    GridFunction rho_lor_prev = rho_lor;
    double lor_mass = compute_mass(&fespace_lor, -1.0, LOR_dc, "LOR      ");
    if (vis) { visualize(LOR_dc, "LOR", Wx, Wy); Wx += offx; }
+
+   // LOR* to HO* dual fields
+   M_ho.Mult(rho_lor, M_rho_lor);
+   R.MultTranspose(M_rho_lor, M_rho);
+   cout << "LOR -> HO dual field: " << fabs(M_rho(ones) - M_rho_lor(ones_lor))
+        << '\n';
 
    // Prolongate to HO space
    direction = "LOR -> HO @ HO";

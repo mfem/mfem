@@ -2913,12 +2913,48 @@ void L2ProjectionGridTransfer::L2Projection::Mult(
    }
 }
 
+void L2ProjectionGridTransfer::L2Projection::MultTranspose(
+   const Vector &x, Vector &y) const
+{
+   int vdim = fes_ho.GetVDim();
+   Array<int> vdofs;
+   DenseMatrix xel_mat, yel_mat;
+   y = 0.0;
+   for (int iho = 0; iho < fes_ho.GetNE(); ++iho)
+   {
+      int nref = ho2lor.RowSize(iho);
+      int ndof_ho = fes_ho.GetFE(iho)->GetDof();
+      int ndof_lor = fes_lor.GetFE(ho2lor.GetRow(iho)[0])->GetDof();
+      xel_mat.SetSize(ndof_lor*nref, vdim);
+      yel_mat.SetSize(ndof_ho, vdim);
+      DenseMatrix R_iho(&R[offsets[iho]], ndof_lor*nref, ndof_ho);
+
+      // Extract the LOR DOFs
+      for (int iref=0; iref<nref; ++iref)
+      {
+         int ilor = ho2lor.GetRow(iho)[iref];
+         for (int vd=0; vd<vdim; ++vd)
+         {
+            fes_lor.GetElementDofs(ilor, vdofs);
+            fes_lor.DofsToVDofs(vd, vdofs);
+            x.GetSubVector(vdofs, &xel_mat(iref*ndof_lor, vd));
+         }
+      }
+      // Multiply locally by the transpose
+      mfem::MultAtB(R_iho, xel_mat, yel_mat);
+      // Place the result in the HO vector
+      fes_ho.GetElementVDofs(iho, vdofs);
+      y.AddElementVector(vdofs, yel_mat.GetData());
+   }
+}
+
 void L2ProjectionGridTransfer::L2Projection::Prolongate(
    const Vector &x, Vector &y) const
 {
    int vdim = fes_ho.GetVDim();
    Array<int> vdofs;
    DenseMatrix xel_mat,yel_mat;
+   y = 0.0;
    for (int iho = 0; iho < fes_ho.GetNE(); ++iho)
    {
       int nref = ho2lor.RowSize(iho);
@@ -2943,7 +2979,40 @@ void L2ProjectionGridTransfer::L2Projection::Prolongate(
       mfem::Mult(P_iho, xel_mat, yel_mat);
       // Place the result in the HO vector
       fes_ho.GetElementVDofs(iho, vdofs);
-      y.SetSubVector(vdofs, yel_mat.GetData());
+      y.AddElementVector(vdofs, yel_mat.GetData());
+   }
+}
+
+void L2ProjectionGridTransfer::L2Projection::ProlongateTranspose(
+   const Vector &x, Vector &y) const
+{
+   int vdim = fes_ho.GetVDim();
+   Array<int> vdofs;
+   DenseMatrix xel_mat,yel_mat;
+   for (int iho = 0; iho < fes_ho.GetNE(); ++iho)
+   {
+      int nref = ho2lor.RowSize(iho);
+      int ndof_ho = fes_ho.GetFE(iho)->GetDof();
+      int ndof_lor = fes_lor.GetFE(ho2lor.GetRow(iho)[0])->GetDof();
+      xel_mat.SetSize(ndof_ho, vdim);
+      yel_mat.SetSize(ndof_lor*nref, vdim);
+      DenseMatrix P_iho(&P[offsets[iho]], ndof_ho, ndof_lor*nref);
+
+      fes_ho.GetElementVDofs(iho, vdofs);
+      x.GetSubVector(vdofs, xel_mat.GetData());
+      mfem::MultAtB(P_iho, xel_mat, yel_mat);
+
+      // Place result correctly into the low-order vector
+      for (int iref = 0; iref < nref; ++iref)
+      {
+         int ilor = ho2lor.GetRow(iho)[iref];
+         for (int vd=0; vd<vdim; ++vd)
+         {
+            fes_lor.GetElementDofs(ilor, vdofs);
+            fes_lor.DofsToVDofs(vd, vdofs);
+            y.SetSubVector(vdofs, &yel_mat(iref*ndof_lor,vd));
+         }
+      }
    }
 }
 
