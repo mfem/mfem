@@ -64,7 +64,7 @@ TEST_CASE("transfer")
                                << "  Fine order:   " << fineOrder << "\n"
                                << "  Geometric:    " << geometric << "\n";
 
-                     Mesh* mesh;
+                     Mesh mesh;
                      if (dimension == 2)
                      {
                         Element::Type type = Element::QUADRILATERAL;
@@ -72,8 +72,7 @@ TEST_CASE("transfer")
                         {
                            type = Element::TRIANGLE;
                         }
-                        mesh = new Mesh(Mesh::MakeCartesian2D(
-                                           ne, ne, type, 1, 1.0, 1.0));
+                        mesh = Mesh::MakeCartesian2D(ne, ne, type, 1, 1.0, 1.0);
                      }
                      else
                      {
@@ -82,16 +81,14 @@ TEST_CASE("transfer")
                         {
                            type = Element::TETRAHEDRON;
                         }
-                        mesh =
-                           new Mesh(Mesh::MakeCartesian3D(
-                                       ne, ne, ne, type, 1.0, 1.0, 1.0));
+                        mesh = Mesh::MakeCartesian3D(ne, ne, ne, type, 1.0, 1.0, 1.0);
                      }
                      FiniteElementCollection* c_h1_fec =
                         new H1_FECollection(order, dimension);
                      FiniteElementCollection* f_h1_fec = (geometric == 1) ? c_h1_fec : new
                                                          H1_FECollection(fineOrder, dimension);
 
-                     Mesh fineMesh(*mesh);
+                     Mesh fineMesh(mesh);
                      if (geometric)
                      {
                         fineMesh.UniformRefinement();
@@ -104,7 +101,7 @@ TEST_CASE("transfer")
                         spaceDimension = dimension;
                      }
 
-                     FiniteElementSpace* c_h1_fespace = new FiniteElementSpace(mesh, c_h1_fec,
+                     FiniteElementSpace* c_h1_fespace = new FiniteElementSpace(&mesh, c_h1_fec,
                                                                                spaceDimension);
                      FiniteElementSpace* f_h1_fespace = new FiniteElementSpace(&fineMesh, f_h1_fec,
                                                                                spaceDimension);
@@ -177,7 +174,6 @@ TEST_CASE("transfer")
                         delete f_h1_fec;
                      }
                      delete c_h1_fec;
-                     delete mesh;
                   }
                }
             }
