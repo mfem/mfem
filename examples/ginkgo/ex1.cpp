@@ -88,10 +88,11 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&use_ginkgo_solver, "-gko", "--use_gko_solver", "-no-gko",
+   args.AddOption(&use_ginkgo_solver, "-gko-solver", "--use-gko-solver",
+                  "-no-gko-solver",
                   "--no-gko-solver",
                   "Solve using ginkgo.");
-   args.AddOption(&use_ginkgo_precond, "-gko-precond", "--use_gko_preconditioner",
+   args.AddOption(&use_ginkgo_precond, "-gko-precond", "--use-gko-preconditioner",
                   "-no-gko-precond",
                   "--no-gko-preconditioner",
                   "Use Ginkgo preconditioner with MFEM solver.");
@@ -208,25 +209,17 @@ int main(int argc, char *argv[])
          if (use_ginkgo_precond) // Also use Ginkgo preconditioner.
          {
             GinkgoWrappers::IcPreconditioner ginkgo_precond(exec, "paric", 30);
-            GinkgoWrappers::CGSolver inner_solver(exec, print_lvl, 400, 1e-6, 0.0,
-                                                  ginkgo_precond);
-            GinkgoWrappers::IRSolver ginkgo_solver(exec, print_lvl, 400, 1e-12, 0.0,
-                                                   inner_solver);
-            //           GinkgoWrappers::CGSolver ginkgo_solver(exec, print_lvl, 400, 1e-12, 0.0,
-            //                                                  ginkgo_precond);
+            GinkgoWrappers::CGSolver ginkgo_solver(exec, print_lvl, 400, 1e-12, 0.0,
+                                                   ginkgo_precond);
             ginkgo_solver.SetOperator(*(A.Ptr()));
             ginkgo_solver.Mult(B, X);
          }
          else  //Create MFEM preconditioner and wrap it for Ginkgo's use.
          {
-            GSSmoother M((SparseMatrix&)(*A));
+            DSmoother M((SparseMatrix&)(*A));
             GinkgoWrappers::MFEMPreconditioner gko_M(exec, M);
-            //           GinkgoWrappers::CGSolver ginkgo_solver(exec, print_lvl, 400, 1e-12, 0.0,
-            //                                                  gko_M);
-            //           GinkgoWrappers::CGSolver inner_solver(exec, print_lvl, 400, 1e-6, 0.0, gko_M);
-            GinkgoWrappers::CGSolver inner_solver(exec, print_lvl, 400, 1e-6, 0.0);
-            GinkgoWrappers::IRSolver ginkgo_solver(exec, print_lvl, 400, 1e-12, 0.0,
-                                                   inner_solver);
+            GinkgoWrappers::CGSolver ginkgo_solver(exec, print_lvl, 400, 1e-12, 0.0,
+                                                   gko_M);
             ginkgo_solver.SetOperator(*(A.Ptr()));
             ginkgo_solver.Mult(B, X);
          }
@@ -242,8 +235,8 @@ int main(int argc, char *argv[])
       else
       {
 #ifndef MFEM_USE_SUITESPARSE
-         // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-         GSSmoother M((SparseMatrix&)(*A));
+         // Use a simple Jacobi preconditioner with PCG.
+         DSmoother M((SparseMatrix&)(*A));
          PCG(*A, M, B, X, print_lvl, 400, 1e-12, 0.0);
 #else
          // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
@@ -274,11 +267,11 @@ int main(int argc, char *argv[])
             }
             // wrap MFEM preconditioner for Ginkgo's use.
             GinkgoWrappers::MFEMPreconditioner gko_M(*exec, M);
-            GinkgoWrappers::CGSolver inner_solver(*exec, print_lvl, 400, 1e-6, 0.0, gko_M);
-            GinkgoWrappers::IRSolver ginkgo_solver(*exec, print_lvl, 400, 1e-12, 0.0,
-                                                   inner_solver);
-            //          GinkgoWrappers::CGSolver ginkgo_solver(*exec, print_lvl, 400, 1e-12, 0.0,
-            //                                                 gko_M);
+            //    GinkgoWrappers::CGSolver inner_solver(*exec, print_lvl, 400, 1e-6, 0.0, gko_M);
+            //    GinkgoWrappers::IRSolver ginkgo_solver(*exec, print_lvl, 400, 1e-12, 0.0,
+            //                                           inner_solver);
+            GinkgoWrappers::CGSolver ginkgo_solver(*exec, print_lvl, 400, 1e-12, 0.0,
+                                                   gko_M);
             ginkgo_solver.SetOperator(*(A.Ptr()));
             ginkgo_solver.Mult(B, X);
 
