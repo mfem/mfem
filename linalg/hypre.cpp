@@ -3917,7 +3917,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
       MFEM_VERIFY(!edge_fespace->IsVariableOrder(), "");
       if (trace_space)
       {
-         p = edge_fespace->GetFaceOrder(0);
+         p = edge_fespace->GetFaceDegree(0);
          if (dim == 2) { p++; }
       }
       else
@@ -4147,7 +4147,7 @@ void HypreADS::Init(ParFiniteElementSpace *face_fespace)
       MFEM_VERIFY(!face_fespace->IsVariableOrder(), "");
       if (trace_space)
       {
-         p = face_fespace->GetFaceOrder(0) + 1;
+         p = face_fespace->GetFaceDegree(0) + 1;
       }
       else
       {
