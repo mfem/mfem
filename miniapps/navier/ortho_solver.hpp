@@ -12,7 +12,7 @@
 #ifndef MFEM_NAVIER_ORTHO_SOLVER_HPP
 #define MFEM_NAVIER_ORTHO_SOLVER_HPP
 
-#include "mfem.hpp"
+#include "../../mfem.hpp"
 
 namespace mfem
 {
@@ -28,7 +28,7 @@ namespace navier
 class OrthoSolver : public Solver
 {
 private:
-   ParFiniteElementSpace *fes; //not-owned
+   MPI_Comm MyComm;
 public:
    OrthoSolver(ParFiniteElementSpace *fes_);
 

@@ -50,6 +50,7 @@
 //
 // The one-sided coupling between the two domains is via transfer of the
 // advection velocity (u) from fluid domain to thermal domain at each time step.
+// mpirun -np 4 cht -r1 3 -r2 2 -np1 2 -np2 2
 
 #include "mfem.hpp"
 #include "navier_solver.hpp"
@@ -64,7 +65,7 @@ struct schwarz_common
 {
    //common
    double dt = 2e-2;
-   double t_final = 100000*dt;
+   double t_final = 250*dt;
    // fluid
    int fluid_order = 4;
    double fluid_kin_vis = 0.001;
@@ -392,6 +393,33 @@ int main(int argc, char *argv[])
    }
 
    if (flowsolver) { flowsolver->PrintTimingData(); }
+
+   if (flowsolver) {
+      ostringstream mesh_name;
+      mesh_name << "fluid.mesh";
+      ofstream mesh_ofs(mesh_name.str().c_str());
+      mesh_ofs.precision(8);
+      pmesh->PrintAsOne(mesh_ofs);
+
+      ostringstream sol_name;
+      sol_name << "fluid.gf";
+      ofstream sol_ofs(sol_name.str().c_str());
+      sol_ofs.precision(8);
+      u_gf->SaveAsOne(sol_ofs);
+   }
+   if (ode_solver) {
+      ostringstream mesh_name;
+      mesh_name << "solid.mesh";
+      ofstream mesh_ofs(mesh_name.str().c_str());
+      mesh_ofs.precision(8);
+      pmesh->PrintAsOne(mesh_ofs);
+
+      ostringstream sol_name;
+      sol_name << "solid.gf";
+      ofstream sol_ofs(sol_name.str().c_str());
+      sol_ofs.precision(8);
+      t_gf->SaveAsOne(sol_ofs);
+   }
 
    delete coper;
    delete t_gf;
