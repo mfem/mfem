@@ -394,7 +394,8 @@ int main(int argc, char *argv[])
 
    if (flowsolver) { flowsolver->PrintTimingData(); }
 
-   if (flowsolver) {
+   if (flowsolver)
+   {
       ostringstream mesh_name;
       mesh_name << "fluid.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
@@ -407,7 +408,8 @@ int main(int argc, char *argv[])
       sol_ofs.precision(8);
       u_gf->SaveAsOne(sol_ofs);
    }
-   if (ode_solver) {
+   if (ode_solver)
+   {
       ostringstream mesh_name;
       mesh_name << "solid.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
