@@ -20,7 +20,10 @@
 namespace mfem
 {
 
+class FiniteElementSpace;
+#ifdef MFEM_USE_MPI
 class ParFiniteElementSpace;
+#endif
 
 /** @brief An abstract class to solve the constrained system \f$ Ax = f \f$
     subject to the constraint \f$ B x = r \f$.
@@ -399,6 +402,55 @@ private:
    HypreParMatrix& hB;
    HypreParMatrix * schur_mat;
 };
+#endif
+
+/** @brief Build a matrix constraining normal components to zero.
+
+    Given a vector space fespace, and the array constrained_att that
+    includes the boundary *attributes* that are constrained to have normal
+    component zero, this returns a SparseMatrix representing the
+    constraints that need to be imposed.
+
+    Each row of the returned matrix corresponds to a node that is
+    constrained. The rows are arranged in (contiguous) blocks corresponding
+    to a physical constraint; in 3D, a one-row constraint means the node
+    is free to move along a plane, a two-row constraint means it is free
+    to move along a line (eg the intersection of two normal-constrained
+    planes), and a three-row constraint is fully constrained (equivalent
+    to MFEM's usual essential boundary conditions).
+
+    The constraint_rowstarts array is filled in to describe the structure of
+    these constraints, so that (block) constraint k is encoded in rows
+    constraint_rowstarts[k] to constraint_rowstarts[k + 1] - 1, inclusive,
+    of the returned matrix.
+
+    Constraints are imposed on "true" degrees of freedom, which are different
+    in serial and parallel, so we need different numbering systems for the
+    serial and parallel versions of this function.
+
+    When two attributes intersect, this version will combine constraints,
+    so in 2D the point at the intersection is fully constrained (ie,
+    fixed in both directions). This is the wrong thing to do if the
+    two boundaries are (close to) parallel at that point.
+
+    @param[in] fespace              A vector finite element space
+    @param[in] constrained_att      Boundary attributes to constrain
+    @param[out] constraint_rowstarts  The rowstarts for separately
+                                    eliminated constraints, possible
+                                    input to EliminationCGSolver
+
+    @return a constraint matrix
+*/
+SparseMatrix * BuildNormalConstraints(FiniteElementSpace& fespace,
+                                      Array<int>& constrained_att,
+                                      Array<int>& constraint_rowstarts,
+                                      bool parallel=false);
+
+#ifdef MFEM_USE_MPI
+/// Parallel wrapper for BuildNormalConstraints
+SparseMatrix * ParBuildNormalConstraints(ParFiniteElementSpace& fespace,
+                                         Array<int>& constrained_att,
+                                         Array<int>& constraint_rowstarts);
 #endif
 
 }
