@@ -14,19 +14,238 @@
 #ifdef MFEM_USE_CEED
 #include "../bilinearform.hpp"
 #include "../fespace.hpp"
-#include "../libceed/solvers-atpmg.h"
-#include "../libceed/full-assembly.hpp"
+#include "../ceed/solvers-atpmg.h"
+#include "../ceed/full-assembly.hpp"
 #include "../pfespace.hpp"
+#include "../../general/forall.hpp"
 
 namespace mfem
 {
+
+namespace ceed
+{
+
+/** A base class to represent a CeedOperator as an MFEM Operator. */
+/** TODO: replace with Yohann's implementation */
+class MFEMCeedOperator : public mfem::Operator
+{
+protected:
+   CeedOperator oper;
+   CeedVector u, v;
+
+   /// The base class owns and destroys u, v but expects its
+   /// derived classes to manage oper
+   MFEMCeedOperator() : oper(nullptr), u(nullptr), v(nullptr) { }
+
+public:
+   void Mult(const Vector &x, Vector &y) const;
+   void AddMult(const Vector &x, Vector &y) const;
+   void GetDiagonal(Vector &diag) const;
+   virtual ~MFEMCeedOperator()
+   {
+      CeedVectorDestroy(&u);
+      CeedVectorDestroy(&v);
+   }
+   CeedOperator GetCeedOperator() const { return oper; }
+};
+
+void MFEMCeedOperator::Mult(const Vector &x, Vector &y) const
+{
+#ifdef MFEM_USE_CEED
+   int ierr;
+   const CeedScalar *x_ptr;
+   CeedScalar *y_ptr;
+   CeedMemType mem;
+   ierr = CeedGetPreferredMemType(internal::ceed, &mem); PCeedChk(ierr);
+   if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
+   {
+      x_ptr = x.Read();
+      y_ptr = y.Write();
+   }
+   else
+   {
+      x_ptr = x.HostRead();
+      y_ptr = y.HostWrite();
+      mem = CEED_MEM_HOST;
+   }
+   ierr = CeedVectorSetArray(u, mem, CEED_USE_POINTER,
+                             const_cast<CeedScalar*>(x_ptr)); PCeedChk(ierr);
+   ierr = CeedVectorSetArray(v, mem, CEED_USE_POINTER, y_ptr); PCeedChk(ierr);
+
+   ierr = CeedOperatorApply(oper, u, v, CEED_REQUEST_IMMEDIATE);
+   PCeedChk(ierr);
+
+   ierr = CeedVectorTakeArray(u, mem, const_cast<CeedScalar**>(&x_ptr));
+   PCeedChk(ierr);
+   ierr = CeedVectorTakeArray(v, mem, &y_ptr); PCeedChk(ierr);
+#else
+   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
+}
+
+void MFEMCeedOperator::AddMult(const Vector &x, Vector &y) const
+{
+#ifdef MFEM_USE_CEED
+   int ierr;
+   const CeedScalar *x_ptr;
+   CeedScalar *y_ptr;
+   CeedMemType mem;
+   ierr = CeedGetPreferredMemType(internal::ceed, &mem); PCeedChk(ierr);
+   if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
+   {
+      x_ptr = x.Read();
+      y_ptr = y.ReadWrite();
+   }
+   else
+   {
+      x_ptr = x.HostRead();
+      y_ptr = y.HostReadWrite();
+      mem = CEED_MEM_HOST;
+   }
+   ierr = CeedVectorSetArray(u, mem, CEED_USE_POINTER,
+                             const_cast<CeedScalar*>(x_ptr)); PCeedChk(ierr);
+   ierr = CeedVectorSetArray(v, mem, CEED_USE_POINTER, y_ptr); PCeedChk(ierr);
+
+   ierr = CeedOperatorApplyAdd(oper, u, v, CEED_REQUEST_IMMEDIATE);
+   PCeedChk(ierr);
+
+   ierr = CeedVectorTakeArray(u, mem, const_cast<CeedScalar**>(&x_ptr));
+   PCeedChk(ierr);
+   ierr = CeedVectorTakeArray(v, mem, &y_ptr); PCeedChk(ierr);
+#else
+   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
+}
+
+void MFEMCeedOperator::GetDiagonal(Vector &diag) const
+{
+#ifdef MFEM_USE_CEED
+   int ierr;
+   CeedScalar *d_ptr;
+   CeedMemType mem;
+   ierr = CeedGetPreferredMemType(internal::ceed, &mem); PCeedChk(ierr);
+   if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
+   {
+      d_ptr = diag.ReadWrite();
+   }
+   else
+   {
+      d_ptr = diag.HostReadWrite();
+      mem = CEED_MEM_HOST;
+   }
+   ierr = CeedVectorSetArray(v, mem, CEED_USE_POINTER, d_ptr); PCeedChk(ierr);
+
+   ierr = CeedOperatorLinearAssembleAddDiagonal(oper, v, CEED_REQUEST_IMMEDIATE);
+   PCeedChk(ierr);
+
+   ierr = CeedVectorTakeArray(v, mem, &d_ptr); PCeedChk(ierr);
+#else
+   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
+}
+
+class UnconstrainedMFEMCeedOperator : public MFEMCeedOperator
+{
+public:
+   UnconstrainedMFEMCeedOperator(CeedOperator ceed_op)
+   {
+      oper = ceed_op;
+      CeedElemRestriction er;
+      CeedOperatorGetActiveElemRestriction(oper, &er);
+      int s;
+      CeedElemRestrictionGetLVectorSize(er, &s);
+      height = width = s;
+      CeedVectorCreate(internal::ceed, height, &v);
+      CeedVectorCreate(internal::ceed, width, &u);
+   }
+
+   Operator * SetupRAP(const Operator *Pi, const Operator *Po)
+   {
+      return Operator::SetupRAP(Pi, Po);
+   }
+};
+
+/** Wraps a CeedOperator in an mfem::Operator, with essential boundary
+    conditions. */
+class ConstrainedMFEMCeedOperator : public mfem::Operator
+{
+public:
+   ConstrainedMFEMCeedOperator(CeedOperator oper, const Array<int> &ess_tdofs_,
+                               const mfem::Operator *P_);
+   ConstrainedMFEMCeedOperator(CeedOperator oper, const mfem::Operator *P_);
+   ~ConstrainedMFEMCeedOperator();
+   void Mult(const Vector& x, Vector& y) const;
+   CeedOperator GetCeedOperator() const;
+   const Array<int> &GetEssentialTrueDofs() const;
+   const mfem::Operator *GetProlongation() const;
+private:
+   Array<int> ess_tdofs;
+   const mfem::Operator *P;
+   UnconstrainedMFEMCeedOperator *unconstrained_op;
+   ConstrainedOperator *constrained_op;
+};
+
+ConstrainedMFEMCeedOperator::ConstrainedMFEMCeedOperator(
+   CeedOperator oper,
+   const Array<int> &ess_tdofs_,
+   const mfem::Operator *P_)
+   : ess_tdofs(ess_tdofs_), P(P_)
+{
+   unconstrained_op = new UnconstrainedMFEMCeedOperator(oper);
+   mfem::Operator *rap = unconstrained_op->SetupRAP(P, P);
+   height = width = rap->Height();
+   bool own_rap = (rap != unconstrained_op);
+   constrained_op = new ConstrainedOperator(rap, ess_tdofs, own_rap);
+}
+
+ConstrainedMFEMCeedOperator::ConstrainedMFEMCeedOperator(CeedOperator oper,
+                                                         const mfem::Operator *P_)
+   : ConstrainedMFEMCeedOperator(oper, Array<int>(), P_)
+{ }
+
+ConstrainedMFEMCeedOperator::~ConstrainedMFEMCeedOperator()
+{
+   delete constrained_op;
+   delete unconstrained_op;
+}
+
+void ConstrainedMFEMCeedOperator::Mult(const Vector& x, Vector& y) const
+{
+   constrained_op->Mult(x, y);
+}
+
+CeedOperator ConstrainedMFEMCeedOperator::GetCeedOperator() const
+{
+   return unconstrained_op->GetCeedOperator();
+}
+
+const Array<int> &ConstrainedMFEMCeedOperator::GetEssentialTrueDofs() const
+{
+   return ess_tdofs;
+}
+
+const mfem::Operator *ConstrainedMFEMCeedOperator::GetProlongation() const
+{
+   return P;
+}
+
+/// assumes a square operator (you could do rectangular, you'd have
+/// to find separate active input and output fields/restrictions)
+int CeedOperatorGetSize(CeedOperator oper, CeedInt * size)
+{
+   int ierr;
+   CeedElemRestriction er;
+   ierr = CeedOperatorGetActiveElemRestriction(oper, &er); CeedChk(ierr);
+   ierr = CeedElemRestrictionGetLVectorSize(er, size); CeedChk(ierr);
+   return 0;
+}
 
 Solver *BuildSmootherFromCeed(ConstrainedMFEMCeedOperator &op, bool chebyshev)
 {
    int ierr;
    CeedOperator ceed_op = op.GetCeedOperator();
    const Array<int> &ess_tdofs = op.GetEssentialTrueDofs();
-   const Operator *P = op.GetProlongation();
+   const mfem::Operator *P = op.GetProlongation();
    // Assemble the a local diagonal, in the sense of L-vector
    CeedVector diagceed;
    CeedInt length;
@@ -99,8 +318,8 @@ public:
       amg = new HypreBoomerAMG(*op_assembled);
       amg->SetPrintLevel(0);
    }
-   void SetOperator(const Operator &op) { }
-   void Mult(const Vector &x, Vector &y) const { amg->Mult(x, y); }
+   void SetOperator(const mfem::Operator &op) override { }
+   void Mult(const Vector &x, Vector &y) const override { amg->Mult(x, y); }
    ~CeedAMG()
    {
       delete op_assembled;
@@ -115,7 +334,7 @@ private:
 
 #endif
 
-void CoarsenEssentialDofs(const Operator &interp,
+void CoarsenEssentialDofs(const mfem::Operator &interp,
                           const Array<int> &ho_ess_tdofs,
                           Array<int> &alg_lo_ess_tdofs)
 {
@@ -142,7 +361,7 @@ void AddToCompositeOperator(BilinearFormIntegrator *integ, CeedOperator op)
 {
    if (integ->SupportsCeed())
    {
-      CeedCompositeOperatorAddSub(op, integ->GetCeedData()->oper);
+      CeedCompositeOperatorAddSub(op, integ->GetCeedOp().GetCeedOperator());
    }
    else
    {
@@ -232,7 +451,7 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
       ceed_operators[ilevel] = CoarsenCeedCompositeOperator(
                                   ceed_operators[ilevel+1], space.GetCeedElemRestriction(),
                                   space.GetCeedCoarseToFine(), space.GetOrderReduction());
-      Operator *P = hierarchy.GetProlongationAtLevel(ilevel);
+      mfem::Operator *P = hierarchy.GetProlongationAtLevel(ilevel);
       essentialTrueDofs[ilevel] = new Array<int>;
       CoarsenEssentialDofs(*P, *essentialTrueDofs[ilevel+1],
                            *essentialTrueDofs[ilevel]);
@@ -242,7 +461,7 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
    for (int ilevel=0; ilevel<nlevels; ++ilevel)
    {
       FiniteElementSpace &space = hierarchy.GetFESpaceAtLevel(ilevel);
-      const Operator *P = space.GetProlongationMatrix();
+      const mfem::Operator *P = space.GetProlongationMatrix();
       ConstrainedMFEMCeedOperator *op = new ConstrainedMFEMCeedOperator(
          ceed_operators[ilevel], *essentialTrueDofs[ilevel], P);
       Solver *smoother;
@@ -283,6 +502,238 @@ AlgebraicCeedMultigrid::~AlgebraicCeedMultigrid()
    }
 }
 
+int MFEMCeedInterpolation::Initialize(
+   Ceed ceed, CeedBasis basisctof,
+   CeedElemRestriction erestrictu_coarse, CeedElemRestriction erestrictu_fine)
+{
+   int ierr = 0;
+
+   int height, width;
+   ierr = CeedElemRestrictionGetLVectorSize(erestrictu_coarse, &width);
+   CeedChk(ierr);
+   ierr = CeedElemRestrictionGetLVectorSize(erestrictu_fine, &height);
+   CeedChk(ierr);
+
+   // interpolation qfunction
+   const int bp3_ncompu = 1;
+   CeedQFunction l_qf_restrict, l_qf_prolong;
+   ierr = CeedQFunctionCreateIdentity(ceed, bp3_ncompu, CEED_EVAL_NONE,
+                                      CEED_EVAL_INTERP, &l_qf_restrict); CeedChk(ierr);
+   ierr = CeedQFunctionCreateIdentity(ceed, bp3_ncompu, CEED_EVAL_INTERP,
+                                      CEED_EVAL_NONE, &l_qf_prolong); CeedChk(ierr);
+
+   qf_restrict = l_qf_restrict;
+   qf_prolong = l_qf_prolong;
+
+   CeedVector c_fine_multiplicity;
+   ierr = CeedVectorCreate(ceed, height, &c_fine_multiplicity); CeedChk(ierr);
+   ierr = CeedVectorSetValue(c_fine_multiplicity, 0.0); CeedChk(ierr);
+
+   // Create the restriction operator
+   // Restriction - Fine to coarse
+   ierr = CeedOperatorCreate(ceed, qf_restrict, CEED_QFUNCTION_NONE,
+                             CEED_QFUNCTION_NONE, &op_restrict); CeedChk(ierr);
+   ierr = CeedOperatorSetField(op_restrict, "input", erestrictu_fine,
+                               CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE); CeedChk(ierr);
+   ierr = CeedOperatorSetField(op_restrict, "output", erestrictu_coarse,
+                               basisctof, CEED_VECTOR_ACTIVE); CeedChk(ierr);
+
+   // Interpolation - Coarse to fine
+   // Create the prolongation operator
+   ierr =  CeedOperatorCreate(ceed, qf_prolong, CEED_QFUNCTION_NONE,
+                              CEED_QFUNCTION_NONE, &op_interp); CeedChk(ierr);
+   ierr =  CeedOperatorSetField(op_interp, "input", erestrictu_coarse,
+                                basisctof, CEED_VECTOR_ACTIVE); CeedChk(ierr);
+   ierr = CeedOperatorSetField(op_interp, "output", erestrictu_fine,
+                               CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE); CeedChk(ierr);
+
+   ierr = CeedElemRestrictionGetMultiplicity(erestrictu_fine,
+                                             c_fine_multiplicity); CeedChk(ierr);
+   ierr = CeedVectorCreate(ceed, height, &fine_multiplicity_r); CeedChk(ierr);
+
+   CeedScalar* fine_r_data;
+   const CeedScalar* fine_data;
+   ierr = CeedVectorGetArray(fine_multiplicity_r, CEED_MEM_HOST,
+                             &fine_r_data); CeedChk(ierr);
+   ierr = CeedVectorGetArrayRead(c_fine_multiplicity, CEED_MEM_HOST,
+                                 &fine_data); CeedChk(ierr);
+   for (int i = 0; i < height; ++i)
+   {
+      fine_r_data[i] = 1.0 / fine_data[i];
+   }
+
+   ierr = CeedVectorRestoreArray(fine_multiplicity_r, &fine_r_data); CeedChk(ierr);
+   ierr = CeedVectorRestoreArrayRead(c_fine_multiplicity, &fine_data);
+   CeedChk(ierr);
+   ierr = CeedVectorDestroy(&c_fine_multiplicity); CeedChk(ierr);
+
+   ierr = CeedVectorCreate(ceed, height, &fine_work); CeedChk(ierr);
+
+   ierr = CeedVectorCreate(ceed, height, &v_); CeedChk(ierr);
+   ierr = CeedVectorCreate(ceed, width, &u_); CeedChk(ierr);
+
+   return 0;
+}
+
+int MFEMCeedInterpolation::Finalize()
+{
+   int ierr;
+
+   ierr = CeedQFunctionDestroy(&qf_restrict); CeedChk(ierr);
+   ierr = CeedQFunctionDestroy(&qf_prolong); CeedChk(ierr);
+   ierr = CeedOperatorDestroy(&op_interp); CeedChk(ierr);
+   ierr = CeedOperatorDestroy(&op_restrict); CeedChk(ierr);
+   ierr = CeedVectorDestroy(&fine_multiplicity_r); CeedChk(ierr);
+   ierr = CeedVectorDestroy(&fine_work); CeedChk(ierr);
+
+   return 0;
+}
+
+MFEMCeedInterpolation::MFEMCeedInterpolation(
+   Ceed ceed, CeedBasis basisctof,
+   CeedElemRestriction erestrictu_coarse,
+   CeedElemRestriction erestrictu_fine)
+{
+   int ierr;
+   int lo_nldofs, ho_nldofs;
+   ierr = CeedElemRestrictionGetLVectorSize(erestrictu_coarse, &lo_nldofs);
+   PCeedChk(ierr);
+   ierr = CeedElemRestrictionGetLVectorSize(erestrictu_fine,
+                                            &ho_nldofs); PCeedChk(ierr);
+   height = ho_nldofs;
+   width = lo_nldofs;
+   owns_basis_ = false;
+   Initialize(ceed, basisctof, erestrictu_coarse, erestrictu_fine);
+}
+
+MFEMCeedInterpolation::~MFEMCeedInterpolation()
+{
+   int ierr;
+   ierr = CeedVectorDestroy(&v_); PCeedChk(ierr);
+   ierr = CeedVectorDestroy(&u_); PCeedChk(ierr);
+   if (owns_basis_)
+   {
+      ierr = CeedBasisDestroy(&basisctof_); PCeedChk(ierr);
+   }
+   Finalize();
+}
+
+/// a = a (pointwise*) b
+/// @todo: using MPI_FORALL in this Ceed-like function is ugly
+int CeedVectorPointwiseMult(CeedVector a, const CeedVector b)
+{
+   int ierr;
+   Ceed ceed;
+   CeedVectorGetCeed(a, &ceed);
+
+   int length, length2;
+   ierr = CeedVectorGetLength(a, &length); CeedChk(ierr);
+   ierr = CeedVectorGetLength(b, &length2); CeedChk(ierr);
+   if (length != length2)
+   {
+      return CeedError(ceed, 1, "Vector sizes don't match");
+   }
+
+   CeedMemType mem;
+   if (Device::Allows(Backend::DEVICE_MASK))
+   {
+      mem = CEED_MEM_DEVICE;
+   }
+   else
+   {
+      mem = CEED_MEM_HOST;
+   }
+   CeedScalar *a_data;
+   const CeedScalar *b_data;
+   ierr = CeedVectorGetArray(a, mem, &a_data); CeedChk(ierr);
+   ierr = CeedVectorGetArrayRead(b, mem, &b_data); CeedChk(ierr);
+   MFEM_FORALL(i, length,
+   {a_data[i] *= b_data[i];});
+
+   ierr = CeedVectorRestoreArray(a, &a_data); CeedChk(ierr);
+   ierr = CeedVectorRestoreArrayRead(b, &b_data); CeedChk(ierr);
+
+   return 0;
+}
+
+void MFEMCeedInterpolation::Mult(const mfem::Vector& x, mfem::Vector& y) const
+{
+   int ierr = 0;
+   const CeedScalar *in_ptr;
+   CeedScalar *out_ptr;
+   CeedMemType mem;
+   ierr = CeedGetPreferredMemType(internal::ceed, &mem); PCeedChk(ierr);
+   if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
+   {
+      in_ptr = x.Read();
+      out_ptr = y.ReadWrite();
+   }
+   else
+   {
+      in_ptr = x.HostRead();
+      out_ptr = y.HostReadWrite();
+      mem = CEED_MEM_HOST;
+   }
+   ierr = CeedVectorSetArray(u_, mem, CEED_USE_POINTER,
+                             const_cast<CeedScalar*>(in_ptr)); PCeedChk(ierr);
+   ierr = CeedVectorSetArray(v_, mem, CEED_USE_POINTER,
+                             out_ptr); PCeedChk(ierr);
+
+   ierr = CeedOperatorApply(op_interp, u_, v_,
+                            CEED_REQUEST_IMMEDIATE); PCeedChk(ierr);
+   ierr = CeedVectorPointwiseMult(v_, fine_multiplicity_r); PCeedChk(ierr);
+
+   ierr = CeedVectorTakeArray(u_, mem, const_cast<CeedScalar**>(&in_ptr));
+   PCeedChk(ierr);
+   ierr = CeedVectorTakeArray(v_, mem, &out_ptr); PCeedChk(ierr);
+}
+
+void MFEMCeedInterpolation::MultTranspose(const mfem::Vector& x,
+                                          mfem::Vector& y) const
+{
+   int ierr = 0;
+   CeedMemType mem;
+   ierr = CeedGetPreferredMemType(internal::ceed, &mem); PCeedChk(ierr);
+   const CeedScalar *in_ptr;
+   CeedScalar *out_ptr;
+   if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
+   {
+      in_ptr = x.Read();
+      out_ptr = y.ReadWrite();
+   }
+   else
+   {
+      in_ptr = x.HostRead();
+      out_ptr = y.HostReadWrite();
+      mem = CEED_MEM_HOST;
+   }
+   ierr = CeedVectorSetArray(v_, mem, CEED_USE_POINTER,
+                             const_cast<CeedScalar*>(in_ptr)); PCeedChk(ierr);
+   ierr = CeedVectorSetArray(u_, mem, CEED_USE_POINTER,
+                             out_ptr); PCeedChk(ierr);
+
+   int length;
+   ierr = CeedVectorGetLength(v_, &length); PCeedChk(ierr);
+
+   const CeedScalar *multiplicitydata;
+   CeedScalar *workdata;
+   ierr = CeedVectorGetArrayRead(fine_multiplicity_r, mem,
+                                 &multiplicitydata); PCeedChk(ierr);
+   ierr = CeedVectorGetArray(fine_work, mem, &workdata); PCeedChk(ierr);
+   MFEM_FORALL(i, length,
+   {workdata[i] = in_ptr[i] * multiplicitydata[i];});
+   ierr = CeedVectorRestoreArrayRead(fine_multiplicity_r,
+                                     &multiplicitydata);
+   ierr = CeedVectorRestoreArray(fine_work, &workdata); PCeedChk(ierr);
+
+   ierr = CeedOperatorApply(op_restrict, fine_work, u_,
+                            CEED_REQUEST_IMMEDIATE); PCeedChk(ierr);
+
+   ierr = CeedVectorTakeArray(v_, mem, const_cast<CeedScalar**>(&in_ptr));
+   PCeedChk(ierr);
+   ierr = CeedVectorTakeArray(u_, mem, &out_ptr); PCeedChk(ierr);
+}
+
 AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
 {
    int order = fes.GetOrder(0);
@@ -314,7 +765,7 @@ AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
    current_order = order;
 
    Ceed ceed = internal::ceed;
-   InitCeedTensorRestriction(fes, ceed, &fine_er);
+   InitTensorRestriction(fes, ceed, &fine_er);
    CeedElemRestriction er = fine_er;
 
    int dim = fes.GetMesh()->Dimension();
@@ -630,5 +1081,8 @@ AlgebraicCeedSolver::~AlgebraicCeedSolver()
    delete multigrid;
 }
 
+} // namespace ceed
+
 } // namespace mfem
+
 #endif // MFEM_USE_CEED

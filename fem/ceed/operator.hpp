@@ -44,6 +44,8 @@ public:
       CeedVectorDestroy(&v);
 #endif
    }
+
+   CeedOperator& GetCeedOperator() { return oper; }
 };
 
 } // namespace ceed
