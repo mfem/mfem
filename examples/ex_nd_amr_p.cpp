@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 2. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "../data/inline-tet.mesh";
    int order = 1;
    bool ncs = false;
    bool pa = false;
