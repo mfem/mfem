@@ -667,4 +667,208 @@ void ConstrainedSolver::Mult(const Vector& f_and_r, Vector& x_and_lambda) const
    GetMultiplierSolution(ref_constraint_sol);
 }
 
+/* Helper routine to reduce code duplication - given a node (which MFEM
+   sometimes calls a "dof"), this returns what normal people call a dof but
+   which MFEM sometimes calls a "vdof" - note that MFEM's naming conventions
+   regarding this are not entirely consistent. In parallel, this always
+   returns the "truedof" in parallel numbering. */
+int CanonicalNodeNumber(FiniteElementSpace& fespace,
+                        int node, bool parallel, int d=0)
+{
+#ifdef MFEM_USE_MPI
+   if (parallel)
+   {
+      try
+      {
+         ParFiniteElementSpace& pfespace =
+            dynamic_cast<ParFiniteElementSpace&>(fespace);
+         const int vdof = pfespace.DofToVDof(node, d);
+         return pfespace.GetLocalTDofNumber(vdof);
+      }
+      catch (std::bad_cast&)
+      {
+         MFEM_ABORT("Asked for parallel form of serial object!");
+         return -1;
+      }
+   }
+   else
+#endif
+   {
+      return fespace.DofToVDof(node, d);
+   }
+}
+
+SparseMatrix * BuildNormalConstraints(FiniteElementSpace& fespace,
+                                      Array<int>& constrained_att,
+                                      Array<int>& constraint_rowstarts,
+                                      bool parallel)
+{
+   int dim = fespace.GetVDim();
+
+   // dof_constraint maps a dof (column of the constraint matrix) to
+   // a block-constraint
+   // the indexing is by tdof, but a single tdof uniquely identifies a node
+   // so we only store one tdof independent of dimension
+   std::map<int, int> dof_bconstraint;
+   // constraints[j] is a map from attribute to row number,
+   //   the j itself is the index of a block-constraint
+   std::vector<std::map<int, int> > constraints;
+   int n_bconstraints = 0;
+   int n_rows = 0;
+   for (int att : constrained_att)
+   {
+      // identify tdofs on constrained boundary
+      std::set<int> constrained_tdofs;
+      for (int i = 0; i < fespace.GetNBE(); ++i)
+      {
+         if (fespace.GetBdrAttribute(i) == att)
+         {
+            Array<int> nodes;
+            // get nodes on boundary (MFEM sometimes calls these dofs, what
+            // we call dofs it calls vdofs)
+            fespace.GetBdrElementDofs(i, nodes);
+            for (auto k : nodes)
+            {
+               // get the (local) dof number corresponding to
+               // the x-coordinate dof for node k
+               int tdof = CanonicalNodeNumber(fespace, k, parallel);
+               if (tdof >= 0) { constrained_tdofs.insert(tdof); }
+            }
+         }
+      }
+      // fill in the maps identifying which constraints (rows) correspond to
+      // which tdofs
+      for (auto k : constrained_tdofs)
+      {
+         auto it = dof_bconstraint.find(k);
+         if (it == dof_bconstraint.end())
+         {
+            // build new block constraint
+            dof_bconstraint[k] = n_bconstraints++;
+            constraints.emplace_back();
+            constraints.back()[att] = n_rows++;
+         }
+         else
+         {
+            // add tdof to existing block constraint
+            constraints[it->second][att] = n_rows++;
+         }
+      }
+   }
+
+   // reorder so block-constraints eliminated together are grouped together in
+   // adjacent rows
+   {
+      std::map<int, int> reorder_rows;
+      int new_row = 0;
+      constraint_rowstarts.DeleteAll();
+      constraint_rowstarts.Append(0);
+      for (auto& it : dof_bconstraint)
+      {
+         int bconstraint_index = it.second;
+         bool nconstraint = false;
+         for (auto& att_it : constraints[bconstraint_index])
+         {
+            auto rrit = reorder_rows.find(att_it.second);
+            if (rrit == reorder_rows.end())
+            {
+               nconstraint = true;
+               reorder_rows[att_it.second] = new_row++;
+            }
+         }
+         if (nconstraint) { constraint_rowstarts.Append(new_row); }
+      }
+      MFEM_VERIFY(new_row == n_rows, "Remapping failed!");
+      for (auto& constraint_map : constraints)
+      {
+         for (auto& it : constraint_map)
+         {
+            it.second = reorder_rows[it.second];
+         }
+      }
+   }
+
+   SparseMatrix * out = new SparseMatrix(n_rows, fespace.GetTrueVSize());
+
+   // fill in constraint matrix with normal vector information
+   Vector nor(dim);
+   // how many times we have seen a node (key is truek)
+   std::map<int, int> node_visits;
+   for (int i = 0; i < fespace.GetNBE(); ++i)
+   {
+      int att = fespace.GetBdrAttribute(i);
+      if (constrained_att.FindSorted(att) != -1)
+      {
+         ElementTransformation * Tr = fespace.GetBdrElementTransformation(i);
+         const FiniteElement * fe = fespace.GetBE(i);
+         const IntegrationRule& nodes = fe->GetNodes();
+
+         Array<int> dofs;
+         fespace.GetBdrElementDofs(i, dofs);
+         MFEM_VERIFY(dofs.Size() == nodes.Size(),
+                     "Something wrong in finite element space!");
+
+         for (int j = 0; j < dofs.Size(); ++j)
+         {
+            Tr->SetIntPoint(&nodes[j]);
+            // the normal returned in the next line is scaled by h, which is
+            // probably what we want in most applications
+            CalcOrtho(Tr->Jacobian(), nor);
+
+            int k = dofs[j];
+            int truek = CanonicalNodeNumber(fespace, k, parallel);
+            if (truek >= 0)
+            {
+               auto nv_it = node_visits.find(truek);
+               if (nv_it == node_visits.end())
+               {
+                  node_visits[truek] = 1;
+               }
+               else
+               {
+                  node_visits[truek]++;
+               }
+               int visits = node_visits[truek];
+               int bconstraint = dof_bconstraint[truek];
+               int row = constraints[bconstraint][att];
+               for (int d = 0; d < dim; ++d)
+               {
+                  int inner_truek = CanonicalNodeNumber(fespace, k,
+                                                        parallel, d);
+                  if (visits == 1)
+                  {
+                     out->Add(row, inner_truek, nor[d]);
+                  }
+                  else
+                  {
+                     out->SetColPtr(row);
+                     const double pv = out->SearchRow(inner_truek);
+                     const double scaling = ((double) (visits - 1)) /
+                                            ((double) visits);
+                     // incremental average, based on how many times
+                     // this node has been visited
+                     out->Set(row, inner_truek,
+                              scaling * pv + (1.0 / visits) * nor[d]);
+                  }
+
+               }
+            }
+         }
+      }
+   }
+   out->Finalize();
+
+   return out;
+}
+
+#ifdef MFEM_USE_MPI
+SparseMatrix * ParBuildNormalConstraints(ParFiniteElementSpace& fespace,
+                                         Array<int>& constrained_att,
+                                         Array<int>& constraint_rowstarts)
+{
+   return BuildNormalConstraints(fespace, constrained_att,
+                                 constraint_rowstarts, true);
+}
+#endif
+
 }

@@ -33,177 +33,6 @@
 using namespace std;
 using namespace mfem;
 
-/** @brief Build a matrix constraining normal components to zero.
-
-    Given a vector space fespace, and the array constrained_att that
-    includes the boundary *attributes* that are constrained to have normal
-    component zero, this returns a SparseMatrix representing the
-    constraints that need to be imposed.
-
-    Each row of the returned matrix corresponds to a node that is
-    constrained. The rows are arranged in (contiguous) blocks corresponding
-    to the actual constraint; in 3D, a one-row constraint means the node
-    is free to move along a plane, a two-row constraint means it is free
-    to move along a line (eg the intersection of two normal-constrained
-    planes), and a three-row constraint is fully constrained (equivalent
-    to MFEM's usual essential boundary conditions).
-
-    The constraint_rowstarts array is filled in to describe the structure of
-    these constraints, so that constraint k is encoded in rows
-    constraint_rowstarts[k] to constraint_rowstarts[k + 1] - 1, inclusive,
-    of the returned matrix.
-
-    When two attributes intersect, this version will combine constraints,
-    so in 2D the point at the intersection is fully constrained (ie,
-    fixed in both directions). This is the wrong thing to do if the
-    two boundaries are (close to) parallel at that point.
-
-    @param[in] fespace              A vector finite element space
-    @param[in] constrained_att      Boundary attributes to constrain
-    @param[out] constraint_rowstarts  The rowstarts for separately
-                                    eliminated constraints, possible
-                                    input to EliminationCGSolver
-
-    @return a constraint matrix
-
-    @todo use FiniteElementSpace instead of ParFiniteElementSpace, but
-    we need tdofs in parallel case. */
-SparseMatrix * BuildNormalConstraints(ParFiniteElementSpace& fespace,
-                                      Array<int>& constrained_att,
-                                      Array<int>& constraint_rowstarts)
-{
-   int dim = fespace.GetVDim();
-
-   // dof_constraint is a mapping from dofs (columns of constraint matrix) to
-   // constraints (rows of the constraint matrix)
-   // the indexing is by tdof, but a single tdof uniquely identifies a node
-   // so we only store one tdof independent of dimension
-   std::map<int, int> dof_constraint;
-   // constraints[j] is a map from attribute to row number
-   std::vector<std::map<int, int> > constraints;
-   int n_constraints = 0;
-   int n_rows = 0;
-   for (int att : constrained_att)
-   {
-      // identify tdofs on constrained boundary
-      std::set<int> constrained_tdofs;
-      for (int i = 0; i < fespace.GetNBE(); ++i)
-      {
-         if (fespace.GetBdrAttribute(i) == att)
-         {
-            Array<int> dofs;
-            fespace.GetBdrElementDofs(i, dofs);
-            for (auto k : dofs)
-            {
-               int vdof = fespace.DofToVDof(k, 0);
-               int tdof = fespace.GetLocalTDofNumber(vdof);
-               if (tdof >= 0) { constrained_tdofs.insert(tdof); }
-            }
-         }
-      }
-      // fill in the maps identifying which constraints (rows) correspond to
-      // which tdofs
-      for (auto k : constrained_tdofs)
-      {
-         auto it = dof_constraint.find(k);
-         if (it == dof_constraint.end())
-         {
-            // add tdof to existing block constraint
-            dof_constraint[k] = n_constraints++;
-            constraints.emplace_back();
-            constraints.back()[att] = n_rows++;
-         }
-         else
-         {
-            // build new block constraint
-            constraints[it->second][att] = n_rows++;
-         }
-      }
-   }
-
-   // reorder so constraints eliminated together are grouped
-   // together in row
-   {
-      std::map<int, int> reorder_rows;
-      int new_row = 0;
-      constraint_rowstarts.DeleteAll();
-      constraint_rowstarts.Append(0);
-      for (auto& it : dof_constraint)
-      {
-         int constraint_index = it.second;
-         bool nconstraint = false;
-         for (auto& att_it : constraints[constraint_index])
-         {
-            auto rrit = reorder_rows.find(att_it.second);
-            if (rrit == reorder_rows.end())
-            {
-               nconstraint = true;
-               reorder_rows[att_it.second] = new_row++;
-            }
-         }
-         if (nconstraint) { constraint_rowstarts.Append(new_row); }
-      }
-      MFEM_VERIFY(new_row == n_rows, "Remapping failed!");
-      for (auto& constraint_map : constraints)
-      {
-         for (auto& it : constraint_map)
-         {
-            it.second = reorder_rows[it.second];
-         }
-      }
-   }
-
-   SparseMatrix * out = new SparseMatrix(n_rows, fespace.GetTrueVSize());
-
-   // fill in constraint matrix with normal vector information
-   Vector nor(dim);
-   for (int i = 0; i < fespace.GetNBE(); ++i)
-   {
-      int att = fespace.GetBdrAttribute(i);
-      if (constrained_att.FindSorted(att) != -1)
-      {
-         ElementTransformation * Tr = fespace.GetBdrElementTransformation(i);
-         const FiniteElement * fe = fespace.GetBE(i);
-         const IntegrationRule& nodes = fe->GetNodes();
-
-         Array<int> dofs;
-         fespace.GetBdrElementDofs(i, dofs);
-         MFEM_VERIFY(dofs.Size() == nodes.Size(),
-                     "Something wrong in finite element space!");
-
-         for (int j = 0; j < dofs.Size(); ++j)
-         {
-            Tr->SetIntPoint(&nodes[j]);
-            // the normal returned in the next line is scaled by h, which
-            // is probably what we want in this application
-            CalcOrtho(Tr->Jacobian(), nor);
-
-            int k = dofs[j];
-            int vdof = fespace.DofToVDof(k, 0);
-            int truek = fespace.GetLocalTDofNumber(vdof);
-            if (truek >= 0)
-            {
-               int constraint = dof_constraint[truek];
-               int row = constraints[constraint][att];
-               for (int d = 0; d < dim; ++d)
-               {
-                  int inner_vdof = fespace.DofToVDof(k, d);
-                  int inner_truek = fespace.GetLocalTDofNumber(inner_vdof);
-                  // an arguably better algorithm does some kind of average
-                  // instead of just overwriting when two elements (with
-                  // potentially different normals) share a node.
-                  out->Set(row, inner_truek, nor[d]);
-               }
-            }
-         }
-      }
-   }
-   out->Finalize();
-
-   return out;
-}
-
-
 Mesh * build_trapezoid_mesh(double offset)
 {
    MFEM_VERIFY(offset < 0.9, "offset is too large!");
@@ -434,14 +263,15 @@ int main(int argc, char *argv[])
    constraint_atts[1] = 4;  // attribute 4 left side
    Array<int> constraint_rowstarts;
    SparseMatrix* local_constraints =
-      BuildNormalConstraints(*fespace, constraint_atts, constraint_rowstarts);
+      ParBuildNormalConstraints(*fespace, constraint_atts,
+                                constraint_rowstarts);
 
    // 14. Define and apply a parallel PCG solver for the constrained system
    //     where the normal boundary constraints have been separately eliminated
    //     from the system.
    EliminationCGSolver * solver = new EliminationCGSolver(A, *local_constraints,
-                                                          constraint_rowstarts, dim,
-                                                          reorder_space);
+                                                          constraint_rowstarts,
+                                                          dim, reorder_space);
    solver->SetRelTol(1e-8);
    solver->SetMaxIter(500);
    solver->SetPrintLevel(1);
