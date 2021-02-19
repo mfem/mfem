@@ -33,34 +33,34 @@ struct s_NavierContext
    int ser_ref_levels = 1;
    int order = 4;
    double kinvis = 1.0 / 40.0;
-   double t_final = 0.1;
+   double t_final = 1.0;
    double dt = 1e-2;
    bool pa = true;
    bool ni = false;
    bool visualization = false;
    bool checkres = false;
-   double A = 0.3;
+   double L = 1.0;
+   double A = 0.08;
+   double tg = t_final / 10.0;
 } ctx;
 
-void vel(const Vector &x, double t, Vector &u)
+void vel(const Vector &coords, double t, Vector &u)
 {
-   double xi = x(0);
-   double yi = x(1);
+   double x = coords(0);
+   double y = coords(1);
+   double e = exp(-4.0 * ctx.kinvis * M_PI * M_PI * t);
 
-   double e = exp(-2.0 * t * ctx.kinvis);
-
-   u(0) = cos(xi) * sin(yi) * e;
-   u(1) = -sin(xi) * cos(yi) * e;
+   u(0) = -sin(2.0 * M_PI * y) * e;
+   u(1) = sin(2.0 * M_PI * x) * e;
 }
 
-double p(const Vector &x, double t)
+double p(const Vector &coords, double t)
 {
-   double xi = x(0);
-   double yi = x(1);
+   double x = coords(0);
+   double y = coords(1);
+   double e = exp(-8.0 * ctx.kinvis * M_PI * M_PI * t);
 
-   double e = exp(-2.0 * t * ctx.kinvis);
-
-   return -0.25 * (cos(2.0 * xi) + cos(2.0 * yi)) * e * e;
+   return -cos(2.0 * M_PI * x) * cos(2.0 * M_PI * y) * e;
 }
 
 void accel(const Vector &x, double t, Vector &u)
@@ -127,9 +127,7 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh("../../data/inline-quad.mesh");
    mesh->SetCurvature(ctx.order);
    GridFunction *nodes = mesh->GetNodes();
-   // *nodes += 1.0;
-   // *nodes *= 0.5;
-   *nodes *= 2.0 * M_PI;
+   *nodes -= ctx.L / 2.0;
 
    for (int i = 0; i < ctx.ser_ref_levels; ++i)
    {
@@ -171,7 +169,7 @@ int main(int argc, char *argv[])
    double t_final = ctx.t_final;
    bool last_step = false;
 
-   naviersolver.SetMaxBDFOrder(1);
+   // naviersolver.SetMaxBDFOrder(1);
 
    naviersolver.Setup(dt);
 
@@ -216,7 +214,6 @@ int main(int argc, char *argv[])
       errlinf_u = naviersolver.NekNorm(u_ex, 1, true);
       errlinf_p = naviersolver.NekNorm(p_ex, 1, false);
 
-
       if (mpi.Root())
       {
          if (step == -1)
@@ -248,16 +245,24 @@ int main(int argc, char *argv[])
       mesh_nodes(2, [&](const Vector &cin, double t, Vector &cout) {
          double x = cin(0);
          double y = cin(1);
-         cout(0) = x + ctx.A * sin(t) * sin(x) * sin(y);
-         cout(1) = y + ctx.A * sin(t) * sin(x) * sin(y);
+         cout(0) = x
+                   + ctx.A * sin((2.0 * M_PI * t) / ctx.tg)
+                        * sin((2.0 * M_PI * (ctx.L / 2. + y)) / ctx.L);
+         cout(1) = y
+                   + ctx.A * sin((2.0 * M_PI * t) / ctx.tg)
+                        * sin((2.0 * M_PI * (ctx.L / 2. + x)) / ctx.L);
       });
 
    VectorFunctionCoefficient
       mesh_nodes_velocity(2, [&](const Vector &cin, double t, Vector &cout) {
          double x = cin(0);
          double y = cin(1);
-         cout(0) = ctx.A * cos(t) * sin(x) * sin(y);
-         cout(1) = ctx.A * cos(t) * sin(x) * sin(y);
+         cout(0) = (2.0 * ctx.A * M_PI * cos((2.0 * M_PI * t) / ctx.tg)
+                    * sin((2.0 * M_PI * (ctx.L / 2. + y)) / ctx.L))
+                   / ctx.tg;
+         cout(1) = (2.0 * ctx.A * M_PI * cos((2.0 * M_PI * t) / ctx.tg)
+                    * sin((2.0 * M_PI * (ctx.L / 2. + x)) / ctx.L))
+                   / ctx.tg;
       });
 
    ParaViewDataCollection paraview_dc("navier_ale_mms", pmesh);
@@ -283,7 +288,7 @@ int main(int argc, char *argv[])
       mesh_nodes_velocity.SetTime(t + dt);
       wg_gf->ProjectCoefficient(mesh_nodes_velocity);
 
-      mesh_nodes.SetTime(t);
+      mesh_nodes.SetTime(t + dt);
       naviersolver.TransformMesh(mesh_nodes);
 
       naviersolver.Step(t, dt, step, true);

@@ -34,6 +34,11 @@ if (MFEM_USE_MPI)
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem)
 
+ add_mfem_miniapp(navier_fsi_beam_mms
+    MAIN navier_fsi_beam_mms.cpp
+    ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem)
+
  add_mfem_miniapp(navier_ale_test
     MAIN navier_ale_test.cpp
     ${NAVIER_COMMON_FILES}
