@@ -518,8 +518,8 @@ public:
        generate_edges = 0 (default) edges are not generated, if 1 edges are
        generated. */
    static Mesh LoadFromFile(const char *filename,
-                           int generate_edges = 0, int refine = 1,
-                           bool fix_orientation = true);
+                            int generate_edges = 0, int refine = 1,
+                            bool fix_orientation = true);
 
    /** Creates 1D mesh , divided into n equal intervals. */
    static Mesh MakeCartesian1D(int n, double sx = 1.0);
