@@ -696,6 +696,42 @@ public:
    { A_.Mult(x, y); y *= a_; }
 };
 
+/// General sum operator: x -> A(x)+B(x)
+class SumOperator : public Operator
+{
+   const Operator *A, *B;
+   bool ownA, ownB;
+   mutable Vector z, w;
+   double cA, cB;
+
+public:
+   SumOperator(const Operator *A_, const Operator *B_,
+               bool ownA_, bool ownB_, double cA_, double cB_)
+      : Operator(A_->Height(), B_->Width()),
+        A(A_), B(B_), ownA(ownA_), ownB(ownB_), z(A_->Height()), w(A_->Width()),
+        cA(cA_), cB(cB_)
+   {
+      MFEM_VERIFY(A->Width() == B->Width() && A->Height() == B->Height(),
+                  "incompatible Operators: A->Width() = " << A->Width()
+                  << ", B->Height() = " << B->Height());
+
+      z.UseDevice(true);
+      w.UseDevice(true);
+   }
+
+   ~SumOperator()
+   {
+      if (ownA) { delete A; }
+      if (ownB) { delete B; }
+   }
+
+   virtual void Mult(const Vector &x, Vector &y) const
+   { B->Mult(x, z); A->Mult(x, y); y *= cA; z *= cB; y += z;}
+
+   virtual void MultTranspose(const Vector &x, Vector &y) const
+   { B->MultTranspose(x, w); A->MultTranspose(x, y); y *= cA; w *= cB; y += w;}
+
+};
 
 /** @brief The transpose of a given operator. Switches the roles of the methods
     Mult() and MultTranspose(). */

@@ -16,11 +16,13 @@
 #include "linalg.hpp"
 #include "../fem/pfespace.hpp"
 #include "../fem/pbilinearform.hpp"
+#include "../fem/complex_fem.hpp"
 
 namespace mfem
 {
 
 GeneralAMS::GeneralAMS(const Operator& curlcurl_op_,
+                       Operator *oper_complex_,
                        const Operator& pi_,
                        const Operator& gradient_,
                        const Operator& pispacesolver_,
@@ -30,6 +32,7 @@ GeneralAMS::GeneralAMS(const Operator& curlcurl_op_,
    :
    Solver(curlcurl_op_.Height()),
    curlcurl_op(curlcurl_op_),
+   oper_complex(oper_complex_),
    pi(pi_),
    gradient(gradient_),
    pispacesolver(pispacesolver_),
@@ -46,7 +49,15 @@ GeneralAMS::~GeneralAMS()
 void GeneralAMS::FormResidual(const Vector& rhs, const Vector& x,
                               Vector& residual) const
 {
-   curlcurl_op.Mult(x, residual);
+   if (oper_complex)
+   {
+      oper_complex->Mult(x, residual);
+   }
+   else
+   {
+      curlcurl_op.Mult(x, residual);
+   }
+
    residual *= -1.0;
    residual += rhs;
 }
@@ -70,7 +81,8 @@ void GeneralAMS::FormResidual(const Vector& rhs, const Vector& x,
 void GeneralAMS::Mult(const Vector& x, Vector& y) const
 {
    MFEM_ASSERT(x.Size() == y.Size(), "Sizes don't match!");
-   MFEM_ASSERT(curlcurl_op.Height() == x.Size(), "Sizes don't match!");
+   MFEM_ASSERT(x.Size() == ((oper_complex != NULL) ? oper_complex->Height() :
+                            curlcurl_op.Height()), "Sizes don't match!");
 
    Vector residual(x.Size());
    residual = 0.0;
@@ -118,8 +130,8 @@ void GeneralAMS::Mult(const Vector& x, Vector& y) const
 
 // Pi-space constructor
 MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
-   ParMesh& mesh_lor, Coefficient* alpha_coeff,
-   Coefficient* beta_coeff, MatrixCoefficient* beta_mcoeff, Array<int>& ess_bdr,
+   ParMesh& mesh_lor, Coefficient* alpha_coeff, Coefficient* beta_coeff,
+   MatrixCoefficient* beta_mcoeff, Array<int>& ess_bdr,
    Operator& curlcurl_oper, Operator& pi,
 #ifdef MFEM_USE_AMGX
    bool useAmgX_,
@@ -132,7 +144,8 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
 #ifdef MFEM_USE_AMGX
    useAmgX(useAmgX_),
 #endif
-   inner_aux_iterations(0)
+   inner_aux_iterations(0),
+   imagBdry(false)
 {
    H1_FECollection * fec_lor = new H1_FECollection(1, mesh_lor.Dimension());
    ParFiniteElementSpace fespace_lor_d(&mesh_lor, fec_lor, mesh_lor.Dimension(),
@@ -143,6 +156,7 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    {
       fespace_lor_d.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
+
    ParBilinearForm a_space(&fespace_lor_d);
 
    // this choice of policy is important for the G-space solver, but
@@ -176,6 +190,7 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    a_space.EliminateEssentialBC(ess_bdr, policy);
    a_space.Finalize();
    aspacematrix = a_space.ParallelAssemble();
+
    aspacematrix->CopyRowStarts();
    aspacematrix->CopyColStarts();
 
@@ -189,6 +204,205 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    {
       SetupVCycle();
    }
+   delete fec_lor;
+}
+
+// Complex Pi-space constructor
+MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
+   ParMesh& mesh_lor, Coefficient* alpha_coeff, Coefficient* beta_coeff,
+   Coefficient* beta_imag, Coefficient* abs_beta_imag,
+   MatrixCoefficient* beta_mcoeff, Array<int>& ess_bdr,
+   Operator& curlcurl_oper, Operator *oper_complex, Operator& pi,
+#ifdef MFEM_USE_AMGX
+   bool useAmgX_,
+#endif
+   int cg_iterations) :
+   Solver(2*pi.Width()),
+   comm(mesh_lor.GetComm()),
+   matfree(NULL),
+   cg(NULL),
+#ifdef MFEM_USE_AMGX
+   useAmgX(useAmgX_),
+#endif
+   inner_aux_iterations(0),
+   imagBdry(beta_imag != NULL && abs_beta_imag != NULL)
+{
+   MFEM_VERIFY(imagBdry, "");
+   MFEM_VERIFY(2*curlcurl_oper.Height() == oper_complex->Height(), "");
+
+   H1_FECollection * fec_lor = new H1_FECollection(1, mesh_lor.Dimension());
+   ParFiniteElementSpace fespace_lor_d(&mesh_lor, fec_lor, mesh_lor.Dimension(),
+                                       Ordering::byVDIM);
+
+   offsets.SetSize(3);
+   offsets[0] = 0;
+   offsets[1] = fespace_lor_d.GetTrueVSize();
+   offsets[2] = offsets[1];
+   offsets.PartialSum();
+
+   offsets_nd.SetSize(3);
+   offsets_nd[0] = 0;
+   offsets_nd[1] = curlcurl_oper.Height();
+   offsets_nd[2] = offsets_nd[1];
+   offsets_nd.PartialSum();
+
+   // build LOR AMG v-cycle
+   if (ess_bdr.Size())
+   {
+      fespace_lor_d.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   }
+
+   {
+      // Assemble real system
+      ParBilinearForm a_space(&fespace_lor_d);
+
+      // this choice of policy is important for the G-space solver, but
+      // also can make some difference here
+      const Matrix::DiagonalPolicy policy = Matrix::DIAG_KEEP;
+      a_space.SetDiagonalPolicy(policy);
+      if (alpha_coeff == NULL)
+      {
+         a_space.AddDomainIntegrator(new VectorDiffusionIntegrator);
+      }
+      else
+      {
+         a_space.AddDomainIntegrator(new VectorDiffusionIntegrator(*alpha_coeff));
+      }
+
+      if (beta_mcoeff != NULL)
+      {
+         MFEM_VERIFY(beta_coeff == NULL, "Only one beta coefficient should be defined.");
+         a_space.AddDomainIntegrator(new VectorMassIntegrator(*beta_mcoeff));
+      }
+      else if (beta_coeff != NULL)
+      {
+         a_space.AddDomainIntegrator(new VectorMassIntegrator(*beta_coeff));
+      }
+      else
+      {
+         a_space.AddDomainIntegrator(new VectorMassIntegrator);
+      }
+      a_space.UsePrecomputedSparsity();
+      a_space.Assemble();
+      a_space.EliminateEssentialBC(ess_bdr, policy);
+      a_space.Finalize();
+      aspacematrix = a_space.ParallelAssemble();
+
+      aspacematrix->CopyRowStarts();
+      aspacematrix->CopyColStarts();
+   }
+
+   {
+      // Assemble complex system
+      ParSesquilinearForm a_space(&fespace_lor_d);
+
+      // this choice of policy is important for the G-space solver, but
+      // also can make some difference here
+      // NOTE: without essential BC, the policy is not applicable anyway
+      //const Matrix::DiagonalPolicy policy = Matrix::DIAG_KEEP;
+      //a_space.SetDiagonalPolicy(policy);
+      if (alpha_coeff == NULL)
+      {
+         a_space.AddDomainIntegrator(new VectorDiffusionIntegrator, NULL);
+      }
+      else
+      {
+         a_space.AddDomainIntegrator(new VectorDiffusionIntegrator(*alpha_coeff), NULL);
+      }
+
+      if (beta_mcoeff != NULL)
+      {
+         MFEM_VERIFY(beta_coeff == NULL, "Only one beta coefficient should be defined.");
+         a_space.AddDomainIntegrator(new VectorMassIntegrator(*beta_mcoeff), NULL);
+      }
+      else if (beta_coeff != NULL)
+      {
+         a_space.AddDomainIntegrator(new VectorMassIntegrator(*beta_coeff), NULL);
+      }
+      else
+      {
+         a_space.AddDomainIntegrator(new VectorMassIntegrator, NULL);
+      }
+
+      a_space.AddBoundaryIntegrator(NULL,
+                                    new VectorMassIntegrator(*beta_imag));  // im part
+
+      //a_space.UsePrecomputedSparsity();
+      a_space.Assemble();
+      //a_space.EliminateEssentialBC(ess_bdr, policy);
+      a_space.Finalize();
+
+      //aspacematrix = a_space.ParallelAssemble();
+      aspacematrix_complex = a_space.ParallelAssemble()->GetSystemMatrix();
+      /*
+      {
+         Array<int> empty_ess_tdof_list;
+         OperatorPtr Aptr;
+         a_space.FormSystemMatrix(empty_ess_tdof_list, Aptr);
+
+         aspacematrix_complex = Aptr.As<HypreParMatrix>();
+      }
+      */
+      aspacematrix_complex->CopyRowStarts();
+      aspacematrix_complex->CopyColStarts();
+   }
+
+   {
+      // Assemble imaginary system
+      ParBilinearForm a_space(&fespace_lor_d);
+
+      a_space.AddBoundaryIntegrator(new VectorMassIntegrator(
+                                       *abs_beta_imag));  // im part
+
+      //a_space.UsePrecomputedSparsity();
+      a_space.Assemble();
+      //a_space.EliminateEssentialBC(ess_bdr, policy);
+      a_space.Finalize();
+
+      aspacematrix_imag = a_space.ParallelAssemble();
+      /*
+      {
+         Array<int> empty_ess_tdof_list;
+         OperatorPtr Aptr;
+         a_space.FormSystemMatrix(empty_ess_tdof_list, Aptr);
+
+         aspacematrix_imag = Aptr.As<HypreParMatrix>();
+      }
+      */
+
+      aspacematrix_imag->CopyRowStarts();
+      aspacematrix_imag->CopyColStarts();
+   }
+
+   //SetupAMG(fespace_lor_d.GetMesh()->Dimension());
+   {
+      HypreBoomerAMG *amg = new HypreBoomerAMG(*aspacematrix);
+      const int system_dimension = fespace_lor_d.GetMesh()->Dimension();
+      amg->SetSystemsOptions(system_dimension);
+      amg->SetPrintLevel(0);
+      aspacepc = amg;
+   }
+
+   /*
+
+   if (cg_iterations > 0)
+   {
+   SetupCG(curlcurl_oper, pi, cg_iterations);
+   }
+   else
+   {
+   SetupVCycle();
+   }
+   */
+
+   SetupPMHSS();
+
+   conn_block = new BlockOperator(offsets_nd, offsets);
+   conn_block->SetDiagonalBlock(0, &pi);
+   conn_block->SetDiagonalBlock(1, &pi);
+
+   SetupGMRES(*oper_complex, *conn_block);
+
    delete fec_lor;
 }
 
@@ -216,7 +430,8 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
 #ifdef MFEM_USE_AMGX
    useAmgX(useAmgX_),
 #endif
-   inner_aux_iterations(0)
+   inner_aux_iterations(0),
+   imagBdry(false)
 {
    H1_FECollection * fec_lor = new H1_FECollection(1, mesh_lor.Dimension());
    ParFiniteElementSpace fespace_lor(&mesh_lor, fec_lor);
@@ -275,6 +490,218 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    delete fec_lor;
 }
 
+/* Complex G-space constructor
+
+   The auxiliary space solves in general, and this one in particular,
+   seem to be quite sensitive to handling of boundary conditions. Note
+   some careful choices for Matrix::DiagonalPolicy and the ZeroWrap
+   object, as well as the use of a single CG iteration (instead of just
+   an AMG V-cycle). Just a V-cycle may be more efficient in some cases,
+   but we recommend the CG wrapper for robustness here. */
+MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
+   ParMesh& mesh_lor, Coefficient* beta_coeff, Coefficient* beta_imag,
+   Coefficient* abs_beta_imag,
+   MatrixCoefficient* beta_mcoeff, Array<int>& ess_bdr, Operator& curlcurl_oper,
+   Operator *oper_complex, Operator& g,
+#ifdef MFEM_USE_AMGX
+   bool useAmgX_,
+#endif
+   int cg_iterations)
+   :
+   Solver(curlcurl_oper.Height()),
+   comm(mesh_lor.GetComm()),
+   matfree(NULL),
+   cg(NULL),
+#ifdef MFEM_USE_AMGX
+   useAmgX(useAmgX_),
+#endif
+   inner_aux_iterations(0),
+   imagBdry(beta_imag != NULL && abs_beta_imag != NULL)
+{
+   MFEM_VERIFY(imagBdry, "");
+   MFEM_VERIFY(2*curlcurl_oper.Height() == oper_complex->Height(), "");
+
+   H1_FECollection * fec_lor = new H1_FECollection(1, mesh_lor.Dimension());
+   ParFiniteElementSpace fespace_lor(&mesh_lor, fec_lor);
+
+   offsets.SetSize(3);
+   offsets[0] = 0;
+   offsets[1] = fespace_lor.GetTrueVSize();
+   offsets[2] = offsets[1];
+   offsets.PartialSum();
+
+   offsets_nd.SetSize(3);
+   offsets_nd[0] = 0;
+   offsets_nd[1] = curlcurl_oper.Height();
+   offsets_nd[2] = offsets_nd[1];
+   offsets_nd.PartialSum();
+
+   const double regeps = 1.0e-6;
+   ConstantCoefficient epscoef(regeps);
+
+   {
+      // Assemble real system
+
+      // build LOR AMG v-cycle
+      ParBilinearForm a_space(&fespace_lor);
+
+      // we need something like DIAG_ZERO in the solver, but explicitly doing
+      // that makes BoomerAMG setup complain, so instead we constrain the boundary
+      // in the CG solver
+      const Matrix::DiagonalPolicy policy = Matrix::DIAG_ONE;
+
+      a_space.SetDiagonalPolicy(policy);
+
+      if (beta_mcoeff != NULL)
+      {
+         MFEM_VERIFY(beta_coeff == NULL, "Only one beta coefficient should be defined.");
+         a_space.AddDomainIntegrator(new DiffusionIntegrator(*beta_mcoeff));
+      }
+      else if (beta_coeff != NULL)
+      {
+         a_space.AddDomainIntegrator(new DiffusionIntegrator(*beta_coeff));
+      }
+      else
+      {
+         a_space.AddDomainIntegrator(new DiffusionIntegrator);
+      }
+      a_space.AddDomainIntegrator(new MassIntegrator(epscoef));
+
+      a_space.UsePrecomputedSparsity();
+      a_space.Assemble();
+      if (ess_bdr.Size())
+      {
+         fespace_lor.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      }
+
+      // you have to use (serial) BilinearForm eliminate routines to get
+      // diag policy DIAG_ZERO all the ParallelEliminateTDofs etc. routines
+      // implicitly have a Matrix::DIAG_KEEP policy
+      a_space.EliminateEssentialBC(ess_bdr, policy);
+      a_space.Finalize();
+      aspacematrix = a_space.ParallelAssemble();
+
+      aspacematrix->CopyRowStarts();
+      aspacematrix->CopyColStarts();
+   }
+
+   {
+      // Assemble complex system
+
+      // build LOR AMG v-cycle
+      ParSesquilinearForm a_space(&fespace_lor);
+
+      // we need something like DIAG_ZERO in the solver, but explicitly doing
+      // that makes BoomerAMG setup complain, so instead we constrain the boundary
+      // in the CG solver
+      const Matrix::DiagonalPolicy policy = Matrix::DIAG_ONE;
+
+      //a_space.SetDiagonalPolicy(policy);
+
+      if (beta_mcoeff != NULL)
+      {
+         MFEM_VERIFY(beta_coeff == NULL, "Only one beta coefficient should be defined.");
+         a_space.AddDomainIntegrator(new DiffusionIntegrator(*beta_mcoeff), NULL);
+      }
+      else if (beta_coeff != NULL)
+      {
+         a_space.AddDomainIntegrator(new DiffusionIntegrator(*beta_coeff), NULL);
+      }
+      else
+      {
+         a_space.AddDomainIntegrator(new DiffusionIntegrator, NULL);
+      }
+      a_space.AddDomainIntegrator(new MassIntegrator(epscoef), NULL);
+
+      a_space.AddBoundaryIntegrator(NULL, new MassIntegrator(*beta_imag));  // im part
+
+      //a_space.UsePrecomputedSparsity();
+      a_space.Assemble();
+      /*
+      if (ess_bdr.Size())
+      {
+         fespace_lor.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      }
+      */
+
+      // you have to use (serial) BilinearForm eliminate routines to get
+      // diag policy DIAG_ZERO all the ParallelEliminateTDofs etc. routines
+      // implicitly have a Matrix::DIAG_KEEP policy
+      //a_space.EliminateEssentialBC(ess_bdr, policy);
+      a_space.Finalize();
+      //ComplexHypreParMatrix *complex_aspacematrix = a_space.ParallelAssemble();
+      aspacematrix_complex = a_space.ParallelAssemble()->GetSystemMatrix();
+
+      /*
+      {
+         Array<int> empty_ess_tdof_list;
+         OperatorPtr Aptr;
+         a_space.FormSystemMatrix(empty_ess_tdof_list, Aptr);
+
+         aspacematrix_complex = Aptr.As<HypreParMatrix>();
+      }
+      */
+
+      aspacematrix_complex->CopyRowStarts();
+      aspacematrix_complex->CopyColStarts();
+      // TODO: aspacematrix_complex is not used?
+   }
+
+   {
+      // Assemble imaginary system
+      ParBilinearForm a_space(&fespace_lor);
+
+      a_space.AddBoundaryIntegrator(new MassIntegrator(*abs_beta_imag));  // im part
+
+      //a_space.UsePrecomputedSparsity();
+      a_space.Assemble();
+      //a_space.EliminateEssentialBC(ess_bdr, policy);
+      a_space.Finalize();
+
+      aspacematrix_imag = a_space.ParallelAssemble();
+      /*
+      {
+         Array<int> empty_ess_tdof_list;
+         OperatorPtr Aptr;
+         a_space.FormSystemMatrix(empty_ess_tdof_list, Aptr);
+
+         aspacematrix_imag = Aptr.As<HypreParMatrix>();
+      }
+      */
+
+      aspacematrix_imag->CopyRowStarts();
+      aspacematrix_imag->CopyColStarts();
+   }
+
+   //SetupAMG(0);
+   {
+      HypreBoomerAMG *amg = new HypreBoomerAMG(*aspacematrix);
+      amg->SetPrintLevel(0);
+      aspacepc = amg;
+   }
+
+   /*
+   if (cg_iterations > 0)
+   {
+      SetupCG(curlcurl_oper, g, cg_iterations);
+   }
+   else
+   {
+      SetupVCycle();
+   }
+   */
+
+   SetupPMHSS();
+
+   conn_block = new BlockOperator(offsets_nd, offsets);
+   conn_block->SetDiagonalBlock(0, &g);
+   conn_block->SetDiagonalBlock(1, &g);
+
+   SetupGMRES(*oper_complex, *conn_block);
+
+   delete fec_lor;
+}
+
 void MatrixFreeAuxiliarySpace::SetupCG(
    Operator& curlcurl_oper, Operator& conn,
    int inner_cg_iterations)
@@ -303,11 +730,49 @@ void MatrixFreeAuxiliarySpace::SetupCG(
    aspacewrapper = cg;
 }
 
+void MatrixFreeAuxiliarySpace::SetupGMRES(Operator& curlcurl_oper,
+                                          Operator& conn)
+{
+   MFEM_ASSERT(conn.Height() == curlcurl_oper.Width(),
+               "Operators don't match!");
+   matfree = new RAPOperator(conn, curlcurl_oper, conn);
+   MFEM_ASSERT(matfree->Height() == PMHSS->Height(),
+               "Operators don't match!");
+
+   {
+      gmres_PMHSS = new GMRESSolver(comm);
+      gmres_PMHSS->SetPrintLevel(1);
+      gmres_PMHSS->SetKDim(100);
+      gmres_PMHSS->SetMaxIter(100);
+      gmres_PMHSS->SetRelTol(1e-8);
+      gmres_PMHSS->SetAbsTol(0.0);
+
+      gmres_PMHSS->SetOperator(*aspacematrix_complex);
+      gmres_PMHSS->SetPreconditioner(*PMHSS);
+   }
+
+   gmres = new GMRESSolver(comm);
+   gmres->SetPrintLevel(1);
+   gmres->SetKDim(100);
+   gmres->SetMaxIter(100);
+   gmres->SetRelTol(1e-8);
+   gmres->SetAbsTol(0.0);
+
+   gmres->SetOperator(*matfree);
+   //gmres->SetPreconditioner(*aspacepc);
+   gmres->SetPreconditioner(
+      *PMHSS);  // TODO: which is better, PMHSS or gmres_PMHSS?
+   //gmres->SetPreconditioner(*gmres_PMHSS);
+
+   aspacewrapper = gmres;
+}
+
 void MatrixFreeAuxiliarySpace::SetupVCycle()
 {
    aspacewrapper = aspacepc;
 }
 
+// NOTE: if ess_tdof_list is empty, this just does the AMG mult.
 class ZeroWrap : public Solver
 {
 public:
@@ -360,6 +825,16 @@ private:
    Array<int>& ess_tdof_list;
 };
 
+void MatrixFreeAuxiliarySpace::SetupPMHSS()
+{
+   BlockDP = new BlockDiagonalPreconditioner(offsets);
+   BlockDP->SetDiagonalBlock(0, aspacepc);
+   BlockDP->SetDiagonalBlock(1, aspacepc);
+
+   PMHSS = new Complex_PMHSS(aspacematrix, aspacematrix_imag, BlockDP, NULL,
+                             1.0);
+}
+
 void MatrixFreeAuxiliarySpace::SetupAMG(int system_dimension)
 {
    if (system_dimension == 0)
@@ -397,15 +872,25 @@ void MatrixFreeAuxiliarySpace::SetupAMG(int system_dimension)
 
 void MatrixFreeAuxiliarySpace::Mult(const Vector& x, Vector& y) const
 {
-   int rank;
-   MPI_Comm_rank(comm, &rank);
-
-   y = 0.0;
-   aspacewrapper->Mult(x, y);
-   if (cg && rank == 0)
+   if (imagBdry)
    {
-      int q = cg->GetNumIterations();
-      inner_aux_iterations += q;
+      y = 0.0; // TODO: remove?
+      gmres->Mult(x, y);
+      //PMHSS->Mult(x, y); // TODO: solver?
+      //aspacewrapper->Mult(x, y);  // same as gmres?
+   }
+   else
+   {
+      int rank;
+      MPI_Comm_rank(comm, &rank);
+
+      y = 0.0;
+      aspacewrapper->Mult(x, y);
+      if (cg && rank == 0)
+      {
+         int q = cg->GetNumIterations();
+         inner_aux_iterations += q;
+      }
    }
 }
 
@@ -423,18 +908,25 @@ MatrixFreeAuxiliarySpace::~MatrixFreeAuxiliarySpace()
    inner iteration counts may need to be increased. Boundary conditions can
    matter as well (see DIAG_ZERO policy). */
 MatrixFreeAMS::MatrixFreeAMS(
-   ParBilinearForm& aform, Operator& oper, ParFiniteElementSpace& nd_fespace,
+   ParBilinearForm& aform, Operator& oper, Operator *oper_complex,
+   ParFiniteElementSpace& nd_fespace,
    Coefficient* alpha_coeff, Coefficient* beta_coeff,
+   Coefficient* beta_imag, Coefficient* abs_beta_imag,
    MatrixCoefficient* beta_mcoeff, Array<int>& ess_bdr,
 #ifdef MFEM_USE_AMGX
    bool useAmgX,
 #endif
    int inner_pi_iterations, int inner_g_iterations, Solver * nd_smoother) :
-   Solver(oper.Height())
+   Solver((oper_complex != NULL) ? oper_complex->Height() : oper.Height())
 {
    int order = nd_fespace.GetFE(0)->GetOrder();
    ParMesh *mesh = nd_fespace.GetParMesh();
    int dim = mesh->Dimension();
+
+   const bool imagBdry = (beta_imag != NULL && abs_beta_imag != NULL);
+
+   MFEM_VERIFY((imagBdry && oper_complex != NULL) || (!imagBdry &&
+                                                      oper_complex == NULL), "");
 
    // smoother
    Array<int> ess_tdof_list;
@@ -470,27 +962,85 @@ MatrixFreeAMS::MatrixFreeAMS(
 
    // build LOR space
    ParMesh mesh_lor(mesh, order, BasisType::GaussLobatto);
-
-   // build G space solver
-   Gspacesolver = new MatrixFreeAuxiliarySpace(mesh_lor, beta_coeff,
-                                               beta_mcoeff, ess_bdr, oper,
-                                               *Gradient,
+   if (imagBdry)
+   {
+      // build G space solver
+      Gspacesolver = new MatrixFreeAuxiliarySpace(mesh_lor, beta_coeff, beta_imag,
+                                                  abs_beta_imag,
+                                                  beta_mcoeff, ess_bdr, oper, oper_complex,
+                                                  *Gradient,
 #ifdef MFEM_USE_AMGX
-                                               useAmgX,
+                                                  useAmgX,
 #endif
-                                               inner_g_iterations);
+                                                  inner_g_iterations);
 
-   // build Pi space solver
-   Pispacesolver = new MatrixFreeAuxiliarySpace(mesh_lor, alpha_coeff,
-                                                beta_coeff, beta_mcoeff,
-                                                ess_bdr, oper, *Pi,
+      // build Pi space solver
+      Pispacesolver = new MatrixFreeAuxiliarySpace(mesh_lor, alpha_coeff,
+                                                   beta_coeff, beta_imag, abs_beta_imag, beta_mcoeff,
+                                                   ess_bdr, oper, oper_complex, *Pi,
 #ifdef MFEM_USE_AMGX
-                                                useAmgX,
+                                                   useAmgX,
 #endif
-                                                inner_pi_iterations);
+                                                   inner_pi_iterations);
 
-   general_ams = new GeneralAMS(oper, *Pi, *Gradient, *Pispacesolver,
-                                *Gspacesolver, *smoother, ess_tdof_list);
+      offsets_nd.SetSize(3);
+      offsets_nd[0] = 0;
+      offsets_nd[1] = nd_fespace.GetTrueVSize();
+      offsets_nd[2] = offsets_nd[1];
+      offsets_nd.PartialSum();
+
+      offsets_vector.SetSize(3);
+      offsets_vector[0] = 0;
+      offsets_vector[1] = h1_fespace_d->GetTrueVSize();
+      offsets_vector[2] = offsets_vector[1];
+      offsets_vector.PartialSum();
+
+      offsets_scalar.SetSize(3);
+      offsets_scalar[0] = 0;
+      offsets_scalar[1] = h1_fespace->GetTrueVSize();
+      offsets_scalar[2] = offsets_scalar[1];
+      offsets_scalar.PartialSum();
+
+      Pi_block  = new BlockOperator(offsets_nd, offsets_vector);
+      Pi_block->SetDiagonalBlock(0, Pi.Ptr());
+      Pi_block->SetDiagonalBlock(1, Pi.Ptr());
+
+      Gradient_block  = new BlockOperator(offsets_nd, offsets_scalar);
+      Gradient_block->SetDiagonalBlock(0, Gradient.Ptr());
+      Gradient_block->SetDiagonalBlock(1, Gradient.Ptr());
+
+      smoother_block  = new BlockOperator(offsets_nd);
+      smoother_block->SetDiagonalBlock(0, smoother);
+      smoother_block->SetDiagonalBlock(1, smoother);
+
+      general_ams = new GeneralAMS(oper, oper_complex, *Pi_block, *Gradient_block,
+                                   *Pispacesolver,
+                                   *Gspacesolver, *smoother_block, ess_tdof_list);
+   }
+   else
+   {
+      // build G space solver
+      Gspacesolver = new MatrixFreeAuxiliarySpace(mesh_lor, beta_coeff,
+                                                  beta_mcoeff, ess_bdr, oper,
+                                                  *Gradient,
+#ifdef MFEM_USE_AMGX
+                                                  useAmgX,
+#endif
+                                                  inner_g_iterations);
+
+      // build Pi space solver
+      Pispacesolver = new MatrixFreeAuxiliarySpace(mesh_lor, alpha_coeff,
+                                                   beta_coeff, beta_mcoeff,
+                                                   ess_bdr, oper, *Pi,
+#ifdef MFEM_USE_AMGX
+                                                   useAmgX,
+#endif
+                                                   inner_pi_iterations);
+
+      general_ams = new GeneralAMS(oper, NULL, *Pi, *Gradient, *Pispacesolver,
+                                   *Gspacesolver, *smoother, ess_tdof_list);
+   }
+
 
    delete h1_fec;
 }

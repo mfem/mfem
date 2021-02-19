@@ -57,9 +57,21 @@ public:
                              single V-cycle
    */
    MatrixFreeAuxiliarySpace(
-      ParMesh& mesh_lor, Coefficient* alpha_coeff,
-      Coefficient* beta_coeff, MatrixCoefficient* beta_mcoeff,
+      ParMesh& mesh_lor, Coefficient* alpha_coeff, Coefficient* beta_coeff,
+      MatrixCoefficient* beta_mcoeff,
       Array<int>& ess_bdr, Operator& curlcurl_oper, Operator& pi,
+#ifdef MFEM_USE_AMGX
+      bool useAmgX_,
+#endif
+      int cg_iterations = 0);
+
+   // Complex Pi space constructor
+   MatrixFreeAuxiliarySpace(
+      ParMesh& mesh_lor, Coefficient* alpha_coeff, Coefficient* beta_coeff,
+      Coefficient* beta_imag, Coefficient* abs_beta_imag,
+      MatrixCoefficient* beta_mcoeff,
+      Array<int>& ess_bdr, Operator& curlcurl_oper, Operator *oper_complex,
+      Operator& pi,
 #ifdef MFEM_USE_AMGX
       bool useAmgX_,
 #endif
@@ -89,6 +101,17 @@ public:
 #endif
       int cg_iterations = 1);
 
+   // Complex G space constructor
+   MatrixFreeAuxiliarySpace(
+      ParMesh& mesh_lor, Coefficient* beta_coeff, Coefficient* beta_imag,
+      Coefficient* abs_beta_imag,
+      MatrixCoefficient* beta_mcoeff, Array<int>& ess_bdr,
+      Operator& curlcurl_oper, Operator *oper_complex, Operator& g,
+#ifdef MFEM_USE_AMGX
+      bool useAmgX_,
+#endif
+      int cg_iterations = 1);
+
    ~MatrixFreeAuxiliarySpace();
 
    void Mult(const Vector& x, Vector& y) const;
@@ -107,17 +130,35 @@ private:
    void SetupCG(Operator& curlcurl_oper, Operator& conn,
                 int inner_cg_iterations);
 
+   void SetupGMRES(Operator& curlcurl_oper, Operator& conn);
+
+   void SetupPMHSS();
+
    MPI_Comm comm;
    Array<int> ess_tdof_list;
    HypreParMatrix * aspacematrix;
+   HypreParMatrix * aspacematrix_complex;
+   HypreParMatrix * aspacematrix_imag;
    Solver * aspacepc;
    Operator* matfree;
    CGSolver* cg;
+   GMRESSolver* gmres;
+   GMRESSolver* gmres_PMHSS;
    Operator* aspacewrapper;
 #ifdef MFEM_USE_AMGX
    const bool useAmgX;
 #endif
    mutable int inner_aux_iterations;
+
+   const bool imagBdry;
+
+   Complex_PMHSS *PMHSS = NULL;
+
+   Array<int> offsets;
+   Array<int> offsets_nd;
+   BlockDiagonalPreconditioner *BlockDP;
+
+   BlockOperator *conn_block;
 };
 
 
@@ -132,6 +173,7 @@ public:
        Most of these arguments just need a Mult() operation,
        but pi and g also require MultTranspose() */
    GeneralAMS(const Operator& curlcurl_op_,
+              Operator *oper_complex,
               const Operator& pi_,
               const Operator& gradient_,
               const Operator& pispacesolver_,
@@ -147,6 +189,7 @@ public:
 
 private:
    const Operator& curlcurl_op;
+   Operator *oper_complex;
    const Operator& pi;
    const Operator& gradient;
    const Operator& pispacesolver;
@@ -194,9 +237,10 @@ public:
        @param nd_smoother  optional user-provided smoother for Nedelec space,
                            this object takes ownership and will delete.
    */
-   MatrixFreeAMS(ParBilinearForm& aform, Operator& oper,
+   MatrixFreeAMS(ParBilinearForm& aform, Operator& oper, Operator *oper_complex,
                  ParFiniteElementSpace& nd_fespace, Coefficient* alpha_coeff,
-                 Coefficient* beta_coeff, MatrixCoefficient* beta_mcoeff,
+                 Coefficient* beta_coeff, Coefficient* beta_imag,
+                 Coefficient* abs_beta_imag, MatrixCoefficient* beta_mcoeff,
                  Array<int>& ess_bdr,
 #ifdef MFEM_USE_AMGX
                  bool useAmgX = false,
@@ -224,6 +268,14 @@ private:
 
    ParFiniteElementSpace * h1_fespace;
    ParFiniteElementSpace * h1_fespace_d;
+
+   Array<int> offsets_nd;
+   Array<int> offsets_vector;
+   Array<int> offsets_scalar;
+
+   BlockOperator *Pi_block;
+   BlockOperator *Gradient_block;
+   BlockOperator *smoother_block;
 };
 
 } // namespace mfem

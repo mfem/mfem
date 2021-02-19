@@ -24,200 +24,6 @@ int dim;
 
 const double omega = 1.4;
 
-/// General product operator: x -> A(x)+B(x)
-class SumOperator : public Operator
-{
-   const Operator *A, *B;
-   bool ownA, ownB;
-   mutable Vector z, w;
-   double cA, cB;
-
-public:
-   SumOperator(const Operator *A_, const Operator *B_,
-               bool ownA_, bool ownB_, double cA_, double cB_)
-      : Operator(A_->Height(), B_->Width()),
-        A(A_), B(B_), ownA(ownA_), ownB(ownB_), z(A_->Height()), w(A_->Width()),
-        cA(cA_), cB(cB_)
-   {
-      MFEM_VERIFY(A->Width() == B->Width() && A->Height() == B->Height(),
-                  "incompatible Operators: A->Width() = " << A->Width()
-                  << ", B->Height() = " << B->Height());
-
-      z.UseDevice(true);
-      w.UseDevice(true);
-   }
-
-   ~SumOperator()
-   {
-      if (ownA) { delete A; }
-      if (ownB) { delete B; }
-   }
-
-   virtual void Mult(const Vector &x, Vector &y) const
-   { B->Mult(x, z); A->Mult(x, y); y *= cA; z *= cB; y += z;}
-
-   virtual void MultTranspose(const Vector &x, Vector &y) const
-   { B->MultTranspose(x, w); A->MultTranspose(x, y); y *= cA; w *= cB; y += w;}
-
-};
-
-class Complex_PMHSS : public Solver
-{
-public:
-   Complex_PMHSS(Operator *Re, Operator *Im, Solver *prec_Re, Solver *prec_Im,
-                 double a_)
-      : Solver(2*Re->Height()), a(a_), A(Re, Im, false, false),
-        A_Re(Re, NULL, false, false),
-        A_Im(Im, NULL, false, false), u(2*Re->Height()), rhs(2*Re->Height()),
-        n(Re->Height())
-   {
-      MFEM_VERIFY(Re->Height() == Im->Height() && Re->Height() == Re->Width() &&
-                  Im->Height() == Im->Width(), "");
-      MFEM_VERIFY(this->Height() == A.Height(), "");
-
-      // Create CG solver for real operator aV + A_Re in complex space.
-
-      V = useIdentityV ? (Operator*) new IdentityOperator(this->Height()) :
-          (Operator*) &A_Re;
-
-      // In the case V = A_Re, it is faster to use a scaled operator than a SumOperator
-      Operator *sumOpRe = useIdentityV ? (Operator*) new SumOperator(V, &A_Re, false,
-                                                                     false, a, 1.0)
-                          : (Operator*) new ScaledOperator(&A_Re, a + 1.0);
-
-      SumOperator *sumOpIm = new SumOperator(V, &A_Im, false, false, a, 1.0);
-
-      CGSolver *cg = new CGSolver(MPI_COMM_WORLD);
-      cg->SetRelTol(1e-6);
-      cg->SetMaxIter(1000);
-      cg->SetPrintLevel(0);
-      cg->SetOperator(*sumOpRe);
-      cg->SetPreconditioner(*prec_Re);
-      cg->iterative_mode = false;
-
-      SRe = cg;
-
-      CGSolver *cgi = new CGSolver(MPI_COMM_WORLD);
-      cgi->SetRelTol(1e-6);
-      cgi->SetMaxIter(1000);
-      cgi->SetPrintLevel(0);
-      cgi->SetOperator(*sumOpIm);
-      if (prec_Im && useIdentityV) { cgi->SetPreconditioner(*prec_Im); }
-      if (!useIdentityV) { cgi->SetPreconditioner(*prec_Re); }
-      cgi->iterative_mode = false;
-
-      /*
-      // For negative definite imaginary part, but then PMHSS does not work?
-      MINRESSolver *cgi = new MINRESSolver(MPI_COMM_WORLD);
-      cgi->SetRelTol(1e-12);
-      cgi->SetMaxIter(1000);
-      cgi->SetPrintLevel(0);
-      cgi->SetOperator(*sumOpIm);
-      if (prec_Im) cgi->SetPreconditioner(*prec_Im);
-      */
-
-      SIm = cgi;
-   }
-
-   void SetOperator(const Operator &op)
-   {
-      MFEM_VERIFY(false, "Don't call SetOperator");
-   }
-
-   void ComputeResidual(const Vector &b, const Vector &sol, Vector &res) const
-   {
-      A.Mult(sol, res);
-      res -= b;
-   }
-
-   void Mult(const Vector &x, Vector &y) const
-   {
-      MFEM_VERIFY(x.Size() == Height() && y.Size() == Height(), "");
-
-      const double initNorm = x.Norml2();
-      mfem::out << "MHSS RHS norm " << initNorm << '\n';
-
-      // With V = I, use modified HSS (MHSS) from Bai, Benzi, Chen 2010.
-      y = 0.0;
-
-      for (int it=0; it<maxiter; ++it)
-      {
-         // Solve (aI + Re) u = (aI - i Im) y + x
-
-         if (it == 0)
-         {
-            // Optimize the first iteration, when the initial guess is y=0.
-            SRe->Mult(x, u);
-         }
-         else
-         {
-            A_Im.Mult(y, u);  // u = Im y
-            // Set rhs = -i Im y = -i u
-            for (int j=0; j<n; ++j)
-            {
-               rhs[j] = u[n+j];
-               rhs[n+j] = -u[j];
-            }
-
-            rhs += x;
-
-            V->Mult(y, u);
-            rhs.Add(a, u);
-
-            SRe->Mult(rhs, u);
-         }
-
-         // Solve (aI + Im) y = (aI + i Re) u - i x
-
-         A_Re.Mult(u, y);  // y = Re u
-         // Set rhs = i (Re u - x) = i (y - x)
-         for (int j=0; j<n; ++j)
-         {
-            rhs[j] = -(y[n+j] - x[n+j]);
-            rhs[n+j] = y[j] - x[j];
-         }
-
-         if (useIdentityV)
-         {
-            //V->Mult(u, y);
-            //rhs.Add(a, y);
-            rhs.Add(a, u);
-         }
-         else
-         {
-            // Using V = A_Re
-            rhs.Add(a, y);
-         }
-
-         SIm->Mult(rhs, y);
-
-         ComputeResidual(x, y, rhs);
-         const double resNorm = rhs.Norml2();
-         mfem::out << "MHSS iter " << it << " residual norm " << resNorm << '\n';
-
-         if (resNorm / initNorm < tol)
-         {
-            mfem::out << "MHSS converged\n";
-            break;
-         }
-      }
-   }
-
-private:
-   const double a;
-   const int maxiter = 1;
-   ComplexOperator A, A_Re, A_Im;
-   mutable Vector u, rhs;
-   const int n;
-
-   const double tol = 1.0e-8;
-
-   const bool useIdentityV = false;
-   Operator *V = NULL;
-
-   Solver *SRe = NULL;
-   Solver *SIm = NULL;
-};
 
 int main(int argc, char *argv[])
 {
@@ -338,13 +144,13 @@ int main(int argc, char *argv[])
    //const double imscale = 0.0;
    const double imscale = omega;
 
-   Coefficient *im = new ConstantCoefficient(-imscale);  // im part
+   Coefficient *im = new ConstantCoefficient(imscale);  // im part
    //Coefficient *im = new ConstantCoefficient(0.0);  // im part
 
    VectorFunctionCoefficient E_Re(sdim, E_exact);
    VectorFunctionCoefficient curlE_Re(sdim, curlE_exact);
 
-   ScalarVectorProductCoefficient omegaE(-imscale, E_Re);  // im part
+   ScalarVectorProductCoefficient omegaE(imscale, E_Re);  // im part
    //ScalarVectorProductCoefficient omegaE(0.0, E_Re);  // im part
 
    // 9. Set up the parallel linear form b(.) which corresponds to the
@@ -497,17 +303,39 @@ int main(int argc, char *argv[])
 
       //HypreAMS ams(*A_Re.As<HypreParMatrix>(), fespace);
 
+      // One option is to use the standard real-valued MatrixFreeAMS to precondition
+      // the real part of the complex system in the PMHSS preconditioner (BlockDiagonalPreconditioner).
+      // Another option is to use complex MatrixFreeAMS to precondition the
+      // complex system without PMHSS and without a BlockDiagonalPreconditioner.
+      //#define COMPLEX_AMS
+
 #ifdef MFEM_USE_AMGX
       bool useAmgX = false;
       cout << "Built with AMGX, using AMGX " << useAmgX << endl;
-      MatrixFreeAMS ams(a_Re, *A_Re, *fespace, muinv, abssigma, NULL, ess_bdr,
+      MatrixFreeAMS ams(a_Re, *A_Re, *fespace, muinv, abssigma, im, imabs, NULL,
+                        ess_bdr, useAmgX);
+      MatrixFreeAMS ams(a_Re, *A_Re, *fespace, muinv, abssigma, NULL, NULL, ess_bdr,
                         useAmgX);
+#ifdef COMPLEX_AMS
+      MFEM_VERIFY(false, "TODO");
+#endif
+
 #else
       cout << "Not built with AMGX" << endl;
-      MatrixFreeAMS ams(a_Re, *A_Re, *fespace, muinv, abssigma, NULL, ess_bdr);
+#ifdef COMPLEX_AMS
+      MatrixFreeAMS ams(a_Re, *A_Re, A.Ptr(), *fespace, muinv, abssigma, im, imabs,
+                        NULL, ess_bdr);
+#else
+      MatrixFreeAMS ams(a_Re, *A_Re, NULL, *fespace, muinv, abssigma, NULL, NULL,
+                        NULL, ess_bdr);
+#endif
 #endif
 
 #ifdef COMPLEX_VERSION
+
+#ifdef COMPLEX_AMS
+      //MFEM_VERIFY(false, "TODO");
+#else
       BlockDiagonalPreconditioner BlockDP(offsets);
       BlockDP.SetDiagonalBlock(0, &ams);
       BlockDP.SetDiagonalBlock(1, &ams);
@@ -533,6 +361,7 @@ int main(int argc, char *argv[])
       PMHSSgmres.SetAbsTol(0.0);
       PMHSSgmres.SetOperator(AspdComplex);
       PMHSSgmres.SetPreconditioner(PMHSS);
+#endif
 
       GMRESSolver gmres(MPI_COMM_WORLD);
       gmres.SetPrintLevel(1);
@@ -542,8 +371,14 @@ int main(int argc, char *argv[])
       gmres.SetAbsTol(0.0);
       gmres.SetOperator(*A);
       //gmres.SetPreconditioner(BlockDP);
-      //gmres.SetPreconditioner(PMHSS);
-      gmres.SetPreconditioner(PMHSSgmres);
+#ifdef COMPLEX_AMS
+      //MFEM_VERIFY(false, "TODO");
+      gmres.SetPreconditioner(ams);
+#else
+      gmres.SetPreconditioner(PMHSS);
+      //gmres.SetPreconditioner(PMHSSgmres);
+#endif
+
 #else
       GMRESSolver gmres(MPI_COMM_WORLD);
       gmres.SetPrintLevel(1);
