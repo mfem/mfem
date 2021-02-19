@@ -137,28 +137,6 @@ int FiniteElementSpace::GetElementOrderImpl(int i) const
    return elem_order.Size() ? elem_order[i] : fec->GetOrder();
 }
 
-int FiniteElementSpace::GetEdgeOrder(int edge, int variant) const
-{
-   if (!IsVariableOrder()) { return fec->GetOrder(); }
-
-   const int* beg = var_edge_dofs.GetRow(edge);
-   const int* end = var_edge_dofs.GetRow(edge + 1);
-   if (variant >= end - beg) { return -1; } // past last variant
-
-   return var_edge_orders[var_edge_dofs.GetI()[edge] + variant];
-}
-
-int FiniteElementSpace::GetFaceOrder(int face, int variant) const
-{
-   if (!IsVariableOrder()) { return fec->GetOrder(); }
-
-   const int* beg = var_face_dofs.GetRow(face);
-   const int* end = var_face_dofs.GetRow(face + 1);
-   if (variant >= end - beg) { return -1; } // past last variant
-
-   return var_face_orders[var_face_dofs.GetI()[face] + variant];
-}
-
 void FiniteElementSpace::DofsToVDofs (Array<int> &dofs, int ndofs) const
 {
    if (vdim == 1) { return; }
@@ -2200,6 +2178,17 @@ int FiniteElementSpace::FindDofs(const Table &var_dof_table,
    return 0;
 }
 
+int FiniteElementSpace::GetEdgeOrder(int edge, int variant) const
+{
+   if (!IsVariableOrder()) { return fec->GetOrder(); }
+
+   const int* beg = var_edge_dofs.GetRow(edge);
+   const int* end = var_edge_dofs.GetRow(edge + 1);
+   if (variant >= end - beg) { return -1; } // past last variant
+
+   return var_edge_orders[var_edge_dofs.GetI()[edge] + variant];
+}
+
 int FiniteElementSpace::GetNVariants(int entity, int index) const
 {
    MFEM_ASSERT(IsVariableOrder(), "");
@@ -2650,8 +2639,7 @@ const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
    return fe;
 }
 
-const FiniteElement *FiniteElementSpace
-::GetEdgeElement(int i, int variant) const
+const FiniteElement *FiniteElementSpace::GetEdgeElement(int i, int variant) const
 {
    MFEM_ASSERT(mesh->Dimension() > 1, "No edges with mesh dimension < 2");
 
