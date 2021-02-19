@@ -511,22 +511,21 @@ public:
 
    /// Returns the polynomial degree of the i'th element.
    /** This is normally the same as GetElementOrder(i), except for RT finite
-       element spaces, where the actual degree of the RTp collection is (p+1).*/
+       element spaces, where the actual degree of the RTp collection is p+1.*/
    int GetElementDegree(int i) const { return GetFE(i)->GetOrder(); }
+
+   /** Returns the polynomial degree of the FiniteElement associated with the
+       i'th face. This is normally the same as the order of the FE collection,
+       except for RTp collections, where the actual polynomial degree is p+1.*/
+   int GetFaceDegree(int i) const { return GetFaceElement(i)->GetOrder(); }
 
    /// Returns the polynomial degree of the i'th finite element.
    /** Deprecated: please use @a GetElementDegree instead. */
    MFEM_DEPRECATED int GetOrder(int i) const { return GetElementDegree(i); }
 
-   /// Returns the order of the specified edge.
-   /** In a variable order space, order of the given variant (see @a
-       GetEdgeDofs()) is returned, or -1 if there are no more variants. */
-   int GetEdgeOrder(int edge, int variant = 0) const;
-
-   /// Returns the order of the specified face.
-   /** In a variable order space, order of the given variant (see @a
-       GetEdgeDofs()) is returned, or -1 if there are no more variants. */
-   int GetFaceOrder(int face, int variant = 0) const;
+   /// Returns the polynomial degree of the i'th face finite element
+   /** Deprecated: please use @a GetFaceDegree instead. */
+   MFEM_DEPRECATED int GetFaceOrder(int i) const { return GetFaceDegree(i); }
 
    /// Returns number of degrees of freedom.
    inline int GetNDofs() const { return ndofs; }
@@ -730,7 +729,7 @@ public:
 
    /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection
         associated with i'th edge in the mesh object. */
-   const FiniteElement *GetEdgeElement(int i, int variant = 0) const;
+   const FiniteElement *GetEdgeElement(int i) const;
 
    /// Return the trace element from element 'i' to the given 'geom_type'
    const FiniteElement *GetTraceElement(int i, Geometry::Type geom_type) const;
