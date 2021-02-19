@@ -17,10 +17,13 @@
 #ifdef MFEM_USE_CEED
 #include "../fespacehierarchy.hpp"
 #include "../multigrid.hpp"
-#include "util.h"
+#include "util.hpp"
 #include "operator.hpp"
 
 namespace mfem
+{
+
+namespace ceed
 {
 
 /** @brief A way to use algebraic levels in a Multigrid object
@@ -35,7 +38,7 @@ public:
    int GetOrderReduction() const { return order_reduction; }
    const CeedElemRestriction GetCeedElemRestriction() const { return ceed_elem_restriction; }
    const CeedBasis GetCeedCoarseToFine() const { return coarse_to_fine; }
-   virtual const Operator *GetProlongationMatrix() const override { return NULL; }
+   virtual const mfem::Operator *GetProlongationMatrix() const override { return NULL; }
    virtual const SparseMatrix *GetRestrictionMatrix() const override { return NULL; }
    ~AlgebraicCoarseSpace();
 
@@ -63,7 +66,7 @@ public:
       int order_reduction_,
       GroupCommunicator *gc_fine
    );
-   virtual const Operator *GetProlongationMatrix() const override { return P; }
+   virtual const mfem::Operator *GetProlongationMatrix() const override { return P; }
    virtual const SparseMatrix *GetRestrictionMatrix() const override { return R_mat; }
    GroupCommunicator *GetGroupCommunicator() const { return gc; }
    HypreParMatrix *GetProlongationHypreParMatrix();
@@ -75,6 +78,44 @@ private:
    ConformingProlongationOperator *P;
    HypreParMatrix *P_mat;
    Array<int> ldof_group, ldof_ltdof;
+};
+
+/** @brief Multigrid interpolation operator in Ceed framework
+
+    Interpolation/restriction has two components, an element-wise
+    interpolation and then a scaling to correct multiplicity
+    on shared ldofs. This encapsulates those two in one object
+    using the MFEM Operator interface. */
+class MFEMCeedInterpolation : public mfem::Operator
+{
+public:
+   MFEMCeedInterpolation(
+      Ceed ceed, CeedBasis basisctof,
+      CeedElemRestriction erestrictu_coarse,
+      CeedElemRestriction erestrictu_fine);
+
+   ~MFEMCeedInterpolation();
+
+   virtual void Mult(const mfem::Vector& x, mfem::Vector& y) const;
+
+   virtual void MultTranspose(const mfem::Vector& x, mfem::Vector& y) const;
+
+   using mfem::Operator::SetupRAP;
+private:
+   int Initialize(Ceed ceed, CeedBasis basisctof,
+                  CeedElemRestriction erestrictu_coarse,
+                  CeedElemRestriction erestrictu_fine);
+   int Finalize();
+
+   CeedBasis basisctof_;
+   CeedVector u_, v_;
+
+   bool owns_basis_;
+
+   CeedQFunction qf_restrict, qf_prolong;
+   CeedOperator op_interp, op_restrict;
+   CeedVector fine_multiplicity_r;
+   CeedVector fine_work;
 };
 
 #endif
@@ -129,7 +170,7 @@ public:
       BilinearForm &form,
       const Array<int> &ess_tdofs
    );
-   virtual void SetOperator(const Operator &op) override { }
+   virtual void SetOperator(const mfem::Operator &op) override { }
    ~AlgebraicCeedMultigrid();
 
 private:
@@ -159,8 +200,10 @@ public:
    AlgebraicCeedSolver(BilinearForm &form, const Array<int>& ess_tdofs);
    ~AlgebraicCeedSolver();
    void Mult(const Vector& x, Vector& y) const { multigrid->Mult(x, y); }
-   void SetOperator(const Operator& op) { multigrid->SetOperator(op); }
+   void SetOperator(const mfem::Operator& op) { multigrid->SetOperator(op); }
 };
+
+} // namespace ceed
 
 } // namespace mfem
 

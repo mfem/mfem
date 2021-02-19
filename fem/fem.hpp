@@ -41,7 +41,7 @@
 #include "transfer.hpp"
 #include "fespacehierarchy.hpp"
 #include "multigrid.hpp"
-#include "libceed/algebraic.hpp"
+#include "ceed/algebraic.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"

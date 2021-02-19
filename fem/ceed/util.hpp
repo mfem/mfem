@@ -16,6 +16,7 @@
 #ifdef MFEM_USE_CEED
 #include <ceed.h>
 #include <ceed-hash.h>
+#include <ceed-backend.h>  // for CeedOperatorField (?)
 #endif
 #include <tuple>
 #include <unordered_map>
@@ -75,6 +76,11 @@ void InitBasisAndRestriction(const mfem::FiniteElementSpace &fes,
 
 void InitTensorRestriction(const FiniteElementSpace &fes,
                            Ceed ceed, CeedElemRestriction *restr);
+
+int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field);
+
+int CeedOperatorGetActiveElemRestriction(CeedOperator oper,
+                                         CeedElemRestriction* restr_out);
 
 /// Return the path to the libCEED q-function headers.
 const std::string &GetCeedPath();

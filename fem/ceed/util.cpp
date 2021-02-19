@@ -317,6 +317,77 @@ void InitBasisAndRestriction(const FiniteElementSpace &fes,
    }
 }
 
+/// assumes a tensor-product operator with one active field
+int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field)
+{
+   int ierr;
+   Ceed ceed;
+   ierr = CeedOperatorGetCeed(oper, &ceed); CeedChk(ierr);
+
+   CeedQFunction qf;
+   bool isComposite;
+   ierr = CeedOperatorIsComposite(oper, &isComposite); CeedChk(ierr);
+   CeedOperator *subops;
+   if (isComposite)
+   {
+      ierr = CeedOperatorGetSubList(oper, &subops); CeedChk(ierr);
+      ierr = CeedOperatorGetQFunction(subops[0], &qf); CeedChk(ierr);
+   }
+   else
+   {
+      ierr = CeedOperatorGetQFunction(oper, &qf); CeedChk(ierr);
+   }
+   CeedInt numinputfields, numoutputfields;
+   ierr = CeedQFunctionGetNumArgs(qf, &numinputfields, &numoutputfields);
+   CeedOperatorField *inputfields;
+   if (isComposite)
+   {
+      ierr = CeedOperatorGetFields(subops[0], &inputfields, NULL); CeedChk(ierr);
+   }
+   else
+   {
+      ierr = CeedOperatorGetFields(oper, &inputfields, NULL); CeedChk(ierr);
+   }
+
+   CeedVector if_vector;
+   bool found = false;
+   int found_index = -1;
+   for (int i = 0; i < numinputfields; ++i)
+   {
+      ierr = CeedOperatorFieldGetVector(inputfields[i], &if_vector); CeedChk(ierr);
+      if (if_vector == CEED_VECTOR_ACTIVE)
+      {
+         if (found)
+         {
+            return CeedError(ceed, 1, "Multiple active vectors in CeedOperator!");
+         }
+         found = true;
+         found_index = i;
+      }
+   }
+   if (!found)
+   {
+      return CeedError(ceed, 1, "No active vector in CeedOperator!");
+   }
+   *field = inputfields[found_index];
+
+   return 0;
+}
+
+int CeedOperatorGetActiveElemRestriction(CeedOperator oper,
+                                         CeedElemRestriction* restr_out)
+{
+   int ierr;
+
+   CeedOperatorField active_field;
+   ierr = CeedOperatorGetActiveField(oper, &active_field); CeedChk(ierr);
+   CeedElemRestriction er;
+   ierr = CeedOperatorFieldGetElemRestriction(active_field, &er); CeedChk(ierr);
+   *restr_out = er;
+
+   return 0;
+}
+
 std::string ceed_path;
 
 const std::string &GetCeedPath()

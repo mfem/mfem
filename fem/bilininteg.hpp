@@ -31,10 +31,7 @@ class BilinearFormIntegrator : public NonlinearFormIntegrator
 {
 protected:
    BilinearFormIntegrator(const IntegrationRule *ir = NULL)
-      : NonlinearFormIntegrator(ir), ceedDataPtr(NULL) { }
-
-   // CEED extension
-   CeedData* ceedDataPtr;
+      : NonlinearFormIntegrator(ir) { }
 
 public:
    // TODO: add support for other assembly levels (in addition to PA) and their
@@ -243,10 +240,7 @@ public:
                                     Vector &flux, Vector *d_energy = NULL)
    { return 0.0; }
 
-   /// Resturn the pointer for the Ceed object
-   virtual CeedData * GetCeedData() { return ceedDataPtr; }
-
-   virtual ~BilinearFormIntegrator() { delete ceedDataPtr; }
+   virtual ~BilinearFormIntegrator() { }
 };
 
 /** Wraps a given @a BilinearFormIntegrator and transposes the resulting element
@@ -2043,8 +2037,6 @@ public:
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe);
 
-   void SetupPA(const FiniteElementSpace &fes);
-
    bool SupportsCeed() const { return true; }
 };
 
@@ -2103,8 +2095,6 @@ public:
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
                                          ElementTransformation &Trans);
-
-   void SetupPA(const FiniteElementSpace &fes);
 
    bool SupportsCeed() const { return true; }
 };
@@ -2172,6 +2162,8 @@ public:
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
                                          ElementTransformation &Trans);
+
+   bool SupportsCeed() const { return true; }
 };
 
 // Alias for @ConvectionIntegrator.

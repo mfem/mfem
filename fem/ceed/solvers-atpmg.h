@@ -18,6 +18,12 @@
 
 #include <ceed.h>
 
+namespace mfem
+{
+
+namespace ceed
+{
+
 /** @brief Take given (high-order) CeedElemRestriction and make a new
     CeedElemRestriction, which corresponds to a lower-order problem.
 
@@ -89,6 +95,10 @@ int CeedATPMGBundle(CeedOperator oper, int order_reduction,
                     CeedElemRestriction* er_out,
                     CeedOperator* coarse_oper,
                     CeedInt *&dof_map);
+
+} // namespace ceed
+
+} // namespace mfem
 
 #endif // MFEM_USE_CEED
 

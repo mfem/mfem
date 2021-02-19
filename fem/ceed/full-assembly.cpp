@@ -12,7 +12,13 @@
 #include "full-assembly.hpp"
 
 #ifdef MFEM_USE_CEED
-#include "util.h"
+#include "util.hpp"
+
+namespace mfem
+{
+
+namespace ceed
+{
 
 int CeedHackReallocArray(size_t n, size_t unit, void *p)
 {
@@ -31,9 +37,6 @@ int CeedHackFree(void *p)
    *(void **)p = NULL;
    return 0;
 }
-
-namespace mfem
-{
 
 int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
 {
@@ -313,6 +316,8 @@ int CeedOperatorFullAssemble(CeedOperator op, SparseMatrix **mat)
 
    return 0;
 }
+
+} // namespace ceed
 
 } // namespace mfem
 

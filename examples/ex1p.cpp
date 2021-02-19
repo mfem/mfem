@@ -232,7 +232,7 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_CEED
          if (DeviceCanUseCeed() && algebraic_ceed)
          {
-            prec = new AlgebraicCeedSolver(a, ess_tdof_list);
+            prec = new ceed::AlgebraicCeedSolver(a, ess_tdof_list);
          }
          else
 #endif
