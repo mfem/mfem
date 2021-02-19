@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,8 +14,9 @@
 
 #include "../general/forall.hpp"
 #include "bilinearform.hpp"
-#include "libceed/ceed.hpp"
+#include "pbilinearform.hpp"
 #include "pgridfunc.hpp"
+#include "ceed/util.hpp"
 
 namespace mfem
 {
@@ -821,20 +822,14 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 // Data and methods for fully-assembled bilinear forms
 FABilinearFormExtension::FABilinearFormExtension(BilinearForm *form)
    : EABilinearFormExtension(form),
-     mat(form->FESpace()->GetVSize(),form->FESpace()->GetVSize(),0),
-     face_mat(form->FESpace()->GetVSize(),0,0),
-     use_face_mat(false)
+     mat(a->mat)
 {
 #ifdef MFEM_USE_MPI
-   if ( ParFiniteElementSpace* pfes =
-           dynamic_cast<ParFiniteElementSpace*>(form->FESpace()) )
+   ParFiniteElementSpace *pfes = nullptr;
+   if ( a->GetFBFI()->Size()>0 &&
+        (pfes = dynamic_cast<ParFiniteElementSpace*>(form->FESpace())) )
    {
-      if (pfes->IsDGSpace())
-      {
-         use_face_mat = true;
-         pfes->ExchangeFaceNbrData();
-         face_mat.SetWidth(pfes->GetFaceNbrVSize());
-      }
+      pfes->ExchangeFaceNbrData();
    }
 #endif
 }
@@ -843,111 +838,225 @@ void FABilinearFormExtension::Assemble()
 {
    EABilinearFormExtension::Assemble();
    FiniteElementSpace &fes = *a->FESpace();
-   if (fes.IsDGSpace())
+   int width = fes.GetVSize();
+   int height = fes.GetVSize();
+   bool keep_nbr_block = false;
+#ifdef MFEM_USE_MPI
+   ParFiniteElementSpace *pfes = nullptr;
+   if ( a->GetFBFI()->Size()>0 &&
+        (pfes = dynamic_cast<ParFiniteElementSpace*>(&fes)) )
    {
-      const L2ElementRestriction *restE =
-         static_cast<const L2ElementRestriction*>(elem_restrict);
-      const L2FaceRestriction *restF =
-         static_cast<const L2FaceRestriction*>(int_face_restrict_lex);
-      // 1. Fill I
-      //  1.1 Increment with restE
-      restE->FillI(mat);
-      //  1.2 Increment with restF
-      if (restF) { restF->FillI(mat, face_mat); }
-      //  1.3 Sum the non-zeros in I
-      auto h_I = mat.HostReadWriteI();
-      int cpt = 0;
-      const int vd = fes.GetVDim();
-      const int ndofs = ne*elemDofs*vd;
-      for (int i = 0; i < ndofs; i++)
+      pfes->ExchangeFaceNbrData();
+      width += pfes->GetFaceNbrVSize();
+      dg_x.SetSize(width);
+      ParBilinearForm *pb = nullptr;
+      if ((pb = dynamic_cast<ParBilinearForm*>(a)) && (pb->keep_nbr_block))
       {
-         const int nnz = h_I[i];
-         h_I[i] = cpt;
-         cpt += nnz;
-      }
-      const int nnz = cpt;
-      h_I[ndofs] = nnz;
-      mat.GetMemoryJ().New(nnz, mat.GetMemoryJ().GetMemoryType());
-      mat.GetMemoryData().New(nnz, mat.GetMemoryData().GetMemoryType());
-      if (use_face_mat && restF)
-      {
-         auto h_I_face = face_mat.HostReadWriteI();
-         int cpt = 0;
-         for (int i = 0; i < ndofs; i++)
-         {
-            const int nnz = h_I_face[i];
-            h_I_face[i] = cpt;
-            cpt += nnz;
-         }
-         const int nnz_face = cpt;
-         h_I_face[ndofs] = nnz_face;
-         face_mat.GetMemoryJ().New(nnz_face,
-                                   face_mat.GetMemoryJ().GetMemoryType());
-         face_mat.GetMemoryData().New(nnz_face,
-                                      face_mat.GetMemoryData().GetMemoryType());
-      }
-      // 2. Fill J and Data
-      // 2.1 Fill J and Data with Elem ea_data
-      restE->FillJAndData(ea_data, mat);
-      // 2.2 Fill J and Data with Face ea_data_ext
-      if (restF) { restF->FillJAndData(ea_data_ext, mat, face_mat); }
-      // 2.3 Shift indirections in I back to original
-      auto I = mat.HostReadWriteI();
-      for (int i = ndofs; i > 0; i--)
-      {
-         I[i] = I[i-1];
-      }
-      I[0] = 0;
-      if (use_face_mat && restF)
-      {
-         auto I_face = face_mat.HostReadWriteI();
-         for (int i = ndofs; i > 0; i--)
-         {
-            I_face[i] = I_face[i-1];
-         }
-         I_face[0] = 0;
+         height += pfes->GetFaceNbrVSize();
+         dg_y.SetSize(height);
+         keep_nbr_block = true;
       }
    }
-   else // continuous Galerkin case
+#endif
+   if (a->mat) // We reuse the sparse matrix memory
    {
-      const ElementRestriction &rest =
-         static_cast<const ElementRestriction&>(*elem_restrict);
-      rest.FillSparseMatrix(ea_data, mat);
+      if (fes.IsDGSpace())
+      {
+         const L2ElementRestriction *restE =
+            static_cast<const L2ElementRestriction*>(elem_restrict);
+         const L2FaceRestriction *restF =
+            static_cast<const L2FaceRestriction*>(int_face_restrict_lex);
+         // 1. Fill J and Data
+         // 1.1 Fill J and Data with Elem ea_data
+         restE->FillJAndData(ea_data, *mat);
+         // 1.2 Fill J and Data with Face ea_data_ext
+         if (restF) { restF->FillJAndData(ea_data_ext, *mat, keep_nbr_block); }
+         // 1.3 Shift indirections in I back to original
+         auto I = mat->HostReadWriteI();
+         for (int i = height; i > 0; i--)
+         {
+            I[i] = I[i-1];
+         }
+         I[0] = 0;
+      }
+      else
+      {
+         const ElementRestriction &rest =
+            static_cast<const ElementRestriction&>(*elem_restrict);
+         rest.FillJAndData(ea_data, *mat);
+      }
+   }
+   else // We create, compute the sparsity, and fill the sparse matrix
+   {
+      mat = new SparseMatrix(height, width, 0);
+      if (fes.IsDGSpace())
+      {
+         const L2ElementRestriction *restE =
+            static_cast<const L2ElementRestriction*>(elem_restrict);
+         const L2FaceRestriction *restF =
+            static_cast<const L2FaceRestriction*>(int_face_restrict_lex);
+         // 1. Fill I
+         mat->GetMemoryI().New(height+1, mat->GetMemoryI().GetMemoryType());
+         //  1.1 Increment with restE
+         restE->FillI(*mat);
+         //  1.2 Increment with restF
+         if (restF) { restF->FillI(*mat, keep_nbr_block); }
+         //  1.3 Sum the non-zeros in I
+         auto h_I = mat->HostReadWriteI();
+         int cpt = 0;
+         for (int i = 0; i < height; i++)
+         {
+            const int nnz = h_I[i];
+            h_I[i] = cpt;
+            cpt += nnz;
+         }
+         const int nnz = cpt;
+         h_I[height] = nnz;
+         mat->GetMemoryJ().New(nnz, mat->GetMemoryJ().GetMemoryType());
+         mat->GetMemoryData().New(nnz, mat->GetMemoryData().GetMemoryType());
+         // 2. Fill J and Data
+         // 2.1 Fill J and Data with Elem ea_data
+         restE->FillJAndData(ea_data, *mat);
+         // 2.2 Fill J and Data with Face ea_data_ext
+         if (restF) { restF->FillJAndData(ea_data_ext, *mat, keep_nbr_block); }
+         // 2.3 Shift indirections in I back to original
+         auto I = mat->HostReadWriteI();
+         for (int i = height; i > 0; i--)
+         {
+            I[i] = I[i-1];
+         }
+         I[0] = 0;
+      }
+      else // continuous Galerkin case
+      {
+         const ElementRestriction &rest =
+            static_cast<const ElementRestriction&>(*elem_restrict);
+         rest.FillSparseMatrix(ea_data, *mat);
+      }
+      a->mat = mat;
+   }
+}
+
+void FABilinearFormExtension::DGMult(const Vector &x, Vector &y) const
+{
+#ifdef MFEM_USE_MPI
+   const ParFiniteElementSpace *pfes;
+   if ( (pfes = dynamic_cast<const ParFiniteElementSpace*>(testFes)) )
+   {
+      // DG Prolongation
+      ParGridFunction x_gf;
+      x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(pfes),
+                   const_cast<Vector&>(x),0);
+      x_gf.ExchangeFaceNbrData();
+      Vector &shared_x = x_gf.FaceNbrData();
+      const int local_size = a->FESpace()->GetVSize();
+      auto dg_x_ptr = dg_x.Write();
+      auto x_ptr = x.Read();
+      MFEM_FORALL(i,local_size,
+      {
+         dg_x_ptr[i] = x_ptr[i];
+      });
+      const int shared_size = shared_x.Size();
+      auto shared_x_ptr = shared_x.Read();
+      MFEM_FORALL(i,shared_size,
+      {
+         dg_x_ptr[local_size+i] = shared_x_ptr[i];
+      });
+      ParBilinearForm *pform = nullptr;
+      if ((pform = dynamic_cast<ParBilinearForm*>(a)) && (pform->keep_nbr_block))
+      {
+         mat->Mult(dg_x, dg_y);
+         // DG Restriction
+         auto dg_y_ptr = dg_y.Read();
+         auto y_ptr = y.ReadWrite();
+         MFEM_FORALL(i,local_size,
+         {
+            y_ptr[i] += dg_y_ptr[i];
+         });
+      }
+      else
+      {
+         mat->Mult(dg_x, y);
+      }
+   }
+   else
+#endif
+   {
+      mat->Mult(x, y);
    }
 }
 
 void FABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
-   mat.Mult(x, y);
-#ifdef MFEM_USE_MPI
-   if (const ParFiniteElementSpace *pfes =
-          dynamic_cast<const ParFiniteElementSpace*>(testFes))
+   if ( a->GetFBFI()->Size()>0 )
    {
+      DGMult(x, y);
+   }
+   else
+   {
+      mat->Mult(x, y);
+   }
+}
+
+void FABilinearFormExtension::DGMultTranspose(const Vector &x, Vector &y) const
+{
+#ifdef MFEM_USE_MPI
+   const ParFiniteElementSpace *pfes;
+   if ( (pfes = dynamic_cast<const ParFiniteElementSpace*>(testFes)) )
+   {
+      // DG Prolongation
       ParGridFunction x_gf;
       x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(pfes),
                    const_cast<Vector&>(x),0);
       x_gf.ExchangeFaceNbrData();
       Vector &shared_x = x_gf.FaceNbrData();
-      if (shared_x.Size()) { face_mat.AddMult(shared_x, y); }
+      const int local_size = a->FESpace()->GetVSize();
+      auto dg_x_ptr = dg_x.Write();
+      auto x_ptr = x.Read();
+      MFEM_FORALL(i,local_size,
+      {
+         dg_x_ptr[i] = x_ptr[i];
+      });
+      const int shared_size = shared_x.Size();
+      auto shared_x_ptr = shared_x.Read();
+      MFEM_FORALL(i,shared_size,
+      {
+         dg_x_ptr[local_size+i] = shared_x_ptr[i];
+      });
+      ParBilinearForm *pb = nullptr;
+      if ((pb = dynamic_cast<ParBilinearForm*>(a)) && (pb->keep_nbr_block))
+      {
+         mat->MultTranspose(dg_x, dg_y);
+         // DG Restriction
+         auto dg_y_ptr = dg_y.Read();
+         auto y_ptr = y.ReadWrite();
+         MFEM_FORALL(i,local_size,
+         {
+            y_ptr[i] += dg_y_ptr[i];
+         });
+      }
+      else
+      {
+         mat->MultTranspose(dg_x, y);
+      }
    }
+   else
 #endif
+   {
+      mat->MultTranspose(x, y);
+   }
 }
 
 void FABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 {
-   mat.MultTranspose(x, y);
-#ifdef MFEM_USE_MPI
-   if (const ParFiniteElementSpace *pfes =
-          dynamic_cast<const ParFiniteElementSpace*>(testFes))
+   if ( a->GetFBFI()->Size()>0 )
    {
-      ParGridFunction x_gf;
-      x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(pfes),
-                   const_cast<Vector&>(x),0);
-      x_gf.ExchangeFaceNbrData();
-      Vector &shared_x = x_gf.FaceNbrData();
-      if (shared_x.Size()) { face_mat.AddMultTranspose(shared_x, y); }
+      DGMultTranspose(x, y);
    }
-#endif
+   else
+   {
+      mat->MultTranspose(x, y);
+   }
 }
 
 
