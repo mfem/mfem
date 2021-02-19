@@ -5,8 +5,10 @@
 // Sample runs:  ex28p
 //               ex28p --visit-datafiles
 //               ex28p --order 4
+//               ex28p --penalty 1e+5
 //
 //               mpirun -np 4 ex28p
+//               mpirun -np 4 ex28p --penalty 1e+5
 //
 // Description:  Demonstrates a sliding boundary condition in an elasticity
 //               problem. A trapezoid, roughly as pictured below, is pushed
@@ -88,6 +90,7 @@ int main(int argc, char *argv[])
    bool reorder_space = false;
    double offset = 0.3;
    bool visit = false;
+   double penalty = 0.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
@@ -102,6 +105,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
                   "--no-visit-datafiles",
                   "Save data files for VisIt (visit.llnl.gov) visualization.");
+   args.AddOption(&penalty, "-p", "--penalty",
+                  "Penalty parameter; 0 means use elimination solver.");
    args.Parse();
    if (!args.Good())
    {
@@ -269,9 +274,19 @@ int main(int argc, char *argv[])
    // 14. Define and apply a parallel PCG solver for the constrained system
    //     where the normal boundary constraints have been separately eliminated
    //     from the system.
-   EliminationCGSolver * solver = new EliminationCGSolver(A, *local_constraints,
-                                                          constraint_rowstarts,
-                                                          dim, reorder_space);
+   ConstrainedSolver * solver;
+   if (penalty == 0.0)
+   {
+      solver = new EliminationCGSolver(A, *local_constraints,
+                                       constraint_rowstarts, dim,
+                                       reorder_space);
+   }
+   else
+   {
+      solver = new PenaltyPCGSolver(A, *local_constraints, penalty,
+                                    dim, reorder_space);
+   }
+      
    solver->SetRelTol(1e-8);
    solver->SetMaxIter(500);
    solver->SetPrintLevel(1);
