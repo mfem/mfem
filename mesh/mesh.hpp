@@ -505,6 +505,9 @@ public:
    /// Move assignment operstor.
    Mesh& operator=(Mesh &&mesh);
 
+   /// Explicitly delete the copy assignment operator.
+   Mesh& operator=(Mesh &mesh) = delete;
+
    /** @name Named mesh constructors.
 
        Each of these constructors uses the move constructor, and can be used as
