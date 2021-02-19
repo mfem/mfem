@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -468,6 +468,25 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
       fe->CalcVShape(T, vshape);
       val.SetSize(spaceDim);
       vshape.MultTranspose(loc_data, val);
+   }
+}
+
+void ParGridFunction::GetElementDofValues(int el, Vector &dof_vals) const
+{
+   int ne = fes->GetNE();
+   if (el >= ne)
+   {
+      MFEM_ASSERT(face_nbr_data.Size() > 0,
+                  "ParGridFunction::GetElementDofValues: ExchangeFaceNbrData "
+                  "must be called before accessing face neighbor elements.");
+      // Face neighbor element
+      Array<int> dof_idx;
+      pfes->GetFaceNbrElementVDofs(el - ne, dof_idx);
+      face_nbr_data.GetSubVector(dof_idx, dof_vals);
+   }
+   else
+   {
+      GridFunction::GetElementDofValues(el, dof_vals);
    }
 }
 
