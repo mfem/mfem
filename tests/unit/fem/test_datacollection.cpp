@@ -28,10 +28,9 @@ TEST_CASE("Save and load from collections", "[DataCollection]")
    {
       std::cout<<"Testing VisIt data files"<<std::endl;
       //Set up a small mesh and a couple of grid function on that mesh
-      Mesh *mesh = new Mesh(Mesh::MakeCartesian2D(2, 3, Element::QUADRILATERAL, 0,
-                                                  2.0, 3.0));
+      Mesh mesh = Mesh::MakeCartesian2D(2, 3, Element::QUADRILATERAL, 0, 2.0, 3.0);
       FiniteElementCollection *fec = new LinearFECollection;
-      FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+      FiniteElementSpace *fespace = new FiniteElementSpace(&mesh, fec);
       GridFunction *u = new GridFunction(fespace);
       GridFunction *v = new GridFunction(fespace);
 
@@ -44,7 +43,7 @@ TEST_CASE("Save and load from collections", "[DataCollection]")
 
       int intOrder = 3;
 
-      QuadratureSpace *qspace = new QuadratureSpace(mesh, intOrder);
+      QuadratureSpace *qspace = new QuadratureSpace(&mesh, intOrder);
       QuadratureFunction *qs = new QuadratureFunction(qspace, 1);
       QuadratureFunction *qv = new QuadratureFunction(qspace, 2);
 
@@ -62,14 +61,14 @@ TEST_CASE("Save and load from collections", "[DataCollection]")
          std::cout<<"Testing uncompressed MFEM format"<<std::endl;
 
          //Collect the mesh and grid functions into a DataCollection and test that they got in there
-         VisItDataCollection dc("base", mesh);
+         VisItDataCollection dc("base", &mesh);
          dc.RegisterField("u", u);
          dc.RegisterField("v", v);
          dc.RegisterQField("qs",qs);
          dc.RegisterQField("qv",qv);
          dc.SetCycle(5);
          dc.SetTime(8.0);
-         REQUIRE(dc.GetMesh() == mesh );
+         REQUIRE(dc.GetMesh() == &mesh);
          bool has_u = dc.HasField("u");
          REQUIRE(has_u);
          bool has_v = dc.HasField("v");
@@ -109,11 +108,11 @@ TEST_CASE("Save and load from collections", "[DataCollection]")
 
          //Compare the new new mesh with the old mesh
          //(Just a basic comparison here, a full comparison should be done in Mesh unit testing)
-         REQUIRE(mesh->Dimension() == mesh_new->Dimension());
-         REQUIRE(mesh->SpaceDimension() == mesh_new->SpaceDimension());
+         REQUIRE(mesh.Dimension() == mesh_new->Dimension());
+         REQUIRE(mesh.SpaceDimension() == mesh_new->SpaceDimension());
 
          Vector vert, vert_diff;
-         mesh->GetVertices(vert);
+         mesh.GetVertices(vert);
          mesh_new->GetVertices(vert_diff);
          vert_diff -= vert;
          REQUIRE(vert_diff.Normlinf() < 1e-10);
@@ -150,14 +149,14 @@ TEST_CASE("Save and load from collections", "[DataCollection]")
          std::cout<<"Testing compressed MFEM format"<<std::endl;
 
          //Collect the mesh and grid functions into a DataCollection and test that they got in there
-         VisItDataCollection dc("base", mesh);
+         VisItDataCollection dc("base", &mesh);
          dc.RegisterField("u", u);
          dc.RegisterField("v", v);
          dc.RegisterQField("qs",qs);
          dc.RegisterQField("qv",qv);
          dc.SetCycle(5);
          dc.SetTime(8.0);
-         REQUIRE(dc.GetMesh() == mesh );
+         REQUIRE(dc.GetMesh() == &mesh);
          bool has_u = dc.HasField("u");
          REQUIRE(has_u);
          bool has_v = dc.HasField("v");
@@ -177,7 +176,7 @@ TEST_CASE("Save and load from collections", "[DataCollection]")
          VisItDataCollection dc_new("base");
          dc_new.SetPadDigits(5);
          dc_new.Load(dc.GetCycle());
-         Mesh* mesh_new = dc_new.GetMesh();
+         Mesh *mesh_new = dc_new.GetMesh();
          GridFunction *u_new = dc_new.GetField("u");
          GridFunction *v_new = dc_new.GetField("v");
          QuadratureFunction *qs_new = dc_new.GetQField("qs");
@@ -198,11 +197,11 @@ TEST_CASE("Save and load from collections", "[DataCollection]")
 
          //Compare the new new mesh with the old mesh
          //(Just a basic comparison here, a full comparison should be done in Mesh unit testing)
-         REQUIRE(mesh->Dimension() == mesh_new->Dimension());
-         REQUIRE(mesh->SpaceDimension() == mesh_new->SpaceDimension());
+         REQUIRE(mesh.Dimension() == mesh_new->Dimension());
+         REQUIRE(mesh.SpaceDimension() == mesh_new->SpaceDimension());
 
          Vector vert, vert_diff;
-         mesh->GetVertices(vert);
+         mesh.GetVertices(vert);
          mesh_new->GetVertices(vert_diff);
          vert_diff -= vert;
          REQUIRE(vert_diff.Normlinf() < 1e-10);
