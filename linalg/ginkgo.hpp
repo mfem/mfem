@@ -358,7 +358,8 @@ public:
     */
    GinkgoExecutor(ExecType exec_type);
 
-   /** Constructor.
+   /**
+    * Constructor.
     * Takes an MFEM @p Device object and creates an Executor
     * that "matches" (e.g., if MFEM is using the CPU, Ginkgo
     * will choose the OmpExecutor; if MFEM is using CUDA,
@@ -533,6 +534,16 @@ public:
     */
    virtual void Mult(const Vector &x, Vector &y) const;
 
+   /**
+    * Return whether this GinkgoIterativeSolver object will use
+    * VectorWrapper types for input and output vectors.
+    * Note that Mult() will automatically create these wrappers if needed.
+    */
+   bool UsesVectorWrappers() const
+   {
+      return this->needs_wrapped_vecs;
+   };
+
 protected:
    int print_lvl;
    int max_iter;
@@ -578,6 +589,11 @@ protected:
     * and more details can be found in Ginkgo's documentation.
     */
    std::shared_ptr<gko::Executor> executor;
+
+   /**
+    * Whether or not we need to use VectorWrapper types with this solver.
+    */
+   bool needs_wrapped_vecs;
 
 private:
    /**

@@ -128,6 +128,8 @@ GinkgoIterativeSolver::GinkgoIterativeSolver(
                      .with_max_iters(max_iter)
                      .on(executor))
       .on(executor);
+
+   needs_wrapped_vecs = false;
 }
 
 void
@@ -164,7 +166,6 @@ void OperatorWrapper::apply_impl(const gko::LinOp *alpha,
    VectorWrapper *mfem_x = gko::as<VectorWrapper>(x);
 
    // Check that alpha and beta are Dense<double> of size (1,1):
-   // TODO: replace with MFEM error checking...?
    if (alpha->get_size()[0] > 1 || alpha->get_size()[1] > 1)
    {
       throw gko::BadDimension(
@@ -248,31 +249,31 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
    {
       on_device = true;
    }
-   //   std::unique_ptr<vec> gko_x;
-   //   std::unique_ptr<vec> gko_y;
-   vec *gko_x;
-   vec *gko_y;
+   std::unique_ptr<vec> gko_x;
+   std::unique_ptr<vec> gko_y;
 
-   /*   if(dynamic_cast<SparseMatrix*>(system_oper.get()))
-      {
-         gko_x = vec::create(executor, gko::dim<2>(x.Size(), 1),
-                             gko::Array<double>::view(executor,
-                                                      x.Size(), const_cast<double *>(
-                                                         x.Read(on_device))), 1);
-         gko_y = vec::create(executor, gko::dim<2>(y.Size(), 1),
-                             gko::Array<double>::view(executor,
-                                                      y.Size(), y.ReadWrite(on_device)), 1);
-      }
-      else // wrapped MFEM operator; need wrapped vectors TEST */
+   // If we do not have an OperatorWrapper for the system operator or
+   // preconditioner, or have an inner solver using VectorWrappers (as
+   // for IR), then directly create Ginkgo vectors from MFEM's data.
+   if (!needs_wrapped_vecs)
    {
-      //      gko_x = std::unique_ptr<vec>(new VectorWrapper(executor, x.Size(),
-      //                                                     const_cast<Vector *>(&x), on_device, false));
-      //      gko_y = std::unique_ptr<vec>(new VectorWrapper(executor, y.Size(), &y,
-      //                                                     on_device, false));
-      gko_x = new VectorWrapper(executor, x.Size(),
-                                const_cast<Vector *>(&x), on_device, false);
-      gko_y = new VectorWrapper(executor, y.Size(), &y,
-                                on_device, false);
+      gko_x = vec::create(executor, gko::dim<2>(x.Size(), 1),
+                          gko::Array<double>::view(executor,
+                                                   x.Size(), const_cast<double *>(
+                                                      x.Read(on_device))), 1);
+      gko_y = vec::create(executor, gko::dim<2>(y.Size(), 1),
+                          gko::Array<double>::view(executor,
+                                                   y.Size(),
+                                                   y.ReadWrite(on_device)), 1);
+   }
+   else // We have at least one wrapped MFEM operator; need wrapped vectors
+   {
+      gko_x = std::unique_ptr<vec>(
+                 new VectorWrapper(executor, x.Size(),
+                                   const_cast<Vector *>(&x), on_device, false));
+      gko_y = std::unique_ptr<vec>(
+                 new VectorWrapper(executor, y.Size(), &y,
+                                   on_device, false));
    }
 
    // Create the logger object to log some data from the solvers to confirm
@@ -401,6 +402,7 @@ void GinkgoIterativeSolver::SetOperator(const Operator &op)
    }
    else
    {
+      needs_wrapped_vecs = true;
       system_oper = std::shared_ptr<OperatorWrapper>(
                        new OperatorWrapper(executor, op.Height(), &op));
    }
@@ -442,6 +444,11 @@ CGSolver::CGSolver(
                          .with_generated_preconditioner(
                             preconditioner.GetGeneratedPreconditioner())
                          .on(this->executor);
+      if (dynamic_cast<const OperatorWrapper*>(preconditioner.
+                                               GetGeneratedPreconditioner().get()))
+      {
+         this->needs_wrapped_vecs = true;
+      }
    }
    else // Pass a preconditioner factory (will use same matrix as the solver)
    {
@@ -489,6 +496,11 @@ BICGSTABSolver::BICGSTABSolver(
                          .with_generated_preconditioner(
                             preconditioner.GetGeneratedPreconditioner())
                          .on(this->executor);
+      if (dynamic_cast<const OperatorWrapper*>(preconditioner.
+                                               GetGeneratedPreconditioner().get()))
+      {
+         this->needs_wrapped_vecs = true;
+      }
    }
    else
    {
@@ -535,6 +547,11 @@ CGSSolver::CGSSolver(
                          .with_generated_preconditioner(
                             preconditioner.GetGeneratedPreconditioner())
                          .on(this->executor);
+      if (dynamic_cast<const OperatorWrapper*>(preconditioner.
+                                               GetGeneratedPreconditioner().get()))
+      {
+         this->needs_wrapped_vecs = true;
+      }
    }
    else
    {
@@ -581,6 +598,11 @@ FCGSolver::FCGSolver(
                          .with_generated_preconditioner(
                             preconditioner.GetGeneratedPreconditioner())
                          .on(this->executor);
+      if (dynamic_cast<const OperatorWrapper*>(preconditioner.
+                                               GetGeneratedPreconditioner().get()))
+      {
+         this->needs_wrapped_vecs = true;
+      }
    }
    else
    {
@@ -636,6 +658,11 @@ GMRESSolver::GMRESSolver(
                             .with_generated_preconditioner(
                                preconditioner.GetGeneratedPreconditioner())
                             .on(this->executor);
+         if (dynamic_cast<const OperatorWrapper*>(preconditioner.
+                                                  GetGeneratedPreconditioner().get()))
+         {
+            this->needs_wrapped_vecs = true;
+         }
       }
       else
       {
@@ -655,6 +682,11 @@ GMRESSolver::GMRESSolver(
                             .with_generated_preconditioner(
                                preconditioner.GetGeneratedPreconditioner())
                             .on(this->executor);
+         if (dynamic_cast<const OperatorWrapper*>(preconditioner.
+                                                  GetGeneratedPreconditioner().get()))
+         {
+            this->needs_wrapped_vecs = true;
+         }
       }
       else
       {
@@ -700,6 +732,10 @@ IRSolver::IRSolver(
                       .with_criteria(this->combined_factory)
                       .with_solver(inner_solver.GetFactory())
                       .on(this->executor);
+   if (inner_solver.UsesVectorWrappers())
+   {
+      this->needs_wrapped_vecs = true;
+   }
 }
 
 /* --------------------------------------------------------------- */
