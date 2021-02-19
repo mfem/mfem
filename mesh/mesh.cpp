@@ -3256,6 +3256,16 @@ Mesh& Mesh::operator=(Mesh &&mesh)
    return *this;
 }
 
+Mesh Mesh::LoadFromFile(const char *filename, int generate_edges, int refine,
+                        bool fix_orientation)
+{
+   Mesh mesh;
+   named_ifgzstream imesh(filename);
+   if (!imesh) { MFEM_ABORT("Mesh file not found: " << filename << '\n'); }
+   else { mesh.Load(imesh, generate_edges, refine, fix_orientation); }
+   return mesh;
+}
+
 Mesh Mesh::MakeCartesian1D(int n, double sx)
 {
    Mesh mesh;
