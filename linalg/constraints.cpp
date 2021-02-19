@@ -353,7 +353,8 @@ void PenaltyConstrainedSolver::Initialize(HypreParMatrix& A, HypreParMatrix& B)
    HypreParMatrix * hBTB = ParMult(hBT, &B, true);
    // this matrix doesn't get cleanly deleted?
    // (hypre comm pkg)
-   penalized_mat = Add(1.0, A, penalty, *hBTB);
+   (*hBTB) *= penalty;
+   penalized_mat = ParAdd(&A, hBTB);
    delete hBTB;
    delete hBT;
 }
@@ -366,10 +367,28 @@ PenaltyConstrainedSolver::PenaltyConstrainedSolver(
    constraintB(B),
    prec(nullptr)
 {
-   HYPRE_Int hB_row_starts[2] = {0, B.Height()};
-   HYPRE_Int hB_col_starts[2] = {0, B.Width()};
-   HypreParMatrix hB(A.GetComm(), B.Height(), B.Width(),
-                     hB_row_starts, hB_col_starts, &B);
+   int rank, size;
+   MPI_Comm_rank(A.GetComm(), &rank);
+   MPI_Comm_size(A.GetComm(), &size);
+
+   int constraint_running_total = 0;
+   int local_constraints = B.Height();
+   MPI_Scan(&local_constraints, &constraint_running_total, 1, MPI_INT,
+            MPI_SUM, A.GetComm());
+   int global_constraints = 0;
+   if (rank == size - 1) { global_constraints = constraint_running_total; }
+   MPI_Bcast(&global_constraints, 1, MPI_INT, size - 1, A.GetComm());
+
+   HYPRE_Int glob_num_rows = global_constraints;
+   HYPRE_Int glob_num_cols = A.N();
+   HYPRE_Int row_starts[2] = {constraint_running_total - local_constraints,
+                              constraint_running_total
+                             };
+   HYPRE_Int col_starts[2] = {A.ColPart()[0], A.ColPart()[1]};
+   HypreParMatrix hB(A.GetComm(), glob_num_rows, glob_num_cols,
+                     row_starts, col_starts, &B);
+   hB.CopyRowStarts();
+   hB.CopyColStarts();
    Initialize(A, hB);
 }
 
