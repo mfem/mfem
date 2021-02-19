@@ -363,7 +363,6 @@ int main(int argc, char *argv[])
       finder.Interpolate(vxyz, color_array, *u_gf, interp_vals);
       if (color == 1)
       {
-         interp_vals *= 10;
          *u_gf = interp_vals;
          adv_gf_c.SetGridFunction(u_gf);
          coper->SetParameters(adv_gf_c);
@@ -449,9 +448,9 @@ ConductionOperator::ConductionOperator(ParFiniteElementSpace &f, double al,
    // Dirichlet boundary condition on inlet and isothermal section of wall.
    ess_bdr = 0;
    ess_bdr[0] = 1; //inlet
-   ess_bdr[1] = 1; //isothermal section of bottom wall
+   ess_bdr[1] = 1; //homogeneous isothermal section of bottom wall
    ess_bdr[2] = 0; //top wall
-   ess_bdr[3] = 0; //non-isothermal section of bottom wall
+   ess_bdr[3] = 0; //inhomogeneous isothermal section of bottom wall
    f.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    M = new ParBilinearForm(&fespace);
