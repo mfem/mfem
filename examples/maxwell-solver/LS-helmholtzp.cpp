@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
    bool visualization = 1;
    int sr = 1;
    int pr = 1;
-   double rnum;
+   double rnum=1.0;
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -59,6 +59,8 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
+
+
 
    omega = 2.0 * M_PI * rnum;
 
