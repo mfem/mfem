@@ -156,7 +156,6 @@ int main(int argc, char *argv[])
 
    for (int l = 0; l <= pr; l++)
    {
-
       Array<int> ess_tdof_list;
       Array<int> ess_bdr;
       if (pmesh->bdr_attributes.Size())
@@ -244,29 +243,42 @@ int main(int argc, char *argv[])
       else
       {
          prec = new HypreADS(*A_vu,RTfespace);
-         dynamic_cast<HypreAMS *>(prec)->SetPrintLevel(0);
+         dynamic_cast<HypreADS *>(prec)->SetPrintLevel(0);
       }
 
       BlockDiagonalPreconditioner M(block_trueOffsets);
+      // BlockDiagonalMultiplicativePreconditioner M(block_trueOffsets);
+      // M.SetOperator(*A);
       M.SetDiagonalBlock(0,&amg_p);
-      M.SetDiagonalBlock(1,prec);
+      ScaledOperator S(prec,1.0);
+      M.SetDiagonalBlock(1,&S);
 
-      // PCG(*A,M,trueRhs,trueX,1,1000,1e-12,0.0);
+      StopWatch chrono;
+      chrono.Clear();
+      chrono.Start();
+      // GMRESSolver cg(MPI_COMM_WORLD);
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-6);
+      // cg.SetAbsTol(1e-6);
       cg.SetMaxIter(2000);
       cg.SetPrintLevel(1);
       cg.SetPreconditioner(M);
       cg.SetOperator(*A);
       cg.Mult(trueRhs, trueX);
       delete prec;
+      chrono.Stop();
+      cout << "PCG time " << chrono.RealTime() << endl;
 
-      // MUMPSSolver mumps;
-      // mumps.SetPrintLevel(0);
-      // mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
-      // mumps.SetOperator(*A);
-      // mumps.Mult(trueRhs,trueX);
-
+      chrono.Clear();
+      chrono.Start();
+      MUMPSSolver mumps;
+      mumps.SetPrintLevel(0);
+      mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+      mumps.SetOperator(*A);
+      Vector trueY(trueX.Size());
+      mumps.Mult(trueRhs,trueY);
+      chrono.Stop();
+      cout << "MUMPS time " << chrono.RealTime() << endl;
 
 
 
