@@ -18,7 +18,7 @@
 // a point source), or any Coefficient (for the case of a level set). The
 // output is a GridFunction that can be scalar (representing the scalar
 // distance), or a vector (its magnitude is the distance, and its direction is
-// the starting direction of the shortest path). The miniapp support 2 solvers:
+// the starting direction of the shortest path). The miniapp supports 2 solvers:
 //
 // 1. Heat solver:
 //    Crane, Weischedel, Weischedel
@@ -50,6 +50,7 @@
 #include <fstream>
 #include <iostream>
 #include "dist_solver.hpp"
+#include "../common/mfem-common.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -265,31 +266,23 @@ int main(int argc, char *argv[])
       char vishost[] = "localhost";
       int  visport   = 19916;
 
-      socketstream sol_sock_w(vishost, visport);
-      sol_sock_w << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock_w.precision(8);
-      sol_sock_w << "solution\n" << pmesh << input_ls;
-      sol_sock_w << "window_geometry " << 0 << " " << 0 << " "
-                 << size << " " << size << "\n"
-                 << "window_title '" << "Input Level Set" << "'\n" << flush;
+      socketstream sol_sock_w;
+      common::VisualizeField(sol_sock_w, vishost, visport, input_ls,
+                             "Input Level Set", 0, 0, size, size);
 
-      socketstream sol_sock_ds(vishost, visport);
-      sol_sock_ds << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock_ds.precision(8);
-      sol_sock_ds << "solution\n" << pmesh << distance_s;
-      sol_sock_ds << "window_geometry " << size << " " << 0 << " "
-                  << size << " " << size << "\n"
-                  << "window_title '" << "Distance" << "'\n"
-                  << "keys rRjmm********\n" << flush;
+      MPI_Barrier(pmesh.GetComm());
 
-      socketstream sol_sock_dv(vishost, visport);
-      sol_sock_dv << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock_dv.precision(8);
-      sol_sock_dv << "solution\n" << pmesh << distance_v;
-      sol_sock_dv << "window_geometry " << 2*size << " " << 0 << " "
-                  << size << " " << size << "\n"
-                  << "window_title '" << "Directions" << "'\n"
-                  << "keys rRjmm********vve\n" << flush;
+      socketstream sol_sock_ds;
+      common::VisualizeField(sol_sock_ds, vishost, visport, distance_s,
+                             "Distance", size, 0, size, size,
+                             "rRjmm********");
+
+      MPI_Barrier(pmesh.GetComm());
+
+      socketstream sol_sock_dv;
+      common::VisualizeField(sol_sock_dv, vishost, visport, distance_v,
+                             "Directions", 2*size, 0, size, size,
+                             "rRjmm********vve");
    }
 
    // Paraview output.
