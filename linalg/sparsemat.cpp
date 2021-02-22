@@ -39,8 +39,7 @@ void SparseMatrix::InitCuSparse()
 {
    // Initialize cuSPARSE library
 #ifdef MFEM_USE_CUDA
-   SparseMatrixCount++;
-   if (!handle && Device::Allows(Backend::CUDA_MASK))
+   if (Device::Allows(Backend::CUDA_MASK))
    {
       if (!handle) { cusparseCreate(&handle); }
       useCuSparse=true;
