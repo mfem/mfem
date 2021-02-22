@@ -94,10 +94,11 @@ jobs:
       run: |
         cd mfem && make test-noclean
 
-    - name: codecov
-      run: |
-        coveralls --include fem --include general --include linalg --include mesh --exclude /usr --gcov-options '\-lp' --root mfem;
     - name: gitignore
       run: |
         cd mfem/tests/scripts
         ./runtest gitignore
+
+    - name: codecov
+      run: |
+        coveralls --include fem --include general --include linalg --include mesh --exclude /usr --gcov-options '\-lp' --root mfem;
