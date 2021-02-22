@@ -29,9 +29,20 @@ public:
    DistanceSolver() { }
    virtual ~DistanceSolver() { }
 
+   // Computes a scalar ParGridFunction which is the length of the shortest
+   // path to the zero level set of the given Coefficient.
+   // It is expected that [distance] has a valid (scalar) ParFiniteElementSpace,
+   // and the result is computed in the same space.
+   // Some implementations may output a "signed" distance, i.e., the distance
+   // has different signs on both sides of the zeto level set.
    virtual void ComputeScalarDistance(Coefficient &zero_level_set,
                                       ParGridFunction &distance) = 0;
 
+   // Computes a vector ParGridFunction where the magnitude is the length of
+   // the shortest path to the zero level set of the given Coefficient, and
+   // the direction is the starting direction of the shortest path.
+   // It is expected that [distance] has a valid (vector) ParFiniteElementSpace,
+   // and the result is computed in the same space.
    virtual void ComputeVectorDistance(Coefficient &zero_level_set,
                                       ParGridFunction &distance);
 };
@@ -45,6 +56,9 @@ public:
       : DistanceSolver(), parameter_t(diff_coeff), smooth_steps(0),
         diffuse_iter(1), transform(true), vis_glvis(false) { }
 
+   // The computed distance is not "signed".
+   // In addition to the standard usage (with zero level sets), this function
+   // can be applied to point sources when transform = false.
    void ComputeScalarDistance(Coefficient &zero_level_set,
                               ParGridFunction &distance);
 
@@ -288,29 +302,20 @@ private:
 
 };
 
-
 class PLapDistanceSolver : public DistanceSolver
 {
 public:
-   PLapDistanceSolver(int maxp_=30,
-                      int newton_iter_=10, double rtol=1e-7, double atol=1e-12,
-                      int print_lv=0)
+   PLapDistanceSolver(int maxp_ = 30, int newton_iter_ = 10,
+                      double rtol = 1e-7, double atol = 1e-12, int print_lv = 0)
+      : maxp(maxp_), newton_iter(newton_iter_),
+        newton_rel_tol(rtol), newton_abs_tol(atol)
    {
-      maxp=maxp_;
-      newton_iter=newton_iter_;
-      newton_rel_tol=rtol;
-      newton_abs_tol=atol;
       print_level = print_lv;
    }
 
    void SetMaxPower(int new_pp) { maxp = new_pp; }
 
-   void DistanceField(ParGridFunction& gfunc, ParGridFunction& fdist)
-   {
-      mfem::GridFunctionCoefficient gfc(&gfunc);
-      ComputeScalarDistance(gfc, fdist);
-   }
-
+   // Ths computed distance is "signed".
    void ComputeScalarDistance(Coefficient& func, ParGridFunction& fdist);
 
 private:

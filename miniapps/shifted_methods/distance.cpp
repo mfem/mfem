@@ -13,8 +13,9 @@
 //            Distance Miniapp: Finite element distance solver
 //            -------------------------------------------------
 //
-// This miniapp computes the shortest distance to a given point source or to the
-// zero level set of a given function. The input can be a DeltaCoefficient (for
+// This miniapp computes the "distance" to a given point source or to the zero
+// level set of a given function. Here "distance" refers to the length of the
+// shortest path through the mesh. The input can be a DeltaCoefficient (for
 // a point source), or any Coefficient (for the case of a level set). The
 // output is a GridFunction that can be scalar (representing the scalar
 // distance), or a vector (its magnitude is the distance, and its direction is
