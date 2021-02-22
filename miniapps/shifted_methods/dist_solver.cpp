@@ -43,7 +43,7 @@ void DistanceSolver::ScalarDistToVector(ParGridFunction &dist_s,
 {
    ParFiniteElementSpace &pfes = *dist_s.ParFESpace();
    MFEM_VERIFY(pfes.GetOrdering()==Ordering::byNODES,
-               "Only Ordering::byNODES is implemented.");
+               "Only Ordering::byNODES is supported.");
 
    const int dim = pfes.GetMesh()->Dimension();
    const int size = dist_s.Size();
