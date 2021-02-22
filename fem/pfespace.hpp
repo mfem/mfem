@@ -396,6 +396,11 @@ public:
       old_dof_offsets.DeleteAll();
    }
 
+   /// Updates the internal mesh pointer. @warning @a new_mesh must be
+   /// <b>topolically identical</b> to the existing mesh. Used if the address of
+   /// the Mesh object has changed, e.g. in @a Mesh::Swap.
+   virtual void UpdateMeshPointer(Mesh *new_mesh);
+
    virtual ~ParFiniteElementSpace() { Destroy(); }
 
    void PrintPartitionStats();
