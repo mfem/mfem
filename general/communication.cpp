@@ -333,6 +333,15 @@ void GroupTopology::Copy(GroupTopology& copy) const
    group_mgroup.Copy(copy.group_mgroup);
 }
 
+void GroupTopology::Swap(GroupTopology &other)
+{
+   mfem::Swap(MyComm, other.MyComm);
+   mfem::Swap(group_lproc, other.group_lproc);
+   mfem::Swap(groupmaster_lproc, other.groupmaster_lproc);
+   mfem::Swap(lproc_proc, other.lproc_proc);
+   mfem::Swap(group_mgroup, other.group_mgroup);
+}
+
 // Initialize the static mpi_type for the specializations of MPITypeMap:
 const MPI_Datatype MPITypeMap<int>::mpi_type = MPI_INT;
 const MPI_Datatype MPITypeMap<double>::mpi_type = MPI_DOUBLE;
