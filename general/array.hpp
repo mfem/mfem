@@ -78,6 +78,10 @@ public:
    template <typename CT>
    inline Array(const Array<CT> &src);
 
+   /// Deep copy from a braced init-list of convertible type
+   template <typename CT, int N>
+   explicit inline Array(const CT (&values)[N]);
+
    /// Destructor
    inline ~Array() { data.Delete(); }
 
@@ -629,6 +633,12 @@ inline Array<T>::Array(const Array<CT> &src)
 {
    size > 0 ? data.New(size) : data.Reset();
    for (int i = 0; i < size; i++) { (*this)[i] = T(src[i]); }
+}
+
+template <typename T> template <typename CT, int N>
+inline Array<T>::Array(const CT (&values)[N]) : Array(N)
+{
+   for (int i = 0; i < size; i++) { (*this)[i] = T(values[i]); }
 }
 
 template <class T>

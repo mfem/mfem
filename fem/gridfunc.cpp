@@ -3180,7 +3180,7 @@ double GridFunction::ComputeH1Error(Coefficient *exsol,
                                     const IntegrationRule *irs[]) const
 {
    double L2error = GridFunction::ComputeLpError(2.0,*exsol,NULL,irs);
-   double GradError = ComputeGradError(exgrad,irs);
+   double GradError = GridFunction::ComputeGradError(exgrad,irs);
    return sqrt(L2error*L2error + GradError*GradError);
 }
 
@@ -3189,7 +3189,7 @@ double GridFunction::ComputeHDivError(VectorCoefficient *exsol,
                                       const IntegrationRule *irs[]) const
 {
    double L2error = GridFunction::ComputeLpError(2.0,*exsol,NULL,NULL,irs);
-   double DivError = ComputeDivError(exdiv,irs);
+   double DivError = GridFunction::ComputeDivError(exdiv,irs);
    return sqrt(L2error*L2error + DivError*DivError);
 }
 
@@ -3198,7 +3198,7 @@ double GridFunction::ComputeHCurlError(VectorCoefficient *exsol,
                                        const IntegrationRule *irs[]) const
 {
    double L2error = GridFunction::ComputeLpError(2.0,*exsol,NULL,NULL,irs);
-   double CurlError = ComputeCurlError(excurl,irs);
+   double CurlError = GridFunction::ComputeCurlError(excurl,irs);
    return sqrt(L2error*L2error + CurlError*CurlError);
 }
 
