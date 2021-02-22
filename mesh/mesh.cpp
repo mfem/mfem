@@ -3243,10 +3243,8 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    }
 }
 
-Mesh::Mesh(Mesh &&mesh)
+Mesh::Mesh(Mesh &&mesh) : Mesh()
 {
-   Init();
-   InitTables();
    Swap(mesh, true);
 }
 

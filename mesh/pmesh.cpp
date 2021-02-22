@@ -92,35 +92,15 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
    }
 }
 
-ParMesh::ParMesh(ParMesh &&mesh)
-   : Mesh(mesh),
-     gtopo(mesh.gtopo)
+ParMesh::ParMesh(ParMesh &&mesh) : ParMesh()
 {
-   MyComm = mesh.MyComm;
-   NRanks = mesh.NRanks;
-   MyRank = mesh.MyRank;
+   Swap(mesh);
+}
 
-   glob_elem_offset = mesh.glob_elem_offset;
-   glob_offset_sequence = mesh.glob_offset_sequence;
-
-   group_svert.Swap(mesh.group_svert);
-   group_sedge.Swap(mesh.group_sedge);
-   group_stria.Swap(mesh.group_stria);
-   group_squad.Swap(mesh.group_squad);
-
-   mfem::Swap(shared_edges, mesh.shared_edges);
-   mfem::Swap(shared_trias, mesh.shared_trias);
-   mfem::Swap(shared_quads, mesh.shared_quads);
-   mfem::Swap(svert_lvert, mesh.svert_lvert);
-   mfem::Swap(sedge_ledge, mesh.sedge_ledge);
-   mfem::Swap(sface_lface, mesh.sface_lface);
-
-   // Do not move face-neighbor data (can be generated if needed)
-   have_face_nbr_data = false;
-
-   // Nodes, NCMesh, and NURBSExtension were taken care of by the Mesh move ctor
-   pncmesh = mesh.pncmesh;
-   mesh.pncmesh = NULL;
+ParMesh& ParMesh::operator=(ParMesh &&mesh)
+{
+   Swap(mesh);
+   return *this;
 }
 
 ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
@@ -3545,7 +3525,7 @@ void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
 
    // now swap the meshes, the second mesh will become the old coarse mesh
    // and this mesh will be the new fine mesh
-   Swap(*pmesh2, false);
+   Mesh::Swap(*pmesh2, false);
 
    delete pmesh2; // NOTE: old face neighbors destroyed here
 
@@ -3601,7 +3581,7 @@ bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
    attributes.Copy(mesh2->attributes);
    bdr_attributes.Copy(mesh2->bdr_attributes);
 
-   Swap(*mesh2, false);
+   Mesh::Swap(*mesh2, false);
    delete mesh2;
 
    pncmesh->GetConformingSharedStructures(*this);
@@ -3652,7 +3632,7 @@ void ParMesh::RebalanceImpl(const Array<int> *partition)
    attributes.Copy(pmesh2->attributes);
    bdr_attributes.Copy(pmesh2->bdr_attributes);
 
-   Swap(*pmesh2, false);
+   Mesh::Swap(*pmesh2, false);
    delete pmesh2;
 
    pncmesh->GetConformingSharedStructures(*this);
@@ -5884,6 +5864,45 @@ void ParMesh::GetGlobalElementIndices(Array<HYPRE_Int> &gi) const
    {
       gi[i] = offset + i;
    }
+}
+
+void ParMesh::Swap(ParMesh &other)
+{
+   Mesh::Swap(other, true);
+
+   mfem::Swap(MyComm, other.MyComm);
+   mfem::Swap(NRanks, other.NRanks);
+   mfem::Swap(MyRank, other.MyRank);
+
+   mfem::Swap(glob_elem_offset, other.glob_elem_offset);
+   mfem::Swap(glob_offset_sequence, other.glob_offset_sequence);
+
+   gtopo.Swap(other.gtopo);
+
+   group_svert.Swap(other.group_svert);
+   group_sedge.Swap(other.group_sedge);
+   group_stria.Swap(other.group_stria);
+   group_squad.Swap(other.group_squad);
+
+   mfem::Swap(shared_edges, other.shared_edges);
+   mfem::Swap(shared_trias, other.shared_trias);
+   mfem::Swap(shared_quads, other.shared_quads);
+   mfem::Swap(svert_lvert, other.svert_lvert);
+   mfem::Swap(sedge_ledge, other.sedge_ledge);
+   mfem::Swap(sface_lface, other.sface_lface);
+
+   // Swap face-neighbor data
+   mfem::Swap(have_face_nbr_data, other.have_face_nbr_data);
+   mfem::Swap(face_nbr_group, other.face_nbr_group);
+   mfem::Swap(face_nbr_elements_offset, other.face_nbr_elements_offset);
+   mfem::Swap(face_nbr_vertices_offset, other.face_nbr_vertices_offset);
+   mfem::Swap(face_nbr_elements, other.face_nbr_elements);
+   mfem::Swap(face_nbr_vertices, other.face_nbr_vertices);
+   mfem::Swap(send_face_nbr_elements, other.send_face_nbr_elements);
+   mfem::Swap(send_face_nbr_vertices, other.send_face_nbr_vertices);
+
+   // Nodes, NCMesh, and NURBSExtension are taken care of by Mesh::Swap
+   mfem::Swap(pncmesh, other.pncmesh);
 }
 
 void ParMesh::Destroy()
