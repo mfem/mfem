@@ -8429,6 +8429,8 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
       mfem::Swap(ncmesh, other.ncmesh);
 
       mfem::Swap(Nodes, other.Nodes);
+      if (Nodes) { Nodes->FESpace()->UpdateMeshPointer(this); }
+      if (other.Nodes) { other.Nodes->FESpace()->UpdateMeshPointer(&other); }
       mfem::Swap(own_nodes, other.own_nodes);
 
       mfem::Swap(CoarseFineTr, other.CoarseFineTr);
