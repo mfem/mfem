@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "coefficient.hpp"
+#include "tensor.hpp"
 
 namespace mfem
 {
@@ -145,6 +146,22 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
+class VectorDomainLFGradIntegrator : public LinearFormIntegrator
+{
+private:
+  Vector shape;
+  VectorTensorCoefficient* VTQ;
+  DenseMatrix dshape;
+  const int vdim;
+public:
+  VectorDomainLFGradIntegrator(VectorTensorCoefficient& vtq)
+    : VTQ(&vtq), vdim{vtq.GetVDim()}
+  {}
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
 
 /// Class for boundary integration L(v) := (g, v)
 class BoundaryLFIntegrator : public LinearFormIntegrator
@@ -414,6 +431,36 @@ public:
                           double a, double b)
    { f = &_f; u = &_u; alpha = a; beta = b; }
 
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       FaceElementTransformations &Tr,
+                                       Vector &elvect);
+};
+
+class VectorBoundaryFlowIntegrator : public LinearFormIntegrator
+{
+private:
+  VectorCoefficient* f;
+  VectorTensorCoefficient* u;
+  const double alpha, beta;
+  const int vdim;
+
+  Vector shape;
+
+public:
+  VectorBoundaryFlowIntegrator(VectorCoefficient &_f, 
+                               VectorTensorCoefficient &_u,
+                               double a)
+    : f{&_f}, u{&_u}, alpha{a}, beta{0.5*a}, vdim{_u.GetVDim()}
+  {}
+  VectorBoundaryFlowIntegrator(VectorCoefficient &_f, 
+                               VectorTensorCoefficient &_u, 
+                               double a,
+                               double b)
+    : f{&_f}, u{&_u}, alpha{a}, beta{b}, vdim{_u.GetVDim()}
+  {}
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
                                        Vector &elvect);

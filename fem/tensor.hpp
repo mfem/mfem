@@ -192,9 +192,63 @@ public:
 
 private:
 
-  const Tensor<mfem::Vector>& coefficient;
+  const Tensor<mfem::Vector> coefficient; // copy TODO
 
 
 };  
+
+class ScalarVectorTensorProductCoefficient : public VectorTensorCoefficient
+{
+public :
+  ScalarVectorTensorProductCoefficient(mfem::Coefficient& q, VectorTensorCoefficient& vtq)
+    : VectorTensorCoefficient{vtq.GetVDim()}, Q{&q}, VTQ{&vtq}
+  {}
+
+  virtual void Eval(std::vector<mfem::Vector>& data,
+                    mfem::Array<int>& row_idx,
+                    mfem::Array<int>& col_idx,
+                    mfem::ElementTransformation& T,
+                    const mfem::IntegrationPoint& ip) const override
+  {
+    VTQ->Eval(data, row_idx, col_idx, T, ip);
+    if (Q)
+    {
+      const double val{Q->Eval(T, ip)};
+      for (mfem::Vector& v : data)
+        v *= val;
+    }
+  }
+
+private:
+  mfem::Coefficient* Q{nullptr};
+  VectorTensorCoefficient* VTQ{nullptr};
+};
+
+class ScalarMatrixTensorProductCoefficient : public MatrixTensorCoefficient
+{
+public :
+  ScalarMatrixTensorProductCoefficient(mfem::Coefficient& q, MatrixTensorCoefficient& vtq)
+    : MatrixTensorCoefficient{vtq.GetVDim()}, Q{&q}, VTQ{&vtq}
+  {}
+
+  virtual void Eval(std::vector<mfem::DenseMatrix>& data,
+                    mfem::Array<int>& row_idx,
+                    mfem::Array<int>& col_idx,
+                    mfem::ElementTransformation& T,
+                    const mfem::IntegrationPoint& ip) const override
+  {
+    VTQ->Eval(data, row_idx, col_idx, T, ip);
+    if (Q)
+    {
+      const double val{Q->Eval(T, ip)};
+      for (mfem::DenseMatrix& v : data)
+        v *= val;
+    }
+  }
+
+private:
+  mfem::Coefficient* Q{nullptr};
+  MatrixTensorCoefficient* VTQ{nullptr};
+};
 
 #endif
