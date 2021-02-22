@@ -1,5 +1,12 @@
 //                       MFEM Brick Eigenvalue test
 //
+//  To test the ND_TetrahedronElement this should be run with the "-m
+//  13" command line option to request a tetrahedral mesh.  To test
+//  face dof orientations the basis function order should be set to at
+//  least 3 for tetrahedral elements (2 for hexahedral elements).
+//
+//  The eigenvalues for the 2D meshes should come out to be 1, 2, and 3.
+//  The eigenvalues for the 3D meshes should come out to be 3, 4, and 5.
 
 #include "mfem.hpp"
 #include <fstream>

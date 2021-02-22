@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,7 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
-#include "libceed/mass.hpp"
+#include "ceed/mass.hpp"
 
 using namespace std;
 
@@ -24,7 +24,6 @@ namespace mfem
 // MF Mass Assemble kernel
 void VectorMassIntegrator::AssembleMF(const FiniteElementSpace &fes)
 {
-#ifdef MFEM_USE_CEED
    // Assuming the same element type
    Mesh *mesh = fes.GetMesh();
    if (mesh->GetNE() == 0) { return; }
@@ -34,40 +33,37 @@ void VectorMassIntegrator::AssembleMF(const FiniteElementSpace &fes)
       = IntRule ? IntRule : &MassIntegrator::GetRule(el, el, *T);
    if (DeviceCanUseCeed())
    {
-      delete ceedDataPtr;
-      ceedDataPtr = new CeedData;
-      InitCeedCoeff(Q, *mesh, *ir, ceedDataPtr);
-      return CeedMFMassAssemble(fes, *ir, *ceedDataPtr);
+      delete ceedOp;
+      ceedOp = new ceed::MFMassIntegrator(fes, *ir, Q);
+      return;
    }
-#endif
-   mfem_error("Error: VectorMassIntegrator::AssembleMF only implemented with libCEED");
+   MFEM_ABORT("Error: VectorMassIntegrator::AssembleMF only implemented with"
+              " libCEED");
 }
 
 void VectorMassIntegrator::AddMultMF(const Vector &x, Vector &y) const
 {
-#ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      CeedAddMult(ceedDataPtr, x, y);
+      ceedOp->AddMult(x, y);
    }
    else
-#endif
    {
-      mfem_error("Error: VectorMassIntegrator::AssembleDiagonalMF only implemented with libCEED");
+      MFEM_ABORT("Error: VectorMassIntegrator::AddMultMF only implemented with"
+                 " libCEED");
    }
 }
 
 void VectorMassIntegrator::AssembleDiagonalMF(Vector &diag)
 {
-#ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {
-      CeedAssembleDiagonal(ceedDataPtr, diag);
+      ceedOp->GetDiagonal(diag);
    }
    else
-#endif
    {
-      mfem_error("Error: VectorMassIntegrator::AddMultMF only implemented with libCEED");
+      MFEM_ABORT("Error: VectorMassIntegrator::AssembleDiagonalMF only"
+                 " implemented with libCEED");
    }
 }
 
