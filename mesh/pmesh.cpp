@@ -2578,7 +2578,7 @@ ParMesh::GetFaceNbrElementFaces(int i, Array<int> &fcs, Array<int> &cor) const
    }
    else
    {
-      mfem_error("ParMesh::GetFaceNbrElementFaces(...) : "
+      MFEM_ABORT("ParMesh::GetFaceNbrElementFaces(...) : "
                  "face_nbr_el_to_face not generated.");
    }
    if (el_nbr < face_nbr_el_ori.Size())
@@ -2593,7 +2593,7 @@ ParMesh::GetFaceNbrElementFaces(int i, Array<int> &fcs, Array<int> &cor) const
    }
    else
    {
-      mfem_error("ParMesh::GetFaceNbrElementFaces(...) : "
+      MFEM_ABORT("ParMesh::GetFaceNbrElementFaces(...) : "
                  "face_nbr_el_to_face not generated.");
    }
 }

@@ -20,15 +20,15 @@ void DofTransformation::TransformPrimal(const Vector &v, Vector &v_trans) const
    TransformPrimal(v.GetData(), v_trans.GetData());
 }
 
-void DofTransformation::TransformPrimalCols(const DenseMatrix &A,
-                                            DenseMatrix &A_trans) const
+void DofTransformation::TransformPrimalCols(const DenseMatrix &V,
+                                            DenseMatrix &V_trans) const
 {
-   A_trans.SetSize(height_, A.Width());
+   V_trans.SetSize(height_, V.Width());
    Vector col_trans;
-   for (int c=0; c<A.Width(); c++)
+   for (int c=0; c<V.Width(); c++)
    {
-      A_trans.GetColumnReference(c, col_trans);
-      TransformPrimal(A.GetColumn(c), col_trans);
+      V_trans.GetColumnReference(c, col_trans);
+      TransformPrimal(V.GetColumn(c), col_trans);
    }
 }
 
@@ -38,37 +38,37 @@ void DofTransformation::TransformDual(const Vector &v, Vector &v_trans) const
    TransformDual(v.GetData(), v_trans.GetData());
 }
 
-void DofTransformation::TransformDual(const DenseMatrix &A,
-                                      DenseMatrix &A_trans) const
+void DofTransformation::TransformDual(const DenseMatrix &V,
+                                      DenseMatrix &V_trans) const
 {
-   DenseMatrix A_col_trans;
-   TransformDualCols(A, A_col_trans);
-   TransformDualRows(A_col_trans, A_trans);
+   DenseMatrix V_col_trans;
+   TransformDualCols(V, V_col_trans);
+   TransformDualRows(V_col_trans, V_trans);
 }
 
-void DofTransformation::TransformDualRows(const DenseMatrix &A,
-                                          DenseMatrix &A_trans) const
+void DofTransformation::TransformDualRows(const DenseMatrix &V,
+                                          DenseMatrix &V_trans) const
 {
-   A_trans.SetSize(A.Height(), width_);
+   V_trans.SetSize(V.Height(), width_);
    Vector row;
    Vector row_trans;
-   for (int r=0; r<A.Height(); r++)
+   for (int r=0; r<V.Height(); r++)
    {
-      A.GetRow(r, row);
+      V.GetRow(r, row);
       TransformDual(row, row_trans);
-      A_trans.SetRow(r, row_trans);
+      V_trans.SetRow(r, row_trans);
    }
 }
 
-void DofTransformation::TransformDualCols(const DenseMatrix &A,
-                                          DenseMatrix &A_trans) const
+void DofTransformation::TransformDualCols(const DenseMatrix &V,
+                                          DenseMatrix &V_trans) const
 {
-   A_trans.SetSize(height_, A.Width());
+   V_trans.SetSize(height_, V.Width());
    Vector col_trans;
-   for (int c=0; c<A.Width(); c++)
+   for (int c=0; c<V.Width(); c++)
    {
-      A_trans.GetColumnReference(c, col_trans);
-      TransformDual(A.GetColumn(c), col_trans);
+      V_trans.GetColumnReference(c, col_trans);
+      TransformDual(V.GetColumn(c), col_trans);
    }
 }
 
