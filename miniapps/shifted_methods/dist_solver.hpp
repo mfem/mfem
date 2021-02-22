@@ -66,6 +66,31 @@ public:
    bool transform, vis_glvis;
 };
 
+// Belyaev et al:
+// On Variational and PDE-based Distance Function Approximations, Section 7.
+class PLapDistanceSolver : public DistanceSolver
+{
+public:
+   PLapDistanceSolver(int maxp_ = 30, int newton_iter_ = 10,
+                      double rtol = 1e-7, double atol = 1e-12, int print_lv = 0)
+      : maxp(maxp_), newton_iter(newton_iter_),
+        newton_rel_tol(rtol), newton_abs_tol(atol)
+   {
+      print_level = print_lv;
+   }
+
+   void SetMaxPower(int new_pp) { maxp = new_pp; }
+
+   // Ths computed distance is "signed".
+   void ComputeScalarDistance(Coefficient& func, ParGridFunction& fdist);
+
+private:
+   int maxp; //maximum value of the power p
+   double newton_abs_tol;
+   double newton_rel_tol;
+   int newton_iter;
+};
+
 class NormalizedGradCoefficient : public VectorCoefficient
 {
 private:
@@ -85,26 +110,22 @@ public:
    }
 };
 
-//Product of the modulus of the first coefficient and the second coefficient
+// Product of the modulus of the first coefficient and the second coefficient
 class PProductCoefficient : public Coefficient
 {
 private:
-   Coefficient *basef, *corrf;
+   Coefficient &basef, &corrf;
 
 public:
-   PProductCoefficient(Coefficient& basec_,Coefficient& corrc_)
-   {
-      basef=&basec_;
-      corrf=&corrc_;
-   }
+   PProductCoefficient(Coefficient& basec_, Coefficient& corrc_)
+      : basef(basec_), corrf(corrc_) { }
 
-   virtual
-   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
       T.SetIntPoint(&ip);
-      double u=basef->Eval(T,ip);
-      double c=corrf->Eval(T,ip);
-      if (u<0.0) { u*=-1.0;}
+      double u = basef.Eval(T,ip);
+      double c = corrf.Eval(T,ip);
+      if (u<0.0) { u*=-1.0; }
       return u*c;
    }
 };
@@ -148,10 +169,10 @@ public:
 };
 
 
-/// The VectorCoefficent should return a vector with entries:
-/// [0] - derivative with respect to x
-/// [1] - derivative with respect to y
-/// [2] - derivative with respect to z
+// The VectorCoefficent should return a vector with entries:
+// [0] - derivative with respect to x
+// [1] - derivative with respect to y
+// [2] - derivative with respect to z
 class PUMPLaplacian: public NonlinearFormIntegrator
 {
 
@@ -197,7 +218,6 @@ public:
                                     ElementTransformation &trans,
                                     const Vector &elfun,
                                     DenseMatrix &elmat) override;
-
 };
 
 class PDEFilter
@@ -300,29 +320,6 @@ private:
    mfem::ScreenedPoisson* sint;
    double rr;
 
-};
-
-class PLapDistanceSolver : public DistanceSolver
-{
-public:
-   PLapDistanceSolver(int maxp_ = 30, int newton_iter_ = 10,
-                      double rtol = 1e-7, double atol = 1e-12, int print_lv = 0)
-      : maxp(maxp_), newton_iter(newton_iter_),
-        newton_rel_tol(rtol), newton_abs_tol(atol)
-   {
-      print_level = print_lv;
-   }
-
-   void SetMaxPower(int new_pp) { maxp = new_pp; }
-
-   // Ths computed distance is "signed".
-   void ComputeScalarDistance(Coefficient& func, ParGridFunction& fdist);
-
-private:
-   int maxp; //maximum value of the power p
-   double newton_abs_tol;
-   double newton_rel_tol;
-   int newton_iter;
 };
 
 } // namespace mfem
