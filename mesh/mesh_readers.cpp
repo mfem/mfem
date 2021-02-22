@@ -889,11 +889,11 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
       }
    }
 
-   if (!found_material)
-   {
-      MFEM_WARNING("Material array not found in VTK file. "
-                   "Assuming uniform material composition.");
-   }
+   // if (!found_material)
+   // {
+   //    MFEM_WARNING("Material array not found in VTK file. "
+   //                 "Assuming uniform material composition.");
+   // }
 
    CreateVTKMesh(points, cell_data, cell_offsets, cell_types, cell_attributes,
                  curved, read_gf, finalize_topo);
