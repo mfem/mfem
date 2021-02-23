@@ -102,7 +102,7 @@ TEST_CASE("ParBlockNonlinearForm",
    FunctionCoefficient r0_coef(rf0);
 
    for (int type = (int) Element::TETRAHEDRON;
-        type <= (int) Element::HEXAHEDRON;
+        type <= (int) Element::WEDGE;
         type++)
    {
       int n = 4;
