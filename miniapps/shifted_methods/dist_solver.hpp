@@ -64,7 +64,8 @@ public:
    void ComputeScalarDistance(Coefficient &zero_level_set,
                               ParGridFunction &distance);
 
-   int parameter_t, smooth_steps, diffuse_iter;
+   double parameter_t;
+   int smooth_steps, diffuse_iter;
    bool transform, vis_glvis;
 };
 
