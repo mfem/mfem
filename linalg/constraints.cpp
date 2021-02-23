@@ -11,6 +11,7 @@
 
 #include "constraints.hpp"
 
+#include "../fem/fespace.hpp"
 #include "../fem/pfespace.hpp"
 
 #include <set>
