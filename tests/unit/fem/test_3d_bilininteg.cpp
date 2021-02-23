@@ -515,7 +515,7 @@ TEST_CASE("3D Bilinear Mass Integrators",
    FunctionCoefficient qf3_coef(qf3);
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -761,7 +761,7 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
    VectorFunctionCoefficient MF3_coef(dim, MF3);
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -1844,7 +1844,7 @@ TEST_CASE("3D Bilinear Gradient Integrator",
    VectorFunctionCoefficient Mdf3_coef(dim, MGrad_f3);
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -2005,7 +2005,7 @@ TEST_CASE("3D Bilinear Curl Integrator",
    double tol = 1e-9;
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -2169,7 +2169,7 @@ TEST_CASE("3D Bilinear Cross Product Gradient Integrator",
    double tol = 1e-9;
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -2255,7 +2255,7 @@ TEST_CASE("3D Bilinear Cross Product Curl Integrator",
    double tol = 1e-9;
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -2338,7 +2338,7 @@ TEST_CASE("3D Bilinear Divergence Integrator",
    double tol = 1e-9;
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -2449,7 +2449,7 @@ TEST_CASE("3D Bilinear Vector Divergence Integrator",
    double tol = 1e-9;
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -2536,7 +2536,7 @@ TEST_CASE("3D Bilinear Vector Product Integrators",
    VectorFunctionCoefficient Vf3_coef(dim, Vf3);
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -2750,7 +2750,7 @@ TEST_CASE("3D Bilinear Vector Cross Product Integrators",
    VectorFunctionCoefficient VxF3_coef(dim, VcrossF3);
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -2966,7 +2966,7 @@ TEST_CASE("3D Bilinear Vector Dot Product Integrators",
    FunctionCoefficient       VF3_coef(VdotF3);
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -3116,7 +3116,7 @@ TEST_CASE("3D Bilinear Directional Derivative Integrator",
    FunctionCoefficient       Vdf3_coef(VdotGrad_f3);
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -3203,7 +3203,7 @@ TEST_CASE("3D Bilinear Weak Gradient Integrators",
    VectorFunctionCoefficient dqf3_coef(dim, Grad_qf3);
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -3400,7 +3400,7 @@ TEST_CASE("3D Bilinear Scalar Weak Divergence Integrators",
    FunctionCoefficient       dVf3_coef(Div_Vf3);
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -3543,7 +3543,7 @@ TEST_CASE("3D Bilinear Weak Divergence Integrators",
    FunctionCoefficient      dMF3_coef(Div_MF3);
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -3878,7 +3878,7 @@ TEST_CASE("3D Bilinear Weak Curl Integrators",
    VectorFunctionCoefficient dMF3_coef(dim, Curl_MF3);
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -4200,7 +4200,7 @@ TEST_CASE("3D Bilinear Weak Div Cross Integrators",
    FunctionCoefficient       dVF3_coef(Div_VcrossF3);
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -4335,7 +4335,7 @@ TEST_CASE("3D Bilinear Weak Curl Cross Integrators",
    VectorFunctionCoefficient dVxF3_coef(dim, Curl_VcrossF3);
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -4467,7 +4467,7 @@ TEST_CASE("3D Bilinear Weak Grad Dot Product Integrators",
    VectorFunctionCoefficient   dVF3_coef(dim, GradVdotF3);
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -4604,7 +4604,7 @@ TEST_CASE("3D Bilinear Grad Div Integrators",
    FunctionCoefficient       dVdF3_coef(DivVDivF3);
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -4730,7 +4730,7 @@ TEST_CASE("3D Bilinear Grad Grad Integrators",
    FunctionCoefficient      dMdf3_coef(Div_MGrad_f3);
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -4866,7 +4866,7 @@ TEST_CASE("3D Bilinear Mixed Grad Grad Integrators",
    FunctionCoefficient      dMdf3_coef(Div_MGrad_f3);
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -5024,7 +5024,7 @@ TEST_CASE("3D Bilinear Mixed Cross Grad Grad Integrators",
    FunctionCoefficient      dVxdf3_coef(Div_VcrossGrad_f3);
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -5096,7 +5096,7 @@ TEST_CASE("3D Bilinear Mixed Cross Curl Grad Integrators",
    FunctionCoefficient      dVxdF3_coef(DivVcrossCurlF3);
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -5179,7 +5179,7 @@ TEST_CASE("3D Bilinear Curl Curl Integrators",
    VectorFunctionCoefficient dqdF3_coef(dim, Curl_qCurlF3);
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -5284,7 +5284,7 @@ TEST_CASE("3D Bilinear Mixed Curl Curl Integrators",
    VectorFunctionCoefficient dMdF3_coef(dim, Curl_MCurlF3);
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -5440,7 +5440,7 @@ TEST_CASE("3D Bilinear Mixed Cross Curl Curl Integrators",
    VectorFunctionCoefficient dVdF3_coef(dim, Curl_VcrossCurlF3);
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -5511,7 +5511,7 @@ TEST_CASE("3D Bilinear Mixed Cross Grad Curl Integrators",
    VectorFunctionCoefficient dVdf3_coef(dim, Curl_VcrossGrad_f3);
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -5596,7 +5596,7 @@ TEST_CASE("3D Bilinear Div Div Integrators",
    VectorFunctionCoefficient  dqdF3_coef(dim, Grad_qDivF3);
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
