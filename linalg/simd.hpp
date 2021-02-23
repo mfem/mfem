@@ -49,7 +49,6 @@
 #define MFEM_SIMD_BYTES 64
 #define MFEM_ALIGN_BYTES 64
 #elif defined(__aarch64__) && defined(__ARM_FEATURE_SVE)
-#warning SVE 64/64
 #define MFEM_SIMD_BYTES 64
 #define MFEM_ALIGN_BYTES 64
 #elif defined(__AVX__) || defined(__VECTOR4DOUBLE__)
