@@ -143,10 +143,10 @@ class ScreenedPoisson: public NonlinearFormIntegrator
 {
 protected:
    double diffcoef;
-   mfem::Coefficient* func;
+   Coefficient *func;
 
 public:
-   ScreenedPoisson(mfem::Coefficient& nfunc, double rh):func(&nfunc)
+   ScreenedPoisson(Coefficient &nfunc, double rh):func(&nfunc)
    {
       double rd=rh/(2*std::sqrt(3.0));
       diffcoef= rd*rd;
@@ -154,7 +154,7 @@ public:
 
    ~ScreenedPoisson() { }
 
-   void SetInput(mfem::Coefficient& nfunc) { func = &nfunc; }
+   void SetInput(Coefficient &nfunc) { func = &nfunc; }
 
    virtual double GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &trans,
@@ -180,13 +180,13 @@ class PUMPLaplacian: public NonlinearFormIntegrator
 {
 
 protected:
-   mfem::Coefficient *func;
-   mfem::VectorCoefficient *fgrad;
+   Coefficient *func;
+   VectorCoefficient *fgrad;
    bool ownership;
    double pp, ee;
 
 public:
-   PUMPLaplacian(Coefficient* nfunc, VectorCoefficient* nfgrad,
+   PUMPLaplacian(Coefficient *nfunc, VectorCoefficient *nfgrad,
                  bool ownership_=true)
    {
       func=nfunc;
@@ -235,11 +235,11 @@ public:
    {
       sv = fesp.NewTrueDofVector();
 
-      nf=new mfem::ParNonlinearForm(&fesp);
-      prec=new mfem::HypreBoomerAMG();
+      nf = new ParNonlinearForm(&fesp);
+      prec = new HypreBoomerAMG();
       prec->SetPrintLevel(print_lv);
 
-      gmres = new mfem::GMRESSolver(mesh.GetComm());
+      gmres = new GMRESSolver(mesh.GetComm());
 
       gmres->SetAbsTol(atol);
       gmres->SetRelTol(rtol);
@@ -258,10 +258,10 @@ public:
       delete sv;
    }
 
-   void Filter(mfem::ParGridFunction& func, mfem::ParGridFunction ffield)
+   void Filter(ParGridFunction &func, ParGridFunction &ffield)
    {
-      mfem::GridFunctionCoefficient gfc(&func);
-      Filter(gfc,ffield);
+      GridFunctionCoefficient gfc(&func);
+      Filter(gfc, ffield);
    }
 
    void Filter(Coefficient &func, ParGridFunction &ffield);
@@ -271,12 +271,13 @@ private:
    H1_FECollection fecp;
    ParFiniteElementSpace fesp;
    ParGridFunction gf;
-   mfem::ParNonlinearForm* nf;
-   mfem::HypreBoomerAMG* prec;
-   mfem::GMRESSolver *gmres;
-   mfem::HypreParVector *sv;
 
-   mfem::ScreenedPoisson* sint;
+   ParNonlinearForm* nf;
+   HypreBoomerAMG* prec;
+   GMRESSolver *gmres;
+   HypreParVector *sv;
+
+   ScreenedPoisson* sint;
 };
 
 } // namespace mfem
