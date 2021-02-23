@@ -48,7 +48,7 @@ void GetInterdomainBoundaryPoints(FindPointsGSLIB &finder1,
 
 int main(int argc, char *argv[])
 {
-   // 1. Parse command-line options.
+   // Parse command-line options.
    const char *mesh_file_1   = "../../data/square-disc.mesh";
    const char *mesh_file_2   = "../../data/inline-quad.mesh";
    int order                 = 2;
@@ -88,30 +88,30 @@ int main(int argc, char *argv[])
 
    const int nmeshes = 2;
 
-   // 2. Enable hardware devices such as GPUs, and programming models such as
-   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   // Enable hardware devices such as GPUs, and programming models such as
+   // CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
    device.Print();
 
-   // 3. Read the mesh from the given mesh file. We can handle triangular,
-   //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
-   //    the same code.
+   // Read the mesh from the given mesh file. We can handle triangular,
+   // quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
+   // the same code.
    Array <Mesh*> mesharr(2);
    mesharr[0] = new Mesh(mesh_file_1, 1, 1);
    mesharr[1] = new Mesh(mesh_file_2, 1, 1);
    int dim = mesharr[0]->Dimension();
 
 
-   // 4. Refine the mesh to increase the resolution. In this example we do
-   //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
-   //    largest number that gives a final mesh with no more than 50,000
-   //    elements.
+   // Refine the mesh to increase the resolution. In this example we do
+   // 'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
+   // largest number that gives a final mesh with no more than 50,000
+   // elements.
    for (int lev = 0; lev < r1_levels; lev++) { mesharr[0]->UniformRefinement(); }
    for (int lev = 0; lev < r2_levels; lev++) { mesharr[1]->UniformRefinement(); }
 
-   // 5. Define a finite element space on the mesh. Here we use continuous
-   //    Lagrange finite elements of the specified order. If order < 1, we
-   //    instead use an isoparametric/isogeometric space.
+   // Define a finite element space on the mesh. Here we use continuous
+   // Lagrange finite elements of the specified order. If order < 1, we
+   // instead use an isoparametric/isogeometric space.
    Array <FiniteElementCollection*> fecarr(nmeshes);
    Array <FiniteElementSpace*> fespacearr(nmeshes);
    for (int i = 0; i< nmeshes; i ++)
@@ -132,10 +132,10 @@ int main(int argc, char *argv[])
       fespacearr[i] = new FiniteElementSpace(mesharr[i], fecarr[i]);
    }
 
-   // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
-   //    In this example, the boundary conditions are defined by marking all
-   //    the boundary attributes from the mesh as essential (Dirichlet) and
-   //    converting them to a list of true dofs.
+   // Determine the list of true (i.e. conforming) essential boundary dofs.
+   // In this example, the boundary conditions are defined by marking all
+   // the boundary attributes from the mesh as essential (Dirichlet) and
+   // converting them to a list of true dofs.
    Array<int> ess_tdof_list1, ess_tdof_list2;
    if (mesharr[0]->bdr_attributes.Size())
    {
@@ -151,9 +151,9 @@ int main(int argc, char *argv[])
       fespacearr[1]->GetEssentialTrueDofs(ess_bdr, ess_tdof_list2);
    }
 
-   // 7. Set up the linear form b(.) which corresponds to the right-hand side of
-   //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
-   //    the basis functions in the finite element fespace1.
+   // Set up the linear form b(.) which corresponds to the right-hand side of
+   // the FEM linear system, which in this case is (1,phi_i) where phi_i are
+   // the basis functions in the finite element fespace1.
    ConstantCoefficient one(1.0);
    Array<LinearForm*> b_ar(nmeshes);
    for (int i = 0; i< nmeshes; i ++)
@@ -163,15 +163,15 @@ int main(int argc, char *argv[])
       b_ar[i]->Assemble();
    }
 
-   // 8. Define the solution vector x as a finite element grid function
-   //    corresponding to fespace1. Initialize x with initial guess of zero,
-   //    which satisfies the boundary conditions.
+   // Define the solution vector x as a finite element grid function
+   // corresponding to fespace1. Initialize x with initial guess of zero,
+   // which satisfies the boundary conditions.
    GridFunction x1(fespacearr[0]), x2(fespacearr[1]);
    x1 = 0;
    x2 = 0;
 
-   // 9. Setup FindPointsGSLIB and determine points on each mesh's boundary that
-   //    are interior to another mesh.
+   // Setup FindPointsGSLIB and determine points on each mesh's boundary that
+   // are interior to another mesh.
    mesharr[0]->SetCurvature(order, false, dim, Ordering::byNODES);
    Vector vxyz1 = *mesharr[0]->GetNodes();
    mesharr[1]->SetCurvature(order, false, dim, Ordering::byNODES);
@@ -195,8 +195,8 @@ int main(int argc, char *argv[])
                                 ess_tdof_list1, ess_tdof_list2,
                                 ess_tdof_list1_int, ess_tdof_list2_int, dim);
 
-   // 10. Use FindPointsGSLIB to interpolate the solution at interdomain boundary
-   //     points.
+   // Use FindPointsGSLIB to interpolate the solution at interdomain boundary
+   // points.
    const int nb1 = ess_tdof_list1_int.Size(),
              nb2 = ess_tdof_list2_int.Size(),
              nt1 = vxyz1.Size()/dim,
@@ -222,28 +222,28 @@ int main(int argc, char *argv[])
    finder1.Interpolate(bnd2, x1, interp_vals2);
    finder2.Interpolate(bnd1, x2, interp_vals1);
 
-   // 11. Set up the bilinear form a(.,.) on the finite element space
-   //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
-   //     domain integrator.
+   // Set up the bilinear form a(.,.) on the finite element space
+   // corresponding to the Laplacian operator -Delta, by adding the Diffusion
+   // domain integrator.
    Array <BilinearForm*> a_ar(2);
    a_ar[0] = new BilinearForm(fespacearr[0]);
    a_ar[1] = new BilinearForm(fespacearr[1]);
    a_ar[0]->AddDomainIntegrator(new DiffusionIntegrator(one));
    a_ar[1]->AddDomainIntegrator(new DiffusionIntegrator(one));
 
-   // 12. Assemble the bilinear form and the corresponding linear system,
-   //     applying any necessary transformations such as: eliminating boundary
-   //     conditions, applying conforming constraints for non-conforming AMR,
-   //     static condensation, etc.
+   // Assemble the bilinear form and the corresponding linear system,
+   // applying any necessary transformations such as: eliminating boundary
+   // conditions, applying conforming constraints for non-conforming AMR,
+   // static condensation, etc.
    a_ar[0]->Assemble();
    a_ar[1]->Assemble();
 
    delete b_ar[0];
    delete b_ar[1];
 
-   // 13. Use simultaneous Schwarz iterations to iteratively solve the PDE
-   //     and interpolate interdomain boundary data to impose Dirichlet
-   //     boundary conditions.
+   // Use simultaneous Schwarz iterations to iteratively solve the PDE
+   // and interpolate interdomain boundary data to impose Dirichlet
+   // boundary conditions.
 
    int NiterSchwarz = 100;
    for (int schwarz = 0; schwarz < NiterSchwarz; schwarz++)
@@ -261,14 +261,14 @@ int main(int argc, char *argv[])
       a_ar[0]->FormLinearSystem(ess_tdof_list1, x1, *b_ar[0], A1, X1, B1);
       a_ar[1]->FormLinearSystem(ess_tdof_list2, x2, *b_ar[1], A2, X2, B2);
 
-      // 11. Solve the linear system A X = B.
+      // Solve the linear system A X = B.
       // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
       GSSmoother M1((SparseMatrix&)(*A1));
       PCG(*A1, M1, B1, X1, 0, 200, 1e-12, 0.0);
       GSSmoother M2((SparseMatrix&)(*A2));
       PCG(*A2, M2, B2, X2, 0, 200, 1e-12, 0.0);
 
-      // 12. Recover the solution as a finite element grid function.
+      // Recover the solution as a finite element grid function.
       a_ar[0]->RecoverFEMSolution(X1, *b_ar[0], x1);
       a_ar[1]->RecoverFEMSolution(X2, *b_ar[1], x2);
 
@@ -304,7 +304,7 @@ int main(int argc, char *argv[])
       if (dxmax < rel_tol) { break; }
    }
 
-   // 14. Send the solution by socket to a GLVis server.
+   // Send the solution by socket to a GLVis server.
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
@@ -322,7 +322,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 15. Free the used memory.
+   // Free the used memory.
    finder1.FreeData();
    finder2.FreeData();
    for (int i = 0; i < nmeshes; i++)

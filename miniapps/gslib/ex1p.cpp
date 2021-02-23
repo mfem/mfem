@@ -26,7 +26,6 @@
 //     of a singlerate and multirate predictor-corrector scheme for
 //     overlapping grids. arXiv preprint arXiv:2010.00118.
 //
-// Compile with: make ex1
 // Compile with: make ex1p
 //
 // Sample runs:  mpirun -np 4 ex1p -nm 3 -np1 2 -np2 1 -np3 1
@@ -72,13 +71,13 @@ void GetInterdomainBoundaryPoints(OversetFindPointsGSLIB &finder,
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
+   // Initialize MPI.
    int num_procs, myid;
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
-   // 2. Parse command-line options.
+   // Parse command-line options.
    int lim_meshes = 3; //should be greater than nmeshes
    Array <const char *> mesh_file_list(lim_meshes);
    Array <int> np_list(lim_meshes), rs_levels(lim_meshes),
@@ -144,7 +143,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // 3. Setup MPI communicator for each mesh
+   // Setup MPI communicator for each mesh
    MPI_Comm *comml = new MPI_Comm;
    int color = 0;
    int npsum = 0;
@@ -159,26 +158,26 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(*comml, &myidlocal);
    MPI_Comm_size(*comml, &numproclocal);
 
-   // 4. Enable hardware devices such as GPUs, and programming models such as
-   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   // Enable hardware devices such as GPUs, and programming models such as
+   // CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
    if (myid == 0) { device.Print(); }
 
-   // 5. Read the mesh from the given mesh file. We can handle triangular,
-   //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
-   //    the same code.
+   // Read the mesh from the given mesh file. We can handle triangular,
+   // quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
+   // the same code.
    Mesh *mesh = new Mesh(mesh_file_list[color], 1, 1);
    int dim = mesh->Dimension();
 
-   // 6. Refine the mesh to increase the resolution. In this example we do
-   //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
-   //    largest number that gives a final mesh with no more than 50,000
-   //    elements.
+   // Refine the mesh to increase the resolution. In this example we do
+   // 'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
+   // largest number that gives a final mesh with no more than 50,000
+   // elements.
    for (int lev = 0; lev < rs_levels[color]; lev++) { mesh->UniformRefinement(); }
 
-   // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
-   //    this mesh further in parallel to increase the resolution. Once the
-   //    parallel mesh is defined, the serial mesh can be deleted.
+   // Define a parallel mesh by a partitioning of the serial mesh. Refine
+   // this mesh further in parallel to increase the resolution. Once the
+   // parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh;
    pmesh = new ParMesh(*comml, *mesh);
    for (int l = 0; l < rp_levels[color]; l++)
@@ -187,9 +186,9 @@ int main(int argc, char *argv[])
    }
    delete mesh;
 
-   // 5. Define a finite element space on the mesh. Here we use continuous
-   //    Lagrange finite elements of the specified order. If order < 1, we
-   //    instead use an isoparametric/isogeometric space.
+   // Define a finite element space on the mesh. Here we use continuous
+   // Lagrange finite elements of the specified order. If order < 1, we
+   // instead use an isoparametric/isogeometric space.
    FiniteElementCollection *fec;
    if (order > 0)
    {
@@ -214,10 +213,10 @@ int main(int argc, char *argv[])
       cout << "Number of finite element unknowns: " << size << endl;
    }
 
-   // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
-   //    In this example, the boundary conditions are defined by marking all
-   //    the boundary attributes from the mesh as essential (Dirichlet) and
-   //    converting them to a list of true dofs.
+   // Determine the list of true (i.e. conforming) essential boundary dofs.
+   // In this example, the boundary conditions are defined by marking all
+   // the boundary attributes from the mesh as essential (Dirichlet) and
+   // converting them to a list of true dofs.
    Array<int> ess_tdof_list;
    if (pmesh->bdr_attributes.Size())
    {
@@ -226,23 +225,23 @@ int main(int argc, char *argv[])
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   // 7. Set up the linear form b(.) which corresponds to the right-hand side of
-   //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
-   //    the basis functions in the finite element fespace1.
+   // Set up the linear form b(.) which corresponds to the right-hand side of
+   // the FEM linear system, which in this case is (1,phi_i) where phi_i are
+   // the basis functions in the finite element fespace1.
    ParLinearForm *b = new ParLinearForm(fespace);
    ConstantCoefficient one(1.0);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
 
-   // 8. Define the solution vector x as a finite element grid function
-   //    corresponding to fespace1. Initialize x with initial guess of zero,
-   //    which satisfies the boundary conditions.
+   // Define the solution vector x as a finite element grid function
+   // corresponding to fespace1. Initialize x with initial guess of zero,
+   // which satisfies the boundary conditions.
    ParGridFunction x(fespace);
    x = 0.0;
    x.SetTrueVector();
 
-   // 9. Setup FindPointsGSLIB and determine points on each mesh's boundary that
-   //    are interior to another mesh.
+   // Setup FindPointsGSLIB and determine points on each mesh's boundary that
+   // are interior to another mesh.
    pmesh->SetCurvature(order, false, dim, Ordering::byNODES);
    {
       Vector vxyz = *pmesh->GetNodes();
@@ -302,8 +301,8 @@ int main(int argc, char *argv[])
    GetInterdomainBoundaryPoints(finder, vxyz, color,
                                 ess_tdof_list, ess_tdof_list_int, dim);
 
-   // 10. Use FindPointsGSLIB to interpolate the solution at interdomain boundary
-   //     points.
+   // Use FindPointsGSLIB to interpolate the solution at interdomain boundary
+   // points.
    const int nb1 = ess_tdof_list_int.Size(),
              nt1 = vxyz.Size()/dim;
 
@@ -323,23 +322,23 @@ int main(int argc, char *argv[])
    Vector interp_vals1(nb1);
    finder.Interpolate(bnd1, colorv, x, interp_vals1);
 
-   // 11. Set up the bilinear form a(.,.) on the finite element space
-   //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
-   //     domain integrator.
+   // Set up the bilinear form a(.,.) on the finite element space
+   // corresponding to the Laplacian operator -Delta, by adding the Diffusion
+   // domain integrator.
    ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
 
-   // 12. Assemble the bilinear form and the corresponding linear system,
-   //     applying any necessary transformations such as: eliminating boundary
-   //     conditions, applying conforming constraints for non-conforming AMR,
-   //     static condensation, etc.
+   // Assemble the bilinear form and the corresponding linear system,
+   // applying any necessary transformations such as: eliminating boundary
+   // conditions, applying conforming constraints for non-conforming AMR,
+   // static condensation, etc.
    a->Assemble();
 
    delete b;
 
-   // 13. Use simultaneous Schwarz iterations to iteratively solve the PDE
-   //     and interpolate interdomain boundary data to impose Dirichlet
-   //     boundary conditions.
+   // Use simultaneous Schwarz iterations to iteratively solve the PDE
+   // and interpolate interdomain boundary data to impose Dirichlet
+   // boundary conditions.
 
    int NiterSchwarz = 100;
    for (int schwarz = 0; schwarz < NiterSchwarz; schwarz++)
@@ -352,10 +351,10 @@ int main(int argc, char *argv[])
       Vector B, X;
       a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
-      // 11. Solve the linear system A X = B.
+      // Solve the linear system A X = B.
       // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
       Solver *prec = NULL;
-      //prec = new HypreBoomerAMG;
+      prec = new HypreBoomerAMG;
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-12);
       cg.SetMaxIter(2000);
@@ -365,7 +364,7 @@ int main(int argc, char *argv[])
       cg.Mult(B, X);
       delete prec;
 
-      // 12. Recover the solution as a finite element grid function.
+      // Recover the solution as a finite element grid function.
       a->RecoverFEMSolution(X, *b, x);
 
       // Interpolate boundary condition
@@ -415,13 +414,12 @@ int main(int argc, char *argv[])
       x.Save(sol_ofs);
    }
 
-   // 14. Send the solution by socket to a GLVis server.
+   // Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
-      //sol_sock << "parallel " << numproclocal << " " << myidlocal << "\n";
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
       sol_sock << "solution\n" << *pmesh << x << flush;
