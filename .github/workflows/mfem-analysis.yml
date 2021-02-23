@@ -24,6 +24,7 @@ env:
   HYPRE_TOP_DIR: hypre-2.19.0
   METIS_ARCHIVE: metis-4.0.3.tar.gz
   METIS_TOP_DIR: metis-4.0.3
+  COVERAGE_ENV: mfem-coverage
 
 jobs:
   gitignore:
@@ -117,10 +118,10 @@ jobs:
       run: |
         if [[ "$CODECOV" == "YES" ]]
         then
-           export PYTHONUSERBASE=$HOME/local;
+           virtualenv ${COVERAGE_ENV};
+           . ./${COVERAGE_ENV}/bin/activate.sh
            pip install --user cpp-coveralls;
            pip install --user pyyaml;
-           PATH=$HOME/local/bin:$PATH;
         fi
 
     - name: Cache Hypre Install
@@ -169,4 +170,5 @@ jobs:
 
     - name: codecov
       run: |
+        . ./${COVERAGE_ENV}/bin/activate.sh
         coveralls --include fem --include general --include linalg --include mesh --exclude /usr --gcov-options '\-lp' --root mfem;
