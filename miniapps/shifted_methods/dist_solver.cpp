@@ -281,14 +281,14 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
 void PLapDistanceSolver::ComputeScalarDistance(Coefficient &func,
                                                ParGridFunction &fdist)
 {
-   mfem::ParFiniteElementSpace* fesd=fdist.ParFESpace();
+   ParFiniteElementSpace* fesd=fdist.ParFESpace();
 
    auto check_h1 = dynamic_cast<const H1_FECollection *>(fesd->FEColl());
    auto check_l2 = dynamic_cast<const L2_FECollection *>(fesd->FEColl());
    MFEM_VERIFY((check_h1 || check_l2) && fesd->GetVDim() == 1,
                "This solver supports only scalar H1 or L2 spaces.");
 
-   mfem::ParMesh* mesh=fesd->GetParMesh();
+   ParMesh* mesh=fesd->GetParMesh();
    const int dim=mesh->Dimension();
 
    MPI_Comm lcomm=fesd->GetComm();
@@ -296,31 +296,31 @@ void PLapDistanceSolver::ComputeScalarDistance(Coefficient &func,
    MPI_Comm_rank(lcomm,&myrank);
 
    const int order = fesd->GetOrder(0);
-   mfem::H1_FECollection fecp(order, dim);
-   mfem::ParFiniteElementSpace fesp(mesh, &fecp, 1, mfem::Ordering::byVDIM);
+   H1_FECollection fecp(order, dim);
+   ParFiniteElementSpace fesp(mesh, &fecp, 1, Ordering::byVDIM);
 
-   mfem::ParGridFunction wf(&fesp);
+   ParGridFunction wf(&fesp);
    wf.ProjectCoefficient(func);
-   mfem::GradientGridFunctionCoefficient gf(&wf); //gradient of wf
+   GradientGridFunctionCoefficient gf(&wf); //gradient of wf
 
 
-   mfem::ParGridFunction xf(&fesp);
-   mfem::HypreParVector *sv = xf.GetTrueDofs();
+   ParGridFunction xf(&fesp);
+   HypreParVector *sv = xf.GetTrueDofs();
    *sv=1.0;
 
-   mfem::ParNonlinearForm* nf=new mfem::ParNonlinearForm(&fesp);
+   ParNonlinearForm *nf = new ParNonlinearForm(&fesp);
 
-   mfem::PUMPLaplacian* pint = new mfem::PUMPLaplacian(&func,&gf,false);
+   PUMPLaplacian* pint = new PUMPLaplacian(&func,&gf,false);
    nf->AddDomainIntegrator(pint);
 
    pint->SetPower(2);
 
    //define the solvers
-   mfem::HypreBoomerAMG* prec=new mfem::HypreBoomerAMG();
+   HypreBoomerAMG *prec = new HypreBoomerAMG();
    prec->SetPrintLevel((print_level > 1) ? 1 : 0);
 
-   mfem::GMRESSolver *gmres;
-   gmres = new mfem::GMRESSolver(lcomm);
+   GMRESSolver *gmres;
+   gmres = new GMRESSolver(lcomm);
    gmres->SetAbsTol(newton_abs_tol/10);
    gmres->SetRelTol(newton_rel_tol/10);
    gmres->SetMaxIter(100);
@@ -336,7 +336,7 @@ void PLapDistanceSolver::ComputeScalarDistance(Coefficient &func,
    ns.SetAbsTol(newton_abs_tol);
    ns.SetMaxIter(newton_iter);
 
-   mfem::Vector b; //RHS is zero
+   Vector b; //RHS is zero
    ns.Mult(b, *sv);
 
    for (int pp=3; pp<maxp; pp++)
@@ -347,8 +347,8 @@ void PLapDistanceSolver::ComputeScalarDistance(Coefficient &func,
    }
 
    xf.SetFromTrueDofs(*sv);
-   mfem::GridFunctionCoefficient gfx(&xf);
-   mfem::PProductCoefficient tsol(func,gfx);
+   GridFunctionCoefficient gfx(&xf);
+   PProductCoefficient tsol(func,gfx);
    fdist.ProjectCoefficient(tsol);
 
    // (optional) Force positive distances everywhere.
