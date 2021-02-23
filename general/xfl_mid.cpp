@@ -20,7 +20,7 @@ using std::string;
 
 #define MFEM_DEBUG_COLOR 118
 
-#include "mfem.hpp"
+#include "../mfem.hpp"
 #include "xfl.Y.hpp"
 // xfc/xfk headers use xfl.Y.hpp
 #include "xfl_mid.hpp"

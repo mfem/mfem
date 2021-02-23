@@ -19,7 +19,7 @@
 using std::string;
 using std::ostream;
 
-#include "mfem.hpp"
+#include "../mfem.hpp"
 #include "xfl.Y.hpp"
 #include "xfl_ker.hpp"
 
