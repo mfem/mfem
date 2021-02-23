@@ -125,7 +125,7 @@ GinkgoIterativeSolver::GinkgoIterativeSolver(
       gko::stop::Combined::build()
       .with_criteria(residual_criterion,
                      gko::stop::Iteration::build()
-                     .with_max_iters(max_iter)
+                     .with_max_iters(static_cast<unsigned long>(max_iter))
                      .on(executor))
       .on(executor);
 
@@ -677,7 +677,7 @@ GMRESSolver::GMRESSolver(
       if (preconditioner.HasGeneratedPreconditioner())
       {
          this->solver_gen = gmres::build()
-                            .with_krylov_dim(m)
+                            .with_krylov_dim(static_cast<unsigned long>(m))
                             .with_criteria(this->combined_factory)
                             .with_generated_preconditioner(
                                preconditioner.GetGeneratedPreconditioner())
@@ -691,7 +691,7 @@ GMRESSolver::GMRESSolver(
       else
       {
          this->solver_gen = gmres::build()
-                            .with_krylov_dim(m)
+                            .with_krylov_dim(static_cast<unsigned long>(m))
                             .with_criteria(this->combined_factory)
                             .with_preconditioner(preconditioner.GetFactory())
                             .on(this->executor);
@@ -833,7 +833,7 @@ JacobiPreconditioner::JacobiPreconditioner(
                     .with_storage_optimization(
                        gko::precision_reduction::autodetect())
                     .with_accuracy(accuracy)
-                    .with_max_block_size(max_block_size)
+                    .with_max_block_size(static_cast<unsigned int>(max_block_size))
                     .on(executor);
    }
    else
@@ -842,7 +842,7 @@ JacobiPreconditioner::JacobiPreconditioner(
                     .with_storage_optimization(
                        gko::precision_reduction(0, 0))
                     .with_accuracy(accuracy)
-                    .with_max_block_size(max_block_size)
+                    .with_max_block_size(static_cast<unsigned int>(max_block_size))
                     .on(executor);
    }
 
@@ -873,7 +873,7 @@ IluPreconditioner::IluPreconditioner(
       using ilu_fact_type = gko::factorization::ParIlu<double, int>;
       std::shared_ptr<ilu_fact_type::Factory> fact_factory = std::move(
                                                                 ilu_fact_type::build()
-                                                                .with_iterations(sweeps)
+                                                                .with_iterations(static_cast<unsigned long>(sweeps))
                                                                 .with_skip_sorting(skip_sort)
                                                                 .on(executor));
       precond_gen = gko::preconditioner::Ilu<>::build()
@@ -926,7 +926,7 @@ IluIsaiPreconditioner::IluIsaiPreconditioner(
       using ilu_fact_type = gko::factorization::ParIlu<double, int>;
       std::shared_ptr<ilu_fact_type::Factory> fact_factory = std::move(
                                                                 ilu_fact_type::build()
-                                                                .with_iterations(sweeps)
+                                                                .with_iterations(static_cast<unsigned long>(sweeps))
                                                                 .with_skip_sorting(skip_sort)
                                                                 .on(executor));
       precond_gen = gko::preconditioner::Ilu<l_solver_type,
@@ -967,7 +967,7 @@ IcPreconditioner::IcPreconditioner(
       std::shared_ptr<ic_fact_type::Factory> fact_factory = std::move(
                                                                ic_fact_type::build()
                                                                .with_both_factors(false)
-                                                               .with_iterations(sweeps)
+                                                               .with_iterations(static_cast<unsigned long>(sweeps))
                                                                .with_skip_sorting(skip_sort)
                                                                .on(executor));
       precond_gen = gko::preconditioner::Ic<>::build()
@@ -1010,7 +1010,7 @@ IcIsaiPreconditioner::IcIsaiPreconditioner(
       std::shared_ptr<ic_fact_type::Factory> fact_factory = std::move(
                                                                ic_fact_type::build()
                                                                .with_both_factors(false)
-                                                               .with_iterations(sweeps)
+                                                               .with_iterations(static_cast<unsigned long>(sweeps))
                                                                .with_skip_sorting(skip_sort)
                                                                .on(executor));
       precond_gen = gko::preconditioner::Ic<l_solver_type>::build()
