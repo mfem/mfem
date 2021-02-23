@@ -172,7 +172,8 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&t_param, "-t", "--t-param", "Diffusion time step");
+   args.AddOption(&t_param, "-t", "--t-param",
+                  "Diffusion time step (scaled internally scaled by dx*dx).");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -227,10 +228,11 @@ int main(int argc, char *argv[])
       smooth_steps = 0;
    }
 
+   const double dx = AvgElementSize(pmesh);
    DistanceSolver *dist_solver = NULL;
    if (solver_type == 0)
    {
-      auto ds = new HeatDistanceSolver(t_param);
+      auto ds = new HeatDistanceSolver(t_param * dx * dx);
       if (problem == 0)
       {
          ds->transform = false;
@@ -255,7 +257,6 @@ int main(int argc, char *argv[])
 
    // Smooth out Gibbs oscillations from the input level set.
    ParGridFunction filt_gf(&pfes_s);
-   const double dx = AvgElementSize(pmesh);
    PDEFilter *filter = new PDEFilter(pmesh, 1.0 * dx);
    if (problem != 0)
    {

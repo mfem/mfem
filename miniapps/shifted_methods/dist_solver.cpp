@@ -128,7 +128,6 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
 
    // Compute average mesh size (assumes similar cells).
    ParMesh &pmesh = *pfes.GetParMesh();
-   const double dx = AvgElementSize(pmesh) / pfes.GetOrder(0);
 
    // Step 0 - transform the input level set into a source-type bump.
    ParGridFunction source(&pfes);
@@ -170,8 +169,7 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
       // Diffusion and mass terms in the LHS.
       ParBilinearForm a_d(&pfes);
       a_d.AddDomainIntegrator(new MassIntegrator);
-      const double dt = parameter_t * dx * dx;
-      ConstantCoefficient t_coeff(dt);
+      ConstantCoefficient t_coeff(parameter_t);
       a_d.AddDomainIntegrator(new DiffusionIntegrator(t_coeff));
       a_d.Assemble();
 
