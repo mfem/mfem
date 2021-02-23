@@ -126,6 +126,7 @@ int main(int argc, char *argv[])
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec, dim);
    cout << "Number of finite element unknowns: " << fespace->GetTrueVSize()
         << endl;
+   cout << "Assembling matrix and r.h.s... " << flush;
 
    // 5. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, there are no essential boundary
@@ -152,7 +153,6 @@ int main(int argc, char *argv[])
    }
    LinearForm *b = new LinearForm(fespace);
    b->AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(f));
-   cout << "r.h.s. ... " << flush;
    b->Assemble();
 
    // 7. Define the solution vector x as a finite element grid function
@@ -179,7 +179,6 @@ int main(int argc, char *argv[])
    //    applying any necessary transformations such as: eliminating boundary
    //    conditions, applying conforming constraints for non-conforming AMR,
    //    static condensation, etc.
-   cout << "matrix ... " << flush;
    a->Assemble();
 
    SparseMatrix A;

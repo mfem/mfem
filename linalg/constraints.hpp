@@ -122,15 +122,14 @@ public:
    const Array<int>& PrimaryDofs() const { return primary_tdofs; }
    const Array<int>& SecondaryDofs() const { return secondary_tdofs; }
 
-   /// Given primary displacements, return secondary displacements
+   /// Given primary dofs in in, return secondary dofs in out
    /// This applies \f$ -B_s^{-1} B_p \f$.
    void Eliminate(const Vector& in, Vector& out) const;
 
    /// Transpose of Eliminate(), applies \f$ -B_p^T B_s^{-T} \f$
    void EliminateTranspose(const Vector& in, Vector& out) const;
 
-   /// Maps Lagrange multipliers to secondary displacements,
-   /// applies \f$ B_s^{-1} \f$
+   /// Maps Lagrange multipliers to secondary dofs, applies \f$ B_s^{-1} \f$
    void LagrangeSecondary(const Vector& in, Vector& out) const;
 
    /// Transpose of LagrangeSecondary()
@@ -180,8 +179,8 @@ public:
    void BuildGTilde(const Vector& g, Vector& gtilde) const;
 
    /** After a solve, recover the Lagrange multiplier. */
-   void RecoverMultiplier(const Vector& disprhs,
-                          const Vector& disp, Vector& lm) const;
+   void RecoverMultiplier(const Vector& primalrhs,
+                          const Vector& primalvars, Vector& lm) const;
 
 private:
    const Operator& Aop;
@@ -205,7 +204,7 @@ public:
 
        The secondary_dofs are eliminated from the system in this algorithm,
        as they can be written in terms of the primary_dofs.
-       
+
        Both primary_dofs and secondary_dofs are in the local truedof numbering;
        All elimination has to be done locally on processor, though the global
        system can be parallel. */
@@ -228,6 +227,9 @@ public:
 
    void PrimalMult(const Vector& x, Vector& y) const override;
 
+   void SetOperator(const Operator& op) override
+   { MFEM_ABORT("Operator cannot be reset!"); }
+
 protected:
    /// Internal utility routine; assembles eliminated matrix explicitly
    void BuildExplicitOperator();
@@ -241,6 +243,7 @@ protected:
    Array<Eliminator*> eliminators;
    EliminationProjection * projector;
    HypreParMatrix * h_explicit_operator;
+   mutable IterativeSolver* krylov;
    mutable Solver* prec;
 };
 
@@ -254,7 +257,7 @@ public:
                        int dimension_=0, bool reorder_=false) :
       EliminationSolver(A, B, constraint_rowstarts),
       dimension(dimension_), reorder(reorder_)
-   { BuildExplicitOperator(); }
+   { }
 
 protected:
    virtual Solver* BuildPreconditioner() const override
@@ -291,6 +294,9 @@ public:
 
    void PrimalMult(const Vector& x, Vector& y) const override;
 
+   void SetOperator(const Operator& op) override
+   { MFEM_ABORT("Operator cannot be reset!"); }
+
 protected:
    void Initialize(HypreParMatrix& A, HypreParMatrix& B);
 
@@ -302,6 +308,7 @@ protected:
    double penalty;
    Operator& constraintB;
    HypreParMatrix * penalized_mat;
+   mutable IterativeSolver * krylov;
    mutable Solver * prec;
 };
 

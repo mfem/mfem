@@ -184,7 +184,7 @@ int main(int argc, char *argv[])
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl
-           << "Assembling: " << flush;
+           << "Assembling matrix and r.h.s... " << flush;
    }
 
    // 7. Determine the list of true (i.e. parallel conforming) essential
@@ -219,10 +219,6 @@ int main(int argc, char *argv[])
 
    ParLinearForm *b = new ParLinearForm(fespace);
    b->AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(f));
-   if (myid == 0)
-   {
-      cout << "r.h.s. ... " << flush;
-   }
    b->Assemble();
 
    // 10. Define the solution vector x as a parallel finite element grid
@@ -249,7 +245,6 @@ int main(int argc, char *argv[])
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, etc.
-   if (myid == 0) { cout << "matrix ... " << flush; }
    a->Assemble();
 
    HypreParMatrix A;
@@ -286,7 +281,7 @@ int main(int argc, char *argv[])
       solver = new PenaltyPCGSolver(A, *local_constraints, penalty,
                                     dim, reorder_space);
    }
-      
+
    solver->SetRelTol(1e-8);
    solver->SetMaxIter(500);
    solver->SetPrintLevel(1);
