@@ -91,15 +91,15 @@ MFEM_HOST_DEVICE inline void LoadBG(const int D1D, const int Q1D,
 }
 
 /// Load Bt1d & Gt1d matrices into shared memory
-template<int MD1, int MQ1>
-MFEM_HOST_DEVICE inline void LoadBGt(const int D1D, const int Q1D,
-                                     const ConstDeviceMatrix b,
-                                     const ConstDeviceMatrix g,
-                                     double sBG[2][MQ1*MD1])
+template<int MD1, int MQ1, typename T> MFEM_HOST_DEVICE inline
+void LoadBGt(const int D1D, const int Q1D,
+             const DeviceTensor<2,const double> b,
+             const DeviceTensor<2,const double> g,
+             T sBG[2][MQ1*MD1])
 {
    const int tidz = MFEM_THREAD_ID(z);
-   DeviceMatrix Bt(sBG[0], MQ1, MD1);
-   DeviceMatrix Gt(sBG[1], MQ1, MD1);
+   DeviceTensor<2,T> Bt(sBG[0], MQ1, MD1);
+   DeviceTensor<2,T> Gt(sBG[1], MQ1, MD1);
 
    if (tidz == 0)
    {

@@ -56,17 +56,19 @@ struct Middlend /** @cond */: public Middlends<Rule, Token> /** @endcond */
 struct Node: public Atom<Middlend>
 {
    int n;
+   std::string out;
    std::string name;
    int id {0}, nnext {0};
    Node *next {nullptr}, *child {nullptr}, *root {nullptr};
    struct {bool down;} dfs {true};
    Node(int n, const char *name): n(n), name(name) {}
-   const int Number() const { return n; }
-   const std::string Name() const { return name; }
+   int Number() const { return n; }
+   std::string &Name() { return name; }
+   const std::string &Name() const { return name; }
    const char *CStr() const { return name.c_str(); }
    virtual void Accept(Middlend&, const bool down = true) = 0;
-   virtual const bool IsRule() const = 0;
-   virtual const bool IsToken() const = 0;
+   virtual bool IsRule() const = 0;
+   virtual bool IsToken() const = 0;
    virtual ~Node() {}
 };
 
@@ -76,8 +78,8 @@ struct Rule : public Node
    Rule(int rn, const char *name): Node(rn, name) {}
    void Accept(Middlend &me, const bool down = true)
    { dfs.down = down; me.Visit(*this); }
-   const bool IsRule() const { return true; }
-   const bool IsToken() const { return false; }
+   bool IsRule() const { return true; }
+   bool IsToken() const { return false; }
 };
 
 // *****************************************************************************
@@ -86,8 +88,8 @@ struct Token : public Node
    Token(int tk, const char *name): Node(tk, name) {}
    void Accept(Middlend &me, const bool = true)
    { dfs.down = true; me.Visit(*this); }
-   const bool IsRule() const { return false; }
-   const bool IsToken() const { return true; }
+   bool IsRule() const { return false; }
+   bool IsToken() const { return true; }
 };
 
 // *****************************************************************************
@@ -113,18 +115,35 @@ public:
    struct var
    {
       const std::string name;
+      std::string fes {};
       int type {-1};
       unsigned mode { xfl::NONE };
       var(const std::string n, int t, VarMode m): name(n), type(t), mode(m) {}
    };
+   struct fec
+   {
+      const std::string name, family, type;
+      const int order, dim;
+      void *fec;
+   };
+   struct fes
+   {
+      const std::string name, mesh, fec;
+      void *msh; void *fes;
+   };
    // Context
    struct
    {
-      int i,type;
-      Node *qfunc { nullptr };
+      bool eval;
+      int ker {0}, vdim;
       Node *extra { nullptr };
       std::array<Node*,8> nodes = {nullptr};
-      std::map<std::string, xfl::var> vars;
+      std::map<std::string, const int> N;
+      std::map<std::string, xfl::var> var;
+      std::map<std::string, xfl::fec> fec;
+      std::map<std::string, xfl::fes> fes;
+      std::map<std::string, void*> msh;
+      struct { int type; std::string fes; } tmp;
    } ctx;
 public:
    xfl(bool yy_debug, bool ll_debug, std::string &input, std::string &output);
@@ -132,23 +151,31 @@ public:
    int open(void);
    int close(void);
    int parse(void);
-   int morph(std::ostream&);
    int code(std::ostream&);
    Node* &Root() { return root;}
+private:
+   Node *NewNode(Node_sptr) const;
 public:
-   Node *astAddNode(Node_sptr);
-   void dfs(Node*, Middlend&);
-   bool HitRule(const int, Node*);
-   bool HitToken(const int, Node*);
+   void InsertNode(Node*, Node*);
+   Node *NewRule(const int, const char*) const;
+   Node *NewToken(const int, const char*) const;
+public:
+   void DfsPreOrder(Node*, Middlend&) const;
+   void DfsInOrder(Node*, Middlend&) const;
+   void DfsPostOrder(Node*, Middlend&) const;
+public:
+   bool HitRule(const int, Node*) const;
+   bool HitToken(const int, const Node*) const;
    bool OnlyToken(const int, Node*);
-   Node *GetToken(const int, Node*);
+   const Node *GetToken(const int, const Node*) const;
+   const Node *GetTokenArg(const int, const Node*) const;
+   const Node *AssignOpNextToken(const int, const int, const Node*,
+                                 std::ostream &) const;
+   const Node *NextToken(const Node*) const;
+   const Node *NextTokenEval(const Node*,std::ostream&) const;
+   bool CondEval(const Node*,std::ostream&) const;
+   const Node *UpNextToken(const int, const Node*) const;
 };
-
-// *****************************************************************************
-#define DBG(...) { printf("\033[32m");  \
-                   printf(__VA_ARGS__); \
-                   printf(" \n\033[m"); \
-                   fflush(0); }
 
 // *****************************************************************************
 #include <string>
@@ -170,7 +197,7 @@ public:
       const char *base = Strrnchr(FILE,'/', 2);
       const char *file = base ? base + 1 : FILE;
       const uint8_t color = COLOR ? COLOR : 20 + Checksum8(FILE) % 210;
-      std::cout << "\n\033[38;5;" << std::to_string(color) << "m";
+      std::cout << "\033[38;5;" << std::to_string(color) << "m";
       std::cout << file << ":";
       std::cout << "\033[2m" << std::setw(4) << LINE << "\033[22m: ";
       if (FUNC) { std::cout << "[" << FUNC << "] "; }

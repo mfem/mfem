@@ -13,7 +13,8 @@
 
 #include "xfl.hpp"
 #include "xfl.Y.hpp"
-#include "xfc.hpp"
+#include "xfl_mid.hpp"
+#include "xfl_ker.hpp"
 
 // *****************************************************************************
 template <typename T = long double>
@@ -78,8 +79,6 @@ int main(int argc, char *argv[])
 
    if (ufl.close() != 0) { return EXIT_FAILURE; }
 
-   if (ufl.morph(out) != 0 ) { return EXIT_FAILURE; }
-
    if (ufl.code(out) != 0 ) { return EXIT_FAILURE; }
 
    if (ast_save) { AstSave("ast", ufl.root, ast_debug); }
@@ -93,6 +92,10 @@ static bool Simplify(const Node *n, const int debug = 2)
    if (debug == 0) { return false; } // keep all rules if requested
    if (n->IsToken() && n->n == TOK::NL) { return true; } // remove NL
    if (n->child && n->child->root != n) { return false; } // keep links
+   if (n->IsRule() && n->n == extra_status_rule_transpose_xt) { return false; } // keep transpose XT
+   if (n->IsRule() && n->n == extra_status_rule_eval_xt) { return false; } // keep eval XT
+   if (n->IsRule() && n->n == grad_expr_grad_op_form_args) { return false; } // keep grad XT
+   if (n->IsRule() && n->n == extra_status_rule_dot_xt) { return false; } // keep dot XT
    if (n->IsRule() && n->n == statement_nl) { return true; } // remove NL
    if (n->IsRule() && n->n == statements_statement) { return true; } // remove end of statement list
    if (n->IsRule() && n->n == statements_statements_statement) { return true; } // remove statements list
@@ -198,12 +201,22 @@ int AstSave(const char* filename, Node *root, const int debug)
 }
 
 // ****************************************************************************
-Node *xfl::astAddNode(Node_sptr n)
+Node *xfl::NewNode(Node_sptr n) const
 {
    assert(n);
    static std::list<Node_sptr> node_list_to_be_destructed;
    node_list_to_be_destructed.push_back(n);
    return n.get();
+}
+
+// ****************************************************************************
+void xfl::InsertNode(Node *root, Node *child)
+{
+   root->root = child->root;
+   root->child = child;
+
+   child->root->child = root;
+   child->root = root;
 }
 
 // *****************************************************************************
@@ -228,19 +241,29 @@ int xfl::parse(void)
 xfl::~xfl() { delete loc; }
 
 // *****************************************************************************
-int xfl::morph(std::ostream &out)
-{
-   // First transformation to add the extra_status_rule_dom_dx rule
-   mfem::internal::DomDx dx(*this, out);
-   dfs(root, dx);
-   return EXIT_SUCCESS;
-}
-
-// *****************************************************************************
 int xfl::code(std::ostream &out)
 {
+   // Transformation which turns forms inner to PA mult rules
+   mfem::internal::DotPA pa(*this, out);
+   DfsPreOrder(root, pa);
+
+   // Transformation to add the extra_status_rule_dom_dx rule
+   mfem::internal::DomDx dx(*this, out);
+   DfsPreOrder(root, dx);
+
    // Then code generation
-   mfem::internal::Code me(*this, out);
-   dfs(root, me);
+   std::ostringstream main;
+   mfem::internal::Code mc(*this, main);
+   DfsPreOrder(root, mc);
+
+   // Static kernels
+   std::ostringstream kernels;
+   mfem::internal::StaticKernels sk(*this, kernels);
+   DfsPreOrder(root, sk);
+
+   out << "#include \"xfl_mfem.hpp\"" << std:: endl;
+   out << kernels.str() << std:: endl;
+   out << main.str() << std:: endl;
+
    return EXIT_SUCCESS;
 }

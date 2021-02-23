@@ -1,0 +1,43 @@
+# CEED 3D Bake-off BP3, based on MFEM Example 1
+p = 3                  # Finite element order (polynomial degree)
+#device_config = "cpu" # Device configuration string
+
+# Enable hardware devices such as GPUs
+#device = Device(device_config)
+#device.Print()
+
+# Create the mesh
+dim = 3
+#N = 16
+#mesh = (dim == 2) ? UnitSquareMesh(N,N) : UnitHexMesh(N,N,N)
+mesh = Mesh(pmesh) # Get the mesh from an option that comes from the benchmark
+
+# Define a finite element space on the mesh
+el = (dim == 2) ? quadrilateral : hexahedron
+fe = FiniteElement("Lagrange", el, p)
+fes = FunctionSpace(mesh, fe)
+
+# Define boundary condition.
+bc = DirichletBC(fes)
+
+# Define the solution vector x as a finite element grid function
+x = Function(fes)
+x = 0.0
+
+# Define the trial and test functions that will be used in the forms
+u = TrialFunction(fes)
+v = TestFunction(fes)
+
+# Set up the linear form b(.)
+b = v*dx
+
+# Set up the parallel bilinear form a(.,.)
+a = inner(grad(u), grad(v))*dx
+#a = inner(u, v)*dx
+
+# Solve the linear system a x = b
+#benchmark(a == b, x, bc)
+benchmark(a == b, x, bc, 0, 50, -1)
+
+glvis = True
+if (glvis) plot(x)

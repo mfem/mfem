@@ -1,9 +1,10 @@
 # Example options.
-mesh_file = "../../data/star.mesh"
+dim = 3
+mesh_file = (dim == 2) ? "../../data/star.mesh": "../../data/fichera.mesh"
 order = 2
-visualization = true
+glvis = True
 device_config = "cpu"
-output = false
+output = False
 
 # Enable hardware devices such as GPUs, and programming models such as
 # CUDA, OCCA, RAJA and OpenMP based on the example options.
@@ -12,15 +13,15 @@ device.Print()
 
 # Read the mesh from the given mesh file.
 mesh = Mesh(mesh_file)
-dim = mesh.Dimension()
 
 # Refine the mesh to increase the resolution.
-ref_levels = floor(log(500./mesh.GetNE())/log(2.)/dim)
+ref_levels = floor(log(5000./mesh.GetNE())/log(2.)/dim)
 for l in range(ref_levels): mesh.UniformRefinement()
 
 # Define a finite element space on the mesh. Here we use continuous
 # Lagrange finite elements of the specified order.
-fe = FiniteElement("Lagrange", quadrilateral, order)
+el = (dim == 2) ? quadrilateral : hexahedron
+fe = FiniteElement("Lagrange", el, order)
 fes = FunctionSpace(mesh, fe)
 assert(UsesTensorBasis(fes))
 u = TrialFunction(fes)
@@ -31,7 +32,8 @@ bc = DirichletBC(fes)
 
 # Set up the linear form b(.) which corresponds to the right-hand side.
 rhs_coef = Expression('x(0)*x(1) / (x(0)*x(0)+x(1)*x(1))')
-b = rhs_coef*v*dx
+#b = rhs_coef*v*dx
+b = v*dx
 
 # Define the solution vector x as a finite element grid function
 # corresponding to fespace. Initialize x with initial guess of zero,
@@ -42,7 +44,8 @@ x = 0.0
 # Set up the bilinear form a(.,.) on the finite element space
 # corresponding to the Laplacian operator -Delta, by adding the Diffusion
 # domain integrator.
-a = inner(grad(u), grad(v))*dx + inner(u,v)*dx
+a = inner(grad(u), grad(v))*dx #+ inner(u,v)*dx
+#a = inner(u,v)*dx
 
 # Solve the linear system a x = b, applying any necessary
 # transformations such as: eliminating boundary conditions,
@@ -50,7 +53,7 @@ a = inner(grad(u), grad(v))*dx + inner(u,v)*dx
 solve(a == b, x, bc)
 
 # Send the solution by socket to a GLVis server.
-if (visualization) plot(x)
+if (glvis) plot(x)
 
 # Save the output mesh and solution
 if (output) save(mesh, "ex1.mesh")

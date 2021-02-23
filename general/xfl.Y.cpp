@@ -1,8 +1,8 @@
-// A Bison parser, made by GNU Bison 3.7.4.
+// A Bison parser, made by GNU Bison 3.7.5.
 
 // Skeleton implementation for Bison LALR(1) parsers in C++
 
-// Copyright (C) 2002-2015, 2018-2020 Free Software Foundation, Inc.
+// Copyright (C) 2002-2015, 2018-2021 Free Software Foundation, Inc.
 
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -51,7 +51,7 @@
 
 #include "xfl.hpp"
 #include "xfl.Y.hpp"
-#include "xfc.hpp"
+#include "xfl_mid.hpp"
 YY_DECL;
 
 using symbol_t = yy::parser::symbol_kind_type;
@@ -152,7 +152,7 @@ template<int YYN> void rhs(xfl&,
 #else // !YYDEBUG
 
 # define YYCDEBUG if (false) std::cerr
-# define YY_SYMBOL_PRINT(Title, Symbol)  YYUSE (Symbol)
+# define YY_SYMBOL_PRINT(Title, Symbol)  YY_USE (Symbol)
 # define YY_REDUCE_PRINT(Rule)           static_cast<void> (0)
 # define YY_STACK_PRINT()                static_cast<void> (0)
 
@@ -262,7 +262,7 @@ parser::by_kind::by_kind (token_kind_type t)
 {}
 
 void
-parser::by_kind::clear ()
+parser::by_kind::clear () YY_NOEXCEPT
 {
    kind_ = symbol_kind::S_YYEMPTY;
 }
@@ -379,7 +379,7 @@ parser::yy_destroy_ (const char* yymsg, basic_symbol<Base>& yysym) const
    }
 
    // User destructor.
-   YYUSE (yysym.kind ());
+   YY_USE (yysym.kind ());
 }
 
 #if YYDEBUG
@@ -388,7 +388,7 @@ void
 parser::yy_print_ (std::ostream& yyo, const basic_symbol<Base>& yysym) const
 {
    std::ostream& yyoutput = yyo;
-   YYUSE (yyoutput);
+   YY_USE (yyoutput);
    if (yysym.empty ())
    {
       yyo << "empty symbol";
@@ -399,7 +399,7 @@ parser::yy_print_ (std::ostream& yyo, const basic_symbol<Base>& yysym) const
       yyo << (yykind < YYNTOKENS ? "token" : "nterm")
           << ' ' << yysym.name () << " ("
           << yysym.location << ": ";
-      YYUSE (yykind);
+      YY_USE (yykind);
       yyo << ')';
    }
 }
@@ -878,1594 +878,1778 @@ parser::parse ()
                   break;
                }
 
-               case 27:   // extra_status_rule: var_xt
+               case 27:   // extra_status_rule: expr_quote
                {
-#define extra_status_rule_var_xt 27
+#define extra_status_rule_expr_quote 27
                   constexpr int YYN = 27;
                   {} {RHS}
                   break;
                }
 
-               case 28:   // extra_status_rule: dom_xt
+               case 28:   // extra_status_rule: transpose_xt
                {
-#define extra_status_rule_dom_xt 28
+#define extra_status_rule_transpose_xt 28
                   constexpr int YYN = 28;
                   {} {RHS}
                   break;
                }
 
-               case 29:   // extra_status_rule: expr_quote
+               case 29:   // extra_status_rule: dot_xt
                {
-#define extra_status_rule_expr_quote 29
+#define extra_status_rule_dot_xt 29
                   constexpr int YYN = 29;
                   {} {RHS}
                   break;
                }
 
-               case 30:   // lhs: LHS
+               case 30:   // extra_status_rule: eval_xt
                {
-#define lhs_lhs 30
+#define extra_status_rule_eval_xt 30
                   constexpr int YYN = 30;
                   {} {RHS}
                   break;
                }
 
-               case 31:   // var_xt: VAR_XT
+               case 31:   // extra_status_rule: var_xt
                {
-#define var_xt_var_xt 31
+#define extra_status_rule_var_xt 31
                   constexpr int YYN = 31;
                   {} {RHS}
                   break;
                }
 
-               case 32:   // dom_xt: DOM_XT
+               case 32:   // extra_status_rule: dom_xt
                {
-#define dom_xt_dom_xt 32
+#define extra_status_rule_dom_xt 32
                   constexpr int YYN = 32;
                   {} {RHS}
                   break;
                }
 
-               case 33:   // expr_quote: EXPR_QUOTE
+               case 33:   // lhs: LHS
                {
-#define expr_quote_expr_quote 33
+#define lhs_lhs 33
                   constexpr int YYN = 33;
                   {} {RHS}
                   break;
                }
 
-               case 34:   // function: DEF IDENTIFIER LP args_expr_list RP COLON def_empty RETURN math_expr
+               case 34:   // dot_xt: DOT_XT
                {
-#define function_def_identifier_lp_args_expr_list_rp_colon_def_empty_return_math_expr 34
+#define dot_xt_dot_xt 34
                   constexpr int YYN = 34;
                   {} {RHS}
                   break;
                }
 
-               case 35:   // function: DEF IDENTIFIER LP args_expr_list RP COLON def_statements RETURN math_expr
+               case 35:   // eval_xt: EVAL_XT
                {
-#define function_def_identifier_lp_args_expr_list_rp_colon_def_statements_return_math_expr 35
+#define eval_xt_eval_xt 35
                   constexpr int YYN = 35;
                   {} {RHS}
                   break;
                }
 
-               case 36:   // def_empty: %empty
+               case 36:   // transpose_xt: TRANSPOSE_XT
                {
-#define def_empty_empty 36
+#define transpose_xt_transpose_xt 36
                   constexpr int YYN = 36;
                   {} {RHS}
                   break;
                }
 
-               case 37:   // def_statements: def_statement
+               case 37:   // var_xt: VAR_XT
                {
-#define def_statements_def_statement 37
+#define var_xt_var_xt 37
                   constexpr int YYN = 37;
                   {} {RHS}
                   break;
                }
 
-               case 38:   // def_statements: def_statements def_statement
+               case 38:   // dom_xt: DOM_XT
                {
-#define def_statements_def_statements_def_statement 38
+#define dom_xt_dom_xt 38
                   constexpr int YYN = 38;
                   {} {RHS}
                   break;
                }
 
-               case 39:   // def_statement: NL
+               case 39:   // expr_quote: EXPR_QUOTE
                {
-#define def_statement_nl 39
+#define expr_quote_expr_quote 39
                   constexpr int YYN = 39;
                   {} {RHS}
                   break;
                }
 
-               case 40:   // def_statement: id_list assign_op expr NL
+               case 40:   // function: DEF IDENTIFIER LP args_expr_list RP COLON def_empty RETURN math_expr
                {
-#define def_statement_id_list_assign_op_expr_nl 40
+#define function_def_identifier_lp_args_expr_list_rp_colon_def_empty_return_math_expr 40
                   constexpr int YYN = 40;
                   {} {RHS}
                   break;
                }
 
-               case 41:   // def_statement: LP id_list RP assign_op expr NL
+               case 41:   // function: DEF IDENTIFIER LP args_expr_list RP COLON def_statements RETURN math_expr
                {
-#define def_statement_lp_id_list_rp_assign_op_expr_nl 41
+#define function_def_identifier_lp_args_expr_list_rp_colon_def_statements_return_math_expr 41
                   constexpr int YYN = 41;
                   {} {RHS}
                   break;
                }
 
-               case 42:   // iteration_statement: FOR IDENTIFIER IN RANGE LP IDENTIFIER RP COLON NL expr
+               case 42:   // def_empty: %empty
                {
-#define iteration_statement_for_identifier_in_range_lp_identifier_rp_colon_nl_expr 42
+#define def_empty_empty 42
                   constexpr int YYN = 42;
                   {} {RHS}
                   break;
                }
 
-               case 43:   // iteration_statement: FOR IDENTIFIER IN RANGE LP IDENTIFIER RP COLON expr
+               case 43:   // def_statements: def_statement
                {
-#define iteration_statement_for_identifier_in_range_lp_identifier_rp_colon_expr 43
+#define def_statements_def_statement 43
                   constexpr int YYN = 43;
                   {} {RHS}
                   break;
                }
 
-               case 44:   // if_statement: IF LP expr RP expr
+               case 44:   // def_statements: def_statements def_statement
                {
-#define if_statement_if_lp_expr_rp_expr 44
+#define def_statements_def_statements_def_statement 44
                   constexpr int YYN = 44;
                   {} {RHS}
                   break;
                }
 
-               case 45:   // api_statement: PLOT LP expr RP
+               case 45:   // def_statement: NL
                {
-#define api_statement_plot_lp_expr_rp 45
+#define def_statement_nl 45
                   constexpr int YYN = 45;
                   {} {RHS}
                   break;
                }
 
-               case 46:   // api_statement: SAVE LP expr RP
+               case 46:   // def_statement: id_list assign_op expr NL
                {
-#define api_statement_save_lp_expr_rp 46
+#define def_statement_id_list_assign_op_expr_nl 46
                   constexpr int YYN = 46;
                   {} {RHS}
                   break;
                }
 
-               case 47:   // api_statement: SOLVE LP expr RP
+               case 47:   // def_statement: LP id_list RP assign_op expr NL
                {
-#define api_statement_solve_lp_expr_rp 47
+#define def_statement_lp_id_list_rp_assign_op_expr_nl 47
                   constexpr int YYN = 47;
                   {} {RHS}
                   break;
                }
 
-               case 48:   // api_statement: PROJECT LP expr RP
+               case 48:   // iteration_statement: FOR IDENTIFIER IN RANGE LP IDENTIFIER RP COLON NL expr
                {
-#define api_statement_project_lp_expr_rp 48
+#define iteration_statement_for_identifier_in_range_lp_identifier_rp_colon_nl_expr 48
                   constexpr int YYN = 48;
                   {} {RHS}
                   break;
                }
 
-               case 49:   // direct_declarator: postfix_id
+               case 49:   // iteration_statement: FOR IDENTIFIER IN RANGE LP IDENTIFIER RP COLON expr
                {
-#define direct_declarator_postfix_id 49
+#define iteration_statement_for_identifier_in_range_lp_identifier_rp_colon_expr 49
                   constexpr int YYN = 49;
                   {} {RHS}
                   break;
                }
 
-               case 50:   // domain: DOM_DX
+               case 50:   // if_statement: IF LP expr RP expr
                {
-#define domain_dom_dx 50
+#define if_statement_if_lp_expr_rp_expr 50
                   constexpr int YYN = 50;
                   {} {RHS}
                   break;
                }
 
-               case 51:   // domain: EXT_DS
+               case 51:   // api_statement: PLOT LP expr RP
                {
-#define domain_ext_ds 51
+#define api_statement_plot_lp_expr_rp 51
                   constexpr int YYN = 51;
                   {} {RHS}
                   break;
                }
 
-               case 52:   // domain: INT_DS
+               case 52:   // api_statement: SAVE LP expr RP
                {
-#define domain_int_ds 52
+#define api_statement_save_lp_expr_rp 52
                   constexpr int YYN = 52;
                   {} {RHS}
                   break;
                }
 
-               case 53:   // constant: NATURAL
+               case 53:   // api_statement: SOLVE LP expr RP
                {
-#define constant_natural 53
+#define api_statement_solve_lp_expr_rp 53
                   constexpr int YYN = 53;
                   {} {RHS}
                   break;
                }
 
-               case 54:   // constant: REAL
+               case 54:   // api_statement: PROJECT LP expr RP
                {
-#define constant_real 54
+#define api_statement_project_lp_expr_rp 54
                   constexpr int YYN = 54;
                   {} {RHS}
                   break;
                }
 
-               case 55:   // strings: STRING
+               case 55:   // api_statement: BENCHMARK LP expr RP
                {
-#define strings_string 55
+#define api_statement_benchmark_lp_expr_rp 55
                   constexpr int YYN = 55;
                   {} {RHS}
                   break;
                }
 
-               case 56:   // strings: strings STRING
+               case 56:   // direct_declarator: postfix_id
                {
-#define strings_strings_string 56
+#define direct_declarator_postfix_id 56
                   constexpr int YYN = 56;
                   {} {RHS}
                   break;
                }
 
-               case 57:   // api: DEVICE
+               case 57:   // domain: DOM_DX
                {
-#define api_device 57
+#define domain_dom_dx 57
                   constexpr int YYN = 57;
                   {} {RHS}
                   break;
                }
 
-               case 58:   // api: MESH
+               case 58:   // domain: EXT_DS
                {
-#define api_mesh 58
+#define domain_ext_ds 58
                   constexpr int YYN = 58;
                   {} {RHS}
                   break;
                }
 
-               case 59:   // api: FINITE_ELEMENT
+               case 59:   // domain: INT_DS
                {
-#define api_finite_element 59
+#define domain_int_ds 59
                   constexpr int YYN = 59;
                   {} {RHS}
                   break;
                }
 
-               case 60:   // api: UNIT_SQUARE_MESH
+               case 60:   // constant: NATURAL
                {
-#define api_unit_square_mesh 60
+#define constant_natural 60
                   constexpr int YYN = 60;
                   {} {RHS}
                   break;
                }
 
-               case 61:   // api: UNIT_HEX_MESH
+               case 61:   // constant: REAL
                {
-#define api_unit_hex_mesh 61
+#define constant_real 61
                   constexpr int YYN = 61;
                   {} {RHS}
                   break;
                }
 
-               case 62:   // api: FUNCTION
+               case 62:   // constant: BOOL
                {
-#define api_function 62
+#define constant_bool 62
                   constexpr int YYN = 62;
                   {} {RHS}
                   break;
                }
 
-               case 63:   // api: FUNCTION_SPACE
+               case 63:   // strings: STRING
                {
-#define api_function_space 63
+#define strings_string 63
                   constexpr int YYN = 63;
                   {} {RHS}
                   break;
                }
 
-               case 64:   // api: VECTOR_FUNCTION_SPACE
+               case 64:   // strings: strings STRING
                {
-#define api_vector_function_space 64
+#define strings_strings_string 64
                   constexpr int YYN = 64;
                   {} {RHS}
                   break;
                }
 
-               case 65:   // api: EXPRESSION
+               case 65:   // id_n: conditional_expr
                {
-#define api_expression 65
+#define id_n_conditional_expr 65
                   constexpr int YYN = 65;
                   {} {RHS}
                   break;
                }
 
-               case 66:   // api: DIRICHLET_BC
+               case 66:   // fes_args: IDENTIFIER COMA IDENTIFIER
                {
-#define api_dirichlet_bc 66
+#define fes_args_identifier_coma_identifier 66
                   constexpr int YYN = 66;
                   {} {RHS}
                   break;
                }
 
-               case 67:   // api: TRIAL_FUNCTION
+               case 67:   // fes_args: IDENTIFIER COMA IDENTIFIER COMA id_n
                {
-#define api_trial_function 67
+#define fes_args_identifier_coma_identifier_coma_id_n 67
                   constexpr int YYN = 67;
                   {} {RHS}
                   break;
                }
 
-               case 68:   // api: TEST_FUNCTION
+               case 68:   // fes_args: IDENTIFIER COMA QUOTE COMA id_n
                {
-#define api_test_function 68
+#define fes_args_identifier_coma_quote_coma_id_n 68
                   constexpr int YYN = 68;
                   {} {RHS}
                   break;
                }
 
-               case 69:   // api: CONSTANT_API
+               case 69:   // element_type: POINT
                {
-#define api_constant_api 69
+#define element_type_point 69
                   constexpr int YYN = 69;
                   {} {RHS}
                   break;
                }
 
-               case 70:   // api: api_statement
+               case 70:   // element_type: TRIANGLE
                {
-#define api_api_statement 70
+#define element_type_triangle 70
                   constexpr int YYN = 70;
                   {} {RHS}
                   break;
                }
 
-               case 71:   // primary_expr: IDENTIFIER
+               case 71:   // element_type: QUADRILATERAL
                {
-#define primary_expr_identifier 71
+#define element_type_quadrilateral 71
                   constexpr int YYN = 71;
                   {} {RHS}
                   break;
                }
 
-               case 72:   // primary_expr: constant
+               case 72:   // element_type: TETRAHEDRON
                {
-#define primary_expr_constant 72
+#define element_type_tetrahedron 72
                   constexpr int YYN = 72;
                   {} {RHS}
                   break;
                }
 
-               case 73:   // primary_expr: domain
+               case 73:   // element_type: HEXAHEDRON
                {
-#define primary_expr_domain 73
+#define element_type_hexahedron 73
                   constexpr int YYN = 73;
                   {} {RHS}
                   break;
                }
 
-               case 74:   // primary_expr: QUOTE
+               case 74:   // element_type: WEDGE
                {
-#define primary_expr_quote 74
+#define element_type_wedge 74
                   constexpr int YYN = 74;
                   {} {RHS}
                   break;
                }
 
-               case 75:   // primary_expr: strings
+               case 75:   // api: DEVICE
                {
-#define primary_expr_strings 75
+#define api_device 75
                   constexpr int YYN = 75;
                   {} {RHS}
                   break;
                }
 
-               case 76:   // primary_expr: LP expr RP
+               case 76:   // api: MESH
                {
-#define primary_expr_lp_expr_rp 76
+#define api_mesh 76
                   constexpr int YYN = 76;
                   {} {RHS}
                   break;
                }
 
-               case 77:   // primary_expr: LB expr RB
+               case 77:   // api: FUNCTION
                {
-#define primary_expr_lb_expr_rb 77
+#define api_function 77
                   constexpr int YYN = 77;
                   {} {RHS}
                   break;
                }
 
-               case 78:   // primary_expr: LS coords RS
+               case 78:   // api: UNIT_HEX_MESH
                {
-#define primary_expr_ls_coords_rs 78
+#define api_unit_hex_mesh 78
                   constexpr int YYN = 78;
                   {} {RHS}
                   break;
                }
 
-               case 79:   // primary_expr: api
+               case 79:   // api: UNIT_SQUARE_MESH
                {
-#define primary_expr_api 79
+#define api_unit_square_mesh 79
                   constexpr int YYN = 79;
                   {} {RHS}
                   break;
                }
 
-               case 80:   // pow_expr: postfix_expr POW constant
+               case 80:   // api: FINITE_ELEMENT
                {
-#define pow_expr_postfix_expr_pow_constant 80
+#define api_finite_element 80
                   constexpr int YYN = 80;
                   {} {RHS}
                   break;
                }
 
-               case 81:   // pow_expr: postfix_expr POW IDENTIFIER
+               case 81:   // api: FUNCTION_SPACE LP fes_args RP
                {
-#define pow_expr_postfix_expr_pow_identifier 81
+#define api_function_space_lp_fes_args_rp 81
                   constexpr int YYN = 81;
                   {} {RHS}
                   break;
                }
 
-               case 82:   // postfix_expr: primary_expr
+               case 82:   // api: VECTOR_FUNCTION_SPACE
                {
-#define postfix_expr_primary_expr 82
+#define api_vector_function_space 82
                   constexpr int YYN = 82;
                   {} {RHS}
                   break;
                }
 
-               case 83:   // postfix_expr: pow_expr
+               case 83:   // api: EXPRESSION
                {
-#define postfix_expr_pow_expr 83
+#define api_expression 83
                   constexpr int YYN = 83;
                   {} {RHS}
                   break;
                }
 
-               case 84:   // postfix_expr: INNER_OP LP additive_expr COMA additive_expr RP
+               case 84:   // api: DIRICHLET_BC
                {
-#define postfix_expr_inner_op_lp_additive_expr_coma_additive_expr_rp 84
+#define api_dirichlet_bc 84
                   constexpr int YYN = 84;
                   {} {RHS}
                   break;
                }
 
-               case 85:   // postfix_expr: postfix_expr LB expr RB
+               case 85:   // api: TRIAL_FUNCTION
                {
-#define postfix_expr_postfix_expr_lb_expr_rb 85
+#define api_trial_function 85
                   constexpr int YYN = 85;
                   {} {RHS}
                   break;
                }
 
-               case 86:   // postfix_expr: postfix_expr LP RP
+               case 86:   // api: TEST_FUNCTION
                {
-#define postfix_expr_postfix_expr_lp_rp 86
+#define api_test_function 86
                   constexpr int YYN = 86;
                   {} {RHS}
                   break;
                }
 
-               case 87:   // postfix_expr: postfix_expr LP args_expr_list RP
+               case 87:   // api: CONSTANT_API
                {
-#define postfix_expr_postfix_expr_lp_args_expr_list_rp 87
+#define api_constant_api 87
                   constexpr int YYN = 87;
                   {} {RHS}
                   break;
                }
 
-               case 88:   // postfix_expr: postfix_expr DOT primary_expr
+               case 88:   // api: api_statement
                {
-#define postfix_expr_postfix_expr_dot_primary_expr 88
+#define api_api_statement 88
                   constexpr int YYN = 88;
                   {} {RHS}
                   break;
                }
 
-               case 89:   // postfix_expr: GRAD_OP LP additive_expr RP
+               case 89:   // api: element_type
                {
-#define postfix_expr_grad_op_lp_additive_expr_rp 89
+#define api_element_type 89
                   constexpr int YYN = 89;
                   {} {RHS}
                   break;
                }
 
-               case 90:   // postfix_expr: LHS LP IDENTIFIER RP
+               case 90:   // primary_expr: IDENTIFIER
                {
-#define postfix_expr_lhs_lp_identifier_rp 90
+#define primary_expr_identifier 90
                   constexpr int YYN = 90;
                   {} {RHS}
                   break;
                }
 
-               case 91:   // postfix_expr: RHS LP IDENTIFIER RP
+               case 91:   // primary_expr: constant
                {
-#define postfix_expr_rhs_lp_identifier_rp 91
+#define primary_expr_constant 91
                   constexpr int YYN = 91;
                   {} {RHS}
                   break;
                }
 
-               case 92:   // unary_expr: postfix_expr
+               case 92:   // primary_expr: domain
                {
-#define unary_expr_postfix_expr 92
+#define primary_expr_domain 92
                   constexpr int YYN = 92;
                   {} {RHS}
                   break;
                }
 
-               case 93:   // unary_expr: unary_op cast_expr
+               case 93:   // primary_expr: QUOTE
                {
-#define unary_expr_unary_op_cast_expr 93
+#define primary_expr_quote 93
                   constexpr int YYN = 93;
                   {} {RHS}
                   break;
                }
 
-               case 94:   // unary_op: MUL
+               case 94:   // primary_expr: strings
                {
-#define unary_op_mul 94
+#define primary_expr_strings 94
                   constexpr int YYN = 94;
                   {} {RHS}
                   break;
                }
 
-               case 95:   // unary_op: ADD
+               case 95:   // primary_expr: LP expr RP
                {
-#define unary_op_add 95
+#define primary_expr_lp_expr_rp 95
                   constexpr int YYN = 95;
                   {} {RHS}
                   break;
                }
 
-               case 96:   // unary_op: SUB
+               case 96:   // primary_expr: LB expr RB
                {
-#define unary_op_sub 96
+#define primary_expr_lb_expr_rb 96
                   constexpr int YYN = 96;
                   {} {RHS}
                   break;
                }
 
-               case 97:   // unary_op: TILDE
+               case 97:   // primary_expr: LS coords RS
                {
-#define unary_op_tilde 97
+#define primary_expr_ls_coords_rs 97
                   constexpr int YYN = 97;
                   {} {RHS}
                   break;
                }
 
-               case 98:   // unary_op: NOT
+               case 98:   // form_args: LP additive_expr RP
                {
-#define unary_op_not 98
+#define form_args_lp_additive_expr_rp 98
                   constexpr int YYN = 98;
                   {} {RHS}
                   break;
                }
 
-               case 99:   // cast_expr: unary_expr
+               case 99:   // grad_expr: GRAD_OP form_args
                {
-#define cast_expr_unary_expr 99
+#define grad_expr_grad_op_form_args 99
                   constexpr int YYN = 99;
                   {} {RHS}
                   break;
                }
 
-               case 100:   // multiplicative_expr: cast_expr
+               case 100:   // transpose_expr: TRANSPOSE_OP form_args
                {
-#define multiplicative_expr_cast_expr 100
+#define transpose_expr_transpose_op_form_args 100
                   constexpr int YYN = 100;
                   {} {RHS}
                   break;
                }
 
-               case 101:   // multiplicative_expr: multiplicative_expr MUL cast_expr
+               case 101:   // pow_expr: postfix_expr POW constant
                {
-#define multiplicative_expr_multiplicative_expr_mul_cast_expr 101
+#define pow_expr_postfix_expr_pow_constant 101
                   constexpr int YYN = 101;
                   {} {RHS}
                   break;
                }
 
-               case 102:   // multiplicative_expr: multiplicative_expr DIV cast_expr
+               case 102:   // pow_expr: postfix_expr POW IDENTIFIER
                {
-#define multiplicative_expr_multiplicative_expr_div_cast_expr 102
+#define pow_expr_postfix_expr_pow_identifier 102
                   constexpr int YYN = 102;
                   {} {RHS}
                   break;
                }
 
-               case 103:   // multiplicative_expr: multiplicative_expr MOD cast_expr
+               case 103:   // postfix_expr: primary_expr
                {
-#define multiplicative_expr_multiplicative_expr_mod_cast_expr 103
+#define postfix_expr_primary_expr 103
                   constexpr int YYN = 103;
                   {} {RHS}
                   break;
                }
 
-               case 104:   // dot_expr: multiplicative_expr
+               case 104:   // postfix_expr: pow_expr
                {
-#define dot_expr_multiplicative_expr 104
+#define postfix_expr_pow_expr 104
                   constexpr int YYN = 104;
                   {} {RHS}
                   break;
                }
 
-               case 105:   // dot_expr: dot_expr DOT_OP multiplicative_expr
+               case 105:   // postfix_expr: INNER_OP LP additive_expr COMA additive_expr RP
                {
-#define dot_expr_dot_expr_dot_op_multiplicative_expr 105
+#define postfix_expr_inner_op_lp_additive_expr_coma_additive_expr_rp 105
                   constexpr int YYN = 105;
                   {} {RHS}
                   break;
                }
 
-               case 106:   // additive_expr: dot_expr
+               case 106:   // postfix_expr: postfix_expr LB expr RB
                {
-#define additive_expr_dot_expr 106
+#define postfix_expr_postfix_expr_lb_expr_rb 106
                   constexpr int YYN = 106;
                   {} {RHS}
                   break;
                }
 
-               case 107:   // additive_expr: additive_expr ADD dot_expr
+               case 107:   // postfix_expr: postfix_expr LP RP
                {
-#define additive_expr_additive_expr_add_dot_expr 107
+#define postfix_expr_postfix_expr_lp_rp 107
                   constexpr int YYN = 107;
                   {} {RHS}
                   break;
                }
 
-               case 108:   // additive_expr: additive_expr SUB dot_expr
+               case 108:   // postfix_expr: postfix_expr LP args_expr_list RP
                {
-#define additive_expr_additive_expr_sub_dot_expr 108
+#define postfix_expr_postfix_expr_lp_args_expr_list_rp 108
                   constexpr int YYN = 108;
                   {} {RHS}
                   break;
                }
 
-               case 109:   // shift_expr: additive_expr
+               case 109:   // postfix_expr: postfix_expr DOT primary_expr
                {
-#define shift_expr_additive_expr 109
+#define postfix_expr_postfix_expr_dot_primary_expr 109
                   constexpr int YYN = 109;
                   {} {RHS}
                   break;
                }
 
-               case 110:   // shift_expr: shift_expr LEFT_SHIFT additive_expr
+               case 110:   // postfix_expr: grad_expr
                {
-#define shift_expr_shift_expr_left_shift_additive_expr 110
+#define postfix_expr_grad_expr 110
                   constexpr int YYN = 110;
                   {} {RHS}
                   break;
                }
 
-               case 111:   // shift_expr: shift_expr RIGHT_SHIFT additive_expr
+               case 111:   // postfix_expr: transpose_expr
                {
-#define shift_expr_shift_expr_right_shift_additive_expr 111
+#define postfix_expr_transpose_expr 111
                   constexpr int YYN = 111;
                   {} {RHS}
                   break;
                }
 
-               case 112:   // relational_expr: shift_expr
+               case 112:   // postfix_expr: LHS LP IDENTIFIER RP
                {
-#define relational_expr_shift_expr 112
+#define postfix_expr_lhs_lp_identifier_rp 112
                   constexpr int YYN = 112;
                   {} {RHS}
                   break;
                }
 
-               case 113:   // relational_expr: relational_expr LT shift_expr
+               case 113:   // postfix_expr: RHS LP IDENTIFIER RP
                {
-#define relational_expr_relational_expr_lt_shift_expr 113
+#define postfix_expr_rhs_lp_identifier_rp 113
                   constexpr int YYN = 113;
                   {} {RHS}
                   break;
                }
 
-               case 114:   // relational_expr: relational_expr GT shift_expr
+               case 114:   // postfix_expr: api
                {
-#define relational_expr_relational_expr_gt_shift_expr 114
+#define postfix_expr_api 114
                   constexpr int YYN = 114;
                   {} {RHS}
                   break;
                }
 
-               case 115:   // relational_expr: relational_expr LT_EQ shift_expr
+               case 115:   // unary_expr: postfix_expr
                {
-#define relational_expr_relational_expr_lt_eq_shift_expr 115
+#define unary_expr_postfix_expr 115
                   constexpr int YYN = 115;
                   {} {RHS}
                   break;
                }
 
-               case 116:   // relational_expr: relational_expr GT_EQ shift_expr
+               case 116:   // unary_expr: unary_op cast_expr
                {
-#define relational_expr_relational_expr_gt_eq_shift_expr 116
+#define unary_expr_unary_op_cast_expr 116
                   constexpr int YYN = 116;
                   {} {RHS}
                   break;
                }
 
-               case 117:   // equality_expr: relational_expr
+               case 117:   // unary_op: MUL
                {
-#define equality_expr_relational_expr 117
+#define unary_op_mul 117
                   constexpr int YYN = 117;
                   {} {RHS}
                   break;
                }
 
-               case 118:   // equality_expr: equality_expr EQ_EQ relational_expr
+               case 118:   // unary_op: ADD
                {
-#define equality_expr_equality_expr_eq_eq_relational_expr 118
+#define unary_op_add 118
                   constexpr int YYN = 118;
                   {} {RHS}
                   break;
                }
 
-               case 119:   // equality_expr: equality_expr NOT_EQ relational_expr
+               case 119:   // unary_op: SUB
                {
-#define equality_expr_equality_expr_not_eq_relational_expr 119
+#define unary_op_sub 119
                   constexpr int YYN = 119;
                   {} {RHS}
                   break;
                }
 
-               case 120:   // and_expr: equality_expr
+               case 120:   // unary_op: TILDE
                {
-#define and_expr_equality_expr 120
+#define unary_op_tilde 120
                   constexpr int YYN = 120;
                   {} {RHS}
                   break;
                }
 
-               case 121:   // and_expr: and_expr AND equality_expr
+               case 121:   // unary_op: NOT
                {
-#define and_expr_and_expr_and_equality_expr 121
+#define unary_op_not 121
                   constexpr int YYN = 121;
                   {} {RHS}
                   break;
                }
 
-               case 122:   // exclusive_or_expr: and_expr
+               case 122:   // cast_expr: unary_expr
                {
-#define exclusive_or_expr_and_expr 122
+#define cast_expr_unary_expr 122
                   constexpr int YYN = 122;
                   {} {RHS}
                   break;
                }
 
-               case 123:   // exclusive_or_expr: exclusive_or_expr XOR and_expr
+               case 123:   // multiplicative_expr: cast_expr
                {
-#define exclusive_or_expr_exclusive_or_expr_xor_and_expr 123
+#define multiplicative_expr_cast_expr 123
                   constexpr int YYN = 123;
                   {} {RHS}
                   break;
                }
 
-               case 124:   // inclusive_or_expr: exclusive_or_expr
+               case 124:   // multiplicative_expr: multiplicative_expr MUL cast_expr
                {
-#define inclusive_or_expr_exclusive_or_expr 124
+#define multiplicative_expr_multiplicative_expr_mul_cast_expr 124
                   constexpr int YYN = 124;
                   {} {RHS}
                   break;
                }
 
-               case 125:   // inclusive_or_expr: inclusive_or_expr OR exclusive_or_expr
+               case 125:   // multiplicative_expr: multiplicative_expr DIV cast_expr
                {
-#define inclusive_or_expr_inclusive_or_expr_or_exclusive_or_expr 125
+#define multiplicative_expr_multiplicative_expr_div_cast_expr 125
                   constexpr int YYN = 125;
                   {} {RHS}
                   break;
                }
 
-               case 126:   // logical_and_expr: inclusive_or_expr
+               case 126:   // multiplicative_expr: multiplicative_expr MOD cast_expr
                {
-#define logical_and_expr_inclusive_or_expr 126
+#define multiplicative_expr_multiplicative_expr_mod_cast_expr 126
                   constexpr int YYN = 126;
                   {} {RHS}
                   break;
                }
 
-               case 127:   // logical_and_expr: logical_and_expr AND_AND inclusive_or_expr
+               case 127:   // dot_expr: multiplicative_expr
                {
-#define logical_and_expr_logical_and_expr_and_and_inclusive_or_expr 127
+#define dot_expr_multiplicative_expr 127
                   constexpr int YYN = 127;
                   {} {RHS}
                   break;
                }
 
-               case 128:   // logical_or_expr: logical_and_expr
+               case 128:   // dot_expr: dot_expr DOT_OP multiplicative_expr
                {
-#define logical_or_expr_logical_and_expr 128
+#define dot_expr_dot_expr_dot_op_multiplicative_expr 128
                   constexpr int YYN = 128;
                   {} {RHS}
                   break;
                }
 
-               case 129:   // logical_or_expr: logical_or_expr OR_OR logical_and_expr
+               case 129:   // additive_expr: dot_expr
                {
-#define logical_or_expr_logical_or_expr_or_or_logical_and_expr 129
+#define additive_expr_dot_expr 129
                   constexpr int YYN = 129;
                   {} {RHS}
                   break;
                }
 
-               case 130:   // conditional_expr: logical_or_expr
+               case 130:   // additive_expr: additive_expr ADD dot_expr
                {
-#define conditional_expr_logical_or_expr 130
+#define additive_expr_additive_expr_add_dot_expr 130
                   constexpr int YYN = 130;
                   {} {RHS}
                   break;
                }
 
-               case 131:   // conditional_expr: logical_or_expr QUESTION expr COLON conditional_expr
+               case 131:   // additive_expr: additive_expr SUB dot_expr
                {
-#define conditional_expr_logical_or_expr_question_expr_colon_conditional_expr 131
+#define additive_expr_additive_expr_sub_dot_expr 131
                   constexpr int YYN = 131;
                   {} {RHS}
                   break;
                }
 
-               case 132:   // assign_expr: conditional_expr
+               case 132:   // shift_expr: additive_expr
                {
-#define assign_expr_conditional_expr 132
+#define shift_expr_additive_expr 132
                   constexpr int YYN = 132;
                   {} {RHS}
                   break;
                }
 
-               case 133:   // assign_expr: postfix_expr assign_op assign_expr
+               case 133:   // shift_expr: shift_expr LEFT_SHIFT additive_expr
                {
-#define assign_expr_postfix_expr_assign_op_assign_expr 133
+#define shift_expr_shift_expr_left_shift_additive_expr 133
                   constexpr int YYN = 133;
                   {} {RHS}
                   break;
                }
 
-               case 134:   // assign_op: EQ
+               case 134:   // shift_expr: shift_expr RIGHT_SHIFT additive_expr
                {
-#define assign_op_eq 134
+#define shift_expr_shift_expr_right_shift_additive_expr 134
                   constexpr int YYN = 134;
                   {} {RHS}
                   break;
                }
 
-               case 135:   // assign_op: ADD_EQ
+               case 135:   // relational_expr: shift_expr
                {
-#define assign_op_add_eq 135
+#define relational_expr_shift_expr 135
                   constexpr int YYN = 135;
                   {} {RHS}
                   break;
                }
 
-               case 136:   // assign_op: SUB_EQ
+               case 136:   // relational_expr: relational_expr LT shift_expr
                {
-#define assign_op_sub_eq 136
+#define relational_expr_relational_expr_lt_shift_expr 136
                   constexpr int YYN = 136;
                   {} {RHS}
                   break;
                }
 
-               case 137:   // assign_op: MUL_EQ
+               case 137:   // relational_expr: relational_expr GT shift_expr
                {
-#define assign_op_mul_eq 137
+#define relational_expr_relational_expr_gt_shift_expr 137
                   constexpr int YYN = 137;
                   {} {RHS}
                   break;
                }
 
-               case 138:   // assign_op: DIV_EQ
+               case 138:   // relational_expr: relational_expr LT_EQ shift_expr
                {
-#define assign_op_div_eq 138
+#define relational_expr_relational_expr_lt_eq_shift_expr 138
                   constexpr int YYN = 138;
                   {} {RHS}
                   break;
                }
 
-               case 139:   // assign_op: MOD_EQ
+               case 139:   // relational_expr: relational_expr GT_EQ shift_expr
                {
-#define assign_op_mod_eq 139
+#define relational_expr_relational_expr_gt_eq_shift_expr 139
                   constexpr int YYN = 139;
                   {} {RHS}
                   break;
                }
 
-               case 140:   // assign_op: XOR_EQ
+               case 140:   // equality_expr: relational_expr
                {
-#define assign_op_xor_eq 140
+#define equality_expr_relational_expr 140
                   constexpr int YYN = 140;
                   {} {RHS}
                   break;
                }
 
-               case 141:   // assign_op: AND_EQ
+               case 141:   // equality_expr: equality_expr EQ_EQ relational_expr
                {
-#define assign_op_and_eq 141
+#define equality_expr_equality_expr_eq_eq_relational_expr 141
                   constexpr int YYN = 141;
                   {} {RHS}
                   break;
                }
 
-               case 142:   // assign_op: OR_EQ
+               case 142:   // equality_expr: equality_expr NOT_EQ relational_expr
                {
-#define assign_op_or_eq 142
+#define equality_expr_equality_expr_not_eq_relational_expr 142
                   constexpr int YYN = 142;
                   {} {RHS}
                   break;
                }
 
-               case 143:   // assign_op: LEFT_EQ
+               case 143:   // and_expr: equality_expr
                {
-#define assign_op_left_eq 143
+#define and_expr_equality_expr 143
                   constexpr int YYN = 143;
                   {} {RHS}
                   break;
                }
 
-               case 144:   // assign_op: RIGHT_EQ
+               case 144:   // and_expr: and_expr AND equality_expr
                {
-#define assign_op_right_eq 144
+#define and_expr_and_expr_and_equality_expr 144
                   constexpr int YYN = 144;
                   {} {RHS}
                   break;
                }
 
-               case 145:   // expr: assign_expr
+               case 145:   // exclusive_or_expr: and_expr
                {
-#define expr_assign_expr 145
+#define exclusive_or_expr_and_expr 145
                   constexpr int YYN = 145;
                   {} {RHS}
                   break;
                }
 
-               case 146:   // expr: expr COMA assign_expr
+               case 146:   // exclusive_or_expr: exclusive_or_expr XOR and_expr
                {
-#define expr_expr_coma_assign_expr 146
+#define exclusive_or_expr_exclusive_or_expr_xor_and_expr 146
                   constexpr int YYN = 146;
                   {} {RHS}
                   break;
                }
 
-               case 147:   // args_expr_list: assign_expr
+               case 147:   // inclusive_or_expr: exclusive_or_expr
                {
-#define args_expr_list_assign_expr 147
+#define inclusive_or_expr_exclusive_or_expr 147
                   constexpr int YYN = 147;
                   {} {RHS}
                   break;
                }
 
-               case 148:   // args_expr_list: args_expr_list COMA assign_expr
+               case 148:   // inclusive_or_expr: inclusive_or_expr OR exclusive_or_expr
                {
-#define args_expr_list_args_expr_list_coma_assign_expr 148
+#define inclusive_or_expr_inclusive_or_expr_or_exclusive_or_expr 148
                   constexpr int YYN = 148;
                   {} {RHS}
                   break;
                }
 
-               case 149:   // args_expr_list: args_expr_list COMA NL assign_expr
+               case 149:   // logical_and_expr: inclusive_or_expr
                {
-#define args_expr_list_args_expr_list_coma_nl_assign_expr 149
+#define logical_and_expr_inclusive_or_expr 149
                   constexpr int YYN = 149;
                   {} {RHS}
                   break;
                }
 
-               case 150:   // coord: LP constant COMA constant RP
+               case 150:   // logical_and_expr: logical_and_expr AND_AND inclusive_or_expr
                {
-#define coord_lp_constant_coma_constant_rp 150
+#define logical_and_expr_logical_and_expr_and_and_inclusive_or_expr 150
                   constexpr int YYN = 150;
                   {} {RHS}
                   break;
                }
 
-               case 151:   // coords: coord
+               case 151:   // logical_or_expr: logical_and_expr
                {
-#define coords_coord 151
+#define logical_or_expr_logical_and_expr 151
                   constexpr int YYN = 151;
                   {} {RHS}
                   break;
                }
 
-               case 152:   // coords: coords COLON coord
+               case 152:   // logical_or_expr: logical_or_expr OR_OR logical_and_expr
                {
-#define coords_coords_colon_coord 152
+#define logical_or_expr_logical_or_expr_or_or_logical_and_expr 152
                   constexpr int YYN = 152;
                   {} {RHS}
                   break;
                }
 
-               case 153:   // primary_math_expr: IDENTIFIER
+               case 153:   // conditional_expr: logical_or_expr
                {
-#define primary_math_expr_identifier 153
+#define conditional_expr_logical_or_expr 153
                   constexpr int YYN = 153;
                   {} {RHS}
                   break;
                }
 
-               case 154:   // primary_math_expr: constant
+               case 154:   // conditional_expr: logical_or_expr QUESTION expr COLON conditional_expr
                {
-#define primary_math_expr_constant 154
+#define conditional_expr_logical_or_expr_question_expr_colon_conditional_expr 154
                   constexpr int YYN = 154;
                   {} {RHS}
                   break;
                }
 
-               case 155:   // primary_math_expr: domain
+               case 155:   // assign_expr: conditional_expr
                {
-#define primary_math_expr_domain 155
+#define assign_expr_conditional_expr 155
                   constexpr int YYN = 155;
                   {} {RHS}
                   break;
                }
 
-               case 156:   // primary_math_expr: QUOTE
+               case 156:   // assign_expr: postfix_expr assign_op assign_expr
                {
-#define primary_math_expr_quote 156
+#define assign_expr_postfix_expr_assign_op_assign_expr 156
                   constexpr int YYN = 156;
                   {} {RHS}
                   break;
                }
 
-               case 157:   // primary_math_expr: LP math_expr RP
+               case 157:   // assign_op: EQ
                {
-#define primary_math_expr_lp_math_expr_rp 157
+#define assign_op_eq 157
                   constexpr int YYN = 157;
                   {} {RHS}
                   break;
                }
 
-               case 158:   // primary_math_expr: LB id_list RB
+               case 158:   // assign_op: ADD_EQ
                {
-#define primary_math_expr_lb_id_list_rb 158
+#define assign_op_add_eq 158
                   constexpr int YYN = 158;
                   {} {RHS}
                   break;
                }
 
-               case 159:   // dot_math_expr: INNER_OP LP additive_expr COMA additive_expr RP
+               case 159:   // assign_op: SUB_EQ
                {
-#define dot_math_expr_inner_op_lp_additive_expr_coma_additive_expr_rp 159
+#define assign_op_sub_eq 159
                   constexpr int YYN = 159;
                   {} {RHS}
                   break;
                }
 
-               case 160:   // postfix_math_expr: primary_math_expr
+               case 160:   // assign_op: MUL_EQ
                {
-#define postfix_math_expr_primary_math_expr 160
+#define assign_op_mul_eq 160
                   constexpr int YYN = 160;
                   {} {RHS}
                   break;
                }
 
-               case 161:   // postfix_math_expr: postfix_math_expr LB math_expr RB
+               case 161:   // assign_op: DIV_EQ
                {
-#define postfix_math_expr_postfix_math_expr_lb_math_expr_rb 161
+#define assign_op_div_eq 161
                   constexpr int YYN = 161;
                   {} {RHS}
                   break;
                }
 
-               case 162:   // postfix_math_expr: postfix_math_expr LP argument_math_expr_list RP
+               case 162:   // assign_op: MOD_EQ
                {
-#define postfix_math_expr_postfix_math_expr_lp_argument_math_expr_list_rp 162
+#define assign_op_mod_eq 162
                   constexpr int YYN = 162;
                   {} {RHS}
                   break;
                }
 
-               case 163:   // postfix_math_expr: postfix_math_expr DOT IDENTIFIER
+               case 163:   // assign_op: XOR_EQ
                {
-#define postfix_math_expr_postfix_math_expr_dot_identifier 163
+#define assign_op_xor_eq 163
                   constexpr int YYN = 163;
                   {} {RHS}
                   break;
                }
 
-               case 164:   // postfix_math_expr: postfix_math_expr INC_OP
+               case 164:   // assign_op: AND_EQ
                {
-#define postfix_math_expr_postfix_math_expr_inc_op 164
+#define assign_op_and_eq 164
                   constexpr int YYN = 164;
                   {} {RHS}
                   break;
                }
 
-               case 165:   // postfix_math_expr: postfix_math_expr DEC_OP
+               case 165:   // assign_op: OR_EQ
                {
-#define postfix_math_expr_postfix_math_expr_dec_op 165
+#define assign_op_or_eq 165
                   constexpr int YYN = 165;
                   {} {RHS}
                   break;
                }
 
-               case 166:   // postfix_math_expr: postfix_math_expr POW constant
+               case 166:   // assign_op: LEFT_EQ
                {
-#define postfix_math_expr_postfix_math_expr_pow_constant 166
+#define assign_op_left_eq 166
                   constexpr int YYN = 166;
                   {} {RHS}
                   break;
                }
 
-               case 167:   // postfix_math_expr: dot_math_expr
+               case 167:   // assign_op: RIGHT_EQ
                {
-#define postfix_math_expr_dot_math_expr 167
+#define assign_op_right_eq 167
                   constexpr int YYN = 167;
                   {} {RHS}
                   break;
                }
 
-               case 168:   // postfix_math_expr: GRAD_OP LP additive_math_expr RP
+               case 168:   // expr: assign_expr
                {
-#define postfix_math_expr_grad_op_lp_additive_math_expr_rp 168
+#define expr_assign_expr 168
                   constexpr int YYN = 168;
                   {} {RHS}
                   break;
                }
 
-               case 169:   // argument_math_expr_list: assign_math_expr
+               case 169:   // expr: expr COMA assign_expr
                {
-#define argument_math_expr_list_assign_math_expr 169
+#define expr_expr_coma_assign_expr 169
                   constexpr int YYN = 169;
                   {} {RHS}
                   break;
                }
 
-               case 170:   // argument_math_expr_list: argument_math_expr_list COMA assign_math_expr
+               case 170:   // args_expr_list: assign_expr
                {
-#define argument_math_expr_list_argument_math_expr_list_coma_assign_math_expr 170
+#define args_expr_list_assign_expr 170
                   constexpr int YYN = 170;
                   {} {RHS}
                   break;
                }
 
-               case 171:   // unary_math_expr: postfix_math_expr
+               case 171:   // args_expr_list: args_expr_list COMA assign_expr
                {
-#define unary_math_expr_postfix_math_expr 171
+#define args_expr_list_args_expr_list_coma_assign_expr 171
                   constexpr int YYN = 171;
                   {} {RHS}
                   break;
                }
 
-               case 172:   // unary_math_expr: INC_OP unary_math_expr
+               case 172:   // args_expr_list: args_expr_list COMA NL assign_expr
                {
-#define unary_math_expr_inc_op_unary_math_expr 172
+#define args_expr_list_args_expr_list_coma_nl_assign_expr 172
                   constexpr int YYN = 172;
                   {} {RHS}
                   break;
                }
 
-               case 173:   // unary_math_expr: DEC_OP unary_math_expr
+               case 173:   // coord: LP constant COMA constant RP
                {
-#define unary_math_expr_dec_op_unary_math_expr 173
+#define coord_lp_constant_coma_constant_rp 173
                   constexpr int YYN = 173;
                   {} {RHS}
                   break;
                }
 
-               case 174:   // unary_math_expr: MOD unary_math_expr
+               case 174:   // coords: coord
                {
-#define unary_math_expr_mod_unary_math_expr 174
+#define coords_coord 174
                   constexpr int YYN = 174;
                   {} {RHS}
                   break;
                }
 
-               case 175:   // unary_math_expr: unary_math_op unary_math_expr
+               case 175:   // coords: coords COLON coord
                {
-#define unary_math_expr_unary_math_op_unary_math_expr 175
+#define coords_coords_colon_coord 175
                   constexpr int YYN = 175;
                   {} {RHS}
                   break;
                }
 
-               case 176:   // unary_math_op: MUL
+               case 176:   // primary_math_expr: IDENTIFIER
                {
-#define unary_math_op_mul 176
+#define primary_math_expr_identifier 176
                   constexpr int YYN = 176;
                   {} {RHS}
                   break;
                }
 
-               case 177:   // unary_math_op: ADD
+               case 177:   // primary_math_expr: constant
                {
-#define unary_math_op_add 177
+#define primary_math_expr_constant 177
                   constexpr int YYN = 177;
                   {} {RHS}
                   break;
                }
 
-               case 178:   // unary_math_op: SUB
+               case 178:   // primary_math_expr: domain
                {
-#define unary_math_op_sub 178
+#define primary_math_expr_domain 178
                   constexpr int YYN = 178;
                   {} {RHS}
                   break;
                }
 
-               case 179:   // unary_math_op: AND
+               case 179:   // primary_math_expr: QUOTE
                {
-#define unary_math_op_and 179
+#define primary_math_expr_quote 179
                   constexpr int YYN = 179;
                   {} {RHS}
                   break;
                }
 
-               case 180:   // unary_math_op: TILDE
+               case 180:   // primary_math_expr: LP math_expr RP
                {
-#define unary_math_op_tilde 180
+#define primary_math_expr_lp_math_expr_rp 180
                   constexpr int YYN = 180;
                   {} {RHS}
                   break;
                }
 
-               case 181:   // unary_math_op: NOT
+               case 181:   // primary_math_expr: LB id_list RB
                {
-#define unary_math_op_not 181
+#define primary_math_expr_lb_id_list_rb 181
                   constexpr int YYN = 181;
                   {} {RHS}
                   break;
                }
 
-               case 182:   // multiplicative_math_expr: unary_math_expr
+               case 182:   // dot_math_expr: INNER_OP LP additive_expr COMA additive_expr RP
                {
-#define multiplicative_math_expr_unary_math_expr 182
+#define dot_math_expr_inner_op_lp_additive_expr_coma_additive_expr_rp 182
                   constexpr int YYN = 182;
                   {} {RHS}
                   break;
                }
 
-               case 183:   // multiplicative_math_expr: multiplicative_math_expr MUL unary_math_expr
+               case 183:   // postfix_math_expr: primary_math_expr
                {
-#define multiplicative_math_expr_multiplicative_math_expr_mul_unary_math_expr 183
+#define postfix_math_expr_primary_math_expr 183
                   constexpr int YYN = 183;
                   {} {RHS}
                   break;
                }
 
-               case 184:   // multiplicative_math_expr: multiplicative_math_expr DIV unary_math_expr
+               case 184:   // postfix_math_expr: postfix_math_expr LB math_expr RB
                {
-#define multiplicative_math_expr_multiplicative_math_expr_div_unary_math_expr 184
+#define postfix_math_expr_postfix_math_expr_lb_math_expr_rb 184
                   constexpr int YYN = 184;
                   {} {RHS}
                   break;
                }
 
-               case 185:   // multiplicative_math_expr: multiplicative_math_expr MOD unary_math_expr
+               case 185:   // postfix_math_expr: postfix_math_expr LP argument_math_expr_list RP
                {
-#define multiplicative_math_expr_multiplicative_math_expr_mod_unary_math_expr 185
+#define postfix_math_expr_postfix_math_expr_lp_argument_math_expr_list_rp 185
                   constexpr int YYN = 185;
                   {} {RHS}
                   break;
                }
 
-               case 186:   // additive_math_expr: multiplicative_math_expr
+               case 186:   // postfix_math_expr: postfix_math_expr DOT IDENTIFIER
                {
-#define additive_math_expr_multiplicative_math_expr 186
+#define postfix_math_expr_postfix_math_expr_dot_identifier 186
                   constexpr int YYN = 186;
                   {} {RHS}
                   break;
                }
 
-               case 187:   // additive_math_expr: additive_math_expr ADD multiplicative_math_expr
+               case 187:   // postfix_math_expr: postfix_math_expr INC_OP
                {
-#define additive_math_expr_additive_math_expr_add_multiplicative_math_expr 187
+#define postfix_math_expr_postfix_math_expr_inc_op 187
                   constexpr int YYN = 187;
                   {} {RHS}
                   break;
                }
 
-               case 188:   // additive_math_expr: additive_math_expr SUB multiplicative_math_expr
+               case 188:   // postfix_math_expr: postfix_math_expr DEC_OP
                {
-#define additive_math_expr_additive_math_expr_sub_multiplicative_math_expr 188
+#define postfix_math_expr_postfix_math_expr_dec_op 188
                   constexpr int YYN = 188;
                   {} {RHS}
                   break;
                }
 
-               case 189:   // shift_math_expr: additive_math_expr
+               case 189:   // postfix_math_expr: postfix_math_expr POW constant
                {
-#define shift_math_expr_additive_math_expr 189
+#define postfix_math_expr_postfix_math_expr_pow_constant 189
                   constexpr int YYN = 189;
                   {} {RHS}
                   break;
                }
 
-               case 190:   // shift_math_expr: shift_math_expr LEFT_SHIFT additive_math_expr
+               case 190:   // postfix_math_expr: dot_math_expr
                {
-#define shift_math_expr_shift_math_expr_left_shift_additive_math_expr 190
+#define postfix_math_expr_dot_math_expr 190
                   constexpr int YYN = 190;
                   {} {RHS}
                   break;
                }
 
-               case 191:   // shift_math_expr: shift_math_expr RIGHT_SHIFT additive_math_expr
+               case 191:   // postfix_math_expr: GRAD_OP LP additive_math_expr RP
                {
-#define shift_math_expr_shift_math_expr_right_shift_additive_math_expr 191
+#define postfix_math_expr_grad_op_lp_additive_math_expr_rp 191
                   constexpr int YYN = 191;
                   {} {RHS}
                   break;
                }
 
-               case 192:   // relational_math_expr: shift_math_expr
+               case 192:   // argument_math_expr_list: assign_math_expr
                {
-#define relational_math_expr_shift_math_expr 192
+#define argument_math_expr_list_assign_math_expr 192
                   constexpr int YYN = 192;
                   {} {RHS}
                   break;
                }
 
-               case 193:   // relational_math_expr: relational_math_expr LT shift_math_expr
+               case 193:   // argument_math_expr_list: argument_math_expr_list COMA assign_math_expr
                {
-#define relational_math_expr_relational_math_expr_lt_shift_math_expr 193
+#define argument_math_expr_list_argument_math_expr_list_coma_assign_math_expr 193
                   constexpr int YYN = 193;
                   {} {RHS}
                   break;
                }
 
-               case 194:   // relational_math_expr: relational_math_expr GT shift_math_expr
+               case 194:   // unary_math_expr: postfix_math_expr
                {
-#define relational_math_expr_relational_math_expr_gt_shift_math_expr 194
+#define unary_math_expr_postfix_math_expr 194
                   constexpr int YYN = 194;
                   {} {RHS}
                   break;
                }
 
-               case 195:   // relational_math_expr: relational_math_expr LT_EQ shift_math_expr
+               case 195:   // unary_math_expr: INC_OP unary_math_expr
                {
-#define relational_math_expr_relational_math_expr_lt_eq_shift_math_expr 195
+#define unary_math_expr_inc_op_unary_math_expr 195
                   constexpr int YYN = 195;
                   {} {RHS}
                   break;
                }
 
-               case 196:   // relational_math_expr: relational_math_expr GT_EQ shift_math_expr
+               case 196:   // unary_math_expr: DEC_OP unary_math_expr
                {
-#define relational_math_expr_relational_math_expr_gt_eq_shift_math_expr 196
+#define unary_math_expr_dec_op_unary_math_expr 196
                   constexpr int YYN = 196;
                   {} {RHS}
                   break;
                }
 
-               case 197:   // equality_math_expr: relational_math_expr
+               case 197:   // unary_math_expr: MOD unary_math_expr
                {
-#define equality_math_expr_relational_math_expr 197
+#define unary_math_expr_mod_unary_math_expr 197
                   constexpr int YYN = 197;
                   {} {RHS}
                   break;
                }
 
-               case 198:   // equality_math_expr: equality_math_expr EQ_EQ relational_math_expr
+               case 198:   // unary_math_expr: unary_math_op unary_math_expr
                {
-#define equality_math_expr_equality_math_expr_eq_eq_relational_math_expr 198
+#define unary_math_expr_unary_math_op_unary_math_expr 198
                   constexpr int YYN = 198;
                   {} {RHS}
                   break;
                }
 
-               case 199:   // equality_math_expr: equality_math_expr NOT_EQ relational_math_expr
+               case 199:   // unary_math_op: MUL
                {
-#define equality_math_expr_equality_math_expr_not_eq_relational_math_expr 199
+#define unary_math_op_mul 199
                   constexpr int YYN = 199;
                   {} {RHS}
                   break;
                }
 
-               case 200:   // and_math_expr: equality_math_expr
+               case 200:   // unary_math_op: ADD
                {
-#define and_math_expr_equality_math_expr 200
+#define unary_math_op_add 200
                   constexpr int YYN = 200;
                   {} {RHS}
                   break;
                }
 
-               case 201:   // and_math_expr: and_math_expr AND equality_math_expr
+               case 201:   // unary_math_op: SUB
                {
-#define and_math_expr_and_math_expr_and_equality_math_expr 201
+#define unary_math_op_sub 201
                   constexpr int YYN = 201;
                   {} {RHS}
                   break;
                }
 
-               case 202:   // exclusive_or_math_expr: and_math_expr
+               case 202:   // unary_math_op: AND
                {
-#define exclusive_or_math_expr_and_math_expr 202
+#define unary_math_op_and 202
                   constexpr int YYN = 202;
                   {} {RHS}
                   break;
                }
 
-               case 203:   // exclusive_or_math_expr: exclusive_or_math_expr XOR and_math_expr
+               case 203:   // unary_math_op: TILDE
                {
-#define exclusive_or_math_expr_exclusive_or_math_expr_xor_and_math_expr 203
+#define unary_math_op_tilde 203
                   constexpr int YYN = 203;
                   {} {RHS}
                   break;
                }
 
-               case 204:   // inclusive_or_math_expr: exclusive_or_math_expr
+               case 204:   // unary_math_op: NOT
                {
-#define inclusive_or_math_expr_exclusive_or_math_expr 204
+#define unary_math_op_not 204
                   constexpr int YYN = 204;
                   {} {RHS}
                   break;
                }
 
-               case 205:   // inclusive_or_math_expr: inclusive_or_math_expr OR exclusive_or_math_expr
+               case 205:   // multiplicative_math_expr: unary_math_expr
                {
-#define inclusive_or_math_expr_inclusive_or_math_expr_or_exclusive_or_math_expr 205
+#define multiplicative_math_expr_unary_math_expr 205
                   constexpr int YYN = 205;
                   {} {RHS}
                   break;
                }
 
-               case 206:   // logical_and_math_expr: inclusive_or_math_expr
+               case 206:   // multiplicative_math_expr: multiplicative_math_expr MUL unary_math_expr
                {
-#define logical_and_math_expr_inclusive_or_math_expr 206
+#define multiplicative_math_expr_multiplicative_math_expr_mul_unary_math_expr 206
                   constexpr int YYN = 206;
                   {} {RHS}
                   break;
                }
 
-               case 207:   // logical_and_math_expr: logical_and_math_expr AND_AND inclusive_or_math_expr
+               case 207:   // multiplicative_math_expr: multiplicative_math_expr DIV unary_math_expr
                {
-#define logical_and_math_expr_logical_and_math_expr_and_and_inclusive_or_math_expr 207
+#define multiplicative_math_expr_multiplicative_math_expr_div_unary_math_expr 207
                   constexpr int YYN = 207;
                   {} {RHS}
                   break;
                }
 
-               case 208:   // logical_or_math_expr: logical_and_math_expr
+               case 208:   // multiplicative_math_expr: multiplicative_math_expr MOD unary_math_expr
                {
-#define logical_or_math_expr_logical_and_math_expr 208
+#define multiplicative_math_expr_multiplicative_math_expr_mod_unary_math_expr 208
                   constexpr int YYN = 208;
                   {} {RHS}
                   break;
                }
 
-               case 209:   // logical_or_math_expr: logical_or_math_expr OR_OR logical_and_math_expr
+               case 209:   // additive_math_expr: multiplicative_math_expr
                {
-#define logical_or_math_expr_logical_or_math_expr_or_or_logical_and_math_expr 209
+#define additive_math_expr_multiplicative_math_expr 209
                   constexpr int YYN = 209;
                   {} {RHS}
                   break;
                }
 
-               case 210:   // conditional_math_expr: logical_or_math_expr
+               case 210:   // additive_math_expr: additive_math_expr ADD multiplicative_math_expr
                {
-#define conditional_math_expr_logical_or_math_expr 210
+#define additive_math_expr_additive_math_expr_add_multiplicative_math_expr 210
                   constexpr int YYN = 210;
                   {} {RHS}
                   break;
                }
 
-               case 211:   // assign_math_expr: conditional_math_expr
+               case 211:   // additive_math_expr: additive_math_expr SUB multiplicative_math_expr
                {
-#define assign_math_expr_conditional_math_expr 211
+#define additive_math_expr_additive_math_expr_sub_multiplicative_math_expr 211
                   constexpr int YYN = 211;
                   {} {RHS}
                   break;
                }
 
-               case 212:   // assign_math_expr: unary_math_expr assign_math_op assign_math_expr
+               case 212:   // shift_math_expr: additive_math_expr
                {
-#define assign_math_expr_unary_math_expr_assign_math_op_assign_math_expr 212
+#define shift_math_expr_additive_math_expr 212
                   constexpr int YYN = 212;
                   {} {RHS}
                   break;
                }
 
-               case 213:   // assign_math_op: EQ
+               case 213:   // shift_math_expr: shift_math_expr LEFT_SHIFT additive_math_expr
                {
-#define assign_math_op_eq 213
+#define shift_math_expr_shift_math_expr_left_shift_additive_math_expr 213
                   constexpr int YYN = 213;
                   {} {RHS}
                   break;
                }
 
-               case 214:   // assign_math_op: ADD_EQ
+               case 214:   // shift_math_expr: shift_math_expr RIGHT_SHIFT additive_math_expr
                {
-#define assign_math_op_add_eq 214
+#define shift_math_expr_shift_math_expr_right_shift_additive_math_expr 214
                   constexpr int YYN = 214;
                   {} {RHS}
                   break;
                }
 
-               case 215:   // assign_math_op: SUB_EQ
+               case 215:   // relational_math_expr: shift_math_expr
                {
-#define assign_math_op_sub_eq 215
+#define relational_math_expr_shift_math_expr 215
                   constexpr int YYN = 215;
                   {} {RHS}
                   break;
                }
 
-               case 216:   // assign_math_op: MUL_EQ
+               case 216:   // relational_math_expr: relational_math_expr LT shift_math_expr
                {
-#define assign_math_op_mul_eq 216
+#define relational_math_expr_relational_math_expr_lt_shift_math_expr 216
                   constexpr int YYN = 216;
                   {} {RHS}
                   break;
                }
 
-               case 217:   // assign_math_op: DIV_EQ
+               case 217:   // relational_math_expr: relational_math_expr GT shift_math_expr
                {
-#define assign_math_op_div_eq 217
+#define relational_math_expr_relational_math_expr_gt_shift_math_expr 217
                   constexpr int YYN = 217;
                   {} {RHS}
                   break;
                }
 
-               case 218:   // assign_math_op: MOD_EQ
+               case 218:   // relational_math_expr: relational_math_expr LT_EQ shift_math_expr
                {
-#define assign_math_op_mod_eq 218
+#define relational_math_expr_relational_math_expr_lt_eq_shift_math_expr 218
                   constexpr int YYN = 218;
                   {} {RHS}
                   break;
                }
 
-               case 219:   // assign_math_op: XOR_EQ
+               case 219:   // relational_math_expr: relational_math_expr GT_EQ shift_math_expr
                {
-#define assign_math_op_xor_eq 219
+#define relational_math_expr_relational_math_expr_gt_eq_shift_math_expr 219
                   constexpr int YYN = 219;
                   {} {RHS}
                   break;
                }
 
-               case 220:   // assign_math_op: AND_EQ
+               case 220:   // equality_math_expr: relational_math_expr
                {
-#define assign_math_op_and_eq 220
+#define equality_math_expr_relational_math_expr 220
                   constexpr int YYN = 220;
                   {} {RHS}
                   break;
                }
 
-               case 221:   // assign_math_op: OR_EQ
+               case 221:   // equality_math_expr: equality_math_expr EQ_EQ relational_math_expr
                {
-#define assign_math_op_or_eq 221
+#define equality_math_expr_equality_math_expr_eq_eq_relational_math_expr 221
                   constexpr int YYN = 221;
                   {} {RHS}
                   break;
                }
 
-               case 222:   // assign_math_op: LEFT_EQ
+               case 222:   // equality_math_expr: equality_math_expr NOT_EQ relational_math_expr
                {
-#define assign_math_op_left_eq 222
+#define equality_math_expr_equality_math_expr_not_eq_relational_math_expr 222
                   constexpr int YYN = 222;
                   {} {RHS}
                   break;
                }
 
-               case 223:   // assign_math_op: RIGHT_EQ
+               case 223:   // and_math_expr: equality_math_expr
                {
-#define assign_math_op_right_eq 223
+#define and_math_expr_equality_math_expr 223
                   constexpr int YYN = 223;
                   {} {RHS}
                   break;
                }
 
-               case 224:   // math_expr: assign_math_expr
+               case 224:   // and_math_expr: and_math_expr AND equality_math_expr
                {
-#define math_expr_assign_math_expr 224
+#define and_math_expr_and_math_expr_and_equality_math_expr 224
                   constexpr int YYN = 224;
                   {} {RHS}
                   break;
                }
 
-               case 225:   // math_expr: math_expr COMA assign_math_expr
+               case 225:   // exclusive_or_math_expr: and_math_expr
                {
-#define math_expr_math_expr_coma_assign_math_expr 225
+#define exclusive_or_math_expr_and_math_expr 225
                   constexpr int YYN = 225;
+                  {} {RHS}
+                  break;
+               }
+
+               case 226:   // exclusive_or_math_expr: exclusive_or_math_expr XOR and_math_expr
+               {
+#define exclusive_or_math_expr_exclusive_or_math_expr_xor_and_math_expr 226
+                  constexpr int YYN = 226;
+                  {} {RHS}
+                  break;
+               }
+
+               case 227:   // inclusive_or_math_expr: exclusive_or_math_expr
+               {
+#define inclusive_or_math_expr_exclusive_or_math_expr 227
+                  constexpr int YYN = 227;
+                  {} {RHS}
+                  break;
+               }
+
+               case 228:   // inclusive_or_math_expr: inclusive_or_math_expr OR exclusive_or_math_expr
+               {
+#define inclusive_or_math_expr_inclusive_or_math_expr_or_exclusive_or_math_expr 228
+                  constexpr int YYN = 228;
+                  {} {RHS}
+                  break;
+               }
+
+               case 229:   // logical_and_math_expr: inclusive_or_math_expr
+               {
+#define logical_and_math_expr_inclusive_or_math_expr 229
+                  constexpr int YYN = 229;
+                  {} {RHS}
+                  break;
+               }
+
+               case 230:   // logical_and_math_expr: logical_and_math_expr AND_AND inclusive_or_math_expr
+               {
+#define logical_and_math_expr_logical_and_math_expr_and_and_inclusive_or_math_expr 230
+                  constexpr int YYN = 230;
+                  {} {RHS}
+                  break;
+               }
+
+               case 231:   // logical_or_math_expr: logical_and_math_expr
+               {
+#define logical_or_math_expr_logical_and_math_expr 231
+                  constexpr int YYN = 231;
+                  {} {RHS}
+                  break;
+               }
+
+               case 232:   // logical_or_math_expr: logical_or_math_expr OR_OR logical_and_math_expr
+               {
+#define logical_or_math_expr_logical_or_math_expr_or_or_logical_and_math_expr 232
+                  constexpr int YYN = 232;
+                  {} {RHS}
+                  break;
+               }
+
+               case 233:   // conditional_math_expr: logical_or_math_expr
+               {
+#define conditional_math_expr_logical_or_math_expr 233
+                  constexpr int YYN = 233;
+                  {} {RHS}
+                  break;
+               }
+
+               case 234:   // assign_math_expr: conditional_math_expr
+               {
+#define assign_math_expr_conditional_math_expr 234
+                  constexpr int YYN = 234;
+                  {} {RHS}
+                  break;
+               }
+
+               case 235:   // assign_math_expr: unary_math_expr assign_math_op assign_math_expr
+               {
+#define assign_math_expr_unary_math_expr_assign_math_op_assign_math_expr 235
+                  constexpr int YYN = 235;
+                  {} {RHS}
+                  break;
+               }
+
+               case 236:   // assign_math_op: EQ
+               {
+#define assign_math_op_eq 236
+                  constexpr int YYN = 236;
+                  {} {RHS}
+                  break;
+               }
+
+               case 237:   // assign_math_op: ADD_EQ
+               {
+#define assign_math_op_add_eq 237
+                  constexpr int YYN = 237;
+                  {} {RHS}
+                  break;
+               }
+
+               case 238:   // assign_math_op: SUB_EQ
+               {
+#define assign_math_op_sub_eq 238
+                  constexpr int YYN = 238;
+                  {} {RHS}
+                  break;
+               }
+
+               case 239:   // assign_math_op: MUL_EQ
+               {
+#define assign_math_op_mul_eq 239
+                  constexpr int YYN = 239;
+                  {} {RHS}
+                  break;
+               }
+
+               case 240:   // assign_math_op: DIV_EQ
+               {
+#define assign_math_op_div_eq 240
+                  constexpr int YYN = 240;
+                  {} {RHS}
+                  break;
+               }
+
+               case 241:   // assign_math_op: MOD_EQ
+               {
+#define assign_math_op_mod_eq 241
+                  constexpr int YYN = 241;
+                  {} {RHS}
+                  break;
+               }
+
+               case 242:   // assign_math_op: XOR_EQ
+               {
+#define assign_math_op_xor_eq 242
+                  constexpr int YYN = 242;
+                  {} {RHS}
+                  break;
+               }
+
+               case 243:   // assign_math_op: AND_EQ
+               {
+#define assign_math_op_and_eq 243
+                  constexpr int YYN = 243;
+                  {} {RHS}
+                  break;
+               }
+
+               case 244:   // assign_math_op: OR_EQ
+               {
+#define assign_math_op_or_eq 244
+                  constexpr int YYN = 244;
+                  {} {RHS}
+                  break;
+               }
+
+               case 245:   // assign_math_op: LEFT_EQ
+               {
+#define assign_math_op_left_eq 245
+                  constexpr int YYN = 245;
+                  {} {RHS}
+                  break;
+               }
+
+               case 246:   // assign_math_op: RIGHT_EQ
+               {
+#define assign_math_op_right_eq 246
+                  constexpr int YYN = 246;
+                  {} {RHS}
+                  break;
+               }
+
+               case 247:   // math_expr: assign_math_expr
+               {
+#define math_expr_assign_math_expr 247
+                  constexpr int YYN = 247;
+                  {} {RHS}
+                  break;
+               }
+
+               case 248:   // math_expr: math_expr COMA assign_math_expr
+               {
+#define math_expr_math_expr_coma_assign_math_expr 248
+                  constexpr int YYN = 248;
                   {} {RHS}
                   break;
                }
@@ -2667,28 +2851,32 @@ parser::symbol_name (symbol_kind_type yysymbol)
    static const char *const yy_sname[] =
    {
       "end of file", "error", "invalid token", "LL_SHIFT", "NL", "AS", "DEF",
-      "FROM", "IMPORT", "RETURN", "PLOT", "SAVE", "SOLVE", "PROJECT", "STRING",
-      "QUOTE", "IF", "FOR", "IN", "RANGE", "DOT_OP", "INNER_OP", "GRAD_OP",
-      "LHS", "RHS", "DEVICE", "MESH", "FINITE_ELEMENT", "UNIT_SQUARE_MESH",
-      "UNIT_HEX_MESH", "FUNCTION", "FUNCTION_SPACE", "VECTOR_FUNCTION_SPACE",
-      "EXPRESSION", "DIRICHLET_BC", "TRIAL_FUNCTION", "TEST_FUNCTION",
-      "CONSTANT_API", "OR_OR", "AND_AND", "DOM_DX", "EXT_DS", "INT_DS",
-      "EQ_EQ", "ADD_EQ", "SUB_EQ", "MUL_EQ", "DIV_EQ", "MOD_EQ", "XOR_EQ",
-      "AND_EQ", "OR_EQ", "LEFT_EQ", "RIGHT_EQ", "NATURAL", "REAL",
-      "IDENTIFIER", "GT", "LT", "EQ", "ADD", "SUB", "MUL", "DIV", "POW", "LS",
-      "RS", "LP", "RP", "LB", "RB", "COMA", "APOSTROPHE", "COLON", "DOT",
-      "MOD", "TILDE", "LEFT_SHIFT", "RIGHT_SHIFT", "LT_EQ", "GT_EQ", "NOT_EQ",
-      "AND", "XOR", "OR", "QUESTION", "NOT", "INC_OP", "DEC_OP", "VAR_XT",
-      "DOM_XT", "EXPR_QUOTE", "EMPTY", "$accept", "entry_point", "statements",
-      "statement", "decl", "primary_id", "postfix_id", "postfix_ids",
-      "id_list", "extra_status_rule", "lhs", "var_xt", "dom_xt", "expr_quote",
-      "function", "def_empty", "def_statements", "def_statement",
-      "iteration_statement", "if_statement", "api_statement",
-      "direct_declarator", "domain", "constant", "strings", "api",
-      "primary_expr", "pow_expr", "postfix_expr", "unary_expr", "unary_op",
-      "cast_expr", "multiplicative_expr", "dot_expr", "additive_expr",
-      "shift_expr", "relational_expr", "equality_expr", "and_expr",
-      "exclusive_or_expr", "inclusive_or_expr", "logical_and_expr",
+      "FROM", "IMPORT", "RETURN", "PLOT", "BENCHMARK", "SAVE", "SOLVE",
+      "PROJECT", "STRING", "QUOTE", "IF", "FOR", "IN", "RANGE", "DOT_OP",
+      "INNER_OP", "GRAD_OP", "TRANSPOSE_OP", "LHS", "RHS", "DEVICE", "MESH",
+      "FINITE_ELEMENT", "UNIT_SQUARE_MESH", "UNIT_HEX_MESH", "FUNCTION",
+      "FUNCTION_SPACE", "VECTOR_FUNCTION_SPACE", "EXPRESSION", "DIRICHLET_BC",
+      "TRIAL_FUNCTION", "TEST_FUNCTION", "CONSTANT_API", "POINT", "SEGMENT",
+      "TRIANGLE", "QUADRILATERAL", "TETRAHEDRON", "HEXAHEDRON", "WEDGE",
+      "OR_OR", "AND_AND", "DOM_DX", "EXT_DS", "INT_DS", "EQ_EQ", "ADD_EQ",
+      "SUB_EQ", "MUL_EQ", "DIV_EQ", "MOD_EQ", "XOR_EQ", "AND_EQ", "OR_EQ",
+      "LEFT_EQ", "RIGHT_EQ", "NATURAL", "REAL", "BOOL", "IDENTIFIER", "GT",
+      "LT", "EQ", "ADD", "SUB", "MUL", "DIV", "POW", "LS", "RS", "LP", "RP",
+      "LB", "RB", "COMA", "APOSTROPHE", "COLON", "DOT", "MOD", "TILDE",
+      "LEFT_SHIFT", "RIGHT_SHIFT", "LT_EQ", "GT_EQ", "NOT_EQ", "AND", "XOR",
+      "OR", "QUESTION", "NOT", "INC_OP", "DEC_OP", "TRANSPOSE_XT", "DOT_XT",
+      "EVAL_XT", "GRAD_XT", "VAR_XT", "DOM_XT", "EXPR_QUOTE", "EMPTY",
+      "$accept", "entry_point", "statements", "statement", "decl",
+      "primary_id", "postfix_id", "postfix_ids", "id_list",
+      "extra_status_rule", "lhs", "dot_xt", "eval_xt", "transpose_xt",
+      "var_xt", "dom_xt", "expr_quote", "function", "def_empty",
+      "def_statements", "def_statement", "iteration_statement", "if_statement",
+      "api_statement", "direct_declarator", "domain", "constant", "strings",
+      "id_n", "fes_args", "element_type", "api", "primary_expr", "form_args",
+      "grad_expr", "transpose_expr", "pow_expr", "postfix_expr", "unary_expr",
+      "unary_op", "cast_expr", "multiplicative_expr", "dot_expr",
+      "additive_expr", "shift_expr", "relational_expr", "equality_expr",
+      "and_expr", "exclusive_or_expr", "inclusive_or_expr", "logical_and_expr",
       "logical_or_expr", "conditional_expr", "assign_expr", "assign_op",
       "expr", "args_expr_list", "coord", "coords", "primary_math_expr",
       "dot_math_expr", "postfix_math_expr", "argument_math_expr_list",
@@ -2976,376 +3164,404 @@ parser::yysyntax_error_ (const context& yyctx) const
 }
 
 
-const short parser::yypact_ninf_ = -297;
+const short parser::yypact_ninf_ = -312;
 
-const signed char parser::yytable_ninf_ = -50;
+const signed char parser::yytable_ninf_ = -57;
 
 const short
 parser::yypact_[] =
 {
-   91,  -297,   -13,   -40,    -6,    16,    23,    60,    11,  -297,
-   -297,  -297,  -297,  -297,    80,    80,  -297,  -297,  -297,   138,
-   159,  -297,   136,  -297,    10,    80,   158,  -297,  -297,  -297,
-   -297,  -297,  -297,  -297,  -297,  -297,  -297,   188,    85,   728,
-   728,   728,   728,   728,   126,   -29,    51,    39,  -297,  -297,
-   -297,   594,    80,   -29,  -297,  -297,  -297,  -297,  -297,  -297,
-   -297,  -297,  -297,  -297,  -297,    80,   728,   728,   728,  -297,
-   -297,    92,   101,   116,   128,  -297,  -297,  -297,  -297,  -297,
-   -297,  -297,  -297,  -297,  -297,  -297,  -297,  -297,  -297,  -297,
-   -297,  -297,  -297,  -297,   145,   728,   728,  -297,  -297,  -297,
-   -297,  -297,   200,  -297,  -297,  -297,   308,  -297,   728,  -297,
-   -21,   224,   164,   141,    77,    -8,   170,   174,   185,   223,
-   -17,  -297,  -297,    58,    93,   122,   123,   152,   248,   188,
-   188,  -297,   178,  -297,    80,   210,   210,  -297,   183,   728,
-   728,   231,   233,   242,  -297,     3,   215,   309,  -297,   294,
-   661,   728,   795,   728,   221,  -297,   728,   728,   728,   728,
-   728,   728,   728,   728,   728,   728,   728,   728,   728,   728,
-   728,   728,   728,   728,   728,   728,  -297,   728,  -297,  -297,
-   -297,   728,   204,   728,   728,  -297,   218,   460,    20,    94,
-   240,   253,   239,  -297,   145,  -297,  -297,  -297,  -297,  -297,
-   235,   318,  -297,  -297,  -297,  -297,  -297,   -21,   224,   224,
-   164,   164,   141,   141,   141,   141,    77,    77,    -8,   170,
-   174,   185,   223,    21,  -297,   210,   267,   210,   210,    61,
-   728,  -297,   728,  -297,  -297,  -297,   242,  -297,  -297,  -297,
-   728,   260,  -297,    80,   158,   359,    44,  -297,  -297,   182,
-   306,  -297,   310,   251,   728,   238,   238,  -297,  -297,  -297,
-   527,   188,     8,  -297,   311,   314,  -297,  -297,  -297,  -297,
-   238,    80,   238,  -297,  -297,  -297,   238,   238,  -297,  -297,
-   -297,  -297,   110,   356,   238,    -3,   333,   319,   109,    -7,
-   304,   307,   330,   379,   357,  -297,  -297,   327,   327,   728,
-   210,   728,  -297,   728,   238,   298,   340,  -297,  -297,  -297,
-   242,   238,   238,   368,  -297,  -297,  -297,  -297,  -297,  -297,
-   -297,  -297,  -297,  -297,  -297,  -297,  -297,   238,  -297,   238,
-   238,   238,   238,   238,   238,   238,   238,   238,   238,   238,
-   238,   238,   238,   238,   238,   238,   238,   238,   210,    18,
-   125,  -297,   214,  -297,  -297,  -297,   305,  -297,   342,  -297,
-   -297,  -297,  -297,  -297,    -3,    -3,   333,   333,   319,   319,
-   319,   319,   109,   109,    -7,   304,   307,   330,   379,  -297,
-   -297,   728,  -297,  -297,   238,  -297,   241,  -297,  -297
+   249,  -312,     9,   -37,    14,    46,    58,    69,    73,    23,
+   -312,  -312,  -312,  -312,  -312,    42,    42,  -312,  -312,  -312,
+   -312,  -312,  -312,    95,   437,  -312,   135,  -312,    17,    42,
+   276,  -312,  -312,  -312,  -312,  -312,  -312,  -312,  -312,  -312,
+   -312,  -312,  -312,  -312,   333,    75,   805,   805,   805,   805,
+   805,   805,   140,     8,   -26,   212,  -312,  -312,  -312,   651,
+   42,     8,  -312,  -312,  -312,  -312,  -312,  -312,  -312,  -312,
+   -312,  -312,  -312,    42,   805,   805,   805,  -312,  -312,    77,
+   84,    84,   120,   127,  -312,  -312,  -312,  -312,  -312,  -312,
+   163,  -312,  -312,  -312,  -312,  -312,  -312,  -312,  -312,  -312,
+   -312,  -312,  -312,  -312,  -312,  -312,  -312,  -312,  -312,  -312,
+   171,   805,   805,  -312,  -312,  -312,  -312,  -312,   126,  -312,
+   -312,  -312,  -312,  -312,  -312,   172,  -312,   805,  -312,    64,
+   159,   142,   234,    13,    -5,   125,   129,   156,   206,   -21,
+   -312,  -312,    12,    36,    49,    97,   103,   128,   238,   333,
+   333,  -312,   143,  -312,    42,   187,   187,  -312,   164,   805,
+   805,  -312,  -312,   204,   222,   231,   254,  -312,    29,   194,
+   232,  -312,   214,   728,   805,   843,   805,   121,  -312,   805,
+   805,   805,   805,   805,   805,   805,   805,   805,   805,   805,
+   805,   805,   805,   805,   805,   805,   805,   805,   805,  -312,
+   805,  -312,  -312,  -312,  -312,   805,   218,   805,   805,  -312,
+   237,   497,   -20,    86,   223,   247,   246,   266,   302,  -312,
+   171,  -312,  -312,  -312,  -312,  -312,   209,   243,  -312,  -312,
+   -312,  -312,  -312,    64,   159,   159,   142,   142,   234,   234,
+   234,   234,    13,    13,    -5,   125,   129,   156,   206,   -27,
+   -312,   187,   285,   187,   187,    38,   805,  -312,   805,  -312,
+   -312,  -312,    16,  -312,   254,  -312,  -312,  -312,   805,   322,
+   -312,    42,   276,   395,    32,  -312,  -312,   112,   328,   329,
+   334,  -312,   330,   225,   805,   122,   122,  -312,  -312,   805,
+   805,  -312,   574,   333,    18,  -312,   337,   339,  -312,  -312,
+   -312,  -312,   122,    42,   122,  -312,  -312,  -312,   122,   122,
+   -312,  -312,  -312,  -312,   -14,   367,   122,   104,   270,   255,
+   80,    -4,   319,   324,   336,   370,   384,  -312,  -312,   351,
+   351,  -312,  -312,  -312,   805,   187,   805,  -312,   805,   122,
+   229,   275,  -312,  -312,  -312,   254,   122,   122,   368,  -312,
+   -312,  -312,  -312,  -312,  -312,  -312,  -312,  -312,  -312,  -312,
+   -312,  -312,   122,  -312,   122,   122,   122,   122,   122,   122,
+   122,   122,   122,   122,   122,   122,   122,   122,   122,   122,
+   122,   122,   122,   187,    19,    62,  -312,   132,  -312,  -312,
+   -312,   233,  -312,   278,  -312,  -312,  -312,  -312,  -312,   104,
+   104,   270,   270,   255,   255,   255,   255,    80,    80,    -4,
+   319,   324,   336,   370,  -312,  -312,   805,  -312,  -312,   122,
+   -312,   145,  -312,  -312
 };
 
 const unsigned char
 parser::yydefact_[] =
 {
-   0,     6,     0,     0,     0,     0,     0,     0,     0,    30,
-   50,    51,    52,    17,     0,     0,    31,    32,    33,     0,
-   2,     3,     0,    18,    22,    24,     0,     5,    26,    27,
-   28,    29,     8,    15,    13,    14,    16,     0,     0,     0,
-   0,     0,     0,     0,     0,    22,     0,     0,     1,     4,
-   7,     0,     0,    23,   135,   136,   137,   138,   139,   140,
-   141,   142,   143,   144,   134,     0,     0,     0,     0,    55,
-   74,     0,     0,     0,     0,    57,    58,    59,    60,    61,
-   62,    63,    64,    65,    66,    67,    68,    69,    53,    54,
-   71,    95,    96,    94,     0,     0,     0,    97,    98,    70,
-   73,    72,    75,    79,    82,    83,    92,    99,     0,   100,
-   104,   106,   109,   112,   117,   120,   122,   124,   126,   128,
-   130,   132,   145,     0,     0,     0,     0,     0,     0,     0,
-   0,    19,     0,    21,    25,    10,     9,   147,     0,     0,
-   0,     0,     0,     0,   151,     0,     0,     0,    56,     0,
-   0,     0,     0,     0,    92,    93,     0,     0,     0,     0,
+   0,     6,     0,     0,     0,     0,     0,     0,     0,     0,
+   33,    57,    58,    59,    17,     0,     0,    36,    34,    35,
+   37,    38,    39,     0,     2,     3,     0,    18,    22,    24,
+   0,     5,    26,    29,    30,    28,    31,    32,    27,     8,
+   15,    13,    14,    16,     0,     0,     0,     0,     0,     0,
+   0,     0,     0,    22,     0,     0,     1,     4,     7,     0,
+   0,    23,   158,   159,   160,   161,   162,   163,   164,   165,
+   166,   167,   157,     0,     0,     0,     0,    63,    93,     0,
+   0,     0,     0,     0,    75,    76,    80,    79,    78,    77,
+   0,    82,    83,    84,    85,    86,    87,    69,    70,    71,
+   72,    73,    74,    60,    61,    62,    90,   118,   119,   117,
+   0,     0,     0,   120,   121,    88,    92,    91,    94,    89,
+   114,   103,   110,   111,   104,   115,   122,     0,   123,   127,
+   129,   132,   135,   140,   143,   145,   147,   149,   151,   153,
+   155,   168,     0,     0,     0,     0,     0,     0,     0,     0,
+   0,    19,     0,    21,    25,    10,     9,   170,     0,     0,
+   0,    99,   100,     0,     0,     0,     0,   174,     0,     0,
+   0,    64,     0,     0,     0,     0,     0,   115,   116,     0,
    0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
-   0,     0,     0,     0,     0,     0,    45,     0,    46,    47,
-   48,     0,     0,     0,     0,    20,     0,     0,     0,     0,
-   0,     0,     0,    78,     0,    76,    77,    81,    80,    86,
-   0,     0,    88,   133,   101,   102,   103,   105,   107,   108,
-   110,   111,   114,   113,   115,   116,   118,   119,   121,   123,
-   125,   127,   129,     0,   146,    44,     0,    11,    12,    36,
-   0,   148,     0,    89,    90,    91,     0,   152,    87,    85,
-   0,     0,    39,     0,     0,     0,     0,    37,   149,     0,
-   0,   131,     0,     0,     0,     0,     0,    38,    84,   150,
-   0,     0,     0,   156,     0,     0,   153,   177,   178,   176,
-   0,     0,     0,   180,   179,   181,     0,     0,   155,   154,
-   160,   167,   171,   182,     0,   186,   189,   192,   197,   200,
-   202,   204,   206,   208,   210,   211,   224,    34,    35,     0,
-   43,     0,    40,     0,     0,     0,     0,   174,   172,   173,
-   0,     0,     0,     0,   164,   165,   214,   215,   216,   217,
-   218,   219,   220,   221,   222,   223,   213,     0,   175,     0,
+   0,     0,     0,     0,     0,     0,     0,     0,     0,    51,
+   0,    55,    52,    53,    54,     0,     0,     0,     0,    20,
+   0,     0,     0,     0,     0,     0,     0,     0,     0,    97,
+   0,    95,    96,   102,   101,   107,     0,     0,   109,   156,
+   124,   125,   126,   128,   130,   131,   133,   134,   137,   136,
+   138,   139,   141,   142,   144,   146,   148,   150,   152,     0,
+   169,    50,     0,    11,    12,    42,     0,   171,     0,    98,
+   112,   113,     0,    81,     0,   175,   108,   106,     0,     0,
+   45,     0,     0,     0,     0,    43,   172,     0,     0,    66,
+   0,   154,     0,     0,     0,     0,     0,    44,   105,     0,
+   0,   173,     0,     0,     0,   179,     0,     0,   176,   200,
+   201,   199,     0,     0,     0,   203,   202,   204,     0,     0,
+   178,   177,   183,   190,   194,   205,     0,   209,   212,   215,
+   220,   223,   225,   227,   229,   231,   233,   234,   247,    40,
+   41,    68,    65,    67,     0,    49,     0,    46,     0,     0,
+   0,     0,   197,   195,   196,     0,     0,     0,     0,   187,
+   188,   237,   238,   239,   240,   241,   242,   243,   244,   245,
+   246,   236,     0,   198,     0,     0,     0,     0,     0,     0,
    0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
-   0,     0,     0,     0,     0,     0,     0,     0,    42,     0,
-   0,   182,     0,   157,   158,   166,     0,   169,     0,   163,
-   212,   183,   184,   185,   187,   188,   190,   191,   194,   193,
-   195,   196,   198,   199,   201,   203,   205,   207,   209,   225,
-   41,     0,   168,   162,     0,   161,     0,   170,   159
+   0,     0,     0,    48,     0,     0,   205,     0,   180,   181,
+   189,     0,   192,     0,   186,   235,   206,   207,   208,   210,
+   211,   213,   214,   217,   216,   218,   219,   221,   222,   224,
+   226,   228,   230,   232,   248,    47,     0,   191,   185,     0,
+   184,     0,   193,   182
 };
 
 const short
 parser::yypgoto_[] =
 {
-   -297,  -297,  -297,   410,  -297,   380,    19,   366,     2,  -297,
-   -297,  -297,  -297,  -297,  -297,  -297,  -297,   187,  -297,  -297,
-   32,  -297,     0,   115,  -297,  -297,   282,  -297,   -38,  -297,
-   -297,   -71,   276,   256,  -116,   151,   252,   266,   268,   265,
-   270,   264,  -297,   201,   -57,   -31,   -33,   290,   269,  -297,
-   -297,  -297,  -297,  -297,  -206,  -297,    90,  -279,    26,    88,
-   124,   133,   121,   132,   134,  -297,  -297,  -296,  -297,  -230
+   -312,  -312,  -312,   409,  -312,   375,    20,   364,     2,  -312,
+   -312,  -312,  -312,  -312,  -312,  -312,  -312,  -312,  -312,  -312,
+   165,  -312,  -312,    33,  -312,     0,    99,  -312,   150,  -312,
+   -312,  -312,   267,   371,  -312,  -312,  -312,   -45,  -312,  -312,
+   -102,   271,   177,  -147,    48,   205,   263,   264,   262,   286,
+   265,  -312,  -171,   -60,   -29,   -40,   287,   239,  -312,  -312,
+   -312,  -312,  -312,  -240,  -312,    31,  -311,   -90,    30,   106,
+   107,   105,   109,   110,  -312,  -312,  -309,  -312,  -259
 };
 
 const short
 parser::yydefgoto_[] =
 {
-   -1,    19,    20,    21,    22,    23,    45,    25,    26,    27,
-   28,    29,    30,    31,    32,   245,   246,   247,    33,    34,
-   99,    36,   100,   101,   102,   103,   104,   105,   154,   107,
-   108,   109,   110,   111,   112,   113,   114,   115,   116,   117,
-   118,   119,   120,   121,   122,    66,   123,   138,   144,   145,
-   280,   281,   282,   356,   351,   284,   285,   286,   287,   288,
-   289,   290,   291,   292,   293,   294,   295,   296,   327,   297
+   0,    23,    24,    25,    26,    27,    53,    29,    30,    31,
+   32,    33,    34,    35,    36,    37,    38,    39,   273,   274,
+   275,    40,    41,   115,    43,   116,   117,   118,   331,   217,
+   119,   120,   121,   161,   122,   123,   124,   177,   126,   127,
+   128,   129,   130,   131,   132,   133,   134,   135,   136,   137,
+   138,   139,   140,   141,    74,   142,   158,   167,   168,   312,
+   313,   314,   391,   386,   316,   317,   318,   319,   320,   321,
+   322,   323,   324,   325,   326,   327,   328,   362,   329
 };
 
 const short
 parser::yytable_[] =
 {
-   37,   106,   106,   106,   106,   106,    67,   124,   125,   126,
-   127,   137,   302,   106,   -49,   357,    46,    47,   132,    24,
-   37,   174,   380,   188,   189,   352,   298,    39,   106,   106,
-   106,   360,    35,   135,   136,   168,   340,   155,    51,    24,
-   305,   156,   157,    38,    53,    52,   210,   211,   242,   283,
-   283,   379,    35,   256,   158,   366,   367,   106,   106,   329,
-   330,    40,   146,   147,   283,   242,   307,    44,   175,   193,
-   308,   309,   331,   169,   341,   153,   194,    51,   328,   177,
-   160,   161,   358,    41,    52,   204,   205,   206,   387,   177,
-   42,   232,   177,   137,   240,     1,   203,     2,   183,   184,
-   13,     3,     4,     5,     6,   283,   283,     7,     8,   130,
-   65,   243,   106,   106,     9,   106,   249,    13,   201,   129,
-   224,   283,    65,   361,   362,   363,   176,    43,   243,   177,
-   231,    10,    11,    12,   164,   165,    13,   106,    48,   106,
-   50,   283,   223,   106,   128,   106,   106,    13,   225,   106,
-   227,   228,    68,    53,   160,   161,   166,   167,    14,   139,
-   15,   178,   233,     1,   177,     2,   336,   337,   140,     3,
-   4,     5,     6,   248,   310,     7,     8,   311,   283,   312,
-   16,    17,    18,   141,   313,   160,   161,   350,   338,   339,
-   179,   180,   106,   177,   177,   142,   381,   314,   315,    10,
-   11,    12,    54,    55,    56,    57,    58,    59,    60,    61,
-   62,    63,   143,   254,   148,    13,   106,    64,   162,   163,
-   181,   262,   106,   177,   160,   161,    14,   300,    15,    65,
-   301,   244,    54,    55,    56,    57,    58,    59,    60,    61,
-   62,    63,   160,   161,   159,   253,   185,    64,   244,   177,
-   258,   186,   170,   263,   187,   278,   278,   171,   192,   264,
-   265,   106,   173,   106,   198,   386,   348,   182,   349,   172,
-   278,   226,   278,   306,   332,   333,   278,   278,    10,    11,
-   12,   177,   382,   195,   278,   149,   177,   190,   150,   191,
-   151,   229,    88,    89,   266,   152,    88,    89,   267,   268,
-   269,   160,   161,   238,   278,   270,   187,   271,   234,   388,
-   236,   278,   278,   272,   273,   212,   213,   214,   215,   261,
-   274,   235,    65,   241,   275,   276,   277,   278,   252,   278,
-   278,   278,   278,   278,   278,   278,   278,   278,   278,   278,
-   278,   278,   278,   278,   278,   278,   278,   278,    88,    89,
-   197,   250,    54,    55,    56,    57,    58,    59,    60,    61,
-   62,    63,   368,   369,   370,   371,   353,    64,   255,   347,
-   279,   279,   149,   383,   259,   150,   384,   151,   303,   196,
-   177,   304,   152,   260,   278,   279,   342,   279,   239,   177,
-   343,   279,   279,   332,   333,   346,   334,   335,   347,   279,
-   316,   317,   318,   319,   320,   321,   322,   323,   324,   325,
-   354,    65,   385,   347,   344,   326,   208,   209,   345,   279,
-   216,   217,   364,   365,   359,   355,   279,   279,   372,   373,
-   49,   134,   133,   257,   202,   207,   218,   220,   222,   219,
-   200,   251,   279,   221,   279,   279,   279,   279,   279,   279,
-   279,   279,   279,   279,   279,   279,   279,   279,   279,   279,
-   279,   279,   279,   237,   230,   376,   374,     0,     0,     0,
-   3,     4,     5,     6,    69,    70,   375,   377,     0,     0,
-   378,    71,    72,    73,    74,    75,    76,    77,    78,    79,
-   80,    81,    82,    83,    84,    85,    86,    87,     0,   279,
-   10,    11,    12,     0,     0,     0,     0,     0,     0,     0,
-   0,     0,     0,     0,    88,    89,    90,     0,     0,     0,
-   91,    92,    93,     0,     0,    94,     0,    95,     0,    96,
-   0,   299,     0,     0,     0,     0,    97,     3,     4,     5,
-   6,    69,    70,     0,     0,     0,    98,     0,    71,    72,
-   73,    74,    75,    76,    77,    78,    79,    80,    81,    82,
-   83,    84,    85,    86,    87,     0,     0,    10,    11,    12,
+   44,   125,   125,   125,   125,   125,   125,   143,   144,   145,
+   146,   147,   212,   213,   125,    75,   157,    54,    55,   152,
+   28,   -56,   337,   415,    44,   178,   197,   330,   387,   125,
+   125,   125,   278,    42,   155,   156,   270,   392,   236,   237,
+   46,   286,   270,   340,    28,   315,   315,   191,   375,    61,
+   183,   184,   149,   395,   200,    73,   268,    42,   401,   402,
+   345,   258,   315,   346,   342,   347,   125,   125,   343,   344,
+   348,   169,   170,   414,   198,    45,   363,   230,   231,   232,
+   187,   188,   279,   349,   350,    59,   192,   376,   393,    52,
+   199,    47,    60,   200,    59,    56,   176,   281,    14,   200,
+   200,    60,   189,   190,    14,   219,   315,   315,    14,   271,
+   422,   277,   220,   157,   201,   271,   229,   200,   332,   332,
+   207,   208,   315,    48,   396,   397,   398,   202,   125,   125,
+   200,   125,   183,   184,   227,    49,   179,   180,   295,    58,
+   250,   171,   315,   416,   296,   297,    50,   371,   372,   181,
+   51,   257,    76,   125,   159,   125,   183,   184,   249,   148,
+   125,   160,   125,   125,   259,   251,   125,   253,   254,   373,
+   374,    11,    12,    13,    61,   203,   364,   365,   200,   315,
+   182,   204,   183,   184,   200,   103,   104,   105,   298,   366,
+   288,   385,   299,   300,   301,   172,   276,   163,   173,   302,
+   174,   303,   367,   368,   164,   175,   205,   304,   305,   200,
+   417,   125,   183,   184,   306,   183,   184,   193,   307,   308,
+   309,   209,   194,   423,   200,    62,    63,    64,    65,    66,
+   67,    68,    69,    70,    71,   238,   239,   240,   241,   125,
+   165,    72,   210,   284,   294,   211,   172,   125,   166,   173,
+   195,   174,   335,     1,   196,     2,   175,   272,   206,     3,
+   4,     5,     6,     7,   336,   218,     8,     9,   200,   421,
+   214,   224,   221,   283,    10,   200,   272,   103,   104,   105,
+   223,   403,   404,   405,   406,   310,   310,   266,   215,   125,
+   211,   125,   150,    73,   383,   252,   384,   216,    11,    12,
+   13,   260,   310,   293,   310,   341,    73,   388,   310,   310,
+   382,   418,   222,   200,   419,    14,   310,   103,   104,   105,
+   255,   185,   186,   267,   200,   261,    15,   262,    16,    62,
+   63,    64,    65,    66,    67,    68,    69,    70,    71,   310,
+   367,   368,   369,   370,   263,    72,   310,   310,    17,    18,
+   19,   269,    20,    21,    22,   389,    73,    73,   420,   382,
+   234,   235,   310,   280,   310,   310,   310,   310,   310,   310,
+   310,   310,   310,   310,   310,   310,   310,   310,   310,   310,
+   310,   310,   310,   264,   311,   311,    62,    63,    64,    65,
+   66,    67,    68,    69,    70,    71,   242,   243,   399,   400,
+   282,   311,    72,   311,   285,   407,   408,   311,   311,   289,
+   290,   377,   291,   292,   338,   311,   339,   378,   380,   310,
+   351,   352,   353,   354,   355,   356,   357,   358,   359,   360,
+   379,   381,   382,    57,   394,   153,   361,   154,   311,   287,
+   333,     1,   228,     2,   390,   311,   311,     3,     4,     5,
+   6,     7,   162,   233,     8,     9,   244,   246,   245,   265,
+   226,   311,   248,   311,   311,   311,   311,   311,   311,   311,
+   311,   311,   311,   311,   311,   311,   311,   311,   311,   311,
+   311,   311,   247,   409,   411,   410,    11,    12,    13,   412,
+   0,   413,     0,     0,     0,     0,     0,     0,     0,     0,
+   0,   256,     0,    14,     0,     0,     0,     3,     4,     5,
+   6,     7,    77,    78,    15,     0,    16,     0,   311,    79,
+   80,    81,    82,    83,    84,    85,    86,    87,    88,    89,
+   90,    91,    92,    93,    94,    95,    96,    97,     0,    98,
+   99,   100,   101,   102,     0,     0,    11,    12,    13,     0,
    0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
-   0,    88,    89,    90,     0,     0,     0,    91,    92,    93,
-   0,     0,    94,     0,    95,     0,    96,     0,     0,     0,
-   0,     0,     0,    97,     3,     4,     5,     6,    69,    70,
-   0,     0,     0,    98,     0,    71,    72,    73,    74,    75,
-   76,    77,    78,    79,    80,    81,    82,    83,    84,    85,
-   86,    87,     0,     0,    10,    11,    12,     0,     0,     0,
-   0,     0,     0,     0,     0,     0,     0,     0,    88,    89,
-   90,     0,     0,     0,    91,    92,    93,     0,     0,    94,
-   0,    95,   131,    96,     0,     0,     0,     0,     0,     0,
-   97,     3,     4,     5,     6,    69,    70,     0,     0,     0,
-   98,     0,    71,    72,    73,    74,    75,    76,    77,    78,
-   79,    80,    81,    82,    83,    84,    85,    86,    87,     0,
-   0,    10,    11,    12,     0,     0,     0,     0,     0,     0,
-   0,     0,     0,     0,     0,    88,    89,    90,     0,     0,
-   0,    91,    92,    93,     0,     0,    94,     0,    95,   199,
-   96,     0,     0,     0,     0,     0,     0,    97,     3,     4,
-   5,     6,    69,    70,     0,     0,     0,    98,     0,    71,
-   72,    73,    74,    75,    76,    77,    78,    79,    80,    81,
-   82,    83,    84,    85,    86,    87,     0,     0,    10,    11,
-   12,     0,     0,     0,     0,     0,     0,     0,     0,     0,
-   0,     0,    88,    89,    90,     0,     0,     0,    91,    92,
-   93,     0,     0,    94,     0,    95,     0,    96,     0,     0,
-   0,     0,     0,     0,    97,     3,     4,     5,     6,    69,
-   70,     0,     0,     0,    98,     0,     0,     0,     0,     0,
-   75,    76,    77,    78,    79,    80,    81,    82,    83,    84,
-   85,    86,    87,     0,     0,    10,    11,    12,     0,     0,
-   0,     0,     0,     0,     0,     0,     0,     0,     0,    88,
-   89,    90,     0,     0,     0,     0,     0,     0,     0,     0,
-   94,     0,    95,     0,    96
+   103,   104,   105,   106,     0,     0,     0,   107,   108,   109,
+   0,     0,   110,     0,   111,     0,   112,     0,   334,     0,
+   0,     0,     0,   113,     3,     4,     5,     6,     7,    77,
+   78,     0,     0,   114,     0,     0,    79,    80,    81,    82,
+   83,    84,    85,    86,    87,    88,    89,    90,    91,    92,
+   93,    94,    95,    96,    97,     0,    98,    99,   100,   101,
+   102,     0,     0,    11,    12,    13,     0,     0,     0,     0,
+   0,     0,     0,     0,     0,     0,     0,   103,   104,   105,
+   106,     0,     0,     0,   107,   108,   109,     0,     0,   110,
+   0,   111,     0,   112,     0,     0,     0,     0,     0,     0,
+   113,     3,     4,     5,     6,     7,    77,    78,     0,     0,
+   114,     0,     0,    79,    80,    81,    82,    83,    84,    85,
+   86,    87,    88,    89,    90,    91,    92,    93,    94,    95,
+   96,    97,     0,    98,    99,   100,   101,   102,     0,     0,
+   11,    12,    13,     0,     0,     0,     0,     0,     0,     0,
+   0,     0,     0,     0,   103,   104,   105,   106,     0,     0,
+   0,   107,   108,   109,     0,     0,   110,     0,   111,   151,
+   112,     0,     0,     0,     0,     0,     0,   113,     3,     4,
+   5,     6,     7,    77,    78,     0,     0,   114,     0,     0,
+   79,    80,    81,    82,    83,    84,    85,    86,    87,    88,
+   89,    90,    91,    92,    93,    94,    95,    96,    97,     0,
+   98,    99,   100,   101,   102,     0,     0,    11,    12,    13,
+   0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
+   0,   103,   104,   105,   106,     0,     0,     0,   107,   108,
+   109,     0,     0,   110,     0,   111,   225,   112,     0,     0,
+   0,     0,     0,     0,   113,     3,     4,     5,     6,     7,
+   77,    78,     0,     0,   114,     0,     0,    79,    80,    81,
+   82,    83,    84,    85,    86,    87,    88,    89,    90,    91,
+   92,    93,    94,    95,    96,    97,     0,    98,    99,   100,
+   101,   102,     0,     0,    11,    12,    13,     0,    77,    78,
+   0,     0,     0,     0,     0,     0,     0,     0,   103,   104,
+   105,   106,     0,     0,     0,   107,   108,   109,     0,     0,
+   110,     0,   111,     0,   112,     0,     0,     0,     0,     0,
+   0,   113,    11,    12,    13,     0,     0,     0,     0,     0,
+   0,   114,     0,     0,     0,     0,   103,   104,   105,   106,
+   0,     0,     0,     0,     0,     0,     0,     0,   110,     0,
+   111,     0,   112
 };
 
 const short
 parser::yycheck_[] =
 {
-   0,    39,    40,    41,    42,    43,    37,    40,    41,    42,
-   43,    68,     4,    51,     4,   311,    14,    15,    51,     0,
-   20,    38,     4,   139,   140,   304,   256,    67,    66,    67,
-   68,   327,     0,    66,    67,    43,    43,   108,    67,    20,
-   270,    62,    63,    56,    25,    74,   162,   163,     4,   255,
-   256,   347,    20,     9,    75,   334,   335,    95,    96,    62,
-   63,    67,    95,    96,   270,     4,   272,    56,    85,    66,
-   276,   277,    75,    81,    81,   106,    73,    67,   284,    71,
-   60,    61,   312,    67,    74,   156,   157,   158,   384,    71,
-   67,    71,    71,   150,    73,     4,   153,     6,   129,   130,
-   56,    10,    11,    12,    13,   311,   312,    16,    17,    70,
-   71,    67,   150,   151,    23,   153,   232,    56,   151,    68,
-   177,   327,    71,   329,   330,   331,    68,    67,    67,    71,
-   187,    40,    41,    42,    57,    58,    56,   175,     0,   177,
-   4,   347,   175,   181,    18,   183,   184,    56,   181,   187,
-   183,   184,    67,   134,    60,    61,    79,    80,    67,    67,
-   69,    68,    68,     4,    71,     6,    57,    58,    67,    10,
-   11,    12,    13,   230,    64,    16,    17,    67,   384,    69,
-   89,    90,    91,    67,    74,    60,    61,   303,    79,    80,
-   68,    68,   230,    71,    71,    67,    71,    87,    88,    40,
-   41,    42,    44,    45,    46,    47,    48,    49,    50,    51,
-   52,    53,    67,   244,    14,    56,   254,    59,    77,    78,
-   68,   254,   260,    71,    60,    61,    67,   260,    69,    71,
-   261,   229,    44,    45,    46,    47,    48,    49,    50,    51,
-   52,    53,    60,    61,    20,   243,    68,    59,   246,    71,
-   68,    68,    82,    15,    71,   255,   256,    83,   143,    21,
-   22,   299,    39,   301,   149,   381,   299,    19,   301,    84,
-   270,    67,   272,   271,    60,    61,   276,   277,    40,    41,
-   42,    71,    68,    68,   284,    64,    71,    56,    67,    56,
-   69,    73,    54,    55,    56,    74,    54,    55,    60,    61,
-   62,    60,    61,    68,   304,    67,    71,    69,    68,    68,
-   71,   311,   312,    75,    76,   164,   165,   166,   167,    68,
-   82,    68,    71,    56,    86,    87,    88,   327,    68,   329,
-   330,   331,   332,   333,   334,   335,   336,   337,   338,   339,
-   340,   341,   342,   343,   344,   345,   346,   347,    54,    55,
-   56,   236,    44,    45,    46,    47,    48,    49,    50,    51,
-   52,    53,   336,   337,   338,   339,    68,    59,     9,    71,
-   255,   256,    64,    68,    68,    67,    71,    69,    67,    70,
-   71,    67,    74,    73,   384,   270,    82,   272,    70,    71,
-   83,   276,   277,    60,    61,    38,    77,    78,    71,   284,
-   44,    45,    46,    47,    48,    49,    50,    51,    52,    53,
-   70,    71,    70,    71,    84,    59,   160,   161,    39,   304,
-   168,   169,   332,   333,    56,   310,   311,   312,   340,   341,
-   20,    65,    52,   246,   152,   159,   170,   172,   174,   171,
-   150,   240,   327,   173,   329,   330,   331,   332,   333,   334,
-   335,   336,   337,   338,   339,   340,   341,   342,   343,   344,
-   345,   346,   347,   194,     4,   344,   342,    -1,    -1,    -1,
-   10,    11,    12,    13,    14,    15,   343,   345,    -1,    -1,
-   346,    21,    22,    23,    24,    25,    26,    27,    28,    29,
-   30,    31,    32,    33,    34,    35,    36,    37,    -1,   384,
-   40,    41,    42,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
-   -1,    -1,    -1,    -1,    54,    55,    56,    -1,    -1,    -1,
-   60,    61,    62,    -1,    -1,    65,    -1,    67,    -1,    69,
-   -1,     4,    -1,    -1,    -1,    -1,    76,    10,    11,    12,
-   13,    14,    15,    -1,    -1,    -1,    86,    -1,    21,    22,
+   0,    46,    47,    48,    49,    50,    51,    47,    48,    49,
+   50,    51,   159,   160,    59,    44,    76,    15,    16,    59,
+   0,     4,     4,     4,    24,   127,    47,   286,   339,    74,
+   75,    76,    16,     0,    74,    75,     4,   346,   185,   186,
+   77,     9,     4,   302,    24,   285,   286,    52,    52,    29,
+   70,    71,    78,   362,    81,    81,    83,    24,   369,   370,
+   74,    81,   302,    77,   304,    79,   111,   112,   308,   309,
+   84,   111,   112,   382,    95,    66,   316,   179,   180,   181,
+   67,    68,    66,    97,    98,    77,    91,    91,   347,    66,
+   78,    77,    84,    81,    77,     0,   125,   268,    66,    81,
+   81,    84,    89,    90,    66,    76,   346,   347,    66,    77,
+   419,   258,    83,   173,    78,    77,   176,    81,   289,   290,
+   149,   150,   362,    77,   364,   365,   366,    78,   173,   174,
+   81,   176,    70,    71,   174,    77,    72,    73,    16,     4,
+   200,    15,   382,    81,    22,    23,    77,    67,    68,    85,
+   77,   211,    77,   198,    77,   200,    70,    71,   198,    19,
+   205,    77,   207,   208,    78,   205,   211,   207,   208,    89,
+   90,    49,    50,    51,   154,    78,    72,    73,    81,   419,
+   21,    78,    70,    71,    81,    63,    64,    65,    66,    85,
+   78,   338,    70,    71,    72,    74,   256,    77,    77,    77,
+   79,    79,    70,    71,    77,    84,    78,    85,    86,    81,
+   78,   256,    70,    71,    92,    70,    71,    92,    96,    97,
+   98,    78,    93,    78,    81,    53,    54,    55,    56,    57,
+   58,    59,    60,    61,    62,   187,   188,   189,   190,   284,
+   77,    69,    78,   272,   284,    81,    74,   292,    77,    77,
+   94,    79,   292,     4,    48,     6,    84,   255,    20,    10,
+   11,    12,    13,    14,   293,   166,    17,    18,    81,   416,
+   66,   172,    78,   271,    25,    81,   274,    63,    64,    65,
+   66,   371,   372,   373,   374,   285,   286,    78,    66,   334,
+   81,   336,    80,    81,   334,    77,   336,    66,    49,    50,
+   51,    78,   302,    78,   304,   303,    81,    78,   308,   309,
+   81,    78,    80,    81,    81,    66,   316,    63,    64,    65,
+   83,    87,    88,    80,    81,    78,    77,    81,    79,    53,
+   54,    55,    56,    57,    58,    59,    60,    61,    62,   339,
+   70,    71,    87,    88,    78,    69,   346,   347,    99,   100,
+   101,    66,   103,   104,   105,    80,    81,    81,    80,    81,
+   183,   184,   362,   264,   364,   365,   366,   367,   368,   369,
+   370,   371,   372,   373,   374,   375,   376,   377,   378,   379,
+   380,   381,   382,    81,   285,   286,    53,    54,    55,    56,
+   57,    58,    59,    60,    61,    62,   191,   192,   367,   368,
+   78,   302,    69,   304,     9,   375,   376,   308,   309,    81,
+   81,    92,    78,    83,    77,   316,    77,    93,    48,   419,
+   53,    54,    55,    56,    57,    58,    59,    60,    61,    62,
+   94,    47,    81,    24,    66,    60,    69,    73,   339,   274,
+   290,     4,   175,     6,   345,   346,   347,    10,    11,    12,
+   13,    14,    81,   182,    17,    18,   193,   195,   194,   220,
+   173,   362,   197,   364,   365,   366,   367,   368,   369,   370,
+   371,   372,   373,   374,   375,   376,   377,   378,   379,   380,
+   381,   382,   196,   377,   379,   378,    49,    50,    51,   380,
+   -1,   381,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
+   -1,     4,    -1,    66,    -1,    -1,    -1,    10,    11,    12,
+   13,    14,    15,    16,    77,    -1,    79,    -1,   419,    22,
    23,    24,    25,    26,    27,    28,    29,    30,    31,    32,
-   33,    34,    35,    36,    37,    -1,    -1,    40,    41,    42,
+   33,    34,    35,    36,    37,    38,    39,    40,    -1,    42,
+   43,    44,    45,    46,    -1,    -1,    49,    50,    51,    -1,
    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
-   -1,    54,    55,    56,    -1,    -1,    -1,    60,    61,    62,
-   -1,    -1,    65,    -1,    67,    -1,    69,    -1,    -1,    -1,
-   -1,    -1,    -1,    76,    10,    11,    12,    13,    14,    15,
-   -1,    -1,    -1,    86,    -1,    21,    22,    23,    24,    25,
+   63,    64,    65,    66,    -1,    -1,    -1,    70,    71,    72,
+   -1,    -1,    75,    -1,    77,    -1,    79,    -1,     4,    -1,
+   -1,    -1,    -1,    86,    10,    11,    12,    13,    14,    15,
+   16,    -1,    -1,    96,    -1,    -1,    22,    23,    24,    25,
    26,    27,    28,    29,    30,    31,    32,    33,    34,    35,
-   36,    37,    -1,    -1,    40,    41,    42,    -1,    -1,    -1,
-   -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    54,    55,
-   56,    -1,    -1,    -1,    60,    61,    62,    -1,    -1,    65,
-   -1,    67,    68,    69,    -1,    -1,    -1,    -1,    -1,    -1,
-   76,    10,    11,    12,    13,    14,    15,    -1,    -1,    -1,
-   86,    -1,    21,    22,    23,    24,    25,    26,    27,    28,
-   29,    30,    31,    32,    33,    34,    35,    36,    37,    -1,
-   -1,    40,    41,    42,    -1,    -1,    -1,    -1,    -1,    -1,
-   -1,    -1,    -1,    -1,    -1,    54,    55,    56,    -1,    -1,
-   -1,    60,    61,    62,    -1,    -1,    65,    -1,    67,    68,
-   69,    -1,    -1,    -1,    -1,    -1,    -1,    76,    10,    11,
-   12,    13,    14,    15,    -1,    -1,    -1,    86,    -1,    21,
+   36,    37,    38,    39,    40,    -1,    42,    43,    44,    45,
+   46,    -1,    -1,    49,    50,    51,    -1,    -1,    -1,    -1,
+   -1,    -1,    -1,    -1,    -1,    -1,    -1,    63,    64,    65,
+   66,    -1,    -1,    -1,    70,    71,    72,    -1,    -1,    75,
+   -1,    77,    -1,    79,    -1,    -1,    -1,    -1,    -1,    -1,
+   86,    10,    11,    12,    13,    14,    15,    16,    -1,    -1,
+   96,    -1,    -1,    22,    23,    24,    25,    26,    27,    28,
+   29,    30,    31,    32,    33,    34,    35,    36,    37,    38,
+   39,    40,    -1,    42,    43,    44,    45,    46,    -1,    -1,
+   49,    50,    51,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
+   -1,    -1,    -1,    -1,    63,    64,    65,    66,    -1,    -1,
+   -1,    70,    71,    72,    -1,    -1,    75,    -1,    77,    78,
+   79,    -1,    -1,    -1,    -1,    -1,    -1,    86,    10,    11,
+   12,    13,    14,    15,    16,    -1,    -1,    96,    -1,    -1,
    22,    23,    24,    25,    26,    27,    28,    29,    30,    31,
-   32,    33,    34,    35,    36,    37,    -1,    -1,    40,    41,
-   42,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
-   -1,    -1,    54,    55,    56,    -1,    -1,    -1,    60,    61,
-   62,    -1,    -1,    65,    -1,    67,    -1,    69,    -1,    -1,
-   -1,    -1,    -1,    -1,    76,    10,    11,    12,    13,    14,
-   15,    -1,    -1,    -1,    86,    -1,    -1,    -1,    -1,    -1,
+   32,    33,    34,    35,    36,    37,    38,    39,    40,    -1,
+   42,    43,    44,    45,    46,    -1,    -1,    49,    50,    51,
+   -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
+   -1,    63,    64,    65,    66,    -1,    -1,    -1,    70,    71,
+   72,    -1,    -1,    75,    -1,    77,    78,    79,    -1,    -1,
+   -1,    -1,    -1,    -1,    86,    10,    11,    12,    13,    14,
+   15,    16,    -1,    -1,    96,    -1,    -1,    22,    23,    24,
    25,    26,    27,    28,    29,    30,    31,    32,    33,    34,
-   35,    36,    37,    -1,    -1,    40,    41,    42,    -1,    -1,
-   -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    54,
-   55,    56,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
-   65,    -1,    67,    -1,    69
+   35,    36,    37,    38,    39,    40,    -1,    42,    43,    44,
+   45,    46,    -1,    -1,    49,    50,    51,    -1,    15,    16,
+   -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    63,    64,
+   65,    66,    -1,    -1,    -1,    70,    71,    72,    -1,    -1,
+   75,    -1,    77,    -1,    79,    -1,    -1,    -1,    -1,    -1,
+   -1,    86,    49,    50,    51,    -1,    -1,    -1,    -1,    -1,
+   -1,    96,    -1,    -1,    -1,    -1,    63,    64,    65,    66,
+   -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    75,    -1,
+   77,    -1,    79
 };
 
 const unsigned char
 parser::yystos_[] =
 {
-   0,     4,     6,    10,    11,    12,    13,    16,    17,    23,
-   40,    41,    42,    56,    67,    69,    89,    90,    91,    94,
-   95,    96,    97,    98,    99,   100,   101,   102,   103,   104,
-   105,   106,   107,   111,   112,   113,   114,   115,    56,    67,
-   67,    67,    67,    67,    56,    99,   101,   101,     0,    96,
-   4,    67,    74,    99,    44,    45,    46,    47,    48,    49,
-   50,    51,    52,    53,    59,    71,   138,   138,    67,    14,
-   15,    21,    22,    23,    24,    25,    26,    27,    28,    29,
-   30,    31,    32,    33,    34,    35,    36,    37,    54,    55,
-   56,    60,    61,    62,    65,    67,    69,    76,    86,   113,
+   0,     4,     6,    10,    11,    12,    13,    14,    17,    18,
+   25,    49,    50,    51,    66,    77,    79,    99,   100,   101,
+   103,   104,   105,   108,   109,   110,   111,   112,   113,   114,
    115,   116,   117,   118,   119,   120,   121,   122,   123,   124,
-   125,   126,   127,   128,   129,   130,   131,   132,   133,   134,
-   135,   136,   137,   139,   139,   139,   139,   139,    18,    68,
-   70,    68,   139,    98,   100,   139,   139,   137,   140,    67,
-   67,    67,    67,    67,   141,   142,   139,   139,    14,    64,
-   67,    69,    74,   138,   121,   124,    62,    63,    75,    20,
-   60,    61,    77,    78,    57,    58,    79,    80,    43,    81,
-   82,    83,    84,    39,    38,    85,    68,    71,    68,    68,
-   68,    68,    19,   138,   138,    68,    68,    71,   127,   127,
-   56,    56,   116,    66,    73,    68,    70,    56,   116,    68,
-   140,   139,   119,   137,   124,   124,   124,   125,   126,   126,
-   127,   127,   128,   128,   128,   128,   129,   129,   130,   131,
-   132,   133,   134,   139,   137,   139,    67,   139,   139,    73,
-   4,   137,    71,    68,    68,    68,    71,   141,    68,    70,
-   73,    56,     4,    67,   101,   108,   109,   110,   137,   127,
-   116,   136,    68,   101,   138,     9,     9,   110,    68,    68,
-   73,    68,   139,    15,    21,    22,    56,    60,    61,    62,
-   67,    69,    75,    76,    82,    86,    87,    88,   115,   116,
-   143,   144,   145,   147,   148,   149,   150,   151,   152,   153,
-   154,   155,   156,   157,   158,   159,   160,   162,   162,     4,
-   139,   138,     4,    67,    67,   162,   101,   147,   147,   147,
-   64,    67,    69,    74,    87,    88,    44,    45,    46,    47,
-   48,    49,    50,    51,    52,    53,    59,   161,   147,    62,
-   63,    75,    60,    61,    77,    78,    57,    58,    79,    80,
-   43,    81,    82,    83,    84,    39,    38,    71,   139,   139,
-   127,   147,   150,    68,    70,   116,   146,   160,   162,    56,
-   160,   147,   147,   147,   149,   149,   150,   150,   151,   151,
-   151,   151,   152,   152,   153,   154,   155,   156,   157,   160,
-   4,    71,    68,    68,    71,    70,   127,   160,    68
+   128,   129,   130,   131,   132,    66,    77,    77,    77,    77,
+   77,    77,    66,   113,   115,   115,     0,   110,     4,    77,
+   84,   113,    53,    54,    55,    56,    57,    58,    59,    60,
+   61,    62,    69,    81,   161,   161,    77,    15,    16,    22,
+   23,    24,    25,    26,    27,    28,    29,    30,    31,    32,
+   33,    34,    35,    36,    37,    38,    39,    40,    42,    43,
+   44,    45,    46,    63,    64,    65,    66,    70,    71,    72,
+   75,    77,    79,    86,    96,   130,   132,   133,   134,   137,
+   138,   139,   141,   142,   143,   144,   145,   146,   147,   148,
+   149,   150,   151,   152,   153,   154,   155,   156,   157,   158,
+   159,   160,   162,   162,   162,   162,   162,   162,    19,    78,
+   80,    78,   162,   112,   114,   162,   162,   160,   163,    77,
+   77,   140,   140,    77,    77,    77,    77,   164,   165,   162,
+   162,    15,    74,    77,    79,    84,   161,   144,   147,    72,
+   73,    85,    21,    70,    71,    87,    88,    67,    68,    89,
+   90,    52,    91,    92,    93,    94,    48,    47,    95,    78,
+   81,    78,    78,    78,    78,    78,    20,   161,   161,    78,
+   78,    81,   150,   150,    66,    66,    66,   136,   133,    76,
+   83,    78,    80,    66,   133,    78,   163,   162,   139,   160,
+   147,   147,   147,   148,   149,   149,   150,   150,   151,   151,
+   151,   151,   152,   152,   153,   154,   155,   156,   157,   162,
+   160,   162,    77,   162,   162,    83,     4,   160,    81,    78,
+   78,    78,    81,    78,    81,   164,    78,    80,    83,    66,
+   4,    77,   115,   125,   126,   127,   160,   150,    16,    66,
+   133,   159,    78,   115,   161,     9,     9,   127,    78,    81,
+   81,    78,    83,    78,   162,    16,    22,    23,    66,    70,
+   71,    72,    77,    79,    85,    86,    92,    96,    97,    98,
+   132,   133,   166,   167,   168,   170,   171,   172,   173,   174,
+   175,   176,   177,   178,   179,   180,   181,   182,   183,   185,
+   185,   135,   159,   135,     4,   162,   161,     4,    77,    77,
+   185,   115,   170,   170,   170,    74,    77,    79,    84,    97,
+   98,    53,    54,    55,    56,    57,    58,    59,    60,    61,
+   62,    69,   184,   170,    72,    73,    85,    70,    71,    87,
+   88,    67,    68,    89,    90,    52,    91,    92,    93,    94,
+   48,    47,    81,   162,   162,   150,   170,   173,    78,    80,
+   133,   169,   183,   185,    66,   183,   170,   170,   170,   172,
+   172,   173,   173,   174,   174,   174,   174,   175,   175,   176,
+   177,   178,   179,   180,   183,     4,    81,    78,    78,    81,
+   80,   150,   183,    78
 };
 
 const unsigned char
 parser::yyr1_[] =
 {
-   0,    93,    94,    95,    95,    95,    96,    96,    97,    97,
-   97,    97,    97,    97,    97,    97,    97,    98,    99,    99,
-   99,    99,   100,   100,   101,   101,   102,   102,   102,   102,
-   103,   104,   105,   106,   107,   107,   108,   109,   109,   110,
-   110,   110,   111,   111,   112,   113,   113,   113,   113,   114,
-   115,   115,   115,   116,   116,   117,   117,   118,   118,   118,
-   118,   118,   118,   118,   118,   118,   118,   118,   118,   118,
-   118,   119,   119,   119,   119,   119,   119,   119,   119,   119,
-   120,   120,   121,   121,   121,   121,   121,   121,   121,   121,
-   121,   121,   122,   122,   123,   123,   123,   123,   123,   124,
-   125,   125,   125,   125,   126,   126,   127,   127,   127,   128,
-   128,   128,   129,   129,   129,   129,   129,   130,   130,   130,
-   131,   131,   132,   132,   133,   133,   134,   134,   135,   135,
-   136,   136,   137,   137,   138,   138,   138,   138,   138,   138,
-   138,   138,   138,   138,   138,   139,   139,   140,   140,   140,
-   141,   142,   142,   143,   143,   143,   143,   143,   143,   144,
-   145,   145,   145,   145,   145,   145,   145,   145,   145,   146,
-   146,   147,   147,   147,   147,   147,   148,   148,   148,   148,
-   148,   148,   149,   149,   149,   149,   150,   150,   150,   151,
-   151,   151,   152,   152,   152,   152,   152,   153,   153,   153,
-   154,   154,   155,   155,   156,   156,   157,   157,   158,   158,
-   159,   160,   160,   161,   161,   161,   161,   161,   161,   161,
-   161,   161,   161,   161,   162,   162
+   0,   107,   108,   109,   109,   109,   110,   110,   111,   111,
+   111,   111,   111,   111,   111,   111,   111,   112,   113,   113,
+   113,   113,   114,   114,   115,   115,   116,   116,   116,   116,
+   116,   116,   116,   117,   118,   119,   120,   121,   122,   123,
+   124,   124,   125,   126,   126,   127,   127,   127,   128,   128,
+   129,   130,   130,   130,   130,   130,   131,   132,   132,   132,
+   133,   133,   133,   134,   134,   135,   136,   136,   136,   137,
+   137,   137,   137,   137,   137,   138,   138,   138,   138,   138,
+   138,   138,   138,   138,   138,   138,   138,   138,   138,   138,
+   139,   139,   139,   139,   139,   139,   139,   139,   140,   141,
+   142,   143,   143,   144,   144,   144,   144,   144,   144,   144,
+   144,   144,   144,   144,   144,   145,   145,   146,   146,   146,
+   146,   146,   147,   148,   148,   148,   148,   149,   149,   150,
+   150,   150,   151,   151,   151,   152,   152,   152,   152,   152,
+   153,   153,   153,   154,   154,   155,   155,   156,   156,   157,
+   157,   158,   158,   159,   159,   160,   160,   161,   161,   161,
+   161,   161,   161,   161,   161,   161,   161,   161,   162,   162,
+   163,   163,   163,   164,   165,   165,   166,   166,   166,   166,
+   166,   166,   167,   168,   168,   168,   168,   168,   168,   168,
+   168,   168,   169,   169,   170,   170,   170,   170,   170,   171,
+   171,   171,   171,   171,   171,   172,   172,   172,   172,   173,
+   173,   173,   174,   174,   174,   175,   175,   175,   175,   175,
+   176,   176,   176,   177,   177,   178,   178,   179,   179,   180,
+   180,   181,   181,   182,   183,   183,   184,   184,   184,   184,
+   184,   184,   184,   184,   184,   184,   184,   185,   185
 };
 
 const signed char
@@ -3354,26 +3570,28 @@ parser::yyr2_[] =
    0,     2,     1,     1,     2,     1,     1,     2,     1,     3,
    3,     5,     5,     1,     1,     1,     1,     1,     1,     3,
    4,     3,     1,     2,     1,     3,     1,     1,     1,     1,
-   1,     1,     1,     1,     9,     9,     0,     1,     2,     1,
-   4,     6,    10,     9,     5,     4,     4,     4,     4,     1,
-   1,     1,     1,     1,     1,     1,     2,     1,     1,     1,
    1,     1,     1,     1,     1,     1,     1,     1,     1,     1,
+   9,     9,     0,     1,     2,     1,     4,     6,    10,     9,
+   5,     4,     4,     4,     4,     4,     1,     1,     1,     1,
+   1,     1,     1,     1,     2,     1,     3,     5,     5,     1,
+   1,     1,     1,     1,     1,     1,     1,     1,     1,     1,
+   1,     4,     1,     1,     1,     1,     1,     1,     1,     1,
+   1,     1,     1,     1,     1,     3,     3,     3,     3,     2,
+   2,     3,     3,     1,     1,     6,     4,     3,     4,     3,
+   1,     1,     4,     4,     1,     1,     2,     1,     1,     1,
+   1,     1,     1,     1,     3,     3,     3,     1,     3,     1,
+   3,     3,     1,     3,     3,     1,     3,     3,     3,     3,
+   1,     3,     3,     1,     3,     1,     3,     1,     3,     1,
+   3,     1,     3,     1,     5,     1,     3,     1,     1,     1,
+   1,     1,     1,     1,     1,     1,     1,     1,     1,     3,
+   1,     3,     4,     5,     1,     3,     1,     1,     1,     1,
+   3,     3,     6,     1,     4,     4,     3,     2,     2,     3,
+   1,     4,     1,     3,     1,     2,     2,     2,     2,     1,
    1,     1,     1,     1,     1,     1,     3,     3,     3,     1,
-   3,     3,     1,     1,     6,     4,     3,     4,     3,     4,
-   4,     4,     1,     2,     1,     1,     1,     1,     1,     1,
-   1,     3,     3,     3,     1,     3,     1,     3,     3,     1,
-   3,     3,     1,     3,     3,     3,     3,     1,     3,     3,
-   1,     3,     1,     3,     1,     3,     1,     3,     1,     3,
-   1,     5,     1,     3,     1,     1,     1,     1,     1,     1,
-   1,     1,     1,     1,     1,     1,     3,     1,     3,     4,
-   5,     1,     3,     1,     1,     1,     1,     3,     3,     6,
-   1,     4,     4,     3,     2,     2,     3,     1,     4,     1,
-   3,     1,     2,     2,     2,     2,     1,     1,     1,     1,
-   1,     1,     1,     3,     3,     3,     1,     3,     3,     1,
-   3,     3,     1,     3,     3,     3,     3,     1,     3,     3,
-   1,     3,     1,     3,     1,     3,     1,     3,     1,     3,
-   1,     1,     3,     1,     1,     1,     1,     1,     1,     1,
-   1,     1,     1,     1,     1,     3
+   3,     3,     1,     3,     3,     1,     3,     3,     3,     3,
+   1,     3,     3,     1,     3,     1,     3,     1,     3,     1,
+   3,     1,     3,     1,     1,     3,     1,     1,     1,     1,
+   1,     1,     1,     1,     1,     1,     1,     1,     3
 };
 
 
@@ -3383,29 +3601,31 @@ parser::yyr2_[] =
 const short
 parser::yyrline_[] =
 {
-   0,    93,    93,    95,    95,    95,    97,    97,    99,   100,
-   101,   102,   103,   104,   105,   106,   107,   109,   111,   112,
-   113,   114,   116,   116,   118,   118,   121,   121,   121,   121,
-   122,   123,   124,   125,   129,   130,   131,   132,   132,   133,
-   134,   135,   139,   140,   143,   146,   147,   148,   149,   152,
-   155,   155,   155,   158,   158,   160,   160,   162,   163,   164,
-   165,   166,   167,   168,   169,   170,   171,   172,   173,   174,
-   175,   177,   178,   179,   180,   181,   182,   183,   184,   185,
-   187,   188,   190,   191,   192,   193,   194,   195,   196,   197,
-   198,   199,   201,   201,   203,   203,   203,   203,   203,   205,
-   207,   208,   209,   210,   212,   213,   215,   216,   217,   219,
-   220,   221,   223,   224,   225,   226,   227,   229,   230,   231,
-   233,   234,   236,   237,   239,   240,   242,   243,   245,   246,
-   248,   249,   251,   252,   254,   255,   255,   255,   255,   255,
-   256,   256,   256,   257,   257,   259,   260,   262,   263,   264,
-   266,   268,   268,   273,   274,   275,   276,   277,   278,   280,
-   283,   284,   285,   286,   287,   288,   289,   290,   291,   294,
-   295,   298,   299,   300,   301,   302,   304,   304,   304,   304,
-   304,   304,   306,   307,   308,   309,   311,   312,   313,   315,
-   316,   317,   319,   320,   321,   322,   323,   325,   326,   327,
-   329,   330,   332,   333,   335,   336,   338,   339,   341,   342,
-   344,   346,   347,   349,   350,   350,   350,   350,   350,   351,
-   351,   351,   352,   352,   354,   355
+   0,    95,    95,    97,    97,    97,    99,    99,   101,   102,
+   103,   104,   105,   106,   107,   108,   109,   111,   113,   114,
+   115,   116,   118,   118,   120,   120,   123,   123,   124,   124,
+   124,   125,   125,   126,   127,   128,   130,   131,   132,   133,
+   137,   138,   139,   140,   140,   141,   142,   143,   147,   148,
+   151,   154,   155,   156,   157,   158,   161,   164,   164,   164,
+   167,   167,   167,   169,   169,   172,   173,   174,   175,   177,
+   177,   177,   178,   178,   178,   181,   182,   183,   184,   185,
+   186,   187,   188,   189,   190,   191,   192,   193,   194,   195,
+   197,   198,   199,   200,   201,   202,   203,   204,   206,   208,
+   210,   212,   212,   214,   215,   216,   217,   218,   219,   220,
+   221,   222,   223,   224,   225,   227,   227,   229,   229,   229,
+   229,   229,   231,   233,   234,   235,   236,   238,   239,   241,
+   242,   243,   245,   246,   247,   249,   250,   251,   252,   253,
+   255,   256,   257,   259,   260,   262,   263,   265,   266,   268,
+   269,   271,   272,   274,   275,   277,   278,   280,   281,   281,
+   281,   281,   281,   282,   282,   282,   283,   283,   285,   286,
+   288,   289,   290,   292,   294,   294,   299,   300,   301,   302,
+   303,   304,   306,   309,   310,   311,   312,   313,   314,   315,
+   316,   317,   320,   321,   324,   325,   326,   327,   328,   330,
+   330,   330,   330,   330,   330,   332,   333,   334,   335,   337,
+   338,   339,   341,   342,   343,   345,   346,   347,   348,   349,
+   351,   352,   353,   355,   356,   358,   359,   361,   362,   364,
+   365,   367,   368,   370,   372,   373,   375,   376,   376,   376,
+   376,   376,   377,   377,   377,   378,   378,   380,   381
 };
 
 void
@@ -3447,66 +3667,95 @@ parser::yytranslate_ (int t)
 
 // //////////////////////////////////////////////////////////////////////////
 // *INDENT-ON*
+// clang-format on
+
 #undef MFEM_DEBUG_COLOR
 #define MFEM_DEBUG_COLOR 165
-namespace yy { std::array<bool, yyruletype::yynrules> rules = {false}; }
+namespace yy
+{
+std::array<bool, yyruletype::yynrules> rules = {false};
+}
 
 // *****************************************************************************
-static Node* astAddChild(Node* root, Node* n)
+static Node *astAddChild(Node *root, Node *n)
 {
    assert(n);
    assert(root);
    n->root = root;
-   if (!root->child) { return root->child = n; }
-   Node* child = root->child;
-   for (; child->next; child = child->next);
+   if (!root->child)
+   {
+      return root->child = n;
+   }
+   Node *child = root->child;
+   for (; child->next; child = child->next)
+      ;
    return child->next = n;
 }
 
 // *****************************************************************************
-static Node* astAddNext(Node* root, Node* n)
+static Node *astAddNext(Node *root, Node *n)
 {
    assert(n);
    assert(root);
    n->root = root->root;
-   if (!root->next) { return root->next = n; }
-   Node* next = root;
-   for (; next->next; next = next->next);
+   if (!root->next)
+   {
+      return root->next = n;
+   }
+   Node *next = root;
+   for (; next->next; next = next->next)
+      ;
    return next->next = n;
 }
 
-// *****************************************************************************
-template<int YYN>
-void rhs(xfl &ufl, Node **yylval,  const int yyn,
-         const symbol_t yyr1n, const int nrhs, const char *rule,
-         yy::parser::stack_type &yystack)
+// ****************************************************************************
+Node *xfl::NewRule(const int YN, const char *text) const
 {
-   assert(YYN == yyn);
-   Node *root = *yylval = ufl.astAddNode(std::make_shared<Rule>(yyn, rule));
-   if (nrhs == 0) { return; } // %empty
-   Node *n = yystack[nrhs-1].value;
-   astAddChild(root, n);
-   for (int i = 1; i < nrhs ; i++)
-   { (root = n, astAddNext(root, n = yystack[nrhs-1-i].value)); }
+   return NewNode(std::make_shared<Rule>(YN, text));
 }
 
 // *****************************************************************************
-void xfl::dfs(Node *n, Middlend &me)
+template <int YYN>
+void rhs(xfl &ufl, Node **yylval, const int yyn, const symbol_t yyr1n,
+         const int nrhs, const char *rule, yy::parser::stack_type &yystack)
+{
+   assert(YYN == yyn);
+   Node *root = *yylval = ufl.NewRule(yyn, rule);
+   if (nrhs == 0)
+   {
+      return;
+   }  // %empty
+   Node *n = yystack[nrhs - 1].value;
+   astAddChild(root, n);
+   for (int i = 1; i < nrhs; i++)
+   {
+      (root = n, astAddNext(root, n = yystack[nrhs - 1 - i].value));
+   }
+}
+
+// *****************************************************************************
+void xfl::DfsPreOrder(Node *n, Middlend &me) const
 {
    assert(n);
-   if (!n) { return; }
+   if (!n)
+   {
+      return;
+   }
 
    // Process the current node, setting up the dfs.down to true
    n->Accept(me);
 
-   const int N = n->Number(); // N = SN (token) | RN (rule)
+   const int N = n->Number();  // N = SN (token) | RN (rule)
    assert(N > 0);
 
    // Sanity checks for rules
    if (n->IsRule())
    {
       constexpr int YYNRULES = yynrules;
-      if (N > YYNRULES) { DBG("\n\033[31m[rule] N:%d/%d",N,YYNRULES); }
+      if (N > YYNRULES)
+      {
+         dbg("N:%d/%d", N, YYNRULES);
+      }
       assert(N <= YYNRULES);
    }
 
@@ -3514,52 +3763,139 @@ void xfl::dfs(Node *n, Middlend &me)
    if (n->IsToken())
    {
       constexpr symbol_t YYNTOKENS = yy::parser::YYNTOKENS;
-      if (N >= YYNTOKENS) { DBG("\n\033[31m[token] N:%d/%d",N,YYNTOKENS); }
+      if (N >= YYNTOKENS)
+      {
+         dbg("N:%d/%d", N, YYNTOKENS);
+      }
       assert(N < YYNTOKENS);
    }
 
    // Set the state flags
-   if (n->IsRule()) { yy::rules.at(N) = true; }
+   if (n->IsRule())
+   {
+      yy::rules.at(N) = true;
+   }
 
    // If n->dfs.down does not stop us from previous Accept, dfs down
    if (n->dfs.down && n->child)
    {
-      dfs(n->child, me);
+      DfsPreOrder(n->child, me);
       // If me.ctx.extra has been set, re-run a dfs with it
       if (me.ufl.ctx.extra)
       {
          Node *extra = me.ufl.ctx.extra;
          me.ufl.ctx.extra = nullptr;
-         dfs(extra, me);
+         DfsPreOrder(extra, me);
       }
    }
 
    // Process the current node, setting up the dfs.down to false
-   if (n->IsRule()) {n->Accept(me, false);} // up, only for rules
+   if (n->IsRule())
+   {
+      n->Accept(me, false);
+   }  // up, only for rules
 
    // Reset the state flags
-   if (n->IsRule()) { yy::rules.at(N) = false; }
+   if (n->IsRule())
+   {
+      yy::rules.at(N) = false;
+   }
 
-   if (n->next) { dfs(n->next, me); }
+   if (n->next)
+   {
+      DfsPreOrder(n->next, me);
+   }
+}
+
+// *****************************************************************************
+void xfl::DfsInOrder(Node *n, Middlend &me) const
+{
+   if (!n)
+   {
+      return;
+   }
+   if (n->child)
+   {
+      DfsInOrder(n->child, me);
+   }
+   n->Accept(me);
+   if (n->next)
+   {
+      DfsInOrder(n->next, me);
+   }
+}
+
+// *****************************************************************************
+void xfl::DfsPostOrder(Node *n, Middlend &me) const
+{
+   if (!n)
+   {
+      return;
+   }
+   if (n->child)
+   {
+      DfsPostOrder(n->child, me);
+   }
+   if (n->next)
+   {
+      DfsPostOrder(n->next, me);
+   }
+   n->Accept(me);
 }
 
 // ****************************************************************************
-bool xfl::HitRule(const int rule, Node *n)
+bool xfl::HitRule(const int rule, Node *n) const
 {
-   if (!n) { return false; }
-   if (n->IsRule() && n->Number() == rule) { return true; }
-   if (n->child) { if (HitRule(rule,n->child)) { return true; }}
-   if (n->next) { if (HitRule(rule,n->next)) { return true; }}
+   if (!n)
+   {
+      return false;
+   }
+   if (n->IsRule() && n->Number() == rule)
+   {
+      return true;
+   }
+   if (n->child)
+   {
+      if (HitRule(rule, n->child))
+      {
+         return true;
+      }
+   }
+   if (n->next)
+   {
+      if (HitRule(rule, n->next))
+      {
+         return true;
+      }
+   }
    return false;
 }
 
 // ****************************************************************************
-bool xfl::HitToken(const int tok, Node *n)
+bool xfl::HitToken(const int tok, const Node *n) const
 {
-   if (!n) { return false; }
-   if (n->IsToken() && n->Number() == tok) { return true; }
-   if (n->child) { if (HitToken(tok,n->child)) { return true; }}
-   if (n->next) { if (HitToken(tok,n->next)) { return true; }}
+   if (!n)
+   {
+      return false;
+   }
+   if (n->IsToken() && n->Number() == tok)
+   {
+      return true;
+   }
+   if (n->child)
+   {
+      if (HitToken(tok, n->child))
+      {
+         return true;
+      }
+   }
+   if (n->next)
+   {
+      if (HitToken(tok, n->next))
+      {
+         return true;
+      }
+   }
    return false;
 }
 
@@ -3567,25 +3903,176 @@ bool xfl::HitToken(const int tok, Node *n)
 bool xfl::OnlyToken(const int tok, Node *n)
 {
    assert(n);
-   if (n->IsToken() && n->Number() != tok) { return false; }
-   if (n->child) { if (!OnlyToken(tok, n->child)) { return false; }}
-   if (n->next) { if (!OnlyToken(tok, n->next)) { return false; }}
+   if (n->IsToken() && n->Number() != tok)
+   {
+      return false;
+   }
+   if (n->child)
+   {
+      if (!OnlyToken(tok, n->child))
+      {
+         return false;
+      }
+   }
+   if (n->next)
+   {
+      if (!OnlyToken(tok, n->next))
+      {
+         return false;
+      }
+   }
    return true;
 }
 
 // ****************************************************************************
-Node *xfl::GetToken(const int tok, Node *n)
+const Node *xfl::GetToken(const int tok, const Node *n) const
 {
    assert(n);
-   Node *m = nullptr;
-   if (n->IsToken() && n->Number() == tok) { return n; }
-   if (n->child) { if ((m=GetToken(tok, n->child))) { return m; }}
-   if (n->next) { if ((m=GetToken(tok, n->next))) { return m; }}
+   Node const *m = nullptr;
+   if (n->IsToken() && n->Number() == tok)
+   {
+      return n;
+   }
+   if (n->child && (m = GetToken(tok, n->child)))
+   {
+      return m;
+   }
+   if (n->next && (m = GetToken(tok, n->next)))
+   {
+      return m;
+   }
    return m;
 }
 
+// ****************************************************************************
+const Node *xfl::GetTokenArg(const int tok, const Node *n) const
+{
+   assert(n);
+   // dbg("%s",n->Name().c_str());
+   Node const *m = nullptr;
+   if (n->IsToken() && n->Number() == tok)   /*dbg("1");*/
+   {
+      return n;
+   }
+   if (n->IsToken() && n->Number() == TOK::COMA)   /*dbg("2");*/
+   {
+      return n;
+   }
+   if (n->child && (m = GetTokenArg(tok, n->child)))
+   {
+      // dbg("3");
+      if (m->Number() == tok)
+      {
+         return m;
+      }
+      // dbg("4");
+      return nullptr;
+   }
+   if (n->next && (m = GetTokenArg(tok, n->next)))
+   {
+      // dbg("5");
+      if (m->Number() == tok)
+      {
+         return m;
+      }
+      // dbg("6");
+      return nullptr;
+   }
+   // dbg("7");
+   assert(!m);
+   return nullptr;
+}
+
+// ****************************************************************************
+const Node *xfl::NextToken(const Node *n) const
+{
+   assert(n);
+   Node const *m = nullptr;
+   if (n->IsToken())
+   {
+      return n;
+   }
+   if (n->child && (m = NextToken(n->child)))
+   {
+      return m;
+   }
+   return nullptr;
+}
+
+// ****************************************************************************
+bool xfl::CondEval(const Node *n, std::ostream &out) const
+{
+   mfem::internal::EvalCondExpr eval(*const_cast<xfl *>(this), out);
+   DfsPostOrder(const_cast<Node *>(n), eval);
+   return ctx.eval;
+}
+
+// ****************************************************************************
+const Node *xfl::NextTokenEval(const Node *n, std::ostream &out) const
+{
+   assert(n);
+   Node const *m = nullptr;
+   Node const *child = n->child;
+   const int ternary =
+      conditional_expr_logical_or_expr_question_expr_colon_conditional_expr;
+   if (n->IsRule() && n->n == ternary)
+   {
+      // dbg("\033[31m[ternary]");
+      const bool eval = CondEval(n->child->child, out);
+      child = eval ? n->child->next->next : n->child->next->next->next->next;
+   }
+   if (n->IsToken())
+   {
+      return n;
+   }
+   if (child && (m = NextTokenEval(child, out)))
+   {
+      return m;
+   }
+   return nullptr;
+}
+
+// ****************************************************************************
+const Node *xfl::AssignOpNextToken(const int TOK_OP, const int TOK_GET,
+                                   const Node *n, std::ostream &out) const
+{
+   assert(n);
+   // Get the next node with the given op token
+   const Node *op = GetToken(TOK_OP, n);
+   if (!op)
+   {
+      return nullptr;
+   }
+   // point to the right tree
+   assert(op->root);
+   assert(op->root->next);
+   Node *expr = op->root->next;
+   assert(expr->n == expr_assign_expr);
+   // find the next token, evaluate ternary ops
+   const Node *m = NextTokenEval(expr->child, out);
+   if (m->Number() == TOK_GET)
+   {
+      return m;
+   }
+   return nullptr;
+}
+
+// ****************************************************************************
+const Node *xfl::UpNextToken(const int TOK, const Node *n) const
+{
+   while (n->root && !(n->next && n->next->Number() == TOK))
+   {
+      n = n->root;
+   }
+   if (n->next && n->next->Number() == TOK)
+   {
+      return n->next;
+   }
+   return nullptr;
+}
+
 // *****************************************************************************
-void yy::parser::error(const location_type&, const std::string& msg)
+void yy::parser::error(const location_type &, const std::string &msg)
 {
    std::cerr << (*ufl.loc) << ": " << msg << std::endl;
    abort();
