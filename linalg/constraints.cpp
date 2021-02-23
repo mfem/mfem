@@ -37,13 +37,13 @@ Eliminator::Eliminator(const SparseMatrix& B, const Array<int>& lagrange_tdofs_,
    BsT.Transpose(Bs);
 
    ipiv.SetSize(Bs.Height());
-   Bsinverse.data = Bs.GetData();
-   Bsinverse.ipiv = ipiv.GetData();
+   Bsinverse.data = Bs.HostReadWrite();
+   Bsinverse.ipiv = ipiv.HostReadWrite();
    Bsinverse.Factor(Bs.Height());
 
    ipivT.SetSize(Bs.Height());
-   BsTinverse.data = BsT.GetData();
-   BsTinverse.ipiv = ipivT.GetData();
+   BsTinverse.data = BsT.HostReadWrite();
+   BsTinverse.ipiv = ipivT.HostReadWrite();
    BsTinverse.Factor(Bs.Height());
 }
 
@@ -206,6 +206,7 @@ EliminationSolver::~EliminationSolver()
    }
    delete projector;
    delete prec;
+   delete krylov;
 }
 
 void EliminationSolver::BuildExplicitOperator()
@@ -233,6 +234,7 @@ EliminationSolver::EliminationSolver(HypreParMatrix& A, SparseMatrix& B,
    :
    ConstrainedSolver(A.GetComm(), A, B),
    hA(A),
+   krylov(nullptr),
    prec(nullptr)
 {
    MFEM_VERIFY(secondary_dofs.Size() == B.Height(),
@@ -245,6 +247,7 @@ EliminationSolver::EliminationSolver(HypreParMatrix& A, SparseMatrix& B,
    eliminators.Append(new Eliminator(B, lagrange_dofs, primary_dofs,
                                      secondary_dofs));
    projector = new EliminationProjection(hA, eliminators);
+   BuildExplicitOperator();
 }
 
 EliminationSolver::EliminationSolver(HypreParMatrix& A, SparseMatrix& B,
@@ -252,6 +255,7 @@ EliminationSolver::EliminationSolver(HypreParMatrix& A, SparseMatrix& B,
    :
    ConstrainedSolver(A.GetComm(), A, B),
    hA(A),
+   krylov(nullptr),
    prec(nullptr)
 {
    if (!B.Empty())
@@ -304,6 +308,7 @@ EliminationSolver::EliminationSolver(HypreParMatrix& A, SparseMatrix& B,
       }
    }
    projector = new EliminationProjection(hA, eliminators);
+   BuildExplicitOperator();
 }
 
 void EliminationSolver::PrimalMult(const Vector& rhs, Vector& sol) const
@@ -312,9 +317,12 @@ void EliminationSolver::PrimalMult(const Vector& rhs, Vector& sol) const
    {
       prec = BuildPreconditioner();
    }
-   IterativeSolver * krylov = BuildKrylov();
-   krylov->SetOperator(*h_explicit_operator);
-   krylov->SetPreconditioner(*prec);
+   if (!krylov)
+   {
+      krylov = BuildKrylov();
+      krylov->SetOperator(*h_explicit_operator);
+      krylov->SetPreconditioner(*prec);
+   }
    krylov->SetMaxIter(max_iter);
    krylov->SetRelTol(rel_tol);
    krylov->SetAbsTol(abs_tol);
@@ -340,7 +348,6 @@ void EliminationSolver::PrimalMult(const Vector& rhs, Vector& sol) const
    final_iter = krylov->GetNumIterations();
    final_norm = krylov->GetFinalNorm();
    converged = krylov->GetConverged();
-   delete krylov;
 
    projector->Mult(reducedsol, sol);
    projector->RecoverMultiplier(temprhs, sol, multiplier_sol);
@@ -365,6 +372,7 @@ PenaltyConstrainedSolver::PenaltyConstrainedSolver(
    ConstrainedSolver(A.GetComm(), A, B),
    penalty(penalty_),
    constraintB(B),
+   krylov(nullptr),
    prec(nullptr)
 {
    int rank, size;
@@ -398,6 +406,7 @@ PenaltyConstrainedSolver::PenaltyConstrainedSolver(
    ConstrainedSolver(A.GetComm(), A, B),
    penalty(penalty_),
    constraintB(B),
+   krylov(nullptr),
    prec(nullptr)
 {
    Initialize(A, B);
@@ -407,6 +416,7 @@ PenaltyConstrainedSolver::~PenaltyConstrainedSolver()
 {
    delete penalized_mat;
    delete prec;
+   delete krylov;
 }
 
 void PenaltyConstrainedSolver::PrimalMult(const Vector& b, Vector& x) const
@@ -415,7 +425,12 @@ void PenaltyConstrainedSolver::PrimalMult(const Vector& b, Vector& x) const
    {
       prec = BuildPreconditioner();
    }
-   IterativeSolver * krylov = BuildKrylov();
+   if (!krylov)
+   {
+      krylov = BuildKrylov();
+      krylov->SetOperator(*penalized_mat);
+      krylov->SetPreconditioner(*prec);
+   }
 
    // form penalized right-hand side
    Vector penalized_rhs(b);
@@ -428,17 +443,14 @@ void PenaltyConstrainedSolver::PrimalMult(const Vector& b, Vector& x) const
    }
 
    // actually solve
-   krylov->SetOperator(*penalized_mat);
    krylov->SetRelTol(rel_tol);
    krylov->SetAbsTol(abs_tol);
    krylov->SetMaxIter(max_iter);
    krylov->SetPrintLevel(print_level);
-   krylov->SetPreconditioner(*prec);
    krylov->Mult(penalized_rhs, x);
    final_iter = krylov->GetNumIterations();
    final_norm = krylov->GetFinalNorm();
    converged = krylov->GetConverged();
-   delete krylov;
 
    constraintB.Mult(x, multiplier_sol);
    if (constraint_rhs.Size() > 0)
@@ -697,14 +709,14 @@ int CanonicalNodeNumber(FiniteElementSpace& fespace,
 #ifdef MFEM_USE_MPI
    if (parallel)
    {
-      try
+      ParFiniteElementSpace* pfespace =
+         dynamic_cast<ParFiniteElementSpace*>(&fespace);
+      if (pfespace)
       {
-         ParFiniteElementSpace& pfespace =
-            dynamic_cast<ParFiniteElementSpace&>(fespace);
-         const int vdof = pfespace.DofToVDof(node, d);
-         return pfespace.GetLocalTDofNumber(vdof);
+         const int vdof = pfespace->DofToVDof(node, d);
+         return pfespace->GetLocalTDofNumber(vdof);
       }
-      catch (std::bad_cast&)
+      else
       {
          MFEM_ABORT("Asked for parallel form of serial object!");
          return -1;
