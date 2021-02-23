@@ -11,7 +11,8 @@
 
 #include "dist_solver.hpp"
 
-using namespace mfem;
+namespace mfem
+{
 
 void DiffuseField(ParGridFunction &field, int smooth_steps)
 {
@@ -36,6 +37,36 @@ void DiffuseField(ParGridFunction &field, int smooth_steps)
    delete A;
    delete S;
    delete Lap;
+}
+
+double AvgElementSize(ParMesh &pmesh)
+{
+   // Compute average mesh size (assumes similar cells).
+   double dx, loc_area = 0.0;
+   for (int i = 0; i < pmesh.GetNE(); i++)
+   {
+      loc_area += pmesh.GetElementVolume(i);
+   }
+   double glob_area;
+   MPI_Allreduce(&loc_area, &glob_area, 1, MPI_DOUBLE,
+                 MPI_SUM, pmesh.GetComm());
+   const int glob_zones = pmesh.GetGlobalNE();
+   switch (pmesh.GetElementBaseGeometry(0))
+   {
+      case Geometry::SEGMENT:
+         dx = glob_area / glob_zones; break;
+      case Geometry::SQUARE:
+         dx = sqrt(glob_area / glob_zones); break;
+      case Geometry::TRIANGLE:
+         dx = sqrt(2.0 * glob_area / glob_zones); break;
+      case Geometry::CUBE:
+         dx = pow(glob_area / glob_zones, 1.0/3.0); break;
+      case Geometry::TETRAHEDRON:
+         dx = pow(6.0 * glob_area / glob_zones, 1.0/3.0); break;
+      default: MFEM_ABORT("Unknown zone type!"); dx = 0.0;
+   }
+
+   return dx;
 }
 
 void DistanceSolver::ScalarDistToVector(ParGridFunction &dist_s,
@@ -96,31 +127,8 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
                "This solver supports only scalar H1 spaces.");
 
    // Compute average mesh size (assumes similar cells).
-   double dx, loc_area = 0.0;
    ParMesh &pmesh = *pfes.GetParMesh();
-   for (int i = 0; i < pmesh.GetNE(); i++)
-   {
-      loc_area += pmesh.GetElementVolume(i);
-   }
-   double glob_area;
-   MPI_Allreduce(&loc_area, &glob_area, 1, MPI_DOUBLE,
-                 MPI_SUM, pfes.GetComm());
-   const int glob_zones = pmesh.GetGlobalNE();
-   switch (pmesh.GetElementBaseGeometry(0))
-   {
-      case Geometry::SEGMENT:
-         dx = glob_area / glob_zones; break;
-      case Geometry::SQUARE:
-         dx = sqrt(glob_area / glob_zones); break;
-      case Geometry::TRIANGLE:
-         dx = sqrt(2.0 * glob_area / glob_zones); break;
-      case Geometry::CUBE:
-         dx = pow(glob_area / glob_zones, 1.0/3.0); break;
-      case Geometry::TETRAHEDRON:
-         dx = pow(6.0 * glob_area / glob_zones, 1.0/3.0); break;
-      default: MFEM_ABORT("Unknown zone type!"); dx = 0.0;
-   }
-   dx /= pfes.GetOrder(0);
+   const double dx = AvgElementSize(pmesh) / pfes.GetOrder(0);
 
    // Step 0 - transform the input level set into a source-type bump.
    ParGridFunction source(&pfes);
@@ -138,8 +146,8 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
       }
    }
 
-   int cg_print_lvl  = (print_level > 0) ? 1 : 0,
-       amg_print_lvl = (print_level > 1) ? 1 : 0;
+   const int cg_print_lvl  = (print_level > 0) ? 1 : 0,
+             amg_print_lvl = (print_level > 1) ? 1 : 0;
 
    // Solver.
    CGSolver cg(MPI_COMM_WORLD);
@@ -270,6 +278,91 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
                  << "window_title '" << "Heat Directions" << "'\n"
                  << "keys evvRj*******A\n" << std::flush;
    }
+}
+
+void PLapDistanceSolver::ComputeScalarDistance(Coefficient &func,
+                                               ParGridFunction &fdist)
+{
+   mfem::ParFiniteElementSpace* fesd=fdist.ParFESpace();
+
+   auto check_h1 = dynamic_cast<const H1_FECollection *>(fesd->FEColl());
+   auto check_l2 = dynamic_cast<const L2_FECollection *>(fesd->FEColl());
+   MFEM_VERIFY((check_h1 || check_l2) && fesd->GetVDim() == 1,
+               "This solver supports only scalar H1 or L2 spaces.");
+
+   mfem::ParMesh* mesh=fesd->GetParMesh();
+   const int dim=mesh->Dimension();
+
+   MPI_Comm lcomm=fesd->GetComm();
+   int myrank;
+   MPI_Comm_rank(lcomm,&myrank);
+
+   const int order = fesd->GetOrder(0);
+   mfem::H1_FECollection fecp(order, dim);
+   mfem::ParFiniteElementSpace fesp(mesh, &fecp, 1, mfem::Ordering::byVDIM);
+
+   mfem::ParGridFunction wf(&fesp);
+   wf.ProjectCoefficient(func);
+   mfem::GradientGridFunctionCoefficient gf(&wf); //gradient of wf
+
+
+   mfem::ParGridFunction xf(&fesp);
+   mfem::HypreParVector *sv = xf.GetTrueDofs();
+   *sv=1.0;
+
+   mfem::ParNonlinearForm* nf=new mfem::ParNonlinearForm(&fesp);
+
+   mfem::PUMPLaplacian* pint = new mfem::PUMPLaplacian(&func,&gf,false);
+   nf->AddDomainIntegrator(pint);
+
+   pint->SetPower(2);
+
+   //define the solvers
+   mfem::HypreBoomerAMG* prec=new mfem::HypreBoomerAMG();
+   prec->SetPrintLevel((print_level > 1) ? 1 : 0);
+
+   mfem::GMRESSolver *gmres;
+   gmres = new mfem::GMRESSolver(lcomm);
+   gmres->SetAbsTol(newton_abs_tol/10);
+   gmres->SetRelTol(newton_rel_tol/10);
+   gmres->SetMaxIter(100);
+   gmres->SetPrintLevel((print_level > 1) ? 1 : 0);
+   gmres->SetPreconditioner(*prec);
+
+   NewtonSolver ns(lcomm);
+   ns.iterative_mode = true;
+   ns.SetSolver(*gmres);
+   ns.SetOperator(*nf);
+   ns.SetPrintLevel((print_level == 0) ? -1 : 0);
+   ns.SetRelTol(newton_rel_tol);
+   ns.SetAbsTol(newton_abs_tol);
+   ns.SetMaxIter(newton_iter);
+
+   mfem::Vector b; //RHS is zero
+   ns.Mult(b, *sv);
+
+   for (int pp=3; pp<maxp; pp++)
+   {
+      if (myrank == 0 && print_level > 0) { std::cout<<"pp="<<pp<<std::endl; }
+      pint->SetPower(pp);
+      ns.Mult(b, *sv);
+   }
+
+   xf.SetFromTrueDofs(*sv);
+   mfem::GridFunctionCoefficient gfx(&xf);
+   mfem::PProductCoefficient tsol(func,gfx);
+   fdist.ProjectCoefficient(tsol);
+
+   // (optional) Force positive distances everywhere.
+   // for (int i = 0; i < fdist.Size(); i++)
+   // {
+   //    fdist(i) = fabs(fdist(i));
+   // }
+
+   delete gmres;
+   delete prec;
+   delete nf;
+   delete sv;
 }
 
 double ScreenedPoisson::GetElementEnergy(const FiniteElement &el,
@@ -671,89 +764,29 @@ void PUMPLaplacian::AssembleElementGrad(const FiniteElement &el,
    }
 }
 
-
-void PLapDistanceSolver::ComputeScalarDistance(Coefficient &func,
-                                               ParGridFunction &fdist)
+void PDEFilter::Filter(Coefficient &func, ParGridFunction &ffield)
 {
-   mfem::ParFiniteElementSpace* fesd=fdist.ParFESpace();
-
-   auto check_h1 = dynamic_cast<const H1_FECollection *>(fesd->FEColl());
-   auto check_l2 = dynamic_cast<const L2_FECollection *>(fesd->FEColl());
-   MFEM_VERIFY((check_h1 || check_l2) && fesd->GetVDim() == 1,
-               "This solver supports only scalar H1 or L2 spaces.");
-
-   mfem::ParMesh* mesh=fesd->GetParMesh();
-   const int dim=mesh->Dimension();
-
-   MPI_Comm lcomm=fesd->GetComm();
-   int myrank;
-   MPI_Comm_rank(lcomm,&myrank);
-
-   const int order = fesd->GetOrder(0);
-   mfem::H1_FECollection fecp(order, dim);
-   mfem::ParFiniteElementSpace fesp(mesh, &fecp, 1, mfem::Ordering::byVDIM);
-
-   mfem::ParGridFunction wf(&fesp);
-   wf.ProjectCoefficient(func);
-   mfem::GradientGridFunctionCoefficient gf(&wf); //gradient of wf
-
-
-   mfem::ParGridFunction xf(&fesp);
-   mfem::HypreParVector *sv = xf.GetTrueDofs();
-   *sv=1.0;
-
-   mfem::ParNonlinearForm* nf=new mfem::ParNonlinearForm(&fesp);
-
-   mfem::PUMPLaplacian* pint = new mfem::PUMPLaplacian(&func,&gf,false);
-   nf->AddDomainIntegrator(pint);
-
-   pint->SetPower(2);
-
-   //define the solvers
-   mfem::HypreBoomerAMG* prec=new mfem::HypreBoomerAMG();
-   prec->SetPrintLevel((print_level > 1) ? 1 : 0);
-
-
-   mfem::GMRESSolver *gmres;
-   gmres = new mfem::GMRESSolver(lcomm);
-   gmres->SetAbsTol(newton_abs_tol/10);
-   gmres->SetRelTol(newton_rel_tol/10);
-   gmres->SetMaxIter(100);
-   gmres->SetPrintLevel((print_level > 1) ? 1 : 0);
-   gmres->SetPreconditioner(*prec);
-
-   NewtonSolver ns(lcomm);
-   ns.iterative_mode = true;
-   ns.SetSolver(*gmres);
-   ns.SetOperator(*nf);
-   ns.SetPrintLevel((print_level == 0) ? -1 : 0);
-   ns.SetRelTol(newton_rel_tol);
-   ns.SetAbsTol(newton_abs_tol);
-   ns.SetMaxIter(newton_iter);
-
-   mfem::Vector b; //RHS is zero
-   ns.Mult(b, *sv);
-
-   for (int pp=3; pp<maxp; pp++)
+   if (sint == nullptr)
    {
-      if (myrank == 0 && print_level > 0) { std::cout<<"pp="<<pp<<std::endl; }
-      pint->SetPower(pp);
-      ns.Mult(b, *sv);
+      sint = new ScreenedPoisson(func, rr);
+      nf->AddDomainIntegrator(sint);
+      *sv = 0.0;
+      gmres->SetOperator(nf->GetGradient(*sv));
    }
+   else { sint->SetInput(func); }
 
-   xf.SetFromTrueDofs(*sv);
-   mfem::GridFunctionCoefficient gfx(&xf);
-   mfem::PProductCoefficient tsol(func,gfx);
-   fdist.ProjectCoefficient(tsol);
+   // form RHS
+   *sv = 0.0;
+   Vector rhs(sv->Size());
+   nf->Mult(*sv, rhs);
+   // filter the input field
+   gmres->Mult(rhs, *sv);
 
-   // (optional) Force positive distances everywhere.
-   // for (int i = 0; i < fdist.Size(); i++)
-   // {
-   //    fdist(i) = fabs(fdist(i));
-   // }
+   gf.SetFromTrueDofs(*sv);
+   gf.Neg();
 
-   delete gmres;
-   delete prec;
-   delete nf;
-   delete sv;
+   GridFunctionCoefficient gfc(&gf);
+   ffield.ProjectCoefficient(gfc);
+}
+
 }
