@@ -449,6 +449,10 @@ private:
     @param[out] constraint_rowstarts  The rowstarts for separately
                                     eliminated constraints, possible
                                     input to EliminationCGSolver
+    @param[in] parallel             Indicate that fespace is actually a
+                                    ParFiniteElementSpace and the numbering
+                                    in the returned matrix should be based
+                                    on truedofs.
 
     @return a constraint matrix
 */
