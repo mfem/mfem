@@ -3014,7 +3014,7 @@ void ParFiniteElementSpace::UpdateMeshPointer(Mesh *new_mesh)
 {
    ParMesh *new_pmesh = dynamic_cast<ParMesh*>(new_mesh);
    MFEM_VERIFY(new_pmesh != NULL,
-      "ParFiniteElementSpace::UpdateMeshPointer(...) must be a ParMesh");
+               "ParFiniteElementSpace::UpdateMeshPointer(...) must be a ParMesh");
    mesh = new_mesh;
    pmesh = new_pmesh;
 }
