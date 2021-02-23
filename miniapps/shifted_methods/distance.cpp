@@ -37,7 +37,7 @@
 //     mpirun -np 4 distance -m ./corners.mesh -p 0 -rs 3 -t 200.0
 //
 //   Problem 1: zero level set - circle / sphere at the center of the mesh
-//     mpirun -np 4 distance -m ../../data/inline-quad.mesh -rs 3 -o 2 -t 2.0 -p 1
+//     mpirun -np 4 distance -m ../../data/inline-quad.mesh -rs 3 -o 2 -t 4.0 -p 1
 //     mpirun -np 4 distance -m ../../data/periodic-cube.mesh -rs 2 -o 2 -t 1.0 -p 1 -s 1
 //
 //   Problem 2: zero level set - perturbed sine.
@@ -214,12 +214,12 @@ int main(int argc, char *argv[])
    else if (problem == 1)
    {
       ls_coeff = new FunctionCoefficient(sphere_ls);
-      smooth_steps = 5;
+      smooth_steps = 0;
    }
    else if (problem == 2)
    {
       ls_coeff = new FunctionCoefficient(sine_ls);
-      smooth_steps = 1;
+      smooth_steps = 0;
    }
    else
    {
@@ -234,7 +234,6 @@ int main(int argc, char *argv[])
       if (problem == 0)
       {
          ds->transform = false;
-         ds->diffuse_iter = 1;
       }
       ds->smooth_steps = smooth_steps;
       ds->vis_glvis = false;
@@ -253,12 +252,22 @@ int main(int argc, char *argv[])
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace pfes_s(&pmesh, &fec), pfes_v(&pmesh, &fec, dim);
    ParGridFunction distance_s(&pfes_s), distance_v(&pfes_v);
-   dist_solver->ComputeScalarDistance(*ls_coeff, distance_s);
-   dist_solver->ComputeVectorDistance(*ls_coeff, distance_v);
 
-   ParGridFunction input_ls(distance_s.ParFESpace());
-   input_ls.ProjectCoefficient(*ls_coeff);
+   // Smooth out Gibbs oscillations from the input level set.
+   ParGridFunction filt_gf(&pfes_s);
+   const double dx = AvgElementSize(pmesh);
+   PDEFilter *filter = new PDEFilter(pmesh, 1.0 * dx);
+   if (problem != 0)
+   {
+      filter->Filter(*ls_coeff, filt_gf);
+   }
+   else { filt_gf.ProjectCoefficient(*ls_coeff); }
+   delete filter;
    delete ls_coeff;
+   GridFunctionCoefficient ls_filt_coeff(&filt_gf);
+
+   dist_solver->ComputeScalarDistance(ls_filt_coeff, distance_s);
+   dist_solver->ComputeVectorDistance(ls_filt_coeff, distance_v);
 
    // Send the solution by socket to a GLVis server.
    if (visualization)
@@ -268,7 +277,7 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
 
       socketstream sol_sock_w;
-      common::VisualizeField(sol_sock_w, vishost, visport, input_ls,
+      common::VisualizeField(sol_sock_w, vishost, visport, filt_gf,
                              "Input Level Set", 0, 0, size, size);
 
       MPI_Barrier(pmesh.GetComm());
@@ -289,7 +298,7 @@ int main(int argc, char *argv[])
    // Paraview output.
    ParaViewDataCollection dacol("ParaViewDistance", &pmesh);
    dacol.SetLevelsOfDetail(order);
-   dacol.RegisterField("level_set", &input_ls);
+   dacol.RegisterField("filtered_level_set", &filt_gf);
    dacol.RegisterField("distance", &distance_s);
    dacol.SetTime(1.0);
    dacol.SetCycle(1);
