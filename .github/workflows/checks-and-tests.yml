@@ -136,4 +136,4 @@ jobs:
     - name: codecov
       uses: ./mfem/.github/actions/upload-coverage
       with:
-        name: 'os-'${{ matrix.os }}'-mpi-'${{ matrix.mpi }}
+        name: "os-${{ matrix.os }}-mpi-${{ matrix.mpi }}"
