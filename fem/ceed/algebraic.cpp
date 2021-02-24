@@ -25,129 +25,12 @@ namespace mfem
 namespace ceed
 {
 
-/** A base class to represent a CeedOperator as an MFEM Operator. */
-/** TODO: replace with Yohann's implementation */
-class MFEMCeedOperator : public mfem::Operator
-{
-protected:
-   CeedOperator oper;
-   CeedVector u, v;
-
-   /// The base class owns and destroys u, v but expects its
-   /// derived classes to manage oper
-   MFEMCeedOperator() : oper(nullptr), u(nullptr), v(nullptr) { }
-
-public:
-   void Mult(const Vector &x, Vector &y) const;
-   void AddMult(const Vector &x, Vector &y) const;
-   void GetDiagonal(Vector &diag) const;
-   virtual ~MFEMCeedOperator()
-   {
-      CeedVectorDestroy(&u);
-      CeedVectorDestroy(&v);
-   }
-   CeedOperator GetCeedOperator() const { return oper; }
-};
-
-void MFEMCeedOperator::Mult(const Vector &x, Vector &y) const
-{
-#ifdef MFEM_USE_CEED
-   int ierr;
-   const CeedScalar *x_ptr;
-   CeedScalar *y_ptr;
-   CeedMemType mem;
-   ierr = CeedGetPreferredMemType(internal::ceed, &mem); PCeedChk(ierr);
-   if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
-   {
-      x_ptr = x.Read();
-      y_ptr = y.Write();
-   }
-   else
-   {
-      x_ptr = x.HostRead();
-      y_ptr = y.HostWrite();
-      mem = CEED_MEM_HOST;
-   }
-   ierr = CeedVectorSetArray(u, mem, CEED_USE_POINTER,
-                             const_cast<CeedScalar*>(x_ptr)); PCeedChk(ierr);
-   ierr = CeedVectorSetArray(v, mem, CEED_USE_POINTER, y_ptr); PCeedChk(ierr);
-
-   ierr = CeedOperatorApply(oper, u, v, CEED_REQUEST_IMMEDIATE);
-   PCeedChk(ierr);
-
-   ierr = CeedVectorTakeArray(u, mem, const_cast<CeedScalar**>(&x_ptr));
-   PCeedChk(ierr);
-   ierr = CeedVectorTakeArray(v, mem, &y_ptr); PCeedChk(ierr);
-#else
-   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
-#endif
-}
-
-void MFEMCeedOperator::AddMult(const Vector &x, Vector &y) const
-{
-#ifdef MFEM_USE_CEED
-   int ierr;
-   const CeedScalar *x_ptr;
-   CeedScalar *y_ptr;
-   CeedMemType mem;
-   ierr = CeedGetPreferredMemType(internal::ceed, &mem); PCeedChk(ierr);
-   if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
-   {
-      x_ptr = x.Read();
-      y_ptr = y.ReadWrite();
-   }
-   else
-   {
-      x_ptr = x.HostRead();
-      y_ptr = y.HostReadWrite();
-      mem = CEED_MEM_HOST;
-   }
-   ierr = CeedVectorSetArray(u, mem, CEED_USE_POINTER,
-                             const_cast<CeedScalar*>(x_ptr)); PCeedChk(ierr);
-   ierr = CeedVectorSetArray(v, mem, CEED_USE_POINTER, y_ptr); PCeedChk(ierr);
-
-   ierr = CeedOperatorApplyAdd(oper, u, v, CEED_REQUEST_IMMEDIATE);
-   PCeedChk(ierr);
-
-   ierr = CeedVectorTakeArray(u, mem, const_cast<CeedScalar**>(&x_ptr));
-   PCeedChk(ierr);
-   ierr = CeedVectorTakeArray(v, mem, &y_ptr); PCeedChk(ierr);
-#else
-   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
-#endif
-}
-
-void MFEMCeedOperator::GetDiagonal(Vector &diag) const
-{
-#ifdef MFEM_USE_CEED
-   int ierr;
-   CeedScalar *d_ptr;
-   CeedMemType mem;
-   ierr = CeedGetPreferredMemType(internal::ceed, &mem); PCeedChk(ierr);
-   if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
-   {
-      d_ptr = diag.ReadWrite();
-   }
-   else
-   {
-      d_ptr = diag.HostReadWrite();
-      mem = CEED_MEM_HOST;
-   }
-   ierr = CeedVectorSetArray(v, mem, CEED_USE_POINTER, d_ptr); PCeedChk(ierr);
-
-   ierr = CeedOperatorLinearAssembleAddDiagonal(oper, v, CEED_REQUEST_IMMEDIATE);
-   PCeedChk(ierr);
-
-   ierr = CeedVectorTakeArray(v, mem, &d_ptr); PCeedChk(ierr);
-#else
-   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
-#endif
-}
-
-class UnconstrainedMFEMCeedOperator : public MFEMCeedOperator
+/** Construct a ceed::Operator from a CeedOperator */
+class WrapOperator : public ceed::Operator
 {
 public:
-   UnconstrainedMFEMCeedOperator(CeedOperator ceed_op)
+   /** This object takes ownership of ceed_op and will delete it */
+   WrapOperator(CeedOperator ceed_op)
    {
       oper = ceed_op;
       CeedElemRestriction er;
@@ -159,7 +42,7 @@ public:
       CeedVectorCreate(internal::ceed, width, &u);
    }
 
-   Operator * SetupRAP(const Operator *Pi, const Operator *Po)
+   mfem::Operator * SetupRAP(const mfem::Operator *Pi, const mfem::Operator *Po)
    {
       return Operator::SetupRAP(Pi, Po);
    }
@@ -170,6 +53,7 @@ public:
 class ConstrainedMFEMCeedOperator : public mfem::Operator
 {
 public:
+   /// This object takes ownership of oper and will delete it
    ConstrainedMFEMCeedOperator(CeedOperator oper, const Array<int> &ess_tdofs_,
                                const mfem::Operator *P_);
    ConstrainedMFEMCeedOperator(CeedOperator oper, const mfem::Operator *P_);
@@ -181,7 +65,7 @@ public:
 private:
    Array<int> ess_tdofs;
    const mfem::Operator *P;
-   UnconstrainedMFEMCeedOperator *unconstrained_op;
+   WrapOperator *unconstrained_op;
    ConstrainedOperator *constrained_op;
 };
 
@@ -191,7 +75,7 @@ ConstrainedMFEMCeedOperator::ConstrainedMFEMCeedOperator(
    const mfem::Operator *P_)
    : ess_tdofs(ess_tdofs_), P(P_)
 {
-   unconstrained_op = new UnconstrainedMFEMCeedOperator(oper);
+   unconstrained_op = new WrapOperator(oper);
    mfem::Operator *rap = unconstrained_op->SetupRAP(P, P);
    height = width = rap->Height();
    bool own_rap = (rap != unconstrained_op);
@@ -496,10 +380,6 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
 
 AlgebraicCeedMultigrid::~AlgebraicCeedMultigrid()
 {
-   for (int i=0; i<ceed_operators.Size(); ++i)
-   {
-      CeedOperatorDestroy(&ceed_operators[i]);
-   }
 }
 
 int MFEMCeedInterpolation::Initialize(
