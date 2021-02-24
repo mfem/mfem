@@ -1280,11 +1280,12 @@ private:
    StateVariableCoef  * iz_;
 
    double nn0_;
+   double s_;
 
 public:
    IonSourceCoef(ProductCoefficient &neCoef, Coefficient &nnCoef,
-                 StateVariableCoef &izCoef)
-      : ne_(&neCoef), nn_(&nnCoef), iz_(&izCoef), nn0_(1e10) {}
+                 StateVariableCoef &izCoef, double s = 1.0)
+      : ne_(&neCoef), nn_(&nnCoef), iz_(&izCoef), nn0_(1e10), s_(s) {}
 
    IonSourceCoef(const IonSourceCoef &other)
    {
@@ -1293,6 +1294,7 @@ public:
       nn_  = other.nn_;
       iz_  = other.iz_;
       nn0_ = other.nn0_;
+      s_   = other.s_;
    }
 
    virtual IonSourceCoef * Clone() const
@@ -1313,7 +1315,7 @@ public:
       double nn = nn_->Eval(T, ip);
       double iz = iz_->Eval(T, ip);
 
-      return ne * (nn - nn0_) * iz;
+      return s_ * ne * (nn - nn0_) * iz;
    }
 
    double Eval_dNn(ElementTransformation &T,
@@ -1322,7 +1324,7 @@ public:
       double ne = ne_->Eval(T, ip);
       double iz = iz_->Eval(T, ip);
 
-      return ne * iz;
+      return s_ * ne * iz;
    }
 
    double Eval_dNi(ElementTransformation &T,
@@ -1333,7 +1335,7 @@ public:
 
       double dNe_dNi = ne_->GetAConst();
 
-      return dNe_dNi * (nn - nn0_) * iz;
+      return s_ * dNe_dNi * (nn - nn0_) * iz;
    }
 
    double Eval_dTe(ElementTransformation &T,
@@ -1344,7 +1346,7 @@ public:
 
       double diz_dTe = iz_->Eval_dTe(T, ip);
 
-      return ne * (nn - nn0_) * diz_dTe;
+      return s_ * ne * (nn - nn0_) * diz_dTe;
    }
 };
 
@@ -1355,10 +1357,12 @@ private:
    Coefficient        * ni_;
    StateVariableCoef  * rc_;
 
+   double s_;
+
 public:
    IonSinkCoef(ProductCoefficient &neCoef, Coefficient &niCoef,
-               StateVariableCoef &rcCoef)
-      : ne_(&neCoef), ni_(&niCoef), rc_(&rcCoef) {}
+               StateVariableCoef &rcCoef, double s = 1.0)
+      : ne_(&neCoef), ni_(&niCoef), rc_(&rcCoef), s_(s) {}
 
    IonSinkCoef(const IonSinkCoef &other)
    {
@@ -1366,6 +1370,7 @@ public:
       ne_ = other.ne_;
       ni_ = other.ni_;
       rc_ = other.rc_;
+      s_  = other.s_;
    }
 
    virtual IonSinkCoef * Clone() const
@@ -1386,7 +1391,7 @@ public:
       double ni = ni_->Eval(T, ip);
       double rc = rc_->Eval(T, ip);
 
-      return ne * ni * rc;
+      return s_ * ne * ni * rc;
    }
 
    double Eval_dNi(ElementTransformation &T,
@@ -1397,7 +1402,7 @@ public:
 
       double dNe_dNi = ne_->GetAConst();
 
-      return 2.0 * dNe_dNi * ni * rc;
+      return 2.0 * s_ * dNe_dNi * ni * rc;
    }
 
    double Eval_dTe(ElementTransformation &T,
@@ -1408,7 +1413,7 @@ public:
 
       double drc_dTe = rc_->Eval_dTe(T, ip);
 
-      return ne * ni * drc_dTe;
+      return s_ * ne * ni * drc_dTe;
    }
 };
 
@@ -2669,27 +2674,30 @@ private:
    class NeutralDensityOp : public TransportOp
    {
    private:
-      enum TermFlag {DIFFUSION_TERM = 0, RECOMBINATION_SOURCE_TERM,
+      enum TermFlag {DIFFUSION_TERM = 0,
+                     RECOMBINATION_SOURCE_TERM,
+                     IONIZATION_SINK_TERM,
                      SOURCE_TERM
                     };
-      enum VisField {DIFFUSION_COEF = 0, RECOMBINATION_SOURCE_COEF,
+      enum VisField {DIFFUSION_COEF = 0,
+                     RECOMBINATION_SOURCE_COEF,
+                     IONIZATION_SINK_COEF,
                      SOURCE_COEF
                     };
 
-      ConstantCoefficient      vnCoef_;
-      ApproxIonizationRate     izCoef_;
-      ApproxRecombinationRate  rcCoef_;
+      ConstantCoefficient       vnCoef_;
+      ApproxIonizationRate      izCoef_;
+      ApproxRecombinationRate   rcCoef_;
 
       NeutralDiffusionCoef      DnCoef_;
       StateVariableStandardCoef DCoef_;
 
-      IonSourceCoef           SizCoef_;
-      IonSinkCoef             SrcCoef_;
-
-      StateVariableSumCoef SCoef_;
+      IonSinkCoef               SrcCoef_;
+      IonSourceCoef             SizCoef_;
 
       ParGridFunction * DGF_;
-      ParGridFunction * SRCGF_;
+      ParGridFunction * SrcGF_;
+      ParGridFunction * SizGF_;
       ParGridFunction * SGF_;
 
    public:
@@ -2760,29 +2768,35 @@ private:
    {
    private:
       enum TermFlag {DIFFUSION_TERM = 0,
-                     ADVECTION_TERM, IONIZATION_SOURCE_TERM, SOURCE_TERM
+                     ADVECTION_TERM,
+                     IONIZATION_SOURCE_TERM,
+                     RECOMBINATION_SINK_TERM,
+                     SOURCE_TERM
                     };
-      enum VisField {DIFFUSION_PARA_COEF = 0, DIFFUSION_PERP_COEF,
-                     ADVECTION_COEF, IONIZATION_SOURCE_COEF, SOURCE_COEF
+      enum VisField {DIFFUSION_PARA_COEF = 0,
+                     DIFFUSION_PERP_COEF,
+                     ADVECTION_COEF,
+                     IONIZATION_SOURCE_COEF,
+                     RECOMBINATION_SINK_COEF,
+                     SOURCE_COEF
                     };
 
-      ApproxIonizationRate     izCoef_;
-      ApproxRecombinationRate  rcCoef_;
+      ApproxIonizationRate    izCoef_;
+      ApproxRecombinationRate rcCoef_;
 
-      ConstantCoefficient DPerpCoef_;
-      Aniso2DDiffusionCoef DCoef_;
+      ConstantCoefficient     DPerpCoef_;
+      Aniso2DDiffusionCoef    DCoef_;
 
-      IonAdvectionCoef ViCoef_;
+      IonAdvectionCoef        ViCoef_;
 
       IonSourceCoef           SizCoef_;
       IonSinkCoef             SrcCoef_;
 
-      StateVariableSumCoef SCoef_;
-
       ParGridFunction * DParaGF_;
       ParGridFunction * DPerpGF_;
       ParGridFunction * AGF_;
-      ParGridFunction * SIZGF_;
+      ParGridFunction * SizGF_;
+      ParGridFunction * SrcGF_;
       ParGridFunction * SGF_;
 
    public:

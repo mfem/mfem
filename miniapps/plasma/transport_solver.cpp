@@ -3169,11 +3169,11 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
             ? const_cast<Coefficient&>
             (*eqncoefs_(NDCoefs::DIFFUSION_COEF))
             : DnCoef_),
-     SizCoef_(neCoef_, nnCoef_, izCoef_),
-     SrcCoef_(neCoef_, niCoef_, rcCoef_),
-     SCoef_(SrcCoef_, SizCoef_, 1.0, -1.0),
+     SrcCoef_(neCoef_, niCoef_, rcCoef_,  1.0),
+     SizCoef_(neCoef_, nnCoef_, izCoef_, -1.0),
      DGF_(NULL),
-     SRCGF_(NULL),
+     SrcGF_(NULL),
+     SizGF_(NULL),
      SGF_(NULL)
 {
    if ( mpi_.Root() && logging_ > 1)
@@ -3207,8 +3207,13 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
 
    if (this->CheckTermFlag(RECOMBINATION_SOURCE_TERM))
    {
-      // Source term: Src - Siz
-      SetSourceTerm(SCoef_);
+      // Source term: Src
+      SetSourceTerm(SrcCoef_);
+   }
+   if (this->CheckTermFlag(IONIZATION_SINK_TERM))
+   {
+      // Source term: -Siz
+      SetSourceTerm(SizCoef_);
    }
    if (this->CheckTermFlag(SOURCE_TERM) &&
        eqncoefs_(NDCoefs::SOURCE_COEF) != NULL)
@@ -3222,7 +3227,11 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
    }
    if (this->CheckVisFlag(RECOMBINATION_SOURCE_COEF))
    {
-      SRCGF_ = new ParGridFunction(&fes_);
+      SrcGF_ = new ParGridFunction(&fes_);
+   }
+   if (this->CheckVisFlag(IONIZATION_SINK_COEF))
+   {
+      SizGF_ = new ParGridFunction(&fes_);
    }
    if (this->CheckVisFlag(SOURCE_COEF) &&
        eqncoefs_(NDCoefs::SOURCE_COEF) != NULL)
@@ -3238,7 +3247,8 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
 DGTransportTDO::NeutralDensityOp::~NeutralDensityOp()
 {
    delete DGF_;
-   delete SRCGF_;
+   delete SrcGF_;
+   delete SizGF_;
    delete SGF_;
 }
 
@@ -3265,7 +3275,13 @@ void DGTransportTDO::NeutralDensityOp::RegisterDataFields(DataCollection & dc)
    {
       ostringstream oss;
       oss << eqn_name_ << " Src_n";
-      dc.RegisterField(oss.str(), SRCGF_);
+      dc.RegisterField(oss.str(), SrcGF_);
+   }
+   if (this->CheckVisFlag(IONIZATION_SINK_COEF))
+   {
+      ostringstream oss;
+      oss << eqn_name_ << " Siz_n";
+      dc.RegisterField(oss.str(), SizGF_);
    }
    if (this->CheckVisFlag(SOURCE_COEF) && SGF_ != NULL)
    {
@@ -3284,7 +3300,11 @@ NeutralDensityOp::PrepareDataFields()
    }
    if (this->CheckVisFlag(RECOMBINATION_SOURCE_COEF))
    {
-      SRCGF_->ProjectCoefficient(SCoef_);
+      SrcGF_->ProjectCoefficient(SrcCoef_);
+   }
+   if (this->CheckVisFlag(IONIZATION_SINK_COEF))
+   {
+      SizGF_->ProjectCoefficient(SizCoef_);
    }
    if (this->CheckVisFlag(SOURCE_COEF) && SGF_ != NULL)
    {
@@ -3303,7 +3323,8 @@ void DGTransportTDO::NeutralDensityOp::Update()
    NLOperator::Update();
 
    if (DGF_   != NULL) { DGF_->Update(); }
-   if (SRCGF_ != NULL) { SRCGF_->Update(); }
+   if (SrcGF_ != NULL) { SrcGF_->Update(); }
+   if (SizGF_ != NULL) { SizGF_->Update(); }
    if (SGF_   != NULL) { SGF_->Update(); }
 
    if (mpi_.Root() && logging_ > 1)
@@ -3341,13 +3362,13 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
             (eqncoefs_(IDCoefs::PERP_DIFFUSION_COEF))
             : &DPerpCoef_, B3Coef),
      ViCoef_(viCoef_, B3Coef),
-     SizCoef_(neCoef_, nnCoef_, izCoef_),
-     SrcCoef_(neCoef_, niCoef_, rcCoef_),
-     SCoef_(SizCoef_, SrcCoef_, 1.0, -1.0),
+     SizCoef_(neCoef_, nnCoef_, izCoef_,  1.0),
+     SrcCoef_(neCoef_, niCoef_, rcCoef_, -1.0),
      DParaGF_(NULL),
      DPerpGF_(NULL),
      AGF_(NULL),
-     SIZGF_(NULL),
+     SizGF_(NULL),
+     SrcGF_(NULL),
      SGF_(NULL)
 {
    if ( mpi_.Root() && logging_ > 1)
@@ -3386,8 +3407,13 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
 
    if (this->CheckTermFlag(IONIZATION_SOURCE_TERM))
    {
-      // Source term: Siz - Src
-      SetSourceTerm(SCoef_);
+      // Source term: Siz
+      SetSourceTerm(SizCoef_);
+   }
+   if (this->CheckTermFlag(RECOMBINATION_SINK_TERM))
+   {
+      // Source term: -Src
+      SetSourceTerm(SrcCoef_);
    }
 
    if (this->CheckTermFlag(SOURCE_TERM) &&
@@ -3411,7 +3437,11 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
    }
    if (this->CheckVisFlag(IONIZATION_SOURCE_COEF))
    {
-      SIZGF_ = new ParGridFunction(&fes_);
+      SizGF_ = new ParGridFunction(&fes_);
+   }
+   if (this->CheckVisFlag(RECOMBINATION_SINK_COEF))
+   {
+      SrcGF_ = new ParGridFunction(&fes_);
    }
    if (this->CheckVisFlag(SOURCE_COEF) &&
        eqncoefs_(IDCoefs::SOURCE_COEF) != NULL)
@@ -3439,7 +3469,8 @@ DGTransportTDO::IonDensityOp::~IonDensityOp()
    delete DParaGF_;
    delete DPerpGF_;
    delete AGF_;
-   delete SIZGF_;
+   delete SizGF_;
+   delete SrcGF_;
    delete SGF_;
 }
 
@@ -3469,7 +3500,13 @@ void DGTransportTDO::IonDensityOp::RegisterDataFields(DataCollection & dc)
    {
       ostringstream oss;
       oss << eqn_name_ << " Siz_i";
-      dc.RegisterField(oss.str(), SIZGF_);
+      dc.RegisterField(oss.str(), SizGF_);
+   }
+   if (this->CheckVisFlag(RECOMBINATION_SINK_COEF))
+   {
+      ostringstream oss;
+      oss << eqn_name_ << " Src_i";
+      dc.RegisterField(oss.str(), SrcGF_);
    }
    if (this->CheckVisFlag(SOURCE_COEF) && SGF_ != NULL)
    {
@@ -3513,7 +3550,11 @@ void DGTransportTDO::IonDensityOp::PrepareDataFields()
    }
    if (this->CheckVisFlag(IONIZATION_SOURCE_COEF))
    {
-      SIZGF_->ProjectCoefficient(SCoef_);
+      SizGF_->ProjectCoefficient(SizCoef_);
+   }
+   if (this->CheckVisFlag(RECOMBINATION_SINK_COEF))
+   {
+      SrcGF_->ProjectCoefficient(SrcCoef_);
    }
    if (this->CheckVisFlag(SOURCE_COEF) && SGF_ != NULL)
    {
@@ -3534,7 +3575,8 @@ void DGTransportTDO::IonDensityOp::Update()
    if (DParaGF_ != NULL) { DParaGF_->Update(); }
    if (DPerpGF_ != NULL) { DPerpGF_->Update(); }
    if (AGF_     != NULL) { AGF_->Update(); }
-   if (SIZGF_   != NULL) { SIZGF_->Update(); }
+   if (SizGF_   != NULL) { SizGF_->Update(); }
+   if (SrcGF_   != NULL) { SrcGF_->Update(); }
    if (SGF_     != NULL) { SGF_->Update(); }
 
    if (mpi_.Root() && logging_ > 1)
