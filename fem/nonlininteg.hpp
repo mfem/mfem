@@ -198,6 +198,7 @@ public:
                                  const Array<const Vector *>&pelfun,
                                  const Array2D<DenseMatrix *> &elmats);
 
+
    virtual ~PrmBlockNonlinearFormIntegrator() { }
 };
 
