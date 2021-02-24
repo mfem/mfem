@@ -230,6 +230,10 @@ public:
 /// DoF transformation implementation for the Nedelec basis on triangles
 class ND_TriDofTransformation : public ND_DofTransformation
 {
+private:
+   int nedofs; // number of DoFs per edge
+   int nfdofs; // number of DoFs per face
+
 public:
    ND_TriDofTransformation(int order);
 
@@ -247,6 +251,10 @@ public:
 /// DoF transformation implementation for the Nedelec basis on tetrahedra
 class ND_TetDofTransformation : public ND_DofTransformation
 {
+private:
+   int nedofs; // number of DoFs per edge
+   int nfdofs; // number of DoFs per face
+
 public:
    ND_TetDofTransformation(int order);
 
@@ -265,6 +273,11 @@ public:
 /** TODO: Implementation in the nd-prism-dev branch */
 class ND_WedgeDofTransformation : public ND_DofTransformation
 {
+private:
+   int nedofs; // number of DoFs per edge
+   int ntdofs; // number of DoFs per triangular face
+   int nqdofs; // number of DoFs per quadrilateral face
+
 public:
    ND_WedgeDofTransformation(int order);
 

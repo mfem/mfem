@@ -257,14 +257,16 @@ ND_DofTransformation::ND_DofTransformation(int height, int width, int p)
 
 ND_TriDofTransformation::ND_TriDofTransformation(int p)
    : ND_DofTransformation(p*(p + 2), p*(p + 2), p)
+   , nedofs(order)
+   , nfdofs(order*(order-1))
 {
 }
 
 void ND_TriDofTransformation::TransformPrimal(const double *v,
                                               double *v_trans) const
 {
-   int nedofs = order; // number of DoFs per edge
-   int nfdofs = order*(order-1); // number of DoFs per face
+   MFEM_VERIFY(Fo.Size() >= 1,
+               "Face orientations are unset in ND_TriDofTransformation");
 
    // Copy edge DoFs
    for (int i=0; i<3*nedofs; i++)
@@ -287,8 +289,8 @@ void
 ND_TriDofTransformation::InvTransformPrimal(const double *v_trans,
                                             double *v) const
 {
-   int nedofs = order; // number of DoFs per edge
-   int nfdofs = order*(order-1); // number of DoFs per face
+   MFEM_VERIFY(Fo.Size() >= 1,
+               "Face orientations are unset in ND_TriDofTransformation");
 
    // Copy edge DoFs
    for (int i=0; i<3*nedofs; i++)
@@ -310,8 +312,8 @@ ND_TriDofTransformation::InvTransformPrimal(const double *v_trans,
 void
 ND_TriDofTransformation::TransformDual(const double *v, double *v_trans) const
 {
-   int nedofs = order; // number of DoFs per edge
-   int nfdofs = order*(order-1); // number of DoFs per face
+   MFEM_VERIFY(Fo.Size() >= 1,
+               "Face orientations are unset in ND_TriDofTransformation");
 
    // Copy edge DoFs
    for (int i=0; i<3*nedofs; i++)
@@ -332,15 +334,16 @@ ND_TriDofTransformation::TransformDual(const double *v, double *v_trans) const
 
 ND_TetDofTransformation::ND_TetDofTransformation(int p)
    : ND_DofTransformation(p*(p + 2)*(p + 3)/2, p*(p + 2)*(p + 3)/2, p)
+   , nedofs(order)
+   , nfdofs(order*(order-1))
 {
 }
 
 void ND_TetDofTransformation::TransformPrimal(const double *v,
                                               double *v_trans) const
 {
-   int nedofs = order; // number of DoFs per edge
-   int nfdofs = order*(order-1); // number of DoFs per face
-   int ndofs  = order*(order+2)*(order+3)/2; // total number of DoFs
+   MFEM_VERIFY(Fo.Size() >= 4,
+               "Face orientations are unset in ND_TetDofTransformation");
 
    // Copy edge DoFs
    for (int i=0; i<6*nedofs; i++)
@@ -359,7 +362,7 @@ void ND_TetDofTransformation::TransformPrimal(const double *v,
    }
 
    // Copy interior DoFs
-   for (int i=6*nedofs + 4*nfdofs; i<ndofs; i++)
+   for (int i=6*nedofs + 4*nfdofs; i<height_; i++)
    {
       v_trans[i] = v[i];
    }
@@ -369,9 +372,8 @@ void
 ND_TetDofTransformation::InvTransformPrimal(const double *v_trans,
                                             double *v) const
 {
-   int nedofs = order; // number of DoFs per edge
-   int nfdofs = order*(order-1); // number of DoFs per face
-   int ndofs  = order*(order+2)*(order+3)/2; // total number of DoFs
+   MFEM_VERIFY(Fo.Size() >= 4,
+               "Face orientations are unset in ND_TetDofTransformation");
 
    // Copy edge DoFs
    for (int i=0; i<6*nedofs; i++)
@@ -390,7 +392,7 @@ ND_TetDofTransformation::InvTransformPrimal(const double *v_trans,
    }
 
    // Copy interior DoFs
-   for (int i=6*nedofs + 4*nfdofs; i<ndofs; i++)
+   for (int i=6*nedofs + 4*nfdofs; i<height_; i++)
    {
       v[i] = v_trans[i];
    }
@@ -399,9 +401,8 @@ ND_TetDofTransformation::InvTransformPrimal(const double *v_trans,
 void
 ND_TetDofTransformation::TransformDual(const double *v, double *v_trans) const
 {
-   int nedofs = order; // number of DoFs per edge
-   int nfdofs = order*(order-1); // number of DoFs per face
-   int ndofs  = order*(order+2)*(order+3)/2; // total number of DoFs
+   MFEM_VERIFY(Fo.Size() >= 4,
+               "Face orientations are unset in ND_TetDofTransformation");
 
    // Copy edge DoFs
    for (int i=0; i<6*nedofs; i++)
@@ -420,7 +421,7 @@ ND_TetDofTransformation::TransformDual(const double *v, double *v_trans) const
    }
 
    // Copy interior DoFs
-   for (int i=6*nedofs + 4*nfdofs; i<ndofs; i++)
+   for (int i=6*nedofs + 4*nfdofs; i<height_; i++)
    {
       v_trans[i] = v[i];
    }
@@ -430,16 +431,17 @@ ND_TetDofTransformation::TransformDual(const double *v, double *v_trans) const
 ND_WedgeDofTransformation::ND_WedgeDofTransformation(int p)
    : ND_DofTransformation(3 * p * ((p + 1) * (p + 2))/2,
                           3 * p * ((p + 1) * (p + 2))/2, p)
+   , nedofs(order)
+   , ntdofs(order*(order-1))
+   , nqdofs(2*order*(order-1))
 {
 }
 
 void ND_WedgeDofTransformation::TransformPrimal(const double *v,
                                                 double *v_trans) const
 {
-   int nedofs = order; // number of DoFs per edge
-   int ntdofs = order*(order-1); // number of DoFs per triangular face
-   int nqdofs = (order-1)*(order-1); // number of DoFs per quadrilateral face
-   int ndofs  = 3 * order * ((order + 1) * (order + 2))/2; // total num of DoFs
+   MFEM_VERIFY(Fo.Size() >= 2,
+               "Face orientations are unset in ND_WedgeDofTransformation");
 
    // Copy edge DoFs
    for (int i=0; i<9*nedofs; i++)
@@ -464,7 +466,7 @@ void ND_WedgeDofTransformation::TransformPrimal(const double *v,
    }
 
    // Copy interior DoFs
-   for (int i=9*nedofs + 2*ntdofs + 3*nqdofs; i<ndofs; i++)
+   for (int i=9*nedofs + 2*ntdofs + 3*nqdofs; i<height_; i++)
    {
       v_trans[i] = v[i];
    }
@@ -474,10 +476,8 @@ void
 ND_WedgeDofTransformation::InvTransformPrimal(const double *v_trans,
                                               double *v) const
 {
-   int nedofs = order; // number of DoFs per edge
-   int ntdofs = order*(order-1); // number of DoFs per triangular face
-   int nqdofs = (order-1)*(order-1); // number of DoFs per quadrilateral face
-   int ndofs  = 3 * order * ((order + 1) * (order + 2))/2; // total num of DoFs
+   MFEM_VERIFY(Fo.Size() >= 2,
+               "Face orientations are unset in ND_WedgeDofTransformation");
 
    // Copy edge DoFs
    for (int i=0; i<9*nedofs; i++)
@@ -502,7 +502,7 @@ ND_WedgeDofTransformation::InvTransformPrimal(const double *v_trans,
    }
 
    // Copy interior DoFs
-   for (int i=9*nedofs + 2*ntdofs + 3*nqdofs; i<ndofs; i++)
+   for (int i=9*nedofs + 2*ntdofs + 3*nqdofs; i<height_; i++)
    {
       v[i] = v_trans[i];
    }
@@ -511,10 +511,8 @@ ND_WedgeDofTransformation::InvTransformPrimal(const double *v_trans,
 void
 ND_WedgeDofTransformation::TransformDual(const double *v, double *v_trans) const
 {
-   int nedofs = order; // number of DoFs per edge
-   int ntdofs = order*(order-1); // number of DoFs per triangular face
-   int nqdofs = (order-1)*(order-1); // number of DoFs per quadrilateral face
-   int ndofs  = 3 * order * ((order + 1) * (order + 2))/2; // total num of DoFs
+   MFEM_VERIFY(Fo.Size() >= 2,
+               "Face orientations are unset in ND_WedgeDofTransformation");
 
    // Copy edge DoFs
    for (int i=0; i<9*nedofs; i++)
@@ -539,7 +537,7 @@ ND_WedgeDofTransformation::TransformDual(const double *v, double *v_trans) const
    }
 
    // Copy interior DoFs
-   for (int i=9*nedofs + 2*ntdofs + 3*nqdofs; i<ndofs; i++)
+   for (int i=9*nedofs + 2*ntdofs + 3*nqdofs; i<height_; i++)
    {
       v_trans[i] = v[i];
    }
