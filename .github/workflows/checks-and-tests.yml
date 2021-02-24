@@ -41,10 +41,9 @@ jobs:
         # we will gather coverage info for any non-debug run.
         include:
           - debug: YES
-          - codecov: NO
-        include:
+            codecov: NO
           - debug: NO
-          - codecov: YES
+            codecov: YES
 
     runs-on: ${{ matrix.os }}
 
