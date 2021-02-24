@@ -138,7 +138,7 @@ jobs:
       uses: ./mfem/.github/actions/build-mfem
       with:
         os: ${{ runner.os }}
-        debug: NO
+        debug: YES
         mpi: YES
         codecov: YES
         hypre-dir: ${{ env.HYPRE_TOP_DIR }}
@@ -151,4 +151,4 @@ jobs:
 
     - name: codecov
       run: |
-        bash <(curl -s https://codecov.io/bash)
+        cd mfem && bash <(curl -s https://codecov.io/bash)
