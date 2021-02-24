@@ -142,7 +142,6 @@ void GetReferenceTransformation(const Element::Type ElemType,
          MFEM_ABORT("Unknown element type \"" << ElemType << "\"");
          break;
    }
-   T.FinalizeTransformation();
 }
 
 /**
