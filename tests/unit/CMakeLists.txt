@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -18,6 +18,7 @@ include_directories(BEFORE ${PROJECT_BINARY_DIR})
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 
 set(UNIT_TESTS_SRCS
+  general/test_array.cpp
   general/test_mem.cpp
   general/test_text.cpp
   general/test_zlib.cpp
@@ -38,10 +39,12 @@ set(UNIT_TESTS_SRCS
   linalg/test_vector.cpp
   mesh/test_mesh.cpp
   mesh/test_ncmesh.cpp
+  mesh/test_pmesh.cpp
   fem/test_1d_bilininteg.cpp
   fem/test_2d_bilininteg.cpp
   fem/test_3d_bilininteg.cpp
   fem/test_assemblediagonalpa.cpp
+  fem/test_blocknonlinearform.cpp
   fem/test_calcshape.cpp
   fem/test_datacollection.cpp
   fem/test_estimator.cpp
@@ -50,23 +53,29 @@ set(UNIT_TESTS_SRCS
   fem/test_intrules.cpp
   fem/test_intruletypes.cpp
   fem/test_inversetransform.cpp
+  fem/test_lexicographic_ordering.cpp
   fem/test_lin_interp.cpp
   fem/test_linear_fes.cpp
   fem/test_operatorjacobismoother.cpp
   fem/test_pa_coeff.cpp
   fem/test_pa_kernels.cpp
+  fem/test_pa_grad.cpp
+  fem/test_pa_idinterp.cpp
   fem/test_quadf_coef.cpp
   fem/test_quadraturefunc.cpp
-  fem/test_blocknonlinearform.cpp
+  fem/test_sum_bilin.cpp
   miniapps/test_sedov.cpp
 )
 
 if (MFEM_USE_CUDA)
    set_property(SOURCE ${UNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
 endif()
+if (MFEM_USE_HIP)
+  set_property(SOURCE unit_test_main.cpp ${UNIT_TESTS_SRCS} PROPERTY HIP_SOURCE_PROPERTY_FORMAT TRUE)
+endif()
 
 # All serial non-device unit tests are built into a single executable 'unit_tests'.
-add_executable(unit_tests unit_test_main.cpp ${UNIT_TESTS_SRCS})
+mfem_add_executable(unit_tests unit_test_main.cpp ${UNIT_TESTS_SRCS})
 # Unit tests need the ../../data directory.
 add_dependencies(unit_tests copy_data)
 target_link_libraries(unit_tests mfem)
@@ -100,13 +109,16 @@ set(SEDOV_TESTS_SRCS
 if (MFEM_USE_CUDA)
    set_property(SOURCE ${SEDOV_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
 endif()
+if (MFEM_USE_HIP)
+  set_property(SOURCE ${SEDOV_TESTS_SRCS} PROPERTY HIP_SOURCE_PROPERTY_FORMAT TRUE)
+endif()
 
-add_executable(sedov_tests_cpu ${SEDOV_TESTS_SRCS})
+mfem_add_executable(sedov_tests_cpu ${SEDOV_TESTS_SRCS})
 target_compile_definitions(sedov_tests_cpu PUBLIC MFEM_SEDOV_TESTS=1)
 target_compile_definitions(sedov_tests_cpu PUBLIC MFEM_SEDOV_DEVICE="cpu")
 target_link_libraries(sedov_tests_cpu mfem)
 
-add_executable(sedov_tests_debug ${SEDOV_TESTS_SRCS})
+mfem_add_executable(sedov_tests_debug ${SEDOV_TESTS_SRCS})
 target_compile_definitions(sedov_tests_debug PUBLIC MFEM_SEDOV_TESTS=1)
 target_compile_definitions(sedov_tests_debug PUBLIC MFEM_SEDOV_DEVICE="debug")
 target_link_libraries(sedov_tests_debug mfem)
