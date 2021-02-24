@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -27,6 +27,7 @@ namespace mfem
 /// Class for parallel bilinear form
 class ParBilinearForm : public BilinearForm
 {
+   friend FABilinearFormExtension;
 protected:
    ParFiniteElementSpace *pfes; ///< Points to the same object as #fes
 
@@ -76,7 +77,7 @@ public:
    void KeepNbrBlock(bool knb = true) { keep_nbr_block = knb; }
 
    /** @brief Set the operator type id for the parallel matrix/operator when
-       using AssemblyLevel::LEGACYFULL. */
+       using AssemblyLevel::LEGACY. */
    /** If using static condensation or hybridization, call this method *after*
        enabling it. */
    void SetOperatorType(Operator::Type tid)

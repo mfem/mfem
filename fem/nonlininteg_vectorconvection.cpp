@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,6 +11,7 @@
 
 #include "../general/forall.hpp"
 #include "nonlininteg.hpp"
+#include "ceed/nlconvection.hpp"
 
 using namespace std;
 
@@ -24,6 +25,12 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const FiniteElement &el = *fes.GetFE(0);
    ElementTransformation &T = *mesh->GetElementTransformation(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
+   if (DeviceCanUseCeed())
+   {
+      delete ceedOp;
+      ceedOp = new ceed::PAVectorConvectionNLFIntegrator(fes, *ir, Q);
+      return;
+   }
    dim = mesh->Dimension();
    ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
@@ -791,26 +798,33 @@ static void SmemPAConvectionNLApply3D(const int NE,
 
 void VectorConvectionNLFIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   const int NE = ne;
-   const int D1D = maps->ndof;
-   const int Q1D = maps->nqpt;
-   const Vector &Q = pa_data;
-   const Array<double> &B = maps->B;
-   const Array<double> &G = maps->G;
-   const Array<double> &Bt = maps->Bt;
-   if (dim == 2)
+   if (DeviceCanUseCeed())
    {
-      return PAConvectionNLApply2D(NE, B, G, Bt, Q, x, y, D1D, Q1D);
+      ceedOp->AddMult(x, y);
    }
-   if (dim == 3)
+   else
    {
-      constexpr int T_MAX_D1D = 8;
-      constexpr int T_MAX_Q1D = 8;
-      MFEM_VERIFY(D1D <= T_MAX_D1D && Q1D <= T_MAX_Q1D, "Not yet implemented!");
-      return SmemPAConvectionNLApply3D<0, 0, T_MAX_D1D, T_MAX_Q1D>
-             (NE, B, G, Q, x, y, D1D, Q1D);
+      const int NE = ne;
+      const int D1D = maps->ndof;
+      const int Q1D = maps->nqpt;
+      const Vector &Q = pa_data;
+      const Array<double> &B = maps->B;
+      const Array<double> &G = maps->G;
+      const Array<double> &Bt = maps->Bt;
+      if (dim == 2)
+      {
+         return PAConvectionNLApply2D(NE, B, G, Bt, Q, x, y, D1D, Q1D);
+      }
+      if (dim == 3)
+      {
+         constexpr int T_MAX_D1D = 8;
+         constexpr int T_MAX_Q1D = 8;
+         MFEM_VERIFY(D1D <= T_MAX_D1D && Q1D <= T_MAX_Q1D, "Not yet implemented!");
+         return SmemPAConvectionNLApply3D<0, 0, T_MAX_D1D, T_MAX_Q1D>
+                (NE, B, G, Q, x, y, D1D, Q1D);
+      }
+      MFEM_ABORT("Not yet implemented!");
    }
-   MFEM_ABORT("Not yet implemented!");
 }
 
 } // namespace mfem
