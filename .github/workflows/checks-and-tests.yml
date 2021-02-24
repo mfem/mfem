@@ -134,5 +134,6 @@ jobs:
         cd mfem && make test
 
     - name: codecov
-      run: |
-        cd mfem && bash <(curl -s https://codecov.io/bash)
+      uses: ./.github/actions/upload-coverage
+      with:
+        name: 'os-'${{ matrix.os }}'-mpi-'${{ matrix.mpi }}
