@@ -96,7 +96,7 @@ set(HDRS
   intrules.hpp
   ceed/algebraic.hpp
   ceed/full-assembly.hpp
-  ceed/solvers-atpmg.h
+  ceed/solvers-atpmg.hpp
   ceed/coefficient.hpp
   ceed/convection.hpp
   ceed/diffusion.hpp

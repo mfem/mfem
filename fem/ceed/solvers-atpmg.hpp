@@ -27,7 +27,7 @@ namespace ceed
 /** @brief Take given (high-order) CeedElemRestriction and make a new
     CeedElemRestriction, which corresponds to a lower-order problem.
 
-    Assumes a Gauss-Lobatto basis and tensor product elements, and 
+    Assumes a Gauss-Lobatto basis and tensor product elements, and
     assumes that the nodes in er_in are ordered in a tensor-product
     way.
 

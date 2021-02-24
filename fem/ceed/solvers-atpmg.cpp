@@ -9,7 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "solvers-atpmg.h"
+#include "solvers-atpmg.hpp"
 #include "util.hpp"
 
 #ifdef MFEM_USE_CEED
