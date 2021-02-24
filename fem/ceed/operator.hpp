@@ -22,7 +22,7 @@ namespace ceed
 {
 
 /** A base class to represent a CeedOperator as an MFEM Operator. */
-class Operator : mfem::Operator
+class Operator : public mfem::Operator
 {
 protected:
 #ifdef MFEM_USE_CEED
@@ -33,7 +33,7 @@ protected:
 #endif
 
 public:
-   void Mult(const mfem::Vector &x, mfem::Vector &y) const;
+   void Mult(const mfem::Vector &x, mfem::Vector &y) const override;
    void AddMult(const mfem::Vector &x, mfem::Vector &y) const;
    void GetDiagonal(mfem::Vector &diag) const;
    virtual ~Operator()
