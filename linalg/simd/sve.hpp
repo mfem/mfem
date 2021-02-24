@@ -12,8 +12,7 @@
 #ifndef MFEM_SIMD_SVE_HPP
 #define MFEM_SIMD_SVE_HPP
 
-#if defined(__ARM_FEATURE_SVE) //||1
-#warning SVE AutoSIMD<double,8,64>
+#if defined(__ARM_FEATURE_SVE)
 
 #include "../../config/tconfig.hpp"
 
