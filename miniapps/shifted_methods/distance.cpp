@@ -30,6 +30,11 @@
 //    On Variational and PDE-based Distance Function Approximations,
 //    Computer Graphics Forum, 34: 104-118, 2015
 //
+//    The solution of the p-Laplacian solver approaches the signed distance 
+//    function when p->\infinity. Therefore, increasing p will improve the 
+//    computed distance and, of course, will increase the computational cost. 
+//    The discretization of the p-Laplacian equation utilizes ideas from:
+//
 //    Kantorovich, L. V. & Krylov, V. I.
 //    Approximate Methods of Higher Analysis, Interscience Publishers, Inc., 1958
 //
@@ -37,6 +42,23 @@
 //    The partition of unity finite element method: Basic theory and applications,
 //    Computer Methods in Applied Mechanics and Engineering, 1996, 139, 289-314
 //
+//
+//    Resolving highly oscillatory input fields requires refining the mesh or 
+//    increasing the order of the approximation. The above requirement for mesh 
+//    resolution is independent of the conditions imposed on the mesh by the 
+//    discretization of the actual distance solver. On the other hand, it is 
+//    often enough to compute the distance field to a mean zero level of a 
+//    smoothed version of the input field. In such cases, one can use a 
+//    low-pass filter that removes the high-frequency content of the input 
+//    field. Such filter is implemented in the class PDEFilter based on the 
+//    Screened Poisson equation. The radius specifies the minimal feature size 
+//    in the filter output and, in the current example, is linked to the average 
+//    mesh size. Theoretical description of the filter and discussion of the 
+//    parameters can be found in:
+//
+//    Lazarov, B. S. & Sigmund, O.
+//    Filters in topology optimization based on Helmholtz-type differential equations
+//    International Journal for Numerical Methods in Engineering, 2011, 86, 765-781
 //
 // Compile with: make distance
 //
