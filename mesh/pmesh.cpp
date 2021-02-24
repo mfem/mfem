@@ -2512,27 +2512,6 @@ STable3D *ParMesh::GetFaceNbrElementToFaceTable(int ret_ftbl)
                   }
                }
                face_nbr_el_to_face->Push(i, lf);
-               /*
-                    switch (k)
-                    {
-                       case 0:
-                          face_nbr_el_to_face->Push(
-                             i, faces_tbl->Index(v[fv[1]],v[fv[2]],v[fv[3]]));
-                          break;
-                       case 1:
-                          face_nbr_el_to_face->Push(
-                             i, faces_tbl->Index(v[fv[0]],v[fv[2]],v[fv[3]]));
-                          break;
-                       case 2:
-                          face_nbr_el_to_face->Push(
-                             i, faces_tbl->Index(v[fv[0]],v[fv[1]],v[fv[3]]));
-                          break;
-                       case 3:
-                          face_nbr_el_to_face->Push(
-                             i, faces_tbl->Index(v[fv[0]],v[fv[1]],v[fv[2]]));
-                          break;
-                    }
-               */
             }
             break;
          }
@@ -2576,27 +2555,6 @@ STable3D *ParMesh::GetFaceNbrElementToFaceTable(int ret_ftbl)
                   }
                }
                face_nbr_el_to_face->Push(i, lf);
-               /*
-                    switch (k)
-                    {
-                       case 0:
-                          face_nbr_el_to_face->Push(
-                             i, faces_tbl->Index(v[fv[1]],v[fv[2]],v[fv[3]]));
-                          break;
-                       case 1:
-                          face_nbr_el_to_face->Push(
-                             i, faces_tbl->Index(v[fv[0]],v[fv[2]],v[fv[3]]));
-                          break;
-                       case 2:
-                          face_nbr_el_to_face->Push(
-                             i, faces_tbl->Index(v[fv[0]],v[fv[1]],v[fv[3]]));
-                          break;
-                       case 3:
-                          face_nbr_el_to_face->Push(
-                             i, faces_tbl->Index(v[fv[0]],v[fv[1]],v[fv[2]]));
-                          break;
-                    }
-               */
             }
             break;
          }
