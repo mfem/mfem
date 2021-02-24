@@ -154,7 +154,7 @@ private:
 };
 
 /** @brief Extension of Multigrid object to algebraically generated coarse spaces */
-class AlgebraicCeedMultigrid : public Multigrid
+class AlgebraicCeedMultigrid : public GeometricMultigrid
 {
 public:
    /** @brief Constructs multigrid solver based on existing space hierarchy
