@@ -45,7 +45,9 @@ public:
 #endif
    }
 
+#ifdef MFEM_USE_CEED
    CeedOperator& GetCeedOperator() { return oper; }
+#endif
 };
 
 } // namespace ceed

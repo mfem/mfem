@@ -49,7 +49,7 @@ public:
 };
 
 /** Wraps a CeedOperator in an mfem::Operator, with essential boundary
-    conditions. */
+    conditions and a prolongation operator for parallel application. */
 class ConstrainedMFEMCeedOperator : public mfem::Operator
 {
 public:
