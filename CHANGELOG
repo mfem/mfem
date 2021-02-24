@@ -11,6 +11,14 @@
 Version 4.2.1 (development)
 ===========================
 
+- Added a new miniapp block-solvers that compares the performance of various
+  solvers for mixed finite element discretization of the second order scalar
+  elliptic equations. Currently available solvers in the miniapp include a
+  block-diagonal preconditioner that is based on approximate Schur complement
+  (implemented in ex5p), and a newly implemented solver DivFreeSolver, which
+  exploits a multilevel decomposition of the Raviart-Thomas space and its
+  divergence-free subspace. See the miniapps/solvers directory for more details.
+
 - Added matrix-free GPU-enabled implementations of GradientInterpolator and
   IdentityInterpolator.
 
@@ -19,6 +27,14 @@ Version 4.2.1 (development)
 
 - Added three ESDIRK time integrators: implicit trapezoid rule, L-stable
   ESDIRK-32, and A-stable ESDIRK-33.
+
+- Introduced a new non-conforming mesh format that fixes known inconsistencies
+  of legacy "MFEM mesh v1.1" NC format and works consistently in both serial and
+  parallel. ParMesh::ParPrint can now print non-conforming AMR meshes that can
+  be used to restart a parallel AMR computation. Example 6p has been extended to
+  demonstrate restarting from a previously saved checkpoint. Note that parallel
+  NC data files are compatible with serial code, e.g., can be viewed with serial
+  GLVis. Loading of legacy NC mesh files is still supported.
 
 - Added a "scaled Jacobian" visualization option in the Mesh Explorer miniapp to
   help identify elements with poor mesh quality.
@@ -35,9 +51,11 @@ Version 4.2.1 (development)
 - Implemented a filter method for the Navier miniapp to stabilize highly
   turbulent flows in direct numerical simulation.
 
+- Added HIP support to the CMake build system.
+
 - Added support for reading high-order Lagrange meshes in VTK format. Arbitrary-
   orders and all element types are supported. See the VTK blog for more info:
-  https://blog.kitware.com/wp-content/uploads/2018/09/Source_Issue_43.pdf
+  https://blog.kitware.com/wp-content/uploads/2018/09/Source_Issue_43.pdf.
 
 - Added support for reading VTK meshes in XML format.
 
@@ -48,6 +66,9 @@ Version 4.2.1 (development)
 
 - Added new mesh quality metrics and improved the untangling capabilities of the
   TMOP-based mesh optimization algorithms.
+
+- Added convective and skew-symmetric integrators for the nonlinear term in the
+  Navier-Stokes equations.
 
 - Changed the interface for the error estimator.
 
@@ -66,8 +87,25 @@ Version 4.2.1 (development)
 - Implemented an adaptive linear solver tolerance option for NewtonSolver based
   on the algorithm of Eisenstat and Walker.
 
+- Added support for nonscalar coefficient with VectorDiffusionIntegrator.
+
 - Extending support for L2 basis functions using MapTypes VALUE and INTEGRAL in
   linear interpolators and GridFunction "GetValue" methods.
+
+- Added support for creating refined meshes for all element types (e.g. by
+  splitting high-order elements into low-order refined elements), including
+  mixed meshes. The LOR Transfer miniapp (miniapps/tools/lor-transfer.cpp) now
+  supports meshes with any element geometry.
+
+- Gitlab CI: use Spack (and Uberenv) to automate the build of TPLs.
+
+libCEED integration improvements
+--------------------------------
+- Refactor the libCEED integration
+
+- Add support for VectorCoefficient with libCEED backends.
+
+- Add support for ConvectionIntegrator, and VectorConvectionNLFIntegrator with libCEED backends.
 
 
 Version 4.2, released on October 30, 2020

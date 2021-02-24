@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -23,10 +23,6 @@
 # also means that the BUILD_ROOT directory will never be cleaned.
 # TODO: add a clean-up mechanism
 #
-# BUILD_PATH:
-# In BUILD_ROOT, we want to separate builds depending on the machine used,
-# typically because we build on a set of dependencies per machine.
-#
 # REBASELINE:
 # Defines the default choice for updating the saved baseline results. By default
 # the baseline can only be updated from the master branch. This variable offers
@@ -45,9 +41,8 @@
 
 variables:
   BUILD_ROOT: ${CI_BUILDS_DIR}/${CI_PROJECT_NAME}_${CI_COMMIT_REF_SLUG}_${CI_PIPELINE_ID}
-  BUILD_PATH: ${CI_BUILDS_DIR}/${CI_PROJECT_NAME}_${CI_COMMIT_REF_SLUG}_${CI_PIPELINE_ID}/${PLAT}/${TOOLCHAIN}
   REBASELINE: "NO"
-  MFEM_ALLOC_NAME: ${CI_PROJECT_NAME}_ci_${CI_PIPELINE_ID}
+  ALLOC_NAME: ${CI_PROJECT_NAME}_ci_${CI_PIPELINE_ID}
   TPLS_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/tpls.git
   TESTS_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/tests.git
   ARTIFACTS_DIR: artifacts
@@ -56,23 +51,18 @@ variables:
 # points, however, we use "needs" keyword to express the DAG of jobs for more
 # efficiency.
 # - We use setup phase to download content outside of mfem directory.
-# - Allocate is where quartz resources are allocated once for all.
-# - Libs is where dependencies are built.
-# - Build is where we build MFEM for multiple toolchains.
-# - Test is where we perform a first set of tests on MFEM build.
+# - Allocate/Release is where quartz resources are allocated/released once for all.
+# - Build and Test is where we build and MFEM for multiple toolchains.
 # - Baseline_checks gathers baseline-type test suites execution
 # - Baseline_publish, only available on master, allows to update baseline
 #   results
-# - Deallocate releases quartz resources
 stages:
+  - q_allocate_resources
+  - q_build_and_test
+  - q_release_resources
+  - l_build_and_test
+  - c_build_and_test
   - setup
-  - allocate
-  - libs
-  - build
-  - test
-  - deallocate
-  - lassen_build
-  - lassen_test
   - baseline_check
   - baseline_publish
 
@@ -95,92 +85,25 @@ setup:
     - if [ ! -d "tests" ]; then git clone ${TESTS_REPO}; fi
     - cd tpls && git pull && cd ..
     - cd tests && git pull && cd ..
+  needs: []
 
-# Share configurations (templates) for toolchain configuration.
-# Note: Any job using this template shouldn't redefine "before_script" key.
-.with_gcc_6_1_0:
-  variables:
-    TOOLCHAIN: gcc_6_1_0
-    CXX: g++
-    CC: gcc
-  before_script:
-    - module load gcc/6.1.0
-
-# On lassen
-.with_gcc_8_3_1:
-  variables:
-    TOOLCHAIN: gcc_8_3_1
-    CXX: g++
-    CC: gcc
-  before_script:
-    - module load gcc/8.3.1
-
-.with_gcc_4_9_3:
-  variables:
-    TOOLCHAIN: gcc_4_9_3
-    CXX: g++
-    CC: gcc
-  before_script:
-    - module load gcc/4.9.3
-
-.if_srun_alloc_for_make: &if_srun_alloc_for_make |
-  if [[ "${MPIEXEC}" == "srun" ]]
-  then
-    export JOB_ID=$(squeue -h --name=${MFEM_ALLOC_NAME} --format=%A)
-    [[ -n "JOB_ID" ]] && export JOB_ID="--jobid=${JOB_ID}"
-    RESOURCES="--extra-node-info=1:${MAKE_PAR}:1 --cpus-per-task=${MAKE_PAR} --ntasks=1"
-    # Allocation prefix:
-    export EXEC_PREFIX="srun ${JOB_ID} ${RESOURCES}"
-  fi
-
-# Build of dependencies and mfem:
-# if on quartz, uses a part of preallocated resources
-# Note: Those jobs don't rely on MFEM repository, hence the use of
-# "GIT_STRATEGY: none" preventing its clone.
-.build_hypre:
-  variables:
-    EXEC_PREFIX: ""
-    GIT_STRATEGY: none
-  stage: libs
+.build_toss_3_x86_64_ib_script:
   script:
-    - cd ${BUILD_ROOT}/tpls
-    - mkdir -p ${BUILD_PATH}
-    - make clean
-    - *if_srun_alloc_for_make
-    - ${EXEC_PREFIX} make -j ${MAKE_PAR} hypre PREFIX=${BUILD_PATH}/hypre/src/ BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH}
+    - export THREADS=12
+    - echo ${ALLOC_NAME}
+    - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
+    - echo ${JOBID}
+    - srun $( [[ -n "${JOBID}" ]] && echo "--jobid=${JOBID}" ) -t 30 -N 1 tests/gitlab/build_and_test
 
-.build_metis:
-  variables:
-    EXEC_PREFIX: ""
-    GIT_STRATEGY: none
-  stage: libs
+.build_toss_3_x86_64_ib_corona_script:
   script:
-    - cd ${BUILD_ROOT}/tpls
-    - mkdir -p ${BUILD_PATH}
-    - *if_srun_alloc_for_make
-    - ${EXEC_PREFIX} make -j ${MAKE_PAR} ${METIS} PREFIX=${BUILD_PATH}/ BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH} CC=${CC} CXX=${CXX}
+    - srun -p mi60 -t 15 -N 1 tests/gitlab/build_and_test
 
-# Building MFEM
-.build_mfem:
-  variables:
-    EXEC_PREFIX: ""
-  stage: build
+# Lassen and Butte use a different job scheduler (spectrum lsf) that does not
+# allow pre-allocation the same way slurm does.
+.build_blueos_3_ppc64le_ib_script:
   script:
-    - mkdir -p ${BUILD_PATH}
-    - cp -r ${CI_PROJECT_DIR} ${BUILD_PATH}/${CI_PROJECT_NAME}_${MFEM_USE_MPI}_${MFEM_DEBUG}
-    - cd ${BUILD_PATH}/${CI_PROJECT_NAME}_${MFEM_USE_MPI}_${MFEM_DEBUG}
-    - *if_srun_alloc_for_make
-    - make config CXX=${CXX} MPICXX=mpicxx MFEM_USE_MPI=${MFEM_USE_MPI} MFEM_DEBUG=${MFEM_DEBUG} MFEM_MPIEXEC="${EXEC_PREFIX}" MFEM_MPIEXEC_NP=${MPIEXEC_NP}
-    - ${EXEC_PREFIX} make -j ${MAKE_PAR} all
-
-# TODO: Could this phase use a parallel run?
-.sanitycheck_mfem:
-  stage: test
-  variables:
-    GIT_STRATEGY: none
-  script:
-    - cd ${BUILD_PATH}/${CI_PROJECT_NAME}_${MFEM_USE_MPI}_${MFEM_DEBUG}
-    - make test
+    - lalloc 1 -W 15 tests/gitlab/build_and_test
 
 # Shared script for baseline and sample-run-baseline, the value of BASELINE_TEST
 # differentiates between the two tests.
@@ -202,7 +125,7 @@ setup:
   cd tests
   mkdir _${BASELINE_TEST} && cd _${BASELINE_TEST}
   # run
-  salloc --nodes=1 -p pdebug ../runtest ../../mfem "${BASELINE_TEST} ${ADDITIONAL_DIR}"
+  srun --nodes=1 -p pdebug ../runtest ../../mfem "${BASELINE_TEST} ${ADDITIONAL_DIR}"
   # post
   mkdir ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}
   if [[ -s ${_glob_err} ]]
@@ -305,4 +228,4 @@ setup:
 # The list on jobs is defined in machine-specific files.
 include:
   - local: .gitlab/quartz.yml
-  - local: .gitlab/lassen.yml
+    #  - local: .gitlab/lassen.yml
