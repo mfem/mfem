@@ -41,16 +41,6 @@ jobs:
         sudo apt-get install mpich libmpich-dev
         export MAKE_CXX_FLAG="MPICXX=mpic++"
 
-    - name: Get coveralls
-      run: |
-        if [[ "$CODECOV" == "YES" ]]
-        then
-           export PYTHONUSERBASE=$HOME/local;
-           pip install --user cpp-coveralls;
-           pip install --user pyyaml;
-           PATH=$HOME/local/bin:$PATH;
-        fi
-
     - name: Cache Hypre Install
       id: hypre-cache
       uses: actions/cache@v2
@@ -102,6 +92,7 @@ jobs:
 
   coverage:
     runs-on: ubuntu-latest
+    environment: CodeCov
 
     steps:
     - name: checkout MFEM
@@ -113,16 +104,6 @@ jobs:
       run: |
         sudo apt-get install mpich libmpich-dev
         export MAKE_CXX_FLAG="MPICXX=mpic++"
-
-    - name: Get coveralls
-      run: |
-        if [[ "$CODECOV" == "YES" ]]
-        then
-           virtualenv ${COVERAGE_ENV};
-           . ./${COVERAGE_ENV}/bin/activate.sh
-           pip install --user cpp-coveralls;
-           pip install --user pyyaml;
-        fi
 
     - name: Cache Hypre Install
       id: hypre-cache
@@ -170,5 +151,4 @@ jobs:
 
     - name: codecov
       run: |
-        . ./${COVERAGE_ENV}/bin/activate.sh
-        coveralls --include fem --include general --include linalg --include mesh --exclude /usr --gcov-options '\-lp' --root mfem;
+        bash <(curl -s https://codecov.io/bash)
