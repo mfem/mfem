@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1556,6 +1556,7 @@ void NewtonSolver::SetOperator(const Operator &op)
    width = op.Width();
    MFEM_ASSERT(height == width, "square Operator is required.");
 
+   xcur.SetSize(width);
    r.SetSize(width);
    c.SetSize(width);
 }
@@ -1615,9 +1616,20 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          break;
       }
 
-      prec->SetOperator(oper->GetGradient(x));
+      grad = &oper->GetGradient(x);
+      prec->SetOperator(*grad);
 
-      prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
+      if (lin_rtol_type)
+      {
+         AdaptiveLinRtolPreSolve(x, it, norm);
+      }
+
+      prec->Mult(r, c); // c = [DF(x_i)]^{-1} [F(x_i)-b]
+
+      if (lin_rtol_type)
+      {
+         AdaptiveLinRtolPostSolve(c, r, it, norm);
+      }
 
       const double c_scale = ComputeScalingFactor(x, b);
       if (c_scale == 0.0)
@@ -1639,6 +1651,86 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
 
    final_iter = it;
    final_norm = norm;
+}
+
+void NewtonSolver::SetAdaptiveLinRtol(const int type,
+                                      const double rtol0,
+                                      const double rtol_max,
+                                      const double alpha,
+                                      const double gamma)
+{
+   lin_rtol_type = type;
+   lin_rtol0 = rtol0;
+   lin_rtol_max = rtol_max;
+   this->alpha = alpha;
+   this->gamma = gamma;
+}
+
+void NewtonSolver::AdaptiveLinRtolPreSolve(const Vector &x,
+                                           const int it,
+                                           const double fnorm) const
+{
+   // Assume that when adaptive linear solver relative tolerance is activated,
+   // we are working with an iterative solver.
+   auto iterative_solver = static_cast<IterativeSolver *>(prec);
+   // Adaptive linear solver relative tolerance
+   double eta;
+   // Safeguard threshold
+   double sg_threshold = 0.1;
+
+   if (it == 0)
+   {
+      eta = lin_rtol0;
+   }
+   else
+   {
+      if (lin_rtol_type == 1)
+      {
+         // eta = gamma * abs(||F(x1)|| - ||F(x0) + DF(x0) s0||) / ||F(x0)||
+         eta = gamma * abs(fnorm - lnorm_last) / fnorm_last;
+      }
+      else if (lin_rtol_type == 2)
+      {
+         // eta = gamma * (||F(x1)|| / ||F(x0)||)^alpha
+         eta = gamma * pow(fnorm / fnorm_last, alpha);
+      }
+      else
+      {
+         MFEM_ABORT("Unknown adaptive linear solver rtol version");
+      }
+
+      // Safeguard rtol from "oversolving" ?!
+      const double sg_eta = gamma * pow(eta_last, alpha);
+      if (sg_eta > sg_threshold) { eta = std::max(eta, sg_eta); }
+   }
+
+   eta = std::min(eta, lin_rtol_max);
+   iterative_solver->SetRelTol(eta);
+   eta_last = eta;
+   if (print_level >= 0)
+   {
+      mfem::out << "Eisenstat-Walker rtol = " << eta << "\n";
+   }
+}
+
+void NewtonSolver::AdaptiveLinRtolPostSolve(const Vector &x,
+                                            const Vector &b,
+                                            const int it,
+                                            const double fnorm) const
+{
+   fnorm_last = fnorm;
+
+   // If version 1 is chosen, the true linear residual norm has to be computed
+   // and in most cases we can only retrieve the preconditioned linear residual
+   // norm.
+   if (lin_rtol_type == 1)
+   {
+      // lnorm_last = ||F(x0) + DF(x0) s0||
+      Vector linres(x.Size());
+      grad->Mult(x, linres);
+      linres -= b;
+      lnorm_last = Norm(linres);
+   }
 }
 
 void LBFGSSolver::Mult(const Vector &b, Vector &x) const
@@ -2971,5 +3063,102 @@ KLUSolver::~KLUSolver()
 }
 
 #endif // MFEM_USE_SUITESPARSE
+
+DirectSubBlockSolver::DirectSubBlockSolver(const SparseMatrix &A,
+                                           const SparseMatrix &block_dof_)
+   : Solver(A.NumRows()), block_dof(const_cast<SparseMatrix&>(block_dof_)),
+     block_solvers(block_dof.NumRows())
+{
+   DenseMatrix sub_A;
+   for (int i = 0; i < block_dof.NumRows(); ++i)
+   {
+      local_dofs.MakeRef(block_dof.GetRowColumns(i), block_dof.RowSize(i));
+      sub_A.SetSize(local_dofs.Size());
+      A.GetSubMatrix(local_dofs, local_dofs, sub_A);
+      block_solvers[i].SetOperator(sub_A);
+   }
+}
+
+void DirectSubBlockSolver::Mult(const Vector &x, Vector &y) const
+{
+   y.SetSize(x.Size());
+   y = 0.0;
+
+   for (int i = 0; i < block_dof.NumRows(); ++i)
+   {
+      local_dofs.MakeRef(block_dof.GetRowColumns(i), block_dof.RowSize(i));
+      x.GetSubVector(local_dofs, sub_rhs);
+      sub_sol.SetSize(local_dofs.Size());
+      block_solvers[i].Mult(sub_rhs, sub_sol);
+      y.AddElementVector(local_dofs, sub_sol);
+   }
+}
+
+void ProductSolver::Mult(const Vector & x, Vector & y) const
+{
+   y.SetSize(x.Size());
+   y = 0.0;
+   S0->Mult(x, y);
+
+   Vector z(x.Size());
+   z = 0.0;
+   A->Mult(y, z);
+   add(-1.0, z, 1.0, x, z); // z = (I - A * S0) x
+
+   Vector S1z(x.Size());
+   S1z = 0.0;
+   S1->Mult(z, S1z);
+   y += S1z;
+}
+
+void ProductSolver::MultTranspose(const Vector & x, Vector & y) const
+{
+   y.SetSize(x.Size());
+   y = 0.0;
+   S1->MultTranspose(x, y);
+
+   Vector z(x.Size());
+   z = 0.0;
+   A->MultTranspose(y, z);
+   add(-1.0, z, 1.0, x, z); // z = (I - A^T * S1^T) x
+
+   Vector S0Tz(x.Size());
+   S0Tz = 0.0;
+   S0->MultTranspose(z, S0Tz);
+   y += S0Tz;
+}
+
+#ifdef MFEM_USE_MPI
+AuxSpaceSmoother::AuxSpaceSmoother(const HypreParMatrix &op,
+                                   HypreParMatrix *aux_map,
+                                   bool op_is_symmetric,
+                                   bool own_aux_map)
+   : Solver(op.NumRows()), aux_map_(aux_map, own_aux_map)
+{
+   aux_system_.Reset(RAP(&op, aux_map));
+   aux_system_.As<HypreParMatrix>()->EliminateZeroRows();
+   aux_smoother_.Reset(new HypreSmoother(*aux_system_.As<HypreParMatrix>()));
+   aux_smoother_.As<HypreSmoother>()->SetOperatorSymmetry(op_is_symmetric);
+}
+
+void AuxSpaceSmoother::Mult(const Vector &x, Vector &y, bool transpose) const
+{
+   Vector aux_rhs(aux_map_->NumCols());
+   aux_map_->MultTranspose(x, aux_rhs);
+
+   Vector aux_sol(aux_rhs.Size());
+   if (transpose)
+   {
+      aux_smoother_->MultTranspose(aux_rhs, aux_sol);
+   }
+   else
+   {
+      aux_smoother_->Mult(aux_rhs, aux_sol);
+   }
+
+   y.SetSize(aux_map_->NumRows());
+   aux_map_->Mult(aux_sol, y);
+}
+#endif // MFEM_USE_MPI
 
 }
