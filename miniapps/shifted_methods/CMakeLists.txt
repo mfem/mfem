@@ -22,10 +22,10 @@ set(DIST_COMMON_FILES
 	EXTRA_SOURCES ${DIST_COMMON_SOURCES}
 	EXTRA_HEADERS ${DIST_COMMON_HEADERS})
 
-  add_mfem_miniapp(distance
+add_mfem_miniapp(distance
     MAIN distance.cpp
     ${DIST_COMMON_FILES}
-    LIBRARIES mfem)
+    LIBRARIES mfem mfem-common)
 
 
 
