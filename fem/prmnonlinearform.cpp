@@ -47,6 +47,10 @@ void PrmBlockNonlinearForm::SetSpaces(Array<FiniteElementSpace *> &f, Array<Fini
     {
        delete ess_tdofs[i];
     }
+    for (int i = 0; i < prmess_tdofs.Size(); ++i)
+    {
+        delete prmess_tdofs[i];
+    }
 
     height = 0;
     width = 0;

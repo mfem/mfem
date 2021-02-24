@@ -153,6 +153,8 @@ public:
    /// Return the @a k-th parametric FE space of the BlockNonlinearForm (const version).
    const FiniteElementSpace *PrmFESpace(int k) const { return prmfes[k]; }
 
+   Array<PrmBlockNonlinearFormIntegrator*>& GetDNFI(){ return dnfi;}
+
 
    /// (Re)initialize the PrmBlockNonlinearForm.
    /** After a call to SetSpaces(), the essential b.c. must be set again. */
