@@ -27,8 +27,16 @@
 //    ACM Transactions on Graphics, Vol. 32, No. 5, October, 2013
 // 2. p-Laplacian solver:
 //    Belyaev, Fayolle
-//    On Variational and PDE-based Distance Function Approximations, Section 7.
-//    Computational Mathematics and Mathematical Physics 59, 2019
+//    On Variational and PDE-based Distance Function Approximations,
+//    Computer Graphics Forum, 34: 104-118, 2015
+//
+//    Kantorovich, L. V. & Krylov, V. I.
+//    Approximate Methods of Higher Analysis, Interscience Publishers, Inc., 1958
+//
+//    Melenk, J. & Babuska, I.
+//    The partition of unity finite element method: Basic theory and applications,
+//    Computer Methods in Applied Mechanics and Engineering, 1996, 139, 289-314
+//
 //
 // Compile with: make distance
 //
@@ -256,6 +264,8 @@ int main(int argc, char *argv[])
    ParGridFunction distance_s(&pfes_s), distance_v(&pfes_v);
 
    // Smooth out Gibbs oscillations from the input level set.
+   // The smoothing parameter is this case is specified to be
+   // mesh dependent with length scale dx. 
    ParGridFunction filt_gf(&pfes_s);
    PDEFilter *filter = new PDEFilter(pmesh, 1.0 * dx);
    if (problem != 0)
