@@ -89,9 +89,8 @@ public:
 
 private:
    int maxp; //maximum value of the power p
-   double newton_abs_tol;
-   double newton_rel_tol;
-   int newton_iter;
+   const int newton_iter;
+   const double newton_rel_tol, newton_abs_tol;
 };
 
 class NormalizedGradCoefficient : public VectorCoefficient
