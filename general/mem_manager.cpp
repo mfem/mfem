@@ -534,7 +534,7 @@ public:
          owns_allocator = false;
       }
    }
-}
+};
 
 /// The Umpire host memory space
 class UmpireHostMemorySpace : public HostMemorySpace, public UmpireMemorySpace
@@ -671,7 +671,7 @@ private:
       switch (mt)
       {
          case MT::HOST_DEBUG: return new MmuHostMemorySpace();
-#if MFEM_USE_UMPIRE
+#ifdef MFEM_USE_UMPIRE
          case MT::HOST_UMPIRE: return new UmpireHostMemorySpace(
                                             MemoryManager::GetUmpireHostAllocatorName());
 #else
@@ -687,7 +687,7 @@ private:
    {
       switch (mt)
       {
-#if MFEM_USE_UMPIRE
+#ifdef MFEM_USE_UMPIRE
          case MT::DEVICE_UMPIRE: return new UmpireDeviceMemorySpace(
                                               MemoryManager::GetUmpireDeviceAllocatorName());
          case MT::DEVICE_UMPIRE_2: return new UmpireDeviceMemorySpace(
