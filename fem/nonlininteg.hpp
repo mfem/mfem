@@ -106,7 +106,7 @@ public:
        called. */
    virtual void AddMultMF(const Vector &x, Vector &y) const;
 
-   virtual ceed::Operator& GetCeedOp() { return *ceedOp; }
+   ceed::Operator& GetCeedOp() { return *ceedOp; }
 
    virtual ~NonlinearFormIntegrator()
    {

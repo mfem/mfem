@@ -11,7 +11,6 @@
 
 #include "algebraic.hpp"
 
-#ifdef MFEM_USE_CEED
 #include "../bilinearform.hpp"
 #include "../fespace.hpp"
 #include "../ceed/solvers-atpmg.hpp"
@@ -24,6 +23,8 @@ namespace mfem
 
 namespace ceed
 {
+
+#ifdef MFEM_USE_CEED
 
 /** Construct a ceed::Operator from a CeedOperator */
 class WrapOperator : public ceed::Operator
@@ -216,7 +217,7 @@ private:
    HypreBoomerAMG *amg;
 };
 
-#endif
+#endif // MFEM_USE_MPI
 
 void CoarsenEssentialDofs(const mfem::Operator &interp,
                           const Array<int> &ho_ess_tdofs,
@@ -313,7 +314,7 @@ CeedOperator CoarsenCeedCompositeOperator(
    return op_coarse;
 }
 
-AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
+AlgebraicMultigrid::AlgebraicMultigrid(
    AlgebraicSpaceHierarchy &hierarchy,
    BilinearForm &form,
    const Array<int> &ess_tdofs
@@ -378,7 +379,7 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
    }
 }
 
-AlgebraicCeedMultigrid::~AlgebraicCeedMultigrid()
+AlgebraicMultigrid::~AlgebraicMultigrid()
 {
 }
 
@@ -946,23 +947,43 @@ ParAlgebraicCoarseSpace::~ParAlgebraicCoarseSpace()
    delete gc;
 }
 
-#endif
+#endif // MFEM_USE_MPI
 
-AlgebraicCeedSolver::AlgebraicCeedSolver(BilinearForm &form,
-                                         const Array<int>& ess_tdofs)
+#endif // MFEM_USE_CEED
+
+AlgebraicSolver::AlgebraicSolver(BilinearForm &form,
+                                 const Array<int>& ess_tdofs)
 {
+#ifdef MFEM_USE_CEED
    fespaces = new AlgebraicSpaceHierarchy(*form.FESpace());
-   multigrid = new AlgebraicCeedMultigrid(*fespaces, form, ess_tdofs);
+   multigrid = new AlgebraicMultigrid(*fespaces, form, ess_tdofs);
+#else
+   MFEM_ABORT("This object requires Ceed support");
+#endif
 }
 
-AlgebraicCeedSolver::~AlgebraicCeedSolver()
+AlgebraicSolver::~AlgebraicSolver()
 {
+#ifdef MFEM_USE_CEED
    delete fespaces;
    delete multigrid;
+#endif
+}
+
+void AlgebraicSolver::Mult(const Vector& x, Vector& y) const
+{
+#ifdef MFEM_USE_CEED
+   multigrid->Mult(x, y);
+#endif
+}
+
+void AlgebraicSolver::SetOperator(const mfem::Operator& op)
+{
+#ifdef MFEM_USE_CEED
+   multigrid->SetOperator(op);
+#endif
 }
 
 } // namespace ceed
 
 } // namespace mfem
-
-#endif // MFEM_USE_CEED

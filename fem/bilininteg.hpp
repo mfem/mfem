@@ -2037,7 +2037,7 @@ public:
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe);
 
-   bool SupportsCeed() const { return true; }
+   bool SupportsCeed() const { return DeviceCanUseCeed(); }
 };
 
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
@@ -2096,7 +2096,7 @@ public:
                                          const FiniteElement &test_fe,
                                          ElementTransformation &Trans);
 
-   bool SupportsCeed() const { return true; }
+   bool SupportsCeed() const { return DeviceCanUseCeed(); }
 };
 
 /** Mass integrator (u, v) restricted to the boundary of a domain */
@@ -2163,7 +2163,7 @@ public:
                                          const FiniteElement &test_fe,
                                          ElementTransformation &Trans);
 
-   bool SupportsCeed() const { return true; }
+   bool SupportsCeed() const { return DeviceCanUseCeed(); }
 };
 
 // Alias for @ConvectionIntegrator.
@@ -2254,7 +2254,7 @@ public:
    virtual void AssembleDiagonalMF(Vector &diag);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
    virtual void AddMultMF(const Vector &x, Vector &y) const;
-   bool SupportsCeed() const { return true; }
+   bool SupportsCeed() const { return DeviceCanUseCeed(); }
 };
 
 
@@ -2704,7 +2704,7 @@ public:
    virtual void AssembleDiagonalMF(Vector &diag);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
    virtual void AddMultMF(const Vector &x, Vector &y) const;
-   bool SupportsCeed() const { return true; }
+   bool SupportsCeed() const { return DeviceCanUseCeed(); }
 };
 
 /** Integrator for the linear elasticity form:

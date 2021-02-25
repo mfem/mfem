@@ -196,7 +196,8 @@ int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
 
    // enforce structurally symmetric for later elimination
    const int skip_zeros = 0;
-   MFEM_ASSERT(numemodein == numemodeout, "My undestanding fails in this case.");
+   MFEM_ASSERT(numemodein == numemodeout,
+               "Ceed full assembly not implemented for this case.");
    for (int e = 0; e < nelem; ++e)
    {
       /// get Array<int> for use in SparseMatrix::AddSubMatrix()
