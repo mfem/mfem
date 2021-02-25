@@ -540,11 +540,11 @@ private:
    /// Return true if the global memory manager instance exists.
    static bool Exists() { return exists; }
 
-   /// Host and device allocator IDs for Umpire.
+   /// Host and device allocator names for Umpire.
 #ifdef MFEM_USE_UMPIRE
-   static int h_umpire_id;
-   static int d_umpire_id;
-   static int d_umpire_2_id;
+   static const char * h_umpire_name;
+   static const char * d_umpire_name;
+   static const char * d_umpire_2_name;
 #endif
 
 private: // Static methods used by the Memory<T> class
@@ -678,19 +678,19 @@ public:
    void Configure(const MemoryType h_mt, const MemoryType d_mt);
 
 #ifdef MFEM_USE_UMPIRE
-   /// Set the host Umpire allocator id used with MemoryType::HOST_UMPIRE
-   static void SetUmpireHostAllocatorId(int h_id) { h_umpire_id = h_id; }
-   /// Set the device Umpire allocator id used with MemoryType::DEVICE_UMPIRE
-   static void SetUmpireDeviceAllocatorId(int d_id) { d_umpire_id = d_id; }
-   /// Set the device Umpire allocator id used with MemoryType::DEVICE_UMPIRE_2
-   static void SetUmpire2DeviceAllocatorId(int d_id) { d_umpire_2_id = d_id; }
+   /// Set the host Umpire allocator name used with MemoryType::HOST_UMPIRE
+   static void SetUmpireHostAllocatorName(const char * h_name) { h_umpire_name = h_name; }
+   /// Set the device Umpire allocator name used with MemoryType::DEVICE_UMPIRE
+   static void SetUmpireDeviceAllocatorName(const char * d_name) { d_umpire_name = d_name; }
+   /// Set the device Umpire allocator name used with MemoryType::DEVICE_UMPIRE_2
+   static void SetUmpireDevice2AllocatorName(const char * d_name) { d_umpire_2_name = d_name; }
 
-   /// Get the host Umpire allocator id used with MemoryType::HOST_UMPIRE
-   static int GetUmpireHostAllocatorId() { return h_umpire_id; }
-   /// Get the device Umpire allocator id used with MemoryType::DEVICE_UMPIRE
-   static int GetUmpireDeviceAllocatorId() { return d_umpire_id; }
-   /// Get the device Umpire allocator id used with MemoryType::DEVICE_UMPIRE_2
-   static int GetUmpire2DeviceAllocatorId() { return d_umpire_2_id; }
+   /// Get the host Umpire allocator name used with MemoryType::HOST_UMPIRE
+   static const char * GetUmpireHostAllocatorName() { return h_umpire_name; }
+   /// Get the device Umpire allocator name used with MemoryType::DEVICE_UMPIRE
+   static const char * GetUmpireDeviceAllocatorName() { return d_umpire_name; }
+   /// Get the device Umpire allocator name used with MemoryType::DEVICE_UMPIRE_2
+   static const char * GetUmpireDevice2AllocatorName() { return d_umpire_2_name; }
 #endif
 
    /// Free all the device memories
