@@ -62,11 +62,12 @@ class VectorWrapper : public gko::matrix::Dense<double>
 public:
    VectorWrapper(std::shared_ptr<const gko::Executor> exec,
                  gko::size_type size, Vector *mfem_vec,
-                 bool on_device = true, bool ownership = false)
+                 bool ownership = false)
       : gko::matrix::Dense<double>(
            exec, gko::dim<2> {size, 1},
    gko::Array<double>::view(exec, size,
-                            mfem_vec->ReadWrite(on_device)),
+                            mfem_vec->ReadWrite(
+                               exec != exec->get_master() ? true : false)),
    1)
    {
       // This controls whether or not we want Ginkgo to own its MFEM Vector.
@@ -91,10 +92,10 @@ public:
    }
    static std::unique_ptr<VectorWrapper> create(
       std::shared_ptr<const gko::Executor> exec, gko::size_type size,
-      Vector *mfem_vec, bool on_device = true, bool ownership = false)
+      Vector *mfem_vec, bool ownership = false)
    {
       return std::unique_ptr<VectorWrapper>(
-                new VectorWrapper(exec, size, mfem_vec, on_device, ownership));
+                new VectorWrapper(exec, size, mfem_vec, ownership));
    }
    // Return reference to MFEM Vector object
    Vector &get_mfem_vec_ref() const { return *(this->wrapped_vec.get()); }
@@ -120,7 +121,7 @@ public:
       // set to true
       return VectorWrapper::create(
                 this->get_executor(), this->get_size()[0], mfem_vec,
-                this->wrapped_vec.get()->UseDevice(), true);
+                true);
    }
 private:
    std::unique_ptr<Vector, std::function<void(Vector *)>> wrapped_vec;
