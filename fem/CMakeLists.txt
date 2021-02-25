@@ -43,6 +43,7 @@ set(SRCS
   estimators.cpp
   fe.cpp
   fe_coll.cpp
+  fe_ray_intersect.cpp
   fespace.cpp
   geom.cpp
   gridfunc.cpp
@@ -85,6 +86,7 @@ set(HDRS
   estimators.hpp
   fe.hpp
   fe_coll.hpp
+  fe_ray_intersect.hpp
   fem.hpp
   fespace.hpp
   geom.hpp
