@@ -14,7 +14,6 @@
 
 #include "../../config/config.hpp"
 
-#ifdef MFEM_USE_CEED
 #include "../fespacehierarchy.hpp"
 #include "../multigrid.hpp"
 #include "util.hpp"
@@ -26,6 +25,7 @@ namespace mfem
 namespace ceed
 {
 
+#ifdef MFEM_USE_CEED
 /** @brief A way to use algebraic levels in a Multigrid object
 
     This is analogous to a FiniteElementSpace but with no Mesh information,
@@ -80,6 +80,8 @@ private:
    Array<int> ldof_group, ldof_ltdof;
 };
 
+#endif // MFEM_USE_MPI
+
 /** @brief Multigrid interpolation operator in Ceed framework
 
     Interpolation/restriction has two components, an element-wise
@@ -118,8 +120,6 @@ private:
    CeedVector fine_work;
 };
 
-#endif
-
 /** @brief Hierarchy of AlgebraicCoarseSpace objects for use in Multigrid object */
 class AlgebraicSpaceHierarchy : public FiniteElementSpaceHierarchy
 {
@@ -154,7 +154,7 @@ private:
 };
 
 /** @brief Extension of Multigrid object to algebraically generated coarse spaces */
-class AlgebraicCeedMultigrid : public GeometricMultigrid
+class AlgebraicMultigrid : public GeometricMultigrid
 {
 public:
    /** @brief Constructs multigrid solver based on existing space hierarchy
@@ -165,29 +165,32 @@ public:
        @param[in] form       partially assembled BilinearForm on finest level
        @param[in] ess_tdofs  List of essential true dofs on finest level
     */
-   AlgebraicCeedMultigrid(
+   AlgebraicMultigrid(
       AlgebraicSpaceHierarchy &hierarchy,
       BilinearForm &form,
       const Array<int> &ess_tdofs
    );
    virtual void SetOperator(const mfem::Operator &op) override { }
-   ~AlgebraicCeedMultigrid();
+   ~AlgebraicMultigrid();
 
 private:
    OperatorHandle fine_operator;
    Array<CeedOperator> ceed_operators;
 };
+#endif // MFEM_USE_CEED
 
-/** @brief Wrapper for AlgebraicCeedMultigrid object
+/** @brief Wrapper for AlgebraicMultigrid object
 
     This exists so that the algebraic Ceed-based idea has the simplest
     possible one-line interface. Finer control (choosing smoothers, w-cycle)
-    can be exercised with the AlgebraicCeedMultigrid object. */
-class AlgebraicCeedSolver : public Solver
+    can be exercised with the AlgebraicMultigrid object. */
+class AlgebraicSolver : public Solver
 {
 private:
+#ifdef MFEM_USE_CEED
    AlgebraicSpaceHierarchy * fespaces;
-   AlgebraicCeedMultigrid * multigrid;
+   AlgebraicMultigrid * multigrid;
+#endif
 
 public:
    /** @brief Constructs algebraic multigrid hierarchy and solver.
@@ -197,16 +200,16 @@ public:
        @param[in] form      partially assembled BilinearForm on finest level
        @param[in] ess_tdofs List of essential true dofs on finest level
     */
-   AlgebraicCeedSolver(BilinearForm &form, const Array<int>& ess_tdofs);
-   ~AlgebraicCeedSolver();
-   void Mult(const Vector& x, Vector& y) const { multigrid->Mult(x, y); }
-   void SetOperator(const mfem::Operator& op) { multigrid->SetOperator(op); }
+   AlgebraicSolver(BilinearForm &form, const Array<int>& ess_tdofs);
+   ~AlgebraicSolver();
+   void Mult(const Vector& x, Vector& y) const;
+   void SetOperator(const mfem::Operator& op);
 };
 
 } // namespace ceed
 
 } // namespace mfem
 
-#endif // MFEM_USE_CEED
+
 
 #endif // MFEM_CEED_ALGEBRAIC_HPP
