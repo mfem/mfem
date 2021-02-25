@@ -5401,6 +5401,7 @@ void NCMesh::Print(std::ostream &out) const
 {
    out << "MFEM NC mesh v1.0\n\n"
        "# NCMesh supported geometry types:\n"
+       "# SEGMENT     = 1\n"
        "# TRIANGLE    = 2\n"
        "# SQUARE      = 3\n"
        "# TETRAHEDRON = 4\n"
