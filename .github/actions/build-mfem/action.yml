@@ -84,7 +84,6 @@ runs:
             make -j3 mfem examples
             cd tests/unit
             make -j3
-            ctest --output-on-failure
         else
             make all -j3
         fi
