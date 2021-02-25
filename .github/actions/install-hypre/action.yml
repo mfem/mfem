@@ -23,7 +23,7 @@ inputs:
     description: 'Hypre top directory name'
     required: true
   target:
-    description: 'A key to identify desired hypre config'
+    description: 'A key to identify the desired hypre config (basic, bigint)'
     required: true
 
 runs:
@@ -33,13 +33,13 @@ runs:
       run: |
         if [[ ${{ inputs.target }} == "basic" ]]
         then
-          export hypre_options="--disable-fortran"
+          export hypre_options="--disable-fortran";
         elif [[ ${{ inputs.target }} == "bigint" ]]
         then
-          export hypre_options="--disable-fortran --enable-bigint"
+          export hypre_options="--disable-fortran --enable-bigint";
         else
-          echo "Hypre target not recognized"
-          exit 1
+          echo "Hypre target not recognized";
+          exit 1;
         fi
       shell: bash
 

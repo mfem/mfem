@@ -95,7 +95,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.HYPRE_TOP_DIR }}
-        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-${{ matrix.hypre-traget }}-v1
+        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-${{ matrix.hypre-target }}-v1
 
     - name: get hypre
       if: matrix.mpi == 'YES' && steps.hypre-cache.outputs.cache-hit != 'true'
@@ -119,8 +119,8 @@ jobs:
       if: matrix.mpi == 'YES' && steps.metis-cache.outputs.cache-hit != 'true'
       uses: ./mfem/.github/actions/install-metis
       with:
-        metis-archive: ${{ env.METIS_ARCHIVE }}
-        metis-dir: ${{ env.METIS_TOP_DIR }}
+        archive: ${{ env.METIS_ARCHIVE }}
+        dir: ${{ env.METIS_TOP_DIR }}
 
     # MFEM build and test
     - name: build
