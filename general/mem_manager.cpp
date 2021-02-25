@@ -48,15 +48,6 @@
 namespace mfem
 {
 
-#ifdef MFEM_USE_UMPIRE
-const char * MemoryManager::h_umpire_name = "MFEM_HOST";
-const char * MemoryManager::d_umpire_name = "MFEM_DEVICE";
-const char * MemoryManager::d_umpire_2_name = "MFEM_DEVICE_2";
-#define IF_UMPIRE(a,b) a
-#else
-#define IF_UMPIRE(a,b) b
-#endif
-
 MemoryType GetMemoryType(MemoryClass mc)
 {
    switch (mc)
@@ -504,6 +495,7 @@ public:
    { return std::memcpy(dst, src, bytes); }
 };
 
+// TODO TMS: remove if we keep the ifdefs in New*Ctrl
 #ifndef MFEM_USE_UMPIRE
 class UmpireHostMemorySpace : public NoHostMemorySpace
 {
@@ -679,8 +671,12 @@ private:
       switch (mt)
       {
          case MT::HOST_DEBUG: return new MmuHostMemorySpace();
-         case MT::HOST_UMPIRE: return new UmpireHostMemorySpace(IF_UMPIRE(
-                                                                      MemoryManager::GetUmpireHostAllocatorName(), nullptr));
+#if MFEM_USE_UMPIRE
+         case MT::HOST_UMPIRE: return new UmpireHostMemorySpace(
+                                            MemoryManager::GetUmpireHostAllocatorName());
+#else
+         case MT::HOST_UMPIRE: return new NoHostMemorySpace();
+#endif
          case MT::HOST_PINNED: return new HostPinnedMemorySpace();
          default: MFEM_ABORT("Unknown host memory controller!");
       }
@@ -691,10 +687,15 @@ private:
    {
       switch (mt)
       {
-         case MT::DEVICE_UMPIRE: return new UmpireDeviceMemorySpace(IF_UMPIRE(
-                                                                          MemoryManager::GetUmpireDeviceAllocatorName(), nullptr));
-         case MT::DEVICE_UMPIRE_2: return new UmpireDeviceMemorySpace(IF_UMPIRE(
-                                                                            MemoryManager::GetUmpireDeviceAllocatorName(), nullptr));
+#if MFEM_USE_UMPIRE
+         case MT::DEVICE_UMPIRE: return new UmpireDeviceMemorySpace(
+                                              MemoryManager::GetUmpireDeviceAllocatorName());
+         case MT::DEVICE_UMPIRE_2: return new UmpireDeviceMemorySpace(
+                                                MemoryManager::GetUmpireDeviceAllocatorName());
+#else
+         case MT::DEVICE_UMPIRE: return new NoDeviceMemorySpace();
+         case MT::DEVICE_UMPIRE_2: return new NoDeviceMemorySpace();
+#endif
          case MT::DEVICE_DEBUG: return new MmuDeviceMemorySpace();
          case MT::DEVICE:
          {
@@ -902,10 +903,7 @@ void *MemoryManager::ReadWrite_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
       flags = (flags | Mem::VALID_DEVICE) & ~Mem::VALID_HOST;
       if (flags & Mem::ALIAS)
       { return mm.GetAliasDevicePtr(h_ptr, bytes, copy); }
-      else
-      {
-         return mm.GetDevicePtr(h_ptr, bytes, copy);
-      }
+      else { return mm.GetDevicePtr(h_ptr, bytes, copy); }
    }
 }
 
@@ -929,10 +927,7 @@ const void *MemoryManager::Read_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
       flags |= Mem::VALID_DEVICE;
       if (flags & Mem::ALIAS)
       { return mm.GetAliasDevicePtr(h_ptr, bytes, copy); }
-      else
-      {
-         return mm.GetDevicePtr(h_ptr, bytes, copy);
-      }
+      else { return mm.GetDevicePtr(h_ptr, bytes, copy); }
    }
 }
 
@@ -954,11 +949,7 @@ void *MemoryManager::Write_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
       flags = (flags | Mem::VALID_DEVICE) & ~Mem::VALID_HOST;
       if (flags & Mem::ALIAS)
       { return mm.GetAliasDevicePtr(h_ptr, bytes, false); }
-      else
-      {
-         return mm.GetDevicePtr(h_ptr, bytes, false);
-      }
-
+      else { return mm.GetDevicePtr(h_ptr, bytes, false); }
    }
 }
 
@@ -1280,10 +1271,7 @@ void *MemoryManager::GetDevicePtr(const void *h_ptr, size_t bytes,
    const MemoryType &h_mt = mem.h_mt;
    const MemoryType &d_mt = mem.d_mt;
    MFEM_VERIFY_TYPES(h_mt, d_mt);
-   if (!mem.d_ptr)
-   {
-      ctrl->Device(d_mt)->Alloc(mem);
-   }
+   if (!mem.d_ptr) { ctrl->Device(d_mt)->Alloc(mem); }
    // Aliases might have done some protections
    ctrl->Device(d_mt)->Unprotect(mem);
    if (copy_data)
@@ -1375,8 +1363,7 @@ MemoryManager::MemoryManager() { Init(); }
 MemoryManager::~MemoryManager() { if (exists) { Destroy(); } }
 
 void MemoryManager::Configure(const MemoryType host_mt,
-                              const MemoryType device_mt
-                             )
+                              const MemoryType device_mt)
 {
    Init();
    host_mem_type = host_mt;
@@ -1486,9 +1473,9 @@ MemoryManager mm;
 bool MemoryManager::exists = false;
 
 #ifdef MFEM_USE_UMPIRE
-int MemoryManager::h_umpire_id = -1;
-int MemoryManager::d_umpire_id = -1;
-int MemoryManager::d_umpire_temp_id = -1;
+const char * MemoryManager::h_umpire_name = "MFEM_HOST";
+const char * MemoryManager::d_umpire_name = "MFEM_DEVICE";
+const char * MemoryManager::d_umpire_2_name = "MFEM_DEVICE_2";
 #endif
 
 MemoryType MemoryManager::host_mem_type = MemoryType::HOST;
