@@ -37,6 +37,7 @@ jobs:
         debug: [YES, NO]
         mpi: [NO, YES]
         cmake: [NO]
+        hypre-target: [basic]
         # 'include' allows to
         # - add a variable without creating a new matrix dimension.
         # - add a new combination ('cmake: YES' case here)
@@ -52,6 +53,11 @@ jobs:
             codecov: NO
             mpi: YES
             cmake: YES
+          - os: ubuntu-latest
+            debug: NO
+            codecov: YES
+            mpi: YES
+            hypre-target: bigint
 
     runs-on: ${{ matrix.os }}
 
@@ -89,14 +95,15 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.HYPRE_TOP_DIR }}
-        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-v1
+        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-${{ matrix.hypre-traget }}-v1
 
     - name: get hypre
       if: matrix.mpi == 'YES' && steps.hypre-cache.outputs.cache-hit != 'true'
       uses: ./mfem/.github/actions/install-hypre
       with:
-        hypre-archive: ${{ env.HYPRE_ARCHIVE }}
-        hypre-dir: ${{ env.HYPRE_TOP_DIR }}
+        archive: ${{ env.HYPRE_ARCHIVE }}
+        dir: ${{ env.HYPRE_TOP_DIR }}
+        target: ${{ matrix.hypre-target }}
 
     # Get Metis through cache, or install it.
     # Install will only run on cache miss.
