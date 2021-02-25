@@ -127,18 +127,10 @@ static void test_umpire_device_memory()
    printf("perm=%ld, temp=%ld\n", alloc_size(permanent), alloc_size(temporary));
 
    // pinned host memory
-   auto orig_host_mt = Device::GetHostMemoryType();
-   Device::SetHostMemoryType(MemoryType::HOST_PINNED);
-   Vector pinned_host_perm(num_elems);
-   // alternative, without switching the global host MemoryType:
-   // Vector pinned_host_perm(num_elems, MemoryType::HOST_PINNED);
+   Vector pinned_host_perm(num_elems, MemoryType::HOST_PINNED);
    REQUIRE(is_pinned_host(pinned_host_perm.GetData()));
-   Vector pinned_host_temp(num_elems, MemoryType::DEVICE_UMPIRE_2);
-   // alternative, without switching the global host MemoryType:
-   // (not supported yet)
-   // Vector pinned_host_temp(num_elems, MemoryType::HOST_PINNED,
-   //                         MemoryType::DEVICE_UMPIRE_2);
-   Device::SetHostMemoryType(orig_host_mt);
+   Vector pinned_host_temp(num_elems, MemoryType::HOST_PINNED,
+                           MemoryType::DEVICE_UMPIRE_2);
    REQUIRE(is_pinned_host(pinned_host_temp.GetData()));
    printf("Allocate %u pinned bytes in on the host: ", num_bytes*2);
    REQUIRE(alloc_size(permanent) == num_bytes*2);
