@@ -132,12 +132,12 @@ public:
    }
 };
 
-//Formulation for the  ScreenedPoisson equation
-//The positive part of the input coefficient supply unit volumetric loading
-//The negative part - negative unit volumetric loading
-//The parameter rh is the radius of a linear cone filter which will deliver
-//similar smoothing effect as the Screened Poisson equation
-//It determines the length scale of the smoothing.
+// Formulation for the  ScreenedPoisson equation.
+// The positive part of the input coefficient supply unit volumetric loading
+// The negative part - negative unit volumetric loading
+// The parameter rh is the radius of a linear cone filter which will deliver
+// similar smoothing effect as the Screened Poisson equation. It determines the
+// length scale of the smoothing.
 class ScreenedPoisson: public NonlinearFormIntegrator
 {
 protected:
@@ -170,11 +170,6 @@ public:
                                     DenseMatrix &elmat) override;
 };
 
-
-// The VectorCoefficent should return a vector with entries:
-// [0] - derivative with respect to x
-// [1] - derivative with respect to y
-// [2] - derivative with respect to z
 class PUMPLaplacian: public NonlinearFormIntegrator
 {
 
@@ -185,15 +180,13 @@ protected:
    double pp, ee;
 
 public:
+   // The VectorCoefficent should contain a vector with entries:
+   // [0] - derivative with respect to x
+   // [1] - derivative with respect to y
+   // [2] - derivative with respect to z
    PUMPLaplacian(Coefficient *nfunc, VectorCoefficient *nfgrad,
                  bool ownership_=true)
-   {
-      func=nfunc;
-      fgrad=nfgrad;
-      ownership=ownership_;
-      pp=2.0;
-      ee=1e-7;
-   }
+      : func(nfunc), fgrad(nfgrad), ownership(ownership_), pp(2.0), ee(1e-7) { }
 
    void SetPower(double pp_) { pp = pp_; }
    void SetReg(double ee_)   { ee = ee_; }
@@ -222,6 +215,10 @@ public:
                                     DenseMatrix &elmat) override;
 };
 
+// Low-pass filter based on the Screened Poisson equation.
+// B. S. Lazarov, O. Sigmund
+// Filters in topology optimization based on Helmholtz-type differential equations
+// International Journal for Numerical Methods in Engineering, 2011, 86, 765-781
 class PDEFilter
 {
 public:
