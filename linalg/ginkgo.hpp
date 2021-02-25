@@ -375,7 +375,7 @@ public:
    std::shared_ptr<gko::Executor> GetExecutor() const
    {
       return this->executor;
-   }
+   };
 
 private:
    std::shared_ptr<gko::Executor> executor;
@@ -594,6 +594,13 @@ protected:
     * Whether or not we need to use VectorWrapper types with this solver.
     */
    bool needs_wrapped_vecs;
+
+   /**
+    * Whether or not we need to use VectorWrapper types with the preconditioner
+    * or an inner solver.  This value is set upon creation of the
+    * GinkgoIterativeSolver object and should never change.
+    */
+   bool sub_op_needs_wrapped_vecs;
 
 private:
    /**
@@ -1110,6 +1117,18 @@ public:
       GinkgoExecutor &exec,
       const Solver &mfem_precond
    );
+
+   /**
+    * SetOperator is not allowed for this type of preconditioner;
+    * this function overrides the base class in order to give an
+    * error if SetOperator() is called for this class.
+    */
+   virtual void SetOperator(const Operator &op)
+   {
+      MFEM_ABORT("GinkgoWrappers::MFEMPreconditioner must be constructed "
+                 "with the MFEM Operator that it will wrap as an argument;\n"
+                 "calling SetOperator() is not allowed.");
+   };
 };
 } // namespace GinkgoWrappers
 
