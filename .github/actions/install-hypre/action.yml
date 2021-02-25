@@ -41,6 +41,7 @@ runs:
           echo "Hypre target not recognized"
           exit 1
         fi
+      shell: bash
 
     - name: Install Hypre
       run: |
