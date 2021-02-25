@@ -22,11 +22,11 @@
 // the starting direction of the shortest path). The miniapp supports 2 solvers:
 //
 // 1. Heat solver:
-//    Crane, Weischedel, Weischedel
+//    K. Crane, C. Weischedel, M. Weischedel
 //    Geodesics in Heat: A New Approach to Computing Distance Based on Heat Flow
 //    ACM Transactions on Graphics, Vol. 32, No. 5, October, 2013
 // 2. p-Laplacian solver:
-//    Belyaev, Fayolle
+//    A. Belyaev, P. Fayolle
 //    On Variational and PDE-based Distance Function Approximations,
 //    Computer Graphics Forum, 34: 104-118, 2015
 //
@@ -35,10 +35,10 @@
 //    computed distance and, of course, will increase the computational cost.
 //    The discretization of the p-Laplacian equation utilizes ideas from:
 //
-//    Kantorovich, L. V. & Krylov, V. I.
+//    L. V. Kantorovich, V. I. Krylov
 //    Approximate Methods of Higher Analysis, Interscience Publishers, Inc., 1958
 //
-//    Melenk, J. & Babuska, I.
+//    J. Melenk, I. Babuska
 //    The partition of unity finite element method: Basic theory and applications,
 //    Computer Methods in Applied Mechanics and Engineering, 1996, 139, 289-314
 //
@@ -56,7 +56,7 @@
 //    mesh size. Theoretical description of the filter and discussion of the
 //    parameters can be found in:
 //
-//    Lazarov, B. S. & Sigmund, O.
+//    B. S. Lazarov, O. Sigmund
 //    Filters in topology optimization based on Helmholtz-type differential equations
 //    International Journal for Numerical Methods in Engineering, 2011, 86, 765-781
 //
@@ -67,11 +67,11 @@
 //     mpirun -np 4 distance -m ./corners.mesh -p 0 -rs 3 -t 200.0
 //
 //   Problem 1: zero level set - circle / sphere at the center of the mesh
-//     mpirun -np 4 distance -m ../../data/inline-quad.mesh -rs 3 -o 2 -t 4.0 -p 1
-//     mpirun -np 4 distance -m ../../data/periodic-cube.mesh -rs 2 -o 2 -t 1.0 -p 1 -s 1
+//     mpirun -np 4 distance -m ../../data/inline-quad.mesh -rs 3 -o 2 -t 1.0 -p 1
+//     mpirun -np 4 distance -m ../../data/periodic-cube.mesh -rs 2 -o 2 -p 1 -s 1
 //
 //   Problem 2: zero level set - perturbed sine.
-//     mpirun -np 4 distance -m ../../data/inline-quad.mesh -rs 3 -o 2 -t 2.0 -p 2
+//     mpirun -np 4 distance -m ../../data/inline-quad.mesh -rs 3 -o 2 -t 1.0 -p 2
 //
 //   Problem 3: level set - Gyroid.
 //      mpirun -np 4 distance -m ../../data/periodic-square.mesh -rs 5 -o 2 -t 1.0 -p 3
