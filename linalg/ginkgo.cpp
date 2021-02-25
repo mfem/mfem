@@ -130,6 +130,7 @@ GinkgoIterativeSolver::GinkgoIterativeSolver(
       .on(executor);
 
    needs_wrapped_vecs = false;
+   sub_op_needs_wrapped_vecs = false;
 }
 
 void
@@ -368,6 +369,15 @@ void GinkgoIterativeSolver::SetOperator(const Operator &op)
 
    if (system_oper)
    {
+      // If the solver currently needs VectorWrappers, but not due to a
+      // "sub-operator" (preconditioner or inner solver), then it's
+      // because the current system_oper needs them.  Reset the property
+      // to false in case the new op is a SparseMatrix.
+      if (needs_wrapped_vecs == true && sub_op_needs_wrapped_vecs == false)
+      {
+         needs_wrapped_vecs = false;
+      }
+      // Reset the pointer
       system_oper.reset();
    }
 
@@ -447,6 +457,7 @@ CGSolver::CGSolver(
       if (dynamic_cast<const OperatorWrapper*>(preconditioner.
                                                GetGeneratedPreconditioner().get()))
       {
+         this->sub_op_needs_wrapped_vecs = true;
          this->needs_wrapped_vecs = true;
       }
    }
@@ -499,6 +510,7 @@ BICGSTABSolver::BICGSTABSolver(
       if (dynamic_cast<const OperatorWrapper*>(preconditioner.
                                                GetGeneratedPreconditioner().get()))
       {
+         this->sub_op_needs_wrapped_vecs = true;
          this->needs_wrapped_vecs = true;
       }
    }
@@ -550,6 +562,7 @@ CGSSolver::CGSSolver(
       if (dynamic_cast<const OperatorWrapper*>(preconditioner.
                                                GetGeneratedPreconditioner().get()))
       {
+         this->sub_op_needs_wrapped_vecs = true;
          this->needs_wrapped_vecs = true;
       }
    }
@@ -601,6 +614,7 @@ FCGSolver::FCGSolver(
       if (dynamic_cast<const OperatorWrapper*>(preconditioner.
                                                GetGeneratedPreconditioner().get()))
       {
+         this->sub_op_needs_wrapped_vecs = true;
          this->needs_wrapped_vecs = true;
       }
    }
@@ -661,6 +675,7 @@ GMRESSolver::GMRESSolver(
          if (dynamic_cast<const OperatorWrapper*>(preconditioner.
                                                   GetGeneratedPreconditioner().get()))
          {
+            this->sub_op_needs_wrapped_vecs = true;
             this->needs_wrapped_vecs = true;
          }
       }
@@ -685,6 +700,7 @@ GMRESSolver::GMRESSolver(
          if (dynamic_cast<const OperatorWrapper*>(preconditioner.
                                                   GetGeneratedPreconditioner().get()))
          {
+            this->sub_op_needs_wrapped_vecs = true;
             this->needs_wrapped_vecs = true;
          }
       }
@@ -734,6 +750,7 @@ IRSolver::IRSolver(
                       .on(this->executor);
    if (inner_solver.UsesVectorWrappers())
    {
+      this->sub_op_needs_wrapped_vecs = true;
       this->needs_wrapped_vecs = true;
    }
 }
