@@ -762,6 +762,12 @@ inline void Memory<T>::New(int size, MemoryType mt)
 }
 
 template <typename T>
+inline void Memory<T>::New(int size, MemoryType h_mt, MemoryType d_mt)
+{
+   // TODO
+}
+
+template <typename T>
 inline void Memory<T>::Wrap(T *ptr, int size, bool own)
 {
    h_ptr = ptr;
