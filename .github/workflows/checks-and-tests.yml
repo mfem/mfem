@@ -130,15 +130,22 @@ jobs:
 
     # Run checks (and only checks) on debug targets
     - name: checks
-      if: matrix.debug == 'YES'
+      if: matrix.cmake == 'NO' && matrix.debug == 'YES'
       run: |
         cd mfem && make check
+
     - name: unit tests
-      if: matrix.debug == 'NO'
+      if: matrix.cmake == 'NO' && matrix.debug == 'NO'
       run: |
         cd mfem && make unittest
+
+    - name: cmake unit tests
+      if: matrix.cmake == 'YES'
+      run: |
+        cd mfem/tests/unit && ctest --output-on-failure
+
     - name: tests
-      if: matrix.debug == 'NO'
+      if: matrix.cmake == 'NO' && matrix.debug == 'NO'
       run: |
         cd mfem && make test
 
