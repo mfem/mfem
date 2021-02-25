@@ -271,10 +271,10 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
    {
       gko_x = std::unique_ptr<vec>(
                  new VectorWrapper(executor, x.Size(),
-                                   const_cast<Vector *>(&x), on_device, false));
+                                   const_cast<Vector *>(&x), false));
       gko_y = std::unique_ptr<vec>(
                  new VectorWrapper(executor, y.Size(), &y,
-                                   on_device, false));
+                                   false));
    }
 
    // Create the logger object to log some data from the solvers to confirm
