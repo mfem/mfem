@@ -24,9 +24,9 @@ namespace mfem
 
 /** @brief A class representing a general parametric parallel block nonlinear operator
     defined on the Cartesian product of multiple ParFiniteElementSpace%s. */
-/** The ParPrmBlockNonlinearForm takes as input, and returns as output, vectors on
+/** The ParParametricBNLForm takes as input, and returns as output, vectors on
     the true dofs. */
-class ParPrmBlockNonlinearForm : public PrmBlockNonlinearForm
+class ParParametricBNLForm : public ParametricBNLForm
 {
 protected:
    mutable BlockVector xs_true, ys_true;
@@ -37,22 +37,22 @@ public:
    /// Computes the energy of the system
    virtual double GetEnergy(const Vector &x) const;
 
-   /// Construct an empty ParPrmBlockNonlinearForm. Initialize with SetParSpaces().
-   ParPrmBlockNonlinearForm() : pBlockGrad(nullptr) { }
+   /// Construct an empty ParParametricBNLForm. Initialize with SetParSpaces().
+   ParParametricBNLForm() : pBlockGrad(nullptr) { }
 
-   /** @brief Construct a ParPrmBlockNonlinearForm on the given set of
+   /** @brief Construct a ParParametricBNLForm on the given set of
        parametric and state ParFiniteElementSpace%s. */
-   ParPrmBlockNonlinearForm(Array<ParFiniteElementSpace *> &pf, Array<ParFiniteElementSpace *> &ppf );
+   ParParametricBNLForm(Array<ParFiniteElementSpace *> &pf, Array<ParFiniteElementSpace *> &ppf );
 
-   /// Return the @a k-th parallel FE state space of the ParPrmBlockNonlinearForm.
+   /// Return the @a k-th parallel FE state space of the ParParametricBNLForm.
    ParFiniteElementSpace *ParFESpace(int k);
-   /** @brief Return the @a k-th parallel FE state space of the ParPrmBlockNonlinearForm
+   /** @brief Return the @a k-th parallel FE state space of the ParParametricBNLForm
        (const version). */
    const ParFiniteElementSpace *ParFESpace(int k) const;
 
-   /// Return the @a k-th parallel FE parameters space of the ParPrmBlockNonlinearForm.
+   /// Return the @a k-th parallel FE parameters space of the ParParametricBNLForm.
    ParFiniteElementSpace *ParPrmFESpace(int k);
-   /** @brief Return the @a k-th parallel FE parameters space of the ParPrmBlockNonlinearForm
+   /** @brief Return the @a k-th parallel FE parameters space of the ParParametricBNLForm
        (const version). */
    const ParFiniteElementSpace *ParPrmFESpace(int k) const;
 
@@ -86,7 +86,7 @@ public:
    void SetGradientType(Operator::Type tid);
 
    /// Destructor.
-   virtual ~ParPrmBlockNonlinearForm();
+   virtual ~ParParametricBNLForm();
 
    /// Set the state fields
    virtual void SetStateFields(const Vector &xv) const;

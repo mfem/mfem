@@ -23,7 +23,7 @@ namespace mfem
 
 /** @brief A class representing a general parametric block nonlinear operator
     defined on the Cartesian product of multiple FiniteElementSpace%s. */
-class PrmBlockNonlinearForm : public Operator
+class ParametricBNLForm : public Operator
 {
 protected:
     /// FE spaces on which the form lives.
@@ -37,13 +37,13 @@ protected:
 
 
     /// Set of Domain Integrators to be assembled (added).
-    Array<PrmBlockNonlinearFormIntegrator*> dnfi;
+    Array<ParametricBNLFormIntegrator*> dnfi;
 
     /// Set of interior face Integrators to be assembled (added).
-    Array<PrmBlockNonlinearFormIntegrator*> fnfi;
+    Array<ParametricBNLFormIntegrator*> fnfi;
 
     /// Set of Boundary Face Integrators to be assembled (added).
-    Array<PrmBlockNonlinearFormIntegrator*> bfnfi;
+    Array<ParametricBNLFormIntegrator*> bfnfi;
     Array<Array<int>*>           bfnfi_marker;
 
     /** Auxiliary block-vectors for wrapping input and output vectors or holding
@@ -135,15 +135,15 @@ protected:
 
 public:
    /// Construct an empty BlockNonlinearForm. Initialize with SetSpaces().
-   PrmBlockNonlinearForm();
+   ParametricBNLForm();
 
    /// Construct a BlockNonlinearForm on the given set of FiniteElementSpace%s.
-   PrmBlockNonlinearForm(Array<FiniteElementSpace *> &f, Array<FiniteElementSpace *> &pf );
+   ParametricBNLForm(Array<FiniteElementSpace *> &f, Array<FiniteElementSpace *> &pf );
 
-   /// Return the @a k-th FE space of the PrmBlockNonlinearForm.
+   /// Return the @a k-th FE space of the ParametricBNLForm.
    FiniteElementSpace *FESpace(int k) { return fes[k]; }
 
-   /// Return the @a k-th parametric FE space of the PrmBlockNonlinearForm.
+   /// Return the @a k-th parametric FE space of the ParametricBNLForm.
    FiniteElementSpace *PrmFESpace(int k) { return prmfes[k]; }
 
 
@@ -153,10 +153,10 @@ public:
    /// Return the @a k-th parametric FE space of the BlockNonlinearForm (const version).
    const FiniteElementSpace *PrmFESpace(int k) const { return prmfes[k]; }
 
-   Array<PrmBlockNonlinearFormIntegrator*>& GetDNFI(){ return dnfi;}
+   Array<ParametricBNLFormIntegrator*>& GetDNFI(){ return dnfi;}
 
 
-   /// (Re)initialize the PrmBlockNonlinearForm.
+   /// (Re)initialize the ParametricBNLForm.
    /** After a call to SetSpaces(), the essential b.c. must be set again. */
    void SetSpaces(Array<FiniteElementSpace *> &f, Array<FiniteElementSpace *> &prmf);
 
@@ -171,20 +171,20 @@ public:
    const Array<int> &PrmGetBlockTrueOffsets() const { return prmblock_trueOffsets; }
 
    /// Adds new Domain Integrator.
-   void AddDomainIntegrator(PrmBlockNonlinearFormIntegrator *nlfi)
+   void AddDomainIntegrator(ParametricBNLFormIntegrator *nlfi)
    { dnfi.Append(nlfi); }
 
    /// Adds new Interior Face Integrator.
-   void AddInteriorFaceIntegrator(PrmBlockNonlinearFormIntegrator *nlfi)
+   void AddInteriorFaceIntegrator(ParametricBNLFormIntegrator *nlfi)
    { fnfi.Append(nlfi); }
 
    /// Adds new Boundary Face Integrator.
-   void AddBdrFaceIntegrator(PrmBlockNonlinearFormIntegrator *nlfi)
+   void AddBdrFaceIntegrator(ParametricBNLFormIntegrator *nlfi)
    { bfnfi.Append(nlfi); bfnfi_marker.Append(NULL); }
 
    /** @brief Adds new Boundary Face Integrator, restricted to specific boundary
        attributes. */
-   void AddBdrFaceIntegrator(PrmBlockNonlinearFormIntegrator *nlfi,
+   void AddBdrFaceIntegrator(ParametricBNLFormIntegrator *nlfi,
                              Array<int> &bdr_marker);
 
    virtual void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
@@ -202,11 +202,11 @@ public:
 
    /// Method is only called in serial, the parallel version calls MultBlocked
    /// directly.
-   virtual void PrmMult(const Vector &x, Vector &t) const;
+   virtual void PrmMult(const Vector &x, Vector &y) const;
 
    /// Method is only called in serial, the parallel version calls
    /// GetGradientBlocked directly.
-   virtual Operator &GetGradient(const Vector &x) const;
+   virtual BlockOperator &GetGradient(const Vector &x) const;
 
    /// Set the state fields
    virtual void SetStateFields(const Vector &xv) const;
@@ -220,7 +220,7 @@ public:
 
 
    /// Destructor.
-   virtual ~PrmBlockNonlinearForm();
+   virtual ~ParametricBNLForm();
 
 };
 

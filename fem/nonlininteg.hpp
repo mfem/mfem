@@ -148,10 +148,10 @@ public:
 };
 
 
-/** The abstract base class PrmBlockNonlinearFormIntegrator is
+/** The abstract base class ParametricBNLFormIntegrator is
     a generalization of the BlockNonlinearFormIntegrator class suitable
     for block state and parameter vectors. */
-class PrmBlockNonlinearFormIntegrator
+class ParametricBNLFormIntegrator
 {
 public:
    /// Compute the local energy
@@ -178,14 +178,14 @@ public:
                                    const Array<const Vector *>&pelfun,
                                    const Array<Vector *> &elvect);
 
-    /// Perform the local action on the parameters of the BlockNonlinearFormIntegrator
+    /// Perform the local action on the parameters of the BNLFormIntegrator
     virtual void AssemblePrmElementVector(const Array<const FiniteElement *> &el,
                                        const Array<const FiniteElement *>&pel,
                                        ElementTransformation &Tr,
                                        const Array<const Vector *> &elfun,
                                        const Array<const Vector *> &alfun,
                                        const Array<const Vector *>&pelfun,
-                                       const Array<Vector *> &elvec);
+                                       const Array<Vector *> &pelvec);
 
     virtual void AssemblePrmFaceVector(const Array<const FiniteElement *> &el1,
                                     const Array<const FiniteElement *> &el2,
@@ -195,7 +195,7 @@ public:
                                     const Array<const Vector *> &elfun,
                                     const Array<const Vector *> &alfun,
                                     const Array<const Vector *>&pelfun,
-                                    const Array<Vector *> &elvect);
+                                    const Array<Vector *> &pelvect);
 
 
 
@@ -217,7 +217,7 @@ public:
                                  const Array2D<DenseMatrix *> &elmats);
 
 
-   virtual ~PrmBlockNonlinearFormIntegrator() { }
+   virtual ~ParametricBNLFormIntegrator() { }
 };
 
 
