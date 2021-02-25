@@ -45,9 +45,12 @@ enum class MemoryType
                          with MemoryManager::SetUmpire2DeviceAllocatorId */
    SIZE,           ///< Number of host and device memory types
 
-   PRESERVE        /**< Pseudo-MemoryType used as default value for MemoryType
+   PRESERVE,       /**< Pseudo-MemoryType used as default value for MemoryType
                         parameters to request preservation of existing
                         MemoryType, e.g. in copy constructors. */
+   DEFAULT         /**< Pseudo-MemoryType used as default value for MemoryType
+                        parameters to request the use of the default host or
+                        device MemoryType. */
 };
 
 /// Static casts to 'int' and sizes of some useful memory types.
@@ -337,6 +340,17 @@ public:
 
        @note The current memory is NOT deleted by this method. */
    inline void MakeAlias(const Memory &base, int offset, int size);
+
+   /// Set the device MemoryType to be used by the Memory object.
+   /** If the specified @a d_mt is not a device MemoryType, i.e. not one of the
+       types in MemoryClass::DEVICE, then this method will return immediately.
+
+       If the device MemoryType has been previously set to a different type and
+       the actual device memory has been allocated, this method will trigger an
+       error. This method will not perform the actual device memory allocation,
+       however, the allocation may already exist if the MemoryType is the same
+       as the current one. */
+   inline void SetDeviceMemoryType(MemoryType d_mt) const;
 
    /** @brief Delete the owned pointers. The Memory is not reset by this method,
        i.e. it will, generally, not be Empty() after this call. */
@@ -815,6 +829,14 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
       const size_t o_bytes = offset*sizeof(T);
       MemoryManager::Alias_(base.h_ptr, o_bytes, s_bytes, base.flags, flags);
    }
+}
+
+template <typename T>
+inline void Memory<T>::SetDeviceMemoryType(MemoryType d_mt) const
+{
+   if (!IsDeviceMemory(d_mt)) { return; }
+
+   // TODO
 }
 
 template <typename T>
