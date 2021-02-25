@@ -30,9 +30,9 @@
 //    On Variational and PDE-based Distance Function Approximations,
 //    Computer Graphics Forum, 34: 104-118, 2015
 //
-//    The solution of the p-Laplacian solver approaches the signed distance 
-//    function when p->\infinity. Therefore, increasing p will improve the 
-//    computed distance and, of course, will increase the computational cost. 
+//    The solution of the p-Laplacian solver approaches the signed distance
+//    function when p->\infinity. Therefore, increasing p will improve the
+//    computed distance and, of course, will increase the computational cost.
 //    The discretization of the p-Laplacian equation utilizes ideas from:
 //
 //    Kantorovich, L. V. & Krylov, V. I.
@@ -43,17 +43,17 @@
 //    Computer Methods in Applied Mechanics and Engineering, 1996, 139, 289-314
 //
 //
-//    Resolving highly oscillatory input fields requires refining the mesh or 
-//    increasing the order of the approximation. The above requirement for mesh 
-//    resolution is independent of the conditions imposed on the mesh by the 
-//    discretization of the actual distance solver. On the other hand, it is 
-//    often enough to compute the distance field to a mean zero level of a 
-//    smoothed version of the input field. In such cases, one can use a 
-//    low-pass filter that removes the high-frequency content of the input 
-//    field. Such filter is implemented in the class PDEFilter based on the 
-//    Screened Poisson equation. The radius specifies the minimal feature size 
-//    in the filter output and, in the current example, is linked to the average 
-//    mesh size. Theoretical description of the filter and discussion of the 
+//    Resolving highly oscillatory input fields requires refining the mesh or
+//    increasing the order of the approximation. The above requirement for mesh
+//    resolution is independent of the conditions imposed on the mesh by the
+//    discretization of the actual distance solver. On the other hand, it is
+//    often enough to compute the distance field to a mean zero level of a
+//    smoothed version of the input field. In such cases, one can use a
+//    low-pass filter that removes the high-frequency content of the input
+//    field. Such filter is implemented in the class PDEFilter based on the
+//    Screened Poisson equation. The radius specifies the minimal feature size
+//    in the filter output and, in the current example, is linked to the average
+//    mesh size. Theoretical description of the filter and discussion of the
 //    parameters can be found in:
 //
 //    Lazarov, B. S. & Sigmund, O.
@@ -287,7 +287,7 @@ int main(int argc, char *argv[])
 
    // Smooth out Gibbs oscillations from the input level set.
    // The smoothing parameter is this case is specified to be
-   // mesh dependent with length scale dx. 
+   // mesh dependent with length scale dx.
    ParGridFunction filt_gf(&pfes_s);
    PDEFilter *filter = new PDEFilter(pmesh, 1.0 * dx);
    if (problem != 0)
