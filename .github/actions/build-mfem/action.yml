@@ -67,7 +67,7 @@ runs:
         cd ${{ inputs.mfem-dir }};
         if [[ ${{ inputs.cmake }} == "YES" ]]
         then
-            cd build;
+            mkdir build && cd build;
             cmake .. -DMFEM_USE_MPI=${{ inputs.mpi }} -DMFEM_MPI_NP=2 -DHYPRE_DIR=../../hypre/src/hypre
         else
             make config MFEM_USE_MPI=${{ inputs.mpi }} MFEM_MPI_NP=2 MFEM_DEBUG=${{ inputs.debug }} CPPFLAGS="$CPPFLAGS";
