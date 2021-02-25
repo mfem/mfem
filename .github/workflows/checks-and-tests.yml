@@ -31,7 +31,6 @@ env:
 
 jobs:
   checks-and-tests:
-    environment: CodeCov
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
