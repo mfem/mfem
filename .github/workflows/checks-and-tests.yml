@@ -51,7 +51,7 @@ jobs:
             debug: NO
             codecov: NO
             mpi: YES
-            cmake YES
+            cmake: YES
 
     runs-on: ${{ matrix.os }}
 
