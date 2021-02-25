@@ -36,13 +36,22 @@ jobs:
         os: [ubuntu-latest, macos-latest]
         debug: [YES, NO]
         mpi: [NO, YES]
-        # 'include' allows to add a variable without creating a new matrix dimension.
-        # we will gather coverage info for any non-debug run.
+        cmake: [NO]
+        # 'include' allows to
+        # - add a variable without creating a new matrix dimension.
+        # - add a new combination ('cmake: YES' case here)
+        #
+        # note: we will gather coverage info for any non-debug run except the CMake build.
         include:
           - debug: YES
             codecov: NO
           - debug: NO
             codecov: YES
+          - os: ubuntu-latest
+            debug: NO
+            codecov: NO
+            mpi: YES
+            cmake YES
 
     runs-on: ${{ matrix.os }}
 
@@ -112,8 +121,9 @@ jobs:
       with:
         os: ${{ matrix.os }}
         debug: ${{ matrix.debug }}
-        mpi: ${{ matrix.mpi }}
         codecov: ${{ matrix.codecov }}
+        mpi: ${{ matrix.mpi }}
+        cmake: ${{ matrix.cmake }}
         hypre-dir: ${{ env.HYPRE_TOP_DIR }}
         metis-dir: ${{ env.METIS_TOP_DIR }}
         mfem-dir: mfem
