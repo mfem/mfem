@@ -255,27 +255,13 @@ int main(int argc, char *argv[])
          if (use_ginkgo_solver)
          {
 #ifdef MFEM_USE_GINKGO
-            // Test "direct" way of creating executor...TODO: remove this
-            GinkgoWrappers::GinkgoExecutor *exec;
-            if (!strcmp(device_config, "cuda"))
-            {
-               exec = new GinkgoWrappers::GinkgoExecutor(GinkgoWrappers::GinkgoExecutor::CUDA);
-            }
-            else
-            {
-               exec = new GinkgoWrappers::GinkgoExecutor(GinkgoWrappers::GinkgoExecutor::OMP);
-            }
+            GinkgoWrappers::GinkgoExecutor exec(device);
             // wrap MFEM preconditioner for Ginkgo's use.
-            GinkgoWrappers::MFEMPreconditioner gko_M(*exec, M);
-            //    GinkgoWrappers::CGSolver inner_solver(*exec, print_lvl, 400, 1e-6, 0.0, gko_M);
-            //    GinkgoWrappers::IRSolver ginkgo_solver(*exec, print_lvl, 400, 1e-12, 0.0,
-            //                                           inner_solver);
-            GinkgoWrappers::CGSolver ginkgo_solver(*exec, print_lvl, 400, 1e-12, 0.0,
+            GinkgoWrappers::MFEMPreconditioner gko_M(exec, M);
+            GinkgoWrappers::CGSolver ginkgo_solver(exec, print_lvl, 400, 1e-12, 0.0,
                                                    gko_M);
             ginkgo_solver.SetOperator(*(A.Ptr()));
             ginkgo_solver.Mult(B, X);
-
-            delete exec;
 #endif
          }
          else   // Use MFEM solver and preconditioner.
