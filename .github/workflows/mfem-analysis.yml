@@ -52,8 +52,8 @@ jobs:
       if: steps.hypre-cache.outputs.cache-hit != 'true'
       uses: ./mfem/.github/actions/install-hypre
       with:
-        hypre-archive: ${{ env.HYPRE_ARCHIVE }}
-        hypre-dir: ${{ env.HYPRE_TOP_DIR }}
+        archive: ${{ env.HYPRE_ARCHIVE }}
+        dir: ${{ env.HYPRE_TOP_DIR }}
 
     - name: Cache Metis Install
       id: metis-cache
@@ -66,8 +66,8 @@ jobs:
       if: steps.metis-cache.outputs.cache-hit != 'true'
       uses: ./mfem/.github/actions/install-metis
       with:
-        metis-archive: ${{ env.METIS_ARCHIVE }}
-        metis-dir: ${{ env.METIS_TOP_DIR }}
+        archive: ${{ env.METIS_ARCHIVE }}
+        dir: ${{ env.METIS_TOP_DIR }}
 
     # MFEM build and test
     - name: build-mfem
