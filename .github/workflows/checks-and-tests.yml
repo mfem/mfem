@@ -142,7 +142,7 @@ jobs:
     - name: cmake unit tests
       if: matrix.cmake == 'YES'
       run: |
-        cd mfem/tests/unit && ctest --output-on-failure
+        cd mfem/build/tests/unit && ctest --output-on-failure
 
     - name: tests
       if: matrix.cmake == 'NO' && matrix.debug == 'NO'
