@@ -715,6 +715,8 @@ public:
 
    static MemoryType GetHostMemoryType() { return host_mem_type; }
    static MemoryType GetDeviceMemoryType() { return device_mem_type; }
+   static void SetHostMemoryType(MemoryType h_mt) { host_mem_type = h_mt; }
+   static void SetDeviceMemoryType(MemoryType d_mt) { device_mem_type = d_mt; }
 };
 
 

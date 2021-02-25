@@ -254,7 +254,11 @@ public:
 
        Only memory types compatible with the current host MemoryClass are valid
        as input. */
-   static inline void SetHostMemoryType(MemoryType h_mt);
+   static inline void SetHostMemoryType(MemoryType h_mt)
+   {
+      Get().host_mem_type = h_mt;
+      mm.SetHostMemoryType(h_mt);
+   }
 
    /** @brief Get the current Host MemoryClass. This is the MemoryClass used
        by most MFEM host Memory objects. */
@@ -274,7 +278,11 @@ public:
 
        Only memory types compatible with the current device MemoryClass are
        valid as input. */
-   static inline void SetDeviceMemoryType(MemoryType h_mt);
+   static inline void SetDeviceMemoryType(MemoryType d_mt)
+   {
+      Get().device_mem_type = d_mt;
+      mm.SetDeviceMemoryType(d_mt);
+   }
 
    /** @brief Get the current Device MemoryClass. This is the MemoryClass used
        by most MFEM device kernels to access Memory objects. */
