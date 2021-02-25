@@ -296,7 +296,10 @@ void FindPointsGSLIB::GetQuadHexNodalCoordinates()
    const TensorBasisElement *tbe =
       dynamic_cast<const TensorBasisElement *>(fes->GetFE(0));
    MFEM_VERIFY(tbe != NULL, "TensorBasis FiniteElement expected.");
-   const Array<int> &dof_map = tbe->GetDofMap();
+   Array<int> dof_map(dof_cnt);
+   const Array<int> &dm = tbe->GetDofMap();
+   if (dm.Size() > 0) { dof_map = dm; }
+   else { for (int i = 0; i < dof_cnt; i++) { dof_map[i] = i; } }
 
    DenseMatrix pos(dof_cnt, dim);
    Vector posV(pos.Data(), dof_cnt * dim);

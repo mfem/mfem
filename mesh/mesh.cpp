@@ -4376,7 +4376,7 @@ static const char *fixed_or_not[] = { "fixed", "NOT FIXED" };
 
 int Mesh::CheckElementOrientation(bool fix_it)
 {
-   int i, j, k, wo = 0, fo = 0, *vi = 0;
+   int i, j, k, wo = 0, fo = 0;
    double *v[4];
 
    if (Dim == 2 && spaceDim == 2)
@@ -4385,9 +4385,9 @@ int Mesh::CheckElementOrientation(bool fix_it)
 
       for (i = 0; i < NumOfElements; i++)
       {
+         int *vi = elements[i]->GetVertices();
          if (Nodes == NULL)
          {
-            vi = elements[i]->GetVertices();
             for (j = 0; j < 3; j++)
             {
                v[j] = vertices[vi[j]]();
@@ -4433,7 +4433,7 @@ int Mesh::CheckElementOrientation(bool fix_it)
 
       for (i = 0; i < NumOfElements; i++)
       {
-         vi = elements[i]->GetVertices();
+         int *vi = elements[i]->GetVertices();
          switch (GetElementType(i))
          {
             case Element::TETRAHEDRON:
