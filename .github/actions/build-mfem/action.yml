@@ -36,12 +36,17 @@ inputs:
   mfem-dir:
     description: 'mfem repo checkout location in working dir'
     required: true
+  cmake:
+    description: 'build mfem with cmake'
+    required: false
+    default: NO
 
 runs:
   using: "composite"
   steps:
     - name: configure mfem
       run: |
+        echo "--- Prepare Configuration ---"
         if [[ ${{ inputs.mpi }} == "YES" ]]
         then
           echo "Hypre symlink:"
@@ -58,12 +63,30 @@ runs:
         then
           CPPFLAGS+=" -fprofile-arcs -ftest-coverage -fPIC -O0";
         fi
+        echo "--- Configure mfem ---"
         cd ${{ inputs.mfem-dir }};
-        make config MFEM_USE_MPI=${{ inputs.mpi }} MFEM_MPI_NP=2 MFEM_DEBUG=${{ inputs.debug }} CPPFLAGS="$CPPFLAGS";
+        if [[ ${{ inputs.cmake }} == "YES" ]]
+        then
+            cd build;
+            cmake .. -DMFEM_USE_MPI=${{ inputs.mpi }} -DMFEM_MPI_NP=2 -DHYPRE_DIR=../../hypre/src/hypre
+        else
+            make config MFEM_USE_MPI=${{ inputs.mpi }} MFEM_MPI_NP=2 MFEM_DEBUG=${{ inputs.debug }} CPPFLAGS="$CPPFLAGS";
+        fi
       shell: bash
 
-    - name: make
+    - name: build mfem
       run: |
-        cd ${{ inputs.mfem-dir }} && make all -j3
+        echo "--- Build mfem ---"
+        cd ${{ inputs.mfem-dir }}
+        if [[ ${{ inputs.cmake }} == "YES" ]]
+        then
+            cd build
+            make -j3 mfem examples
+            cd tests/unit
+            make -j3
+            ctest --output-on-failure
+        else
+            make all -j3
+        fi
       shell: bash
 
