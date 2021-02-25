@@ -16,7 +16,7 @@
 namespace mfem
 {
 
-PrmBlockNonlinearForm::PrmBlockNonlinearForm(): fes(0), prmfes(0), BlockGrad(nullptr)
+ParametricBNLForm::ParametricBNLForm(): fes(0), prmfes(0), BlockGrad(nullptr)
 {
     height = 0;
     width  = 0;
@@ -25,13 +25,13 @@ PrmBlockNonlinearForm::PrmBlockNonlinearForm(): fes(0), prmfes(0), BlockGrad(nul
     prmwidth = 0;
 }
 
-PrmBlockNonlinearForm::PrmBlockNonlinearForm(Array<FiniteElementSpace *> &f, Array<FiniteElementSpace *> &pf):
+ParametricBNLForm::ParametricBNLForm(Array<FiniteElementSpace *> &f, Array<FiniteElementSpace *> &pf):
     fes(0),prmfes(0), BlockGrad(nullptr)
 {
     SetSpaces(f,pf);
 }
 
-void PrmBlockNonlinearForm::SetSpaces(Array<FiniteElementSpace *> &f, Array<FiniteElementSpace *> &prmf)
+void ParametricBNLForm::SetSpaces(Array<FiniteElementSpace *> &f, Array<FiniteElementSpace *> &prmf)
 {
     delete BlockGrad;
     BlockGrad = nullptr;
@@ -152,7 +152,7 @@ void PrmBlockNonlinearForm::SetSpaces(Array<FiniteElementSpace *> &f, Array<Fini
 }
 
 
-void PrmBlockNonlinearForm::AddBdrFaceIntegrator(PrmBlockNonlinearFormIntegrator *nlfi,
+void ParametricBNLForm::AddBdrFaceIntegrator(ParametricBNLFormIntegrator *nlfi,
                                                             Array<int> &bdr_marker)
 {
     bfnfi.Append(nlfi);
@@ -160,7 +160,7 @@ void PrmBlockNonlinearForm::AddBdrFaceIntegrator(PrmBlockNonlinearFormIntegrator
 }
 
 
-double PrmBlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx, const BlockVector &dx) const
+double ParametricBNLForm::GetEnergyBlocked(const BlockVector &bx, const BlockVector &dx) const
 {
    Array<Array<int> *> vdofs(fes.Size());
    Array<Vector *> el_x(fes.Size());
@@ -243,7 +243,7 @@ double PrmBlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx, const Bloc
    return energy;
 }
 
-void PrmBlockNonlinearForm::SetStateFields(const Vector &xv) const
+void ParametricBNLForm::SetStateFields(const Vector &xv) const
 {
     BlockVector bx(xv.GetData(), block_trueOffsets);
     if(needs_prolongation)
@@ -260,7 +260,7 @@ void PrmBlockNonlinearForm::SetStateFields(const Vector &xv) const
 }
 
 
-void PrmBlockNonlinearForm::SetAdjointFields(const Vector &av) const
+void ParametricBNLForm::SetAdjointFields(const Vector &av) const
 {
     BlockVector bx(av.GetData(), block_trueOffsets);
     if(needs_prolongation)
@@ -277,7 +277,7 @@ void PrmBlockNonlinearForm::SetAdjointFields(const Vector &av) const
 
 }
 
-void PrmBlockNonlinearForm::SetPrmFields(const Vector &dv) const
+void ParametricBNLForm::SetPrmFields(const Vector &dv) const
 {
     BlockVector bx(dv.GetData(), prmblock_trueOffsets);
     if(prmneeds_prolongation)
@@ -293,13 +293,13 @@ void PrmBlockNonlinearForm::SetPrmFields(const Vector &dv) const
     }
 }
 
-double PrmBlockNonlinearForm::GetEnergy(const Vector &x) const
+double ParametricBNLForm::GetEnergy(const Vector &x) const
 {
    xs.Update(x.GetData(),block_offsets);
    return GetEnergyBlocked(xs,xdv);
 }
 
-void PrmBlockNonlinearForm::SetEssentialBC(const Array<Array<int> *> &bdr_attr_is_ess,
+void ParametricBNLForm::SetEssentialBC(const Array<Array<int> *> &bdr_attr_is_ess,
                                            Array<Vector *> &rhs)
 {
     for (int s = 0; s < fes.Size(); ++s)
@@ -315,7 +315,7 @@ void PrmBlockNonlinearForm::SetEssentialBC(const Array<Array<int> *> &bdr_attr_i
     }
 }
 
-void PrmBlockNonlinearForm::SetPrmEssentialBC(const Array<Array<int> *> &bdr_attr_is_ess,
+void ParametricBNLForm::SetPrmEssentialBC(const Array<Array<int> *> &bdr_attr_is_ess,
                                               Array<Vector *> &rhs)
 {
     for (int s = 0; s < prmfes.Size(); ++s)
@@ -331,7 +331,7 @@ void PrmBlockNonlinearForm::SetPrmEssentialBC(const Array<Array<int> *> &bdr_att
     }
 }
 
-void PrmBlockNonlinearForm::MultPrmBlocked(const BlockVector &bx,
+void ParametricBNLForm::MultPrmBlocked(const BlockVector &bx,
                                            const BlockVector &ax,
                                            const BlockVector &dx,
                                            BlockVector &dy) const
@@ -558,7 +558,7 @@ void PrmBlockNonlinearForm::MultPrmBlocked(const BlockVector &bx,
 
 }
 
-void PrmBlockNonlinearForm::MultBlocked(const BlockVector &bx,
+void ParametricBNLForm::MultBlocked(const BlockVector &bx,
                                         const BlockVector &dx,
                                         BlockVector &by) const
 {
@@ -771,7 +771,7 @@ void PrmBlockNonlinearForm::MultBlocked(const BlockVector &bx,
 
 }
 
-const BlockVector &PrmBlockNonlinearForm::Prolongate(const BlockVector &bx) const
+const BlockVector &ParametricBNLForm::Prolongate(const BlockVector &bx) const
 {
    MFEM_VERIFY(bx.Size() == Width(), "invalid input BlockVector size");
 
@@ -787,7 +787,7 @@ const BlockVector &PrmBlockNonlinearForm::Prolongate(const BlockVector &bx) cons
    return bx;
 }
 
-const BlockVector &PrmBlockNonlinearForm::PrmProlongate(const BlockVector &bx) const
+const BlockVector &ParametricBNLForm::PrmProlongate(const BlockVector &bx) const
 {
    MFEM_VERIFY(bx.Size() == prmwidth, "invalid input BlockVector size");
 
@@ -804,7 +804,7 @@ const BlockVector &PrmBlockNonlinearForm::PrmProlongate(const BlockVector &bx) c
 }
 
 
-void PrmBlockNonlinearForm::PrmMult(const Vector &x, Vector &y) const
+void ParametricBNLForm::PrmMult(const Vector &x, Vector &y) const
 {
     BlockVector bx(x.GetData(), prmblock_trueOffsets);
     BlockVector by(y.GetData(), prmblock_trueOffsets);
@@ -833,7 +833,7 @@ void PrmBlockNonlinearForm::PrmMult(const Vector &x, Vector &y) const
 }
 
 
-void PrmBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
+void ParametricBNLForm::Mult(const Vector &x, Vector &y) const
 {
 
    BlockVector bx(x.GetData(), block_trueOffsets);
@@ -861,7 +861,7 @@ void PrmBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
    }
 }
 
-void PrmBlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx, const BlockVector &dx) const
+void ParametricBNLForm::ComputeGradientBlocked(const BlockVector &bx, const BlockVector &dx) const
 {
     const int skip_zeros = 0;
     Array<Array<int> *> vdofs(fes.Size());
@@ -1103,7 +1103,7 @@ void PrmBlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx, const 
     }
 }
 
-Operator& PrmBlockNonlinearForm::GetGradient(const Vector &x) const
+BlockOperator& ParametricBNLForm::GetGradient(const Vector &x) const
 {
     BlockVector bx(x.GetData(), block_trueOffsets);
     const BlockVector &pbx = Prolongate(bx);
@@ -1158,7 +1158,7 @@ Operator& PrmBlockNonlinearForm::GetGradient(const Vector &x) const
 
 }
 
-PrmBlockNonlinearForm::~PrmBlockNonlinearForm()
+ParametricBNLForm::~ParametricBNLForm()
 {
     delete BlockGrad;
     for (int i=0; i<fes.Size(); ++i)

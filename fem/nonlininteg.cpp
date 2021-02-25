@@ -140,18 +140,18 @@ double BlockNonlinearFormIntegrator::GetElementEnergy(
    return 0.0;
 }
 
-double PrmBlockNonlinearFormIntegrator::GetElementEnergy(const Array<const FiniteElement *> &el,
+double ParametricBNLFormIntegrator::GetElementEnergy(const Array<const FiniteElement *> &el,
                                                          const Array<const FiniteElement *> &pel,
                                                          ElementTransformation &Tr,
                                                          const Array<const Vector *> &elfun,
                                                          const Array<const Vector *> &pelfun)
 {
-    mfem_error("PrmBlockNonlinearFormIntegrator::GetElementEnergy"
+    mfem_error("ParametricBNLFormIntegrator::GetElementEnergy"
                " is not overloaded!");
     return 0.0;
 }
 
-void PrmBlockNonlinearFormIntegrator::AssembleFaceGrad(const Array<const FiniteElement *> &el1,
+void ParametricBNLFormIntegrator::AssembleFaceGrad(const Array<const FiniteElement *> &el1,
                                                        const Array<const FiniteElement *> &el2,
                                                        const Array<const FiniteElement *> &pel1,
                                                        const Array<const FiniteElement *> &pel2,
@@ -160,33 +160,33 @@ void PrmBlockNonlinearFormIntegrator::AssembleFaceGrad(const Array<const FiniteE
                                                        const Array<const Vector *> &pelfun,
                                                        const Array2D<DenseMatrix *> &elmats)
 {
-    mfem_error("PrmBlockNonlinearFormIntegrator::AssembleFaceGrad"
+    mfem_error("ParametricBNLFormIntegrator::AssembleFaceGrad"
                " is not overloaded!");
 }
 
-void PrmBlockNonlinearFormIntegrator::AssembleElementGrad(const Array<const FiniteElement *> &el,
+void ParametricBNLFormIntegrator::AssembleElementGrad(const Array<const FiniteElement *> &el,
                                                           const Array<const FiniteElement *> &pel,
                                                           ElementTransformation &Tr,
                                                           const Array<const Vector *> &elfun,
                                                           const Array<const Vector *> &pelfun,
                                                           const Array2D<DenseMatrix *> &elmats)
 {
-    mfem_error("PrmBlockNonlinearFormIntegrator::AssembleElementGrad"
+    mfem_error("ParametricBNLFormIntegrator::AssembleElementGrad"
                " is not overloaded!");
 }
 
-void PrmBlockNonlinearFormIntegrator::AssembleElementVector(const Array<const FiniteElement *> &el,
+void ParametricBNLFormIntegrator::AssembleElementVector(const Array<const FiniteElement *> &el,
                                                             const Array<const FiniteElement *> &pel,
                                                             ElementTransformation &Tr,
                                                             const Array<const Vector *> &elfun,
                                                             const Array<const Vector *> &pelfun,
                                                             const Array<Vector *> &elvec)
 {
-    mfem_error("PrmBlockNonlinearFormIntegrator::AssembleElementVector"
+    mfem_error("ParametricBNLFormIntegrator::AssembleElementVector"
                " is not overloaded!");
 }
 
-void PrmBlockNonlinearFormIntegrator::AssembleFaceVector(const Array<const FiniteElement *> &el1,
+void ParametricBNLFormIntegrator::AssembleFaceVector(const Array<const FiniteElement *> &el1,
                                                          const Array<const FiniteElement *> &el2,
                                                          const Array<const FiniteElement *> &pel1,
                                                          const Array<const FiniteElement *> &pel2,
@@ -195,12 +195,12 @@ void PrmBlockNonlinearFormIntegrator::AssembleFaceVector(const Array<const Finit
                                                          const Array<const Vector *> &pelfun,
                                                          const Array<Vector *> &elvect)
 {
-    mfem_error("PrmBlockNonlinearFormIntegrator::AssembleFaceVector"
+    mfem_error("ParametricBNLFormIntegrator::AssembleFaceVector"
                " is not overloaded!");
 }
 
 
-void PrmBlockNonlinearFormIntegrator::AssemblePrmElementVector(const Array<const FiniteElement *> &el,
+void ParametricBNLFormIntegrator::AssemblePrmElementVector(const Array<const FiniteElement *> &el,
                                                                const Array<const FiniteElement *> &pel,
                                                                ElementTransformation &Tr,
                                                                const Array<const Vector *> &elfun,
@@ -208,11 +208,11 @@ void PrmBlockNonlinearFormIntegrator::AssemblePrmElementVector(const Array<const
                                                                const Array<const Vector *> &pelfun,
                                                                const Array<Vector *> &elvec)
 {
-    mfem_error("PrmBlockNonlinearFormIntegrator::AssemblePrmElementVector"
+    mfem_error("ParametricBNLFormIntegrator::AssemblePrmElementVector"
                " is not overloaded!");
 }
 
-void PrmBlockNonlinearFormIntegrator::AssemblePrmFaceVector(const Array<const FiniteElement *> &el1,
+void ParametricBNLFormIntegrator::AssemblePrmFaceVector(const Array<const FiniteElement *> &el1,
                                                          const Array<const FiniteElement *> &el2,
                                                          const Array<const FiniteElement *> &pel1,
                                                          const Array<const FiniteElement *> &pel2,
@@ -222,7 +222,7 @@ void PrmBlockNonlinearFormIntegrator::AssemblePrmFaceVector(const Array<const Fi
                                                          const Array<const Vector *> &pelfun,
                                                          const Array<Vector *> &elvect)
 {
-    mfem_error("PrmBlockNonlinearFormIntegrator::AssemblePrmFaceVector"
+    mfem_error("ParametricBNLFormIntegrator::AssemblePrmFaceVector"
                " is not overloaded!");
 }
 
