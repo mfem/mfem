@@ -303,14 +303,17 @@ struct ResidualLogger : gko::log::Logger
         b{b},
         compute_real_residual{compute_real_residual}
    {
-      if (dynamic_cast<const VectorWrapper*>(b))
+      if (compute_real_residual == true)
       {
-         const VectorWrapper *b_cast = gko::as<const VectorWrapper>(b);
-         res = std::move(gko_dense::create_with_config_of(b_cast).release());
-      }
-      else
-      {
-         res = std::move(gko::clone(b).release());
+         if (dynamic_cast<const VectorWrapper*>(b))
+         {
+            const VectorWrapper *b_cast = gko::as<const VectorWrapper>(b);
+            res = std::move(gko_dense::create_with_config_of(b_cast).release());
+         }
+         else
+         {
+            res = std::move(gko::clone(b).release());
+         }
       }
    }
 
