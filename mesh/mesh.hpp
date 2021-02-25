@@ -782,9 +782,9 @@ public:
        returned object will use that type unless it was previously allocated
        with a different type. */
    const GeometricFactors* GetGeometricFactors(
-         const IntegrationRule& ir,
-         const int flags,
-         MemoryType d_mt = MemoryType::DEFAULT);
+      const IntegrationRule& ir,
+      const int flags,
+      MemoryType d_mt = MemoryType::DEFAULT);
 
    /** @brief Return the mesh geometric factors for the faces corresponding
         to the given integration rule. */

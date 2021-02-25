@@ -46,26 +46,24 @@ static bool is_pinned_host(void * p)
 
 static void test_umpire_device_memory()
 {
+   constexpr const char * device_perm_alloc_name = "MFEM-Permanent-Device-Pool";
+   constexpr const char * device_temp_alloc_name = "MFEM-Temporary-Device-Pool";
    auto &rm = umpire::ResourceManager::getInstance();
 
-   const int permanent = umpire::Allocator(
-                            rm.makeAllocator<
-                            umpire::strategy::DynamicPoolMap,
-                            true>("MFEM-Permanent-Device-Pool",
-                                  rm.getAllocator("DEVICE"), 0, 0))
-                         .getId();
+   rm.makeAllocator<
+   umpire::strategy::DynamicPoolMap,
+          true>(device_perm_alloc_name
+                rm.getAllocator("DEVICE"), 0, 0);
 
-   const int temporary = umpire::Allocator(
-                            rm.makeAllocator<
-                            umpire::strategy::DynamicPoolList,
-                            true>("MFEM-Temporary-Device-Pool",
-                                  rm.getAllocator("DEVICE"), 0, 0))
-                         .getId();
+   rm.makeAllocator<
+   umpire::strategy::QuickPool,
+          true>(device_temp_alloc_name
+                rm.getAllocator("DEVICE"), 0, 0);
 
    // set the Umpire allocators used with MemoryType::DEVICE_UMPIRE and
    // MemoryType::DEVICE_UMPIRE_2
-   MemoryManager::SetUmpireDeviceAllocatorId(permanent);
-   MemoryManager::SetUmpire2DeviceAllocatorId(temporary);
+   MemoryManager::SetUmpireDeviceAllocatorName(device_perm_alloc_name);
+   MemoryManager::SetUmpireDevice2AllocatorName(device_temp_alloc_name);
    Device device("cuda");
    Device::SetHostMemoryType(MemoryType::HOST); // not necessary
    Device::SetDeviceMemoryType(MemoryType::DEVICE_UMPIRE); // 'permanent'
