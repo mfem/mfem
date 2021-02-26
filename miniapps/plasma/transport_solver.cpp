@@ -2144,39 +2144,41 @@ void DGTransportTDO::NLOperator::Mult(const Vector &, Vector &r) const
          fes_.GetElementVDofs(ftrans->Elem1No, vdofs_);
          fes_.GetFaceNbrElementVDofs(nbr_el_no, vdofs2_);
 
-         for (int k = 0; k < fbfi_.Size(); k++)
+         const FiniteElement &fe1 = *fes_.GetFE(ftrans->Elem1No);
+         const FiniteElement &fe2 = *fes_.GetFaceNbrFE(nbr_el_no);
+
+         fbfi_[0]->AssembleFaceMatrix(fe1, fe2, *ftrans, elmat_);
+         for (int k = 1; k < fbfi_.Size(); k++)
          {
-            fbfi_[k]->AssembleFaceMatrix(*fes_.GetFE(ftrans->Elem1No),
-                                         *fes_.GetFaceNbrFE(nbr_el_no),
-                                         *ftrans, elmat_);
-
-            int ndof  = vdofs_.Size();
-            int ndof2 = vdofs2_.Size();
-
-            elvec_.SetSize(ndof+ndof2);
-            locvec_.SetSize(ndof+ndof2);
-            locdvec_.SetSize(ndof+ndof2);
-
-            elvec.SetDataAndSize(&elvec_[0], ndof);
-
-            locvec1.SetDataAndSize(&locvec_[0], ndof);
-            locvec2.SetDataAndSize(&locvec_[ndof], ndof2);
-
-            locdvec1.SetDataAndSize(&locdvec_[0], ndof);
-            locdvec2.SetDataAndSize(&locdvec_[ndof], ndof2);
-
-            yGF_[index_]->GetSubVector(vdofs_, locvec1);
-            kGF_[index_]->GetSubVector(vdofs_, locdvec1);
-
-            yGF_[index_]->FaceNbrData().GetSubVector(vdofs2_, locvec2);
-            kGF_[index_]->FaceNbrData().GetSubVector(vdofs2_, locdvec2);
-
-            locvec_.Add(dt_, locdvec_);
-
-            elmat_.Mult(locvec_, elvec_);
-
-            r.AddElementVector(vdofs_, elvec);
+            fbfi_[k]->AssembleFaceMatrix(fe1, fe2, *ftrans, elmat_);
          }
+
+         int ndof  = vdofs_.Size();
+         int ndof2 = vdofs2_.Size();
+
+         elvec_.SetSize(ndof+ndof2);
+         locvec_.SetSize(ndof+ndof2);
+         locdvec_.SetSize(ndof+ndof2);
+
+         elvec.SetDataAndSize(&elvec_[0], ndof);
+
+         locvec1.SetDataAndSize(&locvec_[0], ndof);
+         locvec2.SetDataAndSize(&locvec_[ndof], ndof2);
+
+         locdvec1.SetDataAndSize(&locdvec_[0], ndof);
+         locdvec2.SetDataAndSize(&locdvec_[ndof], ndof2);
+
+         yGF_[index_]->GetSubVector(vdofs_, locvec1);
+         kGF_[index_]->GetSubVector(vdofs_, locdvec1);
+
+         yGF_[index_]->FaceNbrData().GetSubVector(vdofs2_, locvec2);
+         kGF_[index_]->FaceNbrData().GetSubVector(vdofs2_, locdvec2);
+
+         locvec_.Add(dt_, locdvec_);
+
+         elmat_.Mult(locvec_, elvec_);
+
+         r.AddElementVector(vdofs_, elvec);
       }
    }
 
