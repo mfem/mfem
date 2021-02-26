@@ -980,6 +980,7 @@ int main(int argc, char *argv[])
    Array<int> term_flags;
    Array<int> vis_flags;
    const char *device_config = "cpu";
+   bool check_grad = false;
    bool visualization = true;
    bool visit = false;
    bool binary = false;
@@ -1182,6 +1183,11 @@ int main(int argc, char *argv[])
    args.AddOption(&binary, "-binary", "--binary-datafiles", "-ascii",
                   "--ascii-datafiles",
                   "Use binary (Sidre) or ascii format for VisIt data files.");
+   args.AddOption(&check_grad, "-check-grad", "--check-gradient",
+                  "-no-check-grad",
+                  "--no-check-gradient",
+                  "Verify that the gradient returned by DGTransportTDO "
+                  "is valid then exit.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
 
@@ -1795,6 +1801,12 @@ int main(int argc, char *argv[])
                        term_flags, vis_flags, imex, op_flag, logging);
 
    oper.SetLogging(max(0, logging - (mpi.Root()? 0 : 1)));
+
+   if (check_grad)
+   {
+      oper.CheckGradient();
+      return 0;
+   }
 
    if (visualization)
    {

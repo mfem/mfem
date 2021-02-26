@@ -1726,6 +1726,33 @@ void DGTransportTDO::SetLogging(int logging)
    op_.SetLogging(logging);
 }
 
+void DGTransportTDO::CheckGradient()
+{
+   int tsize = newton_solver_.Height();
+   int fsize = tsize / 5;
+   Vector k(tsize);
+   Vector h(tsize);
+
+   k.Randomize(1234);
+   h.Randomize(5678);
+
+   ConstantCoefficient zeroCoef(0.0);
+   for (int i=0; i<5; i++)
+   {
+      double nrm = ((op_flag_ >> i) & 1) ?
+                   yGF_[i]->ComputeMaxError(zeroCoef) : 0.0;
+
+      for (int j=0; j<fsize; j++)
+      {
+         k[i*fsize + j] *= 1e-2 *nrm;
+         h[i*fsize + j] *= 1e-4 *nrm;
+      }
+   }
+
+   double f = newton_solver_.CheckGradient(k, h);
+   mfem::out << "DGTransportTDO CheckGradient: " << f << std::endl;
+}
+
 bool DGTransportTDO::CheckForSteadyState()
 {
    bool ss = ss_.Size() > 0;
