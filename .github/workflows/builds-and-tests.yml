@@ -59,7 +59,7 @@ jobs:
             codecov: YES
             mpi: YES
             hypre-target: bigint
-    name: ${{ matrix.os }}-${{ matrix.target }}-mpi(${{ matrix.mpi }})-${{ matrix.build-system }}
+    name: ${{ matrix.os }}-${{ matrix.target }}-mpi(${{ matrix.mpi }})-${{ matrix.build-system }}-hypre(${{ matrix.hypre-target }}
 
     runs-on: ${{ matrix.os }}
 
