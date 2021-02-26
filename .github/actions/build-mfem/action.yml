@@ -36,8 +36,8 @@ inputs:
   mfem-dir:
     description: 'mfem repo checkout location in working dir'
     required: true
-  cmake:
-    description: 'build mfem with cmake'
+  build-system:
+    description: 'identify the build system to use (make,cmake)'
     required: false
     default: NO
 
@@ -66,7 +66,7 @@ runs:
         fi
         echo "--- Configure mfem ---"
         cd ${{ inputs.mfem-dir }};
-        if [[ ${{ inputs.cmake }} == "YES" ]]; then
+        if [[ ${{ inputs.build-system }} == "cmake" ]]; then
             mkdir build && cd build;
             cmake .. -DMFEM_USE_MPI=${{ inputs.mpi }} -DMFEM_MPI_NP=2 -DHYPRE_DIR=../../hypre/src/hypre
         else
@@ -78,7 +78,7 @@ runs:
       run: |
         echo "--- Build mfem ---"
         cd ${{ inputs.mfem-dir }}
-        if [[ ${{ inputs.cmake }} == "YES" ]]; then
+        if [[ ${{ inputs.build-system }} == "cmake" ]]; then
             cd build
             make -j3 mfem examples
             cd tests/unit
