@@ -29,8 +29,9 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Map target to options
+    - name: Install Hypre
       run: |
+        echo "Map target to options"
         if [[ "${{ inputs.target }}" == "basic" ]]
         then
           export hypre_options="--disable-fortran";
@@ -41,10 +42,7 @@ runs:
           echo "Hypre target not recognized";
           exit 1;
         fi
-      shell: bash
-
-    - name: Install Hypre
-      run: |
+        echo "Installing Hypre"
         wget --no-verbose ${{ inputs.url }}/${{ inputs.archive }};
         rm -rf ${{ inputs.dir }};
         tar -xzf ${{ inputs.archive }};
