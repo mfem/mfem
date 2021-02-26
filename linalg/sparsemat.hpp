@@ -106,6 +106,9 @@ protected:
 #endif
 
 public:
+
+   enum ZERO_POLICY { KEEP_ZERO=0, SKIP_ZERO_SYM, SKIP_ZERO_ALL };
+
    /// Create an empty SparseMatrix.
    SparseMatrix()
    {
@@ -461,10 +464,10 @@ public:
    /** This method should be called once, after the matrix has been initialized.
        Internally, this method converts the matrix from row-wise linked list
        (LIL) format into CSR (compressed sparse row) format. */
-   virtual void Finalize(int skip_zeros = 1) { Finalize(skip_zeros, false); }
+   virtual void Finalize(ZERO_POLICY skip_zeros=SKIP_ZERO_SYM) { Finalize(skip_zeros, false); }
 
    /// A slightly more general version of the Finalize(int) method.
-   void Finalize(int skip_zeros, bool fix_empty_rows);
+   void Finalize(ZERO_POLICY skip_zeros, bool fix_empty_rows);
 
    /// Returns whether or not CSR format has been finalized.
    bool Finalized() const { return !A.Empty(); }
@@ -518,13 +521,13 @@ public:
    void Add(const int i, const int j, const double a);
 
    void SetSubMatrix(const Array<int> &rows, const Array<int> &cols,
-                     const DenseMatrix &subm, int skip_zeros = 1);
+                     const DenseMatrix &subm, ZERO_POLICY skip_zeros=SKIP_ZERO_SYM);
 
    void SetSubMatrixTranspose(const Array<int> &rows, const Array<int> &cols,
-                              const DenseMatrix &subm, int skip_zeros = 1);
+                              const DenseMatrix &subm, ZERO_POLICY skip_zeros=SKIP_ZERO_SYM);
 
    void AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
-                     const DenseMatrix &subm, int skip_zeros = 1);
+                     const DenseMatrix &subm, ZERO_POLICY skip_zeros=SKIP_ZERO_SYM);
 
    bool RowIsEmpty(const int row) const;
 

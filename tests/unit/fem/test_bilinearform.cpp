@@ -44,16 +44,16 @@ TEST_CASE("Test order of boundary integrators",
       a1234.AddBoundaryIntegrator(new MassIntegrator(two), bdr2);
       a1234.AddBoundaryIntegrator(new MassIntegrator(three), bdr3);
       a1234.AddBoundaryIntegrator(new MassIntegrator(four), bdr4);
-      a1234.Assemble(0);
-      a1234.Finalize(0);
+      a1234.Assemble(SparseMatrix::KEEP_ZERO);
+      a1234.Finalize(SparseMatrix::KEEP_ZERO);
 
       BilinearForm a4321(&fes);
       a4321.AddBoundaryIntegrator(new MassIntegrator(four), bdr4);
       a4321.AddBoundaryIntegrator(new MassIntegrator(three), bdr3);
       a4321.AddBoundaryIntegrator(new MassIntegrator(two), bdr2);
       a4321.AddBoundaryIntegrator(new MassIntegrator(one), bdr1);
-      a4321.Assemble(0);
-      a4321.Finalize(0);
+      a4321.Assemble(SparseMatrix::KEEP_ZERO);
+      a4321.Finalize(SparseMatrix::KEEP_ZERO);
 
       const SparseMatrix &A1234 = a1234.SpMat();
       const SparseMatrix &A4321 = a4321.SpMat();

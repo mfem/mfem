@@ -270,7 +270,7 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
       MFEM_ABORT("Not yet implemented!");
    }
 
-   const int skip_zeros = 0;
+   constexpr SparseMatrix::ZERO_POLICY skip_zeros=SparseMatrix::KEEP_ZERO;
    Array<int> vdofs;
    Vector el_x;
    DenseMatrix elmat;
@@ -804,7 +804,7 @@ void BlockNonlinearForm::Mult(const Vector &x, Vector &y) const
 
 void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
 {
-   const int skip_zeros = 0;
+   constexpr SparseMatrix::ZERO_POLICY skip_zeros=SparseMatrix::KEEP_ZERO;
    Array<Array<int> *> vdofs(fes.Size());
    Array<Array<int> *> vdofs2(fes.Size());
    Array<Vector *> el_x(fes.Size());

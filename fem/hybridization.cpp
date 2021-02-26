@@ -96,7 +96,7 @@ void Hybridization::ConstructC()
 
    if (c_bfi)
    {
-      const int skip_zeros = 1;
+      constexpr SparseMatrix::ZERO_POLICY skip_zeros = SparseMatrix::SKIP_ZERO_SYM;
       DenseMatrix elmat;
       FaceElementTransformations *FTr;
       Mesh *mesh = fes->GetMesh();
@@ -568,7 +568,7 @@ void Hybridization::AssembleBdrMatrix(int bdr_el, const DenseMatrix &A)
 
 void Hybridization::ComputeH()
 {
-   const int skip_zeros = 1;
+   constexpr SparseMatrix::ZERO_POLICY skip_zeros=SparseMatrix::SKIP_ZERO_SYM;
    Array<int> c_dof_marker(Ct->Width());
    Array<int> b_dofs, c_dofs;
    const int NE = fes->GetNE();

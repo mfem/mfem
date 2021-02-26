@@ -1134,7 +1134,7 @@ void SparseMatrix::Threshold(double tol, bool fix_empty_rows)
    A.Wrap(newA, I[height], true);
 }
 
-void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
+void SparseMatrix::Finalize(ZERO_POLICY skip_zeros, bool fix_empty_rows)
 {
    int i, j, nr, nz;
    RowNode *aux;
@@ -1154,7 +1154,7 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
       nr = 0;
       for (aux = Rows[i-1]; aux != NULL; aux = aux->Prev)
       {
-         if (!skip_zeros || aux->Value != 0.0) { nr++; }
+         if (skip_zeros == KEEP_ZERO || aux->Value != 0.0) { nr++; }
       }
       if (fix_empty_rows && !nr) { nr = 1; }
       I[i] = I[i-1] + nr;
@@ -1171,7 +1171,7 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
       nr = 0;
       for (aux = Rows[i]; aux != NULL; aux = aux->Prev)
       {
-         if (!skip_zeros || aux->Value != 0.0)
+         if (skip_zeros == KEEP_ZERO || aux->Value != 0.0)
          {
             J[j] = aux->Column;
             A[j] = aux->Value;
@@ -2443,7 +2443,7 @@ void SparseMatrix::Jacobi3(const Vector &b, const Vector &x0, Vector &x1,
 }
 
 void SparseMatrix::AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
-                                const DenseMatrix &subm, int skip_zeros)
+                                const DenseMatrix &subm, ZERO_POLICY skip_zeros)
 {
    int i, j, gi, gj, s, t;
    double a;
@@ -2464,11 +2464,11 @@ void SparseMatrix::AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
                      "Trying to insert a column " << gj << " outside the matrix width "
                      << width);
          a = subm(i, j);
-         if (skip_zeros && a == 0.0)
+         if ((skip_zeros != KEEP_ZERO) && a == 0.0)
          {
             // if the element is zero do not assemble it unless this breaks
             // the symmetric structure
-            if (&rows != &cols || subm(j, i) == 0.0)
+            if ((skip_zeros == SKIP_ZERO_ALL) || (&rows != &cols || subm(j, i) == 0.0))
             {
                continue;
             }
@@ -2519,7 +2519,7 @@ void SparseMatrix::Add(const int i, const int j, const double A)
 }
 
 void SparseMatrix::SetSubMatrix(const Array<int> &rows, const Array<int> &cols,
-                                const DenseMatrix &subm, int skip_zeros)
+                                const DenseMatrix &subm, ZERO_POLICY skip_zeros)
 {
    int i, j, gi, gj, s, t;
    double a;
@@ -2535,7 +2535,7 @@ void SparseMatrix::SetSubMatrix(const Array<int> &rows, const Array<int> &cols,
       for (j = 0; j < cols.Size(); j++)
       {
          a = subm(i, j);
-         if (skip_zeros && a == 0.0)
+         if ((skip_zeros != KEEP_ZERO) && a == 0.0)
          {
             continue;
          }
@@ -2554,7 +2554,7 @@ void SparseMatrix::SetSubMatrix(const Array<int> &rows, const Array<int> &cols,
 void SparseMatrix::SetSubMatrixTranspose(const Array<int> &rows,
                                          const Array<int> &cols,
                                          const DenseMatrix &subm,
-                                         int skip_zeros)
+                                         ZERO_POLICY skip_zeros)
 {
    int i, j, gi, gj, s, t;
    double a;
@@ -2570,7 +2570,7 @@ void SparseMatrix::SetSubMatrixTranspose(const Array<int> &rows,
       for (j = 0; j < cols.Size(); j++)
       {
          a = subm(j, i);
-         if (skip_zeros && a == 0.0)
+         if ((skip_zeros != KEEP_ZERO) && a == 0.0)
          {
             continue;
          }

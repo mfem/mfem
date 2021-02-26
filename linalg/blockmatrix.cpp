@@ -373,7 +373,8 @@ void BlockMatrix::EliminateZeroRows(const double threshold)
    }
 }
 
-void BlockMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
+void BlockMatrix::Finalize(SparseMatrix::ZERO_POLICY skip_zeros,
+                           bool fix_empty_rows)
 {
    for (int iblock = 0; iblock < nRowBlocks; ++iblock)
    {

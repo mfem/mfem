@@ -60,7 +60,7 @@ double compare_pa_id_assembly(int dim, int num_elements, int order,
 
    DiscreteLinearOperator assembled_id(&h1_fespace, &nd_fespace);
    assembled_id.AddDomainInterpolator(new IdentityInterpolator);
-   const int skip_zeros = 1;
+   constexpr SparseMatrix::ZERO_POLICY skip_zeros=SparseMatrix::SKIP_ZERO_SYM;
    assembled_id.Assemble(skip_zeros);
    assembled_id.Finalize(skip_zeros);
    const SparseMatrix& assembled_id_mat = assembled_id.SpMat();

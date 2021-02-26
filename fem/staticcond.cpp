@@ -220,7 +220,7 @@ void StaticCondensation::AssembleMatrix(int el, const DenseMatrix &elmat)
    lu.BlockFactor(nvpd, nved, A_pe.Data(), A_ep.Data(), A_ee.Data());
 
    // Assemble the Schur complement
-   const int skip_zeros = 0;
+   constexpr SparseMatrix::ZERO_POLICY skip_zeros=SparseMatrix::KEEP_ZERO;
    S->AddSubMatrix(rvdofs, rvdofs, A_ee, skip_zeros);
 }
 
@@ -228,13 +228,13 @@ void StaticCondensation::AssembleBdrMatrix(int el, const DenseMatrix &elmat)
 {
    Array<int> rvdofs;
    tr_fes->GetBdrElementVDofs(el, rvdofs);
-   const int skip_zeros = 0;
+   constexpr SparseMatrix::ZERO_POLICY skip_zeros=SparseMatrix::KEEP_ZERO;
    S->AddSubMatrix(rvdofs, rvdofs, elmat, skip_zeros);
 }
 
 void StaticCondensation::Finalize()
 {
-   const int skip_zeros = 0;
+   constexpr SparseMatrix::ZERO_POLICY skip_zeros=SparseMatrix::KEEP_ZERO;
    if (!Parallel())
    {
       S->Finalize(skip_zeros);

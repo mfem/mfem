@@ -289,10 +289,10 @@ public:
                              Array<int> &bdr_marker);
 
    /// Assemble the local matrix
-   void Assemble(int skip_zeros = 1);
+   void Assemble(SparseMatrix::ZERO_POLICY skip_zeros=SparseMatrix::SKIP_ZERO_SYM);
 
    /// Finalizes the matrix initialization.
-   void Finalize(int skip_zeros = 1);
+   void Finalize(SparseMatrix::ZERO_POLICY skip_zeros=SparseMatrix::SKIP_ZERO_SYM);
 
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */
@@ -633,10 +633,10 @@ public:
                              Array<int> &bdr_marker);
 
    /// Assemble the local matrix
-   void Assemble(int skip_zeros = 1);
+   void Assemble(SparseMatrix::ZERO_POLICY skip_zeros=SparseMatrix::SKIP_ZERO_SYM);
 
    /// Finalizes the matrix initialization.
-   void Finalize(int skip_zeros = 1);
+   void Finalize(SparseMatrix::ZERO_POLICY skip_zeros=SparseMatrix::SKIP_ZERO_SYM);
 
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */

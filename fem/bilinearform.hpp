@@ -294,7 +294,8 @@ public:
    virtual MatrixInverse *Inverse() const;
 
    /// Finalizes the matrix initialization.
-   virtual void Finalize(int skip_zeros = 1);
+   virtual void Finalize(SparseMatrix::ZERO_POLICY skip_zeros=
+                            SparseMatrix::SKIP_ZERO_SYM);
 
    /// Returns a const reference to the sparse matrix.
    const SparseMatrix &SpMat() const
@@ -364,7 +365,7 @@ public:
    }
 
    /// Assembles the form i.e. sums over all domain/bdr integrators.
-   void Assemble(int skip_zeros = 1);
+   void Assemble(SparseMatrix::ZERO_POLICY skip_zeros=SparseMatrix::SKIP_ZERO_SYM);
 
    /** @brief Assemble the diagonal of the bilinear form into diag
 
@@ -494,7 +495,7 @@ public:
        the system matrix.
    */
    void AssembleElementMatrix(int i, const DenseMatrix &elmat,
-                              int skip_zeros = 1);
+                              SparseMatrix::ZERO_POLICY skip_zeros=SparseMatrix::SKIP_ZERO_SYM);
 
    /// Assemble the given element matrix
    /** The element matrix @a elmat is assembled for the element @a i, i.e.
@@ -503,7 +504,8 @@ public:
        matrix, unless they are breaking the symmetry of the system matrix.
    */
    void AssembleElementMatrix(int i, const DenseMatrix &elmat,
-                              Array<int> &vdofs, int skip_zeros = 1);
+                              Array<int> &vdofs,
+                              SparseMatrix::ZERO_POLICY skip_zeros=SparseMatrix::SKIP_ZERO_SYM);
 
    /// Assemble the given boundary element matrix
    /** The boundary element matrix @a elmat is assembled for the boundary
@@ -512,7 +514,7 @@ public:
        symmetry of the system matrix.
    */
    void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
-                                 int skip_zeros = 1);
+                                 SparseMatrix::ZERO_POLICY skip_zeros=SparseMatrix::SKIP_ZERO_SYM);
 
    /// Assemble the given boundary element matrix
    /** The boundary element matrix @a elmat is assembled for the boundary
@@ -521,7 +523,8 @@ public:
        of the matrix, unless they are breaking the symmetry of the system matrix.
    */
    void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
-                                 Array<int> &vdofs, int skip_zeros = 1);
+                                 Array<int> &vdofs,
+                                 SparseMatrix::ZERO_POLICY skip_zeros=SparseMatrix::SKIP_ZERO_SYM);
 
    /// Eliminate essential boundary DOFs from the system.
    /** The array @a bdr_attr_is_ess marks boundary attributes that constitute
@@ -706,7 +709,8 @@ public:
    virtual MatrixInverse *Inverse() const;
 
    /// Finalizes the matrix initialization.
-   virtual void Finalize(int skip_zeros = 1);
+   virtual void Finalize(SparseMatrix::ZERO_POLICY skip_zeros=
+                            SparseMatrix::SKIP_ZERO_SYM);
 
    /** Extract the associated matrix as SparseMatrix blocks. The number of
        block rows and columns is given by the vector dimensions (vdim) of the
@@ -774,7 +778,7 @@ public:
    /** This method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
 
-   void Assemble(int skip_zeros = 1);
+   void Assemble(SparseMatrix::ZERO_POLICY skip_zeros=SparseMatrix::SKIP_ZERO_SYM);
 
    /** @brief Assemble the diagonal of ADA^T into diag, where A is this mixed
        bilinear form and D is a diagonal. */
@@ -816,7 +820,7 @@ public:
        the system matrix.
    */
    void AssembleElementMatrix(int i, const DenseMatrix &elmat,
-                              int skip_zeros = 1);
+                              SparseMatrix::ZERO_POLICY skip_zeros=SparseMatrix::SKIP_ZERO_SYM);
 
    /// Assemble the given element matrix
    /** The element matrix @a elmat is assembled for the element @a i, i.e.
@@ -827,7 +831,7 @@ public:
    */
    void AssembleElementMatrix(int i, const DenseMatrix &elmat,
                               Array<int> &trial_vdofs, Array<int> &test_vdofs,
-                              int skip_zeros = 1);
+                              SparseMatrix::ZERO_POLICY skip_zeros=SparseMatrix::SKIP_ZERO_SYM);
 
    /// Assemble the given boundary element matrix
    /** The boundary element matrix @a elmat is assembled for the boundary
@@ -836,7 +840,7 @@ public:
        symmetry of the system matrix.
    */
    void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
-                                 int skip_zeros = 1);
+                                 SparseMatrix::ZERO_POLICY skip_zeros=SparseMatrix::SKIP_ZERO_SYM);
 
    /// Assemble the given boundary element matrix
    /** The boundary element matrix @a elmat is assembled for the boundary
@@ -847,7 +851,7 @@ public:
    */
    void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
                                  Array<int> &trial_vdofs, Array<int> &test_vdofs,
-                                 int skip_zeros = 1);
+                                 SparseMatrix::ZERO_POLICY skip_zeros=SparseMatrix::SKIP_ZERO_SYM);
 
    void EliminateTrialDofs(const Array<int> &bdr_attr_is_ess,
                            const Vector &sol, Vector &rhs);
@@ -998,7 +1002,8 @@ public:
 
    /** @brief Construct the internal matrix representation of the discrete
        linear operator. */
-   virtual void Assemble(int skip_zeros = 1);
+   virtual void Assemble(SparseMatrix::ZERO_POLICY skip_zeros=
+                            SparseMatrix::SKIP_ZERO_SYM);
 
    /** @brief Get the output finite element space restriction matrix in
        transposed form. */

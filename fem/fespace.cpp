@@ -581,7 +581,7 @@ FiniteElementSpace::H2L_GlobalRestrictionMatrix (FiniteElementSpace *lfes)
          h_dofs.Copy(h_vdofs);
          this->DofsToVDofs(vd, h_vdofs);
 
-         R -> SetSubMatrix (l_vdofs, h_vdofs, loc_restr, 1);
+         R -> SetSubMatrix (l_vdofs, h_vdofs, loc_restr, SparseMatrix::SKIP_ZERO_SYM);
       }
    }
 

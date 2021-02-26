@@ -358,14 +358,14 @@ void SesquilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi_real,
 }
 
 void
-SesquilinearForm::Assemble(int skip_zeros)
+SesquilinearForm::Assemble(SparseMatrix::ZERO_POLICY skip_zeros)
 {
    blfr->Assemble(skip_zeros);
    blfi->Assemble(skip_zeros);
 }
 
 void
-SesquilinearForm::Finalize(int skip_zeros)
+SesquilinearForm::Finalize(SparseMatrix::ZERO_POLICY skip_zeros)
 {
    blfr->Finalize(skip_zeros);
    blfi->Finalize(skip_zeros);
@@ -1083,14 +1083,14 @@ ParSesquilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi_real,
 }
 
 void
-ParSesquilinearForm::Assemble(int skip_zeros)
+ParSesquilinearForm::Assemble(SparseMatrix::ZERO_POLICY skip_zeros)
 {
    pblfr->Assemble(skip_zeros);
    pblfi->Assemble(skip_zeros);
 }
 
 void
-ParSesquilinearForm::Finalize(int skip_zeros)
+ParSesquilinearForm::Finalize(SparseMatrix::ZERO_POLICY skip_zeros)
 {
    pblfr->Finalize(skip_zeros);
    pblfi->Finalize(skip_zeros);

@@ -48,7 +48,7 @@ double compare_pa_assembly(int dim, int num_elements, int order, bool transpose)
 
    DiscreteLinearOperator assembled_grad(&h1_fespace, &nd_fespace);
    assembled_grad.AddDomainInterpolator(new GradientInterpolator);
-   const int skip_zeros = 1;
+   constexpr SparseMatrix::ZERO_POLICY skip_zeros=SparseMatrix::SKIP_ZERO_SYM;
    assembled_grad.Assemble(skip_zeros);
    assembled_grad.Finalize(skip_zeros);
    const SparseMatrix& assembled_grad_mat = assembled_grad.SpMat();

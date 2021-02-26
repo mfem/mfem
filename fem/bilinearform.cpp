@@ -221,7 +221,7 @@ MatrixInverse * BilinearForm::Inverse() const
    return mat -> Inverse();
 }
 
-void BilinearForm::Finalize (int skip_zeros)
+void BilinearForm::Finalize (SparseMatrix::ZERO_POLICY skip_zeros)
 {
    if (assembly == AssemblyLevel::LEGACY)
    {
@@ -318,13 +318,14 @@ void BilinearForm::ComputeBdrElementMatrix(int i, DenseMatrix &elmat)
 }
 
 void BilinearForm::AssembleElementMatrix(
-   int i, const DenseMatrix &elmat, int skip_zeros)
+   int i, const DenseMatrix &elmat, SparseMatrix::ZERO_POLICY skip_zeros)
 {
    AssembleElementMatrix(i, elmat, vdofs, skip_zeros);
 }
 
 void BilinearForm::AssembleElementMatrix(
-   int i, const DenseMatrix &elmat, Array<int> &vdofs, int skip_zeros)
+   int i, const DenseMatrix &elmat, Array<int> &vdofs,
+   SparseMatrix::ZERO_POLICY skip_zeros)
 {
    fes->GetElementVDofs(i, vdofs);
    if (static_cond)
@@ -346,13 +347,14 @@ void BilinearForm::AssembleElementMatrix(
 }
 
 void BilinearForm::AssembleBdrElementMatrix(
-   int i, const DenseMatrix &elmat, int skip_zeros)
+   int i, const DenseMatrix &elmat, SparseMatrix::ZERO_POLICY skip_zeros)
 {
    AssembleBdrElementMatrix(i, elmat, vdofs, skip_zeros);
 }
 
 void BilinearForm::AssembleBdrElementMatrix(
-   int i, const DenseMatrix &elmat, Array<int> &vdofs, int skip_zeros)
+   int i, const DenseMatrix &elmat, Array<int> &vdofs,
+   SparseMatrix::ZERO_POLICY skip_zeros)
 {
    fes->GetBdrElementVDofs(i, vdofs);
    if (static_cond)
@@ -373,7 +375,7 @@ void BilinearForm::AssembleBdrElementMatrix(
    }
 }
 
-void BilinearForm::Assemble(int skip_zeros)
+void BilinearForm::Assemble(SparseMatrix::ZERO_POLICY skip_zeros)
 {
    if (ext)
    {
@@ -590,7 +592,7 @@ void BilinearForm::ConformingAssemble()
    // matrix which in turn will give rise to symmetric structure in the new
    // matrix. This ensures that subsequent calls to EliminateRowCol will work
    // correctly.
-   Finalize(0);
+   Finalize(SparseMatrix::KEEP_ZERO);
    MFEM_ASSERT(mat, "the BilinearForm is not assembled");
 
    const SparseMatrix *P = fes->GetConformingProlongation();
@@ -768,8 +770,7 @@ void BilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
          const SparseMatrix *P = fes->GetConformingProlongation();
          if (P) { ConformingAssemble(); }
          EliminateVDofs(ess_tdof_list, diag_policy);
-         const int remove_zeros = 0;
-         Finalize(remove_zeros);
+         Finalize(SparseMatrix::KEEP_ZERO);
       }
       if (hybridization)
       {
@@ -1230,7 +1231,7 @@ MatrixInverse * MixedBilinearForm::Inverse() const
    }
 }
 
-void MixedBilinearForm::Finalize (int skip_zeros)
+void MixedBilinearForm::Finalize (SparseMatrix::ZERO_POLICY skip_zeros)
 {
    if (assembly == AssemblyLevel::LEGACY)
    {
@@ -1286,7 +1287,7 @@ void MixedBilinearForm::AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi,
    btfbfi_marker.Append(&bdr_marker);
 }
 
-void MixedBilinearForm::Assemble (int skip_zeros)
+void MixedBilinearForm::Assemble (SparseMatrix::ZERO_POLICY skip_zeros)
 {
    if (ext)
    {
@@ -1587,14 +1588,14 @@ void MixedBilinearForm::ComputeBdrElementMatrix(int i, DenseMatrix &elmat)
 }
 
 void MixedBilinearForm::AssembleElementMatrix(
-   int i, const DenseMatrix &elmat, int skip_zeros)
+   int i, const DenseMatrix &elmat, SparseMatrix::ZERO_POLICY skip_zeros)
 {
    AssembleElementMatrix(i, elmat, trial_vdofs, test_vdofs, skip_zeros);
 }
 
 void MixedBilinearForm::AssembleElementMatrix(
    int i, const DenseMatrix &elmat, Array<int> &trial_vdofs,
-   Array<int> &test_vdofs, int skip_zeros)
+   Array<int> &test_vdofs, SparseMatrix::ZERO_POLICY skip_zeros)
 {
    trial_fes->GetElementVDofs(i, trial_vdofs);
    test_fes->GetElementVDofs(i, test_vdofs);
@@ -1606,14 +1607,14 @@ void MixedBilinearForm::AssembleElementMatrix(
 }
 
 void MixedBilinearForm::AssembleBdrElementMatrix(
-   int i, const DenseMatrix &elmat, int skip_zeros)
+   int i, const DenseMatrix &elmat, SparseMatrix::ZERO_POLICY skip_zeros)
 {
    AssembleBdrElementMatrix(i, elmat, trial_vdofs, test_vdofs, skip_zeros);
 }
 
 void MixedBilinearForm::AssembleBdrElementMatrix(
    int i, const DenseMatrix &elmat, Array<int> &trial_vdofs,
-   Array<int> &test_vdofs, int skip_zeros)
+   Array<int> &test_vdofs, SparseMatrix::ZERO_POLICY skip_zeros)
 {
    trial_fes->GetBdrElementVDofs(i, trial_vdofs);
    test_fes->GetBdrElementVDofs(i, test_vdofs);
@@ -1797,7 +1798,7 @@ void DiscreteLinearOperator::SetAssemblyLevel(AssemblyLevel assembly_level)
    }
 }
 
-void DiscreteLinearOperator::Assemble(int skip_zeros)
+void DiscreteLinearOperator::Assemble(SparseMatrix::ZERO_POLICY skip_zeros)
 {
    if (ext)
    {

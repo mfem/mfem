@@ -171,13 +171,13 @@ SerialAdvectorCGOper::SerialAdvectorCGOper(const Vector &x_start,
 {
    ConvectionIntegrator *Kinteg = new ConvectionIntegrator(u_coeff);
    K.AddDomainIntegrator(Kinteg);
-   K.Assemble(0);
-   K.Finalize(0);
+   K.Assemble(SparseMatrix::KEEP_ZERO);
+   K.Finalize(SparseMatrix::KEEP_ZERO);
 
    MassIntegrator *Minteg = new MassIntegrator;
    M.AddDomainIntegrator(Minteg);
-   M.Assemble(0);
-   M.Finalize(0);
+   M.Assemble(SparseMatrix::KEEP_ZERO);
+   M.Finalize(SparseMatrix::KEEP_ZERO);
 }
 
 void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const

@@ -2554,7 +2554,7 @@ void BlockILU::CreateBlockPattern(const SparseMatrix &A)
             }
          }
       }
-      C.Finalize(false);
+      C.Finalize(SparseMatrix::KEEP_ZERO);
       double *CV = C.GetData();
       for (int i=0; i<C.NumNonZeroElems(); ++i)
       {

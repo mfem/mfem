@@ -82,9 +82,10 @@ public:
    void EliminateRowCol(Array<int> & ess_bc_dofs, Vector & sol, Vector & rhs);
 
    ///  Finalize all the submatrices
-   virtual void Finalize(int skip_zeros = 1) { Finalize(skip_zeros, false); }
+   virtual void Finalize(SparseMatrix::ZERO_POLICY skip_zeros =
+                            SparseMatrix::SKIP_ZERO_SYM) { Finalize(skip_zeros, false); }
    /// A slightly more general version of the Finalize(int) method.
-   void Finalize(int skip_zeros, bool fix_empty_rows);
+   void Finalize(SparseMatrix::ZERO_POLICY skip_zeros, bool fix_empty_rows);
 
    //! Returns a monolithic CSR matrix that represents this operator.
    SparseMatrix * CreateMonolithic() const;
