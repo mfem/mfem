@@ -192,7 +192,7 @@ void KellyErrorEstimator::ComputeEstimates()
    {
       auto FT = pmesh->GetFaceElementTransformations(f);
 
-      auto &int_rule = IntRules.Get(FT->FaceGeom, 2*xfes->GetFaceDegree(f));
+      auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(f));
       const auto nip = int_rule.GetNPoints();
 
       if (pmesh->FaceIsInterior(f))
@@ -314,7 +314,7 @@ void KellyErrorEstimator::ComputeEstimates()
          continue;
       }
 
-      auto &int_rule = IntRules.Get(FT->FaceGeom, 2*xfes->GetFaceDegree(0));
+      auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(0));
       const auto nip = int_rule.GetNPoints();
 
       IntegrationRule eir;
