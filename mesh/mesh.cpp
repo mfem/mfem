@@ -4282,7 +4282,7 @@ void Mesh::EnsureNodes()
       }
       else // Mesh using a legacy FE_Collection
       {
-         const int order = GetNodalFESpace()->GetElementDegree(0);
+         const int order = GetNodalFESpace()->GetElementOrder(0);
          SetCurvature(order, false, -1, Ordering::byVDIM);
       }
    }
@@ -9215,7 +9215,7 @@ void Mesh::PrintVTU(std::string fname,
                     bool bdr)
 {
    int ref = (high_order_output && Nodes)
-             ? Nodes->FESpace()->GetElementDegree(0) : 1;
+             ? Nodes->FESpace()->GetElementOrder(0) : 1;
 
    fname = fname + ".vtu";
    std::fstream out(fname.c_str(),std::ios::out);

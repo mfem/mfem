@@ -2189,6 +2189,17 @@ int FiniteElementSpace::GetEdgeOrder(int edge, int variant) const
    return var_edge_orders[var_edge_dofs.GetI()[edge] + variant];
 }
 
+int FiniteElementSpace::GetFaceOrder(int face, int variant) const
+{
+   if (!IsVariableOrder()) { return fec->GetOrder(); }
+
+   const int* beg = var_face_dofs.GetRow(face);
+   const int* end = var_face_dofs.GetRow(face + 1);
+   if (variant >= end - beg) { return -1; } // past last variant
+
+   return var_face_orders[var_face_dofs.GetI()[face] + variant];
+}
+
 int FiniteElementSpace::GetNVariants(int entity, int index) const
 {
    MFEM_ASSERT(IsVariableOrder(), "");

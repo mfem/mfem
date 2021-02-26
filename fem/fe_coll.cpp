@@ -2232,11 +2232,12 @@ L2_FECollection::~L2_FECollection()
 }
 
 
-RT_FECollection::RT_FECollection(const int p, const int dim,
+RT_FECollection::RT_FECollection(const int order, const int dim,
                                  const int cb_type, const int ob_type)
-   : FiniteElementCollection(p)
+   : FiniteElementCollection(order + 1)
    , ob_type(ob_type)
 {
+   int p = order;
    MFEM_VERIFY(p >= 0, "RT_FECollection requires order >= 0.");
 
    int cp_type = BasisType::GetQuadrature1D(cb_type);

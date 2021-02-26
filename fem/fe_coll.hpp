@@ -178,7 +178,8 @@ public:
       return var_orders[p]->DofOrderForOrientation(geom, ori);
    }
 
-   /// Return the order the FE collection was constructed with.
+   /** Return the polynomial degree of the FE collection (corresponds also to
+       the degree returned by GetOrder() of the contained FiniteElements).*/
    int GetOrder() const { return base_p; }
 
 protected:
@@ -343,7 +344,11 @@ protected:
                    const int ob_type = BasisType::GaussLegendre);
 
 public:
-   RT_FECollection(const int p, const int dim,
+   /** Construct an RT<order> collection. Note that in accordance with the
+       literature, the polynomial degree of RT<order> collection is (order+1).
+       For example, RT0 collection contains vector-valued linear functions.
+       FiniteElementCollection::GetOrder() will then return 1. */
+   RT_FECollection(const int order, const int dim,
                    const int cb_type = BasisType::GaussLobatto,
                    const int ob_type = BasisType::GaussLegendre);
 
