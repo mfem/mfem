@@ -15,10 +15,10 @@ inputs:
   os:
     description: 'os'
     required: true
-  debug:
-    description: 'Debug status'
+  target:
+    description: 'Type of target (debug, optim)'
     required: false
-    default: NO
+    default: optim
   mpi:
     description: 'MPI status'
     required: false
@@ -47,30 +47,30 @@ runs:
     - name: configure mfem
       run: |
         echo "--- Prepare Configuration ---"
-        if [[ ${{ inputs.mpi }} == "YES" ]]
-        then
+        if [[ ${{ inputs.mpi }} == "YES" ]]; then
           echo "Hypre symlink:"
           ln -s ${{ inputs.hypre-dir }} hypre;
           echo "Metis symlink:"
           ln -s ${{ inputs.metis-dir }} metis-4.0;
         fi
         CPPFLAGS="";
-        if [[ ${{ inputs.os }} == 'ubuntu-latest' && ${{ inputs.debug }} == 'YES' ]]
-        then
-          CPPFLAGS+=" -pedantic -Wall -Werror";
+        DEBUG="NO";
+        if [[ ${{ inputs.target }} == 'debug' ]]; then
+          DEBUG="YES";
+          if [[ ${{ inputs.os }} == 'ubuntu-latest' ]]; then
+            CPPFLAGS+=" -pedantic -Wall -Werror";
+          fi
         fi
-        if [[ ${{ inputs.codecov }} == "YES" ]]
-        then
+        if [[ ${{ inputs.codecov }} == "YES" ]]; then
           CPPFLAGS+=" -fprofile-arcs -ftest-coverage -fPIC -O0";
         fi
         echo "--- Configure mfem ---"
         cd ${{ inputs.mfem-dir }};
-        if [[ ${{ inputs.cmake }} == "YES" ]]
-        then
+        if [[ ${{ inputs.cmake }} == "YES" ]]; then
             mkdir build && cd build;
             cmake .. -DMFEM_USE_MPI=${{ inputs.mpi }} -DMFEM_MPI_NP=2 -DHYPRE_DIR=../../hypre/src/hypre
         else
-            make config MFEM_USE_MPI=${{ inputs.mpi }} MFEM_MPI_NP=2 MFEM_DEBUG=${{ inputs.debug }} CPPFLAGS="$CPPFLAGS";
+            make config MFEM_USE_MPI=${{ inputs.mpi }} MFEM_MPI_NP=2 MFEM_DEBUG="${DEBUG}" CPPFLAGS="${CPPFLAGS}";
         fi
       shell: bash
 
@@ -78,8 +78,7 @@ runs:
       run: |
         echo "--- Build mfem ---"
         cd ${{ inputs.mfem-dir }}
-        if [[ ${{ inputs.cmake }} == "YES" ]]
-        then
+        if [[ ${{ inputs.cmake }} == "YES" ]]; then
             cd build
             make -j3 mfem examples
             cd tests/unit

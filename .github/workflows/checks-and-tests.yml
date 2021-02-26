@@ -9,7 +9,8 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-name: checks-and-tests
+# In this CI section, we build different variants of mfem and run test on them.
+name: build-and-tests
 
 on:
   push:
@@ -30,28 +31,29 @@ env:
 # I cannot reuse cached dependencies and have to build them for each target although they could be shared sometimes. That's because Github cache Action has no read-only mode. But there is a PR ready for this (https://github.com/actions/cache/pull/489)
 
 jobs:
-  checks-and-tests:
+  build-and-tests:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
-        debug: [YES, NO]
+        target: [debug, optim]
         mpi: [NO, YES]
-        cmake: [NO]
+        build-system: [make]
         # 'include' allows to
         # - add a variable without creating a new matrix dimension.
-        # - add a new combination ('cmake: YES' case here)
+        # - add a new combination ('build-system: cmake' case here)
         #
         # note: we will gather coverage info for any non-debug run except the CMake build.
         include:
-          - debug: YES
+          - target: debug
             codecov: NO
-          - debug: NO
+          - target: optim
             codecov: YES
           - os: ubuntu-latest
-            debug: NO
+            target: optim
             codecov: NO
             mpi: YES
-            cmake: YES
+            build-system: cmake
+    name: ${{ matrix.os }}-${{ matrix.target }}-mpi(${{ matrix.mpi }})-${{build-system}}
 
     runs-on: ${{ matrix.os }}
 
@@ -120,32 +122,32 @@ jobs:
       uses: ./mfem/.github/actions/build-mfem
       with:
         os: ${{ matrix.os }}
-        debug: ${{ matrix.debug }}
+        target: ${{ matrix.target }}
         codecov: ${{ matrix.codecov }}
         mpi: ${{ matrix.mpi }}
-        cmake: ${{ matrix.cmake }}
+        build-system: ${{ matrix.build-system }}
         hypre-dir: ${{ env.HYPRE_TOP_DIR }}
         metis-dir: ${{ env.METIS_TOP_DIR }}
         mfem-dir: mfem
 
     # Run checks (and only checks) on debug targets
     - name: checks
-      if: matrix.cmake == 'NO' && matrix.debug == 'YES'
+      if: matrix.build-system == 'make' && matrix.target == 'debug'
       run: |
         cd mfem && make check
 
     - name: unit tests
-      if: matrix.cmake == 'NO' && matrix.debug == 'NO'
+      if: matrix.build-system == 'make' && matrix.target == 'optim'
       run: |
         cd mfem && make unittest
 
     - name: cmake unit tests
-      if: matrix.cmake == 'YES'
+      if: matrix.build-system == 'cmake'
       run: |
         cd mfem/build/tests/unit && ctest --output-on-failure
 
     - name: tests
-      if: matrix.cmake == 'NO' && matrix.debug == 'NO'
+      if: matrix.build_system == 'make' && matrix.target == 'optim'
       run: |
         cd mfem && make test
 
