@@ -10,7 +10,7 @@
 # CONTRIBUTING.md for details.
 
 # In this CI section, we build different variants of mfem and run test on them.
-name: build-and-tests
+name: builds-and-tests
 
 on:
   push:
@@ -31,7 +31,7 @@ env:
 # I cannot reuse cached dependencies and have to build them for each target although they could be shared sometimes. That's because Github cache Action has no read-only mode. But there is a PR ready for this (https://github.com/actions/cache/pull/489)
 
 jobs:
-  build-and-tests:
+  builds-and-tests:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
@@ -53,7 +53,7 @@ jobs:
             codecov: NO
             mpi: YES
             build-system: cmake
-    name: ${{ matrix.os }}-${{ matrix.target }}-mpi(${{ matrix.mpi }})-${{build-system}}
+    name: ${{ matrix.os }}-${{ matrix.target }}-mpi(${{ matrix.mpi }})-${{ matrix.build-system }}
 
     runs-on: ${{ matrix.os }}
 
