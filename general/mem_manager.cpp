@@ -62,43 +62,25 @@ MemoryType GetMemoryType(MemoryClass mc)
    return MemoryType::HOST;
 }
 
-// We want to keep this pairs, as it is checked in MFEM_VERIFY_TYPES
-MemoryType MemoryManager::GetDualMemoryType_(MemoryType mt)
-{
-   const auto HOST_TYPE = GetHostMemoryType();
-   const auto DEVICE_TYPE = GetDeviceMemoryType();
-   switch (mt)
-   {
-      case MemoryType::HOST:           return DEVICE_TYPE;
-      case MemoryType::HOST_32:        return DEVICE_TYPE;
-      case MemoryType::HOST_64:        return DEVICE_TYPE;
-      case MemoryType::HOST_DEBUG:     return MemoryType::DEVICE_DEBUG;
-      case MemoryType::HOST_UMPIRE:    return DEVICE_TYPE;
-      case MemoryType::HOST_PINNED:    return DEVICE_TYPE;
-      case MemoryType::MANAGED:        return MemoryType::MANAGED;
-      case MemoryType::DEVICE:         return HOST_TYPE;
-      case MemoryType::DEVICE_DEBUG:   return MemoryType::HOST_DEBUG;
-      case MemoryType::DEVICE_UMPIRE:  return HOST_TYPE;
-      default: mfem_error("Unknown memory type!");
-   }
-   MFEM_VERIFY(false,"");
-   return MemoryType::HOST;
-}
 
 static void MFEM_VERIFY_TYPES(const MemoryType h_mt, const MemoryType d_mt)
 {
    MFEM_ASSERT(IsHostMemory(h_mt),"");
    MFEM_ASSERT(IsDeviceMemory(d_mt),"");
    const bool sync =
-      (h_mt == MemoryType::HOST && d_mt == MemoryType::DEVICE_UMPIRE) ||
+      (h_mt == MemoryType::HOST_PINNED && d_mt == MemoryType::DEVICE) ||
       (h_mt == MemoryType::HOST_PINNED && d_mt == MemoryType::DEVICE_UMPIRE) ||
-
+      (h_mt == MemoryType::HOST_PINNED && d_mt == MemoryType::DEVICE_UMPIRE_2) ||
+      (h_mt == MemoryType::HOST_UMPIRE && d_mt == MemoryType::DEVICE) ||
       (h_mt == MemoryType::HOST_UMPIRE && d_mt == MemoryType::DEVICE_UMPIRE) ||
+      (h_mt == MemoryType::HOST_UMPIRE && d_mt == MemoryType::DEVICE_UMPIRE_2) ||
       (h_mt == MemoryType::HOST_DEBUG && d_mt == MemoryType::DEVICE_DEBUG) ||
       (h_mt == MemoryType::MANAGED && d_mt == MemoryType::MANAGED) ||
       (h_mt == MemoryType::HOST_64 && d_mt == MemoryType::DEVICE) ||
       (h_mt == MemoryType::HOST_32 && d_mt == MemoryType::DEVICE) ||
-      (h_mt == MemoryType::HOST && d_mt == MemoryType::DEVICE);
+      (h_mt == MemoryType::HOST && d_mt == MemoryType::DEVICE) ||
+      (h_mt == MemoryType::HOST && d_mt == MemoryType::DEVICE_UMPIRE) ||
+      (h_mt == MemoryType::HOST && d_mt == MemoryType::DEVICE_UMPIRE_2);
    MFEM_VERIFY(sync, "");
 }
 
@@ -691,7 +673,7 @@ private:
          case MT::DEVICE_UMPIRE: return new UmpireDeviceMemorySpace(
                                               MemoryManager::GetUmpireDeviceAllocatorName());
          case MT::DEVICE_UMPIRE_2: return new UmpireDeviceMemorySpace(
-                                                MemoryManager::GetUmpireDeviceAllocatorName());
+                                                MemoryManager::GetUmpireDevice2AllocatorName());
 #else
          case MT::DEVICE_UMPIRE: return new NoDeviceMemorySpace();
          case MT::DEVICE_UMPIRE_2: return new NoDeviceMemorySpace();
@@ -718,38 +700,30 @@ private:
 
 static internal::Ctrl *ctrl;
 
-void *MemoryManager::New_(void *h_tmp, size_t bytes, MemoryType mt,
-                          unsigned &flags)
+void *MemoryManager::New_(void *h_tmp, size_t bytes, MemoryType h_mt,
+                          MemoryType d_mt, unsigned &flags)
 {
    MFEM_ASSERT(exists, "Internal error!");
-   MFEM_ASSERT(mt != MemoryType::HOST, "Internal error!");
-   const bool is_host_mem = IsHostMemory(mt);
-   const MemType dual_mt = GetDualMemoryType_(mt);
-   const MemType h_mt = is_host_mem ? mt : dual_mt;
-   const MemType d_mt = is_host_mem ? dual_mt : mt;
+   MFEM_ASSERT(h_mt != MemoryType::HOST, "Internal error!");
    MFEM_VERIFY_TYPES(h_mt, d_mt);
    void *h_ptr = h_tmp;
    if (h_tmp == nullptr) { ctrl->Host(h_mt)->Alloc(&h_ptr, bytes); }
    flags = Mem::REGISTERED;
    flags |= Mem::OWNS_INTERNAL | Mem::OWNS_HOST | Mem::OWNS_DEVICE;
-   flags |= is_host_mem ? Mem::VALID_HOST : Mem::VALID_DEVICE;
-   if (is_host_mem) { mm.Insert(h_ptr, bytes, h_mt, d_mt); }
-   else { mm.InsertDevice(nullptr, h_ptr, bytes, h_mt, d_mt); }
+   flags |= Mem::VALID_HOST;
+   // Always lazy allocate device memory
+   mm.Insert(h_ptr, bytes, h_mt, d_mt);
    CheckHostMemoryType_(h_mt, h_ptr);
    return h_ptr;
 }
 
 void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
-                               MemoryType mt,
+                               MemoryType h_mt, MemoryType d_mt,
                                bool own, bool alias, unsigned &flags)
 {
    MFEM_CONTRACT_VAR(alias);
    MFEM_ASSERT(exists, "Internal error!");
    MFEM_ASSERT(!alias, "Cannot register an alias!");
-   const bool is_host_mem = IsHostMemory(mt);
-   const MemType dual_mt = GetDualMemoryType_(mt);
-   const MemType h_mt = is_host_mem ? mt : dual_mt;
-   const MemType d_mt = is_host_mem ? dual_mt : mt;
    MFEM_VERIFY_TYPES(h_mt, d_mt);
 
    if (ptr == nullptr && h_tmp == nullptr)
@@ -761,7 +735,8 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
    flags |= Mem::REGISTERED | Mem::OWNS_INTERNAL;
    void *h_ptr;
 
-   if (is_host_mem) // HOST TYPES + MANAGED
+   // TODO always lazy allocate device memory
+   if (true /*is_host_mem*/) // HOST TYPES + MANAGED
    {
       h_ptr = ptr;
       mm.Insert(h_ptr, bytes, h_mt, d_mt);
@@ -869,6 +844,7 @@ bool MemoryManager::MemoryClassCheck_(MemoryClass mc, void *h_ptr,
          MFEM_VERIFY(d_mt == MemoryType::DEVICE ||
                      d_mt == MemoryType::DEVICE_DEBUG ||
                      d_mt == MemoryType::DEVICE_UMPIRE ||
+                     d_mt == MemoryType::DEVICE_UMPIRE_2 ||
                      d_mt == MemoryType::MANAGED,"");
          return true;
       }
