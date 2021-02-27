@@ -716,8 +716,8 @@ public:
    virtual void UpdatesFinished() { Th.Clear(); }
 
    /// Updates the internal mesh pointer. @warning @a new_mesh must be
-   /// <b>topolically identical</b> to the existing mesh. Used if the address of
-   /// the Mesh object has changed, e.g. in @a Mesh::Swap.
+   /// <b>topologically identical</b> to the existing mesh. Used if the address
+   /// of the Mesh object has changed, e.g. in @a Mesh::Swap.
    virtual void UpdateMeshPointer(Mesh *new_mesh);
 
    /// Return update counter (see Mesh::sequence)
