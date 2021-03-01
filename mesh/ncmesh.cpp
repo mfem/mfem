@@ -4435,8 +4435,9 @@ void CoarseFineTransformations::GetCoarseToFineMap(
       coarse_to_fine.GetJ()[i] = cf_j[i].two;
    }
 
-   if (fine_mesh.GetLastOperation() == Mesh::Operation::DEREFINE) {
-       return;
+   if (fine_mesh.GetLastOperation() == Mesh::Operation::DEREFINE)
+   {
+      return;
    }
 
    using internal::RefType;
