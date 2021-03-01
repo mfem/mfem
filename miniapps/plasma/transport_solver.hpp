@@ -3227,7 +3227,7 @@ public:
    void SetTime(const double _t);
    void SetLogging(int logging);
 
-   void CheckGradient();
+   double CheckGradient();
 
    bool CheckForSteadyState();
 

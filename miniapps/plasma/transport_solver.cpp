@@ -1726,7 +1726,7 @@ void DGTransportTDO::SetLogging(int logging)
    op_.SetLogging(logging);
 }
 
-void DGTransportTDO::CheckGradient()
+double DGTransportTDO::CheckGradient()
 {
    int tsize = newton_solver_.Height();
    int fsize = tsize / 5;
@@ -1744,13 +1744,14 @@ void DGTransportTDO::CheckGradient()
 
       for (int j=0; j<fsize; j++)
       {
-         k[i*fsize + j] *= 1e-2 *nrm;
-         h[i*fsize + j] *= 1e-4 *nrm;
+         k[i*fsize + j] = 1e-2 * nrm * (2.0 * k[i*fsize + j] - 1.0);
+         h[i*fsize + j] = 1e-4 * nrm * (2.0 * h[i*fsize + j] - 1.0);
       }
    }
 
+   yGF_.ExchangeFaceNbrData();
    double f = newton_solver_.CheckGradient(k, h);
-   mfem::out << "DGTransportTDO CheckGradient: " << f << std::endl;
+   return f;
 }
 
 bool DGTransportTDO::CheckForSteadyState()

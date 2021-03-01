@@ -915,6 +915,7 @@ int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
    MPI_Session mpi(argc, argv);
+   if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
 
    TransportCoefFactory coefFact;
    SolverParams ttol;
@@ -1804,7 +1805,15 @@ int main(int argc, char *argv[])
 
    if (check_grad)
    {
-      oper.CheckGradient();
+      double f = oper.CheckGradient();
+      if (f <= 1.0)
+      {
+         mfem::out << "Gradient check succeeded with a value of " << f << endl;
+      }
+      else
+      {
+         mfem::out << "Gradient check failed with a value of " << f << endl;
+      }
       return 0;
    }
 
