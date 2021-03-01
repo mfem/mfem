@@ -69,8 +69,8 @@ jobs:
       uses: actions/checkout@v2
       with:
         path: mfem
-        # a fetch depth > 1 is required to retrieve the hash (dixit codecov)
-        fetch-depth: 2
+        # Fetch the complete history for codecov to access commits ID
+        fetch-depth: 0
 
     # Only get MPI if defined for the job.
     # TODO (bernede1@llnl.gov): It would be nice to have only one step,
@@ -157,6 +157,7 @@ jobs:
         cd mfem && make test
 
     - name: codecov
+      if: matrix.codecov == 'YES'
       uses: ./mfem/.github/actions/upload-coverage
       with:
         name: "os-${{ matrix.os }}-mpi-${{ matrix.mpi }}"
