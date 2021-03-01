@@ -28,7 +28,10 @@ env:
 
 # Note for future improvements:
 #
-# I cannot reuse cached dependencies and have to build them for each target although they could be shared sometimes. That's because Github cache Action has no read-only mode. But there is a PR ready for this (https://github.com/actions/cache/pull/489)
+# I cannot reuse cached dependencies and have to build them for each target
+# although they could be shared sometimes. That's because Github cache Action
+# has no read-only mode. But there is a PR ready for this
+# (https://github.com/actions/cache/pull/489)
 
 jobs:
   builds-and-tests:
@@ -42,7 +45,8 @@ jobs:
         # - add a variable without creating a new matrix dimension.
         # - add a new combination ('build-system: cmake' case here)
         #
-        # note: we will gather coverage info for any non-debug run except the CMake build.
+        # note: we will gather coverage info for any non-debug run except the
+        # CMake build.
         include:
           - target: debug
             codecov: NO
@@ -58,8 +62,9 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-    # Checkout MFEM in "mfem" subdirectory. Final path: /home/runner/work/mfem/mfem/mfem
-    # Note: it must be done now to access "install-hypre" and "install-metis" actions.
+    # Checkout MFEM in "mfem" subdirectory. Final path:
+    # /home/runner/work/mfem/mfem/mfem
+    # Note: Done now to access "install-hypre" and "install-metis" actions.
     - name: checkout mfem
       uses: actions/checkout@v2
       with:
