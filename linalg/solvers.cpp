@@ -1681,8 +1681,9 @@ double NewtonSolver::CheckGradient(const Vector &x, const Vector &h) const
    r.Add(-0.5, c);
 
    double norm2 = Norm(r);
+   double normb = Norm(b0);
 
-   if (norm1 == 0.0 ) { return -1.0; }
+   if (norm1 <= 1e-15 * normb ) { return -1.0; }
    return 2.0 * norm2 / norm1;
 }
 
