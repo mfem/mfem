@@ -141,6 +141,7 @@ jobs:
         mpi: ${{ matrix.mpi }}
         build-system: ${{ matrix.build-system }}
         hypre-dir: ${{ env.HYPRE_TOP_DIR }}
+        hypre-target: ${{ matrix.hypre-target }}
         metis-dir: ${{ env.METIS_TOP_DIR }}
         mfem-dir: mfem
 
