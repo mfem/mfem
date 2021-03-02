@@ -870,7 +870,8 @@ template <typename T>
 inline void Memory<T>::SetDeviceMemoryType(MemoryType d_mt)
 {
    if (!IsDeviceMemory(d_mt)) { return; }
-   MFEM_VERIFY(!(flags & VALID_DEVICE), "cannot change device type if memory on device");
+   MFEM_VERIFY(!(flags & VALID_DEVICE),
+               "cannot change device type if memory on device");
    MFEM_VERIFY(!(flags & REGISTERED), "cannot change device type if registered");
    this->d_mt = d_mt;
 }
