@@ -28,14 +28,14 @@ namespace ceed
 
 /** Wraps a CeedOperator in an mfem::Operator, with essential boundary
     conditions and a prolongation operator for parallel application. */
-class ConstrainedMFEMCeedOperator : public mfem::Operator
+class ConstrainedOperator : public mfem::Operator
 {
 public:
    /// This object takes ownership of oper and will delete it
-   ConstrainedMFEMCeedOperator(CeedOperator oper, const Array<int> &ess_tdofs_,
-                               const mfem::Operator *P_);
-   ConstrainedMFEMCeedOperator(CeedOperator oper, const mfem::Operator *P_);
-   ~ConstrainedMFEMCeedOperator();
+   ConstrainedOperator(CeedOperator oper, const Array<int> &ess_tdofs_,
+                       const mfem::Operator *P_);
+   ConstrainedOperator(CeedOperator oper, const mfem::Operator *P_);
+   ~ConstrainedOperator();
    void Mult(const Vector& x, Vector& y) const;
    CeedOperator GetCeedOperator() const;
    const Array<int> &GetEssentialTrueDofs() const;
@@ -44,10 +44,10 @@ private:
    Array<int> ess_tdofs;
    const mfem::Operator *P;
    ceed::Operator *unconstrained_op;
-   ConstrainedOperator *constrained_op;
+   mfem::ConstrainedOperator *constrained_op;
 };
 
-ConstrainedMFEMCeedOperator::ConstrainedMFEMCeedOperator(
+ConstrainedOperator::ConstrainedOperator(
    CeedOperator oper,
    const Array<int> &ess_tdofs_,
    const mfem::Operator *P_)
@@ -57,36 +57,36 @@ ConstrainedMFEMCeedOperator::ConstrainedMFEMCeedOperator(
    mfem::Operator *rap = unconstrained_op->SetupRAP(P, P);
    height = width = rap->Height();
    bool own_rap = (rap != unconstrained_op);
-   constrained_op = new ConstrainedOperator(rap, ess_tdofs, own_rap);
+   constrained_op = new mfem::ConstrainedOperator(rap, ess_tdofs, own_rap);
 }
 
-ConstrainedMFEMCeedOperator::ConstrainedMFEMCeedOperator(CeedOperator oper,
-                                                         const mfem::Operator *P_)
-   : ConstrainedMFEMCeedOperator(oper, Array<int>(), P_)
+ConstrainedOperator::ConstrainedOperator(CeedOperator oper,
+                                         const mfem::Operator *P_)
+   : ConstrainedOperator(oper, Array<int>(), P_)
 { }
 
-ConstrainedMFEMCeedOperator::~ConstrainedMFEMCeedOperator()
+ConstrainedOperator::~ConstrainedOperator()
 {
    delete constrained_op;
    delete unconstrained_op;
 }
 
-void ConstrainedMFEMCeedOperator::Mult(const Vector& x, Vector& y) const
+void ConstrainedOperator::Mult(const Vector& x, Vector& y) const
 {
    constrained_op->Mult(x, y);
 }
 
-CeedOperator ConstrainedMFEMCeedOperator::GetCeedOperator() const
+CeedOperator ConstrainedOperator::GetCeedOperator() const
 {
    return unconstrained_op->GetCeedOperator();
 }
 
-const Array<int> &ConstrainedMFEMCeedOperator::GetEssentialTrueDofs() const
+const Array<int> &ConstrainedOperator::GetEssentialTrueDofs() const
 {
    return ess_tdofs;
 }
 
-const mfem::Operator *ConstrainedMFEMCeedOperator::GetProlongation() const
+const mfem::Operator *ConstrainedOperator::GetProlongation() const
 {
    return P;
 }
@@ -102,7 +102,7 @@ int CeedOperatorGetSize(CeedOperator oper, CeedInt * size)
    return 0;
 }
 
-Solver *BuildSmootherFromCeed(ConstrainedMFEMCeedOperator &op, bool chebyshev)
+Solver *BuildSmootherFromCeed(ConstrainedOperator &op, bool chebyshev)
 {
    int ierr;
    CeedOperator ceed_op = op.GetCeedOperator();
@@ -159,7 +159,7 @@ Solver *BuildSmootherFromCeed(ConstrainedMFEMCeedOperator &op, bool chebyshev)
 class CeedAMG : public Solver
 {
 public:
-   CeedAMG(ConstrainedMFEMCeedOperator &oper, HypreParMatrix *P)
+   CeedAMG(ConstrainedOperator &oper, HypreParMatrix *P)
    {
       MFEM_ASSERT(P != NULL, "Provided HypreParMatrix is invalid!");
       height = width = oper.Height();
@@ -324,7 +324,7 @@ AlgebraicMultigrid::AlgebraicMultigrid(
    {
       FiniteElementSpace &space = hierarchy.GetFESpaceAtLevel(ilevel);
       const mfem::Operator *P = space.GetProlongationMatrix();
-      ConstrainedMFEMCeedOperator *op = new ConstrainedMFEMCeedOperator(
+      ConstrainedOperator *op = new ConstrainedOperator(
          ceed_operators[ilevel], *essentialTrueDofs[ilevel], P);
       Solver *smoother;
 #ifdef MFEM_USE_MPI
