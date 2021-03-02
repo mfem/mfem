@@ -47,7 +47,9 @@ runs:
     - name: configure mfem
       run: |
         echo "--- Prepare Configuration ---"
+        MPI=NO
         if [[ ${{ inputs.mpi }} == "parallel" ]]; then
+          MPI=YES
           echo "Hypre symlink:"
           ln -s ${{ inputs.hypre-dir }} hypre;
           echo "Metis symlink:"
@@ -68,9 +70,9 @@ runs:
         cd ${{ inputs.mfem-dir }};
         if [[ ${{ inputs.build-system }} == "cmake" ]]; then
             mkdir build && cd build;
-            cmake .. -DMFEM_USE_MPI=${{ inputs.mpi }} -DMFEM_MPI_NP=2 -DHYPRE_DIR=../../hypre/src/hypre
+            cmake .. -DMFEM_USE_MPI="${MPI}" -DMFEM_MPI_NP=2 -DHYPRE_DIR=../../hypre/src/hypre
         else
-            make config MFEM_USE_MPI=${{ inputs.mpi }} MFEM_MPI_NP=2 MFEM_DEBUG="${DEBUG}" CPPFLAGS="${CPPFLAGS}";
+            make config MFEM_USE_MPI="${MPI}" MFEM_MPI_NP=2 MFEM_DEBUG="${DEBUG}" CPPFLAGS="${CPPFLAGS}";
         fi
       shell: bash
 
