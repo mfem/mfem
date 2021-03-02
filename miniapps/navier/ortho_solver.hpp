@@ -28,7 +28,7 @@ namespace navier
 class OrthoSolver : public Solver
 {
 private:
-   MPI_Comm MyComm;
+   MPI_Comm mycomm;
 public:
    OrthoSolver(ParFiniteElementSpace *fes_);
 

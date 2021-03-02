@@ -92,7 +92,7 @@ public:
 
    /** Initializes the internal mesh in gslib, by sending the positions of the
        Gauss-Lobatto nodes of the input Mesh object @a m.
-       Note: not tested with periodic (DG meshes).
+       Note: not tested with periodic (L2).
        Note: the input mesh @a m must have Nodes set.
 
        @param[in] m         Input mesh.
@@ -100,9 +100,9 @@ public:
        @param[in] newt_tol  Newton tolerance for the gslib search methods.
        @param[in] npt_max   Number of points for simultaneous iteration. This
                             alters performance and memory footprint. */
-   virtual void Setup(Mesh &m, const double bb_t = 0.1,
-                      const double newt_tol = 1.0e-12,
-                      const int npt_max = 256);
+   void Setup(Mesh &m, const double bb_t = 0.1,
+              const double newt_tol = 1.0e-12,
+              const int npt_max = 256);
    /** Searches positions given in physical space by @a point_pos. These positions
        must by ordered by nodes: (XXX...,YYY...,ZZZ).
        This function populates the following member variables:
@@ -122,11 +122,11 @@ public:
                         Defaults to 0 for points that were not found.
        #gsl_dist        Distance between the sought and the found point
                         in physical space. */
-   virtual void FindPoints(const Vector &point_pos);
+   void FindPoints(const Vector &point_pos);
    /// Setup FindPoints and search positions
-   virtual void FindPoints(Mesh &m, const Vector &point_pos,
-                           const double bb_t = 0.1,
-                           const double newt_tol = 1.0e-12,  const int npt_max = 256);
+   void FindPoints(Mesh &m, const Vector &point_pos,
+                   const double bb_t = 0.1,
+                   const double newt_tol = 1.0e-12,  const int npt_max = 256);
 
    /** Interpolation of field values at prescribed reference space positions.
        @param[in] field_in    Function values that will be interpolated on the
@@ -137,11 +137,11 @@ public:
                               the value is set to #default_interp_value. */
    virtual void Interpolate(const GridFunction &field_in, Vector &field_out);
    /** Search positions and interpolate */
-   virtual void Interpolate(const Vector &point_pos, const GridFunction &field_in,
-                            Vector &field_out);
+   void Interpolate(const Vector &point_pos, const GridFunction &field_in,
+                    Vector &field_out);
    /** Setup FindPoints, search positions and interpolate */
-   virtual void Interpolate(Mesh &m, const Vector &point_pos,
-                            const GridFunction &field_in, Vector &field_out);
+   void Interpolate(Mesh &m, const Vector &point_pos,
+                    const GridFunction &field_in, Vector &field_out);
 
    /// Average type to be used for L2 functions in-case a point is located at
    /// an element boundary where the function might be multi-valued.
@@ -204,7 +204,7 @@ public:
 
    /** Initializes the internal mesh in gslib, by sending the positions of the
        Gauss-Lobatto nodes of the input Mesh object @a m.
-       Note: not tested with periodic (DG meshes).
+       Note: not tested with periodic meshes (L2).
        Note: the input mesh @a m must have Nodes set.
 
        @param[in] m         Input mesh.
@@ -212,7 +212,7 @@ public:
                             used to make sure that points being searched are not
                             looked for in the mesh that they belong to.
        @param[in] gfmax     (Optional) GridFunction in H1 that is used as a
-                            discriminator where one point is located in multiple
+                            discriminator when one point is located in multiple
                             meshes. The mesh that maximizes gfmax is chosen.
        @param[in] bb_t      Relative size of bounding box around each element.
        @param[in] newt_tol  Newton tolerance for the gslib search methods.

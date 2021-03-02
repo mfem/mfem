@@ -29,6 +29,7 @@
 // Compile with: make ex1
 //
 // Sample runs:  ex1
+//               ex1 -m1 ../../data/star.mesh -m2 ../../data/beam-quad.mesh
 
 #include "mfem.hpp"
 #include <fstream>
@@ -177,14 +178,18 @@ int main(int argc, char *argv[])
    mesharr[1]->SetCurvature(order, false, dim, Ordering::byNODES);
    Vector vxyz2 = *mesharr[1]->GetNodes();
 
-   // Since we are using the inline-quad.mesh which is in [0, 1]^2, we shrink
-   // the domain to [0.25, 0.75]^2. Now the mesh will not cover the entire
-   // domain, while maintaining a non-trivial overlap with the other mesh.
-   for (int i = 0; i < vxyz2.Size(); i++)
+   // For the default mesh inputs, we need to rescale inline-quad.mesh
+   // such that it does not cover the entrie domain [0, 1]^2 and still has a
+   // non-trivial overlap with the other mesh.
+   if (strcmp(mesh_file_1, "../../data/square-disc.mesh") == 0 &&
+       strcmp(mesh_file_2, "../../data/inline-quad.mesh") == 0 )
    {
-      vxyz2(i) = 0.5 + 0.5*(vxyz2(i)-0.5);
+      for (int i = 0; i < vxyz2.Size(); i++)
+      {
+         vxyz2(i) = 0.5 + 0.5*(vxyz2(i)-0.5);
+      }
+      mesharr[1]->SetNodes(vxyz2);
    }
-   mesharr[1]->SetNodes(vxyz2);
 
    FindPointsGSLIB finder1, finder2;
    finder1.Setup(*mesharr[0]);
