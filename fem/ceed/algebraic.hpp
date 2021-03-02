@@ -88,15 +88,15 @@ private:
     interpolation and then a scaling to correct multiplicity
     on shared ldofs. This encapsulates those two in one object
     using the MFEM Operator interface. */
-class MFEMCeedInterpolation : public mfem::Operator
+class AlgebraicInterpolation : public mfem::Operator
 {
 public:
-   MFEMCeedInterpolation(
+   AlgebraicInterpolation(
       Ceed ceed, CeedBasis basisctof,
       CeedElemRestriction erestrictu_coarse,
       CeedElemRestriction erestrictu_fine);
 
-   ~MFEMCeedInterpolation();
+   ~AlgebraicInterpolation();
 
    virtual void Mult(const mfem::Vector& x, mfem::Vector& y) const;
 
@@ -149,7 +149,7 @@ public:
 
 private:
    CeedElemRestriction fine_er;
-   Array<MFEMCeedInterpolation*> ceed_interpolations;
+   Array<AlgebraicInterpolation*> ceed_interpolations;
    Array<TransposeOperator*> R_tr;
 };
 
