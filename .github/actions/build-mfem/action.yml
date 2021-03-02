@@ -64,7 +64,7 @@ runs:
           fi
         fi
         if [[ ${{ inputs.codecov }} == 'YES' ]]; then
-          CPPFLAGS+=" -fprofile-arcs -ftest-coverage -fPIC -O0";
+          CPPFLAGS+=" --coverage -fPIC -g";
         fi
         echo "--- Configure mfem ---"
         cd ${{ inputs.mfem-dir }};
