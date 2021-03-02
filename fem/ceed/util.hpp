@@ -16,7 +16,7 @@
 #ifdef MFEM_USE_CEED
 #include <ceed.h>
 #include <ceed-hash.h>
-#include <ceed-backend.h>  // for CeedOperatorField (?)
+#include <ceed-backend.h>  // for CeedOperatorField
 #endif
 #include <tuple>
 #include <unordered_map>
