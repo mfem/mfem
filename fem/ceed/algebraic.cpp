@@ -361,7 +361,7 @@ AlgebraicMultigrid::~AlgebraicMultigrid()
 {
 }
 
-int MFEMCeedInterpolation::Initialize(
+int AlgebraicInterpolation::Initialize(
    Ceed ceed, CeedBasis basisctof,
    CeedElemRestriction erestrictu_coarse, CeedElemRestriction erestrictu_fine)
 {
@@ -434,7 +434,7 @@ int MFEMCeedInterpolation::Initialize(
    return 0;
 }
 
-int MFEMCeedInterpolation::Finalize()
+int AlgebraicInterpolation::Finalize()
 {
    int ierr;
 
@@ -448,7 +448,7 @@ int MFEMCeedInterpolation::Finalize()
    return 0;
 }
 
-MFEMCeedInterpolation::MFEMCeedInterpolation(
+AlgebraicInterpolation::AlgebraicInterpolation(
    Ceed ceed, CeedBasis basisctof,
    CeedElemRestriction erestrictu_coarse,
    CeedElemRestriction erestrictu_fine)
@@ -465,7 +465,7 @@ MFEMCeedInterpolation::MFEMCeedInterpolation(
    Initialize(ceed, basisctof, erestrictu_coarse, erestrictu_fine);
 }
 
-MFEMCeedInterpolation::~MFEMCeedInterpolation()
+AlgebraicInterpolation::~AlgebraicInterpolation()
 {
    int ierr;
    ierr = CeedVectorDestroy(&v_); PCeedChk(ierr);
@@ -515,7 +515,7 @@ int CeedVectorPointwiseMult(CeedVector a, const CeedVector b)
    return 0;
 }
 
-void MFEMCeedInterpolation::Mult(const mfem::Vector& x, mfem::Vector& y) const
+void AlgebraicInterpolation::Mult(const mfem::Vector& x, mfem::Vector& y) const
 {
    int ierr = 0;
    const CeedScalar *in_ptr;
@@ -547,8 +547,8 @@ void MFEMCeedInterpolation::Mult(const mfem::Vector& x, mfem::Vector& y) const
    ierr = CeedVectorTakeArray(v_, mem, &out_ptr); PCeedChk(ierr);
 }
 
-void MFEMCeedInterpolation::MultTranspose(const mfem::Vector& x,
-                                          mfem::Vector& y) const
+void AlgebraicInterpolation::MultTranspose(const mfem::Vector& x,
+                                           mfem::Vector& y) const
 {
    int ierr = 0;
    CeedMemType mem;
@@ -658,7 +658,7 @@ AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
       }
       current_order = current_order/2;
       fespaces[ilevel] = space;
-      ceed_interpolations[ilevel] = new MFEMCeedInterpolation(
+      ceed_interpolations[ilevel] = new AlgebraicInterpolation(
          ceed,
          space->GetCeedCoarseToFine(),
          space->GetCeedElemRestriction(),

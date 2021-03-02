@@ -21,9 +21,9 @@ namespace mfem
 namespace ceed
 {
 
+#ifdef MFEM_USE_CEED
 Operator::Operator(CeedOperator op)
 {
-#ifdef MFEM_USE_CEED
    oper = op;
    CeedElemRestriction er;
    CeedOperatorGetActiveElemRestriction(oper, &er);
@@ -32,10 +32,8 @@ Operator::Operator(CeedOperator op)
    height = width = s;
    CeedVectorCreate(internal::ceed, height, &v);
    CeedVectorCreate(internal::ceed, width, &u);
-#else
-   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
-#endif
 }
+#endif
 
 void Operator::Mult(const mfem::Vector &x, mfem::Vector &y) const
 {
