@@ -28,64 +28,69 @@ env:
 
 # Note for future improvements:
 #
-# I cannot reuse cached dependencies and have to build them for each target although they could be shared sometimes. That's because Github cache Action has no read-only mode. But there is a PR ready for this (https://github.com/actions/cache/pull/489)
+# I cannot reuse cached dependencies and have to build them for each target
+# although they could be shared sometimes. That's because Github cache Action
+# has no read-only mode. But there is a PR ready for this
+# (https://github.com/actions/cache/pull/489)
 
 jobs:
   builds-and-tests:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-18.04, macos-10.15]
         target: [debug, optim]
-        mpi: [NO, YES]
+        mpi: [sequential, parallel]
         build-system: [make]
         hypre-target: [basic]
         # 'include' allows to
         # - add a variable without creating a new matrix dimension.
         # - add a new combination ('build-system: cmake' case here)
         #
-        # note: we will gather coverage info for any non-debug run except the CMake build.
+        # note: we will gather coverage info for any non-debug run except the
+        # CMake build.
         include:
           - target: debug
             codecov: NO
           - target: optim
             codecov: YES
-          - os: ubuntu-latest
+          - os: ubuntu-18.04
             target: optim
             codecov: NO
-            mpi: YES
+            mpi: parallel
             build-system: cmake
             hypre-target: basic
-          - os: ubuntu-latest
+          - os: ubuntu-18.04
             target: optim
             codecov: YES
-            mpi: YES
+            mpi: parallel
             build-system: make
             hypre-target: bigint
-    name: ${{ matrix.os }}-${{ matrix.target }}-mpi(${{ matrix.mpi }})-${{ matrix.build-system }}-hypre(${{ matrix.hypre-target }})
+    name: ${{ matrix.os }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.build-system }}-hypre(${{ matrix.hypre-target }})
 
     runs-on: ${{ matrix.os }}
 
     steps:
-    # Checkout MFEM in "mfem" subdirectory. Final path: /home/runner/work/mfem/mfem/mfem
-    # Note: it must be done now to access "install-hypre" and "install-metis" actions.
+    # Checkout MFEM in "mfem" subdirectory. Final path:
+    # /home/runner/work/mfem/mfem/mfem
+    # Note: Done now to access "install-hypre" and "install-metis" actions.
     - name: checkout mfem
       uses: actions/checkout@v2
       with:
         path: mfem
-        # a fetch depth > 1 is required to retrieve the hash (dixit codecov)
-        fetch-depth: 2
+        # Fetch the complete history for codecov to access commits ID
+        fetch-depth: 0
 
     # Only get MPI if defined for the job.
     # TODO (bernede1@llnl.gov): It would be nice to have only one step,
     # e.g. with a dedicated action, but I don’t see how at the moment.
     - name: get MPI (Linux)
-      if: matrix.mpi == 'YES' && matrix.os == 'ubuntu-latest'
+      if: matrix.mpi == 'parallel' && matrix.os == 'ubuntu-18.04'
       run: |
         sudo apt-get install mpich libmpich-dev
         export MAKE_CXX_FLAG="MPICXX=mpic++"
 
     - name: get MPI (MacOS)
-      if: matrix.mpi == 'YES' && matrix.os == 'macos-latest'
+      if: matrix.mpi == 'parallel' && matrix.os == 'macos-10.15'
       run: |
         export HOMEBREW_NO_INSTALL_CLEANUP=1
         brew install openmpi
@@ -95,14 +100,14 @@ jobs:
     # Install will only run on cache miss.
     - name: cache hypre Install
       id: hypre-cache
-      if: matrix.mpi == 'YES'
+      if: matrix.mpi == 'parallel'
       uses: actions/cache@v2
       with:
         path: ${{ env.HYPRE_TOP_DIR }}
         key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-${{ matrix.hypre-target }}-v1
 
     - name: get hypre
-      if: matrix.mpi == 'YES' && steps.hypre-cache.outputs.cache-hit != 'true'
+      if: matrix.mpi == 'parallel' && steps.hypre-cache.outputs.cache-hit != 'true'
       uses: ./mfem/.github/actions/install-hypre
       with:
         archive: ${{ env.HYPRE_ARCHIVE }}
@@ -113,14 +118,14 @@ jobs:
     # Install will only run on cache miss.
     - name: cache metis Install
       id: metis-cache
-      if: matrix.mpi == 'YES'
+      if: matrix.mpi == 'parallel'
       uses: actions/cache@v2
       with:
         path: ${{ env.METIS_TOP_DIR }}
         key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-v1
 
     - name: install metis
-      if: matrix.mpi == 'YES' && steps.metis-cache.outputs.cache-hit != 'true'
+      if: matrix.mpi == 'parallel' && steps.metis-cache.outputs.cache-hit != 'true'
       uses: ./mfem/.github/actions/install-metis
       with:
         archive: ${{ env.METIS_ARCHIVE }}
@@ -150,17 +155,19 @@ jobs:
       run: |
         cd mfem && make unittest
 
+    - name: tests
+      if: matrix.build-system == 'make' && matrix.target == 'optim'
+      run: |
+        cd mfem && make test
+
     - name: cmake unit tests
       if: matrix.build-system == 'cmake'
       run: |
         cd mfem/build/tests/unit && ctest --output-on-failure
 
-    - name: tests
-      if: matrix.build_system == 'make' && matrix.target == 'optim'
-      run: |
-        cd mfem && make test
-
+    # Code coverage (process and upload reports)
     - name: codecov
+      if: matrix.codecov == 'YES'
       uses: ./mfem/.github/actions/upload-coverage
       with:
-        name: "os-${{ matrix.os }}-mpi-${{ matrix.mpi }}"
+        name: "${{ matrix.os }}-${{ matrix.mpi }}"
