@@ -74,9 +74,10 @@ jobs:
       uses: ./mfem/.github/actions/build-mfem
       with:
         os: ${{ runner.os }}
-        debug: NO
-        mpi: YES
+        target: optim
         codecov: NO
+        mpi: parallel
+        build-system: make
         hypre-dir: ${{ env.HYPRE_TOP_DIR }}
         metis-dir: ${{ env.METIS_TOP_DIR }}
         mfem-dir: mfem

@@ -22,7 +22,7 @@ inputs:
   mpi:
     description: 'MPI status'
     required: false
-    default: YES
+    default: parallel
   codecov:
     description: 'Codecov status'
     required: false
@@ -39,7 +39,7 @@ inputs:
   build-system:
     description: 'identify the build system to use (make,cmake)'
     required: false
-    default: NO
+    default: make
 
 runs:
   using: "composite"
@@ -47,7 +47,7 @@ runs:
     - name: configure mfem
       run: |
         echo "--- Prepare Configuration ---"
-        if [[ ${{ inputs.mpi }} == "YES" ]]; then
+        if [[ ${{ inputs.mpi }} == "parallel" ]]; then
           echo "Hypre symlink:"
           ln -s ${{ inputs.hypre-dir }} hypre;
           echo "Metis symlink:"
