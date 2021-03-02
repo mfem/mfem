@@ -113,12 +113,6 @@ int main(int argc, char *argv[])
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
    if (myid == 0) { device.Print(); }
-   if (algebraic_ceed)
-   {
-      MFEM_VERIFY(DeviceCanUseCeed(),
-                  "--algebraic makes no sense without Ceed backend!");
-      MFEM_VERIFY(pa, "--algebraic only makes sense with partial assembly");
-   }
 
    // 4. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
@@ -235,7 +229,7 @@ int main(int argc, char *argv[])
    {
       if (UsesTensorBasis(fespace))
       {
-         if (DeviceCanUseCeed() && algebraic_ceed)
+         if (algebraic_ceed)
          {
             prec = new ceed::AlgebraicSolver(a, ess_tdof_list);
          }

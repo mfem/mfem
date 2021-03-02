@@ -105,12 +105,6 @@ int main(int argc, char *argv[])
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
    device.Print();
-   if (algebraic_ceed)
-   {
-      MFEM_VERIFY(DeviceCanUseCeed(),
-                  "--algebraic makes no sense without Ceed backend!");
-      MFEM_VERIFY(pa, "--algebraic only makes sense with partial assembly");
-   }
 
    // 3. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
@@ -219,15 +213,18 @@ int main(int argc, char *argv[])
    }
    else
    {
-      if (DeviceCanUseCeed() && algebraic_ceed)
+      if (UsesTensorBasis(fespace))
       {
-         ceed::AlgebraicSolver M(a, ess_tdof_list);
-         PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
-      }
-      else if (UsesTensorBasis(fespace))
-      {
-         OperatorJacobiSmoother M(a, ess_tdof_list);
-         PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
+         if (algebraic_ceed)
+         {
+            ceed::AlgebraicSolver M(a, ess_tdof_list);
+            PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
+         }
+         else
+         {
+            OperatorJacobiSmoother M(a, ess_tdof_list);
+            PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
+         }
       }
       else
       {

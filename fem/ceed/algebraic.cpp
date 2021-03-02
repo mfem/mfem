@@ -26,29 +26,6 @@ namespace ceed
 
 #ifdef MFEM_USE_CEED
 
-/** Construct a ceed::Operator from a CeedOperator */
-class WrapOperator : public ceed::Operator
-{
-public:
-   /** This object takes ownership of ceed_op and will delete it */
-   WrapOperator(CeedOperator ceed_op)
-   {
-      oper = ceed_op;
-      CeedElemRestriction er;
-      CeedOperatorGetActiveElemRestriction(oper, &er);
-      int s;
-      CeedElemRestrictionGetLVectorSize(er, &s);
-      height = width = s;
-      CeedVectorCreate(internal::ceed, height, &v);
-      CeedVectorCreate(internal::ceed, width, &u);
-   }
-
-   mfem::Operator * SetupRAP(const mfem::Operator *Pi, const mfem::Operator *Po)
-   {
-      return Operator::SetupRAP(Pi, Po);
-   }
-};
-
 /** Wraps a CeedOperator in an mfem::Operator, with essential boundary
     conditions and a prolongation operator for parallel application. */
 class ConstrainedMFEMCeedOperator : public mfem::Operator
@@ -66,7 +43,7 @@ public:
 private:
    Array<int> ess_tdofs;
    const mfem::Operator *P;
-   WrapOperator *unconstrained_op;
+   ceed::Operator *unconstrained_op;
    ConstrainedOperator *constrained_op;
 };
 
@@ -76,7 +53,7 @@ ConstrainedMFEMCeedOperator::ConstrainedMFEMCeedOperator(
    const mfem::Operator *P_)
    : ess_tdofs(ess_tdofs_), P(P_)
 {
-   unconstrained_op = new WrapOperator(oper);
+   unconstrained_op = new ceed::Operator(oper);
    mfem::Operator *rap = unconstrained_op->SetupRAP(P, P);
    height = width = rap->Height();
    bool own_rap = (rap != unconstrained_op);
@@ -954,6 +931,10 @@ ParAlgebraicCoarseSpace::~ParAlgebraicCoarseSpace()
 AlgebraicSolver::AlgebraicSolver(BilinearForm &form,
                                  const Array<int>& ess_tdofs)
 {
+   MFEM_VERIFY(DeviceCanUseCeed(),
+               "This object requires a Ceed device");
+   MFEM_VERIFY(form.GetAssemblyLevel() == AssemblyLevel::PARTIAL,
+               "AlgebraicSolver requires partial assembly");
 #ifdef MFEM_USE_CEED
    fespaces = new AlgebraicSpaceHierarchy(*form.FESpace());
    multigrid = new AlgebraicMultigrid(*fespaces, form, ess_tdofs);

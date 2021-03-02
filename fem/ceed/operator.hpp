@@ -33,9 +33,17 @@ protected:
 #endif
 
 public:
+#ifdef MFEM_USE_CEED
+   /// This class takes ownership of op and will delete it
+   Operator(CeedOperator op);
+#endif
    void Mult(const mfem::Vector &x, mfem::Vector &y) const override;
    void AddMult(const mfem::Vector &x, mfem::Vector &y) const;
    void GetDiagonal(mfem::Vector &diag) const;
+   mfem::Operator * SetupRAP(const mfem::Operator *Pi,
+                             const mfem::Operator *Po)
+   { return mfem::Operator::SetupRAP(Pi, Po); }
+
    virtual ~Operator()
    {
 #ifdef MFEM_USE_CEED
