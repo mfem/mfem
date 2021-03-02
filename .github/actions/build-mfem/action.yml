@@ -59,7 +59,7 @@ runs:
         DEBUG="NO";
         if [[ ${{ inputs.target }} == 'debug' ]]; then
           DEBUG="YES";
-          if [[ ${{ inputs.os }} == 'ubuntu-latest' ]]; then
+          if [[ ${{ inputs.os }} == 'ubuntu-18.04' ]]; then
             CPPFLAGS+=" -pedantic -Wall -Werror";
           fi
         fi

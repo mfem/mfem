@@ -52,7 +52,7 @@ jobs:
             codecov: NO
           - target: optim
             codecov: YES
-          - os: ubuntu-latest
+          - os: ubuntu-18.04
             target: optim
             codecov: NO
             mpi: parallel
@@ -76,13 +76,13 @@ jobs:
     # TODO (bernede1@llnl.gov): It would be nice to have only one step,
     # e.g. with a dedicated action, but I don’t see how at the moment.
     - name: get MPI (Linux)
-      if: matrix.mpi == 'parallel' && matrix.os == 'ubuntu-latest'
+      if: matrix.mpi == 'parallel' && matrix.os == 'ubuntu-18.04'
       run: |
         sudo apt-get install mpich libmpich-dev
         export MAKE_CXX_FLAG="MPICXX=mpic++"
 
     - name: get MPI (MacOS)
-      if: matrix.mpi == 'parallel' && matrix.os == 'macos-latest'
+      if: matrix.mpi == 'parallel' && matrix.os == 'macos-10.15'
       run: |
         export HOMEBREW_NO_INSTALL_CLEANUP=1
         brew install openmpi
