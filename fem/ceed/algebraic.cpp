@@ -156,10 +156,11 @@ Solver *BuildSmootherFromCeed(ConstrainedOperator &op, bool chebyshev)
 
 #ifdef MFEM_USE_MPI
 
-class CeedAMG : public Solver
+/// Builds and applies assembled AMG to a CeedOperator
+class AssembledAMG : public Solver
 {
 public:
-   CeedAMG(ConstrainedOperator &oper, HypreParMatrix *P)
+   AssembledAMG(ConstrainedOperator &oper, HypreParMatrix *P)
    {
       MFEM_ASSERT(P != NULL, "Provided HypreParMatrix is invalid!");
       height = width = oper.Height();
@@ -182,7 +183,7 @@ public:
    }
    void SetOperator(const mfem::Operator &op) override { }
    void Mult(const Vector &x, Vector &y) const override { amg->Mult(x, y); }
-   ~CeedAMG()
+   ~AssembledAMG()
    {
       delete op_assembled;
       delete amg;
@@ -344,7 +345,7 @@ AlgebraicMultigrid::AlgebraicMultigrid(
                = dynamic_cast<ParAlgebraicCoarseSpace*>(&space);
             if (pspace) { P_mat = pspace->GetProlongationHypreParMatrix(); }
          }
-         if (P_mat) { smoother = new CeedAMG(*op, P_mat); }
+         if (P_mat) { smoother = new AssembledAMG(*op, P_mat); }
          else { smoother = BuildSmootherFromCeed(*op, true); }
       }
       else
