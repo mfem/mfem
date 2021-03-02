@@ -61,7 +61,7 @@ runs:
         fi
         CPPFLAGS="";
         DEBUG="NO";
-        if [[ "${{ inputs.hypre }}" == 'bigint' ]]; then
+        if [[ "${{ inputs.hypre-target }}" == 'bigint' ]]; then
           CPPFLAGS+=" -DHYPRE_BIGINT"
         fi
         if [[ "${{ inputs.target }}" == 'debug' ]]; then
