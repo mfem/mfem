@@ -37,7 +37,7 @@ jobs:
   builds-and-tests:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-18.04, macos-10.15]
         target: [debug, optim]
         mpi: [sequential, parallel]
         build-system: [make]
@@ -147,7 +147,7 @@ jobs:
         cd mfem && make unittest
 
     - name: tests
-      if: matrix.build_system == 'make' && matrix.target == 'optim'
+      if: matrix.build-system == 'make' && matrix.target == 'optim'
       run: |
         cd mfem && make test
 
