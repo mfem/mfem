@@ -754,12 +754,11 @@ template <typename T>
 inline void Memory<T>::New(int size)
 {
    capacity = size;
-   flags = OWNS_HOST | VALID_HOST;
    h_mt = MemoryManager::host_mem_type;
    d_mt = MemoryManager::device_mem_type;
    const bool mt_host = h_mt == MemoryType::HOST;
    if (mt_host) { flags = OWNS_HOST | VALID_HOST; }
-   h_ptr = (h_mt == MemoryType::HOST) ? Alloc<new_align_bytes>::New(size) :
+   h_ptr = (mt_host) ? Alloc<new_align_bytes>::New(size) :
            (T*)MemoryManager::New_(nullptr, size*sizeof(T), h_mt, d_mt, flags);
 }
 
@@ -772,8 +771,7 @@ inline void Memory<T>::New(int size, MemoryType mt)
    d_mt = IsHostMemory(mt) ? MemoryManager::device_mem_type : mt;
    const bool mt_host = h_mt == MemoryType::HOST;
    if (mt_host) { flags = OWNS_HOST | VALID_HOST; }
-   T *h_tmp = (h_mt == MemoryType::HOST) ?
-              Alloc<new_align_bytes>::New(size) : nullptr;
+   T *h_tmp = (mt_host) ? Alloc<new_align_bytes>::New(size) : nullptr;
    h_ptr = (mt_host) ? h_tmp : (T*)MemoryManager::New_(h_tmp, bytes, h_mt, d_mt,
                                                        flags);
 }
@@ -784,18 +782,16 @@ inline void Memory<T>::New(int size, MemoryType h_mt, MemoryType d_mt)
    MFEM_VERIFY(IsHostMemory(h_mt), "h_mt must be host type");
    MFEM_VERIFY(IsDeviceMemory(d_mt), "d_mt must be device type");
    capacity = size;
+   const size_t bytes = size*sizeof(T);
    this->h_mt = h_mt;
    this->d_mt = d_mt;
-   const size_t bytes = size*sizeof(T);
    const bool mt_host = h_mt == MemoryType::HOST;
    if (mt_host) { flags = OWNS_HOST | VALID_HOST; }
-   T *h_tmp = (h_mt == MemoryType::HOST) ?
-              Alloc<new_align_bytes>::New(size) : nullptr;
+   T *h_tmp = (mt_host) ? Alloc<new_align_bytes>::New(size) : nullptr;
    h_ptr = (mt_host) ? h_tmp : (T*)MemoryManager::New_(h_tmp, bytes, h_mt, d_mt,
                                                        flags);
 }
 
-// TODO
 template <typename T>
 inline void Memory<T>::Wrap(T *ptr, int size, bool own)
 {
@@ -804,6 +800,7 @@ inline void Memory<T>::Wrap(T *ptr, int size, bool own)
    const size_t bytes = size*sizeof(T);
    flags = (own ? OWNS_HOST : 0) | VALID_HOST;
    h_mt = MemoryManager::host_mem_type;
+   d_mt = MemoryManager::device_mem_type;
 #ifdef MFEM_DEBUG
    if (own && MemoryManager::Exists())
    { MFEM_VERIFY(h_mt == MemoryManager::GetHostMemoryType_(h_ptr),""); }
@@ -819,6 +816,7 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
    if (IsHostMemory(mt))
    {
       h_mt = mt;
+      d_mt = MemoryManager::device_mem_type;
       h_ptr = ptr;
       if (mt == MemoryType::HOST || !own)
       {
@@ -829,6 +827,8 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
    }
    else
    {
+      h_mt = MemoryManager::host_mem_type;
+      d_mt = mt;
       h_ptr = nullptr;
    }
    flags = 0;
@@ -836,11 +836,11 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
                                         own, false, flags);
 }
 
-// TODO
 template <typename T>
 inline void Memory<T>::Wrap(T *ptr, T *d_ptr, int size, MemoryType mt, bool own)
 {
-   h_mt = mt;
+   h_mt = IsHostMemory(mt) ? mt : MemoryManager::host_mem_type;
+   d_mt = IsHostMemory(mt) ? MemoryManager::device_mem_type : mt;
    flags = 0;
    h_ptr = ptr;
    capacity = size;
@@ -854,6 +854,7 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
 {
    capacity = size;
    h_mt = base.h_mt;
+   d_mt = base.d_mt;
    h_ptr = base.h_ptr + offset;
    if (!(base.flags & REGISTERED))
    { flags = (base.flags | ALIAS) & ~(OWNS_HOST | OWNS_DEVICE); }
@@ -869,7 +870,7 @@ template <typename T>
 inline void Memory<T>::SetDeviceMemoryType(MemoryType d_mt)
 {
    if (!IsDeviceMemory(d_mt)) { return; }
-   if (flags & VALID_DEVICE) { return; }
+   MFEM_VERIFY(!(flags & VALID_DEVICE), "cannot change device type if memory on device");
    MFEM_VERIFY(!(flags & REGISTERED), "cannot change device type if registered");
    this->d_mt = d_mt;
 }

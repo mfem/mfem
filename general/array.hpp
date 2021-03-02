@@ -831,8 +831,11 @@ template <typename T>
 inline void Array<T>::Copy(Array &copy) const
 {
    copy.SetSize(Size(), data.GetMemoryType());
+   const bool use_dev = data.UseDevice() || copy.UseDevice();
+   copy.data.UseDevice(use_dev);
+   // keep 'data' where it is, unless 'use_dev' is true
+   if (use_dev) { copy.Write(); }
    data.CopyTo(copy.data, Size());
-   copy.data.UseDevice(data.UseDevice());
 }
 
 template <class T>
