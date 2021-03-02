@@ -48,6 +48,8 @@ jobs:
         # note: we will gather coverage info for any non-debug run except the
         # CMake build.
         include:
+          - target: debug
+            codecov: NO
           - target: optim
             codecov: YES
           - os: ubuntu-latest
