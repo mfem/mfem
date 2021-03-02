@@ -107,7 +107,7 @@ protected:
    CGSolver T_solver;    // Implicit solver for T = M + dt K
    HypreSmoother T_prec; // Preconditioner for the implicit solver
 
-   double alpha, kappa, udir;;
+   double alpha, kappa, udir;
 
    mutable Vector z; // auxiliary vector
 

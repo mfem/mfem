@@ -30,6 +30,7 @@
 //
 // Sample runs:  mpirun -np 4 ex1p -nm 3 -np1 2 -np2 1 -np3 1
 //               mpirun -np 4 ex1p -nm 2 -np1 2 -np2 2
+//               mpirun -np 4 ex1p -np1 2 -np2 2 -m1 ../../data/star.mesh -m2 ../../data/beam-quad.mesh
 
 #include "mfem.hpp"
 #include <fstream>
@@ -143,7 +144,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // Setup MPI communicator for each mesh
+   // Setup MPI communicator for each mesh by splitting MPI_COMM_WORLD.
    MPI_Comm *comml = new MPI_Comm;
    int color = 0;
    int npsum = 0;
@@ -157,6 +158,11 @@ int main(int argc, char *argv[])
    int myidlocal, numproclocal;
    MPI_Comm_rank(*comml, &myidlocal);
    MPI_Comm_size(*comml, &numproclocal);
+
+   // Check number of mpi ranks specified for each mesh.
+   MFEM_VERIFY(np_list.Sum() == num_procs, " The individual mpi ranks for each"
+               " of the meshes do not add up to"
+               " the total ranks specified.");
 
    // Enable hardware devices such as GPUs, and programming models such as
    // CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -246,44 +252,50 @@ int main(int argc, char *argv[])
    {
       Vector vxyz = *pmesh->GetNodes();
 
-      // Modify the inline-quad.mesh such that it does not cover the entire
-      // domain.
-      if (nmeshes == 2)
+      // For the default mesh inputs, we need to rescale inline-quad.mesh
+      // such that it does not cover the entrie domain [0, 1]^2 and still has a
+      // non-trivial overlap with the other mesh.
+      if (strcmp(mesh_file_list[0], "../../data/square-disc.mesh") == 0 &&
+          strcmp(mesh_file_list[1], "../../data/inline-quad.mesh") == 0 &&
+          strcmp(mesh_file_list[2], "../../data/inline-quad.mesh") == 0 )
       {
-         if (color == 1)   // rescale from [0, 1]^2 to [0.25, 0.75]^2
+         if (nmeshes == 2)
          {
-            for (int i = 0; i < vxyz.Size(); i++)
+            if (color == 1)   // rescale from [0, 1]^2 to [0.25, 0.75]^2
             {
-               vxyz(i) = 0.5 + 0.5*(vxyz(i)-0.5);
+               for (int i = 0; i < vxyz.Size(); i++)
+               {
+                  vxyz(i) = 0.5 + 0.5*(vxyz(i)-0.5);
+               }
             }
          }
-      }
-      else if (nmeshes == 3)
-      {
-         if (color == 1)
+         else if (nmeshes == 3)
          {
-            // rescale from [0, 1]^2 to [0.21, 0.61] in x and [0.25, 0.75] in y
-            const int pts_cnt = vxyz.Size()/dim;
-            for (int i = 0; i < pts_cnt; i++)
+            if (color == 1)
             {
-               vxyz(i) = 0.41 + 0.4*(vxyz(i)-0.5);
+               // rescale from [0, 1]^2 to [0.21, 0.61] in x and [0.25, 0.75] in y
+               const int pts_cnt = vxyz.Size()/dim;
+               for (int i = 0; i < pts_cnt; i++)
+               {
+                  vxyz(i) = 0.41 + 0.4*(vxyz(i)-0.5);
+               }
+               for (int i = 0; i < pts_cnt; i++)
+               {
+                  vxyz(i+pts_cnt) = 0.5 + 0.5*(vxyz(i+pts_cnt)-0.5);
+               }
             }
-            for (int i = 0; i < pts_cnt; i++)
+            else if (color == 2)
             {
-               vxyz(i+pts_cnt) = 0.5 + 0.5*(vxyz(i+pts_cnt)-0.5);
-            }
-         }
-         else if (color == 2)
-         {
-            // rescale from [0, 1]^2 to [0.4, 0.8] in x and [0.2, 0.8] in y
-            const int pts_cnt = vxyz.Size()/dim;
-            for (int i = 0; i < pts_cnt; i++)
-            {
-               vxyz(i) = 0.6 + 0.4*(vxyz(i)-0.5);
-            }
-            for (int i = 0; i < pts_cnt; i++)
-            {
-               vxyz(i+pts_cnt) = 0.5 + 0.6*(vxyz(i+pts_cnt)-0.5);
+               // rescale from [0, 1]^2 to [0.4, 0.8] in x and [0.2, 0.8] in y
+               const int pts_cnt = vxyz.Size()/dim;
+               for (int i = 0; i < pts_cnt; i++)
+               {
+                  vxyz(i) = 0.6 + 0.4*(vxyz(i)-0.5);
+               }
+               for (int i = 0; i < pts_cnt; i++)
+               {
+                  vxyz(i+pts_cnt) = 0.5 + 0.6*(vxyz(i+pts_cnt)-0.5);
+               }
             }
          }
       }
@@ -306,7 +318,9 @@ int main(int argc, char *argv[])
    const int nb1 = ess_tdof_list_int.Size(),
              nt1 = vxyz.Size()/dim;
 
-   MFEM_VERIFY(nb1!=0, " Please use overlapping grids.");
+   int nb1g = nb1;
+   MPI_Allreduce(&nb1, &nb1g, 1, MPI_INT, MPI_SUM, *comml);
+   MFEM_VERIFY(nb1g != 0, " Please use overlapping grids.");
 
    Array<unsigned int> colorv;
    colorv.SetSize(nb1);
@@ -355,7 +369,7 @@ int main(int argc, char *argv[])
       // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
       Solver *prec = NULL;
       prec = new HypreBoomerAMG;
-      CGSolver cg(MPI_COMM_WORLD);
+      CGSolver cg(*comml);
       cg.SetRelTol(1e-12);
       cg.SetMaxIter(2000);
       cg.SetPrintLevel(0);
