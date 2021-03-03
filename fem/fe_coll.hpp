@@ -178,7 +178,8 @@ public:
       return var_orders[p]->DofOrderForOrientation(geom, ori);
    }
 
-   /// Return the order the FE collection was constructed with.
+   /** Return the polynomial degree of the FE collection (corresponds also to
+       the degree returned by GetOrder() of the contained FiniteElements).*/
    int GetOrder() const { return base_p; }
 
 protected:
@@ -343,7 +344,11 @@ protected:
                    const int ob_type = BasisType::GaussLegendre);
 
 public:
-   RT_FECollection(const int p, const int dim,
+   /** Construct an RT<order> collection. Note that in accordance with the
+       literature, the polynomial degree of RT<order> collection is (order+1).
+       For example, RT0 collection contains vector-valued linear functions.
+       FiniteElementCollection::GetOrder() will then return 1. */
+   RT_FECollection(const int order, const int dim,
                    const int cb_type = BasisType::GaussLobatto,
                    const int ob_type = BasisType::GaussLegendre);
 
@@ -490,7 +495,7 @@ private:
    const TriLinear3DFiniteElement ParallelepipedFE;
    const H1_WedgeElement WedgeFE;
 public:
-   LinearFECollection() : WedgeFE(1) { }
+   LinearFECollection() : FiniteElementCollection(1), WedgeFE(1) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
@@ -518,7 +523,8 @@ private:
    const H1_WedgeElement WedgeFE;
 
 public:
-   QuadraticFECollection() : ParallelepipedFE(2), WedgeFE(2) { }
+   QuadraticFECollection()
+      : FiniteElementCollection(2), ParallelepipedFE(2), WedgeFE(2) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
@@ -541,7 +547,7 @@ private:
    const BiQuadPos2DFiniteElement QuadrilateralFE;
 
 public:
-   QuadraticPosFECollection() { }
+   QuadraticPosFECollection() : FiniteElementCollection(2) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
@@ -570,7 +576,9 @@ private:
 
 public:
    CubicFECollection()
-      : ParallelepipedFE(3), WedgeFE(3, BasisType::ClosedUniform) { }
+      : FiniteElementCollection(3),
+        ParallelepipedFE(3), WedgeFE(3, BasisType::ClosedUniform)
+   { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
@@ -593,7 +601,7 @@ private:
    const CrouzeixRaviartFiniteElement TriangleFE;
    const CrouzeixRaviartQuadFiniteElement QuadrilateralFE;
 public:
-   CrouzeixRaviartFECollection() : SegmentFE(1) { }
+   CrouzeixRaviartFECollection() : FiniteElementCollection(1), SegmentFE(1) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
@@ -618,7 +626,7 @@ private:
    const RotTriLinearHexFiniteElement ParallelepipedFE;
 
 public:
-   LinearNonConf3DFECollection () { }
+   LinearNonConf3DFECollection() : FiniteElementCollection(1) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
@@ -643,7 +651,7 @@ private:
    const RT0TriangleFiniteElement TriangleFE;
    const RT0QuadFiniteElement QuadrilateralFE;
 public:
-   RT0_2DFECollection() : SegmentFE(0) { }
+   RT0_2DFECollection() : FiniteElementCollection(1), SegmentFE(0) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
@@ -667,7 +675,7 @@ private:
    const RT1TriangleFiniteElement TriangleFE;
    const RT1QuadFiniteElement QuadrilateralFE;
 public:
-   RT1_2DFECollection() { }
+   RT1_2DFECollection() : FiniteElementCollection(2) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
@@ -691,7 +699,7 @@ private:
    const RT2TriangleFiniteElement TriangleFE;
    const RT2QuadFiniteElement QuadrilateralFE;
 public:
-   RT2_2DFECollection() { }
+   RT2_2DFECollection() : FiniteElementCollection(3) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
@@ -715,7 +723,7 @@ private:
    const P0TriangleFiniteElement TriangleFE;
    const P0QuadFiniteElement QuadrilateralFE;
 public:
-   Const2DFECollection() { }
+   Const2DFECollection() : FiniteElementCollection(0) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
@@ -740,7 +748,7 @@ private:
    const BiLinear2DFiniteElement QuadrilateralFE;
 
 public:
-   LinearDiscont2DFECollection() { }
+   LinearDiscont2DFECollection() : FiniteElementCollection(1) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
@@ -764,7 +772,7 @@ private:
    const GaussBiLinear2DFiniteElement QuadrilateralFE;
 
 public:
-   GaussLinearDiscont2DFECollection() { }
+   GaussLinearDiscont2DFECollection() : FiniteElementCollection(1) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
@@ -785,7 +793,7 @@ class P1OnQuadFECollection : public FiniteElementCollection
 private:
    const P1OnQuadFiniteElement QuadrilateralFE;
 public:
-   P1OnQuadFECollection() { }
+   P1OnQuadFECollection() : FiniteElementCollection(1) { }
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
    virtual int DofForGeometry(Geometry::Type GeomType) const;
@@ -805,7 +813,7 @@ private:
    const BiQuad2DFiniteElement QuadrilateralFE;
 
 public:
-   QuadraticDiscont2DFECollection() { }
+   QuadraticDiscont2DFECollection() : FiniteElementCollection(2) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
@@ -826,7 +834,7 @@ private:
    const BiQuadPos2DFiniteElement QuadrilateralFE;
 
 public:
-   QuadraticPosDiscont2DFECollection() { }
+   QuadraticPosDiscont2DFECollection() : FiniteElementCollection(2) { }
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
    virtual int DofForGeometry(Geometry::Type GeomType) const;
@@ -846,7 +854,7 @@ private:
    const GaussBiQuad2DFiniteElement QuadrilateralFE;
 
 public:
-   GaussQuadraticDiscont2DFECollection() { }
+   GaussQuadraticDiscont2DFECollection() : FiniteElementCollection(2) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
@@ -870,7 +878,7 @@ private:
    const BiCubic2DFiniteElement QuadrilateralFE;
 
 public:
-   CubicDiscont2DFECollection() { }
+   CubicDiscont2DFECollection() : FiniteElementCollection(3) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
@@ -895,7 +903,7 @@ private:
    const L2_WedgeElement WedgeFE;
 
 public:
-   Const3DFECollection() : WedgeFE(0) { }
+   Const3DFECollection() : FiniteElementCollection(0), WedgeFE(0) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
@@ -919,7 +927,7 @@ private:
    const TriLinear3DFiniteElement ParallelepipedFE;
 
 public:
-   LinearDiscont3DFECollection () { }
+   LinearDiscont3DFECollection() : FiniteElementCollection(1) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
@@ -943,7 +951,8 @@ private:
    const LagrangeHexFiniteElement ParallelepipedFE;
 
 public:
-   QuadraticDiscont3DFECollection () : ParallelepipedFE(2) { }
+   QuadraticDiscont3DFECollection()
+      : FiniteElementCollection(2), ParallelepipedFE(2) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
@@ -969,7 +978,7 @@ private:
    const RefinedTriLinear3DFiniteElement ParallelepipedFE;
 
 public:
-   RefinedLinearFECollection() { }
+   RefinedLinearFECollection() : FiniteElementCollection(1) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
@@ -993,7 +1002,7 @@ private:
    const Nedelec1TetFiniteElement TetrahedronFE;
 
 public:
-   ND1_3DFECollection() { }
+   ND1_3DFECollection() : FiniteElementCollection(1) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
@@ -1017,7 +1026,7 @@ private:
    const RT0HexFiniteElement HexahedronFE;
    const RT0TetFiniteElement TetrahedronFE;
 public:
-   RT0_3DFECollection() { }
+   RT0_3DFECollection() : FiniteElementCollection(1) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
@@ -1040,7 +1049,7 @@ private:
    const BiLinear2DFiniteElement QuadrilateralFE;
    const RT1HexFiniteElement HexahedronFE;
 public:
-   RT1_3DFECollection() { }
+   RT1_3DFECollection() : FiniteElementCollection(2) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;

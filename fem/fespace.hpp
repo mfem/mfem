@@ -352,10 +352,6 @@ protected:
                     const FiniteElementCollection *fec,
                     int vdim = 1, int ordering = Ordering::byNODES);
 
-   /** Return the order of an edge. In a variable order space, return the order
-       of a specific variant, or -1 if there are no more variants. */
-   int GetEdgeOrder(int edge, int variant = 0) const;
-
    /// Resize the elem_order array on mesh change.
    void UpdateElementOrders();
 
@@ -411,8 +407,6 @@ public:
    void SetElementOrder(int i, int p);
 
    /// Returns the order of the i'th finite element.
-   /** @note This is the 'order' of the FiniteElementCollection. The actual
-       polynomial degree may differ for RT elements, see @a GetElementDegree().*/
    int GetElementOrder(int i) const;
 
    /// Return the maximum polynomial order.
@@ -510,26 +504,19 @@ public:
    const FaceQuadratureInterpolator *GetFaceQuadratureInterpolator(
       const IntegrationRule &ir, FaceType type) const;
 
-   /// Returns vector dimension.
-   inline int GetVDim() const { return vdim; }
-
-   /// Returns the polynomial degree of the i'th element.
-   /** This is normally the same as GetElementOrder(i), except for RT finite
-       element spaces, where the actual degree of the RTp collection is p+1.*/
-   int GetElementDegree(int i) const { return GetFE(i)->GetOrder(); }
-
-   /** Returns the polynomial degree of the FiniteElement associated with the
-       i'th face. This is normally the same as the order of the FE collection,
-       except for RTp collections, where the actual polynomial degree is p+1.*/
-   int GetFaceDegree(int i) const { return GetFaceElement(i)->GetOrder(); }
-
    /// Returns the polynomial degree of the i'th finite element.
-   /** Deprecated: please use @a GetElementDegree instead. */
-   MFEM_DEPRECATED int GetOrder(int i) const { return GetElementDegree(i); }
+   /** NOTE: it is recommended to use GetElementOrder in new code. */
+   int GetOrder(int i) const { return GetElementOrder(i); }
+
+   /** Return the order of an edge. In a variable order space, return the order
+       of a specific variant, or -1 if there are no more variants. */
+   int GetEdgeOrder(int edge, int variant = 0) const;
 
    /// Returns the polynomial degree of the i'th face finite element
-   /** Deprecated: please use @a GetFaceDegree instead. */
-   MFEM_DEPRECATED int GetFaceOrder(int i) const { return GetFaceDegree(i); }
+   int GetFaceOrder(int face, int variant = 0) const;
+
+   /// Returns vector dimension.
+   inline int GetVDim() const { return vdim; }
 
    /// Returns number of degrees of freedom.
    inline int GetNDofs() const { return ndofs; }
