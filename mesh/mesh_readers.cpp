@@ -850,7 +850,7 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
    getline(input, buff); // finish the line
 
    // Read the cell materials
-   bool found_material{false};
+   // bool found_material = false;
    Array<int> cell_attributes;
    while ((input.good()))
    {
@@ -867,7 +867,7 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
             MFEM_ABORT("Invalid LOOKUP_TABLE for material array in VTK file.");
          }
          cell_attributes.Load(ncells, input);
-         found_material = true;
+         // found_material = true;
          break;
       }
    }
