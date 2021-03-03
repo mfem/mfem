@@ -7275,6 +7275,26 @@ void Poly_1D::Basis::Eval(const double y, Vector &u, Vector &d,
    }
 }
 
+void Poly_1D::Basis::TransformShapes(Vector &dshapec,
+                                     Vector &shapeo,
+                                     const bool scaleShapes) const
+{
+   const int p = dshapec.Size() - 1;
+   shapeo[p-1] = dshapec[p];
+   for (int i=p-2; i>=0; i--)
+   {
+      shapeo[i] = shapeo[i+1] + dshapec[i+1];
+   }
+   if (scaleShapes)
+   {
+      for (int i=0; i<p; i++)
+      {
+         const double h = x(i+1) - x(i);
+         shapeo[i] *= h;
+      }
+   }
+}
+
 const int *Poly_1D::Binom(const int p)
 {
    if (binom.NumCols() <= p)
@@ -7595,7 +7615,8 @@ Poly_1D poly1d;
 TensorBasisElement::TensorBasisElement(const int dims, const int p,
                                        const int btype, const DofMapType dmtype)
    : b_type(btype),
-     basis1d(poly1d.GetBasis(p, b_type))
+     basis1d(poly1d.GetBasis(p, b_type)),
+     GLbasis1d(poly1d.GetBasis(p+1, BasisType::GaussLobatto))
 {
    if (dmtype == H1_DOF_MAP || dmtype == Sr_DOF_MAP)
    {
@@ -9728,6 +9749,17 @@ void L2_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
    basis1d.Eval(ip.x, shape_x);
    basis1d.Eval(ip.y, shape_y);
 
+   if (useTransformedShapes)
+   {
+      Vector shape_xGLob(p+2), shape_yGLob(p+2), shape_zGLob(p+2),
+             dshape_xGLob(p+2), dshape_yGLob(p+2), dshape_zGLob(p+2);
+      GLbasis1d.Eval(ip.x, shape_xGLob, dshape_xGLob);
+      GLbasis1d.Eval(ip.y, shape_yGLob, dshape_yGLob);
+      const bool scaleShapes = true;
+      GLbasis1d.TransformShapes(dshape_xGLob, shape_x, scaleShapes);
+      GLbasis1d.TransformShapes(dshape_yGLob, shape_y, scaleShapes);
+   }
+
    for (int o = 0, j = 0; j <= p; j++)
       for (int i = 0; i <= p; i++)
       {
@@ -9916,6 +9948,19 @@ void L2_HexahedronElement::CalcShape(const IntegrationPoint &ip,
    basis1d.Eval(ip.x, shape_x);
    basis1d.Eval(ip.y, shape_y);
    basis1d.Eval(ip.z, shape_z);
+
+   if (useTransformedShapes)
+   {
+      Vector shape_xGLob(p+2), shape_yGLob(p+2), shape_zGLob(p+2),
+             dshape_xGLob(p+2), dshape_yGLob(p+2), dshape_zGLob(p+2);
+      GLbasis1d.Eval(ip.x, shape_xGLob, dshape_xGLob);
+      GLbasis1d.Eval(ip.y, shape_yGLob, dshape_yGLob);
+      GLbasis1d.Eval(ip.z, shape_zGLob, dshape_zGLob);
+      const bool scaleShapes = true;
+      GLbasis1d.TransformShapes(dshape_xGLob, shape_x, scaleShapes);
+      GLbasis1d.TransformShapes(dshape_yGLob, shape_y, scaleShapes);
+      GLbasis1d.TransformShapes(dshape_zGLob, shape_z, scaleShapes);
+   }
 
    for (int o = 0, k = 0; k <= p; k++)
       for (int j = 0; j <= p; j++)
@@ -10806,6 +10851,15 @@ void RT_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
    cbasis1d.Eval(ip.y, shape_cy);
    obasis1d.Eval(ip.y, shape_oy);
 
+   // Transform open interval functions if requested
+   if (useTransformedShapes)
+   {
+      cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
+      cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
+      cbasis1d.TransformShapes(dshape_cx, shape_ox);
+      cbasis1d.TransformShapes(dshape_cy, shape_oy);
+   }
+
    int o = 0;
    for (int j = 0; j < pp1; j++)
       for (int i = 0; i <= pp1; i++)
@@ -10853,6 +10907,13 @@ void RT_QuadrilateralElement::CalcDivShape(const IntegrationPoint &ip,
    obasis1d.Eval(ip.x, shape_ox);
    cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
    obasis1d.Eval(ip.y, shape_oy);
+
+   // Transform open interval functions if requested
+   if (useTransformedShapes)
+   {
+      cbasis1d.TransformShapes(dshape_cx, shape_ox);
+      cbasis1d.TransformShapes(dshape_cy, shape_oy);
+   }
 
    int o = 0;
    for (int j = 0; j < pp1; j++)
@@ -11070,6 +11131,17 @@ void RT_HexahedronElement::CalcVShape(const IntegrationPoint &ip,
    cbasis1d.Eval(ip.z, shape_cz);
    obasis1d.Eval(ip.z, shape_oz);
 
+   // Transform open interval functions if requested
+   if (useTransformedShapes)
+   {
+      cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
+      cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
+      cbasis1d.Eval(ip.z, shape_cz, dshape_cz);
+      cbasis1d.TransformShapes(dshape_cx, shape_ox);
+      cbasis1d.TransformShapes(dshape_cy, shape_oy);
+      cbasis1d.TransformShapes(dshape_cz, shape_oz);
+   }
+
    int o = 0;
    // x-components
    for (int k = 0; k < pp1; k++)
@@ -11144,6 +11216,14 @@ void RT_HexahedronElement::CalcDivShape(const IntegrationPoint &ip,
    obasis1d.Eval(ip.y, shape_oy);
    cbasis1d.Eval(ip.z, shape_cz, dshape_cz);
    obasis1d.Eval(ip.z, shape_oz);
+
+   // Transform open interval functions if requested
+   if (useTransformedShapes)
+   {
+      cbasis1d.TransformShapes(dshape_cx, shape_ox);
+      cbasis1d.TransformShapes(dshape_cy, shape_oy);
+      cbasis1d.TransformShapes(dshape_cz, shape_oz);
+   }
 
    int o = 0;
    // x-components
@@ -11774,6 +11854,17 @@ void ND_HexahedronElement::CalcVShape(const IntegrationPoint &ip,
    cbasis1d.Eval(ip.z, shape_cz);
    obasis1d.Eval(ip.z, shape_oz);
 
+   // Transform open interval functions if requested
+   if (useTransformedShapes)
+   {
+      cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
+      cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
+      cbasis1d.Eval(ip.z, shape_cz, dshape_cz);
+      cbasis1d.TransformShapes(dshape_cx, shape_ox);
+      cbasis1d.TransformShapes(dshape_cy, shape_oy);
+      cbasis1d.TransformShapes(dshape_cz, shape_oz);
+   }
+
    int o = 0;
    // x-components
    for (int k = 0; k <= p; k++)
@@ -11848,6 +11939,14 @@ void ND_HexahedronElement::CalcCurlShape(const IntegrationPoint &ip,
    obasis1d.Eval(ip.y, shape_oy);
    cbasis1d.Eval(ip.z, shape_cz, dshape_cz);
    obasis1d.Eval(ip.z, shape_oz);
+
+   // Transform open interval functions if requested
+   if (useTransformedShapes)
+   {
+      cbasis1d.TransformShapes(dshape_cx, shape_ox);
+      cbasis1d.TransformShapes(dshape_cy, shape_oy);
+      cbasis1d.TransformShapes(dshape_cz, shape_oz);
+   }
 
    int o = 0;
    // x-components
@@ -12099,6 +12198,15 @@ void ND_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
    cbasis1d.Eval(ip.y, shape_cy);
    obasis1d.Eval(ip.y, shape_oy);
 
+   // Transform open interval functions if requested
+   if (useTransformedShapes)
+   {
+      cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
+      cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
+      cbasis1d.TransformShapes(dshape_cx, shape_ox);
+      cbasis1d.TransformShapes(dshape_cy, shape_oy);
+   }
+
    int o = 0;
    // x-components
    for (int j = 0; j <= p; j++)
@@ -12148,6 +12256,13 @@ void ND_QuadrilateralElement::CalcCurlShape(const IntegrationPoint &ip,
    obasis1d.Eval(ip.x, shape_ox);
    cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
    obasis1d.Eval(ip.y, shape_oy);
+
+   // Transform open interval functions if requested
+   if (useTransformedShapes)
+   {
+      cbasis1d.TransformShapes(dshape_cx, shape_ox);
+      cbasis1d.TransformShapes(dshape_cy, shape_oy);
+   }
 
    int o = 0;
    // x-components

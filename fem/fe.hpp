@@ -251,6 +251,7 @@ protected:
    /** Multiple DofToQuad objects may be needed when different quadrature rules
        or different DofToQuad::Mode are used. */
    mutable Array<DofToQuad*> dof2quad_array;
+   bool useTransformedShapes = false;
 
 public:
    /// Enumeration for range_type and deriv_range_type
@@ -350,6 +351,11 @@ public:
        reference function derivatives are mapped to physical space, one of {VALUE,
        INTEGRAL, H_DIV, H_CURL}. */
    int GetDerivMapType() const { return deriv_map_type; }
+
+   void SetUseTranformedShapes(const bool useTransform)
+   {
+      useTransformedShapes = useTransform;
+   }
 
    /** @brief Evaluate the values of all shape functions of a scalar finite
        element in reference space at the given point @a ip. */
@@ -1965,6 +1971,9 @@ public:
       void Eval(const double x, Vector &u) const;
       void Eval(const double x, Vector &u, Vector &d) const;
       void Eval(const double x, Vector &u, Vector &d, Vector &d2) const;
+      void TransformShapes(Vector &dshapec,
+                           Vector &shapeo,
+                           const bool scaleShapes=false) const;
    };
 
 private:
@@ -2101,7 +2110,7 @@ class TensorBasisElement
 protected:
    int b_type;
    Array<int> dof_map;
-   Poly_1D::Basis &basis1d;
+   Poly_1D::Basis &basis1d, &GLbasis1d;
    Array<int> inv_dof_map;
 
 public:
