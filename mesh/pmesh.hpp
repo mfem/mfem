@@ -32,9 +32,6 @@ class ParPumiMesh;
 class ParMesh : public Mesh
 {
 protected:
-   ParMesh() : MyComm(0), NRanks(0), MyRank(-1),
-      have_face_nbr_data(false), pncmesh(NULL) {}
-
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
@@ -211,9 +208,17 @@ protected:
    /// Internal function used in ParMesh::MakeRefined (and related constructor)
    void MakeRefined_(ParMesh &orig_mesh, int ref_factor, int ref_type);
 
+   /// Swaps internal data with another ParMesh, including non-geometry members.
+   /// See @a Mesh::Swap
+   void Swap(ParMesh &other);
+
    void Destroy();
 
 public:
+   /// Default constructor. Create an empty @a ParMesh.
+   ParMesh() : MyComm(0), NRanks(0), MyRank(-1), glob_elem_offset(-1),
+      glob_offset_sequence(-1), have_face_nbr_data(false), pncmesh(NULL) { }
+
    /// Create a parallel mesh by partitioning a serial Mesh.
    /** The mesh is partitioned automatically or using external partitioning
        data (the optional parameter 'partitioning_[i]' contains the desired MPI
@@ -235,10 +240,17 @@ public:
    ParMesh(MPI_Comm comm, std::istream &input, bool refine = true);
 
    /// Deprecated: see @a ParMesh::MakeRefined
+   MFEM_DEPRECATED
    ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type);
 
    /// Move constructor. Used for named constructors.
    ParMesh(ParMesh &&mesh);
+
+   /// Move assignment operator.
+   ParMesh& operator=(ParMesh &&mesh);
+
+   /// Explicitly delete the copy assignment operator.
+   ParMesh& operator=(ParMesh &mesh) = delete;
 
    /// Create a uniformly refined (by any factor) version of @a orig_mesh.
    /** @param[in] orig_mesh  The starting coarse mesh.
