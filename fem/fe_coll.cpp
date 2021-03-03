@@ -2790,6 +2790,7 @@ Local_FECollection::Local_FECollection(const char *fe_name)
 
 
 NURBSFECollection::NURBSFECollection(int Order)
+   : FiniteElementCollection((Order == VariableOrder) ? 1 : Order)
 {
    const int order = (Order == VariableOrder) ? 1 : Order;
    SegmentFE        = new NURBS1DFiniteElement(order);

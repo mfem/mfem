@@ -2315,6 +2315,19 @@ const FiniteElement *FiniteElementSpace::GetFE(int i) const
    {
       NURBSext->LoadFE(i, FE);
    }
+   else
+   {
+#ifdef MFEM_DEBUG
+      // consistency check: fec->GetOrder() and FE->GetOrder() should return
+      // the same value (for standard, constant-order spaces)
+      if (!IsVariableOrder() && FE->GetDim() > 0)
+      {
+         MFEM_ASSERT(FE->GetOrder() == fec->GetOrder(),
+                     "internal error: " <<
+                     FE->GetOrder() << " != " << fec->GetOrder());
+      }
+#endif
+   }
 
    return FE;
 }
