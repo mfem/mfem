@@ -3243,10 +3243,8 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    }
 }
 
-Mesh::Mesh(Mesh &&mesh)
+Mesh::Mesh(Mesh &&mesh) : Mesh()
 {
-   Init();
-   InitTables();
    Swap(mesh, true);
 }
 
@@ -3254,6 +3252,16 @@ Mesh& Mesh::operator=(Mesh &&mesh)
 {
    Swap(mesh, true);
    return *this;
+}
+
+Mesh Mesh::LoadFromFile(const char *filename, int generate_edges, int refine,
+                        bool fix_orientation)
+{
+   Mesh mesh;
+   named_ifgzstream imesh(filename);
+   if (!imesh) { MFEM_ABORT("Mesh file not found: " << filename << '\n'); }
+   else { mesh.Load(imesh, generate_edges, refine, fix_orientation); }
+   return mesh;
 }
 
 Mesh Mesh::MakeCartesian1D(int n, double sx)
@@ -8421,6 +8429,8 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
       mfem::Swap(ncmesh, other.ncmesh);
 
       mfem::Swap(Nodes, other.Nodes);
+      if (Nodes) { Nodes->FESpace()->UpdateMeshPointer(this); }
+      if (other.Nodes) { other.Nodes->FESpace()->UpdateMeshPointer(&other); }
       mfem::Swap(own_nodes, other.own_nodes);
 
       mfem::Swap(CoarseFineTr, other.CoarseFineTr);

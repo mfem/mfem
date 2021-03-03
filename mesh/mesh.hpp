@@ -505,11 +505,21 @@ public:
    /// Move assignment operstor.
    Mesh& operator=(Mesh &&mesh);
 
+   /// Explicitly delete the copy assignment operator.
+   Mesh& operator=(Mesh &mesh) = delete;
+
    /** @name Named mesh constructors.
 
        Each of these constructors uses the move constructor, and can be used as
        the right-hand side of an assignment when creating new meshes. */
    ///@{
+
+   /** Creates mesh by reading a file in MFEM, Netgen, or VTK format. If
+       generate_edges = 0 (default) edges are not generated, if 1 edges are
+       generated. */
+   static Mesh LoadFromFile(const char *filename,
+                            int generate_edges = 0, int refine = 1,
+                            bool fix_orientation = true);
 
    /** Creates 1D mesh , divided into n equal intervals. */
    static Mesh MakeCartesian1D(int n, double sx = 1.0);
@@ -718,6 +728,7 @@ public:
    void ReorderElements(const Array<int> &ordering, bool reorder_vertices = true);
 
    /// Deprecated: see @a MakeCartesian3D.
+   MFEM_DEPRECATED
    Mesh(int nx, int ny, int nz, Element::Type type, bool generate_edges = false,
         double sx = 1.0, double sy = 1.0, double sz = 1.0,
         bool sfc_ordering = true)
@@ -727,6 +738,7 @@ public:
    }
 
    /// Deprecated: see @a MakeCartesian2D.
+   MFEM_DEPRECATED
    Mesh(int nx, int ny, Element::Type type, bool generate_edges = false,
         double sx = 1.0, double sy = 1.0, bool sfc_ordering = true)
    {
@@ -735,6 +747,7 @@ public:
    }
 
    /// Deprecated: see @a MakeCartesian1D.
+   MFEM_DEPRECATED
    explicit Mesh(int n, double sx = 1.0)
    {
       Make1D(n, sx);
@@ -743,7 +756,7 @@ public:
 
    /** Creates mesh by reading a file in MFEM, Netgen, or VTK format. If
        generate_edges = 0 (default) edges are not generated, if 1 edges are
-       generated. */
+       generated. See also @a Mesh::LoadFromFile. */
    explicit Mesh(const char *filename, int generate_edges = 0, int refine = 1,
                  bool fix_orientation = true);
 
@@ -757,6 +770,7 @@ public:
    Mesh(Mesh *mesh_array[], int num_pieces);
 
    /// Deprecated: see @a MakeRefined.
+   MFEM_DEPRECATED
    Mesh(Mesh *orig_mesh, int ref_factor, int ref_type);
 
    /** This is similar to the mesh constructor with the same arguments, but here

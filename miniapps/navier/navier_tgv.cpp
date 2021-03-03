@@ -263,24 +263,23 @@ int main(int argc, char *argv[])
       args.PrintOptions(mfem::out);
    }
 
-   Mesh *orig_mesh = new Mesh("../../data/periodic-cube.mesh");
-   Mesh *mesh = new Mesh(orig_mesh,
-                         ctx.element_subdivisions,
-                         BasisType::ClosedUniform);
-   delete orig_mesh;
+   Mesh orig_mesh("../../data/periodic-cube.mesh");
+   Mesh mesh = Mesh::MakeRefined(orig_mesh, ctx.element_subdivisions,
+                                 BasisType::ClosedUniform);
+   orig_mesh.Clear();
 
-   mesh->EnsureNodes();
-   GridFunction *nodes = mesh->GetNodes();
+   mesh.EnsureNodes();
+   GridFunction *nodes = mesh.GetNodes();
    *nodes *= M_PI;
 
-   int nel = mesh->GetNE();
+   int nel = mesh.GetNE();
    if (mpi.Root())
    {
       mfem::out << "Number of elements: " << nel << std::endl;
    }
 
-   auto *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
+   auto *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+   mesh.Clear();
 
    // Create the flow solver.
    NavierSolver flowsolver(pmesh, ctx.order, ctx.kinvis);
