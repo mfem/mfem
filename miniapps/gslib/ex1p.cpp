@@ -369,11 +369,12 @@ int main(int argc, char *argv[])
       // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
       Solver *prec = NULL;
       prec = new HypreBoomerAMG;
+      dynamic_cast<HypreBoomerAMG *>(prec)->SetPrintLevel(-1);
       CGSolver cg(*comml);
       cg.SetRelTol(1e-12);
       cg.SetMaxIter(2000);
       cg.SetPrintLevel(0);
-      if (prec) { cg.SetPreconditioner(*prec); }
+      cg.SetPreconditioner(*prec);
       cg.SetOperator(*A);
       cg.Mult(B, X);
       delete prec;
@@ -411,21 +412,6 @@ int main(int argc, char *argv[])
       }
 
       if (dxmaxg < rel_tol) { break; }
-   }
-
-   {
-      // output files
-      ostringstream mesh_name, sol_name;
-      mesh_name << "og_mesh." << setfill('0') << setw(6) << myid;
-      sol_name << "og_sol." << setfill('0') << setw(6) << myid;
-
-      ofstream mesh_ofs(mesh_name.str().c_str());
-      mesh_ofs.precision(8);
-      pmesh->Print(mesh_ofs);
-
-      ofstream sol_ofs(sol_name.str().c_str());
-      sol_ofs.precision(8);
-      x.Save(sol_ofs);
    }
 
    // Send the solution by socket to a GLVis server.

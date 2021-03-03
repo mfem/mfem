@@ -76,8 +76,6 @@ struct schwarz_common
    double kappa = 0.5;
 } schwarz;
 
-// initial condition for velocity
-void vel_init(const Vector &x, double t, Vector &u);
 // Dirichlet conditions for velocity
 void vel_dbc(const Vector &x, double t, Vector &u);
 // solid conductivity
@@ -214,8 +212,7 @@ int main(int argc, char *argv[])
    H1_FECollection *fec_s            = NULL; //FECollection for solid
    ParFiniteElementSpace *fes_s      = NULL; //FESpace for solid
    ParFiniteElementSpace *adv_fes_s  = NULL; //FESpace for advection in solid
-   ParGridFunction *u_gf             =
-      NULL; //Velocity solution on fluid and solid mesh
+   ParGridFunction *u_gf             = NULL; //Velocity solution on both meshes
    ParGridFunction *t_gf             = NULL; //Temperature solution
    NavierSolver *flowsolver          = NULL; //Fluid solver
    ConductionOperator *coper         = NULL; //Temperature solver
@@ -233,7 +230,9 @@ int main(int argc, char *argv[])
                                     schwarz.fluid_kin_vis);
       flowsolver->EnablePA(true);
       u_gf = flowsolver->GetCurrentVelocity();
-      VectorFunctionCoefficient u_excoeff(pmesh->Dimension(), vel_init);
+      Vector init_vel(dim);
+      init_vel = 0.;
+      VectorConstantCoefficient u_excoeff(init_vel);
       u_gf->ProjectCoefficient(u_excoeff);
 
       // Dirichlet boundary conditions for fluid
@@ -382,7 +381,6 @@ int main(int argc, char *argv[])
          }
       }
 
-
       if (color == 0 && myidlocal == 0)
       {
          printf("%11s %11s %11s\n", "Time", "dt", "CFL");
@@ -393,44 +391,19 @@ int main(int argc, char *argv[])
 
    if (flowsolver) { flowsolver->PrintTimingData(); }
 
-   if (flowsolver)
-   {
-      ostringstream mesh_name;
-      mesh_name << "fluid.mesh";
-      ofstream mesh_ofs(mesh_name.str().c_str());
-      mesh_ofs.precision(8);
-      pmesh->PrintAsOne(mesh_ofs);
-
-      ostringstream sol_name;
-      sol_name << "fluid.gf";
-      ofstream sol_ofs(sol_name.str().c_str());
-      sol_ofs.precision(8);
-      u_gf->SaveAsOne(sol_ofs);
-   }
-   if (ode_solver)
-   {
-      ostringstream mesh_name;
-      mesh_name << "solid.mesh";
-      ofstream mesh_ofs(mesh_name.str().c_str());
-      mesh_ofs.precision(8);
-      pmesh->PrintAsOne(mesh_ofs);
-
-      ostringstream sol_name;
-      sol_name << "solid.gf";
-      ofstream sol_ofs(sol_name.str().c_str());
-      sol_ofs.precision(8);
-      t_gf->SaveAsOne(sol_ofs);
-   }
-
+   finder.FreeData();
    delete coper;
    delete t_gf;
-   delete u_gf;
+   if (color == 1) { delete u_gf; }
    delete adv_fes_s;
    delete fes_s;
    delete fec_s;
    delete ode_solver;
    delete flowsolver;
    delete pmesh;
+   delete comml;
+
+   MPI_Finalize();
 
    return 0;
 }
@@ -440,7 +413,7 @@ ConductionOperator::ConductionOperator(ParFiniteElementSpace &f, double al,
                                        VectorGridFunctionCoefficient adv_gf_c)
    : TimeDependentOperator(f.GetTrueVSize(), 0.0), fespace(f), M(NULL), K(NULL),
      T(NULL), current_dt(0.0),
-     M_solver(f.GetComm()), T_solver(f.GetComm()), z(height), udir(10)
+     M_solver(f.GetComm()), T_solver(f.GetComm()), udir(10), z(height)
 {
    const double rel_tol = 1e-8;
 
@@ -596,16 +569,6 @@ void VisualizeField(socketstream &sock, const char *vishost, int visport,
 }
 
 /// Fluid data
-// initial condition for velocity
-void vel_init(const Vector &x, double t, Vector &u)
-{
-   double xi = x(0);
-   double yi = x(1);
-
-   u(0) = 0.;
-   u(1) = 0.;
-}
-
 // Dirichlet conditions for velocity
 void vel_dbc(const Vector &x, double t, Vector &u)
 {
