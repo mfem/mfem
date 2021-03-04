@@ -2,9 +2,11 @@
 //
 // Compile with: make ex6p
 //
-// Sample runs:  mpirun -np 4 ex6p -m ../data/square-disc.mesh -o 1
+// Sample runs:  mpirun -np 4 ex6p -m ../data/segment.mesh -o 1 -md 200
+//               mpirun -np 4 ex6p -m ../data/square-disc.mesh -o 1
 //               mpirun -np 4 ex6p -m ../data/square-disc.mesh -o 2
 //               mpirun -np 4 ex6p -m ../data/square-disc.mesh -o 2 -ns
+//               mpirun -np 4 ex6p -m ../data/square-disc.mesh -o 2 -h1
 //               mpirun -np 4 ex6p -m ../data/square-disc-nurbs.mesh -o 2
 //               mpirun -np 4 ex6p -m ../data/star.mesh -o 3
 //               mpirun -np 4 ex6p -m ../data/escher.mesh -o 2
@@ -64,6 +66,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool nc_simplices = false;
    int max_dofs = 100000;
+   bool smooth_rt = true;
    bool restart = false;
    bool visualization = true;
 
@@ -82,6 +85,8 @@ int main(int argc, char *argv[])
                   " refinement");
    args.AddOption(&max_dofs, "-md", "--max-dofs",
                   "Stop after reaching this many degrees of freedom.");
+   args.AddOption(&smooth_rt, "-rt", "--smooth-rt", "-h1", "--smooth-h1",
+                  "Represent the smooth flux in RT or vector H1 space.");
    args.AddOption(&restart, "-res", "--restart", "-no-res", "--no-restart",
                   "Restart computation from the last checkpoint.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -203,11 +208,18 @@ int main(int argc, char *argv[])
    //     used here).
    L2_FECollection flux_fec(order, dim);
    ParFiniteElementSpace flux_fes(pmesh, &flux_fec, sdim);
-   RT_FECollection smooth_flux_fec(order-1, dim);
-   ParFiniteElementSpace smooth_flux_fes(pmesh, &smooth_flux_fec);
-   // Another possible option for the smoothed flux space:
-   // H1_FECollection smooth_flux_fec(order, dim);
-   // ParFiniteElementSpace smooth_flux_fes(pmesh, &smooth_flux_fec, dim);
+   FiniteElementCollection *smooth_flux_fec = NULL;
+   if (smooth_rt && dim > 1)
+   {
+      smooth_flux_fec = new RT_FECollection(order-1, dim);
+   }
+   else
+   {
+      // Another possible option for the smoothed flux space:
+      smooth_flux_fec = new H1_FECollection(order, dim);
+   }
+   ParFiniteElementSpace smooth_flux_fes(pmesh, smooth_flux_fec,
+                                         (smooth_rt && dim > 1) ? 1 : dim);
    L2ZienkiewiczZhuEstimator estimator(*integ, x, flux_fes, smooth_flux_fes);
 
    // 13. A refiner selects and refines elements based on a refinement strategy.
@@ -349,6 +361,7 @@ int main(int argc, char *argv[])
    }
 
    delete pmesh;
+   delete smooth_flux_fec;
 
    MPI_Finalize();
    return 0;
