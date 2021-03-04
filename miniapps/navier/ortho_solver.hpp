@@ -30,7 +30,7 @@ class OrthoSolver : public Solver
 private:
    MPI_Comm mycomm;
 public:
-   OrthoSolver(ParFiniteElementSpace *fes_);
+   OrthoSolver(MPI_Comm mycomm_);
 
    virtual void SetOperator(const Operator &op);
 
