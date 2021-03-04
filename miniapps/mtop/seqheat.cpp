@@ -1,8 +1,39 @@
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
 
 #include "mtop_integrators.hpp"
+
+//  The following example computes the gradients of a specified objective
+//  function with respect to parametric fields. The objective function is
+//  having the following form f(u(\rho)) where u(\rho) is a solution of a
+//  specific state problem (in the example that is the diffusion equation),
+//  and \rho is a parametric field discretized by finite elements. The
+//  parametric field (also called density in topology optimization) controls
+//  the coefficients of the state equation. For the considered case, the
+//  density controls the diffusion coefficient within the computational domain.
+//  For more information, the users are referred to:
+//
+//  Hinze, M.; Pinnau, R.; Ulbrich, M. & Ulbrich, S.
+//  Optimization with PDE Constraints
+//  Springer Netherlands, 2009
+//
+//  Bendsøe, M. P. & Sigmund, O.
+//  Topology Optimization - Theory, Methods and Applications
+//  Springer Verlag, Berlin Heidelberg, 2003
+//
+
 
 int main(int argc, char *argv[])
 {
@@ -92,11 +123,6 @@ int main(int argc, char *argv[])
     mfem::ParametricBNLForm* nf=new mfem::ParametricBNLForm(asfes,apfes);
     // add the parametric integrator
     nf->AddDomainIntegrator(new mfem::ParametricLinearDiffusion(*qfun));
-
-    // Define density grid function
-    mfem::GridFunction* gfdens=new mfem::GridFunction(pfes);
-    // Define state grid function
-    mfem::GridFunction* gfstat=new mfem::GridFunction(sfes);
 
     // Define true block vectors for state, adjoint, resudual
     mfem::BlockVector solbv; solbv.Update(nf->GetBlockTrueOffsets());    solbv=0.0;
@@ -244,8 +270,6 @@ int main(int argc, char *argv[])
     delete ns;
     delete gmres;
 
-    delete gfstat;
-    delete gfdens;
     delete nf;
     delete pfes;
     delete sfes;
