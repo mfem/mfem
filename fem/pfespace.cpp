@@ -432,6 +432,13 @@ void ParFiniteElementSpace::GetGroupComm(
    gc.Finalize();
 }
 
+int ParFiniteElementSpace::GetDofSign(int dof) const
+{
+   if (NURBSext) { return 1; }
+
+   return ldof_sign[VDofToDof(DecodeDof(dof))];
+}
+
 void ParFiniteElementSpace::ApplyLDofSigns(Array<int> &dofs) const
 {
    MFEM_ASSERT(Conforming(), "wrong code path");
@@ -493,6 +500,7 @@ void ParFiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
 {
    if (face_dof)
    {
+      // FIXME?: face_dof table doesn't seem to have ldof signs applied (?)
       face_dof->GetRow(i, dofs);
       return;
    }

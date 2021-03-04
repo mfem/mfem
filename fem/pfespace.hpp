@@ -248,9 +248,7 @@ public:
 
    inline ParMesh *GetParMesh() const { return pmesh; }
 
-   int GetDofSign(int i)
-   { return NURBSext || Nonconforming() ? 1 : ldof_sign[VDofToDof(i)]; }
-   HYPRE_Int *GetDofOffsets()     const { return dof_offsets; }
+   HYPRE_Int *GetDofOffsets() const { return dof_offsets; }
    HYPRE_Int *GetTrueDofOffsets() const { return tdof_offsets; }
    HYPRE_Int GlobalVSize() const
    { return Dof_TrueDof_Matrix()->GetGlobalNumRows(); }
@@ -269,6 +267,12 @@ public:
    /** Returns the indexes of the degrees of freedom for i'th face
        including the dofs for the edges and the vertices of the face. */
    virtual void GetFaceDofs(int i, Array<int> &dofs) const;
+
+   /// Return -1 if @a dof needs flipping the sign due to partition boundary.
+   /** In vector-valued spaces (ND, RT), some of the local basis functions may
+       need reversing direction due to local orientations of faces on parallel
+       mesh partition boundaries. */
+   int GetDofSign(int dof) const;
 
    /** Returns pointer to the FiniteElement in the FiniteElementCollection
        associated with i'th element in the mesh object. If @a i is greater than

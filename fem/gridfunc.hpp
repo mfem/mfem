@@ -67,6 +67,8 @@ protected:
        degree of freedom. */
    void ProjectDiscCoefficient(VectorCoefficient &coeff, Array<int> &dof_attr);
 
+   virtual void ApplyDofSigns(Array<int> &dofs) const {}
+
    /// Loading helper.
    void LegacyNCReorder();
 
