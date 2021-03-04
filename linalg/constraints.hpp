@@ -45,7 +45,7 @@ class ParFiniteElementSpace;
 
     This abstract object unifies handling of the "dual" rhs \f$ r \f$
     and the Lagrange multiplier solution \f$ \lambda \f$, so that derived
-    classses can reuse that code. */
+    classes can reuse that code. */
 class ConstrainedSolver : public IterativeSolver
 {
 public:
@@ -398,7 +398,7 @@ private:
 
     In the top-left block, we approximate \f$ A^{-1} \f$ with HypreBoomerAMG.
     In the bottom-right, we approximate \f$ A^{-1} \f$ with the inverse of the
-    diagonal of \f$ A \f$, assemble \f$ B D^{-1} B^T \f$, and use
+    diagonal of \f$ A \f$, assemble \f$ B diag(A)^{-1} B^T \f$, and use
     HypreBoomerAMG on that assembled matrix. */
 class SchurConstrainedHypreSolver : public SchurConstrainedSolver
 {

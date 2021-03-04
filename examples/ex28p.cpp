@@ -35,6 +35,9 @@
 using namespace std;
 using namespace mfem;
 
+// Return a mesh with a single element with vertices (0, 0), (1, 0), (1, 1),
+// (offset, 1) to demonstrate boundary conditions on a surface that is not
+// axis-aligned.
 Mesh * build_trapezoid_mesh(double offset)
 {
    MFEM_VERIFY(offset < 0.9, "offset is too large!");
@@ -122,9 +125,8 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // 3. Read the (serial) mesh from the given mesh file on all processors.  We
-   //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
-   //    and volume meshes with the same code.
+   // 3. Build a trapezoidal mesh with a single quadrilateral element, where
+   //    'offset' determines how far off it is from a rectangle.
    Mesh *mesh = build_trapezoid_mesh(offset);
    int dim = mesh->Dimension();
 
