@@ -208,9 +208,9 @@ protected:
    /// Internal function used in ParMesh::MakeRefined (and related constructor)
    void MakeRefined_(ParMesh &orig_mesh, int ref_factor, int ref_type);
 
-   /// Swaps internal data with another ParMesh, including non-geometry members.
-   /// See @a Mesh::Swap
-   void Swap(ParMesh &other);
+   // Mark Mesh::Swap as protected, should use ParMesh::Swap to swap @a ParMesh
+   // objects.
+   using Mesh::Swap;
 
    void Destroy();
 
@@ -429,6 +429,10 @@ public:
 
    void GetCharacteristics(double &h_min, double &h_max,
                            double &kappa_min, double &kappa_max);
+
+   /// Swaps internal data with another ParMesh, including non-geometry members.
+   /// See @a Mesh::Swap
+   void Swap(ParMesh &other);
 
    /// Print various parallel mesh stats
    virtual void PrintInfo(std::ostream &out = mfem::out);
