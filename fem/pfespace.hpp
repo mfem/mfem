@@ -178,6 +178,11 @@ private:
    HypreParMatrix* ParallelDerefinementMatrix(int old_ndofs,
                                               const Table *old_elem_dof);
 
+   /// Updates the internal mesh pointer. @warning @a new_mesh must be
+   /// <b>topologically identical</b> to the existing mesh. Used if the address
+   /// of the Mesh object has changed, e.g. in @a Mesh::Swap.
+   virtual void UpdateMeshPointer(Mesh *new_mesh);
+
 public:
    // Face-neighbor data
    // Number of face-neighbor dofs
@@ -395,11 +400,6 @@ public:
       FiniteElementSpace::UpdatesFinished();
       old_dof_offsets.DeleteAll();
    }
-
-   /// Updates the internal mesh pointer. @warning @a new_mesh must be
-   /// <b>topologically identical</b> to the existing mesh. Used if the address
-   /// of the Mesh object has changed, e.g. in @a Mesh::Swap.
-   virtual void UpdateMeshPointer(Mesh *new_mesh);
 
    virtual ~ParFiniteElementSpace() { Destroy(); }
 
