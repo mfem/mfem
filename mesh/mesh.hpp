@@ -476,10 +476,6 @@ protected:
    /// Create from a nonconforming mesh.
    explicit Mesh(const NCMesh &ncmesh);
 
-   /// Swaps internal data with another mesh. By default, non-geometry members
-   /// like 'ncmesh' and 'NURBSExt' are only swapped when 'non_geometry' is set.
-   void Swap(Mesh& other, bool non_geometry);
-
    // used in GetElementData() and GetBdrElementData()
    void GetElementData(const Array<Element*> &elem_array, int geom,
                        Array<int> &elem_vtx, Array<int> &attr) const;
@@ -1444,6 +1440,10 @@ public:
    virtual int FindPoints(DenseMatrix& point_mat, Array<int>& elem_ids,
                           Array<IntegrationPoint>& ips, bool warn = true,
                           InverseElementTransformation *inv_trans = NULL);
+
+   /// Swaps internal data with another mesh. By default, non-geometry members
+   /// like 'ncmesh' and 'NURBSExt' are only swapped when 'non_geometry' is set.
+   void Swap(Mesh& other, bool non_geometry);
 
    /// Destroys Mesh.
    virtual ~Mesh() { DestroyPointers(); }
