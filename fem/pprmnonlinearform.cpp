@@ -20,15 +20,15 @@ namespace mfem
 {
 
 ParParametricBNLForm::ParParametricBNLForm(Array<ParFiniteElementSpace *> &pf,
-                                                   Array<ParFiniteElementSpace *> &ppf)
-    :ParametricBNLForm()
+                                           Array<ParFiniteElementSpace *> &ppf)
+   :ParametricBNLForm()
 {
-    pBlockGrad = nullptr;
-    SetParSpaces(pf,ppf);
+   pBlockGrad = nullptr;
+   SetParSpaces(pf,ppf);
 }
 
 void ParParametricBNLForm::SetParSpaces(Array<ParFiniteElementSpace *> &pf,
-                                            Array<ParFiniteElementSpace *> &pprmf)
+                                        Array<ParFiniteElementSpace *> &pprmf)
 {
    delete pBlockGrad;
    pBlockGrad = nullptr;
@@ -88,8 +88,8 @@ const ParFiniteElementSpace *ParParametricBNLForm::ParPrmFESpace(int k) const
 
 // Here, rhs is a true dof vector
 void ParParametricBNLForm::SetEssentialBC(const
-                                           Array<Array<int> *>&bdr_attr_is_ess,
-                                           Array<Vector *> &rhs)
+                                          Array<Array<int> *>&bdr_attr_is_ess,
+                                          Array<Vector *> &rhs)
 {
    Array<Vector *> nullarray(fes.Size());
    nullarray = NULL;
@@ -106,21 +106,21 @@ void ParParametricBNLForm::SetEssentialBC(const
 }
 
 void ParParametricBNLForm::SetPrmEssentialBC(const
-                                           Array<Array<int> *>&bdr_attr_is_ess,
-                                           Array<Vector *> &rhs)
+                                             Array<Array<int> *>&bdr_attr_is_ess,
+                                             Array<Vector *> &rhs)
 {
-    Array<Vector *> nullarray(fes.Size());
-    nullarray = NULL;
+   Array<Vector *> nullarray(fes.Size());
+   nullarray = NULL;
 
-    ParametricBNLForm::SetPrmEssentialBC(bdr_attr_is_ess, nullarray);
+   ParametricBNLForm::SetPrmEssentialBC(bdr_attr_is_ess, nullarray);
 
-    for (int s = 0; s < prmfes.Size(); ++s)
-    {
-       if (rhs[s])
-       {
-          rhs[s]->SetSubVector(*prmess_tdofs[s], 0.0);
-       }
-    }
+   for (int s = 0; s < prmfes.Size(); ++s)
+   {
+      if (rhs[s])
+      {
+         rhs[s]->SetSubVector(*prmess_tdofs[s], 0.0);
+      }
+   }
 }
 
 double ParParametricBNLForm::GetEnergy(const Vector &x) const
@@ -174,31 +174,31 @@ void ParParametricBNLForm::Mult(const Vector &x, Vector &y) const
 /// Block T-Vector to Block T-Vector
 void ParParametricBNLForm::PrmMult(const Vector &x, Vector &y) const
 {
-    xs_true.Update(x.GetData(), prmblock_trueOffsets);
-    ys_true.Update(y.GetData(), prmblock_trueOffsets);
-    prmxs.Update(prmblock_offsets);
-    prmys.Update(prmblock_offsets);
+   xs_true.Update(x.GetData(), prmblock_trueOffsets);
+   ys_true.Update(y.GetData(), prmblock_trueOffsets);
+   prmxs.Update(prmblock_offsets);
+   prmys.Update(prmblock_offsets);
 
-    for (int s=0; s<prmfes.Size(); ++s)
-    {
-       prmfes[s]->GetProlongationMatrix()->Mult(
-          xs_true.GetBlock(s), prmxs.GetBlock(s));
-    }
+   for (int s=0; s<prmfes.Size(); ++s)
+   {
+      prmfes[s]->GetProlongationMatrix()->Mult(
+         xs_true.GetBlock(s), prmxs.GetBlock(s));
+   }
 
-    ParametricBNLForm::MultPrmBlocked(xsv,adv,xdv,prmys);
+   ParametricBNLForm::MultPrmBlocked(xsv,adv,xdv,prmys);
 
-    if (fnfi.Size() > 0)
-    {
-       MFEM_ABORT("TODO: assemble contributions from shared face terms");
-    }
+   if (fnfi.Size() > 0)
+   {
+      MFEM_ABORT("TODO: assemble contributions from shared face terms");
+   }
 
-    for (int s=0; s<prmfes.Size(); ++s)
-    {
-       prmfes[s]->GetProlongationMatrix()->MultTranspose(
-          prmys.GetBlock(s), ys_true.GetBlock(s));
+   for (int s=0; s<prmfes.Size(); ++s)
+   {
+      prmfes[s]->GetProlongationMatrix()->MultTranspose(
+         prmys.GetBlock(s), ys_true.GetBlock(s));
 
-       ys_true.GetBlock(s).SetSubVector(*prmess_tdofs[s], 0.0);
-    }
+      ys_true.GetBlock(s).SetSubVector(*prmess_tdofs[s], 0.0);
+   }
 
 }
 
@@ -215,7 +215,8 @@ const BlockOperator & ParParametricBNLForm::GetLocalGradient(
          xs_true.GetBlock(s), xs.GetBlock(s));
    }
 
-   ParametricBNLForm::ComputeGradientBlocked(xs,xdv); // (re)assemble Grad with b.c.
+   ParametricBNLForm::ComputeGradientBlocked(xs,
+                                             xdv); // (re)assemble Grad with b.c.
 
    delete BlockGrad;
    BlockGrad = new BlockOperator(block_offsets);
@@ -337,24 +338,24 @@ void ParParametricBNLForm::SetStateFields(const Vector &xv) const
 
 void ParParametricBNLForm::SetAdjointFields(const Vector &av) const
 {
-    xs_true.Update(av.GetData(), block_trueOffsets);
-    adv.Update(block_offsets);
-    for (int s=0; s<fes.Size(); ++s)
-    {
-       fes[s]->GetProlongationMatrix()->Mult(
-          xs_true.GetBlock(s), adv.GetBlock(s));
-    }
+   xs_true.Update(av.GetData(), block_trueOffsets);
+   adv.Update(block_offsets);
+   for (int s=0; s<fes.Size(); ++s)
+   {
+      fes[s]->GetProlongationMatrix()->Mult(
+         xs_true.GetBlock(s), adv.GetBlock(s));
+   }
 }
 
 void ParParametricBNLForm::SetPrmFields(const Vector &dv) const
 {
-    xs_true.Update(dv.GetData(),prmblock_trueOffsets);
-    xdv.Update(prmblock_offsets);
-    for (int s=0; s<prmfes.Size(); ++s)
-    {
-       prmfes[s]->GetProlongationMatrix()->Mult(
-          xs_true.GetBlock(s), xdv.GetBlock(s));
-    }
+   xs_true.Update(dv.GetData(),prmblock_trueOffsets);
+   xdv.Update(prmblock_offsets);
+   for (int s=0; s<prmfes.Size(); ++s)
+   {
+      prmfes[s]->GetProlongationMatrix()->Mult(
+         xs_true.GetBlock(s), xdv.GetBlock(s));
+   }
 }
 
 

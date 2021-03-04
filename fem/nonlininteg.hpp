@@ -178,24 +178,24 @@ public:
                                    const Array<const Vector *>&pelfun,
                                    const Array<Vector *> &elvect);
 
-    /// Perform the local action on the parameters of the BNLFormIntegrator
-    virtual void AssemblePrmElementVector(const Array<const FiniteElement *> &el,
-                                       const Array<const FiniteElement *>&pel,
-                                       ElementTransformation &Tr,
-                                       const Array<const Vector *> &elfun,
-                                       const Array<const Vector *> &alfun,
-                                       const Array<const Vector *>&pelfun,
-                                       const Array<Vector *> &pelvec);
+   /// Perform the local action on the parameters of the BNLFormIntegrator
+   virtual void AssemblePrmElementVector(const Array<const FiniteElement *> &el,
+                                         const Array<const FiniteElement *>&pel,
+                                         ElementTransformation &Tr,
+                                         const Array<const Vector *> &elfun,
+                                         const Array<const Vector *> &alfun,
+                                         const Array<const Vector *>&pelfun,
+                                         const Array<Vector *> &pelvec);
 
-    virtual void AssemblePrmFaceVector(const Array<const FiniteElement *> &el1,
-                                    const Array<const FiniteElement *> &el2,
-                                    const Array<const FiniteElement *> &pel1,
-                                    const Array<const FiniteElement *> &pel2,
-                                    FaceElementTransformations &Tr,
-                                    const Array<const Vector *> &elfun,
-                                    const Array<const Vector *> &alfun,
-                                    const Array<const Vector *>&pelfun,
-                                    const Array<Vector *> &pelvect);
+   virtual void AssemblePrmFaceVector(const Array<const FiniteElement *> &el1,
+                                      const Array<const FiniteElement *> &el2,
+                                      const Array<const FiniteElement *> &pel1,
+                                      const Array<const FiniteElement *> &pel2,
+                                      FaceElementTransformations &Tr,
+                                      const Array<const Vector *> &elfun,
+                                      const Array<const Vector *> &alfun,
+                                      const Array<const Vector *>&pelfun,
+                                      const Array<Vector *> &pelvect);
 
 
 
