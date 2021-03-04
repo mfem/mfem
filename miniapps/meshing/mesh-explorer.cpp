@@ -94,7 +94,8 @@ double f(const Vector &p)
    }
 }
 
-Mesh *read_par_mesh(int np, const char *mesh_prefix, Array<int>& partitioning, Array<int>& bdr_partitioning)
+Mesh *read_par_mesh(int np, const char *mesh_prefix, Array<int>& partitioning,
+                    Array<int>& bdr_partitioning)
 {
    Mesh *mesh;
    Array<Mesh *> mesh_array;
@@ -247,11 +248,12 @@ Mesh *skin_mesh(Mesh *mesh)
    return bmesh;
 }
 
-void recover_bdr_partitioning(const Mesh* mesh, const Array<int>& partitioning, Array<int>& bdr_partitioning)
+void recover_bdr_partitioning(const Mesh* mesh, const Array<int>& partitioning,
+                              Array<int>& bdr_partitioning)
 {
    bdr_partitioning.SetSize(mesh->GetNBE());
    int info, e;
-   for(int be = 0; be < mesh->GetNBE(); be++)
+   for (int be = 0; be < mesh->GetNBE(); be++)
    {
       mesh->GetBdrElementAdjacentElement(be, e, info);
       bdr_partitioning[be] = partitioning[e];
@@ -763,14 +765,14 @@ int main (int argc, char *argv[])
                bdr_attr_fespace =
                   new FiniteElementSpace(bdr_mesh, bdr_attr_fec);
                bdr_attr.SetSpace(bdr_attr_fespace);
-               if(mk == 'b')
+               if (mk == 'b')
                {
                   for (int i = 0; i < bdr_mesh->GetNE(); i++)
                   {
                      bdr_attr(i) = bdr_mesh->GetAttribute(i);
                   }
                }
-               else if(mk == 'B')
+               else if (mk == 'B')
                {
                   for (int i = 0; i < bdr_mesh->GetNE(); i++)
                   {
@@ -784,7 +786,7 @@ int main (int argc, char *argv[])
             }
             else
             {
-               cout << "Warning: Unsupported mesh dimension." << endl;
+               MFEM_WARNING("Unsupported mesh dimension.");
                attr = 1.0;
             }
          }
@@ -951,7 +953,8 @@ int main (int argc, char *argv[])
                }
                cout << "Enter number of processors: " << flush;
                cin >> np;
-               partitioning = Array<int>(mesh->GeneratePartitioning(np, part_method), mesh->GetNE());
+               partitioning = Array<int>(mesh->GeneratePartitioning(np, part_method),
+                                         mesh->GetNE());
                recover_bdr_partitioning(mesh, partitioning, bdr_partitioning);
             }
             if (partitioning)
