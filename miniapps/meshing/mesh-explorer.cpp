@@ -732,8 +732,6 @@ int main (int argc, char *argv[])
       if (mk == 'm' || mk == 'b' || mk == 'e' || mk == 'v' || mk == 'h' ||
           mk == 'k' || mk == 'J' || mk == 'p' || mk == 'B' || mk == 'P')
       {
-         Array<int> bdr_part;
-         Array<int> part(mesh->GetNE());
          FiniteElementSpace *bdr_attr_fespace = NULL;
          FiniteElementSpace *attr_fespace =
             new FiniteElementSpace(mesh, attr_fec);
@@ -744,7 +742,7 @@ int main (int argc, char *argv[])
          {
             for (int i = 0; i < mesh->GetNE(); i++)
             {
-               part[i] = (attr(i) = mesh->GetAttribute(i)) - 1;
+               attr(i) = mesh->GetAttribute(i);
             }
          }
 
@@ -752,7 +750,7 @@ int main (int argc, char *argv[])
          {
             for (int i = 0; i < mesh->GetNE(); i++)
             {
-               part[i] = (attr(i) = partitioning[i] + 1) - 1;
+               attr(i) = partitioning[i] + 1;
             }
          }
 
@@ -764,20 +762,19 @@ int main (int argc, char *argv[])
                bdr_mesh = skin_mesh(mesh);
                bdr_attr_fespace =
                   new FiniteElementSpace(bdr_mesh, bdr_attr_fec);
-               bdr_part.SetSize(bdr_mesh->GetNE());
                bdr_attr.SetSpace(bdr_attr_fespace);
                if(mk == 'b')
                {
                   for (int i = 0; i < bdr_mesh->GetNE(); i++)
                   {
-                     bdr_part[i] = (bdr_attr(i) = bdr_mesh->GetAttribute(i)) - 1;
+                     bdr_attr(i) = bdr_mesh->GetAttribute(i);
                   }
                }
                else if(mk == 'B')
                {
                   for (int i = 0; i < bdr_mesh->GetNE(); i++)
                   {
-                     bdr_part[i] = (bdr_attr(i) = bdr_partitioning[i] + 1) - 1;
+                     bdr_attr(i) = bdr_partitioning[i] + 1;
                   }
                }
                else
@@ -813,8 +810,7 @@ int main (int argc, char *argv[])
             cout << "Number of colors: " << attr.Max() + 1 << endl;
             for (int i = 0; i < mesh->GetNE(); i++)
             {
-               // part[i] = i; // checkerboard element coloring
-               attr(i) = part[i] = i; // coloring by element number
+               attr(i) = i; // coloring by element number
             }
          }
 
@@ -1007,7 +1003,7 @@ int main (int argc, char *argv[])
 
             for (int i = 0; i < mesh->GetNE(); i++)
             {
-               part[i] = (attr(i) = partitioning[i] + 1) - 1;
+               attr(i) = partitioning[i] + 1;
             }
          }
 
@@ -1032,12 +1028,12 @@ int main (int argc, char *argv[])
                      mesh->Print(sol_sock);
                      for (int i = 0; i < mesh->GetNE(); i++)
                      {
-                        attr(i) = part[i];
+                        attr(i) = partitioning[i];
                      }
                   }
                   else
                   {
-                     mesh->PrintWithPartitioning(part, sol_sock, 1);
+                     mesh->PrintWithPartitioning(partitioning, sol_sock, 1);
                   }
                }
                attr.Save(sol_sock);
@@ -1074,12 +1070,12 @@ int main (int argc, char *argv[])
                      mesh->Print(sol_sock);
                      for (int i = 0; i < mesh->GetNE(); i++)
                      {
-                        attr(i) = part[i];
+                        attr(i) = partitioning[i];
                      }
                   }
                   else
                   {
-                     mesh->PrintWithPartitioning(part, sol_sock);
+                     mesh->PrintWithPartitioning(partitioning, sol_sock);
                   }
                }
                if (mk != 'b' && mk != 'B')
