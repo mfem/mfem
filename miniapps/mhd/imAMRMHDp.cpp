@@ -154,6 +154,7 @@ int main(int argc, char *argv[])
    int precision = 8;
    int nc_limit = 1;         // maximum level of hanging nodes
    int ref_steps=4;
+   int iestimator=1;
    double err_ratio=.1;
    double err_fraction=.5;
    double derefine_ratio=.2;
@@ -272,6 +273,10 @@ int main(int argc, char *argv[])
                   "BgradJ: 1 - (B.grad J, phi); 2 - (-J, B.grad phi); 3 - (-B J, grad phi).");
    args.AddOption(&saveOne, "-saveOne", "--save-One",  "-no-saveOne", "--no-save-One",
                   "Save solution/mesh as one file");
+   args.AddOption(&lumpedMass, "-lumpmass", "--lump-mass",  "-no-lumpmass", "--no-lump-mass",
+                  "lumped mass for updatej=0");
+   args.AddOption(&iestimator, "-iestimator", "--iestimator",
+                  "iestimator: 1 - psi and J; 2 - omega and psi.");
    args.Parse();
 
    if (!args.Good())
@@ -576,7 +581,10 @@ int main(int argc, char *argv[])
    bool regularZZ=true;
    if (regularZZ)
    {
-     estimator=new BlockZZEstimator(*integ, psi, *integ, j, flux_fespace1, flux_fespace2);
+     if (iestimator==1)
+        estimator=new BlockZZEstimator(*integ, psi, *integ, j, flux_fespace1, flux_fespace2);
+     else
+        estimator=new BlockZZEstimator(*integ, w, *integ, psi, flux_fespace1, flux_fespace2);
      estimator->SetErrorRatio(err_ratio); 
      estimator_used=estimator;
    }
@@ -644,7 +652,7 @@ int main(int argc, char *argv[])
       {
          vis_phi << "parallel " << num_procs << " " << myid << "\n";
          vis_phi.precision(8);
-         vis_phi << "solution\n" << *pmesh << phi;
+         vis_phi << "solution\n" << *pmesh << psi;
          vis_phi << "window_size 800 800\n"<< "window_title '" << "phi'" << "keys cm\n";
          vis_phi << flush;
 
@@ -856,7 +864,7 @@ int main(int argc, char *argv[])
       }
 
       //++++++Derefine step++++++
-      if (derefineMesh)
+      if (derefineMesh && derefine)
       {
          if (myid == 0) cout << "Derefined mesh..." << endl;
 
@@ -924,7 +932,7 @@ int main(int argc, char *argv[])
         if (visualization)
         {
            vis_phi << "parallel " << num_procs << " " << myid << "\n";
-           vis_phi << "solution\n" << *pmesh << phi;
+           vis_phi << "solution\n" << *pmesh << psi;
            if (icase==1) 
                vis_phi << "valuerange -.001 .001\n" << flush;
            else
@@ -1026,18 +1034,36 @@ int main(int argc, char *argv[])
 
    if (saveOne)
    {
-      ostringstream mesh_name2, j_name2;
-      mesh_name2 << "amr.mesh";
-      j_name2 << "jamr.sol";
+      phi.SetFromTrueDofs(vx.GetBlock(0));
+      psi.SetFromTrueDofs(vx.GetBlock(1));
+      w.SetFromTrueDofs(vx.GetBlock(2));
+      oper.UpdateJ(vx, &j);
 
-      ofstream mesh_ofs(mesh_name2.str().c_str());
-      mesh_ofs.precision(8);
+      ostringstream mesh_name, j_name, psi_name, phi_name, w_name;
+      mesh_name << "amr.mesh";
+      j_name << "jamr.sol";
+      w_name << "wamr.sol";
+      phi_name << "phiamr.sol";
+      psi_name << "psiamr.sol";
+
+      ofstream mesh_ofs(mesh_name.str().c_str());
+      ofstream osolj(j_name.str().c_str());
+      ofstream osolw(w_name.str().c_str());
+      ofstream osolphi(phi_name.str().c_str());
+      ofstream osolpsi(psi_name.str().c_str());
+
+      mesh_ofs.precision(16);
+      osolj.precision(16);
+      osolw.precision(16);
+      osolphi.precision(16);
+      osolpsi.precision(16);
+
       pmesh->PrintAsOne(mesh_ofs);
 
-      oper.UpdateJ(vx, &j);
-      ofstream osolj(j_name2.str().c_str());
-      osolj.precision(8);
       j.SaveAsOne(osolj);
+      w.SaveAsOne(osolw);
+      phi.SaveAsOne(osolphi);
+      psi.SaveAsOne(osolpsi);
    }
 
    if (myid == 0) 

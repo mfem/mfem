@@ -689,9 +689,10 @@ int main(int argc, char *argv[])
 
       last_step = (t >= t_final - 1e-8*dt);
 
+      if (myid==0) cout << "step " << ti << ", t = " << t <<endl;
+
       if (last_step || (ti % vis_steps) == 0)
       {
-         if (myid==0) cout << "step " << ti << ", t = " << t <<endl;
 
          if (visualization || visit || paraview){
             psi.SetFromTrueVector();
@@ -705,6 +706,18 @@ int main(int argc, char *argv[])
                double l2norm  = psiPer.ComputeL2Error(zero);
                if (myid==0) cout << "t="<<t<<" ln(|psiPer|_2) ="<<log(l2norm)<<endl;
             }
+         }
+
+         //save solution as one file
+         if (saveOne && false)
+         {
+            oper.UpdateJ(vx, &j);
+            ostringstream j_name;
+            j_name << "jone." << setfill('0') << setw(6) << ti;
+
+            ofstream osolj(j_name.str().c_str());
+            osolj.precision(8);
+            j.SaveAsOne(osolj);
          }
 
 
@@ -778,53 +791,65 @@ int main(int argc, char *argv[])
       oper.UpdateJ(vx, &j);
 
       ostringstream mesh_name, mesh_save, phi_name, psi_name, w_name,j_name;
-      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
-      mesh_save << "ncmesh." << setfill('0') << setw(6) << myid;
-      phi_name << "sol_phi." << setfill('0') << setw(6) << myid;
-      psi_name << "sol_psi." << setfill('0') << setw(6) << myid;
-      w_name << "sol_omega." << setfill('0') << setw(6) << myid;
-      j_name << "sol_j." << setfill('0') << setw(6) << myid;
-
-      ofstream ncmesh(mesh_save.str().c_str());
-      ncmesh.precision(16);
-      pmesh->ParPrint(ncmesh);
 
       if (saveOne)
       {
-         ostringstream mesh_name2, j_name2;
-         mesh_name2 << "full.mesh";
-         j_name2 << "jone.sol";
+         mesh_name << "full.mesh";
+         j_name << "jfull.sol";
+         w_name << "wfull.sol";
+         psi_name << "psifull.sol";
+         phi_name << "phifull.sol";
 
-         ofstream mesh_ofs(mesh_name2.str().c_str());
-         mesh_ofs.precision(8);
+         ofstream mesh_ofs(mesh_name.str().c_str());
+         ofstream osolj(j_name.str().c_str());
+         ofstream osolw(w_name.str().c_str());
+         ofstream osolpsi(psi_name.str().c_str());
+         ofstream osolphi(phi_name.str().c_str());
+
+         mesh_ofs.precision(16);
+         osolj.precision(16);
+         osolw.precision(16);
+         osolpsi.precision(16);
+         osolphi.precision(16);
+
          pmesh->PrintAsOne(mesh_ofs);
-
-         ofstream osolj(j_name2.str().c_str());
-         osolj.precision(8);
          j.SaveAsOne(osolj);
+         w.SaveAsOne(osolw);
+         psi.SaveAsOne(osolpsi);
+         phi.SaveAsOne(osolphi);
+      }
+      else
+      {
+         mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+         mesh_save << "ncmesh." << setfill('0') << setw(6) << myid;
+         phi_name << "sol_phi." << setfill('0') << setw(6) << myid;
+         psi_name << "sol_psi." << setfill('0') << setw(6) << myid;
+         w_name << "sol_omega." << setfill('0') << setw(6) << myid;
+         j_name << "sol_j." << setfill('0') << setw(6) << myid;
+
+         ofstream ncmesh(mesh_save.str().c_str());
+         ncmesh.precision(16);
+         pmesh->ParPrint(ncmesh);
+
+         ofstream osol(phi_name.str().c_str());
+         osol.precision(16);
+         phi.Save(osol);
+
+         ofstream osol3(psi_name.str().c_str());
+         osol3.precision(16);
+         psi.Save(osol3);
+
+         ofstream osol4(w_name.str().c_str());
+         osol4.precision(16);
+         w.Save(osol4);
+
+         ofstream osol5(j_name.str().c_str());
+         osol5.precision(16);
+         j.Save(osol5);
       }
 
-      ofstream osol(phi_name.str().c_str());
-      osol.precision(16);
-      phi.Save(osol);
-
-      ofstream osol3(psi_name.str().c_str());
-      osol3.precision(16);
-      psi.Save(osol3);
-
-      ofstream osol4(w_name.str().c_str());
-      osol4.precision(16);
-      w.Save(osol4);
-
-      ofstream osol5(j_name.str().c_str());
-      osol5.precision(8);
-      j.Save(osol5);
-
-      //output gftmp for debugging
-      //oper.outputgf();
-
       //those values can be generated in post-processing
-      if (!paraview && !visit)
+      if (!paraview && !visit && false)
       {
         ofstream omesh(mesh_name.str().c_str());
         omesh.precision(8);
