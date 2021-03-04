@@ -42,7 +42,8 @@ public:
 
    /** @brief Construct a ParParametricBNLForm on the given set of
        parametric and state ParFiniteElementSpace%s. */
-   ParParametricBNLForm(Array<ParFiniteElementSpace *> &pf, Array<ParFiniteElementSpace *> &ppf );
+   ParParametricBNLForm(Array<ParFiniteElementSpace *> &pf,
+                        Array<ParFiniteElementSpace *> &ppf );
 
    /// Return the @a k-th parallel FE state space of the ParParametricBNLForm.
    ParFiniteElementSpace *ParFESpace(int k);
@@ -59,11 +60,12 @@ public:
 
    /** @brief After a call to SetParSpaces(), the essential b.c. and the
        gradient-type (if different from the default) must be set again. */
-   void SetParSpaces(Array<ParFiniteElementSpace *> &pf, Array<ParFiniteElementSpace *> &pprmf);
+   void SetParSpaces(Array<ParFiniteElementSpace *> &pf,
+                     Array<ParFiniteElementSpace *> &pprmf);
 
    // Here, rhs is a true dof vector
    virtual void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
-                                  Array<Vector *> &rhs);
+                               Array<Vector *> &rhs);
 
    // Here, rhs is a true dof vector
    virtual void SetPrmEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,

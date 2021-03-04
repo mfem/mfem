@@ -26,119 +26,122 @@ namespace mfem
 class ParametricBNLForm : public Operator
 {
 protected:
-    /// FE spaces on which the form lives.
-    Array<FiniteElementSpace*> fes;
+   /// FE spaces on which the form lives.
+   Array<FiniteElementSpace*> fes;
 
-    /// FE spaces for the parametric fields
-    Array<FiniteElementSpace*> prmfes;
+   /// FE spaces for the parametric fields
+   Array<FiniteElementSpace*> prmfes;
 
-    int prmheight;
-    int prmwidth;
-
-
-    /// Set of Domain Integrators to be assembled (added).
-    Array<ParametricBNLFormIntegrator*> dnfi;
-
-    /// Set of interior face Integrators to be assembled (added).
-    Array<ParametricBNLFormIntegrator*> fnfi;
-
-    /// Set of Boundary Face Integrators to be assembled (added).
-    Array<ParametricBNLFormIntegrator*> bfnfi;
-    Array<Array<int>*>           bfnfi_marker;
-
-    /** Auxiliary block-vectors for wrapping input and output vectors or holding
-           GridFunction-like block-vector data (e.g. in parallel). */
-    mutable BlockVector xs, ys;
-    mutable BlockVector prmxs, prmys;
+   int prmheight;
+   int prmwidth;
 
 
-    /** Auxiliary block-vectors for holding
-           GridFunction-like block-vector data (e.g. in parallel). */
-    mutable BlockVector xsv;
+   /// Set of Domain Integrators to be assembled (added).
+   Array<ParametricBNLFormIntegrator*> dnfi;
 
-    /** Auxiliary block-vectors for holding
-           GridFunction-like block-vector data for the parameter fields
-                                                (e.g. in parallel). */
-    mutable BlockVector xdv;
-    /** Auxiliary block-vectors for holding
-           GridFunction-like block-vector data for the adjoint fields
-                                                (e.g. in parallel). */
-    mutable BlockVector adv;
+   /// Set of interior face Integrators to be assembled (added).
+   Array<ParametricBNLFormIntegrator*> fnfi;
 
+   /// Set of Boundary Face Integrators to be assembled (added).
+   Array<ParametricBNLFormIntegrator*> bfnfi;
+   Array<Array<int>*>           bfnfi_marker;
 
-    mutable Array2D<SparseMatrix*> Grads, cGrads;
-    mutable BlockOperator *BlockGrad;
-
-    // A list of the offsets
-    Array<int> block_offsets;
-    Array<int> block_trueOffsets;
-    // A list with the offsets for the parametric fields
-    Array<int> prmblock_offsets;
-    Array<int> prmblock_trueOffsets;
-
-    // Array of Arrays of tdofs for each space in 'fes'
-    Array<Array<int> *> ess_tdofs;
-
-    // Array of Arrays of tdofs for each space in 'prmfes'
-    Array<Array<int> *> prmess_tdofs;
-
-    /// Array of pointers to the prolongation matrix of fes, may be NULL
-    Array<const Operator *> P;
-
-    /// Array of pointers to the prolongation matrix of prmfes, may be NULL
-    Array<const Operator *> Pprm;
-
-    /// Array of results of dynamic-casting P to SparseMatrix pointer
-    Array<const SparseMatrix *> cP;
-
-    /// Array of results of dynamic-casting Pprm to SparseMatrix pointer
-    Array<const SparseMatrix *> cPprm;
+   /** Auxiliary block-vectors for wrapping input and output vectors or holding
+          GridFunction-like block-vector data (e.g. in parallel). */
+   mutable BlockVector xs, ys;
+   mutable BlockVector prmxs, prmys;
 
 
-    /// Indicator if the Operator is part of a parallel run
-    bool is_serial = true;
+   /** Auxiliary block-vectors for holding
+          GridFunction-like block-vector data (e.g. in parallel). */
+   mutable BlockVector xsv;
 
-    /// Indicator if the Operator needs prolongation on assembly
-    bool needs_prolongation = false;
-
-    /// Indicator if the Operator needs prolongation on assembly
-    bool prmneeds_prolongation = false;
-
-
-    mutable BlockVector aux1, aux2;
-
-    mutable BlockVector prmaux1, prmaux2;
-
-    const BlockVector &Prolongate(const BlockVector &bx) const;
-
-    const BlockVector &PrmProlongate(const BlockVector &bx) const;
-
-    /// Specialized version of GetEnergy() for BlockVectors
-    //double GetEnergyBlocked(const BlockVector &bx) const;
-    double GetEnergyBlocked(const BlockVector &bx, const BlockVector &dx) const;
+   /** Auxiliary block-vectors for holding
+          GridFunction-like block-vector data for the parameter fields
+                                               (e.g. in parallel). */
+   mutable BlockVector xdv;
+   /** Auxiliary block-vectors for holding
+          GridFunction-like block-vector data for the adjoint fields
+                                               (e.g. in parallel). */
+   mutable BlockVector adv;
 
 
-    /// Specialized version of Mult() for BlockVector%s
-    /// Block L-Vector to Block L-Vector
-    void MultBlocked(const BlockVector &bx, const BlockVector &dx, BlockVector &by) const;
+   mutable Array2D<SparseMatrix*> Grads, cGrads;
+   mutable BlockOperator *BlockGrad;
 
-    /// Specialized version of Mult() for BlockVector%s
-    /// Block L-Vector to Block L-Vector
-    /// bx - state vector, ax - adjoint vector, dx - parametric fields
-    /// dy = ax' d(residual(bx))/d(dx)
-    void MultPrmBlocked(const BlockVector &bx, const BlockVector & ax, const BlockVector &dx, BlockVector &dy) const;
+   // A list of the offsets
+   Array<int> block_offsets;
+   Array<int> block_trueOffsets;
+   // A list with the offsets for the parametric fields
+   Array<int> prmblock_offsets;
+   Array<int> prmblock_trueOffsets;
+
+   // Array of Arrays of tdofs for each space in 'fes'
+   Array<Array<int> *> ess_tdofs;
+
+   // Array of Arrays of tdofs for each space in 'prmfes'
+   Array<Array<int> *> prmess_tdofs;
+
+   /// Array of pointers to the prolongation matrix of fes, may be NULL
+   Array<const Operator *> P;
+
+   /// Array of pointers to the prolongation matrix of prmfes, may be NULL
+   Array<const Operator *> Pprm;
+
+   /// Array of results of dynamic-casting P to SparseMatrix pointer
+   Array<const SparseMatrix *> cP;
+
+   /// Array of results of dynamic-casting Pprm to SparseMatrix pointer
+   Array<const SparseMatrix *> cPprm;
 
 
-    /// Specialized version of GetGradient() for BlockVector
-    //void ComputeGradientBlocked(const BlockVector &bx) const;
-    void ComputeGradientBlocked(const BlockVector &bx, const BlockVector &dx) const;
+   /// Indicator if the Operator is part of a parallel run
+   bool is_serial = true;
+
+   /// Indicator if the Operator needs prolongation on assembly
+   bool needs_prolongation = false;
+
+   /// Indicator if the Operator needs prolongation on assembly
+   bool prmneeds_prolongation = false;
+
+
+   mutable BlockVector aux1, aux2;
+
+   mutable BlockVector prmaux1, prmaux2;
+
+   const BlockVector &Prolongate(const BlockVector &bx) const;
+
+   const BlockVector &PrmProlongate(const BlockVector &bx) const;
+
+   /// Specialized version of GetEnergy() for BlockVectors
+   //double GetEnergyBlocked(const BlockVector &bx) const;
+   double GetEnergyBlocked(const BlockVector &bx, const BlockVector &dx) const;
+
+
+   /// Specialized version of Mult() for BlockVector%s
+   /// Block L-Vector to Block L-Vector
+   void MultBlocked(const BlockVector &bx, const BlockVector &dx,
+                    BlockVector &by) const;
+
+   /// Specialized version of Mult() for BlockVector%s
+   /// Block L-Vector to Block L-Vector
+   /// bx - state vector, ax - adjoint vector, dx - parametric fields
+   /// dy = ax' d(residual(bx))/d(dx)
+   void MultPrmBlocked(const BlockVector &bx, const BlockVector & ax,
+                       const BlockVector &dx, BlockVector &dy) const;
+
+
+   /// Specialized version of GetGradient() for BlockVector
+   //void ComputeGradientBlocked(const BlockVector &bx) const;
+   void ComputeGradientBlocked(const BlockVector &bx, const BlockVector &dx) const;
 
 public:
    /// Construct an empty BlockNonlinearForm. Initialize with SetSpaces().
    ParametricBNLForm();
 
    /// Construct a BlockNonlinearForm on the given set of FiniteElementSpace%s.
-   ParametricBNLForm(Array<FiniteElementSpace *> &f, Array<FiniteElementSpace *> &pf );
+   ParametricBNLForm(Array<FiniteElementSpace *> &f,
+                     Array<FiniteElementSpace *> &pf );
 
    /// Return the @a k-th FE space of the ParametricBNLForm.
    FiniteElementSpace *FESpace(int k) { return fes[k]; }
@@ -153,12 +156,13 @@ public:
    /// Return the @a k-th parametric FE space of the BlockNonlinearForm (const version).
    const FiniteElementSpace *PrmFESpace(int k) const { return prmfes[k]; }
 
-   Array<ParametricBNLFormIntegrator*>& GetDNFI(){ return dnfi;}
+   Array<ParametricBNLFormIntegrator*>& GetDNFI() { return dnfi;}
 
 
    /// (Re)initialize the ParametricBNLForm.
    /** After a call to SetSpaces(), the essential b.c. must be set again. */
-   void SetSpaces(Array<FiniteElementSpace *> &f, Array<FiniteElementSpace *> &prmf);
+   void SetSpaces(Array<FiniteElementSpace *> &f,
+                  Array<FiniteElementSpace *> &prmf);
 
    /// Return the regular dof offsets.
    const Array<int> &GetBlockOffsets() const { return block_offsets; }
@@ -191,7 +195,7 @@ public:
                                Array<Vector *> &rhs);
 
    virtual void SetPrmEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
-                               Array<Vector *> &rhs);
+                                  Array<Vector *> &rhs);
 
 
    virtual double GetEnergy(const Vector &x) const;
