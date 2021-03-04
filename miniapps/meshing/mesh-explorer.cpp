@@ -138,6 +138,7 @@ Mesh *read_par_mesh(int np, const char *mesh_prefix, Array<int>& partitioning, A
 }
 
 // Given a 3D mesh, produce a 2D mesh consisting of its boundary elements.
+// We guarantee that the skin preserves the boundary index order.
 Mesh *skin_mesh(Mesh *mesh)
 {
    // Determine mapping from vertex to boundary vertex
@@ -244,6 +245,17 @@ Mesh *skin_mesh(Mesh *mesh)
    }
 
    return bmesh;
+}
+
+void recover_bdr_partitioning(const Mesh* mesh, const Array<int>& partitioning, Array<int>& bdr_partitioning)
+{
+   bdr_partitioning.SetSize(mesh->GetNBE());
+   int info, e;
+   for(int be = 0; be < mesh->GetNBE(); be++)
+   {
+      mesh->GetBdrElementAdjacentElement(be, e, info);
+      bdr_partitioning[be] = partitioning[e];
+   }
 }
 
 int main (int argc, char *argv[])
@@ -357,6 +369,7 @@ int main (int argc, char *argv[])
            "P) View partitioning\n"
            "m) View materials\n"
            "b) View boundary\n"
+           "B) View boundary partitioning\n"
            "e) View elements\n"
            "h) View element sizes, h\n"
            "k) View element ratios, kappa\n"
@@ -717,7 +730,7 @@ int main (int argc, char *argv[])
 
       // These are most of the cases that open a new GLVis window
       if (mk == 'm' || mk == 'b' || mk == 'e' || mk == 'v' || mk == 'h' ||
-          mk == 'k' || mk == 'J' || mk == 'p' || mk == 'P')
+          mk == 'k' || mk == 'J' || mk == 'p' || mk == 'B' || mk == 'P')
       {
          Array<int> bdr_part;
          Array<int> part(mesh->GetNE());
@@ -743,7 +756,7 @@ int main (int argc, char *argv[])
             }
          }
 
-         if (mk == 'b')
+         if (mk == 'b' || mk == 'B')
          {
             if (dim == 3)
             {
@@ -753,13 +766,28 @@ int main (int argc, char *argv[])
                   new FiniteElementSpace(bdr_mesh, bdr_attr_fec);
                bdr_part.SetSize(bdr_mesh->GetNE());
                bdr_attr.SetSpace(bdr_attr_fespace);
-               for (int i = 0; i < bdr_mesh->GetNE(); i++)
+               if(mk == 'b')
                {
-                  bdr_part[i] = (bdr_attr(i) = bdr_mesh->GetAttribute(i)) - 1;
+                  for (int i = 0; i < bdr_mesh->GetNE(); i++)
+                  {
+                     bdr_part[i] = (bdr_attr(i) = bdr_mesh->GetAttribute(i)) - 1;
+                  }
+               }
+               else if(mk == 'B')
+               {
+                  for (int i = 0; i < bdr_mesh->GetNE(); i++)
+                  {
+                     bdr_part[i] = (bdr_attr(i) = bdr_partitioning[i] + 1) - 1;
+                  }
+               }
+               else
+               {
+                  MFEM_WARNING("Unimplemented case.");
                }
             }
             else
             {
+               cout << "Warning: Unsupported mesh dimension." << endl;
                attr = 1.0;
             }
          }
@@ -904,6 +932,7 @@ int main (int argc, char *argv[])
                   }
                }
                partitioning = Array<int>(mesh->CartesianPartitioning(nxyz), mesh->GetNE());
+               recover_bdr_partitioning(mesh, partitioning, bdr_partitioning);
             }
             else if (pk == 's')
             {
@@ -915,6 +944,7 @@ int main (int argc, char *argv[])
                {
                   partitioning[i] = i * np / mesh->GetNE();
                }
+               recover_bdr_partitioning(mesh, partitioning, bdr_partitioning);
             }
             else
             {
@@ -926,6 +956,7 @@ int main (int argc, char *argv[])
                cout << "Enter number of processors: " << flush;
                cin >> np;
                partitioning = Array<int>(mesh->GeneratePartitioning(np, part_method), mesh->GetNE());
+               recover_bdr_partitioning(mesh, partitioning, bdr_partitioning);
             }
             if (partitioning)
             {
@@ -1027,7 +1058,7 @@ int main (int argc, char *argv[])
                {
                   mesh->Print(sol_sock);
                }
-               else if (mk == 'b')
+               else if (mk == 'b' || mk == 'B')
                {
                   bdr_mesh->Print(sol_sock);
                   bdr_attr.Save(sol_sock);
@@ -1051,7 +1082,7 @@ int main (int argc, char *argv[])
                      mesh->PrintWithPartitioning(part, sol_sock);
                   }
                }
-               if (mk != 'b')
+               if (mk != 'b' && mk != 'B')
                {
                   attr.Save(sol_sock);
                   sol_sock << "maaA";
