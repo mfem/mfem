@@ -1430,14 +1430,14 @@ int Mesh::AddWedge(const int *vi, int attr)
 int Mesh::AddPyramid(int v1, int v2, int v3, int v4, int v5, int attr)
 {
    CheckEnlarge(elements, NumOfElements);
-   elements[NumOfElements++] = new Pyramid(v1, v2, v3, v4, v5, attr);
+   elements[NumOfElements] = new Pyramid(v1, v2, v3, v4, v5, attr);
    return NumOfElements++;
 }
 
 int Mesh::AddPyramid(const int *vi, int attr)
 {
    CheckEnlarge(elements, NumOfElements);
-   elements[NumOfElements++] = new Pyramid(vi, attr);
+   elements[NumOfElements] = new Pyramid(vi, attr);
    return NumOfElements++;
 }
 
