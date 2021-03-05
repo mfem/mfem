@@ -377,7 +377,7 @@ int main(int argc, char *argv[])
       //     computation can be restarted from this point. Note that unlike in
       //     visualization, we need to use the 'ParPrint' method to save all
       //     internal parallel data structures.
-      if ((it + 1) % 5 == 0 && nc_simplices)
+      if ((it + 1) % 5 == 0)
       {
          ofstream ofs(MakeParFilename("ex6p-checkpoint.", myid));
          ofs.precision(8);
