@@ -96,10 +96,13 @@ public:
        Note: the input mesh @a m must have Nodes set.
 
        @param[in] m         Input mesh.
-       @param[in] bb_t      Relative size of bounding box around each element.
-       @param[in] newt_tol  Newton tolerance for the gslib search methods.
-       @param[in] npt_max   Number of points for simultaneous iteration. This
-                            alters performance and memory footprint. */
+       @param[in] bb_t      (Optional) Relative size of bounding box around
+                            each element.
+       @param[in] newt_tol  (Optional) Newton tolerance for the gslib
+                            search methods.
+       @param[in] npt_max   (Optional) Number of points for simultaneous
+                            iteration. This alters performance and
+                            memory footprint.*/
    void Setup(Mesh &m, const double bb_t = 0.1,
               const double newt_tol = 1.0e-12,
               const int npt_max = 256);
@@ -214,10 +217,16 @@ public:
        @param[in] gfmax     (Optional) GridFunction in H1 that is used as a
                             discriminator when one point is located in multiple
                             meshes. The mesh that maximizes gfmax is chosen.
-       @param[in] bb_t      Relative size of bounding box around each element.
-       @param[in] newt_tol  Newton tolerance for the gslib search methods.
-       @param[in] npt_max   Number of points for simultaneous iteration. This
-                            alters performance and memory footprint.*/
+                            For example, using the distance field based on the
+                            overlapping boundaries is helpful for convergence
+                            during Schwarz iterations.
+       @param[in] bb_t      (Optional) Relative size of bounding box around
+                            each element.
+       @param[in] newt_tol  (Optional) Newton tolerance for the gslib
+                            search methods.
+       @param[in] npt_max   (Optional) Number of points for simultaneous
+                            iteration. This alters performance and
+                            memory footprint.*/
    void Setup(Mesh &m, const int meshid, GridFunction *gfmax = NULL,
               const double bb_t = 0.1, const double newt_tol = 1.0e-12,
               const int npt_max = 256);
