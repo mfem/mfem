@@ -49,18 +49,15 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 
 # Remove built-in rule
 %: %.cpp
+%.o: %.cpp
 
-# Replace the default implicit rule for *.cpp files
-%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common $(SHIFTED_COMMON_OBJ) 
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_LIB) $(MFEM_LIBS) $(SHIFTED_COMMON_OBJ)
-	
-%.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+%.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
-all: $(MINIAPPS)
+%: %.o $(SHIFTED_COMMON_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(COMMON_LIB) $(MFEM_LIBS)
 
-distance: distance.cpp dist_solver.o $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ dist_solver.o $(COMMON_LIB) $(MFEM_LIBS)
+all: $(MINIAPPS)
 
 # Rule for building lib-common
 lib-common:
