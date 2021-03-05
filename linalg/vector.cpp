@@ -44,6 +44,7 @@ Vector::Vector(const Vector &v)
       MFEM_ASSERT(!v.data.Empty(), "invalid source vector");
       size = s;
       data.New(s, v.data.GetMemoryType());
+      if (IsDeviceMemory(v.data.GetMemoryType())) { Write(); }
       data.CopyFrom(v.data, s);
    }
    else
