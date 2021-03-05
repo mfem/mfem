@@ -26,6 +26,12 @@ using std::string;
 #include "xfl_mid.hpp"
 #include "xfl_ker.hpp"
 
+#ifndef MFEM_USE_MPI
+#define ParMesh Mesh
+#define GetParMesh GetMesh
+#define ParFiniteElementSpace FiniteElementSpace
+#endif
+
 // *****************************************************************************
 #define QUOTE(...) #__VA_ARGS__
 #define RAW(...) R"delimiter(#__VA_ARGS__)delimiter"
@@ -73,7 +79,7 @@ static void ceed_benchmark_options(std::ostringstream &out)
           assert(PROBLEM==0); // Diffusion
           assert(GEOM==Geometry::CUBE);
           const char *mesh_file = "../../data/hex-01x01x01.mesh";
-          int ser_ref_levels = 3;
+          int ser_ref_levels = 2;
           int par_ref_levels = 1;
           Array<int> nxyz;
           int order = SOL_P;
@@ -83,7 +89,7 @@ static void ceed_benchmark_options(std::ostringstream &out)
           bool perf = true;
           bool matrix_free = true;
           int max_iter = 50;
-          bool visualization = 0;
+          bool visualization = false;
           OptionsParser args(argc, argv);
           args.AddOption(&mesh_file, "-m", "--mesh",
                          "Mesh file to use.");
@@ -1010,6 +1016,8 @@ void Code::extra_status_rule_dom_xt_u(Rule *n) const
             const bool KER_LIBP = std::getenv("KER_LIBP");
             const bool KER_SIMD = std::getenv("KER_SIMD");
             const bool KER_CEED = std::getenv("KER_CEED");
+            const bool KER_REGS = std::getenv("KER_REGS");
+            const bool KER_OREO = std::getenv("KER_OREO");
             // Generate Kernel Mult Code
             if (KER_LIBP) // LibP
             {
@@ -1024,6 +1032,16 @@ void Code::extra_status_rule_dom_xt_u(Rule *n) const
             else if (KER_SIMD) // SIMD + OpenMP
             {
                mfem::internal::KerOpenMPSIMDMult km(k, ufl, n->child, ker, fes, fec);
+               ufl.DfsInOrder(n->child, km);
+            }
+            else if (KER_REGS) // Minimal register usage (+ SIMD)
+            {
+               mfem::internal::KerRegsMult km(k, ufl, n->child, ker, fes, fec);
+               ufl.DfsInOrder(n->child, km);
+            }
+            else if (KER_OREO) // Minimal register usage (+ SIMD)
+            {
+               mfem::internal::KerOreoMult km(k, ufl, n->child, ker, fes, fec);
                ufl.DfsInOrder(n->child, km);
             }
             else
@@ -1044,10 +1062,31 @@ void Code::extra_status_rule_dom_xt_u(Rule *n) const
             out << "\t\t\t\tKSetup" << k << "<" << dim << "," << shp[0] << ","
                 << shp[1] << ">(";
             out << "NDOFS, VDIM, NE, J0.Read(), ir.GetWeights().Read(), dx.Write()";
-            out << ");\n\t\t\t}\n";  // end of setup
+            out << ");\n";
+            if (KER_REGS)
+            {
+               const int p = fec.order;
+               const int node_order = 1;
+               const int order_w = (node_order*fec.dim-1);
+               const int ir_order = 2*p + order_w;
+               //const int ir_order = 2*(p + 2) - 1; // <-----
+               const int GeomType = dim == 2 ? Geometry::SQUARE : Geometry::CUBE;
+               const mfem::IntegrationRule &ir = mfem::IntRules.Get(GeomType, ir_order);
+               const int Q1D = IntRules.Get(Geometry::SEGMENT, ir.GetOrder()).GetNPoints();
+               const int D1D = p + 1;
+               //const int D1D = p + 1;
+               out << "\t\t\t\tCoG.SetSize("<<Q1D<<"*"<<Q1D<<");\n";
+               out << "\t\t\t\t// Compute the collocated gradient d2q->CoG\n";
+               out << "\t\t\t\tkernels::GetCollocatedGrad<"<<D1D<<","<<Q1D<<">(\n";
+               out << "\t\t\t\t\tConstDeviceMatrix(maps->B.HostRead(),"<<Q1D<<","<<D1D<<"),\n";
+               out << "\t\t\t\t\tConstDeviceMatrix(maps->G.HostRead(),"<<Q1D<<","<<D1D<<"),\n";
+               out << "\t\t\t\t\tDeviceMatrix(CoG.HostReadWrite(),"<<Q1D<<","<<Q1D<<"));\n";
+            }
+            out << "\t\t\t}\n";  // end of setup
             out << "\t\t\tvoid Mult(const mfem::Vector &x, mfem::Vector &y) const "
                 "{\n";
             out << "\t\t\t\ty = 0.0;\n";
+
             int SMEM;
             if (KER_CEED)
             {
@@ -1082,7 +1121,9 @@ void Code::extra_status_rule_dom_xt_u(Rule *n) const
             out << "(NDOFS /*" << NDOFS << "*/,";
             out << "VDIM /*" << VDIM << "*/, NE /*" << NE << "*/,";
             //if (KER_CEED) { out << "ir.GetWeights().Read(),"; }
-            out << "maps->B.Read(), maps->G.Read(), ER.GatherMap().Read(), ";
+            out << "maps->B.Read(), ";
+            out << (KER_REGS ? "CoG" : "maps->G") << ".Read(), ";
+            out << "ER.GatherMap().Read(), ";
             out << "dx.Read(), x.Read(), y.ReadWrite());\n";
             out << "\t\t\t}\n";  // end of mult
             out << "\t\t}; // QMult struct\n";

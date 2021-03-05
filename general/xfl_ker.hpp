@@ -358,6 +358,120 @@ public:
 };
 
 // *****************************************************************************
+/// AST + Register Kernel Mult Code Generator
+// *****************************************************************************
+class KerRegsMult : public Middlend
+{
+private:
+   mutable bool lhs{true};
+   mutable std::stack<xfl::var *> var_stack;
+   mutable std::stack<int> ops_stack;
+
+protected:
+   Node *root;
+   std::ostringstream &out;
+   const xfl::fes &fes;
+   const xfl::fec &fec;
+   const int dim;
+   int D1D, Q1D;
+
+public:
+   KerRegsMult(const int K, xfl &ufl, Node *root, std::ostringstream &out,
+               const xfl::fes &fes, const xfl::fec &fec);
+   ~KerRegsMult();
+#define DECL_RULE(name) void rule_##name(Rule &) const
+   DECL_RULE(grad_expr_grad_op_form_args);
+#undef DECL_RULE
+   void Visit(Rule &rule)
+   {
+#define CASE_RULE(name) \
+  case (name):          \
+    return rule_##name(rule);
+      switch (rule.n)
+      {
+            CASE_RULE(grad_expr_grad_op_form_args);
+         default:;
+      }
+#undef CASE_RULE
+   }
+
+#define DECL_TOKEN(TK) void token_##TK(Token &) const
+   DECL_TOKEN(COMA);
+   DECL_TOKEN(IDENTIFIER);
+#undef DECL_TOKEN
+   void Visit(Token &token)
+   {
+#define CASE_TOKEN(TK) \
+  case TOK::TK:        \
+    return token_##TK(token)
+      switch (token.n)
+      {
+            CASE_TOKEN(COMA);
+            CASE_TOKEN(IDENTIFIER);
+         default:;
+      }
+#undef CASE_TOKEN
+   }
+};
+
+// *****************************************************************************
+/// AST + Register, SIMD, Threaded Kernel Mult Code Generator
+// *****************************************************************************
+class KerOreoMult : public Middlend
+{
+private:
+   mutable bool lhs{true};
+   mutable std::stack<xfl::var *> var_stack;
+   mutable std::stack<int> ops_stack;
+
+protected:
+   Node *root;
+   std::ostringstream &out;
+   const xfl::fes &fes;
+   const xfl::fec &fec;
+   const int dim;
+   int D1D, Q1D;
+
+public:
+   KerOreoMult(const int K, xfl &ufl, Node *root, std::ostringstream &out,
+               const xfl::fes &fes, const xfl::fec &fec);
+   ~KerOreoMult();
+#define DECL_RULE(name) void rule_##name(Rule &) const
+   DECL_RULE(grad_expr_grad_op_form_args);
+#undef DECL_RULE
+   void Visit(Rule &rule)
+   {
+#define CASE_RULE(name) \
+  case (name):          \
+    return rule_##name(rule);
+      switch (rule.n)
+      {
+            CASE_RULE(grad_expr_grad_op_form_args);
+         default:;
+      }
+#undef CASE_RULE
+   }
+
+#define DECL_TOKEN(TK) void token_##TK(Token &) const
+   DECL_TOKEN(COMA);
+   DECL_TOKEN(IDENTIFIER);
+#undef DECL_TOKEN
+   void Visit(Token &token)
+   {
+#define CASE_TOKEN(TK) \
+  case TOK::TK:        \
+    return token_##TK(token)
+      switch (token.n)
+      {
+            CASE_TOKEN(COMA);
+            CASE_TOKEN(IDENTIFIER);
+         default:;
+      }
+#undef CASE_TOKEN
+   }
+};
+
+// *****************************************************************************
 /// AST libParanumal-like Kernel Mult Code Generator
 // *****************************************************************************
 class KerLibPMult : public Middlend

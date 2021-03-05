@@ -33,7 +33,7 @@
 #pragma message("warning: Unknown SIMD architecture")
 #endif // ARCHITECTURE
 #else
-#warning !MFEM_USE_SIMD
+//#warning !MFEM_USE_SIMD
 #endif // MFEM_USE_SIMD
 
 // MFEM_SIMD_BYTES is the default SIMD size used by MFEM, see e.g. class

@@ -133,25 +133,27 @@ KerCeedMult::KerCeedMult(const int K, xfl &ufl, Node *root,
    out << "\tloadMatrix<D1D,Q1D>(data, G_arg, s_G_out_0);\n"; // transpose
    //out << "\tfor(int i=0;i<D1D*Q1D;i++){dbg(\"%f \",s_G_out_0[i]);}";
 
+   /*
+      // MFEM_FOREACH_THREAD: batch + only 2D if dim > 1
+      out << "\n\n// Thread for loop\n";
+      out << "for(int tidz = 0; tidz < NBZ; tidz++){\n";
+      out << " for(int tidx = 0; tidx < Q1D; tidx++){\n";
+      out << "  for(int tidy = 0; tidy < Q1D; tidy++){\n\n";
+      out << "\t//dbg(\"\\033[33mNE:%d, xyz:%d%d%d/%d%d%d\",NE,tidx,tidy,tidz,Q1D,Q1D,NBZ);\n";
 
-   // MFEM_FOREACH_THREAD: batch + only 2D if dim > 1
-   out << "\n\n// Thread for loop\n";
-   out << "for(int tidz = 0; tidz < NBZ; tidz++){\n";
-   out << " for(int tidx = 0; tidx < Q1D; tidx++){\n";
-   out << "  for(int tidy = 0; tidy < Q1D; tidy++){\n\n";
-   out << "\t//dbg(\"\\033[33mNE:%d, xyz:%d%d%d/%d%d%d\",NE,tidx,tidy,tidz,Q1D,Q1D,NBZ);\n";
-
-   // Per thread data
-   out << "\tBackendData data;\n";
-   out << "\tdata.tidx = THREAD_ID(x);\n";
-   out << "\tdata.tidy = THREAD_ID(y);\n";
-   out << "\tdata.tidz = THREAD_ID(z);\n";
-   out << "\tdata.tid  = THREAD_ID(x)\n"
-       "\t\t  + THREAD_ID(y)*BLOCK_DIM(x)\n"
-       "\t\t  + THREAD_ID(z)*BLOCK_DIM(y)*BLOCK_DIM(x);\n";
-   out << "\tdata.slice = slice + data.tidz*T1D"<<(dim > 1?"*T1D":"")<<";\n\n";
+      // Per thread data
+      out << "\tBackendData data;\n";
+      out << "\tdata.tidx = THREAD_ID(x);\n";
+      out << "\tdata.tidy = THREAD_ID(y);\n";
+      out << "\tdata.tidz = THREAD_ID(z);\n";
+      out << "\tdata.tid  = THREAD_ID(x)\n"
+          "\t\t  + THREAD_ID(y)*BLOCK_DIM(x)\n"
+          "\t\t  + THREAD_ID(z)*BLOCK_DIM(y)*BLOCK_DIM(x);\n";
+      out << "\tdata.slice = slice + data.tidz*T1D"<<(dim > 1?"*T1D":"")<<";\n\n";
+   */
 
    // Element for loop
+   out << "\n";
    out << "\t// Element for loop\n";
    out << "\t//dbg(\"THREAD_ID(x):%d, BLOCK_DIM(z):%d\",THREAD_ID(x),BLOCK_DIM(z));\n";
    out << "\tfor (int elem = 0/*THREAD_ID(x)*BLOCK_DIM(z) + THREAD_ID(z)*/;\n";

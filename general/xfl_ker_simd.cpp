@@ -109,8 +109,7 @@ KerOpenMPSIMDMult::KerOpenMPSIMDMult(const int K, xfl &ufl, Node *root,
    //out << "#define MFEM_USE_THREADS\n";
    out << "\n#ifndef MFEM_USE_THREADS\n\t//#pragma omp parallel for\n";
    out << "\tMFEM_VERIFY((NE % SIMD_SIZE) == 0, \"NE vs SIMD_SIZE error!\")\n";
-   out << "//#define BATCH_SIZE 32\n";
-   out << "\tint BATCH_SIZE = 32;\n";
+   out << "\tint BATCH_SIZE = 1;\n";
    out << "\twhile((NE % BATCH_SIZE)!=0){BATCH_SIZE>>=1;}\n";
    out << "\twhile(((NE/BATCH_SIZE)%SIMD_SIZE)!=0){BATCH_SIZE>>=1;}\n";
    out << "\t//printf(\"\\n\\033[33mBATCH_SIZE:%d\\033[m\", BATCH_SIZE);\n";
