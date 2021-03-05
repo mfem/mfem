@@ -934,8 +934,6 @@ AlgebraicSolver::AlgebraicSolver(BilinearForm &form,
 {
    MFEM_VERIFY(DeviceCanUseCeed(),
                "This object requires a Ceed device");
-   MFEM_VERIFY(form.GetAssemblyLevel() == AssemblyLevel::PARTIAL,
-               "AlgebraicSolver requires partial assembly");
 #ifdef MFEM_USE_CEED
    fespaces = new AlgebraicSpaceHierarchy(*form.FESpace());
    multigrid = new AlgebraicMultigrid(*fespaces, form, ess_tdofs);
