@@ -2,8 +2,7 @@
 //
 // Compile with: make ex6
 //
-// Sample runs:  ex6 -m ../data/segment.mesh -o 1 -md 100
-//               ex6 -m ../data/square-disc.mesh -o 1
+// Sample runs:  ex6 -m ../data/square-disc.mesh -o 1
 //               ex6 -m ../data/square-disc.mesh -o 2
 //               ex6 -m ../data/square-disc-nurbs.mesh -o 2
 //               ex6 -m ../data/star.mesh -o 3
@@ -15,6 +14,7 @@
 //               ex6 -m ../data/star-surf.mesh -o 2
 //               ex6 -m ../data/square-disc-surf.mesh -o 2
 //               ex6 -m ../data/amr-quad.mesh
+//               ex6 -m ../data/inline-segment.mesh -o 1 -md 100
 //
 // Device sample runs:
 //               ex6 -pa -d cuda
