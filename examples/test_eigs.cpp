@@ -30,7 +30,8 @@ enum MeshType
    TETRAHEDRA = 13,
    WEDGE4 = 14,
    MIXED3D6 = 15,
-   MIXED3D8 = 16
+   MIXED3D8 = 16,
+   PYRAMID = 17
 };
 
 Mesh * GetMesh(MeshType type);
@@ -916,6 +917,40 @@ Mesh * GetMesh(MeshType type)
          mesh->AddTet(v);
          v[0] = 8; v[1] = 2; v[2] = 7; v[3] = 5;
          mesh->AddTet(v);
+         break;
+      case PYRAMID:
+         mesh = new Mesh(3, 9, 6);
+         c[0] = 0.0; c[1] = 0.0; c[2] = 0.0;
+         mesh->AddVertex(c);
+         c[0] = a_; c[1] = 0.0; c[2] = 0.0;
+         mesh->AddVertex(c);
+         c[0] = a_; c[1] = b_; c[2] = 0.0;
+         mesh->AddVertex(c);
+         c[0] = 0.0; c[1] = b_; c[2] = 0.0;
+         mesh->AddVertex(c);
+         c[0] = 0.5 * a_; c[1] = 0.5 * b_; c[2] = 0.5 * c_;
+         mesh->AddVertex(c);
+         c[0] = 0.0; c[1] = 0.0; c[2] = c_;
+         mesh->AddVertex(c);
+         c[0] = a_; c[1] = 0.0; c[2] = c_;
+         mesh->AddVertex(c);
+         c[0] = a_; c[1] = b_; c[2] = c_;
+         mesh->AddVertex(c);
+         c[0] = 0.0; c[1] = b_; c[2] = c_;
+         mesh->AddVertex(c);
+
+         v[0] = 0; v[1] = 1; v[2] = 2; v[3] = 3; v[4] = 4;
+         mesh->AddPyramid(v);
+         v[0] = 0; v[1] = 5; v[2] = 6; v[3] = 1; v[4] = 4;
+         mesh->AddPyramid(v);
+         v[0] = 1; v[1] = 6; v[2] = 7; v[3] = 2; v[4] = 4;
+         mesh->AddPyramid(v);
+         v[0] = 2; v[1] = 7; v[2] = 8; v[3] = 3; v[4] = 4;
+         mesh->AddPyramid(v);
+         v[0] = 3; v[1] = 8; v[2] = 5; v[3] = 0; v[4] = 4;
+         mesh->AddPyramid(v);
+         v[0] = 8; v[1] = 7; v[2] = 6; v[3] = 5; v[4] = 4;
+         mesh->AddPyramid(v);
          break;
    }
    mesh->FinalizeTopology();
