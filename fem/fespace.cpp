@@ -2191,7 +2191,12 @@ int FiniteElementSpace::GetEdgeOrder(int edge, int variant) const
 
 int FiniteElementSpace::GetFaceOrder(int face, int variant) const
 {
-   if (!IsVariableOrder()) { return fec->GetOrder(); }
+   if (!IsVariableOrder())
+   {
+      // face order can be different from fec->GetOrder()
+      Geometry::Type geom = mesh->GetFaceGeometry(face);
+      return fec->FiniteElementForGeometry(geom)->GetOrder();
+   }
 
    const int* beg = var_face_dofs.GetRow(face);
    const int* end = var_face_dofs.GetRow(face + 1);
