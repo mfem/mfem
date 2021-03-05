@@ -34,6 +34,7 @@ void NCMesh::GeomInfo::InitGeom(Geometry::Type geom)
       case Geometry::CUBE: elem = new Hexahedron; break;
       case Geometry::PRISM: elem = new Wedge; break;
       case Geometry::SQUARE: elem = new Quadrilateral; break;
+      case Geometry::SEGMENT: elem = new Segment; break;
       case Geometry::TRIANGLE: elem = new Triangle; break;
       case Geometry::TETRAHEDRON: elem = new Tetrahedron; break;
       default: MFEM_ABORT("unsupported geometry " << geom);
@@ -80,7 +81,8 @@ void NCMesh::GeomInfo::InitGeom(Geometry::Type geom)
 
 static void CheckSupportedGeom(Geometry::Type geom)
 {
-   MFEM_VERIFY(geom == Geometry::TRIANGLE || geom == Geometry::SQUARE ||
+   MFEM_VERIFY(geom == Geometry::SEGMENT ||
+               geom == Geometry::TRIANGLE || geom == Geometry::SQUARE ||
                geom == Geometry::CUBE || geom == Geometry::PRISM ||
                geom == Geometry::TETRAHEDRON,
                "Element type " << geom << " is not supported by NCMesh.");
@@ -583,6 +585,15 @@ int NCMesh::NewTriangle(int n0, int n1, int n2,
    f[0]->attribute = eattr0;
    f[1]->attribute = eattr1;
    f[2]->attribute = eattr2;
+
+   return new_id;
+}
+
+int NCMesh::NewSegment(int n0, int n1, int attr)
+{
+   int new_id = AddElement(Element(Geometry::SEGMENT, attr));
+   Element &el = elements[new_id];
+   el.node[0] = n0, el.node[1] = n1;
 
    return new_id;
 }
@@ -1445,6 +1456,12 @@ void NCMesh::RefineElement(int elem, char ref_type)
       child[1] = NewTriangle(mid01, no[1], mid12, attr, fa[0], fa[1], -1);
       child[2] = NewTriangle(mid20, mid12, no[2], attr, -1, fa[1], fa[2]);
       child[3] = NewTriangle(mid12, mid20, mid01, attr, -1, -1, -1);
+   }
+   else if (el.Geom() == Geometry::SEGMENT)
+   {
+      int mid = nodes.GetId(no[0], no[1]);
+      child[0] = NewSegment(no[0], mid, attr);
+      child[1] = NewSegment(mid, no[1], attr);
    }
    else
    {
@@ -2312,7 +2329,7 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
 
    NEdges = mesh->GetNEdges();
    NFaces = mesh->GetNumFaces();
-
+   if (Dim < 2) { NFaces = 0; }
    // clear Node::edge_index and Face::index
    for (auto node = nodes.begin(); node != nodes.end(); ++node)
    {
@@ -5384,6 +5401,7 @@ void NCMesh::Print(std::ostream &out) const
 {
    out << "MFEM NC mesh v1.0\n\n"
        "# NCMesh supported geometry types:\n"
+       "# SEGMENT     = 1\n"
        "# TRIANGLE    = 2\n"
        "# SQUARE      = 3\n"
        "# TETRAHEDRON = 4\n"
