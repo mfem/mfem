@@ -2311,7 +2311,8 @@ RT_FECollection::RT_FECollection(const int order, const int dim,
    InitFaces(order, dim, map_type, signs);
 }
 
-void RT_FECollection::InitFaces(const int order, const int dim, const int map_type,
+void RT_FECollection::InitFaces(const int order, const int dim,
+                                const int map_type,
                                 const bool signs)
 {
    int p = order;
