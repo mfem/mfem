@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_PFESPACE
 #define MFEM_PFESPACE
@@ -75,6 +75,12 @@ private:
 
    /// The (block-diagonal) matrix R (restriction of dof to true dof). Owned.
    mutable SparseMatrix *R;
+   /// Optimized action-only restriction operator for conforming meshes. Owned.
+   mutable Operator *Rconf;
+   /** Transpose of R or Rconf. For conforming mesh, this is a matrix-free
+       (Device)ConformingProlongationOperator, for a non-conforming mesh
+       this is a TransposeOperator wrapping R. */
+   mutable Operator *R_transpose;
 
    /// Flag indicating the existence of shared triangles with interior ND dofs
    bool nd_strias;
@@ -186,6 +192,8 @@ public:
    int num_face_nbr_dofs;
    // Face-neighbor-element to face-neighbor dof
    Table face_nbr_element_dof;
+   // Face-neighbor-element face orientations
+   Table face_nbr_element_fos;
    // Face-neighbor to ldof in the face-neighbor numbering
    Table face_nbr_ldof;
    // The global ldof indices of the face-neighbor dofs
@@ -248,7 +256,7 @@ public:
    int GetNRanks() const { return NRanks; }
    int GetMyRank() const { return MyRank; }
 
-   inline ParMesh *GetParMesh() { return pmesh; }
+   inline ParMesh *GetParMesh() const { return pmesh; }
 
    int GetDofSign(int i)
    { return NURBSext || Nonconforming() ? 1 : ldof_sign[VDofToDof(i)]; }
@@ -263,14 +271,29 @@ public:
    virtual int GetTrueVSize() const { return ltdof_size; }
 
    /// Returns indexes of degrees of freedom in array dofs for i'th element.
-   virtual DofTransformation * GetElementDofs(int i, Array<int> &dofs) const;
+   virtual DofTransformation *GetElementDofs(int i, Array<int> &dofs) const;
 
    /// Returns indexes of degrees of freedom for i'th boundary element.
-   virtual void GetBdrElementDofs(int i, Array<int> &dofs) const;
+   virtual DofTransformation *GetBdrElementDofs(int i, Array<int> &dofs) const;
 
    /** Returns the indexes of the degrees of freedom for i'th face
        including the dofs for the edges and the vertices of the face. */
    virtual void GetFaceDofs(int i, Array<int> &dofs) const;
+
+   /** Returns pointer to the FiniteElement in the FiniteElementCollection
+       associated with i'th element in the mesh object. If @a i is greater than
+       or equal to the number of local mesh elements, @a i will be interpreted
+       as a shifted index of a face neigbor element. */
+   virtual const FiniteElement *GetFE(int i) const;
+
+   /** Returns an Operator that converts L-vectors to E-vectors on each face.
+       The parallel version is different from the serial one because of the
+       presence of shared faces. Shared faces are treated as interior faces,
+       the returned operator handles the communication needed to get the
+       shared face values from other MPI ranks */
+   virtual const Operator *GetFaceRestriction(
+      ElementDofOrdering e_ordering, FaceType type,
+      L2FaceValues mul = L2FaceValues::DoubleValued) const;
 
    void GetSharedEdgeDofs(int group, int ei, Array<int> &dofs) const;
    void GetSharedTriangleDofs(int group, int fi, Array<int> &dofs) const;
@@ -334,6 +357,16 @@ public:
    HYPRE_Int GetMyTDofOffset() const;
 
    virtual const Operator *GetProlongationMatrix() const;
+   /** @brief Return logical transpose of restriction matrix, but in
+       non-assembled optimized matrix-free form.
+
+       The implementation is like GetProlongationMatrix, but it sets local
+       DOFs to the true DOF values if owned locally, otherwise zero. */
+   virtual const Operator *GetRestrictionTransposeOperator() const;
+   /** Get an Operator that performs the action of GetRestrictionMatrix(),
+       but potentially with a non-assembled optimized matrix-free
+       implementation. */
+   virtual const Operator *GetRestrictionOperator() const;
    /// Get the R matrix which restricts a local dof vector to true dof vector.
    virtual const SparseMatrix *GetRestrictionMatrix() const
    { Dof_TrueDof_Matrix(); return R; }
@@ -341,11 +374,13 @@ public:
    // Face-neighbor functions
    void ExchangeFaceNbrData();
    int GetFaceNbrVSize() const { return num_face_nbr_dofs; }
-   void GetFaceNbrElementVDofs(int i, Array<int> &vdofs) const;
+   DofTransformation *GetFaceNbrElementVDofs(int i, Array<int> &vdofs) const;
    void GetFaceNbrFaceVDofs(int i, Array<int> &vdofs) const;
    const FiniteElement *GetFaceNbrFE(int i) const;
    const FiniteElement *GetFaceNbrFaceFE(int i) const;
    const HYPRE_Int *GetFaceNbrGlobalDofMap() { return face_nbr_glob_dof_map; }
+   ElementTransformation *GetFaceNbrElementTransformation(int i) const
+   { return pmesh->GetFaceNbrElementTransformation(i); }
 
    void Lose_Dof_TrueDof_Matrix();
    void LoseDofOffsets() { dof_offsets.LoseData(); }
@@ -377,7 +412,7 @@ public:
 
    void PrintPartitionStats();
 
-   // Obsolete, kept for backward compatibility
+   /// Obsolete, kept for backward compatibility
    int TrueVSize() const { return ltdof_size; }
 };
 
@@ -388,11 +423,11 @@ class ConformingProlongationOperator : public Operator
 protected:
    Array<int> external_ldofs;
    const GroupCommunicator &gc;
-   const ParFiniteElementSpace &pfes;
-   mutable Vector xtmp;
+   bool local;
 
 public:
-   ConformingProlongationOperator(const ParFiniteElementSpace &pfes);
+   ConformingProlongationOperator(const ParFiniteElementSpace &pfes,
+                                  bool local_=false);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -407,10 +442,12 @@ protected:
    bool mpi_gpu_aware;
    Array<int> shr_ltdof, ext_ldof;
    mutable Vector shr_buf, ext_buf;
-   int *shr_buf_offsets, *ext_buf_offsets;
+   Memory<int> shr_buf_offsets, ext_buf_offsets;
    Array<int> ltdof_ldof, unq_ltdof;
    Array<int> unq_shr_i, unq_shr_j;
    MPI_Request *requests;
+   bool local;
+
    // Kernel: copy ltdofs from 'src' to 'shr_buf' - prepare for send.
    //         shr_buf[i] = src[shr_ltdof[i]]
    void BcastBeginCopy(const Vector &src) const;
@@ -436,7 +473,8 @@ protected:
    void ReduceEndAssemble(Vector &dst) const;
 
 public:
-   DeviceConformingProlongationOperator(const ParFiniteElementSpace &pfes);
+   DeviceConformingProlongationOperator(const ParFiniteElementSpace &pfes,
+                                        bool local_=false);
 
    virtual ~DeviceConformingProlongationOperator();
 
