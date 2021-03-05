@@ -53,4 +53,11 @@ if (MFEM_USE_MPI)
     MAIN navier_3dfoc.cpp
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem)
+
+  if (MFEM_USE_GSLIB)
+    add_mfem_miniapp(navier_cht
+      MAIN navier_cht.cpp
+      ${NAVIER_COMMON_FILES}
+      LIBRARIES mfem)
+  endif ()
 endif ()
