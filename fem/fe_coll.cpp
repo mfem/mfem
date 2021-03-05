@@ -2296,9 +2296,11 @@ RT_FECollection::RT_FECollection(const int order, const int dim,
 
 // This is a special protected constructor only used by RT_Trace_FECollection
 // and DG_Interface_FECollection
-RT_FECollection::RT_FECollection(const int p, const int dim, const int map_type,
-                                 const bool signs, const int ob_type)
-   : ob_type(ob_type)
+RT_FECollection::RT_FECollection(const int order, const int dim,
+                                 const int map_type, const bool signs,
+                                 const int ob_type)
+   : FiniteElementCollection(order + 1)
+   , ob_type(ob_type)
 {
    if (Quadrature1D::CheckOpen(BasisType::GetQuadrature1D(ob_type)) ==
        Quadrature1D::Invalid)
@@ -2306,12 +2308,13 @@ RT_FECollection::RT_FECollection(const int p, const int dim, const int map_type,
       const char *ob_name = BasisType::Name(ob_type); // this may abort
       MFEM_ABORT("Invalid open basis type: " << ob_name);
    }
-   InitFaces(p, dim, map_type, signs);
+   InitFaces(order, dim, map_type, signs);
 }
 
-void RT_FECollection::InitFaces(const int p, const int dim, const int map_type,
+void RT_FECollection::InitFaces(const int order, const int dim, const int map_type,
                                 const bool signs)
 {
+   int p = order;
    int op_type = BasisType::GetQuadrature1D(ob_type);
 
    MFEM_VERIFY(Quadrature1D::CheckOpen(op_type) != Quadrature1D::Invalid,

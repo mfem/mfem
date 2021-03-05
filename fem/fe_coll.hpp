@@ -334,12 +334,12 @@ protected:
    int *SegDofOrd[2], *TriDofOrd[6], *QuadDofOrd[8];
 
    // Initialize only the face elements
-   void InitFaces(const int p, const int dim, const int map_type,
+   void InitFaces(const int order, const int dim, const int map_type,
                   const bool signs);
 
    // Constructor used by the constructor of the RT_Trace_FECollection and
    // DG_Interface_FECollection classes
-   RT_FECollection(const int p, const int dim, const int map_type,
+   RT_FECollection(const int order, const int dim, const int map_type,
                    const bool signs,
                    const int ob_type = BasisType::GaussLegendre);
 
