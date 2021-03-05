@@ -37,11 +37,10 @@
 
 int main(int argc, char *argv[])
 {
-    //const char *mesh_file = "../../data/beam-tet.mesh";
     const char *mesh_file = "../../data/star.vtk";
     int ser_ref_levels = 1;
     int order = 2;
-    bool visualization = true;
+    bool visualization = false;
     double newton_rel_tol = 1e-4;
     double newton_abs_tol = 1e-6;
     int newton_iter = 10;
@@ -84,13 +83,13 @@ int main(int argc, char *argv[])
     }
     args.PrintOptions(std::cout);
 
-    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
+    //    Read the (serial) mesh from the given mesh file on all processors.  We
     //    can handle triangular, quadrilateral, tetrahedral and hexahedral meshes
     //    with the same code.
     mfem::Mesh *mesh = new mfem::Mesh(mesh_file, 1, 1);
     int dim = mesh->Dimension();
 
-    // 4. Refine the mesh in serial to increase the resolution. In this example
+    //    Refine the mesh in serial to increase the resolution. In this example
     //    we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
     //    a command-line parameter.
     for (int lev = 0; lev < ser_ref_levels; lev++)
@@ -98,11 +97,11 @@ int main(int argc, char *argv[])
         mesh->UniformRefinement();
     }
 
-    // Define the q-function
     // Diffusion coefficient
     mfem::ConstantCoefficient* diffco=new mfem::ConstantCoefficient(1.0);
     // Heat source
     mfem::ConstantCoefficient* loadco=new mfem::ConstantCoefficient(1.0);
+    // Define the q-function
     mfem::QLinearDiffusion* qfun=new mfem::QLinearDiffusion(*diffco,*loadco,1.0,1e-7,4.0,0.5);
 
     // Define FE collection and space for the state solution
@@ -161,6 +160,7 @@ int main(int argc, char *argv[])
     ns->SetMaxIter(newton_iter);
 
     // Solve the problem
+    // set the density to 0.5
     prmbv=0.5;
     nf->SetPrmFields(prmbv); //set the density
     mfem::Vector b; //RHS is zero
@@ -206,6 +206,7 @@ int main(int argc, char *argv[])
     nf->PrmMult(prmbv, grdbv);
 
     //Dump out the data
+    if(visualization)
     {
         mfem::ParaViewDataCollection *dacol=new mfem::ParaViewDataCollection("SeqHeat",mesh);
         mfem::GridFunction gfgrd(pfes); gfgrd.SetFromTrueDofs(grdbv.GetBlock(0));
