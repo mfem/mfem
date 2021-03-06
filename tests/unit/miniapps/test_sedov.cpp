@@ -1745,8 +1745,6 @@ public:
       const int VsizeH1 = H1FESpace.GetVSize();
       v.MakeRef(&H1FESpace, *sptr, VsizeH1);
       ParGridFunction dx;
-      // force memory registation
-      dS_dt.Write();
       dx.MakeRef(&H1FESpace, dS_dt, 0);
       dx = v;
       SolveVelocity(S, dS_dt);
@@ -2018,8 +2016,7 @@ int sedov(int myid, int argc, char *argv[])
    true_offset[2] = true_offset[1] + H1Vsize;
    true_offset[3] = true_offset[2] + L2Vsize;
    BlockVector S(true_offset, Device::GetDeviceMemoryType());
-   //S.UseDevice(true);
-   S.Write();
+   S.UseDevice(true);
    ParGridFunction x_gf, v_gf, e_gf;
    x_gf.MakeRef(&H1FESpace, S, true_offset[0]);
    v_gf.MakeRef(&H1FESpace, S, true_offset[1]);

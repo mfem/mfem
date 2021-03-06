@@ -289,9 +289,7 @@ public:
    /** The newly allocated memory is not initialized. The host pointer is set as
        valid.
 
-       @note The current memory is NOT deleted by this method.
-
-       TODO: implementation */
+       @note The current memory is NOT deleted by this method. */
    inline void New(int size, MemoryType h_mt, MemoryType d_mt);
 
    /** @brief Wrap an externally allocated host pointer, @a ptr with the current
@@ -769,11 +767,22 @@ inline void Memory<T>::New(int size, MemoryType mt)
    const size_t bytes = size*sizeof(T);
    h_mt = IsHostMemory(mt) ? mt : MemoryManager::host_mem_type;
    d_mt = IsHostMemory(mt) ? MemoryManager::device_mem_type : mt;
-   const bool mt_host = h_mt == MemoryType::HOST;
-   if (mt_host) { flags = OWNS_HOST | VALID_HOST; }
-   T *h_tmp = (mt_host) ? Alloc<new_align_bytes>::New(size) : nullptr;
-   h_ptr = (mt_host) ? h_tmp : (T*)MemoryManager::New_(h_tmp, bytes, h_mt, d_mt,
-                                                       flags);
+   if (h_mt == MemoryType::HOST)
+   {
+      flags = OWNS_HOST | VALID_HOST;
+      h_ptr = Alloc<new_align_bytes>::New(size);
+      if (mt != MemoryType::HOST)
+      {
+         MemoryManager::Register_(h_ptr, nullptr, capacity*sizeof(T), h_mt, d_mt,
+                                  flags & OWNS_HOST, flags & ALIAS, flags);
+      }
+   }
+   else
+   {
+      h_ptr = (T*)MemoryManager::New_(nullptr, bytes, h_mt, d_mt, flags);
+   }
+
+   if (IsDeviceMemory(mt) && mt != MemoryType::MANAGED) { flags |= VALID_DEVICE; }
 }
 
 template <typename T>
@@ -1013,6 +1022,7 @@ inline void Memory<T>::SyncAlias(const Memory &base, int alias_size) const
    if (!(base.flags & REGISTERED)) { return; }
    MemoryManager::SyncAlias_(base.h_ptr, h_ptr, alias_size*sizeof(T),
                              base.flags, flags);
+
 }
 
 template <typename T>
