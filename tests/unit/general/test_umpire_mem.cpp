@@ -124,7 +124,7 @@ static void test_umpire_device_memory()
    // allocates in permanent device memory
    printf("Allocate %u more bytes on the host (will use device permanent; testing SetDeviceMemoryType): ",
           num_bytes);
-   Vector dev_perm(num_elems, MemoryType::DEVICE_UMPIRE_2);
+   Vector dev_perm(num_elems, MemoryType::HOST, MemoryType::DEVICE_UMPIRE_2);
    dev_perm.GetMemory().SetDeviceMemoryType(MemoryType::DEVICE_UMPIRE);
    CHECK_PERM(num_bytes);
    CHECK_TEMP(num_bytes);
