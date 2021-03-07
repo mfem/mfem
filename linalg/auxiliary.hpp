@@ -31,12 +31,11 @@ class ParDiscreteLinearOperator;
 
 /** @brief Auxiliary space solvers for MatrixFreeAMS preconditioner
 
-    Given an operator A and a transfer G, this will create a solver
-    that approximates (G^T A G)^{-1}. Used for two different
-    auxiliary spaces in the AMS cycle.
+    Given an operator A and a transfer G, create a solver that approximates
+    (G^T A G)^{-1}. Used for two different auxiliary spaces in the AMS cycle.
 
-    The produced solver is based on a low-order refined discretization
-    for the high-order H1 problem. */
+    The produced solver is based on a low-order refined discretization for the
+    high-order H1 problem. */
 class MatrixFreeAuxiliarySpace : public Solver
 {
 public:
@@ -45,16 +44,15 @@ public:
        In the AMS framework this auxiliary space has two coefficients.
 
        @param mesh_lor       Low-order refined auxiliary mesh
-       @param alpha_coeff    coefficient on curl-curl term (1 if null)
-       @param beta_coeff     coefficient on mass term (1 if null)
-       @param beta_mcoeff    matrix coefficient on mass term
-       @param ess_bdr        attributes for essential boundaries
+       @param alpha_coeff    Coefficient on curl-curl term (1 if null)
+       @param beta_coeff     Coefficient on mass term (1 if null)
+       @param beta_mcoeff    Matrix coefficient on mass term
+       @param ess_bdr        Attributes for essential boundaries
        @param curlcurl_oper  High-order operator for the system
-       @param pi             Intentity interpolation operator
+       @param pi             Identity interpolation operator
        @param useAmgX_       Use AmgX instead of hypre for auxiliary solves
-       @param cg_iterations  number of CG iterations used to invert
-                             auxiliary system, choosing 0 means to use a
-                             single V-cycle
+       @param cg_iterations  Number of CG iterations used to invert auxiliary
+                             system, choosing 0 means to use a single V-cycle
    */
    MatrixFreeAuxiliarySpace(
       ParMesh& mesh_lor, Coefficient* alpha_coeff,
@@ -70,15 +68,14 @@ public:
        This has one coefficient in the AMS framework.
 
        @param mesh_lor       Low-order refined auxiliary mesh
-       @param beta_coeff     coefficient on mass term (1 if null)
-       @param beta_mcoeff    matrix coefficient on mass term
-       @param ess_bdr        attributes for essential boundaries
+       @param beta_coeff     Coefficient on mass term (1 if null)
+       @param beta_mcoeff    Matrix coefficient on mass term
+       @param ess_bdr        Attributes for essential boundaries
        @param curlcurl_oper  High-order operator for the system
        @param g              Gradient interpolation operator
        @param useAmgX_       Use AmgX instead of hypre for auxiliary solves
-       @param cg_iterations  number of CG iterations used to invert
-                             auxiliary system, choosing 0 means to
-                             use a single V-cycle
+       @param cg_iterations  Number of CG iterations used to invert auxiliary
+                             system, choosing 0 means to use a single V-cycle
    */
    MatrixFreeAuxiliarySpace(
       ParMesh& mesh_lor, Coefficient* beta_coeff,
@@ -129,8 +126,8 @@ class GeneralAMS : public Solver
 public:
    /** @brief Constructor.
 
-       Most of these arguments just need a Mult() operation,
-       but pi and g also require MultTranspose() */
+       Most of these arguments just need a Mult() operation, but pi and g also
+       require MultTranspose() */
    GeneralAMS(const Operator& curlcurl_op_,
               const Operator& pi_,
               const Operator& gradient_,
@@ -159,12 +156,12 @@ private:
 };
 
 
-/** @brief An auxiliary Maxwell solver for a high-order curl-curl
-    system without high-order assembly.
+/** @brief An auxiliary Maxwell solver for a high-order curl-curl system without
+    high-order assembly.
 
-    The auxiliary space solves are done using a low-order refined approach,
-    but all the interpolation operators, residuals, etc. are done in a
-    matrix-free manner.
+    The auxiliary space solves are done using a low-order refined approach, but
+    all the interpolation operators, residuals, etc. are done in a matrix-free
+    manner.
 
     See Barker and Kolev, Matrix-free preconditioning for high-order H(curl)
     discretizations (https://doi.org/10.1002/nla.2348) */
@@ -178,20 +175,20 @@ public:
                            VectorFEMassIntegrator.
        @param oper         Operator to precondition.
        @param nd_fespace   Underlying Nedelec finite element space.
-       @param alpha_coeff  coefficient on curl-curl term in Maxwell problem
+       @param alpha_coeff  Coefficient on curl-curl term in Maxwell problem
                            (can be null, in which case constant 1 is assumed)
        @param beta_coeff   (scalar) coefficient on mass term in Maxwell problem
        @param beta_mcoeff  (matrix) coefficient on mass term
-       @param ess_bdr      boundary *attributes* that are marked essential. In
+       @param ess_bdr      Boundary *attributes* that are marked essential. In
                            contrast to other MFEM cases, these are *attributes*
                            not dofs, because we need to apply these boundary
                            conditions to different bilinear forms.
-       @param useAmgX      use AmgX (instead of hypre) for LOR problems
-       @param inner_pi_its number of CG iterations on auxiliary pi space,
+       @param useAmgX      Use AmgX (instead of hypre) for LOR problems
+       @param inner_pi_its Number of CG iterations on auxiliary pi space,
                            may need more for difficult coefficients
-       @param inner_g_its  number of CG iterations on auxiliary g space,
+       @param inner_g_its  Number of CG iterations on auxiliary g space,
                            may need more for difficult coefficients
-       @param nd_smoother  optional user-provided smoother for Nedelec space,
+       @param nd_smoother  Optional user-provided smoother for Nedelec space,
                            this object takes ownership and will delete.
    */
    MatrixFreeAMS(ParBilinearForm& aform, Operator& oper,
