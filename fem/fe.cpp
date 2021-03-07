@@ -7440,7 +7440,7 @@ void Poly_1D::CalcDBinomTerms(const int p, const double x, const double y,
 }
 
 void Poly_1D::CalcJacobi(const int p, const double alpha, const double beta,
-			 const double x, double *u)
+                         const double x, double *u)
 {
    // use the recursive definition for [-1,1]:
    // 2(n+1)(n+a+b+1)(2n+a+b)P^{(a,b)}_{n+1}(z) =
@@ -7454,16 +7454,16 @@ void Poly_1D::CalcJacobi(const int p, const double alpha, const double beta,
    {
       double c2 = 2.*(1. + n)*(1. + n + alpha + beta)*(2.*n + alpha + beta);
       double c1 = (1. + 2.*n + alpha + beta) *
-	 ((2. + 2.*n + alpha + beta)*
-	  (2.*n + alpha + beta)*z + pow(alpha,2) - pow(beta,2));
+                  ((2. + 2.*n + alpha + beta)*
+                   (2.*n + alpha + beta)*z + pow(alpha,2) - pow(beta,2));
       double c0 = 2.*(alpha + n)*(beta + n)*(2. + 2.*n + alpha + beta);
 
       u[n+1] = (c1 * u[n] - c0 * u[n-1]) / c2;
    }
 }
-  
+
 void Poly_1D::CalcJacobi(const int p, const double alpha, const double beta,
-			 const double x, double *u, double *d)
+                         const double x, double *u, double *d)
 {
    // use the recursive definition for [-1,1]:
    // 2(n+1)(n+a+b+1)(2n+a+b)P^{(a,b)}_{n+1}(z) =
@@ -7479,17 +7479,17 @@ void Poly_1D::CalcJacobi(const int p, const double alpha, const double beta,
    {
       double c2 = 2.*(1. + n)*(1. + n + alpha + beta)*(2.*n + alpha + beta);
       double c1 = (1. + 2.*n + alpha + beta) *
-	 ((2. + 2.*n + alpha + beta)*
-	  (2.*n + alpha + beta)*z + pow(alpha,2) - pow(beta,2));
+                  ((2. + 2.*n + alpha + beta)*
+                   (2.*n + alpha + beta)*z + pow(alpha,2) - pow(beta,2));
       double c0 = 2.*(alpha + n)*(beta + n)*(2. + 2.*n + alpha + beta);
       double dc1 = 2.*(1. + 2.*n + alpha + beta) *
-	 (2. + 2.*n + alpha + beta)*(2.*n + alpha + beta);
+                   (2. + 2.*n + alpha + beta)*(2.*n + alpha + beta);
 
       u[n+1] = (c1 * u[n] - c0 * u[n-1]) / c2;
       d[n+1] = (c1 * d[n] + dc1 * u[n] - c0 * d[n-1]) / c2;
    }
 }
-  
+
 void Poly_1D::CalcLegendre(const int p, const double x, double *u)
 {
    // use the recursive definition for [-1,1]:
@@ -9748,21 +9748,21 @@ H1_PyramidElement::H1_PyramidElement(const int p, const int btype)
       {
          double w = cp[i] + cp[j] + cp[p-i-j];
          Nodes.IntPoint(o++).Set3(cp[i]/w, cp[0], cp[j]/w);
-	 // mfem::out << i << " " << j << "\t" << cp[i]/w << " " << cp[0] << " " << cp[j]/w << std::endl;
+         // mfem::out << i << " " << j << "\t" << cp[i]/w << " " << cp[0] << " " << cp[j]/w << std::endl;
       }
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)  // (1,2,4)
       {
          double w = cp[i] + cp[j] + cp[p-i-j];
          Nodes.IntPoint(o++).Set3(1.0 - cp[j]/w, cp[i]/w, cp[j]/w);
-	 // mfem::out << i << " " << j << "\t" << 1.0 - cp[j]/w << " " << cp[i]/w << " " << cp[j]/w << std::endl;
+         // mfem::out << i << " " << j << "\t" << 1.0 - cp[j]/w << " " << cp[i]/w << " " << cp[j]/w << std::endl;
       }
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)  // (3,4,2)
       {
          double w = cp[i] + cp[j] + cp[p-i-j];
          Nodes.IntPoint(o++).Set3(cp[j]/w, 1.0 - cp[i]/w, cp[i]/w);
-	 // mfem::out << i << " " << j << "\t" << cp[j]/w << " " << 1.0 - cp[i]/w << " " << cp[i]/w << std::endl;
+         // mfem::out << i << " " << j << "\t" << cp[j]/w << " " << 1.0 - cp[i]/w << " " << cp[i]/w << std::endl;
       }
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)  // (0,4,3)
@@ -9778,8 +9778,8 @@ H1_PyramidElement::H1_PyramidElement(const int p, const int btype)
      {
        double w = cp[i] + cp[j] + cp[p-i-j];
        mfem::out << "{" << cp[j] / w
-		 << "," << 1.0 - cp[i] / w
-		 << "," << cp[i] / w << "}";
+       << "," << 1.0 - cp[i] / w
+       << "," << cp[i] / w << "}";
        if (i + j != p) mfem::out << ",";
      }
      if (j != p) mfem::out << ",";
@@ -9792,8 +9792,8 @@ H1_PyramidElement::H1_PyramidElement(const int p, const int btype)
      {
        double w = cp[i] + cp[j] + cp[p-i-j];
        mfem::out << "{" << cp[0]
-		 << "," << cp[j] / w
-		 << "," << cp[i] / w << "}";
+       << "," << cp[j] / w
+       << "," << cp[i] / w << "}";
        if (i + j != p) mfem::out << ",";
      }
      if (j != p) mfem::out << ",";

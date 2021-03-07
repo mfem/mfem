@@ -911,16 +911,16 @@ void Mesh::GetLocalFaceTransformation(
          else if (elem_type == Element::WEDGE)
          {
             GetLocalTriToWdgTransformation(Transf, info);
-	 }
+         }
          else if (elem_type == Element::PYRAMID)
          {
             GetLocalTriToPyrTransformation(Transf, info);
-	 }
-	 else
-	 {
+         }
+         else
+         {
             MFEM_ABORT("Mesh::GetLocalFaceTransformation not defined for "
-		       "face type " << face_type
-		       << " and element type " << elem_type << "\n");
+                       "face type " << face_type
+                       << " and element type " << elem_type << "\n");
          }
          break;
 
@@ -937,11 +937,11 @@ void Mesh::GetLocalFaceTransformation(
          {
             GetLocalQuadToPyrTransformation(Transf, info);
          }
-	 else
-	 {
+         else
+         {
             MFEM_ABORT("Mesh::GetLocalFaceTransformation not defined for "
-		       "face type " << face_type
-		       << " and element type " << elem_type << "\n");
+                       "face type " << face_type
+                       << " and element type " << elem_type << "\n");
          }
          break;
    }
@@ -7506,8 +7506,8 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
          case Element::PYRAMID:
          {
             const int *f = el_to_face->GetRow(i);
-	    // pyr_counter++;
-	    
+            // pyr_counter++;
+
             for (int fi = 0; fi < 1; fi++)
             {
                for (int k = 0; k < 4; k++)
@@ -7530,39 +7530,39 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
 
             new_elements[j++] =
                new Pyramid(v[0], oedge+e[0], oface+qf0,
-			   oedge+e[3], oedge+e[4], attr);
+                           oedge+e[3], oedge+e[4], attr);
 
             new_elements[j++] =
                new Pyramid(oedge+e[0], v[1], oedge+e[1],
-			   oface+qf0, oedge+e[5], attr);
+                           oface+qf0, oedge+e[5], attr);
 
             new_elements[j++] =
-	       new Pyramid(oface+qf0, oedge+e[1], v[2],
-			   oedge+e[2], oedge+e[6], attr);
+               new Pyramid(oface+qf0, oedge+e[1], v[2],
+                           oedge+e[2], oedge+e[6], attr);
 
             new_elements[j++] =
-	      new Pyramid(oedge+e[3], oface+qf0, oedge+e[2],
-			  v[3], oedge+e[7], attr);
+               new Pyramid(oedge+e[3], oface+qf0, oedge+e[2],
+                           v[3], oedge+e[7], attr);
 
             new_elements[j++] =
                new Pyramid(oedge+e[4], oedge+e[5], oedge+e[6],
-			   oedge+e[7], v[4], attr);
+                           oedge+e[7], v[4], attr);
 
             new_elements[j++] =
-	      new Tetrahedron(oedge+e[0], oedge+e[4], oedge+e[5],
-			      oface+qf0, attr);
+               new Tetrahedron(oedge+e[0], oedge+e[4], oedge+e[5],
+                               oface+qf0, attr);
 
             new_elements[j++] =
-	      new Tetrahedron(oedge+e[1], oedge+e[5], oedge+e[6],
-			      oface+qf0, attr);
+               new Tetrahedron(oedge+e[1], oedge+e[5], oedge+e[6],
+                               oface+qf0, attr);
 
             new_elements[j++] =
-	      new Tetrahedron(oedge+e[2], oedge+e[6], oedge+e[7],
-			      oface+qf0, attr);
+               new Tetrahedron(oedge+e[2], oedge+e[6], oedge+e[7],
+                               oface+qf0, attr);
 
             new_elements[j++] =
-	      new Tetrahedron(oedge+e[3], oedge+e[7], oedge+e[4],
-			      oface+qf0, attr);
+               new Tetrahedron(oedge+e[3], oedge+e[7], oedge+e[4],
+                               oface+qf0, attr);
          }
          break;
 
