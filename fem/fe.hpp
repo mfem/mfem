@@ -2554,12 +2554,55 @@ class H1_PyramidElement : public NodalFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
-   mutable Vector shape_x, shape_y, shape_z;
-   mutable Vector dshape_x, dshape_y, dshape_z, u;
-   mutable Vector ddshape_x, ddshape_y, ddshape_z;
-   mutable DenseMatrix du, ddu;
+   mutable Vector tmp_x, tmp_y, tmp_z;
+   mutable Vector u;
+   mutable DenseMatrix du;
+   // mutable Vector shape_x, shape_y, shape_z;
+   // mutable Vector dshape_x, dshape_y, dshape_z, u;
+   // mutable Vector ddshape_x, ddshape_y, ddshape_z;
+   // mutable DenseMatrix du, ddu;
 #endif
    DenseMatrixInverse Ti;
+
+   static void calcBasis(const int p, const IntegrationPoint &ip,
+                         double *tmp_x, double *tmp_y, double *tmp_z,
+                         double *u);
+   static void calcDBasis(const int p, const IntegrationPoint &ip,
+                          DenseMatrix &du);
+
+   static inline double lam0(const double x, const double y, const double z)
+   { return (z < 1.0) ? (1.0 - x - z) * (1.0 - y - z) / (1.0 - z): 0.0; }
+   static inline double lam1(const double x, const double y, const double z)
+   { return (z < 1.0) ? x * (1.0 - y - z) / (1.0 - z): 0.0; }
+   static inline double lam2(const double x, const double y, const double z)
+   { return (z < 1.0) ? x * y / (1.0 - z): 0.0; }
+   static inline double lam3(const double x, const double y, const double z)
+   { return (z < 1.0) ? (1.0 - x - z) * y / (1.0 - z): 0.0; }
+   static inline double lam4(const double x, const double y, const double z)
+   { return z; }
+
+   static inline double mu0(const double x) { return 1.0 - x; }
+   static inline double mu1(const double x) { return x; }
+   static inline double nu0(const double x, const double y)
+   { return 1.0 - x - y;}
+   static inline double nu1(const double x, const double y) { return x;}
+   static inline double nu2(const double x, const double y) { return y;}
+
+   static void phi_E(const int p, const double s0, double s1, double *u);
+
+   static void calcScaledLegendre(const int p, const double x, const double t,
+                                  double *u);
+
+   static void calcIntegratedLegendre(const int p, const double x,
+                                      const double t, double *u);
+
+   static void calcScaledJacobi(const int p, const double alpha,
+                                const double x, const double t,
+                                double *u);
+
+   static void calcIntegratedJacobi(const int p, const double alpha,
+                                    const double x, const double t,
+                                    double *u);
 
 public:
    H1_PyramidElement(const int p,
