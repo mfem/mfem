@@ -17,6 +17,13 @@ using namespace mfem;
 namespace get_value
 {
 
+static int first_1D_et = (int)Element::SEGMENT;
+static int  last_1D_et = (int)Element::SEGMENT;
+static int first_2D_et = (int)Element::TRIANGLE;
+static int  last_2D_et = (int)Element::QUADRILATERAL;
+static int first_3D_et = (int)Element::TETRAHEDRON;
+static int  last_3D_et = (int)Element::PYRAMID;
+
 double func_1D_lin(const Vector &x)
 {
    return x[0];
@@ -134,8 +141,7 @@ TEST_CASE("1D GetValue",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::SEGMENT;
-        type <= (int)Element::SEGMENT; type++)
+   for (int type = first_1D_et; type <= last_1D_et; type++)
    {
       Mesh mesh(n, 2.0);
 
@@ -416,8 +422,7 @@ TEST_CASE("1D GetValue in Parallel",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::SEGMENT;
-        type <= (int)Element::SEGMENT; type++)
+   for (int type = first_1D_et; type <= last_1D_et; type++)
    {
       Mesh *mesh = new Mesh(n, 2.0);
       ParMesh pmesh(MPI_COMM_WORLD, *mesh);
@@ -581,8 +586,7 @@ TEST_CASE("2D GetValue",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::TRIANGLE;
-        type <= (int)Element::QUADRILATERAL; type++)
+   for (int type = first_2D_et; type <= last_2D_et; type++)
    {
       Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
 
@@ -899,8 +903,7 @@ TEST_CASE("2D GetValue in Parallel",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::TRIANGLE;
-        type <= (int)Element::QUADRILATERAL; type++)
+   for (int type = first_2D_et; type <= last_2D_et; type++)
    {
       Mesh *mesh = new Mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
       ParMesh pmesh(MPI_COMM_WORLD, *mesh);
@@ -1063,8 +1066,7 @@ TEST_CASE("3D GetValue",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -1417,8 +1419,7 @@ TEST_CASE("3D GetValue in Parallel",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh *mesh = new Mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
       ParMesh pmesh(MPI_COMM_WORLD, *mesh);
@@ -1588,8 +1589,7 @@ TEST_CASE("2D GetVectorValue",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::TRIANGLE;
-        type <= (int)Element::QUADRILATERAL; type++)
+   for (int type = first_2D_et; type <= last_2D_et; type++)
    {
       Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
 
@@ -2127,8 +2127,7 @@ TEST_CASE("2D GetVectorValue in Parallel",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::TRIANGLE;
-        type <= (int)Element::QUADRILATERAL; type++)
+   for (int type = first_2D_et; type <= last_2D_et; type++)
    {
       Mesh *mesh = new Mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
       ParMesh pmesh(MPI_COMM_WORLD, *mesh);
@@ -2429,8 +2428,7 @@ TEST_CASE("3D GetVectorValue",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -3051,8 +3049,7 @@ TEST_CASE("3D GetVectorValue in Parallel",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
    {
       Mesh *mesh = new Mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
       ParMesh pmesh(MPI_COMM_WORLD, *mesh);
@@ -3373,8 +3370,7 @@ TEST_CASE("1D GetGradient",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::SEGMENT;
-        type <= (int)Element::SEGMENT; type++)
+   for (int type = first_1D_et; type <= last_1D_et; type++)
    {
       Mesh mesh(n, 2.0);
 
@@ -3577,8 +3573,7 @@ TEST_CASE("2D GetGradient",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::TRIANGLE;
-        type <= (int)Element::QUADRILATERAL; type++)
+   for (int type = first_2D_et; type <= last_2D_et; type++)
    {
       Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
 
@@ -3787,8 +3782,7 @@ TEST_CASE("3D GetGradient",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -4003,8 +3997,7 @@ TEST_CASE("2D GetCurl",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::TRIANGLE;
-        type <= (int)Element::QUADRILATERAL; type++)
+   for (int type = first_2D_et; type <= last_2D_et; type++)
    {
       Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
 
@@ -4253,8 +4246,7 @@ TEST_CASE("3D GetCurl",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
@@ -4521,8 +4513,7 @@ TEST_CASE("2D GetDivergence",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::TRIANGLE;
-        type <= (int)Element::QUADRILATERAL; type++)
+   for (int type = first_2D_et; type <= last_2D_et; type++)
    {
       Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
 
@@ -4753,8 +4744,7 @@ TEST_CASE("3D GetDivergence",
 
    double tol = 1e-6;
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
