@@ -11,6 +11,9 @@
 Version 4.2.1 (development)
 ===========================
 
+- Added high-order matrix-free auxiliary Maxwell solver for H(curl) problems,
+  as described in Barker and Kolev 2020 (https://doi.org/10.1002/nla.2348).
+
 - Added a new miniapp block-solvers that compares the performance of various
   solvers for mixed finite element discretization of the second order scalar
   elliptic equations. Currently available solvers in the miniapp include a
