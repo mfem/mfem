@@ -117,7 +117,7 @@ Mesh *read_par_mesh(int np, const char *mesh_prefix, Array<int>& partitioning,
          return NULL;
       }
       mesh_array[p] = new Mesh(meshin, 1, 0);
-      // assign to element and boundary partitions the corresponding processor number
+      // Assign corresponding processor number to element + boundary partitions
       for (int i = 0; i < mesh_array[p]->GetNE(); i++)
       {
          partitioning.Append(p);
@@ -205,7 +205,7 @@ Mesh *skin_mesh(Mesh *mesh)
             bmesh->AddQuad(bv, el->GetAttribute());
             break;
          default:
-            break; /// This should not happen
+            break; // This should not happen
       }
 
    }
