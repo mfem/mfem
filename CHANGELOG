@@ -11,6 +11,10 @@
 Version 4.2.1 (development)
 ===========================
 
+- Introduced new options for the mesh-explorer miniapp to visualize the actual
+  element attributes in parallel meshes while retaining the visualization of
+  the domain decomposition.
+
 - Added a new miniapp block-solvers that compares the performance of various
   solvers for mixed finite element discretization of the second order scalar
   elliptic equations. Currently available solvers in the miniapp include a
