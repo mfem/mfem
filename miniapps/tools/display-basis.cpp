@@ -553,7 +553,7 @@ bool
 elemIs3D(const Element::Type & eType)
 {
    return eType == Element::TETRAHEDRON || eType == Element::HEXAHEDRON ||
-     eType == Element::WEDGE || eType == Element::PYRAMID;
+          eType == Element::WEDGE || eType == Element::PYRAMID;
 }
 
 string
