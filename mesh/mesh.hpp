@@ -563,8 +563,8 @@ public:
    int AddHex(const int *vi, int attr = 1);
    void AddHexAsTets(const int *vi, int attr = 1);
    void AddHexAsWedges(const int *vi, int attr = 1);
-   void AddHexAsPyramids(const int *vi, int ornt, int attr = 1);
-  
+   void AddHexAsPyramids(const int *vi, int attr = 1);
+
    /// The parameter @a elem should be allocated using the NewElement() method
    int AddElement(Element *elem);
    int AddBdrElement(Element *elem);

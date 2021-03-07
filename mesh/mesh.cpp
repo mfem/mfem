@@ -755,7 +755,6 @@ void Mesh::GetLocalTriToPyrTransformation(
       locpm(1, j) = vert.y;
       locpm(2, j) = vert.z;
    }
-   Transf.FinalizeTransformation();
 }
 
 void Mesh::GetLocalQuadToHexTransformation(
@@ -825,7 +824,6 @@ void Mesh::GetLocalQuadToPyrTransformation(
       locpm(1, j) = vert.y;
       locpm(2, j) = vert.z;
    }
-   Transf.FinalizeTransformation();
 }
 
 const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
@@ -1491,6 +1489,25 @@ void Mesh::AddHexAsWedges(const int *vi, int attr)
          ti[j] = vi[hex_to_wdg[i][j]];
       }
       AddWedge(ti, attr);
+   }
+}
+
+void Mesh::AddHexAsPyramids(const int *vi, int attr)
+{
+   static const int hex_to_pyr[6][5] =
+   {
+      { 0, 1, 2, 3, 8 }, { 0, 4, 5, 1, 8 }, { 1, 5, 6, 2, 8 },
+      { 2, 6, 7, 3, 8 }, { 3, 7, 4, 0, 8 }, { 7, 6, 5, 4, 8 }
+   };
+   int ti[5];
+
+   for (int i = 0; i < 6; i++)
+   {
+      for (int j = 0; j < 5; j++)
+      {
+         ti[j] = vi[hex_to_pyr[i][j]];
+      }
+      AddPyramid(ti, attr);
    }
 }
 
@@ -2763,11 +2780,16 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
       NElem *= 2;
       NBdrElem += 2*nx*ny;
    }
+   else if (type == Element::PYRAMID)
+   {
+      NElem *= 6;
+      NVert += nx * nx * nz;
+   }
 
    InitMesh(3, 3, NVert, NElem, NBdrElem);
 
    double coord[3];
-   int ind[8];
+   int ind[9];
 
    // Sets vertices and the corresponding coordinates
    for (z = 0; z <= nz; z++)
@@ -2783,8 +2805,25 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
          }
       }
    }
+   if (type == Element::PYRAMID)
+   {
+      for (z = 0; z < nz; z++)
+      {
+         coord[2] = (((double) z + 0.5) / nz) * sz;
+         for (y = 0; y < ny; y++)
+         {
+            coord[1] = (((double) y + 0.5 ) / ny) * sy;
+            for (x = 0; x < nx; x++)
+            {
+               coord[0] = (((double) x + 0.5 ) / nx) * sx;
+               AddVertex(coord);
+            }
+         }
+      }
+   }
 
 #define VTX(XC, YC, ZC) ((XC)+((YC)+(ZC)*(ny+1))*(nx+1))
+#define VTXP(XC, YC, ZC) ((nx+1)*(ny+1)*(nz+1)+(XC)+((YC)+(ZC)*ny)*nx)
 
    // Sets elements and the corresponding indices of vertices
    if (sfc_ordering && type == Element::HEXAHEDRON)
@@ -2834,6 +2873,11 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
                else if (type == Element::WEDGE)
                {
                   AddHexAsWedges(ind, 1);
+               }
+               else if (type == Element::PYRAMID)
+               {
+                  ind[8] = VTXP(  x, y+1, z+1);
+                  AddHexAsPyramids(ind, 1);
                }
                else
                {
