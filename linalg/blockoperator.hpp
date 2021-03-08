@@ -282,6 +282,65 @@ private:
    mutable Vector tmp2;
 };
 
+class BlockDiagonalMultiplicativePreconditioner : public Solver
+{
+public:
+   //! Constructor that specifies the block structure
+   BlockDiagonalMultiplicativePreconditioner(const Array<int> & offsets);
+   //! Add a square block op in the block-entry (iblock, iblock).
+   /**
+    * iblock: The block will be inserted in location (iblock, iblock).
+    * op: the Operator to be inserted.
+    */
+   void SetDiagonalBlock(int iblock, Operator *op);
+   //! This method is present since required by the abstract base class Solver
+   virtual void SetOperator(const Operator &op) { oper = & op;}
+
+   //! Return the number of blocks
+   int NumBlocks() const { return nBlocks; }
+
+   //! Return a reference to block i,i.
+   Operator & GetDiagonalBlock(int iblock)
+   { MFEM_VERIFY(op[iblock], ""); return *op[iblock]; }
+
+   //! Return a reference to block i,i (const version).
+   const Operator & GetDiagonalBlock(int iblock) const
+   { MFEM_VERIFY(op[iblock], ""); return *op[iblock]; }
+
+   //! Return the offsets for block starts
+   Array<int> & Offsets() { return offsets; }
+
+   //! Read only access to the offsets for block starts
+   const Array<int> & Offsets() const { return offsets; }
+
+   /// Operator application
+   virtual void Mult (const Vector & x, Vector & y) const;
+
+   /// Action of the transpose operator
+   virtual void MultTranspose (const Vector & x, Vector & y) const;
+
+   ~BlockDiagonalMultiplicativePreconditioner();
+
+   //! Controls the ownership of the blocks: if nonzero,
+   //! BlockDiagonalPreconditioner will delete all blocks that are set
+   //! (non-NULL); the default value is zero.
+   int owns_blocks;
+
+private:
+   const Operator * oper;
+   //! Number of Blocks
+   int nBlocks;
+   //! Offsets for the starting position of each block
+   Array<int> offsets;
+   //! 1D array that stores each block of the operator.
+   Array<Operator *> op;
+   //! Temporary Vectors used to efficiently apply the Mult and MultTranspose
+   //! methods.
+   mutable BlockVector xblock;
+   mutable BlockVector yblock;
+};
+
+
 }
 
 #endif /* MFEM_BLOCKOPERATOR */
