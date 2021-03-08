@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "densemat.hpp"
+#include "handle.hpp"
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
@@ -406,7 +407,40 @@ void MINRES(const Operator &A, Solver &B, const Vector &b, Vector &x,
 class NewtonSolver : public IterativeSolver
 {
 protected:
-   mutable Vector r, c;
+   mutable Vector xcur, r, c;
+   mutable Operator *grad;
+
+   // Adaptive linear solver rtol variables
+
+   // Method to determine rtol, 0 means the adaptive algorithm is deactivated.
+   int lin_rtol_type = 0;
+   // rtol to use in first iteration
+   double lin_rtol0;
+   // Maximum rtol
+   double lin_rtol_max;
+   // Function norm ||F(x)|| of the previous iterate
+   mutable double fnorm_last = 0.0;
+   // Linear residual norm of the previous iterate
+   mutable double lnorm_last = 0.0;
+   // Forcing term (linear residual rtol) from the previous iterate
+   mutable double eta_last = 0.0;
+   // Eisenstat-Walker factor gamma
+   double gamma;
+   // Eisenstat-Walker factor alpha
+   double alpha;
+
+   /** @brief Method for the adaptive linear solver rtol invoked before the
+       linear solve. */
+   void AdaptiveLinRtolPreSolve(const Vector &x,
+                                const int it,
+                                const double fnorm) const;
+
+   /** @brief Method for the adaptive linear solver rtol invoked after the
+       linear solve. */
+   void AdaptiveLinRtolPostSolve(const Vector &x,
+                                 const Vector &b,
+                                 const int it,
+                                 const double fnorm) const;
 
 public:
    NewtonSolver() { }
@@ -434,6 +468,26 @@ public:
    /** @brief This method can be overloaded in derived classes to perform
        computations that need knowledge of the newest Newton state. */
    virtual void ProcessNewState(const Vector &x) const { }
+
+   const Vector &GetCurrentResidual() const { return r; }
+   const Vector &GetCurrentIterate() const { return xcur; }
+
+   /// Enable adaptive linear solver relative tolerance algorithm.
+   /** Compute a relative tolerance for the Krylov method after each nonlinear
+    iteration, based on the algorithm presented in [1].
+
+    The maximum linear solver relative tolerance @a rtol_max should be < 1. For
+    @a type 1 the parameters @a alpha and @a gamma are ignored. For @a type 2
+    @a alpha has to be between 0 and 1 and @a gamma between 1 and 2.
+
+    [1] Eisenstat, Stanley C., and Homer F. Walker. "Choosing the forcing terms
+    in an inexact Newton method."
+    */
+   void SetAdaptiveLinRtol(const int type = 2,
+                           const double rtol0 = 0.5,
+                           const double rtol_max = 0.9,
+                           const double alpha = 0.5 * (1.0 + sqrt(5.0)),
+                           const double gamma = 1.0);
 };
 
 /** L-BFGS method for solving F(x)=b for a given operator F, by minimizing
@@ -798,6 +852,61 @@ public:
 };
 
 #endif // MFEM_USE_SUITESPARSE
+
+/// Block diagonal solver for A, each block is inverted by direct solver
+class DirectSubBlockSolver : public Solver
+{
+   SparseMatrix& block_dof;
+   mutable Array<int> local_dofs;
+   mutable Vector sub_rhs;
+   mutable Vector sub_sol;
+   Array<DenseMatrixInverse> block_solvers;
+public:
+   /// block_dof is a boolean matrix, block_dof(i, j) = 1 if j-th dof belongs to
+   /// i-th block, block_dof(i, j) = 0 otherwise.
+   DirectSubBlockSolver(const SparseMatrix& A, const SparseMatrix& block_dof);
+   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void SetOperator(const Operator &op) { }
+};
+
+/// Solver S such that I - A * S = (I - A * S1) * (I - A * S0).
+/// That is, S = S0 + S1 - S1 * A * S0.
+class ProductSolver : public Solver
+{
+   OperatorPtr A;
+   OperatorPtr S0;
+   OperatorPtr S1;
+public:
+   ProductSolver(Operator* A_, Solver* S0_, Solver* S1_,
+                 bool ownA, bool ownS0, bool ownS1)
+      : Solver(A_->NumRows()), A(A_, ownA), S0(S0_, ownS0), S1(S1_, ownS1) { }
+   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void MultTranspose(const Vector &x, Vector &y) const;
+   virtual void SetOperator(const Operator &op) { }
+};
+
+#ifdef MFEM_USE_MPI
+/** This smoother does relaxations on an auxiliary space (determined by a map
+    from the original space to the auxiliary space provided by the user).
+    The smoother on the auxiliary space is a HypreSmoother. Its options can be
+    modified through GetSmoother.
+    For example, the space can be the nullspace of div/curl, in which case the
+    smoother can be used to construct a Hiptmair smoother. */
+class AuxSpaceSmoother : public Solver
+{
+   OperatorPtr aux_map_;
+   OperatorPtr aux_system_;
+   OperatorPtr aux_smoother_;
+   void Mult(const Vector &x, Vector &y, bool transpose) const;
+public:
+   AuxSpaceSmoother(const HypreParMatrix &op, HypreParMatrix *aux_map,
+                    bool op_is_symmetric = true, bool own_aux_map = false);
+   virtual void Mult(const Vector &x, Vector &y) const { Mult(x, y, false); }
+   virtual void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y, true); }
+   virtual void SetOperator(const Operator &op) { }
+   HypreSmoother& GetSmoother() { return *aux_smoother_.As<HypreSmoother>(); }
+};
+#endif // MFEM_USE_MPI
 
 }
 

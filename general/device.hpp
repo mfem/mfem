@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -46,30 +46,33 @@ struct Backend
       /** @brief [device] RAJA CUDA backend. Enabled when MFEM_USE_RAJA = YES
           and MFEM_USE_CUDA = YES. */
       RAJA_CUDA = 1 << 6,
+      /** @brief [device] RAJA HIP backend. Enabled when MFEM_USE_RAJA = YES
+          and MFEM_USE_HIP = YES. */
+      RAJA_HIP = 1 << 7,
       /** @brief [host] OCCA CPU backend: sequential execution on each MPI rank.
           Enabled when MFEM_USE_OCCA = YES. */
-      OCCA_CPU = 1 << 7,
+      OCCA_CPU = 1 << 8,
       /// [host] OCCA OpenMP backend. Enabled when MFEM_USE_OCCA = YES.
-      OCCA_OMP = 1 << 8,
+      OCCA_OMP = 1 << 9,
       /** @brief [device] OCCA CUDA backend. Enabled when MFEM_USE_OCCA = YES
           and MFEM_USE_CUDA = YES. */
-      OCCA_CUDA = 1 << 9,
+      OCCA_CUDA = 1 << 10,
       /** @brief [host] CEED CPU backend. GPU backends can still be used, but
           with expensive memory transfers. Enabled when MFEM_USE_CEED = YES. */
-      CEED_CPU  = 1 << 10,
+      CEED_CPU  = 1 << 11,
       /** @brief [device] CEED CUDA backend working together with the CUDA
           backend. Enabled when MFEM_USE_CEED = YES and MFEM_USE_CUDA = YES.
           NOTE: The current default libCEED CUDA backend is non-deterministic! */
-      CEED_CUDA = 1 << 11,
+      CEED_CUDA = 1 << 12,
       /** @brief [device] CEED HIP backend working together with the HIP
           backend. Enabled when MFEM_USE_CEED = YES and MFEM_USE_HIP = YES. */
-      CEED_HIP = 1 << 12,
+      CEED_HIP = 1 << 13,
       /** @brief [device] Debug backend: host memory is READ/WRITE protected
           while a device is in use. It allows to test the "device" code-path
           (using separate host/device memory pools and host <-> device
           transfers) without any GPU hardware. As 'DEBUG' is sometimes used
           as a macro, `_DEVICE` has been added to avoid conflicts. */
-      DEBUG_DEVICE = 1 << 13
+      DEBUG_DEVICE = 1 << 14
    };
 
    /** @brief Additional useful constants. For example, the *_MASK constants can
@@ -77,14 +80,14 @@ struct Backend
    enum
    {
       /// Number of backends: from (1 << 0) to (1 << (NUM_BACKENDS-1)).
-      NUM_BACKENDS = 14,
+      NUM_BACKENDS = 15,
 
       /// Biwise-OR of all CPU backends
       CPU_MASK = CPU | RAJA_CPU | OCCA_CPU | CEED_CPU,
       /// Biwise-OR of all CUDA backends
       CUDA_MASK = CUDA | RAJA_CUDA | OCCA_CUDA | CEED_CUDA,
       /// Biwise-OR of all HIP backends
-      HIP_MASK = HIP | CEED_HIP,
+      HIP_MASK = HIP | RAJA_HIP | CEED_HIP,
       /// Biwise-OR of all OpenMP backends
       OMP_MASK = OMP | RAJA_OMP | OCCA_OMP,
       /// Bitwise-OR of all CEED backends
@@ -93,7 +96,7 @@ struct Backend
       DEVICE_MASK = CUDA_MASK | HIP_MASK | DEBUG_DEVICE,
 
       /// Biwise-OR of all RAJA backends
-      RAJA_MASK = RAJA_CPU | RAJA_OMP | RAJA_CUDA,
+      RAJA_MASK = RAJA_CPU | RAJA_OMP | RAJA_CUDA | RAJA_HIP,
       /// Biwise-OR of all OCCA backends
       OCCA_MASK = OCCA_CPU | OCCA_OMP | OCCA_CUDA
    };
