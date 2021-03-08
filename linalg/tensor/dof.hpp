@@ -19,117 +19,228 @@
 namespace mfem
 {
 
-template <int Dim, int DimComp>
+template <int Dim, int VDim>
 class DofUtil
 {
 public:
    template <typename T>
-   static T initTensor(int dofs, int dim, int ne)
+   static T initTensor(int dofs, int ne)
    {
-      return InitTensor<T>::makeGlobal(dofs,dim,ne);
+      return InitTensor<T,VDim>::makeGlobal(dofs,ne);
    }
 
    template <typename T>
-   static T initTensor(int dofs, int dim)
+   static T initTensor(int dofs)
    {
-      return InitTensor<T>::makeLocal(dofs,dim);
+      return InitTensor<T,VDim>::makeLocal(dofs);
    }
 
    template <typename T>
-   static T initNonTensor(int dofs, int dim, int ne)
+   static T initNonTensor(int dofs, int ne)
    {
-      return InitNonTensor<T>::makeGlobal(dofs,dim,ne);
+      return InitNonTensor<T,VDim>::makeGlobal(dofs,ne);
    }
 
    template <typename T>
-   static T initNonTensor(int dofs, int dim)
+   static T initNonTensor(int dofs)
    {
-      return InitNonTensor<T>::makeLocal(dofs,dim);
+      return InitNonTensor<T,VDim>::makeLocal(dofs);
    }
 
 protected:
    /// A structure to linearize the input sizes to create an object of type T.
-   template <typename T, int NDim = 0, int NComp = 0>
+   template <typename T, int NComp, int NDim = 0>
    struct InitTensor
    {
       template <typename... Sizes>
-      static T makeGlobal(int dofs, int dim, int ne, Sizes... sizes)
+      static T makeGlobal(int dofs, int ne, Sizes... sizes)
       {
-         return InitTensor<T,NDim,NComp+1>::makeGlobal(dofs,dim,ne,dim,sizes...);
+         return InitTensor<T,NComp,NDim+1>::makeGlobal(dofs,ne,dofs,sizes...);
       }
    
       template <typename... Sizes>
-      static T makeLocal(int dofs, int dim, Sizes... sizes)
+      static T makeLocal(int dofs, Sizes... sizes)
       {
-         return InitTensor<T,NDim,NComp+1>::makeLocal(dofs,dim,dim,sizes...);
+         return InitTensor<T,NComp,NDim+1>::makeLocal(dofs,dofs,sizes...);
       }
    };
 
-   template <typename T, int NDim>
-   struct InitTensor<T,NDim,DimComp>
+   template <typename T, int NComp>
+   struct InitTensor<T,NComp,Dim>
    {
       template <typename... Sizes>
-      static T makeGlobal(int dofs, int dim, int ne, Sizes... sizes)
+      static T makeGlobal(int dofs, int ne, Sizes... sizes)
       {
-         return InitTensor<T,NDim+1,DimComp>::makeGlobal(dofs,dim,ne,dofs,sizes...);
+         return T(sizes...,NComp,ne);
       }
 
       template <typename... Sizes>
-      static T makeLocal(int dofs, int dim, Sizes... sizes)
+      static T makeLocal(int dofs, Sizes... sizes)
       {
-         return InitTensor<T,NDim+1,DimComp>::makeLocal(dofs,dim,dofs,sizes...);
+         return T(sizes...,NComp);
       }
    };
 
    template <typename T>
-   struct InitTensor<T,Dim,DimComp>
+   struct InitTensor<T,0,Dim>
    {
       template <typename... Sizes>
-      static T makeGlobal(int dofs, int dim, int ne, Sizes... sizes)
+      static T makeGlobal(int dofs, int ne, Sizes... sizes)
       {
          return T(sizes...,ne);
       }
 
       template <typename... Sizes>
-      static T makeLocal(int dofs, int dim, Sizes... sizes)
+      static T makeLocal(int dofs, Sizes... sizes)
       {
          return T(sizes...);
       }
    };
 
    /// A structure to linearize the input sizes to create an object of type T.
-   template <typename T, int NComp = 0>
+   template <typename T, int NComp>
    struct InitNonTensor
    {
       template <typename... Sizes>
-      static T makeGlobal(int dofs, int dim, int ne, Sizes... sizes)
+      static T makeGlobal(int dofs, int ne)
       {
-         return InitNonTensor<T,NComp+1>::makeGlobal(dofs,dim,ne,dim,sizes...);
+         return T(dofs,NComp,ne);
       }
    
       template <typename... Sizes>
-      static T makeLocal(int dofs, int dim, Sizes... sizes)
+      static T makeLocal(int dofs)
       {
-         return InitNonTensor<T,NComp+1>::makeLocal(dofs,dim,dim,sizes...);
+         return T(dofs,NComp);
       }
    };
 
    template <typename T>
-   struct InitNonTensor<T,DimComp>
+   struct InitNonTensor<T,0>
    {
-      template <typename... Sizes>
-      static T makeGlobal(int dofs, int dim, int ne, Sizes... sizes)
+      static T makeGlobal(int dofs, int ne)
       {
-         return T(dofs,sizes...,ne);
+         return T(dofs,ne);
       }
 
       template <typename... Sizes>
-      static T makeLocal(int dofs, int dim, Sizes... sizes)
+      static T makeLocal(int dofs)
       {
-         return T(dofs,sizes...);
+         return T(dofs);
       }
    };
 };
+
+// template <int Dim, int DimComp>
+// class QuadUtil
+// {
+// public:
+//    template <typename T>
+//    static T initTensor(int dofs, int dim, int ne)
+//    {
+//       return InitTensor<T>::makeGlobal(dofs,dim,ne);
+//    }
+
+//    template <typename T>
+//    static T initTensor(int dofs, int dim)
+//    {
+//       return InitTensor<T>::makeLocal(dofs,dim);
+//    }
+
+//    template <typename T>
+//    static T initNonTensor(int dofs, int dim, int ne)
+//    {
+//       return InitNonTensor<T>::makeGlobal(dofs,dim,ne);
+//    }
+
+//    template <typename T>
+//    static T initNonTensor(int dofs, int dim)
+//    {
+//       return InitNonTensor<T>::makeLocal(dofs,dim);
+//    }
+
+// protected:
+//    /// A structure to linearize the input sizes to create an object of type T.
+//    template <typename T, int NDim = 0, int NComp = 0>
+//    struct InitTensor
+//    {
+//       template <typename... Sizes>
+//       static T makeGlobal(int dofs, int dim, int ne, Sizes... sizes)
+//       {
+//          return InitTensor<T,NDim,NComp+1>::makeGlobal(dofs,dim,ne,dim,sizes...);
+//       }
+   
+//       template <typename... Sizes>
+//       static T makeLocal(int dofs, int dim, Sizes... sizes)
+//       {
+//          return InitTensor<T,NDim,NComp+1>::makeLocal(dofs,dim,dim,sizes...);
+//       }
+//    };
+
+//    template <typename T, int NDim>
+//    struct InitTensor<T,NDim,DimComp>
+//    {
+//       template <typename... Sizes>
+//       static T makeGlobal(int dofs, int dim, int ne, Sizes... sizes)
+//       {
+//          return InitTensor<T,NDim+1,DimComp>::makeGlobal(dofs,dim,ne,dofs,sizes...);
+//       }
+
+//       template <typename... Sizes>
+//       static T makeLocal(int dofs, int dim, Sizes... sizes)
+//       {
+//          return InitTensor<T,NDim+1,DimComp>::makeLocal(dofs,dim,dofs,sizes...);
+//       }
+//    };
+
+//    template <typename T>
+//    struct InitTensor<T,Dim,DimComp>
+//    {
+//       template <typename... Sizes>
+//       static T makeGlobal(int dofs, int dim, int ne, Sizes... sizes)
+//       {
+//          return T(sizes...,ne);
+//       }
+
+//       template <typename... Sizes>
+//       static T makeLocal(int dofs, int dim, Sizes... sizes)
+//       {
+//          return T(sizes...);
+//       }
+//    };
+
+//    /// A structure to linearize the input sizes to create an object of type T.
+//    template <typename T, int NComp = 0>
+//    struct InitNonTensor
+//    {
+//       template <typename... Sizes>
+//       static T makeGlobal(int dofs, int dim, int ne, Sizes... sizes)
+//       {
+//          return InitNonTensor<T,NComp+1>::makeGlobal(dofs,dim,ne,dim,sizes...);
+//       }
+   
+//       template <typename... Sizes>
+//       static T makeLocal(int dofs, int dim, Sizes... sizes)
+//       {
+//          return InitNonTensor<T,NComp+1>::makeLocal(dofs,dim,dim,sizes...);
+//       }
+//    };
+
+//    template <typename T>
+//    struct InitNonTensor<T,DimComp>
+//    {
+//       template <typename... Sizes>
+//       static T makeGlobal(int dofs, int dim, int ne, Sizes... sizes)
+//       {
+//          return T(dofs,sizes...,ne);
+//       }
+
+//       template <typename... Sizes>
+//       static T makeLocal(int dofs, int dim, Sizes... sizes)
+//       {
+//          return T(dofs,sizes...);
+//       }
+//    };
+// };
 
 /// A class to encapsulate degrees of freedom in a Tensor.
 template <int Dim,
@@ -147,17 +258,17 @@ template <int Dim,
           typename OutTensor,
           template <int> class InTensor>
 class DegreesOfFreedom<Dim,true,Dofs,VDim,OutTensor,InTensor>
-: public InTensor<Dim+1+1>
+: public InTensor<Dim+(VDim>0)+1>
 {
 public:
-   using Container = typename InTensor<Dim+1+1>::container;
-   using Layout = typename InTensor<Dim+1+1>::layout;
+   using Container = typename InTensor<Dim+(VDim>0)+1>::container;
+   using Layout = typename InTensor<Dim+(VDim>0)+1>::layout;
 
    template <typename Config>
    DegreesOfFreedom(double *x, Config &config, int ne)
-   : InTensor<Dim+(VDim>1)+1>(
+   : InTensor<Dim+(VDim>0)+1>(
         Container(x,ne*pow(config.dofs,Dim)*VDim),
-                  DofUtil<Dim,VDim>::template initTensor<Layout>(config.dofs,VDim,ne) ) // TODO DofUtil needs to change
+        DofUtil<Dim,VDim>::template initTensor<Layout>(config.dofs,ne) )
    {
       // TODO static asserts Config values 
    }
@@ -165,15 +276,14 @@ public:
    /// Returns a Tensor corresponding to the DoFs of element e
    auto operator()(int e) const
    {
-      // TODO VDim instead of Dim^DimComp
-      auto u_e = DofUtil<Dim,DimComp>::template initTensor<OutTensor>(this->template Size<0>(),Dim);
-      u_e = this->template Get<Dim+DimComp>(e);
+      auto u_e = DofUtil<Dim,VDim>::template initTensor<OutTensor>(this->template Size<0>());
+      u_e = this->template Get<Dim+(VDim>0)>(e);
       return u_e;
    }
 
    auto operator()(int e)
    {
-      return this->template Get<Dim+DimComp>(e);
+      return this->template Get<Dim+(VDim>0)>(e);
    }
 };
 
@@ -194,7 +304,7 @@ public:
    DegreesOfFreedom(const double *x, Config &config, int ne)
    : InTensor<Dim+DimComp+1>(
         Container(x,ne*config.dofs*pow(Dim,DimComp)),
-        DofUtil<Dim,DimComp>::template initNonTensor<Layout>(config.dofs,Dim,ne))
+        DofUtil<Dim,DimComp>::template initNonTensor<Layout>(config.dofs,ne))
    {
       // TODO static asserts Config values 
    }
@@ -202,7 +312,7 @@ public:
    /// Returns a Tensor corresponding to the DoFs of element e
    auto operator()(int e) const
    {
-      auto u_e = DofUtil<Dim,DimComp>::template initNonTensor<OutTensor>(this->template Size<0>(),Dim);
+      auto u_e = DofUtil<Dim,DimComp>::template initNonTensor<OutTensor>(this->template Size<0>());
       u_e = this->template Get<1+DimComp>(e);
       return u_e;
    }
@@ -221,16 +331,23 @@ struct DofTensorType;
 template <int Dim, int Dofs, int Quads, int BatchSize, int VDim, int DDim>
 struct DofTensorType<KernelConfig<Dim,true,Dofs,Quads,BatchSize>,VDim,DDim>
 {
-   // TODO This is not correct currently
-   using type = typename rerepeat<Dofs,Dim,Dim,VDim,BatchSize,StaticDeviceDTensor>::type;
-   // TODO using type = typename rererepeat<Dofs,Dim,VDim,1,DDim,1,BatchSize,StaticDeviceDTensor>::type;
+   using type = instantiate<
+                  StaticDeviceDTensor,
+                  append<
+                     int_list<BatchSize>,
+                     append<
+                        int_repeat<Dofs,Dim>,
+                        int_repeat<Dim,VDim>
+                     >
+                  >
+                >;
 };
 
 // Dynamic tensor DoFs
 template <int Dim, int BatchSize, int VDim, int DDim>
 struct DofTensorType<KernelConfig<Dim,true,Dynamic,Dynamic,BatchSize>,VDim,DDim>
 {
-   using type = DynamicDeviceDTensor<Dim+(VDim>1)+(DDim>1),BatchSize>;
+   using type = DynamicDeviceDTensor<Dim+(VDim>0)+(DDim>1),BatchSize>;
 };
 
 // Static non-tensor DoFs
@@ -262,7 +379,7 @@ struct DofTensorType<KernelConfig<Dim,false,Dofs,Quads,BatchSize>,1,1>
 template <int Dim, int BatchSize, int VDim, int DDim>
 struct DofTensorType<KernelConfig<Dim,false,Dynamic,Dynamic,BatchSize>,VDim,DDim>
 {
-   using type = DynamicDeviceDTensor<1+(VDim>1)+(DDim>1),BatchSize>;
+   using type = DynamicDeviceDTensor<1+(VDim>0)+(DDim>1),BatchSize>;
 };
 
 template <typename Config, int VDim, int DDim = 1>
