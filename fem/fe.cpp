@@ -6995,7 +6995,7 @@ void RotTriLinearHexFiniteElement::CalcDShape(const IntegrationPoint &ip,
 
 
 Poly_1D::Basis::Basis(const int p, const double *nodes, EvalType etype)
-   : etype(etype)
+   : etype(etype), auxiliary_basis(NULL)
 {
    switch (etype)
    {
@@ -7047,7 +7047,13 @@ Poly_1D::Basis::Basis(const int p, const double *nodes, EvalType etype)
       case Positive:
          x.SetDataAndSize(NULL, p + 1); // use x to store (p + 1)
          break;
-
+      case Integrated:
+         auxiliary_basis = new Basis(
+            p+1, poly1d.GetPoints(p+1, BasisType::GaussLobatto), Barycentric);
+         u_aux.SetSize(p+2);
+         d_aux.SetSize(p+2);
+         d2_aux.SetSize(p+2);
+         break;
       default: break;
    }
 }
@@ -7105,7 +7111,10 @@ void Poly_1D::Basis::Eval(const double y, Vector &u) const
       case Positive:
          CalcBernstein(x.Size() - 1, y, u);
          break;
-
+      case Integrated:
+         auxiliary_basis->Eval(y, u_aux, d_aux);
+         EvalIntegrated(d_aux, u);
+         break;
       default: break;
    }
 }
@@ -7181,7 +7190,11 @@ void Poly_1D::Basis::Eval(const double y, Vector &u, Vector &d) const
       case Positive:
          CalcBernstein(x.Size() - 1, y, u, d);
          break;
-
+      case Integrated:
+         auxiliary_basis->Eval(y, u_aux, d_aux, d2_aux);
+         EvalIntegrated(d_aux,u);
+         EvalIntegrated(d2_aux,d);
+         break;
       default: break;
    }
 }
@@ -7270,9 +7283,28 @@ void Poly_1D::Basis::Eval(const double y, Vector &u, Vector &d,
       case Positive:
          CalcBernstein(x.Size() - 1, y, u, d);
          break;
-
+      case Integrated:
+         MFEM_ABORT("Integrated basis must be evaluated with EvalIntegrated");
+         break;
       default: break;
    }
+}
+
+void Poly_1D::Basis::EvalIntegrated(const Vector &d_aux, Vector &u) const
+{
+   MFEM_VERIFY(etype == Integrated,
+               "EvalIntegrated is only valid for Integrated basis type");
+   int p = d_aux.Size() - 1;
+   u[0] = -d_aux[0];
+   for (int j=1; j<p; ++j)
+   {
+      u[j] = u[j-1] - d_aux[j];
+   }
+}
+
+Poly_1D::Basis::~Basis()
+{
+   delete auxiliary_basis;
 }
 
 const int *Poly_1D::Binom(const int p)
@@ -7557,7 +7589,10 @@ Poly_1D::Basis &Poly_1D::GetBasis(const int p, const int btype)
    }
    if (bases[p] == NULL)
    {
-      EvalType etype = (btype == BasisType::Positive) ? Positive : Barycentric;
+      EvalType etype;
+      if (btype == BasisType::Positive) { etype = Positive; }
+      else if (btype == BasisType::Integrated) { etype = Integrated; }
+      else { etype = Barycentric; }
       bases[p] = new Basis(p, GetPoints(p, btype), etype);
    }
    return *bases[p];
@@ -7799,7 +7834,7 @@ NodalTensorFiniteElement::NodalTensorFiniteElement(const int dims,
                                                    const DofMapType dmtype)
    : NodalFiniteElement(dims, GetTensorProductGeometry(dims), Pow(p + 1, dims),
                         p, dims > 1 ? FunctionSpace::Qk : FunctionSpace::Pk),
-     TensorBasisElement(dims, p, VerifyNodal(btype), dmtype)
+     TensorBasisElement(dims, p, btype, dmtype)
 {
    lex_ordering = dof_map;
 }
@@ -10129,7 +10164,8 @@ L2_TriangleElement::L2_TriangleElement(const int p, const int btype)
    : NodalFiniteElement(2, Geometry::TRIANGLE, ((p + 1)*(p + 2))/2, p,
                         FunctionSpace::Pk)
 {
-   const double *op = poly1d.OpenPoints(p, VerifyNodal(VerifyOpen(btype)));
+   // const double *op = poly1d.OpenPoints(p, VerifyNodal(VerifyOpen(btype)));
+   const double *op = poly1d.OpenPoints(p, VerifyOpen(btype));
 
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
@@ -10801,10 +10837,20 @@ void RT_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
    Vector shape_cx(pp1 + 1), shape_ox(pp1), shape_cy(pp1 + 1), shape_oy(pp1);
 #endif
 
-   cbasis1d.Eval(ip.x, shape_cx);
-   obasis1d.Eval(ip.x, shape_ox);
-   cbasis1d.Eval(ip.y, shape_cy);
-   obasis1d.Eval(ip.y, shape_oy);
+   if (obasis1d.IsIntegratedType())
+   {
+      cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
+      cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
+      obasis1d.EvalIntegrated(dshape_cx, shape_ox);
+      obasis1d.EvalIntegrated(dshape_cy, shape_oy);
+   }
+   else
+   {
+      cbasis1d.Eval(ip.x, shape_cx);
+      cbasis1d.Eval(ip.y, shape_cy);
+      obasis1d.Eval(ip.x, shape_ox);
+      obasis1d.Eval(ip.y, shape_oy);
+   }
 
    int o = 0;
    for (int j = 0; j < pp1; j++)
@@ -10850,9 +10896,17 @@ void RT_QuadrilateralElement::CalcDivShape(const IntegrationPoint &ip,
 #endif
 
    cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
-   obasis1d.Eval(ip.x, shape_ox);
    cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
-   obasis1d.Eval(ip.y, shape_oy);
+   if (obasis1d.IsIntegratedType())
+   {
+      obasis1d.EvalIntegrated(dshape_cx, shape_ox);
+      obasis1d.EvalIntegrated(dshape_cy, shape_oy);
+   }
+   else
+   {
+      obasis1d.Eval(ip.x, shape_ox);
+      obasis1d.Eval(ip.y, shape_oy);
+   }
 
    int o = 0;
    for (int j = 0; j < pp1; j++)
@@ -11063,12 +11117,24 @@ void RT_HexahedronElement::CalcVShape(const IntegrationPoint &ip,
    Vector shape_cz(pp1 + 1), shape_oz(pp1);
 #endif
 
-   cbasis1d.Eval(ip.x, shape_cx);
-   obasis1d.Eval(ip.x, shape_ox);
-   cbasis1d.Eval(ip.y, shape_cy);
-   obasis1d.Eval(ip.y, shape_oy);
-   cbasis1d.Eval(ip.z, shape_cz);
-   obasis1d.Eval(ip.z, shape_oz);
+   if (obasis1d.IsIntegratedType())
+   {
+      cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
+      cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
+      cbasis1d.Eval(ip.z, shape_cz, dshape_cz);
+      obasis1d.EvalIntegrated(dshape_cx, shape_ox);
+      obasis1d.EvalIntegrated(dshape_cy, shape_oy);
+      obasis1d.EvalIntegrated(dshape_cz, shape_oz);
+   }
+   else
+   {
+      cbasis1d.Eval(ip.x, shape_cx);
+      cbasis1d.Eval(ip.y, shape_cy);
+      cbasis1d.Eval(ip.z, shape_cz);
+      obasis1d.Eval(ip.x, shape_ox);
+      obasis1d.Eval(ip.y, shape_oy);
+      obasis1d.Eval(ip.z, shape_oz);
+   }
 
    int o = 0;
    // x-components
@@ -11139,11 +11205,20 @@ void RT_HexahedronElement::CalcDivShape(const IntegrationPoint &ip,
 #endif
 
    cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
-   obasis1d.Eval(ip.x, shape_ox);
    cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
-   obasis1d.Eval(ip.y, shape_oy);
    cbasis1d.Eval(ip.z, shape_cz, dshape_cz);
-   obasis1d.Eval(ip.z, shape_oz);
+   if (obasis1d.IsIntegratedType())
+   {
+      obasis1d.EvalIntegrated(dshape_cx, shape_ox);
+      obasis1d.EvalIntegrated(dshape_cy, shape_oy);
+      obasis1d.EvalIntegrated(dshape_cz, shape_oz);
+   }
+   else
+   {
+      obasis1d.Eval(ip.x, shape_ox);
+      obasis1d.Eval(ip.y, shape_oy);
+      obasis1d.Eval(ip.z, shape_oz);
+   }
 
    int o = 0;
    // x-components
@@ -11767,12 +11842,24 @@ void ND_HexahedronElement::CalcVShape(const IntegrationPoint &ip,
    Vector shape_cz(p + 1), shape_oz(p);
 #endif
 
-   cbasis1d.Eval(ip.x, shape_cx);
-   obasis1d.Eval(ip.x, shape_ox);
-   cbasis1d.Eval(ip.y, shape_cy);
-   obasis1d.Eval(ip.y, shape_oy);
-   cbasis1d.Eval(ip.z, shape_cz);
-   obasis1d.Eval(ip.z, shape_oz);
+   if (obasis1d.IsIntegratedType())
+   {
+      cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
+      cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
+      cbasis1d.Eval(ip.z, shape_cz, dshape_cz);
+      obasis1d.EvalIntegrated(dshape_cx, shape_ox);
+      obasis1d.EvalIntegrated(dshape_cy, shape_oy);
+      obasis1d.EvalIntegrated(dshape_cz, shape_oz);
+   }
+   else
+   {
+      cbasis1d.Eval(ip.x, shape_cx);
+      cbasis1d.Eval(ip.y, shape_cy);
+      cbasis1d.Eval(ip.z, shape_cz);
+      obasis1d.Eval(ip.x, shape_ox);
+      obasis1d.Eval(ip.y, shape_oy);
+      obasis1d.Eval(ip.z, shape_oz);
+   }
 
    int o = 0;
    // x-components
@@ -11843,11 +11930,20 @@ void ND_HexahedronElement::CalcCurlShape(const IntegrationPoint &ip,
 #endif
 
    cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
-   obasis1d.Eval(ip.x, shape_ox);
    cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
-   obasis1d.Eval(ip.y, shape_oy);
    cbasis1d.Eval(ip.z, shape_cz, dshape_cz);
-   obasis1d.Eval(ip.z, shape_oz);
+   if (obasis1d.IsIntegratedType())
+   {
+      obasis1d.EvalIntegrated(dshape_cx, shape_ox);
+      obasis1d.EvalIntegrated(dshape_cy, shape_oy);
+      obasis1d.EvalIntegrated(dshape_cz, shape_oz);
+   }
+   else
+   {
+      obasis1d.Eval(ip.x, shape_ox);
+      obasis1d.Eval(ip.y, shape_oy);
+      obasis1d.Eval(ip.z, shape_oz);
+   }
 
    int o = 0;
    // x-components
@@ -12094,10 +12190,20 @@ void ND_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
    Vector shape_cx(p + 1), shape_ox(p), shape_cy(p + 1), shape_oy(p);
 #endif
 
-   cbasis1d.Eval(ip.x, shape_cx);
-   obasis1d.Eval(ip.x, shape_ox);
-   cbasis1d.Eval(ip.y, shape_cy);
-   obasis1d.Eval(ip.y, shape_oy);
+   if (obasis1d.IsIntegratedType())
+   {
+      cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
+      cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
+      obasis1d.EvalIntegrated(dshape_cx, shape_ox);
+      obasis1d.EvalIntegrated(dshape_cy, shape_oy);
+   }
+   else
+   {
+      cbasis1d.Eval(ip.x, shape_cx);
+      cbasis1d.Eval(ip.y, shape_cy);
+      obasis1d.Eval(ip.x, shape_ox);
+      obasis1d.Eval(ip.y, shape_oy);
+   }
 
    int o = 0;
    // x-components
@@ -12145,9 +12251,17 @@ void ND_QuadrilateralElement::CalcCurlShape(const IntegrationPoint &ip,
 #endif
 
    cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
-   obasis1d.Eval(ip.x, shape_ox);
    cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
-   obasis1d.Eval(ip.y, shape_oy);
+   if (obasis1d.IsIntegratedType())
+   {
+      obasis1d.EvalIntegrated(dshape_cx, shape_ox);
+      obasis1d.EvalIntegrated(dshape_cy, shape_oy);
+   }
+   else
+   {
+      obasis1d.Eval(ip.x, shape_ox);
+      obasis1d.Eval(ip.y, shape_oy);
+   }
 
    int o = 0;
    // x-components
