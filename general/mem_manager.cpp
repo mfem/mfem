@@ -477,20 +477,7 @@ public:
    { return std::memcpy(dst, src, bytes); }
 };
 
-// TODO TMS: remove if we keep the ifdefs in New*Ctrl
-#ifndef MFEM_USE_UMPIRE
-class UmpireHostMemorySpace : public NoHostMemorySpace
-{
-public:
-   UmpireHostMemorySpace(const char * /*unused*/) {}
-};
-class UmpireDeviceMemorySpace : public NoDeviceMemorySpace
-{
-public:
-   UmpireDeviceMemorySpace(const char * /*unused*/) {}
-};
-#else
-
+#ifdef MFEM_USE_UMPIRE
 class UmpireMemorySpace
 {
 protected:
@@ -521,13 +508,15 @@ public:
 /// The Umpire host memory space
 class UmpireHostMemorySpace : public HostMemorySpace, public UmpireMemorySpace
 {
+private:
+   umpire::strategy::AllocationStrategy *strat;
 public:
    UmpireHostMemorySpace(const char * name) : HostMemorySpace(),
-      UmpireMemorySpace(name, "HOST") {}
+      UmpireMemorySpace(name, "HOST"), strat(allocator.getAllocationStrategy()) {}
    void Alloc(void **ptr, size_t bytes) override { *ptr = allocator.allocate(bytes); }
    void Dealloc(void *ptr) override { allocator.deallocate(ptr); }
    void Insert(void *ptr, size_t bytes)
-   { mfem_error("UmpireHostMemorySpace::Insert is unsupported"); }
+   { rm.registerAllocation(ptr, {ptr, bytes, strat}); }
 };
 
 /// The Umpire device memory space
@@ -735,23 +724,10 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
    flags |= Mem::REGISTERED | Mem::OWNS_INTERNAL;
    void *h_ptr;
 
-   // TODO always lazy allocate device memory
-   if (true /*is_host_mem*/) // HOST TYPES + MANAGED
-   {
-      h_ptr = ptr;
-      mm.Insert(h_ptr, bytes, h_mt, d_mt);
-      flags = (own ? flags | Mem::OWNS_HOST : flags & ~Mem::OWNS_HOST) |
-              Mem::OWNS_DEVICE | Mem::VALID_HOST;
-   }
-   else // DEVICE TYPES
-   {
-      h_ptr = h_tmp;
-      if (own && h_tmp == nullptr) { ctrl->Host(h_mt)->Alloc(&h_ptr, bytes); }
-      mm.InsertDevice(ptr, h_ptr, bytes, h_mt, d_mt);
-      flags = own ? flags | Mem::OWNS_DEVICE : flags & ~Mem::OWNS_DEVICE;
-      flags = own ? flags | Mem::OWNS_HOST   : flags & ~Mem::OWNS_HOST;
-      flags |= Mem::VALID_DEVICE;
-   }
+   h_ptr = ptr;
+   mm.Insert(h_ptr, bytes, h_mt, d_mt);
+   flags = (own ? flags | Mem::OWNS_HOST : flags & ~Mem::OWNS_HOST) |
+           Mem::OWNS_DEVICE | Mem::VALID_HOST;
    CheckHostMemoryType_(h_mt, h_ptr);
    return h_ptr;
 }
@@ -1183,8 +1159,6 @@ void MemoryManager::InsertAlias(const void *base_ptr, void *alias_ptr,
       offset += alias.offset;
    }
    internal::Memory &mem = maps->memories.at(base_ptr);
-   // TODO TMS
-   //MFEM_VERIFY(mem.d_mt != MemoryType::DEVICE_TEMP_UMPIRE, "aliasing temp mem");
    auto res =
       maps->aliases.emplace(alias_ptr,
                             internal::Alias{&mem, offset, bytes, 1, mem.h_mt});

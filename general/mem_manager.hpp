@@ -187,8 +187,9 @@ public:
 
    /** @brief Allocate memory for @a size entries with the given MemoryType
        @a mt. */
-   /** The newly allocated memory is not initialized, however the given
-       MemoryType is still set as valid. */
+   /** The newly allocated memory is not initialized. If @mt is not a
+       host memory type the memory is set as device valid. Either way
+       the memory is set as host valid */
    Memory(int size, MemoryType mt) { New(size, mt); }
 
    /** @brief Allocate memory for @a size entries with the given host MemoryType
@@ -286,8 +287,9 @@ public:
 
    /** @brief Allocate memory for @a size entries with the given host MemoryType
        @a h_mt and device MemoryType @a d_mt. */
-   /** The newly allocated memory is not initialized. The host pointer is set as
-       valid.
+   /** The newly allocated memory is not initialized. If @mt is not a
+       host memory type the memory is set as device valid. Either way
+       the memory is set as host valid.
 
        @note The current memory is NOT deleted by this method. */
    inline void New(int size, MemoryType h_mt, MemoryType d_mt);
@@ -348,7 +350,10 @@ public:
        the actual device memory has been allocated, this method will trigger an
        error. This method will not perform the actual device memory allocation,
        however, the allocation may already exist if the MemoryType is the same
-       as the current one. */
+       as the current one.
+
+       @note This method only works if the memory is unregistered i.e. the
+       host memory type is MemoryType::HOST */
    inline void SetDeviceMemoryType(MemoryType d_mt);
 
    /** @brief Delete the owned pointers. The Memory is not reset by this method,
@@ -563,8 +568,8 @@ private: // Static methods used by the Memory<T> class
                                  MemoryType mt,
                                  bool own, bool alias, unsigned &flags)
    {
-      MemoryType h_mt = IsHostMemory(mt) ? mt : host_mem_type;
-      MemoryType d_mt = IsHostMemory(mt) ? device_mem_type : mt;
+      MemoryType h_mt = IsHostMemory(mt) ? mt : MemoryManager::GetHostMemoryType();
+      MemoryType d_mt = IsHostMemory(mt) ? MemoryManager::GetDeviceMemoryType() : mt;
       return Register_(ptr, h_ptr, bytes, h_mt, d_mt, own, alias, flags);
    }
 
@@ -732,8 +737,8 @@ template <typename T>
 inline void Memory<T>::Reset()
 {
    h_ptr = NULL;
-   h_mt = MemoryManager::host_mem_type;
-   d_mt = MemoryManager::device_mem_type;
+   h_mt = MemoryManager::GetHostMemoryType();
+   d_mt = MemoryManager::GetDeviceMemoryType();
    capacity = 0;
    flags = 0;
 }
@@ -743,7 +748,7 @@ inline void Memory<T>::Reset(MemoryType host_mt)
 {
    h_ptr = NULL;
    h_mt = host_mt;
-   d_mt = MemoryManager::device_mem_type;
+   d_mt = MemoryManager::GetDeviceMemoryType();
    capacity = 0;
    flags = 0;
 }
@@ -752,8 +757,8 @@ template <typename T>
 inline void Memory<T>::New(int size)
 {
    capacity = size;
-   h_mt = MemoryManager::host_mem_type;
-   d_mt = MemoryManager::device_mem_type;
+   h_mt = MemoryManager::GetHostMemoryType();
+   d_mt = MemoryManager::GetDeviceMemoryType();
    const bool mt_host = h_mt == MemoryType::HOST;
    if (mt_host) { flags = OWNS_HOST | VALID_HOST; }
    h_ptr = (mt_host) ? Alloc<new_align_bytes>::New(size) :
@@ -765,8 +770,8 @@ inline void Memory<T>::New(int size, MemoryType mt)
 {
    capacity = size;
    const size_t bytes = size*sizeof(T);
-   h_mt = IsHostMemory(mt) ? mt : MemoryManager::host_mem_type;
-   d_mt = IsHostMemory(mt) ? MemoryManager::device_mem_type : mt;
+   h_mt = IsHostMemory(mt) ? mt : MemoryManager::GetHostMemoryType();
+   d_mt = IsHostMemory(mt) ? MemoryManager::GetDeviceMemoryType() : mt;
    if (h_mt == MemoryType::HOST)
    {
       flags = OWNS_HOST | VALID_HOST;
@@ -782,7 +787,7 @@ inline void Memory<T>::New(int size, MemoryType mt)
       h_ptr = (T*)MemoryManager::New_(nullptr, bytes, h_mt, d_mt, flags);
    }
 
-   if (IsDeviceMemory(mt) && mt != MemoryType::MANAGED) { flags |= VALID_DEVICE; }
+   if (!IsHostMemory(mt)) { flags |= VALID_DEVICE; }
 }
 
 template <typename T>
@@ -808,8 +813,8 @@ inline void Memory<T>::Wrap(T *ptr, int size, bool own)
    capacity = size;
    const size_t bytes = size*sizeof(T);
    flags = (own ? OWNS_HOST : 0) | VALID_HOST;
-   h_mt = MemoryManager::host_mem_type;
-   d_mt = MemoryManager::device_mem_type;
+   h_mt = MemoryManager::GetHostMemoryType();
+   d_mt = MemoryManager::GetDeviceMemoryType();
 #ifdef MFEM_DEBUG
    if (own && MemoryManager::Exists())
    { MFEM_VERIFY(h_mt == MemoryManager::GetHostMemoryType_(h_ptr),""); }
@@ -825,7 +830,7 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
    if (IsHostMemory(mt))
    {
       h_mt = mt;
-      d_mt = MemoryManager::device_mem_type;
+      d_mt = MemoryManager::GetDeviceMemoryType();
       h_ptr = ptr;
       if (mt == MemoryType::HOST || !own)
       {
@@ -836,7 +841,7 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
    }
    else
    {
-      h_mt = MemoryManager::host_mem_type;
+      h_mt = MemoryManager::GetHostMemoryType();
       d_mt = mt;
       h_ptr = nullptr;
    }
@@ -848,14 +853,14 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
 template <typename T>
 inline void Memory<T>::Wrap(T *ptr, T *d_ptr, int size, MemoryType mt, bool own)
 {
-   h_mt = IsHostMemory(mt) ? mt : MemoryManager::host_mem_type;
-   d_mt = IsHostMemory(mt) ? MemoryManager::device_mem_type : mt;
+   h_mt = IsHostMemory(mt) ? mt : MemoryManager::GetHostMemoryType();
+   d_mt = IsHostMemory(mt) ? MemoryManager::GetDeviceMemoryType() : mt;
    flags = 0;
    h_ptr = ptr;
    capacity = size;
    MFEM_ASSERT(IsHostMemory(h_mt),"");
    const size_t bytes = size*sizeof(T);
-   MemoryManager::Register_(d_ptr, h_ptr, bytes, h_mt, own, false, flags);
+   MemoryManager::Register_(d_ptr, h_ptr, bytes, d_mt, own, false, flags);
 }
 
 template <typename T>
@@ -902,9 +907,7 @@ inline void Memory<T>::Delete()
 template <typename T>
 inline void Memory<T>::DeleteDevice(bool copy_to_host)
 {
-   const bool registered = flags & REGISTERED;
-
-   if (registered)
+   if (flags & REGISTERED)
    {
       if (copy_to_host) { Read(MemoryClass::HOST, capacity); }
       MemoryManager::DeleteDevice_((void*)h_ptr, flags);
@@ -1022,7 +1025,6 @@ inline void Memory<T>::SyncAlias(const Memory &base, int alias_size) const
    if (!(base.flags & REGISTERED)) { return; }
    MemoryManager::SyncAlias_(base.h_ptr, h_ptr, alias_size*sizeof(T),
                              base.flags, flags);
-
 }
 
 template <typename T>
