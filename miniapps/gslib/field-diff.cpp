@@ -41,6 +41,7 @@ int main (int argc, char *argv[])
    const char *sltn_file_1 = "triple-pt-1.gf";
    const char *sltn_file_2 = "triple-pt-2.gf";
    bool visualization    = true;
+   bool paraview    = false;
    int pts_cnt_1D = 100;
 
    // Parse command-line options.
@@ -58,6 +59,8 @@ int main (int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraivew",
+                  "--no-paraview-datafiles", "Save data files for paraview visualization.");
    args.Parse();
    if (!args.Good())
    {
@@ -81,7 +84,8 @@ int main (int argc, char *argv[])
 
    // The visualization of the difference assumes byNODES ordering.
    if (mesh_1.GetNodes()->FESpace()->GetOrdering() == Ordering::byVDIM)
-   { mesh_1.SetCurvature(mesh_poly_deg, false, dim, Ordering::byNODES); }
+   { cout<<"change ordering of mesh_1!"<<endl; 
+     mesh_1.SetCurvature(mesh_poly_deg, false, dim, Ordering::byNODES); }
    if (mesh_2.GetNodes()->FESpace()->GetOrdering() == Ordering::byVDIM)
    { mesh_2.SetCurvature(mesh_poly_deg, false, dim, Ordering::byNODES); }
 
@@ -237,6 +241,20 @@ int main (int argc, char *argv[])
       sout3 << flush;
    }
 
+   ParaViewDataCollection *pd = NULL;
+   if (paraview)
+   {
+      pd = new ParaViewDataCollection("gslib", &mesh_1);
+      pd->SetPrefixPath("ParaView");
+      pd->RegisterField("diff", &diff);
+      pd->SetLevelsOfDetail(3);
+      pd->SetDataFormat(VTKFormat::BINARY);
+      pd->SetHighOrderOutput(true);
+      pd->SetCycle(0);
+      pd->SetTime(0);
+      pd->Save();
+   }
+
    ConstantCoefficient coeff1(1.0);
    DomainLFIntegrator *lf_integ = new DomainLFIntegrator(coeff1);
    LinearForm lf(func_1.FESpace());
@@ -248,6 +266,8 @@ int main (int argc, char *argv[])
    // Free the internal gslib data.
    finder1.FreeData();
    finder2.FreeData();
+
+   delete pd;
 
    return 0;
 }

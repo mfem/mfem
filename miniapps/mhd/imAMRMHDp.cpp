@@ -614,7 +614,7 @@ int main(int argc, char *argv[])
    derefiner.SetThreshold(derefine_ratio*ltol_amr);
    derefiner.SetNCLimit(nc_limit);
    derefiner.SetTotalErrorNormP(error_norm);
-   if (derefine_fraction>=err_fraction)
+   if (derefine_fraction>=err_fraction && derefine)
    {   
        if (myid==0) cout << "ERROR: derefine_fraction is set to be large than err_fraction!!"<<endl;
        if (use_petsc) { MFEMFinalizePetsc(); }
