@@ -50,8 +50,6 @@ examples/ex1[04-9]
 examples/ex1[0-9]p
 examples/ex2[0-9]
 examples/ex2[0-9]p
-examples/ex-normal
-examples/ex-sliding
 
 examples/refined.mesh
 examples/displaced.mesh
@@ -104,8 +102,8 @@ examples/Example23*
 examples/ex25.mesh
 examples/ex25-*.gf
 examples/ex25p-*.*
-examples/exsliding_*/
-examples/exsliding_*.*
+examples/ex28_*
+examples/ex28p_*
 
 examples/amgx/ex1
 examples/amgx/ex1p

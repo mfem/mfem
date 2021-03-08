@@ -66,7 +66,6 @@ if (MFEM_USE_MPI)
     ex26p.cpp
     ex27p.cpp
     ex28p.cpp
-    ex-normal.cpp
     )
 endif()
 
