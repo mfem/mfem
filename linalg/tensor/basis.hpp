@@ -381,7 +381,12 @@ auto MakeBasis(KernelConfig<Dim,false,Dynamic,Dynamic,BatchSize> &config,
 
 /// A structure to represent a transposed basis
 template <int Dim, bool IsTensor, int Dofs, int Quads>
-struct BasisTranspose : public Basis<Dim,IsTensor,Dofs,Quads> { };
+struct BasisTranspose : public Basis<Dim,IsTensor,Dofs,Quads>
+{
+   BasisTranspose(Basis<Dim,IsTensor,Dofs,Quads> &basis)
+   : Basis<Dim,IsTensor,Dofs,Quads>(basis)
+   { }
+};
 
 /// A structure to represent a basis gradient
 template <int Dim, bool IsTensor, int Dofs, int Quads>
