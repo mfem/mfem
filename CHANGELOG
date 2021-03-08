@@ -21,7 +21,7 @@ Version 4.2.1 (development)
   (implemented in ex5p), and a newly implemented solver DivFreeSolver, which
   exploits a multilevel decomposition of the Raviart-Thomas space and its
   divergence-free subspace. See the miniapps/solvers directory for more details.
-  
+
 - Added a new miniapp for computing (signed) distance functions to a point
   source or zero level set. See miniapps/shifted_methods/distance.cpp.
 

@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_DIST_FUNCTION_HPP
-#define MFEM_DIST_FUNCTION_HPP
+#ifndef MFEM_DIST_SOLVER_HPP
+#define MFEM_DIST_SOLVER_HPP
 
 #include "mfem.hpp"
 
@@ -25,32 +25,33 @@ protected:
    void ScalarDistToVector(ParGridFunction &dist_s, ParGridFunction &dist_v);
 
 public:
-   // 0 is nothing / 1 is the main solver / 2 is full (solver + precond).
+   // 0 = nothing, 1 = main solver only, 2 = full (solver + preconditioner).
    int print_level = 0;
 
    DistanceSolver() { }
    virtual ~DistanceSolver() { }
 
-   // Computes a scalar ParGridFunction which is the length of the shortest
-   // path to the zero level set of the given Coefficient.
-   // It is expected that [distance] has a valid (scalar) ParFiniteElementSpace,
-   // and the result is computed in the same space.
-   // Some implementations may output a "signed" distance, i.e., the distance
-   // has different signs on both sides of the zero level set.
+   // Computes a scalar ParGridFunction which is the length of the shortest path
+   // to the zero level set of the given Coefficient. It is expected that the
+   // given [distance] has a valid (scalar) ParFiniteElementSpace, and that the
+   // result is computed in the same space. Some implementations may output a
+   // "signed" distance, i.e., the distance has different signs on both sides of
+   // the zero level set.
    virtual void ComputeScalarDistance(Coefficient &zero_level_set,
                                       ParGridFunction &distance) = 0;
 
-   // Computes a vector ParGridFunction where the magnitude is the length of
-   // the shortest path to the zero level set of the given Coefficient, and
-   // the direction is the starting direction of the shortest path.
-   // It is expected that [distance] has a valid (vector) ParFiniteElementSpace,
-   // and the result is computed in the same space.
+   // Computes a vector ParGridFunction where the magnitude is the length of the
+   // shortest path to the zero level set of the given Coefficient, and the
+   // direction is the starting direction of the shortest path. It is expected
+   // that the given [distance] has a valid (vector) ParFiniteElementSpace, and
+   // that the result is computed in the same space.
    virtual void ComputeVectorDistance(Coefficient &zero_level_set,
                                       ParGridFunction &distance);
 };
 
-// K. Crane et al:
-// Geodesics in Heat: A New Approach to Computing Distance Based on Heat Flow
+
+// K. Crane et al: "Geodesics in Heat: A New Approach to Computing Distance
+// Based on Heat Flow", DOI:10.1145/2516971.2516977.
 class HeatDistanceSolver : public DistanceSolver
 {
 public:
@@ -58,9 +59,9 @@ public:
       : DistanceSolver(), parameter_t(diff_coeff), smooth_steps(0),
         diffuse_iter(1), transform(true), vis_glvis(false) { }
 
-   // The computed distance is not "signed".
-   // In addition to the standard usage (with zero level sets), this function
-   // can be applied to point sources when transform = false.
+   // The computed distance is not "signed". In addition to the standard usage
+   // (with zero level sets), this function can be applied to point sources when
+   // transform = false.
    void ComputeScalarDistance(Coefficient &zero_level_set,
                               ParGridFunction &distance);
 
@@ -69,8 +70,9 @@ public:
    bool transform, vis_glvis;
 };
 
-// Belyaev et al:
-// On Variational and PDE-based Distance Function Approximations, Section 7.
+
+// A. Belyaev et al: "On Variational and PDE-based Distance Function
+// Approximations", Section 7, DOI:10.1111/cgf.12611.
 class PLapDistanceSolver : public DistanceSolver
 {
 public:
@@ -84,14 +86,15 @@ public:
 
    void SetMaxPower(int new_pp) { maxp = new_pp; }
 
-   // Ths computed distance is "signed".
+   // The computed distance is "signed".
    void ComputeScalarDistance(Coefficient& func, ParGridFunction& fdist);
 
 private:
-   int maxp; //maximum value of the power p
+   int maxp; // maximum value of the power p
    const int newton_iter;
    const double newton_rel_tol, newton_abs_tol;
 };
+
 
 class NormalizedGradCoefficient : public VectorCoefficient
 {
@@ -111,6 +114,7 @@ public:
       V /= -norm;
    }
 };
+
 
 // Product of the modulus of the first coefficient and the second coefficient
 class PProductCoefficient : public Coefficient
@@ -132,12 +136,12 @@ public:
    }
 };
 
-// Formulation for the  ScreenedPoisson equation.
-// The positive part of the input coefficient supply unit volumetric loading
-// The negative part - negative unit volumetric loading
-// The parameter rh is the radius of a linear cone filter which will deliver
-// similar smoothing effect as the Screened Poisson equation. It determines the
-// length scale of the smoothing.
+
+// Formulation for the ScreenedPoisson equation. The positive part of the input
+// coefficient supply unit volumetric loading, the negative part - negative unit
+// volumetric loading. The parameter rh is the radius of a linear cone filter
+// which will deliver similar smoothing effect as the Screened Poisson
+// equation. It determines the length scale of the smoothing.
 class ScreenedPoisson: public NonlinearFormIntegrator
 {
 protected:
@@ -169,6 +173,7 @@ public:
                                     const Vector &elfun,
                                     DenseMatrix &elmat) override;
 };
+
 
 class PUMPLaplacian: public NonlinearFormIntegrator
 {
@@ -216,9 +221,8 @@ public:
 };
 
 // Low-pass filter based on the Screened Poisson equation.
-// B. S. Lazarov, O. Sigmund
-// Filters in topology optimization based on Helmholtz-type differential equations
-// International Journal for Numerical Methods in Engineering, 2011, 86, 765-781
+// B. S. Lazarov, O. Sigmund: "Filters in topology optimization based on
+// Helmholtz-type differential equations", DOI:10.1002/nme.3072.
 class PDEFilter
 {
 public:
