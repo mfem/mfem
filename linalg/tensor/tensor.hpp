@@ -305,7 +305,7 @@ using ReadDTensor = ReadTensor<Rank,double>;
 
 /// Defines the dynamic type of Tensor used for computation on CPU.
 template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
-using DynamicCPUTensor = DynamicTensor<Rank, T, BatchSize, MaxSize>;
+using DynamicCPUTensor = DynamicTensor<Rank, T, MaxSize>;
 
 /// Defines the static type of Tensor used for computation on CPU.
 template <typename T, int BatchSize, int... Sizes>
@@ -423,22 +423,22 @@ using StaticDeviceDTensor = StaticDeviceTensor<double,BatchSize,Sizes...>;
 
 // };
 
-template <typename Tensor>
-class TypeOf;
+// template <typename Tensor>
+// class TypeOf;
 
-template <int Rank, typename T, int MaxSize>
-class TypeOf<DynamicTensor<Rank,T,MaxSize>>
-{
-   template <int... Sizes>
-   using type = DynamicTensor<rank(Sizes...),T,MaxSize>;
-};
+// template <int Rank, typename T, int MaxSize>
+// class TypeOf<DynamicTensor<Rank,T,MaxSize>>
+// {
+//    template <int... Sizes>
+//    using type = DynamicTensor<rank(Sizes...),T,MaxSize>;
+// };
 
-template <typename T, int... Sizes>
-class TypeOf<StaticBlockTensor<T,Sizes...>>
-{
-   template <int... YourSizes>
-   using type = StaticBlockTensor<T,YourSizes...>;
-};
+// template <typename T, int... Sizes>
+// class TypeOf<StaticBlockTensor<T,Sizes...>>
+// {
+//    template <int... YourSizes>
+//    using type = StaticBlockTensor<T,YourSizes...>;
+// };
 
 } // namespace mfem
 

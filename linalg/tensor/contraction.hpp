@@ -152,7 +152,7 @@ auto ContractX(const DynamicBasisTensor<1> &B,
 {
    const int Q = B.Size<0>();
    const int D = B.Size<1>();
-   const int VDim = u.Size<1>();
+   const int VDim = u.template Size<1>();
    const int tid = MFEM_THREAD_ID(z);
    DynamicBlockDTensor<2,BatchSize> Bu(Q,VDim); // TODO might be a problem
    MFEM_SHARED DynamicDTensor<3> slice(D,VDim,BatchSize);
@@ -171,7 +171,7 @@ auto ContractX(const DynamicBasisTensor<1> &B,
          double v = 0.0;
          for (int d = 0; d < D; ++d)
          {
-            const double b = this->operator()(q,d);
+            const double b = B(q,d);
             const double x = slice(d,c,tid);
             v += b * x;
          }
@@ -193,7 +193,7 @@ auto ContractX(const StaticBasisTensor<1,Q,D> &B,
       StaticDTensor<VDim> v = 0.0;
       for (int d = 0; d < D; ++d)
       {
-         const double b = this->operator()(q,d);
+         const double b = B(q,d);
          for(int c = 0; c< VDim; ++c)
          {
             const double x = u(d,c);
@@ -231,7 +231,7 @@ auto ContractX(const StaticBasisTensor<1,Q,D> &B,
          double v = 0.0;
          for (int d = 0; d < D; ++d)
          {
-            const double b = this->operator()(q,d);
+            const double b = B(q,d);
             const double x = slice(d,c,tid);
             v += b * x;
          }
@@ -277,7 +277,7 @@ auto ContractX(const DynamicBasisTensor<2> &B,
 {
    const int Q = B.Size<0>();
    const int Dx = B.Size<1>();
-   const int Dy = u.Size<1>();
+   const int Dy = u.template Size<1>();
    const int tid = MFEM_THREAD_ID(z);
    DynamicBlockDTensor<2,BatchSize> Bu(Q,Dy);
    MFEM_SHARED DynamicDTensor<3> slice(Dx,Dy,BatchSize);
@@ -320,7 +320,7 @@ auto ContractX(const StaticBasisTensor<2,Q,Dx> &B,
          double v = 0.0;
          for (int dx = 0; dx < Dx; ++dx)
          {
-            const double b = this->operator()(q,dx);
+            const double b = B(q,dx);
             const double x = u(dx,dy);
             v += b * x;
          }
@@ -396,7 +396,7 @@ auto ContractY(const DynamicBasisTensor<2> &B,
 {
    const int Q = B.Size<0>();
    const int Dy = B.Size<1>();
-   const int Dx = u.Size<0>();
+   const int Dx = u.template Size<0>();
    const int tid = MFEM_THREAD_ID(z);
    DynamicBlockDTensor<2,BatchSize> Bu(Dx,Q);
    MFEM_SHARED DynamicDTensor<3> slice(Dx,Dy,BatchSize);
@@ -522,8 +522,8 @@ auto ContractX(const DynamicBasisTensor<2> &B,
 {
    const int Q = B.Size<0>();
    const int Dx = B.Size<1>();
-   const int Dy = u.Size<1>();
-   const int VDim = u.Size<2>();
+   const int Dy = u.template Size<1>();
+   const int VDim = u.template Size<2>();
    const int tid = MFEM_THREAD_ID(z);
    DynamicBlockDTensor<3,BatchSize> Bu(Q,Dy,VDim);
    MFEM_SHARED DynamicDTensor<3> slice(Dx,Dy,BatchSize);
@@ -663,8 +663,8 @@ auto ContractY(const DynamicBasisTensor<2> &B,
 {
    const int Q = B.Size<0>();
    const int Dy = B.Size<1>();
-   const int Dx = u.Size<0>();
-   const int VDim = u.Size<2>();
+   const int Dx = u.template Size<0>();
+   const int VDim = u.template Size<2>();
    const int tid = MFEM_THREAD_ID(z);
    DynamicBlockDTensor<3,BatchSize> Bu(Dx,Q,VDim);
    MFEM_SHARED DynamicDTensor<3> slice(Dx,Dy,BatchSize);
@@ -806,8 +806,8 @@ auto ContractX(const DynamicBasisTensor<3> &B,
 {
    const int Q = B.Size<0>();
    const int Dx = B.Size<1>();
-   const int Dy = u.Size<1>();
-   const int Dz = u.Size<2>();
+   const int Dy = u.template Size<1>();
+   const int Dz = u.template Size<2>();
    const int tid = MFEM_THREAD_ID(z);
    DynamicBlockDTensor<3,BatchSize> Bu(Q,Dy,Dz);
    MFEM_SHARED DynamicDTensor<3> slice(Dx,Dy,BatchSize);
@@ -940,9 +940,9 @@ auto ContractY(const DynamicBasisTensor<3> &B,
                const DynamicBlockDTensor<3,BatchSize> &u)
 {
    const int Q = B.Size<0>();
-   const int Dx = u.Size<0>();
+   const int Dx = u.template Size<0>();
    const int Dy = B.Size<1>();
-   const int Dz = u.Size<2>();
+   const int Dz = u.template Size<2>();
    const int tid = MFEM_THREAD_ID(z);
    DynamicBlockDTensor<3,BatchSize> Bu(Dx,Q,Dz);
    MFEM_SHARED DynamicDTensor<3> slice(Dx,Dy,BatchSize);
@@ -963,7 +963,7 @@ auto ContractY(const DynamicBasisTensor<3> &B,
             double v = 0.0;
             for (int dy = 0; dy < Dy; ++dy)
             {
-               const double b = B.(q,dy);
+               const double b = B(q,dy);
                const double x = slice(dx,dy,tid);
                v += b * x;
             }
@@ -1046,7 +1046,7 @@ auto ContractZ(const DynamicBasisTensor<3> &B, const DynamicDTensor<3> &u)
    const int Q = B.Size<0>();
    const int Dx = u.Size<0>();
    const int Dy = u.Size<1>();
-   const int Dz = B.Size<2>();
+   const int Dz = B.Size<1>();
    DynamicDTensor<3> Bu(Dx,Dy,Q);
    for (int dy = 0; dy < Dy; dy++)
    {
@@ -1073,9 +1073,9 @@ auto ContractZ(const DynamicBasisTensor<3> &B,
                const DynamicBlockDTensor<3,BatchSize> &u)
 {
    const int Q = B.Size<0>();
-   const int Dx = u.Size<0>();
-   const int Dy = u.Size<1>();
-   const int Dz = B.Size<2>();
+   const int Dx = u.template Size<0>();
+   const int Dy = u.template Size<1>();
+   const int Dz = B.Size<1>();
    DynamicBlockDTensor<3,BatchSize> Bu(Dx,Dy,Q);
    MFEM_FOREACH_THREAD(dy,y,Dy)
    {
@@ -1194,9 +1194,9 @@ auto ContractX(const DynamicBasisTensor<3> &B,
 {
    const int Q = B.Size<0>();
    const int Dx = B.Size<1>();
-   const int Dy = u.Size<1>();
-   const int Dz = u.Size<2>();
-   const int VDim = u.Size<3>();
+   const int Dy = u.template Size<1>();
+   const int Dz = u.template Size<2>();
+   const int VDim = u.template Size<3>();
    const int tid = MFEM_THREAD_ID(z);
    DynamicBlockDTensor<4,BatchSize> Bu(Q,Dy,Dz,VDim);
    MFEM_SHARED DynamicDTensor<3> slice(Dx,Dy,BatchSize);
@@ -1348,10 +1348,10 @@ auto ContractY(const DynamicBasisTensor<3> &B,
                const DynamicBlockDTensor<4,BatchSize> &u)
 {
    const int Q = B.Size<0>();
-   const int Dx = u.Size<0>();
+   const int Dx = u.template Size<0>();
    const int Dy = B.Size<1>();
-   const int Dz = u.Size<2>();
-   const int VDim = u.Size<3>();
+   const int Dz = u.template Size<2>();
+   const int VDim = u.template Size<3>();
    const int tid = MFEM_THREAD_ID(z);
    DynamicBlockDTensor<4,BatchSize> Bu(Dx,Q,Dz,VDim);
    MFEM_SHARED DynamicDTensor<3> slice(Dx,Dy,BatchSize);
@@ -1471,9 +1471,9 @@ auto ContractZ(const DynamicBasisTensor<3> &B, const DynamicDTensor<4> &u)
    const int Q = B.Size<0>();
    const int Dx = u.Size<0>();
    const int Dy = u.Size<1>();
-   const int Dz = B.Size<2>();
+   const int Dz = B.Size<1>();
    const int VDim = u.Size<3>();
-   DynamicDTensor<3> Bu(Dx,Dy,Q,VDim);
+   DynamicDTensor<4> Bu(Dx,Dy,Q,VDim);
    for(int c = 0; c < VDim; ++c)
    {
       for (int dy = 0; dy < Dy; dy++)
@@ -1503,10 +1503,10 @@ auto ContractZ(const DynamicBasisTensor<3> &B,
                const DynamicBlockDTensor<4,BatchSize> &u)
 {
    const int Q = B.Size<0>();
-   const int Dx = u.Size<0>();
-   const int Dy = u.Size<1>();
-   const int Dz = B.Size<2>();
-   const int VDim = u.Size<3>();
+   const int Dx = u.template Size<0>();
+   const int Dy = u.template Size<1>();
+   const int Dz = B.Size<1>();
+   const int VDim = u.template Size<3>();
    DynamicBlockDTensor<4,BatchSize> Bu(Dx,Dy,Q,VDim);
    for(int c = 0; c < VDim; ++c)
    {
@@ -1532,7 +1532,7 @@ auto ContractZ(const DynamicBasisTensor<3> &B,
 }
 
 /// Contraction on Z dimension with VDim
-template <int Dx, int Dy, int Dz, int Q> MFEM_HOST_DEVICE inline
+template <int Dx, int Dy, int Dz, int Q, int VDim> MFEM_HOST_DEVICE inline
 auto ContractZ(const StaticBasisTensor<3,Q,Dz> &B,
                const StaticDTensor<Dx,Dy,Dz> &u)
 {
@@ -1560,7 +1560,7 @@ auto ContractZ(const StaticBasisTensor<3,Q,Dz> &B,
    return Bu;
 }
 
-/// Contraction on Z dimension wiith VDim
+/// Contraction on Z dimension with VDim
 template <int Dx, int Dy, int Dz, int Q, int VDim, int BatchSize>
 MFEM_HOST_DEVICE inline
 auto ContractZ(const StaticBasisTensor<3,Q,Dz> &B,
