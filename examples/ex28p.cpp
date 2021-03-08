@@ -3,7 +3,6 @@
 // Compile with: make ex28p
 //
 // Sample runs:  ex28p
-//               ex28p --visit-datafiles
 //               ex28p --order 4
 //               ex28p --penalty 1e+5
 //
