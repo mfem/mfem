@@ -1884,7 +1884,7 @@ void FiniteElementSpace::Construct()
    int dim = mesh->Dimension();
    int order = fec->GetOrder();
 
-   MFEM_VERIFY(mesh->GetNumGeometries(dim),
+   MFEM_VERIFY((mesh->GetNumGeometries(dim) > 0) || (mesh->GetNE() == 0),
                "Mesh was not correctly finalized.");
 
    bool mixed_elements = (mesh->GetNumGeometries(dim) > 1);
