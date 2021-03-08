@@ -40,6 +40,8 @@ template <int Rank,
 class Tensor: public Container, public Layout
 {
 public:
+   static const int rank = Rank;
+   using type = T;
    using container = Container;
    using layout = Layout;
 
