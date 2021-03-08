@@ -36,6 +36,8 @@ struct HybridizationSolver : Solver
    void Mult(const Vector &b, Vector &x) const
    {
       h.ReduceRHS(b, b_r);
+      x_r.SetSize(b_r.Size());
+      x_r = 0.0;
       solv.Mult(b_r, x_r);
       h.ComputeSolution(b, x_r, x);
    }
@@ -174,12 +176,15 @@ int main(int argc, char *argv[])
    int ref_levels = 0;
    int order = 3;
    const char *fe = "n";
+   bool hybridization = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&ref_levels, "-r", "--refine", "Uniform refinements.");
    args.AddOption(&order, "-o", "--order", "Polynomial degree.");
    args.AddOption(&fe, "-fe", "--fe-type", "FE type. n for Hcurl, r for Hdiv");
+   args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
+                  "--no-hybridization", "Enable hybridization.");
    args.Parse();
    if (!args.Good())
    {
@@ -188,10 +193,11 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   bool ND;
+   bool ND = false;
    if (string(fe) == "n") { ND = true; }
    else if (string(fe) == "r") { ND = false; }
    else { MFEM_ABORT("Bad FE type. Must be 'n' or 'r'."); }
+   bool RT = !ND;
 
    Mesh serial_mesh(mesh_file, 1, 1);
    int dim = serial_mesh.Dimension();
@@ -202,7 +208,8 @@ int main(int argc, char *argv[])
    int btype = BasisType::GaussLobatto;
    ParMesh mesh_lor(&mesh, order, btype);
 
-   unique_ptr<FiniteElementCollection> fec_ho, fec_lor;
+   unique_ptr<FiniteElementCollection> fec_ho, fec_lor, fec_h;
+   unique_ptr<ParFiniteElementSpace> fes_h;
    if (ND)
    {
       fec_ho.reset(new ND_FECollection(order, dim, BasisType::GaussLobatto, BasisType::Integrated));
@@ -212,6 +219,11 @@ int main(int argc, char *argv[])
    {
       fec_ho.reset(new RT_FECollection(order-1, dim, BasisType::GaussLobatto, BasisType::Integrated));
       fec_lor.reset(new RT_FECollection(0, dim, BasisType::GaussLobatto, BasisType::Integrated));
+      if (hybridization)
+      {
+         fec_h.reset(new DG_Interface_FECollection(0, dim));
+         fes_h.reset(new ParFiniteElementSpace(&mesh_lor, fec_h.get()));
+      }
    }
 
    ParFiniteElementSpace fes_ho(&mesh, fec_ho.get());
@@ -224,6 +236,7 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient coeff(dim, f_exact);
 
    ParBilinearForm a_ho(&fes_ho), a_lor(&fes_lor);
+   // ParBilinearForm a_ho(&fes_lor), a_lor(&fes_lor);
    a_ho.AddDomainIntegrator(new VectorFEMassIntegrator);
    a_lor.AddDomainIntegrator(new VectorFEMassIntegrator);
    if (ND)
@@ -235,6 +248,10 @@ int main(int argc, char *argv[])
    {
       a_ho.AddDomainIntegrator(new DivDivIntegrator);
       a_lor.AddDomainIntegrator(new DivDivIntegrator);
+      if (hybridization)
+      {
+         a_lor.EnableHybridization(fes_h.get(), new NormalTraceJumpIntegrator, ess_tdof_list);
+      }
    }
    a_ho.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    a_ho.Assemble();
@@ -258,19 +275,30 @@ int main(int argc, char *argv[])
    a_ho.FormLinearSystem(ess_tdof_list, x_ho, b_ho, A_ho, X_ho, B_ho);
    a_lor.FormLinearSystem(ess_tdof_list, x_lor, b_lor, A_lor, X_lor, B_lor);
 
-   unique_ptr<Solver> solv_lor;
-   if (ND || dim == 2)
+   unique_ptr<Solver> solv_lor, amg;
+   SparseMatrix diag;
+   A_lor.As<HypreParMatrix>()->GetDiag(diag);
+   if (RT && hybridization)
    {
-      solv_lor.reset(new HypreAMS(&fes_lor));
+      amg.reset(new HypreBoomerAMG(*A_lor.As<HypreParMatrix>()));
+      // amg.reset(new UMFPackSolver(diag));
+      solv_lor.reset(new HybridizationSolver(*amg, *a_lor.GetHybridization()));
+   }
+   else if (RT && dim == 3)
+   {
+      solv_lor.reset(new HypreADS(&fes_lor));
    }
    else
    {
-      solv_lor.reset(new HypreADS(&fes_lor));
+      solv_lor.reset(new HypreAMS(&fes_lor));
    }
    solv_lor->SetOperator(*A_lor);
 
    FiniteElement::MapType t = ND ? FiniteElement::H_CURL : FiniteElement::H_DIV;
    Array<int> perm = ComputeVectorFE_LORPermutation(fes_ho, fes_lor, t);
+
+   // TEMP
+   // for (int i=0; i<perm.Size(); ++i) { perm[i] = i; }
 
    PermutedSolver solv_lor_perm(*solv_lor, perm);
 
@@ -279,10 +307,16 @@ int main(int argc, char *argv[])
    cg.SetRelTol(1e-12);
    cg.SetMaxIter(100);
    cg.SetPrintLevel(1);
+
    cg.SetOperator(*A_ho);
    cg.SetPreconditioner(solv_lor_perm);
-   // cg.SetPreconditioner(smoother);
+   // cg.SetPreconditioner(*solv_lor);
    cg.Mult(B_ho, X_ho);
+
+   // cg.SetOperator(*A_lor);
+   // cg.SetPreconditioner(*amg);
+   // cg.Mult(B_lor, X_lor);
+
    a_ho.RecoverFEMSolution(X_ho, b_ho, x_ho);
 
    ParaViewDataCollection dc("LOR", &mesh);
