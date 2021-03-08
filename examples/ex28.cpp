@@ -204,8 +204,8 @@ int main(int argc, char *argv[])
    GSSmoother M(A);
    SchurConstrainedSolver * solver =
       new SchurConstrainedSolver(A, *local_constraints, M);
-   solver->SetRelTol(1e-6);
-   solver->SetMaxIter(1500);
+   solver->SetRelTol(1e-5);
+   solver->SetMaxIter(2000);
    solver->SetPrintLevel(1);
    solver->PrimalMult(B, X);
 
