@@ -27,6 +27,4 @@ add_mfem_miniapp(distance
     ${DIST_COMMON_FILES}
     LIBRARIES mfem mfem-common)
 
-
-
 endif ()
