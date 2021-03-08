@@ -127,13 +127,17 @@ int main(int argc, char *argv[])
       Vector B, X;
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
       
-      OperatorPtr M;
-      Array<int> ess_tdof_list1;
-      ess_tdof_list1 = ess_tdof_list;
-      aprec.FormSystemMatrix(ess_tdof_list1,M);
+      // OperatorPtr M;
+      // Array<int> ess_tdof_list1;
+      // ess_tdof_list1 = ess_tdof_list;
+      aprec.Assemble();
+      aprec.EliminateEssentialBC(ess_bdr,mfem::Matrix::DIAG_ONE);
+      aprec.Finalize();
+      // aprec.FormSystemMatrix(ess_tdof_list1,M);
+      HypreParMatrix * M = aprec.ParallelAssemble();
       
 
-      HypreBoomerAMG amg;
+      HypreBoomerAMG amg(*M);
       amg.SetPrintLevel(0);
       GMRESSolver gmres(MPI_COMM_WORLD);
       gmres.SetRelTol(0.0);

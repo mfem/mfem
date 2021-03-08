@@ -200,8 +200,10 @@ int main(int argc, char *argv[])
    comp_bdr.SetSize(dim,2);
    comp_bdr = pml.GetCompDomainBdr(); 
 
+   int basis = BasisType::GetType('G');
+
    // 6. Define a finite element space on the mesh.
-   FiniteElementCollection *fec = new H1_FECollection(order, dim);
+   FiniteElementCollection *fec = new H1_FECollection(order, dim,basis);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
    HYPRE_Int size = fespace->GlobalTrueVSize();
 
@@ -262,11 +264,69 @@ int main(int argc, char *argv[])
    Vector X, B;
 
    a.FormLinearSystem(ess_tdof_list, p_gf, b, Ah, X, B);
+
+   // lor preconditioner
+   ParMesh *pmesh_lor = NULL;
+   FiniteElementCollection *fec_lor = NULL;
+   ParFiniteElementSpace *fespace_lor = NULL;
+   int basis_lor = basis;
+   cout << order << endl;
+   pmesh_lor = new ParMesh(pmesh, order, basis_lor);
+   
+   CartesianPML pml_lor(pmesh_lor,lengths);
+   pml_lor.SetOmega(omega);
+   
+   
+   fec_lor = new H1_FECollection(1, dim);
+   fespace_lor = new ParFiniteElementSpace(pmesh_lor, fec_lor);
+   ParSesquilinearForm a_lor(fespace_lor,conv);
+
+   PmlMatrixCoefficient c1_re_lor(dim,pml_detJ_JT_J_inv_Re,&pml_lor);
+   PmlMatrixCoefficient c1_im_lor(dim,pml_detJ_JT_J_inv_Im,&pml_lor);
+
+   PmlCoefficient detJ_re_lor(pml_detJ_Re,&pml_lor);
+   PmlCoefficient detJ_im_lor(pml_detJ_Im,&pml_lor);
+
+   ProductCoefficient c2_re0_lor(sigma, detJ_re_lor);
+   ProductCoefficient c2_im0_lor(sigma, detJ_im_lor);
+
+   ProductCoefficient c2_re_lor(c2_re0_lor, ws);
+   ProductCoefficient c2_im_lor(c2_im0_lor, ws);
+
+
+   a_lor.AddDomainIntegrator(new DiffusionIntegrator(c1_re_lor),
+                             new DiffusionIntegrator(c1_im_lor));
+   a_lor.AddDomainIntegrator(new MassIntegrator(c2_re_lor),
+                             new MassIntegrator(c2_im_lor));
+   a_lor.Assemble();
+   a_lor.Finalize();
+
+   // Solution grid function
+   OperatorHandle Ah_lor;
+   a_lor.FormSystemMatrix(ess_tdof_list, Ah_lor);
+
+   ComplexMUMPSSolver prec;
+
+   StopWatch chrono;
+   chrono.Clear();
+   chrono.Start();
+   // prec.SetOperator(*Ah.As<ComplexHypreParMatrix>());
+   prec.SetOperator(*Ah_lor.As<ComplexHypreParMatrix>());
+   chrono.Stop();
+   cout << " myid: " << myid 
+        << ", lor time: " << chrono.RealTime() << endl;
+
+
+
+
+
+
    {
       StopWatch chrono;
       chrono.Clear();
       chrono.Start();
       ParDST S(&a,lengths,omega, &ws,nrlayers,nx,ny,nz);
+      // ParDST Slor(&a_lor,lengths,omega, &ws,nrlayers,nx,ny,nz);
       chrono.Stop();
       double t1 = chrono.RealTime();
 
@@ -274,10 +334,12 @@ int main(int argc, char *argv[])
       chrono.Start();
       // X = 0.0;
       GMRESSolver gmres(MPI_COMM_WORLD);
-      gmres.SetPreconditioner(S);
+      // gmres.SetPreconditioner(Slor);
       gmres.SetOperator(*Ah);
-      gmres.SetRelTol(1e-6);
-      gmres.SetMaxIter(20);
+      // gmres.SetPreconditioner(S);
+      gmres.SetPreconditioner(prec);
+      gmres.SetRelTol(1e-12);
+      gmres.SetMaxIter(200);
       gmres.SetPrintLevel(1);
       gmres.Mult(B, X);
       chrono.Stop();
