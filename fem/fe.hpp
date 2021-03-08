@@ -38,7 +38,8 @@ public:
       OpenHalfUniform = 5,  ///< Nodes: x_i = (i+1/2)/n,   i=0,...,n-1
       Serendipity     = 6,  ///< Serendipity basis (squares / cubes)
       ClosedGL        = 7,  ///< Closed GaussLegendre
-      NumBasisTypes   = 8   /**< Keep track of maximum types to prevent
+      Integrated      = 8,  ///< Integrated indicator functions
+      NumBasisTypes   = 9   /**< Keep track of maximum types to prevent
                                  hard-coding */
    };
    /** @brief If the input does not represents a valid BasisType, abort with an
@@ -53,7 +54,7 @@ public:
        with an error; otherwise return the input. */
    static int CheckNodal(int b_type)
    {
-      MFEM_VERIFY(Check(b_type) != Positive,
+      MFEM_VERIFY(Check(b_type) != Positive && b_type != Integrated,
                   "invalid nodal BasisType: " << Name(b_type));
       return b_type;
    }
@@ -71,6 +72,7 @@ public:
          case OpenHalfUniform: return Quadrature1D::OpenHalfUniform;
          case Serendipity:     return Quadrature1D::GaussLobatto;
          case ClosedGL:        return Quadrature1D::ClosedGL;
+         case Integrated:      return Quadrature1D::GaussLegendre;
       }
       return Quadrature1D::Invalid;
    }
@@ -94,7 +96,8 @@ public:
       static const char *name[] =
       {
          "Gauss-Legendre", "Gauss-Lobatto", "Positive (Bernstein)",
-         "Open uniform", "Closed uniform", "Open half uniform"
+         "Open uniform", "Closed uniform", "Open half uniform",
+         "Seredipity", "Closed Gauss-Legendre", "Integrated"
       };
       return name[Check(b_type)];
    }
@@ -1949,7 +1952,8 @@ public:
       ChangeOfBasis = 0, // Use change of basis, O(p^2) Evals
       Barycentric   = 1, // Use barycentric Lagrangian interpolation, O(p) Evals
       Positive      = 2, // Fast evaluation of Bernstein polynomials
-      NumEvalTypes  = 3  // Keep count of the number of eval types
+      Integrated    = 3, // Integrated indicator functions (cf. Gerritsma)
+      NumEvalTypes  = 4  // Keep count of the number of eval types
    };
 
    class Basis
@@ -1958,6 +1962,10 @@ public:
       int etype;
       DenseMatrixInverse Ai;
       mutable Vector x, w;
+      // The following data members are used for "integrated basis type", which
+      // is defined in terms of nodal basis of one degree higher.
+      mutable Vector u_aux, d_aux, d2_aux;
+      Basis *auxiliary_basis; // Non-NULL only for etype == Integrated
 
    public:
       /// Create a nodal or positive (Bernstein) basis
@@ -1965,6 +1973,9 @@ public:
       void Eval(const double x, Vector &u) const;
       void Eval(const double x, Vector &u, Vector &d) const;
       void Eval(const double x, Vector &u, Vector &d, Vector &d2) const;
+      void EvalIntegrated(const Vector &d, Vector &i) const;
+      bool IsIntegratedType() const { return etype == Integrated; }
+      ~Basis();
    };
 
 private:
