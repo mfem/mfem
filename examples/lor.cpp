@@ -177,23 +177,12 @@ int main(int argc, char *argv[])
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
-
-   mesh.EnsureNodes();
-
-   for (int l = 0; l < ref_levels; l++)
-   {
-      mesh.UniformRefinement();
-   }
+   for (int l = 0; l < ref_levels; l++) { mesh.UniformRefinement(); }
 
    int btype = BasisType::GaussLobatto;
    Mesh mesh_lor(&mesh, order, btype);
 
-   mesh.PrintVTU("orig_mesh", VTKFormat::ASCII, true);
-   mesh_lor.PrintBdrVTU("bdr_lor");
-   mesh_lor.PrintVTU("mesh_lor", VTKFormat::ASCII, true);
-
-   std::unique_ptr<FiniteElementCollection> fec_ho, fec_lor;
-
+   unique_ptr<FiniteElementCollection> fec_ho, fec_lor;
    if (ND)
    {
       fec_ho.reset(new ND_FECollection(order, dim, BasisType::GaussLobatto, BasisType::Integrated));
@@ -259,17 +248,17 @@ int main(int argc, char *argv[])
    PermutedSolver solv_lor_perm(solv_lor, perm);
 
    // Debug printing:
-   auto write_matlab = [](const char * fname, Operator &op)
-   {
-      SparseMatrix *mat = dynamic_cast<SparseMatrix*>(&op);
-      MFEM_ASSERT(mat != NULL, "");
-      std::ofstream f(fname);
-      mat->PrintMatlab(f);
-   };
+   // auto write_matlab = [](const char * fname, Operator &op)
+   // {
+   //    SparseMatrix *mat = dynamic_cast<SparseMatrix*>(&op);
+   //    MFEM_ASSERT(mat != NULL, "");
+   //    ofstream f(fname);
+   //    mat->PrintMatlab(f);
+   // };
    // write_matlab("A_ho.txt", *A_ho);
    // write_matlab("A_lor.txt", *A_lor);
    // {
-      // std::ofstream f("P.txt");
+      // ofstream f("P.txt");
       // perm.Print(f, 1);
    // }
 
