@@ -39,7 +39,7 @@ auto operator*(const BasisGradient<1,true,D,Q> &basis, const Dofs &u)
 
 // 2D Tensor
 template <int D, int Q, typename Dofs>
-auto operator*(const Basis<2,true,D,Q> &basis, const Dofs &u)
+auto operator*(const BasisGradient<2,true,D,Q> &basis, const Dofs &u)
 {
    auto B = basis.GetB();
    auto G = basis.GetG();
@@ -53,7 +53,7 @@ auto operator*(const Basis<2,true,D,Q> &basis, const Dofs &u)
 
 // 3D Tensor
 template <int D, int Q, typename Dofs>
-auto operator*(const Basis<3,true,D,Q> &basis, const Dofs &u)
+auto operator*(const BasisGradient<3,true,D,Q> &basis, const Dofs &u)
 {
    auto B = basis.GetB();
    auto G = basis.GetG();
@@ -71,7 +71,7 @@ auto operator*(const Basis<3,true,D,Q> &basis, const Dofs &u)
 
 // Non-tensor
 template <int Dim, int D, int Q, typename Dofs>
-auto operator*(const BasisGradientTranspose<Dim,false,D,Q> &bt, const Dofs &u)
+auto operator*(const BasisGradientTranspose<Dim,false,D,Q> &basis, const Dofs &u)
 {
    auto Gt = basis.GetGt();
    return Gt * u;
@@ -79,7 +79,7 @@ auto operator*(const BasisGradientTranspose<Dim,false,D,Q> &bt, const Dofs &u)
 
 // 1D Tensor
 template <int D, int Q, typename Dofs>
-auto operator*(const BasisGradientTranspose<1,true,D,Q> &bt, const Dofs &u)
+auto operator*(const BasisGradientTranspose<1,true,D,Q> &basis, const Dofs &u)
 {
    auto Gt = basis.GetGt();
    return ContractX(Gt,u);
@@ -87,7 +87,7 @@ auto operator*(const BasisGradientTranspose<1,true,D,Q> &bt, const Dofs &u)
 
 // 2D Tensor
 template <int D, int Q, typename Dofs>
-auto operator*(const BasisGradientTranspose<2,true,D,Q> &bt, const Dofs &u)
+auto operator*(const BasisGradientTranspose<2,true,D,Q> &basis, const Dofs &u)
 {
    auto Bt = basis.GetBt();
    auto Gt = basis.GetGt();
@@ -100,7 +100,7 @@ auto operator*(const BasisGradientTranspose<2,true,D,Q> &bt, const Dofs &u)
 
 // 3D Tensor
 template <int D, int Q, typename Dofs>
-auto operator*(const BasisGradientTranspose<3,true,D,Q> &bt, const Dofs &u)
+auto operator*(const BasisGradientTranspose<3,true,D,Q> &basis, const Dofs &u)
 {
    auto Bt = basis.GetBt();
    auto Gt = basis.GetGt();

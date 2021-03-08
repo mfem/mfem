@@ -362,7 +362,7 @@ struct QuadTensorType<KernelConfig<Dim,true,Dofs,Quads,BatchSize>,DimComp>
 template <int Dim, int BatchSize, int DimComp>
 struct QuadTensorType<KernelConfig<Dim,true,Dynamic,Dynamic,BatchSize>,DimComp>
 {
-   using Tensor = DynamicBlockDTensor<Dim+DimComp>;
+   using Tensor = DynamicBlockDTensor<Dim+DimComp,BatchSize>;
 };
 
 template <int Dim, int Dofs, int Quads, int BatchSize, int DimComp>
@@ -376,7 +376,7 @@ struct QuadTensorType<KernelConfig<Dim,false,Dofs,Quads,BatchSize>,DimComp>
 template <int Dim, int BatchSize, int DimComp>
 struct QuadTensorType<KernelConfig<Dim,false,Dynamic,Dynamic,BatchSize>,DimComp>
 {
-   using Tensor = DynamicBlockDTensor<1+DimComp>;
+   using Tensor = DynamicBlockDTensor<1+DimComp,BatchSize>;
 };
 
 template <typename Config, int DimComp>
