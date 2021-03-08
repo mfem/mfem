@@ -10,15 +10,16 @@
 
 Version 4.2.1 (development)
 ===========================
+- Added Device::SetHostMemoryType and Device::SetDeviceMemoryType that
+  change the default MemoryType for all subsequent allocations. Should
+  be called after Device setup.
 
-- Added support for temporary device memory. A new MemoryClass, DEVICE_TEMP,
-  can be used with a new Memory<T> constructor to specify that a temporary
-  memory device allocator should be used when allocating device memory. The
-  temporary status may also be changed with Memory<T>.UseTemporary(bool).
-  DeviceMemorySpaces can add support for temporary allocations by implementing
-  AllocTemp. Memory<T>.DeleteDevice() can be used to release temporary memory.
+- Added Memory constructor for setting both the host and device MemoryTypes.
 
-- Added temporary allocator support to the UmpireDeviceMemorySpace.
+- Switched the default behavior of device memory allocations so that they
+  are deferred until the device pointer is needed.
+
+- Added an additional Umpire Device Allocator called DEVICE_UMPIRE_2.
 
 - Added HOST_PINNED MemoryType and a pinned host allocator for CUDA.
 
