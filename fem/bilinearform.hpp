@@ -176,6 +176,8 @@ public:
    /// Returns the assembly level
    AssemblyLevel GetAssemblyLevel() const { return assembly; }
 
+   Hybridization *GetHybridization() const { return hybridization; }
+
    /** @brief Enable the use of static condensation. For details see the
        description for class StaticCondensation in fem/staticcond.hpp This method
        should be called before assembly. If the number of unknowns after static
