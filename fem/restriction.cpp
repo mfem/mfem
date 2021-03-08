@@ -1607,6 +1607,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
             }
             for (int d = 0; d < dof; ++d)
             {
+               // TODO orientation is wrong.
                const int pd = PermuteFaceL2(dim, face_id1, face_id2,
                                              orientation, dof1d, d);
                const int face_dof = faceMap2[pd];
