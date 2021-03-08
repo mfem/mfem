@@ -187,7 +187,7 @@ public:
 
    /** @brief Allocate memory for @a size entries with the given MemoryType
        @a mt. */
-   /** The newly allocated memory is not initialized. If @mt is not a
+   /** The newly allocated memory is not initialized. If @a mt is not a
        host memory type the memory is set as device valid. Either way
        the memory is set as host valid */
    Memory(int size, MemoryType mt) { New(size, mt); }
@@ -279,17 +279,17 @@ public:
    inline void New(int size);
 
    /// Allocate memory for @a size entries with the given MemoryType.
-   /** The newly allocated memory is not initialized, however the given
-       MemoryType is still set as valid.
+   /** The newly allocated memory is not initialized. If @a mt is not a
+       host memory type the memory is set as device valid. Either way
+       the memory is set as host valid.
 
        @note The current memory is NOT deleted by this method. */
    inline void New(int size, MemoryType mt);
 
    /** @brief Allocate memory for @a size entries with the given host MemoryType
        @a h_mt and device MemoryType @a d_mt. */
-   /** The newly allocated memory is not initialized. If @mt is not a
-       host memory type the memory is set as device valid. Either way
-       the memory is set as host valid.
+   /** The newly allocated memory is not initialized. The host pointer is set as
+       valid.
 
        @note The current memory is NOT deleted by this method. */
    inline void New(int size, MemoryType h_mt, MemoryType d_mt);
