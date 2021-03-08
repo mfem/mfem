@@ -9,31 +9,32 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-//            -------------------------------------------------
+//            ------------------------------------------------
 //            Distance Miniapp: Finite element distance solver
-//            -------------------------------------------------
+//            ------------------------------------------------
 //
 // This miniapp computes the "distance" to a given point source or to the zero
 // level set of a given function. Here "distance" refers to the length of the
-// shortest path through the mesh. The input can be a DeltaCoefficient (for
-// a point source), or any Coefficient (for the case of a level set). The
-// output is a GridFunction that can be scalar (representing the scalar
-// distance), or a vector (its magnitude is the distance, and its direction is
-// the starting direction of the shortest path). The miniapp supports 2 solvers:
+// shortest path through the mesh. The input can be a DeltaCoefficient (for a
+// point source), or any Coefficient (for the case of a level set). The output
+// is a GridFunction that can be scalar (representing the scalar distance), or a
+// vector (its magnitude is the distance, and its direction is the starting
+// direction of the shortest path). The miniapp supports 2 solvers:
 //
 // 1. Heat solver:
 //    K. Crane, C. Weischedel, M. Weischedel
 //    Geodesics in Heat: A New Approach to Computing Distance Based on Heat Flow
 //    ACM Transactions on Graphics, Vol. 32, No. 5, October, 2013
+//
 // 2. p-Laplacian solver:
 //    A. Belyaev, P. Fayolle
 //    On Variational and PDE-based Distance Function Approximations,
 //    Computer Graphics Forum, 34: 104-118, 2015
 //
-//    The solution of the p-Laplacian solver approaches the signed distance
-//    function when p->\infinity. Therefore, increasing p will improve the
-//    computed distance and, of course, will increase the computational cost.
-//    The discretization of the p-Laplacian equation utilizes ideas from:
+// The solution of the p-Laplacian solver approaches the signed distance when
+// p->\infinity. Therefore, increasing p will improve the computed distance and,
+// of course, will increase the computational cost.  The discretization of the
+// p-Laplacian equation utilizes ideas from:
 //
 //    L. V. Kantorovich, V. I. Krylov
 //    Approximate Methods of Higher Analysis, Interscience Publishers, Inc., 1958
@@ -42,19 +43,17 @@
 //    The partition of unity finite element method: Basic theory and applications,
 //    Computer Methods in Applied Mechanics and Engineering, 1996, 139, 289-314
 //
-//
-//    Resolving highly oscillatory input fields requires refining the mesh or
-//    increasing the order of the approximation. The above requirement for mesh
-//    resolution is independent of the conditions imposed on the mesh by the
-//    discretization of the actual distance solver. On the other hand, it is
-//    often enough to compute the distance field to a mean zero level of a
-//    smoothed version of the input field. In such cases, one can use a
-//    low-pass filter that removes the high-frequency content of the input
-//    field. Such filter is implemented in the class PDEFilter based on the
-//    Screened Poisson equation. The radius specifies the minimal feature size
-//    in the filter output and, in the current example, is linked to the average
-//    mesh size. Theoretical description of the filter and discussion of the
-//    parameters can be found in:
+// Resolving highly oscillatory input fields requires refining the mesh or
+// increasing the order of the approximation. The above requirement for mesh
+// resolution is independent of the conditions imposed on the mesh by the
+// discretization of the actual distance solver. On the other hand, it is often
+// enough to compute the distance field to a mean zero level of a smoothed
+// version of the input field. In such cases, one can use a low-pass filter that
+// removes the high-frequency content of the input field, such as the one in the
+// class PDEFilter, based on the Screened Poisson equation. The radius specifies
+// the minimal feature size in the filter output and, in the current example, is
+// linked to the average mesh size. Theoretical description of the filter and
+// discussion of the parameters can be found in:
 //
 //    B. S. Lazarov, O. Sigmund
 //    Filters in topology optimization based on Helmholtz-type differential equations
@@ -63,20 +62,20 @@
 // Compile with: make distance
 //
 // Sample runs:
+//
 //   Problem 0: point source.
 //     mpirun -np 4 distance -m ./corners.mesh -p 0 -rs 3 -t 200.0
 //
-//   Problem 1: zero level set - circle / sphere at the center of the mesh
+//   Problem 1: zero level set: circle / sphere at the center of the mesh
 //     mpirun -np 4 distance -m ../../data/inline-quad.mesh -rs 3 -o 2 -t 1.0 -p 1
 //     mpirun -np 4 distance -m ../../data/periodic-cube.mesh -rs 2 -o 2 -p 1 -s 1
 //
-//   Problem 2: zero level set - perturbed sine.
+//   Problem 2: zero level set: perturbed sine
 //     mpirun -np 4 distance -m ../../data/inline-quad.mesh -rs 3 -o 2 -t 1.0 -p 2
 //
-//   Problem 3: level set - Gyroid.
+//   Problem 3: level set: Gyroid
 //      mpirun -np 4 distance -m ../../data/periodic-square.mesh -rs 5 -o 2 -t 1.0 -p 3
 //      mpirun -np 4 distance -m ../../data/periodic-cube.mesh -rs 3 -o 2 -t 1.0 -p 3
-//
 
 #include <fstream>
 #include <iostream>
@@ -168,13 +167,13 @@ void DGyroid(const mfem::Vector &xx, mfem::Vector &vals)
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
+   // Initialize MPI.
    int num_procs, myid;
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
-   // 2. Parse command-line options.
+   // Parse command-line options.
    const char *mesh_file = "../../data/inline-quad.mesh";
    int solver_type = 0;
    int problem = 1;
@@ -221,8 +220,8 @@ int main(int argc, char *argv[])
    }
    if (myid == 0) { args.PrintOptions(cout); }
 
-   // 3. Enable hardware devices such as GPUs, and programming models such as
-   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   // Enable hardware devices such as GPUs, and programming models such as CUDA,
+   // OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
    if (myid == 0) { device.Print(); }
 
@@ -285,9 +284,8 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace pfes_s(&pmesh, &fec), pfes_v(&pmesh, &fec, dim);
    ParGridFunction distance_s(&pfes_s), distance_v(&pfes_v);
 
-   // Smooth out Gibbs oscillations from the input level set.
-   // The smoothing parameter is this case is specified to be
-   // mesh dependent with length scale dx.
+   // Smooth-out Gibbs oscillations from the input level set. The smoothing
+   // parameter here is specified to be mesh dependent with length scale dx.
    ParGridFunction filt_gf(&pfes_s);
    PDEFilter *filter = new PDEFilter(pmesh, 1.0 * dx);
    if (problem != 0)
@@ -318,17 +316,17 @@ int main(int argc, char *argv[])
       socketstream sol_sock_ds;
       common::VisualizeField(sol_sock_ds, vishost, visport, distance_s,
                              "Distance", size, 0, size, size,
-                             "rRjmm********");
+                             "rRjmm********A");
 
       MPI_Barrier(pmesh.GetComm());
 
       socketstream sol_sock_dv;
       common::VisualizeField(sol_sock_dv, vishost, visport, distance_v,
                              "Directions", 2*size, 0, size, size,
-                             "rRjmm********vve");
+                             "rRjmm********vveA");
    }
 
-   // Paraview output.
+   // ParaView output.
    ParaViewDataCollection dacol("ParaViewDistance", &pmesh);
    dacol.SetLevelsOfDetail(order);
    dacol.RegisterField("filtered_level_set", &filt_gf);

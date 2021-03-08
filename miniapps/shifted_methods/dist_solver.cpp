@@ -117,6 +117,7 @@ void DistanceSolver::ComputeVectorDistance(Coefficient &zero_level_set,
    ScalarDistToVector(dist_s, distance);
 }
 
+
 void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
                                                ParGridFunction &distance)
 {
@@ -278,6 +279,7 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
    }
 }
 
+
 void PLapDistanceSolver::ComputeScalarDistance(Coefficient &func,
                                                ParGridFunction &fdist)
 {
@@ -336,7 +338,7 @@ void PLapDistanceSolver::ComputeScalarDistance(Coefficient &func,
    ns.SetAbsTol(newton_abs_tol);
    ns.SetMaxIter(newton_iter);
 
-   Vector b; //RHS is zero
+   Vector b; // RHS is zero
    ns.Mult(b, *sv);
 
    for (int pp=3; pp<maxp; pp++)
@@ -362,6 +364,7 @@ void PLapDistanceSolver::ComputeScalarDistance(Coefficient &func,
    delete nf;
    delete sv;
 }
+
 
 double ScreenedPoisson::GetElementEnergy(const FiniteElement &el,
                                          ElementTransformation &trans,
@@ -407,7 +410,7 @@ double ScreenedPoisson::GetElementEnergy(const FiniteElement &el,
 
       energy = energy + w * ngrad2 * diffcoef * 0.5;
 
-      //add the external load -1 if fval > 0.0; 1 if fval < 0.0;
+      // add the external load -1 if fval > 0.0; 1 if fval < 0.0;
       pval=shapef*elfun;
 
       energy = energy + w * pval * pval * 0.5;
@@ -525,6 +528,7 @@ void ScreenedPoisson::AssembleElementGrad(const FiniteElement &el,
    }
 }
 
+
 double PUMPLaplacian::GetElementEnergy(const FiniteElement &el,
                                        ElementTransformation &trans,
                                        const Vector &elfun)
@@ -587,7 +591,7 @@ double PUMPLaplacian::GetElementEnergy(const FiniteElement &el,
 
       energy = energy + w * std::pow(ngrad2+ee*ee,pp/2.0)/pp;
 
-      //add the external load -1 if fval > 0.0; 1 if fval < 0.0;
+      // add the external load -1 if fval > 0.0; 1 if fval < 0.0;
       pval=shapef*elfun;
       if (tval>0.0)
       {
@@ -622,10 +626,10 @@ void PUMPLaplacian::AssembleElementVector(const FiniteElement &el,
    Vector vgrad(3);
 
    DenseMatrix dshape(ndof, ndim);
-   DenseMatrix B(ndof, ndim); //[diff_x,diff_y,diff_z]
+   DenseMatrix B(ndof, ndim); // [diff_x,diff_y,diff_z]
 
-   Vector qval(ndim); //[diff_x,diff_y,diff_z,u]
-   Vector lvec(ndof); //residual at ip
+   Vector qval(ndim); // [diff_x,diff_y,diff_z,u]
+   Vector lvec(ndof); // residual at ip
    Vector tmpv(ndof);
 
    B=0.0;
@@ -675,8 +679,8 @@ void PUMPLaplacian::AssembleElementVector(const FiniteElement &el,
       B.Mult(qval,lvec);
       elvect.Add(w * aa,lvec);
 
-      //add the load
-      //add the external load -1 if tval > 0.0; 1 if tval < 0.0;
+      // add the load
+      // add the external load -1 if tval > 0.0; 1 if tval < 0.0;
       if (tval>0.0)
       {
          elvect.Add( -w*fval , shapef);
@@ -706,9 +710,9 @@ void PUMPLaplacian::AssembleElementGrad(const FiniteElement &el,
    double fval;
    Vector vgrad(ndim);
 
-   Vector qval(ndim); //[diff_x,diff_y,diff_z,u]
+   Vector qval(ndim); // [diff_x,diff_y,diff_z,u]
    DenseMatrix dshape(ndof, ndim);
-   DenseMatrix B(ndof, ndim); //[diff_x,diff_y,diff_z]
+   DenseMatrix B(ndof, ndim); // [diff_x,diff_y,diff_z]
    Vector lvec(ndof);
    Vector tmpv(ndof);
 
@@ -761,6 +765,7 @@ void PUMPLaplacian::AssembleElementGrad(const FiniteElement &el,
       AddMult_a_AAt(w * aa1, B, elmat);
    }
 }
+
 
 void PDEFilter::Filter(Coefficient &func, ParGridFunction &ffield)
 {
