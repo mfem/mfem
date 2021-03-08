@@ -25,6 +25,24 @@ void f_exact(const Vector &x, Vector &f)
    }
 }
 
+struct HybridizationSolver : Solver
+{
+   Solver &solv;
+   Hybridization &h;
+   mutable Vector b_r, x_r;
+   HybridizationSolver(Solver &solv_, Hybridization &h_)
+   : Solver(solv_.Height()), solv(solv_), h(h_) { }
+   void SetOperator(const Operator&) { }
+   void Mult(const Vector &b, Vector &x) const
+   {
+      h.ReduceRHS(b, b_r);
+      x_r.SetSize(b_r.Size());
+      x_r = 0.0;
+      solv.Mult(b_r, x_r);
+      h.ComputeSolution(b, x_r, x);
+   }
+};
+
 struct PermutedSolver : Solver
 {
    Solver &solv;
@@ -156,12 +174,16 @@ int main(int argc, char *argv[])
    int ref_levels = 0;
    int order = 3;
    const char *fe = "n";
+   bool hybridization = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&ref_levels, "-r", "--refine", "Uniform refinements.");
    args.AddOption(&order, "-o", "--order", "Polynomial degree.");
    args.AddOption(&fe, "-fe", "--fe-type", "FE type. n for Hcurl, r for Hdiv");
+   args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
+                  "--no-hybridization", "Enable hybridization.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -170,10 +192,11 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   bool ND;
+   bool ND = false;
    if (string(fe) == "n") { ND = true; }
    else if (string(fe) == "r") { ND = false; }
    else { MFEM_ABORT("Bad FE type. Must be 'n' or 'r'."); }
+   bool RT = !ND;
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
@@ -182,7 +205,8 @@ int main(int argc, char *argv[])
    int btype = BasisType::GaussLobatto;
    Mesh mesh_lor(&mesh, order, btype);
 
-   unique_ptr<FiniteElementCollection> fec_ho, fec_lor;
+   unique_ptr<FiniteElementCollection> fec_ho, fec_lor, fec_h;
+   unique_ptr<FiniteElementSpace> fes_h;
    if (ND)
    {
       fec_ho.reset(new ND_FECollection(order, dim, BasisType::GaussLobatto, BasisType::Integrated));
@@ -192,7 +216,11 @@ int main(int argc, char *argv[])
    {
       fec_ho.reset(new RT_FECollection(order-1, dim, BasisType::GaussLobatto, BasisType::Integrated));
       fec_lor.reset(new RT_FECollection(0, dim, BasisType::GaussLobatto, BasisType::Integrated));
-
+      if (hybridization)
+      {
+         fec_h.reset(new DG_Interface_FECollection(0, dim));
+         fes_h.reset(new FiniteElementSpace(&mesh_lor, fec_h.get()));
+      }
    }
 
    FiniteElementSpace fes_ho(&mesh, fec_ho.get());
@@ -216,6 +244,10 @@ int main(int argc, char *argv[])
    {
       a_ho.AddDomainIntegrator(new DivDivIntegrator);
       a_lor.AddDomainIntegrator(new DivDivIntegrator);
+      if (hybridization)
+      {
+         a_lor.EnableHybridization(fes_h.get(), new NormalTraceJumpIntegrator, ess_tdof_list);
+      }
    }
    a_ho.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    a_ho.Assemble();
@@ -239,13 +271,26 @@ int main(int argc, char *argv[])
    a_ho.FormLinearSystem(ess_tdof_list, x_ho, b_ho, A_ho, X_ho, B_ho);
    a_lor.FormLinearSystem(ess_tdof_list, x_lor, b_lor, A_lor, X_lor, B_lor);
 
-   UMFPackSolver solv_lor;
-   solv_lor.SetOperator(*A_lor);
+   unique_ptr<UMFPackSolver> solv_direct;
+   unique_ptr<Solver> solv_lor;
+
+   if (RT && hybridization)
+   {
+      solv_direct.reset(new UMFPackSolver);
+      solv_direct->SetOperator(*A_lor);
+      solv_lor.reset(new HybridizationSolver(*solv_direct, *a_lor.GetHybridization()));
+   }
+   else
+   {
+      UMFPackSolver *direct_solver = new UMFPackSolver;
+      direct_solver->SetOperator(*A_lor);
+      solv_lor.reset(direct_solver);
+   }
 
    FiniteElement::MapType t = ND ? FiniteElement::H_CURL : FiniteElement::H_DIV;
    Array<int> perm = ComputeVectorFE_LORPermutation(fes_ho, fes_lor, t);
 
-   PermutedSolver solv_lor_perm(solv_lor, perm);
+   PermutedSolver solv_lor_perm(*solv_lor, perm);
 
    // Debug printing:
    // auto write_matlab = [](const char * fname, Operator &op)
