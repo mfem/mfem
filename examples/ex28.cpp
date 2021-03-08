@@ -3,7 +3,6 @@
 // Compile with: make ex28
 //
 // Sample runs:  ex28
-//               ex28 --visit-datafiles
 //               ex28 --order 2
 //
 // Description:  Demonstrates a sliding boundary condition in an elasticity
