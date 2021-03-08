@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -185,6 +185,9 @@ protected:
    MemAlloc <Tetrahedron, 1024> TetMemory;
 #endif
 
+   // used during NC mesh initialization only
+   Array<Triple<int, int, int> > tmp_vertex_parents;
+
 public:
    typedef Geometry::Constants<Geometry::SEGMENT>     seg_t;
    typedef Geometry::Constants<Geometry::TRIANGLE>    tri_t;
@@ -205,9 +208,6 @@ public:
    Array<GeometricFactors*> geom_factors; ///< Optional geometric factors.
    Array<FaceGeometricFactors*>
    face_geom_factors; ///< Optional face geometric factors.
-
-   /// Used during initialization only.
-   Array<Triple<int, int, int> > tmp_vertex_parents;
 
    // Global parameter that can be used to control the removal of unused
    // vertices performed when reading a mesh in MFEM format. The default value
@@ -234,13 +234,20 @@ protected:
 
    // Readers for different mesh formats, used in the Load() method.
    // The implementations of these methods are in mesh_readers.cpp.
-   void ReadMFEMMesh(std::istream &input, bool mfem_v11, int &curved);
+   void ReadMFEMMesh(std::istream &input, int version, int &curved);
    void ReadLineMesh(std::istream &input);
    void ReadNetgen2DMesh(std::istream &input, int &curved);
    void ReadNetgen3DMesh(std::istream &input);
    void ReadTrueGridMesh(std::istream &input);
+   void CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
+                      const Array<int> &cell_offsets,
+                      const Array<int> &cell_types,
+                      const Array<int> &cell_attributes,
+                      int &curved, int &read_gf, bool &finalize_topo);
    void ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
                     bool &finalize_topo);
+   void ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
+                        bool &finalize_topo);
    void ReadNURBSMesh(std::istream &input, int &curved, int &read_gf);
    void ReadInlineMesh(std::istream &input, bool generate_edges = false);
    void ReadGmshMesh(std::istream &input, int &curved, int &read_gf);
@@ -309,6 +316,9 @@ protected:
 
    /// Update the nodes of a curved mesh after refinement
    void UpdateNodes();
+
+   /// Helper to set vertex coordinates given a high-order curvature function.
+   void SetVerticesFromNodes(const GridFunction *nodes);
 
    void UniformRefinement2D_base(bool update_nodes = true);
 
@@ -1036,13 +1046,27 @@ public:
    }
    void GetFaceElements (int Face, int *Elem1, int *Elem2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2) const;
+   void GetFaceInfos (int Face, int *Inf1, int *Inf2, int *NCFace) const;
 
    Geometry::Type GetFaceGeometryType(int Face) const;
    Element::Type  GetFaceElementType(int Face) const;
 
-   /// Check the orientation of the elements
-   /** @return The number of elements with wrong orientation. */
+   /// Check (and optionally attempt to fix) the orientation of the elements
+   /** @param[in] fix_it  If `true`, attempt to fix the orientations of some
+                          elements: triangles, quads, and tets.
+       @return The number of elements with wrong orientation.
+
+       @note For meshes with nodes (e.g. high-order or periodic meshes), fixing
+       the element orientations may require additional permutation of the nodal
+       GridFunction of the mesh which is not performed by this method. Instead,
+       the method Finalize() should be used with the parameter
+       @a fix_orientation set to `true`.
+
+       @note This method performs a simple check if an element is inverted, e.g.
+       for most elements types, it checks if the Jacobian of the mapping from
+       the reference element is non-negative at the center of the element. */
    int CheckElementOrientation(bool fix_it = true);
+
    /// Check the orientation of the boundary elements
    /** @return The number of boundary elements with wrong orientation. */
    int CheckBdrElementOrientation(bool fix_it = true);

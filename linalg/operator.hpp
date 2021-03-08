@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -37,7 +37,8 @@ protected:
       const Array<int> &test_tdof_list,
       RectangularConstrainedOperator* &Aout);
 
-   /// Returns RAP Operator of this, taking in input/output Prolongation matrices
+   /** @brief Returns RAP Operator of this, using input/output Prolongation matrices
+       @a Pi corresponds to "P", @a Po corresponds to "Rt" */
    Operator *SetupRAP(const Operator *Pi, const Operator *Po);
 
 public:
@@ -112,6 +113,11 @@ public:
    {
       return GetProlongation(); // Assume square unless specialized
    }
+   /** @brief Transpose of GetOutputRestriction, directly available in this
+       form to facilitate matrix-free RAP-type operators.
+
+       `NULL` means identity. */
+   virtual const Operator *GetOutputRestrictionTranspose() const { return NULL; }
    /** @brief Restriction operator from output vectors for the operator to linear
        algebra (linear system) vectors. `NULL` means identity. */
    virtual const Operator *GetOutputRestriction() const
