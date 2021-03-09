@@ -877,10 +877,9 @@ IluPreconditioner::IluPreconditioner(
    if (factorization_type == "exact")
    {
       using ilu_fact_type = gko::factorization::Ilu<double, int>;
-      std::shared_ptr<ilu_fact_type::Factory> fact_factory = std::move(
-                                                                ilu_fact_type::build()
-                                                                .with_skip_sorting(skip_sort)
-                                                                .on(executor));
+      std::shared_ptr<ilu_fact_type::Factory> fact_factory = ilu_fact_type::build()
+                                                             .with_skip_sorting(skip_sort)
+                                                             .on(executor);
       precond_gen = gko::preconditioner::Ilu<>::build()
                     .with_factorization_factory(fact_factory)
                     .on(executor);
@@ -888,11 +887,10 @@ IluPreconditioner::IluPreconditioner(
    else
    {
       using ilu_fact_type = gko::factorization::ParIlu<double, int>;
-      std::shared_ptr<ilu_fact_type::Factory> fact_factory = std::move(
-                                                                ilu_fact_type::build()
-                                                                .with_iterations(static_cast<unsigned long>(sweeps))
-                                                                .with_skip_sorting(skip_sort)
-                                                                .on(executor));
+      std::shared_ptr<ilu_fact_type::Factory> fact_factory = ilu_fact_type::build()
+                                                             .with_iterations(static_cast<unsigned long>(sweeps))
+                                                             .with_skip_sorting(skip_sort)
+                                                             .on(executor);
       precond_gen = gko::preconditioner::Ilu<>::build()
                     .with_factorization_factory(fact_factory)
                     .on(executor);
@@ -912,24 +910,23 @@ IluIsaiPreconditioner::IluIsaiPreconditioner(
    using l_solver_type = gko::preconditioner::LowerIsai<>;
    using u_solver_type = gko::preconditioner::UpperIsai<>;
 
-   std::shared_ptr<l_solver_type::Factory> l_solver_factory = std::move(
-                                                                 l_solver_type::build()
-                                                                 .with_sparsity_power(sparsity_power)
-                                                                 .on(executor));
-   std::shared_ptr<u_solver_type::Factory> u_solver_factory = std::move(
-                                                                 u_solver_type::build()
-                                                                 .with_sparsity_power(sparsity_power)
-                                                                 .on(executor));
+   std::shared_ptr<l_solver_type::Factory> l_solver_factory =
+      l_solver_type::build()
+      .with_sparsity_power(sparsity_power)
+      .on(executor);
+   std::shared_ptr<u_solver_type::Factory> u_solver_factory =
+      u_solver_type::build()
+      .with_sparsity_power(sparsity_power)
+      .on(executor);
 
 
 
    if (factorization_type == "exact")
    {
       using ilu_fact_type = gko::factorization::Ilu<double, int>;
-      std::shared_ptr<ilu_fact_type::Factory> fact_factory = std::move(
-                                                                ilu_fact_type::build()
-                                                                .with_skip_sorting(skip_sort)
-                                                                .on(executor));
+      std::shared_ptr<ilu_fact_type::Factory> fact_factory = ilu_fact_type::build()
+                                                             .with_skip_sorting(skip_sort)
+                                                             .on(executor);
       precond_gen = gko::preconditioner::Ilu<l_solver_type,
       u_solver_type>::build()
       .with_factorization_factory(fact_factory)
@@ -941,11 +938,10 @@ IluIsaiPreconditioner::IluIsaiPreconditioner(
    else
    {
       using ilu_fact_type = gko::factorization::ParIlu<double, int>;
-      std::shared_ptr<ilu_fact_type::Factory> fact_factory = std::move(
-                                                                ilu_fact_type::build()
-                                                                .with_iterations(static_cast<unsigned long>(sweeps))
-                                                                .with_skip_sorting(skip_sort)
-                                                                .on(executor));
+      std::shared_ptr<ilu_fact_type::Factory> fact_factory = ilu_fact_type::build()
+                                                             .with_iterations(static_cast<unsigned long>(sweeps))
+                                                             .with_skip_sorting(skip_sort)
+                                                             .on(executor);
       precond_gen = gko::preconditioner::Ilu<l_solver_type,
       u_solver_type>::build()
       .with_factorization_factory(fact_factory)
@@ -969,11 +965,10 @@ IcPreconditioner::IcPreconditioner(
    if (factorization_type == "exact")
    {
       using ic_fact_type = gko::factorization::Ic<double, int>;
-      std::shared_ptr<ic_fact_type::Factory> fact_factory = std::move(
-                                                               ic_fact_type::build()
-                                                               .with_both_factors(false)
-                                                               .with_skip_sorting(skip_sort)
-                                                               .on(executor));
+      std::shared_ptr<ic_fact_type::Factory> fact_factory = ic_fact_type::build()
+                                                            .with_both_factors(false)
+                                                            .with_skip_sorting(skip_sort)
+                                                            .on(executor);
       precond_gen = gko::preconditioner::Ic<>::build()
                     .with_factorization_factory(fact_factory)
                     .on(executor);
@@ -981,12 +976,11 @@ IcPreconditioner::IcPreconditioner(
    else
    {
       using ic_fact_type = gko::factorization::ParIc<double, int>;
-      std::shared_ptr<ic_fact_type::Factory> fact_factory = std::move(
-                                                               ic_fact_type::build()
-                                                               .with_both_factors(false)
-                                                               .with_iterations(static_cast<unsigned long>(sweeps))
-                                                               .with_skip_sorting(skip_sort)
-                                                               .on(executor));
+      std::shared_ptr<ic_fact_type::Factory> fact_factory = ic_fact_type::build()
+                                                            .with_both_factors(false)
+                                                            .with_iterations(static_cast<unsigned long>(sweeps))
+                                                            .with_skip_sorting(skip_sort)
+                                                            .on(executor);
       precond_gen = gko::preconditioner::Ic<>::build()
                     .with_factorization_factory(fact_factory)
                     .on(executor);
@@ -1004,18 +998,17 @@ IcIsaiPreconditioner::IcIsaiPreconditioner(
 {
 
    using l_solver_type = gko::preconditioner::LowerIsai<>;
-   std::shared_ptr<l_solver_type::Factory> l_solver_factory = std::move(
-                                                                 l_solver_type::build()
-                                                                 .with_sparsity_power(sparsity_power)
-                                                                 .on(executor));
+   std::shared_ptr<l_solver_type::Factory> l_solver_factory =
+      l_solver_type::build()
+      .with_sparsity_power(sparsity_power)
+      .on(executor);
    if (factorization_type == "exact")
    {
       using ic_fact_type = gko::factorization::Ic<double, int>;
-      std::shared_ptr<ic_fact_type::Factory> fact_factory = std::move(
-                                                               ic_fact_type::build()
-                                                               .with_both_factors(false)
-                                                               .with_skip_sorting(skip_sort)
-                                                               .on(executor));
+      std::shared_ptr<ic_fact_type::Factory> fact_factory = ic_fact_type::build()
+                                                            .with_both_factors(false)
+                                                            .with_skip_sorting(skip_sort)
+                                                            .on(executor);
       precond_gen = gko::preconditioner::Ic<l_solver_type>::build()
                     .with_factorization_factory(fact_factory)
                     .with_l_solver_factory(l_solver_factory)
@@ -1024,12 +1017,11 @@ IcIsaiPreconditioner::IcIsaiPreconditioner(
    else
    {
       using ic_fact_type = gko::factorization::ParIc<double, int>;
-      std::shared_ptr<ic_fact_type::Factory> fact_factory = std::move(
-                                                               ic_fact_type::build()
-                                                               .with_both_factors(false)
-                                                               .with_iterations(static_cast<unsigned long>(sweeps))
-                                                               .with_skip_sorting(skip_sort)
-                                                               .on(executor));
+      std::shared_ptr<ic_fact_type::Factory> fact_factory = ic_fact_type::build()
+                                                            .with_both_factors(false)
+                                                            .with_iterations(static_cast<unsigned long>(sweeps))
+                                                            .with_skip_sorting(skip_sort)
+                                                            .on(executor);
       precond_gen = gko::preconditioner::Ic<l_solver_type>::build()
                     .with_factorization_factory(fact_factory)
                     .with_l_solver_factory(l_solver_factory)
