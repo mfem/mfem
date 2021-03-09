@@ -2044,10 +2044,12 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
             new L2_TetrahedronElement(p, btype);
          L2_Elements[Geometry::CUBE] = new L2_HexahedronElement(p, btype);
          L2_Elements[Geometry::PRISM] = new L2_WedgeElement(p, btype);
+         L2_Elements[Geometry::PYRAMID] = new L2_PyramidElement(p, btype);
       }
       L2_Elements[Geometry::TETRAHEDRON]->SetMapType(map_type);
       L2_Elements[Geometry::CUBE]->SetMapType(map_type);
       L2_Elements[Geometry::PRISM]->SetMapType(map_type);
+      L2_Elements[Geometry::PYRAMID]->SetMapType(map_type);
       // Trace element use the default Gauss-Legendre nodal points for positive basis
       if (b_type == BasisType::Positive)
       {
@@ -2063,7 +2065,9 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
       const int TetDof = L2_Elements[Geometry::TETRAHEDRON]->GetDof();
       const int HexDof = L2_Elements[Geometry::CUBE]->GetDof();
       const int PriDof = L2_Elements[Geometry::PRISM]->GetDof();
-      const int MaxDof = std::max(TetDof, std::max(PriDof, HexDof));
+      const int PyrDof = L2_Elements[Geometry::PYRAMID]->GetDof();
+      const int MaxDof = std::max(std::max(TetDof, PyrDof),
+                                  std::max(PriDof, HexDof));
 
       TetDofOrd[0] = new int[24*TetDof];
       for (int i = 1; i < 24; i++)

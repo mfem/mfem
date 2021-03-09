@@ -2867,6 +2867,25 @@ public:
                            DenseMatrix &dshape) const;
 };
 
+/// Arbitrary order L2 elements in 3D on a pyramid
+class L2_PyramidElement : public NodalFiniteElement
+{
+private:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_x, shape_y, shape_z, u;
+   mutable DenseMatrix du;
+#endif
+   DenseMatrixInverse Ti;
+
+public:
+   /// Construct the L2_PyramidElement of order @a p and BasisType @a btype
+   L2_PyramidElement(const int p,
+                     const int btype = BasisType::GaussLegendre);
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+};
+
 /// A 0th order L2 element on a Wedge
 class P0WedgeFiniteElement : public L2_WedgeElement
 {
