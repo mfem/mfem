@@ -36,8 +36,8 @@ public:
    AlgebraicCoarseSpace(FiniteElementSpace &fine_fes, CeedElemRestriction fine_er,
                         int order, int dim, int order_reduction_);
    int GetOrderReduction() const { return order_reduction; }
-   const CeedElemRestriction GetCeedElemRestriction() const { return ceed_elem_restriction; }
-   const CeedBasis GetCeedCoarseToFine() const { return coarse_to_fine; }
+   CeedElemRestriction GetCeedElemRestriction() const { return ceed_elem_restriction; }
+   CeedBasis GetCeedCoarseToFine() const { return coarse_to_fine; }
    virtual const mfem::Operator *GetProlongationMatrix() const override { return NULL; }
    virtual const SparseMatrix *GetRestrictionMatrix() const override { return NULL; }
    ~AlgebraicCoarseSpace();
