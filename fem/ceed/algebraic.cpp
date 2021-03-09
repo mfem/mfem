@@ -933,12 +933,17 @@ AlgebraicSolver::AlgebraicSolver(BilinearForm &form,
                                  const Array<int>& ess_tdofs)
 {
    MFEM_VERIFY(DeviceCanUseCeed(),
-               "This object requires a Ceed device");
+               "AlgebraicSolver requires a Ceed device");
+   MFEM_VERIFY(form.GetAssemblyLevel() == AssemblyLevel::PARTIAL ||
+               form.GetAssemblyLevel() == AssemblyLevel::NONE,
+               "AlgebraicSolver requires partial assembly or fully matrix-free.");
+   MFEM_VERIFY(UsesTensorBasis(*form.FESpace()),
+               "AlgebraicSolver requires tensor product basis functions.");
 #ifdef MFEM_USE_CEED
    fespaces = new AlgebraicSpaceHierarchy(*form.FESpace());
    multigrid = new AlgebraicMultigrid(*fespaces, form, ess_tdofs);
 #else
-   MFEM_ABORT("This object requires Ceed support");
+   MFEM_ABORT("AlgebraicSolver requires Ceed support");
 #endif
 }
 
