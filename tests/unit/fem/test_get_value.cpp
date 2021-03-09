@@ -3813,7 +3813,8 @@ TEST_CASE("3D GetGradient",
 
          SECTION("Domain Evaluation 3D")
          {
-            std::cout << "Domain Evaluation 3D" << std::endl;
+            std::cout << "Domain Evaluation 3D for element type "
+                      << std::to_string(type) << std::endl;
             for (int e = 0; e < mesh.GetNE(); e++)
             {
                ElementTransformation *T = mesh.GetElementTransformation(e);
