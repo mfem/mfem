@@ -27,7 +27,7 @@ int main(int argc, char *argv[])
    bool visualization = 1;
    int sr = 1;
    int pr = 1;
-   double rnum;
+   double rnum=1.0;
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -76,9 +76,15 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
 
+   int btype = BasisType::GaussLobatto;
+   ParMesh pmesh_lor(pmesh, order, btype);
+
    // 6. Define a parallel finite element space on the parallel mesh.
    FiniteElementCollection *fec = new H1_FECollection(order,dim); 
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
+
+   FiniteElementCollection *fec_lor = new H1_FECollection(1,dim); 
+   ParFiniteElementSpace *fespace_lor = new ParFiniteElementSpace(&pmesh_lor, fec_lor);
 
    // (f,q)
    ParLinearForm b(fespace);
@@ -87,6 +93,7 @@ int main(int argc, char *argv[])
 
 
    ParBilinearForm a(fespace);
+   ParBilinearForm a_lor(fespace_lor);
    ParBilinearForm aprec(fespace);
    ConstantCoefficient one(1.0);
    ConstantCoefficient omeg(-omega*omega);
@@ -94,6 +101,9 @@ int main(int argc, char *argv[])
    // (grad u, grad v) - \omega^2 (u,v)
    a.AddDomainIntegrator(new DiffusionIntegrator(one));
    a.AddDomainIntegrator(new MassIntegrator(omeg));
+
+   a_lor.AddDomainIntegrator(new DiffusionIntegrator(one));
+   a_lor.AddDomainIntegrator(new MassIntegrator(omeg));
 
    aprec.AddDomainIntegrator(new DiffusionIntegrator(one));
    aprec.AddDomainIntegrator(new MassIntegrator(posomeg));
@@ -121,6 +131,7 @@ int main(int argc, char *argv[])
 
       b.Assemble();
       a.Assemble();
+      a_lor.Assemble();
       x.ProjectBdrCoefficient(p_ex,ess_bdr);      
 
       OperatorPtr A;
@@ -130,23 +141,41 @@ int main(int argc, char *argv[])
       // OperatorPtr M;
       // Array<int> ess_tdof_list1;
       // ess_tdof_list1 = ess_tdof_list;
+
+      a_lor.EliminateEssentialBC(ess_bdr,mfem::Matrix::DIAG_ONE);
+      a_lor.Finalize();
+      HypreParMatrix * A_lor = a_lor.ParallelAssemble();
+
       aprec.Assemble();
       aprec.EliminateEssentialBC(ess_bdr,mfem::Matrix::DIAG_ONE);
       aprec.Finalize();
-      // aprec.FormSystemMatrix(ess_tdof_list1,M);
+      // aprec.FormSystemMatrix(ess_tdof_list,M);
       HypreParMatrix * M = aprec.ParallelAssemble();
       
 
-      HypreBoomerAMG amg(*M);
-      amg.SetPrintLevel(0);
+
+      MUMPSSolver mumps_lor;
+      mumps_lor.SetOperator(*A_lor);
+      mumps_lor.SetPrintLevel(0);
+
+
+      // HypreBoomerAMG amg(*M);
+      // amg.SetPrintLevel(0);
+
+      StopWatch chrono;
+      chrono.Clear();
+      chrono.Start();
       GMRESSolver gmres(MPI_COMM_WORLD);
-      gmres.SetRelTol(0.0);
-      gmres.SetAbsTol(1e-6);
+      gmres.SetRelTol(1e-6);
+      gmres.SetAbsTol(0.0);
       gmres.SetMaxIter(2000);
       gmres.SetPrintLevel(1);
-      gmres.SetPreconditioner(amg);
       gmres.SetOperator(*A);
+      gmres.SetPreconditioner(mumps_lor);
+      // gmres.SetPreconditioner(amg);
       gmres.Mult(B, X);
+      chrono.Stop();
+      cout << "LOR exact - GMRES time " << chrono.RealTime() << endl;
 
       // MUMPSSolver mumps;
       // mumps.SetPrintLevel(0);
@@ -163,10 +192,11 @@ int main(int argc, char *argv[])
       pmesh->UniformRefinement();
       fespace->Update();
       a.Update();
+      aprec.Update();
       b.Update();
       x.Update();
    }
-   rates.Print();
+   rates.Print(true);
 
    // 10. Send the solution by socket to a GLVis server.
    if (visualization)
