@@ -2783,7 +2783,7 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    else if (type == Element::PYRAMID)
    {
       NElem *= 6;
-      NVert += nx * nx * nz;
+      NVert += nx * ny * nz;
    }
 
    InitMesh(3, 3, NVert, NElem, NBdrElem);
@@ -2876,7 +2876,7 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
                }
                else if (type == Element::PYRAMID)
                {
-                  ind[8] = VTXP(  x, y+1, z+1);
+                  ind[8] = VTXP(  x, y, z);
                   AddHexAsPyramids(ind, 1);
                }
                else
