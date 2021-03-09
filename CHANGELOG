@@ -15,6 +15,9 @@ Version 4.2.1 (development)
   as described in Barker and Kolev 2020 (https://doi.org/10.1002/nla.2348). See
   Example 3p and linalg/auxiliary.?pp.
 
+- Added AlgebraicCeedSolver that does matrix-free algebraic p-multigrid for
+  diffusion problems with the Ceed backend.
+
 - Added a new miniapp block-solvers that compares the performance of various
   solvers for mixed finite element discretization of the second order scalar
   elliptic equations. Currently available solvers in the miniapp include a
@@ -207,6 +210,9 @@ Linear and nonlinear solvers
 - Block arrays of parallel matrices can now be merged into a single parallel
   matrix with the function HypreParMatrixFromBlocks. This could be useful for
   solving block systems with parallel direct solvers such as STRUMPACK.
+
+- Added CUDA support for SUNDIALS ODE integrators. See the updated SUNDIALS
+  modification of Example 9/9p.
 
 - Added wrappers for hypre's flexible GMRES solver and the new parallel ILU
   preconditioner. The latter requires hypre version 2.19.0 or later.

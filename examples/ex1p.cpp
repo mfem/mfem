@@ -32,6 +32,7 @@
 //               mpirun -np 4 ex1p -pa -d occa-cuda
 //               mpirun -np 4 ex1p -pa -d raja-omp
 //               mpirun -np 4 ex1p -pa -d ceed-cpu
+//               mpirun -np 4 ex1p -pa -d ceed-cpu -o 4 -a
 //             * mpirun -np 4 ex1p -pa -d ceed-cuda
 //             * mpirun -np 4 ex1p -pa -d ceed-hip
 //               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared
@@ -53,6 +54,7 @@
 //               optional connection to the GLVis tool for visualization.
 
 #include "mfem.hpp"
+
 #include <fstream>
 #include <iostream>
 
@@ -62,10 +64,9 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   MPI_Session mpi;
+   int num_procs = mpi.WorldSize();
+   int myid = mpi.WorldRank();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
@@ -74,6 +75,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
+   bool algebraic_ceed = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -87,6 +89,8 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&algebraic_ceed, "-a", "--algebraic", "-no-a", "--no-algebraic",
+                  "Use algebraic Ceed solver");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -225,13 +229,21 @@ int main(int argc, char *argv[])
    {
       if (UsesTensorBasis(fespace))
       {
-         prec = new OperatorJacobiSmoother(a, ess_tdof_list);
+         if (algebraic_ceed)
+         {
+            prec = new ceed::AlgebraicSolver(a, ess_tdof_list);
+         }
+         else
+         {
+            prec = new OperatorJacobiSmoother(a, ess_tdof_list);
+         }
       }
    }
    else
    {
       prec = new HypreBoomerAMG;
    }
+
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(1e-12);
    cg.SetMaxIter(2000);
@@ -277,7 +289,6 @@ int main(int argc, char *argv[])
    {
       delete fec;
    }
-   MPI_Finalize();
 
    return 0;
 }

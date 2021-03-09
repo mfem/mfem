@@ -469,6 +469,9 @@ static void CeedDeviceSetup(const char* ceed_spec)
                 "libCEED is not using the requested backend!!!\n"
                 "WARNING!!!\n" << std::endl;
    }
+#ifdef MFEM_DEBUG
+   CeedSetErrorHandler(internal::ceed, CeedErrorStore);
+#endif
 #else
    MFEM_CONTRACT_VAR(ceed_spec);
 #endif
