@@ -44,4 +44,14 @@ add_mfem_miniapp(parheat
      ${MTOP_COMMON_FILES} 
      LIBRARIES mfem)
 
+add_mfem_miniapp(paradvec
+     MAIN paradvec.cpp
+     ${MTOP_COMMON_FILES}
+     LIBRARIES mfem)
+
+add_mfem_miniapp(meshr01
+     MAIN meshr01.cpp
+     ${MTOP_COMMON_FILES}
+     LIBRARIES mfem)
+
 endif ()

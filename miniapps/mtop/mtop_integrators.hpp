@@ -175,6 +175,260 @@ private:
     BaseQFunction& qfun;
 };
 
+namespace PointHeavisideProj
+{
+
+inline
+double Project(double rho, double eta, double beta)
+{
+    // tanh projection - Wang&Lazarov&Sigmund2011
+    double a=std::tanh(eta*beta);
+    double b=std::tanh(beta*(1.0-eta));
+    double c=std::tanh(beta*(rho-eta));
+    double rez=(a+c)/(a+b);
+    return rez;
+}
+
+inline
+double Grad(double rho, double eta, double beta)
+
+{
+    double c=std::tanh(beta*(rho-eta));
+    double a=std::tanh(eta*beta);
+    double b=std::tanh(beta*(1.0-eta));
+    double rez=beta*(1.0-c*c)/(a+b);
+    return rez;
+}
+
+inline
+double Hess(double rho,double eta, double beta)
+{
+    double c=std::tanh(beta*(rho-eta));
+    double a=std::tanh(eta*beta);
+    double b=std::tanh(beta*(1.0-eta));
+    double rez=-2.0*beta*beta*c*(1.0-c*c)/(a+b);
+    return rez;
+}
+
+}
+
+class QAdvectionDiffusionLSFEM:public BaseQFunction
+{
+public:
+    QAdvectionDiffusionLSFEM(mfem::VectorCoefficient& difft, mfem::Coefficient& muco,
+                        mfem::Coefficient& loadc, double pp=1.0, double minrho=1e-7,
+                        double betac=4.0, double etac=0.5):dtensor(difft), muc(muco),
+                        load(loadc), power_co(pp), rho_min(minrho), beta_co(betac),
+                        eta_co(etac)
+    {
+
+    }
+
+    virtual std::string GetType() override
+    {
+        return "QAdvectionDiffusionLSFEM";
+    }
+
+    //return the value of the Lagrangian at an integration point
+    //the parameters are ordered as follows
+    //dd[0] = density
+    //dd[1] = velocity_x
+    //dd[2] = velocity_y
+    //dd[3] = velocity_z
+    //the state variables are ordered as follows
+    //uu[0] = u
+    //uu[1] = grad_x(u)
+    //uu[2] = grad_y(u)
+    //uu[3] = grad_z(u)
+    //uu[4] = flux_x [q_x]
+    //uu[5] = flux_y [q_y]
+    //uu[6] = flux_z [q_z]
+    //uu[7] = div(q)
+    virtual
+    double QEnergy(ElementTransformation &T, const IntegrationPoint &ip,
+                   Vector &dd, Vector &uu) override;
+
+    virtual
+    void QResidual(ElementTransformation &T, const IntegrationPoint &ip,
+                   Vector &dd, Vector &uu, Vector &rr) override;
+
+    virtual
+    void AQResidual(ElementTransformation &T, const IntegrationPoint &ip,
+                   Vector &dd, Vector &uu, Vector &aa, Vector &rr) override;
+
+    virtual
+    void QGradResidual(ElementTransformation &T, const IntegrationPoint &ip,
+                       Vector &dd, Vector &uu, DenseMatrix &hh) override;
+
+private:
+    mfem::VectorCoefficient& dtensor;
+    mfem::Coefficient& muc;
+    mfem::Coefficient& load;
+    double power_co;
+    double rho_min;
+    double beta_co;
+    double eta_co;
+
+};
+
+
+
+class QAdvectionDiffusion:public BaseQFunction
+{
+public:
+    QAdvectionDiffusion(mfem::VectorCoefficient& difft, mfem::Coefficient& muco,
+                        mfem::Coefficient& loadc, double pp=1.0, double minrho=1e-7,
+                        double betac=4.0, double etac=0.5):dtensor(difft), muc(muco),
+                        load(loadc), power_co(pp), rho_min(minrho), beta_co(betac),
+                        eta_co(etac)
+    {
+
+    }
+
+    virtual std::string GetType() override
+    {
+        return "QAdvectionDiffusion";
+    }
+
+    //return the value of the Lagrangian at an integration point
+    //the parameters are ordered as follows
+    //dd[0] = density
+    //dd[1] = velocity_x
+    //dd[2] = velocity_y
+    //dd[3] = velocity_z
+    //the state variables are ordered as follows
+    //uu[0] = u
+    //uu[1] = grad_x(u)
+    //uu[2] = grad_y(u)
+    //uu[3] = grad_z(u)
+    //uu[4] = flux_x [q_x]
+    //uu[5] = flux_y [q_y]
+    //uu[6] = flux_z [q_z]
+    //uu[7] = div(q)
+    //uu[8] = x (Lagrange multiplier)
+    virtual
+    double QEnergy(ElementTransformation &T, const IntegrationPoint &ip,
+                   Vector &dd, Vector &uu) override;
+
+    virtual
+    void QResidual(ElementTransformation &T, const IntegrationPoint &ip,
+                   Vector &dd, Vector &uu, Vector &rr) override;
+
+    virtual
+    void AQResidual(ElementTransformation &T, const IntegrationPoint &ip,
+                   Vector &dd, Vector &uu, Vector &aa, Vector &rr) override;
+
+    virtual
+    void QGradResidual(ElementTransformation &T, const IntegrationPoint &ip,
+                       Vector &dd, Vector &uu, DenseMatrix &hh) override;
+
+
+private:
+    mfem::VectorCoefficient& dtensor;
+    mfem::Coefficient& muc;
+    mfem::Coefficient& load;
+    double power_co;
+    double rho_min;
+    double beta_co;
+    double eta_co;
+
+};
+
+
+class ParametricAdvecDiffusLSFEM: public ParametricBNLFormIntegrator
+{
+
+public:
+
+    ParametricAdvecDiffusLSFEM(BaseQFunction& qfunm): qfun(qfunm)
+    {
+
+    }
+
+    virtual
+    double GetElementEnergy(const Array<const FiniteElement *> &el,
+                            const Array<const FiniteElement *> &pel,
+                            ElementTransformation &Tr,
+                            const Array<const Vector *> &elfun,
+                            const Array<const Vector *> &pelfun) override;
+
+    virtual
+    void AssembleElementVector(const Array<const FiniteElement *> &el,
+                               const Array<const FiniteElement *> &pel,
+                               ElementTransformation &Tr,
+                               const Array<const Vector *> &elfun,
+                               const Array<const Vector *> &pelfun,
+                               const Array<Vector *> &elvec) override;
+
+    virtual
+    void AssembleElementGrad(const Array<const FiniteElement *> &el,
+                             const Array<const FiniteElement *> &pel,
+                             ElementTransformation &Tr,
+                             const Array<const Vector *> &elfun,
+                             const Array<const Vector *> &pelfun,
+                             const Array2D<DenseMatrix *> &elmats) override;
+
+    virtual
+    void AssemblePrmElementVector(const Array<const FiniteElement *> &el,
+                                  const Array<const FiniteElement *> &pel,
+                                  ElementTransformation &Tr,
+                                  const Array<const Vector *> &elfun,
+                                  const Array<const Vector *> &alfun,
+                                  const Array<const Vector *> &pelfun,
+                                  const Array<Vector *> &elvec) override;
+private:
+    BaseQFunction& qfun;
+
+};
+
+
+class ParametricAdvecDiffusIntegrator: public ParametricBNLFormIntegrator
+{
+
+public:
+    ParametricAdvecDiffusIntegrator(BaseQFunction& qfunm): qfun(qfunm)
+    {
+
+    }
+
+    /// Compute the local energy
+    virtual
+    double GetElementEnergy(const Array<const FiniteElement *> &el,
+                            const Array<const FiniteElement *> &pel,
+                            ElementTransformation &Tr,
+                            const Array<const Vector *> &elfun,
+                            const Array<const Vector *> &pelfun) override;
+
+    virtual
+    void AssembleElementVector(const Array<const FiniteElement *> &el,
+                               const Array<const FiniteElement *> &pel,
+                               ElementTransformation &Tr,
+                               const Array<const Vector *> &elfun,
+                               const Array<const Vector *> &pelfun,
+                               const Array<Vector *> &elvec) override;
+
+    virtual
+    void AssembleElementGrad(const Array<const FiniteElement *> &el,
+                             const Array<const FiniteElement *> &pel,
+                             ElementTransformation &Tr,
+                             const Array<const Vector *> &elfun,
+                             const Array<const Vector *> &pelfun,
+                             const Array2D<DenseMatrix *> &elmats) override;
+
+    virtual
+    void AssemblePrmElementVector(const Array<const FiniteElement *> &el,
+                                  const Array<const FiniteElement *> &pel,
+                                  ElementTransformation &Tr,
+                                  const Array<const Vector *> &elfun,
+                                  const Array<const Vector *> &alfun,
+                                  const Array<const Vector *> &pelfun,
+                                  const Array<Vector *> &elvec) override;
+private:
+    BaseQFunction& qfun;
+
+
+};
+
 
 // Computes an example of nonlinear objective
 // \int(field*field*weight)d\Omega_e
@@ -182,7 +436,7 @@ class DiffusionObjIntegrator:public BlockNonlinearFormIntegrator
 {
 public:
 
-    DiffusionObjIntegrator()
+    DiffusionObjIntegrator(double p=2.0):ppc(p)
     {
 
     }
@@ -197,7 +451,134 @@ public:
                                ElementTransformation &Tr,
                                const Array<const Vector *> &elfun,
                                const Array<Vector *> &elvec) override;
+
+private:
+    double ppc;
 };
+
+
+class ThermalComplianceIntegrator: public BlockNonlinearFormIntegrator
+{
+public:
+     ThermalComplianceIntegrator(mfem::Coefficient& inp):load(inp)
+     {}
+
+     virtual
+     double GetElementEnergy(const Array<const FiniteElement *> &el,
+                             ElementTransformation &Tr,
+                             const Array<const Vector *> &elfun) override;
+
+     virtual
+     void AssembleElementVector(const Array<const FiniteElement *> &el,
+                                ElementTransformation &Tr,
+                                const Array<const Vector *> &elfun,
+                                const Array<Vector *> &elvec) override;
+
+private:
+     mfem::Coefficient& load;
+
+};
+
+// Formulation for the ScreenedPoisson equation integrator for filtering
+// in topology optimization. The input is assumed to be between 0 and 1.
+// The parameter rh is the radius of a linear cone filter which will
+// deliver similar smoothing effect as the Screened Poisson equation.
+// It determines the length scale of the smoothing.
+class FScreenedPoisson: public NonlinearFormIntegrator
+{
+protected:
+   double diffcoef;
+   Coefficient *func;
+
+public:
+   FScreenedPoisson(Coefficient &nfunc, double rh):func(&nfunc)
+   {
+      double rd=rh/(2*std::sqrt(3.0));
+      diffcoef= rd*rd;
+   }
+
+   ~FScreenedPoisson() { }
+
+   void SetInput(Coefficient &nfunc) { func = &nfunc; }
+
+   virtual double GetElementEnergy(const FiniteElement &el,
+                                   ElementTransformation &trans,
+                                   const Vector &elfun) override;
+
+   virtual void AssembleElementVector(const FiniteElement &el,
+                                      ElementTransformation &trans,
+                                      const Vector &elfun,
+                                      Vector &elvect) override;
+
+   virtual void AssembleElementGrad(const FiniteElement &el,
+                                    ElementTransformation &trans,
+                                    const Vector &elfun,
+                                    DenseMatrix &elmat) override;
+};
+
+
+// Low-pass filter based on the Screened Poisson equation.
+// B. S. Lazarov, O. Sigmund: "Filters in topology optimization based on
+// Helmholtz-type differential equations", DOI:10.1002/nme.3072.
+class PDEFilterTO
+{
+public:
+   PDEFilterTO(ParMesh &mesh, double rh, int order = 2,
+             int maxiter=100, double rtol=1e-7, double atol=1e-15, int print_lv=0)
+      : rr(rh),
+        fecp(order, mesh.Dimension()),
+        fesp(&mesh, &fecp, 1),
+        gf(&fesp)
+   {
+      sv = fesp.NewTrueDofVector();
+
+      nf = new ParNonlinearForm(&fesp);
+      prec = new HypreBoomerAMG();
+      prec->SetPrintLevel(print_lv);
+
+      gmres = new GMRESSolver(mesh.GetComm());
+
+      gmres->SetAbsTol(atol);
+      gmres->SetRelTol(rtol);
+      gmres->SetMaxIter(maxiter);
+      gmres->SetPrintLevel(print_lv);
+      gmres->SetPreconditioner(*prec);
+
+      sint=nullptr;
+   }
+
+   ~PDEFilterTO()
+   {
+      delete gmres;
+      delete prec;
+      delete nf;
+      delete sv;
+   }
+
+   void Filter(ParGridFunction &func, ParGridFunction &ffield)
+   {
+      GridFunctionCoefficient gfc(&func);
+      Filter(gfc, ffield);
+   }
+
+   void Filter(Coefficient &func, ParGridFunction &ffield);
+
+private:
+   const double rr;
+   H1_FECollection fecp;
+   ParFiniteElementSpace fesp;
+   ParGridFunction gf;
+
+   ParNonlinearForm* nf;
+   HypreBoomerAMG* prec;
+   GMRESSolver *gmres;
+   HypreParVector *sv;
+
+   FScreenedPoisson* sint;
+};
+
+
+
 
 }
 

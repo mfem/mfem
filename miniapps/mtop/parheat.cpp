@@ -223,7 +223,7 @@ int main(int argc, char *argv[])
    // representing the objective - use the state array from the BNLForm
    mfem::ParBlockNonlinearForm* ob=new mfem::ParBlockNonlinearForm(asfes);
    // Add the integrator for the objective
-   ob->AddDomainIntegrator(new mfem::DiffusionObjIntegrator());
+   ob->AddDomainIntegrator(new mfem::DiffusionObjIntegrator(8));
 
    // Compute the objective
    double obj=ob->GetEnergy(solbv);
