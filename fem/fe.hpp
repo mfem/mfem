@@ -2554,7 +2554,9 @@ class H1_PyramidElement : public NodalFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
-   mutable Vector tmp_x, tmp_y, tmp_z;
+   mutable Vector shape_0, shape_1, shape_2;
+   mutable Vector dshape_0_0, dshape_1_0, dshape_2_0;
+   mutable Vector dshape_0_1, dshape_1_1, dshape_2_1;
    mutable Vector u;
    mutable DenseMatrix du;
    // mutable Vector shape_x, shape_y, shape_z;
@@ -2567,8 +2569,8 @@ private:
    static void calcBasis(const int p, const IntegrationPoint &ip,
                          double *tmp_x, double *tmp_y, double *tmp_z,
                          double *u);
-   static void calcDBasis(const int p, const IntegrationPoint &ip,
-                          DenseMatrix &du);
+   // static void calcDBasis(const int p, const IntegrationPoint &ip,
+   //                      DenseMatrix &du);
 
    static inline double lam0(const double x, const double y, const double z)
    { return (z < 1.0) ? (1.0 - x - z) * (1.0 - y - z) / (1.0 - z): 0.0; }
@@ -2581,28 +2583,64 @@ private:
    static inline double lam4(const double x, const double y, const double z)
    { return z; }
 
+   static void grad_lam0(const double x, const double y, const double z,
+                         double du[]);
+   static void grad_lam1(const double x, const double y, const double z,
+                         double du[]);
+   static void grad_lam2(const double x, const double y, const double z,
+                         double du[]);
+   static void grad_lam3(const double x, const double y, const double z,
+                         double du[]);
+   static void grad_lam4(const double x, const double y, const double z,
+                         double du[]);
+
    static inline double mu0(const double x) { return 1.0 - x; }
    static inline double mu1(const double x) { return x; }
+
+   static inline double dmu0(const double x) { return -1.0; }
+   static inline double dmu1(const double x) { return 1.0; }
+
+
    static inline double nu0(const double x, const double y)
-   { return 1.0 - x - y;}
-   static inline double nu1(const double x, const double y) { return x;}
-   static inline double nu2(const double x, const double y) { return y;}
+   { return 1.0 - x - y; }
+   static inline double nu1(const double x, const double y) { return x; }
+   static inline double nu2(const double x, const double y) { return y; }
+
+   static inline void grad_nu0(const double x, const double y, double dnu[])
+   { dnu[0] = -1.0; dnu[1] = -1.0;}
+   static inline void grad_nu1(const double x, const double y, double dnu[])
+   { dnu[0] = 1.0; dnu[1] = 0.0;}
+   static inline void grad_nu2(const double x, const double y, double dnu[])
+   { dnu[0] = 0.0; dnu[1] = 1.0;}
 
    static void phi_E(const int p, const double s0, double s1, double *u);
+   static void phi_E(const int p, const double s0, double s1, double *u,
+                     double *duds0, double *duds1);
 
    static void calcScaledLegendre(const int p, const double x, const double t,
                                   double *u);
+   static void calcScaledLegendre(const int p, const double x, const double t,
+                                  double *u, double *dudx, double *dudt);
 
    static void calcIntegratedLegendre(const int p, const double x,
                                       const double t, double *u);
+   static void calcIntegratedLegendre(const int p, const double x,
+                                      const double t, double *u,
+                                      double *dudx, double *dudt);
 
    static void calcScaledJacobi(const int p, const double alpha,
                                 const double x, const double t,
                                 double *u);
+   static void calcScaledJacobi(const int p, const double alpha,
+                                const double x, const double t,
+                                double *u, double *dudx, double *dudt);
 
    static void calcIntegratedJacobi(const int p, const double alpha,
                                     const double x, const double t,
                                     double *u);
+   static void calcIntegratedJacobi(const int p, const double alpha,
+                                    const double x, const double t,
+                                    double *u, double *dudx, double *dudt);
 
 public:
    H1_PyramidElement(const int p,
