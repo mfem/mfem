@@ -11887,6 +11887,93 @@ void L2Pos_WedgeElement::CalcDShape(const IntegrationPoint &ip,
    }
 }
 
+L2_PyramidElement::L2_PyramidElement(const int p, const int btype)
+   : NodalFiniteElement(3, Geometry::PYRAMID, ((p + 1)*(p + 1)*(p + 1)),
+                        p, FunctionSpace::Pk)
+{
+   const double *op = poly1d.OpenPoints(p, VerifyNodal(VerifyOpen(btype)));
+
+#ifndef MFEM_THREAD_SAFE
+   shape_x.SetSize(p + 1);
+   shape_y.SetSize(p + 1);
+   shape_z.SetSize(p + 1);
+   u.SetSize(dof);
+#else
+   Vector shape_x(p + 1);
+   Vector shape_y(p + 1);
+   Vector shape_z(p + 1);
+#endif
+
+   int o = 0;
+   for (int k = 0; k <= p; k++)
+      for (int j = 0; j <= p; j++)
+         for (int i = 0; i <= p; i++)
+         {
+            Nodes.IntPoint(o++).Set3(op[i] * (1.0 - op[k]),
+                                     op[j] * (1.0 - op[k]),
+                                     op[k]);
+         }
+
+   MFEM_ASSERT(o == dof,
+               "Number of nodes does not match the "
+               "number of degrees of freedom");
+   DenseMatrix T(dof);
+
+   for (int m = 0; m < dof; m++)
+   {
+      const IntegrationPoint &ip = Nodes.IntPoint(m);
+      Poly_1D::CalcLegendre(p, ip.x / (1.0 - ip.z), shape_x);
+      Poly_1D::CalcLegendre(p, ip.y / (1.0 - ip.z), shape_y);
+      Poly_1D::CalcLegendre(p, ip.z, shape_z);
+      //calcBasis(order, ip, shape_x, shape_y, shape_z, T.GetColumn(m));
+      o = 0;
+      for (int k = 0; k <= p; k++)
+      {
+         for (int j = 0; j <= p; j++)
+         {
+            for (int i = 0; i <= p; i++, o++)
+            {
+               T(o, m) = shape_x[i] * shape_y[j] * shape_z[k];
+            }
+         }
+      }
+   }
+
+   Ti.Factor(T);
+}
+
+void L2_PyramidElement::CalcShape(const IntegrationPoint &ip,
+                                  Vector &shape) const
+{
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape_x(p + 1);
+   Vector shape_y(p + 1);
+   Vector shape_z(p + 1);
+   Vector u(dof);
+#endif
+
+   Poly_1D::CalcLegendre(p, ip.x / (1.0 - ip.z), shape_x);
+   Poly_1D::CalcLegendre(p, ip.y / (1.0 - ip.z), shape_y);
+   Poly_1D::CalcLegendre(p, ip.z, shape_z);
+
+   int o = 0;
+   for (int k = 0; k <= p; k++)
+      for (int j = 0; j <= p; j++)
+         for (int i = 0; i <= p; i++, o++)
+         {
+            u[o] = shape_x[i] * shape_y[j] * shape_z[k];
+         }
+   Ti.Mult(u, shape);
+}
+
+void L2_PyramidElement::CalcDShape(const IntegrationPoint &ip,
+                                   DenseMatrix &dshape) const
+{
+   dshape = 0.0;
+}
+
 
 const double RT_QuadrilateralElement::nk[8] =
 { 0., -1.,  1., 0.,  0., 1.,  -1., 0. };
