@@ -9,7 +9,9 @@
 using namespace std;
 using namespace mfem;
 
-void maxwell_solution(const Vector &x, std::vector<complex<double>> &sol);
+void maxwell_solution(const Vector &x, std::vector<complex<double>> & sol, 
+                                       std::vector<complex<double>> & curl,
+                                       std::vector<complex<double>> & curl2);
 
 void E_exact_re(const Vector &x, Vector &E);
 void H_exact_re(const Vector &x, Vector &H);
@@ -110,13 +112,13 @@ int main(int argc, char *argv[])
 
 
    VectorFunctionCoefficient E_ex_re(dim,E_exact_re);
-   VectorFunctionCoefficient E_ex_im(dim,E_exact_im);
    VectorFunctionCoefficient H_ex_re(dim,H_exact_re);
+   VectorFunctionCoefficient E_ex_im(dim,E_exact_im);
    VectorFunctionCoefficient H_ex_im(dim,H_exact_im);
 
    VectorFunctionCoefficient f_ex_re(dim,f_exact_re);
-   VectorFunctionCoefficient f_ex_im(dim,f_exact_im);
    VectorFunctionCoefficient g_ex_re(dim,g_exact_re);
+   VectorFunctionCoefficient f_ex_im(dim,f_exact_im);
    VectorFunctionCoefficient g_ex_im(dim,g_exact_im);
 
    int n = fespace->GetVSize();
@@ -144,8 +146,8 @@ int main(int argc, char *argv[])
    ParGridFunction E_gf_re, E_gf_im, H_gf_re, H_gf_im;
 
    E_gf_re.MakeRef(fespace,x.GetBlock(0)); E_gf_re = 0.0;
-   E_gf_im.MakeRef(fespace,x.GetBlock(1)); E_gf_im = 0.0;
-   H_gf_re.MakeRef(fespace,x.GetBlock(2)); H_gf_re = 0.0;
+   H_gf_re.MakeRef(fespace,x.GetBlock(1)); H_gf_re = 0.0;
+   E_gf_im.MakeRef(fespace,x.GetBlock(2)); E_gf_im = 0.0;
    H_gf_im.MakeRef(fespace,x.GetBlock(3)); H_gf_im = 0.0;
 
    // E_gf_re.ProjectBdrCoefficientTangent(E_ex_re,ess_bdr);
@@ -166,17 +168,15 @@ int main(int argc, char *argv[])
 
    // A = (curlE,curlF)+w^2(E,F)
    // B = w(curlH,F)+w(H,curF)
-   // C = -w(E,curlG)-w(curlE,G)
-   // D = (curlH,curlG)+w^2(H,G) 
    // b0 = w(J_im,F)
-   // b1 = -w(J_re,F)
-   // b2 = -(J_re,curlG)
-   // b3 = -(J_im,curlG)
+   // b1 = -(J_re,curlG)
+   // b2 = -w(J_re,G)
+   // b3 = -(J_im,G)
 
    // | A   0   0  -B |  | E_re |     | b0 |
-   // | 0   A   B   0 |  | E_im |  =  | b1 |
-   // | 0  -C   D   0 |  | H_re |     | b2 |
-   // | C   0   0   D |  | H_im |     | b3 |
+   // | 0   A   B   0 |  | H_re |  =  | b1 |
+   // | 0   B   A   0 |  | E_Im |     | b2 |
+   // |-B   0   0   A |  | H_im |     | b3 |
 
    ConstantCoefficient one(1.0);
    ConstantCoefficient negone(-1.0);
@@ -185,15 +185,14 @@ int main(int argc, char *argv[])
    ConstantCoefficient omeg2(omega * omega);
 
 
-
    // All these work with wrong sign
-   ScalarVectorProductCoefficient prod0(omeg,g_ex_im);
+   ScalarVectorProductCoefficient wJi(omeg,g_ex_im);
    // This should be -omega * g_ex_re
-   ScalarVectorProductCoefficient prod1(omeg,g_ex_re);
+   ScalarVectorProductCoefficient negJr(negone,g_ex_re);
    // This should be - g_ex_re
-   ScalarVectorProductCoefficient prod2(one,g_ex_re);
+   ScalarVectorProductCoefficient negwJr(negomeg,g_ex_re);
    // This should be - g_ex_im
-   ScalarVectorProductCoefficient prod3(one,g_ex_im);
+   ScalarVectorProductCoefficient negJi(negone,g_ex_im);
 
 
    ParLinearForm b0(fespace);
@@ -205,10 +204,10 @@ int main(int argc, char *argv[])
    b2.Update(fespace,rhs.GetBlock(2),0);
    b3.Update(fespace,rhs.GetBlock(3),0);
    
-   b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(prod0));
-   b1.AddDomainIntegrator(new VectorFEDomainLFIntegrator(prod1));
-   b2.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(prod2));
-   b3.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(prod3));
+   b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(wJi));
+   b1.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(negJr));
+   b2.AddDomainIntegrator(new VectorFEDomainLFIntegrator(negwJr));
+   b3.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(negJi));
    
    b0.Assemble();
    b1.Assemble();
@@ -245,7 +244,6 @@ int main(int argc, char *argv[])
    a11.AddDomainIntegrator(new CurlCurlIntegrator(one));
    a11.AddDomainIntegrator(new VectorFEMassIntegrator(omeg2));
    a11.Assemble();
-   a11.EliminateEssentialBC(ess_bdr,x.GetBlock(1),rhs.GetBlock(1),mfem::Operator::DIAG_ONE);
    a11.Finalize();
    Ah[1][1] = a11.ParallelAssemble();
 
@@ -253,7 +251,7 @@ int main(int argc, char *argv[])
    a12.AddDomainIntegrator(new MixedVectorCurlIntegrator(omeg));
    a12.AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(omeg));
    a12.Assemble();
-   a12.EliminateTestDofs(ess_bdr);
+   a12.EliminateTrialDofs(ess_bdr,x.GetBlock(2),rhs.GetBlock(1));
    a12.Finalize();
    Ah[1][2] = a12.ParallelAssemble();
 
@@ -261,7 +259,7 @@ int main(int argc, char *argv[])
    a21.AddDomainIntegrator(new MixedVectorCurlIntegrator(omeg));
    a21.AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(omeg));
    a21.Assemble();
-   a21.EliminateTrialDofs(ess_bdr,x.GetBlock(1),rhs.GetBlock(2));
+   a21.EliminateTestDofs(ess_bdr);
    a21.Finalize();
    Ah[2][1] = a21.ParallelAssemble();
    // Ah[2][1] = Ah[1][2]->Transpose();
@@ -271,12 +269,13 @@ int main(int argc, char *argv[])
    a22.AddDomainIntegrator(new CurlCurlIntegrator(one));
    a22.AddDomainIntegrator(new VectorFEMassIntegrator(omeg2));
    a22.Assemble();
+   a22.EliminateEssentialBC(ess_bdr,x.GetBlock(2),rhs.GetBlock(2),mfem::Operator::DIAG_ONE);
    a22.Finalize();
    Ah[2][2] = a22.ParallelAssemble();
 
    ParMixedBilinearForm a30(fespace,fespace);
-   a30.AddDomainIntegrator(new MixedVectorCurlIntegrator(omeg));
-   a30.AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(omeg));
+   a30.AddDomainIntegrator(new MixedVectorCurlIntegrator(negomeg));
+   a30.AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(negomeg));
    a30.Assemble();
    a30.EliminateTrialDofs(ess_bdr,x.GetBlock(0),rhs.GetBlock(3));
    a30.Finalize();
@@ -315,8 +314,8 @@ int main(int argc, char *argv[])
    H_gf_im = 0.0;
 
    E_gf_re.Distribute(&(X.GetBlock(0)));
-   E_gf_im.Distribute(&(X.GetBlock(1)));
-   H_gf_re.Distribute(&(X.GetBlock(2)));
+   H_gf_re.Distribute(&(X.GetBlock(1)));
+   E_gf_im.Distribute(&(X.GetBlock(2)));
    H_gf_im.Distribute(&(X.GetBlock(3)));
 
 
@@ -370,28 +369,84 @@ int main(int argc, char *argv[])
 }
 
 
-void maxwell_solution(const Vector &x, std::vector<complex<double>> &sol)
+void maxwell_solution(const Vector &X, std::vector<complex<double>> &sol, 
+                                       std::vector<complex<double>> &curl,
+                                       std::vector<complex<double>> &curl2)
 {
+   double x = X(0), y = X(1), z = X(2);
+
+   complex<double> zi(0,1);
+   sol[0] = y*(1.0-y)*z*(1.0-z) + zi * 2.0;
+   sol[1] = y*x*(1.0-x)*z*(1.0-z)+ zi * 2.0;
+   sol[2] = x*(1.0-x)*y*(1.0-y) + zi * 2.0;
+
+   curl[0] = (1.0-x)*x*(y*(2.0*z-3.0)+1.0);
+   curl[1] = 2.0*(1.0-y)*y*(x-z);
+   curl[2] = (z-1.0)*z*(y*(2*x-3)+1.0);
+
+   curl2[0] = (2.0*x-3.0)*(z-1.0)*z-2.0*y*y+2*y;
+   curl2[1] = -2.0*y*(x*x-x+(z-1.0)*z);
+   curl2[2] = 2*(x*(1.5-z)+x*x*(z-1.5)-y*y+y);
+
+   // sol[0] = 1.0 + 2.0*zi;
+   // sol[1] = 1.0 + 2.0*zi;
+   // sol[2] = 1.0 + 2.0*zi;
+   // curl[0] = 0.0;
+   // curl[1] =0.0;
+   // curl[2] =0.0;
+   // curl2[0] =0.0;
+   // curl2[1] =0.0;
+   // curl2[2] =0.0;  
 
 }
 
 void E_exact_re(const Vector &x, Vector &E)
 {
-   // try constant 
-   E = 1.0;
-   // E[0] = 1.0;
+   std::vector<complex<double>>sol(3);
+   std::vector<complex<double>>curl(3);
+   std::vector<complex<double>>curl2(3);
+   maxwell_solution(x,sol,curl,curl2);
+   for (int i=0; i<dim; i++)
+   {
+      E(i) = sol[i].real();
+   }
 }
 void H_exact_re(const Vector &x, Vector &H)
 {
-   H = 0.0;
+   complex<double> zi(0,1);
+   std::vector<complex<double>>sol(3);
+   std::vector<complex<double>>curl(3);
+   std::vector<complex<double>>curl2(3);
+   // H = i curlE / w 
+   maxwell_solution(x,sol,curl,curl2);
+   for (int i=0; i<dim; i++)
+   {
+      H[i] = (zi * curl[i]/omega).real();
+   }
 }
 void E_exact_im(const Vector &x, Vector &E)
 {
-   E = 2.0;
+   std::vector<complex<double>>sol(3);
+   std::vector<complex<double>>curl(3);
+   std::vector<complex<double>>curl2(3);
+   maxwell_solution(x,sol,curl,curl2);
+   for (int i=0; i<dim; i++)
+   {
+      E(i) = sol[i].imag();
+   }
 }
 void H_exact_im(const Vector &x, Vector &H)
 {
-   H = 0.0;
+   complex<double> zi(0,1);
+   std::vector<complex<double>>sol(3);
+   std::vector<complex<double>>curl(3);
+   std::vector<complex<double>>curl2(3);
+   // H = i curlE / w 
+   maxwell_solution(x,sol,curl,curl2);
+   for (int i=0; i<dim; i++)
+   {
+      H[i] = (zi * curl[i]/omega).imag();
+   }
 }
 
 void f_exact_re(const Vector &x, Vector &f)
@@ -401,8 +456,16 @@ void f_exact_re(const Vector &x, Vector &f)
 void g_exact_re(const Vector &x, Vector &g)
 {
    // J = i omega E - curl H 
-   g = 0.0;
-   g = 2*omega;
+   // J = - i / omega (curl curl E - omega * omega E)
+   complex<double> zi(0,1);
+   std::vector<complex<double>>sol(3);
+   std::vector<complex<double>>curl(3);
+   std::vector<complex<double>>curl2(3);
+   maxwell_solution(x,sol,curl,curl2);
+   for (int i=0; i<dim; i++)
+   {
+      g(i) = (-zi / omega *(curl2[i] - omega * omega * sol[i])).real();
+   }
 }
 void f_exact_im(const Vector &x, Vector &f)
 {
@@ -411,9 +474,16 @@ void f_exact_im(const Vector &x, Vector &f)
 void g_exact_im(const Vector &x, Vector &g)
 {
    // J = i omega E - curl H 
-   g = 0.0;
-   // g(0) = omega;
-   g = omega;
+   // J = - i / omega (curl curl E - omega * omega E)
+   complex<double> zi(0,1);
+   std::vector<complex<double>>sol(3);
+   std::vector<complex<double>>curl(3);
+   std::vector<complex<double>>curl2(3);
+   maxwell_solution(x,sol,curl,curl2);
+   for (int i=0; i<dim; i++)
+   {
+      g(i) = (-zi / omega *(curl2[i] - omega * omega * sol[i])).imag();
+   }
 }
 
 
