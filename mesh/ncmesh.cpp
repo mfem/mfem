@@ -162,7 +162,7 @@ NCMesh::NCMesh(const Mesh *mesh)
       const mfem::Element *be = mesh->GetBdrElement(i);
       const int *v = be->GetVertices();
 
-      Face* face;
+      Face* face = NULL;
       switch (be->GetType())
       {
          case mfem::Element::QUADRILATERAL:
