@@ -46,24 +46,27 @@ void GetInterdomainBoundaryPoints(OversetFindPointsGSLIB &finder,
                                   Array<int> ess_tdof_list,
                                   Array<int> &ess_tdof_list_int, int dim)
 {
-   int nb1 = ess_tdof_list.Size(),
-       nt1 = vxyz.Size()/dim;
+   int number_boundary = ess_tdof_list.Size(),
+       number_true = vxyz.Size()/dim;
 
-   Vector bnd1(nb1*dim);
-   Array<unsigned int> colorv(nb1);
-   for (int i = 0; i < nb1; i++)
+   Vector bnd(number_boundary*dim);
+   Array<unsigned int> colorv(number_boundary);
+   for (int i = 0; i < number_boundary; i++)
    {
       int idx = ess_tdof_list[i];
-      for (int d = 0; d < dim; d++) { bnd1(i+d*nb1) = vxyz(idx + d*nt1); }
+      for (int d = 0; d < dim; d++)
+      {
+         bnd(i+d*number_boundary) = vxyz(idx + d*number_true);
+      }
       colorv[i] = (unsigned int)color;
    }
 
-   finder.FindPoints(bnd1, colorv );
+   finder.FindPoints(bnd, colorv);
 
    const Array<unsigned int> &code_out = finder.GetCode();
 
    //Setup ess_tdof_list_int
-   for (int i = 0; i < nb1; i++)
+   for (int i = 0; i < number_boundary; i++)
    {
       int idx = ess_tdof_list[i];
       if (code_out[i] != 2) { ess_tdof_list_int.Append(idx); }
@@ -87,7 +90,6 @@ int main(int argc, char *argv[])
    mesh_file_list[1]         = "../../data/inline-quad.mesh";
    mesh_file_list[2]         = "../../data/inline-quad.mesh";
    int order                 = 2;
-   const char *device_config = "cpu";
    bool visualization        = true;
    rs_levels                 = 0;
    rp_levels                 = 0;
@@ -105,8 +107,6 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&device_config, "-d", "--device",
-                  "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -163,11 +163,6 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(np_list.Sum() == num_procs, " The individual mpi ranks for each"
                " of the meshes do not add up to"
                " the total ranks specified.");
-
-   // Enable hardware devices such as GPUs, and programming models such as
-   // CUDA, OCCA, RAJA and OpenMP based on command line options.
-   Device device(device_config);
-   if (myid == 0) { device.Print(); }
 
    // Read the mesh from the given mesh file. We can handle triangular,
    // quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
@@ -315,26 +310,30 @@ int main(int argc, char *argv[])
 
    // Use FindPointsGSLIB to interpolate the solution at interdomain boundary
    // points.
-   const int nb1 = ess_tdof_list_int.Size(),
-             nt1 = vxyz.Size()/dim;
+   const int number_boundary = ess_tdof_list_int.Size(),
+             number_true = vxyz.Size()/dim;
 
-   int nb1g = nb1;
-   MPI_Allreduce(&nb1, &nb1g, 1, MPI_INT, MPI_SUM, *comml);
-   MFEM_VERIFY(nb1g != 0, " Please use overlapping grids.");
+   int number_boundary_g = number_boundary;
+   MPI_Allreduce(&number_boundary, &number_boundary_g, 1, MPI_INT, MPI_SUM,
+                 *comml);
+   MFEM_VERIFY(number_boundary_g != 0, " Please use overlapping grids.");
 
    Array<unsigned int> colorv;
-   colorv.SetSize(nb1);
+   colorv.SetSize(number_boundary);
 
    MPI_Barrier(MPI_COMM_WORLD);
-   Vector bnd1(nb1*dim);
-   for (int i = 0; i < nb1; i++)
+   Vector bnd(number_boundary*dim);
+   for (int i = 0; i < number_boundary; i++)
    {
       int idx = ess_tdof_list_int[i];
-      for (int d = 0; d < dim; d++) { bnd1(i+d*nb1) = vxyz(idx + d*nt1); }
+      for (int d = 0; d < dim; d++)
+      {
+         bnd(i+d*number_boundary) = vxyz(idx + d*number_true);
+      }
       colorv[i] = (unsigned int)color;
    }
-   Vector interp_vals1(nb1);
-   finder.Interpolate(bnd1, colorv, x, interp_vals1);
+   Vector interp_vals1(number_boundary);
+   finder.Interpolate(bnd, colorv, x, interp_vals1);
 
    // Set up the bilinear form a(.,.) on the finite element space
    // corresponding to the Laplacian operator -Delta, by adding the Diffusion
@@ -391,7 +390,7 @@ int main(int argc, char *argv[])
       MPI_Allreduce(&xinf, &xinfg, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
       x.SetTrueVector();
       Vector xt = x.GetTrueVector();
-      for (int i = 0; i < nb1; i++)
+      for (int i = 0; i < number_boundary; i++)
       {
          int idx = ess_tdof_list_int[i];
          double dx = std::abs(xt(idx)-interp_vals1(i))/xinfg;

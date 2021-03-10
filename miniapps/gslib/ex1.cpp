@@ -42,9 +42,11 @@ using namespace mfem;
 // that are interior to another mesh.
 void GetInterdomainBoundaryPoints(FindPointsGSLIB &finder1,
                                   FindPointsGSLIB &finder2,
-                                  Vector &vxyz1,                  Vector &vxyz2,
-                                  Array<int> ess_tdof_list1,      Array<int> ess_tdof_list2,
-                                  Array<int> &ess_tdof_list1_int, Array<int> &ess_tdof_list2_int,
+                                  Vector &mesh_nodes_1, Vector &mesh_nodes_2,
+                                  Array<int> ess_tdof_list1,
+                                  Array<int> ess_tdof_list2,
+                                  Array<int> &ess_tdof_list1_int,
+                                  Array<int> &ess_tdof_list2_int,
                                   const int dim);
 
 int main(int argc, char *argv[])
@@ -53,7 +55,6 @@ int main(int argc, char *argv[])
    const char *mesh_file_1   = "../../data/square-disc.mesh";
    const char *mesh_file_2   = "../../data/inline-quad.mesh";
    int order                 = 2;
-   const char *device_config = "cpu";
    bool visualization        = true;
    int r1_levels             = 0;
    int r2_levels             = 0;
@@ -67,8 +68,6 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&device_config, "-d", "--device",
-                  "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -88,11 +87,6 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
 
    const int nmeshes = 2;
-
-   // Enable hardware devices such as GPUs, and programming models such as
-   // CUDA, OCCA, RAJA and OpenMP based on command line options.
-   Device device(device_config);
-   device.Print();
 
    // Read the mesh from the given mesh file. We can handle triangular,
    // quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
@@ -174,9 +168,9 @@ int main(int argc, char *argv[])
    // Setup FindPointsGSLIB and determine points on each mesh's boundary that
    // are interior to another mesh.
    mesharr[0]->SetCurvature(order, false, dim, Ordering::byNODES);
-   Vector vxyz1 = *mesharr[0]->GetNodes();
+   Vector mesh_nodes_1 = *mesharr[0]->GetNodes();
    mesharr[1]->SetCurvature(order, false, dim, Ordering::byNODES);
-   Vector vxyz2 = *mesharr[1]->GetNodes();
+   Vector mesh_nodes_2 = *mesharr[1]->GetNodes();
 
    // For the default mesh inputs, we need to rescale inline-quad.mesh
    // such that it does not cover the entrie domain [0, 1]^2 and still has a
@@ -184,11 +178,11 @@ int main(int argc, char *argv[])
    if (strcmp(mesh_file_1, "../../data/square-disc.mesh") == 0 &&
        strcmp(mesh_file_2, "../../data/inline-quad.mesh") == 0 )
    {
-      for (int i = 0; i < vxyz2.Size(); i++)
+      for (int i = 0; i < mesh_nodes_2.Size(); i++)
       {
-         vxyz2(i) = 0.5 + 0.5*(vxyz2(i)-0.5);
+         mesh_nodes_2(i) = 0.5 + 0.5*(mesh_nodes_2(i)-0.5);
       }
-      mesharr[1]->SetNodes(vxyz2);
+      mesharr[1]->SetNodes(mesh_nodes_2);
    }
 
    FindPointsGSLIB finder1, finder2;
@@ -196,34 +190,41 @@ int main(int argc, char *argv[])
    finder2.Setup(*mesharr[1]);
 
    Array<int> ess_tdof_list1_int, ess_tdof_list2_int;
-   GetInterdomainBoundaryPoints(finder1, finder2, vxyz1, vxyz2,
+   GetInterdomainBoundaryPoints(finder1, finder2, mesh_nodes_1, mesh_nodes_2,
                                 ess_tdof_list1, ess_tdof_list2,
                                 ess_tdof_list1_int, ess_tdof_list2_int, dim);
 
    // Use FindPointsGSLIB to interpolate the solution at interdomain boundary
    // points.
-   const int nb1 = ess_tdof_list1_int.Size(),
-             nb2 = ess_tdof_list2_int.Size(),
-             nt1 = vxyz1.Size()/dim,
-             nt2 = vxyz2.Size()/dim;
+   const int number_boundary_1 = ess_tdof_list1_int.Size(),
+             number_boundary_2 = ess_tdof_list2_int.Size(),
+             number_true_1 = mesh_nodes_1.Size()/dim,
+             number_true_2 = mesh_nodes_2.Size()/dim;
 
-   MFEM_VERIFY(nb1 != 0 || nb2 != 0, " Please use overlapping grids.");
+   MFEM_VERIFY(number_boundary_1 != 0 ||
+               number_boundary_2 != 0, " Please use overlapping grids.");
 
-   Vector bnd1(nb1*dim);
-   for (int i = 0; i < nb1; i++)
+   Vector bnd1(number_boundary_1*dim);
+   for (int i = 0; i < number_boundary_1; i++)
    {
       int idx = ess_tdof_list1_int[i];
-      for (int d = 0; d < dim; d++) { bnd1(i+d*nb1) = vxyz1(idx + d*nt1); }
+      for (int d = 0; d < dim; d++)
+      {
+         bnd1(i+d*number_boundary_1) = mesh_nodes_1(idx + d*number_true_1);
+      }
    }
 
-   Vector bnd2(nb2*dim);
-   for (int i = 0; i < nb2; i++)
+   Vector bnd2(number_boundary_2*dim);
+   for (int i = 0; i < number_boundary_2; i++)
    {
       int idx = ess_tdof_list2_int[i];
-      for (int d = 0; d < dim; d++) { bnd2(i+d*nb2) = vxyz2(idx + d*nt2); }
+      for (int d = 0; d < dim; d++)
+      {
+         bnd2(i+d*number_boundary_2) = mesh_nodes_2(idx + d*number_true_2);
+      }
    }
 
-   Vector interp_vals1(nb1), interp_vals2(nb2);
+   Vector interp_vals1(number_boundary_1), interp_vals2(number_boundary_2);
    finder1.Interpolate(bnd2, x1, interp_vals2);
    finder2.Interpolate(bnd1, x2, interp_vals1);
 
@@ -284,7 +285,7 @@ int main(int argc, char *argv[])
       double dxmax = std::numeric_limits<float>::min();
       double x1inf = x1.Normlinf();
       double x2inf = x2.Normlinf();
-      for (int i = 0; i < nb1; i++)
+      for (int i = 0; i < number_boundary_1; i++)
       {
          int idx = ess_tdof_list1_int[i];
          double dx = std::abs(x1(idx)-interp_vals1(i))/x1inf;
@@ -292,7 +293,7 @@ int main(int argc, char *argv[])
          x1(idx) = interp_vals1(i);
       }
 
-      for (int i = 0; i < nb2; i++)
+      for (int i = 0; i < number_boundary_2; i++)
       {
          int idx = ess_tdof_list2_int[i];
          double dx = std::abs(x2(idx)-interp_vals2(i))/x2inf;
@@ -343,28 +344,36 @@ int main(int argc, char *argv[])
 
 void GetInterdomainBoundaryPoints(FindPointsGSLIB &finder1,
                                   FindPointsGSLIB &finder2,
-                                  Vector &vxyz1,                  Vector &vxyz2,
-                                  Array<int> ess_tdof_list1,      Array<int> ess_tdof_list2,
-                                  Array<int> &ess_tdof_list1_int, Array<int> &ess_tdof_list2_int,
+                                  Vector &mesh_nodes_1, Vector &mesh_nodes_2,
+                                  Array<int> ess_tdof_list1,
+                                  Array<int> ess_tdof_list2,
+                                  Array<int> &ess_tdof_list1_int,
+                                  Array<int> &ess_tdof_list2_int,
                                   const int dim)
 {
-   int nb1 = ess_tdof_list1.Size(),
-       nb2 = ess_tdof_list2.Size(),
-       nt1 = vxyz1.Size()/dim,
-       nt2 = vxyz2.Size()/dim;
+   int number_boundary_1 = ess_tdof_list1.Size(),
+       number_boundary_2 = ess_tdof_list2.Size(),
+       number_true_1 = mesh_nodes_1.Size()/dim,
+       number_true_2 = mesh_nodes_2.Size()/dim;
 
-   Vector bnd1(nb1*dim);
-   for (int i = 0; i < nb1; i++)
+   Vector bnd1(number_boundary_1*dim);
+   for (int i = 0; i < number_boundary_1; i++)
    {
       int idx = ess_tdof_list1[i];
-      for (int d = 0; d < dim; d++) { bnd1(i+d*nb1) = vxyz1(idx + d*nt1); }
+      for (int d = 0; d < dim; d++)
+      {
+         bnd1(i+d*number_boundary_1) = mesh_nodes_1(idx + d*number_true_1);
+      }
    }
 
-   Vector bnd2(nb2*dim);
-   for (int i = 0; i < nb2; i++)
+   Vector bnd2(number_boundary_2*dim);
+   for (int i = 0; i < number_boundary_2; i++)
    {
       int idx = ess_tdof_list2[i];
-      for (int d = 0; d < dim; d++) { bnd2(i+d*nb2) = vxyz2(idx + d*nt2); }
+      for (int d = 0; d < dim; d++)
+      {
+         bnd2(i+d*number_boundary_2) = mesh_nodes_2(idx + d*number_true_2);
+      }
    }
 
    finder1.FindPoints(bnd2);
@@ -374,13 +383,13 @@ void GetInterdomainBoundaryPoints(FindPointsGSLIB &finder1,
    const Array<unsigned int> &code_out2 = finder2.GetCode();
 
    //Setup ess_tdof_list_int
-   for (int i = 0; i < nb1; i++)
+   for (int i = 0; i < number_boundary_1; i++)
    {
       int idx = ess_tdof_list1[i];
       if (code_out2[i] != 2) { ess_tdof_list1_int.Append(idx); }
    }
 
-   for (int i = 0; i < nb2; i++)
+   for (int i = 0; i < number_boundary_2; i++)
    {
       int idx = ess_tdof_list2[i];
       if (code_out1[i] != 2) { ess_tdof_list2_int.Append(idx); }
