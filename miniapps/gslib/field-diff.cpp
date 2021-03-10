@@ -26,6 +26,14 @@
 // Sample runs:
 //    field-diff
 //    field-diff -m1 triple-pt-1.mesh -s1 triple-pt-1.gf -m2 triple-pt-2.mesh -s2 triple-pt-2.gf -p 200
+//    ./field-diff -m1 t50/full.mesh -s1 t50/psione.final -m2 t50-r4/full.mesh -s2 t50-r4/psione.final -p 200
+//    Max diff: 2.68677e-07 Avg diff: 3.09257e-08
+//    ./field-diff -m1 t50/full.mesh -s1 t50/psione.final -m2 amr1d2/amr.mesh -s2 amr1d2/psiamr.sol -p 200
+//   Max diff: 4.45984e-08 Avg diff: 1.02934e-08
+//    ./field-diff -m1 t50/full.mesh -s1 t50/psione.final -m2 amrl25/amr.mesh -s2 amrl25/psiamr.sol -p 200
+//    Max diff: 3.91635e-08 Avg diff: 8.38557e-09
+//    ./field-diff -m1 t50/full.mesh -s1 t50/psione.final -m2 amrl31/amr.mesh -s2 amrl31/psiamr.sol -p 200
+//    Max diff: 2.64541e-08 Avg diff: 3.3594e-09
 
 #include "mfem.hpp"
 #include <fstream>
