@@ -151,12 +151,14 @@ int main(int argc, char *argv[])
       aprec.Finalize();
       // aprec.FormSystemMatrix(ess_tdof_list,M);
       HypreParMatrix * M = aprec.ParallelAssemble();
-      
+      MUMPSSolver mumps_prec;
+      mumps_prec.SetPrintLevel(0);
+      mumps_prec.SetOperator(*M);
 
 
-      MUMPSSolver mumps_lor;
-      mumps_lor.SetOperator(*A_lor);
-      mumps_lor.SetPrintLevel(0);
+      // MUMPSSolver mumps_lor;
+      // mumps_lor.SetOperator(*A_lor);
+      // mumps_lor.SetPrintLevel(0);
 
 
       // HypreBoomerAMG amg(*M);
@@ -171,7 +173,8 @@ int main(int argc, char *argv[])
       gmres.SetMaxIter(2000);
       gmres.SetPrintLevel(1);
       gmres.SetOperator(*A);
-      gmres.SetPreconditioner(mumps_lor);
+      gmres.SetPreconditioner(mumps_prec);
+      // gmres.SetPreconditioner(mumps_lor);
       // gmres.SetPreconditioner(amg);
       gmres.Mult(B, X);
       chrono.Stop();

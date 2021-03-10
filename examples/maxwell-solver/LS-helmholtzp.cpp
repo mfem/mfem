@@ -167,7 +167,7 @@ int main(int argc, char *argv[])
          H1fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
       }
 
-       Array<int> block_offsets(3);
+      Array<int> block_offsets(3);
       block_offsets[0] = 0;
       block_offsets[1] = H1fespace->GetVSize();
       block_offsets[2] = RTfespace->GetVSize();
