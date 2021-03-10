@@ -2872,7 +2872,9 @@ class L2_PyramidElement : public NodalFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
-   mutable Vector shape_x, shape_y, shape_z, u;
+   mutable Vector shape_x, shape_y, shape_z;
+   mutable Vector dshape_x, dshape_y, dshape_z;
+   mutable Vector u;
    mutable DenseMatrix du;
 #endif
    DenseMatrixInverse Ti;
