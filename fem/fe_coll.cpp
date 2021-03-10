@@ -1707,7 +1707,8 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          H1_dof[Geometry::TETRAHEDRON] = (TriDof*pm3)/3;
          H1_dof[Geometry::CUBE] = QuadDof*pm1;
          H1_dof[Geometry::PRISM] = TriDof*pm1;
-         H1_dof[Geometry::PYRAMID] = pm2*pm1*(2*p-3)/6;
+         H1_dof[Geometry::PYRAMID] = QuadDof*pm1;
+         // H1_dof[Geometry::PYRAMID] = pm2*pm1*(2*p-3)/6;
          if (b_type == BasisType::Positive)
          {
             H1_Elements[Geometry::TETRAHEDRON] = new H1Pos_TetrahedronElement(p);
