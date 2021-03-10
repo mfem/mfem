@@ -793,6 +793,7 @@ protected: // implementation
       void GetMatrix(DenseMatrix& point_matrix) const;
    };
 
+   static PointMatrix pm_seg_identity;
    static PointMatrix pm_tri_identity;
    static PointMatrix pm_quad_identity;
    static PointMatrix pm_tet_identity;
