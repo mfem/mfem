@@ -38,14 +38,18 @@ class ParFiniteElementSpace;
     Do not confuse with ConstrainedOperator, which handles only simple
     pointwise constraints and is not a Solver.
 
-    The height and width of this object as an IterativeSolver are for
-    the above saddle point system, but one can use its PrimalMult() method
-    to solve just \f$ Ax = f \f$ subject to a constraint with \f$ r \f$
-    defaulting to zero or set via SetConstraintRHS().
+    The height and width of this object as an IterativeSolver are the same as
+    just the unconstrained operator \f$ A \f$, and the Mult() interface just
+    takes \f$ f \f$ as an argument. You can set \f$ r \f$ with
+    SetConstraintRHS() (it defaults to zero) and get the Lagrange multiplier
+    solution with GetMultiplierSolution().
 
-    This abstract object unifies handling of the "dual" rhs \f$ r \f$
-    and the Lagrange multiplier solution \f$ \lambda \f$, so that derived
-    classes can reuse that code. */
+    Alternatively, you can use LagrangeSystemMult() to solve the block system
+    shown above.
+
+    This abstract object unifies this interface so that derived classes can
+    solve whatever linear system makes sense and the interface will provide
+    uniform access to solutions, Lagrange multipliers, etc. */
 class ConstrainedSolver : public IterativeSolver
 {
 public:
@@ -65,10 +69,10 @@ public:
 
    /** @brief Return the Lagrange multiplier solution in lambda
 
-       PrimalMult() only gives you x, this provides access to lambda
+       Mult() only gives you x, this provides access to lambda
 
        Does not make sense unless you've already solved the constrained
-       system with Mult() or PrimalMult() */
+       system with Mult() or LagrangeSystemMult() */
    void GetMultiplierSolution(Vector& lambda) const { lambda = multiplier_sol; }
 
    /** @brief Solve for \f$ x \f$ given \f$ f \f$.
@@ -78,15 +82,16 @@ public:
        If you want to get \f$ \lambda \f$, call GetMultiplierSolution() after
        this.
 
-       The base class implementation calls Mult(), so derived classes must
-       implement either this or Mult() */
-   virtual void PrimalMult(const Vector& f, Vector& x) const;
+       The base class implementation calls LagrangeSystemMult(), so derived
+       classes must implement either this or LagrangeSystemMult() */
+   virtual void Mult(const Vector& f, Vector& x) const override;
 
    /** @brief Solve for (x, lambda) given (f, r)
 
-       The base class implementation calls PrimalMult(), so derived classes
-       must implement either this or PrimalMult() */
-   virtual void Mult(const Vector& f_and_r, Vector& x_and_lambda) const override;
+       The base class implementation calls Mult(), so derived classes
+       must implement either this or Mult() */
+   virtual void LagrangeSystemMult(const Vector& f_and_r,
+                                   Vector& x_and_lambda) const;
 
 protected:
    Operator& A;
@@ -225,7 +230,7 @@ public:
 
    ~EliminationSolver();
 
-   void PrimalMult(const Vector& x, Vector& y) const override;
+   void Mult(const Vector& x, Vector& y) const override;
 
    void SetOperator(const Operator& op) override
    { MFEM_ABORT("Operator cannot be reset!"); }
@@ -292,7 +297,7 @@ public:
 
    ~PenaltyConstrainedSolver();
 
-   void PrimalMult(const Vector& x, Vector& y) const override;
+   void Mult(const Vector& x, Vector& y) const override;
 
    void SetOperator(const Operator& op) override
    { MFEM_ABORT("Operator cannot be reset!"); }
@@ -369,7 +374,7 @@ public:
    SchurConstrainedSolver(Operator& A_, Operator& B_, Solver& primal_pc_);
    virtual ~SchurConstrainedSolver();
 
-   virtual void Mult(const Vector& x, Vector& y) const override;
+   virtual void LagrangeSystemMult(const Vector& x, Vector& y) const override;
 
 protected:
 #ifdef MFEM_USE_MPI

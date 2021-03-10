@@ -112,7 +112,7 @@ void SimpleSaddle::Schur(Vector& serr, Vector& lerr)
    }
    solver->SetConstraintRHS(dualrhs);
    solver->SetRelTol(1.e-14);
-   solver->PrimalMult(rhs, sol);
+   solver->Mult(rhs, sol);
    solver->GetMultiplierSolution(lambda);
    serr(0) = truex - sol(0);
    serr(1) = truey - sol(1);
@@ -128,7 +128,7 @@ void SimpleSaddle::Elimination(Vector& serr, Vector& lerr, bool swap)
    lagrange_rowstarts[1] = B.Height();
    EliminationCGSolver solver(*hA, B, lagrange_rowstarts);
    solver.SetConstraintRHS(dualrhs);
-   solver.PrimalMult(rhs, sol);
+   solver.Mult(rhs, sol);
    solver.GetMultiplierSolution(lambda);
    serr(0) = truex - sol(0);
    serr(1) = truey - sol(1);
@@ -139,7 +139,7 @@ void SimpleSaddle::Penalty(double pen, Vector& serr, Vector& lerr)
 {
    PenaltyPCGSolver solver(*hA, B, pen);
    solver.SetConstraintRHS(dualrhs);
-   solver.PrimalMult(rhs, sol);
+   solver.Mult(rhs, sol);
    solver.GetMultiplierSolution(lambda);
    serr(0) = truex - sol(0);
    serr(1) = truey - sol(1);
@@ -338,7 +338,7 @@ void ParallelTestProblem::Schur(Vector& serr, Vector& lerr)
 {
    IdentitySolver prec(2);
    SchurConstrainedSolver solver(MPI_COMM_WORLD, *amat, *bmat, prec);
-   solver.PrimalMult(rhs, sol);
+   solver.Mult(rhs, sol);
    solver.GetMultiplierSolution(lambda);
    for (int i = 0; i < truesol.Size(); ++i)
    {
@@ -353,7 +353,7 @@ void ParallelTestProblem::Schur(Vector& serr, Vector& lerr)
 void ParallelTestProblem::Penalty(double pen, Vector& serr, Vector& lerr)
 {
    PenaltyPCGSolver solver(*amat, *bmat, pen);
-   solver.PrimalMult(rhs, sol);
+   solver.Mult(rhs, sol);
    solver.GetMultiplierSolution(lambda);
    for (int i = 0; i < truesol.Size(); ++i)
    {
@@ -596,7 +596,7 @@ void ParallelTestProblemTwo::Schur(Vector& serr, Vector& lerr)
 {
    IdentitySolver prec(2);
    SchurConstrainedSolver solver(MPI_COMM_WORLD, *amat, *bmat, prec);
-   solver.PrimalMult(rhs, sol);
+   solver.Mult(rhs, sol);
    solver.GetMultiplierSolution(lambda);
    for (int i = 0; i < truesol.Size(); ++i)
    {
@@ -620,7 +620,7 @@ void ParallelTestProblemTwo::Elimination(Vector& serr, Vector& lerr)
       lagrange_rowstarts[1] = 1;
    }
    EliminationCGSolver solver(*amat, *Blocal, lagrange_rowstarts);
-   solver.PrimalMult(rhs, sol);
+   solver.Mult(rhs, sol);
    solver.GetMultiplierSolution(lambda);
    for (int i = 0; i < truesol.Size(); ++i)
    {
@@ -638,7 +638,7 @@ void ParallelTestProblemTwo::Penalty(double pen, Vector& serr, Vector& lerr)
    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
    PenaltyPCGSolver solver(*amat, *bmat, pen);
-   solver.PrimalMult(rhs, sol);
+   solver.Mult(rhs, sol);
    solver.GetMultiplierSolution(lambda);
    for (int i = 0; i < truesol.Size(); ++i)
    {
@@ -773,7 +773,7 @@ void ZerosTestProblem::Elimination(Vector& serr, Vector& lerr, bool twoblocks)
       lagrange_rowstarts[1] = 2;
    }
    EliminationCGSolver solver(*hA, B, lagrange_rowstarts);
-   solver.PrimalMult(rhs, sol);
+   solver.Mult(rhs, sol);
    solver.GetMultiplierSolution(lambda);
    for (int i = 0; i < truesol.Size(); ++i)
    {
