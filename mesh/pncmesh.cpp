@@ -288,7 +288,7 @@ void ParNCMesh::BuildVertexList()
    NCMesh::BuildVertexList();
 
    InitOwners(nvertices, entity_owner[0]);
-   if (Dim > 1) { MakeSharedList(vertex_list, shared_vertices); }
+   MakeSharedList(vertex_list, shared_vertices);
 
    tmp_owner.DeleteAll();
    tmp_shared_flag.DeleteAll();
