@@ -11897,7 +11897,11 @@ L2_PyramidElement::L2_PyramidElement(const int p, const int btype)
    shape_x.SetSize(p + 1);
    shape_y.SetSize(p + 1);
    shape_z.SetSize(p + 1);
+   dshape_x.SetSize(p + 1);
+   dshape_y.SetSize(p + 1);
+   dshape_z.SetSize(p + 1);
    u.SetSize(dof);
+   du.SetSize(dof, dim);
 #else
    Vector shape_x(p + 1);
    Vector shape_y(p + 1);
@@ -11971,7 +11975,35 @@ void L2_PyramidElement::CalcShape(const IntegrationPoint &ip,
 void L2_PyramidElement::CalcDShape(const IntegrationPoint &ip,
                                    DenseMatrix &dshape) const
 {
-   dshape = 0.0;
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape_x(p + 1);
+   Vector shape_y(p + 1);
+   Vector shape_z(p + 1);
+   Vector dshape_x(p + 1);
+   Vector dshape_y(p + 1);
+   Vector dshape_z(p + 1);
+   DenseMatrix du(dof, dim);
+#endif
+
+   Poly_1D::CalcLegendre(p, ip.x / (1.0 - ip.z), shape_x, dshape_x);
+   Poly_1D::CalcLegendre(p, ip.y / (1.0 - ip.z), shape_y, dshape_y);
+   Poly_1D::CalcLegendre(p, ip.z, shape_z, dshape_z);
+
+   int o = 0;
+   for (int k = 0; k <= p; k++)
+      for (int j = 0; j <= p; j++)
+         for (int i = 0; i <= p; i++, o++)
+         {
+            du(o, 0) = dshape_x[i] * shape_y[j] * shape_z[k] / (1.0 - ip.z);
+            du(o, 1) = shape_x[i] * dshape_y[j] * shape_z[k] / (1.0 - ip.z);
+            du(o, 2) = shape_x[i] * shape_y[j] * dshape_z[k] +
+                       (ip.x * dshape_x[i] * shape_y[j] +
+                        ip.y * shape_x[i] * dshape_y[j]) *
+                       shape_z[k] / pow(1.0 - ip.z, 2);
+         }
+   Ti.Mult(du, dshape);
 }
 
 
