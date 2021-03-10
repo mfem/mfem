@@ -17,6 +17,43 @@
 
 namespace mfem {
 
+namespace PointHeavisideProj
+{
+
+inline
+double Project(double rho, double eta, double beta)
+{
+    // tanh projection - Wang&Lazarov&Sigmund2011
+    double a=std::tanh(eta*beta);
+    double b=std::tanh(beta*(1.0-eta));
+    double c=std::tanh(beta*(rho-eta));
+    double rez=(a+c)/(a+b);
+    return rez;
+}
+
+inline
+double Grad(double rho, double eta, double beta)
+
+{
+    double c=std::tanh(beta*(rho-eta));
+    double a=std::tanh(eta*beta);
+    double b=std::tanh(beta*(1.0-eta));
+    double rez=beta*(1.0-c*c)/(a+b);
+    return rez;
+}
+
+inline
+double Hess(double rho,double eta, double beta)
+{
+    double c=std::tanh(beta*(rho-eta));
+    double a=std::tanh(eta*beta);
+    double b=std::tanh(beta*(1.0-eta));
+    double rez=-2.0*beta*beta*c*(1.0-c*c)/(a+b);
+    return rez;
+}
+
+}
+
 
 class BaseQFunction
 {
@@ -73,8 +110,9 @@ public:
     {
         double di=diff.Eval(T,ip);
         double ll=load.Eval(T,ip);
-        double rz=0.5+0.5*std::tanh(beta*(dd[0]-eta));
-        double fd=di*(std::pow(rz,powerc)+rhomin);
+        //double rz=0.5+0.5*std::tanh(beta*(dd[0]-eta));
+        double rz=PointHeavisideProj::Project(dd[0],eta,beta);
+        double fd=di*((1.0-rhomin)*std::pow(rz,powerc)+rhomin);
         double rez = 0.5*(uu[0]*uu[0]+uu[1]*uu[1]+uu[2]*uu[2])*fd-uu[3]*ll;
         return rez;
     }
@@ -85,8 +123,9 @@ public:
     {
         double di=diff.Eval(T,ip);
         double ll=load.Eval(T,ip);
-        double rz=0.5+0.5*std::tanh(beta*(dd[0]-eta));
-        double fd=di*(std::pow(rz,powerc)+rhomin);
+        //double rz=0.5+0.5*std::tanh(beta*(dd[0]-eta));
+        double rz=PointHeavisideProj::Project(dd[0],eta,beta);
+        double fd=di*((1.0-rhomin)*std::pow(rz,powerc)+rhomin);
 
         rr[0]=uu[0]*fd;
         rr[1]=uu[1]*fd;
@@ -99,10 +138,8 @@ public:
                    Vector &dd, Vector &uu, Vector &aa, Vector &rr) override
     {
         double di=diff.Eval(T,ip);
-        double tt=std::tanh(beta*(dd[0]-eta));
-        double rz=0.5+0.5*tt;
-        double fd=di*powerc*std::pow(rz,powerc-1.0)*0.5*(1.0-tt*tt)*beta;
-
+        double rz=PointHeavisideProj::Project(dd[0],eta,beta);
+        double fd=di*(1.0-rhomin)*std::pow(rz,powerc-1.0)*PointHeavisideProj::Grad(dd[0],eta,beta);
         rr[0] = -(aa[0]*uu[0]+aa[1]*uu[1]+aa[2]*uu[2])*fd;
     }
 
@@ -111,9 +148,8 @@ public:
                        Vector &dd, Vector &uu, DenseMatrix &hh) override
     {
         double di=diff.Eval(T,ip);
-        double tt=std::tanh(beta*(dd[0]-eta));
-        double rz=0.5+0.5*tt;
-        double fd=di*(std::pow(rz,powerc)+rhomin);
+        double rz=PointHeavisideProj::Project(dd[0],eta,beta);
+        double fd=di*((1.0-rhomin)*std::pow(rz,powerc)+rhomin);
         hh=0.0;
 
         hh(0,0)=fd;
@@ -175,42 +211,7 @@ private:
     BaseQFunction& qfun;
 };
 
-namespace PointHeavisideProj
-{
 
-inline
-double Project(double rho, double eta, double beta)
-{
-    // tanh projection - Wang&Lazarov&Sigmund2011
-    double a=std::tanh(eta*beta);
-    double b=std::tanh(beta*(1.0-eta));
-    double c=std::tanh(beta*(rho-eta));
-    double rez=(a+c)/(a+b);
-    return rez;
-}
-
-inline
-double Grad(double rho, double eta, double beta)
-
-{
-    double c=std::tanh(beta*(rho-eta));
-    double a=std::tanh(eta*beta);
-    double b=std::tanh(beta*(1.0-eta));
-    double rez=beta*(1.0-c*c)/(a+b);
-    return rez;
-}
-
-inline
-double Hess(double rho,double eta, double beta)
-{
-    double c=std::tanh(beta*(rho-eta));
-    double a=std::tanh(eta*beta);
-    double b=std::tanh(beta*(1.0-eta));
-    double rez=-2.0*beta*beta*c*(1.0-c*c)/(a+b);
-    return rez;
-}
-
-}
 
 class QAdvectionDiffusionLSFEM:public BaseQFunction
 {

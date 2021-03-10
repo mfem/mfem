@@ -54,4 +54,9 @@ add_mfem_miniapp(meshr01
      ${MTOP_COMMON_FILES}
      LIBRARIES mfem)
 
+add_mfem_miniapp(meshr02
+     MAIN meshr02.cpp
+     ${MTOP_COMMON_FILES}
+     LIBRARIES mfem)
+
 endif ()
