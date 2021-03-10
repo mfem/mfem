@@ -3809,6 +3809,9 @@ void NCMesh::PointMatrix::GetMatrix(DenseMatrix& point_matrix) const
    }
 }
 
+NCMesh::PointMatrix NCMesh::pm_seg_identity(
+   Point(0), Point(1)
+);
 NCMesh::PointMatrix NCMesh::pm_tri_identity(
    Point(0, 0), Point(1, 0), Point(0, 1)
 );
@@ -3831,6 +3834,7 @@ const NCMesh::PointMatrix& NCMesh::GetGeomIdentity(Geometry::Type geom)
 {
    switch (geom)
    {
+      case Geometry::SEGMENT:     return pm_seg_identity;
       case Geometry::TRIANGLE:    return pm_tri_identity;
       case Geometry::SQUARE:      return pm_quad_identity;
       case Geometry::TETRAHEDRON: return pm_tet_identity;
@@ -5379,6 +5383,12 @@ void NCMesh::LoadBoundary(std::istream &input)
       {
          input >> v1 >> v2;
          Face* face = faces.Get(v1, v1, v2, v2);
+         face->attribute = attr;
+      }
+      else if (geom == Geometry::POINT)
+      {
+         input >> v1;
+         Face* face = faces.Get(v1, v1, v1, v1);
          face->attribute = attr;
       }
       else
