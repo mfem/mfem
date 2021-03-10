@@ -1701,6 +1701,15 @@ void NCMesh::DerefineElement(int elem)
                             ch.node[fv[2]], ch.node[fv[3]])->attribute;
       }
    }
+   else if (el.Geom() == Geometry::SEGMENT)
+   {
+      for (int i = 0; i < 2; i++)
+      {
+         int ni = elements[child[i]].node[i];
+         el.node[i] = ni;
+         fa[i] = faces.Find(ni, ni, ni, ni)->attribute;
+      }
+   }
    else
    {
       MFEM_ABORT("Unsupported element geometry.");
