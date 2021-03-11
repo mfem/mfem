@@ -208,7 +208,7 @@ int main(int argc, char *argv[])
    solver->SetRelTol(1e-5);
    solver->SetMaxIter(2000);
    solver->SetPrintLevel(1);
-   solver->PrimalMult(B, X);
+   solver->Mult(B, X);
 
    // 12. Recover the solution as a finite element grid function. Move the
    //     mesh to reflect the displacement of the elastic body being
