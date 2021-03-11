@@ -2281,7 +2281,7 @@ CPDSolverDH::DisplayAnimationToGLVis()
       oss << "Harmonic Solution (t = " << t << " T)";
 
       add( cos( 2.0 * M_PI * t), e_v_->real(),
-           sin( 2.0 * M_PI * t), e_v_->imag(), *e_t_);
+           sin( -2.0 * M_PI * t), e_v_->imag(), *e_t_);
       sol_sock << "parallel " << num_procs_ << " " << myid_ << "\n";
       sol_sock << "solution\n" << *pmesh_ << *e_t_
                << "window_title '" << oss.str() << "'" << flush;

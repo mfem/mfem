@@ -10,21 +10,21 @@
 // Software Foundation) version 2.1 dated February 1999.
 //
 //   -----------------------------------------------------------------------
-//       Stix2D Miniapp: Cold Plasma Electromagnetic Simulation Code
+//       Stix2D_DH Miniapp: Cold Plasma Electromagnetic Simulation Code
 //   -----------------------------------------------------------------------
 //
 //   Assumes that all sources and boundary conditions oscillate with the same
 //   frequency although not necessarily in phase with one another.  This
 //   assumption implies that we can factor out the time dependence which we
-//   take to be of the form exp(i omega t).  With these assumptions we can
-//   write the Maxwell equations in the form:
+//   take to be of the form exp(-i omega t).  With these assumptions we can
+//   write the Maxwell equations for D and H in the form:
 //
-//   i omega epsilon E = Curl mu^{-1} B - J
-//   i omega B         = - Curl E
+//   -i omega D    = Curl H - J
+//    i omega mu H = Curl epsilon^{-1} D
 //
 //   Which combine to yield:
 //
-//   Curl mu^{-1} Curl E - omega^2 epsilon E = - i omega J
+//   Curl epsilon^{-1} Curl H - omega^2 mu H = Curl epsilon^{-1} J
 //
 //   In a cold plasma the dielectric tensor, epsilon, is complex-valued and
 //   anisotropic.  The anisotropy aligns with the external magnetic field and
@@ -55,13 +55,15 @@
 //   functions.  The curl curl operator must be handled with
 //   integration by parts which yields a surface integral:
 //
-//   (W, Curl mu^{-1} Curl E) = (Curl W, mu^{-1} Curl E)
-//               + (W, n x (mu^{-1} Curl E))_{\Gamma}
+//   (W, Curl epsilon^{-1} Curl H) = (Curl W, epsilon^{-1} Curl H)
+//               + (W, n x (epsilon^{-1} Curl H))_{\Gamma}
 //
 //   or
 //
-//   (W, Curl mu^{-1} Curl E) = (Curl W, mu^{-1} Curl E)
-//               - i omega (W, n x H)_{\Gamma}
+//   (W, Curl epsilon^{-1} Curl H) = (Curl W, epsilon^{-1} Curl H)
+//               - i omega (W, n x E)_{\Gamma}
+//
+//   Assuming J = 0 on the boundary
 //
 //   For plane waves
 //     omega B = - k x E
