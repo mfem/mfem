@@ -490,6 +490,41 @@ public:
    void SetElem1Flag(bool flag_) { elem1f = flag_; }
 };
 
+
+class SBM2NeumannLFIntegrator : public LinearFormIntegrator
+{
+protected:
+   ShiftedFunctionCoefficient *uD; //Neumann condition on true boundary
+   VectorCoefficient *vD; // Distance function coefficient
+   ShiftedVectorFunctionCoefficient *vN; // Normal function coefficient
+   double alpha; // Nitsche parameter
+   bool elem1f; // flag to indicate wether elem1 associated with the internal
+   // face is inside the domain or not (in that case elem2 is).
+   int nterms;  //Number of terms in addition to the gradient term from Taylor
+   //expansion that should be included. (0 by default).
+   bool trimin;
+
+   // these are not thread-safe!
+   Vector shape, dshape_dd, dshape_dn, nor, nh, ni;
+   DenseMatrix dshape, mq, adjJ;
+
+public:
+   SBM2NeumannLFIntegrator(ShiftedFunctionCoefficient &u, const double a,
+                           VectorCoefficient &vD_,
+                           ShiftedVectorFunctionCoefficient &vN_,
+                           int nterms_ = 0, bool trimin_ = true)
+      : uD(&u), vD(&vD_), vN(&vN_), alpha(a), nterms(nterms_), trimin(trimin_)  { }
+
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       FaceElementTransformations &Tr,
+                                       Vector &elvect);
+   bool GetTrimFlag() { return trimin; }
+   void SetElem1Flag(bool flag_) { elem1f = flag_; }
+};
+
 /** Boundary linear form integrator for imposing non-zero Dirichlet boundary
     conditions, in a DG elasticity formulation. Specifically, the linear form is
     given by

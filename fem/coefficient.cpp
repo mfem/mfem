@@ -138,6 +138,21 @@ void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
    }
 }
 
+void ShiftedVectorFunctionCoefficient::Eval(Vector &V,
+                                            ElementTransformation & T,
+                                            const IntegrationPoint & ip,
+                                            const Vector &D)
+{
+   Vector transip;
+   T.Transform(ip, transip);
+   for (int i = 0; i < D.Size(); i++)
+   {
+      transip(i) += D(i);
+   }
+
+   Function(transip, V);
+}
+
 VectorArrayCoefficient::VectorArrayCoefficient (int dim)
    : VectorCoefficient(dim), Coeff(dim), ownCoeff(dim)
 {

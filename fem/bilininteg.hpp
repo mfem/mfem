@@ -2963,6 +2963,41 @@ public:
    virtual ~SBM2DirichletIntegrator() { }
 };
 
+
+// <grad u. d, grad w .n>
+class SBM2NeumannIntegrator : public BilinearFormIntegrator
+{
+protected:
+   VectorCoefficient *vD; // Distance function coefficient
+   ShiftedVectorFunctionCoefficient *vN; // Normal function coefficient
+   double alpha;
+   bool elem1f;
+   int nterms; //1 by default
+   bool trimin;
+
+   // these are not thread-safe!
+   Vector shape, dshapedn, dshapephysdn, nor, nh, ni;
+   DenseMatrix jmat, dshape, dshapephys, adjJ;
+
+
+public:
+   SBM2NeumannIntegrator(const double a, VectorCoefficient &vD_,
+                         ShiftedVectorFunctionCoefficient &vN_,
+                         int nterms_ = 1,
+                         bool trimin_ = true) //include Hessian because we need it
+      : vD(&vD_), vN(&vN_), alpha(a), nterms(nterms_), trimin(trimin_) { }
+
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+
+   void SetElem1Flag(bool flag_) { elem1f = flag_; }
+   bool GetTrimFlag() { return trimin; }
+
+   virtual ~SBM2NeumannIntegrator() { }
+};
 /** Integrator for the "BR2" diffusion stabilization term
 
     sum_e eta (r_e([u]), r_e([v]))

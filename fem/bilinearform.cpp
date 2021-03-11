@@ -654,6 +654,11 @@ void BilinearForm::Assemble(int skip_zeros)
 
       for (int k = 0; k < sbfbfi.Size(); k++)
       {
+         bool trim_flag = true;
+         if (dynamic_cast<SBM2NeumannIntegrator *>(sbfbfi[k]))
+         {
+            trim_flag = (dynamic_cast<SBM2NeumannIntegrator *>(sbfbfi[k]))->GetTrimFlag();
+         }
          for (int i = 0; i < mesh->GetNumFaces(); i++)
          {
             FaceElementTransformations *tr = NULL;
@@ -664,20 +669,35 @@ void BilinearForm::Assemble(int skip_zeros)
                int ne2 = tr->Elem2No;
                int te1 = (*(sbfbfi_el_marker[k]))[ne1],
                    te2 = (*(sbfbfi_el_marker[k]))[ne2];
-               if (te1 == 0 && te2 == 2)   // element 2 is cut, 1 is inside
+               int check_val = trim_flag ? 0 : 1;
+               if (te1 == check_val && te2 == 2)   // element 2 is cut, 1 is inside
                {
                   fe1 = fes -> GetFE (tr -> Elem1No);
                   fes -> GetElementVDofs (tr -> Elem1No, vdofs);
-                  dynamic_cast<SBM2DirichletIntegrator *>(sbfbfi[k])->SetElem1Flag(true);
+                  if (dynamic_cast<SBM2DirichletIntegrator *>(sbfbfi[k]))
+                  {
+                     dynamic_cast<SBM2DirichletIntegrator *>(sbfbfi[k])->SetElem1Flag(true);
+                  }
+                  else
+                  {
+                     dynamic_cast<SBM2NeumannIntegrator *>(sbfbfi[k])->SetElem1Flag(true);
+                  }
                   fe2 = fe1;
                   sbfbfi[k] -> AssembleFaceMatrix (*fe1, *fe2, *tr, elemmat);
                   mat -> AddSubMatrix (vdofs, vdofs, elemmat, skip_zeros);
                }
-               else if (te1 == 2 && te2 == 0)   // element 1 is cut, 2 is inside
+               else if (te1 == 2 && te2 == check_val)   // element 1 is cut, 2 is inside
                {
                   fe1 = fes -> GetFE (tr -> Elem2No);
                   fes -> GetElementVDofs (tr -> Elem2No, vdofs);
-                  dynamic_cast<SBM2DirichletIntegrator *>(sbfbfi[k])->SetElem1Flag(false);
+                  if (dynamic_cast<SBM2DirichletIntegrator *>(sbfbfi[k]))
+                  {
+                     dynamic_cast<SBM2DirichletIntegrator *>(sbfbfi[k])->SetElem1Flag(false);
+                  }
+                  else
+                  {
+                     dynamic_cast<SBM2NeumannIntegrator *>(sbfbfi[k])->SetElem1Flag(false);
+                  }
                   fe2 = fe1;
                   sbfbfi[k] -> AssembleFaceMatrix (*fe1, *fe2, *tr, elemmat);
                   mat -> AddSubMatrix (vdofs, vdofs, elemmat, skip_zeros);

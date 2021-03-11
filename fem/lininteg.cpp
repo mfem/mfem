@@ -996,6 +996,90 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
    }
 }
 
+void SBM2NeumannLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   mfem_error("SBM2DirichletLFIntegrator::AssembleRHSElementVect");
+}
+
+void SBM2NeumannLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
+{
+   int dim, ndof;
+   double w;
+
+   dim = el.GetDim();
+   ndof = el.GetDof();
+
+   nor.SetSize(dim);
+   nh.SetSize(dim);
+   ni.SetSize(dim);
+   adjJ.SetSize(dim);
+   shape.SetSize(ndof);
+
+   elvect.SetSize(ndof);
+   elvect = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      // a simple choice for the integration order; is this OK?
+      int order = 4*el.GetOrder();
+      ir = &IntRules.Get(Tr.GetGeometryType(), order);
+   }
+
+   Vector D(vD->GetVDim());
+   Vector N(vN->GetVDim());
+   Vector wrk = shape;
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+
+      // Set the integration point in the face and the neighboring element
+      Tr.SetAllIntPoints(&ip);
+
+      // Access the neighboring element's integration point
+      const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+      const IntegrationPoint &eip1 = Tr.GetElement1IntPoint();
+      const IntegrationPoint &eip2 = Tr.GetElement2IntPoint();
+
+      if (dim == 1)
+      {
+         nor(0) = 2*eip.x - 1.0;
+      }
+      else
+      {
+         CalcOrtho(Tr.Jacobian(), nor);
+      }
+      vD->Eval(D, Tr, ip);
+      vN->Eval(N, Tr, ip, D);
+
+      double nor_dot_d = nor*D;
+      if (trimin && nor_dot_d < 0) { nor *= -1; }
+      else if (!trimin && nor_dot_d > 0) { nor *= -1; }
+      // note here that if we are clipping outside the domain, we will have to
+      // flip the sign if nor_dot_d is +ve.
+
+      if (elem1f)
+      {
+         el.CalcShape(eip1, shape);
+         w = ip.weight * uD->Eval(Tr, ip, D);
+      }
+      else
+      {
+         el.CalcShape(eip2, shape);
+         w = ip.weight * uD->Eval(Tr, ip, D);
+      }
+
+      double n_dot_ntilde = (nor*N); //nor and N are pointing in opposite direction
+      wrk.Set(n_dot_ntilde*w, shape);
+      //<w, (nhat.n)t_n)
+      elvect.Add(1., wrk);
+   }
+}
+
+
+
 void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {

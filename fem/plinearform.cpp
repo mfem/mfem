@@ -64,6 +64,11 @@ void ParLinearForm::AssembleSharedFaces()
       ParMesh *pmesh = pfes->GetParMesh();
       for (int k = 0; k < sflfi.Size(); k++)
       {
+         bool trim_flag = true;
+         if (dynamic_cast<SBM2NeumannLFIntegrator *>(sflfi[k]))
+         {
+            trim_flag = (dynamic_cast<SBM2NeumannLFIntegrator *>(sflfi[k]))->GetTrimFlag();
+         }
          for (int i = 0; i < pmesh->GetNSharedFaces(); i++)
          {
             FaceElementTransformations *tr = NULL;
@@ -74,10 +79,18 @@ void ParLinearForm::AssembleSharedFaces()
                int ne1 = tr->Elem1No;
                int te1 = (*(sflfi_elem_marker[k]))[ne1];
                int te2 = (*(sflfi_elem_marker[k]))[i+pmesh->GetNE()];
-               if (te2 == 2 && te1 == 0)
+               int check_val = trim_flag ? 0 : 1;
+               if (te2 == 2 && te1 == check_val)
                {
                   fes -> GetElementVDofs (tr -> Elem1No, vdofs);
-                  dynamic_cast<SBM2DirichletLFIntegrator *>(sflfi[k])->SetElem1Flag(true);
+                  if (dynamic_cast<SBM2DirichletLFIntegrator *>(sflfi[k]))
+                  {
+                     dynamic_cast<SBM2DirichletLFIntegrator *>(sflfi[k])->SetElem1Flag(true);
+                  }
+                  else
+                  {
+                     dynamic_cast<SBM2NeumannLFIntegrator *>(sflfi[k])->SetElem1Flag(true);
+                  }
                   sflfi[0] -> AssembleRHSElementVect (*fes->GetFE(tr -> Elem1No),
                                                       *tr, elemvect);
                   AddElementVector (vdofs, elemvect);

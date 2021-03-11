@@ -263,6 +263,11 @@ void LinearForm::Assemble()
       {
          for (i = 0; i < mesh->GetNumFaces(); i++)
          {
+            bool trim_flag = true;
+            if (dynamic_cast<SBM2NeumannLFIntegrator *>(sflfi[k]))
+            {
+               trim_flag = (dynamic_cast<SBM2NeumannLFIntegrator *>(sflfi[k]))->GetTrimFlag();
+            }
             FaceElementTransformations *tr = NULL;
             tr = mesh->GetInteriorFaceTransformations (i);
             if (tr != NULL)
@@ -271,18 +276,33 @@ void LinearForm::Assemble()
                int ne2 = tr->Elem2No;
                int te1 = (*(sflfi_elem_marker[k]))[ne1],
                    te2 = (*(sflfi_elem_marker[k]))[ne2];
-               if (te1 == 0 && te2 == 2)   // element 2 is cut, 1 is inside
+               int check_val = trim_flag ? 0 : 1;
+               if (te1 == check_val && te2 == 2)   // element 2 is cut, 1 is inside
                {
                   fes -> GetElementVDofs (tr -> Elem1No, vdofs);
-                  dynamic_cast<SBM2DirichletLFIntegrator *>(sflfi[k])->SetElem1Flag(true);
+                  if (dynamic_cast<SBM2DirichletLFIntegrator *>(sflfi[k]))
+                  {
+                     dynamic_cast<SBM2DirichletLFIntegrator *>(sflfi[k])->SetElem1Flag(true);
+                  }
+                  else
+                  {
+                     dynamic_cast<SBM2NeumannLFIntegrator *>(sflfi[k])->SetElem1Flag(true);
+                  }
                   sflfi[0] -> AssembleRHSElementVect (*fes->GetFE(tr -> Elem1No),
                                                       *tr, elemvect);
                   AddElementVector (vdofs, elemvect);
                }
-               else if (te1 == 2 && te2 == 0)   // element 1 is cut, 2 is inside
+               else if (te1 == 2 && te2 == check_val)   // element 1 is cut, 2 is inside
                {
                   fes -> GetElementVDofs (tr -> Elem2No, vdofs);
-                  dynamic_cast<SBM2DirichletLFIntegrator *>(sflfi[k])->SetElem1Flag(false);
+                  if (dynamic_cast<SBM2DirichletLFIntegrator *>(sflfi[k]))
+                  {
+                     dynamic_cast<SBM2DirichletLFIntegrator *>(sflfi[k])->SetElem1Flag(false);
+                  }
+                  else
+                  {
+                     dynamic_cast<SBM2NeumannLFIntegrator *>(sflfi[k])->SetElem1Flag(false);
+                  }
                   sflfi[0] -> AssembleRHSElementVect (*fes->GetFE(tr -> Elem2No),
                                                       *tr, elemvect);
                   AddElementVector (vdofs, elemvect);
@@ -306,7 +326,14 @@ void LinearForm::Assemble()
                   if (te1 == 0)
                   {
                      fes -> GetElementVDofs (tr -> Elem1No, vdofs);
-                     dynamic_cast<SBM2DirichletLFIntegrator *>(sflfi[k])->SetElem1Flag(true);
+                     if (dynamic_cast<SBM2DirichletLFIntegrator *>(sflfi[k]))
+                     {
+                        dynamic_cast<SBM2DirichletLFIntegrator *>(sflfi[k])->SetElem1Flag(true);
+                     }
+                     else
+                     {
+                        dynamic_cast<SBM2NeumannLFIntegrator *>(sflfi[k])->SetElem1Flag(true);
+                     }
                      sflfi[0] -> AssembleRHSElementVect (*fes->GetFE(tr -> Elem1No),
                                                          *tr, elemvect);
                      AddElementVector (vdofs, elemvect);

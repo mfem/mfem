@@ -102,7 +102,11 @@ public:
 /// Boundary conditions
 double dirichlet_velocity_circle(const Vector &x)
 {
-    return 0.;
+    double xv = x(0),
+           yv = x(1);
+    return 0.25*(9 - xv*xv - yv*yv - 2*log(3) + log(xv*xv+yv*yv)) + 0.25*sin(xv)*sinh(yv);
+    //return 0.;
+
 }
 
 double dirichlet_velocity_xy_exponent(const Vector &x)
@@ -113,6 +117,12 @@ double dirichlet_velocity_xy_exponent(const Vector &x)
 double dirichlet_velocity_xy_sinusoidal(const Vector &x)
 {
     return 1./(M_PI*M_PI)*std::sin(M_PI*x(0)*x(1));
+}
+
+/// Boundary conditions
+double neumann_velocity_circle(const Vector &x)
+{
+    return 1.;
 }
 
 

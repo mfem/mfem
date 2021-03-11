@@ -466,6 +466,32 @@ public:
    virtual ~VectorFunctionCoefficient() { }
 };
 
+class ShiftedVectorFunctionCoefficient : public VectorCoefficient
+{
+protected:
+   std::function<void(const Vector &, Vector &)> Function;
+
+public:
+   ShiftedVectorFunctionCoefficient(int dim,
+                                    std::function<void(const Vector &, Vector &)> F)
+      : VectorCoefficient(dim), Function(std::move(F)) { }
+
+   using VectorCoefficient::Eval;
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      Vector D(vdim);
+      D = 0.;
+      return (this)->Eval(V, T, ip, D);
+   }
+
+   /// Evaluate the coefficient at @a ip + @a D.
+   void Eval(Vector &V,
+             ElementTransformation &T,
+             const IntegrationPoint &ip,
+             const Vector &D);
+};
+
 /** @brief Vector coefficient defined by an array of scalar coefficients.
     Coefficients that are not set will evaluate to zero in the vector. This
     object takes ownership of the array of coefficients inside it and deletes
