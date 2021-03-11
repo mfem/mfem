@@ -309,6 +309,144 @@ void nxGradIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
    }
 }
 
+void nxkIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                           const FiniteElement &test_fe,
+                                           ElementTransformation &Trans,
+                                           DenseMatrix &elmat)
+{
+   int  test_nd = test_fe.GetDof();
+   int trial_nd = trial_fe.GetDof();
+   int     sdim = Trans.GetSpaceDim();
+   double w;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector nor, nxj, k;
+   DenseMatrix test_shape;
+   Vector trial_shape;
+#endif
+
+   nor.SetSize(sdim);
+   nxj.SetSize(sdim);
+   k.SetSize(sdim);
+   test_shape.SetSize(test_nd, sdim);
+   trial_shape.SetSize(trial_nd);
+
+   elmat.SetSize(test_nd, trial_nd);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int ir_order = this->GetIntegrationOrder(trial_fe, test_fe, Trans);
+      ir = &IntRules.Get(trial_fe.GetGeomType(), ir_order);
+   }
+
+   elmat = 0.0;
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+      Trans.SetIntPoint(&ip);
+
+      CalcOrtho(Trans.Jacobian(), nor);
+
+      K->Eval(k, Trans, ip);
+
+      // Compute cross product
+      nxj[0] = nor[1] * k[2] - nor[2] * k[1];
+      nxj[1] = nor[2] * k[0] - nor[0] * k[2];
+      nxj[2] = nor[0] * k[1] - nor[1] * k[0];
+
+      w = ip.weight;
+      if (Q)
+      {
+         w *= Q->Eval(Trans, ip);
+      }
+
+      test_fe.CalcPhysVShape(Trans, test_shape);
+      trial_fe.CalcPhysShape(Trans, trial_shape);
+
+      for (int j=0; j<trial_nd; j++)
+      {
+         for (int i=0; i<test_nd; i++)
+         {
+            // Compute inner product
+            elmat(i,j) += w * (nxj[0] * test_shape(i,0) +
+                               nxj[1] * test_shape(i,1) +
+                               nxj[2] * test_shape(i,2)) * trial_shape[j];
+         }
+      }
+
+   }
+}
+
+void zkxIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                           const FiniteElement &test_fe,
+                                           ElementTransformation &Trans,
+                                           DenseMatrix &elmat)
+{
+   int  test_nd = test_fe.GetDof();
+   int trial_nd = trial_fe.GetDof();
+   int     sdim = Trans.GetSpaceDim();
+   double w;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector nor, nxj, k;
+   Vector test_shape;
+   DenseMatrix trial_shape;
+#endif
+
+   nor.SetSize(sdim);
+   nxj.SetSize(sdim);
+   k.SetSize(sdim);
+   test_shape.SetSize(test_nd);
+   trial_shape.SetSize(trial_nd, sdim);
+
+   elmat.SetSize(test_nd, trial_nd);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int ir_order = this->GetIntegrationOrder(trial_fe, test_fe, Trans);
+      ir = &IntRules.Get(trial_fe.GetGeomType(), ir_order);
+   }
+
+   elmat = 0.0;
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+      Trans.SetIntPoint(&ip);
+
+      CalcOrtho(Trans.Jacobian(), nor);
+
+      K->Eval(k, Trans, ip);
+
+      // Compute cross product
+      nxj[0] = nor[1] * k[2] - nor[2] * k[1];
+      nxj[1] = nor[2] * k[0] - nor[0] * k[2];
+      nxj[2] = nor[0] * k[1] - nor[1] * k[0];
+
+      w = a * ip.weight;
+      if (Z)
+      {
+         w *= Z->Eval(Trans, ip);
+      }
+
+      test_fe.CalcPhysShape(Trans, test_shape);
+      trial_fe.CalcPhysVShape(Trans, trial_shape);
+
+      for (int j=0; j<trial_nd; j++)
+      {
+         for (int i=0; i<test_nd; i++)
+         {
+            // Compute inner product
+            elmat(i,j) += w * (nxj[0] * trial_shape(j,0) +
+                               nxj[1] * trial_shape(j,1) +
+                               nxj[2] * trial_shape(j,2)) * test_shape[i];
+         }
+      }
+
+   }
+}
+
 CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
                          CPDSolverDH::SolverType sol, SolverOptions & sOpts,
                          CPDSolverDH::PrecondType prec,
@@ -553,6 +691,16 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
       nxD01_->AddBoundaryIntegrator(NULL,
                                     new nxGradIntegrator(*negOmegaCoef_),
                                     sbc_bdr_marker_);
+      if (kReCoef_ || kImCoef_)
+      {
+         nxD01_->AddBoundaryIntegrator((kReCoef_) ?
+                                       new nxkIntegrator(*kReCoef_,
+                                                         *omegaCoef_) : NULL,
+                                       (kImCoef_) ?
+                                       new nxkIntegrator(*kImCoef_,
+                                                         *omegaCoef_) : NULL,
+                                       sbc_bdr_marker_);
+      }
       cout << "Done Building nxD01_" << endl;
    }
 
@@ -782,6 +930,22 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
          nzD12_->AddBoundaryIntegrator(new VectorFECurlIntegrator(*sbc.real),
                                        new VectorFECurlIntegrator(*sbc.imag),
                                        sbc.attr_marker);
+         if (kReCoef_)
+         {
+            nzD12_->AddBoundaryIntegrator(new zkxIntegrator(*sbc.imag,
+                                                            *kReCoef_, -1.0),
+                                          new zkxIntegrator(*sbc.real,
+                                                            *kReCoef_,  1.0),
+                                          sbc.attr_marker);
+         }
+         if (kImCoef_)
+         {
+            nzD12_->AddBoundaryIntegrator(new zkxIntegrator(*sbc.real,
+                                                            *kImCoef_, -1.0),
+                                          new zkxIntegrator(*sbc.imag,
+                                                            *kImCoef_, -1.0),
+                                          sbc.attr_marker);
+         }
       }
    }
 

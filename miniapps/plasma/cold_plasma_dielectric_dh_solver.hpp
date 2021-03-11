@@ -217,6 +217,63 @@ public:
                                DenseMatrix &elmat);
 };
 
+class nxkIntegrator : public BilinearFormIntegrator
+{
+private:
+
+   Coefficient *Q;
+   VectorCoefficient *K;
+
+#ifndef MFEM_THREAD_SAFE
+   Vector nor, nxj, k;
+   DenseMatrix test_shape;
+   Vector trial_shape;
+#endif
+
+public:
+   nxkIntegrator(VectorCoefficient &k) : Q(NULL), K(&k) {}
+   nxkIntegrator(VectorCoefficient &k, Coefficient &q) : Q(&q), K(&k) {}
+
+   int GetIntegrationOrder(const FiniteElement & trial_fe,
+                           const FiniteElement & test_fe,
+                           ElementTransformation &Trans)
+   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW(); }
+
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat);
+};
+
+class zkxIntegrator : public BilinearFormIntegrator
+{
+private:
+
+   Coefficient *Z;
+   VectorCoefficient *K;
+   double a;
+
+#ifndef MFEM_THREAD_SAFE
+   Vector nor, nxj, k;
+   Vector test_shape;
+   DenseMatrix trial_shape;
+#endif
+
+public:
+   zkxIntegrator(Coefficient &z, VectorCoefficient &k, double _a = 1.0)
+      : Z(&z), K(&k), a(_a) {}
+
+   int GetIntegrationOrder(const FiniteElement & trial_fe,
+                           const FiniteElement & test_fe,
+                           ElementTransformation &Trans)
+   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW(); }
+
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat);
+};
+
 /// Cold Plasma Dielectric Solver
 class CPDSolverDH
 {
