@@ -2,6 +2,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include "FOSLS.hpp"
 using namespace std;
 using namespace mfem;
 
@@ -177,7 +178,6 @@ private:
 };
 
 
-
 double p_exact(const Vector &x);
 void u_exact(const Vector &x, Vector & u);
 double rhs_func(const Vector &x);
@@ -185,6 +185,11 @@ void gradp_exact(const Vector &x, Vector &gradu);
 double divu_exact(const Vector &x);
 double d2_exact(const Vector &x);
 
+#ifdef DEFINITE   
+   bool definite = true;
+#else
+   bool definite = false;
+#endif
 int dim;
 double omega;
 int main(int argc, char *argv[])
@@ -231,13 +236,8 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-
-
    omega = 2.0 * M_PI * rnum;
 
-   // 3. Read the (serial) mesh from the given mesh file on all processors.  We
-   //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
-   //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    dim = mesh->Dimension();
 
@@ -247,22 +247,11 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
-   // 5. Define a parallel mesh by a partitioning of the serial mesh. Once the
-   //    parallel mesh is defined, the serial mesh can be deleted.
-
-
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
 
    int btype = BasisType::GaussLobatto;
    ParMesh pmesh_lor(pmesh, order, btype);
-
-   // 6. Define a parallel finite element space on the parallel mesh.
-   // FiniteElementCollection *H1fec = new H1_FECollection(order,dim); 
-   // ParFiniteElementSpace *H1fespace = new ParFiniteElementSpace(pmesh, H1fec);
-
-   // FiniteElementCollection *RTfec = new RT_FECollection(order,dim); 
-   // ParFiniteElementSpace *RTfespace = new ParFiniteElementSpace(pmesh, RTfec);
 
    unique_ptr<FiniteElementCollection> H1fec_ho, H1fec_lor;
    unique_ptr<FiniteElementCollection> RTfec_ho, RTfec_lor;
@@ -272,330 +261,153 @@ int main(int argc, char *argv[])
    RTfec_ho.reset(new RT_FECollection(order-1, dim, BasisType::GaussLobatto, BasisType::Integrated));
    RTfec_lor.reset(new RT_FECollection(0, dim, BasisType::GaussLobatto, BasisType::Integrated));
      
-
    ParFiniteElementSpace H1fes_ho(pmesh, H1fec_ho.get());
    ParFiniteElementSpace H1fes_lor(&pmesh_lor, H1fec_lor.get());
-
-
    ParFiniteElementSpace RTfes_ho(pmesh, RTfec_ho.get());
    ParFiniteElementSpace RTfes_lor(&pmesh_lor, RTfec_lor.get());
 
-   // -------------------------------------------------------------------
-   // |   |            p             |           u           |   RHS    | 
-   // -------------------------------------------------------------------
-   // | q | (gradp,gradq) + w^2(p,q) | w(divu,q)-w(u, gradq) |  w(f,q)  |
-   // |   |                          |                       |          |
-   // | v | w(p,divv) - w(gradp,v)   | (divu,divv) + w^2(u,v)| (f,divv) |
+   Array<int> block_trueOffsets(3);
+   block_trueOffsets[0] = 0;
+   block_trueOffsets[1] = H1fes_ho.TrueVSize();
+   block_trueOffsets[2] = RTfes_ho.TrueVSize();
+   block_trueOffsets.PartialSum();
 
+   BlockVector trueX(block_trueOffsets), trueRhs(block_trueOffsets);
+   trueX = 0.0;  trueRhs = 0.0;
 
-   // omega(f,q) 
-   ParLinearForm b_q_ho(&H1fes_ho);
-   ConstantCoefficient omeg(omega);
-   FunctionCoefficient f_rhs(rhs_func);
-   ProductCoefficient omega_f(omeg,f_rhs);
-   b_q_ho.AddDomainIntegrator(new DomainLFIntegrator(omega_f));
-   // (f, div v)
-   ParLinearForm b_v_ho(&RTfes_ho);
-   ParLinearForm b_v_lor(&RTfes_lor);
-#ifdef DEFINITE
-   ConstantCoefficient negone(-1.0);
-   ProductCoefficient neg_f(negone,f_rhs);
-   b_v_ho.AddDomainIntegrator(new VectorFEDomainLFDivIntegrator(neg_f));
-#else    
-   b_v_ho.AddDomainIntegrator(new VectorFEDomainLFDivIntegrator(f_rhs));
-#endif
-
-   ParBilinearForm a_qp_ho(&H1fes_ho);
-   ParBilinearForm a_qp_lor(&H1fes_lor);
-   ConstantCoefficient one(1.0);
-   ConstantCoefficient negomeg(-omega);
-   ConstantCoefficient omeg2(omega*omega);
-   // (grad p, grad q) + \omega^2 (p,q)
-   a_qp_ho.AddDomainIntegrator(new DiffusionIntegrator(one));
-   a_qp_ho.AddDomainIntegrator(new MassIntegrator(omeg2));
-
-   a_qp_lor.AddDomainIntegrator(new DiffusionIntegrator(one));
-   a_qp_lor.AddDomainIntegrator(new MassIntegrator(omeg2));
-
-   ParMixedBilinearForm a_qu_ho(&RTfes_ho, &H1fes_ho);
-   ParMixedBilinearForm a_qu_lor(&RTfes_lor, &H1fes_lor);
-#ifdef DEFINITE
-   // -w(divu,q)
-   a_qu_ho.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(negomeg));
-   a_qu_lor.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(negomeg));
-#else   
-   // w(divu,q)
-   a_qu_ho.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(omeg));
-   a_qu_lor.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(omeg));
-#endif
-   // -w(u, gradq)
-   a_qu_ho.AddDomainIntegrator(new MixedVectorWeakDivergenceIntegrator(omeg));
-   a_qu_lor.AddDomainIntegrator(new MixedVectorWeakDivergenceIntegrator(omeg));
-   // w(p,divv) - w(gradp,v)
-   ParMixedBilinearForm a_vp_ho(&H1fes_ho, &RTfes_ho);
-   ParMixedBilinearForm a_vp_lor(&H1fes_lor, &RTfes_lor);
-#ifdef DEFINITE
-   // -w(p,divv)
-   a_vp_ho.AddDomainIntegrator(new MixedScalarWeakGradientIntegrator(omeg));
-   a_vp_lor.AddDomainIntegrator(new MixedScalarWeakGradientIntegrator(omeg));
-#else
-   // w(p,divv)
-   a_vp_ho.AddDomainIntegrator(new MixedScalarWeakGradientIntegrator(negomeg));
-   a_vp_lor.AddDomainIntegrator(new MixedScalarWeakGradientIntegrator(negomeg));
-#endif
-   // - w(gradp,v)
-   a_vp_ho.AddDomainIntegrator(new MixedVectorGradientIntegrator(negomeg));
-   a_vp_lor.AddDomainIntegrator(new MixedVectorGradientIntegrator(negomeg));
-
-   ParBilinearForm a_vu_ho(&RTfes_ho);
-   ParBilinearForm a_vu_lor(&RTfes_lor);
-   a_vu_ho.AddDomainIntegrator(new DivDivIntegrator(one));
-   a_vu_ho.AddDomainIntegrator(new VectorFEMassIntegrator(omeg2));
-
-   a_vu_lor.AddDomainIntegrator(new DivDivIntegrator(one));
-   a_vu_lor.AddDomainIntegrator(new VectorFEMassIntegrator(omeg2));
-
-
-   ConvergenceStudy ratesH1;
-   ConvergenceStudy ratesRT;
    FunctionCoefficient p_ex(p_exact);
+   FunctionCoefficient f_rhs(rhs_func);
    VectorFunctionCoefficient gradp_ex(dim,gradp_exact);
    VectorFunctionCoefficient u_ex(dim,u_exact);
    FunctionCoefficient divu_ex(divu_exact);
-   ParGridFunction p_gf, u_gf;
 
-   for (int l = 0; l <= pr; l++)
+   Vector trueY(trueX);
+   Vector trueZ(trueX);
+
+   Array<ParFiniteElementSpace *> fes_ho(2);
+   fes_ho[0] = &H1fes_ho;
+   fes_ho[1] = &RTfes_ho;
+
+   HelmholtzFOSLS ho_system(fes_ho,definite);
+   ho_system.SetOmega(omega);
+   ho_system.SetLoadData(&f_rhs);
+   ho_system.SetEssentialData(&p_ex);
+   Array<ParFiniteElementSpace *> fes_lor(2);
+   fes_lor[0] = &H1fes_lor;
+   fes_lor[1] = &RTfes_lor;
+   HelmholtzFOSLS lor_system(fes_lor,definite);
+   lor_system.SetOmega(omega);
+
+   Array2D<HypreParMatrix *> Ah_ho(2,2);
+   ho_system.GetFOSLSLinearSystem(Ah_ho,trueX,trueRhs);
+   Array2D<HypreParMatrix *> Ah_lor(2,2);
+   lor_system.GetFOSLSMatrix(Ah_lor);
+   HypreParMatrix * A_ho = HypreParMatrixFromBlocks(Ah_ho);
+   HypreParMatrix * A_lor = HypreParMatrixFromBlocks(Ah_lor);
+
+
+   HypreBoomerAMG amg_p(*Ah_ho[0][0]);
+   amg_p.SetPrintLevel(0);
+   HypreBoomerAMG amg_lor_p(*Ah_lor[0][0]);
+   amg_lor_p.SetPrintLevel(0);
+
+   Solver *prec = nullptr;
+   Solver *prec_lor = nullptr;
+   if (dim == 2) 
    {
-      Array<int> ess_tdof_list;
-      Array<int> ess_bdr;
-      if (pmesh->bdr_attributes.Size())
-      {
-         ess_bdr.SetSize(pmesh->bdr_attributes.Max());
-         ess_bdr = 1;
-         H1fes_ho.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-      }
-
-       Array<int> block_offsets(3);
-      block_offsets[0] = 0;
-      block_offsets[1] = H1fes_ho.GetVSize();
-      block_offsets[2] = RTfes_ho.GetVSize();
-      block_offsets.PartialSum();
-
-      Array<int> block_trueOffsets(3);
-      block_trueOffsets[0] = 0;
-      block_trueOffsets[1] = H1fes_ho.TrueVSize();
-      block_trueOffsets[2] = RTfes_ho.TrueVSize();
-      block_trueOffsets.PartialSum();
-
-      BlockVector x(block_offsets), rhs(block_offsets);
-      BlockVector trueX(block_trueOffsets), trueRhs(block_trueOffsets);
-      x = 0.0;  rhs = 0.0;
-      trueX = 0.0;  trueRhs = 0.0;
-
-      p_gf.MakeRef(&H1fes_ho,x.GetBlock(0));
-      p_gf.ProjectBdrCoefficient(p_ex,ess_bdr);
-      u_gf.MakeRef(&RTfes_ho,x.GetBlock(1));
-      u_gf = 0.0;
-
-      b_q_ho.Update(&H1fes_ho,rhs.GetBlock(0),0);
-      b_q_ho.Assemble();
-      b_v_ho.Update(&RTfes_ho,rhs.GetBlock(1),0);
-      b_v_ho.Assemble();
-
-      a_qp_ho.Assemble();
-      a_qp_ho.EliminateEssentialBC(ess_bdr,x.GetBlock(0),rhs.GetBlock(0));
-      a_qp_ho.Finalize();
-      HypreParMatrix * A_qp_ho = a_qp_ho.ParallelAssemble();
-
-      a_qp_lor.Assemble();
-      HypreParMatrix A_qp_lor; 
-      a_qp_lor.FormSystemMatrix(ess_tdof_list,A_qp_lor);
-
-      a_qu_ho.Assemble();
-      a_qu_ho.EliminateTestDofs(ess_bdr);
-      a_qu_ho.Finalize();
-      HypreParMatrix * A_qu_ho = a_qu_ho.ParallelAssemble();
-
-      a_qu_lor.Assemble();
-      a_qu_lor.EliminateTestDofs(ess_bdr);
-      a_qu_lor.Finalize();
-      HypreParMatrix * A_qu_lor = a_qu_lor.ParallelAssemble();
-
-      a_vp_ho.Assemble();
-      a_vp_ho.EliminateTrialDofs(ess_bdr,x.GetBlock(0),rhs.GetBlock(1));
-      a_vp_ho.Finalize();
-      HypreParMatrix * A_vp_ho = a_vp_ho.ParallelAssemble();
-
-      // a_vp_lor.Assemble();
-      // Array<int> temp_list;
-      // // a_vp_lor.FormRectangularSystemMatrix()
-      // // a_vp_lor.EliminateTrialDofs(ess_bdr,x_lor.GetBlock(0),rhs_lor.GetBlock(1));
-      // a_vp_lor.Finalize();
-      HypreParMatrix * A_vp_lor = A_qu_lor->Transpose();
-
-      a_vu_ho.Assemble();
-      a_vu_ho.Finalize();
-      HypreParMatrix * A_vu_ho = a_vu_ho.ParallelAssemble();
-
-      a_vu_lor.Assemble();
-      a_vu_lor.Finalize();
-      HypreParMatrix * A_vu_lor = a_vu_lor.ParallelAssemble();
-
-
-      H1fes_ho.GetRestrictionMatrix()->Mult(x.GetBlock(0), trueX.GetBlock(0));
-      H1fes_ho.GetProlongationMatrix()->MultTranspose(rhs.GetBlock(0),trueRhs.GetBlock(0));
-
-      RTfes_ho.GetRestrictionMatrix()->Mult(x.GetBlock(1), trueX.GetBlock(1));
-      RTfes_ho.GetProlongationMatrix()->MultTranspose(rhs.GetBlock(1),trueRhs.GetBlock(1));
-
-
-      Vector trueY(trueX);
-      Vector trueZ(trueX);
-
-
-      Array2D<HypreParMatrix *> Ah_ho(2,2);
-      Ah_ho[0][0] = A_qp_ho; 
-      Ah_ho[0][1] = A_qu_ho;
-      Ah_ho[1][0] = A_vp_ho;
-      Ah_ho[1][1] = A_vu_ho;
-      HypreParMatrix * A_ho = HypreParMatrixFromBlocks(Ah_ho);
-
-      Array2D<HypreParMatrix *> Ah_lor(2,2);
-      Ah_lor[0][0] = &A_qp_lor; 
-      Ah_lor[0][1] = A_qu_lor;
-      Ah_lor[1][0] = A_vp_lor;
-      Ah_lor[1][1] = A_vu_lor;
-      HypreParMatrix * A_lor = HypreParMatrixFromBlocks(Ah_lor);
-
-
-      HypreBoomerAMG amg_p(*A_qp_ho);
-      amg_p.SetPrintLevel(0);
-      HypreBoomerAMG amg_lor_p(A_qp_lor);
-      amg_lor_p.SetPrintLevel(0);
-
-      Solver *prec = nullptr;
-      Solver *prec_lor = nullptr;
-      if (dim == 2) 
-      {
-         prec = new HypreAMS(*A_vu_ho,&RTfes_ho);
-         dynamic_cast<HypreAMS *>(prec)->SetPrintLevel(0);
-         prec_lor = new HypreAMS(*A_vu_lor,&RTfes_lor);
-         dynamic_cast<HypreAMS *>(prec_lor)->SetPrintLevel(0);
-      }
-      else
-      {
-         prec = new HypreADS(*A_vu_ho,&RTfes_ho);
-         dynamic_cast<HypreADS *>(prec)->SetPrintLevel(0);
-         prec_lor = new HypreADS(*A_vu_lor,&RTfes_lor);
-         dynamic_cast<HypreADS *>(prec_lor)->SetPrintLevel(0);
-      }
-
-      BlockDiagonalPreconditioner M(block_trueOffsets);
-      BlockDiagonalPreconditioner M_lor2(block_trueOffsets);
-
-      FiniteElement::MapType t = FiniteElement::H_DIV;
-      Array<int> perm = ComputeVectorFE_LORPermutation(RTfes_ho, RTfes_lor, t);
-      
-
-      LORH1HdivDirectSolver M_lor(*A_lor, perm);
-      // for (int i = 0; i<perm.Size(); i++) perm[i] = i;
-      // LORH1HdivDirectSolver M_lor(*A_ho, perm);
-
-      // BlockDiagonalMultiplicativePreconditioner M(block_trueOffsets);
-      // M.SetOperator(*A);
-      M.SetDiagonalBlock(0,&amg_p);
-      ScaledOperator S(prec,1.0);
-      M.SetDiagonalBlock(1,&S);
-
-      M_lor2.SetDiagonalBlock(0,&amg_lor_p);
-      ScaledOperator S_lor(prec_lor,1.0);
-      M_lor2.SetDiagonalBlock(1,&S_lor);
-
-      LORH1HdivDirectSolver M_lor_inexact(*A_lor, perm, false, &M_lor2);
-
-
-      StopWatch chrono;
-      chrono.Clear();
-      chrono.Start();
-      // GMRESSolver cg(MPI_COMM_WORLD);
-      CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-6);
-      // cg.SetAbsTol(1e-6);
-      cg.SetMaxIter(2000);
-      cg.SetPrintLevel(3);
-      cg.SetOperator(*A_ho);
-      // cg.SetPreconditioner(M);
-      cg.SetPreconditioner(M_lor);
-      cg.Mult(trueRhs, trueX);
-      chrono.Stop();
-      cout << "LOR exact - PCG time " << chrono.RealTime() << endl;
-
-      chrono.Clear();
-      chrono.Start();
-      cg.SetPreconditioner(M_lor_inexact);
-      cg.Mult(trueRhs, trueY);
-
-      chrono.Stop();
-      cout << "LOR inexact PCG time " << chrono.RealTime() << endl;
-
-      chrono.Clear();
-      chrono.Start();
-      cg.SetPreconditioner(M);
-      cg.Mult(trueRhs, trueZ);
-      delete prec;
-
-      chrono.Stop();
-      cout << "AMG/AMS PCG time " << chrono.RealTime() << endl;
-
-      // chrono.Clear();
-      // chrono.Start();
-      // MUMPSSolver mumps;
-      // mumps.SetPrintLevel(0);
-      // mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
-      // mumps.SetOperator(*A_ho);
-      // Vector trueY(trueX.Size());
-      // mumps.Mult(trueRhs,trueY);
-      // chrono.Stop();
-      // cout << "MUMPS time " << chrono.RealTime() << endl;
-
-
-      delete A_ho;
-      delete A_vu_ho;
-      delete A_qp_ho;
-      delete A_vp_ho;
-      delete A_qu_ho;
-
-      p_gf = 0.0;
-      u_gf = 0.0;
-      p_gf.Distribute(&(trueX.GetBlock(0)));
-      u_gf.Distribute(&(trueX.GetBlock(1)));
-
-      ratesH1.AddH1GridFunction(&p_gf,&p_ex,&gradp_ex);
-      ratesRT.AddHdivGridFunction(&u_gf,&u_ex,&divu_ex);
-
-      if (l==pr) break;
-
-      pmesh->UniformRefinement();
-      pmesh_lor.UniformRefinement();
-      H1fes_ho.Update();
-      RTfes_ho.Update();
-      a_qp_ho.Update();
-      a_qu_ho.Update();
-      a_vp_ho.Update();
-      a_vu_ho.Update();
-      b_q_ho.Update();
-      b_v_ho.Update();
-      H1fes_lor.Update();
-      RTfes_lor.Update();
-      a_qp_lor.Update();
-      a_qu_lor.Update();
-      a_vp_lor.Update();
-      a_vu_lor.Update();
-      p_gf.Update();
-      u_gf.Update();
+      prec = new HypreAMS(*Ah_ho[1][1],&RTfes_ho);
+      dynamic_cast<HypreAMS *>(prec)->SetPrintLevel(0);
+      prec_lor = new HypreAMS(*Ah_lor[1][1],&RTfes_lor);
+      dynamic_cast<HypreAMS *>(prec_lor)->SetPrintLevel(0);
    }
-   ratesH1.Print(true);
-   ratesRT.Print(true);
+   else
+   {
+      prec = new HypreADS(*Ah_ho[1][1],&RTfes_ho);
+      dynamic_cast<HypreADS *>(prec)->SetPrintLevel(0);
+      prec_lor = new HypreADS(*Ah_lor[1][1],&RTfes_lor);
+      dynamic_cast<HypreADS *>(prec_lor)->SetPrintLevel(0);
+   }
+
+   BlockDiagonalPreconditioner M(block_trueOffsets);
+   BlockDiagonalPreconditioner M_lor2(block_trueOffsets);
+
+   FiniteElement::MapType t = FiniteElement::H_DIV;
+   Array<int> perm = ComputeVectorFE_LORPermutation(RTfes_ho, RTfes_lor, t);
+   
+
+   LORH1HdivDirectSolver M_lor(*A_lor, perm);
+   M.SetDiagonalBlock(0,&amg_p);
+   ScaledOperator S(prec,1.0);
+   M.SetDiagonalBlock(1,&S);
+
+   M_lor2.SetDiagonalBlock(0,&amg_lor_p);
+   ScaledOperator S_lor(prec_lor,1.0);
+   M_lor2.SetDiagonalBlock(1,&S_lor);
+
+   LORH1HdivDirectSolver M_lor_inexact(*A_lor, perm, false, &M_lor2);
+
+   StopWatch chrono;
+   chrono.Clear();
+   chrono.Start();
+   // GMRESSolver cg(MPI_COMM_WORLD);
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetRelTol(1e-6);
+   // cg.SetAbsTol(1e-6);
+   cg.SetMaxIter(2000);
+   cg.SetPrintLevel(3);
+   cg.SetOperator(*A_ho);
+   // cg.SetPreconditioner(M);
+   cg.SetPreconditioner(M_lor);
+   cg.Mult(trueRhs, trueX);
+   chrono.Stop();
+   cout << "LOR exact - PCG time " << chrono.RealTime() << endl;
+
+   chrono.Clear();
+   chrono.Start();
+   cg.SetPreconditioner(M_lor_inexact);
+   cg.Mult(trueRhs, trueY);
+
+   chrono.Stop();
+   cout << "LOR inexact PCG time " << chrono.RealTime() << endl;
+
+   chrono.Clear();
+   chrono.Start();
+   cg.SetPreconditioner(M);
+   cg.Mult(trueRhs, trueZ);
+   delete prec;
+
+   chrono.Stop();
+   cout << "AMG/AMS PCG time " << chrono.RealTime() << endl;
+
+   for (int i = 0; i<2; i++)
+   {
+      for (int j = 0; j<2; j++)
+      {
+         delete Ah_ho[i][j];
+         delete Ah_lor[i][j];
+      }
+   }
+
+   ParGridFunction p_gf(&H1fes_ho);
+   ParGridFunction u_gf(&RTfes_ho);
+   ParGridFunction p_zero(&H1fes_ho);
+   ParGridFunction u_zero(&RTfes_ho);
+   p_gf = 0.0; p_zero = 0.0;
+   u_gf = 0.0; u_zero = 0.0;
+   p_gf.Distribute(&(trueX.GetBlock(0)));
+   u_gf.Distribute(&(trueX.GetBlock(1)));
+
+   double H1_error = p_gf.ComputeH1Error(&p_ex,&gradp_ex);
+   double H1_norm  = p_zero.ComputeH1Error(&p_ex,&gradp_ex);
+   double Hdiv_error = u_gf.ComputeHDivError(&u_ex,&divu_ex);
+   double Hdiv_norm = u_zero.ComputeHDivError(&u_ex,&divu_ex);
+
+
+   if (myid == 0)
+   {
+      cout << "H1 rel error     = " << H1_error/H1_norm << endl;
+      cout << "H(div) rel error = " << Hdiv_error/Hdiv_norm << endl;
+   }
 
    // 10. Send the solution by socket to a GLVis server.
    if (visualization)

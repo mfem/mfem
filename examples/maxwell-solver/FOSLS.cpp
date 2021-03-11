@@ -216,7 +216,6 @@ void ComplexMaxwellFOSLS::FormSystem(bool system)
       A[3][0] = A[0][3]->Transpose();
    }
 
-
    ParBilinearForm a33(fes);
    a33.AddDomainIntegrator(new CurlCurlIntegrator(one));
    a33.AddDomainIntegrator(new VectorFEMassIntegrator(omeg2));
@@ -232,5 +231,201 @@ void ComplexMaxwellFOSLS::FormSystem(bool system)
          fes->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(i),Rhs.GetBlock(i));
       }
    }
+};
 
+HelmholtzFOSLS::HelmholtzFOSLS(Array<ParFiniteElementSpace * > & fes_, 
+bool definite_) : fes(fes_), definite(definite_)
+{ };
+
+void HelmholtzFOSLS::SetLoadData(FunctionCoefficient * f_)
+{
+   f = f_;
+}
+void HelmholtzFOSLS::SetLoadData(VectorFunctionCoefficient * Q_)
+{
+   Q = Q_;
+}
+
+void HelmholtzFOSLS::SetEssentialData(FunctionCoefficient * p_ex_coeff_)
+{
+   p_ex_coeff = p_ex_coeff_;
+}
+void HelmholtzFOSLS::SetEssentialData(VectorFunctionCoefficient * u_ex_coeff_)
+{
+   u_ex_coeff = u_ex_coeff_;
+}
+
+void HelmholtzFOSLS::GetFOSLSLinearSystem(Array2D<HypreParMatrix *> & A_, 
+                                          BlockVector & X_,
+                                          BlockVector & Rhs_)
+{
+   if (A.NumCols() == 0)
+   {
+      FormSystem(true);
+   }
+   A_ = A;
+   X_ = X;
+   Rhs_ = Rhs;
+}
+
+void HelmholtzFOSLS::GetFOSLSMatrix(Array2D<HypreParMatrix *> & A_)
+{
+   if (A.NumCols() == 0)
+   {
+      FormSystem(false);
+   }
+   A_ = A;
+}
+
+void HelmholtzFOSLS::FormSystem(bool system)
+{
+   HYPRE_Int size = fes[0]->GlobalTrueVSize() + fes[1]->GlobalTrueVSize();
+
+   Array<int> ess_tdof_list;
+   Array<int> ess_bdr;
+   pmesh = fes[0]->GetParMesh();
+   if (pmesh->bdr_attributes.Size())
+   {
+      ess_bdr.SetSize(pmesh->bdr_attributes.Max());
+      ess_bdr = 1;
+   }
+
+
+   block_offsets.SetSize(3);
+   block_offsets[0] = 0;
+   block_offsets[1] = fes[0]->GetVSize();
+   block_offsets[2] = fes[1]->GetVSize();
+   block_offsets.PartialSum();
+
+   block_trueOffsets.SetSize(3);
+   block_trueOffsets[0] = 0;
+   block_trueOffsets[1] = fes[0]->GetTrueVSize();
+   block_trueOffsets[2] = fes[1]->GetTrueVSize();
+   block_trueOffsets.PartialSum();
+
+   ParGridFunction p_gf, u_gf;
+
+   if(system)
+   {
+      x.Update(block_offsets);
+      rhs.Update(block_offsets);
+      X.Update(block_trueOffsets);
+      Rhs.Update(block_trueOffsets);
+      x = 0.0;  rhs = 0.0; X = 0.0;  Rhs = 0.0;
+
+      p_gf.MakeRef(fes[0],x.GetBlock(0)); p_gf = 0.0;
+      u_gf.MakeRef(fes[1],x.GetBlock(1)); u_gf = 0.0;
+
+      if (p_ex_coeff)
+      {
+         p_gf.ProjectCoefficient(*p_ex_coeff);
+      }
+      if (u_ex_coeff)
+      {
+         u_gf.ProjectCoefficient(*u_ex_coeff);
+      }
+   }
+
+   ConstantCoefficient negone(-1.0);
+   ConstantCoefficient one(1.0);
+   ConstantCoefficient negomeg(-omega);
+   ConstantCoefficient omeg(omega);
+   ConstantCoefficient omeg2(omega * omega);
+   ProductCoefficient omega_f(omeg,*f);
+   ProductCoefficient neg_f(negone,*f);
+
+   ParLinearForm b0, b1;
+
+   if(system)
+   {
+      b0.Update(fes[0],rhs.GetBlock(0),0);
+      b1.Update(fes[1],rhs.GetBlock(1),0);
+      b0.AddDomainIntegrator(new DomainLFIntegrator(omega_f));
+      if (definite)
+      {
+         b1.AddDomainIntegrator(new VectorFEDomainLFDivIntegrator(neg_f));
+      }
+      else
+      {
+         b1.AddDomainIntegrator(new VectorFEDomainLFDivIntegrator(*f));
+      }
+      b0.Assemble();
+      b1.Assemble();
+   }
+   A.SetSize(2,2); 
+   for (int i = 0; i<2; i++)
+   {
+      for (int j = 0; j<2; j++)
+      {
+         A[i][j] = nullptr;
+      }
+   }
+
+   ParBilinearForm a00(fes[0]);
+   a00.AddDomainIntegrator(new DiffusionIntegrator(one));
+   a00.AddDomainIntegrator(new MassIntegrator(omeg2));
+   a00.Assemble();
+   if (system)
+   {
+      a00.EliminateEssentialBC(ess_bdr,x.GetBlock(0),rhs.GetBlock(0),mfem::Operator::DIAG_ONE);
+   }
+   else
+   {
+      a00.EliminateEssentialBC(ess_bdr,mfem::Operator::DIAG_ONE);
+   }
+   a00.Finalize();
+   A[0][0] = a00.ParallelAssemble();
+
+   ParMixedBilinearForm a01(fes[1],fes[0]);
+   if (definite)
+   {
+      a01.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(negomeg));
+   }
+   else
+   {
+      a01.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(omeg));
+   }
+   a01.AddDomainIntegrator(new MixedVectorWeakDivergenceIntegrator(omeg));
+   a01.Assemble();
+   a01.EliminateTestDofs(ess_bdr);
+   a01.Finalize();
+   A[0][1] = a01.ParallelAssemble();
+
+   if (system)
+   {
+      ParMixedBilinearForm a10(fes[0],fes[1]);
+      if (definite)
+      {
+         a10.AddDomainIntegrator(new MixedScalarWeakGradientIntegrator(omeg));
+      }
+      else
+      {
+         a10.AddDomainIntegrator(new MixedScalarWeakGradientIntegrator(negomeg));
+      }
+      a10.AddDomainIntegrator(new MixedVectorGradientIntegrator(negomeg));
+      a10.Assemble();
+      a10.EliminateTrialDofs(ess_bdr,x.GetBlock(0),rhs.GetBlock(1));
+      a10.Finalize();
+      A[1][0] = a10.ParallelAssemble();
+   }
+   else
+   {
+      A[1][0] = A[0][1]->Transpose();
+   }
+
+   ParBilinearForm a11(fes[1]);
+   a11.AddDomainIntegrator(new DivDivIntegrator(one));
+   a11.AddDomainIntegrator(new VectorFEMassIntegrator(omeg2));
+   a11.Assemble();
+   a11.Finalize();
+   A[1][1] = a11.ParallelAssemble();
+
+
+   if (system)
+   {
+      fes[0]->GetRestrictionMatrix()->Mult(x.GetBlock(0), X.GetBlock(0));
+      fes[1]->GetRestrictionMatrix()->Mult(x.GetBlock(1), X.GetBlock(1));
+      fes[0]->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(0),Rhs.GetBlock(0));
+      fes[1]->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(1),Rhs.GetBlock(1));
+   }
 }
