@@ -26,6 +26,7 @@ void plotfield(socketstream &,ParMesh * pmesh,const ParGridFunction & , string &
 
 int dim;
 double omega;
+int exact = 0;
 
    // ----------------------------------------------------------------------
    // |   |            E             |             H          |     RHS    | 
@@ -60,6 +61,8 @@ int main(int argc, char *argv[])
                   "Number of parallel refinements.");
    args.AddOption(&rnum, "-rnum", "--number_of_wavelenths",
                   "Number of wavelengths");                  
+   args.AddOption(&exact, "-solution", "--exact_solution",
+                  "Exact solution : 0-polynomial, 1-plane wave");                  
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -78,9 +81,10 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // omega = 2.0 * M_PI * rnum;
-   omega = rnum;
+   omega = 2.0 * M_PI * rnum;
+   // omega = rnum;
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
+
    dim = mesh->Dimension();
 
    MFEM_VERIFY(dim == 3, "only 3D problems supported by this formulation");
@@ -100,6 +104,13 @@ int main(int argc, char *argv[])
 
    FiniteElementCollection *fec = new ND_FECollection(order,dim); 
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
+
+   HYPRE_Int size = fespace->GlobalTrueVSize();
+
+   if (myid == 0)
+   {
+      cout << "Number of True Dofs = " << size << endl;
+   }
 
    Array<int> ess_tdof_list;
    Array<int> ess_bdr;
@@ -302,12 +313,40 @@ int main(int argc, char *argv[])
    }
 
    HypreParMatrix * A = HypreParMatrixFromBlocks(Ah);
+   
+   HypreAMS ams0(*Ah[0][0],fespace);
+   HypreAMS ams1(*Ah[1][1],fespace);
+
+   BlockDiagonalPreconditioner prec(block_trueOffsets);
+   prec.SetDiagonalBlock(0,&ams0);
+   prec.SetDiagonalBlock(1,&ams1);
+   prec.SetDiagonalBlock(2,&ams0);
+   prec.SetDiagonalBlock(3,&ams1);
+
+   StopWatch chrono;
+   chrono.Clear();
+   chrono.Start();
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetRelTol(1e-6);
+   // cg.SetAbsTol(1e-6);
+   cg.SetMaxIter(400);
+   cg.SetPrintLevel(1);
+   cg.SetOperator(*A);
+   cg.SetPreconditioner(prec);
+   cg.Mult(Rhs, X);
+   chrono.Stop();
+   double t1 = chrono.RealTime();
+   if (myid == 0)
    {
-      MUMPSSolver mumps;
-      mumps.SetPrintLevel(0);
-      mumps.SetOperator(*A);
-      mumps.Mult(Rhs,X);
+      cout << "PCG time = " << t1 << endl;
    }
+   
+   // {
+   //    MUMPSSolver mumps;
+   //    mumps.SetPrintLevel(0);
+   //    mumps.SetOperator(*A);
+   //    mumps.Mult(Rhs,X);
+   // }
    E_gf_re = 0.0;
    E_gf_im = 0.0;
    H_gf_re = 0.0;
@@ -318,11 +357,25 @@ int main(int argc, char *argv[])
    E_gf_im.Distribute(&(X.GetBlock(2)));
    H_gf_im.Distribute(&(X.GetBlock(3)));
 
+   double E_re_L2_Error = E_gf_re.ComputeL2Error(E_ex_re);
+   double E_im_L2_Error = E_gf_im.ComputeL2Error(E_ex_im);
+   double H_re_L2_Error = H_gf_re.ComputeL2Error(H_ex_re);
+   double H_im_L2_Error = H_gf_im.ComputeL2Error(H_ex_im);
 
-   cout << "E_re L2 Error = " << E_gf_re.ComputeL2Error(E_ex_re) << endl;
-   cout << "E_im L2 Error = " << E_gf_im.ComputeL2Error(E_ex_im) << endl;
-   cout << "H_re L2 Error = " << H_gf_re.ComputeL2Error(H_ex_re) << endl;
-   cout << "H_im L2 Error = " << H_gf_im.ComputeL2Error(H_ex_im) << endl;
+   ParGridFunction zero(fespace);
+   zero = 0.0;
+   double E_re_L2_norm = zero.ComputeL2Error(E_ex_re);
+   double E_im_L2_norm = zero.ComputeL2Error(E_ex_im);
+   double H_re_L2_norm = zero.ComputeL2Error(H_ex_re);
+   double H_im_L2_norm = zero.ComputeL2Error(H_ex_im);
+   if (myid == 0)
+   {
+      cout << "E_re L2 Error = " << E_re_L2_Error/E_re_L2_norm << endl;
+      cout << "E_im L2 Error = " << E_im_L2_Error/E_im_L2_norm << endl;
+      cout << "H_re L2 Error = " << H_re_L2_Error/H_re_L2_norm << endl;
+      cout << "H_im L2 Error = " << H_im_L2_Error/H_im_L2_norm << endl;
+   }   
+
 
    if (visualization)
    {
@@ -376,17 +429,36 @@ void maxwell_solution(const Vector &X, std::vector<complex<double>> &sol,
    double x = X(0), y = X(1), z = X(2);
 
    complex<double> zi(0,1);
-   sol[0] = y*(1.0-y)*z*(1.0-z) + zi * 2.0;
-   sol[1] = y*x*(1.0-x)*z*(1.0-z)+ zi * 2.0;
-   sol[2] = x*(1.0-x)*y*(1.0-y) + zi * 2.0;
+   if (exact == 0)
+   {
+      sol[0] = y*(1.0-y)*z*(1.0-z) + zi * 2.0;
+      sol[1] = y*x*(1.0-x)*z*(1.0-z)+ zi * 2.0;
+      sol[2] = x*(1.0-x)*y*(1.0-y) + zi * 2.0;
 
-   curl[0] = (1.0-x)*x*(y*(2.0*z-3.0)+1.0);
-   curl[1] = 2.0*(1.0-y)*y*(x-z);
-   curl[2] = (z-1.0)*z*(y*(2*x-3)+1.0);
+      curl[0] = (1.0-x)*x*(y*(2.0*z-3.0)+1.0);
+      curl[1] = 2.0*(1.0-y)*y*(x-z);
+      curl[2] = (z-1.0)*z*(y*(2*x-3)+1.0);
 
-   curl2[0] = (2.0*x-3.0)*(z-1.0)*z-2.0*y*y+2*y;
-   curl2[1] = -2.0*y*(x*x-x+(z-1.0)*z);
-   curl2[2] = 2*(x*(1.5-z)+x*x*(z-1.5)-y*y+y);
+      curl2[0] = (2.0*x-3.0)*(z-1.0)*z-2.0*y*y+2*y;
+      curl2[1] = -2.0*y*(x*x-x+(z-1.0)*z);
+      curl2[2] = 2*(x*(1.5-z)+x*x*(z-1.5)-y*y+y);
+   }
+   else
+   {
+      complex<double> alpha = zi * omega / sqrt(3);
+      sol[0] = exp(alpha*(x+y+z));
+      sol[1] = 0.0;
+      sol[2] = 0.0;
+
+      curl[0] = 0.0;
+      curl[1] = alpha * sol[0];
+      curl[2] = -alpha * sol[0];
+
+      curl2[0] = -2.0 * alpha * alpha * sol[0];
+      curl2[1] = alpha * alpha * sol[0];
+      curl2[2] = curl2[1];
+   }
+
 
    // sol[0] = 1.0 + 2.0*zi;
    // sol[1] = 1.0 + 2.0*zi;
