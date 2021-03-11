@@ -1479,7 +1479,8 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
    const int elem_dofs = fes.GetFE(0)->GetDof();
    const int dim = fes.GetMesh()->SpaceDimension();
    int nc_cpt = 0;
-   std::map<const DenseMatrix*, std::pair<int,DenseMatrix*>> interp_map;
+   using Key = std::pair<const DenseMatrix*,int>;
+   std::map<Key, std::pair<int,DenseMatrix*>> interp_map;
    // Computation of scatter and offsets indices
    for (int i = 0; i <= ndofs; ++i)
    {
@@ -1523,8 +1524,10 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
             }
             else // Non-conforming face
             {
-               const DenseMatrix* id = mesh.GetNCFacesPtMat(ncface);
-               auto itr = interp_map.find(id);
+               // TODO the id needs to take into account the face?
+               const DenseMatrix* ptMat = mesh.GetNCFacesPtMat(ncface);
+               Key key(ptMat, face_id2);// in 2D face_id2==2 || face_id2==3;?
+               auto itr = interp_map.find(key);
                if (itr == interp_map.end())
                {
                   // Assumes all trace elements are the same.
@@ -1533,12 +1536,6 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
                   DenseMatrix* interp_mat = new DenseMatrix(dof,dof);
                   Vector shape(dof);
                   IntegrationPoint f_ip;
-                  // TODO print PointMatrix to understand its structure?
-                  // TODO compute IntegrationPoint face coordinates
-                  // TODO transformation of the coordinates of IntegrationPoint
-                  // in function of the PointMatrix and face_id?
-                  // TODO compute Local Interpolation Matrix with fe->CalcShape
-
                   /// With a transformation ///
                   // IsoparametricTransformation T;
                   // switch (trace_fe->GetGeomType())
@@ -1548,32 +1545,40 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
                   //    default: MFEM_ABORT("unsupported geometry");
                   // }
                   // // TODO order pointMat
-                  // T.GetPointMat() = *id;
+                  // T.GetPointMat() = *ptMat;
                   // trace_fe->GetLocalInterpolation(T, *interp_mat);
 
                   /// Without a transformation ///
-                  // TODO compute x_min, x_max, y_min, y_max
                   double x_min(0), x_max(0), y_min(0), y_max(0);
                   switch (trace_fe->GetGeomType())
                   {
                      case Geometry::SQUARE:
-                        MFEM_ASSERT(id->Height() == 2, "Unexpected PtMat height.");
-                        MFEM_ASSERT(id->Width() == 4, "Unexpected PtMat width.");
+                        MFEM_ASSERT(ptMat->Height() == 2, "Unexpected PtMat height.");
+                        MFEM_ASSERT(ptMat->Width() == 4, "Unexpected PtMat width.");
                         MFEM_ABORT("Not yet implemented.");
                         break;
                      case Geometry::SEGMENT:
-                        MFEM_ASSERT(id->Height() == 1, "Unexpected PtMat height.");
-                        MFEM_ASSERT(id->Width() == 2, "Unexpected PtMat width.");
-                        if ( (*id)(0,0) < (*id)(0,1) )
+                     {
+                        MFEM_ASSERT(ptMat->Height() == 1, "Unexpected PtMat height.");
+                        MFEM_ASSERT(ptMat->Width() == 2, "Unexpected PtMat width.");
+                        // NCMesh::Slave &slave = (NCMesh::Slave&)mesh.ncmesh->GetEdgeList().LookUp(f);
+                        // slave.edge_flags & 1
+                        bool invert = face_id2==2 || face_id2==3;
+                        double a = (*ptMat)(0,0);
+                        double b = (*ptMat)(0,1);
+                        double x1 = !invert ? a : 1.0-a;
+                        double x2 = !invert ? b : 1.0-b;
+                        if ( x1 < x2 )
                         {
-                           x_min = (*id)(0,0);
-                           x_max = (*id)(0,1);
+                           x_min = x1;
+                           x_max = x2;
                         }
                         else
                         {
-                           x_min = (*id)(0,1);
-                           x_max = (*id)(0,0);
+                           x_min = x2;
+                           x_max = x1;
                         }
+                     }
                         break;
                      default: MFEM_ABORT("unsupported geometry");
                   }
@@ -1596,7 +1601,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
                         (*interp_mat)(i,j) = shape(j); // Maybe (j,i)?
                      }
                   }
-                  interp_map[id] = {nc_cpt, interp_mat};
+                  interp_map[key] = {nc_cpt, interp_mat};
                   interp_config[f_ind] = nc_cpt;
                   nc_cpt++;
                }
@@ -1605,11 +1610,12 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
                   interp_config[f_ind] = itr->second.first;
                }
             }
+            if (dim==2 && ncface>-1) orientation = 1;
             for (int d = 0; d < dof; ++d)
             {
                // TODO orientation is wrong.
                const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                             orientation, dof1d, d);
+                                            orientation, dof1d, d);
                const int face_dof = faceMap2[pd];
                const int gid = elementMap[e2*elem_dofs + face_dof];
                const int lid = dof*f_ind + d;
@@ -1674,6 +1680,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
          {
             for (int d = 0; d < dof; ++d)
             {
+               if (dim==2 && ncface>=0) orientation = 1;
                const int pd = PermuteFaceL2(dim, face_id1, face_id2,
                                             orientation, dof1d, d);
                const int did = faceMap2[pd];
@@ -1697,18 +1704,24 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
    offsets[0] = 0;
    // Transform the interpolation matrix map into a contiguous memory structure.
    nc_size = interp_map.size();
+   std::cout << (type==FaceType::Interior? "interior" : "boundary") <<
+      "NC config size = " << nc_size << std::endl;
    interpolators.SetSize(dof*dof*nc_size);
    auto interp = Reshape(interpolators.HostWrite(),dof,dof,nc_size);
    for (auto val : interp_map)
    {
       const int idx = val.second.first;
+      std::cout << "Mat idx = " << idx << std::endl;
       for (int i = 0; i < dof; i++)
       {
          for (int j = 0; j < dof; j++)
          {
             interp(i,j,idx) = (*val.second.second)(i,j);
+            std::cout << interp(i,j,idx) << " ";
          }
+         std::cout << std::endl;
       }
+      std::cout << std::endl;
       delete val.second.second;
    }
 }
@@ -1727,7 +1740,7 @@ void NCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
       auto d_y = Reshape(y.Write(), nd, vd, 2, nf);
       auto interp_config_ptr = interp_config.Read();
-      auto interpOp = Reshape(interpolators.Read(), nd, nd, nc_size);
+      auto interp = Reshape(interpolators.Read(), nd, nd, nc_size);
       // TODO use optimized MFEM_FORALL
       // for(int face = 0; face<nf; face++)
       MFEM_FORALL(face, nf,
@@ -1759,7 +1772,7 @@ void NCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
                      res[dofOut] = 0.0;
                      for (int dofIn = 0; dofIn<nd; dofIn++)
                      {
-                        res[dofOut] += interpOp(dofOut, dofIn, config)*dofs[dofIn];
+                        res[dofOut] += interp(dofOut, dofIn, config)*dofs[dofIn];
                      }
                   }
                   for (int dof = 0; dof<nd; dof++)
@@ -1768,6 +1781,28 @@ void NCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
                   }
                }
             }
+         }
+      });
+   }
+   else if ( type==FaceType::Boundary && m==L2FaceValues::DoubleValued )
+   {
+      auto d_indices1 = scatter_indices1.Read();
+      auto d_indices2 = scatter_indices2.Read();
+      auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
+      auto d_y = Reshape(y.Write(), nd, vd, 2, nf);
+      MFEM_FORALL(i, nfdofs,
+      {
+         const int dof = i % nd;
+         const int face = i / nd;
+         const int idx1 = d_indices1[i];
+         for (int c = 0; c < vd; ++c)
+         {
+            d_y(dof, c, 0, face) = d_x(t?c:idx1, t?idx1:c);
+         }
+         const int idx2 = d_indices2[i];
+         for (int c = 0; c < vd; ++c)
+         {
+            d_y(dof, c, 1, face) = idx2==-1 ? 0.0 : d_x(t?c:idx2, t?idx2:c);
          }
       });
    }
@@ -1800,7 +1835,7 @@ void NCL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
    {
       auto d_x = Reshape(const_cast<Vector&>(x).ReadWrite(), nd, vd, 2, nf);
       auto interp_config_ptr = interp_config.Read();
-      auto interpOp = Reshape(interpolators.Read(), nd, nd, nc_size);
+      auto interp = Reshape(interpolators.Read(), nd, nd, nc_size);
       // TODO optimize MFEM_FORALL
       MFEM_FORALL(face, nf,
       {
@@ -1808,7 +1843,7 @@ void NCL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
          double res[nd];
          const int side = 1;
          const int config = interp_config_ptr[face];
-         if ( config!=conforming ) // No interpolation
+         if ( config!=conforming )
          {
             for (int c = 0; c < vd; ++c)
             {
@@ -1821,7 +1856,7 @@ void NCL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
                   res[dofOut] = 0.0;
                   for (int dofIn = 0; dofIn<nd; dofIn++)
                   {
-                     res[dofOut] += interpOp(dofIn, dofOut, config)*dofs[dofIn];
+                     res[dofOut] += interp(dofIn, dofOut, config)*dofs[dofIn];
                   }
                }
                for (int dof = 0; dof<nd; dof++)
