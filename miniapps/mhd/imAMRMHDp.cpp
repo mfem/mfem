@@ -600,7 +600,6 @@ int main(int argc, char *argv[])
    refiner.SetTotalErrorGoal(0.0);  // total error goal (stop criterion)
    refiner.SetLocalErrorGoal(ltol_amr);  // local error goal (stop criterion)
    refiner.SetTotalErrorNormP(error_norm);
-
    refiner.SetMaxElements(10000000);
    if (levels3<amr_levels)
       refiner.SetMaximumRefinementLevel(levels3);

@@ -154,10 +154,13 @@ int main(int argc, char *argv[])
    int precision = 8;
    int nc_limit = 1;         // maximum level of hanging nodes
    int ref_steps=4;
+   int iestimator=1;
    double err_ratio=.1;
    double err_fraction=.5;
    double derefine_ratio=.2;
+   double derefine_fraction=.05;
    double t_refs=1e10;
+   double error_norm=infinity();
    //----end of amr----
    
    beta = 0.001; 
@@ -217,6 +220,8 @@ int main(int argc, char *argv[])
                   "AMR error fraction in estimator.");
    args.AddOption(&derefine_ratio, "-derefine-ratio", "--derefine-ratio",
                   "AMR derefine error ratio.");
+   args.AddOption(&derefine_fraction, "-derefine-fraction", "--derefine-fraction",
+                  "AMR derefine error fraction of total error (derefine if error is less than portion of total error).");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -248,6 +253,8 @@ int main(int argc, char *argv[])
    args.AddOption(&derefine, "-derefine", "--derefine-mesh", "-no-derefine",
                   "--no-derefine-mesh",
                   "Derefine the mesh in AMR.");
+   args.AddOption(&error_norm, "-error-norm", "--error-norm",
+                  "AMR error norm (in both refine and derefine).");
    args.AddOption(&yRange, "-yrange", "--y-refine-range", "-no-yrange",
                   "--no-y-refine-range",
                   "Refine only in the y range of [-.6, .6] in AMR.");
@@ -263,6 +270,10 @@ int main(int argc, char *argv[])
                   "UpdateJ: 0 - no boundary condition used; 1/2 - Dirichlet used on J boundary (2: lumped mass matrix).");
    args.AddOption(&BgradJ, "-BgradJ", "--BgradJ",
                   "BgradJ: 1 - (B.grad J, phi); 2 - (-J, B.grad phi); 3 - (-B J, grad phi).");
+   args.AddOption(&lumpedMass, "-lumpmass", "--lump-mass",  "-no-lumpmass", "--no-lump-mass",
+                  "lumped mass for updatej=0");
+   args.AddOption(&iestimator, "-iestimator", "--iestimator",
+                  "iestimator: 1 - psi and J; 2 - omega and psi.");
    args.Parse();
 
    if (!args.Good())
@@ -566,7 +577,10 @@ int main(int argc, char *argv[])
    bool regularZZ=true;
    if (regularZZ)
    {
-     estimator=new BlockZZEstimator(*integ, psi, *integ, j, flux_fespace1, flux_fespace2);
+     if (iestimator==1)
+        estimator=new BlockZZEstimator(*integ, psi, *integ, j, flux_fespace1, flux_fespace2);
+     else
+        estimator=new BlockZZEstimator(*integ, w, *integ, psi, flux_fespace1, flux_fespace2);
      estimator->SetErrorRatio(err_ratio); 
      estimator_used=estimator;
    }
@@ -579,8 +593,9 @@ int main(int argc, char *argv[])
    int levels3=par_ref_levels+3, levels4=par_ref_levels+4;
    ThresholdRefiner refiner(*estimator_used);
    refiner.SetTotalErrorFraction(err_fraction);   // here 0.0 means we use local threshold; default is 0.5
-   refiner.SetTotalErrorGoal(ltol_amr);  // total error goal (stop criterion)
-   refiner.SetLocalErrorGoal(0.0);  // local error goal (stop criterion)
+   refiner.SetTotalErrorGoal(0.0);  // total error goal (stop criterion)
+   refiner.SetLocalErrorGoal(ltol_amr);  // local error goal (stop criterion)
+   refiner.SetTotalErrorNormP(error_norm);
    refiner.SetMaxElements(10000000);
    if (levels3<amr_levels)
       refiner.SetMaximumRefinementLevel(levels3);
@@ -593,6 +608,20 @@ int main(int argc, char *argv[])
    ThresholdDerefiner derefiner(*estimator_used);
    derefiner.SetThreshold(derefine_ratio*ltol_amr);
    derefiner.SetNCLimit(nc_limit);
+   derefiner.SetTotalErrorNormP(error_norm);
+   if (derefine_fraction>=err_fraction && derefine)
+   {   
+       if (myid==0) cout << "ERROR: derefine_fraction is set to be large than err_fraction!!"<<endl;
+       if (use_petsc) { MFEMFinalizePetsc(); }
+       delete ode_solver;
+       delete pmesh;
+       delete integ;
+       delete estimator_used;
+       MPI_Finalize();
+       return 3;
+   }
+   else
+   { derefiner.SetTotalErrorFraction(derefine_fraction); }
 
    bool derefineMesh = false;
    bool refineMesh = false;
@@ -870,7 +899,7 @@ int main(int argc, char *argv[])
       }
 
       //++++++Derefine step++++++
-      if (derefineMesh)
+      if (derefineMesh && derefine)
       {
          if (myid == 0) cout << "Derefined mesh..." << endl;
 
@@ -991,6 +1020,7 @@ int main(int argc, char *argv[])
    double end = MPI_Wtime();
 
    //++++++Save the solutions (only if paraview or visit is not turned on).
+   if (false)
    {
       phi.SetFromTrueDofs(vx.GetBlock(0));
       psi.SetFromTrueDofs(vx.GetBlock(1));
