@@ -689,16 +689,16 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
       cout << "Building nxD01_" << endl;
       nxD01_ = new ParMixedSesquilinearForm(H1FESpace_, HCurlFESpace_);
       nxD01_->AddBoundaryIntegrator(NULL,
-                                    new nxGradIntegrator(*negOmegaCoef_),
+                                    new nxGradIntegrator(*omegaCoef_),
                                     sbc_bdr_marker_);
       if (kReCoef_ || kImCoef_)
       {
          nxD01_->AddBoundaryIntegrator((kReCoef_) ?
                                        new nxkIntegrator(*kReCoef_,
-                                                         *omegaCoef_) : NULL,
+                                                         *negOmegaCoef_) : NULL,
                                        (kImCoef_) ?
                                        new nxkIntegrator(*kImCoef_,
-                                                         *omegaCoef_) : NULL,
+                                                         *negOmegaCoef_) : NULL,
                                        sbc_bdr_marker_);
       }
       cout << "Done Building nxD01_" << endl;
