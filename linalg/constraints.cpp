@@ -312,7 +312,7 @@ EliminationSolver::EliminationSolver(HypreParMatrix& A, SparseMatrix& B,
    BuildExplicitOperator();
 }
 
-void EliminationSolver::PrimalMult(const Vector& rhs, Vector& sol) const
+void EliminationSolver::Mult(const Vector& rhs, Vector& sol) const
 {
    if (!prec)
    {
@@ -420,7 +420,7 @@ PenaltyConstrainedSolver::~PenaltyConstrainedSolver()
    delete krylov;
 }
 
-void PenaltyConstrainedSolver::PrimalMult(const Vector& b, Vector& x) const
+void PenaltyConstrainedSolver::Mult(const Vector& b, Vector& x) const
 {
    if (!prec)
    {
@@ -556,7 +556,8 @@ SchurConstrainedSolver::~SchurConstrainedSolver()
    delete dual_pc;
 }
 
-void SchurConstrainedSolver::Mult(const Vector& x, Vector& y) const
+void SchurConstrainedSolver::LagrangeSystemMult(const Vector& x,
+                                                Vector& y) const
 {
    GMRESSolver * gmres;
 #ifdef MFEM_USE_MPI
@@ -660,7 +661,7 @@ void ConstrainedSolver::SetConstraintRHS(const Vector& r)
    constraint_rhs = r;
 }
 
-void ConstrainedSolver::PrimalMult(const Vector& f, Vector &x) const
+void ConstrainedSolver::Mult(const Vector& f, Vector &x) const
 {
    Vector pworkb(A.Height() + B.Height());
    Vector pworkx(A.Height() + B.Height());
@@ -676,7 +677,7 @@ void ConstrainedSolver::PrimalMult(const Vector& f, Vector &x) const
       pworkb(f.Size() + i) = constraint_rhs(i);
    }
 
-   Mult(pworkb, pworkx);
+   LagrangeSystemMult(pworkb, pworkx);
 
    for (int i = 0; i < f.Size(); ++i)
    {
@@ -688,13 +689,14 @@ void ConstrainedSolver::PrimalMult(const Vector& f, Vector &x) const
    }
 }
 
-void ConstrainedSolver::Mult(const Vector& f_and_r, Vector& x_and_lambda) const
+void ConstrainedSolver::LagrangeSystemMult(const Vector& f_and_r,
+                                           Vector& x_and_lambda) const
 {
    workb.MakeRef(const_cast<Vector&>(f_and_r), 0);
    workx.MakeRef(x_and_lambda, 0);
    Vector ref_constraint_rhs(f_and_r.GetData() + A.Height(), B.Height());
    constraint_rhs = ref_constraint_rhs;
-   PrimalMult(workb, workx);
+   Mult(workb, workx);
    Vector ref_constraint_sol(x_and_lambda.GetData() + A.Height(), B.Height());
    GetMultiplierSolution(ref_constraint_sol);
 }
