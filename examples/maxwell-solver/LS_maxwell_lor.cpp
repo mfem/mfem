@@ -105,7 +105,6 @@ int main(int argc, char *argv[])
 
    FiniteElementCollection *fec = new ND_FECollection(order,dim); 
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-
    HYPRE_Int size = fespace->GlobalTrueVSize();
 
    if (myid == 0)
@@ -113,21 +112,10 @@ int main(int argc, char *argv[])
       cout << "Number of True Dofs = " << size << endl;
    }
 
-   Array<int> ess_tdof_list;
-   Array<int> ess_bdr;
-   if (pmesh->bdr_attributes.Size())
-   {
-      ess_bdr.SetSize(pmesh->bdr_attributes.Max());
-      ess_bdr = 1;
-      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   }
-
-
    VectorFunctionCoefficient E_ex_re(dim,E_exact_re);
    VectorFunctionCoefficient H_ex_re(dim,H_exact_re);
    VectorFunctionCoefficient E_ex_im(dim,E_exact_im);
    VectorFunctionCoefficient H_ex_im(dim,H_exact_im);
-
    VectorFunctionCoefficient f_ex_re(dim,f_exact_re);
    VectorFunctionCoefficient g_ex_re(dim,g_exact_re);
    VectorFunctionCoefficient f_ex_im(dim,f_exact_im);
@@ -136,178 +124,35 @@ int main(int argc, char *argv[])
    int n = fespace->GetVSize();
    int N = fespace->GetTrueVSize();
    Array<int> block_offsets(5);
+   block_offsets = n; 
    block_offsets[0] = 0;
-   block_offsets[1] = n;
-   block_offsets[2] = n;
-   block_offsets[3] = n;
-   block_offsets[4] = n;
    block_offsets.PartialSum();
 
    Array<int> block_trueOffsets(5);
+   block_trueOffsets = N;
    block_trueOffsets[0] = 0;
-   block_trueOffsets[1] = N;
-   block_trueOffsets[2] = N;
-   block_trueOffsets[3] = N;
-   block_trueOffsets[4] = N;
    block_trueOffsets.PartialSum();
 
-   BlockVector x(block_offsets), rhs(block_offsets);
    BlockVector X(block_trueOffsets), Rhs(block_trueOffsets);
-   x = 0.0;  rhs = 0.0; X = 0.0;  Rhs = 0.0;
+   X = 0.0;  Rhs = 0.0;
 
-   ParGridFunction E_gf_re, E_gf_im, H_gf_re, H_gf_im;
+   ComplexMaxwellFOSLS fosls(fespace);
+   fosls.SetOmega(omega);
+   Array<VectorFunctionCoefficient * > ess_data(4);
+   ess_data[0] = &E_ex_re;
+   ess_data[1] = &H_ex_re;
+   ess_data[2] = &E_ex_im;
+   ess_data[3] = &H_ex_im;
+   fosls.SetEssentialData(ess_data);
+   Array<VectorFunctionCoefficient * > loads(4);
+   loads[0] = &f_ex_re;
+   loads[1] = &g_ex_re;
+   loads[2] = &f_ex_im;
+   loads[3] = &g_ex_im;
+   fosls.SetLoadData(loads);
 
-   E_gf_re.MakeRef(fespace,x.GetBlock(0)); E_gf_re = 0.0;
-   H_gf_re.MakeRef(fespace,x.GetBlock(1)); H_gf_re = 0.0;
-   E_gf_im.MakeRef(fespace,x.GetBlock(2)); E_gf_im = 0.0;
-   H_gf_im.MakeRef(fespace,x.GetBlock(3)); H_gf_im = 0.0;
-
-   // E_gf_re.ProjectBdrCoefficientTangent(E_ex_re,ess_bdr);
-   // E_gf_im.ProjectBdrCoefficientTangent(E_ex_im,ess_bdr);
-   E_gf_re.ProjectCoefficient(E_ex_re);
-   E_gf_im.ProjectCoefficient(E_ex_im);
-
-   // ----------------------------------------------------------------------
-   // |   |            E             |             H          |     RHS    | 
-   // ----------------------------------------------------------------------
-   // | F | (curlE,curlF)+w^2(E,F)   | iw(curlH,F)+iw(H,curF) | -iw(J,F)   |
-   // |   |                          |                        |            |
-   // | G |-iw(E,curlG)-iw(curlE,G)  | (curlH,curlG)+w^2(H,G) | -(J,curlG) |
-   // ----------------------------------------------------------------------
-
-   // for convinience we convert the above 2 x 2 blocks to 4 x 4 in order
-   // to accomodate complex valued operators
-
-   // A = (curlE,curlF)+w^2(E,F)
-   // B = w(curlH,F)+w(H,curF)
-   // b0 = w(J_im,F)
-   // b1 = -(J_re,curlG)
-   // b2 = -w(J_re,G)
-   // b3 = -(J_im,G)
-
-   // | A   0   0  -B |  | E_re |     | b0 |
-   // | 0   A   B   0 |  | H_re |  =  | b1 |
-   // | 0   B   A   0 |  | E_Im |     | b2 |
-   // |-B   0   0   A |  | H_im |     | b3 |
-
-   ConstantCoefficient one(1.0);
-   ConstantCoefficient negone(-1.0);
-   ConstantCoefficient negomeg(-omega);
-   ConstantCoefficient omeg(omega);
-   ConstantCoefficient omeg2(omega * omega);
-
-
-   ScalarVectorProductCoefficient wJi(omeg,g_ex_im);
-   ScalarVectorProductCoefficient negJr(negone,g_ex_re);
-   ScalarVectorProductCoefficient negwJr(negomeg,g_ex_re);
-   ScalarVectorProductCoefficient negJi(negone,g_ex_im);
-
-
-   ParLinearForm b0(fespace);
-   ParLinearForm b1(fespace);
-   ParLinearForm b2(fespace);
-   ParLinearForm b3(fespace);
-   b0.Update(fespace,rhs.GetBlock(0),0);
-   b1.Update(fespace,rhs.GetBlock(1),0);
-   b2.Update(fespace,rhs.GetBlock(2),0);
-   b3.Update(fespace,rhs.GetBlock(3),0);
-   
-   b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(wJi));
-   b1.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(negJr));
-   b2.AddDomainIntegrator(new VectorFEDomainLFIntegrator(negwJr));
-   b3.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(negJi));
-   
-   b0.Assemble();
-   b1.Assemble();
-   b2.Assemble();
-   b3.Assemble();
-
-   Array2D<HypreParMatrix *> Ah(4,4); 
-   for (int i = 0; i<4; i++)
-   {
-      for (int j = 0; j<4; j++)
-      {
-         Ah[i][j] = nullptr;
-      }
-   }
-
-
-   ParBilinearForm a00(fespace);
-   a00.AddDomainIntegrator(new CurlCurlIntegrator(one));
-   a00.AddDomainIntegrator(new VectorFEMassIntegrator(omeg2));
-   a00.Assemble();
-   a00.EliminateEssentialBC(ess_bdr,x.GetBlock(0),rhs.GetBlock(0),mfem::Operator::DIAG_ONE);
-   a00.Finalize();
-   Ah[0][0] = a00.ParallelAssemble();
-
-   ParMixedBilinearForm a03(fespace,fespace);
-   a03.AddDomainIntegrator(new MixedVectorCurlIntegrator(negomeg));
-   a03.AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(negomeg));
-   a03.Assemble();
-   a03.EliminateTestDofs(ess_bdr);
-   a03.Finalize();
-   Ah[0][3] = a03.ParallelAssemble();
-
-   ParBilinearForm a11(fespace);
-   a11.AddDomainIntegrator(new CurlCurlIntegrator(one));
-   a11.AddDomainIntegrator(new VectorFEMassIntegrator(omeg2));
-   a11.Assemble();
-   a11.Finalize();
-   Ah[1][1] = a11.ParallelAssemble();
-
-   ParMixedBilinearForm a12(fespace,fespace);
-   a12.AddDomainIntegrator(new MixedVectorCurlIntegrator(omeg));
-   a12.AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(omeg));
-   a12.Assemble();
-   a12.EliminateTrialDofs(ess_bdr,x.GetBlock(2),rhs.GetBlock(1));
-   a12.Finalize();
-   Ah[1][2] = a12.ParallelAssemble();
-
-   ParMixedBilinearForm a21(fespace,fespace);
-   a21.AddDomainIntegrator(new MixedVectorCurlIntegrator(omeg));
-   a21.AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(omeg));
-   a21.Assemble();
-   a21.EliminateTestDofs(ess_bdr);
-   a21.Finalize();
-   Ah[2][1] = a21.ParallelAssemble();
-   // Ah[2][1] = Ah[1][2]->Transpose();
-   // (*Ah[2][1]) *=-1.0;
-
-   ParBilinearForm a22(fespace);
-   a22.AddDomainIntegrator(new CurlCurlIntegrator(one));
-   a22.AddDomainIntegrator(new VectorFEMassIntegrator(omeg2));
-   a22.Assemble();
-   a22.EliminateEssentialBC(ess_bdr,x.GetBlock(2),rhs.GetBlock(2),mfem::Operator::DIAG_ONE);
-   a22.Finalize();
-   Ah[2][2] = a22.ParallelAssemble();
-
-   ParMixedBilinearForm a30(fespace,fespace);
-   a30.AddDomainIntegrator(new MixedVectorCurlIntegrator(negomeg));
-   a30.AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(negomeg));
-   a30.Assemble();
-   a30.EliminateTrialDofs(ess_bdr,x.GetBlock(0),rhs.GetBlock(3));
-   a30.Finalize();
-   Ah[3][0] = a30.ParallelAssemble();
-   // Ah[3][0] = Ah[0][3]->Transpose();
-   // (*Ah[3][0])*=-1.0;
-
-   ParBilinearForm a33(fespace);
-   a33.AddDomainIntegrator(new CurlCurlIntegrator(one));
-   a33.AddDomainIntegrator(new VectorFEMassIntegrator(omeg2));
-   a33.Assemble();
-   a33.Finalize();
-   Ah[3][3] = a33.ParallelAssemble();
-   // Ah[3][3] = Ah[2][2];
-
-   // HypreParMatrix * diff = new HypreParMatrix(*Ah[0][3]);
-   // *diff += *Ah[3][0];
-
-
-   for (int i = 0; i<4; i++)
-   {
-      fespace->GetRestrictionMatrix()->Mult(x.GetBlock(i), X.GetBlock(i));
-      fespace->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(i),Rhs.GetBlock(i));
-   }
+   Array2D<HypreParMatrix *> Ah;
+   fosls.GetFOSLSLinearSystem(Ah,X,Rhs);
 
    HypreParMatrix * A = HypreParMatrixFromBlocks(Ah);
    
@@ -344,6 +189,10 @@ int main(int argc, char *argv[])
    //    mumps.SetOperator(*A);
    //    mumps.Mult(Rhs,X);
    // }
+   ParGridFunction E_gf_re(fespace);
+   ParGridFunction H_gf_re(fespace);
+   ParGridFunction E_gf_im(fespace);
+   ParGridFunction H_gf_im(fespace);
    E_gf_re = 0.0;
    E_gf_im = 0.0;
    H_gf_re = 0.0;
