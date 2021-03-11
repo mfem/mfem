@@ -65,18 +65,37 @@
 //
 //   Assuming J = 0 on the boundary
 //
-//   For plane waves
-//     omega B = - k x E
-//     omega D = k x H, assuming n x k = 0 => n x H = omega epsilon E / |k|
+//   The non-linear sheath boundary condition can be used to set the
+//   components of E that are tangent to the boundary. The governing
+//   equations are:
 //
-//   c = omega/|k|
+//      E_t = - Grad Phi_{RF} (where Phi_{RF} is the sheath potential)
+//      Phi_{RF} = i omega z_{sh} D_n
 //
-//   (W, Curl mu^{-1} Curl E) = (Curl W, mu^{-1} Curl E)
-//               - i omega sqrt{epsilon/mu} (W, E)_{\Gamma}
+//   Where D_n is the normal component of D = epsilon E and z_{sh}
+//   is the sheath impedance. The impedance z_{sh} is a function of the
+//   plasma density, plasma temperature, ion charges, ion masses,
+//   magnetic field strength, and the sheath potential itself. Clearly the
+//   dependence on the potential is the source of the non-linearity.
+//
+//   The sheath boundary condition can be easily incorporated into the
+//   weak form of the curl-curl operator:
+//
+//   (W, Curl epsilon^{-1} Curl H) = (Curl W, epsilon^{-1} Curl H)
+//               + i omega (W, n x Grad Phi_{RF})_{\Gamma}
+//
+//   To compute Phi_{RF} we augment the Maxwell equations with the
+//   relation between D_n and Phi_{RF}:
+//
+//      - i omega z_{sh} D_n + Phi_{RF} = 0
+//
+//   or
+//
+//      z_{sh} Curl H + Phi_{RF} = 0
 //
 // (By default the sources and fields are all zero)
 //
-// Compile with: make stix2d
+// Compile with: make stix2d_dh
 //
 // Sample runs:
 //   ./stix2d -rod '0 0 1 0 0 0.1' -o 3 -s 1 -rs 0 -maxit 1 -f 1e6
