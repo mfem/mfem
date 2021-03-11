@@ -2353,7 +2353,11 @@ void PetscSolver::SetPrintLevel(int plev)
       }
       if (plev == 1)
       {
+#if PETSC_VERSION_LT(3,15,0)
          ierr = KSPMonitorSet(ksp,(myMonitor)KSPMonitorDefault,vf,
+#else
+         ierr = KSPMonitorSet(ksp,(myMonitor)KSPMonitorResidual,vf,
+#endif
                               (myPetscFunc)PetscViewerAndFormatDestroy);
          PCHKERRQ(ksp,ierr);
       }
@@ -2367,7 +2371,11 @@ void PetscSolver::SetPrintLevel(int plev)
          {
             ierr = PetscViewerAndFormatCreate(viewer,PETSC_VIEWER_DEFAULT,&vf);
             PCHKERRQ(viewer,ierr);
+#if PETSC_VERSION_LT(3,15,0)
             ierr = KSPMonitorSet(ksp,(myMonitor)KSPMonitorTrueResidualNorm,vf,
+#else
+            ierr = KSPMonitorSet(ksp,(myMonitor)KSPMonitorTrueResidual,vf,
+#endif
                                  (myPetscFunc)PetscViewerAndFormatDestroy);
             PCHKERRQ(ksp,ierr);
          }
@@ -3385,8 +3393,13 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
 
                ierr = VecGetArrayRead(pvec_coords,&garray); CCHKERRQ(PETSC_COMM_SELF,ierr);
                ierr = VecGetArray(lvec_coords,&larray); CCHKERRQ(PETSC_COMM_SELF,ierr);
+#if PETSC_VERSION_LT(3,15,0)
                ierr = PetscSFBcastBegin(sf,MPIU_SCALAR,garray,larray); CCHKERRQ(comm,ierr);
                ierr = PetscSFBcastEnd(sf,MPIU_SCALAR,garray,larray); CCHKERRQ(comm,ierr);
+#else
+               ierr = PetscSFBcastBegin(sf,MPIU_SCALAR,garray,larray,MPI_REPLACE); CCHKERRQ(comm,ierr);
+               ierr = PetscSFBcastEnd(sf,MPIU_SCALAR,garray,larray,MPI_REPLACE); CCHKERRQ(comm,ierr);
+#endif
                ierr = VecRestoreArrayRead(pvec_coords,&garray); CCHKERRQ(PETSC_COMM_SELF,ierr);
                ierr = VecRestoreArray(lvec_coords,&larray); CCHKERRQ(PETSC_COMM_SELF,ierr);
             }
