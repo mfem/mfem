@@ -107,19 +107,32 @@ int main(int argc, char *argv[])
    //    the same code.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
+   mesh.EnsureNCMesh(true);
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels =
-         (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
+      int ref_levels = 12;
+         //(int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
-         mesh.UniformRefinement();
+         //mesh.UniformRefinement();
+         Array<Refinement> refs;
+         for (int i = 0; i < mesh.GetNE(); i++)
+         {
+            if (double(rand()) / RAND_MAX < 0.5)
+            {
+               refs.Append(Refinement(i, 1));
+            }
+         }
+         mesh.GeneralRefinement(refs);
       }
    }
+
+   /*Array<Refinement> empty;
+   mesh.GeneralRefinement(empty, -1, 0);*/
 
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
@@ -239,6 +252,7 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
+      mesh.ncmesh = NULL;
       sol_sock << "solution\n" << mesh << x << flush;
    }
 
