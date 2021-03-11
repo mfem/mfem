@@ -577,7 +577,7 @@ protected: // implementation
    int NewTriangle(int n0, int n1, int n2,
                    int attr, int eattr0, int eattr1, int eattr2);
 
-   int NewSegment(int n0, int n1, int attr);
+   int NewSegment(int n0, int n1, int attr, int vattr1, int vattr2);
 
    mfem::Element* NewMeshElement(int geom) const;
 
@@ -793,6 +793,7 @@ protected: // implementation
       void GetMatrix(DenseMatrix& point_matrix) const;
    };
 
+   static PointMatrix pm_seg_identity;
    static PointMatrix pm_tri_identity;
    static PointMatrix pm_quad_identity;
    static PointMatrix pm_tet_identity;
