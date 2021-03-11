@@ -237,10 +237,10 @@ public:
    void PreferConformingRefinement() { non_conforming = -1; }
 
    /** @brief Set the maximum ratio of refinement levels of adjacent elements
-       (0 = unlimited). */
+       (-1 = unlimited). */
    void SetNCLimit(int nc_limit)
    {
-      MFEM_ASSERT(nc_limit >= 0, "Invalid NC limit");
+      MFEM_ASSERT(nc_limit >= -1, "Invalid NC limit");
       this->nc_limit = nc_limit;
    }
 
@@ -284,7 +284,7 @@ public:
       : estimator(est)
    {
       threshold = 0.0;
-      nc_limit = 0;
+      nc_limit = -1;
       op = 1;
    }
 

@@ -1434,17 +1434,26 @@ void NCMesh::RefineElement(int elem, char ref_type)
    }
    else if (el.Geom() == Geometry::TRIANGLE)
    {
-      ref_type = 3; // for consistence
+      if (ref_type == 1) // newest-vertex bisection method
+      {
+         int mid12 = nodes.GetId(no[1], no[2]);
 
-      // isotropic split - the only ref_type available for triangles
-      int mid01 = nodes.GetId(no[0], no[1]);
-      int mid12 = nodes.GetId(no[1], no[2]);
-      int mid20 = nodes.GetId(no[2], no[0]);
+         child[0] = NewTriangle(mid12, no[0], no[1], attr, -1, fa[0], fa[1]);
+         child[1] = NewTriangle(mid12, no[2], no[0], attr, fa[1], fa[2], -1);
+      }
+      else // isotropic split (red refinement)
+      {
+         ref_type = 3; // for consistence
 
-      child[0] = NewTriangle(no[0], mid01, mid20, attr, fa[0], -1, fa[2]);
-      child[1] = NewTriangle(mid01, no[1], mid12, attr, fa[0], fa[1], -1);
-      child[2] = NewTriangle(mid20, mid12, no[2], attr, -1, fa[1], fa[2]);
-      child[3] = NewTriangle(mid12, mid20, mid01, attr, -1, -1, -1);
+         int mid01 = nodes.GetId(no[0], no[1]);
+         int mid12 = nodes.GetId(no[1], no[2]);
+         int mid20 = nodes.GetId(no[2], no[0]);
+
+         child[0] = NewTriangle(no[0], mid01, mid20, attr, fa[0], -1, fa[2]);
+         child[1] = NewTriangle(mid01, no[1], mid12, attr, fa[0], fa[1], -1);
+         child[2] = NewTriangle(mid20, mid12, no[2], attr, -1, fa[1], fa[2]);
+         child[3] = NewTriangle(mid12, mid20, mid01, attr, -1, -1, -1);
+      }
    }
    else
    {
@@ -1894,6 +1903,15 @@ void NCMesh::CollectLeafElements(int elem, int state, Array<int> &ghosts,
          {
             int ch = hex_hilbert_child_order[state][i];
             int st = hex_hilbert_child_state[state][i];
+            CollectLeafElements(el.child[ch], st, ghosts, counter);
+         }
+      }
+      else if (el.Geom() == Geometry::TRIANGLE && el.ref_type == 1)
+      {
+         for (int i = 0; i < 2; i++)
+         {
+            int ch = tri_sierpinski_child_order[state][i];
+            int st = tri_sierpinski_child_state[state][i];
             CollectLeafElements(el.child[ch], st, ghosts, counter);
          }
       }
@@ -5184,14 +5202,15 @@ void NCMesh::GetLimitRefinements(Array<Refinement> &refinements, int max_level)
             // iso meshes should only be modified by iso refinements
             ref_type = 7;
          }
-         refinements.Append(Refinement(i, ref_type));
+         //refinements.Append(Refinement(i, ref_type));
+         refinements.Append(Refinement(i, 1)); // FIXME
       }
    }
 }
 
 void NCMesh::LimitNCLevel(int max_nc_level)
 {
-   MFEM_VERIFY(max_nc_level >= 1, "'max_nc_level' must be 1 or greater.");
+   MFEM_VERIFY(max_nc_level >= 0, "'max_nc_level' must be 0 or greater.");
 
    while (1)
    {
