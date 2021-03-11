@@ -60,7 +60,7 @@ static void ceed_benchmark_defines(std::ostringstream &out)
    // Parameters set on the compilation command line of the CEED benchmarks
    out << "#ifndef GEOM\n#define GEOM Geometry::CUBE\n#endif\n\n"
        << "#ifndef MESH_P\n#define MESH_P 1\n#endif\n\n"
-       << "#ifndef SOL_P\n#define SOL_P 3\n#endif\n\n"
+       << "#ifndef SOL_P\n#define SOL_P 5\n#endif\n\n"
        << "#ifndef IR_ORDER\n#define IR_ORDER 0\n#endif\n\n"
        << "#ifndef IR_TYPE\n#define IR_TYPE 0\n#endif\n\n"
        << "#ifndef PROBLEM\n#define PROBLEM 0\n#endif\n\n"
@@ -79,8 +79,8 @@ static void ceed_benchmark_options(std::ostringstream &out)
           assert(PROBLEM==0); // Diffusion
           assert(GEOM==Geometry::CUBE);
           const char *mesh_file = "../../data/hex-01x01x01.mesh";
-          int ser_ref_levels = 2;
-          int par_ref_levels = 1;
+          int ser_ref_levels = 4;
+          int par_ref_levels = 0;
           Array<int> nxyz;
           int order = SOL_P;
           const char *basis_type = "G";
@@ -122,12 +122,12 @@ static void ceed_benchmark_options(std::ostringstream &out)
           args.Parse();
    if (!args.Good()) { if (myid == 0) { args.PrintUsage(std::cout); } return 1; }
    if (myid == 0) { args.PrintOptions(std::cout); }
+   assert(SOL_P == order); // Make sure order is in sync with SOL_P
 
    ParMesh *pmesh = nullptr;
    {
       Mesh *mesh = new Mesh(mesh_file, 1, 1);
       int dim = mesh->Dimension();
-
       {
          int ref_levels = (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
          ref_levels = (ser_ref_levels != -1) ? ser_ref_levels : ref_levels;
@@ -151,9 +151,8 @@ static void ceed_benchmark_options(std::ostringstream &out)
                   "Expected " << mesh->SpaceDimension() << " integers with the "
                   "option --cartesian-partitioning.");
       int *partitioning = nxyz.Size() ? mesh->CartesianPartitioning(nxyz) : NULL;
-      pmesh = new ParMesh(MPI_COMM_WORLD, *mesh, partitioning);
+      NewParMesh(pmesh, mesh, partitioning);
       delete [] partitioning;
-      delete mesh;
       {
          for (int l = 0; l < par_ref_levels; l++)
          {
@@ -172,21 +171,24 @@ static void ceed_benchmark_options(std::ostringstream &out)
       }
       pmesh->PrintInfo(std::cout);
    }
-       ) << "\n";
+       ) << "\n\n";
 }
 void Code::entry_point_statements_d(Rule *) const
 {
-   ceed_benchmark_defines(out);
+   dbg();
+   if (ceed_benchmark) { ceed_benchmark_defines(out); }
    out << "\nint main(int argc, char* argv[]){\n";
    out << "\tint status = 0;\n";
-   out << "\tint num_procs, myid;\n";
+   out << "\tint num_procs = 1, myid = 0;\n";
    out << "\tMPI_Init(&argc, &argv);\n";
    out << "\tMPI_Comm_size(MPI_COMM_WORLD, &num_procs);\n";
    out << "\tMPI_Comm_rank(MPI_COMM_WORLD, &myid);\n";
-   ceed_benchmark_options(out);
+   if (ceed_benchmark) { ceed_benchmark_options(out); }
 }
 void Code::entry_point_statements_u(Rule *) const
 {
+   // Make sure p is in sync with SOL_P
+   if (ceed_benchmark) { out << "\tassert(SOL_P == p);\n";}
    out << "\tMPI_Finalize();" << std::endl;
    out << "\treturn status;\n}" << std::endl;
 }
@@ -325,7 +327,7 @@ void Code::decl_id_list_assign_op_expr_d(Rule *n) const
       ufl.ctx.tmp.type = TOK::UNIT_SQUARE_MESH;
       void *msh;
       {
-         assert(false);
+         //assert(false);
          constexpr int N = 16;
          Element::Type quad = Element::Type::QUADRILATERAL;
          const bool generate_edges = false, sfc_ordering = true;
@@ -989,8 +991,8 @@ void Code::extra_status_rule_dom_xt_u(Rule *n) const
             out << "\n\t\tstruct QMult" << k << ": public xfl::Operator<" << dim
                 << ">{\n";
             out << "\t\t\tQMult" << k << "(const ParFiniteElementSpace *fes): ";
-            out << "xfl::Operator<" << dim << ">(fes) { dbg(); Setup(); }\n";
-            out << "\t\t\t~QMult" << k << "() { dbg(); }\n";
+            out << "xfl::Operator<" << dim << ">(fes) { Setup(); }\n";
+            out << "\t\t\t~QMult" << k << "() { }\n";
 
             dbg(n->Name().c_str());
             assert(n->n == extra_status_rule_dom_xt);
@@ -1006,18 +1008,26 @@ void Code::extra_status_rule_dom_xt_u(Rule *n) const
                assert((shp[0] * shp[1]) > 0);
             }
 
+            //assert(false);
+            const bool USE_CUDA = false;
+            const bool KER_LIBP = std::getenv("KER_LIBP");
+            const bool KER_SIMD = std::getenv("KER_SIMD"); assert(!KER_SIMD);
+            const bool KER_CEED = std::getenv("KER_CEED");
+            const bool KER_REGS = std::getenv("KER_REGS");
+            const bool KER_OREO = std::getenv("KER_OREO");
+            const bool KER_LEAN = std::getenv("KER_LEAN");
+            assert(KER_LEAN);
+
+            const bool SIMD_SETUP = KER_SIMD || KER_OREO || KER_REGS || KER_LEAN;
+            const bool KER_COLLOCATED_G = KER_REGS || KER_OREO || KER_LEAN;
+
             // Generate Kernel Setup Code
+            if (!SIMD_SETUP)
             {
                mfem::internal::KernelSetup kc(k, ufl, n->child, ker, fes, fec);
                ufl.DfsInOrder(n->child, kc);
             }
 
-            const bool USE_CUDA = false;
-            const bool KER_LIBP = std::getenv("KER_LIBP");
-            const bool KER_SIMD = std::getenv("KER_SIMD");
-            const bool KER_CEED = std::getenv("KER_CEED");
-            const bool KER_REGS = std::getenv("KER_REGS");
-            const bool KER_OREO = std::getenv("KER_OREO");
             // Generate Kernel Mult Code
             if (KER_LIBP) // LibP
             {
@@ -1031,17 +1041,38 @@ void Code::extra_status_rule_dom_xt_u(Rule *n) const
             }
             else if (KER_SIMD) // SIMD + OpenMP
             {
-               mfem::internal::KerOpenMPSIMDMult km(k, ufl, n->child, ker, fes, fec);
+               {
+                  mfem::internal::KerSimdSetup kc(k, ufl, n->child, ker, fes, fec);
+                  ufl.DfsInOrder(n->child, kc);
+               }
+               mfem::internal::KerSimdMult km(k, ufl, n->child, ker, fes, fec);
                ufl.DfsInOrder(n->child, km);
             }
             else if (KER_REGS) // Minimal register usage (+ SIMD)
             {
+               {
+                  mfem::internal::KerRegsSetup kc(k, ufl, n->child, ker, fes, fec);
+                  ufl.DfsInOrder(n->child, kc);
+               }
                mfem::internal::KerRegsMult km(k, ufl, n->child, ker, fes, fec);
                ufl.DfsInOrder(n->child, km);
             }
             else if (KER_OREO) // Minimal register usage (+ SIMD)
             {
+               {
+                  mfem::internal::KerOreoSetup kc(k, ufl, n->child, ker, fes, fec);
+                  ufl.DfsInOrder(n->child, kc);
+               }
                mfem::internal::KerOreoMult km(k, ufl, n->child, ker, fes, fec);
+               ufl.DfsInOrder(n->child, km);
+            }
+            else if (KER_LEAN) // No intermediate array
+            {
+               {
+                  mfem::internal::KerLeanSetup kc(k, ufl, n->child, ker, fes, fec);
+                  ufl.DfsInOrder(n->child, kc);
+               }
+               mfem::internal::KerLeanMult km(k, ufl, n->child, ker, fes, fec);
                ufl.DfsInOrder(n->child, km);
             }
             else
@@ -1055,26 +1086,34 @@ void Code::extra_status_rule_dom_xt_u(Rule *n) const
             const int VDIM = mfem_fes ? mfem_fes->GetVDim() : 0;
             const int NE = mfem_fes ? mfem_fes->GetParMesh()->GetNE() : 0;
 
-            out << "\t\t\tvoid Setup() {\n\t\t\t\t//dbg();\n";
+            // Compute D1D, Q1D
+            const int p = fec.order;
+            const int node_order = 1;
+            const int order_w = node_order*fec.dim - 1;
+            const int ir_order = 2*p + order_w;
+            //const int ir_order = 2*(p + 2) - 1; // <-----
+            const int GeomType = dim == 2 ? Geometry::SQUARE : Geometry::CUBE;
+            const mfem::IntegrationRule &ir = mfem::IntRules.Get(GeomType, ir_order);
+            const int Q1D = IntRules.Get(Geometry::SEGMENT, ir.GetOrder()).GetNPoints();
+            const int D1D = p + 1;
+
+            out << "\t\t\tvoid Setup() {\n";
+            out << "\t\t\t\tint myid = 0; MPI_Comm_rank(MPI_COMM_WORLD, &myid);\n";
+            out << "\t\t\t\tif(myid == 0){\n";
+            out << "\t\t\t\t\tstd::cout << \"XFL(SIMD_\" << SIMD_SIZE <<\") version using integration rule with "
+                << (Q1D*Q1D*Q1D) << " points ...\\n\";\n";
+            out << "\t\t\t\t\tstd::cout << \"D1D:" << D1D << ", Q1D:" << Q1D << "\\n\";\n";
+            out << "\t\t\t\t}\n";
+
             out << "\t\t\t\tdx.SetSize(NQ*NE*" << shp[0] << "*" << shp[1]
                 << ", Device::GetDeviceMemoryType()); ";
             out << "// DX shape: " << shp[0] << "x" << shp[1] << "\n";
-            out << "\t\t\t\tKSetup" << k << "<" << dim << "," << shp[0] << ","
-                << shp[1] << ">(";
+            out << "\t\t\t\tKSetup" << k << "<" << dim << ","
+                << shp[0] << "," << shp[1] << ","<< Q1D <<">(";
             out << "NDOFS, VDIM, NE, J0.Read(), ir.GetWeights().Read(), dx.Write()";
             out << ");\n";
-            if (KER_REGS)
+            if (KER_COLLOCATED_G)
             {
-               const int p = fec.order;
-               const int node_order = 1;
-               const int order_w = (node_order*fec.dim-1);
-               const int ir_order = 2*p + order_w;
-               //const int ir_order = 2*(p + 2) - 1; // <-----
-               const int GeomType = dim == 2 ? Geometry::SQUARE : Geometry::CUBE;
-               const mfem::IntegrationRule &ir = mfem::IntRules.Get(GeomType, ir_order);
-               const int Q1D = IntRules.Get(Geometry::SEGMENT, ir.GetOrder()).GetNPoints();
-               const int D1D = p + 1;
-               //const int D1D = p + 1;
                out << "\t\t\t\tCoG.SetSize("<<Q1D<<"*"<<Q1D<<");\n";
                out << "\t\t\t\t// Compute the collocated gradient d2q->CoG\n";
                out << "\t\t\t\tkernels::GetCollocatedGrad<"<<D1D<<","<<Q1D<<">(\n";
@@ -1086,20 +1125,9 @@ void Code::extra_status_rule_dom_xt_u(Rule *n) const
             out << "\t\t\tvoid Mult(const mfem::Vector &x, mfem::Vector &y) const "
                 "{\n";
             out << "\t\t\t\ty = 0.0;\n";
-
             int SMEM;
             if (KER_CEED)
             {
-               const int p = fec.order;
-               const int node_order = 1;
-               const int order_w = (node_order*fec.dim-1);
-               const int ir_order = 2*p + order_w;
-               //const int ir_order = 2*(p + 2) - 1; // <-----
-               const int GeomType = dim == 2 ? Geometry::SQUARE : Geometry::CUBE;
-               const mfem::IntegrationRule &ir = mfem::IntRules.Get(GeomType, ir_order);
-               const int Q1D = IntRules.Get(Geometry::SEGMENT, ir.GetOrder()).GetNPoints();
-               const int D1D = p + 1;
-
                const int T1D = std::max(Q1D, D1D);
                const int NBZ = (T1D < 6) ? 4 : ((T1D<8)? 2 : 1);
                const int GRID = NE/NBZ + ((((NE/NBZ)*NBZ) < NE) ? 1 : 0);
@@ -1112,7 +1140,7 @@ void Code::extra_status_rule_dom_xt_u(Rule *n) const
             }
             //out << "\t\tdbg(\"MAP size:%d\", ER.GatherMap().Size());\n";
             out << "\t\t\t\tKMult" << k << "<" << dim << ","
-                << shp[0] << "," << shp[1]
+                << shp[0] << "," << shp[1] << "," << D1D << "," << Q1D
                 << (KER_CEED ? "," + std::to_string(NDOFS) : "")
                 << (KER_CEED ? "," + std::to_string(VDIM) : "")
                 << (KER_CEED ? "," + std::to_string(SMEM) : "")
@@ -1122,7 +1150,7 @@ void Code::extra_status_rule_dom_xt_u(Rule *n) const
             out << "VDIM /*" << VDIM << "*/, NE /*" << NE << "*/,";
             //if (KER_CEED) { out << "ir.GetWeights().Read(),"; }
             out << "maps->B.Read(), ";
-            out << (KER_REGS ? "CoG" : "maps->G") << ".Read(), ";
+            out << (KER_COLLOCATED_G ? "CoG" : "maps->G") << ".Read(), ";
             out << "ER.GatherMap().Read(), ";
             out << "dx.Read(), x.Read(), y.ReadWrite());\n";
             out << "\t\t\t}\n";  // end of mult
@@ -1152,7 +1180,7 @@ void Code::extra_status_rule_dom_xt_u(Rule *n) const
 
 // *****************************************************************************
 void Code::extra_status_rule_dot_xt_d(Rule *) const { out << "dot"; }
-void Code::extra_status_rule_dot_xt_u(Rule *) const { dbg(); }
+void Code::extra_status_rule_dot_xt_u(Rule *) const {}
 
 // *****************************************************************************
 void Code::extra_status_rule_transpose_xt_d(Rule *) const {}

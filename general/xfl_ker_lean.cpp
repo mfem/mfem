@@ -216,8 +216,8 @@ KerLeanMult::KerLeanMult(const int K, xfl &ufl, Node *root,
 
    // Shared memory used by the threads
    out << "\tMFEM_ALIGN(Real) s_Iq[Q1D][Q1D][Q1D];\n";
-   out << "\tMFEM_ALIGN(double) s_D[Q1D][Q1D];\n";
-   out << "\tMFEM_ALIGN(double) s_I[Q1D][D1D];\n";
+   out << "\tdouble s_D[Q1D][Q1D];\n";
+   out << "\tdouble s_I[Q1D][D1D];\n";
 
    // Main loop over the elements
    out << "\tMFEM_VERIFY((NE % SIMD_SIZE) == 0, \"NE vs SIMD_SIZE error!\");\n";

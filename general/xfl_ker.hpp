@@ -300,9 +300,66 @@ public:
 };
 
 // *****************************************************************************
+/// AST Kernel Setup Code Generator
+// *****************************************************************************
+class KerSimdSetup : public Middlend
+{
+private:
+   mutable bool lhs{true};
+   mutable std::stack<xfl::var *> var_stack;
+   mutable std::stack<int> ops_stack;
+
+protected:
+   Node *root;
+   std::ostringstream &out;
+   const xfl::fes &fes;
+   const xfl::fec &fec;
+   const int dim;  //, vdim, ndofs, ndof, ne;
+public:
+   KerSimdSetup(const int K, xfl &ufl, Node *root, std::ostringstream &out,
+                const xfl::fes &fes, const xfl::fec &fec);
+   ~KerSimdSetup();
+#define DECL_RULE(name) void rule_##name(Rule &) const
+   DECL_RULE(extra_status_rule_eval_xt);
+   DECL_RULE(grad_expr_grad_op_form_args);
+#undef DECL_RULE
+   void Visit(Rule &rule)
+   {
+#define CASE_RULE(name) \
+  case (name):          \
+    return rule_##name(rule);
+      switch (rule.n)
+      {
+            CASE_RULE(extra_status_rule_eval_xt);
+            CASE_RULE(grad_expr_grad_op_form_args);
+         default: /* Nothing to do */;
+      }
+#undef CASE_RULE
+   }
+
+#define DECL_TOKEN(TK) void token_##TK(Token &) const
+   DECL_TOKEN(COMA);
+   DECL_TOKEN(IDENTIFIER);
+#undef DECL_TOKEN
+   void Visit(Token &token)
+   {
+#define CASE_TOKEN(TK) \
+  case TOK::TK:        \
+    return token_##TK(token)
+      switch (token.n)
+      {
+            CASE_TOKEN(COMA);
+            CASE_TOKEN(IDENTIFIER);
+         default:;  // out << token.Name();
+      }
+#undef CASE_TOKEN
+   }
+};
+
+// *****************************************************************************
 /// AST OpenMP + SIMD Kernel Mult Code Generator
 // *****************************************************************************
-class KerOpenMPSIMDMult : public Middlend
+class KerSimdMult : public Middlend
 {
 private:
    mutable bool lhs{true};
@@ -317,9 +374,9 @@ protected:
    const int dim;
 
 public:
-   KerOpenMPSIMDMult(const int K, xfl &ufl, Node *root, std::ostringstream &out,
-                     const xfl::fes &fes, const xfl::fec &fec);
-   ~KerOpenMPSIMDMult();
+   KerSimdMult(const int K, xfl &ufl, Node *root, std::ostringstream &out,
+               const xfl::fes &fes, const xfl::fec &fec);
+   ~KerSimdMult();
 #define DECL_RULE(name) void rule_##name(Rule &) const
    DECL_RULE(extra_status_rule_eval_xt);
    DECL_RULE(grad_expr_grad_op_form_args);
@@ -352,6 +409,63 @@ public:
             CASE_TOKEN(COMA);
             CASE_TOKEN(IDENTIFIER);
          default:;
+      }
+#undef CASE_TOKEN
+   }
+};
+
+// *****************************************************************************
+/// AST Kernel Setup Code Generator
+// *****************************************************************************
+class KerRegsSetup : public Middlend
+{
+private:
+   mutable bool lhs{true};
+   mutable std::stack<xfl::var *> var_stack;
+   mutable std::stack<int> ops_stack;
+
+protected:
+   Node *root;
+   std::ostringstream &out;
+   const xfl::fes &fes;
+   const xfl::fec &fec;
+   const int dim;  //, vdim, ndofs, ndof, ne;
+public:
+   KerRegsSetup(const int K, xfl &ufl, Node *root, std::ostringstream &out,
+                const xfl::fes &fes, const xfl::fec &fec);
+   ~KerRegsSetup();
+#define DECL_RULE(name) void rule_##name(Rule &) const
+   DECL_RULE(extra_status_rule_eval_xt);
+   DECL_RULE(grad_expr_grad_op_form_args);
+#undef DECL_RULE
+   void Visit(Rule &rule)
+   {
+#define CASE_RULE(name) \
+  case (name):          \
+    return rule_##name(rule);
+      switch (rule.n)
+      {
+            CASE_RULE(extra_status_rule_eval_xt);
+            CASE_RULE(grad_expr_grad_op_form_args);
+         default: /* Nothing to do */;
+      }
+#undef CASE_RULE
+   }
+
+#define DECL_TOKEN(TK) void token_##TK(Token &) const
+   DECL_TOKEN(COMA);
+   DECL_TOKEN(IDENTIFIER);
+#undef DECL_TOKEN
+   void Visit(Token &token)
+   {
+#define CASE_TOKEN(TK) \
+  case TOK::TK:        \
+    return token_##TK(token)
+      switch (token.n)
+      {
+            CASE_TOKEN(COMA);
+            CASE_TOKEN(IDENTIFIER);
+         default:;  // out << token.Name();
       }
 #undef CASE_TOKEN
    }
@@ -415,6 +529,63 @@ public:
 };
 
 // *****************************************************************************
+/// AST Kernel Setup Code Generator
+// *****************************************************************************
+class KerOreoSetup : public Middlend
+{
+private:
+   mutable bool lhs{true};
+   mutable std::stack<xfl::var *> var_stack;
+   mutable std::stack<int> ops_stack;
+
+protected:
+   Node *root;
+   std::ostringstream &out;
+   const xfl::fes &fes;
+   const xfl::fec &fec;
+   const int dim;  //, vdim, ndofs, ndof, ne;
+public:
+   KerOreoSetup(const int K, xfl &ufl, Node *root, std::ostringstream &out,
+                const xfl::fes &fes, const xfl::fec &fec);
+   ~KerOreoSetup();
+#define DECL_RULE(name) void rule_##name(Rule &) const
+   DECL_RULE(extra_status_rule_eval_xt);
+   DECL_RULE(grad_expr_grad_op_form_args);
+#undef DECL_RULE
+   void Visit(Rule &rule)
+   {
+#define CASE_RULE(name) \
+  case (name):          \
+    return rule_##name(rule);
+      switch (rule.n)
+      {
+            CASE_RULE(extra_status_rule_eval_xt);
+            CASE_RULE(grad_expr_grad_op_form_args);
+         default: /* Nothing to do */;
+      }
+#undef CASE_RULE
+   }
+
+#define DECL_TOKEN(TK) void token_##TK(Token &) const
+   DECL_TOKEN(COMA);
+   DECL_TOKEN(IDENTIFIER);
+#undef DECL_TOKEN
+   void Visit(Token &token)
+   {
+#define CASE_TOKEN(TK) \
+  case TOK::TK:        \
+    return token_##TK(token)
+      switch (token.n)
+      {
+            CASE_TOKEN(COMA);
+            CASE_TOKEN(IDENTIFIER);
+         default:;  // out << token.Name();
+      }
+#undef CASE_TOKEN
+   }
+};
+
+// *****************************************************************************
 /// AST + Register, SIMD, Threaded Kernel Mult Code Generator
 // *****************************************************************************
 class KerOreoMult : public Middlend
@@ -436,6 +607,121 @@ public:
    KerOreoMult(const int K, xfl &ufl, Node *root, std::ostringstream &out,
                const xfl::fes &fes, const xfl::fec &fec);
    ~KerOreoMult();
+#define DECL_RULE(name) void rule_##name(Rule &) const
+   DECL_RULE(grad_expr_grad_op_form_args);
+#undef DECL_RULE
+   void Visit(Rule &rule)
+   {
+#define CASE_RULE(name) \
+  case (name):          \
+    return rule_##name(rule);
+      switch (rule.n)
+      {
+            CASE_RULE(grad_expr_grad_op_form_args);
+         default:;
+      }
+#undef CASE_RULE
+   }
+
+#define DECL_TOKEN(TK) void token_##TK(Token &) const
+   DECL_TOKEN(COMA);
+   DECL_TOKEN(IDENTIFIER);
+#undef DECL_TOKEN
+   void Visit(Token &token)
+   {
+#define CASE_TOKEN(TK) \
+  case TOK::TK:        \
+    return token_##TK(token)
+      switch (token.n)
+      {
+            CASE_TOKEN(COMA);
+            CASE_TOKEN(IDENTIFIER);
+         default:;
+      }
+#undef CASE_TOKEN
+   }
+};
+
+// *****************************************************************************
+/// AST Kernel Setup Code Generator
+// *****************************************************************************
+class KerLeanSetup : public Middlend
+{
+private:
+   mutable bool lhs{true};
+   mutable std::stack<xfl::var *> var_stack;
+   mutable std::stack<int> ops_stack;
+
+protected:
+   Node *root;
+   std::ostringstream &out;
+   const xfl::fes &fes;
+   const xfl::fec &fec;
+   const int dim;
+
+public:
+   KerLeanSetup(const int K, xfl &ufl, Node *root, std::ostringstream &out,
+                const xfl::fes &fes, const xfl::fec &fec);
+   ~KerLeanSetup();
+#define DECL_RULE(name) void rule_##name(Rule &) const
+   DECL_RULE(extra_status_rule_eval_xt);
+   DECL_RULE(grad_expr_grad_op_form_args);
+#undef DECL_RULE
+   void Visit(Rule &rule)
+   {
+#define CASE_RULE(name) \
+  case (name):          \
+    return rule_##name(rule);
+      switch (rule.n)
+      {
+            CASE_RULE(extra_status_rule_eval_xt);
+            CASE_RULE(grad_expr_grad_op_form_args);
+         default: /* Nothing to do */;
+      }
+#undef CASE_RULE
+   }
+
+#define DECL_TOKEN(TK) void token_##TK(Token &) const
+   DECL_TOKEN(COMA);
+   DECL_TOKEN(IDENTIFIER);
+#undef DECL_TOKEN
+   void Visit(Token &token)
+   {
+#define CASE_TOKEN(TK) \
+  case TOK::TK:        \
+    return token_##TK(token)
+      switch (token.n)
+      {
+            CASE_TOKEN(COMA);
+            CASE_TOKEN(IDENTIFIER);
+         default:;  // out << token.Name();
+      }
+#undef CASE_TOKEN
+   }
+};
+
+// *****************************************************************************
+/// AST OpenMP + SIMD Kernel Mult Code Generator
+// *****************************************************************************
+class KerLeanMult : public Middlend
+{
+private:
+   mutable bool lhs{true};
+   mutable std::stack<xfl::var *> var_stack;
+   mutable std::stack<int> ops_stack;
+
+protected:
+   Node *root;
+   std::ostringstream &out;
+   const xfl::fes &fes;
+   const xfl::fec &fec;
+   const int dim;
+   int D1D, Q1D;
+
+public:
+   KerLeanMult(const int K, xfl &ufl, Node *root, std::ostringstream &out,
+               const xfl::fes &fes, const xfl::fec &fec);
+   ~KerLeanMult();
 #define DECL_RULE(name) void rule_##name(Rule &) const
    DECL_RULE(grad_expr_grad_op_form_args);
 #undef DECL_RULE

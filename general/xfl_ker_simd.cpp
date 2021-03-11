@@ -36,12 +36,152 @@ namespace internal
 /** @cond */  // Doxygen warning: documented symbol was not declared or defined
 
 // *****************************************************************************
+/// AST Kernel Setup Code Generation
+// *****************************************************************************
+KerSimdSetup::KerSimdSetup(const int K, xfl &ufl, Node *root,
+                           std::ostringstream &out,
+                           const xfl::fes &fes,
+                           const xfl::fec &fec)
+   : Middlend(ufl), root(root), out(out), fes(fes), fec(fec), dim(fec.dim)
+{
+   const int p = fec.order;
+   const int node_order = 1;
+   const int order_w = (node_order * fec.dim - 1);  // FunctionSpace::Qk
+   const int q = 2 * p + order_w;
+   const int GeomType = dim == 2 ? Geometry::SQUARE : Geometry::CUBE;
+   const mfem::IntegrationRule &ir = mfem::IntRules.Get(GeomType, q);
+   const int Q1D = IntRules.Get(Geometry::SEGMENT, ir.GetOrder()).GetNPoints();
+   const int D1D = p + 1;
+   assert(Q1D >= D1D);
+
+   out << "\n";
+   out << "#include <thread>\n";
+   out << "#include \"linalg/simd.hpp\"\n";
+   out << "using Real = AutoSIMDTraits<double,double>::vreal_t;\n";
+   out << "#define SIMD_SIZE (MFEM_SIMD_BYTES/sizeof(double))\n";
+
+   out << "\ntemplate<int DIM, int DX0, int DX1> inline static\n";
+   out << "void KSetup" << K << "(";
+   out << "const int ndofs,\n\t\tconst int vdim, const int NE,\n";
+   out << "\t\tconst double * __restrict__ J0,\n";
+   out << "\t\tconst double * __restrict__ w,\n";
+   out << "\t\tdouble * __restrict__ dx) {\n";
+   out << "\tassert(vdim == 1);\n";
+
+   out << "\n";
+   out << "\tstatic constexpr int Q1D = " << Q1D << ";\n";
+   out << "\tstatic constexpr int SMS = SIMD_SIZE;\n";
+
+   // Kernel operations
+   out << "\n\t// kernel operations: ";
+   mfem::internal::KernelOperations ko(ufl, out);
+   ufl.DfsInOrder(root, ko);
+   out << "\n";
+
+   out << "\n";
+   out << "\tconst auto J = Reshape(J0, DIM,DIM, Q1D,Q1D,Q1D, NE);\n";
+   out << "\tconst auto W = Reshape(w, Q1D,Q1D,Q1D);\n";
+
+   out << "\n\tMFEM_VERIFY((NE % SIMD_SIZE) == 0, \"NE vs SIMD_SIZE error!\");\n";
+   out << "\tauto DX = Reshape((Real*)dx, DX0,DX1, Q1D,Q1D,Q1D, NE/SMS);\n";
+
+   out << "\nfor(int e = 0; e < NE; e+=SMS){\n";
+}
+
+// *****************************************************************************
+KerSimdSetup::~KerSimdSetup() { out << " }\n}" << std::endl; }
+
+// *****************************************************************************
+void KerSimdSetup::token_IDENTIFIER(Token &t) const
+{
+   const std::string &var_name = t.Name();
+   for (auto &p : ufl.ctx.var)
+   {
+      xfl::var &var = p.second;
+      if (var.name != var_name) { continue;  }
+
+      if (var.type == TOK::TEST_FUNCTION)
+      {
+         out << "    }\n";
+         out << "    for (int i = 0; i < DX0; i++)\n"
+             << "     for (int j = 0; j < DX1; j++)\n"
+             << "      DX(i,j,qx,qy,qz,e/SMS) = vdx[j+DX0*i];\n";
+         out << "   }\n  }\n }\n";
+         out << " MFEM_SYNC_THREAD;\n";
+      }
+      var_stack.push(&var);
+   }
+}
+
+// *****************************************************************************
+void KerSimdSetup::rule_extra_status_rule_eval_xt(Rule &) const
+{
+   if (!lhs) { return;}
+   assert(!var_stack.empty());
+   var_stack.pop();
+   ops_stack.push(TOK::EVAL_XT);
+}
+
+// *****************************************************************************
+void KerSimdSetup::rule_grad_expr_grad_op_form_args(Rule &) const
+{
+   if (!lhs) { return; }
+   assert(!var_stack.empty());
+   var_stack.pop();
+   ops_stack.push(TOK::GRAD_OP);
+}
+
+// *****************************************************************************
+void KerSimdSetup::token_COMA(Token &) const
+{
+   // MFEM_FOREACH_THREAD
+   out << " MFEM_FOREACH_THREAD(qz,z,Q1D){\n"
+       << "  MFEM_FOREACH_THREAD(qy,y,Q1D){\n"
+       << "   MFEM_FOREACH_THREAD(qx,x,Q1D){\n"
+       << "    Real vdx[DX0*DX1];\n"
+       << "    for (int v = 0; v < SMS; v++){\n";
+
+   if (ops_stack.empty()) { assert(false); }
+   const int op = ops_stack.top();
+
+   out << "     const double irw = W(qx,qy,qz);\n";
+   out << "     const double *Jtr = &J(0,0,qx,qy,qz, e + v);\n";
+   out << "     const double detJ = kernels::Det<DIM>(Jtr);\n";
+   out << "     const double wd = irw * detJ;\n";
+
+   if (op == TOK::GRAD_OP)
+   {
+      out << "     double Jrt[DIM*DIM];\n";
+      out << "     kernels::CalcInverse<DIM>(Jtr, Jrt);\n";
+      out << "     double A[DX0*DX1];\n";
+      out << "     const double D[DX0*DX1] = {wd,0,0,0,wd,0,0,0,wd};\n";
+      out << "     kernels::MultABt(DIM,DIM,DIM,D,Jrt,A);\n";
+   }
+   else if (op == TOK::EVAL_XT) { assert(false); }
+   else { assert(false); }
+
+   ops_stack.pop();
+
+   if (op == TOK::GRAD_OP)
+   {
+      out << "     double B[DX0*DX1];\n";
+      out << "     kernels::Mult(DIM,DIM,DIM,A,Jrt,B);\n";
+      out << "     for (int i = 0; i < DX0; i++)\n"
+          << "      for (int j = 0; j < DX1; j++)\n"
+          << "       vdx[j+DX0*i][v] = B[j+DX0*i];\n";
+
+   }
+   else if (op == TOK::EVAL_XT) { assert(false); }
+   else { assert(false); }
+}
+
+// *****************************************************************************
 /// AST Kernel Code Generation
 // *****************************************************************************
-KerOpenMPSIMDMult::KerOpenMPSIMDMult(const int K, xfl &ufl, Node *root,
-                                     std::ostringstream &out,
-                                     const xfl::fes &fes,
-                                     const xfl::fec &fec)
+KerSimdMult::KerSimdMult(const int K, xfl &ufl, Node *root,
+                         std::ostringstream &out,
+                         const xfl::fes &fes,
+                         const xfl::fec &fec)
    : Middlend(ufl), root(root), out(out), fes(fes), fec(fec), dim(fec.dim)
 {
    const int p = fec.order;
@@ -90,10 +230,10 @@ KerOpenMPSIMDMult::KerOpenMPSIMDMult(const int K, xfl &ufl, Node *root,
    }
    else if (dim == 3)
    {
-      out << "\tconst auto DX = Reshape(dx, DX0,DX1, Q1D,Q1D,Q1D, NE);\n";
+      out << "\tconst auto DX = Reshape((Real*)dx, DX0,DX1, Q1D,Q1D,Q1D, NE/SMS);\n";
       out << "\tconst auto MAP = Reshape(map, D1D,D1D,D1D, NE);\n";
-      out << "\tconst auto XD = Reshape(xd, ndofs/*, vdim*/);\n";
-      out << "\tauto YD = Reshape(yd, ndofs/*, vdim*/);\n";
+      out << "\tconst auto XD = Reshape(xd, ndofs);\n";
+      out << "\tauto YD = Reshape(yd, ndofs);\n";
    }
    else { assert(false); }
 
@@ -116,7 +256,8 @@ KerOpenMPSIMDMult::KerOpenMPSIMDMult(const int K, xfl &ufl, Node *root,
    out << "\tMFEM_VERIFY((NE % BATCH_SIZE) == 0, \"NE vs BATCH_SIZE error!\")\n";
    out << "\tMFEM_VERIFY(((NE/BATCH_SIZE) % SIMD_SIZE) == 0, \"NE/BATCH_SIZE vs SIMD_SIZE error!\")\n";
    out << "\tfor(size_t eb = 0; eb < (NE/(BATCH_SIZE*SIMD_SIZE)); eb+=1) {\n";
-   out << "\tfor(size_t e = eb*BATCH_SIZE*SIMD_SIZE; e < (eb+1)*BATCH_SIZE*SIMD_SIZE; e+=SIMD_SIZE) {\n";
+   out << "\tfor(size_t ek = eb*BATCH_SIZE*SIMD_SIZE; ek < (eb+1)*BATCH_SIZE*SIMD_SIZE; ek+=SIMD_SIZE) {\n";
+   out << "\t\tconst size_t e = ek;\n";
    //out << "\tfor(int e = 0; e < NE; e+=SIMD_SIZE) {\n";
    out << "#else\n";
    // std::threads setup: num_threads
@@ -157,7 +298,7 @@ KerOpenMPSIMDMult::KerOpenMPSIMDMult(const int K, xfl &ufl, Node *root,
 }
 
 // *****************************************************************************
-KerOpenMPSIMDMult::~KerOpenMPSIMDMult()
+KerSimdMult::~KerSimdMult()
 {
    out << "\t}} // Element for loop\n";
    out << "#ifdef MFEM_USE_THREADS\n";
@@ -170,7 +311,7 @@ KerOpenMPSIMDMult::~KerOpenMPSIMDMult()
 }
 
 // *****************************************************************************
-void KerOpenMPSIMDMult::token_IDENTIFIER(Token &t) const
+void KerSimdMult::token_IDENTIFIER(Token &t) const
 {
    const std::string &var_name = t.Name();
    for (auto &p : ufl.ctx.var)
@@ -230,7 +371,7 @@ void KerOpenMPSIMDMult::token_IDENTIFIER(Token &t) const
 }
 
 // *****************************************************************************
-void KerOpenMPSIMDMult::rule_extra_status_rule_eval_xt(Rule &) const
+void KerSimdMult::rule_extra_status_rule_eval_xt(Rule &) const
 {
    dbg();
    xfl::var &var = *(var_stack.top());
@@ -269,7 +410,7 @@ void KerOpenMPSIMDMult::rule_extra_status_rule_eval_xt(Rule &) const
 }
 
 // *****************************************************************************
-void KerOpenMPSIMDMult::rule_grad_expr_grad_op_form_args(Rule &) const
+void KerSimdMult::rule_grad_expr_grad_op_form_args(Rule &) const
 {
    dbg();
    assert(!var_stack.empty());
@@ -310,7 +451,7 @@ void KerOpenMPSIMDMult::rule_grad_expr_grad_op_form_args(Rule &) const
 }
 
 // *****************************************************************************
-void KerOpenMPSIMDMult::token_COMA(Token &) const
+void KerSimdMult::token_COMA(Token &) const
 {
    // MFEM_FOREACH_THREAD
    if (dim == 3) { out << "\tfor(int qz = 0; qz < Q1D; qz++){\n"; }
@@ -348,11 +489,11 @@ void KerOpenMPSIMDMult::token_COMA(Token &) const
    ops_stack.pop();
    if (dim == 2)
    {
-      out << "\t\t\t\tkernels::Mult(DX0,DX1,&DX(0,0,qx,qy,e),u,v);\n";
+      out << "\t\t\t\tkernels::Mult(DX0,DX1,&DX(0,0,qx,qy,e/SMS),u,v);\n";
    }
    else
    {
-      out << "\t\t\t\tkernels::Mult(DX0,DX1,&DX(0,0,qx,qy,qz,e),u,v);\n";
+      out << "\t\t\t\tkernels::Mult(DX0,DX1,&DX(0,0,qx,qy,qz,e/SMS),u,v);\n";
    }
 
    if (op == TOK::GRAD_OP)

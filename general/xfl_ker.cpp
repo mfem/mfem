@@ -132,9 +132,6 @@ KernelSetup::KernelSetup(const int K, xfl &ufl, Node *root,
    out << "\t\tdouble * __restrict__ dx) {\n";
    out << "\tassert(vdim == 1);\n";
    out << "\tstatic constexpr int Q1D = " << Q1D << ";\n";
-   out << "\tdbg(\"SIMD_SIZE:%d\", SIMD_SIZE);\n";
-   out << "\tstd::cout << \"XFL(SIMD_\" << SIMD_SIZE <<\") version using integration rule with "
-       << (Q1D*Q1D*Q1D) << " points ...\";\n";
 
    // Kernel operations
    out << "\n\t// kernel operations: ";

@@ -430,7 +430,7 @@ $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
 all: examples miniapps $(TEST_DIRS) xfl
-xfl: general/xfl.o general/xfl.L.o general/xfl.Y.o general/xfl_mid.o general/xfl_ker.o general/xfl_ker_ceed.o general/xfl_ker_simd.o general/xfl_ker_libP.o $(BLD)libmfem.a
+xfl: general/xfl.o general/xfl.L.o general/xfl.Y.o general/xfl_mfem.o general/xfl_mid.o general/xfl_ker.o general/xfl_ker_ceed.o general/xfl_ker_simd.o general/xfl_ker_libP.o $(BLD)libmfem.a
 	$(MFEM_CXX) $(filter-out -x=cu,$(MFEM_BUILD_FLAGS)) -o $(@) $(^) $(MFEM_LIBS)
 
 .PHONY: miniapps $(EM_DIRS) $(TEST_DIRS)

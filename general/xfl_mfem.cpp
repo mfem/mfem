@@ -15,7 +15,7 @@ __asm__(
    ".globl xfl_mfem_hpp_size,_xfl_mfem_hpp_size\n"
    ".align 4\n"
    "xfl_mfem_hpp:\n_xfl_mfem_hpp:\n"
-   ".incbin \"${CMAKE_CURRENT_SOURCE_DIR}/xfl_mfem.hpp\"\n"
+   ".incbin \"general/xfl_mfem.hpp\"\n"
    ".align 4\n"
    "xfl_mfem_hpp_end:\n_xfl_mfem_hpp_end:\n"
    ".align 4\n"

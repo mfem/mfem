@@ -242,9 +242,7 @@ public:
          child->next = nullptr;
       }
    }
-   void Visit(Token &)   /* Nothing to do */
-   {
-   }
+   void Visit(Token &) { /* Nothing to do */ }
 };
 
 // *****************************************************************************
@@ -260,11 +258,12 @@ public:
    Middlend &me;
    std::ostringstream &out;
    std::stringstream dev_null;
-   mutable std::streambuf *dev_bkp{nullptr};
+   mutable std::streambuf *dev_bkp {nullptr};
+   const bool ceed_benchmark;
 
 public:
-   Code(xfl &ufl, std::ostringstream &out)
-      : Middlend(ufl), me(*this), out(out) {}
+   Code(xfl &ufl, std::ostringstream &out, const bool ceed_benchmark)
+      : Middlend(ufl), me(*this), out(out), ceed_benchmark(ceed_benchmark) {}
 #define DECL_RULE(name)                                                     \
   void name##_r(Rule *n) const { n->dfs.down ? name##_d(n) : name##_u(n); } \
   void name##_d(Rule *) const;                                              \

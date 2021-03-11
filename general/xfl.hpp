@@ -99,8 +99,8 @@ class xfl
 public:
    Node *root;
    yy::location *loc;
-   bool yy_debug;
-   bool ll_debug;
+   const bool yy_debug, ll_debug;
+   const bool ceed_benchmark;
    std::string &input, &output;
    struct { int debug; bool echo; } ll;
    enum VarMode: unsigned
@@ -146,7 +146,9 @@ public:
       struct { int type; std::string fes; } tmp;
    } ctx;
 public:
-   xfl(bool yy_debug, bool ll_debug, std::string &input, std::string &output);
+   xfl(bool yy_debug, bool ll_debug,
+       std::string &input, std::string &output,
+       bool ceed_benchmark);
    ~xfl();
    int open(void);
    int close(void);

@@ -17,6 +17,11 @@
 #include "xfl_ker.hpp"
 
 // *****************************************************************************
+extern "C" const __attribute__((aligned(4))) unsigned char xfl_mfem_hpp[];
+extern "C" const __attribute__((aligned(4))) unsigned char *xfl_mfem_hpp_end;
+extern "C" const unsigned int xfl_mfem_hpp_size;
+
+// *****************************************************************************
 template <typename T = long double>
 constexpr T XFL_version(T x = 1.0, T eps = 1.e-15L)
 {
@@ -40,6 +45,7 @@ int main(int argc, char *argv[])
    bool ast_save = false;
    bool yy_debug = false;
    bool ll_debug = false;
+   bool ceed_benchmark = false;
    std::string input, output;
 
    if (argc == 1) { exit(~0 | fprintf(stderr, XFL_man(XFL_N), XFL_ver)); }
@@ -51,6 +57,7 @@ int main(int argc, char *argv[])
       else if (argv[i] == std::string ("-i")) { input.assign(argv[++i]); }
       else if (argv[i] == std::string ("-o")) { output.assign(argv[++i]); }
       else if (argv[i] == std::string ("-t")) { ast_save = true; }
+      else if (argv[i] == std::string ("-b")) { ceed_benchmark = true; }
       else if (argv[i] == std::string ("-n")) { ast_debug = atoi(argv[++i]); }
       else { break; }
    }
@@ -65,7 +72,7 @@ int main(int argc, char *argv[])
    if (is_i_file) { assert(!i_file.fail() && i_file.is_open()); }
    else { input = last_argv; }
 
-   xfl ufl(yy_debug, ll_debug, input, output);
+   xfl ufl(yy_debug, ll_debug, input, output, ceed_benchmark);
 
    constexpr auto os = std::ios::out | std::ios::binary | std::ios::trunc;
    std::ofstream o_file(output.c_str(), os);
@@ -220,9 +227,12 @@ void xfl::InsertNode(Node *root, Node *child)
 }
 
 // *****************************************************************************
-xfl::xfl(bool yy_debug, bool ll_debug, std::string &input, std::string &output):
-   root(nullptr), loc(new yy::location(&input)),
-   yy_debug(yy_debug), ll_debug(ll_debug),
+xfl::xfl(bool yy_debug, bool ll_debug,
+         std::string &input, std::string &output,
+         bool ceed_benchmark):
+   root(nullptr),
+   loc(new yy::location(&input)),
+   yy_debug(yy_debug), ll_debug(ll_debug), ceed_benchmark(ceed_benchmark),
    input(input), output(output) { }
 
 // *****************************************************************************
@@ -240,6 +250,7 @@ int xfl::parse(void)
 // *****************************************************************************
 xfl::~xfl() { delete loc; }
 
+
 // *****************************************************************************
 int xfl::code(std::ostream &out)
 {
@@ -253,7 +264,7 @@ int xfl::code(std::ostream &out)
 
    // Then code generation
    std::ostringstream main;
-   mfem::internal::Code mc(*this, main);
+   mfem::internal::Code mc(*this, main, ceed_benchmark);
    DfsPreOrder(root, mc);
 
    // Static kernels
@@ -261,7 +272,7 @@ int xfl::code(std::ostream &out)
    mfem::internal::StaticKernels sk(*this, kernels);
    DfsPreOrder(root, sk);
 
-   out << "#include \"xfl_mfem.hpp\"" << std:: endl;
+   out << xfl_mfem_hpp << std::endl;
    out << kernels.str() << std:: endl;
    out << main.str() << std:: endl;
 
