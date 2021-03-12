@@ -444,7 +444,7 @@ function go_group()
       mkdir -p "${group_output_dir}" || exit 1
    fi
    for src in "$@"; do
-      group_run_suffix=${run_suffix} && [[ $src == "ex0.cpp" ]] \
+      group_run_suffix=${run_suffix} && [[ $src =~ ex0p?\.cpp ]] \
          && group_run_suffix=""
       cd "${mfem_dir}/${group_dir}" || exit 1
       extract_sample_runs "${src}" || continue
