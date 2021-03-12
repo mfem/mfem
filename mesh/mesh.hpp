@@ -806,6 +806,7 @@ public:
    /// @warning For high-order meshes (when #Nodes != NULL) vertices may not be
    /// updated and should not be used!
    const double *GetVertex(int i) const { return vertices[i](); }
+   // TODO: make this function work in any case (linear/curvilinear mesh)
 
    /// @brief Return pointer to vertex i's coordinates.
    /// @warning For high-order meshes (when Nodes != NULL) vertices may not

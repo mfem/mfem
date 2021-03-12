@@ -442,7 +442,7 @@ protected: // implementation
    {
       char geom;     ///< Geometry::Type of the element (char for storage only)
       char ref_type; ///< bit mask of X,Y,Z refinements (bits 0,1,2 respectively)
-      char tet_type; ///< tetrahedron split type, currently always 0
+      char spx_type; ///< simplex refinement type, if applicable
       char flag;     ///< generic flag/marker, can be used by algorithms
       int index;     ///< element number in the Mesh, -1 if refined
       int rank;      ///< processor number (ParNCMesh), -1 if undefined/unknown
@@ -619,6 +619,8 @@ protected: // implementation
    /// Extended version of find_node: works if 'el' is refined.
    int FindNodeExt(const Element &el, int node, bool abort = true);
 
+   int CalcTriLongestEdge(const Element &el);
+   //int CalcTetShortestDiagonal(const Element &el);
 
    // face/edge lists
 
@@ -816,7 +818,7 @@ protected: // implementation
    void SetDerefMatrixCodes(int parent, Array<int> &fine_coarse);
 
 
-   // vertex temporary data, used by GetMeshComponents
+   // temporary vertex coordinate data, used by GetMeshComponents
 
    struct TmpVertex
    {
@@ -828,6 +830,8 @@ protected: // implementation
    mutable TmpVertex* tmp_vertex;
 
    const double *CalcVertexPos(int node) const;
+
+   void FreeTmpVertexPos() const { delete [] tmp_vertex; tmp_vertex = NULL; }
 
 
    // utility
