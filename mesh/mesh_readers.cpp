@@ -745,7 +745,7 @@ void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
    }
    if (cells_xml == NULL) { MFEM_ABORT(erstr); }
 
-   // Currently don't support reading cell attributes from VTK mesh
+   // Currently don't support reading cell attributes from XML VTK mesh
    Array<int> cell_attributes;
    CreateVTKMesh(points, cell_data, cell_offsets, cell_types, cell_attributes,
                  curved, read_gf, finalize_topo);
@@ -769,13 +769,13 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
       MFEM_ABORT("VTK mesh is not in ASCII format!");
       return;
    }
-   getline(input, buff);
-   filter_dos(buff);
-   if (buff != "DATASET UNSTRUCTURED_GRID")
+   do
    {
-      MFEM_ABORT("VTK mesh is not UNSTRUCTURED_GRID!");
-      return;
+      getline(input, buff);
+      filter_dos(buff);
+      if (!input.good()) { MFEM_ABORT("VTK mesh is not UNSTRUCTURED_GRID!"); }
    }
+   while (buff != "DATASET UNSTRUCTURED_GRID");
 
    // Read the points, skipping optional sections such as the FIELD data from
    // VisIt's VTK export (or from Mesh::PrintVTK with field_data==1).
@@ -839,37 +839,44 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
    input >> ws >> buff;
    Array<int> cell_types;
    int ncells;
-   if (buff == "CELL_TYPES")
+   MFEM_VERIFY(buff == "CELL_TYPES", "CELL_TYPES not provided in VTK mesh.")
+   input >> ncells;
+   cell_types.Load(ncells, input);
+
+   while ((input.good()) && (buff != "CELL_DATA"))
    {
-      input >> ncells;
-      cell_types.Load(ncells, input);
+      input >> buff;
+   }
+   getline(input, buff); // finish the line
+
+   // Read the cell materials
+   // bool found_material = false;
+   Array<int> cell_attributes;
+   while ((input.good()))
+   {
+      getline(input, buff);
+      if (buff.rfind("POINT_DATA") == 0)
+      {
+         break; // We have entered the POINT_DATA block. Quit.
+      }
+      else if (buff.rfind("SCALARS material") == 0)
+      {
+         getline(input, buff); // LOOKUP_TABLE default
+         if (buff.rfind("LOOKUP_TABLE default") != 0)
+         {
+            MFEM_ABORT("Invalid LOOKUP_TABLE for material array in VTK file.");
+         }
+         cell_attributes.Load(ncells, input);
+         // found_material = true;
+         break;
+      }
    }
 
-   // Read cell attributes
-   streampos sp = input.tellg();
-   input >> ws >> buff;
-   Array<int> cell_attributes;
-   if (buff == "CELL_DATA")
-   {
-      int n;
-      input >> n >> ws;
-      getline(input, buff);
-      filter_dos(buff);
-      // "SCALARS material dataType numComp"
-      if (buff.rfind("SCALARS material") == 0)
-      {
-         getline(input, buff); // "LOOKUP_TABLE default"
-         cell_attributes.Load(ncells, input);
-      }
-      else
-      {
-         input.seekg(sp);
-      }
-   }
-   else
-   {
-      input.seekg(sp);
-   }
+   // if (!found_material)
+   // {
+   //    MFEM_WARNING("Material array not found in VTK file. "
+   //                 "Assuming uniform material composition.");
+   // }
 
    CreateVTKMesh(points, cell_data, cell_offsets, cell_types, cell_attributes,
                  curved, read_gf, finalize_topo);
@@ -1540,7 +1547,14 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                   // non-positive attributes are not allowed in MFEM
                   if (phys_domain <= 0)
                   {
-                     MFEM_ABORT("Non-positive element attribute in Gmsh mesh!");
+                     MFEM_ABORT("Non-positive element attribute in Gmsh mesh!\n"
+                                "By default Gmsh sets element tags (attributes)"
+                                " to '0' but MFEM requires that they be"
+                                " positive integers.\n"
+                                "Use \"Physical Curve\", \"Physical Surface\","
+                                " or \"Physical Volume\" to set tags/attributes"
+                                " for all curves, surfaces, or volumes in your"
+                                " Gmsh geometry to values which are >= 1.");
                   }
 
                   // initialize the mesh element
@@ -1760,7 +1774,14 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                // non-positive attributes are not allowed in MFEM
                if (phys_domain <= 0)
                {
-                  MFEM_ABORT("Non-positive element attribute in Gmsh mesh!");
+                  MFEM_ABORT("Non-positive element attribute in Gmsh mesh!\n"
+                             "By default Gmsh sets element tags (attributes)"
+                             " to '0' but MFEM requires that they be"
+                             " positive integers.\n"
+                             "Use \"Physical Curve\", \"Physical Surface\","
+                             " or \"Physical Volume\" to set tags/attributes"
+                             " for all curves, surfaces, or volumes in your"
+                             " Gmsh geometry to values which are >= 1.");
                }
 
                // initialize the mesh element
@@ -2029,6 +2050,9 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          {
             curved = 1;
             read_gf = 0;
+
+            // initialize mesh_geoms so we can create Nodes FE space below
+            this->SetMeshGen();
 
             // Construct GridFunction for uniformly spaced high order coords
             FiniteElementCollection* nfec;
