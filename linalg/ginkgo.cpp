@@ -50,7 +50,8 @@ GinkgoExecutor::GinkgoExecutor(ExecType exec_type)
          }
          else
             mfem::err <<
-                      "gko::CudaExecutor::get_num_devices() did not report any valid devices"
+                      "gko::CudaExecutor::get_num_devices() did not report "
+                      << "any valid devices"
                       << std::endl;
          break;
       }
@@ -62,7 +63,8 @@ GinkgoExecutor::GinkgoExecutor(ExecType exec_type)
          }
          else
             mfem::err <<
-                      "gko::HipExecutor::get_num_devices() did not report any valid devices"
+                      "gko::HipExecutor::get_num_devices() did not report "
+                      << "any valid devices"
                       << std::endl;
          break;
       }
@@ -85,7 +87,8 @@ GinkgoExecutor::GinkgoExecutor(Device &mfem_device)
       }
       else
          mfem::err <<
-                   "gko::CudaExecutor::get_num_devices() did not report any valid devices"
+                   "gko::CudaExecutor::get_num_devices() did not report "
+                   << "any valid devices"
                    << std::endl;
    }
    else if (mfem_device.Allows(Backend::HIP_MASK))
@@ -96,7 +99,8 @@ GinkgoExecutor::GinkgoExecutor(Device &mfem_device)
       }
       else
          mfem::err <<
-                   "gko::HipExecutor::get_num_devices() did not report any valid devices"
+                   "gko::HipExecutor::get_num_devices() did not report "
+                   << "any valid devices"
                    << std::endl;
    }
    else
@@ -194,9 +198,10 @@ void OperatorWrapper::apply_impl(const gko::LinOp *alpha,
    else
    {
       // Copy from device to host
-      this->get_executor()->get_master().get()->copy_from(this->get_executor().get(),
-                                                          1, gko::as<gko::matrix::Dense<double>>(alpha)->get_const_values(),
-                                                          &alpha_f);
+      this->get_executor()->get_master().get()->copy_from(
+         this->get_executor().get(),
+         1, gko::as<gko::matrix::Dense<double>>(alpha)->get_const_values(),
+         &alpha_f);
    }
    if (beta->get_executor() == beta->get_executor()->get_master())
    {
@@ -206,9 +211,10 @@ void OperatorWrapper::apply_impl(const gko::LinOp *alpha,
    else
    {
       // Copy from device to host
-      this->get_executor()->get_master().get()->copy_from(this->get_executor().get(),
-                                                          1, gko::as<gko::matrix::Dense<double>>(beta)->get_const_values(),
-                                                          &beta_f);
+      this->get_executor()->get_master().get()->copy_from(
+         this->get_executor().get(),
+         1, gko::as<gko::matrix::Dense<double>>(beta)->get_const_values(),
+         &beta_f);
    }
    // Scale x by beta
    mfem_x->get_mfem_vec_ref() *= beta_f;
@@ -791,7 +797,8 @@ GinkgoPreconditioner::Mult(const Vector &x, Vector &y) const
                                                         x.Read(on_device))), 1);
    auto gko_y = vec::create(executor, gko::dim<2>(y.Size(), 1),
                             gko::Array<double>::view(executor,
-                                                     y.Size(), y.ReadWrite(on_device)), 1);
+                                                     y.Size(),
+                                                     y.ReadWrite(on_device)), 1);
    generated_precond.get()->apply(gko::lend(gko_x), gko::lend(gko_y));
 }
 
@@ -877,9 +884,10 @@ IluPreconditioner::IluPreconditioner(
    if (factorization_type == "exact")
    {
       using ilu_fact_type = gko::factorization::Ilu<double, int>;
-      std::shared_ptr<ilu_fact_type::Factory> fact_factory = ilu_fact_type::build()
-                                                             .with_skip_sorting(skip_sort)
-                                                             .on(executor);
+      std::shared_ptr<ilu_fact_type::Factory> fact_factory =
+         ilu_fact_type::build()
+         .with_skip_sorting(skip_sort)
+         .on(executor);
       precond_gen = gko::preconditioner::Ilu<>::build()
                     .with_factorization_factory(fact_factory)
                     .on(executor);
@@ -887,10 +895,11 @@ IluPreconditioner::IluPreconditioner(
    else
    {
       using ilu_fact_type = gko::factorization::ParIlu<double, int>;
-      std::shared_ptr<ilu_fact_type::Factory> fact_factory = ilu_fact_type::build()
-                                                             .with_iterations(static_cast<unsigned long>(sweeps))
-                                                             .with_skip_sorting(skip_sort)
-                                                             .on(executor);
+      std::shared_ptr<ilu_fact_type::Factory> fact_factory =
+         ilu_fact_type::build()
+         .with_iterations(static_cast<unsigned long>(sweeps))
+         .with_skip_sorting(skip_sort)
+         .on(executor);
       precond_gen = gko::preconditioner::Ilu<>::build()
                     .with_factorization_factory(fact_factory)
                     .on(executor);
@@ -924,9 +933,10 @@ IluIsaiPreconditioner::IluIsaiPreconditioner(
    if (factorization_type == "exact")
    {
       using ilu_fact_type = gko::factorization::Ilu<double, int>;
-      std::shared_ptr<ilu_fact_type::Factory> fact_factory = ilu_fact_type::build()
-                                                             .with_skip_sorting(skip_sort)
-                                                             .on(executor);
+      std::shared_ptr<ilu_fact_type::Factory> fact_factory =
+         ilu_fact_type::build()
+         .with_skip_sorting(skip_sort)
+         .on(executor);
       precond_gen = gko::preconditioner::Ilu<l_solver_type,
       u_solver_type>::build()
       .with_factorization_factory(fact_factory)
@@ -938,10 +948,11 @@ IluIsaiPreconditioner::IluIsaiPreconditioner(
    else
    {
       using ilu_fact_type = gko::factorization::ParIlu<double, int>;
-      std::shared_ptr<ilu_fact_type::Factory> fact_factory = ilu_fact_type::build()
-                                                             .with_iterations(static_cast<unsigned long>(sweeps))
-                                                             .with_skip_sorting(skip_sort)
-                                                             .on(executor);
+      std::shared_ptr<ilu_fact_type::Factory> fact_factory =
+         ilu_fact_type::build()
+         .with_iterations(static_cast<unsigned long>(sweeps))
+         .with_skip_sorting(skip_sort)
+         .on(executor);
       precond_gen = gko::preconditioner::Ilu<l_solver_type,
       u_solver_type>::build()
       .with_factorization_factory(fact_factory)
@@ -965,10 +976,11 @@ IcPreconditioner::IcPreconditioner(
    if (factorization_type == "exact")
    {
       using ic_fact_type = gko::factorization::Ic<double, int>;
-      std::shared_ptr<ic_fact_type::Factory> fact_factory = ic_fact_type::build()
-                                                            .with_both_factors(false)
-                                                            .with_skip_sorting(skip_sort)
-                                                            .on(executor);
+      std::shared_ptr<ic_fact_type::Factory> fact_factory =
+         ic_fact_type::build()
+         .with_both_factors(false)
+         .with_skip_sorting(skip_sort)
+         .on(executor);
       precond_gen = gko::preconditioner::Ic<>::build()
                     .with_factorization_factory(fact_factory)
                     .on(executor);
@@ -976,11 +988,12 @@ IcPreconditioner::IcPreconditioner(
    else
    {
       using ic_fact_type = gko::factorization::ParIc<double, int>;
-      std::shared_ptr<ic_fact_type::Factory> fact_factory = ic_fact_type::build()
-                                                            .with_both_factors(false)
-                                                            .with_iterations(static_cast<unsigned long>(sweeps))
-                                                            .with_skip_sorting(skip_sort)
-                                                            .on(executor);
+      std::shared_ptr<ic_fact_type::Factory> fact_factory =
+         ic_fact_type::build()
+         .with_both_factors(false)
+         .with_iterations(static_cast<unsigned long>(sweeps))
+         .with_skip_sorting(skip_sort)
+         .on(executor);
       precond_gen = gko::preconditioner::Ic<>::build()
                     .with_factorization_factory(fact_factory)
                     .on(executor);
@@ -1005,10 +1018,11 @@ IcIsaiPreconditioner::IcIsaiPreconditioner(
    if (factorization_type == "exact")
    {
       using ic_fact_type = gko::factorization::Ic<double, int>;
-      std::shared_ptr<ic_fact_type::Factory> fact_factory = ic_fact_type::build()
-                                                            .with_both_factors(false)
-                                                            .with_skip_sorting(skip_sort)
-                                                            .on(executor);
+      std::shared_ptr<ic_fact_type::Factory> fact_factory =
+         ic_fact_type::build()
+         .with_both_factors(false)
+         .with_skip_sorting(skip_sort)
+         .on(executor);
       precond_gen = gko::preconditioner::Ic<l_solver_type>::build()
                     .with_factorization_factory(fact_factory)
                     .with_l_solver_factory(l_solver_factory)
@@ -1017,11 +1031,12 @@ IcIsaiPreconditioner::IcIsaiPreconditioner(
    else
    {
       using ic_fact_type = gko::factorization::ParIc<double, int>;
-      std::shared_ptr<ic_fact_type::Factory> fact_factory = ic_fact_type::build()
-                                                            .with_both_factors(false)
-                                                            .with_iterations(static_cast<unsigned long>(sweeps))
-                                                            .with_skip_sorting(skip_sort)
-                                                            .on(executor);
+      std::shared_ptr<ic_fact_type::Factory> fact_factory =
+         ic_fact_type::build()
+         .with_both_factors(false)
+         .with_iterations(static_cast<unsigned long>(sweeps))
+         .with_skip_sorting(skip_sort)
+         .on(executor);
       precond_gen = gko::preconditioner::Ic<l_solver_type>::build()
                     .with_factorization_factory(fact_factory)
                     .with_l_solver_factory(l_solver_factory)

@@ -123,6 +123,76 @@ public:
                 this->get_executor(), this->get_size()[0], mfem_vec,
                 true);
    }
+
+   // Override base Dense class implementation for creating new vectors
+   // with same executor and type as self, but with a different size.
+   // This function will create "one large VectorWrapper" of size
+   // size[0] * size[1], since MFEM Vectors only have one dimension.
+   virtual std::unique_ptr<gko::matrix::Dense<double>>
+                                                    create_with_type_of_impl(
+                                                       std::shared_ptr<const gko::Executor> exec,
+                                                       const gko::dim<2> &size,
+                                                       gko::size_type stride) const override
+   {
+      // Only stride of 1 is allowed for VectorWrapper type
+      if (stride > 1)
+      {
+         throw gko::Error(
+            __FILE__, __LINE__,
+            "VectorWrapper cannot be created with stride > 1");
+      }
+      // Compute total size of new Vector
+      gko::size_type total_size = size[0]*size[1];
+      Vector *mfem_vec = new Vector(
+         total_size,
+         this->wrapped_vec.get()->GetMemory().GetMemoryType());
+
+      mfem_vec->UseDevice(this->wrapped_vec.get()->UseDevice());
+
+      // If this function is called, Ginkgo is creating this
+      // object and should control the memory, so ownership is
+      // set to true
+      return VectorWrapper::create(
+                this->get_executor(), total_size, mfem_vec,
+                true);
+   }
+
+   // Override base Dense class implementation for creating new sub-vectors
+   // from a larger vector.
+   virtual std::unique_ptr<gko::matrix::Dense<double>> create_submatrix_impl(
+                                                       const gko::span &rows,
+                                                       const gko::span &columns,
+                                                       const gko::size_type stride) override
+   {
+
+      gko::size_type num_rows = rows.end - rows.begin;
+      gko::size_type num_cols = columns.end - columns.begin;
+      // Data in the Dense matrix will be stored in row-major format.
+      // Check that we only have one column, and that the stride = 1
+      // (only allowed value for VectorWrappers).
+      if (num_cols > 1 || stride > 1)
+      {
+         throw gko::BadDimension(
+            __FILE__, __LINE__, __func__, "new_submatrix", num_rows,
+            num_cols,
+            "VectorWrapper submatrix must have one column and stride = 1");
+      }
+      int data_size = static_cast<int>(num_rows * num_cols);
+      int start = static_cast<int>(rows.begin);
+      // Create a new MFEM Vector pointing to this starting point in the data
+      Vector *mfem_vec = new Vector();
+      mfem_vec->MakeRef(*(this->wrapped_vec.get()), start, data_size);
+      mfem_vec->UseDevice(this->wrapped_vec.get()->UseDevice());
+
+      // If this function is called, Ginkgo is creating this
+      // object and should control the memory, so ownership is
+      // set to true (but MFEM doesn't own and won't delete
+      // the data, at it's only a reference to the parent Vector)
+      return VectorWrapper::create(
+                this->get_executor(), data_size, mfem_vec,
+                true);
+   }
+
 private:
    std::unique_ptr<Vector, std::function<void(Vector *)>> wrapped_vec;
 };
