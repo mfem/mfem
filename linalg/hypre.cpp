@@ -48,7 +48,7 @@ static TargetT *DuplicateAs(const SourceT *array, int size,
    {
       Memory<TargetT> mm(size, GetHypreMemoryType());
       mm.CopyFromHost(array, size);
-      TargetT *target_array = mm;
+      TargetT *target_array = mm.ReadWrite(GetHypreMemoryClass(), size);
       return target_array;
    }
 }
@@ -286,7 +286,8 @@ char HypreParMatrix::CopyCSR(SparseMatrix *csr, hypre_CSRMatrix *hypre_csr)
       Memory<double> hypre_mem_data(nnz, GetHypreMemoryType());
       hypre_mem_data.CopyFromHost(csr->GetData(), nnz);
 
-      hypre_CSRMatrixData(hypre_csr) = hypre_mem_data;
+      hypre_CSRMatrixData(hypre_csr) = hypre_mem_data.ReadWrite(GetHypreMemoryClass(),
+                                                                nnz);
 #ifndef HYPRE_BIGINT
       hypre_CSRMatrixI(hypre_csr) = DuplicateAs<int>(csr->GetI(),
                                                      csr->Height()+1);
@@ -356,8 +357,13 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_Int glob_size,
    {
       hypre_mem_row.New(3, GetHypreMemoryType());
       hypre_mem_row.CopyFromHost(row_starts, 3);
-      A = hypre_ParCSRMatrixCreate(comm, glob_size, glob_size, hypre_mem_row,
-                                   hypre_mem_row, 0, diag->NumNonZeroElems(), 0);
+
+      /*
+      A = hypre_ParCSRMatrixCreate(comm, glob_size, glob_size, hypre_mem_row.ReadWrite(GetHypreMemoryClass(), 3),
+                                   hypre_mem_row.ReadWrite(GetHypreMemoryClass(), 3), 0, diag->NumNonZeroElems(), 0);
+      */
+      A = hypre_ParCSRMatrixCreate(comm, glob_size, glob_size, row_starts, row_starts,
+                                   0, diag->NumNonZeroElems(), 0);
    }
 
    hypre_ParCSRMatrixSetDataOwner(A,1);
@@ -366,7 +372,9 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_Int glob_size,
 
    hypre_CSRMatrixSetDataOwner(A->diag,0);
    diagOwner = CopyCSR(diag, A->diag);
-   hypre_CSRMatrixSetRownnz(A->diag);
+   // TODO:
+   //hypre_CSRMatrixSetRownnz(A->diag);
+   internal::tmp_hypre_CSRMatrixSetRownnz(A->diag);
 
    hypre_CSRMatrixSetDataOwner(A->offd,1);
    hypre_CSRMatrixI(A->offd) = mfem_hypre_CTAlloc(HYPRE_Int, diag->Height()+1);
@@ -379,7 +387,9 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_Int glob_size,
    hypre_ParCSRMatrixSetNumNonzeros(A);
 
    /* Make sure that the first entry in each row is the diagonal one. */
-   hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
+   // TODO:
+   hypre_CSRMatrixMoveDiagFirstDevice(hypre_ParCSRMatrixDiag(A));
+   //hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
 #ifdef HYPRE_BIGINT
    CopyCSR_J(A->diag, diag->GetJ());
 #endif
@@ -617,11 +627,23 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
       diag_nnz = i_diag[row[1]-row[0]];
       offd_nnz = i_offd[row[1]-row[0]];
 
-      if (GetHypreMemoryClass() == MemoryClass::HOST)
+      const int rowSize = row[1]-row[0];
+      hypre_i_diag.Wrap(i_diag, rowSize+1, true);
+      hypre_j_diag.Wrap(j_diag, diag_nnz, true);
+      hypre_i_offd.Wrap(i_offd, rowSize+1, true);
+      hypre_j_offd.Wrap(j_offd, offd_nnz, true);
+
+      hypre_cmap.Wrap(cmap, cmap_size, true);
+
+      hypre_a_diag.New(diag_nnz);  // on host
+      if (offd_nnz > 0) { hypre_a_offd.New(offd_nnz); }  // on host
+
+      //if (GetHypreMemoryClass() == MemoryClass::HOST)
       {
          A = hypre_ParCSRMatrixCreate(comm, row[2], col[2], row, col,
                                       cmap_size, diag_nnz, offd_nnz);
       }
+      /*
       else
       {
          // Assumption: all input pointers to host memory have valid data
@@ -637,6 +659,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
          A = hypre_ParCSRMatrixCreate(comm, row[2], col[2], hypre_mem_row, hypre_mem_col,
                                       cmap_size, diag_nnz, offd_nnz);
       }
+      */
    }
    else
    {
@@ -655,20 +678,35 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
 
    HYPRE_Int i;
 
-   double *a_diag = Memory<double>(diag_nnz, GetHypreMemoryType());
+   //double *a_diag = Memory<double>(diag_nnz, GetHypreMemoryType());
+   double *a_diag = hypre_a_diag.Write(Device::GetHostMemoryClass(), diag_nnz);
+   double *a_offd = (offd_nnz > 0) ? hypre_a_offd.Write(
+                       Device::GetHostMemoryClass(), offd_nnz) : NULL;
 
    for (i = 0; i < diag_nnz; i++)
    {
       a_diag[i] = 1.0;
    }
 
-   double *a_offd = Memory<double>(offd_nnz, GetHypreMemoryType());
+   //double *a_offd = Memory<double>(offd_nnz, GetHypreMemoryType());
    for (i = 0; i < offd_nnz; i++)
    {
       a_offd[i] = 1.0;
    }
 
+   hypre_a_diag.Read(GetHypreMemoryClass(), diag_nnz);
+   if (offd_nnz > 0)
+   {
+      hypre_a_offd.Read(GetHypreMemoryClass(), offd_nnz);
+   }
+
+   hypre_CSRMatrixI(A->diag) = hypre_i_diag.ReadWrite(GetHypreMemoryClass(),
+                                                      hypre_i_diag.Capacity());
+   hypre_CSRMatrixJ(A->diag) = hypre_j_diag.ReadWrite(GetHypreMemoryClass(),
+                                                      hypre_j_diag.Capacity());
+
    hypre_CSRMatrixSetDataOwner(A->diag,0);
+   /*
    if (GetHypreMemoryClass() == MemoryClass::HOST)
    {
       hypre_CSRMatrixI(A->diag)    = i_diag;
@@ -695,12 +733,22 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
       hypre_CSRMatrixI(A->diag)    = hypre_mem_i_diag;
       hypre_CSRMatrixJ(A->diag)    = hypre_mem_j_diag;
    }
+
    hypre_CSRMatrixData(A->diag) = a_diag;
    hypre_CSRMatrixSetRownnz(A->diag);
+   */
+
+   hypre_CSRMatrixData(A->diag) = hypre_a_diag.ReadWrite(GetHypreMemoryClass(),
+                                                         hypre_a_diag.Capacity());
+   // TODO:
+   internal::tmp_hypre_CSRMatrixSetRownnz(A->diag);
+   //hypre_CSRMatrixSetRownnz(A->diag);
+
    // Prevent hypre from destroying A->diag->{i,j,data}, own A->diag->{i,j,data}
    diagOwner = 3;
 
    hypre_CSRMatrixSetDataOwner(A->offd,0);
+   /*
    if (GetHypreMemoryClass() == MemoryClass::HOST)
    {
       hypre_CSRMatrixI(A->offd)    = i_offd;
@@ -729,9 +777,25 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
    }
    hypre_CSRMatrixData(A->offd) = a_offd;
    hypre_CSRMatrixSetRownnz(A->offd);
+   */
+
+   hypre_CSRMatrixI(A->offd) = hypre_i_offd.ReadWrite(GetHypreMemoryClass(),
+                                                      hypre_i_offd.Capacity());
+   if (offd_nnz > 0)
+   {
+      hypre_CSRMatrixJ(A->offd) = hypre_j_offd.ReadWrite(GetHypreMemoryClass(),
+                                                         hypre_j_offd.Capacity());
+
+      hypre_CSRMatrixData(A->offd) = (offd_nnz > 0) ? hypre_a_offd.ReadWrite(
+                                        GetHypreMemoryClass(), hypre_a_offd.Capacity()) : NULL;
+   }
+   // TODO:
+   internal::tmp_hypre_CSRMatrixSetRownnz(A->offd);
+
    // Prevent hypre from destroying A->offd->{i,j,data}, own A->offd->{i,j,data}
    offdOwner = 3;
 
+   /*
    if (GetHypreMemoryClass() == MemoryClass::HOST)
    {
       hypre_ParCSRMatrixColMapOffd(A) = cmap;
@@ -742,6 +806,9 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
       hypre_mem_cmap.CopyFromHost(cmap, cmap_size);
       hypre_ParCSRMatrixColMapOffd(A) = hypre_mem_cmap;
    }
+   */
+
+   hypre_ParCSRMatrixColMapOffd(A) = hypre_cmap;
 
    // Prevent hypre from destroying A->col_map_offd, own A->col_map_offd
    colMapOwner = 1;
@@ -1032,10 +1099,49 @@ static void MakeWrapper(const hypre_CSRMatrix *mat, SparseMatrix &wrapper)
    HYPRE_Int nr = hypre_CSRMatrixNumRows(mat);
    HYPRE_Int nc = hypre_CSRMatrixNumCols(mat);
 #ifndef HYPRE_BIGINT
+
+   Memory<int> iwrap, jwrap;
+   Memory<double> awrap;
+
+   HYPRE_Int nnz = hypre_CSRMatrixNumNonzeros(mat);
+
+   /*
+   iwrap.Wrap(hypre_CSRMatrixI(mat), nr+1, false);
+
+   jwrap.Wrap(hypre_CSRMatrixJ(mat), nnz, false);
+   awrap.Wrap(hypre_CSRMatrixData(mat), nnz, false);
+   */
+
+   iwrap.Wrap(hypre_CSRMatrixI(mat), nr+1, GetHypreMemoryType(), false);
+
+   jwrap.Wrap(hypre_CSRMatrixJ(mat), nnz, GetHypreMemoryType(), false);
+   awrap.Wrap(hypre_CSRMatrixData(mat), nnz, GetHypreMemoryType(), false);
+
+   // TODO: Read instead of ReadWrite?
+   SparseMatrix tmp(const_cast<int *> (iwrap.Read(Device::GetHostMemoryClass(),
+                                                  iwrap.Capacity())),
+                    const_cast<int *> (jwrap.Read(Device::GetHostMemoryClass(), jwrap.Capacity())),
+                    const_cast<double *> (awrap.Read(Device::GetHostMemoryClass(),
+                                                     awrap.Capacity())),
+                    nr, nc, false, false, false);
+   /*
+   SparseMatrix tmp(const_cast<int *> (iwrap.Read(GetHypreMemoryClass(), iwrap.Capacity())),
+          const_cast<int *> (jwrap.Read(GetHypreMemoryClass(), jwrap.Capacity())),
+          const_cast<double *> (awrap.Read(GetHypreMemoryClass(), awrap.Capacity())),
+                    nr, nc, false, false, false);
+   */
+   /*
+   SparseMatrix tmp(iwrap.ReadWrite(GetHypreMemoryClass(), iwrap.Capacity()),
+          jwrap.ReadWrite(GetHypreMemoryClass(), jwrap.Capacity()),
+          awrap.ReadWrite(GetHypreMemoryClass(), awrap.Capacity()),
+                    nr, nc, false, false, false);
+   */
+   /*
    SparseMatrix tmp(hypre_CSRMatrixI(mat),
                     hypre_CSRMatrixJ(mat),
                     hypre_CSRMatrixData(mat),
                     nr, nc, false, false, false);
+   */
 #else
    HYPRE_Int nnz = hypre_CSRMatrixNumNonzeros(mat);
    SparseMatrix tmp(DuplicateAs<int>(hypre_CSRMatrixI(mat), nr+1),
@@ -1100,7 +1206,9 @@ HypreParMatrix * HypreParMatrix::Transpose() const
    {
       /* If the matrix is square, make sure that the first entry in each
          row is the diagonal one. */
-      hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(At));
+      // TODO
+      hypre_CSRMatrixMoveDiagFirstDevice(hypre_ParCSRMatrixDiag(At));
+      //hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(At));
    }
 
    return new HypreParMatrix(At);
@@ -2253,23 +2361,43 @@ void EliminateBC(HypreParMatrix &A, HypreParMatrix &Ae,
    double *data_offd = hypre_CSRMatrixData(A_offd);
 #endif
 
-   ess_dof_list.HostRead();
+   const int *ess_dof_list_read = ess_dof_list.HostRead();
+
+   // Device array wrapping for reading to host
+   Memory<HYPRE_Int> I_wrap;
+   Memory<double> data_wrap;
+
+   HYPRE_Int A_rows = hypre_CSRMatrixNumRows(A_diag);
+   I_wrap.Wrap(I, A_rows + 1, GetHypreMemoryType(), false);
+   const HYPRE_Int *I_read = I_wrap.Read(Device::GetHostMemoryClass(), A_rows + 1);
+   HYPRE_Int nnz = I_read[A_rows] - I_read[0];
+
+   data_wrap.Wrap(data, nnz, GetHypreMemoryType(), false);
+
+   // TODO: this is currently being done on host. We should be able to do it on device with MFEM_FORALL.
+   const double *data_read = data_wrap.Read(Device::GetHostMemoryClass(), nnz);
+
+   const double *X_read = X.HostRead();
+   double *B_write = B.HostWrite();
 
    for (int i = 0; i < ess_dof_list.Size(); i++)
    {
-      int r = ess_dof_list[i];
-      B(r) = data[I[r]] * X(r);
+      int r = ess_dof_list_read[i];
+      //B(r) = data[I[r]] * X(r);
+      //B(r) = data_read[I_read[r]] * X(r);
+      B_write[r] = data_read[I_read[r]] * X_read[r];
 #ifdef MFEM_DEBUG
+      /* TODO
       // Check that in the rows specified by the ess_dof_list, the matrix A has
       // only one entry -- the diagonal.
       // if (I[r+1] != I[r]+1 || J[I[r]] != r || I_offd[r] != I_offd[r+1])
-      if (J[I[r]] != r)
+      if (J[I_read[r]] != r)
       {
          MFEM_ABORT("the diagonal entry must be the first entry in the row!");
       }
-      for (int j = I[r]+1; j < I[r+1]; j++)
+      for (int j = I_read[r]+1; j < I_read[r+1]; j++)
       {
-         if (data[j] != 0.0)
+         if (data_read[j] != 0.0)
          {
             MFEM_ABORT("all off-diagonal entries must be zero!");
          }
@@ -2281,8 +2409,11 @@ void EliminateBC(HypreParMatrix &A, HypreParMatrix &Ae,
             MFEM_ABORT("all off-diagonal entries must be zero!");
          }
       }
+      */
 #endif
    }
+
+   B.Read();
 }
 
 // Taubin or "lambda-mu" scheme, which alternates between positive and
