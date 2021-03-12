@@ -655,7 +655,7 @@ FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
      M_solver(_M.ParFESpace()->GetComm()),
      z(_M.Height())
 {
-   if (_M.GetAssemblyLevel()==AssemblyLevel::LEGACYFULL)
+   if (_M.GetAssemblyLevel()==AssemblyLevel::LEGACY)
    {
       M.Reset(_M.ParallelAssemble(), true);
       K.Reset(_K.ParallelAssemble(), true);
@@ -669,7 +669,7 @@ FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
    M_solver.SetOperator(*M);
 
    Array<int> ess_tdof_list;
-   if (_M.GetAssemblyLevel()==AssemblyLevel::LEGACYFULL)
+   if (_M.GetAssemblyLevel()==AssemblyLevel::LEGACY)
    {
       HypreParMatrix &M_mat = *M.As<HypreParMatrix>();
       HypreParMatrix &K_mat = *K.As<HypreParMatrix>();
