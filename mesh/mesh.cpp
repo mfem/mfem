@@ -3295,7 +3295,17 @@ Mesh Mesh::MakeCartesian3D(
 Mesh Mesh::MakeRefined(Mesh &orig_mesh, int ref_factor, int ref_type)
 {
    Mesh mesh;
-   mesh.MakeRefined_(orig_mesh, ref_factor, ref_type);
+   Array<int> ref_factors(orig_mesh.GetNE());
+   ref_factors = ref_factor;
+   mesh.MakeRefined_(orig_mesh, ref_factors, ref_type);
+   return mesh;
+}
+
+Mesh Mesh::MakeRefined(Mesh &orig_mesh, const Array<int> &ref_factors,
+                       int ref_type)
+{
+   Mesh mesh;
+   mesh.MakeRefined_(orig_mesh, ref_factors, ref_type);
    return mesh;
 }
 
@@ -3859,51 +3869,72 @@ Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
 
 Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
 {
-   MakeRefined_(*orig_mesh, ref_factor, ref_type);
+   Array<int> ref_factors(orig_mesh->GetNE());
+   ref_factors = ref_factor;
+   MakeRefined_(*orig_mesh, ref_factors, ref_type);
 }
 
-void Mesh::MakeRefined_(Mesh &orig_mesh, int ref_factor, int ref_type)
+void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> ref_factors,
+                        int ref_type)
 {
-   MFEM_VERIFY(ref_factor >= 1, "the refinement factor must be >= 1");
-   MFEM_VERIFY(ref_type == BasisType::ClosedUniform ||
-               ref_type == BasisType::GaussLobatto, "invalid refinement type");
-
    SetEmpty();
    Dim = orig_mesh.Dimension();
    spaceDim = orig_mesh.SpaceDimension();
 
+   int orig_ne = orig_mesh.GetNE();
+   MFEM_VERIFY(ref_factors.Size() == orig_ne && orig_ne > 0,
+               "Number of refinement factors must equal number of elements")
+   MFEM_VERIFY(ref_factors.Min() >= 1, "Refinement factor must be >= 1");
+   MFEM_VERIFY(ref_type == BasisType::ClosedUniform ||
+               ref_type == BasisType::GaussLobatto, "Invalid refinement type");
+
+   int min_ref = ref_factors.Min();
+   int max_ref = ref_factors.Max();
+
+   bool var_order = (min_ref != max_ref);
+
+   // variable order space can only be constructed over an NC mesh
+   if (var_order) { orig_mesh.EnsureNCMesh(true); }
+
    // Construct a scalar H1 FE space of order ref_factor and use its dofs as
    // the indices of the new, refined vertices.
-   H1_FECollection rfec(ref_factor, Dim, ref_type);
+   H1_FECollection rfec(min_ref, Dim, ref_type);
    FiniteElementSpace rfes(&orig_mesh, &rfec);
 
-   int r_num_vert = rfes.GetNDofs();
+   if (var_order)
+   {
+      rfes.SetRelaxedHpConformity(false);
+      for (int i = 0; i < orig_ne; i++)
+      {
+         rfes.SetElementOrder(i, ref_factors[i]);
+      }
+      rfes.Update(false);
+   }
 
    // Set the number of vertices, set the actual coordinates later
-   vertices.SetSize(r_num_vert);
-   NumOfVertices = r_num_vert;
-   // Add refined elements and set vertex coordinates
+   NumOfVertices = rfes.GetNDofs();
+   vertices.SetSize(NumOfVertices);
+
    Array<int> rdofs;
    DenseMatrix phys_pts;
-   int max_nv = 0;
 
    GeometryRefiner refiner;
    refiner.SetType(BasisType::GetQuadrature1D(ref_type));
 
-   for (int el = 0; el < orig_mesh.GetNE(); el++)
+   // Add refined elements and set vertex coordinates
+   for (int el = 0; el < orig_ne; el++)
    {
-      Geometry::Type geom = orig_mesh.GetElementBaseGeometry(el);
+      Geometry::Type geom = orig_mesh.GetElementGeometry(el);
       int attrib = orig_mesh.GetAttribute(el);
       int nvert = Geometry::NumVerts[geom];
-      RefinedGeometry &RG = *refiner.Refine(geom, ref_factor);
+      RefinedGeometry &RG = *refiner.Refine(geom, ref_factors[el]);
 
-      max_nv = std::max(max_nv, nvert);
       rfes.GetElementDofs(el, rdofs);
       MFEM_ASSERT(rdofs.Size() == RG.RefPts.Size(), "");
       const FiniteElement *rfe = rfes.GetFE(el);
       orig_mesh.GetElementTransformation(el)->Transform(rfe->GetNodes(),
                                                         phys_pts);
-      const int *c2h_map = rfec.GetDofMap(geom);
+      const int *c2h_map = rfec.GetDofMap(geom, ref_factors[el]);
       for (int i = 0; i < phys_pts.Width(); i++)
       {
          vertices[rdofs[i]].SetCoords(spaceDim, phys_pts.GetColumn(i));
@@ -3922,6 +3953,9 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, int ref_factor, int ref_type)
       }
    }
 
+   // Set up the nodes of the new mesh (if the original mesh has nodes). The new
+   // mesh is always straight-sided (i.e. degree 1 finite element space), but
+   // the nodes are required for e.g. periodic meshes.
    if (orig_mesh.GetNodes())
    {
       bool discont = orig_mesh.GetNodalFESpace()->IsDGSpace();
@@ -3932,11 +3966,11 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, int ref_factor, int ref_type)
       H1_FECollection vertex_fec(1, Dim);
       Array<int> dofs;
       int el_counter = 0;
-      for (int iel = 0; iel < orig_mesh.GetNE(); iel++)
+      for (int iel = 0; iel < orig_ne; iel++)
       {
          Geometry::Type geom = orig_mesh.GetElementBaseGeometry(iel);
          int nvert = Geometry::NumVerts[geom];
-         RefinedGeometry &RG = *refiner.Refine(geom, ref_factor);
+         RefinedGeometry &RG = *refiner.Refine(geom, ref_factors[iel]);
          rfes.GetElementDofs(iel, rdofs);
          const FiniteElement *rfe = rfes.GetFE(iel);
          orig_mesh.GetElementTransformation(iel)->Transform(rfe->GetNodes(),
@@ -3946,7 +3980,7 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, int ref_factor, int ref_type)
             dynamic_cast<const H1_FECollection *>(nodal_fec);
          if (h1_fec != NULL) { node_map = h1_fec->GetDofMap(geom); }
          const int *vertex_map = vertex_fec.GetDofMap(geom);
-         const int *c2h_map = rfec.GetDofMap(geom);
+         const int *c2h_map = rfec.GetDofMap(geom, ref_factors[iel]);
          for (int jel = 0; jel < RG.RefGeoms.Size()/nvert; jel++)
          {
             nodal_fes->GetElementVDofs(el_counter++, dofs);
@@ -3970,14 +4004,16 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, int ref_factor, int ref_type)
    // Add refined boundary elements
    for (int el = 0; el < orig_mesh.GetNBE(); el++)
    {
+      int i, info;
+      orig_mesh.GetBdrElementAdjacentElement(el, i, info);
       Geometry::Type geom = orig_mesh.GetBdrElementBaseGeometry(el);
       int attrib = orig_mesh.GetBdrAttribute(el);
       int nvert = Geometry::NumVerts[geom];
-      RefinedGeometry &RG = *refiner.Refine(geom, ref_factor);
+      RefinedGeometry &RG = *refiner.Refine(geom, ref_factors[i]);
 
       rfes.GetBdrElementDofs(el, rdofs);
       MFEM_ASSERT(rdofs.Size() == RG.RefPts.Size(), "");
-      const int *c2h_map = rfec.GetDofMap(geom);
+      const int *c2h_map = rfec.GetDofMap(geom, ref_factors[i]);
       for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
       {
          Element *elem = NewElement(geom);
@@ -3991,41 +4027,65 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, int ref_factor, int ref_type)
          AddBdrElement(elem);
       }
    }
-
    FinalizeTopology(false);
    sequence = orig_mesh.GetSequence() + 1;
    last_operation = Mesh::REFINE;
 
    // Setup the data for the coarse-fine refinement transformations
    CoarseFineTr.embeddings.SetSize(GetNE());
-   Array<Geometry::Type> geoms;
-   GetGeometries(Dim, geoms);
-   for (int ig=0; ig<geoms.Size(); ++ig)
+   // First, compute total number of point matrices that we need per geometry
+   // and the offsets into that array
+   using GeomRef = std::pair<Geometry::Type, int>;
+   std::map<GeomRef, int> point_matrices_offsets;
+   int n_point_matrices[Geometry::NumGeom] = {}; // initialize to zero
+   for (int el_coarse = 0; el_coarse < orig_ne; ++el_coarse)
    {
-      Geometry::Type geom = geoms[ig];
-      RefinedGeometry &RG = *refiner.Refine(geom, ref_factor);
-      int nvert = Geometry::NumVerts[geom];
-      int nref_el = RG.RefGeoms.Size()/nvert;
-      CoarseFineTr.point_matrices[geom].SetSize(Dim, nvert, nref_el);
-      for (int j = 0; j < nref_el; j++)
+      Geometry::Type geom = orig_mesh.GetElementBaseGeometry(el_coarse);
+      // Have we seen this pair of (goemetry, refinement level) before?
+      GeomRef id(geom, ref_factors[el_coarse]);
+      if (point_matrices_offsets.find(id) == point_matrices_offsets.end())
       {
-         DenseMatrix &Pj = CoarseFineTr.point_matrices[geom](j);
+         RefinedGeometry &RG = *refiner.Refine(geom, ref_factors[el_coarse]);
+         int nvert = Geometry::NumVerts[geom];
+         int nref_el = RG.RefGeoms.Size()/nvert;
+         // If not, then store the offset and add to the size required
+         point_matrices_offsets[id] = n_point_matrices[geom];
+         n_point_matrices[geom] += nref_el;
+      }
+   }
+
+   // Set up the sizes
+   for (int geom = 0; geom < Geometry::NumGeom; ++geom)
+   {
+      int nmatrices = n_point_matrices[geom];
+      int nvert = Geometry::NumVerts[geom];
+      CoarseFineTr.point_matrices[geom].SetSize(Dim, nvert, nmatrices);
+   }
+
+   // Compute the point matrices and embeddings
+   int el_fine = 0;
+   for (int el_coarse = 0; el_coarse < orig_ne; ++el_coarse)
+   {
+      Geometry::Type geom = orig_mesh.GetElementBaseGeometry(el_coarse);
+      int ref = ref_factors[el_coarse];
+      int offset = point_matrices_offsets[GeomRef(geom, ref)];
+      int nvert = Geometry::NumVerts[geom];
+      RefinedGeometry &RG = *refiner.Refine(geom, ref);
+      for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
+      {
+         DenseMatrix &Pj = CoarseFineTr.point_matrices[geom](offset + j);
          for (int k = 0; k < nvert; k++)
          {
             int cid = RG.RefGeoms[k+nvert*j]; // local Cartesian index
             const IntegrationPoint &ip = RG.RefPts[cid];
             ip.Get(Pj.GetColumn(k), Dim);
          }
+
+         Embedding &emb = CoarseFineTr.embeddings[el_fine];
+         emb.parent = el_coarse;
+         emb.matrix = offset + j;
+         ++el_fine;
       }
-   }
-   for (int el = 0; el < GetNE(); el++)
-   {
-      Geometry::Type geom = GetElementBaseGeometry(el);
-      RefinedGeometry &RG = *refiner.Refine(geom, ref_factor);
-      int nref_el = RG.RefGeoms.Size()/Geometry::NumVerts[geom];
-      Embedding &emb = CoarseFineTr.embeddings[el];
-      emb.parent = el / nref_el;
-      emb.matrix = el % nref_el;
    }
 
    MFEM_ASSERT(CheckElementOrientation(false) == 0, "");
@@ -4614,7 +4674,7 @@ void Mesh::EnsureNodes()
       }
       else // Mesh using a legacy FE_Collection
       {
-         const int order = GetNodalFESpace()->GetOrder(0);
+         const int order = GetNodalFESpace()->GetElementOrder(0);
          SetCurvature(order, false, -1, Ordering::byVDIM);
       }
    }
@@ -4708,7 +4768,7 @@ static const char *fixed_or_not[] = { "fixed", "NOT FIXED" };
 
 int Mesh::CheckElementOrientation(bool fix_it)
 {
-   int i, j, k, wo = 0, fo = 0, *vi = 0;
+   int i, j, k, wo = 0, fo = 0;
    double *v[4];
 
    if (Dim == 2 && spaceDim == 2)
@@ -4717,9 +4777,9 @@ int Mesh::CheckElementOrientation(bool fix_it)
 
       for (i = 0; i < NumOfElements; i++)
       {
+         int *vi = elements[i]->GetVertices();
          if (Nodes == NULL)
          {
-            vi = elements[i]->GetVertices();
             for (j = 0; j < 3; j++)
             {
                v[j] = vertices[vi[j]]();
@@ -4765,7 +4825,7 @@ int Mesh::CheckElementOrientation(bool fix_it)
 
       for (i = 0; i < NumOfElements; i++)
       {
-         vi = elements[i]->GetVertices();
+         int *vi = elements[i]->GetVertices();
          switch (GetElementType(i))
          {
             case Element::TETRAHEDRON:
@@ -5421,42 +5481,27 @@ Table *Mesh::GetFaceToElementTable() const
    return face_elem;
 }
 
-void Mesh::GetElementFaces(int i, Array<int> &fcs, Array<int> &cor)
-const
+void Mesh::GetElementFaces(int i, Array<int> &faces, Array<int> &ori) const
 {
-   int n, j;
+   MFEM_VERIFY(el_to_face != NULL, "el_to_face not generated");
 
-   if (el_to_face)
-   {
-      el_to_face->GetRow(i, fcs);
-   }
-   else
-   {
-      mfem_error("Mesh::GetElementFaces(...) : el_to_face not generated.");
-   }
+   el_to_face->GetRow(i, faces);
 
-   n = fcs.Size();
-   cor.SetSize(n);
-   for (j = 0; j < n; j++)
-      if (faces_info[fcs[j]].Elem1No == i)
+   int n = faces.Size();
+   ori.SetSize(n);
+
+   for (int j = 0; j < n; j++)
+   {
+      if (faces_info[faces[j]].Elem1No == i)
       {
-         cor[j] = faces_info[fcs[j]].Elem1Inf % 64;
-      }
-#ifdef MFEM_DEBUG
-      else if (faces_info[fcs[j]].Elem2No == i)
-      {
-         cor[j] = faces_info[fcs[j]].Elem2Inf % 64;
+         ori[j] = faces_info[faces[j]].Elem1Inf % 64;
       }
       else
       {
-         mfem_error("Mesh::GetElementFaces(...) : 2");
+         MFEM_ASSERT(faces_info[faces[j]].Elem2No == i, "internal error");
+         ori[j] = faces_info[faces[j]].Elem2Inf % 64;
       }
-#else
-      else
-      {
-         cor[j] = faces_info[fcs[j]].Elem2Inf % 64;
-      }
-#endif
+   }
 }
 
 void Mesh::GetBdrElementFace(int i, int *f, int *o) const
@@ -5478,7 +5523,7 @@ void Mesh::GetBdrElementFace(int i, int *f, int *o) const
          *o = GetQuadOrientation(fv, bv);
          break;
       default:
-         mfem_error("Mesh::GetBdrElementFace(...) 2");
+         MFEM_ABORT("invalid geometry");
    }
 }
 
@@ -5489,7 +5534,7 @@ int Mesh::GetBdrElementEdgeIndex(int i) const
       case 1: return boundary[i]->GetVertices()[0];
       case 2: return be_to_edge[i];
       case 3: return be_to_face[i];
-      default: mfem_error("Mesh::GetBdrElementEdgeIndex: invalid dimension!");
+      default: MFEM_ABORT("invalid dimension!");
    }
    return -1;
 }
@@ -5497,12 +5542,14 @@ int Mesh::GetBdrElementEdgeIndex(int i) const
 void Mesh::GetBdrElementAdjacentElement(int bdr_el, int &el, int &info) const
 {
    int fid = GetBdrElementEdgeIndex(bdr_el);
+
    const FaceInfo &fi = faces_info[fid];
-   MFEM_ASSERT(fi.Elem1Inf%64 == 0, "internal error"); // orientation == 0
+   MFEM_ASSERT(fi.Elem1Inf % 64 == 0, "internal error"); // orientation == 0
+
    const int *fv = (Dim > 1) ? faces[fid]->GetVertices() : NULL;
    const int *bv = boundary[bdr_el]->GetVertices();
    int ori;
-   switch (GetBdrElementBaseGeometry(bdr_el))
+   switch (GetBdrElementGeometry(bdr_el))
    {
       case Geometry::POINT:    ori = 0; break;
       case Geometry::SEGMENT:  ori = (fv[0] == bv[0]) ? 0 : 1; break;
@@ -9566,7 +9613,9 @@ void Mesh::PrintVTU(std::string fname,
                     int compression_level,
                     bool bdr)
 {
-   int ref = (high_order_output && Nodes) ? Nodes->FESpace()->GetOrder(0) : 1;
+   int ref = (high_order_output && Nodes)
+             ? Nodes->FESpace()->GetElementOrder(0) : 1;
+
    fname = fname + ".vtu";
    std::fstream out(fname.c_str(),std::ios::out);
    out << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\"";
