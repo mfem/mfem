@@ -11,6 +11,10 @@
 Version 4.2.1 (development)
 ===========================
 
+- Added high-order matrix-free auxiliary Maxwell solver for H(curl) problems,
+  as described in Barker and Kolev 2020 (https://doi.org/10.1002/nla.2348). See
+  Example 3p and linalg/auxiliary.?pp.
+
 - Added a new miniapp block-solvers that compares the performance of various
   solvers for mixed finite element discretization of the second order scalar
   elliptic equations. Currently available solvers in the miniapp include a
@@ -91,6 +95,14 @@ Version 4.2.1 (development)
 
 - Extending support for L2 basis functions using MapTypes VALUE and INTEGRAL in
   linear interpolators and GridFunction "GetValue" methods.
+
+- Variable order spaces, p- and hp-refinement. This is the initial (serial)
+  support for variable-order FiniteElementCollection and FiniteElementSpace.
+  The new method FiniteElementSpace::SetElementOrder can be called to set an
+  arbitrary order for each mesh element. The conforming interpolation matrix
+  will now automatically constrain p- and hp- interfaces, enabling general
+  hp-refinement in both 2D and 3D, on uniform or mixed NC meshes. Support for
+  parallel variable-order spaces will follow shortly.
 
 - Added support for creating refined meshes for all element types (e.g. by
   splitting high-order elements into low-order refined elements), including
@@ -987,7 +999,7 @@ New and updated examples and miniapps
 
 - Added a new meshing miniapp, Shaper, that can be used to resolve complicated
   material interfaces by mesh refinement, e.g. as a tool for initial mesh
-  generation from prescribed "material()" function.  Both conforming and
+  generation from prescribed "material()" function. Both conforming and
   non-conforming (isotropic and anisotropic) refinements are supported.
 
 - Added a new meshing miniapp, Mesh Optimizer, that demonstrates the use of TMOP
@@ -999,7 +1011,7 @@ Discretization improvements
 ---------------------------
 - Added a FindPoints method of the Mesh and ParMesh classes that returns the
   elements that contain a given set of points, together with the coordinates of
-  the points in the reference space of the corresponding element.  In parallel,
+  the points in the reference space of the corresponding element. In parallel,
   if a point is shared by multiple processors, only one of them will mark that
   point as found. Note that the current implementation of this method is not
   optimal and/or 100% reliable. See the mesh-explorer miniapp for an example.
@@ -1326,7 +1338,7 @@ New and improved linear solvers
   which is a sparse direct solver for distributed memory architectures. As such
   it can only be enabled along with MFEM_USE_MPI. When MFEM is configured with
   MFEM_USE_SUPERLU, one also needs to alter the version of METIS, since SuperLU
-  requires ParMETIS (which comes packaged with a serial version of METIS).  See
+  requires ParMETIS (which comes packaged with a serial version of METIS). See
   http://crd-legacy.lbl.gov/~xiaoye/SuperLU for SuperLU_DIST details.
 
 - Added a wrapper for the KLU solver in SuiteSparse see
@@ -1737,7 +1749,7 @@ New and updated examples
   (ADS) in hypre.
 
 - Modified Example 1 to use isoparametric discretization (use the FE space from
-  the mesh) including NURBS meshes and spaces.  Updated Example 2 to support
+  the mesh) including NURBS meshes and spaces. Updated Example 2 to support
   arbitrary order spaces. Updated all examples to work with NURBS meshes and
   spaces, as well as to not use projection onto discontinuous polynomial spaces
   for visualization (this is now handled directly in GLVis when necessary).
@@ -1829,7 +1841,7 @@ Version 1.1, released on Sep 13, 2010
 New MFEM format for general meshes
 ----------------------------------
 - New MFEM mesh v1.0 format with uniform structure for any dimension and support
-  for curved meshes including in 3D.  Class Mesh will recognize and read the new
+  for curved meshes including in 3D. Class Mesh will recognize and read the new
   format (in addition to all previously used formats) and Mesh::Print uses the
   new format by default. The old print function was renamed to Mesh::PrintXG.
 

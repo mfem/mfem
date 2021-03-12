@@ -1135,7 +1135,9 @@ void ParMesh::MakeRefined_(ParMesh &orig_mesh, int ref_factor, int ref_type)
    have_face_nbr_data = false;
    pncmesh = NULL;
 
-   Mesh::MakeRefined_(orig_mesh, ref_factor, ref_type);
+   Array<int> ref_factors(orig_mesh.GetNE());
+   ref_factors = ref_factor;
+   Mesh::MakeRefined_(orig_mesh, ref_factors, ref_type);
 
    // Need to initialize:
    // - shared_edges, shared_{trias,quads}
@@ -1226,7 +1228,7 @@ void ParMesh::MakeRefined_(ParMesh &orig_mesh, int ref_factor, int ref_type)
          const Geometry::Type geom = Geometry::SEGMENT;
          const int nvert = Geometry::NumVerts[geom];
          RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref_factor);
-         const int *c2h_map = rfec.GetDofMap(geom);
+         const int *c2h_map = rfec.GetDofMap(geom, ref_factor); // FIXME hp
 
          for (int e = 0; e < orig_n_edges; e++)
          {
@@ -1260,7 +1262,7 @@ void ParMesh::MakeRefined_(ParMesh &orig_mesh, int ref_factor, int ref_type)
          RefinedGeometry &RG =
             *GlobGeometryRefiner.Refine(geom, ref_factor, ref_factor);
          const int num_int_verts = rfec.DofForGeometry(geom);
-         const int *c2h_map = rfec.GetDofMap(geom);
+         const int *c2h_map = rfec.GetDofMap(geom, ref_factor); // FIXME hp
 
          for (int f = 0; f < orig_nt; f++)
          {
@@ -1304,7 +1306,7 @@ void ParMesh::MakeRefined_(ParMesh &orig_mesh, int ref_factor, int ref_type)
          RefinedGeometry &RG =
             *GlobGeometryRefiner.Refine(geom, ref_factor, ref_factor);
          const int num_int_verts = rfec.DofForGeometry(geom);
-         const int *c2h_map = rfec.GetDofMap(geom);
+         const int *c2h_map = rfec.GetDofMap(geom, ref_factor); // FIXME hp
 
          for (int f = 0; f < orig_nq; f++)
          {

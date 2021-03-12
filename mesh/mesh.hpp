@@ -468,7 +468,8 @@ protected:
    void Make1D(int n, double sx = 1.0);
 
    /// Internal function used in Mesh::MakeRefined
-   void MakeRefined_(Mesh &orig_mesh, int ref_factor, int ref_type);
+   void MakeRefined_(Mesh &orig_mesh, const Array<int> ref_factors,
+                     int ref_type);
 
    /// Initialize vertices/elements/boundary/tables from a nonconforming mesh.
    void InitFromNCMesh(const NCMesh &ncmesh);
@@ -550,6 +551,25 @@ public:
 
        @note The constructed Mesh is straight-sided. */
    static Mesh MakeRefined(Mesh &orig_mesh, int ref_factor, int ref_type);
+
+   /// Create a refined mesh, where each element of the original mesh may be
+   /// refined by a different factor.
+   /** @param[in] orig_mesh   The starting coarse mesh.
+       @param[in] ref_factors An array of integers whose size is the number of
+                              elements of @a orig_mesh. The @a ith element of
+                              @a orig_mesh is refined by refinement factor
+                              @a ref_factors[i].
+       @param[in] ref_type    Specify the positions of the new vertices. The
+                              options are BasisType::ClosedUniform or
+                              BasisType::GaussLobatto.
+
+       The refinement data which can be accessed with GetRefinementTransforms()
+       is set to reflect the performed refinements.
+
+       @note The constructed Mesh is straight-sided. */
+   /// refined @a ref_factors[i] times in each dimension.
+   static Mesh MakeRefined(Mesh &orig_mesh, const Array<int> &ref_factors,
+                           int ref_type);
 
    /** Create a mesh by splitting each element of @a orig_mesh into simplices.
        Quadrilaterals are split into two triangles, prisms are split into
@@ -769,6 +789,11 @@ public:
    MFEM_DEPRECATED
    Mesh(Mesh *orig_mesh, int ref_factor, int ref_type);
 
+   /// A version of the above constructor for non-uniform refinement.
+   /** The input array @a ref_factors contains one refinement factor per element
+       of the input mesh. */
+   Mesh(Mesh *orig_mesh, const Array<int> &ref_factors, int ref_type);
+
    /** This is similar to the mesh constructor with the same arguments, but here
        the current mesh is destroyed and another one created based on the data
        stream again given in MFEM, Netgen, or VTK format. If generate_edges = 0
@@ -893,20 +918,30 @@ public:
 
    const Element *GetFace(int i) const { return faces[i]; }
 
-   Geometry::Type GetFaceBaseGeometry(int i) const
+   Geometry::Type GetFaceGeometry(int i) const
    {
       return faces[i]->GetGeometryType();
    }
 
-   Geometry::Type GetElementBaseGeometry(int i) const
+   Geometry::Type GetElementGeometry(int i) const
    {
       return elements[i]->GetGeometryType();
    }
 
-   Geometry::Type GetBdrElementBaseGeometry(int i) const
+   Geometry::Type GetBdrElementGeometry(int i) const
    {
       return boundary[i]->GetGeometryType();
    }
+
+   // deprecated: "base geometry" no longer means anything
+   Geometry::Type GetFaceBaseGeometry(int i) const
+   { return GetFaceGeometry(i); }
+
+   Geometry::Type GetElementBaseGeometry(int i) const
+   { return GetElementGeometry(i); }
+
+   Geometry::Type GetBdrElementBaseGeometry(int i) const
+   { return GetBdrElementGeometry(i); }
 
    /** @brief Return true iff the given @a geom is encountered in the mesh.
        Geometries of dimensions lower than Dimension() are counted as well. */
@@ -957,7 +992,7 @@ public:
 
    /** Return the indices and the orientations of all edges of face i.
        Works for both 2D (face=edge) and 3D faces. */
-   void GetFaceEdges(int i, Array<int> &, Array<int> &) const;
+   void GetFaceEdges(int i, Array<int> &edges, Array<int> &o) const;
 
    /// Returns the indices of the vertices of face i.
    void GetFaceVertices(int i, Array<int> &vert) const
@@ -982,10 +1017,10 @@ public:
    Table *GetEdgeVertexTable() const;
 
    /// Return the indices and the orientations of all faces of element i.
-   void GetElementFaces(int i, Array<int> &, Array<int> &) const;
+   void GetElementFaces(int i, Array<int> &faces, Array<int> &ori) const;
 
    /// Return the index and the orientation of the face of bdr element i. (3D)
-   void GetBdrElementFace(int i, int *, int *) const;
+   void GetBdrElementFace(int i, int *f, int *o) const;
 
    /** Return the vertex index of boundary element i. (1D)
        Return the edge index of boundary element i. (2D)
@@ -1104,9 +1139,22 @@ public:
    Geometry::Type GetFaceGeometryType(int Face) const;
    Element::Type  GetFaceElementType(int Face) const;
 
-   /// Check the orientation of the elements
-   /** @return The number of elements with wrong orientation. */
+   /// Check (and optionally attempt to fix) the orientation of the elements
+   /** @param[in] fix_it  If `true`, attempt to fix the orientations of some
+                          elements: triangles, quads, and tets.
+       @return The number of elements with wrong orientation.
+
+       @note For meshes with nodes (e.g. high-order or periodic meshes), fixing
+       the element orientations may require additional permutation of the nodal
+       GridFunction of the mesh which is not performed by this method. Instead,
+       the method Finalize() should be used with the parameter
+       @a fix_orientation set to `true`.
+
+       @note This method performs a simple check if an element is inverted, e.g.
+       for most elements types, it checks if the Jacobian of the mapping from
+       the reference element is non-negative at the center of the element. */
    int CheckElementOrientation(bool fix_it = true);
+
    /// Check the orientation of the boundary elements
    /** @return The number of boundary elements with wrong orientation. */
    int CheckBdrElementOrientation(bool fix_it = true);

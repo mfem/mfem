@@ -111,7 +111,8 @@ int main (int argc, char *argv[])
 
    if (mesh_1.GetNodes() == NULL) { mesh_1.SetCurvature(1); }
    if (mesh_2.GetNodes() == NULL) { mesh_2.SetCurvature(1); }
-   const int mesh_poly_deg = mesh_2.GetNodes()->FESpace()->GetOrder(0);
+   const int mesh_poly_deg =
+      mesh_2.GetNodes()->FESpace()->GetElementOrder(0);
    cout << "Source mesh curvature: "
         << mesh_1.GetNodes()->OwnFEC()->Name() << endl
         << "Target mesh curvature: "
