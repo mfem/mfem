@@ -1,20 +1,72 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
 using namespace mfem;
 
-#include "catch.hpp"
+#include "unit_tests.hpp"
 
-#ifdef MFEM_USE_GECKO
+TEST_CASE("Element-wise construction", "[Mesh]")
+{
+   SECTION("Quadrilateral")
+   {
+      const int numVertices = 9;
+      const int numElements = 4;
+
+      Mesh mesh(2, numVertices, numElements);
+
+      // Add each vertex by coordinates
+      for (int j=0; j<3; ++j)
+      {
+         for (int i=0; i<3; ++i)
+         {
+            mesh.AddVertex(i, j);
+         }
+      }
+
+      // Add each element by vertices
+      const int geom = Geometry::SQUARE;
+
+      Array<int> elvert(4);
+
+      Element *el = mesh.NewElement(geom);
+      elvert[0] = 0; elvert[1] = 1; elvert[2] = 4; elvert[3] = 3;
+      el->SetVertices(elvert);
+      REQUIRE(el->GetAttribute() == 1);
+      mesh.AddElement(el);
+
+      el = mesh.NewElement(geom);
+      elvert[0] = 1; elvert[1] = 2; elvert[2] = 5; elvert[3] = 4;
+      el->SetVertices(elvert);
+      REQUIRE(el->GetAttribute() == 1);
+      mesh.AddElement(el);
+
+      el = mesh.NewElement(geom);
+      elvert[0] = 3; elvert[1] = 4; elvert[2] = 7; elvert[3] = 6;
+      el->SetVertices(elvert);
+      REQUIRE(el->GetAttribute() == 1);
+      mesh.AddElement(el);
+
+      el = mesh.NewElement(geom);
+      elvert[0] = 4; elvert[1] = 5; elvert[2] = 8; elvert[3] = 7;
+      el->SetVertices(elvert);
+      REQUIRE(el->GetAttribute() == 1);
+      mesh.AddElement(el);
+
+      mesh.FinalizeTopology();
+
+      REQUIRE(numVertices == mesh.GetNV());
+      REQUIRE(numElements == mesh.GetNE());
+   }
+}
 
 TEST_CASE("Gecko integration in MFEM", "[Mesh]")
 {
@@ -27,7 +79,7 @@ TEST_CASE("Gecko integration in MFEM", "[Mesh]")
       SECTION("Hex meshes")
       {
          Mesh mesh(3, 4, 5, Element::HEXAHEDRON);
-         mesh.GetGeckoElementReordering(perm);
+         mesh.GetGeckoElementOrdering(perm);
          REQUIRE(perm.Size() == mesh.GetNE());
          REQUIRE(perm.Min() == 0);
          REQUIRE(perm.Max() == mesh.GetNE() - 1);
@@ -49,7 +101,7 @@ TEST_CASE("Gecko integration in MFEM", "[Mesh]")
       SECTION("Tet meshes")
       {
          Mesh mesh(5, 4, 3, Element::TETRAHEDRON);
-         mesh.GetGeckoElementReordering(perm);
+         mesh.GetGeckoElementOrdering(perm);
          REQUIRE(perm.Size() == mesh.GetNE());
          REQUIRE(perm.Min() == 0);
          REQUIRE(perm.Max() == mesh.GetNE() - 1);
@@ -73,7 +125,7 @@ TEST_CASE("Gecko integration in MFEM", "[Mesh]")
    {
       Mesh mesh(3, 4, 5, Element::HEXAHEDRON);
       Mesh mesh_reordered(3, 4, 5, Element::HEXAHEDRON);
-      mesh_reordered.GetGeckoElementReordering(perm);
+      mesh_reordered.GetGeckoElementOrdering(perm);
       mesh_reordered.ReorderElements(perm);
 
       for (int old_elid = 0; old_elid < perm.Size(); ++old_elid)
@@ -93,5 +145,3 @@ TEST_CASE("Gecko integration in MFEM", "[Mesh]")
       }
    }
 }
-
-#endif

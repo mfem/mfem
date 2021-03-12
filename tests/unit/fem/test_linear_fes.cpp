@@ -1,16 +1,16 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "catch.hpp"
+#include "unit_tests.hpp"
 #include <fstream>
 #include <sstream>
 
@@ -20,7 +20,7 @@ using namespace mfem;
  * \file test_linear_fes
  *
  * Some simple tests to confirm that linear finite element collections
- * and H1_FECollectionss of order 1 have the correct number of dofs.
+ * and H1_FECollections of order 1 have the correct number of dofs.
  * Also optionally outputs the mesh and grid functions in mfem and vtk formats
  */
 
@@ -148,7 +148,7 @@ void testGridFunctions(FEColType& fec, Mesh& mesh, int expScalarDofs)
 
          // But, the vectors should cancel each other out at the midpoint
          gf.GetVectorValue( eltId, Geometries.GetCenter(geom), vec);
-         REQUIRE( vec.Norml2() == Approx(0.) );
+         REQUIRE( vec.Norml2() == MFEM_Approx(0.0) );
       }
 
    }
@@ -192,6 +192,8 @@ TEST_CASE("Point mesh with linear grid function",
    int idx[1] = {0};
    mesh.AddElement(new mfem::Point(idx, attrib));
 
+   mesh.FinalizeMesh();
+
    REQUIRE( mesh.GetNV() == nv);
    REQUIRE( mesh.GetNE() == ne);
    REQUIRE( mesh.Dimension() == dim);
@@ -233,6 +235,8 @@ TEST_CASE("Segment mesh with linear grid function",
 
    int idx[2] = {0,1};
    mesh.AddElement(new Segment(idx, attrib));
+
+   mesh.FinalizeMesh();
 
    REQUIRE( mesh.GetNV() == nv);
    REQUIRE( mesh.GetNE() == ne);
@@ -276,6 +280,8 @@ TEST_CASE("Triangle mesh with linear grid function",
    int idx[3] = {0,1,2};
    mesh.AddElement(new Triangle(idx, attrib));
 
+   mesh.FinalizeMesh();
+
    REQUIRE( mesh.GetNV() == nv);
    REQUIRE( mesh.GetNE() == ne);
    REQUIRE( mesh.Dimension() == dim);
@@ -318,6 +324,8 @@ TEST_CASE("Quad mesh with linear grid function",
 
    int idx[4] = {0,1,2,3};
    mesh.AddElement(new Quadrilateral(idx, attrib));
+
+   mesh.FinalizeMesh();
 
    REQUIRE( mesh.GetNV() == nv);
    REQUIRE( mesh.GetNE() == ne);
@@ -363,6 +371,8 @@ TEST_CASE("Tet mesh with linear grid function",
 
    int idx[4] = {0,1,2,3};
    mesh.AddElement(new Tetrahedron(idx, attrib));
+
+   mesh.FinalizeMesh();
 
    REQUIRE( mesh.GetNV() == nv);
    REQUIRE( mesh.GetNE() == ne);
@@ -412,6 +422,8 @@ TEST_CASE("Hex mesh with linear grid function",
    int idx[8] = {0,1,2,3,4,5,6,7};
    mesh.AddElement(new Hexahedron(idx, attrib));
 
+   mesh.FinalizeMesh();
+
    REQUIRE( mesh.GetNV() == nv);
    REQUIRE( mesh.GetNE() == ne);
    REQUIRE( mesh.Dimension() == dim);
@@ -436,4 +448,3 @@ TEST_CASE("Hex mesh with linear grid function",
    }
 
 }
-

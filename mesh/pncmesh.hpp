@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_PNCMESH
 #define MFEM_PNCMESH
@@ -64,8 +64,15 @@ class FiniteElementSpace;
 class ParNCMesh : public NCMesh
 {
 public:
+   /// Construct by partitioning a serial NCMesh.
+   /** SFC partitioning is used by default. A user-specified partition can be
+       passed in 'part', where part[i] is the desired MPI rank for element i. */
    ParNCMesh(MPI_Comm comm, const NCMesh& ncmesh, int* part = NULL);
 
+   /// Load from a stream. The id header is assumed to have been read already.
+   ParNCMesh(MPI_Comm comm, std::istream &input, int version, int &curved);
+
+   /// Deep copy of another instance.
    ParNCMesh(const ParNCMesh &other);
 
    virtual ~ParNCMesh();
@@ -87,8 +94,12 @@ public:
    virtual void Derefine(const Array<int> &derefs);
 
    /** Migrate leaf elements of the global refinement hierarchy (including ghost
-       elements) so that each processor owns the same number of leaves (+-1). */
-   void Rebalance();
+       elements) so that each processor owns the same number of leaves (+-1).
+       The default partitioning strategy is based on equal splitting of the
+       space-filling sequence of leaf elements (custom_partition == NULL).
+       Alternatively, a used-defined element-rank assignment array can be
+       passed. */
+   void Rebalance(const Array<int> *custom_partition = NULL);
 
 
    // interface for ParFiniteElementSpace
@@ -99,9 +110,6 @@ public:
    int GetNGhostEdges() const { return NGhostEdges; }
    int GetNGhostFaces() const { return NGhostFaces; }
    int GetNGhostElements() const { return NGhostElements; }
-
-   Geometry::Type GetGhostFaceGeometry(int ghost_face_id) const
-   { return Geometry::SQUARE; }
 
    // Return a list of vertices/edges/faces shared by this processor and at
    // least one other processor. These are subsets of NCMesh::<entity>_list. */
@@ -168,6 +176,12 @@ public:
    /// Return true if the specified vertex/edge/face is a ghost.
    bool IsGhost(int entity, int index) const
    {
+      if (index < 0) // special case prism edge-face constraint
+      {
+         MFEM_ASSERT(entity == 2, "");
+         entity = 1;
+         index = -1 - index;
+      }
       switch (entity)
       {
          case 0: return index >= NVertices;
@@ -245,10 +259,7 @@ protected: // interface for ParMesh
 protected: // implementation
 
    MPI_Comm MyComm;
-   int NRanks, MyRank;
-
-   int NGhostVertices, NGhostEdges, NGhostFaces;
-   int NElements, NGhostElements;
+   int NRanks;
 
    typedef std::vector<CommGroup> GroupList;
    typedef std::map<CommGroup, GroupId> GroupMap;
@@ -256,7 +267,7 @@ protected: // implementation
    GroupList groups;  // comm group list; NOTE: groups[0] = { MyRank }
    GroupMap group_id; // search index over groups
 
-   // owner rank for each vertex, edge and face (encoded as singleton groups)
+   // owner rank for each vertex, edge and face (encoded as singleton group)
    Array<GroupId> entity_owner[3];
    // P matrix comm pattern groups for each vertex/edge/face (0/1/2)
    Array<GroupId> entity_pmat_group[3];
@@ -264,7 +275,7 @@ protected: // implementation
    // ParMesh-compatible (conforming) groups for each vertex/edge/face (0/1/2)
    Array<GroupId> entity_conf_group[3];
    // ParMesh compatibility helper arrays to order groups, also temporary
-   Array<int> leaf_glob_order, entity_elem_local[3];
+   Array<int> entity_elem_local[3];
 
    // lists of vertices/edges/faces shared by us and at least one more processor
    NCList shared_vertices, shared_edges, shared_faces;
@@ -284,9 +295,6 @@ protected: // implementation
 
    virtual void Update();
 
-   virtual bool IsGhost(const Element& el) const
-   { return el.rank != MyRank; }
-
    virtual int GetNumGhostElements() const { return NGhostElements; }
    virtual int GetNumGhostVertices() const { return NGhostVertices; }
 
@@ -301,10 +309,6 @@ protected: // implementation
    /// Return the global index of the first element owned by processor 'rank'.
    long PartitionFirstIndex(int rank, long total_elements) const
    { return (rank * total_elements + NRanks-1) / NRanks; }
-
-   virtual void UpdateVertices();
-   virtual void AssignLeafIndices();
-   virtual void OnMeshUpdated(Mesh *mesh);
 
    virtual void BuildFaceList();
    virtual void BuildEdgeList();
@@ -336,7 +340,8 @@ protected: // implementation
    void UpdateLayers();
 
    void MakeSharedTable(int ngroups, int ent, Array<int> &shared_local,
-                        Table &group_shared);
+                        Table &group_shared, Array<char> *entity_geom = NULL,
+                        char geom = 0);
 
    /** Uniquely encodes a set of leaf elements in the refinement hierarchy of
        an NCMesh. Can be dumped to a stream, sent to another processor, loaded,
@@ -371,6 +376,11 @@ protected: // implementation
       void WriteInt(int value);
       int  GetInt(int pos) const;
       void FlagElements(const Array<int> &elements, char flag);
+
+#ifdef MFEM_DEBUG
+      mutable Array<int> ref_path;
+      std::string RefPath() const;
+#endif
    };
 
    /** Adjust some of the MeshIds before encoding for recipient 'rank', so that
@@ -506,7 +516,10 @@ protected: // implementation
 
    /** Assign new Element::rank to leaf elements and send them to their new
        owners, keeping the ghost layer up to date. Used by Rebalance() and
-       Derefine(). */
+       Derefine(). 'target_elements' is the number of elements this rank
+       is supposed to own after the exchange. If this number is not known
+       a priori, the parameter can be set to -1, but more expensive communication
+       (synchronous sends and a barrier) will be used in that case. */
    void RedistributeElements(Array<int> &new_ranks, int target_elements,
                              bool record_comm);
 
@@ -525,8 +538,6 @@ protected: // implementation
    void ClearAuxPM();
 
    long GroupsMemoryUsage() const;
-
-   static bool compare_ranks_indices(const Element* a, const Element* b);
 
    friend class NeighborRowMessage;
 };
