@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 // Implementation of class Tetrahedron
 
@@ -40,13 +40,16 @@ Tetrahedron::Tetrahedron(int ind1, int ind2, int ind3, int ind4, int attr)
    transform = 0;
 }
 
-void Tetrahedron::Init(int ind1, int ind2, int ind3, int ind4, int attr)
+void Tetrahedron::Init(int ind1, int ind2, int ind3, int ind4, int attr,
+                       int ref_flag)
 {
    attribute  = attr;
    indices[0] = ind1;
    indices[1] = ind2;
    indices[2] = ind3;
    indices[3] = ind4;
+   refinement_flag = ref_flag;
+   transform = 0;
 }
 
 void Tetrahedron::ParseRefinementFlag(int refinement_edges[2], int &type,

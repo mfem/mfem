@@ -1,18 +1,19 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_TEMPLATE_ASSIGN
 #define MFEM_TEMPLATE_ASSIGN
 
 #include "../config/tconfig.hpp"
+#include "backends.hpp"
 
 namespace mfem
 {
@@ -45,6 +46,13 @@ struct AssignOp_Impl<AssignOp::Set>
    {
       return (a = b);
    }
+
+   template <typename lvalue_t, typename rvalue_t>
+   MFEM_HOST_DEVICE
+   static inline lvalue_t &AssignHD(lvalue_t &a, const rvalue_t &b)
+   {
+      return (a = b);
+   }
 };
 
 template <>
@@ -52,6 +60,14 @@ struct AssignOp_Impl<AssignOp::Add>
 {
    template <typename lvalue_t, typename rvalue_t>
    static inline lvalue_t &Assign(lvalue_t &a, const rvalue_t &b)
+   {
+      MFEM_FLOPS_ADD(1);
+      return (a += b);
+   }
+
+   template <typename lvalue_t, typename rvalue_t>
+   MFEM_HOST_DEVICE
+   static inline lvalue_t &AssignHD(lvalue_t &a, const rvalue_t &b)
    {
       MFEM_FLOPS_ADD(1);
       return (a += b);
@@ -67,6 +83,14 @@ struct AssignOp_Impl<AssignOp::Mult>
       MFEM_FLOPS_ADD(1);
       return (a *= b);
    }
+
+   template <typename lvalue_t, typename rvalue_t>
+   MFEM_HOST_DEVICE
+   static inline lvalue_t &AssignHD(lvalue_t &a, const rvalue_t &b)
+   {
+      MFEM_FLOPS_ADD(1);
+      return (a *= b);
+   }
 };
 
 template <>
@@ -74,6 +98,14 @@ struct AssignOp_Impl<AssignOp::Div>
 {
    template <typename lvalue_t, typename rvalue_t>
    static inline lvalue_t &Assign(lvalue_t &a, const rvalue_t &b)
+   {
+      MFEM_FLOPS_ADD(1);
+      return (a /= b);
+   }
+
+   template <typename lvalue_t, typename rvalue_t>
+   MFEM_HOST_DEVICE
+   static inline lvalue_t &AssignHD(lvalue_t &a, const rvalue_t &b)
    {
       MFEM_FLOPS_ADD(1);
       return (a /= b);
@@ -89,6 +121,14 @@ struct AssignOp_Impl<AssignOp::rDiv>
       MFEM_FLOPS_ADD(1);
       return (a = b/a);
    }
+
+   template <typename lvalue_t, typename rvalue_t>
+   MFEM_HOST_DEVICE
+   static inline lvalue_t &AssignHD(lvalue_t &a, const rvalue_t &b)
+   {
+      MFEM_FLOPS_ADD(1);
+      return (a = b/a);
+   }
 };
 
 } // namespace mfem::internal
@@ -97,6 +137,13 @@ template <AssignOp::Type Op, typename lvalue_t, typename rvalue_t>
 inline lvalue_t &Assign(lvalue_t &a, const rvalue_t &b)
 {
    return internal::AssignOp_Impl<Op>::Assign(a, b);
+}
+
+template <AssignOp::Type Op, typename lvalue_t, typename rvalue_t>
+MFEM_HOST_DEVICE
+inline lvalue_t &AssignHD(lvalue_t &a, const rvalue_t &b)
+{
+   return internal::AssignOp_Impl<Op>::AssignHD(a, b);
 }
 
 } // namespace mfem

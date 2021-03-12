@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_PLINEARFORM
 #define MFEM_PLINEARFORM
@@ -45,6 +45,15 @@ public:
    /** The pointer @a pf is not owned by the newly constructed object. */
    ParLinearForm(ParFiniteElementSpace *pf) : LinearForm(pf) { pfes = pf; }
 
+   /// Construct a ParLinearForm using previously allocated array @a data.
+   /** The ParLinearForm does not assume ownership of @a data which is assumed
+       to be of size at least `pf->GetVSize()`. Similar to the LinearForm and
+       Vector constructors for externally allocated array, the pointer @a data
+       can be NULL. The data array can be replaced later using the method
+       SetData(). */
+   ParLinearForm(ParFiniteElementSpace *pf, double *data) :
+      LinearForm(pf, data), pfes(pf) { }
+
    /** @brief Create a ParLinearForm on the ParFiniteElementSpace @a *pf, using
        the same integrators as the ParLinearForm @a *plf.
 
@@ -60,7 +69,7 @@ public:
        that have the same size.
 
        @note Defining this method overwrites the implicitly defined copy
-       assignemnt operator. */
+       assignment operator. */
    ParLinearForm &operator=(const ParLinearForm &rhs)
    { return operator=((const Vector &)rhs); }
 
@@ -70,7 +79,7 @@ public:
    /** If the pointer @a pf is NULL (this is the default value), the FE space
        already associated with this object is used.
 
-       This method should be called when the asscociated FE space #fes has been
+       This method should be called when the associated FE space #fes has been
        updated, e.g. after its associated Mesh object has been refined.
 
        @note This method does not perform assembly. */
@@ -83,6 +92,27 @@ public:
        @note This method does not perform assembly. */
    void Update(ParFiniteElementSpace *pf, Vector &v, int v_offset);
 
+
+   /** @brief Make the ParLinearForm reference external data on a new
+       FiniteElementSpace. */
+   /** This method changes the FiniteElementSpace associated with the
+       ParLinearForm to @a *f and sets the data of the Vector @a v (plus the @a
+       v_offset) as external data in the ParLinearForm.
+
+       @note This version of the method will also perform bounds checks when the
+       build option MFEM_DEBUG is enabled. */
+   virtual void MakeRef(FiniteElementSpace *f, Vector &v, int v_offset);
+
+   /** @brief Make the ParLinearForm reference external data on a new
+       ParFiniteElementSpace. */
+   /** This method changes the ParFiniteElementSpace associated with the
+       ParLinearForm to @a *pf and sets the data of the Vector @a v (plus the @a
+       v_offset) as external data in the ParLinearForm.
+
+       @note This version of the method will also perform bounds checks when the
+       build option MFEM_DEBUG is enabled. */
+   void MakeRef(ParFiniteElementSpace *pf, Vector &v, int v_offset);
+
    /// Assemble the vector on the true dofs, i.e. P^t v.
    void ParallelAssemble(Vector &tv);
 
@@ -90,10 +120,10 @@ public:
    HypreParVector *ParallelAssemble();
 
    /// Return the action of the ParLinearForm as a linear mapping.
-   /** Linear forms are linear functionals which map ParGridFunction%s to
-       the real numbers.  This method performs this mapping which in
-       this case is equivalent as an inner product of the ParLinearForm
-       and ParGridFunction. */
+   /** Linear forms are linear functionals which map ParGridFunction%s to the
+       real numbers. This method performs this mapping which in this case is
+       equivalent as an inner product of the ParLinearForm and
+       ParGridFunction. */
    double operator()(const ParGridFunction &gf) const
    {
       return InnerProduct(pfes->GetComm(), *this, gf);

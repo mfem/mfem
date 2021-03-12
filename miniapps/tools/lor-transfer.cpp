@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 //
 //       --------------------------------------------------------------
 //       LOR Transfer Miniapp:  Map functions between HO and LOR spaces
@@ -18,10 +18,12 @@
 // low-order refined (LOR) finite element space, typically defined by 0th or 1st
 // order functions on a low-order refinement of the HO mesh.
 //
-// Two main operators are illustrated:
+// The grid transfer operators are represented using either
+// InterpolationGridTransfer or L2ProjectionGridTransfer (depending on the
+// options requested by the user). The two transfer operators are then:
 //
-//  1. R: HO -> LOR, defined by FiniteElementSpace::GetTransferOperator
-//  2. P: LOR -> HO, defined by FiniteElementSpace::GetReverseTransferOperator
+//  1. R: HO -> LOR, defined by GridTransfer::ForwardOperator
+//  2. P: LOR -> HO, defined by GridTransfer::BackwardOperator
 //
 // While defined generally, these operators have some nice properties for
 // particular finite element spaces. For example they satisfy PR=I, plus mass
@@ -33,6 +35,7 @@
 //               lor-transfer -h1
 //               lor-transfer -t
 //               lor-transfer -m ../../data/star-q2.mesh -lref 5 -p 4
+//               lor-transfer -m ../../data/star-mixed.mesh -lref 3 -p 2
 //               lor-transfer -lref 4 -o 4 -lo 0 -p 1
 //               lor-transfer -lref 5 -o 4 -lo 0 -p 1
 //               lor-transfer -lref 5 -o 4 -lo 3 -p 2

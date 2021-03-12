@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_ERROR_HPP
 #define MFEM_ERROR_HPP
@@ -15,6 +15,9 @@
 #include "../config/config.hpp"
 #include <iomanip>
 #include <sstream>
+#ifdef MFEM_USE_HIP
+#include <hip/hip_runtime.h>
+#endif
 
 namespace mfem
 {
@@ -110,7 +113,7 @@ void mfem_warning(const char *msg = NULL);
 //   MFEM_CONTRACT_VAR(err);
 //   MFEM_ASSERT( err == 0, "MPI_Reduce gave an error with length "
 //                       << ldata );
-#define MFEM_CONTRACT_VAR(x) if (0 && &x == &x){}
+#define MFEM_CONTRACT_VAR(x) if (false && (&x)+1){}
 
 // Now set up some optional checks, but only if the right flags are on
 #ifdef MFEM_DEBUG
@@ -137,5 +140,43 @@ void mfem_warning(const char *msg = NULL);
 
 // Generate a warning message - always generated, regardless of MFEM_DEBUG.
 #define MFEM_WARNING(msg) _MFEM_MESSAGE("MFEM Warning: " << msg, 1)
+
+// Macro that checks (in MFEM_DEBUG mode) that i is in the range [imin,imax).
+#define MFEM_ASSERT_INDEX_IN_RANGE(i,imin,imax) \
+   MFEM_ASSERT((imin) <= (i) && (i) < (imax), \
+   "invalid index " #i << " = " << (i) << \
+   ", valid range is [" << (imin) << ',' << (imax) << ')')
+
+
+// Additional abort functions for HIP
+#if defined(MFEM_USE_HIP)
+template<typename T>
+__host__ void abort_msg(T & msg)
+{
+   MFEM_ABORT(msg);
+}
+
+template<typename T>
+__device__ void abort_msg(T & msg)
+{
+   abort();
+}
+#endif
+
+// Abort inside a device kernel
+#if defined(__CUDA_ARCH__)
+#define MFEM_ABORT_KERNEL(msg) \
+   {                           \
+      printf(msg);             \
+      asm("trap;");            \
+   }
+#elif defined(MFEM_USE_HIP)
+#define MFEM_ABORT_KERNEL(msg) \
+   {                           \
+      abort_msg(msg);          \
+   }
+#else
+#define MFEM_ABORT_KERNEL(msg) MFEM_ABORT(msg)
+#endif
 
 #endif

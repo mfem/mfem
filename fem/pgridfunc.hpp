@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_PGRIDFUNC
 #define MFEM_PGRIDFUNC
@@ -37,6 +37,11 @@ protected:
    /** @brief Vector used to store data from face-neighbor processors,
        initialized by ExchangeFaceNbrData(). */
    Vector face_nbr_data;
+
+   /** @brief Vector used as an MPI buffer to send face-neighbor data
+       in ExchangeFaceNbrData() to neighboring processors. */
+   //TODO: Use temporary memory to avoid CUDA malloc allocation cost.
+   Vector send_data;
 
    void ProjectBdrCoefficient(Coefficient *coeff[], VectorCoefficient *vcoeff,
                               Array<int> &attr);
@@ -88,7 +93,7 @@ public:
        that have the same size.
 
        @note Defining this method overwrites the implicitly defined copy
-       assignemnt operator. */
+       assignment operator. */
    ParGridFunction &operator=(const ParGridFunction &rhs)
    { return operator=((const Vector &)rhs); }
 
@@ -111,6 +116,8 @@ public:
 
    /// Associate a new parallel space with the ParGridFunction.
    void SetSpace(ParFiniteElementSpace *f);
+
+   using GridFunction::MakeRef;
 
    /** @brief Make the ParGridFunction reference external data on a new
        FiniteElementSpace. */
@@ -202,6 +209,24 @@ public:
    double GetValue(ElementTransformation &T)
    { return GetValue(T.ElementNo, T.GetIntPoint()); }
 
+   // Redefine to handle the case when T describes a face-neighbor element
+   virtual double GetValue(ElementTransformation &T, const IntegrationPoint &ip,
+                           int comp = 0, Vector *tr = NULL) const;
+
+   virtual void GetVectorValue(int i, const IntegrationPoint &ip,
+                               Vector &val) const;
+
+   // Redefine to handle the case when T describes a face-neighbor element
+   virtual void GetVectorValue(ElementTransformation &T,
+                               const IntegrationPoint &ip,
+                               Vector &val, Vector *tr = NULL) const;
+
+   /** Sets the output vector @a dof_vals to the values of the degrees of
+       freedom of element @a el. If @a el is greater than or equal to the number
+       of local elements, it will be interpreted as a shifted index of a face
+       neighbor element. */
+   virtual void GetElementDofValues(int el, Vector &dof_vals) const;
+
    using GridFunction::ProjectCoefficient;
    virtual void ProjectCoefficient(Coefficient &coeff);
 
@@ -264,6 +289,77 @@ public:
                           pfes->GetComm());
    }
 
+   /// Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
+   virtual double ComputeGradError(VectorCoefficient *exgrad,
+                                   const IntegrationRule *irs[] = NULL) const
+   {
+      return GlobalLpNorm(2.0, GridFunction::ComputeGradError(exgrad,irs),
+                          pfes->GetComm());
+   }
+
+   /// Returns ||curl u_ex - curl u_h||_L2 for ND elements
+   virtual double ComputeCurlError(VectorCoefficient *excurl,
+                                   const IntegrationRule *irs[] = NULL) const
+   {
+      return GlobalLpNorm(2.0, GridFunction::ComputeCurlError(excurl,irs),
+                          pfes->GetComm());
+   }
+
+   /// Returns ||div u_ex - div u_h||_L2 for RT elements
+   virtual double ComputeDivError(Coefficient *exdiv,
+                                  const IntegrationRule *irs[] = NULL) const
+   {
+      return GlobalLpNorm(2.0, GridFunction::ComputeDivError(exdiv,irs),
+                          pfes->GetComm());
+   }
+
+   /// Returns the Face Jumps error for L2 elements
+   virtual double ComputeDGFaceJumpError(Coefficient *exsol,
+                                         Coefficient *ell_coeff,
+                                         JumpScaling jump_scaling,
+                                         const IntegrationRule *irs[]=NULL)
+   const;
+
+   /// Returns either the H1-seminorm or the DG Face Jumps error or both
+   /// depending on norm_type = 1, 2, 3
+   virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
+                                 Coefficient *ell_coef, double Nu,
+                                 int norm_type) const
+   {
+      return GlobalLpNorm(2.0,
+                          GridFunction::ComputeH1Error(exsol,exgrad,ell_coef,
+                                                       Nu, norm_type),
+                          pfes->GetComm());
+   }
+
+   /// Returns the error measured in H1-norm for H1 elements or in "broken"
+   /// H1-norm for L2 elements
+   virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
+                                 const IntegrationRule *irs[] = NULL) const
+   {
+      return GlobalLpNorm(2.0, GridFunction::ComputeH1Error(exsol,exgrad,irs),
+                          pfes->GetComm());
+   }
+
+   /// Returns the error measured H(div)-norm for RT elements
+   virtual double ComputeHDivError(VectorCoefficient *exsol,
+                                   Coefficient *exdiv,
+                                   const IntegrationRule *irs[] = NULL) const
+   {
+      return GlobalLpNorm(2.0, GridFunction::ComputeHDivError(exsol,exdiv,irs),
+                          pfes->GetComm());
+   }
+
+   /// Returns the error measured H(curl)-norm for ND elements
+   virtual double ComputeHCurlError(VectorCoefficient *exsol,
+                                    VectorCoefficient *excurl,
+                                    const IntegrationRule *irs[] = NULL) const
+   {
+      return GlobalLpNorm(2.0,
+                          GridFunction::ComputeHCurlError(exsol,excurl,irs),
+                          pfes->GetComm());
+   }
+
    virtual double ComputeMaxError(Coefficient *exsol[],
                                   const IntegrationRule *irs[] = NULL) const
    {
@@ -306,12 +402,21 @@ public:
 
    virtual void ComputeFlux(BilinearFormIntegrator &blfi,
                             GridFunction &flux,
-                            int wcoef = 1, int subdomain = -1);
+                            bool wcoef = true, int subdomain = -1);
 
-   /** Save the local portion of the ParGridFunction. It differs from the
+   /** Save the local portion of the ParGridFunction. This differs from the
        serial GridFunction::Save in that it takes into account the signs of
        the local dofs. */
    virtual void Save(std::ostream &out) const;
+
+#ifdef MFEM_USE_ADIOS2
+   /** Save the local portion of the ParGridFunction. This differs from the
+       serial GridFunction::Save in that it takes into account the signs of
+       the local dofs. */
+   virtual void Save(
+      adios2stream &out, const std::string &variable_name,
+      const adios2stream::data_type type = adios2stream::data_type::point_data) const;
+#endif
 
    /// Merge the local grid functions
    void SaveAsOne(std::ostream &out = mfem::out);
