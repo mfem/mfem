@@ -3,14 +3,14 @@
 // Compile with: make ex0
 //
 // Sample runs:  ex0
-//               ex0 -m ../data/fischera.mesh
+//               ex0 -m ../data/fichera.mesh
 //               ex0 -m ../data/square-disc.mesh -o 2
 //
 // Description: This example code demonstrates the most basic usage of MFEM
 //              to define a simple finite element discretization of the Laplace
 //              problem -Delta u = 1 with homogeneous Dirichlet boundary
-//              conditions. Besides the mesh, the only available option to
-//              the user is the polynomial order.
+//              conditions. The mesh file and finite element polynomial degree
+//              are given by command line options.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -26,8 +26,7 @@ int main(int argc, char *argv[])
    int order = 1;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh",
-                  "Mesh file to use.");
+   args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree)");
    args.Parse();
@@ -38,23 +37,20 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // 2. Read the mesh from the given mesh file.
-   Mesh mesh (mesh_file, 1, 1);
+   // 2. Read the mesh from the given mesh file, and refine once uniformly.
+   Mesh mesh(mesh_file, 1, 1);
+   mesh.UniformRefinement();
 
    // 3. Define a finite element space on the mesh. Here we use continuous
-   // Lagrange finite elements of the specified order.
+   //    Lagrange finite elements of the specified order.
    H1_FECollection fec(order, mesh.Dimension());
    FiniteElementSpace fespace(&mesh, &fec);
    cout << "Number of unknowns: " << fespace.GetTrueVSize() << endl;
 
-   // 4. Mark all boundary conditions as essential (Dirichlet)
-   Array<int> ess_tdof_list;
-   if (mesh.bdr_attributes.Size())
-   {
-      Array<int> ess_bdr(mesh.bdr_attributes.Max());
-      ess_bdr = 1;
-      fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   }
+   // 4. Get a list of all the boundary DOFs. These will be marked as essential
+   //    in order to enforce Dirichlet boundary conditions.
+   Array<int> boundary_dofs;
+   fespace.GetBoundaryTrueDofs(boundary_dofs);
 
    // 5. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
@@ -68,29 +64,33 @@ int main(int argc, char *argv[])
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
    b.Assemble();
 
-   // 7. Set up the bilinear form a(.,.) corresponding to the Laplacian -Delta
+   // 7. Set up the bilinear form a(.,.) corresponding to the Laplacian -Delta.
    BilinearForm a(&fespace);
-   a.AddDomainIntegrator(new DiffusionIntegrator(one));
+   a.AddDomainIntegrator(new DiffusionIntegrator);
    a.Assemble();
 
-   // 8. Form and solve the linear system A X = B
+   // 8. Form and solve the linear system A X = B.
    OperatorPtr A;
    Vector B, X;
-   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+   a.FormLinearSystem(boundary_dofs, x, b, A, X, B);
 
    cout << "Size of linear system: " << A->Height() << endl;
 
-   // Uses a simple symmetric Gauss-Seidel preconditioner for PCG.
+   // Solve using PCG with a simple symmetric Gauss-Seidel preconditioner.
    GSSmoother M((SparseMatrix&)(*A));
    PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
 
-   // 9. Recover the solution as a grid function and save to file
+   // 9. Recover the solution as a grid function and save to file.
+   //    This output can be viewed using GLVis with the command:
+   //    glvis -m refined.mesh -g sol.gf
    a.RecoverFEMSolution(X, b, x);
 
+   ofstream mesh_ofs("refined.mesh");
+   mesh_ofs.precision(8);
+   mesh.Print(mesh_ofs);
    ofstream sol_ofs("sol.gf");
    sol_ofs.precision(8);
    x.Save(sol_ofs);
-   // This output can now be viewed using GLVis: "glvis -m mesh_file -g sol.gf"
 
    return 0;
 }
