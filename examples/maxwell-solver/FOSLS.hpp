@@ -11,7 +11,6 @@ class ComplexMaxwellFOSLS
 private:
    ParFiniteElementSpace * fes = nullptr;
    ParMesh * pmesh = nullptr;
-   int dim=3;
    double omega = 1.0;
    Array<VectorFunctionCoefficient *> loads;
    Array<VectorFunctionCoefficient *> ess_data;
@@ -44,15 +43,16 @@ public:
 class HelmholtzFOSLS 
 {
 private:
-   bool definite;
    Array<ParFiniteElementSpace * > fes;
+   bool definite;
+   bool complex;
    ParMesh * pmesh = nullptr;
-   int dim=3;
    double omega = 1.0;
-   FunctionCoefficient * f = nullptr;
-   VectorFunctionCoefficient * Q = nullptr;
-   FunctionCoefficient * p_ex_coeff = nullptr;
-   VectorFunctionCoefficient * u_ex_coeff = nullptr;
+   int n; // 
+   Array<FunctionCoefficient * > f;
+   Array<VectorFunctionCoefficient * > Q;
+   Array<FunctionCoefficient * > p_ex_coeff;
+   Array<VectorFunctionCoefficient * > u_ex_coeff;
    Array2D<HypreParMatrix *> A;
    BlockVector x,rhs;
    BlockVector X,Rhs;
@@ -60,13 +60,16 @@ private:
    Array<int> block_trueOffsets;
 
    void FormSystem(bool system = true);
+   void Init();
 public:
-   HelmholtzFOSLS(Array<ParFiniteElementSpace * > & fes_, bool definite_ = false);
+   HelmholtzFOSLS(Array<ParFiniteElementSpace * > & fes_, 
+                  bool definite_ = false,
+                  bool complex_ = false);
    void SetOmega(double omega_) { omega = omega_; }
-   void SetLoadData(FunctionCoefficient * f_);
-   void SetLoadData(VectorFunctionCoefficient * Q_);
-   void SetEssentialData(FunctionCoefficient * p_ex_coeff_);
-   void SetEssentialData(VectorFunctionCoefficient * u_ex_coeff_);
+   void SetLoadData(Array<FunctionCoefficient * > & f_);
+   void SetLoadData(Array<VectorFunctionCoefficient * > & Q_);
+   void SetEssentialData(Array<FunctionCoefficient * > & p_ex_coeff_);
+   void SetEssentialData(Array<VectorFunctionCoefficient * > & u_ex_coeff_);
    void GetFOSLSLinearSystem(Array2D<HypreParMatrix *> & A_, 
                              BlockVector & X_,
                              BlockVector & Rhs_);

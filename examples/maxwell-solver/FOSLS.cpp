@@ -234,23 +234,41 @@ void ComplexMaxwellFOSLS::FormSystem(bool system)
 };
 
 HelmholtzFOSLS::HelmholtzFOSLS(Array<ParFiniteElementSpace * > & fes_, 
-bool definite_) : fes(fes_), definite(definite_)
-{ };
+bool definite_, bool complex_) : fes(fes_), definite(definite_), complex(complex_)
+{ 
+   n = complex ? 2 : 1;
+   Init();
+};
 
-void HelmholtzFOSLS::SetLoadData(FunctionCoefficient * f_)
+void HelmholtzFOSLS::Init()
+{
+   f.SetSize(n);
+   Q.SetSize(n);
+   p_ex_coeff.SetSize(n);
+   u_ex_coeff.SetSize(n);
+   for (int i = 0; i<n; i++)
+   {
+      f[i] = nullptr;
+      Q[i] = nullptr;
+      p_ex_coeff[i] = nullptr;
+      u_ex_coeff[i] = nullptr;
+   }
+}
+
+void HelmholtzFOSLS::SetLoadData(Array<FunctionCoefficient * > & f_)
 {
    f = f_;
 }
-void HelmholtzFOSLS::SetLoadData(VectorFunctionCoefficient * Q_)
+void HelmholtzFOSLS::SetLoadData(Array<VectorFunctionCoefficient * > & Q_)
 {
    Q = Q_;
 }
 
-void HelmholtzFOSLS::SetEssentialData(FunctionCoefficient * p_ex_coeff_)
+void HelmholtzFOSLS::SetEssentialData(Array<FunctionCoefficient * > & p_ex_coeff_)
 {
    p_ex_coeff = p_ex_coeff_;
 }
-void HelmholtzFOSLS::SetEssentialData(VectorFunctionCoefficient * u_ex_coeff_)
+void HelmholtzFOSLS::SetEssentialData(Array<VectorFunctionCoefficient * > & u_ex_coeff_)
 {
    u_ex_coeff = u_ex_coeff_;
 }
@@ -289,21 +307,30 @@ void HelmholtzFOSLS::FormSystem(bool system)
       ess_bdr.SetSize(pmesh->bdr_attributes.Max());
       ess_bdr = 1;
    }
-
-
-   block_offsets.SetSize(3);
+   int blksize = complex ? 5 : 3;
+   block_offsets.SetSize(blksize);
    block_offsets[0] = 0;
    block_offsets[1] = fes[0]->GetVSize();
    block_offsets[2] = fes[1]->GetVSize();
+   if (complex)
+   {
+      block_offsets[3] = fes[0]->GetVSize();
+      block_offsets[4] = fes[1]->GetVSize();
+   }
    block_offsets.PartialSum();
 
-   block_trueOffsets.SetSize(3);
+   block_trueOffsets.SetSize(blksize);
    block_trueOffsets[0] = 0;
    block_trueOffsets[1] = fes[0]->GetTrueVSize();
    block_trueOffsets[2] = fes[1]->GetTrueVSize();
+   if (complex)
+   {
+      block_trueOffsets[3] = fes[0]->GetTrueVSize();
+      block_trueOffsets[4] = fes[1]->GetTrueVSize();
+   }
    block_trueOffsets.PartialSum();
 
-   ParGridFunction p_gf, u_gf;
+   ParGridFunction p_gf_re, u_gf_re, p_gf_im, u_gf_im;
 
    if(system)
    {
@@ -313,16 +340,33 @@ void HelmholtzFOSLS::FormSystem(bool system)
       Rhs.Update(block_trueOffsets);
       x = 0.0;  rhs = 0.0; X = 0.0;  Rhs = 0.0;
 
-      p_gf.MakeRef(fes[0],x.GetBlock(0)); p_gf = 0.0;
-      u_gf.MakeRef(fes[1],x.GetBlock(1)); u_gf = 0.0;
+      p_gf_re.MakeRef(fes[0],x.GetBlock(0)); p_gf_re = 0.0;
+      u_gf_re.MakeRef(fes[1],x.GetBlock(1)); u_gf_re = 0.0;
 
-      if (p_ex_coeff)
+      if (complex)
       {
-         p_gf.ProjectCoefficient(*p_ex_coeff);
+         p_gf_im.MakeRef(fes[0],x.GetBlock(2)); p_gf_im = 0.0;
+         u_gf_im.MakeRef(fes[1],x.GetBlock(3)); u_gf_im = 0.0;
       }
-      if (u_ex_coeff)
+
+      if (p_ex_coeff[0])
       {
-         u_gf.ProjectCoefficient(*u_ex_coeff);
+         p_gf_re.ProjectCoefficient(*p_ex_coeff[0]);
+      }
+      if (u_ex_coeff[0])
+      {
+         u_gf_re.ProjectCoefficient(*u_ex_coeff[0]);
+      }
+      if (complex)
+      {
+         if (p_ex_coeff[1])
+         {
+            p_gf_im.ProjectCoefficient(*p_ex_coeff[1]);
+         }
+         if (u_ex_coeff[1])
+         {
+            u_gf_im.ProjectCoefficient(*u_ex_coeff[1]);
+         }
       }
    }
 
@@ -331,8 +375,8 @@ void HelmholtzFOSLS::FormSystem(bool system)
    ConstantCoefficient negomeg(-omega);
    ConstantCoefficient omeg(omega);
    ConstantCoefficient omeg2(omega * omega);
-   ProductCoefficient omega_f(omeg,*f);
-   ProductCoefficient neg_f(negone,*f);
+   ProductCoefficient omega_f(omeg,*f[0]);
+   ProductCoefficient neg_f(negone,*f[0]);
 
    ParLinearForm b0, b1;
 
@@ -347,7 +391,7 @@ void HelmholtzFOSLS::FormSystem(bool system)
       }
       else
       {
-         b1.AddDomainIntegrator(new VectorFEDomainLFDivIntegrator(*f));
+         b1.AddDomainIntegrator(new VectorFEDomainLFDivIntegrator(*f[0]));
       }
       b0.Assemble();
       b1.Assemble();

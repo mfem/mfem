@@ -1,7 +1,5 @@
 
 
-//                                MFEM Example multigrid-grid Cycle
-
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
