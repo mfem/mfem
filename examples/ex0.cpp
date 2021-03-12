@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
 
    // 5. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
-   //    which satisfies the boundary conditions.
+   //    which also determines the boundary conditions.
    GridFunction x(&fespace);
    x = 0.0;
 
@@ -69,18 +69,21 @@ int main(int argc, char *argv[])
    a.AddDomainIntegrator(new DiffusionIntegrator);
    a.Assemble();
 
-   // 8. Form and solve the linear system A X = B.
+   // 8. Form the linear system A X = B. This includes eliminating boundary
+   //    conditions, applying conforming constraints for non-conforming AMR,
+   //    etc.
    OperatorPtr A;
    Vector B, X;
    a.FormLinearSystem(boundary_dofs, x, b, A, X, B);
 
-   // Solve using PCG with a simple symmetric Gauss-Seidel preconditioner.
+   // 9. Solve using preconditioned CG with a symmetric Gauss-Seidel
+   //    preconditioner.
    GSSmoother M((SparseMatrix&)(*A));
    PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
 
-   // 9. Recover the solution as a grid function and save to file.
-   //    This output can be viewed using GLVis with the command:
-   //    glvis -m mesh.mesh -g sol.gf
+   // 10. Recover the solution as a grid function and save to file. The output
+   //     can be viewed using GLVis with the command:
+   //     glvis -m mesh.mesh -g sol.gf
    a.RecoverFEMSolution(X, b, x);
 
    ofstream mesh_ofs("mesh.mesh");
