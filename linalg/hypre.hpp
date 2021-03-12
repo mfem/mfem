@@ -241,7 +241,9 @@ public:
             MFEM_VERIFY(hypre_mem_base.Size() == base.Size(), "");
          }
          MakeRef(const_cast<Vector&>(hypre_mem_base), 0);
-         hypre_VectorData(hypre_ParVectorLocalVector(x)) = data;
+         //hypre_VectorData(hypre_ParVectorLocalVector(x)) = data;
+         hypre_VectorData(hypre_ParVectorLocalVector(x)) = data.ReadWrite(
+                                                              GetHypreMemoryClass(), base.Size());
       }
       return *this;
    }
@@ -330,6 +332,9 @@ private:
    static void CopyCSR_J(hypre_CSRMatrix *hypre_csr, int *J);
 
    Memory<HYPRE_Int> hypre_mem_row, hypre_mem_col, hypre_mem_cmap;
+   Memory<HYPRE_Int> hypre_i_diag, hypre_j_diag, hypre_i_offd, hypre_j_offd,
+          hypre_cmap;
+   Memory<double> hypre_a_diag, hypre_a_offd;
 
 public:
    /// An empty matrix to be used as a reference to an existing matrix

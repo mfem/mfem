@@ -228,6 +228,9 @@ HYPRE_Int
 hypre_ParCSRMatrixSetConstantValues(hypre_ParCSRMatrix *A,
                                     HYPRE_Complex       value);
 
+HYPRE_Int
+tmp_hypre_CSRMatrixSetRownnz( hypre_CSRMatrix *matrix );
+
 } // namespace mfem::internal
 
 } // namespace mfem
