@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
 
    // 7. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
-   //    which satisfies the boundary conditions.
+   //    which also determines the boundary conditions.
    ParGridFunction x(&fespace);
    x = 0.0;
 
@@ -78,12 +78,14 @@ int main(int argc, char *argv[])
    a.AddDomainIntegrator(new DiffusionIntegrator);
    a.Assemble();
 
-   // 10. Form and solve the linear system A X = B.
+   // 10. Form the linear system A X = B. This includes eliminating boundary
+   //     conditions, applying conforming constraints for non-conforming AMR,
+   //     etc.
    OperatorPtr A;
    Vector B, X;
    a.FormLinearSystem(boundary_dofs, x, b, A, X, B);
 
-   // Solve using preconditioned CG with hypre's BoomerAMG preconditioner
+   // 11. Solve using preconditioned CG with hypre's BoomerAMG preconditioner.
    HypreBoomerAMG M((HypreParMatrix&)(*A));
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(1e-12);
@@ -93,8 +95,8 @@ int main(int argc, char *argv[])
    cg.SetOperator(*A);
    cg.Mult(B, X);
 
-   // 11. Recover the solution as a grid function and save to files.
-   //     This output can be viewed using GLVis with the command:
+   // 12. Recover the solution as a grid function and save to files. The output
+   //     can be viewed using GLVis with the command:
    //     glvis -np <np> -m mesh -g sol
    a.RecoverFEMSolution(X, b, x);
 
