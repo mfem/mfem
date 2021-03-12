@@ -39,6 +39,7 @@ list(APPEND ALL_EXE_SRCS
 
 if (MFEM_USE_MPI)
   list(APPEND ALL_EXE_SRCS
+    ex0p.cpp
     ex1p.cpp
     ex2p.cpp
     ex3p.cpp
