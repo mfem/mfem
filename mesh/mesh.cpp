@@ -3953,6 +3953,36 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> ref_factors,
       }
    }
 
+   // Add refined boundary elements
+   for (int el = 0; el < orig_mesh.GetNBE(); el++)
+   {
+      int i, info;
+      orig_mesh.GetBdrElementAdjacentElement(el, i, info);
+      Geometry::Type geom = orig_mesh.GetBdrElementBaseGeometry(el);
+      int attrib = orig_mesh.GetBdrAttribute(el);
+      int nvert = Geometry::NumVerts[geom];
+      RefinedGeometry &RG = *refiner.Refine(geom, ref_factors[i]);
+
+      rfes.GetBdrElementDofs(el, rdofs);
+      MFEM_ASSERT(rdofs.Size() == RG.RefPts.Size(), "");
+      const int *c2h_map = rfec.GetDofMap(geom, ref_factors[i]);
+      for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
+      {
+         Element *elem = NewElement(geom);
+         elem->SetAttribute(attrib);
+         int *v = elem->GetVertices();
+         for (int k = 0; k < nvert; k++)
+         {
+            int cid = RG.RefGeoms[k+nvert*j]; // local Cartesian index
+            v[k] = rdofs[c2h_map[cid]];
+         }
+         AddBdrElement(elem);
+      }
+   }
+   FinalizeTopology(false);
+   sequence = orig_mesh.GetSequence() + 1;
+   last_operation = Mesh::REFINE;
+
    // Set up the nodes of the new mesh (if the original mesh has nodes). The new
    // mesh is always straight-sided (i.e. degree 1 finite element space), but
    // the nodes are required for e.g. periodic meshes.
@@ -4000,36 +4030,6 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> ref_factors,
          }
       }
    }
-
-   // Add refined boundary elements
-   for (int el = 0; el < orig_mesh.GetNBE(); el++)
-   {
-      int i, info;
-      orig_mesh.GetBdrElementAdjacentElement(el, i, info);
-      Geometry::Type geom = orig_mesh.GetBdrElementBaseGeometry(el);
-      int attrib = orig_mesh.GetBdrAttribute(el);
-      int nvert = Geometry::NumVerts[geom];
-      RefinedGeometry &RG = *refiner.Refine(geom, ref_factors[i]);
-
-      rfes.GetBdrElementDofs(el, rdofs);
-      MFEM_ASSERT(rdofs.Size() == RG.RefPts.Size(), "");
-      const int *c2h_map = rfec.GetDofMap(geom, ref_factors[i]);
-      for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
-      {
-         Element *elem = NewElement(geom);
-         elem->SetAttribute(attrib);
-         int *v = elem->GetVertices();
-         for (int k = 0; k < nvert; k++)
-         {
-            int cid = RG.RefGeoms[k+nvert*j]; // local Cartesian index
-            v[k] = rdofs[c2h_map[cid]];
-         }
-         AddBdrElement(elem);
-      }
-   }
-   FinalizeTopology(false);
-   sequence = orig_mesh.GetSequence() + 1;
-   last_operation = Mesh::REFINE;
 
    // Setup the data for the coarse-fine refinement transformations
    CoarseFineTr.embeddings.SetSize(GetNE());
