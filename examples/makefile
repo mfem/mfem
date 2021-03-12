@@ -98,6 +98,10 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 	@$(call mfem-test,$<,, Serial example)
 
 # Testing: Specific execution options
+ex0-test-seq: ex0
+	@$(call mfem-test,$<,, Serial example,,1)
+ex0p-test-par: ex0p
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel example,,1)
 ex1-test-seq: ex1
 	@$(call mfem-test,$<,, Serial example)
 ex1p-test-par: ex1p
