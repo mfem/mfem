@@ -74,18 +74,16 @@ int main(int argc, char *argv[])
    Vector B, X;
    a.FormLinearSystem(boundary_dofs, x, b, A, X, B);
 
-   cout << "Size of linear system: " << A->Height() << endl;
-
    // Solve using PCG with a simple symmetric Gauss-Seidel preconditioner.
    GSSmoother M((SparseMatrix&)(*A));
    PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
 
    // 9. Recover the solution as a grid function and save to file.
    //    This output can be viewed using GLVis with the command:
-   //    glvis -m refined.mesh -g sol.gf
+   //    glvis -m mesh.mesh -g sol.gf
    a.RecoverFEMSolution(X, b, x);
 
-   ofstream mesh_ofs("refined.mesh");
+   ofstream mesh_ofs("mesh.mesh");
    mesh_ofs.precision(8);
    mesh.Print(mesh_ofs);
    ofstream sol_ofs("sol.gf");
