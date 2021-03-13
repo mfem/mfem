@@ -149,8 +149,7 @@ TEST_CASE("Identity Linear Interpolators",
       if (type < (int)Element::TRIANGLE)
       {
          dim = 1;
-         mesh = new Mesh(n, (Element::Type)type, 1, 2.0);
-
+         mesh = new Mesh(n, 2.0);
       }
       else if (type < (int)Element::TETRAHEDRON)
       {
@@ -533,8 +532,7 @@ TEST_CASE("Derivative Linear Interpolators",
       if (type < (int)Element::TRIANGLE)
       {
          dim = 1;
-         mesh = new Mesh(n, (Element::Type)type, 1, 2.0);
-
+         mesh = new Mesh(n, 2.0);
       }
       else if (type < (int)Element::TETRAHEDRON)
       {
@@ -758,8 +756,7 @@ TEST_CASE("Product Linear Interpolators",
       if (type < (int)Element::TRIANGLE)
       {
          dim = 1;
-         mesh = new Mesh(n, (Element::Type)type, 1, 2.0);
-
+         mesh = new Mesh(n, 2.0);
       }
       else if (type < (int)Element::TETRAHEDRON)
       {
