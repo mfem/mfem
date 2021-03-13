@@ -9,6 +9,9 @@
 using namespace std;
 using namespace mfem;
 
+int dim;
+double omega;
+int exact = 0;
 
 void helmholtz_solution(const Vector &x, complex<double> & sol, 
                         std::vector<complex<double>> & grad,
@@ -29,10 +32,6 @@ double g_exact_re(const Vector &x);
 void f_exact_im(const Vector &x, Vector &f);
 double g_exact_im(const Vector &x);
 void plotfield(socketstream &,ParMesh * pmesh,const ParGridFunction & , string &);
-
-int dim;
-double omega;
-int exact = 0;
 
 // ----------------------------------------------------------------------
 // |   |            p             |             u           |    RHS    | 
@@ -460,8 +459,8 @@ int main(int argc, char *argv[])
    Vector Y(X), Z(X);
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(1e-6);
-   cg.SetMaxIter(2000);
-   cg.SetPrintLevel(1);
+   cg.SetMaxIter(5000);
+   cg.SetPrintLevel(3);
    cg.SetOperator(*A);
    StopWatch chrono;
    chrono.Clear();
@@ -484,12 +483,13 @@ int main(int argc, char *argv[])
    cg.Mult(Rhs, Z);
    chrono.Stop();
    cout << "PCG AMG/AMS HO time = " << chrono.RealTime() << endl;
-   // {
-   //    MUMPSSolver mumps;
-   //    mumps.SetPrintLevel(0);
-   //    mumps.SetOperator(*A);
-   //    mumps.Mult(Rhs,X);
-   // }
+   {
+      MUMPSSolver mumps;
+      mumps.SetPrintLevel(0);
+      mumps.SetOperator(*A);
+      mumps.Mult(Rhs,X);
+   }
+
 
    p_gf_re = 0.0;
    p_gf_im = 0.0;
@@ -534,11 +534,12 @@ int main(int argc, char *argv[])
                << flush;         
    }
 
-
    MPI_Finalize();
 
    return 0;
 }
+
+
 
 void helmholtz_solution(const Vector &X, complex<double> &sol, 
                                          std::vector<complex<double>> &grad,
