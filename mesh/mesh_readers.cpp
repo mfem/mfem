@@ -2051,6 +2051,9 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             curved = 1;
             read_gf = 0;
 
+            // initialize mesh_geoms so we can create Nodes FE space below
+            this->SetMeshGen();
+
             // Construct GridFunction for uniformly spaced high order coords
             FiniteElementCollection* nfec;
             FiniteElementSpace* nfes;
