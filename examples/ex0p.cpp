@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
    if (mpi.Root()) { args.PrintOptions(cout); }
 
    // 3. Read the serial mesh from the given mesh file.
-   Mesh serial_mesh(mesh_file, 1, 1);
+   Mesh serial_mesh(mesh_file);
 
    // 4. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh once in parallel to increase the resolution.
