@@ -759,9 +759,9 @@ int main(int argc, char *argv[])
 
       if (t>t_refs)
       {
-          ref_steps=2;
+          ref_steps=4;
           ref_its=1;
-          deref_its=3;
+          deref_its=1;
       }
 
       if (t>4. && levels3<amr_levels)
