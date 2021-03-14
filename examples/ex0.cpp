@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
 
    // 2. Read the mesh from the given mesh file, and refine once uniformly.
-   Mesh mesh(mesh_file, 1, 1);
+   Mesh mesh(mesh_file);
    mesh.UniformRefinement();
 
    // 3. Define a finite element space on the mesh. Here we use continuous
