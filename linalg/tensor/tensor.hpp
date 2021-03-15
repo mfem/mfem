@@ -20,6 +20,31 @@
 namespace mfem
 {
 
+/// A structure that implements an imbricated forall with for loops.
+template <int N>
+struct Forall
+{
+   template <typename TensorLHS, typename TensorRHS, typename Lambda, typename... Idx>
+   static void apply(TensorLHS &lhs, TensorRHS &rhs, Lambda &&func, Idx... idx)
+   {
+      // TODO how to define something else than for loops
+      for (int i = 0; i < lhs.template Size<N-1>(); i++)
+      {
+         Forall<N-1>::apply(lhs,rhs,func,i,idx...);
+      }
+   }
+};
+
+template <>
+struct Forall<0>
+{
+   template <typename TensorLHS, typename TensorRHS, typename Lambda, typename... Idx>
+   static void apply(TensorLHS &lhs, TensorRHS &rhs, Lambda &&func, Idx... idx)
+   {
+      func(lhs,rhs,idx...);
+   }
+};
+
 /** A tensor class
     @a Rank is the rank of the Tensor,
     @a T is the type of elements stored,
@@ -65,11 +90,21 @@ public:
    MFEM_HOST_DEVICE
    Tensor(const Tensor &rhs): Container(rhs), Layout(rhs) { }
 
+   // TODO default constructor for Container?
+   template <typename OtherTensor> MFEM_HOST_DEVICE
+   Tensor(const OtherTensor &rhs): Container(), Layout(rhs)
+   {
+      Forall<Rank>::apply(*this,rhs,[](auto &lhs, auto &rhs, auto... idx)
+      {
+         lhs(idx...) = rhs(idx...);
+      });
+   }
+
    /// Accessor
    template <typename... Idx> MFEM_HOST_DEVICE inline
    T& operator()(Idx... args)
    {
-      // static_assert(Rank==sizeof...(Idx), "Wrong number of indices");
+      static_assert(Rank==sizeof...(Idx), "Wrong number of indices");
       return this->operator[]( this->index(args...) );
    }
 
@@ -77,7 +112,7 @@ public:
    template <typename... Idx> MFEM_HOST_DEVICE inline
    const T& operator()(Idx... args) const
    {
-      // static_assert(Rank==sizeof...(Idx), "Wrong number of indices");
+      static_assert(Rank==sizeof...(Idx), "Wrong number of indices");
       return this->operator[]( this->index(args...) );
    }
 
@@ -104,7 +139,20 @@ public:
    template <typename OtherTensor> MFEM_HOST_DEVICE inline
    Tensor<Rank,T,Container,Layout>& operator=(const OtherTensor &rhs)
    {
-      Forall<Rank>::equalize(*this,rhs);
+      Forall<Rank>::apply(*this,rhs,[](auto &lhs, auto &rhs, auto... idx)
+      {
+         lhs(idx...) = rhs(idx...);
+      });
+      return *this;
+   }
+
+   template <typename OtherTensor> MFEM_HOST_DEVICE inline
+   Tensor<Rank,T,Container,Layout>& operator+=(const OtherTensor &rhs)
+   {
+      Forall<Rank>::apply(*this,rhs,[](auto &lhs, auto &rhs, auto... idx)
+      {
+         lhs(idx...) += rhs(idx...);
+      });
       return *this;
    }
 
@@ -170,47 +218,6 @@ public:
    }
 
 private:
-/// A structure that implements an imbricated forall with for loops.
-template <int N>
-struct Forall
-{
-   template <typename TensorLHS, typename TensorRHS, typename... Idx>
-   static void equalize(TensorLHS &lhs, const TensorRHS &rhs, Idx... idx)
-   {
-      // TODO replace with iterator
-      for(int i = 0; i<lhs.template Size<N-1>(); i++)
-      {
-         // TODO understand why the recursive form doesn't work
-         Forall<N-1>::equalize(lhs,rhs,i,idx...);
-      }
-   }
-};
-
-template <>
-struct Forall<2>
-{
-   template <typename TensorLHS, typename TensorRHS, typename... Idx>
-   static void equalize(TensorLHS &lhs, const TensorRHS &rhs, Idx... idx)
-   {
-      for(int j = 0; j<lhs.template Size<1>(); j++)
-      {
-         for(int i = 0; i<lhs.template Size<0>(); i++)
-         {
-            lhs(i,j) = rhs(i,j);
-         }
-      }
-   }
-};
-
-template <>
-struct Forall<0>
-{
-   template <typename TensorLHS, typename TensorRHS, typename... Idx>
-   static void equalize(TensorLHS &lhs, const TensorRHS &rhs, Idx... idx)
-   {
-      lhs(idx...) = rhs(idx...);
-   }
-};
 
 };
 
