@@ -75,7 +75,7 @@ int main (int argc, char *argv[])
    // The Nodes GridFunctions for each mesh are required.
    if (mesh_1.GetNodes() == NULL) { mesh_1.SetCurvature(1, false, dim, 0); }
    if (mesh_2.GetNodes() == NULL) { mesh_2.SetCurvature(1, false, dim, 0); }
-   const int mesh_poly_deg = mesh_1.GetNodes()->FESpace()->GetOrder(0);
+   const int mesh_poly_deg = mesh_1.GetNodes()->FESpace()->GetElementOrder(0);
    cout << "Mesh curvature: "
         << mesh_1.GetNodes()->OwnFEC()->Name() << " " << mesh_poly_deg << endl;
 
