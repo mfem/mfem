@@ -111,7 +111,7 @@ GinkgoExecutor::GinkgoExecutor(Device &mfem_device)
 
 GinkgoIterativeSolver::GinkgoIterativeSolver(
    GinkgoExecutor &exec, int print_iter, int max_num_iter,
-   double RTOLERANCE, double ATOLERANCE)
+   double RTOLERANCE, double ATOLERANCE, bool use_implicit_res_norm)
    : Solver(),
      print_lvl(print_iter),
      max_iter(max_num_iter),
@@ -120,18 +120,47 @@ GinkgoIterativeSolver::GinkgoIterativeSolver(
 {
    executor = exec.GetExecutor();
 
-   using ResidualCriterionFactory = gko::stop::ResidualNormReduction<>;
-   residual_criterion             = ResidualCriterionFactory::build()
-                                    .with_reduction_factor(rel_tol)
-                                    .on(executor);
+   using ResidualCriterionFactory = gko::stop::ResidualNorm<>;
+   using ImplicitResidualCriterionFactory = gko::stop::ImplicitResidualNorm<>;
 
-   combined_factory =
-      gko::stop::Combined::build()
-      .with_criteria(residual_criterion,
-                     gko::stop::Iteration::build()
-                     .with_max_iters(static_cast<unsigned long>(max_iter))
-                     .on(executor))
-      .on(executor);
+   if (use_implicit_res_norm)
+   {
+      imp_rel_criterion  = ImplicitResidualCriterionFactory::build()
+                           .with_reduction_factor(rel_tol)
+                           .with_baseline(gko::stop::mode::initial_resnorm)
+                           .on(executor);
+      imp_abs_criterion  = ImplicitResidualCriterionFactory::build()
+                           .with_reduction_factor(abs_tol)
+                           .with_baseline(gko::stop::mode::absolute)
+                           .on(executor);
+      combined_factory =
+         gko::stop::Combined::build()
+         .with_criteria(imp_rel_criterion,
+                        imp_abs_criterion,
+                        gko::stop::Iteration::build()
+                        .with_max_iters(static_cast<unsigned long>(max_iter))
+                        .on(executor))
+         .on(executor);
+   }
+   else
+   {
+      rel_criterion  = ResidualCriterionFactory::build()
+                       .with_reduction_factor(rel_tol)
+                       .with_baseline(gko::stop::mode::initial_resnorm)
+                       .on(executor);
+      abs_criterion  = ResidualCriterionFactory::build()
+                       .with_reduction_factor(abs_tol)
+                       .with_baseline(gko::stop::mode::absolute)
+                       .on(executor);
+      combined_factory =
+         gko::stop::Combined::build()
+         .with_criteria(rel_criterion,
+                        abs_criterion,
+                        gko::stop::Iteration::build()
+                        .with_max_iters(static_cast<unsigned long>(max_iter))
+                        .on(executor))
+         .on(executor);
+   }
 
    needs_wrapped_vecs = false;
    sub_op_needs_wrapped_vecs = false;
@@ -433,7 +462,7 @@ CGSolver::CGSolver(
    double ATOLERANCE
 )
    : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
-                           ATOLERANCE)
+                           ATOLERANCE, true)
 {
    using cg = gko::solver::Cg<double>;
    this->solver_gen =
@@ -449,7 +478,7 @@ CGSolver::CGSolver(
    const GinkgoPreconditioner &preconditioner
 )
    : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
-                           ATOLERANCE)
+                           ATOLERANCE, true)
 {
    using cg         = gko::solver::Cg<double>;
    // Check for a previously-generated preconditioner (for a specific matrix)
@@ -486,7 +515,7 @@ BICGSTABSolver::BICGSTABSolver(
    double ATOLERANCE
 )
    : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
-                           ATOLERANCE)
+                           ATOLERANCE, true)
 {
    using bicgstab   = gko::solver::Bicgstab<double>;
    this->solver_gen = bicgstab::build()
@@ -503,7 +532,7 @@ BICGSTABSolver::BICGSTABSolver(
    const GinkgoPreconditioner &preconditioner
 )
    : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
-                           ATOLERANCE)
+                           ATOLERANCE, true)
 {
    using bicgstab   = gko::solver::Bicgstab<double>;
    if (preconditioner.HasGeneratedPreconditioner())
@@ -539,7 +568,7 @@ CGSSolver::CGSSolver(
    double ATOLERANCE
 )
    : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
-                           ATOLERANCE)
+                           ATOLERANCE, true)
 {
    using cgs = gko::solver::Cgs<double>;
    this->solver_gen =
@@ -555,7 +584,7 @@ CGSSolver::CGSSolver(
    const GinkgoPreconditioner &preconditioner
 )
    : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
-                           ATOLERANCE)
+                           ATOLERANCE, true)
 {
    using cgs        = gko::solver::Cgs<double>;
    if (preconditioner.HasGeneratedPreconditioner())
@@ -591,7 +620,7 @@ FCGSolver::FCGSolver(
    double ATOLERANCE
 )
    : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
-                           ATOLERANCE)
+                           ATOLERANCE, true)
 {
    using fcg = gko::solver::Fcg<double>;
    this->solver_gen =
@@ -607,7 +636,7 @@ FCGSolver::FCGSolver(
    const GinkgoPreconditioner &preconditioner
 )
    : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
-                           ATOLERANCE)
+                           ATOLERANCE, true)
 {
    using fcg        = gko::solver::Fcg<double>;
    if (preconditioner.HasGeneratedPreconditioner())
@@ -644,7 +673,7 @@ GMRESSolver::GMRESSolver(
    int dim
 )
    : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
-                           ATOLERANCE),
+                           ATOLERANCE, false),
      m{dim}
 {
    using gmres      = gko::solver::Gmres<double>;
@@ -664,7 +693,7 @@ GMRESSolver::GMRESSolver(
    int dim
 )
    : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
-                           ATOLERANCE),
+                           ATOLERANCE, false),
      m{dim}
 {
    using gmres      = gko::solver::Gmres<double>;
@@ -731,7 +760,7 @@ IRSolver::IRSolver(
    double ATOLERANCE
 )
    : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
-                           ATOLERANCE)
+                           ATOLERANCE, false)
 {
    using ir = gko::solver::Ir<double>;
    this->solver_gen =
@@ -747,7 +776,7 @@ IRSolver::IRSolver(
    const GinkgoIterativeSolver &inner_solver
 )
    : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
-                           ATOLERANCE)
+                           ATOLERANCE, false)
 {
    using ir         = gko::solver::Ir<double>;
    this->solver_gen = ir::build()
