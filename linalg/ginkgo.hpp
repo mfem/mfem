@@ -309,7 +309,8 @@ struct ResidualLogger : gko::log::Logger
                               const gko::size_type &iteration,
                               const gko::LinOp *residual,
                               const gko::LinOp *solution,
-                              const gko::LinOp *residual_norm) const override
+                              const gko::LinOp *residual_norm,
+                              const gko::LinOp *implicit_sq_residual_norm) const override
    {
       // If the solver shares the current solution vector and we want to
       // compute the residual from that
@@ -342,8 +343,15 @@ struct ResidualLogger : gko::log::Logger
       }
       else
       {
-         // If the solver shares a residual norm, log its value
-         if (residual_norm)
+         // If the solver shares an implicit or recurrent residual norm, log its value
+         if (implicit_sq_residual_norm)
+         {
+            auto dense_norm = gko::as<gko_dense>(implicit_sq_residual_norm);
+            // Add the norm to the `residual_norms` vector
+            residual_norms.push_back(get_norm(dense_norm));
+            // Otherwise, use the recurrent residual vector
+         }
+         else if (residual_norm)
          {
             auto dense_norm = gko::as<gko_dense>(residual_norm);
             // Add the norm to the `residual_norms` vector
@@ -361,6 +369,17 @@ struct ResidualLogger : gko::log::Logger
       }
       // Add the current iteration number to the `iterations` vector
       iterations.push_back(iteration);
+   }
+
+   // Version for solver that doesn't log implicit res norm
+   void on_iteration_complete(const gko::LinOp *op,
+                              const gko::size_type &iteration,
+                              const gko::LinOp *residual,
+                              const gko::LinOp *solution,
+                              const gko::LinOp *residual_norm) const override
+   {
+      on_iteration_complete(op, iteration, residual, solution, residual_norm,
+                            nullptr);
    }
 
    // Construct the logger and store the system matrix and b vectors
@@ -579,7 +598,8 @@ public:
     *
     */
    GinkgoIterativeSolver(GinkgoExecutor &exec, int print_iter,
-                         int max_num_iter, double RTOLERANCE, double ATOLERANCE);
+                         int max_num_iter, double RTOLERANCE, double ATOLERANCE,
+                         bool use_implicit_res_norm);
 
    /**
     * Destructor.
@@ -634,10 +654,31 @@ protected:
 
    /**
     * The residual criterion object that controls the reduction of the residual
-    * based on the tolerance set in the solver_control member.
+    * relative to the initial residual.
     */
-   std::shared_ptr<gko::stop::ResidualNormReduction<>::Factory>
-   residual_criterion;
+   std::shared_ptr<gko::stop::ResidualNorm<>::Factory>
+   rel_criterion;
+
+   /**
+    * The residual criterion object that controls the reduction of the residual
+    * based on an absolute tolerance.
+    */
+   std::shared_ptr<gko::stop::ResidualNorm<>::Factory>
+   abs_criterion;
+
+   /**
+    * The implicit residual criterion object that controls the reduction of the residual
+    * relative to the initial residual, based on an implicit residual norm value.
+    */
+   std::shared_ptr<gko::stop::ImplicitResidualNorm<>::Factory>
+   imp_rel_criterion;
+
+   /**
+    * The implicit residual criterion object that controls the reduction of the residual
+    * based on an absolute tolerance, based on an implicit residual norm value.
+    */
+   std::shared_ptr<gko::stop::ImplicitResidualNorm<>::Factory>
+   imp_abs_criterion;
 
    /**
     * The Ginkgo convergence logger used to check for convergence and other
