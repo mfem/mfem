@@ -68,9 +68,11 @@ static void test_umpire_device_memory()
    // MemoryType::DEVICE_UMPIRE_2
    MemoryManager::SetUmpireDeviceAllocatorName(device_perm_alloc_name);
    MemoryManager::SetUmpireDevice2AllocatorName(device_temp_alloc_name);
-   Device device("cuda");
    Device::SetHostMemoryType(MemoryType::HOST); // not necessary
    Device::SetDeviceMemoryType(MemoryType::DEVICE_UMPIRE); // 'permanent'
+   Device device("cuda");
+   //Device::SetHostMemoryType(MemoryType::HOST); // not necessary
+   //Device::SetDeviceMemoryType(MemoryType::DEVICE_UMPIRE); // 'permanent'
 
    printf("Both pools should be empty at startup:");
    CHECK_SIZE(0, 0);

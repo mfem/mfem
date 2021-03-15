@@ -62,6 +62,37 @@ MemoryType GetMemoryType(MemoryClass mc)
    return MemoryType::HOST;
 }
 
+// We want to keep this pairs, as it is checked in MFEM_VERIFY_TYPES
+MemoryType MemoryManager::GetDualMemoryType_(MemoryType mt)
+{
+
+   switch (mt)
+   {
+      case MemoryType::HOST_PINNED:           return use_d_mt_over_dual ?
+                                                        device_mem_type :
+                                                        MemoryType::DEVICE;
+      case MemoryType::HOST:           return use_d_mt_over_dual ? device_mem_type :
+                                                 MemoryType::DEVICE;
+      case MemoryType::HOST_32:        return use_d_mt_over_dual ? device_mem_type :
+                                                 MemoryType::DEVICE;
+      case MemoryType::HOST_64:        return use_d_mt_over_dual ? device_mem_type :
+                                                 MemoryType::DEVICE;
+      case MemoryType::HOST_DEBUG:     return MemoryType::DEVICE_DEBUG;
+      case MemoryType::HOST_UMPIRE:    return use_d_mt_over_dual ? device_mem_type :
+                                                 MemoryType::DEVICE_UMPIRE;
+      case MemoryType::MANAGED:        return MemoryType::MANAGED;
+      case MemoryType::DEVICE:         return use_h_mt_over_dual ? host_mem_type :
+                                                 MemoryType::HOST;
+      case MemoryType::DEVICE_DEBUG:   return MemoryType::HOST_DEBUG;
+      case MemoryType::DEVICE_UMPIRE:  return use_h_mt_over_dual ? host_mem_type :
+                                                 MemoryType::HOST_UMPIRE;
+      case MemoryType::DEVICE_UMPIRE_2:  return use_h_mt_over_dual ? host_mem_type :
+                                                   MemoryType::HOST_UMPIRE;
+      default: mfem_error("Unknown memory type!");
+   }
+   MFEM_VERIFY(false,"");
+   return MemoryType::HOST;
+}
 
 static void MFEM_VERIFY_TYPES(const MemoryType h_mt, const MemoryType d_mt)
 {
@@ -1430,6 +1461,9 @@ const char * MemoryManager::d_umpire_2_name = "MFEM_DEVICE_2";
 
 MemoryType MemoryManager::host_mem_type = MemoryType::HOST;
 MemoryType MemoryManager::device_mem_type = MemoryType::HOST;
+
+bool MemoryManager::use_h_mt_over_dual = false;
+bool MemoryManager::use_d_mt_over_dual = false;
 
 const char *MemoryTypeName[MemoryTypeSize] =
 {

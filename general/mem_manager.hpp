@@ -538,6 +538,12 @@ private:
    /// Device memory type set during the Setup.
    static MemoryType device_mem_type;
 
+   ///
+   static bool use_h_mt_over_dual;
+
+   ///
+   static bool use_d_mt_over_dual;
+
    /// Allow to detect if a global memory manager instance exists.
    static bool exists;
 
@@ -587,6 +593,9 @@ private: // Static methods used by the Memory<T> class
    /// Check if the memory types given the memory class are valid
    static bool MemoryClassCheck_(MemoryClass mc, void *h_ptr,
                                  MemoryType h_mt, size_t bytes, unsigned flags);
+
+   /// Return the dual memory type of the given one.
+   static MemoryType GetDualMemoryType_(MemoryType mt);
 
    /// Return a pointer to the memory identified by the host pointer h_ptr for
    /// access with the given MemoryClass.
@@ -726,8 +735,10 @@ public:
 
    static MemoryType GetHostMemoryType() { return host_mem_type; }
    static MemoryType GetDeviceMemoryType() { return device_mem_type; }
-   static void SetHostMemoryType(MemoryType h_mt) { host_mem_type = h_mt; }
-   static void SetDeviceMemoryType(MemoryType d_mt) { device_mem_type = d_mt; }
+   //static void SetHostMemoryType(MemoryType h_mt) { host_mem_type = h_mt; }
+   //static void SetDeviceMemoryType(MemoryType d_mt) { device_mem_type = d_mt; }
+   static void SetHostDualTypeOverride(bool stat) { use_h_mt_over_dual = stat; }
+   static void SetDeviceDualTypeOverride(bool stat) { use_d_mt_over_dual = stat; }
 };
 
 
@@ -738,7 +749,7 @@ inline void Memory<T>::Reset()
 {
    h_ptr = NULL;
    h_mt = MemoryManager::GetHostMemoryType();
-   d_mt = MemoryManager::GetDeviceMemoryType();
+   d_mt = MemoryManager::GetDualMemoryType_(h_mt);
    capacity = 0;
    flags = 0;
 }
@@ -747,8 +758,9 @@ template <typename T>
 inline void Memory<T>::Reset(MemoryType host_mt)
 {
    h_ptr = NULL;
-   h_mt = host_mt;
-   d_mt = MemoryManager::GetDeviceMemoryType();
+   MemoryType dual_mt = MemoryManager::GetDualMemoryType_(host_mt);
+   h_mt = IsHostMemory(host_mt) ? host_mt : dual_mt;
+   d_mt = IsHostMemory(host_mt) ? dual_mt: host_mt;
    capacity = 0;
    flags = 0;
 }
@@ -758,7 +770,7 @@ inline void Memory<T>::New(int size)
 {
    capacity = size;
    h_mt = MemoryManager::GetHostMemoryType();
-   d_mt = MemoryManager::GetDeviceMemoryType();
+   d_mt = MemoryManager::GetDualMemoryType_(h_mt);
    const bool mt_host = h_mt == MemoryType::HOST;
    if (mt_host) { flags = OWNS_HOST | VALID_HOST; }
    h_ptr = (mt_host) ? Alloc<new_align_bytes>::New(size) :
@@ -770,8 +782,9 @@ inline void Memory<T>::New(int size, MemoryType mt)
 {
    capacity = size;
    const size_t bytes = size*sizeof(T);
-   h_mt = IsHostMemory(mt) ? mt : MemoryManager::GetHostMemoryType();
-   d_mt = IsHostMemory(mt) ? MemoryManager::GetDeviceMemoryType() : mt;
+   MemoryType dual_mt = MemoryManager::GetDualMemoryType_(mt);
+   h_mt = IsHostMemory(mt) ? mt : dual_mt;
+   d_mt = IsHostMemory(mt) ? dual_mt: mt;
    if (h_mt == MemoryType::HOST)
    {
       flags = OWNS_HOST | VALID_HOST;
@@ -814,7 +827,7 @@ inline void Memory<T>::Wrap(T *ptr, int size, bool own)
    const size_t bytes = size*sizeof(T);
    flags = (own ? OWNS_HOST : 0) | VALID_HOST;
    h_mt = MemoryManager::GetHostMemoryType();
-   d_mt = MemoryManager::GetDeviceMemoryType();
+   d_mt = MemoryManager::GetDualMemoryType_(h_mt);
 #ifdef MFEM_DEBUG
    if (own && MemoryManager::Exists())
    { MFEM_VERIFY(h_mt == MemoryManager::GetHostMemoryType_(h_ptr),""); }
@@ -830,7 +843,7 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
    if (IsHostMemory(mt))
    {
       h_mt = mt;
-      d_mt = MemoryManager::GetDeviceMemoryType();
+      d_mt = MemoryManager::GetDualMemoryType_(mt);
       h_ptr = ptr;
       if (mt == MemoryType::HOST || !own)
       {
@@ -841,7 +854,7 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
    }
    else
    {
-      h_mt = MemoryManager::GetHostMemoryType();
+      h_mt = MemoryManager::GetDualMemoryType_(mt);
       d_mt = mt;
       h_ptr = nullptr;
    }
@@ -853,8 +866,9 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
 template <typename T>
 inline void Memory<T>::Wrap(T *ptr, T *d_ptr, int size, MemoryType mt, bool own)
 {
-   h_mt = IsHostMemory(mt) ? mt : MemoryManager::GetHostMemoryType();
-   d_mt = IsHostMemory(mt) ? MemoryManager::GetDeviceMemoryType() : mt;
+   MemoryType dual_mt = MemoryManager::GetDualMemoryType_(mt);
+   h_mt = IsHostMemory(mt) ? mt : dual_mt;
+   d_mt = IsHostMemory(mt) ? dual_mt: mt;
    flags = 0;
    h_ptr = ptr;
    capacity = size;

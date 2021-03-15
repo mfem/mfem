@@ -65,6 +65,8 @@ Device Device::device_singleton;
 bool Device::device_env = false;
 bool Device::mem_host_env = false;
 bool Device::mem_device_env = false;
+MemoryType Device::fixed_host_type = MemoryType::DEFAULT;
+MemoryType Device::fixed_device_type = MemoryType::DEFAULT;
 
 Device::Device()
 {
@@ -314,6 +316,10 @@ void Device::UpdateMemoryTypeAndClass()
       }
       device_mem_class = MemoryClass::DEVICE;
    }
+
+   // User overrides before device setup
+   if (fixed_host_type != MemoryType::DEFAULT) { host_mem_type = fixed_host_type; }
+   if (fixed_device_type != MemoryType::DEFAULT) { device_mem_type = fixed_device_type; }
 
    // Enable the UVM shortcut when requested
    if (device && device_option && !strcmp(device_option, "uvm"))

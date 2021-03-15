@@ -126,6 +126,8 @@ private:
 
    static bool device_env, mem_host_env, mem_device_env;
    static Device device_singleton;
+   static MemoryType fixed_host_type;
+   static MemoryType fixed_device_type;
 
    MODES mode = Device::SEQUENTIAL;
    int dev = 0;   ///< Device ID of the configured device.
@@ -256,8 +258,9 @@ public:
        as input. */
    static inline void SetHostMemoryType(MemoryType h_mt)
    {
-      Get().host_mem_type = h_mt;
-      mm.SetHostMemoryType(h_mt);
+      Get().fixed_host_type = h_mt;
+      //mm.SetHostMemoryType(h_mt);
+      mm.SetHostDualTypeOverride(true);
    }
 
    /** @brief Get the current Host MemoryClass. This is the MemoryClass used
@@ -280,8 +283,9 @@ public:
        valid as input. */
    static inline void SetDeviceMemoryType(MemoryType d_mt)
    {
-      Get().device_mem_type = d_mt;
-      mm.SetDeviceMemoryType(d_mt);
+      Get().fixed_device_type = d_mt;
+      //mm.SetDeviceMemoryType(d_mt);
+      mm.SetDeviceDualTypeOverride(true);
    }
 
    /** @brief Get the current Device MemoryClass. This is the MemoryClass used
