@@ -17,14 +17,33 @@
 namespace mfem
 {
 
-template <int Rank,
+/// Represent a 2*SRank+DRank symmetric Tensor, where SRank dims are symmetric.
+template <int DRank, // The rank of diagonal values
+          int SRank, // The rank of symmetric values
           typename T = double,
           typename Container = MemoryContainer<T>,
-          typename Layout = DynamicLayout<Rank> >
-class DiagonalTensor: public Tensor<Rank,T,Container,Layout>
+          typename Layout = DynamicLayout<SRank> >
+class DiagonalTensor: public Tensor<DRank+SRank,T,Container,Layout>
 {
+public:
+   DiagonalTensor(const Tensor<DRank+SRank,T,Container,Layout> &t)
+   : Tensor<DRank+SRank,T,Container,Layout>(t)
+   { }
 
+   // TODO define a DRank accessor? probably not possible
+   // private inheritance then?
 };
+
+template <int DRank, typename Tensor>
+auto makeDiagonalTensor(const Tensor &t)
+{
+   return DiagonalTensor<DRank,
+                         Tensor::rank-DRank,
+                         typename Tensor::type,
+                         typename Tensor::container,
+                         typename Tensor::layout
+                        >(t);
+}
 
 } // namespace mfem
 
