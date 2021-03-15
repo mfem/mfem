@@ -14,6 +14,7 @@
 
 #include "util.hpp"
 #include "tensor.hpp"
+#include "diagonal_tensor.hpp"
 #include "config.hpp"
 
 namespace mfem
@@ -307,12 +308,12 @@ public:
    /// Returns a Tensor corresponding to the DoFs of element e
    auto operator()(int e) const
    {
-      return this->template Get<Dim+DimComp>(e);
+      return makeDiagonalTensor<Dim>(this->template Get<Dim+DimComp>(e));
    }
 
    auto operator()(int e)
    {
-      return this->template Get<Dim+DimComp>(e);
+      return makeDiagonalTensor<Dim>(this->template Get<Dim+DimComp>(e));
    }
 };
 
@@ -340,12 +341,12 @@ public:
    /// Returns a Tensor corresponding to the DoFs of element e
    auto operator()(int e) const
    {
-      return this->template Get<1+DimComp>(e);
+      return makeDiagonalTensor<Dim>(this->template Get<1+DimComp>(e));
    }
 
    auto operator()(int e)
    {
-      return this->template Get<1+DimComp>(e);
+      return makeDiagonalTensor<Dim>(this->template Get<1+DimComp>(e));
    }
 };
 
