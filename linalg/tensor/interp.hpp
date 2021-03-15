@@ -96,7 +96,7 @@ auto operator*(const BasisTranspose<3,true,D,Q> &basis, const Dofs &u)
 
 //////////////////////
 /// Old implementation
-
+/*
 // Functions to interpolate from degrees of freedom to quadrature points
 // Non-tensor and 1D cases
 template<int D, int Q> MFEM_HOST_DEVICE inline
@@ -210,6 +210,7 @@ StaticTensor<dTensor<VDim>,D1d,D1d> InterpolateT(
    auto Bu = ContractTX2D(B,u);
    return ContractTY2D(B,Bu);
 }
+*/
 
 } // namespace mfem
 

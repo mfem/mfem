@@ -126,9 +126,9 @@ public:
 
    // Can be constexpr if Tensor inherit from Layout
    template <int N>
-   int Size() const
+   constexpr int Size() const
    {
-      static_assert(N>=0 && N<rank(Sizes...),"Accessed size is higher than the rank of the Tensor.");
+      static_assert(N>=0 && N<sizeof...(Sizes),"Accessed size is higher than the rank of the Tensor.");
       return Dim<N,Sizes...>::val;
    }
 
@@ -467,7 +467,13 @@ public:
    template <typename... Idx> MFEM_HOST_DEVICE inline
    constexpr int index(Idx... idx) const
    {
-      return layout(i,idx...);
+      return layout.index(i,idx...);
+   }
+
+   template <int M>
+   int Size() const
+   {
+      return layout.template Size<M+1>();
    }
 };
 
@@ -488,7 +494,13 @@ public:
    template <typename... Idx> MFEM_HOST_DEVICE inline
    constexpr int index(int idx0, Idx... idx) const
    {
-      return layout(idx0,i,idx...);
+      return layout.index(idx0,i,idx...);
+   }
+
+   template <int M>
+   constexpr int Size() const
+   {
+      return layout.template Size<(M<1?M:M+1)>();
    }
 };
 
@@ -511,6 +523,12 @@ public:
    {
       return layout.index(idx0,idx1,i,idx...);
    }
+
+   template <int M>
+   constexpr int Size() const
+   {
+      return layout.template Size<(M<2?M:M+1)>();
+   }
 };
 
 template <typename Layout>
@@ -530,7 +548,13 @@ public:
    template <typename... Idx> MFEM_HOST_DEVICE inline
    constexpr int index(int idx0, int idx1, int idx2, Idx... idx) const
    {
-      return layout(idx0,idx1,idx2,i,idx...);
+      return layout.index(idx0,idx1,idx2,i,idx...);
+   }
+
+   template <int M>
+   constexpr int Size() const
+   {
+      return layout.template Size<(M<3?M:M+1)>();
    }
 };
 
@@ -551,7 +575,13 @@ public:
    template <typename... Idx> MFEM_HOST_DEVICE inline
    constexpr int index(int idx0, int idx1, int idx2, int idx3, Idx... idx) const
    {
-      return layout(idx0,idx1,idx2,idx3,i,idx...);
+      return layout.index(idx0,idx1,idx2,idx3,i,idx...);
+   }
+
+   template <int M>
+   constexpr int Size() const
+   {
+      return layout.template Size<(M<4?M:M+1)>();
    }
 };
 
@@ -572,7 +602,13 @@ public:
    template <typename... Idx> MFEM_HOST_DEVICE inline
    constexpr int index(int idx0, int idx1, int idx2, int idx3, int idx4, Idx... idx) const
    {
-      return layout(idx0,idx1,idx2,idx3,idx4,i,idx...);
+      return layout.index(idx0,idx1,idx2,idx3,idx4,i,idx...);
+   }
+
+   template <int M>
+   constexpr int Size() const
+   {
+      return layout.template Size<(M<5?M:M+1)>();
    }
 };
 
@@ -593,7 +629,13 @@ public:
    template <typename... Idx> MFEM_HOST_DEVICE inline
    constexpr int index(int idx0, int idx1, int idx2, int idx3, int idx4, int idx5, Idx... idx) const
    {
-      return layout(idx0,idx1,idx2,idx3,idx4,idx5,i,idx...);
+      return layout.index(idx0,idx1,idx2,idx3,idx4,idx5,i,idx...);
+   }
+
+   template <int M>
+   constexpr int Size() const
+   {
+      return layout.template Size<(M<6?M:M+1)>();
    }
 };
 
@@ -614,7 +656,13 @@ public:
    template <typename... Idx> MFEM_HOST_DEVICE inline
    constexpr int index(int idx0, int idx1, int idx2, int idx3, int idx4, int idx5, int idx6, Idx... idx) const
    {
-      return layout(idx0,idx1,idx2,idx3,idx4,idx5,idx6,i,idx...);
+      return layout.index(idx0,idx1,idx2,idx3,idx4,idx5,idx6,i,idx...);
+   }
+
+   template <int M>
+   constexpr int Size() const
+   {
+      return layout.template Size<(M<7?M:M+1)>();
    }
 };
 
@@ -635,7 +683,13 @@ public:
    template <typename... Idx> MFEM_HOST_DEVICE inline
    constexpr int index(int idx0, int idx1, int idx2, int idx3,int idx4, int idx5, int idx6, int idx7, Idx... idx) const
    {
-      return layout(idx0,idx1,idx2,idx3,idx4,idx5,idx6,idx7,i,idx...);
+      return layout.index(idx0,idx1,idx2,idx3,idx4,idx5,idx6,idx7,i,idx...);
+   }
+
+   template <int M>
+   constexpr int Size() const
+   {
+      return layout.template Size<(M<8?M:M+1)>();
    }
 };
 
