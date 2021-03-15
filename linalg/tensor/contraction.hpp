@@ -1598,6 +1598,7 @@ auto ContractZ(const StaticBasisTensor<3,Q,Dz> &B,
 
 //////////////////////
 /// Old implementation
+/*
 auto ContractX1D(const DynamicSharedDTensor<2> &B,
                  const DynamicDTensor<1> &u)
 {
@@ -2557,6 +2558,7 @@ StaticTensor<dTensor<Dim,VDim>,D> ContractT(
    MFEM_SYNC_THREAD;
    return gu;
 }
+*/
 
 } // namespace mfem
 

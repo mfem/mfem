@@ -163,7 +163,7 @@ public:
    auto Get(int idx)
    {
       static_assert(N>=0 && N<Rank,"Cannot access this dimension with Get");
-      using RestrictedTensor = Tensor<Rank,
+      using RestrictedTensor = Tensor<Rank-1,
                                       T,
                                       ViewContainer<T,Container>,
                                       RestrictedLayout<N,Layout>>;
@@ -318,7 +318,7 @@ using DynamicCPUTensor = DynamicTensor<Rank, T, MaxSize>;
 
 /// Defines the static type of Tensor used for computation on CPU.
 template <typename T, int BatchSize, int... Sizes>
-using StaticCPUTensor = StaticTensor<T, BatchSize, Sizes...>;
+using StaticCPUTensor = StaticTensor<T, Sizes...>;
 
 /// Defines the dynamic type of Tensor used for computation on CUDA.
 template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
