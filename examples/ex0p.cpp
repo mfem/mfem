@@ -81,18 +81,18 @@ int main(int argc, char *argv[])
    // 10. Form the linear system A X = B. This includes eliminating boundary
    //     conditions, applying conforming constraints for non-conforming AMR,
    //     etc.
-   OperatorPtr A;
+   HypreParMatrix A;
    Vector B, X;
    a.FormLinearSystem(boundary_dofs, x, b, A, X, B);
 
    // 11. Solve using preconditioned CG with hypre's BoomerAMG preconditioner.
-   HypreBoomerAMG M((HypreParMatrix&)(*A));
+   HypreBoomerAMG M(A);
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(1e-12);
    cg.SetMaxIter(2000);
    cg.SetPrintLevel(1);
    cg.SetPreconditioner(M);
-   cg.SetOperator(*A);
+   cg.SetOperator(A);
    cg.Mult(B, X);
 
    // 12. Recover the solution as a grid function and save to files. The output
