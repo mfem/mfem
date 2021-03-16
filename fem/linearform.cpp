@@ -209,12 +209,14 @@ void LinearForm::Assemble()
       const FiniteElement *fe_1, *fe_2;
       Array<int> vdofs2;
 
+      std::cout << "enter 1" << std::endl;
+
       const int nfaces = mesh->GetNumFaces();
       for (int f = 0; f < nfaces; f++)
       {
          const int attr = mesh->GetFace(f)->GetAttribute();
 
-         tr   = mesh->GetFaceElementTransformations(i);
+         tr   = mesh->GetFaceElementTransformations(f);
 
          fe_1 = fes->GetFE(tr->Elem1No);
 
@@ -230,6 +232,8 @@ void LinearForm::Assemble()
             // AssembleRHSFaceVect does not accept NULL arguments.
             fe_2 = fe_1;
          }
+
+         std::cout << "enter 2" << std::endl;
 
          for (int k = 0; k < tlfi.Size(); k++)
          {
