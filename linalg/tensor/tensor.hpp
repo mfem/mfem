@@ -16,34 +16,10 @@
 #include "container.hpp"
 #include "layout.hpp"
 #include "util.hpp"
+#include "foreach.hpp"
 
 namespace mfem
 {
-
-/// A structure that implements an imbricated forall with for loops.
-template <int N>
-struct Forall
-{
-   template <typename TensorLHS, typename TensorRHS, typename Lambda, typename... Idx>
-   static void apply(TensorLHS &lhs, TensorRHS &rhs, Lambda &&func, Idx... idx)
-   {
-      // TODO how to define something else than for loops
-      for (int i = 0; i < lhs.template Size<N-1>(); i++)
-      {
-         Forall<N-1>::apply(lhs,rhs,func,i,idx...);
-      }
-   }
-};
-
-template <>
-struct Forall<0>
-{
-   template <typename TensorLHS, typename TensorRHS, typename Lambda, typename... Idx>
-   static void apply(TensorLHS &lhs, TensorRHS &rhs, Lambda &&func, Idx... idx)
-   {
-      func(lhs,rhs,idx...);
-   }
-};
 
 /** A tensor class
     @a Rank is the rank of the Tensor,
@@ -79,6 +55,9 @@ public:
    Tensor(int size0, Sizes... sizes)
    : Container(size0,sizes...), Layout(size0,sizes...) { }
 
+   Tensor(IntArray<Rank> &sizes)
+   : Container(sizes), Layout(sizes) { }
+
    /// Utility Constructor
    MFEM_HOST_DEVICE
    Tensor(Layout index): Container(), Layout(index) { }
@@ -94,7 +73,7 @@ public:
    template <typename OtherTensor> MFEM_HOST_DEVICE
    Tensor(const OtherTensor &rhs): Container(), Layout(rhs)
    {
-      Forall<Rank>::apply(*this,rhs,[](auto &lhs, auto &rhs, auto... idx)
+      Foreach<Rank>::ApplyBinOp(*this,rhs,[](auto &lhs, auto &rhs, auto... idx)
       {
          lhs(idx...) = rhs(idx...);
       });
@@ -116,30 +95,21 @@ public:
       return this->operator[]( this->index(args...) );
    }
 
-   /// Return the size of the dimension N
-   // TODO remove after inheriting
-   // template <int N>
-   // int Size() const
-   // {
-   //    return index.template Size<N>();
-   // }
-
    /// Initialization of a Tensor to a constant value.
    MFEM_HOST_DEVICE inline
    Tensor<Rank,T,Container,Layout>& operator=(const T &val)
    {
-      // TODO this doesn't work with all containers
-      for (size_t i = 0; i < this->Capacity(); i++)
+      Foreach<Rank>::ApplyUnOp(*this,[&](auto &lhs, auto... idx)
       {
-         this->operator[](i) = val;
-      }
+         lhs(idx...) = val;
+      });
       return *this;
    }
 
    template <typename OtherTensor> MFEM_HOST_DEVICE inline
    Tensor<Rank,T,Container,Layout>& operator=(const OtherTensor &rhs)
    {
-      Forall<Rank>::apply(*this,rhs,[](auto &lhs, auto &rhs, auto... idx)
+      Foreach<Rank>::ApplyBinOp(*this,rhs,[](auto &lhs, auto &rhs, auto... idx)
       {
          lhs(idx...) = rhs(idx...);
       });
@@ -149,7 +119,7 @@ public:
    template <typename OtherTensor> MFEM_HOST_DEVICE inline
    Tensor<Rank,T,Container,Layout>& operator+=(const OtherTensor &rhs)
    {
-      Forall<Rank>::apply(*this,rhs,[](auto &lhs, auto &rhs, auto... idx)
+      Foreach<Rank>::ApplyBinOp(*this,rhs,[](auto &lhs, auto &rhs, auto... idx)
       {
          lhs(idx...) += rhs(idx...);
       });
@@ -157,6 +127,7 @@ public:
    }
 
    // TODO Soft and Hard Get? (lazy accessor or hard copy)
+   // Call it Extract?
 
    /// Get the Sub-Tensor extracted from idx in Nth dimension.
    template <int N>
@@ -166,7 +137,7 @@ public:
       using RestrictedTensor = Tensor<Rank-1,
                                       T,
                                       ViewContainer<T,Container>,
-                                      RestrictedLayout<N,Layout>>;
+                                      RestrictedLayout<N,Layout> >;
       ViewContainer<T,Container> data(*this);
       RestrictedLayout<N,Layout> layout(idx,*this);
       return RestrictedTensor(data,layout);
@@ -179,7 +150,7 @@ public:
       using RestrictedTensor = Tensor<Rank-1,
                                       T,
                                       ConstViewContainer<T,Container>,
-                                      RestrictedLayout<N,Layout>>;
+                                      RestrictedLayout<N,Layout> >;
       ConstViewContainer<T,Container> data(*this);
       RestrictedLayout<N,Layout> layout(idx,*this);
       return RestrictedTensor(data,layout);
@@ -216,9 +187,6 @@ public:
       return Tensor<Rank,T,DeviceContainer<T>,Layout>(this->ReadWriteData(),
                                                       *this);
    }
-
-private:
-
 };
 
 //////////////////////////
