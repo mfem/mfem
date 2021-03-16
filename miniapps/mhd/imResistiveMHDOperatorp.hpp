@@ -29,6 +29,7 @@ int BgradJ=1;   // B.gradJ operator: 1 (B.grad J, phi)
 int itau_=2;    //how to evaluate supg coefficient
 
 bool pa=false;  //partial assembly in some operators (need to find a way to accelerate supg operators)
+bool outputdpsi=false;
                 
 
 //------------this is for preconditioner------------
@@ -36,13 +37,15 @@ int iSc=0;     //the parameter to control precondtioner
 int useFull=1; // control version of preconditioner 
                // 0: a simple block preconditioner
                // 1: physics-based preconditioner
-               // 2: physics-based but supg more complicated version
+               // 2: physics-based but supg more complicated version (this does not work well)
 int i_supgpre=3;    //3 - full diagonal supg terms on psi and phi
                     //0 - only (v.grad) in the preconditioner on psi and phi
 
 double factormin=8.; 
 
 extern int icase;
+extern ParMesh *pmesh;
+extern int order;
 
 // reduced system 
 class ReducedSystemOperator : public Operator
@@ -342,7 +345,10 @@ protected:
    myBCHandler *bchandler;
    PetscPreconditionerFactory *J_factory;
 
+   ParaViewDataCollection *pd;
+
    int myid;
+   mutable int icycle;
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
    HypreSmoother *M_prec;  // Preconditioner for the mass matrix M
 
@@ -632,6 +638,23 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
       bchandler = new myBCHandler(ess_tdof_list, PetscBCHandler::CONSTANT, 3, height/3);
       pnewton_solver->SetBCHandler(bchandler);
    }
+
+    pd=NULL;
+    if (outputdpsi)
+    {
+      icycle=0;
+      if (false)
+      {
+         pd = new ParaViewDataCollection("dpsidt", pmesh);
+         pd->SetPrefixPath("ParaView");
+         pd->RegisterField("dpsidt", &gftmp);
+         pd->SetLevelsOfDetail(order);
+         pd->SetDataFormat(VTKFormat::BINARY);
+         pd->SetHighOrderOutput(true);
+         pd->SetCycle(icycle);
+      }
+    }
+
 }
 
 void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr, bool PartialUpdate)
@@ -1061,9 +1084,43 @@ void ResistiveMHDOperator::ImplicitSolve(const double dt,
    //modify k so that it fits into the backward euler framework
    k-=vx;
    k/=dt;
+
+   if (outputdpsi)
+   {
+      icycle++;
       
-   bool output=false;
-   if (output)
+      if (icycle % 2 == 0)
+      {
+        Vector dpsidt(k.GetData() +  sc, sc);
+        gftmp.SetFromTrueDofs(dpsidt);  
+
+        Vector point(2);
+        point(0) = 0.;
+        point(1) = 0.;
+        DenseMatrix points(2, 1);
+        points.SetCol(0, point);
+
+        Array<int> elem_ids;
+        Array<IntegrationPoint> ips;
+   
+        int nfound = pmesh->FindPoints(points, elem_ids, ips);
+        if (elem_ids[0]>0)
+        { 
+            cout << "Found " << nfound << " points at element " << elem_ids[0] << endl; 
+            cout << "dpsidt = "<<gftmp.GetValue(elem_ids[0], ips[0]) << endl;
+        }
+
+        if (false)
+        {
+            pd->SetCycle(icycle);
+            pd->SetTime(icycle);
+            pd->Save();
+        }
+      }
+
+   }
+      
+   if (false)
    {
       ParGridFunction phi1, psi1, w1;
       phi1.MakeTRef(&fespace, k, 0);
@@ -1270,6 +1327,7 @@ void ResistiveMHDOperator::DestroyHypre()
     delete J_factory;
     delete pnewton_solver;
     delete bchandler;
+    delete pd;
 }
 
 ResistiveMHDOperator::~ResistiveMHDOperator()

@@ -30,6 +30,8 @@ double lambda;
 double resiG;
 double ep=.2;
 int icase = 1;
+int order = 2;
+ParMesh *pmesh;
 
 int main(int argc, char *argv[])
 {
@@ -42,7 +44,6 @@ int main(int argc, char *argv[])
    const char *mesh_file = "./Meshes/xperiodic-square.mesh";
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
-   int order = 2;
    int ode_solver_type = 2;
    double t_final = 5.0;
    double t_change = 0.;
@@ -157,6 +158,8 @@ int main(int argc, char *argv[])
                   "lumped mass for updatej=0");
    args.AddOption(&saveOne, "-saveOne", "--save-One",  "-no-saveOne", "--no-save-One",
                   "Save solution/mesh as one file");
+   args.AddOption(&outputdpsi, "-outputdpsi", "--output-dpsi", "-no-outputdpsi",
+                  "--no-output-dpsi", "Output dpsidt as Paraview.");
    args.Parse();
    if (!args.Good())
    {
@@ -296,8 +299,6 @@ int main(int argc, char *argv[])
         mesh->GeneralRefinement(marked_elements);
       }
    }
-
-   ParMesh *pmesh;
 
    if (false)
    {
@@ -818,7 +819,7 @@ int main(int argc, char *argv[])
          psi.SaveAsOne(osolpsi);
          phi.SaveAsOne(osolphi);
       }
-      else
+      else if (false)
       {
          mesh_name << "mesh." << setfill('0') << setw(6) << myid;
          mesh_save << "ncmesh." << setfill('0') << setw(6) << myid;

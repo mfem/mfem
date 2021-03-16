@@ -1,0 +1,87 @@
+# matrix-free Jacobian action, full preconditioner constructed using PetscPreconditionerFactory
+-snes_monitor
+-snes_mf_operator
+-snes_max_it 20
+-snes_rtol 1e-4
+-snes_stol 1e-9
+-snes_converged_reason 
+-snes_linesearch_type l2
+-snes_view
+-snes_max_fail 100
+-snes_max_linear_solve_fail 5
+#-log_view :log.txt
+#-snes_type ksponly
+#-snes_type newtontr
+#-snes_trtol 1e-4
+#
+##======use inexact newton based on pixie2d:  
+## SNESKSPSetParametersEW(snes,3,tolgm,0.9,0.9,1.5,1.5,0.1)
+-snes_ksp_ew
+-snes_ksp_ew_version 3
+-snes_ksp_ew_rtol0 0.1
+-snes_ksp_ew_rtolmax 0.9
+-snes_ksp_ew_gamma 0.9
+-snes_ksp_ew_alpha 1.5
+-snes_ksp_ew_alpha2 1.5
+-snes_ksp_ew_threshold 0.1
+#======matrix free parameters for default
+-mat_mffd_type wp
+-mat_mffd_err 1e-2
+
+#======matrix free parameters for ds
+#-mat_mffd_err 1e-1
+#-mat_mffd_type ds
+#-mat_mffd_umin 1e-5 #minimal of the solution used in ds
+
+#======something else, not working=======
+#-snes_mf_version 2
+#-snes_mf_noise_file noise.txt
+#-snes_mf_compute_err
+#-snes_mf_freq_err 2
+##-snes_mf_jorge
+##-snes_mf_err 1e-5
+#-snes_mf_umin 1e-5 
+
+#there is no need to restart as we expect it should converge in 50
+#-ksp_type preonly
+-ksp_type fgmres
+-ksp_converged_reason
+-ksp_gmres_restart 100
+-ksp_max_it 200
+#-ksp_view
+#-ksp_rtol 1e-4
+#-ksp_monitor_true_residual
+#
+#======Stiffness matrix======
+-s1_ksp_rtol 1e-6
+-s1_ksp_type cg
+#-s1_ksp_type richardson #this will use boomeramg as a solver
+-s1_pc_type hypre
+#-s1_ksp_monitor_true_residual
+#-s1_ksp_converged_reason
+#-s1_ksp_view
+#-s1_ksp_monitor
+#
+#======Schur matrix======
+-s2_ksp_rtol 1e-4
+-s2_ksp_type gmres
+-s2_pc_type hypre
+#-s2_ksp_monitor_true_residual
+-s2_ksp_converged_reason
+#-s2_ksp_monitor
+#-s2_ksp_view
+#
+#======Mass matrix======
+-s3_ksp_rtol 1e-6
+-s3_ksp_type cg
+#-s3_ksp_converged_reason
+#-s3_ksp_view
+#
+#======ARe matrix======
+-s4_ksp_rtol 1e-6
+-s4_ksp_type gmres
+-s4_pc_type hypre
+#-s4_ksp_monitor_true_residual
+-s4_ksp_converged_reason
+#-s3_ksp_view
+#-s3_pc_type hypre-s3_pc_type hypre
