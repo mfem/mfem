@@ -72,14 +72,14 @@ int main(int argc, char *argv[])
    // 8. Form the linear system A X = B. This includes eliminating boundary
    //    conditions, applying conforming constraints for non-conforming AMR,
    //    etc.
-   OperatorPtr A;
+   SparseMatrix A;
    Vector B, X;
    a.FormLinearSystem(boundary_dofs, x, b, A, X, B);
 
    // 9. Solve using preconditioned CG with a symmetric Gauss-Seidel
    //    preconditioner.
-   GSSmoother M((SparseMatrix&)(*A));
-   PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
+   GSSmoother M(A);
+   PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
 
    // 10. Recover the solution as a grid function and save to file. The output
    //     can be viewed using GLVis with the command:
