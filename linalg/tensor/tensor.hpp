@@ -29,9 +29,9 @@ namespace mfem
     @a Layout is a class that represents the data layout
        There is two main sub-categories of Layout, Static and Dynamic layouts.
        Dynamic Layout have the following signature:
-       template <int Rank, typename T>,
+       template <int Rank>,
        Static Layout have the following signature:
-       template <typename T, int... Sizes>,
+       template <int... Sizes>,
        where Sizes... is the list of the sizes of the dimensions of the Tensor.
    */
 template <int Rank,
