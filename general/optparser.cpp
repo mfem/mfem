@@ -248,6 +248,25 @@ void OptionsParser::Parse()
    error_type = 0;
 }
 
+void OptionsParser::ParseCheck(std::ostream &out)
+{
+   Parse();
+   if (!Good())
+   {
+      PrintUsage(out);
+#ifdef MFEM_USE_MPI
+      int finalize_mpi;
+      int mpi_err = MPI_Initialized(&finalize_mpi);
+      if (mpi_err == MPI_SUCCESS && finalize_mpi)
+      {
+         MPI_Finalize();
+      }
+#endif
+      std::exit(1);
+   }
+   PrintOptions(out);
+}
+
 void OptionsParser::WriteValue(const Option &opt, std::ostream &out)
 {
    switch (opt.type)

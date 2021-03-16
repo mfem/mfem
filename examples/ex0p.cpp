@@ -32,13 +32,7 @@ int main(int argc, char *argv[])
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree)");
-   args.Parse();
-   if (!args.Good())
-   {
-      if (mpi.Root()) { args.PrintUsage(cout); }
-      return 1;
-   }
-   if (mpi.Root()) { args.PrintOptions(cout); }
+   args.ParseCheck();
 
    // 3. Read the serial mesh from the given mesh file.
    Mesh serial_mesh(mesh_file);
