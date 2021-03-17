@@ -36,7 +36,18 @@
 //               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared
 //               mpirun -np 4 ex1p -m ../data/beam-tet.mesh -pa -d ceed-cpu
 //
-// Description:  This example provides copy of ex1p instrumented with Caliper. 
+// Description: This example is a copy of ex1 instrumented with Caliper.
+// Any option supported by the Caliper ConfigManager can be passed to the
+// code using a configuration string after -p or --caliper flag. For more
+// information, the users are referred to the Caliper documentation.
+// Examples:
+//              mpirun -np 4 ex1p --caliper runtime-report
+//              mpirun -np 4 ex1p --caliper runtime-report,mem.highwatermark,mpi-report
+//
+//The first run will return the default report and the second run will
+//return in addition to the default output the memory high-water mark and time
+//spent in MPI routines.
+
 
 #include "mfem.hpp"
 #include <fstream>

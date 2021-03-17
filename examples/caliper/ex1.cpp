@@ -40,7 +40,17 @@
 //               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cpu
 //               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cuda:/gpu/cuda/ref
 //
-// Description: This example is a copy of ex1 instrumented with Caliper
+// Description: This example is a copy of ex1 instrumented with Caliper.   
+// Any option supported by the Caliper ConfigManager can be passed to the 
+// code using a configuration string after -p or --caliper flag. For more 
+// information, the users are referred to the Caliper documentation. 
+// Examples:
+// 		ex1 --caliper runtime-report 
+// 		ex1 --caliper runtime-report,mem.highwatermark
+//
+//The first run will return the default report and the second run will
+//return in addition to the default output the memory high-water mark.
+//
 
 #include "mfem.hpp"
 #include <fstream>
