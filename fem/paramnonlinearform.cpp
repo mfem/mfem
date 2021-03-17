@@ -321,8 +321,8 @@ void ParametricBNLForm::SetEssentialBC(const Array<Array<int> *>
 }
 
 void ParametricBNLForm::SetParamEssentialBC(const Array<Array<int> *>
-                                          &bdr_attr_is_ess,
-                                          Array<Vector *> &rhs)
+                                            &bdr_attr_is_ess,
+                                            Array<Vector *> &rhs)
 {
    for (int s = 0; s < paramfes.Size(); ++s)
    {
@@ -338,9 +338,9 @@ void ParametricBNLForm::SetParamEssentialBC(const Array<Array<int> *>
 }
 
 void ParametricBNLForm::MultParamBlocked(const BlockVector &bx,
-                                       const BlockVector &ax,
-                                       const BlockVector &dx,
-                                       BlockVector &dy) const
+                                         const BlockVector &ax,
+                                         const BlockVector &dx,
+                                         BlockVector &dy) const
 {
    // state fields
    Array<Array<int> *>vdofs(fes.Size());
@@ -795,7 +795,8 @@ const BlockVector &ParametricBNLForm::Prolongate(const BlockVector &bx) const
    return bx;
 }
 
-const BlockVector &ParametricBNLForm::ParamProlongate(const BlockVector &bx) const
+const BlockVector &ParametricBNLForm::ParamProlongate(const BlockVector &bx)
+const
 {
    MFEM_VERIFY(bx.Size() == paramwidth, "invalid input BlockVector size");
 
