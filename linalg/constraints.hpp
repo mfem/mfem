@@ -353,7 +353,7 @@ private:
 
 #endif
 
-/** @brief Solve constrained system by solving original mixed sysetm;
+/** @brief Solve constrained system by solving original mixed system;
     see ConstrainedSolver.
 
     Solves the saddle-point problem with a block-diagonal preconditioner, with
@@ -431,7 +431,7 @@ private:
     constrained. The rows are arranged in (contiguous) blocks corresponding
     to a physical constraint; in 3D, a one-row constraint means the node
     is free to move along a plane, a two-row constraint means it is free
-    to move along a line (eg the intersection of two normal-constrained
+    to move along a line (e.g. the intersection of two normal-constrained
     planes), and a three-row constraint is fully constrained (equivalent
     to MFEM's usual essential boundary conditions).
 
