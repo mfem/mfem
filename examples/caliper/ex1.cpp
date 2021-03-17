@@ -40,20 +40,7 @@
 //               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cpu
 //               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cuda:/gpu/cuda/ref
 //
-// Description:  This example code demonstrates the use of MFEM to define a
-//               simple finite element discretization of the Laplace problem
-//               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
-//               Specifically, we discretize using a FE space of the specified
-//               order, or if order < 1 using an isoparametric/isogeometric
-//               space (i.e. quadratic for quadratic curvilinear mesh, NURBS for
-//               NURBS mesh, etc.)
-//
-//               The example highlights the use of mesh refinement, finite
-//               element grid functions, as well as linear and bilinear forms
-//               corresponding to the left-hand side and right-hand side of the
-//               discrete linear system. We also cover the explicit elimination
-//               of essential boundary conditions, static condensation, and the
-//               optional connection to the GLVis tool for visualization.
+// Description: This example is a copy of ex1 instrumented with Caliper
 
 #include "mfem.hpp"
 #include <fstream>
@@ -64,16 +51,18 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-
+   // Define Caliper ConfigManager	
+   cali::ConfigManager mgr;
    // Caliper instrumentation
    MFEM_MARK_FUNCTION;
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "../../data/star.mesh";
    int order = 1;
    bool static_cond = false;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
+   const char* cali_config = "runtime-report";
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -90,6 +79,10 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&cali_config, "-p", "--caliper",
+                  "Caliper configuration string.");
+  
+
    args.Parse();
    if (!args.Good())
    {
@@ -102,6 +95,10 @@ int main(int argc, char *argv[])
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
    device.Print();
+   
+   //Caliper configuration
+   mgr.add(cali_config);
+   mgr.start();
 
    // 3. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
@@ -254,6 +251,9 @@ int main(int argc, char *argv[])
    {
       delete fec;
    }
+
+   // Flush output
+   mgr.flush();
 
    return 0;
 }
