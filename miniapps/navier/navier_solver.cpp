@@ -113,7 +113,8 @@ void NavierSolver::Setup(double dt)
 
    sw_setup.Start();
 
-   pmesh_lor = new ParMesh(pmesh, order, BasisType::GaussLobatto);
+   pmesh_lor = new ParMesh(
+      ParMesh::MakeRefined(*pmesh, order, BasisType::GaussLobatto));
    pfec_lor = new H1_FECollection(1);
    pfes_lor = new ParFiniteElementSpace(pmesh_lor, pfec_lor);
 

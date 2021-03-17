@@ -34,7 +34,8 @@ TEST_CASE("FormRectangular", "[FormRectangularSystemMatrix]")
 {
    SECTION("MixedBilinearForm::FormRectangularSystemMatrix")
    {
-      Mesh mesh(10, 10, Element::QUADRILATERAL, 0, 1.0, 1.0);
+      Mesh mesh = Mesh::MakeCartesian2D(
+                     10, 10, Element::QUADRILATERAL, 0, 1.0, 1.0);
       int dim = mesh.Dimension();
       int order = 4;
 
@@ -95,7 +96,8 @@ TEST_CASE("ParallelFormRectangular",
 {
    SECTION("ParMixedBilinearForm::FormRectangularSystemMatrix")
    {
-      Mesh mesh(10, 10, Element::QUADRILATERAL, 0, 1.0, 1.0);
+      Mesh mesh = Mesh::MakeCartesian2D(
+                     10, 10, Element::QUADRILATERAL, 0, 1.0, 1.0);
       int dim = mesh.Dimension();
       int order = 4;
 
@@ -162,7 +164,8 @@ TEST_CASE("HypreParMatrixBlocks",
       int rank;
       MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-      Mesh mesh(10, 10, Element::QUADRILATERAL, 0, 1.0, 1.0);
+      Mesh mesh = Mesh::MakeCartesian2D(
+                     10, 10, Element::QUADRILATERAL, 0, 1.0, 1.0);
       int dim = mesh.Dimension();
       int order = 2;
 

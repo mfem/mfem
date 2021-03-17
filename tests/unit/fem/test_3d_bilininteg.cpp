@@ -534,7 +534,8 @@ TEST_CASE("3D Bilinear Mass Integrators",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh =
+         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       SECTION("Operators on H1 for element type " + std::to_string(type))
       {
@@ -809,7 +810,8 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh =
+         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       SECTION("Operators on ND for element type " + std::to_string(type))
       {
@@ -1892,7 +1894,8 @@ TEST_CASE("3D Bilinear Gradient Integrator",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh =
+         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       SECTION("Operators on H1 for element type " + std::to_string(type))
       {
@@ -2053,7 +2056,8 @@ TEST_CASE("3D Bilinear Curl Integrator",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh =
+         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       VectorFunctionCoefficient   F3_coef(dim, F3);
       FunctionCoefficient         q3_coef(q3);
@@ -2217,7 +2221,8 @@ TEST_CASE("3D Bilinear Cross Product Gradient Integrator",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh =
+         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       FunctionCoefficient          f3_coef(f3);
       VectorFunctionCoefficient    V3_coef(dim, V3);
@@ -2303,7 +2308,8 @@ TEST_CASE("3D Bilinear Cross Product Curl Integrator",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh =
+         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       VectorFunctionCoefficient    F3_coef(dim, F3);
       VectorFunctionCoefficient    V3_coef(dim, V3);
@@ -2386,7 +2392,8 @@ TEST_CASE("3D Bilinear Divergence Integrator",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh =
+         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       VectorFunctionCoefficient F3_coef(dim, F3);
       FunctionCoefficient       q3_coef(q3);
@@ -2504,7 +2511,8 @@ TEST_CASE("3D Bilinear Vector Divergence Integrator",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh =
+         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       VectorFunctionCoefficient   F3_coef(dim, F3);
       VectorFunctionCoefficient   V3_coef(dim, V3);
@@ -2591,7 +2599,8 @@ TEST_CASE("3D Bilinear Vector Product Integrators",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh =
+         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       SECTION("Operators on H1 for element type " + std::to_string(type))
       {
@@ -2816,7 +2825,8 @@ TEST_CASE("3D Bilinear Vector Cross Product Integrators",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh =
+         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       SECTION("Operators on ND for element type " + std::to_string(type))
       {
@@ -3032,7 +3042,8 @@ TEST_CASE("3D Bilinear Vector Dot Product Integrators",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh =
+         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       SECTION("Operators on ND for element type " + std::to_string(type))
       {
@@ -3196,7 +3207,8 @@ TEST_CASE("3D Bilinear Directional Derivative Integrator",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh =
+         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       SECTION("Operators on H1 for element type " + std::to_string(type))
       {
@@ -3290,7 +3302,8 @@ TEST_CASE("3D Bilinear Weak Gradient Integrators",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh =
+         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       SECTION("Operators on H1 for element type " + std::to_string(type))
       {
@@ -3497,7 +3510,8 @@ TEST_CASE("3D Bilinear Scalar Weak Divergence Integrators",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh =
+         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       SECTION("Operators on H1 for element type " + std::to_string(type))
       {
@@ -3650,7 +3664,8 @@ TEST_CASE("3D Bilinear Weak Divergence Integrators",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh =
+         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       SECTION("Operators on ND for element type " + std::to_string(type))
       {
@@ -3985,7 +4000,8 @@ TEST_CASE("3D Bilinear Weak Curl Integrators",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh =
+         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       if (type == Element::TETRAHEDRON)
       {
@@ -4312,7 +4328,8 @@ TEST_CASE("3D Bilinear Weak Div Cross Integrators",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh =
+         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       SECTION("Operators on ND for element type " + std::to_string(type))
       {
@@ -4447,7 +4464,8 @@ TEST_CASE("3D Bilinear Weak Curl Cross Integrators",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh =
+         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       if (type == Element::TETRAHEDRON)
       {
@@ -4584,7 +4602,8 @@ TEST_CASE("3D Bilinear Weak Grad Dot Product Integrators",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh =
+         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       SECTION("Operators on ND for element type " + std::to_string(type))
       {
@@ -4721,7 +4740,8 @@ TEST_CASE("3D Bilinear Grad Div Integrators",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh =
+         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       SECTION("Operators on H1 for element type " + std::to_string(type))
       {
@@ -4847,7 +4867,8 @@ TEST_CASE("3D Bilinear Grad Grad Integrators",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh =
+         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       SECTION("Operators on H1 for element type " + std::to_string(type))
       {
@@ -4983,7 +5004,8 @@ TEST_CASE("3D Bilinear Mixed Grad Grad Integrators",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh =
+         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       SECTION("Operators on H1 for element type " + std::to_string(type))
       {
@@ -5141,7 +5163,8 @@ TEST_CASE("3D Bilinear Mixed Cross Grad Grad Integrators",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh =
+         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       SECTION("Operators on H1 for element type " + std::to_string(type))
       {
@@ -5213,7 +5236,8 @@ TEST_CASE("3D Bilinear Mixed Cross Curl Grad Integrators",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh =
+         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       SECTION("Operators on ND for element type " + std::to_string(type))
       {
@@ -5297,7 +5321,8 @@ TEST_CASE("3D Bilinear Curl Curl Integrators",
         type <= (int)Element::HEXAHEDRON; type++)
    {
       type++;
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh =
+         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       if (type == Element::TETRAHEDRON)
       {
@@ -5407,7 +5432,8 @@ TEST_CASE("3D Bilinear Mixed Curl Curl Integrators",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh =
+         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       if (type == Element::TETRAHEDRON)
       {
@@ -5568,7 +5594,8 @@ TEST_CASE("3D Bilinear Mixed Cross Curl Curl Integrators",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh =
+         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       if (type == Element::TETRAHEDRON)
       {
@@ -5644,7 +5671,8 @@ TEST_CASE("3D Bilinear Mixed Cross Grad Curl Integrators",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh =
+         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       if (type == Element::TETRAHEDRON)
       {
@@ -5734,7 +5762,8 @@ TEST_CASE("3D Bilinear Div Div Integrators",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh =
+         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       SECTION("Operators on RT for element type " + std::to_string(type))
       {
