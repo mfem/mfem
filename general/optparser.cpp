@@ -251,19 +251,14 @@ void OptionsParser::Parse()
 void OptionsParser::ParseCheck(std::ostream &out)
 {
    Parse();
+   int my_rank = 0;
 #ifdef MFEM_USE_MPI
-   int mpi_is_initialized, my_rank;
+   int mpi_is_initialized;
    int mpi_err = MPI_Initialized(&mpi_is_initialized);
    if (mpi_err == MPI_SUCCESS && mpi_is_initialized)
    {
       MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
    }
-   else
-   {
-      my_rank = 0;
-   }
-#else
-   int my_rank = 0;
 #endif
    if (!Good())
    {
