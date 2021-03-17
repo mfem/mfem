@@ -255,9 +255,9 @@ void OptionsParser::ParseCheck(std::ostream &out)
    {
       PrintUsage(out);
 #ifdef MFEM_USE_MPI
-      int finalize_mpi;
-      int mpi_err = MPI_Initialized(&finalize_mpi);
-      if (mpi_err == MPI_SUCCESS && finalize_mpi)
+      int mpi_is_initialized;
+      int mpi_err = MPI_Initialized(&mpi_is_initialized);
+      if (mpi_err == MPI_SUCCESS && mpi_is_initialized)
       {
          MPI_Finalize();
       }
