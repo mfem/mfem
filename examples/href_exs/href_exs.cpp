@@ -77,7 +77,6 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    FunctionCoefficient *u3 = new FunctionCoefficient(u_exact_3);
    VectorFunctionCoefficient *u3_grad = new VectorFunctionCoefficient(dim, u_grad_exact_3);
 
-
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
 
    // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
@@ -298,13 +297,13 @@ void u_grad_exact_2(const Vector &x, Vector &u)
 
 double u_exact_3(const Vector &x)
 {
-   return (pow(x(0),2.0) + (1/2)*pow(x(1),2.0));
+    return (x(0)*x(0) - x(1)*x(1));
 }
 
 void u_grad_exact_3(const Vector &x, Vector &u)
 {
-   u(0) = 2.0*x(0);
-   u(1) = x(1);
+    u(0) = 2.0*x(0);
+    u(1) = -2.0*x(1);
 }
 
 int main(int argc, char *argv[])
@@ -340,7 +339,7 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&exact, "-e", "--exact", 
-                  "Choice of exact solution. 1=constant 1; 2=sin(x)e^y; 3=x^2+(y^2)/2.");
+                  "Choice of exact solution. 1=constant 1; 2=sin(x)e^y; 3=x^2-y^2.");
    args.AddOption(&solvePDE, "-L", "--L2Project",
                   "Solve a PDE (1) or do L2 Projection (2)");
    args.Parse();
@@ -374,7 +373,7 @@ int main(int argc, char *argv[])
       }
       else if (exact == 3)
       {
-         cout << "exact solution u(x,y)=x^2+(y^2)/2" << endl;
+         cout << "exact solution u(x,y)=x^2-y^2" << endl;
       }
       else
       {
