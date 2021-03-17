@@ -93,18 +93,7 @@ int main(int argc, char *argv[])
    //     can be viewed using GLVis with the command:
    //     glvis -np <np> -m mesh -g sol
    a.RecoverFEMSolution(X, b, x);
-
-   ostringstream mesh_name, sol_name;
-   mesh_name << "mesh." << setfill('0') << setw(6) << mpi.WorldRank();
-   sol_name << "sol." << setfill('0') << setw(6) << mpi.WorldRank();
-
-   ofstream mesh_ofs(mesh_name.str().c_str());
-   mesh_ofs.precision(8);
-   mesh.Print(mesh_ofs);
-
-   ofstream sol_ofs(sol_name.str().c_str());
-   sol_ofs.precision(8);
-   x.Save(sol_ofs);
+   x.SaveWithMesh("sol", "mesh");
 
    return 0;
 }
