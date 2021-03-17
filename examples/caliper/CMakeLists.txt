@@ -13,13 +13,11 @@ set(CALIPER_EXAMPLES_SRCS)
 
 list(APPEND CALIPER_EXE_SRCS
   ex1.cpp
-  ex2.cpp
   )
 
 if (MFEM_USE_MPI)
 list(APPEND CALIPER_EXE_SRCS
     ex1p.cpp
-    ex2p.cpp
     )
 endif()
 
