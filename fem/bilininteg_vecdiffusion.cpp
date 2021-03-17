@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,7 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
-#include "libceed/diffusion.hpp"
+#include "ceed/diffusion.hpp"
 
 using namespace std;
 
@@ -132,10 +132,9 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       = IntRule ? IntRule : &DiffusionIntegrator::GetRule(el, el);
    if (DeviceCanUseCeed())
    {
-      delete ceedDataPtr;
-      ceedDataPtr = new CeedData;
-      InitCeedCoeff(Q, *mesh, *ir, ceedDataPtr);
-      return CeedPADiffusionAssemble(fes, *ir, * ceedDataPtr);
+      delete ceedOp;
+      ceedOp = new ceed::PADiffusionIntegrator(fes, *ir, Q);
+      return;
    }
    const int dims = el.GetDim();
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
@@ -516,7 +515,7 @@ void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
    {
-      CeedAddMult(ceedDataPtr, x, y);
+      ceedOp->AddMult(x, y);
    }
    else
    {
@@ -743,7 +742,7 @@ void VectorDiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 {
    if (DeviceCanUseCeed())
    {
-      CeedAssembleDiagonal(ceedDataPtr, diag);
+      ceedOp->GetDiagonal(diag);
    }
    else
    {

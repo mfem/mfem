@@ -9,8 +9,10 @@
 
 namespace mfem
 {
-CPardisoSolver::CPardisoSolver(MPI_Comm comm) : comm_(comm)
+CPardisoSolver::CPardisoSolver(MPI_Comm comm)
 {
+   comm_ = MPI_Comm_c2f(comm);
+
    // Indicate that default parameters are changed
    iparm[0] = 1;
    // Use METIS for fill-in reordering

@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -76,6 +76,9 @@ option(MFEM_ENABLE_MINIAPPS "Build all of the miniapps" OFF)
 
 # Set the target CUDA architecture
 set(CUDA_ARCH "sm_60" CACHE STRING "Target CUDA architecture.")
+
+# Set the target HIP architecture
+set(HIP_ARCH "gfx900" CACHE STRING "Target HIP architecture.")
 
 set(MFEM_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 

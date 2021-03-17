@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -29,8 +29,13 @@ namespace mfem
     form classes derived from Operator. */
 enum class AssemblyLevel
 {
-   /// Legacy fully assembled form, i.e. a global sparse matrix in MFEM, Hypre
-   /// or PETSC format. This assembly is ALWAYS performed on the host.
+   /// In the case of a BilinearForm LEGACY corresponds to a fully assembled
+   /// form, i.e. a global sparse matrix in MFEM, Hypre or PETSC format.
+   /// In the case of a NonlinearForm LEGACY corresponds to an operator that
+   /// is fully evaluated on the fly.
+   /// This assembly level is ALWAYS performed on the host.
+   LEGACY = 0,
+   /// @deprecated Use LEGACY instead.
    LEGACYFULL = 0,
    /// Fully assembled form, i.e. a global sparse matrix in MFEM format. This
    /// assembly is compatible with device execution.
@@ -53,6 +58,8 @@ enum class AssemblyLevel
     SetAssemblyLevel() function. */
 class BilinearForm : public Matrix
 {
+   friend FABilinearFormExtension;
+
 protected:
    /// Sparse matrix \f$ M \f$ to be associated with the form. Owned.
    SparseMatrix *mat;
@@ -122,7 +129,7 @@ protected:
       static_cond = NULL; hybridization = NULL;
       precompute_sparsity = 0;
       diag_policy = DIAG_KEEP;
-      assembly = AssemblyLevel::LEGACYFULL;
+      assembly = AssemblyLevel::LEGACY;
       batch = 1;
       ext = NULL;
    }
@@ -157,7 +164,7 @@ public:
    /// Set the desired assembly level.
    /** Valid choices are:
 
-       - AssemblyLevel::LEGACYFULL (default)
+       - AssemblyLevel::LEGACY (default)
        - AssemblyLevel::FULL
        - AssemblyLevel::PARTIAL
        - AssemblyLevel::ELEMENT
@@ -763,7 +770,7 @@ public:
    /// Sets all sparse values of \f$ M \f$ to @a a.
    void operator=(const double a) { *mat = a; }
 
-   /// Set the desired assembly level. The default is AssemblyLevel::LEGACYFULL.
+   /// Set the desired assembly level. The default is AssemblyLevel::LEGACY.
    /** This method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
 
@@ -854,9 +861,9 @@ public:
 
       This returns the same operator as FormRectangularLinearSystem(), but does
       without the transformations of the right-hand side. */
-   void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
-                                    const Array<int> &test_tdof_list,
-                                    OperatorHandle &A);
+   virtual void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
+                                            const Array<int> &test_tdof_list,
+                                            OperatorHandle &A);
 
    /** @brief Form the column-constrained linear system matrix A.
        See FormRectangularSystemMatrix() for details.
@@ -883,10 +890,11 @@ public:
        Return in @a A a *reference* to the system matrix that is column-constrained.
        The reference will be invalidated when SetOperatorType(), Update(), or the
        destructor is called. */
-   void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
-                                    const Array<int> &test_tdof_list,
-                                    Vector &x, Vector &b,
-                                    OperatorHandle &A, Vector &X, Vector &B);
+   virtual void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
+                                            const Array<int> &test_tdof_list,
+                                            Vector &x, Vector &b,
+                                            OperatorHandle &A, Vector &X,
+                                            Vector &B);
 
    /** @brief Form the linear system A X = B, corresponding to this bilinear
        form and the linear form @a b(.).
