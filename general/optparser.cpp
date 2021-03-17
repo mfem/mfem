@@ -263,7 +263,7 @@ void OptionsParser::ParseCheck(std::ostream &out)
       my_rank = 0;
    }
 #else
-   int mpi_is_initialized = 0, my_rank = 0;
+   int my_rank = 0;
 #endif
    if (!Good())
    {
