@@ -643,7 +643,7 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
 }
 
 void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
-                           bool &finalize_topo)
+                           bool &finalize_topo, const std::string &xml_prefix)
 {
    using namespace tinyxml2;
 
@@ -665,9 +665,10 @@ void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
             " or binary data.");
    };
 
-   // Read entire stream into buffer
+   // Create buffer beginning with xml_prefix, then read the rest of the stream
+   std::vector<char> buf(xml_prefix.begin(), xml_prefix.end());
    std::istreambuf_iterator<char> eos;
-   std::vector<char> buf(std::istreambuf_iterator<char>(input), eos);
+   buf.insert(buf.end(), std::istreambuf_iterator<char>(input), eos);
    buf.push_back('\0'); // null-terminate buffer
 
    XMLDocument xml;
