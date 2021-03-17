@@ -156,7 +156,7 @@ int main(int argc, char *argv[])
       //    refinement of quadrilaterals/hexahedra, and the above partitioning
       //    algorithm. Simplices can be refined either in conforming or in non-
       //    conforming mode. The conforming mode however does not support
-      //    dynamic partitoning.
+      //    dynamic partitioning.
       mesh.EnsureNCMesh(nc_simplices);
 
       // 8. Define a parallel mesh by partitioning the serial mesh.

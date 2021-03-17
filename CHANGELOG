@@ -28,6 +28,9 @@ Version 4.2.1 (development)
   NC data files are compatible with serial code, e.g., can be viewed with serial
   GLVis. Loading of legacy NC mesh files is still supported.
 
+- Added support for 1D non-conforming meshes (which can be useful for parallel
+  load balancing and derefinement).
+
 - Added a "scaled Jacobian" visualization option in the Mesh Explorer miniapp to
   help identify elements with poor mesh quality.
 
