@@ -70,7 +70,7 @@ public:
 
    // Set the essential BCs for the parametric fields. Here, rhs is a true dof vector!
    virtual void SetParamEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
-                                  Array<Vector *> &rhs);
+                                    Array<Vector *> &rhs);
 
 
    /** @brief Calculates the residual for a state input given by block T-Vector.

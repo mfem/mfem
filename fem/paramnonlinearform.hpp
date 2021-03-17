@@ -126,7 +126,7 @@ protected:
    /// bx - state vector, ax - adjoint vector, dx - parametric fields
    /// dy = ax' d(residual(bx))/d(dx)
    void MultParamBlocked(const BlockVector &bx, const BlockVector & ax,
-                       const BlockVector &dx, BlockVector &dy) const;
+                         const BlockVector &dx, BlockVector &dy) const;
 
 
    /// Specialized version of GetGradient() for BlockVector
@@ -193,7 +193,7 @@ public:
                                Array<Vector *> &rhs);
 
    virtual void SetParamEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
-                                  Array<Vector *> &rhs);
+                                    Array<Vector *> &rhs);
 
 
    virtual double GetEnergy(const Vector &x) const;

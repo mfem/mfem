@@ -19,7 +19,8 @@
 namespace mfem
 {
 
-ParParametricBNLForm::ParParametricBNLForm(Array<ParFiniteElementSpace *> &statef,
+ParParametricBNLForm::ParParametricBNLForm(Array<ParFiniteElementSpace *>
+                                           &statef,
                                            Array<ParFiniteElementSpace *> &paramf)
    :ParametricBNLForm()
 {
@@ -106,8 +107,8 @@ void ParParametricBNLForm::SetEssentialBC(const
 }
 
 void ParParametricBNLForm::SetParamEssentialBC(const
-                                             Array<Array<int> *>&bdr_attr_is_ess,
-                                             Array<Vector *> &rhs)
+                                               Array<Array<int> *>&bdr_attr_is_ess,
+                                               Array<Vector *> &rhs)
 {
    Array<Vector *> nullarray(fes.Size());
    nullarray = NULL;
