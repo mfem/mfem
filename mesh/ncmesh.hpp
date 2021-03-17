@@ -78,10 +78,10 @@ struct CoarseFineTransformations
 struct MatrixMap; // for internal use
 
 
-/** \brief A class for non-conforming AMR on higher-order hexahedral, prismatic,
- *  quadrilateral or triangular meshes.
+/** \brief A class for non-conforming AMR. The class is not used directly
+ *  by the user, rather it is an extension of the Mesh class.
  *
- *  The class is used as follows:
+ *  In general, the class is used by MFEM as follows:
  *
  *  1. NCMesh is constructed from elements of an existing Mesh. The elements
  *     are copied and become roots of the refinement hierarchy.
@@ -90,7 +90,8 @@ struct MatrixMap; // for internal use
  *     anisotropic refinements of quads/hexes are supported.
  *
  *  3. A new Mesh is created from NCMesh containing the leaf elements.
- *     This new mesh may have non-conforming (hanging) edges and faces.
+ *     This new Mesh may have non-conforming (hanging) edges and faces and
+ *     is the one seen by the user.
  *
  *  4. FiniteElementSpace asks NCMesh for a list of conforming, master and
  *     slave edges/faces and creates the conforming interpolation matrix P.
@@ -576,6 +577,8 @@ protected: // implementation
    int NewTriangle(int n0, int n1, int n2,
                    int attr, int eattr0, int eattr1, int eattr2);
 
+   int NewSegment(int n0, int n1, int attr, int vattr1, int vattr2);
+
    mfem::Element* NewMeshElement(int geom) const;
 
    int QuadFaceSplitType(int v1, int v2, int v3, int v4, int mid[5]
@@ -790,6 +793,7 @@ protected: // implementation
       void GetMatrix(DenseMatrix& point_matrix) const;
    };
 
+   static PointMatrix pm_seg_identity;
    static PointMatrix pm_tri_identity;
    static PointMatrix pm_quad_identity;
    static PointMatrix pm_tet_identity;
@@ -879,8 +883,7 @@ protected: // implementation
 
    // geometry
 
-   /** This holds in one place the constants about the geometries we support
-       (triangles, quads, cubes) */
+   /// This holds in one place the constants about the geometries we support
    struct GeomInfo
    {
       int nv, ne, nf;   // number of: vertices, edges, faces

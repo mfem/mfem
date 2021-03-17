@@ -14,6 +14,7 @@
 //               ex6 -m ../data/star-surf.mesh -o 2
 //               ex6 -m ../data/square-disc-surf.mesh -o 2
 //               ex6 -m ../data/amr-quad.mesh
+//               ex6 -m ../data/inline-segment.mesh -o 1 -md 100
 //
 // Device sample runs:
 //               ex6 -pa -d cuda
@@ -53,6 +54,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool pa = false;
    const char *device_config = "cpu";
+   int max_dofs = 50000;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -64,6 +66,8 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&max_dofs, "-md", "--max-dofs",
+                  "Stop after reaching this many degrees of freedom.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -160,7 +164,6 @@ int main(int argc, char *argv[])
 
    // 12. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
-   const int max_dofs = 50000;
    for (int it = 0; ; it++)
    {
       int cdofs = fespace.GetTrueVSize();
