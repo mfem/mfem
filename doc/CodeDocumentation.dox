@@ -92,6 +92,8 @@ namespace mfem {
  * - <a class="el" href="ex26p_8cpp_source.html">Example 26p</a>: parallel multigrid preconditioner for the Laplace problem using nodal H1 FEM
  * - <a class="el" href="ex27_8cpp_source.html">Example 27</a>: boundary conditions for the Laplace problem
  * - <a class="el" href="ex27p_8cpp_source.html">Example 27p</a>: parallel boundary conditions for the Laplace problem
+ * - <a class="el" href="ex28_8cpp_source.html">Example 28</a>: sliding contact in elasticity
+ * - <a class="el" href="ex28p_8cpp_source.html">Example 28p</a>: parallel sliding contact in elasticity
  *
  * <H4>AmgX Examples</H4>
  * - Variants of Examples
