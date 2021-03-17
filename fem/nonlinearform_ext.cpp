@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,6 +13,7 @@
 // PABilinearFormExtension and MFBilinearFormExtension.
 
 #include "nonlinearform.hpp"
+#include "ceed/util.hpp"
 
 namespace mfem
 {
@@ -36,7 +37,7 @@ PANonlinearFormExtension::PANonlinearFormExtension(NonlinearForm *form):
    }
 }
 
-void PANonlinearFormExtension::AssemblePA()
+void PANonlinearFormExtension::Assemble()
 {
    Array<NonlinearFormIntegrator*> &integrators = *n->GetDNFI();
    const int Ni = integrators.Size();
@@ -50,7 +51,7 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    Array<NonlinearFormIntegrator*> &integrators = *n->GetDNFI();
    const int iSz = integrators.Size();
-   if (elem_restrict_lex)
+   if (elem_restrict_lex && !DeviceCanUseCeed())
    {
       elem_restrict_lex->Mult(x, localX);
       localY = 0.0;
@@ -67,6 +68,54 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
       for (int i = 0; i < iSz; ++i)
       {
          integrators[i]->AddMultPA(x, y);
+      }
+   }
+}
+
+MFNonlinearFormExtension::MFNonlinearFormExtension(NonlinearForm *form):
+   NonlinearFormExtension(form), fes(*form->FESpace())
+{
+   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   elem_restrict_lex = fes.GetElementRestriction(ordering);
+   if (elem_restrict_lex)
+   {
+      localX.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      localY.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
+   }
+}
+
+void MFNonlinearFormExtension::Assemble()
+{
+   Array<NonlinearFormIntegrator*> &integrators = *n->GetDNFI();
+   const int Ni = integrators.Size();
+   for (int i = 0; i < Ni; ++i)
+   {
+      integrators[i]->AssembleMF(*n->FESpace());
+   }
+}
+
+void MFNonlinearFormExtension::Mult(const Vector &x, Vector &y) const
+{
+   Array<NonlinearFormIntegrator*> &integrators = *n->GetDNFI();
+   const int iSz = integrators.Size();
+   if (elem_restrict_lex && !DeviceCanUseCeed())
+   {
+      elem_restrict_lex->Mult(x, localX);
+      localY = 0.0;
+      for (int i = 0; i < iSz; ++i)
+      {
+         integrators[i]->AddMultMF(localX, localY);
+      }
+      elem_restrict_lex->MultTranspose(localY, y);
+   }
+   else
+   {
+      y.UseDevice(true); // typically this is a large vector, so store on device
+      y = 0.0;
+      for (int i = 0; i < iSz; ++i)
+      {
+         integrators[i]->AddMultMF(x, y);
       }
    }
 }

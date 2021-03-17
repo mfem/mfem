@@ -104,7 +104,7 @@ The MFEM source code has the following structure:
   │   ├── sundials
   |   └── superlu
   ├── fem
-  │   └── libceed
+  │   └── ceed
   ├── general
   ├── linalg
   │   └── simd
@@ -118,10 +118,13 @@ The MFEM source code has the following structure:
   │   ├── navier
   │   ├── nurbs
   │   ├── performance
+  │   ├── shifted
+  │   ├── solvers
   │   ├── tools
   │   └── toys
   └── tests
       ├── convergence
+      ├── gitlab
       ├── par-mesh-format
       ├── scripts
       └── unit
@@ -561,7 +564,9 @@ MFEM uses a `master`/`next`-branch workflow as described below:
   Computing systems. Gitlab pipeline status is reported in the corresponding
   GitHub pull request.
 
-- No change can be made on this instance.
+- In Gitlab pipelines, TPLs (dependencies) are built using Spack, driven by Uberenv.
+
+- No change to the MFEM repo can be made on this instance.
 
 ## Automated Testing
 
