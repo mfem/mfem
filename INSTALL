@@ -692,7 +692,7 @@ The specific libraries and their options are:
 - CUDA (optional), used when MFEM_USE_CUDA = YES.
   URL: https://developer.nvidia.com/cuda-toolkit
   Options: CUDA_CXX, CUDA_ARCH, CUDA_OPT, CUDA_LIB.
-  Versions: CUDA >= 9.1, older versions may work too.
+  Versions: CUDA >= 10.1.168.
 
 - HIP (optional), used when MFEM_USE_HIP = YES.
   URL: https://rocm.github.io/ROCmInstall.html

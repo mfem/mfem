@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -360,7 +360,7 @@ void test_pa_convection(const char *meshname, int order, int prob)
    INFO("mesh=" << meshname << ", order=" << order << ", prob=" << prob);
    Mesh mesh(meshname, 1, 1);
    mesh.EnsureNodes();
-   mesh.SetCurvature(mesh.GetNodalFESpace()->GetOrder(0));
+   mesh.SetCurvature(mesh.GetNodalFESpace()->GetElementOrder(0));
    int dim = mesh.Dimension();
 
    FiniteElementCollection *fec;

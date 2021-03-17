@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,6 +13,18 @@
 #include "unit_tests.hpp"
 
 using namespace mfem;
+
+TEST_CASE("Vector init-list construction", "[Vector]")
+{
+   double ContigData[6] = {6.0, 5.0, 4.0, 3.0, 2.0, 1.0};
+   Vector a(ContigData, 6);
+   Vector b({6.0, 5.0, 4.0, 3.0, 2.0, 1.0});
+
+   for (int i = 0; i < a.Size(); i++)
+   {
+      REQUIRE(a(i) == b(i));
+   }
+}
 
 TEST_CASE("Vector Tests", "[Vector]")
 {
