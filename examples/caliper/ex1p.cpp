@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
    MFEM_MARK_FUNCTION;
 
    // 2. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "../../data/star.mesh";
    int order = 1;
    bool static_cond = false;
    bool pa = false;
