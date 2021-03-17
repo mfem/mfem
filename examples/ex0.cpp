@@ -79,13 +79,7 @@ int main(int argc, char *argv[])
    //     can be viewed using GLVis with the command:
    //     glvis -m mesh.mesh -g sol.gf
    a.RecoverFEMSolution(X, b, x);
-
-   ofstream mesh_ofs("mesh.mesh");
-   mesh_ofs.precision(8);
-   mesh.Print(mesh_ofs);
-   ofstream sol_ofs("sol.gf");
-   sol_ofs.precision(8);
-   x.Save(sol_ofs);
+   x.SaveWithMesh("sol.gf", "mesh.mesh");
 
    return 0;
 }

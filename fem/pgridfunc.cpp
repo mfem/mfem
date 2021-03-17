@@ -854,6 +854,26 @@ void ParGridFunction::Save(std::ostream &out) const
    }
 }
 
+void ParGridFunction::SaveWithMesh(const char *sol_f, const char *mesh_f,
+                                   int precision) const
+{
+   int rank = pfes->GetMyRank();
+
+   ostringstream mesh_name, sol_name;
+   mesh_name << "mesh." << setfill('0') << setw(6) << rank;
+   sol_name << "sol." << setfill('0') << setw(6) << rank;
+
+   ofstream mesh_ofs(mesh_name.str().c_str());
+   mesh_ofs.precision(precision);
+   pfes->GetParMesh()->Print(mesh_ofs);
+   mesh_ofs.close();
+
+   ofstream sol_ofs(sol_name.str().c_str());
+   sol_ofs.precision(precision);
+   Save(sol_ofs);
+   sol_ofs.close();
+}
+
 #ifdef MFEM_USE_ADIOS2
 void ParGridFunction::Save(adios2stream &out,
                            const std::string& variable_name,

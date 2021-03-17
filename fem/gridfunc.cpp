@@ -3488,6 +3488,20 @@ void GridFunction::Save(std::ostream &out) const
    out.flush();
 }
 
+void GridFunction::SaveWithMesh(const char *sol_f, const char *mesh_f,
+                                int precision) const
+{
+   ofstream mesh_ofs(mesh_f);
+   mesh_ofs.precision(precision);
+   fes->GetMesh()->Print(mesh_ofs);
+   mesh_ofs.close();
+
+   ofstream sol_ofs(sol_f);
+   sol_ofs.precision(precision);
+   Save(sol_ofs);
+   sol_ofs.close();
+}
+
 #ifdef MFEM_USE_ADIOS2
 void GridFunction::Save(adios2stream &out,
                         const std::string& variable_name,

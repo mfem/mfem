@@ -409,6 +409,12 @@ public:
        the local dofs. */
    virtual void Save(std::ostream &out) const;
 
+   /// Convenience function to save the GridFunction and assoicated Mesh to
+   /// files. The files will be given suffixes according to the MPI rank.
+   /// The given @a precision will be used for ASCII output.
+   virtual void SaveWithMesh(const char *sol_f, const char *mesh_f,
+                             int precision=8) const;
+
 #ifdef MFEM_USE_ADIOS2
    /** Save the local portion of the ParGridFunction. This differs from the
        serial GridFunction::Save in that it takes into account the signs of
