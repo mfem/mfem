@@ -247,7 +247,7 @@ protected:
    void ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
                     bool &finalize_topo);
    void ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
-                        bool &finalize_topo);
+                        bool &finalize_topo, const std::string &xml_prefix="");
    void ReadNURBSMesh(std::istream &input, int &curved, int &read_gf);
    void ReadInlineMesh(std::istream &input, bool generate_edges = false);
    void ReadGmshMesh(std::istream &input, int &curved, int &read_gf);
