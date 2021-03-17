@@ -16,24 +16,24 @@
 namespace mfem
 {
 
-ParametricBNLForm::ParametricBNLForm(): fes(0), prmfes(0), BlockGrad(nullptr)
+ParametricBNLForm::ParametricBNLForm(): fes(0), paramfes(0), BlockGrad(nullptr)
 {
    height = 0;
    width  = 0;
 
-   prmheight = 0;
-   prmwidth = 0;
+   paramheight = 0;
+   paramwidth = 0;
 }
 
-ParametricBNLForm::ParametricBNLForm(Array<FiniteElementSpace *> &f,
-                                     Array<FiniteElementSpace *> &pf):
-   fes(0),prmfes(0), BlockGrad(nullptr)
+ParametricBNLForm::ParametricBNLForm(Array<FiniteElementSpace *> &statef,
+                                     Array<FiniteElementSpace *> &paramf):
+   fes(0),paramfes(0), BlockGrad(nullptr)
 {
-   SetSpaces(f,pf);
+   SetSpaces(statef,paramf);
 }
 
-void ParametricBNLForm::SetSpaces(Array<FiniteElementSpace *> &f,
-                                  Array<FiniteElementSpace *> &prmf)
+void ParametricBNLForm::SetSpaces(Array<FiniteElementSpace *> &statef,
+                                  Array<FiniteElementSpace *> &paramf)
 {
    delete BlockGrad;
    BlockGrad = nullptr;
@@ -49,18 +49,18 @@ void ParametricBNLForm::SetSpaces(Array<FiniteElementSpace *> &f,
    {
       delete ess_tdofs[i];
    }
-   for (int i = 0; i < prmess_tdofs.Size(); ++i)
+   for (int i = 0; i < paramess_tdofs.Size(); ++i)
    {
-      delete prmess_tdofs[i];
+      delete paramess_tdofs[i];
    }
 
    height = 0;
    width = 0;
    //set state feses
-   f.Copy(fes);
+   statef.Copy(fes);
    //set the block sizes
-   block_offsets.SetSize(f.Size() + 1);
-   block_trueOffsets.SetSize(f.Size() + 1);
+   block_offsets.SetSize(statef.Size() + 1);
+   block_trueOffsets.SetSize(statef.Size() + 1);
    block_offsets[0] = 0;
    block_trueOffsets[0] = 0;
    for (int i=0; i<fes.Size(); ++i)
@@ -73,18 +73,18 @@ void ParametricBNLForm::SetSpaces(Array<FiniteElementSpace *> &f,
 
 
    //set design/parametric feses
-   prmf.Copy(prmfes);
-   prmblock_offsets.SetSize(prmf.Size() + 1);
-   prmblock_trueOffsets.SetSize(prmf.Size() + 1);
-   prmblock_offsets[0] = 0;
-   prmblock_trueOffsets[0] = 0;
-   for (int i=0; i<prmfes.Size(); ++i)
+   paramf.Copy(paramfes);
+   paramblock_offsets.SetSize(paramf.Size() + 1);
+   paramblock_trueOffsets.SetSize(paramf.Size() + 1);
+   paramblock_offsets[0] = 0;
+   paramblock_trueOffsets[0] = 0;
+   for (int i=0; i<paramfes.Size(); ++i)
    {
-      prmblock_offsets[i+1] = prmfes[i]->GetVSize();
-      prmblock_trueOffsets[i+1] = prmfes[i]->GetTrueVSize();
+      paramblock_offsets[i+1] = paramfes[i]->GetVSize();
+      paramblock_trueOffsets[i+1] = paramfes[i]->GetTrueVSize();
    }
-   prmblock_offsets.PartialSum();
-   prmblock_trueOffsets.PartialSum();
+   paramblock_offsets.PartialSum();
+   paramblock_trueOffsets.PartialSum();
 
    //set the size of the operator
    height = block_trueOffsets[fes.Size()];
@@ -124,32 +124,32 @@ void ParametricBNLForm::SetSpaces(Array<FiniteElementSpace *> &f,
    }
 
    //set the size of the design/parametric part
-   prmheight = prmblock_trueOffsets[prmfes.Size()];
-   prmwidth = prmblock_trueOffsets[prmfes.Size()];
+   paramheight = paramblock_trueOffsets[paramfes.Size()];
+   paramwidth = paramblock_trueOffsets[paramfes.Size()];
 
-   Pprm.SetSize(prmfes.Size());
-   cPprm.SetSize(prmfes.Size());
-   prmess_tdofs.SetSize(prmfes.Size());
+   Pparam.SetSize(paramfes.Size());
+   cPparam.SetSize(paramfes.Size());
+   paramess_tdofs.SetSize(paramfes.Size());
 
-   for (int s = 0; s < prmfes.Size(); ++s)
+   for (int s = 0; s < paramfes.Size(); ++s)
    {
       // Retrieve prolongation matrix for each FE space
-      Pprm[s] = prmfes[s]->GetProlongationMatrix();
-      cPprm[s] = dynamic_cast<const SparseMatrix *>(Pprm[s]);
+      Pparam[s] = paramfes[s]->GetProlongationMatrix();
+      cPparam[s] = dynamic_cast<const SparseMatrix *>(Pparam[s]);
 
       // If the P Operator exists and its type is SparseMatrix, this indicates
       // the Operator is serial but needs prolongation on assembly.
-      if (cPprm[s])
+      if (cPparam[s])
       {
          prmneeds_prolongation = true;
       }
 
-      prmess_tdofs[s] = new Array<int>;
+      paramess_tdofs[s] = new Array<int>;
    }
 
    xsv.Update(block_offsets);
    adv.Update(block_offsets);
-   xdv.Update(prmblock_offsets);
+   xdv.Update(paramblock_offsets);
 
 }
 
@@ -171,10 +171,10 @@ double ParametricBNLForm::GetEnergyBlocked(const BlockVector &bx,
    Array<const FiniteElement *> fe(fes.Size());
    ElementTransformation *T;
 
-   Array<Array<int> *> prmvdofs(prmfes.Size());
-   Array<Vector *> prmel_x(prmfes.Size());
-   Array<const Vector *> prmel_x_const(prmfes.Size());
-   Array<const FiniteElement *> prmfe(prmfes.Size());
+   Array<Array<int> *> prmvdofs(paramfes.Size());
+   Array<Vector *> prmel_x(paramfes.Size());
+   Array<const Vector *> prmel_x_const(paramfes.Size());
+   Array<const FiniteElement *> prmfe(paramfes.Size());
 
 
 
@@ -186,7 +186,7 @@ double ParametricBNLForm::GetEnergyBlocked(const BlockVector &bx,
       vdofs[i] = new Array<int>;
    }
 
-   for (int i=0; i<prmfes.Size(); ++i)
+   for (int i=0; i<paramfes.Size(); ++i)
    {
       prmel_x_const[i] = prmel_x[i] = new Vector();
       prmvdofs[i] = new Array<int>;
@@ -205,10 +205,10 @@ double ParametricBNLForm::GetEnergyBlocked(const BlockVector &bx,
             bx.GetBlock(s).GetSubVector(*vdofs[s], *el_x[s]);
          }
 
-         for (int s=0; s<prmfes.Size(); ++s)
+         for (int s=0; s<paramfes.Size(); ++s)
          {
-            prmfe[s] = prmfes[s]->GetFE(i);
-            prmfes[s]->GetElementVDofs(i, *prmvdofs[s]);
+            prmfe[s] = paramfes[s]->GetFE(i);
+            paramfes[s]->GetElementVDofs(i, *prmvdofs[s]);
             dx.GetBlock(s).GetSubVector(*prmvdofs[s], *prmel_x[s]);
          }
 
@@ -228,7 +228,7 @@ double ParametricBNLForm::GetEnergyBlocked(const BlockVector &bx,
       delete vdofs[i];
    }
 
-   for (int i = 0; i < prmfes.Size(); ++i)
+   for (int i = 0; i < paramfes.Size(); ++i)
    {
       delete prmel_x[i];
       delete prmvdofs[i];
@@ -281,14 +281,14 @@ void ParametricBNLForm::SetAdjointFields(const Vector &av) const
 
 }
 
-void ParametricBNLForm::SetPrmFields(const Vector &dv) const
+void ParametricBNLForm::SetParamFields(const Vector &dv) const
 {
-   BlockVector bx(dv.GetData(), prmblock_trueOffsets);
+   BlockVector bx(dv.GetData(), paramblock_trueOffsets);
    if (prmneeds_prolongation)
    {
-      for (int s = 0; s < prmfes.Size(); s++)
+      for (int s = 0; s < paramfes.Size(); s++)
       {
-         Pprm[s]->Mult(bx.GetBlock(s), xdv.GetBlock(s));
+         Pparam[s]->Mult(bx.GetBlock(s), xdv.GetBlock(s));
       }
    }
    else
@@ -320,24 +320,24 @@ void ParametricBNLForm::SetEssentialBC(const Array<Array<int> *>
    }
 }
 
-void ParametricBNLForm::SetPrmEssentialBC(const Array<Array<int> *>
+void ParametricBNLForm::SetParamEssentialBC(const Array<Array<int> *>
                                           &bdr_attr_is_ess,
                                           Array<Vector *> &rhs)
 {
-   for (int s = 0; s < prmfes.Size(); ++s)
+   for (int s = 0; s < paramfes.Size(); ++s)
    {
-      prmess_tdofs[s]->SetSize(prmess_tdofs.Size());
+      paramess_tdofs[s]->SetSize(paramess_tdofs.Size());
 
-      prmfes[s]->GetEssentialTrueDofs(*bdr_attr_is_ess[s], *prmess_tdofs[s]);
+      paramfes[s]->GetEssentialTrueDofs(*bdr_attr_is_ess[s], *paramess_tdofs[s]);
 
       if (rhs[s])
       {
-         rhs[s]->SetSubVector(*prmess_tdofs[s], 0.0);
+         rhs[s]->SetSubVector(*paramess_tdofs[s], 0.0);
       }
    }
 }
 
-void ParametricBNLForm::MultPrmBlocked(const BlockVector &bx,
+void ParametricBNLForm::MultParamBlocked(const BlockVector &bx,
                                        const BlockVector &ax,
                                        const BlockVector &dx,
                                        BlockVector &dy) const
@@ -358,13 +358,13 @@ void ParametricBNLForm::MultPrmBlocked(const BlockVector &bx,
    Array<const Vector *> ael_x_const(fes.Size());
 
    // parametric fields
-   Array<Array<int> *>prmvdofs(prmfes.Size());
-   Array<Array<int> *>prmvdofs2(prmfes.Size());
-   Array<Vector *> prmel_x(prmfes.Size());
-   Array<const Vector *> prmel_x_const(prmfes.Size());
-   Array<Vector *> prmel_y(prmfes.Size());
-   Array<const FiniteElement *> prmfe(prmfes.Size());
-   Array<const FiniteElement *> prmfe2(prmfes.Size());
+   Array<Array<int> *>prmvdofs(paramfes.Size());
+   Array<Array<int> *>prmvdofs2(paramfes.Size());
+   Array<Vector *> prmel_x(paramfes.Size());
+   Array<const Vector *> prmel_x_const(paramfes.Size());
+   Array<Vector *> prmel_y(paramfes.Size());
+   Array<const FiniteElement *> prmfe(paramfes.Size());
+   Array<const FiniteElement *> prmfe2(paramfes.Size());
 
    dy = 0.0;
 
@@ -378,7 +378,7 @@ void ParametricBNLForm::MultPrmBlocked(const BlockVector &bx,
       ael_x_const[s] = ael_x[s] = new Vector();
    }
 
-   for (int s=0; s<prmfes.Size(); ++s)
+   for (int s=0; s<paramfes.Size(); ++s)
    {
       prmel_x_const[s] = prmel_x[s] = new Vector();
       prmel_y[s] = new Vector();
@@ -399,10 +399,10 @@ void ParametricBNLForm::MultPrmBlocked(const BlockVector &bx,
             ax.GetBlock(s).GetSubVector(*(vdofs[s]), *ael_x[s]);
          }
 
-         for (int s = 0; s < prmfes.Size(); ++s)
+         for (int s = 0; s < paramfes.Size(); ++s)
          {
-            prmfes[s]->GetElementVDofs(i, *(prmvdofs[s]));
-            prmfe[s] = prmfes[s]->GetFE(i);
+            paramfes[s]->GetElementVDofs(i, *(prmvdofs[s]));
+            prmfe[s] = paramfes[s]->GetFE(i);
             dx.GetBlock(s).GetSubVector(*(prmvdofs[s]), *prmel_x[s]);
          }
 
@@ -413,7 +413,7 @@ void ParametricBNLForm::MultPrmBlocked(const BlockVector &bx,
                                               el_x_const, ael_x_const, prmel_x_const,
                                               prmel_y);
 
-            for (int s=0; s<prmfes.Size(); ++s)
+            for (int s=0; s<paramfes.Size(); ++s)
             {
                if (prmel_y[s]->Size() == 0) { continue; }
                dy.GetBlock(s).AddElementVector(*(prmvdofs[s]), *prmel_y[s]);
@@ -446,13 +446,13 @@ void ParametricBNLForm::MultPrmBlocked(const BlockVector &bx,
                ax.GetBlock(s).GetSubVector(*(vdofs[s]), *ael_x[s]);
             }
 
-            for (int s=0; s<prmfes.Size(); ++s)
+            for (int s=0; s<paramfes.Size(); ++s)
             {
-               prmfe[s] = prmfes[s]->GetFE(tr->Elem1No);
-               prmfe2[s] = prmfes[s]->GetFE(tr->Elem2No);
+               prmfe[s] = paramfes[s]->GetFE(tr->Elem1No);
+               prmfe2[s] = paramfes[s]->GetFE(tr->Elem2No);
 
-               prmfes[s]->GetElementVDofs(tr->Elem1No, *(prmvdofs[s]));
-               prmfes[s]->GetElementVDofs(tr->Elem2No, *(prmvdofs2[s]));
+               paramfes[s]->GetElementVDofs(tr->Elem1No, *(prmvdofs[s]));
+               paramfes[s]->GetElementVDofs(tr->Elem2No, *(prmvdofs2[s]));
 
                prmvdofs[s]->Append(*(prmvdofs2[s]));
 
@@ -465,7 +465,7 @@ void ParametricBNLForm::MultPrmBlocked(const BlockVector &bx,
                fnfi[k]->AssemblePrmFaceVector(fe, fe2, prmfe, prmfe2, *tr,
                                               el_x_const, ael_x_const, prmel_x_const, prmel_y);
 
-               for (int s=0; s<prmfes.Size(); ++s)
+               for (int s=0; s<paramfes.Size(); ++s)
                {
                   if (prmel_y[s]->Size() == 0) { continue; }
                   dy.GetBlock(s).AddElementVector(*(prmvdofs[s]), *prmel_y[s]);
@@ -518,12 +518,12 @@ void ParametricBNLForm::MultPrmBlocked(const BlockVector &bx,
                ax.GetBlock(s).GetSubVector(*(vdofs[s]), *ael_x[s]);
             }
 
-            for (int s=0; s<prmfes.Size(); ++s)
+            for (int s=0; s<paramfes.Size(); ++s)
             {
-               prmfe[s] = prmfes[s]->GetFE(tr->Elem1No);
-               prmfe2[s] = prmfes[s]->GetFE(tr->Elem1No);
+               prmfe[s] = paramfes[s]->GetFE(tr->Elem1No);
+               prmfe2[s] = paramfes[s]->GetFE(tr->Elem1No);
 
-               prmfes[s]->GetElementVDofs(tr->Elem1No, *(prmvdofs[s]));
+               paramfes[s]->GetElementVDofs(tr->Elem1No, *(prmvdofs[s]));
                dx.GetBlock(s).GetSubVector(*(prmvdofs[s]), *prmel_x[s]);
             }
 
@@ -536,7 +536,7 @@ void ParametricBNLForm::MultPrmBlocked(const BlockVector &bx,
                bfnfi[k]->AssemblePrmFaceVector(fe, fe2, prmfe, prmfe2, *tr,
                                                el_x_const, ael_x_const, prmel_x_const, prmel_y);
 
-               for (int s=0; s<prmfes.Size(); ++s)
+               for (int s=0; s<paramfes.Size(); ++s)
                {
                   if (prmel_y[s]->Size() == 0) { continue; }
                   dy.GetBlock(s).AddElementVector(*(prmvdofs[s]), *prmel_y[s]);
@@ -554,7 +554,7 @@ void ParametricBNLForm::MultPrmBlocked(const BlockVector &bx,
       delete ael_x[s];
    }
 
-   for (int s=0; s<prmfes.Size(); ++s)
+   for (int s=0; s<paramfes.Size(); ++s)
    {
       delete prmvdofs2[s];
       delete prmvdofs[s];
@@ -579,13 +579,13 @@ void ParametricBNLForm::MultBlocked(const BlockVector &bx,
 
    ElementTransformation *T;
 
-   Array<Array<int> *>prmvdofs(prmfes.Size());
-   Array<Array<int> *>prmvdofs2(prmfes.Size());
-   Array<Vector *> prmel_x(prmfes.Size());
-   Array<const Vector *> prmel_x_const(prmfes.Size());
+   Array<Array<int> *>prmvdofs(paramfes.Size());
+   Array<Array<int> *>prmvdofs2(paramfes.Size());
+   Array<Vector *> prmel_x(paramfes.Size());
+   Array<const Vector *> prmel_x_const(paramfes.Size());
    //Array<Vector *> prmel_y(fes.Size());
-   Array<const FiniteElement *> prmfe(prmfes.Size());
-   Array<const FiniteElement *> prmfe2(prmfes.Size());
+   Array<const FiniteElement *> prmfe(paramfes.Size());
+   Array<const FiniteElement *> prmfe2(paramfes.Size());
 
 
 
@@ -598,7 +598,7 @@ void ParametricBNLForm::MultBlocked(const BlockVector &bx,
       vdofs2[s] = new Array<int>;
    }
 
-   for (int s=0; s<prmfes.Size(); ++s)
+   for (int s=0; s<paramfes.Size(); ++s)
    {
       prmel_x_const[s] = prmel_x[s] = new Vector();
       prmvdofs[s] = new Array<int>;
@@ -617,10 +617,10 @@ void ParametricBNLForm::MultBlocked(const BlockVector &bx,
             bx.GetBlock(s).GetSubVector(*(vdofs[s]), *el_x[s]);
          }
 
-         for (int s = 0; s < prmfes.Size(); ++s)
+         for (int s = 0; s < paramfes.Size(); ++s)
          {
-            prmfes[s]->GetElementVDofs(i, *(prmvdofs[s]));
-            prmfe[s] = prmfes[s]->GetFE(i);
+            paramfes[s]->GetElementVDofs(i, *(prmvdofs[s]));
+            prmfe[s] = paramfes[s]->GetFE(i);
             dx.GetBlock(s).GetSubVector(*(prmvdofs[s]), *prmel_x[s]);
          }
 
@@ -662,13 +662,13 @@ void ParametricBNLForm::MultBlocked(const BlockVector &bx,
                bx.GetBlock(s).GetSubVector(*(vdofs[s]), *el_x[s]);
             }
 
-            for (int s=0; s<prmfes.Size(); ++s)
+            for (int s=0; s<paramfes.Size(); ++s)
             {
-               prmfe[s] = prmfes[s]->GetFE(tr->Elem1No);
-               prmfe2[s] = prmfes[s]->GetFE(tr->Elem2No);
+               prmfe[s] = paramfes[s]->GetFE(tr->Elem1No);
+               prmfe2[s] = paramfes[s]->GetFE(tr->Elem2No);
 
-               prmfes[s]->GetElementVDofs(tr->Elem1No, *(prmvdofs[s]));
-               prmfes[s]->GetElementVDofs(tr->Elem2No, *(prmvdofs2[s]));
+               paramfes[s]->GetElementVDofs(tr->Elem1No, *(prmvdofs[s]));
+               paramfes[s]->GetElementVDofs(tr->Elem2No, *(prmvdofs2[s]));
 
                prmvdofs[s]->Append(*(prmvdofs2[s]));
 
@@ -733,12 +733,12 @@ void ParametricBNLForm::MultBlocked(const BlockVector &bx,
                bx.GetBlock(s).GetSubVector(*(vdofs[s]), *el_x[s]);
             }
 
-            for (int s=0; s<prmfes.Size(); ++s)
+            for (int s=0; s<paramfes.Size(); ++s)
             {
-               prmfe[s] = prmfes[s]->GetFE(tr->Elem1No);
-               prmfe2[s] = prmfes[s]->GetFE(tr->Elem1No);
+               prmfe[s] = paramfes[s]->GetFE(tr->Elem1No);
+               prmfe2[s] = paramfes[s]->GetFE(tr->Elem1No);
 
-               prmfes[s]->GetElementVDofs(tr->Elem1No, *(prmvdofs[s]));
+               paramfes[s]->GetElementVDofs(tr->Elem1No, *(prmvdofs[s]));
                dx.GetBlock(s).GetSubVector(*(prmvdofs[s]), *prmel_x[s]);
             }
 
@@ -769,7 +769,7 @@ void ParametricBNLForm::MultBlocked(const BlockVector &bx,
       delete el_x[s];
    }
 
-   for (int s=0; s<prmfes.Size(); ++s)
+   for (int s=0; s<paramfes.Size(); ++s)
    {
       delete prmvdofs2[s];
       delete prmvdofs[s];
@@ -795,16 +795,16 @@ const BlockVector &ParametricBNLForm::Prolongate(const BlockVector &bx) const
    return bx;
 }
 
-const BlockVector &ParametricBNLForm::PrmProlongate(const BlockVector &bx) const
+const BlockVector &ParametricBNLForm::ParamProlongate(const BlockVector &bx) const
 {
-   MFEM_VERIFY(bx.Size() == prmwidth, "invalid input BlockVector size");
+   MFEM_VERIFY(bx.Size() == paramwidth, "invalid input BlockVector size");
 
    if (prmneeds_prolongation)
    {
-      prmaux1.Update(prmblock_offsets);
-      for (int s = 0; s < prmfes.Size(); s++)
+      prmaux1.Update(paramblock_offsets);
+      for (int s = 0; s < paramfes.Size(); s++)
       {
-         Pprm[s]->Mult(bx.GetBlock(s), prmaux1.GetBlock(s));
+         Pparam[s]->Mult(bx.GetBlock(s), prmaux1.GetBlock(s));
       }
       return prmaux1;
    }
@@ -812,31 +812,31 @@ const BlockVector &ParametricBNLForm::PrmProlongate(const BlockVector &bx) const
 }
 
 
-void ParametricBNLForm::PrmMult(const Vector &x, Vector &y) const
+void ParametricBNLForm::ParamMult(const Vector &x, Vector &y) const
 {
-   BlockVector bx(x.GetData(), prmblock_trueOffsets);
-   BlockVector by(y.GetData(), prmblock_trueOffsets);
+   BlockVector bx(x.GetData(), paramblock_trueOffsets);
+   BlockVector by(y.GetData(), paramblock_trueOffsets);
 
-   const BlockVector &pbx = PrmProlongate(bx);
+   const BlockVector &pbx = ParamProlongate(bx);
 
    if (prmneeds_prolongation)
    {
-      prmaux2.Update(prmblock_offsets);
+      prmaux2.Update(paramblock_offsets);
    }
    BlockVector &pby = prmneeds_prolongation ? prmaux2 : by;
 
-   xs.Update(pbx.GetData(), prmblock_offsets);
-   ys.Update(pby.GetData(), prmblock_offsets);
+   xs.Update(pbx.GetData(), paramblock_offsets);
+   ys.Update(pby.GetData(), paramblock_offsets);
 
-   MultPrmBlocked(xsv,adv,xs,ys);
+   MultParamBlocked(xsv,adv,xs,ys);
 
-   for (int s = 0; s < prmfes.Size(); s++)
+   for (int s = 0; s < paramfes.Size(); s++)
    {
-      if (cPprm[s])
+      if (cPparam[s])
       {
-         cPprm[s]->MultTranspose(pby.GetBlock(s), by.GetBlock(s));
+         cPparam[s]->MultTranspose(pby.GetBlock(s), by.GetBlock(s));
       }
-      by.GetBlock(s).SetSubVector(*prmess_tdofs[s], 0.0);
+      by.GetBlock(s).SetSubVector(*paramess_tdofs[s], 0.0);
    }
 }
 
@@ -883,12 +883,12 @@ void ParametricBNLForm::ComputeGradientBlocked(const BlockVector &bx,
 
    ElementTransformation * T;
 
-   Array<Array<int> *> prmvdofs(prmfes.Size());
-   Array<Array<int> *> prmvdofs2(prmfes.Size());
-   Array<Vector *> prmel_x(prmfes.Size());
-   Array<const Vector *> prmel_x_const(prmfes.Size());
-   Array<const FiniteElement *>prmfe(prmfes.Size());
-   Array<const FiniteElement *>prmfe2(prmfes.Size());
+   Array<Array<int> *> prmvdofs(paramfes.Size());
+   Array<Array<int> *> prmvdofs2(paramfes.Size());
+   Array<Vector *> prmel_x(paramfes.Size());
+   Array<const Vector *> prmel_x_const(paramfes.Size());
+   Array<const FiniteElement *>prmfe(paramfes.Size());
+   Array<const FiniteElement *>prmfe2(paramfes.Size());
 
    for (int i=0; i<fes.Size(); ++i)
    {
@@ -917,7 +917,7 @@ void ParametricBNLForm::ComputeGradientBlocked(const BlockVector &bx,
       }
    }
 
-   for (int i=0; i<prmfes.Size(); ++i)
+   for (int i=0; i<paramfes.Size(); ++i)
    {
       prmel_x_const[i] = prmel_x[i] = new Vector();
       prmvdofs[i] = new Array<int>;
@@ -937,10 +937,10 @@ void ParametricBNLForm::ComputeGradientBlocked(const BlockVector &bx,
             bx.GetBlock(s).GetSubVector(*vdofs[s], *el_x[s]);
          }
 
-         for (int s = 0; s < prmfes.Size(); ++s)
+         for (int s = 0; s < paramfes.Size(); ++s)
          {
-            prmfe[s] = prmfes[s]->GetFE(i);
-            prmfes[s]->GetElementVDofs(i, *prmvdofs[s]);
+            prmfe[s] = paramfes[s]->GetFE(i);
+            paramfes[s]->GetElementVDofs(i, *prmvdofs[s]);
             dx.GetBlock(s).GetSubVector(*prmvdofs[s], *prmel_x[s]);
          }
 
@@ -982,13 +982,13 @@ void ParametricBNLForm::ComputeGradientBlocked(const BlockVector &bx,
             bx.GetBlock(s).GetSubVector(*vdofs[s], *el_x[s]);
          }
 
-         for (int s=0; s < prmfes.Size(); ++s)
+         for (int s=0; s < paramfes.Size(); ++s)
          {
-            prmfe[s] = prmfes[s]->GetFE(tr->Elem1No);
-            prmfe2[s] = prmfes[s]->GetFE(tr->Elem2No);
+            prmfe[s] = paramfes[s]->GetFE(tr->Elem1No);
+            prmfe2[s] = paramfes[s]->GetFE(tr->Elem2No);
 
-            prmfes[s]->GetElementVDofs(tr->Elem1No, *prmvdofs[s]);
-            prmfes[s]->GetElementVDofs(tr->Elem2No, *prmvdofs2[s]);
+            paramfes[s]->GetElementVDofs(tr->Elem1No, *prmvdofs[s]);
+            paramfes[s]->GetElementVDofs(tr->Elem2No, *prmvdofs2[s]);
             prmvdofs[s]->Append(*(prmvdofs2[s]));
 
             dx.GetBlock(s).GetSubVector(*prmvdofs[s], *prmel_x[s]);
@@ -1056,12 +1056,12 @@ void ParametricBNLForm::ComputeGradientBlocked(const BlockVector &bx,
                bx.GetBlock(s).GetSubVector(*vdofs[s], *el_x[s]);
             }
 
-            for (int s = 0; s < prmfes.Size(); ++s)
+            for (int s = 0; s < paramfes.Size(); ++s)
             {
-               prmfe[s] = prmfes[s]->GetFE(tr->Elem1No);
+               prmfe[s] = paramfes[s]->GetFE(tr->Elem1No);
                prmfe2[s] = prmfe[s];
 
-               prmfes[s]->GetElementVDofs(i, *prmvdofs[s]);
+               paramfes[s]->GetElementVDofs(i, *prmvdofs[s]);
                dx.GetBlock(s).GetSubVector(*prmvdofs[s], *prmel_x[s]);
             }
 
@@ -1106,7 +1106,7 @@ void ParametricBNLForm::ComputeGradientBlocked(const BlockVector &bx,
       delete el_x[i];
    }
 
-   for (int i=0; i<prmfes.Size(); ++i)
+   for (int i=0; i<paramfes.Size(); ++i)
    {
       delete prmvdofs2[i];
       delete prmvdofs[i];
@@ -1182,9 +1182,9 @@ ParametricBNLForm::~ParametricBNLForm()
       delete ess_tdofs[i];
    }
 
-   for (int i=0; i<prmfes.Size(); ++i)
+   for (int i=0; i<paramfes.Size(); ++i)
    {
-      delete prmess_tdofs[i];
+      delete paramess_tdofs[i];
    }
 
    for (int i = 0; i < dnfi.Size(); ++i)

@@ -41,7 +41,7 @@
 #include "transfer.hpp"
 #include "fespacehierarchy.hpp"
 #include "multigrid.hpp"
-#include "prmnonlinearform.hpp"
+#include "paramnonlinearform.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
@@ -49,7 +49,7 @@
 #include "plinearform.hpp"
 #include "pbilinearform.hpp"
 #include "pnonlinearform.hpp"
-#include "pprmnonlinearform.hpp"
+#include "pparamnonlinearform.hpp"
 #endif
 
 #ifdef MFEM_USE_SIDRE
