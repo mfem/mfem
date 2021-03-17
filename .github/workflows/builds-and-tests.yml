@@ -1,0 +1,164 @@
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+# In this CI section, we build different variants of mfem and run test on them.
+name: builds-and-tests
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+env:
+  HYPRE_ARCHIVE: v2.19.0.tar.gz
+  HYPRE_TOP_DIR: hypre-2.19.0
+  METIS_ARCHIVE: metis-4.0.3.tar.gz
+  METIS_TOP_DIR: metis-4.0.3
+
+# Note for future improvements:
+#
+# I cannot reuse cached dependencies and have to build them for each target
+# although they could be shared sometimes. That's because Github cache Action
+# has no read-only mode. But there is a PR ready for this
+# (https://github.com/actions/cache/pull/489)
+
+jobs:
+  builds-and-tests:
+    strategy:
+      matrix:
+        os: [ubuntu-18.04, macos-10.15]
+        target: [debug, optim]
+        mpi: [sequential, parallel]
+        build-system: [make]
+        # 'include' allows to
+        # - add a variable without creating a new matrix dimension.
+        # - add a new combination ('build-system: cmake' case here)
+        #
+        # note: we will gather coverage info for any non-debug run except the
+        # CMake build.
+        include:
+          - target: debug
+            codecov: NO
+          - target: optim
+            codecov: YES
+          - os: ubuntu-18.04
+            target: optim
+            codecov: NO
+            mpi: parallel
+            build-system: cmake
+    name: ${{ matrix.os }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.build-system }}
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    # Checkout MFEM in "mfem" subdirectory. Final path:
+    # /home/runner/work/mfem/mfem/mfem
+    # Note: Done now to access "install-hypre" and "install-metis" actions.
+    - name: checkout mfem
+      uses: actions/checkout@v2
+      with:
+        path: mfem
+        # Fetch the complete history for codecov to access commits ID
+        fetch-depth: 0
+
+    # Only get MPI if defined for the job.
+    # TODO (bernede1@llnl.gov): It would be nice to have only one step,
+    # e.g. with a dedicated action, but I don’t see how at the moment.
+    - name: get MPI (Linux)
+      if: matrix.mpi == 'parallel' && matrix.os == 'ubuntu-18.04'
+      run: |
+        sudo apt-get install mpich libmpich-dev
+        export MAKE_CXX_FLAG="MPICXX=mpic++"
+
+    - name: get MPI (MacOS)
+      if: matrix.mpi == 'parallel' && matrix.os == 'macos-10.15'
+      run: |
+        export HOMEBREW_NO_INSTALL_CLEANUP=1
+        brew install openmpi
+        export MAKE_CXX_FLAG="MPICXX=mpic++"
+
+    # Get Hypre through cache, or install it.
+    # Install will only run on cache miss.
+    - name: cache hypre Install
+      id: hypre-cache
+      if: matrix.mpi == 'parallel'
+      uses: actions/cache@v2
+      with:
+        path: ${{ env.HYPRE_TOP_DIR }}
+        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-v1
+
+    - name: get hypre
+      if: matrix.mpi == 'parallel' && steps.hypre-cache.outputs.cache-hit != 'true'
+      uses: ./mfem/.github/actions/install-hypre
+      with:
+        hypre-archive: ${{ env.HYPRE_ARCHIVE }}
+        hypre-dir: ${{ env.HYPRE_TOP_DIR }}
+
+    # Get Metis through cache, or install it.
+    # Install will only run on cache miss.
+    - name: cache metis Install
+      id: metis-cache
+      if: matrix.mpi == 'parallel'
+      uses: actions/cache@v2
+      with:
+        path: ${{ env.METIS_TOP_DIR }}
+        key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-v1
+
+    - name: install metis
+      if: matrix.mpi == 'parallel' && steps.metis-cache.outputs.cache-hit != 'true'
+      uses: ./mfem/.github/actions/install-metis
+      with:
+        metis-archive: ${{ env.METIS_ARCHIVE }}
+        metis-dir: ${{ env.METIS_TOP_DIR }}
+
+    # MFEM build and test
+    - name: build
+      uses: ./mfem/.github/actions/build-mfem
+      with:
+        os: ${{ matrix.os }}
+        target: ${{ matrix.target }}
+        codecov: ${{ matrix.codecov }}
+        mpi: ${{ matrix.mpi }}
+        build-system: ${{ matrix.build-system }}
+        hypre-dir: ${{ env.HYPRE_TOP_DIR }}
+        metis-dir: ${{ env.METIS_TOP_DIR }}
+        mfem-dir: mfem
+
+    # Run checks (and only checks) on debug targets
+    - name: checks
+      if: matrix.build-system == 'make' && matrix.target == 'debug'
+      run: |
+        cd mfem && make check
+
+    - name: unit tests
+      if: matrix.build-system == 'make' && matrix.target == 'optim'
+      run: |
+        cd mfem && make unittest
+
+    - name: tests
+      if: matrix.build-system == 'make' && matrix.target == 'optim'
+      run: |
+        cd mfem && make test
+
+    - name: cmake unit tests
+      if: matrix.build-system == 'cmake'
+      run: |
+        cd mfem/build/tests/unit && ctest --output-on-failure
+
+    # Code coverage (process and upload reports)
+    - name: codecov
+      if: matrix.codecov == 'YES'
+      uses: ./mfem/.github/actions/upload-coverage
+      with:
+        name: "${{ matrix.os }}-${{ matrix.mpi }}"
