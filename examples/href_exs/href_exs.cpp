@@ -50,7 +50,7 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    }
    else if (order > 1)
    {
-      fec = new H1Ser_FECollection(order, 2);
+      fec = new H1_FECollection(order, 2);
    }
    else if (order < 0)
    {
@@ -119,9 +119,13 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
       {
          b->AddDomainIntegrator(new DomainLFIntegrator(*u1));
       }
-      else // exact == 2
+      else if (exact == 2) 
       {
          b->AddDomainIntegrator(new DomainLFIntegrator(*u2));
+      }
+      else // exact == 3
+      {
+         b->AddDomainIntegrator(new DomainLFIntegrator(*u3));
       }
    }
 
@@ -297,13 +301,21 @@ void u_grad_exact_2(const Vector &x, Vector &u)
 
 double u_exact_3(const Vector &x)
 {
-    return (x(0)*x(0) - x(1)*x(1));
+    // return (x(0)*x(0) + (0.5)*x(1)*x(1));
+    int m=10;
+    double total = sin(x(0))* pow( sin(  x(0)*x(0) / M_PI  ), 2*m  );
+    total += sin(x(1))* pow( sin( 2*x(1)*x(1) / M_PI  ), 2*m  );
+    total *= -1;
+    return total;
 }
 
 void u_grad_exact_3(const Vector &x, Vector &u)
 {
-    u(0) = 2.0*x(0);
-    u(1) = -2.0*x(1);
+    // presumes m=10
+    u(0)  = - (40.0 * x(0) * cos( x(0)*x(0)/M_PI ) * sin(x(0)) * pow(sin( x(0)*x(0)/M_PI ),19)) / M_PI;
+    u(0) += - cos(x(0))*pow(sin( x(0)*x(0)/M_PI ),20);
+    u(1)  = - (80.0 * x(1) * cos( 2.0 * x(1)*x(1)/M_PI ) * sin(x(1)) * pow(sin( 2.0 * x(1)*x(1)/M_PI ),19)   ) / M_PI;
+    u(1) += - cos(x(1))*pow(sin( 2.0 * x(1)*x(1)/M_PI ),20);
 }
 
 int main(int argc, char *argv[])
@@ -339,7 +351,7 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&exact, "-e", "--exact", 
-                  "Choice of exact solution. 1=constant 1; 2=sin(x)e^y; 3=x^2-y^2.");
+                  "Choice of exact solution. 1=constant 1; 2=sin(x)e^y; 3=michalewicz.");
    args.AddOption(&solvePDE, "-L", "--L2Project",
                   "Solve a PDE (1) or do L2 Projection (2)");
    args.Parse();
@@ -373,7 +385,9 @@ int main(int argc, char *argv[])
       }
       else if (exact == 3)
       {
-         cout << "exact solution u(x,y)=x^2-y^2" << endl;
+         cout << endl << "Michalewicz is not harmonic. Use option -L 2 to do L2 projection instead."
+              << endl;
+         return 1;
       }
       else
       {
@@ -392,6 +406,10 @@ int main(int argc, char *argv[])
       else if (exact == 2)
       {
          cout << "u(x,y)=sin(y)e^x" << endl;
+      }
+      else if (exact == 3)
+      {
+         cout << "u(x,y)=michalewicz function" << endl;
       }
       else
       {

@@ -3,5 +3,5 @@ MFEM INLINE mesh v1.0
 type = tri
 nx = 1
 ny = 1
-sx = 1.0
-sy = 1.0
+sx = 3.14
+sy = 3.14
