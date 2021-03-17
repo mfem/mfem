@@ -220,7 +220,7 @@ void EliminationSolver::BuildExplicitOperator()
    h_explicit_projector->CopyColStarts();
 
    h_explicit_operator = RAP(&hA, h_explicit_projector);
-   /// next line because of square projector
+   // next line because of square projector
    h_explicit_operator->EliminateZeroRows();
    h_explicit_operator->CopyRowStarts();
    h_explicit_operator->CopyColStarts();

@@ -1,4 +1,4 @@
-//                       MFEM Example 28
+//                                MFEM Example 28
 //
 // Compile with: make ex28
 //
