@@ -51,7 +51,16 @@ public:
 
 };
 
-
+/* QLinearDiffusion implements methods for computing the energy, the residual,
+ * gradient of the residual and the product of the adjoint fields with the derivative
+ * of the residual with respect to the parameters. All computations are performed
+ * at a integration point. Therefore the vectors (vv,uu,aa,rr ..) hold the fields'
+ * values and the fields' derivatives at the integration point. For example for a
+ *  single scalar parametric field representing the density in topology optimization
+ *  the vector dd will have size one and the element will be the density at the
+ * integration point. The map between state and parameter is not fixed and depends
+ * on the implementation of the QFunction class.
+ * */
 class QLinearDiffusion:public BaseQFunction
 {
 public:
@@ -71,14 +80,25 @@ public:
     double QEnergy(ElementTransformation &T, const IntegrationPoint &ip,
                    Vector &dd, Vector &uu) override
     {
+        // dd[0] - density
+        // uu[0] - grad_x
+        // uu[1] - grad_y
+        // uu[2] - grad_z
+        // uu[3] - temperature/scalar field
+
         double di=diff.Eval(T,ip);
         double ll=load.Eval(T,ip);
-        double rz=0.5+0.5*std::tanh(beta*(dd[0]-eta));
+        //compute the physical density using projection
+        double rz=0.5+0.5*std::tanh(beta*(dd[0]-eta)); //projection
+        //compute the diffusion coefficient at the integration point
         double fd=di*(std::pow(rz,powerc)+rhomin);
+        //compute the sum of the energy and the product of the temperature and the
+        //external input at the integration point
         double rez = 0.5*(uu[0]*uu[0]+uu[1]*uu[1]+uu[2]*uu[2])*fd-uu[3]*ll;
         return rez;
     }
 
+    //returns the derivative of QEnergy with respect to the state vector uu
     virtual
     void QResidual(ElementTransformation &T, const IntegrationPoint &ip,
                    Vector &dd, Vector &uu, Vector &rr) override
@@ -94,6 +114,9 @@ public:
         rr[3]=-ll;
     }
 
+
+    //returns the derivative, with respect to the density, of the product
+    // of the adjoint field with the residual at the integration point ip.
     virtual
     void AQResidual(ElementTransformation &T, const IntegrationPoint &ip,
                    Vector &dd, Vector &uu, Vector &aa, Vector &rr) override
@@ -106,6 +129,8 @@ public:
         rr[0] = -(aa[0]*uu[0]+aa[1]*uu[1]+aa[2]*uu[2])*fd;
     }
 
+    //returns the gradient of the residual with respect to the state vector
+    //at the integration point ip.
     virtual
     void QGradResidual(ElementTransformation &T, const IntegrationPoint &ip,
                        Vector &dd, Vector &uu, DenseMatrix &hh) override
@@ -125,12 +150,15 @@ public:
 private:
     mfem::Coefficient& diff; //diffusion coefficient
     mfem::Coefficient& load; //load coeficient
-    double powerc;
-    double rhomin;
-    double beta;
-    double eta;
+    double powerc; //penalization coefficient
+    double rhomin; //lower bound for the density
+    double beta;   //controls the sharpness of the projection
+    double eta;    //projection threshold for tanh
 };
 
+//Provides implementation of an integrator for linear diffusion
+//with parametrization provided by a density field. The setup
+//is standard for topology optimization problems.
 class ParametricLinearDiffusion: public ParametricBNLFormIntegrator
 {
 public:
@@ -187,11 +215,14 @@ public:
 
     }
 
+    //returns the objective contribution at element level
     virtual
     double GetElementEnergy(const Array<const FiniteElement *> &el,
                             ElementTransformation &Tr,
                             const Array<const Vector *> &elfun) override;
 
+    //returns the gradient of the objective contribution at
+    //element level
     virtual
     void AssembleElementVector(const Array<const FiniteElement *> &el,
                                ElementTransformation &Tr,

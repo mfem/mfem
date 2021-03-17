@@ -17,7 +17,7 @@
 #ifdef MFEM_USE_MPI
 
 #include "pgridfunc.hpp"
-#include "prmnonlinearform.hpp"
+#include "paramnonlinearform.hpp"
 
 namespace mfem
 {
@@ -42,8 +42,8 @@ public:
 
    /** @brief Construct a ParParametricBNLForm on the given set of
        parametric and state ParFiniteElementSpace%s. */
-   ParParametricBNLForm(Array<ParFiniteElementSpace *> &pf,
-                        Array<ParFiniteElementSpace *> &ppf );
+   ParParametricBNLForm(Array<ParFiniteElementSpace *> &statef,
+                        Array<ParFiniteElementSpace *> &paramf);
 
    /// Return the @a k-th parallel FE state space of the ParParametricBNLForm.
    ParFiniteElementSpace *ParFESpace(int k);
@@ -52,31 +52,37 @@ public:
    const ParFiniteElementSpace *ParFESpace(int k) const;
 
    /// Return the @a k-th parallel FE parameters space of the ParParametricBNLForm.
-   ParFiniteElementSpace *ParPrmFESpace(int k);
+   ParFiniteElementSpace *ParParamFESpace(int k);
    /** @brief Return the @a k-th parallel FE parameters space of the ParParametricBNLForm
        (const version). */
-   const ParFiniteElementSpace *ParPrmFESpace(int k) const;
+   const ParFiniteElementSpace *ParParamFESpace(int k) const;
 
 
-   /** @brief After a call to SetParSpaces(), the essential b.c. and the
+   /** @brief Set he parallelel FE spaces for the state and the parametric fields.
+    *  After a call to SetParSpaces(), the essential b.c. and the
        gradient-type (if different from the default) must be set again. */
-   void SetParSpaces(Array<ParFiniteElementSpace *> &pf,
-                     Array<ParFiniteElementSpace *> &pprmf);
+   void SetParSpaces(Array<ParFiniteElementSpace *> &statef,
+                     Array<ParFiniteElementSpace *> &paramf);
 
-   // Here, rhs is a true dof vector
+   /// Set the state essential BCs. Here, rhs is a true dof vector!
    virtual void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
                                Array<Vector *> &rhs);
 
-   // Here, rhs is a true dof vector
-   virtual void SetPrmEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
+   // Set the essential BCs for the parametric fields. Here, rhs is a true dof vector!
+   virtual void SetParamEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
                                   Array<Vector *> &rhs);
 
 
-   /// Block T-Vector to Block T-Vector
+   /** @brief Calculates the residual for a state input given by block T-Vector.
+    * The result is  Block T-Vector! The parametric fields should be set in advance
+    * by calling SetParamFields(). */
    virtual void Mult(const Vector &x, Vector &y) const;
 
-   /// Block T-Vector to Block T-Vector
-   virtual void PrmMult(const Vector &x, Vector &y) const;
+   /** @brief Calculates the product of the adjoint field and the derivative of
+    * the state residual with respect to the parametric fields. The adjoint and
+    * the state fields should be set in advance by calling SetAdjointFields() and
+    * SetStateFields(). The input and the result are block T-Vectors!*/
+   virtual void ParamMult(const Vector &x, Vector &y) const;
 
    /// Return the local block gradient matrix for the given true-dof vector x
    const BlockOperator &GetLocalGradient(const Vector &x) const;
@@ -97,7 +103,7 @@ public:
    virtual void SetAdjointFields(const Vector &av) const;
 
    /// Set the parameters/design fields
-   virtual void SetPrmFields(const Vector &dv) const;
+   virtual void SetParamFields(const Vector &dv) const;
 
 };
 

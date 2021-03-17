@@ -30,10 +30,10 @@ protected:
    Array<FiniteElementSpace*> fes;
 
    /// FE spaces for the parametric fields
-   Array<FiniteElementSpace*> prmfes;
+   Array<FiniteElementSpace*> paramfes;
 
-   int prmheight;
-   int prmwidth;
+   int paramheight;
+   int paramwidth;
 
 
    /// Set of Domain Integrators to be assembled (added).
@@ -73,26 +73,26 @@ protected:
    Array<int> block_offsets;
    Array<int> block_trueOffsets;
    // A list with the offsets for the parametric fields
-   Array<int> prmblock_offsets;
-   Array<int> prmblock_trueOffsets;
+   Array<int> paramblock_offsets;
+   Array<int> paramblock_trueOffsets;
 
    // Array of Arrays of tdofs for each space in 'fes'
    Array<Array<int> *> ess_tdofs;
 
-   // Array of Arrays of tdofs for each space in 'prmfes'
-   Array<Array<int> *> prmess_tdofs;
+   // Array of Arrays of tdofs for each space in 'paramfes'
+   Array<Array<int> *> paramess_tdofs;
 
    /// Array of pointers to the prolongation matrix of fes, may be NULL
    Array<const Operator *> P;
 
-   /// Array of pointers to the prolongation matrix of prmfes, may be NULL
-   Array<const Operator *> Pprm;
+   /// Array of pointers to the prolongation matrix of paramfes, may be NULL
+   Array<const Operator *> Pparam;
 
    /// Array of results of dynamic-casting P to SparseMatrix pointer
    Array<const SparseMatrix *> cP;
 
-   /// Array of results of dynamic-casting Pprm to SparseMatrix pointer
-   Array<const SparseMatrix *> cPprm;
+   /// Array of results of dynamic-casting Pparam to SparseMatrix pointer
+   Array<const SparseMatrix *> cPparam;
 
 
    /// Indicator if the Operator is part of a parallel run
@@ -111,10 +111,8 @@ protected:
 
    const BlockVector &Prolongate(const BlockVector &bx) const;
 
-   const BlockVector &PrmProlongate(const BlockVector &bx) const;
+   const BlockVector &ParamProlongate(const BlockVector &bx) const;
 
-   /// Specialized version of GetEnergy() for BlockVectors
-   //double GetEnergyBlocked(const BlockVector &bx) const;
    double GetEnergyBlocked(const BlockVector &bx, const BlockVector &dx) const;
 
 
@@ -127,7 +125,7 @@ protected:
    /// Block L-Vector to Block L-Vector
    /// bx - state vector, ax - adjoint vector, dx - parametric fields
    /// dy = ax' d(residual(bx))/d(dx)
-   void MultPrmBlocked(const BlockVector &bx, const BlockVector & ax,
+   void MultParamBlocked(const BlockVector &bx, const BlockVector & ax,
                        const BlockVector &dx, BlockVector &dy) const;
 
 
@@ -140,29 +138,29 @@ public:
    ParametricBNLForm();
 
    /// Construct a BlockNonlinearForm on the given set of FiniteElementSpace%s.
-   ParametricBNLForm(Array<FiniteElementSpace *> &f,
-                     Array<FiniteElementSpace *> &pf );
+   ParametricBNLForm(Array<FiniteElementSpace *> &statef,
+                     Array<FiniteElementSpace *> &paramf);
 
    /// Return the @a k-th FE space of the ParametricBNLForm.
    FiniteElementSpace *FESpace(int k) { return fes[k]; }
 
    /// Return the @a k-th parametric FE space of the ParametricBNLForm.
-   FiniteElementSpace *PrmFESpace(int k) { return prmfes[k]; }
+   FiniteElementSpace *ParamFESpace(int k) { return paramfes[k]; }
 
 
    /// Return the @a k-th FE space of the BlockNonlinearForm (const version).
    const FiniteElementSpace *FESpace(int k) const { return fes[k]; }
 
    /// Return the @a k-th parametric FE space of the BlockNonlinearForm (const version).
-   const FiniteElementSpace *PrmFESpace(int k) const { return prmfes[k]; }
+   const FiniteElementSpace *ParamFESpace(int k) const { return paramfes[k]; }
 
    Array<ParametricBNLFormIntegrator*>& GetDNFI() { return dnfi;}
 
 
    /// (Re)initialize the ParametricBNLForm.
    /** After a call to SetSpaces(), the essential b.c. must be set again. */
-   void SetSpaces(Array<FiniteElementSpace *> &f,
-                  Array<FiniteElementSpace *> &prmf);
+   void SetSpaces(Array<FiniteElementSpace *> &statef,
+                  Array<FiniteElementSpace *> &paramf);
 
    /// Return the regular dof offsets.
    const Array<int> &GetBlockOffsets() const { return block_offsets; }
@@ -170,9 +168,9 @@ public:
    const Array<int> &GetBlockTrueOffsets() const { return block_trueOffsets; }
 
    /// Return the regular dof offsets for the parameters.
-   const Array<int> &PrmGetBlockOffsets() const { return prmblock_offsets; }
+   const Array<int> &ParamGetBlockOffsets() const { return paramblock_offsets; }
    /// Return the true-dof offsets for the parameters.
-   const Array<int> &PrmGetBlockTrueOffsets() const { return prmblock_trueOffsets; }
+   const Array<int> &ParamGetBlockTrueOffsets() const { return paramblock_trueOffsets; }
 
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(ParametricBNLFormIntegrator *nlfi)
@@ -194,7 +192,7 @@ public:
    virtual void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
                                Array<Vector *> &rhs);
 
-   virtual void SetPrmEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
+   virtual void SetParamEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
                                   Array<Vector *> &rhs);
 
 
@@ -206,7 +204,7 @@ public:
 
    /// Method is only called in serial, the parallel version calls MultBlocked
    /// directly.
-   virtual void PrmMult(const Vector &x, Vector &y) const;
+   virtual void ParamMult(const Vector &x, Vector &y) const;
 
    /// Method is only called in serial, the parallel version calls
    /// GetGradientBlocked directly.
@@ -219,7 +217,7 @@ public:
    virtual void SetAdjointFields(const Vector &av) const;
 
    /// Set the parameters/design fields
-   virtual void SetPrmFields(const Vector &dv) const;
+   virtual void SetParamFields(const Vector &dv) const;
 
 
 

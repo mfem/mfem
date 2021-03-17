@@ -147,9 +147,6 @@ void ParametricLinearDiffusion::AssembleElementGrad(const Array<const FiniteElem
 
      int dim = el[0]->GetDim();
 
-     //elmats[0]->Size(dof_u0, dof_u0);
-     //*elmats[0]=0.0;
-
      DenseMatrix* K=elmats(0,0);
      K->SetSize(dof_u0,dof_u0);
      (*K)=0.0;

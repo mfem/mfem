@@ -168,8 +168,8 @@ int main(int argc, char *argv[])
    mfem::BlockVector adjbv; adjbv.Update(nf->GetBlockTrueOffsets());    adjbv=0.0;
    mfem::BlockVector resbv; resbv.Update(nf->GetBlockTrueOffsets());    resbv=0.0;
    // Define true block vectors for parametric field and gradients
-   mfem::BlockVector prmbv; prmbv.Update(nf->PrmGetBlockTrueOffsets()); prmbv=0.0;
-   mfem::BlockVector grdbv; grdbv.Update(nf->PrmGetBlockTrueOffsets()); grdbv=0.0;
+   mfem::BlockVector prmbv; prmbv.Update(nf->ParamGetBlockTrueOffsets()); prmbv=0.0;
+   mfem::BlockVector grdbv; grdbv.Update(nf->ParamGetBlockTrueOffsets()); grdbv=0.0;
 
    //set the BC for the physics
    mfem::Array<mfem::Array<int> *> ess_bdr;
@@ -183,7 +183,7 @@ int main(int argc, char *argv[])
    // set the density field to 0.5
    prmbv=0.5;
    // set the density as parametric field in the parametric BNLForm
-   nf->SetPrmFields(prmbv); //set the density
+   nf->SetParamFields(prmbv); //set the density
 
    // compute the stiffness/tangent matrix for density prmbv=0.5
    mfem::BlockOperator& A=nf->GetGradient(solbv);
@@ -249,7 +249,7 @@ int main(int argc, char *argv[])
    // Set the state field
    nf->SetStateFields(solbv);
    // Call the parametric Mult
-   nf->PrmMult(prmbv, grdbv);
+   nf->ParamMult(prmbv, grdbv);
 
    //Dump out the data
    if(visualization)
@@ -278,8 +278,8 @@ int main(int argc, char *argv[])
    {
        mfem::BlockVector prtbv;
        mfem::BlockVector tmpbv;
-       prtbv.Update(nf->PrmGetBlockTrueOffsets());
-       tmpbv.Update(nf->PrmGetBlockTrueOffsets());
+       prtbv.Update(nf->ParamGetBlockTrueOffsets());
+       tmpbv.Update(nf->ParamGetBlockTrueOffsets());
        prtbv.GetBlock(0).Randomize();
        prtbv*=1.0;
        double lsc=1.0;
@@ -296,7 +296,7 @@ int main(int argc, char *argv[])
            lsc/=10.0;
            prtbv/=10.0;
            add(prmbv,prtbv,tmpbv);
-           nf->SetPrmFields(tmpbv);
+           nf->SetParamFields(tmpbv);
            //solve the physics
            solbv=0.0;
            nf->Mult(solbv,resbv); resbv.Neg(); //compute RHS
