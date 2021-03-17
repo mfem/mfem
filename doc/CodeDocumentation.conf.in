@@ -781,6 +781,8 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/miniapps/navier \
                          @MFEM_SOURCE_DIR@/miniapps/nurbs \
                          @MFEM_SOURCE_DIR@/miniapps/performance \
+                         @MFEM_SOURCE_DIR@/miniapps/shifted \
+                         @MFEM_SOURCE_DIR@/miniapps/solvers \
                          @MFEM_SOURCE_DIR@/miniapps/tools \
                          @MFEM_SOURCE_DIR@/miniapps/toys
 
