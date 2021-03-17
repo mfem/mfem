@@ -21,23 +21,24 @@ double u_exact(const Vector &);
 void u_grad_exact(const Vector &, Vector &);
 double u_exact_2(const Vector &);
 void u_grad_exact_2(const Vector &, Vector &);
+double u_exact_3(const Vector &);
+void u_grad_exact_3(const Vector &, Vector &);
 
 void convergenceStudy(const char *mesh_file, int num_ref, int &order,
                       double &l2_err_prev, double &h1_err_prev, bool &visualization, 
-                      int &exact, int &dof2view, int &solvePDE, bool static_cond)
+                      int &exact, int &solvePDE, bool static_cond)
 {
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
    // 4. Refine the mesh num_ref times
 
-   if (dof2view == -1)
-   {
-      for (int l = 1; l < num_ref+1; l++)
-      {
-         mesh->UniformRefinement();
-      }
-   }
+
+    for (int l = 1; l < num_ref+1; l++)
+    {
+        mesh->UniformRefinement();
+    }
+
 
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order.
@@ -45,7 +46,7 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    FiniteElementCollection *fec;
    if (order == 1)
    {
-      fec = new H1_FECollection(2, 2);
+      fec = new H1_FECollection(1, 2);
    }
    else if (order > 1)
    {
@@ -71,6 +72,11 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    // exact == 2 case:
    FunctionCoefficient *u2 = new FunctionCoefficient(u_exact_2);
    VectorFunctionCoefficient *u2_grad = new VectorFunctionCoefficient(dim, u_grad_exact_2);
+
+   // exact == 3 case:
+   FunctionCoefficient *u3 = new FunctionCoefficient(u_exact_3);
+   VectorFunctionCoefficient *u3_grad = new VectorFunctionCoefficient(dim, u_grad_exact_3);
+
 
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
 
@@ -142,9 +148,13 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
       {
          x.ProjectBdrCoefficient(*u1, ess_bdr);
       }
-      else
+      else if (exact == 2)
       {
          x.ProjectBdrCoefficient(*u2, ess_bdr);
+      }
+      else if (exact == 3)
+      {
+         x.ProjectBdrCoefficient(*u3, ess_bdr);
       }
       a->AddDomainIntegrator(new DiffusionIntegrator);
    }
@@ -177,42 +187,6 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    a->RecoverFEMSolution(X, *b, x);
 
 
-   // Hack to work on interior nodal interpolation
-   if (dof2view == -3)
-   {
-      x=0;
-      if (order <0)
-      {
-         order = -order;
-      }
-      int firstIntDof = 4 + 4*(order-1);
-      cout << "dof2view = -3 ==> Setting all Dofs to 1 up to Dof " << firstIntDof << endl;
-      // int numIntDofs = (order - 3)*(order - 2)/2; // assumes serendipity case
-
-      // can go up to x.Size()
-
-      for (int i = 0; i < firstIntDof; i++)
-      {
-         x(i) = 3.14159;
-      }
-   }
-   else if (dof2view == -2)     // Hack to project something
-   {
-      // void H1Ser_QuadrilateralElement::Project(Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
-      // fe->Project(coeff, Trans, X)
-      // fes->GetFE(i)-> Project(*src.fes->GetFE(i), *mesh->GetElementTransformation(i), P);
-      const FiniteElement *feholder = fespace->GetFE(0);
-      ElementTransformation *trans = mesh->GetElementTransformation(0);
-      DenseMatrix temporary;
-      feholder->Project(*feholder, *trans, temporary);
-      // temporary.Print();
-   }
-   else if (dof2view != -1)    // Hack to viusalize a single basis function   
-   {
-      x=0;
-      x(dof2view) = 1;
-   }
-
    // 13. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
    ofstream mesh_ofs("refined.mesh");
@@ -230,8 +204,9 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "solution\n" << mesh << x << flush;
+      sol_sock << "solution\n" << *mesh << x << flush;
    }
+   
 
 
    // Compute and print the L^2 and H^1 norms of the error.
@@ -245,10 +220,15 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
       l2_err = x.ComputeL2Error(*u1);
       h1_err = x.ComputeH1Error(u1, u1_grad, &one, 1.0, 1);
    }
-   else
+   else if (exact == 2)
    {
       l2_err = x.ComputeL2Error(*u2);
       h1_err = x.ComputeH1Error(u2, u2_grad, &one, 1.0, 1);
+   }
+   else if (exact == 3)
+   {
+      l2_err = x.ComputeL2Error(*u3);
+      h1_err = x.ComputeH1Error(u3, u3_grad, &one, 1.0, 1);
    }
 
    double l2_rate, h1_rate;
@@ -286,6 +266,8 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    delete u1_grad;
    delete u2;
    delete u2_grad;
+   delete u3;
+   delete u3_grad;
    delete fec;
    delete mesh;
 
@@ -314,6 +296,17 @@ void u_grad_exact_2(const Vector &x, Vector &u)
    u(1) = cos(x(1))*exp(x(0));
 }
 
+double u_exact_3(const Vector &x)
+{
+   return (pow(x(0),2.0) + (1/2)*pow(x(1),2.0));
+}
+
+void u_grad_exact_3(const Vector &x, Vector &u)
+{
+   u(0) = 2.0*x(0);
+   u(1) = x(1);
+}
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -326,8 +319,7 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    const char *device_config = "cpu";
    bool visualization = false;
-   int exact = 2;
-   int dof2view = -1;
+   int exact = 3;
    int solvePDE = 1;
 
    OptionsParser args(argc, argv);
@@ -348,9 +340,7 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&exact, "-e", "--exact", 
-                  "Choice of exact solution. 1=constant 1; 2=sin(x)e^y.");
-   args.AddOption(&dof2view, "-dof", "--dof2view",
-                  "DEBUG option: viewing a single dof:");
+                  "Choice of exact solution. 1=constant 1; 2=sin(x)e^y; 3=x^2+(y^2)/2.");
    args.AddOption(&solvePDE, "-L", "--L2Project",
                   "Solve a PDE (1) or do L2 Projection (2)");
    args.Parse();
@@ -381,6 +371,10 @@ int main(int argc, char *argv[])
       else if (exact == 2)
       {
          cout << "exact solution u(x,y)=sin(y)e^x" << endl;
+      }
+      else if (exact == 3)
+      {
+         cout << "exact solution u(x,y)=x^2+(y^2)/2" << endl;
       }
       else
       {
@@ -414,10 +408,6 @@ int main(int argc, char *argv[])
       return 1;
    }
 
-   if (dof2view != -1)
-   {
-      cout << "DEBUG option: solution deleted; just viewing dof # " << dof2view << endl;
-   }
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -445,17 +435,15 @@ int main(int argc, char *argv[])
 
    // Loop over number of refinements for convergence study
 
-   if (dof2view == -1)
-   {
-      bool noVisYet = false;
-      for (int i = 0; i < (total_refinements); i++)
-      {
-         convergenceStudy(mesh_file, i, order, l2_err_prev, h1_err_prev, noVisYet, 
-            exact, dof2view, solvePDE, static_cond);
-      }
-   }
-   convergenceStudy(mesh_file, total_refinements, order, l2_err_prev, h1_err_prev, visualization, 
-            exact, dof2view, solvePDE, static_cond);
+    bool noVisYet = false;
+    for (int i = 0; i < (total_refinements); i++)
+    {
+        convergenceStudy(mesh_file, i, order, l2_err_prev, h1_err_prev, noVisYet, 
+        exact, solvePDE, static_cond);
+    }
 
-   return 0;
+    convergenceStudy(mesh_file, total_refinements, order, l2_err_prev, h1_err_prev, visualization, 
+            exact, solvePDE, static_cond);
+
+    return 0;
 }
