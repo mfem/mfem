@@ -1089,7 +1089,7 @@ void ResistiveMHDOperator::ImplicitSolve(const double dt,
    {
       icycle++;
       
-      if (icycle % 2 == 0)
+      if (icycle % 1 == 0)
       {
         Vector dpsidt(k.GetData() +  sc, sc);
         gftmp.SetFromTrueDofs(dpsidt);  

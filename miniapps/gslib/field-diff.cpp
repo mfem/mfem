@@ -31,7 +31,7 @@
 //    ./field-diff -m1 t50/full.mesh -s1 t50/psione.final -m2 amr1d2/amr.mesh -s2 amr1d2/psiamr.sol -p 200
 //   Max diff: 5.35238e-08 Avg diff: 8.13192e-09
 //    ./field-diff -m1 t50/full.mesh -s1 t50/psione.final -m2 amrl25/amr.mesh -s2 amrl25/psiamr.sol -p 200
-//    Max diff: 3.91635e-08 Avg diff: 8.38557e-09
+//    Max diff: 3.91635e-08 Avg diff: 9.38557e-09
 //    ./field-diff -m1 t50/full.mesh -s1 t50/psione.final -m2 amrl31/amr.mesh -s2 amrl31/psiamr.sol -p 200
 //    Max diff: 2.64541e-08 Avg diff: 3.3594e-09
 
@@ -228,6 +228,8 @@ int main (int argc, char *argv[])
    const int nodes_cnt = vxyz.Size() / dim;
    interp_vals_2.SetSize(nodes_cnt);
    finder2.Interpolate(vxyz, func_2, interp_vals_2);
+
+   cout<<"nodes = "<<nodes_cnt<<endl;
 
    for (int n = 0; n < nodes_cnt; n++)
    {
