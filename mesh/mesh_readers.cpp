@@ -661,8 +661,8 @@ void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
    {
       MFEM_VERIFY(is_equal(data->Name(), "DataArray"), erstr);
       MFEM_VERIFY(is_equal(data->Attribute("format"), "ascii"),
-            "MFEM does not currently support VTK meshes with appended"
-            " or binary data.");
+                  "MFEM does not currently support VTK meshes with appended"
+                  " or binary data.");
    };
 
    // Create buffer beginning with xml_prefix, then read the rest of the stream
