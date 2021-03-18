@@ -11,6 +11,10 @@
 Version 4.2.1 (development)
 ===========================
 
+- Introduced new options for the mesh-explorer miniapp to visualize the actual
+  element attributes in parallel meshes while retaining the visualization of
+  the domain decomposition.
+
 - Introduced solver interface for linear problems with constraints, a few
   concrete solvers that implement the interface, and a demonstration of their
   use in Example 28(p), which solves an elasticity problem with zero normal
