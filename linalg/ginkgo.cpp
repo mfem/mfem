@@ -677,10 +677,19 @@ GMRESSolver::GMRESSolver(
      m{dim}
 {
    using gmres      = gko::solver::Gmres<double>;
-   this->solver_gen = gmres::build()
-                      //                      .with_krylov_dim(m)
-                      .with_criteria(this->combined_factory)
-                      .on(this->executor);
+   if (this->m == 0) // Don't set a dimension, but let Ginkgo use its default
+   {
+      this->solver_gen = gmres::build()
+                         .with_criteria(this->combined_factory)
+                         .on(this->executor);
+   }
+   else
+   {
+      this->solver_gen = gmres::build()
+                         .with_krylov_dim(static_cast<unsigned long>(m))
+                         .with_criteria(this->combined_factory)
+                         .on(this->executor);
+   }
 }
 
 GMRESSolver::GMRESSolver(
@@ -697,6 +706,102 @@ GMRESSolver::GMRESSolver(
      m{dim}
 {
    using gmres      = gko::solver::Gmres<double>;
+   // Check for a previously-generated preconditioner (for a specific matrix)
+   if (this->m == 0) // Don't set a dimension, but let Ginkgo use its default
+   {
+      if (preconditioner.HasGeneratedPreconditioner())
+      {
+         this->solver_gen = gmres::build()
+                            .with_criteria(this->combined_factory)
+                            .with_generated_preconditioner(
+                               preconditioner.GetGeneratedPreconditioner())
+                            .on(this->executor);
+         if (dynamic_cast<const OperatorWrapper*>(preconditioner.
+                                                  GetGeneratedPreconditioner().get()))
+         {
+            this->sub_op_needs_wrapped_vecs = true;
+            this->needs_wrapped_vecs = true;
+         }
+      }
+      else
+      {
+         this->solver_gen = gmres::build()
+                            .with_criteria(this->combined_factory)
+                            .with_preconditioner(preconditioner.GetFactory())
+                            .on(this->executor);
+      }
+   }
+   else
+   {
+      if (preconditioner.HasGeneratedPreconditioner())
+      {
+         this->solver_gen = gmres::build()
+                            .with_krylov_dim(static_cast<unsigned long>(m))
+                            .with_criteria(this->combined_factory)
+                            .with_generated_preconditioner(
+                               preconditioner.GetGeneratedPreconditioner())
+                            .on(this->executor);
+         if (dynamic_cast<const OperatorWrapper*>(preconditioner.
+                                                  GetGeneratedPreconditioner().get()))
+         {
+            this->sub_op_needs_wrapped_vecs = true;
+            this->needs_wrapped_vecs = true;
+         }
+      }
+      else
+      {
+         this->solver_gen = gmres::build()
+                            .with_krylov_dim(static_cast<unsigned long>(m))
+                            .with_criteria(this->combined_factory)
+                            .with_preconditioner(preconditioner.GetFactory())
+                            .on(this->executor);
+      }
+   }
+}
+
+/* ---------------------- CbGMRESSolver ------------------------ */
+CbGMRESSolver::CbGMRESSolver(
+   GinkgoExecutor &exec,
+   int print_iter,
+   int max_num_iter,
+   double RTOLERANCE,
+   double ATOLERANCE,
+   int dim
+)
+   : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
+                           ATOLERANCE, false),
+     m{dim}
+{
+   using gmres      = gko::solver::CbGmres<double>;
+   if (this->m == 0) // Don't set a dimension, but let Ginkgo use its default
+   {
+      this->solver_gen = gmres::build()
+                         .with_criteria(this->combined_factory)
+                         .on(this->executor);
+   }
+   else
+   {
+      this->solver_gen = gmres::build()
+                         .with_krylov_dim(static_cast<unsigned long>(m))
+                         .with_criteria(this->combined_factory)
+                         .on(this->executor);
+   }
+}
+
+CbGMRESSolver::CbGMRESSolver(
+   GinkgoExecutor &exec,
+   int print_iter,
+   int max_num_iter,
+   double RTOLERANCE,
+   double ATOLERANCE,
+   const GinkgoPreconditioner &preconditioner,
+   int dim
+)
+   : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
+                           ATOLERANCE, false),
+     m{dim}
+{
+   using gmres      = gko::solver::CbGmres<double>;
    // Check for a previously-generated preconditioner (for a specific matrix)
    if (this->m == 0) // Don't set a dimension, but let Ginkgo use its default
    {

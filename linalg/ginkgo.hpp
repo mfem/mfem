@@ -985,6 +985,61 @@ protected:
 };
 
 /**
+ * An implementation of the solver interface using the Ginkgo
+ * Compressed Basis GMRES solver.
+ *
+ * @ingroup GinkgoWrappers
+ */
+class CbGMRESSolver : public GinkgoIterativeSolver
+{
+public:
+   /**
+    * Constructor.
+    *
+    * @param[in] exec The execution paradigm for the solver.
+    * @param[in] print_iter  A setting to control the printing to the screen.
+    * @param[in] max_num_iter  The maximum number of iterations to be run.
+    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
+    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
+    * @param[in] dim  The Krylov dimension of the solver. Value of 0 will
+    *                  let Ginkgo use its own internal default value.
+    */
+   CbGMRESSolver(
+      GinkgoExecutor &exec,
+      int print_iter,
+      int max_num_iter,
+      double RTOLERANCE,
+      double ATOLERANCE,
+      int dim = 0
+   );
+
+   /**
+    * Constructor.
+    *
+    * @param[in] exec The execution paradigm for the solver.
+    * @param[in] print_iter  A setting to control the printing to the screen.
+    * @param[in] max_num_iter  The maximum number of iterations to be run.
+    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
+    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
+    * @param[in] preconditioner The preconditioner for the solver.
+    * @param[in] dim  The Krylov dimension of the solver. Value of 0 will
+    *                  let Ginkgo use its own internal default value.
+    */
+   CbGMRESSolver(
+      GinkgoExecutor &exec,
+      int print_iter,
+      int max_num_iter,
+      double RTOLERANCE,
+      double ATOLERANCE,
+      const GinkgoPreconditioner &preconditioner,
+      int dim = 0
+   );
+
+protected:
+   int m; // Dimension of Krylov subspace
+};
+
+/**
  * An implementation of the solver interface using the Ginkgo IR solver.
  *
  * Iterative refinement (IR) is an iterative method that uses another coarse
