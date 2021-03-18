@@ -3397,8 +3397,10 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
                ierr = PetscSFBcastBegin(sf,MPIU_SCALAR,garray,larray); CCHKERRQ(comm,ierr);
                ierr = PetscSFBcastEnd(sf,MPIU_SCALAR,garray,larray); CCHKERRQ(comm,ierr);
 #else
-               ierr = PetscSFBcastBegin(sf,MPIU_SCALAR,garray,larray,MPI_REPLACE); CCHKERRQ(comm,ierr);
-               ierr = PetscSFBcastEnd(sf,MPIU_SCALAR,garray,larray,MPI_REPLACE); CCHKERRQ(comm,ierr);
+               ierr = PetscSFBcastBegin(sf,MPIU_SCALAR,garray,larray,MPI_REPLACE);
+               CCHKERRQ(comm,ierr);
+               ierr = PetscSFBcastEnd(sf,MPIU_SCALAR,garray,larray,MPI_REPLACE);
+               CCHKERRQ(comm,ierr);
 #endif
                ierr = VecRestoreArrayRead(pvec_coords,&garray); CCHKERRQ(PETSC_COMM_SELF,ierr);
                ierr = VecRestoreArray(lvec_coords,&larray); CCHKERRQ(PETSC_COMM_SELF,ierr);
@@ -4043,7 +4045,8 @@ void PetscODESolver::Init(TimeDependentOperator &f_,
    if (f_.isImplicit())
    {
       Mat dummy;
-      ierr = __mfem_MatCreateDummy(PetscObjectComm((PetscObject)ts),f_.Height(),f_.Height(),&dummy);
+      ierr = __mfem_MatCreateDummy(PetscObjectComm((PetscObject)ts),f_.Height(),
+                                   f_.Height(),&dummy);
       PCHKERRQ(ts, ierr);
       ierr = TSSetIFunction(ts, NULL, __mfem_ts_ifunction, (void *)ts_ctx);
       PCHKERRQ(ts, ierr);
@@ -4064,7 +4067,8 @@ void PetscODESolver::Init(TimeDependentOperator &f_,
       }
       else
       {
-         ierr = __mfem_MatCreateDummy(PetscObjectComm((PetscObject)ts),f_.Height(),f_.Height(),&dummy);
+         ierr = __mfem_MatCreateDummy(PetscObjectComm((PetscObject)ts),f_.Height(),
+                                      f_.Height(),&dummy);
          PCHKERRQ(ts, ierr);
       }
       ierr = TSSetRHSFunction(ts, NULL, __mfem_ts_rhsfunction, (void *)ts_ctx);
@@ -5514,7 +5518,8 @@ static PetscErrorCode MatConvert_hypreParCSR_IS(hypre_ParCSRMatrix* hA,Mat* pA)
 
 #include <petsc/private/matimpl.h>
 
-static PetscErrorCode __mfem_MatCreateDummy(MPI_Comm comm, PetscInt m, PetscInt n, Mat *A)
+static PetscErrorCode __mfem_MatCreateDummy(MPI_Comm comm, PetscInt m,
+                                            PetscInt n, Mat *A)
 {
    PetscFunctionBegin;
    ierr = MatCreate(comm,A); CHKERRQ(ierr);
