@@ -97,7 +97,7 @@ static PetscErrorCode __mfem_VecSetOffloadMask(Vec,PetscOffloadMask);
 #endif
 static PetscErrorCode __mfem_VecBoundToCPU(Vec,PetscBool*);
 static PetscErrorCode __mfem_PetscObjectStateIncrease(PetscObject);
-static PetscErrorCode __mfem_MatCreateDummy(MPI_Comm,Mat*);
+static PetscErrorCode __mfem_MatCreateDummy(MPI_Comm,PetscInt,PetscInt,Mat*);
 
 // structs used by PETSc code
 typedef struct
@@ -4043,7 +4043,7 @@ void PetscODESolver::Init(TimeDependentOperator &f_,
    if (f_.isImplicit())
    {
       Mat dummy;
-      ierr = __mfem_MatCreateDummy(PetscObjectComm((PetscObject)ts),&dummy);
+      ierr = __mfem_MatCreateDummy(PetscObjectComm((PetscObject)ts),f_.Height(),f_.Height(),&dummy);
       PCHKERRQ(ts, ierr);
       ierr = TSSetIFunction(ts, NULL, __mfem_ts_ifunction, (void *)ts_ctx);
       PCHKERRQ(ts, ierr);
@@ -4064,7 +4064,7 @@ void PetscODESolver::Init(TimeDependentOperator &f_,
       }
       else
       {
-         ierr = __mfem_MatCreateDummy(PetscObjectComm((PetscObject)ts),&dummy);
+         ierr = __mfem_MatCreateDummy(PetscObjectComm((PetscObject)ts),f_.Height(),f_.Height(),&dummy);
          PCHKERRQ(ts, ierr);
       }
       ierr = TSSetRHSFunction(ts, NULL, __mfem_ts_rhsfunction, (void *)ts_ctx);
@@ -4976,7 +4976,7 @@ static PetscErrorCode __mfem_mat_shell_apply_transpose(Mat A, Vec x, Vec y)
    mfem::PetscParVector xx(x,true);
    mfem::PetscParVector yy(y,true);
    ierr = MatIsSymmetricKnown(A,&flg,&symm); CHKERRQ(ierr);
-   if (symm)
+   if (flg && symm)
    {
       op->Mult(xx,yy);
    }
@@ -5514,12 +5514,14 @@ static PetscErrorCode MatConvert_hypreParCSR_IS(hypre_ParCSRMatrix* hA,Mat* pA)
 
 #include <petsc/private/matimpl.h>
 
-static PetscErrorCode __mfem_MatCreateDummy(MPI_Comm comm, Mat *A)
+static PetscErrorCode __mfem_MatCreateDummy(MPI_Comm comm, PetscInt m, PetscInt n, Mat *A)
 {
    PetscFunctionBegin;
    ierr = MatCreate(comm,A); CHKERRQ(ierr);
+   ierr = MatSetSizes(*A,m,n,PETSC_DECIDE,PETSC_DECIDE); CHKERRQ(ierr);
    ierr = PetscObjectChangeTypeName((PetscObject)*A,"mfemdummy"); CHKERRQ(ierr);
    (*A)->preallocated = PETSC_TRUE;
+   ierr = MatSetUp(*A); CHKERRQ(ierr);
    PetscFunctionReturn(0);
 }
 
