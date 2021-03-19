@@ -25,7 +25,7 @@ using namespace mfem;
 constexpr unsigned num_elems = 1024;
 constexpr unsigned num_bytes = num_elems * sizeof(double);
 constexpr double host_val = 1.0;
-constexpr double dev_val = 1.0;
+// constexpr double dev_val = 1.0; // not used (warning)
 
 static long alloc_size(const char * name)
 {
@@ -110,6 +110,10 @@ static void test_umpire_device_memory()
    printf("Allocate %u bytes on the host (will use device temporary): ",
           num_bytes);
    Vector host_temp(num_elems, MemoryType::DEVICE_UMPIRE_2);
+   // with the above constructor, host_temp is valid on device, so we cannot
+   // directly access its host pointer; switch to valid on host without copying
+   // data from device to host:
+   host_temp.HostWrite();
    REQUIRE(!is_pinned_host(host_temp.GetData()));
    CHECK_PERM(num_bytes);
    CHECK_TEMP(0);

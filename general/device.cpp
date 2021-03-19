@@ -318,6 +318,10 @@ void Device::UpdateMemoryTypeAndClass()
    if (!mem_host_env && !mem_types_set)
    {
       host_mem_type = MemoryType::HOST_UMPIRE;
+      if (!mem_device_env)
+      {
+         device_mem_type = MemoryType::HOST_UMPIRE;
+      }
    }
 #endif
 
