@@ -14,7 +14,7 @@
 #include "../bilinearform.hpp"
 #include "../fespace.hpp"
 #include "solvers-atpmg.hpp"
-#include "ceedsolvers-qcoarsen.hpp"
+#include "solvers-qcoarsen.hpp"
 #include "../pfespace.hpp"
 #include "../../general/forall.hpp"
 

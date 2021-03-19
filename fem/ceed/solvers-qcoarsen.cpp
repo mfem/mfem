@@ -9,7 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "ceedsolvers-qcoarsen.hpp"
+#include "solvers-qcoarsen.hpp"
 #include "util.hpp"
 
 #ifdef MFEM_USE_CEED
@@ -355,15 +355,7 @@ int CeedQFunctionQCoarsen(CeedOperator oper, CeedInt qorder_reduction,
    CeedInt coarse_layout[3];
    ierr = CeedElemRestrictionGetELayout(*coarse_rstr_q, &coarse_layout); CeedChk(ierr);
 
-   /// hack_loc is a hack, in general try qcoarsen_linearfunc_loc
-   /// this runs on tuxbox CPU because the location isn't even queried except
-   /// with nvcc?
-   // const char* hack_loc = "/usr/WS1/barker29/ceed-solvers/include/linear.h:qcoarsen_linearfunc";
-   /*
-     // yohann does something more like this:
-      std::string qf_file = GetCeedPath() + op.header;
-      std::string qf = qf_file + op.build_func;
-   */
+   // not entirely sure of the next kernel magic
    std::string qf_file = GetCeedPath() + "/linear_qf.h";
    std::string qf = qf_file + ":qcoarsen_linearfunc";
    ierr = CeedQFunctionCreateInterior(ceed, coarse_vlength, qcoarsen_linearfunc,
