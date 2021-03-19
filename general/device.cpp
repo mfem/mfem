@@ -65,10 +65,7 @@ Device Device::device_singleton;
 bool Device::device_env = false;
 bool Device::mem_host_env = false;
 bool Device::mem_device_env = false;
-#ifdef MFEM_USE_UMPIRE
-bool Device::use_host_umpire = true;
-bool Device::use_device_umpire = true;
-#endif
+bool Device::mem_types_set = false;
 
 Device::Device()
 {
@@ -136,7 +133,7 @@ Device::Device()
       {
          MFEM_ABORT("Unknown memory backend!");
       }
-      mm.Configure(host_mem_type, device_mem_type, device_mem_type);
+      mm.Configure(host_mem_type, device_mem_type);
    }
 
    if (getenv("MFEM_DEVICE"))
@@ -178,8 +175,6 @@ Device::~Device()
    Get().host_mem_class = MemoryClass::HOST;
    Get().device_mem_type = MemoryType::HOST;
    Get().device_mem_class = MemoryClass::HOST;
-   Get().device_temp_mem_type = MemoryType::HOST;
-   Get().device_temp_mem_class = MemoryClass::HOST;
 }
 
 void Device::Configure(const std::string &device, const int dev)
@@ -257,6 +252,30 @@ void Device::Configure(const std::string &device, const int dev)
    destroy_mm = true;
 }
 
+// static method
+void Device::SetMemoryTypes(MemoryType h_mt, MemoryType d_mt)
+{
+   // If the device and/or the MemoryTypes are configured through the
+   // environment (variables 'MFEM_DEVICE', 'MFEM_MEMORY'), ignore calls to this
+   // method.
+   if (mem_host_env || mem_device_env || device_env) { return; }
+
+   MFEM_VERIFY(!IsConfigured(), "the default MemoryTypes can only be set before"
+               " Device construction and configuration");
+   MFEM_VERIFY(IsHostMemory(h_mt),
+               "invalid host MemoryType, h_mt = " << (int)h_mt);
+   MFEM_VERIFY(IsDeviceMemory(d_mt) || d_mt == h_mt,
+               "invalid device MemoryType, d_mt = " << (int)d_mt
+               << " (h_mt = " << (int)h_mt << ')');
+
+   Get().host_mem_type = h_mt;
+   Get().device_mem_type = d_mt;
+   mem_types_set = true;
+
+   // h_mt and d_mt will be set as dual to each other during configuration by
+   // the call mm.Configure(...) in UpdateMemoryTypeAndClass()
+}
+
 void Device::Print(std::ostream &out)
 {
    out << "Device configuration: ";
@@ -284,10 +303,6 @@ void Device::Print(std::ostream &out)
    if (Device::Allows(Backend::DEVICE_MASK))
    {
       out << ',' << MemoryTypeName[static_cast<int>(device_mem_type)];
-      if (device_temp_mem_type != device_mem_type)
-      {
-         out << ',' << MemoryTypeName[static_cast<int>(device_temp_mem_type)];
-      }
    }
    out << std::endl;
 }
@@ -300,7 +315,14 @@ void Device::UpdateMemoryTypeAndClass()
 
 #ifdef MFEM_USE_UMPIRE
    // If MFEM has been compiled with Umpire support, use it as the default
-   if (!mem_host_env && use_host_umpire) { host_mem_type = MemoryType::HOST_UMPIRE; }
+   if (!mem_host_env && !mem_types_set)
+   {
+      host_mem_type = MemoryType::HOST_UMPIRE;
+      if (!mem_device_env)
+      {
+         device_mem_type = MemoryType::HOST_UMPIRE;
+      }
+   }
 #endif
 
    // Enable the device memory type
@@ -322,18 +344,13 @@ void Device::UpdateMemoryTypeAndClass()
                   device_mem_type = MemoryType::DEVICE;
             }
          }
-         else
+         else if (!mem_types_set)
          {
-#ifdef MFEM_USE_UMPIRE
-            if (use_device_umpire)
-            {
-               device_mem_type = MemoryType::DEVICE_UMPIRE;
-            }
-            else
+#ifndef MFEM_USE_UMPIRE
+            device_mem_type = MemoryType::DEVICE;
+#else
+            device_mem_type = MemoryType::DEVICE_UMPIRE;
 #endif
-            {
-               device_mem_type = MemoryType::DEVICE;
-            }
          }
       }
       device_mem_class = MemoryClass::DEVICE;
@@ -353,21 +370,11 @@ void Device::UpdateMemoryTypeAndClass()
       device_mem_type = MemoryType::DEVICE_DEBUG;
    }
 
-   // Setup device_temp_mem_{type,class}
-   switch (device_mem_type)
-   {
-      case MemoryType::DEVICE_UMPIRE:
-         device_temp_mem_type = device_mem_type;
-         device_temp_mem_class = MemoryClass::DEVICE_TEMP;
-         break;
-      default:
-         device_temp_mem_type = device_mem_type;
-         device_temp_mem_class = device_mem_class;
-         break;
-   }
+   MFEM_VERIFY(!device || IsDeviceMemory(device_mem_type),
+               "invalid device memory configuration!");
 
    // Update the memory manager with the new settings
-   mm.Configure(host_mem_type, device_mem_type, device_temp_mem_type);
+   mm.Configure(host_mem_type, device_mem_type);
 }
 
 void Device::Enable()

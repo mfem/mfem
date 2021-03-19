@@ -777,10 +777,14 @@ public:
    long GetGlobalNE() const { return ReduceInt(NumOfElements); }
 
    /** @brief Return the mesh geometric factors corresponding to the given
-       integration rule. If @a use_temp is true and using device memory the
-       GeometricFactors will be constructed in temporary memory. */
-   const GeometricFactors* GetGeometricFactors(const IntegrationRule& ir,
-                                               const int flags, bool use_temp=false);
+       integration rule. */
+   /** If the device MemoryType parameter @a d_mt is specified, then the
+       returned object will use that type unless it was previously allocated
+       with a different type. */
+   const GeometricFactors* GetGeometricFactors(
+      const IntegrationRule& ir,
+      const int flags,
+      MemoryType d_mt = MemoryType::DEFAULT);
 
    /** @brief Return the mesh geometric factors for the faces corresponding
         to the given integration rule. */
@@ -1422,7 +1426,7 @@ public:
    };
 
    GeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags,
-                    bool use_temp_mem=false);
+                    MemoryType d_mt = MemoryType::DEFAULT);
 
    /// Mapped (physical) coordinates of all quadrature points.
    /** This array uses a column-major layout with dimensions (NQ x SDIM x NE)

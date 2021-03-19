@@ -778,7 +778,8 @@ void Mesh::GetLocalQuadToWdgTransformation(
 }
 
 const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
-                                                  const int flags, bool use_temp)
+                                                  const int flags,
+                                                  MemoryType d_mt)
 {
    for (int i = 0; i < geom_factors.Size(); i++)
    {
@@ -791,7 +792,7 @@ const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
 
    this->EnsureNodes();
 
-   GeometricFactors *gf = new GeometricFactors(this, ir, flags, use_temp);
+   GeometricFactors *gf = new GeometricFactors(this, ir, flags, d_mt);
    geom_factors.Append(gf);
    return gf;
 }
@@ -10728,7 +10729,7 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
 
 
 GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
-                                   int flags, bool use_temp_mem)
+                                   int flags, MemoryType d_mt)
 {
    this->mesh = mesh;
    IntRule = &ir;
@@ -10748,22 +10749,21 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
                                    ElementDofOrdering::NATIVE);
 
    unsigned eval_flags = 0;
+   MemoryType my_d_mt = (d_mt != MemoryType::DEFAULT) ? d_mt :
+                        Device::GetDeviceMemoryType();
    if (flags & GeometricFactors::COORDINATES)
    {
-      X.SetSize(vdim*NQ*NE);
-      X.UseTemporary(use_temp_mem);
+      X.SetSize(vdim*NQ*NE, my_d_mt);
       eval_flags |= QuadratureInterpolator::VALUES;
    }
    if (flags & GeometricFactors::JACOBIANS)
    {
-      J.SetSize(dim*vdim*NQ*NE);
-      J.UseTemporary(use_temp_mem);
+      J.SetSize(dim*vdim*NQ*NE, my_d_mt);
       eval_flags |= QuadratureInterpolator::DERIVATIVES;
    }
    if (flags & GeometricFactors::DETERMINANTS)
    {
-      detJ.SetSize(NQ*NE);
-      detJ.UseTemporary(use_temp_mem);
+      detJ.SetSize(NQ*NE, my_d_mt);
       eval_flags |= QuadratureInterpolator::DETERMINANTS;
    }
 
@@ -10773,9 +10773,7 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    qi->SetOutputLayout(QVectorLayout::byNODES);
    if (elem_restr)
    {
-      Vector Enodes(vdim*ND*NE,
-                    use_temp_mem ? MemoryClass::DEVICE_TEMP :
-                    MemoryClass::DEVICE);
+      Vector Enodes(vdim*ND*NE, my_d_mt);
       elem_restr->Mult(*nodes, Enodes);
       qi->Mult(Enodes, eval_flags, X, J, detJ);
    }
