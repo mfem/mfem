@@ -984,13 +984,20 @@ protected:
    int m; // Dimension of Krylov subspace
 };
 
+using gko::solver::cb_gmres::storage_precision;
 /**
  * An implementation of the solver interface using the Ginkgo
- * Compressed Basis GMRES solver.
+ * Compressed Basis GMRES solver. With CB-GMRES, the Krylov basis
+ * is "compressed" by storing in a lower precision.  Currently, computations
+ * are always performed in double precision when using this MFEM integration.
+ * The Ginkgo storage precision options are accessed
+ * through GinkgoWrappers::storage_precision::*.  The default choice
+ * is GinkgoWrappers::storage_precision::reduce1, i.e., store in float
+ * instead of double.
  *
  * @ingroup GinkgoWrappers
  */
-class CbGMRESSolver : public GinkgoIterativeSolver
+class CBGMRESSolver : public GinkgoIterativeSolver
 {
 public:
    /**
@@ -1002,15 +1009,22 @@ public:
     * @param[in] RTOLERANCE  The relative tolerance to be achieved.
     * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     * @param[in] dim  The Krylov dimension of the solver. Value of 0 will
-    *                  let Ginkgo use its own internal default value.
+    *  let Ginkgo use its own internal default value.
+    * @param[in] prec  The storage precision used in the CB-GMRES. Options
+    *  are: keep (keep double precision), reduce1 (double -> float),
+    *  reduce2 (double -> half), integer (double -> int64),
+    *  ireduce1 (double -> int32), ireduce2 (double -> int16).
+    *  See Ginkgo documentation for more about the CB-GMRES and
+    *  these options.
     */
-   CbGMRESSolver(
+   CBGMRESSolver(
       GinkgoExecutor &exec,
       int print_iter,
       int max_num_iter,
       double RTOLERANCE,
       double ATOLERANCE,
-      int dim = 0
+      int dim = 0,
+      storage_precision prec = storage_precision::reduce1
    );
 
    /**
@@ -1023,16 +1037,23 @@ public:
     * @param[in] ATOLERANCE The absolute tolerance to be achieved.
     * @param[in] preconditioner The preconditioner for the solver.
     * @param[in] dim  The Krylov dimension of the solver. Value of 0 will
-    *                  let Ginkgo use its own internal default value.
+    *  let Ginkgo use its own internal default value.
+    * @param[in] prec  The storage precision used in the CB-GMRES. Options
+    *  are: keep (keep double precision), reduce1 (double -> float),
+    *  reduce2 (double -> half), integer (double -> int64),
+    *  ireduce1 (double -> int32), ireduce2 (double -> int16).
+    *  See Ginkgo documentation for more about the CB-GMRES and
+    *  these options.
     */
-   CbGMRESSolver(
+   CBGMRESSolver(
       GinkgoExecutor &exec,
       int print_iter,
       int max_num_iter,
       double RTOLERANCE,
       double ATOLERANCE,
       const GinkgoPreconditioner &preconditioner,
-      int dim = 0
+      int dim = 0,
+      storage_precision prec = storage_precision::reduce1
    );
 
 protected:
