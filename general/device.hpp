@@ -124,7 +124,7 @@ private:
    friend class MemoryManager;
    enum MODES {SEQUENTIAL, ACCELERATED};
 
-   static bool device_env, mem_host_env, mem_device_env;
+   static bool device_env, mem_host_env, mem_device_env, mem_types_set;
    static Device device_singleton;
 
    MODES mode = Device::SEQUENTIAL;
@@ -222,6 +222,17 @@ public:
    */
    void Configure(const std::string &device, const int dev = 0);
 
+   /// Set the default host and device MemoryTypes, @a h_mt and @a d_mt.
+   /** The host and device MemoryTypes are also set to be dual to each other.
+
+       These two MemoryType%s are used by most MFEM classes when allocating
+       memory used on host and device, respectively.
+
+       This method can only be called before Device construction and
+       configuration, and the specified memory types must be compatible with
+       the subsequent Device configuration. */
+   static void SetMemoryTypes(MemoryType h_mt, MemoryType d_mt);
+
    /// Print the configuration of the MFEM virtual device object.
    void Print(std::ostream &out = mfem::out);
 
@@ -249,17 +260,6 @@ public:
    */
    static inline MemoryType GetHostMemoryType() { return Get().host_mem_type; }
 
-   /** @brief Set the current Host MemoryType. This is the MemoryType used by
-       most MFEM classes when allocating memory used on the host.
-
-       Only memory types compatible with the current host MemoryClass are valid
-       as input. */
-   static inline void SetHostMemoryType(MemoryType h_mt)
-   {
-      Get().host_mem_type = h_mt;
-      mm.SetHostMemoryType(h_mt);
-   }
-
    /** @brief Get the current Host MemoryClass. This is the MemoryClass used
        by most MFEM host Memory objects. */
    static inline MemoryClass GetHostMemoryClass() { return Get().host_mem_class; }
@@ -272,17 +272,6 @@ public:
    /// (DEPRECATED) Equivalent to GetDeviceMemoryType().
    /** @deprecated Use GetDeviceMemoryType() instead. */
    static inline MemoryType GetMemoryType() { return Get().device_mem_type; }
-
-   /** @brief Set the current Device MemoryType. This is the MemoryType used by
-       most MFEM classes when allocating memory to be used with device kernels.
-
-       Only memory types compatible with the current device MemoryClass are
-       valid as input. */
-   static inline void SetDeviceMemoryType(MemoryType d_mt)
-   {
-      Get().device_mem_type = d_mt;
-      mm.SetDeviceMemoryType(d_mt);
-   }
 
    /** @brief Get the current Device MemoryClass. This is the MemoryClass used
        by most MFEM device kernels to access Memory objects. */

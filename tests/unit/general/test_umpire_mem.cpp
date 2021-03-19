@@ -64,13 +64,21 @@ static void test_umpire_device_memory()
    rm.makeAllocator<umpire::strategy::QuickPool, true>(device_temp_alloc_name,
                                                        rm.getAllocator("DEVICE"), 0, 0);
 
+   // set the default host and device memory types; they will be made dual to
+   // each other
+   Device::SetMemoryTypes(MemoryType::HOST, MemoryType::DEVICE_UMPIRE);
+
+   // update some dual memory types
+   MemoryManager::SetDualMemoryType(MemoryType::DEVICE_UMPIRE_2,
+                                    MemoryType::HOST);
+   MemoryManager::SetDualMemoryType(MemoryType::HOST_PINNED,
+                                    MemoryType::DEVICE_UMPIRE);
+
    // set the Umpire allocators used with MemoryType::DEVICE_UMPIRE and
    // MemoryType::DEVICE_UMPIRE_2
    MemoryManager::SetUmpireDeviceAllocatorName(device_perm_alloc_name);
    MemoryManager::SetUmpireDevice2AllocatorName(device_temp_alloc_name);
    Device device("cuda");
-   Device::SetHostMemoryType(MemoryType::HOST); // not necessary
-   Device::SetDeviceMemoryType(MemoryType::DEVICE_UMPIRE); // 'permanent'
 
    printf("Both pools should be empty at startup:");
    CHECK_SIZE(0, 0);

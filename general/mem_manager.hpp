@@ -80,7 +80,12 @@ enum class MemoryClass
 
 /// Return true if the given memory type is in MemoryClass::HOST.
 inline bool IsHostMemory(MemoryType mt) { return mt <= MemoryType::MANAGED; }
-inline bool IsDeviceMemory(MemoryType mt) { return mt >= MemoryType::MANAGED; }
+
+/// Return true if the given memory type is in MemoryClass::DEVICE
+inline bool IsDeviceMemory(MemoryType mt)
+{
+   return mt >= MemoryType::MANAGED && mt < MemoryType::SIZE;
+}
 
 /// Return a suitable MemoryType for a given MemoryClass.
 MemoryType GetMemoryType(MemoryClass mc);
@@ -159,7 +164,6 @@ protected:
    T *h_ptr;
    int capacity; ///< Size of the allocated memory
    MemoryType h_mt; ///< Host memory type
-   MemoryType d_mt; ///< Device memory type
    mutable unsigned flags; ///< Bit flags defined from the #FlagMask enum
    // 'flags' is mutable so that it can be modified in Set{Host,Device}PtrOwner,
    // Copy{From,To}, {ReadWrite,Read,Write}.
@@ -279,9 +283,15 @@ public:
    inline void New(int size);
 
    /// Allocate memory for @a size entries with the given MemoryType.
-   /** The newly allocated memory is not initialized. If @a mt is not a
-       host memory type the memory is set as device valid. Either way
-       the memory is set as host valid.
+   /** The newly allocated memory is not initialized, however the given
+       MemoryType is still set as valid.
+
+       When @a mt is a host type, the device MemoryType will be set later, if
+       requested, using the dual type of @a mt, see
+       MemoryManager::GetDualMemoryType().
+
+       When @a mt is a device type, the host MemoryType will be set immediately
+       to be the dual of @a mt, see MemoryManager::GetDualMemoryType().
 
        @note The current memory is NOT deleted by this method. */
    inline void New(int size, MemoryType mt);
@@ -319,11 +329,8 @@ public:
    /** The new memory object will have the device MemoryType set as valid.
 
        The given @a h_ptr and @a d_ptr must be allocated appropriately for the
-       given host MemoryType and its associated device MemoryType:
-          - MANAGED => MANAGED,
-          - HOST_DEBUG => DEVICE_DEBUG,
-          - HOST_UMPIRE => DEVICE_UMPIRE,
-          - HOST, HOST_32, HOST_64 => DEVICE.
+       given host MemoryType and its dual device MemoryType as defined by
+       MemoryManager::GetDualMemoryType().
 
        The parameter @a own determines whether both @a h_ptr and @a d_ptr will
        be deleted when the method Delete() is called.
@@ -352,8 +359,8 @@ public:
        however, the allocation may already exist if the MemoryType is the same
        as the current one.
 
-       @note This method only works if the memory is unregistered i.e. the
-       host memory type is MemoryType::HOST */
+       If the Memory is an alias Memory, the device MemoryType of its base will
+       be updated as described above. */
    inline void SetDeviceMemoryType(MemoryType d_mt);
 
    /** @brief Delete the owned pointers. The Memory is not reset by this method,
@@ -517,6 +524,12 @@ private:
       static inline T *New(std::size_t size) { return new T[size]; }
    };
 #endif
+
+   // Shortcut for Alloc<new_align_bytes>::New(size)
+   static inline T *NewHOST(std::size_t size)
+   {
+      return Alloc<new_align_bytes>::New(size);
+   }
 };
 
 
@@ -544,6 +557,14 @@ private:
    /// Return true if the global memory manager instance exists.
    static bool Exists() { return exists; }
 
+   /// Array defining the dual MemoryType for each MemoryType
+   /** The dual of a host MemoryType is a device MemoryType and vice versa: the
+       dual of a device MemoryType is a host MemoryType. */
+   static MemoryType dual_map[MemoryTypeSize];
+
+   /// True if Configure() was called
+   static bool configured;
+
    /// Host and device allocator names for Umpire.
 #ifdef MFEM_USE_UMPIRE
    static const char * h_umpire_name;
@@ -556,26 +577,27 @@ private: // Static methods used by the Memory<T> class
    /// Allocate and register a new pointer. Return the host pointer.
    /// h_tmp must be already allocated using new T[] if mt is a pure device
    /// memory type, e.g. CUDA (mt will not be HOST).
-   static void *New_(void *h_tmp, size_t bytes, MemoryType h_mt, MemoryType d_mt,
-                     unsigned &flags);
+   static void *New_(void *h_tmp, size_t bytes, MemoryType mt, unsigned &flags);
+
+   static void *New_(void *h_tmp, size_t bytes, MemoryType h_mt,
+                     MemoryType d_mt, unsigned valid_flags, unsigned &flags);
 
    /// Register an external pointer of the given MemoryType.
    /// Return the host pointer.
-   static void *Register_(void *ptr, void *h_ptr, size_t bytes, MemoryType h_mt,
-                          MemoryType d_mt, bool own, bool alias, unsigned &flags);
+   static void *Register_(void *ptr, void *h_ptr, size_t bytes, MemoryType mt,
+                          bool own, bool alias, unsigned &flags);
 
-   static inline void *Register_(void *ptr, void *h_ptr, size_t bytes,
-                                 MemoryType mt,
-                                 bool own, bool alias, unsigned &flags)
-   {
-      MemoryType h_mt = IsHostMemory(mt) ? mt : MemoryManager::GetHostMemoryType();
-      MemoryType d_mt = IsHostMemory(mt) ? MemoryManager::GetDeviceMemoryType() : mt;
-      return Register_(ptr, h_ptr, bytes, h_mt, d_mt, own, alias, flags);
-   }
+   /// Register a pair of external host and device pointers
+   static void Register_(void *h_ptr, void *d_ptr, size_t bytes,
+                         MemoryType h_mt, MemoryType d_mt,
+                         bool own, bool alias, unsigned &flags);
 
    /// Register an alias. Note: base_h_ptr may be an alias.
    static void Alias_(void *base_h_ptr, size_t offset, size_t bytes,
                       unsigned base_flags, unsigned &flags);
+
+   static void SetDeviceMemoryType_(void *h_ptr, unsigned flags,
+                                    MemoryType d_mt);
 
    /// Un-register and free memory identified by its host pointer. Returns the
    /// memory type of the host pointer.
@@ -684,8 +706,43 @@ public:
    /// Initialize the memory manager.
    void Init();
 
+   /// Return the dual MemoryType of the given one, @a mt.
+   /** The default dual memory types are:
+
+       memory type     | dual type
+       --------------- | ---------
+       HOST            | DEVICE
+       HOST_32         | DEVICE
+       HOST_64         | DEVICE
+       HOST_DEBUG      | DEVICE_DEBUG
+       HOST_UMPIRE     | DEVICE_UMPIRE
+       HOST_PINNED     | DEVICE
+       MANAGED         | MANAGED
+       DEVICE          | HOST
+       DEVICE_DEBUG    | HOST_DEBUG
+       DEVICE_UMPIRE   | HOST_UMPIRE
+       DEVICE_UMPIRE_2 | HOST_UMPIRE
+
+       The dual types can be modified before device configuration using the
+       method SetDualMemoryType() or by calling Device::SetMemoryTypes(). */
+   static inline MemoryType GetDualMemoryType(MemoryType mt)
+   { return dual_map[(int)mt]; }
+
+   /// Set the dual memory type of @a mt to be @a dual_mt.
+   /** This method can only be called before configuration, i.e. before calling
+       Configure(), which is typically done during Device construction.
+
+       One of the types must be a host MemoryType and the other must be a device
+       MemoryType or both types must be the same host memory type. The latter
+       case is only allowed for convenience in setting up pure host execution,
+       so the actual dual is not updated. */
+   static void SetDualMemoryType(MemoryType mt, MemoryType dual_mt);
+
    /** @brief Configure the Memory manager with given default host and device
-       types. This method will be called when configuring a device. */
+       types. This method will be called when configuring a device.
+
+       The host and device MemoryType%s, @a h_mt and @a d_mt, are set to be dual
+       to each other. */
    void Configure(const MemoryType h_mt, const MemoryType d_mt);
 
 #ifdef MFEM_USE_UMPIRE
@@ -726,8 +783,6 @@ public:
 
    static MemoryType GetHostMemoryType() { return host_mem_type; }
    static MemoryType GetDeviceMemoryType() { return device_mem_type; }
-   static void SetHostMemoryType(MemoryType h_mt) { host_mem_type = h_mt; }
-   static void SetDeviceMemoryType(MemoryType d_mt) { device_mem_type = d_mt; }
 };
 
 
@@ -738,7 +793,6 @@ inline void Memory<T>::Reset()
 {
    h_ptr = NULL;
    h_mt = MemoryManager::GetHostMemoryType();
-   d_mt = MemoryManager::GetDeviceMemoryType();
    capacity = 0;
    flags = 0;
 }
@@ -748,7 +802,6 @@ inline void Memory<T>::Reset(MemoryType host_mt)
 {
    h_ptr = NULL;
    h_mt = host_mt;
-   d_mt = MemoryManager::GetDeviceMemoryType();
    capacity = 0;
    flags = 0;
 }
@@ -757,12 +810,10 @@ template <typename T>
 inline void Memory<T>::New(int size)
 {
    capacity = size;
+   flags = OWNS_HOST | VALID_HOST;
    h_mt = MemoryManager::GetHostMemoryType();
-   d_mt = MemoryManager::GetDeviceMemoryType();
-   const bool mt_host = h_mt == MemoryType::HOST;
-   if (mt_host) { flags = OWNS_HOST | VALID_HOST; }
-   h_ptr = (mt_host) ? Alloc<new_align_bytes>::New(size) :
-           (T*)MemoryManager::New_(nullptr, size*sizeof(T), h_mt, d_mt, flags);
+   h_ptr = (h_mt == MemoryType::HOST) ? NewHOST(size) :
+           (T*)MemoryManager::New_(nullptr, size*sizeof(T), h_mt, flags);
 }
 
 template <typename T>
@@ -770,40 +821,21 @@ inline void Memory<T>::New(int size, MemoryType mt)
 {
    capacity = size;
    const size_t bytes = size*sizeof(T);
-   h_mt = IsHostMemory(mt) ? mt : MemoryManager::GetHostMemoryType();
-   d_mt = IsHostMemory(mt) ? MemoryManager::GetDeviceMemoryType() : mt;
-   if (h_mt == MemoryType::HOST)
-   {
-      flags = OWNS_HOST | VALID_HOST;
-      h_ptr = Alloc<new_align_bytes>::New(size);
-      if (mt != MemoryType::HOST)
-      {
-         MemoryManager::Register_(h_ptr, nullptr, capacity*sizeof(T), h_mt, d_mt,
-                                  flags & OWNS_HOST, flags & ALIAS, flags);
-      }
-   }
-   else
-   {
-      h_ptr = (T*)MemoryManager::New_(nullptr, bytes, h_mt, d_mt, flags);
-   }
-
-   if (!IsHostMemory(mt)) { flags |= VALID_DEVICE; }
+   const bool mt_host = mt == MemoryType::HOST;
+   if (mt_host) { flags = OWNS_HOST | VALID_HOST; }
+   h_mt = IsHostMemory(mt) ? mt : MemoryManager::GetDualMemoryType(mt);
+   T *h_tmp = (h_mt == MemoryType::HOST) ? NewHOST(size) : nullptr;
+   h_ptr = (mt_host) ? h_tmp : (T*)MemoryManager::New_(h_tmp, bytes, mt, flags);
 }
 
 template <typename T>
 inline void Memory<T>::New(int size, MemoryType h_mt, MemoryType d_mt)
 {
-   MFEM_VERIFY(IsHostMemory(h_mt), "h_mt must be host type");
-   MFEM_VERIFY(IsDeviceMemory(d_mt), "d_mt must be device type");
    capacity = size;
    const size_t bytes = size*sizeof(T);
    this->h_mt = h_mt;
-   this->d_mt = d_mt;
-   const bool mt_host = h_mt == MemoryType::HOST;
-   if (mt_host) { flags = OWNS_HOST | VALID_HOST; }
-   T *h_tmp = (mt_host) ? Alloc<new_align_bytes>::New(size) : nullptr;
-   h_ptr = (mt_host) ? h_tmp : (T*)MemoryManager::New_(h_tmp, bytes, h_mt, d_mt,
-                                                       flags);
+   T *h_tmp = (h_mt == MemoryType::HOST) ? NewHOST(size) : nullptr;
+   h_ptr = (T*)MemoryManager::New_(h_tmp, bytes, h_mt, d_mt, VALID_HOST, flags);
 }
 
 template <typename T>
@@ -814,13 +846,12 @@ inline void Memory<T>::Wrap(T *ptr, int size, bool own)
    const size_t bytes = size*sizeof(T);
    flags = (own ? OWNS_HOST : 0) | VALID_HOST;
    h_mt = MemoryManager::GetHostMemoryType();
-   d_mt = MemoryManager::GetDeviceMemoryType();
 #ifdef MFEM_DEBUG
    if (own && MemoryManager::Exists())
    { MFEM_VERIFY(h_mt == MemoryManager::GetHostMemoryType_(h_ptr),""); }
 #endif
    if (own && h_mt != MemoryType::HOST)
-   { MemoryManager::Register_(ptr, ptr, bytes, h_mt, d_mt, own, false, flags); }
+   { MemoryManager::Register_(ptr, ptr, bytes, h_mt, own, false, flags); }
 }
 
 template <typename T>
@@ -830,7 +861,6 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
    if (IsHostMemory(mt))
    {
       h_mt = mt;
-      d_mt = MemoryManager::GetDeviceMemoryType();
       h_ptr = ptr;
       if (mt == MemoryType::HOST || !own)
       {
@@ -841,9 +871,8 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
    }
    else
    {
-      h_mt = MemoryManager::GetHostMemoryType();
-      d_mt = mt;
-      h_ptr = nullptr;
+      h_mt = MemoryManager::GetDualMemoryType(mt);
+      h_ptr = (h_mt == MemoryType::HOST) ? new T[size] : nullptr;
    }
    flags = 0;
    h_ptr = (T*)MemoryManager::Register_(ptr, h_ptr, size*sizeof(T), mt,
@@ -853,14 +882,14 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
 template <typename T>
 inline void Memory<T>::Wrap(T *ptr, T *d_ptr, int size, MemoryType mt, bool own)
 {
-   h_mt = IsHostMemory(mt) ? mt : MemoryManager::GetHostMemoryType();
-   d_mt = IsHostMemory(mt) ? MemoryManager::GetDeviceMemoryType() : mt;
+   h_mt = mt;
    flags = 0;
    h_ptr = ptr;
    capacity = size;
    MFEM_ASSERT(IsHostMemory(h_mt),"");
    const size_t bytes = size*sizeof(T);
-   MemoryManager::Register_(d_ptr, h_ptr, bytes, d_mt, own, false, flags);
+   const MemoryType d_mt = MemoryManager::GetDualMemoryType(h_mt);
+   MemoryManager::Register_(h_ptr, d_ptr, bytes, h_mt, d_mt, own, false, flags);
 }
 
 template <typename T>
@@ -868,7 +897,6 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
 {
    capacity = size;
    h_mt = base.h_mt;
-   d_mt = base.d_mt;
    h_ptr = base.h_ptr + offset;
    if (!(base.flags & REGISTERED))
    { flags = (base.flags | ALIAS) & ~(OWNS_HOST | OWNS_DEVICE); }
@@ -884,10 +912,12 @@ template <typename T>
 inline void Memory<T>::SetDeviceMemoryType(MemoryType d_mt)
 {
    if (!IsDeviceMemory(d_mt)) { return; }
-   MFEM_VERIFY(!(flags & VALID_DEVICE),
-               "cannot change device type if memory on device");
-   MFEM_VERIFY(!(flags & REGISTERED), "cannot change device type if registered");
-   this->d_mt = d_mt;
+   if (!(flags & REGISTERED))
+   {
+      MemoryManager::Register_(h_ptr, nullptr, capacity*sizeof(T), h_mt,
+                               flags & OWNS_HOST, flags & ALIAS, flags);
+   }
+   MemoryManager::SetDeviceMemoryType_(h_ptr, flags, d_mt);
 }
 
 template <typename T>
@@ -970,7 +1000,7 @@ inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
    if (!(flags & REGISTERED))
    {
       if (mc == MemoryClass::HOST) { return h_ptr; }
-      MemoryManager::Register_(h_ptr, nullptr, capacity*sizeof(T), h_mt, d_mt,
+      MemoryManager::Register_(h_ptr, nullptr, capacity*sizeof(T), h_mt,
                                flags & OWNS_HOST, flags & ALIAS, flags);
    }
    return (T*)MemoryManager::ReadWrite_(h_ptr, h_mt, mc, bytes, flags);
@@ -983,7 +1013,7 @@ inline const T *Memory<T>::Read(MemoryClass mc, int size) const
    if (!(flags & REGISTERED))
    {
       if (mc == MemoryClass::HOST) { return h_ptr; }
-      MemoryManager::Register_(h_ptr, nullptr, capacity*sizeof(T), h_mt, d_mt,
+      MemoryManager::Register_(h_ptr, nullptr, capacity*sizeof(T), h_mt,
                                flags & OWNS_HOST, flags & ALIAS, flags);
    }
    return (const T*)MemoryManager::Read_(h_ptr, h_mt, mc, bytes, flags);
@@ -996,7 +1026,7 @@ inline T *Memory<T>::Write(MemoryClass mc, int size)
    if (!(flags & REGISTERED))
    {
       if (mc == MemoryClass::HOST) { return h_ptr; }
-      MemoryManager::Register_(h_ptr, nullptr, capacity*sizeof(T), h_mt, d_mt,
+      MemoryManager::Register_(h_ptr, nullptr, capacity*sizeof(T), h_mt,
                                flags & OWNS_HOST, flags & ALIAS, flags);
    }
    return (T*)MemoryManager::Write_(h_ptr, h_mt, mc, bytes, flags);
