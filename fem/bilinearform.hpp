@@ -29,8 +29,13 @@ namespace mfem
     form classes derived from Operator. */
 enum class AssemblyLevel
 {
-   /// Legacy fully assembled form, i.e. a global sparse matrix in MFEM, Hypre
-   /// or PETSC format. This assembly is ALWAYS performed on the host.
+   /// In the case of a BilinearForm LEGACY corresponds to a fully assembled
+   /// form, i.e. a global sparse matrix in MFEM, Hypre or PETSC format.
+   /// In the case of a NonlinearForm LEGACY corresponds to an operator that
+   /// is fully evaluated on the fly.
+   /// This assembly level is ALWAYS performed on the host.
+   LEGACY = 0,
+   /// @deprecated Use LEGACY instead.
    LEGACYFULL = 0,
    /// Fully assembled form, i.e. a global sparse matrix in MFEM format. This
    /// assembly is compatible with device execution.
@@ -124,7 +129,7 @@ protected:
       static_cond = NULL; hybridization = NULL;
       precompute_sparsity = 0;
       diag_policy = DIAG_KEEP;
-      assembly = AssemblyLevel::LEGACYFULL;
+      assembly = AssemblyLevel::LEGACY;
       batch = 1;
       ext = NULL;
    }
@@ -159,7 +164,7 @@ public:
    /// Set the desired assembly level.
    /** Valid choices are:
 
-       - AssemblyLevel::LEGACYFULL (default)
+       - AssemblyLevel::LEGACY (default)
        - AssemblyLevel::FULL
        - AssemblyLevel::PARTIAL
        - AssemblyLevel::ELEMENT
@@ -765,7 +770,7 @@ public:
    /// Sets all sparse values of \f$ M \f$ to @a a.
    void operator=(const double a) { *mat = a; }
 
-   /// Set the desired assembly level. The default is AssemblyLevel::LEGACYFULL.
+   /// Set the desired assembly level. The default is AssemblyLevel::LEGACY.
    /** This method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
 

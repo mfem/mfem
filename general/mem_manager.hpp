@@ -1071,7 +1071,7 @@ inline void Memory<T>::CopyFrom(const Memory &src, int size)
    {
       if (h_ptr != src.h_ptr && size != 0)
       {
-         MFEM_ASSERT(h_ptr + size <= src || src + size <= h_ptr,
+         MFEM_ASSERT(h_ptr + size <= src.h_ptr || src.h_ptr + size <= h_ptr,
                      "data overlaps!");
          std::memcpy(h_ptr, src, size*sizeof(T));
       }

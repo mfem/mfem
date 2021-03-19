@@ -360,7 +360,7 @@ void test_pa_convection(const char *meshname, int order, int prob)
    INFO("mesh=" << meshname << ", order=" << order << ", prob=" << prob);
    Mesh mesh(meshname, 1, 1);
    mesh.EnsureNodes();
-   mesh.SetCurvature(mesh.GetNodalFESpace()->GetOrder(0));
+   mesh.SetCurvature(mesh.GetNodalFESpace()->GetElementOrder(0));
    int dim = mesh.Dimension();
 
    FiniteElementCollection *fec;
