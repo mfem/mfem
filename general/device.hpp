@@ -124,33 +124,25 @@ private:
    friend class MemoryManager;
    enum MODES {SEQUENTIAL, ACCELERATED};
 
-   static bool device_env, mem_host_env, mem_device_env;
+   static bool device_env, mem_host_env, mem_device_env, mem_types_set;
    static Device device_singleton;
-#ifdef MFEM_USE_UMPIRE
-   static bool use_host_umpire;
-   static bool use_device_umpire;
-#endif
 
-   MODES mode{Device::SEQUENTIAL};
-   int dev = 0; ///< Device ID of the configured device.
+   MODES mode = Device::SEQUENTIAL;
+   int dev = 0;   ///< Device ID of the configured device.
    int ngpu = -1; ///< Number of detected devices; -1: not initialized.
-   unsigned long backends =
-      Backend::CPU; ///< Bitwise-OR of all configured backends.
+   /// Bitwise-OR of all configured backends.
+   unsigned long backends = Backend::CPU;
    /// Set to true during configuration, except in 'device_singleton'.
    bool destroy_mm = false;
    bool mpi_gpu_aware = false;
 
-   MemoryType host_mem_type = MemoryType::HOST;      ///< Current Host MemoryType
-   MemoryClass host_mem_class = MemoryClass::HOST;    ///< Current Host MemoryClass
+   MemoryType host_mem_type = MemoryType::HOST;    ///< Current Host MemoryType
+   MemoryClass host_mem_class = MemoryClass::HOST; ///< Current Host MemoryClass
 
-   MemoryType device_mem_type = MemoryType::HOST;    ///< Current Device MemoryType
-   MemoryClass device_mem_class =
-      MemoryClass::HOST;  ///< Current Device MemoryClass
-
-   MemoryType device_temp_mem_type =
-      MemoryType::HOST;    ///< Current Device MemoryType
-   MemoryClass device_temp_mem_class =
-      MemoryClass::HOST;  ///< Current Device MemoryClass
+   /// Current Device MemoryType
+   MemoryType device_mem_type = MemoryType::HOST;
+   /// Current Device MemoryClass
+   MemoryClass device_mem_class = MemoryClass::HOST;
 
    char *device_option = NULL;
    Device(Device const&);
@@ -230,6 +222,17 @@ public:
    */
    void Configure(const std::string &device, const int dev = 0);
 
+   /// Set the default host and device MemoryTypes, @a h_mt and @a d_mt.
+   /** The host and device MemoryTypes are also set to be dual to each other.
+
+       These two MemoryType%s are used by most MFEM classes when allocating
+       memory used on host and device, respectively.
+
+       This method can only be called before Device construction and
+       configuration, and the specified memory types must be compatible with
+       the subsequent Device configuration. */
+   static void SetMemoryTypes(MemoryType h_mt, MemoryType d_mt);
+
    /// Print the configuration of the MFEM virtual device object.
    void Print(std::ostream &out = mfem::out);
 
@@ -278,26 +281,10 @@ public:
    /** @deprecated Use GetDeviceMemoryClass() instead. */
    static inline MemoryClass GetMemoryClass() { return Get().device_mem_class; }
 
-   /** @brief Get the current Device Temporary MemoryType. This is the MemoryType used by
-       MFEM classes when allocating temporary memory to be used with device kernels.
-   */
-   static inline MemoryType GetDeviceTempMemoryType() { return Get().device_temp_mem_type; }
-
-   /** @brief Get the current Device Temporary MemoryClass. This is the MemoryClass used
-       by MFEM device kernels when they need to access temporary Memory objects. */
-   static inline MemoryClass GetDeviceTempMemoryClass() { return Get().device_temp_mem_class; }
-
    static void SetGPUAwareMPI(const bool force = true)
    { Get().mpi_gpu_aware = force; }
 
    static bool GetGPUAwareMPI() { return Get().mpi_gpu_aware; }
-
-#ifdef MFEM_USE_UMPIRE
-   static bool GetHostUmpire() { return Get().use_host_umpire; }
-   static void SetHostUmpire(bool use) { Get().use_host_umpire = use; }
-   static bool GetDeviceUmpire() { return Get().use_device_umpire; }
-   static void SetDeviceUmpire(bool use) { Get().use_device_umpire = use; }
-#endif
 };
 
 
@@ -317,8 +304,7 @@ MemoryClass GetMemoryClass(const Memory<T> &mem, bool on_dev)
    else
    {
       mem.UseDevice(true);
-      if (mem.UseTemporary()) { return Device::GetDeviceTempMemoryClass(); }
-      else { return Device::GetDeviceMemoryClass(); }
+      return Device::GetDeviceMemoryClass();
    }
 }
 

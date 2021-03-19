@@ -86,9 +86,10 @@ public:
    Vector(int size_, MemoryType mt)
       : data(size_, mt), size(size_) { }
 
-   /// Create a Vector of size @a size_ using MemoryClass @a mc.
-   Vector(int size_, MemoryClass mc)
-      : data(size_, mc), size(size_) { }
+   /** @brief Create a Vector of size @a size_ using host MemoryType @a h_mt and
+       device MemoryType @a d_mt. */
+   Vector(int size_, MemoryType h_mt, MemoryType d_mt)
+      : data(size_, h_mt, d_mt), size(size_) { }
 
    /// Enable execution of Vector operations using the mfem::Device.
    /** The default is to use Backend::CPU (serial execution on each MPI rank),
@@ -103,12 +104,6 @@ public:
 
    /// Return the device flag of the Memory object used by the Vector
    bool UseDevice() const { return data.UseDevice(); }
-
-   /// Enable execution of Vector operations using the mfem::Device.
-   void UseTemporary(bool use_temp) { data.UseTemporary(use_temp); }
-
-   /// Return the device flag of the Memory object used by the Vector
-   bool UseTemporary() const { return data.UseTemporary(); }
 
    /// Reads a vector from multiple files
    void Load(std::istream ** in, int np, int * dim);
@@ -175,7 +170,11 @@ public:
    /// Destroy a vector
    void Destroy();
 
-   void DeleteDevice(bool copy_to_host=true) { data.DeleteDevice(copy_to_host); }
+   /** @brief Delete the device pointer, if owned. If @a copy_to_host is true
+       and the data is valid only on device, move it to host before deleting.
+       Invalidates the device memory. */
+   void DeleteDevice(bool copy_to_host = true)
+   { data.DeleteDevice(copy_to_host); }
 
    /// Returns the size of the vector.
    inline int Size() const { return size; }
