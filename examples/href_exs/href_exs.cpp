@@ -257,6 +257,11 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    l2_err_prev = l2_err;
    h1_err_prev = h1_err;
 
+
+   // Save the data to pass to neural network
+   cout << "Mesh vertex array = " << endl;
+   cout <<  mesh->GetVertex(0) << endl;
+
    // 15. Free the used memory.
    // delete pcg;
    // delete amg;
