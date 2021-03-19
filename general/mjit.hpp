@@ -89,10 +89,13 @@ inline void uint64str(uint64_t hash, char *str, const char *ext = "")
    str[1 + 16 + strlen(ext)] = 0;
 }
 
+/// Returns true if MPI world rank is zero.
 bool Root();
 
+/// Returns the version of shared library.
 int GetVersion(bool inc = false);
 
+/// Root MPI process file creation.
 template<typename... Args>
 inline bool Create(const char *cc, const size_t hash,
                    const char *src, Args... args)
@@ -105,6 +108,7 @@ inline bool Create(const char *cc, const size_t hash,
    return true;
 }
 
+/// Compile the source file with PIC flags, updating the cache library.
 bool Compile(const char *input, const char *output,
              const char *cxx, const char *cxxflags,
              const char *mfem_source_dir, const char *mfem_install_dir,

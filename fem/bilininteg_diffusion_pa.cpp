@@ -1159,7 +1159,7 @@ static void PADiffusionApply2D(const int NE,
 MFEM_JIT
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void SmemPADiffusionApply2D(const int NE,
-                                   const bool symmetric,
+                                   const int symmetric,
                                    const double *b_,
                                    const double *g_,
                                    const double *d_,
@@ -1545,7 +1545,7 @@ MFEM_EMBED static MFEM_HOST_DEVICE inline double sign(const int q, const int d)
 // Shared memory PA Diffusion Apply 3D kernel
 MFEM_JIT template<int T_D1D = 0, int T_Q1D = 0>
 static void SmemPADiffusionApply3D(const int NE,
-                                   const bool symmetric,
+                                   const int symmetric,
                                    const double *b_,
                                    const double *g_,
                                    const double *d_,
@@ -1560,11 +1560,11 @@ static void SmemPADiffusionApply3D(const int NE,
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-   const auto b = Reshape(b_, Q1D, D1D);
-   const auto g = Reshape(g_, Q1D, D1D);
-   const auto d = Reshape(d_, Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
-   const auto x = Reshape(x_, D1D, D1D, D1D, NE);
-   auto y = Reshape(y_, D1D, D1D, D1D, NE);
+   const auto b = mfem::Reshape(b_, Q1D, D1D);
+   const auto g = mfem::Reshape(g_, Q1D, D1D);
+   const auto d = mfem::Reshape(d_, Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
+   const auto x = mfem::Reshape(x_, D1D, D1D, D1D, NE);
+   auto y = mfem::Reshape(y_, D1D, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, 1,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -1877,9 +1877,8 @@ static void PADiffusionApply(const int dim,
    MFEM_CONTRACT_VAR(Gt);
 #endif // MFEM_USE_OCCA
 
-   const int ID = (D1D << 4) | Q1D;
-
 #ifndef MFEM_USE_JIT
+   const int ID = (D1D << 4) | Q1D;
    static const bool STD = getenv("STD");
    if (dim == 2)
    {
@@ -1922,11 +1921,11 @@ static void PADiffusionApply(const int dim,
                       (D1D==4 || D1D==5) ? 8 :
                       (D1D==6 || D1D==7) ? 4 :
                       (D1D==8 || D1D==9) ? 2 : 1;
-      return SmemPADiffusionApply2D(NE,B,G,D,X,Y,D1D,Q1D,NBZ);
+      return SmemPADiffusionApply2D(NE,symm,B,G,D,X,Y,D1D,Q1D,NBZ);
    }
    if (dim == 3)
    {
-      return SmemPADiffusionApply3D(NE,B,G,D,X,Y,D1D,Q1D);
+      return SmemPADiffusionApply3D(NE,symm,B,G,D,X,Y,D1D,Q1D);
    }
 #endif
    MFEM_ABORT("Unknown kernel.");
