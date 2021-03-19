@@ -14,7 +14,6 @@
 #include "../bilinearform.hpp"
 #include "../fespace.hpp"
 #include "../ceed/solvers-atpmg.hpp"
-#include "../ceed/full-assembly.hpp"
 #include "../pfespace.hpp"
 #include "../../general/forall.hpp"
 
@@ -25,6 +24,38 @@ namespace ceed
 {
 
 #ifdef MFEM_USE_CEED
+
+int CeedOperatorFullAssemble(CeedOperator op, SparseMatrix **mat)
+{
+   int ierr;
+
+   CeedInt nentries;
+   CeedInt *rows, *cols;
+   CeedVector values;
+   const CeedScalar *vals;
+
+   ierr = CeedOperatorLinearAssembleSymbolic(op, &nentries, &rows, &cols); CeedChk(ierr);
+   ierr = CeedVectorCreate(internal::ceed, nentries, &values); CeedChk(ierr);
+   ierr = CeedOperatorLinearAssemble(op, values); CeedChk(ierr);
+
+   ierr = CeedVectorGetArrayRead(values, CEED_MEM_HOST, &vals); CeedChk(ierr);
+   CeedElemRestriction er;
+   ierr = CeedOperatorGetActiveElemRestriction(op, &er); CeedChk(ierr);
+   CeedInt nnodes;
+   ierr = CeedElemRestrictionGetLVectorSize(er, &nnodes); CeedChk(ierr);
+   SparseMatrix *out = new SparseMatrix(nnodes, nnodes);
+   for (int k = 0; k < nentries; ++k)
+   {
+      out->Add(rows[k], cols[k], vals[k]);
+   }
+   ierr = CeedVectorRestoreArrayRead(values, &vals); CeedChk(ierr);
+   const int skip_zeros = 0;
+   out->Finalize(skip_zeros);
+   ierr = CeedVectorDestroy(&values); CeedChk(ierr);
+   *mat = out;
+
+   return 0;
+}
 
 /** Wraps a CeedOperator in an mfem::Operator, with essential boundary
     conditions and a prolongation operator for parallel application. */

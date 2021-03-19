@@ -49,7 +49,6 @@ set(SRCS
   hybridization.cpp
   intrules.cpp
   ceed/algebraic.cpp
-  ceed/full-assembly.cpp
   ceed/solvers-atpmg.cpp
   ceed/convection.cpp
   ceed/diffusion.cpp
@@ -95,7 +94,6 @@ set(HDRS
   hybridization.hpp
   intrules.hpp
   ceed/algebraic.hpp
-  ceed/full-assembly.hpp
   ceed/solvers-atpmg.hpp
   ceed/coefficient.hpp
   ceed/convection.hpp
