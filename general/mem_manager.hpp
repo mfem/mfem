@@ -32,7 +32,7 @@ enum class MemoryType
    HOST_64,        ///< Host memory; aligned at 64 bytes
    HOST_DEBUG,     ///< Host memory; allocated from a "host-debug" pool
    HOST_UMPIRE,    /**< Host memory; using an Umpire allocator which can be set
-                        with MemoryManager::SetUmpireHostAllocatorId */
+                        with MemoryManager::SetUmpireHostAllocatorName */
    HOST_PINNED,    ///< Host memory: pinned (page-locked)
    MANAGED,        /**< Managed memory; using CUDA or HIP *MallocManaged
                         and *Free */
@@ -40,9 +40,9 @@ enum class MemoryType
    DEVICE_DEBUG,   /**< Pseudo-device memory; allocated on host from a
                         "device-debug" pool */
    DEVICE_UMPIRE,  /**< Device memory; using an Umpire allocator which can be
-                        set with MemoryManager::SetUmpireDeviceAllocatorId */
+                        set with MemoryManager::SetUmpireDeviceAllocatorName */
    DEVICE_UMPIRE_2, /**< Device memory; using a second Umpire allocator settable
-                         with MemoryManager::SetUmpire2DeviceAllocatorId */
+                         with MemoryManager::SetUmpireDevice2AllocatorName */
    SIZE,           ///< Number of host and device memory types
 
    PRESERVE,       /**< Pseudo-MemoryType used as default value for MemoryType
