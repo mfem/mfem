@@ -54,12 +54,14 @@ static void test_umpire_device_memory()
 
    constexpr const char * device_perm_alloc_name = "MFEM-Permanent-Device-Pool";
    constexpr const char * device_temp_alloc_name = "MFEM-Temporary-Device-Pool";
+   constexpr const char * host_alloc_name = "MFEM-Host-Pool";
    auto &rm = umpire::ResourceManager::getInstance();
 
-   rm.makeAllocator<
-   umpire::strategy::DynamicPoolMap,
-          true>(device_perm_alloc_name,
-                rm.getAllocator("DEVICE"), 0, 0);
+   rm.makeAllocator<umpire::strategy::QuickPool, true>(host_alloc_name,
+                                                       rm.getAllocator("HOST"), 0, 0);
+
+   rm.makeAllocator<umpire::strategy::QuickPool, true>(device_perm_alloc_name,
+                                                       rm.getAllocator("DEVICE"), 0, 0);
 
    rm.makeAllocator<umpire::strategy::QuickPool, true>(device_temp_alloc_name,
                                                        rm.getAllocator("DEVICE"), 0, 0);
@@ -76,12 +78,13 @@ static void test_umpire_device_memory()
 
    // set the Umpire allocators used with MemoryType::DEVICE_UMPIRE and
    // MemoryType::DEVICE_UMPIRE_2
+   MemoryManager::SetUmpireHostAllocatorName(host_alloc_name);
    MemoryManager::SetUmpireDeviceAllocatorName(device_perm_alloc_name);
    MemoryManager::SetUmpireDevice2AllocatorName(device_temp_alloc_name);
    Device device("cuda");
 
-   printf("Both pools should be empty at startup:");
-   CHECK_SIZE(0, 0);
+   printf("All pools should be empty at startup:");
+   REQUIRE(alloc_size(host_alloc_name) == 0);
    REQUIRE(alloc_size(device_perm_alloc_name) == 0);
    REQUIRE(alloc_size(device_temp_alloc_name) == 0);
    PRINT_SIZES();
@@ -242,6 +245,10 @@ static void test_umpire_device_memory()
    CHECK_PERM(num_bytes*3);
    CHECK_TEMP(0);
    PRINT_SIZES();
+
+   printf("finally, check that the host pool is empty: ");
+   REQUIRE(alloc_size(host_alloc_name) == 0);
+   printf("host=%ld\n", alloc_size(host_alloc_name));
 }
 
 TEST_CASE("UmpireMemorySpace", "[MemoryManager]")
