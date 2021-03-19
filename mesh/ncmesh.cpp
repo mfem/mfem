@@ -34,6 +34,7 @@ void NCMesh::GeomInfo::InitGeom(Geometry::Type geom)
       case Geometry::CUBE: elem = new Hexahedron; break;
       case Geometry::PRISM: elem = new Wedge; break;
       case Geometry::SQUARE: elem = new Quadrilateral; break;
+      case Geometry::SEGMENT: elem = new Segment; break;
       case Geometry::TRIANGLE: elem = new Triangle; break;
       case Geometry::TETRAHEDRON: elem = new Tetrahedron; break;
       default: MFEM_ABORT("unsupported geometry " << geom);
@@ -61,17 +62,30 @@ void NCMesh::GeomInfo::InitGeom(Geometry::Type geom)
       }
    }
 
-   // in 2D we pretend to have faces too, so we can use NCMesh::Face::elem[2]
+   // in 1D & 2D we pretend to have faces too, so we can use NCMesh::Face::elem[2]
    if (!nf)
    {
-      for (int i = 0; i < ne; i++)
+      if (ne)
       {
-         // make a degenerate face
-         faces[i][0] = faces[i][1] = edges[i][0];
-         faces[i][2] = faces[i][3] = edges[i][1];
-         nfv[i] = 2;
+         for (int i = 0; i < ne; i++)
+         {
+            // make a degenerate face
+            faces[i][0] = faces[i][1] = edges[i][0];
+            faces[i][2] = faces[i][3] = edges[i][1];
+            nfv[i] = 2;
+         }
+         nf = ne;
       }
-      nf = ne;
+      else
+      {
+         for (int i = 0; i < nv; i++)
+         {
+            // 1D degenerate face
+            faces[i][0] = faces[i][1] = faces[i][2] = faces[i][3] = i;
+            nfv[i] = 1;
+         }
+         nf = nv;
+      }
    }
 
    delete elem;
@@ -80,7 +94,8 @@ void NCMesh::GeomInfo::InitGeom(Geometry::Type geom)
 
 static void CheckSupportedGeom(Geometry::Type geom)
 {
-   MFEM_VERIFY(geom == Geometry::TRIANGLE || geom == Geometry::SQUARE ||
+   MFEM_VERIFY(geom == Geometry::SEGMENT ||
+               geom == Geometry::TRIANGLE || geom == Geometry::SQUARE ||
                geom == Geometry::CUBE || geom == Geometry::PRISM ||
                geom == Geometry::TETRAHEDRON,
                "Element type " << geom << " is not supported by NCMesh.");
@@ -147,28 +162,27 @@ NCMesh::NCMesh(const Mesh *mesh)
       const mfem::Element *be = mesh->GetBdrElement(i);
       const int *v = be->GetVertices();
 
-      if (be->GetType() == mfem::Element::QUADRILATERAL)
+      Face* face = NULL;
+      switch (be->GetType())
       {
-         Face* face = faces.Find(v[0], v[1], v[2], v[3]);
-         MFEM_VERIFY(face, "boundary face not found.");
-         face->attribute = be->GetAttribute();
+         case mfem::Element::QUADRILATERAL:
+            face = faces.Find(v[0], v[1], v[2], v[3]);
+            break;
+         case mfem::Element::TRIANGLE:
+            face = faces.Find(v[0], v[1], v[2]);
+            break;
+         case mfem::Element::SEGMENT:
+            face = faces.Find(v[0], v[0], v[1], v[1]);
+            break;
+         case mfem::Element::POINT:
+            face = faces.Find(v[0], v[0], v[0], v[0]);
+            break;
+         default:
+            MFEM_ABORT("Unsupported boundary element geometry.");
       }
-      else if (be->GetType() == mfem::Element::TRIANGLE)
-      {
-         Face* face = faces.Find(v[0], v[1], v[2]);
-         MFEM_VERIFY(face, "boundary face not found.");
-         face->attribute = be->GetAttribute();
-      }
-      else if (be->GetType() == mfem::Element::SEGMENT)
-      {
-         Face* face = faces.Find(v[0], v[0], v[1], v[1]);
-         MFEM_VERIFY(face, "boundary face not found.");
-         face->attribute = be->GetAttribute();
-      }
-      else
-      {
-         MFEM_ABORT("Unsupported boundary element geometry.");
-      }
+
+      MFEM_VERIFY(face, "Boundary face not found.");
+      face->attribute = be->GetAttribute();
    }
 
    // copy top-level vertex coordinates (leave empty if the mesh is curved)
@@ -454,7 +468,7 @@ int NCMesh::NewHexahedron(int n0, int n1, int n2, int n3,
                           int fattr0, int fattr1, int fattr2,
                           int fattr3, int fattr4, int fattr5)
 {
-   // create new unrefined element, initialize nodes
+   // create new element, initialize nodes
    int new_id = AddElement(Element(Geometry::CUBE, attr));
    Element &el = elements[new_id];
 
@@ -484,7 +498,7 @@ int NCMesh::NewWedge(int n0, int n1, int n2,
                      int fattr0, int fattr1,
                      int fattr2, int fattr3, int fattr4)
 {
-   // create new unrefined element, initialize nodes
+   // create new element, initialize nodes
    int new_id = AddElement(Element(Geometry::PRISM, attr));
    Element &el = elements[new_id];
 
@@ -513,7 +527,7 @@ int NCMesh::NewWedge(int n0, int n1, int n2,
 int NCMesh::NewTetrahedron(int n0, int n1, int n2, int n3, int attr,
                            int fattr0, int fattr1, int fattr2, int fattr3)
 {
-   // create new unrefined element, initialize nodes
+   // create new element, initialize nodes
    int new_id = AddElement(Element(Geometry::TETRAHEDRON, attr));
    Element &el = elements[new_id];
 
@@ -540,7 +554,7 @@ int NCMesh::NewQuadrilateral(int n0, int n1, int n2, int n3,
                              int attr,
                              int eattr0, int eattr1, int eattr2, int eattr3)
 {
-   // create new unrefined element, initialize nodes
+   // create new element, initialize nodes
    int new_id = AddElement(Element(Geometry::SQUARE, attr));
    Element &el = elements[new_id];
 
@@ -565,9 +579,10 @@ int NCMesh::NewQuadrilateral(int n0, int n1, int n2, int n3,
 int NCMesh::NewTriangle(int n0, int n1, int n2,
                         int attr, int eattr0, int eattr1, int eattr2)
 {
-   // create new unrefined element, initialize nodes
+   // create new element, initialize nodes
    int new_id = AddElement(Element(Geometry::TRIANGLE, attr));
    Element &el = elements[new_id];
+
    el.node[0] = n0, el.node[1] = n1, el.node[2] = n2;
 
    // get (degenerate) faces and assign face attributes
@@ -583,6 +598,21 @@ int NCMesh::NewTriangle(int n0, int n1, int n2,
    f[0]->attribute = eattr0;
    f[1]->attribute = eattr1;
    f[2]->attribute = eattr2;
+
+   return new_id;
+}
+
+int NCMesh::NewSegment(int n0, int n1, int attr, int vattr1, int vattr2)
+{
+   // create new element, initialize nodes
+   int new_id = AddElement(Element(Geometry::SEGMENT, attr));
+   Element &el = elements[new_id];
+   el.node[0] = n0, el.node[1] = n1;
+
+   // get (degenerate) faces and assign face attributes
+   int v0 = el.node[0], v1 = el.node[1];
+   faces.Get(v0, v0, v0, v0)->attribute = vattr1;
+   faces.Get(v1, v1, v1 ,v1)->attribute = vattr2;
 
    return new_id;
 }
@@ -1446,6 +1476,14 @@ void NCMesh::RefineElement(int elem, char ref_type)
       child[2] = NewTriangle(mid20, mid12, no[2], attr, -1, fa[1], fa[2]);
       child[3] = NewTriangle(mid12, mid20, mid01, attr, -1, -1, -1);
    }
+   else if (el.Geom() == Geometry::SEGMENT)
+   {
+      ref_type = 1; // for consistence
+
+      int mid = nodes.GetId(no[0], no[1]);
+      child[0] = NewSegment(no[0], mid, attr, fa[0], -1);
+      child[1] = NewSegment(mid, no[1], attr, -1, fa[1]);
+   }
    else
    {
       MFEM_ABORT("Unsupported element geometry.");
@@ -1661,6 +1699,15 @@ void NCMesh::DerefineElement(int elem)
          const int* fv = GI[el.Geom()].faces[i];
          fa[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
                             ch.node[fv[2]], ch.node[fv[3]])->attribute;
+      }
+   }
+   else if (el.Geom() == Geometry::SEGMENT)
+   {
+      for (int i = 0; i < 2; i++)
+      {
+         int ni = elements[child[i]].node[i];
+         el.node[i] = ni;
+         fa[i] = faces.Find(ni, ni, ni, ni)->attribute;
       }
    }
    else
@@ -2291,7 +2338,8 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
                }
                mesh.boundary.Append(tri);
             }
-            else
+            else if (nc_elem.geom == Geometry::SQUARE ||
+                     nc_elem.geom == Geometry::TRIANGLE)
             {
                auto* segment = (Segment*) mesh.NewElement(Geometry::SEGMENT);
                segment->SetAttribute(face->attribute);
@@ -2300,6 +2348,14 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
                   segment->GetVertices()[j] = nodes[node[fv[2*j]]].vert_index;
                }
                mesh.boundary.Append(segment);
+            }
+            else
+            {
+               MFEM_ASSERT(nc_elem.geom == Geometry::SEGMENT, "");
+               auto* point = (Segment*) mesh.NewElement(Geometry::POINT);
+               point->SetAttribute(face->attribute);
+               point->GetVertices()[0] = nodes[node[fv[0]]].vert_index;
+               mesh.boundary.Append(point);
             }
          }
       }
@@ -2312,7 +2368,7 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
 
    NEdges = mesh->GetNEdges();
    NFaces = mesh->GetNumFaces();
-
+   if (Dim < 2) { NFaces = 0; }
    // clear Node::edge_index and Face::index
    for (auto node = nodes.begin(); node != nodes.end(); ++node)
    {
@@ -3753,6 +3809,9 @@ void NCMesh::PointMatrix::GetMatrix(DenseMatrix& point_matrix) const
    }
 }
 
+NCMesh::PointMatrix NCMesh::pm_seg_identity(
+   Point(0), Point(1)
+);
 NCMesh::PointMatrix NCMesh::pm_tri_identity(
    Point(0, 0), Point(1, 0), Point(0, 1)
 );
@@ -3775,6 +3834,7 @@ const NCMesh::PointMatrix& NCMesh::GetGeomIdentity(Geometry::Type geom)
 {
    switch (geom)
    {
+      case Geometry::SEGMENT:     return pm_seg_identity;
       case Geometry::TRIANGLE:    return pm_tri_identity;
       case Geometry::SQUARE:      return pm_quad_identity;
       case Geometry::TETRAHEDRON: return pm_tet_identity;
@@ -5325,6 +5385,12 @@ void NCMesh::LoadBoundary(std::istream &input)
          Face* face = faces.Get(v1, v1, v2, v2);
          face->attribute = attr;
       }
+      else if (geom == Geometry::POINT)
+      {
+         input >> v1;
+         Face* face = faces.Get(v1, v1, v1, v1);
+         face->attribute = attr;
+      }
       else
       {
          MFEM_ABORT("unsupported boundary element geometry: " << geom);
@@ -5384,6 +5450,7 @@ void NCMesh::Print(std::ostream &out) const
 {
    out << "MFEM NC mesh v1.0\n\n"
        "# NCMesh supported geometry types:\n"
+       "# SEGMENT     = 1\n"
        "# TRIANGLE    = 2\n"
        "# SQUARE      = 3\n"
        "# TETRAHEDRON = 4\n"
