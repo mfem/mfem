@@ -115,8 +115,8 @@ GinkgoIterativeSolver::GinkgoIterativeSolver(
    : Solver(),
      print_lvl(print_iter),
      max_iter(max_num_iter),
-     rel_tol(sqrt(RTOLERANCE)),
-     abs_tol(sqrt(ATOLERANCE))
+     rel_tol(RTOLERANCE),
+     abs_tol(ATOLERANCE)
 {
    executor = exec.GetExecutor();
 
@@ -126,11 +126,11 @@ GinkgoIterativeSolver::GinkgoIterativeSolver(
    if (use_implicit_res_norm)
    {
       imp_rel_criterion  = ImplicitResidualCriterionFactory::build()
-                           .with_reduction_factor(rel_tol)
+                           .with_reduction_factor(sqrt(rel_tol))
                            .with_baseline(gko::stop::mode::initial_resnorm)
                            .on(executor);
       imp_abs_criterion  = ImplicitResidualCriterionFactory::build()
-                           .with_reduction_factor(abs_tol)
+                           .with_reduction_factor(sqrt(abs_tol))
                            .with_baseline(gko::stop::mode::absolute)
                            .on(executor);
       combined_factory =
@@ -759,14 +759,15 @@ GMRESSolver::GMRESSolver(
    }
 }
 
-/* ---------------------- CbGMRESSolver ------------------------ */
-CbGMRESSolver::CbGMRESSolver(
+/* ---------------------- CBGMRESSolver ------------------------ */
+CBGMRESSolver::CBGMRESSolver(
    GinkgoExecutor &exec,
    int print_iter,
    int max_num_iter,
    double RTOLERANCE,
    double ATOLERANCE,
-   int dim
+   int dim,
+   storage_precision prec
 )
    : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
                            ATOLERANCE, false),
@@ -777,6 +778,7 @@ CbGMRESSolver::CbGMRESSolver(
    {
       this->solver_gen = gmres::build()
                          .with_criteria(this->combined_factory)
+                         .with_storage_precision(prec)
                          .on(this->executor);
    }
    else
@@ -784,18 +786,20 @@ CbGMRESSolver::CbGMRESSolver(
       this->solver_gen = gmres::build()
                          .with_krylov_dim(static_cast<unsigned long>(m))
                          .with_criteria(this->combined_factory)
+                         .with_storage_precision(prec)
                          .on(this->executor);
    }
 }
 
-CbGMRESSolver::CbGMRESSolver(
+CBGMRESSolver::CBGMRESSolver(
    GinkgoExecutor &exec,
    int print_iter,
    int max_num_iter,
    double RTOLERANCE,
    double ATOLERANCE,
    const GinkgoPreconditioner &preconditioner,
-   int dim
+   int dim,
+   storage_precision prec
 )
    : GinkgoIterativeSolver(exec, print_iter, max_num_iter, RTOLERANCE,
                            ATOLERANCE, false),
@@ -809,6 +813,7 @@ CbGMRESSolver::CbGMRESSolver(
       {
          this->solver_gen = gmres::build()
                             .with_criteria(this->combined_factory)
+                            .with_storage_precision(prec)
                             .with_generated_preconditioner(
                                preconditioner.GetGeneratedPreconditioner())
                             .on(this->executor);
@@ -823,6 +828,7 @@ CbGMRESSolver::CbGMRESSolver(
       {
          this->solver_gen = gmres::build()
                             .with_criteria(this->combined_factory)
+                            .with_storage_precision(prec)
                             .with_preconditioner(preconditioner.GetFactory())
                             .on(this->executor);
       }
@@ -834,6 +840,7 @@ CbGMRESSolver::CbGMRESSolver(
          this->solver_gen = gmres::build()
                             .with_krylov_dim(static_cast<unsigned long>(m))
                             .with_criteria(this->combined_factory)
+                            .with_storage_precision(prec)
                             .with_generated_preconditioner(
                                preconditioner.GetGeneratedPreconditioner())
                             .on(this->executor);
@@ -849,6 +856,7 @@ CbGMRESSolver::CbGMRESSolver(
          this->solver_gen = gmres::build()
                             .with_krylov_dim(static_cast<unsigned long>(m))
                             .with_criteria(this->combined_factory)
+                            .with_storage_precision(prec)
                             .with_preconditioner(preconditioner.GetFactory())
                             .on(this->executor);
       }
