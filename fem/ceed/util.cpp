@@ -317,6 +317,180 @@ void InitBasisAndRestriction(const FiniteElementSpace &fes,
    }
 }
 
+/** Just like CeedBasisCreateTensorH1Lagrange but with Legendre dofs
+    (basically only one line changed, which seems wasteful) */
+int CeedBasisCreateTensorH1Gauss(Ceed ceed, CeedInt dim, CeedInt ncomp,
+                                 CeedInt P, CeedInt Q, CeedQuadMode qmode,
+                                 CeedBasis *basis) 
+{
+   // Allocate
+   int ierr, i, j, k;
+   CeedScalar c1, c2, c3, c4, dx, *nodes, *interp1d, *grad1d, 
+      *qref1d, *qweight1d, *dummyweights;
+
+   if (dim<1)
+   {
+      return CeedError(ceed, 1, "Basis dimension must be a positive value");
+   }
+
+   // CeedCalloc replaced below
+   interp1d = (CeedScalar*) calloc(P * Q, sizeof(CeedScalar));
+   grad1d = (CeedScalar*) calloc(P * Q, sizeof(CeedScalar));
+   nodes = (CeedScalar*) calloc(P, sizeof(CeedScalar));
+   dummyweights = (CeedScalar*) calloc(P, sizeof(CeedScalar));
+   qref1d = (CeedScalar*) calloc(Q, sizeof(CeedScalar));
+   qweight1d = (CeedScalar*) calloc(Q, sizeof(CeedScalar));
+
+   // Get Nodes and Weights
+   ierr = CeedGaussQuadrature(P, nodes, dummyweights); CeedChk(ierr);
+   switch (qmode)
+   {
+   case CEED_GAUSS:
+      ierr = CeedGaussQuadrature(Q, qref1d, qweight1d); CeedChk(ierr);
+      break;
+   case CEED_GAUSS_LOBATTO:
+      ierr = CeedLobattoQuadrature(Q, qref1d, qweight1d); CeedChk(ierr);
+      break;
+   }
+   // Build B, D matrix
+   // Fornberg, 1998
+   for (i = 0; i  < Q; i++)
+   {
+      c1 = 1.0;
+      c3 = nodes[0] - qref1d[i];
+      interp1d[i*P+0] = 1.0;
+      for (j = 1; j < P; j++)
+      {
+         c2 = 1.0;
+         c4 = c3;
+         c3 = nodes[j] - qref1d[i];
+         for (k = 0; k < j; k++)
+         {
+            dx = nodes[j] - nodes[k];
+            c2 *= dx;
+            if (k == j - 1)
+            {
+               grad1d[i*P + j] = c1*(interp1d[i*P + k] - c4*grad1d[i*P + k]) / c2;
+               interp1d[i*P + j] = - c1*c4*interp1d[i*P + k] / c2;
+            }
+            grad1d[i*P + k] = (c3*grad1d[i*P + k] - interp1d[i*P + k]) / dx;
+            interp1d[i*P + k] = c3*interp1d[i*P + k] / dx;
+         }
+         c1 = c2;
+      }
+   }
+   //  // Pass to CeedBasisCreateTensorH1
+   ierr = CeedBasisCreateTensorH1(ceed, dim, ncomp, P, Q, interp1d, grad1d, qref1d,
+                                  qweight1d, basis); CeedChk(ierr);
+   /*
+     ierr = CeedFree(&interp1d); CeedChk(ierr);
+     ierr = CeedFree(&grad1d); CeedChk(ierr);
+     ierr = CeedFree(&nodes); CeedChk(ierr);
+     ierr = CeedFree(&dummyweights); CeedChk(ierr);
+     ierr = CeedFree(&qref1d); CeedChk(ierr);
+     ierr = CeedFree(&qweight1d); CeedChk(ierr);
+   */
+   free(interp1d);
+   free(grad1d);
+   free(nodes);
+   free(dummyweights);
+   free(qref1d);
+   free(qweight1d);
+   return 0;
+}
+
+/** Ugly hacky copy/paste from CeedBasisCreateTensorH1Lagrange to deal with
+    different reference elements for MFEM/Ceed.
+
+    The correct way to do this is to actually interpolate, but I am lazy. */
+int CeedBasisCreateMFEMTensorH1Lagrange(Ceed ceed, CeedInt dim, CeedInt ncomp,
+                                        CeedInt P, CeedInt Q, CeedQuadMode qmode,
+                                        CeedBasis *basis)
+{
+   // Allocate
+   int ierr, i, j, k;
+   CeedScalar c1, c2, c3, c4, dx, *nodes, *interp1d, *grad1d, *qref1d, *qweight1d;
+
+   if (dim<1)
+   {
+      return CeedError(ceed, 1, "Basis dimension must be a positive value");
+   }
+
+   interp1d = (CeedScalar*) calloc(P*Q, sizeof(CeedScalar));
+   grad1d = (CeedScalar*) calloc(P*Q, sizeof(CeedScalar));
+   nodes = (CeedScalar*) calloc(P, sizeof(CeedScalar));
+   qref1d = (CeedScalar*) calloc(Q, sizeof(CeedScalar));
+   qweight1d = (CeedScalar*) calloc(Q, sizeof(CeedScalar));
+
+   // Get Nodes and Weights
+   ierr = CeedLobattoQuadrature(P, nodes, NULL); CeedChk(ierr);
+   switch (qmode)
+   {
+   case CEED_GAUSS:
+      ierr = CeedGaussQuadrature(Q, qref1d, qweight1d); CeedChk(ierr);
+      break;
+   case CEED_GAUSS_LOBATTO:
+      ierr = CeedLobattoQuadrature(Q, qref1d, qweight1d); CeedChk(ierr);
+      break;
+   }
+
+   /// modification for MFEM reference element
+   for (int j = 0; j < P; ++j)
+   {
+      nodes[j] = 0.5 + 0.5*nodes[j];
+   }
+   for (int q = 0; q < Q; ++q)
+   {
+      qref1d[q] = 0.5 + 0.5*qref1d[q];
+      qweight1d[q] *= 0.5;
+   }
+
+   // Build B, D matrix
+   // Fornberg, 1998
+   for (i = 0; i < Q; i++)
+   {
+      c1 = 1.0;
+      c3 = nodes[0] - qref1d[i];
+      interp1d[i*P+0] = 1.0;
+      for (j = 1; j < P; j++)
+      {
+         c2 = 1.0;
+         c4 = c3;
+         c3 = nodes[j] - qref1d[i];
+         for (k = 0; k < j; k++)
+         {
+            dx = nodes[j] - nodes[k];
+            c2 *= dx;
+            if (k == j - 1)
+            {
+               grad1d[i*P + j] = c1*(interp1d[i*P + k] - c4*grad1d[i*P + k]) / c2;
+               interp1d[i*P + j] = - c1*c4*interp1d[i*P + k] / c2;
+            }
+            grad1d[i*P + k] = (c3*grad1d[i*P + k] - interp1d[i*P + k]) / dx;
+            interp1d[i*P + k] = c3*interp1d[i*P + k] / dx;
+         }
+         c1 = c2;
+      }
+   }
+   //  // Pass to CeedBasisCreateTensorH1
+   ierr = CeedBasisCreateTensorH1(ceed, dim, ncomp, P, Q, interp1d, grad1d, qref1d,
+                                  qweight1d, basis); CeedChk(ierr);
+  
+   /*
+     ierr = CeedFree(&interp1d); CeedChk(ierr);
+     ierr = CeedFree(&grad1d); CeedChk(ierr);
+     ierr = CeedFree(&nodes); CeedChk(ierr);
+     ierr = CeedFree(&qref1d); CeedChk(ierr);
+     ierr = CeedFree(&qweight1d); CeedChk(ierr);
+   */
+   free(interp1d);
+   free(grad1d);
+   free(nodes);
+   free(qref1d);
+   free(qweight1d);
+   return 0;
+}
+
 /// assumes a tensor-product operator with one active field
 int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field)
 {

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,7 +13,8 @@
 
 #include "../bilinearform.hpp"
 #include "../fespace.hpp"
-#include "../ceed/solvers-atpmg.hpp"
+#include "solvers-atpmg.hpp"
+#include "ceedsolvers-qcoarsen.hpp"
 #include "../pfespace.hpp"
 #include "../../general/forall.hpp"
 
@@ -289,7 +290,8 @@ CeedOperator CoarsenCeedCompositeOperator(
    CeedOperator op,
    CeedElemRestriction er,
    CeedBasis c2f,
-   int order_reduction
+   int order_reduction,
+   int qorder_reduction
 )
 {
    int ierr;
@@ -309,9 +311,26 @@ CeedOperator CoarsenCeedCompositeOperator(
    {
       CeedOperator subop = subops[isub];
       CeedBasis basis_coarse, basis_c2f;
-      CeedOperator subop_coarse;
+      CeedOperator subop_coarse, t_subop_coarse;
       ierr = CeedATPMGOperator(subop, order_reduction, er, &basis_coarse,
-                               &basis_c2f, &subop_coarse); PCeedChk(ierr);
+                               &basis_c2f, &t_subop_coarse); PCeedChk(ierr);
+      if (qorder_reduction == 0)
+      {
+         subop_coarse = t_subop_coarse;
+      }
+      else
+      {
+         CeedVector qcoarsen_assembledqf;
+         CeedQFunctionContext qcoarsen_context;
+         ierr = CeedOperatorQCoarsen(t_subop_coarse, qorder_reduction,
+                                     &subop_coarse, &qcoarsen_assembledqf,
+                                     &qcoarsen_context, CEED_GAUSS,
+                                     CEED_GAUSS); PCeedChk(ierr);
+         // next line todo: delete inside previous function?
+         ierr = CeedVectorDestroy(&qcoarsen_assembledqf); PCeedChk(ierr);
+         ierr = CeedQFunctionContextDestroy(&qcoarsen_context); PCeedChk(ierr);
+         ierr = CeedOperatorDestroy(&t_subop_coarse); PCeedChk(ierr);
+      }
       // destructions below make sense because these objects are
       // refcounted by existing objects
       ierr = CeedBasisDestroy(&basis_coarse); PCeedChk(ierr);
@@ -344,7 +363,8 @@ AlgebraicMultigrid::AlgebraicMultigrid(
       AlgebraicCoarseSpace &space = hierarchy.GetAlgebraicCoarseSpace(ilevel);
       ceed_operators[ilevel] = CoarsenCeedCompositeOperator(
                                   ceed_operators[ilevel+1], space.GetCeedElemRestriction(),
-                                  space.GetCeedCoarseToFine(), space.GetOrderReduction());
+                                  space.GetCeedCoarseToFine(), space.GetOrderReduction(),
+                                  space.GetOrderReduction());
       mfem::Operator *P = hierarchy.GetProlongationAtLevel(ilevel);
       essentialTrueDofs[ilevel] = new Array<int>;
       CoarsenEssentialDofs(*P, *essentialTrueDofs[ilevel+1],

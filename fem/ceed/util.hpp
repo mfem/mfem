@@ -77,6 +77,13 @@ void InitBasisAndRestriction(const mfem::FiniteElementSpace &fes,
 void InitTensorRestriction(const FiniteElementSpace &fes,
                            Ceed ceed, CeedElemRestriction *restr);
 
+int CeedBasisCreateTensorH1Gauss(Ceed ceed, CeedInt dim, CeedInt ncomp,
+                                 CeedInt P, CeedInt Q, CeedQuadMode qmode,
+                                 CeedBasis *basis);
+int CeedBasisCreateMFEMTensorH1Lagrange(Ceed ceed, CeedInt dim, CeedInt ncomp,
+                                        CeedInt P, CeedInt Q, CeedQuadMode qmode,
+                                        CeedBasis *basis);
+
 int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field);
 
 int CeedOperatorGetActiveElemRestriction(CeedOperator oper,
