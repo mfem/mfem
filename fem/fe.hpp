@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -627,8 +627,8 @@ protected:
 
    static const ScalarFiniteElement &CheckScalarFE(const FiniteElement &fe)
    {
-      if (fe.GetRangeType() != SCALAR)
-      { mfem_error("'fe' must be a ScalarFiniteElement"); }
+      MFEM_VERIFY(fe.GetRangeType() == SCALAR,
+                  "'fe' must be a ScalarFiniteElement");
       return static_cast<const ScalarFiniteElement &>(fe);
    }
 
@@ -698,6 +698,7 @@ public:
 class NodalFiniteElement : public ScalarFiniteElement
 {
 protected:
+   Array<int> lex_ordering;
    void ProjectCurl_2D(const FiniteElement &fe,
                        ElementTransformation &Trans,
                        DenseMatrix &curl) const;
@@ -746,6 +747,29 @@ public:
    virtual void ProjectDiv(const FiniteElement &fe,
                            ElementTransformation &Trans,
                            DenseMatrix &div) const;
+
+   /** @brief Get an Array<int> that maps lexicographically ordered indices to
+       the indices of the respective nodes/dofs/basis functions. Lexicographic
+       ordering of nodes is defined in terms of reference-space coordinates
+       (x,y,z). Lexicographically ordered nodes are listed first in order of
+       increasing x-coordinate, and then in order of increasing y-coordinate,
+       and finally in order of increasing z-coordinate.
+
+       For example, the six nodes of a quadratic triangle are lexicographically
+       ordered as follows:
+
+       5
+       |\
+       3 4
+       |  \
+       0-1-2
+
+       The resulting array may be empty if the DOFs are already ordered
+       lexicographically, or if the finite element does not support creating
+       this permutation. The array returned is the same as the array given by
+       TensorBasisElement::GetDofMap, but it is also available for non-tensor
+       elements. */
+   const Array<int> &GetLexicographicOrdering() const { return lex_ordering; }
 };
 
 /** @brief Class for finite elements utilizing the

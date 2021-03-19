@@ -29,7 +29,7 @@ double ConvergenceStudy::GetNorm(GridFunction *gf, Coefficient *scalar_u,
 {
    bool norm_set = false;
    double norm=0.0;
-   int order = gf->FESpace()->GetOrder(0);
+   int order = gf->FESpace()->GetMaxElementOrder();
    int order_quad = std::max(2, 2*order+1);
    const IntegrationRule *irs[Geometry::NumGeom];
    for (int i=0; i < Geometry::NumGeom; ++i)

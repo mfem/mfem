@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -202,15 +202,30 @@ protected:
    /// Ensure that bdr_attributes and attributes agree across processors
    void DistributeAttributes(Array<int> &attr);
 
+   void LoadSharedEntities(std::istream &input);
+
+   /// If the mesh is curved, make sure 'Nodes' is ParGridFunction.
+   /** Note that this method is not related to the public 'Mesh::EnsureNodes`.*/
+   void EnsureParNodes();
+
+   void Destroy();
+
 public:
+   /// Create a parallel mesh by partitioning a serial Mesh.
+   /** The mesh is partitioned automatically or using external partitioning
+       data (the optional parameter 'partitioning_[i]' contains the desired MPI
+       rank for element 'i'). Automatic partitioning uses METIS for conforming
+       meshes and quick space-filling curve equipartitioning for nonconforming
+       meshes (elements of nonconforming meshes should ideally be ordered as a
+       sequence of face-neighbors). */
+   ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_ = NULL,
+           int part_method = 1);
+
    /** Copy constructor. Performs a deep copy of (almost) all data, so that the
        source mesh can be modified (e.g. deleted, refined) without affecting the
        new mesh. If 'copy_nodes' is false, use a shallow (pointer) copy for the
        nodes, if present. */
    explicit ParMesh(const ParMesh &pmesh, bool copy_nodes = true);
-
-   ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_ = NULL,
-           int part_method = 1);
 
    /// Read a parallel mesh, each MPI rank from its own file/stream.
    /** The @a refine parameter is passed to the method Mesh::Finalize(). */
@@ -243,6 +258,19 @@ public:
 
    /// Map a local element number to a global element number.
    long GetGlobalElementNum(int local_element_num) const;
+
+   /** The following functions define global indices for all local vertices,
+       edges, faces, or elements. The global indices have no meaning or
+       significance for ParMesh, but can be used for purposes beyond this class.
+    */
+   /// AMR meshes are not supported.
+   void GetGlobalVertexIndices(Array<HYPRE_Int> &gi) const;
+   /// AMR meshes are not supported.
+   void GetGlobalEdgeIndices(Array<HYPRE_Int> &gi) const;
+   /// AMR meshes are not supported.
+   void GetGlobalFaceIndices(Array<HYPRE_Int> &gi) const;
+   /// AMR meshes are supported.
+   void GetGlobalElementIndices(Array<HYPRE_Int> &gi) const;
 
    GroupTopology gtopo;
 
@@ -331,6 +359,9 @@ public:
        for 0 <= i < GetNE(). */
    void Rebalance(const Array<int> &partition);
 
+   /// Save the mesh in a parallel mesh format.
+   void ParPrint(std::ostream &out) const;
+
    /** Print the part of the mesh in the calling processor adding the interface
        as boundary (for visualization purposes) using the mfem v1.0 format. */
    virtual void Print(std::ostream &out = mfem::out) const;
@@ -354,6 +385,19 @@ public:
    /// Old mesh format (Netgen/Truegrid) version of 'PrintAsOne'
    void PrintAsOneXG(std::ostream &out = mfem::out);
 
+   /** Print the mesh in parallel PVTU format. The PVTU and VTU files will be
+       stored in the directory specified by @a pathname. If the directory does
+       not exist, it will be created. */
+   virtual void PrintVTU(std::string pathname,
+                         VTKFormat format=VTKFormat::ASCII,
+                         bool high_order_output=false,
+                         int compression_level=0,
+                         bool bdr=false);
+
+   /// Parallel version of Mesh::Load().
+   virtual void Load(std::istream &input, int generate_edges = 0,
+                     int refine = 1, bool fix_orientation = true);
+
    /// Returns the minimum and maximum corners of the mesh bounding box. For
    /// high-order meshes, the geometry is refined first "ref" times.
    void GetBoundingBox(Vector &p_min, Vector &p_max, int ref = 2);
@@ -363,18 +407,6 @@ public:
 
    /// Print various parallel mesh stats
    virtual void PrintInfo(std::ostream &out = mfem::out);
-
-   /// Save the mesh in a parallel mesh format.
-   void ParPrint(std::ostream &out) const;
-
-   /** Print the mesh in parallel PVTU format. The PVTU and VTU files will be
-       stored in the directory specified by @a pathname. If the directory does
-       not exist, it will be created. */
-   virtual void PrintVTU(std::string pathname,
-                         VTKFormat format=VTKFormat::ASCII,
-                         bool high_order_output=false,
-                         int compression_level=0,
-                         bool bdr=false);
 
    virtual int FindPoints(DenseMatrix& point_mat, Array<int>& elem_ids,
                           Array<IntegrationPoint>& ips, bool warn = true,
@@ -389,7 +421,6 @@ public:
 #ifdef MFEM_USE_PUMI
    friend class ParPumiMesh;
 #endif
-
 #ifdef MFEM_USE_ADIOS2
    friend class adios2stream;
 #endif

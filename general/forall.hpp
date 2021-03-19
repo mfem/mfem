@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -36,7 +36,7 @@ const int MAX_Q1D = 14;
 
 // MFEM_UNROLL pragma macro that can be used inside MFEM_FORALL macros.
 #if defined(MFEM_USE_CUDA)
-#define MFEM_UNROLL(N) MFEM_PRAGMA(unroll N)
+#define MFEM_UNROLL(N) MFEM_PRAGMA(unroll(N))
 #else
 #define MFEM_UNROLL(N)
 #endif
@@ -94,7 +94,7 @@ void OmpWrap(const int N, HBODY &&h_body)
 /// RAJA Cuda and Hip backends
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
 using cuda_launch_policy =
-   RAJA::expt::LaunchPolicy<RAJA::expt::null_launch_t, RAJA::expt::cuda_launch_t<false>>;
+   RAJA::expt::LaunchPolicy<RAJA::expt::null_launch_t, RAJA::expt::cuda_launch_t<true>>;
 using cuda_teams_x =
    RAJA::expt::LoopPolicy<RAJA::loop_exec,RAJA::cuda_block_x_direct>;
 using cuda_threads_z =
@@ -103,7 +103,7 @@ using cuda_threads_z =
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_HIP)
 using hip_launch_policy =
-   RAJA::expt::LaunchPolicy<RAJA::expt::null_launch_t, RAJA::expt::hip_launch_t<false>>;
+   RAJA::expt::LaunchPolicy<RAJA::expt::null_launch_t, RAJA::expt::hip_launch_t<true>>;
 using hip_teams_x =
    RAJA::expt::LoopPolicy<RAJA::loop_exec,RAJA::hip_block_x_direct>;
 using hip_threads_z =
