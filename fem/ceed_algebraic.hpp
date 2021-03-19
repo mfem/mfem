@@ -152,7 +152,8 @@ public:
       double contrast_threshold=1000.0,
       int switch_amg_order=2,
       bool collocate_coarse=true,
-      bool sparsification=true
+      bool sparsification=true,
+      const std::string amgx_config_file=""
    );
    virtual void SetOperator(const Operator &op) override { }
    ~AlgebraicCeedMultigrid();

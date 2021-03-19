@@ -440,9 +440,11 @@ int CeedSparsifyH1Operator(CeedOperator oper, int sparse_parameter,
 
 int CeedSparsifySimple(CeedOperator oper, CeedBasis* sparse_basis_out,
                        CeedOperator* out) {
-   CeedSparsifyH1Operator(oper, 1, SPARSIFY_LARGEST_POSITIVE,
-                          CeedBasisSparsifyScaling, sparse_basis_out,
-                          out);
+   int ierr;
+   ierr = CeedSparsifyH1Operator(oper, 1, SPARSIFY_LARGEST_POSITIVE,
+                                 CeedBasisSparsifyScaling, sparse_basis_out,
+                                 out); CeedChk(ierr);
+   return 0;
 }
 
 #endif

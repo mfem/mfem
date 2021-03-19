@@ -77,7 +77,8 @@ Solver *BuildSmootherFromCeed(MFEMCeedOperator &op, bool chebyshev)
 class CeedAMG : public Solver
 {
 public:
-   CeedAMG(MFEMCeedOperator &oper, HypreParMatrix *P, bool amgx=false)
+   CeedAMG(MFEMCeedOperator &oper, HypreParMatrix *P, bool amgx=false,
+           const std::string amgx_config_file="")
    {
       MFEM_ASSERT(P != NULL, "");
       const Array<int> ess_tdofs = oper.GetEssentialTrueDofs();
@@ -96,10 +97,20 @@ public:
 #ifdef MFEM_USE_AMGX
       if (amgx)
       {
-         bool amgx_verbose = false;
-         amg = new AmgXSolver(op_assembled->GetComm(),
-                              AmgXSolver::PRECONDITIONER, amgx_verbose);
-         amg->SetOperator(*op_assembled);
+         if (amgx_config_file == "")
+         {
+            bool amgx_verbose = false;
+            amg = new AmgXSolver(op_assembled->GetComm(),
+                                 AmgXSolver::PRECONDITIONER, amgx_verbose);
+         }
+         else
+         {
+            AmgXSolver * amgx_prec = new AmgXSolver;
+            amgx_prec->ReadParameters(amgx_config_file, AmgXSolver::EXTERNAL);
+            amgx_prec->InitExclusiveGPU(MPI_COMM_WORLD);
+            amgx_prec->SetOperator(*op_assembled);
+            amg = amgx_prec;
+         }
       }
       else
 #endif
@@ -306,7 +317,8 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
    double contrast_threshold,
    int switch_amg_order,
    bool collocate_coarse,
-   bool sparsification
+   bool sparsification,
+   const std::string amgx_config_file
 ) : GeometricMultigrid(hierarchy)
 {
    // Construct finest level
@@ -447,7 +459,8 @@ AlgebraicCeedMultigrid::AlgebraicCeedMultigrid(
                {
                   std::cout << "      no-sparsify AMG." << std::endl;
                }
-               smoother = new CeedAMG(*op, P_mat, Device::Allows(Backend::CUDA));
+               smoother = new CeedAMG(*op, P_mat, Device::Allows(Backend::CUDA),
+                                      amgx_config_file);
             }
          }
          else
@@ -548,8 +561,6 @@ void AlgebraicSpaceHierarchy::PrependPCoarsenedLevel(
 AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
 {
    int order = fes.GetOrder(0);
-   int nlevels = 0;
-   int current_order = order;
 
    meshes.Prepend(fes.GetMesh());
    ownedMeshes.Prepend(false);
