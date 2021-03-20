@@ -12,20 +12,26 @@
 #include "mfem.hpp"
 #include "general/forall.hpp"
 
-#if defined(MFEM_USE_UMPIRE) && defined(MFEM_USE_CUDA)
+#if defined(MFEM_USE_UMPIRE) && (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
 #include "unit_tests.hpp"
 
 #include <unistd.h>
 #include <stdio.h>
 #include "umpire/Umpire.hpp"
+
+#ifdef MFEM_USE_CUDA
 #include <cuda.h>
+constexpr const char * device_name = "cuda";
+#elif defined(MFEM_USE_HIP)
+constexpr const char * device_name = "raja-hip";
+#endif
 
 using namespace mfem;
 
 constexpr unsigned num_elems = 1024;
 constexpr unsigned num_bytes = num_elems * sizeof(double);
 constexpr double host_val = 1.0;
-// constexpr double dev_val = 1.0; // not used (warning)
+constexpr double dev_val = -1.0;
 
 static long alloc_size(const char * name)
 {
@@ -34,12 +40,18 @@ static long alloc_size(const char * name)
    return a.getCurrentSize();
 }
 
-static bool is_pinned_host(void * p)
+static bool is_pinned_host(void * h_p)
 {
    unsigned flags;
-   auto err = cudaHostGetFlags(&flags, p);
+#ifdef MFEM_USE_CUDA
+   auto err = cudaHostGetFlags(&flags, h_p);
    if (err == cudaSuccess) { return true; }
    else if (err == cudaErrorInvalidValue) { return false; }
+#elif defined(MFEM_USE_HIP)
+   auto err = hipHostGetFlags(&flags, h_p);
+   if (err == hipSuccess) { return true; }
+   else if (err == hipErrorInvalidValue) { return false; }
+#endif
    fprintf(stderr, "fatal (is_pinned_host): unknown return value: %d\n", err);
    return false;
 }
@@ -51,6 +63,8 @@ static void test_umpire_device_memory()
 #define CHECK_SIZE(p, t) CHECK_PERM(p); CHECK_TEMP(t)
 #define PRINT_SIZES() printf("perm=%ld, temp=%ld\n", alloc_size(device_perm_alloc_name), alloc_size(device_temp_alloc_name));
 #define SPLIT() printf("\n");
+
+   REQUIRE(host_val != dev_val);
 
    constexpr const char * device_perm_alloc_name = "MFEM-Permanent-Device-Pool";
    constexpr const char * device_temp_alloc_name = "MFEM-Temporary-Device-Pool";
@@ -81,7 +95,11 @@ static void test_umpire_device_memory()
    MemoryManager::SetUmpireHostAllocatorName(host_alloc_name);
    MemoryManager::SetUmpireDeviceAllocatorName(device_perm_alloc_name);
    MemoryManager::SetUmpireDevice2AllocatorName(device_temp_alloc_name);
-   Device device("cuda");
+   Device device(device_name);
+
+   REQUIRE(device.GetHostMemoryType() == MemoryType::HOST);
+   REQUIRE(device.GetDeviceMemoryType() == MemoryType::DEVICE_UMPIRE);
+   device.Print();
 
    printf("All pools should be empty at startup:");
    REQUIRE(alloc_size(host_alloc_name) == 0);
@@ -126,7 +144,7 @@ static void test_umpire_device_memory()
    // allocate in temporary device memory
    printf("ReadWrite %u bytes in temporary memory: ", num_bytes);
    double * d_host_temp = host_temp.ReadWrite();
-   //MFEM_FORALL(i, num_elems, { d_host_temp[i] = dev_val; });
+   MFEM_FORALL(i, num_elems, { d_host_temp[i] = dev_val; });
    CHECK_PERM(num_bytes);
    CHECK_TEMP(num_bytes);
    PRINT_SIZES();
@@ -162,7 +180,7 @@ static void test_umpire_device_memory()
 
    printf("Write %u more bytes in temporary memory: ", num_bytes);
    double * d_dev_temp = dev_temp.Write();
-   //MFEM_FORALL(i, num_elems, { d_dev_temp[i] = dev_val; });
+   MFEM_FORALL(i, num_elems, { d_dev_temp[i] = dev_val; });
    CHECK_PERM(num_bytes*2);
    CHECK_TEMP(num_bytes*2);
    PRINT_SIZES();
@@ -216,7 +234,7 @@ static void test_umpire_device_memory()
    REQUIRE(host_temp[0] == host_val);
    // copy to host, verify that the value is the "device" value
    dev_temp.DeleteDevice();
-   //REQUIRE(dev_temp[0] == dev_val);
+   REQUIRE(dev_temp[0] == dev_val);
    pinned_host_temp.DeleteDevice();
 
    printf("Delete all temporary memory: ");
@@ -259,4 +277,4 @@ TEST_CASE("UmpireMemorySpace", "[MemoryManager]")
    }
 }
 
-#endif // MFEM_USE_UMPIRE && MFEM_USE_CUDA
+#endif // MFEM_USE_UMPIRE && (MFEM_USE_CUDA || MFEM_USE_HIP)
