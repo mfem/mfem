@@ -58,6 +58,8 @@ inline void HypreParVector::_SetDataAndSize_()
    SetDataAndSize(hypre_VectorData(hypre_ParVectorLocalVector(x)),
                   internal::to_int(
                      hypre_VectorSize(hypre_ParVectorLocalVector(x))));
+
+   UseDevice(true);
 }
 
 HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_Int glob_size,
@@ -1257,6 +1259,10 @@ HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
 HYPRE_Int HypreParMatrix::Mult(HypreParVector &x, HypreParVector &y,
                                double a, double b)
 {
+   // This is not called by ex1p
+   x.UseDevice(true);
+   y.UseDevice(true);
+
    x.HostRead();
    (b == 0.0) ? y.HostWrite() : y.HostReadWrite();
    return hypre_ParCSRMatrixMatvec(a, A, x, b, y);
@@ -1269,8 +1275,29 @@ void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
    MFEM_ASSERT(y.Size() == Height(), "invalid y.Size() = " << y.Size()
                << ", expected size = " << Height());
 
+   // This is called by ex1p
+
+   x.UseDevice(true);
+   y.UseDevice(true);
+
+
+   // This works but seems wrong for `-d cuda` with hypre using cuda and no uvm?
    auto x_data = x.HostRead();
    auto y_data = (b == 0.0) ? y.HostWrite() : y.HostReadWrite();
+
+   /*
+   auto x_data = x.Read();
+   auto y_data = (b == 0.0) ? y.Write() : y.ReadWrite();
+   */
+   /*
+   const Memory<double> &x_mem = x.GetMemory();
+   Memory<double> &y_mem = y.GetMemory();
+
+   const double *x_data = x_mem.Read(GetHypreMemoryClass(), x.Size());
+   double *y_data = (b == 0.0) ? y_mem.Write(GetHypreMemoryClass(), y.Size()) :
+     y_mem.ReadWrite(GetHypreMemoryClass(), y.Size());
+   */
+
    if (X == NULL)
    {
       X = new HypreParVector(A->comm,
@@ -1289,6 +1316,8 @@ void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
    }
 
    hypre_ParCSRMatrixMatvec(a, A, *X, b, *Y);
+
+   y.Read();
 }
 
 void HypreParMatrix::MultTranspose(double a, const Vector &x,
@@ -2348,6 +2377,9 @@ void EliminateBC(HypreParMatrix &A, HypreParMatrix &Ae,
                  const Array<int> &ess_dof_list,
                  const Vector &X, Vector &B)
 {
+   X.UseDevice(true);
+   B.UseDevice(true);
+
    // B -= Ae*X
    Ae.Mult(-1.0, X, 1.0, B);
 
@@ -2951,28 +2983,38 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
 
 void HypreSolver::Mult(const Vector &b, Vector &x) const
 {
+   x.UseDevice(true);
+   b.UseDevice(true);
+
    if (A == NULL)
    {
       mfem_error("HypreSolver::Mult (...) : HypreParMatrix A is missing");
       return;
    }
-
+   auto b_data = b.Read();
+   auto x_data = iterative_mode ? x.ReadWrite() : x.Write();
    if (B == NULL)
    {
       B = new HypreParVector(A->GetComm(),
                              A -> GetGlobalNumRows(),
-                             nullptr,
+                             const_cast<double*>(b_data),
                              A -> GetRowStarts());
       X = new HypreParVector(A->GetComm(),
                              A -> GetGlobalNumCols(),
-                             nullptr,
+                             x_data,
                              A -> GetColStarts());
    }
-   B->Read(b);
-   X->Write(x);
+   else
+   {
+      B -> SetData(const_cast<double*>(b_data));
+      X -> SetData(x_data);
+   }
+   // TODO: is this the best way to set a HypreParVector to use device?
+   B->UseDevice(true);
+   X->UseDevice(true);
 
    Mult(*B, *X);
-   X->WriteCopy(x);
+   //X->WriteCopy(x);
 }
 
 HypreSolver::~HypreSolver()
