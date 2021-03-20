@@ -23,7 +23,7 @@ Version 4.2.1 (development)
   * Added a second Umpire device MemoryType, DEVICE_UMPIRE_2, with
     corresponding allocator that can be set with the method
     MemoryManager::SetUmpireDevice2AllocatorName.
-  * Added HOST_PINNED MemoryType and a pinned host allocator for CUDA.
+  * Added HOST_PINNED MemoryType and a pinned host allocator for CUDA and HIP.
 
 - Introduced new options for the mesh-explorer miniapp to visualize the actual
   element attributes in parallel meshes while retaining the visualization of

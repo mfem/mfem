@@ -417,7 +417,7 @@ public:
       CuMemAllocHostPinned(ptr, bytes);
 #endif
 #ifdef MFEM_USE_HIP
-      MFEM_ABORT("HostPinnedMemorySpace unimplemented for HIP");
+      HipMemAllocHostPinned(ptr, bytes);
 #endif
    }
    void Dealloc(void *ptr) override
@@ -426,7 +426,7 @@ public:
       CuMemFreeHostPinned(ptr);
 #endif
 #ifdef MFEM_USE_HIP
-      MFEM_ABORT("HostPinnedMemorySpace unimplemented for HIP");
+      HipMemFreeHostPinned(ptr);
 #endif
    }
 };
