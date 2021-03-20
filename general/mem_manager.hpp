@@ -192,7 +192,7 @@ public:
    /** @brief Allocate memory for @a size entries with the given MemoryType
        @a mt. */
    /** The newly allocated memory is not initialized, however the given
-       MemoryType is still set as valid */
+       MemoryType is still set as valid. */
    Memory(int size, MemoryType mt) { New(size, mt); }
 
    /** @brief Allocate memory for @a size entries with the given host MemoryType
