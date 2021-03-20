@@ -191,9 +191,8 @@ public:
 
    /** @brief Allocate memory for @a size entries with the given MemoryType
        @a mt. */
-   /** The newly allocated memory is not initialized. If @a mt is not a
-       host memory type the memory is set as device valid. Either way
-       the memory is set as host valid */
+   /** The newly allocated memory is not initialized, however the given
+       MemoryType is still set as valid */
    Memory(int size, MemoryType mt) { New(size, mt); }
 
    /** @brief Allocate memory for @a size entries with the given host MemoryType
