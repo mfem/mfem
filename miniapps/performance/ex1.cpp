@@ -36,24 +36,12 @@
 using namespace std;
 using namespace mfem;
 
-#undef DIM2
-
 // Define template parameters for optimized build.
-#ifdef DIM2
-const char*          mesh_f   = "../../data/star.mesh";
-const Geometry::Type geom     = Geometry::SQUARE;
-const int            mesh_p   = 1;
-const int            sol_p    = 1;
-const int            rdim     = Geometry::Constants<geom>::Dimension;
-const int            ir_order = 2*sol_p+rdim-1;
-#else
-const char*          mesh_f   = "../../data/fichera.mesh";
 const Geometry::Type geom     = Geometry::CUBE; // mesh elements  (default: hex)
 const int            mesh_p   = 3;              // mesh curvature (default: 3)
 const int            sol_p    = 3;              // solution order (default: 3)
 const int            rdim     = Geometry::Constants<geom>::Dimension;
 const int            ir_order = 2*sol_p+rdim-1;
-#endif
 
 // Static mesh type
 typedef H1_FiniteElement<geom,mesh_p>         mesh_fe_t;
@@ -75,7 +63,7 @@ typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t> HPCBilinearForm;
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = mesh_f; //"../../data/fichera.mesh";
+   const char *mesh_file = "../../data/fichera.mesh";
    int ref_levels = -1;
    int order = sol_p;
    const char *basis_type = "G"; // Gauss-Lobatto
