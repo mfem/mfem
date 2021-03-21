@@ -11,6 +11,15 @@
 Version 4.2.1 (development)
 ===========================
 
+- Introduced new options for the mesh-explorer miniapp to visualize the actual
+  element attributes in parallel meshes while retaining the visualization of
+  the domain decomposition.
+
+- Introduced solver interface for linear problems with constraints, a few
+  concrete solvers that implement the interface, and a demonstration of their
+  use in Example 28(p), which solves an elasticity problem with zero normal
+  displacement (but allowed tangential displacement) on two boundaries.
+
 - Added high-order matrix-free auxiliary Maxwell solver for H(curl) problems,
   as described in Barker and Kolev 2020 (https://doi.org/10.1002/nla.2348). See
   Example 3p and linalg/auxiliary.?pp.
@@ -42,6 +51,9 @@ Version 4.2.1 (development)
   demonstrate restarting from a previously saved checkpoint. Note that parallel
   NC data files are compatible with serial code, e.g., can be viewed with serial
   GLVis. Loading of legacy NC mesh files is still supported.
+
+- Added support for 1D non-conforming meshes (which can be useful for parallel
+  load balancing and derefinement).
 
 - Added a "scaled Jacobian" visualization option in the Mesh Explorer miniapp to
   help identify elements with poor mesh quality.
