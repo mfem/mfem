@@ -6,11 +6,11 @@
 //               ex0 -m ../data/fichera.mesh
 //               ex0 -m ../data/square-disc.mesh -o 2
 //
-// Description: This example code demonstrates the most basic usage of MFEM
-//              to define a simple finite element discretization of the Laplace
-//              problem -Delta u = 1 with homogeneous Dirichlet boundary
-//              conditions. The mesh file and finite element polynomial degree
-//              are given by command line options.
+// Description: This example code demonstrates the most basic usage of MFEM to
+//              define a simple finite element discretization of the Laplace
+//              problem -Delta u = 1 with zero Dirichlet boundary conditions.
+//              General 2D/3D mesh files and finite element polynomial degrees
+//              can be specified by command line options.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -27,28 +27,26 @@ int main(int argc, char *argv[])
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
-   args.AddOption(&order, "-o", "--order",
-                  "Finite element order (polynomial degree)");
+   args.AddOption(&order, "-o", "--order", "Finite element polynomial degree");
    args.ParseCheck();
 
    // 2. Read the mesh from the given mesh file, and refine once uniformly.
    Mesh mesh(mesh_file);
    mesh.UniformRefinement();
 
-   // 3. Define a finite element space on the mesh. Here we use continuous
-   //    Lagrange finite elements of the specified order.
+   // 3. Define a finite element space on the mesh. Here we use H1 continuous
+   //    high-order Lagrange finite elements of the given order.
    H1_FECollection fec(order, mesh.Dimension());
    FiniteElementSpace fespace(&mesh, &fec);
    cout << "Number of unknowns: " << fespace.GetTrueVSize() << endl;
 
-   // 4. Get a list of all the boundary DOFs. These will be marked as essential
-   //    in order to enforce Dirichlet boundary conditions.
+   // 4. Extract the list of all the boundary DOFs. These will be marked as
+   //    Dirichlet in order to enforce zero boundary conditions.
    Array<int> boundary_dofs;
    fespace.GetBoundaryTrueDofs(boundary_dofs);
 
-   // 5. Define the solution vector x as a finite element grid function
-   //    corresponding to fespace. Initialize x with initial guess of zero,
-   //    which also determines the boundary conditions.
+   // 5. Define the solution x as a finite element grid function in fespace. Set
+   //    the initial guess to zero, which also sets the boundary conditions.
    GridFunction x(&fespace);
    x = 0.0;
 
@@ -58,26 +56,23 @@ int main(int argc, char *argv[])
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
    b.Assemble();
 
-   // 7. Set up the bilinear form a(.,.) corresponding to the Laplacian -Delta.
+   // 7. Set up the bilinear form a(.,.) corresponding to the -Delta operator.
    BilinearForm a(&fespace);
    a.AddDomainIntegrator(new DiffusionIntegrator);
    a.Assemble();
 
    // 8. Form the linear system A X = B. This includes eliminating boundary
-   //    conditions, applying conforming constraints for non-conforming AMR,
-   //    etc.
+   //    conditions, applying AMR constraints, and other transformations.
    SparseMatrix A;
    Vector B, X;
    a.FormLinearSystem(boundary_dofs, x, b, A, X, B);
 
-   // 9. Solve using preconditioned CG with a symmetric Gauss-Seidel
-   //    preconditioner.
+   // 9. Solve the system using PCG with symmetric Gauss-Seidel preconditioner.
    GSSmoother M(A);
    PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
 
-   // 10. Recover the solution as a grid function and save to file. The output
-   //     can be viewed using GLVis with the command:
-   //     glvis -m mesh.mesh -g sol.gf
+   // 10. Recover the solution x as a grid function and save to file. The output
+   //     can be viewed using GLVis as follows: "glvis -m mesh.mesh -g sol.gf"
    a.RecoverFEMSolution(X, b, x);
    x.SaveWithMesh("sol.gf", "mesh.mesh");
 
