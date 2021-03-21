@@ -256,7 +256,7 @@ void InitStridedRestriction(const mfem::FiniteElementSpace &fes,
                                        nelem*nqpts*qdatasize,
                                        strides,
                                        restr);
-      /// Will be automatically destroyed when @a fes gets destroyed.
+      // Will be automatically destroyed when @a fes gets destroyed.
       mfem::internal::ceed_restr_map[restr_key] = *restr;
    }
    else
@@ -317,7 +317,7 @@ void InitBasisAndRestriction(const FiniteElementSpace &fes,
    }
 }
 
-/// assumes a tensor-product operator with one active field
+// Assumes a tensor-product operator with one active field
 int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field)
 {
    int ierr;

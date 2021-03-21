@@ -178,7 +178,7 @@ int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
    CeedChk(ierr);
    ierr = CeedVectorDestroy(&index_vec); CeedChk(ierr);
 
-   /// loop over elements and put in SparseMatrix
+   // loop over elements and put in SparseMatrix
    // SparseMatrix * out = new SparseMatrix(nnodes, nnodes);
    MFEM_ASSERT(out->Height() == nnodes, "Sizes don't match!");
    MFEM_ASSERT(out->Width() == nnodes, "Sizes don't match!");
@@ -200,7 +200,7 @@ int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
                "Ceed full assembly not implemented for this case.");
    for (int e = 0; e < nelem; ++e)
    {
-      /// get Array<int> for use in SparseMatrix::AddSubMatrix()
+      // get Array<int> for use in SparseMatrix::AddSubMatrix()
       Array<int> rows(elemsize);
       for (int i = 0; i < elemsize; ++i)
       {
@@ -267,7 +267,7 @@ int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
 
       Mult(BTD, Bmat, elem_mat);
 
-      /// put element matrix in sparsemat
+      // put element matrix in sparsemat
       out->AddSubMatrix(rows, rows, elem_mat, skip_zeros);
    }
 
