@@ -11,6 +11,9 @@
 Version 4.2.1 (development)
 ===========================
 
+- Added AlgebraicCeedSolver that does matrix-free algebraic p-multigrid for
+  diffusion problems with the Ceed backend.
+
 - Introduced new options for the mesh-explorer miniapp to visualize the actual
   element attributes in parallel meshes while retaining the visualization of
   the domain decomposition.
