@@ -671,7 +671,7 @@ public:
    /// Save the GridFunction to an output stream.
    virtual void Save(std::ostream &out) const;
 
-   /// Convenience function to save the GridFunction and assoicated Mesh to
+   /// Convenience function to save the GridFunction and associated Mesh to
    /// files. The given @a precision will be used for ASCII output.
    virtual void SaveWithMesh(const char *sol_f, const char *mesh_f,
                              int precision=8) const;
