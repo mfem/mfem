@@ -741,7 +741,7 @@ public:
                                      Array<int> &ess_tdof_list,
                                      int component = -1);
 
-   /** @brief Get a list of all bounday true dofs, @a boundary_dofs. For spaces
+   /** @brief Get a list of all boundary true dofs, @a boundary_dofs. For spaces
        with 'vdim' > 1, the 'component' parameter can be used to restricts the
        marked tDOFs to the specified component. Equivalent to
        FiniteElementSpace::GetEssentialTrueDofs with all boundary attributes
