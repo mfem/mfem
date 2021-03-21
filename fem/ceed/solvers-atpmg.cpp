@@ -536,7 +536,7 @@ int CeedBasisATPMGCoarsen(CeedBasis basisin,
    // these things are in [-1, 1], not [0, 1], which matters
    // (todo: how can we determine this or something related, algebraically?)
    /* one way you might be able to tell is to just run this algorithm
-      with coarse_P1d = 2 (ie, linear) and look for symmetry in the coarse
+      with coarse_P1d = 2 (i.e., linear) and look for symmetry in the coarse
       basis matrix? */
    ierr = CeedLobattoQuadrature(P1d, fine_nodal_points, NULL); CeedChk(ierr);
    for (int i = 0; i < P1d; ++i)

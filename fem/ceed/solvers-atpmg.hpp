@@ -27,20 +27,20 @@ namespace ceed
 /** @brief Take given (high-order) CeedElemRestriction and make a new
     CeedElemRestriction, which corresponds to a lower-order problem.
 
-    Assumes a Gauss-Lobatto basis and tensor product elements, and
-    assumes that the nodes in er_in are ordered in a tensor-product
-    way.
+    Assumes a Gauss-Lobatto basis and tensor product elements, and assumes that
+    the nodes in er_in are ordered in a tensor-product way.
 
     This is a setup routine that operates on the host.
 
-    The caller is repsonible for freeing er_out and dof_map. */
+    The caller is responsible for freeing er_out and dof_map. */
 int CeedATPMGElemRestriction(int order,
                              int order_reduction,
                              CeedElemRestriction er_in,
                              CeedElemRestriction* er_out,
                              CeedInt *&dof_map);
 
-/** @brief Create coarse-to-fine basis, given number of input nodes and order reduction.
+/** @brief Create coarse-to-fine basis, given number of input nodes and order
+    reduction.
 
     Assumes Gauss-Lobatto basis. This is useful because it does not require an
     input CeedBasis object, which depends on choice of quadrature rule, whereas
@@ -48,14 +48,13 @@ int CeedATPMGElemRestriction(int order,
 int CeedBasisATPMGCoarseToFine(Ceed ceed, int P1d, int dim, int order_reduction,
                                CeedBasis *basisc2f);
 
-/** @brief Given basis basisin, reduces its order by order_reduction and
-    return basisout (which has the same height (Q1d) but is narrower
-    (smaller P1d))
+/** @brief Given basis basisin, reduces its order by order_reduction and return
+    basisout (which has the same height (Q1d) but is narrower (smaller P1d))
 
-    The algorithm we describe in the writeup takes the locations of
-    the fine nodes as input, but this particular implementation simply
-    assumes Gauss-Lobatto, and furthermore assumes the MFEM [0, 1]
-    reference element (rather than the Ceed/Petsc [-1, 1] element) */
+    The algorithm takes the locations of the fine nodes as input, but this
+    particular implementation simply assumes Gauss-Lobatto, and furthermore
+    assumes the MFEM [0, 1] reference element (rather than the Ceed/Petsc [-1,
+    1] element) */
 int CeedBasisATPMGCoarsen(CeedBasis basisin, CeedBasis* basisout,
                           CeedBasis* basis_ctof,
                           int order_reduction);

@@ -54,7 +54,6 @@
 //               optional connection to the GLVis tool for visualization.
 
 #include "mfem.hpp"
-
 #include <fstream>
 #include <iostream>
 
@@ -245,7 +244,6 @@ int main(int argc, char *argv[])
    {
       prec = new HypreBoomerAMG;
    }
-
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(1e-12);
    cg.SetMaxIter(2000);

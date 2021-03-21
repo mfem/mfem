@@ -27,9 +27,9 @@ namespace ceed
 /** @brief Assembles a CeedOperator as an mfem::SparseMatrix
 
     In parallel, this assembles independently on each processor, that is, it
-    assembles at the L-vector level. The assembly procedure is always
-    performed on the host, but this works for operators stored on device
-    by copying memory. */
+    assembles at the L-vector level. The assembly procedure is always performed
+    on the host, but this works also for operators stored on device by copying
+    memory. */
 int CeedOperatorFullAssemble(CeedOperator op, SparseMatrix **mat);
 
 } // namespace ceed
