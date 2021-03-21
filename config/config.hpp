@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+
 // Support out-of-source builds: if MFEM_CONFIG_FILE is defined, include it.
 //
 // Otherwise, use the local file: _config.hpp.
@@ -24,8 +25,7 @@
 
 // Common configuration macros
 
-#if (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7)) || \
-    defined(__clang__)
+#if (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7)) || defined(__clang__)
 #define MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
 #endif
 
@@ -66,6 +66,6 @@
 #ifdef MFEM_USE_PUMI
 #error Building with PUMI (MFEM_USE_PUMI=YES) requires MPI (MFEM_USE_MPI=YES)
 #endif
-#endif  // MFEM_USE_MPI not defined
+#endif // MFEM_USE_MPI not defined
 
-#endif  // MFEM_CONFIG_HPP
+#endif // MFEM_CONFIG_HPP

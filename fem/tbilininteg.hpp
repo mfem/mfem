@@ -384,9 +384,9 @@ struct TDiffusionKernel<2,2,complex_t>
          const complex_t w_det_J = Q.get(q,i,k) / (J11 * J22 - J21 * J12);
          internal::MatrixOps<2,2>::Symm<Symm>::Set(
             A.layout.ind1(i), A,
-            /*+*/ w_det_J * (J12*J12 + J22*J22), // (1,1)
+            + w_det_J * (J12*J12 + J22*J22), // (1,1)
             - w_det_J * (J11*J12 + J21*J22), // (2,1)
-            /*+*/ w_det_J * (J11*J11 + J21*J21)  // (2,2)
+            + w_det_J * (J11*J11 + J21*J21)  // (2,2)
          );
       }
    }

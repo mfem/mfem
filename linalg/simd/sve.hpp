@@ -12,11 +12,9 @@
 #ifndef MFEM_SIMD_SVE_HPP
 #define MFEM_SIMD_SVE_HPP
 
-#if defined(__ARM_FEATURE_SVE) //||1
-#warning SVE AutoSIMD<double,8,64>
+#if defined(__aarch64__) && defined(__ARM_FEATURE_SVE)
 
 #include "../../config/tconfig.hpp"
-
 #include <arm_sve.h>
 #define PG svptrue_b64()
 
@@ -284,6 +282,6 @@ AutoSIMD<double,8,64> operator/(const double &e,
 
 } // namespace mfem
 
-#endif // __aarch64__
+#endif // __aarch64__ && __ARM_FEATURE_SVE
 
 #endif // MFEM_SIMD_SVE_HPP
