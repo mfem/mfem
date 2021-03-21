@@ -11,6 +11,9 @@
 Version 4.2.1 (development)
 ===========================
 
+- Added support for explicit vectorization in the high-performance templated
+  code for Fujitsu's A64FX ARM microprocessor architecture.
+
 - Introduced new options for the mesh-explorer miniapp to visualize the actual
   element attributes in parallel meshes while retaining the visualization of
   the domain decomposition.
