@@ -193,7 +193,8 @@ Solver *BuildSmootherFromCeed(ConstrainedOperator &op, bool chebyshev)
 class AssembledAMG : public Solver
 {
 public:
-   AssembledAMG(ConstrainedOperator &oper, HypreParMatrix *P, bool amgx=false)
+   AssembledAMG(ConstrainedOperator &oper, HypreParMatrix *P, bool amgx=false,
+                const std::string amgx_config_file="")
    {
       MFEM_ASSERT(P != NULL, "Provided HypreParMatrix is invalid!");
       height = width = oper.Height();
@@ -215,10 +216,20 @@ public:
 #ifdef MFEM_USE_AMGX
       if (amgx)
       {
-         bool amgx_verbose = false;
-         amg = new AmgXSolver(op_assembled->GetComm(),
-                              AmgXSolver::PRECONDITIONER, amgx_verbose);
-         amg->SetOperator(*op_assembled);
+         if (amgx_config_file == "")
+         {
+            bool amgx_verbose = false;
+            amg = new AmgXSolver(op_assembled->GetComm(),
+                                 AmgXSolver::PRECONDITIONER, amgx_verbose);
+         }
+         else
+         {
+            AmgXSolver * amgx_prec = new AmgXSolver;
+            amgx_prec->ReadParameters(amgx_config_file, AmgXSolver::EXTERNAL);
+            amgx_prec->InitExclusiveGPU(MPI_COMM_WORLD);
+            // amgx_prec->SetOperator(*op_assembled);
+            amg = amgx_prec;
+         }
       }
       else
 #endif
@@ -365,7 +376,10 @@ AlgebraicMultigrid::AlgebraicMultigrid(
    AlgebraicSpaceHierarchy &hierarchy,
    BilinearForm &form,
    const Array<int> &ess_tdofs,
-   double coeff_threshold
+   int print_level,
+   double contrast_threshold,
+   int switch_amg_order,
+   const std::string amgx_config_file
 ) : GeometricMultigrid(hierarchy)
 {
    // Construct finest level
@@ -374,25 +388,41 @@ AlgebraicMultigrid::AlgebraicMultigrid(
    *essentialTrueDofs[0] = ess_tdofs;
 
    int current_order = hierarchy.GetFESpaceAtLevel(0).GetOrder(0);
-
+   int level_counter = 0;
    // Construct interpolation, operators, at all levels of hierarchy by coarsening
    while (current_order > 1)
    {
       double minq, maxq, absmin;
       CeedOperatorGetHeuristics(ceed_operators[0], &minq, &maxq, &absmin);
       double heuristic = std::max(std::abs(minq), std::abs(maxq)) / absmin;
+      // TODO: in principle we need to communicate heuristic (or order reduction)
+      // across processors!
 
       int order_reduction;
-      if (heuristic > coeff_threshold || current_order == 3)
+      if (heuristic > contrast_threshold && current_order <= switch_amg_order)
       {
+         // assemble at this level
+         break;
+      }
+      else if (heuristic > contrast_threshold || current_order == 3)
+      {
+         // coarsening directly from 3 to 1 appears to be bad
          order_reduction = 1;
       }
       else
       {
          order_reduction = current_order - (current_order/2);
       }
+      if (print_level > 0)
+      {
+         // TODO: only print one processor parallel
+         mfem::out << "  level: " << level_counter << " heuristic = "
+                   << heuristic << ", coarsening from order "
+                   << current_order << " to "
+                   << current_order - order_reduction << std::endl;
+      }
       hierarchy.PrependPCoarsenedLevel(current_order, order_reduction);
-      current_order = current_order / 2;
+      current_order = current_order - order_reduction;
 
       AlgebraicCoarseSpace &space = hierarchy.GetAlgebraicCoarseSpace(0);
       ceed_operators.Prepend(CoarsenCeedCompositeOperator(
@@ -403,6 +433,8 @@ AlgebraicMultigrid::AlgebraicMultigrid(
       essentialTrueDofs.Prepend(new Array<int>);
       CoarsenEssentialDofs(*P, *essentialTrueDofs[1],
                            *essentialTrueDofs[0]);
+
+      level_counter++;
    }
 
    int nlevels = fespaces.GetNumLevels();
@@ -446,7 +478,8 @@ AlgebraicMultigrid::AlgebraicMultigrid(
          }
          if (P_mat)
          {
-            smoother = new AssembledAMG(*op, P_mat, Device::Allows(Backend::CUDA));
+            smoother = new AssembledAMG(*op, P_mat, Device::Allows(Backend::CUDA),
+                                        amgx_config_file);
          }
          else
 #endif

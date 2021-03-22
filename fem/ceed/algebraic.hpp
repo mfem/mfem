@@ -183,13 +183,16 @@ public:
        @param[in] hierarchy  Hierarchy of (algebraic) spaces
        @param[in] form       partially assembled BilinearForm on finest level
        @param[in] ess_tdofs  List of essential true dofs on finest level
-       @param[in] coeff_threshold Determine how aggressively to coarsen
-    */
+       @param[in] contrast_threshold Determine how aggressively to coarsen
+   */
    AlgebraicMultigrid(
       AlgebraicSpaceHierarchy &hierarchy,
       BilinearForm &form,
       const Array<int> &ess_tdofs,
-      double coeff_threshold
+      int print_level=1,
+      double contrast_threshold=1000.0,
+      int switch_amg_order=2,
+      const std::string amgx_config_file=""
    );
    virtual void SetOperator(const mfem::Operator &op) override { }
    ~AlgebraicMultigrid();
