@@ -40,6 +40,7 @@ int useFull=1; // control version of preconditioner
                // 2: physics-based but supg more complicated version (this does not work well)
 int i_supgpre=3;    //3 - full diagonal supg terms on psi and phi
                     //0 - only (v.grad) in the preconditioner on psi and phi
+bool supgoff=false;
 
 double factormin=8.; 
 
@@ -2224,13 +2225,15 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
      StabNv->Assemble(); 
      StabNv->TrueAddMult(wNew, y3);
 
-     /* turn this off for now
-     delete StabNb;
-     StabNb = new ParBilinearForm(&fespace);
-     StabNb->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, Bfield, velocity));
-     StabNb->Assemble(); 
-     StabNb->TrueAddMult(J, y3, -1.);
-     */
+     //this term leads to offdiagonal coupling in supg which may impact preconditioner performance
+     if(supgoff)
+     {
+        delete StabNb;
+        StabNb = new ParBilinearForm(&fespace);
+        StabNb->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, Bfield, velocity));
+        StabNb->Assemble(); 
+        StabNb->TrueAddMult(J, y3, -1.);
+     }
    
      KBMat.Mult(psiNew, z2);
      M_solver2->Mult(z2, z3);

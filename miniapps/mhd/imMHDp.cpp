@@ -160,6 +160,8 @@ int main(int argc, char *argv[])
                   "Save solution/mesh as one file");
    args.AddOption(&outputdpsi, "-outputdpsi", "--output-dpsi", "-no-outputdpsi",
                   "--no-output-dpsi", "Output dpsidt as Paraview.");
+   args.AddOption(&supgoff, "-supgoff", "--supgoff", "-no-supgoff",
+                  "--no-supgoff", "Turn on the off diagonal term in supg.");
    args.Parse();
    if (!args.Good())
    {

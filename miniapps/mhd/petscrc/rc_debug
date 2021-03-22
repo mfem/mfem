@@ -3,7 +3,7 @@
 -snes_mf_operator
 -snes_max_it 20
 -snes_rtol 1e-4
--snes_stol 1e-9
+-snes_stol 1e-8
 -snes_converged_reason 
 -snes_linesearch_type l2
 -snes_view
@@ -26,7 +26,7 @@
 -snes_ksp_ew_threshold 0.1
 #======matrix free parameters for default
 -mat_mffd_type wp
--mat_mffd_err 5e-2
+-mat_mffd_err 1e-2
 
 #======matrix free parameters for ds
 #-mat_mffd_err 1e-1
