@@ -18,7 +18,6 @@
 #include "simd/auto.hpp"
 #ifdef MFEM_USE_SIMD
 #if defined(__aarch64__) && defined(__ARM_FEATURE_SVE)
-#warning simd/sve.hpp
 #include "simd/sve.hpp"
 #elif defined(__VSX__)
 #include "simd/vsx.hpp"
