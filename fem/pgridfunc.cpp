@@ -894,7 +894,7 @@ void ParGridFunction::Save(adios2stream &out,
 }
 #endif
 
-void ParGridFunction::SaveAsOne(std::ostream &out)
+void ParGridFunction::SaveAsOne(std::ostream &out) const
 {
    int i, p;
 
