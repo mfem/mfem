@@ -5,18 +5,19 @@
 // Sample runs:
 //   Problem 1: Circular hole of radius 0.2 at the center of the domain.
 //              -nabla^u = 1 with homogeneous boundary conditions
-// mpirun -np 4 diffusion -m ../../data/inline-quad.mesh -rs 2 -o 1 -vis -lst 1
-// mpirun -np 4 diffusion -m ../../data/inline-hex.mesh -rs 2 -o 2 -vis -lst 1 -ho 1 -alpha 10
+//   mpirun -np 4 diffusion -m ../../data/inline-quad.mesh -rs 3 -o 1 -vis -lst 1
+//   mpirun -np 4 diffusion -m ../../data/inline-hex.mesh -rs 2 -o 2 -vis -lst 1 -ho 1 -alpha 10
 //
 //   Problem 2: Circular hole of radius 0.2 at the center of the domain.
 //              -nabla^u = f with inhomogeneous boundary conditions, f is setup
 //              such that u = x^p + y^p, where p = 2 by default.
-// mpirun -np 4 diffusion -m ../../data/inline-quad.mesh -rs 2 -o 2 -vis -lst 2
+//   mpirun -np 4 diffusion -m ../../data/inline-quad.mesh -rs 2 -o 2 -vis -lst 2
 //
 //   Problem 3: Domain is y = [0, 1] but mesh is shifted to [-1.e-4, 1].
 //              -nabla^u = f with inhomogeneous boundary conditions, f is setup
 //              such that u = sin(pi*x*y)
-// mpirun -np 4 diffusion -m ../../data/inline-quad.mesh -rs 2 -o 1 -vis -lst 3
+//   mpirun -np 4 diffusion -m ../../data/inline-quad.mesh -rs 2 -o 1 -vis -lst 3
+
 #include "../../mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -216,17 +217,17 @@ int main(int argc, char *argv[])
       }
    }
 
-   // Setup a gridfunction with the element markers and output
-   L2_FECollection fecl2 = L2_FECollection(0, dim);
-   ParFiniteElementSpace pfesl2(&pmesh, &fecl2);
-   ParGridFunction elem_marker_gf(&pfesl2);
-   for (int i = 0; i < elem_marker_gf.Size(); i++)
-   {
-      elem_marker_gf(i) = elem_marker[i]*1.;
-   }
-
+   // Visualize the element markers.
    if (visualization)
    {
+      L2_FECollection fecl2 = L2_FECollection(0, dim);
+      ParFiniteElementSpace pfesl2(&pmesh, &fecl2);
+      ParGridFunction elem_marker_gf(&pfesl2);
+      for (int i = 0; i < elem_marker_gf.Size(); i++)
+      {
+         elem_marker_gf(i) = elem_marker[i]*1.;
+      }
+
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
@@ -415,12 +416,14 @@ int main(int argc, char *argv[])
                << "keys Rjmpcvv" << endl;
    }
 
-   // Set up a list to indicate element attributes to be included in assembly.
-   int max_elem_attr = pmesh.attributes.Max();
+   // Set up a list to indicate element attributes to be included in assembly,
+   // so that inactive elements are excluded.
+   const int max_elem_attr = pmesh.attributes.Max();
    Array<int> ess_elem(max_elem_attr);
    ess_elem = 1;
    ess_elem.Append(0);
-   for (int i = 0; i < pmesh.GetNE(); i++) {
+   for (int i = 0; i < pmesh.GetNE(); i++)
+   {
        if (elem_marker[i] >= 1) { pmesh.SetAttribute(i, max_elem_attr+1); }
    }
    pmesh.SetAttributes();
@@ -443,6 +446,7 @@ int main(int argc, char *argv[])
    }
    b.AddDomainIntegrator(new DomainLFIntegrator(*rhs_f), ess_elem);
 
+   // Dirichlet BC that must be imposed on the true boundary.
    ShiftedFunctionCoefficient *dbcCoef = NULL;
    if (level_set_type == 1) {
        dbcCoef = new ShiftedFunctionCoefficient(dirichlet_velocity_circle);
