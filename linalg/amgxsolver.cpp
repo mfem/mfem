@@ -604,7 +604,7 @@ void AmgXSolver::SetMatrix(const HypreParMatrix &A, const bool update_mat)
    hypre_CSRMatrix *A_csr = hypre_MergeDiagAndOffd(A_ptr);
 
    Array<double> loc_A(A_csr->data, (int)A_csr->num_nonzeros);
-   const Array<HYPRE_Int> loc_I(A_csr->i, (int)A_csr->num_rows+1);
+   const Array<int> loc_I(A_csr->i, (int)A_csr->num_rows+1);
 
    // Column index must be int64_t so we must promote here
    Array<int64_t> loc_J((int)A_csr->num_nonzeros);
