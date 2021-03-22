@@ -118,7 +118,7 @@ int CeedQFunctionCoarsenAssembledVector(CeedVector assembledqf,
    ierr = CeedElemRestrictionGetLVectorSize(rstr_q, &lsize); CeedChk(ierr);
    ierr = CeedElemRestrictionGetNumElements(rstr_q, &nelem); CeedChk(ierr);
    ierr = CeedElemRestrictionGetElementSize(rstr_q, &elemsize); CeedChk(ierr);
-   ierr = CeedElemRestrictionGetNumComponents(rstr_q, &ncomp); CeedChk(ierr);  
+   ierr = CeedElemRestrictionGetNumComponents(rstr_q, &ncomp); CeedChk(ierr);
 
    CeedInt coarse_qflength;
    CeedInt P, Q, basis_ncomp;
@@ -139,13 +139,16 @@ int CeedQFunctionCoarsenAssembledVector(CeedVector assembledqf,
    }
 
    CeedVector coarse_assembledqf;
-   ierr = CeedVectorCreate(ceed, coarse_qflength, &coarse_assembledqf); CeedChk(ierr);
+   ierr = CeedVectorCreate(ceed, coarse_qflength, &coarse_assembledqf);
+   CeedChk(ierr);
    ierr = CeedVectorSetValue(coarse_assembledqf, 0.0); CeedChk(ierr);
 
    const CeedScalar* finedata;
    CeedScalar* coarsedata;
-   ierr = CeedVectorGetArrayRead(assembledqf, CEED_MEM_HOST, &finedata); CeedChk(ierr);
-   ierr = CeedVectorGetArray(coarse_assembledqf, CEED_MEM_HOST, &coarsedata); CeedChk(ierr);
+   ierr = CeedVectorGetArrayRead(assembledqf, CEED_MEM_HOST, &finedata);
+   CeedChk(ierr);
+   ierr = CeedVectorGetArray(coarse_assembledqf, CEED_MEM_HOST, &coarsedata);
+   CeedChk(ierr);
 
    // rows associated with fine, cols associated with coarse
    // they're both quadpoints, but interface thinks rows(fine) are quad, cols(coarse) are basis
@@ -218,7 +221,8 @@ int CeedElementRestrictionQCoarsen(CeedElemRestriction rstr_q,
    ierr = CeedElemRestrictionGetNumComponents(rstr_q, &q_ncomp); CeedChk(ierr);
    *ncomp = q_ncomp;
 
-   CeedInt coarse_elemsize, Q; // Q is *fine* quadpoints, coarse_elemsize is *coarse* quadpoints
+   // Q is *fine* quadpoints, coarse_elemsize is *coarse* quadpoints
+   CeedInt coarse_elemsize, Q;
    ierr = CeedBasisGetNumNodes(qbasisctof, &coarse_elemsize); CeedChk(ierr);
    ierr = CeedBasisGetNumQuadraturePoints(qbasisctof, &Q); CeedChk(ierr);
 
@@ -243,7 +247,7 @@ int CeedElementRestrictionQCoarsen(CeedElemRestriction rstr_q,
    }
    ierr = CeedElemRestrictionCreateStrided(ceed, q_nelem, coarse_elemsize, q_ncomp,
                                            coarse_lsize, coarse_strides,
-                                           coarse_rstr_q); CeedChk(ierr); 
+                                           coarse_rstr_q); CeedChk(ierr);
 
    return 0;
 }
@@ -259,12 +263,13 @@ int CeedSingleOperatorGetHeuristics(CeedOperator oper, CeedScalar* minq,
    CeedVector assembledqf;
    CeedElemRestriction rstr_q;
    ierr = CeedOperatorLinearAssembleQFunction(
-      oper, &assembledqf, &rstr_q, CEED_REQUEST_IMMEDIATE); CeedChk(ierr);
+             oper, &assembledqf, &rstr_q, CEED_REQUEST_IMMEDIATE); CeedChk(ierr);
 
    CeedInt assembledqf_len;
    ierr = CeedVectorGetLength(assembledqf, &assembledqf_len); CeedChk(ierr);
    const CeedScalar * tempdata;
-   ierr = CeedVectorGetArrayRead(assembledqf, CEED_MEM_HOST, &tempdata); CeedChk(ierr);
+   ierr = CeedVectorGetArrayRead(assembledqf, CEED_MEM_HOST, &tempdata);
+   CeedChk(ierr);
 
    *minq = 1.e+12;
    *maxq = -1.e+12;
@@ -292,7 +297,7 @@ int CeedOperatorGetHeuristics(CeedOperator oper, CeedScalar* minq,
    {
       return CeedSingleOperatorGetHeuristics(oper, minq, maxq, absmin);
    }
-   
+
    *minq = 1.e+12;
    *maxq = -1.e+12;
    *absmin = 1.e+12;
@@ -333,7 +338,7 @@ int CeedQFunctionQCoarsen(CeedOperator oper, CeedInt qorder_reduction,
    CeedVector assembledqf;
    CeedElemRestriction rstr_q;
    ierr = CeedOperatorLinearAssembleQFunction(
-      oper, &assembledqf, &rstr_q, CEED_REQUEST_IMMEDIATE); CeedChk(ierr);
+             oper, &assembledqf, &rstr_q, CEED_REQUEST_IMMEDIATE); CeedChk(ierr);
 
    CeedBasis qbasisctof; // P_Q
    CeedBasis fine_basis;
@@ -353,7 +358,8 @@ int CeedQFunctionQCoarsen(CeedOperator oper, CeedInt qorder_reduction,
                                               coarse_assembledqf); CeedChk(ierr);
 
    CeedInt coarse_layout[3];
-   ierr = CeedElemRestrictionGetELayout(*coarse_rstr_q, &coarse_layout); CeedChk(ierr);
+   ierr = CeedElemRestrictionGetELayout(*coarse_rstr_q, &coarse_layout);
+   CeedChk(ierr);
 
    // not entirely sure of the next kernel magic
    std::string qf_file = GetCeedPath() + "/linear_qf.h";
@@ -361,8 +367,9 @@ int CeedQFunctionQCoarsen(CeedOperator oper, CeedInt qorder_reduction,
    ierr = CeedQFunctionCreateInterior(ceed, coarse_vlength, qcoarsen_linearfunc,
                                       qf.c_str(), qfout); CeedChk(ierr);
 
-   struct LinearQFunctionContext * context = 
-      (struct LinearQFunctionContext *) calloc(1, sizeof(struct LinearQFunctionContext));
+   struct LinearQFunctionContext * context =
+      (struct LinearQFunctionContext *) calloc(1,
+                                               sizeof(struct LinearQFunctionContext));
    context->dim = -1;
    context->ncomp = ncomp_rstr;
    for (int i = 0; i < 3; ++i)
@@ -410,9 +417,11 @@ int CeedOperatorQCoarsen(CeedOperator oper, int qorder_reduction,
                                 fine_qmode, coarse_qmode); CeedChk(ierr);
 
    CeedInt numinputfields, numoutputfields;
-   ierr = CeedQFunctionGetNumArgs(qfin, &numinputfields, &numoutputfields); CeedChk(ierr);
+   ierr = CeedQFunctionGetNumArgs(qfin, &numinputfields, &numoutputfields);
+   CeedChk(ierr);
    CeedQFunctionField *inputqfields, *outputqfields;
-   ierr = CeedQFunctionGetFields(qfin, &inputqfields, &outputqfields); CeedChk(ierr);
+   ierr = CeedQFunctionGetFields(qfin, &inputqfields, &outputqfields);
+   CeedChk(ierr);
    CeedOperatorField *inputfields, *outputfields;
    ierr = CeedOperatorGetFields(oper, &inputfields, &outputfields); CeedChk(ierr);
 
@@ -433,17 +442,17 @@ int CeedOperatorQCoarsen(CeedOperator oper, int qorder_reduction,
          ierr = CeedQFunctionFieldGetEvalMode(inputqfields[i], &emodein); CeedChk(ierr);
          switch (emodein)
          {
-         case CEED_EVAL_NONE:
-         case CEED_EVAL_INTERP:
-            numemodein += 1;
-            break;
-         case CEED_EVAL_GRAD:
-            numemodein += dim;
-            break;
-         case CEED_EVAL_WEIGHT:
-         case CEED_EVAL_DIV:
-         case CEED_EVAL_CURL:
-            break; // Caught by QF Assembly
+            case CEED_EVAL_NONE:
+            case CEED_EVAL_INTERP:
+               numemodein += 1;
+               break;
+            case CEED_EVAL_GRAD:
+               numemodein += dim;
+               break;
+            case CEED_EVAL_WEIGHT:
+            case CEED_EVAL_DIV:
+            case CEED_EVAL_CURL:
+               break; // Caught by QF Assembly
          }
          ierr = CeedQFunctionFieldGetName(inputqfields[i], &fieldname); CeedChk(ierr);
          ierr = CeedQFunctionFieldGetSize(inputqfields[i], &size); CeedChk(ierr);
@@ -471,17 +480,17 @@ int CeedOperatorQCoarsen(CeedOperator oper, int qorder_reduction,
          CeedChk(ierr);
          switch (emodeout)
          {
-         case CEED_EVAL_NONE:
-         case CEED_EVAL_INTERP:
-            numemodeout += 1;
-            break;
-         case CEED_EVAL_GRAD:
-            numemodeout += dim;
-            break;
-         case CEED_EVAL_WEIGHT:
-         case CEED_EVAL_DIV:
-         case CEED_EVAL_CURL:
-            break; // Caught by QF Assembly
+            case CEED_EVAL_NONE:
+            case CEED_EVAL_INTERP:
+               numemodeout += 1;
+               break;
+            case CEED_EVAL_GRAD:
+               numemodeout += dim;
+               break;
+            case CEED_EVAL_WEIGHT:
+            case CEED_EVAL_DIV:
+            case CEED_EVAL_CURL:
+               break; // Caught by QF Assembly
          }
          ierr = CeedQFunctionFieldGetName(outputqfields[i], &fieldname); CeedChk(ierr);
          ierr = CeedQFunctionFieldGetSize(outputqfields[i], &size); CeedChk(ierr);
@@ -505,7 +514,8 @@ int CeedOperatorQCoarsen(CeedOperator oper, int qorder_reduction,
       ierr = CeedQFunctionFieldGetName(inputqfields[i], &fieldname); CeedChk(ierr);
       ierr = CeedOperatorFieldGetVector(inputfields[i], &vec); CeedChk(ierr);
       ierr = CeedOperatorFieldGetBasis(inputfields[i], &basis); CeedChk(ierr);
-      ierr = CeedOperatorFieldGetElemRestriction(inputfields[i], &er_input); CeedChk(ierr);
+      ierr = CeedOperatorFieldGetElemRestriction(inputfields[i], &er_input);
+      CeedChk(ierr);
       if (vec == CEED_VECTOR_ACTIVE)
       {
          ierr = CeedOperatorSetField(qcoper, fieldname, er_input, qcoarse_basis,
@@ -533,7 +543,8 @@ int CeedOperatorQCoarsen(CeedOperator oper, int qorder_reduction,
       ierr = CeedQFunctionFieldGetName(outputqfields[i], &fieldname); CeedChk(ierr);
       ierr = CeedOperatorFieldGetVector(outputfields[i], &vec); CeedChk(ierr);
       ierr = CeedOperatorFieldGetBasis(outputfields[i], &basis); CeedChk(ierr);
-      ierr = CeedOperatorFieldGetElemRestriction(outputfields[i], &er_output); CeedChk(ierr);
+      ierr = CeedOperatorFieldGetElemRestriction(outputfields[i], &er_output);
+      CeedChk(ierr);
       if (vec == CEED_VECTOR_ACTIVE)
       {
          ierr = CeedOperatorSetField(qcoper, fieldname, er_output, qcoarse_basis,

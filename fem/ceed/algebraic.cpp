@@ -35,7 +35,8 @@ int CeedOperatorFullAssemble(CeedOperator op, SparseMatrix **mat)
    CeedVector values;
    const CeedScalar *vals;
 
-   ierr = CeedOperatorLinearAssembleSymbolic(op, &nentries, &rows, &cols); CeedChk(ierr);
+   ierr = CeedOperatorLinearAssembleSymbolic(op, &nentries, &rows, &cols);
+   CeedChk(ierr);
    ierr = CeedVectorCreate(internal::ceed, nentries, &values); CeedChk(ierr);
    ierr = CeedOperatorLinearAssemble(op, values); CeedChk(ierr);
 
@@ -192,7 +193,7 @@ Solver *BuildSmootherFromCeed(ConstrainedOperator &op, bool chebyshev)
 class AssembledAMG : public Solver
 {
 public:
-   AssembledAMG(ConstrainedOperator &oper, HypreParMatrix *P)
+   AssembledAMG(ConstrainedOperator &oper, HypreParMatrix *P, bool amgx=false)
    {
       MFEM_ASSERT(P != NULL, "Provided HypreParMatrix is invalid!");
       height = width = oper.Height();
@@ -210,10 +211,28 @@ public:
       }
       HypreParMatrix *mat_e = op_assembled->EliminateRowsCols(ess_tdofs);
       delete mat_e;
-      amg = new HypreBoomerAMG(*op_assembled);
-      amg->SetPrintLevel(0);
+
+#ifdef MFEM_USE_AMGX
+      if (amgx)
+      {
+         bool amgx_verbose = false;
+         amg = new AmgXSolver(op_assembled->GetComm(),
+                              AmgXSolver::PRECONDITIONER, amgx_verbose);
+         amg->SetOperator(*op_assembled);
+      }
+      else
+#endif
+      {
+         HypreBoomerAMG * hypre_amg = new HypreBoomerAMG(*op_assembled);
+         hypre_amg->SetPrintLevel(0);
+         amg = hypre_amg;
+      }
+
    }
-   void SetOperator(const mfem::Operator &op) override { }
+
+   void SetOperator(const mfem::Operator &op) override
+   { amg->SetOperator(op); }
+
    void Mult(const Vector &x, Vector &y) const override { amg->Mult(x, y); }
    ~AssembledAMG()
    {
@@ -224,7 +243,7 @@ public:
 private:
    SparseMatrix *mat_local;
    HypreParMatrix *op_assembled;
-   HypreBoomerAMG *amg;
+   Solver *amg;
 };
 
 #endif // MFEM_USE_MPI
@@ -379,30 +398,45 @@ AlgebraicMultigrid::AlgebraicMultigrid(
       ConstrainedOperator *op = new ConstrainedOperator(
          ceed_operators[ilevel], *essentialTrueDofs[ilevel], P);
       Solver *smoother;
-#ifdef MFEM_USE_MPI
-      if (ilevel == 0 && !Device::Allows(Backend::CUDA))
-      {
-         HypreParMatrix *P_mat = NULL;
-         if (nlevels == 1)
-         {
-            // Only one level -- no coarsening, finest level
-            ParFiniteElementSpace *pfes
-               = dynamic_cast<ParFiniteElementSpace*>(&space);
-            if (pfes) { P_mat = pfes->Dof_TrueDof_Matrix(); }
-         }
-         else
-         {
-            ParAlgebraicCoarseSpace *pspace
-               = dynamic_cast<ParAlgebraicCoarseSpace*>(&space);
-            if (pspace) { P_mat = pspace->GetProlongationHypreParMatrix(); }
-         }
-         if (P_mat) { smoother = new AssembledAMG(*op, P_mat); }
-         else { smoother = BuildSmootherFromCeed(*op, true); }
-      }
-      else
-#endif
+      if (ilevel != 0)
       {
          smoother = BuildSmootherFromCeed(*op, true);
+      }
+      else
+      {
+         bool assemble_matrix = false;
+#ifdef MFEM_USE_MPI
+#ifdef MFEM_USE_AMGX
+         if (Device::Allows(Backend::CUDA)) { assemble_matrix = true; }
+#else
+         if (!Device::Allows(Backend::CUDA)) { assemble_matrix = true; }
+#endif
+         HypreParMatrix *P_mat = NULL;
+         if (assemble_matrix)
+         {
+            if (nlevels == 1)
+            {
+               // Only one level -- no coarsening, finest level
+               ParFiniteElementSpace *pfes
+                  = dynamic_cast<ParFiniteElementSpace*>(&space);
+               if (pfes) { P_mat = pfes->Dof_TrueDof_Matrix(); }
+            }
+            else
+            {
+               ParAlgebraicCoarseSpace *pspace
+                  = dynamic_cast<ParAlgebraicCoarseSpace*>(&space);
+               if (pspace) { P_mat = pspace->GetProlongationHypreParMatrix(); }
+            }
+         }
+         if (P_mat)
+         {
+            smoother = new AssembledAMG(*op, P_mat, Device::Allows(Backend::CUDA));
+         }
+         else
+#endif
+         {
+            smoother = BuildSmootherFromCeed(*op, true);
+         }
       }
       AddLevel(op, smoother, true, true);
    }

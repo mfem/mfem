@@ -321,12 +321,12 @@ void InitBasisAndRestriction(const FiniteElementSpace &fes,
     (basically only one line changed, which seems wasteful) */
 int CeedBasisCreateTensorH1Gauss(Ceed ceed, CeedInt dim, CeedInt ncomp,
                                  CeedInt P, CeedInt Q, CeedQuadMode qmode,
-                                 CeedBasis *basis) 
+                                 CeedBasis *basis)
 {
    // Allocate
    int ierr, i, j, k;
-   CeedScalar c1, c2, c3, c4, dx, *nodes, *interp1d, *grad1d, 
-      *qref1d, *qweight1d, *dummyweights;
+   CeedScalar c1, c2, c3, c4, dx, *nodes, *interp1d, *grad1d,
+              *qref1d, *qweight1d, *dummyweights;
 
    if (dim<1)
    {
@@ -345,12 +345,12 @@ int CeedBasisCreateTensorH1Gauss(Ceed ceed, CeedInt dim, CeedInt ncomp,
    ierr = CeedGaussQuadrature(P, nodes, dummyweights); CeedChk(ierr);
    switch (qmode)
    {
-   case CEED_GAUSS:
-      ierr = CeedGaussQuadrature(Q, qref1d, qweight1d); CeedChk(ierr);
-      break;
-   case CEED_GAUSS_LOBATTO:
-      ierr = CeedLobattoQuadrature(Q, qref1d, qweight1d); CeedChk(ierr);
-      break;
+      case CEED_GAUSS:
+         ierr = CeedGaussQuadrature(Q, qref1d, qweight1d); CeedChk(ierr);
+         break;
+      case CEED_GAUSS_LOBATTO:
+         ierr = CeedLobattoQuadrature(Q, qref1d, qweight1d); CeedChk(ierr);
+         break;
    }
    // Build B, D matrix
    // Fornberg, 1998
@@ -426,12 +426,12 @@ int CeedBasisCreateMFEMTensorH1Lagrange(Ceed ceed, CeedInt dim, CeedInt ncomp,
    ierr = CeedLobattoQuadrature(P, nodes, NULL); CeedChk(ierr);
    switch (qmode)
    {
-   case CEED_GAUSS:
-      ierr = CeedGaussQuadrature(Q, qref1d, qweight1d); CeedChk(ierr);
-      break;
-   case CEED_GAUSS_LOBATTO:
-      ierr = CeedLobattoQuadrature(Q, qref1d, qweight1d); CeedChk(ierr);
-      break;
+      case CEED_GAUSS:
+         ierr = CeedGaussQuadrature(Q, qref1d, qweight1d); CeedChk(ierr);
+         break;
+      case CEED_GAUSS_LOBATTO:
+         ierr = CeedLobattoQuadrature(Q, qref1d, qweight1d); CeedChk(ierr);
+         break;
    }
 
    /// modification for MFEM reference element
@@ -475,7 +475,7 @@ int CeedBasisCreateMFEMTensorH1Lagrange(Ceed ceed, CeedInt dim, CeedInt ncomp,
    //  // Pass to CeedBasisCreateTensorH1
    ierr = CeedBasisCreateTensorH1(ceed, dim, ncomp, P, Q, interp1d, grad1d, qref1d,
                                   qweight1d, basis); CeedChk(ierr);
-  
+
    /*
      ierr = CeedFree(&interp1d); CeedChk(ierr);
      ierr = CeedFree(&grad1d); CeedChk(ierr);
