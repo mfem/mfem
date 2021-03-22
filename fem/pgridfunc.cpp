@@ -860,8 +860,8 @@ void ParGridFunction::SaveWithMesh(const char *sol_f, const char *mesh_f,
    int rank = pfes->GetMyRank();
 
    ostringstream mesh_name, sol_name;
-   mesh_name << "mesh." << setfill('0') << setw(6) << rank;
-   sol_name << "sol." << setfill('0') << setw(6) << rank;
+   mesh_name << mesh_f << "." << setfill('0') << setw(6) << rank;
+   sol_name << sol_f << "." << setfill('0') << setw(6) << rank;
 
    ofstream mesh_ofs(mesh_name.str().c_str());
    mesh_ofs.precision(precision);
@@ -872,6 +872,35 @@ void ParGridFunction::SaveWithMesh(const char *sol_f, const char *mesh_f,
    sol_ofs.precision(precision);
    Save(sol_ofs);
    sol_ofs.close();
+}
+
+void ParGridFunction::SaveAsOneWithMesh(const char *sol_f, const char *mesh_f,
+                                        int precision) const
+{
+   int rank = pfes->GetMyRank();
+
+   ofstream mesh_ofs;
+   if (rank == 0)
+   {
+      string mesh_name = mesh_f;
+      mesh_name += ".mesh";
+      mesh_ofs.open(mesh_name);
+      mesh_ofs.precision(precision);
+   }
+
+   pfes->GetParMesh()->PrintAsOne(mesh_ofs);
+
+   ofstream sol_ofs;
+   if (rank == 0)
+   {
+      mesh_ofs.close();
+      string sol_name = sol_f;
+      sol_name += ".gf";
+      sol_ofs.open(sol_name);
+      sol_ofs.precision(precision);
+   }
+   SaveAsOne(sol_ofs);
+   if (rank == 0) { sol_ofs.close(); }
 }
 
 #ifdef MFEM_USE_ADIOS2
