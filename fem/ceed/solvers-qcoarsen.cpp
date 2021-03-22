@@ -341,9 +341,7 @@ int CeedQFunctionQCoarsen(CeedOperator oper, CeedInt qorder_reduction,
 
    CeedBasis qbasisctof; // P_Q
    CeedBasis fine_basis;
-   CeedOperatorField active_field;
-   ierr = CeedOperatorGetActiveField(oper, &active_field); CeedChk(ierr);
-   ierr = CeedOperatorFieldGetBasis(active_field, &fine_basis); CeedChk(ierr);
+   ierr = CeedOperatorGetActiveBasis(oper, &fine_basis); CeedChk(ierr);
    ierr = CeedBasisQCoarsen(fine_basis, qcoarse_basis, &qbasisctof,
                             qorder_reduction, fine_qmode, coarse_qmode); CeedChk(ierr);
 

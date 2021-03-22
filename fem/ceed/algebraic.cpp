@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "algebraic.hpp"
+#include <ceed-backend.h>
 
 #include "../bilinearform.hpp"
 #include "../fespace.hpp"

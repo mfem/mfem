@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "util.hpp"
+#include <ceed-backend.h>
 
 #include "../../general/device.hpp"
 #include "../../fem/gridfunc.hpp"
@@ -545,6 +546,15 @@ int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field)
    }
    *field = inputfields[found_index];
 
+   return 0;
+}
+
+int CeedOperatorGetActiveBasis(CeedOperator oper, CeedBasis *basis)
+{
+   int ierr;
+   CeedOperatorField field;
+   ierr = CeedOperatorGetActiveField(oper, &field); CeedChk(ierr);
+   ierr = CeedOperatorFieldGetBasis(field, basis); CeedChk(ierr);
    return 0;
 }
 

@@ -16,7 +16,6 @@
 #ifdef MFEM_USE_CEED
 #include <ceed.h>
 #include <ceed-hash.h>
-#include <ceed-backend.h>  // for CeedOperatorField
 #endif
 #include <tuple>
 #include <unordered_map>
@@ -84,7 +83,7 @@ int CeedBasisCreateMFEMTensorH1Lagrange(Ceed ceed, CeedInt dim, CeedInt ncomp,
                                         CeedInt P, CeedInt Q, CeedQuadMode qmode,
                                         CeedBasis *basis);
 
-int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field);
+int CeedOperatorGetActiveBasis(CeedOperator oper, CeedBasis *basis);
 
 int CeedOperatorGetActiveElemRestriction(CeedOperator oper,
                                          CeedElemRestriction* restr_out);
