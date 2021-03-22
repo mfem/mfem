@@ -55,6 +55,9 @@ int CeedOperatorFullAssemble(CeedOperator op, SparseMatrix **mat)
    const int skip_zeros = 0;
    out->Finalize(skip_zeros);
    ierr = CeedVectorDestroy(&values); CeedChk(ierr);
+   free(rows);
+   free(cols);
+
    *mat = out;
 
    return 0;
