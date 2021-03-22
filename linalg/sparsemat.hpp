@@ -619,12 +619,24 @@ public:
    {
       Destroy();
 #ifdef MFEM_USE_CUDA
-      if (handle && SparseMatrixCount==1 && Device::Allows(Backend::CUDA_MASK))
+      if (useCuSparse)
       {
-         cusparseDestroy(handle);
-         CuMemFree(dBuffer);
+         if (SparseMatrixCount==1)
+         {
+            if (handle)
+            {
+               cusparseDestroy(handle);
+               handle = nullptr;
+            }
+            if (dBuffer)
+            {
+               CuMemFree(dBuffer);
+               dBuffer = nullptr;
+               bufferSize = 0;
+            }
+         }
+         SparseMatrixCount--;
       }
-      SparseMatrixCount--;
 #endif
    }
 

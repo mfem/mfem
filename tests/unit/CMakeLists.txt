@@ -18,6 +18,7 @@ include_directories(BEFORE ${PROJECT_BINARY_DIR})
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 
 set(UNIT_TESTS_SRCS
+  general/test_array.cpp
   general/test_mem.cpp
   general/test_text.cpp
   general/test_zlib.cpp

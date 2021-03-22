@@ -12,7 +12,7 @@
 #include "forall.hpp"
 #include "occa.hpp"
 #ifdef MFEM_USE_CEED
-#include "../fem/libceed/ceed.hpp"
+#include "../fem/ceed/util.hpp"
 #endif
 
 #include <unordered_map>
@@ -35,8 +35,8 @@ occa::device occaDevice;
 #ifdef MFEM_USE_CEED
 Ceed ceed = NULL;
 
-CeedBasisMap ceed_basis_map;
-CeedRestrMap ceed_restr_map;
+ceed::BasisMap ceed_basis_map;
+ceed::RestrMap ceed_restr_map;
 #endif
 
 // Backends listed by priority, high to low:
@@ -469,6 +469,9 @@ static void CeedDeviceSetup(const char* ceed_spec)
                 "libCEED is not using the requested backend!!!\n"
                 "WARNING!!!\n" << std::endl;
    }
+#ifdef MFEM_DEBUG
+   CeedSetErrorHandler(internal::ceed, CeedErrorStore);
+#endif
 #else
    MFEM_CONTRACT_VAR(ceed_spec);
 #endif
