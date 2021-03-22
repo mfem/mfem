@@ -209,8 +209,6 @@ void LinearForm::Assemble()
       const FiniteElement *fe_1, *fe_2;
       Array<int> vdofs2;
 
-      std::cout << "enter 1" << std::endl;
-
       const int nfaces = mesh->GetNumFaces();
       for (int f = 0; f < nfaces; f++)
       {
@@ -233,12 +231,10 @@ void LinearForm::Assemble()
             fe_2 = fe_1;
          }
 
-         std::cout << "enter 2" << std::endl;
-
          for (int k = 0; k < tlfi.Size(); k++)
          {
-            if (tlfi_attributes[k] &&
-                tlfi_attributes[k]->Find(attr) == -1) { continue; }
+//            if (tlfi_attributes[k] &&
+//                tlfi_attributes[k]->Find(attr) == -1) { continue; }
 
             tlfi[k]->AssembleRHSFaceVect(*fe_1, *fe_2, *tr, elemvect);
             AddElementVector(vdofs, elemvect);
