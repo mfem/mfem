@@ -317,11 +317,10 @@ CeedOperator CreateCeedCompositeOperatorFromBilinearForm(BilinearForm &form)
 }
 
 CeedOperator CoarsenCeedCompositeOperator(
-   CeedOperator op,
-   CeedElemRestriction er,
-   CeedBasis c2f,
-   int order_reduction,
-   int qorder_reduction
+   CeedOperator op, CeedElemRestriction er,
+   CeedBasis c2f, int order_reduction,
+   int qorder_reduction, CeedQuadMode fine_qmode,
+   CeedQuadMode coarse_qmode
 )
 {
    int ierr;
@@ -354,9 +353,8 @@ CeedOperator CoarsenCeedCompositeOperator(
          CeedQFunctionContext qcoarsen_context;
          ierr = CeedOperatorQCoarsen(t_subop_coarse, qorder_reduction,
                                      &subop_coarse, &qcoarsen_assembledqf,
-                                     &qcoarsen_context, CEED_GAUSS,
-                                     CEED_GAUSS); PCeedChk(ierr);
-         // next line todo: delete inside previous function?
+                                     &qcoarsen_context, fine_qmode,
+                                     coarse_qmode); PCeedChk(ierr);
          ierr = CeedVectorDestroy(&qcoarsen_assembledqf); PCeedChk(ierr);
          ierr = CeedQFunctionContextDestroy(&qcoarsen_context); PCeedChk(ierr);
          ierr = CeedOperatorDestroy(&t_subop_coarse); PCeedChk(ierr);
@@ -425,10 +423,38 @@ AlgebraicMultigrid::AlgebraicMultigrid(
       current_order = current_order - order_reduction;
 
       AlgebraicCoarseSpace &space = hierarchy.GetAlgebraicCoarseSpace(0);
-      ceed_operators.Prepend(CoarsenCeedCompositeOperator(
-                                ceed_operators[0], space.GetCeedElemRestriction(),
-                                space.GetCeedCoarseToFine(), space.GetOrderReduction(),
-                                space.GetOrderReduction()));
+      int qor = order_reduction;
+      const bool collocate_coarse = true;
+      if (collocate_coarse)
+      {
+         if (level_counter == 0)
+         {
+            ceed_operators.Prepend(
+               CoarsenCeedCompositeOperator(
+                  ceed_operators[0], space.GetCeedElemRestriction(),
+                  space.GetCeedCoarseToFine(), space.GetOrderReduction(),
+                  qor, CEED_GAUSS, CEED_GAUSS_LOBATTO)
+            );
+         }
+         else
+         {
+            ceed_operators.Prepend(
+               CoarsenCeedCompositeOperator(
+                  ceed_operators[0], space.GetCeedElemRestriction(),
+                  space.GetCeedCoarseToFine(), space.GetOrderReduction(),
+                  qor, CEED_GAUSS_LOBATTO, CEED_GAUSS_LOBATTO)
+            );
+         }
+      }
+      else
+      {
+         ceed_operators.Prepend(
+            CoarsenCeedCompositeOperator(
+               ceed_operators[0], space.GetCeedElemRestriction(),
+               space.GetCeedCoarseToFine(), space.GetOrderReduction(),
+               qor, CEED_GAUSS, CEED_GAUSS)
+         );
+      }
       mfem::Operator *P = hierarchy.GetProlongationAtLevel(0);
       essentialTrueDofs.Prepend(new Array<int>);
       CoarsenEssentialDofs(*P, *essentialTrueDofs[1],
