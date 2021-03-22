@@ -22,6 +22,7 @@
 #include <fstream>
 #include <iostream>
 #include "sbm-aux.hpp"
+#include "../common/mfem-common.hpp"
 
 using namespace mfem;
 using namespace std;
@@ -227,17 +228,11 @@ int main(int argc, char *argv[])
       {
          elem_marker_gf(i) = elem_marker[i]*1.;
       }
-
       char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock << "solution\n" << pmesh << elem_marker_gf << flush;
-      sol_sock << "window_title 'Element flags'\n"
-               << "window_geometry "
-               << 0 << " " << 0 << " " << 350 << " " << 350 << "\n"
-               << "keys Rjmpc" << endl;
+      int  visport   = 19916, s = 350;
+      socketstream sol_sock;
+      common::VisualizeField(sol_sock, vishost, visport, elem_marker_gf,
+                             "Element Flags", 0, 0, s, s, "Rjmpc");
    }
 
    // Get a list of dofs associated with shifted boundary faces.
@@ -405,15 +400,10 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock << "solution\n" << pmesh << distance << flush;
-      sol_sock << "window_title 'Distance Vector'\n"
-               << "window_geometry "
-               << 350 << " " << 350 << " " << 350 << " " << 350 << "\n"
-               << "keys Rjmpcvv" << endl;
+      int  visport   = 19916, s = 350;
+      socketstream sol_sock;
+      common::VisualizeField(sol_sock, vishost, visport, distance,
+                             "Distance Vector", s, s, s, s, "Rjmpcvv", 1);
    }
 
    // Set up a list to indicate element attributes to be included in assembly,
@@ -508,12 +498,11 @@ int main(int argc, char *argv[])
    // Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, x);
 
-   // Save the refined mesh and the solution. This output can be viewed later
-   // using GLVis: "glvis -m refined.mesh -g sol.gf".
-   ofstream mesh_ofs("ex1-sbm.mesh");
+   // Save the mesh and the solution.
+   ofstream mesh_ofs("diffusion.mesh");
    mesh_ofs.precision(8);
    pmesh.PrintAsOne(mesh_ofs);
-   ofstream sol_ofs("ex1-sbm.gf");
+   ofstream sol_ofs("diffusion.gf");
    sol_ofs.precision(8);
    x.SaveAsOne(sol_ofs);
 
@@ -521,14 +510,10 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock << "solution\n" << pmesh << x << flush;
-      sol_sock << "window_title 'Solution'\n"
-               << "window_geometry "
-               << 350 << " " << 0 << " " << 350 << " " << 350 << "\n"
-               << "keys Rj" << endl;
+      int  visport   = 19916, s = 350;
+      socketstream sol_sock;
+      common::VisualizeField(sol_sock, vishost, visport, x,
+                             "Solution", s, 0, s, s, "Rj");
    }
 
    // Construct an error gridfunction if the exact solution is known.
@@ -569,7 +554,6 @@ int main(int argc, char *argv[])
                << 700 << " " << 0 << " " << 350 << " " << 350 << "\n"
                << "keys Rj" << endl;
    }
-
 
    int NEglob = pmesh.GetGlobalNE();
    double errnorm = x.ComputeL2Error(*dbcCoef);
