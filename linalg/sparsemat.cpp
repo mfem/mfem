@@ -2473,7 +2473,7 @@ void SparseMatrix::AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
          {
             // if the element is zero do not assemble it unless this breaks
             // the symmetric structure
-            if ((skip_zeros == 2) || (&rows != &cols || subm(j, i) == 0.0))
+            if (skip_zeros == 2 || &rows != &cols || subm(j, i) == 0.0)
             {
                continue;
             }
