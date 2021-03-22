@@ -415,6 +415,14 @@ public:
    virtual void SaveWithMesh(const char *sol_f, const char *mesh_f,
                              int precision=8) const;
 
+   /// Convenience function to save the GridFunction and associated Mesh to
+   /// files. The mesh and grid function will each be saved as single files,
+   /// which will be written on process 0 (see ParMesh::PrintAsOne and
+   /// ParGridFunction::SaveAsOne). The given @a precision will be used for
+   /// ASCII output.
+   void SaveAsOneWithMesh(const char *sol_f, const char *mesh_f,
+                          int precision=8) const;
+
 #ifdef MFEM_USE_ADIOS2
    /** Save the local portion of the ParGridFunction. This differs from the
        serial GridFunction::Save in that it takes into account the signs of
