@@ -9,25 +9,19 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_LIBCEED_MASS_HPP
-#define MFEM_LIBCEED_MASS_HPP
+#include "mfem.hpp"
+#include "unit_tests.hpp"
 
-#include "ceed.hpp"
+using namespace mfem;
 
-#include "../fespace.hpp"
-
-namespace mfem
+TEST_CASE("Array init-list construction", "[Array]")
 {
+   int ContigData[6] = {6, 5, 4, 3, 2, 1};
+   Array<int> a(ContigData, 6);
+   Array<int> b({6.0, 5.0, 4.0, 3.0, 2.0, 1.0});
 
-/// Initialize a Mass Integrator using libCEED
-void CeedPAMassAssemble(const FiniteElementSpace &fes,
-                        const mfem::IntegrationRule &ir,
-                        CeedData& ceedData);
-
-void CeedMFMassAssemble(const FiniteElementSpace &fes,
-                        const mfem::IntegrationRule &irm,
-                        CeedData& ceedData);
-
+   for (int i = 0; i < a.Size(); i++)
+   {
+      REQUIRE(a[i] == b[i]);
+   }
 }
-
-#endif // MFEM_LIBCEED_MASS_HPP
