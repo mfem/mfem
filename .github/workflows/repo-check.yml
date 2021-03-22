@@ -74,7 +74,7 @@ jobs:
         ./runtest documentation
 
   branch-history:
-    if: github.ref != 'refs/heads/next'
+    if: github.ref != 'refs/heads/next' && github.ref != 'refs/heads/master'
     runs-on: ubuntu-18.04
 
     steps:
