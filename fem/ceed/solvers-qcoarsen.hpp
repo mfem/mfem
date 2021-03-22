@@ -24,15 +24,17 @@ namespace mfem
 namespace ceed
 {
 
-CEED_EXTERN int CeedOperatorQCoarsen(CeedOperator oper, int qorder_reduction,
-                                     CeedOperator* out, CeedVector* coarse_assembledqf,
-                                     CeedQFunctionContext* context_ptr,
-                                     CeedQuadMode fine_qmode, CeedQuadMode coarse_qmode);
+int CeedOperatorQCoarsen(CeedOperator oper, int qorder_reduction,
+                         CeedOperator* out, CeedVector* coarse_assembledqf,
+                         CeedQFunctionContext* context_ptr,
+                         CeedQuadMode fine_qmode, CeedQuadMode coarse_qmode);
 
-/// @todo eventually I want this per element or something?
-/// (also, this might be more expensive than we want)
-CEED_EXTERN int CeedOperatorGetHeuristics(CeedOperator oper, CeedScalar* minq,
-                                          CeedScalar* maxq, CeedScalar* absmin);
+/** @brief Return some information about the D operator numerically.
+
+    This can be used to guide a very rough adaptive p-coarsening
+    procedure. At the moment this is very ad-hoc. */
+int CeedOperatorGetHeuristics(CeedOperator oper, CeedScalar* minq,
+                              CeedScalar* maxq, CeedScalar* absmin);
 
 }
 

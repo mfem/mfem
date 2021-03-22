@@ -364,7 +364,8 @@ CeedOperator CoarsenCeedCompositeOperator(
 AlgebraicMultigrid::AlgebraicMultigrid(
    AlgebraicSpaceHierarchy &hierarchy,
    BilinearForm &form,
-   const Array<int> &ess_tdofs
+   const Array<int> &ess_tdofs,
+   double coeff_threshold
 ) : GeometricMultigrid(hierarchy)
 {
    // Construct finest level
@@ -377,10 +378,19 @@ AlgebraicMultigrid::AlgebraicMultigrid(
    // Construct interpolation, operators, at all levels of hierarchy by coarsening
    while (current_order > 1)
    {
-      // TODO: make order reduction decision based on the assembled qfunction
-      // (ie, what comes out of CeedOperatorLinearAssembleQFunction,
-      // which currently only gets called in CeedQFunctionQCoarsen...)
-      const int order_reduction = current_order - (current_order/2);
+      double minq, maxq, absmin;
+      CeedOperatorGetHeuristics(ceed_operators[0], &minq, &maxq, &absmin);
+      double heuristic = std::max(std::abs(minq), std::abs(maxq)) / absmin;
+
+      int order_reduction;
+      if (heuristic > coeff_threshold || current_order == 3)
+      {
+         order_reduction = 1;
+      }
+      else
+      {
+         order_reduction = current_order - (current_order/2);
+      }
       hierarchy.PrependPCoarsenedLevel(current_order, order_reduction);
       current_order = current_order / 2;
 
@@ -1030,7 +1040,9 @@ AlgebraicSolver::AlgebraicSolver(BilinearForm &form,
                "AlgebraicSolver requires tensor product basis functions.");
 #ifdef MFEM_USE_CEED
    fespaces = new AlgebraicSpaceHierarchy(*form.FESpace());
-   multigrid = new AlgebraicMultigrid(*fespaces, form, ess_tdofs);
+   const double default_threshold = 1000.0;
+   multigrid = new AlgebraicMultigrid(*fespaces, form, ess_tdofs,
+                                      default_threshold);
 #else
    MFEM_ABORT("AlgebraicSolver requires Ceed support");
 #endif

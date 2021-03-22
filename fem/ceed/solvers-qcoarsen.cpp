@@ -252,7 +252,6 @@ int CeedElementRestrictionQCoarsen(CeedElemRestriction rstr_q,
    return 0;
 }
 
-/// Does not work for composite operator
 int CeedSingleOperatorGetHeuristics(CeedOperator oper, CeedScalar* minq,
                                     CeedScalar* maxq, CeedScalar* absmin)
 {
