@@ -156,6 +156,16 @@ public:
       }
    }
 
+   /** Prepend an already constructed coarse space to the hierarchy,
+       managing meshes, fespaces, and other arrays appropriately.
+
+       Analogous to FESpaceHierarchy::AddLevel() */
+   void AddCoarseLevel(AlgebraicCoarseSpace* space,
+                       CeedElemRestriction er);
+
+   /// Analogous to FiniteElementSpaceHierarchy::AddOrderRefinedLevel()
+   void PrependPCoarsenedLevel(int current_order, int order_reduction);
+
 private:
    CeedElemRestriction fine_er;
    Array<AlgebraicInterpolation*> ceed_interpolations;
