@@ -79,8 +79,8 @@ namespace mfem
 template <int Rank, int N = 1>
 struct AddSize
 {
-   template <template <int...> class Layout, typename... Sizes>
-   auto init(const Layout<Rank> &in, Sizes... sizes)
+   template <typename... Sizes>
+   static auto init(const DynamicLayout<Rank> &in, Sizes... sizes)
    {
       return AddSize<N+1,Rank>::init(in, in.template Size<Rank-N>(), sizes...);
    }
@@ -89,15 +89,15 @@ struct AddSize
 template <int Rank>
 struct AddSize<Rank,Rank>
 {
-   template <template <int...> class Layout, typename... Sizes>
-   auto init(const Layout<Rank> &in, Sizes... sizes)
+   template <typename... Sizes>
+   static auto init(const DynamicLayout<Rank> &in, Sizes... sizes)
    {
-      return Layout<sizeof...(Sizes)>(sizes...);
+      return DynamicLayout<sizeof...(Sizes)>(sizes...);
    }
 };
 
-template <int Rank, template <int...> class Layout, typename... ExtraSizes>
-auto MakeLayout(const Layout<Rank> &in, ExtraSizes... sizes)
+template <int Rank, typename... ExtraSizes>
+auto MakeLayout(const DynamicLayout<Rank> &in, ExtraSizes... sizes)
 {
    return AddSize<Rank>::init(in, sizes...);
 }
