@@ -225,13 +225,14 @@ public:
             bool amgx_verbose = false;
             amg = new AmgXSolver(op_assembled->GetComm(),
                                  AmgXSolver::PRECONDITIONER, amgx_verbose);
+            amg->SetOperator(*op_assembled);
          }
          else
          {
             AmgXSolver * amgx_prec = new AmgXSolver;
             amgx_prec->ReadParameters(amgx_config_file, AmgXSolver::EXTERNAL);
             amgx_prec->InitExclusiveGPU(MPI_COMM_WORLD);
-            // amgx_prec->SetOperator(*op_assembled);
+            amgx_prec->SetOperator(*op_assembled);
             amg = amgx_prec;
          }
       }
@@ -485,7 +486,7 @@ AlgebraicMultigrid::AlgebraicMultigrid(
          bool assemble_matrix = false;
 #ifdef MFEM_USE_MPI
 #ifdef MFEM_USE_AMGX
-         if (Device::Allows(Backend::CUDA)) { assemble_matrix = true; }
+         assemble_matrix = true;
 #else
          if (!Device::Allows(Backend::CUDA)) { assemble_matrix = true; }
 #endif
