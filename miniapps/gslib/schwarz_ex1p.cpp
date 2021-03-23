@@ -26,11 +26,11 @@
 //     of a singlerate and multirate predictor-corrector scheme for
 //     overlapping grids. arXiv preprint arXiv:2010.00118.
 //
-// Compile with: make ex1p
+// Compile with: make schwarz_ex1p
 //
-// Sample runs:  mpirun -np 4 ex1p -nm 3 -np1 2 -np2 1 -np3 1
-//               mpirun -np 4 ex1p -nm 2 -np1 2 -np2 2
-//               mpirun -np 4 ex1p -np1 2 -np2 2 -m1 ../../data/star.mesh -m2 ../../data/beam-quad.mesh
+// Sample runs:  mpirun -np 4 schwarz_ex1p -nm 3 -np1 2 -np2 1 -np3 1
+//               mpirun -np 4 schwarz_ex1p -nm 2 -np1 2 -np2 2
+//               mpirun -np 4 schwarz_ex1p -np1 2 -np2 2 -m1 ../../data/star.mesh -m2 ../../data/beam-quad.mesh
 
 #include "mfem.hpp"
 #include <fstream>

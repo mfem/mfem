@@ -11,7 +11,7 @@
 
 if (MFEM_USE_GSLIB)
   add_mfem_miniapp(schwarz_ex1
-    MAIN ex1.cpp
+    MAIN schwarz_ex1.cpp
     LIBRARIES mfem)
 
   add_mfem_miniapp(field-diff
@@ -29,7 +29,7 @@ if (MFEM_USE_GSLIB)
   # Parallel apps.
   if (MFEM_USE_MPI)
     add_mfem_miniapp(schwarz_ex1p
-      MAIN ex1p.cpp
+      MAIN schwarz_ex1p.cpp
       LIBRARIES mfem)
 
     add_mfem_miniapp(pfindpts
