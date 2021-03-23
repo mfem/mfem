@@ -166,7 +166,8 @@ SparseMatrix::SparseMatrix(int nrows, int ncols, int rowsize)
    InitCuSparse();
 }
 
-SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
+SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph,
+                           MemoryType mt)
    : AbstractSparseMatrix(mat.Height(), mat.Width())
 {
    if (mat.Finalized())
@@ -174,8 +175,8 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
       const int nnz = mat.I[height];
       if (copy_graph)
       {
-         I.New(height+1, mat.I.GetMemoryType());
-         J.New(nnz, mat.J.GetMemoryType());
+         I.New(height+1, mt == MemoryType::PRESERVE ? mat.I.GetMemoryType() : mt);
+         J.New(nnz, mt == MemoryType::PRESERVE ? mat.J.GetMemoryType() : mt);
          I.CopyFrom(mat.I, height+1);
          J.CopyFrom(mat.J, nnz);
       }
@@ -186,7 +187,7 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
          I.ClearOwnerFlags();
          J.ClearOwnerFlags();
       }
-      A.New(nnz, mat.A.GetMemoryType());
+      A.New(nnz, mt == MemoryType::PRESERVE ? mat.A.GetMemoryType() : mt);
       A.CopyFrom(mat.A, nnz);
 
       Rows = NULL;
