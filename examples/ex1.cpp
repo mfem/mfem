@@ -125,7 +125,7 @@ int main(int argc, char *argv[])
    //    '--refine'.
    {
       int ref_levels = (ref_levels != -1) ? ref_levels :
-         (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
+                       (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();

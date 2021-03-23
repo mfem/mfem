@@ -135,7 +135,7 @@ int main(int argc, char *argv[])
    //    option '--refine-serial'.
    {
       int ref_levels = (ser_ref_levels != -1) ? ser_ref_levels :
-         (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
+                       (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
