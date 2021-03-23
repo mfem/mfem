@@ -40,7 +40,9 @@
 //               with VisIt (visit.llnl.gov) and ParaView (paraview.org), as
 //               well as the optional saving with ADIOS2 (adios2.readthedocs.io)
 //               are also illustrated.
-
+//
+// mpirun -np 1 ./ex9amp -m ../miniapps/meshing/annulus-quad-o3.mesh -p 5 -s 23 -tf 8 -vs 10 -rs 0 -rp 0 -no-vis -o 3 -dt 0.025 -s0e .1 -t 1 -pt 1 -s1e -1e-3
+//
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -261,17 +263,20 @@ class DGAdvDiffIntegrator : public BilinearFormIntegrator
 {
 protected:
   //double alpha;
-  double s_e;
+  double s0_e, s1_e;
   Coefficient *tau;
   VectorCoefficient *beta;
 
-  Vector shape1, shape2;
+  Vector shape1, shape2, ndshape1, ndshape2;
+  DenseMatrix dshape1, dshape2;
   
 public:
-  DGAdvDiffIntegrator(VectorCoefficient & b, Coefficient &t, double s)
+  DGAdvDiffIntegrator(VectorCoefficient & b, Coefficient &t,
+		      double s0, double s1)
     :
     // alpha(a),
-    s_e(s),
+    s0_e(s0),
+    s1_e(s1),
     tau(&t),
     beta(&b)
   { }
@@ -296,6 +301,10 @@ public:
 
    shape1.SetSize(ndof1);
    shape2.SetSize(ndof2);
+   dshape1.SetSize(ndof1, dim);
+   dshape2.SetSize(ndof2, dim);
+   ndshape1.SetSize(ndof1);
+   ndshape2.SetSize(ndof2);
    elmat.SetSize(ndof1 + ndof2);
    elmat = 0.0;
 
@@ -354,6 +363,11 @@ public:
       el1.CalcShape(eip1, shape1);
       el2.CalcShape(eip2, shape2);
 
+      // el1.CalcDShape(eip1, dshape1);
+      // el2.CalcDShape(eip2, dshape2);
+      el1.CalcPhysDShape(*Trans.Elem1, dshape1);
+      el2.CalcPhysDShape(*Trans.Elem1, dshape2);
+
       beta->Eval(B1, *Trans.Elem1, eip1);
       beta->Eval(B2, *Trans.Elem2, eip2);
 
@@ -387,6 +401,9 @@ public:
 
       alpha1 = 0.5 * (1.0 + copysign(t1, b1n));
       alpha2 = 1.0 - alpha1;
+
+      dshape1.Mult(nor, ndshape1);
+      dshape2.Mult(nor, ndshape2);
       
       // un = vu * nor;
       // a = 0.5 * alpha * un;
@@ -418,7 +435,7 @@ public:
          b *= rho_p;
       }
       */
-      w = (detJ * s_e + (2.0 * alpha1 - 0.5) * b1n) * ip.weight;
+      w = (detJ * s0_e + (2.0 * alpha1 - 0.5) * b1n) * ip.weight;
       if (w != 0.0)
       {
          for (int i = 0; i < ndof1; i++)
@@ -428,7 +445,7 @@ public:
             }
       }
 
-      w = (detJ * s_e + alpha1 * b1n - (alpha2 - 0.5) * b2n) * ip.weight;
+      w = (detJ * s0_e + alpha1 * b1n - (alpha2 - 0.5) * b2n) * ip.weight;
       if (w != 0.0)
       {
 	for (int i = 0; i < ndof2; i++)
@@ -438,7 +455,7 @@ public:
 	  }
       }
 
-      w = (detJ * s_e + (alpha1 - 0.5) * b1n - alpha2 * b2n) * ip.weight;
+      w = (detJ * s0_e + (alpha1 - 0.5) * b1n - alpha2 * b2n) * ip.weight;
       if (w != 0.0)
       {
 	for (int i = 0; i < ndof1; i++)
@@ -448,13 +465,75 @@ public:
 	  }
       }
       
-      w = (detJ * s_e - (2.0 * alpha2 - 0.5) * b2n) * ip.weight;
+      w = (detJ * s0_e - (2.0 * alpha2 - 0.5) * b2n) * ip.weight;
       if (w != 0.0)
       {
 	for (int i = 0; i < ndof2; i++)
 	  for (int j = 0; j < ndof2; j++)
 	  {
 	    elmat(ndof1+i, ndof1+j) += w * shape2(i) * shape2(j);
+	  }
+      }
+      /*
+      if (s1_e != 0.0)
+      {
+	alpha1 = 0.5;
+	alpha2 = 0.5;
+	w = s1_e * ip.weight;
+	for (int i = 0; i < ndof1; i++)
+	  for (int j = 0; j < ndof1; j++)
+          {
+	    elmat(i, j) -= alpha1 * w * shape1(i) * ndshape1(j);
+	    elmat(i, j) -= alpha1 * w * ndshape1(i) * shape1(j);
+	  }
+
+	for (int i = 0; i < ndof2; i++)
+	  for (int j = 0; j < ndof1; j++)
+	  {
+	    elmat(ndof1+i, j) += alpha1 * w * shape2(i) * ndshape1(j);
+	    elmat(ndof1+i, j) -= alpha2 * w * ndshape2(i) * shape1(j);
+	  }
+
+	for (int i = 0; i < ndof1; i++)
+	  for (int j = 0; j < ndof2; j++)
+	  {
+	    elmat(i, ndof1+j) -= alpha2 * w * shape1(i) * ndshape2(j);
+	    elmat(i, ndof1+j) += alpha1 * w * ndshape1(i) * shape2(j);
+	  }
+      
+	for (int i = 0; i < ndof2; i++)
+	  for (int j = 0; j < ndof2; j++)
+	  {
+	    elmat(ndof1+i, ndof1+j) += alpha2 * w * shape2(i) * ndshape2(j);
+	    elmat(ndof1+i, ndof1+j) += alpha2 * w * ndshape2(i) * shape2(j);
+	  }
+      }
+      */
+      if (s1_e != 0.0)
+      {
+	w = s1_e * ip.weight / detJ;
+	for (int i = 0; i < ndof1; i++)
+	  for (int j = 0; j < ndof1; j++)
+          {
+	    elmat(i, j) += w * ndshape1(i) * ndshape1(j);
+	  }
+
+	for (int i = 0; i < ndof2; i++)
+	  for (int j = 0; j < ndof1; j++)
+	  {
+	    elmat(ndof1+i, j) -= w * ndshape2(i) * ndshape1(j);
+	  }
+
+	for (int i = 0; i < ndof1; i++)
+	  for (int j = 0; j < ndof2; j++)
+	  {
+	    elmat(i, ndof1+j) -= w * ndshape1(i) * ndshape2(j);
+	  }
+      
+	for (int i = 0; i < ndof2; i++)
+	  for (int j = 0; j < ndof2; j++)
+	  {
+	    elmat(ndof1+i, ndof1+j) += w * ndshape2(i) * ndshape2(j);
 	  }
       }
    }
@@ -483,7 +562,8 @@ int main(int argc, char *argv[])
    double t_final = 10.0;
    double dt = 0.01;
    double tau = 1.0;
-   double s_e = 1.0;
+   double s0_e = 1.0;
+   double s1_e = 0.0;
    bool visualization = true;
    bool visit = false;
    bool paraview = false;
@@ -530,7 +610,9 @@ int main(int argc, char *argv[])
                   "Time step.");
    args.AddOption(&tau, "-t", "--tau",
                   "DG tau weight.");
-   args.AddOption(&s_e, "-se", "--s-e",
+   args.AddOption(&s0_e, "-s0e", "--s0-e",
+                  "DG penalty.");
+   args.AddOption(&s1_e, "-s1e", "--s1-e",
                   "DG penalty.");
    args.AddOption((int *)&prec_type, "-pt", "--prec-type", "Preconditioner for "
                   "implicit solves. 0 for ILU, 1 for pAIR-AMG.");
@@ -670,8 +752,8 @@ int main(int argc, char *argv[])
    ConstantCoefficient tauCoef(tau);
    k->AddDomainIntegrator(new ConservativeConvectionIntegrator(velocity, -1.0));
    // k->AddDomainIntegrator(new MixedScalarWeakDivergenceIntegrator(velocity));
-   k->AddInteriorFaceIntegrator(
-   	 		   new DGAdvDiffIntegrator(velocity, tauCoef, s_e));
+   k->AddInteriorFaceIntegrator(new DGAdvDiffIntegrator(velocity, tauCoef,
+							s0_e, s1_e));
    k->AddBdrFaceIntegrator(new DGTraceIntegrator(velocity, 1.0, 0.5));
 
    ParLinearForm *b = new ParLinearForm(fes);
