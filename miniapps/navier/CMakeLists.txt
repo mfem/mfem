@@ -59,5 +59,16 @@ if (MFEM_USE_MPI)
       MAIN navier_cht.cpp
       ${NAVIER_COMMON_FILES}
       LIBRARIES mfem)
+
+    LIST(APPEND NAVIER_MESH_FILES
+        fluid-cht.mesh
+        solid-cht.mesh)
+    foreach(MESH_FILE ${NAVIER_MESH_FILES})
+        add_custom_command(
+          TARGET navier_cht POST_BUILD #OUTPUT ${MESH_FILE}
+          COMMAND ${CMAKE_COMMAND} -E copy_if_different
+          ${CMAKE_CURRENT_SOURCE_DIR}/${MESH_FILE} ${MESH_FILE}
+          COMMENT "copy: ${MESH_FILE}")
+    endforeach()
   endif ()
 endif ()
