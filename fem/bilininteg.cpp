@@ -553,17 +553,19 @@ void DiffusionIntegrator::AssembleElementMatrix
    double w;
 
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix dshape(nd,dim), dshapedxt(nd,spaceDim), invdfdx(dim,spaceDim);
+   DenseMatrix dshape(nd, dim), dshapedxt(nd, spaceDim);
+   DenseMatrix invdfdx(spaceDim, spaceDim);
    Vector D(VQ ? VQ->GetVDim() : 0);
 #else
-   dshape.SetSize(nd,dim);
-   dshapedxt.SetSize(nd,spaceDim);
-   invdfdx.SetSize(dim,spaceDim);
+   dshape.SetSize(nd, dim);
+   dshapedxt.SetSize(nd, spaceDim);
+   invdfdx.SetSize(spaceDim, spaceDim);
    D.SetSize(VQ ? VQ->GetVDim() : 0);
 #endif
    elmat.SetSize(nd);
 
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
+   DenseMatrix dshapedxt_m(nd, spaceDim);
 
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -581,8 +583,8 @@ void DiffusionIntegrator::AssembleElementMatrix
       {
          MQ->Eval(invdfdx, Trans, ip);
          invdfdx *= w;
-         Mult(dshapedxt, invdfdx, dshape);
-         AddMultABt(dshape, dshapedxt, elmat);
+         Mult(dshapedxt, invdfdx, dshapedxt_m);
+         AddMultABt(dshapedxt_m, dshapedxt, elmat);
       }
       else if (VQ)
       {
@@ -615,19 +617,20 @@ void DiffusionIntegrator::AssembleElementMatrix2(
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix dshape(tr_nd, dim), dshapedxt(tr_nd, spaceDim);
    DenseMatrix te_dshape(te_nd, dim), te_dshapedxt(te_nd, spaceDim);
-   DenseMatrix invdfdx(dim, spaceDim);
+   DenseMatrix invdfdx(spaceDim, spaceDim);
    Vector D(VQ ? VQ->GetVDim() : 0);
 #else
    dshape.SetSize(tr_nd, dim);
    dshapedxt.SetSize(tr_nd, spaceDim);
    te_dshape.SetSize(te_nd, dim);
    te_dshapedxt.SetSize(te_nd, spaceDim);
-   invdfdx.SetSize(dim, spaceDim);
+   invdfdx.SetSize(spaceDim, spaceDim);
    D.SetSize(VQ ? VQ->GetVDim() : 0);
 #endif
    elmat.SetSize(te_nd, tr_nd);
 
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe);
+   DenseMatrix te_dshapedxt_m(te_nd, spaceDim);
 
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -647,8 +650,8 @@ void DiffusionIntegrator::AssembleElementMatrix2(
       {
          MQ->Eval(invdfdx, Trans, ip);
          invdfdx *= w;
-         Mult(te_dshapedxt, invdfdx, te_dshape);
-         AddMultABt(te_dshape, dshapedxt, elmat);
+         Mult(te_dshapedxt, invdfdx, te_dshapedxt_m);
+         AddMultABt(te_dshapedxt_m, dshapedxt, elmat);
       }
       else if (VQ)
       {
