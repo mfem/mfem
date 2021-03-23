@@ -68,7 +68,6 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool nc_simplices = true;
    int reorder_mesh = 0;
-   int max_dofs = 100000;
    bool smooth_rt = true;
    bool restart = false;
    bool visualization = true;
