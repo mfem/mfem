@@ -31,6 +31,12 @@ public:
       Init<Rank>::result(sizes, arg0, args...);
    }
 
+   template <typename Layout>
+   DynamicLayout(const Layout &rhs)
+   {
+      Init<Rank>::result(sizes,rhs);
+   }
+
    template <typename... Idx> MFEM_HOST_DEVICE inline
    int index(Idx... idx) const
    {
@@ -82,10 +88,17 @@ private:
    {
    public:
       template <typename... Args>
-      static inline int result(int* sizes, int first, Args... args)
+      static inline void result(int* sizes, int first, Args... args)
       {
          sizes[N - 1] = first;
-         return first * Init<Dim,N+1>::result(sizes, args...);
+         Init<Dim,N+1>::result(sizes, args...);
+      }
+
+      template <typename Layout>
+      static inline void result(int* sizes, const Layout &rhs)
+      {
+         sizes[N - 1] = rhs.template Size<N-1>();
+         Init<Dim,N+1>::result(sizes, rhs);
       }
    };
 
@@ -95,10 +108,15 @@ private:
    {
    public:
       template <typename... Args>
-      static inline int result(int* sizes, int first, Args... args)
+      static inline void result(int* sizes, int first, Args... args)
       {
          sizes[Dim - 1] = first;
-         return first;
+      }
+
+      template <typename Layout>
+      static inline void result(int* sizes, const Layout &rhs)
+      {
+         sizes[Dim - 1] = rhs.template Size<Dim-1>();
       }
    };
 };
@@ -113,6 +131,15 @@ public:
    {
       // static_assert(sizeof...(Dims)==sizeof...(Sizes), "Static and dynamic sizes don't match.");
       // TODO verify that Dims == sizes in Debug mode
+   }
+
+   template <typename Layout> MFEM_HOST_DEVICE
+   StaticLayout(const Layout& rhs)
+   {
+      // for (int i = 0; i < Rank; i++)
+      // {
+      //    MFEM_VERIFY(Sizes...[i] == lhs.Size<i>());
+      // }
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
