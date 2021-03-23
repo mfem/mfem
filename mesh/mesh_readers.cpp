@@ -11,6 +11,7 @@
 
 #include "mesh_headers.hpp"
 #include "../fem/fem.hpp"
+#include "../general/binaryio.hpp"
 #include "../general/text.hpp"
 #include "../general/tinyxml2.h"
 #include "gmsh.hpp"
@@ -22,6 +23,10 @@
 
 #ifdef MFEM_USE_NETCDF
 #include "netcdf.h"
+#endif
+
+#ifdef MFEM_USE_ZLIB
+#include <zlib.h>
 #endif
 
 using namespace std;
@@ -642,28 +647,313 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
    }
 }
 
+namespace vtk_xml
+{
+
+using namespace tinyxml2;
+
+bool StringCompare(const char *s1, const char *s2)
+{
+   if (s1 == NULL || s2 == NULL) { return false; }
+   return strcmp(s1, s2) == 0;
+}
+
+struct BufferReaderBase
+{
+   enum HeaderType { UINT32_HEADER, UINT64_HEADER };
+   virtual void ReadBinary(const char *buf, void *dest, int n) const = 0;
+   virtual void ReadBase64(const char *txt, void *dest, int n) const = 0;
+   virtual ~BufferReaderBase() { }
+};
+
+template <typename T, typename F>
+struct BufferReader : BufferReaderBase
+{
+   bool compressed;
+   HeaderType header_type;
+   BufferReader(bool compressed_, HeaderType header_type_)
+      : compressed(compressed_), header_type(header_type_) { }
+
+   int NumHeaderBytes() const
+   {
+      int num_entries = compressed ? 4 : 1;
+      int entry_size = (header_type == UINT64_HEADER)
+                       ? sizeof(uint64_t) : sizeof(uint32_t);
+      return num_entries*entry_size;
+   }
+
+   void ReadBinaryWithHeader(const char *header_buf, const char *buf,
+                             void *dest_void, int n) const
+   {
+      std::vector<unsigned char> uncompressed_data;
+      T *dest = static_cast<T*>(dest_void);
+
+      if (compressed)
+      {
+#ifdef MFEM_USE_ZLIB
+         uint64_t header[4];
+         if (header_type == UINT32_HEADER)
+         {
+            uint32_t *header_32 = (uint32_t *)header_buf;
+            for (int i=0; i<4; ++i) { header[i] = header_32[i]; }
+         }
+         else
+         {
+            uint64_t *header_64 = (uint64_t *)header_buf;
+            for (int i=0; i<4; ++i) { header[i] = header_64[i]; }
+         }
+
+         MFEM_VERIFY(header[0] == 1, "Multiple compressed blocks not supported");
+         uLongf dest_len = header[1];
+         uncompressed_data.resize(dest_len);
+         int res = uncompress(uncompressed_data.data(), &dest_len,
+                              (const Bytef *)buf, header[3]);
+         MFEM_VERIFY(res == Z_OK, "Error uncompressing");
+         MFEM_VERIFY(sizeof(F)*n == dest_len, "AppendedData: wrong data size");
+         buf = (const char *)uncompressed_data.data();
+#else
+         MFEM_ABORT("MFEM must be compiled with zlib enabled to uncompress.")
+#endif
+      }
+      else
+      {
+         // Each "data block" is preceded by a header that is either UInt32 or
+         // UInt64. The rest of the data follows.
+         uint64_t data_size;
+         if (header_type == UINT32_HEADER)
+         {
+            uint32_t *data_size_32 = (uint32_t *)header_buf;
+            data_size = *data_size_32;
+         }
+         else
+         {
+            uint64_t *data_size_64 = (uint64_t *)header_buf;
+            data_size = *data_size_64;
+         }
+         MFEM_VERIFY(sizeof(F)*n == data_size, "AppendedData: wrong data size");
+      }
+
+      if (std::is_same<T, F>::value)
+      {
+         // Special case: no type conversions necessary, so can just memcpy
+         memcpy(dest, buf, sizeof(T)*n);
+      }
+      else
+      {
+         for (int i=0; i<n; ++i)
+         {
+            F *val = (F*)(buf + i*sizeof(F));
+            dest[i] = *val;
+         }
+      }
+   }
+
+   void ReadBinary(const char *buf, void *dest, int n) const override
+   {
+      ReadBinaryWithHeader(buf, buf + NumHeaderBytes(), dest, n);
+   }
+
+   void ReadBase64(const char *txt, void *dest, int n) const override
+   {
+      // Skip whitespace
+      while (*txt)
+      {
+         if (*txt != ' ' && *txt != '\n') { break; }
+         ++txt;
+      }
+      if (compressed)
+      {
+         std::vector<unsigned char> data, header;
+         // Compute number of characters needed to encode header in base 64,
+         // then round to nearest multiple of 4 to take padding into account.
+         int b64_header = ((4*NumHeaderBytes()/3) + 3) & ~3;
+         // If data is compressed, header is encoded separately
+         bin_io::DecodeBase64(txt, b64_header, header);
+         bin_io::DecodeBase64(txt + b64_header, strlen(txt)-b64_header, data);
+         ReadBinaryWithHeader((const char *)header.data(),
+                              (const char *)data.data(), dest, n);
+      }
+      else
+      {
+         std::vector<unsigned char> data;
+         bin_io::DecodeBase64(txt, strlen(txt), data);
+         ReadBinary((const char *)data.data(), dest, n);
+      }
+   }
+};
+
+struct XMLDataReader
+{
+   const char *appended_data, *byte_order, *compressor;
+   enum AppendedDataEncoding { RAW, BASE64 };
+   map<string,BufferReaderBase*> type_map;
+   AppendedDataEncoding encoding;
+
+   XMLDataReader(const XMLElement *vtk, const XMLElement *vtu)
+   {
+      // Determine whether binary data header is 32 or 64 bit integer
+      BufferReaderBase::HeaderType htype;
+      if (StringCompare(vtk->Attribute("header_type"), "UInt64"))
+      {
+         htype = BufferReaderBase::UINT64_HEADER;
+      }
+      else
+      {
+         htype = BufferReaderBase::UINT32_HEADER;
+      }
+
+      // Get the byte order of the file (will check if we encounter binary data)
+      byte_order = vtk->Attribute("byte_order");
+
+      // Get the compressor. We will check that MFEM can handle the compression
+      // if we encounter binary data.
+      compressor = vtk->Attribute("compressor");
+      bool compressed = (compressor != NULL);
+
+      appended_data = NULL;
+      for (const XMLElement *xml_elem = vtu->NextSiblingElement();
+           xml_elem != NULL;
+           xml_elem = xml_elem->NextSiblingElement())
+      {
+         if (StringCompare(xml_elem->Name(), "AppendedData"))
+         {
+            const char *encoding_str = xml_elem->Attribute("encoding");
+            if (StringCompare(encoding_str, "raw"))
+            {
+               appended_data = xml_elem->GetAppendedData();
+               encoding = RAW;
+            }
+            else if (StringCompare(encoding_str, "base64"))
+            {
+               appended_data = xml_elem->GetText();
+               encoding = BASE64;
+            }
+
+            MFEM_VERIFY(appended_data != NULL, "Invalid AppendedData");
+            while (*appended_data)
+            {
+               ++appended_data;
+               if (*appended_data == '_')
+               {
+                  ++appended_data;
+                  break;
+               }
+            }
+            MFEM_VERIFY(*appended_data != '\0', "Invalid AppendedData");
+            break;
+         }
+      }
+
+      type_map["Int8"] = new BufferReader<int, int8_t>(compressed, htype);
+      type_map["Int16"] = new BufferReader<int, int16_t>(compressed, htype);
+      type_map["Int32"] = new BufferReader<int, int32_t>(compressed, htype);
+      type_map["Int64"] = new BufferReader<int, int64_t>(compressed, htype);
+      type_map["UInt8"] = new BufferReader<int, uint8_t>(compressed, htype);
+      type_map["UInt16"] = new BufferReader<int, uint16_t>(compressed, htype);
+      type_map["UInt32"] = new BufferReader<int, uint32_t>(compressed, htype);
+      type_map["UInt64"] = new BufferReader<int, uint64_t>(compressed, htype);
+      type_map["Float32"] = new BufferReader<double, float>(compressed, htype);
+      type_map["Float64"] = new BufferReader<double, double>(compressed, htype);
+   }
+
+   template <typename T>
+   void Read(const XMLElement *xml_elem, T *dest, int n)
+   {
+      static const char *erstr = "Error reading XML DataArray";
+      MFEM_VERIFY(StringCompare(xml_elem->Name(), "DataArray"), erstr);
+      const char *format = xml_elem->Attribute("format");
+      if (StringCompare(format, "ascii"))
+      {
+         const char *txt = xml_elem->GetText();
+         MFEM_VERIFY(txt != NULL, erstr);
+         std::istringstream data_stream(txt);
+         for (int i=0; i<n; ++i) { data_stream >> dest[i]; }
+      }
+      else if (StringCompare(format, "appended"))
+      {
+         VerifyBinaryOptions();
+         int offset = xml_elem->IntAttribute("offset");
+         const char *type = xml_elem->Attribute("type");
+         MFEM_VERIFY(type != NULL, erstr);
+         BufferReaderBase *reader = type_map[type];
+         MFEM_VERIFY(reader != NULL, erstr);
+         MFEM_VERIFY(appended_data != NULL, "No AppendedData found");
+         if (encoding == RAW)
+         {
+            reader->ReadBinary(appended_data + offset, dest, n);
+         }
+         else
+         {
+            reader->ReadBase64(appended_data + offset, dest, n);
+         }
+      }
+      else if (StringCompare(format, "binary"))
+      {
+         VerifyBinaryOptions();
+         const char *txt = xml_elem->GetText();
+         MFEM_VERIFY(txt != NULL, erstr);
+         const char *type = xml_elem->Attribute("type");
+         if (type == NULL) { MFEM_ABORT(erstr); }
+         BufferReaderBase *reader = type_map[type];
+         if (reader == NULL) { MFEM_ABORT(erstr); }
+         reader->ReadBase64(txt, dest, n);
+      }
+      else
+      {
+         MFEM_ABORT("Invalid XML VTK DataArray format");
+      }
+   }
+
+   /// Check that the byte order of the file is the same as the native byte
+   /// order that we're running with. We don't currently support converting
+   /// between byte orders. The byte order is only verified if we encounter
+   /// binary data.
+   void VerifyByteOrder() const
+   {
+      // Can't handle reading big endian from little endian or vice versa
+      if (byte_order && !StringCompare(byte_order, VTKByteOrder()))
+      {
+         MFEM_ABORT("Converting between different byte orders is unsupported.");
+      }
+   }
+
+   /// Check that the compressor is compatible (MFEM currently only supports
+   /// zlib compression). If MFEM is not compiled with zlib, then we cannot
+   /// read binary data with compression.
+   void VerifyCompressor() const
+   {
+      if (compressor && !StringCompare(compressor, "vtkZLibDataCompressor"))
+      {
+         MFEM_ABORT("Unsupported compressor. Only zlib is supported.")
+      }
+#ifndef MFEM_USE_ZLIB
+      MFEM_VERIFY(compressor == NULL, "MFEM must be compiled with zlib enabled "
+                  "to support reading compressed data.");
+#endif
+   }
+
+   /// Verify that the binary data is stored with compatible options (i.e.
+   /// native byte order and compatible compression).
+   void VerifyBinaryOptions() const
+   {
+      VerifyByteOrder();
+      VerifyCompressor();
+   }
+
+   ~XMLDataReader()
+   {
+      for (auto &x : type_map) { delete x.second; }
+   }
+};
+
+} // namespace vtk_xml
+
 void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
                            bool &finalize_topo, const std::string &xml_prefix)
 {
-   using namespace tinyxml2;
+   using namespace vtk_xml;
 
-   const char *erstr = "XML parsing error";
-
-   // Helper function: return true if both strings are equal, false if not or if
-   // either one is NULL.
-   auto is_equal = [](const char *s1, const char *s2)
-   {
-      if (s1 == NULL || s2 == NULL) { return false; }
-      return strcmp(s1, s2) == 0;
-   };
-
-   auto verify_data_array = [erstr,is_equal](const XMLElement *data)
-   {
-      MFEM_VERIFY(is_equal(data->Name(), "DataArray"), erstr);
-      MFEM_VERIFY(is_equal(data->Attribute("format"), "ascii"),
-                  "MFEM does not currently support VTK meshes with appended"
-                  " or binary data.");
-   };
+   static const char *erstr = "XML parsing error";
 
    // Create buffer beginning with xml_prefix, then read the rest of the stream
    std::vector<char> buf(xml_prefix.begin(), xml_prefix.end());
@@ -672,23 +962,24 @@ void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
    buf.push_back('\0'); // null-terminate buffer
 
    XMLDocument xml;
-   xml.Parse(buf.data());
+   xml.Parse(buf.data(), buf.size());
    if (xml.ErrorID() != XML_SUCCESS)
    {
-      MFEM_ABORT("Could not parse XML VTK file. This could be caused by raw "
-                 "binary data in the XML file. MFEM supports only ASCII data.");
+      MFEM_ABORT("Error parsing XML VTK file.\n" << xml.ErrorStr());
    }
 
    const XMLElement *vtkfile = xml.FirstChildElement();
    MFEM_VERIFY(vtkfile, erstr);
-   MFEM_VERIFY(is_equal(vtkfile->Name(), "VTKFile"), erstr);
+   MFEM_VERIFY(StringCompare(vtkfile->Name(), "VTKFile"), erstr);
    const XMLElement *vtu = vtkfile->FirstChildElement();
    MFEM_VERIFY(vtu, erstr);
-   MFEM_VERIFY(is_equal(vtu->Name(), "UnstructuredGrid"), erstr);
+   MFEM_VERIFY(StringCompare(vtu->Name(), "UnstructuredGrid"), erstr);
+
+   XMLDataReader data_reader(vtkfile, vtu);
 
    // Count the number of points and cells
    const XMLElement *piece = vtu->FirstChildElement();
-   MFEM_VERIFY(is_equal(piece->Name(), "Piece"), erstr);
+   MFEM_VERIFY(StringCompare(piece->Name(), "Piece"), erstr);
    MFEM_VERIFY(piece->NextSiblingElement() == NULL,
                "XML VTK meshes with more than one Piece are not supported");
    int npts = piece->IntAttribute("NumberOfPoints");
@@ -701,66 +992,53 @@ void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
         pts_xml != NULL;
         pts_xml = pts_xml->NextSiblingElement())
    {
-      if (is_equal(pts_xml->Name(), "Points"))
+      if (StringCompare(pts_xml->Name(), "Points"))
       {
          const XMLElement *pts_data = pts_xml->FirstChildElement();
-         verify_data_array(pts_data);
          MFEM_VERIFY(pts_data->IntAttribute("NumberOfComponents") == 3,
                      "XML VTK Points DataArray must have 3 components");
-         const char *pts_txt = pts_data->GetText();
-         MFEM_VERIFY(pts_txt != NULL, erstr);
-         std::istringstream pts_stream(pts_txt);
-         points.Load(pts_stream, 3*npts);
+         data_reader.Read(pts_data, points.GetData(), points.Size());
          break;
       }
    }
    if (pts_xml == NULL) { MFEM_ABORT(erstr); }
 
    // Read the cells
-   Array<int> cell_data, cell_offsets, cell_types;
+   Array<int> cell_data, cell_offsets(ncells), cell_types(ncells);
    const XMLElement *cells_xml;
    for (cells_xml = piece->FirstChildElement();
         cells_xml != NULL;
         cells_xml = cells_xml->NextSiblingElement())
    {
-      if (is_equal(cells_xml->Name(), "Cells"))
+      if (StringCompare(cells_xml->Name(), "Cells"))
       {
-         const char *cell_data_txt = NULL;
+         const XMLElement *cell_data_xml = NULL;
          for (const XMLElement *data_xml = cells_xml->FirstChildElement();
               data_xml != NULL;
               data_xml = data_xml->NextSiblingElement())
          {
-            verify_data_array(data_xml);
-            std::string data_name;
-            const char *data_name_cstr = data_xml->Attribute("Name");
-            if (data_name_cstr != NULL) { data_name = data_name_cstr; }
-            const char *data_txt = data_xml->GetText();
-            MFEM_VERIFY(data_txt != NULL, erstr);
-            if (data_name == "offsets")
+            const char *data_name = data_xml->Attribute("Name");
+            if (StringCompare(data_name, "offsets"))
             {
-               std::istringstream data_stream(data_txt);
-               cell_offsets.Load(ncells, data_stream);
+               data_reader.Read(data_xml, cell_offsets.GetData(), ncells);
             }
-            else if (data_name == "types")
+            else if (StringCompare(data_name, "types"))
             {
-               std::istringstream data_stream(data_txt);
-               cell_types.Load(ncells, data_stream);
+               data_reader.Read(data_xml, cell_types.GetData(), ncells);
             }
-            else if (data_name == "connectivity")
+            else if (StringCompare(data_name, "connectivity"))
             {
                // Have to read the connectivity after the offsets, because we
                // don't know how many points to read until we have the offsets
                // (size of connectivity array is equal to the last offset), so
-               // store the data pointer and read this array later.
-               cell_data_txt = data_txt;
+               // store the XML element pointer and read this data later.
+               cell_data_xml = data_xml;
             }
          }
-         MFEM_VERIFY(cell_offsets.Size() == ncells, erstr);
-         MFEM_VERIFY(cell_types.Size() == ncells, erstr);
-         MFEM_VERIFY(cell_data_txt != NULL, erstr);
+         MFEM_VERIFY(cell_data_xml != NULL, erstr);
          int cell_data_size = cell_offsets.Last();
-         std::istringstream cell_data_stream(cell_data_txt);
-         cell_data.Load(cell_data_size, cell_data_stream);
+         cell_data.SetSize(cell_data_size);
+         data_reader.Read(cell_data_xml, cell_data.GetData(), cell_data_size);
          break;
       }
    }
