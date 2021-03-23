@@ -130,7 +130,7 @@ int main(int argc, char *argv[])
       //    We can handle triangular, quadrilateral, tetrahedral, hexahedral,
       //    surface and volume meshes with the same code.
       Mesh mesh(mesh_file, 1, 1);
-      for (int l = 0; l < ser_ref_levels; l++) { mesh->UniformRefinement(); }
+      for (int l = 0; l < ser_ref_levels; l++) { mesh.UniformRefinement(); }
 
       // 5. A NURBS mesh cannot be refined locally so we refine it uniformly
       //    and project it to a standard curvilinear mesh of order 2.
@@ -171,7 +171,7 @@ int main(int argc, char *argv[])
       // 8. Define a parallel mesh by partitioning the serial mesh.
       //    Once the parallel mesh is defined, the serial mesh can be deleted.
       pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
-      for (int l = 0; l < par_ref_levels; l++) { pmesh.UniformRefinement(); }
+      for (int l = 0; l < par_ref_levels; l++) { pmesh->UniformRefinement(); }
    }
    else
    {
