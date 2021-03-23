@@ -675,14 +675,14 @@ The specific libraries and their options are:
   Versions: HIOP >= 0.1.
 
 - GSLIB (optional), used when MFEM_USE_GSLIB = YES. The gslib library must be
-  built prior to the MFEM build, as follows: download gslib-1.0.5, untar it at
-  the same level as MFEM and create a symbolic link: "ln -s gslib-1.0.5 gslib".
+  built prior to the MFEM build, as follows: download gslib-1.0.7, untar it at
+  the same level as MFEM and create a symbolic link: "ln -s gslib-1.0.7 gslib".
   Build gslib in parallel or in serial based on the desired MFEM build: "make
   clean; make CC=mpicc" or "make clean; make CC=gcc MPI=0". Build MFEM with
   MFEM_USE_GSLIB=YES.
-  URL: https://github.com/gslib/gslib/archive/v1.0.5.tar.gz
+  URL: https://github.com/gslib/gslib/archive/v1.0.7.tar.gz
   Options: GSLIB_OPT, GSLIB_LIB.
-  Versions: GSLIB >= 1.0.5.
+  Versions: GSLIB >= 1.0.7.
 
 - MKL CPardiso (optional), used when MFEM_USE_MKL_CPARDISO = YES.
   URL: https://software.intel.com/content/www/us/en/develop/tools/math-kernel-library.html

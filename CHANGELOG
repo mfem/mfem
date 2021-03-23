@@ -143,6 +143,11 @@ Version 4.2.1 (development)
   Mesh::MakeCartesian2D or Mesh::MakeRefined. The legacy constructors are marked
   as deprecated.
 
+- Added miniapps demonstrating use of GSLIB for overlapping grids, see 
+  gslib/ex1 and gslib/ex1p, and different physics in different domains,
+  see navier/cht. Note that the latest GSLIB based functionality requires 
+  gslib v1.0.7 (see INSTALL for details).
+
 libCEED integration improvements
 --------------------------------
 - Refactor the libCEED integration
