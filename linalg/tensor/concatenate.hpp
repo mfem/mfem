@@ -92,7 +92,7 @@ struct AddSize<Rank,Rank>
    template <typename... Sizes>
    static auto init(const DynamicLayout<Rank> &in, Sizes... sizes)
    {
-      return DynamicLayout<sizeof...(Sizes)>(sizes...);
+      return DynamicLayout<sizeof...(Sizes)+1>(in.template Size<0>(), sizes...);
    }
 };
 
