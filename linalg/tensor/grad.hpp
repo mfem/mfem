@@ -16,6 +16,8 @@
 #include "../../general/backends.hpp"
 #include "../dtensor.hpp"
 #include "basis.hpp"
+#include "contraction.hpp"
+#include "concatenate.hpp"
 
 namespace mfem
 {
@@ -47,8 +49,7 @@ auto operator*(const BasisGradient<2,true,D,Q> &basis, const Dofs &u)
    auto Gu = ContractX(G,u);
    auto GBu = ContractY(G,Bu);
    auto BGu = ContractY(B,Gu);
-   // TODO need a function to build {GBu,BGu}
-   return Gu;
+   return Concatenate(BGu,GBu);
 }
 
 // 3D Tensor
@@ -60,13 +61,12 @@ auto operator*(const BasisGradient<3,true,D,Q> &basis, const Dofs &u)
    auto Bu = ContractX(B,u);
    auto Gu = ContractX(G,u);
    auto BBu = ContractY(B,Bu);
-   auto GBu = ContractY(G,Bu);
    auto BGu = ContractY(B,Gu);
-   auto GBBu = ContractZ(G,BBu);
-   auto BGBu = ContractZ(B,GBu);
+   auto GBu = ContractY(G,Bu);
    auto BBGu = ContractZ(B,BGu);
-   // TODO need {BBGu, BGBu, GBBu}
-   return Gu;
+   auto BGBu = ContractZ(B,GBu);
+   auto GBBu = ContractZ(G,BBu);
+   return Concatenate(BBGu,BGBu,GBBu);
 }
 
 // Non-tensor
@@ -89,6 +89,7 @@ auto operator*(const BasisGradientTranspose<1,true,D,Q> &basis, const Dofs &u)
 template <int D, int Q, typename Dofs>
 auto operator*(const BasisGradientTranspose<2,true,D,Q> &basis, const Dofs &u)
 {
+   // TODO this is completely wrong
    auto Bt = basis.GetBt();
    auto Gt = basis.GetGt();
    auto Bu = ContractX(Bt,u);
@@ -102,6 +103,7 @@ auto operator*(const BasisGradientTranspose<2,true,D,Q> &basis, const Dofs &u)
 template <int D, int Q, typename Dofs>
 auto operator*(const BasisGradientTranspose<3,true,D,Q> &basis, const Dofs &u)
 {
+   // TODO this is completely wrong
    auto Bt = basis.GetBt();
    auto Gt = basis.GetGt();
    auto Bu = ContractX(Bt,u);
@@ -118,7 +120,7 @@ auto operator*(const BasisGradientTranspose<3,true,D,Q> &basis, const Dofs &u)
 
 /////////////////////
 // Old implementation
-
+/*
 // Functions to interpolate the gradient from degrees of freedom to derivatives
 // at quadrature points.
 // Non-tensor case
@@ -670,7 +672,7 @@ StaticTensor<dTensor<VDim>,D1d,D1d> GradientT(const dTensor<Q1d,D1d> &B,
    MFEM_SYNC_THREAD;
    return gu;
 }
-
+*/
 } // namespace mfem
 
 #endif // MFEM_TENSOR_GRAD

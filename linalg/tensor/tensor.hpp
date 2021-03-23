@@ -55,9 +55,6 @@ public:
    Tensor(int size0, Sizes... sizes)
    : Container(size0,sizes...), Layout(size0,sizes...) { }
 
-   Tensor(IntArray<Rank> &sizes)
-   : Container(sizes), Layout(sizes) { }
-
    /// Utility Constructor
    MFEM_HOST_DEVICE
    Tensor(Layout index): Container(), Layout(index) { }
@@ -215,7 +212,7 @@ using dTensor = StaticTensor<double,Sizes...>; // TODO remove
 template <int... Sizes>
 using StaticDTensor = StaticTensor<double,Sizes...>;
 
-// TODO deprecate
+// TODO deprecate (Can't have __shared__ inside an object)
 /// A dynamically sized Tensor using a static amount of shared memory.
 template <int Rank, typename T, int MaxSize = 16>
 using DynamicSharedTensor = Tensor<Rank,
@@ -265,7 +262,7 @@ struct DynamicBlockTensor_t<1,T,BatchSize,MaxSize>
 };
 
 template <int Rank, typename T, int BatchSize, int MaxSize = 16>
-using DynamicBlockTensor = DynamicBlockTensor_t::type;
+using DynamicBlockTensor = typename DynamicBlockTensor_t<Rank,T,BatchSize,MaxSize>::type;
 
 template <int Rank, int BatchSize, int MaxSize = 16>
 using DynamicBlockDTensor = DynamicBlockTensor<Rank,double,BatchSize,MaxSize>;
@@ -301,8 +298,8 @@ using ReadTensor = Tensor<Rank,
 template <int Rank>
 using ReadDTensor = ReadTensor<Rank,double>;
 
-//////////////////////////
-// Convenient Tensor types
+////////////////////////////
+// Architecture Tensor types
 
 /// Defines the dynamic type of Tensor used for computation on CPU.
 template <int Rank, typename T, int BatchSize, int MaxSize = pow(16,Rank)>
