@@ -478,60 +478,80 @@ void PADGDiffusionApply2D(const int NF,
             {
                Bu0[q][c] += b*u0[d][c];
                Bu1[q][c] += b*u1[d][c];
-               BGu0[q][c] += b*Gu0[d][c];
-               BGu1[q][c] += b*Gu1[d][c];
             }
          }
       }
 
+ 
       // 3. Form numerical fluxes
       double D1[max_Q1D][VDIM] = {0};
       double D0[max_Q1D][VDIM] = {0};
       double D1jumpu[max_Q1D][VDIM] = {0};
       double D0jumpu[max_Q1D][VDIM] = {0};
+
+      std::cout << " D0[d][c]   D1[d][c]  D0jumpu[d][c]  D1jumpu[d][c] " << std::endl;
+
       for (int q = 0; q < Q1D; ++q)
       {
          for (int c = 0; c < VDIM; c++)
          {
-            const double jump_u = Bu0[q][c] - Bu1[q][c];
+            const double jump_u = Bu1[q][c] - Bu0[q][c];
             // numerical fluxes
             D1[q][c] = op1(q,1,0,f)*Gu0[q][c] 
-                        + op1(q,1,1,f)*Gu1[q][c]
+                        - op1(q,1,1,f)*Gu1[q][c]
                         + op3(q,0,f)*jump_u; 
             D0[q][c] = op1(q,0,0,f)*Gu0[q][c] 
-                        + op1(q,0,1,f)*Gu1[q][c] 
+                        - op1(q,0,1,f)*Gu1[q][c] 
                         + op3(q,1,f)*jump_u; 
             D1jumpu[q][c] = op2(q,1,f)*jump_u;
             D0jumpu[q][c] = op2(q,0,f)*jump_u;
+
+            std::cout << D0[q][c] <<" "<<
+                         D1[q][c] <<" "<<
+                         D0jumpu[q][c] <<" "<<
+                         D1jumpu[q][c] <<" "<< std::endl;
+
          }
       }
+            
+                     
 
       // 4. Contraction with B^T evaluation B^T:(G*D*B:u) and B^T:(D*B:Gu)   
       double BD1[max_D1D][VDIM] = {0};
       double BD0[max_D1D][VDIM] = {0};
+
+      std::cout << "d q g b D1jumpu D0jumpu BD0 BD1" << std::endl;
+
       for (int d = 0; d < D1D; ++d)
       {
+
          for (int q = 0; q < Q1D; ++q)
          {
             const double b = Bt(d,q);
-            const double g = Gt(d,0);
-            // this needs a negative based on the normal
+            // gt needs a negative based on the normal?
             for (int c = 0; c < VDIM; c++)
             {
-               BD0[d][c] += b*D0[q][c] + b*g*D0[q][c];
-               BD1[d][c] += b*D1[q][c] + b*g*D1[q][c];
+               BD0[d][c] += b*D0[q][c];
+               BD1[d][c] += b*D1[q][c];
             }
-         }
-         for (int c = 0; c < VDIM; c++)
-         {
-            y(d,c,0,f) +=  BD0[d][c];
-            y(d,c,1,f) +=  BD1[d][c];
          }
       }
 
-      // done with the loop over all faces
-   });
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+      for (int c = 0; c < VDIM; c++)
+      {
+         for (int d = 0; d < D1D; ++d)
+         {
+            y(0,d,c,0,f) +=  BD0[d][c];
+            y(0,d,c,1,f) +=  BD1[d][c];
+            for (int q = 0; q < Q1D ; q++)
+            {
+               const double g = Gt(q,0);
+               y(q,d,c,0,f) +=  g*D0jumpu[d][c];
+               y(q,d,c,1,f) +=  g*D1jumpu[d][c];      }
+         }
+      }
+   });// done with the loop over all faces
 }
 
 // PA DGDiffusion Apply 3D kernel for Gauss-Lobatto/Bernstein
@@ -549,8 +569,8 @@ void PADGDiffusionApply3D(const int NF,
                       const int d1d = 0,
                       const int q1d = 0)
 {
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-   std::cout << "TODO: Correct this for DG diffusion" << std::endl;
+   //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   //std::cout << "TODO: Correct this for DG diffusion" << std::endl;
    exit(1);
    /*
    const int VDIM = 1;
@@ -664,7 +684,7 @@ void PADGDiffusionApply3D(const int NF,
          }
       }
       double BBDBBu[max_D1D][max_D1D][VDIM];
-      for (int d1 = 0; d1 < D1D; ++d1)
+      for (int d1 = 0; d1 < D1D; ++d1) 
       {
          for (int d2 = 0; d2 < D1D; d2++)
          {
@@ -689,7 +709,7 @@ void PADGDiffusionApply3D(const int NF,
       }
    });
    */
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 }
 
 static void PADGDiffusionApply(const int dim,
@@ -755,8 +775,8 @@ static void PADGDiffusionApplyTranspose(const int dim,
                                     const Vector &x,
                                     Vector &y)
 {
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-   std::cout << "TODO: Correct this for DG diffusion" << std::endl;
+   //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   //std::cout << "TODO: Correct this for DG diffusion" << std::endl;
    exit(1);
 
    if (dim == 2)
@@ -783,18 +803,15 @@ static void PADGDiffusionApplyTranspose(const int dim,
 // PA DGDiffusionIntegrator Apply kernel
 void DGDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    PADGDiffusionApply(dim, dofs1D, quad1D, nf,
                   maps->B, maps->Bt,
                   maps->G, maps->Gt,
                   coeff_data_1,coeff_data_2,coeff_data_3,
                   x, y);
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-}
+ 
 
 void DGDiffusionIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 {
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    MFEM_ABORT("DGDiffusionIntegrator::AddMultTransposePA not yet implemented");
    /*
    PADGDiffusionApplyTranspose(dim, dofs1D, quad1D, nf,
@@ -803,7 +820,6 @@ void DGDiffusionIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
                            coeff_data_1,coeff_data_2,coeff_data_3,
                            x, y);
                            */
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    exit(1);
 }
 
