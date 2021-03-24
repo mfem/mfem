@@ -282,7 +282,6 @@ private:
    mutable Vector tmp2;
 };
 
-<<<<<<< HEAD
 class SchurComplimentOperator : public Operator
 {
 private:
@@ -319,7 +318,6 @@ public:
    void Solve(const Vector & b, const Vector & x, Vector & y);
 };
 
-=======
 class BlockDiagonalMultiplicativePreconditioner : public Solver
 {
 public:
@@ -379,7 +377,6 @@ private:
 };
 
 
->>>>>>> maxwell-solver
 }
 
 #endif /* MFEM_BLOCKOPERATOR */
