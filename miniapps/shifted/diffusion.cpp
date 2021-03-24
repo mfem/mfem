@@ -26,6 +26,7 @@
 #include "sbm-aux.hpp"
 #include "../common/mfem-common.hpp"
 #include "sbm_solver.hpp"
+#include "marking.hpp"
 
 using namespace mfem;
 using namespace std;
@@ -41,8 +42,6 @@ int main(int argc, char *argv[])
    // Parse command-line options.
    const char *mesh_file = "../../data/inline-quad.mesh";
    int order = 2;
-   bool pa = false;
-   const char *device_config = "cpu";
    bool visualization = true;
    int ser_ref_levels = 0;
    bool exact = true;
@@ -56,10 +55,6 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
-                  "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&device_config, "-d", "--device",
-                  "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -85,43 +80,28 @@ int main(int argc, char *argv[])
 
    // Enable hardware devices such as GPUs, and programming models such as
    // CUDA, OCCA, RAJA and OpenMP based on command line options.
-   Device device(device_config);
+   Device device("cpu");
    device.Print();
 
-   // Read the mesh from the given mesh file. We can handle triangular,
-   // quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
-   // the same code.
+   // Refine the mesh.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
    for (int lev = 0; lev < ser_ref_levels; lev++) { mesh.UniformRefinement(); }
 
+   // MPI distribution.
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
-   {
-      int par_ref_levels = 0;
-      for (int l = 0; l < par_ref_levels; l++)
-      {
-         pmesh.UniformRefinement();
-      }
-   }
 
    // Define a finite element space on the mesh. Here we use continuous
    // Lagrange finite elements of the specified order. If order < 1, we
    // instead use an isoparametric/isogeometric space.
-   FiniteElementCollection *fec;
-   if (order > 0)
-   {
-      fec = new H1_FECollection(order, dim);
-   }
-   else
-   {
-      fec = new H1_FECollection(order = 1, dim);
-   }
-   ParFiniteElementSpace pfespace(&pmesh, fec);
+   if (order <= 0) { order = 1; }
+   H1_FECollection fec(order, dim);
+   ParFiniteElementSpace pfespace(&pmesh, &fec);
 
    Vector vxyz;
 
-   ParFiniteElementSpace pfespace_mesh(&pmesh, fec, dim);
+   ParFiniteElementSpace pfespace_mesh(&pmesh, &fec, dim);
    pmesh.SetNodalFESpace(&pfespace_mesh);
    ParGridFunction x_mesh(&pfespace_mesh);
    pmesh.SetNodalGridFunction(&x_mesh);
@@ -162,76 +142,9 @@ int main(int argc, char *argv[])
    level_set_val.ProjectCoefficient(dist_fun_level_coef);
    level_set_val.ExchangeFaceNbrData();
 
-   IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
-   FaceElementTransformations *tr = NULL;
-
-   // Set elem_marker based on the distance field:
-   // 0 if completely in the domain
-   // 1 if completely outside the domain
-   // 2 if partially inside the domain
-   Array<int> elem_marker(pmesh.GetNE()+pmesh.GetNSharedFaces());
-   elem_marker = 0;
-   Vector vals;
-   // Check elements on the current MPI rank
-   for (int i = 0; i < pmesh.GetNE(); i++)
-   {
-      ElementTransformation *Tr = pmesh.GetElementTransformation(i);
-      const IntegrationRule &ir =
-         IntRulesLo.Get(pmesh.GetElementBaseGeometry(i), 4*Tr->OrderJ());
-      level_set_val.GetValues(i, ir, vals);
-
-      pmesh.SetAttribute(i, 1);
-
-      int count = 0;
-      for (int j = 0; j < ir.GetNPoints(); j++)
-      {
-         double val = vals(j);
-         if (val <= 0.) { count++; }
-      }
-      if (count == ir.GetNPoints()) // completely outside
-      {
-         elem_marker[i] = 1;
-         pmesh.SetAttribute(i, 2);
-      }
-      else if (count > 0) // partially outside
-      {
-         elem_marker[i] = 2;
-         pmesh.SetAttribute(i, 2);
-      }
-   }
-
-   // Check neighbors on the adjacent MPI rank
-   for (int i = pmesh.GetNE(); i < pmesh.GetNE()+pmesh.GetNSharedFaces(); i++)
-   {
-      int shared_fnum = i-pmesh.GetNE();
-      tr = pmesh.GetSharedFaceTransformations(shared_fnum);
-      int Elem2NbrNo = tr->Elem2No - pmesh.GetNE();
-
-      ElementTransformation *eltr =
-         pfespace.GetFaceNbrElementTransformation(Elem2NbrNo);
-      const IntegrationRule &ir =
-         IntRulesLo.Get(pfespace.GetFaceNbrFE(Elem2NbrNo)->GetGeomType(),
-                        4*eltr->OrderJ());
-
-      const int nip = ir.GetNPoints();
-      vals.SetSize(nip);
-      int count = 0;
-      for (int j = 0; j < nip; j++)
-      {
-         const IntegrationPoint &ip = ir.IntPoint(j);
-         vals[j] = level_set_val.GetValue(tr->Elem2No, ip);
-         if (vals[j] <= 0.) { count++; }
-      }
-
-      if (count == ir.GetNPoints()) // completely outside
-      {
-         elem_marker[i] = 1;
-      }
-      else if (count > 0) // partially outside
-      {
-         elem_marker[i] = 2;
-      }
-   }
+   ShiftedFaceMarker marker(pmesh, level_set_val);
+   Array<int> elem_marker(0);
+   marker.MarkElements(elem_marker);
 
    // Visualize the element markers.
    if (visualization)
@@ -241,7 +154,7 @@ int main(int argc, char *argv[])
       ParGridFunction elem_marker_gf(&pfesl2);
       for (int i = 0; i < elem_marker_gf.Size(); i++)
       {
-         elem_marker_gf(i) = elem_marker[i]*1.;
+         elem_marker_gf(i) = (double)elem_marker[i];
       }
       char vishost[] = "localhost";
       int  visport   = 19916, s = 350;
@@ -309,7 +222,7 @@ int main(int argc, char *argv[])
    // Now we add interior faces that are on processor boundaries.
    for (int i = 0; i < pmesh.GetNSharedFaces(); i++)
    {
-      tr = pmesh.GetSharedFaceTransformations(i);
+      FaceElementTransformations *tr = pmesh.GetSharedFaceTransformations(i);
       if (tr != NULL)
       {
          int ne1 = tr->Elem1No;
@@ -624,7 +537,6 @@ int main(int argc, char *argv[])
    delete rhs_f;
    delete dist_vec;
    delete distance_vec_space;
-   delete fec;
 
    MPI_Finalize();
 
