@@ -382,30 +382,26 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
       MFEM_VERIFY(f_ind==nf, "Incorrect number of faces.");
    }
    */
-
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    PADGDiffusionSetup(dim, dofs1D, quad1D, nf, ir->GetWeights(), 
                         maps->G, maps->B,
-                        geom->detJ, geom->normal,
+                        facegeom->J, 
+                        facegeom->detJ, 
+                        facegeom->normal,
                         Qcoeff, r, vel,
+                        face_2_elem_volumes,
                         sigma, kappa,
                         coeff_data_1,coeff_data_2,coeff_data_3);
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 }
 
 void DGDiffusionIntegrator::AssemblePAInteriorFaces(const FiniteElementSpace& fes)
 {
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    SetupPA(fes, FaceType::Interior);
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 }
 
 void DGDiffusionIntegrator::AssemblePABoundaryFaces(const FiniteElementSpace& fes)
 {
    
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    SetupPA(fes, FaceType::Boundary);
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 }
 
 // PA DGDiffusion Apply 2D kernel for Gauss-Lobatto/Bernstein
@@ -423,15 +419,17 @@ void PADGDiffusionApply2D(const int NF,
                       const int d1d = 0,
                       const int q1d = 0)
 {
-
+   // vdim is confusing as it seems to be used differently based on the context
    const int VDIM = 1;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    // the following variables are evaluated at compile time
    constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
    constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto Bt = Reshape(bt.Read(), D1D, Q1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
@@ -440,26 +438,7 @@ void PADGDiffusionApply2D(const int NF,
    auto op2 = Reshape(_op2.Read(), Q1D, 2, NF);
    auto op3 = Reshape(_op3.Read(), Q1D, 2, NF);
    auto x = Reshape(_x.Read(), D1D, D1D, VDIM, 2, NF);
-   auto y = Reshape(_y.ReadWrite(), D1D, VDIM, 2, NF);
-
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
-   for (int q = 0; q < Q1D; ++q)
-   {
-      for (int d = 0; d < D1D; ++d)
-      {
-        std::cout << "B(" << q << "," << d << ") = " << B(q,d) << std::endl;
-      }
-   }
-
-   for (int q = 0; q < Q1D; ++q)
-   {
-      for (int d = 0; d < D1D; ++d)
-      {
-        std::cout << "G(" << q << "," << d << ") = " << G(q,d) << std::endl;
-      }
-   }
-
+   auto y = Reshape(_y.ReadWrite(), D1D, D1D, VDIM, 2, NF);
 
    // Loop over all faces
    MFEM_FORALL(f, NF,
@@ -478,23 +457,18 @@ void PADGDiffusionApply2D(const int NF,
             u1[d][c] = x(0,d,c,1,f);
             for (int q = 0; q < D1D; q++)
             {  
-               // Evaluare du/dn on the face from each side
+               // Evaluate du/dn on the face from each side
                // Uses a stencil inside 
-               // n is  the surface normal
-               // PROBLEM!
-               // Consider du/dn = -du/dx on left, du/dx on right 
-               const double g = G(q,d);
                Gu0[d][c] += g*x(q,d,c,0,f);
                Gu1[d][c] += g*x(q,d,c,1,f);
             }
          }
       }
-
-      // 2. Contraction with basis evaluation Bu = B:u, and BGu = B:Gu    
+   
+      // 2. Contraction with basis evaluation Bu = B:u, and Gu = G:u    
       double Bu0[max_Q1D][VDIM] = {0};
-      double Bu1[max_Q1D][VDIM] = {0};
-      double BGu0[max_Q1D][VDIM] = {0};
-      double BGu1[max_Q1D][VDIM] = {0};
+      double Bu1[max_Q1D][VDIM] = {0};      
+
       for (int q = 0; q < Q1D; ++q)
       {
          for (int d = 0; d < D1D; ++d)
