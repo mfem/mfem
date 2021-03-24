@@ -5575,12 +5575,13 @@ int NCMesh::CountTopLevelNodes() const
    return ntop;
 }
 
-NCMesh::NCMesh(std::istream &input, int version, int &curved)
+NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
    : spaceDim(0), MyRank(0), Iso(true), Legacy(false)
 {
+   is_nc = 1;
    if (version == 1) // old MFEM mesh v1.1 format
    {
-      LoadLegacyFormat(input, curved);
+      LoadLegacyFormat(input, curved, is_nc);
       Legacy = true;
       return;
    }
@@ -5718,6 +5719,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
       MFEM_VERIFY(coordinates.Size()/3 >= CountTopLevelNodes(),
                   "Invalid mesh file: not all top-level nodes are covered by "
                   "the 'coordinates' section of the mesh file.");
+      curved = 0;
    }
    else if (ident == "nodes")
    {
@@ -5836,7 +5838,7 @@ void NCMesh::LoadCoarseElements(std::istream &input)
    InitRootState(root_count);
 }
 
-void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
+void NCMesh::LoadLegacyFormat(std::istream &input, int &curved, int &is_nc)
 {
    MFEM_ASSERT(elements.Size() == 0, "");
    MFEM_ASSERT(nodes.Size() == 0, "");
@@ -5892,15 +5894,16 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
    if (ident == "vertex_parents")
    {
       LoadVertexParents(input);
+      is_nc = 1;
 
       skip_comment_lines(input, '#');
       input >> ident;
    }
    else
    {
-      // no "vertex_parents" section: this file needs to be treated
-      // as MFEM mesh v1.0 for complete backward compatibility with MFEM 4.2
-      throw std::logic_error("retry as v1.0");
+      // no "vertex_parents" section: this file needs to be treated as a
+      // conforming mesh for complete backward compatibility with MFEM 4.2
+      is_nc = 0;
    }
 
    // load element hierarchy

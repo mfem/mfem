@@ -107,7 +107,7 @@ public:
    explicit NCMesh(const Mesh *mesh);
 
    /// Load from a stream. The id header is assumed to have been read already.
-   NCMesh(std::istream &input, int version, int &curved);
+   NCMesh(std::istream &input, int version, int &curved, int &is_nc);
 
    /// Deep copy of another instance.
    NCMesh(const NCMesh &other);
@@ -878,7 +878,7 @@ protected: // implementation
    void LoadCoarseElements(std::istream &input);
    void CopyElements(int elem, const BlockArray<Element> &tmp_elements);
    /// Load the deprecated MFEM mesh v1.1 format for backward compatibility.
-   void LoadLegacyFormat(std::istream &input, int &curved);
+   void LoadLegacyFormat(std::istream &input, int &curved, int &is_nc);
 
 
    // geometry
