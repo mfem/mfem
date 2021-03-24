@@ -2891,8 +2891,6 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
             if (Q)
             {
                w *= Q->Eval(*Trans.Elem2, eip2);
-            std::cout << "w " << w << std::endl;
-
             }
             ni.Set(w, nor);
          }
