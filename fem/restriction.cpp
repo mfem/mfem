@@ -1362,17 +1362,29 @@ void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
          const int nextOffset = d_offsets[i + 1];
          for (int c = 0; c < vd; ++c)
          {
-            double dofValue = 0;
             for (int j = offset; j < nextOffset; ++j)
             {
+               //todo: clean up
+               double dofValue = 0;
                int idx_j = d_indices[j];
                bool isE1 = idx_j < dofs;
                idx_j = isE1 ? idx_j : idx_j - dofs;
                dofValue +=  isE1 ?
                d_x(idx_j % nd, c, 0, idx_j / nd)
                :d_x(idx_j % nd, c, 1, idx_j / nd);
+               d_y(t?c:i,t?i:c) += dofValue;                        
+               std::cout << i << " "
+                        << idx_j << " "
+                        << isE1 << " "
+                        << offset << " "
+                        << nextOffset << " "
+                        << idx_j % nd << " "
+                        << idx_j / nd << " "                        
+                        << d_x(idx_j % nd, c, 0, idx_j / nd) << " "
+                        << d_x(idx_j % nd, c, 1, idx_j / nd) << " "
+                        << dofValue << " "
+                        << d_y(t?c:i,t?i:c) << std::endl;
             }
-            d_y(t?c:i,t?i:c) += dofValue;
          }
       });
    }
