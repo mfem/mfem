@@ -120,24 +120,20 @@ static void PADGDiffusionSetup3D(const int Q1D,
                              const Array<double> &weights,
                              const Array<double> &g,
                              const Array<double> &b,
+                             const Vector &jac,
                              const Vector &det_jac,
                              const Vector &nor,
                              const Vector &Q,
                              const Vector &rho,
                              const Vector &vel,
+                             const Vector &face_2_elem_volumes,
                              const double sigma,
                              const double kappa,
                              Vector &op1,
                              Vector &op2,
                              Vector &op3)
 {
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-   std::cout << "TODO: Correct this for DG diffusion" << std::endl;
-   exit(1);
-
-
-
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   mfem_error("not yet implemented.");
 }
 
 static void PADGDiffusionSetup(const int dim,
