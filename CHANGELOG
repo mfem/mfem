@@ -11,6 +11,18 @@
 Version 4.2.1 (development)
 ===========================
 
+- Added AlgebraicCeedSolver that does matrix-free algebraic p-multigrid for
+  diffusion problems with the Ceed backend.
+
+- Introduced new options for the mesh-explorer miniapp to visualize the actual
+  element attributes in parallel meshes while retaining the visualization of
+  the domain decomposition.
+
+- Introduced solver interface for linear problems with constraints, a few
+  concrete solvers that implement the interface, and a demonstration of their
+  use in Example 28(p), which solves an elasticity problem with zero normal
+  displacement (but allowed tangential displacement) on two boundaries.
+
 - Added high-order matrix-free auxiliary Maxwell solver for H(curl) problems,
   as described in Barker and Kolev 2020 (https://doi.org/10.1002/nla.2348). See
   Example 3p and linalg/auxiliary.?pp.
@@ -210,6 +222,9 @@ Linear and nonlinear solvers
 - Block arrays of parallel matrices can now be merged into a single parallel
   matrix with the function HypreParMatrixFromBlocks. This could be useful for
   solving block systems with parallel direct solvers such as STRUMPACK.
+
+- Added CUDA support for SUNDIALS ODE integrators. See the updated SUNDIALS
+  modification of Example 9/9p.
 
 - Added wrappers for hypre's flexible GMRES solver and the new parallel ILU
   preconditioner. The latter requires hypre version 2.19.0 or later.
