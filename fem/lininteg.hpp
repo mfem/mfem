@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -230,6 +230,31 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
+class VectorDomainLFGradIntegrator : public DeltaLFIntegrator
+{
+private:
+   Vector shape, Qvec;
+   VectorCoefficient &Q;
+   DenseMatrix dshape;
+
+public:
+   /// Constructs a domain integrator with a given VectorCoefficient
+   VectorDomainLFGradIntegrator(VectorCoefficient &QF)
+      : DeltaLFIntegrator(QF), Q(QF) { }
+
+   /** Given a particular Finite Element and a transformation (Tr)
+       computes the element right hand side element vector, elvect. */
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+
+   virtual void AssembleDeltaElementVect(const FiniteElement &fe,
+                                         ElementTransformation &Trans,
+                                         Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
+
 /** Class for boundary integration of L(v) := (g, v), where
     f=(f1,...,fn) and v=(v1,...,vn). */
 class VectorBoundaryLFIntegrator : public LinearFormIntegrator
@@ -406,6 +431,10 @@ private:
    Vector shape;
 
 public:
+   BoundaryFlowIntegrator(Coefficient &_f, VectorCoefficient &_u,
+                          double a)
+   { f = &_f; u = &_u; alpha = a; beta = 0.5*a; }
+
    BoundaryFlowIntegrator(Coefficient &_f, VectorCoefficient &_u,
                           double a, double b)
    { f = &_f; u = &_u; alpha = a; beta = b; }

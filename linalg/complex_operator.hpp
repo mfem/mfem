@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -20,6 +20,11 @@
 
 #ifdef MFEM_USE_SUITESPARSE
 #include <umfpack.h>
+#endif
+
+#ifdef MFEM_USE_MUMPS
+#include "zmumps_c.h"
+#include <vector>
 #endif
 
 namespace mfem
@@ -239,6 +244,7 @@ public:
 
 #endif
 
+
 #ifdef MFEM_USE_MPI
 
 /** @brief Specialization of the ComplexOperator built from a pair of
@@ -286,6 +292,47 @@ private:
    int nranks_;
 };
 
+#ifdef MFEM_USE_MUMPS
+
+class ComplexMUMPSSolver : public mfem::Solver
+{
+public:
+   ComplexMUMPSSolver() {}
+   void SetOperator(const Operator &op);
+   void Mult(const Vector &x, Vector &y) const;
+   void SetPrintLevel(int print_lvl);
+   ~ComplexMUMPSSolver();
+private:
+   MPI_Comm comm;
+   int numProcs;
+   int myid;
+   int print_level = 0;
+   int row_start;
+#define ICNTL(I) icntl[(I) -1]
+#define MUMPSC_INFO(I) info[(I) -1]
+   ZMUMPS_STRUC_C *id=nullptr;
+   void SetParameters();
+
+#if MFEM_MUMPS_VERSION >= 530
+
+   Array<int> row_starts;
+   int * irhs_loc = nullptr;
+
+   int GetRowRank(int i, const Array<int> &row_starts_) const;
+
+   void RedistributeSol(const int * row_map,
+                        const double * x,
+                        double * y) const;
+#else
+   int global_num_rows;
+   int * recv_counts = nullptr;
+   int * displs = nullptr;
+   mumps_double_complex * rhs_glob = nullptr;
+#endif
+
+}; // mfem::MUMPSSolver class
+
+#endif // MFEM_USE_MUMPS
 #endif // MFEM_USE_MPI
 
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -56,6 +56,7 @@ int main(int argc, char *argv[])
    // Parse command-line options.
    const char *mesh_file = "../../data/beam-tet.vtk";
    Array<int> attr;
+   Array<int> attr_complement;
    Array<int> bdr_attr;
    bool visualization = 1;
 
@@ -64,6 +65,8 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&attr, "-a", "--attr",
                   "Set of attributes to remove from the mesh.");
+   args.AddOption(&attr_complement, "-ac", "--attr_complement",
+                  "Set of attributes to leave in the mesh.");                  
    args.AddOption(&bdr_attr, "-b", "--bdr-attr",
                   "Set of attributes to assign to the new boundary elements.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -77,10 +80,29 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
+
+
    Mesh mesh(mesh_file, 0, 0);
 
    int max_attr     = mesh.attributes.Max();
    int max_bdr_attr = mesh.bdr_attributes.Max();
+
+   if (attr.Size() == 0)
+   {
+      Array<int> all_attr(max_attr); all_attr = 1;
+      for (int i=0; i<attr_complement.Size(); i++)
+      {
+         all_attr[attr_complement[i]-1] = 0;
+      }
+      for (int i=0; i<max_attr; i++)
+      {
+         if (all_attr[i])
+         {
+            attr.Append(i+1);
+         }
+      }
+   }
+
 
    if (bdr_attr.Size() == 0)
    {
@@ -211,9 +233,26 @@ int main(int argc, char *argv[])
    }
 
    trimmed_mesh.FinalizeTopology();
-   trimmed_mesh.Finalize();
    trimmed_mesh.RemoveUnusedVertices();
 
+
+   mesh.EnsureNodes();
+   GridFunction * nodes = mesh.GetNodes();
+   VectorGridFunctionCoefficient gf_nodes(nodes);
+
+   int order = nodes->FESpace()->GetOrder(0);
+   cout << order  << endl;
+   if (order > 1)
+   {
+      trimmed_mesh.SetCurvature(order, true, 3, Ordering::byVDIM);
+   }
+   trimmed_mesh.Transform(gf_nodes);
+   
+   if (order > 1)
+   {
+      trimmed_mesh.SetCurvature(order, false, 3, Ordering::byVDIM);
+   }
+   
    // Save the final mesh
    ofstream mesh_ofs("trimmer.mesh");
    mesh_ofs.precision(8);

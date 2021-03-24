@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -42,10 +42,19 @@ namespace mfem
 inline int CheckFinite(const double *v, const int n);
 
 /// Define a shortcut for std::numeric_limits<double>::infinity()
+#ifndef __CYGWIN__
 inline double infinity()
 {
    return std::numeric_limits<double>::infinity();
 }
+#else
+// On Cygwin math.h defines a function 'infinity()' which will conflict with the
+// above definition if we have 'using namespace mfem;' and try to use something
+// like 'double a = infinity();'. This 'infinity()' function is non-standard and
+// is defined by the Newlib C standard library implementation used by Cygwin,
+// see https://en.wikipedia.org/wiki/Newlib, http://www.sourceware.org/newlib.
+using ::infinity;
+#endif
 
 /// Vector data type.
 class Vector
@@ -76,6 +85,11 @@ public:
    /// Create a Vector of size @a size_ using MemoryType @a mt.
    Vector(int size_, MemoryType mt)
       : data(size_, mt), size(size_) { }
+
+   /// Create a vector using a braced initializer list
+   template <int N>
+   explicit Vector(const double (&values)[N]) : Vector(N)
+   { std::copy(values, values + N, GetData()); }
 
    /// Enable execution of Vector operations using the mfem::Device.
    /** The default is to use Backend::CPU (serial execution on each MPI rank),

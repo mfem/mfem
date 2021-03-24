@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -360,15 +360,15 @@ void SesquilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi_real,
 void
 SesquilinearForm::Assemble(int skip_zeros)
 {
-   blfr->Assemble(skip_zeros);
-   blfi->Assemble(skip_zeros);
+   blfr->Assemble(skip_zeros = 0);
+   blfi->Assemble(skip_zeros = 0);
 }
 
 void
 SesquilinearForm::Finalize(int skip_zeros)
 {
-   blfr->Finalize(skip_zeros);
-   blfi->Finalize(skip_zeros);
+   blfr->Finalize(skip_zeros = 0);
+   blfi->Finalize(skip_zeros = 0);
 }
 
 ComplexSparseMatrix *
@@ -1085,15 +1085,15 @@ ParSesquilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi_real,
 void
 ParSesquilinearForm::Assemble(int skip_zeros)
 {
-   pblfr->Assemble(skip_zeros);
-   pblfi->Assemble(skip_zeros);
+   pblfr->Assemble(skip_zeros = 0);
+   pblfi->Assemble(skip_zeros = 0);
 }
 
 void
 ParSesquilinearForm::Finalize(int skip_zeros)
 {
-   pblfr->Finalize(skip_zeros);
-   pblfi->Finalize(skip_zeros);
+   pblfr->Finalize(skip_zeros = 0);
+   pblfi->Finalize(skip_zeros = 0);
 }
 
 ComplexHypreParMatrix *
@@ -1204,6 +1204,7 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       });
       // Modify offdiagonal blocks (imaginary parts of the matrix) to conform
       // with standard essential BC treatment
+      ess_tdof_list.HostRead();
       if (A_i.Type() == Operator::Hypre_ParCSR)
       {
          HypreParMatrix * Ah;

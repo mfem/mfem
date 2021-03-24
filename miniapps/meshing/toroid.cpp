@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -253,8 +253,10 @@ void trans(const Vector &x, Vector &p)
    }
    else
    {
-      u = M_SQRT2 * (x[1] - 0.5) * r_;
-      v = M_SQRT2 * (x[0] - 0.5) * r_;
+      // u = M_SQRT2 * (x[1] - 0.5) * r_;
+      u = (x[1] - 0.5) * r_;
+      // v = M_SQRT2 * (x[0] - 0.5) * r_;
+      v = (x[0] - 0.5) * r_;
    }
 
    p[0] = ( R_ + u * cos(theta) + v * sin(theta)) * cos(phi);

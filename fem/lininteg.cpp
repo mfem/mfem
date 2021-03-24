@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,8 +10,8 @@
 // CONTRIBUTING.md for details.
 
 
-#include <cmath>
 #include "fem.hpp"
+#include <cmath>
 
 namespace mfem
 {
@@ -286,6 +286,54 @@ void VectorDomainLFIntegrator::AssembleRHSElementVect(
          }
       }
    }
+}
+
+void VectorDomainLFGradIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   int dof = el.GetDof();
+   int spaceDim = Tr.GetSpaceDim();
+
+   dshape.SetSize(dof, spaceDim);
+
+   elvect.SetSize(dof);
+   elvect = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int intorder = 2 * el.GetOrder();
+      ir = &IntRules.Get(el.GetGeomType(), intorder);
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.SetIntPoint(&ip);
+      el.CalcPhysDShape(Tr, dshape);
+
+      Q.Eval(Qvec, Tr, ip);
+      Qvec *= ip.weight * Tr.Weight();
+
+      dshape.AddMult(Qvec, elvect);
+   }
+}
+
+void VectorDomainLFGradIntegrator::AssembleDeltaElementVect(
+   const FiniteElement &fe, ElementTransformation &Trans, Vector &elvect)
+{
+   MFEM_ASSERT(vec_delta != NULL, "coefficient must be VectorDeltaCoefficient");
+   int dof = fe.GetDof();
+   int spaceDim = Trans.GetSpaceDim();
+
+   dshape.SetSize(dof, spaceDim);
+   fe.CalcPhysDShape(Trans, dshape);
+
+   vec_delta->EvalDelta(Qvec, Trans, Trans.GetIntPoint());
+
+   elvect.SetSize(dof);
+   dshape.Mult(Qvec, elvect);
 }
 
 void VectorDomainLFIntegrator::AssembleDeltaElementVect(

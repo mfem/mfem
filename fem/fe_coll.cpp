@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1854,19 +1854,16 @@ const int *H1_FECollection::GetDofMap(Geometry::Type GeomType) const
 {
    const int *dof_map = NULL;
    const FiniteElement *fe = H1_Elements[GeomType];
-   switch (GeomType)
+   const NodalFiniteElement *nodal_fe =
+      dynamic_cast<const NodalFiniteElement*>(fe);
+   if (nodal_fe)
    {
-      case Geometry::SEGMENT:
-      case Geometry::SQUARE:
-      case Geometry::CUBE:
-         dof_map = dynamic_cast<const TensorBasisElement *>(fe)
-                   ->GetDofMap().GetData();
-         break;
-      default:
-         MFEM_ABORT("Geometry type " << Geometry::Name[GeomType] << " is not "
-                    "implemented");
-         // The "Cartesian" ordering for other geometries is defined by the
-         // class GeometryRefiner.
+      dof_map = nodal_fe->GetLexicographicOrdering().GetData();
+   }
+   else
+   {
+      MFEM_ABORT("Geometry type " << Geometry::Name[GeomType] << " is not "
+                 "implemented");
    }
    return dof_map;
 }
@@ -1991,7 +1988,7 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
       // Trace element use the default Gauss-Legendre nodal points for positive basis
       if (b_type == BasisType::Positive)
       {
-         Tr_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p);
+         Tr_Elements[Geometry::SEGMENT] = new L2Pos_SegmentElement(p);
       }
       else
       {
@@ -2047,8 +2044,8 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
       // Trace element use the default Gauss-Legendre nodal points for positive basis
       if (b_type == BasisType::Positive)
       {
-         Tr_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p);
-         Tr_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p);
+         Tr_Elements[Geometry::TRIANGLE] = new L2Pos_TriangleElement(p);
+         Tr_Elements[Geometry::SQUARE] = new L2Pos_QuadrilateralElement(p);
       }
       else
       {
@@ -2211,7 +2208,8 @@ RT_FECollection::RT_FECollection(const int p, const int dim,
       const char *cb_name = BasisType::Name(cb_type); // this may abort
       MFEM_ABORT("unknown closed BasisType: " << cb_name);
    }
-   if (Quadrature1D::CheckOpen(op_type) == Quadrature1D::Invalid)
+   if (Quadrature1D::CheckOpen(op_type) == Quadrature1D::Invalid &&
+       ob_type != BasisType::Integrated)
    {
       const char *ob_name = BasisType::Name(ob_type); // this may abort
       MFEM_ABORT("unknown open BasisType: " << ob_name);
@@ -2517,7 +2515,8 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
    int cp_type = BasisType::GetQuadrature1D(cb_type);
 
    // Error checking
-   if (Quadrature1D::CheckOpen(op_type) == Quadrature1D::Invalid)
+   if (Quadrature1D::CheckOpen(op_type) == Quadrature1D::Invalid &&
+       ob_type != BasisType::Integrated)
    {
       const char *ob_name = BasisType::Name(ob_type);
       MFEM_ABORT("Invalid open basis point type: " << ob_name);

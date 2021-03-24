@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -287,10 +287,7 @@ void ComplexUMFPackSolver::Init()
 
 void ComplexUMFPackSolver::SetOperator(const Operator &op)
 {
-   int *Ap, *Ai;
    void *Symbolic;
-   double *Ax;
-   double *Az;
 
    if (Numeric)
    {
@@ -322,10 +319,11 @@ void ComplexUMFPackSolver::SetOperator(const Operator &op)
    width = mat->real().Width();
    MFEM_VERIFY(width == height, "not a square matrix");
 
-   Ap = mat->real().GetI(); // assuming real and imag have the same sparsity
-   Ai = mat->real().GetJ();
-   Ax = mat->real().GetData();
-   Az = mat->imag().GetData();
+   const int * Ap =
+      mat->real().HostReadI(); // assuming real and imag have the same sparsity
+   const int * Ai = mat->real().HostReadJ();
+   const double * Ax = mat->real().HostReadData();
+   const double * Az = mat->imag().HostReadData();
 
    if (!use_long_ints)
    {
@@ -395,6 +393,10 @@ void ComplexUMFPackSolver::Mult(const Vector &b, Vector &x) const
    if (mat == NULL)
       mfem_error("ComplexUMFPackSolver::Mult : matrix is not set!"
                  " Call SetOperator first!");
+
+   b.HostRead();
+   x.HostReadWrite();
+
    int n = b.Size()/2;
    double * datax = x.GetData();
    double * datab = b.GetData();
@@ -413,8 +415,8 @@ void ComplexUMFPackSolver::Mult(const Vector &b, Vector &x) const
    if (!use_long_ints)
    {
       int status =
-         umfpack_zi_solve(UMFPACK_Aat, mat->real().GetI(), mat->real().GetJ(),
-                          mat->real().GetData(), mat->imag().GetData(),
+         umfpack_zi_solve(UMFPACK_Aat, mat->real().HostReadI(), mat->real().HostReadJ(),
+                          mat->real().HostReadData(), mat->imag().HostReadData(),
                           datax, &datax[n], datab, &datab[n], Numeric, Control, Info);
       umfpack_zi_report_info(Control, Info);
       if (status < 0)
@@ -426,8 +428,8 @@ void ComplexUMFPackSolver::Mult(const Vector &b, Vector &x) const
    else
    {
       SuiteSparse_long status =
-         umfpack_zl_solve(UMFPACK_Aat,AI,AJ,mat->real().GetData(),
-                          mat->imag().GetData(),
+         umfpack_zl_solve(UMFPACK_Aat,AI,AJ,mat->real().HostReadData(),
+                          mat->imag().HostReadData(),
                           datax,&datax[n],datab,&datab[n],Numeric,Control,Info);
 
       umfpack_zl_report_info(Control, Info);
@@ -448,6 +450,8 @@ void ComplexUMFPackSolver::MultTranspose(const Vector &b, Vector &x) const
    if (mat == NULL)
       mfem_error("ComplexUMFPackSolver::Mult : matrix is not set!"
                  " Call SetOperator first!");
+   b.HostRead();
+   x.HostReadWrite();
    int n = b.Size()/2;
    double * datax = x.GetData();
    double * datab = b.GetData();
@@ -467,8 +471,8 @@ void ComplexUMFPackSolver::MultTranspose(const Vector &b, Vector &x) const
    if (!use_long_ints)
    {
       int status =
-         umfpack_zi_solve(UMFPACK_A, mat->real().GetI(), mat->real().GetJ(),
-                          mat->real().GetData(), mat->imag().GetData(),
+         umfpack_zi_solve(UMFPACK_A, mat->real().HostReadI(), mat->real().HostReadJ(),
+                          mat->real().HostReadData(), mat->imag().HostReadData(),
                           datax, &datax[n], datab, &datab[n], Numeric, Control, Info);
       umfpack_zi_report_info(Control, Info);
       if (status < 0)
@@ -480,8 +484,8 @@ void ComplexUMFPackSolver::MultTranspose(const Vector &b, Vector &x) const
    else
    {
       SuiteSparse_long status =
-         umfpack_zl_solve(UMFPACK_A,AI,AJ,mat->real().GetData(),
-                          mat->imag().GetData(),
+         umfpack_zl_solve(UMFPACK_A,AI,AJ,mat->real().HostReadData(),
+                          mat->imag().HostReadData(),
                           datax,&datax[n],datab,&datab[n],Numeric,Control,Info);
 
       umfpack_zl_report_info(Control, Info);
@@ -874,6 +878,422 @@ ComplexHypreParMatrix::getColStartStop(const HypreParMatrix * A_r,
    delete [] stat;
 }
 
+
+#ifdef MFEM_USE_MUMPS
+
+void ComplexMUMPSSolver::SetOperator(const Operator &op)
+{
+   auto APtr = dynamic_cast<const ComplexHypreParMatrix *>(&op);
+
+   MFEM_VERIFY(APtr, "Not compatible matrix type");
+
+   height = op.Height();
+   width = op.Width();
+
+   comm = APtr->real().GetComm();
+   MPI_Comm_size(comm, &numProcs);
+   MPI_Comm_rank(comm, &myid);
+
+   auto parcsr_op_r = (hypre_ParCSRMatrix *) const_cast<HypreParMatrix &>
+                      (APtr->real());
+   auto parcsr_op_i = (hypre_ParCSRMatrix *) const_cast<HypreParMatrix &>
+                      (APtr->imag());
+
+   hypre_CSRMatrix *csr_op_r = hypre_MergeDiagAndOffd(parcsr_op_r);
+   hypre_CSRMatrix *csr_op_i = hypre_MergeDiagAndOffd(parcsr_op_i);
+#if MFEM_HYPRE_VERSION >= 21600
+   hypre_CSRMatrixBigJtoJ(csr_op_r);
+   hypre_CSRMatrixBigJtoJ(csr_op_i);
+#endif
+   MFEM_VERIFY(csr_op_r->num_nonzeros == csr_op_i->num_nonzeros,
+               "Incompatible sparsity partters");
+
+   int *Iptr = csr_op_r->i;
+   int *Jptr = csr_op_r->j;
+   int n_loc = csr_op_r->num_rows;
+   row_start = parcsr_op_i->first_row_index;
+   MUMPS_INT8 nnz = csr_op_r->num_nonzeros;
+
+   int * I = new int[nnz];
+   int * J = new int[nnz];
+
+   // Fill in I and J arrays for
+   // COO format in 1-based indexing
+   int k = 0;
+   double * data_r = csr_op_r->data;
+   double * data_i = csr_op_i->data;
+   mumps_double_complex *zdata = new mumps_double_complex[nnz];
+   for (int i = 0; i < n_loc; i++)
+   {
+      for (int j = Iptr[i]; j < Iptr[i + 1]; j++)
+      {
+         I[k] = row_start + i + 1;
+         J[k] = Jptr[k] + 1;
+         zdata[k].r = data_r[k];
+         zdata[k].i = data_i[k];
+         k++;
+      }
+   }
+
+   // new MUMPS object
+   if (id)
+   {
+      id->job = -2;
+      zmumps_c(id);
+      delete id;
+   }
+   id = new ZMUMPS_STRUC_C;
+   // C to Fortran communicator
+   id->comm_fortran = (MUMPS_INT) MPI_Comm_c2f(comm);
+
+   // Host is involved in computation
+   id->par = 1;
+
+   id->sym = 0;
+
+   // MUMPS init
+   id->job = -1;
+   zmumps_c(id);
+
+   // Set MUMPS default parameters
+   SetParameters();
+
+   id->n = parcsr_op_r->global_num_rows;
+
+   id->nnz_loc = nnz;
+
+   id->irn_loc = I;
+
+   id->jcn_loc = J;
+
+   id->a_loc = zdata;
+
+   // MUMPS Analysis
+   id->job = 1;
+   zmumps_c(id);
+
+   // MUMPS Factorization
+   id->job = 2;
+   zmumps_c(id);
+
+   hypre_CSRMatrixDestroy(csr_op_r);
+   hypre_CSRMatrixDestroy(csr_op_i);
+   delete [] I;
+   delete [] J;
+   delete [] zdata;
+
+#if MFEM_MUMPS_VERSION >= 530
+   delete [] irhs_loc;
+   irhs_loc = new int[n_loc];
+   for (int i = 0; i < n_loc; i++)
+   {
+      irhs_loc[i] = row_start + i + 1;
+   }
+   row_starts.SetSize(numProcs);
+   MPI_Allgather(&row_start, 1, MPI_INT, row_starts, 1, MPI_INT, comm);
+#else
+   if (myid == 0)
+   {
+      delete [] rhs_glob;
+      delete [] recv_counts;
+      global_num_rows = parcsr_op_r->global_num_rows;
+      rhs_glob = new mumps_double_complex[global_num_rows];
+      recv_counts = new int[numProcs];
+   }
+   MPI_Gather(&n_loc, 1, MPI_INT, recv_counts, 1, MPI_INT, 0, comm);
+   if (myid == 0)
+   {
+      delete [] displs;
+      displs = new int[numProcs];
+      displs[0] = 0;
+      int s = 0;
+      for (int k = 0; k < numProcs-1; k++)
+      {
+         s += recv_counts[k];
+         displs[k+1] = s;
+      }
+   }
+#endif
+}
+
+void ComplexMUMPSSolver::Mult(const Vector &x, Vector &y) const
+{
+#if MFEM_MUMPS_VERSION >= 530
+
+   int n = x.Size()/2;
+   id->nloc_rhs = n;
+   id->lrhs_loc = n;
+   mumps_double_complex *zx = new mumps_double_complex[n];
+   for (int i = 0; i<n; i++)
+   {
+      zx[i].r = x[i];
+      zx[i].i = x[n+i];
+   }
+   id->rhs_loc = zx;
+   id->irhs_loc = irhs_loc;
+
+   id->lsol_loc = id->MUMPSC_INFO(23);
+   id->isol_loc = new int[id->MUMPSC_INFO(23)];
+   id->sol_loc = new mumps_double_complex[id->MUMPSC_INFO(23)];
+
+   // MUMPS solve
+   id->job = 3;
+   zmumps_c(id);
+
+   double *zy = new double[2*id->MUMPSC_INFO(23)];
+   for (int i = 0; i<id->MUMPSC_INFO(23); i++)
+   {
+      zy[i] = id->sol_loc[i].r;
+      zy[id->MUMPSC_INFO(23)+i] = id->sol_loc[i].i;
+   }
+
+   RedistributeSol(id->isol_loc, zy, y.GetData());
+
+   delete [] zy;
+   delete [] zx;
+   delete [] id->sol_loc;
+   delete [] id->isol_loc;
+#else
+   int n = x.Size()/2;
+   // real
+   double * rhs_glob_r = nullptr;
+   double * rhs_glob_i = nullptr;
+   if (myid == 0)
+   {
+      rhs_glob_r = new double[global_num_rows];
+      rhs_glob_i = new double[global_num_rows];
+   }
+   double * xdata = x.GetData();
+   MPI_Gatherv(xdata, n, MPI_DOUBLE,
+               rhs_glob_r, recv_counts,
+               displs, MPI_DOUBLE, 0, comm);
+   MPI_Gatherv(&xdata[n], n, MPI_DOUBLE,
+               rhs_glob_i, recv_counts,
+               displs, MPI_DOUBLE, 0, comm);
+
+   if (myid == 0)
+   {
+      for (int i = 0; i<global_num_rows; i++)
+      {
+         rhs_glob[i].r = rhs_glob_r[i];
+         rhs_glob[i].i = rhs_glob_i[i];
+      }
+      id->rhs = rhs_glob;
+   }
+   // MUMPS solve
+   id->job = 3;
+   zmumps_c(id);
+   if (myid == 0)
+   {
+      for (int i = 0; i<global_num_rows; i++)
+      {
+         rhs_glob_r[i] = rhs_glob[i].r;
+         rhs_glob_i[i] = rhs_glob[i].i;
+      }
+   }
+   double * ydata = y.GetData();
+   MPI_Scatterv(rhs_glob_r, recv_counts, displs,
+                MPI_DOUBLE, ydata, n,
+                MPI_DOUBLE, 0, comm);
+   MPI_Scatterv(rhs_glob_i, recv_counts, displs,
+                MPI_DOUBLE, &ydata[n], n,
+                MPI_DOUBLE, 0, comm);
+
+   if (myid == 0)
+   {
+      delete [] rhs_glob_r;
+      delete [] rhs_glob_i;
+   }
+
+#endif
+}
+
+void ComplexMUMPSSolver::SetPrintLevel(int print_lvl)
+{
+   print_level = print_lvl;
+}
+
+ComplexMUMPSSolver::~ComplexMUMPSSolver()
+{
+   if (id)
+   {
+#if MFEM_MUMPS_VERSION >= 530
+      delete [] irhs_loc;
+#else
+      delete [] recv_counts;
+      delete [] displs;
+      delete [] rhs_glob;
+#endif
+      id->job = -2;
+      zmumps_c(id);
+      delete id;
+   }
+}
+
+void ComplexMUMPSSolver::SetParameters()
+{
+   // output stream for error messages
+   id->ICNTL(1) = 6;
+   // output stream for diagnosting printing local to each proc
+   id->ICNTL(2) = 6;
+   // output stream for global info
+   id->ICNTL(3) = 6;
+   // Level of error printing
+   id->ICNTL(4) = print_level;
+   //input matrix format (assembled)
+   id->ICNTL(5) = 0;
+   // Use A or A^T
+   id->ICNTL(9) = 1;
+   // Iterative refinement (disabled)
+   id->ICNTL(10) = 0;
+   // Error analysis-statistics (disabled)
+   id->ICNTL(11) = 0;
+   // Use of ScaLAPACK (Parallel factorization on root)
+   id->ICNTL(13) = 0;
+   // Percentage increase of estimated workspace (default = 20%)
+   id->ICNTL(14) = 20;
+   // Number of OpenMP threads (default)
+   id->ICNTL(16) = 0;
+   // Matrix input format (distributed)
+   id->ICNTL(18) = 3;
+   // Schur complement (no Schur complement matrix returned)
+   id->ICNTL(19) = 0;
+
+#if MFEM_MUMPS_VERSION >= 530
+   // Distributed RHS
+   id->ICNTL(20) = 10;
+   // Distributed Sol
+   id->ICNTL(21) = 1;
+#else
+   // Centralized RHS
+   id->ICNTL(20) = 0;
+   // Centralized Sol
+   id->ICNTL(21) = 0;
+#endif
+   // Out of core factorization and solve (disabled)
+   id->ICNTL(22) = 0;
+   // Max size of working memory (default = based on estimates)
+   id->ICNTL(23) = 0;
+}
+
+#if MFEM_MUMPS_VERSION >= 530
+int ComplexMUMPSSolver::GetRowRank(int i, const Array<int> &row_starts_) const
+{
+   if (row_starts_.Size() == 1)
+   {
+      return 0;
+   }
+   auto up = std::upper_bound(row_starts_.begin(), row_starts_.end(), i);
+   return std::distance(row_starts_.begin(), up) - 1;
+}
+
+void ComplexMUMPSSolver::RedistributeSol(const int * row_map,
+                                         const double * x, double * y) const
+{
+   int size = id->MUMPSC_INFO(23);
+   int n = id->nloc_rhs;
+   int * send_count = new int[numProcs]();
+   for (int i = 0; i < size; i++)
+   {
+      int j = row_map[i] - 1;
+      int row_rank = GetRowRank(j, row_starts);
+      if (myid == row_rank) { continue; }
+      send_count[row_rank]++;
+   }
+
+   int * recv_count = new int[numProcs];
+   MPI_Alltoall(send_count, 1, MPI_INT, recv_count, 1, MPI_INT, comm);
+
+   int * send_displ = new int [numProcs]; send_displ[0] = 0;
+   int * recv_displ = new int [numProcs]; recv_displ[0] = 0;
+   int sbuff_size = send_count[numProcs-1];
+   int rbuff_size = recv_count[numProcs-1];
+   for (int k = 0; k < numProcs - 1; k++)
+   {
+      send_displ[k + 1] = send_displ[k] + send_count[k];
+      recv_displ[k + 1] = recv_displ[k] + recv_count[k];
+      sbuff_size += send_count[k];
+      rbuff_size += recv_count[k];
+   }
+
+   int * sendbuf_index = new int[sbuff_size];
+   double * sendbuf_values_r = new double[sbuff_size];
+   double * sendbuf_values_i = new double[sbuff_size];
+   int * soffs = new int[numProcs]();
+
+   for (int i = 0; i < size; i++)
+   {
+      int j = row_map[i] - 1;
+      int row_rank = GetRowRank(j, row_starts);
+      if (myid == row_rank)
+      {
+         int local_index = j - row_start;
+         y[local_index] = x[i];
+         y[local_index+n] = x[i+size];
+      }
+      else
+      {
+         int k = send_displ[row_rank] + soffs[row_rank];
+         sendbuf_index[k] = j;
+         sendbuf_values_r[k] = x[i];
+         sendbuf_values_i[k] = x[i+size];
+         soffs[row_rank]++;
+      }
+   }
+
+   int * recvbuf_index = new int[rbuff_size];
+   double * recvbuf_values_r = new double[rbuff_size];
+   double * recvbuf_values_i = new double[rbuff_size];
+   MPI_Alltoallv(sendbuf_index,
+                 send_count,
+                 send_displ,
+                 MPI_INT,
+                 recvbuf_index,
+                 recv_count,
+                 recv_displ,
+                 MPI_INT,
+                 comm);
+   MPI_Alltoallv(sendbuf_values_r,
+                 send_count,
+                 send_displ,
+                 MPI_DOUBLE,
+                 recvbuf_values_r,
+                 recv_count,
+                 recv_displ,
+                 MPI_DOUBLE,
+                 comm);
+   MPI_Alltoallv(sendbuf_values_i,
+                 send_count,
+                 send_displ,
+                 MPI_DOUBLE,
+                 recvbuf_values_i,
+                 recv_count,
+                 recv_displ,
+                 MPI_DOUBLE,
+                 comm);
+
+   // Unpack recv buffer
+   for (int i = 0; i < rbuff_size; i++)
+   {
+      int local_index = recvbuf_index[i] - row_start;
+      y[local_index] = recvbuf_values_r[i];
+      y[local_index+n] = recvbuf_values_i[i];
+   }
+
+   delete [] recvbuf_values_r;
+   delete [] recvbuf_values_i;
+   delete [] recvbuf_index;
+   delete [] soffs;
+   delete [] sendbuf_values_r;
+   delete [] sendbuf_values_i;
+   delete [] sendbuf_index;
+   delete [] recv_displ;
+   delete [] send_displ;
+   delete [] recv_count;
+   delete [] send_count;
+}
+#endif // MUMPS VERSION
+#endif // MFEM_USE_MUMPS
 #endif // MFEM_USE_MPI
 
 }

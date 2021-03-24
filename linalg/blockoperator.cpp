@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -476,4 +476,257 @@ void SchurComplimentOperator::Solve(const Vector & b, const Vector & x,
    }
 }
 
+BlockDiagonalMultiplicativePreconditioner::BlockDiagonalMultiplicativePreconditioner(
+   const Array<int> & offsets_):
+   Solver(offsets_.Last()),
+   owns_blocks(0),
+   nBlocks(offsets_.Size() - 1),
+   offsets(0),
+   op(nBlocks)
+{
+   op = static_cast<Operator *>(NULL);
+   offsets.MakeRef(offsets_);
+}
+
+void BlockDiagonalMultiplicativePreconditioner::SetDiagonalBlock(int iblock, Operator *opt)
+{
+   MFEM_VERIFY(offsets[iblock+1] - offsets[iblock] == opt->Height() &&
+               offsets[iblock+1] - offsets[iblock] == opt->Width(),
+               "incompatible Operator dimensions");
+
+   if (owns_blocks && op[iblock])
+   {
+      delete op[iblock];
+   }
+   op[iblock] = opt;
+}
+
+// Operator application
+void BlockDiagonalMultiplicativePreconditioner::Mult (const Vector & x, Vector & y) const
+{
+   MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
+   MFEM_ASSERT(y.Size() == height, "incorrect output Vector size");
+
+   x.Read();
+   y.Write(); y = 0.0;
+
+   xblock.Update(const_cast<Vector&>(x),offsets);
+   yblock.Update(y,offsets);
+
+   Vector r(x);
+   Vector z(x.Size()); z = 0.0;
+
+   // BlockVector rblock(offsets); rblock = 0.0;
+   // BlockVector zblock(offsets); zblock = 0.0;
+   // rblock += r;
+   // zblock += z;
+
+   // BlockVector zaux(offsets);
+   int n1 = offsets[1];
+   int n2 = offsets[2]- offsets[1];
+   Array<int> map1(n1), map2(n2);
+   for (int i = 0; i<n1; i++) map1[i] = i;
+   for (int i = 0; i<n2; i++) map2[i] = n1+i;
+
+   Vector r1(n1), z1(n1);
+   Vector r2(n2), z2(n2);
+   // ------------------------------
+   r.GetSubVector(map1,r1);
+   op[0]->Mult(r1, z1);
+   Vector zaux(z.Size()); zaux = 0.0;
+   zaux.SetSubVector(map1,z1);
+   z+=zaux;
+   // r = r - Az
+   Vector raux(z.Size());
+   oper->Mult(zaux,raux);
+   r -= raux;
+   r.GetSubVector(map2,r2);
+   op[1]->Mult(r2, z2);
+   zaux = 0.0;
+   zaux.AddElementVector(map2,z2);
+   z+=zaux;
+   // ------------------------------
+   oper->Mult(zaux,raux);
+   r -= raux;
+   r.GetSubVector(map2,r2);
+   op[1]->Mult(r2, z2);
+   zaux = 0.0;
+   zaux.AddElementVector(map2,z2);
+   z +=zaux;
+   oper->Mult(zaux,raux);
+   r -= raux;
+   r.GetSubVector(map1,r1);
+   op[0]->Mult(r1, z1);
+   zaux = 0.0;
+   zaux.AddElementVector(map1,z1);
+   z+=zaux;
+
+   y = z;
+
+
+   // for (int i=0; i<nBlocks; ++i)
+   // {
+   //    op[i]->Mult(rblock.GetBlock(i), zblock.GetBlock(i));
+
+   //    // update residual
+   //    // r = r - Az
+   //    oper->Mult(zblock,zaux);
+   //    rblock -= zaux;
+   //    yblock.GetBlock(i) += zblock.GetBlock(i);
+   // }
+   // for (int i=nBlocks-1; i>=0; i--)
+   // {
+   //       op[i]->Mult(rblock.GetBlock(i), zblock.GetBlock(i));
+   // //    // update residual
+   // //    // r = r - Az
+   //    yblock.GetBlock(i) += zblock.GetBlock(i);
+   //    if (i>0)
+   //    {
+   //       oper->Mult(zblock,zaux);
+   //       rblock -= zaux;
+   //    }
+   // }
+
+   // for (int i=0; i<nBlocks; ++i)
+   // {
+   //    yblock.GetBlock(i).SyncAliasMemory(y);
+   // }
+
+   // Destroy alias vectors to prevent dangling aliases when the base vectors
+   // are deleted
+   for (int i=0; i < xblock.NumBlocks(); ++i) { xblock.GetBlock(i).Destroy(); }
+   for (int i=0; i < yblock.NumBlocks(); ++i) { yblock.GetBlock(i).Destroy(); }
+}
+
+// Action of the transpose operator
+void BlockDiagonalMultiplicativePreconditioner::MultTranspose (const Vector & x,
+                                                 Vector & y) const
+{
+    MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
+   MFEM_ASSERT(y.Size() == height, "incorrect output Vector size");
+
+   std::cout << "Mult Transpose" << std::endl; std::cin.get();
+
+   x.Read();
+   y.Write(); y = 0.0;
+
+   xblock.Update(const_cast<Vector&>(x),offsets);
+   yblock.Update(y,offsets);
+
+   for (int i=0; i<nBlocks; ++i)
+   {
+      if (op[i])
+      {
+         op[i]->MultTranspose(xblock.GetBlock(i), yblock.GetBlock(i));
+      }
+      else
+      {
+         yblock.GetBlock(i) = xblock.GetBlock(i);
+      }
+
+      yblock.GetBlock(i).SyncAliasMemory(y);
+      // update residual
+      Vector xaux(y);
+      Vector yaux(y.Size());
+      oper->Mult(xaux,yaux);
+      y-=yaux;
+   }
+   for (int i=nBlocks-1; i>=0; i--)
+   {
+      if (op[i])
+      {
+         op[i]->MultTranspose(xblock.GetBlock(i), yblock.GetBlock(i));
+      }
+      else
+      {
+         yblock.GetBlock(i) = xblock.GetBlock(i);
+      }
+
+      yblock.GetBlock(i).SyncAliasMemory(y);
+      // update residual
+      Vector xaux(y);
+      Vector yaux(y.Size());
+      oper->Mult(xaux,yaux);
+      y-=yaux;
+   }
+   for (int i=0; i<nBlocks; ++i)
+   {
+      yblock.GetBlock(i).SyncAliasMemory(y);
+   }
+
+   // Destroy alias vectors to prevent dangling aliases when the base vectors
+   // are deleted
+   for (int i=0; i < xblock.NumBlocks(); ++i) { xblock.GetBlock(i).Destroy(); }
+   for (int i=0; i < yblock.NumBlocks(); ++i) { yblock.GetBlock(i).Destroy(); }
+}
+
+BlockDiagonalMultiplicativePreconditioner::~BlockDiagonalMultiplicativePreconditioner()
+{
+   if (owns_blocks)
+   {
+      for (int i=0; i<nBlocks; ++i)
+      {
+         delete op[i];
+      }
+   }
+}
+
+// // Operator application
+// void BlockDiagonalMultiplicativePreconditioner::Mult(const Vector & x, Vector & y) const
+// {
+//    MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
+//    MFEM_ASSERT(y.Size() == height, "incorrect output Vector size");
+
+//    x.Read();
+//    y.Write(); y = 0.0;
+
+//    xblock.Update(const_cast<Vector&>(x),offsets);
+//    yblock.Update(y,offsets);
+
+//    for (int i=0; i<nBlocks; ++i)
+//    {
+//       if (op[i])
+//       {
+//          op[i]->Mult(xblock.GetBlock(i), yblock.GetBlock(i));
+//       }
+//       else
+//       {
+//          yblock.GetBlock(i) = xblock.GetBlock(i);
+//       }
+
+//       yblock.GetBlock(i).SyncAliasMemory(y);
+//       // update residual
+//       Vector xaux(y);
+//       Vector yaux(y.Size());
+//       oper->Mult(xaux,yaux);
+//       y-=yaux;
+//    }
+//    for (int i=nBlocks-1; i>=0; i--)
+//    {
+//       if (op[i])
+//       {
+//          op[i]->Mult(xblock.GetBlock(i), yblock.GetBlock(i));
+//       }
+//       else
+//       {
+//          yblock.GetBlock(i) = xblock.GetBlock(i);
+//       }
+
+//       yblock.GetBlock(i).SyncAliasMemory(y);
+//       // update residual
+//       Vector xaux(y);
+//       Vector yaux(y.Size());
+//       oper->Mult(xaux,yaux);
+//       y-=yaux;
+//    }
+//    for (int i=0; i<nBlocks; ++i)
+//    {
+//       yblock.GetBlock(i).SyncAliasMemory(y);
+//    }
+
+//    // Destroy alias vectors to prevent dangling aliases when the base vectors
+//    // are deleted
+//    for (int i=0; i < xblock.NumBlocks(); ++i) { xblock.GetBlock(i).Destroy(); }
+//    for (int i=0; i < yblock.NumBlocks(); ++i) { yblock.GetBlock(i).Destroy(); }
+// }
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -37,7 +37,8 @@ protected:
       const Array<int> &test_tdof_list,
       RectangularConstrainedOperator* &Aout);
 
-   /// Returns RAP Operator of this, taking in input/output Prolongation matrices
+   /** @brief Returns RAP Operator of this, using input/output Prolongation matrices
+       @a Pi corresponds to "P", @a Po corresponds to "Rt" */
    Operator *SetupRAP(const Operator *Pi, const Operator *Po);
 
 public:
@@ -112,6 +113,11 @@ public:
    {
       return GetProlongation(); // Assume square unless specialized
    }
+   /** @brief Transpose of GetOutputRestriction, directly available in this
+       form to facilitate matrix-free RAP-type operators.
+
+       `NULL` means identity. */
+   virtual const Operator *GetOutputRestrictionTranspose() const { return NULL; }
    /** @brief Restriction operator from output vectors for the operator to linear
        algebra (linear system) vectors. `NULL` means identity. */
    virtual const Operator *GetOutputRestriction() const
@@ -606,23 +612,22 @@ public:
 
    using TimeDependentOperator::ImplicitSolve;
    /** @brief Solve the equation:
-       @a k = f(@a x + 1/2 @a dt0^2 @a k, @a dxdt + @a dt1 @a k, t), for the
+       @a k = f(@a x + @a fac0 @a k, @a dxdt + @a fac1 @a k, t), for the
        unknown @a k at the current time t.
 
        For general F and G, the equation for @a k becomes:
-       F(@a x + 1/2 @a dt0^2 @a k, @a dxdt + @a dt1 @a k, t)
-                        = G(@a x + 1/2 @a dt0^2 @a k, @a dxdt + @a dt1 @a k, t).
+       F(@a x +  @a fac0 @a k, @a dxdt + @a fac1 @a k, t)
+                        = G(@a x +  @a fac0 @a k, @a dxdt + @a fac1 @a k, t).
 
-       The input vector @a x corresponds to time index (or cycle) n, while the
+       The input vectors @a x and @a dxdt corresponds to time index (or cycle) n, while the
        currently set time, #t, and the result vector @a k correspond to time
-       index n+1. The time step @a dt corresponds to the time interval between
-       cycles n and n+1.
+       index n+1.
 
        This method allows for the abstract implementation of some time
        integration methods.
 
        If not re-implemented, this method simply generates an error. */
-   virtual void ImplicitSolve(const double dt0, const double dt1,
+   virtual void ImplicitSolve(const double fac0, const double fac1,
                               const Vector &x, const Vector &dxdt, Vector &k);
 
 

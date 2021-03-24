@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -39,6 +39,7 @@ private:
    int counter=0;
    int dcounter=0;
    int fcounter=0;
+   Array<int> * elem_list = nullptr;
 
    // space continuity type
    int cont_type=-1;
@@ -59,7 +60,8 @@ private:
                    VectorCoefficient *vector_u);
    void AddGf(GridFunction *gf, Coefficient *scalar_u,
               VectorCoefficient *grad=nullptr,
-              Coefficient *ell_coeff=nullptr, double Nu=1.0);
+              Coefficient *ell_coeff=nullptr,
+              JumpScaling jump_scaling = {1.0, JumpScaling::ONE_OVER_H});
    void AddGf(GridFunction *gf, VectorCoefficient *vector_u,
               VectorCoefficient *curl, Coefficient *div);
    // returns the L2-norm of scalar_u or vector_u
@@ -71,13 +73,19 @@ public:
    /// Clear any internal data
    void Reset();
 
+   void SetElementList(Array<int> * elem_list_)
+   {
+      elem_list = elem_list_;
+   }
+
    /// Add L2 GridFunction, the exact solution and possibly its gradient and/or
    /// DG face jumps parameters
    void AddL2GridFunction(GridFunction *gf, Coefficient *scalar_u,
                           VectorCoefficient *grad=nullptr,
-                          Coefficient *ell_coeff=nullptr, double Nu=1.0)
+                          Coefficient *ell_coeff=nullptr,
+                          JumpScaling jump_scaling = {1.0, JumpScaling::ONE_OVER_H})
    {
-      AddGf(gf, scalar_u, grad, ell_coeff, Nu);
+      AddGf(gf, scalar_u, grad, ell_coeff, jump_scaling);
    }
 
    /// Add H1 GridFunction, the exact solution and possibly its gradient

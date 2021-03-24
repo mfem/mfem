@@ -93,7 +93,7 @@ void ConvergenceStudy::AddL2Error(GridFunction *gf,
    }
    else if (vector_u)
    {
-      L2Err = gf->ComputeL2Error(*vector_u);
+      L2Err = gf->ComputeL2Error(*vector_u,nullptr,elem_list);
       CoeffNorm = GetNorm(gf,nullptr,vector_u);
    }
    else
@@ -110,7 +110,8 @@ void ConvergenceStudy::AddL2Error(GridFunction *gf,
 
 void ConvergenceStudy::AddGf(GridFunction *gf, Coefficient *scalar_u,
                              VectorCoefficient *grad,
-                             Coefficient *ell_coeff, double Nu)
+                             Coefficient *ell_coeff,
+                             JumpScaling jump_scaling)
 {
    cont_type = gf->FESpace()->FEColl()->GetContType();
 
@@ -122,7 +123,7 @@ void ConvergenceStudy::AddGf(GridFunction *gf, Coefficient *scalar_u,
 
    if (grad)
    {
-      double GradErr = gf->ComputeGradError(grad);
+      double GradErr = gf->ComputeGradError(grad,nullptr,elem_list);
       DErrors.Append(GradErr);
       double err = sqrt(L2Errors[counter-1]*L2Errors[counter-1]+GradErr*GradErr);
       EnErrors.Append(err);
@@ -140,7 +141,7 @@ void ConvergenceStudy::AddGf(GridFunction *gf, Coefficient *scalar_u,
 
    if (cont_type == mfem::FiniteElementCollection::DISCONTINUOUS && ell_coeff)
    {
-      double DGErr = gf->ComputeDGFaceJumpError(scalar_u,ell_coeff,Nu);
+      double DGErr = gf->ComputeDGFaceJumpError(scalar_u,ell_coeff,jump_scaling);
       DGFaceErrors.Append(DGErr);
       // Compute the rate of convergence by:
       // rate = log (||u - u_h|| / ||u - u_{h/2}||)/log(2)
@@ -161,13 +162,13 @@ void ConvergenceStudy::AddGf(GridFunction *gf, VectorCoefficient *vector_u,
    bool derivative = false;
    if (curl)
    {
-      DErr = gf->ComputeCurlError(curl);
+      DErr = gf->ComputeCurlError(curl,nullptr,elem_list);
       CoeffDNorm = GetNorm(gf,nullptr,curl);
       derivative = true;
    }
    else if (div)
    {
-      DErr = gf->ComputeDivError(div);
+      DErr = gf->ComputeDivError(div,nullptr,elem_list);
       // update coefficient norm
       CoeffDNorm = GetNorm(gf,div,nullptr);
       derivative = true;
@@ -270,26 +271,26 @@ void ConvergenceStudy::Print(bool relative, std::ostream &out)
             }
             out << "\n";
          }
-         if (cont_type == 3 && fcounter)
+      }
+      if (cont_type == 3 && fcounter)
+      {
+         out << " -------------------------------------------" << "\n";
+         out << "            DG Face Jump Error          " << "\n";
+         out << " -------------------------------------------"
+             << "\n";
+         out << std::right<< std::setw(11)<< "DOFs "<< std::setw(13);
+         out << "Error ";
+         out << std::setw(15) << "Rate " << "\n";
+         out << " -------------------------------------------"
+             << "\n";
+         out << std::setprecision(4);
+         for (int i =0; i<fcounter; i++)
          {
-            out << " -------------------------------------------" << "\n";
-            out << "            DG Face Jump Error          " << "\n";
-            out << " -------------------------------------------"
-                << "\n";
-            out << std::right<< std::setw(11)<< "DOFs "<< std::setw(13);
-            out << "Error ";
-            out << std::setw(15) << "Rate " << "\n";
-            out << " -------------------------------------------"
-                << "\n";
-            out << std::setprecision(4);
-            for (int i =0; i<fcounter; i++)
-            {
-               out << std::right << std::setw(10)<< ndofs[i] << std::setw(16)
-                   << std::scientific << DGFaceErrors[i] << std::setw(13)
-                   << std::fixed << DGFaceRates[i] << "\n";
-            }
-            out << "\n";
+            out << std::right << std::setw(10)<< ndofs[i] << std::setw(16)
+                << std::scientific << DGFaceErrors[i] << std::setw(13)
+                << std::fixed << DGFaceRates[i] << "\n";
          }
+         out << "\n";
       }
    }
 }
