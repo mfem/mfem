@@ -1052,6 +1052,25 @@ int PermuteFaceL2(const int dim, const int face_id1,
    }
 }
 
+// Permute dofs or quads on a face for e2 to match with the ordering of e1
+int PermuteDFaceDNormL2(const int dim, const int face_id1,
+                  const int face_id2, const int orientation,
+                  const int size1d, const int index)
+{
+   switch (dim)
+   {
+      case 1:
+         return 0;
+      case 2:
+         return PermuteDFaceDNorm2D(face_id1, face_id2, orientation, size1d, index);
+    //  case 3:
+      //x   return PermuteDFaceDNorm3D(face_id1, face_id2, orientation, size1d, index);
+      default:
+         mfem_error("Unsupported dimension.");
+         return 0;
+   }
+}
+
 L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
                                      const FaceType type,
                                      const L2FaceValues m)
