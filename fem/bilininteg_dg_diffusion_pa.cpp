@@ -143,11 +143,13 @@ static void PADGDiffusionSetup(const int dim,
                            const Array<double> &weights,
                            const Array<double> &g,
                            const Array<double> &b,
+                           const Vector &jac,
                            const Vector &det_jac,
                            const Vector &nor,
                            const Vector &Q,
                            const Vector &rho,
                            const Vector &u,
+                           const Vector &face_2_elem_volumes,
                            const double sigma,
                            const double kappa,
                            Vector &op1,
@@ -158,13 +160,11 @@ static void PADGDiffusionSetup(const int dim,
    if (dim == 1) { MFEM_ABORT("dim==1 not supported in PADGDiffusionSetup"); }
    else if (dim == 2)
    {
-      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-      PADGDiffusionSetup2D(Q1D, D1D, NF, weights, g, b, det_jac, nor, Q, rho, u, sigma, kappa, op1, op2, op3);
+      PADGDiffusionSetup2D(Q1D, D1D, NF, weights, g, b, jac, det_jac, nor, Q, rho, u, face_2_elem_volumes, sigma, kappa, op1, op2, op3);
    }
    else if (dim == 3)
    {
-      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-      PADGDiffusionSetup3D(Q1D, D1D, NF, weights, g, b, det_jac, nor, Q, rho, u, sigma, kappa, op1, op2, op3);
+      PADGDiffusionSetup3D(Q1D, D1D, NF, weights, g, b, jac, det_jac, nor, Q, rho, u, face_2_elem_volumes, sigma, kappa, op1, op2, op3);
    }
    else
    {
