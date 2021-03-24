@@ -1541,7 +1541,7 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
      scatter_indices1(nf*dof*dof1d),
      scatter_indices2(m==L2FaceValues::DoubleValued?nf*dof*dof1d:0),
      offsets(ndofs+1),
-     gather_indices((m==L2FaceValues::DoubleValued? 2 : 1)*nf*dof*dof1d)
+     gather_indices((m==L2FaceValues::DoubleValued? 2 : 1)*nf*dof)
 {
 }
 
@@ -1551,7 +1551,6 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                                      const L2FaceValues m)
    : L2FaceNormalDRestriction(fes, type, m)
 {
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
    // If fespace == L2
    const FiniteElement *fe = fes.GetFE(0);
@@ -1560,15 +1559,13 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                (tfe->GetBasisType()==BasisType::GaussLobatto ||
                 tfe->GetBasisType()==BasisType::Positive),
                "Only Gauss-Lobatto and Bernstein basis are supported in "
-               "L2FaceRestriction.");
+               "L2FaceNormalDRestriction.");
    MFEM_VERIFY(fes.GetMesh()->Conforming(),
                "Non-conforming meshes not yet supported with partial assembly.");
    if (nf==0) { return; }
-   height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nf*dof*dof1d;
+   // Operator parameters
+   height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nfdofs;
    width = fes.GetVSize();
-
-   std::cout << "height = " << height << "  width = " << width << std::endl;
-   std::cout << "dof = " << dof << "  dof1d = " << dof1d << std::endl;
 
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
    if (!dof_reorder)
