@@ -1867,35 +1867,10 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
    auto d_offsets = offsets.Read();
    auto d_indices = gather_indices.Read();
 
-   x.Print();
-   
-   std::cout << "nd = " << nd << std::endl;
-   std::cout << "vd = " << vd << std::endl;
-   std::cout << "t = " << t << std::endl;
-   std::cout << "dof = " << dof << std::endl;
-   std::cout << "dofs = " << dofs << std::endl;
-   std::cout << "ndofs = " << ndofs << std::endl;
-
    if (m == L2FaceValues::DoubleValued)
    {
       auto d_x = Reshape(x.Read(), dof, dof, vd, 2, nf);
       auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
-
-
-      for (int s = 0; s < dof1d; ++s)
-         for (int did = 0; did < dof1d; ++did)
-            for (int faceid = 0; faceid < 12; ++faceid)
-            {
-               std::cout <<  s << " "
-                        << did << " "
-                        << faceid << " "
-                        << d_x(s,did, 0, 0, faceid) << std::endl;
-            }
-
-
-
-
-      std::cout << "gather mult" << std::endl;
       MFEM_FORALL(i, ndofs,
       {
          const int offset = d_offsets[i];
@@ -1909,7 +1884,6 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
                bool isE1 = idx_j < dofs;
                // we use e1 e2 but then use D0 D1 in the PA kernel 
                idx_j = isE1 ? idx_j : idx_j - dofs;
-//               for (int s = 0; s < dof1d; ++s)
                {
                   int s = idx_j % dof1d;
                   int did = (idx_j/dof1d) % dof1d;
@@ -1919,75 +1893,16 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
                   :d_x( s, did, c, 1, faceid );
 
                   d_y(t?c:i,t?i:c) += dofValue;
-
-                  std::cout << i << " "
-                           << offset << " "
-                           << nextOffset << " "
-                           << j << " "
-                           << idx_j << " "
-                           << isE1 << " "
-                           << s << " "
-                           << did << " "
-                           << faceid << " "
-                           << d_x(s,did, c, 0, faceid) << " "
-                           << d_x(s,did, c, 1, faceid) << " "
-                           << dofValue << " "
-                           << d_y(t?c:i,t?i:c) << std::endl;
                }
             }
-            //d_y(t?c:i,t?i:c) += dofValue;
-              // std::cout << d_y(t?c:i,t?i:c) << " " << std::endl;
          }
       });
-      /*
-      MFEM_FORALL(i, ndofs,
-      {
-         const int offset = d_offsets[i];
-         const int nextOffset = d_offsets[i + 1];
-         for (int c = 0; c < vd; ++c)
-         {
-            //double dofValue = 0;
-            for (int j = offset; j < nextOffset; ++j)
-            {
-               int idx_j = d_indices[j];
-               bool isE1 = idx_j < dofs;
-               // we use e1 e2 but then use D0 D1 in the PA kernel 
-               idx_j = isE1 ? idx_j : idx_j - dofs;
-               int did = idx_j % nd;
-               int faceid = idx_j / nd;
-               double dofValue = isE1 ? 
-               d_x( did, c, 0, faceid )
-               :d_x( did, c, 1, faceid );
-
-               d_y(t?c:i,t?i:c) += dofValue;
-
-               std::cout << i << " "
-                        << idx_j << " "
-                        << isE1 << " "
-                        << offset << " "
-                        << nextOffset << " "
-                        << did << " "
-                        << faceid << " "
-                        << d_x(did, c, 0, faceid) << " "
-                        << d_x(did, c, 1, faceid) << " "
-                        << dofValue << " "
-                        << d_y(t?c:i,t?i:c) << std::endl;
-            }
-            //d_y(t?c:i,t?i:c) += dofValue;
-              // std::cout << d_y(t?c:i,t?i:c) << " " << std::endl;
-         }
-      });
-      */
    }
    else
    {
       std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       mfem_error("not yet implemented.");
    }
-
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
-   //exit(1);
 }
 
 }
