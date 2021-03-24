@@ -2738,8 +2738,6 @@ const IntegrationRule &DGTraceIntegrator::GetRule(
 const IntegrationRule &DGDiffusionIntegrator::GetRule(
    Geometry::Type geom, int order, FaceElementTransformations &T)
 {
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-   std::cout << " T.Elem1->OrderW() = " << T.Elem1->OrderW() << std::endl;
    int int_order = T.Elem1->OrderW() + 2*order;
    return IntRules.Get(geom, int_order);
 }
@@ -2747,7 +2745,6 @@ const IntegrationRule &DGDiffusionIntegrator::GetRule(
 const IntegrationRule &DGDiffusionIntegrator::GetRuleGrad(
    Geometry::Type geom, int order)
 {
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    int int_order = 2*order;
    return IntRules.Get(geom, int_order);
 }
@@ -2913,22 +2910,17 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
             for (int j = 0; j < ndof2; j++)
             {
                   elmat(i, ndof1 + j) += shape1(i) * dshape2dn(j);
-                  std::cout << i << " " << shape1(i) << " " << j << " "<< dshape2dn(j) << std::endl;
             }
 
-         std::cout << " i shape2(i)  j  dshape1dn(j) "<< std::endl;
          for (int i = 0; i < ndof2; i++)
             for (int j = 0; j < ndof1; j++)
             {
-               std::cout << i << " " << shape2(i) << " " << j << " "<< dshape1dn(j) << std::endl;
                elmat(ndof1 + i, j) -= shape2(i) * dshape1dn(j);
             }
 
-         std::cout << " i shape2(i)  j  dshape2dn(j) "<< std::endl;
          for (int i = 0; i < ndof2; i++)
             for (int j = 0; j < ndof2; j++)
             {
-               std::cout << i << " " << shape2(i) << " " << j << " "<< dshape2dn(j) << std::endl;
                elmat(ndof1 + i, ndof1 + j) -= shape2(i) * dshape2dn(j);
             }
       }
@@ -2990,16 +2982,7 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
          }
          elmat(i,i) *= (sigma - 1.);
       }
-
-      for (int j = 0; j < ndofs; j++)
-         for (int i = 0; i < ndofs; i++)
-            std::cout << " elmat("<< 1+j <<","<< 1+i <<") = " << elmat(i,j) << std::endl;
-
    }
-
- //  std::cout << __LINE__ << " " <<  __FUNCTION__ << std::endl;
-   //exit(1);
-
 }
 
 
