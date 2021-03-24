@@ -1674,10 +1674,10 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                      const int did = face_dof;
                      const int gid = elementMap[e2*elem_dofs + did];
                      const int lid = dof1d*dof*f_ind + dof1d*d + k;
-                     std::cout << "   face_dof = " << face_dof ;
-                     std::cout << "   elem_dofs = " << elem_dofs ;
-                     std::cout << "   lid = " << lid ;
-                     std::cout << "   gid = " << gid  << std::endl;
+                     std::cout << " face_dof " << face_dof ;
+                     std::cout << " lid2 " << lid ;
+                     std::cout << " gid2 " << gid ;
+                     std::cout << std::endl;
                      scatter_indices2[lid] = gid;
                   }
                }
@@ -1690,12 +1690,12 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                   }
                }
             }
+            */
          }
          f_ind++;
       }
    }
    MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    // Computation of gather_indices
    for (int i = 0; i <= ndofs; ++i)
    {
@@ -1715,56 +1715,32 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
          orientation = inf2 % 64;
          face_id2 = inf2 / 64;
          GetNormalDFaceDofStencil(dim, face_id2, dof1d, faceMap2);
-         std::cout << "   inf1 = " << inf1 ;
-         std::cout << "   inf2 = " << inf2 ;
-         std::cout << "   e1 = " << e1 ;
-         std::cout << "   e2 = " << e2 ;
-         std::cout << "   dim = " << dim ;
-         std::cout << "   orientation = " << orientation ;
-         std::cout << "   face_id1 = " << face_id1 ;
-         std::cout << "   face_id2 = " << face_id2 ;
-         std::cout << "   dof1d = " << dof1d  << std::endl;
-
          for (int d = 0; d < dof; ++d)
-         {
-            for (int k = 0; k < dof1d; ++k)
+            for (int k = 0; k < dof; ++k)
             {
-               const int did = faceMap1[d*dof1d + k];
+               // dof should be 1d dof, need to check this for 3D
+               const int did = faceMap1[d*dof1d+k];
                const int gid = elementMap[e1*elem_dofs + did];
                ++offsets[gid + 1];
-               std::cout << "   d = " << d;
-               std::cout << "   did = " << did ;
-               std::cout << "   e1 = " << e1 ;
-               std::cout << "   e2 = " << e2 ;
-               std::cout << "   dim = " << dim << std::endl;
             }
-         }
          if (m==L2FaceValues::DoubleValued)
          {
             for (int d = 0; d < dof; ++d)
-            {
-               if (type==FaceType::Interior && e2>=0) // interior face
+               for (int k = 0; k < dof; ++k)
                {
-                  for (int k = 0; k < dof1d; ++k)
+                  if (type==FaceType::Interior && e2>=0) // interior face
                   {
-                     const int pd = PermuteFaceL2(dim, face_id1, face_id2,
+                     const int pd = PermuteDFaceDNormL2(dim, face_id1, face_id2,
                                                 orientation, dof1d, d);
-                     const int did = faceMap2[pd*dof1d + k];
+                     const int did  = orientation==1?faceMap2[pd*dof1d+k]:faceMap2[pd*dof1d+dof1d+1-k];
                      const int gid = elementMap[e2*elem_dofs + did];
                      ++offsets[gid + 1];
-
-                     std::cout << "   d = " << d;
-                     std::cout << "   pd = " << pd ;
-                     std::cout << "   did = " << did << std::endl;
                   }
                }
-            }
          }
          f_ind++;
       }
    }
-
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
    for (int i = 1; i <= ndofs; ++i)
    {
@@ -1785,72 +1761,59 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
          face_id2 = inf2 / 64;
          GetNormalDFaceDofStencil(dim, face_id2, dof1d, faceMap2);
          for (int d = 0; d < dof; ++d)
-         {
             for (int k = 0; k < dof1d; ++k)
             {
-               const int did = faceMap1[d*dof1d + k];
+               const int did = faceMap1[d*dof+k];
                const int gid = elementMap[e1*elem_dofs + did];
-               const int lid = dof*dof1d*f_ind + dof1d*d + k;
+               const int lid = dof1d*dof*f_ind + dof1d*d + k;
                // We don't shift lid to express that it's e1 of f
                gather_indices[offsets[gid]++] = lid;
             }
-         }
+
          if (m==L2FaceValues::DoubleValued)
          {
             for (int d = 0; d < dof; ++d)
-            {
-               if (type==FaceType::Interior && e2>=0) // interior face
+               for (int k = 0; k < dof1d; ++k)
                {
-                  for (int k = 0; k < dof1d; ++k)
+                  if (type==FaceType::Interior && e2>=0) // interior face
                   {
-                     const int pd = PermuteFaceL2(dim, face_id1, face_id2,
+                     const int pd = PermuteDFaceDNormL2(dim, face_id1, face_id2,
                                                 orientation, dof1d, d);
-                     const int did = faceMap2[pd*dof1d + k];
+                     const int did  = orientation==1?faceMap2[pd*dof1d+k]:faceMap2[pd*dof1d+dof1d+1-k];
                      const int gid = elementMap[e2*elem_dofs + did];
-                     const int lid = dof*dof1d*f_ind + dof1d*d + k;
+                     const int lid = dof1d*dof*f_ind + dof1d*d + k;
                      // We shift lid to express that it's e2 of f
-                     gather_indices[offsets[gid]++] = nfdofs + lid;
+                     gather_indices[offsets[gid]++] = 2*nfdofs + lid;
                   }
                }
-            }
          }
          f_ind++;
       }
    }
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
    MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
    for (int i = ndofs; i > 0; --i)
    {
       offsets[i] = offsets[i - 1];
    }
    offsets[0] = 0;
-
-   if (!dof_reorder)
-   {
-      mfem_error("Non-Tensor L2FaceNormalDerivativeRestriction not yet implemented.");
-      // Setup face normal derivatives
-   }
-
-
-   MFEM_FORALL(i, nf*dof*dof1d,{
-      std::cout <<    "si1(" << i << ") =" << scatter_indices1[i] 
-                <<  "    si2(" << i << ") =" << scatter_indices2[i]
-                <<  "    gi(" << i << ") =" << gather_indices[i]
-                <<  "    gi(" << i-1+nf*dof*dof1d << ") =" << gather_indices[i-1+nf*dof*dof1d]
-                << std::endl;
-   });
-
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-   //exit(1);
 }
 
 void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
 {
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    // Assumes all elements have the same number of dofs, nd
-   const int nd = dof;
+   const int dim = fes.GetMesh()->SpaceDimension();
+   const int nd = (dim==2)? dof*dof : dof*dof*dof ;
    const int vd = vdim;
+   // is x transposed?
    const bool t = byvdim;
+
+   std::cout << "x before restriction mult" << std::endl;
+   x.Print(mfem::out,1);
+
+   std::cout << "t = " << t << std::endl;
+
 
    if (m==L2FaceValues::DoubleValued)
    {
@@ -1858,42 +1821,78 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
       auto d_indices1 = scatter_indices1.Read();
       auto d_indices2 = scatter_indices2.Read();
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
-      auto d_y = Reshape(y.Write(), nd, dof1d, vd, 2, nf);
-      std::cout << " ndofs = " << ndofs << std::endl;
-      std::cout << " vd = " << vd << std::endl;
+      auto d_y = Reshape(y.Write(), nd, vd, 2, nf);
+      std::cout << " ndofs " << ndofs << std::endl;
+      std::cout << " vd " << vd << std::endl;
+      std::cout << " nd " << nd << std::endl;
+      std::cout << " dof1d " << dof1d << std::endl;
+      std::cout << " nfdofs " << nfdofs << std::endl;
+      std::cout << " nf " << nf << std::endl;
+      std::cout << " nd*vd*2*nf " << nd*vd*2*nf << std::endl;
+
+      x.Print(mfem::out,8);
+      y.Print(mfem::out,8);
+
 
       // Loop over all face dofs
-      MFEM_FORALL(i, nfdofs,
+      MFEM_FORALL(i, nd*vd*nf,
       {
-         const int dof = i % nd;
-         const int face = i / nd;
-         for (int k = 0; k < dof1d; ++k)
-         {
+         const int k = i % dof1d;
+         const int dof = (i/dof1d) % dof1d;
+         const int face = i / (nd);
+         /*
+         std::cout << "i = " << i << std::endl;
+         std::cout << "(i/2) = " << (i/2) << std::endl;
+         std::cout << "dof = " << dof << std::endl;
+         exit(1);
+         */
+         // lid = dof*dof1d*f_ind + dof1d*d + k
+         //int k = 0;
+         //for (int k = 0; k < dof1d; ++k)
+            //const int face_dof = faceMap2[pd*dof1d+k];
+            //const int did = face_dof;
+            //const int gid = elementMap[e2*elem_dofs + did];
+            //const int lid = dof1d*dof*f_ind + dof1d*d + k;
+            //std::cout << " face_dof " << face_dof ;
+            //std::cout << " lid2 " << lid ;
+            //std::cout << " gid2 " << gid ;
+            //scatter_indices2[lid] = gid;
             // first side 
-            std::cout << "y(dof,:,0,face) = " ; 
-            const int idx1 = d_indices1[dof1d*i+k];
-            std::cout << "x(" << idx1 << ") = " ; 
-            for (int c = 0; c < vd; ++c)
-            {
-               d_y(dof, k, c, 0, face) = d_x(t?c:idx1, t?idx1:c);
-               std::cout << d_y(dof, k, c, 0, face) << " "; 
-            }
-            // other side 
-            const int idx2 = d_indices2[dof1d*i+k];
-            std::cout << "  y(dof,:,1,face) = " ; 
-            std::cout << "x(" << idx2 << ") = " ; 
-            for (int c = 0; c < vd; ++c)
-            {
-               d_y(dof, k, c, 1, face) = idx2==-1 ? 0.0 : d_x(t?c:idx2, t?idx2:c);
-               std::cout << d_y(dof, k, c, 1, face) << " "; 
-            }
+            //std::cout << "y("<<1+dof<<","<<1+k<<",1,"<< 1+face<<") " ; 
+         const int idx1 = d_indices1[i];
+         //std::cout << "x(" << idx1 << ") ";
+         for (int c = 0; c < vd; ++c)
+         {  
+            //std::cout << "xdims:" << (t?vd:ndofs) << " by " << (t?ndofs:vd) << " get "  << (t?c:idx1) << "," <<  (t?idx1:c) << " is " << d_x(t?c:idx1, t?idx1:c) << std::endl ; 
+            d_y( dof*dof1d+k , c, 0, face) = d_x(t?c:idx1, t?idx1:c);
+            //std::cout << "dy(" << dof <<","<< k << "," << 0 << "," << face << ") = " << d_y(dof, k, c, 0, face) << std::endl; 
+            std::cout << "side1," << i << "," << dof*dof1d+k << "," << 0 << "," << face << "," << idx1 << "," <<  d_y(dof*dof1d+k, c, 0, face) << "," ; 
          }
-         std::cout << std::endl; 
+         // other side 
+         const int idx2 = d_indices2[i];
+         //std::cout << "y("<<1+dof<<","<<1+k<<",2,"<< 1+face <<") " ; 
+         //std::cout << "x(" << idx2 << ") " ;
+         for (int c = 0; c < vd; ++c)
+         {
+            d_y( dof*dof1d+k, c, 1, face) = ( (idx2==-1) ? 0.0 : d_x(t?c:idx2, t?idx2:c) );
+            //std::cout << "dy(" << dof <<","<< k << "," << 1 << "," << face << ") = " << d_y(dof, k, c, 1, face) << std::endl; 
+            std::cout  << "side2," << i << "," << dof*dof1d+k << "," << 1 << "," << face << "," << idx2 << "," << d_y(dof*dof1d+k, c, 1, face) << std::endl; 
+         }
+         //std::cout << std::endl; 
       });
+
+      /*
+      for (int k = 0; k < dof1d; ++k)
+      for (int d = 0; d < dof1d; ++d)
+      for (int s = 0; s < 2; ++s)
+      for (int f = 0; f < nf; ++f)
+         std::cout  << d_y(d*dof1d+k, 0, s, f) << std::endl; 
+      */
+
    }
    else
    {
-      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+      //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       mfem_error("not yet implemented.");
       /*
       auto d_indices1 = scatter_indices1.Read();
@@ -1912,68 +1911,148 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
       */
    }
 
+   //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   //exit(1);
+
+
+   //std::cout << "y after restriction mult" << std::endl;
+   //y.Print(mfem::out,1);
    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   //exit(1);
 }
 
 void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
 {
    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    // Assumes all elements have the same number of dofs
-   const int nd = dof;
+   const int nd = dof*dof; //this is for 2D, need to generalize for 3D
    const int vd = vdim;
    const bool t = byvdim;
    const int dofs = nfdofs;
    auto d_offsets = offsets.Read();
    auto d_indices = gather_indices.Read();
 
+   x.Print();
+   
+   std::cout << "nd = " << nd << std::endl;
+   std::cout << "vd = " << vd << std::endl;
+   std::cout << "t = " << t << std::endl;
+   std::cout << "dof = " << dof << std::endl;
+   std::cout << "dofs = " << dofs << std::endl;
+   std::cout << "ndofs = " << ndofs << std::endl;
+
    if (m == L2FaceValues::DoubleValued)
    {
-      auto d_x = Reshape(x.Read(), nd, vd, 2, nf);
+      auto d_x = Reshape(x.Read(), dof, dof, vd, 2, nf);
       auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+
+
+      for (int s = 0; s < dof1d; ++s)
+         for (int did = 0; did < dof1d; ++did)
+            for (int faceid = 0; faceid < 12; ++faceid)
+            {
+               std::cout <<  s << " "
+                        << did << " "
+                        << faceid << " "
+                        << d_x(s,did, 0, 0, faceid) << std::endl;
+            }
+
+
+
+
+      std::cout << "gather mult" << std::endl;
       MFEM_FORALL(i, ndofs,
       {
          const int offset = d_offsets[i];
          const int nextOffset = d_offsets[i + 1];
          for (int c = 0; c < vd; ++c)
          {
-            double dofValue = 0;
+            //double dofValue = 0;
             for (int j = offset; j < nextOffset; ++j)
             {
                int idx_j = d_indices[j];
                bool isE1 = idx_j < dofs;
+               // we use e1 e2 but then use D0 D1 in the PA kernel 
                idx_j = isE1 ? idx_j : idx_j - dofs;
-               dofValue +=  isE1 ?
-               d_x(idx_j % nd, c, 0, idx_j / nd)
-               :d_x(idx_j % nd, c, 1, idx_j / nd);
+//               for (int s = 0; s < dof1d; ++s)
+               {
+                  int s = idx_j % dof1d;
+                  int did = (idx_j/dof1d) % dof1d;
+                  int faceid = idx_j / nd;
+                  double dofValue = isE1 ? 
+                  d_x( s, did, c, 0, faceid )
+                  :d_x( s, did, c, 1, faceid );
+
+                  d_y(t?c:i,t?i:c) += dofValue;
+
+                  std::cout << i << " "
+                           << offset << " "
+                           << nextOffset << " "
+                           << j << " "
+                           << idx_j << " "
+                           << isE1 << " "
+                           << s << " "
+                           << did << " "
+                           << faceid << " "
+                           << d_x(s,did, c, 0, faceid) << " "
+                           << d_x(s,did, c, 1, faceid) << " "
+                           << dofValue << " "
+                           << d_y(t?c:i,t?i:c) << std::endl;
+               }
             }
-            d_y(t?c:i,t?i:c) += dofValue;
+            //d_y(t?c:i,t?i:c) += dofValue;
+              // std::cout << d_y(t?c:i,t?i:c) << " " << std::endl;
          }
       });
+      /*
+      MFEM_FORALL(i, ndofs,
+      {
+         const int offset = d_offsets[i];
+         const int nextOffset = d_offsets[i + 1];
+         for (int c = 0; c < vd; ++c)
+         {
+            //double dofValue = 0;
+            for (int j = offset; j < nextOffset; ++j)
+            {
+               int idx_j = d_indices[j];
+               bool isE1 = idx_j < dofs;
+               // we use e1 e2 but then use D0 D1 in the PA kernel 
+               idx_j = isE1 ? idx_j : idx_j - dofs;
+               int did = idx_j % nd;
+               int faceid = idx_j / nd;
+               double dofValue = isE1 ? 
+               d_x( did, c, 0, faceid )
+               :d_x( did, c, 1, faceid );
+
+               d_y(t?c:i,t?i:c) += dofValue;
+
+               std::cout << i << " "
+                        << idx_j << " "
+                        << isE1 << " "
+                        << offset << " "
+                        << nextOffset << " "
+                        << did << " "
+                        << faceid << " "
+                        << d_x(did, c, 0, faceid) << " "
+                        << d_x(did, c, 1, faceid) << " "
+                        << dofValue << " "
+                        << d_y(t?c:i,t?i:c) << std::endl;
+            }
+            //d_y(t?c:i,t?i:c) += dofValue;
+              // std::cout << d_y(t?c:i,t?i:c) << " " << std::endl;
+         }
+      });
+      */
    }
    else
    {
       std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       mfem_error("not yet implemented.");
-      exit(1);
-      auto d_x = Reshape(x.Read(), nd, vd, nf);
-      auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
-      MFEM_FORALL(i, ndofs,
-      {
-         const int offset = d_offsets[i];
-         const int nextOffset = d_offsets[i + 1];
-         for (int c = 0; c < vd; ++c)
-         {
-            double dofValue = 0;
-            for (int j = offset; j < nextOffset; ++j)
-            {
-               int idx_j = d_indices[j];
-               dofValue +=  d_x(idx_j % nd, c, idx_j / nd);
-            }
-            d_y(t?c:i,t?i:c) += dofValue;
-         }
-      });
    }
+
    std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+   //exit(1);
 }
 
 }
