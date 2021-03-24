@@ -25,7 +25,7 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SHIFTED_COMMON_SRC = dist_solver.cpp sbm_solver.cpp
+SHIFTED_COMMON_SRC = dist_solver.cpp sbm_solver.cpp marking.cpp
 SHIFTED_COMMON_OBJ = $(SHIFTED_COMMON_SRC:.cpp=.o)
 
 PAR_MINIAPPS = distance diffusion
