@@ -174,7 +174,6 @@ static void PADGDiffusionSetup(const int dim,
 
 void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
 {
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    nf = fes.GetNFbyType(type);
    if (nf==0) { return; }
    // Assumes tensor-product elements
@@ -186,28 +185,65 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
    const IntegrationRule *ir = IntRule?
                                IntRule:
                                &GetRule(el.GetGeomType(), el.GetOrder(), T);
-   const int symmDims = 4;
    const int nq = ir->GetNPoints();
-
-
    dim = mesh->Dimension();
-   geom = mesh->GetFaceGeometricFactors(
-             *ir,
-             FaceGeometricFactors::DETERMINANTS |
-             FaceGeometricFactors::NORMALS, type);
+   facegeom = mesh->GetFaceGeometricFactors(
+                  *ir,
+                  FaceGeometricFactors::DETERMINANTS |
+                  FaceGeometricFactors::NORMALS, type);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
 
-   std::cout << " nq = ir->GetNPoints = " << nq << std::endl;
-   std::cout << " dofs1D = maps->ndof = " << dofs1D << std::endl;
-   std::cout << " quad1D = maps->nqpt = " << quad1D << std::endl;
+   // Grad Rule   
+   const IntegrationRule *ir_grad = &GetRuleGrad(el.GetGeomType(), el.GetOrder());
+   maps_grad = &el.GetDofToQuad(*ir_grad, DofToQuad::TENSOR);
 
+   auto Gf = Reshape(maps->G.Read(), dofs1D, dofs1D);
+   auto G = Reshape(maps_grad->G.Read(), dofs1D, dofs1D);
+   auto Bf = Reshape(maps->B.Read(), dofs1D, dofs1D);
+   auto B = Reshape(maps_grad->B.Read(), dofs1D, dofs1D);
+   
    // are these the right things for our data?
    coeff_data_1.SetSize( 4 * nq * nf, Device::GetMemoryType());
    coeff_data_2.SetSize( 2 * nq * nf, Device::GetMemoryType());
    coeff_data_3.SetSize( 2 * nq * nf, Device::GetMemoryType());
 
+   face_2_elem_volumes.SetSize( 2 * nf, Device::GetMemoryType());
+
+   // Get element sizes on either side of each face
+   auto f2ev = Reshape(face_2_elem_volumes.ReadWrite(), 2, nf);
+
+   int f_ind = 0;
+   // Loop over all faces
+   for (int f = 0; f < fes.GetNF(); ++f)
+   {
+      int e0,e1;
+      int inf0, inf1;
+      // Get the two elements associated with the current face
+      fes.GetMesh()->GetFaceElements(f, &e0, &e1);
+      fes.GetMesh()->GetFaceInfos(f, &inf0, &inf1);
+      //int face_id = inf0 / 64; //I don't know what 64 is all about 
+      // Act if type matches the kind of face f is
+      bool int_type_match = (type==FaceType::Interior && (e1>=0 || (e1<0 && inf1>=0)));
+      bool bdy_type_match = (type==FaceType::Boundary && e1<0 && inf1<0);
+      if ( int_type_match )
+      {
+         mesh->GetFaceElements(f, &e0, &e1);
+         f2ev(0,f_ind) = mesh->GetElementVolume(e0);
+         f2ev(1,f_ind) = mesh->GetElementVolume(e1);
+         f_ind++;
+      }
+      else if ( bdy_type_match )
+      {
+         mesh->GetFaceElements(f, &e0, &e1);
+         f2ev(0,f_ind) = mesh->GetElementVolume(e0);
+         f2ev(1,f_ind) = -1.0; // Not a real element
+         f_ind++;
+      } 
+   }
+
+   MFEM_VERIFY(f_ind==nf, "Incorrect number of faces.");
    // convert Q to a vector
    Vector Qcoeff;
    if (Q==nullptr)
@@ -218,8 +254,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
    }
    else if (ConstantCoefficient *c_Q = dynamic_cast<ConstantCoefficient*>(Q))
    {
-      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-      exit(1);
+      mfem_error("not yet implemented.");
       // Constant Coefficient
       Qcoeff.SetSize(1);
       Qcoeff(0) = c_Q->constant;
@@ -227,30 +262,18 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
    else if (QuadratureFunctionCoefficient* c_Q =
                dynamic_cast<QuadratureFunctionCoefficient*>(Q))
    {
-      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-      exit(1);
-      // Non constant-coefficient ???
-      /*
-      const QuadratureFunction &qFun = c_Q->GetQuadFunction();
-      MFEM_VERIFY(qFun.Size() == nq * nf,
-                  "Incompatible QuadratureFunction dimension \n");
-
-      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
-                  "IntegrationRule used within integrator and in"
-                  " QuadratureFunction appear to be different");
-      qFun.Read();
-      Q.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
-      */
+      mfem_error("not yet implemented.");
    }
    else
    {
-      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+      mfem_error("not yet implemented.");
+      //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       exit(1);
       // ???????
       /*
       r.SetSize(nq * nf);
       auto C_vel = Reshape(vel.HostRead(), dim, nq, nf);
-      auto n = Reshape(geom->normal.HostRead(), nq, dim, nf);
+      auto n = Reshape(facegeom->normal.HostRead(), nq, dim, nf);
       auto C = Reshape(r.HostWrite(), nq, nf);
       int f_ind = 0;
       for (int f = 0; f < fes.GetNF(); ++f)
