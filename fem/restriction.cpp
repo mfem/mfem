@@ -551,36 +551,36 @@ void GetNormalDFaceDofStencil(const int dim, const int face_id,
             case 0: // SOUTH, j = 0
                for (int i = 0; i < dof1d; ++i)
                {
-                  for (int j = 0; j < dof1d; ++j)
+                  for (int s = 0; s < dof1d; ++s)
                   {
-                     faceMap[dof1d*i+j] = i + j*dof1d;
+                     faceMap[dof1d*i+s] = i + s*dof1d;
                   }
                }
                break;
             case 1: // EAST, i = dof1d-1
-               for (int i = 0; i < dof1d; ++i)
+               for (int j = 0; j < dof1d; ++j)
                {
-                  for (int j = 0; j < dof1d; ++j)
+                  for (int s = 0; s < dof1d; ++s)
                   {
-                     faceMap[dof1d*i+j] = dof1d-1-j + i*dof1d;
+                     faceMap[dof1d*j+s] = dof1d-1-s + j*dof1d;
                   }
                }
                break;
-            case 2: // NORTH, i = dof1d-1
+            case 2: // NORTH, j = dof1d-1
                for (int i = 0; i < dof1d; ++i)
                {
-                  for (int j = 0; j < dof1d; ++j)
+                  for (int s = 0; s < dof1d; ++s)
                   {
-                     faceMap[dof1d*i+j] = (dof1d-1-j)*dof1d + i;
+                     faceMap[dof1d*i+s] = (dof1d-1-s)*dof1d + i;
                   }
                }
                break;
-            case 3: // WEST
-               for (int i = 0; i < dof1d; ++i)
+            case 3: // WEST, i = 0
+               for (int j = 0; j < dof1d; ++j)
                {
-                  for (int j = 0; j < dof1d; ++j)
+                  for (int s = 0; s < dof1d; ++s)
                   {
-                     faceMap[dof1d*i+j] = i*dof1d + j;
+                     faceMap[dof1d*j+s] = s + j*dof1d;
                   }
                }
                break;
@@ -591,7 +591,8 @@ void GetNormalDFaceDofStencil(const int dim, const int face_id,
    }
 }
 
-// Return the face degrees of freedom returned in Lexicographic order.
+// Generates faceMap, which maps face indices to element indices
+// based on Lexicographic ordering
 void GetFaceDofs(const int dim, const int face_id,
                  const int dof1d, Array<int> &faceMap)
 {
