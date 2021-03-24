@@ -939,6 +939,28 @@ static int PermuteFace2D(const int face_id1, const int face_id2,
    return ToLexOrdering2D(face_id2, size1d, new_index);
 }
 
+static int PermuteDFaceDNorm2D(const int face_id1, const int face_id2,
+                                 const int orientation,
+                                 const int size1d, const int index)
+{
+   int new_index;
+   // Convert from lex ordering
+   if (face_id1==2 || face_id1==3)
+   {
+      new_index = size1d-1-index;
+   }
+   else
+   {
+      new_index = index;
+   }
+   // Permute based on face orientations
+   if (orientation==1)
+   {
+      new_index = size1d-1-new_index;
+   }
+   return ToLexOrdering2D(face_id2, size1d, new_index);
+}
+
 static int ToLexOrdering3D(const int face_id, const int size1d, const int i,
                            const int j)
 {
