@@ -5896,6 +5896,12 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
       skip_comment_lines(input, '#');
       input >> ident;
    }
+   else
+   {
+      // no "vertex_parents" section: this file needs to be treated
+      // as MFEM mesh v1.0 for complete backward compatibility with MFEM 4.2
+      throw std::logic_error("retry as v1.0");
+   }
 
    // load element hierarchy
    if (ident == "coarse_elements")
@@ -5914,16 +5920,17 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
 
    // load vertices
    MFEM_VERIFY(ident == "vertices", "invalid mesh file");
-   input >> count;
+   int nvert;
+   input >> nvert;
    input >> std::ws >> ident;
    if (ident != "nodes")
    {
       spaceDim = atoi(ident.c_str());
 
-      coordinates.SetSize(3*count);
+      coordinates.SetSize(3*nvert);
       coordinates = 0.0;
 
-      for (int i = 0; i < count; i++)
+      for (int i = 0; i < nvert; i++)
       {
          for (int j = 0; j < spaceDim; j++)
          {
@@ -5977,6 +5984,13 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
 
    // force file leaf order
    Swap(leaf_elements, file_leaf_elements);
+
+   // make sure Mesh::NVertices is equal to "nvert" from the file (in case of
+   // unused vertices), see also GetMeshComponents
+   if (nvert > vertex_nodeId.Size())
+   {
+      vertex_nodeId.SetSize(nvert, -1);
+   }
 }
 
 void NCMesh::LegacyToNewVertexOrdering(Array<int> &order) const
