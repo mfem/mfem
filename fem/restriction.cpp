@@ -1154,15 +1154,6 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
          orientation = inf2 % 64;
          face_id2 = inf2 / 64;
          GetFaceDofs(dim, face_id2, dof1d, faceMap2); // Only for hex
-         std::cout << "   inf1 = " << inf1 ;
-         std::cout << "   inf2 = " << inf2 ;
-         std::cout << "   e1 = " << e1 ;
-         std::cout << "   e2 = " << e2 ;
-         std::cout << "   dim = " << dim ;
-         std::cout << "   orientation = " << orientation ;
-         std::cout << "   face_id1 = " << face_id1 ;
-         std::cout << "   face_id2 = " << face_id2 ;
-         std::cout << "   dof1d = " << dof1d  << std::endl;
       }
       else
       {
@@ -1179,10 +1170,6 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
             const int did = face_dof;
             const int gid = elementMap[e1*elem_dofs + did];
             const int lid = dof*f_ind + d;
-            std::cout << "   face_dof = " << face_dof ;
-            std::cout << "   elem_dofs = " << elem_dofs ;
-            std::cout << "   lid = " << lid ;
-            std::cout << "   gid = " << gid  << std::endl;
             scatter_indices1[lid] = gid;
          }
          if (m==L2FaceValues::DoubleValued)
@@ -1197,10 +1184,6 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
                   const int did = face_dof;
                   const int gid = elementMap[e2*elem_dofs + did];
                   const int lid = dof*f_ind + d;
-                  std::cout << "   face_dof = " << face_dof ;
-                  std::cout << "   elem_dofs = " << elem_dofs ;
-                  std::cout << "   lid = " << lid ;
-                  std::cout << "   gid = " << gid  << std::endl;
                   scatter_indices2[lid] = gid;
                }
                else if (type==FaceType::Boundary && e2<0) // true boundary face
@@ -1233,27 +1216,12 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
          orientation = inf2 % 64;
          face_id2 = inf2 / 64;
          GetFaceDofs(dim, face_id2, dof1d, faceMap2);
-         std::cout << "   inf1 = " << inf1 ;
-         std::cout << "   inf2 = " << inf2 ;
-         std::cout << "   e1 = " << e1 ;
-         std::cout << "   e2 = " << e2 ;
-         std::cout << "   dim = " << dim ;
-         std::cout << "   orientation = " << orientation ;
-         std::cout << "   face_id1 = " << face_id1 ;
-         std::cout << "   face_id2 = " << face_id2 ;
-         std::cout << "   dof1d = " << dof1d  << std::endl;
 
          for (int d = 0; d < dof; ++d)
          {
             const int did = faceMap1[d];
             const int gid = elementMap[e1*elem_dofs + did];
             ++offsets[gid + 1];
-            std::cout << "   d = " << d;
-            std::cout << "   did = " << did ;
-            std::cout << "   e1 = " << e1 ;
-            std::cout << "   e2 = " << e2 ;
-            std::cout << "   dim = " << dim << std::endl;
-
          }
          if (m==L2FaceValues::DoubleValued)
          {
@@ -1266,11 +1234,6 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
                   const int did = faceMap2[pd];
                   const int gid = elementMap[e2*elem_dofs + did];
                   ++offsets[gid + 1];
-
-                  std::cout << "   d = " << d;
-                  std::cout << "   pd = " << pd ;
-                  std::cout << "   did = " << did << std::endl;
-
                }
             }
          }
