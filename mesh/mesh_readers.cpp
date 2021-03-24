@@ -1044,8 +1044,23 @@ void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
    }
    if (cells_xml == NULL) { MFEM_ABORT(erstr); }
 
-   // Currently don't support reading cell attributes from XML VTK mesh
    Array<int> cell_attributes;
+   for (const XMLElement *cell_data_xml = piece->FirstChildElement();
+        cell_data_xml != NULL;
+        cell_data_xml = cell_data_xml->NextSiblingElement())
+   {
+      if (StringCompare(cell_data_xml->Name(), "CellData")
+          && StringCompare(cell_data_xml->Attribute("Scalars"), "material"))
+      {
+         const XMLElement *data_xml = cell_data_xml->FirstChildElement();
+         if (data_xml != NULL && StringCompare(data_xml->Name(), "DataArray"))
+         {
+            cell_attributes.SetSize(ncells);
+            data_reader.Read(data_xml, cell_attributes.GetData(), ncells);
+         }
+      }
+   }
+
    CreateVTKMesh(points, cell_data, cell_offsets, cell_types, cell_attributes,
                  curved, read_gf, finalize_topo);
 }
