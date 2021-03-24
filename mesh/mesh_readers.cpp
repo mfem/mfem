@@ -652,12 +652,19 @@ namespace vtk_xml
 
 using namespace tinyxml2;
 
+/// Return false if either string is NULL or if the strings differ, return true
+/// if the strings are the same.
 bool StringCompare(const char *s1, const char *s2)
 {
    if (s1 == NULL || s2 == NULL) { return false; }
    return strcmp(s1, s2) == 0;
 }
 
+/// Abstract base class for reading continguous arrays of (potentially
+/// compressed, potentially base-64 encoded) binary data from a buffer into a
+/// destination array. The types of the source and destination arrays may be
+/// different (e.g. read data of type uint8_t into destination array of
+/// uint32_t), which is handled by the templated derived class @a BufferReader.
 struct BufferReaderBase
 {
    enum HeaderType { UINT32_HEADER, UINT64_HEADER };
@@ -666,6 +673,16 @@ struct BufferReaderBase
    virtual ~BufferReaderBase() { }
 };
 
+/// Read an array of source data stored as (potentially compressed, potentially
+/// base-64 encoded) into a destination array. The types of the elements in the
+/// source array are given by template parameter @a F ("from") and the types of
+/// the elements of the destination array are given by @a T ("to"). The binary
+/// data has a header, which is one integer if the data is uncompressed, and is
+/// four integers if the data is compressed. The integers may either by uint32_t
+/// or uint64_t, according to the @a header_type. If the data is compressed and
+/// base-64 encoded, then the header is encoded separately from the data. If the
+/// data is uncompressed and base-64 encoded, then the header and data are
+/// encoded together.
 template <typename T, typename F>
 struct BufferReader : BufferReaderBase
 {
@@ -674,6 +691,10 @@ struct BufferReader : BufferReaderBase
    BufferReader(bool compressed_, HeaderType header_type_)
       : compressed(compressed_), header_type(header_type_) { }
 
+   /// Return the number of bytes in the header. The header consists of one
+   /// integer if the data is uncompressed, and four integers if the data is
+   /// compressed. The integers are either 32 or 64 bytes depending on the value
+   /// of @a header_type.
    int NumHeaderBytes() const
    {
       int num_entries = compressed ? 4 : 1;
@@ -682,6 +703,11 @@ struct BufferReader : BufferReaderBase
       return num_entries*entry_size;
    }
 
+   /// Read @a n elements of type @a F from the source buffer @a buf into the
+   /// (pre-allocated) destination array of elements of type @a T stored in
+   /// the buffer @a dest_void. The header is stored @b separately from the
+   /// rest of the data, in the buffer @a header_buf. The data buffer @a buf
+   /// does @b not contain a header.
    void ReadBinaryWithHeader(const char *header_buf, const char *buf,
                              void *dest_void, int n) const
    {
@@ -748,11 +774,18 @@ struct BufferReader : BufferReaderBase
       }
    }
 
+   /// Read @a n elements of type @a F from source buffer @a buf into
+   /// (pre-allocated) array of elements of type @a T stored in destination
+   /// buffer @a dest. The input buffer contains both the header and the data.
    void ReadBinary(const char *buf, void *dest, int n) const override
    {
       ReadBinaryWithHeader(buf, buf + NumHeaderBytes(), dest, n);
    }
 
+   /// Read @a n elements of type @a F from base-64 encoded source buffer into
+   /// (pre-allocated) array of elements of type @a T stored in destination
+   /// buffer @a dest. The base-64-encoded data is given by the null-terminated
+   /// string @a txt, which contains both the header and the data.
    void ReadBase64(const char *txt, void *dest, int n) const override
    {
       // Skip whitespace
@@ -782,6 +815,10 @@ struct BufferReader : BufferReaderBase
    }
 };
 
+/// Class to read data from VTK's @a DataArary elements. Each @a DataArray can
+/// contain inline ASCII data, inline base-64-encoded data (potentially
+/// compressed), or reference "appended data", which may be raw or base-64, and
+/// may be compressed or uncompressed.
 struct XMLDataReader
 {
    const char *appended_data, *byte_order, *compressor;
@@ -789,6 +826,10 @@ struct XMLDataReader
    map<string,BufferReaderBase*> type_map;
    AppendedDataEncoding encoding;
 
+   /// Create the data reader, where @a vtk is the @a VTKFile XML element, and
+   /// @a vtu is the child @a UnstructuredGrid XML element. This will determine
+   /// the header type (32 or 64 bit integers) and whether compression is
+   /// enabled or not. The appended data will be loaded.
    XMLDataReader(const XMLElement *vtk, const XMLElement *vtu)
    {
       // Determine whether binary data header is 32 or 64 bit integer
@@ -810,6 +851,7 @@ struct XMLDataReader
       compressor = vtk->Attribute("compressor");
       bool compressed = (compressor != NULL);
 
+      // Find the appended data.
       appended_data = NULL;
       for (const XMLElement *xml_elem = vtu->NextSiblingElement();
            xml_elem != NULL;
@@ -856,6 +898,9 @@ struct XMLDataReader
       type_map["Float64"] = new BufferReader<double, double>(compressed, htype);
    }
 
+   /// Read the @a DataArray XML element given by @a xml_elem into
+   /// (pre-allocated) destination array @a dest, where @a dest stores @a n
+   /// elements of type @a T.
    template <typename T>
    void Read(const XMLElement *xml_elem, T *dest, int n)
    {
@@ -1044,6 +1089,7 @@ void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
    }
    if (cells_xml == NULL) { MFEM_ABORT(erstr); }
 
+   // Read the element attributes, which are stored as CellData named "material"
    Array<int> cell_attributes;
    for (const XMLElement *cell_data_xml = piece->FirstChildElement();
         cell_data_xml != NULL;
