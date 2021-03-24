@@ -1458,8 +1458,6 @@ void MemoryManager::SetDualMemoryType(MemoryType mt, MemoryType dual_mt)
 
 void MemoryManager::UpdateDualMemoryType(MemoryType mt, MemoryType dual_mt)
 {
-   MFEM_VERIFY(!configured, "changing the dual MemoryTypes is not allowed after"
-               " MemoryManager configuration!");
    MFEM_VERIFY((int)mt < MemoryTypeSize,
                "invalid MemoryType, mt = " << (int)mt);
    MFEM_VERIFY((int)dual_mt < MemoryTypeSize,
