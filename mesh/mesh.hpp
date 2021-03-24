@@ -743,7 +743,8 @@ public:
        integration rule. */
    const GeometricFactors* GetGeometricFactors(const IntegrationRule& ir,
                                                const int flags,
-                                               DofToQuad::Mode = DofToQuad::FULL);
+                                               DofToQuad::Mode = DofToQuad::FULL,
+                                               MemoryType d_mt = MemoryType::DEFAULT);
 
    /** @brief Return the mesh geometric factors for the faces corresponding
         to the given integration rule. */
@@ -1374,7 +1375,8 @@ public:
    };
 
    GeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags,
-                    DofToQuad::Mode = DofToQuad::FULL);
+                    DofToQuad::Mode = DofToQuad::FULL,
+                    MemoryType d_mt = MemoryType::DEFAULT);
 
    GeometricFactors(const GridFunction *nodes_, const IntegrationRule &ir,
                     int flags,

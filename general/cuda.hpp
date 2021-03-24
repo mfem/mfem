@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -43,7 +43,6 @@
 #if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)
 #define MFEM_SHARED __shared__
 #define MFEM_SYNC_THREAD __syncthreads()
-#define MFEM_BLOCK_ID(k) blockIdx.k
 #define MFEM_THREAD_ID(k) threadIdx.k
 #define MFEM_THREAD_SIZE(k) blockDim.k
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=threadIdx.k; i<N; i+=blockDim.k)
@@ -64,14 +63,14 @@ void* CuMemAlloc(void **d_ptr, size_t bytes);
 /// Allocates managed device memory
 void* CuMallocManaged(void **d_ptr, size_t bytes);
 
-/// Allocate page-locked (pinned) host memory
-void* CuMemAllocHost(void **ptr, size_t bytes);
+/// Allocates page-locked (pinned) host memory
+void* CuMemAllocHostPinned(void **ptr, size_t bytes);
 
 /// Frees device memory and returns destination ptr.
 void* CuMemFree(void *d_ptr);
 
 /// Frees page-locked (pinned) host memory and returns destination ptr.
-void* CuMemFreeHost(void *ptr);
+void* CuMemFreeHostPinned(void *ptr);
 
 /// Copies memory from Host to Device and returns destination ptr.
 void* CuMemcpyHtoD(void *d_dst, const void *h_src, size_t bytes);
