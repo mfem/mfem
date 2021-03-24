@@ -380,7 +380,11 @@ public:
        visualization: the mesh is written as a disjoint mesh and the shared
        boundary is added to the actual boundary; both the element and boundary
        attributes are set to the processor number.  */
-   void PrintAsOne(std::ostream &out = mfem::out);
+   void PrintAsOne(std::ostream &out = mfem::out) const;
+
+   /// Save the mesh as a single file (using ParMesh::PrintAsOne). The given
+   /// @a precision is used for ASCII output.
+   void SaveAsOne(const char *fname, int precision=8) const;
 
    /// Old mesh format (Netgen/Truegrid) version of 'PrintAsOne'
    void PrintAsOneXG(std::ostream &out = mfem::out);
