@@ -459,6 +459,7 @@ void PADGDiffusionApply2D(const int NF,
             {  
                // Evaluate du/dn on the face from each side
                // Uses a stencil inside 
+               const double g = B(0,q);
                Gu0[d][c] += g*x(q,d,c,0,f);
                Gu1[d][c] += g*x(q,d,c,1,f);
             }
@@ -808,7 +809,7 @@ void DGDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
                   maps->G, maps->Gt,
                   coeff_data_1,coeff_data_2,coeff_data_3,
                   x, y);
- 
+}
 
 void DGDiffusionIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 {
