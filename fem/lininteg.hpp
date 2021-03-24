@@ -35,6 +35,10 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
+   virtual void AssembleRHSElementVect(const FiniteElement &el1,
+                                       const FiniteElement &el2,
+                                       FaceElementTransformations &Tr,
+                                       Vector &elvect);
 
    virtual void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
    const IntegrationRule* GetIntRule() { return IntRule; }
@@ -459,35 +463,6 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
-};
-
-class SBM2DirichletLFIntegrator : public LinearFormIntegrator
-{
-protected:
-   ShiftedFunctionCoefficient *uD;
-   VectorCoefficient *vD; // Distance function coefficient
-   double alpha; // Nitsche parameter
-   bool elem1f; // flag to indicate wether elem1 associated with the internal
-   // face is inside the domain or not (in that case elem2 is).
-   int nterms;  //Number of terms in addition to the gradient term from Taylor
-   //expansion that should be included. (0 by default).
-
-   // these are not thread-safe!
-   Vector shape, dshape_dd, dshape_dn, nor, nh, ni;
-   DenseMatrix dshape, mq, adjJ;
-
-public:
-   SBM2DirichletLFIntegrator(ShiftedFunctionCoefficient &u, const double a,
-                             VectorCoefficient &vD_, int nterms_ = 0)
-      : uD(&u), vD(&vD_), alpha(a), nterms(nterms_)  { }
-
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       FaceElementTransformations &Tr,
-                                       Vector &elvect);
-   void SetElem1Flag(bool flag_) { elem1f = flag_; }
 };
 
 /** Boundary linear form integrator for imposing non-zero Dirichlet boundary

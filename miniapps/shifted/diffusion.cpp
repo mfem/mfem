@@ -17,12 +17,15 @@
 //              -nabla^u = f with inhomogeneous boundary conditions, f is setup
 //              such that u = sin(pi*x*y)
 //   mpirun -np 4 diffusion -m ../../data/inline-quad.mesh -rs 2 -o 1 -vis -lst 3
-
+//
+//   Problem 4: Same as Problem 3 but now we also treat a domain boundary as
+//   shifted boundary
 #include "../../mfem.hpp"
 #include <fstream>
 #include <iostream>
 #include "sbm-aux.hpp"
 #include "../common/mfem-common.hpp"
+#include "sbm_solver.hpp"
 
 using namespace mfem;
 using namespace std;
@@ -62,9 +65,9 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
-//   args.AddOption(&exact, "-ex", "--exact", "-no-ex",
-//                  "--no-exact",
-//                  "Use exact representaion of distance vector function.");
+   //   args.AddOption(&exact, "-ex", "--exact", "-no-ex",
+   //                  "--no-exact",
+   //                  "Use exact representaion of distance vector function.");
    args.AddOption(&level_set_type, "-lst", "--level-set-type",
                   "level-set-type:");
    args.AddOption(&ho_terms, "-ho", "--high-order",
@@ -124,10 +127,21 @@ int main(int argc, char *argv[])
    pmesh.SetNodalGridFunction(&x_mesh);
    vxyz = *pmesh.GetNodes();
    int nodes_cnt = vxyz.Size()/dim;
-   if (level_set_type == 3) { //stretch quadmesh from [0, 1] to [-1.e-4, 1]
-       for (int i = 0; i < nodes_cnt; i++) {
-           vxyz(i+nodes_cnt) = (1.+1.e-4)*vxyz(i+nodes_cnt)-1.e-4;
-       }
+   if (level_set_type == 3)   //stretch quadmesh from [0, 1] to [-1.e-4, 1]
+   {
+      for (int i = 0; i < nodes_cnt; i++)
+      {
+         vxyz(i+nodes_cnt) = (1.+1.e-4)*vxyz(i+nodes_cnt)-1.e-4;
+      }
+   }
+   else if (level_set_type ==
+            4)   //stretch quadmesh from [0, 1] to [1.e-4, 1+2e-4]
+   {
+      for (int i = 0; i < nodes_cnt; i++)
+      {
+         vxyz(i+nodes_cnt) = (1.+1.e-4)*vxyz(i+nodes_cnt)+1.e-4/std::pow(2.,
+                                                                         ser_ref_levels);
+      }
    }
    pmesh.SetNodes(vxyz);
    pfespace.ExchangeFaceNbrData();
@@ -189,24 +203,25 @@ int main(int argc, char *argv[])
    // Check neighbors on the adjacent MPI rank
    for (int i = pmesh.GetNE(); i < pmesh.GetNE()+pmesh.GetNSharedFaces(); i++)
    {
-       int shared_fnum = i-pmesh.GetNE();
-       tr = pmesh.GetSharedFaceTransformations(shared_fnum);
-       int Elem2NbrNo = tr->Elem2No - pmesh.GetNE();
+      int shared_fnum = i-pmesh.GetNE();
+      tr = pmesh.GetSharedFaceTransformations(shared_fnum);
+      int Elem2NbrNo = tr->Elem2No - pmesh.GetNE();
 
-       ElementTransformation *eltr =
-               pfespace.GetFaceNbrElementTransformation(Elem2NbrNo);
-       const IntegrationRule &ir =
+      ElementTransformation *eltr =
+         pfespace.GetFaceNbrElementTransformation(Elem2NbrNo);
+      const IntegrationRule &ir =
          IntRulesLo.Get(pfespace.GetFaceNbrFE(Elem2NbrNo)->GetGeomType(),
                         4*eltr->OrderJ());
 
-       const int nip = ir.GetNPoints();
-       vals.SetSize(nip);
-       int count = 0;
-       for (int j = 0; j < nip; j++) {
-          const IntegrationPoint &ip = ir.IntPoint(j);
-          vals[j] = level_set_val.GetValue(tr->Elem2No, ip);
-          if (vals[j] <= 0.) { count++; }
-       }
+      const int nip = ir.GetNPoints();
+      vals.SetSize(nip);
+      int count = 0;
+      for (int j = 0; j < nip; j++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(j);
+         vals[j] = level_set_val.GetValue(tr->Elem2No, ip);
+         if (vals[j] <= 0.) { count++; }
+      }
 
       if (count == ir.GetNPoints()) // completely outside
       {
@@ -241,7 +256,6 @@ int main(int argc, char *argv[])
 
    // First we check interior faces of the mesh (excluding interior faces that
    // are on the processor boundaries)
-   double count1 = 0;
    for (int i = 0; i < pmesh.GetNumFaces(); i++)
    {
       FaceElementTransformations *tr = NULL;
@@ -249,19 +263,18 @@ int main(int argc, char *argv[])
       const int faceno = i;
       if (tr != NULL)
       {
-         count1 += 1;
          int ne1 = tr->Elem1No;
          int ne2 = tr->Elem2No;
          int te1 = elem_marker[ne1], te2 = elem_marker[ne2];
          if (te1 == 2 && te2 == 0)
          {
-             pfespace.GetFaceDofs(faceno, dofs);
-             sbm_dofs.Append(dofs);
+            pfespace.GetFaceDofs(faceno, dofs);
+            sbm_dofs.Append(dofs);
          }
          if (te1 == 0 && te2 == 2)
          {
-             pfespace.GetFaceDofs(faceno, dofs);
-             sbm_dofs.Append(dofs);
+            pfespace.GetFaceDofs(faceno, dofs);
+            sbm_dofs.Append(dofs);
          }
       }
    }
@@ -270,36 +283,35 @@ int main(int argc, char *argv[])
    // Here we add boundary faces that we want to model as SBM faces.
    // For the method where we clip inside the domain, a boundary face
    // has to be set as SBM face using its attribute.
-   double count2 = 0;
    for (int i = 0; i < pmesh.GetNBE(); i++)
    {
       int attr = pmesh.GetBdrAttribute(i);
       FaceElementTransformations *tr;
       tr = pmesh.GetBdrFaceTransformations (i);
-      if (tr != NULL) {
-          if (attr == 100) { // add all boundary faces with attr=100 as SBM faces
-              count2 += 1;
-              int ne1 = tr->Elem1No;
-              int te1 = elem_marker[ne1];
-              const int faceno = pmesh.GetBdrFace(i);
-              if (te1 == 0)
-              {
-                 pfespace.GetFaceDofs(faceno, dofs);
-                 sbm_dofs.Append(dofs);
-              }
-          }
+      if (tr != NULL)
+      {
+         if (attr == 100 ||
+             (level_set_type == 4 &&
+              attr == 1))   // add all boundary faces with attr=100 as SBM faces
+         {
+            int ne1 = tr->Elem1No;
+            int te1 = elem_marker[ne1];
+            const int faceno = pmesh.GetBdrFace(i);
+            if (te1 == 0)
+            {
+               pfespace.GetFaceDofs(faceno, dofs);
+               sbm_dofs.Append(dofs);
+            }
+         }
       }
    }
 
    // Now we add interior faces that are on processor boundaries.
-   double count3 = 0;
-   double count3b = 0;
    for (int i = 0; i < pmesh.GetNSharedFaces(); i++)
    {
       tr = pmesh.GetSharedFaceTransformations(i);
       if (tr != NULL)
       {
-         count3b += 1;
          int ne1 = tr->Elem1No;
          int te1 = elem_marker[ne1];
          int te2 = elem_marker[i+pmesh.GetNE()];
@@ -308,7 +320,6 @@ int main(int argc, char *argv[])
          // and the the element on other proc is not
          if (te2 == 2 && te1 == 0)
          {
-            count3 += 1;
             pfespace.GetFaceDofs(faceno, dofs);
             sbm_dofs.Append(dofs);
          }
@@ -325,9 +336,16 @@ int main(int argc, char *argv[])
    // Make a list of dofs on all boundaries
    Array<int> ess_tdof_list;
    Array<int> ess_bdr(pmesh.bdr_attributes.Max());
+   Array<int> ess_shift_bdr = ess_bdr;
    if (pmesh.bdr_attributes.Size())
    {
       ess_bdr = 1;
+      ess_shift_bdr = 0;
+      if (level_set_type == 4)
+      {
+         ess_bdr[0] = 0;
+         ess_shift_bdr[0] = 1;
+      }
    }
    Array<int> ess_vdofs_bdr;
    pfespace.GetEssentialVDofs(ess_bdr, ess_vdofs_bdr);
@@ -341,8 +359,9 @@ int main(int argc, char *argv[])
       if (elem_marker[e] > 0)
       {
          pfespace.GetElementVDofs(e, dofs);
-         for (int i = 0; i < dofs.Size(); i++) {
-             ess_vdofs_hole[dofs[i]] = -1;
+         for (int i = 0; i < dofs.Size(); i++)
+         {
+            ess_vdofs_hole[dofs[i]] = -1;
          }
       }
    }
@@ -354,21 +373,25 @@ int main(int argc, char *argv[])
    }
 
    // Unmark dofs that are on SBM faces (but not on dirichlet boundaries)
-   for (int i = 0; i < sbm_dofs.Size(); i++) {
-       if (ess_vdofs_bdr[sbm_dofs[i]] != -1) { 
-          ess_vdofs_hole[sbm_dofs[i]] = 0;
-       }
+   for (int i = 0; i < sbm_dofs.Size(); i++)
+   {
+      if (ess_vdofs_bdr[sbm_dofs[i]] != -1)
+      {
+         ess_vdofs_hole[sbm_dofs[i]] = 0;
+      }
    }
 
    // Synchronize
-   for (int i = 0; i < ess_vdofs_hole.Size() ; i++) {
-       ess_vdofs_hole[i] += 1;
+   for (int i = 0; i < ess_vdofs_hole.Size() ; i++)
+   {
+      ess_vdofs_hole[i] += 1;
    }
 
    pfespace.Synchronize(ess_vdofs_hole);
 
-   for (int i = 0; i < ess_vdofs_hole.Size() ; i++) {
-       ess_vdofs_hole[i] -= 1;
+   for (int i = 0; i < ess_vdofs_hole.Size() ; i++)
+   {
+      ess_vdofs_hole[i] -= 1;
    }
 
    // convert to tdofs
@@ -377,7 +400,6 @@ int main(int argc, char *argv[])
                                                 ess_tdofs);
    pfespace.MarkerToList(ess_tdofs, ess_tdof_list);
 
-
    // Compute Distance Vector - Use analytic distance vectors for now.
    auto distance_vec_space = new ParFiniteElementSpace(pfespace.GetParMesh(),
                                                        pfespace.FEColl(), dim);
@@ -385,16 +407,17 @@ int main(int argc, char *argv[])
 
    // Get the Distance from the level set either using a numerical approach
    // or project an exact analytic function.
-//   HeatDistanceSolver dist_func(1.0);
-//   dist_func.smooth_steps = 1;
-//   dist_func.ComputeVectorDistance(dist_fun_level_coef, distance);
+   //   HeatDistanceSolver dist_func(1.0);
+   //   dist_func.smooth_steps = 1;
+   //   dist_func.ComputeVectorDistance(dist_fun_level_coef, distance);
 
    VectorCoefficient *dist_vec = NULL;
-   if (true) {
-       Dist_Vector_Coefficient *dist_vec_fcoeff =
-               new Dist_Vector_Coefficient(dim, level_set_type);
-       dist_vec = dist_vec_fcoeff;
-       distance.ProjectDiscCoefficient(*dist_vec);
+   if (true)
+   {
+      Dist_Vector_Coefficient *dist_vec_fcoeff =
+         new Dist_Vector_Coefficient(dim, level_set_type);
+      dist_vec = dist_vec_fcoeff;
+      distance.ProjectDiscCoefficient(*dist_vec);
    }
 
    if (visualization)
@@ -414,7 +437,7 @@ int main(int argc, char *argv[])
    ess_elem.Append(0);
    for (int i = 0; i < pmesh.GetNE(); i++)
    {
-       if (elem_marker[i] >= 1) { pmesh.SetAttribute(i, max_elem_attr+1); }
+      if (elem_marker[i] >= 1) { pmesh.SetAttribute(i, max_elem_attr+1); }
    }
    pmesh.SetAttributes();
 
@@ -422,36 +445,50 @@ int main(int argc, char *argv[])
    // the FEM linear system.
    ParLinearForm b(&pfespace);
    FunctionCoefficient *rhs_f = NULL;
-   if (level_set_type == 1) {
-       rhs_f = new FunctionCoefficient(rhs_fun_circle);
+   if (level_set_type == 1)
+   {
+      rhs_f = new FunctionCoefficient(rhs_fun_circle);
    }
-   else if (level_set_type == 2) {
-       rhs_f = new FunctionCoefficient(rhs_fun_xy_exponent);
+   else if (level_set_type == 2)
+   {
+      rhs_f = new FunctionCoefficient(rhs_fun_xy_exponent);
    }
-   else if (level_set_type == 3) {
-       rhs_f = new FunctionCoefficient(rhs_fun_xy_sinusoidal);
+   else if (level_set_type == 3 || level_set_type == 4)
+   {
+      rhs_f = new FunctionCoefficient(rhs_fun_xy_sinusoidal);
    }
-   else {
-       MFEM_ABORT("Dirichlet velocity function not set for level set type.\n");
+   else
+   {
+      MFEM_ABORT("Dirichlet velocity function not set for level set type.\n");
    }
    b.AddDomainIntegrator(new DomainLFIntegrator(*rhs_f), ess_elem);
 
    // Dirichlet BC that must be imposed on the true boundary.
    ShiftedFunctionCoefficient *dbcCoef = NULL;
-   if (level_set_type == 1) {
-       dbcCoef = new ShiftedFunctionCoefficient(dirichlet_velocity_circle);
+   if (level_set_type == 1)
+   {
+      dbcCoef = new ShiftedFunctionCoefficient(dirichlet_velocity_circle);
    }
-   else if (level_set_type == 2) {
-       dbcCoef = new ShiftedFunctionCoefficient(dirichlet_velocity_xy_exponent);
+   else if (level_set_type == 2)
+   {
+      dbcCoef = new ShiftedFunctionCoefficient(dirichlet_velocity_xy_exponent);
    }
-   else if (level_set_type == 3) {
-       dbcCoef = new ShiftedFunctionCoefficient(dirichlet_velocity_xy_sinusoidal);
+   else if (level_set_type == 3 || level_set_type == 4)
+   {
+      dbcCoef = new ShiftedFunctionCoefficient(dirichlet_velocity_xy_sinusoidal);
    }
-   else {
-       MFEM_ABORT("Dirichlet velocity function not set for level set type.\n");
+   else
+   {
+      MFEM_ABORT("Dirichlet velocity function not set for level set type.\n");
    }
-   b.AddShiftedBdrFaceIntegrator(new SBM2DirichletLFIntegrator(*dbcCoef, alpha, *dist_vec, ho_terms),
-                                 elem_marker);
+   b.AddInteriorFaceIntegrator(new SBM2DirichletLFIntegrator(&pmesh, *dbcCoef,
+                                                              alpha, *dist_vec,
+                                                              elem_marker,
+                                                              ho_terms));
+   b.AddBdrFaceIntegrator(new SBM2DirichletLFIntegrator(&pmesh, *dbcCoef,
+                                                         alpha, *dist_vec,
+                                                         elem_marker,
+                                                         ho_terms), ess_shift_bdr);
    b.Assemble();
 
    // Set up the bilinear form a(.,.) on the finite element space
@@ -461,19 +498,23 @@ int main(int argc, char *argv[])
    ConstantCoefficient one(1.);
 
    a.AddDomainIntegrator(new DiffusionIntegrator(one), ess_elem);
-   a.AddShiftedBdrFaceIntegrator(new SBM2DirichletIntegrator(alpha, *dist_vec, ho_terms),
-                                 elem_marker);
+   a.AddInteriorFaceIntegrator(new SBM2DirichletIntegrator(&pmesh, alpha,
+                                                           *dist_vec, elem_marker, ho_terms));
+   a.AddBdrFaceIntegrator(new SBM2DirichletIntegrator(&pmesh, alpha, *dist_vec,
+                                                      elem_marker, ho_terms), ess_shift_bdr);
 
    // Assemble the bilinear form and the corresponding linear system,
    // applying any necessary transformations.
+   a.KeepNbrBlock();
    a.Assemble();
 
    // Project the exact solution as an initial condition for dirichlet boundaries.
    x = 0;
    x.ProjectCoefficient(*dbcCoef);
    // Zero out non-essential boundaries.
-   for (int i = 0; i < ess_vdofs_hole.Size(); i++) {
-       if (ess_vdofs_hole[i] != -1) { x(i) = 0.; }
+   for (int i = 0; i < ess_vdofs_hole.Size(); i++)
+   {
+      if (ess_vdofs_hole[i] != -1) { x(i) = 0.; }
    }
 
    // Form the linear system and solve it.
@@ -520,25 +561,30 @@ int main(int argc, char *argv[])
    ParGridFunction err(x);
    Vector pxyz(dim);
    pxyz(0) = 0.;
-   for (int i = 0; i < nodes_cnt; i++) {
-       pxyz(0) = vxyz(i);;
-       pxyz(1) = vxyz(i+nodes_cnt);
-       double exact_val;
-       if (level_set_type == 1) {
-           exact_val = dirichlet_velocity_circle(pxyz);
-       }
-       else if (level_set_type == 2) {
-           exact_val = dirichlet_velocity_xy_exponent(pxyz);
-       }
-       else if (level_set_type == 3) {
-           exact_val = dirichlet_velocity_xy_sinusoidal(pxyz);
-       }
-       err(i) = std::fabs(x(i) - exact_val);
+   for (int i = 0; i < nodes_cnt; i++)
+   {
+      pxyz(0) = vxyz(i);;
+      pxyz(1) = vxyz(i+nodes_cnt);
+      double exact_val = 0.;
+      if (level_set_type == 1)
+      {
+         exact_val = dirichlet_velocity_circle(pxyz);
+      }
+      else if (level_set_type == 2)
+      {
+         exact_val = dirichlet_velocity_xy_exponent(pxyz);
+      }
+      else if (level_set_type == 3 || level_set_type == 4)
+      {
+         exact_val = dirichlet_velocity_xy_sinusoidal(pxyz);
+      }
+      err(i) = std::fabs(x(i) - exact_val);
    }
 
    double global_error = err.Norml2();
-   if (myid == 0 && level_set_type != 1) {
-       std::cout << global_error << " Global error - L2 norm.\n";
+   if (myid == 0 && level_set_type != 1)
+   {
+      std::cout << global_error << " Global error - L2 norm.\n";
    }
 
    if (visualization && level_set_type >= 3 && level_set_type <= 4)
@@ -563,11 +609,11 @@ int main(int argc, char *argv[])
       myfile.open ("error.txt", ios::app);
       double h_factor = pow(1./2, ser_ref_levels*1.);
       cout << order << " " <<
-                ho_terms << " " <<
-                h_factor << " " <<
-                errnorm << " " <<
-                NEglob << " " <<
-                "k10-analytic-L2Error\n";
+           ho_terms << " " <<
+           h_factor << " " <<
+           errnorm << " " <<
+           NEglob << " " <<
+           "k10-analytic-L2Error\n";
       myfile.close();
    }
 
