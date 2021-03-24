@@ -3502,15 +3502,31 @@ void Mesh::Loader(std::istream &input, int generate_edges,
                      "Legacy nonconforming format (MFEM mesh v1.1) cannot be "
                      "used to load a parallel nonconforming mesh, sorry.");
 
+         // load a parallel "MFEM NC mesh v1.0" file
          ncmesh = new ParNCMesh(pmesh->GetComm(),
                                 input, mfem_nc_version, curved);
+         InitFromNCMesh(*ncmesh);
       }
       else
 #endif
       {
-         ncmesh = new NCMesh(input, mfem_nc_version, curved);
+         std::streampos retry_pos = input.tellg();
+         try
+         {
+            // this is the standard path of loading serial "MFEM NC mesh v1.0"
+            ncmesh = new NCMesh(input, mfem_nc_version, curved);
+            InitFromNCMesh(*ncmesh);
+         }
+         catch (const std::logic_error &)
+         {
+            // emulate a special case of MFEM <=4.2 loading the legacy v1.1 file
+            // with no "vertex_parents" section (treat as conforming v1.0, which
+            // handles e.g. unused vertices differently)
+            input.seekg(retry_pos);
+            ReadMFEMMesh(input, 10, curved);
+            MFEM_ASSERT(ncmesh == NULL, "internal error");
+         }
       }
-      InitFromNCMesh(*ncmesh);
    }
    else if (mesh_type == "linemesh") // 1D mesh
    {
