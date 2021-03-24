@@ -246,6 +246,8 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
    elem_restrict = NULL;
    int_face_restrict_lex = NULL;
    bdr_face_restrict_lex = NULL;
+   int_face_normD_restrict_lex = NULL;
+   bdr_face_normD_restrict_lex = NULL;
 }
 
 void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
@@ -275,8 +277,6 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
       faceIntX.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
       faceIntY.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
       faceIntY.UseDevice(true); // ensure 'faceIntY = 0.0' is done on device
-
-      std::cout << "int_face_restrict_lex->Height() = " << int_face_restrict_lex->Height() << std::endl;
    }
 
    if (bdr_face_restrict_lex == NULL && a->GetBFBFI()->Size() > 0)
@@ -288,17 +288,14 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
       faceBdrX.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
       faceBdrY.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
       faceBdrY.UseDevice(true); // ensure 'faceBoundY = 0.0' is done on device
-
-      std::cout << "bdr_face_restrict_lex->Height() = " << bdr_face_restrict_lex->Height() << std::endl;
    }
 
 
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    // Normal derivative at face restrictions
 
    // Construct face restriction operators only if the bilinear form has
    // interior or boundary face integrators
-   if (int_face_normD_restrict_lex == NULL && a->GetFBFI()->Size() > 0)
+   if (int_face_normD_restrict_lex == NULL && a->GetNDFBFI()->Size() > 0)
    {
       int_face_normD_restrict_lex = trialFes->GetFaceNormalDerivRestriction(
                                  ElementDofOrdering::LEXICOGRAPHIC,
@@ -306,13 +303,9 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
       faceNormDIntX.SetSize(int_face_normD_restrict_lex->Height(), Device::GetMemoryType());
       faceNormDIntY.SetSize(int_face_normD_restrict_lex->Height(), Device::GetMemoryType());
       faceNormDIntY.UseDevice(true); // ensure 'faceIntY = 0.0' is done on device
-
-      std::cout << "int_face_normD_restrict_lex->Height() = " << int_face_normD_restrict_lex->Height() << std::endl;
    }
 
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
-   if (bdr_face_normD_restrict_lex == NULL && a->GetBFBFI()->Size() > 0)
+   if (bdr_face_normD_restrict_lex == NULL && a->GetNDBFBFI()->Size() > 0)
    {
       bdr_face_normD_restrict_lex = trialFes->GetFaceNormalDerivRestriction(
                                  ElementDofOrdering::LEXICOGRAPHIC,
@@ -321,13 +314,7 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
       faceNormDBdrX.SetSize(bdr_face_normD_restrict_lex->Height(), Device::GetMemoryType());
       faceNormDBdrY.SetSize(bdr_face_normD_restrict_lex->Height(), Device::GetMemoryType());
       faceNormDBdrY.UseDevice(true); // ensure 'faceBoundY = 0.0' is done on device
-
-      std::cout << "bdr_face_normD_restrict_lex->Height() = " << bdr_face_normD_restrict_lex->Height() << std::endl;
    }
-
-
-
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 }
 
 void PABilinearFormExtension::Assemble()
@@ -335,43 +322,44 @@ void PABilinearFormExtension::Assemble()
    // want values from each cell to form numerical flux
    SetupRestrictionOperators(L2FaceValues::DoubleValued);
 
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
    {
-      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       integrators[i]->AssemblePA(*a->FESpace());
-      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    }
 
    MFEM_VERIFY(a->GetBBFI()->Size() == 0,
                "Partial assembly does not support AddBoundaryIntegrator yet.");
 
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
    Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
    const int intFaceIntegratorCount = intFaceIntegrators.Size();
    for (int i = 0; i < intFaceIntegratorCount; ++i)
    {
-      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       intFaceIntegrators[i]->AssemblePAInteriorFaces(*a->FESpace());
-      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    }
-
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
    Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
    const int boundFaceIntegratorCount = bdrFaceIntegrators.Size();
    for (int i = 0; i < boundFaceIntegratorCount; ++i)
    {
-      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       bdrFaceIntegrators[i]->AssemblePABoundaryFaces(*a->FESpace());
-      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    }
-   
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+   Array<BilinearFormIntegrator*> &intNDFaceIntegrators = *a->GetNDFBFI();
+   const int intNDFaceIntegratorCount = intNDFaceIntegrators.Size();
+   for (int i = 0; i < intNDFaceIntegratorCount; ++i)
+   {
+      intNDFaceIntegrators[i]->AssemblePAInteriorFaces(*a->FESpace());
+   }
+
+   Array<BilinearFormIntegrator*> &bdrNDFaceIntegrators = *a->GetNDBFBFI();
+   const int boundNDFaceIntegratorCount = bdrNDFaceIntegrators.Size();
+   for (int i = 0; i < boundNDFaceIntegratorCount; ++i)
+   {
+      bdrNDFaceIntegrators[i]->AssemblePABoundaryFaces(*a->FESpace());
+   }
+
 }
 
 void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
@@ -419,6 +407,8 @@ void PABilinearFormExtension::Update()
    elem_restrict = nullptr;
    int_face_restrict_lex = nullptr;
    bdr_face_restrict_lex = nullptr;
+   int_face_normD_restrict_lex = nullptr;
+   bdr_face_normD_restrict_lex = nullptr;
 }
 
 void PABilinearFormExtension::FormSystemMatrix(const Array<int> &ess_tdof_list,
@@ -442,11 +432,8 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 
 void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-   
-   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
-   x.Print();
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
    // exactly the same for PA
    // A = A_L
@@ -477,22 +464,14 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
    {
-      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       int_face_restrict_lex->Mult(x, faceIntX);
-      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       if (faceIntX.Size()>0)
       {
          faceIntY = 0.0;
-         std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-         std::cout << "iFISz = " << iFISz << std::endl;
          for (int i = 0; i < iFISz; ++i)
          {
-            std::cout << "i = " << i << std::endl;
-            std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
             intFaceIntegrators[i]->AddMultPA(faceIntX, faceIntY);
-            std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
          }
-         std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
          int_face_restrict_lex->MultTranspose(faceIntY, y);
       }
    }
@@ -517,29 +496,21 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int iNDFISz = intNormalDerivFaceIntegrators.Size();
    if (int_face_normD_restrict_lex && iNDFISz>0)
    {
-      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       int_face_normD_restrict_lex->Mult(x, faceNormDIntX);
-      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       if (faceNormDIntX.Size()>0)
       {
          faceNormDIntY = 0.0;
-         std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-         std::cout << "iFISz = " << iNDFISz << std::endl;
          for (int i = 0; i < iNDFISz; ++i)
          {
-            std::cout << "i = " << i << std::endl;
-            std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
             intNormalDerivFaceIntegrators[i]->AddMultPA(faceNormDIntX, faceNormDIntY);
-            std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
          }
-         std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
          int_face_normD_restrict_lex->MultTranspose(faceNormDIntY, y);
       }
    }
 
    Array<BilinearFormIntegrator*> &bdrNormalDerivFaceIntegrators = *a->GetNDBFBFI();
    const int bNDFISz = bdrNormalDerivFaceIntegrators.Size();
-   if (bdr_face_restrict_lex && bNDFISz>0)
+   if (bdr_face_normD_restrict_lex && bNDFISz>0)
    {
       bdr_face_normD_restrict_lex->Mult(x, faceNormDBdrX);
       if (faceNormDBdrX.Size()>0)
@@ -552,28 +523,6 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
          bdr_face_normD_restrict_lex->MultTranspose(faceNormDBdrY, y);
       }
    }
-
-   int NF = 36;
-   int Q1D = 2;
-   int D1D = 2;
-   int VDIM = 1;
-   bool flag = false;
-   auto debugy = Reshape(y.ReadWrite(), D1D, VDIM, 2, NF); 
-
-   for (int q1 = 0; q1 < Q1D; ++q1)
-      for (int vdim = 0; vdim < 1; ++vdim)
-         for (int side = 0; side < 2; ++side)
-            for (int face = 0; face < NF; ++face)
-            {
-               double ytest = debugy(q1,vdim,side,face);
-               //if( !std::isfinite(ytest) )
-               {  
-                  flag = true;
-                  std::cout << "y(" << q1 <<","<< vdim <<","<< side <<","<< face <<") = " << ytest <<";" << std::endl;
-               }
-            }
-
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 }
 
 void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
