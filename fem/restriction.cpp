@@ -1809,30 +1809,12 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
    // is x transposed?
    const bool t = byvdim;
 
-   std::cout << "x before restriction mult" << std::endl;
-   x.Print(mfem::out,1);
-
-   std::cout << "t = " << t << std::endl;
-
-
    if (m==L2FaceValues::DoubleValued)
    {
-      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       auto d_indices1 = scatter_indices1.Read();
       auto d_indices2 = scatter_indices2.Read();
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
       auto d_y = Reshape(y.Write(), nd, vd, 2, nf);
-      std::cout << " ndofs " << ndofs << std::endl;
-      std::cout << " vd " << vd << std::endl;
-      std::cout << " nd " << nd << std::endl;
-      std::cout << " dof1d " << dof1d << std::endl;
-      std::cout << " nfdofs " << nfdofs << std::endl;
-      std::cout << " nf " << nf << std::endl;
-      std::cout << " nd*vd*2*nf " << nd*vd*2*nf << std::endl;
-
-      x.Print(mfem::out,8);
-      y.Print(mfem::out,8);
-
 
       // Loop over all face dofs
       MFEM_FORALL(i, nd*vd*nf,
@@ -1840,59 +1822,21 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
          const int k = i % dof1d;
          const int dof = (i/dof1d) % dof1d;
          const int face = i / (nd);
-         /*
-         std::cout << "i = " << i << std::endl;
-         std::cout << "(i/2) = " << (i/2) << std::endl;
-         std::cout << "dof = " << dof << std::endl;
-         exit(1);
-         */
-         // lid = dof*dof1d*f_ind + dof1d*d + k
-         //int k = 0;
-         //for (int k = 0; k < dof1d; ++k)
-            //const int face_dof = faceMap2[pd*dof1d+k];
-            //const int did = face_dof;
-            //const int gid = elementMap[e2*elem_dofs + did];
-            //const int lid = dof1d*dof*f_ind + dof1d*d + k;
-            //std::cout << " face_dof " << face_dof ;
-            //std::cout << " lid2 " << lid ;
-            //std::cout << " gid2 " << gid ;
-            //scatter_indices2[lid] = gid;
-            // first side 
-            //std::cout << "y("<<1+dof<<","<<1+k<<",1,"<< 1+face<<") " ; 
          const int idx1 = d_indices1[i];
-         //std::cout << "x(" << idx1 << ") ";
          for (int c = 0; c < vd; ++c)
          {  
-            //std::cout << "xdims:" << (t?vd:ndofs) << " by " << (t?ndofs:vd) << " get "  << (t?c:idx1) << "," <<  (t?idx1:c) << " is " << d_x(t?c:idx1, t?idx1:c) << std::endl ; 
             d_y( dof*dof1d+k , c, 0, face) = d_x(t?c:idx1, t?idx1:c);
-            //std::cout << "dy(" << dof <<","<< k << "," << 0 << "," << face << ") = " << d_y(dof, k, c, 0, face) << std::endl; 
-            std::cout << "side1," << i << "," << dof*dof1d+k << "," << 0 << "," << face << "," << idx1 << "," <<  d_y(dof*dof1d+k, c, 0, face) << "," ; 
          }
          // other side 
          const int idx2 = d_indices2[i];
-         //std::cout << "y("<<1+dof<<","<<1+k<<",2,"<< 1+face <<") " ; 
-         //std::cout << "x(" << idx2 << ") " ;
          for (int c = 0; c < vd; ++c)
          {
             d_y( dof*dof1d+k, c, 1, face) = ( (idx2==-1) ? 0.0 : d_x(t?c:idx2, t?idx2:c) );
-            //std::cout << "dy(" << dof <<","<< k << "," << 1 << "," << face << ") = " << d_y(dof, k, c, 1, face) << std::endl; 
-            std::cout  << "side2," << i << "," << dof*dof1d+k << "," << 1 << "," << face << "," << idx2 << "," << d_y(dof*dof1d+k, c, 1, face) << std::endl; 
          }
-         //std::cout << std::endl; 
       });
-
-      /*
-      for (int k = 0; k < dof1d; ++k)
-      for (int d = 0; d < dof1d; ++d)
-      for (int s = 0; s < 2; ++s)
-      for (int f = 0; f < nf; ++f)
-         std::cout  << d_y(d*dof1d+k, 0, s, f) << std::endl; 
-      */
-
    }
    else
    {
-      //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       mfem_error("not yet implemented.");
       /*
       auto d_indices1 = scatter_indices1.Read();
@@ -1910,15 +1854,6 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
       });
       */
    }
-
-   //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-   //exit(1);
-
-
-   //std::cout << "y after restriction mult" << std::endl;
-   //y.Print(mfem::out,1);
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-   //exit(1);
 }
 
 void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
