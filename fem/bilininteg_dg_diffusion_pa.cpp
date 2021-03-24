@@ -15,11 +15,6 @@
 #include "gridfunc.hpp"
 #include "restriction.hpp"
 
-
-//what is the difference between apply and applytranspose for dgtrace?
-
-//using namespace std;
-
 /* 
    Integrator for the DG form:
 
@@ -37,11 +32,13 @@ static void PADGDiffusionSetup2D(const int Q1D,
                              const Array<double> &weights,
                              const Array<double> &g,
                              const Array<double> &b,
+                             const Vector &jac,
                              const Vector &det_jac,
                              const Vector &nor,
                              const Vector &Q,
                              const Vector &rho,
                              const Vector &vel,
+                             const Vector &face_2_elem_volumes,
                              const double sigma,
                              const double kappa,
                              Vector &op1,
@@ -50,58 +47,10 @@ static void PADGDiffusionSetup2D(const int Q1D,
 {
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto B = Reshape(b.Read(), Q1D, D1D);
-   const int VDIM = 1; // why ? 
-   auto detJ = Reshape(det_jac.Read(), Q1D, NF);
+   const int VDIM = 2; // why ? 
+   auto detJ = Reshape(det_jac.Read(), Q1D, NF); // assumes conforming mesh
    auto norm = Reshape(nor.Read(), Q1D, VDIM, NF);
-   
-   std::cout << "NF =  " << NF << std::endl;
-   std::cout << "Q1D =  " << Q1D << std::endl;
-   std::cout << "D1D =  " << D1D << std::endl;
-
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
-   for (int q = 0; q < Q1D; ++q)
-      for (int d = 0; d < D1D; ++d)
-      {
-        std::cout << "G(" << q+1 << "," << d+1 << ") = " ;
-        std::cout << G(q,d) << ";" << std::endl;
-      }
-
-   for (int q = 0; q < Q1D; ++q)
-      for (int d = 0; d < D1D; ++d)
-      {
-        std::cout << "B(" << q+1 << "," << d+1 << ") = " ;
-        std::cout << B(q,d) << ";" << std::endl;
-      }
-
-   for (int q = 0; q < Q1D; ++q)
-      for (int f = 0; f < NF; ++f)
-      {
-        std::cout << "detJ(" << q+1 << "," << f+1 << ") = " ;
-        std::cout << detJ(q,f) << ";" << std::endl;
-      }
-
-   for (int q = 0; q < Q1D; ++q)
-      for (int v = 0; v < VDIM; ++v)
-         for (int f = 0; f < NF; ++f)
-         {
-            std::cout << "n(" << q+1 << "," << v+1 << "," << f+1 << ") = " ;
-            std::cout << norm(q,v,f) << ";" << std::endl;
-         }
-
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
-/** Integrator for the DG form:
-    - < {(Q grad(u)).n}, [v] > + sigma < [u], {(Q grad(v)).n} >
-    + kappa < {h^{-1} Q} [u], [v] >,
-    where Q is a scalar or matrix diffusion coefficient and u, v are the trial
-    and test spaces, respectively. The parameters sigma and kappa determine the
-    DG method to be used (when this integrator is added to the "broken"
-    DiffusionIntegrator):
-    * sigma = -1, kappa >= kappa0: symm. interior penalty (IP or SIPG) method,
-    * sigma = +1, kappa > 0: non-symmetric interior penalty (NIPG) method,
-    * sigma = +1, kappa = 0: the method of Baumann and Oden. 
-   */
+   auto f2ev = Reshape(face_2_elem_volumes.Read(), 2, NF);
 
    // Input
    const bool const_Q = Q.Size() == 1;
@@ -114,32 +63,55 @@ static void PADGDiffusionSetup2D(const int Q1D,
    auto op_data_ptr2 = Reshape(op2.Write(), Q1D, 2, NF);
    auto op_data_ptr3 = Reshape(op3.Write(), Q1D, 2, NF);
 
-   // Loop over all faces
    MFEM_FORALL(f, NF, // can be optimized with Q1D thread for NF blocks
    {
       for (int q = 0; q < Q1D; ++q)
       {
-         const double n = norm(q,0,f) + norm(q,1,f);
+         const double normx = norm(q,0,f);
+         const double normy = norm(q,1,f);
+         //const double normz = norm(q,0,f) + norm(q,1,f); //todo: fix for 
+         const double mag_norm = sqrt(normx*normx + normy*normy); //todo: fix for 
          const double Q = const_Q ? Qreshaped(0,0) : Qreshaped(q,f);
          const double w = wgts[q]*Q*detJ(q,f);
-         // data for 1st term
-         op_data_ptr1(q,0,0,f) =  n*w*Q/2;
-         op_data_ptr1(q,1,0,f) = -n*w*Q/2;
-         op_data_ptr1(q,0,1,f) =  n*w*Q/2;
-         op_data_ptr1(q,1,1,f) = -n*w*Q/2;
-         // data for 2nd term
-         op_data_ptr2(q,0,f) =    n*w*Q*sigma/2;
-         op_data_ptr2(q,1,f) =    n*w*Q*sigma/2;
-         // data for 3rd term
-         const double h0 = 1.0/3.0;
-         const double h1 = 1.0/3.0;
-         op_data_ptr3(q,0,f) =    w*Q*kappa*(1/h0+1/h1)/2;
-         op_data_ptr3(q,1,f) =   -w*Q*kappa*(1/h0+1/h1)/2;
-         // need to do this 
+         // Need to correct the scaling of w to account for d/dn, etc..
+         double w_o_detJ = w/detJ(q,f);
+         if( f2ev(1,f) == -1.0 )
+         {
+            // Boundary face
+            // data for 1st term    - < {(Q grad(u)).n}, [v] >
+            op_data_ptr1(q,0,0,f) = w_o_detJ;
+            op_data_ptr1(q,1,0,f) = -w_o_detJ;
+            op_data_ptr1(q,0,1,f) = w_o_detJ;
+            op_data_ptr1(q,1,1,f) = -w_o_detJ;
+            // data for 2nd term    + sigma < [u], {(Q grad(v)).n} > 
+            op_data_ptr2(q,0,f) =   w_o_detJ*sigma;
+            op_data_ptr2(q,1,f) =   0.0*w_o_detJ*sigma;
+            // data for 3rd term    + kappa < {h^{-1} Q} [u], [v] >
+            const double h0 = detJ(q,f)/mag_norm;
+            const double h1 = detJ(q,f)/mag_norm;
+            op_data_ptr3(q,0,f) =   w*kappa/h0;
+            op_data_ptr3(q,1,f) =  -w*kappa/h0;
+         }
+         else
+         {
+            // Interior face
+            // data for 1st term    - < {(Q grad(u)).n}, [v] >
+            op_data_ptr1(q,0,0,f) = w_o_detJ/2.0;
+            op_data_ptr1(q,1,0,f) = -w_o_detJ/2.0;
+            op_data_ptr1(q,0,1,f) = w_o_detJ/2.0;
+            op_data_ptr1(q,1,1,f) = -w_o_detJ/2.0;;
+            // data for 2nd term    + sigma < [u], {(Q grad(v)).n} > 
+            op_data_ptr2(q,0,f) =   w_o_detJ*sigma/2.0;
+            op_data_ptr2(q,1,f) =   w_o_detJ*sigma/2.0;
+            // data for 3rd term    + kappa < {h^{-1} Q} [u], [v] >
+            const double h0 = detJ(q,f)/mag_norm;
+            const double h1 = detJ(q,f)/mag_norm;
+            op_data_ptr3(q,0,f) =   -w*kappa*(1.0/h0+1.0/h1)/2.0;
+            op_data_ptr3(q,1,f) =   w*kappa*(1.0/h0+1.0/h1)/2.0;
+         }
+
       }
    });
-
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 }
 
 static void PADGDiffusionSetup3D(const int Q1D,
