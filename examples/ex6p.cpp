@@ -15,8 +15,8 @@
 //               mpirun -np 4 ex6p -m ../data/pipe-nurbs.mesh
 //               mpirun -np 4 ex6p -m ../data/star-surf.mesh -o 2
 //               mpirun -np 4 ex6p -m ../data/square-disc-surf.mesh -rm 2 -o 2
-//               mpirun -np 4 ex6p -m ../data/amr-quad.mesh
 //               mpirun -np 4 ex6p -m ../data/inline-segment.mesh -o 1 -md 200
+//               mpirun -np 4 ex6p -m ../data/amr-quad.mesh
 //               mpirun -np 4 ex6p --restart
 //
 // Device sample runs:
