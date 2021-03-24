@@ -47,7 +47,7 @@ void ParLinearForm::Assemble()
 {
    LinearForm::Assemble();
 
-   if (sflfi.Size())
+   if (iflfi.Size())
    {
       pfes->ExchangeFaceNbrData();
       AssembleSharedFaces();
@@ -59,10 +59,10 @@ void ParLinearForm::AssembleSharedFaces()
    Array<int> vdofs;
    Vector elemvect;
 
-   if (sflfi.Size())
+   if (iflfi.Size())
    {
       ParMesh *pmesh = pfes->GetParMesh();
-      for (int k = 0; k < sflfi.Size(); k++)
+      for (int k = 0; k < iflfi.Size(); k++)
       {
          for (int i = 0; i < pmesh->GetNSharedFaces(); i++)
          {
@@ -71,17 +71,12 @@ void ParLinearForm::AssembleSharedFaces()
 
             if (tr != NULL)
             {
-               int ne1 = tr->Elem1No;
-               int te1 = (*(sflfi_elem_marker[k]))[ne1];
-               int te2 = (*(sflfi_elem_marker[k]))[i+pmesh->GetNE()];
-               if (te2 == 2 && te1 == 0)
-               {
-                  fes -> GetElementVDofs (tr -> Elem1No, vdofs);
-                  dynamic_cast<SBM2DirichletLFIntegrator *>(sflfi[k])->SetElem1Flag(true);
-                  sflfi[0] -> AssembleRHSElementVect (*fes->GetFE(tr -> Elem1No),
-                                                      *tr, elemvect);
-                  AddElementVector (vdofs, elemvect);
-               }
+               int Elem2Nbr = tr->Elem2No - pmesh->GetNE();
+               fes -> GetElementVDofs (tr -> Elem1No, vdofs);
+               iflfi[0] -> AssembleRHSElementVect (*fes->GetFE(tr -> Elem1No),
+                                                   *pfes->GetFaceNbrFE(Elem2Nbr),
+                                                   *tr, elemvect);
+               AddElementVector (vdofs, elemvect);
             }
          }
       }

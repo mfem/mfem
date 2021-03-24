@@ -49,18 +49,8 @@ protected:
    Array<LinearFormIntegrator*> flfi;
    Array<Array<int>*>           flfi_marker; ///< Entries are not owned.
 
-   /// Set of Shifted Boundary Face Integrators
-   Array<LinearFormIntegrator*> sflfi;
-   /// Array for element marker indicates:
-   /// 0 - element is inside the domain
-   /// 1 - element is outside
-   /// 2 - element is cut by the true boundary
-   Array<Array<int>*>           sflfi_elem_marker;
-   /// Boundary attribue marker (should be of length mesh->bdr_attributes)
-   /// Ignores all by default.
-   /// 0 - ignore attribute
-   /// 1 - include attribute
-   Array<Array<int>*>           sflfi_bdr_attr_marker;
+   /// Set of Internal Face Integrators to be applied.
+   Array<LinearFormIntegrator*> iflfi;
 
    /// The element ids where the centers of the delta functions lie
    Array<int> dlfi_delta_elem_id;
@@ -155,17 +145,8 @@ public:
    void AddBdrFaceIntegrator(LinearFormIntegrator *lfi,
                              Array<int> &bdr_attr_marker);
 
-   /// Adds new Shifted boundary Face Integrator. The Faces are identified based
-   /// on @a elem_marker (0 if element is in the domain, 1 if outside, and 2 if
-   /// cut by the true boundary). Internal faces that are between elements with
-   /// marker 0 and 2 are shifted boundary faces.
-   void AddShiftedBdrFaceIntegrator(LinearFormIntegrator *lfi,
-                                    Array<int> &elem_marker);
-   /// Adds new Shifted boundary Face Integrator and include certain boundary
-   /// faces using @a bdr_attr_marker.
-   void AddShiftedBdrFaceIntegrator(LinearFormIntegrator *lfi,
-                                    Array<int> &elem_marker,
-                                    Array<int> &bdr_attr_marker);
+   /// Adds new Interior Face Integrator. Assumes ownership of @a lfi.
+   void AddInteriorFaceIntegrator(LinearFormIntegrator *lfi);
 
    /** @brief Access all integrators added with AddDomainIntegrator() which are
        not DeltaLFIntegrator%s or they are DeltaLFIntegrator%s with non-delta

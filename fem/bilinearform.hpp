@@ -107,18 +107,6 @@ protected:
    Array<BilinearFormIntegrator*> bfbfi;
    Array<Array<int>*>             bfbfi_marker; ///< Entries are not owned.
 
-   Array<BilinearFormIntegrator*> sbfbfi;
-   /// Array for element marker
-   /// 0 if element is inside the domain
-   /// 1 if element is outside
-   /// 2 if element is cut by the true boundary
-   Array<Array<int>*>             sbfbfi_el_marker;
-   /// Boundary attribue marker (should be of length mesh->bdr_attributes)
-   /// Ignores all by default.
-   /// 0 - ignore attribute
-   /// 1 - include attribute
-   Array<Array<int>*>             sbfbfi_bdr_attr_marker;
-
    DenseMatrix elemmat;
    Array<int>  vdofs;
 
@@ -376,18 +364,6 @@ public:
        as a pointer to the given Array<int> object. */
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
                              Array<int> &bdr_marker);
-
-   /// Adds new Shifted boundary Face Integrator. The Faces are identified based
-   /// on @a elem_marker (0 if element is in the domain, 1 if outside, and 2 if
-   /// cut by the true boundary). Internal faces that are between elements with
-   /// marker 0 and 2 are shifted boundary faces.
-   void AddShiftedBdrFaceIntegrator(BilinearFormIntegrator *bfi,
-                                    Array<int> &elem_marker);
-   /// Adds new Shifted boundary Face Integrator and include certain boundary
-   /// faces using @a bdr_attr_marker.
-   void AddShiftedBdrFaceIntegrator(BilinearFormIntegrator *bfi,
-                                    Array<int> &elem_marker,
-                                    Array<int> &bdr_attr_marker);
 
    /// Sets all sparse values of \f$ M \f$ and \f$ M_e \f$ to 'a'.
    void operator=(const double a)
