@@ -616,7 +616,7 @@ void BilinearForm::Assemble(int skip_zeros)
       }
    }
 
-   if (ndfbfi.Size())
+   if (ndbfbfi.Size())
    {
       FaceElementTransformations *tr;
       const FiniteElement *fe1, *fe2;
@@ -625,7 +625,7 @@ void BilinearForm::Assemble(int skip_zeros)
       Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
                                  mesh->bdr_attributes.Max() : 0);
       bdr_attr_marker = 0;
-      for (int k = 0; k < ndfbfi.Size(); k++)
+      for (int k = 0; k < ndbfbfi.Size(); k++)
       {
          if (ndbfbfi_marker[k] == NULL)
          {
@@ -656,12 +656,12 @@ void BilinearForm::Assemble(int skip_zeros)
             // but we can't dereference a NULL pointer, and we don't want to
             // actually make a fake element.
             fe2 = fe1;
-            for (int k = 0; k < ndfbfi.Size(); k++)
+            for (int k = 0; k < ndbfbfi.Size(); k++)
             {
                if (ndbfbfi_marker[k] &&
                    (*ndbfbfi_marker[k])[bdr_attr-1] == 0) { continue; }
 
-               ndfbfi[k] -> AssembleFaceMatrix (*fe1, *fe2, *tr, elemmat);
+               ndbfbfi[k] -> AssembleFaceMatrix (*fe1, *fe2, *tr, elemmat);
                mat -> AddSubMatrix (vdofs, vdofs, elemmat, skip_zeros);
             }
          }
