@@ -3026,6 +3026,42 @@ void ParFiniteElementSpace::Update(bool want_transform)
 }
 
 ConformingProlongationOperator::ConformingProlongationOperator(
+   int lsize, const GroupCommunicator &gc_, bool local_)
+   : gc(gc_), local(local_)
+{
+   const Table &group_ldof = gc.GroupLDofTable();
+
+   int n_external = 0;
+   for (int g=1; g<group_ldof.Size(); ++g)
+   {
+      if (!gc.GetGroupTopology().IAmMaster(g))
+      {
+         n_external += group_ldof.RowSize(g);
+      }
+   }
+   int tsize = lsize - n_external;
+
+   height = lsize;
+   width = tsize;
+
+   external_ldofs.Reserve(n_external);
+   for (int gr = 1; gr < group_ldof.Size(); gr++)
+   {
+      if (!gc.GetGroupTopology().IAmMaster(gr))
+      {
+         external_ldofs.Append(group_ldof.GetRow(gr), group_ldof.RowSize(gr));
+      }
+   }
+   external_ldofs.Sort();
+}
+
+const GroupCommunicator &ConformingProlongationOperator::GetGroupCommunicator()
+const
+{
+   return gc;
+}
+
+ConformingProlongationOperator::ConformingProlongationOperator(
    const ParFiniteElementSpace &pfes, bool local_)
    : Operator(pfes.GetVSize(), pfes.GetTrueVSize()),
      external_ldofs(),
@@ -3136,17 +3172,12 @@ void ConformingProlongationOperator::MultTranspose(
 }
 
 DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
-   const ParFiniteElementSpace &pfes,
-   bool local_) :
-   ConformingProlongationOperator(pfes),
-   mpi_gpu_aware(Device::GetGPUAwareMPI()),
-   local(local_)
+   const GroupCommunicator &gc_, const SparseMatrix *R, bool local_)
+   : ConformingProlongationOperator(R->Width(), gc_, local_),
+     mpi_gpu_aware(Device::GetGPUAwareMPI())
 {
-   MFEM_ASSERT(pfes.Conforming(), "internal error");
-   const SparseMatrix *R = pfes.GetRestrictionMatrix();
    MFEM_ASSERT(R->Finalized(), "");
    const int tdofs = R->Height();
-   MFEM_ASSERT(tdofs == pfes.GetTrueVSize(), "");
    MFEM_ASSERT(tdofs == R->HostReadI()[tdofs], "");
    ltdof_ldof = Array<int>(const_cast<int*>(R->HostReadJ()), tdofs);
    ltdof_ldof.UseDevice();
@@ -3204,6 +3235,16 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
       if (recv_size > 0) { req_counter++; }
    }
    requests = new MPI_Request[req_counter];
+}
+
+DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
+   const ParFiniteElementSpace &pfes, bool local_)
+   : DeviceConformingProlongationOperator(pfes.GroupComm(),
+                                          pfes.GetRestrictionMatrix(),
+                                          local_)
+{
+   MFEM_ASSERT(pfes.Conforming(), "internal error");
+   MFEM_ASSERT(pfes.GetRestrictionMatrix()->Height() == pfes.GetTrueVSize(), "");
 }
 
 static void ExtractSubVector(const int N,
