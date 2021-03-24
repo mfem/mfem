@@ -1594,12 +1594,13 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
    int inf1, inf2;
    int face_id1, face_id2;
    int orientation;
+   int orientation1;
+   int orientation2;
    const int elem_dofs = fes.GetFE(0)->GetDof();
    const int dim = fes.GetMesh()->SpaceDimension();
 
    // Computation of scatter indices
    int f_ind=0;
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    for (int f = 0; f < fes.GetNF(); ++f)
    {
       fes.GetMesh()->GetFaceElements(f, &e1, &e2);
@@ -1607,21 +1608,13 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
       if (dof_reorder)
       {
          orientation = inf1 % 64; // why 64?
+         orientation1 = orientation;
          face_id1 = inf1 / 64;
-         std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
          GetNormalDFaceDofStencil(dim, face_id1, dof1d, faceMap1); // Only for hex
          orientation = inf2 % 64;
+         orientation2 = orientation;
          face_id2 = inf2 / 64;
          GetNormalDFaceDofStencil(dim, face_id2, dof1d, faceMap2); // Only for hex
-         std::cout << "   inf1 = " << inf1 ;
-         std::cout << "   inf2 = " << inf2 ;
-         std::cout << "   e1 = " << e1 ;
-         std::cout << "   e2 = " << e2 ;
-         std::cout << "   dim = " << dim ;
-         std::cout << "   orientation = " << orientation ;
-         std::cout << "   face_id1 = " << face_id1 ;
-         std::cout << "   face_id2 = " << face_id2 ;
-         std::cout << "   dof1d = " << dof1d  << std::endl;
       }
       else
       {
@@ -1633,7 +1626,6 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
           (type==FaceType::Boundary && e2<0))
       {
          // Compute task-local scatter id for each face dof
-         std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
          for (int d = 0; d < dof; ++d)
          {
             for (int k = 0; k < dof1d; ++k)
@@ -1642,15 +1634,33 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                const int did = face_dof;
                const int gid = elementMap[e1*elem_dofs + did];
                const int lid = dof*dof1d*f_ind + dof1d*d + k;
-               std::cout << "   face_dof = " << face_dof ;
-               std::cout << "   elem_dofs = " << elem_dofs ;
-               std::cout << "   lid = " << lid ;
-               std::cout << "   gid = " << gid  << std::endl;
                scatter_indices1[lid] = gid;
+
+               // todo - guard this with (m==L2FaceValues::DoubleValued
+               // For double-values face dofs, compute second scatter index
+               if (type==FaceType::Interior && e2>=0) // interior face
+               {
+                  const int pd = PermuteDFaceDNormL2(dim, face_id1, face_id2,
+                                             orientation, dof1d, d);
+                                             
+                  const int face_dof = orientation==1?faceMap2[pd*dof1d+k]:faceMap2[pd*dof1d+dof1d+1-k];
+                  const int did = face_dof;
+                  const int gid = elementMap[e2*elem_dofs + did];
+                  const int lid = dof1d*dof*f_ind + dof1d*d + k;
+                  scatter_indices2[lid] = gid;
+               }
+               else if (type==FaceType::Boundary && e2<0) // true boundary face
+               {
+                  const int lid = dof1d*dof*f_ind + dof1d*d + k;
+                  scatter_indices2[lid] = -1;
+               }
+               std::cout << std::endl;
             }
          }
+
          if (m==L2FaceValues::DoubleValued)
          {
+            /*
             // For double-values face dofs, compute second scatter index
             for (int d = 0; d < dof; ++d)
             {
