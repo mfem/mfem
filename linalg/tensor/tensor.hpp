@@ -425,6 +425,16 @@ struct is_serial_tensor<Tensor<Rank,T,C,L>>
    static constexpr bool value = is_serial_layout<L>::value;
 };
 
+// is_2d_threaded_tensor
+template <typename Tensor>
+struct is_2d_threaded_tensor;
+
+template <int Rank, typename T, typename C, typename L>
+struct is_2d_threaded_tensor<Tensor<Rank,T,C,L>>
+{
+   static constexpr bool value = is_2d_threaded_layout<L>::value;
+};
+
 // template <int Rank, typename T>
 // using ViewTensor = Tensor<Rank,T,ViewContainer,RestrictedLayout>;
 
