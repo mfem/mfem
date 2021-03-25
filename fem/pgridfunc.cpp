@@ -857,9 +857,9 @@ void ParGridFunction::Save(std::ostream &out) const
 void ParGridFunction::Save(const char *fname, int precision) const
 {
    int rank = pfes->GetMyRank();
-   ostringstream name;
-   name << fname << "." << setfill('0') << setw(6) << rank;
-   ofstream ofs(name.str().c_str());
+   ostringstream fname_with_suffix;
+   fname_with_suffix << fname << "." << setfill('0') << setw(6) << rank;
+   ofstream ofs(fname_with_suffix.str().c_str());
    ofs.precision(precision);
    Save(ofs);
 }

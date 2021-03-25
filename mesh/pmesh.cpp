@@ -4327,6 +4327,15 @@ void ParMesh::Print(std::ostream &out) const
    }
 }
 
+void ParMesh::Save(const char *fname, int precision) const
+{
+   ostringstream fname_with_suffix;
+   fname_with_suffix << fname << "." << setfill('0') << setw(6) << MyRank;
+   ofstream ofs(fname_with_suffix.str().c_str());
+   ofs.precision(precision);
+   Print(ofs);
+}
+
 #ifdef MFEM_USE_ADIOS2
 void ParMesh::Print(adios2stream &out) const
 {
