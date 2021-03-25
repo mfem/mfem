@@ -152,7 +152,7 @@ public:
    }
 
    template <int N>
-   static constexpr int Size()
+   constexpr int Size() const
    {
       static_assert(N>=0 && N<sizeof...(Sizes),"Accessed size is higher than the rank of the Tensor.");
       return Dim<N,Sizes...>::val;
@@ -218,7 +218,7 @@ public:
 
    // Can be constexpr if Tensor inherit from Layout
    template <int N> MFEM_HOST_DEVICE inline
-   static constexpr int Size()
+   constexpr int Size() const
    {
       static_assert(N==0,"Accessed size is higher than the rank of the Tensor.");
       return DimX;
@@ -249,7 +249,7 @@ public:
 
    // Can be constexpr if Tensor inherit from Layout
    template <int N> MFEM_HOST_DEVICE inline
-   static constexpr int Size()
+   constexpr int Size() const
    {
       static_assert(N>=0 && N<2,"Accessed size is higher than the rank of the Tensor.");
       return Dim<N,DimX,DimY>::val;
@@ -283,7 +283,7 @@ public:
 
    // Can be constexpr if Tensor inherit from Layout
    template <int N> MFEM_HOST_DEVICE inline
-   static constexpr int Size()
+   constexpr int Size() const
    {
       static_assert(N>=0 && N<rank(DimX,DimY,Dims...),"Accessed size is higher than the rank of the Tensor.");
       return Dim<N,DimX,DimY,Dims...>::val;
