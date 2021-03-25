@@ -4327,6 +4327,15 @@ void ParMesh::Print(std::ostream &out) const
    }
 }
 
+void ParMesh::Save(const char *fname, int precision) const
+{
+   ostringstream fname_with_suffix;
+   fname_with_suffix << fname << "." << setfill('0') << setw(6) << MyRank;
+   ofstream ofs(fname_with_suffix.str().c_str());
+   ofs.precision(precision);
+   Print(ofs);
+}
+
 #ifdef MFEM_USE_ADIOS2
 void ParMesh::Print(adios2stream &out) const
 {
@@ -4346,7 +4355,7 @@ static void dump_element(const Element* elem, Array<int> &data)
    }
 }
 
-void ParMesh::PrintAsOne(std::ostream &out)
+void ParMesh::PrintAsOne(std::ostream &out) const
 {
    int i, j, k, p, nv_ne[2], &nv = nv_ne[0], &ne = nv_ne[1], vc;
    const int *v;
@@ -4653,6 +4662,17 @@ void ParMesh::PrintAsOne(std::ostream &out)
          }
       }
    }
+}
+
+void ParMesh::SaveAsOne(const char *fname, int precision) const
+{
+   ofstream ofs;
+   if (MyRank == 0)
+   {
+      ofs.open(fname);
+      ofs.precision(precision);
+   }
+   PrintAsOne(ofs);
 }
 
 void ParMesh::PrintAsOneXG(std::ostream &out)

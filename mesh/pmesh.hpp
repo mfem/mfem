@@ -366,6 +366,12 @@ public:
        as boundary (for visualization purposes) using the mfem v1.0 format. */
    virtual void Print(std::ostream &out = mfem::out) const;
 
+   /// Save the ParMesh to files (one for each MPI rank). The files will be
+   /// given suffixes according to the MPI rank. The mesh will be written to the
+   /// files using ParMesh::Print. The given @a precision will be used for ASCII
+   /// output.
+   virtual void Save(const char *fname, int precision=8) const;
+
 #ifdef MFEM_USE_ADIOS2
    /** Print the part of the mesh in the calling processor using adios2 bp
        format. */
@@ -380,7 +386,11 @@ public:
        visualization: the mesh is written as a disjoint mesh and the shared
        boundary is added to the actual boundary; both the element and boundary
        attributes are set to the processor number.  */
-   void PrintAsOne(std::ostream &out = mfem::out);
+   void PrintAsOne(std::ostream &out = mfem::out) const;
+
+   /// Save the mesh as a single file (using ParMesh::PrintAsOne). The given
+   /// @a precision is used for ASCII output.
+   void SaveAsOne(const char *fname, int precision=8) const;
 
    /// Old mesh format (Netgen/Truegrid) version of 'PrintAsOne'
    void PrintAsOneXG(std::ostream &out = mfem::out);

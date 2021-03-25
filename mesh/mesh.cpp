@@ -9035,6 +9035,13 @@ void Mesh::PrintTopo(std::ostream &out,const Array<int> &e_to_k) const
    out << "\nvertices\n" << NumOfVertices << '\n';
 }
 
+void Mesh::Save(const char *fname, int precision) const
+{
+   ofstream ofs(fname);
+   ofs.precision(precision);
+   Print(ofs);
+}
+
 #ifdef MFEM_USE_ADIOS2
 void Mesh::Print(adios2stream &out) const
 {
