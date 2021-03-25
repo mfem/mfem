@@ -142,8 +142,8 @@ int main(int argc, char *argv[])
    level_set_val.ProjectCoefficient(dist_fun_level_coef);
    level_set_val.ExchangeFaceNbrData();
 
-   ShiftedFaceMarker marker(pmesh, level_set_val);
-   Array<int> elem_marker(0);
+   ShiftedFaceMarker marker(pmesh, level_set_val, pfespace);
+   Array<int> elem_marker;
    marker.MarkElements(elem_marker);
 
    // Visualize the element markers.
@@ -165,153 +165,36 @@ int main(int argc, char *argv[])
 
    // Get a list of dofs associated with shifted boundary faces.
    Array<int> sbm_dofs; // Array of dofs on SBM faces
-   Array<int> dofs;     // work array
+   marker.ListShiftedFaceDofs(elem_marker, sbm_dofs);
 
-   // First we check interior faces of the mesh (excluding interior faces that
-   // are on the processor boundaries)
-   for (int i = 0; i < pmesh.GetNumFaces(); i++)
+   if (visualization)
    {
-      FaceElementTransformations *tr = NULL;
-      tr = pmesh.GetInteriorFaceTransformations (i);
-      const int faceno = i;
-      if (tr != NULL)
+      ParGridFunction face_dofs(&pfespace);
+      face_dofs = 0.0;
+      for (int i = 0; i < sbm_dofs.Size(); i++)
       {
-         int ne1 = tr->Elem1No;
-         int ne2 = tr->Elem2No;
-         int te1 = elem_marker[ne1], te2 = elem_marker[ne2];
-         if (te1 == 2 && te2 == 0)
-         {
-            pfespace.GetFaceDofs(faceno, dofs);
-            sbm_dofs.Append(dofs);
-         }
-         if (te1 == 0 && te2 == 2)
-         {
-            pfespace.GetFaceDofs(faceno, dofs);
-            sbm_dofs.Append(dofs);
-         }
+         face_dofs(sbm_dofs[i]) = 1.0;
       }
+      char vishost[] = "localhost";
+      int  visport   = 19916, s = 350;
+      socketstream sol_sock;
+      common::VisualizeField(sol_sock, vishost, visport, face_dofs,
+                             "Shifted Face Dofs", 0, s, s, s, "Rjmpc");
    }
 
-
-   // Here we add boundary faces that we want to model as SBM faces.
-   // For the method where we clip inside the domain, a boundary face
-   // has to be set as SBM face using its attribute.
-   for (int i = 0; i < pmesh.GetNBE(); i++)
-   {
-      int attr = pmesh.GetBdrAttribute(i);
-      FaceElementTransformations *tr;
-      tr = pmesh.GetBdrFaceTransformations (i);
-      if (tr != NULL)
-      {
-         if (attr == 100 ||
-             (level_set_type == 4 &&
-              attr == 1))   // add all boundary faces with attr=100 as SBM faces
-         {
-            int ne1 = tr->Elem1No;
-            int te1 = elem_marker[ne1];
-            const int faceno = pmesh.GetBdrFace(i);
-            if (te1 == 0)
-            {
-               pfespace.GetFaceDofs(faceno, dofs);
-               sbm_dofs.Append(dofs);
-            }
-         }
-      }
-   }
-
-   // Now we add interior faces that are on processor boundaries.
-   for (int i = 0; i < pmesh.GetNSharedFaces(); i++)
-   {
-      FaceElementTransformations *tr = pmesh.GetSharedFaceTransformations(i);
-      if (tr != NULL)
-      {
-         int ne1 = tr->Elem1No;
-         int te1 = elem_marker[ne1];
-         int te2 = elem_marker[i+pmesh.GetNE()];
-         const int faceno = pmesh.GetSharedFace(i);
-         // Add if the element on this proc is completely inside the domain
-         // and the the element on other proc is not
-         if (te2 == 2 && te1 == 0)
-         {
-            pfespace.GetFaceDofs(faceno, dofs);
-            sbm_dofs.Append(dofs);
-         }
-      }
-   }
-
-
-   // Determine the list of true (i.e. conforming) essential boundary dofs.
-   // To do this, we first make a list of all dofs that are on the real boundary
-   // of the mesh, then add all the dofs of the elements that are completely
-   // outside or intersect shifted boundary. Then we remove the dofs from
-   // SBM faces.
-
-   // Make a list of dofs on all boundaries
+   // Make a list of inactive tdofs that will be eleminated from the system.
    Array<int> ess_tdof_list;
-   Array<int> ess_bdr(pmesh.bdr_attributes.Max());
-   Array<int> ess_shift_bdr = ess_bdr;
+   marker.ListEssentialTDofs(elem_marker, sbm_dofs, ess_tdof_list);
+
+   Array<int> ess_shift_bdr(pmesh.bdr_attributes.Max());
    if (pmesh.bdr_attributes.Size())
    {
-      ess_bdr = 1;
       ess_shift_bdr = 0;
       if (level_set_type == 4)
       {
-         ess_bdr[0] = 0;
          ess_shift_bdr[0] = 1;
       }
    }
-   Array<int> ess_vdofs_bdr;
-   pfespace.GetEssentialVDofs(ess_bdr, ess_vdofs_bdr);
-
-   // Get all dofs associated with elements outside the domain or intersected
-   // by the boundary.
-   Array<int> ess_vdofs_hole(ess_vdofs_bdr.Size());
-   ess_vdofs_hole = 0;
-   for (int e = 0; e < pmesh.GetNE(); e++)
-   {
-      if (elem_marker[e] > 0)
-      {
-         pfespace.GetElementVDofs(e, dofs);
-         for (int i = 0; i < dofs.Size(); i++)
-         {
-            ess_vdofs_hole[dofs[i]] = -1;
-         }
-      }
-   }
-
-   // Combine the lists to mark essential dofs.
-   for (int i = 0; i < ess_vdofs_hole.Size(); i++)
-   {
-      if (ess_vdofs_bdr[i] == -1) { ess_vdofs_hole[i] = -1; }
-   }
-
-   // Unmark dofs that are on SBM faces (but not on dirichlet boundaries)
-   for (int i = 0; i < sbm_dofs.Size(); i++)
-   {
-      if (ess_vdofs_bdr[sbm_dofs[i]] != -1)
-      {
-         ess_vdofs_hole[sbm_dofs[i]] = 0;
-      }
-   }
-
-   // Synchronize
-   for (int i = 0; i < ess_vdofs_hole.Size() ; i++)
-   {
-      ess_vdofs_hole[i] += 1;
-   }
-
-   pfespace.Synchronize(ess_vdofs_hole);
-
-   for (int i = 0; i < ess_vdofs_hole.Size() ; i++)
-   {
-      ess_vdofs_hole[i] -= 1;
-   }
-
-   // convert to tdofs
-   Array<int> ess_tdofs;
-   pfespace.GetRestrictionMatrix()->BooleanMult(ess_vdofs_hole,
-                                                ess_tdofs);
-   pfespace.MarkerToList(ess_tdofs, ess_tdof_list);
 
    // Compute Distance Vector - Use analytic distance vectors for now.
    auto distance_vec_space = new ParFiniteElementSpace(pfespace.GetParMesh(),
@@ -422,13 +305,7 @@ int main(int argc, char *argv[])
    a.Assemble();
 
    // Project the exact solution as an initial condition for dirichlet boundaries.
-   x = 0;
    x.ProjectCoefficient(*dbcCoef);
-   // Zero out non-essential boundaries.
-   for (int i = 0; i < ess_vdofs_hole.Size(); i++)
-   {
-      if (ess_vdofs_hole[i] != -1) { x(i) = 0.; }
-   }
 
    // Form the linear system and solve it.
    OperatorPtr A;
@@ -503,15 +380,10 @@ int main(int argc, char *argv[])
    if (visualization && level_set_type >= 3 && level_set_type <= 4)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock << "solution\n" << pmesh << err << flush;
-      sol_sock << "window_title 'Error'\n"
-               << "window_geometry "
-               << 700 << " " << 0 << " " << 350 << " " << 350 << "\n"
-               << "keys Rj" << endl;
+      int  visport   = 19916, s = 350;
+      socketstream sol_sock;
+      common::VisualizeField(sol_sock, vishost, visport, err,
+                             "Error", 2*s, 0, s, s, "Rj");
    }
 
    int NEglob = pmesh.GetGlobalNE();

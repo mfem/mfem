@@ -81,4 +81,131 @@ void ShiftedFaceMarker::MarkElements(Array<int> &elem_marker) const
    }
 }
 
+void ShiftedFaceMarker::ListShiftedFaceDofs(const Array<int> &elem_marker,
+                                            Array<int> &sface_dof_list) const
+{
+   sface_dof_list.DeleteAll();
+   Array<int> dofs; // work array
+
+   // First we check interior faces of the mesh (excluding interior faces that
+   // are on the processor boundaries)
+   for (int f = 0; f < pmesh.GetNumFaces(); f++)
+   {
+      FaceElementTransformations *tr = pmesh.GetInteriorFaceTransformations(f);
+      if (tr != NULL)
+      {
+         int te1 = elem_marker[tr->Elem1No], te2 = elem_marker[tr->Elem2No];
+         if (te1 == ShiftedFaceMarker::CUT && te2 == ShiftedFaceMarker::INSIDE)
+         {
+            pfes_sltn.GetFaceDofs(f, dofs);
+            sface_dof_list.Append(dofs);
+         }
+         if (te1 == ShiftedFaceMarker::INSIDE && te2 == ShiftedFaceMarker::CUT)
+         {
+            pfes_sltn.GetFaceDofs(f, dofs);
+            sface_dof_list.Append(dofs);
+         }
+      }
+   }
+
+   // Here we add boundary faces that we want to model as SBM faces.
+   // For the method where we clip inside the domain, a boundary face
+   // has to be set as SBM face using its attribute.
+   for (int i = 0; i < pmesh.GetNBE(); i++)
+   {
+      int attr = pmesh.GetBdrAttribute(i);
+      FaceElementTransformations *tr = pmesh.GetBdrFaceTransformations(i);
+      if (tr != NULL)
+      {
+         // add all boundary faces with attr=100 as SBM faces
+         if (attr == 100)
+         {
+            const int faceno = pmesh.GetBdrFace(i);
+            if (elem_marker[tr->Elem1No] == ShiftedFaceMarker::INSIDE)
+            {
+               pfes_sltn.GetFaceDofs(faceno, dofs);
+               sface_dof_list.Append(dofs);
+            }
+         }
+      }
+   }
+
+   // Now we add interior faces that are on processor boundaries.
+   for (int i = 0; i < pmesh.GetNSharedFaces(); i++)
+   {
+      FaceElementTransformations *tr = pmesh.GetSharedFaceTransformations(i);
+      if (tr != NULL)
+      {
+         int ne1 = tr->Elem1No;
+         int te1 = elem_marker[ne1];
+         int te2 = elem_marker[i+pmesh.GetNE()];
+         const int faceno = pmesh.GetSharedFace(i);
+         // Add if the element on this proc is completely inside the domain
+         // and the the element on other proc is not
+         if (te2 == ShiftedFaceMarker::CUT && te1 == ShiftedFaceMarker::INSIDE)
+         {
+            pfes_sltn.GetFaceDofs(faceno, dofs);
+            sface_dof_list.Append(dofs);
+         }
+      }
+   }
+}
+
+// Determine the list of true (i.e. conforming) essential boundary dofs.
+// To do this, we first make a list of all dofs that are on the real boundary
+// of the mesh, then add all the dofs of the elements that are completely
+// outside or intersect shifted boundary. Then we remove the dofs from
+// SBM faces
+void ShiftedFaceMarker::ListEssentialTDofs(const Array<int> &elem_marker,
+                                           const Array<int> &sface_dof_list,
+                                           Array<int> &ess_tdof_list) const
+{
+   // Make a list of dofs on all boundaries
+   Array<int> ess_bdr(pmesh.bdr_attributes.Max());
+   if (pmesh.bdr_attributes.Size()) { ess_bdr = 1; }
+   Array<int> ess_vdofs_bdr;
+   pfes_sltn.GetEssentialVDofs(ess_bdr, ess_vdofs_bdr);
+
+   // Get all dofs associated with elements outside the domain or intersected
+   // by the boundary.
+   Array<int> ess_vdofs(ess_vdofs_bdr.Size()), dofs;
+   ess_vdofs = 0;
+   for (int e = 0; e < pmesh.GetNE(); e++)
+   {
+      if (elem_marker[e] != ShiftedFaceMarker::INSIDE)
+      {
+         pfes_sltn.GetElementVDofs(e, dofs);
+         for (int i = 0; i < dofs.Size(); i++)
+         {
+            ess_vdofs[dofs[i]] = -1;
+         }
+      }
+   }
+
+   // Combine the lists to mark essential dofs.
+   for (int i = 0; i < ess_vdofs.Size(); i++)
+   {
+      if (ess_vdofs_bdr[i] == -1) { ess_vdofs[i] = -1; }
+   }
+
+   // Unmark dofs that are on SBM faces (but not on dirichlet boundaries)
+   for (int i = 0; i < sface_dof_list.Size(); i++)
+   {
+      if (ess_vdofs_bdr[sface_dof_list[i]] != -1)
+      {
+         ess_vdofs[sface_dof_list[i]] = 0;
+      }
+   }
+
+   // Synchronize
+   for (int i = 0; i < ess_vdofs.Size() ; i++) { ess_vdofs[i] += 1; }
+   pfes_sltn.Synchronize(ess_vdofs);
+   for (int i = 0; i < ess_vdofs.Size() ; i++) { ess_vdofs[i] -= 1; }
+
+   // Convert to tdofs
+   Array<int> ess_tdofs;
+   pfes_sltn.GetRestrictionMatrix()->BooleanMult(ess_vdofs, ess_tdofs);
+   pfes_sltn.MarkerToList(ess_tdofs, ess_tdof_list);
+}
+
 }
