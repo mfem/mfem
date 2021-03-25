@@ -16,6 +16,7 @@
 #include "container.hpp"
 #include "layout.hpp"
 #include "util.hpp"
+#include "tensor_traits.hpp"
 #include "foreach.hpp"
 
 namespace mfem
@@ -369,102 +370,6 @@ using StaticDeviceTensor = DeviceTensorType::static_type<T,BatchSize,Sizes...>;
 template <int BatchSize, int... Sizes>
 using StaticDeviceDTensor = StaticDeviceTensor<double,BatchSize,Sizes...>;
 
-/////////////////
-// Tensor Traits
-
-// get_tensor_rank
-template <typename Tensor>
-struct get_tensor_rank;
-
-template <int Rank, typename T, typename C, typename L>
-struct get_tensor_rank<Tensor<Rank,T,C,L>>
-{
-   static constexpr int value = Rank;
-};
-
-// get_tensor_value_type
-template <typename Tensor>
-struct get_tensor_value_type_t;
-
-template <int Rank, typename T, typename C, typename L>
-struct get_tensor_value_type_t<Tensor<Rank,T,C,L>>
-{
-   using type = T;
-};
-
-template <typename Tensor>
-using get_tensor_value_type = typename get_tensor_value_type_t<Tensor>::type;
-
-// is_dynamic_tensor
-template <typename Tensor>
-struct is_dynamic_tensor;
-
-template <int Rank, typename T, typename C, typename L>
-struct is_dynamic_tensor<Tensor<Rank,T,C,L>>
-{
-   static constexpr bool value = is_dynamic_layout<L>::value;
-};
-
-// is_static_tensor
-template <typename Tensor>
-struct is_static_tensor;
-
-template <int Rank, typename T, typename C, typename L>
-struct is_static_tensor<Tensor<Rank,T,C,L>>
-{
-   static constexpr bool value = is_static_layout<L>::value;
-};
-
-// is_serial_tensor
-template <typename Tensor>
-struct is_serial_tensor;
-
-template <int Rank, typename T, typename C, typename L>
-struct is_serial_tensor<Tensor<Rank,T,C,L>>
-{
-   static constexpr bool value = is_serial_layout<L>::value;
-};
-
-// is_2d_threaded_tensor
-template <typename Tensor>
-struct is_2d_threaded_tensor;
-
-template <int Rank, typename T, typename C, typename L>
-struct is_2d_threaded_tensor<Tensor<Rank,T,C,L>>
-{
-   static constexpr bool value = is_2d_threaded_layout<L>::value;
-};
-
-// get_tensor_size
-template <int N, typename Tensor>
-struct get_tensor_size;
-
-template <int N, int R, typename T, typename C, typename L>
-struct get_tensor_size<N, Tensor<R,T,C,L>>
-{
-   static constexpr int value = get_layout_size<N, L>::value;
-};
-
-// get_tensor_batch_size
-template <typename Tensor>
-struct get_tensor_batch_size;
-
-template <int Rank, typename T, typename C, typename L>
-struct get_tensor_batch_size<Tensor<Rank,T,C,L>>
-{
-   static constexpr int value = get_layout_batch_size<L>::value;
-};
-
-// has_pointer_container
-template <typename Tensor>
-struct has_pointer_container;
-
-template <int R, typename T, typename C, typename L>
-struct has_pointer_container<Tensor<R,T,C,L>>
-{
-   static constexpr bool value = is_pointer_container<C>::value;
-};
-
 // template <int Rank, typename T>
 // using ViewTensor = Tensor<Rank,T,ViewContainer,RestrictedLayout>;
 
@@ -514,8 +419,27 @@ struct has_pointer_container<Tensor<R,T,C,L>>
 
 // };
 
+// template <typename Tensor, class Enable = void>
+// struct TypeOf_t;
+
+// // TODO not really what I want... I want the static or dynamic format (<Sizes...> or <Rank>)
+// template <int Rank,
+//           typename T,
+//           typename C,
+//           typename L,
+//           std::enable_if_t<
+//              is_static_tensor<Tensor<Rank,T,C,L>>::value
+//           > >
+// struct TypeOf_t<Tensor<Rank,T,C,L>>
+// {
+//    template <typename R,typename T,typename C,typename L>
+//    using type = Tensor<R,T,C,L>;
+//    // template <int Sizes...>
+//    // using typet = Tensor<Sizes...>
+// };
+
 // template <typename Tensor>
-// class TypeOf;
+// using TypeOf = TypeOf_t<Tensor>;
 
 // template <int Rank, typename T, int MaxSize>
 // class TypeOf<DynamicTensor<Rank,T,MaxSize>>
