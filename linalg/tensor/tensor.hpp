@@ -34,7 +34,7 @@ namespace mfem
        template <int... Sizes>,
        where Sizes... is the list of the sizes of the dimensions of the Tensor.
    */
-template <int Rank, // TODO Remove rank from here and deduce it from Layout?
+template <int Rank,
           typename T = double,
           typename Container = MemoryContainer<T>,
           typename Layout = DynamicLayout<Rank> >
@@ -433,6 +433,16 @@ template <int Rank, typename T, typename C, typename L>
 struct is_2d_threaded_tensor<Tensor<Rank,T,C,L>>
 {
    static constexpr bool value = is_2d_threaded_layout<L>::value;
+};
+
+// get_tensor_size
+template <int N, typename Tensor>
+struct get_tensor_size;
+
+template <int N, int R, typename T, typename C, typename L>
+struct get_tensor_size<N, Tensor<R,T,C,L>>
+{
+   static constexpr int value = get_layout_size<N, L>::value;
 };
 
 // get_tensor_batch_size
