@@ -13,17 +13,18 @@
 #define MFEM_TENSOR_FOREACH
 
 #include "../../general/forall.hpp"
+#include "tensor_traits.hpp"
 
 namespace mfem
 {
 
-// TODO use some enable_if in there too? That would help fusing the GPU code
 /// A structure that implements an imbricated forall with for loops.
 template <int N>
 struct Foreach
 {
    /// Apply an unary operator to each entry of a Tensor.
    template <typename TensorLHS, typename Lambda, typename... Idx>
+   MFEM_HOST_DEVICE inline
    static void ApplyUnOp(TensorLHS &lhs, Lambda &&func, Idx... idx)
    {
       for (int i = 0; i < lhs.template Size<N-1>(); i++)
@@ -34,6 +35,7 @@ struct Foreach
 
    /// Apply a binary operator to each entry of a Tensor.
    template <typename TensorLHS, typename TensorRHS, typename Lambda, typename... Idx>
+   MFEM_HOST_DEVICE inline
    static void ApplyBinOp(TensorLHS &lhs, TensorRHS &rhs, Lambda &&func, Idx... idx)
    {
       for (int i = 0; i < lhs.template Size<N-1>(); i++)
@@ -47,51 +49,14 @@ template <>
 struct Foreach<0>
 {
    template <typename TensorLHS, typename Lambda, typename... Idx>
+   MFEM_HOST_DEVICE inline
    static void ApplyUnOp(TensorLHS &lhs, Lambda &&func, Idx... idx)
    {
       func(lhs,idx...);
    }
 
    template <typename TensorLHS, typename TensorRHS, typename Lambda, typename... Idx>
-   static void ApplyBinOp(TensorLHS &lhs, TensorRHS &rhs, Lambda &&func, Idx... idx)
-   {
-      func(lhs,rhs,idx...);
-   }
-};
-
-/// A structure that implements an imbricated forall with for loops and MFEM_FOREACH_THREAD.
-template <int N>
-struct ForeachThread
-{
-   template <typename TensorLHS, typename Lambda, typename... Idx>
-   static void ApplyUnOp(TensorLHS &lhs, Lambda &&func, Idx... idx)
-   {
-      for (int i = 0; i < lhs.template Size<N-1>(); i++)
-      {
-         ForeachThread<N-1>::ApplyUnOp(lhs,func,i,idx...);
-      }
-   }
-
-   template <typename TensorLHS, typename TensorRHS, typename Lambda, typename... Idx>
-   static void ApplyBinOp(TensorLHS &lhs, TensorRHS &rhs, Lambda &&func, Idx... idx)
-   {
-      for (int i = 0; i < lhs.template Size<N-1>(); i++)
-      {
-         ForeachThread<N-1>::ApplyBinOp(lhs,rhs,func,i,idx...);
-      }
-   }
-};
-
-template <>
-struct ForeachThread<0>
-{
-   template <typename TensorLHS, typename Lambda, typename... Idx>
-   static void ApplyUnOp(TensorLHS &lhs, Lambda &&func, Idx... idx)
-   {
-      func(lhs,idx...);
-   }
-
-   template <typename TensorLHS, typename TensorRHS, typename Lambda, typename... Idx>
+   MFEM_HOST_DEVICE inline
    static void ApplyBinOp(TensorLHS &lhs, TensorRHS &rhs, Lambda &&func, Idx... idx)
    {
       func(lhs,rhs,idx...);
@@ -99,45 +64,145 @@ struct ForeachThread<0>
 };
 
 template <>
-struct ForeachThread<1>
+struct Foreach<1>
 {
-   template <typename TensorLHS, typename Lambda, typename... Idx>
+   template <typename TensorLHS,
+             typename Lambda,
+             typename... Idx,
+             std::enable_if_t<
+                is_serial_tensor<TensorLHS>::value,
+             bool> = true>
+   MFEM_HOST_DEVICE inline
+   static void ApplyUnOp(TensorLHS &lhs, Lambda &&func, Idx... idx)
+   {
+      for (int i = 0; i < lhs.template Size<0>(); i++)
+      {
+         Foreach<0>::ApplyUnOp(lhs,func,i,idx...);
+      }
+   }
+
+   template <typename TensorLHS,
+             typename Lambda,
+             typename... Idx,
+             std::enable_if_t<
+                is_2d_threaded_tensor<TensorLHS>::value,
+             bool> = true>
+   MFEM_HOST_DEVICE inline
    static void ApplyUnOp(TensorLHS &lhs, Lambda &&func, Idx... idx)
    {
       MFEM_FOREACH_THREAD(i,x,lhs.template Size<0>())
       {
-         ForeachThread<0>::ApplyUnOp(lhs,func,i,idx...);
+         Foreach<0>::ApplyUnOp(lhs,func,i,idx...);
       }
    }
 
-   template <typename TensorLHS, typename TensorRHS, typename Lambda, typename... Idx>
+   template <typename TensorLHS,
+             typename TensorRHS,
+             typename Lambda,
+             typename... Idx,
+             std::enable_if_t<
+                is_serial_tensor<TensorLHS>::value &&
+                is_serial_tensor<TensorRHS>::value,
+             bool> = true>
+   MFEM_HOST_DEVICE inline
+   static void ApplyBinOp(TensorLHS &lhs, TensorRHS &rhs, Lambda &&func, Idx... idx)
+   {
+      for (int i = 0; i < lhs.template Size<0>(); i++)
+      {
+         Foreach<0>::ApplyBinOp(lhs,rhs,func,i,idx...);
+      }
+   }
+
+   template <typename TensorLHS,
+             typename TensorRHS,
+             typename Lambda,
+             typename... Idx,
+             std::enable_if_t<
+                (is_2d_threaded_tensor<TensorLHS>::value &&
+                is_2d_threaded_tensor<TensorRHS>::value) ||
+                (has_pointer_container<TensorLHS>::value &&
+                is_2d_threaded_tensor<TensorRHS>::value) ||
+                (is_2d_threaded_tensor<TensorLHS>::value &&
+                has_pointer_container<TensorRHS>::value),
+             bool> = true>
+   MFEM_HOST_DEVICE inline
    static void ApplyBinOp(TensorLHS &lhs, TensorRHS &rhs, Lambda &&func, Idx... idx)
    {
       MFEM_FOREACH_THREAD(i,x,lhs.template Size<0>())
       {
-         ForeachThread<0>::ApplyBinOp(lhs,rhs,func,i,idx...);
+         Foreach<0>::ApplyBinOp(lhs,rhs,func,i,idx...);
       }
    }
 };
 
 template <>
-struct ForeachThread<2>
+struct Foreach<2>
 {
-   template <typename TensorLHS, typename Lambda, typename... Idx>
+   template <typename TensorLHS,
+             typename Lambda,
+             typename... Idx,
+             std::enable_if_t<
+                is_serial_tensor<TensorLHS>::value,
+             bool> = true>
+   MFEM_HOST_DEVICE inline
+   static void ApplyUnOp(TensorLHS &lhs, Lambda &&func, Idx... idx)
+   {
+      for (int i = 0; i < lhs.template Size<1>(); i++)
+      {
+         Foreach<1>::ApplyUnOp(lhs,func,i,idx...);
+      }
+   }
+
+   template <typename TensorLHS,
+             typename Lambda,
+             typename... Idx,
+             std::enable_if_t<
+                is_2d_threaded_tensor<TensorLHS>::value,
+             bool> = true>
+   MFEM_HOST_DEVICE inline
    static void ApplyUnOp(TensorLHS &lhs, Lambda &&func, Idx... idx)
    {
       MFEM_FOREACH_THREAD(i,y,lhs.template Size<1>())
       {
-         ForeachThread<1>::ApplyUnOp(lhs,func,i,idx...);
+         Foreach<1>::ApplyUnOp(lhs,func,i,idx...);
       }
    }
 
-   template <typename TensorLHS, typename TensorRHS, typename Lambda, typename... Idx>
+   template <typename TensorLHS,
+             typename TensorRHS,
+             typename Lambda,
+             typename... Idx,
+             std::enable_if_t<
+                is_serial_tensor<TensorLHS>::value &&
+                is_serial_tensor<TensorRHS>::value,
+             bool> = true>
+   MFEM_HOST_DEVICE inline
+   static void ApplyBinOp(TensorLHS &lhs, TensorRHS &rhs, Lambda &&func, Idx... idx)
+   {
+      for (int i = 0; i < lhs.template Size<1>(); i++)
+      {
+         Foreach<1>::ApplyBinOp(lhs,rhs,func,i,idx...);
+      }
+   }
+
+   template <typename TensorLHS,
+             typename TensorRHS,
+             typename Lambda,
+             typename... Idx,
+             std::enable_if_t<
+                (is_2d_threaded_tensor<TensorLHS>::value &&
+                is_2d_threaded_tensor<TensorRHS>::value) ||
+                (has_pointer_container<TensorLHS>::value &&
+                is_2d_threaded_tensor<TensorRHS>::value) ||
+                (is_2d_threaded_tensor<TensorLHS>::value &&
+                has_pointer_container<TensorRHS>::value),
+             bool> = true>
+   MFEM_HOST_DEVICE inline
    static void ApplyBinOp(TensorLHS &lhs, TensorRHS &rhs, Lambda &&func, Idx... idx)
    {
       MFEM_FOREACH_THREAD(i,y,lhs.template Size<1>())
       {
-         ForeachThread<1>::ApplyBinOp(lhs,rhs,func,i,idx...);
+         Foreach<1>::ApplyBinOp(lhs,rhs,func,i,idx...);
       }
    }
 };
