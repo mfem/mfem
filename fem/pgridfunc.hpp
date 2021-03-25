@@ -411,12 +411,12 @@ public:
 
    /// Save the ParGridFunction to a single file (written using MPI rank 0). The
    /// given @a precision will be used for ASCII output.
-   void SaveAsOne(const char *fname, int precision=8) const;
+   void SaveAsOne(const char *fname, int precision=16) const;
 
    /// Save the ParGridFunction to files (one for each MPI rank). The files will
    /// be given suffixes according to the MPI rank. The given @a precision will
    /// be used for ASCII output.
-   virtual void Save(const char *fname, int precision=8) const;
+   virtual void Save(const char *fname, int precision=16) const;
 
 #ifdef MFEM_USE_ADIOS2
    /** Save the local portion of the ParGridFunction. This differs from the
