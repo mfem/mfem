@@ -10,6 +10,20 @@
 
 Version 4.2.1 (development)
 ===========================
+- Memory management:
+  * Added method Device::SetMemoryTypes that can be used to change the default
+    host and device MemoryTypes before Device setup.
+  * In class MemoryManager, added methods GetDualMemoryType and
+    SetDualMemoryType; dual MemoryTypes are used to determine the second
+    MemoryType (host or device) when only one MemoryType is specified in methods
+    of class Memory.
+  * Added Memory constructor for setting both the host and device MemoryTypes.
+  * Switched the default behavior of device memory allocations so that they
+    are deferred until the device pointer is needed.
+  * Added a second Umpire device MemoryType, DEVICE_UMPIRE_2, with
+    corresponding allocator that can be set with the method
+    MemoryManager::SetUmpireDevice2AllocatorName.
+  * Added HOST_PINNED MemoryType and a pinned host allocator for CUDA and HIP.
 
 - Added AlgebraicCeedSolver that does matrix-free algebraic p-multigrid for
   diffusion problems with the Ceed backend.
