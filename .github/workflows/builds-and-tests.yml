@@ -25,6 +25,7 @@ env:
   HYPRE_TOP_DIR: hypre-2.19.0
   METIS_ARCHIVE: metis-4.0.3.tar.gz
   METIS_TOP_DIR: metis-4.0.3
+  MFEM_TOP_DIR: mfem
 
 # Note for future improvements:
 #
@@ -68,7 +69,7 @@ jobs:
     - name: checkout mfem
       uses: actions/checkout@v2
       with:
-        path: mfem
+        path: ${{ env.MFEM_TOP_DIR }}
         # Fetch the complete history for codecov to access commits ID
         fetch-depth: 0
 
@@ -88,9 +89,9 @@ jobs:
         brew install openmpi
         export MAKE_CXX_FLAG="MPICXX=mpic++"
 
-    # Get Hypre through cache, or install it.
+    # Get Hypre through cache, or build it.
     # Install will only run on cache miss.
-    - name: cache hypre Install
+    - name: cache hypre
       id: hypre-cache
       if: matrix.mpi == 'parallel'
       uses: actions/cache@v2
@@ -100,14 +101,14 @@ jobs:
 
     - name: get hypre
       if: matrix.mpi == 'parallel' && steps.hypre-cache.outputs.cache-hit != 'true'
-      uses: ./mfem/.github/actions/install-hypre
+      uses: mfem/mfem-actions/build-hypre@master
       with:
         hypre-archive: ${{ env.HYPRE_ARCHIVE }}
         hypre-dir: ${{ env.HYPRE_TOP_DIR }}
 
-    # Get Metis through cache, or install it.
+    # Get Metis through cache, or build it.
     # Install will only run on cache miss.
-    - name: cache metis Install
+    - name: cache metis
       id: metis-cache
       if: matrix.mpi == 'parallel'
       uses: actions/cache@v2
@@ -117,14 +118,14 @@ jobs:
 
     - name: install metis
       if: matrix.mpi == 'parallel' && steps.metis-cache.outputs.cache-hit != 'true'
-      uses: ./mfem/.github/actions/install-metis
+      uses: mfem/mfem-actions/build-metis@master
       with:
         metis-archive: ${{ env.METIS_ARCHIVE }}
         metis-dir: ${{ env.METIS_TOP_DIR }}
 
     # MFEM build and test
     - name: build
-      uses: ./mfem/.github/actions/build-mfem
+      uses: mfem/mfem-actions/build-mfem@master
       with:
         os: ${{ matrix.os }}
         target: ${{ matrix.target }}
@@ -133,32 +134,32 @@ jobs:
         build-system: ${{ matrix.build-system }}
         hypre-dir: ${{ env.HYPRE_TOP_DIR }}
         metis-dir: ${{ env.METIS_TOP_DIR }}
-        mfem-dir: mfem
+        mfem-dir: ${{ env.MFEM_TOP_DIR }}
 
     # Run checks (and only checks) on debug targets
     - name: checks
       if: matrix.build-system == 'make' && matrix.target == 'debug'
       run: |
-        cd mfem && make check
+        cd ${{ env.MFEM_TOP_DIR }}  && make check
 
     - name: unit tests
       if: matrix.build-system == 'make' && matrix.target == 'optim'
       run: |
-        cd mfem && make unittest
+        cd ${{ env.MFEM_TOP_DIR }} && make unittest
 
     - name: tests
       if: matrix.build-system == 'make' && matrix.target == 'optim'
       run: |
-        cd mfem && make test
+        cd ${{ env.MFEM_TOP_DIR }} && make test
 
     - name: cmake unit tests
       if: matrix.build-system == 'cmake'
       run: |
-        cd mfem/build/tests/unit && ctest --output-on-failure
+        cd ${{ env.MFEM_TOP_DIR }}/build/tests/unit && ctest --output-on-failure
 
     # Code coverage (process and upload reports)
     - name: codecov
       if: matrix.codecov == 'YES'
-      uses: ./mfem/.github/actions/upload-coverage
+      uses: ./${{ env.MFEM_TOP_DIR }}/.github/actions/upload-coverage
       with:
         name: "${{ matrix.os }}-${{ matrix.mpi }}"
