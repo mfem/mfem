@@ -455,6 +455,16 @@ struct get_tensor_batch_size<Tensor<Rank,T,C,L>>
    static constexpr int value = get_layout_batch_size<L>::value;
 };
 
+// has_pointer_container
+template <typename Tensor>
+struct has_pointer_container;
+
+template <int R, typename T, typename C, typename L>
+struct has_pointer_container<Tensor<R,T,C,L>>
+{
+   static constexpr bool value = is_pointer_container<C>::value;
+};
+
 // template <int Rank, typename T>
 // using ViewTensor = Tensor<Rank,T,ViewContainer,RestrictedLayout>;
 
