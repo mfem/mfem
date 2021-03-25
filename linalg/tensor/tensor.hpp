@@ -405,6 +405,15 @@ struct is_dynamic_tensor<Tensor<Rank,T,C,L>>
    static constexpr bool value = is_dynamic_layout<L>::value;
 };
 
+// is_static_tensor
+template <typename Tensor>
+struct is_static_tensor;
+
+template <int Rank, typename T, typename C, typename L>
+struct is_static_tensor<Tensor<Rank,T,C,L>>
+{
+   static constexpr bool value = is_static_layout<L>::value;
+};
 // template <int Rank, typename T>
 // using ViewTensor = Tensor<Rank,T,ViewContainer,RestrictedLayout>;
 
