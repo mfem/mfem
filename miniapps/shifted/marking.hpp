@@ -24,15 +24,26 @@ class ShiftedFaceMarker
 protected:
    ParMesh &pmesh;
    ParGridFunction &ls_func;
+   ParFiniteElementSpace &pfes_sltn;
 
 public:
    // Element type related to shifted boundaries (not interfaces).
    enum SBElementType {INSIDE, OUTSIDE, CUT};
 
-   ShiftedFaceMarker(ParMesh &pm, ParGridFunction &ls)
-      : pmesh(pm), ls_func(ls) { }
+   ShiftedFaceMarker(ParMesh &pm, ParGridFunction &ls,
+                     ParFiniteElementSpace &space_sltn)
+      : pmesh(pm), ls_func(ls), pfes_sltn(space_sltn) { }
 
    void MarkElements(Array<int> &elem_marker) const;
+
+   void ListShiftedFaceDofs(const Array<int> &elem_marker,
+                            Array<int> &sface_dof_list) const;
+
+   // Related to shifted boundary methods, where inactive dofs must be
+   // eliminated from the system, based on the element markers.
+   void ListEssentialTDofs(const Array<int> &elem_marker,
+                           const Array<int> &sface_dof_list,
+                           Array<int> &ess_tdof_list) const;
 };
 
 } // namespace mfem
