@@ -127,14 +127,14 @@ class StaticLayout
 {
 public:
    template <typename... Dims> MFEM_HOST_DEVICE
-   StaticLayout(Dims... args)
+   constexpr StaticLayout(Dims... args)
    {
       // static_assert(sizeof...(Dims)==sizeof...(Sizes), "Static and dynamic sizes don't match.");
       // TODO verify that Dims == sizes in Debug mode
    }
 
    template <typename Layout> MFEM_HOST_DEVICE
-   StaticLayout(const Layout& rhs)
+   constexpr StaticLayout(const Layout& rhs)
    {
       // for (int i = 0; i < Rank; i++)
       // {
@@ -198,10 +198,8 @@ template <int BatchSize, int DimX>
 class BlockLayout<BatchSize, DimX>
 {
 public:
-   static constexpr int batch_size = BatchSize;
-
    MFEM_HOST_DEVICE inline
-   BlockLayout(int size0)
+   constexpr BlockLayout(int size0)
    {
       // TODO Verify in debug that size0==DimX
       // TODO verify that size0 < BlockSizeX
@@ -229,10 +227,8 @@ template <int BatchSize, int DimX, int DimY>
 class BlockLayout<BatchSize, DimX, DimY>
 {
 public:
-   static constexpr int batch_size = BatchSize;
-
    MFEM_HOST_DEVICE inline
-   BlockLayout(int size0, int size1)
+   constexpr BlockLayout(int size0, int size1)
    {
       // TODO Verify in debug that size0==DimX && size1==DimY
       // TODO verify that size0 < BlockSizeX && size1 < BlockSizeY
@@ -262,10 +258,8 @@ class BlockLayout<BatchSize, DimX, DimY, Dims...>
 private:
    StaticLayout<Dims...> layout;
 public:
-   static constexpr int batch_size = BatchSize;
-
    template <typename... Sizes> MFEM_HOST_DEVICE inline
-   BlockLayout(int size0, int size1, Sizes... sizes)
+   BlockLayout(int size0, int siconstexpr ze1, Sizes... sizes)
    : layout(sizes...)
    {
       // TODO Verify in debug that size0==DimX && size1==DimY
@@ -298,8 +292,6 @@ private:
    const int size1;
    DynamicLayout<Rank-2> layout;
 public:
-   static constexpr int batch_size = BatchSize;
-
    template <typename... Sizes> MFEM_HOST_DEVICE inline
    DynamicBlockLayout(int size0, int size1,  Sizes... sizes)
    : size0(size0), size1(size1), layout(sizes...)
@@ -359,8 +351,6 @@ class DynamicBlockLayout<1,BatchSize>
 private:
    const int size0;
 public:
-   static constexpr int batch_size = BatchSize;
-
    MFEM_HOST_DEVICE inline
    DynamicBlockLayout(int size0)
    : size0(size0)
@@ -392,8 +382,6 @@ private:
    const int size0;
    const int size1;
 public:
-   static constexpr int batch_size = BatchSize;
-
    MFEM_HOST_DEVICE inline
    DynamicBlockLayout(int size0, int size1)
    : size0(size0), size1(size1)
