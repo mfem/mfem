@@ -414,6 +414,17 @@ struct is_static_tensor<Tensor<Rank,T,C,L>>
 {
    static constexpr bool value = is_static_layout<L>::value;
 };
+
+// is_serial_tensor
+template <typename Tensor>
+struct is_serial_tensor;
+
+template <int Rank, typename T, typename C, typename L>
+struct is_serial_tensor<Tensor<Rank,T,C,L>>
+{
+   static constexpr bool value = is_serial_layout<L>::value;
+};
+
 // template <int Rank, typename T>
 // using ViewTensor = Tensor<Rank,T,ViewContainer,RestrictedLayout>;
 
