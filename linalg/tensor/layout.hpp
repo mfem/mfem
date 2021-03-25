@@ -259,7 +259,7 @@ private:
    StaticLayout<Dims...> layout;
 public:
    template <typename... Sizes> MFEM_HOST_DEVICE inline
-   BlockLayout(int size0, int siconstexpr ze1, Sizes... sizes)
+   BlockLayout(int size0, int size1, Sizes... sizes)
    : layout(sizes...)
    {
       // TODO Verify in debug that size0==DimX && size1==DimY
