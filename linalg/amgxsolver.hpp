@@ -168,11 +168,6 @@ public:
    /// Add a check for convergence after applying Mult.
    void SetConvergenceCheck(bool setConvergenceCheck_=true);
 
-   /** Choice whether solver will use a zero initial guess (default/true) or the
-       value of the X vector (false).
-   */
-   void SetZeroGuess(bool val) { zero_guess = val; }
-
    ~AmgXSolver();
 
    void Finalize();
