@@ -381,6 +381,20 @@ struct get_tensor_rank<Tensor<Rank,T,C,L>>
 {
    static constexpr int value = Rank;
 };
+
+// get_tensor_value_type
+template <typename Tensor>
+struct get_tensor_value_type_t;
+
+template <int Rank, typename T, typename C, typename L>
+struct get_tensor_value_type_t<Tensor<Rank,T,C,L>>
+{
+   using type = T;
+};
+
+template <typename Tensor>
+using get_tensor_value_type = typename get_tensor_value_type_t<Tensor>::type;
+
 // template <int Rank, typename T>
 // using ViewTensor = Tensor<Rank,T,ViewContainer,RestrictedLayout>;
 
