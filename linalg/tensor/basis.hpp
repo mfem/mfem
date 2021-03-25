@@ -465,6 +465,16 @@ struct get_basis_quads<BasisTensor<Dim, IsTensor, TensorType>>
    static constexpr int value = get_tensor_size<0,TensorType>::value;
 };
 
+// get_basis_dofs
+template <typename Basis>
+struct get_basis_dofs;
+
+template <int Dim, bool IsTensor, typename TensorType>
+struct get_basis_dofs<BasisTensor<Dim, IsTensor, TensorType>>
+{
+   static constexpr int value = get_tensor_size<1,TensorType>::value;
+};
+
 } // mfem namespace
 
 #endif // MFEM_BASIS
