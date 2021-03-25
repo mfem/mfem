@@ -442,6 +442,19 @@ auto grad(BasisTranspose<Dim,IsTensor,Dofs,Quads> &Bt)
    return BasisGradientTranspose<Dim,IsTensor,Dofs,Quads>(Bt);
 }
 
+////////////////
+// Basis Traits
+
+// get_basis_dim
+template <typename Basis>
+struct get_basis_dim;
+
+template <int Dim, bool IsTensor, typename TensorType>
+struct get_basis_dim<BasisTensor<Dim,IsTensor,TensorType>>
+{
+   static constexpr int value = Dim;
+};
+
 } // mfem namespace
 
 #endif // MFEM_BASIS
