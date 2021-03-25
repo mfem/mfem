@@ -304,6 +304,7 @@ public:
    ~ComplexMUMPSSolver();
 private:
    MPI_Comm comm;
+   ComplexOperator::Convention conv;
    int numProcs;
    int myid;
    int print_level = 0;

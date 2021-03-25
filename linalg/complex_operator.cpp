@@ -886,10 +886,10 @@ void ComplexMUMPSSolver::SetOperator(const Operator &op)
    auto APtr = dynamic_cast<const ComplexHypreParMatrix *>(&op);
 
    MFEM_VERIFY(APtr, "Not compatible matrix type");
-
    height = op.Height();
    width = op.Width();
 
+   conv = APtr->GetConvention();
    comm = APtr->real().GetComm();
    MPI_Comm_size(comm, &numProcs);
    MPI_Comm_rank(comm, &myid);
@@ -1021,6 +1021,16 @@ void ComplexMUMPSSolver::Mult(const Vector &x, Vector &y) const
 #if MFEM_MUMPS_VERSION >= 530
 
    int n = x.Size()/2;
+   double * datax = x.GetData();
+   double * datay = y.GetData();
+   Vector ximag;
+   if (conv == ComplexOperator::Convention::BLOCK_SYMMETRIC)
+   {
+      ximag.SetDataAndSize(&datax[n],n);
+      ximag *=-1.0;
+   }
+
+
    id->nloc_rhs = n;
    id->lrhs_loc = n;
    mumps_double_complex *zx = new mumps_double_complex[n];
@@ -1106,6 +1116,11 @@ void ComplexMUMPSSolver::Mult(const Vector &x, Vector &y) const
    }
 
 #endif
+
+   if (conv == ComplexOperator::Convention::BLOCK_SYMMETRIC)
+   {
+      ximag *=-1.0;
+   }
 }
 
 void ComplexMUMPSSolver::SetPrintLevel(int print_lvl)
