@@ -227,6 +227,8 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
          amgx_config = amgx_config + "\n";
       }
       amgx_config = amgx_config + " }\n" + "}\n";
+      // use a zero initial guess in Mult()
+      iterative_mode = false;
    }
    else if (amgxMode == AMGX_MODE::SOLVER)
    {
@@ -269,6 +271,8 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
          amgx_config = amgx_config + "\n";
       }
       amgx_config = amgx_config + "   } \n" + "} \n";
+      // use the user-specified vector as an initial guess in Mult()
+      iterative_mode = true;
    }
    else
    {
@@ -888,7 +892,7 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
 {
    // Set initial guess to zero
    X.UseDevice(true);
-   if (zero_guess) { X = 0.0; }
+   if (!iterative_mode) { X = 0.0; }
 
    // Mult for serial, and mpi-exclusive modes
    if (mpi_gpu_mode != "mpi-teams")
