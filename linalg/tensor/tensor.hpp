@@ -34,14 +34,13 @@ namespace mfem
        template <int... Sizes>,
        where Sizes... is the list of the sizes of the dimensions of the Tensor.
    */
-template <int Rank,
+template <int Rank, // TODO Remove rank from here and deduce it from Layout?
           typename T = double,
           typename Container = MemoryContainer<T>,
           typename Layout = DynamicLayout<Rank> >
 class Tensor: public Container, public Layout
 {
 public:
-   static const int rank = Rank;
    using type = T;
    using container = Container;
    using layout = Layout;
@@ -370,6 +369,18 @@ using StaticDeviceTensor = DeviceTensorType::static_type<T,BatchSize,Sizes...>;
 template <int BatchSize, int... Sizes>
 using StaticDeviceDTensor = StaticDeviceTensor<double,BatchSize,Sizes...>;
 
+/////////////////
+// Tensor Traits
+
+// get_tensor_rank
+template <typename Tensor>
+struct get_tensor_rank;
+
+template <int Rank, typename T, typename C, typename L>
+struct get_tensor_rank<Tensor<Rank,T,C,L>>
+{
+   static constexpr int value = Rank;
+};
 // template <int Rank, typename T>
 // using ViewTensor = Tensor<Rank,T,ViewContainer,RestrictedLayout>;
 
