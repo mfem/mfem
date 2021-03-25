@@ -395,6 +395,16 @@ struct get_tensor_value_type_t<Tensor<Rank,T,C,L>>
 template <typename Tensor>
 using get_tensor_value_type = typename get_tensor_value_type_t<Tensor>::type;
 
+// is_dynamic_tensor
+template <typename Tensor>
+struct is_dynamic_tensor;
+
+template <int Rank, typename T, typename C, typename L>
+struct is_dynamic_tensor<Tensor<Rank,T,C,L>>
+{
+   static constexpr bool value = is_dynamic_layout<L>::value;
+};
+
 // template <int Rank, typename T>
 // using ViewTensor = Tensor<Rank,T,ViewContainer,RestrictedLayout>;
 
