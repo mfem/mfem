@@ -779,6 +779,32 @@ struct is_static_layout<RestrictedLayout<N,Layout>>
 {
    static constexpr bool value = is_static_layout<Layout>::value;
 };
+
+// is_serial_layout
+template <typename Layout>
+struct is_serial_layout
+{
+   static constexpr bool value = false;
+};
+
+template<int... Dims>
+struct is_serial_layout<StaticLayout<Dims...>>
+{
+   static constexpr bool value = true;
+};
+
+template <int Rank>
+struct is_serial_layout<DynamicLayout<Rank>>
+{
+   static constexpr bool value = true;
+};
+
+template <int N, typename Layout>
+struct is_serial_layout<RestrictedLayout<N,Layout>>
+{
+   static constexpr bool value = is_serial_layout<Layout>::value;
+};
+
 } // namespace mfem
 
 #endif // MFEM_LAYOUT
