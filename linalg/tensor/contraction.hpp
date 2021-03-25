@@ -795,14 +795,14 @@ auto ContractX(const Basis &B, const Tensor &u)
    constexpr int BatchSize = get_tensor_batch_size<Tensor>::value;
    const int batch_id = MFEM_THREAD_ID(z);
    StaticBlockDTensor<BatchSize,Q,Dy,VDim> Bu;
-   MFEM_SHARED StaticDTensor<Dx,Dy,VDim,BatchSize> slice;
+   MFEM_SHARED StaticDTensor<Dx,Dy,BatchSize,VDim> slice;
    MFEM_FOREACH_THREAD(dy,y,Dy)
    {
       MFEM_FOREACH_THREAD(dx,x,Dx)
       {
          for(int c = 0; c < VDim; ++c)
          {
-            slice(dx,dy,c,batch_id) = u(dx,dy,c);
+            slice(dx,dy,batch_id,c) = u(dx,dy,c);
          }
       }
    }
@@ -820,7 +820,7 @@ auto ContractX(const Basis &B, const Tensor &u)
             MFEM_UNROLL(VDim)
             for(int c = 0; c < VDim; ++c)
             {
-               const double x = slice(dx,dy,c,batch_id);
+               const double x = slice(dx,dy,batch_id,c);
                v(c) += b * x;
             }
          }
@@ -981,7 +981,7 @@ auto ContractY(const Basis &B, const Tensor &u)
    constexpr int BatchSize = get_tensor_batch_size<Tensor>::value;
    const int batch_id = MFEM_THREAD_ID(z);
    StaticBlockDTensor<BatchSize,Dx,Q,VDim> Bu;
-   MFEM_SHARED StaticDTensor<Dx,Dy,VDim,BatchSize> slice;
+   MFEM_SHARED StaticDTensor<Dx,Dy,BatchSize,VDim> slice;
    MFEM_FOREACH_THREAD(dy,y,Dy)
    {
       MFEM_FOREACH_THREAD(dx,x,Dx)
@@ -989,7 +989,7 @@ auto ContractY(const Basis &B, const Tensor &u)
          MFEM_UNROLL(VDim)
          for(int c = 0; c < VDim; ++c)
          {
-            slice(dx,dy,c,batch_id) = u(dx,dy,c);
+            slice(dx,dy,batch_id,c) = u(dx,dy,c);
          }
       }
    }
@@ -1007,7 +1007,7 @@ auto ContractY(const Basis &B, const Tensor &u)
             MFEM_UNROLL(VDim)
             for(int c = 0; c < VDim; ++c)
             {
-               const double x = slice(dx,dy,c,batch_id);
+               const double x = slice(dx,dy,batch_id,c);
                v(c) += b * x;
             }
          }
@@ -1698,7 +1698,7 @@ auto ContractX(const Basis &B, const Tensor &u)
    constexpr int BatchSize = get_tensor_batch_size<Tensor>::value;
    const int batch_id = MFEM_THREAD_ID(z);
    StaticBlockDTensor<BatchSize,Q,Dy,Dz,VDim> Bu;
-   MFEM_SHARED StaticDTensor<Dx,Dy,VDim,BatchSize> slice; // TODO invert VDIM and BatchSize?
+   MFEM_SHARED StaticDTensor<Dx,Dy,BatchSize,VDim> slice;
    MFEM_UNROLL(Dz)
    for (int dz = 0; dz < Dz; dz++)
    {
@@ -1709,7 +1709,7 @@ auto ContractX(const Basis &B, const Tensor &u)
             MFEM_UNROLL(VDim)
             for(int c = 0; c < VDim; ++c)
             {
-               slice(dx,dy,c,batch_id) = u(dx,dy,dz,c);
+               slice(dx,dy,batch_id,c) = u(dx,dy,dz,c);
             }
          }
       }
@@ -1727,7 +1727,7 @@ auto ContractX(const Basis &B, const Tensor &u)
                MFEM_UNROLL(VDim)
                for(int c = 0; c < VDim; ++c)
                {
-                  const double x = slice(dx,dy,c,batch_id);
+                  const double x = slice(dx,dy,batch_id,c);
                   v(c) += b * x;
                }
             }
@@ -1903,7 +1903,7 @@ auto ContractY(const Basis &B, const Tensor &u)
    constexpr int BatchSize = get_tensor_batch_size<Tensor>::value;
    const int batch_id = MFEM_THREAD_ID(z);
    StaticBlockDTensor<BatchSize,Dx,Q,Dz,VDim> Bu;
-   MFEM_SHARED StaticDTensor<Dx,Dy,VDim,BatchSize> slice;
+   MFEM_SHARED StaticDTensor<Dx,Dy,BatchSize,VDim> slice;
    MFEM_UNROLL(Dz)
    for (int dz = 0; dz < Dz; dz++)
    {
@@ -1914,7 +1914,7 @@ auto ContractY(const Basis &B, const Tensor &u)
             MFEM_UNROLL(VDim)
             for(int c = 0; c < VDim; ++c)
             {
-               slice(dx,dy,c,batch_id) = u(dx,dy,dz,c);
+               slice(dx,dy,batch_id,c) = u(dx,dy,dz,c);
             }
          }
       }
@@ -1932,7 +1932,7 @@ auto ContractY(const Basis &B, const Tensor &u)
                MFEM_UNROLL(VDim)
                for(int c = 0; c < VDim; ++c)
                {
-                  const double x = slice(dx,dy,c,batch_id);
+                  const double x = slice(dx,dy,batch_id,c);
                   v(c) += b * x;
                }
             }
