@@ -561,7 +561,10 @@ private:
        dual of a device MemoryType is a host MemoryType. */
    static MemoryType dual_map[MemoryTypeSize];
 
-   /// True if Configure() was called
+   /// Update the dual memory type of @a mt to be @a dual_mt.
+   static void UpdateDualMemoryType(MemoryType mt, MemoryType dual_mt);
+
+   /// True if Configure() was called.
    static bool configured;
 
    /// Host and device allocator names for Umpire.

@@ -1453,6 +1453,11 @@ void MemoryManager::SetDualMemoryType(MemoryType mt, MemoryType dual_mt)
 {
    MFEM_VERIFY(!configured, "changing the dual MemoryTypes is not allowed after"
                " MemoryManager configuration!");
+   UpdateDualMemoryType(mt, dual_mt);
+}
+
+void MemoryManager::UpdateDualMemoryType(MemoryType mt, MemoryType dual_mt)
+{
    MFEM_VERIFY((int)mt < MemoryTypeSize,
                "invalid MemoryType, mt = " << (int)mt);
    MFEM_VERIFY((int)dual_mt < MemoryTypeSize,
@@ -1478,8 +1483,8 @@ void MemoryManager::SetDualMemoryType(MemoryType mt, MemoryType dual_mt)
 void MemoryManager::Configure(const MemoryType host_mt,
                               const MemoryType device_mt)
 {
-   MemoryManager::SetDualMemoryType(host_mt, device_mt);
-   MemoryManager::SetDualMemoryType(device_mt, host_mt);
+   MemoryManager::UpdateDualMemoryType(host_mt, device_mt);
+   MemoryManager::UpdateDualMemoryType(device_mt, host_mt);
    Init();
    host_mem_type = host_mt;
    device_mem_type = device_mt;
