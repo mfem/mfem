@@ -17,65 +17,6 @@
 namespace mfem
 {
 
-// template <int Rank, typename T, typename Container, typename Layout>
-// auto Concatenate(Tensor<Rank, T, Container, Layout> &tl,
-//                  Tensor<Rank, T, Container, Layout> &tr)
-// {
-//    Tensor<Rank+1, T, Container, Layout> res;
-//    return res;
-// }
-
-// template <int Rank,
-//           typename T,
-//           typename Container,
-//           typename Layout,
-//           Tensor<Rank,T,Container,Layout>... Args>
-// auto Concatenate(Args... ts)
-// {
-//    Tensor<Rank+1, T, Container, Layout> res;
-//    return res;
-// }
-
-// namespace detail
-// {
-// template <int N>
-// struct For
-// {
-//    template <typename TensorIn, typename TensorOut, typename... Args>
-//    static void set(TensorOut &out, TensorIn &in0, Args... &ins)
-//    {
-//       out.Get<TensorOut::rank-1>(N) = in0;
-//       For<N-1>::set(out,ins...);
-//    }
-// };
-
-// template <>
-// struct For<0>
-// {
-//    template <typename TensorIn, typename TensorOut>
-//    static void set(TensorOut &out, TensorIn &in)
-//    {
-//       out.Get<TensorOut::rank-1>(0) = in;
-//    }
-// };
-
-// }
-
-// template <int Rank,
-//           typename T,
-//           template <typename,int...> class Container,
-//           template <int...> class Layout,
-//           int... Sizes,
-//           Tensor<Rank,T,Container<T,Sizes...>,Layout<Sizes...>>... Args>
-// auto Concatenate(Args... ts)
-// {
-//    using ResContainer = Container<T,Sizes...,sizeof...(Args)>;
-//    using ResLayout = Layout<Sizes...,sizeof...(Args)>;
-//    Tensor<Rank+1, T, ResContainer, ResLayout> res;
-//    // detail::For<sizeof...(Args)>::set(res,ts...);
-//    return res;
-// }
-
 template <int Rank, int N = 1>
 struct AddSize
 {
