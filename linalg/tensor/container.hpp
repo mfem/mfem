@@ -363,6 +363,46 @@ public:
    }
 };
 
+////////////////////
+// Container Traits
+
+// is_pointer_container
+template <typename Container>
+struct is_pointer_container
+{
+   static constexpr bool value = false;
+};
+
+template <typename T>
+struct is_pointer_container<DeviceContainer<T>>
+{
+   static constexpr bool value = true;
+};
+
+template <typename T>
+struct is_pointer_container<ReadContainer<T>>
+{
+   static constexpr bool value = true;
+};
+
+template <typename T>
+struct is_pointer_container<MemoryContainer<T>>
+{
+   static constexpr bool value = true;
+};
+
+template <typename T, typename Container>
+struct is_pointer_container<ViewContainer<T,Container>>
+{
+   static constexpr bool value = is_pointer_container<Container>::value;
+};
+
+template <typename T, typename Container>
+struct is_pointer_container<ConstViewContainer<T,Container>>
+{
+   static constexpr bool value = is_pointer_container<Container>::value;
+};
+
 } // namespace mfem
 
 #endif // MFEM_CONTAINER
