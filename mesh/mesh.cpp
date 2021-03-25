@@ -778,7 +778,8 @@ void Mesh::GetLocalQuadToWdgTransformation(
 }
 
 const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
-                                                  const int flags)
+                                                  const int flags,
+                                                  MemoryType d_mt)
 {
    for (int i = 0; i < geom_factors.Size(); i++)
    {
@@ -791,7 +792,7 @@ const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
 
    this->EnsureNodes();
 
-   GeometricFactors *gf = new GeometricFactors(this, ir, flags);
+   GeometricFactors *gf = new GeometricFactors(this, ir, flags, d_mt);
    geom_factors.Append(gf);
    return gf;
 }
@@ -10813,7 +10814,7 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
 
 
 GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
-                                   int flags)
+                                   int flags, MemoryType d_mt)
 {
    this->mesh = mesh;
    IntRule = &ir;
@@ -10833,19 +10834,21 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
                                    ElementDofOrdering::NATIVE);
 
    unsigned eval_flags = 0;
+   MemoryType my_d_mt = (d_mt != MemoryType::DEFAULT) ? d_mt :
+                        Device::GetDeviceMemoryType();
    if (flags & GeometricFactors::COORDINATES)
    {
-      X.SetSize(vdim*NQ*NE);
+      X.SetSize(vdim*NQ*NE, my_d_mt);
       eval_flags |= QuadratureInterpolator::VALUES;
    }
    if (flags & GeometricFactors::JACOBIANS)
    {
-      J.SetSize(dim*vdim*NQ*NE);
+      J.SetSize(dim*vdim*NQ*NE, my_d_mt);
       eval_flags |= QuadratureInterpolator::DERIVATIVES;
    }
    if (flags & GeometricFactors::DETERMINANTS)
    {
-      detJ.SetSize(NQ*NE);
+      detJ.SetSize(NQ*NE, my_d_mt);
       eval_flags |= QuadratureInterpolator::DETERMINANTS;
    }
 
@@ -10855,7 +10858,7 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    qi->SetOutputLayout(QVectorLayout::byNODES);
    if (elem_restr)
    {
-      Vector Enodes(vdim*ND*NE);
+      Vector Enodes(vdim*ND*NE, my_d_mt);
       elem_restr->Mult(*nodes, Enodes);
       qi->Mult(Enodes, eval_flags, X, J, detJ);
    }
