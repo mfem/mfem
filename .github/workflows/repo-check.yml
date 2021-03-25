@@ -15,9 +15,8 @@ on:
   push:
     branches:
       - master
+      - next
   pull_request:
-    branches:
-      - master
 
 jobs:
   copyright-check:
