@@ -366,6 +366,12 @@ public:
        as boundary (for visualization purposes) using the mfem v1.0 format. */
    virtual void Print(std::ostream &out = mfem::out) const;
 
+   /// Save the ParMesh to files (one for each MPI rank). The files will be
+   /// given suffixes according to the MPI rank. The mesh will be written to the
+   /// files using ParMesh::Print. The given @a precision will be used for ASCII
+   /// output.
+   virtual void Save(const char *fname, int precision=8) const;
+
 #ifdef MFEM_USE_ADIOS2
    /** Print the part of the mesh in the calling processor using adios2 bp
        format. */
