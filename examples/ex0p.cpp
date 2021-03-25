@@ -89,7 +89,8 @@ int main(int argc, char *argv[])
    // 12. Recover the solution x as a grid function and save to file. The output
    //     can be viewed using GLVis as follows: "glvis -np <np> -m mesh -g sol"
    a.RecoverFEMSolution(X, b, x);
-   x.SaveWithMesh("sol", "mesh");
+   x.Save("sol");
+   mesh.Save("mesh");
 
    return 0;
 }
