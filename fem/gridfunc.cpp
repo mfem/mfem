@@ -32,14 +32,14 @@ namespace mfem
 
 using namespace std;
 
-GridFunction::GridFunction(Mesh *m, std::istream &input)
+GridFunction::GridFunction(Mesh *m, std::istream &input, bool connect)
    : Vector()
 {
    // Grid functions are stored on the device
    UseDevice(true);
 
    fes = new FiniteElementSpace;
-   fec = fes->Load(m, input);
+   fec = fes->Load(m, input, connect);
 
    skip_comment_lines(input, '#');
    istream::int_type next_char = input.peek();

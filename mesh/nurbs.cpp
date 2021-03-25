@@ -1381,7 +1381,6 @@ NURBSExtension::NURBSExtension(std::istream &input)
    // CheckBdrPatches();
 
    skip_comment_lines(input, '#');
-
    // Read knotvectors or patches
    string ident;
    input >> ws >> ident; // 'knotvectors' or 'patches'
@@ -1497,7 +1496,7 @@ NURBSExtension::NURBSExtension(std::istream &input)
    GenerateActiveBdrElems();
    GenerateBdrElementDofTable();
 
-   // periodic
+   // Read periodicity info
    if (ident == "periodic")
    {
       master.Load(input);
@@ -1507,9 +1506,9 @@ NURBSExtension::NURBSExtension(std::istream &input)
       input >> ws >> ident;
    }
 
+   // Read weights
    if (patches.Size() == 0)
    {
-      // weights
       if (ident == "weights")
       {
          weights.Load(input, GetNDof());
@@ -1520,9 +1519,6 @@ NURBSExtension::NURBSExtension(std::istream &input)
          weights = 1.0;
       }
    }
-
-   // periodic
-   ConnectBoundaries();
 }
 
 NURBSExtension::NURBSExtension(NURBSExtension *parent, int newOrder)
@@ -1573,7 +1569,6 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent, int newOrder)
    // periodic
    parent->master.Copy(master);
    parent->slave.Copy(slave);
-   ConnectBoundaries();
 }
 
 NURBSExtension::NURBSExtension(NURBSExtension *parent,
@@ -1627,7 +1622,6 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent,
 
    parent->master.Copy(master);
    parent->slave.Copy(slave);
-   ConnectBoundaries();
 }
 
 NURBSExtension::NURBSExtension(Mesh *mesh_array[], int num_pieces)
@@ -1672,6 +1666,9 @@ NURBSExtension::NURBSExtension(Mesh *mesh_array[], int num_pieces)
 
    weights.SetSize(GetNDof());
    MergeWeights(mesh_array, num_pieces);
+
+   parent->master.Copy(master);
+   parent->slave.Copy(slave);
 }
 
 NURBSExtension::~NURBSExtension()
@@ -1719,6 +1716,13 @@ void NURBSExtension::Print(std::ostream &out) const
             }
       }
 
+      if (master.Size() > 0)
+      {
+         out << "\nperiodic\n";
+         master.Save(out);
+         slave.Save(out);
+      }
+
       out << "\nweights\n";
       weights.Print(out, 1);
    }
@@ -1730,6 +1734,14 @@ void NURBSExtension::Print(std::ostream &out) const
          out << "\n# patch " << p << "\n\n";
          patches[p]->Print(out);
       }
+
+      if (master.Size() > 0)
+      {
+         out << "\nperiodic\n";
+         master.Save(out);
+         slave.Save(out);
+      }
+
    }
 }
 
@@ -1778,8 +1790,6 @@ void NURBSExtension::PrintFunctions(const char *basename, int samples) const
 
 void NURBSExtension::InitDofMap()
 {
-   master.SetSize(0);
-   slave.SetSize(0);
    d_to_d.SetSize(0);
 }
 
@@ -1787,7 +1797,6 @@ void NURBSExtension::ConnectBoundaries(Array<int> &bnds0, Array<int> &bnds1)
 {
    bnds0.Copy(master);
    bnds1.Copy(slave);
-   ConnectBoundaries();
 }
 
 void NURBSExtension::ConnectBoundaries()
@@ -3007,8 +3016,6 @@ void NURBSExtension::SetKnotsFromPatches()
    GenerateElementDofTable();
    GenerateActiveBdrElems();
    GenerateBdrElementDofTable();
-
-   ConnectBoundaries();
 }
 
 void NURBSExtension::LoadSolution(std::istream &input, GridFunction &sol) const
@@ -3341,7 +3348,8 @@ ParNURBSExtension::ParNURBSExtension(MPI_Comm comm, NURBSExtension *parent,
    }
    own_topo = 1;
    parent->own_topo = 0;
-
+   parent->master.Copy(master);
+   parent->slave.Copy(slave);
    parent->edge_to_knot.Copy(edge_to_knot);
 
    parent->GetOrders().Copy(mOrders);
@@ -3545,7 +3553,7 @@ Table *ParNURBSExtension::Get2DGlobalElementDofTable()
                   {
                      for (int ii = 0; ii <= ord0; ii++)
                      {
-                        conn.to = p2g(i+ii,j+jj);
+                        conn.to = DofMap(p2g(i+ii,j+jj));
                         gel_dof_list.Append(conn);
                      }
                   }
@@ -3593,7 +3601,7 @@ Table *ParNURBSExtension::Get3DGlobalElementDofTable()
                            {
                               for (int ii = 0; ii <= ord0; ii++)
                               {
-                                 conn.to = p2g(i+ii,j+jj,k+kk);
+                                 conn.to = DofMap(p2g(i+ii,j+jj,k+kk));
                                  gel_dof_list.Append(conn);
                               }
                            }
