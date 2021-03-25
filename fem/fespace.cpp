@@ -1903,6 +1903,9 @@ void FiniteElementSpace::Construct()
       face_orders = (VarOrderBits(1) << order);
    }
 
+   // get a list of faces that need two sets of DOFs (Nedelec spaces only)
+   GetDoubleFaces(double_faces);
+
    // assign vertex DOFs
    if (mesh->GetNV())
    {
@@ -2106,6 +2109,10 @@ void FiniteElementSpace
    while (!done);
 }
 
+/// Return true iff 'n' is a power of 2.
+inline bool is_pow2(int n) { return !(n & (n-1)); }
+
+
 int FiniteElementSpace::MakeDofTable(int ent_dim,
                                      const Array<int> &entity_orders,
                                      Table &entity_dofs,
@@ -2134,11 +2141,11 @@ int FiniteElementSpace::MakeDofTable(int ent_dim,
    }
 
    // assign DOFs according to order bit masks
-   for (int i = 0; i < num_ent; i++)
+   for (int i = 0, j = 0; i < num_ent; i++)
    {
       auto geom = (ent_dim == 1) ? Geometry::SEGMENT : mesh->GetFaceGeometry(i);
 
-      VarOrderBits bits = entity_orders[i];
+      VarOrderBits bits = entity_orders[i], orig_bits = bits;
       for (int order = 0; bits != 0; order++, bits >>= 1)
       {
          if (bits & 1)
@@ -2147,6 +2154,18 @@ int FiniteElementSpace::MakeDofTable(int ent_dim,
             list.Append(Connection(i, total_dofs));
             total_dofs += dofs;
 
+            // add one more DOF set if 'i' is a double face with a single order
+            if (ent_dim == 2 && j < double_faces.Size() && i == double_faces[j])
+            {
+               if (is_pow2(orig_bits))
+               {
+                  list.Append(Connection(i, total_dofs));
+                  total_dofs += dofs;
+               }
+               j++;
+            }
+
+            // record the order of the DOF set variant
             if (var_ent_order) { var_ent_order->Append(order); }
          }
       }

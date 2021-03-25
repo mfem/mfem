@@ -124,6 +124,11 @@ protected:
        (these are basically alternate J arrays for var_edge/face_dofs). */
    Array<char> var_edge_orders, var_face_orders;
 
+   /** List of faces with two sets of DOFs. This is a special feature for
+       triangular Nedelec faces with orientations 1-4 that we disconnect and
+       constrain with the P matrix. Normally the list is empty. */
+   Array<int> double_faces;
+
    // precalculated DOFs for each element, boundary element, and face
    mutable Table *elem_dof; // owned (except in NURBS FE space)
    mutable Table *bdr_elem_dof; // owned (except in NURBS FE space)
