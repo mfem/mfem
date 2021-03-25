@@ -888,7 +888,7 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
 {
    // Set initial guess to zero
    X.UseDevice(true);
-   if (zero_guess) X = 0.0;
+   if (zero_guess) { X = 0.0; }
 
    // Mult for serial, and mpi-exclusive modes
    if (mpi_gpu_mode != "mpi-teams")
