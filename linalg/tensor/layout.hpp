@@ -819,6 +819,22 @@ struct is_2d_threaded_layout<RestrictedLayout<N,Layout>>
    static constexpr bool value = is_2d_threaded_layout<Layout>::value;
 };
 
+// get_layout_size
+template <int N, typename Layout>
+struct get_layout_size;
+
+template <int N, int... Dims>
+struct get_layout_size<N, StaticLayout<Dims...>>
+{
+   static constexpr int value = Dim<N, Dims...>::val;
+};
+
+template <int N, int BatchSize, int... Dims>
+struct get_layout_size<N, BlockLayout<BatchSize, Dims...>>
+{
+   static constexpr int value = Dim<N, Dims...>::val;
+};
+
 // get_layout_batch_size
 template <typename Layout>
 struct get_layout_batch_size
