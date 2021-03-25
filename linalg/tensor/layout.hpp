@@ -829,6 +829,32 @@ struct is_2d_threaded_layout<RestrictedLayout<N,Layout>>
 {
    static constexpr bool value = is_2d_threaded_layout<Layout>::value;
 };
+
+// get_layout_batch_size
+template <typename Layout>
+struct get_layout_batch_size
+{
+   static constexpr int value = 1;
+};
+
+template <int BatchSize, int... Dims>
+struct get_layout_batch_size<BlockLayout<BatchSize, Dims...>>
+{
+   static constexpr int value = BatchSize;
+};
+
+template <int Rank, int BatchSize>
+struct get_layout_batch_size<DynamicBlockLayout<Rank, BatchSize>>
+{
+   static constexpr int value = BatchSize;
+};
+
+template <int N, typename Layout>
+struct get_layout_batch_size<RestrictedLayout<N, Layout>>
+{
+   static constexpr int value = get_layout_batch_size<Layout>::value;
+};
+
 } // namespace mfem
 
 #endif // MFEM_LAYOUT
