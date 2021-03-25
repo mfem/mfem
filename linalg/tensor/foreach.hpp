@@ -17,6 +17,7 @@
 namespace mfem
 {
 
+// TODO use some enable_if in there too? That would help fusing the GPU code
 /// A structure that implements an imbricated forall with for loops.
 template <int N>
 struct Foreach

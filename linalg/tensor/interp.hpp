@@ -27,6 +27,7 @@ namespace mfem
 template <int Dim, int D, int Q, typename Dofs>
 auto operator*(const Basis<Dim,false,D,Q> &basis, const Dofs &u)
 {
+   // TODO declare some __shared__/MFEM_SHARED memory for the basis?
    // Change GetB interface, Device struct don't work
    auto B = basis.GetB();
    return B * u;

@@ -383,7 +383,7 @@ struct QuadTensorType<KernelConfig<Dim,false,Dynamic,Dynamic,BatchSize>,DimComp>
 template <typename Config, int DimComp>
 using QuadTensor = typename QuadTensorType<Config,DimComp>::Tensor;
 
-/// Functor to represent degrees of freedom
+/// Functor to represent data at quadrature points
 template <int DimComp, typename Config>
 auto MakeQData(Config &config, double *x, int ne)
 {
