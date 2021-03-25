@@ -805,6 +805,30 @@ struct is_serial_layout<RestrictedLayout<N,Layout>>
    static constexpr bool value = is_serial_layout<Layout>::value;
 };
 
+// is_2d_threaded_layout
+template <typename Layout>
+struct is_2d_threaded_layout
+{
+   static constexpr bool value = false;
+};
+
+template <int BatchSize, int... Dims>
+struct is_2d_threaded_layout<BlockLayout<BatchSize,Dims...>>
+{
+   static constexpr bool value = true;
+};
+
+template <int Rank, int BatchSize>
+struct is_2d_threaded_layout<DynamicBlockLayout<Rank,BatchSize>>
+{
+   static constexpr bool value = true;
+};
+
+template <int N, typename Layout>
+struct is_2d_threaded_layout<RestrictedLayout<N,Layout>>
+{
+   static constexpr bool value = is_2d_threaded_layout<Layout>::value;
+};
 } // namespace mfem
 
 #endif // MFEM_LAYOUT
