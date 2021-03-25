@@ -289,7 +289,7 @@ ParallelTestProblem::ParallelTestProblem()
    }
 
    bmat = new HypreParMatrix(MPI_COMM_WORLD, 1, 4, 8, Blocal.GetI(),
-                             Blocal_J.GetData(), Blocal.GetData(), row_starts_c, 
+                             Blocal_J.GetData(), Blocal.GetData(), row_starts_c,
                              col_starts);
 
    // rhs // [ 1.1 -2.   3.  -1.4  2.1 -3.2 -1.1  2.2  0.   0.   0.   0. ]
