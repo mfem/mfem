@@ -313,8 +313,6 @@ private:
    int64_t mat_local_rows;
 
    std::string mpi_gpu_mode;
-
-   bool zero_guess = true;
 };
 }
 #endif // MFEM_USE_AMGX
