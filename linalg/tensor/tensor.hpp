@@ -435,6 +435,16 @@ struct is_2d_threaded_tensor<Tensor<Rank,T,C,L>>
    static constexpr bool value = is_2d_threaded_layout<L>::value;
 };
 
+// get_tensor_batch_size
+template <typename Tensor>
+struct get_tensor_batch_size;
+
+template <int Rank, typename T, typename C, typename L>
+struct get_tensor_batch_size<Tensor<Rank,T,C,L>>
+{
+   static constexpr int value = get_layout_batch_size<L>::value;
+};
+
 // template <int Rank, typename T>
 // using ViewTensor = Tensor<Rank,T,ViewContainer,RestrictedLayout>;
 
