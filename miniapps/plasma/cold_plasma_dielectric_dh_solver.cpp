@@ -1218,7 +1218,7 @@ CPDSolverDH::Assemble()
    // a0_->Assemble();
    // a0_->Finalize();
 
-   a1_->Assemble();
+   a1_->Assemble(0);
    if (!pa_) { a1_->Finalize(); }
 
    tic_toc.Stop();
@@ -1589,18 +1589,37 @@ CPDSolverDH::Solve()
 
    a1_->FormLinearSystem(dbc_nd_tdofs_, *h_, *rhs1_, A1, H, RHS1);
 
-#ifdef MFEM_USE_SUPERLU
+   StopWatch solve_time;
+   solve_time.Clear();
+   solve_time.Start();
    if ( myid_ == 0 && logging_ > 0 )
    {
       cout << "SuperLU Solver Requested" << endl;
    }
-   ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
-   HypreParMatrix * A1C = A1Z->GetSystemMatrix();
-   SuperLURowLocMatrix A_SuperLU(*A1C);
-   SuperLUSolver AInv(MPI_COMM_WORLD);
-   AInv.SetOperator(A_SuperLU);
-   // solver.Mult(RHS1, H);
 
+   int direct_sol = 1; // choice between SuperLU (0) and MUMPS (1)
+   Solver * AInv = nullptr;
+#ifdef MFEM_USE_SUPERLU
+   SuperLURowLocMatrix * A_SuperLU = nullptr;
+   if (direct_sol == 0)
+   {
+      ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
+      HypreParMatrix * A1C = A1Z->GetSystemMatrix();
+      A_SuperLU = new SuperLURowLocMatrix(*A1C);
+      AInv = new SuperLUSolver(MPI_COMM_WORLD);
+      AInv->SetOperator(*A_SuperLU);
+      delete A1C;
+   }
+#endif
+#ifdef MFEM_USE_MUMPS
+   if (direct_sol == 1)
+   {
+      AInv = new ComplexMUMPSSolver;
+      AInv->SetOperator(*A1);
+   }
+#endif
+   if (!AInv) MFEM_VERIFY(AInv, "Direct Solver pointer is null");
+   // solver.Mult(RHS1, H);
    if (sbcs_->Size() > 0)
    {
       OperatorHandle B, C, D;
@@ -1626,7 +1645,7 @@ CPDSolverDH::Solve()
          nzD12_->FormRectangularSystemMatrix(dbc_nd_tdofs_,
                                              non_sbc_h1_tdofs_, C);
 
-         SchurComplimentOperator schur(AInv, *B, *C, *D);
+         SchurComplimentOperator schur(*AInv, *B, *C, *D);
 
          const Vector & RHS = schur.GetRHSVector(RHS1, RHS0);
 
@@ -1662,14 +1681,19 @@ CPDSolverDH::Solve()
    }
    else
    {
-      AInv.Mult(RHS1, H);
-
+      AInv->Mult(RHS1, H);
       *phi_ = 0.0;
    }
-
-   delete A1C;
+   solve_time.Stop();
+   double t0 = solve_time.RealTime();
+   if (myid_ == 0)
+   {
+      cout << "H solver total time = " << t0 << endl;
+   }
+   delete AInv;
+#ifdef MFEM_USE_SUPERLU
+   if (direct_sol == 0) { delete A_SuperLU; }
 #endif
-
    a1_->RecoverFEMSolution(H, *rhs1_, *h_);
 
    if (logging_ > 0)
