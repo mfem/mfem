@@ -126,17 +126,16 @@ public:
    // TODO Soft and Hard Get? (lazy accessor or hard copy)
    // Call it Extract?
 
-   /// Get the Sub-Tensor extracted from idx in Nth dimension.
+   /// Lazy accessor for the sub-Tensor extracted from idx in Nth dimension.
    template <int N>
    auto Get(int idx)
    {
       static_assert(N>=0 && N<Rank,"Cannot access this dimension with Get");
-      using RestrictedTensor = Tensor<Rank-1,
-                                      T,
-                                      ViewContainer<T,Container>,
-                                      RestrictedLayout<N,Layout> >;
-      ViewContainer<T,Container> data(*this);
-      RestrictedLayout<N,Layout> layout(idx,*this);
+      using C = ViewContainer<T,Container>;
+      using L = RestrictedLayout<N,Layout>;
+      using RestrictedTensor = Tensor<Rank-1,T,C,L>;
+      C data(*this);
+      L layout(idx,*this);
       return RestrictedTensor(data,layout);
    }
 
@@ -144,12 +143,11 @@ public:
    auto Get(int idx) const
    {
       static_assert(N>=0 && N<Rank,"Cannot access this dimension with Get");
-      using RestrictedTensor = Tensor<Rank-1,
-                                      T,
-                                      ConstViewContainer<T,Container>,
-                                      RestrictedLayout<N,Layout> >;
-      ConstViewContainer<T,Container> data(*this);
-      RestrictedLayout<N,Layout> layout(idx,*this);
+      using C = ConstViewContainer<T,Container>;
+      using L = RestrictedLayout<N,Layout>;
+      using RestrictedTensor = Tensor<Rank-1,T,C,L>;
+      C data(*this);
+      L layout(idx,*this);
       return RestrictedTensor(data,layout);
    }
 
