@@ -455,6 +455,16 @@ struct get_basis_dim<BasisTensor<Dim,IsTensor,TensorType>>
    static constexpr int value = Dim;
 };
 
+// is_tensor_basis
+template <typename Basis>
+struct is_tensor_basis;
+
+template <int Dim, bool IsTensor, typename TensorType>
+struct is_tensor_basis<BasisTensor<Dim,IsTensor,TensorType>>
+{
+   static constexpr bool value = IsTensor;
+};
+
 // get_basis_quads
 template <typename Basis>
 struct get_basis_quads;
