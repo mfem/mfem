@@ -726,6 +726,34 @@ class NDLayout;
 /// Layout for Raviart-Thomas finite elements dofs TODO
 class RTLayout;
 
+/////////////////
+// Layout Traits
+
+// is_dynamic_layout
+template <typename Layout>
+struct is_dynamic_layout
+{
+   static constexpr bool value = false;
+};
+
+template<int Rank>
+struct is_dynamic_layout<DynamicLayout<Rank>>
+{
+   static constexpr bool value = true;
+};
+
+template <int Rank, int BatchSize>
+struct is_dynamic_layout<DynamicBlockLayout<Rank,BatchSize>>
+{
+   static constexpr bool value = true;
+};
+
+
+template <int N, typename Layout>
+struct is_dynamic_layout<RestrictedLayout<N,Layout>>
+{
+   static constexpr bool value = is_dynamic_layout<Layout>::value;
+};
 } // namespace mfem
 
 #endif // MFEM_LAYOUT
