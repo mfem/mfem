@@ -28,7 +28,7 @@ double dist_value(const Vector &x, const int type)
       rv = rv > 0 ? pow(rv, 0.5) : 0;
       return rv - ring_radius; // +ve is the domain
    }
-   else if (type == 3 || type == 4)   // walls at y = 0.0 and y = 1.0
+   else if (type == 3)   // walls at y = 0.0 and y = 1.0
    {
       if (x(1) > 0.5)
       {
@@ -90,7 +90,7 @@ public:
          double length = p.Norml2();
          p *= dist0/length;
       }
-      else if (type == 3 || type == 4)
+      else if (type == 3)
       {
          double dist0 = dist_value(x, type);
          p(0) = 0.;

@@ -24,6 +24,7 @@ protected:
    VectorCoefficient *vD; // Distance function coefficient
    Array<int> *elem_marker; //marker indicating wether element is inside,
    //cut, or outside the domain.
+   bool include_cut_cell;
    int nterms; //1 = Hessian (3rd order)
    int NEproc; //Number of elements on the current MPI rank
    int par_shared_face_count;
@@ -38,9 +39,11 @@ public:
                            const double a,
                            VectorCoefficient &vD_,
                            Array<int> &elem_marker_,
+                           bool include_cut_cell_ = false,
                            int nterms_ = 0)
       : alpha(a), vD(&vD_),
         elem_marker(&elem_marker_),
+        include_cut_cell(include_cut_cell_),
         nterms(nterms_),
         NEproc(pmesh->GetNE()),
         par_shared_face_count(0) { }
@@ -62,6 +65,7 @@ protected:
    VectorCoefficient *vD; // Distance function coefficient
    Array<int> *elem_marker; //marker indicating wether element is inside,
    //cut, or outside the domain.
+   bool include_cut_cell;
    int nterms;  //Number of terms in addition to the gradient term from Taylor
    //expansion that should be included. (0 by default).
    int NEproc; //Number of elements on the current MPI rank
@@ -73,13 +77,15 @@ protected:
 
 public:
    SBM2DirichletLFIntegrator(const ParMesh *pmesh,
-                              ShiftedFunctionCoefficient &u,
-                              const double a,
-                              VectorCoefficient &vD_,
-                              Array<int> &elem_marker_,
-                              int nterms_ = 0)
+                             ShiftedFunctionCoefficient &u,
+                             const double a,
+                             VectorCoefficient &vD_,
+                             Array<int> &elem_marker_,
+                             bool include_cut_cell_ = false,
+                             int nterms_ = 0)
       : uD(&u), alpha(a), vD(&vD_),
         elem_marker(&elem_marker_),
+        include_cut_cell(include_cut_cell_),
         nterms(nterms_),
         NEproc(pmesh->GetNE()),
         par_shared_face_count(0) { }

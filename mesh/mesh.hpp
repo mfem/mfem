@@ -1102,6 +1102,9 @@ public:
    /// Return the attribute of boundary element i.
    int GetBdrAttribute(int i) const { return boundary[i]->GetAttribute(); }
 
+   /// Set the attribute of boundary element i.
+   void SetBdrAttribute(int i, int attr) { boundary[i]->SetAttribute(attr); }
+
    const Table &ElementToElementTable();
 
    const Table &ElementToFaceTable() const;

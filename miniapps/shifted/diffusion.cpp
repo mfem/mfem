@@ -17,9 +17,6 @@
 //              -nabla^u = f with inhomogeneous boundary conditions, f is setup
 //              such that u = sin(pi*x*y)
 //   mpirun -np 4 diffusion -m ../../data/inline-quad.mesh -rs 2 -o 1 -vis -lst 3
-//
-//   Problem 4: Same as Problem 3 but now we also treat a domain boundary as
-//   shifted boundary
 #include "../../mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -48,6 +45,7 @@ int main(int argc, char *argv[])
    int level_set_type = 1;
    int ho_terms = 0;
    double alpha = 1;
+   bool include_cut_cell = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -69,6 +67,9 @@ int main(int argc, char *argv[])
                   "Additional high-order terms to include");
    args.AddOption(&alpha, "-alpha", "--alpha",
                   "Nitsche penalty parameter (~1 for 2D, ~10 for 3D).");
+   args.AddOption(&include_cut_cell, "-cut", "--cut", "-no-cut-cell",
+                  "--no-cut-cell",
+                  "Include or not include elements cut by true boundary.");
 
    args.Parse();
    if (!args.Good())
@@ -112,15 +113,6 @@ int main(int argc, char *argv[])
       for (int i = 0; i < nodes_cnt; i++)
       {
          vxyz(i+nodes_cnt) = (1.+1.e-4)*vxyz(i+nodes_cnt)-1.e-4;
-      }
-   }
-   else if (level_set_type ==
-            4)   //stretch quadmesh from [0, 1] to [1.e-4, 1+2e-4]
-   {
-      for (int i = 0; i < nodes_cnt; i++)
-      {
-         vxyz(i+nodes_cnt) = (1.+1.e-4)*vxyz(i+nodes_cnt)+1.e-4/std::pow(2.,
-                                                                         ser_ref_levels);
       }
    }
    pmesh.SetNodes(vxyz);
@@ -167,6 +159,15 @@ int main(int argc, char *argv[])
    Array<int> sbm_dofs; // Array of dofs on SBM faces
    Array<int> dofs;     // work array
 
+   // Setup Dirichlet boundaries
+   Array<int> ess_bdr(pmesh.bdr_attributes.Max());
+   int pmesh_bdr_attr_max = 0;
+   if (pmesh.bdr_attributes.Size())
+   {
+      pmesh_bdr_attr_max = pmesh.bdr_attributes.Max();
+      ess_bdr = 1;
+   }
+
    // First we check interior faces of the mesh (excluding interior faces that
    // are on the processor boundaries)
    for (int i = 0; i < pmesh.GetNumFaces(); i++)
@@ -179,12 +180,30 @@ int main(int argc, char *argv[])
          int ne1 = tr->Elem1No;
          int ne2 = tr->Elem2No;
          int te1 = elem_marker[ne1], te2 = elem_marker[ne2];
-         if (te1 == 2 && te2 == 0)
+         if (!include_cut_cell &&
+             te1 == ShiftedFaceMarker::SBElementType::CUT &&
+             te2 == ShiftedFaceMarker::SBElementType::INSIDE)
          {
             pfespace.GetFaceDofs(faceno, dofs);
             sbm_dofs.Append(dofs);
          }
-         if (te1 == 0 && te2 == 2)
+         if (!include_cut_cell &&
+             te1 == ShiftedFaceMarker::SBElementType::INSIDE &&
+             te2 == ShiftedFaceMarker::SBElementType::CUT)
+         {
+            pfespace.GetFaceDofs(faceno, dofs);
+            sbm_dofs.Append(dofs);
+         }
+         if (include_cut_cell &&
+             te1 == ShiftedFaceMarker::SBElementType::CUT &&
+             te2 == ShiftedFaceMarker::SBElementType::OUTSIDE)
+         {
+            pfespace.GetFaceDofs(faceno, dofs);
+            sbm_dofs.Append(dofs);
+         }
+         if (include_cut_cell &&
+             te1 == ShiftedFaceMarker::SBElementType::OUTSIDE &&
+             te2 == ShiftedFaceMarker::SBElementType::CUT)
          {
             pfespace.GetFaceDofs(faceno, dofs);
             sbm_dofs.Append(dofs);
@@ -196,28 +215,31 @@ int main(int argc, char *argv[])
    // Here we add boundary faces that we want to model as SBM faces.
    // For the method where we clip inside the domain, a boundary face
    // has to be set as SBM face using its attribute.
-   for (int i = 0; i < pmesh.GetNBE(); i++)
+
+   bool sbm_at_true_boundary = false;
+   if (include_cut_cell)
    {
-      int attr = pmesh.GetBdrAttribute(i);
-      FaceElementTransformations *tr;
-      tr = pmesh.GetBdrFaceTransformations (i);
-      if (tr != NULL)
+      for (int i = 0; i < pmesh.GetNBE(); i++)
       {
-         if (attr == 100 ||
-             (level_set_type == 4 &&
-              attr == 1))   // add all boundary faces with attr=100 as SBM faces
+         int attr = pmesh.GetBdrAttribute(i);
+         FaceElementTransformations *tr;
+         tr = pmesh.GetBdrFaceTransformations (i);
+         if (tr != NULL)
          {
             int ne1 = tr->Elem1No;
             int te1 = elem_marker[ne1];
             const int faceno = pmesh.GetBdrFace(i);
-            if (te1 == 0)
+            if (te1 == ShiftedFaceMarker::SBElementType::CUT)
             {
                pfespace.GetFaceDofs(faceno, dofs);
                sbm_dofs.Append(dofs);
+               sbm_at_true_boundary = true;
+               pmesh.SetBdrAttribute(i, pmesh_bdr_attr_max+1);
             }
          }
       }
    }
+   if (sbm_at_true_boundary) { ess_bdr.Append(0); }
 
    // Now we add interior faces that are on processor boundaries.
    for (int i = 0; i < pmesh.GetNSharedFaces(); i++)
@@ -231,14 +253,22 @@ int main(int argc, char *argv[])
          const int faceno = pmesh.GetSharedFace(i);
          // Add if the element on this proc is completely inside the domain
          // and the the element on other proc is not
-         if (te2 == 2 && te1 == 0)
+         if (!include_cut_cell &&
+             te2 == ShiftedFaceMarker::SBElementType::CUT &&
+             te1 == ShiftedFaceMarker::SBElementType::INSIDE)
+         {
+            pfespace.GetFaceDofs(faceno, dofs);
+            sbm_dofs.Append(dofs);
+         }
+         if (include_cut_cell &&
+             te2 == ShiftedFaceMarker::SBElementType::OUTSIDE &&
+             te1 == ShiftedFaceMarker::SBElementType::CUT)
          {
             pfespace.GetFaceDofs(faceno, dofs);
             sbm_dofs.Append(dofs);
          }
       }
    }
-
 
    // Determine the list of true (i.e. conforming) essential boundary dofs.
    // To do this, we first make a list of all dofs that are on the real boundary
@@ -248,16 +278,12 @@ int main(int argc, char *argv[])
 
    // Make a list of dofs on all boundaries
    Array<int> ess_tdof_list;
-   Array<int> ess_bdr(pmesh.bdr_attributes.Max());
    Array<int> ess_shift_bdr = ess_bdr;
    if (pmesh.bdr_attributes.Size())
    {
-      ess_bdr = 1;
-      ess_shift_bdr = 0;
-      if (level_set_type == 4)
+      for (int i = 0; i < ess_bdr.Size(); i++)
       {
-         ess_bdr[0] = 0;
-         ess_shift_bdr[0] = 1;
+         ess_shift_bdr[i] = 1 - ess_bdr[i];
       }
    }
    Array<int> ess_vdofs_bdr;
@@ -269,7 +295,18 @@ int main(int argc, char *argv[])
    ess_vdofs_hole = 0;
    for (int e = 0; e < pmesh.GetNE(); e++)
    {
-      if (elem_marker[e] > 0)
+      if (!include_cut_cell &&
+          (elem_marker[e] == ShiftedFaceMarker::SBElementType::OUTSIDE ||
+           elem_marker[e] == ShiftedFaceMarker::SBElementType::CUT))
+      {
+         pfespace.GetElementVDofs(e, dofs);
+         for (int i = 0; i < dofs.Size(); i++)
+         {
+            ess_vdofs_hole[dofs[i]] = -1;
+         }
+      }
+      if (include_cut_cell &&
+          elem_marker[e] == ShiftedFaceMarker::SBElementType::OUTSIDE)
       {
          pfespace.GetElementVDofs(e, dofs);
          for (int i = 0; i < dofs.Size(); i++)
@@ -347,11 +384,27 @@ int main(int argc, char *argv[])
    const int max_elem_attr = pmesh.attributes.Max();
    Array<int> ess_elem(max_elem_attr);
    ess_elem = 1;
-   ess_elem.Append(0);
+   bool inactive_elements = false;
    for (int i = 0; i < pmesh.GetNE(); i++)
    {
-      if (elem_marker[i] >= 1) { pmesh.SetAttribute(i, max_elem_attr+1); }
+      if (!include_cut_cell &&
+          (elem_marker[i] == ShiftedFaceMarker::SBElementType::OUTSIDE ||
+           elem_marker[i] == ShiftedFaceMarker::SBElementType::CUT))
+      {
+         pmesh.SetAttribute(i, max_elem_attr+1);
+         inactive_elements = true;
+      }
+      if (include_cut_cell &&
+          elem_marker[i] == ShiftedFaceMarker::SBElementType::OUTSIDE)
+      {
+         pmesh.SetAttribute(i, max_elem_attr+1);
+         inactive_elements = true;
+      }
    }
+   bool inactive_elements_global;
+   MPI_Allreduce(&inactive_elements, &inactive_elements_global, 1, MPI_C_BOOL,
+                 MPI_LOR, MPI_COMM_WORLD);
+   if (inactive_elements_global) { ess_elem.Append(0); }
    pmesh.SetAttributes();
 
    // Set up the linear form b(.) which corresponds to the right-hand side of
@@ -366,7 +419,7 @@ int main(int argc, char *argv[])
    {
       rhs_f = new FunctionCoefficient(rhs_fun_xy_exponent);
    }
-   else if (level_set_type == 3 || level_set_type == 4)
+   else if (level_set_type == 3)
    {
       rhs_f = new FunctionCoefficient(rhs_fun_xy_sinusoidal);
    }
@@ -386,7 +439,7 @@ int main(int argc, char *argv[])
    {
       dbcCoef = new ShiftedFunctionCoefficient(dirichlet_velocity_xy_exponent);
    }
-   else if (level_set_type == 3 || level_set_type == 4)
+   else if (level_set_type == 3)
    {
       dbcCoef = new ShiftedFunctionCoefficient(dirichlet_velocity_xy_sinusoidal);
    }
@@ -395,13 +448,15 @@ int main(int argc, char *argv[])
       MFEM_ABORT("Dirichlet velocity function not set for level set type.\n");
    }
    b.AddInteriorFaceIntegrator(new SBM2DirichletLFIntegrator(&pmesh, *dbcCoef,
-                                                              alpha, *dist_vec,
-                                                              elem_marker,
-                                                              ho_terms));
+                                                             alpha, *dist_vec,
+                                                             elem_marker,
+                                                             include_cut_cell,
+                                                             ho_terms));
    b.AddBdrFaceIntegrator(new SBM2DirichletLFIntegrator(&pmesh, *dbcCoef,
-                                                         alpha, *dist_vec,
-                                                         elem_marker,
-                                                         ho_terms), ess_shift_bdr);
+                                                        alpha, *dist_vec,
+                                                        elem_marker,
+                                                        include_cut_cell,
+                                                        ho_terms), ess_shift_bdr);
    b.Assemble();
 
    // Set up the bilinear form a(.,.) on the finite element space
@@ -412,9 +467,14 @@ int main(int argc, char *argv[])
 
    a.AddDomainIntegrator(new DiffusionIntegrator(one), ess_elem);
    a.AddInteriorFaceIntegrator(new SBM2DirichletIntegrator(&pmesh, alpha,
-                                                           *dist_vec, elem_marker, ho_terms));
+                                                           *dist_vec,
+                                                           elem_marker,
+                                                           include_cut_cell,
+                                                           ho_terms));
    a.AddBdrFaceIntegrator(new SBM2DirichletIntegrator(&pmesh, alpha, *dist_vec,
-                                                      elem_marker, ho_terms), ess_shift_bdr);
+                                                      elem_marker,
+                                                      include_cut_cell,
+                                                      ho_terms), ess_shift_bdr);
 
    // Assemble the bilinear form and the corresponding linear system,
    // applying any necessary transformations.
@@ -487,7 +547,7 @@ int main(int argc, char *argv[])
       {
          exact_val = dirichlet_velocity_xy_exponent(pxyz);
       }
-      else if (level_set_type == 3 || level_set_type == 4)
+      else if (level_set_type == 3)
       {
          exact_val = dirichlet_velocity_xy_sinusoidal(pxyz);
       }

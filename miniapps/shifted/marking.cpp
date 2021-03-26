@@ -51,7 +51,7 @@ void ShiftedFaceMarker::MarkElements(Array<int> &elem_marker) const
    {
       int shared_fnum = i-pmesh.GetNE();
       FaceElementTransformations *tr =
-            pmesh.GetSharedFaceTransformations(shared_fnum);
+         pmesh.GetSharedFaceTransformations(shared_fnum);
       int Elem2NbrNo = tr->Elem2No - pmesh.GetNE();
 
       ElementTransformation *eltr =
