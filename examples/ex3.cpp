@@ -44,6 +44,8 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#define MFEM_DEBUG_COLOR 206
+#include "../general/debug.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -142,6 +144,7 @@ int main(int argc, char *argv[])
    LinearForm *b = new LinearForm(fespace);
    b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
    b->Assemble();
+   dbg("b:%f",(*b)*(*b));//b->Print();
 
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x by projecting the exact
@@ -172,6 +175,7 @@ int main(int argc, char *argv[])
    OperatorPtr A;
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+   dbg("B:%f",B*B); //B.Print();
 
    cout << "Size of linear system: " << A->Height() << endl;
 

@@ -13,6 +13,9 @@
 #include "operator.hpp"
 #include "../general/forall.hpp"
 
+#define MFEM_DEBUG_COLOR 226
+#include "../general/debug.hpp"
+
 #include <iostream>
 #include <iomanip>
 
@@ -55,13 +58,21 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
 {
    const Operator *P = this->GetProlongation();
    const Operator *R = this->GetRestriction();
+   dbg("B:%f",B*B);
+   dbg("X:%f",X*X);
    InitTVectors(P, R, P, x, b, X, B);
+   dbg("after InitTVectors, B:%f",B*B);
+   dbg("after InitTVectors, X:%f",X*X);
 
    if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
 
    ConstrainedOperator *constrainedA;
    FormConstrainedSystemOperator(ess_tdof_list, constrainedA);
+   dbg("after FormConstrainedSystemOperator, B:%f",B*B);
+   dbg("after FormConstrainedSystemOperator, X:%f",X*X);
    constrainedA->EliminateRHS(X, B);
+   dbg("after EliminateRHS, B:%f",B*B);
+   dbg("after EliminateRHS, X:%f",X*X);
    Aout = constrainedA;
 }
 
@@ -421,6 +432,8 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
 void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 {
    w = 0.0;
+   dbg("w:%f",w*w);
+   dbg("b:%f",b*b);
    const int csz = constraint_list.Size();
    auto idx = constraint_list.Read();
    auto d_x = x.Read();
@@ -433,8 +446,13 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
    });
 
    // A.AddMult(w, b, -1.0); // if available to all Operators
+   //dbg("z:%f",z*z); z.Print(); assert(false);
    A->Mult(w, z);
+   dbg("A, z:%f",z*z); //z.Print();   assert(false);
+   dbg("A, b:%f",b*b);
+   z = 0.0;
    b -= z;
+   dbg("-, b:%f",b*b);
 
    // Use read+write access - we are modifying sub-vector of b
    auto d_b = b.ReadWrite();

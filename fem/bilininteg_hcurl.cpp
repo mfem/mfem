@@ -13,6 +13,11 @@
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
 
+#define MFEM_DEBUG_COLOR 154
+#include "../general/debug.hpp"
+
+#define USE_REGISTER 1
+
 using namespace std;
 
 namespace mfem
@@ -614,11 +619,12 @@ void SmemPAHcurlMassApply3D(const int D1D,
    MFEM_VERIFY(Q1D <= HCURL_MAX_Q1D, "Error: Q1D > MAX_Q1D");
 
    const int dataSize = symmetric ? 6 : 9;
+   dbg("D1D:%d Q1D:%d s:%d",D1D,Q1D,dataSize);
 
-   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
-   auto Bc = Reshape(bc.Read(), Q1D, D1D);
-   auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, dataSize, NE);
-   auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
+   const auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   const auto Bc = Reshape(bc.Read(), Q1D, D1D);
+   const auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, dataSize, NE);
+   const auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
@@ -629,13 +635,12 @@ void SmemPAHcurlMassApply3D(const int D1D,
 
       MFEM_SHARED double sBo[tQ1D][tD1D];
       MFEM_SHARED double sBc[tQ1D][tD1D];
-#define USE_REGISTER 1
 #if USE_REGISTER
       double MFEM_REGISTER_3D(op9,tQ1D,tQ1D,tQ1D)[9];
 #else
       double op9[9];
 #endif
-      MFEM_SHARED double sop[9*tQ1D*tQ1D];
+      MFEM_SHARED double sop[9][tQ1D][tQ1D];
       MFEM_SHARED double mass[tQ1D][tQ1D][3];
 
       MFEM_SHARED double sX[tD1D][tD1D][tD1D];
@@ -657,9 +662,10 @@ void SmemPAHcurlMassApply3D(const int D1D,
             }
          }
       }
+      MFEM_SYNC_THREAD;
 
-      const int tidx = MFEM_THREAD_ID(x);
-      const int tidy = MFEM_THREAD_ID(y);
+      //const int tidx = MFEM_THREAD_ID(x);
+      //const int tidy = MFEM_THREAD_ID(y);
       const int tidz = MFEM_THREAD_ID(z);
 
       if (tidz == 0)
@@ -669,10 +675,7 @@ void SmemPAHcurlMassApply3D(const int D1D,
             MFEM_FOREACH_THREAD(q,x,Q1D)
             {
                sBc[q][d] = Bc(q,d);
-               if (d < D1D-1)
-               {
-                  sBo[q][d] = Bo(q,d);
-               }
+               if (d < D1D-1) { sBo[q][d] = Bo(q,d); }
             }
          }
       }
@@ -701,15 +704,22 @@ void SmemPAHcurlMassApply3D(const int D1D,
 
             if (tidz == qz)
             {
-               for (int i=0; i<dataSize; ++i)
+               MFEM_FOREACH_THREAD(qy,y,Q1D)
                {
+                  MFEM_FOREACH_THREAD(qx,x,Q1D)
+                  {
+                     for (int i=0; i<dataSize; ++i)
+                     {
 #if USE_REGISTER
-                  const double op_i = MFEM_REGISTER_3D(op9,tidx,tidy,qz)[i];
+                        const double op_i = MFEM_REGISTER_3D(op9,qx,qy,qz)[i];
 #else
-                  const double op_i = op9[i];
+                        const double op_i = op9[i];
 #endif
-                  sop[i + (dataSize*tidx) + (dataSize*Q1D*tidy)] = op_i;
+                        sop[i][qx][qy] = op_i;
+                     }
+                  }
                }
+               MFEM_SYNC_THREAD;
 
                MFEM_FOREACH_THREAD(qy,y,Q1D)
                {
@@ -765,19 +775,21 @@ void SmemPAHcurlMassApply3D(const int D1D,
                         const double wy = (c == 1) ? sBo[qy][dy] : sBc[qy][dy];
                         for (int qx = 0; qx < Q1D; ++qx)
                         {
-                           const int os = (dataSize*qx) + (dataSize*Q1D*qy);
-                           const int id1 = os + ((c == 0) ? 0 : ((c == 1) ? (symmetric ? 1 : 3) :
-                                                                 (symmetric ? 2 : 6))); // O11, O21, O31
-                           const int id2 = os + ((c == 0) ? 1 : ((c == 1) ? (symmetric ? 3 : 4) :
-                                                                 (symmetric ? 4 : 7))); // O12, O22, O32
-                           const int id3 = os + ((c == 0) ? 2 : ((c == 1) ? (symmetric ? 4 : 5) :
-                                                                 (symmetric ? 5 : 8))); // O13, O23, O33
+                           //const int os = (dataSize*qx) + (dataSize*Q1D*qy);
+                           const int id1 = /*os +*/ ((c == 0) ? 0 : ((c == 1) ? (symmetric ? 1 : 3) :
+                                                                     (symmetric ? 2 : 6))); // O11, O21, O31
+                           const int id2 = /*os +*/ ((c == 0) ? 1 : ((c == 1) ? (symmetric ? 3 : 4) :
+                                                                     (symmetric ? 4 : 7))); // O12, O22, O32
+                           const int id3 = /*os +*/ ((c == 0) ? 2 : ((c == 1) ? (symmetric ? 4 : 5) :
+                                                                     (symmetric ? 5 : 8))); // O13, O23, O33
 
-                           const double m_c = (sop[id1] * mass[qy][qx][0]) + (sop[id2] * mass[qy][qx][1]) +
-                                              (sop[id3] * mass[qy][qx][2]);
+                           const double m_c = (sop[id1][qx][qy] * mass[qy][qx][0])
+                                              + (sop[id2][qx][qy] * mass[qy][qx][1])
+                                              + (sop[id3][qx][qy] * mass[qy][qx][2]);
 
                            const double wx = (c == 0) ? sBo[qx][dx] : sBc[qx][dx];
                            dxyz += m_c * wx * wy * wz;
+                           //if (qx==0 && qy==0 && qz==0) { dbg("dxyz: %f",dxyz); }
                         }
                      }
                   }
@@ -1712,14 +1724,15 @@ static void SmemPACurlCurlApply3D(const int D1D,
    // If c = 1, \hat{\nabla}\times\hat{u} reduces to [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
    // If c = 2, \hat{\nabla}\times\hat{u} reduces to [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
 
-   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
-   auto Bc = Reshape(bc.Read(), Q1D, D1D);
-   auto Gc = Reshape(gc.Read(), Q1D, D1D);
-   auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
-   auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
+   const auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   const auto Bc = Reshape(bc.Read(), Q1D, D1D);
+   const auto Gc = Reshape(gc.Read(), Q1D, D1D);
+   const auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
+   const auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
    const int s = symmetric ? 6 : 9;
+   dbg("D1D:%d MAX_D1D:%d Q1D:%d MAX_Q1D:%d s:%d",D1D,MAX_D1D,Q1D,MAX_Q1D,s);
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
@@ -1729,7 +1742,11 @@ static void SmemPACurlCurlApply3D(const int D1D,
       MFEM_SHARED double sBc[MAX_D1D][MAX_Q1D];
       MFEM_SHARED double sGc[MAX_D1D][MAX_Q1D];
 
+#if USE_REGISTER
+      double MFEM_REGISTER_3D(ope,MAX_Q1D,MAX_Q1D,MAX_Q1D)[9];
+#else
       double ope[9];
+#endif
       MFEM_SHARED double sop[9][MAX_Q1D][MAX_Q1D];
       MFEM_SHARED double curl[MAX_Q1D][MAX_Q1D][3];
 
@@ -1743,14 +1760,18 @@ static void SmemPACurlCurlApply3D(const int D1D,
             {
                for (int i=0; i<s; ++i)
                {
+#if USE_REGISTER
+                  MFEM_REGISTER_3D(ope,qx,qy,qz)[i] = op(qx,qy,qz,i,e);
+#else
                   ope[i] = op(qx,qy,qz,i,e);
+#endif
                }
             }
          }
       }
 
-      const int tidx = MFEM_THREAD_ID(x);
-      const int tidy = MFEM_THREAD_ID(y);
+      //const int tidx = MFEM_THREAD_ID(x);
+      //const int tidy = MFEM_THREAD_ID(y);
       const int tidz = MFEM_THREAD_ID(z);
 
       if (tidz == 0)
@@ -1761,10 +1782,7 @@ static void SmemPACurlCurlApply3D(const int D1D,
             {
                sBc[d][q] = Bc(q,d);
                sGc[d][q] = Gc(q,d);
-               if (d < D1D-1)
-               {
-                  sBo[d][q] = Bo(q,d);
-               }
+               if (d < D1D-1) { sBo[d][q] = Bo(q,d); }
             }
          }
       }
@@ -1809,10 +1827,22 @@ static void SmemPACurlCurlApply3D(const int D1D,
             {
                if (c == 0)
                {
-                  for (int i=0; i<s; ++i)
+                  MFEM_FOREACH_THREAD(qy,y,Q1D)
                   {
-                     sop[i][tidx][tidy] = ope[i];
+                     MFEM_FOREACH_THREAD(qx,x,Q1D)
+                     {
+                        for (int i=0; i<s; ++i)
+                        {
+#if USE_REGISTER
+                           sop[i][qx][qy] = MFEM_REGISTER_3D(ope,qx,qy,qz)[i];
+#else
+                           sop[i][qx][qy] = ope[i];
+#endif
+                           //dbg("%f",sop[i][qx][qy]);
+                        }
+                     }
                   }
+                  MFEM_SYNC_THREAD;
                }
 
                MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -1938,6 +1968,8 @@ static void SmemPACurlCurlApply3D(const int D1D,
                         const double O11 = sop[0][qx][qy];
                         const double O12 = sop[1][qx][qy];
                         const double O13 = sop[2][qx][qy];
+                        //if (dx==0 && dy==0 && qz==0) { dbg("O: %f %f %f",O11,O12,O13); }
+
                         const double O21 = symmetric ? O12 : sop[3][qx][qy];
                         const double O22 = symmetric ? sop[3][qx][qy] : sop[4][qx][qy];
                         const double O23 = symmetric ? sop[4][qx][qy] : sop[5][qx][qy];
@@ -1954,6 +1986,7 @@ static void SmemPACurlCurlApply3D(const int D1D,
 
                         const double wcx = sBc[dx][qx];
                         const double wDx = sGc[dx][qx];
+                        //if (dx==0 && dy==0 && qz==0) { dbg("c: %f %f %f, w:%f %f",c1,c2,c3,wcx,wDx); }
 
                         if (dx < D1D-1)
                         {
@@ -1975,7 +2008,7 @@ static void SmemPACurlCurlApply3D(const int D1D,
                } // dx
             } // dy
          } // dz
-
+         //dbg("%f %f %f",dxyz1,dxyz2,dxyz3);
          MFEM_SYNC_THREAD;
 
          MFEM_FOREACH_THREAD(dz,z,D1D)
@@ -1987,14 +2020,25 @@ static void SmemPACurlCurlApply3D(const int D1D,
                   if (dx < D1D-1)
                   {
                      Y(dx + ((dy + (dz * D1D)) * (D1D-1)), e) += dxyz1;
+                     /*dbg("%f",
+                         Y(dx + ((dy + (dz * D1D)) * (D1D-1)), e));
+                     */
                   }
                   if (dy < D1D-1)
                   {
                      Y(dx + ((dy + (dz * (D1D-1))) * D1D) + ((D1D-1)*D1D*D1D), e) += dxyz2;
+
+                     /*dbg("%f",
+                         Y(dx + ((dy + (dz * (D1D-1))) * D1D) + ((D1D-1)*D1D*D1D), e));
+                     */
                   }
                   if (dz < D1D-1)
                   {
                      Y(dx + ((dy + (dz * D1D)) * D1D) + (2*(D1D-1)*D1D*D1D), e) += dxyz3;
+
+                     /*dbg("%f",
+                         Y(dx + ((dy + (dz * D1D)) * D1D) + (2*(D1D-1)*D1D*D1D), e));
+                     */
                   }
                }
             }
@@ -2005,11 +2049,14 @@ static void SmemPACurlCurlApply3D(const int D1D,
 
 void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
+   dbg();
    if (dim == 3)
    {
-      if (Device::Allows(Backend::DEVICE_MASK))
+#warning DEVICE_MASK
+      //if (Device::Allows(Backend::DEVICE_MASK))
       {
          const int ID = (dofs1D << 4) | quad1D;
+         dbg("ID: 0x%x",ID);
          switch (ID)
          {
             case 0x23: return SmemPACurlCurlApply3D<2,3>(dofs1D, quad1D, symmetric, ne,
@@ -2029,10 +2076,10 @@ void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
                                                      mapsC->B, mapsO->Bt, mapsC->Bt,
                                                      mapsC->G, mapsC->Gt, pa_data, x, y);
          }
-      }
+      }/*
       else
          PACurlCurlApply3D(dofs1D, quad1D, symmetric, ne, mapsO->B, mapsC->B, mapsO->Bt,
-                           mapsC->Bt, mapsC->G, mapsC->Gt, pa_data, x, y);
+                           mapsC->Bt, mapsC->G, mapsC->Gt, pa_data, x, y);*/
    }
    else if (dim == 2)
    {
@@ -2300,11 +2347,11 @@ static void SmemPACurlCurlAssembleDiagonal3D(const int D1D,
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
 
-   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
-   auto Bc = Reshape(bc.Read(), Q1D, D1D);
-   auto Go = Reshape(go.Read(), Q1D, D1D-1);
-   auto Gc = Reshape(gc.Read(), Q1D, D1D);
-   auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, (symmetric ? 6 : 9), NE);
+   const auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   const auto Bc = Reshape(bc.Read(), Q1D, D1D);
+   const auto Go = Reshape(go.Read(), Q1D, D1D-1);
+   const auto Gc = Reshape(gc.Read(), Q1D, D1D);
+   const auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, (symmetric ? 6 : 9), NE);
    auto D = Reshape(diag.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
    const int s = symmetric ? 6 : 9;
@@ -2333,7 +2380,11 @@ static void SmemPACurlCurlAssembleDiagonal3D(const int D1D,
       MFEM_SHARED double sGo[MAX_Q1D][MAX_D1D];
       MFEM_SHARED double sGc[MAX_Q1D][MAX_D1D];
 
+#if USE_REGISTER
+      double MFEM_REGISTER_3D(ope,MAX_Q1D,MAX_Q1D,MAX_Q1D)[9];
+#else
       double ope[9];
+#endif
       MFEM_SHARED double sop[9][MAX_Q1D][MAX_Q1D];
 
       MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -2344,14 +2395,18 @@ static void SmemPACurlCurlAssembleDiagonal3D(const int D1D,
             {
                for (int i=0; i<s; ++i)
                {
+#if USE_REGISTER
+                  MFEM_REGISTER_3D(ope,qx,qy,qz)[i] = op(qx,qy,qz,i,e);
+#else
                   ope[i] = op(qx,qy,qz,i,e);
+#endif
                }
             }
          }
       }
 
-      const int tidx = MFEM_THREAD_ID(x);
-      const int tidy = MFEM_THREAD_ID(y);
+      //const int tidx = MFEM_THREAD_ID(x);
+      //const int tidy = MFEM_THREAD_ID(y);
       const int tidz = MFEM_THREAD_ID(z);
 
       if (tidz == 0)
@@ -2385,12 +2440,21 @@ static void SmemPACurlCurlAssembleDiagonal3D(const int D1D,
          {
             if (tidz == qz)
             {
-               for (int i=0; i<s; ++i)
+               MFEM_FOREACH_THREAD(qy,y,Q1D)
                {
-                  sop[i][tidx][tidy] = ope[i];
+                  MFEM_FOREACH_THREAD(qx,x,Q1D)
+                  {
+                     for (int i=0; i<s; ++i)
+                     {
+#if USE_REGISTER
+                        sop[i][qx][qy] = MFEM_REGISTER_3D(ope,qx,qy,qz)[i];
+#else
+                        sop[i][qx][qy] = ope[i];
+#endif
+                     }
+                  }
                }
             }
-
             MFEM_SYNC_THREAD;
 
             MFEM_FOREACH_THREAD(dz,z,D1Dz)
@@ -2478,11 +2542,15 @@ static void SmemPACurlCurlAssembleDiagonal3D(const int D1D,
 
 void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
 {
+   dbg();
    if (dim == 3)
    {
-      if (Device::Allows(Backend::DEVICE_MASK))
+#warning DEVICE_MASK
+      //assert(false);
+      //if (Device::Allows(Backend::DEVICE_MASK))
       {
          const int ID = (dofs1D << 4) | quad1D;
+         dbg("ID: 0x%x",ID);
          switch (ID)
          {
             case 0x23: return SmemPACurlCurlAssembleDiagonal3D<2,3>(dofs1D, quad1D,
@@ -2511,11 +2579,11 @@ void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
                                                                 pa_data, diag);
          }
       }
-      else
+      /*else
          PACurlCurlAssembleDiagonal3D(dofs1D, quad1D, symmetric, ne,
                                       mapsO->B, mapsC->B,
                                       mapsO->G, mapsC->G,
-                                      pa_data, diag);
+                                      pa_data, diag);*/
    }
    else if (dim == 2)
    {
@@ -3956,6 +4024,8 @@ void MixedVectorCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
    if (testType == mfem::FiniteElement::CURL &&
        trialType == mfem::FiniteElement::CURL && dim == 3)
    {
+#warning DEVICE_MASK
+      assert(false);
       if (Device::Allows(Backend::DEVICE_MASK))
       {
          const int ID = (dofs1D << 4) | quad1D;
@@ -4653,6 +4723,8 @@ void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
    if (testType == mfem::FiniteElement::CURL &&
        trialType == mfem::FiniteElement::CURL && dim == 3)
    {
+#warning DEVICE_MASK
+      assert(false);
       if (Device::Allows(Backend::DEVICE_MASK))
       {
          const int ID = (dofs1D << 4) | quad1D;

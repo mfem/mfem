@@ -12,6 +12,9 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 
+#define MFEM_DEBUG_COLOR 117
+#include "../general/debug.hpp"
+
 namespace mfem
 {
 
@@ -959,13 +962,16 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    const bool test_curl = (test_fetype == mfem::FiniteElement::CURL);
    const bool test_div = (test_fetype == mfem::FiniteElement::DIV);
 
+   dbg();
    if (dim == 3)
    {
       if (trial_curl && test_curl)
       {
-         if (Device::Allows(Backend::DEVICE_MASK))
+#warning DEVICE_MASK
+         //if (Device::Allows(Backend::DEVICE_MASK))
          {
             const int ID = (dofs1D << 4) | quad1D;
+            dbg("ID: 0x%x",ID);
             switch (ID)
             {
                case 0x23: return SmemPAHcurlMassApply3D<2,3>(dofs1D, quad1D, ne, symmetric,
@@ -988,10 +994,10 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
                                                          mapsC->B,
                                                          mapsO->Bt, mapsC->Bt, pa_data, x, y);
             }
-         }
+         }/*
          else
             PAHcurlMassApply3D(dofs1D, quad1D, ne, symmetric, mapsO->B, mapsC->B, mapsO->Bt,
-                               mapsC->Bt, pa_data, x, y);
+                               mapsC->Bt, pa_data, x, y);*/
       }
       else if (trial_div && test_div)
       {
