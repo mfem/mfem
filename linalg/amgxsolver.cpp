@@ -616,13 +616,19 @@ void AmgXSolver::SetMatrix(const HypreParMatrix &A, const bool update_mat)
    // Assumes one GPU per MPI rank
    if (mpi_gpu_mode=="mpi-gpu-exclusive")
    {
-      return SetMatrixMPIGPUExclusive(A, loc_A, loc_I, loc_J, update_mat);
+      SetMatrixMPIGPUExclusive(A, loc_A, loc_I, loc_J, update_mat);
+      // Free A_csr data from hypre_MergeDiagAndOffd method
+      hypre_CSRMatrixDestroy(A_csr);
+      return;
    }
 
    // Assumes teams of MPI ranks are sharing a GPU
    if (mpi_gpu_mode == "mpi-teams")
    {
-      return SetMatrixMPITeams(A, loc_A, loc_I, loc_J, update_mat);
+      SetMatrixMPITeams(A, loc_A, loc_I, loc_J, update_mat);
+      // Free A_csr data from hypre_MergeDiagAndOffd method
+      hypre_CSRMatrixDestroy(A_csr);
+      return;
    }
 
    mfem_error("Unsupported MPI_GPU combination \n");
@@ -1013,7 +1019,7 @@ void AmgXSolver::Finalize()
 #endif
    }
 
-   // re-set necessary variables in case users want to reuse the variable of
+   // reset necessary variables in case users want to reuse the variable of
    // this instance for a new instance
 #ifdef MFEM_USE_MPI
    gpuProc = MPI_UNDEFINED;
