@@ -911,8 +911,8 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
       n20ZRe_ = new ParMixedBilinearForm(HDivFESpace_, H1FESpace_);
       n20ZIm_ = new ParMixedBilinearForm(HDivFESpace_, H1FESpace_);
       */
-     m0_ = new ParSesquilinearForm(H1FESpace_, conv_);
-     nzD12_ = new ParMixedSesquilinearForm(HCurlFESpace_, H1FESpace_, conv_);
+      m0_ = new ParSesquilinearForm(H1FESpace_, conv_);
+      nzD12_ = new ParMixedSesquilinearForm(HCurlFESpace_, H1FESpace_, conv_);
 
       for (int i=0; i<sbcs_->Size(); i++)
       {
