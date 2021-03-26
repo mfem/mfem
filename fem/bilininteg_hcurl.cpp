@@ -335,6 +335,7 @@ void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
             }
          }
       }
+      MFEM_SYNC_THREAD;
 
       //const int tidx = MFEM_THREAD_ID(x);
       //const int tidy = MFEM_THREAD_ID(y);
@@ -404,7 +405,6 @@ void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
                   }
                }
             }
-
             MFEM_SYNC_THREAD;
          }  // qz loop
 
@@ -418,6 +418,7 @@ void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
                }
             }
          }
+         MFEM_SYNC_THREAD;
 
          osc += D1Dx * D1Dy * D1Dz;
       }  // c loop
@@ -1786,6 +1787,7 @@ static void SmemPACurlCurlApply3D(const int D1D,
             }
          }
       }
+      MFEM_SYNC_THREAD;
 
       //const int tidx = MFEM_THREAD_ID(x);
       //const int tidy = MFEM_THREAD_ID(y);
@@ -1859,8 +1861,8 @@ static void SmemPACurlCurlApply3D(const int D1D,
                         }
                      }
                   }
-                  MFEM_SYNC_THREAD;
                }
+               MFEM_SYNC_THREAD;
 
                MFEM_FOREACH_THREAD(qy,y,Q1D)
                {
@@ -2421,6 +2423,7 @@ static void SmemPACurlCurlAssembleDiagonal3D(const int D1D,
             }
          }
       }
+      MFEM_SYNC_THREAD;
 
       //const int tidx = MFEM_THREAD_ID(x);
       //const int tidy = MFEM_THREAD_ID(y);
