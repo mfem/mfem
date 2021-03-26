@@ -687,7 +687,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    if ( sbcs_->Size() > 0 )
    {
       cout << "Building nxD01_" << endl;
-      nxD01_ = new ParMixedSesquilinearForm(H1FESpace_, HCurlFESpace_);
+      nxD01_ = new ParMixedSesquilinearForm(H1FESpace_, HCurlFESpace_, conv_);
       nxD01_->AddBoundaryIntegrator(NULL,
                                     new nxGradIntegrator(*omegaCoef_),
                                     sbc_bdr_marker_);
@@ -911,8 +911,8 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
       n20ZRe_ = new ParMixedBilinearForm(HDivFESpace_, H1FESpace_);
       n20ZIm_ = new ParMixedBilinearForm(HDivFESpace_, H1FESpace_);
       */
-      m0_ = new ParSesquilinearForm(H1FESpace_);
-      nzD12_ = new ParMixedSesquilinearForm(HCurlFESpace_, H1FESpace_);
+     m0_ = new ParSesquilinearForm(H1FESpace_, conv_);
+     nzD12_ = new ParMixedSesquilinearForm(HCurlFESpace_, H1FESpace_, conv_);
 
       for (int i=0; i<sbcs_->Size(); i++)
       {
@@ -965,7 +965,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    j_  = new ParComplexGridFunction(HDivFESpace_);
    *j_ = 0.0;
 
-   curlj_  = new ParComplexLinearForm(HCurlFESpace_);
+   curlj_  = new ParComplexLinearForm(HCurlFESpace_, conv_);
    curlj_->real() = 0.0;
    curlj_->imag() = 0.0;
 
