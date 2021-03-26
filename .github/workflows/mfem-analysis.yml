@@ -15,9 +15,8 @@ on:
   push:
     branches:
       - master
+      - next
   pull_request:
-    branches:
-      - master
 
 env:
   HYPRE_ARCHIVE: v2.19.0.tar.gz
