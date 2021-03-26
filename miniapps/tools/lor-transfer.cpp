@@ -172,16 +172,6 @@ int main(int argc, char *argv[])
    const Operator &R = gt->ForwardOperator();
    const Operator &P = gt->BackwardOperator();
 
-   // HO* to LOR* dual fields
-   GridFunction ones(&fespace), ones_lor(&fespace_lor);
-   ones = 1.0;
-   ones_lor = 1.0;
-   LinearForm M_rho(&fespace), M_rho_lor(&fespace_lor);
-   M_ho.Mult(rho, M_rho);
-   P.MultTranspose(M_rho, M_rho_lor);
-   cout << "HO -> LOR dual field: " << fabs(M_rho(ones) - M_rho_lor(ones_lor))
-        << '\n';
-
    // HO->LOR restriction
    direction = "HO -> LOR @ LOR";
    R.Mult(rho, rho_lor);
@@ -197,7 +187,17 @@ int main(int argc, char *argv[])
 
    rho_prev -= rho;
    cout.precision(12);
-   cout << "|HO - P(R(HO))|_∞   = " << rho_prev.Normlinf() << endl << endl;
+   cout << "|HO - P(R(HO))|_∞   = " << rho_prev.Normlinf() << endl;
+
+   // HO* to LOR* dual fields
+   GridFunction ones(&fespace), ones_lor(&fespace_lor);
+   ones = 1.0;
+   ones_lor = 1.0;
+   LinearForm M_rho(&fespace), M_rho_lor(&fespace_lor);
+   M_ho.Mult(rho, M_rho);
+   P.MultTranspose(M_rho, M_rho_lor);
+   cout << "HO -> LOR dual field: " << fabs(M_rho(ones) - M_rho_lor(ones_lor))
+        << endl << endl;
 
    // LOR projections
    direction = "LOR -> HO @ LOR";
@@ -205,12 +205,6 @@ int main(int argc, char *argv[])
    GridFunction rho_lor_prev = rho_lor;
    double lor_mass = compute_mass(&fespace_lor, -1.0, LOR_dc, "LOR      ");
    if (vis) { visualize(LOR_dc, "LOR", Wx, Wy); Wx += offx; }
-
-   // LOR* to HO* dual fields
-   M_ho.Mult(rho_lor, M_rho_lor);
-   R.MultTranspose(M_rho_lor, M_rho);
-   cout << "LOR -> HO dual field: " << fabs(M_rho(ones) - M_rho_lor(ones_lor))
-        << '\n';
 
    // Prolongate to HO space
    direction = "LOR -> HO @ HO";
@@ -228,6 +222,12 @@ int main(int argc, char *argv[])
    rho_lor_prev -= rho_lor;
    cout.precision(12);
    cout << "|LOR - R(P(LOR))|_∞ = " << rho_lor_prev.Normlinf() << endl;
+
+   // LOR* to HO* dual fields
+   M_lor.Mult(rho_lor, M_rho_lor);
+   R.MultTranspose(M_rho_lor, M_rho);
+   cout << "LOR -> HO dual field: " << fabs(M_rho(ones) - M_rho_lor(ones_lor))
+        << '\n';
 
    delete fec;
    delete fec_lor;
