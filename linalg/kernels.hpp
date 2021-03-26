@@ -17,7 +17,6 @@
 #include "../general/globals.hpp"
 
 #include "matrix.hpp"
-#include "dtensor.hpp"
 #include "tmatrix.hpp"
 #include "tlayout.hpp"
 #include "ttensor.hpp"
@@ -35,111 +34,6 @@ namespace mfem
 
 namespace kernels
 {
-
-template<typename T>
-MFEM_HOST_DEVICE inline
-void HouseholderReflect(T *A, const T *v,
-                        const T b, const int m, const int n,
-                        const int row, const int col)
-{
-   for (int j = 0; j < n; j++)
-   {
-      T w = A[0*row + j*col];
-      for (int i = 1; i < m; i++) { w += v[i] * A[i*row + j*col]; }
-      A[0*row + j*col] -= b * w;
-      for (int i = 1; i < m; i++) { A[i*row + j*col] -= b * w * v[i]; }
-   }
-}
-
-constexpr const int MCOG = 8;
-template<typename T, int MQ1 = MCOG>
-MFEM_HOST_DEVICE inline
-void HouseholderApplyQ(T *A, const T *Q, const T *tau,
-                       const int m, const int n, const int k,
-                       const int row, const int col)
-{
-   T v[MQ1];
-   for (int ii=0; ii<k; ii++)
-   {
-      const int i = k-1-ii;
-      for (int j = i+1; j < m; j++) { v[j] = Q[j*k+i]; }
-      // Apply Householder reflector (I - tau v v^T) coG^T
-      HouseholderReflect(&A[i*row], &v[i], tau[i], m-i, n, row, col);
-   }
-}
-
-template<typename T, int MQ1 = MCOG>
-MFEM_HOST_DEVICE inline
-void QRFactorization(T *mat, T *tau,  const int Q1D, const  int D1D)
-{
-   T v[MQ1];
-   DeviceMatrix B(mat, D1D, Q1D);
-   for (int i = 0; i < D1D; i++)
-   {
-      // Calculate Householder vector, magnitude
-      T sigma = 0.0;
-      v[i] = B(i,i);
-      for (int j = i + 1; j < Q1D; j++)
-      {
-         v[j] = B(i,j);
-         sigma += v[j] * v[j];
-      }
-      T norm = std::sqrt(v[i]*v[i] + sigma); // norm of v[i:m]
-      T Rii = -copysign(norm, v[i]);
-      v[i] -= Rii;
-      // norm of v[i:m] after modification above and scaling below
-      //   norm = sqrt(v[i]*v[i] + sigma) / v[i];
-      //   tau = 2 / (norm*norm)
-      tau[i] = 2 * v[i]*v[i] / (v[i]*v[i] + sigma);
-      for (int j=i+1; j<Q1D; j++) { v[j] /= v[i]; }
-      // Apply Householder reflector to lower right panel
-      HouseholderReflect(&mat[i*D1D+i+1], &v[i], tau[i],
-                         Q1D-i, D1D-i-1, D1D, 1);
-      // Save v
-      B(i,i) = Rii;
-      for (int j=i+1; j<Q1D; j++) { B(i,j) = v[j]; }
-   }
-}
-
-template<typename T, int MQ1 = MCOG, int MD1 = MCOG>
-MFEM_HOST_DEVICE inline
-void GetCollocatedGrad(const int D1D, const int Q1D,
-                       DeviceTensor<2,const T> b,
-                       DeviceTensor<2,const T> g,
-                       DeviceTensor<2,T> CoG)
-{
-   MFEM_VERIFY(D1D <= MD1, "");
-   MFEM_VERIFY(Q1D <= MQ1, "");
-   T tau[MQ1];
-   T B1d[MQ1*MD1];
-   T G1d[MQ1*MD1];
-   DeviceMatrix B(B1d, D1D, Q1D);
-   DeviceMatrix G(G1d, D1D, Q1D);
-
-   for (int d = 0; d < D1D; d++)
-   {
-      for (int q = 0; q < Q1D; q++)
-      {
-         B(d,q) = b(q,d);
-         G(d,q) = g(q,d);
-      }
-   }
-   QRFactorization(B1d, tau, Q1D, D1D);
-   // Apply Rinv, colograd1d = grad1d Rinv
-   for (int i = 0; i < Q1D; i++)
-   {
-      CoG(0,i) = G(0,i)/B(0,0);
-      for (int j = 1; j < D1D; j++)
-      {
-         CoG(j,i) = G(j,i);
-         for (int k = 0; k < j; k++) { CoG(j,i) -= B(j,k)*CoG(k,i); }
-         CoG(j,i) /= B(j,j);
-      }
-      for (int j = D1D; j < Q1D; j++) { CoG(j,i) = 0.0; }
-   }
-   // Apply Qtranspose, colograd = colograd Qtranspose
-   HouseholderApplyQ((T*)CoG, B1d, tau, Q1D, Q1D, D1D, 1, Q1D);
-}
 
 /// Returns the l2 norm of the Vector with given @a size and @a data.
 template<typename T>

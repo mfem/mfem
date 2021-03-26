@@ -56,6 +56,10 @@
 #define MFEM_REGISTER(v,n) v[n]
 #define MFEM_REGISTER_2D(v,n,m) v[n][m]
 #define MFEM_REGISTER_3D(v,n,m,p) v[n][m][p]
+#else
+#define MFEM_REGISTER(v,n) v
+#define MFEM_REGISTER_2D(v,n,m) v
+#define MFEM_REGISTER_3D(v,n,m,p) v
 #endif
 
 template <typename T>

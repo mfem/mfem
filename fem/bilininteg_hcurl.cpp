@@ -629,8 +629,12 @@ void SmemPAHcurlMassApply3D(const int D1D,
 
       MFEM_SHARED double sBo[tQ1D][tD1D];
       MFEM_SHARED double sBc[tQ1D][tD1D];
-
+#define USE_REGISTER 1
+#if USE_REGISTER
+      double MFEM_REGISTER_3D(op9,tQ1D,tQ1D,tQ1D)[9];
+#else
       double op9[9];
+#endif
       MFEM_SHARED double sop[9*tQ1D*tQ1D];
       MFEM_SHARED double mass[tQ1D][tQ1D][3];
 
@@ -644,7 +648,11 @@ void SmemPAHcurlMassApply3D(const int D1D,
             {
                for (int i=0; i<dataSize; ++i)
                {
+#if USE_REGISTER
+                  MFEM_REGISTER_3D(op9,qx,qy,qz)[i] = op(qx,qy,qz,i,e);
+#else
                   op9[i] = op(qx,qy,qz,i,e);
+#endif
                }
             }
          }
@@ -695,7 +703,12 @@ void SmemPAHcurlMassApply3D(const int D1D,
             {
                for (int i=0; i<dataSize; ++i)
                {
-                  sop[i + (dataSize*tidx) + (dataSize*Q1D*tidy)] = op9[i];
+#if USE_REGISTER
+                  const double op_i = MFEM_REGISTER_3D(op9,tidx,tidy,qz)[i];
+#else
+                  const double op_i = op9[i];
+#endif
+                  sop[i + (dataSize*tidx) + (dataSize*Q1D*tidy)] = op_i;
                }
 
                MFEM_FOREACH_THREAD(qy,y,Q1D)

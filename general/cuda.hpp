@@ -46,9 +46,6 @@
 #define MFEM_THREAD_ID(k) threadIdx.k
 #define MFEM_THREAD_SIZE(k) blockDim.k
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=threadIdx.k; i<N; i+=blockDim.k)
-#define MFEM_REGISTER(v,n) v
-#define MFEM_REGISTER_2D(v,n,m) v
-#define MFEM_REGISTER_3D(v,n,m,p) v
 #endif
 
 namespace mfem

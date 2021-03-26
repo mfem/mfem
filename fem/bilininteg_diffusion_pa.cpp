@@ -1825,291 +1825,6 @@ static void SmemPADiffusionApply3D(const int NE,
    });
 }
 
-
-template<int T_D1D = 0, int T_Q1D = 0>
-void BP3Global_v0(const int NE,
-                  const Array<double> &b_,
-                  const Array<double> &g_,
-                  const Vector &d_,
-                  const Vector &x_,
-                  Vector &y_,
-                  const int d1d = 0,
-                  const int q1d = 0)
-{
-
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   MFEM_VERIFY(D1D <= MD1, "");
-   MFEM_VERIFY(Q1D <= MQ1, "");
-
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto g = Reshape(g_.Read(), Q1D, Q1D);
-   auto d = Reshape(d_.Read(), Q1D*Q1D*Q1D, 6, NE);
-   auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
-   auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
-   {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-
-      MFEM_SHARED double s_Iq[MQ1][MQ1][MQ1];
-      MFEM_SHARED double s_D[MQ1][MQ1];
-      MFEM_SHARED double s_I[MQ1][MD1];
-      MFEM_SHARED double s_Gqr[MQ1][MQ1];
-      MFEM_SHARED double s_Gqs[MQ1][MQ1];
-
-      double MFEM_REGISTER_2D(r_qt,MQ1,MQ1);
-      double MFEM_REGISTER_2D(r_q,MQ1,MQ1)[MQ1];
-      double MFEM_REGISTER_2D(r_Aq,MQ1,MQ1)[MQ1];
-
-      MFEM_FOREACH_THREAD(j,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(i,x,Q1D)
-         {
-            s_D[j][i] = g(i,j);
-            if (i<D1D)
-            {
-               s_I[j][i] = b(j,i);
-            }
-            if (i<D1D && j<D1D)
-            {
-               MFEM_UNROLL(MD1);
-               for (int k = 0; k < D1D; k++)
-               {
-                  MFEM_REGISTER_2D(r_q,j,i)[k] = x(i,j,k,e);
-               }
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(b,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(a,x,Q1D)
-         {
-            if (a<D1D && b<D1D)
-            {
-               MFEM_UNROLL(MQ1);
-               for (int k=0; k<Q1D; ++k)
-               {
-                  double res = 0;
-                  MFEM_UNROLL(MD1);
-                  for (int c=0; c<D1D; ++c)
-                  {
-                     res += s_I[k][c]*MFEM_REGISTER_2D(r_q,b,a)[c];
-                  }
-                  s_Iq[k][b][a] = res;
-               }
-            }
-
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(k,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(a,x,Q1D)
-         {
-            if (a<D1D)
-            {
-               for (int b=0; b<D1D; ++b)
-               {
-                  MFEM_REGISTER_2D(r_Aq,k,a)[b] = s_Iq[k][b][a];
-               }
-               MFEM_UNROLL(MQ1);
-               for (int j=0; j<Q1D; ++j)
-               {
-                  double res = 0;
-                  MFEM_UNROLL(MD1);
-                  for (int b=0; b<D1D; ++b)
-                  {
-                     res += s_I[j][b]*MFEM_REGISTER_2D(r_Aq,k,a)[b];
-                  }
-                  s_Iq[k][j][a] = res;
-               }
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(k,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(j,x,Q1D)
-         {
-            for (int a=0; a<D1D; ++a)
-            {
-               MFEM_REGISTER_2D(r_Aq,k,j)[a] = s_Iq[k][j][a];
-            }
-            MFEM_UNROLL(MQ1);
-            for (int i=0; i<Q1D; ++i)
-            {
-               double res = 0;
-               MFEM_UNROLL(MD1);
-               for (int a=0; a<D1D; ++a)
-               {
-                  res += s_I[i][a]*MFEM_REGISTER_2D(r_Aq,k,j)[a];
-               }
-               s_Iq[k][j][i] = res;
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(j,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(i,x,Q1D)
-         {
-            MFEM_UNROLL(MQ1);
-            for (int k = 0; k < Q1D; k++)
-            {
-               MFEM_REGISTER_2D(r_Aq,j,i)[k] = 0.0;
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_UNROLL(Q1D);
-      for (int k = 0; k < Q1D; k++)
-      {
-         MFEM_SYNC_THREAD;
-         MFEM_FOREACH_THREAD(j,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(i,x,Q1D)
-            {
-               double qr = 0.0, qs = 0.0;
-               MFEM_REGISTER_2D(r_qt,j,i) = 0.0;
-               MFEM_UNROLL(Q1D);
-               for (int m = 0; m < Q1D; m++)
-               {
-                  double Dim = s_D[i][m];
-                  double Djm = s_D[j][m];
-                  double Dkm = s_D[k][m];
-                  qr += Dim*s_Iq[k][j][m];
-                  qs += Djm*s_Iq[k][m][i];
-                  MFEM_REGISTER_2D(r_qt,j,i) += Dkm*s_Iq[m][j][i];
-               }
-               const double qt = MFEM_REGISTER_2D(r_qt,j,i);
-               const int q = i + ((j*Q1D) + (k*Q1D*Q1D));
-               const double G00 = d(q,0,e);
-               const double G01 = d(q,1,e);
-               const double G02 = d(q,2,e);
-               const double G11 = d(q,3,e);
-               const double G12 = d(q,4,e);
-               const double G22 = d(q,5,e);
-               s_Gqr[j][i] = (G00*qr + G01*qs + G02*qt);
-               s_Gqs[j][i] = (G01*qr + G11*qs + G12*qt);
-               MFEM_REGISTER_2D(r_qt,j,i) = G02*qr + G12*qs + G22*qt;
-            }
-         }
-         MFEM_SYNC_THREAD;
-         MFEM_FOREACH_THREAD(j,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(i,x,Q1D)
-            {
-               double Aqtmp = 0;
-               MFEM_UNROLL(Q1D);
-               for (int m = 0; m < Q1D; m++)
-               {
-                  double Dmi = s_D[m][i];
-                  double Dmj = s_D[m][j];
-                  double Dkm = s_D[k][m];
-                  Aqtmp += Dmi*s_Gqr[j][m];
-                  Aqtmp += Dmj*s_Gqs[m][i];
-                  MFEM_REGISTER_2D(r_Aq,j,i)[m] += Dkm*MFEM_REGISTER_2D(r_qt,j,i);
-               }
-               MFEM_REGISTER_2D(r_Aq,j,i)[k] += Aqtmp;
-            }
-         }
-         MFEM_SYNC_THREAD;
-      }
-      MFEM_FOREACH_THREAD(j,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(i,x,Q1D)
-         {
-            MFEM_UNROLL(D1D);
-            for (int c=0; c<D1D; ++c)
-            {
-               double res = 0;
-               MFEM_UNROLL(MQ1);
-               for (int k=0; k<Q1D; ++k)
-               {
-                  res += s_I[k][c]*MFEM_REGISTER_2D(r_Aq,j,i)[k];
-               }
-               s_Iq[c][j][i] = res;
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(c,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(i,x,Q1D)
-         {
-            if (c<D1D)
-            {
-               MFEM_UNROLL(MQ1);
-               for (int j=0; j<Q1D; ++j)
-               {
-                  MFEM_REGISTER_2D(r_Aq,c,i)[j] = s_Iq[c][j][i];
-               }
-               MFEM_UNROLL(D1D);
-               for (int b=0; b<D1D; ++b)
-               {
-                  double res = 0;
-                  MFEM_UNROLL(MQ1);
-                  for (int j=0; j<Q1D; ++j)
-                  {
-                     res += s_I[j][b]*MFEM_REGISTER_2D(r_Aq,c,i)[j];
-                  }
-                  s_Iq[c][b][i] = res;
-               }
-            }
-
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(c,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(b,x,Q1D)
-         {
-            if (b<D1D && c<D1D)
-            {
-               MFEM_UNROLL(MQ1);
-               for (int i=0; i<Q1D; ++i)
-               {
-                  MFEM_REGISTER_2D(r_Aq,c,b)[i] = s_Iq[c][b][i];
-               }
-               MFEM_UNROLL(D1D);
-               for (int a=0; a<D1D; ++a)
-               {
-                  double res = 0;
-                  MFEM_UNROLL(MQ1);
-                  for (int i=0; i<Q1D; ++i)
-                  {
-                     res += s_I[i][a]*MFEM_REGISTER_2D(r_Aq,c,b)[i];
-                  }
-                  s_Iq[c][b][a] = res;
-               }
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(j,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(i,x,Q1D)
-         {
-            if (i<D1D && j<D1D)
-            {
-               MFEM_UNROLL(D1D);
-               for (int k = 0; k < D1D; k++)
-               {
-                  y(i,j,k,e) = s_Iq[k][j][i];
-               }
-            }
-         }
-      }
-   });
-}
-
 static void PADiffusionApply(const int dim,
                              const int D1D,
                              const int Q1D,
@@ -2117,7 +1832,6 @@ static void PADiffusionApply(const int dim,
                              const bool symm,
                              const Array<double> &B,
                              const Array<double> &G,
-                             const Array<double> &CoG,
                              const Array<double> &Bt,
                              const Array<double> &Gt,
                              const Vector &D,
@@ -2160,48 +1874,18 @@ static void PADiffusionApply(const int dim,
 
    if (dim == 3)
    {
-      const int DQ = (D1D << 4 ) | Q1D;
-      //printf("\n\033[33m[Diff] D1D= %d, Q1D= %d => %x\033[m", D1D, Q1D, DQ);
-      static bool BP3Global = getenv("REG");
-      if (BP3Global)
+      switch (ID)
       {
-         switch (DQ)
-         {
-            case 0x23: return BP3Global_v0<2,3>(NE,B,CoG,D,X,Y);
-            case 0x34: return BP3Global_v0<3,4>(NE,B,CoG,D,X,Y);
-            case 0x45: return BP3Global_v0<4,5>(NE,B,CoG,D,X,Y);
-            case 0x56: return BP3Global_v0<5,6>(NE,B,CoG,D,X,Y);
-            case 0x67: return BP3Global_v0<6,7>(NE,B,CoG,D,X,Y);
-            case 0x78: return BP3Global_v0<7,8>(NE,B,CoG,D,X,Y);
-            case 0x89: return BP3Global_v0<8,9>(NE,B,CoG,D,X,Y);
-            case 0x9A: return BP3Global_v0<9,10>(NE,B,CoG,D,X,Y);
-            case 0xAB: return BP3Global_v0<10,11>(NE,B,CoG,D,X,Y);
-            case 0xBC: return BP3Global_v0<11,12>(NE,B,CoG,D,X,Y);
-            case 0xCD: return BP3Global_v0<12,13>(NE,B,CoG,D,X,Y);
-            case 0xDE: return BP3Global_v0<13,14>(NE,B,CoG,D,X,Y);
-            case 0xEF: return BP3Global_v0<14,15>(NE,B,CoG,D,X,Y);
-            case 0xF0: return BP3Global_v0<15,16>(NE,B,CoG,D,X,Y);  // 14
-            case 0x111: return BP3Global_v0<16,17>(NE,B,CoG,D,X,Y); // 15
-            // kernels below use too much shared memory
-            //case 0x112: return BP3Global_v0<17,18>(NE,B,coG,D,X,Y);
-            default:   return BP3Global_v0(NE,B,CoG,D,X,Y,D1D,Q1D);
-         }
-      }
-      else
-      {
-         switch (DQ)
-         {
-            case 0x23: return SmemPADiffusionApply3D<2,3>(NE,symm,B,G,D,X,Y);
-            case 0x34: return SmemPADiffusionApply3D<3,4>(NE,symm,B,G,D,X,Y);
-            case 0x45: return SmemPADiffusionApply3D<4,5>(NE,symm,B,G,D,X,Y);
-            case 0x46: return SmemPADiffusionApply3D<4,6>(NE,symm,B,G,D,X,Y);
-            case 0x56: return SmemPADiffusionApply3D<5,6>(NE,symm,B,G,D,X,Y);
-            case 0x58: return SmemPADiffusionApply3D<5,8>(NE,symm,B,G,D,X,Y);
-            case 0x67: return SmemPADiffusionApply3D<6,7>(NE,symm,B,G,D,X,Y);
-            case 0x78: return SmemPADiffusionApply3D<7,8>(NE,symm,B,G,D,X,Y);
-            case 0x89: return SmemPADiffusionApply3D<8,9>(NE,symm,B,G,D,X,Y);
-            default:   return PADiffusionApply3D(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
-         }
+         case 0x23: return SmemPADiffusionApply3D<2,3>(NE,symm,B,G,D,X,Y);
+         case 0x34: return SmemPADiffusionApply3D<3,4>(NE,symm,B,G,D,X,Y);
+         case 0x45: return SmemPADiffusionApply3D<4,5>(NE,symm,B,G,D,X,Y);
+         case 0x46: return SmemPADiffusionApply3D<4,6>(NE,symm,B,G,D,X,Y);
+         case 0x56: return SmemPADiffusionApply3D<5,6>(NE,symm,B,G,D,X,Y);
+         case 0x58: return SmemPADiffusionApply3D<5,8>(NE,symm,B,G,D,X,Y);
+         case 0x67: return SmemPADiffusionApply3D<6,7>(NE,symm,B,G,D,X,Y);
+         case 0x78: return SmemPADiffusionApply3D<7,8>(NE,symm,B,G,D,X,Y);
+         case 0x89: return SmemPADiffusionApply3D<8,9>(NE,symm,B,G,D,X,Y);
+         default:   return PADiffusionApply3D(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
       }
    }
    MFEM_ABORT("Unknown kernel.");
@@ -2217,7 +1901,7 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
    else
    {
       PADiffusionApply(dim, dofs1D, quad1D, ne, symmetric,
-                       maps->B, maps->G, maps->CoG, maps->Bt, maps->Gt,
+                       maps->B, maps->G, maps->Bt, maps->Gt,
                        pa_data, x, y);
    }
 }
