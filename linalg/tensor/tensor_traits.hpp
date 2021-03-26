@@ -170,6 +170,24 @@ struct has_pointer_container<const Tensor<R,T,C,L>>
    static constexpr bool value = is_pointer_container<C>::value;
 };
 
+// is_static_matrix
+template <int N, int M, typename Tensor>
+struct is_static_matrix
+{
+   static constexpr bool value = is_static_tensor<Tensor>::value &&
+                                 get_tensor_rank<Tensor>::value == 2 &&
+                                 get_tensor_size<0,Tensor>::value == N &&
+                                 get_tensor_size<1,Tensor>::value == M;
+};
+
+// is_dynamic_matrix
+template <typename Tensor>
+struct is_dynamic_matrix
+{
+   static constexpr bool value = is_dynamic_tensor<Tensor>::value &&
+                                 get_tensor_rank<Tensor>::value == 2;
+};
+
 } // namespace mfem
 
 #endif // MFEM_TENSOR_TRAITS
