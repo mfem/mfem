@@ -162,6 +162,10 @@ Version 4.2.1 (development)
   see navier/cht. Note that the latest GSLIB based functionality requires 
   gslib v1.0.7 (see INSTALL for details).
 
+- Added a new, very simple example (ex0 and parallel version ex0p). This
+  example solves a simple Poisson problem using H1 elements (the same problem as
+  ex1), but is intended to be extremely simple and approachable for new users.
+
 libCEED integration improvements
 --------------------------------
 - Refactor the libCEED integration
