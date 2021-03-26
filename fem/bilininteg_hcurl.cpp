@@ -292,12 +292,13 @@ void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
                                        const Vector &pa_data,
                                        Vector &diag)
 {
+   dbg();
    MFEM_VERIFY(D1D <= HCURL_MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= HCURL_MAX_Q1D, "Error: Q1D > MAX_Q1D");
 
-   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
-   auto Bc = Reshape(bc.Read(), Q1D, D1D);
-   auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
+   const auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   const auto Bc = Reshape(bc.Read(), Q1D, D1D);
+   const auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
    auto D = Reshape(diag.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
@@ -309,7 +310,11 @@ void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
       MFEM_SHARED double sBo[tQ1D][tD1D];
       MFEM_SHARED double sBc[tQ1D][tD1D];
 
+#if USE_REGISTER
+      double MFEM_REGISTER_3D(op3,tQ1D,tQ1D,tQ1D)[3];
+#else
       double op3[3];
+#endif
       MFEM_SHARED double sop[3][tQ1D][tQ1D];
 
       MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -318,15 +323,21 @@ void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
          {
             MFEM_FOREACH_THREAD(qz,z,Q1D)
             {
+#if USE_REGISTER
+               MFEM_REGISTER_3D(op3,qx,qy,qz)[0] = op(qx,qy,qz,0,e);
+               MFEM_REGISTER_3D(op3,qx,qy,qz)[1] = op(qx,qy,qz,symmetric ? 3 : 4,e);
+               MFEM_REGISTER_3D(op3,qx,qy,qz)[2] = op(qx,qy,qz,symmetric ? 5 : 8,e);
+#else
                op3[0] = op(qx,qy,qz,0,e);
                op3[1] = op(qx,qy,qz,symmetric ? 3 : 4,e);
                op3[2] = op(qx,qy,qz,symmetric ? 5 : 8,e);
+#endif
             }
          }
       }
 
-      const int tidx = MFEM_THREAD_ID(x);
-      const int tidy = MFEM_THREAD_ID(y);
+      //const int tidx = MFEM_THREAD_ID(x);
+      //const int tidy = MFEM_THREAD_ID(y);
       const int tidz = MFEM_THREAD_ID(z);
 
       if (tidz == 0)
@@ -336,10 +347,7 @@ void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
             MFEM_FOREACH_THREAD(q,x,Q1D)
             {
                sBc[q][d] = Bc(q,d);
-               if (d < D1D-1)
-               {
-                  sBo[q][d] = Bo(q,d);
-               }
+               if (d < D1D-1) { sBo[q][d] = Bo(q,d); }
             }
          }
       }
@@ -358,12 +366,21 @@ void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
          {
             if (tidz == qz)
             {
-               for (int i=0; i<3; ++i)
+               MFEM_FOREACH_THREAD(qx,x,Q1D)
                {
-                  sop[i][tidx][tidy] = op3[i];
+                  MFEM_FOREACH_THREAD(qy,y,Q1D)
+                  {
+                     for (int i=0; i<3; ++i)
+                     {
+#if USE_REGISTER
+                        sop[i][qx][qy] = MFEM_REGISTER_3D(op3,qx,qy,qz)[i];
+#else
+                        sop[i][qx][qy] = op3[i];
+#endif
+                     }
+                  }
                }
             }
-
             MFEM_SYNC_THREAD;
 
             MFEM_FOREACH_THREAD(dz,z,D1Dz)

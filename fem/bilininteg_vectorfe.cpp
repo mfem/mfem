@@ -899,9 +899,11 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
    {
       if (trial_fetype == mfem::FiniteElement::CURL && test_fetype == trial_fetype)
       {
-         if (Device::Allows(Backend::DEVICE_MASK))
+#warning DEVICE_MASK
+         //if (Device::Allows(Backend::DEVICE_MASK))
          {
             const int ID = (dofs1D << 4) | quad1D;
+            dbg("ID: 0x%x",ID);
             switch (ID)
             {
                case 0x23: return SmemPAHcurlMassAssembleDiagonal3D<2,3>(dofs1D, quad1D, ne,
@@ -919,10 +921,10 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
                default: return SmemPAHcurlMassAssembleDiagonal3D(dofs1D, quad1D, ne, symmetric,
                                                                     mapsO->B, mapsC->B, pa_data, diag);
             }
-         }
+         }/*
          else
             PAHcurlMassAssembleDiagonal3D(dofs1D, quad1D, ne, symmetric,
-                                          mapsO->B, mapsC->B, pa_data, diag);
+                                          mapsO->B, mapsC->B, pa_data, diag);*/
       }
       else if (trial_fetype == mfem::FiniteElement::DIV &&
                test_fetype == trial_fetype)
