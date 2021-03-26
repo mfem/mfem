@@ -9,8 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "marking.hpp"
 #include "sbm_solver.hpp"
-#include "../../mfem.hpp"
+#include "mfem.hpp"
 
 namespace mfem
 {
@@ -52,21 +53,47 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
       marker2 = (*elem_marker)[elem2];
    }
 
-   // 1 is inside and 2 is cut or 1 is a boundary element.
-   if (marker1 == 0 &&
-       (marker2 == 2 ||  Trans.ElementType == ElementTransformation::BDR_FACE))
+   if (!include_cut_cell)
    {
-      elem1f = true;
-   }
-   //1 is cut, 2 is inside
-   else if (marker1 == 2 && marker2 == 0)
-   {
-      if (Trans.Elem2No >= NEproc) { return; }
-      elem1f = false;
+      // 1 is inside and 2 is cut or 1 is a boundary element.
+      if (marker1 == ShiftedFaceMarker::SBElementType::INSIDE &&
+          (marker2 == ShiftedFaceMarker::SBElementType::CUT ||
+           Trans.ElementType == ElementTransformation::BDR_FACE))
+      {
+         elem1f = true;
+      }
+      //1 is cut, 2 is inside
+      else if (marker1 == ShiftedFaceMarker::SBElementType::CUT &&
+               marker2 == ShiftedFaceMarker::SBElementType::INSIDE)
+      {
+         if (Trans.Elem2No >= NEproc) { return; }
+         elem1f = false;
+      }
+      else
+      {
+         return;
+      }
    }
    else
    {
-      return;
+      // 1 is cut and 2 is outside or 1 is a boundary element.
+      if (marker1 == ShiftedFaceMarker::SBElementType::CUT &&
+          (marker2 == ShiftedFaceMarker::SBElementType::OUTSIDE ||
+           Trans.ElementType == ElementTransformation::BDR_FACE))
+      {
+         elem1f = true;
+      }
+      //1 is outside, 2 is cut
+      else if (marker1 == ShiftedFaceMarker::SBElementType::OUTSIDE &&
+               marker2 == ShiftedFaceMarker::SBElementType::CUT)
+      {
+         if (Trans.Elem2No >= NEproc) { return; }
+         elem1f = false;
+      }
+      else
+      {
+         return;
+      }
    }
 
    ndof = elem1f ? ndof1 : ndof2;
@@ -202,9 +229,10 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
       vD->Eval(D, Trans, ip);
 
       double nor_dot_d = nor*D;
-      // Since we are clipping inside the domain, ntilde and d vector should be
+      // If we are clipping inside the domain, ntilde and d vector should be
       // aligned.
-      if (nor_dot_d < 0) { nor *= -1; }
+      if (!include_cut_cell && nor_dot_d < 0) { nor *= -1; }
+      if (include_cut_cell && nor_dot_d > 0) { nor *= -1; }
 
       if (elem1f)
       {
@@ -272,8 +300,6 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
 
       int offset = elem1f ? 0 : ndof1;
       elmat.CopyMN(temp_elmat, offset, offset);
-      //std::cout << Trans.Elem1No << " " << Trans.Elem2No << " k10prinnew\n";
-      //temp_elmat.Print();
    } //p < ir->GetNPoints()
 
    for (int i = 0; i < hess_ptr.Size(); i++)
@@ -336,23 +362,51 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
       marker2 = (*elem_marker)[elem2];
    }
 
-   // 1 is inside and 2 is cut or 1 is a boundary element.
-   if ( marker1 == 0 &&
-        (marker2 == 2 ||  Tr.ElementType == ElementTransformation::BDR_FACE))
+   if (!include_cut_cell)
    {
-      elem1f = true;
-      ndof = ndof1;
-   }
-   // 1 is cut, 2 is inside
-   else if (marker1 == 2 && marker2 == 0)
-   {
-      if (Tr.Elem2No >= NEproc) { return; }
-      elem1f = false;
-      ndof = ndof2;
+      // 1 is inside and 2 is cut or 1 is a boundary element.
+      if ( marker1 == ShiftedFaceMarker::SBElementType::INSIDE &&
+           (marker2 == ShiftedFaceMarker::SBElementType::CUT ||
+            Tr.ElementType == ElementTransformation::BDR_FACE))
+      {
+         elem1f = true;
+         ndof = ndof1;
+      }
+      // 1 is cut, 2 is inside
+      else if (marker1 == ShiftedFaceMarker::SBElementType::CUT &&
+               marker2 == ShiftedFaceMarker::SBElementType::INSIDE)
+      {
+         if (Tr.Elem2No >= NEproc) { return; }
+         elem1f = false;
+         ndof = ndof2;
+      }
+      else
+      {
+         return;
+      }
    }
    else
    {
-      return;
+      // 1 is cut and 2 is outside or 1 is a boundary element.
+      if (marker1 == ShiftedFaceMarker::SBElementType::CUT &&
+          (marker2 == ShiftedFaceMarker::SBElementType::OUTSIDE ||
+           Tr.ElementType == ElementTransformation::BDR_FACE))
+      {
+         elem1f = true;
+         ndof = ndof1;
+      }
+      //1 is outside, 2 is cut
+      else if (marker1 == ShiftedFaceMarker::SBElementType::OUTSIDE &&
+               marker2 == ShiftedFaceMarker::SBElementType::CUT)
+      {
+         if (Tr.Elem2No >= NEproc) { return; }
+         elem1f = false;
+         ndof = ndof2;
+      }
+      else
+      {
+         return;
+      }
    }
 
    temp_elvect.SetSize(ndof);
@@ -452,6 +506,7 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
          Factorial(i) = Factorial(i-1)*(i+2);
       }
    }
+
    DenseMatrix q_hess_dn(dim, ndof);
    Vector q_hess_dn_work(q_hess_dn.GetData(), ndof*dim);
    Vector q_hess_dot_d(ndof);
@@ -460,6 +515,7 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
    Vector wrk = shape;
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
+
       const IntegrationPoint &ip = ir->IntPoint(p);
 
       // Set the integration point in the face and the neighboring element
@@ -481,7 +537,8 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
       vD->Eval(D, Tr, ip);
 
       double nor_dot_d = nor*D;
-      if (nor_dot_d < 0) { nor *= -1; }
+      if (!include_cut_cell && nor_dot_d < 0) { nor *= -1; }
+      if (include_cut_cell && nor_dot_d > 0) { nor *= -1; }
       // note here that if we are clipping outside the domain, we will have to
       // flip the sign if nor_dot_d is +ve.
 
