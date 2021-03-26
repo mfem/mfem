@@ -154,9 +154,10 @@ void ShiftedFaceMarker::ListShiftedFaceDofs(const Array<int> &elem_marker,
          }
       }
    }
-   if (sbm_at_true_boundary) {
-       ess_bdr.Append(0);
-       pmesh.SetAttributes();
+   if (sbm_at_true_boundary)
+   {
+      ess_bdr.Append(0);
+      pmesh.SetAttributes();
    }
 
    // Now we add interior faces that are on processor boundaries.
@@ -215,10 +216,10 @@ void ShiftedFaceMarker::ListEssentialTDofs(const Array<int> &elem_marker,
    ess_vdofs = 0;
    for (int e = 0; e < pmesh.GetNE(); e++)
    {
-       if (!include_cut_cell &&
-           (elem_marker[e] == SBElementType::OUTSIDE ||
-            elem_marker[e] == SBElementType::CUT))
-       {
+      if (!include_cut_cell &&
+          (elem_marker[e] == SBElementType::OUTSIDE ||
+           elem_marker[e] == SBElementType::CUT))
+      {
          pfes_sltn.GetElementVDofs(e, dofs);
          for (int i = 0; i < dofs.Size(); i++)
          {
