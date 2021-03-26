@@ -781,6 +781,8 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/miniapps/navier \
                          @MFEM_SOURCE_DIR@/miniapps/nurbs \
                          @MFEM_SOURCE_DIR@/miniapps/performance \
+                         @MFEM_SOURCE_DIR@/miniapps/shifted \
+                         @MFEM_SOURCE_DIR@/miniapps/solvers \
                          @MFEM_SOURCE_DIR@/miniapps/tools \
                          @MFEM_SOURCE_DIR@/miniapps/toys
 
@@ -819,7 +821,9 @@ RECURSIVE              = NO
 # run.
 
 EXCLUDE                = @MFEM_SOURCE_DIR@/config/_config.hpp \
-                         @MFEM_SOURCE_DIR@/config/get_hypre_version.cpp
+                         @MFEM_SOURCE_DIR@/config/get_hypre_version.cpp \
+                         @MFEM_SOURCE_DIR@/general/tinyxml2.h \
+                         @MFEM_SOURCE_DIR@/general/tinyxml2.cpp
 
 # The EXCLUDE_SYMLINKS tag can be used to select whether or not files or
 # directories that are symbolic links (a Unix file system feature) are excluded

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -30,9 +30,15 @@ int AmgXSolver::count = 0;
 
 AMGX_resources_handle AmgXSolver::rsrc = nullptr;
 
+AmgXSolver::AmgXSolver()
+   : ConvergenceCheck(false) {};
+
 AmgXSolver::AmgXSolver(const AMGX_MODE amgxMode_, const bool verbose)
 {
    amgxMode = amgxMode_;
+
+   if (amgxMode == AmgXSolver::SOLVER) { ConvergenceCheck = true;}
+   else { ConvergenceCheck = false;}
 
    DefaultParameters(amgxMode, verbose);
 
@@ -47,6 +53,9 @@ AmgXSolver::AmgXSolver(const MPI_Comm &comm,
    std::string config;
    amgxMode = amgxMode_;
 
+   if (amgxMode == AmgXSolver::SOLVER) { ConvergenceCheck = true;}
+   else { ConvergenceCheck = false;}
+
    DefaultParameters(amgxMode, verbose);
 
    InitExclusiveGPU(comm);
@@ -57,6 +66,9 @@ AmgXSolver::AmgXSolver(const MPI_Comm &comm, const int nDevs,
 {
    std::string config;
    amgxMode = amgxMode_;
+
+   if (amgxMode == AmgXSolver::SOLVER) { ConvergenceCheck = true;}
+   else { ConvergenceCheck = false;}
 
    DefaultParameters(amgxMode_, verbose);
 
@@ -178,6 +190,11 @@ void AmgXSolver::ReadParameters(const std::string config,
    configSrc = source;
 }
 
+void AmgXSolver::SetConvergenceCheck(bool setConvergenceCheck_)
+{
+   ConvergenceCheck = setConvergenceCheck_;
+}
+
 void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
                                    const bool verbose)
 {
@@ -201,8 +218,8 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
       {
          amgx_config = amgx_config + ",\n"
                        "   \"obtain_timings\": 1, \n"
-                       "   \"monitor_residual\": 1, \n"
                        "   \"print_grid_stats\": 1, \n"
+                       "   \"monitor_residual\": 1, \n"
                        "   \"print_solve_stats\": 1 \n";
       }
       else
@@ -238,12 +255,12 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
                     "  \"convergence\": \"RELATIVE_MAX\", \n"
                     "  \"scope\": \"main\", \n"
                     "  \"tolerance\": 1e-12, \n"
+                    "  \"monitor_residual\": 1, \n"
                     "  \"norm\": \"L2\" ";
       if (verbose)
       {
          amgx_config = amgx_config + ", \n"
                        "        \"obtain_timings\": 1, \n"
-                       "        \"monitor_residual\": 1, \n"
                        "        \"print_grid_stats\": 1, \n"
                        "        \"print_solve_stats\": 1 \n";
       }
@@ -599,13 +616,19 @@ void AmgXSolver::SetMatrix(const HypreParMatrix &A, const bool update_mat)
    // Assumes one GPU per MPI rank
    if (mpi_gpu_mode=="mpi-gpu-exclusive")
    {
-      return SetMatrixMPIGPUExclusive(A, loc_A, loc_I, loc_J, update_mat);
+      SetMatrixMPIGPUExclusive(A, loc_A, loc_I, loc_J, update_mat);
+      // Free A_csr data from hypre_MergeDiagAndOffd method
+      hypre_CSRMatrixDestroy(A_csr);
+      return;
    }
 
    // Assumes teams of MPI ranks are sharing a GPU
    if (mpi_gpu_mode == "mpi-teams")
    {
-      return SetMatrixMPITeams(A, loc_A, loc_I, loc_J, update_mat);
+      SetMatrixMPITeams(A, loc_A, loc_I, loc_J, update_mat);
+      // Free A_csr data from hypre_MergeDiagAndOffd method
+      hypre_CSRMatrixDestroy(A_csr);
+      return;
    }
 
    mfem_error("Unsupported MPI_GPU combination \n");
@@ -884,7 +907,7 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
 
       AMGX_SOLVE_STATUS   status;
       AMGX_solver_get_status(solver, &status);
-      if (status != AMGX_SOLVE_SUCCESS && amgxMode == SOLVER)
+      if (status != AMGX_SOLVE_SUCCESS && ConvergenceCheck)
       {
          if (status == AMGX_SOLVE_DIVERGED)
          {
@@ -996,7 +1019,7 @@ void AmgXSolver::Finalize()
 #endif
    }
 
-   // re-set necessary variables in case users want to reuse the variable of
+   // reset necessary variables in case users want to reuse the variable of
    // this instance for a new instance
 #ifdef MFEM_USE_MPI
    gpuProc = MPI_UNDEFINED;
