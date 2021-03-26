@@ -687,7 +687,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    if ( sbcs_->Size() > 0 )
    {
       cout << "Building nxD01_" << endl;
-      nxD01_ = new ParMixedSesquilinearForm(H1FESpace_, HCurlFESpace_);
+      nxD01_ = new ParMixedSesquilinearForm(H1FESpace_, HCurlFESpace_, conv_);
       nxD01_->AddBoundaryIntegrator(NULL,
                                     new nxGradIntegrator(*omegaCoef_),
                                     sbc_bdr_marker_);
@@ -911,8 +911,8 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
       n20ZRe_ = new ParMixedBilinearForm(HDivFESpace_, H1FESpace_);
       n20ZIm_ = new ParMixedBilinearForm(HDivFESpace_, H1FESpace_);
       */
-      m0_ = new ParSesquilinearForm(H1FESpace_);
-      nzD12_ = new ParMixedSesquilinearForm(HCurlFESpace_, H1FESpace_);
+      m0_ = new ParSesquilinearForm(H1FESpace_, conv_);
+      nzD12_ = new ParMixedSesquilinearForm(HCurlFESpace_, H1FESpace_, conv_);
 
       for (int i=0; i<sbcs_->Size(); i++)
       {
@@ -965,7 +965,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    j_  = new ParComplexGridFunction(HDivFESpace_);
    *j_ = 0.0;
 
-   curlj_  = new ParComplexLinearForm(HCurlFESpace_);
+   curlj_  = new ParComplexLinearForm(HCurlFESpace_, conv_);
    curlj_->real() = 0.0;
    curlj_->imag() = 0.0;
 
@@ -1608,6 +1608,8 @@ CPDSolverDH::Solve()
       A_SuperLU = new SuperLURowLocMatrix(*A1C);
       AInv = new SuperLUSolver(MPI_COMM_WORLD);
       AInv->SetOperator(*A_SuperLU);
+      // AInv = new MUMPSSolver;
+      // AInv->SetOperator(*A1C);
       delete A1C;
    }
 #endif
@@ -1649,15 +1651,24 @@ CPDSolverDH::Solve()
 
          const Vector & RHS = schur.GetRHSVector(RHS1, RHS0);
 
+         // Vector temp0(RHS1.Size()); temp0 = 0.0;
+         // Vector temp1(RHS1.Size()); temp1 = 0.0;
+         // AInv->Mult(RHS1, temp0);
+         // A1C->Mult(temp0,temp1);
+         // temp1-=RHS1;
+         // cout << "diff norm = " << temp1.Norml2() << endl; 
+         // cin.get();
+
          GMRESSolver gmres(MPI_COMM_WORLD);
          gmres.SetKDim(50);
-         gmres.SetRelTol(1e-8);
-         gmres.SetAbsTol(1e-10);
+         gmres.SetRelTol(1e-16);
+         gmres.SetAbsTol(1e-16);
          gmres.SetMaxIter(500);
          gmres.SetPrintLevel(1);
          gmres.SetOperator(schur);
-
+         // std::cout<< "Entering GMRES solver" << std::endl;
          gmres.Mult(RHS, PHI);
+         // std::cout<< "GMRES solver finished" << std::endl;
 
          m0_->RecoverFEMSolution(PHI, *rhs0_, *phi_);
 
