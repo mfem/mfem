@@ -939,6 +939,12 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       }
    }
 
+   // Nedelec spaces: constrain double faces
+   for (int i = 0; i < nd_double_faces.Size(); i++)
+   {
+      // TODO
+   }
+
    deps.Finalize();
    inv_deps.Finalize();
 
@@ -1857,6 +1863,33 @@ void FiniteElementSpace::BuildNURBSFaceToDofTable() const
    face_dof = new Table(GetNF(), face_dof_list);
 }
 
+void FiniteElementSpace::GetDoubleFaces(Array<int> &double_faces) const
+{
+   double_faces.DeleteAll();
+
+   // TODO: explain
+
+   if (mesh->Dimension() == 3 &&
+       fec->GetContType() == FiniteElementCollection::TANGENTIAL &&
+       mesh->HasGeometry(Geometry::TRIANGLE) &&
+       GetMaxElementOrder() > 1)
+   {
+      for (int i = 0; i < mesh->GetNFaces(); i++)
+      {
+         if (mesh->GetFaceGeometry(i) == Geometry::TRIANGLE)
+         {
+            int elem1, elem2;
+            mesh->GetFaceElements(i, &elem1, &elem2);
+            if (elem2 >= 0)
+            {
+               // TODO: check orientation and order
+               double_faces.Append(i);
+            }
+         }
+      }
+   }
+}
+
 void FiniteElementSpace::Construct()
 {
    // This method should be used only for non-NURBS spaces.
@@ -1904,7 +1937,11 @@ void FiniteElementSpace::Construct()
    }
 
    // get a list of faces that need two sets of DOFs (Nedelec spaces only)
-   GetDoubleFaces(double_faces);
+   GetDoubleFaces(nd_double_faces);
+   MFEM_VERIFY(Nonconforming() || nd_double_faces.Size() == 0,
+               "H(curl) triangular faces of order >= 2 with orientations 1-4 are"
+               " only supported in NC meshes. Please use Mesh::ReorientTetMesh()"
+               " or Mesh::EnsureNCMesh().");
 
    // assign vertex DOFs
    if (mesh->GetNV())
@@ -2155,7 +2192,9 @@ int FiniteElementSpace::MakeDofTable(int ent_dim,
             total_dofs += dofs;
 
             // add one more DOF set if 'i' is a double face with a single order
-            if (ent_dim == 2 && j < double_faces.Size() && i == double_faces[j])
+            if ((ent_dim == 2) &&
+                (j < nd_double_faces.Size()) &&
+                (i == nd_double_faces[j]))
             {
                if (is_pow2(orig_bits))
                {
@@ -2233,6 +2272,17 @@ int FiniteElementSpace::GetNVariants(int entity, int index) const
    return dof_table.GetRow(index + 1) - dof_table.GetRow(index);
 }
 
+bool FiniteElementSpace::IsDoubleFace(int face) const
+{
+   if (!nd_double_faces.Size()) { return false; }
+
+   const int size = var_face_dofs.RowSize(face);
+   const int *row = var_face_dofs.GetRow(face);
+
+   // a double face has exactly two DOF sets of the same size
+   return (size == 2) && ((row[1] - row[0]) == (row[2] - row[1]));
+}
+
 static const char* msg_orders_changed =
    "Element orders changed, you need to Update() the space first.";
 
@@ -2302,10 +2352,26 @@ void FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs) const
       for (int i = 0; i < F.Size(); i++)
       {
          auto fgeom = mesh->GetFaceGeometry(F[i]);
-         int nf = fec->GetNumDof(fgeom, order);
+         int fbase, nf = fec->GetNumDof(fgeom, order);
+         const int *ind;
 
-         int fbase = (var_face_dofs.Size() > 0) ? FindFaceDof(F[i], nf) : F[i]*nf;
-         const int *ind = fec->GetDofOrdering(fgeom, order, Fo[i]);
+         if (!var_face_dofs.Size()) // simple constant-order space
+         {
+            fbase = F[i]*nf;
+            ind = fec->GetDofOrdering(fgeom, order, Fo[i]);
+         }
+         else if (IsDoubleFace(i)) // special disconnected face
+         {
+            int e1, e2;
+            mesh->GetFaceElements(i, &e1, &e2);
+            fbase = var_face_dofs.GetRow(i)[(elem == e1) ? 0 : 1];
+            ind = fec->GetDofOrdering(fgeom, order, 0);
+         }
+         else // mixed geometry or variable-order faces
+         {
+            fbase = FindFaceDof(F[i], nf);
+            ind = fec->GetDofOrdering(fgeom, order, Fo[i]);
+         }
 
          for (int j = 0; j < nf; j++)
          {
