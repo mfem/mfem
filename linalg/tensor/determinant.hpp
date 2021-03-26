@@ -12,30 +12,69 @@
 #ifndef MFEM_TENSOR_DET
 #define MFEM_TENSOR_DET
 
-#include "tensor.hpp"
 #include "../../general/backends.hpp"
-#include "../dtensor.hpp"
+#include "tensor.hpp"
 
 namespace mfem
 {
 
 // Determinant
-template <typename T> MFEM_HOST_DEVICE inline
-T Determinant(const StaticTensor<T,3,3> &J)
+template <typename Tensor,
+          std::enable_if_t<
+             is_dynamic_matrix<Tensor>::value,
+          bool> = true>
+MFEM_HOST_DEVICE inline
+auto Determinant(const Tensor &J)
+{
+   if (J.Size<0>()==3 && J.Size<1>()==3)
+   {
+      return J(0,0)*J(1,1)*J(2,2)-J(0,2)*J(1,1)*J(2,0)
+            +J(0,1)*J(1,2)*J(2,0)-J(0,1)*J(1,0)*J(2,2)
+            +J(0,2)*J(1,0)*J(2,1)-J(0,0)*J(1,2)*J(2,1);
+   }
+   else if (J.Size<0>()==2 && J.Size<1>()==2)
+   {
+      return J(0,0)*J(1,1)-J(0,1)*J(1,0);
+   }
+   else if (J.Size<0>()==1 && J.Size<1>()==1)
+   {
+      return J(0,0);
+   }
+   else
+   {
+      // TODO abort
+      return 0;
+   }
+}
+
+template <typename Tensor,
+          std::enable_if_t<
+             is_static_matrix<3,3,Tensor>::value,
+          bool> = true>
+MFEM_HOST_DEVICE inline
+auto Determinant(const Tensor &J)
 {
    return J(0,0)*J(1,1)*J(2,2)-J(0,2)*J(1,1)*J(2,0)
          +J(0,1)*J(1,2)*J(2,0)-J(0,1)*J(1,0)*J(2,2)
          +J(0,2)*J(1,0)*J(2,1)-J(0,0)*J(1,2)*J(2,1);
 }
 
-template <typename T> MFEM_HOST_DEVICE inline
-T Determinant(const StaticTensor<T,2,2> &J)
+template <typename Tensor,
+          std::enable_if_t<
+             is_static_matrix<2,2,Tensor>::value,
+          bool> = true>
+MFEM_HOST_DEVICE inline
+auto Determinant(const Tensor &J)
 {
    return J(0,0)*J(1,1)-J(0,1)*J(1,0);
 }
 
-template <typename T> MFEM_HOST_DEVICE inline
-T Determinant(const StaticTensor<T,1,1> &J)
+template <typename Tensor,
+          std::enable_if_t<
+             is_static_matrix<1,1,Tensor>::value,
+          bool> = true>
+MFEM_HOST_DEVICE inline
+auto Determinant(const Tensor &J)
 {
    return J(0,0);
 }
