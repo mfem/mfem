@@ -337,8 +337,8 @@ void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
       }
       MFEM_SYNC_THREAD;
 
-      //const int tidx = MFEM_THREAD_ID(x);
-      //const int tidy = MFEM_THREAD_ID(y);
+      const int tidx = MFEM_THREAD_ID(x);
+      const int tidy = MFEM_THREAD_ID(y);
       const int tidz = MFEM_THREAD_ID(z);
 
       if (tidz == 0)
@@ -367,16 +367,16 @@ void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
          {
             if (tidz == qz)
             {
-               MFEM_FOREACH_THREAD(qx,x,Q1D)
+               for (int i=0; i<3; ++i)
                {
-                  MFEM_FOREACH_THREAD(qy,y,Q1D)
+                  MFEM_FOREACH_THREAD(qx,x,Q1D)
                   {
-                     for (int i=0; i<3; ++i)
+                     MFEM_FOREACH_THREAD(qy,y,Q1D)
                      {
 #if USE_REGISTER
                         sop[i][qx][qy] = MFEM_REGISTER_3D(op3,qx,qy,qz)[i];
 #else
-                        sop[i][qx][qy] = op3[i];
+                        sop[i][tidx][tidy] = op3[i];
 #endif
                      }
                   }
@@ -682,8 +682,8 @@ void SmemPAHcurlMassApply3D(const int D1D,
       }
       MFEM_SYNC_THREAD;
 
-      //const int tidx = MFEM_THREAD_ID(x);
-      //const int tidy = MFEM_THREAD_ID(y);
+      const int tidx = MFEM_THREAD_ID(x);
+      const int tidy = MFEM_THREAD_ID(y);
       const int tidz = MFEM_THREAD_ID(z);
 
       if (tidz == 0)
@@ -722,29 +722,30 @@ void SmemPAHcurlMassApply3D(const int D1D,
 
             if (tidz == qz)
             {
-               MFEM_FOREACH_THREAD(qy,y,Q1D)
+               for (int i=0; i<dataSize; ++i)
                {
-                  MFEM_FOREACH_THREAD(qx,x,Q1D)
+                  MFEM_FOREACH_THREAD(qy,y,Q1D)
                   {
-                     for (int i=0; i<dataSize; ++i)
+                     MFEM_FOREACH_THREAD(qx,x,Q1D)
                      {
 #if USE_REGISTER
-                        const double op_i = MFEM_REGISTER_3D(op9,qx,qy,qz)[i];
+                        sop[i][qx][qy] = MFEM_REGISTER_3D(op9,qx,qy,qz)[i];
 #else
-                        const double op_i = op9[i];
+                        sop[i][tidx][tidy] = op9[i];
 #endif
-                        sop[i][qx][qy] = op_i;
                      }
                   }
                }
-               MFEM_SYNC_THREAD;
+            }
+            MFEM_SYNC_THREAD;
 
+            if (tidz == qz)
+            {
                MFEM_FOREACH_THREAD(qy,y,Q1D)
                {
                   MFEM_FOREACH_THREAD(qx,x,Q1D)
                   {
                      double u = 0.0;
-
                      for (int dz = 0; dz < D1Dz; ++dz)
                      {
                         const double wz = (c == 2) ? sBo[qz][dz] : sBc[qz][dz];
@@ -759,7 +760,6 @@ void SmemPAHcurlMassApply3D(const int D1D,
                            }
                         }
                      }
-
                      mass[qy][qx][c] = u;
                   } // qx
                } // qy
@@ -813,7 +813,6 @@ void SmemPAHcurlMassApply3D(const int D1D,
                   }
                }
             }
-
             MFEM_SYNC_THREAD;
 
             MFEM_FOREACH_THREAD(dz,z,D1Dz)
@@ -1789,8 +1788,8 @@ static void SmemPACurlCurlApply3D(const int D1D,
       }
       MFEM_SYNC_THREAD;
 
-      //const int tidx = MFEM_THREAD_ID(x);
-      //const int tidy = MFEM_THREAD_ID(y);
+      const int tidx = MFEM_THREAD_ID(x);
+      const int tidy = MFEM_THREAD_ID(y);
       const int tidz = MFEM_THREAD_ID(z);
 
       if (tidz == 0)
@@ -1846,24 +1845,27 @@ static void SmemPACurlCurlApply3D(const int D1D,
             {
                if (c == 0)
                {
-                  MFEM_FOREACH_THREAD(qy,y,Q1D)
+                  for (int i=0; i<s; ++i)
                   {
-                     MFEM_FOREACH_THREAD(qx,x,Q1D)
+                     MFEM_FOREACH_THREAD(qy,y,Q1D)
                      {
-                        for (int i=0; i<s; ++i)
+                        MFEM_FOREACH_THREAD(qx,x,Q1D)
                         {
 #if USE_REGISTER
                            sop[i][qx][qy] = MFEM_REGISTER_3D(ope,qx,qy,qz)[i];
 #else
-                           sop[i][qx][qy] = ope[i];
+                           sop[i][tidx][tidy] = ope[i];
 #endif
-                           //dbg("%f",sop[i][qx][qy]);
+                           //dbg("%f",sop[i][tidx][tidy]);
                         }
                      }
                   }
                }
-               MFEM_SYNC_THREAD;
+            }
+            MFEM_SYNC_THREAD;
 
+            if (tidz == qz)
+            {
                MFEM_FOREACH_THREAD(qy,y,Q1D)
                {
                   MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -2071,8 +2073,8 @@ void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
    dbg();
    if (dim == 3)
    {
-#warning DEVICE_MASK
-      //if (Device::Allows(Backend::DEVICE_MASK))
+      //#warning DEVICE_MASK
+      if (Device::Allows(Backend::DEVICE_MASK))
       {
          const int ID = (dofs1D << 4) | quad1D;
          dbg("ID: 0x%x",ID);
@@ -2095,10 +2097,10 @@ void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
                                                      mapsC->B, mapsO->Bt, mapsC->Bt,
                                                      mapsC->G, mapsC->Gt, pa_data, x, y);
          }
-      }/*
+      }
       else
          PACurlCurlApply3D(dofs1D, quad1D, symmetric, ne, mapsO->B, mapsC->B, mapsO->Bt,
-                           mapsC->Bt, mapsC->G, mapsC->Gt, pa_data, x, y);*/
+                           mapsC->Bt, mapsC->G, mapsC->Gt, pa_data, x, y);
    }
    else if (dim == 2)
    {
@@ -2425,8 +2427,8 @@ static void SmemPACurlCurlAssembleDiagonal3D(const int D1D,
       }
       MFEM_SYNC_THREAD;
 
-      //const int tidx = MFEM_THREAD_ID(x);
-      //const int tidy = MFEM_THREAD_ID(y);
+      const int tidx = MFEM_THREAD_ID(x);
+      const int tidy = MFEM_THREAD_ID(y);
       const int tidz = MFEM_THREAD_ID(z);
 
       if (tidz == 0)
@@ -2460,16 +2462,16 @@ static void SmemPACurlCurlAssembleDiagonal3D(const int D1D,
          {
             if (tidz == qz)
             {
-               MFEM_FOREACH_THREAD(qy,y,Q1D)
+               for (int i=0; i<s; ++i)
                {
                   MFEM_FOREACH_THREAD(qx,x,Q1D)
                   {
-                     for (int i=0; i<s; ++i)
+                     MFEM_FOREACH_THREAD(qy,y,Q1D)
                      {
 #if USE_REGISTER
                         sop[i][qx][qy] = MFEM_REGISTER_3D(ope,qx,qy,qz)[i];
 #else
-                        sop[i][qx][qy] = ope[i];
+                        sop[i][tidx][tidy] = ope[i];
 #endif
                      }
                   }
@@ -2540,7 +2542,6 @@ static void SmemPACurlCurlAssembleDiagonal3D(const int D1D,
                   }
                }
             }
-
             MFEM_SYNC_THREAD;
          }  // qz loop
 
@@ -2565,9 +2566,9 @@ void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
    dbg();
    if (dim == 3)
    {
-#warning DEVICE_MASK
+      //#warning DEVICE_MASK
       //assert(false);
-      //if (Device::Allows(Backend::DEVICE_MASK))
+      if (Device::Allows(Backend::DEVICE_MASK))
       {
          const int ID = (dofs1D << 4) | quad1D;
          dbg("ID: 0x%x",ID);
@@ -2599,11 +2600,11 @@ void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
                                                                 pa_data, diag);
          }
       }
-      /*else
+      else
          PACurlCurlAssembleDiagonal3D(dofs1D, quad1D, symmetric, ne,
                                       mapsO->B, mapsC->B,
                                       mapsO->G, mapsC->G,
-                                      pa_data, diag);*/
+                                      pa_data, diag);
    }
    else if (dim == 2)
    {
@@ -3409,6 +3410,7 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
                                  const Vector &x,
                                  Vector &y)
 {
+   assert(false);
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
 
@@ -4044,7 +4046,7 @@ void MixedVectorCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
    if (testType == mfem::FiniteElement::CURL &&
        trialType == mfem::FiniteElement::CURL && dim == 3)
    {
-#warning DEVICE_MASK
+      //#warning DEVICE_MASK
       assert(false);
       if (Device::Allows(Backend::DEVICE_MASK))
       {
@@ -4527,6 +4529,7 @@ static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
                                           const Vector &x,
                                           Vector &y)
 {
+   assert(false);
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
 
@@ -4743,7 +4746,7 @@ void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
    if (testType == mfem::FiniteElement::CURL &&
        trialType == mfem::FiniteElement::CURL && dim == 3)
    {
-#warning DEVICE_MASK
+      //#warning DEVICE_MASK
       assert(false);
       if (Device::Allows(Backend::DEVICE_MASK))
       {

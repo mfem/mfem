@@ -450,7 +450,6 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
    A->Mult(w, z);
    dbg("A, z:%f",z*z); //z.Print();   assert(false);
    dbg("A, b:%f",b*b);
-   z = 0.0;
    b -= z;
    dbg("-, b:%f",b*b);
 
