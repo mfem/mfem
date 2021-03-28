@@ -725,6 +725,8 @@ void DiffusionIntegrator::AssembleElementVector(
          invdfdx.MultTranspose(pointflux, vec);
          if (MQ)
          {
+            // assuming dim == spaceDim
+            MFEM_ASSERT(dim == spaceDim, "TODO");
             MQ->Eval(mq, Tr, ip);
             mq.Mult(vec, pointflux);
          }
@@ -849,6 +851,8 @@ double DiffusionIntegrator::ComputeFluxEnergy
       }
       else
       {
+         // assuming dim == spaceDim
+         MFEM_ASSERT(dim == spaceDim, "TODO");
          MQ->Eval(mq, Trans, ip);
          energy += w * mq.InnerProduct(pointflux, pointflux);
       }
