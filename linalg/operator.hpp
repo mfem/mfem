@@ -827,7 +827,10 @@ public:
 
     Square operator constrained by fixing certain entries in the solution to
     given "essential boundary condition" values. This class is used by the
-    general, matrix-free system formulation of Operator::FormLinearSystem. */
+    general, matrix-free system formulation of Operator::FormLinearSystem.
+
+    Do not confuse with ConstrainedSolver, which despite the name has very
+    different functionality. */
 class ConstrainedOperator : public Operator
 {
 protected:

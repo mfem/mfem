@@ -268,7 +268,7 @@ public:
 
    /** Returns the indexes of the degrees of freedom for i'th face
        including the dofs for the edges and the vertices of the face. */
-   virtual void GetFaceDofs(int i, Array<int> &dofs) const;
+   virtual int GetFaceDofs(int i, Array<int> &dofs, int variant = 0) const;
 
    /** Returns pointer to the FiniteElement in the FiniteElementCollection
        associated with i'th element in the mesh object. If @a i is greater than
@@ -414,8 +414,13 @@ protected:
    bool local;
 
 public:
+   ConformingProlongationOperator(int lsize, const GroupCommunicator &gc_,
+                                  bool local_=false);
+
    ConformingProlongationOperator(const ParFiniteElementSpace &pfes,
                                   bool local_=false);
+
+   const GroupCommunicator &GetGroupCommunicator() const;
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -434,7 +439,6 @@ protected:
    Array<int> ltdof_ldof, unq_ltdof;
    Array<int> unq_shr_i, unq_shr_j;
    MPI_Request *requests;
-   bool local;
 
    // Kernel: copy ltdofs from 'src' to 'shr_buf' - prepare for send.
    //         shr_buf[i] = src[shr_ltdof[i]]
@@ -461,6 +465,9 @@ protected:
    void ReduceEndAssemble(Vector &dst) const;
 
 public:
+   DeviceConformingProlongationOperator(
+      const GroupCommunicator &gc_, const SparseMatrix *R, bool local_=false);
+
    DeviceConformingProlongationOperator(const ParFiniteElementSpace &pfes,
                                         bool local_=false);
 
