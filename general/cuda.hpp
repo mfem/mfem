@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -64,8 +64,14 @@ void* CuMemAlloc(void **d_ptr, size_t bytes);
 /// Allocates managed device memory
 void* CuMallocManaged(void **d_ptr, size_t bytes);
 
+/// Allocates page-locked (pinned) host memory
+void* CuMemAllocHostPinned(void **ptr, size_t bytes);
+
 /// Frees device memory and returns destination ptr.
 void* CuMemFree(void *d_ptr);
+
+/// Frees page-locked (pinned) host memory and returns destination ptr.
+void* CuMemFreeHostPinned(void *ptr);
 
 /// Copies memory from Host to Device and returns destination ptr.
 void* CuMemcpyHtoD(void *d_dst, const void *h_src, size_t bytes);

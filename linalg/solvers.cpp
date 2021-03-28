@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -3092,5 +3092,102 @@ KLUSolver::~KLUSolver()
 }
 
 #endif // MFEM_USE_SUITESPARSE
+
+DirectSubBlockSolver::DirectSubBlockSolver(const SparseMatrix &A,
+                                           const SparseMatrix &block_dof_)
+   : Solver(A.NumRows()), block_dof(const_cast<SparseMatrix&>(block_dof_)),
+     block_solvers(block_dof.NumRows())
+{
+   DenseMatrix sub_A;
+   for (int i = 0; i < block_dof.NumRows(); ++i)
+   {
+      local_dofs.MakeRef(block_dof.GetRowColumns(i), block_dof.RowSize(i));
+      sub_A.SetSize(local_dofs.Size());
+      A.GetSubMatrix(local_dofs, local_dofs, sub_A);
+      block_solvers[i].SetOperator(sub_A);
+   }
+}
+
+void DirectSubBlockSolver::Mult(const Vector &x, Vector &y) const
+{
+   y.SetSize(x.Size());
+   y = 0.0;
+
+   for (int i = 0; i < block_dof.NumRows(); ++i)
+   {
+      local_dofs.MakeRef(block_dof.GetRowColumns(i), block_dof.RowSize(i));
+      x.GetSubVector(local_dofs, sub_rhs);
+      sub_sol.SetSize(local_dofs.Size());
+      block_solvers[i].Mult(sub_rhs, sub_sol);
+      y.AddElementVector(local_dofs, sub_sol);
+   }
+}
+
+void ProductSolver::Mult(const Vector & x, Vector & y) const
+{
+   y.SetSize(x.Size());
+   y = 0.0;
+   S0->Mult(x, y);
+
+   Vector z(x.Size());
+   z = 0.0;
+   A->Mult(y, z);
+   add(-1.0, z, 1.0, x, z); // z = (I - A * S0) x
+
+   Vector S1z(x.Size());
+   S1z = 0.0;
+   S1->Mult(z, S1z);
+   y += S1z;
+}
+
+void ProductSolver::MultTranspose(const Vector & x, Vector & y) const
+{
+   y.SetSize(x.Size());
+   y = 0.0;
+   S1->MultTranspose(x, y);
+
+   Vector z(x.Size());
+   z = 0.0;
+   A->MultTranspose(y, z);
+   add(-1.0, z, 1.0, x, z); // z = (I - A^T * S1^T) x
+
+   Vector S0Tz(x.Size());
+   S0Tz = 0.0;
+   S0->MultTranspose(z, S0Tz);
+   y += S0Tz;
+}
+
+#ifdef MFEM_USE_MPI
+AuxSpaceSmoother::AuxSpaceSmoother(const HypreParMatrix &op,
+                                   HypreParMatrix *aux_map,
+                                   bool op_is_symmetric,
+                                   bool own_aux_map)
+   : Solver(op.NumRows()), aux_map_(aux_map, own_aux_map)
+{
+   aux_system_.Reset(RAP(&op, aux_map));
+   aux_system_.As<HypreParMatrix>()->EliminateZeroRows();
+   aux_smoother_.Reset(new HypreSmoother(*aux_system_.As<HypreParMatrix>()));
+   aux_smoother_.As<HypreSmoother>()->SetOperatorSymmetry(op_is_symmetric);
+}
+
+void AuxSpaceSmoother::Mult(const Vector &x, Vector &y, bool transpose) const
+{
+   Vector aux_rhs(aux_map_->NumCols());
+   aux_map_->MultTranspose(x, aux_rhs);
+
+   Vector aux_sol(aux_rhs.Size());
+   if (transpose)
+   {
+      aux_smoother_->MultTranspose(aux_rhs, aux_sol);
+   }
+   else
+   {
+      aux_smoother_->Mult(aux_rhs, aux_sol);
+   }
+
+   y.SetSize(aux_map_->NumRows());
+   aux_map_->Mult(aux_sol, y);
+}
+#endif // MFEM_USE_MPI
 
 }

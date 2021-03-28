@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -69,13 +69,13 @@ public:
    /** As an Operator, the NonlinearForm has input and output size equal to the
        number of true degrees of freedom, i.e. f->GetTrueVSize(). */
    NonlinearForm(FiniteElementSpace *f)
-      : Operator(f->GetTrueVSize()), assembly(AssemblyLevel::NONE),
+      : Operator(f->GetTrueVSize()), assembly(AssemblyLevel::LEGACY),
         ext(NULL), fes(f), Grad(NULL), cGrad(NULL),
         sequence(f->GetSequence()), P(f->GetProlongationMatrix()),
         cP(dynamic_cast<const SparseMatrix*>(P))
    { }
 
-   /// Set the desired assembly level. The default is AssemblyLevel::NONE.
+   /// Set the desired assembly level. The default is AssemblyLevel::LEGACY.
    /** This method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
 

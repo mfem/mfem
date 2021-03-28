@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -65,8 +65,14 @@ void* HipMemAlloc(void **d_ptr, size_t bytes);
 /// Allocates managed device memory
 void* HipMallocManaged(void **d_ptr, size_t bytes);
 
+/// Allocates page-locked (pinned) host memory
+void* HipMemAllocHostPinned(void **ptr, size_t bytes);
+
 /// Frees device memory
 void* HipMemFree(void *d_ptr);
+
+/// Frees page-locked (pinned) host memory and returns destination ptr.
+void* HipMemFreeHostPinned(void *ptr);
 
 /// Copies memory from Host to Device
 void* HipMemcpyHtoD(void *d_dst, const void *h_src, size_t bytes);
