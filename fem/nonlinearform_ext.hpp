@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -28,8 +28,8 @@ class NonlinearFormExtension : public Operator
 protected:
    const NonlinearForm *nlf;
 public:
-   NonlinearFormExtension(const NonlinearForm*);
-   virtual void Setup() = 0;
+   NonlinearFormExtension(NonlinearForm *form);
+   virtual void Assemble() = 0;
    virtual Operator &GetGradient(const Vector&) const = 0;
    virtual double GetGridFunctionEnergy(const Vector &x) const = 0;
    virtual void AssembleGradientDiagonal(Vector &diag) const
@@ -42,7 +42,7 @@ class PANonlinearForm;
 
 
 /// Data and methods for partially-assembled nonlinear forms
-class PANonlinearForm : public NonlinearFormExtension
+class PANonlinearFormExtension : public NonlinearFormExtension
 {
 private:
    class Gradient : public Operator
@@ -65,12 +65,26 @@ protected:
    const Operator *R;
 
 public:
-   PANonlinearForm(NonlinearForm *nlf);
-   void Setup();
+   PANonlinearFormExtension(NonlinearForm*);
+   void Assemble();
    void Mult(const Vector &x, Vector &y) const;
    Operator &GetGradient(const Vector &x) const;
    double GetGridFunctionEnergy(const Vector &x) const;
    void AssembleGradientDiagonal(Vector &diag) const;
 };
+
+/// Data and methods for unassembled nonlinear forms
+class MFNonlinearFormExtension : public NonlinearFormExtension
+{
+protected:
+   const FiniteElementSpace &fes; // Not owned
+   mutable Vector localX, localY;
+   const Operator *elem_restrict_lex; // Not owned
+public:
+   MFNonlinearFormExtension(NonlinearForm*);
+   void Assemble();
+   void Mult(const Vector &x, Vector &y) const;
+};
+
 }
 #endif // NONLINEARFORM_EXT_HPP

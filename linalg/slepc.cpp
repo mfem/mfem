@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -99,7 +99,7 @@ void SlepcEigenSolver::SetOperators(const PetscParMatrix &op,
 
 void SlepcEigenSolver::SetTol(double tol)
 {
-   int max_its;
+   PetscInt max_its;
 
    ierr = EPSGetTolerances(eps,NULL,&max_its); PCHKERRQ(eps,ierr);
    // Work around uninitialized maximum iterations
@@ -181,9 +181,9 @@ void SlepcEigenSolver::GetEigenvector(unsigned int i, Vector & vr,
 
 int SlepcEigenSolver::GetNumConverged()
 {
-   int num_conv;
+   PetscInt num_conv;
    ierr = EPSGetConverged(eps,&num_conv); PCHKERRQ(eps,ierr);
-   return num_conv;
+   return static_cast<int>(num_conv);
 }
 
 void SlepcEigenSolver::SetWhichEigenpairs(SlepcEigenSolver::Which which)

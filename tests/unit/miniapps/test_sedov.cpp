@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1512,7 +1512,7 @@ void QUpdate::UpdateQuadratureData(const Vector &S,
    Vector* S_p = const_cast<Vector*>(&S);
    const int H1_size = H1.GetVSize();
    const int nqp1D = tensors1D->LQshape1D.Width();
-   const double h1order = (double) H1.GetOrder(0);
+   const double h1order = (double) H1.GetElementOrder(0);
    const double infinity = std::numeric_limits<double>::infinity();
    GridFunction d_x, d_v, d_e;
    d_x.MakeRef(&H1,*S_p, 0);
@@ -1646,8 +1646,9 @@ public:
       Me(l2dofs_cnt, l2dofs_cnt, nzones),
       Me_inv(l2dofs_cnt, l2dofs_cnt, nzones),
       integ_rule(IntRules.Get(h1_fes.GetMesh()->GetElementBaseGeometry(0),
-                              (order_q>0)? order_q :
-                              3*h1_fes.GetOrder(0) + l2_fes.GetOrder(0) - 1)),
+                              (order_q > 0) ? order_q :
+                              3*h1_fes.GetElementOrder(0)
+                              + l2_fes.GetElementOrder(0) - 1)),
       quad_data(dim, nzones, integ_rule.GetNPoints()),
       quad_data_is_current(false), forcemat_is_assembled(false),
       T1D(H1FESpace.GetFE(0)->GetOrder(), L2FESpace.GetFE(0)->GetOrder(),
@@ -1711,7 +1712,7 @@ public:
             quad_data.h0 = pow(glob_area / glob_z_cnt, 1.0/3.0); break;
          default: MFEM_ABORT("Unknown zone type!");
       }
-      quad_data.h0 /= (double) H1FESpace.GetOrder(0);
+      quad_data.h0 /= (double) H1FESpace.GetElementOrder(0);
       {
          Vector d;
          (dim == 2) ? VMassPA->ComputeDiagonal2D(d) : VMassPA->ComputeDiagonal3D(d);

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -25,10 +25,13 @@ void NonlinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
    switch (assembly)
    {
       case AssemblyLevel::NONE:
-         // This is the default behavior.
+         ext = new MFNonlinearFormExtension(this);
          break;
       case AssemblyLevel::PARTIAL:
          ext = new PANonlinearForm(this);
+         break;
+      case AssemblyLevel::LEGACY:
+         // This is the default
          break;
       default:
          mfem_error("Unknown assembly level for this form.");
@@ -451,7 +454,7 @@ void NonlinearForm::Update()
 
 void NonlinearForm::Setup()
 {
-   if (ext) { return ext->Setup(); }
+   if (ext) { return ext->Assemble(); }
 }
 
 void NonlinearForm::AssembleGradientDiagonal(Vector &diag) const

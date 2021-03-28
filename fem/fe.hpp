@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -627,8 +627,8 @@ protected:
 
    static const ScalarFiniteElement &CheckScalarFE(const FiniteElement &fe)
    {
-      if (fe.GetRangeType() != SCALAR)
-      { mfem_error("'fe' must be a ScalarFiniteElement"); }
+      MFEM_VERIFY(fe.GetRangeType() == SCALAR,
+                  "'fe' must be a ScalarFiniteElement");
       return static_cast<const ScalarFiniteElement &>(fe);
    }
 
