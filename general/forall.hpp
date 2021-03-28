@@ -89,7 +89,7 @@ void OmpWrap(const int N, HBODY &&h_body)
 /// RAJA Cuda and Hip backends
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
 using cuda_launch_policy =
-   RAJA::expt::LaunchPolicy<RAJA::expt::null_launch_t, RAJA::expt::cuda_launch_t<false>>;
+   RAJA::expt::LaunchPolicy<RAJA::expt::null_launch_t, RAJA::expt::cuda_launch_t<true>>;
 using cuda_teams_x =
    RAJA::expt::LoopPolicy<RAJA::loop_exec,RAJA::cuda_block_x_direct>;
 using cuda_threads_z =
@@ -98,7 +98,7 @@ using cuda_threads_z =
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_HIP)
 using hip_launch_policy =
-   RAJA::expt::LaunchPolicy<RAJA::expt::null_launch_t, RAJA::expt::hip_launch_t<false>>;
+   RAJA::expt::LaunchPolicy<RAJA::expt::null_launch_t, RAJA::expt::hip_launch_t<true>>;
 using hip_teams_x =
    RAJA::expt::LoopPolicy<RAJA::loop_exec,RAJA::hip_block_x_direct>;
 using hip_threads_z =
