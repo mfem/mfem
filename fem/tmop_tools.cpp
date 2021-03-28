@@ -197,10 +197,19 @@ void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
    di_dt = 0.0;
    CGSolver lin_solver;
    DSmoother prec;
+   /*
+   FGMRESSolver lin_solver;
+   GMRESSolver prec;
+   prec.SetMaxIter(50);
+   prec.SetRelTol(0.0);
+   prec.SetAbsTol(0.0);    
+   prec.SetOperator(M.SpMat());
+   */
+   
    lin_solver.SetPreconditioner(prec);
    lin_solver.SetOperator(M.SpMat());
    lin_solver.SetRelTol(1e-12); lin_solver.SetAbsTol(0.0);
-   lin_solver.SetMaxIter(100);
+   lin_solver.SetMaxIter(200);
    lin_solver.SetPrintLevel(0);
    lin_solver.Mult(rhs, di_dt);
 }

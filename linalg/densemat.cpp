@@ -2497,13 +2497,13 @@ void MultADBt(const DenseMatrix &A, const Vector &D,
 
 void AddMultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
 {
-#ifdef MFEM_DEBUG
+  #ifdef MFEM_DEBUG
    if (A.Height() != ABt.Height() || B.Height() != ABt.Width() ||
        A.Width() != B.Width())
    {
       mfem_error("AddMultABt(...): dimension mismatch");
    }
-#endif
+  #endif
 
 #ifdef MFEM_USE_LAPACK
    static char transa = 'N', transb = 'T';

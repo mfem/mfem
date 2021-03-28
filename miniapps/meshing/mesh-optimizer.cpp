@@ -311,7 +311,7 @@ int main(int argc, char *argv[])
    x0 = x;
 
    // 11. Form the integrator that uses the chosen metric and target.
-   double tauval = -0.1;
+   double tauval = -0.002;
    TMOP_QualityMetric *metric = NULL;
    switch (metric_id)
    {
