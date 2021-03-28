@@ -677,7 +677,7 @@ void DiffusionIntegrator::AssembleElementVector(
 {
    int nd = el.GetDof();
    int dim = el.GetDim();
-   int spaceDim = Tr.GetSpaceDim();   
+   int spaceDim = Tr.GetSpaceDim();
    double w;
 
    if (VQ)
