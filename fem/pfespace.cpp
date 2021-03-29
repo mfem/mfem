@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -20,7 +20,6 @@
 #include "../mesh/mesh_headers.hpp"
 #include "../general/binaryio.hpp"
 
-#include <climits> // INT_MAX
 #include <limits>
 #include <list>
 
@@ -91,7 +90,7 @@ ParNURBSExtension *ParFiniteElementSpace::MakeLocalNURBSext(
 void ParFiniteElementSpace::ParInit(ParMesh *pm)
 {
    pmesh = pm;
-   pncmesh = pm->pncmesh;
+   pncmesh = NULL;
 
    MyComm = pmesh->GetComm();
    NRanks = pmesh->GetNRanks();
@@ -132,6 +131,9 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
 
 void ParFiniteElementSpace::Construct()
 {
+   MFEM_VERIFY(!IsVariableOrder(), "variable orders are not implemented"
+               " for ParFiniteElementSpace yet.");
+
    if (NURBSext)
    {
       ConstructTrueNURBSDofs();
@@ -144,6 +146,8 @@ void ParFiniteElementSpace::Construct()
    }
    else // Nonconforming()
    {
+      pncmesh = pmesh->pncmesh;
+
       // Initialize 'gcomm' for the cut (aka "partially conforming") space.
       // In the process, the array 'ldof_ltdof' is also initialized (for the cut
       // space) and used; however, it will be overwritten below with the real
@@ -237,7 +241,7 @@ void ParFiniteElementSpace::GetGroupComm(
    nvd = fec->DofForGeometry(Geometry::POINT);
    ned = fec->DofForGeometry(Geometry::SEGMENT);
 
-   if (fdofs)
+   if (mesh->Dimension() >= 3)
    {
       if (mesh->HasGeometry(Geometry::TRIANGLE))
       {
@@ -356,7 +360,7 @@ void ParFiniteElementSpace::GetGroupComm(
             pmesh->GroupTriangle(gr, j, k, o);
 
             dofs.SetSize(ntd);
-            m = nvdofs+nedofs+fdofs[k];
+            m = nvdofs + nedofs + FirstFaceDof(k);
             ind = fec->DofOrderForOrientation(Geometry::TRIANGLE, o);
             for (l = 0; l < ntd; l++)
             {
@@ -394,7 +398,7 @@ void ParFiniteElementSpace::GetGroupComm(
             pmesh->GroupQuadrilateral(gr, j, k, o);
 
             dofs.SetSize(nqd);
-            m = nvdofs+nedofs+fdofs[k];
+            m = nvdofs + nedofs + FirstFaceDof(k);
             ind = fec->DofOrderForOrientation(Geometry::SQUARE, o);
             for (l = 0; l < nqd; l++)
             {
@@ -475,9 +479,9 @@ void ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs) const
 
 void ParFiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
 {
-   if (bdrElem_dof)
+   if (bdr_elem_dof)
    {
-      bdrElem_dof->GetRow(i, dofs);
+      bdr_elem_dof->GetRow(i, dofs);
       return;
    }
    FiniteElementSpace::GetBdrElementDofs(i, dofs);
@@ -487,18 +491,20 @@ void ParFiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
    }
 }
 
-void ParFiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
+int ParFiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs,
+                                       int variant) const
 {
-   if (face_dof)
+   if (face_dof && variant == 0)
    {
       face_dof->GetRow(i, dofs);
-      return;
+      return fec->GetOrder();
    }
-   FiniteElementSpace::GetFaceDofs(i, dofs);
+   int p = FiniteElementSpace::GetFaceDofs(i, dofs, variant);
    if (Conforming())
    {
       ApplyLDofSigns(dofs);
    }
+   return p;
 }
 
 const FiniteElement *ParFiniteElementSpace::GetFE(int i) const
@@ -1504,7 +1510,7 @@ void ParFiniteElementSpace::GetBareDofs(int entity, int index,
 
          if (index < ghost) // regular face
          {
-            first = nvdofs + nedofs + (fdofs ? fdofs[index] : index*ned);
+            first = nvdofs + nedofs + FirstFaceDof(index);
          }
          else // ghost face
          {
@@ -1552,7 +1558,7 @@ int ParFiniteElementSpace::PackDof(int entity, int index, int edof) const
 
          if (index < ghost) // regular face
          {
-            return nvdofs + nedofs + (fdofs ? fdofs[index] : index*ned) + edof;
+            return nvdofs + nedofs + FirstFaceDof(index) + edof;
          }
          else // ghost face
          {
@@ -1563,10 +1569,10 @@ int ParFiniteElementSpace::PackDof(int entity, int index, int edof) const
    }
 }
 
-static int bisect(int* array, int size, int value)
+static int bisect(const int* array, int size, int value)
 {
-   int* end = array + size;
-   int* pos = std::upper_bound(array, end, value);
+   const int* end = array + size;
+   const int* pos = std::lower_bound(array, end, value);
    MFEM_VERIFY(pos != end, "value not found");
    return pos - array;
 }
@@ -1596,15 +1602,18 @@ void ParFiniteElementSpace::UnpackDof(int dof,
       dof -= nedofs;
       if (dof < nfdofs) // regular face
       {
-         if (fdofs) // have mixed faces
-         {
-            index = bisect(fdofs+1, mesh->GetNFaces(), dof);
-            edof = dof - fdofs[index];
-         }
-         else // uniform faces
+         if (uni_fdof >= 0) // uniform faces
          {
             int nf = fec->DofForGeometry(pncmesh->GetFaceGeometry(0));
             index = dof / nf, edof = dof % nf;
+         }
+         else // mixed faces or var-order space
+         {
+            const Table &table = var_face_dofs;
+            MFEM_ASSERT(table.Size(), "");
+            int jpos = bisect(table.GetJ(), table.Size_of_connections(), dof);
+            index = bisect(table.GetI(), table.Size(), jpos);
+            edof = dof - table.GetRow(index)[0];
          }
          entity = 2;
          return;
@@ -2057,9 +2066,14 @@ int ParFiniteElementSpace
             const NCMesh::Master &mf = list.masters[mi];
 
             // get master DOFs
-            pncmesh->IsGhost(entity, mf.index)
-            ? GetGhostDofs(entity, mf, master_dofs)
-            : GetEntityDofs(entity, mf.index, master_dofs);
+            if (pncmesh->IsGhost(entity, mf.index))
+            {
+               GetGhostDofs(entity, mf, master_dofs);
+            }
+            else
+            {
+               GetEntityDofs(entity, mf.index, master_dofs, mf.Geom());
+            }
 
             if (!master_dofs.Size()) { continue; }
 
@@ -2080,7 +2094,8 @@ int ParFiniteElementSpace
                const NCMesh::Slave &sf = list.slaves[si];
                if (pncmesh->IsGhost(entity, sf.index)) { continue; }
 
-               GetEntityDofs(entity, sf.index, slave_dofs, mf.Geom());
+               const int variant = 0; // TODO parallel var-order
+               GetEntityDofs(entity, sf.index, slave_dofs, mf.Geom(), variant);
                if (!slave_dofs.Size()) { continue; }
 
                list.OrientedPointMatrix(sf, T.GetPointMat());
@@ -2923,16 +2938,18 @@ void ParFiniteElementSpace::GetTrueTransferOperator(
 
 void ParFiniteElementSpace::Update(bool want_transform)
 {
-   if (mesh->GetSequence() == sequence)
+   MFEM_VERIFY(!IsVariableOrder(),
+               "Parallel variable order space not supported yet.");
+
+   if (mesh->GetSequence() == mesh_sequence)
    {
       return; // no need to update, no-op
    }
-   if (want_transform && mesh->GetSequence() != sequence + 1)
+   if (want_transform && mesh->GetSequence() != mesh_sequence + 1)
    {
       MFEM_ABORT("Error in update sequence. Space needs to be updated after "
                  "each mesh modification.");
    }
-   sequence = mesh->GetSequence();
 
    if (NURBSext)
    {
@@ -3006,6 +3023,42 @@ void ParFiniteElementSpace::Update(bool want_transform)
 
       delete old_elem_dof;
    }
+}
+
+ConformingProlongationOperator::ConformingProlongationOperator(
+   int lsize, const GroupCommunicator &gc_, bool local_)
+   : gc(gc_), local(local_)
+{
+   const Table &group_ldof = gc.GroupLDofTable();
+
+   int n_external = 0;
+   for (int g=1; g<group_ldof.Size(); ++g)
+   {
+      if (!gc.GetGroupTopology().IAmMaster(g))
+      {
+         n_external += group_ldof.RowSize(g);
+      }
+   }
+   int tsize = lsize - n_external;
+
+   height = lsize;
+   width = tsize;
+
+   external_ldofs.Reserve(n_external);
+   for (int gr = 1; gr < group_ldof.Size(); gr++)
+   {
+      if (!gc.GetGroupTopology().IAmMaster(gr))
+      {
+         external_ldofs.Append(group_ldof.GetRow(gr), group_ldof.RowSize(gr));
+      }
+   }
+   external_ldofs.Sort();
+}
+
+const GroupCommunicator &ConformingProlongationOperator::GetGroupCommunicator()
+const
+{
+   return gc;
 }
 
 ConformingProlongationOperator::ConformingProlongationOperator(
@@ -3119,17 +3172,12 @@ void ConformingProlongationOperator::MultTranspose(
 }
 
 DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
-   const ParFiniteElementSpace &pfes,
-   bool local_) :
-   ConformingProlongationOperator(pfes),
-   mpi_gpu_aware(Device::GetGPUAwareMPI()),
-   local(local_)
+   const GroupCommunicator &gc_, const SparseMatrix *R, bool local_)
+   : ConformingProlongationOperator(R->Width(), gc_, local_),
+     mpi_gpu_aware(Device::GetGPUAwareMPI())
 {
-   MFEM_ASSERT(pfes.Conforming(), "internal error");
-   const SparseMatrix *R = pfes.GetRestrictionMatrix();
    MFEM_ASSERT(R->Finalized(), "");
    const int tdofs = R->Height();
-   MFEM_ASSERT(tdofs == pfes.GetTrueVSize(), "");
    MFEM_ASSERT(tdofs == R->HostReadI()[tdofs], "");
    ltdof_ldof = Array<int>(const_cast<int*>(R->HostReadJ()), tdofs);
    ltdof_ldof.UseDevice();
@@ -3187,6 +3235,16 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
       if (recv_size > 0) { req_counter++; }
    }
    requests = new MPI_Request[req_counter];
+}
+
+DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
+   const ParFiniteElementSpace &pfes, bool local_)
+   : DeviceConformingProlongationOperator(pfes.GroupComm(),
+                                          pfes.GetRestrictionMatrix(),
+                                          local_)
+{
+   MFEM_ASSERT(pfes.Conforming(), "internal error");
+   MFEM_ASSERT(pfes.GetRestrictionMatrix()->Height() == pfes.GetTrueVSize(), "");
 }
 
 static void ExtractSubVector(const int N,

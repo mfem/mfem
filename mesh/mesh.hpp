@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -185,6 +185,9 @@ protected:
    MemAlloc <Tetrahedron, 1024> TetMemory;
 #endif
 
+   // used during NC mesh initialization only
+   Array<Triple<int, int, int> > tmp_vertex_parents;
+
 public:
    typedef Geometry::Constants<Geometry::SEGMENT>     seg_t;
    typedef Geometry::Constants<Geometry::TRIANGLE>    tri_t;
@@ -205,9 +208,6 @@ public:
    Array<GeometricFactors*> geom_factors; ///< Optional geometric factors.
    Array<FaceGeometricFactors*>
    face_geom_factors; ///< Optional face geometric factors.
-
-   /// Used during initialization only.
-   Array<Triple<int, int, int> > tmp_vertex_parents;
 
    // Global parameter that can be used to control the removal of unused
    // vertices performed when reading a mesh in MFEM format. The default value
@@ -234,7 +234,7 @@ protected:
 
    // Readers for different mesh formats, used in the Load() method.
    // The implementations of these methods are in mesh_readers.cpp.
-   void ReadMFEMMesh(std::istream &input, bool mfem_v11, int &curved);
+   void ReadMFEMMesh(std::istream &input, int version, int &curved);
    void ReadLineMesh(std::istream &input);
    void ReadNetgen2DMesh(std::istream &input, int &curved);
    void ReadNetgen3DMesh(std::istream &input);
@@ -317,6 +317,9 @@ protected:
    /// Update the nodes of a curved mesh after refinement
    void UpdateNodes();
 
+   /// Helper to set vertex coordinates given a high-order curvature function.
+   void SetVerticesFromNodes(const GridFunction *nodes);
+
    void UniformRefinement2D_base(bool update_nodes = true);
 
    /// Refine a mixed 2D mesh uniformly.
@@ -349,6 +352,10 @@ protected:
    /// Derefinement helper.
    double AggregateError(const Array<double> &elem_error,
                          const int *fine, int nfine, int op);
+
+   /// Implementation of the refinement constructors (LOR).
+   void CreateRefinedMesh(Mesh *orig_mesh, const Array<int> &ref_factors,
+                          int ref_type);
 
    /// Read NURBS patch/macro-element mesh
    void LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot);
@@ -713,6 +720,11 @@ public:
        @note The constructed Mesh is linear, i.e. it does not have nodes. */
    Mesh(Mesh *orig_mesh, int ref_factor, int ref_type);
 
+   /// A version of the above constructor for non-uniform refinement.
+   /** The input array @a ref_factors contains one refinement factor per element
+       of the input mesh. */
+   Mesh(Mesh *orig_mesh, const Array<int> &ref_factors, int ref_type);
+
    /** This is similar to the mesh constructor with the same arguments, but here
        the current mesh is destroyed and another one created based on the data
        stream again given in MFEM, Netgen, or VTK format. If generate_edges = 0
@@ -775,8 +787,13 @@ public:
 
    /** @brief Return the mesh geometric factors corresponding to the given
        integration rule. */
-   const GeometricFactors* GetGeometricFactors(const IntegrationRule& ir,
-                                               const int flags);
+   /** If the device MemoryType parameter @a d_mt is specified, then the
+       returned object will use that type unless it was previously allocated
+       with a different type. */
+   const GeometricFactors* GetGeometricFactors(
+      const IntegrationRule& ir,
+      const int flags,
+      MemoryType d_mt = MemoryType::DEFAULT);
 
    /** @brief Return the mesh geometric factors for the faces corresponding
         to the given integration rule. */
@@ -837,20 +854,30 @@ public:
 
    const Element *GetFace(int i) const { return faces[i]; }
 
-   Geometry::Type GetFaceBaseGeometry(int i) const
+   Geometry::Type GetFaceGeometry(int i) const
    {
       return faces[i]->GetGeometryType();
    }
 
-   Geometry::Type GetElementBaseGeometry(int i) const
+   Geometry::Type GetElementGeometry(int i) const
    {
       return elements[i]->GetGeometryType();
    }
 
-   Geometry::Type GetBdrElementBaseGeometry(int i) const
+   Geometry::Type GetBdrElementGeometry(int i) const
    {
       return boundary[i]->GetGeometryType();
    }
+
+   // deprecated: "base geometry" no longer means anything
+   Geometry::Type GetFaceBaseGeometry(int i) const
+   { return GetFaceGeometry(i); }
+
+   Geometry::Type GetElementBaseGeometry(int i) const
+   { return GetElementGeometry(i); }
+
+   Geometry::Type GetBdrElementBaseGeometry(int i) const
+   { return GetBdrElementGeometry(i); }
 
    /** @brief Return true iff the given @a geom is encountered in the mesh.
        Geometries of dimensions lower than Dimension() are counted as well. */
@@ -901,7 +928,7 @@ public:
 
    /** Return the indices and the orientations of all edges of face i.
        Works for both 2D (face=edge) and 3D faces. */
-   void GetFaceEdges(int i, Array<int> &, Array<int> &) const;
+   void GetFaceEdges(int i, Array<int> &edges, Array<int> &o) const;
 
    /// Returns the indices of the vertices of face i.
    void GetFaceVertices(int i, Array<int> &vert) const
@@ -926,10 +953,10 @@ public:
    Table *GetEdgeVertexTable() const;
 
    /// Return the indices and the orientations of all faces of element i.
-   void GetElementFaces(int i, Array<int> &, Array<int> &) const;
+   void GetElementFaces(int i, Array<int> &faces, Array<int> &ori) const;
 
    /// Return the index and the orientation of the face of bdr element i. (3D)
-   void GetBdrElementFace(int i, int *, int *) const;
+   void GetBdrElementFace(int i, int *f, int *o) const;
 
    /** Return the vertex index of boundary element i. (1D)
        Return the edge index of boundary element i. (2D)
@@ -1048,9 +1075,22 @@ public:
    Geometry::Type GetFaceGeometryType(int Face) const;
    Element::Type  GetFaceElementType(int Face) const;
 
-   /// Check the orientation of the elements
-   /** @return The number of elements with wrong orientation. */
+   /// Check (and optionally attempt to fix) the orientation of the elements
+   /** @param[in] fix_it  If `true`, attempt to fix the orientations of some
+                          elements: triangles, quads, and tets.
+       @return The number of elements with wrong orientation.
+
+       @note For meshes with nodes (e.g. high-order or periodic meshes), fixing
+       the element orientations may require additional permutation of the nodal
+       GridFunction of the mesh which is not performed by this method. Instead,
+       the method Finalize() should be used with the parameter
+       @a fix_orientation set to `true`.
+
+       @note This method performs a simple check if an element is inverted, e.g.
+       for most elements types, it checks if the Jacobian of the mapping from
+       the reference element is non-negative at the center of the element. */
    int CheckElementOrientation(bool fix_it = true);
+
    /// Check the orientation of the boundary elements
    /** @return The number of boundary elements with wrong orientation. */
    int CheckBdrElementOrientation(bool fix_it = true);
@@ -1417,7 +1457,8 @@ public:
       DETERMINANTS = 1 << 2,
    };
 
-   GeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags);
+   GeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags,
+                    MemoryType d_mt = MemoryType::DEFAULT);
 
    /// Mapped (physical) coordinates of all quadrature points.
    /** This array uses a column-major layout with dimensions (NQ x SDIM x NE)

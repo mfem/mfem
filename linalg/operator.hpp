@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -801,7 +801,10 @@ public:
 
     Square operator constrained by fixing certain entries in the solution to
     given "essential boundary condition" values. This class is used by the
-    general, matrix-free system formulation of Operator::FormLinearSystem. */
+    general, matrix-free system formulation of Operator::FormLinearSystem.
+
+    Do not confuse with ConstrainedSolver, which despite the name has very
+    different functionality. */
 class ConstrainedOperator : public Operator
 {
 protected:

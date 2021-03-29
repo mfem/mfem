@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -175,8 +175,10 @@ void Array2D<T>::Print(std::ostream &out, int width_)
    }
 }
 
+template class Array<char>;
 template class Array<int>;
 template class Array<double>;
 template class Array2D<int>;
 template class Array2D<double>;
-}
+
+} // namespace mfem
