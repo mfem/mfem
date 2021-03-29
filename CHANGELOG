@@ -25,6 +25,9 @@ Version 4.2.1 (development)
     MemoryManager::SetUmpireDevice2AllocatorName.
   * Added HOST_PINNED MemoryType and a pinned host allocator for CUDA and HIP.
 
+- Added support for explicit vectorization in the high-performance templated
+  code for Fujitsu's A64FX ARM microprocessor architecture.
+
 - Added AlgebraicCeedSolver that does matrix-free algebraic p-multigrid for
   diffusion problems with the Ceed backend.
 
