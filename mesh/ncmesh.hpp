@@ -107,7 +107,7 @@ public:
    explicit NCMesh(const Mesh *mesh);
 
    /** Load from a stream. The id header is assumed to have been read already
-       from \param[in] input. \param[in] version is 10 for the v1.0 NC format,
+       from \param[in] input . \param[in] version is 10 for the v1.0 NC format,
        or 1 for the legacy v1.1 format. \param[out] curved is set to 1 if the
        curvature GridFunction follows after mesh data. \param[out] is_nc (again
        treated as a boolean) is set to 0 if the legacy v1.1 format in fact
