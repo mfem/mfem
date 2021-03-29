@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -545,6 +545,13 @@ public:
 
    /// Remove values smaller in absolute value than some threshold
    void Threshold(double threshold = 0.0);
+
+   /** @brief Wrapper for hypre_ParCSRMatrixDropSmallEntries in different
+       versions of hypre. Drop off-diagonal entries that are smaller than
+       tol * l2 norm of its row */
+   /** For HYPRE versions < 2.14, this method just calls Threshold() with
+       threshold = tol * max(l2 row norm). */
+   void DropSmallEntries(double tol);
 
    /// If a row contains only zeros, set its diagonal to 1.
    void EliminateZeroRows() { hypre_ParCSRMatrixFixZeroRows(A); }
@@ -1277,8 +1284,12 @@ public:
    void SetCycleType(int cycle_type)
    { HYPRE_BoomerAMGSetCycleType(amg_precond, cycle_type); }
 
-   void GetNumIterations(int &num_it)
-   { HYPRE_BoomerAMGGetNumIterations(amg_precond, &num_it); }
+   void GetNumIterations(int &num_iterations)
+   {
+      HYPRE_Int num_it;
+      HYPRE_BoomerAMGGetNumIterations(amg_precond, &num_it);
+      num_iterations = internal::to_int(num_it);
+   }
 
    /// Expert option - consult hypre documentation/team
    void SetNodal(int blocksize)

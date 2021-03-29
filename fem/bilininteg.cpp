@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1060,9 +1060,10 @@ void MassIntegrator::AssembleElementMatrix
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-      el.CalcShape(ip, shape);
-
       Trans.SetIntPoint (&ip);
+
+      el.CalcPhysShape(Trans, shape);
+
       w = Trans.Weight() * ip.weight;
       if (Q)
       {
@@ -3762,6 +3763,7 @@ ScalarCrossProductInterpolator::AssembleElementMatrix2(
          : VectorCoefficient(fe_.GetDof()), VQ(vq), fe(fe_),
            vshape(vdim, vq.GetVDim()), vc(vq.GetVDim()) { }
 
+      using VectorCoefficient::Eval;
       virtual void Eval(Vector &V, ElementTransformation &T,
                         const IntegrationPoint &ip)
       {

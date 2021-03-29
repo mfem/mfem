@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -25,7 +25,7 @@ protected:
    NonlinearForm *n; ///< Not owned
 public:
    NonlinearFormExtension(NonlinearForm *form);
-   virtual void AssemblePA() = 0;
+   virtual void Assemble() = 0;
 };
 
 /// Data and methods for partially-assembled nonlinear forms
@@ -37,8 +37,22 @@ protected:
    const Operator *elem_restrict_lex; // Not owned
 public:
    PANonlinearFormExtension(NonlinearForm*);
-   void AssemblePA();
+   void Assemble();
    void Mult(const Vector &x, Vector &y) const;
 };
+
+/// Data and methods for unassembled nonlinear forms
+class MFNonlinearFormExtension : public NonlinearFormExtension
+{
+protected:
+   const FiniteElementSpace &fes; // Not owned
+   mutable Vector localX, localY;
+   const Operator *elem_restrict_lex; // Not owned
+public:
+   MFNonlinearFormExtension(NonlinearForm*);
+   void Assemble();
+   void Mult(const Vector &x, Vector &y) const;
+};
+
 }
 #endif // NONLINEARFORM_EXT_HPP

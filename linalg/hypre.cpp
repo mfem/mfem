@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -999,7 +999,7 @@ HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
    int local_num_vars = hypre_CSRMatrixNumRows(hypre_ParCSRMatrixDiag(A));
 
    // Form hypre CF-splitting array designating submatrix as F-points (-1)
-   Array<int> CF_marker(local_num_vars);
+   Array<HYPRE_Int> CF_marker(local_num_vars);
    CF_marker = 1;
    for (int j=0; j<indices.Size(); j++)
    {
@@ -1422,6 +1422,49 @@ void HypreParMatrix::Threshold(double threshold)
    hypre_MatvecCommPkgCreate(A);
    height = GetNumRows();
    width = GetNumCols();
+}
+
+void HypreParMatrix::DropSmallEntries(double tol)
+{
+   HYPRE_Int err = 0;
+
+#if MFEM_HYPRE_VERSION < 21400
+
+   double threshold = 0.0;
+   if (tol > 0.0)
+   {
+      HYPRE_Int *diag_I = A->diag->i,    *offd_I = A->offd->i;
+      double    *diag_d = A->diag->data, *offd_d = A->offd->data;
+      HYPRE_Int local_num_rows = A->diag->num_rows;
+      double max_l2_row_norm = 0.0;
+      Vector row;
+      for (HYPRE_Int r = 0; r < local_num_rows; r++)
+      {
+         row.SetDataAndSize(diag_d + diag_I[r], diag_I[r+1]-diag_I[r]);
+         double l2_row_norm = row.Norml2();
+         row.SetDataAndSize(offd_d + offd_I[r], offd_I[r+1]-offd_I[r]);
+         l2_row_norm = std::hypot(l2_row_norm, row.Norml2());
+         max_l2_row_norm = std::max(max_l2_row_norm, l2_row_norm);
+      }
+      double loc_max_l2_row_norm = max_l2_row_norm;
+      MPI_Allreduce(&loc_max_l2_row_norm, &max_l2_row_norm, 1, MPI_DOUBLE,
+                    MPI_MAX, A->comm);
+      threshold = tol * max_l2_row_norm;
+   }
+
+   Threshold(threshold);
+
+#elif MFEM_HYPRE_VERSION < 21800
+
+   err = hypre_ParCSRMatrixDropSmallEntries(A, tol);
+
+#else
+
+   err = hypre_ParCSRMatrixDropSmallEntries(A, tol, 2);
+
+#endif
+
+   MFEM_VERIFY(!err, "error encountered: error code = " << err);
 }
 
 void HypreParMatrix::EliminateRowsCols(const Array<int> &rows_cols,
@@ -3871,6 +3914,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
    int p = 1;
    if (edge_fespace->GetNE() > 0)
    {
+      MFEM_VERIFY(!edge_fespace->IsVariableOrder(), "");
       if (trace_space)
       {
          p = edge_fespace->GetFaceOrder(0);
@@ -3878,7 +3922,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
       }
       else
       {
-         p = edge_fespace->GetOrder(0);
+         p = edge_fespace->GetElementOrder(0);
       }
    }
 
@@ -3911,7 +3955,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
                                                                    vert_fec);
 
    // generate and set the vertex coordinates
-   if (p == 1)
+   if (p == 1 && pmesh->GetNodes() == NULL)
    {
       ParGridFunction x_coord(vert_fespace);
       ParGridFunction y_coord(vert_fespace);
@@ -3967,7 +4011,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
 
    // generate and set the Nedelec interpolation matrices
    Pi = Pix = Piy = Piz = NULL;
-   if (p > 1)
+   if (p > 1 || pmesh->GetNodes() != NULL)
    {
       ParFiniteElementSpace *vert_fespace_d
          = new ParFiniteElementSpace(pmesh, vert_fec, sdim, Ordering::byVDIM);
@@ -4100,13 +4144,14 @@ void HypreADS::Init(ParFiniteElementSpace *face_fespace)
    int p = 1;
    if (face_fespace->GetNE() > 0)
    {
+      MFEM_VERIFY(!face_fespace->IsVariableOrder(), "");
       if (trace_space)
       {
          p = face_fespace->GetFaceOrder(0) + 1;
       }
       else
       {
-         p = face_fespace->GetOrder(0);
+         p = face_fespace->GetElementOrder(0);
       }
    }
 
@@ -4137,7 +4182,7 @@ void HypreADS::Init(ParFiniteElementSpace *face_fespace)
                                                                    edge_fec);
 
    // generate and set the vertex coordinates
-   if (p == 1)
+   if (p == 1 && pmesh->GetNodes() == NULL)
    {
       ParGridFunction x_coord(vert_fespace);
       ParGridFunction y_coord(vert_fespace);
@@ -4202,7 +4247,7 @@ void HypreADS::Init(ParFiniteElementSpace *face_fespace)
    // generate and set the Nedelec and Raviart-Thomas interpolation matrices
    RT_Pi = RT_Pix = RT_Piy = RT_Piz = NULL;
    ND_Pi = ND_Pix = ND_Piy = ND_Piz = NULL;
-   if (p > 1)
+   if (p > 1 || pmesh->GetNodes() != NULL)
    {
       ParFiniteElementSpace *vert_fespace_d
          = new ParFiniteElementSpace(pmesh, vert_fec, 3, Ordering::byVDIM);

@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -509,6 +509,8 @@ if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
   endforeach()
 endif()
 
+set(MFEM_CUSTOM_TARGET_PREFIX CACHE STRING "")
+
 #-------------------------------------------------------------------------------
 # Examples, miniapps, and testing
 #-------------------------------------------------------------------------------
@@ -559,16 +561,17 @@ if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
 endif()
 
 # Add 'check' target - quick test
+set(MFEM_CHECK_TARGET_NAME ${MFEM_CUSTOM_TARGET_PREFIX}check)
 if (NOT MFEM_USE_MPI)
-  add_custom_target(check
+  add_custom_target(${MFEM_CHECK_TARGET_NAME}
     ${CMAKE_CTEST_COMMAND} -R \"^ex1_ser\" -C ${CMAKE_CFG_INTDIR}
     USES_TERMINAL)
-  add_dependencies(check ex1)
+  add_dependencies(${MFEM_CHECK_TARGET_NAME} ex1)
 else()
-  add_custom_target(check
+  add_custom_target(${MFEM_CHECK_TARGET_NAME}
     ${CMAKE_CTEST_COMMAND} -R \"^ex1p\" -C ${CMAKE_CFG_INTDIR}
     USES_TERMINAL)
-  add_dependencies(check ex1p)
+  add_dependencies(${MFEM_CHECK_TARGET_NAME} ex1p)
 endif()
 
 #-------------------------------------------------------------------------------
@@ -622,7 +625,7 @@ endif()
 if (MFEM_USE_CEED)
   install(DIRECTORY ${MFEM_SOURCE_DIRS}
     DESTINATION ${INSTALL_INCLUDE_DIR}/mfem
-    FILES_MATCHING PATTERN "fem/libceed/*.h")
+    FILES_MATCHING PATTERN "fem/ceed/*.h")
 endif()
 
 # Install ${HEADERS}
