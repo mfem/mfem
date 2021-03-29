@@ -1610,17 +1610,39 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
                   interp_config[f_ind] = itr->second.first;
                }
             }
-            if (dim==2 && ncface>-1) orientation = 1;
-            for (int d = 0; d < dof; ++d)
+            if (ncface>-1)
             {
-               // TODO orientation is wrong.
-               const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                            orientation, dof1d, d);
-               const int face_dof = faceMap2[pd];
-               const int gid = elementMap[e2*elem_dofs + face_dof];
-               const int lid = dof*f_ind + d;
-               scatter_indices2[lid] = gid;
-               ++offsets[gid + 1];
+               if (dim==2) 
+               {
+                  orientation = 1;
+                  for (int d = 0; d < dof; ++d)
+                  {
+                     const int pd = PermuteFaceL2(dim, face_id1, face_id2,
+                                                orientation, dof1d, d);
+                     const int face_dof = faceMap2[pd];
+                     const int gid = elementMap[e2*elem_dofs + face_dof];
+                     const int lid = dof*f_ind + d;
+                     scatter_indices2[lid] = gid;
+                     ++offsets[gid + 1];
+                  }
+               }
+               else if (dim==3)
+               {
+                  MFEM_ABORT("Not yet implemented.");
+               }
+            }
+            else // Conforming case
+            {
+               for (int d = 0; d < dof; ++d)
+               {
+                  const int pd = PermuteFaceL2(dim, face_id1, face_id2,
+                                             orientation, dof1d, d);
+                  const int face_dof = faceMap2[pd];
+                  const int gid = elementMap[e2*elem_dofs + face_dof];
+                  const int lid = dof*f_ind + d;
+                  scatter_indices2[lid] = gid;
+                  ++offsets[gid + 1];
+               }
             }
          }
          f_ind++;
@@ -1678,16 +1700,39 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
          }
          if (m==L2FaceValues::DoubleValued && type==FaceType::Interior && e2>=0)
          {
-            for (int d = 0; d < dof; ++d)
+            if (ncface>-1)
             {
-               if (dim==2 && ncface>=0) orientation = 1;
-               const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                            orientation, dof1d, d);
-               const int did = faceMap2[pd];
-               const int gid = elementMap[e2*elem_dofs + did];
-               const int lid = dof*f_ind + d;
-               // We shift lid to express that it's e2 of f
-               gather_indices[offsets[gid]++] = nfdofs + lid;
+               if (dim==2)
+               {
+                  orientation = 1;
+                  for (int d = 0; d < dof; ++d)
+                  {
+                     const int pd = PermuteFaceL2(dim, face_id1, face_id2,
+                                                orientation, dof1d, d);
+                     const int did = faceMap2[pd];
+                     const int gid = elementMap[e2*elem_dofs + did];
+                     const int lid = dof*f_ind + d;
+                     // We shift lid to express that it's e2 of f
+                     gather_indices[offsets[gid]++] = nfdofs + lid;
+                  }
+               }
+               else if (dim==3)
+               {
+                  MFEM_ABORT("Not yet implemented.");
+               }
+            }
+            else
+            {
+               for (int d = 0; d < dof; ++d)
+               {
+                  const int pd = PermuteFaceL2(dim, face_id1, face_id2,
+                                             orientation, dof1d, d);
+                  const int did = faceMap2[pd];
+                  const int gid = elementMap[e2*elem_dofs + did];
+                  const int lid = dof*f_ind + d;
+                  // We shift lid to express that it's e2 of f
+                  gather_indices[offsets[gid]++] = nfdofs + lid;
+               }
             }
          }
          f_ind++;
