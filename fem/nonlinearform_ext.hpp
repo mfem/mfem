@@ -30,7 +30,7 @@ class NonlinearFormIntegrator;
 class NonlinearFormExtension : public Operator
 {
 protected:
-   NonlinearForm *nlf; ///< Not owned
+   const NonlinearForm *nlf; ///< Not owned
 public:
    NonlinearFormExtension(const NonlinearForm*);
 

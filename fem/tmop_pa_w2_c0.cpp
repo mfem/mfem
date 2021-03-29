@@ -116,7 +116,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
    return energy * ones;
 }
 
-double TMOP_Integrator::GetGridFunctionEnergyPA_C0_2D(const Vector &X) const
+double TMOP_Integrator::GetLocalStateEnergyPA_C0_2D(const Vector &X) const
 {
    const int N = PA.ne;
    const int D1D = PA.maps->ndof;

@@ -346,17 +346,13 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    nlf.SetEssentialBC(ess_bdr);
 
    // Diagonal test, skip if combo
+   Vector &xt(x.GetTrueVector());
+   Vector d(fes.GetTrueVSize());
+   d.UseDevice(true);
    res.diag = 0.0;
    if (diag && combo == 0)
    {
-      Vector d(fes.GetTrueVSize());
-      Vector &xt(x.GetTrueVector());
-      d.UseDevice(true);
-      if (pa)
-      {
-         nlf.SetupGradient();
-         nlf.GetGradient(xt).AssembleDiagonal(d);
-      }
+      if (pa) { nlf.GetGradient(xt).AssembleDiagonal(d); }
       else
       {
          ParNonlinearForm nlf_fa(&fes);
@@ -398,11 +394,9 @@ int tmop(int myid, Req &res, int argc, char *argv[])
       {
          if (pa)
          {
+            nlf.GetGradient(xt).AssembleDiagonal(d);
             MFEM_VERIFY(lin_solver != 4, "PA l1-Jacobi is not implemented");
-            OperatorJacobiSmoother *sm =
-               new OperatorJacobiSmoother(nlf.FESpace()->GetTrueVSize(),
-                                          nlf.GetEssentialTrueDofs());
-            S_prec = sm;
+            S_prec = new OperatorJacobiSmoother(d, nlf.GetEssentialTrueDofs());
          }
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
          else

@@ -3096,12 +3096,20 @@ void TMOPComboIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
 }
 
-void TMOPComboIntegrator::AssembleGradDiagonalPA(const Vector &xe,
-                                                 Vector &de) const
+void TMOPComboIntegrator::AssembleGradPA(const Vector &xe,
+                                         const FiniteElementSpace &fes)
 {
    for (int i = 0; i < tmopi.Size(); i++)
    {
-      tmopi[i]->AssembleGradDiagonalPA(xe, de);
+      tmopi[i]->AssembleGradPA(xe,fes);
+   }
+}
+
+void TMOPComboIntegrator::AssembleGradDiagonalPA(Vector &de) const
+{
+   for (int i = 0; i < tmopi.Size(); i++)
+   {
+      tmopi[i]->AssembleGradDiagonalPA(de);
    }
 }
 
@@ -3113,21 +3121,20 @@ void TMOPComboIntegrator::AddMultPA(const Vector &xe, Vector &ye) const
    }
 }
 
-void TMOPComboIntegrator::AddMultGradPA(const Vector &xe, const Vector &re,
-                                        Vector &ce) const
+void TMOPComboIntegrator::AddMultGradPA(const Vector &re, Vector &ce) const
 {
    for (int i = 0; i < tmopi.Size(); i++)
    {
-      tmopi[i]->AddMultGradPA(xe, re, ce);
+      tmopi[i]->AddMultGradPA(re, ce);
    }
 }
 
-double TMOPComboIntegrator::GetGridFunctionEnergyPA(const Vector &xe) const
+double TMOPComboIntegrator::GetLocalStateEnergyPA(const Vector &xe) const
 {
    double energy = 0.0;
    for (int i = 0; i < tmopi.Size(); i++)
    {
-      energy += tmopi[i]->GetGridFunctionEnergyPA(xe);
+      energy += tmopi[i]->GetLocalStateEnergyPA(xe);
    }
    return energy;
 }

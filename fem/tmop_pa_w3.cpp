@@ -144,7 +144,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
    return energy * ones;
 }
 
-double TMOP_Integrator::GetGridFunctionEnergyPA_3D(const Vector &X) const
+double TMOP_Integrator::GetLocalStateEnergyPA_3D(const Vector &X) const
 {
    const int N = PA.ne;
    const int M = metric->Id();

@@ -114,8 +114,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_3D,
    });
 }
 
-void TMOP_Integrator::AddMultGradPA_3D(const Vector &X, const Vector &R,
-                                       Vector &C) const
+void TMOP_Integrator::AddMultGradPA_3D(const Vector &R, Vector &C) const
 {
    const int N = PA.ne;
    const int D1D = PA.maps->ndof;
