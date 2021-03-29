@@ -76,7 +76,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_C0_2D,
                D(dx,dy,v,e) += d;
             }
          }
-         MFEM_SYNC_THREAD
+         MFEM_SYNC_THREAD;
       }
    });
 }

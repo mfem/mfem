@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -36,11 +36,11 @@
 //
 // Sample runs:
 //   Adapted analytic shape:
-//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8
 //   Adapted analytic size+orientation:
-//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd
+//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -fd
 //   Adapted analytic shape+orientation:
-//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 4 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd
+//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -fd
 //
 //   Adapted discrete size:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor
@@ -52,9 +52,9 @@
 //   Adapted discrete size+orientation (requires GSLIB):
 //   * mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -fd -ae 1 -nor
 //   Adapted discrete aspect-ratio+orientation (requires GSLIB):
-//   * mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 8 -ni 10  -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd -ae 1
+//   * mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 8 -ni 10 -bnd -qt 1 -qo 8 -fd -ae 1
 //   Adapted discrete aspect ratio (3D):
-//     mesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20  -ls 2 -li 100 -bnd -qt 1 -qo 8
+//     mesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20 -bnd -qt 1 -qo 8
 //
 //   Adapted discrete size (3D):
 //     mesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ni 20  -ls 2 -li 100 -bnd -qt 1 -qo 8 -nor
@@ -69,28 +69,33 @@
 //   * mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -fd -ae 1
 //
 //   Blade shape:
-//     mesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//     mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
 //   Blade shape with FD-based solver:
-//     mesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd
+//     mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 4 -bnd -qt 1 -qo 8 -fd
 //   Blade limited shape:
-//     mesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -lc 5000
+//     mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -bnd -qt 1 -qo 8 -lc 5000
 //   ICF shape and equal size:
-//     mesh-optimizer -o 3 -rs 0 -mid 9 -tid 2 -ni 25 -ls 3 -qo 5
+//     mesh-optimizer -o 3 -mid 9 -tid 2 -ni 25 -ls 3 -art 2 -qo 5
 //   ICF shape and initial size:
-//     mesh-optimizer -o 3 -rs 0 -mid 9 -tid 3 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//     mesh-optimizer -o 3 -mid 9 -tid 3 -ni 30 -ls 3 -bnd -qt 1 -qo 8
 //   ICF shape:
-//     mesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//     mesh-optimizer -o 3 -mid 1 -tid 1 -ni 100 -bnd -qt 1 -qo 8
 //   ICF limited shape:
-//     mesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -lc 10
+//     mesh-optimizer -o 3 -mid 1 -tid 1 -ni 100 -bnd -qt 1 -qo 8 -lc 10
 //   ICF combo shape + size (rings, slow convergence):
-//     mesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 1000 -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb 1
+//     mesh-optimizer -o 3 -mid 1 -tid 1 -ni 1000 -bnd -qt 1 -qo 8 -cmb 1
 //   Mixed tet / cube / hex mesh with limiting:
 //     mesh-optimizer -m ../../data/fichera-mixed-p2.mesh -o 4 -rs 1 -mid 301 -tid 1 -fix-bnd -qo 6 -nor -lc 0.25
 //   3D pinched sphere shape (the mesh is in the mfem/data GitHub repository):
-//   * mesh-optimizer -m ../../../mfem_data/ball-pert.mesh -o 4 -rs 0 -mid 303 -tid 1 -ni 20 -ls 2 -li 500 -fix-bnd
+//   * mesh-optimizer -m ../../../mfem_data/ball-pert.mesh -o 4 -mid 303 -tid 1 -ni 20 -li 500 -fix-bnd
 //   2D non-conforming shape and equal size:
-//     mesh-optimizer -m ./amr-quad-q2.mesh -o 2 -rs 1 -mid 9 -tid 2 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
-
+//     mesh-optimizer -m ./amr-quad-q2.mesh -o 2 -rs 1 -mid 9 -tid 2 -ni 200 -bnd -qt 1 -qo 8
+//
+//   2D untangling:
+//     mesh-optimizer -m jagged.mesh -o 2 -mid 22 -tid 1 -ni 50 -li 50 -qo 4 -fd -vl 1
+//   3D untangling (the mesh is in the mfem/data GitHub repository):
+//   * mesh-optimizer -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -mid 313 -tid 1 -rtol 1e-5 -li 50 -qo 4 -fd -vl 1
+//
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -118,6 +123,7 @@ int main(int argc, char *argv[])
    int solver_type       = 0;
    int solver_iter       = 20;
    double solver_rtol    = 1e-10;
+   int solver_art_type   = 0;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
@@ -158,15 +164,17 @@ int main(int argc, char *argv[])
                   "80 : (1-gamma)mu_2 + gamma mu_77    -- 2D shape+size\n\t"
                   "85 : |T-|T|/sqrt(2)I|^2             -- 2D shape+orientation\n\t"
                   "98 : (1/tau)|T-I|^2                 -- 2D shape+size+orientation\n\t"
-                  "211: (tau-1)^2-tau+sqrt(tau^2)      -- 2D untangling\n\t"
-                  "252: 0.5(tau-1)^2/(tau-tau_0)       -- 2D untangling\n\t"
+                  // "211: (tau-1)^2-tau+sqrt(tau^2)      -- 2D untangling\n\t"
+                  // "252: 0.5(tau-1)^2/(tau-tau_0)       -- 2D untangling\n\t"
                   "301: (|T||T^-1|)/3-1              -- 3D shape\n\t"
                   "302: (|T|^2|T^-1|^2)/9-1          -- 3D shape\n\t"
                   "303: (|T|^2)/3*tau^(2/3)-1        -- 3D shape\n\t"
+                  //"311: (tau-1)^2-tau+sqrt(tau^2+eps)-- 3D untangling\n\t"
+                  "313: (|T|^2)(tau-tau0)^(-2/3)/3   -- 3D untangling\n\t"
                   "315: (tau-1)^2                    -- 3D size\n\t"
                   "316: 0.5(sqrt(tau)-1/sqrt(tau))^2 -- 3D size\n\t"
                   "321: |T-T^-t|^2                   -- 3D shape+size\n\t"
-                  "352: 0.5(tau-1)^2/(tau-tau_0)     -- 3D untangling\n\t"
+                  // "352: 0.5(tau-1)^2/(tau-tau_0)     -- 3D untangling\n\t"
                   "A-metrics\n\t"
                   "11 : (1/4*alpha)|A-(adjA)^T(W^TW)/omega|^2 -- 2D shape\n\t"
                   "36 : (1/alpha)|A-W|^2                      -- 2D shape+size+orientation\n\t"
@@ -196,12 +204,17 @@ int main(int argc, char *argv[])
                   "Maximum number of Newton iterations.");
    args.AddOption(&solver_rtol, "-rtol", "--newton-rel-tolerance",
                   "Relative tolerance for the Newton solver.");
+   args.AddOption(&solver_art_type, "-art", "--adaptive-rel-tol",
+                  "Type of adaptive relative linear solver tolerance:\n\t"
+                  "0: None (default)\n\t"
+                  "1: Eisenstat-Walker type 1\n\t"
+                  "2: Eisenstat-Walker type 2");
    args.AddOption(&lin_solver, "-ls", "--lin-solver",
                   "Linear solver:\n\t"
                   "0: l1-Jacobi\n\t"
                   "1: CG\n\t"
                   "2: MINRES\n\t"
-                  "3: MINRES + Jacobi preconditioner"
+                  "3: MINRES + Jacobi preconditioner\n\t"
                   "4: MINRES + l1-Jacobi preconditioner");
    args.AddOption(&max_lin_iter, "-li", "--lin-iter",
                   "Maximum number of iterations in the linear solve.");
@@ -209,7 +222,7 @@ int main(int argc, char *argv[])
                   "--fix-boundary",
                   "Enable motion along horizontal and vertical boundaries.");
    args.AddOption(&combomet, "-cmb", "--combo-type",
-                  "Combination of metrics options:"
+                  "Combination of metrics options:\n\t"
                   "0: Use single metric\n\t"
                   "1: Shape + space-dependent size given analytically\n\t"
                   "2: Shape + adapted size given discretely; shared target");
@@ -364,15 +377,17 @@ int main(int argc, char *argv[])
       case 80: metric = new TMOP_Metric_080(0.5); break;
       case 85: metric = new TMOP_Metric_085; break;
       case 98: metric = new TMOP_Metric_098; break;
-      case 211: metric = new TMOP_Metric_211; break;
-      case 252: metric = new TMOP_Metric_252(tauval); break;
+      // case 211: metric = new TMOP_Metric_211; break;
+      // case 252: metric = new TMOP_Metric_252(tauval); break;
       case 301: metric = new TMOP_Metric_301; break;
       case 302: metric = new TMOP_Metric_302; break;
       case 303: metric = new TMOP_Metric_303; break;
+      // case 311: metric = new TMOP_Metric_311; break;
+      case 313: metric = new TMOP_Metric_313(tauval); break;
       case 315: metric = new TMOP_Metric_315; break;
       case 316: metric = new TMOP_Metric_316; break;
       case 321: metric = new TMOP_Metric_321; break;
-      case 352: metric = new TMOP_Metric_352(tauval); break;
+      // case 352: metric = new TMOP_Metric_352(tauval); break;
       // A-metrics
       case 11: metric = new TMOP_AMetric_011; break;
       case 36: metric = new TMOP_AMetric_036; break;
@@ -390,8 +405,10 @@ int main(int argc, char *argv[])
    FiniteElementSpace ind_fesv(mesh, &ind_fec, dim);
    GridFunction size(&ind_fes), aspr(&ind_fes), disc(&ind_fes), ori(&ind_fes);
    GridFunction aspr3d(&ind_fesv);
+
    const AssemblyLevel al =
       pa ? AssemblyLevel::PARTIAL : AssemblyLevel::LEGACYFULL;
+
    switch (target_id)
    {
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
@@ -457,14 +474,14 @@ int main(int argc, char *argv[])
 #endif
          }
 
-         //Diffuse the interface
+         // Diffuse the interface
          DiffuseField(disc,2);
 
-         //Get  partials with respect to x and y of the grid function
+         // Get  partials with respect to x and y of the grid function
          disc.GetDerivative(1,0,d_x);
          disc.GetDerivative(1,1,d_y);
 
-         //Compute the squared magnitude of the gradient
+         // Compute the squared magnitude of the gradient
          for (int i = 0; i < size.Size(); i++)
          {
             size(i) = std::pow(d_x(i),2)+std::pow(d_y(i),2);
@@ -731,6 +748,40 @@ int main(int argc, char *argv[])
 
    if (pa) { a.Setup(); }
 
+   // Compute the minimum det(J) of the starting mesh.
+   tauval = infinity();
+   const int NE = mesh->GetNE();
+   for (int i = 0; i < NE; i++)
+   {
+      const IntegrationRule &ir =
+         irules->Get(fespace->GetFE(i)->GetGeomType(), quad_order);
+      ElementTransformation *transf = mesh->GetElementTransformation(i);
+      for (int j = 0; j < ir.GetNPoints(); j++)
+      {
+         transf->SetIntPoint(&ir.IntPoint(j));
+         tauval = min(tauval, transf->Jacobian().Det());
+      }
+   }
+   cout << "Minimum det(J) of the original mesh is " << tauval << endl;
+
+   if (tauval < 0.0 && metric_id != 22 && metric_id != 211 && metric_id != 252
+       && metric_id != 311 && metric_id != 313 && metric_id != 352)
+   {
+      MFEM_ABORT("The input mesh is inverted! Try an untangling metric.");
+   }
+   if (tauval < 0.0)
+   {
+      MFEM_VERIFY(target_t == TargetConstructor::IDEAL_SHAPE_UNIT_SIZE,
+                  "Untangling is supported only for ideal targets.");
+
+      const DenseMatrix &Wideal =
+         Geometries.GetGeomToPerfGeomJac(fespace->GetFE(0)->GetGeomType());
+      tauval /= Wideal.Det();
+
+      // Slightly below minJ0 to avoid div by 0.
+      tauval -= 0.01 * h0.Min();
+   }
+
    const double init_energy = a.GetGridFunctionEnergy(x);
 
    // Visualize the starting mesh and metric values.
@@ -841,23 +892,6 @@ int main(int argc, char *argv[])
       S = minres;
    }
 
-   // Compute the minimum det(J) of the starting mesh.
-   tauval = infinity();
-   const int NE = mesh->GetNE();
-   for (int i = 0; i < NE; i++)
-   {
-      const IntegrationRule &ir =
-         irules->Get(fespace->GetFE(i)->GetGeomType(), quad_order);
-      ElementTransformation *transf = mesh->GetElementTransformation(i);
-      for (int j = 0; j < ir.GetNPoints(); j++)
-      {
-         transf->SetIntPoint(&ir.IntPoint(j));
-         tauval = min(tauval, transf->Jacobian().Det());
-      }
-   }
-   cout << "Minimum det(J) of the original mesh is " << tauval << endl;
-   tauval -= 0.01 * h0.Min(); // Slightly below minJ0 to avoid div by 0.
-
    // Perform the nonlinear optimization.
    const IntegrationRule &ir =
       irules->Get(fespace->GetFE(0)->GetGeomType(), quad_order);
@@ -869,9 +903,15 @@ int main(int argc, char *argv[])
       // Specify linear solver when we use a Newton-based solver.
       solver.SetPreconditioner(*S);
    }
+   // For untangling, the solver will update the min det(T) values.
+   if (tauval < 0.0) { solver.SetMinDetPtr(&tauval); }
    solver.SetMaxIter(solver_iter);
    solver.SetRelTol(solver_rtol);
    solver.SetAbsTol(0.0);
+   if (solver_art_type > 0)
+   {
+      solver.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
+   }
    solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
    solver.SetOperator(a);
    solver.Mult(b, x.GetTrueVector());

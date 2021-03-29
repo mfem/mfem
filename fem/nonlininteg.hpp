@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,6 +16,7 @@
 #include "fe.hpp"
 #include "coefficient.hpp"
 #include "fespace.hpp"
+#include "ceed/operator.hpp"
 
 namespace mfem
 {
@@ -28,8 +29,11 @@ class NonlinearFormIntegrator
 protected:
    const IntegrationRule *IntRule;
 
+   // CEED extension
+   ceed::Operator* ceedOp;
+
    NonlinearFormIntegrator(const IntegrationRule *ir = NULL)
-      : IntRule(ir) { }
+      : IntRule(ir), ceedOp(NULL) { }
 
 public:
    /** @brief Prescribe a fixed IntegrationRule to use (when @a ir != NULL) or
@@ -115,7 +119,26 @@ public:
        @param[out] diag  The diagonal of the @f$ grad(g) @f$ Operator. */
    virtual void AssembleGradDiagonalPA(const Vector &g, Vector &diag) const;
 
-   virtual ~NonlinearFormIntegrator() { }
+   /// Indicates whether this integrator can use a Ceed backend.
+   virtual bool SupportsCeed() const { return false; }
+
+   /// Method defining fully unassembled operator.
+   virtual void AssembleMF(const FiniteElementSpace &fes);
+
+   /** Perform the action of integrator on the input @a x and add the result to
+       the output @a y. Both @a x and @a y are E-vectors, i.e. they represent
+       the element-wise discontinuous version of the FE space.
+
+       This method can be called only after the method AssembleMF() has been
+       called. */
+   virtual void AddMultMF(const Vector &x, Vector &y) const;
+
+   ceed::Operator& GetCeedOp() { return *ceedOp; }
+
+   virtual ~NonlinearFormIntegrator()
+   {
+      delete ceedOp;
+   }
 };
 
 /** The abstract base class BlockNonlinearFormIntegrator is
@@ -332,6 +355,7 @@ public:
                                     const Array2D<DenseMatrix *> &elmats);
 };
 
+
 class VectorConvectionNLFIntegrator : public NonlinearFormIntegrator
 {
 private:
@@ -343,6 +367,7 @@ private:
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq;
+
 public:
    VectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { }
 
@@ -365,7 +390,56 @@ public:
 
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
+   virtual void AssembleMF(const FiniteElementSpace &fes);
+
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+
+   virtual void AddMultMF(const Vector &x, Vector &y) const;
+};
+
+
+/** This class is used to assemble the convective form of the nonlinear term
+    arising in the Navier-Stokes equations \f$(u \cdot \nabla v, w )\f$ */
+class ConvectiveVectorConvectionNLFIntegrator :
+   public VectorConvectionNLFIntegrator
+{
+private:
+   Coefficient *Q{};
+   DenseMatrix dshape, dshapex, EF, gradEF, ELV, elmat_comp;
+   Vector shape;
+
+public:
+   ConvectiveVectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { }
+
+   ConvectiveVectorConvectionNLFIntegrator() = default;
+
+   virtual void AssembleElementGrad(const FiniteElement &el,
+                                    ElementTransformation &trans,
+                                    const Vector &elfun,
+                                    DenseMatrix &elmat);
+};
+
+
+/** This class is used to assemble the skew-symmetric form of the nonlinear term
+    arising in the Navier-Stokes equations
+    \f$.5*(u \cdot \nabla v, w ) - .5*(u \cdot \nabla w, v )\f$ */
+class SkewSymmetricVectorConvectionNLFIntegrator :
+   public VectorConvectionNLFIntegrator
+{
+private:
+   Coefficient *Q{};
+   DenseMatrix dshape, dshapex, EF, gradEF, ELV, elmat_comp;
+   Vector shape;
+
+public:
+   SkewSymmetricVectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { }
+
+   SkewSymmetricVectorConvectionNLFIntegrator() = default;
+
+   virtual void AssembleElementGrad(const FiniteElement &el,
+                                    ElementTransformation &trans,
+                                    const Vector &elfun,
+                                    DenseMatrix &elmat);
 };
 
 }

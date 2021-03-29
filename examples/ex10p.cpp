@@ -178,6 +178,7 @@ int main(int argc, char *argv[])
    double visc = 1e-2;
    double mu = 0.25;
    double K = 5.0;
+   bool adaptive_lin_rtol = true;
    bool visualization = true;
    int vis_steps = 1;
 
@@ -206,6 +207,9 @@ int main(int argc, char *argv[])
                   "Shear modulus in the Neo-Hookean hyperelastic model.");
    args.AddOption(&K, "-K", "--bulk-modulus",
                   "Bulk modulus in the Neo-Hookean hyperelastic model.");
+   args.AddOption(&adaptive_lin_rtol, "-alrtol", "--adaptive-lin-rtol",
+                  "-no-alrtol", "--no-adaptive-lin-rtol",
+                  "Enable or disable adaptive linear solver rtol.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -574,6 +578,7 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
    newton_solver.SetPrintLevel(1); // print Newton iterations
    newton_solver.SetRelTol(rel_tol);
    newton_solver.SetAbsTol(0.0);
+   newton_solver.SetAdaptiveLinRtol(2, 0.5, 0.9);
    newton_solver.SetMaxIter(10);
 }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -26,21 +26,16 @@ class NonlinearFormIntegrator;
 class NonlinearFormExtension : public Operator
 {
 protected:
-   const NonlinearForm *nlf; ///< Not owned
-
+   NonlinearForm *n; ///< Not owned
 public:
-   NonlinearFormExtension(const NonlinearForm*);
-
-   /// Assemble at the AssemblyLevel of the subclass.
+   NonlinearFormExtension(NonlinearForm *form);
    virtual void Assemble() = 0;
-   /// Assemble gradient data at the AssemblyLevel of the subclass.
-   virtual void AssembleGradient() = 0;
-
-   /// Assumes that @a x is a ldof Vector.
-   virtual Operator &GetGradient(const Vector &x) const = 0;
-
-   /// Assumes that @a x is a ldof Vector.
+   virtual Operator &GetGradient(const Vector&) const = 0;
    virtual double GetGridFunctionEnergy(const Vector &x) const = 0;
+   virtual void AssembleGradientDiagonal(Vector &diag) const
+   {
+      MFEM_ABORT("Not implemented for this assembly level!");
+   }
 };
 
 /// Data and methods for partially-assembled nonlinear forms
@@ -56,10 +51,7 @@ private:
       mutable Vector ge, xe, ye, ze;
 
    public:
-      /// Assumes that @a g is a ldof Vector.
-      Gradient(const Vector &g, const PANonlinearFormExtension &ext);
-
-      /// Assumes that @a x and @a y are ldof Vector%s.
+      Gradient(const Vector &x, const PANonlinearFormExtension &ext);
       virtual void Mult(const Vector &x, Vector &y) const;
 
       /// Assumes that @a g is an ldof Vector.
@@ -72,19 +64,40 @@ private:
 protected:
    mutable Vector xe, ye;
    mutable OperatorHandle Grad;
-   const FiniteElementSpace &fes;
+   const FiniteElementSpace &fes;  // Not owned
    const Array<NonlinearFormIntegrator*> &dnfi;
-   const Operator *elemR;
+   const Operator *R; // Not owned
 
 public:
-   PANonlinearFormExtension(NonlinearForm *nlf);
-
+   PANonlinearFormExtension(NonlinearForm*);
    void Assemble();
-   void AssembleGradient();
-
    void Mult(const Vector &x, Vector &y) const;
    Operator &GetGradient(const Vector &x) const;
    double GetGridFunctionEnergy(const Vector &x) const;
 };
+
+/// Data and methods for unassembled nonlinear forms
+class MFNonlinearFormExtension : public NonlinearFormExtension
+{
+protected:
+   const FiniteElementSpace &fes; // Not owned
+   mutable Vector localX, localY;
+   const Operator *elem_restrict_lex; // Not owned
+public:
+   MFNonlinearFormExtension(NonlinearForm*);
+   void Assemble();
+   void Mult(const Vector &x, Vector &y) const;
+   virtual Operator &GetGradient(const Vector&) const
+   {
+      MFEM_ABORT("Not implemented for this assembly level!");
+      return *new IdentityOperator(0);
+   }
+   virtual double GetGridFunctionEnergy(const Vector &x) const
+   {
+      MFEM_ABORT("Not implemented for this assembly level!");
+      return 0.0;
+   }
+};
+
 }
 #endif // NONLINEARFORM_EXT_HPP
