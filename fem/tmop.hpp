@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -243,11 +243,11 @@ public:
 class TMOP_Metric_022 : public TMOP_QualityMetric
 {
 protected:
-   double &tau0;
+   double &min_detT;
    mutable InvariantsEvaluator2D<double> ie;
 
 public:
-   TMOP_Metric_022(double &t0): tau0(t0) {}
+   TMOP_Metric_022(double &t0): min_detT(t0) {}
 
    // W = 0.5(|J|^2 - 2det(J)) / (det(J) - tau0).
    virtual double EvalW(const DenseMatrix &Jpt) const;
@@ -474,7 +474,45 @@ protected:
    mutable InvariantsEvaluator3D<double> ie;
 
 public:
-   // W = |J|^2 / 3 * det(J)^(2/3) - 1.
+   // W = |J|^2 / 3 * det(J)^(-2/3) - 1.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+};
+
+/// 3D Size (V) untangling metric.
+class TMOP_Metric_311 : public TMOP_QualityMetric
+{
+protected:
+   const double eps;
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   TMOP_Metric_311(double epsilon = 1e-4) : eps(epsilon) { }
+
+   // W = (det(J) - 1)^2 - det(J)  + (det(J)^2 + eps)^(1/2).
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+};
+
+/// 3D Shape (S) metric, untangling version of 303.
+class TMOP_Metric_313 : public TMOP_QualityMetric
+{
+protected:
+   double &min_detT;
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   TMOP_Metric_313(double &mindet) : min_detT(mindet) { }
+
+   // W = 1/3 |J|^2 / [det(J)-tau0]^(-2/3).
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
