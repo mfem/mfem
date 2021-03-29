@@ -333,20 +333,6 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
    // Finally, apply the solver to x and get the solution in y.
    solver->apply(gko::lend(gko_x), gko::lend(gko_y));
 
-   // The convergence_logger object contains the residual vector after the
-   // solver has returned. use this vector to compute the residual norm of the
-   // solution. Get the residual norm from the logger. As the convergence logger
-   // returns a `linop`, it is necessary to convert it to a Dense matrix.
-   // Additionally, if the logger is logging on the gpu, it is necessary to copy
-   // the data to the host and hence the `residual_norm_d_master`
-   auto residual_norm = convergence_logger->get_residual_norm();
-   auto residual_norm_d =
-      gko::as<gko::matrix::Dense<double>>(residual_norm);
-   auto residual_norm_d_master =
-      gko::matrix::Dense<double>::create(executor->get_master(),
-                                         gko::dim<2> {1, 1});
-   residual_norm_d_master->copy_from(residual_norm_d);
-
    // Get the number of iterations taken to converge to the solution.
    auto num_iteration = convergence_logger->get_num_iterations();
 
@@ -370,32 +356,61 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
    // `residual_norm_d_master` and `y_norm` are seen as Dense matrices, we use
    // the `at` function to get the first value here. In case of multiple right
    // hand sides, this will need to be modified.
-   auto fin_res_norm = std::pow(residual_norm_d_master->at(0,0) / x_norm->at(0,0),
-                                2);
-   if (num_iteration==max_iter &&
-       fin_res_norm > rel_tol )
+   double final_res_norm = 0.0;
+
+   // The convergence_logger object contains the residual vector after the
+   // solver has returned. use this vector to compute the residual norm of the
+   // solution. Get the residual norm from the logger. As the convergence logger
+   // returns a `linop`, it is necessary to convert it to a Dense matrix.
+   // Additionally, if the logger is logging on the gpu, it is necessary to copy
+   // the data to the host and hence the `residual_norm_d_master`
+   auto residual_norm = convergence_logger->get_residual_norm();
+   auto imp_residual_norm = convergence_logger->get_implicit_sq_resnorm();
+
+   if (imp_rel_criterion)
+   {
+      auto imp_residual_norm_d =
+         gko::as<gko::matrix::Dense<double>>(imp_residual_norm);
+      auto imp_residual_norm_d_master =
+         gko::matrix::Dense<double>::create(executor->get_master(),
+                                            gko::dim<2> {1, 1});
+      imp_residual_norm_d_master->copy_from(imp_residual_norm_d);
+
+      final_res_norm = imp_residual_norm_d_master->at(0,0);
+   }
+   else
+   {
+      auto residual_norm_d =
+         gko::as<gko::matrix::Dense<double>>(residual_norm);
+      auto residual_norm_d_master =
+         gko::matrix::Dense<double>::create(executor->get_master(),
+                                            gko::dim<2> {1, 1});
+      residual_norm_d_master->copy_from(residual_norm_d);
+
+      final_res_norm = residual_norm_d_master->at(0,0) / x_norm->at(0,0);
+   }
+
+   converged = 0;
+   if (convergence_logger->has_converged())
    {
       converged = 1;
    }
-   if (fin_res_norm < rel_tol)
-   {
-      converged =0;
-   }
+
    if (print_lvl ==1)
    {
       residual_logger->write();
    }
-   if (converged!=0)
+   if (converged==0)
    {
       mfem::err << "No convergence!" << '\n';
-      mfem::out << "(B r_N, r_N) = " << fin_res_norm << '\n'
+      mfem::out << "(B r_N, r_N) = " << final_res_norm << '\n'
                 << "Number of iterations: " << num_iteration << '\n';
    }
-   if (print_lvl >=2 && converged==0 )
+   if (print_lvl >=2 && converged==1 )
    {
       mfem::out << "Converged in " << num_iteration <<
                 " iterations with final residual norm "
-                << fin_res_norm << '\n';
+                << final_res_norm << '\n';
    }
 }
 
