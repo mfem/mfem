@@ -104,7 +104,7 @@ The MFEM source code has the following structure:
   │   ├── sundials
   |   └── superlu
   ├── fem
-  │   └── libceed
+  │   └── ceed
   ├── general
   ├── linalg
   │   └── simd
@@ -118,10 +118,13 @@ The MFEM source code has the following structure:
   │   ├── navier
   │   ├── nurbs
   │   ├── performance
+  │   ├── shifted
+  │   ├── solvers
   │   ├── tools
   │   └── toys
   └── tests
       ├── convergence
+      ├── gitlab
       ├── par-mesh-format
       ├── scripts
       └── unit
@@ -363,16 +366,16 @@ Before you can start, you need a GitHub account, here are a few suggestions:
   `mfem:next`, see the [README](tests/scripts/README) file in that directory
   for more details.
 
-- Track the Travis CI and Appveyor [continuous integration](#automated-testing)
+- Track the Travis CI, Github Actions and Appveyor [continuous integration](#automated-testing)
   builds at the end of the PR. These should generally run clean, so address any
   errors as soon as possible. Please ask if you are unsure how to do that.
 
-- Note that some tests, such as the `branch-history` check in Travis are
-  safeguards that are allowed to fail in certain cases.
+- Note that some tests, such as the `branch-history` check in Travis and Github
+  Actions are safeguards that are allowed to fail in certain cases.
 
 - Other tests, such as the `code-style`, `documentation` and `gitignore`
-  checks in Travis enforce MFEM-specific rules which are explained in the
-  error messages and the `tests/scripts` directory.
+  checks in Travis and Github Actions enforce MFEM-specific rules which are
+  explained in the error messages and the `tests/scripts` directory.
 
 - If triggered, track the status of the LLNL GitLab tests. If failing, ask
   one of the _LLNL developers_ for details.
@@ -561,7 +564,9 @@ MFEM uses a `master`/`next`-branch workflow as described below:
   Computing systems. Gitlab pipeline status is reported in the corresponding
   GitHub pull request.
 
-- No change can be made on this instance.
+- In Gitlab pipelines, TPLs (dependencies) are built using Spack, driven by Uberenv.
+
+- No change to the MFEM repo can be made on this instance.
 
 ## Automated Testing
 
@@ -569,12 +574,13 @@ MFEM has several levels of automated testing running on GitHub, as well as on
 local Mac and Linux workstations, and Livermore Computing clusters at LLNL.
 
 ### Linux and Mac smoke tests
-We use Travis CI to drive the default tests on the `master` and `next`
-branches. See the `.travis` file and the logs at
+We use Travis CI and Github Actions to drive the default tests on the `master`
+and `next` branches. See the `.travis` file and the logs at
 [https://travis-ci.org/mfem/mfem](https://travis-ci.org/mfem/mfem).
 
-Testing using Travis CI should be kept lightweight, as there is a 50 minute time
-constraint on jobs. Two virtual machines are configured - Mac (OS X) and Linux.
+Testing using Travis CI and Github Actions should be kept lightweight, as there
+is a time constraint on jobs. Two virtual machines are configured - Mac (OS X)
+and Linux.
 
 - Tests on the `master` branch are triggered whenever a PR is issued on this branch.
 - Tests on the `next` branch are currently scheduled to run each night.
