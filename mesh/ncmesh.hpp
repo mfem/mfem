@@ -106,12 +106,12 @@ public:
    //// Initialize with elements from an existing 'mesh'.
    explicit NCMesh(const Mesh *mesh);
 
-   /** Load from a stream. The id header is assumed to have been read already.
-       \param[in] version is 10 for the v1.0 NC format, or 1 for the legacy v1.1
-       format. \param[out] curved is set to 1 if the curvature GridFunction
-       follows after mesh data. \param[out] is_nc (again treated as a boolean)
-       is set to 0 if the legacy v1.1 format in fact defines a conforming mesh.
-       See Mesh::Loader for details. */
+   /** Load from a stream. The id header is assumed to have been read already
+       from \param[in] input. \param[in] version is 10 for the v1.0 NC format,
+       or 1 for the legacy v1.1 format. \param[out] curved is set to 1 if the
+       curvature GridFunction follows after mesh data. \param[out] is_nc (again
+       treated as a boolean) is set to 0 if the legacy v1.1 format in fact
+       defines a conforming mesh. See Mesh::Loader for details. */
    NCMesh(std::istream &input, int version, int &curved, int &is_nc);
 
    /// Deep copy of another instance.
