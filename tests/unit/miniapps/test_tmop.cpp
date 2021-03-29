@@ -296,7 +296,7 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
 
    ParNonlinearForm nlf(&fes);
-   nlf.SetAssemblyLevel(pa ? AssemblyLevel::PARTIAL : AssemblyLevel::NONE);
+   nlf.SetAssemblyLevel(pa ? AssemblyLevel::PARTIAL : AssemblyLevel::LEGACY);
 
    ConstantCoefficient *coeff1 = nullptr;
    TMOP_QualityMetric *metric2 = nullptr;

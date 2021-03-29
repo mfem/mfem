@@ -19,14 +19,17 @@
 namespace mfem
 {
 
-NonlinearFormExtension::NonlinearFormExtension(const NonlinearForm *nlf)
-   : Operator(nlf->FESpace()->GetTrueVSize()), nlf(nlf) { }
+NonlinearFormExtension::NonlinearFormExtension(NonlinearForm *form)
+   : Operator(form->FESpace()->GetTrueVSize()), n(form)
+{
+   // empty
+}
 
-PANonlinearFormExtension::PANonlinearFormExtension(NonlinearForm *nlf):
-   NonlinearFormExtension(nlf),
-   x_grad(NULL),
-   fes(*nlf->FESpace()),
-   dnfi(*nlf->GetDNFI()),
+PANonlinearFormExtension::PANonlinearFormExtension(NonlinearForm *form):
+   NonlinearFormExtension(form),
+   x_grad(nullptr),
+   fes(*n->FESpace()),
+   dnfi(*n->GetDNFI()),
    R(fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC))
 {
    MFEM_VERIFY(R, "Not yet implemented!");
@@ -57,7 +60,7 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
       {
          integrators[i]->AddMultPA(xe, ye);
       }
-      R->MultTranspose(xe, y);
+      R->MultTranspose(ye, y);
    }
    else
    {
@@ -102,6 +105,36 @@ Operator &PANonlinearFormExtension::GetGradient(const Vector &x) const
 
    Grad.Reset(new PANonlinearFormExtension::Gradient(x, *this));
    return *Grad.Ptr();
+}
+
+PANonlinearFormExtension::Gradient::Gradient(const Vector &x,
+                                             const PANonlinearFormExtension &e):
+   Operator(e.fes.GetVSize()), R(e.R), dnfi(e.dnfi)
+{
+   ge.UseDevice(true);
+   ge.SetSize(R->Height(), Device::GetMemoryType());
+   R->Mult(x, ge);
+
+   xe.UseDevice(true);
+   xe.SetSize(R->Height(), Device::GetMemoryType());
+
+   ye.UseDevice(true);
+   ye.SetSize(R->Height(), Device::GetMemoryType());
+
+   ze.UseDevice(true);
+   ze.SetSize(R->Height(), Device::GetMemoryType());
+
+   // Do we still need to do this?
+   for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AssemblePA(e.fes); }
+}
+
+void PANonlinearFormExtension::Gradient::Mult(const Vector &x, Vector &y) const
+{
+   ze = x;
+   ye = 0.0;
+   R->Mult(ze, xe);
+   for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AddMultGradPA(ge, xe, ye); }
+   R->MultTranspose(ye, y);
 }
 
 MFNonlinearFormExtension::MFNonlinearFormExtension(NonlinearForm *form):
@@ -150,36 +183,6 @@ void MFNonlinearFormExtension::Mult(const Vector &x, Vector &y) const
          integrators[i]->AddMultMF(x, y);
       }
    }
-}
-
-PANonlinearFormExtension::Gradient::Gradient(const Vector &x,
-                                             const PANonlinearForm &e):
-   Operator(e.fes.GetVSize()), R(e.R), dnfi(e.dnfi)
-{
-   ge.UseDevice(true);
-   ge.SetSize(R->Height(), Device::GetMemoryType());
-   R->Mult(x, ge);
-
-   xe.UseDevice(true);
-   xe.SetSize(R->Height(), Device::GetMemoryType());
-
-   ye.UseDevice(true);
-   ye.SetSize(R->Height(), Device::GetMemoryType());
-
-   ze.UseDevice(true);
-   ze.SetSize(R->Height(), Device::GetMemoryType());
-
-   // Do we still need to do this?
-   for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AssemblePA(e.fes); }
-}
-
-void PANonlinearFormExtension::Gradient::Mult(const Vector &x, Vector &y) const
-{
-   ze = x;
-   ye = 0.0;
-   R->Mult(ze, xe);
-   for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AddMultGradPA(ge, xe, ye); }
-   R->MultTranspose(ye, y);
 }
 
 } // namespace mfem

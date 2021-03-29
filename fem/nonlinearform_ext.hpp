@@ -26,7 +26,7 @@ class NonlinearFormIntegrator;
 class NonlinearFormExtension : public Operator
 {
 protected:
-   const NonlinearForm *nlf;
+   NonlinearForm *n; ///< Not owned
 public:
    NonlinearFormExtension(NonlinearForm *form);
    virtual void Assemble() = 0;
@@ -37,8 +37,6 @@ public:
       MFEM_ABORT("Not implemented for this assembly level!");
    }
 };
-
-class PANonlinearForm;
 
 
 /// Data and methods for partially-assembled nonlinear forms
@@ -52,7 +50,7 @@ private:
       mutable Vector ge, xe, ye, ze;
       const Array<NonlinearFormIntegrator*> &dnfi;
    public:
-      Gradient(const Vector &x, const PANonlinearForm &ext);
+      Gradient(const Vector &x, const PANonlinearFormExtension &ext);
       virtual void Mult(const Vector &x, Vector &y) const;
    };
 
@@ -60,9 +58,9 @@ protected:
    mutable Vector xe, ye;
    mutable const Vector *x_grad;
    mutable OperatorHandle Grad;
-   const FiniteElementSpace &fes;
+   const FiniteElementSpace &fes;  // Not owned
    const Array<NonlinearFormIntegrator*> &dnfi;
-   const Operator *R;
+   const Operator *R; // Not owned
 
 public:
    PANonlinearFormExtension(NonlinearForm*);
@@ -84,6 +82,16 @@ public:
    MFNonlinearFormExtension(NonlinearForm*);
    void Assemble();
    void Mult(const Vector &x, Vector &y) const;
+   virtual Operator &GetGradient(const Vector&) const
+   {
+      MFEM_ABORT("Not implemented for this assembly level!");
+      return *new IdentityOperator(0);
+   }
+   virtual double GetGridFunctionEnergy(const Vector &x) const
+   {
+      MFEM_ABORT("Not implemented for this assembly level!");
+      return 0.0;
+   }
 };
 
 }

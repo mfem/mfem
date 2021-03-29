@@ -778,8 +778,8 @@ void Mesh::GetLocalQuadToWdgTransformation(
 }
 
 const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
-                                                  const int flags,,
-                                                  mfem::DofToQuad::Mode mode,
+                                                  const int flags,
+                                                  DofToQuad::Mode mode,
                                                   MemoryType d_mt)
 {
    for (int i = 0; i < geom_factors.Size(); i++)
