@@ -59,7 +59,7 @@ if (!chdir $mfem_dir) {
 }
 
 # Maximum number of acceptable commits in the branch
-my $branch_max_commits = 400;
+my $branch_max_commits = 500;
 # Maximum number of acceptable files changed in any commit in the branch
 my $commit_max_files_changed = 50;
 # Maximum acceptable size (in K) of any git blob in the branch
