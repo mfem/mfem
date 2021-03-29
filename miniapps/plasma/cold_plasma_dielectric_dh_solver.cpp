@@ -683,7 +683,9 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    this->collectBdrAttributes(*sbcs_, sbc_bdr_marker_);
    this->locateTrueSBCDofs(sbc_bdr_marker_, non_sbc_h1_tdofs_,
                            sbc_nd_tdofs_);
-
+   ConstantCoefficient * zero = new ConstantCoefficient(0.0);
+   Vector zv(3); zv = 0.0;
+   VectorConstantCoefficient * zerov = new VectorConstantCoefficient(zv);
    if ( sbcs_->Size() > 0 )
    {
       cout << "Building nxD01_" << endl;
@@ -693,7 +695,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
                                     sbc_bdr_marker_);
       if (kReCoef_ || kImCoef_)
       {
-         nxD01_->AddBoundaryIntegrator((kReCoef_) ?
+         nxD01_->AddBoundaryIntegrator((kReCoef_) ? 
                                        new nxkIntegrator(*kReCoef_,
                                                          *negOmegaCoef_) : NULL,
                                        (kImCoef_) ?
@@ -901,7 +903,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    m21EpsInv_ = new ParMixedSesquilinearForm(HDivFESpace_, HCurlFESpace_, conv_);
    m21EpsInv_->AddDomainIntegrator(new VectorFEMassIntegrator(*epsInvReCoef_),
                                    new VectorFEMassIntegrator(*epsInvImCoef_));
-
+   // ConstantCoefficient * zero = new ConstantCoefficient(0.0);
    if (sbcs_->Size() > 0)
    {
       // TODO: PA does not support BoundaryIntegrator yet
@@ -925,7 +927,9 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
               n20ZIm_->AddBoundaryIntegrator(new MassIntegrator(*sbc.imag),
                                              sbc.attr_marker);
          */
-         m0_->AddBoundaryIntegrator(new MassIntegrator(negOneCoef_), NULL,
+         // m0_->AddBoundaryIntegrator(new MassIntegrator(negOneCoef_), NULL,
+         //                            sbc.attr_marker);
+         m0_->AddBoundaryIntegrator(new MassIntegrator(negOneCoef_), new MassIntegrator(*zero),
                                     sbc.attr_marker);
          nzD12_->AddBoundaryIntegrator(new VectorFECurlIntegrator(*sbc.real),
                                        new VectorFECurlIntegrator(*sbc.imag),
@@ -1246,7 +1250,7 @@ CPDSolverDH::Assemble()
       tic_toc.Clear();
       tic_toc.Start();
 
-      nxD01_->Assemble();
+      nxD01_->Assemble(0);
 
       tic_toc.Stop();
       if ( myid_ == 0 && logging_ > 0 )
@@ -1260,7 +1264,7 @@ CPDSolverDH::Assemble()
    tic_toc.Clear();
    tic_toc.Start();
 
-   d21EpsInv_->Assemble();
+   d21EpsInv_->Assemble(0);
    if (!pa_) { d21EpsInv_->Finalize(); }
 
    tic_toc.Stop();
@@ -1276,7 +1280,7 @@ CPDSolverDH::Assemble()
 
    // m2_->Assemble();
    // if (!pa_) { m2_->Finalize(); }
-   m1_->Assemble();
+   m1_->Assemble(0);
    if (!pa_) { m1_->Finalize(); }
 
    tic_toc.Stop();
@@ -1306,8 +1310,8 @@ CPDSolverDH::Assemble()
    tic_toc.Start();
 
    // TODO: PA
-   m21EpsInv_->Assemble();
-   m21EpsInv_->Finalize();
+   m21EpsInv_->Assemble(0);
+   m21EpsInv_->Finalize(0);
    //if (!pa_) m21EpsInv_->Finalize();
 
    if (m0_)
@@ -1323,8 +1327,8 @@ CPDSolverDH::Assemble()
       tic_toc.Start();
 
       // TODO: PA
-      m0_->Assemble();
-      m0_->Finalize();
+      m0_->Assemble(0);
+      m0_->Finalize(0);
       //if (!pa_) m0_->Finalize();
 
       tic_toc.Stop();
@@ -1350,8 +1354,8 @@ CPDSolverDH::Assemble()
       tic_toc.Clear();
       tic_toc.Start();
 
-      nzD12_->Assemble();
-      nzD12_->Finalize();
+      nzD12_->Assemble(0);
+      nzD12_->Finalize(0);
 
       tic_toc.Stop();
       if ( myid_ == 0 && logging_ > 0 )
@@ -1592,10 +1596,7 @@ CPDSolverDH::Solve()
    StopWatch solve_time;
    solve_time.Clear();
    solve_time.Start();
-   if ( myid_ == 0 && logging_ > 0 )
-   {
-      cout << "SuperLU Solver Requested" << endl;
-   }
+
 
    int direct_sol = 1; // choice between SuperLU (0) and MUMPS (1)
    Solver * AInv = nullptr;
@@ -1603,11 +1604,19 @@ CPDSolverDH::Solve()
    SuperLURowLocMatrix * A_SuperLU = nullptr;
    if (direct_sol == 0)
    {
+      if ( myid_ == 0 && logging_ > 0 )
+      {
+         cout << "SuperLU Solver Requested" << endl;
+      }
       ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
       HypreParMatrix * A1C = A1Z->GetSystemMatrix();
       A_SuperLU = new SuperLURowLocMatrix(*A1C);
       AInv = new SuperLUSolver(MPI_COMM_WORLD);
       AInv->SetOperator(*A_SuperLU);
+      // dynamic_cast<SuperLUSolver *>(AInv)->SetPrintStatistics(false);
+      dynamic_cast<SuperLUSolver *>(AInv)->SetSymmetricPattern(false);
+      dynamic_cast<SuperLUSolver *>(AInv)->SetColumnPermutation(superlu::PARMETIS);
+      // dynamic_cast<SuperLUSolver *>(AInv)->SetColumnPermutation(superlu::METIS_AT_PLUS_A);
       // AInv = new MUMPSSolver;
       // AInv->SetOperator(*A1C);
       delete A1C;
@@ -1616,6 +1625,10 @@ CPDSolverDH::Solve()
 #ifdef MFEM_USE_MUMPS
    if (direct_sol == 1)
    {
+      if ( myid_ == 0 && logging_ > 0 )
+      {
+         cout << "MUMPS Solver Requested" << endl;
+      }
       AInv = new ComplexMUMPSSolver;
       AInv->SetOperator(*A1);
    }
@@ -1642,36 +1655,70 @@ CPDSolverDH::Solve()
       while (H_iter < 15)
       {
          nzD12_->Update();
-         nzD12_->Assemble();
+         nzD12_->Assemble(0);
          nzD12_->Finalize();
          nzD12_->FormRectangularSystemMatrix(dbc_nd_tdofs_,
                                              non_sbc_h1_tdofs_, C);
 
+         // int n = 2*HCurlFESpace_->TrueVSize();
+         // int m = 2*H1FESpace_->TrueVSize();
+         // Vector Y(n+m);
+         // Vector X(n+m); X = 0.0;
+
+         // for (int i= 0; i<n/2; i++)
+         // {
+         //    Y[i] = RHS1[i];
+         //    Y[i+n/2+m/2] = RHS1[n/2+i];
+         // }
+         // for (int i= 0; i<m/2; i++)
+         // {
+         //    Y[n/2+i] = RHS0[i];
+         //    Y[i+n+m/2] = RHS0[m/2+i];
+         // }
+         // Array2D<HypreParMatrix *> Are(2,2);
+         // Array2D<HypreParMatrix *> Aim(2,2);
+         // Are[0][0] = &A1.As<ComplexHypreParMatrix>()->real();
+         // Are[0][1] = &B.As<ComplexHypreParMatrix>()->real();
+         // Are[1][0] = &C.As<ComplexHypreParMatrix>()->real();
+         // Are[1][1] = &D.As<ComplexHypreParMatrix>()->real();
+         // Aim[0][0] = &A1.As<ComplexHypreParMatrix>()->imag();
+         // Aim[0][1] = &B.As<ComplexHypreParMatrix>()->imag();
+         // Aim[1][0] = &C.As<ComplexHypreParMatrix>()->imag();
+         // Aim[1][1] = &D.As<ComplexHypreParMatrix>()->imag();
+         // HypreParMatrix * Ar = HypreParMatrixFromBlocks(Are);
+         // HypreParMatrix * Ai = HypreParMatrixFromBlocks(Aim);
+         // ComplexHypreParMatrix * A = new ComplexHypreParMatrix(Ar,Ai,false,false,conv_);
+         // ComplexMUMPSSolver mumps;
+         // mumps.SetOperator(*A);
+         // mumps.Mult(Y,X);
+         // for (int i= 0; i<n/2; i++)
+         // {
+         //    H[i] = X[i];
+         //    H[n/2+i] = X[i+n/2+m/2];
+         // }
+         // for (int i= 0; i<m/2; i++)
+         // {
+         //    PHI[i] = X[n/2+i];
+         //    PHI[m/2+i]=X[i+n+m/2] ;
+         // }
+
+
          SchurComplimentOperator schur(*AInv, *B, *C, *D);
 
          const Vector & RHS = schur.GetRHSVector(RHS1, RHS0);
-
-         // Vector temp0(RHS1.Size()); temp0 = 0.0;
-         // Vector temp1(RHS1.Size()); temp1 = 0.0;
-         // AInv->Mult(RHS1, temp0);
-         // A1C->Mult(temp0,temp1);
-         // temp1-=RHS1;
-         // cout << "diff norm = " << temp1.Norml2() << endl; 
-         // cin.get();
-
+         
          GMRESSolver gmres(MPI_COMM_WORLD);
          gmres.SetKDim(50);
          gmres.SetRelTol(1e-16);
          gmres.SetAbsTol(1e-16);
          gmres.SetMaxIter(500);
-         gmres.SetPrintLevel(1);
+         gmres.SetPrintLevel(-1);
          gmres.SetOperator(schur);
          // std::cout<< "Entering GMRES solver" << std::endl;
          gmres.Mult(RHS, PHI);
          // std::cout<< "GMRES solver finished" << std::endl;
 
          m0_->RecoverFEMSolution(PHI, *rhs0_, *phi_);
-
          schur.Solve(RHS1, PHI, H);
 
          double dr = phi_->real().ComputeL2Error(prevPhiReCoef);

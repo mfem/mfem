@@ -514,7 +514,7 @@ void ParMixedBilinearForm::FormRectangularSystemMatrix(
 
    if (mat)
    {
-      Finalize();
+      Finalize(0);
       ParallelAssemble(p_mat);
       delete mat;
       mat = NULL;
