@@ -96,7 +96,8 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
 
 const SparseMatrix &ParNonlinearForm::GetLocalGradient(const Vector &x) const
 {
-   if (NonlinearForm::ext) { MFEM_ABORT("Not yet implemented!"); }
+   MFEM_VERIFY(NonlinearForm::ext == nullptr,
+               "this method is not supported yet with partial assembly");
 
    NonlinearForm::GetGradient(x); // (re)assemble Grad, no b.c.
 
@@ -105,22 +106,20 @@ const SparseMatrix &ParNonlinearForm::GetLocalGradient(const Vector &x) const
 
 Operator &ParNonlinearForm::GetGradient(const Vector &x) const
 {
+   if (NonlinearForm::ext) { return NonlinearForm::GetGradient(x); }
+
    ParFiniteElementSpace *pfes = ParFESpace();
 
-   Operator &grad = NonlinearForm::GetGradient(x); // (re)assemble Grad, no b.c.
-
    pGrad.Clear();
+
+   NonlinearForm::GetGradient(x); // (re)assemble Grad, no b.c.
 
    OperatorHandle dA(pGrad.Type()), Ph(pGrad.Type());
 
    if (fnfi.Size() == 0)
    {
-      if (NonlinearForm::ext) { dA.Reset(&grad, false); }
-      else
-      {
-         dA.MakeSquareBlockDiag(pfes->GetComm(), pfes->GlobalVSize(),
-                                pfes->GetDofOffsets(), Grad);
-      }
+      dA.MakeSquareBlockDiag(pfes->GetComm(), pfes->GlobalVSize(),
+                             pfes->GetDofOffsets(), Grad);
    }
    else
    {
@@ -128,7 +127,7 @@ Operator &ParNonlinearForm::GetGradient(const Vector &x) const
    }
 
    // RAP the local gradient dA.
-   // TODO use pfes->GetProlongationMatrix(); but there is a const issue.
+   // TODO - construct Dof_TrueDof_Matrix directly in the pGrad format
    Ph.ConvertFrom(pfes->Dof_TrueDof_Matrix());
    pGrad.MakePtAP(dA, Ph);
 

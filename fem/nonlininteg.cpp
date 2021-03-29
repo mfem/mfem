@@ -15,9 +15,9 @@
 namespace mfem
 {
 
-double NonlinearFormIntegrator::GetGridFunctionEnergyPA(const Vector &x) const
+double NonlinearFormIntegrator::GetLocalStateEnergyPA(const Vector &x) const
 {
-   mfem_error ("NonlinearFormIntegrator::GetGridFunctionEnergyPA(...)\n"
+   mfem_error ("NonlinearFormIntegrator::GetLocalStateEnergyPA(...)\n"
                "   is not implemented for this class.");
    return 0.0;
 }
@@ -35,7 +35,8 @@ void NonlinearFormIntegrator::AssemblePA(const FiniteElementSpace &,
                "   is not implemented for this class.");
 }
 
-void NonlinearFormIntegrator::AssembleGradPA(const FiniteElementSpace &fes)
+void NonlinearFormIntegrator::AssembleGradPA(const Vector &x,
+                                             const FiniteElementSpace &fes)
 {
    mfem_error ("NonlinearFormIntegrator::AssembleGradPA(...)\n"
                "   is not implemented for this class.");
@@ -47,20 +48,17 @@ void NonlinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
                "   is not implemented for this class.");
 }
 
-void NonlinearFormIntegrator::AddMultGradPA(const Vector&,
-                                            const Vector&, Vector&) const
+void NonlinearFormIntegrator::AddMultGradPA(const Vector&, Vector&) const
 {
    mfem_error ("NonlinearFormIntegrator::AddMultGradPA(...)\n"
                "   is not implemented for this class.");
 }
 
-void NonlinearFormIntegrator::AssembleGradientDiagonalPA(const mfem::Vector&,
-                                                         mfem::Vector&) const
+void NonlinearFormIntegrator::AssembleGradDiagonalPA(Vector &diag) const
 {
    mfem_error ("NonlinearFormIntegrator::AssembleGradDiagonalPA(...)\n"
                "   is not implemented for this class.");
 }
-
 
 void NonlinearFormIntegrator::AssembleMF(const FiniteElementSpace &fes)
 {

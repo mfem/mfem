@@ -101,9 +101,12 @@ public:
       return const_cast<Operator &>(*this);
    }
 
-   /// Computes the diagonal entries into @a x; irrelevant for some Operator%s.
+   /** @brief Computes the diagonal entries into @a diag. Typically, this
+       operation only makes sense for linear Operator%s. In some cases, only an
+       approximation of the diagonal is computed. */
    virtual void AssembleDiagonal(Vector &diag) const
    {
+      MFEM_CONTRACT_VAR(diag);
       MFEM_ABORT("Not relevant or not implemented for this Operator.");
    }
 
@@ -770,16 +773,21 @@ public:
    virtual void Mult(const Vector & x, Vector & y) const
    { P.Mult(x, Px); A.Mult(Px, APx); Rt.MultTranspose(APx, y); }
 
-   /// Diagonal of the RA Operator.
+   /// Approximate diagonal of the RAP Operator.
+   /** Returns the diagonal of A, as returned by its AssembleDiagonal method,
+       multiplied be P^T.
+
+       When P is the FE space prolongation operator on a mesh without hanging
+       nodes and Rt = P, the returned diagonal is exact, as long as the diagonal
+       of A is also exact. */
    virtual void AssembleDiagonal(Vector &diag) const
    {
-      // Assumes that A works on ldofs.
       A.AssembleDiagonal(APx);
-      Rt.MultTranspose(APx, diag);
+      P.MultTranspose(APx, diag);
 
-      // TODO: For an AMR mesh, a convergent diagonal is assembled with
-      // |P^T| d_e, where |P^T| has the entry-wise absolute values of the
-      // conforming prolongation transpose operator.
+      // TODO: For an AMR mesh, a convergent diagonal can be assembled with
+      // |P^T| APx, where |P^T| has entry-wise absolute values of the conforming
+      // prolongation transpose operator. See BilinearForm::AssembleDiagonal.
    }
 
    /// Application of the transpose.

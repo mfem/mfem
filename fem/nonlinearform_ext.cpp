@@ -13,140 +13,130 @@
 // PABilinearFormExtension and MFBilinearFormExtension.
 
 #include "nonlinearform.hpp"
-#include "../general/forall.hpp"
 #include "ceed/util.hpp"
 
 namespace mfem
 {
 
-NonlinearFormExtension::NonlinearFormExtension(NonlinearForm *form)
-   : Operator(form->FESpace()->GetTrueVSize()), n(form)
-{
-   // empty
-}
+NonlinearFormExtension::NonlinearFormExtension(const NonlinearForm *nlf)
+   : Operator(nlf->FESpace()->GetVSize()), nlf(nlf) { }
 
-PANonlinearFormExtension::PANonlinearFormExtension(NonlinearForm *form):
-   NonlinearFormExtension(form),
-   x_grad(nullptr),
-   fes(*n->FESpace()),
-   dnfi(*n->GetDNFI()),
-   R(fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC))
+PANonlinearFormExtension::PANonlinearFormExtension(const NonlinearForm *nlf):
+   NonlinearFormExtension(nlf),
+   fes(*nlf->FESpace()),
+   dnfi(*nlf->GetDNFI()),
+   elemR(fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC)),
+   Grad(*this)
 {
-   MFEM_VERIFY(elemR, "Not yet implemented!");
+   // TODO: optimize for the case when 'elemR' is identity
    xe.SetSize(elemR->Height(), Device::GetMemoryType());
    ye.SetSize(elemR->Height(), Device::GetMemoryType());
    ye.UseDevice(true);
-}
-
-void PANonlinearFormExtension::Assemble()
-{
-   Array<NonlinearFormIntegrator*> &integrators = *n->GetDNFI();
-   const int Ni = integrators.Size();
-   for (int i = 0; i < Ni; ++i)
-   {
-      integrators[i]->AssemblePA(*n->FESpace());
-   }
-}
-
-void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
-{
-   Array<NonlinearFormIntegrator*> &integrators = *n->GetDNFI();
-   const int iSz = integrators.Size();
-   if (R && !DeviceCanUseCeed())
-   {
-      R->Mult(x, xe);
-      ye = 0.0;
-      for (int i = 0; i < iSz; ++i)
-      {
-         integrators[i]->AddMultPA(xe, ye);
-      }
-      R->MultTranspose(ye, y);
-   }
-   else
-   {
-      y.UseDevice(true); // typically this is a large vector, so store on device
-      y = 0.0;
-      for (int i = 0; i < iSz; ++i)
-      {
-         integrators[i]->AddMultPA(x, y);
-      }
-   }
 }
 
 double PANonlinearFormExtension::GetGridFunctionEnergy(const Vector &x) const
 {
    double energy = 0.0;
 
-   R->Mult(x, xe);
+   elemR->Mult(x, xe);
    for (int i = 0; i < dnfi.Size(); i++)
    {
-      energy += dnfi[i]->GetGridFunctionEnergyPA(xe);
+      energy += dnfi[i]->GetLocalStateEnergyPA(xe);
    }
    return energy;
 }
 
-void PANonlinearFormExtension::AssembleGradientDiagonal(Vector &diag) const
+void PANonlinearFormExtension::Assemble()
 {
-   ye = 0.0;
-   elemR->Mult(x, xe);
-   for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AddMultPA(xe, ye); }
-   elemR->MultTranspose(ye, y);
+   MFEM_VERIFY(nlf->GetInteriorFaceIntegrators().Size() == 0 &&
+               nlf->GetBdrFaceIntegrators().Size() == 0,
+               "face integrators are not supported yet");
+
+   for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AssemblePA(fes); }
+}
+
+void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
+{
+   if (!DeviceCanUseCeed())
+   {
+      ye = 0.0;
+      elemR->Mult(x, xe);
+      for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AddMultPA(xe, ye); }
+      elemR->MultTranspose(ye, y);
+   }
+   else
+   {
+      y.UseDevice(true); // typically this is a large vector, so store on device
+      y = 0.0;
+      for (int i = 0; i < dnfi.Size(); ++i)
+      {
+         dnfi[i]->AddMultPA(x, y);
+      }
+   }
 }
 
 Operator &PANonlinearFormExtension::GetGradient(const Vector &x) const
 {
-   // Store the last x that was used to compute the gradient.
-   x_grad = &x;
-
-   Grad.Reset(new PANonlinearFormExtension::Gradient(x, *this));
-   return *Grad.Ptr();
+   Grad.AssembleGrad(x);
+   return Grad;
 }
 
-PANonlinearFormExtension::Gradient::Gradient(const Vector &x,
-                                             const PANonlinearFormExtension &e):
-   Operator(e.fes.GetVSize()), R(e.R), dnfi(e.dnfi)
+void PANonlinearFormExtension::Update()
 {
-   ge.UseDevice(true);
-   ge.SetSize(elemR->Height(), Device::GetMemoryType());
-   elemR->Mult(g, ge);
+   height = width = fes.GetVSize();
+   elemR = fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+   xe.SetSize(elemR->Height());
+   ye.SetSize(elemR->Height());
+   Grad.Update();
+}
 
-   xe.UseDevice(true);
-   xe.SetSize(elemR->Height(), Device::GetMemoryType());
+PANonlinearFormExtension::Gradient::Gradient(const PANonlinearFormExtension &e):
+   Operator(e.Height()), ext(e)
+{ }
 
-   ye.UseDevice(true);
-   ye.SetSize(elemR->Height(), Device::GetMemoryType());
-
-   ze.UseDevice(true);
-   ze.SetSize(elemR->Height(), Device::GetMemoryType());
+void PANonlinearFormExtension::Gradient::AssembleGrad(const Vector &g)
+{
+   ext.elemR->Mult(g, ext.xe);
+   for (int i = 0; i < ext.dnfi.Size(); ++i)
+   {
+      ext.dnfi[i]->AssembleGradPA(ext.xe, ext.fes);
+   }
 }
 
 void PANonlinearFormExtension::Gradient::Mult(const Vector &x, Vector &y) const
 {
-   ze = x;
-   ye = 0.0;
-   elemR->Mult(ze, xe);
-   for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AddMultGradPA(ge, xe, ye); }
-   elemR->MultTranspose(ye, y);
+   ext.ye = 0.0;
+   ext.elemR->Mult(x, ext.xe);
+   for (int i = 0; i < ext.dnfi.Size(); ++i)
+   {
+      ext.dnfi[i]->AddMultGradPA(ext.xe, ext.ye);
+   }
+   ext.elemR->MultTranspose(ext.ye, y);
 }
 
 void PANonlinearFormExtension::Gradient::AssembleDiagonal(Vector &diag) const
 {
-   MFEM_ASSERT(diag.Size() == fes.GetVSize(),
+   MFEM_ASSERT(diag.Size() == Height(),
                "Vector for holding diagonal has wrong size!");
-   ye = 0.0;
-   for (int i = 0; i < dnfi.Size(); ++i)
+   ext.ye = 0.0;
+   for (int i = 0; i < ext.dnfi.Size(); ++i)
    {
-      dnfi[i]->AssembleGradDiagonalPA(ge, ye);
+      ext.dnfi[i]->AssembleGradDiagonalPA(ext.ye);
    }
-   elemR->MultTranspose(ye, diag);
+   ext.elemR->MultTranspose(ext.ye, diag);
 }
 
-MFNonlinearFormExtension::MFNonlinearFormExtension(NonlinearForm *form):
+void PANonlinearFormExtension::Gradient::Update()
+{
+   height = width = ext.Height();
+}
+
+MFNonlinearFormExtension::MFNonlinearFormExtension(const NonlinearForm *form):
    NonlinearFormExtension(form), fes(*form->FESpace())
 {
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
    elem_restrict_lex = fes.GetElementRestriction(ordering);
-   if (elem_restrict_lex)
+   if (elem_restrict_lex) // replace with a check for not identity
    {
       localX.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
       localY.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
@@ -156,18 +146,19 @@ MFNonlinearFormExtension::MFNonlinearFormExtension(NonlinearForm *form):
 
 void MFNonlinearFormExtension::Assemble()
 {
-   Array<NonlinearFormIntegrator*> &integrators = *n->GetDNFI();
+   const Array<NonlinearFormIntegrator*> &integrators = *nlf->GetDNFI();
    const int Ni = integrators.Size();
    for (int i = 0; i < Ni; ++i)
    {
-      integrators[i]->AssembleMF(*n->FESpace());
+      integrators[i]->AssembleMF(fes);
    }
 }
 
 void MFNonlinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
-   Array<NonlinearFormIntegrator*> &integrators = *n->GetDNFI();
+   const Array<NonlinearFormIntegrator*> &integrators = *nlf->GetDNFI();
    const int iSz = integrators.Size();
+   // replace the check 'elem_restrict_lex' with a check for not identity
    if (elem_restrict_lex && !DeviceCanUseCeed())
    {
       elem_restrict_lex->Mult(x, localX);
@@ -186,6 +177,18 @@ void MFNonlinearFormExtension::Mult(const Vector &x, Vector &y) const
       {
          integrators[i]->AddMultMF(x, y);
       }
+   }
+}
+
+void MFNonlinearFormExtension::Update()
+{
+   height = width = fes.GetVSize();
+   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   elem_restrict_lex = fes.GetElementRestriction(ordering);
+   if (elem_restrict_lex) // replace with a check for not identity
+   {
+      localX.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      localY.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
    }
 }
 

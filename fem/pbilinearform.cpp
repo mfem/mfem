@@ -250,6 +250,45 @@ void ParBilinearForm::Assemble(int skip_zeros)
    }
 }
 
+void ParBilinearForm::AssembleDiagonal(Vector &diag) const
+{
+   MFEM_ASSERT(diag.Size() == fes->GetTrueVSize(),
+               "Vector for holding diagonal has wrong size!");
+   const Operator *P = fes->GetProlongationMatrix();
+   if (!ext)
+   {
+      MFEM_ASSERT(p_mat.Ptr(), "the ParBilinearForm is not assembled!");
+      p_mat->AssembleDiagonal(diag); // TODO: add support for PETSc matrices
+      return;
+   }
+   // Here, we have extension, ext.
+   if (IsIdentityProlongation(P))
+   {
+      ext->AssembleDiagonal(diag);
+      return;
+   }
+   // Here, we have extension, ext, and parallel/conforming prolongation, P.
+   Vector local_diag(P->Height());
+   ext->AssembleDiagonal(local_diag);
+   if (fes->Conforming())
+   {
+      P->MultTranspose(local_diag, diag);
+      return;
+   }
+   // For an AMR mesh, a convergent diagonal is assembled with |P^T| d_l,
+   // where |P^T| has the entry-wise absolute values of the conforming
+   // prolongation transpose operator.
+   const HypreParMatrix *HP = dynamic_cast<const HypreParMatrix*>(P);
+   if (HP)
+   {
+      HP->AbsMultTranspose(1.0, local_diag, 0.0, diag);
+   }
+   else
+   {
+      MFEM_ABORT("unsupported prolongation matrix type.");
+   }
+}
+
 void ParBilinearForm
 ::ParallelEliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
                                HypreParMatrix &A, const HypreParVector &X,
