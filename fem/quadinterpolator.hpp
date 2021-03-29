@@ -122,6 +122,7 @@ public:
                       const Vector &q_der, Vector &e_vec) const;
 
    // Compute kernels follow (cannot be private or protected with nvcc)
+
    /// Template compute kernel for 2D.
    template<const int T_VDIM = 0, const int T_ND = 0, const int T_NQ = 0>
    static void Eval2D(const int NE,

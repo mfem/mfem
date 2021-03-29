@@ -32,7 +32,6 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
                "Only scalar finite elements are supported");
 }
 
-
 QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
                                                const QuadratureSpace &qs):
 
