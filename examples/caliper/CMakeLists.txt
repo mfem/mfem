@@ -12,13 +12,13 @@
 set(CALIPER_EXAMPLES_SRCS)
 
 list(APPEND CALIPER_EXE_SRCS
-  ex1.cpp
-  )
+    ex1.cpp
+    )
 
 if (MFEM_USE_MPI)
-list(APPEND CALIPER_EXE_SRCS
-    ex1p.cpp
-    )
+  list(APPEND CALIPER_EXE_SRCS
+      ex1p.cpp
+      )
 endif()
 
 
@@ -26,8 +26,8 @@ endif()
 include_directories(BEFORE ${PROJECT_BINARY_DIR})
 
 # Add one executable per cpp file
-set(PFX caliper_)
-add_mfem_examples(CALIPER_EXE_SRCS ${PFX})
+set(PREFIX caliper_)
+add_mfem_examples(CALIPER_EXE_SRCS ${PREFIX})
 
 # Add a test for each example
 foreach(SRC_FILE ${CALIPER_EXE_SRCS})

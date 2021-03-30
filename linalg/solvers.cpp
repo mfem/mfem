@@ -502,7 +502,7 @@ void SLI(const Operator &A, const Vector &b, Vector &x,
          int print_iter, int max_num_iter,
          double RTOLERANCE, double ATOLERANCE)
 {
-   MFEM_MARK_FUNCTION;
+   MFEM_PERF_FUNCTION;
 
    SLISolver sli;
    sli.SetPrintLevel(print_iter);
@@ -517,7 +517,7 @@ void SLI(const Operator &A, Solver &B, const Vector &b, Vector &x,
          int print_iter, int max_num_iter,
          double RTOLERANCE, double ATOLERANCE)
 {
-   MFEM_MARK_FUNCTION;
+   MFEM_PERF_FUNCTION;
 
    SLISolver sli;
    sli.SetPrintLevel(print_iter);
@@ -726,7 +726,7 @@ void CG(const Operator &A, const Vector &b, Vector &x,
         int print_iter, int max_num_iter,
         double RTOLERANCE, double ATOLERANCE)
 {
-   MFEM_MARK_FUNCTION;
+   MFEM_PERF_FUNCTION;
 
    CGSolver cg;
    cg.SetPrintLevel(print_iter);
@@ -741,7 +741,7 @@ void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
          int print_iter, int max_num_iter,
          double RTOLERANCE, double ATOLERANCE)
 {
-   MFEM_MARK_FUNCTION;
+   MFEM_PERF_FUNCTION;
 
    CGSolver pcg;
    pcg.SetPrintLevel(print_iter);
@@ -1165,7 +1165,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
 int GMRES(const Operator &A, Vector &x, const Vector &b, Solver &M,
           int &max_iter, int m, double &tol, double atol, int printit)
 {
-   MFEM_MARK_FUNCTION;
+   MFEM_PERF_FUNCTION;
 
    GMRESSolver gmres;
    gmres.SetPrintLevel(printit);
@@ -1537,6 +1537,8 @@ loop_end:
 void MINRES(const Operator &A, const Vector &b, Vector &x, int print_it,
             int max_it, double rtol, double atol)
 {
+   MFEM_PERF_FUNCTION;   
+
    MINRESSolver minres;
    minres.SetPrintLevel(print_it);
    minres.SetMaxIter(max_it);
