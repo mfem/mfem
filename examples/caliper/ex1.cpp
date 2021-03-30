@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
    // Define Caliper ConfigManager	
    cali::ConfigManager mgr;
    // Caliper instrumentation
-   MFEM_MARK_FUNCTION;
+   MFEM_PERF_FUNCTION;
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
    int order = 1;
@@ -169,12 +169,12 @@ int main(int argc, char *argv[])
    // 7. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
-   MFEM_MARK_REGION_BEGIN("Set up the linear form");
+   MFEM_PERF_BEGIN("Set up the linear form");
    LinearForm b(&fespace);
    ConstantCoefficient one(1.0);
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
    b.Assemble();
-   MFEM_MARK_REGION_END("Set up the linear form");
+   MFEM_PERF_END("Set up the linear form");
 
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
@@ -185,7 +185,7 @@ int main(int argc, char *argv[])
    // 9. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
-   MFEM_MARK_REGION_BEGIN("Set up the bilinear form");
+   MFEM_PERF_BEGIN("Set up the bilinear form");
    BilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a.AddDomainIntegrator(new DiffusionIntegrator(one));
@@ -196,7 +196,7 @@ int main(int argc, char *argv[])
    //     static condensation, etc.
    if (static_cond) { a.EnableStaticCondensation(); }
    a.Assemble();
-   MFEM_MARK_REGION_END("Set up the bilinear form");
+   MFEM_PERF_END("Set up the bilinear form");
 
    OperatorPtr A;
    Vector B, X;
@@ -205,7 +205,7 @@ int main(int argc, char *argv[])
    cout << "Size of linear system: " << A->Height() << endl;
 
    // 11. Solve the linear system A X = B.
-   MFEM_MARK_REGION_BEGIN("Solve A X=B");
+   MFEM_PERF_BEGIN("Solve A X=B");
    if (!pa)
    {
 #ifndef MFEM_USE_SUITESPARSE
@@ -232,20 +232,20 @@ int main(int argc, char *argv[])
          CG(*A, B, X, 1, 400, 1e-12, 0.0);
       }
    }
-   MFEM_MARK_REGION_END("Solve A X=B");
+   MFEM_PERF_END("Solve A X=B");
    // 12. Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, x);
 
    // 13. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
-   MFEM_MARK_REGION_BEGIN("Save the results");
+   MFEM_PERF_BEGIN("Save the results");
    ofstream mesh_ofs("refined.mesh");
    mesh_ofs.precision(8);
    mesh.Print(mesh_ofs);
    ofstream sol_ofs("sol.gf");
    sol_ofs.precision(8);
    x.Save(sol_ofs);
-   MFEM_MARK_REGION_END("Save the results");
+   MFEM_PERF_END("Save the results");
    // 14. Send the solution by socket to a GLVis server.
    if (visualization)
    {

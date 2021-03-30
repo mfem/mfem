@@ -18,15 +18,15 @@
 
 #include <caliper/cali.h>
 #include <caliper/cali-manager.h>
-#define MFEM_MARK_FUNCTION CALI_CXX_MARK_FUNCTION
-#define MFEM_MARK_REGION_BEGIN(s) CALI_MARK_BEGIN(s)
-#define MFEM_MARK_REGION_END(s) CALI_MARK_END(s)
+#define MFEM_PERF_FUNCTION CALI_CXX_MARK_FUNCTION
+#define MFEM_PERF_BEGIN(s) CALI_MARK_BEGIN(s)
+#define MFEM_PERF_END(s) CALI_MARK_END(s)
 
 #else
 
-#define MFEM_MARK_FUNCTION
-#define MFEM_MARK_REGION_BEGIN(s)
-#define MFEM_MARK_REGION_END(s)
+#define MFEM_PERF_FUNCTION
+#define MFEM_PERF_BEGIN(s)
+#define MFEM_PERF_END(s)
 
 #endif
 

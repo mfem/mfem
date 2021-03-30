@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
    // Define Caliper ConfigManager
    cali::ConfigManager mgr;
    //Caliper instrumentation
-   MFEM_MARK_FUNCTION;
+   MFEM_PERF_FUNCTION;
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
@@ -196,12 +196,12 @@ int main(int argc, char *argv[])
    // 9. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is
    //    (1,phi_i) where phi_i are the basis functions in fespace.
-   MFEM_MARK_REGION_BEGIN("Set up the linear form");
+   MFEM_PERF_BEGIN("Set up the linear form");
    ParLinearForm b(&fespace);
    ConstantCoefficient one(1.0);
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
    b.Assemble();
-   MFEM_MARK_REGION_END("Set up the linear form");
+   MFEM_PERF_END("Set up the linear form");
 
    // 10. Define the solution vector x as a parallel finite element grid function
    //     corresponding to fespace. Initialize x with initial guess of zero,
@@ -212,7 +212,7 @@ int main(int argc, char *argv[])
    // 11. Set up the parallel bilinear form a(.,.) on the finite element space
    //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //     domain integrator.
-   MFEM_MARK_REGION_BEGIN("Set up the bilinear form");
+   MFEM_PERF_BEGIN("Set up the bilinear form");
    ParBilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a.AddDomainIntegrator(new DiffusionIntegrator(one));
@@ -227,11 +227,11 @@ int main(int argc, char *argv[])
    OperatorPtr A;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-   MFEM_MARK_REGION_END("Set up the bilinear form");
+   MFEM_PERF_END("Set up the bilinear form");
    // 13. Solve the linear system A X = B.
    //     * With full assembly, use the BoomerAMG preconditioner from hypre.
    //     * With partial assembly, use Jacobi smoothing, for now.
-   MFEM_MARK_REGION_BEGIN("Solve A X = B");
+   MFEM_PERF_BEGIN("Solve A X = B");
    Solver *prec = NULL;
    if (pa)
    {
@@ -252,14 +252,14 @@ int main(int argc, char *argv[])
    cg.SetOperator(*A);
    cg.Mult(B, X);
    delete prec;
-   MFEM_MARK_REGION_END("Solve A X = B");
+   MFEM_PERF_END("Solve A X = B");
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
    a.RecoverFEMSolution(X, b, x);
 
    // 15. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
-   MFEM_MARK_REGION_BEGIN("Save the results");
+   MFEM_PERF_BEGIN("Save the results");
    {
       ostringstream mesh_name, sol_name;
       mesh_name << "mesh." << setfill('0') << setw(6) << myid;
@@ -273,7 +273,7 @@ int main(int argc, char *argv[])
       sol_ofs.precision(8);
       x.Save(sol_ofs);
    }
-   MFEM_MARK_REGION_END("Save the results");
+   MFEM_PERF_END("Save the results");
    // 16. Send the solution by socket to a GLVis server.
    if (visualization)
    {
