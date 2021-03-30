@@ -15,8 +15,8 @@
 using namespace mfem;
 
 static bool testQuadratureInterpolator(const int dim,
-                                       const int mesh_order,
-                                       const int quadrature_order,
+                                       const int p,
+                                       const int q,
                                        const QVectorLayout q_layout,
                                        const int nx, const int ny, const int nz)
 {
@@ -27,9 +27,9 @@ static bool testQuadratureInterpolator(const int dim,
    REQUIRE((dim == 2 || dim == 3));
    Mesh *mesh = dim == 2 ? new Mesh(nx,ny, Element::QUADRILATERAL):
                 dim == 3 ? new Mesh(nx,nx,nz, Element::HEXAHEDRON): nullptr;
-   mesh->SetCurvature(mesh_order, false, dim, ordering);
+   mesh->SetCurvature(p, false, dim, ordering);
 
-   const H1_FECollection fec(mesh_order, dim);
+   const H1_FECollection fec(p, dim);
    FiniteElementSpace sfes(mesh, &fec, 1, ordering);
    FiniteElementSpace vfes(mesh, &fec, vdim, ordering);
 
@@ -71,7 +71,7 @@ static bool testQuadratureInterpolator(const int dim,
    }
 
    const Geometry::Type GeomType = mesh->GetElementBaseGeometry(0);
-   const IntegrationRule &ir(IntRules.Get(GeomType, quadrature_order));
+   const IntegrationRule &ir = IntRules.Get(GeomType, q);
    const QuadratureInterpolator *sqi(sfes.GetQuadratureInterpolator(ir));
    const QuadratureInterpolator *vqi(vfes.GetQuadratureInterpolator(ir));
 
@@ -193,8 +193,8 @@ static bool testQuadratureInterpolator(const int dim,
 TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator]")
 {
    const auto d = GENERATE(2,3); // dimension
-   const auto p = GENERATE(range(1,6)); // mesh order
-   const auto q = GENERATE_COPY(range(p,7)); // quadrature order
+   const auto p = GENERATE(range(1,8)); // element order
+   const auto q = GENERATE_COPY(range(p+1,9)); // quadrature order
    const auto l = GENERATE(QVectorLayout::byNODES, QVectorLayout::byVDIM);
    const auto nx = GENERATE(3,4); // number of element in x
    const auto ny = GENERATE(5,6); // number of element in y

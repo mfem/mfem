@@ -59,6 +59,13 @@ const int MAX_Q1D = 14;
                  [&] MFEM_LAMBDA (int i) {__VA_ARGS__},\
                  X,Y,Z)
 
+// MFEM_FORALL with a 3D CUDA block and grid
+#define MFEM_FORALL_3D_GRID(i,N,X,Y,Z,G,...)             \
+   ForallWrap<3>(true,N,                                 \
+                 [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
+                 [&] MFEM_LAMBDA (int i) {__VA_ARGS__},\
+                 X,Y,Z,G)
+
 // MFEM_FORALL that uses the basic CPU backend when use_dev is false. See for
 // example the functions in vector.cpp, where we don't want to use the mfem
 // device for operations on small vectors.
@@ -282,9 +289,7 @@ void CuKernel2D(const int N, BODY body, const int BZ)
 template <typename BODY> __global__ static
 void CuKernel3D(const int N, BODY body)
 {
-   const int k = blockIdx.x;
-   if (k >= N) { return; }
-   body(k);
+   for (int k = blockIdx.x; k < N; k += gridDim.x) { body(k); }
 }
 
 template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
@@ -310,10 +315,10 @@ void CuWrap2D(const int N, DBODY &&d_body,
 
 template <typename DBODY>
 void CuWrap3D(const int N, DBODY &&d_body,
-              const int X, const int Y, const int Z)
+              const int X, const int Y, const int Z, const int G)
 {
    if (N==0) { return; }
-   const int GRID = N;
+   const int GRID = G == 0 ? N : G;
    const dim3 BLCK(X,Y,Z);
    CuKernel3D<<<GRID,BLCK>>>(N,d_body);
    MFEM_GPU_CHECK(cudaGetLastError());
@@ -387,7 +392,8 @@ void HipWrap3D(const int N, DBODY &&d_body,
 template <const int DIM, typename DBODY, typename HBODY>
 inline void ForallWrap(const bool use_dev, const int N,
                        DBODY &&d_body, HBODY &&h_body,
-                       const int X=0, const int Y=0, const int Z=0)
+                       const int X=0, const int Y=0, const int Z=0,
+                       const int G=0)
 {
    MFEM_CONTRACT_VAR(X);
    MFEM_CONTRACT_VAR(Y);
@@ -421,7 +427,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    {
       if (DIM == 1) { return CuWrap1D(N, d_body); }
       if (DIM == 2) { return CuWrap2D(N, d_body, X, Y, Z); }
-      if (DIM == 3) { return CuWrap3D(N, d_body, X, Y, Z); }
+      if (DIM == 3) { return CuWrap3D(N, d_body, X, Y, Z, G); }
    }
 #endif
 
