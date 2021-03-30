@@ -71,7 +71,8 @@ static void Det2D(const int NE,
    });
 }
 
-template<int T_D1D = 0, int T_Q1D = 0, int MAX_D1D = 0, int MAX_Q1D = 0>
+template<int T_D1D = 0, int T_Q1D = 0, int MAX_D1D = 0, int MAX_Q1D = 0,
+         bool SMEM = true>
 static void Det3D(const int NE,
                   const double *b,
                   const double *g,
@@ -82,6 +83,12 @@ static void Det3D(const int NE,
                   const int q1d = 0)
 {
    constexpr int DIM = 3;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
+   constexpr int MSZ = MDQ * MDQ * MDQ * 9;
+   constexpr int GRID = SMEM ? 0 : 128;
+
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
@@ -90,22 +97,27 @@ static void Det3D(const int NE,
    const auto X = Reshape(x, D1D, D1D, D1D, DIM, NE);
    auto Y = Reshape(y, Q1D, Q1D, Q1D, NE);
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   double *GM = nullptr;
+   if (!SMEM)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
+      static Vector gmem;
+      gmem.SetSize(2*MSZ*GRID);
+      gmem.UseDevice(true);
+      GM = gmem.Write();
+   }
 
+   MFEM_FORALL_3D_GRID(e, NE, Q1D, Q1D, Q1D, GRID,
+   {
+      const int bid = MFEM_BLOCK_ID(x);
       MFEM_SHARED double BG[2][MQ1*MD1];
-      MFEM_SHARED double sm0[9][MDQ*MDQ*MDQ];
-      MFEM_SHARED double sm1[9][MDQ*MDQ*MDQ];
-
-      double (*DDD)[MD1*MD1*MD1] = (double (*)[MD1*MD1*MD1]) (sm0);
-      double (*DDQ)[MD1*MD1*MQ1] = (double (*)[MD1*MD1*MQ1]) (sm1);
-      double (*DQQ)[MD1*MQ1*MQ1] = (double (*)[MD1*MQ1*MQ1]) (sm0);
-      double (*QQQ)[MQ1*MQ1*MQ1] = (double (*)[MQ1*MQ1*MQ1]) (sm1);
+      MFEM_SHARED double SM0[SMEM?MSZ:1];
+      MFEM_SHARED double SM1[SMEM?MSZ:1];
+      double *lm0 = SMEM ? SM0 : GM + MSZ*bid;
+      double *lm1 = SMEM ? SM1 : GM + MSZ*(GRID+bid);
+      double (*DDD)[MD1*MD1*MD1] = (double (*)[MD1*MD1*MD1]) (lm0);
+      double (*DDQ)[MD1*MD1*MQ1] = (double (*)[MD1*MD1*MQ1]) (lm1);
+      double (*DQQ)[MD1*MQ1*MQ1] = (double (*)[MD1*MQ1*MQ1]) (lm0);
+      double (*QQQ)[MQ1*MQ1*MQ1] = (double (*)[MQ1*MQ1*MQ1]) (lm1);
 
       kernels::LoadX<MD1>(e,D1D,X,DDD);
       kernels::LoadBG<MD1,MQ1>(D1D,Q1D,B,G,BG);
@@ -185,17 +197,15 @@ void QuadratureInterpolator::Determinants(const Vector &e_vec,
             case 0x333: return Det3D<3,3>(NE,B,G,X,Y);
             case 0x335: return Det3D<3,5>(NE,B,G,X,Y);
             case 0x336: return Det3D<3,6>(NE,B,G,X,Y);
-            //case 0x348: return Det3D<4,8>(NE,B,G,X,Y);
             default:
             {
                constexpr int MD = 6;
                constexpr int MQ = 6;
-               MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
-                           << " are not supported!");
-               MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than "
-                           << MQ << " 1D points are not supported!");
-               Det3D<0,0,MD,MQ>(NE,B,G,X,Y,vdim,D1D,Q1D);
-               return;
+               // Highest orders that fit in shared mememory
+               if (D1D <= MD && Q1D <= MQ)
+               { return Det3D<0,0,MD,MQ>(NE,B,G,X,Y,vdim,D1D,Q1D); }
+               // Last fall-back will use global memory
+               return Det3D<0,0,MAX_D1D,MAX_Q1D,false>(NE,B,G,X,Y,vdim,D1D,Q1D);
             }
          }
       }
