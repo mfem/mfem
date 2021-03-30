@@ -943,9 +943,15 @@ protected:
                    const FiniteElementSpace &fes_lor_);
       /// Perform the L2 projection onto the LOR space
       virtual void Mult(const Vector &x, Vector &y) const;
+      /// Perform the transpose of L2 projection onto the LOR space, useful for
+      /// transferring dual fields.
+      virtual void MultTranspose(const Vector &x, Vector &y) const;
       /// Perform the mass conservative left-inverse prolongation operation.
       /// This functionality is also provided as an Operator by L2Prolongation.
       void Prolongate(const Vector &x, Vector &y) const;
+      /// Perform the transpose of the mass conservative left-inverse
+      /// prolongation operation, useful for transferring dual fields.
+      void ProlongateTranspose(const Vector &x, Vector &y) const;
       virtual ~L2Projection() { }
    };
 
