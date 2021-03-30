@@ -72,7 +72,7 @@ struct OperatorInfo
 #endif
 
 /** This class represent a partially assembled operator using libCEED. */
-class PAIntegrator : public Operator
+class PAIntegrator : public ceed::Operator
 {
 #ifdef MFEM_USE_CEED
 protected:
@@ -325,7 +325,7 @@ private:
 };
 
 /** This class represent a matrix-free operator using libCEED. */
-class MFIntegrator : public Operator
+class MFIntegrator : public ceed::Operator
 {
 #ifdef MFEM_USE_CEED
 protected:
