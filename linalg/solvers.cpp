@@ -1537,7 +1537,7 @@ loop_end:
 void MINRES(const Operator &A, const Vector &b, Vector &x, int print_it,
             int max_it, double rtol, double atol)
 {
-   MFEM_PERF_FUNCTION;   
+   MFEM_PERF_FUNCTION;
 
    MINRESSolver minres;
    minres.SetPrintLevel(print_it);
