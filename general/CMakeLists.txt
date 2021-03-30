@@ -33,6 +33,7 @@ list(APPEND SRCS
   )
 
 list(APPEND HDRS
+  annotation.hpp	
   array.hpp
   backends.hpp
   binaryio.hpp

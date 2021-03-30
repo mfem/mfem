@@ -158,6 +158,8 @@
 // Enable functionality based on the libCEED library.
 // #define MFEM_USE_CEED
 
+// Enable functionality based on the Caliper library.
+// #define MFEM_USE_CALIPER
 // Enable functionality based on the Umpire library.
 // #define MFEM_USE_UMPIRE
 
