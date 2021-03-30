@@ -336,26 +336,7 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
    // Get the number of iterations taken to converge to the solution.
    auto num_iteration = convergence_logger->get_num_iterations();
 
-   // Ginkgo works with a relative residual norm through its
-   // ResidualNormReduction criterion. Therefore, to get the normalized
-   // residual, we divide by the norm of the rhs.
-   auto x_norm = gko::matrix::Dense<double>::create(executor->get_master(),
-                                                    gko::dim<2> {1, 1});
-   if (executor != executor->get_master())
-   {
-      auto gko_x_cpu = clone(executor->get_master(), gko::lend(gko_x));
-      gko_x_cpu->compute_norm2(x_norm.get());
-   }
-   else
-   {
-      gko_x->compute_norm2(x_norm.get());
-   }
-
-   MFEM_VERIFY(x_norm.get()->at(0, 0) != 0.0, " rhs norm is zero");
-   // Some residual norm and convergence print outs. As both
-   // `residual_norm_d_master` and `y_norm` are seen as Dense matrices, we use
-   // the `at` function to get the first value here. In case of multiple right
-   // hand sides, this will need to be modified.
+   // Some residual norm and convergence print outs.
    double final_res_norm = 0.0;
 
    // The convergence_logger object contains the residual vector after the
@@ -387,7 +368,7 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
                                             gko::dim<2> {1, 1});
       residual_norm_d_master->copy_from(residual_norm_d);
 
-      final_res_norm = residual_norm_d_master->at(0,0) / x_norm->at(0,0);
+      final_res_norm = residual_norm_d_master->at(0,0);
    }
 
    converged = 0;
@@ -396,15 +377,13 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
       converged = 1;
    }
 
-   if (print_lvl ==1)
+   if (print_lvl == 1)
    {
       residual_logger->write();
    }
-   if (converged==0)
+   if (converged == 0)
    {
       mfem::err << "No convergence!" << '\n';
-      mfem::out << "(B r_N, r_N) = " << final_res_norm << '\n'
-                << "Number of iterations: " << num_iteration << '\n';
    }
    if (print_lvl >=2 && converged==1 )
    {
