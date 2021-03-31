@@ -17,6 +17,31 @@
 namespace mfem
 {
 
+/// ShiftedFunctionCoefficient, similar to FunctionCoefficient, but also takes
+/// into account a displacement vector if specified.
+class ShiftedFunctionCoefficient : public Coefficient
+{
+protected:
+   std::function<double(const Vector &)> Function;
+
+public:
+   ShiftedFunctionCoefficient(std::function<double(const Vector &v)> F)
+      : Function(std::move(F)) { }
+
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   {
+      Vector D(1);
+      D = 0.;
+      return (this)->Eval(T, ip, D);
+   }
+
+   /// Evaluate the coefficient at @a ip + @a D.
+   double Eval(ElementTransformation &T,
+               const IntegrationPoint &ip,
+               const Vector &D);
+};
+
 class SBM2DirichletIntegrator : public BilinearFormIntegrator
 {
 protected:

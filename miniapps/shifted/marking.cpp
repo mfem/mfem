@@ -136,7 +136,6 @@ void ShiftedFaceMarker::ListShiftedFaceDofs(const Array<int> &elem_marker,
    {
       for (int i = 0; i < pmesh.GetNBE(); i++)
       {
-         int attr = pmesh.GetBdrAttribute(i);
          FaceElementTransformations *tr;
          tr = pmesh.GetBdrFaceTransformations (i);
          if (tr != NULL)
