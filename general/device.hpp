@@ -308,6 +308,17 @@ MemoryClass GetMemoryClass(const Memory<T> &mem, bool on_dev)
    }
 }
 
+template <typename T>
+void CheckFinite(const T * data, int size, bool on_dev, bool fatal=true) { }
+
+template <>
+void CheckFinite<double>(const double * data, int size, bool on_dev,
+                         bool fatal);
+
+template <>
+void CheckFinite<float>(const float * data, int size, bool on_dev, bool fatal);
+
+
 /** @brief Get a pointer for read access to @a mem with the mfem::Device's
     DeviceMemoryClass, if @a on_dev = true, or the mfem::Device's
     HostMemoryClass, otherwise. */
@@ -315,7 +326,9 @@ MemoryClass GetMemoryClass(const Memory<T> &mem, bool on_dev)
 template <typename T>
 inline const T *Read(const Memory<T> &mem, int size, bool on_dev = true)
 {
-   return mem.Read(GetMemoryClass(mem, on_dev), size);
+   const T * data =  mem.Read(GetMemoryClass(mem, on_dev), size);
+   CheckFinite<T>(data, size, on_dev);
+   return data;
 }
 
 /** @brief Shortcut to Read(const Memory<T> &mem, int size, false) */
@@ -332,7 +345,9 @@ inline const T *HostRead(const Memory<T> &mem, int size)
 template <typename T>
 inline T *Write(Memory<T> &mem, int size, bool on_dev = true)
 {
-   return mem.Write(GetMemoryClass(mem, on_dev), size);
+   T * data =  mem.Write(GetMemoryClass(mem, on_dev), size);
+   //CheckFinite<T>(data, size, on_dev);
+   return data;
 }
 
 /** @brief Shortcut to Write(const Memory<T> &mem, int size, false) */
@@ -349,7 +364,9 @@ inline T *HostWrite(Memory<T> &mem, int size)
 template <typename T>
 inline T *ReadWrite(Memory<T> &mem, int size, bool on_dev = true)
 {
-   return mem.ReadWrite(GetMemoryClass(mem, on_dev), size);
+   T * data = mem.ReadWrite(GetMemoryClass(mem, on_dev), size);
+   CheckFinite<T>(data, size, on_dev);
+   return data;
 }
 
 /** @brief Shortcut to ReadWrite(Memory<T> &mem, int size, false) */

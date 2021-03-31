@@ -19,8 +19,57 @@
 #include <string>
 #include <map>
 
+#include "error.hpp"
+#include <cmath>
+
+#include "RAJA/RAJA.hpp"
+
 namespace mfem
 {
+template <typename T>
+void CheckFiniteImpl(const T * data, int size, bool on_dev, bool fatal)
+{
+#ifdef __NVCC__
+   RAJA::ReduceSum<RAJA::cuda_reduce, T> count(0):
+#else
+   RAJA::ReduceSum<RAJA::seq_reduce, T> count(0);
+#endif
+
+      MFEM_FORALL_SWITCH(on_dev, i, size,
+   {
+#ifdef __NVCC__
+      count += !isfinite(data[i]);
+#else
+#if 1
+      if (!std::isfinite(data[i]))
+      {
+         fprintf(stderr, "!std::isfinite: %f\n", data[i]);
+         count += 1;
+      }
+#else
+      count += !std::isfinite(data[i]);
+#endif
+#endif
+   });
+
+   int num_bad = count.get();
+   if (num_bad > 0)
+   {
+      fprintf(stderr, "mfem::CheckFiniteImpl failed: %d non-finite values\n",
+              num_bad);
+      mfem_backtrace();
+      if (fatal) { exit(1); }
+   }
+}
+
+template <>
+void CheckFinite<double>(const double * data, int size, bool on_dev, bool fatal)
+{ CheckFiniteImpl<double>(data, size, on_dev, fatal); }
+
+template <>
+void CheckFinite<float>(const float * data, int size, bool on_dev, bool fatal)
+{ CheckFiniteImpl<float>(data, size, on_dev, fatal); }
+
 
 // Place the following variables in the mfem::internal namespace, so that they
 // will not be included in the doxygen documentation.
