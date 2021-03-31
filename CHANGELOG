@@ -146,6 +146,14 @@ Version 4.2.1 (development)
 
 - Gitlab CI: use Spack (and Uberenv) to automate the build of TPLs.
 
+- Meshes consisting of any type of elements (including mixed meshes) can be
+  converted to all-simplex meshes using Mesh::MakeSimplicial.
+
+- Several of the mesh constructors (creating Cartesian meshes, refined (LOR)
+  meshes, simplex meshes, etc.) are now available as "named constructors", e.g.
+  Mesh::MakeCartesian2D or Mesh::MakeRefined. The legacy constructors are marked
+  as deprecated.
+
 libCEED integration improvements
 --------------------------------
 - Refactor the libCEED integration
