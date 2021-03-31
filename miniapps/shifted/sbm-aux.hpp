@@ -39,6 +39,33 @@ double dist_value(const Vector &x, const int type)
          return x(1);
       }
    }
+   else if (type == 4)
+   {
+      const int num_circ = 3;
+      double rad[num_circ] = {0.3, 0.15, 0.2};
+      double c[num_circ][2] = { {0.6, 0.6}, {0.3, 0.3}, {0.25, 0.75} };
+
+      const double xc = x(0), yc = x(1);
+
+      // circle 0
+      double r0 = (xc-c[0][0])*(xc-c[0][0]) + (yc-c[0][1])*(yc-c[0][1]);
+      r0 = (r0 > 0) ? std::sqrt(r0) : 0.0;
+      if (r0 <= 0.2) { return -1.0; }
+
+      for (int i = 0; i < num_circ; i++)
+      {
+         double r = (xc-c[i][0])*(xc-c[i][0]) + (yc-c[i][1])*(yc-c[i][1]);
+         r = (r > 0) ? std::sqrt(r) : 0.0;
+         if (r <= rad[i]) { return 1.0; }
+      }
+
+      // rectangle 1
+      if (0.7 <= xc && xc <= 0.8 && 0.1 <= yc && yc <= 0.8) { return 1.0; }
+
+      // rectangle 2
+      if (0.3 <= xc && xc <= 0.8 && 0.15 <= yc && yc <= 0.2) { return 1.0; }
+      return -1.0;
+   }
    else
    {
       MFEM_ABORT(" Function type not implement yet.");
