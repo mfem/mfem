@@ -30,7 +30,7 @@ template <typename T>
 void CheckFiniteImpl(const T * data, int size, bool on_dev, bool fatal)
 {
 #ifdef __NVCC__
-   RAJA::ReduceSum<RAJA::cuda_reduce, T> count(0):
+   RAJA::ReduceSum<RAJA::cuda_reduce, T> count(0);
 #else
    RAJA::ReduceSum<RAJA::seq_reduce, T> count(0);
 #endif
