@@ -118,7 +118,7 @@ protected:
    /** Variable order spaces only: DOF assignments for edges and faces, see
        docs in MakeDofTable. For constant order spaces the tables are empty. */
    Table var_edge_dofs;
-   Table var_face_dofs; ///< NOTE: also used for spaces with mixed faces
+   Table var_face_dofs; ///< NOTE: also used for spaces with mixed/double faces
 
    /** Additional data for the var_*_dofs tables: individual variant orders
        (these are basically alternate J arrays for var_edge/face_dofs). */

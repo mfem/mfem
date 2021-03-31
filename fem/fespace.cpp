@@ -793,6 +793,12 @@ int FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs,
    }
 }
 
+static double tri_face_orient_pm[6][6] =
+{
+   {0,0, 1,0, 0,1}, {1,0, 0,0, 0,1}, {0,1, 0,0, 1,0},
+   {0,1, 1,0, 0,0}, {1,0, 0,1, 0,0}, {0,0, 0,1, 1,0}
+};
+
 void FiniteElementSpace::BuildConformingInterpolation() const
 {
 #ifdef MFEM_USE_MPI
@@ -942,7 +948,24 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // Nedelec spaces: constrain double faces
    for (int i = 0; i < nd_double_faces.Size(); i++)
    {
-      // TODO
+      int face = nd_double_faces[i];
+      int inf1, inf2;
+      mesh->GetFaceInfos(face, &inf1, &inf2);
+
+      int order1, order2;
+      order1 = GetFaceDofs(face, master_dofs, 0); // elem1 side
+      order2 = GetFaceDofs(face, slave_dofs,  1); // elem2 side
+      MFEM_ASSERT(order1 == order2, "");
+
+      int ori = inf2 % 64;
+      MFEM_ASSERT(ori >= 0 && ori < 6, "");
+      if (!i) { T.SetFE(&TriangleFE); }
+      T.SetPointMat(DenseMatrix(tri_face_orient_pm[ori], 2, 3));
+
+      auto *fe = fec->GetFE(Geometry::TRIANGLE, order1);
+      fe->GetLocalInterpolation(T, I);
+
+      AddDependencies(deps, master_dofs, slave_dofs, I);
    }
 
    deps.Finalize();
@@ -1878,9 +1901,12 @@ void FiniteElementSpace::GetDoubleFaces(Array<int> &double_faces) const
       {
          if (mesh->GetFaceGeometry(i) == Geometry::TRIANGLE)
          {
-            int elem1, elem2;
+            int elem1, elem2, inf1, inf2;
             mesh->GetFaceElements(i, &elem1, &elem2);
-            if (elem2 >= 0)
+            mesh->GetFaceInfos(i, &inf1, &inf2);
+
+            int ori = inf2 % 64;
+            if (elem2 >= 0 && ori >= 1 && ori <= 4)
             {
                // TODO: check orientation and order
                double_faces.Append(i);
@@ -1923,25 +1949,25 @@ void FiniteElementSpace::Construct()
    bool mixed_elements = (mesh->GetNumGeometries(dim) > 1);
    bool mixed_faces = (dim > 2 && mesh->GetNumGeometries(2) > 1);
 
-   Array<VarOrderBits> edge_orders, face_orders;
-   if (IsVariableOrder())
-   {
-      // for variable order spaces, calculate orders of edges and faces
-      CalcEdgeFaceVarOrders(edge_orders, face_orders);
-   }
-   else if (mixed_faces)
-   {
-      // for mixed faces we also create the var_face_dofs table, see below
-      face_orders.SetSize(mesh->GetNFaces());
-      face_orders = (VarOrderBits(1) << order);
-   }
-
    // get a list of faces that need two sets of DOFs (Nedelec spaces only)
    GetDoubleFaces(nd_double_faces);
    MFEM_VERIFY(Nonconforming() || nd_double_faces.Size() == 0,
                "H(curl) triangular faces of order >= 2 with orientations 1-4 are"
                " only supported in NC meshes. Please use Mesh::ReorientTetMesh()"
                " or Mesh::EnsureNCMesh().");
+
+   Array<VarOrderBits> edge_orders, face_orders;
+   if (IsVariableOrder())
+   {
+      // for variable order spaces, calculate orders of edges and faces
+      CalcEdgeFaceVarOrders(edge_orders, face_orders);
+   }
+   else if (mixed_faces || nd_double_faces.Size())
+   {
+      // for mixed faces we also create the var_face_dofs table, see below
+      face_orders.SetSize(mesh->GetNFaces());
+      face_orders = (VarOrderBits(1) << order);
+   }
 
    // assign vertex DOFs
    if (mesh->GetNV())
@@ -1966,7 +1992,7 @@ void FiniteElementSpace::Construct()
    // assign face DOFs
    if (mesh->GetNFaces())
    {
-      if (IsVariableOrder() || mixed_faces)
+      if (IsVariableOrder() || mixed_faces || nd_double_faces.Size())
       {
          // NOTE: for simplicity, we also use Table var_face_dofs for mixed faces
          nfdofs = MakeDofTable(2, face_orders, var_face_dofs,
@@ -2200,6 +2226,7 @@ int FiniteElementSpace::MakeDofTable(int ent_dim,
                {
                   list.Append(Connection(i, total_dofs));
                   total_dofs += dofs;
+                  if (var_ent_order) { var_ent_order->Append(order); }
                }
                j++;
             }
@@ -2355,16 +2382,16 @@ void FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs) const
          int fbase, nf = fec->GetNumDof(fgeom, order);
          const int *ind;
 
-         if (!var_face_dofs.Size()) // simple constant-order space
+         if (var_face_dofs.Size() <= 0) // simple constant-order space
          {
             fbase = F[i]*nf;
             ind = fec->GetDofOrdering(fgeom, order, Fo[i]);
          }
-         else if (IsDoubleFace(i)) // special disconnected face
+         else if (IsDoubleFace(F[i])) // special disconnected face
          {
             int e1, e2;
-            mesh->GetFaceElements(i, &e1, &e2);
-            fbase = var_face_dofs.GetRow(i)[(elem == e1) ? 0 : 1];
+            mesh->GetFaceElements(F[i], &e1, &e2);
+            fbase = var_face_dofs.GetRow(F[i])[(elem == e1) ? 0 : 1];
             ind = fec->GetDofOrdering(fgeom, order, 0);
          }
          else // mixed geometry or variable-order faces
@@ -2512,7 +2539,21 @@ int FiniteElementSpace::GetFaceDofs(int face, Array<int> &dofs,
    int dim = mesh->Dimension();
    auto fgeom = (dim > 2) ? mesh->GetFaceGeometry(face) : Geometry::INVALID;
 
-   if (var_face_dofs.Size() > 0) // variable orders or *mixed* faces
+   if (var_face_dofs.Size() <= 0) // simple constant-order space
+   {
+      if (variant > 0) { return -1; }
+      order = fec->GetOrder();
+      nf = (dim > 2) ? fec->GetNumDof(fgeom, order) : 0;
+      fbase = face*nf;
+   }
+   else if (IsDoubleFace(face)) // special disconnected face
+   {
+      MFEM_ASSERT(variant >= 0 && variant < 2, "");
+      fbase = var_face_dofs.GetRow(face)[variant];
+      order = GetFaceOrder(face);
+      nf = fec->GetNumDof(fgeom, order);
+   }
+   else // variable-order or *mixed* faces
    {
       const int* beg = var_face_dofs.GetRow(face);
       const int* end = var_face_dofs.GetRow(face + 1);
@@ -2520,17 +2561,8 @@ int FiniteElementSpace::GetFaceDofs(int face, Array<int> &dofs,
 
       fbase = beg[variant];
       nf = beg[variant+1] - fbase;
-
-      order = !IsVariableOrder() ? fec->GetOrder() :
-              var_face_orders[var_face_dofs.GetI()[face] + variant];
+      order = var_face_orders[var_face_dofs.GetI()[face] + variant];
       MFEM_ASSERT(fec->GetNumDof(fgeom, order) == nf, "");
-   }
-   else
-   {
-      if (variant > 0) { return -1; }
-      order = fec->GetOrder();
-      nf = (dim > 2) ? fec->GetNumDof(fgeom, order) : 0;
-      fbase = face*nf;
    }
 
    // for 1D, 2D and 3D faces

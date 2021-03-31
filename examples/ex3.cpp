@@ -106,14 +106,15 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels =
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels = 0;
+         //(int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
    }
-   mesh->ReorientTetMesh();
+   mesh->EnsureNCMesh(true);
+   //mesh->ReorientTetMesh();
 
    // 5. Define a finite element space on the mesh. Here we use the Nedelec
    //    finite elements of the specified order.
@@ -223,6 +224,30 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << *mesh << x << flush;
+      sol_sock << "window_title 'solution'\n";
+      if (dim == 2)
+      {
+         sol_sock << "keys ARjlmevv\n";
+      }
+      else
+      {
+         sol_sock << "keys Amevv\n";
+      }
+      sol_sock << "pause\n" << flush;
+
+      // visualize basis functions
+      for (int i = 0; i < x.Size(); i++)
+      {
+         x = 0.0;
+         x(i) = 1.0;
+
+         stringstream title;
+         title << "basis " << i;
+
+         sol_sock << "solution\n" << *mesh << x;
+         sol_sock << "window_title '" << title.str() << "'\n";
+         sol_sock << "pause\n" << flush;
+      }
    }
 
    // 16. Free the used memory.
