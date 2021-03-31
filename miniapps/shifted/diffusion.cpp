@@ -17,6 +17,10 @@
 //              -nabla^u = f with inhomogeneous boundary conditions, f is setup
 //              such that u = sin(pi*x*y)
 //   mpirun -np 4 diffusion -m ../../data/inline-quad.mesh -rs 2 -o 1 -vis -lst 3
+//
+//   Problem 4: Complex 2D shape:
+//     mpirun -np 4 diffusion -m ../../data/inline-quad.mesh -rs 5 -o 2 -vis -lst 4 -alpha 2
+//
 #include "../../mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -24,6 +28,7 @@
 #include "../common/mfem-common.hpp"
 #include "sbm_solver.hpp"
 #include "marking.hpp"
+#include "dist_solver.hpp"
 
 using namespace mfem;
 using namespace std;
@@ -186,18 +191,19 @@ int main(int argc, char *argv[])
                                                        pfespace.FEColl(), dim);
    ParGridFunction distance(distance_vec_space);
 
-   // Get the Distance from the level set either using a numerical approach
-   // or project an exact analytic function.
-   //   HeatDistanceSolver dist_func(1.0);
-   //   dist_func.smooth_steps = 1;
-   //   dist_func.ComputeVectorDistance(dist_fun_level_coef, distance);
-
    VectorCoefficient *dist_vec = NULL;
-   if (true)
+   if (level_set_type == 4)
    {
-      Dist_Vector_Coefficient *dist_vec_fcoeff =
-         new Dist_Vector_Coefficient(dim, level_set_type);
-      dist_vec = dist_vec_fcoeff;
+      double dx = AvgElementSize(pmesh);
+      HeatDistanceSolver dist_func(1.0 * dx* dx);
+      dist_func.print_level = 1;
+      dist_func.smooth_steps = 1;
+      dist_func.ComputeVectorDistance(dist_fun_level_coef, distance);
+      dist_vec = new VectorGridFunctionCoefficient(&distance);
+   }
+   else
+   {
+      dist_vec = new Dist_Vector_Coefficient(dim, level_set_type);
       distance.ProjectDiscCoefficient(*dist_vec);
    }
 
@@ -242,7 +248,7 @@ int main(int argc, char *argv[])
    // the FEM linear system.
    ParLinearForm b(&pfespace);
    FunctionCoefficient *rhs_f = NULL;
-   if (level_set_type == 1)
+   if (level_set_type == 1 || level_set_type == 4)
    {
       rhs_f = new FunctionCoefficient(rhs_fun_circle);
    }
@@ -262,7 +268,7 @@ int main(int argc, char *argv[])
 
    // Dirichlet BC that must be imposed on the true boundary.
    ShiftedFunctionCoefficient *dbcCoef = NULL;
-   if (level_set_type == 1)
+   if (level_set_type == 1 || level_set_type == 4)
    {
       dbcCoef = new ShiftedFunctionCoefficient(dirichlet_velocity_circle);
    }
@@ -314,6 +320,7 @@ int main(int argc, char *argv[])
 
    // Project the exact solution as an initial condition for dirichlet boundaries.
    x.ProjectCoefficient(*dbcCoef);
+   x = 0.0;
 
    // Form the linear system and solve it.
    OperatorPtr A;
@@ -380,12 +387,12 @@ int main(int argc, char *argv[])
    }
 
    double global_error = err.Norml2();
-   if (myid == 0 && level_set_type != 1)
+   if (myid == 0 && level_set_type != 1 && level_set_type != 4)
    {
       std::cout << global_error << " Global error - L2 norm.\n";
    }
 
-   if (visualization && level_set_type >= 3 && level_set_type <= 4)
+   if (visualization && level_set_type == 3)
    {
       char vishost[] = "localhost";
       int  visport   = 19916, s = 350;
@@ -396,7 +403,7 @@ int main(int argc, char *argv[])
 
    int NEglob = pmesh.GetGlobalNE();
    double errnorm = x.ComputeL2Error(*dbcCoef);
-   if (level_set_type >= 3 && level_set_type <= 5 && myid == 0)
+   if (level_set_type == 3 && myid == 0)
    {
       ofstream myfile;
       myfile.open ("error.txt", ios::app);
