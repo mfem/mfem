@@ -168,8 +168,7 @@ set(GNUTLS_DIR "" CACHE PATH "Path to the GnuTLS library.")
 set(GSLIB_DIR "" CACHE PATH "Path to the GSLIB library.")
 
 set(NETCDF_DIR "" CACHE PATH "Path to the NetCDF library.")
-# May need to add "HDF5" as requirement.
-set(NetCDF_REQUIRED_PACKAGES "" CACHE STRING
+set(NetCDF_REQUIRED_PACKAGES "HDF5/C/HL" CACHE STRING
     "Additional packages required by NetCDF.")
 
 set(PETSC_DIR "${MFEM_DIR}/../petsc" CACHE PATH
