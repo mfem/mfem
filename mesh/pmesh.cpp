@@ -4394,13 +4394,12 @@ void ParMesh::PrintAsOne(std::ostream &out)
       vc = NumOfVertices;
       for (p = 1; p < NRanks; p++)
       {
-         MPI_Recv(nv_ne, 3, MPI_INT, p, 444, MyComm, &status);
+         MPI_Recv(nv_ne, 2, MPI_INT, p, 444, MyComm, &status);
          ints.SetSize(ne);
          if (ne)
          {
             MPI_Recv(&ints[0], ne, MPI_INT, p, 445, MyComm, &status);
          }
-
          for (i = 0; i < ne; )
          {
             // processor number + 1 as attribute and geometry type

@@ -106,9 +106,6 @@ public:
    }
 };
 
-/// exponent for level set 2 where u = x^p+y^p;
-#define xy_p 2.
-
 /// Boundary conditions
 double dirichlet_velocity_circle(const Vector &x)
 {
@@ -117,6 +114,7 @@ double dirichlet_velocity_circle(const Vector &x)
 
 double dirichlet_velocity_xy_exponent(const Vector &x)
 {
+   double xy_p = 2.; // exponent for level set 2 where u = x^p+y^p;
    return pow(x(0), xy_p) + pow(x(1), xy_p);
 }
 
@@ -134,6 +132,7 @@ double rhs_fun_circle(const Vector &x)
 
 double rhs_fun_xy_exponent(const Vector &x)
 {
+   double xy_p = 2.; // exponent for level set 2 where u = x^p+y^p;
    double coeff = std::max(xy_p*(xy_p-1), 1.);
    double expon = std::max(0., xy_p-2);
    if (xy_p == 1)
