@@ -46,20 +46,6 @@ double FunctionCoefficient::Eval(ElementTransformation & T,
    }
 }
 
-double ShiftedFunctionCoefficient::Eval(ElementTransformation & T,
-                                        const IntegrationPoint & ip,
-                                        const Vector &D)
-{
-   Vector transip;
-   T.Transform(ip, transip);
-   for (int i = 0; i < D.Size(); i++)
-   {
-      transip(i) += D(i);
-   }
-
-   return Function(transip);
-}
-
 double GridFunctionCoefficient::Eval (ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {

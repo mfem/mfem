@@ -4348,13 +4348,11 @@ static void dump_element(const Element* elem, Array<int> &data)
 
 void ParMesh::PrintAsOne(std::ostream &out)
 {
-   int i, j, k, p, nv_ne[3], &nv = nv_ne[0], &ne = nv_ne[1], &nc = nv_ne[2], vc;
+   int i, j, k, p, nv_ne[2], &nv = nv_ne[0], &ne = nv_ne[1], vc;
    const int *v;
    MPI_Status status;
    Array<double> vert;
    Array<int> ints;
-   Array<int> attr_ne;
-   int attr;
 
    if (MyRank == 0)
    {
@@ -4376,18 +4374,14 @@ void ParMesh::PrintAsOne(std::ostream &out)
    }
 
    nv = NumOfElements;
-   nc = NumOfElements;
    MPI_Reduce(&nv, &ne, 1, MPI_INT, MPI_SUM, 0, MyComm);
-   MPI_Allreduce(&nv, &nc, 1, MPI_INT, MPI_SUM, MyComm);
    if (MyRank == 0)
    {
       out << "\n\nelements\n" << ne << '\n';
       for (i = 0; i < NumOfElements; i++)
       {
-         attr = elements[i]->GetAttribute();
          // processor number + 1 as attribute and geometry type
-         //out << 1 << ' ' << elements[i]->GetGeometryType();
-         out << attr << ' ' << elements[i]->GetGeometryType();
+         out << 1 << ' ' << elements[i]->GetGeometryType();
          // vertices
          nv = elements[i]->GetNVertices();
          v  = elements[i]->GetVertices();
@@ -4402,22 +4396,15 @@ void ParMesh::PrintAsOne(std::ostream &out)
       {
          MPI_Recv(nv_ne, 3, MPI_INT, p, 444, MyComm, &status);
          ints.SetSize(ne);
-         attr_ne.SetSize(nc);
          if (ne)
          {
             MPI_Recv(&ints[0], ne, MPI_INT, p, 445, MyComm, &status);
          }
-         if (nc)
-         {
-            MPI_Recv(&attr_ne[0], nc, MPI_INT, p, 446, MyComm, &status);
-         }
 
-         int m = 0;
          for (i = 0; i < ne; )
          {
             // processor number + 1 as attribute and geometry type
-            // out << p+1 << ' ' << ints[i];
-            out << attr_ne[m] << ' ' << ints[i];
+            out << p+1 << ' ' << ints[i];
             // vertices
             k = Geometries.GetVertices(ints[i++])->GetNPoints();
             for (j = 0; j < k; j++)
@@ -4425,7 +4412,6 @@ void ParMesh::PrintAsOne(std::ostream &out)
                out << ' ' << vc + ints[i++];
             }
             out << '\n';
-            m++;
          }
          vc += nv;
       }
@@ -4439,7 +4425,7 @@ void ParMesh::PrintAsOne(std::ostream &out)
          ne += 1 + elements[i]->GetNVertices();
       }
       nv = NumOfVertices;
-      MPI_Send(nv_ne, 3, MPI_INT, 0, 444, MyComm);
+      MPI_Send(nv_ne, 2, MPI_INT, 0, 444, MyComm);
 
       ints.Reserve(ne);
       ints.SetSize(0);
@@ -4451,17 +4437,6 @@ void ParMesh::PrintAsOne(std::ostream &out)
       if (ne)
       {
          MPI_Send(&ints[0], ne, MPI_INT, 0, 445, MyComm);
-      }
-
-      attr_ne.SetSize(nc);
-      for (i = 0; i < NumOfElements; i++)
-      {
-         attr_ne[i] = elements[i]->GetAttribute();
-      }
-      MFEM_ASSERT(attr_ne.Size() == nc, "");
-      if (nc)
-      {
-         MPI_Send(&attr_ne[0], nc, MPI_INT, 0, 446, MyComm);
       }
    }
 
