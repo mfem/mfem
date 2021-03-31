@@ -2949,7 +2949,6 @@ protected:
 
 public:
    DGDiffusionBR2Integrator(class FiniteElementSpace *fes, double e = 1.0);
-
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
