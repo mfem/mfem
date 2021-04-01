@@ -290,9 +290,7 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
       faceBdrY.UseDevice(true); // ensure 'faceBoundY = 0.0' is done on device
    }
 
-
    // Normal derivative at face restrictions
-
    // Construct face restriction operators only if the bilinear form has
    // interior or boundary face integrators
    if (int_face_normD_restrict_lex == NULL && a->GetNDFBFI()->Size() > 0)
@@ -302,7 +300,7 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
                                  FaceType::Interior);
       faceNormDIntX.SetSize(int_face_normD_restrict_lex->Height(), Device::GetMemoryType());
       faceNormDIntY.SetSize(int_face_normD_restrict_lex->Height(), Device::GetMemoryType());
-      faceNormDIntY.UseDevice(true); // ensure 'faceIntY = 0.0' is done on device
+      faceNormDIntY.UseDevice(true); // ensure 'faceNormDIntY = 0.0' is done on device
    }
 
    if (bdr_face_normD_restrict_lex == NULL && a->GetNDBFBFI()->Size() > 0)
@@ -313,7 +311,7 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
                                  m);
       faceNormDBdrX.SetSize(bdr_face_normD_restrict_lex->Height(), Device::GetMemoryType());
       faceNormDBdrY.SetSize(bdr_face_normD_restrict_lex->Height(), Device::GetMemoryType());
-      faceNormDBdrY.UseDevice(true); // ensure 'faceBoundY = 0.0' is done on device
+      faceNormDBdrY.UseDevice(true); // ensure 'faceNormDBdrY = 0.0' is done on device
    }
 }
 
