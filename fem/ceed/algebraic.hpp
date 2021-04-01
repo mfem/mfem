@@ -62,8 +62,8 @@ protected:
 
 /** @brief Parallel version of AlgebraicCoarseSpace
 
-    This provides prolongation and restriction matrices for RAP-type
-    parallel operators and potential explicit assembly. */
+    This provides prolongation and restriction matrices for RAP-type parallel
+    operators and potential explicit assembly. */
 class ParAlgebraicCoarseSpace : public AlgebraicCoarseSpace
 {
 public:
@@ -93,10 +93,9 @@ private:
 
 /** @brief Multigrid interpolation operator in Ceed framework
 
-    Interpolation/restriction has two components, an element-wise
-    interpolation and then a scaling to correct multiplicity
-    on shared ldofs. This encapsulates those two in one object
-    using the MFEM Operator interface. */
+    Interpolation/restriction has two components, an element-wise interpolation
+    and then a scaling to correct multiplicity on shared ldofs. This
+    encapsulates those two in one object using the MFEM Operator interface. */
 class AlgebraicInterpolation : public mfem::Operator
 {
 public:
@@ -129,14 +128,15 @@ private:
    CeedVector fine_work;
 };
 
-/** @brief Hierarchy of AlgebraicCoarseSpace objects for use in Multigrid object */
+/** @brief Hierarchy of AlgebraicCoarseSpace objects for use in Multigrid
+    object */
 class AlgebraicSpaceHierarchy : public FiniteElementSpaceHierarchy
 {
 public:
    /** @brief Construct hierarchy based on finest FiniteElementSpace
 
-       The given space is a real (geometric) space, but the coarse spaces
-       are constructed semi-algebraically with no mesh information. */
+       The given space is a real (geometric) space, but the coarse spaces are
+       constructed semi-algebraically with no mesh information. */
    AlgebraicSpaceHierarchy(FiniteElementSpace &fespace);
    AlgebraicCoarseSpace& GetAlgebraicCoarseSpace(int level)
    {
@@ -172,7 +172,8 @@ private:
    Array<TransposeOperator*> R_tr;
 };
 
-/** @brief Extension of Multigrid object to algebraically generated coarse spaces */
+/** @brief Extension of Multigrid object to algebraically generated coarse
+    spaces */
 class AlgebraicMultigrid : public GeometricMultigrid
 {
 public:
@@ -205,9 +206,9 @@ private:
 
 /** @brief Wrapper for AlgebraicMultigrid object
 
-    This exists so that the algebraic Ceed-based idea has the simplest
-    possible one-line interface. Finer control (choosing smoothers, w-cycle)
-    can be exercised with the AlgebraicMultigrid object. */
+    This exists so that the algebraic Ceed-based idea has the simplest possible
+    one-line interface. Finer control (choosing smoothers, w-cycle) can be
+    exercised with the AlgebraicMultigrid object. */
 class AlgebraicSolver : public Solver
 {
 private:
@@ -233,7 +234,5 @@ public:
 } // namespace ceed
 
 } // namespace mfem
-
-
 
 #endif // MFEM_CEED_ALGEBRAIC_HPP
