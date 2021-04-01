@@ -224,7 +224,7 @@ protected:
       }
       void MultTranspose(const Vector &x, Vector &y) const
       {
-          l2proj.ProlongateTranspose(x, y);
+         l2proj.ProlongateTranspose(x, y);
       }
       virtual ~L2Prolongation() { }
    };
