@@ -13,7 +13,7 @@
 #include "util.hpp"
 
 #ifdef MFEM_USE_CEED
-#include <ceed-backend.h>
+#include <ceed/backend.h>
 
 // todo: should probably use Ceed memory wrappers instead of calloc/free?
 #include <stdlib.h>

@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "util.hpp"
-#include <ceed-backend.h>
+#include <ceed/backend.h>
 
 #include "../../general/device.hpp"
 #include "../../fem/gridfunc.hpp"
