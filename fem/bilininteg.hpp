@@ -2752,8 +2752,6 @@ protected:
    MatrixCoefficient *MQ;
    double sigma, kappa;
 
-   double beta; //temporary for debugging
-
    // these are not thread-safe!
    Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
    DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
@@ -2763,9 +2761,8 @@ protected:
    const DofToQuad *maps;                 ///< Not owned
    const DofToQuad *maps_grad;            ///< Not owned
    const FaceGeometricFactors *facegeom;  ///< Not owned
-   const GeometricFactors *geom; 
-
-   //const GeometricFactors *geom;  ///< Not owned
+   const GeometricFactors *geom;          ///< Not owned
+   
    int dim, sdim, ne, nf, dofs1D, quad1D;
    // Coefficient data for the 1st 2nd and 3rd term
    Vector coeff_data_1;
@@ -2780,27 +2777,20 @@ protected:
    //double alpha, beta;
    Vector r, vel;
 
-   // Do I actually need these?
-   static const IntegrationRule &GetRuleGrad(Geometry::Type geom, 
-                                         int order,
-                                         FaceElementTransformations &T);
-
    static const IntegrationRule &GetRule(Geometry::Type facegeom, 
                                          int order,
                                          FaceElementTransformations &T);
 
 public:
    // Q = 1 (right?)
-   DGDiffusionIntegrator(const double s, const double k, const double b)
-      : Q(NULL), MQ(NULL), sigma(s), kappa(k), beta(b) { }
+   DGDiffusionIntegrator(const double s, const double k)
+      : Q(NULL), MQ(NULL), sigma(s), kappa(k) { }
    // Q is some scalar diffusion coefficient
-   DGDiffusionIntegrator(Coefficient &q, const double s, const double k, const double b)
-      : Q(&q), MQ(NULL), sigma(s), kappa(k), beta(b) { }
-   /*
+   DGDiffusionIntegrator(Coefficient &q, const double s, const double k)
+      : Q(&q), MQ(NULL), sigma(s), kappa(k) { }
    // Q is some matrix diffusion coefficient
    DGDiffusionIntegrator(MatrixCoefficient &q, const double s, const double k)
       : Q(NULL), MQ(&q), sigma(s), kappa(k) { }
-   */
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
 
