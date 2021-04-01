@@ -41,6 +41,7 @@ static void PADGDiffusionSetup2D(const int Q1D,
                              const Vector &face_2_elem_volumes,
                              const double sigma,
                              const double kappa,
+                             const double beta,
                              Vector &op1,
                              Vector &op2,
                              Vector &op3)
@@ -75,38 +76,41 @@ static void PADGDiffusionSetup2D(const int Q1D,
          const double w = wgts[q]*Q*detJ(q,f);
          // Need to correct the scaling of w to account for d/dn, etc..
          double w_o_detJ = w/detJ(q,f);
-         if( f2ev(1,f) == -1.0 )
+
+         double n = normx+normy;
+         
+         if( f2ev(1,f) == -1.0 ) // Need a more standard way to detect bdr faces
          {
             // Boundary face
             // data for 1st term    - < {(Q grad(u)).n}, [v] >
-            op_data_ptr1(q,0,0,f) = w_o_detJ;
-            op_data_ptr1(q,1,0,f) = -w_o_detJ;
-            op_data_ptr1(q,0,1,f) = w_o_detJ;
-            op_data_ptr1(q,1,1,f) = -w_o_detJ;
+            op_data_ptr1(q,0,0,f) = -w_o_detJ*beta;
+            op_data_ptr1(q,1,0,f) = w_o_detJ*beta;
+            op_data_ptr1(q,0,1,f) =  0.0*w_o_detJ*beta;
+            op_data_ptr1(q,1,1,f) = -0.0*w_o_detJ*beta;
             // data for 2nd term    + sigma < [u], {(Q grad(v)).n} > 
-            op_data_ptr2(q,0,f) =   w_o_detJ*sigma;
+            op_data_ptr2(q,0,f) =   -w_o_detJ*sigma;
             op_data_ptr2(q,1,f) =   0.0*w_o_detJ*sigma;
             // data for 3rd term    + kappa < {h^{-1} Q} [u], [v] >
             const double h0 = detJ(q,f)/mag_norm;
             const double h1 = detJ(q,f)/mag_norm;
             op_data_ptr3(q,0,f) =   w*kappa/h0;
-            op_data_ptr3(q,1,f) =  -w*kappa/h0;
+            op_data_ptr3(q,1,f) =  -0.0*w*kappa/h0;
          }
          else
          {
             // Interior face
             // data for 1st term    - < {(Q grad(u)).n}, [v] >
-            op_data_ptr1(q,0,0,f) = w_o_detJ/2.0;
-            op_data_ptr1(q,1,0,f) = -w_o_detJ/2.0;
-            op_data_ptr1(q,0,1,f) = w_o_detJ/2.0;
-            op_data_ptr1(q,1,1,f) = -w_o_detJ/2.0;;
+            op_data_ptr1(q,0,0,f) = -w_o_detJ/2.0*beta;
+            op_data_ptr1(q,1,0,f) = w_o_detJ/2.0*beta;
+            op_data_ptr1(q,0,1,f) = -w_o_detJ/2.0*beta;
+            op_data_ptr1(q,1,1,f) = w_o_detJ/2.0*beta;
             // data for 2nd term    + sigma < [u], {(Q grad(v)).n} > 
-            op_data_ptr2(q,0,f) =   w_o_detJ*sigma/2.0;
+            op_data_ptr2(q,0,f) =   -w_o_detJ*sigma/2.0;
             op_data_ptr2(q,1,f) =   w_o_detJ*sigma/2.0;
             // data for 3rd term    + kappa < {h^{-1} Q} [u], [v] >
             const double h0 = detJ(q,f)/mag_norm;
             const double h1 = detJ(q,f)/mag_norm;
-            op_data_ptr3(q,0,f) =   -w*kappa*(1.0/h0+1.0/h1)/2.0;
+            op_data_ptr3(q,0,f) =   w*kappa*(1.0/h0+1.0/h1)/2.0;
             op_data_ptr3(q,1,f) =   w*kappa*(1.0/h0+1.0/h1)/2.0;
          }
 
@@ -152,6 +156,7 @@ static void PADGDiffusionSetup(const int dim,
                            const Vector &face_2_elem_volumes,
                            const double sigma,
                            const double kappa,
+                           const double beta,
                            Vector &op1,
                            Vector &op2,
                            Vector &op3)
@@ -160,7 +165,7 @@ static void PADGDiffusionSetup(const int dim,
    if (dim == 1) { MFEM_ABORT("dim==1 not supported in PADGDiffusionSetup"); }
    else if (dim == 2)
    {
-      PADGDiffusionSetup2D(Q1D, D1D, NF, weights, g, b, jac, det_jac, nor, Q, rho, u, face_2_elem_volumes, sigma, kappa, op1, op2, op3);
+      PADGDiffusionSetup2D(Q1D, D1D, NF, weights, g, b, jac, det_jac, nor, Q, rho, u, face_2_elem_volumes, sigma, kappa, beta, op1, op2, op3);
    }
    else if (dim == 3)
    {
@@ -193,17 +198,8 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
                   FaceGeometricFactors::NORMALS, type);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
-   quad1D = maps->nqpt;
+   quad1D = maps->nqpt; 
 
-   // Grad Rule   
-   const IntegrationRule *ir_grad = &GetRuleGrad(el.GetGeomType(), el.GetOrder());
-   maps_grad = &el.GetDofToQuad(*ir_grad, DofToQuad::TENSOR);
-
-   auto Gf = Reshape(maps->G.Read(), dofs1D, dofs1D);
-   auto G = Reshape(maps_grad->G.Read(), dofs1D, dofs1D);
-   auto Bf = Reshape(maps->B.Read(), dofs1D, dofs1D);
-   auto B = Reshape(maps_grad->B.Read(), dofs1D, dofs1D);
-   
    // are these the right things for our data?
    coeff_data_1.SetSize( 4 * nq * nf, Device::GetMemoryType());
    coeff_data_2.SetSize( 2 * nq * nf, Device::GetMemoryType());
@@ -267,7 +263,6 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
    else
    {
       mfem_error("not yet implemented.");
-      //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       exit(1);
       // ???????
       /*
@@ -389,7 +384,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
                         facegeom->normal,
                         Qcoeff, r, vel,
                         face_2_elem_volumes,
-                        sigma, kappa,
+                        sigma, kappa, beta,
                         coeff_data_1,coeff_data_2,coeff_data_3);
 }
 
@@ -440,6 +435,32 @@ void PADGDiffusionApply2D(const int NF,
    auto x = Reshape(_x.Read(), D1D, D1D, VDIM, 2, NF);
    auto y = Reshape(_y.ReadWrite(), D1D, D1D, VDIM, 2, NF);
 
+   // Need to fix this
+   double B0[3][3] = {0};
+   double G0[3][3] = {0};
+
+   if( D1D == 2 )
+   {
+      G0[0][0] = -1;
+      G0[0][1] = 1;
+      G0[1][0] = -1;
+      G0[1][1] = 1;
+   }
+   if( D1D == 3 )
+   {
+      G0[0][0] = -3;
+      G0[1][0] = -1;
+      G0[2][0] = 1;
+
+      G0[0][1] = 4;
+      G0[1][1] = 0;
+      G0[2][1] = -4;
+
+      G0[0][2] = -1;
+      G0[1][2] = 1;
+      G0[2][2] = 3;
+   }
+
    // Loop over all faces
    MFEM_FORALL(f, NF,
    {
@@ -459,9 +480,9 @@ void PADGDiffusionApply2D(const int NF,
             {  
                // Evaluate du/dn on the face from each side
                // Uses a stencil inside 
-               const double g = B(0,q);
-               Gu0[d][c] += g*x(q,d,c,0,f);
-               Gu1[d][c] += g*x(q,d,c,1,f);
+               const double g = G0[0][q];
+               Gu0[d][c] -= g*x(q,d,c,0,f);
+               Gu1[d][c] -= g*x(q,d,c,1,f);
             }
          }
       }
@@ -482,7 +503,6 @@ void PADGDiffusionApply2D(const int NF,
             }
          }
       }
-
  
       // 3. Form numerical fluxes
       double D1[max_Q1D][VDIM] = {0};
@@ -490,28 +510,21 @@ void PADGDiffusionApply2D(const int NF,
       double D1jumpu[max_Q1D][VDIM] = {0};
       double D0jumpu[max_Q1D][VDIM] = {0};
 
-      std::cout << " D0[d][c]   D1[d][c]  D0jumpu[d][c]  D1jumpu[d][c] " << std::endl;
-
       for (int q = 0; q < Q1D; ++q)
       {
          for (int c = 0; c < VDIM; c++)
          {
+            // need to have different op2 and op3 for each side, then use n
             const double jump_u = Bu1[q][c] - Bu0[q][c];
             // numerical fluxes
-            D1[q][c] = op1(q,1,0,f)*Gu0[q][c] 
-                        - op1(q,1,1,f)*Gu1[q][c]
-                        + op3(q,0,f)*jump_u; 
             D0[q][c] = op1(q,0,0,f)*Gu0[q][c] 
                         - op1(q,0,1,f)*Gu1[q][c] 
-                        + op3(q,1,f)*jump_u; 
-            D1jumpu[q][c] = op2(q,1,f)*jump_u;
+                        - op3(q,0,f)*jump_u;
+            D1[q][c] = op1(q,1,0,f)*Gu0[q][c] 
+                        - op1(q,1,1,f)*Gu1[q][c]
+                        - op3(q,1,f)*jump_u;
             D0jumpu[q][c] = op2(q,0,f)*jump_u;
-
-            std::cout << D0[q][c] <<" "<<
-                         D1[q][c] <<" "<<
-                         D0jumpu[q][c] <<" "<<
-                         D1jumpu[q][c] <<" "<< std::endl;
-
+            D1jumpu[q][c] = op2(q,1,f)*jump_u;
          }
       }
             
@@ -520,8 +533,8 @@ void PADGDiffusionApply2D(const int NF,
       // 4. Contraction with B^T evaluation B^T:(G*D*B:u) and B^T:(D*B:Gu)   
       double BD1[max_D1D][VDIM] = {0};
       double BD0[max_D1D][VDIM] = {0};
-
-      std::cout << "d q g b D1jumpu D0jumpu BD0 BD1" << std::endl;
+      double BD1jumpu[max_D1D][VDIM] = {0};
+      double BD0jumpu[max_D1D][VDIM] = {0};
 
       for (int d = 0; d < D1D; ++d)
       {
@@ -529,16 +542,17 @@ void PADGDiffusionApply2D(const int NF,
          for (int q = 0; q < Q1D; ++q)
          {
             const double b = Bt(d,q);
-            // gt needs a negative based on the normal?
             for (int c = 0; c < VDIM; c++)
             {
                BD0[d][c] += b*D0[q][c];
                BD1[d][c] += b*D1[q][c];
+               BD0jumpu[d][c] += b*D0jumpu[q][c];
+               BD1jumpu[d][c] += b*D1jumpu[q][c];
             }
          }
       }
 
-
+      // 5. Add to y      
       for (int c = 0; c < VDIM; c++)
       {
          for (int d = 0; d < D1D; ++d)
@@ -547,9 +561,10 @@ void PADGDiffusionApply2D(const int NF,
             y(0,d,c,1,f) +=  BD1[d][c];
             for (int q = 0; q < Q1D ; q++)
             {
-               const double g = Gt(q,0);
-               y(q,d,c,0,f) +=  g*D0jumpu[d][c];
-               y(q,d,c,1,f) +=  g*D1jumpu[d][c];      }
+               const double g = G0[0][q];
+               y(q,d,c,0,f) -=  g*BD0jumpu[d][c];
+               y(q,d,c,1,f) -=  g*BD1jumpu[d][c];      
+            }
          }
       }
    });// done with the loop over all faces
@@ -570,147 +585,7 @@ void PADGDiffusionApply3D(const int NF,
                       const int d1d = 0,
                       const int q1d = 0)
 {
-   //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-   //std::cout << "TODO: Correct this for DG diffusion" << std::endl;
-   exit(1);
-   /*
-   const int VDIM = 1;
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b.Read(), Q1D, D1D);
-   auto Bt = Reshape(bt.Read(), D1D, Q1D);
-   auto op1 = Reshape(_op1.Read(), Q1D, Q1D, 2, 2, NF);
-   auto op2 = Reshape(_op2.Read(), Q1D, Q1D, 2, 2, NF);
-   auto op3 = Reshape(_op3.Read(), Q1D, Q1D, 2, 2, NF);
-   auto x = Reshape(_x.Read(), D1D, D1D, VDIM, 2, NF);
-   auto y = Reshape(_y.ReadWrite(), D1D, D1D, VDIM, 2, NF);
-
-   // Loop over all faces
-   MFEM_FORALL(f, NF,
-   {
-      const int VDIM = 1;
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      // the following variables are evaluated at compile time
-      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
-      double u0[max_D1D][max_D1D][VDIM];
-      double u1[max_D1D][max_D1D][VDIM];
-      for (int d1 = 0; d1 < D1D; d1++)
-      {
-         for (int d2 = 0; d2 < D1D; d2++)
-         {
-            for (int c = 0; c < VDIM; c++)
-            {
-               u0[d1][d2][c] = x(d1,d2,c,0,f);
-               u1[d1][d2][c] = x(d1,d2,c,1,f);
-            }
-         }
-      }
-      double Bu0[max_Q1D][max_D1D][VDIM];
-      double Bu1[max_Q1D][max_D1D][VDIM];
-      for (int q = 0; q < Q1D; ++q)
-      {
-         for (int d2 = 0; d2 < D1D; d2++)
-         {
-            for (int c = 0; c < VDIM; c++)
-            {
-               Bu0[q][d2][c] = 0.0;
-               Bu1[q][d2][c] = 0.0;
-            }
-            for (int d1 = 0; d1 < D1D; ++d1)
-            {
-               const double b = B(q,d1);
-               for (int c = 0; c < VDIM; c++)
-               {
-                  Bu0[q][d2][c] += b*u0[d1][d2][c];
-                  Bu1[q][d2][c] += b*u1[d1][d2][c];
-               }
-            }
-         }
-      }
-      double BBu0[max_Q1D][max_Q1D][VDIM];
-      double BBu1[max_Q1D][max_Q1D][VDIM];
-      for (int q1 = 0; q1 < Q1D; ++q1)
-      {
-         for (int q2 = 0; q2 < Q1D; q2++)
-         {
-            for (int c = 0; c < VDIM; c++)
-            {
-               BBu0[q1][q2][c] = 0.0;
-               BBu1[q1][q2][c] = 0.0;
-            }
-            for (int d2 = 0; d2 < D1D; ++d2)
-            {
-               const double b = B(q2,d2);
-               for (int c = 0; c < VDIM; c++)
-               {
-                  BBu0[q1][q2][c] += b*Bu0[q1][d2][c];
-                  BBu1[q1][q2][c] += b*Bu1[q1][d2][c];
-               }
-            }
-         }
-      }
-      double DBBu[max_Q1D][max_Q1D][VDIM];
-      for (int q1 = 0; q1 < Q1D; ++q1)
-      {
-         for (int q2 = 0; q2 < Q1D; q2++)
-         {
-            for (int c = 0; c < VDIM; c++)
-            {
-               DBBu[q1][q2][c] = op(q1,q2,0,0,f)*BBu0[q1][q2][c] +
-                                 op(q1,q2,1,0,f)*BBu1[q1][q2][c];
-            }
-         }
-      }
-      double BDBBu[max_Q1D][max_D1D][VDIM];
-      for (int q1 = 0; q1 < Q1D; ++q1)
-      {
-         for (int d2 = 0; d2 < D1D; d2++)
-         {
-            for (int c = 0; c < VDIM; c++)
-            {
-               BDBBu[q1][d2][c] = 0.0;
-            }
-            for (int q2 = 0; q2 < Q1D; ++q2)
-            {
-               const double b = Bt(d2,q2);
-               for (int c = 0; c < VDIM; c++)
-               {
-                  BDBBu[q1][d2][c] += b*DBBu[q1][q2][c];
-               }
-            }
-         }
-      }
-      double BBDBBu[max_D1D][max_D1D][VDIM];
-      for (int d1 = 0; d1 < D1D; ++d1) 
-      {
-         for (int d2 = 0; d2 < D1D; d2++)
-         {
-            for (int c = 0; c < VDIM; c++)
-            {
-               BBDBBu[d1][d2][c] = 0.0;
-            }
-            for (int q1 = 0; q1 < Q1D; ++q1)
-            {
-               const double b = Bt(d1,q1);
-               for (int c = 0; c < VDIM; c++)
-               {
-                  BBDBBu[d1][d2][c] += b*BDBBu[q1][d2][c];
-               }
-            }
-            for (int c = 0; c < VDIM; c++)
-            {
-               y(d1,d2,c,0,f) +=  BBDBBu[d1][d2][c];
-               y(d1,d2,c,1,f) += -BBDBBu[d1][d2][c];
-            }
-         }
-      }
-   });
-   */
-   //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+   MFEM_ABORT("PADGDiffusionApply3D not implemented.");
 }
 
 static void PADGDiffusionApply(const int dim,
