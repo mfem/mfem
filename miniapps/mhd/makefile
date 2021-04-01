@@ -45,9 +45,8 @@ endif
 imMHDp: imMHDp.cpp $(OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@  $(OBJ) $(MFEM_LIBS)
 
-test_mat: test_mat.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+test: test.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@  $(MFEM_LIBS)
-
 
 all: $(EXAMPLES) 
 

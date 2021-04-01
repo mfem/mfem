@@ -21,6 +21,11 @@ double exactPhi1(const Vector &x, double t);
 double exactPsi1(const Vector &x, double t);
 double exactW1(const Vector &x, double t);
 
+//exact solutoion for Reyleigh
+double exactPhiRe(const Vector &x, double t);
+double exactPsiRe(const Vector &x, double t);
+double exactWRe(const Vector &x, double t);
+
 double InitialJ2(const Vector &x);
 double InitialPsi2(const Vector &x);
 double BackPsi2(const Vector &x);

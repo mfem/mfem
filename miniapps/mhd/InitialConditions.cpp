@@ -44,6 +44,41 @@ double exactPsi1(const Vector &x, double t)
     return -x(1)+beta*sin(M_PI*x(1))*cos(k*x(0))*cos(k*t);
 }
 
+
+double exactPhiRe(const Vector &x, double t)
+{
+    double d=1, nu=1, eta=1, U=1;
+    double rho=4e-5, B0=1.4494e-4, mu0=1.256636e-6, A0=B0/sqrt(mu0*rho);
+    double Y=x(1), X=x(0);
+
+    //the second erf needs to be replace by erfc to avoid numerical issue
+    return U/4/A0*( (t*A0*A0+d*exp(-A0*Y/d)-A0*Y+d)*erf((A0*t-Y)/2./sqrt(d*t))          
+                 -  (t*A0*A0+d*exp( A0*Y/d)+A0*Y+d)*erfc((A0*t+Y)/2./sqrt(d*t)) + t*A0*A0 + d*exp(-A0*Y/d)-A0*Y+d )+ U*sqrt(d*t)/2./sqrt(M_PI)*(exp(-(A0*t-Y)*(A0*t-Y)/4./d/t) + exp(-(A0*t+Y)*(A0*t+Y)/4./d/t) );
+}
+
+double exactWRe(const Vector &x, double t)
+{
+    double d=1, nu=1, eta=1, U=1;
+    double rho=4e-5, B0=1.4494e-4, mu0=1.256636e-6, A0=B0/sqrt(mu0*rho);
+    double Y=x(1), X=x(0);
+
+    return U*A0/4./d*( 2*exp(-A0*Y/d)  - exp(A0*Y/d)*erfc(  ( Y+A0*t)/2/sqrt(d*t))  - exp(-A0*Y/d)*erfc( (-Y+A0*t)/2/sqrt(d*t))) 
+      + U/2./sqrt(M_PI*d*t)*(exp(-(A0*t-Y)*(A0*t-Y)/4/d/t) + exp(-(A0*t+Y)*(A0*t+Y)/4/d/t) );
+}
+
+double exactPsiRe(const Vector &x, double t)
+{
+    double d=1, nu=1, eta=1, U=1;
+    double rho=4e-5, B0=1.4494e-4, mu0=1.256636e-6, A0=B0/sqrt(mu0*rho);
+    double Y=x(1), X=x(0);
+
+    return B0*X/sqrt(mu0*rho)-U*sqrt(d*t)/2/sqrt(M_PI)*( exp(-(A0*t-Y)*(A0*t-Y)/4/d/t) - exp(-(A0*t+Y)*(A0*t+Y)/4/d/t) ) 
+      - U/4/A0*(t*A0*A0+d)*( erf((A0*t-Y)/2/sqrt(d*t)) - erf((A0*t+Y)/2/sqrt(d*t) ) )    
+      + U/4/A0*( (d*exp(-A0*Y/d) + A0*Y)*erfc((Y-A0*t)/2./sqrt(d*t)) + (d*exp(A0*Y/d)-A0*Y)*erfc((A0*t+Y)/2./sqrt(d*t)));
+}
+
+
+
 double BackPsi(const Vector &x)
 {
     //this is the background psi (for post-processing/plotting only)
