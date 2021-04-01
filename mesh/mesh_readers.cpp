@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -31,9 +31,12 @@ namespace mfem
 
 bool Mesh::remove_unused_vertices = true;
 
-void Mesh::ReadMFEMMesh(std::istream &input, bool mfem_v11, int &curved)
+void Mesh::ReadMFEMMesh(std::istream &input, int version, int &curved)
 {
-   // Read MFEM mesh v1.0 format
+   // Read MFEM mesh v1.0 or v1.2 format
+   MFEM_VERIFY(version == 10 || version == 12,
+               "unknown MFEM mesh version");
+
    string ident;
 
    // read lines beginning with '#' (comments)
@@ -66,24 +69,7 @@ void Mesh::ReadMFEMMesh(std::istream &input, bool mfem_v11, int &curved)
    }
 
    skip_comment_lines(input, '#');
-   input >> ident;
-
-   if (mfem_v11 && ident == "vertex_parents")
-   {
-      ncmesh = new NCMesh(this, &input);
-      // NOTE: the constructor above will call LoadVertexParents
-
-      skip_comment_lines(input, '#');
-      input >> ident;
-
-      if (ident == "coarse_elements")
-      {
-         ncmesh->LoadCoarseElements(input);
-
-         skip_comment_lines(input, '#');
-         input >> ident;
-      }
-   }
+   input >> ident; // 'vertices'
 
    MFEM_VERIFY(ident == "vertices", "invalid mesh file");
    input >> NumOfVertices;
@@ -101,9 +87,6 @@ void Mesh::ReadMFEMMesh(std::istream &input, bool mfem_v11, int &curved)
             input >> vertices[j](i);
          }
       }
-
-      // initialize vertex positions in NCMesh
-      if (ncmesh) { ncmesh->SetVertexPositions(vertices); }
    }
    else
    {
@@ -507,6 +490,25 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
       // No boundary is defined in a VTK mesh
       NumOfBdrElements = 0;
 
+      // determine spaceDim based on min/max differences detected each dimension
+      if (vertices.Size() > 0)
+      {
+         double min_value, max_value;
+         for (int d=0; d<3; ++d)
+         {
+            min_value = max_value = vertices[0](d);
+            for (int i = 1; i < vertices.Size(); i++)
+            {
+               min_value = std::min(min_value,vertices[i](d));
+               max_value = std::max(max_value,vertices[i](d));
+               if (min_value != max_value)
+               {
+                  spaceDim++;
+                  break;
+               }
+            }
+         }
+      }
       // Generate faces and edges so that we can define
       // FE space on the mesh
       FinalizeTopology();
@@ -544,15 +546,16 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
                   break;
             }
 
+            int offset = (i == 0) ? 0 : cell_offsets[i-1];
             for (int j = 0; j < dofs.Size(); j++)
             {
-               if (pts_dof[cell_data[j]] == -1)
+               if (pts_dof[cell_data[offset+j]] == -1)
                {
-                  pts_dof[cell_data[j]] = dofs[vtk_mfem[j]];
+                  pts_dof[cell_data[offset+j]] = dofs[vtk_mfem[j]];
                }
                else
                {
-                  if (pts_dof[cell_data[j]] != dofs[vtk_mfem[j]])
+                  if (pts_dof[cell_data[offset+j]] != dofs[vtk_mfem[j]])
                   {
                      MFEM_ABORT("VTK mesh: inconsistent quadratic mesh!");
                   }
@@ -629,9 +632,9 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
          {
             dofs[0] = pts_dof[i];
             fes->DofsToVDofs(dofs);
-            for (int j = 0; j < dofs.Size(); j++)
+            for (int d = 0; d < dofs.Size(); d++)
             {
-               (*Nodes)(dofs[j]) = points(3*i+j);
+               (*Nodes)(dofs[d]) = points(3*i+d);
             }
          }
       }
@@ -763,7 +766,7 @@ void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
    }
    if (cells_xml == NULL) { MFEM_ABORT(erstr); }
 
-   // Currently don't support reading cell attributes from VTK mesh
+   // Currently don't support reading cell attributes from XML VTK mesh
    Array<int> cell_attributes;
    CreateVTKMesh(points, cell_data, cell_offsets, cell_types, cell_attributes,
                  curved, read_gf, finalize_topo);
@@ -787,13 +790,13 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
       MFEM_ABORT("VTK mesh is not in ASCII format!");
       return;
    }
-   getline(input, buff);
-   filter_dos(buff);
-   if (buff != "DATASET UNSTRUCTURED_GRID")
+   do
    {
-      MFEM_ABORT("VTK mesh is not UNSTRUCTURED_GRID!");
-      return;
+      getline(input, buff);
+      filter_dos(buff);
+      if (!input.good()) { MFEM_ABORT("VTK mesh is not UNSTRUCTURED_GRID!"); }
    }
+   while (buff != "DATASET UNSTRUCTURED_GRID");
 
    // Read the points, skipping optional sections such as the FIELD data from
    // VisIt's VTK export (or from Mesh::PrintVTK with field_data==1).
@@ -857,37 +860,44 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
    input >> ws >> buff;
    Array<int> cell_types;
    int ncells;
-   if (buff == "CELL_TYPES")
+   MFEM_VERIFY(buff == "CELL_TYPES", "CELL_TYPES not provided in VTK mesh.")
+   input >> ncells;
+   cell_types.Load(ncells, input);
+
+   while ((input.good()) && (buff != "CELL_DATA"))
    {
-      input >> ncells;
-      cell_types.Load(ncells, input);
+      input >> buff;
+   }
+   getline(input, buff); // finish the line
+
+   // Read the cell materials
+   // bool found_material = false;
+   Array<int> cell_attributes;
+   while ((input.good()))
+   {
+      getline(input, buff);
+      if (buff.rfind("POINT_DATA") == 0)
+      {
+         break; // We have entered the POINT_DATA block. Quit.
+      }
+      else if (buff.rfind("SCALARS material") == 0)
+      {
+         getline(input, buff); // LOOKUP_TABLE default
+         if (buff.rfind("LOOKUP_TABLE default") != 0)
+         {
+            MFEM_ABORT("Invalid LOOKUP_TABLE for material array in VTK file.");
+         }
+         cell_attributes.Load(ncells, input);
+         // found_material = true;
+         break;
+      }
    }
 
-   // Read cell attributes
-   streampos sp = input.tellg();
-   input >> ws >> buff;
-   Array<int> cell_attributes;
-   if (buff == "CELL_DATA")
-   {
-      int n;
-      input >> n >> ws;
-      getline(input, buff);
-      filter_dos(buff);
-      // "SCALARS material dataType numComp"
-      if (buff.rfind("SCALARS material") == 0)
-      {
-         getline(input, buff); // "LOOKUP_TABLE default"
-         cell_attributes.Load(ncells, input);
-      }
-      else
-      {
-         input.seekg(sp);
-      }
-   }
-   else
-   {
-      input.seekg(sp);
-   }
+   // if (!found_material)
+   // {
+   //    MFEM_WARNING("Material array not found in VTK file. "
+   //                 "Assuming uniform material composition.");
+   // }
 
    CreateVTKMesh(points, cell_data, cell_offsets, cell_types, cell_attributes,
                  curved, read_gf, finalize_topo);
@@ -1558,7 +1568,14 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                   // non-positive attributes are not allowed in MFEM
                   if (phys_domain <= 0)
                   {
-                     MFEM_ABORT("Non-positive element attribute in Gmsh mesh!");
+                     MFEM_ABORT("Non-positive element attribute in Gmsh mesh!\n"
+                                "By default Gmsh sets element tags (attributes)"
+                                " to '0' but MFEM requires that they be"
+                                " positive integers.\n"
+                                "Use \"Physical Curve\", \"Physical Surface\","
+                                " or \"Physical Volume\" to set tags/attributes"
+                                " for all curves, surfaces, or volumes in your"
+                                " Gmsh geometry to values which are >= 1.");
                   }
 
                   // initialize the mesh element
@@ -1778,7 +1795,14 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                // non-positive attributes are not allowed in MFEM
                if (phys_domain <= 0)
                {
-                  MFEM_ABORT("Non-positive element attribute in Gmsh mesh!");
+                  MFEM_ABORT("Non-positive element attribute in Gmsh mesh!\n"
+                             "By default Gmsh sets element tags (attributes)"
+                             " to '0' but MFEM requires that they be"
+                             " positive integers.\n"
+                             "Use \"Physical Curve\", \"Physical Surface\","
+                             " or \"Physical Volume\" to set tags/attributes"
+                             " for all curves, surfaces, or volumes in your"
+                             " Gmsh geometry to values which are >= 1.");
                }
 
                // initialize the mesh element
@@ -2048,6 +2072,9 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             curved = 1;
             read_gf = 0;
 
+            // initialize mesh_geoms so we can create Nodes FE space below
+            this->SetMeshGen();
+
             // Construct GridFunction for uniformly spaced high order coords
             FiniteElementCollection* nfec;
             FiniteElementSpace* nfes;
@@ -2221,15 +2248,49 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          for (int i = 0; i < num_per_ent; i++)
          {
             getline(input, buff); // Read and ignore entity dimension and tags
-            getline(input, buff); // Read and ignore affine mapping
-            // Read master/slave vertex pairs
-            input >> num_nodes;
+            getline(input, buff); // If affine mapping exist, read and ignore
+            if (!strncmp(buff.c_str(), "Affine", 6))
+            {
+               input >> num_nodes;
+            }
+            else
+            {
+               num_nodes = atoi(buff.c_str());
+            }
             for (int j=0; j<num_nodes; j++)
             {
                input >> slave >> master;
                v2v[slave - 1] = master - 1;
             }
             getline(input, buff); // Read end-of-line
+         }
+
+         // Follow existing long chains of slave->master in v2v array.
+         // Upon completion of this loop, each v2v[slave] will point to a true
+         // master vertex. This algorithm is useful for periodicity defined in
+         // multiple directions.
+         for (int slave = 0; slave < v2v.Size(); slave++)
+         {
+            int master = v2v[slave];
+            if (master != slave)
+            {
+               // This loop will end if it finds a circular dependency.
+               while (v2v[master] != master && master != slave)
+               {
+                  master = v2v[master];
+               }
+               if (master == slave)
+               {
+                  // if master and slave are the same vertex, circular dependency
+                  // exists. We need to fix the problem, we choose slave.
+                  v2v[slave] = slave;
+               }
+               else
+               {
+                  // the long chain has ended on the true master vertex.
+                  v2v[slave] = master;
+               }
+            }
          }
 
          // Convert nodes to discontinuous GridFunction (if they aren't already)
