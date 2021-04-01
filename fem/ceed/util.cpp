@@ -10,7 +10,9 @@
 // CONTRIBUTING.md for details.
 
 #include "util.hpp"
+#ifdef MFEM_USE_CEED
 #include <ceed/backend.h>
+#endif
 
 #include "../../general/device.hpp"
 #include "../../fem/gridfunc.hpp"

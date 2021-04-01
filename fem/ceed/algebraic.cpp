@@ -10,8 +10,9 @@
 // CONTRIBUTING.md for details.
 
 #include "algebraic.hpp"
+#ifdef MFEM_USE_CEED
 #include <ceed/backend.h>
-
+#endif
 #include "../bilinearform.hpp"
 #include "../fespace.hpp"
 #include "solvers-atpmg.hpp"
