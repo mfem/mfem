@@ -2061,7 +2061,7 @@ char* XMLElement::ParseDeep( char* p, StrPair* parentEndTag, int* curLineNumPtr 
             && XMLUtil::StringEqual( _rootAttribute->Name(), "encoding", 8 )
             && XMLUtil::StringEqual( _rootAttribute->Value(), "raw", 3 ) ) {
         char *appendedDataStart = p;
-        while ( p < _document->_len + _document->_charBuffer )
+        while ( p < _document->_charBuffer + _document->_len )
         {
             if ( *p == '<' && XMLUtil::StringEqual( p, "</AppendedData>", 15 ) ) {
                 _appendedDataSize = p - appendedDataStart;

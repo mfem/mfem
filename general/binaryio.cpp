@@ -76,7 +76,7 @@ void DecodeBase64(const char *src, size_t len, std::vector<unsigned char> &buf)
    const unsigned char *in = (const unsigned char *)src;
    buf.clear();
    size_t count = 0;
-   for (int i=0; i<len; ++i) { if (b64table[in[i]] != 255) { ++count; } }
+   for (size_t i=0; i<len; ++i) { if (b64table[in[i]] != 255) { ++count; } }
    if (count % 4 != 0) { return; }
    buf.resize(3*len/4);
    unsigned char *out = buf.data();
