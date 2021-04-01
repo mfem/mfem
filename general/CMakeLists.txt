@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -29,6 +29,7 @@ list(APPEND SRCS
   tic_toc.cpp
   tinyxml2.cpp
   version.cpp
+  hip.cpp
   )
 
 list(APPEND HDRS
@@ -59,6 +60,7 @@ list(APPEND HDRS
   tinyxml2.h
   text.hpp
   version.hpp
+  hip.hpp
   )
 
 if (MFEM_USE_MPI)

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -945,7 +945,7 @@ RefinedGeometry * GeometryRefiner::Refine(Geometry::Type Geom,
    int i, j, k, l, m;
 
    Times = std::max(Times, 1);
-   ETimes = std::max(ETimes, 1);
+   ETimes = Geometry::Dimension[Geom] <= 1 ? 0 : std::max(ETimes, 1);
    const double *cp = poly1d.GetPoints(Times, BasisType::GetNodalBasis(type));
 
    RefinedGeometry *RG = FindInRGeom(Geom, Times, ETimes, type);
@@ -1177,7 +1177,7 @@ RefinedGeometry * GeometryRefiner::Refine(Geometry::Type Geom,
                   ip.x = cp[ii]/w;
                   ip.y = cp[jj]/w;
                   ip.z = cp[kk]/w;
-                  // (ii,jj,kk) are coordinates in the refernce tetrahedron,
+                  // (ii,jj,kk) are coordinates in the reference tetrahedron,
                   // transform to coordinates (i,j,k) in the auxiliary
                   // tetrahedron defined by (0,0,0), (0,0,1), (1,1,1), (0,1,1)
                   int i = jj;

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,7 +11,7 @@
 
 
 /// A structure used to pass additional data to f_build_diff and f_apply_diff
-struct BuildContext { CeedInt dim, space_dim, vdim; CeedScalar coeff; };
+struct MassContext { CeedInt dim, space_dim, vdim; CeedScalar coeff; };
 
 /// libCEED Q-function for building quadrature data for a mass operator with a
 /// constant coefficient
@@ -21,7 +21,7 @@ CEED_QFUNCTION(f_build_mass_const)(void *ctx, CeedInt Q,
 {
    // in[0] is Jacobians with shape [dim, nc=dim, Q]
    // in[1] is quadrature weights, size (Q)
-   BuildContext *bc = (BuildContext *)ctx;
+   MassContext *bc = (MassContext *)ctx;
    const CeedScalar coeff = bc->coeff;
    const CeedScalar *J = in[0], *qw = in[1];
    CeedScalar *rho = out[0];
@@ -64,7 +64,7 @@ CEED_QFUNCTION(f_build_mass_quad)(void *ctx, CeedInt Q,
 {
    // in[0] is Jacobians with shape [dim, nc=dim, Q]
    // in[1] is quadrature weights, size (Q)
-   BuildContext *bc = (BuildContext *)ctx;
+   MassContext *bc = (MassContext *)ctx;
    const CeedScalar *c = in[0], *J = in[1], *qw = in[2];
    CeedScalar *rho = out[0];
    switch (bc->dim + 10*bc->space_dim)
@@ -103,7 +103,7 @@ CEED_QFUNCTION(f_apply_mass)(void *ctx, CeedInt Q,
                              const CeedScalar *const *in,
                              CeedScalar *const *out)
 {
-   BuildContext *bc = (BuildContext *)ctx;
+   MassContext *bc = (MassContext *)ctx;
    const CeedScalar *u = in[0], *w = in[1];
    CeedScalar *v = out[0];
    switch (bc->vdim)
@@ -142,7 +142,7 @@ CEED_QFUNCTION(f_apply_mass)(void *ctx, CeedInt Q,
 CEED_QFUNCTION(f_apply_mass_mf_const)(void *ctx, CeedInt Q,
                                       const CeedScalar *const *in, CeedScalar *const *out)
 {
-   BuildContext *bc = (BuildContext*)ctx;
+   MassContext *bc = (MassContext*)ctx;
    const CeedScalar coeff = bc->coeff;
    const CeedScalar *u = in[0], *J = in[1], *qw = in[2];
    CeedScalar *v = out[0];
@@ -205,7 +205,7 @@ CEED_QFUNCTION(f_apply_mass_mf_const)(void *ctx, CeedInt Q,
 CEED_QFUNCTION(f_apply_mass_mf_quad)(void *ctx, CeedInt Q,
                                      const CeedScalar *const *in, CeedScalar *const *out)
 {
-   BuildContext *bc = (BuildContext*)ctx;
+   MassContext *bc = (MassContext*)ctx;
    const CeedScalar *c = in[0], *u = in[1], *J = in[2], *qw = in[3];
    CeedScalar *v = out[0];
    switch (10 * bc->dim + bc->vdim)
