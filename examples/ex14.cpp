@@ -37,6 +37,8 @@
 using namespace std;
 using namespace mfem;
 
+double x_exact_approx(const Vector &);
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -47,6 +49,7 @@ int main(int argc, char *argv[])
    double kappa = -1.0;
    double eta = 0.0;
    bool visualization = 1;
+   bool pa = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -55,6 +58,8 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) >= 0.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&sigma, "-s", "--sigma",
                   "One of the three DG penalty parameters, typically +1/-1."
                   " See the documentation of class DGDiffusionIntegrator.");
@@ -104,7 +109,16 @@ int main(int argc, char *argv[])
 
    // 4. Define a finite element space on the mesh. Here we use discontinuous
    //    finite elements of the specified order >= 0.
-   FiniteElementCollection *fec = new DG_FECollection(order, dim);
+   FiniteElementCollection *fec;
+   if(pa)
+   {
+      // Only Gauss-Lobatto and Bernstein basis are supported in L2FaceRestriction.
+      fec = new DG_FECollection(order, dim, BasisType::Positive);
+   }
+   else
+   {
+      fec = new DG_FECollection(order, dim);
+   }
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of unknowns: " << fespace->GetVSize() << endl;
 
@@ -122,6 +136,8 @@ int main(int argc, char *argv[])
    //    corresponding to fespace. Initialize x with initial guess of zero.
    GridFunction x(fespace);
    x = 0.0;
+   FunctionCoefficient f(x_exact_approx);
+   x.ProjectCoefficient(f);
 
    // 7. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
@@ -131,30 +147,69 @@ int main(int argc, char *argv[])
    //    extract the corresponding sparse matrix A.
    BilinearForm *a = new BilinearForm(fespace);
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
-   a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
-   a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+
+   if (pa)
+   {
+      a->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      a->AddInteriorNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa));
+      a->AddBdrNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa));
+   }
+   else
+   {
+      // Default setting
+      a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+   }
+   /*
    if (eta > 0)
    {
       a->AddInteriorFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
       a->AddBdrFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
    }
+   */
    a->Assemble();
    a->Finalize();
-   const SparseMatrix &A = a->SpMat();
 
 #ifndef MFEM_USE_SUITESPARSE
    // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
    //    non-symmetric one.
-   GSSmoother M(A);
-   if (sigma == -1.0)
+   int print_iter = 1;
+   int max_num_iter = 500;
+   double rtol = 1.0e-12;
+   double atol = 0.0; 
+   if(pa)
    {
-      PCG(A, M, *b, x, 1, 500, 1e-12, 0.0);
+      bool set_bc = true;
+      Array<int> ess_tdof_list;
+      if (mesh->bdr_attributes.Size())
+      {
+         Array<int> ess_bdr(mesh->bdr_attributes.Max());
+         ess_bdr = set_bc ? 1 : 0;
+         fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      }
+
+      OperatorPtr A;
+      Vector B, X;
+      a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+
+      OperatorJacobiSmoother M(*a, ess_tdof_list);
+      PCG(*A, M, B, X, print_iter, max_num_iter, rtol, atol );
+
+   }
+   else if (sigma == -1.0)
+   {
+      const SparseMatrix &A = a->SpMat();
+      GSSmoother M(A);
+      PCG(A, M, *b, x, print_iter, max_num_iter, rtol, atol);
    }
    else
    {
-      GMRES(A, M, *b, x, 1, 500, 10, 1e-12, 0.0);
+      const SparseMatrix &A = a->SpMat();
+      GSSmoother M(A);
+      GMRES(A, M, *b, x, print_iter, max_num_iter, 10, rtol, atol);
    }
+
 #else
    // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;
@@ -190,4 +245,21 @@ int main(int argc, char *argv[])
    delete mesh;
 
    return 0;
+}
+
+double x_exact_approx(const Vector &x)
+{
+   int inf = 2;
+   double sum = 0;
+   for( int i = 1 ; i < inf ; i = i+2 )
+      for( int j = 1 ; j < inf ; j = j+2  )
+      {
+         double term = sin(x(0)*M_PI*i)*sin(x(1)*M_PI*j);
+         double coeff = 8.0/(i*i+j*j)/i/j/M_PI/M_PI;
+         sum += coeff*term;
+      }
+   //sum = x(0) + 2.0*x(1); 
+   //sum = 1.0;
+   //sum = exp(-10.0*((x(1)-0.55)*(x(1)-0.55))-5.0*((x(0)-0.35)*(x(0)-0.35)));
+   return sum;
 }
