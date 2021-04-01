@@ -1292,7 +1292,6 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
       offsets[i] = offsets[i - 1];
    }
    offsets[0] = 0;
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 }
 
 void L2FaceRestriction::Mult(const Vector& x, Vector& y) const
@@ -1541,7 +1540,7 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
      scatter_indices1(nf*dof*dof1d),
      scatter_indices2(m==L2FaceValues::DoubleValued?nf*dof*dof1d:0),
      offsets(ndofs+1),
-     gather_indices((m==L2FaceValues::DoubleValued? 2 : 1)*nf*dof)
+     gather_indices((m==L2FaceValues::DoubleValued? 2 : 1)*nf*dof*dof1d)
 {
 }
 
@@ -1584,8 +1583,6 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
          mfem_error("Finite element not suitable for lexicographic ordering");
       }
    }
-
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
@@ -1654,12 +1651,13 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                   const int lid = dof1d*dof*f_ind + dof1d*d + k;
                   scatter_indices2[lid] = -1;
                }
-               std::cout << std::endl;
             }
          }
 
          if (m==L2FaceValues::DoubleValued)
          {
+            // Moved above. Can revert later
+
             /*
             // For double-values face dofs, compute second scatter index
             for (int d = 0; d < dof; ++d)
@@ -1674,10 +1672,6 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                      const int did = face_dof;
                      const int gid = elementMap[e2*elem_dofs + did];
                      const int lid = dof1d*dof*f_ind + dof1d*d + k;
-                     std::cout << " face_dof " << face_dof ;
-                     std::cout << " lid2 " << lid ;
-                     std::cout << " gid2 " << gid ;
-                     std::cout << std::endl;
                      scatter_indices2[lid] = gid;
                   }
                }
@@ -1716,13 +1710,15 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
          face_id2 = inf2 / 64;
          GetNormalDFaceDofStencil(dim, face_id2, dof1d, faceMap2);
          for (int d = 0; d < dof; ++d)
-            for (int k = 0; k < dof; ++k)
+         {
+            for (int k = 0; k < dof1d; ++k)
             {
                // dof should be 1d dof, need to check this for 3D
                const int did = faceMap1[d*dof1d+k];
                const int gid = elementMap[e1*elem_dofs + did];
                ++offsets[gid + 1];
             }
+         }
          if (m==L2FaceValues::DoubleValued)
          {
             for (int d = 0; d < dof; ++d)
@@ -1767,7 +1763,9 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                const int gid = elementMap[e1*elem_dofs + did];
                const int lid = dof1d*dof*f_ind + dof1d*d + k;
                // We don't shift lid to express that it's e1 of f
-               gather_indices[offsets[gid]++] = lid;
+               const int offset = offsets[gid];
+               gather_indices[offset] = lid;
+               offsets[gid]++;
             }
 
          if (m==L2FaceValues::DoubleValued)
@@ -1783,7 +1781,9 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
                      const int gid = elementMap[e2*elem_dofs + did];
                      const int lid = dof1d*dof*f_ind + dof1d*d + k;
                      // We shift lid to express that it's e2 of f
-                     gather_indices[offsets[gid]++] = 2*nfdofs + lid;
+                     const int offset = offsets[gid];
+                     gather_indices[offset] = 2*nfdofs + lid;
+                     offsets[gid]++;
                   }
                }
          }
@@ -1801,7 +1801,6 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
 
 void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
 {
-   //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    // Assumes all elements have the same number of dofs, nd
    const int dim = fes.GetMesh()->SpaceDimension();
    const int nd = (dim==2)? dof*dof : dof*dof*dof ;
@@ -1858,7 +1857,6 @@ void L2FaceNormalDRestriction::Mult(const Vector& x, Vector& y) const
 
 void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
 {
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    // Assumes all elements have the same number of dofs
    const int nd = dof*dof; //this is for 2D, need to generalize for 3D
    const int vd = vdim;
@@ -1869,7 +1867,7 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
 
    if (m == L2FaceValues::DoubleValued)
    {
-      auto d_x = Reshape(x.Read(), dof, dof, vd, 2, nf);
+      auto d_x = Reshape(x.Read(), dof1d, dof, vd, 2, nf);
       auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
       MFEM_FORALL(i, ndofs,
       {
@@ -1883,24 +1881,20 @@ void L2FaceNormalDRestriction::MultTranspose(const Vector& x, Vector& y) const
                int idx_j = d_indices[j];
                bool isE1 = idx_j < dofs;
                // we use e1 e2 but then use D0 D1 in the PA kernel 
-               idx_j = isE1 ? idx_j : idx_j - dofs;
-               {
-                  int s = idx_j % dof1d;
-                  int did = (idx_j/dof1d) % dof1d;
-                  int faceid = idx_j / nd;
-                  double dofValue = isE1 ? 
-                  d_x( s, did, c, 0, faceid )
-                  :d_x( s, did, c, 1, faceid );
-
-                  d_y(t?c:i,t?i:c) += dofValue;
-               }
+               idx_j = isE1 ? idx_j : idx_j - 2*dofs;
+               int s = idx_j % dof1d;
+               int did = (idx_j/dof1d) % dof1d;
+               int faceid = idx_j / nd;
+               double dofValue = isE1 ? 
+               d_x( s, did, c, 0, faceid )
+               :d_x( s, did, c, 1, faceid );
+               d_y(t?c:i,t?i:c) += dofValue;
             }
          }
       });
    }
    else
    {
-      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       mfem_error("not yet implemented.");
    }
 }
