@@ -1128,6 +1128,9 @@ public:
        @note Refinement does not work after a call to this method! */
    virtual void ReorientTetMesh();
 
+   /** TODO */
+   virtual void ReorientBdrElements();
+
    int *CartesianPartitioning(int nxyz[]);
    int *GeneratePartitioning(int nparts, int part_method = 1);
    void CheckPartitioning(int *partitioning);

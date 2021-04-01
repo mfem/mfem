@@ -106,20 +106,26 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels = 0;
+      int ref_levels = 1;
          //(int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
    }
+#if 1
+   // boundary elements still need to be reoriented :-|
+   mesh->ReorientBdrElements();
    mesh->EnsureNCMesh(true);
-   //mesh->ReorientTetMesh();
+#else
+   mesh->ReorientTetMesh();
+#endif
 
    // 5. Define a finite element space on the mesh. Here we use the Nedelec
    //    finite elements of the specified order.
    FiniteElementCollection *fec = new ND_FECollection(order, dim);
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+   cout << "Number of DOFs: " << fespace->GetVSize() << endl;
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
 
@@ -219,13 +225,20 @@ int main(int argc, char *argv[])
    // 15. Send the solution by socket to a GLVis server.
    if (visualization)
    {
+      // project to an L2^dim vector space
+      L2_FECollection d_fec(order, dim, 1);
+      FiniteElementSpace d_fes(mesh, &d_fec, 3);
+      GridFunction d_x(&d_fes);
+      x.ProjectVectorFieldOn(d_x);
+
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *mesh << x << flush;
+      sol_sock << "solution\n" << *mesh << d_x << flush;
       sol_sock << "window_title 'solution'\n";
-      if (dim == 2)
+
+      /*if (dim == 2)
       {
          sol_sock << "keys ARjlmevv\n";
       }
@@ -233,10 +246,10 @@ int main(int argc, char *argv[])
       {
          sol_sock << "keys Amevv\n";
       }
-      sol_sock << "pause\n" << flush;
+      sol_sock << "pause\n" << flush;*/
 
       // visualize basis functions
-      for (int i = 0; i < x.Size(); i++)
+      /*for (int i = 0; i < x.Size(); i++)
       {
          x = 0.0;
          x(i) = 1.0;
@@ -247,7 +260,7 @@ int main(int argc, char *argv[])
          sol_sock << "solution\n" << *mesh << x;
          sol_sock << "window_title '" << title.str() << "'\n";
          sol_sock << "pause\n" << flush;
-      }
+      }*/
    }
 
    // 16. Free the used memory.

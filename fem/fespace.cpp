@@ -957,6 +957,9 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       order2 = GetFaceDofs(face, slave_dofs,  1); // elem2 side
       MFEM_ASSERT(order1 == order2, "");
 
+      MFEM_ASSERT(mesh->GetFaceGeometry(face) == Geometry::TRIANGLE, "");
+      int nfdof = fec->GetNumDof(Geometry::TRIANGLE, order1);
+
       int ori = inf2 % 64;
       MFEM_ASSERT(ori >= 0 && ori < 6, "");
       if (!i) { T.SetFE(&TriangleFE); }
@@ -965,7 +968,8 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       auto *fe = fec->GetFE(Geometry::TRIANGLE, order1);
       fe->GetLocalInterpolation(T, I);
 
-      AddDependencies(deps, master_dofs, slave_dofs, I);
+      int nskip = master_dofs.Size() - nfdof;
+      AddDependencies(deps, master_dofs, slave_dofs, I, nskip);
    }
 
    deps.Finalize();
@@ -1908,11 +1912,14 @@ void FiniteElementSpace::GetDoubleFaces(Array<int> &double_faces) const
             int ori = inf2 % 64;
             if (elem2 >= 0 && ori >= 1 && ori <= 4)
             {
-               // TODO: check orientation and order
+               // TODO: check order
                double_faces.Append(i);
             }
          }
       }
+
+      // DEBUG
+      mfem::out << "### Number of double faces: " << double_faces.Size() << endl;
    }
 }
 

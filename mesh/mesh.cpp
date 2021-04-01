@@ -5860,6 +5860,23 @@ void Mesh::ReorientTetMesh()
    }
 }
 
+void Mesh::ReorientBdrElements()
+{
+   // TODO: maybe there is a safer way to do this
+   for (int i = 0; i < boundary.Size(); i++)
+   {
+      int *bv = boundary[i]->GetVertices();
+      int *fv = faces[be_to_face[i]]->GetVertices();
+
+      // make sure boundary element ordering mirrors that of faces
+      int nv = boundary[i]->GetNVertices();
+      for (int j = 0; j < nv; j++)
+      {
+         bv[j] = fv[j];
+      }
+   }
+}
+
 int *Mesh::CartesianPartitioning(int nxyz[])
 {
    int *partitioning;
