@@ -2425,8 +2425,12 @@ const FiniteElement *FiniteElementSpace::GetFE(int i) const
    MFEM_VERIFY(i < mesh->GetNE(),
                "Invalid element id " << i << ", maximum allowed " << mesh->GetNE()-1);
 
-   const FiniteElement *FE =
-      fec->GetFE(mesh->GetElementGeometry(i), GetElementOrderImpl(i));
+   Geometry::Type geom = mesh->GetElementGeometry(i);
+   const FiniteElement *FE = fec->GetFE(geom, GetElementOrderImpl(i));
+
+   MFEM_VERIFY(FE != NULL, "FiniteElementCollection " << fec->Name()
+               << " does not support element geometry " << geom
+               << " (" << Geometry::Name[geom] << ").");
 
    if (NURBSext)
    {
