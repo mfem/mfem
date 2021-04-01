@@ -181,11 +181,12 @@ public:
       int master; ///< master number (in Mesh numbering)
       unsigned matrix : 24;    ///< index into NCList::point_matrices[geom]
       unsigned edge_flags : 8; ///< orientation flags, see OrientedPointMatrix
+      int orientation;
 
       Slave() = default;
       Slave(int index, int element, int local, int geom)
          : MeshId(index, element, local, geom)
-         , master(-1), matrix(0), edge_flags(0) {}
+         , master(-1), matrix(0), edge_flags(0), orientation(0) {}
    };
 
    /// Lists all edges/faces in the nonconforming mesh.
@@ -634,7 +635,7 @@ protected: // implementation
 
    int ReorderFacePointMat(int v0, int v1, int v2, int v3,
                            int elem, const PointMatrix &pm,
-                           PointMatrix &reordered) const;
+                           PointMatrix &reordered, int &orientation) const;
 
    void TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
                          const PointMatrix& pm, int level, Face* eface[4],
