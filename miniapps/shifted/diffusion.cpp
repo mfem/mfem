@@ -19,9 +19,9 @@
 //   mpirun -np 4 diffusion -m ../../data/inline-quad.mesh -rs 2 -o 1 -vis -lst 3
 //
 //   Problem 4: Complex 2D shape:
-//     mpirun -np 4 diffusion -m ../../data/inline-quad.mesh -rs 5 -o 2 -vis -lst 4 -alpha 2
+//     mpirun -np 4 diffusion -rs 5 -lst 4 -alpha 2
 //
-#include "../../mfem.hpp"
+#include "mfem.hpp"
 #include <fstream>
 #include <iostream>
 #include "sbm-aux.hpp"
@@ -173,7 +173,7 @@ int main(int argc, char *argv[])
       int  visport   = 19916, s = 350;
       socketstream sol_sock;
       common::VisualizeField(sol_sock, vishost, visport, face_dofs,
-                             "Shifted Face Dofs", 0, s, s, s, "Rjmpc");
+                             "Shifted Face Dofs", 0, s, s, s, "Rjmp");
    }
 
    // Make a list of inactive tdofs that will be eleminated from the system.
@@ -191,10 +191,25 @@ int main(int argc, char *argv[])
    if (level_set_type == 4)
    {
       double dx = AvgElementSize(pmesh);
-      HeatDistanceSolver dist_func(1.0 * dx* dx);
+      ParGridFunction filt_gf(&pfespace);
+      PDEFilter *filter = new PDEFilter(pmesh, 2.0 * dx);
+      filter->Filter(dist_fun_level_coef, filt_gf);
+      delete filter;
+      GridFunctionCoefficient ls_filt_coeff(&filt_gf);
+
+      if (visualization)
+      {
+         char vishost[] = "localhost";
+         int  visport   = 19916, s = 350;
+         socketstream sol_sock;
+         common::VisualizeField(sol_sock, vishost, visport, filt_gf,
+                                "Input Level Set", 0, 2*s, s, s, "Rjmm");
+      }
+
+      HeatDistanceSolver dist_func(2.0 * dx* dx);
       dist_func.print_level = 1;
       dist_func.smooth_steps = 1;
-      dist_func.ComputeVectorDistance(dist_fun_level_coef, distance);
+      dist_func.ComputeVectorDistance(ls_filt_coeff, distance);
       dist_vec = new VectorGridFunctionCoefficient(&distance);
    }
    else
@@ -209,7 +224,7 @@ int main(int argc, char *argv[])
       int  visport   = 19916, s = 350;
       socketstream sol_sock;
       common::VisualizeField(sol_sock, vishost, visport, distance,
-                             "Distance Vector", s, s, s, s, "Rjmpcvv", 1);
+                             "Distance Vector", s, s, s, s, "Rjmmpcvv", 1);
    }
 
    // Set up a list to indicate element attributes to be included in assembly,
