@@ -50,7 +50,7 @@ jobs:
 
     - name: Get Hypre
       if: steps.hypre-cache.outputs.cache-hit != 'true'
-      uses: ./mfem/.github/actions/install-hypre
+      uses: mfem/mfem-actions/build-hypre@master
       with:
         hypre-archive: ${{ env.HYPRE_ARCHIVE }}
         hypre-dir: ${{ env.HYPRE_TOP_DIR }}
@@ -64,14 +64,14 @@ jobs:
 
     - name: Install Metis
       if: steps.metis-cache.outputs.cache-hit != 'true'
-      uses: ./mfem/.github/actions/install-metis
+      uses: mfem/mfem-actions/build-metis@master
       with:
         metis-archive: ${{ env.METIS_ARCHIVE }}
         metis-dir: ${{ env.METIS_TOP_DIR }}
 
     # MFEM build and test
     - name: build-mfem
-      uses: ./mfem/.github/actions/build-mfem
+      uses: mfem/mfem-actions/build-mfem@master
       with:
         os: ${{ runner.os }}
         target: optim
