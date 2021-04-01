@@ -88,8 +88,12 @@ static PetscErrorCode MatConvert_hypreParCSR_AIJ(hypre_ParCSRMatrix*,Mat*);
 static PetscErrorCode MatConvert_hypreParCSR_IS(hypre_ParCSRMatrix*,Mat*);
 #endif
 
-#if defined(MFEM_USE_CUDA) && defined(PETSC_HAVE_DEVICE) && defined(PETSC_HAVE_CUDA)
+#if PETSC_VERSION_GE(3,15,0) && defined(PETSC_HAVE_DEVICE)
+#if defined(MFEM_USE_CUDA) && defined(PETSC_HAVE_CUDA)
+#ifndef _USE_DEVICE
 #define _USE_DEVICE
+#endif
+#endif
 #endif
 
 #if defined(PETSC_HAVE_DEVICE)
@@ -1724,6 +1728,7 @@ void PetscParMatrix::SetUpForDevice()
          {
             if (sub[i][j])
             {
+               bool expT = false;
                Mat sA = sub[i][j];
                ierr = PetscObjectTypeCompare((PetscObject)sA,MATSEQAIJ,&isseqaij);
                PCHKERRQ(sA,ierr);
@@ -1733,14 +1738,19 @@ void PetscParMatrix::SetUpForDevice()
                {
                   ierr = MatSetType(sA,MATSEQAIJCUSPARSE); PCHKERRQ(sA,ierr);
                   dvec = true;
+                  expT = true;
                }
                else if (ismpiaij)
                {
                   ierr = MatSetType(sA,MATMPIAIJCUSPARSE); PCHKERRQ(sA,ierr);
                   dvec = true;
+                  expT = true;
                }
-               ierr = MatAIJCUSPARSESetGenerateTranspose(sA,PETSC_TRUE);
-               PCHKERRQ(sA,ierr);
+               if (expT)
+               {
+                  ierr = MatSetOption(sA,MAT_FORM_EXPLICIT_TRANSPOSE,
+                                      PETSC_TRUE); PCHKERRQ(sA,ierr);
+               }
             }
          }
       }
@@ -1751,6 +1761,7 @@ void PetscParMatrix::SetUpForDevice()
    }
    else
    {
+      bool expT = false;
       ierr = PetscObjectTypeCompare((PetscObject)tA,MATSEQAIJ,&isseqaij);
       PCHKERRQ(tA,ierr);
       ierr = PetscObjectTypeCompare((PetscObject)tA,MATMPIAIJ,&ismpiaij);
@@ -1758,13 +1769,18 @@ void PetscParMatrix::SetUpForDevice()
       if (isseqaij)
       {
          ierr = MatSetType(tA,MATSEQAIJCUSPARSE); PCHKERRQ(tA,ierr);
+         expT = true;
       }
       else if (ismpiaij)
       {
          ierr = MatSetType(tA,MATMPIAIJCUSPARSE); PCHKERRQ(tA,ierr);
+         expT = true;
       }
-      ierr = MatAIJCUSPARSESetGenerateTranspose(tA,PETSC_TRUE);
-      PCHKERRQ(tA,ierr);
+      if (expT)
+      {
+         ierr = MatSetOption(tA,MAT_FORM_EXPLICIT_TRANSPOSE,
+                             PETSC_TRUE); PCHKERRQ(tA,ierr);
+      }
    }
 #endif
 }
