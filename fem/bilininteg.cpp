@@ -2743,9 +2743,9 @@ const IntegrationRule &DGDiffusionIntegrator::GetRule(
 }
 
 const IntegrationRule &DGDiffusionIntegrator::GetRuleGrad(
-   Geometry::Type geom, int order)
+   Geometry::Type geom, int order, FaceElementTransformations &T)
 {
-   int int_order = 2*order;
+   int int_order = T.Elem1->OrderW() + 2*order;
    return IntRules.Get(geom, int_order);
 }
 
@@ -2964,10 +2964,10 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
          for (int j = 0; j < i; j++)
          {
             double aij = elmat(i,j), aji = elmat(j,i), mij = jmat(i,j);
-            elmat(i,j) = sigma*aji - aij + mij;
-            elmat(j,i) = sigma*aij - aji + mij;
+            elmat(i,j) = sigma*aji - beta*aij + mij;
+            elmat(j,i) = sigma*aij - beta*aji + mij;
          }
-         elmat(i,i) = (sigma - 1.)*elmat(i,i) + jmat(i,i);
+         elmat(i,i) = (sigma - beta)*elmat(i,i) + jmat(i,i);
       }
    }
    else
@@ -2977,10 +2977,10 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
          for (int j = 0; j < i; j++)
          {
             double aij = elmat(i,j), aji = elmat(j,i);
-            elmat(i,j) = sigma*aji - aij;
-            elmat(j,i) = sigma*aij - aji;
+            elmat(i,j) = sigma*aji - beta*aij;
+            elmat(j,i) = sigma*aij - beta*aji;
          }
-         elmat(i,i) *= (sigma - 1.);
+         elmat(i,i) *= (sigma - beta);
       }
    }
 }
