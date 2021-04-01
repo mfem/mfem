@@ -5505,7 +5505,8 @@ void Mesh::GenerateNCFaceInfo()
 
       slave_fi.NCFace = nc_faces_info.Size();
       slave_fi.Elem2No = master_fi.Elem1No;
-      slave_fi.Elem2Inf = 64 * master_nc.MasterFace; // get lf no. stored above
+      // get lf no. stored above
+      slave_fi.Elem2Inf = 64 * master_nc.MasterFace + slave.orientation;
       // NOTE: In 3D, the orientation part of Elem2Inf is encoded in the point
       //       matrix. In 2D, the point matrix has the orientation of the parent
       //       edge, so its columns need to be flipped when applying it, see
