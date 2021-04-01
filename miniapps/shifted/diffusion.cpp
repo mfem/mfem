@@ -46,7 +46,6 @@ int main(int argc, char *argv[])
    int order = 2;
    bool visualization = true;
    int ser_ref_levels = 0;
-   bool exact = true;
    int level_set_type = 1;
    int ho_terms = 0;
    double alpha = 1;
@@ -63,9 +62,6 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
-   //   args.AddOption(&exact, "-ex", "--exact", "-no-ex",
-   //                  "--no-exact",
-   //                  "Use exact representaion of distance vector function.");
    args.AddOption(&level_set_type, "-lst", "--level-set-type",
                   "level-set-type:");
    args.AddOption(&ho_terms, "-ho", "--high-order",
@@ -319,8 +315,10 @@ int main(int argc, char *argv[])
    a.Assemble();
 
    // Project the exact solution as an initial condition for dirichlet boundaries.
-   x.ProjectCoefficient(*dbcCoef);
-   x = 0.0;
+   x = 0.;
+   Array<int> ess_bdr = ess_shift_bdr;
+   for (int i = 0; i < ess_bdr.Size(); i++) { ess_bdr[i] = 1 - ess_bdr[i]; }
+   x.ProjectBdrCoefficient(*dbcCoef, ess_bdr);
 
    // Form the linear system and solve it.
    OperatorPtr A;
@@ -386,13 +384,7 @@ int main(int argc, char *argv[])
       err(i) = std::fabs(x(i) - exact_val);
    }
 
-   double global_error = err.Norml2();
-   if (myid == 0 && level_set_type != 1 && level_set_type != 4)
-   {
-      std::cout << global_error << " Global error - L2 norm.\n";
-   }
-
-   if (visualization && level_set_type == 3)
+   if (visualization && (level_set_type == 2 || level_set_type == 3))
    {
       char vishost[] = "localhost";
       int  visport   = 19916, s = 350;
@@ -401,20 +393,10 @@ int main(int argc, char *argv[])
                              "Error", 2*s, 0, s, s, "Rj");
    }
 
-   int NEglob = pmesh.GetGlobalNE();
-   double errnorm = x.ComputeL2Error(*dbcCoef);
-   if (level_set_type == 3 && myid == 0)
+   double global_error = x.ComputeL2Error(*dbcCoef);
+   if (myid == 0 && (level_set_type == 2 || level_set_type == 3))
    {
-      ofstream myfile;
-      myfile.open ("error.txt", ios::app);
-      double h_factor = pow(1./2, ser_ref_levels*1.);
-      cout << order << " " <<
-           ho_terms << " " <<
-           h_factor << " " <<
-           errnorm << " " <<
-           NEglob << " " <<
-           "k10-analytic-L2Error\n";
-      myfile.close();
+      std::cout << " Global error - L2 norm: " << global_error << endl;
    }
 
    // Free the used memory.

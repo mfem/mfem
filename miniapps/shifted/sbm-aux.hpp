@@ -12,6 +12,8 @@
 using namespace std;
 using namespace mfem;
 
+/// Analytic distance to the 0 level set. +ve value if the point is inside the
+/// domain, and -ve value if outside.
 double dist_value(const Vector &x, const int type)
 {
    double ring_radius = 0.2;
@@ -28,16 +30,9 @@ double dist_value(const Vector &x, const int type)
       rv = rv > 0 ? pow(rv, 0.5) : 0;
       return rv - ring_radius; // +ve is the domain
    }
-   else if (type == 3)   // walls at y = 0.0 and y = 1.0
+   else if (type == 3)   // walls at y = 0.0
    {
-      if (x(1) > 0.5)
-      {
-         return 1. - x(1);
-      }
-      else
-      {
-         return x(1);
-      }
+      return x(1);
    }
    else if (type == 4)
    {
@@ -73,7 +68,7 @@ double dist_value(const Vector &x, const int type)
    return 0.;
 }
 
-/// Level set coefficient - 1 inside the domain, -1 outside, 0 at the boundary.
+/// Level set coefficient - +1 inside the domain, -1 outside, 0 at the boundary.
 class Dist_Level_Set_Coefficient : public Coefficient
 {
 private:
@@ -121,14 +116,7 @@ public:
       {
          double dist0 = dist_value(x, type);
          p(0) = 0.;
-         if (x(1) > 1. || x(1) < 0.5)
-         {
-            p(1) = -dist0;
-         }
-         else
-         {
-            p(1) = dist0;
-         }
+         p(1) = -dist0;
       }
    }
 };
