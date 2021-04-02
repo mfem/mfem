@@ -21,7 +21,6 @@ list(APPEND ALL_EXE_SRCS
   ex9.cpp
   ex10.cpp
   ex14.cpp
-  ex14new.cpp
   ex15.cpp
   ex16.cpp
   ex17.cpp
