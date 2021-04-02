@@ -171,6 +171,52 @@ int main(int argc, char *argv[])
    a->Assemble();
    a->Finalize();
 
+   // -------------------------------------------
+   // Sanity check (temporary, for debugging)
+   // -------------------------------------------
+   LinearForm *bfull = new LinearForm(fespace);
+   bfull->AddDomainIntegrator(new DomainLFIntegrator(one));
+   bfull->AddBdrFaceIntegrator(
+      new DGDirichletLFIntegrator(zero, one, sigma, kappa));
+   bfull->Assemble();
+   BilinearForm *afull = new BilinearForm(fespace);
+   GridFunction xfull(fespace);
+   xfull.ProjectCoefficient(f);
+
+   afull->SetAssemblyLevel(AssemblyLevel::LEGACYFULL);
+   afull->AddDomainIntegrator(new DiffusionIntegrator(one));   
+   afull->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+   afull->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+   afull->Assemble();
+   afull->Finalize();
+   Vector yout;
+   Vector youtfull;
+   yout = xfull;
+   youtfull = xfull;
+
+   afull->Mult(xfull,youtfull);
+   a->Mult(x,yout);
+
+   Vector ydiff;
+   ydiff = yout;
+   ydiff -= youtfull;
+
+   std::cout << "               yout" << std::endl;
+   yout.Print(mfem::out,1);
+   std::cout << "               youtfull"  << std::endl;
+   youtfull.Print(mfem::out,1);
+   std::cout << "               ydiff" << std::endl;
+   ydiff.Print(mfem::out,1);
+
+   double errnorm = ydiff.Normlinf();
+   std::cout << "               ||ydiff|| = " << std::endl << errnorm << std::endl;
+   exit(1);
+   // -------------------------------------------
+
+
+   std::chrono::time_point<std::chrono::system_clock> StartTime;
+   std::chrono::time_point<std::chrono::system_clock> EndTime;
+
 #ifndef MFEM_USE_SUITESPARSE
    // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
@@ -193,15 +239,26 @@ int main(int argc, char *argv[])
       Vector B, X;
       a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
+      StartTime = std::chrono::system_clock::now();
+
       OperatorJacobiSmoother M(*a, ess_tdof_list);
       PCG(*A, M, B, X, print_iter, max_num_iter, rtol, atol );
 
+      
+      EndTime = std::chrono::system_clock::now();
+      
    }
    else if (sigma == -1.0)
    {
       const SparseMatrix &A = a->SpMat();
       GSSmoother M(A);
+
+      StartTime = std::chrono::system_clock::now();
+
       PCG(A, M, *b, x, print_iter, max_num_iter, rtol, atol);
+
+      EndTime = std::chrono::system_clock::now();
+   
    }
    else
    {
@@ -209,6 +266,11 @@ int main(int argc, char *argv[])
       GSSmoother M(A);
       GMRES(A, M, *b, x, print_iter, max_num_iter, 10, rtol, atol);
    }
+
+   auto time = std::chrono::duration_cast<std::chrono::milliseconds>(EndTime - StartTime).count();
+
+   std::cout << " Timing = " << time << std::endl; 
+               ;
 
 #else
    // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
