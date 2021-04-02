@@ -2388,7 +2388,6 @@ int NCMesh::ReorderFacePointMat(int v0, int v1, int v2, int v3,
    int local = find_local_face(el.Geom(), master[0], master[1], master[2]);
    const int* fv = GI[el.Geom()].faces[local];
 
-   std::cout << "NC face orientation:" << Mesh::GetQuadOrientation(fv, master) << std::endl; 
    orientation = (v3 >= 0) ? Mesh::GetQuadOrientation(master, fv) : Mesh::GetTetOrientation(master, fv);
 
    reordered.np = pm.np;
