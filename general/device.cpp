@@ -20,45 +20,42 @@
 #include <map>
 
 #include "error.hpp"
-#include <cmath>
+#include <math.h>
 
 #include "RAJA/RAJA.hpp"
 
 namespace mfem
 {
+bool actually_check_finite = true;
 template <typename T>
 void CheckFiniteImpl(const T * data, int size, bool on_dev, bool fatal)
 {
 #ifdef __NVCC__
-   RAJA::ReduceSum<RAJA::cuda_reduce, T> count(0);
+   using REDUCE = RAJA::cuda_reduce;
 #else
-   RAJA::ReduceSum<RAJA::seq_reduce, T> count(0);
+   using REDUCE = RAJA::seq_reduce;
 #endif
+   RAJA::ReduceSum<REDUCE, int> non_finite(0);
+   RAJA::ReduceSum<REDUCE, int> nans(0);
+   RAJA::ReduceSum<REDUCE, int> infs(0);
 
-      MFEM_FORALL_SWITCH(on_dev, i, size,
-   {
-#ifdef __NVCC__
-      count += !isfinite(data[i]);
-#else
-#if 1
-      if (!std::isfinite(data[i]))
-      {
-         fprintf(stderr, "!std::isfinite: %f\n", data[i]);
-         count += 1;
+   MFEM_FORALL_SWITCH(on_dev, i, size, {
+      const T v = data[i];
+      if (!isfinite(v)) {
+         non_finite += 1;
+         nans += isnan(v);
+         infs += isinf(v);
       }
-#else
-      count += !std::isfinite(data[i]);
-#endif
-#endif
    });
 
-   int num_bad = count.get();
-   if (num_bad > 0)
+   const int count = non_finite.get();
+   const int nan_count = nans.get();
+   if (count > 0)
    {
-      fprintf(stderr, "mfem::CheckFiniteImpl failed: %d non-finite values\n",
-              num_bad);
-      mfem_backtrace();
-      if (fatal) { exit(1); }
+      fprintf(stderr, "mfem::CheckFiniteImpl failed: %d non-finite values: "
+                      "%d nans and %d infs\n", count, nan_count, infs.get());
+      mfem_backtrace(1);
+      if (nan_count > 0 && fatal) { exit(1); }
    }
 }
 

@@ -17,6 +17,7 @@
 
 namespace mfem
 {
+   extern bool actually_check_finite;
 
 /// MFEM backends.
 /** Individual backends will generally implement only a subset of the kernels
@@ -327,7 +328,7 @@ template <typename T>
 inline const T *Read(const Memory<T> &mem, int size, bool on_dev = true)
 {
    const T * data =  mem.Read(GetMemoryClass(mem, on_dev), size);
-   CheckFinite<T>(data, size, on_dev);
+   if (actually_check_finite) { CheckFinite<T>(data, size, on_dev); }
    return data;
 }
 
@@ -346,7 +347,7 @@ template <typename T>
 inline T *Write(Memory<T> &mem, int size, bool on_dev = true)
 {
    T * data =  mem.Write(GetMemoryClass(mem, on_dev), size);
-   //CheckFinite<T>(data, size, on_dev);
+   if (actually_check_finite) { CheckFinite<T>(data, size, on_dev); }
    return data;
 }
 
@@ -365,7 +366,7 @@ template <typename T>
 inline T *ReadWrite(Memory<T> &mem, int size, bool on_dev = true)
 {
    T * data = mem.ReadWrite(GetMemoryClass(mem, on_dev), size);
-   CheckFinite<T>(data, size, on_dev);
+   if (actually_check_finite) { CheckFinite<T>(data, size, on_dev); }
    return data;
 }
 
