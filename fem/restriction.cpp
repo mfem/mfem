@@ -1567,14 +1567,14 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
                            y_min = b < y_min ? b : y_min;
                            y_max = b > y_max ? b : y_max;
                         }
-                        bool invert_x = false;
+                        bool invert_x = face_id2==3 || face_id2==4;
                         if (invert_x)
                         {
                            const double piv = x_min;
                            x_min = 1-x_max;
                            x_max = 1-piv;
                         }
-                        bool invert_y = false;
+                        bool invert_y = face_id2==0;
                         if (invert_y)
                         {
                            const double piv = y_min;
@@ -1729,24 +1729,18 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
    offsets[0] = 0;
    // Transform the interpolation matrix map into a contiguous memory structure.
    nc_size = interp_map.size();
-   std::cout << (type==FaceType::Interior? "interior" : "boundary") <<
-      "NC config size = " << nc_size << std::endl;
    interpolators.SetSize(dof*dof*nc_size);
    auto interp = Reshape(interpolators.HostWrite(),dof,dof,nc_size);
    for (auto val : interp_map)
    {
       const int idx = val.second.first;
-      std::cout << "Mat idx = " << idx << std::endl;
       for (int i = 0; i < dof; i++)
       {
          for (int j = 0; j < dof; j++)
          {
             interp(i,j,idx) = (*val.second.second)(i,j);
-            std::cout << interp(i,j,idx) << " ";
          }
-         std::cout << std::endl;
       }
-      std::cout << std::endl;
       delete val.second.second;
    }
 }
