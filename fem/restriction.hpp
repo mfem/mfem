@@ -188,12 +188,12 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const;
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
        given by this L2FaceRestriction. */
-   virtual void FillI(SparseMatrix &mat, SparseMatrix &face_mat) const;
+   virtual void FillI(SparseMatrix &mat, const bool keep_nbr_block = false) const;
    /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
        pattern given by this L2FaceRestriction, and the values of ea_data. */
    virtual void FillJAndData(const Vector &ea_data,
                              SparseMatrix &mat,
-                             SparseMatrix &face_mat) const;
+                             const bool keep_nbr_block = false) const;
    /// This methods adds the DG face matrices to the element matrices.
    void AddFaceMatricesToElementMatrices(Vector &fea_data,
                                          Vector &ea_data) const;
