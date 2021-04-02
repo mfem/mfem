@@ -4565,6 +4565,15 @@ bool CoarseFineTransformations::IsInitialized() const
    return false;
 }
 
+void Swap(CoarseFineTransformations &a, CoarseFineTransformations &b)
+{
+   for (int g=0; g<Geometry::NumGeom; ++g)
+   {
+      a.point_matrices[g].Swap(b.point_matrices[g]);
+   }
+   Swap(a.embeddings, b.embeddings);
+}
+
 
 //// SFC Ordering //////////////////////////////////////////////////////////////
 

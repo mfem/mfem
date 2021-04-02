@@ -75,6 +75,8 @@ struct CoarseFineTransformations
    long MemoryUsage() const;
 };
 
+void Swap(CoarseFineTransformations &a, CoarseFineTransformations &b);
+
 struct MatrixMap; // for internal use
 
 
