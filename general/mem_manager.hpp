@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -911,7 +911,7 @@ inline void Memory<T>::CopyFrom(const Memory &src, int size)
    {
       if (h_ptr != src.h_ptr && size != 0)
       {
-         MFEM_ASSERT(h_ptr + size <= src || src + size <= h_ptr,
+         MFEM_ASSERT(h_ptr + size <= src.h_ptr || src.h_ptr + size <= h_ptr,
                      "data overlaps!");
          std::memcpy(h_ptr, src, size*sizeof(T));
       }

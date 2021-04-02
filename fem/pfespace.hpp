@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -268,7 +268,7 @@ public:
 
    /** Returns the indexes of the degrees of freedom for i'th face
        including the dofs for the edges and the vertices of the face. */
-   virtual void GetFaceDofs(int i, Array<int> &dofs) const;
+   virtual int GetFaceDofs(int i, Array<int> &dofs, int variant = 0) const;
 
    /** Returns pointer to the FiniteElement in the FiniteElementCollection
        associated with i'th element in the mesh object. If @a i is greater than
