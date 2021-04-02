@@ -1939,14 +1939,14 @@ void NCL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
 }
 
 void NCL2FaceRestriction::FillI(SparseMatrix &mat,
-                                SparseMatrix &face_mat) const
+                                const bool keep_nbr_block) const
 {
    MFEM_ABORT("Not yet implemented.");
 }
 
 void NCL2FaceRestriction::FillJAndData(const Vector &ea_data,
                                      SparseMatrix &mat,
-                                     SparseMatrix &face_mat) const
+                                     const bool keep_nbr_block) const
 {
    MFEM_ABORT("Not yet implemented.");
 }
