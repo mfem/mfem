@@ -42,7 +42,7 @@ double x_exact_approx(const Vector &);
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "../data/inline-quad.mesh";
    int ref_levels = -1;
    int order = 1;
    double sigma = -1.0;
@@ -50,6 +50,7 @@ int main(int argc, char *argv[])
    double eta = 0.0;
    bool visualization = 1;
    bool pa = false;
+   bool set_bc = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -66,6 +67,8 @@ int main(int argc, char *argv[])
    args.AddOption(&kappa, "-k", "--kappa",
                   "One of the three DG penalty parameters, should be positive."
                   " Negative values are replaced with (order+1)^2.");
+   args.AddOption(&set_bc, "-bc", "--impose-bc", "-no-bc", "--dont-impose-bc",
+                  "Impose or not essential boundary conditions.");
    args.AddOption(&eta, "-e", "--eta", "BR2 penalty parameter.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -154,19 +157,17 @@ int main(int argc, char *argv[])
       a->AddInteriorNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa));
       a->AddBdrNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa));
    }
+   else if (eta > 0)
+   {
+      a->AddInteriorFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
+      a->AddBdrFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
+   }
    else
    {
       // Default setting
       a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
       a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
    }
-   /*
-   if (eta > 0)
-   {
-      a->AddInteriorFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
-      a->AddBdrFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
-   }
-   */
    a->Assemble();
    a->Finalize();
 
@@ -180,7 +181,6 @@ int main(int argc, char *argv[])
    double atol = 0.0; 
    if(pa)
    {
-      bool set_bc = true;
       Array<int> ess_tdof_list;
       if (mesh->bdr_attributes.Size())
       {
@@ -247,6 +247,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
+// Temporary, 
 double x_exact_approx(const Vector &x)
 {
    int inf = 2;
