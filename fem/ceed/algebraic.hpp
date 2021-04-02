@@ -181,10 +181,14 @@ public:
 
        This only works if the Ceed device backend is enabled.
 
-       @param[in] hierarchy  Hierarchy of (algebraic) spaces
-       @param[in] form       partially assembled BilinearForm on finest level
-       @param[in] ess_tdofs  List of essential true dofs on finest level
-       @param[in] contrast_threshold Determine how aggressively to coarsen
+       @param hierarchy   Hierarchy of (algebraic) spaces
+       @param form        Partially assembled BilinearForm on finest level
+       @param ess_tdofs   List of essential true dofs on finest level
+       @param print_level How verbose about output / adaptive coarsening
+       @param contrast_threshold Determine how aggressively to coarsen
+       @param switch_amg_order   When to fully assemble and use AMG
+       @param collocate_coarse   Whether to collocate quadrature on coarse levels
+       @param amgx_config_file   Custom configuration for AMGx
    */
    AlgebraicMultigrid(
       AlgebraicSpaceHierarchy &hierarchy,
@@ -193,6 +197,7 @@ public:
       int print_level=1,
       double contrast_threshold=1000.0,
       int switch_amg_order=2,
+      bool collocate_coarse=true,
       const std::string amgx_config_file=""
    );
    virtual void SetOperator(const mfem::Operator &op) override { }

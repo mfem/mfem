@@ -383,6 +383,7 @@ AlgebraicMultigrid::AlgebraicMultigrid(
    int print_level,
    double contrast_threshold,
    int switch_amg_order,
+   bool collocate_coarse,
    const std::string amgx_config_file
 ) : GeometricMultigrid(hierarchy)
 {
@@ -430,7 +431,6 @@ AlgebraicMultigrid::AlgebraicMultigrid(
 
       AlgebraicCoarseSpace &space = hierarchy.GetAlgebraicCoarseSpace(0);
       int qor = order_reduction;
-      const bool collocate_coarse = true;
       if (collocate_coarse)
       {
          if (level_counter == 0)
