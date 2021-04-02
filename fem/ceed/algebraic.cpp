@@ -392,6 +392,18 @@ AlgebraicMultigrid::AlgebraicMultigrid(
    essentialTrueDofs.Prepend(new Array<int>);
    *essentialTrueDofs[0] = ess_tdofs;
 
+   int myid = 0;
+#ifdef MFEM_USE_MPI
+   ParFiniteElementSpace *pfes =
+      dynamic_cast<ParFiniteElementSpace*>(&hierarchy.GetFESpaceAtLevel(0));
+   MPI_Comm comm = MPI_COMM_SELF;
+   if (pfes)
+   {
+      comm = pfes->GetComm();
+      MPI_Comm_rank(comm, &myid);
+   }
+#endif
+
    int current_order = hierarchy.GetFESpaceAtLevel(0).GetOrder(0);
    int level_counter = 0;
    // Construct interpolation, operators, at all levels of hierarchy by coarsening
@@ -399,9 +411,12 @@ AlgebraicMultigrid::AlgebraicMultigrid(
    {
       double minq, maxq, absmin;
       CeedOperatorGetHeuristics(ceed_operators[0], &minq, &maxq, &absmin);
-      double heuristic = std::max(std::abs(minq), std::abs(maxq)) / absmin;
-      // TODO: in principle we need to communicate heuristic (or order reduction)
-      // across processors!
+      double local_heuristic = std::max(std::abs(minq), std::abs(maxq)) / absmin;
+      double heuristic = local_heuristic;
+#ifdef MFEM_USE_MPI
+      MPI_Allreduce(&local_heuristic, &heuristic, 1, MPI_DOUBLE,
+                    MPI_MAX, comm);
+#endif
 
       int order_reduction;
       if (heuristic > contrast_threshold && current_order <= switch_amg_order)
@@ -418,9 +433,9 @@ AlgebraicMultigrid::AlgebraicMultigrid(
       {
          order_reduction = current_order - (current_order/2);
       }
-      if (print_level > 0)
+
+      if (print_level > 0 && myid == 0)
       {
-         // TODO: only print one processor parallel
          mfem::out << "  level: " << level_counter << " heuristic = "
                    << heuristic << ", coarsening from order "
                    << current_order << " to "
