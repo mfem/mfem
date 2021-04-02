@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -619,12 +619,24 @@ public:
    {
       Destroy();
 #ifdef MFEM_USE_CUDA
-      if (handle && SparseMatrixCount==1 && Device::Allows(Backend::CUDA_MASK))
+      if (useCuSparse)
       {
-         cusparseDestroy(handle);
-         CuMemFree(dBuffer);
+         if (SparseMatrixCount==1)
+         {
+            if (handle)
+            {
+               cusparseDestroy(handle);
+               handle = nullptr;
+            }
+            if (dBuffer)
+            {
+               CuMemFree(dBuffer);
+               dBuffer = nullptr;
+               bufferSize = 0;
+            }
+         }
+         SparseMatrixCount--;
       }
-      SparseMatrixCount--;
 #endif
    }
 
