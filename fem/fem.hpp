@@ -42,6 +42,7 @@
 #include "fespacehierarchy.hpp"
 #include "multigrid.hpp"
 #include "paramnonlinearform.hpp"
+#include "ceed/algebraic.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"

@@ -92,6 +92,9 @@ public:
        called. */
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 
+   /// Indicates whether this integrator can use a Ceed backend.
+   virtual bool SupportsCeed() const { return false; }
+
    /// Method defining fully unassembled operator.
    virtual void AssembleMF(const FiniteElementSpace &fes);
 
@@ -102,6 +105,8 @@ public:
        This method can be called only after the method AssembleMF() has been
        called. */
    virtual void AddMultMF(const Vector &x, Vector &y) const;
+
+   ceed::Operator& GetCeedOp() { return *ceedOp; }
 
    virtual ~NonlinearFormIntegrator()
    {
