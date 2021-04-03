@@ -9714,6 +9714,14 @@ void L2Pos_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
       }
 }
 
+void L2Pos_QuadrilateralElement::Calc1DShape(IntegrationPoint &ip,
+                                             Vector &shape,
+                                             Vector &dshape) const
+{
+   const int p = order;
+   Poly_1D::CalcBernstein(p, ip.x, shape, dshape);
+}
+
 void L2Pos_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
 {
    const int p = order;
