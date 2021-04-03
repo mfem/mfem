@@ -48,6 +48,9 @@ set(SRCS
   gridfunc.cpp
   hybridization.cpp
   intrules.cpp
+  ceed/algebraic.cpp
+  ceed/full-assembly.cpp
+  ceed/solvers-atpmg.cpp
   ceed/convection.cpp
   ceed/diffusion.cpp
   ceed/nlconvection.cpp
@@ -92,6 +95,9 @@ set(HDRS
   gridfunc.hpp
   hybridization.hpp
   intrules.hpp
+  ceed/algebraic.hpp
+  ceed/full-assembly.hpp
+  ceed/solvers-atpmg.hpp
   ceed/coefficient.hpp
   ceed/convection.hpp
   ceed/diffusion.hpp
