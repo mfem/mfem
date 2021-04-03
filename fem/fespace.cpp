@@ -357,10 +357,11 @@ void FiniteElementSpace::BuildDofToArrays()
       const int n = elem_dof -> RowSize(i);
       for (int j = 0; j < n; j++)
       {
-         if (dof_elem_array[dofs[j]] < 0)
+         int dof = (dofs[j] >= 0) ? dofs[j] : - dofs[j] - 1;
+         if (dof_elem_array[dof] < 0)
          {
-            dof_elem_array[dofs[j]] = i;
-            dof_ldof_array[dofs[j]] = j;
+            dof_elem_array[dof] = i;
+            dof_ldof_array[dof] = j;
          }
       }
    }
