@@ -2759,10 +2759,11 @@ protected:
    // PA extension
    // todo: check which of these I actually need
    const DofToQuad *maps;                 ///< Not owned
-   const DofToQuad *maps_grad;            ///< Not owned
    const FaceGeometricFactors *facegeom;  ///< Not owned
    const GeometricFactors *geom;          ///< Not owned
    
+   Vector bf, gf; // Restriction to face
+
    int dim, sdim, ne, nf, dofs1D, quad1D;
    // Coefficient data for the 1st 2nd and 3rd term
    Vector coeff_data_1;
@@ -2782,7 +2783,7 @@ protected:
                                          FaceElementTransformations &T);
 
 public:
-   // Q = 1 (right?)
+   // Q = 1
    DGDiffusionIntegrator(const double s, const double k)
       : Q(NULL), MQ(NULL), sigma(s), kappa(k) { }
    // Q is some scalar diffusion coefficient
