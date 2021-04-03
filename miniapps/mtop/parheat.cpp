@@ -105,16 +105,16 @@ int main(int argc, char *argv[])
       args.PrintOptions(std::cout);
    }
 
-   //    Read the (serial) mesh from the given mesh file on all processors.  We
-   //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
-   //    and volume meshes with the same code.
+   // Read the (serial) mesh from the given mesh file on all processors.  We
+   // can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
+   // and volume meshes with the same code.
    mfem::Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   //    Refine the serial mesh on all processors to increase the resolution. In
-   //    this example we do 'ref_levels' of uniform refinement. We choose
-   //    'ref_levels' to be the largest number that gives a final mesh with no
-   //    more than 10,000 elements.
+   // Refine the serial mesh on all processors to increase the resolution. In
+   // this example we do 'ref_levels' of uniform refinement. We choose
+   // 'ref_levels' to be the largest number that gives a final mesh with no
+   // more than 10,000 elements.
    {
       int ref_levels =
          (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
@@ -124,9 +124,9 @@ int main(int argc, char *argv[])
       }
    }
 
-   //    Define a parallel mesh by a partitioning of the serial mesh. Refine
-   //    this mesh further in parallel to increase the resolution. Once the
-   //    parallel mesh is defined, the serial mesh can be deleted.
+   // Define a parallel mesh by a partitioning of the serial mesh. Refine
+   // this mesh further in parallel to increase the resolution. Once the
+   // parallel mesh is defined, the serial mesh can be deleted.
    mfem::ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
    {
@@ -136,21 +136,21 @@ int main(int argc, char *argv[])
       }
    }
 
-   // Define the Diffusion coefficient
+   // Define the Diffusion coefficient.
    mfem::ConstantCoefficient* diffco=new mfem::ConstantCoefficient(1.0);
-   // Define the Heat source
+   // Define the Heat source.
    mfem::ConstantCoefficient* loadco=new mfem::ConstantCoefficient(1.0);
-   // Define the q-function
+   // Define the q-function.
    mfem::QLinearDiffusion* qfun=new mfem::QLinearDiffusion(*diffco,*loadco,1.0,1e-7,4.0,0.5);
 
-   // Define FE collection and space for the state solution
+   // Define FE collection and space for the state solution.
    mfem::H1_FECollection sfec(order, dim);
    mfem::ParFiniteElementSpace* sfes=new mfem::ParFiniteElementSpace(&pmesh,&sfec,1);
-   // Define FE collection and space for the density field
+   // Define FE collection and space for the density field.
    mfem::L2_FECollection pfec(order, dim);
    mfem::ParFiniteElementSpace* pfes=new mfem::ParFiniteElementSpace(&pmesh,&pfec,1);
 
-   // Define the arrays for the nonlinear form
+   // Define the arrays for the nonlinear form.
    mfem::Array<mfem::ParFiniteElementSpace*> asfes;
    mfem::Array<mfem::ParFiniteElementSpace*> apfes;
 
@@ -158,20 +158,20 @@ int main(int argc, char *argv[])
    apfes.Append(pfes);
 
    // Define parametric block nonlinear form using single scalar H1 field
-   // and L2 scalar density field
+   // and L2 scalar density field.
    mfem::ParParametricBNLForm* nf=new mfem::ParParametricBNLForm(asfes,apfes);
-   // add the parametric integrator
+   // Add a parametric integrator.
    nf->AddDomainIntegrator(new mfem::ParametricLinearDiffusion(*qfun));
 
-   // Define true block vectors for state, adjoint, resudual
+   // Define true block vectors for state, adjoint, resudual.
    mfem::BlockVector solbv; solbv.Update(nf->GetBlockTrueOffsets());    solbv=0.0;
    mfem::BlockVector adjbv; adjbv.Update(nf->GetBlockTrueOffsets());    adjbv=0.0;
    mfem::BlockVector resbv; resbv.Update(nf->GetBlockTrueOffsets());    resbv=0.0;
-   // Define true block vectors for parametric field and gradients
+   // Define true block vectors for parametric field and gradients.
    mfem::BlockVector prmbv; prmbv.Update(nf->ParamGetBlockTrueOffsets()); prmbv=0.0;
    mfem::BlockVector grdbv; grdbv.Update(nf->ParamGetBlockTrueOffsets()); grdbv=0.0;
 
-   //set the BC for the physics
+   // Set the BCs for the physics.
    mfem::Array<mfem::Array<int> *> ess_bdr;
    mfem::Array<mfem::Vector*>      ess_rhs;
    ess_bdr.Append(new mfem::Array<int>(pmesh.bdr_attributes.Max()));
@@ -180,23 +180,23 @@ int main(int argc, char *argv[])
    nf->SetEssentialBC(ess_bdr,ess_rhs);
    delete ess_bdr[0];
 
-   // set the density field to 0.5
+   // Set the density field to 0.5.
    prmbv=0.5;
-   // set the density as parametric field in the parametric BNLForm
+   // Set the density as parametric field in the parametric BNLForm.
    nf->SetParamFields(prmbv); //set the density
 
-   // compute the stiffness/tangent matrix for density prmbv=0.5
+   // Compute the stiffness/tangent matrix for density prmbv=0.5.
    mfem::BlockOperator& A=nf->GetGradient(solbv);
    mfem::HypreBoomerAMG* prec=new mfem::HypreBoomerAMG();
    prec->SetPrintLevel(print_level);
-   // use only block (0,0) as in this case we have a single field
+   // Use only block (0,0) as in this case we have a single field.
    prec->SetOperator(A.GetBlock(0,0));
 
-   // construct block preconditioner for the BNLForm
+   // Construct block preconditioner for the BNLForm.
    mfem::BlockDiagonalPreconditioner *blpr = new mfem::BlockDiagonalPreconditioner(nf->GetBlockTrueOffsets());
    blpr->SetDiagonalBlock(0,prec);
 
-   //define the solvers
+   // Define the solvers.
    mfem::GMRESSolver *gmres;
    gmres = new mfem::GMRESSolver(MPI_COMM_WORLD);
    gmres->SetAbsTol(newton_abs_tol/10);
@@ -207,35 +207,34 @@ int main(int argc, char *argv[])
    gmres->SetOperator(A);
 
 
-   // solve the problem
+   // Solve the problem.
    solbv=0.0;
    nf->Mult(solbv,resbv); resbv.Neg(); //compute RHS
-   // linear system solve
    gmres->Mult(resbv, solbv);
 
-   // Compute the energy of the state system
+   // Compute the energy of the state system.
    double energy = nf->GetEnergy(solbv);
    if(myrank==0){
        std::cout<<"energy ="<< energy<<std::endl;
    }
 
    // Define the block nonlinear form utilized for
-   // representing the objective - use the state array from the BNLForm
+   // representing the objective - use the state array from the BNLForm.
    mfem::ParBlockNonlinearForm* ob=new mfem::ParBlockNonlinearForm(asfes);
-   // Add the integrator for the objective
+   // Add the integrator for the objective.
    ob->AddDomainIntegrator(new mfem::DiffusionObjIntegrator());
 
-   // Compute the objective
+   // Compute the objective.
    double obj=ob->GetEnergy(solbv);
    if(myrank==0){
        std::cout<<"Objective ="<<obj<<std::endl;
    }
 
-   //Solve the adjoint
+   // Solve the adjoint.
    {
        mfem::BlockVector adjrhs; adjrhs.Update(nf->GetBlockTrueOffsets());  adjrhs=0.0;
        // Compute the RHS for the adjoint, i.e., the gradients with respect to
-       // the parametric fields
+       // the parametric fields.
        ob->Mult(solbv, adjrhs);
        // Get the tangent matrix from the state problem.
        // We do not need to transpose the operator for diffusion.
@@ -243,21 +242,21 @@ int main(int argc, char *argv[])
        gmres->Mult(adjrhs, adjbv);
    }
 
-   // Compute gradients
-   // First set the adjoint field
+   // Compute gradients.
+   // First set the adjoint field.
    nf->SetAdjointFields(adjbv);
-   // Set the state field
+   // Set the state field.
    nf->SetStateFields(solbv);
-   // Call the parametric Mult
+   // Call the parametric Mult.
    nf->ParamMult(prmbv, grdbv);
 
-   //Dump out the data
+   // Dump out the data.
    if(visualization)
    {
        mfem::ParaViewDataCollection *dacol=new mfem::ParaViewDataCollection("ParHeat",&pmesh);
        mfem::ParGridFunction gfgrd(pfes); gfgrd.SetFromTrueDofs(grdbv.GetBlock(0));
        mfem::ParGridFunction gfdns(pfes); gfdns.SetFromTrueDofs(prmbv.GetBlock(0));
-       // Define state grid function
+       // Define state grid function.
        mfem::ParGridFunction gfsol(sfes); gfsol.SetFromTrueDofs(solbv.GetBlock(0));
        mfem::ParGridFunction gfadj(sfes); gfadj.SetFromTrueDofs(adjbv.GetBlock(0));
 
@@ -274,7 +273,7 @@ int main(int argc, char *argv[])
        delete dacol;
    }
 
-   //FD check
+   // FD check
    {
        mfem::BlockVector prtbv;
        mfem::BlockVector tmpbv;
@@ -297,7 +296,7 @@ int main(int argc, char *argv[])
            prtbv/=10.0;
            add(prmbv,prtbv,tmpbv);
            nf->SetParamFields(tmpbv);
-           //solve the physics
+           // Solve the physics.
            solbv=0.0;
            nf->Mult(solbv,resbv); resbv.Neg(); //compute RHS
            A=nf->GetGradient(solbv);
@@ -306,11 +305,11 @@ int main(int argc, char *argv[])
            gmres->SetOperator(A);
            gmres->SetPrintLevel(0);
            gmres->Mult(resbv,solbv);
-           //compute the objective
+           // Compute the objective.
            lQoI=ob->GetEnergy(solbv);
            double ld=(lQoI-gQoI)/lsc;
            if(myrank==0){
-            std::cout<<"dx="<<lsc<<" DLQoI="<<ld/nd<<" DGQoI="<<td<<" err="<<std::fabs(ld/nd-td);
+            std::cout<<"dx="<<lsc<<" FD approximation="<<ld/nd<<" adjoint gradient="<<td<<" err="<<std::fabs(ld/nd-td);
             std::cout<<std::endl;
            }
        }

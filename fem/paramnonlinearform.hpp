@@ -35,7 +35,6 @@ protected:
    int paramheight;
    int paramwidth;
 
-
    /// Set of Domain Integrators to be assembled (added).
    Array<ParametricBNLFormIntegrator*> dnfi;
 
@@ -51,7 +50,6 @@ protected:
    mutable BlockVector xs, ys;
    mutable BlockVector prmxs, prmys;
 
-
    /** Auxiliary block-vectors for holding
           GridFunction-like block-vector data (e.g. in parallel). */
    mutable BlockVector xsv;
@@ -64,7 +62,6 @@ protected:
           GridFunction-like block-vector data for the adjoint fields
                                                (e.g. in parallel). */
    mutable BlockVector adv;
-
 
    mutable Array2D<SparseMatrix*> Grads, cGrads;
    mutable BlockOperator *BlockGrad;
@@ -94,7 +91,6 @@ protected:
    /// Array of results of dynamic-casting Pparam to SparseMatrix pointer
    Array<const SparseMatrix *> cPparam;
 
-
    /// Indicator if the Operator is part of a parallel run
    bool is_serial = true;
 
@@ -103,7 +99,6 @@ protected:
 
    /// Indicator if the Operator needs prolongation on assembly
    bool prmneeds_prolongation = false;
-
 
    mutable BlockVector aux1, aux2;
 
@@ -130,7 +125,6 @@ protected:
 
 
    /// Specialized version of GetGradient() for BlockVector
-   //void ComputeGradientBlocked(const BlockVector &bx) const;
    void ComputeGradientBlocked(const BlockVector &bx, const BlockVector &dx) const;
 
 public:
@@ -218,8 +212,6 @@ public:
 
    /// Set the parameters/design fields
    virtual void SetParamFields(const Vector &dv) const;
-
-
 
    /// Destructor.
    virtual ~ParametricBNLForm();
