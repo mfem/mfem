@@ -1551,6 +1551,9 @@ L2FaceNormalDRestriction::L2FaceNormalDRestriction(const FiniteElementSpace &fes
    : L2FaceNormalDRestriction(fes, type, m)
 {
 
+   // TODO [optimization]: There might be a way to rduce the needed copies.
+   // Would it work to just perform soft copies and save the hard copies until quadrature time?
+
    // If fespace == L2
    const FiniteElement *fe = fes.GetFE(0);
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
