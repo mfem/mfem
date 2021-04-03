@@ -189,28 +189,98 @@ int main(int argc, char *argv[])
    afull->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
    afull->Assemble();
    afull->Finalize();
-   Vector yout;
-   Vector youtfull;
-   yout = xfull;
-   youtfull = xfull;
+   // -------------------------------------------
+   // Test the full operator
+   {
+      int print_iter = 1;
+      int max_num_iter = 500;
+      double rtol = 1.0e-12;
+      double atol = 0.0; 
+      Array<int> ess_tdof_list;
+      if (mesh->bdr_attributes.Size())
+      {
+         Array<int> ess_bdr(mesh->bdr_attributes.Max());
+         ess_bdr = set_bc ? 1 : 0;
+         fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      }
+      OperatorPtr Afull;
+      Vector Bfull, Xfull;
+      
+      afull->FormLinearSystem(ess_tdof_list, xfull, *bfull, Afull, Xfull, Bfull);
+      //OperatorJacobiSmoother Mfull(*afull, ess_tdof_list);
+      
+      CG(*Afull, Bfull, Xfull, print_iter, max_num_iter, rtol, atol );
+      //exit(1);
+   }
+   // -------------------------------------------
+   // Test the invoked operator
+   {
+      int print_iter = 1;
+      int max_num_iter = 29;
+      double rtol = 1.0e-12;
+      double atol = 0.0; 
+      Array<int> ess_tdof_list;
+      if (mesh->bdr_attributes.Size())
+      {
+         Array<int> ess_bdr(mesh->bdr_attributes.Max());
+         ess_bdr = set_bc ? 1 : 0;
+         fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      }
+      OperatorPtr A;
+      Vector B, X;
+      
+      a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+      //OperatorJacobiSmoother M(*a, ess_tdof_list);
+      // M
+      CG(*A, B, X, print_iter, max_num_iter, rtol, atol );
+      exit(1);
+   }   
+   // -------------------------------------------
+   // Diff the operators
+   {
+      Vector yout;
+      Vector youtfull;
+      yout = xfull;
+      youtfull = xfull;
 
-   afull->Mult(xfull,youtfull);
-   a->Mult(x,yout);
+      x.ProjectCoefficient(f);
+      xfull.ProjectCoefficient(f);
 
-   Vector ydiff;
-   ydiff = yout;
-   ydiff -= youtfull;
+      std::chrono::time_point<std::chrono::system_clock> StartTime;
+      std::chrono::time_point<std::chrono::system_clock> EndTime;
 
-   std::cout << "               yout" << std::endl;
-   yout.Print(mfem::out,1);
-   std::cout << "               youtfull"  << std::endl;
-   youtfull.Print(mfem::out,1);
-   std::cout << "               ydiff" << std::endl;
-   ydiff.Print(mfem::out,1);
+      StartTime = std::chrono::system_clock::now();
+      afull->Mult(xfull,youtfull);
+      EndTime = std::chrono::system_clock::now();
 
-   double errnorm = ydiff.Normlinf();
-   std::cout << "               ||ydiff|| = " << std::endl << errnorm << std::endl;
-   exit(1);
+      auto timefull = std::chrono::duration_cast<std::chrono::microseconds>(EndTime - StartTime).count();
+
+      StartTime = std::chrono::system_clock::now();
+
+      a->Mult(x,yout);
+
+      EndTime = std::chrono::system_clock::now();
+
+      auto timex = std::chrono::duration_cast<std::chrono::microseconds>(EndTime - StartTime).count();
+
+      std::cout << " Timing full = " << timefull << std::endl; 
+      std::cout << " Timing      = " << timex << std::endl; 
+
+      Vector ydiff;
+      ydiff = yout;
+      ydiff -= youtfull;
+
+      std::cout << "               yout" << std::endl;
+      yout.Print(mfem::out,1);
+      std::cout << "               youtfull"  << std::endl;
+      youtfull.Print(mfem::out,1);
+      std::cout << "               ydiff" << std::endl;
+      ydiff.Print(mfem::out,1);
+
+      double errnorm = ydiff.Normlinf();
+      std::cout << "               ||ydiff|| = " << std::endl << errnorm << std::endl;
+      exit(1);
+   }
    // -------------------------------------------
 
 
@@ -267,10 +337,9 @@ int main(int argc, char *argv[])
       GMRES(A, M, *b, x, print_iter, max_num_iter, 10, rtol, atol);
    }
 
-   auto time = std::chrono::duration_cast<std::chrono::milliseconds>(EndTime - StartTime).count();
+   auto time = std::chrono::duration_cast<std::chrono::microseconds>(EndTime - StartTime).count();
 
    std::cout << " Timing = " << time << std::endl; 
-               ;
 
 #else
    // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
