@@ -76,7 +76,7 @@ static void PADGDiffusionSetup2D(const int Q1D,
          // Need to correct the scaling of w to account for d/dn, etc..
          double w_o_detJ = w/detJ(q,f);
 
-         double n = normx+normy;
+         //double n = normx+normy;
          
          if( f2ev(1,f) == -1.0 ) // Need a more standard way to detect bdr faces
          {
@@ -144,8 +144,10 @@ static void PADGDiffusionSetup(const int dim,
                            const int Q1D,
                            const int NF,
                            const Array<double> &weights,
-                           const Array<double> &g,
                            const Array<double> &b,
+                           const Array<double> &g,
+                           const Vector &bf,
+                           const Vector &gf,
                            const Vector &jac,
                            const Vector &det_jac,
                            const Vector &nor,
@@ -194,9 +196,28 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
                   *ir,
                   FaceGeometricFactors::DETERMINANTS |
                   FaceGeometricFactors::NORMALS, type);
+
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt; 
+
+   // Initialize face restriction operators
+   bf.SetSize(dofs1D); 
+   gf.SetSize(dofs1D); 
+
+   // Evaluate shape function defined on [0,1] on the x=0 face in 1d
+   IntegrationPoint zero;
+   double zeropt[1] = {0};
+   zero.Set(zeropt,1);
+   const FiniteElement &elv = *fes.GetFE(0);
+   elv.Calc1DShape(zero, bf, gf);
+   //  {df/dn}(0) = -{df/dx}(0)   
+   gf *= -1.0;
+
+/*
+   for(int i=0 ; i < dofs1D; i++ )
+      std::cout << i  <<" "<<  bf(i) <<" "<<  gf(i) << std::endl;
+*/
 
    // are these the right things for our data?
    coeff_data_1.SetSize( 4 * nq * nf, Device::GetMemoryType());
@@ -261,122 +282,11 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
    else
    {
       mfem_error("not yet implemented.");
-      exit(1);
-      // ???????
-      /*
-      r.SetSize(nq * nf);
-      auto C_vel = Reshape(vel.HostRead(), dim, nq, nf);
-      auto n = Reshape(facegeom->normal.HostRead(), nq, dim, nf);
-      auto C = Reshape(r.HostWrite(), nq, nf);
-      int f_ind = 0;
-      for (int f = 0; f < fes.GetNF(); ++f)
-      {
-         int e1, e2;
-         int inf1, inf2;
-         fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-         fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-         int face_id = inf1 / 64;
-         if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-             (type==FaceType::Boundary && e2<0 && inf2<0) )
-         {
-            FaceElementTransformations &T =
-               *fes.GetMesh()->GetFaceElementTransformations(f);
-            for (int q = 0; q < nq; ++q)
-            {
-               // Convert to lexicographic ordering
-               int iq = ToLexOrdering(dim, face_id, quad1D, q);
-
-               T.SetAllIntPoints(&ir->IntPoint(q));
-               const IntegrationPoint &eip1 = T.GetElement1IntPoint();
-               const IntegrationPoint &eip2 = T.GetElement2IntPoint();
-               double r;
-
-               if (inf2 < 0)
-               {
-                  r = rho->Eval(*T.Elem1, eip1);
-               }
-               else
-               {
-                  double udotn = 0.0;
-                  for (int d=0; d<dim; ++d)
-                  {
-                     udotn += C_vel(d,iq,f_ind)*n(iq,d,f_ind);
-                  }
-                  if (udotn >= 0.0) { r = rho->Eval(*T.Elem2, eip2); }
-                  else { r = rho->Eval(*T.Elem1, eip1); }
-               }
-               C(iq,f_ind) = r;
-            }
-            f_ind++;
-         }
-      }
-      MFEM_VERIFY(f_ind==nf, "Incorrect number of faces.");
-      */
    }
 
-
-
-
-
-   // 
-   /*        
-   if (VectorConstantCoefficient *c_u = dynamic_cast<VectorConstantCoefficient*>
-                                        (u))
-   {
-      vel = c_u->GetVec();
-   }
-   else if (VectorQuadratureFunctionCoefficient* c_u =
-               dynamic_cast<VectorQuadratureFunctionCoefficient*>(u))
-   {
-      // Assumed to be in lexicographical ordering
-      const QuadratureFunction &qFun = c_u->GetQuadFunction();
-      MFEM_VERIFY(qFun.Size() == dim * nq * nf,
-                  "Incompatible QuadratureFunction dimension \n");
-
-      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
-                  "IntegrationRule used within integrator and in"
-                  " QuadratureFunction appear to be different");
-      qFun.Read();
-      vel.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
-   }
-   else
-   {
-      vel.SetSize(dim * nq * nf);
-      auto C = Reshape(vel.HostWrite(), dim, nq, nf);
-      Vector Vq(dim);
-      int f_ind = 0;
-      for (int f = 0; f < fes.GetNF(); ++f)
-      {
-         int e1, e2;
-         int inf1, inf2;
-         fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-         fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-         int face_id = inf1 / 64;
-         if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-             (type==FaceType::Boundary && e2<0 && inf2<0) )
-         {
-            FaceElementTransformations &T =
-               *fes.GetMesh()->GetFaceElementTransformations(f);
-            for (int q = 0; q < nq; ++q)
-            {
-               // Convert to lexicographic ordering
-               int iq = ToLexOrdering(dim, face_id, quad1D, q);
-               T.SetAllIntPoints(&ir->IntPoint(q));
-               const IntegrationPoint &eip1 = T.GetElement1IntPoint();
-               u->Eval(Vq, *T.Elem1, eip1);
-               for (int i = 0; i < dim; ++i)
-               {
-                  C(i,iq,f_ind) = Vq(i);
-               }
-            }
-            f_ind++;
-         }
-      }
-      MFEM_VERIFY(f_ind==nf, "Incorrect number of faces.");
-   }
-   */
    PADGDiffusionSetup(dim, dofs1D, quad1D, nf, ir->GetWeights(), 
-                        maps->G, maps->B,
+                        maps->B, maps->Bt,
+                        bf, gf,
                         facegeom->J, 
                         facegeom->detJ, 
                         facegeom->normal,
@@ -402,8 +312,8 @@ template<int T_D1D = 0, int T_Q1D = 0> static
 void PADGDiffusionApply2D(const int NF,
                       const Array<double> &b,
                       const Array<double> &bt,
-                      const Array<double> &g,
-                      const Array<double> &gt,
+                      const Vector &bf,
+                      const Vector &gf,
                       const Vector &_op1,
                       const Vector &_op2,
                       const Vector &_op3,
@@ -425,39 +335,40 @@ void PADGDiffusionApply2D(const int NF,
 
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto Bt = Reshape(bt.Read(), D1D, Q1D);
-   auto G = Reshape(g.Read(), Q1D, D1D);
-   auto Gt = Reshape(gt.Read(), D1D, Q1D);
+   auto Bf = Reshape(bf.Read(), D1D);
+   auto Gf = Reshape(gf.Read(), D1D);
    auto op1 = Reshape(_op1.Read(), Q1D, 2, 2, NF);
    auto op2 = Reshape(_op2.Read(), Q1D, 2, NF);
    auto op3 = Reshape(_op3.Read(), Q1D, 2, NF);
    auto x = Reshape(_x.Read(), D1D, D1D, VDIM, 2, NF);
    auto y = Reshape(_y.ReadWrite(), D1D, D1D, VDIM, 2, NF);
 
-   // Need to fix this
-   double B0[3][3] = {0};
+/*
+   for(int i=0 ; i < D1D; i++ )
+      std::cout << i <<" "<< Bf(i) << std::endl;
+
+   for(int i=0 ; i < D1D; i++ )
+      std::cout << i <<" "<< Gf(i) << std::endl;
+
+   exit(1);
+*/
+   /*
+   // What was `working` previously 
+   double Bf[3][3] = {0};
    double G0[3][3] = {0};
 
    if( D1D == 2 )
    {
       G0[0][0] = -1;
       G0[0][1] = 1;
-      G0[1][0] = -1;
-      G0[1][1] = 1;
    }
    if( D1D == 3 )
    {
       G0[0][0] = -3;
-      G0[1][0] = -1;
-      G0[2][0] = 1;
-
       G0[0][1] = 4;
-      G0[1][1] = 0;
-      G0[2][1] = -4;
-
       G0[0][2] = -1;
-      G0[1][2] = 1;
-      G0[2][2] = 3;
    }
+   */
 
    // Loop over all faces
    MFEM_FORALL(f, NF,
@@ -471,14 +382,19 @@ void PADGDiffusionApply2D(const int NF,
       {
          for (int c = 0; c < VDIM; c++)
          {
-            // Evaluate u on the face from each side
-            u0[d][c] = x(0,d,c,0,f);
-            u1[d][c] = x(0,d,c,1,f);
+            // TODO: [Optimization] Pick "max" D1Dbf/D1Dgf if B0/G0 is sparse
+            for (int q = 0; q < D1D; q++)
+            {
+               // Evaluate u on the face from each side
+               const double b = Bf[q];
+               u0[d][c] = b*x(q,d,c,0,f);
+               u1[d][c] = b*x(q,d,c,1,f);
+            }
             for (int q = 0; q < D1D; q++)
             {  
                // Evaluate du/dn on the face from each side
                // Uses a stencil inside 
-               const double g = G0[0][q];
+               const double g = Gf[q];
                Gu0[d][c] -= g*x(q,d,c,0,f);
                Gu1[d][c] -= g*x(q,d,c,1,f);
             }
@@ -555,11 +471,26 @@ void PADGDiffusionApply2D(const int NF,
       {
          for (int d = 0; d < D1D; ++d)
          {
-            y(0,d,c,0,f) +=  BD0[d][c];
-            y(0,d,c,1,f) +=  BD1[d][c];
+
+            // TODO: [Optimization] Pick "max" D1Dbf/D1Dgf if B0/G0 is sparse
             for (int q = 0; q < Q1D ; q++)
             {
-               const double g = G0[0][q];
+               const double b = Bf[q];
+               y(0,d,c,0,f) +=  BD0[d][c];
+               y(0,d,c,1,f) +=  BD1[d][c];
+            }
+
+            for (int q = 0; q < Q1D ; q++)
+            {
+               const double g = Gf[q];
+               y(q,d,c,0,f) -=  g*BD0jumpu[d][c];
+               y(q,d,c,1,f) -=  g*BD1jumpu[d][c];      
+            }
+
+
+            for (int q = 0; q < Q1D ; q++)
+            {
+               const double g = Gf[q];
                y(q,d,c,0,f) -=  g*BD0jumpu[d][c];
                y(q,d,c,1,f) -=  g*BD1jumpu[d][c];      
             }
@@ -573,8 +504,8 @@ template<int T_D1D = 0, int T_Q1D = 0> static
 void PADGDiffusionApply3D(const int NF,
                       const Array<double> &b,
                       const Array<double> &bt,
-                      const Array<double> &g,
-                      const Array<double> &gt,
+                      const Vector &bf,
+                      const Vector &gf,
                       const Vector &_op1,
                       const Vector &_op2,
                       const Vector &_op3,
@@ -592,13 +523,13 @@ static void PADGDiffusionApply(const int dim,
                            const int NF,
                            const Array<double> &B,
                            const Array<double> &Bt,
-                           const Array<double> &G,
-                           const Array<double> &Gt,
+                           const Vector &Bf,
+                           const Vector &Gf,
                            const Vector &_op1,
                            const Vector &_op2,
                            const Vector &_op3,   
                            const Vector &x,
-                           Vector &y)
+                           Vector &y)                           
 {
    if (dim == 2)
    {
@@ -614,7 +545,7 @@ static void PADGDiffusionApply(const int dim,
          case 0x88: return PADGDiffusionApply2D<8,8>(NF,B,Bt,op,x,y);
          case 0x99: return PADGDiffusionApply2D<9,9>(NF,B,Bt,op,x,y);
          */
-         default:   return PADGDiffusionApply2D(NF,B,Bt,G,Gt,_op1,_op2,_op3,x,y,D1D,Q1D);
+         default:   return PADGDiffusionApply2D(NF,B,Bt,Bf,Gf,_op1,_op2,_op3,x,y,D1D,Q1D);
       }
    }
    else if (dim == 3)
@@ -630,7 +561,7 @@ static void PADGDiffusionApply(const int dim,
          case 0x78: return SmemPADGDiffusionApply3D<7,8,1>(NF,B,Bt,op,x,y);
          case 0x89: return SmemPADGDiffusionApply3D<8,9,1>(NF,B,Bt,op,x,y);
          */
-         default:   return PADGDiffusionApply3D(NF,B,Bt,G,Gt,_op1,_op2,_op3,x,y,D1D,Q1D);
+         default:   return PADGDiffusionApply3D(NF,B,Bt,Bf,Gf,_op1,_op2,_op3,x,y,D1D,Q1D);
       }
    }
    MFEM_ABORT("PADGDiffusionApply not implemented for dim.");
@@ -651,7 +582,6 @@ static void PADGDiffusionApplyTranspose(const int dim,
 {
    //std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    //std::cout << "TODO: Correct this for DG diffusion" << std::endl;
-   exit(1);
 
    if (dim == 2)
    {
@@ -669,8 +599,6 @@ static void PADGDiffusionApplyTranspose(const int dim,
       }
    }
    MFEM_ABORT("Unknown kernel.");
- 
-   exit(1);
 }
 */
 
@@ -679,7 +607,7 @@ void DGDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    PADGDiffusionApply(dim, dofs1D, quad1D, nf,
                   maps->B, maps->Bt,
-                  maps->G, maps->Gt,
+                  bf, gf,
                   coeff_data_1,coeff_data_2,coeff_data_3,
                   x, y);
 }
@@ -688,13 +616,8 @@ void DGDiffusionIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 {
    MFEM_ABORT("DGDiffusionIntegrator::AddMultTransposePA not yet implemented");
    /*
-   PADGDiffusionApplyTranspose(dim, dofs1D, quad1D, nf,
-                           maps->B, maps->Bt,
-                           maps->G, maps->Gt,
-                           coeff_data_1,coeff_data_2,coeff_data_3,
-                           x, y);
+   PADGDiffusionApplyTranspose( ... );
                            */
-   exit(1);
 }
 
 } // namespace mfem
