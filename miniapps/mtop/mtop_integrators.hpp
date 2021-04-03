@@ -17,15 +17,17 @@
 
 namespace mfem {
 
-
+/* Base class for representing function at integration points.
+ * */
 class BaseQFunction
 {
 public:
     virtual ~BaseQFunction(){}
 
+    /// Returns a user defined string identifying the function.
     virtual std::string GetType()=0;
 
-    //return the energy at a integration point
+    // Returns the energy at an integration point.
     virtual
     double QEnergy(ElementTransformation &T, const IntegrationPoint &ip,
                    mfem::Vector &dd, mfem::Vector &uu)
@@ -33,17 +35,18 @@ public:
         return 0.0;
     }
 
-    //return the residual at a integration point
+    // Returns the residual at an integration point.
     virtual
     void QResidual(ElementTransformation &T, const IntegrationPoint &ip,
             mfem::Vector &dd, mfem::Vector &uu, mfem::Vector &rr)=0;
 
-    //return the gradient of the redidual at a integration point
+    /// Returns the gradient of the redidual at a integration point.
     virtual
     void QGradResidual(ElementTransformation &T, const IntegrationPoint &ip,
             mfem::Vector &dd, mfem::Vector &uu, mfem::DenseMatrix &hh)=0;
 
-    //return the gradient of the residual with respect to the design parameters, multiplied by the adjoint
+    /// Returns the gradient of the residual with respect to the design
+    /// parameters, multiplied by the adjoint.
     virtual
     void AQResidual(ElementTransformation &T, const IntegrationPoint &ip,
                       mfem::Vector &dd, mfem::Vector &uu,
@@ -88,17 +91,17 @@ public:
 
         double di=diff.Eval(T,ip);
         double ll=load.Eval(T,ip);
-        //compute the physical density using projection
+        //Computes the physical density using projection.
         double rz=0.5+0.5*std::tanh(beta*(dd[0]-eta)); //projection
-        //compute the diffusion coefficient at the integration point
+        //Computes the diffusion coefficient at the integration point.
         double fd=di*(std::pow(rz,powerc)+rhomin);
-        //compute the sum of the energy and the product of the temperature and the
-        //external input at the integration point
+        //Computes the sum of the energy and the product of the temperature and the
+        //external input at the integration point.
         double rez = 0.5*(uu[0]*uu[0]+uu[1]*uu[1]+uu[2]*uu[2])*fd-uu[3]*ll;
         return rez;
     }
 
-    //returns the derivative of QEnergy with respect to the state vector uu
+    /// Returns the derivative of QEnergy with respect to the state vector uu.
     virtual
     void QResidual(ElementTransformation &T, const IntegrationPoint &ip,
                    Vector &dd, Vector &uu, Vector &rr) override
@@ -115,7 +118,7 @@ public:
     }
 
 
-    //returns the derivative, with respect to the density, of the product
+    // Returns the derivative, with respect to the density, of the product
     // of the adjoint field with the residual at the integration point ip.
     virtual
     void AQResidual(ElementTransformation &T, const IntegrationPoint &ip,
@@ -129,8 +132,8 @@ public:
         rr[0] = -(aa[0]*uu[0]+aa[1]*uu[1]+aa[2]*uu[2])*fd;
     }
 
-    //returns the gradient of the residual with respect to the state vector
-    //at the integration point ip.
+    // Returns the gradient of the residual with respect to the state vector
+    // at the integration point ip.
     virtual
     void QGradResidual(ElementTransformation &T, const IntegrationPoint &ip,
                        Vector &dd, Vector &uu, DenseMatrix &hh) override
@@ -156,9 +159,9 @@ private:
     double eta;    //projection threshold for tanh
 };
 
-//Provides implementation of an integrator for linear diffusion
-//with parametrization provided by a density field. The setup
-//is standard for topology optimization problems.
+/// Provides implementation of an integrator for linear diffusion
+/// with parametrization provided by a density field. The setup
+/// is standard for topology optimization problems.
 class ParametricLinearDiffusion: public ParametricBNLFormIntegrator
 {
 public:
@@ -167,7 +170,7 @@ public:
 
     }
 
-    /// Compute the local energy
+    /// Computes the local energy.
     virtual
     double GetElementEnergy(const Array<const FiniteElement *> &el,
                             const Array<const FiniteElement *> &pel,
@@ -175,6 +178,7 @@ public:
                             const Array<const Vector *> &elfun,
                             const Array<const Vector *> &pelfun) override;
 
+    /// Computes the element's residual.
     virtual
     void AssembleElementVector(const Array<const FiniteElement *> &el,
                                const Array<const FiniteElement *> &pel,
@@ -183,6 +187,7 @@ public:
                                const Array<const Vector *> &pelfun,
                                const Array<Vector *> &elvec) override;
 
+    /// Computes the stiffness/tangent matrix.
     virtual
     void AssembleElementGrad(const Array<const FiniteElement *> &el,
                              const Array<const FiniteElement *> &pel,
@@ -191,6 +196,8 @@ public:
                              const Array<const Vector *> &pelfun,
                              const Array2D<DenseMatrix *> &elmats) override;
 
+    /// Computes the product of the adjoint solution and the derivative of
+    /// the residual with respect to the parametric fields.
     virtual
     void AssemblePrmElementVector(const Array<const FiniteElement *> &el,
                                   const Array<const FiniteElement *> &pel,
@@ -204,8 +211,8 @@ private:
 };
 
 
-// Computes an example of nonlinear objective
-// \int(field*field*weight)d\Omega_e
+/// Computes an example of nonlinear objective
+/// \int(field*field*weight)d\Omega_e.
 class DiffusionObjIntegrator:public BlockNonlinearFormIntegrator
 {
 public:
@@ -215,14 +222,14 @@ public:
 
     }
 
-    //returns the objective contribution at element level
+    /// Returns the objective contribution at element level.
     virtual
     double GetElementEnergy(const Array<const FiniteElement *> &el,
                             ElementTransformation &Tr,
                             const Array<const Vector *> &elfun) override;
 
-    //returns the gradient of the objective contribution at
-    //element level
+    /// Returns the gradient of the objective contribution at
+    /// element level.
     virtual
     void AssembleElementVector(const Array<const FiniteElement *> &el,
                                ElementTransformation &Tr,

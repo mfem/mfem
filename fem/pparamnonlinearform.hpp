@@ -57,7 +57,6 @@ public:
        (const version). */
    const ParFiniteElementSpace *ParParamFESpace(int k) const;
 
-
    /** @brief Set he parallelel FE spaces for the state and the parametric fields.
     *  After a call to SetParSpaces(), the essential b.c. and the
        gradient-type (if different from the default) must be set again. */
