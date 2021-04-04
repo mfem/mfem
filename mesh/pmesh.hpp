@@ -32,9 +32,6 @@ class ParPumiMesh;
 class ParMesh : public Mesh
 {
 protected:
-   ParMesh() : MyComm(0), NRanks(0), MyRank(-1),
-      have_face_nbr_data(false), pncmesh(NULL) {}
-
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
@@ -208,9 +205,20 @@ protected:
    /** Note that this method is not related to the public 'Mesh::EnsureNodes`.*/
    void EnsureParNodes();
 
+   /// Internal function used in ParMesh::MakeRefined (and related constructor)
+   void MakeRefined_(ParMesh &orig_mesh, int ref_factor, int ref_type);
+
+   // Mark Mesh::Swap as protected, should use ParMesh::Swap to swap @a ParMesh
+   // objects.
+   using Mesh::Swap;
+
    void Destroy();
 
 public:
+   /// Default constructor. Create an empty @a ParMesh.
+   ParMesh() : MyComm(0), NRanks(0), MyRank(-1), glob_elem_offset(-1),
+      glob_offset_sequence(-1), have_face_nbr_data(false), pncmesh(NULL) { }
+
    /// Create a parallel mesh by partitioning a serial Mesh.
    /** The mesh is partitioned automatically or using external partitioning
        data (the optional parameter 'partitioning_[i]' contains the desired MPI
@@ -231,6 +239,19 @@ public:
    /** The @a refine parameter is passed to the method Mesh::Finalize(). */
    ParMesh(MPI_Comm comm, std::istream &input, bool refine = true);
 
+   /// Deprecated: see @a ParMesh::MakeRefined
+   MFEM_DEPRECATED
+   ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type);
+
+   /// Move constructor. Used for named constructors.
+   ParMesh(ParMesh &&mesh);
+
+   /// Move assignment operator.
+   ParMesh& operator=(ParMesh &&mesh);
+
+   /// Explicitly delete the copy assignment operator.
+   ParMesh& operator=(ParMesh &mesh) = delete;
+
    /// Create a uniformly refined (by any factor) version of @a orig_mesh.
    /** @param[in] orig_mesh  The starting coarse mesh.
        @param[in] ref_factor The refinement factor, an integer > 1.
@@ -242,7 +263,11 @@ public:
        is set to reflect the performed refinements.
 
        @note The constructed ParMesh is linear, i.e. it does not have nodes. */
-   ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type);
+   static ParMesh MakeRefined(ParMesh &orig_mesh, int ref_factor, int ref_type);
+
+   /** Create a mesh by splitting each element of @a orig_mesh into simplices.
+       See @a Mesh::MakeSimplicial for more details. */
+   static ParMesh MakeSimplicial(ParMesh &orig_mesh);
 
    virtual void Finalize(bool refine = false, bool fix_orientation = false);
 
@@ -414,6 +439,10 @@ public:
 
    void GetCharacteristics(double &h_min, double &h_max,
                            double &kappa_min, double &kappa_max);
+
+   /// Swaps internal data with another ParMesh, including non-geometry members.
+   /// See @a Mesh::Swap
+   void Swap(ParMesh &other);
 
    /// Print various parallel mesh stats
    virtual void PrintInfo(std::ostream &out = mfem::out);

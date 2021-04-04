@@ -25,6 +25,9 @@ Version 4.2.1 (development)
     MemoryManager::SetUmpireDevice2AllocatorName.
   * Added HOST_PINNED MemoryType and a pinned host allocator for CUDA and HIP.
 
+- Added support for explicit vectorization in the high-performance templated
+  code for Fujitsu's A64FX ARM microprocessor architecture.
+
 - Added AlgebraicCeedSolver that does matrix-free algebraic p-multigrid for
   diffusion problems with the Ceed backend.
 
@@ -146,6 +149,14 @@ Version 4.2.1 (development)
 - Added a new, very simple example (ex0 and parallel version ex0p). This
   example solves a simple Poisson problem using H1 elements (the same problem as
   ex1), but is intended to be extremely simple and approachable for new users.
+
+- Meshes consisting of any type of elements (including mixed meshes) can be
+  converted to all-simplex meshes using Mesh::MakeSimplicial.
+
+- Several of the mesh constructors (creating Cartesian meshes, refined (LOR)
+  meshes, simplex meshes, etc.) are now available as "named constructors", e.g.
+  Mesh::MakeCartesian2D or Mesh::MakeRefined. The legacy constructors are marked
+  as deprecated.
 
 libCEED integration improvements
 --------------------------------
