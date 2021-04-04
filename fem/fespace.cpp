@@ -2937,6 +2937,11 @@ void FiniteElementSpace::Update(bool want_transform)
    }
 }
 
+void FiniteElementSpace::UpdateMeshPointer(Mesh *new_mesh)
+{
+   mesh = new_mesh;
+}
+
 void FiniteElementSpace::Save(std::ostream &out) const
 {
    int fes_format = 90; // the original format, v0.9

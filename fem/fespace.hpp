@@ -88,6 +88,7 @@ class FiniteElementSpace
 {
    friend class InterpolationGridTransfer;
    friend class PRefinementTransferOperator;
+   friend void Mesh::Swap(Mesh &, bool);
 
 protected:
    /// The mesh that FE space lives on (not owned).
@@ -351,6 +352,11 @@ protected:
    void Constructor(Mesh *mesh, NURBSExtension *ext,
                     const FiniteElementCollection *fec,
                     int vdim = 1, int ordering = Ordering::byNODES);
+
+   /// Updates the internal mesh pointer. @warning @a new_mesh must be
+   /// <b>topologically identical</b> to the existing mesh. Used if the address
+   /// of the Mesh object has changed, e.g. in @a Mesh::Swap.
+   virtual void UpdateMeshPointer(Mesh *new_mesh);
 
    /// Resize the elem_order array on mesh change.
    void UpdateElementOrders();

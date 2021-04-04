@@ -881,6 +881,12 @@ public:
    double *HostReadWrite()
    { return mfem::ReadWrite(tdata, Mk.Height()*Mk.Width()*nk, false); }
 
+   void Swap(DenseTensor &t)
+   {
+      mfem::Swap(tdata, t.tdata);
+      mfem::Swap(nk, t.nk);
+   }
+
    ~DenseTensor() { tdata.Delete(); }
 };
 
