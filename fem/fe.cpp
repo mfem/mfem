@@ -9602,6 +9602,14 @@ void L2_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
       }
 }
 
+void L2_QuadrilateralElement::Calc1DShape(IntegrationPoint &ip,
+                                          Vector &shape,
+                                          Vector &dshape) const
+{
+   const int p = order;
+   basis1d.Eval(ip.x, shape, dshape);
+}
+
 void L2_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
 {
    const int p = order;

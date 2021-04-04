@@ -2495,6 +2495,7 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   virtual void Calc1DShape(IntegrationPoint &ip, Vector &y, Vector &z) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
    virtual void ProjectCurl(const FiniteElement &fe,
                             ElementTransformation &Trans,
