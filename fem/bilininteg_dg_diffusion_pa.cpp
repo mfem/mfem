@@ -41,6 +41,7 @@ static void PADGDiffusionSetup2D(const int Q1D,
                              const Vector &face_2_elem_volumes,
                              const double sigma,
                              const double kappa,
+                             const double beta,
                              Vector &op1,
                              Vector &op2,
                              Vector &op3)
@@ -82,10 +83,10 @@ static void PADGDiffusionSetup2D(const int Q1D,
          {
             // Boundary face
             // data for 1st term    - < {(Q grad(u)).n}, [v] >
-            op_data_ptr1(q,0,0,f) = -w_o_detJ;
-            op_data_ptr1(q,1,0,f) = w_o_detJ;
-            op_data_ptr1(q,0,1,f) =  0.0*w_o_detJ;
-            op_data_ptr1(q,1,1,f) = -0.0*w_o_detJ;
+            op_data_ptr1(q,0,0,f) = -beta*w_o_detJ;
+            op_data_ptr1(q,1,0,f) = beta*w_o_detJ;
+            op_data_ptr1(q,0,1,f) =  0.0*beta*w_o_detJ;
+            op_data_ptr1(q,1,1,f) = -0.0*beta*w_o_detJ;
             // data for 2nd term    + sigma < [u], {(Q grad(v)).n} > 
             op_data_ptr2(q,0,f) =   -w_o_detJ*sigma;
             op_data_ptr2(q,1,f) =   0.0*w_o_detJ*sigma;
@@ -99,10 +100,10 @@ static void PADGDiffusionSetup2D(const int Q1D,
          {
             // Interior face
             // data for 1st term    - < {(Q grad(u)).n}, [v] >
-            op_data_ptr1(q,0,0,f) = -w_o_detJ/2.0;
-            op_data_ptr1(q,1,0,f) = w_o_detJ/2.0;
-            op_data_ptr1(q,0,1,f) = -w_o_detJ/2.0;
-            op_data_ptr1(q,1,1,f) = w_o_detJ/2.0;
+            op_data_ptr1(q,0,0,f) = -beta*w_o_detJ/2.0;
+            op_data_ptr1(q,1,0,f) = beta*w_o_detJ/2.0;
+            op_data_ptr1(q,0,1,f) = -beta*w_o_detJ/2.0;
+            op_data_ptr1(q,1,1,f) = beta*w_o_detJ/2.0;
             // data for 2nd term    + sigma < [u], {(Q grad(v)).n} > 
             op_data_ptr2(q,0,f) =   -w_o_detJ*sigma/2.0;
             op_data_ptr2(q,1,f) =   w_o_detJ*sigma/2.0;
@@ -132,6 +133,7 @@ static void PADGDiffusionSetup3D(const int Q1D,
                              const Vector &face_2_elem_volumes,
                              const double sigma,
                              const double kappa,
+                             const double beta,
                              Vector &op1,
                              Vector &op2,
                              Vector &op3)
@@ -157,6 +159,7 @@ static void PADGDiffusionSetup(const int dim,
                            const Vector &face_2_elem_volumes,
                            const double sigma,
                            const double kappa,
+                           const double beta,
                            Vector &op1,
                            Vector &op2,
                            Vector &op3)
@@ -165,11 +168,11 @@ static void PADGDiffusionSetup(const int dim,
    if (dim == 1) { MFEM_ABORT("dim==1 not supported in PADGDiffusionSetup"); }
    else if (dim == 2)
    {
-      PADGDiffusionSetup2D(Q1D, D1D, NF, weights, g, b, jac, det_jac, nor, Q, rho, u, face_2_elem_volumes, sigma, kappa, op1, op2, op3);
+      PADGDiffusionSetup2D(Q1D, D1D, NF, weights, g, b, jac, det_jac, nor, Q, rho, u, face_2_elem_volumes, sigma, kappa, beta, op1, op2, op3);
    }
    else if (dim == 3)
    {
-      PADGDiffusionSetup3D(Q1D, D1D, NF, weights, g, b, jac, det_jac, nor, Q, rho, u, face_2_elem_volumes, sigma, kappa, op1, op2, op3);
+      PADGDiffusionSetup3D(Q1D, D1D, NF, weights, g, b, jac, det_jac, nor, Q, rho, u, face_2_elem_volumes, sigma, kappa, beta, op1, op2, op3);
    }
    else
    {
@@ -292,7 +295,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
                         facegeom->normal,
                         Qcoeff, r, vel,
                         face_2_elem_volumes,
-                        sigma, kappa,
+                        sigma, kappa, beta,
                         coeff_data_1,coeff_data_2,coeff_data_3);
 }
 
