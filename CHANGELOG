@@ -152,6 +152,10 @@ Version 4.2.1 (development)
 
 - Gitlab CI: use Spack (and Uberenv) to automate the build of TPLs.
 
+- Added a new, very simple example (ex0 and parallel version ex0p). This
+  example solves a simple Poisson problem using H1 elements (the same problem as
+  ex1), but is intended to be extremely simple and approachable for new users.
+
 - Meshes consisting of any type of elements (including mixed meshes) can be
   converted to all-simplex meshes using Mesh::MakeSimplicial.
 
