@@ -376,6 +376,7 @@ void PADGDiffusionApply2D(const int NF,
    // Loop over all faces
    MFEM_FORALL(f, NF,
    {
+      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       // 1. Evaluation of solution and normal derivative on the faces
       double u0[max_D1D][VDIM] = {0};
       double u1[max_D1D][VDIM] = {0};
@@ -404,6 +405,7 @@ void PADGDiffusionApply2D(const int NF,
          }
       }
    
+      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       // 2. Contraction with basis evaluation Bu = B:u, and Gu = G:u    
       double Bu0[max_Q1D][VDIM] = {0};
       double Bu1[max_Q1D][VDIM] = {0};      
@@ -421,6 +423,7 @@ void PADGDiffusionApply2D(const int NF,
          }
       }
  
+      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       // 3. Form numerical fluxes
       double D1[max_Q1D][VDIM] = {0};
       double D0[max_Q1D][VDIM] = {0};
@@ -447,6 +450,7 @@ void PADGDiffusionApply2D(const int NF,
             
                      
 
+      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       // 4. Contraction with B^T evaluation B^T:(G*D*B:u) and B^T:(D*B:Gu)   
       double BD1[max_D1D][VDIM] = {0};
       double BD0[max_D1D][VDIM] = {0};
@@ -469,6 +473,7 @@ void PADGDiffusionApply2D(const int NF,
          }
       }
 
+      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       // 5. Add to y      
       for (int c = 0; c < VDIM; c++)
       {
@@ -500,6 +505,8 @@ void PADGDiffusionApply2D(const int NF,
          }
       }
    });// done with the loop over all faces
+
+   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 }
 
 // PA DGDiffusion Apply 3D kernel for Gauss-Lobatto/Bernstein
