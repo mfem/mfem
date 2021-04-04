@@ -3488,6 +3488,13 @@ void GridFunction::Save(std::ostream &out) const
    out.flush();
 }
 
+void GridFunction::Save(const char *fname, int precision) const
+{
+   ofstream ofs(fname);
+   ofs.precision(precision);
+   Save(ofs);
+}
+
 #ifdef MFEM_USE_ADIOS2
 void GridFunction::Save(adios2stream &out,
                         const std::string& variable_name,
