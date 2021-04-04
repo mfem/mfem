@@ -67,8 +67,8 @@ public:
 
    /** @brief Set the desired Operator::Type for the construction of all
        operators defined by the underlying transfer algorithm. */
-   /** The default value is Operator::ANY_TYPE which typically corresponds to
-       a matrix-free operator representation. Note that derived classes are not
+   /** The default value is Operator::ANY_TYPE which typically corresponds to a
+       matrix-free operator representation. Note that derived classes are not
        required to support this setting and can ignore it. */
    void SetOperatorType(Operator::Type type) { oper_type = type; }
 
@@ -76,8 +76,8 @@ public:
        FE space to GridFunction%s in the range FE space. */
    virtual const Operator &ForwardOperator() = 0;
 
-   /** @brief Return an Operator that transfers GridFunction%s from the range
-       FE space back to GridFunction%s in the domain FE space. */
+   /** @brief Return an Operator that transfers GridFunction%s from the range FE
+       space back to GridFunction%s in the domain FE space. */
    virtual const Operator &BackwardOperator() = 0;
 
    /** @brief Return an Operator that transfers true-dof Vector%s from the
@@ -89,8 +89,8 @@ public:
       return MakeTrueOperator(dom_fes, ran_fes, ForwardOperator(), fw_t_oper);
    }
 
-   /** @brief Return an Operator that transfers true-dof Vector%s from the
-       range FE space back to true-dof Vector%s in the domain FE space. */
+   /** @brief Return an Operator that transfers true-dof Vector%s from the range
+       FE space back to true-dof Vector%s in the domain FE space. */
    /** This method is implemented in the base class, based on
        BackwardOperator(), however, derived classes can overload the
        construction, if necessary. */
