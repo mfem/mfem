@@ -2752,6 +2752,8 @@ protected:
    MatrixCoefficient *MQ;
    double sigma, kappa;
 
+   double beta;
+
    // these are not thread-safe!
    Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
    DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
@@ -2784,14 +2786,17 @@ protected:
 
 public:
    // Q = 1
-   DGDiffusionIntegrator(const double s, const double k)
-      : Q(NULL), MQ(NULL), sigma(s), kappa(k) { }
+   DGDiffusionIntegrator(const double s, const double k, const double b)
+      : Q(NULL), MQ(NULL), sigma(s), kappa(k), beta(b) { }
    // Q is some scalar diffusion coefficient
-   DGDiffusionIntegrator(Coefficient &q, const double s, const double k)
-      : Q(&q), MQ(NULL), sigma(s), kappa(k) { }
+   DGDiffusionIntegrator(Coefficient &q, const double s, const double k, const double b)
+      : Q(&q), MQ(NULL), sigma(s), kappa(k), beta(b) { }
    // Q is some matrix diffusion coefficient
+   /*
    DGDiffusionIntegrator(MatrixCoefficient &q, const double s, const double k)
       : Q(NULL), MQ(&q), sigma(s), kappa(k) { }
+      */
+      
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
 
