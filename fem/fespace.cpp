@@ -357,7 +357,7 @@ void FiniteElementSpace::BuildDofToArrays()
       const int n = elem_dof -> RowSize(i);
       for (int j = 0; j < n; j++)
       {
-         int dof = (dofs[j] >= 0) ? dofs[j] : - dofs[j] - 1;
+         int dof = DecodeDof(dofs[j]);
          if (dof_elem_array[dof] < 0)
          {
             dof_elem_array[dof] = i;
