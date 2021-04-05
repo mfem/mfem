@@ -664,11 +664,11 @@ void AmgXSolver::SetMatrixMPIGPUExclusive(const HypreParMatrix &A,
    {
       AMGX_distribution_handle dist;
       AMGX_SAFE_CALL(AMGX_distribution_create(&dist, cfg));
-      AMGX_SAFE_CALL(AMGX_distribution_set_partition_data(dist, 
+      AMGX_SAFE_CALL(AMGX_distribution_set_partition_data(dist,
                                                           AMGX_DIST_PARTITION_OFFSETS,
                                                           rowPart.GetData()));
 
-      AMGX_SAFE_CALL(AMGX_matrix_upload_distributed(AmgXA, nGlobalRows, 
+      AMGX_SAFE_CALL(AMGX_matrix_upload_distributed(AmgXA, nGlobalRows,
                                                     local_rows, num_nnz, 1, 1,
                                                     loc_I.Read(), loc_J.Read(),
                                                     loc_A.Read(), NULL, dist));
@@ -819,7 +819,7 @@ void AmgXSolver::SetMatrixMPITeams(const HypreParMatrix &A,
       {
          AMGX_distribution_handle dist;
          AMGX_SAFE_CALL(AMGX_distribution_create(&dist, cfg));
-         AMGX_SAFE_CALL(AMGX_distribution_set_partition_data(dist, 
+         AMGX_SAFE_CALL(AMGX_distribution_set_partition_data(dist,
                                                              AMGX_DIST_PARTITION_OFFSETS,
                                                              rowPart.GetData()));
 
