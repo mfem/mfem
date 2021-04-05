@@ -113,7 +113,8 @@ void NavierSolver::Setup(double dt)
 
    sw_setup.Start();
 
-   pmesh_lor = new ParMesh(pmesh, order, BasisType::GaussLobatto);
+   pmesh_lor = new ParMesh(
+      ParMesh::MakeRefined(*pmesh, order, BasisType::GaussLobatto));
    pfec_lor = new H1_FECollection(1);
    pfes_lor = new ParFiniteElementSpace(pmesh_lor, pfec_lor);
 
@@ -877,7 +878,8 @@ double NavierSolver::ComputeCFL(ParGridFunction &u, double dt)
          ut.SetSize(uz.Size());
       }
 
-      double hmin = pmesh->GetElementSize(e, 1) / (double) fes->GetOrder(0);
+      double hmin = pmesh->GetElementSize(e, 1) /
+                    (double) fes->GetElementOrder(0);
 
       for (int i = 0; i < ir.GetNPoints(); ++i)
       {
