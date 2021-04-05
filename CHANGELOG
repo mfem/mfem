@@ -162,6 +162,11 @@ Version 4.2.1 (development)
   Mesh::MakeCartesian2D or Mesh::MakeRefined. The legacy constructors are marked
   as deprecated.
 
+- Added support for transferring dual fields between high-order and low-order
+  refined finite element spaces using the transposed versions of the
+  L2ProjectionGridTransfer operators. This functionality is illustrated in the
+  lor-transfer miniapp.
+
 libCEED integration improvements
 --------------------------------
 - Refactor the libCEED integration
