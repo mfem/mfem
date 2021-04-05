@@ -14,17 +14,15 @@
 //            -------------------------------------------------
 //
 // This example code demonstrates use of MFEM to solve the Poisson problem:
-//              -nabla^2 u = 1 \in [0, 1]^2, u_b = 0 \in \dO
+//
+//                -Delta u = 1 \in [0, 1]^2, u_b = 0 \in \dO
+//
 // on two overlapping grids. Using simultaneous Schwarz iterations, the Poisson
 // equation is solved iteratively, with boundary data interpolated between the
 // overlapping boundaries for each grid. The overlapping Schwarz method was
-// introduced by H. A. Schwarz in 1870, and a concise description of the
-// simultaneous Schwarz iterations for the Poisson problem is given in
-// Section 2.2 of [1].
-//
-// [1] Mittal, K., Dutta, S., & Fischer, P. (2020). Stability analysis
-//     of a singlerate and multirate predictor-corrector scheme for
-//     overlapping grids. arXiv preprint arXiv:2010.00118.
+// introduced by H. A. Schwarz in 1870, see also Section 2.2 of "Stability
+// analysis of a singlerate and multirate predictor-corrector scheme for
+// overlapping grids" by Mittal, Dutta and Fischer, arXiv:2010.00118.
 //
 // Compile with: make schwarz_ex1
 //
@@ -38,8 +36,8 @@
 using namespace std;
 using namespace mfem;
 
-// Method to use FindPointsGSLIB to determine the boundary points of a mesh
-// that are interior to another mesh.
+// Method to use FindPointsGSLIB to determine the boundary points of a mesh that
+// are interior to another mesh.
 void GetInterdomainBoundaryPoints(FindPointsGSLIB &finder1,
                                   FindPointsGSLIB &finder2,
                                   Vector &mesh_nodes_1, Vector &mesh_nodes_2,
@@ -99,8 +97,7 @@ int main(int argc, char *argv[])
 
    // Refine the mesh to increase the resolution. In this example we do
    // 'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
-   // largest number that gives a final mesh with no more than 50,000
-   // elements.
+   // largest number that gives a final mesh with no more than 50,000 elements.
    for (int lev = 0; lev < r1_levels; lev++) { mesharr[0]->UniformRefinement(); }
    for (int lev = 0; lev < r2_levels; lev++) { mesharr[1]->UniformRefinement(); }
 
@@ -173,7 +170,7 @@ int main(int argc, char *argv[])
    Vector mesh_nodes_2 = *mesharr[1]->GetNodes();
 
    // For the default mesh inputs, we need to rescale inline-quad.mesh
-   // such that it does not cover the entrie domain [0, 1]^2 and still has a
+   // such that it does not cover the entire domain [0, 1]^2 and still has a
    // non-trivial overlap with the other mesh.
    if (strcmp(mesh_file_1, "../../data/square-disc.mesh") == 0 &&
        strcmp(mesh_file_2, "../../data/inline-quad.mesh") == 0 )
@@ -228,9 +225,8 @@ int main(int argc, char *argv[])
    finder1.Interpolate(bnd2, x1, interp_vals2);
    finder2.Interpolate(bnd1, x2, interp_vals1);
 
-   // Set up the bilinear form a(.,.) on the finite element space
-   // corresponding to the Laplacian operator -Delta, by adding the Diffusion
-   // domain integrator.
+   // Set up the bilinear form a(.,.) on the finite element space corresponding
+   // to the Laplacian operator -Delta, by adding a Diffusion integrator.
    Array <BilinearForm*> a_ar(2);
    a_ar[0] = new BilinearForm(fespacearr[0]);
    a_ar[1] = new BilinearForm(fespacearr[1]);
@@ -247,9 +243,9 @@ int main(int argc, char *argv[])
    delete b_ar[0];
    delete b_ar[1];
 
-   // Use simultaneous Schwarz iterations to iteratively solve the PDE
-   // and interpolate interdomain boundary data to impose Dirichlet
-   // boundary conditions.
+   // Use simultaneous Schwarz iterations to iteratively solve the PDE and
+   // interpolate interdomain boundary data to impose Dirichlet boundary
+   // conditions.
 
    int NiterSchwarz = 100;
    for (int schwarz = 0; schwarz < NiterSchwarz; schwarz++)
@@ -382,7 +378,7 @@ void GetInterdomainBoundaryPoints(FindPointsGSLIB &finder1,
    const Array<unsigned int> &code_out1 = finder1.GetCode();
    const Array<unsigned int> &code_out2 = finder2.GetCode();
 
-   //Setup ess_tdof_list_int
+   // Setup ess_tdof_list_int
    for (int i = 0; i < number_boundary_1; i++)
    {
       int idx = ess_tdof_list1[i];

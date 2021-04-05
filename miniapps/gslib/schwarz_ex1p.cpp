@@ -14,17 +14,15 @@
 //            -------------------------------------------------
 //
 // This example code demonstrates use of MFEM to solve the Poisson problem:
-//              -nabla^2 u = 1 \in [0, 1]^2, u_b = 0 \in \dO
-// on an arbitrary number of overlapping grids. Using simultaneous Schwarz
-// iterations, the Poisson equation is solved iteratively, with boundary data
-// interpolated between the overlapping boundaries for each grid. The
-// overlapping Schwarz method was introduced by H. A. Schwarz in 1870, and a
-// concise description of the simultaneous Schwarz iterations for the Poisson
-// problem is given in Section 2.2 of [1].
 //
-// [1] Mittal, K., Dutta, S., & Fischer, P. (2020). Stability analysis
-//     of a singlerate and multirate predictor-corrector scheme for
-//     overlapping grids. arXiv preprint arXiv:2010.00118.
+//                -Delta u = 1 \in [0, 1]^2, u_b = 0 \in \dO
+//
+// on two overlapping grids. Using simultaneous Schwarz iterations, the Poisson
+// equation is solved iteratively, with boundary data interpolated between the
+// overlapping boundaries for each grid. The overlapping Schwarz method was
+// introduced by H. A. Schwarz in 1870, see also Section 2.2 of "Stability
+// analysis of a singlerate and multirate predictor-corrector scheme for
+// overlapping grids" by Mittal, Dutta and Fischer, arXiv:2010.00118.
 //
 // Compile with: make schwarz_ex1p
 //
@@ -39,8 +37,8 @@
 using namespace std;
 using namespace mfem;
 
-// Method to use FindPointsGSLIB to determine the boundary points of a mesh
-// that are interior to another mesh.
+// Method to use FindPointsGSLIB to determine the boundary points of a mesh that
+// are interior to another mesh.
 void GetInterdomainBoundaryPoints(OversetFindPointsGSLIB &finder,
                                   Vector &vxyz, int color,
                                   Array<int> ess_tdof_list,
@@ -65,7 +63,7 @@ void GetInterdomainBoundaryPoints(OversetFindPointsGSLIB &finder,
 
    const Array<unsigned int> &code_out = finder.GetCode();
 
-   //Setup ess_tdof_list_int
+   // Setup ess_tdof_list_int
    for (int i = 0; i < number_boundary; i++)
    {
       int idx = ess_tdof_list[i];
@@ -82,7 +80,7 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // Parse command-line options.
-   int lim_meshes = 3; //should be greater than nmeshes
+   int lim_meshes = 3; // should be greater than nmeshes
    Array <const char *> mesh_file_list(lim_meshes);
    Array <int> np_list(lim_meshes), rs_levels(lim_meshes),
          rp_levels(lim_meshes);
@@ -172,13 +170,12 @@ int main(int argc, char *argv[])
 
    // Refine the mesh to increase the resolution. In this example we do
    // 'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
-   // largest number that gives a final mesh with no more than 50,000
-   // elements.
+   // largest number that gives a final mesh with no more than 50,000 elements.
    for (int lev = 0; lev < rs_levels[color]; lev++) { mesh->UniformRefinement(); }
 
-   // Define a parallel mesh by a partitioning of the serial mesh. Refine
-   // this mesh further in parallel to increase the resolution. Once the
-   // parallel mesh is defined, the serial mesh can be deleted.
+   // Define a parallel mesh by a partitioning of the serial mesh. Refine this
+   // mesh further in parallel to increase the resolution. Once the parallel
+   // mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh;
    pmesh = new ParMesh(*comml, *mesh);
    for (int l = 0; l < rp_levels[color]; l++)
@@ -247,8 +244,8 @@ int main(int argc, char *argv[])
    {
       Vector vxyz = *pmesh->GetNodes();
 
-      // For the default mesh inputs, we need to rescale inline-quad.mesh
-      // such that it does not cover the entrie domain [0, 1]^2 and still has a
+      // For the default mesh inputs, we need to rescale inline-quad.mesh such
+      // that it does not cover the entire domain [0, 1]^2 and still has a
       // non-trivial overlap with the other mesh.
       if (strcmp(mesh_file_list[0], "../../data/square-disc.mesh") == 0 &&
           strcmp(mesh_file_list[1], "../../data/inline-quad.mesh") == 0 &&
@@ -330,14 +327,13 @@ int main(int argc, char *argv[])
       {
          bnd(i+d*number_boundary) = vxyz(idx + d*number_true);
       }
-      colorv[i] = (unsigned int)color;
+      n      colorv[i] = (unsigned int)color;
    }
    Vector interp_vals1(number_boundary);
    finder.Interpolate(bnd, colorv, x, interp_vals1);
 
-   // Set up the bilinear form a(.,.) on the finite element space
-   // corresponding to the Laplacian operator -Delta, by adding the Diffusion
-   // domain integrator.
+   // Set up the bilinear form a(.,.) on the finite element space corresponding
+   // to the Laplacian operator -Delta, by adding a Diffusion integrator.
    ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
 
@@ -349,9 +345,9 @@ int main(int argc, char *argv[])
 
    delete b;
 
-   // Use simultaneous Schwarz iterations to iteratively solve the PDE
-   // and interpolate interdomain boundary data to impose Dirichlet
-   // boundary conditions.
+   // Use simultaneous Schwarz iterations to iteratively solve the PDE and
+   // interpolate interdomain boundary data to impose Dirichlet boundary
+   // conditions.
 
    int NiterSchwarz = 100;
    for (int schwarz = 0; schwarz < NiterSchwarz; schwarz++)
