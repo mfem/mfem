@@ -19,7 +19,7 @@ using namespace mfem;
 TEST_CASE("Save and load file", "[zlib]")
 {
    std::string mesh_name = "zlib_test.mesh";
-   Mesh mesh(2, 3, Element::QUADRILATERAL, 0, 2.0, 3.0);
+   Mesh mesh = Mesh::MakeCartesian2D(2, 3, Element::QUADRILATERAL, 0, 2.0, 3.0);
 
    SECTION("Save compressed mesh with bool argument")
    {
