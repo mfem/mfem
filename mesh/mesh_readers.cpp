@@ -870,18 +870,20 @@ struct XMLDataReader
                appended_data = xml_elem->GetText();
                encoding = BASE64;
             }
-
             MFEM_VERIFY(appended_data != NULL, "Invalid AppendedData");
+            // Appended data follows first underscore
+            bool found_leading_underscore = false;
             while (*appended_data)
             {
                ++appended_data;
                if (*appended_data == '_')
                {
+                  found_leading_underscore = true;
                   ++appended_data;
                   break;
                }
             }
-            MFEM_VERIFY(*appended_data != '\0', "Invalid AppendedData");
+            MFEM_VERIFY(found_leading_underscore, "Invalid AppendedData");
             break;
          }
       }
