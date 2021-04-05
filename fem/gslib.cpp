@@ -849,7 +849,7 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
    MFEM_VERIFY(m.GetNumGeometries(m.Dimension()) == 1,
                "Mixed meshes are not currently supported in FindPointsGSLIB.");
 
-   //FreeData if OversetFindPointsGSLIB::Setup has been called already
+   // FreeData if OversetFindPointsGSLIB::Setup has been called already
    if (setupflag) { FreeData(); }
 
    crystal_init(cr, gsl_comm);

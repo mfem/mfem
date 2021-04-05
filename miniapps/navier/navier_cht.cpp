@@ -12,11 +12,13 @@
 //            --------------------------------------------------
 //            Overlapping Grids Miniapp: Conjugate heat transfer
 //            --------------------------------------------------
+//
 // This example code demonstrates use of MFEM to solve different physics in
-// different domains using overlapping grids: A solid block with its base at
-// a fixed temperature is cooled by incoming flow.
-// The Fluid domain models the entire domain, minus the solid block, and the
-// incompressible Navier-Stokes equations are solved on it:
+// different domains using overlapping grids: A solid block with its base at a
+// fixed temperature is cooled by incoming flow. The Fluid domain models the
+// entire domain, minus the solid block, and the incompressible Navier-Stokes
+// equations are solved on it:
+//
 //                 ________________________________________
 //                |                                        |
 //                |             FLUID DOMAIN               |
@@ -31,6 +33,7 @@
 //
 // In contrast to the Fluid domain, the Thermal domain includes the solid block,
 // and the advection-diffusion equation is solved on it:
+//
 //                     dT/dt + u.grad T = kappa \nabla^2 T
 //
 //                                (attr=3)
@@ -45,8 +48,8 @@
 //                                  T=10
 //
 // Inhomogeneous boundary conditions (T=10) are imposed on the base of the solid
-// block (attr=2) and homogeneous boundary conditions are imposed at the
-// inflow region (attr=1). All other surfaces have Neumann condition.
+// block (attr=2) and homogeneous boundary conditions are imposed at the inflow
+// region (attr=1). All other surfaces have Neumann condition.
 //
 // The one-sided coupling between the two domains is via transfer of the
 // advection velocity (u) from fluid domain to thermal domain at each time step.
@@ -63,7 +66,7 @@ using namespace navier;
 
 struct schwarz_common
 {
-   //common
+   // common
    double dt = 2e-2;
    double t_final = 250*dt;
    // fluid
@@ -82,8 +85,6 @@ void vel_dbc(const Vector &x, double t, Vector &u);
 double kappa_fun(const Vector &x);
 // initial condition for temperature
 double temp_init(const Vector &x);
-
-
 
 class ConductionOperator : public TimeDependentOperator
 {
@@ -138,7 +139,7 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // Parse command-line options.
-   int lim_meshes = 2; //should be greater than nmeshes
+   int lim_meshes = 2; // should be greater than nmeshes
    Array <const char *> mesh_file_list(lim_meshes);
    Array <int> np_list(lim_meshes),
          rs_levels(lim_meshes);
