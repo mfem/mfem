@@ -171,8 +171,8 @@ public:
    virtual const Array<unsigned int> &GetProc() const { return gsl_proc; }
    /// Return reference coordinates for each point found by FindPoints.
    virtual const Vector &GetReferencePosition() const { return gsl_mfem_ref;  }
-   /// Return distance Distance between the sought and the found point
-   /// in physical space, for each point found by FindPoints.
+   /// Return distance between the sought and the found point in physical space,
+   /// for each point found by FindPoints.
    virtual const Vector &GetDist()              const { return gsl_dist; }
 
    /// Return element number for each point found by FindPoints corresponding to
@@ -183,18 +183,16 @@ public:
    virtual const Vector &GetGSLIBReferencePosition() const { return gsl_ref; }
 };
 
-/** \brief OversetFindPointsGSLIB enables use of findpts for arbitrary number
- * of overlapping grids. The parameters in this class are the same as
- * FindPointsGSLIB with the difference of additional inputs required to account
- * for more than 1 mesh.
- */
+/** \brief OversetFindPointsGSLIB enables use of findpts for arbitrary number of
+    overlapping grids.
+    The parameters in this class are the same as FindPointsGSLIB with the
+    difference of additional inputs required to account for more than 1 mesh. */
 class OversetFindPointsGSLIB : public FindPointsGSLIB
 {
 protected:
    bool overset;
    unsigned int u_meshid;
-   Vector distfint; // Used to store the nodal values of the gridfunction passed
-   // to findpts.
+   Vector distfint; // Used to store nodal vals of grid func. passed to findpts
 
 public:
    OversetFindPointsGSLIB() : FindPointsGSLIB(),

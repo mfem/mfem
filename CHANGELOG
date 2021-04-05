@@ -99,10 +99,9 @@ Version 4.2.1 (development)
 
 - Gitlab CI: use Spack (and Uberenv) to automate the build of TPLs.
 
-- Added miniapps demonstrating use of GSLIB for overlapping grids, see 
-  gslib/ex1 and gslib/ex1p, and different physics in different domains,
-  see navier/cht. Note that the latest GSLIB based functionality requires 
-  gslib v1.0.7 (see INSTALL for details).
+- Added new miniapps demonstrating: 1) the use of GSLIB for overlapping grids,
+  see gslib/schwarz_ex1, and 2) coupling different physics in different domains,
+  see navier/cht. Note that gslib v1.0.7 is require (see INSTALL for details).
 
 libCEED integration improvements
 --------------------------------

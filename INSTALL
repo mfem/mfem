@@ -350,10 +350,10 @@ MFEM_USE_SUPERLU5 = YES/NO
 
 MFEM_USE_MUMPS = YES/NO
    Enable MFEM functionality based on the MUMPS library. Currently, this
-   option adds the class MUMPSSolver (a parallel sparse direct solver). 
+   option adds the class MUMPSSolver (a parallel sparse direct solver).
    When enabled, this option uses the MUMPS_* library options, see
    below.
-   
+
 MFEM_USE_STRUMPACK = YES/NO
    Enable MFEM functionality based on the STRUMPACK sparse direct solver and
    preconditioner through the STRUMPACKSolver and STRUMPACKRowLocMatrix
