@@ -185,6 +185,8 @@ public:
 
    virtual void Update(FiniteElementSpace *nfes = NULL);
 
+   void EliminateVDofsInRHS(const Array<int> &vdofs, const Vector &x, Vector &b);
+
    virtual ~ParBilinearForm() { }
 };
 
