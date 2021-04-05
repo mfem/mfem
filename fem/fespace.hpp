@@ -88,6 +88,7 @@ class FiniteElementSpace
 {
    friend class InterpolationGridTransfer;
    friend class PRefinementTransferOperator;
+   friend void Mesh::Swap(Mesh &, bool);
 
 protected:
    /// The mesh that FE space lives on (not owned).
@@ -351,6 +352,11 @@ protected:
    void Constructor(Mesh *mesh, NURBSExtension *ext,
                     const FiniteElementCollection *fec,
                     int vdim = 1, int ordering = Ordering::byNODES);
+
+   /// Updates the internal mesh pointer. @warning @a new_mesh must be
+   /// <b>topologically identical</b> to the existing mesh. Used if the address
+   /// of the Mesh object has changed, e.g. in @a Mesh::Swap.
+   virtual void UpdateMeshPointer(Mesh *new_mesh);
 
    /// Resize the elem_order array on mesh change.
    void UpdateElementOrders();
@@ -740,6 +746,13 @@ public:
    virtual void GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
                                      Array<int> &ess_tdof_list,
                                      int component = -1);
+
+   /** @brief Get a list of all boundary true dofs, @a boundary_dofs. For spaces
+       with 'vdim' > 1, the 'component' parameter can be used to restricts the
+       marked tDOFs to the specified component. Equivalent to
+       FiniteElementSpace::GetEssentialTrueDofs with all boundary attributes
+       marked as essential. */
+   void GetBoundaryTrueDofs(Array<int> &boundary_dofs, int component = -1);
 
    /// Convert a Boolean marker array to a list containing all marked indices.
    static void MarkerToList(const Array<int> &marker, Array<int> &list);

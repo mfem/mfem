@@ -146,13 +146,30 @@ Version 4.2.1 (development)
 
 - Gitlab CI: use Spack (and Uberenv) to automate the build of TPLs.
 
+- Added new miniapps demonstrating: 1) the use of GSLIB for overlapping grids,
+  see gslib/schwarz_ex1, and 2) coupling different physics in different domains,
+  see navier/cht. Note that gslib v1.0.7 is require (see INSTALL for details).
+
+- Added a new, very simple example (ex0 and parallel version ex0p). This
+  example solves a simple Poisson problem using H1 elements (the same problem as
+  ex1), but is intended to be extremely simple and approachable for new users.
+
+- Meshes consisting of any type of elements (including mixed meshes) can be
+  converted to all-simplex meshes using Mesh::MakeSimplicial.
+
+- Several of the mesh constructors (creating Cartesian meshes, refined (LOR)
+  meshes, simplex meshes, etc.) are now available as "named constructors", e.g.
+  Mesh::MakeCartesian2D or Mesh::MakeRefined. The legacy constructors are marked
+  as deprecated.
+
 libCEED integration improvements
 --------------------------------
 - Refactor the libCEED integration
 
 - Add support for VectorCoefficient with libCEED backends.
 
-- Add support for ConvectionIntegrator, and VectorConvectionNLFIntegrator with libCEED backends.
+- Add support for ConvectionIntegrator, and VectorConvectionNLFIntegrator with
+  libCEED backends.
 
 
 Version 4.2, released on October 30, 2020
