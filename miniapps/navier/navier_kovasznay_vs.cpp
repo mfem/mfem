@@ -136,24 +136,25 @@ int main(int argc, char *argv[])
       args.PrintOptions(mfem::out);
    }
 
-   Mesh *mesh = new Mesh(2, 4, Element::QUADRILATERAL, false, 1.5, 2.0);
+   Mesh mesh = Mesh::MakeCartesian2D(2, 4, Element::QUADRILATERAL, false, 1.5,
+                                     2.0);
 
-   mesh->EnsureNodes();
-   GridFunction *nodes = mesh->GetNodes();
+   mesh.EnsureNodes();
+   GridFunction *nodes = mesh.GetNodes();
    *nodes -= 0.5;
 
    for (int i = 0; i < ctx.ser_ref_levels; ++i)
    {
-      mesh->UniformRefinement();
+      mesh.UniformRefinement();
    }
 
    if (mpi.Root())
    {
-      std::cout << "Number of elements: " << mesh->GetNE() << std::endl;
+      std::cout << "Number of elements: " << mesh.GetNE() << std::endl;
    }
 
-   auto *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
+   auto *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+   mesh.Clear();
 
    // Create the flow solver.
    NavierSolver flowsolver(pmesh, ctx.order, ctx.kinvis);
