@@ -981,16 +981,24 @@ void Update(ParFiniteElementSpace & H1FESpace,
    }
 }
 
+const char * banner[6] =
+{
+   R"(  _________ __   __        ____     ___)",
+   R"( /   _____//  |_|__|__  __/_   | __| _/)",
+   R"( \_____  \\   __\  \  \/  /|   |/ __ | )",
+   R"( /        \|  | |  |>    < |   / /_/ | )",
+   R"(/_______  /|__| |__/__/\_ \|___\____ | )",
+   R"(        \/               \/         \/ )"
+};
+
 // Print the STIX1D ascii logo to the given ostream
 void display_banner(ostream & os)
 {
-   os << "  _________ __   __        ____     ___" << endl
-      << " /   _____//  |_|__|__  __/_   | __| _/" << endl
-      << " \\_____  \\\\   __\\  \\  \\/  /|   |/ __ | " << endl
-      << " /        \\|  | |  |>    < |   / /_/ | " << endl
-      << "/_______  /|__| |__/__/\\_ \\|___\\____ | " << endl
-      << "        \\/               \\/         \\/ " << endl
-      << endl
+   for (int i=0; i<6; i++)
+   {
+      os << banner[i] << endl;
+   }
+   os << endl
       << "* Thomas H. Stix was a pioneer in the use of radio frequency"
       << " waves to heat" << endl
       << "  terrestrial plasmas to solar temperatures. He made important"
