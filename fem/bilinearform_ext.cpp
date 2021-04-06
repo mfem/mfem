@@ -547,8 +547,6 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
       }
    }
 
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-
    Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
@@ -557,17 +555,13 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
       if (faceIntX.Size()>0)
       {
          faceIntY = 0.0;
-         std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
          for (int i = 0; i < iFISz; ++i)
          {
             intFaceIntegrators[i]->AddMultTransposePA(faceIntX, faceIntY);
          }
-         std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
          int_face_restrict_lex->MultTranspose(faceIntY, y);
-         std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       }
    }
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 
    Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
    const int bFISz = bdrFaceIntegrators.Size();
@@ -577,17 +571,13 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
       if (faceBdrX.Size()>0)
       {
          faceBdrY = 0.0;
-         std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
          for (int i = 0; i < bFISz; ++i)
          {
             bdrFaceIntegrators[i]->AddMultTransposePA(faceBdrX, faceBdrY);
          }
-         std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
          bdr_face_restrict_lex->MultTranspose(faceBdrY, y);
-         std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       }
    }
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 }
 
 // Data and methods for element-assembled bilinear forms
