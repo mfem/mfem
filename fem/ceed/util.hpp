@@ -15,8 +15,7 @@
 #include "../../config/config.hpp"
 #ifdef MFEM_USE_CEED
 #include <ceed.h>
-#include <ceed-hash.h>
-#include <ceed-backend.h>  // for CeedOperatorField
+#include <ceed/hash.h>
 #endif
 #include <tuple>
 #include <unordered_map>
@@ -77,7 +76,14 @@ void InitBasisAndRestriction(const mfem::FiniteElementSpace &fes,
 void InitTensorRestriction(const FiniteElementSpace &fes,
                            Ceed ceed, CeedElemRestriction *restr);
 
-int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field);
+int CeedBasisCreateTensorH1Gauss(Ceed ceed, CeedInt dim, CeedInt ncomp,
+                                 CeedInt P, CeedInt Q, CeedQuadMode qmode,
+                                 CeedBasis *basis);
+int CeedBasisCreateMFEMTensorH1Lagrange(Ceed ceed, CeedInt dim, CeedInt ncomp,
+                                        CeedInt P, CeedInt Q, CeedQuadMode qmode,
+                                        CeedBasis *basis);
+
+int CeedOperatorGetActiveBasis(CeedOperator oper, CeedBasis *basis);
 
 int CeedOperatorGetActiveElemRestriction(CeedOperator oper,
                                          CeedElemRestriction* restr_out);

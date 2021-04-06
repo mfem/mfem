@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -26,6 +26,15 @@ namespace ceed
 {
 
 #ifdef MFEM_USE_CEED
+
+/** @brief Assembles a CeedOperator as an mfem::SparseMatrix
+
+    In parallel, this assembles independently on each processor, that is, it
+    assembles at the L-vector level. The assembly procedure is always
+    performed on the host, but this works for operators stored on device
+    by copying memory. */
+int CeedOperatorFullAssemble(CeedOperator op, SparseMatrix **mat);
+
 /** @brief A way to use algebraic levels in a Multigrid object
 
     This is analogous to a FiniteElementSpace but with no Mesh information,
@@ -147,6 +156,16 @@ public:
       }
    }
 
+   /** Prepend an already constructed coarse space to the hierarchy,
+       managing meshes, fespaces, and other arrays appropriately.
+
+       Analogous to FESpaceHierarchy::AddLevel() */
+   void AddCoarseLevel(AlgebraicCoarseSpace* space,
+                       CeedElemRestriction er);
+
+   /// Analogous to FiniteElementSpaceHierarchy::AddOrderRefinedLevel()
+   void PrependPCoarsenedLevel(int current_order, int order_reduction);
+
 private:
    CeedElemRestriction fine_er;
    Array<AlgebraicInterpolation*> ceed_interpolations;
@@ -162,14 +181,24 @@ public:
 
        This only works if the Ceed device backend is enabled.
 
-       @param[in] hierarchy  Hierarchy of (algebraic) spaces
-       @param[in] form       partially assembled BilinearForm on finest level
-       @param[in] ess_tdofs  List of essential true dofs on finest level
-    */
+       @param hierarchy   Hierarchy of (algebraic) spaces
+       @param form        Partially assembled BilinearForm on finest level
+       @param ess_tdofs   List of essential true dofs on finest level
+       @param print_level How verbose about output / adaptive coarsening
+       @param contrast_threshold Determine how aggressively to coarsen
+       @param switch_amg_order   When to fully assemble and use AMG
+       @param collocate_coarse   Whether to collocate quadrature on coarse levels
+       @param amgx_config_file   Custom configuration for AMGx
+   */
    AlgebraicMultigrid(
       AlgebraicSpaceHierarchy &hierarchy,
       BilinearForm &form,
-      const Array<int> &ess_tdofs
+      const Array<int> &ess_tdofs,
+      int print_level=1,
+      double contrast_threshold=1000.0,
+      int switch_amg_order=2,
+      bool collocate_coarse=true,
+      const std::string amgx_config_file=""
    );
    virtual void SetOperator(const mfem::Operator &op) override { }
    ~AlgebraicMultigrid();

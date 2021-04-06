@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,11 +10,13 @@
 // CONTRIBUTING.md for details.
 
 #include "algebraic.hpp"
-
+#ifdef MFEM_USE_CEED
+#include <ceed/backend.h>
+#endif
 #include "../bilinearform.hpp"
 #include "../fespace.hpp"
-#include "../ceed/solvers-atpmg.hpp"
-#include "../ceed/full-assembly.hpp"
+#include "solvers-atpmg.hpp"
+#include "solvers-qcoarsen.hpp"
 #include "../pfespace.hpp"
 #include "../../general/forall.hpp"
 
@@ -25,6 +27,42 @@ namespace ceed
 {
 
 #ifdef MFEM_USE_CEED
+
+int CeedOperatorFullAssemble(CeedOperator op, SparseMatrix **mat)
+{
+   int ierr;
+
+   CeedInt nentries;
+   CeedInt *rows, *cols;
+   CeedVector values;
+   const CeedScalar *vals;
+
+   ierr = CeedOperatorLinearAssembleSymbolic(op, &nentries, &rows, &cols);
+   CeedChk(ierr);
+   ierr = CeedVectorCreate(internal::ceed, nentries, &values); CeedChk(ierr);
+   ierr = CeedOperatorLinearAssemble(op, values); CeedChk(ierr);
+
+   ierr = CeedVectorGetArrayRead(values, CEED_MEM_HOST, &vals); CeedChk(ierr);
+   CeedElemRestriction er;
+   ierr = CeedOperatorGetActiveElemRestriction(op, &er); CeedChk(ierr);
+   CeedInt nnodes;
+   ierr = CeedElemRestrictionGetLVectorSize(er, &nnodes); CeedChk(ierr);
+   SparseMatrix *out = new SparseMatrix(nnodes, nnodes);
+   for (int k = 0; k < nentries; ++k)
+   {
+      out->Add(rows[k], cols[k], vals[k]);
+   }
+   ierr = CeedVectorRestoreArrayRead(values, &vals); CeedChk(ierr);
+   const int skip_zeros = 0;
+   out->Finalize(skip_zeros);
+   ierr = CeedVectorDestroy(&values); CeedChk(ierr);
+   free(rows);
+   free(cols);
+
+   *mat = out;
+
+   return 0;
+}
 
 /** Wraps a CeedOperator in an mfem::Operator, with essential boundary
     conditions and a prolongation operator for parallel application. */
@@ -160,7 +198,8 @@ Solver *BuildSmootherFromCeed(ConstrainedOperator &op, bool chebyshev)
 class AssembledAMG : public Solver
 {
 public:
-   AssembledAMG(ConstrainedOperator &oper, HypreParMatrix *P)
+   AssembledAMG(ConstrainedOperator &oper, HypreParMatrix *P, bool amgx=false,
+                const std::string amgx_config_file="")
    {
       MFEM_ASSERT(P != NULL, "Provided HypreParMatrix is invalid!");
       height = width = oper.Height();
@@ -178,10 +217,39 @@ public:
       }
       HypreParMatrix *mat_e = op_assembled->EliminateRowsCols(ess_tdofs);
       delete mat_e;
-      amg = new HypreBoomerAMG(*op_assembled);
-      amg->SetPrintLevel(0);
+
+#ifdef MFEM_USE_AMGX
+      if (amgx)
+      {
+         if (amgx_config_file == "")
+         {
+            bool amgx_verbose = false;
+            amg = new AmgXSolver(op_assembled->GetComm(),
+                                 AmgXSolver::PRECONDITIONER, amgx_verbose);
+            amg->SetOperator(*op_assembled);
+         }
+         else
+         {
+            AmgXSolver * amgx_prec = new AmgXSolver;
+            amgx_prec->ReadParameters(amgx_config_file, AmgXSolver::EXTERNAL);
+            amgx_prec->InitExclusiveGPU(MPI_COMM_WORLD);
+            amgx_prec->SetOperator(*op_assembled);
+            amg = amgx_prec;
+         }
+      }
+      else
+#endif
+      {
+         HypreBoomerAMG * hypre_amg = new HypreBoomerAMG(*op_assembled);
+         hypre_amg->SetPrintLevel(0);
+         amg = hypre_amg;
+      }
+
    }
-   void SetOperator(const mfem::Operator &op) override { }
+
+   void SetOperator(const mfem::Operator &op) override
+   { amg->SetOperator(op); }
+
    void Mult(const Vector &x, Vector &y) const override { amg->Mult(x, y); }
    ~AssembledAMG()
    {
@@ -192,7 +260,7 @@ public:
 private:
    SparseMatrix *mat_local;
    HypreParMatrix *op_assembled;
-   HypreBoomerAMG *amg;
+   Solver *amg;
 };
 
 #endif // MFEM_USE_MPI
@@ -255,10 +323,10 @@ CeedOperator CreateCeedCompositeOperatorFromBilinearForm(BilinearForm &form)
 }
 
 CeedOperator CoarsenCeedCompositeOperator(
-   CeedOperator op,
-   CeedElemRestriction er,
-   CeedBasis c2f,
-   int order_reduction
+   CeedOperator op, CeedElemRestriction er,
+   CeedBasis c2f, int order_reduction,
+   int qorder_reduction, CeedQuadMode fine_qmode,
+   CeedQuadMode coarse_qmode
 )
 {
    int ierr;
@@ -278,9 +346,25 @@ CeedOperator CoarsenCeedCompositeOperator(
    {
       CeedOperator subop = subops[isub];
       CeedBasis basis_coarse, basis_c2f;
-      CeedOperator subop_coarse;
+      CeedOperator subop_coarse, t_subop_coarse;
       ierr = CeedATPMGOperator(subop, order_reduction, er, &basis_coarse,
-                               &basis_c2f, &subop_coarse); PCeedChk(ierr);
+                               &basis_c2f, &t_subop_coarse); PCeedChk(ierr);
+      if (qorder_reduction == 0)
+      {
+         subop_coarse = t_subop_coarse;
+      }
+      else
+      {
+         CeedVector qcoarsen_assembledqf;
+         CeedQFunctionContext qcoarsen_context;
+         ierr = CeedOperatorQCoarsen(t_subop_coarse, qorder_reduction,
+                                     &subop_coarse, &qcoarsen_assembledqf,
+                                     &qcoarsen_context, fine_qmode,
+                                     coarse_qmode); PCeedChk(ierr);
+         ierr = CeedVectorDestroy(&qcoarsen_assembledqf); PCeedChk(ierr);
+         ierr = CeedQFunctionContextDestroy(&qcoarsen_context); PCeedChk(ierr);
+         ierr = CeedOperatorDestroy(&t_subop_coarse); PCeedChk(ierr);
+      }
       // destructions below make sense because these objects are
       // refcounted by existing objects
       ierr = CeedBasisDestroy(&basis_coarse); PCeedChk(ierr);
@@ -295,31 +379,112 @@ CeedOperator CoarsenCeedCompositeOperator(
 AlgebraicMultigrid::AlgebraicMultigrid(
    AlgebraicSpaceHierarchy &hierarchy,
    BilinearForm &form,
-   const Array<int> &ess_tdofs
+   const Array<int> &ess_tdofs,
+   int print_level,
+   double contrast_threshold,
+   int switch_amg_order,
+   bool collocate_coarse,
+   const std::string amgx_config_file
 ) : GeometricMultigrid(hierarchy)
 {
-   int nlevels = fespaces.GetNumLevels();
-   ceed_operators.SetSize(nlevels);
-   essentialTrueDofs.SetSize(nlevels);
-
    // Construct finest level
-   ceed_operators[nlevels-1] = CreateCeedCompositeOperatorFromBilinearForm(form);
-   essentialTrueDofs[nlevels-1] = new Array<int>;
-   *essentialTrueDofs[nlevels-1] = ess_tdofs;
+   ceed_operators.Prepend(CreateCeedCompositeOperatorFromBilinearForm(form));
+   essentialTrueDofs.Prepend(new Array<int>);
+   *essentialTrueDofs[0] = ess_tdofs;
 
-   // Construct operators at all levels of hierarchy by coarsening
-   for (int ilevel=nlevels-2; ilevel>=0; --ilevel)
+   int myid = 0;
+#ifdef MFEM_USE_MPI
+   ParFiniteElementSpace *pfes =
+      dynamic_cast<ParFiniteElementSpace*>(&hierarchy.GetFESpaceAtLevel(0));
+   MPI_Comm comm = MPI_COMM_SELF;
+   if (pfes)
    {
-      AlgebraicCoarseSpace &space = hierarchy.GetAlgebraicCoarseSpace(ilevel);
-      ceed_operators[ilevel] = CoarsenCeedCompositeOperator(
-                                  ceed_operators[ilevel+1], space.GetCeedElemRestriction(),
-                                  space.GetCeedCoarseToFine(), space.GetOrderReduction());
-      mfem::Operator *P = hierarchy.GetProlongationAtLevel(ilevel);
-      essentialTrueDofs[ilevel] = new Array<int>;
-      CoarsenEssentialDofs(*P, *essentialTrueDofs[ilevel+1],
-                           *essentialTrueDofs[ilevel]);
+      comm = pfes->GetComm();
+      MPI_Comm_rank(comm, &myid);
+   }
+#endif
+
+   int current_order = hierarchy.GetFESpaceAtLevel(0).GetOrder(0);
+   int level_counter = 0;
+   // Construct interpolation, operators, at all levels of hierarchy by coarsening
+   while (current_order > 1)
+   {
+      double minq, maxq, absmin;
+      CeedOperatorGetHeuristics(ceed_operators[0], &minq, &maxq, &absmin);
+      double local_heuristic = std::max(std::abs(minq), std::abs(maxq)) / absmin;
+      double heuristic = local_heuristic;
+#ifdef MFEM_USE_MPI
+      MPI_Allreduce(&local_heuristic, &heuristic, 1, MPI_DOUBLE,
+                    MPI_MAX, comm);
+#endif
+
+      int order_reduction;
+      if (heuristic > contrast_threshold && current_order <= switch_amg_order)
+      {
+         // assemble at this level
+         break;
+      }
+      else if (heuristic > contrast_threshold || current_order == 3)
+      {
+         // coarsening directly from 3 to 1 appears to be bad
+         order_reduction = 1;
+      }
+      else
+      {
+         order_reduction = current_order - (current_order/2);
+      }
+
+      if (print_level > 0 && myid == 0)
+      {
+         mfem::out << "  level: " << level_counter << " heuristic = "
+                   << heuristic << ", coarsening from order "
+                   << current_order << " to "
+                   << current_order - order_reduction << std::endl;
+      }
+      hierarchy.PrependPCoarsenedLevel(current_order, order_reduction);
+      current_order = current_order - order_reduction;
+
+      AlgebraicCoarseSpace &space = hierarchy.GetAlgebraicCoarseSpace(0);
+      int qor = order_reduction;
+      if (collocate_coarse)
+      {
+         if (level_counter == 0)
+         {
+            ceed_operators.Prepend(
+               CoarsenCeedCompositeOperator(
+                  ceed_operators[0], space.GetCeedElemRestriction(),
+                  space.GetCeedCoarseToFine(), space.GetOrderReduction(),
+                  qor, CEED_GAUSS, CEED_GAUSS_LOBATTO)
+            );
+         }
+         else
+         {
+            ceed_operators.Prepend(
+               CoarsenCeedCompositeOperator(
+                  ceed_operators[0], space.GetCeedElemRestriction(),
+                  space.GetCeedCoarseToFine(), space.GetOrderReduction(),
+                  qor, CEED_GAUSS_LOBATTO, CEED_GAUSS_LOBATTO)
+            );
+         }
+      }
+      else
+      {
+         ceed_operators.Prepend(
+            CoarsenCeedCompositeOperator(
+               ceed_operators[0], space.GetCeedElemRestriction(),
+               space.GetCeedCoarseToFine(), space.GetOrderReduction(),
+               qor, CEED_GAUSS, CEED_GAUSS)
+         );
+      }
+      mfem::Operator *P = hierarchy.GetProlongationAtLevel(0);
+      essentialTrueDofs.Prepend(new Array<int>);
+      CoarsenEssentialDofs(*P, *essentialTrueDofs[1],
+                           *essentialTrueDofs[0]);
+
+      level_counter++;
    }
 
+   int nlevels = fespaces.GetNumLevels();
    // Add the operators and smoothers to the hierarchy, from coarse to fine
    for (int ilevel=0; ilevel<nlevels; ++ilevel)
    {
@@ -328,30 +493,46 @@ AlgebraicMultigrid::AlgebraicMultigrid(
       ConstrainedOperator *op = new ConstrainedOperator(
          ceed_operators[ilevel], *essentialTrueDofs[ilevel], P);
       Solver *smoother;
-#ifdef MFEM_USE_MPI
-      if (ilevel == 0 && !Device::Allows(Backend::CUDA))
-      {
-         HypreParMatrix *P_mat = NULL;
-         if (nlevels == 1)
-         {
-            // Only one level -- no coarsening, finest level
-            ParFiniteElementSpace *pfes
-               = dynamic_cast<ParFiniteElementSpace*>(&space);
-            if (pfes) { P_mat = pfes->Dof_TrueDof_Matrix(); }
-         }
-         else
-         {
-            ParAlgebraicCoarseSpace *pspace
-               = dynamic_cast<ParAlgebraicCoarseSpace*>(&space);
-            if (pspace) { P_mat = pspace->GetProlongationHypreParMatrix(); }
-         }
-         if (P_mat) { smoother = new AssembledAMG(*op, P_mat); }
-         else { smoother = BuildSmootherFromCeed(*op, true); }
-      }
-      else
-#endif
+      if (ilevel != 0)
       {
          smoother = BuildSmootherFromCeed(*op, true);
+      }
+      else
+      {
+         bool assemble_matrix = false;
+#ifdef MFEM_USE_MPI
+#ifdef MFEM_USE_AMGX
+         assemble_matrix = true;
+#else
+         if (!Device::Allows(Backend::CUDA)) { assemble_matrix = true; }
+#endif
+         HypreParMatrix *P_mat = NULL;
+         if (assemble_matrix)
+         {
+            if (nlevels == 1)
+            {
+               // Only one level -- no coarsening, finest level
+               ParFiniteElementSpace *pfes
+                  = dynamic_cast<ParFiniteElementSpace*>(&space);
+               if (pfes) { P_mat = pfes->Dof_TrueDof_Matrix(); }
+            }
+            else
+            {
+               ParAlgebraicCoarseSpace *pspace
+                  = dynamic_cast<ParAlgebraicCoarseSpace*>(&space);
+               if (pspace) { P_mat = pspace->GetProlongationHypreParMatrix(); }
+            }
+         }
+         if (P_mat)
+         {
+            smoother = new AssembledAMG(*op, P_mat, Device::Allows(Backend::CUDA),
+                                        amgx_config_file);
+         }
+         else
+#endif
+         {
+            smoother = BuildSmootherFromCeed(*op, true);
+         }
       }
       AddLevel(op, smoother, true, true);
    }
@@ -595,92 +776,90 @@ void AlgebraicInterpolation::MultTranspose(const mfem::Vector& x,
 
 AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
 {
-   int order = fes.GetOrder(0);
-   int nlevels = 0;
-   int current_order = order;
-   while (current_order > 0)
-   {
-      nlevels++;
-      current_order = current_order/2;
-   }
-
-   meshes.SetSize(nlevels);
-   ownedMeshes.SetSize(nlevels);
-   meshes = fes.GetMesh();
-   ownedMeshes = false;
-
-   fespaces.SetSize(nlevels);
-   ownedFES.SetSize(nlevels);
-   // Own all FESpaces except for the finest, own all prolongations
-   ownedFES = true;
-   fespaces[nlevels-1] = &fes;
-   ownedFES[nlevels-1] = false;
-
-   ceed_interpolations.SetSize(nlevels-1);
-   R_tr.SetSize(nlevels-1);
-   prolongations.SetSize(nlevels-1);
-   ownedProlongations.SetSize(nlevels-1);
-
-   current_order = order;
+   meshes.Prepend(fes.GetMesh());
+   ownedMeshes.Prepend(false);
+   fespaces.Prepend(&fes);
+   ownedFES.Prepend(false);
 
    Ceed ceed = internal::ceed;
    InitTensorRestriction(fes, ceed, &fine_er);
-   CeedElemRestriction er = fine_er;
+}
 
-   int dim = fes.GetMesh()->Dimension();
+void AlgebraicSpaceHierarchy::AddCoarseLevel(AlgebraicCoarseSpace* space,
+                                             CeedElemRestriction er)
+{
+   MFEM_VERIFY(meshes.Size() >= 1, "At least one level must exist!");
+   Mesh* finemesh = meshes[0];
+   meshes.Prepend(finemesh); // every entry of meshes points to finest mesh
+   ownedMeshes.Prepend(false);
+   fespaces.Prepend(space);
+   ownedFES.Prepend(true); // owns all but finest
+   ceed_interpolations.Prepend(new AlgebraicInterpolation(
+                                  internal::ceed,
+                                  space->GetCeedCoarseToFine(),
+                                  space->GetCeedElemRestriction(),
+                                  er)
+                              );
+   const SparseMatrix *R = fespaces[1]->GetRestrictionMatrix();
+   if (R)
+   {
+      R->BuildTranspose();
+      R_tr.Prepend(new TransposeOperator(*R));
+   }
+   else
+   {
+      R_tr.Prepend(NULL);
+   }
+   prolongations.Prepend(ceed_interpolations[0]->SetupRAP(
+                            space->GetProlongationMatrix(), R_tr[0]));
+   ownedProlongations.Prepend(prolongations[0] != ceed_interpolations[0]);
+}
+
+// the ifdefs and dynamic casts are very ugly, but the interface is kinda nice?
+void AlgebraicSpaceHierarchy::PrependPCoarsenedLevel(
+   int current_order, int order_reduction)
+{
+   MFEM_VERIFY(fespaces.Size() >= 1, "At least one level must exist!");
+   int dim = meshes[0]->Dimension();
+
+   AlgebraicCoarseSpace *fine_alg_space =
+      dynamic_cast<AlgebraicCoarseSpace*>(fespaces[0]);
+   CeedElemRestriction current_er;
 #ifdef MFEM_USE_MPI
    GroupCommunicator *gc = NULL;
-   ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace*>(&fes);
-   if (pfes)
-   {
-      gc = &pfes->GroupComm();
-   }
 #endif
-
-   for (int ilevel=nlevels-2; ilevel>=0; --ilevel)
+   if (fine_alg_space)
    {
-      const int order_reduction = current_order - (current_order/2);
-      AlgebraicCoarseSpace *space;
-
+      current_er = fine_alg_space->GetCeedElemRestriction();
 #ifdef MFEM_USE_MPI
-      if (pfes)
-      {
-         ParAlgebraicCoarseSpace *parspace = new ParAlgebraicCoarseSpace(
-            *fespaces[ilevel+1], er, current_order, dim, order_reduction, gc);
-         gc = parspace->GetGroupCommunicator();
-         space = parspace;
-      }
-      else
+      ParAlgebraicCoarseSpace *par_alg_space =
+         dynamic_cast<ParAlgebraicCoarseSpace*>(fine_alg_space);
+      if (par_alg_space) { gc = par_alg_space->GetGroupCommunicator(); }
 #endif
-      {
-         space = new AlgebraicCoarseSpace(
-            *fespaces[ilevel+1], er, current_order, dim, order_reduction);
-      }
-      current_order = current_order/2;
-      fespaces[ilevel] = space;
-      ceed_interpolations[ilevel] = new AlgebraicInterpolation(
-         ceed,
-         space->GetCeedCoarseToFine(),
-         space->GetCeedElemRestriction(),
-         er
-      );
-      const SparseMatrix *R = fespaces[ilevel+1]->GetRestrictionMatrix();
-      if (R)
-      {
-         R->BuildTranspose();
-         R_tr[ilevel] = new TransposeOperator(*R);
-      }
-      else
-      {
-         R_tr[ilevel] = NULL;
-      }
-      prolongations[ilevel] = ceed_interpolations[ilevel]->SetupRAP(
-                                 space->GetProlongationMatrix(), R_tr[ilevel]);
-      ownedProlongations[ilevel]
-         = prolongations[ilevel] != ceed_interpolations[ilevel];
-
-      er = space->GetCeedElemRestriction();
    }
+   else
+   {
+      current_er = fine_er;
+#ifdef MFEM_USE_MPI
+      ParFiniteElementSpace *pfes =
+         dynamic_cast<ParFiniteElementSpace*>(fespaces[0]);
+      if (pfes) { gc = &pfes->GroupComm(); }
+#endif
+   }
+   AlgebraicCoarseSpace *space;
+#ifdef MFEM_USE_MPI
+   if (gc)
+   {
+      space = new ParAlgebraicCoarseSpace(
+         *fespaces[0], current_er, current_order, dim, order_reduction, gc);
+   }
+   else
+#endif
+   {
+      space = new AlgebraicCoarseSpace(
+         *fespaces[0], current_er, current_order, dim, order_reduction);
+   }
+   AddCoarseLevel(space, current_er);
 }
 
 AlgebraicCoarseSpace::AlgebraicCoarseSpace(
@@ -941,7 +1120,9 @@ AlgebraicSolver::AlgebraicSolver(BilinearForm &form,
                "AlgebraicSolver requires tensor product basis functions.");
 #ifdef MFEM_USE_CEED
    fespaces = new AlgebraicSpaceHierarchy(*form.FESpace());
-   multigrid = new AlgebraicMultigrid(*fespaces, form, ess_tdofs);
+   const double default_threshold = 1000.0;
+   multigrid = new AlgebraicMultigrid(*fespaces, form, ess_tdofs,
+                                      default_threshold);
 #else
    MFEM_ABORT("AlgebraicSolver requires Ceed support");
 #endif
