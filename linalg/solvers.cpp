@@ -116,55 +116,80 @@ void IterativeSolver::Monitor(int it, double norm, const Vector& r,
    }
 }
 
+OperatorJacobiSmoother::OperatorJacobiSmoother(const double dmpng)
+   : damping(dmpng),
+     ess_tdof_list(nullptr),
+     oper(nullptr),
+     allow_updates(true)
+{ }
+
 OperatorJacobiSmoother::OperatorJacobiSmoother(const BilinearForm &a,
                                                const Array<int> &ess_tdofs,
                                                const double dmpng)
    :
    Solver(a.FESpace()->GetTrueVSize()),
-   N(height),
-   dinv(N),
+   dinv(height),
    damping(dmpng),
-   ess_tdof_list(ess_tdofs),
-   residual(N)
+   ess_tdof_list(&ess_tdofs),
+   residual(height),
+   allow_updates(false)
 {
-   Vector diag(N);
+   Vector &diag(residual);
    a.AssembleDiagonal(diag);
-   oper = &a;
+   // 'a' cannot be used for iterative_mode == true because its size may be
+   // different.
+   oper = nullptr;
    Setup(diag);
 }
-
-OperatorJacobiSmoother::OperatorJacobiSmoother(int size,
-                                               const Array<int> &ess_tdofs,
-                                               const double dmpng)
-   : Solver(size), N(size), dinv(N), damping(dmpng),
-     ess_tdof_list(ess_tdofs), residual(N) { }
 
 OperatorJacobiSmoother::OperatorJacobiSmoother(const Vector &d,
                                                const Array<int> &ess_tdofs,
                                                const double dmpng)
    :
    Solver(d.Size()),
-   N(d.Size()),
-   dinv(N),
+   dinv(height),
    damping(dmpng),
-   ess_tdof_list(ess_tdofs),
-   residual(N),
-   oper(NULL)
+   ess_tdof_list(&ess_tdofs),
+   residual(height),
+   oper(NULL),
+   allow_updates(false)
 {
    Setup(d);
 }
 
 void OperatorJacobiSmoother::SetOperator(const Operator &op)
 {
-   oper = &op;
+   if (!allow_updates)
+   {
+      // original behavior of this method
+      oper = &op; return;
+   }
 
-   Vector diag(N);
-   // Assumes that the result is on the tdofs, e.g., oper is a RAP Operator.
-   // Note that there are operators that work on the ldofs, but their
-   // AssembleDiagonal() is defined w.r.t. the tdofs (e.g. BilinearForm). In
-   // other words, we may have N != op.Size(). This is why the size N is set in
-   // the constructor.
-   oper->AssembleDiagonal(diag);
+   // Treat (Par)BilinearForm objects as a special case since their
+   // AssembleDiagonal method returns the true-dof diagonal whereas the form
+   // itself may act as an ldof operator. This is for compatibility with the
+   // constructor that takes a BilinearForm parameter.
+   const BilinearForm *blf = dynamic_cast<const BilinearForm *>(&op);
+   if (blf)
+   {
+      // 'a' cannot be used for iterative_mode == true because its size may be
+      // different.
+      oper = nullptr;
+      height = width = blf->FESpace()->GetTrueVSize();
+   }
+   else
+   {
+      oper = &op;
+      height = op.Height();
+      width = op.Width();
+      MFEM_ASSERT(height == width, "not a square matrix!");
+      // ess_tdof_list is only used with BilinearForm
+      ess_tdof_list = nullptr;
+   }
+   dinv.SetSize(height);
+   residual.SetSize(height);
+   Vector &diag(residual);
+   op.AssembleDiagonal(diag);
    Setup(diag);
 }
 
@@ -174,19 +199,24 @@ void OperatorJacobiSmoother::Setup(const Vector &diag)
    const double delta = damping;
    auto D = diag.Read();
    auto DI = dinv.Write();
-   MFEM_FORALL(i, N, DI[i] = delta / D[i]; );
-   auto I = ess_tdof_list.Read();
-   MFEM_FORALL(i, ess_tdof_list.Size(), DI[I[i]] = delta; );
+   MFEM_FORALL(i, height, DI[i] = delta / D[i]; );
+   if (ess_tdof_list && ess_tdof_list->Size() > 0)
+   {
+      auto I = ess_tdof_list->Read();
+      MFEM_FORALL(i, ess_tdof_list->Size(), DI[I[i]] = delta; );
+   }
 }
 
 void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
 {
-   MFEM_VERIFY(N > 0, "The diagonal hasn't been computed.");
-   MFEM_ASSERT(x.Size() == N, "invalid input vector");
-   MFEM_ASSERT(y.Size() == N, "invalid output vector");
+   // For empty MPI ranks, height may be 0:
+   // MFEM_VERIFY(Height() > 0, "The diagonal hasn't been computed.");
+   MFEM_ASSERT(x.Size() == Width(), "invalid input vector");
+   MFEM_ASSERT(y.Size() == Height(), "invalid output vector");
 
-   if (iterative_mode && oper)
+   if (iterative_mode)
    {
+      MFEM_VERIFY(oper, "iterative_mode == true requires the forward operator");
       oper->Mult(y, residual);  // r = A y
       subtract(x, residual, residual); // r = x - A y
    }
@@ -199,7 +229,7 @@ void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
    auto DI = dinv.Read();
    auto R = residual.Read();
    auto Y = y.ReadWrite();
-   MFEM_FORALL(i, N, Y[i] += DI[i] * R[i]; );
+   MFEM_FORALL(i, height, Y[i] += DI[i] * R[i]; );
 }
 
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(Operator* oper_,

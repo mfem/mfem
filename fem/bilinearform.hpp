@@ -369,10 +369,12 @@ public:
    /** @brief Assemble the diagonal of the bilinear form into @a diag. Note that
        @a diag is a tdof Vector.
 
-       For adaptively refined meshes, this returns P^T d_e, where d_e is the
-       locally assembled diagonal on each element and P^T is the transpose of
-       the conforming prolongation. In general this is not the correct diagonal
-       for an AMR mesh. */
+       When the AssemblyLevel is not LEGACYFULL, and the mesh has hanging nodes,
+       this method returns |P^T| d_l, where d_l is the diagonal of the form
+       before applying conforming assembly, P^T is the transpose of the
+       conforming prolongation, and |.| denotes the entry-wise absolute value.
+       In general, this is just an approximation of the exact diagonal for this
+       case. */
    virtual void AssembleDiagonal(Vector &diag) const;
 
    /// Get the finite element space prolongation operator.
