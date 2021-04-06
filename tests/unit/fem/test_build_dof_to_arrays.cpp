@@ -15,7 +15,7 @@
 namespace mfem
 {
 
-namespace for_dof
+namespace build_dof_to_arrays
 {
 
 static double a_ = M_PI;
@@ -112,7 +112,7 @@ TEST_CASE("Build Dof To Arrays",
                fec = new L2_FECollection(order-1, dim);
             }
             FiniteElementSpace fespace(mesh, fec);
-            HYPRE_Int size = fespace.GetTrueVSize();
+            int size = fespace.GetTrueVSize();
 
             fespace.BuildDofToArrays();
 
@@ -479,6 +479,6 @@ Mesh * GetMesh(MeshType type)
    return mesh;
 }
 
-} // namespace for_dof
+} // namespace build_dof_to_arrays
 
 } // namespace mfem
