@@ -49,6 +49,7 @@ static void PADGDiffusionSetup2D(const int Q1D,
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto B = Reshape(b.Read(), Q1D, D1D);
    const int VDIM = 2; // why ? 
+   //auto jac = Reshape(jac.Read(), Q1D, NF); // assumes conforming mesh
    auto detJ = Reshape(det_jac.Read(), Q1D, NF); // assumes conforming mesh
    auto norm = Reshape(nor.Read(), Q1D, VDIM, NF);
    auto f2ev = Reshape(face_2_elem_volumes.Read(), 2, NF);
@@ -77,6 +78,13 @@ static void PADGDiffusionSetup2D(const int Q1D,
          // Need to correct the scaling of w to account for d/dn, etc..
          double w_o_detJ = w/detJ(q,f);
 
+/*
+         std::cout << "mag_norm  = " << mag_norm << std::endl;
+         std::cout << "detJ(q,f) = " << detJ(q,f) << std::endl;
+         std::cout << "wgts[q] = " << wgts[q] << std::endl;
+         std::cout << "w = " << w << std::endl;
+         std::cout << "w_o_detJ = " << w_o_detJ << std::endl;
+         */
          //double n = normx+normy;
          
          if( f2ev(1,f) == -1.0 ) // Need a more standard way to detect bdr faces
@@ -217,12 +225,6 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
    //  {df/dn}(0) = -{df/dx}(0)   
    gf *= -1.0;
 
-/*
-   for(int i=0 ; i < dofs1D; i++ )
-      std::cout << i  <<" "<<  bf(i) <<" "<<  gf(i) << std::endl;
-*/
-
-   // are these the right things for our data?
    coeff_data_1.SetSize( 4 * nq * nf, Device::GetMemoryType());
    coeff_data_2.SetSize( 2 * nq * nf, Device::GetMemoryType());
    coeff_data_3.SetSize( 2 * nq * nf, Device::GetMemoryType());
@@ -327,6 +329,7 @@ void PADGDiffusionApply2D(const int NF,
 {
    // vdim is confusing as it seems to be used differently based on the context
    const int VDIM = 1;
+   const int NS = 2; // number of values per face (2 for double-values faces)
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
@@ -340,43 +343,24 @@ void PADGDiffusionApply2D(const int NF,
    auto Bt = Reshape(bt.Read(), D1D, Q1D);
    auto Bf = Reshape(bf.Read(), D1D);
    auto Gf = Reshape(gf.Read(), D1D);
-   auto op1 = Reshape(_op1.Read(), Q1D, 2, 2, NF);
-   auto op2 = Reshape(_op2.Read(), Q1D, 2, NF);
-   auto op3 = Reshape(_op3.Read(), Q1D, 2, NF);
-   auto x = Reshape(_x.Read(), D1D, D1D, VDIM, 2, NF);
-   auto y = Reshape(_y.ReadWrite(), D1D, D1D, VDIM, 2, NF);
+   auto op1 = Reshape(_op1.Read(), Q1D, NS, NS, NF);
+   auto op2 = Reshape(_op2.Read(), Q1D, NS, NF);
+   auto op3 = Reshape(_op3.Read(), Q1D, NS, NF);
+   auto x = Reshape(_x.Read(), D1D, D1D, VDIM, NS, NF);
+   auto y = Reshape(_y.ReadWrite(), D1D, D1D, VDIM, NS, NF);
 
-/*
-   for(int i=0 ; i < D1D; i++ )
-      std::cout << i <<" "<< Bf(i) << std::endl;
-
-   for(int i=0 ; i < D1D; i++ )
-      std::cout << i <<" "<< Gf(i) << std::endl;
-
-   exit(1);
-*/
-   /*
-   // What was `working` previously 
-   double Bf[3][3] = {0};
-   double G0[3][3] = {0};
-
-   if( D1D == 2 )
-   {
-      G0[0][0] = -1;
-      G0[0][1] = 1;
-   }
-   if( D1D == 3 )
-   {
-      G0[0][0] = -3;
-      G0[0][1] = 4;
-      G0[0][2] = -1;
-   }
-   */
+   int short_D1Dbf = 0;
+   for(int i = 0; i < Q1D ; i++)
+      if( abs(Bf[i]) > 1.0e-16  )
+         short_D1Dbf = i+1;
+   int short_D1Dgf = 0;
+   for(int i = 0; i < Q1D ; i++)
+      if( abs(Gf[i]) > 1.0e-16  )
+         short_D1Dgf = i+1;
 
    // Loop over all faces
    MFEM_FORALL(f, NF,
    {
-      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       // 1. Evaluation of solution and normal derivative on the faces
       double u0[max_D1D][VDIM] = {0};
       double u1[max_D1D][VDIM] = {0};
@@ -387,15 +371,14 @@ void PADGDiffusionApply2D(const int NF,
          for (int c = 0; c < VDIM; c++)
          {
             // TODO: [Optimization] Pick "max" D1Dbf/D1Dgf if B0/G0 is sparse
-            for (int q = 0; q < D1D; q++)
+            for (int q = 0; q < short_D1Dbf; q++)
             {
                // Evaluate u on the face from each side
                const double b = Bf[q];
                u0[d][c] += b*x(q,d,c,0,f);
                u1[d][c] += b*x(q,d,c,1,f);               
-               //std::cout << u0[d][c] << " " << b << " " << x(q,d,c,0,f)  << std::endl;
             }
-            for (int q = 0; q < D1D; q++)
+            for (int q = 0; q < short_D1Dgf; q++)
             {  
                // Evaluate du/dn on the face from each side
                // Uses a stencil inside 
@@ -405,9 +388,9 @@ void PADGDiffusionApply2D(const int NF,
             }
          }
       }
-   
-      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-      // 2. Contraction with basis evaluation Bu = B:u, and Gu = G:u    
+
+      // 2. Interpolate u and du/dn along the face
+      //    Bu = B:u, and Gu = G:u    
       double Bu0[max_Q1D][VDIM] = {0};
       double Bu1[max_Q1D][VDIM] = {0};      
       double BGu0[max_Q1D][VDIM] = {0};
@@ -427,15 +410,12 @@ void PADGDiffusionApply2D(const int NF,
             }
          }
       }
- 
-      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
       // 3. Form numerical fluxes
       double D1[max_Q1D][VDIM] = {0};
       double D0[max_Q1D][VDIM] = {0};
       double D1jumpu[max_Q1D][VDIM] = {0};
       double D0jumpu[max_Q1D][VDIM] = {0};
-      double Dtilde1[max_Q1D][VDIM] = {0};
-      double Dtilde0[max_Q1D][VDIM] = {0};
 
       for (int q = 0; q < Q1D; ++q)
       {
@@ -443,34 +423,22 @@ void PADGDiffusionApply2D(const int NF,
          {
             // need to have different op2 and op3 for each side, then use n
             const double jump_u = Bu1[q][c] - Bu0[q][c];
-            // numerical fluxes
-
-            D0[q][c] = - op1(q,0,0,f)*BGu0[q][c] 
-                        + op1(q,0,1,f)*BGu1[q][c];
-            D1[q][c] = - op1(q,1,0,f)*BGu0[q][c] 
-                        + op1(q,1,1,f)*BGu1[q][c];
-            Dtilde0[q][c] = op3(q,0,f)*jump_u;
-            Dtilde1[q][c] = op3(q,1,f)*jump_u;
+            const double jump_Gu = BGu1[q][c] - BGu0[q][c];
+            D0[q][c] = op1(q,0,0,f)*jump_Gu + op3(q,0,f)*jump_u;
+            D1[q][c] = op1(q,1,0,f)*jump_Gu + op3(q,1,f)*jump_u;
             D0jumpu[q][c] = op2(q,0,f)*jump_u;
             D1jumpu[q][c] = op2(q,1,f)*jump_u;
          }
       }
-            
-                     
-
-      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+      
       // 4. Contraction with B^T evaluation B^T:(G*D*B:u) and B^T:(D*B:Gu)   
       double BD1[max_D1D][VDIM] = {0};
       double BD0[max_D1D][VDIM] = {0};
       double BD1jumpu[max_D1D][VDIM] = {0};
       double BD0jumpu[max_D1D][VDIM] = {0};
-      double BDtilde1[max_D1D][VDIM] = {0};
-      double BDtilde0[max_D1D][VDIM] = {0};
-
 
       for (int d = 0; d < D1D; ++d)
       {
-
          for (int q = 0; q < Q1D; ++q)
          {
             const double b = Bt(d,q);
@@ -478,48 +446,25 @@ void PADGDiffusionApply2D(const int NF,
             {
                BD0[d][c] += b*D0[q][c];
                BD1[d][c] += b*D1[q][c];
-               BD0[d][c] += b*Dtilde0[q][c];
-               BD1[d][c] += b*Dtilde1[q][c];
                BD0jumpu[d][c] += b*D0jumpu[q][c];
                BD1jumpu[d][c] += b*D1jumpu[q][c];
             }
          }
       }
 
-      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
       // 5. Add to y      
       for (int c = 0; c < VDIM; c++)
       {
          for (int d = 0; d < D1D; ++d)
          {
-
-            // TODO: [Optimization] Pick "max" D1Dbf/D1Dgf if B0/G0 is sparse
-            for (int q = 0; q < Q1D ; q++)
-            {
-               const double b = Bf[q];
-               y(0,d,c,0,f) +=  BD0[d][c];
-               y(0,d,c,1,f) +=  BD1[d][c];
-            }
-
-            for (int q = 0; q < Q1D ; q++)
-            {
-               const double g = Gf[q];
-               y(q,d,c,0,f) -=  g*BD0jumpu[d][c];
-               y(q,d,c,1,f) -=  g*BD1jumpu[d][c];      
-            }
-
-
-      // 5. Add to y      
-      for (int c = 0; c < VDIM; c++)
-      {
-         for (int d = 0; d < D1D; ++d)
-         {
-            // TODO: [Optimization] Pick "max" D1Dbf/D1Dgf if B0/G0 is sparse
-            for (int q = 0; q < Q1D ; q++)
+            for (int q = 0; q < short_D1Dbf ; q++)
             {
                const double b = Bf[q];
                y(q,d,c,0,f) +=  b*BD0[d][c];
                y(q,d,c,1,f) +=  b*BD1[d][c];
+            }
+            for (int q = 0; q < short_D1Dgf ; q++)
+            {
                const double g = Gf[q];
                y(q,d,c,0,f) +=  g*BD0jumpu[d][c];
                y(q,d,c,1,f) +=  g*BD1jumpu[d][c];
@@ -527,8 +472,6 @@ void PADGDiffusionApply2D(const int NF,
          }
       }
    });// done with the loop over all faces
-
-   std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
 }
 
 // PA DGDiffusion Apply 3D kernel for Gauss-Lobatto/Bernstein
