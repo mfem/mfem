@@ -93,7 +93,7 @@ static void PADGDiffusionSetup2D(const int Q1D,
             // data for 3rd term    + kappa < {h^{-1} Q} [u], [v] >
             const double h0 = detJ(q,f)/mag_norm;
             const double h1 = detJ(q,f)/mag_norm;
-            op_data_ptr3(q,0,f) =   w*kappa/h0;
+            op_data_ptr3(q,0,f) =   -w*kappa/h0;
             op_data_ptr3(q,1,f) =   0.0;
          }
          else
@@ -105,12 +105,12 @@ static void PADGDiffusionSetup2D(const int Q1D,
             op_data_ptr1(q,0,1,f) = beta*w_o_detJ/2.0;
             op_data_ptr1(q,1,1,f) = -beta*w_o_detJ/2.0;
             // data for 2nd term    + sigma < [u], {(Q grad(v)).n} > 
-            op_data_ptr2(q,0,f) =   w_o_detJ*sigma/2.0;
-            op_data_ptr2(q,1,f) =   -w_o_detJ*sigma/2.0;
+            op_data_ptr2(q,0,f) =   -w_o_detJ*sigma/2.0;
+            op_data_ptr2(q,1,f) =   w_o_detJ*sigma/2.0;
             // data for 3rd term    + kappa < {h^{-1} Q} [u], [v] >
             const double h0 = detJ(q,f)/mag_norm;
             const double h1 = detJ(q,f)/mag_norm;
-            op_data_ptr3(q,0,f) =   w*kappa*(1.0/h0+1.0/h1)/2.0;
+            op_data_ptr3(q,0,f) =   -w*kappa*(1.0/h0+1.0/h1)/2.0;
             op_data_ptr3(q,1,f) =   w*kappa*(1.0/h0+1.0/h1)/2.0;
          }
 
@@ -449,8 +449,8 @@ void PADGDiffusionApply2D(const int NF,
                         + op1(q,0,1,f)*BGu1[q][c];
             D1[q][c] = - op1(q,1,0,f)*BGu0[q][c] 
                         + op1(q,1,1,f)*BGu1[q][c];
-            Dtilde0[q][c] = - op3(q,0,f)*jump_u;
-            Dtilde1[q][c] = - op3(q,1,f)*jump_u;
+            Dtilde0[q][c] = op3(q,0,f)*jump_u;
+            Dtilde1[q][c] = op3(q,1,f)*jump_u;
             D0jumpu[q][c] = op2(q,0,f)*jump_u;
             D1jumpu[q][c] = op2(q,1,f)*jump_u;
          }
@@ -509,6 +509,12 @@ void PADGDiffusionApply2D(const int NF,
             }
 
 
+      // 5. Add to y      
+      for (int c = 0; c < VDIM; c++)
+      {
+         for (int d = 0; d < D1D; ++d)
+         {
+            // TODO: [Optimization] Pick "max" D1Dbf/D1Dgf if B0/G0 is sparse
             for (int q = 0; q < Q1D ; q++)
             {
                const double b = Bf[q];
