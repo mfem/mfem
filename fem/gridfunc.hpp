@@ -39,7 +39,7 @@ protected:
        If not NULL, this pointer is owned by the GridFunction. */
    FiniteElementCollection *fec;
 
-   long sequence; // see FiniteElementSpace::sequence, Mesh::sequence
+   long fes_sequence; // see FiniteElementSpace::sequence, Mesh::sequence
 
    /** Optional, internal true-dof vector: if the FiniteElementSpace #fes has a
        non-trivial (i.e. not NULL) prolongation operator, this Vector may hold
@@ -74,16 +74,16 @@ protected:
 
 public:
 
-   GridFunction() { fes = NULL; fec = NULL; sequence = 0; UseDevice(true); }
+   GridFunction() { fes = NULL; fec = NULL; fes_sequence = 0; UseDevice(true); }
 
    /// Copy constructor. The internal true-dof vector #t_vec is not copied.
    GridFunction(const GridFunction &orig)
-      : Vector(orig), fes(orig.fes), fec(NULL), sequence(orig.sequence)
+      : Vector(orig), fes(orig.fes), fec(NULL), fes_sequence(orig.fes_sequence)
    { UseDevice(true); }
 
    /// Construct a GridFunction associated with the FiniteElementSpace @a *f.
    GridFunction(FiniteElementSpace *f) : Vector(f->GetVSize())
-   { fes = f; fec = NULL; sequence = f->GetSequence(); UseDevice(true); }
+   { fes = f; fec = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
 
    /// Construct a GridFunction using previously allocated array @a data.
    /** The GridFunction does not assume ownership of @a data which is assumed to
@@ -93,7 +93,7 @@ public:
     */
    GridFunction(FiniteElementSpace *f, double *data)
       : Vector(data, f->GetVSize())
-   { fes = f; fec = NULL; sequence = f->GetSequence(); UseDevice(true); }
+   { fes = f; fec = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
 
    /// Construct a GridFunction on the given Mesh, using the data from @a input.
    /** The content of @a input should be in the format created by the method
@@ -671,6 +671,10 @@ public:
 
    /// Save the GridFunction to an output stream.
    virtual void Save(std::ostream &out) const;
+
+   /// Save the GridFunction to a file. The given @a precision will be used for
+   /// ASCII output.
+   virtual void Save(const char *fname, int precision=16) const;
 
 #ifdef MFEM_USE_ADIOS2
    /// Save the GridFunction to a binary output stream using adios2 bp format.

@@ -64,25 +64,25 @@ double pa_divergence_testnd(int dim,
                             void (*f1)(const Vector &, Vector &),
                             double (*divf1)(const Vector &))
 {
-   Mesh *mesh = nullptr;
+   Mesh mesh;
    if (dim == 2)
    {
-      mesh = new Mesh(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0);
+      mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0);
    }
    if (dim == 3)
    {
-      mesh = new Mesh(2, 2, 2, Element::HEXAHEDRON, 0, 1.0, 1.0, 1.0);
+      mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
    }
 
    int order = 4;
 
    // Vector valued
    H1_FECollection fec1(order, dim);
-   FiniteElementSpace fes1(mesh, &fec1, dim);
+   FiniteElementSpace fes1(&mesh, &fec1, dim);
 
    // Scalar
    H1_FECollection fec2(order, dim);
-   FiniteElementSpace fes2(mesh, &fec2);
+   FiniteElementSpace fes2(&mesh, &fec2);
 
    GridFunction field(&fes1), field2(&fes2);
 
@@ -102,8 +102,6 @@ double pa_divergence_testnd(int dim,
    lf.AddDomainIntegrator(new DomainLFIntegrator(fcoeff2));
    lf.Assemble();
    field2 -= lf;
-
-   delete mesh;
 
    return field2.Norml2();
 }
@@ -158,25 +156,25 @@ double pa_gradient_testnd(int dim,
                           double (*f1)(const Vector &),
                           void (*gradf1)(const Vector &, Vector &))
 {
-   Mesh *mesh = nullptr;
+   Mesh mesh;
    if (dim == 2)
    {
-      mesh = new Mesh(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0);
+      mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0);
    }
    if (dim == 3)
    {
-      mesh = new Mesh(2, 2, 2, Element::HEXAHEDRON, 0, 1.0, 1.0, 1.0);
+      mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
    }
 
    int order = 4;
 
    // Scalar
    H1_FECollection fec1(order, dim);
-   FiniteElementSpace fes1(mesh, &fec1);
+   FiniteElementSpace fes1(&mesh, &fec1);
 
    // Vector valued
    H1_FECollection fec2(order, dim);
-   FiniteElementSpace fes2(mesh, &fec2, dim);
+   FiniteElementSpace fes2(&mesh, &fec2, dim);
 
    GridFunction field(&fes1), field2(&fes2);
 
@@ -196,8 +194,6 @@ double pa_gradient_testnd(int dim,
    lf.AddDomainIntegrator(new VectorDomainLFIntegrator(fcoeff2));
    lf.Assemble();
    field2 -= lf;
-
-   delete mesh;
 
    return field2.Norml2();
 }
@@ -219,20 +215,20 @@ TEST_CASE("PA Gradient", "[PartialAssembly]")
 
 double test_nl_convection_nd(int dim)
 {
-   Mesh *mesh = nullptr;
+   Mesh mesh;
 
    if (dim == 2)
    {
-      mesh = new Mesh(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0);
+      mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0);
    }
    if (dim == 3)
    {
-      mesh = new Mesh(2, 2, 2, Element::HEXAHEDRON, 0, 1.0, 1.0, 1.0);
+      mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
    }
 
    int order = 2;
    H1_FECollection fec(order, dim);
-   FiniteElementSpace fes(mesh, &fec, dim);
+   FiniteElementSpace fes(&mesh, &fec, dim);
 
    GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
    x.Randomize(3);
@@ -250,7 +246,6 @@ double test_nl_convection_nd(int dim)
    y_fa -= y_pa;
    double difference = y_fa.Norml2();
 
-   delete mesh;
 
    return difference;
 }
@@ -271,14 +266,14 @@ TEST_CASE("Nonlinear Convection", "[PartialAssembly], [NonlinearPA]")
 template <typename INTEGRATOR>
 double test_vector_pa_integrator(int dim)
 {
-   Mesh *mesh =
+   Mesh mesh =
       (dim == 2) ?
-      new Mesh(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0):
-      new Mesh(2, 2, 2, Element::HEXAHEDRON, 0, 1.0, 1.0, 1.0);
+      Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0):
+      Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
 
    int order = 2;
    H1_FECollection fec(order, dim);
-   FiniteElementSpace fes(mesh, &fec, dim);
+   FiniteElementSpace fes(&mesh, &fec, dim);
 
    GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
    x.Randomize(1);
@@ -298,7 +293,6 @@ double test_vector_pa_integrator(int dim)
    y_fa -= y_pa;
    double difference = y_fa.Norml2();
 
-   delete mesh;
    return difference;
 }
 
@@ -360,7 +354,7 @@ void test_pa_convection(const char *meshname, int order, int prob)
    INFO("mesh=" << meshname << ", order=" << order << ", prob=" << prob);
    Mesh mesh(meshname, 1, 1);
    mesh.EnsureNodes();
-   mesh.SetCurvature(mesh.GetNodalFESpace()->GetOrder(0));
+   mesh.SetCurvature(mesh.GetNodalFESpace()->GetElementOrder(0));
    int dim = mesh.Dimension();
 
    FiniteElementCollection *fec;

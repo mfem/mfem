@@ -854,6 +854,28 @@ void ParGridFunction::Save(std::ostream &out) const
    }
 }
 
+void ParGridFunction::Save(const char *fname, int precision) const
+{
+   int rank = pfes->GetMyRank();
+   ostringstream fname_with_suffix;
+   fname_with_suffix << fname << "." << setfill('0') << setw(6) << rank;
+   ofstream ofs(fname_with_suffix.str().c_str());
+   ofs.precision(precision);
+   Save(ofs);
+}
+
+void ParGridFunction::SaveAsOne(const char *fname, int precision) const
+{
+   ofstream ofs;
+   int rank = pfes->GetMyRank();
+   if (rank == 0)
+   {
+      ofs.open(fname);
+      ofs.precision(precision);
+   }
+   SaveAsOne(ofs);
+}
+
 #ifdef MFEM_USE_ADIOS2
 void ParGridFunction::Save(adios2stream &out,
                            const std::string& variable_name,
@@ -874,7 +896,7 @@ void ParGridFunction::Save(adios2stream &out,
 }
 #endif
 
-void ParGridFunction::SaveAsOne(std::ostream &out)
+void ParGridFunction::SaveAsOne(std::ostream &out) const
 {
    int i, p;
 
