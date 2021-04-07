@@ -74,7 +74,6 @@ set(SRCS
   tmop_tools.cpp
   gslib.cpp
   transfer.cpp
-  paramnonlinearform.cpp
   )
 
 set(HDRS
@@ -129,7 +128,6 @@ set(HDRS
   tmop_tools.hpp
   gslib.hpp
   transfer.hpp
-  paramnonlinearform.hpp
   )
 
 if (MFEM_USE_SIDRE)
@@ -154,8 +152,7 @@ if (MFEM_USE_MPI)
     pgridfunc.cpp
     plinearform.cpp
     pnonlinearform.cpp
-    prestriction.cpp
-    pparamnonlinearform.cpp)
+    prestriction.cpp)
   # If this list (HDRS -> HEADERS) is used for install, we probably want the
   # headers added all the time.
   list(APPEND HDRS
@@ -164,8 +161,7 @@ if (MFEM_USE_MPI)
     pgridfunc.hpp
     plinearform.hpp
     pnonlinearform.hpp
-    prestriction.hpp
-    pparamnonlinearform.hpp)
+    prestriction.hpp)
 endif()
 
 convert_filenames_to_full_paths(SRCS)
