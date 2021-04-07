@@ -83,30 +83,30 @@ static void PADGDiffusionSetup2D(const int Q1D,
          {
             // Boundary face
             // data for 1st term    - < {(Q grad(u)).n}, [v] >
-            op_data_ptr1(q,0,0,f) = -beta*w_o_detJ;
-            op_data_ptr1(q,1,0,f) = beta*w_o_detJ;
+            op_data_ptr1(q,0,0,f) = beta*w_o_detJ;
+            op_data_ptr1(q,1,0,f) = -beta*w_o_detJ;
             op_data_ptr1(q,0,1,f) =  0.0*beta*w_o_detJ;
             op_data_ptr1(q,1,1,f) = -0.0*beta*w_o_detJ;
             // data for 2nd term    + sigma < [u], {(Q grad(v)).n} > 
             op_data_ptr2(q,0,f) =   -w_o_detJ*sigma;
-            op_data_ptr2(q,1,f) =   0.0*w_o_detJ*sigma;
+            op_data_ptr2(q,1,f) =   0.0;
             // data for 3rd term    + kappa < {h^{-1} Q} [u], [v] >
             const double h0 = detJ(q,f)/mag_norm;
             const double h1 = detJ(q,f)/mag_norm;
             op_data_ptr3(q,0,f) =   w*kappa/h0;
-            op_data_ptr3(q,1,f) =  -0.0*w*kappa/h0;
+            op_data_ptr3(q,1,f) =   0.0;
          }
          else
          {
             // Interior face
             // data for 1st term    - < {(Q grad(u)).n}, [v] >
-            op_data_ptr1(q,0,0,f) = -beta*w_o_detJ/2.0;
-            op_data_ptr1(q,1,0,f) = beta*w_o_detJ/2.0;
-            op_data_ptr1(q,0,1,f) = -beta*w_o_detJ/2.0;
-            op_data_ptr1(q,1,1,f) = beta*w_o_detJ/2.0;
+            op_data_ptr1(q,0,0,f) = beta*w_o_detJ/2.0;
+            op_data_ptr1(q,1,0,f) = -beta*w_o_detJ/2.0;
+            op_data_ptr1(q,0,1,f) = beta*w_o_detJ/2.0;
+            op_data_ptr1(q,1,1,f) = -beta*w_o_detJ/2.0;
             // data for 2nd term    + sigma < [u], {(Q grad(v)).n} > 
-            op_data_ptr2(q,0,f) =   -w_o_detJ*sigma/2.0;
-            op_data_ptr2(q,1,f) =   w_o_detJ*sigma/2.0;
+            op_data_ptr2(q,0,f) =   w_o_detJ*sigma/2.0;
+            op_data_ptr2(q,1,f) =   -w_o_detJ*sigma/2.0;
             // data for 3rd term    + kappa < {h^{-1} Q} [u], [v] >
             const double h0 = detJ(q,f)/mag_norm;
             const double h1 = detJ(q,f)/mag_norm;
@@ -391,16 +391,17 @@ void PADGDiffusionApply2D(const int NF,
             {
                // Evaluate u on the face from each side
                const double b = Bf[q];
-               u0[d][c] = b*x(q,d,c,0,f);
-               u1[d][c] = b*x(q,d,c,1,f);
+               u0[d][c] += b*x(q,d,c,0,f);
+               u1[d][c] += b*x(q,d,c,1,f);               
+               //std::cout << u0[d][c] << " " << b << " " << x(q,d,c,0,f)  << std::endl;
             }
             for (int q = 0; q < D1D; q++)
             {  
                // Evaluate du/dn on the face from each side
                // Uses a stencil inside 
                const double g = Gf[q];
-               Gu0[d][c] -= g*x(q,d,c,0,f);
-               Gu1[d][c] -= g*x(q,d,c,1,f);
+               Gu0[d][c] += g*x(q,d,c,0,f);
+               Gu1[d][c] += g*x(q,d,c,1,f);
             }
          }
       }
@@ -409,6 +410,8 @@ void PADGDiffusionApply2D(const int NF,
       // 2. Contraction with basis evaluation Bu = B:u, and Gu = G:u    
       double Bu0[max_Q1D][VDIM] = {0};
       double Bu1[max_Q1D][VDIM] = {0};      
+      double BGu0[max_Q1D][VDIM] = {0};
+      double BGu1[max_Q1D][VDIM] = {0};      
 
       for (int q = 0; q < Q1D; ++q)
       {
@@ -419,6 +422,8 @@ void PADGDiffusionApply2D(const int NF,
             {
                Bu0[q][c] += b*u0[d][c];
                Bu1[q][c] += b*u1[d][c];
+               BGu0[q][c] += b*Gu0[d][c];
+               BGu1[q][c] += b*Gu1[d][c];
             }
          }
       }
@@ -429,6 +434,8 @@ void PADGDiffusionApply2D(const int NF,
       double D0[max_Q1D][VDIM] = {0};
       double D1jumpu[max_Q1D][VDIM] = {0};
       double D0jumpu[max_Q1D][VDIM] = {0};
+      double Dtilde1[max_Q1D][VDIM] = {0};
+      double Dtilde0[max_Q1D][VDIM] = {0};
 
       for (int q = 0; q < Q1D; ++q)
       {
@@ -437,12 +444,13 @@ void PADGDiffusionApply2D(const int NF,
             // need to have different op2 and op3 for each side, then use n
             const double jump_u = Bu1[q][c] - Bu0[q][c];
             // numerical fluxes
-            D0[q][c] = op1(q,0,0,f)*Gu0[q][c] 
-                        - op1(q,0,1,f)*Gu1[q][c] 
-                        - op3(q,0,f)*jump_u;
-            D1[q][c] = op1(q,1,0,f)*Gu0[q][c] 
-                        - op1(q,1,1,f)*Gu1[q][c]
-                        - op3(q,1,f)*jump_u;
+
+            D0[q][c] = - op1(q,0,0,f)*BGu0[q][c] 
+                        + op1(q,0,1,f)*BGu1[q][c];
+            D1[q][c] = - op1(q,1,0,f)*BGu0[q][c] 
+                        + op1(q,1,1,f)*BGu1[q][c];
+            Dtilde0[q][c] = - op3(q,0,f)*jump_u;
+            Dtilde1[q][c] = - op3(q,1,f)*jump_u;
             D0jumpu[q][c] = op2(q,0,f)*jump_u;
             D1jumpu[q][c] = op2(q,1,f)*jump_u;
          }
@@ -456,6 +464,9 @@ void PADGDiffusionApply2D(const int NF,
       double BD0[max_D1D][VDIM] = {0};
       double BD1jumpu[max_D1D][VDIM] = {0};
       double BD0jumpu[max_D1D][VDIM] = {0};
+      double BDtilde1[max_D1D][VDIM] = {0};
+      double BDtilde0[max_D1D][VDIM] = {0};
+
 
       for (int d = 0; d < D1D; ++d)
       {
@@ -467,6 +478,8 @@ void PADGDiffusionApply2D(const int NF,
             {
                BD0[d][c] += b*D0[q][c];
                BD1[d][c] += b*D1[q][c];
+               BD0[d][c] += b*Dtilde0[q][c];
+               BD1[d][c] += b*Dtilde1[q][c];
                BD0jumpu[d][c] += b*D0jumpu[q][c];
                BD1jumpu[d][c] += b*D1jumpu[q][c];
             }
@@ -498,9 +511,12 @@ void PADGDiffusionApply2D(const int NF,
 
             for (int q = 0; q < Q1D ; q++)
             {
+               const double b = Bf[q];
+               y(q,d,c,0,f) +=  b*BD0[d][c];
+               y(q,d,c,1,f) +=  b*BD1[d][c];
                const double g = Gf[q];
-               y(q,d,c,0,f) -=  g*BD0jumpu[d][c];
-               y(q,d,c,1,f) -=  g*BD1jumpu[d][c];      
+               y(q,d,c,0,f) +=  g*BD0jumpu[d][c];
+               y(q,d,c,1,f) +=  g*BD1jumpu[d][c];
             }
          }
       }
