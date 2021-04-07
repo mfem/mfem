@@ -370,14 +370,14 @@ int main(int argc, char *argv[])
       Vector Bfull, Xfull;
       
       afull->FormLinearSystem(ess_tdof_list, xfull, *bfull, Afull, Xfull, Bfull);
-      //OperatorJacobiSmoother Mfull(*afull, ess_tdof_list);
+      OperatorJacobiSmoother Mfull(*afull, ess_tdof_list);
 
       std::chrono::time_point<std::chrono::system_clock> StartTime;
       std::chrono::time_point<std::chrono::system_clock> EndTime;
 
       StartTime = std::chrono::system_clock::now();
 
-      CG(*Afull, Bfull, Xfull, print_iter, max_num_iter, rtol, atol );
+      PCG(*Afull, Mfull, Bfull, Xfull, print_iter, max_num_iter, rtol, atol );
 
       EndTime = std::chrono::system_clock::now();
 
@@ -405,14 +405,14 @@ int main(int argc, char *argv[])
       Vector B, X;
       
       a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-      //OperatorJacobiSmoother M(*a, ess_tdof_list);
+      OperatorJacobiSmoother M(*a, ess_tdof_list);
       // M
       std::chrono::time_point<std::chrono::system_clock> StartTime;
       std::chrono::time_point<std::chrono::system_clock> EndTime;
 
       StartTime = std::chrono::system_clock::now();
 
-      CG(*A, B, X, print_iter, max_num_iter, rtol, atol );
+      PCG(*A, M, B, X, print_iter, max_num_iter, rtol, atol );
 
       EndTime = std::chrono::system_clock::now();
 
