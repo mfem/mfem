@@ -27,7 +27,7 @@
 //               GLVis visualization window for multiple eigenfunctions is also
 //               illustrated.
 //
-//               We recommend viewing examples 28 and 13 before viewing this
+//               We recommend viewing examples 29 and 13 before viewing this
 //               example.
 
 #include "mfem.hpp"
