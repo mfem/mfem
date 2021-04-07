@@ -93,8 +93,8 @@ static void PADGDiffusionSetup2D(const int Q1D,
             // data for 1st term    - < {(Q grad(u)).n}, [v] >
             op_data_ptr1(q,0,0,f) = beta*w_o_detJ;
             op_data_ptr1(q,1,0,f) = -beta*w_o_detJ;
-            op_data_ptr1(q,0,1,f) =  0.0*beta*w_o_detJ;
-            op_data_ptr1(q,1,1,f) = -0.0*beta*w_o_detJ;
+            op_data_ptr1(q,0,1,f) =  0.0;
+            op_data_ptr1(q,1,1,f) =  0.0;
             // data for 2nd term    + sigma < [u], {(Q grad(v)).n} > 
             op_data_ptr2(q,0,f) =   -w_o_detJ*sigma;
             op_data_ptr2(q,1,f) =   0.0;
@@ -288,6 +288,9 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
    {
       mfem_error("not yet implemented.");
    }
+
+   // Delete me
+   double beta = 1.0;
 
    PADGDiffusionSetup(dim, dofs1D, quad1D, nf, ir->GetWeights(), 
                         maps->B, maps->Bt,
