@@ -34,25 +34,41 @@
 #include <fstream>
 #include <iostream>
 
+//#include </usr/local/include/gperftools/profiler.h>  
+
 using namespace std;
 using namespace mfem;
 
 double x_exact_approx(const Vector &);
+double x1(const Vector &);
+double x2(const Vector &);
 
 int main(int argc, char *argv[])
 {
+   //ProfilerStart("/tmp/data.prof");
+
    // 1. Parse command-line options.
    const char *mesh_file = "../data/inline-quad.mesh";
    int ref_levels = -1;
    int order = 1;
    double sigma = -1.0;
    double kappa = -1.0;
+   double beta = 1.0;
    double eta = 0.0;
    bool visualization = 1;
    bool pa = false;
    bool set_bc = true;
+   bool lob = true;
 
+   int initial = 0;
+   bool bdyf = true;
+   bool intf = true;
+   
    OptionsParser args(argc, argv);
+
+   args.AddOption(&initial, "-i", "--initial",
+                  "nondesc");
+
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&ref_levels, "-r", "--refine",
@@ -64,15 +80,28 @@ int main(int argc, char *argv[])
    args.AddOption(&sigma, "-s", "--sigma",
                   "One of the three DG penalty parameters, typically +1/-1."
                   " See the documentation of class DGDiffusionIntegrator.");
+   args.AddOption(&beta, "-b", "--beta",
+                  "beta"
+                  " See the documentation of class DGDiffusionIntegrator.");
    args.AddOption(&kappa, "-k", "--kappa",
                   "One of the three DG penalty parameters, should be positive."
                   " Negative values are replaced with (order+1)^2.");
    args.AddOption(&set_bc, "-bc", "--impose-bc", "-no-bc", "--dont-impose-bc",
                   "Impose or not essential boundary conditions.");
+
+   args.AddOption(&lob, "-lob", "--lob", "--pos", "--pos",
+                  "Impose or not essential boundary conditions.");
+
+   args.AddOption(&bdyf, "-bdy", "--bdy", "--nobdy", "--nobdy",
+                  "Impose or not essential boundary conditions.");
+   args.AddOption(&intf, "-int", "--int", "--noint", "--noint",
+                  "Impose or not essential boundary conditions.");
+
    args.AddOption(&eta, "-e", "--eta", "BR2 penalty parameter.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -113,14 +142,24 @@ int main(int argc, char *argv[])
    // 4. Define a finite element space on the mesh. Here we use discontinuous
    //    finite elements of the specified order >= 0.
    FiniteElementCollection *fec;
-   if(pa)
+   if(lob)
    {
-      // Only Gauss-Lobatto and Bernstein basis are supported in L2FaceRestriction.
-      fec = new DG_FECollection(order, dim, BasisType::Positive);
+      fec = new DG_FECollection(order, dim, BasisType::GaussLobatto);
    }
    else
    {
-      fec = new DG_FECollection(order, dim);
+      fec = new DG_FECollection(order, dim, BasisType::Positive);
+   }
+   //fec = new DG_FECollection(order, dim, BasisType::Positive);
+   if(pa)
+   {
+      // Only Gauss-Lobatto and Bernstein basis are supported in L2FaceRestriction.
+      //fec = new DG_FECollection(order, dim, BasisType::GaussLobatto);
+      //fec = new DG_FECollection(order, dim, BasisType::Positive);
+   }
+   else
+   {
+      //fec = new DG_FECollection(order, dim);
    }
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of unknowns: " << fespace->GetVSize() << endl;
@@ -132,7 +171,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient zero(0.0);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->AddBdrFaceIntegrator(
-      new DGDirichletLFIntegrator(zero, one, sigma, kappa));
+      new DGDirichletLFIntegrator(zero, one, sigma, kappa, beta));
    b->Assemble();
 
    // 6. Define the solution vector x as a finite element grid function
@@ -140,6 +179,9 @@ int main(int argc, char *argv[])
    GridFunction x(fespace);
    x = 0.0;
    FunctionCoefficient f(x_exact_approx);
+   FunctionCoefficient f1(x1);
+   FunctionCoefficient f2(x2);
+
    x.ProjectCoefficient(f);
 
    // 7. Set up the bilinear form a(.,.) on the finite element space
@@ -150,34 +192,40 @@ int main(int argc, char *argv[])
    //    extract the corresponding sparse matrix A.
    BilinearForm *a = new BilinearForm(fespace);
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
-
    if (pa)
    {
       a->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      a->AddInteriorNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa));
-      a->AddBdrNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa));
+      if(intf)
+      a->AddInteriorNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa, beta));
+      if(bdyf)
+      a->AddBdrNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa, beta));
    }
    else if (eta > 0)
    {
+      /*
       a->AddInteriorFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
       a->AddBdrFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
+      */
    }
    else
    {
       // Default setting
-      a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
-      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+      if(intf)
+      a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa, beta));
+      if(bdyf)
+      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa, beta));
    }
    a->Assemble();
    a->Finalize();
 
    // -------------------------------------------
-   // Sanity check (temporary, for debugging)
+   // Sanity checks (temporary, for debugging)
    // -------------------------------------------
+   // Test the full operator
    LinearForm *bfull = new LinearForm(fespace);
    bfull->AddDomainIntegrator(new DomainLFIntegrator(one));
    bfull->AddBdrFaceIntegrator(
-      new DGDirichletLFIntegrator(zero, one, sigma, kappa));
+      new DGDirichletLFIntegrator(zero, one, sigma, kappa, beta));
    bfull->Assemble();
    BilinearForm *afull = new BilinearForm(fespace);
    GridFunction xfull(fespace);
@@ -185,12 +233,131 @@ int main(int argc, char *argv[])
 
    afull->SetAssemblyLevel(AssemblyLevel::LEGACYFULL);
    afull->AddDomainIntegrator(new DiffusionIntegrator(one));   
-   afull->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
-   afull->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+   if(intf)
+   afull->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa, beta));
+   if(bdyf)
+   afull->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa, beta));
    afull->Assemble();
    afull->Finalize();
    // -------------------------------------------
-   // Test the full operator
+   // Diff the operators
+   {
+      Vector yout;
+      Vector youtfull;
+      yout = xfull;
+      youtfull = xfull;
+
+      switch (initial)
+      {
+         case 0:
+            x = 1.0;
+            xfull = 1.0;
+            break;
+         case 1:
+            x.ProjectCoefficient(f1);
+            xfull.ProjectCoefficient(f1);
+            break;
+         case 2:
+            x.ProjectCoefficient(f2);
+            xfull.ProjectCoefficient(f2);
+            break;
+         case 3:
+            x.ProjectCoefficient(f);
+            xfull.ProjectCoefficient(f);
+            break;
+         case 4:
+            x(0) = -0.0225694;
+            x(1) = -0.00173611;
+            x(2) = -0.00173611;
+            x(3) = 0.0190972;
+            x(4) = 0.00868056;
+            x(5) = 0.0295139;
+            x(6) = 0.00868056;
+            x(7) = 0.0295139;
+            x(8) = -0.00173611;
+            x(9) = 0.0190972;
+            x(10) = -0.0225694;
+            x(11) = -0.00173611;
+            x(12) = 0.0295139;
+            x(13) = 0.0295139;
+            x(14) = 0.00868056;
+            x(15) = 0.00868056;
+            x(16) = 0.0190972;
+            x(17) = -0.00173611;
+            x(18) = -0.00173611;
+            x(19) = -0.0225694;
+            x(20) = 0.0295139;
+            x(21) = 0.00868056;
+            x(22) = 0.0295139;
+            x(23) = 0.00868056;
+            x(24) = 0.0399306;
+            x(25) = 0.0399306;
+            x(26) = 0.0399306;
+            x(27) = 0.0399306;
+            x(28) = 0.00868056;
+            x(29) = 0.00868056;
+            x(30) = 0.0295139;
+            x(31) = 0.0295139;
+            x(32) = -0.00173611;
+            x(33) = -0.0225694;
+            x(34) = 0.0190972;
+            x(35) = -0.00173611;
+            xfull = x;
+            break;
+         default:
+            std::cout << "no case for initial " << initial << std::endl;
+            exit(1);
+      }
+
+      std::chrono::time_point<std::chrono::system_clock> StartTime;
+      std::chrono::time_point<std::chrono::system_clock> EndTime;
+
+      StartTime = std::chrono::system_clock::now();
+
+      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+      afull->Mult(xfull,youtfull);
+      youtfull += 1000.0;
+      youtfull -= 1000.0;
+      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+      EndTime = std::chrono::system_clock::now();
+
+      auto timefull = std::chrono::duration_cast<std::chrono::microseconds>(EndTime - StartTime).count();
+
+      StartTime = std::chrono::system_clock::now();
+
+      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+      a->Mult(x,yout);
+      yout += 1000.0;
+      yout -= 1000.0;
+      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+      EndTime = std::chrono::system_clock::now();
+
+      auto timex = std::chrono::duration_cast<std::chrono::microseconds>(EndTime - StartTime).count();
+
+      std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
+
+      Vector ydiff;
+      ydiff = yout;
+      ydiff -= youtfull;
+
+      std::cout << "               yout" << std::endl;
+      yout.Print(mfem::out,1);
+      std::cout << "               youtfull"  << std::endl;
+      youtfull.Print(mfem::out,1);
+      std::cout << "               ydiff" << std::endl;
+      ydiff.Print(mfem::out,1);
+
+      std::cout << " Timing full = " << timefull << std::endl; 
+      std::cout << " Timing pa   = " << timex << std::endl; 
+
+      double errnorm = ydiff.Normlinf();
+      std::cout << "               ||ydiff|| = " << std::endl << errnorm << std::endl;
+      //exit(1);
+      std::cout << "----------------------------------" << std::endl;
+   }
+   // -------------------------------------------
    {
       int print_iter = 1;
       int max_num_iter = 500;
@@ -209,14 +376,15 @@ int main(int argc, char *argv[])
       afull->FormLinearSystem(ess_tdof_list, xfull, *bfull, Afull, Xfull, Bfull);
       //OperatorJacobiSmoother Mfull(*afull, ess_tdof_list);
       
-      CG(*Afull, Bfull, Xfull, print_iter, max_num_iter, rtol, atol );
+      //CG(*Afull, *A, Bfull, Xfull, print_iter, max_num_iter, rtol, atol );
       //exit(1);
+      std::cout << "----------------------------------" << std::endl;
    }
    // -------------------------------------------
    // Test the invoked operator
    {
       int print_iter = 1;
-      int max_num_iter = 29;
+      int max_num_iter = 500;
       double rtol = 1.0e-12;
       double atol = 0.0; 
       Array<int> ess_tdof_list;
@@ -229,59 +397,20 @@ int main(int argc, char *argv[])
       OperatorPtr A;
       Vector B, X;
       
+      OperatorPtr Afull;
+      Vector Bfull, Xfull;
+      
+      afull->FormLinearSystem(ess_tdof_list, xfull, *bfull, Afull, Xfull, Bfull);
+
       a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
       //OperatorJacobiSmoother M(*a, ess_tdof_list);
       // M
-      CG(*A, B, X, print_iter, max_num_iter, rtol, atol );
+      CG(*A, *Afull, B, X, print_iter, max_num_iter, rtol, atol );
       exit(1);
+      std::cout << "----------------------------------" << std::endl;
    }   
    // -------------------------------------------
-   // Diff the operators
-   {
-      Vector yout;
-      Vector youtfull;
-      yout = xfull;
-      youtfull = xfull;
 
-      x.ProjectCoefficient(f);
-      xfull.ProjectCoefficient(f);
-
-      std::chrono::time_point<std::chrono::system_clock> StartTime;
-      std::chrono::time_point<std::chrono::system_clock> EndTime;
-
-      StartTime = std::chrono::system_clock::now();
-      afull->Mult(xfull,youtfull);
-      EndTime = std::chrono::system_clock::now();
-
-      auto timefull = std::chrono::duration_cast<std::chrono::microseconds>(EndTime - StartTime).count();
-
-      StartTime = std::chrono::system_clock::now();
-
-      a->Mult(x,yout);
-
-      EndTime = std::chrono::system_clock::now();
-
-      auto timex = std::chrono::duration_cast<std::chrono::microseconds>(EndTime - StartTime).count();
-
-      std::cout << " Timing full = " << timefull << std::endl; 
-      std::cout << " Timing      = " << timex << std::endl; 
-
-      Vector ydiff;
-      ydiff = yout;
-      ydiff -= youtfull;
-
-      std::cout << "               yout" << std::endl;
-      yout.Print(mfem::out,1);
-      std::cout << "               youtfull"  << std::endl;
-      youtfull.Print(mfem::out,1);
-      std::cout << "               ydiff" << std::endl;
-      ydiff.Print(mfem::out,1);
-
-      double errnorm = ydiff.Normlinf();
-      std::cout << "               ||ydiff|| = " << std::endl << errnorm << std::endl;
-      exit(1);
-   }
-   // -------------------------------------------
 
 
    std::chrono::time_point<std::chrono::system_clock> StartTime;
@@ -375,6 +504,7 @@ int main(int argc, char *argv[])
    delete fec;
    delete mesh;
 
+   //ProfilerStop();
    return 0;
 }
 
@@ -390,8 +520,15 @@ double x_exact_approx(const Vector &x)
          double coeff = 8.0/(i*i+j*j)/i/j/M_PI/M_PI;
          sum += coeff*term;
       }
-   //sum = x(0) + 2.0*x(1); 
-   //sum = 1.0;
-   //sum = exp(-10.0*((x(1)-0.55)*(x(1)-0.55))-5.0*((x(0)-0.35)*(x(0)-0.35)));
    return sum;
+}
+
+double x1(const Vector &x)
+{
+   return x(0) + 0.2*(x(0) > 0.3333 ) + 0.2*(x(0) > 0.666) ;
+}
+
+double x2(const Vector &x)
+{
+   return x(0)*x(0)*exp(x(1));
 }
