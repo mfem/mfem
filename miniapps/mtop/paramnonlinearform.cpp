@@ -10,11 +10,106 @@
 // CONTRIBUTING.md for details.
 
 
-#include "fem.hpp"
+#include "mfem.hpp"
+#include "paramnonlinearform.hpp"
 
 
 namespace mfem
 {
+
+double ParametricBNLFormIntegrator::GetElementEnergy(const
+                                                     Array<const FiniteElement *> &el,
+                                                     const Array<const FiniteElement *> &pel,
+                                                     ElementTransformation &Tr,
+                                                     const Array<const Vector *> &elfun,
+                                                     const Array<const Vector *> &pelfun)
+{
+   mfem_error("ParametricBNLFormIntegrator::GetElementEnergy"
+              " is not overloaded!");
+   return 0.0;
+}
+
+void ParametricBNLFormIntegrator::AssembleFaceGrad(const
+                                                   Array<const FiniteElement *> &el1,
+                                                   const Array<const FiniteElement *> &el2,
+                                                   const Array<const FiniteElement *> &pel1,
+                                                   const Array<const FiniteElement *> &pel2,
+                                                   FaceElementTransformations &Tr,
+                                                   const Array<const Vector *> &elfun,
+                                                   const Array<const Vector *> &pelfun,
+                                                   const Array2D<DenseMatrix *> &elmats)
+{
+   mfem_error("ParametricBNLFormIntegrator::AssembleFaceGrad"
+              " is not overloaded!");
+}
+
+void ParametricBNLFormIntegrator::AssembleElementGrad(const
+                                                      Array<const FiniteElement *> &el,
+                                                      const Array<const FiniteElement *> &pel,
+                                                      ElementTransformation &Tr,
+                                                      const Array<const Vector *> &elfun,
+                                                      const Array<const Vector *> &pelfun,
+                                                      const Array2D<DenseMatrix *> &elmats)
+{
+   mfem_error("ParametricBNLFormIntegrator::AssembleElementGrad"
+              " is not overloaded!");
+}
+
+void ParametricBNLFormIntegrator::AssembleElementVector(
+   const Array<const FiniteElement *> &el,
+   const Array<const FiniteElement *> &pel,
+   ElementTransformation &Tr,
+   const Array<const Vector *> &elfun,
+   const Array<const Vector *> &pelfun,
+   const Array<Vector *> &elvec)
+{
+   mfem_error("ParametricBNLFormIntegrator::AssembleElementVector"
+              " is not overloaded!");
+}
+
+void ParametricBNLFormIntegrator::AssembleFaceVector(const
+                                                     Array<const FiniteElement *> &el1,
+                                                     const Array<const FiniteElement *> &el2,
+                                                     const Array<const FiniteElement *> &pel1,
+                                                     const Array<const FiniteElement *> &pel2,
+                                                     FaceElementTransformations &Tr,
+                                                     const Array<const Vector *> &elfun,
+                                                     const Array<const Vector *> &pelfun,
+                                                     const Array<Vector *> &elvect)
+{
+   mfem_error("ParametricBNLFormIntegrator::AssembleFaceVector"
+              " is not overloaded!");
+}
+
+
+void ParametricBNLFormIntegrator::AssemblePrmElementVector(
+   const Array<const FiniteElement *> &el,
+   const Array<const FiniteElement *> &pel,
+   ElementTransformation &Tr,
+   const Array<const Vector *> &elfun,
+   const Array<const Vector *> &alfun,
+   const Array<const Vector *> &pelfun,
+   const Array<Vector *> &elvec)
+{
+   mfem_error("ParametricBNLFormIntegrator::AssemblePrmElementVector"
+              " is not overloaded!");
+}
+
+void ParametricBNLFormIntegrator::AssemblePrmFaceVector(
+   const Array<const FiniteElement *> &el1,
+   const Array<const FiniteElement *> &el2,
+   const Array<const FiniteElement *> &pel1,
+   const Array<const FiniteElement *> &pel2,
+   FaceElementTransformations &Tr,
+   const Array<const Vector *> &elfun,
+   const Array<const Vector *> &alfun,
+   const Array<const Vector *> &pelfun,
+   const Array<Vector *> &elvect)
+{
+   mfem_error("ParametricBNLFormIntegrator::AssemblePrmFaceVector"
+              " is not overloaded!");
+}
+
 
 ParametricBNLForm::ParametricBNLForm(): fes(0), paramfes(0), BlockGrad(nullptr)
 {

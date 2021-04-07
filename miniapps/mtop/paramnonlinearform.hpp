@@ -12,14 +12,82 @@
 #ifndef MFEM_PRMNONLINEARFORM
 #define MFEM_PRMNONLINEARFORM
 
-#include "../config/config.hpp"
-#include "nonlininteg.hpp"
-#include "nonlinearform_ext.hpp"
-#include "bilinearform.hpp"
-#include "gridfunc.hpp"
+#include "mfem.hpp"
 
 namespace mfem
 {
+
+
+/** The abstract base class ParametricBNLFormIntegrator is
+    a generalization of the BlockNonlinearFormIntegrator class suitable
+    for block state and parameter vectors. */
+class ParametricBNLFormIntegrator
+{
+public:
+   /// Compute the local energy
+   virtual double GetElementEnergy(const Array<const FiniteElement *>&el,
+                                   const Array<const FiniteElement *>&pel,
+                                   ElementTransformation &Tr,
+                                   const Array<const Vector *>&elfun,
+                                   const Array<const Vector *>&pelfun);
+
+   /// Perform the local action of the BlockNonlinearFormIntegrator
+   virtual void AssembleElementVector(const Array<const FiniteElement *> &el,
+                                      const Array<const FiniteElement *>&pel,
+                                      ElementTransformation &Tr,
+                                      const Array<const Vector *> &elfun,
+                                      const Array<const Vector *>&pelfun,
+                                      const Array<Vector *> &elvec);
+
+   virtual void AssembleFaceVector(const Array<const FiniteElement *> &el1,
+                                   const Array<const FiniteElement *> &el2,
+                                   const Array<const FiniteElement *> &pel1,
+                                   const Array<const FiniteElement *> &pel2,
+                                   FaceElementTransformations &Tr,
+                                   const Array<const Vector *> &elfun,
+                                   const Array<const Vector *>&pelfun,
+                                   const Array<Vector *> &elvect);
+
+   /// Perform the local action on the parameters of the BNLFormIntegrator
+   virtual void AssemblePrmElementVector(const Array<const FiniteElement *> &el,
+                                         const Array<const FiniteElement *>&pel,
+                                         ElementTransformation &Tr,
+                                         const Array<const Vector *> &elfun,
+                                         const Array<const Vector *> &alfun,
+                                         const Array<const Vector *>&pelfun,
+                                         const Array<Vector *> &pelvec);
+
+   virtual void AssemblePrmFaceVector(const Array<const FiniteElement *> &el1,
+                                      const Array<const FiniteElement *> &el2,
+                                      const Array<const FiniteElement *> &pel1,
+                                      const Array<const FiniteElement *> &pel2,
+                                      FaceElementTransformations &Tr,
+                                      const Array<const Vector *> &elfun,
+                                      const Array<const Vector *> &alfun,
+                                      const Array<const Vector *>&pelfun,
+                                      const Array<Vector *> &pelvect);
+
+   /// Assemble the local gradient matrix
+   virtual void AssembleElementGrad(const Array<const FiniteElement*> &el,
+                                    const Array<const FiniteElement *>&pel,
+                                    ElementTransformation &Tr,
+                                    const Array<const Vector *> &elfun,
+                                    const Array<const Vector *>&pelfun,
+                                    const Array2D<DenseMatrix *> &elmats);
+
+   virtual void AssembleFaceGrad(const Array<const FiniteElement *>&el1,
+                                 const Array<const FiniteElement *>&el2,
+                                 const Array<const FiniteElement *> &pel1,
+                                 const Array<const FiniteElement *> &pel2,
+                                 FaceElementTransformations &Tr,
+                                 const Array<const Vector *> &elfun,
+                                 const Array<const Vector *>&pelfun,
+                                 const Array2D<DenseMatrix *> &elmats);
+
+
+   virtual ~ParametricBNLFormIntegrator() { }
+};
+
 
 /** @brief A class representing a general parametric block nonlinear operator
     defined on the Cartesian product of multiple FiniteElementSpace%s. */

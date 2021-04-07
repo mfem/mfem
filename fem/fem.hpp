@@ -41,7 +41,6 @@
 #include "transfer.hpp"
 #include "fespacehierarchy.hpp"
 #include "multigrid.hpp"
-#include "paramnonlinearform.hpp"
 #include "ceed/algebraic.hpp"
 
 #ifdef MFEM_USE_MPI
@@ -50,7 +49,6 @@
 #include "plinearform.hpp"
 #include "pbilinearform.hpp"
 #include "pnonlinearform.hpp"
-#include "pparamnonlinearform.hpp"
 #endif
 
 #ifdef MFEM_USE_SIDRE

@@ -12,11 +12,10 @@
 #ifndef MFEM_PPRMNONLINEARFORM
 #define MFEM_PPRMNONLINEARFORM
 
-#include "../config/config.hpp"
 
 #ifdef MFEM_USE_MPI
 
-#include "pgridfunc.hpp"
+#include "mfem.hpp"
 #include "paramnonlinearform.hpp"
 
 namespace mfem
