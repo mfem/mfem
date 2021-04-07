@@ -2956,10 +2956,10 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
          for (int j = 0; j < i; j++)
          {
             double aij = elmat(i,j), aji = elmat(j,i), mij = jmat(i,j);
-            elmat(i,j) = sigma*aji - beta*aij + mij;
-            elmat(j,i) = sigma*aij - beta*aji + mij;
+            elmat(i,j) = sigma*aji - aij + mij;
+            elmat(j,i) = sigma*aij - aji + mij;
          }
-         elmat(i,i) = (sigma - beta*1.0)*elmat(i,i) + jmat(i,i);
+         elmat(i,i) = (sigma - 1.)*elmat(i,i) + jmat(i,i);
       }
    }
    else
@@ -2969,10 +2969,10 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
          for (int j = 0; j < i; j++)
          {
             double aij = elmat(i,j), aji = elmat(j,i);
-            elmat(i,j) = sigma*aji - beta*aij;
-            elmat(j,i) = sigma*aij - beta*aji;
+            elmat(i,j) = sigma*aji - aij;
+            elmat(j,i) = sigma*aij - aji;
          }
-         elmat(i,i) *= (sigma - beta*1.0);
+         elmat(i,i) *= (sigma - 1.);
       }
    }
 }
