@@ -1645,7 +1645,7 @@ CPDSolverDH::Solve()
 
          if (myid_ == 0) { cout << H_iter << '\t' << phi_diff << endl; }
 
-         *prev_phi_ = *phi_;
+         prev_phi_->Vector::operator=((Vector&)(*phi_));
 
          H_iter++;
       }
