@@ -970,11 +970,6 @@ int main(int argc, char *argv[])
       kReVec.SetDataAndSize(&kVec[0], 3);
       kImVec.SetDataAndSize(&kVec[3], 3);
 
-      mfem::out << "Setting phase shift of ("
-                << complex<double>(kReVec[0],kImVec[0]) << ","
-                << complex<double>(kReVec[1],kImVec[1])   << ","
-                << complex<double>(kReVec[2],kImVec[2]) << ")" << endl;
-
       HReCoef.SetPhaseShift(kReVec, kImVec);
       HImCoef.SetPhaseShift(kReVec, kImVec);
       EReCoef.SetPhaseShift(kReVec, kImVec);
@@ -1004,6 +999,11 @@ int main(int argc, char *argv[])
          }
       }
    }
+
+   mfem::out << "Setting phase shift of ("
+             << complex<double>(kReVec[0],kImVec[0]) << ","
+             << complex<double>(kReVec[1],kImVec[1]) << ","
+             << complex<double>(kReVec[2],kImVec[2]) << ")" << endl;
 
    VectorConstantCoefficient kReCoef(kReVec);
    VectorConstantCoefficient kImCoef(kImVec);

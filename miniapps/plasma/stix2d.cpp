@@ -352,7 +352,7 @@ int main(int argc, char *argv[])
    bool visit = true;
 
    double freq = 1.0e6;
-   const char * wave_type = "R";
+   const char * wave_type = " ";
 
    Vector BVec(3);
    BVec = 0.0; BVec(0) = 0.1;
@@ -914,11 +914,6 @@ int main(int argc, char *argv[])
       kReVec.SetDataAndSize(&kVec[0], 3);
       kImVec.SetDataAndSize(&kVec[3], 3);
 
-      mfem::out << "Setting phase shift of ("
-                << complex<double>(kReVec[0],kImVec[0]) << ","
-                << complex<double>(kReVec[1],kImVec[1])   << ","
-                << complex<double>(kReVec[2],kImVec[2]) << ")" << endl;
-
       EReCoef.SetPhaseShift(kReVec, kImVec);
       EImCoef.SetPhaseShift(kReVec, kImVec);
    }
@@ -946,6 +941,11 @@ int main(int argc, char *argv[])
          }
       }
    }
+
+   mfem::out << "Setting phase shift of ("
+             << complex<double>(kReVec[0],kImVec[0]) << ","
+             << complex<double>(kReVec[1],kImVec[1]) << ","
+             << complex<double>(kReVec[2],kImVec[2]) << ")" << endl;
 
    VectorConstantCoefficient kReCoef(kReVec);
    VectorConstantCoefficient kImCoef(kImVec);
@@ -1211,8 +1211,8 @@ int main(int argc, char *argv[])
 
       auxFields[0]->ProjectCoefficient(EReCoef, EImCoef);
 
-      visit_dc.RegisterField("Re_E_Exact", &auxFields[1]->real());
-      visit_dc.RegisterField("Im_E_Exact", &auxFields[1]->imag());
+      visit_dc.RegisterField("Re_E_Exact", &auxFields[0]->real());
+      visit_dc.RegisterField("Im_E_Exact", &auxFields[0]->imag());
    }
    if (mpi.Root()) { cout << "Initialization done." << endl; }
 
