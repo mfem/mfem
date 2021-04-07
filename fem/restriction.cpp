@@ -1748,8 +1748,6 @@ void NCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
       auto d_y = Reshape(y.Write(), nd, vd, 2, nf);
       auto interp_config_ptr = interp_config.Read();
       auto interp = Reshape(interpolators.Read(), nd, nd, nc_size);
-      // TODO use optimized MFEM_FORALL
-      // for(int face = 0; face<nf; face++)
       MFEM_FORALL(face, nf,
       {
          double dofs[nd];
@@ -1765,14 +1763,14 @@ void NCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
                   dofs[dof] = d_x(t?c:idx, t?idx:c);
                }
                const int config = side==0 ? conforming : interp_config_ptr[face];
-               if ( config==conforming ) // No interpolation
+               if ( config==conforming ) // No interpolation needed
                {
                   for (int dof = 0; dof<nd; dof++)
                   {
                      d_y(dof, c, side, face) = dofs[dof];
                   }
                }
-               else
+               else // Interpolation from coarse to fine
                {
                   for (int dofOut = 0; dofOut<nd; dofOut++)
                   {
@@ -1813,7 +1811,7 @@ void NCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
          }
       });
    }
-   else
+   else // Single valued
    {
       auto d_indices1 = scatter_indices1.Read();
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
@@ -1843,14 +1841,13 @@ void NCL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
       auto d_x = Reshape(const_cast<Vector&>(x).ReadWrite(), nd, vd, 2, nf);
       auto interp_config_ptr = interp_config.Read();
       auto interp = Reshape(interpolators.Read(), nd, nd, nc_size);
-      // TODO optimize MFEM_FORALL
       MFEM_FORALL(face, nf,
       {
          double dofs[nd];
          double res[nd];
          const int side = 1;
          const int config = interp_config_ptr[face];
-         if ( config!=conforming )
+         if ( config!=conforming ) // Interpolation from fine to coarse
          {
             for (int c = 0; c < vd; ++c)
             {
@@ -1902,7 +1899,7 @@ void NCL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
          }
       });
    }
-   else
+   else // Single valued
    {
       auto d_x = Reshape(x.Read(), nd, vd, nf);
       auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
