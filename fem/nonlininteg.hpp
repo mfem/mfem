@@ -391,7 +391,6 @@ public:
                                     DenseMatrix &elmat);
 };
 
-
 /** This class is used to assemble the skew-symmetric form of the nonlinear term
     arising in the Navier-Stokes equations
     \f$.5*(u \cdot \nabla v, w ) - .5*(u \cdot \nabla w, v )\f$ */
