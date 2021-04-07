@@ -179,8 +179,6 @@ int main(int argc, char *argv[])
       //fec = new DG_FECollection(order, dim);
       fec = new DG_FECollection(order, dim);
    }
-
-   FiniteElementCollection *fec = new DG_FECollection(order, dim);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
    HYPRE_Int size = fespace->GlobalTrueVSize();
    if (myid == 0)
@@ -214,8 +212,8 @@ int main(int argc, char *argv[])
    if (pa)
    {
       a->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      a->AddInteriorNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa, beta));
-      a->AddBdrNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa, beta));
+      a->AddInteriorNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa));
+      a->AddBdrNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa));
    }
    else if (eta > 0)
    {
@@ -227,8 +225,8 @@ int main(int argc, char *argv[])
    else
    {
       // Default setting
-      a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa, beta));
-      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa, beta));
+      a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
    }
    a->Assemble();
    a->Finalize();
