@@ -10,7 +10,7 @@
 //               mpirun -np 4 ex31p -m ../data/amr-quad.mesh
 //               mpirun -np 4 ex31p -m ../data/amr-quad.mesh -o 2
 //
-// Description:  This is a version of Example 28 with a simple adaptive mesh
+// Description:  This is a version of Example 29 with a simple adaptive mesh
 //               refinement loop. The problem being solved is again the
 //               electromagnetic diffusion problem with an anisotropic
 //               conductivity coefficient. The problem is solved on a sequence
@@ -23,7 +23,7 @@
 //               Interpolation of functions from coarse to fine meshes, as well
 //               as persistent GLVis visualization are also illustrated.
 //
-//               We recommend viewing Examples 6 and 28 before viewing this
+//               We recommend viewing Examples 6 and 29 before viewing this
 //               example.
 
 #include "mfem.hpp"
