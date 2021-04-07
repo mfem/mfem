@@ -1080,7 +1080,7 @@ void VectorFiniteElement::Project_RT(
    {
       int sdim = Trans.GetSpaceDim();
       double vk[Geometry::MaxDim];
-      DenseMatrix vshape(fe.GetDof(), sdim);
+      DenseMatrix vshape(fe.GetDof(), fe.GetVDim());
       Vector vshapenk(fe.GetDof());
       const bool square_J = (dim == sdim);
 
@@ -1292,9 +1292,8 @@ void VectorFiniteElement::Project_ND(
    }
    else
    {
-      int sdim = Trans.GetSpaceDim();
       double vk[Geometry::MaxDim];
-      DenseMatrix vshape(fe.GetDof(), sdim);
+      DenseMatrix vshape(fe.GetDof(), fe.GetVDim());
       Vector vshapetk(fe.GetDof());
 
       I.SetSize(dof, fe.GetDof());
@@ -12849,6 +12848,93 @@ void ND_R1D_SegmentElement::Project(VectorCoefficient &vc,
 
 }
 
+void ND_R1D_SegmentElement::Project(const FiniteElement &fe,
+                                    ElementTransformation &Trans,
+                                    DenseMatrix &I) const
+{
+   if (fe.GetRangeType() == SCALAR)
+   {
+      double vk[Geometry::MaxDim];
+      Vector shape(fe.GetDof());
+
+      double * tk_ptr = const_cast<double*>(tk);
+
+      I.SetSize(dof, vdim*fe.GetDof());
+      for (int k = 0; k < dof; k++)
+      {
+         const IntegrationPoint &ip = Nodes.IntPoint(k);
+
+         Vector t1(&tk_ptr[dof2tk[k] * 3], 1);
+         Vector t3(&tk_ptr[dof2tk[k] * 3], 3);
+
+         fe.CalcShape(ip, shape);
+         Trans.SetIntPoint(&ip);
+         // Transform ND edge tengents from reference to physical space
+         // vk = J tk
+         Trans.Jacobian().Mult(t1, vk);
+         vk[1] = t3[1];
+         vk[2] = t3[2];
+         if (fe.GetMapType() == INTEGRAL)
+         {
+            double w = 1.0/Trans.Weight();
+            for (int d = 0; d < vdim; d++)
+            {
+               vk[d] *= w;
+            }
+         }
+
+         for (int j = 0; j < shape.Size(); j++)
+         {
+            double s = shape(j);
+            if (fabs(s) < 1e-12)
+            {
+               s = 0.0;
+            }
+            // Project scalar basis function multiplied by each coordinate
+            // direction onto the transformed edge tangents
+            for (int d = 0; d < vdim; d++)
+            {
+               I(k, j + d*shape.Size()) = s*vk[d];
+            }
+         }
+      }
+   }
+   else
+   {
+      double vk[Geometry::MaxDim];
+      DenseMatrix vshape(fe.GetDof(), fe.GetVDim());
+
+      double * tk_ptr = const_cast<double*>(tk);
+
+      I.SetSize(dof, fe.GetDof());
+      for (int k = 0; k < dof; k++)
+      {
+         const IntegrationPoint &ip = Nodes.IntPoint(k);
+
+         Vector t1(&tk_ptr[dof2tk[k] * 3], 1);
+         Vector t3(&tk_ptr[dof2tk[k] * 3], 3);
+
+         Trans.SetIntPoint(&ip);
+         // Transform ND edge tangents from reference to physical space
+         // vk = J tk
+         Trans.Jacobian().Mult(t1, vk);
+         // Compute fe basis functions in physical space
+         fe.CalcVShape(Trans, vshape);
+         // Project fe basis functions onto transformed edge tangents
+         for (int j=0; j<vshape.Height(); j++)
+         {
+            I(k, j) = 0.0;
+            I(k, j) += vshape(j, 0) * vk[0];
+            if (vshape.Width() == 3)
+            {
+               I(k, j) += vshape(j, 1) * t3(1);
+               I(k, j) += vshape(j, 2) * t3(2);
+            }
+         }
+      }
+   }
+}
+
 const double RT_R1D_SegmentElement::nk[9] = { 1.,0.,0., 0.,1.,0., 0.,0.,1. };
 
 RT_R1D_SegmentElement::RT_R1D_SegmentElement(const int p,
@@ -13011,6 +13097,93 @@ void RT_R1D_SegmentElement::Project(VectorCoefficient &vc,
       dofs(k) = Trans.AdjugateJacobian().InnerProduct(vk1, n1) +
                 Trans.Weight() * vk3(1) * n3(1) +
                 Trans.Weight() * vk3(2) * n3(2);
+   }
+}
+
+void RT_R1D_SegmentElement::Project(const FiniteElement &fe,
+                                    ElementTransformation &Trans,
+                                    DenseMatrix &I) const
+{
+   if (fe.GetRangeType() == SCALAR)
+   {
+      double vk[Geometry::MaxDim];
+      Vector shape(fe.GetDof());
+
+      double * nk_ptr = const_cast<double*>(nk);
+
+      I.SetSize(dof, vdim*fe.GetDof());
+      for (int k = 0; k < dof; k++)
+      {
+         const IntegrationPoint &ip = Nodes.IntPoint(k);
+
+         Vector n1(&nk_ptr[dof2nk[k] * 3], 1);
+         Vector n3(&nk_ptr[dof2nk[k] * 3], 3);
+
+         fe.CalcShape(ip, shape);
+         Trans.SetIntPoint(&ip);
+         // Transform RT face normals from reference to physical space
+         // vk = adj(J)^T nk
+         Trans.AdjugateJacobian().MultTranspose(n1, vk);
+         vk[1] = n3[1] * Trans.Weight();
+         vk[2] = n3[2] * Trans.Weight();
+         if (fe.GetMapType() == INTEGRAL)
+         {
+            double w = 1.0/Trans.Weight();
+            for (int d = 0; d < 1; d++)
+            {
+               vk[d] *= w;
+            }
+         }
+
+         for (int j = 0; j < shape.Size(); j++)
+         {
+            double s = shape(j);
+            if (fabs(s) < 1e-12)
+            {
+               s = 0.0;
+            }
+            // Project scalar basis function multiplied by each coordinate
+            // direction onto the transformed face normals
+            for (int d = 0; d < vdim; d++)
+            {
+               I(k,j+d*shape.Size()) = s*vk[d];
+            }
+         }
+      }
+   }
+   else
+   {
+      double vk[Geometry::MaxDim];
+      DenseMatrix vshape(fe.GetDof(), fe.GetVDim());
+
+      double * nk_ptr = const_cast<double*>(nk);
+
+      I.SetSize(dof, fe.GetDof());
+      for (int k = 0; k < dof; k++)
+      {
+         const IntegrationPoint &ip = Nodes.IntPoint(k);
+
+         Vector n1(&nk_ptr[dof2nk[k] * 3], 1);
+         Vector n3(&nk_ptr[dof2nk[k] * 3], 3);
+
+         Trans.SetIntPoint(&ip);
+         // Transform RT face normals from reference to physical space
+         // vk = adj(J)^T nk
+         Trans.AdjugateJacobian().MultTranspose(n1, vk);
+         // Compute fe basis functions in physical space
+         fe.CalcVShape(Trans, vshape);
+         // Project fe basis functions onto transformed face normals
+         for (int j=0; j<vshape.Height(); j++)
+         {
+            I(k, j) = 0.0;
+            I(k, j) += vshape(j, 0) * vk[0];
+            if (vshape.Width() == 3)
+            {
+               I(k, j) += Trans.Weight() * vshape(j, 1) * n3(1);
+               I(k, j) += Trans.Weight() * vshape(j, 2) * n3(2);
+            }
+         }
+      }
    }
 }
 

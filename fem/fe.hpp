@@ -3381,8 +3381,7 @@ public:
 
    virtual void Project(const FiniteElement &fe,
                         ElementTransformation &Trans,
-                        DenseMatrix &I) const
-   { Project_ND(tk, dof2tk, fe, Trans, I); }
+                        DenseMatrix &I) const;
 
    virtual void ProjectGrad(const FiniteElement &fe,
                             ElementTransformation &Trans,
@@ -3430,6 +3429,10 @@ public:
 
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void Project(const FiniteElement &fe,
+                        ElementTransformation &Trans,
+                        DenseMatrix &I) const;
 
    virtual void ProjectCurl(const FiniteElement &fe,
                             ElementTransformation &Trans,
