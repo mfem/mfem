@@ -53,7 +53,6 @@ int main(int argc, char *argv[])
    int order = 1;
    double sigma = -1.0;
    double kappa = -1.0;
-   double beta = 1.0;
    double eta = 0.0;
    bool visualization = 1;
    bool pa = false;
@@ -79,9 +78,6 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&sigma, "-s", "--sigma",
                   "One of the three DG penalty parameters, typically +1/-1."
-                  " See the documentation of class DGDiffusionIntegrator.");
-   args.AddOption(&beta, "-b", "--beta",
-                  "beta"
                   " See the documentation of class DGDiffusionIntegrator.");
    args.AddOption(&kappa, "-k", "--kappa",
                   "One of the three DG penalty parameters, should be positive."
@@ -171,7 +167,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient zero(0.0);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->AddBdrFaceIntegrator(
-      new DGDirichletLFIntegrator(zero, one, sigma, kappa, beta));
+      new DGDirichletLFIntegrator(zero, one, sigma, kappa));
    b->Assemble();
 
    // 6. Define the solution vector x as a finite element grid function
@@ -196,9 +192,9 @@ int main(int argc, char *argv[])
    {
       a->SetAssemblyLevel(AssemblyLevel::PARTIAL);
       if(intf)
-      a->AddInteriorNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa, beta));
+      a->AddInteriorNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa));
       if(bdyf)
-      a->AddBdrNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa, beta));
+      a->AddBdrNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa));
    }
    else if (eta > 0)
    {
@@ -211,9 +207,9 @@ int main(int argc, char *argv[])
    {
       // Default setting
       if(intf)
-      a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa, beta));
+      a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
       if(bdyf)
-      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa, beta));
+      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
    }
    a->Assemble();
    a->Finalize();
@@ -225,7 +221,7 @@ int main(int argc, char *argv[])
    LinearForm *bfull = new LinearForm(fespace);
    bfull->AddDomainIntegrator(new DomainLFIntegrator(one));
    bfull->AddBdrFaceIntegrator(
-      new DGDirichletLFIntegrator(zero, one, sigma, kappa, beta));
+      new DGDirichletLFIntegrator(zero, one, sigma, kappa));
    bfull->Assemble();
    BilinearForm *afull = new BilinearForm(fespace);
    GridFunction xfull(fespace);
@@ -234,9 +230,9 @@ int main(int argc, char *argv[])
    afull->SetAssemblyLevel(AssemblyLevel::LEGACYFULL);
    afull->AddDomainIntegrator(new DiffusionIntegrator(one));   
    if(intf)
-   afull->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa, beta));
+   afull->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
    if(bdyf)
-   afull->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa, beta));
+   afull->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
    afull->Assemble();
    afull->Finalize();
    // -------------------------------------------
