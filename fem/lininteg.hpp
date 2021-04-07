@@ -433,21 +433,21 @@ class DGDirichletLFIntegrator : public LinearFormIntegrator
 protected:
    Coefficient *uD, *Q;
    MatrixCoefficient *MQ;
-   double sigma, kappa, beta;
+   double sigma, kappa;
 
    // these are not thread-safe!
    Vector shape, dshape_dn, nor, nh, ni;
    DenseMatrix dshape, mq, adjJ;
 
 public:
-   DGDirichletLFIntegrator(Coefficient &u, const double s, const double k, const double b)
-      : uD(&u), Q(NULL), MQ(NULL), sigma(s), kappa(k), beta(b) { }
+   DGDirichletLFIntegrator(Coefficient &u, const double s, const double k)
+      : uD(&u), Q(NULL), MQ(NULL), sigma(s), kappa(k) { }
    DGDirichletLFIntegrator(Coefficient &u, Coefficient &q,
-                           const double s, const double k, const double b)
-      : uD(&u), Q(&q), MQ(NULL), sigma(s), kappa(k), beta(b) { }
+                           const double s, const double k)
+      : uD(&u), Q(&q), MQ(NULL), sigma(s), kappa(k) { }
    DGDirichletLFIntegrator(Coefficient &u, MatrixCoefficient &q,
-                           const double s, const double k, const double b)
-      : uD(&u), Q(NULL), MQ(&q), sigma(s), kappa(k), beta(b) { }
+                           const double s, const double k)
+      : uD(&u), Q(NULL), MQ(&q), sigma(s), kappa(k) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
