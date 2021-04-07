@@ -206,7 +206,8 @@ TEST_CASE("Identity Linear Interpolators",
       else
       {
          dim = 3;
-         mesh = Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
+         mesh = Mesh::MakeCartesian3D(n, n, n, (Element::Type)type,
+                                      2.0, 3.0, 5.0);
 
          if (type == Element::TETRAHEDRON)
          {
@@ -971,7 +972,8 @@ TEST_CASE("Derivative Linear Interpolators",
       else
       {
          dim = 3;
-         mesh = Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
+         mesh = Mesh::MakeCartesian3D(n, n, n, (Element::Type)type,
+                                      2.0, 3.0, 5.0);
 
          if (type == Element::TETRAHEDRON)
          {
@@ -1329,13 +1331,13 @@ TEST_CASE("Product Linear Interpolators",
    {
       Mesh mesh;
 
-      if (type < (int)Element::TRIANGLE)
+      if (type == (int)Element::SEGMENT)
       {
          dim = 1;
          mesh = Mesh::MakeCartesian1D(n, 2.0);
 
       }
-      else if (type < (int)Element::TETRAHEDRON)
+      else if (type <= (int)Element::QUADRILATERAL)
       {
          dim = 2;
          mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
@@ -1343,7 +1345,8 @@ TEST_CASE("Product Linear Interpolators",
       else
       {
          dim = 3;
-         mesh = Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
+         mesh = Mesh::MakeCartesian3D(n, n, n, (Element::Type)type,
+                                      2.0, 3.0, 5.0);
 
          if (type == Element::TETRAHEDRON)
          {
