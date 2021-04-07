@@ -103,23 +103,18 @@ using namespace mfem::common;
 using namespace mfem::plasma;
 
 // Admittance for Absorbing Boundary Condition
-Coefficient * SetupRealAdmittanceCoefficient(const Mesh & mesh,
-                                             const Array<int> & abcs);
-
-// Admittance for Complex-Valued Sheath Boundary Condition
-void SetupComplexAdmittanceCoefs(const Mesh & mesh, const Array<int> & sbcs,
-                                 Coefficient *& etaInvReCoef,
-                                 Coefficient *& etaInvImCoef);
+Coefficient * SetupAdmittanceCoefficient(const Mesh & mesh,
+					 const Array<int> & abcs);
 
 // Storage for user-supplied, real-valued impedance
 static Vector pw_eta_(0);      // Piecewise impedance values
-static Vector pw_eta_inv_(0);  // Piecewise inverse impedance values
+static Vector pw_bdr_eta_inv_(0);  // Piecewise inverse impedance values
 
 // Storage for user-supplied, complex-valued impedance
-static Vector pw_eta_re_(0);      // Piecewise real impedance
-static Vector pw_eta_inv_re_(0);  // Piecewise inverse real impedance
-static Vector pw_eta_im_(0);      // Piecewise imaginary impedance
-static Vector pw_eta_inv_im_(0);  // Piecewise inverse imaginary impedance
+//static Vector pw_eta_re_(0);      // Piecewise real impedance
+//static Vector pw_eta_inv_re_(0);  // Piecewise inverse real impedance
+//static Vector pw_eta_im_(0);      // Piecewise imaginary impedance
+//static Vector pw_eta_inv_im_(0);  // Piecewise inverse imaginary impedance
 
 // Current Density Function
 static Vector rod_params_
@@ -442,12 +437,14 @@ int main(int argc, char *argv[])
                   "Euclid factorization level for ILU(k).");
    args.AddOption(&pw_eta_, "-pwz", "--piecewise-eta",
                   "Piecewise values of Impedance (one value per abc surface)");
+   /*
    args.AddOption(&pw_eta_re_, "-pwz-r", "--piecewise-eta-r",
                   "Piecewise values of Real part of Complex Impedance "
                   "(one value per abc surface)");
    args.AddOption(&pw_eta_im_, "-pwz-i", "--piecewise-eta-i",
                   "Piecewise values of Imaginary part of Complex Impedance "
                   "(one value per abc surface)");
+   */
    args.AddOption(&rod_params_, "-rod", "--rod_params",
                   "3D Vector Amplitude, 2D Position, Radius");
    args.AddOption(&abcs, "-abcs", "--absorbing-bc-surf",
@@ -880,11 +877,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient muInvCoef(1.0 / mu0_);
 
    // Create a coefficient describing the surface admittance
-   Coefficient * etaInvCoef = SetupRealAdmittanceCoefficient(pmesh, abcs);
-
-   Coefficient * etaInvReCoef = NULL;
-   Coefficient * etaInvImCoef = NULL;
-   SetupComplexAdmittanceCoefs(pmesh, sbcs, etaInvReCoef, etaInvImCoef);
+   Coefficient * etaInvCoef = SetupAdmittanceCoefficient(pmesh, abcs);
 
    // Create tensor coefficients describing the dielectric permittivity
    DielectricTensor epsilon_real(BField, density, temperature,
@@ -1386,7 +1379,7 @@ void display_banner(ostream & os)
 // The Admittance is an optional coefficient defined on boundary surfaces which
 // can be used in conjunction with absorbing boundary conditions.
 Coefficient *
-SetupRealAdmittanceCoefficient(const Mesh & mesh, const Array<int> & abcs)
+SetupAdmittanceCoefficient(const Mesh & mesh, const Array<int> & abcs)
 {
    Coefficient * coef = NULL;
 
@@ -1396,80 +1389,41 @@ SetupRealAdmittanceCoefficient(const Mesh & mesh, const Array<int> & abcs)
                   "Each impedance value must be associated with exactly one "
                   "absorbing boundary surface.");
 
-      pw_eta_inv_.SetSize(mesh.bdr_attributes.Size());
+      pw_bdr_eta_inv_.SetSize(mesh.bdr_attributes.Size());
 
       if ( abcs[0] == -1 )
       {
-         pw_eta_inv_ = 1.0 / pw_eta_[0];
+         pw_bdr_eta_inv_ = 1.0 / pw_eta_[0];
       }
       else
       {
-         pw_eta_inv_ = 0.0;
+         pw_bdr_eta_inv_ = 0.0;
 
          for (int i=0; i<pw_eta_.Size(); i++)
          {
-            pw_eta_inv_[abcs[i]-1] = 1.0 / pw_eta_[i];
+            pw_bdr_eta_inv_[abcs[i]-1] = 1.0 / pw_eta_[i];
          }
       }
-      coef = new PWConstCoefficient(pw_eta_inv_);
+      coef = new PWConstCoefficient(pw_bdr_eta_inv_);
    }
 
    return coef;
 }
 
-// Complex Admittance is an optional pair of coefficients, defined on boundary
-// surfaces, which can be used to approximate a sheath boundary condition.
-void
-SetupComplexAdmittanceCoefs(const Mesh & mesh, const Array<int> & sbcs,
-                            Coefficient *& etaInvReCoef,
-                            Coefficient *& etaInvImCoef )
-{
-   if (pw_eta_re_.Size() > 0)
-   {
-      MFEM_VERIFY(pw_eta_re_.Size() == sbcs.Size() &&
-                  pw_eta_im_.Size() == sbcs.Size(),
-                  "Each impedance value must be associated with exactly one "
-                  "sheath boundary surface.");
-
-      pw_eta_inv_re_.SetSize(mesh.bdr_attributes.Size());
-      pw_eta_inv_im_.SetSize(mesh.bdr_attributes.Size());
-
-      if ( sbcs[0] == -1 )
-      {
-         double zmag2 = pow(pw_eta_re_[0], 2) + pow(pw_eta_im_[0], 2);
-         pw_eta_inv_re_ =  pw_eta_re_[0] / zmag2;
-         pw_eta_inv_im_ = -pw_eta_im_[0] / zmag2;
-      }
-      else
-      {
-         pw_eta_inv_re_ = 0.0;
-         pw_eta_inv_im_ = 0.0;
-
-         for (int i=0; i<pw_eta_re_.Size(); i++)
-         {
-            double zmag2 = pow(pw_eta_re_[i], 2) + pow(pw_eta_im_[i], 2);
-            if ( zmag2 > 0.0 )
-            {
-               pw_eta_inv_re_[sbcs[i]-1] =  pw_eta_re_[i] / zmag2;
-               pw_eta_inv_im_[sbcs[i]-1] = -pw_eta_im_[i] / zmag2;
-            }
-         }
-      }
-      etaInvReCoef = new PWConstCoefficient(pw_eta_inv_re_);
-      etaInvImCoef = new PWConstCoefficient(pw_eta_inv_im_);
-   }
-}
-
-void rod_current_source(const Vector &x, Vector &j)
+void rod_current_source_r(const Vector &x, Vector &j)
 {
    MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
 
    j.SetSize(x.Size());
    j = 0.0;
 
-   double x0 = rod_params_(3);
-   double y0 = rod_params_(4);
-   double radius = rod_params_(5);
+   bool cmplx = rod_params_.Size() == 9;
+
+   int o = 3 + (cmplx ? 3 : 0);
+
+   double x0 = rod_params_(o+0);
+   double y0 = rod_params_(o+1);
+   double radius = rod_params_(o+2);
 
    double r2 = (x(0) - x0) * (x(0) - x0) + (x(1) - y0) * (x(1) - y0);
 
@@ -1480,6 +1434,90 @@ void rod_current_source(const Vector &x, Vector &j)
       j(2) = rod_params_(2);
    }
    // j *= height;
+}
+
+void rod_current_source_i(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+
+   j.SetSize(x.Size());
+   j = 0.0;
+
+   bool cmplx = rod_params_.Size() == 9;
+
+   int o = 3 + (cmplx ? 3 : 0);
+
+   double x0 = rod_params_(o+0);
+   double y0 = rod_params_(o+1);
+   double radius = rod_params_(o+2);
+
+   double r2 = (x(0) - x0) * (x(0) - x0) + (x(1) - y0) * (x(1) - y0);
+
+   if (r2 <= radius * radius)
+   {
+      if (cmplx)
+      {
+         j(0) = rod_params_(3);
+         j(1) = rod_params_(4);
+         j(2) = rod_params_(5);
+      }
+   }
+   // j *= height;
+}
+
+void slab_current_source_r(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+
+   j.SetSize(x.Size());
+   j = 0.0;
+
+   bool cmplx = slab_params_.Size() == 10;
+
+   int o = 3 + (cmplx ? 3 : 0);
+
+   double x0 = slab_params_(o+0);
+   double y0 = slab_params_(o+1);
+   double dx = slab_params_(o+2);
+   double dy = slab_params_(o+3);
+
+   if (x[0] >= x0-0.5*dx && x[0] <= x0+0.5*dx &&
+       x[1] >= y0-0.5*dy && x[1] <= y0+0.5*dy)
+   {
+      j(0) = slab_params_(0);
+      j(1) = slab_params_(1);
+      j(2) = slab_params_(2);
+      j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5)));
+   }
+}
+
+void slab_current_source_i(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+
+   j.SetSize(x.Size());
+   j = 0.0;
+
+   bool cmplx = slab_params_.Size() == 10;
+
+   int o = 3 + (cmplx ? 3 : 0);
+
+   double x0 = slab_params_(o+0);
+   double y0 = slab_params_(o+1);
+   double dx = slab_params_(o+2);
+   double dy = slab_params_(o+3);
+
+   if (x[0] >= x0-0.5*dx && x[0] <= x0+0.5*dx &&
+       x[1] >= y0-0.5*dy && x[1] <= y0+0.5*dy)
+   {
+      if (cmplx)
+      {
+         j(0) = slab_params_(3);
+         j(1) = slab_params_(4);
+         j(2) = slab_params_(5);
+         j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5)));
+      }
+   }
 }
 
 void e_bc_r(const Vector &x, Vector &E)

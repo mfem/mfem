@@ -124,18 +124,18 @@ using namespace mfem::common;
 using namespace mfem::plasma;
 
 // Admittance for Absorbing Boundary Condition
-Coefficient * SetupRealAdmittanceCoefficient(const Mesh & mesh,
-                                             const Array<int> & abcs);
+Coefficient * SetupImpedanceCoefficient(const Mesh & mesh,
+					const Array<int> & abcs);
 
 // Storage for user-supplied, real-valued impedance
 static Vector pw_eta_(0);      // Piecewise impedance values
-static Vector pw_eta_inv_(0);  // Piecewise inverse impedance values
+static Vector pw_bdr_eta_(0);  // Piecewise impedance values (by bdr attr)
 
 // Storage for user-supplied, complex-valued impedance
-static Vector pw_eta_re_(0);      // Piecewise real impedance
-static Vector pw_eta_inv_re_(0);  // Piecewise inverse real impedance
-static Vector pw_eta_im_(0);      // Piecewise imaginary impedance
-static Vector pw_eta_inv_im_(0);  // Piecewise inverse imaginary impedance
+//static Vector pw_eta_re_(0);      // Piecewise real impedance
+//static Vector pw_eta_inv_re_(0);  // Piecewise inverse real impedance
+//static Vector pw_eta_im_(0);      // Piecewise imaginary impedance
+//static Vector pw_eta_inv_im_(0);  // Piecewise inverse imaginary impedance
 
 // Current Density Function
 static Vector rod_params_
@@ -475,12 +475,14 @@ int main(int argc, char *argv[])
                   "Euclid factorization level for ILU(k).");
    args.AddOption(&pw_eta_, "-pwz", "--piecewise-eta",
                   "Piecewise values of Impedance (one value per abc surface)");
+   /*
    args.AddOption(&pw_eta_re_, "-pwz-r", "--piecewise-eta-r",
                   "Piecewise values of Real part of Complex Impedance "
                   "(one value per abc surface)");
    args.AddOption(&pw_eta_im_, "-pwz-i", "--piecewise-eta-i",
                   "Piecewise values of Imaginary part of Complex Impedance "
                   "(one value per abc surface)");
+   */
    args.AddOption(&rod_params_, "-rod", "--rod_params",
                   "3D Vector Amplitude (Real x,y,z, Imag x,y,z), "
                   "2D Position, Radius");
@@ -898,7 +900,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient muCoef(mu0_);
 
    // Create a coefficient describing the surface admittance
-   Coefficient * etaInvCoef = SetupRealAdmittanceCoefficient(pmesh, abcs);
+   Coefficient * etaCoef = SetupImpedanceCoefficient(pmesh, abcs);
 
    // Create tensor coefficients describing the dielectric permittivity
    InverseDielectricTensor epsilonInv_real(BField, density, temperature,
@@ -1359,7 +1361,7 @@ int main(int argc, char *argv[])
                    (CPDSolverDH::PrecondType)prec,
                    conv, BUnitCoef,
                    epsilonInv_real, epsilonInv_imag, epsilon_abs,
-                   muCoef, etaInvCoef,
+                   muCoef, etaCoef,
                    (phase_shift) ? &kReCoef : NULL,
                    (phase_shift) ? &kImCoef : NULL,
                    //abcs,
@@ -1648,10 +1650,10 @@ void display_banner(ostream & os)
       << "  notation, \"S, D, P\"." << endl<< endl << flush;
 }
 
-// The Admittance is an optional coefficient defined on boundary surfaces which
+// The Impedance is an optional coefficient defined on boundary surfaces which
 // can be used in conjunction with absorbing boundary conditions.
 Coefficient *
-SetupRealAdmittanceCoefficient(const Mesh & mesh, const Array<int> & abcs)
+SetupImpedanceCoefficient(const Mesh & mesh, const Array<int> & abcs)
 {
    Coefficient * coef = NULL;
 
@@ -1661,22 +1663,22 @@ SetupRealAdmittanceCoefficient(const Mesh & mesh, const Array<int> & abcs)
                   "Each impedance value must be associated with exactly one "
                   "absorbing boundary surface.");
 
-      pw_eta_inv_.SetSize(mesh.bdr_attributes.Size());
+      pw_bdr_eta_.SetSize(mesh.bdr_attributes.Size());
 
       if ( abcs[0] == -1 )
       {
-         pw_eta_inv_ = 1.0 / pw_eta_[0];
+         pw_bdr_eta_ = pw_eta_[0];
       }
       else
       {
-         pw_eta_inv_ = 0.0;
+         pw_bdr_eta_ = 0.0;
 
          for (int i=0; i<pw_eta_.Size(); i++)
          {
-            pw_eta_inv_[abcs[i]-1] = 1.0 / pw_eta_[i];
+            pw_bdr_eta_[abcs[i]-1] = pw_eta_[i];
          }
       }
-      coef = new PWConstCoefficient(pw_eta_inv_);
+      coef = new PWConstCoefficient(pw_bdr_eta_);
    }
 
    return coef;
