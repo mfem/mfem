@@ -359,7 +359,7 @@ int main(int argc, char *argv[])
    }
    // -------------------------------------------
    {
-      int print_iter = 1;
+      int print_iter = 0;
       int max_num_iter = 500;
       double rtol = 1.0e-12;
       double atol = 0.0; 
@@ -375,15 +375,26 @@ int main(int argc, char *argv[])
       
       afull->FormLinearSystem(ess_tdof_list, xfull, *bfull, Afull, Xfull, Bfull);
       //OperatorJacobiSmoother Mfull(*afull, ess_tdof_list);
-      
-      //CG(*Afull, *A, Bfull, Xfull, print_iter, max_num_iter, rtol, atol );
-      //exit(1);
+
+      std::chrono::time_point<std::chrono::system_clock> StartTime;
+      std::chrono::time_point<std::chrono::system_clock> EndTime;
+
+      StartTime = std::chrono::system_clock::now();
+
+      CG(*Afull, Bfull, Xfull, print_iter, max_num_iter, rtol, atol );
+
+      EndTime = std::chrono::system_clock::now();
+
+      auto timefull = std::chrono::duration_cast<std::chrono::milliseconds>(EndTime - StartTime).count();
+
+      std::cout << "full solver time (ms): " << timefull << std::endl;
+
       std::cout << "----------------------------------" << std::endl;
    }
    // -------------------------------------------
    // Test the invoked operator
    {
-      int print_iter = 1;
+      int print_iter = 0;
       int max_num_iter = 500;
       double rtol = 1.0e-12;
       double atol = 0.0; 
@@ -397,21 +408,26 @@ int main(int argc, char *argv[])
       OperatorPtr A;
       Vector B, X;
       
-      OperatorPtr Afull;
-      Vector Bfull, Xfull;
-      
-      afull->FormLinearSystem(ess_tdof_list, xfull, *bfull, Afull, Xfull, Bfull);
-
       a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
       //OperatorJacobiSmoother M(*a, ess_tdof_list);
       // M
-      CG(*A, *Afull, B, X, print_iter, max_num_iter, rtol, atol );
-      exit(1);
+      std::chrono::time_point<std::chrono::system_clock> StartTime;
+      std::chrono::time_point<std::chrono::system_clock> EndTime;
+
+      StartTime = std::chrono::system_clock::now();
+
+      CG(*A, B, X, print_iter, max_num_iter, rtol, atol );
+
+      EndTime = std::chrono::system_clock::now();
+
+      auto timefull = std::chrono::duration_cast<std::chrono::milliseconds>(EndTime - StartTime).count();
+
+      std::cout << "pa   solver time (ms): " << timefull << std::endl;
+
       std::cout << "----------------------------------" << std::endl;
    }   
    // -------------------------------------------
-
-
+   exit(1);
 
    std::chrono::time_point<std::chrono::system_clock> StartTime;
    std::chrono::time_point<std::chrono::system_clock> EndTime;

@@ -84,6 +84,7 @@ int main(int argc, char *argv[])
    double sigma = -1.0;
    double kappa = -1.0;
    double eta = 0.0;
+   bool pa = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -103,6 +104,8 @@ int main(int argc, char *argv[])
                   "One of the three DG penalty parameters, should be positive."
                   " Negative values are replaced with (order+1)^2.");
    args.AddOption(&eta, "-e", "--eta", "BR2 penalty parameter.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -164,6 +167,19 @@ int main(int argc, char *argv[])
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use discontinuous finite elements of the specified order >= 0.
+   FiniteElementCollection *fec;
+   if(pa)
+   {
+      // Only Gauss-Lobatto basis are supported in L2FaceRestriction.
+      fec = new DG_FECollection(order, dim, BasisType::GaussLobatto);
+      // TODO: make the PA kernel work for positive
+   }
+   else
+   {
+      //fec = new DG_FECollection(order, dim);
+      fec = new DG_FECollection(order, dim);
+   }
+
    FiniteElementCollection *fec = new DG_FECollection(order, dim);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
    HYPRE_Int size = fespace->GlobalTrueVSize();
@@ -195,12 +211,24 @@ int main(int argc, char *argv[])
    //    extract the corresponding parallel matrix A.
    ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
-   a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
-   a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
-   if (eta > 0)
+   if (pa)
    {
+      a->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      a->AddInteriorNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa, beta));
+      a->AddBdrNormalDerivativeFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa, beta));
+   }
+   else if (eta > 0)
+   {
+      /*
       a->AddInteriorFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
       a->AddBdrFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
+      */
+   }
+   else
+   {
+      // Default setting
+      a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa, beta));
+      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa, beta));
    }
    a->Assemble();
    a->Finalize();
