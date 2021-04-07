@@ -355,7 +355,7 @@ int main(int argc, char *argv[])
    }
    // -------------------------------------------
    {
-      int print_iter = 0;
+      int print_iter = 2;
       int max_num_iter = 500;
       double rtol = 1.0e-12;
       double atol = 0.0; 
@@ -390,7 +390,7 @@ int main(int argc, char *argv[])
    // -------------------------------------------
    // Test the invoked operator
    {
-      int print_iter = 0;
+      int print_iter = 2;
       int max_num_iter = 500;
       double rtol = 1.0e-12;
       double atol = 0.0; 

@@ -261,9 +261,7 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
    if (elem_restrict)
    {
       localX.SetSize(elem_restrict->Height(), Device::GetDeviceMemoryType());
-      // A = PˆT A_L P, localX = P x,
       localY.SetSize(elem_restrict->Height(), Device::GetDeviceMemoryType());
-      // localY = A_L localX
       localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
    }
 
@@ -576,6 +574,38 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
             bdrFaceIntegrators[i]->AddMultTransposePA(faceBdrX, faceBdrY);
          }
          bdr_face_restrict_lex->MultTranspose(faceBdrY, y);
+      }
+   }
+
+   Array<BilinearFormIntegrator*> &intNormalDerivFaceIntegrators = *a->GetNDFBFI();
+   const int iNDFISz = intNormalDerivFaceIntegrators.Size();
+   if (int_face_normD_restrict_lex && iNDFISz>0)
+   {
+      int_face_normD_restrict_lex->Mult(x, faceNormDIntX);
+      if (faceNormDIntX.Size()>0)
+      {
+         faceNormDIntY = 0.0;
+         for (int i = 0; i < iNDFISz; ++i)
+         {
+            intNormalDerivFaceIntegrators[i]->AddMultTransposePA(faceNormDIntX, faceNormDIntY);
+         }
+         int_face_normD_restrict_lex->MultTranspose(faceNormDIntY, y);
+      }
+   }
+
+   Array<BilinearFormIntegrator*> &bdrNormalDerivFaceIntegrators = *a->GetNDBFBFI();
+   const int bNDFISz = bdrNormalDerivFaceIntegrators.Size();
+   if (bdr_face_normD_restrict_lex && bNDFISz>0)
+   {
+      bdr_face_normD_restrict_lex->Mult(x, faceNormDBdrX);
+      if (faceNormDBdrX.Size()>0)
+      {
+         faceNormDBdrY = 0.0;
+         for (int i = 0; i < bNDFISz; ++i)
+         {
+            bdrNormalDerivFaceIntegrators[i]->AddMultTransposePA(faceNormDBdrX, faceNormDBdrY);
+         }
+         bdr_face_normD_restrict_lex->MultTranspose(faceNormDBdrY, y);
       }
    }
 }
