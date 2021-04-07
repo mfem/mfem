@@ -2753,6 +2753,7 @@ ND_Trace_FECollection::ND_Trace_FECollection(const int p, const int dim,
 
 ND_R1D_FECollection::ND_R1D_FECollection(const int p, const int dim,
                                          const int cb_type, const int ob_type)
+   : FiniteElementCollection(p)
 {
    MFEM_VERIFY(p >= 1, "ND_R1D_FECollection requires order >= 1.");
    MFEM_VERIFY(dim == 1, "ND_R1D_FECollection requires dim == 1.");
@@ -2821,6 +2822,7 @@ ND_R1D_FECollection::~ND_R1D_FECollection()
 
 RT_R1D_FECollection::RT_R1D_FECollection(const int p, const int dim,
                                          const int cb_type, const int ob_type)
+   : FiniteElementCollection(p + 1)
 {
    MFEM_VERIFY(p >= 0, "RT_R1D_FECollection requires order >= 0.");
    MFEM_VERIFY(dim == 1, "RT_R1D_FECollection requires dim == 1.");
@@ -2890,6 +2892,7 @@ RT_R1D_FECollection::~RT_R1D_FECollection()
 
 ND_R2D_FECollection::ND_R2D_FECollection(const int p, const int dim,
                                          const int cb_type, const int ob_type)
+   : FiniteElementCollection(p)
 {
    MFEM_VERIFY(p >= 1, "ND_R2D_FECollection requires order >= 1.");
    MFEM_VERIFY(dim >= 1 && dim <= 2,
@@ -3031,7 +3034,8 @@ ND_R2D_Trace_FECollection::ND_R2D_Trace_FECollection(const int p, const int dim,
 
 RT_R2D_FECollection::RT_R2D_FECollection(const int p, const int dim,
                                          const int cb_type, const int ob_type)
-   : ob_type(ob_type)
+   : FiniteElementCollection(p + 1),
+     ob_type(ob_type)
 {
    MFEM_VERIFY(p >= 0, "RT_R2D_FECollection requires order >= 0.");
    MFEM_VERIFY(dim >= 1 && dim <= 2,
