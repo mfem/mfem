@@ -1532,25 +1532,14 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
                auto itr = interp_map.find(key);
                if (itr == interp_map.end())
                {
+                  // Computation of the interpolation matrix from coarse face to
+                  // fine face.
                   // Assumes all trace elements are the same.
                   const FiniteElement *trace_fe =
                      fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0));
                   DenseMatrix* interp_mat = new DenseMatrix(dof,dof);
                   Vector shape(dof);
                   IntegrationPoint f_ip;
-                  /// With a transformation ///
-                  // IsoparametricTransformation T;
-                  // switch (trace_fe->GetGeomType())
-                  // {
-                  //    case Geometry::SQUARE:   T.SetFE(&QuadrilateralFE); break;
-                  //    case Geometry::SEGMENT:  T.SetFE(&SegmentFE); break;
-                  //    default: MFEM_ABORT("unsupported geometry");
-                  // }
-                  // // TODO order pointMat
-                  // T.GetPointMat() = *ptMat;
-                  // trace_fe->GetLocalInterpolation(T, *interp_mat);
-
-                  /// Without a transformation ///
                   double x_min(0), x_max(0), y_min(0), y_max(0);
                   switch (trace_fe->GetGeomType())
                   {
@@ -1589,8 +1578,6 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
                      {
                         MFEM_ASSERT(ptMat->Height() == 1, "Unexpected PtMat height.");
                         MFEM_ASSERT(ptMat->Width() == 2, "Unexpected PtMat width.");
-                        // NCMesh::Slave &slave = (NCMesh::Slave&)mesh.ncmesh->GetEdgeList().LookUp(f);
-                        // slave.edge_flags & 1
                         bool invert = face_id2==2 || face_id2==3;
                         double a = (*ptMat)(0,0);
                         double b = (*ptMat)(0,1);
