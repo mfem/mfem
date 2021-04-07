@@ -243,18 +243,12 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
                      MatrixCoefficient & epsAbsCoef,
                      Coefficient & muInvCoef,
                      Coefficient * etaInvCoef,
-                     Coefficient * etaInvReCoef,
-                     Coefficient * etaInvImCoef,
-                     VectorCoefficient * kCoef,
+                     VectorCoefficient * kReCoef,
+                     VectorCoefficient * kImCoef,
                      Array<int> & abcs,
-                     Array<int> & sbcs,
-                     // Array<int> & dbcs,
                      Array<ComplexVectorCoefficientByAttr> & dbcs,
                      Array<ComplexVectorCoefficientByAttr> & nbcs,
-                     // void   (*e_r_bc )(const Vector&, Vector&),
-                     // void   (*e_i_bc )(const Vector&, Vector&),
-                     // VectorCoefficient & EReCoef,
-                     // VectorCoefficient & EImCoef,
+                     Array<ComplexCoefficientByAttr> & sbcs,
                      void (*j_r_src)(const Vector&, Vector&),
                      void (*j_i_src)(const Vector&, Vector&),
                      bool vis_u, bool pa)
@@ -270,7 +264,6 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      vis_u_(vis_u),
      pa_(pa),
      omega_(omega),
-     // solNorm_(-1.0),
      pmesh_(&pmesh),
      L2FESpace_(NULL),
      L2FESpace2p_(NULL),
@@ -302,9 +295,8 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      epsAbsCoef_(&epsAbsCoef),
      muInvCoef_(&muInvCoef),
      etaInvCoef_(etaInvCoef),
-     etaInvReCoef_(etaInvReCoef),
-     etaInvImCoef_(etaInvImCoef),
-     kCoef_(kCoef),
+     kReCoef_(kReCoef),
+     kImCoef_(kImCoef),
      omegaCoef_(new ConstantCoefficient(omega_)),
      negOmegaCoef_(new ConstantCoefficient(-omega_)),
      omega2Coef_(new ConstantCoefficient(pow(omega_, 2))),
@@ -315,12 +307,16 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      sinkx_(NULL),
      coskx_(NULL),
      negsinkx_(NULL),
-     negMuInvCoef_(NULL),
+     // negMuInvCoef_(NULL),
      massReCoef_(NULL),
      massImCoef_(NULL),
      posMassCoef_(NULL),
-     negMuInvkxkxCoef_(NULL),
-     negMuInvkCoef_(NULL),
+     kmkReCoef_(kReCoef_, kImCoef_, muInvCoef_, true, -1.0),
+     kmkImCoef_(kReCoef_, kImCoef_, muInvCoef_, false, -1.0),
+     kmReCoef_(kReCoef_, muInvCoef_, 1.0),
+     kmImCoef_(kImCoef_, muInvCoef_, -1.0),
+     // negMuInvkxkxCoef_(NULL),
+     // negMuInvkCoef_(NULL),
      jrCoef_(NULL),
      jiCoef_(NULL),
      rhsrCoef_(NULL),
@@ -371,7 +367,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
       }
       e_b_ = new ParComplexGridFunction(L2FESpace_);
    }
-   if (kCoef_)
+   if (kReCoef_ || kImCoef_)
    {
       L2VFESpace_ = new L2_ParFESpace(pmesh_,order,pmesh_->Dimension(),
                                       pmesh_->SpaceDimension());
@@ -380,14 +376,15 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
       d_v_ = new ParComplexGridFunction(L2VFESpace_);
       j_v_ = new ParComplexGridFunction(L2VFESpace_);
 
-      sinkx_ = new PhaseCoefficient(*kCoef_, &sin);
-      coskx_ = new PhaseCoefficient(*kCoef_, &cos);
+      sinkx_ = new ComplexPhaseCoefficient(*kReCoef_, *kImCoef_, sin);
+      coskx_ = new ComplexPhaseCoefficient(*kReCoef_, *kImCoef_, cos);
       negsinkx_ = new ProductCoefficient(-1.0, *sinkx_);
-
+      /*
       negMuInvCoef_ = new ProductCoefficient(-1.0, *muInvCoef_);
       negMuInvkCoef_ = new ScalarVectorProductCoefficient(*negMuInvCoef_,
                                                           *kCoef_);
       negMuInvkxkxCoef_ = new CrossCrossCoefficient(*muInvCoef_, *kCoef_);
+      */
    }
    else
    {
@@ -482,19 +479,19 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
          cout << "Creating Admittance Coefficient" << endl;
       }
 
-      abc_marker_.SetSize(pmesh.bdr_attributes.Max());
+      abc_bdr_marker_.SetSize(pmesh.bdr_attributes.Max());
       if ( abcs.Size() == 1 && abcs[0] < 0 )
       {
          // Mark all boundaries as absorbing
-         abc_marker_ = 1;
+         abc_bdr_marker_ = 1;
       }
       else
       {
          // Mark select boundaries as absorbing
-         abc_marker_ = 0;
+         abc_bdr_marker_ = 0;
          for (int i=0; i<abcs.Size(); i++)
          {
-            abc_marker_[abcs[i]-1] = 1;
+            abc_bdr_marker_[abcs[i]-1] = 1;
          }
       }
       if ( etaInvCoef_ == NULL )
@@ -504,7 +501,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
       abcCoef_ = new TransformedCoefficient(negOmegaCoef_, etaInvCoef_,
                                             prodFunc);
    }
-
+   /*
    // Complex Impedance
    if ( sbcs.Size() > 0 && etaInvReCoef_ != NULL && etaInvReCoef_ != NULL )
    {
@@ -527,7 +524,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
       sbcImCoef_ = new TransformedCoefficient(negOmegaCoef_, etaInvReCoef_,
                                               prodFunc);
    }
-
+   */
    // Volume Current Density
    if ( j_r_src_ != NULL )
    {
@@ -585,19 +582,27 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    a1_->AddDomainIntegrator(new CurlCurlIntegrator(*muInvCoef_), NULL);
    a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massReCoef_),
                             new VectorFEMassIntegrator(*massImCoef_));
-   if ( kCoef_ )
+   if ( kReCoef_ || kImCoef_ )
    {
       if (pa_)
       {
          MFEM_ABORT("kCoef_: Partial Assembly has not yet been implemented for "
                     "MixedCrossCurlIntegrator and MixedWeakCurlCrossIntegrator.");
       }
+      a1_->AddDomainIntegrator(new VectorFEMassIntegrator(kmkReCoef_),
+                               new VectorFEMassIntegrator(kmkImCoef_));
+      a1_->AddDomainIntegrator(new MixedVectorCurlIntegrator(kmImCoef_),
+                               new MixedVectorCurlIntegrator(kmReCoef_));
+      a1_->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(kmImCoef_),
+                               new MixedVectorWeakCurlIntegrator(kmReCoef_));
+      /*
       a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*negMuInvkxkxCoef_),
                                NULL);
       a1_->AddDomainIntegrator(NULL,
                                new MixedCrossCurlIntegrator(*negMuInvkCoef_));
       a1_->AddDomainIntegrator(NULL,
                                new MixedWeakCurlCrossIntegrator(*negMuInvkCoef_));
+      */
    }
    if ( abcCoef_ )
    {
@@ -607,8 +612,9 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
                     "this BoundaryIntegrator.");
       }
       a1_->AddBoundaryIntegrator(NULL, new VectorFEMassIntegrator(*abcCoef_),
-                                 abc_marker_);
+                                 abc_bdr_marker_);
    }
+   /*
    if ( sbcReCoef_ && sbcImCoef_ )
    {
       if (pa_)
@@ -620,7 +626,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
                                  new VectorFEMassIntegrator(*sbcImCoef_),
                                  sbc_marker_);
    }
-
+   */
    b1_ = new ParBilinearForm(HCurlFESpace_);
    if (pa_) { b1_->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    b1_->AddDomainIntegrator(new CurlCurlIntegrator(*muInvCoef_));
@@ -703,9 +709,9 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
 
 CPDSolver::~CPDSolver()
 {
-   delete negMuInvkxkxCoef_;
-   delete negMuInvkCoef_;
-   delete negMuInvCoef_;
+   // delete negMuInvkxkxCoef_;
+   // delete negMuInvkCoef_;
+   // delete negMuInvCoef_;
    delete negsinkx_;
    delete coskx_;
    delete sinkx_;
@@ -1436,7 +1442,7 @@ CPDSolver::DisplayToGLVis()
    int Ww = 350, Wh = 350; // window size
    int offx = Ww+10, offy = Wh+45; // window offsets
 
-   if (kCoef_)
+   if (kReCoef_ || kImCoef_)
    {
       VectorGridFunctionCoefficient e_r(&e_->real());
       VectorGridFunctionCoefficient e_i(&e_->imag());
@@ -1506,7 +1512,7 @@ CPDSolver::DisplayToGLVis()
 
       j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
 
-      if (kCoef_)
+      if (kReCoef_ || kImCoef_)
       {
          VectorGridFunctionCoefficient j_r(&j_->real());
          VectorGridFunctionCoefficient j_i(&j_->imag());
@@ -1582,7 +1588,7 @@ CPDSolver::DisplayAnimationToGLVis()
 {
    if (myid_ == 0) { cout << "Sending animation data to GLVis ..." << flush; }
 
-   if (kCoef_)
+   if (kReCoef_ || kImCoef_)
    {
       VectorGridFunctionCoefficient e_r(&e_->real());
       VectorGridFunctionCoefficient e_i(&e_->imag());
