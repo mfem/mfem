@@ -1501,6 +1501,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
          orientation = inf2 % 64;
          face_id2 = inf2 / 64;
          GetFaceDofs(dim, face_id2, dof1d, faceMap2); // Only for hex
+         if(ncface>-1) orientation = mesh.GetNCFacesOrientation(ncface);
       }
       else
       {
@@ -1526,9 +1527,8 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
             }
             else // Non-conforming face
             {
-               // TODO the id needs to take into account the face?
                const DenseMatrix* ptMat = mesh.GetNCFacesPtMat(ncface);
-               Key key(ptMat, face_id2);// in 2D face_id2==2 || face_id2==3;?
+               Key key(ptMat, face_id2);
                auto itr = interp_map.find(key);
                if (itr == interp_map.end())
                {
@@ -1638,7 +1638,6 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
                   interp_config[f_ind] = itr->second.first;
                }
             }
-            if(ncface>-1 && dim==2) orientation = 1;
             for (int d = 0; d < dof; ++d)
             {
                const int pd = PermuteFaceL2(dim, face_id1, face_id2,
@@ -1695,6 +1694,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
          orientation = inf2 % 64;
          face_id2 = inf2 / 64;
          GetFaceDofs(dim, face_id2, dof1d, faceMap2);
+         if(ncface>-1) orientation = mesh.GetNCFacesOrientation(ncface);
          for (int d = 0; d < dof; ++d)
          {
             const int did = faceMap1[d];
@@ -1705,7 +1705,6 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
          }
          if (m==L2FaceValues::DoubleValued && type==FaceType::Interior && e2>=0)
          {
-            if(ncface>-1 && dim==2) orientation = 1;
             for (int d = 0; d < dof; ++d)
             {
                const int pd = PermuteFaceL2(dim, face_id1, face_id2,
