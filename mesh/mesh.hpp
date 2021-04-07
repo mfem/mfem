@@ -152,6 +152,7 @@ protected:
 
    Array<FaceInfo> faces_info;
    Array<NCFaceInfo> nc_faces_info;
+   Array<int> nc_faces_orientation;
 
    Table *el_to_edge;
    Table *el_to_face;
@@ -197,6 +198,11 @@ public:
    const DenseMatrix* GetNCFacesPtMat(int i)
    {
       return nc_faces_info[i].PointMatrix;
+   }
+
+   int& GetNCFacesOrientation(int i)
+   {
+      return nc_faces_orientation[i];
    }
 
    typedef Geometry::Constants<Geometry::SEGMENT>     seg_t;

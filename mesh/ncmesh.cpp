@@ -3044,6 +3044,7 @@ void NCMesh::TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
 
       Slave &sl = edge_list.slaves.Last();
       sl.matrix = matrix_map.GetIndex(PointMatrix(Point(t0), Point(t1)));
+      sl.orientation = 1;
 
       // handle slave edge orientation
       sl.edge_flags = flags;
