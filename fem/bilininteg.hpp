@@ -2752,8 +2752,6 @@ protected:
    MatrixCoefficient *MQ;
    double sigma, kappa;
 
-   double beta;
-
    // these are not thread-safe!
    Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
    DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
@@ -2777,7 +2775,6 @@ protected:
    //ir->GetWeights(), 
    //maps->G,
    //geom->detJ, geom->normal, 
-   //double alpha, beta;
    Vector r, vel;
 
    static const IntegrationRule &GetRule(Geometry::Type facegeom, 
@@ -2786,11 +2783,11 @@ protected:
 
 public:
    // Q = 1
-   DGDiffusionIntegrator(const double s, const double k, const double b)
-      : Q(NULL), MQ(NULL), sigma(s), kappa(k), beta(b) { }
+   DGDiffusionIntegrator(const double s, const double k)
+      : Q(NULL), MQ(NULL), sigma(s), kappa(k) { }
    // Q is some scalar diffusion coefficient
-   DGDiffusionIntegrator(Coefficient &q, const double s, const double k, const double b)
-      : Q(&q), MQ(NULL), sigma(s), kappa(k), beta(b) { }
+   DGDiffusionIntegrator(Coefficient &q, const double s, const double k)
+      : Q(&q), MQ(NULL), sigma(s), kappa(k) { }
    // Q is some matrix diffusion coefficient
    /*
    DGDiffusionIntegrator(MatrixCoefficient &q, const double s, const double k)
