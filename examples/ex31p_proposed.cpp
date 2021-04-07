@@ -1,14 +1,14 @@
-//                       MFEM Example 30 - Parallel Version
+//                       MFEM Example 31 - Parallel Version
 //
-// Compile with: make ex30p
+// Compile with: make ex31p
 //
-// Sample runs:  mpirun -np 4 ex30p -m ../data/square-disc.mesh -o 1
-//               mpirun -np 4 ex30p -m ../data/square-disc.mesh -o 2
-//               mpirun -np 4 ex30p -m ../data/square-disc.mesh -o 3
-//               mpirun -np 4 ex30p -m ../data/square-disc-nurbs.mesh -o 2
-//               mpirun -np 4 ex30p -m ../data/star.mesh -o 3
-//               mpirun -np 4 ex30p -m ../data/amr-quad.mesh
-//               mpirun -np 4 ex30p -m ../data/amr-quad.mesh -o 2
+// Sample runs:  mpirun -np 4 ex31p -m ../data/square-disc.mesh -o 1
+//               mpirun -np 4 ex31p -m ../data/square-disc.mesh -o 2
+//               mpirun -np 4 ex31p -m ../data/square-disc.mesh -o 3
+//               mpirun -np 4 ex31p -m ../data/square-disc-nurbs.mesh -o 2
+//               mpirun -np 4 ex31p -m ../data/star.mesh -o 3
+//               mpirun -np 4 ex31p -m ../data/amr-quad.mesh
+//               mpirun -np 4 ex31p -m ../data/amr-quad.mesh -o 2
 //
 // Description:  This is a version of Example 28 with a simple adaptive mesh
 //               refinement loop. The problem being solved is again the
