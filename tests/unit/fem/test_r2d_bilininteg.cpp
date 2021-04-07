@@ -518,7 +518,8 @@ TEST_CASE("R2D Bilinear Vector Mass Integrators",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
+                                        1, 2.0, 3.0);
 
       SECTION("Operators on ND_R2D for element type " + std::to_string(type))
       {
@@ -1598,7 +1599,8 @@ TEST_CASE("R2D Bilinear Curl Integrator",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
+                                        1, 2.0, 3.0);
 
       VectorFunctionCoefficient   F3_coef(vdim, F3);
       FunctionCoefficient         q3_coef(q3);
@@ -1766,7 +1768,8 @@ TEST_CASE("R2D Bilinear Cross Product Curl Integrator",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
+                                        1, 2.0, 3.0);
 
       VectorFunctionCoefficient    F3_coef(vdim, F3);
       VectorFunctionCoefficient    V3_coef(vdim, V3);
@@ -1850,7 +1853,8 @@ TEST_CASE("R2D Bilinear Divergence Integrator",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
+                                        1, 2.0, 3.0);
 
       VectorFunctionCoefficient F3_coef(vdim, F3);
       FunctionCoefficient       q3_coef(q3);
@@ -1963,7 +1967,8 @@ TEST_CASE("R2D Bilinear Vector Divergence Integrator",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL-1; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
+                                        1, 2.0, 3.0);
 
       VectorFunctionCoefficient   F3_coef(vdim, F3);
       VectorFunctionCoefficient   V3_coef(vdim, V3);
@@ -2088,7 +2093,8 @@ TEST_CASE("R2D Bilinear Vector Product Integrators",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
+                                        1, 2.0, 3.0);
 
       SECTION("Operators on H1 for element type " + std::to_string(type))
       {
@@ -2304,7 +2310,8 @@ TEST_CASE("R2D Bilinear Vector Cross Product Integrators",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
+                                        1, 2.0, 3.0);
 
       SECTION("Operators on ND_R2D for element type " + std::to_string(type))
       {
@@ -2522,7 +2529,8 @@ TEST_CASE("R2D Bilinear Vector Dot Product Integrators",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
+                                        1, 2.0, 3.0);
 
       SECTION("Operators on ND_R2D_ for element type " + std::to_string(type))
       {
@@ -2677,7 +2685,8 @@ TEST_CASE("R2D Bilinear Weak Gradient Integrators",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
+                                        1, 2.0, 3.0);
 
       SECTION("Operators on H1 for element type " + std::to_string(type))
       {
@@ -2889,7 +2898,8 @@ TEST_CASE("R2D Bilinear Weak Divergence Integrators",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
+                                        1, 2.0, 3.0);
 
       SECTION("Operators on ND_R2D for element type " + std::to_string(type))
       {
@@ -3186,7 +3196,8 @@ TEST_CASE("R2D Bilinear Weak Curl Integrators",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
+                                        1, 2.0, 3.0);
 
       SECTION("Operators on ND_R2D for element type " + std::to_string(type))
       {
@@ -3514,7 +3525,8 @@ TEST_CASE("R2D Bilinear Weak Div Cross Integrators",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
+                                        1, 2.0, 3.0);
 
       SECTION("Operators on ND_R2D for element type " + std::to_string(type))
       {
@@ -3655,7 +3667,8 @@ TEST_CASE("R2D Bilinear Weak Curl Cross Integrators",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
+                                        1, 2.0, 3.0);
 
       SECTION("Operators on ND_R2D for element type " + std::to_string(type))
       {
@@ -3789,7 +3802,8 @@ TEST_CASE("R2D Bilinear Weak Grad Dot Product Integrators",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
+                                        1, 2.0, 3.0);
 
       SECTION("Operators on ND_R2D for element type " + std::to_string(type))
       {
@@ -3930,7 +3944,8 @@ TEST_CASE("R2D Bilinear Grad Div Integrators",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
+                                        1, 2.0, 3.0);
 
       SECTION("Operators on H1 for element type " + std::to_string(type))
       {
@@ -4063,7 +4078,8 @@ TEST_CASE("R2D Bilinear Mixed Cross Curl Grad Integrators",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
+                                        1, 2.0, 3.0);
 
       SECTION("Operators on ND for element type " + std::to_string(type))
       {
@@ -4150,7 +4166,8 @@ TEST_CASE("R2D Bilinear Curl Curl Integrators",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
+                                        1, 2.0, 3.0);
 
       SECTION("Operators on ND_R2D for element type " + std::to_string(type))
       {
@@ -4256,7 +4273,8 @@ TEST_CASE("R2D Bilinear Mixed Curl Curl Integrators",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
+                                        1, 2.0, 3.0);
 
       SECTION("Operators on ND_R2D for element type " + std::to_string(type))
       {
@@ -4413,7 +4431,8 @@ TEST_CASE("R2D Bilinear Mixed Cross Curl Curl Integrators",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
+                                        1, 2.0, 3.0);
 
       SECTION("Operators on ND_R2D for element type " + std::to_string(type))
       {
@@ -4485,7 +4504,8 @@ TEST_CASE("R2D Bilinear Mixed Cross Grad Curl Integrators",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
+                                        1, 2.0, 3.0);
 
       SECTION("Operators on H1 for element type " + std::to_string(type))
       {
@@ -4571,7 +4591,8 @@ TEST_CASE("R2D Bilinear Div Div Integrators",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type,
+                                        1, 2.0, 3.0);
 
       SECTION("Operators on RT_R2D for element type " + std::to_string(type))
       {
