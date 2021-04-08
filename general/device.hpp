@@ -124,22 +124,25 @@ private:
    friend class MemoryManager;
    enum MODES {SEQUENTIAL, ACCELERATED};
 
-   static bool device_env, mem_host_env, mem_device_env;
+   static bool device_env, mem_host_env, mem_device_env, mem_types_set;
    static Device device_singleton;
 
-   MODES mode;
-   int dev = 0; ///< Device ID of the configured device.
+   MODES mode = Device::SEQUENTIAL;
+   int dev = 0;   ///< Device ID of the configured device.
    int ngpu = -1; ///< Number of detected devices; -1: not initialized.
-   unsigned long backends; ///< Bitwise-OR of all configured backends.
+   /// Bitwise-OR of all configured backends.
+   unsigned long backends = Backend::CPU;
    /// Set to true during configuration, except in 'device_singleton'.
-   bool destroy_mm;
-   bool mpi_gpu_aware;
+   bool destroy_mm = false;
+   bool mpi_gpu_aware = false;
 
-   MemoryType host_mem_type;      ///< Current Host MemoryType
-   MemoryClass host_mem_class;    ///< Current Host MemoryClass
+   MemoryType host_mem_type = MemoryType::HOST;    ///< Current Host MemoryType
+   MemoryClass host_mem_class = MemoryClass::HOST; ///< Current Host MemoryClass
 
-   MemoryType device_mem_type;    ///< Current Device MemoryType
-   MemoryClass device_mem_class;  ///< Current Device MemoryClass
+   /// Current Device MemoryType
+   MemoryType device_mem_type = MemoryType::HOST;
+   /// Current Device MemoryClass
+   MemoryClass device_mem_class = MemoryClass::HOST;
 
    char *device_option = NULL;
    Device(Device const&);
@@ -180,14 +183,6 @@ public:
        @note This object should be destroyed after all other MFEM objects that
        use the Device are destroyed. */
    Device(const std::string &device, const int dev = 0)
-      : mode(Device::SEQUENTIAL),
-        backends(Backend::CPU),
-        destroy_mm(false),
-        mpi_gpu_aware(false),
-        host_mem_type(MemoryType::HOST),
-        host_mem_class(MemoryClass::HOST),
-        device_mem_type(MemoryType::HOST),
-        device_mem_class(MemoryClass::HOST)
    { Configure(device, dev); }
 
    /// Destructor.
@@ -226,6 +221,17 @@ public:
        * The 'debug' backend should not be combined with other device backends.
    */
    void Configure(const std::string &device, const int dev = 0);
+
+   /// Set the default host and device MemoryTypes, @a h_mt and @a d_mt.
+   /** The host and device MemoryTypes are also set to be dual to each other.
+
+       These two MemoryType%s are used by most MFEM classes when allocating
+       memory used on host and device, respectively.
+
+       This method can only be called before Device construction and
+       configuration, and the specified memory types must be compatible with
+       the subsequent Device configuration. */
+   static void SetMemoryTypes(MemoryType h_mt, MemoryType d_mt);
 
    /// Print the configuration of the MFEM virtual device object.
    void Print(std::ostream &out = mfem::out);

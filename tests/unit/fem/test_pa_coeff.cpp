@@ -141,19 +141,20 @@ TEST_CASE("H1 pa_coeff")
                       << "integrator " << integrator << std::endl;
             for (int order = 1; order < 4; ++order)
             {
-               Mesh* mesh;
+               Mesh mesh;
                if (dimension == 2)
                {
-                  mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+                  mesh = Mesh::MakeCartesian2D(
+                            ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
                }
                else
                {
-                  mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0,
-                                  1.0);
+                  mesh = Mesh::MakeCartesian3D(
+                            ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
                }
                FiniteElementCollection* h1_fec =
                   new H1_FECollection(order, dimension);
-               FiniteElementSpace h1_fespace(mesh, h1_fec);
+               FiniteElementSpace h1_fespace(&mesh, h1_fec);
                Array<int> ess_tdof_list;
 
                BilinearForm paform(&h1_fespace);
@@ -279,7 +280,6 @@ TEST_CASE("H1 pa_coeff")
                delete mcoeff;
                delete smcoeff;
                delete coeffGridFunction;
-               delete mesh;
                delete h1_fec;
             }
          }
@@ -292,15 +292,17 @@ TEST_CASE("Hcurl/Hdiv pa_coeff",
 {
    for (dimension = 2; dimension < 4; ++dimension)
    {
-      Mesh* mesh;
+      Mesh mesh;
       const int ne = 3;
       if (dimension == 2)
       {
-         mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+         mesh = Mesh::MakeCartesian2D(
+                   ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
       }
       else
       {
-         mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
+         mesh = Mesh::MakeCartesian3D(
+                   ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
       }
 
       for (int coeffType = 3; coeffType < 5; ++coeffType)
@@ -391,13 +393,13 @@ TEST_CASE("Hcurl/Hdiv pa_coeff",
                      fec = (FiniteElementCollection*) new RT_FECollection(order, dimension);
                   }
 
-                  FiniteElementSpace fespace(mesh, fec);
+                  FiniteElementSpace fespace(&mesh, fec);
 
                   // Set essential boundary conditions on the entire boundary.
                   Array<int> tdof_ess(fespace.GetVSize());
                   tdof_ess = 0;
 
-                  for (int i=0; i<mesh->GetNBE(); ++i)
+                  for (int i=0; i<mesh.GetNBE(); ++i)
                   {
                      Array<int> dofs;
                      fespace.GetBdrElementDofs(i, dofs);
@@ -445,7 +447,7 @@ TEST_CASE("Hcurl/Hdiv pa_coeff",
                         fecTest = (FiniteElementCollection*) new ND_FECollection(order, dimension);
                      }
 
-                     FiniteElementSpace fespaceTest(mesh, fecTest);
+                     FiniteElementSpace fespaceTest(&mesh, fecTest);
 
                      MixedBilinearForm *paform = new MixedBilinearForm(&fespace, &fespaceTest);
                      paform->SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -555,7 +557,7 @@ TEST_CASE("Hcurl/Hdiv pa_coeff",
                         {
                            const FiniteElement *fel = fespace.GetFE(0);
                            const IntegrationRule *intRule = &MassIntegrator::GetRule(*fel, *fel,
-                                                                                     *mesh->GetElementTransformation(0));
+                                                                                     *mesh.GetElementTransformation(0));
 
                            if (coeffType >= 4 && dimension == 3)
                            {
@@ -625,8 +627,6 @@ TEST_CASE("Hcurl/Hdiv pa_coeff",
          delete mcoeff;
          delete smcoeff;
       }
-
-      delete mesh;
    }
 }
 
@@ -635,15 +635,17 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff",
 {
    for (dimension = 2; dimension < 4; ++dimension)
    {
-      Mesh* mesh;
+      Mesh mesh;
       const int ne = 3;
       if (dimension == 2)
       {
-         mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+         mesh = Mesh::MakeCartesian2D(
+                   ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
       }
       else
       {
-         mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
+         mesh = Mesh::MakeCartesian3D(
+                   ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
       }
 
       for (int coeffType = 0; coeffType < 3; ++coeffType)
@@ -704,8 +706,8 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff",
                                                         (FiniteElementCollection*) new H1_FECollection(order, dimension) :
                                                         (FiniteElementCollection*) new L2_FECollection(order-1, dimension);
 
-                  FiniteElementSpace v_fespace(mesh, vec_fec);
-                  FiniteElementSpace s_fespace(mesh, scalar_fec);
+                  FiniteElementSpace v_fespace(&mesh, vec_fec);
+                  FiniteElementSpace s_fespace(&mesh, scalar_fec);
 
                   Array<int> ess_tdof_list;
 
@@ -844,8 +846,6 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff",
          delete coeff;
          delete dcoeff;
       }
-
-      delete mesh;
    }
 }
 

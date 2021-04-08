@@ -463,6 +463,21 @@ void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
    MarkerToList(ess_tdofs, ess_tdof_list);
 }
 
+void FiniteElementSpace::GetBoundaryTrueDofs(Array<int> &boundary_dofs,
+                                             int component)
+{
+   if (mesh->bdr_attributes.Size())
+   {
+      Array<int> ess_bdr(mesh->bdr_attributes.Max());
+      ess_bdr = 1;
+      GetEssentialTrueDofs(ess_bdr, boundary_dofs, component);
+   }
+   else
+   {
+      boundary_dofs.DeleteAll();
+   }
+}
+
 // static method
 void FiniteElementSpace::MarkerToList(const Array<int> &marker,
                                       Array<int> &list)
@@ -2920,6 +2935,11 @@ void FiniteElementSpace::Update(bool want_transform)
 
       delete old_elem_dof;
    }
+}
+
+void FiniteElementSpace::UpdateMeshPointer(Mesh *new_mesh)
+{
+   mesh = new_mesh;
 }
 
 void FiniteElementSpace::Save(std::ostream &out) const
