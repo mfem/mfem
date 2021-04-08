@@ -47,8 +47,8 @@ ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh, int *part)
 }
 
 ParNCMesh::ParNCMesh(MPI_Comm comm, std::istream &input, int version,
-                     int &curved)
-   : NCMesh(input, version, curved)
+                     int &curved, int &is_nc)
+   : NCMesh(input, version, curved, is_nc)
 {
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
