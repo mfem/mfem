@@ -847,6 +847,7 @@ void FiniteElementSpace::AddDoubleFaceDependencies(SparseMatrix &deps) const
 
       auto *fe = fec->GetFE(Geometry::TRIANGLE, order1);
       fe->GetLocalInterpolation(T, I);
+      // TODO: cache I matrices for (order,ori) pairs?
 
       int nskip = master_dofs.Size() - nfdof;
       AddDependencies(deps, master_dofs, slave_dofs, I, nskip);
