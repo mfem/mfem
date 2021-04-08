@@ -22,7 +22,7 @@ TEST_CASE("Test order of boundary integrators",
    // Create a simple mesh
    int dim = 2, nx = 2, ny = 2, order = 2;
    Element::Type e_type = Element::QUADRILATERAL;
-   Mesh mesh(nx, ny, e_type);
+   Mesh mesh = Mesh::MakeCartesian2D(nx, ny, e_type);
 
    H1_FECollection fec(order, dim);
    FiniteElementSpace fes(&mesh, &fec);
