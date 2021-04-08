@@ -10,8 +10,11 @@
 # CONTRIBUTING.md for details.
 
 list(APPEND SEQMTOP_COMMON_SOURCES
+	paramnonlinearform.cpp
         mtop_integrators.cpp)
-list(APPEND SQEMTOP_COMMON_HEADERS
+
+list(APPEND SEQMTOP_COMMON_HEADERS
+	paramnonlinearform.hpp
         mtop_integrators.hpp)
 
 convert_filenames_to_full_paths(SEQMTOP_COMMON_SOURCES)
@@ -26,22 +29,26 @@ add_mfem_miniapp(seqheat
 	${SEQMTOP_COMMON_FILES}
 	LIBRARIES mfem)
 
-if (MFEM_USE_MPI)
-list(APPEND MTOP_COMMON_SOURCES
-        )
-list(APPEND MTOP_COMMON_HEADERS
-        )
+if(MFEM_USE_MPI)
 
-convert_filenames_to_full_paths(MTOP_COMMON_SOURCES)
-convert_filenames_to_full_paths(MTOP_COMMON_HEADERS)
+list(APPEND PARMTOP_COMMON_SOURCES
+	pparamnonlinearform.cpp)
+list(APPEND PARMTOP_COMMON_HEADERS
+	pparamnonlinearform.hpp)
 
-set(MTOP_COMMON_FILES
-          EXTRA_SOURCES ${MTOP_COMMON_SOURCES} ${SEQMTOP_COMMON_SOURCES}
-          EXTRA_HEADERS ${MTOP_COMMON_HEADERS} ${SEQMTOP_COMMON_HEADERS})
+convert_filenames_to_full_paths(PARMTOP_COMMON_SOURCES)
+convert_filenames_to_full_paths(PARMTOP_COMMON_HEADERS)
+
+set(PARMTOP_COMMON_FILES
+	EXTRA_SOURCES ${PARMTOP_COMMON_SOURCES} ${SEQMTOP_COMMON_SOURCES}
+	EXTRA_HEADERS ${PARMTOP_COMMON_HEADERS} ${SEQMTOP_COMMON_HEADERS})
+
+message(STATUS "PARMTOP_COMMON_FILES: ${PARMTOP_COMMON_FILES}")
+message(STATUS "SEQMTOP_COMMON_FILES: ${SEQMTOP_COMMON_FILES}")
 
 add_mfem_miniapp(parheat
      MAIN parheat.cpp
-     ${MTOP_COMMON_FILES} 
+     ${PARMTOP_COMMON_FILES}
      LIBRARIES mfem)
 
 endif ()

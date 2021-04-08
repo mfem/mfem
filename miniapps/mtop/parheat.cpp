@@ -13,6 +13,7 @@
 #include <fstream>
 #include <iostream>
 
+#include "pparamnonlinearform.hpp"
 #include "mtop_integrators.hpp"
 
 //  The following example computes the gradients of a specified objective

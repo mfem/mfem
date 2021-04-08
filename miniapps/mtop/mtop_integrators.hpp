@@ -13,6 +13,8 @@
 #define MTOPINTEGRATORS_HPP
 
 #include "mfem.hpp"
+#include "paramnonlinearform.hpp"
+
 #include <map>
 
 namespace mfem {
