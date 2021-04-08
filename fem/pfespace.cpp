@@ -3282,7 +3282,7 @@ static void SetSubVector(const Array<int> &indices,
                          const Vector &in, Vector &out)
 {
    MFEM_ASSERT(indices.Size() == in.Size(), "incompatible sizes!");
-   // Use ReadWrite() since we modify only a sebset of the indices:
+   // Use ReadWrite() since we modify only a subset of the indices:
    auto y = out.ReadWrite();
    const auto x = in.Read();
    const auto I = indices.Read();
