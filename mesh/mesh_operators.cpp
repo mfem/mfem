@@ -145,6 +145,176 @@ void ThresholdRefiner::Reset()
    // marked_elements.SetSize(0); // not necessary
 }
 
+DRLRefiner::DRLRefiner(GridFunction& u_) : u(u_)
+{
+   int ret = _import_array();
+   if (ret < 0) {
+      printf("problem with import_array\n");
+   }
+
+   obs_x = 42;
+   obs_y = 42;
+
+   PyRun_SimpleString("import sys");
+   PyRun_SimpleString("sys.path.append('.')");
+
+   // This is a workaround for something in tensorflow that dies without it.
+   PyRun_SimpleString("if not hasattr(sys, 'argv'):\n"
+                      "  sys.argv  = ['']");
+
+   printf("importing rllib_eval python module... ");
+   PyObject* eval_mod = PyImport_ImportModule("rllib_eval");
+   if (eval_mod == 0) {
+      PyErr_Print();
+      exit(1);
+   }
+   printf("ok.\n");
+
+   printf("getting evaluator class... ");
+   PyObject* eval_class = PyObject_GetAttrString(eval_mod, "Evaluator");
+   if (eval_class == 0) {
+      PyErr_Print();
+      exit(1);
+   }
+   printf("ok.\n");
+   Py_DECREF(eval_mod);
+
+   printf("making empty arg list... ");
+   PyObject* args = Py_BuildValue("()");
+   if (args == 0) {
+      PyErr_Print();
+      exit(1);
+   }
+   printf("ok.\n");
+
+   printf("instantiating eval object... ");
+   PyObject* eval_obj = PyEval_CallObject(eval_class, args);
+   if (eval_obj == NULL) {
+      PyErr_Print();
+      exit(1);
+   }
+   printf("ok.\n");
+
+   printf("getting eval method from eval object...\n");
+   eval_method = PyObject_GetAttrString(eval_obj, "eval");
+   if (eval_method == 0) {
+      PyErr_Print();
+      exit(1);
+   }
+   printf("ok.\n");
+}
+
+int DRLRefiner::ApplyImpl(Mesh &mesh)
+{
+   printf("starting drl refiner... \n");
+   marked_elements.SetSize(0);
+
+   double ref_w = 2.0;
+   assert(obs_x == obs_y);
+   int ref_n = obs_x;
+   double ref_lo = 0.0 -ref_w;
+   double ref_hi = 1.0 +ref_w;
+   double ref_dx = (ref_hi -ref_lo)/ref_n;
+
+   for (int k = 0; k < mesh.GetNE(); k++) {
+
+      // assemble matrix of sample points, ref_space -> phys_space
+      ElementTransformation* trk = mesh.GetElementTransformation(k);
+      IntegrationPoint ipk;
+      Vector xk(2);
+      DenseMatrix m(2,42*42);
+      int c = 0;
+      for (int j = 0; j < obs_y; ++j) {
+         ipk.y = ref_lo +(j+0.5)*ref_dx;
+         for (int i = 0; i < obs_x; ++i) {
+            ipk.x = ref_lo +(i+0.5)*ref_dx;
+            trk->Transform(ipk, xk);
+            m.SetCol(c++,xk);
+         }
+      }
+
+      // phys_space -> elements, ips
+      Array<int> elems;
+      Array<IntegrationPoint> ips;
+      int n = mesh.FindPoints(m, elems, ips, false);
+
+      // printf("n = %d\n",n);
+      // printf("# elems %d\n",elems.Size());
+      // printf("# ips %d\n",ips.Size());
+
+      // Build observation from GridFunction using elements, ips
+      double* obs = new double[42*42];
+      n = 0;
+      bool complete = true;
+      for (int j = 0; j < obs_y; ++j) {
+         for (int i = 0; i < obs_x; ++i) {
+            int el = elems[n];
+            if (el == -1) {
+               obs[i+42*j] = 0.0;
+               complete = false;
+            }
+            else {
+               IntegrationPoint& ip = ips[n];
+               obs[i+42*j] = u.GetValue(el, ip);
+            }
+            n++;
+         }
+      }
+      //printf("complete = %d\n",complete);
+
+      // apply policy: state -> action
+      bool refine = false;
+      if (complete) {
+
+         if (k == 81) {
+            printf("element %d",k);
+            for (int j = 0; j < 42; j++) {
+               for (int i = 0; i < 42; i++) {
+                  printf("(%d,%d) %f\n",i,j,obs[i+42*j]);
+               }
+            }
+         }
+
+         // convert to numpy array
+         npy_intp dims[3];
+         dims[0] = 42;
+         dims[1] = 42;
+         dims[2] = 1;
+         PyObject *pArray = PyArray_SimpleNewFromData(
+            3, dims, NPY_DOUBLE, reinterpret_cast<void*>(obs));
+         if (pArray == NULL) {
+            printf("pArray NULL!\n");
+         }
+         PyObject* action = PyObject_CallFunctionObjArgs(eval_method,pArray,NULL);
+         if (action == 0) {
+            PyErr_Print();
+            exit(1);
+         }
+
+         // parse integer return value
+         int action_val;
+         PyArg_Parse(action, "i", &action_val);
+         printf("action for element %d is %d\n", k, action_val);
+         refine = bool(action_val);
+      }
+
+      if (refine) {
+         marked_elements.Append(Refinement(k));
+      }
+   }
+
+   long int num_marked_elements = mesh.ReduceInt(marked_elements.Size());
+   if (num_marked_elements == 0) { return STOP; }
+
+   bool nonconforming = true;
+   mesh.GeneralRefinement(marked_elements, nonconforming, nc_limit);
+   return CONTINUE + REFINED;
+}
+
+void DRLRefiner::Reset()
+{
+   current_sequence = -1;
+}
 
 int ThresholdDerefiner::ApplyImpl(Mesh &mesh)
 {

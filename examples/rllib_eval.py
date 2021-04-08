@@ -1,4 +1,5 @@
 
+
 import gym
 from gym import spaces
 import ray
@@ -46,24 +47,18 @@ class Evaluator():
 
         # Create agent from checkpoint
         self.agent = ppo.PPOTrainer(config,env=DummyEnv)
-        self.agent.restore("DRLRefinePolicy/checkpoint_115/checkpoint-115")
+#        self.agent.restore("DRLRefinePolicy/checkpoint_115/checkpoint-115")
+        self.agent.restore("PPO_5x5_H1_thresh1.e-4/checkpoint_485/checkpoint-485")
 
         self.env = DummyEnv({})
 
     def eval(self,obs):
-        print("evaluating policy")
-        pick = self.agent.compute_action(obs)
-        print("action: ",pick)
+        pick = self.agent.compute_action(obs, explore = False)
         return pick
 
-    def show_logits(self,obs):
-        policy = self.agent.get_policy()
-        logits, _ = policy.model.from_batch({"obs": np.array([obs])})
-        print(logits.numpy()[0])
-
-evaluator = Evaluator()
-obs = np.ones((42,42,1))
-ref = evaluator.eval(obs)
+#evaluator = Evaluator()
+#obs = np.ones((42,42,1))
+#ref = evaluator.eval(obs)
 #evaluator.show_logits(obs)
 # evaluator.eval(np.random.rand(8))
 # evaluator.eval(np.random.rand(8))

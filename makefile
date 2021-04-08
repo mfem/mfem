@@ -234,6 +234,9 @@ ifeq ($(MFEM_USE_CUDA),YES)
    endif
 endif
 
+MFEM_CXX += $(shell /usr/bin/python3-config --includes)
+ALL_LIBS += $(shell /usr/bin/python3-config --ldflags)
+
 # HIP configuration
 ifeq ($(MFEM_USE_HIP),YES)
    ifeq ($(MFEM_USE_MPI),YES)

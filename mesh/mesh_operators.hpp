@@ -19,6 +19,12 @@
 
 #include <limits>
 
+#define MFEM_USE_RLLIB
+#ifdef MFEM_USE_RLLIB
+#include <Python.h>
+#include "numpy/arrayobject.h"
+#endif
+
 namespace mfem
 {
 
@@ -251,6 +257,48 @@ public:
    double GetThreshold() const { return threshold; }
 
    /// Reset the associated estimator.
+   virtual void Reset();
+};
+
+/** @brief Mesh refinement operator using a DRL policy from rllib.
+
+*/
+
+class DRLRefiner : public MeshOperator
+{
+protected:
+   GridFunction& u;
+
+   Array<Refinement> marked_elements;
+   long current_sequence;
+
+   int obs_x;
+   int obs_y;
+
+   int nc_limit;
+
+   PyObject* eval_method;
+
+   /** @brief Apply the operator to the mesh.
+       @return STOP if a stopping criterion is satisfied or no elements were
+       marked for refinement; REFINED + CONTINUE otherwise. */
+   virtual int ApplyImpl(Mesh &mesh);
+
+public:
+
+   /// Construct a DRLRefiner that will operate on u.
+   DRLRefiner(GridFunction &u);
+
+   // default destructor (virtual)
+
+   /** @brief Set the maximum ratio of refinement levels of adjacent elements
+       (0 = unlimited). */
+   void SetNCLimit(int nc_limit)
+   {
+      MFEM_ASSERT(nc_limit >= 0, "Invalid NC limit");
+      this->nc_limit = nc_limit;
+   }
+
    virtual void Reset();
 };
 

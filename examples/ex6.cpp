@@ -43,6 +43,12 @@
 #include <fstream>
 #include <iostream>
 
+#define MFEM_USE_RLLIB
+#ifdef MFEM_USE_RLLIB
+#include <Python.h>
+#include "numpy/arrayobject.h"
+#endif
+
 using namespace std;
 using namespace mfem;
 
@@ -54,6 +60,11 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
+
+#define MFEM_USE_RLLIB
+   Py_Initialize();
+   import_array(); // numpy init
+#endif
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -97,6 +108,11 @@ int main(int argc, char *argv[])
          mesh.UniformRefinement();
       }
       mesh.SetCurvature(2);
+   }
+   else {
+      mesh.UniformRefinement();
+      mesh.UniformRefinement();
+      mesh.EnsureNCMesh();
    }
 
    // 5. Define a finite element space on the mesh. The polynomial order is
@@ -155,8 +171,13 @@ int main(int argc, char *argv[])
    //     The strategy here is to refine elements with errors larger than a
    //     fraction of the maximum element error. Other strategies are possible.
    //     The refiner will call the given error estimator.
+
+#if 0
    ThresholdRefiner refiner(estimator);
    refiner.SetTotalErrorFraction(0.7);
+#else
+   DRLRefiner refiner(x);
+#endif
 
    // 12. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
@@ -231,6 +252,7 @@ int main(int argc, char *argv[])
       //     estimator to obtain element errors, then it selects elements to be
       //     refined and finally it modifies the mesh. The Stop() method can be
       //     used to determine if a stopping criterion was met.
+
       refiner.Apply(mesh);
       if (refiner.Stop())
       {
