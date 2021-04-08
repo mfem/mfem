@@ -152,7 +152,7 @@ public:
    virtual ~BlockNonlinearFormIntegrator() { }
 };
 
-    
+
 /// Abstract class for hyperelastic models
 class HyperelasticModel
 {
