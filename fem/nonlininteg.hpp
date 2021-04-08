@@ -152,6 +152,7 @@ public:
    virtual ~BlockNonlinearFormIntegrator() { }
 };
 
+    
 /// Abstract class for hyperelastic models
 class HyperelasticModel
 {
@@ -390,7 +391,6 @@ public:
                                     const Vector &elfun,
                                     DenseMatrix &elmat);
 };
-
 
 /** This class is used to assemble the skew-symmetric form of the nonlinear term
     arising in the Navier-Stokes equations
