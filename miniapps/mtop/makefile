@@ -21,15 +21,20 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-MTOP_COMMON_SRC = mtop_integrators.cpp
+MTOP_COMMON_SRC = mtop_integrators.cpp \ 
+		  paramnonlinearform.cpp \
+		  pparamnonlinearform.cpp
+
 MTOP_COMMON_OBJ = $(MTOP_COMMON_SRC:.cpp=.o)
 
+
+SEQ_MINIAPPS = seqheat
 PAR_MINIAPPS = parheat
 
 ifeq ($(MFEM_USE_MPI),NO)
-   MINIAPPS = seqheat
+   MINIAPPS = $(SEQ_MINIAPPS)
 else
-   MINIAPPS = $(PAR_MINIAPPS)
+   MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
 endif
 
 .SUFFIXES:
@@ -55,7 +60,7 @@ include $(MFEM_TEST_MK)
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 
 parheat-test-par: parheat
-	@$(call mfem-test,$<, $(RUN_MPI), Navier,-cr)
+	@$(call mfem-test,$<, $(RUN_MPI), MTop,-cr)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
