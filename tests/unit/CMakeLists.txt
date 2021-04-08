@@ -61,11 +61,8 @@ set(UNIT_TESTS_SRCS
   fem/test_intrules.cpp
   fem/test_intruletypes.cpp
   fem/test_inversetransform.cpp
-<<<<<<< HEAD
   fem/test_eltrans_revdiff.cpp
-=======
   fem/test_lexicographic_ordering.cpp
->>>>>>> projectcoefficient-attr-dev
   fem/test_lin_interp.cpp
   fem/test_linear_fes.cpp
   fem/test_operatorjacobismoother.cpp
