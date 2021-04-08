@@ -277,6 +277,10 @@ protected:
                                 Array<int> &slave_dofs, int slave_face,
                                 const DenseMatrix *pm) const;
 
+   void AddVarOrderDependencies(SparseMatrix &deps) const;
+
+   void AddDoubleFaceDependencies(SparseMatrix &deps) const;
+
    /// Replicate 'mat' in the vector dimension, according to vdim ordering mode.
    void MakeVDimMatrix(SparseMatrix &mat) const;
 

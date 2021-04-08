@@ -768,6 +768,91 @@ int FiniteElementSpace::GetNumBorderDofs(Geometry::Type geom, int order) const
    return Geometry::NumVerts[geom] * (nv + ne);
 }
 
+void FiniteElementSpace::AddVarOrderDependencies(SparseMatrix &deps) const
+{
+   Array<int> master_dofs, slave_dofs;
+   IsoparametricTransformation T;
+   DenseMatrix I;
+
+   for (int entity = 1; entity < mesh->Dimension(); entity++)
+   {
+      const Table &ent_dofs = (entity == 1) ? var_edge_dofs : var_face_dofs;
+      int num_ent = (entity == 1) ? mesh->GetNEdges() : mesh->GetNFaces();
+      MFEM_ASSERT(ent_dofs.Size() == num_ent+1, "");
+
+      // add constraints within edges/faces holding multiple DOF sets
+      Geometry::Type last_geom = Geometry::INVALID;
+      for (int i = 0; i < num_ent; i++)
+      {
+         if (ent_dofs.RowSize(i) <= 1) { continue; }
+
+         Geometry::Type geom =
+            (entity == 1) ? Geometry::SEGMENT : mesh->GetFaceGeometry(i);
+
+         if (geom != last_geom)
+         {
+            T.SetIdentityTransformation(geom);
+            last_geom = geom;
+         }
+
+         // get lowest order variant DOFs and FE
+         int p = GetEntityDofs(entity, i, master_dofs, geom, 0);
+         const auto *master_fe = fec->GetFE(geom, p);
+
+         // constrain all higher order DOFs: interpolate lowest order function
+         for (int variant = 1; ; variant++)
+         {
+            int q = GetEntityDofs(entity, i, slave_dofs, geom, variant);
+            if (q < 0) { break; }
+
+            const auto *slave_fe = fec->GetFE(geom, q);
+            slave_fe->GetTransferMatrix(*master_fe, T, I);
+
+            AddDependencies(deps, master_dofs, slave_dofs, I);
+         }
+      }
+   }
+}
+
+static double tri_face_orient_pm[6][6] =
+{
+   {0,0, 1,0, 0,1}, {1,0, 0,0, 0,1}, {0,1, 0,0, 1,0},
+   {0,1, 1,0, 0,0}, {1,0, 0,1, 0,0}, {0,0, 0,1, 1,0}
+};
+
+void FiniteElementSpace::AddDoubleFaceDependencies(SparseMatrix &deps) const
+{
+   Array<int> master_dofs, slave_dofs;
+   IsoparametricTransformation T;
+   DenseMatrix I;
+
+   for (int i = 0; i < nd_double_faces.Size(); i++)
+   {
+      int face = nd_double_faces[i];
+      int inf1, inf2;
+      mesh->GetFaceInfos(face, &inf1, &inf2);
+
+      int order1, order2;
+      order1 = GetFaceDofs(face, master_dofs, 0); // elem1 side
+      order2 = GetFaceDofs(face, slave_dofs,  1); // elem2 side
+      MFEM_ASSERT(order1 == order2, "");
+
+      MFEM_ASSERT(mesh->GetFaceGeometry(face) == Geometry::TRIANGLE, "");
+      int nfdof = fec->GetNumDof(Geometry::TRIANGLE, order1);
+
+      int ori = inf2 % 64;
+      MFEM_ASSERT(ori >= 0 && ori < 6, "");
+      if (!i) { T.SetFE(&TriangleFE); }
+      T.SetPointMat(DenseMatrix(tri_face_orient_pm[ori], 2, 3));
+
+      auto *fe = fec->GetFE(Geometry::TRIANGLE, order1);
+      fe->GetLocalInterpolation(T, I);
+
+      int nskip = master_dofs.Size() - nfdof;
+      AddDependencies(deps, master_dofs, slave_dofs, I, nskip);
+   }
+}
+
 int FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs,
                                       Geometry::Type master_geom,
                                       int variant) const
@@ -792,12 +877,6 @@ int FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs,
          }
    }
 }
-
-static double tri_face_orient_pm[6][6] =
-{
-   {0,0, 1,0, 0,1}, {1,0, 0,0, 0,1}, {0,1, 0,0, 1,0},
-   {0,1, 1,0, 0,0}, {1,0, 0,1, 0,0}, {0,0, 0,1, 1,0}
-};
 
 void FiniteElementSpace::BuildConformingInterpolation() const
 {
@@ -902,74 +981,15 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       }
    }
 
-   // variable order spaces: enforce minimum rule on conforming edges/faces
    if (IsVariableOrder())
    {
-      for (int entity = 1; entity < mesh->Dimension(); entity++)
-      {
-         const Table &ent_dofs = (entity == 1) ? var_edge_dofs : var_face_dofs;
-         int num_ent = (entity == 1) ? mesh->GetNEdges() : mesh->GetNFaces();
-         MFEM_ASSERT(ent_dofs.Size() == num_ent+1, "");
-
-         // add constraints within edges/faces holding multiple DOF sets
-         Geometry::Type last_geom = Geometry::INVALID;
-         for (int i = 0; i < num_ent; i++)
-         {
-            if (ent_dofs.RowSize(i) <= 1) { continue; }
-
-            Geometry::Type geom =
-               (entity == 1) ? Geometry::SEGMENT : mesh->GetFaceGeometry(i);
-
-            if (geom != last_geom)
-            {
-               T.SetIdentityTransformation(geom);
-               last_geom = geom;
-            }
-
-            // get lowest order variant DOFs and FE
-            int p = GetEntityDofs(entity, i, master_dofs, geom, 0);
-            const auto *master_fe = fec->GetFE(geom, p);
-
-            // constrain all higher order DOFs: interpolate lowest order function
-            for (int variant = 1; ; variant++)
-            {
-               int q = GetEntityDofs(entity, i, slave_dofs, geom, variant);
-               if (q < 0) { break; }
-
-               const auto *slave_fe = fec->GetFE(geom, q);
-               slave_fe->GetTransferMatrix(*master_fe, T, I);
-
-               AddDependencies(deps, master_dofs, slave_dofs, I);
-            }
-         }
-      }
+      // variable order spaces: enforce minimum rule on conforming edges/faces
+      AddVarOrderDependencies(deps);
    }
-
-   // Nedelec spaces: constrain double faces
-   for (int i = 0; i < nd_double_faces.Size(); i++)
+   if (nd_double_faces.Size())
    {
-      int face = nd_double_faces[i];
-      int inf1, inf2;
-      mesh->GetFaceInfos(face, &inf1, &inf2);
-
-      int order1, order2;
-      order1 = GetFaceDofs(face, master_dofs, 0); // elem1 side
-      order2 = GetFaceDofs(face, slave_dofs,  1); // elem2 side
-      MFEM_ASSERT(order1 == order2, "");
-
-      MFEM_ASSERT(mesh->GetFaceGeometry(face) == Geometry::TRIANGLE, "");
-      int nfdof = fec->GetNumDof(Geometry::TRIANGLE, order1);
-
-      int ori = inf2 % 64;
-      MFEM_ASSERT(ori >= 0 && ori < 6, "");
-      if (!i) { T.SetFE(&TriangleFE); }
-      T.SetPointMat(DenseMatrix(tri_face_orient_pm[ori], 2, 3));
-
-      auto *fe = fec->GetFE(Geometry::TRIANGLE, order1);
-      fe->GetLocalInterpolation(T, I);
-
-      int nskip = master_dofs.Size() - nfdof;
-      AddDependencies(deps, master_dofs, slave_dofs, I, nskip);
+      // Nédélec spaces with complex face orientations: constrain double faces
+      AddDoubleFaceDependencies(deps);
    }
 
    deps.Finalize();
