@@ -389,7 +389,7 @@ void NavierSolver::Step(double &time, double dt, int cur_step, bool provisional)
    N->Mult(un, Nun);
    N->Mult(unm1, Nunm1);
    N->Mult(unm2, Nunm2);
-   
+
    {
       const auto d_Nun = Nun.Read();
       const auto d_Nunm1 = Nunm1.Read();
