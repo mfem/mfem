@@ -2386,7 +2386,9 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff, int attribute)
    for (i = 0; i < fes->GetNE(); i++)
    {
       if (fes->GetAttribute(i) != attribute)
+      {
          continue;
+      }
 
       fes->GetElementVDofs(i, vdofs);
       vals.SetSize(vdofs.Size());
