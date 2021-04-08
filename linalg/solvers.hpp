@@ -129,10 +129,20 @@ public:
 class OperatorJacobiSmoother : public Solver
 {
 public:
+   /** @brief Default constructor: the diagonal will be computed by subsequent
+       calls to SetOperator() using the Operator method AssembleDiagonal. */
+   /** In this case the array of essential tdofs will be empty. */
+   OperatorJacobiSmoother(const double damping=1.0);
+
    /** Setup a Jacobi smoother with the diagonal of @a a obtained by calling
        a.AssembleDiagonal(). It is assumed that the underlying operator acts as
        the identity on entries in ess_tdof_list, corresponding to (assembled)
-       DIAG_ONE policy or ConstrainedOperator in the matrix-free setting. */
+       DIAG_ONE policy or ConstrainedOperator in the matrix-free setting.
+
+       @note For objects created with this constructor, calling SetOperator()
+       will only set the internal Operator pointer to the given new Operator
+       without any other changes to the object. This is done to preserve the
+       original behavior of this class. */
    OperatorJacobiSmoother(const BilinearForm &a,
                           const Array<int> &ess_tdof_list,
                           const double damping=1.0);
@@ -140,25 +150,48 @@ public:
    /** Application is by the *inverse* of the given vector. It is assumed that
        the underlying operator acts as the identity on entries in ess_tdof_list,
        corresponding to (assembled) DIAG_ONE policy or ConstrainedOperator in
-       the matrix-free setting. */
+       the matrix-free setting.
+
+       @note For objects created with this constructor, calling SetOperator()
+       will only set the internal Operator pointer to the given new Operator
+       without any other changes to the object. This is done to preserve the
+       original behavior of this class. */
    OperatorJacobiSmoother(const Vector &d,
                           const Array<int> &ess_tdof_list,
                           const double damping=1.0);
+
    ~OperatorJacobiSmoother() {}
 
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
-   void SetOperator(const Operator &op) { oper = &op; }
-   void Setup(const Vector &diag);
+
+   /** @brief Recompute the diagonal using the method AssembleDiagonal of the
+       given new Operator, @a op. */
+   /** Note that (Par)BilinearForm operators are treated similar to the way they
+       are treated in the constructor that takes a BilinearForm parameter.
+       Specifically, this means that the OperatorJacobiSmoother will work with
+       true-dof vectors even though the size of the BilinearForm may be
+       different.
+
+       When the new Operator, @a op, is not a (Par)BilinearForm, any previously
+       set array of essential true-dofs will be thrown away because in this case
+       any essential b.c. will be handled by the AssembleDiagonal method. */
+   void SetOperator(const Operator &op);
 
 private:
-   const int N;
    Vector dinv;
    const double damping;
-   const Array<int> &ess_tdof_list;
+   const Array<int> *ess_tdof_list; // not owned; may be NULL
    mutable Vector residual;
 
-   const Operator *oper;
+   const Operator *oper; // not owned
+
+   // To preserve the original behavior, some constructors set this flag to
+   // false to disallow updating the OperatorJacobiSmoother with SetOperator.
+   const bool allow_updates;
+
+public:
+   void Setup(const Vector &diag);
 };
 
 /// Chebyshev accelerated smoothing with given vector, no matrix necessary
@@ -188,12 +221,14 @@ public:
 #ifdef MFEM_USE_MPI
    OperatorChebyshevSmoother(Operator* oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
-                             int order, MPI_Comm comm = MPI_COMM_NULL, int power_iterations = 10,
+                             int order, MPI_Comm comm = MPI_COMM_NULL,
+                             int power_iterations = 10,
                              double power_tolerance = 1e-8);
 #else
    OperatorChebyshevSmoother(Operator* oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
-                             int order, int power_iterations = 10, double power_tolerance = 1e-8);
+                             int order, int power_iterations = 10,
+                             double power_tolerance = 1e-8);
 #endif
 
    ~OperatorChebyshevSmoother() {}
