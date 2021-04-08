@@ -141,6 +141,11 @@ public:
        function cannot be used for partial parsing. */
    void Parse();
 
+   /// Parse the command line options, and exit with an error if the options
+   /// cannot be parsed successfully. The selected options are printed to the
+   /// given stream (defaulting to mfem::out).
+   void ParseCheck(std::ostream &out = mfem::out);
+
    /// Return true if the command line options were parsed successfully.
    bool Good() const { return (error_type == 0); }
 
