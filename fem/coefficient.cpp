@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -375,7 +375,7 @@ void MatrixFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
 
    K.SetSize(height, width);
 
-   if (symmetric) // Use SymmFunction
+   if (symmetric) // Use SymmFunction (deprecated version)
    {
       MFEM_VERIFY(height == width && SymmFunction,
                   "MatrixFunctionCoefficient is not symmetric");
@@ -437,6 +437,36 @@ void MatrixFunctionCoefficient::EvalSymmetric(Vector &K,
    if (SymmFunction)
    {
       SymmFunction(transip, K);
+   }
+
+   if (Q)
+   {
+      K *= Q->Eval(T, ip, GetTime());
+   }
+}
+
+void SymmetricMatrixFunctionCoefficient::Eval(DenseSymmetricMatrix &K,
+                                              ElementTransformation &T,
+                                              const IntegrationPoint &ip)
+{
+   double x[3];
+   Vector transip(x, 3);
+
+   T.Transform(ip, transip);
+
+   K.SetSize(dim);
+
+   if (Function)
+   {
+      Function(transip, K);
+   }
+   else if (TDFunction)
+   {
+      TDFunction(transip, GetTime(), K);
+   }
+   else
+   {
+      K = mat;
    }
 
    if (Q)
@@ -669,6 +699,7 @@ void MatrixVectorProductCoefficient::Eval(Vector &V, ElementTransformation &T,
 {
    a->Eval(ma, T, ip);
    b->Eval(vb, T, ip);
+   V.SetSize(vdim);
    ma.Mult(vb, V);
 }
 

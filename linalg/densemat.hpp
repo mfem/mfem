@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -57,6 +57,21 @@ public:
        not delete the array. */
    DenseMatrix(double *d, int h, int w)
       : Matrix(h, w) { UseExternalData(d, h, w); }
+
+   /// Create a dense matrix using a braced initializer list
+   /// The inner lists correspond to rows of the matrix
+   template <int M, int N>
+   explicit DenseMatrix(const double (&values)[M][N]) : DenseMatrix(M, N)
+   {
+      // DenseMatrix is column-major so copies have to be element-wise
+      for (int i = 0; i < M; i++)
+      {
+         for (int j = 0; j < N; j++)
+         {
+            (*this)(i,j) = values[i][j];
+         }
+      }
+   }
 
    /// Change the data array and the size of the DenseMatrix.
    /** The DenseMatrix does not assume ownership of the data array, i.e. it will
@@ -760,6 +775,13 @@ public:
       tdata.New(i*j*k);
    }
 
+   DenseTensor(int i, int j, int k, MemoryType mt)
+      : Mk(NULL, i, j)
+   {
+      nk = k;
+      tdata.New(i*j*k, mt);
+   }
+
    /// Copy constructor: deep copy
    DenseTensor(const DenseTensor &other)
       : Mk(NULL, other.Mk.height, other.Mk.width), nk(other.nk)
@@ -782,9 +804,9 @@ public:
 
    int TotalSize() const { return SizeI()*SizeJ()*SizeK(); }
 
-   void SetSize(int i, int j, int k)
+   void SetSize(int i, int j, int k, MemoryType mt_ = MemoryType::PRESERVE)
    {
-      const MemoryType mt = tdata.GetMemoryType();
+      const MemoryType mt = mt_ == MemoryType::PRESERVE ? tdata.GetMemoryType() : mt_;
       tdata.Delete();
       Mk.UseExternalData(NULL, i, j);
       nk = k;
@@ -872,6 +894,12 @@ public:
    /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), false).
    double *HostReadWrite()
    { return mfem::ReadWrite(tdata, Mk.Height()*Mk.Width()*nk, false); }
+
+   void Swap(DenseTensor &t)
+   {
+      mfem::Swap(tdata, t.tdata);
+      mfem::Swap(nk, t.nk);
+   }
 
    ~DenseTensor() { tdata.Delete(); }
 };

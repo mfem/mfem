@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -296,7 +296,10 @@ void FindPointsGSLIB::GetQuadHexNodalCoordinates()
    const TensorBasisElement *tbe =
       dynamic_cast<const TensorBasisElement *>(fes->GetFE(0));
    MFEM_VERIFY(tbe != NULL, "TensorBasis FiniteElement expected.");
-   const Array<int> &dof_map = tbe->GetDofMap();
+   Array<int> dof_map(dof_cnt);
+   const Array<int> &dm = tbe->GetDofMap();
+   if (dm.Size() > 0) { dof_map = dm; }
+   else { for (int i = 0; i < dof_cnt; i++) { dof_map[i] = i; } }
 
    DenseMatrix pos(dof_cnt, dim);
    Vector posV(pos.Data(), dof_cnt * dim);
@@ -836,6 +839,155 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
       } // ncomp > 1
    } // parallel
 }
+
+void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
+                                   GridFunction *gfmax,
+                                   const double bb_t, const double newt_tol,
+                                   const int npt_max)
+{
+   MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
+   MFEM_VERIFY(m.GetNumGeometries(m.Dimension()) == 1,
+               "Mixed meshes are not currently supported in FindPointsGSLIB.");
+
+   // FreeData if OversetFindPointsGSLIB::Setup has been called already
+   if (setupflag) { FreeData(); }
+
+   crystal_init(cr, gsl_comm);
+   mesh = &m;
+   dim  = mesh->Dimension();
+   const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(0);
+   unsigned dof1D = fe->GetOrder() + 1;
+   int gt      = fe->GetGeomType();
+
+   if (gt == Geometry::TRIANGLE || gt == Geometry::TETRAHEDRON ||
+       gt == Geometry::PRISM)
+   {
+      GetSimplexNodalCoordinates();
+   }
+   else if (gt == Geometry::SQUARE || gt == Geometry::CUBE)
+   {
+      GetQuadHexNodalCoordinates();
+   }
+   else
+   {
+      MFEM_ABORT("Element type not currently supported in FindPointsGSLIB.");
+   }
+
+   MFEM_ASSERT(meshid>=0, " The ID should be greater than or equal to 0.");
+
+   const int pts_cnt = gsl_mesh.Size()/dim,
+             NEtot = pts_cnt/(int)pow(dof1D, dim);
+
+   distfint.SetSize(pts_cnt);
+   if (!gfmax)
+   {
+      distfint = 0.;
+   }
+   else
+   {
+      GetNodeValues(*gfmax, distfint);
+   }
+   u_meshid = (unsigned int)meshid;
+
+   if (dim == 2)
+   {
+      unsigned nr[2] = { dof1D, dof1D };
+      unsigned mr[2] = { 2*dof1D, 2*dof1D };
+      double * const elx[2] = { &gsl_mesh(0), &gsl_mesh(pts_cnt) };
+      fdata2D = findptsms_setup_2(gsl_comm, elx, nr, NEtot, mr, bb_t,
+                                  pts_cnt, pts_cnt, npt_max, newt_tol,
+                                  &u_meshid, &distfint(0));
+   }
+   else
+   {
+      unsigned nr[3] = { dof1D, dof1D, dof1D };
+      unsigned mr[3] = { 2*dof1D, 2*dof1D, 2*dof1D };
+      double * const elx[3] =
+      { &gsl_mesh(0), &gsl_mesh(pts_cnt), &gsl_mesh(2*pts_cnt) };
+      fdata3D = findptsms_setup_3(gsl_comm, elx, nr, NEtot, mr, bb_t,
+                                  pts_cnt, pts_cnt, npt_max, newt_tol,
+                                  &u_meshid, &distfint(0));
+   }
+   setupflag = true;
+   overset   = true;
+}
+
+void OversetFindPointsGSLIB::FindPoints(const Vector &point_pos,
+                                        Array<unsigned int> &point_id)
+{
+   MFEM_VERIFY(setupflag, "Use OversetFindPointsGSLIB::Setup before "
+               "finding points.");
+   MFEM_VERIFY(overset, " Please setup FindPoints for overlapping grids.");
+   points_cnt = point_pos.Size() / dim;
+   unsigned int match = 0; // Don't find points in the mesh if point_id = mesh_id
+
+   gsl_code.SetSize(points_cnt);
+   gsl_proc.SetSize(points_cnt);
+   gsl_elem.SetSize(points_cnt);
+   gsl_ref.SetSize(points_cnt * dim);
+   gsl_dist.SetSize(points_cnt);
+
+   if (dim == 2)
+   {
+      const double *xv_base[2];
+      xv_base[0] = point_pos.GetData();
+      xv_base[1] = point_pos.GetData() + points_cnt;
+      unsigned xv_stride[2];
+      xv_stride[0] = sizeof(double);
+      xv_stride[1] = sizeof(double);
+      findptsms_2(gsl_code.GetData(), sizeof(unsigned int),
+                  gsl_proc.GetData(), sizeof(unsigned int),
+                  gsl_elem.GetData(), sizeof(unsigned int),
+                  gsl_ref.GetData(),  sizeof(double) * dim,
+                  gsl_dist.GetData(), sizeof(double),
+                  xv_base,            xv_stride,
+                  point_id.GetData(), sizeof(unsigned int), &match,
+                  points_cnt, fdata2D);
+   }
+   else
+   {
+      const double *xv_base[3];
+      xv_base[0] = point_pos.GetData();
+      xv_base[1] = point_pos.GetData() + points_cnt;
+      xv_base[2] = point_pos.GetData() + 2*points_cnt;
+      unsigned xv_stride[3];
+      xv_stride[0] = sizeof(double);
+      xv_stride[1] = sizeof(double);
+      xv_stride[2] = sizeof(double);
+      findptsms_3(gsl_code.GetData(), sizeof(unsigned int),
+                  gsl_proc.GetData(), sizeof(unsigned int),
+                  gsl_elem.GetData(), sizeof(unsigned int),
+                  gsl_ref.GetData(),  sizeof(double) * dim,
+                  gsl_dist.GetData(), sizeof(double),
+                  xv_base,            xv_stride,
+                  point_id.GetData(), sizeof(unsigned int), &match,
+                  points_cnt, fdata3D);
+   }
+
+   // Set the element number and reference position to 0 for points not found
+   for (int i = 0; i < points_cnt; i++)
+   {
+      if (gsl_code[i] == 2)
+      {
+         gsl_elem[i] = 0;
+         for (int d = 0; d < dim; d++) { gsl_ref(i*dim + d) = -1.; }
+      }
+   }
+
+   // Map element number for simplices, and ref_pos from [-1,1] to [0,1] for both
+   // simplices and quads.
+   MapRefPosAndElemIndices();
+}
+
+void OversetFindPointsGSLIB::Interpolate(const Vector &point_pos,
+                                         Array<unsigned int> &point_id,
+                                         const GridFunction &field_in,
+                                         Vector &field_out)
+{
+   FindPoints(point_pos, point_id);
+   Interpolate(field_in, field_out);
+}
+
 
 } // namespace mfem
 

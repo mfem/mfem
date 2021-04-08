@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -114,7 +114,7 @@ public:
    {
       Vector pos(3);
       T.Transform(ip, pos);
-      if (metric != 14 && metric != 85)
+      if (metric != 14 && metric != 36 && metric != 85)
       {
          const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
          const double r = sqrt(xc*xc + yc*yc);
@@ -129,7 +129,7 @@ public:
          K(1, 0) = 0.0;
          K(1, 1) = 1.0;
       }
-      else if (metric == 14) // Size + Alignment
+      else if (metric == 14 || metric == 36) // Size + Alignment
       {
          const double xc = pos(0), yc = pos(1);
          double theta = M_PI * yc * (1.0 - yc) * cos(2 * M_PI * xc);
