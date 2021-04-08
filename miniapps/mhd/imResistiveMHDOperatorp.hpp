@@ -491,8 +491,9 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    Mlumped->Assemble();
    Mlumped->FormSystemMatrix(ess_tdof_list, MlumpedMat);
 
+   double tol_mass=1e-7;    //this works better to match with preconditioner
    M_solver.iterative_mode = false; 
-   M_solver.SetRelTol(1e-7);
+   M_solver.SetRelTol(tol_mass);
    M_solver.SetAbsTol(0.0);
    M_solver.SetMaxIter(2000);
    M_solver.SetPrintLevel(0);
@@ -502,7 +503,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    M_solver.SetOperator(Mmat);
 
    M_solver2.iterative_mode = false;
-   M_solver2.SetRelTol(1e-7);
+   M_solver2.SetRelTol(tol_mass);
    M_solver2.SetAbsTol(0.0);
    M_solver2.SetMaxIter(2000);
    M_solver2.SetPrintLevel(0);
@@ -512,7 +513,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    M_solver2.SetOperator(*MfullMat);
 
    M_solver3.iterative_mode = false;
-   M_solver3.SetRelTol(1e-7);
+   M_solver3.SetRelTol(tol_mass);
    M_solver3.SetAbsTol(0.0);
    M_solver3.SetMaxIter(2000);
    M_solver3.SetPrintLevel(0);
@@ -2053,10 +2054,9 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
       PB_VOmega->Assemble();
    }
 
-   //------compute the current as an auxilary variable (no boundary condition)------
    if (iUpdateJ==0)
    {
-       //maybe this is not correct?
+      //------compute the current as an auxilary variable (no boundary condition)------
       KBMat.Mult(psiNew, z);
       z.Neg();
       M_solver2->Mult(z, J);

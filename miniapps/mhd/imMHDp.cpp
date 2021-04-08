@@ -831,23 +831,23 @@ int main(int argc, char *argv[])
          j_name << "sol_j." << setfill('0') << setw(6) << myid;
 
          ofstream ncmesh(mesh_save.str().c_str());
-         ncmesh.precision(16);
+         ncmesh.precision(8);
          pmesh->ParPrint(ncmesh);
 
          ofstream osol(phi_name.str().c_str());
-         osol.precision(16);
+         osol.precision(8);
          phi.Save(osol);
 
          ofstream osol3(psi_name.str().c_str());
-         osol3.precision(16);
+         osol3.precision(8);
          psi.Save(osol3);
 
          ofstream osol4(w_name.str().c_str());
-         osol4.precision(16);
+         osol4.precision(8);
          w.Save(osol4);
 
          ofstream osol5(j_name.str().c_str());
-         osol5.precision(16);
+         osol5.precision(8);
          j.Save(osol5);
       }
 
