@@ -25,6 +25,9 @@ NAVIER_COMMON_SRC = navier_solver.cpp ortho_solver.cpp
 NAVIER_COMMON_OBJ = $(NAVIER_COMMON_SRC:.cpp=.o)
 
 PAR_MINIAPPS = navier_mms navier_kovasznay navier_kovasznay_vs navier_tgv navier_shear navier_3dfoc
+ifeq ($(MFEM_USE_GSLIB),YES)
+   PAR_MINIAPPS += navier_cht
+endif
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS =
