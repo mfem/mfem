@@ -3561,6 +3561,8 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    else if (mfem_nc_version)
    {
       MFEM_ASSERT(ncmesh == NULL, "internal error");
+      int is_nc = 1;
+
 #ifdef MFEM_USE_MPI
       ParMesh *pmesh = dynamic_cast<ParMesh*>(this);
       if (pmesh)
@@ -3570,14 +3572,23 @@ void Mesh::Loader(std::istream &input, int generate_edges,
                      "used to load a parallel nonconforming mesh, sorry.");
 
          ncmesh = new ParNCMesh(pmesh->GetComm(),
-                                input, mfem_nc_version, curved);
+                                input, mfem_nc_version, curved, is_nc);
       }
       else
 #endif
       {
-         ncmesh = new NCMesh(input, mfem_nc_version, curved);
+         ncmesh = new NCMesh(input, mfem_nc_version, curved, is_nc);
       }
       InitFromNCMesh(*ncmesh);
+
+      if (!is_nc)
+      {
+         // special case for backward compatibility with MFEM <=4.2:
+         // if the "vertex_parents" section is missing in the v1.1 format,
+         // the mesh is treated as conforming
+         delete ncmesh;
+         ncmesh = NULL;
+      }
    }
    else if (mesh_type == "linemesh") // 1D mesh
    {
@@ -9433,6 +9444,13 @@ void Mesh::PrintTopo(std::ostream &out,const Array<int> &e_to_k) const
       out << ki << ' ' << vert[0] << ' ' << vert[1] << '\n';
    }
    out << "\nvertices\n" << NumOfVertices << '\n';
+}
+
+void Mesh::Save(const char *fname, int precision) const
+{
+   ofstream ofs(fname);
+   ofs.precision(precision);
+   Print(ofs);
 }
 
 #ifdef MFEM_USE_ADIOS2
