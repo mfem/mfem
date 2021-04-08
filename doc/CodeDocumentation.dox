@@ -42,8 +42,10 @@ namespace mfem {
  * - MFEM_FORALL macro in forall.hpp
  *
  * <H3>Example codes</H3>
- * - <a class="el" href="examples_2ex1_8cpp_source.html">Example 1</a>: nodal H1 FEM for the Laplace problem
- * - <a class="el" href="examples_2ex1p_8cpp_source.html">Example 1p</a>: parallel nodal H1 FEM for the Laplace problem
+ * - <a class="el" href="ex0_8cpp_source.html">Example 0</a>: simplest example, nodal H1 FEM for the Laplace problem
+ * - <a class="el" href="ex0p_8cpp_source.html">Example 0p</a>: simplest parallel example, nodal H1 FEM for the Laplace problem
+ * - <a class="el" href="examples_2ex1_8cpp_source.html">Example 1</a>: nodal H1 FEM for the Laplace problem (same discretization as ex0 but with more sophisticated options)
+ * - <a class="el" href="examples_2ex1p_8cpp_source.html">Example 1p</a>: parallel nodal H1 FEM for the Laplace problem (same discretization as ex0p but with more sophisticated options)
  * - <a class="el" href="ex2_8cpp_source.html">Example 2</a>: vector FEM for linear elasticity
  * - <a class="el" href="ex2p_8cpp_source.html">Example 2p</a>: parallel vector FEM for linear elasticity
  * - <a class="el" href="ex3_8cpp_source.html">Example 3</a>: Nedelec H(curl) FEM for the definite Maxwell problem
@@ -92,6 +94,8 @@ namespace mfem {
  * - <a class="el" href="ex26p_8cpp_source.html">Example 26p</a>: parallel multigrid preconditioner for the Laplace problem using nodal H1 FEM
  * - <a class="el" href="ex27_8cpp_source.html">Example 27</a>: boundary conditions for the Laplace problem
  * - <a class="el" href="ex27p_8cpp_source.html">Example 27p</a>: parallel boundary conditions for the Laplace problem
+ * - <a class="el" href="ex28_8cpp_source.html">Example 28</a>: sliding contact in elasticity
+ * - <a class="el" href="ex28p_8cpp_source.html">Example 28p</a>: parallel sliding contact in elasticity
  *
  * <H4>AmgX Examples</H4>
  * - Variants of Examples
