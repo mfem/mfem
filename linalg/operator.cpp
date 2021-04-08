@@ -418,6 +418,37 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
    w.SetSize(height, mem_type); w.UseDevice(true);
 }
 
+void ConstrainedOperator::AssembleDiagonal(Vector &diag) const
+{
+   A->AssembleDiagonal(diag);
+
+   if (diag_policy == DIAG_KEEP) { return; }
+
+   const int csz = constraint_list.Size();
+   auto d_diag = diag.ReadWrite();
+   auto idx = constraint_list.Read();
+   switch (diag_policy)
+   {
+      case DIAG_ONE:
+         MFEM_FORALL(i, csz,
+         {
+            const int id = idx[i];
+            d_diag[id] = 1.0;
+         });
+         break;
+      case DIAG_ZERO:
+         MFEM_FORALL(i, csz,
+         {
+            const int id = idx[i];
+            d_diag[id] = 0.0;
+         });
+         break;
+      default:
+         MFEM_ABORT("unknown diagonal policy");
+         break;
+   }
+}
+
 void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 {
    w = 0.0;

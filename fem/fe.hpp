@@ -630,8 +630,8 @@ protected:
 
    static const ScalarFiniteElement &CheckScalarFE(const FiniteElement &fe)
    {
-      if (fe.GetRangeType() != SCALAR)
-      { mfem_error("'fe' must be a ScalarFiniteElement"); }
+      MFEM_VERIFY(fe.GetRangeType() == SCALAR,
+                  "'fe' must be a ScalarFiniteElement");
       return static_cast<const ScalarFiniteElement &>(fe);
    }
 

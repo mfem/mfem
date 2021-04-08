@@ -248,6 +248,29 @@ void OptionsParser::Parse()
    error_type = 0;
 }
 
+void OptionsParser::ParseCheck(std::ostream &out)
+{
+   Parse();
+   int my_rank = 0;
+#ifdef MFEM_USE_MPI
+   int mpi_is_initialized;
+   int mpi_err = MPI_Initialized(&mpi_is_initialized);
+   if (mpi_err == MPI_SUCCESS && mpi_is_initialized)
+   {
+      MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+   }
+#endif
+   if (!Good())
+   {
+      if (my_rank == 0) { PrintUsage(out); }
+#ifdef MFEM_USE_MPI
+      if (mpi_is_initialized) { MPI_Finalize(); }
+#endif
+      std::exit(1);
+   }
+   if (my_rank == 0) { PrintOptions(out); }
+}
+
 void OptionsParser::WriteValue(const Option &opt, std::ostream &out)
 {
    switch (opt.type)

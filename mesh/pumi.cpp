@@ -931,7 +931,7 @@ GridFunctionPumi::GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM,
    }
    PumiM->end(itr);
 
-   sequence = 0;
+   fes_sequence = 0;
 }
 
 // Copy the adapted mesh to the original mesh and increase the sequence to be
