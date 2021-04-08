@@ -1345,7 +1345,7 @@ int main(int argc, char *argv[])
                    muCoef, etaInvCoef,
                    (phase_shift) ? &kReCoef : NULL,
                    (phase_shift) ? &kImCoef : NULL,
-                   //abcs,
+                   abcs,
                    dbcs, nbcs, sbcs,
                    // e_bc_r, e_bc_i,
                    // EReCoef, EImCoef,
