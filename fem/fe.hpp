@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -627,8 +627,8 @@ protected:
 
    static const ScalarFiniteElement &CheckScalarFE(const FiniteElement &fe)
    {
-      if (fe.GetRangeType() != SCALAR)
-      { mfem_error("'fe' must be a ScalarFiniteElement"); }
+      MFEM_VERIFY(fe.GetRangeType() == SCALAR,
+                  "'fe' must be a ScalarFiniteElement");
       return static_cast<const ScalarFiniteElement &>(fe);
    }
 
@@ -698,6 +698,7 @@ public:
 class NodalFiniteElement : public ScalarFiniteElement
 {
 protected:
+   Array<int> lex_ordering;
    void ProjectCurl_2D(const FiniteElement &fe,
                        ElementTransformation &Trans,
                        DenseMatrix &curl) const;
@@ -746,6 +747,29 @@ public:
    virtual void ProjectDiv(const FiniteElement &fe,
                            ElementTransformation &Trans,
                            DenseMatrix &div) const;
+
+   /** @brief Get an Array<int> that maps lexicographically ordered indices to
+       the indices of the respective nodes/dofs/basis functions. Lexicographic
+       ordering of nodes is defined in terms of reference-space coordinates
+       (x,y,z). Lexicographically ordered nodes are listed first in order of
+       increasing x-coordinate, and then in order of increasing y-coordinate,
+       and finally in order of increasing z-coordinate.
+
+       For example, the six nodes of a quadratic triangle are lexicographically
+       ordered as follows:
+
+       5
+       |\
+       3 4
+       |  \
+       0-1-2
+
+       The resulting array may be empty if the DOFs are already ordered
+       lexicographically, or if the finite element does not support creating
+       this permutation. The array returned is the same as the array given by
+       TensorBasisElement::GetDofMap, but it is also available for non-tensor
+       elements. */
+   const Array<int> &GetLexicographicOrdering() const { return lex_ordering; }
 };
 
 /** @brief Class for finite elements utilizing the
@@ -819,11 +843,25 @@ protected:
    void CalcVShape_ND(ElementTransformation &Trans,
                       DenseMatrix &shape) const;
 
+   /** @brief Project a vector coefficient onto the RT basis functions
+       @param nk    Face normal vectors for this element type
+       @param d2n   Offset into nk for each degree of freedom
+       @param vc    Vector coefficient to be projected
+       @param Trans Transformation from reference to physical coordinates
+       @param dofs  Expansion coefficients for the approximation of vc
+   */
    void Project_RT(const double *nk, const Array<int> &d2n,
                    VectorCoefficient &vc, ElementTransformation &Trans,
                    Vector &dofs) const;
 
    /// Projects the vector of values given at FE nodes to RT space
+   /** Project vector values onto the RT basis functions
+       @param nk    Face normal vectors for this element type
+       @param d2n   Offset into nk for each degree of freedom
+       @param vc    Vector values at each interpolation point
+       @param Trans Transformation from reference to physical coordinates
+       @param dofs  Expansion coefficients for the approximation of vc
+   */
    void Project_RT(const double *nk, const Array<int> &d2n,
                    Vector &vc, ElementTransformation &Trans,
                    Vector &dofs) const;
@@ -833,6 +871,19 @@ protected:
       const double *nk, const Array<int> &d2n,
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const;
 
+   /** @brief Project vector-valued basis functions onto the RT basis functions
+       @param nk    Face normal vectors for this element type
+       @param d2n   Offset into nk for each degree of freedom
+       @param fe    Vector-valued finite element basis
+       @param Trans Transformation from reference to physical coordinates
+       @param I     Expansion coefficients for the approximation of each basis
+                    function
+
+       Note: If the FiniteElement, fe, is scalar-valued the projection will
+             assume that a FiniteElementSpace is being used to define a vector
+             field using the scalar basis functions for each component of the
+             vector field.
+   */
    void Project_RT(const double *nk, const Array<int> &d2n,
                    const FiniteElement &fe, ElementTransformation &Trans,
                    DenseMatrix &I) const;
@@ -852,11 +903,25 @@ protected:
                        const FiniteElement &fe, ElementTransformation &Trans,
                        DenseMatrix &curl) const;
 
+   /** @brief Project a vector coefficient onto the ND basis functions
+       @param tk    Edge tangent vectors for this element type
+       @param d2t   Offset into tk for each degree of freedom
+       @param vc    Vector coefficient to be projected
+       @param Trans Transformation from reference to physical coordinates
+       @param dofs  Expansion coefficients for the approximation of vc
+   */
    void Project_ND(const double *tk, const Array<int> &d2t,
                    VectorCoefficient &vc, ElementTransformation &Trans,
                    Vector &dofs) const;
 
    /// Projects the vector of values given at FE nodes to ND space
+   /** Project vector values onto the ND basis functions
+       @param tk    Edge tangent vectors for this element type
+       @param d2t   Offset into tk for each degree of freedom
+       @param vc    Vector values at each interpolation point
+       @param Trans Transformation from reference to physical coordinates
+       @param dofs  Expansion coefficients for the approximation of vc
+   */
    void Project_ND(const double *tk, const Array<int> &d2t,
                    Vector &vc, ElementTransformation &Trans,
                    Vector &dofs) const;
@@ -866,6 +931,19 @@ protected:
       const double *tk, const Array<int> &d2t,
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const;
 
+   /** @brief Project vector-valued basis functions onto the ND basis functions
+       @param tk    Edge tangent vectors for this element type
+       @param d2t   Offset into tk for each degree of freedom
+       @param fe    Vector-valued finite element basis
+       @param Trans Transformation from reference to physical coordinates
+       @param I     Expansion coefficients for the approximation of each basis
+                    function
+
+       Note: If the FiniteElement, fe, is scalar-valued the projection will
+             assume that a FiniteElementSpace is being used to define a vector
+             field using the scalar basis functions for each component of the
+             vector field.
+   */
    void Project_ND(const double *tk, const Array<int> &d2t,
                    const FiniteElement &fe, ElementTransformation &Trans,
                    DenseMatrix &I) const;

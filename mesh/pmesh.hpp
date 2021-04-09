@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -32,9 +32,6 @@ class ParPumiMesh;
 class ParMesh : public Mesh
 {
 protected:
-   ParMesh() : MyComm(0), NRanks(0), MyRank(-1),
-      have_face_nbr_data(false), pncmesh(NULL) {}
-
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
@@ -202,19 +199,58 @@ protected:
    /// Ensure that bdr_attributes and attributes agree across processors
    void DistributeAttributes(Array<int> &attr);
 
+   void LoadSharedEntities(std::istream &input);
+
+   /// If the mesh is curved, make sure 'Nodes' is ParGridFunction.
+   /** Note that this method is not related to the public 'Mesh::EnsureNodes`.*/
+   void EnsureParNodes();
+
+   /// Internal function used in ParMesh::MakeRefined (and related constructor)
+   void MakeRefined_(ParMesh &orig_mesh, int ref_factor, int ref_type);
+
+   // Mark Mesh::Swap as protected, should use ParMesh::Swap to swap @a ParMesh
+   // objects.
+   using Mesh::Swap;
+
+   void Destroy();
+
 public:
+   /// Default constructor. Create an empty @a ParMesh.
+   ParMesh() : MyComm(0), NRanks(0), MyRank(-1), glob_elem_offset(-1),
+      glob_offset_sequence(-1), have_face_nbr_data(false), pncmesh(NULL) { }
+
+   /// Create a parallel mesh by partitioning a serial Mesh.
+   /** The mesh is partitioned automatically or using external partitioning
+       data (the optional parameter 'partitioning_[i]' contains the desired MPI
+       rank for element 'i'). Automatic partitioning uses METIS for conforming
+       meshes and quick space-filling curve equipartitioning for nonconforming
+       meshes (elements of nonconforming meshes should ideally be ordered as a
+       sequence of face-neighbors). */
+   ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_ = NULL,
+           int part_method = 1);
+
    /** Copy constructor. Performs a deep copy of (almost) all data, so that the
        source mesh can be modified (e.g. deleted, refined) without affecting the
        new mesh. If 'copy_nodes' is false, use a shallow (pointer) copy for the
        nodes, if present. */
    explicit ParMesh(const ParMesh &pmesh, bool copy_nodes = true);
 
-   ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_ = NULL,
-           int part_method = 1);
-
    /// Read a parallel mesh, each MPI rank from its own file/stream.
    /** The @a refine parameter is passed to the method Mesh::Finalize(). */
    ParMesh(MPI_Comm comm, std::istream &input, bool refine = true);
+
+   /// Deprecated: see @a ParMesh::MakeRefined
+   MFEM_DEPRECATED
+   ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type);
+
+   /// Move constructor. Used for named constructors.
+   ParMesh(ParMesh &&mesh);
+
+   /// Move assignment operator.
+   ParMesh& operator=(ParMesh &&mesh);
+
+   /// Explicitly delete the copy assignment operator.
+   ParMesh& operator=(ParMesh &mesh) = delete;
 
    /// Create a uniformly refined (by any factor) version of @a orig_mesh.
    /** @param[in] orig_mesh  The starting coarse mesh.
@@ -227,7 +263,11 @@ public:
        is set to reflect the performed refinements.
 
        @note The constructed ParMesh is linear, i.e. it does not have nodes. */
-   ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type);
+   static ParMesh MakeRefined(ParMesh &orig_mesh, int ref_factor, int ref_type);
+
+   /** Create a mesh by splitting each element of @a orig_mesh into simplices.
+       See @a Mesh::MakeSimplicial for more details. */
+   static ParMesh MakeSimplicial(ParMesh &orig_mesh);
 
    virtual void Finalize(bool refine = false, bool fix_orientation = false);
 
@@ -243,6 +283,19 @@ public:
 
    /// Map a local element number to a global element number.
    long GetGlobalElementNum(int local_element_num) const;
+
+   /** The following functions define global indices for all local vertices,
+       edges, faces, or elements. The global indices have no meaning or
+       significance for ParMesh, but can be used for purposes beyond this class.
+    */
+   /// AMR meshes are not supported.
+   void GetGlobalVertexIndices(Array<HYPRE_Int> &gi) const;
+   /// AMR meshes are not supported.
+   void GetGlobalEdgeIndices(Array<HYPRE_Int> &gi) const;
+   /// AMR meshes are not supported.
+   void GetGlobalFaceIndices(Array<HYPRE_Int> &gi) const;
+   /// AMR meshes are supported.
+   void GetGlobalElementIndices(Array<HYPRE_Int> &gi) const;
 
    GroupTopology gtopo;
 
@@ -331,9 +384,18 @@ public:
        for 0 <= i < GetNE(). */
    void Rebalance(const Array<int> &partition);
 
+   /// Save the mesh in a parallel mesh format.
+   void ParPrint(std::ostream &out) const;
+
    /** Print the part of the mesh in the calling processor adding the interface
        as boundary (for visualization purposes) using the mfem v1.0 format. */
    virtual void Print(std::ostream &out = mfem::out) const;
+
+   /// Save the ParMesh to files (one for each MPI rank). The files will be
+   /// given suffixes according to the MPI rank. The mesh will be written to the
+   /// files using ParMesh::Print. The given @a precision will be used for ASCII
+   /// output.
+   virtual void Save(const char *fname, int precision=16) const;
 
 #ifdef MFEM_USE_ADIOS2
    /** Print the part of the mesh in the calling processor using adios2 bp
@@ -349,23 +411,14 @@ public:
        visualization: the mesh is written as a disjoint mesh and the shared
        boundary is added to the actual boundary; both the element and boundary
        attributes are set to the processor number.  */
-   void PrintAsOne(std::ostream &out = mfem::out);
+   void PrintAsOne(std::ostream &out = mfem::out) const;
+
+   /// Save the mesh as a single file (using ParMesh::PrintAsOne). The given
+   /// @a precision is used for ASCII output.
+   void SaveAsOne(const char *fname, int precision=16) const;
 
    /// Old mesh format (Netgen/Truegrid) version of 'PrintAsOne'
    void PrintAsOneXG(std::ostream &out = mfem::out);
-
-   /// Returns the minimum and maximum corners of the mesh bounding box. For
-   /// high-order meshes, the geometry is refined first "ref" times.
-   void GetBoundingBox(Vector &p_min, Vector &p_max, int ref = 2);
-
-   void GetCharacteristics(double &h_min, double &h_max,
-                           double &kappa_min, double &kappa_max);
-
-   /// Print various parallel mesh stats
-   virtual void PrintInfo(std::ostream &out = mfem::out);
-
-   /// Save the mesh in a parallel mesh format.
-   void ParPrint(std::ostream &out) const;
 
    /** Print the mesh in parallel PVTU format. The PVTU and VTU files will be
        stored in the directory specified by @a pathname. If the directory does
@@ -375,6 +428,24 @@ public:
                          bool high_order_output=false,
                          int compression_level=0,
                          bool bdr=false);
+
+   /// Parallel version of Mesh::Load().
+   virtual void Load(std::istream &input, int generate_edges = 0,
+                     int refine = 1, bool fix_orientation = true);
+
+   /// Returns the minimum and maximum corners of the mesh bounding box. For
+   /// high-order meshes, the geometry is refined first "ref" times.
+   void GetBoundingBox(Vector &p_min, Vector &p_max, int ref = 2);
+
+   void GetCharacteristics(double &h_min, double &h_max,
+                           double &kappa_min, double &kappa_max);
+
+   /// Swaps internal data with another ParMesh, including non-geometry members.
+   /// See @a Mesh::Swap
+   void Swap(ParMesh &other);
+
+   /// Print various parallel mesh stats
+   virtual void PrintInfo(std::ostream &out = mfem::out);
 
    virtual int FindPoints(DenseMatrix& point_mat, Array<int>& elem_ids,
                           Array<IntegrationPoint>& ips, bool warn = true,
@@ -389,7 +460,6 @@ public:
 #ifdef MFEM_USE_PUMI
    friend class ParPumiMesh;
 #endif
-
 #ifdef MFEM_USE_ADIOS2
    friend class adios2stream;
 #endif
