@@ -101,7 +101,7 @@ jobs:
 
     - name: get hypre
       if: matrix.mpi == 'parallel' && steps.hypre-cache.outputs.cache-hit != 'true'
-      uses: mfem/mfem-actions/build-hypre@master
+      uses: mfem/github-actions/build-hypre@master
       with:
         hypre-archive: ${{ env.HYPRE_ARCHIVE }}
         hypre-dir: ${{ env.HYPRE_TOP_DIR }}
@@ -118,14 +118,14 @@ jobs:
 
     - name: install metis
       if: matrix.mpi == 'parallel' && steps.metis-cache.outputs.cache-hit != 'true'
-      uses: mfem/mfem-actions/build-metis@master
+      uses: mfem/github-actions/build-metis@master
       with:
         metis-archive: ${{ env.METIS_ARCHIVE }}
         metis-dir: ${{ env.METIS_TOP_DIR }}
 
     # MFEM build and test
     - name: build
-      uses: mfem/mfem-actions/build-mfem@master
+      uses: mfem/github-actions/build-mfem@master
       with:
         os: ${{ matrix.os }}
         target: ${{ matrix.target }}
