@@ -22,10 +22,20 @@
 namespace mfem
 {
 
+/// Diagonal Tensor product with a Tensor
 // 1D
-template <typename Container, typename Layout>
-auto operator*(const DiagonalTensor<1,0,double,Container,Layout> &D,
-               const DynamicDTensor<1> &u)
+template <typename DiagonalTensor,
+          typename Tensor,
+          std::enable_if_t<
+             is_diagonal_tensor<DiagonalTensor>::value &&
+             is_dynamic_tensor<Tensor>::value &&
+             is_serial_tensor<Tensor>::value &&
+             get_diagonal_tensor_diagonal_rank<DiagonalTensor>::value == 1 &&
+             get_diagonal_tensor_values_rank<DiagonalTensor>::value == 0 &&
+             get_tensor_rank<Tensor>::value == 1,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const DiagonalTensor &D, const Tensor &u)
 {
    const int Q = u.template Size<0>();
    DynamicDTensor<1> Du(Q);
@@ -36,10 +46,20 @@ auto operator*(const DiagonalTensor<1,0,double,Container,Layout> &D,
    return Du;
 }
 
-template <typename Container, typename Layout, int Q>
-auto operator*(const DiagonalTensor<1,0,double,Container,Layout> &D,
-               const StaticDTensor<Q> &u)
+template <typename DiagonalTensor,
+          typename Tensor,
+          std::enable_if_t<
+             is_diagonal_tensor<DiagonalTensor>::value &&
+             is_static_tensor<Tensor>::value &&
+             is_serial_tensor<Tensor>::value &&
+             get_diagonal_tensor_diagonal_rank<DiagonalTensor>::value == 1 &&
+             get_diagonal_tensor_values_rank<DiagonalTensor>::value == 0 &&
+             get_tensor_rank<Tensor>::value == 1,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const DiagonalTensor &D, const Tensor &u)
 {
+   constexpr int Q = get_tensor_size<0,Tensor>::value;
    StaticDTensor<Q> Du;
    for(int q = 0; q < Q; ++q)
    {
@@ -49,15 +69,25 @@ auto operator*(const DiagonalTensor<1,0,double,Container,Layout> &D,
 }
 
 // 2D
-template <typename Container, typename Layout>
-auto operator*(const DiagonalTensor<2,0,double,Container,Layout> &D,
-               const DynamicDTensor<2> &u)
+template <typename DiagonalTensor,
+          typename Tensor,
+          std::enable_if_t<
+             is_diagonal_tensor<DiagonalTensor>::value &&
+             is_dynamic_tensor<Tensor>::value &&
+             is_serial_tensor<Tensor>::value &&
+             get_diagonal_tensor_diagonal_rank<DiagonalTensor>::value == 2 &&
+             get_diagonal_tensor_values_rank<DiagonalTensor>::value == 0 &&
+             get_tensor_rank<Tensor>::value == 2,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const DiagonalTensor &D, const Tensor &u)
 {
-   const int Q = u.template Size<0>();
-   DynamicDTensor<2> Du(Q,Q);
-   for(int q2 = 0; q2 < Q; ++q2)
+   const int Q1 = u.template Size<0>();
+   const int Q2 = u.template Size<1>();
+   DynamicDTensor<2> Du(Q1,Q2);
+   for(int q2 = 0; q2 < Q2; ++q2)
    {
-      for(int q1 = 0; q1 < Q; ++q1)
+      for(int q1 = 0; q1 < Q1; ++q1)
       {
          Du(q1,q2) = D(q1,q2)*u(q1,q2);
       }
@@ -65,14 +95,25 @@ auto operator*(const DiagonalTensor<2,0,double,Container,Layout> &D,
    return Du;
 }
 
-template <typename Container, typename Layout, int Q>
-auto operator*(const DiagonalTensor<2,0,double,Container,Layout> &D,
-               const StaticDTensor<Q,Q> &u)
+template <typename DiagonalTensor,
+          typename Tensor,
+          std::enable_if_t<
+             is_diagonal_tensor<DiagonalTensor>::value &&
+             is_static_tensor<Tensor>::value &&
+             is_serial_tensor<Tensor>::value &&
+             get_diagonal_tensor_diagonal_rank<DiagonalTensor>::value == 2 &&
+             get_diagonal_tensor_values_rank<DiagonalTensor>::value == 0 &&
+             get_tensor_rank<Tensor>::value == 2,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const DiagonalTensor &D, const Tensor &u)
 {
-   StaticDTensor<Q,Q> Du;
-   for(int q2 = 0; q2 < Q; ++q2)
+   constexpr int Q1 = get_tensor_size<0,Tensor>::value;
+   constexpr int Q2 = get_tensor_size<1,Tensor>::value;
+   StaticDTensor<Q1,Q2> Du;
+   for(int q2 = 0; q2 < Q2; ++q2)
    {
-      for(int q1 = 0; q1 < Q; ++q1)
+      for(int q1 = 0; q1 < Q1; ++q1)
       {
          Du(q1,q2) = D(q1,q2)*u(q1,q2);
       }
@@ -81,17 +122,28 @@ auto operator*(const DiagonalTensor<2,0,double,Container,Layout> &D,
 }
 
 // 3D
-template <typename Container, typename Layout>
-auto operator*(const DiagonalTensor<3,0,double,Container,Layout> &D,
-               const DynamicDTensor<3> &u)
+template <typename DiagonalTensor,
+          typename Tensor,
+          std::enable_if_t<
+             is_diagonal_tensor<DiagonalTensor>::value &&
+             is_dynamic_tensor<Tensor>::value &&
+             is_serial_tensor<Tensor>::value &&
+             get_diagonal_tensor_diagonal_rank<DiagonalTensor>::value == 3 &&
+             get_diagonal_tensor_values_rank<DiagonalTensor>::value == 0 &&
+             get_tensor_rank<Tensor>::value == 3,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const DiagonalTensor &D, const Tensor &u)
 {
-   const int Q = u.template Size<0>();
-   DynamicDTensor<3> Du(Q,Q,Q);
-   for(int q3 = 0; q3 < Q; ++q3)
+   const int Q1 = u.template Size<0>();
+   const int Q2 = u.template Size<1>();
+   const int Q3 = u.template Size<2>();
+   DynamicDTensor<3> Du(Q1,Q2,Q3);
+   for(int q3 = 0; q3 < Q3; ++q3)
    {
-      for(int q2 = 0; q2 < Q; ++q2)
+      for(int q2 = 0; q2 < Q2; ++q2)
       {
-         for(int q1 = 0; q1 < Q; ++q1)
+         for(int q1 = 0; q1 < Q1; ++q1)
          {
             Du(q1,q2,q3) = D(q1,q2,q3)*u(q1,q2,q3);
          }
@@ -100,16 +152,28 @@ auto operator*(const DiagonalTensor<3,0,double,Container,Layout> &D,
    return Du;
 }
 
-template <typename Container, typename Layout, int Q>
-auto operator*(const DiagonalTensor<3,0,double,Container,Layout> &D,
-               const StaticDTensor<Q,Q,Q> &u)
+template <typename DiagonalTensor,
+          typename Tensor,
+          std::enable_if_t<
+             is_diagonal_tensor<DiagonalTensor>::value &&
+             is_static_tensor<Tensor>::value &&
+             is_serial_tensor<Tensor>::value &&
+             get_diagonal_tensor_diagonal_rank<DiagonalTensor>::value == 3 &&
+             get_diagonal_tensor_values_rank<DiagonalTensor>::value == 0 &&
+             get_tensor_rank<Tensor>::value == 3,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const DiagonalTensor &D, const Tensor &u)
 {
-   StaticDTensor<Q,Q,Q> Du;
-   for(int q3 = 0; q3 < Q; ++q3)
+   constexpr int Q1 = get_tensor_size<0,Tensor>::value;
+   constexpr int Q2 = get_tensor_size<1,Tensor>::value;
+   constexpr int Q3 = get_tensor_size<2,Tensor>::value;
+   StaticDTensor<Q1,Q2,Q3> Du;
+   for(int q3 = 0; q3 < Q3; ++q3)
    {
-      for(int q2 = 0; q2 < Q; ++q2)
+      for(int q2 = 0; q2 < Q2; ++q2)
       {
-         for(int q1 = 0; q1 < Q; ++q1)
+         for(int q1 = 0; q1 < Q1; ++q1)
          {
             Du(q1,q2,q3) = D(q1,q2,q3)*u(q1,q2,q3);
          }
