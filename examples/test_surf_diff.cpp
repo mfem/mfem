@@ -23,8 +23,6 @@ int main(int argc, char *argv[])
    int mesh_type = 4; // Default to Quadrilateral mesh
    int ref_levels = 0;
    bool static_cond = false;
-   bool pa = false;
-   const char *device_config = "cpu";
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -37,10 +35,6 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
-   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
-                  "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&device_config, "-d", "--device",
-                  "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -52,18 +46,13 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // 2. Enable hardware devices such as GPUs, and programming models such as
-   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
-   Device device(device_config);
-   device.Print();
-
-   // 3. Read the mesh from the given mesh file. We can handle triangular,
+   // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
    Mesh *mesh = GetMesh(mesh_type);
    int dim = mesh->Dimension();
 
-   // 4. Refine the mesh to increase the resolution. In this example we do
+   // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement.
    for (int l = 0; l < ref_levels; l++)
    {
@@ -73,7 +62,7 @@ int main(int argc, char *argv[])
    mesh->SetCurvature(3);
    mesh->Transform(trans);
 
-   // 5. Define a finite element space on the mesh. Here we use continuous
+   // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
    FiniteElementCollection *fec;
@@ -98,7 +87,7 @@ int main(int argc, char *argv[])
    cout << "Number of finite element unknowns: "
         << fespace.GetTrueVSize() << endl;
 
-   // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
+   // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
    //    the boundary attributes from the mesh as essential (Dirichlet) and
    //    converting them to a list of true dofs.
@@ -110,7 +99,7 @@ int main(int argc, char *argv[])
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   // 7. Set up the linear form b(.) which corresponds to the right-hand side of
+   // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
    LinearForm b(&fespace);
@@ -118,24 +107,23 @@ int main(int argc, char *argv[])
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
    b.Assemble();
 
-   // 8. Define the solution vector x as a finite element grid function
+   // 7. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
    GridFunction x(&fespace);
    x = 0.0;
 
-   // 9. Set up the bilinear form a(.,.) on the finite element space
+   // 8. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
    BilinearForm a(&fespace);
    MatrixFunctionCoefficient sigma(3, sigmaFunc);
-   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a.AddDomainIntegrator(new DiffusionIntegrator(sigma));
 
-   // 10. Assemble the bilinear form and the corresponding linear system,
-   //     applying any necessary transformations such as: eliminating boundary
-   //     conditions, applying conforming constraints for non-conforming AMR,
-   //     static condensation, etc.
+   // 9. Assemble the bilinear form and the corresponding linear system,
+   //    applying any necessary transformations such as: eliminating boundary
+   //    conditions, applying conforming constraints for non-conforming AMR,
+   //    static condensation, etc.
    if (static_cond) { a.EnableStaticCondensation(); }
    a.Assemble();
 
@@ -145,7 +133,7 @@ int main(int argc, char *argv[])
 
    cout << "Size of linear system: " << A->Height() << endl;
 
-   // 11. Solve the linear system A X = B.
+   // 10. Solve the linear system A X = B.
    if (!pa)
    {
       // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
@@ -165,7 +153,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 12. Recover the solution as a finite element grid function.
+   // 11. Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, x);
 
    FunctionCoefficient uCoef(uExact);
@@ -173,7 +161,7 @@ int main(int argc, char *argv[])
 
    mfem::out << "|u - u_h|_2 = " << err << endl;
 
-   // 13. Save the refined mesh and the solution. This output can be viewed later
+   // 12. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
    ofstream mesh_ofs("refined.mesh");
    mesh_ofs.precision(8);
@@ -182,7 +170,7 @@ int main(int argc, char *argv[])
    sol_ofs.precision(8);
    x.Save(sol_ofs);
 
-   // 14. Send the solution by socket to a GLVis server.
+   // 13. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -192,7 +180,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *mesh << x << flush;
    }
 
-   // 15. Free the used memory.
+   // 14. Free the used memory.
    if (delete_fec)
    {
       delete fec;
