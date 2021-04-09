@@ -388,12 +388,12 @@ PenaltyConstrainedSolver::PenaltyConstrainedSolver(
    if (rank == size - 1) { global_constraints = constraint_running_total; }
    MPI_Bcast(&global_constraints, 1, MPI_INT, size - 1, A.GetComm());
 
-   HYPRE_Int glob_num_rows = global_constraints;
-   HYPRE_Int glob_num_cols = A.N();
-   HYPRE_Int row_starts[2] = {constraint_running_total - local_constraints,
-                              constraint_running_total
-                             };
-   HYPRE_Int col_starts[2] = {A.ColPart()[0], A.ColPart()[1]};
+   HYPRE_BigInt glob_num_rows = global_constraints;
+   HYPRE_BigInt glob_num_cols = A.N();
+   HYPRE_BigInt row_starts[2] = {constraint_running_total - local_constraints,
+				constraint_running_total
+			      };
+   HYPRE_BigInt col_starts[2] = {A.ColPart()[0], A.ColPart()[1]};
    HypreParMatrix hB(A.GetComm(), glob_num_rows, glob_num_cols,
                      row_starts, col_starts, &B);
    hB.CopyRowStarts();
