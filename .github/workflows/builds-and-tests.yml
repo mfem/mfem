@@ -160,6 +160,6 @@ jobs:
     # Code coverage (process and upload reports)
     - name: codecov
       if: matrix.codecov == 'YES'
-      uses: ./${{ env.MFEM_TOP_DIR }}/.github/actions/upload-coverage
+      uses: ${{ env.MFEM_TOP_DIR }}/.github/actions/upload-coverage
       with:
         name: "${{ matrix.os }}-${{ matrix.mpi }}"
