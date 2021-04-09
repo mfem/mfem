@@ -132,7 +132,7 @@ protected:
    };
 };
 
-/// A class to encapsulate degrees of freedom in a Tensor.
+/// A class to encapsulate quadrature data in a Diagonal Tensor.
 template <int Dim,
           bool IsTensor,
           int Quads,
@@ -161,7 +161,7 @@ public:
       // TODO static asserts Config values 
    }
 
-   /// Returns a Tensor corresponding to the DoFs of element e
+   /// Returns a Tensor corresponding to the QData of element e
    auto operator()(int e) const
    {
       return makeDiagonalTensor<Dim>(this->template Get<Dim+DimComp>(e));
@@ -173,7 +173,7 @@ public:
    }
 };
 
-/// Non-Tensor DoFs
+/// Non-Tensor QData
 template <int Dim,
           int Quads,
           int DimComp,
@@ -206,7 +206,7 @@ public:
    }
 };
 
-/// A structure to choose the right Tensor type for DoFs according to the Config.
+/// A structure to choose the right Tensor type for QData according to the Config.
 template <typename Config, int DimComp>
 struct QuadTensorType;
 

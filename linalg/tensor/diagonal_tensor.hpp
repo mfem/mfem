@@ -17,8 +17,79 @@
 namespace mfem
 {
 
-/// Represent a 2*SRank+DRank symmetric Tensor, where SRank dims are symmetric.
+/// Represent a Rank+2*DRank diagonal Tensor, where DRank is the diagonal rank.
 template <int DRank, // The rank of diagonal values
+          int Rank, // The rank of non-diagonal values
+          typename T = double,
+          typename Container = MemoryContainer<T>,
+          typename Layout = DynamicLayout<Rank> >
+class DiagonalTensor: public Tensor<DRank+Rank,T,Container,Layout>
+{
+public:
+   DiagonalTensor(const Tensor<DRank+Rank,T,Container,Layout> &t)
+   : Tensor<DRank+Rank,T,Container,Layout>(t)
+   { }
+
+   // TODO define a DRank accessor? probably not possible
+   // private inheritance then?
+};
+
+template <int DRank, typename Tensor>
+auto makeDiagonalTensor(const Tensor &t)
+{
+   return DiagonalTensor<DRank,
+                         get_tensor_rank<Tensor>::value-DRank,
+                         typename Tensor::type,
+                         typename Tensor::container,
+                         typename Tensor::layout
+                        >(t);
+}
+
+/// DiagonalTensor Traits
+
+// is_diagonal_tensor
+template <typename Tensor>
+struct is_diagonal_tensor
+{
+   static constexpr bool value = false;
+};
+
+template <int DRank, int Rank, typename T, typename Container, typename Layout>
+struct is_diagonal_tensor<DiagonalTensor<DRank, Rank, T, Container, Layout>>
+{
+   static constexpr bool value = true;
+};
+
+// get_diagonal_tensor_rank
+template <typename Tensor>
+struct get_diagonal_tensor_rank;
+
+template <int DRank, int Rank, typename T, typename Container, typename Layout>
+struct get_diagonal_tensor_rank<DiagonalTensor<DRank, Rank, T, Container, Layout>>
+{
+   static constexpr int value = 2*DRank + Rank;
+};
+
+// get_diagonal_tensor_diagonal_rank
+template <typename Tensor>
+struct get_diagonal_tensor_diagonal_rank;
+
+template <int DRank, int Rank, typename T, typename Container, typename Layout>
+struct get_diagonal_tensor_diagonal_rank<DiagonalTensor<DRank, Rank, T, Container, Layout>>
+{
+   static constexpr int value = DRank;
+};
+
+// get_diagonal_tensor_values_rank
+template <typename Tensor>
+struct get_diagonal_tensor_values_rank;
+
+template <int DRank, int Rank, typename T, typename Container, typename Layout>
+struct get_diagonal_tensor_values_rank<DiagonalTensor<DRank, Rank, T, Container, Layout>>
+{
+   static constexpr int value = Rank;
+};
+
           int SRank, // The rank of symmetric values
           typename T = double,
           typename Container = MemoryContainer<T>,

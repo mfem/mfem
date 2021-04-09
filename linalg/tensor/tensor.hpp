@@ -279,9 +279,9 @@ using StaticBlockDTensor = StaticBlockTensor<double,BatchSize,Sizes...>;
 // Backward compatible if renamed in DeviceTensor
 template <int Rank, typename T>
 using MyDeviceTensor = Tensor<Rank,
-                            T,
-                            DeviceContainer<T>,
-                            DynamicLayout<Rank> >;
+                              T,
+                              DeviceContainer<T>,
+                              DynamicLayout<Rank> >;
 
 template <int Rank>
 using DeviceDTensor = MyDeviceTensor<Rank,double>;
