@@ -158,8 +158,8 @@ public:
    L2FaceRestriction(const FiniteElementSpace&, const ElementDofOrdering,
                      const FaceType,
                      const L2FaceValues m = L2FaceValues::DoubleValued);
-   virtual void Mult(const Vector &x, Vector &y) const;
-   void MultTranspose(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
+   void MultTranspose(const Vector &x, Vector &y) const override;
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
        given by this L2FaceRestriction. */
    virtual void FillI(SparseMatrix &mat, const bool keep_nbr_block = false) const;
@@ -169,8 +169,8 @@ public:
                              SparseMatrix &mat,
                              const bool keep_nbr_block = false) const;
    /// This methods adds the DG face matrices to the element matrices.
-   void AddFaceMatricesToElementMatrices(Vector &fea_data,
-                                         Vector &ea_data) const;
+   virtual void AddFaceMatricesToElementMatrices(Vector &fea_data,
+                                                 Vector &ea_data) const;
 };
 
 class NCL2FaceRestriction : public L2FaceRestriction
@@ -180,23 +180,28 @@ protected:
    int nc_size;
    Vector interpolators;
 
+   NCL2FaceRestriction(const FiniteElementSpace&,
+                       const FaceType,
+                       const L2FaceValues m = L2FaceValues::DoubleValued);
+
 public:
    NCL2FaceRestriction(const FiniteElementSpace&, const ElementDofOrdering,
                        const FaceType,
                        const L2FaceValues m = L2FaceValues::DoubleValued);
-   virtual void Mult(const Vector &x, Vector &y) const;
-   void MultTranspose(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
+   void MultTranspose(const Vector &x, Vector &y) const override;
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
        given by this L2FaceRestriction. */
-   virtual void FillI(SparseMatrix &mat, const bool keep_nbr_block = false) const;
+   void FillI(SparseMatrix &mat,
+              const bool keep_nbr_block = false) const override;
    /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
        pattern given by this L2FaceRestriction, and the values of ea_data. */
-   virtual void FillJAndData(const Vector &ea_data,
-                             SparseMatrix &mat,
-                             const bool keep_nbr_block = false) const;
+   void FillJAndData(const Vector &ea_data,
+                     SparseMatrix &mat,
+                     const bool keep_nbr_block = false) const override;
    /// This methods adds the DG face matrices to the element matrices.
    void AddFaceMatricesToElementMatrices(Vector &fea_data,
-                                         Vector &ea_data) const;
+                                         Vector &ea_data) const override;
 
 protected:
    static const int conforming = -1;

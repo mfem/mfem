@@ -32,25 +32,59 @@ public:
    ParL2FaceRestriction(const ParFiniteElementSpace&, ElementDofOrdering,
                         FaceType type,
                         L2FaceValues m = L2FaceValues::DoubleValued);
-   void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
        given by this L2FaceRestriction. */
-   virtual void FillI(SparseMatrix &mat, const bool keep_nbr_block = false) const;
+   void FillI(SparseMatrix &mat,
+              const bool keep_nbr_block = false) const override;
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
        given by this L2FaceRestriction. @a mat contains the interior dofs
        contribution, the @a face_mat contains the shared dofs contribution.*/
-   virtual void FillI(SparseMatrix &mat, SparseMatrix &face_mat) const;
+   void FillI(SparseMatrix &mat,
+              SparseMatrix &face_mat) const;
    /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
        pattern given by this L2FaceRestriction, and the values of ea_data.
        @a mat contains the interior dofs contribution, the @a face_mat contains
        the shared dofs contribution.*/
-   virtual void FillJAndData(const Vector &ea_data,
-                             SparseMatrix &mat,
-                             SparseMatrix &face_mat) const;
+   void FillJAndData(const Vector &ea_data,
+                     SparseMatrix &mat,
+                     SparseMatrix &face_mat) const;
 
-   virtual void FillJAndData(const Vector &ea_data,
-                             SparseMatrix &mat,
-                             const bool keep_nbr_block = false) const;
+   void FillJAndData(const Vector &ea_data,
+                     SparseMatrix &mat,
+                     const bool keep_nbr_block = false) const override;
+};
+
+/// Operator that extracts Face degrees of freedom for NCMesh in parallel.
+/** Objects of this type are typically created and owned by FiniteElementSpace
+    objects, see FiniteElementSpace::GetFaceRestriction(). */
+class ParNCL2FaceRestriction : public NCL2FaceRestriction
+{
+public:
+   ParNCL2FaceRestriction(const ParFiniteElementSpace&, ElementDofOrdering,
+                        FaceType type,
+                        L2FaceValues m = L2FaceValues::DoubleValued);
+   void Mult(const Vector &x, Vector &y) const override;
+   /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
+       given by this L2FaceRestriction. */
+   void FillI(SparseMatrix &mat,
+              const bool keep_nbr_block = false) const override;
+   /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
+       given by this L2FaceRestriction. @a mat contains the interior dofs
+       contribution, the @a face_mat contains the shared dofs contribution.*/
+   void FillI(SparseMatrix &mat,
+              SparseMatrix &face_mat) const;
+   /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
+       pattern given by this L2FaceRestriction, and the values of ea_data.
+       @a mat contains the interior dofs contribution, the @a face_mat contains
+       the shared dofs contribution.*/
+   void FillJAndData(const Vector &ea_data,
+                     SparseMatrix &mat,
+                     SparseMatrix &face_mat) const;
+
+   void FillJAndData(const Vector &ea_data,
+                     SparseMatrix &mat,
+                     const bool keep_nbr_block = false) const override;
 };
 
 }

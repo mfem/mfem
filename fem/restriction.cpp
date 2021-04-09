@@ -1432,12 +1432,19 @@ void L2FaceRestriction::AddFaceMatricesToElementMatrices(Vector &fea_data,
 }
 
 NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
-                                         const ElementDofOrdering e_ordering,
                                          const FaceType type,
                                          const L2FaceValues m)
    : L2FaceRestriction(fes, type, m),
      interp_config(
         (m==L2FaceValues::DoubleValued && type==FaceType::Interior) ? nf : 0)
+{
+}
+
+NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
+                                         const ElementDofOrdering e_ordering,
+                                         const FaceType type,
+                                         const L2FaceValues m)
+   : NCL2FaceRestriction(fes, type, m)
 {
    // If fespace == L2
    const FiniteElement *fe = fes.GetFE(0);
