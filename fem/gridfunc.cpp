@@ -70,7 +70,7 @@ GridFunction::GridFunction(Mesh *m, std::istream &input)
          LegacyNCReorder();
       }
    }
-   sequence = fes->GetSequence();
+   fes_sequence = fes->GetSequence();
 }
 
 GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)
@@ -148,7 +148,7 @@ GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)
       fi += l_nfdofs;
       di += l_nddofs;
    }
-   sequence = 0;
+   fes_sequence = fes->GetSequence();
 }
 
 void GridFunction::Destroy()
@@ -163,16 +163,17 @@ void GridFunction::Destroy()
 
 void GridFunction::Update()
 {
-   if (fes->GetSequence() == sequence)
+   if (fes->GetSequence() == fes_sequence)
    {
       return; // space and grid function are in sync, no-op
    }
-   if (fes->GetSequence() != sequence + 1)
+   // it seems we cannot use the following, due to FESpace::Update(false)
+   /*if (fes->GetSequence() != fes_sequence + 1)
    {
       MFEM_ABORT("Error in update sequence. GridFunction needs to be updated "
                  "right after the space is updated.");
-   }
-   sequence = fes->GetSequence();
+   }*/
+   fes_sequence = fes->GetSequence();
 
    const Operator *T = fes->GetUpdateOperator();
    if (T)
@@ -194,7 +195,7 @@ void GridFunction::SetSpace(FiniteElementSpace *f)
    if (f != fes) { Destroy(); }
    fes = f;
    SetSize(fes->GetVSize());
-   sequence = fes->GetSequence();
+   fes_sequence = fes->GetSequence();
 }
 
 void GridFunction::MakeRef(FiniteElementSpace *f, double *v)
@@ -202,7 +203,7 @@ void GridFunction::MakeRef(FiniteElementSpace *f, double *v)
    if (f != fes) { Destroy(); }
    fes = f;
    NewDataAndSize(v, fes->GetVSize());
-   sequence = fes->GetSequence();
+   fes_sequence = fes->GetSequence();
 }
 
 void GridFunction::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
@@ -212,7 +213,7 @@ void GridFunction::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
    fes = f;
    v.UseDevice(true);
    this->Vector::MakeRef(v, v_offset, fes->GetVSize());
-   sequence = fes->GetSequence();
+   fes_sequence = fes->GetSequence();
 }
 
 void GridFunction::MakeTRef(FiniteElementSpace *f, double *tv)
@@ -2707,6 +2708,7 @@ void GridFunction::ProjectBdrCoefficient(VectorCoefficient &vcoeff,
    Array<int> values_counter;
    AccumulateAndCountBdrValues(NULL, &vcoeff, attr, values_counter);
    ComputeMeans(ARITHMETIC, values_counter);
+
 #ifdef MFEM_DEBUG
    Array<int> ess_vdofs_marker;
    fes->GetEssentialVDofs(attr, ess_vdofs_marker);
@@ -2724,6 +2726,7 @@ void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr)
    // this->HostReadWrite(); // done inside the next call
    AccumulateAndCountBdrValues(coeff, NULL, attr, values_counter);
    ComputeMeans(ARITHMETIC, values_counter);
+
 #ifdef MFEM_DEBUG
    Array<int> ess_vdofs_marker;
    fes->GetEssentialVDofs(attr, ess_vdofs_marker);
@@ -3715,6 +3718,13 @@ void GridFunction::Save(std::ostream &out) const
       Vector::Print(out, fes->GetVDim());
    }
    out.flush();
+}
+
+void GridFunction::Save(const char *fname, int precision) const
+{
+   ofstream ofs(fname);
+   ofs.precision(precision);
+   Save(ofs);
 }
 
 #ifdef MFEM_USE_ADIOS2
