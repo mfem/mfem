@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -18,6 +18,7 @@
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
+#include "hypre.hpp"
 #endif
 
 #include "ode.hpp"
@@ -28,11 +29,16 @@
 #if !defined(SUNDIALS_VERSION_MAJOR) || (SUNDIALS_VERSION_MAJOR < 5)
 #error MFEM requires SUNDIALS version 5.0.0 or newer!
 #endif
+#if defined(MFEM_USE_CUDA) && ((SUNDIALS_VERSION_MAJOR == 5) && (SUNDIALS_VERSION_MINOR < 4))
+#error MFEM requires SUNDIALS version 5.4.0 or newer when MFEM_USE_CUDA=TRUE!
+#endif
 #include <sundials/sundials_matrix.h>
 #include <sundials/sundials_linearsolver.h>
-#include <cvode/cvode.h>
 #include <arkode/arkode_arkstep.h>
+#include <cvodes/cvodes.h>
 #include <kinsol/kinsol.h>
+
+#include <functional>
 
 namespace mfem
 {
@@ -41,25 +47,171 @@ namespace mfem
 // Base class for interfacing with SUNDIALS packages
 // ---------------------------------------------------------------------------
 
+/// Vector interface for SUNDIALS N_Vectors.
+class SundialsNVector : public Vector
+{
+protected:
+   int own_NVector;
+
+   /// The actual SUNDIALS object
+   N_Vector x;
+
+   friend class SundialsSolver;
+
+   /// Set data and length of internal N_Vector x from 'this'.
+   void _SetNvecDataAndSize_(long glob_size = 0);
+
+   /// Set data and length from the internal N_Vector x.
+   void _SetDataAndSize_();
+
+public:
+   /// Creates an empty SundialsNVector.
+   SundialsNVector();
+
+   /// Creates a SundialsNVector referencing an array of doubles, owned by someone else.
+   /** The pointer @a _data can be NULL. The data array can be replaced later
+       with SetData(). */
+   SundialsNVector(double *_data, int _size);
+
+   /// Creates a SundialsNVector out of a SUNDIALS N_Vector object.
+   /** The N_Vector @a nv must be destroyed outside. */
+   SundialsNVector(N_Vector nv);
+
+#ifdef MFEM_USE_MPI
+   /// Creates an empty SundialsNVector.
+   SundialsNVector(MPI_Comm comm);
+
+   /// Creates a SundialsNVector with the given local and global sizes.
+   SundialsNVector(MPI_Comm comm, int loc_size, long glob_size);
+
+   /// Creates a SundialsNVector referencing an array of doubles, owned by someone else.
+   /** The pointer @a _data can be NULL. The data array can be replaced later
+       with SetData(). */
+   SundialsNVector(MPI_Comm comm, double *_data, int loc_size, long glob_size);
+
+   /// Creates a SundialsNVector from a HypreParVector.
+   /** Ownership of the data will not change. */
+   SundialsNVector(HypreParVector& vec);
+#endif
+
+   /// Calls SUNDIALS N_VDestroy function if the N_Vector is owned by 'this'.
+   ~SundialsNVector();
+
+   /// Returns the N_Vector_ID for the internal N_Vector.
+   inline N_Vector_ID GetNVectorID() const { return N_VGetVectorID(x); }
+
+   /// Returns the N_Vector_ID for the N_Vector @a _x.
+   inline N_Vector_ID GetNVectorID(N_Vector _x) const { return N_VGetVectorID(_x); }
+
+#ifdef MFEM_USE_MPI
+   /// Returns the MPI communicator for the internal N_Vector x.
+   inline MPI_Comm GetComm() const { return *static_cast<MPI_Comm*>(N_VGetCommunicator(x)); }
+
+   /// Returns the MPI global length for the internal N_Vector x.
+   inline long GlobalSize() const { return N_VGetLength(x); }
+#endif
+
+   /// Resize the vector to size @a s.
+   void SetSize(int s, long glob_size = 0);
+
+   /// Set the vector data.
+   /// @warning This method should be called only when OwnsData() is false.
+   void SetData(double *d);
+
+   /// Set the vector data and size.
+   /** The Vector does not assume ownership of the new data. The new size is
+       also used as the new Capacity().
+       @warning This method should be called only when OwnsData() is false. */
+   void SetDataAndSize(double *d, int s, long glob_size = 0);
+
+   /// Reset the Vector to be a reference to a sub-vector of @a base.
+   inline void MakeRef(Vector &base, int offset, int s)
+   {
+      // Ensure that the base is registered/initialized before making an alias
+      base.Read();
+      Vector::MakeRef(base, offset, s);
+      _SetNvecDataAndSize_();
+   }
+
+   /** @brief Reset the Vector to be a reference to a sub-vector of @a base
+       without changing its current size. */
+   inline void MakeRef(Vector &base, int offset)
+   {
+      // Ensure that the base is registered/initialized before making an alias
+      base.Read();
+      Vector::MakeRef(base, offset);
+      _SetNvecDataAndSize_();
+   }
+
+   /// Typecasting to SUNDIALS' N_Vector type
+   operator N_Vector() const { return x; }
+
+   /// Changes the ownership of the the vector
+   N_Vector StealNVector() { own_NVector = 0; return x; }
+
+   /// Sets ownership of the internal N_Vector
+   void SetOwnership(int own) { own_NVector = own; }
+
+   /// Gets ownership of the internal N_Vector
+   int GetOwnership() const { return own_NVector; }
+
+   /// Copy assignment.
+   /** @note Defining this method overwrites the implicitly defined copy
+       assignment operator. */
+   using Vector::operator=;
+
+#ifdef MFEM_USE_MPI
+   bool MPIPlusX() const
+   { return (GetNVectorID() == SUNDIALS_NVEC_MPIPLUSX); }
+#else
+   bool MPIPlusX() const { return false; }
+#endif
+
+   /// Create a N_Vector.
+   /** @param[in] use_device  If true, use the SUNDIALS CUDA N_Vector. */
+   static N_Vector MakeNVector(bool use_device);
+
+#ifdef MFEM_USE_MPI
+   /// Create a parallel N_Vector.
+   /** @param[in] comm  The MPI communicator to use.
+       @param[in] use_device  If true, use the SUNDIALS CUDA N_Vector. */
+   static N_Vector MakeNVector(MPI_Comm comm, bool use_device);
+#endif
+
+#ifdef MFEM_USE_CUDA
+   static bool UseManagedMemory()
+   {
+      return Device::GetDeviceMemoryType() == MemoryType::MANAGED;
+   }
+#else
+   static bool UseManagedMemory()
+   {
+      return false;
+   }
+#endif
+
+};
+
 /// Base class for interfacing with SUNDIALS packages.
 class SundialsSolver
 {
 protected:
-   void *sundials_mem;     ///< SUNDIALS mem structure.
-   mutable int flag;       ///< Last flag returned from a call to SUNDIALS.
-   bool reinit;            ///< Flag to signal memory reinitialization is need.
-   long saved_global_size; ///< Global vector length on last initialization.
+   void *sundials_mem;        ///< SUNDIALS mem structure.
+   mutable int flag;          ///< Last flag returned from a call to SUNDIALS.
+   bool reinit;               ///< Flag to signal memory reinitialization is need.
+   long saved_global_size;    ///< Global vector length on last initialization.
 
-   N_Vector           y;   ///< State vector.
-   SUNMatrix          A;   ///< Linear system A = I - gamma J, M - gamma J, or J.
-   SUNMatrix          M;   ///< Mass matrix M.
-   SUNLinearSolver    LSA; ///< Linear solver for A.
-   SUNLinearSolver    LSM; ///< Linear solver for M.
-   SUNNonlinearSolver NLS; ///< Nonlinear solver.
+   SundialsNVector*   Y;      ///< State vector.
+   SUNMatrix          A;      /**< Linear system A = I - gamma J,
+                                   M - gamma J, or J. */
+   SUNMatrix          M;      ///< Mass matrix M.
+   SUNLinearSolver    LSA;    ///< Linear solver for A.
+   SUNLinearSolver    LSM;    ///< Linear solver for M.
+   SUNNonlinearSolver NLS;    ///< Nonlinear solver.
 
 #ifdef MFEM_USE_MPI
    bool Parallel() const
-   { return (N_VGetVectorID(y) != SUNDIALS_NVEC_SERIAL); }
+   { return (Y->MPIPlusX() || Y->GetNVectorID() == SUNDIALS_NVEC_PARALLEL); }
 #else
    bool Parallel() const { return false; }
 #endif
@@ -72,14 +224,22 @@ protected:
    /** @brief Protected constructor: objects of this type should be constructed
        only as part of a derived class. */
    SundialsSolver() : sundials_mem(NULL), flag(0), reinit(false),
-      saved_global_size(0), y(NULL), A(NULL), M(NULL),
+      saved_global_size(0), Y(NULL), A(NULL), M(NULL),
       LSA(NULL), LSM(NULL), NLS(NULL) { }
+
+   // Helper functions
+   // Serial version
+   void AllocateEmptyNVector(N_Vector &y);
+
+#ifdef MFEM_USE_MPI
+   void AllocateEmptyNVector(N_Vector &y, MPI_Comm comm);
+#endif
 
 public:
    /// Access the SUNDIALS memory structure.
    void *GetMem() const { return sundials_mem; }
 
-   /// Returns the last flag retured by a call to a SUNDIALS function.
+   /// Returns the last flag returned by a call to a SUNDIALS function.
    int GetFlag() const { return flag; }
 };
 
@@ -94,6 +254,7 @@ class CVODESolver : public ODESolver, public SundialsSolver
 protected:
    int lmm_type;  ///< Linear multistep method type.
    int step_mode; ///< CVODE step mode (CV_NORMAL or CV_ONE_STEP).
+   int root_components; /// Number of components in gout
 
    /// Wrapper to compute the ODE rhs function.
    static int RHS(realtype t, const N_Vector y, N_Vector ydot, void *user_data);
@@ -107,6 +268,22 @@ protected:
    /// Solve the linear system \f$ A x = b \f$.
    static int LinSysSolve(SUNLinearSolver LS, SUNMatrix A, N_Vector x,
                           N_Vector b, realtype tol);
+
+   /// Prototype to define root finding for CVODE
+   static int root(realtype t, N_Vector y, realtype *gout, void *user_data);
+
+   /// Typedef for root finding functions
+   typedef std::function<int(realtype t, Vector y, Vector gout, CVODESolver *)>
+   RootFunction;
+
+   /// A class member to facilitate pointing to a user-specified root function
+   RootFunction root_func;
+
+   /// Typedef declaration for error weight functions
+   typedef std::function<int(Vector y, Vector w, CVODESolver*)> EWTFunction;
+
+   /// A class member to facilitate pointing to a user-specified error weight function
+   EWTFunction ewt_func;
 
 public:
    /// Construct a serial wrapper to SUNDIALS' CVODE integrator.
@@ -168,8 +345,20 @@ public:
    /// Set the scalar relative and scalar absolute tolerances.
    void SetSStolerances(double reltol, double abstol);
 
+   /// Set the scalar relative and vector of absolute tolerances.
+   void SetSVtolerances(double reltol, Vector abstol);
+
+   /// Initialize Root Finder.
+   void SetRootFinder(int components, RootFunction func);
+
    /// Set the maximum time step.
    void SetMaxStep(double dt_max);
+
+   /// Set the maximum number of time steps.
+   void SetMaxNSteps(int steps);
+
+   /// Get the number of internal steps taken so far.
+   long GetNumSteps();
 
    /** @brief Set the maximum method order.
 
@@ -186,6 +375,159 @@ public:
 
    /// Destroy the associated CVODE memory and SUNDIALS objects.
    virtual ~CVODESolver();
+
+};
+
+// ---------------------------------------------------------------------------
+// Interface to the CVODES library -- linear multi-step methods
+// ---------------------------------------------------------------------------
+
+class CVODESSolver : public CVODESolver
+{
+private:
+   using CVODESolver::Init;
+
+protected:
+   int ncheck; ///< number of checkpoints used so far
+   int indexB; ///< backward problem index
+
+   /// Wrapper to compute the ODE RHS Quadrature function.
+   static int RHSQ(realtype t, const N_Vector y, N_Vector qdot, void *user_data);
+
+   /// Wrapper to compute the ODE RHS backward function.
+   static int RHSB(realtype t, N_Vector y,
+                   N_Vector yB, N_Vector yBdot, void *user_dataB);
+
+   /// Wrapper to compute the ODE RHS Backwards Quadrature function.
+   static int RHSQB(realtype t, N_Vector y, N_Vector yB,
+                    N_Vector qBdot, void *user_dataB);
+
+   /// Error control function
+   static int ewt(N_Vector y, N_Vector w, void *user_data);
+
+   SUNMatrix          AB;   ///< Linear system A = I - gamma J, M - gamma J, or J.
+   SUNLinearSolver    LSB;  ///< Linear solver for A.
+   SundialsNVector*   q;    ///< Quadrature vector.
+   SundialsNVector*   yB;   ///< State vector.
+   SundialsNVector*   yy;   ///< State vector.
+   SundialsNVector*   qB;   ///< State vector.
+
+   /// Default scalar backward relative tolerance
+   static constexpr double default_rel_tolB = 1e-4;
+   /// Default scalar backward absolute tolerance
+   static constexpr double default_abs_tolB = 1e-9;
+   /// Default scalar backward absolute quadrature tolerance
+   static constexpr double default_abs_tolQB = 1e-9;
+
+public:
+   /** Construct a serial wrapper to SUNDIALS' CVODE integrator.
+       @param[in] lmm Specifies the linear multistep method, the options are:
+                      CV_ADAMS - implicit methods for non-stiff systems
+                      CV_BDF   - implicit methods for stiff systems */
+   CVODESSolver(int lmm);
+
+#ifdef MFEM_USE_MPI
+   /** Construct a parallel wrapper to SUNDIALS' CVODE integrator.
+       @param[in] comm The MPI communicator used to partition the ODE system
+       @param[in] lmm  Specifies the linear multistep method, the options are:
+                       CV_ADAMS - implicit methods for non-stiff systems
+                       CV_BDF   - implicit methods for stiff systems */
+   CVODESSolver(MPI_Comm comm, int lmm);
+#endif
+
+   /** Initialize CVODE: Calls CVodeInit() and sets some defaults. We define this
+       to force the time dependent operator to be a TimeDependenAdjointOperator.
+       @param[in] f_ the TimeDependentAdjointOperator that defines the ODE system
+
+       @note All other methods must be called after Init(). */
+   void Init(TimeDependentAdjointOperator &f_);
+
+   /// Initialize the adjoint problem
+   void InitB(TimeDependentAdjointOperator &f_);
+
+   /** Integrate the ODE with CVODE using the specified step mode.
+
+       @param[out]    x  Solution vector at the requested output time x=x(t).
+       @param[in,out] t  On output, the output time reached.
+       @param[in,out] dt On output, the last time step taken.
+
+       @note On input, the values of t and dt are used to compute desired
+       output time for the integration, tout = t + dt. */
+   virtual void Step(Vector &x, double &t, double &dt);
+
+   /// Solve one adjoint time step
+   virtual void StepB(Vector &w, double &t, double &dt);
+
+   /// Set multiplicative error weights
+   void SetWFTolerances(EWTFunction func);
+
+   // Initialize Quadrature Integration
+   void InitQuadIntegration(mfem::Vector &q0,
+                            double reltolQ = 1e-3,
+                            double abstolQ = 1e-8);
+
+   /// Initialize Quadrature Integration (Adjoint)
+   void InitQuadIntegrationB(mfem::Vector &qB0, double reltolQB = 1e-3,
+                             double abstolQB = 1e-8);
+
+   /// Initialize Adjoint
+   void InitAdjointSolve(int steps, int interpolation);
+
+   /// Set the maximum number of backward steps
+   void SetMaxNStepsB(int mxstepsB);
+
+   /// Get Number of Steps for ForwardSolve
+   long GetNumSteps();
+
+   /// Evaluate Quadrature
+   void EvalQuadIntegration(double t, Vector &q);
+
+   /// Evaluate Quadrature solution
+   void EvalQuadIntegrationB(double t, Vector &dG_dp);
+
+   /// Get Interpolated Forward solution y at backward integration time tB
+   void GetForwardSolution(double tB, mfem::Vector & yy);
+
+   /// Set Linear Solver for the backward problem
+   void UseMFEMLinearSolverB();
+
+   /// Use built in SUNDIALS Newton solver
+   void UseSundialsLinearSolverB();
+
+   /**
+      \brief Tolerance specification functions for the adjoint problem.
+
+      It should be called after InitB() is called.
+
+      \param[in] reltol the scalar relative error tolerance.
+      \param[in] abstol the scalar absolute error tolerance.
+   */
+   void SetSStolerancesB(double reltol, double abstol);
+
+   /**
+      \brief Tolerance specification functions for the adjoint problem.
+
+      It should be called after InitB() is called.
+
+      \param[in] reltol the scalar relative error tolerance
+      \param[in] abstol the vector of absolute error tolerances
+   */
+   void SetSVtolerancesB(double reltol, Vector abstol);
+
+   /// Setup the linear system A x = b
+   static int LinSysSetupB(realtype t, N_Vector y, N_Vector yB, N_Vector fyB,
+                           SUNMatrix A,
+                           booleantype jok, booleantype *jcur,
+                           realtype gamma, void *user_data, N_Vector tmp1,
+                           N_Vector tmp2, N_Vector tmp3);
+
+   /// Solve the linear system A x = b
+   static int LinSysSolveB(SUNLinearSolver LS, SUNMatrix A, N_Vector x,
+                           N_Vector b, realtype tol);
+
+
+   /// Destroy the associated CVODES memory and SUNDIALS objects.
+   virtual ~CVODESSolver();
 };
 
 
@@ -359,6 +701,7 @@ public:
 
    /// Destroy the associated ARKode memory and SUNDIALS objects.
    virtual ~ARKStepSolver();
+
 };
 
 
@@ -370,11 +713,15 @@ public:
 class KINSolver : public NewtonSolver, public SundialsSolver
 {
 protected:
-   int global_strategy;               ///< KINSOL solution strategy
-   bool use_oper_grad;                ///< use the Jv prod function
-   mutable N_Vector y_scale, f_scale; ///< scaling vectors
-   const Operator *jacobian;          ///< stores oper->GetGradient()
-   int maa;                           ///< number of acceleration vectors
+   int global_strategy;                        ///< KINSOL solution strategy
+   bool use_oper_grad;                         ///< use the Jv prod function
+   mutable SundialsNVector *y_scale, *f_scale; ///< scaling vectors
+   const Operator *jacobian;                   ///< stores oper->GetGradient()
+   int maa;           ///< number of acceleration vectors
+   bool jfnk = false; ///< enable JFNK
+   Vector wrk;        ///< Work vector needed for the JFNK PC
+   int maxli = 5;     ///< Maximum linear iterations
+   int maxlrs = 0;    ///< Maximum linear solver restarts
 
    /// Wrapper to compute the nonlinear residual \f$ F(u) = 0 \f$.
    static int Mult(const N_Vector u, N_Vector fu, void *user_data);
@@ -390,6 +737,23 @@ protected:
    /// Solve the linear system \f$ J u = b \f$.
    static int LinSysSolve(SUNLinearSolver LS, SUNMatrix J, N_Vector u,
                           N_Vector b, realtype tol);
+
+   /// Setup the preconditioner.
+   static int PrecSetup(N_Vector uu,
+                        N_Vector uscale,
+                        N_Vector fval,
+                        N_Vector fscale,
+                        void *user_data);
+
+   /// Solve the preconditioner equation \f$ Pz = v \f$.
+   static int PrecSolve(N_Vector uu,
+                        N_Vector uscale,
+                        N_Vector fval,
+                        N_Vector fscale,
+                        N_Vector vv,
+                        void *user_data);
+
+   void SetJFNKSolver(Solver &solver);
 
 public:
 
@@ -434,7 +798,7 @@ public:
 
    /// Set KINSOL's scaled step tolerance.
    /** The default tolerance is \f$ U^\frac{2}{3} \f$ , where
-       U = machine unit roundoff.
+       U = machine unit round-off.
        @note This method must be called after SetOperator(). */
    void SetScaledStepTol(double sstol);
 
@@ -450,6 +814,24 @@ public:
        altered after SetOperator() is called but it can't be higher than initial
        maximum. */
    void SetMAA(int maa);
+
+   /// Set the Jacobian Free Newton Krylov flag. The default is false.
+   /** This flag indicates to use JFNK as the linear solver for KINSOL. This
+       means that the Solver object set in SetSolver() or SetPreconditioner() is
+       used as a preconditioner for an FGMRES algorithm provided by SpFGMR from
+       SUNDIALS. Furthermore, all Jacobian-vector products in the outer Krylov
+       method are approximated by a difference quotient and the relative
+       tolerance for the outer Krylov method is adaptive. See the KINSOL User
+       Manual for details. */
+   void SetJFNK(bool use_jfnk) { jfnk = use_jfnk; }
+
+   /// Set the maximum number of linear solver iterations
+   /** @note Only valid in combination with JFNK */
+   void SetLSMaxIter(int m) { maxli = m; }
+
+   /// Set the maximum number of linear solver restarts
+   /** @note Only valid in combination with JFNK */
+   void SetLSMaxRestarts(int m) { maxlrs = m; }
 
    /// Solve the nonlinear system \f$ F(x) = 0 \f$.
    /** This method computes the x_scale and fx_scale vectors and calls the

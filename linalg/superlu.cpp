@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -303,9 +303,6 @@ void SuperLUSolver::Init()
    // Set default options
    set_default_options_dist(options);
 
-   options->ParSymbFact = YES;
-   options->ColPerm     = NATURAL;
-
    // Choose nprow and npcol so that the process grid is as square as possible.
    // If the processes cannot be divided evenly, keep the row dimension smaller
    // than the column dimension.
@@ -526,9 +523,10 @@ void SuperLUSolver::Mult( const Vector & x, Vector & y ) const
    // SuperLU overwrites x with y, so copy x to y and pass that to the solve
    // routine.
 
-   y = x;
+   const double *xPtr = x.HostRead();
+   y = xPtr;
+   double * yPtr = y.HostReadWrite();
 
-   double*  yPtr = (double*)y;
    int      info = -1, locSize = y.Size();
 
    // Solve the system
@@ -537,7 +535,29 @@ void SuperLUSolver::Mult( const Vector & x, Vector & y ) const
 
    if ( info != 0 )
    {
-      if ( info <= A->ncol )
+      if ( info < 0 )
+      {
+         switch (-info)
+         {
+            case 1:
+               MFEM_ABORT("SuperLU:  SuperLU options are invalid.");
+               break;
+            case 2:
+               MFEM_ABORT("SuperLU:  Matrix A (in Ax=b) is invalid.");
+               break;
+            case 5:
+               MFEM_ABORT("SuperLU:  Vector b dimension (in Ax=b) is invalid.");
+               break;
+            case 6:
+               MFEM_ABORT("SuperLU:  Number of right-hand sides is invalid.");
+               break;
+            default:
+               MFEM_ABORT("SuperLU:  Parameter with index "
+                          << -info << "invalid. (1-indexed)");
+               break;
+         }
+      }
+      else if ( info <= A->ncol )
       {
          MFEM_ABORT("SuperLU:  Found a singular matrix, U("
                     << info << "," << info << ") is exactly zero.");

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -287,7 +287,7 @@ PetscParVector::PetscParVector(const PetscParMatrix &A,
    _SetDataAndSize_();
 }
 
-PetscParVector::PetscParVector(Vec y, bool ref) : Vector()
+PetscParVector::PetscParVector(petsc::Vec y, bool ref) : Vector()
 {
    if (ref)
    {
@@ -1244,7 +1244,7 @@ void PetscParMatrix::Destroy()
    X = Y = NULL;
 }
 
-PetscParMatrix::PetscParMatrix(Mat a, bool ref)
+PetscParMatrix::PetscParMatrix(petsc::Mat a, bool ref)
 {
    if (ref)
    {
@@ -2501,7 +2501,7 @@ void PetscLinearSolver::SetPreconditioner(Solver &precond)
    {
       // wrap the Solver action
       // Solver is assumed to be already setup
-      // ownership of precond is not tranferred,
+      // ownership of precond is not transferred,
       // consistently with other MFEM's linear solvers
       PC pc;
       ierr = KSPGetPC(ksp,&pc); PCHKERRQ(ksp,ierr);
@@ -3061,7 +3061,7 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
       {
          if (!tracespace)
          {
-            p = fespace->GetOrder(0);
+            p = fespace->GetElementOrder(0);
          }
          else
          {

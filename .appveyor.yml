@@ -15,7 +15,9 @@ install:
 - msmpisdk.msi /passive
 - set PATH=C:\Program Files\Microsoft MPI\Bin;%PATH%
 
-# Install METIS
+# Install METIS, use a mirror because the original source server is not always
+# up. Original url:
+#    http://glaros.dtc.umn.edu/gkhome/fetch/sw/metis/metis-5.1.0.tar.gz
 - ps: Start-FileDownload 'https://mfem.github.io/tpls/metis-5.1.0.tar.gz'
 - 7z x metis-5.1.0.tar.gz -so | 7z x -si -ttar > nul
 - cd metis-5.1.0

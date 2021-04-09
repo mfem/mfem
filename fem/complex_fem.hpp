@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -38,8 +38,8 @@ protected:
    void Destroy() { delete gfr; delete gfi; }
 
 public:
-   /* @brief Construct a ComplexGridFunction associated with the
-      FiniteElementSpace @a *f. */
+   /** @brief Construct a ComplexGridFunction associated with the
+       FiniteElementSpace @a *f. */
    ComplexGridFunction(FiniteElementSpace *f);
 
    void Update();
@@ -71,6 +71,14 @@ public:
    const GridFunction & real() const { return *gfr; }
    const GridFunction & imag() const { return *gfi; }
 
+   /// Update the memory location of the real and imaginary GridFunction @a gfr
+   /// and @a gfi to match the ComplexGridFunction.
+   void Sync() { gfr->SyncMemory(*this); gfi->SyncMemory(*this); }
+
+   /// Update the alias memory location of the real and imaginary GridFunction
+   /// @a gfr and @a gfi to match the ComplexGridFunction.
+   void SyncAlias() { gfr->SyncAliasMemory(*this); gfi->SyncAliasMemory(*this); }
+
    /// Destroys the grid function.
    virtual ~ComplexGridFunction() { Destroy(); }
 
@@ -99,8 +107,8 @@ public:
                      ComplexOperator::Convention
                      convention = ComplexOperator::HERMITIAN);
 
-   /** @brief Create a ComplexLinearForm on the FiniteElementSpace @a f, using
-       the same integrators as the LinearForms @a lfr (real) and @a lfi (imag) .
+   /** @brief Create a ComplexLinearForm on the FiniteElementSpace @a fes, using
+       the same integrators as the LinearForms @a lf_r (real) and @a lf_i (imag).
 
        The pointer @a fes is not owned by the newly constructed object.
 
@@ -157,6 +165,14 @@ public:
    const LinearForm & real() const { return *lfr; }
    const LinearForm & imag() const { return *lfi; }
 
+   /// Update the memory location of the real and imaginary LinearForm @a lfr
+   /// and @a lfi to match the ComplexLinearForm.
+   void Sync() { lfr->SyncMemory(*this); lfi->SyncMemory(*this); }
+
+   /// Update the alias memory location of the real and imaginary LinearForm @a
+   /// lfr and @a lfi to match the ComplexLinearForm.
+   void SyncAlias() { lfr->SyncAliasMemory(*this); lfi->SyncAliasMemory(*this); }
+
    void Update();
    void Update(FiniteElementSpace *f);
 
@@ -195,8 +211,8 @@ private:
    BilinearForm *blfr;
    BilinearForm *blfi;
 
-   /* These methods check if the real/imag parts of the sesqulinear form are not
-      empty */
+   /* These methods check if the real/imag parts of the sesquilinear form are
+      not empty */
    bool RealInteg();
    bool ImagInteg();
 
@@ -204,7 +220,7 @@ public:
    SesquilinearForm(FiniteElementSpace *fes,
                     ComplexOperator::Convention
                     convention = ComplexOperator::HERMITIAN);
-   /** @brief Create a SesquilinearForm on the FiniteElementSpace @a f, using
+   /** @brief Create a SesquilinearForm on the FiniteElementSpace @a fes, using
        the same integrators as the BilinearForms @a bfr and @a bfi .
 
        The pointer @a fes is not owned by the newly constructed object.
@@ -222,7 +238,8 @@ public:
    /// Set the desired assembly level.
    /** Valid choices are:
 
-       - AssemblyLevel::FULL  (default)
+       - AssemblyLevel::LEGACY (default)
+       - AssemblyLevel::FULL
        - AssemblyLevel::PARTIAL
        - AssemblyLevel::ELEMENT
        - AssemblyLevel::NONE
@@ -323,8 +340,8 @@ protected:
 
 public:
 
-   /* @brief Construct a ParComplexGridFunction associated with the
-      ParFiniteElementSpace @a *f. */
+   /** @brief Construct a ParComplexGridFunction associated with the
+       ParFiniteElementSpace @a *pf. */
    ParComplexGridFunction(ParFiniteElementSpace *pf);
 
    void Update();
@@ -364,6 +381,15 @@ public:
    ParGridFunction & imag() { return *pgfi; }
    const ParGridFunction & real() const { return *pgfr; }
    const ParGridFunction & imag() const { return *pgfi; }
+
+   /// Update the memory location of the real and imaginary ParGridFunction @a
+   /// pgfr and @a pgfi to match the ParComplexGridFunction.
+   void Sync() { pgfr->SyncMemory(*this); pgfi->SyncMemory(*this); }
+
+   /// Update the alias memory location of the real and imaginary
+   /// ParGridFunction @a pgfr and @a pgfi to match the ParComplexGridFunction.
+   void SyncAlias() { pgfr->SyncAliasMemory(*this); pgfi->SyncAliasMemory(*this); }
+
 
    virtual double ComputeL2Error(Coefficient &exsolr, Coefficient &exsoli,
                                  const IntegrationRule *irs[] = NULL) const
@@ -416,8 +442,8 @@ public:
                         convention = ComplexOperator::HERMITIAN);
 
    /** @brief Create a ParComplexLinearForm on the ParFiniteElementSpace @a pf,
-       using the same integrators as the LinearForms @a plfr (real) and @a plfi
-       (imag) .
+       using the same integrators as the LinearForms @a plf_r (real) and
+       @a plf_i (imag).
 
       The pointer @a fes is not owned by the newly constructed object.
 
@@ -474,6 +500,14 @@ public:
    ParLinearForm & imag() { return *plfi; }
    const ParLinearForm & real() const { return *plfr; }
    const ParLinearForm & imag() const { return *plfi; }
+
+   /// Update the memory location of the real and imaginary ParLinearForm @a lfr
+   /// and @a lfi to match the ParComplexLinearForm.
+   void Sync() { plfr->SyncMemory(*this); plfi->SyncMemory(*this); }
+
+   /// Update the alias memory location of the real and imaginary ParLinearForm
+   /// @a plfr and @a plfi to match the ParComplexLinearForm.
+   void SyncAlias() { plfr->SyncAliasMemory(*this); plfi->SyncAliasMemory(*this); }
 
    void Update(ParFiniteElementSpace *pf = NULL);
 
@@ -542,7 +576,8 @@ public:
    /// Set the desired assembly level.
    /** Valid choices are:
 
-       - AssemblyLevel::FULL  (default)
+       - AssemblyLevel::LEGACY (default)
+       - AssemblyLevel::FULL
        - AssemblyLevel::PARTIAL
        - AssemblyLevel::ELEMENT
        - AssemblyLevel::NONE

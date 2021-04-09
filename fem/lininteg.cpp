@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,8 +10,8 @@
 // CONTRIBUTING.md for details.
 
 
-#include <cmath>
 #include "fem.hpp"
+#include <cmath>
 
 namespace mfem
 {
@@ -457,20 +457,8 @@ void VectorFEDomainLFCurlIntegrator::AssembleRHSElementVect(
 
       Tr.SetIntPoint (&ip);
       el.CalcPhysCurlShape(Tr, curlshape);
+      QF->Eval(vec, Tr, ip);
 
-      switch (spaceDim)
-      {
-         case 3:
-            MFEM_VERIFY(QF, "VectorFunctionCoefficient not provided");
-            QF->Eval(vec, Tr, ip);
-            break;
-         case 2:
-            MFEM_VERIFY(Q, "FunctionCoefficient (Scalar) not provided");
-            vec[0] = Q->Eval(Tr, ip);
-            break;
-         default:
-            break; // This should be unreachable
-      }
       vec *= ip.weight * Tr.Weight();
       curlshape.AddMult (vec, elvect);
    }
@@ -480,38 +468,17 @@ void VectorFEDomainLFCurlIntegrator::AssembleDeltaElementVect(
    const FiniteElement &fe, ElementTransformation &Trans, Vector &elvect)
 {
    int spaceDim = Trans.GetSpaceDim();
-   switch (spaceDim)
-   {
-      case 3:
-         MFEM_ASSERT(vec_delta != NULL,
-                     "coefficient must be VectorDeltaCoefficient");
-         break;
-      case 2:
-         MFEM_ASSERT(delta != NULL,
-                     "coefficient must be DeltaCoefficient");
-         break;
-      default:
-         break; // This should be unreachable
-   }
+   MFEM_ASSERT(vec_delta != NULL,
+               "coefficient must be VectorDeltaCoefficient");
    int dof = fe.GetDof();
    int n=(spaceDim == 3)? spaceDim : 1;
+   vec.SetSize(n);
    curlshape.SetSize(dof, n);
    elvect.SetSize(dof);
    fe.CalcPhysCurlShape(Trans, curlshape);
 
-   switch (spaceDim)
-   {
-      case 3:
-         vec_delta->EvalDelta(vec, Trans, Trans.GetIntPoint());
-         curlshape.Mult(vec, elvect);
-         break;
-      case 2:
-         curlshape.GetColumn(0,elvect);
-         elvect *= delta->EvalDelta(Trans, Trans.GetIntPoint());
-         break;
-      default:
-         break; // This should be unreachable
-   }
+   vec_delta->EvalDelta(vec, Trans, Trans.GetIntPoint());
+   curlshape.Mult(vec, elvect);
 }
 
 void VectorFEDomainLFDivIntegrator::AssembleRHSElementVect(

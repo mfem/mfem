@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -16,7 +16,6 @@ if (DOXYGEN_FOUND)
   configure_file(${CMAKE_CURRENT_SOURCE_DIR}/CodeDocumentation.conf.in
     ${CMAKE_CURRENT_BINARY_DIR}/CodeDocumentation.conf @ONLY)
 
-
   add_custom_target(doc
     COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/CodeDocumentation.conf
     COMMAND echo "<meta http-equiv=\"REFRESH\" content=\"0;URL=CodeDocumentation/html/index.html\">" > ${CMAKE_CURRENT_BINARY_DIR}/CodeDocumentation.html
@@ -31,6 +30,5 @@ if (DOXYGEN_FOUND)
     COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_CURRENT_BINARY_DIR}/CodeDocumentation
     COMMENT "Removing API documentation"
     VERBATIM)
-
 
 endif (DOXYGEN_FOUND)

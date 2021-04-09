@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -284,7 +284,6 @@ class VectorFEDomainLFCurlIntegrator : public DeltaLFIntegrator
 {
 private:
    VectorCoefficient *QF=nullptr;
-   Coefficient *Q=nullptr;
    DenseMatrix curlshape;
    Vector vec;
 
@@ -292,8 +291,6 @@ public:
    /// Constructs the domain integrator (Q, curl v)
    VectorFEDomainLFCurlIntegrator(VectorCoefficient &F)
       : DeltaLFIntegrator(F), QF(&F) { }
-   VectorFEDomainLFCurlIntegrator(Coefficient &F)
-      : DeltaLFIntegrator(F), Q(&F) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
@@ -409,6 +406,10 @@ private:
    Vector shape;
 
 public:
+   BoundaryFlowIntegrator(Coefficient &_f, VectorCoefficient &_u,
+                          double a)
+   { f = &_f; u = &_u; alpha = a; beta = 0.5*a; }
+
    BoundaryFlowIntegrator(Coefficient &_f, VectorCoefficient &_u,
                           double a, double b)
    { f = &_f; u = &_u; alpha = a; beta = b; }

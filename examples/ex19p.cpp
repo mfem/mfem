@@ -8,6 +8,7 @@
 //    mpirun -np 2 ex19p -m ../data/beam-hex.mesh
 //    mpirun -np 2 ex19p -m ../data/beam-tet.mesh
 //    mpirun -np 2 ex19p -m ../data/beam-wedge.mesh
+//    mpirun -np 2 ex19p -m ../data/beam-quad-amr.mesh
 //
 // Description:  This examples solves a quasi-static incompressible nonlinear
 //               elasticity problem of the form 0 = H(x), where H is an
@@ -196,10 +197,8 @@ void InitialDeformation(const Vector &x, Vector &y);
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   MPI_Session mpi;
+   const int myid = mpi.WorldRank();
 
    // 2. Parse command-line options
    const char *mesh_file = "../data/beam-tet.mesh";
@@ -239,7 +238,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -399,8 +397,6 @@ int main(int argc, char *argv[])
    // 19. Free the used memory
    delete pmesh;
 
-   MPI_Finalize();
-
    return 0;
 }
 
@@ -474,7 +470,11 @@ void JacobianPreconditioner::SetOperator(const Operator &op)
    {
       HypreBoomerAMG *stiff_prec_amg = new HypreBoomerAMG();
       stiff_prec_amg->SetPrintLevel(0);
-      stiff_prec_amg->SetElasticityOptions(spaces[0]);
+
+      if (!spaces[0]->GetParMesh()->Nonconforming())
+      {
+         stiff_prec_amg->SetElasticityOptions(spaces[0]);
+      }
 
       stiff_prec = stiff_prec_amg;
 

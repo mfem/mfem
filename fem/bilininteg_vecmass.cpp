@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,6 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
+#include "ceed/mass.hpp"
 
 using namespace std;
 
@@ -30,6 +31,12 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    ElementTransformation *T = mesh->GetElementTransformation(0);
    const IntegrationRule *ir
       = IntRule ? IntRule : &MassIntegrator::GetRule(el, el, *T);
+   if (DeviceCanUseCeed())
+   {
+      delete ceedOp;
+      ceedOp = new ceed::PAMassIntegrator(fes, *ir, Q);
+      return;
+   }
    dim = mesh->Dimension();
    ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
@@ -98,7 +105,7 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 template<const int T_D1D = 0,
          const int T_Q1D = 0>
 static void PAVectorMassApply2D(const int NE,
-                                const Array<double> &_B,
+                                const Array<double> &B_,
                                 const Array<double> &_Bt,
                                 const Vector &_op,
                                 const Vector &_x,
@@ -111,7 +118,7 @@ static void PAVectorMassApply2D(const int NE,
    constexpr int VDIM = 2;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(_B.Read(), Q1D, D1D);
+   auto B = Reshape(B_.Read(), Q1D, D1D);
    auto Bt = Reshape(_Bt.Read(), D1D, Q1D);
    auto op = Reshape(_op.Read(), Q1D, Q1D, NE);
    auto x = Reshape(_x.Read(), D1D, D1D, VDIM, NE);
@@ -195,7 +202,7 @@ static void PAVectorMassApply2D(const int NE,
 template<const int T_D1D = 0,
          const int T_Q1D = 0>
 static void PAVectorMassApply3D(const int NE,
-                                const Array<double> &_B,
+                                const Array<double> &B_,
                                 const Array<double> &_Bt,
                                 const Vector &_op,
                                 const Vector &_x,
@@ -208,7 +215,7 @@ static void PAVectorMassApply3D(const int NE,
    constexpr int VDIM = 3;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(_B.Read(), Q1D, D1D);
+   auto B = Reshape(B_.Read(), Q1D, D1D);
    auto Bt = Reshape(_Bt.Read(), D1D, Q1D);
    auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, NE);
    auto x = Reshape(_x.Read(), D1D, D1D, D1D, VDIM, NE);
@@ -361,12 +368,19 @@ static void PAVectorMassApply(const int dim,
 
 void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   PAVectorMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, pa_data, x, y);
+   if (DeviceCanUseCeed())
+   {
+      ceedOp->AddMult(x, y);
+   }
+   else
+   {
+      PAVectorMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, pa_data, x, y);
+   }
 }
 
 template<const int T_D1D = 0, const int T_Q1D = 0>
 static void PAVectorMassAssembleDiagonal2D(const int NE,
-                                           const Array<double> &_B,
+                                           const Array<double> &B_,
                                            const Array<double> &_Bt,
                                            const Vector &_op,
                                            Vector &_diag,
@@ -378,7 +392,7 @@ static void PAVectorMassAssembleDiagonal2D(const int NE,
    constexpr int VDIM = 2;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(_B.Read(), Q1D, D1D);
+   auto B = Reshape(B_.Read(), Q1D, D1D);
    auto op = Reshape(_op.Read(), Q1D, Q1D, NE);
    auto y = Reshape(_diag.ReadWrite(), D1D, D1D, VDIM, NE);
    MFEM_FORALL(e, NE,
@@ -418,7 +432,7 @@ static void PAVectorMassAssembleDiagonal2D(const int NE,
 
 template<const int T_D1D = 0, const int T_Q1D = 0>
 static void PAVectorMassAssembleDiagonal3D(const int NE,
-                                           const Array<double> &_B,
+                                           const Array<double> &B_,
                                            const Array<double> &_Bt,
                                            const Vector &_op,
                                            Vector &_diag,
@@ -430,7 +444,7 @@ static void PAVectorMassAssembleDiagonal3D(const int NE,
    constexpr int VDIM = 3;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(_B.Read(), Q1D, D1D);
+   auto B = Reshape(B_.Read(), Q1D, D1D);
    auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, NE);
    auto y = Reshape(_diag.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
    MFEM_FORALL(e, NE,
@@ -514,14 +528,21 @@ static void PAVectorMassAssembleDiagonal(const int dim,
 
 void VectorMassIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   PAVectorMassAssembleDiagonal(dim,
-                                dofs1D,
-                                quad1D,
-                                ne,
-                                maps->B,
-                                maps->Bt,
-                                pa_data,
-                                diag);
+   if (DeviceCanUseCeed())
+   {
+      ceedOp->GetDiagonal(diag);
+   }
+   else
+   {
+      PAVectorMassAssembleDiagonal(dim,
+                                   dofs1D,
+                                   quad1D,
+                                   ne,
+                                   maps->B,
+                                   maps->Bt,
+                                   pa_data,
+                                   diag);
+   }
 }
 
 } // namespace mfem

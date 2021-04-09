@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -373,7 +373,7 @@ void DenseMatrix::SymmetricScaling(const Vector & s)
 {
    if (height != width || s.Size() != height)
    {
-      mfem_error("DenseMatrix::SymmetricScaling");
+      mfem_error("DenseMatrix::SymmetricScaling: dimension mismatch");
    }
 
    double * ss = new double[width];
@@ -401,7 +401,7 @@ void DenseMatrix::InvSymmetricScaling(const Vector & s)
 {
    if (height != width || s.Size() != width)
    {
-      mfem_error("DenseMatrix::SymmetricScaling");
+      mfem_error("DenseMatrix::InvSymmetricScaling: dimension mismatch");
    }
 
    double * ss = new double[width];
@@ -528,7 +528,7 @@ double DenseMatrix::Weight() const
       double F = d[0] * d[3] + d[1] * d[4] + d[2] * d[5];
       return sqrt(E * G - F * F);
    }
-   mfem_error("DenseMatrix::Weight()");
+   mfem_error("DenseMatrix::Weight(): mismatched or unsupported dimensions");
    return 0.0;
 }
 
@@ -639,7 +639,7 @@ void DenseMatrix::Invert()
 #ifdef MFEM_DEBUG
    if (Height() <= 0 || Height() != Width())
    {
-      mfem_error("DenseMatrix::Invert()");
+      mfem_error("DenseMatrix::Invert(): dimension mismatch");
    }
 #endif
 
@@ -1083,7 +1083,7 @@ void DenseMatrix::Eigensystem(Vector &ev, DenseMatrix *evect)
 
    MFEM_CONTRACT_VAR(ev);
    MFEM_CONTRACT_VAR(evect);
-   mfem_error("DenseMatrix::Eigensystem");
+   mfem_error("DenseMatrix::Eigensystem: Compiled without LAPACK");
 
 #endif
 }
@@ -1164,7 +1164,7 @@ void DenseMatrix::Eigensystem(DenseMatrix &b, Vector &ev,
    MFEM_CONTRACT_VAR(b);
    MFEM_CONTRACT_VAR(ev);
    MFEM_CONTRACT_VAR(evect);
-   mfem_error("DenseMatrix::Eigensystem for generalized eigenvalues");
+   mfem_error("DenseMatrix::Eigensystem(generalized): Compiled without LAPACK");
 #endif
 }
 
@@ -1204,7 +1204,7 @@ void DenseMatrix::SingularValues(Vector &sv) const
 #else
    MFEM_CONTRACT_VAR(sv);
    // compiling without lapack
-   mfem_error("DenseMatrix::SingularValues");
+   mfem_error("DenseMatrix::SingularValues: Compiled without LAPACK");
 #endif
 }
 
@@ -1441,7 +1441,7 @@ void DenseMatrix::GradToCurl(DenseMatrix &curl)
    if ((Width() != 2 || curl.Width() != 1 || 2*n != curl.Height()) &&
        (Width() != 3 || curl.Width() != 3 || 3*n != curl.Height()))
    {
-      mfem_error("DenseMatrix::GradToCurl(...)");
+      mfem_error("DenseMatrix::GradToCurl(...): dimension mismatch");
    }
 #endif
 
@@ -1676,7 +1676,7 @@ void DenseMatrix::AddMatrix(DenseMatrix &A, int ro, int co)
 #ifdef MFEM_DEBUG
    if (co+aw > Width() || ro+ah > h)
    {
-      mfem_error("DenseMatrix::AddMatrix(...) 1");
+      mfem_error("DenseMatrix::AddMatrix(...) 1 : dimension mismatch");
    }
 #endif
 
@@ -1706,7 +1706,7 @@ void DenseMatrix::AddMatrix(double a, const DenseMatrix &A, int ro, int co)
 #ifdef MFEM_DEBUG
    if (co+aw > Width() || ro+ah > h)
    {
-      mfem_error("DenseMatrix::AddMatrix(...) 2");
+      mfem_error("DenseMatrix::AddMatrix(...) 2 : dimension mismatch");
    }
 #endif
 
@@ -1753,7 +1753,7 @@ void DenseMatrix::AdjustDofDirection(Array<int> &dofs)
 #ifdef MFEM_DEBUG
    if (dofs.Size() != n || Width() != n)
    {
-      mfem_error("DenseMatrix::AdjustDofDirection(...)");
+      mfem_error("DenseMatrix::AdjustDofDirection(...): dimension mismatch");
    }
 #endif
 
@@ -2093,11 +2093,11 @@ void CalcAdjugate(const DenseMatrix &a, DenseMatrix &adja)
 #ifdef MFEM_DEBUG
    if (a.Width() > a.Height() || a.Width() < 1 || a.Height() > 3)
    {
-      mfem_error("CalcAdjugate(...)");
+      mfem_error("CalcAdjugate(...): unsupported dimensions");
    }
    if (a.Width() != adja.Height() || a.Height() != adja.Width())
    {
-      mfem_error("CalcAdjugate(...)");
+      mfem_error("CalcAdjugate(...): dimension mismatch");
    }
 #endif
 
@@ -2166,7 +2166,7 @@ void CalcAdjugateTranspose(const DenseMatrix &a, DenseMatrix &adjat)
    if (a.Height() != a.Width() || adjat.Height() != adjat.Width() ||
        a.Width() != adjat.Width() || a.Width() < 1 || a.Width() > 3)
    {
-      mfem_error("CalcAdjugateTranspose(...)");
+      mfem_error("CalcAdjugateTranspose(...): dimension mismatch");
    }
 #endif
    if (a.Width() == 1)
@@ -2269,7 +2269,7 @@ void CalcInverseTranspose(const DenseMatrix &a, DenseMatrix &inva)
    if ( (a.Width() != a.Height()) || ( (a.Height()!= 1) && (a.Height()!= 2)
                                        && (a.Height()!= 3) ) )
    {
-      mfem_error("CalcInverseTranspose(...)");
+      mfem_error("CalcInverseTranspose(...): dimension mismatch");
    }
 #endif
 
@@ -2396,7 +2396,7 @@ void MultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
    if (A.Height() != ABt.Height() || B.Height() != ABt.Width() ||
        A.Width() != B.Width())
    {
-      mfem_error("MultABt(...)");
+      mfem_error("MultABt(...): dimension mismatch");
    }
 #endif
 
@@ -2462,7 +2462,7 @@ void MultADBt(const DenseMatrix &A, const Vector &D,
    if (A.Height() != ADBt.Height() || B.Height() != ADBt.Width() ||
        A.Width() != B.Width() || A.Width() != D.Size())
    {
-      mfem_error("MultADBt(...)");
+      mfem_error("MultADBt(...): dimension mismatch");
    }
 #endif
 
@@ -2501,7 +2501,7 @@ void AddMultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
    if (A.Height() != ABt.Height() || B.Height() != ABt.Width() ||
        A.Width() != B.Width())
    {
-      mfem_error("AddMultABt(...)");
+      mfem_error("AddMultABt(...): dimension mismatch");
    }
 #endif
 
@@ -2559,7 +2559,7 @@ void AddMultADBt(const DenseMatrix &A, const Vector &D,
    if (A.Height() != ADBt.Height() || B.Height() != ADBt.Width() ||
        A.Width() != B.Width() || A.Width() != D.Size())
    {
-      mfem_error("AddMultADBt(...)");
+      mfem_error("AddMultADBt(...): dimension mismatch");
    }
 #endif
 
@@ -2595,7 +2595,7 @@ void AddMult_a_ABt(double a, const DenseMatrix &A, const DenseMatrix &B,
    if (A.Height() != ABt.Height() || B.Height() != ABt.Width() ||
        A.Width() != B.Width())
    {
-      mfem_error("AddMult_a_ABt(...)");
+      mfem_error("AddMult_a_ABt(...): dimension mismatch");
    }
 #endif
 
@@ -2653,7 +2653,7 @@ void MultAtB(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &AtB)
    if (A.Width() != AtB.Height() || B.Width() != AtB.Width() ||
        A.Height() != B.Height())
    {
-      mfem_error("MultAtB(...)");
+      mfem_error("MultAtB(...): dimension mismatch");
    }
 #endif
 
@@ -2761,7 +2761,7 @@ void MultVWt(const Vector &v, const Vector &w, DenseMatrix &VWt)
 #ifdef MFEM_DEBUG
    if (v.Size() != VWt.Height() || w.Size() != VWt.Width())
    {
-      mfem_error("MultVWt(...)");
+      mfem_error("MultVWt(...): dimension mismatch");
    }
 #endif
 
@@ -2782,7 +2782,7 @@ void AddMultVWt(const Vector &v, const Vector &w, DenseMatrix &VWt)
 #ifdef MFEM_DEBUG
    if (VWt.Height() != m || VWt.Width() != n)
    {
-      mfem_error("AddMultVWt(...)");
+      mfem_error("AddMultVWt(...): dimension mismatch");
    }
 #endif
 
@@ -2803,7 +2803,7 @@ void AddMultVVt(const Vector &v, DenseMatrix &VVt)
 #ifdef MFEM_DEBUG
    if (VVt.Height() != n || VVt.Width() != n)
    {
-      mfem_error("AddMultVVt(...)");
+      mfem_error("AddMultVVt(...): dimension mismatch");
    }
 #endif
 
@@ -2828,7 +2828,7 @@ void AddMult_a_VWt(const double a, const Vector &v, const Vector &w,
 #ifdef MFEM_DEBUG
    if (VWt.Height() != m || VWt.Width() != n)
    {
-      mfem_error("AddMult_a_VWt(...)");
+      mfem_error("AddMult_a_VWt(...): dimension mismatch");
    }
 #endif
 
@@ -3353,7 +3353,7 @@ void DenseMatrixEigensystem::Eval()
 #ifdef MFEM_DEBUG
    if (mat.Width() != n)
    {
-      mfem_error("DenseMatrixEigensystem::Eval()");
+      mfem_error("DenseMatrixEigensystem::Eval(): dimension mismatch");
    }
 #endif
 

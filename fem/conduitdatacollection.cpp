@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -980,6 +980,11 @@ ConduitDataCollection::SaveRootFile(int num_domains,
    n_root["number_of_trees"]  = num_domains;
    n_root["file_pattern"]     = MeshFilePattern(relay_protocol);
    n_root["tree_pattern"]     = "";
+
+   // Add the time, time step, and cycle
+   n_root["blueprint_index/mesh/state/time"] = time;
+   n_root["blueprint_index/mesh/state/time_step"] = time_step;
+   n_root["blueprint_index/mesh/state/cycle"] = cycle;
 
    relay::io::save(n_root, RootFileName(), root_proto);
 }
