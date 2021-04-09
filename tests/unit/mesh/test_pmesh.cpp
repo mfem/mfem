@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -24,21 +24,21 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
    {
       for (int amr=0; amr < 1 + (dimension > 1); ++amr)
       {
-         Mesh* mesh;
+         Mesh mesh;
          if (dimension == 1)
          {
-            mesh = new Mesh(ne, 1.0);
+            mesh = Mesh::MakeCartesian1D(ne, 1.0);
          }
          else if (dimension == 2)
          {
             if (amr)
             {
                const char *mesh_file = "../../data/amr-quad.mesh";
-               mesh = new Mesh(mesh_file, 1, 1);
+               mesh = Mesh::LoadFromFile(mesh_file, 1, 1);
             }
             else
             {
-               mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+               mesh = Mesh::MakeCartesian2D(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
             }
          }
          else
@@ -46,15 +46,15 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
             if (amr)
             {
                const char *mesh_file = "../../data/amr-hex.mesh";
-               mesh = new Mesh(mesh_file, 1, 1);
+               mesh = Mesh::LoadFromFile(mesh_file, 1, 1);
             }
             else
             {
-               mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
+               mesh = Mesh::MakeCartesian3D(ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
             }
          }
 
-         ParMesh pmesh(MPI_COMM_WORLD, *mesh);
+         ParMesh pmesh(MPI_COMM_WORLD, mesh);
 
          int globalN = 0;
 
@@ -72,19 +72,19 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
             switch (e)
             {
                case EntityType::VERTEX:
-                  globalN = mesh->GetNV();
+                  globalN = mesh.GetNV();
                   pmesh.GetGlobalVertexIndices(gi);
                   break;
                case EntityType::EDGE:
-                  globalN = dimension == 1 ? mesh->GetNV() : mesh->GetNEdges();
+                  globalN = dimension == 1 ? mesh.GetNV() : mesh.GetNEdges();
                   pmesh.GetGlobalEdgeIndices(gi);
                   break;
                case EntityType::FACE:
-                  globalN = mesh->GetNumFaces();
+                  globalN = mesh.GetNumFaces();
                   pmesh.GetGlobalFaceIndices(gi);
                   break;
                case EntityType::ELEMENT:
-                  globalN = mesh->GetNE();
+                  globalN = mesh.GetNE();
                   pmesh.GetGlobalElementIndices(gi);
                   break;
             }
@@ -112,10 +112,81 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
                REQUIRE((globalMin == 0 && globalMax == globalN-1));
             }
          }
-
-         delete mesh;
       }
    }
+}
+
+namespace simplicial
+{
+
+double exact(const Vector &xvec)
+{
+   // The exact solution is linear and is harmonic
+   return xvec[0] + xvec[1] + xvec[2];
+}
+
+void SolveDiffusionProblem(ParMesh &mesh, Vector &x_out)
+{
+   H1_FECollection fec(1, mesh.Dimension());
+   ParFiniteElementSpace fes(&mesh, &fec);
+
+   // Right-hand side is zero since exact solution is harmonic
+   ParLinearForm b(&fes);
+   b.Assemble();
+
+   ParBilinearForm a(&fes);
+   a.AddDomainIntegrator(new DiffusionIntegrator);
+   a.Assemble();
+
+   Array<int> ess_tdof_list, ess_bdr;
+   if (mesh.bdr_attributes.Size())
+   {
+      ess_bdr.SetSize(mesh.bdr_attributes.Max());
+      ess_bdr = 1;
+      fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   }
+
+   // Use the exact solution as boundary conditions
+   ParGridFunction x(&fes);
+   FunctionCoefficient exact_coeff(exact);
+   x.ProjectBdrCoefficient(exact_coeff, ess_bdr);
+
+   OperatorPtr A;
+   Vector B, X;
+   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetRelTol(1e-12);
+   cg.SetMaxIter(2000);
+   cg.SetPrintLevel(1);
+   cg.SetOperator(*A);
+   // X = 0.0;
+   cg.Mult(B, X);
+   x_out = X;
+}
+
+}
+
+TEST_CASE("ParMeshMakeSimplicial", "[Parallel], [ParMesh]")
+{
+   // Test that the parallel mesh obtained by ParMesh::MakeSimplicial is valid.
+   // This test solves a Poisson problem on a 3x3x3 hex mesh, and on the tet
+   // mesh obtained by splitting the hexes into tets. The finite element space
+   // is linear in both cases, and the exact solution is also linear, so it will
+   // be recovered exactly in both cases. The vertices of both meshes are the
+   // same, so we check that the resulting discrete solutions are identical up
+   // to solver tolerance.
+
+   Mesh mesh = Mesh::MakeCartesian3D(3, 3, 3, Element::HEXAHEDRON);
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   ParMesh pmesh_tet = ParMesh::MakeSimplicial(pmesh);
+
+   Vector x, x_tet;
+   simplicial::SolveDiffusionProblem(pmesh, x);
+   simplicial::SolveDiffusionProblem(pmesh_tet, x_tet);
+
+   x -= x_tet;
+   REQUIRE(x.Normlinf() == MFEM_Approx(0.0));
 }
 
 #endif // MFEM_USE_MPI
