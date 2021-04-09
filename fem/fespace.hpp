@@ -943,9 +943,12 @@ protected:
                    const FiniteElementSpace &fes_lor_);
       /// Perform the L2 projection onto the LOR space
       virtual void Mult(const Vector &x, Vector &y) const;
+      /// Perform the transpose of L2 projection onto the LOR space, useful for
+      /// transferring dual fields.
+      virtual void MultTranspose(const Vector &x, Vector &y) const;
       /// Perform the mass conservative left-inverse prolongation operation.
       /// This functionality is also provided as an Operator by L2Prolongation.
-      void Prolongate(const Vector &x, Vector &y) const;
+      virtual void Prolongate(const Vector &x, Vector &y) const;
       virtual ~L2Projection() { }
    };
 
@@ -975,9 +978,73 @@ public:
         F(NULL), B(NULL)
    { }
 
-   virtual const Operator &ForwardOperator();
+   const Operator &ForwardOperator() override;
 
-   virtual const Operator &BackwardOperator();
+   const Operator &BackwardOperator() override;
+
+   ~L2ProjectionGridTransfer() override;
+};
+
+
+class L2ProjBdrGridTransfer : public GridTransfer
+{
+protected:
+   class L2ProjBdr : public Operator
+   {
+      const FiniteElementSpace &fes_ho;
+      const FiniteElementSpace &fes_lor;
+
+      int ndof_lor, ndof_ho, nref;
+
+      Table ho2lor;
+
+      DenseTensor R, P;
+
+   public:
+      L2ProjBdr(const FiniteElementSpace &fes_ho_,
+                 const FiniteElementSpace &fes_lor_);
+      /// Perform the L2 projection onto the LOR space
+      void Mult(const Vector &x, Vector &y) const override;
+      /// Perform the transpose of L2 projection onto the LOR space, useful for
+      /// transferring dual fields.
+      void MultTranspose(const Vector &x, Vector &y) const override;
+      /// Perform the mass conservative left-inverse prolongation operation.
+      /// This functionality is also provided as an Operator by L2Prolongation.
+      void Prolongate(const Vector &x, Vector &y) const;
+      ~L2ProjBdr() override = default;
+   };
+
+   /** Mass-conservative prolongation operator going in the opposite direction
+       as L2Projection. This operator is a left inverse to the L2Projection. */
+   class L2ProlBdr : public Operator
+   {
+      const L2ProjBdr &l2proj;
+
+   public:
+      L2ProlBdr(const L2ProjBdr &l2proj_)
+         : Operator(l2proj_.Width(), l2proj_.Height()), l2proj(l2proj_) { }
+      void Mult(const Vector &x, Vector &y) const override
+      {
+         l2proj.Prolongate(x, y);
+      }
+      ~L2ProlBdr() override = default;
+   };
+
+   L2ProjBdr *F; ///< Forward, coarse-to-fine, operator
+   L2ProlBdr *B; ///< Backward, fine-to-coarse, operator
+
+public:
+   L2ProjBdrGridTransfer(FiniteElementSpace &coarse_fes,
+                         FiniteElementSpace &fine_fes)
+      : GridTransfer(coarse_fes, fine_fes),
+        F(NULL), B(NULL)
+   { }
+
+   const Operator &ForwardOperator() override;
+
+   const Operator &BackwardOperator() override;
+
+   ~L2ProjBdrGridTransfer() override;
 };
 
 inline bool UsesTensorBasis(const FiniteElementSpace& fes)

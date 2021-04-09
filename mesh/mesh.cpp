@@ -3746,6 +3746,36 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       emb.matrix = el % r_elem_factor;
    }
 
+   // Setup the data for the boundary coarse-fine refinement transformations
+   if (orig_mesh->GetNBE() > 0)
+   {
+      const int el = 0;
+      Geometry::Type geom = orig_mesh->GetBdrElementBaseGeometry(el);
+      int nvert = Geometry::NumVerts[geom];
+      CoarseFineBdrTr.point_matrices[geom].SetSize(
+         Dim - 1, nvert, r_bndr_factor);
+      RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref_factor);
+      const int *c2h_map = rfec.GetDofMap(geom);
+      const IntegrationRule &r_nodes = rfes.GetBE(el)->GetNodes();
+      for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
+      {
+         DenseMatrix &Pj = CoarseFineBdrTr.point_matrices[geom](j);
+         for (int k = 0; k < nvert; k++)
+         {
+            int cid = RG.RefGeoms[k+nvert*j]; // local Cartesian index
+            const IntegrationPoint &ip = r_nodes.IntPoint(c2h_map[cid]);
+            ip.Get(Pj.GetColumn(k), Dim - 1);
+         }
+      }
+   }
+   CoarseFineBdrTr.embeddings.SetSize(GetNBE());
+   for (int el = 0; el < GetNBE(); el++)
+   {
+      Embedding &emb = CoarseFineBdrTr.embeddings[el];
+      emb.parent = el / r_elem_factor;
+      emb.matrix = el % r_elem_factor;
+   }
+
    MFEM_ASSERT(CheckElementOrientation(false) == 0, "");
    MFEM_ASSERT(CheckBdrElementOrientation(false) == 0, "");
 }
@@ -8413,6 +8443,29 @@ const CoarseFineTransformations& Mesh::GetRefinementTransforms()
 
    // NOTE: quads and hexes already have trivial transformations ready
    return CoarseFineTr;
+}
+
+const CoarseFineTransformations& Mesh::GetRefinementBdrTransforms()
+{
+   MFEM_VERIFY(GetLastOperation() == Mesh::REFINE, "");
+
+   if (ncmesh)
+   {
+      MFEM_ABORT("No CoarseFineTransformations for NCMesh");
+   }
+
+   Mesh::GeometryList elem_geoms(*this);
+   for (int i = 0; i < elem_geoms.Size(); i++)
+   {
+      const Geometry::Type geom = elem_geoms[i];
+      if (CoarseFineBdrTr.point_matrices[geom].SizeK()) { continue; }
+
+      MFEM_ABORT("Don't know how to construct CoarseFineTransformations for"
+                 " geom = " << geom);
+   }
+
+   // NOTE: quads and hexes already have trivial transformations ready
+   return CoarseFineBdrTr;
 }
 
 void Mesh::PrintXG(std::ostream &out) const

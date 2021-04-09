@@ -169,6 +169,9 @@ protected:
 
    // refinement embeddings for forward compatibility with NCMesh
    CoarseFineTransformations CoarseFineTr;
+   // EBC: point_matrices works OK with both volume and boundary meshes, but
+   // embeddings requires separate def'n for volume and boundary
+   CoarseFineTransformations CoarseFineBdrTr;
 
    // Nodes are only active for higher order meshes, and share locations with
    // the vertices, plus all the higher- order control points within the
@@ -1195,6 +1198,9 @@ public:
    /** Return fine element transformations following a mesh refinement.
        Space uses this to construct a global interpolation matrix. */
    const CoarseFineTransformations &GetRefinementTransforms();
+   /** Return fine element boundary transformations following a mesh refinement.
+       Space uses this to construct a global interpolation matrix. */
+   const CoarseFineTransformations &GetRefinementBdrTransforms();
 
    /// Return type of last modification of the mesh.
    Operation GetLastOperation() const { return last_operation; }
