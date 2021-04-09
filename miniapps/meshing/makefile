@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -25,9 +25,8 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = mobius-strip klein-bottle toroid trimmer twist \
-	mesh-explorer shaper extruder mesh-optimizer \
-	minimal-surface
+SEQ_MINIAPPS = mobius-strip klein-bottle toroid trimmer twist mesh-explorer\
+	shaper extruder mesh-optimizer minimal-surface polar-nc
 PAR_MINIAPPS = pmesh-optimizer pminimal-surface
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -107,7 +106,7 @@ clean: clean-build clean-exec
 clean-build:
 	rm -f *.o *~ mobius-strip klein-bottle toroid twist
 	rm -f mesh-explorer shaper extruder trimmer
-	rm -f mesh-optimizer pmesh-optimizer
+	rm -f mesh-optimizer pmesh-optimizer polar-nc
 	rm -f minimal-surface pminimal-surface
 	rm -rf *.dSYM *.TVD.*breakpoints
 
@@ -115,4 +114,4 @@ clean-exec:
 	@rm -f mobius-strip.mesh klein-bottle.mesh mesh-explorer.mesh
 	@rm -f toroid-*.mesh twist-*.mesh trimmer.mesh
 	@rm -f partitioning.txt shaper.mesh extruder.mesh
-	@rm -f optimized* perturbed*
+	@rm -f optimized* perturbed* polar-nc.mesh

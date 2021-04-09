@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -297,6 +297,43 @@ void OperatorHandle::EliminateRowsCols(OperatorHandle &A,
          break;
       }
       default: MFEM_ABORT(not_supported_msg << A.Type());
+   }
+}
+
+void OperatorHandle::EliminateRows(const Array<int> &ess_dof_list)
+{
+   switch (Type())
+   {
+      case Operator::Hypre_ParCSR:
+      {
+#ifdef MFEM_USE_MPI
+         this->As<HypreParMatrix>()->EliminateRows(ess_dof_list);
+#else
+         MFEM_ABORT("type id = Hypre_ParCSR requires MFEM_USE_MPI");
+#endif
+         break;
+      }
+      default:
+         MFEM_ABORT(not_supported_msg << Type());
+   }
+}
+
+void OperatorHandle::EliminateCols(const Array<int> &ess_dof_list)
+{
+   switch (Type())
+   {
+      case Operator::Hypre_ParCSR:
+      {
+#ifdef MFEM_USE_MPI
+         auto Ae = this->As<HypreParMatrix>()->EliminateCols(ess_dof_list);
+         delete Ae;
+#else
+         MFEM_ABORT("type id = Hypre_ParCSR requires MFEM_USE_MPI");
+#endif
+         break;
+      }
+      default:
+         MFEM_ABORT(not_supported_msg << Type());
    }
 }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -176,8 +176,8 @@ SerialAdvectorCGOper::SerialAdvectorCGOper(const Vector &x_start,
 
    MassIntegrator *Minteg = new MassIntegrator;
    M.AddDomainIntegrator(Minteg);
-   M.Assemble();
-   M.Finalize();
+   M.Assemble(0);
+   M.Finalize(0);
 }
 
 void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
@@ -220,8 +220,8 @@ ParAdvectorCGOper::ParAdvectorCGOper(const Vector &x_start,
 
    MassIntegrator *Minteg = new MassIntegrator;
    M.AddDomainIntegrator(Minteg);
-   M.Assemble();
-   M.Finalize();
+   M.Assemble(0);
+   M.Finalize(0);
 }
 
 void ParAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
@@ -298,34 +298,12 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
    field0_gf = init_field;
 
    dim = f->GetFE(0)->GetDim();
-   const int pts_cnt = init_nodes.Size() / dim;
-   el_id_out.SetSize(pts_cnt);
-   code_out.SetSize(pts_cnt);
-   task_id_out.SetSize(pts_cnt);
-   pos_r_out.SetSize(pts_cnt*dim);
-   dist_p_out.SetSize(pts_cnt);
 }
 
 void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
                                           Vector &new_field)
 {
-   const int pts_cnt = new_nodes.Size() / dim;
-
-   // The sizes may change between calls due to AMR.
-   if (el_id_out.Size() != pts_cnt)
-   {
-      el_id_out.SetSize(pts_cnt);
-      code_out.SetSize(pts_cnt);
-      task_id_out.SetSize(pts_cnt);
-      pos_r_out.SetSize(pts_cnt*dim);
-      dist_p_out(pts_cnt);
-   }
-
-   // Interpolate FE function values on the found points.
-   finder->FindPoints(new_nodes, code_out, task_id_out,
-                      el_id_out, pos_r_out, dist_p_out);
-   finder->Interpolate(code_out, task_id_out, el_id_out,
-                       pos_r_out, field0_gf, new_field);
+   finder->Interpolate(new_nodes, field0_gf, new_field);
 }
 
 #endif
@@ -353,13 +331,8 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       energy_in = nlf->GetEnergy(x);
    }
 
-   const int NE = fes->GetMesh()->GetNE(), dim = fes->GetFE(0)->GetDim(),
-             dof = fes->GetFE(0)->GetDof(), nsp = ir.GetNPoints();
-   Array<int> xdofs(dof * dim);
-   DenseMatrix Jpr(dim), dshape(dof, dim), pos(dof, dim);
-   Vector posV(pos.Data(), dof * dim);
+   // Get the local prolongation of the solution vector.
    Vector x_out_loc(fes->GetVSize());
-
    if (serial)
    {
       const SparseMatrix *cP = fes->GetConformingProlongation();
@@ -373,43 +346,32 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    }
 #endif
 
-   double min_detJ = infinity();
-   for (int i = 0; i < NE; i++)
+   // Check if the starting mesh (given by x) is inverted. Note that x hasn't
+   // been modified by the Newton update yet.
+   const double min_detT_in = ComputeMinDet(x_out_loc, *fes);
+   const bool untangling = (min_detT_in <= 0.0) ? true : false;
+   const double untangle_factor = 1.5;
+   if (untangling)
    {
-      fes->GetElementVDofs(i, xdofs);
-      x_out_loc.GetSubVector(xdofs, posV);
-
-      for (int j = 0; j < nsp; j++)
-      {
-         fes->GetFE(i)->CalcDShape(ir.IntPoint(j), dshape);
-         MultAtB(pos, dshape, Jpr);
-         min_detJ = std::min(min_detJ, Jpr.Det());
-      }
+      // Needed for the line search below. The untangling metrics see this
+      // reference to detect deteriorations.
+      *min_det_ptr = untangle_factor * min_detT_in;
    }
-   double min_detJ_all = min_detJ;
-#ifdef MFEM_USE_MPI
-   if (parallel)
-   {
-      MPI_Allreduce(&min_detJ, &min_detJ_all, 1, MPI_DOUBLE, MPI_MIN,
-                    p_nlf->ParFESpace()->GetComm());
-   }
-#endif
-   bool untangling = false;
-   if (min_detJ_all <= 0) { untangling = true; }
 
    const bool have_b = (b.Size() == Height());
 
    Vector x_out(x.Size());
    bool x_out_ok = false;
-   double scale = 1.0, energy_out = 0.0;
-   double norm0 = Norm(r);
+   double scale = 1.0, energy_out = 0.0, min_detT_out;
+   const double norm_in = Norm(r);
 
    const double detJ_factor = (solver_type == 1) ? 0.25 : 0.5;
 
+   // Perform the line search.
    for (int i = 0; i < 12; i++)
    {
+      // Update the mesh and get the L-vector in x_out_loc.
       add(x, -scale, c, x_out);
-
       if (serial)
       {
          const SparseMatrix *cP = fes->GetConformingProlongation();
@@ -423,40 +385,29 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       }
 #endif
 
-      // Check det(Jpr) > 0.
-      if (!untangling)
+      // Check the changes in detJ.
+      min_detT_out = ComputeMinDet(x_out_loc, *fes);
+      if (untangling == false && min_detT_out < 0.0)
       {
-         int jac_ok = 1;
-         for (int i = 0; i < NE; i++)
-         {
-            fes->GetElementVDofs(i, xdofs);
-            x_out_loc.GetSubVector(xdofs, posV);
-            for (int j = 0; j < nsp; j++)
-            {
-               fes->GetFE(i)->CalcDShape(ir.IntPoint(j), dshape);
-               MultAtB(pos, dshape, Jpr);
-               if (Jpr.Det() <= 0.0) { jac_ok = 0; goto break2; }
-            }
-         }
+         // No untangling, and detJ got negative -- no good.
+         if (print_level >= 0)
+         { mfem::out << "Scale = " << scale << " Neg det(J) found.\n"; }
+         scale *= detJ_factor; continue;
+      }
+      if (untangling == true && min_detT_out < *min_det_ptr)
+      {
+         // Untangling, and detJ got even more negative -- no good.
+         if (print_level >= 0)
+         { mfem::out << "Scale = " << scale << " Neg det(J) decreased.\n"; }
+         scale *= detJ_factor; continue;
+      }
 
-      break2:
-         int jac_ok_all = jac_ok;
-#ifdef MFEM_USE_MPI
-         if (parallel)
-         {
-            MPI_Allreduce(&jac_ok, &jac_ok_all, 1, MPI_INT, MPI_LAND,
-                          p_nlf->ParFESpace()->GetComm());
-         }
-#endif
+      // Skip the energy and residual checks when we're untangling. The
+      // untangling metrics change their denominators, which can affect the
+      // energy and residual, so their increase/decrease is not relevant.
+      if (untangling) { x_out_ok = true; break; }
 
-         if (jac_ok_all == 0)
-         {
-            if (print_level >= 0)
-            { mfem::out << "Scale = " << scale << " Neg det(J) found.\n"; }
-            scale *= detJ_factor; continue;
-         }
-      } // endif(!untangling)
-
+      // Check the changes in total energy.
       ProcessNewState(x_out);
       if (serial)
       {
@@ -468,43 +419,55 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          energy_out = p_nlf->GetParGridFunctionEnergy(x_out_loc);
       }
 #endif
-
-      if (untangling)
+      if (energy_out > 1.2*energy_in || std::isnan(energy_out) != 0)
       {
-         if (energy_out > energy_in || std::isnan(energy_out) != 0)
+         if (print_level >= 0)
          {
-            scale *= 0.5;
+            mfem::out << "Scale = " << scale << " Increasing energy.\n";
          }
-         else { x_out_ok = true; break; }
+         scale *= 0.5; continue;
       }
-      else
+
+      // Check the changes in the Newton residual.
+      oper->Mult(x_out, r);
+      if (have_b) { r -= b; }
+      double norm_out = Norm(r);
+
+      if (norm_out > 1.2*norm_in)
       {
-         if (energy_out > 1.2*energy_in || std::isnan(energy_out) != 0)
-         {
-            if (print_level >= 0)
-            { mfem::out << "Scale = " << scale << " Increasing energy.\n"; }
-            scale *= 0.5; continue;
-         }
+         if (print_level >= 0)
+         { mfem::out << "Scale = " << scale << " Norm increased.\n"; }
+         scale *= 0.5; continue;
+      }
+      else { x_out_ok = true; break; }
+   } // end line search
 
-         oper->Mult(x_out, r);
-         if (have_b) { r -= b; }
-         double norm = Norm(r);
-
-         if (norm > 1.2*norm0)
-         {
-            if (print_level >= 0)
-            { mfem::out << "Scale = " << scale << " Norm increased.\n"; }
-            scale *= 0.5; continue;
-         }
-         else { x_out_ok = true; break; }
-      } // endif (untangling)
-   } // enddo (i)
+   if (untangling)
+   {
+      // Update the global min detJ. Untangling metrics see this min_det_ptr.
+      if (min_detT_out > 0.0)
+      {
+         *min_det_ptr = 0.0;
+         if (print_level >= 0)
+         { mfem::out << "The mesh has been untangled at the used points!\n"; }
+      }
+      else { *min_det_ptr = untangle_factor * min_detT_out; }
+   }
 
    if (print_level >= 0)
    {
-      mfem::out << "Energy decrease: "
-                << (energy_in - energy_out) / energy_in * 100.0
-                << "% with " << scale << " scaling.\n";
+      if (untangling)
+      {
+         mfem::out << "Min det(T) change: "
+                   << min_detT_in << " -> " << min_detT_out
+                   << " with " << scale << " scaling.\n";
+      }
+      else
+      {
+         mfem::out << "Energy decrease: "
+                   << (energy_in - energy_out) / energy_in * 100.0
+                   << "% with " << scale << " scaling.\n";
+      }
    }
 
    if (x_out_ok == false) { scale = 0.0; }
@@ -516,8 +479,8 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
    const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
 
-   // Reset the update flags of all TargetConstructors.
-   // This is done to avoid repeated updates of shared TargetConstructors.
+   // Reset the update flags of all TargetConstructors. This is done to avoid
+   // repeated updates of shared TargetConstructors.
    TMOP_Integrator *ti  = NULL;
    TMOPComboIntegrator *co = NULL;
    DiscreteAdaptTC *dtc = NULL;
@@ -623,6 +586,47 @@ void TMOPNewtonSolver::UpdateDiscreteTC(const TMOP_Integrator &ti,
          discrtc->UpdateHessianTargetSpecification(x_new, dx, update_flag);
       }
    }
+}
+
+double TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
+                                       const FiniteElementSpace &fes) const
+{
+   double min_detJ = infinity();
+   const int NE = fes.GetNE(), dim = fes.GetMesh()->Dimension();
+   Array<int> xdofs;
+   DenseMatrix Jpr(dim);
+   for (int i = 0; i < NE; i++)
+   {
+      const int dof = fes.GetFE(i)->GetDof();
+      DenseMatrix dshape(dof, dim), pos(dof, dim);
+      Vector posV(pos.Data(), dof * dim);
+
+      fes.GetElementVDofs(i, xdofs);
+      x_loc.GetSubVector(xdofs, posV);
+
+      const IntegrationRule &irule = GetIntegrationRule(*fes.GetFE(i));
+      const int nsp = irule.GetNPoints();
+      for (int j = 0; j < nsp; j++)
+      {
+         fes.GetFE(i)->CalcDShape(irule.IntPoint(j), dshape);
+         MultAtB(pos, dshape, Jpr);
+         min_detJ = std::min(min_detJ, Jpr.Det());
+      }
+   }
+   double min_detT_all = min_detJ;
+#ifdef MFEM_USE_MPI
+   if (parallel)
+   {
+      auto p_nlf = dynamic_cast<const ParNonlinearForm *>(oper);
+      MPI_Allreduce(&min_detJ, &min_detT_all, 1, MPI_DOUBLE, MPI_MIN,
+                    p_nlf->ParFESpace()->GetComm());
+   }
+#endif
+   const DenseMatrix &Wideal =
+      Geometries.GetGeomToPerfGeomJac(fes.GetFE(0)->GetGeomType());
+   min_detT_all /= Wideal.Det();
+
+   return min_detT_all;
 }
 
 #ifdef MFEM_USE_MPI

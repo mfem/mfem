@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -101,6 +101,8 @@ public:
     * nBlocks is the number of blocks.
     */
    void Update(double *data, const Array<int> & bOffsets);
+
+   void Update(Vector & data, const Array<int> & bOffsets);
 
    /// Update a BlockVector with new @a bOffsets and make sure it owns its data.
    /** The block-vector will be re-allocated if either:

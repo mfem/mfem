@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -56,6 +56,10 @@ public:
    void MultUnsigned(const Vector &x, Vector &y) const;
    /// Compute MultTranspose without applying signs based on DOF orientations.
    void MultTransposeUnsigned(const Vector &x, Vector &y) const;
+
+   /// Compute MultTranspose by setting (rather than adding) element
+   /// contributions; this is a left inverse of the Mult() operation
+   void MultLeftInverse(const Vector &x, Vector &y) const;
 
    /// @brief Fills the E-vector y with `boolean` values 0.0 and 1.0 such that each
    /// each entry of the L-vector is uniquely represented in `y`.
@@ -157,12 +161,12 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const;
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
        given by this L2FaceRestriction. */
-   virtual void FillI(SparseMatrix &mat, SparseMatrix &face_mat) const;
+   virtual void FillI(SparseMatrix &mat, const bool keep_nbr_block = false) const;
    /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
        pattern given by this L2FaceRestriction, and the values of ea_data. */
    virtual void FillJAndData(const Vector &ea_data,
                              SparseMatrix &mat,
-                             SparseMatrix &face_mat) const;
+                             const bool keep_nbr_block = false) const;
    /// This methods adds the DG face matrices to the element matrices.
    void AddFaceMatricesToElementMatrices(Vector &fea_data,
                                          Vector &ea_data) const;
@@ -180,7 +184,6 @@ int ToLexOrdering(const int dim, const int face_id, const int size1d,
 int PermuteFaceL2(const int dim, const int face_id1,
                   const int face_id2, const int orientation,
                   const int size1d, const int index);
-
 
 }
 

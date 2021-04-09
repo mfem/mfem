@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,6 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
+#include "ceed/convection.hpp"
 
 using namespace std;
 
@@ -773,6 +774,12 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const FiniteElement &el = *fes.GetFE(0);
    ElementTransformation &Trans = *fes.GetElementTransformation(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, Trans);
+   if (DeviceCanUseCeed())
+   {
+      delete ceedOp;
+      ceedOp = new ceed::PAConvectionIntegrator(fes, *ir, Q, alpha);
+      return;
+   }
    const int dims = el.GetDim();
    const int symmDims = dims;
    const int nq = ir->GetNPoints();
@@ -784,24 +791,39 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
    Vector vel;
-   if (VectorConstantCoefficient *cQ = dynamic_cast<VectorConstantCoefficient*>(Q))
+   if (VectorConstantCoefficient *cQ =
+          dynamic_cast<VectorConstantCoefficient*>(Q))
    {
       vel = cQ->GetVec();
+   }
+   else if (VectorQuadratureFunctionCoefficient* cQ =
+               dynamic_cast<VectorQuadratureFunctionCoefficient*>(Q))
+   {
+      const QuadratureFunction &qFun = cQ->GetQuadFunction();
+      MFEM_VERIFY(qFun.Size() == dim * nq * ne,
+                  "Incompatible QuadratureFunction dimension \n");
+
+      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
+                  "IntegrationRule used within integrator and in"
+                  " QuadratureFunction appear to be different");
+
+      qFun.Read();
+      vel.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
    }
    else
    {
       vel.SetSize(dim * nq * ne);
       auto C = Reshape(vel.HostWrite(), dim, nq, ne);
-      Vector Vq(dim);
+      DenseMatrix Q_ir;
       for (int e = 0; e < ne; ++e)
       {
          ElementTransformation& T = *fes.GetElementTransformation(e);
+         Q->Eval(Q_ir, T, *ir);
          for (int q = 0; q < nq; ++q)
          {
-            Q->Eval(Vq, T, ir->IntPoint(q));
             for (int i = 0; i < dim; ++i)
             {
-               C(i,q,e) = Vq(i);
+               C(i,q,e) = Q_ir(i,q);
             }
          }
       }
@@ -857,9 +879,29 @@ static void PAConvectionApply(const int dim,
 // PA Convection Apply kernel
 void ConvectionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   PAConvectionApply(dim, dofs1D, quad1D, ne,
-                     maps->B, maps->G, maps->Bt, maps->Gt,
-                     pa_data, x, y);
+   if (DeviceCanUseCeed())
+   {
+      ceedOp->AddMult(x, y);
+   }
+   else
+   {
+      PAConvectionApply(dim, dofs1D, quad1D, ne,
+                        maps->B, maps->G, maps->Bt, maps->Gt,
+                        pa_data, x, y);
+   }
+}
+
+void ConvectionIntegrator::AssembleDiagonalPA(Vector &diag)
+{
+   if (DeviceCanUseCeed())
+   {
+      ceedOp->GetDiagonal(diag);
+   }
+   else
+   {
+      MFEM_ABORT("AssembleDiagonalPA not yet implemented for"
+                 " ConvectionIntegrator.");
+   }
 }
 
 } // namespace mfem

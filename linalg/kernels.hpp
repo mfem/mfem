@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,11 +11,6 @@
 
 #ifndef MFEM_KERNELS_HPP
 #define MFEM_KERNELS_HPP
-
-#ifdef _WIN32
-#define _USE_MATH_DEFINES
-#include <cmath>
-#endif
 
 #include "../config/config.hpp"
 #include "../general/backends.hpp"
@@ -835,7 +830,7 @@ int Reduce3S(const int &mode,
       d2  -= 2*v2*w2;
       d23 -= v2*w3 + v3*w2;
       d3  -= 2*v3*w3;
-      // compute the offdiagonal entries on the first row/column of B which
+      // compute the off-diagonal entries on the first row/column of B which
       // should be zero (for debugging):
 #if 0
       s = d12 - v1*w2 - v2*w1;  // b12 = 0

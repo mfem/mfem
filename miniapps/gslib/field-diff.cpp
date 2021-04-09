@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -25,7 +25,7 @@
 //
 // Sample runs:
 //    field-diff
-//    field-diff -m1 triple-pt-1.mesh -s1 triple-pt-1.gf -m2 triple-pt-2.mesh -s2 triple-pt-1.gf -p 200
+//    field-diff -m1 triple-pt-1.mesh -s1 triple-pt-1.gf -m2 triple-pt-2.mesh -s2 triple-pt-2.gf -p 200
 
 #include "mfem.hpp"
 #include <fstream>
@@ -70,13 +70,20 @@ int main (int argc, char *argv[])
    Mesh mesh_1(mesh_file_1, 1, 1, false);
    Mesh mesh_2(mesh_file_2, 1, 1, false);
    const int dim = mesh_1.Dimension();
-
    MFEM_VERIFY(dim > 1, "GSLIB requires a 2D or a 3D mesh" );
-   if (mesh_1.GetNodes() == NULL) { mesh_1.SetCurvature(1); }
-   if (mesh_2.GetNodes() == NULL) { mesh_2.SetCurvature(1); }
-   const int mesh_poly_deg = mesh_1.GetNodes()->FESpace()->GetOrder(0);
+
+   // The Nodes GridFunctions for each mesh are required.
+   if (mesh_1.GetNodes() == NULL) { mesh_1.SetCurvature(1, false, dim, 0); }
+   if (mesh_2.GetNodes() == NULL) { mesh_2.SetCurvature(1, false, dim, 0); }
+   const int mesh_poly_deg = mesh_1.GetNodes()->FESpace()->GetElementOrder(0);
    cout << "Mesh curvature: "
         << mesh_1.GetNodes()->OwnFEC()->Name() << " " << mesh_poly_deg << endl;
+
+   // The visualization of the difference assumes byNODES ordering.
+   if (mesh_1.GetNodes()->FESpace()->GetOrdering() == Ordering::byVDIM)
+   { mesh_1.SetCurvature(mesh_poly_deg, false, dim, Ordering::byNODES); }
+   if (mesh_2.GetNodes()->FESpace()->GetOrdering() == Ordering::byVDIM)
+   { mesh_2.SetCurvature(mesh_poly_deg, false, dim, Ordering::byNODES); }
 
    // Mesh bounding box.
    Vector pos_min, pos_max;
@@ -200,18 +207,19 @@ int main (int argc, char *argv[])
              << "Max diff: " << max_diff << std::endl
              << "Avg diff: " << avg_diff << std::endl;
 
-   // This is used only for visualization and approximating the volume of the
-   // differences.
-   GridFunction diff(func_1.FESpace());
+   // Visualize the difference at the nodes of mesh 1.
+   FiniteElementSpace m1_fes(&mesh_1, mesh_1.GetNodes()->FESpace()->FEColl());
+   GridFunction diff(&m1_fes);
+   GridFunctionCoefficient f1c(&func_1);
+   diff.ProjectDiscCoefficient(f1c, GridFunction::ARITHMETIC);
    vxyz = *mesh_1.GetNodes();
    const int nodes_cnt = vxyz.Size() / dim;
-
-   // Difference at the nodes of mesh 1.
    interp_vals_2.SetSize(nodes_cnt);
    finder2.Interpolate(vxyz, func_2, interp_vals_2);
+
    for (int n = 0; n < nodes_cnt; n++)
    {
-      diff(n) = fabs(func_1(n) - interp_vals_2(n));
+      diff(n) = fabs(diff(n) - interp_vals_2(n));
    }
 
    if (visualization)

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,7 +14,8 @@
 using namespace mfem;
 using namespace navier;
 
-OrthoSolver::OrthoSolver() : Solver(0, true) {}
+OrthoSolver::OrthoSolver(MPI_Comm mycomm_) : Solver(0, true),
+   mycomm(mycomm_) {}
 
 void OrthoSolver::SetOperator(const Operator &op)
 {
@@ -23,13 +24,13 @@ void OrthoSolver::SetOperator(const Operator &op)
 
 void OrthoSolver::Mult(const Vector &b, Vector &x) const
 {
-   // Orthoganlize input
+   // Orthogonalize input
    Orthogonalize(b, b_ortho);
 
    // Apply operator
    oper->Mult(b_ortho, x);
 
-   // Orthoganlize output
+   // Orthogonalize output
    Orthogonalize(x, x);
 }
 
@@ -40,8 +41,8 @@ void OrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
    int loc_size = v.Size();
    int global_size = 0;
 
-   MPI_Allreduce(&loc_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-   MPI_Allreduce(&loc_size, &global_size, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(&loc_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, mycomm);
+   MPI_Allreduce(&loc_size, &global_size, 1, MPI_INT, MPI_SUM, mycomm);
 
    double ratio = global_sum / static_cast<double>(global_size);
    v_ortho.SetSize(v.Size());

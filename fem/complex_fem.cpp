@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "complex_fem.hpp"
+#include "../general/forall.hpp"
 
 using namespace std;
 
@@ -19,16 +20,21 @@ namespace mfem
 ComplexGridFunction::ComplexGridFunction(FiniteElementSpace *fes)
    : Vector(2*(fes->GetVSize()))
 {
-   gfr = new GridFunction(fes, data);
-   gfi = new GridFunction(fes, &data[fes->GetVSize()]);
+   UseDevice(true);
+   this->Vector::operator=(0.0);
+
+   gfr = new GridFunction();
+   gfr->MakeRef(fes, *this, 0);
+
+   gfi = new GridFunction();
+   gfi->MakeRef(fes, *this, fes->GetVSize());
 }
 
 void
 ComplexGridFunction::Update()
 {
-   FiniteElementSpace * fes = gfr->FESpace();
-
-   int vsize = fes->GetVSize();
+   FiniteElementSpace *fes = gfr->FESpace();
+   const int vsize = fes->GetVSize();
 
    const Operator *T = fes->GetUpdateOperator();
    if (T)
@@ -40,30 +46,36 @@ ComplexGridFunction::Update()
 
       // Our data array now contains old data as well as being the wrong size so
       // reallocate it.
+      UseDevice(true);
       this->SetSize(2 * vsize);
+      this->Vector::operator=(0.0);
 
       // Create temporary vectors which point to the new data array
-      Vector gf_r(data, vsize);
-      Vector gf_i((data) ? &data[vsize] : data, vsize);
+      Vector gf_r; gf_r.MakeRef(*this, 0, vsize);
+      Vector gf_i; gf_i.MakeRef(*this, vsize, vsize);
 
       // Copy the updated GridFunctions into the new data array
       gf_r = *gfr;
       gf_i = *gfi;
+      gf_r.SyncAliasMemory(*this);
+      gf_i.SyncAliasMemory(*this);
 
       // Replace the individual data arrays with pointers into the new data
       // array
-      gfr->NewDataAndSize(data, vsize);
-      gfi->NewDataAndSize((data) ? &data[vsize] : data, vsize);
+      gfr->MakeRef(*this, 0, vsize);
+      gfi->MakeRef(*this, vsize, vsize);
    }
    else
    {
       // The existing data will not be transferred to the new GridFunctions so
-      // delete it a allocate a new array
+      // delete it and allocate a new array
+      UseDevice(true);
       this->SetSize(2 * vsize);
+      this->Vector::operator=(0.0);
 
       // Point the individual GridFunctions to the new data array
-      gfr->NewDataAndSize(data, vsize);
-      gfi->NewDataAndSize((data) ? &data[vsize] : data, vsize);
+      gfr->MakeRef(*this, 0, vsize);
+      gfi->MakeRef(*this, vsize, vsize);
 
       // These updates will only set the proper 'sequence' value within the
       // individual GridFunction objects because their sizes are already correct
@@ -76,16 +88,24 @@ void
 ComplexGridFunction::ProjectCoefficient(Coefficient &real_coeff,
                                         Coefficient &imag_coeff)
 {
+   gfr->SyncMemory(*this);
+   gfi->SyncMemory(*this);
    gfr->ProjectCoefficient(real_coeff);
    gfi->ProjectCoefficient(imag_coeff);
+   gfr->SyncAliasMemory(*this);
+   gfi->SyncAliasMemory(*this);
 }
 
 void
 ComplexGridFunction::ProjectCoefficient(VectorCoefficient &real_vcoeff,
                                         VectorCoefficient &imag_vcoeff)
 {
+   gfr->SyncMemory(*this);
+   gfi->SyncMemory(*this);
    gfr->ProjectCoefficient(real_vcoeff);
    gfi->ProjectCoefficient(imag_vcoeff);
+   gfr->SyncAliasMemory(*this);
+   gfi->SyncAliasMemory(*this);
 }
 
 void
@@ -93,8 +113,12 @@ ComplexGridFunction::ProjectBdrCoefficient(Coefficient &real_coeff,
                                            Coefficient &imag_coeff,
                                            Array<int> &attr)
 {
+   gfr->SyncMemory(*this);
+   gfi->SyncMemory(*this);
    gfr->ProjectBdrCoefficient(real_coeff, attr);
    gfi->ProjectBdrCoefficient(imag_coeff, attr);
+   gfr->SyncAliasMemory(*this);
+   gfi->SyncAliasMemory(*this);
 }
 
 void
@@ -102,8 +126,12 @@ ComplexGridFunction::ProjectBdrCoefficientNormal(VectorCoefficient &real_vcoeff,
                                                  VectorCoefficient &imag_vcoeff,
                                                  Array<int> &attr)
 {
+   gfr->SyncMemory(*this);
+   gfi->SyncMemory(*this);
    gfr->ProjectBdrCoefficientNormal(real_vcoeff, attr);
    gfi->ProjectBdrCoefficientNormal(imag_vcoeff, attr);
+   gfr->SyncAliasMemory(*this);
+   gfi->SyncAliasMemory(*this);
 }
 
 void
@@ -113,18 +141,28 @@ ComplexGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient
                                                   &imag_vcoeff,
                                                   Array<int> &attr)
 {
+   gfr->SyncMemory(*this);
+   gfi->SyncMemory(*this);
    gfr->ProjectBdrCoefficientTangent(real_vcoeff, attr);
    gfi->ProjectBdrCoefficientTangent(imag_vcoeff, attr);
+   gfr->SyncAliasMemory(*this);
+   gfi->SyncAliasMemory(*this);
 }
 
 
-ComplexLinearForm::ComplexLinearForm(FiniteElementSpace *f,
+ComplexLinearForm::ComplexLinearForm(FiniteElementSpace *fes,
                                      ComplexOperator::Convention convention)
-   : Vector(2*(f->GetVSize())),
+   : Vector(2*(fes->GetVSize())),
      conv(convention)
 {
-   lfr = new LinearForm(f, data);
-   lfi = new LinearForm(f, &data[f->GetVSize()]);
+   UseDevice(true);
+   this->Vector::operator=(0.0);
+
+   lfr = new LinearForm();
+   lfr->MakeRef(fes, *this, 0);
+
+   lfi = new LinearForm();
+   lfi->MakeRef(fes, *this, fes->GetVSize());
 }
 
 ComplexLinearForm::ComplexLinearForm(FiniteElementSpace *fes,
@@ -133,8 +171,14 @@ ComplexLinearForm::ComplexLinearForm(FiniteElementSpace *fes,
    : Vector(2*(fes->GetVSize())),
      conv(convention)
 {
-   lfr = new LinearForm(fes, lf_r);  lfr->SetData(data);
-   lfi = new LinearForm(fes, lf_i);  lfi->SetData(&data[fes->GetVSize()]);
+   UseDevice(true);
+   this->Vector::operator=(0.0);
+
+   lfr = new LinearForm(fes, lf_r);
+   lfi = new LinearForm(fes, lf_i);
+
+   lfr->MakeRef(fes, *this, 0);
+   lfi->MakeRef(fes, *this, fes->GetVSize());
 }
 
 ComplexLinearForm::~ComplexLinearForm()
@@ -189,41 +233,42 @@ void
 ComplexLinearForm::Update()
 {
    FiniteElementSpace *fes = lfr->FESpace();
-
    this->Update(fes);
 }
 
 void
 ComplexLinearForm::Update(FiniteElementSpace *fes)
 {
-   int vsize = fes->GetVSize();
-   SetSize(2 * vsize);
+   UseDevice(true);
+   SetSize(2 * fes->GetVSize());
+   this->Vector::operator=(0.0);
 
-   Vector vlfr(data, vsize);
-   Vector vlfi((data) ? &data[vsize] : data, vsize);
-
-   lfr->Update(fes, vlfr, 0);
-   lfi->Update(fes, vlfi, 0);
+   lfr->MakeRef(fes, *this, 0);
+   lfi->MakeRef(fes, *this, fes->GetVSize());
 }
 
 void
 ComplexLinearForm::Assemble()
 {
+   lfr->SyncMemory(*this);
+   lfi->SyncMemory(*this);
    lfr->Assemble();
    lfi->Assemble();
-   if (conv == ComplexOperator::BLOCK_SYMMETRIC)
-   {
-      *lfi *= -1.0;
-   }
+   if (conv == ComplexOperator::BLOCK_SYMMETRIC) { *lfi *= -1.0; }
+   lfr->SyncAliasMemory(*this);
+   lfi->SyncAliasMemory(*this);
 }
 
 complex<double>
 ComplexLinearForm::operator()(const ComplexGridFunction &gf) const
 {
-   double s = (conv == ComplexOperator::HERMITIAN)?1.0:-1.0;
+   double s = (conv == ComplexOperator::HERMITIAN) ? 1.0 : -1.0;
+   lfr->SyncMemory(*this);
+   lfi->SyncMemory(*this);
    return complex<double>((*lfr)(gf.real()) - s * (*lfi)(gf.imag()),
                           (*lfr)(gf.imag()) + s * (*lfi)(gf.real()));
 }
+
 
 bool SesquilinearForm::RealInteg()
 {
@@ -341,34 +386,45 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                                    Vector &X, Vector &B,
                                    int ci)
 {
-   FiniteElementSpace * fes = blfr->FESpace();
-   int vsize  = fes->GetVSize();
+   FiniteElementSpace *fes = blfr->FESpace();
+   const int vsize = fes->GetVSize();
 
-   // Allocate temporary vectors
-   Vector b_0(vsize); b_0 = 0.0;
+   // Allocate temporary vector
+   Vector b_0;
+   b_0.UseDevice(true);
+   b_0.SetSize(vsize);
+   b_0 = 0.0;
 
    // Extract the real and imaginary parts of the input vectors
    MFEM_ASSERT(x.Size() == 2 * vsize, "Input GridFunction of incorrect size!");
-   Vector x_r(x.GetData(), vsize);
-   Vector x_i(&(x.GetData())[vsize], vsize);
+   x.Read();
+   Vector x_r; x_r.MakeRef(x, 0, vsize);
+   Vector x_i; x_i.MakeRef(x, vsize, vsize);
 
    MFEM_ASSERT(b.Size() == 2 * vsize, "Input LinearForm of incorrect size!");
-   Vector b_r(b.GetData(), vsize);
-   Vector b_i(&(b.GetData())[vsize], vsize);
+   b.Read();
+   Vector b_r; b_r.MakeRef(b, 0, vsize);
+   Vector b_i; b_i.MakeRef(b, vsize, vsize);
 
    if (conv == ComplexOperator::BLOCK_SYMMETRIC) { b_i *= -1.0; }
 
-   int tvsize = fes->GetTrueVSize();
+   const int tvsize = fes->GetTrueVSize();
    OperatorHandle A_r, A_i;
 
+   X.UseDevice(true);
    X.SetSize(2 * tvsize);
-   B.SetSize(2 * tvsize);
+   X = 0.0;
 
-   Vector X_0(tvsize), B_0(tvsize);
-   Vector X_r(X.GetData(),tvsize);
-   Vector X_i(&(X.GetData())[tvsize], tvsize);
-   Vector B_r(B.GetData(), tvsize);
-   Vector B_i(&(B.GetData())[tvsize], tvsize);
+   B.UseDevice(true);
+   B.SetSize(2 * tvsize);
+   B = 0.0;
+
+   Vector X_r; X_r.MakeRef(X, 0, tvsize);
+   Vector X_i; X_i.MakeRef(X, tvsize, tvsize);
+   Vector B_r; B_r.MakeRef(B, 0, tvsize);
+   Vector B_i; B_i.MakeRef(B, tvsize, tvsize);
+
+   Vector X_0, B_0;
 
    if (RealInteg())
    {
@@ -418,13 +474,18 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       // conform with standard essential BC treatment
       if (A_i.Is<ConstrainedOperator>())
       {
-         int n = ess_tdof_list.Size();
-         for (int k = 0; k < n; k++)
+         const int n = ess_tdof_list.Size();
+         auto d_B_r = B_r.Write();
+         auto d_B_i = B_i.Write();
+         auto d_X_r = X_r.Read();
+         auto d_X_i = X_i.Read();
+         auto d_idx = ess_tdof_list.Read();
+         MFEM_FORALL(i, n,
          {
-            int j = ess_tdof_list[k];
-            B_r(j) = X_r(j);
-            B_i(j) = X_i(j);
-         }
+            const int j = d_idx[i];
+            d_B_r[j] = d_X_r[j];
+            d_B_i[j] = d_X_i[j];
+         });
          A_i.As<ConstrainedOperator>()->SetDiagonalPolicy
          (mfem::Operator::DiagonalPolicy::DIAG_ZERO);
       }
@@ -435,6 +496,16 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       B_i *= -1.0;
       b_i *= -1.0;
    }
+
+   x_r.SyncAliasMemory(x);
+   x_i.SyncAliasMemory(x);
+   b_r.SyncAliasMemory(b);
+   b_i.SyncAliasMemory(b);
+
+   X_r.SyncAliasMemory(X);
+   X_i.SyncAliasMemory(X);
+   B_r.SyncAliasMemory(B);
+   B_i.SyncAliasMemory(B);
 
    // A = A_r + i A_i
    A.Clear();
@@ -528,29 +599,32 @@ void
 SesquilinearForm::RecoverFEMSolution(const Vector &X, const Vector &b,
                                      Vector &x)
 {
-   FiniteElementSpace * fes = blfr->FESpace();
+   FiniteElementSpace *fes = blfr->FESpace();
 
    const SparseMatrix *P = fes->GetConformingProlongation();
-
-   int vsize  = fes->GetVSize();
-   int tvsize = X.Size() / 2;
-
-   Vector X_r(X.GetData(), tvsize);
-   Vector X_i(&(X.GetData())[tvsize], tvsize);
-
-   Vector x_r(x.GetData(), vsize);
-   Vector x_i(&(x.GetData())[vsize], vsize);
-
    if (!P)
    {
       x = X;
+      return;
    }
-   else
-   {
-      // Apply conforming prolongation
-      P->Mult(X_r, x_r);
-      P->Mult(X_i, x_i);
-   }
+
+   const int vsize  = fes->GetVSize();
+   const int tvsize = X.Size() / 2;
+
+   X.Read();
+   Vector X_r; X_r.MakeRef(const_cast<Vector&>(X), 0, tvsize);
+   Vector X_i; X_i.MakeRef(const_cast<Vector&>(X), tvsize, tvsize);
+
+   x.Write();
+   Vector x_r; x_r.MakeRef(x, 0, vsize);
+   Vector x_i; x_i.MakeRef(x, vsize, vsize);
+
+   // Apply conforming prolongation
+   P->Mult(X_r, x_r);
+   P->Mult(X_i, x_i);
+
+   x_r.SyncAliasMemory(x);
+   x_i.SyncAliasMemory(x);
 }
 
 void
@@ -566,16 +640,21 @@ SesquilinearForm::Update(FiniteElementSpace *nfes)
 ParComplexGridFunction::ParComplexGridFunction(ParFiniteElementSpace *pfes)
    : Vector(2*(pfes->GetVSize()))
 {
-   pgfr = new ParGridFunction(pfes, data);
-   pgfi = new ParGridFunction(pfes, (data) ? &data[pfes->GetVSize()]:data);
+   UseDevice(true);
+   this->Vector::operator=(0.0);
+
+   pgfr = new ParGridFunction();
+   pgfr->MakeRef(pfes, *this, 0);
+
+   pgfi = new ParGridFunction();
+   pgfi->MakeRef(pfes, *this, pfes->GetVSize());
 }
 
 void
 ParComplexGridFunction::Update()
 {
-   ParFiniteElementSpace * pfes = pgfr->ParFESpace();
-
-   int vsize = pfes->GetVSize();
+   ParFiniteElementSpace *pfes = pgfr->ParFESpace();
+   const int vsize = pfes->GetVSize();
 
    const Operator *T = pfes->GetUpdateOperator();
    if (T)
@@ -587,30 +666,34 @@ ParComplexGridFunction::Update()
 
       // Our data array now contains old data as well as being the wrong size so
       // reallocate it.
+      UseDevice(true);
       this->SetSize(2 * vsize);
+      this->Vector::operator=(0.0);
 
       // Create temporary vectors which point to the new data array
-      Vector gf_r(data, vsize);
-      Vector gf_i((data) ? &data[vsize] : data, vsize);
+      Vector gf_r; gf_r.MakeRef(*this, 0, vsize);
+      Vector gf_i; gf_i.MakeRef(*this, vsize, vsize);
 
       // Copy the updated GridFunctions into the new data array
-      gf_r = *pgfr;
-      gf_i = *pgfi;
+      gf_r = *pgfr; gf_r.SyncAliasMemory(*this);
+      gf_i = *pgfi; gf_i.SyncAliasMemory(*this);
 
       // Replace the individual data arrays with pointers into the new data
       // array
-      pgfr->NewDataAndSize(data, vsize);
-      pgfi->NewDataAndSize((data) ? &data[vsize] : data, vsize);
+      pgfr->MakeRef(*this, 0, vsize);
+      pgfi->MakeRef(*this, vsize, vsize);
    }
    else
    {
       // The existing data will not be transferred to the new GridFunctions so
-      // delete it a allocate a new array
+      // delete it and allocate a new array
+      UseDevice(true);
       this->SetSize(2 * vsize);
+      this->Vector::operator=(0.0);
 
       // Point the individual GridFunctions to the new data array
-      pgfr->NewDataAndSize(data, vsize);
-      pgfi->NewDataAndSize((data) ? &data[vsize] : data, vsize);
+      pgfr->MakeRef(*this, 0, vsize);
+      pgfi->MakeRef(*this, vsize, vsize);
 
       // These updates will only set the proper 'sequence' value within the
       // individual GridFunction objects because their sizes are already correct
@@ -623,16 +706,24 @@ void
 ParComplexGridFunction::ProjectCoefficient(Coefficient &real_coeff,
                                            Coefficient &imag_coeff)
 {
+   pgfr->SyncMemory(*this);
+   pgfi->SyncMemory(*this);
    pgfr->ProjectCoefficient(real_coeff);
    pgfi->ProjectCoefficient(imag_coeff);
+   pgfr->SyncAliasMemory(*this);
+   pgfi->SyncAliasMemory(*this);
 }
 
 void
 ParComplexGridFunction::ProjectCoefficient(VectorCoefficient &real_vcoeff,
                                            VectorCoefficient &imag_vcoeff)
 {
+   pgfr->SyncMemory(*this);
+   pgfi->SyncMemory(*this);
    pgfr->ProjectCoefficient(real_vcoeff);
    pgfi->ProjectCoefficient(imag_vcoeff);
+   pgfr->SyncAliasMemory(*this);
+   pgfi->SyncAliasMemory(*this);
 }
 
 void
@@ -640,8 +731,12 @@ ParComplexGridFunction::ProjectBdrCoefficient(Coefficient &real_coeff,
                                               Coefficient &imag_coeff,
                                               Array<int> &attr)
 {
+   pgfr->SyncMemory(*this);
+   pgfi->SyncMemory(*this);
    pgfr->ProjectBdrCoefficient(real_coeff, attr);
    pgfi->ProjectBdrCoefficient(imag_coeff, attr);
+   pgfr->SyncAliasMemory(*this);
+   pgfi->SyncAliasMemory(*this);
 }
 
 void
@@ -651,8 +746,12 @@ ParComplexGridFunction::ProjectBdrCoefficientNormal(VectorCoefficient
                                                     &imag_vcoeff,
                                                     Array<int> &attr)
 {
+   pgfr->SyncMemory(*this);
+   pgfi->SyncMemory(*this);
    pgfr->ProjectBdrCoefficientNormal(real_vcoeff, attr);
    pgfi->ProjectBdrCoefficientNormal(imag_vcoeff, attr);
+   pgfr->SyncAliasMemory(*this);
+   pgfi->SyncAliasMemory(*this);
 }
 
 void
@@ -662,36 +761,51 @@ ParComplexGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient
                                                      &imag_vcoeff,
                                                      Array<int> &attr)
 {
+   pgfr->SyncMemory(*this);
+   pgfi->SyncMemory(*this);
    pgfr->ProjectBdrCoefficientTangent(real_vcoeff, attr);
    pgfi->ProjectBdrCoefficientTangent(imag_vcoeff, attr);
+   pgfr->SyncAliasMemory(*this);
+   pgfi->SyncAliasMemory(*this);
 }
 
 void
 ParComplexGridFunction::Distribute(const Vector *tv)
 {
-   ParFiniteElementSpace * pfes = pgfr->ParFESpace();
-   int size = pfes->GetTrueVSize();
+   ParFiniteElementSpace *pfes = pgfr->ParFESpace();
+   const int tvsize = pfes->GetTrueVSize();
 
-   double * tvd = tv->GetData();
-   Vector tvr(tvd, size);
-   Vector tvi((tvd) ? &tvd[size] : tvd, size);
+   tv->Read();
+   Vector tvr; tvr.MakeRef(const_cast<Vector&>(*tv), 0, tvsize);
+   Vector tvi; tvi.MakeRef(const_cast<Vector&>(*tv), tvsize, tvsize);
 
+   pgfr->SyncMemory(*this);
+   pgfi->SyncMemory(*this);
    pgfr->Distribute(tvr);
    pgfi->Distribute(tvi);
+   pgfr->SyncAliasMemory(*this);
+   pgfi->SyncAliasMemory(*this);
 }
 
 void
 ParComplexGridFunction::ParallelProject(Vector &tv) const
 {
-   ParFiniteElementSpace * pfes = pgfr->ParFESpace();
-   int size = pfes->GetTrueVSize();
+   ParFiniteElementSpace *pfes = pgfr->ParFESpace();
+   const int tvsize = pfes->GetTrueVSize();
 
-   double * tvd = tv.GetData();
-   Vector tvr(tvd, size);
-   Vector tvi((tvd) ? &tvd[size] : tvd, size);
+   tv.Write();
+   Vector tvr; tvr.MakeRef(tv, 0, tvsize);
+   Vector tvi; tvi.MakeRef(tv, tvsize, tvsize);
 
+   pgfr->SyncMemory(*this);
+   pgfi->SyncMemory(*this);
    pgfr->ParallelProject(tvr);
    pgfi->ParallelProject(tvi);
+   pgfr->SyncAliasMemory(*this);
+   pgfi->SyncAliasMemory(*this);
+
+   tvr.SyncAliasMemory(tv);
+   tvi.SyncAliasMemory(tv);
 }
 
 
@@ -701,10 +815,16 @@ ParComplexLinearForm::ParComplexLinearForm(ParFiniteElementSpace *pfes,
    : Vector(2*(pfes->GetVSize())),
      conv(convention)
 {
-   plfr = new ParLinearForm(pfes, data);
-   plfi = new ParLinearForm(pfes, (data) ? &data[pfes->GetVSize()]:data);
+   UseDevice(true);
+   this->Vector::operator=(0.0);
 
-   HYPRE_BigInt * tdof_offsets_fes = pfes->GetTrueDofOffsets();
+   plfr = new ParLinearForm();
+   plfr->MakeRef(pfes, *this, 0);
+
+   plfi = new ParLinearForm();
+   plfi->MakeRef(pfes, *this, pfes->GetVSize());
+
+   HYPRE_BigInt *tdof_offsets_fes = pfes->GetTrueDofOffsets();
 
    int n = (HYPRE_AssumedPartitionCheck()) ? 2 : pfes->GetNRanks();
    tdof_offsets = new HYPRE_BigInt[n+1];
@@ -724,12 +844,16 @@ ParComplexLinearForm::ParComplexLinearForm(ParFiniteElementSpace *pfes,
    : Vector(2*(pfes->GetVSize())),
      conv(convention)
 {
-   plfr = new ParLinearForm(pfes, plf_r);
-   plfr->SetData(data);
-   plfi = new ParLinearForm(pfes, plf_i);
-   plfi->SetData((data) ? &data[pfes->GetVSize()]:data);
+   UseDevice(true);
+   this->Vector::operator=(0.0);
 
-   HYPRE_BigInt * tdof_offsets_fes = pfes->GetTrueDofOffsets();
+   plfr = new ParLinearForm(pfes, plf_r);
+   plfi = new ParLinearForm(pfes, plf_i);
+
+   plfr->MakeRef(pfes, *this, 0);
+   plfi->MakeRef(pfes, *this, pfes->GetVSize());
+
+   HYPRE_BigInt *tdof_offsets_fes = pfes->GetTrueDofOffsets();
 
    int n = (HYPRE_AssumedPartitionCheck()) ? 2 : pfes->GetNRanks();
    tdof_offsets = new HYPRE_BigInt[n+1];
@@ -792,58 +916,71 @@ ParComplexLinearForm::AddBdrFaceIntegrator(LinearFormIntegrator *lfi_real,
 void
 ParComplexLinearForm::Update(ParFiniteElementSpace *pf)
 {
-   ParFiniteElementSpace *pfes = (pf!=NULL)?pf:plfr->ParFESpace();
-   int vsize = pfes->GetVSize();
-   SetSize(2 * vsize);
+   ParFiniteElementSpace *pfes = (pf != NULL) ? pf : plfr->ParFESpace();
 
-   Vector vplfr(data, vsize);
-   Vector vplfi((data) ? &data[vsize] : data, vsize);
+   UseDevice(true);
+   SetSize(2 * pfes->GetVSize());
+   this->Vector::operator=(0.0);
 
-   plfr->Update(pfes, vplfr, 0);
-   plfi->Update(pfes, vplfi, 0);
+   plfr->MakeRef(pfes, *this, 0);
+   plfi->MakeRef(pfes, *this, pfes->GetVSize());
 }
 
 void
 ParComplexLinearForm::Assemble()
 {
+   plfr->SyncMemory(*this);
+   plfi->SyncMemory(*this);
    plfr->Assemble();
    plfi->Assemble();
-   if (conv == ComplexOperator::BLOCK_SYMMETRIC)
-   {
-      *plfi *= -1.0;
-   }
+   if (conv == ComplexOperator::BLOCK_SYMMETRIC) { *plfi *= -1.0; }
+   plfr->SyncAliasMemory(*this);
+   plfi->SyncAliasMemory(*this);
 }
 
 void
 ParComplexLinearForm::ParallelAssemble(Vector &tv)
 {
-   int size = plfr->ParFESpace()->GetTrueVSize();
+   const int tvsize = plfr->ParFESpace()->GetTrueVSize();
 
-   double * tvd = tv.GetData();
-   Vector tvr(tvd, size);
-   Vector tvi((tvd) ? &tvd[size] : tvd, size);
+   tv.Write();
+   Vector tvr; tvr.MakeRef(tv, 0, tvsize);
+   Vector tvi; tvi.MakeRef(tv, tvsize, tvsize);
 
+   plfr->SyncMemory(*this);
+   plfi->SyncMemory(*this);
    plfr->ParallelAssemble(tvr);
    plfi->ParallelAssemble(tvi);
+   plfr->SyncAliasMemory(*this);
+   plfi->SyncAliasMemory(*this);
+
+   tvr.SyncAliasMemory(tv);
+   tvi.SyncAliasMemory(tv);
 }
 
 HypreParVector *
 ParComplexLinearForm::ParallelAssemble()
 {
-   const ParFiniteElementSpace * pfes = plfr->ParFESpace();
+   const ParFiniteElementSpace *pfes = plfr->ParFESpace();
+   const int tvsize = pfes->GetTrueVSize();
 
-   HypreParVector * tv = new HypreParVector(pfes->GetComm(),
-                                            2*(pfes->GlobalTrueVSize()),
-                                            tdof_offsets);
+   HypreParVector *tv = new HypreParVector(pfes->GetComm(),
+                                           2*(pfes->GlobalTrueVSize()),
+                                           tdof_offsets);
 
-   int size = pfes->GetTrueVSize();
+   tv->Write();
+   Vector tvr; tvr.MakeRef(*tv, 0, tvsize);
+   Vector tvi; tvi.MakeRef(*tv, tvsize, tvsize);
 
-   double * tvd = tv->GetData();
-   Vector tvr(tvd, size);
-   Vector tvi((tvd) ? &tvd[size] : tvd, size);
-
+   plfr->SyncMemory(*this);
+   plfi->SyncMemory(*this);
    plfr->ParallelAssemble(tvr);
    plfi->ParallelAssemble(tvi);
+   plfr->SyncAliasMemory(*this);
+   plfi->SyncAliasMemory(*this);
+
+   tvr.SyncAliasMemory(*tv);
+   tvi.SyncAliasMemory(*tv);
 
    return tv;
 }
@@ -851,11 +988,12 @@ ParComplexLinearForm::ParallelAssemble()
 complex<double>
 ParComplexLinearForm::operator()(const ParComplexGridFunction &gf) const
 {
-   double s = (conv == ComplexOperator::HERMITIAN)?1.0:-1.0;
+   plfr->SyncMemory(*this);
+   plfi->SyncMemory(*this);
+   double s = (conv == ComplexOperator::HERMITIAN) ? 1.0 : -1.0;
    return complex<double>((*plfr)(gf.real()) - s * (*plfi)(gf.imag()),
                           (*plfr)(gf.imag()) + s * (*plfi)(gf.real()));
 }
-
 
 
 bool ParSesquilinearForm::RealInteg()
@@ -964,7 +1102,6 @@ ParSesquilinearForm::ParallelAssemble()
    return new ComplexHypreParMatrix(pblfr->ParallelAssemble(),
                                     pblfi->ParallelAssemble(),
                                     true, true, conv);
-
 }
 
 void
@@ -974,35 +1111,45 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                                       Vector &X, Vector &B,
                                       int ci)
 {
-   ParFiniteElementSpace * pfes = pblfr->ParFESpace();
-   int vsize = pfes->GetVSize();
+   ParFiniteElementSpace *pfes = pblfr->ParFESpace();
+   const int vsize = pfes->GetVSize();
 
-   // Allocate temporary vectors
-   Vector b_0(vsize); b_0 = 0.0;
+   // Allocate temporary vector
+   Vector b_0;
+   b_0.UseDevice(true);
+   b_0.SetSize(vsize);
+   b_0 = 0.0;
 
    // Extract the real and imaginary parts of the input vectors
    MFEM_ASSERT(x.Size() == 2 * vsize, "Input GridFunction of incorrect size!");
-   Vector x_r(x.GetData(), vsize);
-   Vector x_i(&(x.GetData())[vsize], vsize);
+   x.Read();
+   Vector x_r; x_r.MakeRef(x, 0, vsize);
+   Vector x_i; x_i.MakeRef(x, vsize, vsize);
 
    MFEM_ASSERT(b.Size() == 2 * vsize, "Input LinearForm of incorrect size!");
-   Vector b_r(b.GetData(), vsize);
-   Vector b_i(&(b.GetData())[vsize], vsize);
+   b.Read();
+   Vector b_r; b_r.MakeRef(b, 0, vsize);
+   Vector b_i; b_i.MakeRef(b, vsize, vsize);
 
    if (conv == ComplexOperator::BLOCK_SYMMETRIC) { b_i *= -1.0; }
 
-   int tvsize = pfes->GetTrueVSize();
-
+   const int tvsize = pfes->GetTrueVSize();
    OperatorHandle A_r, A_i;
 
+   X.UseDevice(true);
    X.SetSize(2 * tvsize);
-   B.SetSize(2 * tvsize);
+   X = 0.0;
 
-   Vector X_0(tvsize), B_0(tvsize);
-   Vector X_r(X.GetData(),tvsize);
-   Vector X_i(&(X.GetData())[tvsize], tvsize);
-   Vector B_r(B.GetData(), tvsize);
-   Vector B_i(&(B.GetData())[tvsize], tvsize);
+   B.UseDevice(true);
+   B.SetSize(2 * tvsize);
+   B = 0.0;
+
+   Vector X_r; X_r.MakeRef(X, 0, tvsize);
+   Vector X_i; X_i.MakeRef(X, tvsize, tvsize);
+   Vector B_r; B_r.MakeRef(B, 0, tvsize);
+   Vector B_i; B_i.MakeRef(B, tvsize, tvsize);
+
+   Vector X_0, B_0;
 
    if (RealInteg())
    {
@@ -1042,24 +1189,30 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
 
    if (RealInteg() && ImagInteg())
    {
-      int n = ess_tdof_list.Size();
       // Modify RHS to conform with standard essential BC treatment
-      for (int k = 0; k < n; k++)
+      const int n = ess_tdof_list.Size();
+      auto d_B_r = B_r.Write();
+      auto d_B_i = B_i.Write();
+      auto d_X_r = X_r.Read();
+      auto d_X_i = X_i.Read();
+      auto d_idx = ess_tdof_list.Read();
+      MFEM_FORALL(i, n,
       {
-         int j=ess_tdof_list[k];
-         B_r(j) = X_r(j);
-         B_i(j) = X_i(j);
-      }
+         const int j = d_idx[i];
+         d_B_r[j] = d_X_r[j];
+         d_B_i[j] = d_X_i[j];
+      });
       // Modify offdiagonal blocks (imaginary parts of the matrix) to conform
       // with standard essential BC treatment
-      if ( A_i.Type() == Operator::Hypre_ParCSR )
+      ess_tdof_list.HostRead();
+      if (A_i.Type() == Operator::Hypre_ParCSR)
       {
          HypreParMatrix * Ah;
          A_i.Get(Ah);
          hypre_ParCSRMatrix *Aih = *Ah;
          for (int k = 0; k < n; k++)
          {
-            int j = ess_tdof_list[k];
+            const int j = ess_tdof_list[k];
             Aih->diag->data[Aih->diag->i[j]] = 0.0;
          }
       }
@@ -1075,6 +1228,16 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       B_i *= -1.0;
       b_i *= -1.0;
    }
+
+   x_r.SyncAliasMemory(x);
+   x_i.SyncAliasMemory(x);
+   b_r.SyncAliasMemory(b);
+   b_i.SyncAliasMemory(b);
+
+   X_r.SyncAliasMemory(X);
+   X_i.SyncAliasMemory(X);
+   B_r.SyncAliasMemory(B);
+   B_i.SyncAliasMemory(B);
 
    // A = A_r + i A_i
    A.Clear();
@@ -1175,22 +1338,27 @@ void
 ParSesquilinearForm::RecoverFEMSolution(const Vector &X, const Vector &b,
                                         Vector &x)
 {
-   ParFiniteElementSpace * pfes = pblfr->ParFESpace();
+   ParFiniteElementSpace *pfes = pblfr->ParFESpace();
 
    const Operator &P = *pfes->GetProlongationMatrix();
 
-   int vsize  = pfes->GetVSize();
-   int tvsize = X.Size() / 2;
+   const int vsize  = pfes->GetVSize();
+   const int tvsize = X.Size() / 2;
 
-   Vector X_r(X.GetData(), tvsize);
-   Vector X_i(&(X.GetData())[tvsize], tvsize);
+   X.Read();
+   Vector X_r; X_r.MakeRef(const_cast<Vector&>(X), 0, tvsize);
+   Vector X_i; X_i.MakeRef(const_cast<Vector&>(X), tvsize, tvsize);
 
-   Vector x_r(x.GetData(), vsize);
-   Vector x_i(&(x.GetData())[vsize], vsize);
+   x.Write();
+   Vector x_r; x_r.MakeRef(x, 0, vsize);
+   Vector x_i; x_i.MakeRef(x, vsize, vsize);
 
    // Apply conforming prolongation
    P.Mult(X_r, x_r);
    P.Mult(X_i, x_i);
+
+   x_r.SyncAliasMemory(x);
+   x_i.SyncAliasMemory(x);
 }
 
 void
@@ -1199,7 +1367,6 @@ ParSesquilinearForm::Update(FiniteElementSpace *nfes)
    if ( pblfr ) { pblfr->Update(nfes); }
    if ( pblfi ) { pblfi->Update(nfes); }
 }
-
 
 #endif // MFEM_USE_MPI
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -416,6 +416,37 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
    // typically z and w are large vectors, so store them on the device
    z.SetSize(height, mem_type); z.UseDevice(true);
    w.SetSize(height, mem_type); w.UseDevice(true);
+}
+
+void ConstrainedOperator::AssembleDiagonal(Vector &diag) const
+{
+   A->AssembleDiagonal(diag);
+
+   if (diag_policy == DIAG_KEEP) { return; }
+
+   const int csz = constraint_list.Size();
+   auto d_diag = diag.ReadWrite();
+   auto idx = constraint_list.Read();
+   switch (diag_policy)
+   {
+      case DIAG_ONE:
+         MFEM_FORALL(i, csz,
+         {
+            const int id = idx[i];
+            d_diag[id] = 1.0;
+         });
+         break;
+      case DIAG_ZERO:
+         MFEM_FORALL(i, csz,
+         {
+            const int id = idx[i];
+            d_diag[id] = 0.0;
+         });
+         break;
+      default:
+         MFEM_ABORT("unknown diagonal policy");
+         break;
+   }
 }
 
 void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
