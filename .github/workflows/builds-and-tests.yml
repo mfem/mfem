@@ -29,7 +29,7 @@ env:
 
 # Note for future improvements:
 #
-# I cannot reuse cached dependencies and have to build them for each target
+# We cannot reuse cached dependencies and have to build them for each target
 # although they could be shared sometimes. That's because Github cache Action
 # has no read-only mode. But there is a PR ready for this
 # (https://github.com/actions/cache/pull/489)
@@ -42,7 +42,7 @@ jobs:
         target: [debug, optim]
         mpi: [sequential, parallel]
         build-system: [make]
-        # 'include' allows to
+        # 'include' allows us to
         # - add a variable without creating a new matrix dimension.
         # - add a new combination ('build-system: cmake' case here)
         #
@@ -74,8 +74,8 @@ jobs:
         fetch-depth: 0
 
     # Only get MPI if defined for the job.
-    # TODO (bernede1@llnl.gov): It would be nice to have only one step,
-    # e.g. with a dedicated action, but I don’t see how at the moment.
+    # TODO: It would be nice to have only one step, e.g. with a dedicated
+    # action, but I (@adrienbernede) don't see how at the moment.
     - name: get MPI (Linux)
       if: matrix.mpi == 'parallel' && matrix.os == 'ubuntu-18.04'
       run: |

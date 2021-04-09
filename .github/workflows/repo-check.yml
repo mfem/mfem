@@ -89,4 +89,3 @@ jobs:
         git checkout -b gh-actions-branch-history
         cd tests/scripts
         ./runtest branch-history
-
