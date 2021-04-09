@@ -417,7 +417,7 @@ void InterpolationOp(const ParGridFunction &v0, ParGridFunction &v1)
    op.Mult(v0, v1);
 }
 
-/** Compute aleast-squares best fit using the target basis functions.
+/** Compute a least-squares best fit using the target basis functions.
 
     This scheme is more difficult to setup and more computationally
     expensive but the results can be significantly better than simple
@@ -492,7 +492,7 @@ void LeastSquares(VEC_TYPE t0, const ParGridFunction &v0,
    delete M;
 }
 
-/** Compute aleast-squares best with boundary conditions.
+/** Compute a least-squares best fit with boundary conditions.
 
     This scheme is virtually identical to the previous one but it
     makes use of boundary values, when available, to improve the
