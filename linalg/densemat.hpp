@@ -887,6 +887,7 @@ public:
    {
       mfem::Swap(tdata, t.tdata);
       mfem::Swap(nk, t.nk);
+      Mk.Swap(t.Mk);
    }
 
    ~DenseTensor() { tdata.Delete(); }
