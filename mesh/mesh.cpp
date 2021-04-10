@@ -3772,8 +3772,8 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
    for (int el = 0; el < GetNBE(); el++)
    {
       Embedding &emb = CoarseFineBdrTr.embeddings[el];
-      emb.parent = el / r_elem_factor;
-      emb.matrix = el % r_elem_factor;
+      emb.parent = el / r_bndr_factor;
+      emb.matrix = el % r_bndr_factor;
    }
 
    MFEM_ASSERT(CheckElementOrientation(false) == 0, "");
@@ -8454,7 +8454,7 @@ const CoarseFineTransformations& Mesh::GetRefinementBdrTransforms()
       MFEM_ABORT("No CoarseFineTransformations for NCMesh");
    }
 
-   Mesh::GeometryList elem_geoms(*this);
+   Mesh::GeometryList elem_geoms(*this, Dim - 1);
    for (int i = 0; i < elem_geoms.Size(); i++)
    {
       const Geometry::Type geom = elem_geoms[i];

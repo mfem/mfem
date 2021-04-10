@@ -2989,25 +2989,22 @@ L2ProjBdrGridTransfer::L2ProjBdr::L2ProjBdr(
    // If the local mesh is empty, skip all computations
    if (mesh_ho->GetNE() == 0) { return; }
 
-   const FiniteElement *bfe_lor = fes_lor.GetBE(0);
-   const FiniteElement *bfe_ho = fes_ho.GetBE(0);
-   ndof_lor = bfe_lor->GetDof();
-   ndof_ho = bfe_ho->GetDof();
+   const FiniteElement *fe_lor = fes_lor.GetBE(0);
+   const FiniteElement *fe_ho = fes_ho.GetBE(0);
+   ndof_lor = fe_lor->GetDof();
+   ndof_ho = fe_ho->GetDof();
 
-   const int nel_lor = fes_lor.GetNE();
-   const int nel_ho = fes_ho.GetNE();
+   const int nel_lor = fes_lor.GetNBE();
+   const int nel_ho = fes_ho.GetNBE();
 
    nref = nel_lor/nel_ho;
 
-   const int nbel_lor = fes_lor.GetNBE();
-   const int nbel_ho = fes_ho.GetNBE();
-
    // Construct the mapping from HO to LOR
    // ho2lor.GetRow(iho) will give all the LOR elements contained in iho
-   ho2lor.SetSize(nbel_ho, nref);
+   ho2lor.SetSize(nel_ho, nref);
    const CoarseFineTransformations &cf_tr =
       fes_lor.GetMesh()->GetRefinementBdrTransforms();
-   for (int ilor=0; ilor<nbel_lor; ++ilor)
+   for (int ilor=0; ilor<nel_lor; ++ilor)
    {
       int iho = cf_tr.embeddings[ilor].parent;
       ho2lor.AddConnection(iho, ilor);
@@ -3016,9 +3013,9 @@ L2ProjBdrGridTransfer::L2ProjBdr::L2ProjBdr(
 
    // R will contain the restriction (L^2 projection operator) defined on
    // each coarse HO element (and corresponding patch of LOR elements)
-   R.SetSize(ndof_lor*nref, ndof_ho, nbel_ho);
+   R.SetSize(ndof_lor*nref, ndof_ho, nel_ho);
    // P will contain the corresponding prolongation operator
-   P.SetSize(ndof_ho, ndof_lor*nref, nbel_ho);
+   P.SetSize(ndof_ho, ndof_lor*nref, nel_ho);
 
    DenseMatrix Minv_lor(ndof_lor*nref, ndof_lor*nref);
    DenseMatrix M_mixed(ndof_lor*nref, ndof_ho);
@@ -3042,18 +3039,18 @@ L2ProjBdrGridTransfer::L2ProjBdr::L2ProjBdr(
    Vector shape_ho(ndof_ho);
    Vector shape_lor(ndof_lor);
 
-   const Geometry::Type geom = bfe_ho->GetGeomType();
+   const Geometry::Type geom = fe_ho->GetGeomType();
    const DenseTensor &pmats = cf_tr.point_matrices[geom];
    emb_tr.SetIdentityTransformation(geom);
 
-   for (int iho=0; iho<nbel_ho; ++iho)
+   for (int iho=0; iho<nel_ho; ++iho)
    {
       for (int iref=0; iref<nref; ++iref)
       {
          // Assemble the low-order refined mass matrix and invert locally
          int ilor = ho2lor.GetRow(iho)[iref];
          ElementTransformation *el_tr = fes_lor.GetBdrElementTransformation(ilor);
-         mi.AssembleElementMatrix(*bfe_lor, *el_tr, M_lor_el);
+         mi.AssembleElementMatrix(*fe_lor, *el_tr, M_lor_el);
          M_lor.CopyMN(M_lor_el, iref*ndof_lor, iref*ndof_lor);
          Minv_lor_el.Factor();
          Minv_lor_el.GetInverseMatrix(M_lor_el);
@@ -3068,7 +3065,7 @@ L2ProjBdrGridTransfer::L2ProjBdr::L2ProjBdr(
          // within the coarse high-order element in reference space
          emb_tr.SetPointMat(pmats(cf_tr.embeddings[ilor].matrix));
 
-         int order = bfe_lor->GetOrder() + bfe_ho->GetOrder() + el_tr->OrderW();
+         int order = fe_lor->GetOrder() + fe_ho->GetOrder() + el_tr->OrderW();
          const IntegrationRule *ir = &IntRules.Get(geom, order);
          M_mixed_el = 0.0;
          for (int i = 0; i < ir->GetNPoints(); i++)
@@ -3076,8 +3073,8 @@ L2ProjBdrGridTransfer::L2ProjBdr::L2ProjBdr(
             const IntegrationPoint &ip_lor = ir->IntPoint(i);
             IntegrationPoint ip_ho;
             ip_tr.Transform(ip_lor, ip_ho);
-            bfe_lor->CalcShape(ip_lor, shape_lor);
-            bfe_ho->CalcShape(ip_ho, shape_ho);
+            fe_lor->CalcShape(ip_lor, shape_lor);
+            fe_ho->CalcShape(ip_ho, shape_ho);
             el_tr->SetIntPoint(&ip_lor);
             // For now we use the geometry information from the LOR space
             // which means we won't be mass conservative if the mesh is curved
