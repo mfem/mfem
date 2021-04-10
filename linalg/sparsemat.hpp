@@ -528,6 +528,12 @@ public:
    void SetSubMatrixTranspose(const Array<int> &rows, const Array<int> &cols,
                               const DenseMatrix &subm, int skip_zeros = 1);
 
+   /** Insert the DenseMatrix into this SparseMatrix at the specified rows and
+       columns. If \c skip_zeros==0 , all entries from the DenseMatrix are
+       added including zeros. If \c skip_zeros==2 , no zeros are added to the
+       SparseMatrix regardless of their position in the matrix. Otherwise, the
+       default \c skip_zeros behavior is to omit the zero from the SparseMatrix
+       unless it would break the symmetric structure of the SparseMatrix. */
    void AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
                      const DenseMatrix &subm, int skip_zeros = 1);
 
