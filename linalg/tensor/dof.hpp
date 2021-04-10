@@ -276,9 +276,9 @@ using DofTensor = typename DofTensorType<Config,VDim,DDim>::type;
 template <int VDim, typename Config>
 auto MakeDoFs(Config &config, double *x, int ne)
 {
-   return DegreesOfFreedom<Config::dim,
-                           Config::is_tensor,
-                           Config::Dofs,
+   return DegreesOfFreedom<get_config_dim<Config>::value,
+                           is_tensor_config<Config>::value,
+                           get_config_dofs<Config>::value,
                            VDim,
                            DofTensor<Config,VDim>,
                            DeviceDTensor>(x, config, ne);
@@ -287,9 +287,9 @@ auto MakeDoFs(Config &config, double *x, int ne)
 template <int VDim, typename Config>
 auto MakeDoFs(Config &config, const double *x, int ne)
 {
-   return DegreesOfFreedom<Config::dim,
-                           Config::is_tensor,
-                           Config::Dofs,
+   return DegreesOfFreedom<get_config_dim<Config>::value,
+                           is_tensor_config<Config>::value,
+                           get_config_dofs<Config>::value,
                            VDim,
                            DofTensor<Config,VDim>,
                            ReadDTensor>(const_cast<double*>(x), config, ne);

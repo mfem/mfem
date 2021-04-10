@@ -243,9 +243,9 @@ using QuadTensor = typename QuadTensorType<Config,DimComp>::Tensor;
 template <int DimComp, typename Config>
 auto MakeQData(Config &config, double *x, int ne)
 {
-   return QData<Config::dim,
-                Config::is_tensor,
-                Config::Quads,
+   return QData<get_config_dim<Config>::value,
+                is_tensor_config<Config>::value,
+                get_config_quads<Config>::value,
                 DimComp,
                 DeviceDTensor>(x, config, ne);
 }
@@ -253,11 +253,13 @@ auto MakeQData(Config &config, double *x, int ne)
 template <int DimComp, typename Config>
 auto MakeQData(Config &config, const double *x, int ne)
 {
-   return QData<Config::dim,
-                Config::is_tensor,
-                Config::Quads,
+   return QData<get_config_dim<Config>::value,
+                is_tensor_config<Config>::value,
+                get_config_quads<Config>::value,
                 DimComp,
                 ReadDTensor>(const_cast<double*>(x), config, ne);
+}
+
 }
 
 } // mfem namespace
