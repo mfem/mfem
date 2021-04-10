@@ -88,13 +88,13 @@ auto operator*(const BasisGradientTranspose<1,true,D,Q> &basis, const Dofs &u)
 template <int D, int Q, typename Dofs>
 auto operator*(const BasisGradientTranspose<2,true,D,Q> &basis, const Dofs &u)
 {
-   constexpr int Rank = get_tensor_rank<Dofs>();
+   constexpr int Rank = get_tensor_rank<Dofs>::value;
    auto Bt = basis.GetBt();
    auto Gt = basis.GetGt();
-   auto ux = u.Get<Rank-1>(0);
+   auto ux = u.template Get<Rank-1>(0);
    auto Gux = ContractX(Gt,ux);
    auto v = ContractY(Bt,Gux);
-   auto uy = u.Get<Rank-1>(1);
+   auto uy = u.template Get<Rank-1>(1);
    auto Buy = ContractX(Bt,uy);
    v += ContractY(Gt,Buy);
    return v;
@@ -104,14 +104,14 @@ auto operator*(const BasisGradientTranspose<2,true,D,Q> &basis, const Dofs &u)
 template <int D, int Q, typename Dofs>
 auto operator*(const BasisGradientTranspose<3,true,D,Q> &basis, const Dofs &u)
 {
-   constexpr int Rank = get_tensor_rank<Dofs>();
+   constexpr int Rank = get_tensor_rank<Dofs>::value;
    auto Bt = basis.GetBt();
    auto Gt = basis.GetGt();
-   auto ux = u.Get<Rank-1>(0);
+   auto ux = u.template Get<Rank-1>(0);
    auto Gux = ContractX(Gt,ux);
    auto BGux = ContractY(Bt,Gux);
    auto v = ContractZ(Bt,BGux);
-   auto uy = u.Get<Rank-1>(1);
+   auto uy = u.template Get<Rank-1>(1);
    auto Buy = ContractX(Bt,uy);
    auto GBuy = ContractY(Gt,Buy);
    v += ContractZ(Bt,GBuy);

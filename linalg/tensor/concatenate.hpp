@@ -90,8 +90,8 @@ auto Concatenate(Tensor<Rank,T,Container<T,Sizes...>,Layout<Sizes...>> &tl,
    using ResContainer = Container<T,Sizes...,2>;
    using ResLayout = Layout<Sizes...,2>;
    Tensor<Rank+1, T, ResContainer, ResLayout> res;
-   res.Get<Rank>(0) = tl;
-   res.Get<Rank>(1) = tr;
+   res.template Get<Rank>(0) = tl;
+   res.template Get<Rank>(1) = tr;
    return res;
 }
 
@@ -107,9 +107,9 @@ auto Concatenate(Tensor<Rank,T,Container<T,Sizes...>,Layout<Sizes...>> &tl,
    using ResContainer = Container<T,Sizes...,3>;
    using ResLayout = Layout<Sizes...,3>;
    Tensor<Rank+1, T, ResContainer, ResLayout> res;
-   res.Get<Rank>(0) = tl;
-   res.Get<Rank>(1) = tm;
-   res.Get<Rank>(2) = tr;
+   res.template Get<Rank>(0) = tl;
+   res.template Get<Rank>(1) = tm;
+   res.template Get<Rank>(2) = tr;
    return res;
 }
 

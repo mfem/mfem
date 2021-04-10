@@ -13,16 +13,13 @@
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
 #include "ceed/mass.hpp"
-#include "../linalg/tensor/read.hpp"
-#include "../linalg/tensor/readmatrix.hpp"
-#include "../linalg/tensor/interp.hpp"
-#include "../linalg/tensor/cwisemult.hpp"
-#include "../linalg/tensor/write.hpp"
 
 #include "../linalg/tensor/config.hpp"
 #include "../linalg/tensor/basis.hpp"
 #include "../linalg/tensor/dof.hpp"
 #include "../linalg/tensor/qdata.hpp"
+#include "../linalg/tensor/interp.hpp"
+#include "../linalg/tensor/cwisemult.hpp"
 
 using namespace std;
 
@@ -1392,19 +1389,19 @@ static void PAMassApply(const int dim,
    {
       switch (id)
       {
-         // case 0x22: return Apply2D<2,2,16>(NE,B,Bt,D,X,Y);
-         // case 0x24: return Apply2D<2,4,16>(NE,B,Bt,D,X,Y);
-         // case 0x33: return Apply2D<3,3,16>(NE,B,Bt,D,X,Y);
-         // case 0x34: return Apply2D<3,4,16>(NE,B,Bt,D,X,Y);
-         // case 0x36: return Apply2D<3,6,16>(NE,B,Bt,D,X,Y);
-         // case 0x44: return Apply2D<4,4,8>(NE,B,Bt,D,X,Y);
-         // case 0x48: return Apply2D<4,8,4>(NE,B,Bt,D,X,Y);
-         // case 0x55: return Apply2D<5,5,8>(NE,B,Bt,D,X,Y);
-         // case 0x58: return Apply2D<5,8,2>(NE,B,Bt,D,X,Y);
-         // case 0x66: return Apply2D<6,6,4>(NE,B,Bt,D,X,Y);
-         // case 0x77: return Apply2D<7,7,4>(NE,B,Bt,D,X,Y);
-         // case 0x88: return Apply2D<8,8,2>(NE,B,Bt,D,X,Y);
-         // case 0x99: return Apply2D<9,9,2>(NE,B,Bt,D,X,Y);
+         // case 0x22: return SmemPAMassApply2D<2,2,16>(NE,B,Bt,D,X,Y);
+         // case 0x24: return SmemPAMassApply2D<2,4,16>(NE,B,Bt,D,X,Y);
+         // case 0x33: return SmemPAMassApply2D<3,3,16>(NE,B,Bt,D,X,Y);
+         // case 0x34: return SmemPAMassApply2D<3,4,16>(NE,B,Bt,D,X,Y);
+         // case 0x36: return SmemPAMassApply2D<3,6,16>(NE,B,Bt,D,X,Y);
+         // case 0x44: return SmemPAMassApply2D<4,4,8>(NE,B,Bt,D,X,Y);
+         // case 0x48: return SmemPAMassApply2D<4,8,4>(NE,B,Bt,D,X,Y);
+         // case 0x55: return SmemPAMassApply2D<5,5,8>(NE,B,Bt,D,X,Y);
+         // case 0x58: return SmemPAMassApply2D<5,8,2>(NE,B,Bt,D,X,Y);
+         // case 0x66: return SmemPAMassApply2D<6,6,4>(NE,B,Bt,D,X,Y);
+         // case 0x77: return SmemPAMassApply2D<7,7,4>(NE,B,Bt,D,X,Y);
+         // case 0x88: return SmemPAMassApply2D<8,8,2>(NE,B,Bt,D,X,Y);
+         // case 0x99: return SmemPAMassApply2D<9,9,2>(NE,B,Bt,D,X,Y);
          // default:   return PAMassApply2D(NE,B,Bt,D,X,Y,D1D,Q1D);
          case 0x22: return ApplyMass<2,0,true,2,2,16>(NE,B,Bt,D,X,Y);
          case 0x24: return ApplyMass<2,0,true,2,4,16>(NE,B,Bt,D,X,Y);
@@ -1426,19 +1423,19 @@ static void PAMassApply(const int dim,
    {
       switch (id)
       {
-         // case 0x23: return Apply3D<2,3>(NE,B,Bt,D,X,Y);
-         // case 0x24: return Apply3D<2,4>(NE,B,Bt,D,X,Y);
-         // case 0x34: return Apply3D<3,4>(NE,B,Bt,D,X,Y);
-         // case 0x36: return Apply3D<3,6>(NE,B,Bt,D,X,Y);
-         // case 0x45: return Apply3D<4,5>(NE,B,Bt,D,X,Y);
-         // case 0x46: return Apply3D<4,6>(NE,B,Bt,D,X,Y);
-         // case 0x48: return Apply3D<4,8>(NE,B,Bt,D,X,Y);
-         // case 0x56: return Apply3D<5,6>(NE,B,Bt,D,X,Y);
-         // case 0x58: return Apply3D<5,8>(NE,B,Bt,D,X,Y);
-         // case 0x67: return Apply3D<6,7>(NE,B,Bt,D,X,Y);
-         // case 0x78: return Apply3D<7,8>(NE,B,Bt,D,X,Y);
-         // case 0x89: return Apply3D<8,9>(NE,B,Bt,D,X,Y);
-         // case 0x9A: return Apply3D<9,10>(NE,B,Bt,D,X,Y);
+         // case 0x23: return SmemPAMassApply3D<2,3>(NE,B,Bt,D,X,Y);
+         // case 0x24: return SmemPAMassApply3D<2,4>(NE,B,Bt,D,X,Y);
+         // case 0x34: return SmemPAMassApply3D<3,4>(NE,B,Bt,D,X,Y);
+         // case 0x36: return SmemPAMassApply3D<3,6>(NE,B,Bt,D,X,Y);
+         // case 0x45: return SmemPAMassApply3D<4,5>(NE,B,Bt,D,X,Y);
+         // case 0x46: return SmemPAMassApply3D<4,6>(NE,B,Bt,D,X,Y);
+         // case 0x48: return SmemPAMassApply3D<4,8>(NE,B,Bt,D,X,Y);
+         // case 0x56: return SmemPAMassApply3D<5,6>(NE,B,Bt,D,X,Y);
+         // case 0x58: return SmemPAMassApply3D<5,8>(NE,B,Bt,D,X,Y);
+         // case 0x67: return SmemPAMassApply3D<6,7>(NE,B,Bt,D,X,Y);
+         // case 0x78: return SmemPAMassApply3D<7,8>(NE,B,Bt,D,X,Y);
+         // case 0x89: return SmemPAMassApply3D<8,9>(NE,B,Bt,D,X,Y);
+         // case 0x9A: return SmemPAMassApply3D<9,10>(NE,B,Bt,D,X,Y);
          // default:   return PAMassApply3D(NE,B,Bt,D,X,Y,D1D,Q1D);
          case 0x23: return ApplyMass<3,0,true,2,3>(NE,B,Bt,D,X,Y);
          case 0x24: return ApplyMass<3,0,true,2,4>(NE,B,Bt,D,X,Y);

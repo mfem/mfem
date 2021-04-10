@@ -61,7 +61,7 @@ private:
       static inline int eval(const int* sizes, int first, Args... args)
       {
    #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-         MFEM_VERIFY(first<sizes[N-1],"Trying to access out of boundary.");
+         MFEM_ASSERT(first<sizes[N-1],"Trying to access out of boundary.");
    #endif
          return first + sizes[N - 1] * DynamicTensorIndex<Dim,N+1>::eval(sizes, args...);
       }
@@ -76,7 +76,7 @@ private:
       static inline int eval(const int* sizes, int first)
       {
    #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-         MFEM_VERIFY(first<sizes[Dim-1],"Trying to access out of boundary.");
+         MFEM_ASSERT(first<sizes[Dim-1],"Trying to access out of boundary.");
    #endif
          return first;
       }
@@ -138,7 +138,7 @@ public:
    {
       // for (int i = 0; i < Rank; i++)
       // {
-      //    MFEM_VERIFY(Sizes...[i] == lhs.Size<i>());
+      //    MFEM_ASSERT(Sizes...[i] == lhs.Size<i>());
       // }
    }
 
@@ -833,6 +833,14 @@ template <int N, int BatchSize, int... Dims>
 struct get_layout_size<N, BlockLayout<BatchSize, Dims...>>
 {
    static constexpr int value = Dim<N, Dims...>::val;
+};
+
+template <int N, int I, typename Layout>
+struct get_layout_size<N,RestrictedLayout<I,Layout>>
+{
+   static constexpr bool value = N<I?
+      get_layout_size<N,Layout>::value :
+      get_layout_size<N+1,Layout>::value;
 };
 
 // get_layout_batch_size
