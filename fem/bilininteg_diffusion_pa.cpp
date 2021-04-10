@@ -13,17 +13,13 @@
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
 #include "libceed/diffusion.hpp"
-// #include "../linalg/tensor/read.hpp"
-// #include "../linalg/tensor/readmatrix.hpp"
-// #include "../linalg/tensor/interp.hpp"
-// #include "../linalg/tensor/grad.hpp"
-// #include "../linalg/tensor/cwisemult.hpp"
-// #include "../linalg/tensor/write.hpp"
+
 #include "../linalg/tensor/config.hpp"
 #include "../linalg/tensor/basis.hpp"
 #include "../linalg/tensor/dof.hpp"
 #include "../linalg/tensor/qdata.hpp"
 #include "../linalg/tensor/grad.hpp"
+#include "../linalg/tensor/cwisemult.hpp"
 
 using namespace std;
 
@@ -1933,13 +1929,15 @@ static void ApplyDiff(const int ne,
    auto config  = MakeConfig<Dim,IsTensor,Dofs,Quads,BatchSize>(dofs, quads);
    auto B       = MakeBasis(config, b.Read(), bt.Read(), g.Read(), gt.Read());
    const auto X = MakeDoFs<VDim>(config, x.Read(), ne);
-   const auto D = MakeQData<1>(config, d.Read(), ne);
+   // TODO SRank = 1 until we really support symmetric layout...
+   const auto D = MakeSymmQData<1>(config, d.Read(), ne);
    auto Y       = MakeDoFs<VDim>(config, y.ReadWrite(), ne);
-   MFEM_FORALL(e,ne,
+   // MFEM_FORALL(e,ne,
+   for (int e = 0; e<ne; e++)
    // forall(e, ne, config,
    {
       Y(e) += transpose(grad(B)) * ( D(e) * ( grad(B) * X(e) ) );
-   });
+   }//);
 }
 
 static void PADiffusionApply(const int dim,
@@ -1977,16 +1975,24 @@ static void PADiffusionApply(const int dim,
    {
       switch (ID)
       {
-         case 0x22: return SmemPADiffusionApply2D<2,2,16>(NE,symm,B,G,D,X,Y);
-         case 0x33: return SmemPADiffusionApply2D<3,3,16>(NE,symm,B,G,D,X,Y);
-         case 0x44: return SmemPADiffusionApply2D<4,4,8>(NE,symm,B,G,D,X,Y);
-         case 0x55: return SmemPADiffusionApply2D<5,5,8>(NE,symm,B,G,D,X,Y);
-         case 0x66: return SmemPADiffusionApply2D<6,6,4>(NE,symm,B,G,D,X,Y);
-         case 0x77: return SmemPADiffusionApply2D<7,7,4>(NE,symm,B,G,D,X,Y);
-         case 0x88: return SmemPADiffusionApply2D<8,8,2>(NE,symm,B,G,D,X,Y);
-         case 0x99: return SmemPADiffusionApply2D<9,9,2>(NE,symm,B,G,D,X,Y);
-         default:   return PADiffusionApply2D(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
-         // default:   return ApplyDiff<2,0,true>(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
+         // case 0x22: return SmemPADiffusionApply2D<2,2,16>(NE,symm,B,G,D,X,Y);
+         // case 0x33: return SmemPADiffusionApply2D<3,3,16>(NE,symm,B,G,D,X,Y);
+         // case 0x44: return SmemPADiffusionApply2D<4,4,8>(NE,symm,B,G,D,X,Y);
+         // case 0x55: return SmemPADiffusionApply2D<5,5,8>(NE,symm,B,G,D,X,Y);
+         // case 0x66: return SmemPADiffusionApply2D<6,6,4>(NE,symm,B,G,D,X,Y);
+         // case 0x77: return SmemPADiffusionApply2D<7,7,4>(NE,symm,B,G,D,X,Y);
+         // case 0x88: return SmemPADiffusionApply2D<8,8,2>(NE,symm,B,G,D,X,Y);
+         // case 0x99: return SmemPADiffusionApply2D<9,9,2>(NE,symm,B,G,D,X,Y);
+         // default:   return PADiffusionApply2D(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
+         case 0x22: return ApplyDiff<2,0,true,2,2,16>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x33: return ApplyDiff<2,0,true,3,3,16>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x44: return ApplyDiff<2,0,true,4,4,8>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x55: return ApplyDiff<2,0,true,5,5,8>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x66: return ApplyDiff<2,0,true,6,6,4>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x77: return ApplyDiff<2,0,true,7,7,4>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x88: return ApplyDiff<2,0,true,8,8,2>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x99: return ApplyDiff<2,0,true,9,9,2>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         default:   return ApplyDiff<2,0,true>(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
       }
    }
 
