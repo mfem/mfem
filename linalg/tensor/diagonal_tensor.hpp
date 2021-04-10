@@ -90,14 +90,16 @@ struct get_diagonal_tensor_values_rank<DiagonalTensor<DRank, Rank, T, Container,
    static constexpr int value = Rank;
 };
 
+/// Represent a SRank+2*DRank symmetric Tensor, where SRank dims are symmetric.
+template <int DRank, // The rank of diagonal values
           int SRank, // The rank of symmetric values
           typename T = double,
           typename Container = MemoryContainer<T>,
-          typename Layout = DynamicLayout<SRank> >
-class DiagonalTensor: public Tensor<DRank+SRank,T,Container,Layout>
+          typename Layout = DynamicLayout<1> >
+class DiagonalSymmetricTensor: public Tensor<DRank+SRank,T,Container,Layout>
 {
 public:
-   DiagonalTensor(const Tensor<DRank+SRank,T,Container,Layout> &t)
+   DiagonalSymmetricTensor(const Tensor<DRank+SRank,T,Container,Layout> &t)
    : Tensor<DRank+SRank,T,Container,Layout>(t)
    { }
 
@@ -106,15 +108,89 @@ public:
 };
 
 template <int DRank, typename Tensor>
-auto makeDiagonalTensor(const Tensor &t)
+auto makeDiagonalSymmetricTensor(const Tensor &t)
 {
-   return DiagonalTensor<DRank,
-                         Tensor::rank-DRank,
-                         typename Tensor::type,
-                         typename Tensor::container,
-                         typename Tensor::layout
-                        >(t);
+   return DiagonalSymmetricTensor<DRank,
+                                  get_tensor_rank<Tensor>::value-DRank,
+                                  typename Tensor::type,
+                                  typename Tensor::container,
+                                  typename Tensor::layout
+                                 >(t);
 }
+
+/// DiagonalSymmetricTensor Traits
+
+// is_diagonal_symmetric_tensor
+template <typename Tensor>
+struct is_diagonal_symmetric_tensor
+{
+   static constexpr bool value = false;
+};
+
+template <int DRank, int Rank, typename T, typename Container, typename Layout>
+struct is_diagonal_symmetric_tensor<DiagonalSymmetricTensor<DRank, Rank, T, Container, Layout>>
+{
+   static constexpr bool value = true;
+};
+
+// get_diagonal_symmetric_tensor_rank
+template <typename Tensor>
+struct get_diagonal_symmetric_tensor_rank;
+
+template <int DRank, int Rank, typename T, typename Container, typename Layout>
+struct get_diagonal_symmetric_tensor_rank<DiagonalSymmetricTensor<DRank, Rank, T, Container, Layout>>
+{
+   static constexpr int value = 2*DRank + 2*Rank;
+};
+
+// get_diagonal_symmetric_tensor_diagonal_rank
+template <typename Tensor>
+struct get_diagonal_symmetric_tensor_diagonal_rank;
+
+template <int DRank, int Rank, typename T, typename Container, typename Layout>
+struct get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmetricTensor<DRank, Rank, T, Container, Layout>>
+{
+   static constexpr int value = DRank;
+};
+
+// get_diagonal_symmetric_tensor_values_rank
+template <typename Tensor>
+struct get_diagonal_symmetric_tensor_values_rank;
+
+template <int DRank, int Rank, typename T, typename Container, typename Layout>
+struct get_diagonal_symmetric_tensor_values_rank<DiagonalSymmetricTensor<DRank, Rank, T, Container, Layout>>
+{
+   static constexpr int value = Rank;
+};
+
+// /// Represent a SRank+2*DRank symmetric Tensor, where SRank dims are symmetric.
+// template <int DRank, // The rank of diagonal values
+//           int SRank, // The rank of symmetric values
+//           typename T = double,
+//           typename Container = MemoryContainer<T>,
+//           typename Layout = DynamicLayout<1> >
+// class DiagonalSymmetricTensor: public Tensor<DRank+1,T,Container,Layout>
+// {
+// public:
+//    // Storing the symmetric values linearly for the moment
+//    DiagonalSymmetricTensor(const Tensor<DRank+1,T,Container,Layout> &t)
+//    : Tensor<DRank+1,T,Container,Layout>(t)
+//    { }
+
+//    // TODO define a DRank accessor? probably not possible
+//    // private inheritance then?
+// };
+
+// template <int DRank, typename Tensor>
+// auto makeDiagonalSymmetricTensor(const Tensor &t)
+// {
+//    return DiagonalSymmetricTensor<DRank,
+//                                   Tensor::rank-DRank,
+//                                   typename Tensor::type,
+//                                   typename Tensor::container,
+//                                   typename Tensor::layout
+//                                  >(t);
+// }
 
 } // namespace mfem
 

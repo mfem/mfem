@@ -260,6 +260,99 @@ auto MakeQData(Config &config, const double *x, int ne)
                 ReadDTensor>(const_cast<double*>(x), config, ne);
 }
 
+/// A class to encapsulate quadrature data in a Diagonal Symmetric Tensor.
+template <int Dim,
+          bool IsTensor,
+          int Quads,
+          int DimComp,
+          template <int> class InTensor = DeviceDTensor>
+class SymmQData;
+
+/// Tensor DoFs
+template <int Dim,
+          int Quads,
+          int DimComp,
+          template <int> class InTensor>
+class SymmQData<Dim,true,Quads,DimComp,InTensor>
+: private QuadUtil<Dim,DimComp>, public InTensor<Dim+DimComp+1>
+{
+public:
+   using Container = typename InTensor<Dim+DimComp+1>::container;
+   using Layout = typename InTensor<Dim+DimComp+1>::layout;
+
+   template <typename Config>
+   SymmQData(double *x, Config &config, int ne)
+   : InTensor<Dim+DimComp+1>(
+        Container(x,ne*pow(config.quads,Dim)*Dim*(Dim+1)/2),
+        this->template initTensor<Layout>(config.quads,Dim,ne) )
+   {
+      // TODO static asserts Config values 
+   }
+
+   /// Returns a Tensor corresponding to the DoFs of element e
+   auto operator()(int e) const
+   {
+      return makeDiagonalSymmetricTensor<Dim>(this->template Get<Dim+DimComp>(e));
+   }
+
+   auto operator()(int e)
+   {
+      return makeDiagonalSymmetricTensor<Dim>(this->template Get<Dim+DimComp>(e));
+   }
+};
+
+/// Non-Tensor DoFs
+template <int Dim,
+          int Quads,
+          int DimComp,
+          template <int> class InTensor>
+class SymmQData<Dim,false,DimComp,Quads,InTensor>
+: private QuadUtil<Dim,DimComp>, public InTensor<1+DimComp+1>
+{
+public:
+   using Container = typename InTensor<1+DimComp+1>::container;
+   using Layout = typename InTensor<1+DimComp+1>::layout;
+
+   template <typename Config>
+   SymmQData(const double *x, Config &config, int ne)
+   : InTensor<Dim+DimComp+1>(
+        Container(x,ne*config.quads*Dim*(Dim+1)/2),
+        this->template initNonTensor<Layout>(config.quads,Dim,ne))
+   {
+      // TODO static asserts Config values 
+   }
+
+   /// Returns a Tensor corresponding to the DoFs of element e
+   auto operator()(int e) const
+   {
+      return makeDiagonalSymmetricTensor<Dim>(this->template Get<1+DimComp>(e));
+   }
+
+   auto operator()(int e)
+   {
+      return makeDiagonalSymmetricTensor<Dim>(this->template Get<1+DimComp>(e));
+   }
+};
+
+/// Functor to represent symmetric data at quadrature points
+template <int DimComp, typename Config>
+auto MakeSymmQData(Config &config, double *x, int ne)
+{
+   return SymmQData<get_config_dim<Config>::value,
+                    is_tensor_config<Config>::value,
+                    get_config_quads<Config>::value,
+                    DimComp,
+                    DeviceDTensor>(x, config, ne);
+}
+
+template <int DimComp, typename Config>
+auto MakeSymmQData(Config &config, const double *x, int ne)
+{
+   return SymmQData<get_config_dim<Config>::value,
+                    is_tensor_config<Config>::value,
+                    get_config_quads<Config>::value,
+                    DimComp,
+                    ReadDTensor>(const_cast<double*>(x), config, ne);
 }
 
 } // mfem namespace
