@@ -1354,6 +1354,10 @@ public:
    /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
    virtual void Print(std::ostream &out = mfem::out) const { Printer(out); }
 
+   /// Save the mesh to a file using Mesh::Print. The given @a precision will be
+   /// used for ASCII output.
+   virtual void Save(const char *fname, int precision=16) const;
+
    /// Print the mesh to the given stream using the adios2 bp format
 #ifdef MFEM_USE_ADIOS2
    virtual void Print(adios2stream &out) const;
