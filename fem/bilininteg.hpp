@@ -1902,9 +1902,9 @@ protected:
    MatrixCoefficient *MQ;
 
 private:
-   Vector vec, pointflux, shape;
+   Vector vec, vecdxt, pointflux, shape;
 #ifndef MFEM_THREAD_SAFE
-   DenseMatrix dshape, dshapedxt, invdfdx, mq;
+   DenseMatrix dshape, dshapedxt, invdfdx, M, dshapedxt_m;
    DenseMatrix te_dshape, te_dshapedxt;
    Vector D;
 #endif
