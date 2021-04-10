@@ -2977,7 +2977,8 @@ L2ProjectionGridTransfer::~L2ProjectionGridTransfer()
 }
 
 L2ProjBdrGridTransfer::L2ProjBdr::L2ProjBdr(
-   const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_)
+   const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_,
+   const Array<int>& bdr_attribs_)
    : Operator(fes_lor_.GetVSize(), fes_ho_.GetVSize()),
      fes_ho(fes_ho_),
      fes_lor(fes_lor_)
@@ -2999,8 +3000,24 @@ L2ProjBdrGridTransfer::L2ProjBdr::L2ProjBdr(
 
    nref = nel_lor/nel_ho;
 
+   // Find HO elements to integrate over
+   integrate_bdr_elem_ho.LoseData();
+   integrate_bdr_elem_ho.SetSize(nel_ho, false);
+   for (int iho=0; iho<nel_ho; ++iho)
+   {
+      for (int iat=0; iat<bdr_attribs_.Size(); ++iat)
+      {
+         if (fes_ho.GetBdrAttribute(iho) == bdr_attribs_[iat])
+         {
+            integrate_bdr_elem_ho[iho] = true;
+            continue;
+         }
+      }
+   }
+
    // Construct the mapping from HO to LOR
    // ho2lor.GetRow(iho) will give all the LOR elements contained in iho
+
    ho2lor.SetSize(nel_ho, nref);
    const CoarseFineTransformations &cf_tr =
       fes_lor.GetMesh()->GetRefinementBdrTransforms();
@@ -3045,6 +3062,12 @@ L2ProjBdrGridTransfer::L2ProjBdr::L2ProjBdr(
 
    for (int iho=0; iho<nel_ho; ++iho)
    {
+      // Don't need to compute R for elements with wrong boundary attrib
+      if (!integrate_bdr_elem_ho[iho])
+      {
+         continue;
+      }
+
       for (int iref=0; iref<nref; ++iref)
       {
          // Assemble the low-order refined mass matrix and invert locally
@@ -3102,6 +3125,12 @@ void L2ProjBdrGridTransfer::L2ProjBdr::Mult(
    DenseMatrix yel_mat(ndof_lor*nref, vdim);
    for (int iho=0; iho<fes_ho.GetNBE(); ++iho)
    {
+      // Skip elements with the wrong boundary attribute
+      if (!integrate_bdr_elem_ho[iho])
+      {
+         continue;
+      }
+
       fes_ho.GetBdrElementVDofs(iho, vdofs);
       x.GetSubVector(vdofs, xel_mat.GetData());
       mfem::Mult(R(iho), xel_mat, yel_mat);
@@ -3130,6 +3159,12 @@ void L2ProjBdrGridTransfer::L2ProjBdr::MultTranspose(
    y = 0.0;
    for (int iho = 0; iho < fes_ho.GetNBE(); ++iho)
    {
+      // Skip elements with the wrong boundary attribute
+      if (!integrate_bdr_elem_ho[iho])
+      {
+         continue;
+      }
+
       int nref = ho2lor.RowSize(iho);
       int ndof_ho = fes_ho.GetBE(iho)->GetDof();
       int ndof_lor = fes_lor.GetBE(ho2lor.GetRow(iho)[0])->GetDof();
@@ -3166,6 +3201,12 @@ void L2ProjBdrGridTransfer::L2ProjBdr::Prolongate(
    DenseMatrix yel_mat(ndof_ho, vdim);
    for (int iho=0; iho<fes_ho.GetNBE(); ++iho)
    {
+      // Skip elements with the wrong boundary attribute
+      if (!integrate_bdr_elem_ho[iho])
+      {
+         continue;
+      }
+
       // Extract the LOR DOFs
       for (int iref=0; iref<nref; ++iref)
       {
@@ -3187,7 +3228,7 @@ void L2ProjBdrGridTransfer::L2ProjBdr::Prolongate(
 
 const Operator &L2ProjBdrGridTransfer::ForwardOperator()
 {
-   if (!F) { F = new L2ProjBdr(dom_fes, ran_fes); }
+   if (!F) { F = new L2ProjBdr(dom_fes, ran_fes, bdr_attribs); }
    return *F;
 }
 
@@ -3195,7 +3236,7 @@ const Operator &L2ProjBdrGridTransfer::BackwardOperator()
 {
    if (!B)
    {
-      if (!F) { F = new L2ProjBdr(dom_fes, ran_fes); }
+      if (!F) { F = new L2ProjBdr(dom_fes, ran_fes, bdr_attribs); }
       B = new L2ProlBdr(*F);
    }
    return *B;

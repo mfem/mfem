@@ -988,11 +988,15 @@ public:
 
 class L2ProjBdrGridTransfer : public GridTransfer
 {
+
+    const Array<int>& bdr_attribs;
+
 protected:
    class L2ProjBdr : public Operator
    {
       const FiniteElementSpace &fes_ho;
       const FiniteElementSpace &fes_lor;
+      Array<bool> integrate_bdr_elem_ho;
 
       int ndof_lor, ndof_ho, nref;
 
@@ -1002,7 +1006,8 @@ protected:
 
    public:
       L2ProjBdr(const FiniteElementSpace &fes_ho_,
-                 const FiniteElementSpace &fes_lor_);
+                const FiniteElementSpace &fes_lor_,
+                const Array<int>& bdr_attribs_);
       /// Perform the L2 projection onto the LOR space
       void Mult(const Vector &x, Vector &y) const override;
       /// Perform the transpose of L2 projection onto the LOR space, useful for
@@ -1035,8 +1040,10 @@ protected:
 
 public:
    L2ProjBdrGridTransfer(FiniteElementSpace &coarse_fes,
-                         FiniteElementSpace &fine_fes)
+                         FiniteElementSpace &fine_fes,
+                         const Array<int>& bdr_attribs_)
       : GridTransfer(coarse_fes, fine_fes),
+        bdr_attribs(bdr_attribs_),
         F(NULL), B(NULL)
    { }
 
