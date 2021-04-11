@@ -3534,13 +3534,6 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    getline(input, mesh_type);
    filter_dos(mesh_type);
 
-   // If first line is XML version, move on to second line
-   if (mesh_type == "<?xml version=\"1.0\"?>")
-   {
-      getline(input, mesh_type);
-      filter_dos(mesh_type);
-   }
-
    // MFEM's conforming mesh formats
    int mfem_version = 0;
    if (mesh_type == "MFEM mesh v1.0") { mfem_version = 10; } // serial
@@ -3624,7 +3617,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
                   "Unsupported VTK format");
       ReadVTKMesh(input, curved, read_gf, finalize_topo);
    }
-   else if (mesh_type.rfind("<VTKFile ") == 0)
+   else if (mesh_type.rfind("<VTKFile ") == 0 || mesh_type.rfind("<?xml") == 0)
    {
       ReadXML_VTKMesh(input, curved, read_gf, finalize_topo, mesh_type);
    }
