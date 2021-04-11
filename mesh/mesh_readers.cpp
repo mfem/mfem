@@ -768,8 +768,10 @@ struct BufferReader : BufferReaderBase
       {
          for (int i=0; i<n; ++i)
          {
-            F *val = (F*)(buf + i*sizeof(F));
-            dest[i] = *val;
+            F val;
+            char *val_ptr = reinterpret_cast<char*>(&val);
+            std::copy(buf + i*sizeof(F), buf + (i+1)*sizeof(F), val_ptr);
+            dest[i] = val;
          }
       }
    }
