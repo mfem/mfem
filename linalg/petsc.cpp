@@ -212,7 +212,6 @@ const double* PetscMemory::GetDevicePointer() const
 void PetscParVector::SetDataAndSize_()
 {
    PetscScalar *array;
-   PetscBool   iscuda;
    PetscInt    n;
 
    MFEM_VERIFY(x,"Missing Vec");
@@ -222,6 +221,8 @@ void PetscParVector::SetDataAndSize_()
    size = n;
 #if defined(PETSC_HAVE_DEVICE)
    PetscOffloadMask omask;
+   PetscBool        iscuda;
+
    ierr = VecGetOffloadMask(x,&omask); PCHKERRQ(x,ierr);
    if (omask != PETSC_OFFLOAD_BOTH)
    {
@@ -229,16 +230,15 @@ void PetscParVector::SetDataAndSize_()
    }
 #endif
    ierr = VecGetArrayRead(x,(const PetscScalar**)&array); PCHKERRQ(x,ierr);
+#if defined(PETSC_HAVE_DEVICE)
    ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,
                                     ""); PCHKERRQ(x,ierr);
    if (iscuda)
    {
-#if defined(PETSC_HAVE_DEVICE)
       if (omask != PETSC_OFFLOAD_BOTH)
       {
          ierr = __mfem_VecSetOffloadMask(x,PETSC_OFFLOAD_GPU); PCHKERRQ(x,ierr);
       }
-#endif
       PetscScalar *darray;
       ierr = VecCUDAGetArrayRead(x,(const PetscScalar**)&darray); PCHKERRQ(x,ierr);
       pdata.Wrap(array,darray,size,MemoryType::HOST,false);
@@ -246,6 +246,7 @@ void PetscParVector::SetDataAndSize_()
       PCHKERRQ(x,ierr);
    }
    else
+#endif
    {
       pdata.Wrap(array,size,MemoryType::HOST,false);
    }
@@ -341,6 +342,7 @@ const double* PetscParVector::Read(bool on_dev) const
 {
    const PetscScalar *dummy;
    MFEM_VERIFY(x,"Missing Vec");
+#if defined(PETSC_HAVE_DEVICE)
    PetscBool iscuda;
    ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,
                                     ""); PCHKERRQ(x,ierr);
@@ -350,6 +352,7 @@ const double* PetscParVector::Read(bool on_dev) const
       ierr = VecCUDARestoreArrayRead(x,&dummy); PCHKERRQ(x,ierr);
    }
    else
+#endif
    {
       ierr = VecGetArrayRead(x,&dummy); PCHKERRQ(x,ierr);
       ierr = VecRestoreArrayRead(x,&dummy); PCHKERRQ(x,ierr);
@@ -367,6 +370,7 @@ double* PetscParVector::Write(bool on_dev)
 {
    PetscScalar *dummy;
    MFEM_VERIFY(x,"Missing Vec");
+#if defined(PETSC_HAVE_DEVICE)
    PetscBool iscuda;
    ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,
                                     ""); PCHKERRQ(x,ierr);
@@ -376,6 +380,7 @@ double* PetscParVector::Write(bool on_dev)
       ierr = VecCUDARestoreArrayWrite(x,&dummy); PCHKERRQ(x,ierr);
    }
    else
+#endif
    {
       ierr = VecGetArrayWrite(x,&dummy); PCHKERRQ(x,ierr);
       ierr = VecRestoreArrayWrite(x,&dummy); PCHKERRQ(x,ierr);
@@ -394,7 +399,7 @@ double* PetscParVector::ReadWrite(bool on_dev)
 {
    PetscScalar *dummy;
    MFEM_VERIFY(x,"Missing Vec");
-
+#if defined(PETSC_HAVE_DEVICE)
    PetscBool iscuda;
    ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,
                                     ""); PCHKERRQ(x,ierr);
@@ -404,6 +409,7 @@ double* PetscParVector::ReadWrite(bool on_dev)
       ierr = VecCUDARestoreArray(x,&dummy); PCHKERRQ(x,ierr);
    }
    else
+#endif
    {
       ierr = VecGetArray(x,&dummy); PCHKERRQ(x,ierr);
       ierr = VecRestoreArray(x,&dummy); PCHKERRQ(x,ierr);
@@ -451,22 +457,24 @@ PetscParVector::PetscParVector(MPI_Comm comm, const Vector &_x,
    SetDataAndSize_();
    if (copy)
    {
-      const bool use_dev = _x.UseDevice();
-      UseDevice(use_dev);
 
       /* we use PETSc accessors to flag valid memory location to PETSc */
       PetscErrorCode (*rest)(Vec,PetscScalar**);
       PetscScalar *array;
+#if defined(PETSC_HAVE_DEVICE)
       PetscBool iscuda;
       ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,
                                        ""); PCHKERRQ(x,ierr);
-      if (iscuda && use_dev)
+      if (iscuda && _x.UseDevice())
       {
+         UseDevice(true);
          ierr = VecCUDAGetArrayWrite(x,&array); PCHKERRQ(x,ierr);
          rest = VecCUDARestoreArrayWrite;
       }
       else
+#endif
       {
+         UseDevice(false);
          ierr = VecGetArrayWrite(x,&array); PCHKERRQ(x,ierr);
          rest = VecRestoreArrayWrite;
       }
@@ -822,7 +830,11 @@ void PetscParVector::ResetMemory()
    if (read && !write) { ierr = VecLockReadPop(x); PCHKERRQ(x,ierr); }
    if (usedev)
    {
+#if defined(PETSC_HAVE_DEVICE)
       ierr = VecCUDAResetArray(x); PCHKERRQ(x,ierr);
+#else
+      MFEM_VERIFY(false,"This should not happen");
+#endif
    }
    else
    {
