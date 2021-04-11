@@ -16,22 +16,26 @@ using namespace mfem;
 
 TEST_CASE("VTU XML Reader", "[Mesh][VTU][XML]")
 {
-   auto mesh_filename = GENERATE("quad_append_b64.vtu", "quad_append_raw.vtu",
-                                 "quad_ascii.vtu", "quad_binary.vtu"
+   std::vector<std::string> mesh_filenames = {
+      "quad_append_b64.vtu", "quad_append_raw.vtu",
+      "quad_ascii.vtu", "quad_binary.vtu"
+   };
 #ifdef MFEM_USE_ZLIB
-                                 ,
-                                 "quad_append_b64_compress.vtu",
-                                 "quad_append_raw_compress.vtu",
-                                 "quad_binary_compress.vtu"
+   // Test VTU meshes with binary compression only if compiled with zlib enabled
+   mesh_filenames.insert(mesh_filenames.end(), {
+      "quad_append_b64_compress.vtu", "quad_append_raw_compress.vtu",
+      "quad_binary_compress.vtu"
+   });
 #endif
-                                );
-   Mesh mesh = Mesh::LoadFromFile(("data/"+std::string(mesh_filename)).c_str());
-
-   REQUIRE(mesh.Dimension() == 2);
-   REQUIRE(mesh.GetNE() == 9);
-   REQUIRE(mesh.GetNV() == 16);
-   REQUIRE(mesh.HasGeometry(Geometry::POINT));
-   REQUIRE(mesh.HasGeometry(Geometry::SEGMENT));
-   REQUIRE(mesh.HasGeometry(Geometry::SQUARE));
-   REQUIRE(mesh.GetNumGeometries(2) == 1);
+   for (const std::string &fname : mesh_filenames)
+   {
+      Mesh mesh = Mesh::LoadFromFile(("data/" + fname).c_str());
+      REQUIRE(mesh.Dimension() == 2);
+      REQUIRE(mesh.GetNE() == 9);
+      REQUIRE(mesh.GetNV() == 16);
+      REQUIRE(mesh.HasGeometry(Geometry::POINT));
+      REQUIRE(mesh.HasGeometry(Geometry::SEGMENT));
+      REQUIRE(mesh.HasGeometry(Geometry::SQUARE));
+      REQUIRE(mesh.GetNumGeometries(2) == 1);
+   }
 }
