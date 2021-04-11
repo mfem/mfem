@@ -24,7 +24,7 @@ TEST_CASE("VTU XML Reader", "[Mesh][VTU][XML]")
                                  "quad_append_raw_compress.vtu",
                                  "quad_binary_compress.vtu"
 #endif
-                                 );
+                                );
    Mesh mesh = Mesh::LoadFromFile(("data/"+std::string(mesh_filename)).c_str());
 
    REQUIRE(mesh.Dimension() == 2);
