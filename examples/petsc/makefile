@@ -1,13 +1,13 @@
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
-# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
-# See file COPYRIGHT for details.
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
@@ -23,6 +23,9 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 SEQ_EXAMPLES =
 PAR_EXAMPLES = ex1p ex2p ex3p ex4p ex5p ex6p ex9p ex10p
+ifeq ($(MFEM_USE_SLEPC),YES)
+   PAR_EXAMPLES += ex11p
+endif
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
@@ -84,6 +87,13 @@ EX9_E_ARGS       := -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts r
 EX9_ES_ARGS      := -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts rc_ex9p_expl --no-step
 EX9_IS_ARGS      := -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts rc_ex9p_impl --implicit -tf 0.5
 EX10_ARGS        := -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex10p -tf 30 -s 3 -rs 2 -dt 3
+EX10_MF_ARGS     := -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex10p_mf -tf 6 -s 3 -rs 0 -dt 3
+EX10_MFOP_ARGS   := -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex10p_mfop -tf 6 -s 3 -rs 0 -dt 3
+EX10_JFNK_ARGS   := -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex10p_jfnk --jfnk -tf 6 -s 3 -rs 0 -dt 3
+EX11_ARGS_SINV   := -m ../../data/star.mesh --useslepc
+EX11_ARGS_LOBPCG := -m ../../data/star.mesh --useslepc --slepcopts rc_ex11p_lobpcg
+EX11_ARGS_GD     := -m ../../data/star.mesh --useslepc --slepcopts rc_ex11p_gd
+
 ex1p-test-par: ex1p
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX1_ARGS_W))
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX1_ARGS_P))
@@ -107,6 +117,15 @@ ex9p-test-par: ex9p
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX9_IS_ARGS))
 ex10p-test-par: ex10p
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX10_ARGS))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX10_MF_ARGS))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX10_MFOP_ARGS))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX10_JFNK_ARGS))
+ifeq ($(MFEM_USE_SLEPC),YES)
+ex11p-test-par: ex11p
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX11_ARGS_SINV))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX11_ARGS_LOBPCG))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX11_ARGS_GD))
+endif
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 

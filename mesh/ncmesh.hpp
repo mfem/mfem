@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_NCMESH
 #define MFEM_NCMESH
@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "../general/hash.hpp"
 #include "../general/globals.hpp"
+#include "../general/sort_pairs.hpp"
 #include "../linalg/densemat.hpp"
 #include "element.hpp"
 #include "vertex.hpp"
@@ -36,6 +37,8 @@ struct Refinement
    int index; ///< Mesh element number
    char ref_type; ///< refinement XYZ bit mask (7 = full isotropic)
 
+   Refinement() = default;
+
    Refinement(int index, int type = 7) : index(index), ref_type(type) {}
 };
 
@@ -48,6 +51,8 @@ struct Embedding
        Geometry::Type stored in CoarseFineTransformations::point_matrices. */
    int matrix;
 
+   Embedding() = default;
+
    Embedding(int elem, int matrix = 0) : parent(elem), matrix(matrix) {}
 };
 
@@ -55,11 +60,9 @@ struct Embedding
 struct CoarseFineTransformations
 {
    /// Matrices for IsoparametricTransformation organized by Geometry::Type
-   std::map<Geometry::Type, DenseTensor> point_matrices;
+   DenseTensor point_matrices[Geometry::NumGeom];
    /// Fine element positions in their parents.
    Array<Embedding> embeddings;
-
-   const DenseTensor &GetPointMatrices(Geometry::Type geom) const;
 
    void GetCoarseToFineMap(const Mesh &fine_mesh,
                            Table &coarse_to_fine,
@@ -67,15 +70,18 @@ struct CoarseFineTransformations
                            Table &ref_type_to_matrix,
                            Array<Geometry::Type> &ref_type_to_geom) const;
 
-   void Clear() { point_matrices.clear(); embeddings.DeleteAll(); }
+   void Clear();
+   bool IsInitialized() const;
    long MemoryUsage() const;
 };
 
+struct MatrixMap; // for internal use
 
-/** \brief A class for non-conforming AMR on higher-order hexahedral,
- *  quadrilateral or triangular meshes.
+
+/** \brief A class for non-conforming AMR. The class is not used directly
+ *  by the user, rather it is an extension of the Mesh class.
  *
- *  The class is used as follows:
+ *  In general, the class is used by MFEM as follows:
  *
  *  1. NCMesh is constructed from elements of an existing Mesh. The elements
  *     are copied and become roots of the refinement hierarchy.
@@ -84,7 +90,8 @@ struct CoarseFineTransformations
  *     anisotropic refinements of quads/hexes are supported.
  *
  *  3. A new Mesh is created from NCMesh containing the leaf elements.
- *     This new mesh may have non-conforming (hanging) edges and faces.
+ *     This new Mesh may have non-conforming (hanging) edges and faces and
+ *     is the one seen by the user.
  *
  *  4. FiniteElementSpace asks NCMesh for a list of conforming, master and
  *     slave edges/faces and creates the conforming interpolation matrix P.
@@ -96,12 +103,14 @@ struct CoarseFineTransformations
 class NCMesh
 {
 public:
-   /** Initialize with elements from 'mesh'. If an already nonconforming mesh
-       is being loaded, 'vertex_parents' must point to a stream at the appropriate
-       section of the mesh file which contains the vertex hierarchy. */
-   explicit NCMesh(const Mesh *mesh, std::istream *vertex_parents = NULL);
+   //// Initialize with elements from an existing 'mesh'.
+   explicit NCMesh(const Mesh *mesh);
 
-   NCMesh(const NCMesh &other); // deep copy
+   /// Load from a stream. The id header is assumed to have been read already.
+   NCMesh(std::istream &input, int version, int &curved);
+
+   /// Deep copy of another instance.
+   NCMesh(const NCMesh &other);
 
    virtual ~NCMesh();
 
@@ -111,7 +120,6 @@ public:
    int GetNVertices() const { return NVertices; }
    int GetNEdges() const { return NEdges; }
    int GetNFaces() const { return NFaces; }
-   int GetNPlanars() const { return NPlanars; }
 
    /** Perform the given batch of refinements. Please note that in the presence
        of anisotropic splits additional refinements may be necessary to keep
@@ -149,10 +157,13 @@ public:
    {
       int index;   ///< Mesh number
       int element; ///< NCMesh::Element containing this vertex/edge/face
-      int local;   ///< local number within 'element'
+      signed char local; ///< local number within 'element'
+      signed char geom;  ///< Geometry::Type (faces only) (char to save RAM)
 
-      MeshId(int index = -1, int element = -1, int local = -1)
-         : index(index), element(element), local(local) {}
+      Geometry::Type Geom() const { return Geometry::Type(geom); }
+
+      MeshId(int index = -1, int element = -1, int local = -1, int geom = -1)
+         : index(index), element(element), local(local), geom(geom) {}
    };
 
    /** Nonconforming edge/face that has more than one neighbor. The neighbors
@@ -161,39 +172,47 @@ public:
    {
       int slaves_begin, slaves_end; ///< slave faces
 
-      Master(int index, int element, int local, int sb, int se)
-         : MeshId(index, element, local), slaves_begin(sb), slaves_end(se) {}
+      Master() = default;
+      Master(int index, int element, int local, int geom, int sb, int se)
+         : MeshId(index, element, local, geom)
+         , slaves_begin(sb), slaves_end(se) {}
    };
 
    /// Nonconforming edge/face within a bigger edge/face.
    struct Slave : public MeshId
    {
       int master; ///< master number (in Mesh numbering)
-      int edge_flags; ///< edge orientation flags
-      DenseMatrix point_matrix; ///< position within the master edge/face
+      unsigned matrix : 24;    ///< index into NCList::point_matrices[geom]
+      unsigned edge_flags : 8; ///< orientation flags, see OrientedPointMatrix
 
-      Slave(int index, int element, int local)
-         : MeshId(index, element, local), master(-1), edge_flags(0) {}
-
-      /// Return the point matrix oriented according to the master and slave edges
-      void OrientedPointMatrix(DenseMatrix &oriented_matrix) const;
+      Slave() = default;
+      Slave(int index, int element, int local, int geom)
+         : MeshId(index, element, local, geom)
+         , master(-1), matrix(0), edge_flags(0) {}
    };
 
    /// Lists all edges/faces in the nonconforming mesh.
    struct NCList
    {
-      std::vector<MeshId> conforming;
-      std::vector<Master> masters;
-      std::vector<Slave> slaves;
-      // TODO: switch to Arrays when fixed for non-POD types
-      // TODO: make a list of unique slave matrices to save memory (+ time later)
+      Array<MeshId> conforming;
+      Array<Master> masters;
+      Array<Slave> slaves;
 
-      void Clear(bool hard = false);
-      bool Empty() const { return !conforming.size() && !masters.size(); }
+      /// List of unique point matrices for each slave geometry.
+      Array<DenseMatrix*> point_matrices[Geometry::NumGeom];
+
+      /// Return the point matrix oriented according to the master and slave edges
+      void OrientedPointMatrix(const Slave &slave,
+                               DenseMatrix &oriented_matrix) const;
+
+      void Clear();
+      bool Empty() const { return !conforming.Size() && !masters.Size(); }
       long TotalSize() const;
       long MemoryUsage() const;
 
       const MeshId& LookUp(int index, int *type = NULL) const;
+
+      ~NCList() { Clear(); }
    private:
       mutable Array<int> inv_index;
    };
@@ -203,13 +222,6 @@ public:
    {
       if (face_list.Empty()) { BuildFaceList(); }
       return face_list;
-   }
-
-   /// Return the current list of conforming and nonconforming faces.
-   const NCList& GetPlanarList()
-   {
-      if (planar_list.Empty()) { BuildPlanarList(); }
-      return planar_list;
    }
 
    /// Return the current list of conforming and nonconforming edges.
@@ -234,8 +246,6 @@ public:
       {
          case 0: return GetVertexList();
          case 1: return GetEdgeList();
-         case 2: if (Dim == 4) { return GetPlanarList(); }
-         /* no break */
          default: return GetFaceList();
       }
    }
@@ -262,6 +272,24 @@ public:
    void ClearTransforms();
 
 
+   // grid ordering
+
+   /** Return a space filling curve for a rectangular grid of elements.
+       Implemented is a generalized Hilbert curve for arbitrary grid dimensions.
+       If the width is odd, height should be odd too, otherwise one diagonal
+       (vertex-neighbor) step cannot be avoided in the curve. Even dimensions
+       are recommended. */
+   static void GridSfcOrdering2D(int width, int height,
+                                 Array<int> &coords);
+
+   /** Return a space filling curve for a 3D rectangular grid of elements.
+       The Hilbert-curve-like algorithm works well for even dimensions. For odd
+       width/height/depth it tends to produce some diagonal (edge-neighbor)
+       steps. Even dimensions are recommended. */
+   static void GridSfcOrdering3D(int width, int height, int depth,
+                                 Array<int> &coords);
+
+
    // utility
 
    /// Return Mesh vertex indices of an edge identified by 'edge_id'.
@@ -271,24 +299,14 @@ public:
    /** Return "NC" orientation of an edge. As opposed to standard Mesh edge
        orientation based on vertex IDs, "NC" edge orientation follows the local
        edge orientation within the element 'edge_id.element' and is thus
-       processor independent. FIXME this seems only partially true */
+       processor independent. TODO: this seems only partially true? */
    int GetEdgeNCOrientation(const MeshId &edge_id) const;
 
-   /// Return Mesh vertex and edge indices of a face identified by 'face_id'.
-   void GetFaceVerticesEdges(const MeshId &face_id,
-                             int vert_index[4], int edge_index[4],
-                             int edge_orientation[4]) const;
-
-   /// Return Mesh vertex, edge and planar indices of a face identified by 'face_id'.
-   void GetFaceVerticesEdgesPlanars(const MeshId &face_id,
-                                    int vert_index[4], int edge_index[6],
-                                    int edge_orientation[6], int planar_index[4],
-                                    int planar_orientation[4]) const;
-
-   /// Return Mesh vertex and edge indices of a planar identified by 'planar_id'.
-   void GetPlanarVerticesEdges(const MeshId &planar_id,
-                               int vert_index[3], int edge_index[3],
-                               int edge_orientation[3]) const;
+   /** Return Mesh vertex and edge indices of a face identified by 'face_id'.
+       The return value is the number of face vertices. */
+   int GetFaceVerticesEdges(const MeshId &face_id,
+                            int vert_index[4], int edge_index[4],
+                            int edge_orientation[4]) const;
 
    /** Given an edge (by its vertex indices v1 and v2) return the first
        (geometric) parent edge that exists in the Mesh or -1 if there is no such
@@ -304,71 +322,72 @@ public:
                                    Array<int> &bdr_vertices,
                                    Array<int> &bdr_edges);
 
-   virtual void GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
-                                   Array<int> &bdr_vertices,
-                                   Array<int> &bdr_edges,
-                                   Array<int> &bdr_planars);
+   /// Return element geometry type. @a index is the Mesh element number.
+   Geometry::Type GetElementGeometry(int index) const
+   { return elements[leaf_elements[index]].Geom(); }
 
-   /// Return the type of elements in the mesh.
-   Geometry::Type GetElementGeometry() const { return elements[0].geom; }
+   /// Return face geometry type. @a index is the Mesh face number.
+   Geometry::Type GetFaceGeometry(int index) const
+   { return Geometry::Type(face_geom[index]); }
 
-   Geometry::Type GetFaceGeometry() const { return Geometry::SQUARE; }
+   /// Return the number of root elements.
+   int GetNumRootElements() { return root_state.Size(); }
 
    /// Return the distance of leaf 'i' from the root.
    int GetElementDepth(int i) const;
 
-   /// I/O: Print the "vertex_parents" section of the mesh file (ver. >= 1.1).
-   void PrintVertexParents(std::ostream &out) const;
+   /** Return the size reduction compared to the root element (ignoring local
+       stretching and curvature). */
+   int GetElementSizeReduction(int i) const;
 
-   /// I/O: Print the "coarse_elements" section of the mesh file (ver. >= 1.1).
-   void PrintCoarseElements(std::ostream &out) const;
+   /// Return the faces and face attributes of leaf element 'i'.
+   void GetElementFacesAttributes(int i, Array<int> &faces,
+                                  Array<int> &fattr) const;
 
-   /** I/O: Load the vertex parent hierarchy from a mesh file. NOTE: called
-       indirectly through the constructor. */
-   void LoadVertexParents(std::istream &input);
 
-   /// I/O: Load the element refinement hierarchy from a mesh file.
-   void LoadCoarseElements(std::istream &input);
+   /// I/O: Print the mesh in "MFEM NC mesh v1.0" format.
+   void Print(std::ostream &out) const;
 
-   /// I/O: Set positions of all vertices (used by mesh loader).
-   void SetVertexPositions(const Array<mfem::Vertex> &vertices);
+   /// I/O: Return true if the mesh was loaded from the legacy v1.1 format.
+   bool IsLegacyLoaded() const { return Legacy; }
+
+   /// I/O: Return a map from old (v1.1) vertex indices to new vertex indices.
+   void LegacyToNewVertexOrdering(Array<int> &order) const;
 
    /// Save memory by releasing all non-essential and cached data.
    virtual void Trim();
 
    /// Return total number of bytes allocated.
    long MemoryUsage() const;
-   long MemoryUsage4D() const;
 
    int PrintMemoryDetail() const;
 
-   void PrintStats(std::ostream &out = mfem::out) const;
-   void PrintStats4D(std::ostream &out = mfem::out) const;
+   typedef std::int64_t RefCoord;
 
 
-protected: // interface for Mesh to be able to construct itself from NCMesh
+protected: // non-public interface for the Mesh class
 
    friend class Mesh;
 
-   /// Return the basic Mesh arrays for the current finest level.
-   void GetMeshComponents(Array<mfem::Vertex>& mvertices,
-                          Array<mfem::Element*>& melements,
-                          Array<mfem::Element*>& mboundary) const;
-
-   void GetMeshComponents(Array<mfem::Vertex>& mvertices,
-                          Array<mfem::Element*>& melements,
-                          Array<mfem::Element*>& mboundary,
-                          MemAlloc<Tetrahedron, 1024> &TetMem) const;
+   /// Fill Mesh::{vertices,elements,boundary} for the current finest level.
+   void GetMeshComponents(Mesh &mesh) const;
 
    /** Get edge and face numbering from 'mesh' (i.e., set all Edge::index and
        Face::index) after a new mesh was created from us. */
-   virtual void OnMeshUpdated(Mesh *mesh);
+   void OnMeshUpdated(Mesh *mesh);
+
+   /** Delete top-level vertex coordinates if the Mesh became curved, e.g.,
+       by calling Mesh::SetCurvature or otherwise setting the Nodes. */
+   void MakeTopologyOnly() { coordinates.DeleteAll(); }
 
 
 protected: // implementation
 
    int Dim, spaceDim; ///< dimensions of the elements and the vertex coordinates
+   int MyRank; ///< used in parallel, or when loading a parallel file in serial
    bool Iso; ///< true if the mesh only contains isotropic refinements
+   int Geoms; ///< bit mask of element geometries present, see InitGeomFlags()
+   bool Legacy; ///< true if the mesh was loaded from the legacy v1.1 format
 
    /** A Node can hold a vertex, an edge, or both. Elements directly point to
        their corner nodes, but edge nodes also exist and can be accessed using
@@ -380,8 +399,7 @@ protected: // implementation
        parent element "signs off" its nodes by decrementing the ref counts. */
    struct Node : public Hashed2
    {
-      short vert_refc,
-            edge_refc; // changed from char to short because in 4D, a vertex might be in more than 127 elements
+      char vert_refc, edge_refc;
       int vert_index, edge_index;
 
       Node() : vert_refc(0), edge_refc(0), vert_index(-1), edge_index(-1) {}
@@ -408,40 +426,7 @@ protected: // implementation
       Face() : attribute(-1), index(-1) { elem[0] = elem[1] = -1; }
 
       bool Boundary() const { return attribute >= 0; }
-      bool Unused() const { return elem[0] < 0 && elem[1] < 0;}
-
-      // add or remove an element from the 'elem[2]' array
-      void RegisterElement(int e);
-      void ForgetElement(int e);
-
-      /// Return one of elem[0] or elem[1] and make sure the other is -1.
-      int GetSingleElement() const;
-   };
-
-   struct Planar : public Hashed4
-   {
-      int attribute;
-      int index;
-      Array<int> elem;
-
-      Planar() : attribute(-1), index(-1) { elem.SetSize(0); };
-
-      bool Unused() const { return elem.Size() < 1; }
-
-      void RegisterElement(int e);
-      void ForgetElement(int e);
-   };
-
-   struct Face4D : public Hashed5
-   {
-      int attribute; ///< boundary element attribute, -1 if internal face
-      int index;     ///< face number in the Mesh
-      int elem[2];   ///< up to 2 elements sharing the face
-
-      Face4D() : attribute(-1), index(-1) { elem[0] = elem[1] = -1; }
-
-      bool Boundary() const { return attribute >= 0; }
-      bool Unused() const { return elem[0] < 0 && elem[1] < 0;}
+      bool Unused() const { return elem[0] < 0 && elem[1] < 0; }
 
       // add or remove an element from the 'elem[2]' array
       void RegisterElement(int e);
@@ -456,8 +441,9 @@ protected: // implementation
        to its vertex nodes. */
    struct Element
    {
-      Geometry::Type geom; ///< Geometry::Type of the element
+      char geom;     ///< Geometry::Type of the element (char for storage only)
       char ref_type; ///< bit mask of X,Y,Z refinements (bits 0,1,2 respectively)
+      char tet_type; ///< tetrahedron split type, currently always 0
       char flag;     ///< generic flag/marker, can be used by algorithms
       int index;     ///< element number in the Mesh, -1 if refined
       int rank;      ///< processor number (ParNCMesh), -1 if undefined/unknown
@@ -465,37 +451,33 @@ protected: // implementation
       union
       {
          int node[8];  ///< element corners (if ref_type == 0)
-         int child[16]; ///< 2-8 children (if ref_type != 0)
+         int child[8]; ///< 2-8 children (if ref_type != 0)
       };
-      int parent; ///< parent element, -1 if this is a root element, -2 if free
+      int parent; ///< parent element, -1 if this is a root element, -2 if free'd
 
       Element(Geometry::Type geom, int attr);
+
+      Geometry::Type Geom() const { return Geometry::Type(geom); }
+      bool IsLeaf() const { return !ref_type && (parent != -2); }
    };
+
 
    // primary data
 
    HashTable<Node> nodes; // associative container holding all Nodes
    HashTable<Face> faces; // associative container holding all Faces
-   HashTable<Face4D> faces4d; // associative container holding all Faces in 4D
-   HashTable<Planar> planars; // associative container holding all Planars
 
    BlockArray<Element> elements; // storage for all Elements
    Array<int> free_element_ids;  // unused element ids - indices into 'elements'
 
-   // the first 'root_count' entries of 'elements' is the coarse mesh
-   int root_count;
+   /** Initial traversal state (~ element orientation) for each root element
+       NOTE: M = root_state.Size() is the number of root elements.
+       NOTE: the first M items of 'elements' is the coarse mesh. */
+   Array<int> root_state;
 
-   // coordinates of top-level vertices (organized as triples)
-   Array<double> top_vertex_pos;
-
-   typedef HashTable<Node>::iterator node_iterator;
-   typedef HashTable<Face>::iterator face_iterator;
-   typedef HashTable<Face4D>::iterator face4d_iterator;
-   typedef HashTable<Planar>::iterator planar_iterator;
-   typedef HashTable<Node>::const_iterator node_const_iterator;
-   typedef HashTable<Face>::const_iterator face_const_iterator;
-   typedef HashTable<Face4D>::const_iterator face4d_const_iterator;
-   typedef BlockArray<Element>::iterator elem_iterator;
+   /** Coordinates of top-level vertices (organized as triples). If empty,
+       the Mesh is curved (Nodes != NULL) and NCMesh is topology-only. */
+   Array<double> coordinates;
 
 
    // secondary data
@@ -503,41 +485,55 @@ protected: // implementation
    /** Apart from the primary data structure, which is the element/node/face
        hierarchy, there is secondary data that is derived from the primary
        data and needs to be updated when the primary data changes. Update()
-       takes care of that and needs to be called after refinement and
+       takes care of that and needs to be called after each refinement and
        derefinement. */
    virtual void Update();
 
-   int NVertices; // set by UpdateVertices
-   int NEdges, NFaces, NPlanars; // set by OnMeshUpdated
+   // set by UpdateLeafElements, UpdateVertices and OnMeshUpdated
+   int NElements, NVertices, NEdges, NFaces;
 
-   Array<int> leaf_elements; // finest level, calculated by UpdateLeafElements
-   Array<int> vertex_nodeId; // vertex-index to node-id map, see UpdateVertices
+   // NOTE: the serial code understands the bare minimum about ghost elements and
+   // other ghost entities in order to be able to load parallel partial meshes
+   int NGhostElements, NGhostVertices, NGhostEdges, NGhostFaces;
+
+   Array<int> leaf_elements; ///< finest elements, in Mesh ordering (+ ghosts)
+   Array<int> leaf_sfc_index; ///< natural tree ordering of leaf elements
+   Array<int> vertex_nodeId; ///< vertex-index to node-id map, see UpdateVertices
 
    NCList face_list; ///< lazy-initialized list of faces, see GetFaceList
-   NCList planar_list; ///< lazy-initialized list of planars, see GetPlanarList
    NCList edge_list; ///< lazy-initialized list of edges, see GetEdgeList
    NCList vertex_list; ///< lazy-initialized list of vertices, see GetVertexList
 
    Array<int> boundary_faces; ///< subset of all faces, set by BuildFaceList
+   Array<char> face_geom; ///< face geometry by face index, set by OnMeshUpdated
 
    Table element_vertex; ///< leaf-element to vertex table, see FindSetNeighbors
 
 
-   virtual void UpdateVertices(); ///< update Vertex::index and vertex_nodeId
-
-   void CollectLeafElements(int elem, int state);
    void UpdateLeafElements();
+   void UpdateVertices(); ///< update Vertex::index and vertex_nodeId
+   void CollectLeafElements(int elem, int state, Array<int> &ghosts,
+                            int &counter);
 
-   virtual void AssignLeafIndices();
+   /** Try to find a space-filling curve friendly orientation of the root
+       elements: set 'root_state' based on the ordering of coarse elements.
+       Note that the coarse mesh itself must be ordered as an SFC by e.g.
+       Mesh::GetGeckoElementOrdering. */
+   void InitRootState(int root_count);
 
-   virtual bool IsGhost(const Element &el) const { return false; }
-   virtual int GetNumGhostElements() const { return 0; }
-   virtual int GetNumGhostVertices() const { return 0; }
+   void InitGeomFlags();
+
+   bool HavePrisms() const { return Geoms & (1 << Geometry::PRISM); }
+   bool HaveTets() const   { return Geoms & (1 << Geometry::TETRAHEDRON); }
+
+   bool IsGhost(const Element &el) const { return el.rank != MyRank; }
 
 
    // refinement/derefinement
 
    Array<Refinement> ref_stack; ///< stack of scheduled refinements (temporary)
+   HashTable<Node> shadow; ///< temporary storage for reparented nodes
+   Array<Triple<int, int, int> > reparents; ///< scheduled node reparents (tmp)
 
    Table derefinements; ///< possible derefinements, see GetDerefinementTable
 
@@ -558,36 +554,45 @@ protected: // implementation
    void FreeElement(int id)
    {
       free_element_ids.Append(id);
+      elements[id].ref_type = 0;
       elements[id].parent = -2; // mark the element as free
    }
 
-   int NewPentatope(int n0, int n1, int n2, int n3, int n4,
-                    int attr,
-                    int fattr0, int fattr1, int fattr2,
-                    int fattr3, int fattr4);
-
    int NewHexahedron(int n0, int n1, int n2, int n3,
-                     int n4, int n5, int n6, int n7,
-                     int attr,
+                     int n4, int n5, int n6, int n7, int attr,
                      int fattr0, int fattr1, int fattr2,
                      int fattr3, int fattr4, int fattr5);
 
-   int NewQuadrilateral(int n0, int n1, int n2, int n3,
-                        int attr,
+   int NewWedge(int n0, int n1, int n2,
+                int n3, int n4, int n5, int attr,
+                int fattr0, int fattr1,
+                int fattr2, int fattr3, int fattr4);
+
+   int NewTetrahedron(int n0, int n1, int n2, int n3, int attr,
+                      int fattr0, int fattr1, int fattr2, int fattr3);
+
+   int NewQuadrilateral(int n0, int n1, int n2, int n3, int attr,
                         int eattr0, int eattr1, int eattr2, int eattr3);
 
    int NewTriangle(int n0, int n1, int n2,
                    int attr, int eattr0, int eattr1, int eattr2);
 
+   int NewSegment(int n0, int n1, int attr, int vattr1, int vattr2);
+
    mfem::Element* NewMeshElement(int geom) const;
 
-   int GetMidEdgeNode(int vn1, int vn2);
-   int GetMidFaceNode(int en1, int en2, int en3, int en4);
+   int QuadFaceSplitType(int v1, int v2, int v3, int v4, int mid[5]
+                         = NULL /*optional output of mid-edge nodes*/) const;
 
-   int FaceSplitType(int v1, int v2, int v3, int v4, int mid[4]
-                     = NULL /*optional output of mid-edge nodes*/) const;
+   bool TriFaceSplit(int v1, int v2, int v3, int mid[3] = NULL) const;
 
    void ForceRefinement(int vn1, int vn2, int vn3, int vn4);
+
+   void FindEdgeElements(int vn1, int vn2, int vn3, int vn4,
+                         Array<MeshId> &prisms) const;
+
+   void CheckAnisoPrism(int vn1, int vn2, int vn3, int vn4,
+                        const Refinement *refs, int nref);
 
    void CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
                        int mid12, int mid34, int level = 0);
@@ -595,61 +600,59 @@ protected: // implementation
    void CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
                      int en1, int en2, int en3, int en4, int midf);
 
-   void RefElement(int elem);
-   void UnrefElement(int elem, Array<int> &elemFaces);
-   void UnrefElement(int elem, Array<int> &elemFaces, Array<int> &elemPlanars);
+   void ReparentNode(int node, int new_p1, int new_p2);
+
+   int FindMidEdgeNode(int node1, int node2) const;
+   int GetMidEdgeNode(int node1, int node2);
+
+   int GetMidFaceNode(int en1, int en2, int en3, int en4);
+
+   void ReferenceElement(int elem);
+   void UnreferenceElement(int elem, Array<int> &elemFaces);
 
    Face* GetFace(Element &elem, int face_no);
-   Face4D* GetFace4D(Element &elem, int face_no);
    void RegisterFaces(int elem, int *fattr = NULL);
    void DeleteUnusedFaces(const Array<int> &elemFaces);
 
-   Planar* GetPlanar(Element &elem, int planar_no);
-   void RegisterPlanars(int elem, int *fattr = NULL);
-   void DeleteUnusedPlanars(const Array<int> &elemPlanar);
-
-   int FindAltParents(int node1, int node2);
-
-   bool NodeSetX1(int node, int* n);
-   bool NodeSetX2(int node, int* n);
-   bool NodeSetY1(int node, int* n);
-   bool NodeSetY2(int node, int* n);
-   bool NodeSetZ1(int node, int* n);
-   bool NodeSetZ2(int node, int* n);
-
    void CollectDerefinements(int elem, Array<Connection> &list);
+
+   /// Return el.node[index] correctly, even if the element is refined.
+   int RetrieveNode(const Element &el, int index);
+
+   /// Extended version of find_node: works if 'el' is refined.
+   int FindNodeExt(const Element &el, int node, bool abort = true);
 
 
    // face/edge lists
 
    static int find_node(const Element &el, int node);
-   static int find_element_edge(const Element &el, int vn0, int vn1);
-   static int find_pent_planar(int a, int b, int c);
-   static int find_hex_face(int a, int b, int c);
-   static int find_pent_face(int a, int b, int c, int d);
+   static int find_element_edge(const Element &el, int vn0, int vn1,
+                                bool abort = true);
+   static int find_local_face(int geom, int a, int b, int c);
+
+   struct Point;
+   struct PointMatrix;
 
    int ReorderFacePointMat(int v0, int v1, int v2, int v3,
-                           int elem, DenseMatrix& mat) const;
-   int ReorderPlanarPointMat(int v0, int v1, int v2,
-                             int elem, DenseMatrix& mat) const;
-   struct PointMatrix;
-   void TraverseFace(int vn0, int vn1, int vn2, int vn3,
-                     const PointMatrix& pm, int level);
-   void TraverseFace4D(int vn0, int vn1, int vn2, int vn3,
-                       const PointMatrix& pm, int level, int local);
+                           int elem, const PointMatrix &pm,
+                           PointMatrix &reordered) const;
 
+   void TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
+                         const PointMatrix& pm, int level, Face* eface[4],
+                         MatrixMap &matrix_map);
+   bool TraverseTriFace(int vn0, int vn1, int vn2,
+                        const PointMatrix& pm, int level,
+                        MatrixMap &matrix_map);
+   void TraverseTetEdge(int vn0, int vn1, const Point &p0, const Point &p1,
+                        MatrixMap &matrix_map);
    void TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
-                     int level);
-   void TraversePlanar(int vn0, int vn1, int vn2, const PointMatrix& pm,
-                       int level);
+                     int level, MatrixMap &matrix_map);
 
    virtual void BuildFaceList();
-   virtual void BuildPlanarList();
    virtual void BuildEdgeList();
    virtual void BuildVertexList();
 
    virtual void ElementSharesFace(int elem, int local, int face) {} // ParNCMesh
-   virtual void ElementSharesPlanar(int elem, int local, int planar) {}
    virtual void ElementSharesEdge(int elem, int local, int enode) {} // ParNCMesh
    virtual void ElementSharesVertex(int elem, int local, int vnode) {} // ParNCMesh
 
@@ -684,14 +687,24 @@ protected: // implementation
 
 
    void CollectEdgeVertices(int v0, int v1, Array<int> &indices);
-   void CollectFaceVertices(int v0, int v1, int v2, int v3,
-                            Array<int> &indices);
+   void CollectTriFaceVertices(int v0, int v1, int v2, Array<int> &indices);
+   void CollectQuadFaceVertices(int v0, int v1, int v2, int v3,
+                                Array<int> &indices);
    void BuildElementToVertexTable();
 
    void UpdateElementToVertexTable()
    {
       if (element_vertex.Size() < 0) { BuildElementToVertexTable(); }
    }
+
+   int GetVertexRootCoord(int elem, RefCoord coord[3]) const;
+   void CollectIncidentElements(int elem, const RefCoord coord[3],
+                                Array<int> &list) const;
+
+   /** Return elements neighboring to a local vertex of element 'elem'. Only
+       elements from within the same refinement tree ('cousins') are returned.
+       Complexity is proportional to the depth of elem's refinement tree. */
+   void FindVertexCousins(int elem, int local, Array<int> &cousins) const;
 
 
    // coarse/fine transformations
@@ -702,6 +715,9 @@ protected: // implementation
       double coord[4];
 
       Point() { dim = 0; }
+
+      Point(double x)
+      { dim = 1; coord[0] = x; }
 
       Point(double x, double y)
       { dim = 2; coord[0] = x; coord[1] = y; }
@@ -745,6 +761,11 @@ protected: // implementation
       int np;
       Point points[8];
 
+      PointMatrix() : np(0) {}
+
+      PointMatrix(const Point& p0, const Point& p1)
+      { np = 2; points[0] = p0; points[1] = p1; }
+
       PointMatrix(const Point& p0, const Point& p1, const Point& p2)
       { np = 3; points[0] = p0; points[1] = p1; points[2] = p2; }
 
@@ -760,6 +781,13 @@ protected: // implementation
       }
 
       PointMatrix(const Point& p0, const Point& p1, const Point& p2,
+                  const Point& p3, const Point& p4, const Point& p5)
+      {
+         np = 6;
+         points[0] = p0; points[1] = p1; points[2] = p2;
+         points[3] = p3; points[4] = p4; points[5] = p5;
+      }
+      PointMatrix(const Point& p0, const Point& p1, const Point& p2,
                   const Point& p3, const Point& p4, const Point& p5,
                   const Point& p6, const Point& p7)
       {
@@ -771,17 +799,22 @@ protected: // implementation
       Point& operator()(int i) { return points[i]; }
       const Point& operator()(int i) const { return points[i]; }
 
+      bool operator==(const PointMatrix &pm) const;
+
       void GetMatrix(DenseMatrix& point_matrix) const;
    };
 
+   static PointMatrix pm_seg_identity;
    static PointMatrix pm_tri_identity;
    static PointMatrix pm_quad_identity;
-   static PointMatrix pm_pent_identity;
+   static PointMatrix pm_tet_identity;
+   static PointMatrix pm_prism_identity;
    static PointMatrix pm_hex_identity;
 
-   static const PointMatrix& GetGeomIdentity(int geom);
+   static const PointMatrix& GetGeomIdentity(Geometry::Type geom);
 
-   void GetPointMatrix(int geom, const char* ref_path, DenseMatrix& matrix);
+   void GetPointMatrix(Geometry::Type geom, const char* ref_path,
+                       DenseMatrix& matrix);
 
    typedef std::map<std::string, int> RefPathMap;
 
@@ -816,50 +849,75 @@ protected: // implementation
 
    int GetEdgeMaster(int node) const;
 
-   int GetPlanarMaster(int planar) const;
-
    void FindFaceNodes(int face, int node[4]);
-   void FindFaceNodes4D(int face, int node[4]);
 
-   int  EdgeSplitLevel(int vn1, int vn2) const;
-   void FaceSplitLevel(int vn1, int vn2, int vn3, int vn4,
-                       int& h_level, int& v_level) const;
+   int EdgeSplitLevel(int vn1, int vn2) const;
+   int TriFaceSplitLevel(int vn1, int vn2, int vn3) const;
+   void QuadFaceSplitLevel(int vn1, int vn2, int vn3, int vn4,
+                           int& h_level, int& v_level) const;
 
-   void CountSplits(int elem, int splits[4]) const;
+   void CountSplits(int elem, int splits[3]) const;
    void GetLimitRefinements(Array<Refinement> &refinements, int max_level);
 
-   int PrintElements(std::ostream &out, int elem, int &coarse_id) const;
-   void CopyElements(int elem, const BlockArray<Element> &tmp_elements,
-                     Array<int> &index_map);
+
+   // I/O
+
+   /// Print the "vertex_parents" section of the mesh file.
+   int PrintVertexParents(std::ostream *out) const;
+   /// Load the vertex parent hierarchy from a mesh file.
+   void LoadVertexParents(std::istream &input);
+
+   /** Print the "boundary" section of the mesh file.
+       If out == NULL, only return the number of boundary elements. */
+   int PrintBoundary(std::ostream *out) const;
+   /// Load the "boundary" section of the mesh file.
+   void LoadBoundary(std::istream &input);
+
+   /// Print the "coordinates" section of the mesh file.
+   void PrintCoordinates(std::ostream &out) const;
+   /// Load the "coordinates" section of the mesh file.
+   void LoadCoordinates(std::istream &input);
+
+   /// Count root elements and initialize root_state.
+   void InitRootElements();
+   /// Return the index of the last top-level node plus one.
+   int CountTopLevelNodes() const;
+   /// Return true if all root_states are zero.
+   bool ZeroRootStates() const;
+
+   /// Load the element refinement hierarchy from a legacy mesh file.
+   void LoadCoarseElements(std::istream &input);
+   void CopyElements(int elem, const BlockArray<Element> &tmp_elements);
+   /// Load the deprecated MFEM mesh v1.1 format for backward compatibility.
+   void LoadLegacyFormat(std::istream &input, int &curved);
+
 
    // geometry
 
-   /** This holds in one place the constants about the geometries we support
-       (triangles, quads, cubes) */
+   /// This holds in one place the constants about the geometries we support
    struct GeomInfo
    {
-      int nv, ne, nf, nfv; // number of: vertices, edges, faces, face vertices
-      int np, npv;         // number of: planars, planar vertices
-      int edges[12][2];    // edge vertices (up to 12 edges)
-      int faces[6][4];     // face vertices (up to 6 faces)
-      int planars[10][3];  // planar vertices (up to 10 planars (pentatope))
+      int nv, ne, nf;   // number of: vertices, edges, faces
+      int edges[12][2]; // edge vertices (up to 12 edges)
+      int faces[6][4];  // face vertices (up to 6 faces)
+      int nfv[6];       // number of face vertices
 
       bool initialized;
       GeomInfo() : initialized(false) {}
-      void Initialize(const mfem::Element* elem);
+      void InitGeom(Geometry::Type geom);
    };
 
    static GeomInfo GI[Geometry::NumGeom];
 
-   static GeomInfo &gi_hex, &gi_quad, &gi_tri, &gi_pent;
-
 #ifdef MFEM_DEBUG
 public:
+   void DebugLeafOrder(std::ostream &out) const;
    void DebugDump(std::ostream &out) const;
 #endif
 
    friend class ParNCMesh; // for ParNCMesh::ElementSet
-   friend struct CompareRanks;
+   friend struct MatrixMap;
+   friend struct PointMatrixHash;
 };
 
 }

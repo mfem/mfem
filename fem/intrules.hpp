@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_INTRULES
 #define MFEM_INTRULES
@@ -26,8 +26,13 @@ class IntegrationPoint
 {
 public:
    double x, y, z, t, weight;
+   int index;
 
-   void Init() { x = y = z = t = weight = 0.0; }
+   void Init(int const i)
+   {
+      x = y = z = t = weight = 0.0;
+      index = i;
+   }
 
    void Set(const double *p, const int dim)
    {
@@ -106,6 +111,12 @@ class IntegrationRule : public Array<IntegrationPoint>
 private:
    friend class IntegrationRules;
    int Order;
+   /** @brief The quadrature weights gathered as a contiguous array. Created
+       by request with the method GetWeights(). */
+   mutable Array<double> weights;
+
+   /// Sets the indices of each quadrature point on initialization.
+   void SetPointIndices();
 
    /// Define n-simplex rule (triangle/tetrahedron for n=2/3) of order (2s+1)
    void GrundmannMollerSimplexRule(int s, int n = 3);
@@ -250,7 +261,7 @@ public:
    {
       for (int i = 0; i < this->Size(); i++)
       {
-         (*this)[i].Init();
+         (*this)[i].Init(i);
       }
    }
 
@@ -277,6 +288,11 @@ public:
    /// Returns a const reference to the i-th integration point
    const IntegrationPoint &IntPoint(int i) const { return (*this)[i]; }
 
+   /// Return the quadrature weights in a contiguous array.
+   /** If a contiguous array is not required, the weights can be accessed with
+       a call like this: `IntPoint(i).weight`. */
+   const Array<double> &GetWeights() const;
+
    /// Destroys an IntegrationRule object
    ~IntegrationRule() { }
 };
@@ -294,6 +310,7 @@ public:
    void OpenUniform(const int np, IntegrationRule *ir);
    void ClosedUniform(const int np, IntegrationRule *ir);
    void OpenHalfUniform(const int np, IntegrationRule *ir);
+   void ClosedGL(const int np, IntegrationRule *ir);
    ///@}
 
    /// A helper function that will play nice with Poly_1D::OpenPoints and
@@ -315,7 +332,8 @@ public:
       GaussLobatto    = 1,
       OpenUniform     = 2,  ///< aka open Newton-Cotes
       ClosedUniform   = 3,  ///< aka closed Newton-Cotes
-      OpenHalfUniform = 4   ///< aka "open half" Newton-Cotes
+      OpenHalfUniform = 4,  ///< aka "open half" Newton-Cotes
+      ClosedGL        = 5   ///< aka closed Gauss Legendre
    };
    /** @brief If the Quadrature1D type is not closed return Invalid; otherwise
        return type. */

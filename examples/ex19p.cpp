@@ -8,6 +8,7 @@
 //    mpirun -np 2 ex19p -m ../data/beam-hex.mesh
 //    mpirun -np 2 ex19p -m ../data/beam-tet.mesh
 //    mpirun -np 2 ex19p -m ../data/beam-wedge.mesh
+//    mpirun -np 2 ex19p -m ../data/beam-quad-amr.mesh
 //
 // Description:  This examples solves a quasi-static incompressible nonlinear
 //               elasticity problem of the form 0 = H(x), where H is an
@@ -37,6 +38,56 @@
 
 using namespace std;
 using namespace mfem;
+
+class GeneralResidualMonitor : public IterativeSolverMonitor
+{
+public:
+   GeneralResidualMonitor(MPI_Comm comm, const std::string& prefix_,
+                          int print_lvl)
+      : prefix(prefix_)
+   {
+#ifndef MFEM_USE_MPI
+      print_level = print_lvl;
+#else
+      int rank;
+      MPI_Comm_rank(comm, &rank);
+      if (rank == 0)
+      {
+         print_level = print_lvl;
+      }
+      else
+      {
+         print_level = -1;
+      }
+#endif
+   }
+
+   virtual void MonitorResidual(int it, double norm, const Vector &r, bool final);
+
+private:
+   const std::string prefix;
+   int print_level;
+   mutable double norm0;
+};
+
+void GeneralResidualMonitor::MonitorResidual(int it, double norm,
+                                             const Vector &r, bool final)
+{
+   if (print_level == 1 || (print_level == 3 && (final || it == 0)))
+   {
+      mfem::out << prefix << " iteration " << setw(2) << it
+                << " : ||r|| = " << norm;
+      if (it > 0)
+      {
+         mfem::out << ",  ||r||/||r_0|| = " << norm/norm0;
+      }
+      else
+      {
+         norm0 = norm;
+      }
+      mfem::out << '\n';
+   }
+}
 
 // Custom block preconditioner for the Jacobian of the incompressible nonlinear
 // elasticity operator. It has the form
@@ -103,9 +154,11 @@ protected:
 
    // Newton solver for the hyperelastic operator
    NewtonSolver newton_solver;
+   GeneralResidualMonitor newton_monitor;
 
    // Solver for the Jacobian solve in the Newton method
    Solver *j_solver;
+   GeneralResidualMonitor j_monitor;
 
    // Preconditioner for the Jacobian
    Solver *j_prec;
@@ -144,13 +197,11 @@ void InitialDeformation(const Vector &x, Vector &y);
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   MPI_Session mpi;
+   const int myid = mpi.WorldRank();
 
    // 2. Parse command-line options
-   const char *mesh_file = "../data/beam-hex.mesh";
+   const char *mesh_file = "../data/beam-tet.mesh";
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
    int order = 2;
@@ -187,7 +238,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -347,8 +397,6 @@ int main(int argc, char *argv[])
    // 19. Free the used memory
    delete pmesh;
 
-   MPI_Finalize();
-
    return 0;
 }
 
@@ -422,7 +470,11 @@ void JacobianPreconditioner::SetOperator(const Operator &op)
    {
       HypreBoomerAMG *stiff_prec_amg = new HypreBoomerAMG();
       stiff_prec_amg->SetPrintLevel(0);
-      stiff_prec_amg->SetElasticityOptions(spaces[0]);
+
+      if (!spaces[0]->GetParMesh()->Nonconforming())
+      {
+         stiff_prec_amg->SetElasticityOptions(spaces[0]);
+      }
 
       stiff_prec = stiff_prec_amg;
 
@@ -459,7 +511,10 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
                                int iter,
                                Coefficient &c_mu)
    : Operator(fes[0]->TrueVSize() + fes[1]->TrueVSize()),
-     newton_solver(fes[0]->GetComm()), mu(c_mu), block_trueOffsets(trueOffsets)
+     newton_solver(fes[0]->GetComm()),
+     newton_monitor(fes[0]->GetComm(), "Newton", 1),
+     j_monitor(fes[0]->GetComm(), "  GMRES", 3),
+     mu(c_mu), block_trueOffsets(trueOffsets)
 {
    Array<Vector *> rhs(2);
    rhs = NULL; // Set all entries in the array
@@ -499,7 +554,8 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
    j_gmres->SetRelTol(1e-12);
    j_gmres->SetAbsTol(1e-12);
    j_gmres->SetMaxIter(300);
-   j_gmres->SetPrintLevel(0);
+   j_gmres->SetPrintLevel(-1);
+   j_gmres->SetMonitor(j_monitor);
    j_gmres->SetPreconditioner(*j_prec);
    j_solver = j_gmres;
 
@@ -507,7 +563,8 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
    newton_solver.iterative_mode = true;
    newton_solver.SetSolver(*j_solver);
    newton_solver.SetOperator(*this);
-   newton_solver.SetPrintLevel(1);
+   newton_solver.SetPrintLevel(-1);
+   newton_solver.SetMonitor(newton_monitor);
    newton_solver.SetRelTol(rel_tol);
    newton_solver.SetAbsTol(abs_tol);
    newton_solver.SetMaxIter(iter);

@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 // Implementation of Coefficient class
 
@@ -38,18 +38,18 @@ double FunctionCoefficient::Eval(ElementTransformation & T,
 
    if (Function)
    {
-      return ((*Function)(transip));
+      return Function(transip);
    }
    else
    {
-      return (*TDFunction)(transip, GetTime());
+      return TDFunction(transip, GetTime());
    }
 }
 
 double GridFunctionCoefficient::Eval (ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {
-   return GridF -> GetValue (T.ElementNo, ip, Component);
+   return GridF -> GetValue (T, ip, Component);
 }
 
 double TransformedCoefficient::Eval(ElementTransformation &T,
@@ -112,11 +112,11 @@ void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
    V.SetSize(vdim);
    if (Function)
    {
-      (*Function)(transip, V);
+      Function(transip, V);
    }
    else
    {
-      (*TDFunction)(transip, GetTime(), V);
+      TDFunction(transip, GetTime(), V);
    }
    if (Q)
    {
@@ -125,19 +125,27 @@ void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
 }
 
 VectorArrayCoefficient::VectorArrayCoefficient (int dim)
-   : VectorCoefficient(dim), Coeff(dim)
+   : VectorCoefficient(dim), Coeff(dim), ownCoeff(dim)
 {
    for (int i = 0; i < dim; i++)
    {
       Coeff[i] = NULL;
+      ownCoeff[i] = true;
    }
+}
+
+void VectorArrayCoefficient::Set(int i, Coefficient *c, bool own)
+{
+   if (ownCoeff[i]) { delete Coeff[i]; }
+   Coeff[i] = c;
+   ownCoeff[i] = own;
 }
 
 VectorArrayCoefficient::~VectorArrayCoefficient()
 {
    for (int i = 0; i < vdim; i++)
    {
-      delete Coeff[i];
+      if (ownCoeff[i]) { delete Coeff[i]; }
    }
 }
 
@@ -152,13 +160,13 @@ void VectorArrayCoefficient::Eval(Vector &V, ElementTransformation &T,
 }
 
 VectorGridFunctionCoefficient::VectorGridFunctionCoefficient (
-   GridFunction *gf)
+   const GridFunction *gf)
    : VectorCoefficient ((gf) ? gf -> VectorDim() : 0)
 {
    GridFunc = gf;
 }
 
-void VectorGridFunctionCoefficient::SetGridFunction(GridFunction *gf)
+void VectorGridFunctionCoefficient::SetGridFunction(const GridFunction *gf)
 {
    GridFunc = gf; vdim = (gf) ? gf -> VectorDim() : 0;
 }
@@ -166,7 +174,7 @@ void VectorGridFunctionCoefficient::SetGridFunction(GridFunction *gf)
 void VectorGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                          const IntegrationPoint &ip)
 {
-   GridFunc->GetVectorValue(T.ElementNo, ip, V);
+   GridFunc->GetVectorValue(T, ip, V);
 }
 
 void VectorGridFunctionCoefficient::Eval(
@@ -176,14 +184,14 @@ void VectorGridFunctionCoefficient::Eval(
 }
 
 GradientGridFunctionCoefficient::GradientGridFunctionCoefficient (
-   GridFunction *gf)
+   const GridFunction *gf)
    : VectorCoefficient((gf) ?
                        gf -> FESpace() -> GetMesh() -> SpaceDimension() : 0)
 {
    GridFunc = gf;
 }
 
-void GradientGridFunctionCoefficient::SetGridFunction(GridFunction *gf)
+void GradientGridFunctionCoefficient::SetGridFunction(const GridFunction *gf)
 {
    GridFunc = gf; vdim = (gf) ?
                          gf -> FESpace() -> GetMesh() -> SpaceDimension() : 0;
@@ -201,18 +209,24 @@ void GradientGridFunctionCoefficient::Eval(
    GridFunc->GetGradients(T, ir, M);
 }
 
-CurlGridFunctionCoefficient::CurlGridFunctionCoefficient (
-   GridFunction *gf)
-   : VectorCoefficient ((gf) ?
-                        gf -> FESpace() -> GetMesh() -> SpaceDimension() : 0)
+CurlGridFunctionCoefficient::CurlGridFunctionCoefficient(
+   const GridFunction *gf)
+   : VectorCoefficient(0)
 {
-   GridFunc = gf;
+   SetGridFunction(gf);
 }
 
-void CurlGridFunctionCoefficient::SetGridFunction(GridFunction *gf)
+void CurlGridFunctionCoefficient::SetGridFunction(const GridFunction *gf)
 {
-   GridFunc = gf; vdim = (gf) ?
-                         gf -> FESpace() -> GetMesh() -> SpaceDimension() : 0;
+   if (gf)
+   {
+      int sdim = gf -> FESpace() -> GetMesh() -> SpaceDimension();
+      MFEM_VERIFY(sdim == 2 || sdim == 3,
+                  "CurlGridFunctionCoefficient "
+                  "only defind for spaces of dimension 2 or 3.");
+   }
+   GridFunc = gf;
+   vdim = (gf) ? (2 * gf -> FESpace() -> GetMesh() -> SpaceDimension() - 3) : 0;
 }
 
 void CurlGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
@@ -222,7 +236,7 @@ void CurlGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
 }
 
 DivergenceGridFunctionCoefficient::DivergenceGridFunctionCoefficient (
-   GridFunction *gf) : Coefficient()
+   const GridFunction *gf) : Coefficient()
 {
    GridFunc = gf;
 }
@@ -287,18 +301,100 @@ void MatrixFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
 
    K.SetSize(height, width);
 
+   if (symmetric) // Use SymmFunction (deprecated version)
+   {
+      MFEM_VERIFY(height == width && SymmFunction,
+                  "MatrixFunctionCoefficient is not symmetric");
+
+      Vector Ksym((width * (width + 1)) / 2); // 1x1: 1, 2x2: 3, 3x3: 6
+
+      SymmFunction(transip, Ksym);
+
+      // Copy upper triangular values from Ksym to the full matrix K
+      int os = 0;
+      for (int i=0; i<height; ++i)
+      {
+         for (int j=i; j<width; ++j)
+         {
+            const double Kij = Ksym[j - i + os];
+            K(i,j) = Kij;
+            if (j != i) { K(j,i) = Kij; }
+         }
+
+         os += width - i;
+      }
+   }
+   else
+   {
+      if (Function)
+      {
+         Function(transip, K);
+      }
+      else if (TDFunction)
+      {
+         TDFunction(transip, GetTime(), K);
+      }
+      else
+      {
+         K = mat;
+      }
+   }
+
+   if (Q)
+   {
+      K *= Q->Eval(T, ip, GetTime());
+   }
+}
+
+void MatrixFunctionCoefficient::EvalSymmetric(Vector &K,
+                                              ElementTransformation &T,
+                                              const IntegrationPoint &ip)
+{
+   MFEM_VERIFY(symmetric && height == width && SymmFunction,
+               "MatrixFunctionCoefficient is not symmetric");
+
+   double x[3];
+   Vector transip(x, 3);
+
+   T.Transform(ip, transip);
+
+   K.SetSize((width * (width + 1)) / 2); // 1x1: 1, 2x2: 3, 3x3: 6
+
+   if (SymmFunction)
+   {
+      SymmFunction(transip, K);
+   }
+
+   if (Q)
+   {
+      K *= Q->Eval(T, ip, GetTime());
+   }
+}
+
+void SymmetricMatrixFunctionCoefficient::Eval(DenseSymmetricMatrix &K,
+                                              ElementTransformation &T,
+                                              const IntegrationPoint &ip)
+{
+   double x[3];
+   Vector transip(x, 3);
+
+   T.Transform(ip, transip);
+
+   K.SetSize(dim);
+
    if (Function)
    {
-      (*Function)(transip, K);
+      Function(transip, K);
    }
    else if (TDFunction)
    {
-      (*TDFunction)(transip, GetTime(), K);
+      TDFunction(transip, GetTime(), K);
    }
    else
    {
       K = mat;
    }
+
    if (Q)
    {
       K *= Q->Eval(T, ip, GetTime());
@@ -309,17 +405,26 @@ MatrixArrayCoefficient::MatrixArrayCoefficient (int dim)
    : MatrixCoefficient (dim)
 {
    Coeff.SetSize(height*width);
+   ownCoeff.SetSize(height*width);
    for (int i = 0; i < (height*width); i++)
    {
       Coeff[i] = NULL;
+      ownCoeff[i] = true;
    }
+}
+
+void MatrixArrayCoefficient::Set(int i, int j, Coefficient * c, bool own)
+{
+   if (ownCoeff[i*width+j]) { delete Coeff[i*width+j]; }
+   Coeff[i*width+j] = c;
+   ownCoeff[i*width+j] = own;
 }
 
 MatrixArrayCoefficient::~MatrixArrayCoefficient ()
 {
    for (int i=0; i < height*width; i++)
    {
-      delete Coeff[i];
+      if (ownCoeff[i]) { delete Coeff[i]; }
    }
 }
 
@@ -399,13 +504,43 @@ double DeterminantCoefficient::Eval(ElementTransformation &T,
    return ma.Det();
 }
 
-VectorSumCoefficient::VectorSumCoefficient(VectorCoefficient &A,
-                                           VectorCoefficient &B,
-                                           double _alpha, double _beta)
-   : VectorCoefficient(A.GetVDim()), a(&A), b(&B), alpha(_alpha), beta(_beta),
-     va(A.GetVDim())
+VectorSumCoefficient::VectorSumCoefficient(int dim)
+   : VectorCoefficient(dim),
+     ACoef(NULL), BCoef(NULL),
+     A(dim), B(dim),
+     alphaCoef(NULL), betaCoef(NULL),
+     alpha(1.0), beta(1.0)
 {
-   MFEM_ASSERT(A.GetVDim() == B.GetVDim(),
+   A = 0.0; B = 0.0;
+}
+
+VectorSumCoefficient::VectorSumCoefficient(VectorCoefficient &_A,
+                                           VectorCoefficient &B_,
+                                           double _alpha, double _beta)
+   : VectorCoefficient(_A.GetVDim()),
+     ACoef(&_A), BCoef(&B_),
+     A(_A.GetVDim()), B(_A.GetVDim()),
+     alphaCoef(NULL), betaCoef(NULL),
+     alpha(_alpha), beta(_beta)
+{
+   MFEM_ASSERT(_A.GetVDim() == B_.GetVDim(),
+               "VectorSumCoefficient:  "
+               "Arguments must have the same dimension.");
+}
+
+VectorSumCoefficient::VectorSumCoefficient(VectorCoefficient &_A,
+                                           VectorCoefficient &B_,
+                                           Coefficient &_alpha,
+                                           Coefficient &_beta)
+   : VectorCoefficient(_A.GetVDim()),
+     ACoef(&_A), BCoef(&B_),
+     A(_A.GetVDim()),
+     B(_A.GetVDim()),
+     alphaCoef(&_alpha),
+     betaCoef(&_beta),
+     alpha(0.0), beta(0.0)
+{
+   MFEM_ASSERT(_A.GetVDim() == B_.GetVDim(),
                "VectorSumCoefficient:  "
                "Arguments must have the same dimension.");
 }
@@ -413,24 +548,45 @@ VectorSumCoefficient::VectorSumCoefficient(VectorCoefficient &A,
 void VectorSumCoefficient::Eval(Vector &V, ElementTransformation &T,
                                 const IntegrationPoint &ip)
 {
-   b->Eval(V, T, ip);
-   if ( beta != 1.0 ) { V *= beta; }
-   a->Eval(va, T, ip);
-   V.Add(alpha, va);
+   V.SetSize(A.Size());
+   if (    ACoef) { ACoef->Eval(A, T, ip); }
+   if (    BCoef) { BCoef->Eval(B, T, ip); }
+   if (alphaCoef) { alpha = alphaCoef->Eval(T, ip); }
+   if ( betaCoef) { beta  = betaCoef->Eval(T, ip); }
+   add(alpha, A, beta, B, V);
 }
+
+ScalarVectorProductCoefficient::ScalarVectorProductCoefficient(
+   double A,
+   VectorCoefficient &B)
+   : VectorCoefficient(B.GetVDim()), aConst(A), a(NULL), b(&B)
+{}
 
 ScalarVectorProductCoefficient::ScalarVectorProductCoefficient(
    Coefficient &A,
    VectorCoefficient &B)
-   : VectorCoefficient(B.GetVDim()), a(&A), b(&B)
+   : VectorCoefficient(B.GetVDim()), aConst(0.0), a(&A), b(&B)
 {}
 
 void ScalarVectorProductCoefficient::Eval(Vector &V, ElementTransformation &T,
                                           const IntegrationPoint &ip)
 {
-   double sa = a->Eval(T, ip);
+   double sa = (a == NULL) ? aConst : a->Eval(T, ip);
    b->Eval(V, T, ip);
    V *= sa;
+}
+
+NormalizedVectorCoefficient::NormalizedVectorCoefficient(VectorCoefficient &A,
+                                                         double _tol)
+   : VectorCoefficient(A.GetVDim()), a(&A), tol(_tol)
+{}
+
+void NormalizedVectorCoefficient::Eval(Vector &V, ElementTransformation &T,
+                                       const IntegrationPoint &ip)
+{
+   a->Eval(V, T, ip);
+   double nv = V.Norml2();
+   V *= (nv > tol) ? (1.0/nv) : 0.0;
 }
 
 VectorCrossProductCoefficient::VectorCrossProductCoefficient(
@@ -454,20 +610,22 @@ void VectorCrossProductCoefficient::Eval(Vector &V, ElementTransformation &T,
    V[2] = va[0] * vb[1] - va[1] * vb[0];
 }
 
-MatVecCoefficient::MatVecCoefficient(MatrixCoefficient &A,
-                                     VectorCoefficient &B)
+MatrixVectorProductCoefficient::MatrixVectorProductCoefficient(
+   MatrixCoefficient &A, VectorCoefficient &B)
    : VectorCoefficient(A.GetHeight()), a(&A), b(&B),
      ma(A.GetHeight(), A.GetWidth()), vb(B.GetVDim())
 {
    MFEM_ASSERT(A.GetWidth() == B.GetVDim(),
-               "MatVecCoefficient:  Arguments have incompatible dimensions.");
+               "MatrixVectorProductCoefficient:  "
+               "Arguments have incompatible dimensions.");
 }
 
-void MatVecCoefficient::Eval(Vector &V, ElementTransformation &T,
-                             const IntegrationPoint &ip)
+void MatrixVectorProductCoefficient::Eval(Vector &V, ElementTransformation &T,
+                                          const IntegrationPoint &ip)
 {
    a->Eval(ma, T, ip);
    b->Eval(vb, T, ip);
+   V.SetSize(vdim);
    ma.Mult(vb, V);
 }
 
@@ -501,16 +659,22 @@ void MatrixSumCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
 }
 
 ScalarMatrixProductCoefficient::ScalarMatrixProductCoefficient(
+   double A,
+   MatrixCoefficient &B)
+   : MatrixCoefficient(B.GetHeight(), B.GetWidth()), aConst(A), a(NULL), b(&B)
+{}
+
+ScalarMatrixProductCoefficient::ScalarMatrixProductCoefficient(
    Coefficient &A,
    MatrixCoefficient &B)
-   : MatrixCoefficient(B.GetHeight(), B.GetWidth()), a(&A), b(&B)
+   : MatrixCoefficient(B.GetHeight(), B.GetWidth()), aConst(0.0), a(&A), b(&B)
 {}
 
 void ScalarMatrixProductCoefficient::Eval(DenseMatrix &M,
                                           ElementTransformation &T,
                                           const IntegrationPoint &ip)
 {
-   double sa = a->Eval(T, ip);
+   double sa = (a == NULL) ? aConst : a->Eval(T, ip);
    b->Eval(M, T, ip);
    M *= sa;
 }
@@ -562,6 +726,35 @@ void OuterProductCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
          M(i, j) = va[i] * vb[j];
       }
    }
+}
+
+CrossCrossCoefficient::CrossCrossCoefficient(double A, VectorCoefficient &K)
+   : MatrixCoefficient(K.GetVDim(), K.GetVDim()), aConst(A), a(NULL), k(&K),
+     vk(K.GetVDim())
+{}
+
+CrossCrossCoefficient::CrossCrossCoefficient(Coefficient &A,
+                                             VectorCoefficient &K)
+   : MatrixCoefficient(K.GetVDim(), K.GetVDim()), aConst(0.0), a(&A), k(&K),
+     vk(K.GetVDim())
+{}
+
+void CrossCrossCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
+                                 const IntegrationPoint &ip)
+{
+   k->Eval(vk, T, ip);
+   M.SetSize(vk.Size(), vk.Size());
+   M = 0.0;
+   double k2 = vk*vk;
+   for (int i=0; i<vk.Size(); i++)
+   {
+      M(i, i) = k2;
+      for (int j=0; j<vk.Size(); j++)
+      {
+         M(i, j) -= vk[i] * vk[j];
+      }
+   }
+   M *= ((a == NULL ) ? aConst : a->Eval(T, ip) );
 }
 
 double LpNormLoop(double p, Coefficient &coeff, Mesh &mesh,
@@ -740,5 +933,62 @@ double ComputeGlobalLpNorm(double p, VectorCoefficient &coeff, ParMesh &pmesh,
    return glob_norm;
 }
 #endif
+
+VectorQuadratureFunctionCoefficient::VectorQuadratureFunctionCoefficient(
+   QuadratureFunction &qf)
+   : VectorCoefficient(qf.GetVDim()), QuadF(qf), index(0) { }
+
+void VectorQuadratureFunctionCoefficient::SetComponent(int _index, int _length)
+{
+   MFEM_VERIFY(_index >= 0, "Index must be >= 0");
+   MFEM_VERIFY(_index < QuadF.GetVDim(),
+               "Index must be < QuadratureFunction length");
+   index = _index;
+
+   MFEM_VERIFY(_length > 0, "Length must be > 0");
+   MFEM_VERIFY(_length <= QuadF.GetVDim() - index,
+               "Length must be <= (QuadratureFunction length - index)");
+
+   vdim = _length;
+}
+
+void VectorQuadratureFunctionCoefficient::Eval(Vector &V,
+                                               ElementTransformation &T,
+                                               const IntegrationPoint &ip)
+{
+   QuadF.HostRead();
+
+   if (index == 0 && vdim == QuadF.GetVDim())
+   {
+      QuadF.GetElementValues(T.ElementNo, ip.index, V);
+   }
+   else
+   {
+      Vector temp;
+      QuadF.GetElementValues(T.ElementNo, ip.index, temp);
+      V.SetSize(vdim);
+      for (int i = 0; i < vdim; i++)
+      {
+         V(i) = temp(index + i);
+      }
+   }
+
+   return;
+}
+
+QuadratureFunctionCoefficient::QuadratureFunctionCoefficient(
+   QuadratureFunction &qf) : QuadF(qf)
+{
+   MFEM_VERIFY(qf.GetVDim() == 1, "QuadratureFunction's vdim must be 1");
+}
+
+double QuadratureFunctionCoefficient::Eval(ElementTransformation &T,
+                                           const IntegrationPoint &ip)
+{
+   QuadF.HostRead();
+   Vector temp(1);
+   QuadF.GetElementValues(T.ElementNo, ip.index, temp);
+   return temp[0];
+}
 
 }

@@ -1,18 +1,20 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_ARRAY
 #define MFEM_ARRAY
 
 #include "../config/config.hpp"
+#include "mem_manager.hpp"
+#include "device.hpp"
 #include "error.hpp"
 #include "globals.hpp"
 
@@ -24,31 +26,6 @@
 namespace mfem
 {
 
-/// Base class for array container.
-class BaseArray
-{
-protected:
-   /// Pointer to data
-   void *data;
-   /// Size of the array
-   int size;
-   /// Size of the allocated memory
-   int allocsize;
-   /** Increment of allocated memory on overflow,
-       inc = 0 doubles the array */
-   int inc;
-
-   BaseArray() { }
-   /// Creates array of asize elements of size elementsize
-   BaseArray(int asize, int ainc, int elmentsize);
-   /// Free the allocated memory
-   ~BaseArray();
-   /** Increases the allocsize of the array to be at least minsize.
-       The current content of the array is copied to the newly allocated
-       space. minsize must be > abs(allocsize). */
-   void GrowSize(int minsize, int elementsize);
-};
-
 template <class T>
 class Array;
 
@@ -59,149 +36,173 @@ void Swap(Array<T> &, Array<T> &);
    Abstract data type Array.
 
    Array<T> is an automatically increasing array containing elements of the
-   generic type T. The allocated size may be larger then the logical size
-   of the array.
-   The elements can be accessed by the [] operator, the range is 0 to size-1.
+   generic type T, which must be a POD (plain old data) type. The allocated size
+   may be larger then the logical size of the array. The elements can be
+   accessed by the [] operator, the range is 0 to size-1.
 */
 template <class T>
-class Array : public BaseArray
+class Array
 {
+protected:
+   /// Pointer to data
+   Memory<T> data;
+   /// Size of the array
+   int size;
+
+   inline void GrowSize(int minsize);
+
 public:
    friend void Swap<T>(Array<T> &, Array<T> &);
 
-   /// Creates array of asize elements
-   explicit inline Array(int asize = 0, int ainc = 0)
-      : BaseArray(asize, ainc, sizeof (T)) { }
+   /// Creates an empty array
+   inline Array() : size(0) { data.Reset(); }
 
-   /** Creates array using an existing c-array of asize elements;
+   /// Creates an empty array with a given MemoryType
+   inline Array(MemoryType mt) : size(0) { data.Reset(mt); }
+
+   /// Creates array of @a asize elements
+   explicit inline Array(int asize)
+      : size(asize) { asize > 0 ? data.New(asize) : data.Reset(); }
+
+   /** @brief Creates array using an existing c-array of asize elements;
        allocsize is set to -asize to indicate that the data will not
        be deleted. */
-   inline Array(T *_data, int asize, int ainc = 0)
-   { data = _data; size = asize; allocsize = -asize; inc = ainc; }
+   inline Array(T *_data, int asize)
+   { data.Wrap(_data, asize, false); size = asize; }
 
-   /// Copy constructor: deep copy
-   Array(const Array<T> &src)
-      : BaseArray(src.size, 0, sizeof(T))
-   { std::memcpy(data, src.data, size*sizeof(T)); }
+   /// Copy constructor: deep copy from @a src
+   /** This method supports source arrays using any MemoryType. */
+   inline Array(const Array &src);
 
-   /// Copy constructor (deep copy) from an Array of convertable type
+   /// Copy constructor (deep copy) from 'src', an Array of convertible type.
    template <typename CT>
-   Array(const Array<CT> &src)
-      : BaseArray(src.Size(), 0, sizeof(T))
-   { for (int i = 0; i < size; i++) { (*this)[i] = T(src[i]); } }
+   inline Array(const Array<CT> &src);
+
+   /// Deep copy from a braced init-list of convertible type
+   template <typename CT, int N>
+   explicit inline Array(const CT (&values)[N]);
 
    /// Destructor
-   inline ~Array() { }
+   inline ~Array() { data.Delete(); }
 
-   /// Assignment operator: deep copy
+   /// Assignment operator: deep copy from 'src'.
    Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }
 
-   /// Assignment operator (deep copy) from an Array of convertable type
+   /// Assignment operator (deep copy) from @a src, an Array of convertible type.
    template <typename CT>
-   Array<T> &operator=(const Array<CT> &src)
-   {
-      SetSize(src.Size());
-      for (int i = 0; i < size; i++) { (*this)[i] = T(src[i]); }
-      return *this;
-   }
+   inline Array &operator=(const Array<CT> &src);
 
    /// Return the data as 'T *'
-   inline operator T *() { return (T *)data; }
+   inline operator T *() { return data; }
 
    /// Return the data as 'const T *'
-   inline operator const T *() const { return (const T *)data; }
+   inline operator const T *() const { return data; }
 
    /// Returns the data
-   inline T *GetData() { return (T *)data; }
+   inline T *GetData() { return data; }
    /// Returns the data
-   inline const T *GetData() const { return (T *)data; }
+   inline const T *GetData() const { return data; }
+
+   /// Return a reference to the Memory object used by the Array.
+   Memory<T> &GetMemory() { return data; }
+
+   /// Return a reference to the Memory object used by the Array, const version.
+   const Memory<T> &GetMemory() const { return data; }
+
+   /// Return the device flag of the Memory object used by the Array
+   bool UseDevice() const { return data.UseDevice(); }
 
    /// Return true if the data will be deleted by the array
-   inline bool OwnsData() const { return (allocsize > 0); }
+   inline bool OwnsData() const { return data.OwnsHostPtr(); }
 
    /// Changes the ownership of the data
-   inline void StealData(T **p)
-   { *p = (T*)data; data = 0; size = allocsize = 0; }
+   inline void StealData(T **p) { *p = data; data.Reset(); size = 0; }
 
    /// NULL-ifies the data
-   inline void LoseData() { data = 0; size = allocsize = 0; }
+   inline void LoseData() { data.Reset(); size = 0; }
 
    /// Make the Array own the data
-   void MakeDataOwner() { allocsize = abs(allocsize); }
+   void MakeDataOwner() const { data.SetHostPtrOwner(true); }
 
-   /// Logical size of the array
+   /// Return the logical size of the array.
    inline int Size() const { return size; }
 
-   /// Change logical size of the array, keep existing entries
+   /// Change the logical size of the array, keep existing entries.
    inline void SetSize(int nsize);
 
-   /// Same as SetSize(int) plus initialize new entries with 'initval'
+   /// Same as SetSize(int) plus initialize new entries with 'initval'.
    inline void SetSize(int nsize, const T &initval);
+
+   /** @brief Resize the array to size @a nsize using MemoryType @a mt. Note
+       that unlike the other versions of SetSize(), the current content of the
+       array is not preserved. */
+   inline void SetSize(int nsize, MemoryType mt);
 
    /** Maximum number of entries the array can store without allocating more
        memory. */
-   inline int Capacity() const { return abs(allocsize); }
+   inline int Capacity() const { return data.Capacity(); }
 
    /// Ensures that the allocated size is at least the given size.
    inline void Reserve(int capacity)
-   { if (capacity > abs(allocsize)) { GrowSize(capacity, sizeof(T)); } }
+   { if (capacity > Capacity()) { GrowSize(capacity); } }
 
-   /// Access element
+   /// Reference access to the ith element.
    inline T & operator[](int i);
 
-   /// Access const element
+   /// Const reference access to the ith element.
    inline const T &operator[](int i) const;
 
-   /// Append element to array, resize if necessary
+   /// Append element 'el' to array, resize if necessary.
    inline int Append(const T & el);
 
-   /// Append another array to this array, resize if necessary
+   /// Append another array to this array, resize if necessary.
    inline int Append(const T *els, int nels);
 
-   /// Append another array to this array, resize if necessary
+   /// Append another array to this array, resize if necessary.
    inline int Append(const Array<T> &els) { return Append(els, els.Size()); }
 
-   /// Prepend an element to the array, resize if necessary
+   /// Prepend an 'el' to the array, resize if necessary.
    inline int Prepend(const T &el);
 
-   /// Return the last element in the array
+   /// Return the last element in the array.
    inline T &Last();
+
+   /// Return the last element in the array.
    inline const T &Last() const;
 
-   /// Append element when it is not yet in the array, return index
+   /// Append element when it is not yet in the array, return index.
    inline int Union(const T & el);
 
-   /// Return the first index where 'el' is found; return -1 if not found
+   /// Return the first index where 'el' is found; return -1 if not found.
    inline int Find(const T &el) const;
 
    /// Do bisection search for 'el' in a sorted array; return -1 if not found.
    inline int FindSorted(const T &el) const;
 
-   /// Delete the last entry
+   /// Delete the last entry of the array.
    inline void DeleteLast() { if (size > 0) { size--; } }
 
-   /// Delete the first 'el' entry
+   /// Delete the first entry with value == 'el'.
    inline void DeleteFirst(const T &el);
 
-   /// Delete whole array
+   /// Delete the whole array.
    inline void DeleteAll();
 
-   /// Create a copy of the current array
-   inline void Copy(Array &copy) const
-   {
-      copy.SetSize(Size());
-      std::memcpy(copy.GetData(), data, Size()*sizeof(T));
-   }
 
-   /// Make this Array a reference to a pointer
+   ///  Create a copy of the internal array to the provided @a copy.
+   inline void Copy(Array &copy) const;
+
+   /// Make this Array a reference to a pointer.
    inline void MakeRef(T *, int);
 
-   /// Make this Array a reference to 'master'
+   /// Make this Array a reference to 'master'.
    inline void MakeRef(const Array &master);
 
-   inline void GetSubArray(int offset, int sa_size, Array<T> &sa);
 
-   /// Prints array to stream with width elements per row
+   /// Copy sub array starting from @a offset out to the provided @a sa.
+   inline void GetSubArray(int offset, int sa_size, Array<T> &sa) const;
+
+   /// Prints array to stream with width elements per row.
    void Print(std::ostream &out = mfem::out, int width = 4) const;
 
    /** @brief Save the Array to the stream @a out using the format @a fmt.
@@ -233,43 +234,85 @@ public:
        operator `<` for class T. */
    T Min() const;
 
-   /// Sorts the array. This requires operator< to be defined for T.
-   void Sort() { std::sort((T*) data, (T*) data + size); }
+   /// Sorts the array in ascending order. This requires operator< to be defined for T.
+   void Sort() { std::sort((T*)data, data + size); }
 
-   /// Sorts the array using the supplied comparison function object.
+   /// Sorts the array in ascending order using the supplied comparison function object.
    template<class Compare>
-   void Sort(Compare cmp) { std::sort((T*) data, (T*) data + size, cmp); }
+   void Sort(Compare cmp) { std::sort((T*)data, data + size, cmp); }
 
-   /** Removes duplicities from a sorted array. This requires operator== to be
-       defined for T. */
+   /** @brief Removes duplicities from a sorted array. This requires
+       operator== to be defined for T. */
    void Unique()
    {
-      T* end = std::unique((T*) data, (T*) data + size);
-      SetSize(end - (T*) data);
+      T* end = std::unique((T*)data, data + size);
+      SetSize(end - data);
    }
 
-   /// return true if the array is sorted.
+   /// Return 1 if the array is sorted from lowest to highest.  Otherwise return 0.
    int IsSorted();
 
-   /// Partial Sum
+   /// Fill the entries of the array with the cumulative sum of the entries.
    void PartialSum();
 
-   /// Sum all entries
+   /// Return the sum of all the array entries using the '+'' operator for class 'T'.
    T Sum();
 
+   /// Set all entries of the array to the provided constant.
    inline void operator=(const T &a);
 
-   /// Copy data from a pointer. Size() elements are copied.
+   /// Copy data from a pointer. 'Size()' elements are copied.
    inline void Assign(const T *);
 
+   /// STL-like copyTo @a dest from begin to end.
    template <typename U>
    inline void CopyTo(U *dest) { std::copy(begin(), end(), dest); }
 
-   // STL-like begin/end
-   inline T* begin() const { return (T*) data; }
-   inline T* end() const { return (T*) data + size; }
+   /** @brief Copy from @a src into this array.  Copies enough entries to
+       fill the Capacity size of this array.  Careful this does not update
+       the Size to match this Capacity after this.*/
+   template <typename U>
+   inline void CopyFrom(const U *src)
+   { std::memcpy(begin(), src, MemoryUsage()); }
 
+   /// STL-like begin.  Returns pointer to the first element of the array.
+   inline T* begin() { return data; }
+
+   /// STL-like end.  Returns pointer after the last element of the array.
+   inline T* end() { return data + size; }
+
+   /// STL-like begin.  Returns const pointer to the first element of the array.
+   inline const T* begin() const { return data; }
+
+   /// STL-like end.  Returns const pointer after the last element of the array.
+   inline const T* end() const { return data + size; }
+
+   /// Returns the number of bytes allocated for the array including any reserve.
    long MemoryUsage() const { return Capacity() * sizeof(T); }
+
+   /// Shortcut for mfem::Read(a.GetMemory(), a.Size(), on_dev).
+   const T *Read(bool on_dev = true) const
+   { return mfem::Read(data, size, on_dev); }
+
+   /// Shortcut for mfem::Read(a.GetMemory(), a.Size(), false).
+   const T *HostRead() const
+   { return mfem::Read(data, size, false); }
+
+   /// Shortcut for mfem::Write(a.GetMemory(), a.Size(), on_dev).
+   T *Write(bool on_dev = true)
+   { return mfem::Write(data, size, on_dev); }
+
+   /// Shortcut for mfem::Write(a.GetMemory(), a.Size(), false).
+   T *HostWrite()
+   { return mfem::Write(data, size, false); }
+
+   /// Shortcut for mfem::ReadWrite(a.GetMemory(), a.Size(), on_dev).
+   T *ReadWrite(bool on_dev = true)
+   { return mfem::ReadWrite(data, size, on_dev); }
+
+   /// Shortcut for mfem::ReadWrite(a.GetMemory(), a.Size(), false).
+   T *HostReadWrite()
+   { return mfem::ReadWrite(data, size, false); }
 };
 
 template <class T>
@@ -277,7 +320,9 @@ inline bool operator==(const Array<T> &LHS, const Array<T> &RHS)
 {
    if ( LHS.Size() != RHS.Size() ) { return false; }
    for (int i=0; i<LHS.Size(); i++)
+   {
       if ( LHS[i] != RHS[i] ) { return false; }
+   }
    return true;
 }
 
@@ -370,11 +415,13 @@ public:
    inline void operator=(const T &a)
    { array1d = a; }
 
+   inline Array2D& operator=(const Array2D &a) = default;
+
    /// Make this Array a reference to 'master'
    inline void MakeRef(const Array2D &master)
    { M = master.M; N = master.N; array1d.MakeRef(master.array1d); }
 
-   /// Delete all dynamically allocated memory, reseting all dimentions to zero.
+   /// Delete all dynamically allocated memory, resetting all dimensions to zero.
    inline void DeleteAll() { M = 0; N = 0; array1d.DeleteAll(); }
 
    /// Prints array to stream with width elements per row
@@ -412,7 +459,7 @@ class BlockArray
 public:
    BlockArray(int block_size = 16*1024);
    BlockArray(const BlockArray<T> &other); // deep copy
-   ~BlockArray();
+   ~BlockArray() { Destroy(); }
 
    /// Allocate and construct a new item in the array, return its index.
    int Append();
@@ -441,6 +488,9 @@ public:
 
    /// Return the current capacity of the BlockArray.
    int Capacity() const { return blocks.Size()*(mask+1); }
+
+   /// Destroy all items, set size to zero.
+   void DeleteAll() { Destroy(); blocks.DeleteAll(); size = 0; }
 
    void Swap(BlockArray<T> &other);
 
@@ -546,6 +596,8 @@ protected:
       MFEM_ASSERT(index >= 0 && index < size,
                   "Out of bounds access: " << index << ", size = " << size);
    }
+
+   void Destroy();
 };
 
 
@@ -564,17 +616,57 @@ inline void Swap(Array<T> &a, Array<T> &b)
 {
    Swap(a.data, b.data);
    Swap(a.size, b.size);
-   Swap(a.allocsize, b.allocsize);
-   Swap(a.inc, b.inc);
+}
+
+template <class T>
+inline Array<T>::Array(const Array &src)
+   : size(src.Size())
+{
+   size > 0 ? data.New(size, src.data.GetMemoryType()) : data.Reset();
+   data.CopyFrom(src.data, size);
+   data.UseDevice(src.data.UseDevice());
+}
+
+template <typename T> template <typename CT>
+inline Array<T>::Array(const Array<CT> &src)
+   : size(src.Size())
+{
+   size > 0 ? data.New(size) : data.Reset();
+   for (int i = 0; i < size; i++) { (*this)[i] = T(src[i]); }
+}
+
+template <typename T> template <typename CT, int N>
+inline Array<T>::Array(const CT (&values)[N]) : Array(N)
+{
+   for (int i = 0; i < size; i++) { (*this)[i] = T(values[i]); }
+}
+
+template <class T>
+inline void Array<T>::GrowSize(int minsize)
+{
+   const int nsize = std::max(minsize, 2 * data.Capacity());
+   Memory<T> p(nsize, data.GetMemoryType());
+   p.CopyFrom(data, size);
+   p.UseDevice(data.UseDevice());
+   data.Delete();
+   data = p;
+}
+
+template <typename T> template <typename CT>
+inline Array<T> &Array<T>::operator=(const Array<CT> &src)
+{
+   SetSize(src.Size());
+   for (int i = 0; i < size; i++) { (*this)[i] = T(src[i]); }
+   return *this;
 }
 
 template <class T>
 inline void Array<T>::SetSize(int nsize)
 {
    MFEM_ASSERT( nsize>=0, "Size must be non-negative.  It is " << nsize );
-   if (nsize > abs(allocsize))
+   if (nsize > Capacity())
    {
-      GrowSize(nsize, sizeof(T));
+      GrowSize(nsize);
    }
    size = nsize;
 }
@@ -585,16 +677,43 @@ inline void Array<T>::SetSize(int nsize, const T &initval)
    MFEM_ASSERT( nsize>=0, "Size must be non-negative.  It is " << nsize );
    if (nsize > size)
    {
-      if (nsize > abs(allocsize))
+      if (nsize > Capacity())
       {
-         GrowSize(nsize, sizeof(T));
+         GrowSize(nsize);
       }
       for (int i = size; i < nsize; i++)
       {
-         ((T*)data)[i] = initval;
+         data[i] = initval;
       }
    }
    size = nsize;
+}
+
+template <class T>
+inline void Array<T>::SetSize(int nsize, MemoryType mt)
+{
+   MFEM_ASSERT(nsize >= 0, "invalid new size: " << nsize);
+   if (mt == data.GetMemoryType())
+   {
+      if (nsize <= Capacity())
+      {
+         size = nsize;
+         return;
+      }
+   }
+   const bool use_dev = data.UseDevice();
+   data.Delete();
+   if (nsize > 0)
+   {
+      data.New(nsize, mt);
+      size = nsize;
+   }
+   else
+   {
+      data.Reset();
+      size = 0;
+   }
+   data.UseDevice(use_dev);
 }
 
 template <class T>
@@ -602,7 +721,7 @@ inline T &Array<T>::operator[](int i)
 {
    MFEM_ASSERT( i>=0 && i<size,
                 "Access element " << i << " of array, size = " << size );
-   return ((T*)data)[i];
+   return data[i];
 }
 
 template <class T>
@@ -610,14 +729,14 @@ inline const T &Array<T>::operator[](int i) const
 {
    MFEM_ASSERT( i>=0 && i<size,
                 "Access element " << i << " of array, size = " << size );
-   return ((T*)data)[i];
+   return data[i];
 }
 
 template <class T>
 inline int Array<T>::Append(const T &el)
 {
    SetSize(size+1);
-   ((T*)data)[size-1] = el;
+   data[size-1] = el;
    return size;
 }
 
@@ -629,7 +748,7 @@ inline int Array<T>::Append(const T *els, int nels)
    SetSize(size + nels);
    for (int i = 0; i < nels; i++)
    {
-      ((T*)data)[old_size+i] = els[i];
+      data[old_size+i] = els[i];
    }
    return size;
 }
@@ -640,9 +759,9 @@ inline int Array<T>::Prepend(const T &el)
    SetSize(size+1);
    for (int i = size-1; i > 0; i--)
    {
-      ((T*)data)[i] = ((T*)data)[i-1];
+      data[i] = data[i-1];
    }
-   ((T*)data)[0] = el;
+   data[0] = el;
    return size;
 }
 
@@ -650,21 +769,21 @@ template <class T>
 inline T &Array<T>::Last()
 {
    MFEM_ASSERT(size > 0, "Array size is zero: " << size);
-   return ((T*)data)[size-1];
+   return data[size-1];
 }
 
 template <class T>
 inline const T &Array<T>::Last() const
 {
    MFEM_ASSERT(size > 0, "Array size is zero: " << size);
-   return ((T*)data)[size-1];
+   return data[size-1];
 }
 
 template <class T>
 inline int Array<T>::Union(const T &el)
 {
    int i = 0;
-   while ((i < size) && (((T*)data)[i] != el)) { i++; }
+   while ((i < size) && (data[i] != el)) { i++; }
    if (i == size)
    {
       Append(el);
@@ -677,7 +796,7 @@ inline int Array<T>::Find(const T &el) const
 {
    for (int i = 0; i < size; i++)
    {
-      if (((T*)data)[i] == el) { return i; }
+      if (data[i] == el) { return i; }
    }
    return -1;
 }
@@ -685,7 +804,7 @@ inline int Array<T>::Find(const T &el) const
 template <class T>
 inline int Array<T>::FindSorted(const T &el) const
 {
-   const T *begin = (const T*) data, *end = begin + size;
+   const T *begin = data, *end = begin + size;
    const T* first = std::lower_bound(begin, end, el);
    if (first == end || !(*first == el)) { return  -1; }
    return first - begin;
@@ -696,11 +815,11 @@ inline void Array<T>::DeleteFirst(const T &el)
 {
    for (int i = 0; i < size; i++)
    {
-      if (((T*)data)[i] == el)
+      if (data[i] == el)
       {
          for (i++; i < size; i++)
          {
-            ((T*)data)[i-1] = ((T*)data)[i];
+            data[i-1] = data[i];
          }
          size--;
          return;
@@ -711,41 +830,40 @@ inline void Array<T>::DeleteFirst(const T &el)
 template <class T>
 inline void Array<T>::DeleteAll()
 {
-   if (allocsize > 0)
-   {
-      delete [] (char*)data;
-   }
-   data = NULL;
-   size = allocsize = 0;
+   const bool use_dev = data.UseDevice();
+   data.Delete();
+   data.Reset();
+   size = 0;
+   data.UseDevice(use_dev);
+}
+
+template <typename T>
+inline void Array<T>::Copy(Array &copy) const
+{
+   copy.SetSize(Size(), data.GetMemoryType());
+   data.CopyTo(copy.data, Size());
+   copy.data.UseDevice(data.UseDevice());
 }
 
 template <class T>
 inline void Array<T>::MakeRef(T *p, int s)
 {
-   if (allocsize > 0)
-   {
-      delete [] (char*)data;
-   }
-   data = p;
+   data.Delete();
+   data.Wrap(p, s, false);
    size = s;
-   allocsize = -s;
 }
 
 template <class T>
 inline void Array<T>::MakeRef(const Array &master)
 {
-   if (allocsize > 0)
-   {
-      delete [] (char*)data;
-   }
-   data = master.data;
+   data.Delete();
+   data = master.data; // note: copies the device flag
    size = master.size;
-   allocsize = -abs(master.allocsize);
-   inc = master.inc;
+   data.ClearOwnerFlags();
 }
 
 template <class T>
-inline void Array<T>::GetSubArray(int offset, int sa_size, Array<T> &sa)
+inline void Array<T>::GetSubArray(int offset, int sa_size, Array<T> &sa) const
 {
    sa.SetSize(sa_size);
    for (int i = 0; i < sa_size; i++)
@@ -759,14 +877,14 @@ inline void Array<T>::operator=(const T &a)
 {
    for (int i = 0; i < size; i++)
    {
-      ((T*)data)[i] = a;
+      data[i] = a;
    }
 }
 
 template <class T>
 inline void Array<T>::Assign(const T *p)
 {
-   memcpy(data, p, Size()*sizeof(T));
+   data.CopyFromHost(p, Size());
 }
 
 
@@ -917,7 +1035,7 @@ long BlockArray<T>::MemoryUsage() const
 }
 
 template<typename T>
-BlockArray<T>::~BlockArray()
+void BlockArray<T>::Destroy()
 {
    int bsize = size & mask;
    for (int i = blocks.Size(); i != 0; )

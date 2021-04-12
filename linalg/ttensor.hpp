@@ -1,19 +1,21 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_TEMPLATE_TENSOR
 #define MFEM_TEMPLATE_TENSOR
 
 #include "../config/tconfig.hpp"
+#include "../linalg/simd.hpp"
 #include "../general/tassign.hpp"
+#include "../general/backends.hpp"
 #include "tlayout.hpp"
 #include "tmatrix.hpp"
 
@@ -37,12 +39,26 @@ struct TensorOps<1> // rank = 1
    template <AssignOp::Type Op, typename A_layout_t, typename A_data_t,
              typename scalar_t>
    static void Assign(const A_layout_t &A_layout, A_data_t &A_data,
-                      scalar_t value)
+                      const scalar_t value)
    {
       MFEM_STATIC_ASSERT(A_layout_t::rank == 1, "invalid rank");
       for (int i1 = 0; i1 < A_layout_t::dim_1; i1++)
       {
          mfem::Assign<Op>(A_data[A_layout.ind(i1)], value);
+      }
+   }
+
+   // Assign: A {=,+=,*=} scalar_value, host+device version
+   template <AssignOp::Type Op, typename A_layout_t, typename A_data_t,
+             typename scalar_t>
+   MFEM_HOST_DEVICE
+   static void AssignHD(const A_layout_t &A_layout, A_data_t &A_data,
+                        const scalar_t value)
+   {
+      MFEM_STATIC_ASSERT(A_layout_t::rank == 1, "invalid rank");
+      for (int i1 = 0; i1 < A_layout_t::dim_1; i1++)
+      {
+         mfem::AssignHD<Op>(A_data[A_layout.ind(i1)], value);
       }
    }
 
@@ -79,6 +95,23 @@ struct TensorOps<2> // rank = 2
          for (int i1 = 0; i1 < A_layout_t::dim_1; i1++)
          {
             mfem::Assign<Op>(A_data[A_layout.ind(i1,i2)], value);
+         }
+      }
+   }
+
+   // Assign: A {=,+=,*=} scalar_value, host+device version
+   template <AssignOp::Type Op, typename A_layout_t, typename A_data_t,
+             typename scalar_t>
+   MFEM_HOST_DEVICE
+   static void AssignHD(const A_layout_t &A_layout, A_data_t &A_data,
+                        scalar_t value)
+   {
+      MFEM_STATIC_ASSERT(A_layout_t::rank == 2, "invalid rank");
+      for (int i2 = 0; i2 < A_layout_t::dim_2; i2++)
+      {
+         for (int i1 = 0; i1 < A_layout_t::dim_1; i1++)
+         {
+            mfem::AssignHD<Op>(A_data[A_layout.ind(i1,i2)], value);
          }
       }
    }
@@ -217,10 +250,22 @@ struct TensorOps<4> // rank = 4
 template <AssignOp::Type Op, typename A_layout_t, typename A_data_t,
           typename scalar_t>
 inline void TAssign(const A_layout_t &A_layout, A_data_t &A_data,
-                    scalar_t value)
+                    const scalar_t value)
 {
    internal::TensorOps<A_layout_t::rank>::
    template Assign<Op>(A_layout, A_data, value);
+}
+
+// Tensor or sub-tensor assign function: A {=,+=,*=} scalar_value.
+// Host+device version.
+template <AssignOp::Type Op, typename A_layout_t, typename A_data_t,
+          typename scalar_t>
+MFEM_HOST_DEVICE
+inline void TAssignHD(const A_layout_t &A_layout, A_data_t &A_data,
+                      const scalar_t value)
+{
+   internal::TensorOps<A_layout_t::rank>::
+   template AssignHD<Op>(A_layout, A_data, value);
 }
 
 // Tensor assign function: A {=,+=,*=} B that allows different input and output
@@ -397,7 +442,7 @@ void Mult_1_2(const A_layout_t &A_layout, const A_data_t &A_data,
                       C_layout_t::rank == 3, "invalid ranks");
    const int B3 = B_layout_t::dim_3;
    const int C3 = C_layout_t::dim_3;
-   MFEM_STATIC_ASSERT(B3 == C3, "invalid dimentions");
+   MFEM_STATIC_ASSERT(B3 == C3, "invalid dimensions");
    for (int k = 0; k < B3; k++)
    {
       Mult_AB<Add>(B_layout.ind3(k), B_data,

@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 //
 //            -----------------------------------------------------
 //            Joule Miniapp:  Transient Magnetics and Joule Heating
@@ -111,18 +111,18 @@
 
 using namespace std;
 using namespace mfem;
+using namespace mfem::common;
 using namespace mfem::electromagnetics;
 
 void display_banner(ostream & os);
 
-static double aj_ = 0.0;
 static double mj_ = 0.0;
 static double sj_ = 0.0;
 static double wj_ = 0.0;
-static double kj_ = 0.0;
-static double hj_ = 0.0;
-static double dtj_ = 0.0;
-static double rj_ = 0.0;
+
+// Initialize variables used in joule_solver.cpp
+int electromagnetics::SOLVER_PRINT_LEVEL = 0;
+int electromagnetics::STATIC_COND        = 0;
 
 int main(int argc, char *argv[])
 {
@@ -141,12 +141,10 @@ int main(int argc, char *argv[])
    int ode_solver_type = 1;
    double t_final = 100.0;
    double dt = 0.5;
-   double amp = 2.0;
    double mu = 1.0;
    double sigma = 2.0*M_PI*10;
    double Tcapacity = 1.0;
    double Tconductivity = 0.01;
-   double alpha = Tconductivity/Tcapacity;
    double freq = 1.0/60.0;
    bool visualization = true;
    bool visit = true;
@@ -214,20 +212,15 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   aj_  = amp;
    mj_  = mu;
    sj_  = sigma;
    wj_  = 2.0*M_PI*freq;
-   kj_  = sqrt(0.5*wj_*mj_*sj_);
-   hj_  = alpha;
-   dtj_ = dt;
-   rj_  = 1.0;
 
    if (mpi.Root())
    {
-      printf("\n");
-      printf("Skin depth sqrt(2.0/(wj*mj*sj)) = %g\n",sqrt(2.0/(wj_*mj_*sj_)));
-      printf("Skin depth sqrt(2.0*dt/(mj*sj)) = %g\n",sqrt(2.0*dt/(mj_*sj_)));
+      cout << "\nSkin depth sqrt(2.0/(wj*mj*sj)) = " << sqrt(2.0/(wj_*mj_*sj_))
+           << "\nSkin depth sqrt(2.0*dt/(mj*sj)) = " << sqrt(2.0*dt/(mj_*sj_))
+           << endl;
    }
 
    // 3. Here material properties are assigned to mesh attributes.  This code is
@@ -546,26 +539,26 @@ int main(int argc, char *argv[])
       int Ww = 350, Wh = 350; // window size
       int offx = Ww+10, offy = Wh+45; // window offsets
 
-      miniapps::VisualizeField(vis_P, vishost, visport,
-                               P_gf, "Electric Potential (Phi)", Wx, Wy, Ww, Wh);
+      VisualizeField(vis_P, vishost, visport,
+                     P_gf, "Electric Potential (Phi)", Wx, Wy, Ww, Wh);
       Wx += offx;
 
-      miniapps::VisualizeField(vis_E, vishost, visport,
-                               E_gf, "Electric Field (E)", Wx, Wy, Ww, Wh);
+      VisualizeField(vis_E, vishost, visport,
+                     E_gf, "Electric Field (E)", Wx, Wy, Ww, Wh);
       Wx += offx;
 
-      miniapps::VisualizeField(vis_B, vishost, visport,
-                               B_gf, "Magnetic Field (B)", Wx, Wy, Ww, Wh);
+      VisualizeField(vis_B, vishost, visport,
+                     B_gf, "Magnetic Field (B)", Wx, Wy, Ww, Wh);
       Wx = 0;
       Wy += offy;
 
-      miniapps::VisualizeField(vis_w, vishost, visport,
-                               w_gf, "Joule Heating", Wx, Wy, Ww, Wh);
+      VisualizeField(vis_w, vishost, visport,
+                     w_gf, "Joule Heating", Wx, Wy, Ww, Wh);
 
       Wx += offx;
 
-      miniapps::VisualizeField(vis_T, vishost, visport,
-                               T_gf, "Temperature", Wx, Wy, Ww, Wh);
+      VisualizeField(vis_T, vishost, visport,
+                     T_gf, "Temperature", Wx, Wy, Ww, Wh);
    }
    // VisIt visualization
    VisItDataCollection visit_dc(basename, pmesh);
@@ -686,27 +679,27 @@ int main(int argc, char *argv[])
             int Ww = 350, Wh = 350; // window size
             int offx = Ww+10, offy = Wh+45; // window offsets
 
-            miniapps::VisualizeField(vis_P, vishost, visport,
-                                     P_gf, "Electric Potential (Phi)", Wx, Wy, Ww, Wh);
+            VisualizeField(vis_P, vishost, visport,
+                           P_gf, "Electric Potential (Phi)", Wx, Wy, Ww, Wh);
             Wx += offx;
 
-            miniapps::VisualizeField(vis_E, vishost, visport,
-                                     E_gf, "Electric Field (E)", Wx, Wy, Ww, Wh);
+            VisualizeField(vis_E, vishost, visport,
+                           E_gf, "Electric Field (E)", Wx, Wy, Ww, Wh);
             Wx += offx;
 
-            miniapps::VisualizeField(vis_B, vishost, visport,
-                                     B_gf, "Magnetic Field (B)", Wx, Wy, Ww, Wh);
+            VisualizeField(vis_B, vishost, visport,
+                           B_gf, "Magnetic Field (B)", Wx, Wy, Ww, Wh);
 
             Wx = 0;
             Wy += offy;
 
-            miniapps::VisualizeField(vis_w, vishost, visport,
-                                     w_gf, "Joule Heating", Wx, Wy, Ww, Wh);
+            VisualizeField(vis_w, vishost, visport,
+                           w_gf, "Joule Heating", Wx, Wy, Ww, Wh);
 
             Wx += offx;
 
-            miniapps::VisualizeField(vis_T, vishost, visport,
-                                     T_gf, "Temperature", Wx, Wy, Ww, Wh);
+            VisualizeField(vis_T, vishost, visport,
+                           T_gf, "Temperature", Wx, Wy, Ww, Wh);
          }
 
          if (visit)
@@ -758,7 +751,7 @@ void b_exact(const Vector &x, double t, Vector &B)
    B[2] = 0.0;
 }
 
-double t_exact(Vector &x)
+double t_exact(const Vector &x)
 {
    double T = 0.0;
    return T;

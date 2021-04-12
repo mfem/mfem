@@ -1,0 +1,4 @@
+# matrix free -> no preconditioner
+-snes_monitor
+-snes_mf
+-ksp_type minres

@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_ELEMENT
 #define MFEM_ELEMENT
@@ -45,7 +45,7 @@ public:
 
    /// Default element constructor.
    explicit Element(Geometry::Type bg = Geometry::POINT)
-   { attribute = -1; base_geom = bg; }
+   { attribute = 1; base_geom = bg; }
 
    /// Returns element's type
    virtual Type GetType() const = 0;
@@ -89,7 +89,12 @@ public:
       return NULL;
    }
 
-   virtual int GetNFaces(int &nFaceVertices) const = 0;
+   /// @deprecated Use GetNFaces(void) and GetNFaceVertices(int) instead.
+   MFEM_DEPRECATED virtual int GetNFaces(int &nFaceVertices) const = 0;
+
+   virtual int GetNFaces() const = 0;
+
+   virtual int GetNFaceVertices(int fi) const = 0;
 
    virtual const int *GetFaceVertices(int fi) const = 0;
 

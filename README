@@ -5,19 +5,19 @@
                       | | | | | ||  _||  __/| | | | | |
                       |_| |_| |_||_|   \___||_| |_| |_|
 
-                               http://mfem.org
+                               https://mfem.org
 
 MFEM is a modular parallel C++ library for finite element methods. Its goal is
-to enable the research and development of scalable finite element discretization
-and solver algorithms through general finite element abstractions, accurate and
-flexible visualization, and tight integration with the hypre library.
+to enable high-performance scalable finite element discretization research and
+application development on a wide variety of platforms, ranging from laptops to
+supercomputers.
 
 * For building instructions, see the file INSTALL, or type "make help".
 
-* Copyright and licensing information can be found in the file COPYRIGHT.
+* Copyright and licensing information can be found in files LICENSE and NOTICE.
 
-* The best starting point for new users interested in MFEM's features is the
-  interactive documentation in examples/README.html.
+* The best starting point for new users interested in MFEM's features is to
+  review the examples and miniapps at https://mfem.org/examples.
 
 * Developers interested in contributing to the library, should read the
   instructions and documentation in the CONTRIBUTING.md file.
@@ -39,29 +39,31 @@ conforming and non-conforming (AMR) adaptive refinement. Arbitrary element
 transformations, allowing for high-order mesh elements with curved boundaries,
 are also supported.
 
-MFEM is commonly used as a "finite element to linear algebra translator", since
-it can take a problem described in terms of finite element-type objects, and
-produce the corresponding linear algebra vectors and sparse matrices. In order
-to facilitate this, MFEM uses compressed sparse row (CSR) sparse matrix storage
-and includes simple smoothers and Krylov solvers, such as PCG, MINRES and GMRES,
-as well as support for sequential sparse direct solvers from the SuiteSparse
+When used as a "finite element to linear algebra translator", MFEM can take a
+problem described in terms of finite element-type objects, and produce the
+corresponding linear algebra vectors and fully or partially assembled operators,
+e.g. in the form of global sparse matrices or matrix-free operators. The library
+includes simple smoothers and Krylov solvers, such as PCG, MINRES and GMRES, as
+well as support for sequential sparse direct solvers from the SuiteSparse
 library. Nonlinear solvers (the Newton method), eigensolvers (LOBPCG), and
 several explicit and implicit Runge-Kutta time integrators are also available.
 
 MFEM supports MPI-based parallelism throughout the library, and can readily be
-used as a scalable unstructured finite element problem generator. MFEM-based
-applications require minimal changes to transition from a serial to a
-high-performing parallel version of the code, where they can take advantage of
-the integrated scalable linear solvers from the hypre library. Comprehensive
-support for other external packages, e.g. PETSc and SUNDIALS is also included,
-giving access to many additional linear and nonlinear solvers, preconditioners,
-time integrators, etc.
+used as a scalable unstructured finite element problem generator. Starting with
+version 4.0, MFEM offers support for GPU acceleration, and programming models,
+such as CUDA, HIP, OCCA, RAJA and OpenMP. MFEM-based applications require
+minimal changes to switch from a serial to a highly-performant MPI-parallel
+version of the code, where they can take advantage of the integrated linear
+solvers from the hypre library. Comprehensive support for other external
+packages, e.g. PETSc, SUNDIALS and libCEED is also included, giving access to
+additional linear and nonlinear solvers, preconditioners, time integrators, etc.
 
 For examples of using MFEM, see the examples/ and miniapps/ directories, as well
-as the OpenGL visualization tool GLVis which is available at http://glvis.org.
+as the OpenGL visualization tool GLVis which is available at https://glvis.org.
 
-This project is released under the LGPL v2.1 license with static linking
-exception. See files COPYRIGHT and LICENSE file for full details.
+MFEM is distributed under the terms of the BSD-3 license. All new contributions
+must be made under this license. See LICENSE and NOTICE for details.
 
-LLNL Release Number: LLNL-CODE-443211
+SPDX-License-Identifier: BSD-3-Clause
+LLNL Release Number: LLNL-CODE-806117
 DOI: 10.11578/dc.20171025.1248

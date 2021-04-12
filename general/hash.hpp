@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_HASH
 #define MFEM_HASH
@@ -87,28 +87,28 @@ public:
    HashTable(const HashTable& other); // deep copy
    ~HashTable();
 
-   /// Get item whose parents are p1, p2... Create it if it doesn't exist.
+   /// Get item whose parents are 'p1', 'p2'... Create it if it doesn't exist.
    T* Get(int p1, int p2);
-   T* Get(int p1, int p2, int p3, int p4);
+   T* Get(int p1, int p2, int p3, int p4 = -1 /* p4 optional */);
    T* Get(int p1, int p2, int p3, int p4, int p5);
 
    /// Get id of item whose parents are p1, p2... Create it if it doesn't exist.
    int GetId(int p1, int p2);
-   int GetId(int p1, int p2, int p3, int p4);
+   int GetId(int p1, int p2, int p3, int p4 = -1);
    int GetId(int p1, int p2, int p3, int p4, int p5);
 
    /// Find item whose parents are p1, p2... Return NULL if it doesn't exist.
    T* Find(int p1, int p2);
-   T* Find(int p1, int p2, int p3, int p4);
+   T* Find(int p1, int p2, int p3, int p4 = -1);
    T* Find(int p1, int p2, int p3, int p4, int p5);
 
    const T* Find(int p1, int p2) const;
-   const T* Find(int p1, int p2, int p3, int p4) const;
+   const T* Find(int p1, int p2, int p3, int p4 = -1) const;
    const T* Find(int p1, int p2, int p3, int p4, int p5) const;
 
    /// Find id of item whose parents are p1, p2... Return -1 if it doesn't exist.
    int FindId(int p1, int p2) const;
-   int FindId(int p1, int p2, int p3, int p4) const;
+   int FindId(int p1, int p2, int p3, int p4 = -1) const;
    int FindId(int p1, int p2, int p3, int p4, int p5) const;
 
    /// Return the number of elements currently stored in the HashTable.
@@ -128,15 +128,28 @@ public:
    /** Its id will be reused by newly added items. */
    void Delete(int id);
 
+   /// Remove all items.
+   void DeleteAll();
+
+   /// Allocate an item at 'id'. Enlarge the underlying BlockArray if necessary.
+   /** This is a special purpose method used when loading data from a file.
+       Does nothing if the slot 'id' has already been allocated. */
+   void Alloc(int id, int p1, int p2);
+
+   /// Reinitialize the internal list of unallocated items.
+   /** This is a special purpose method used when loading data from a file. */
+   void UpdateUnused();
+
    /// Make an item hashed under different parent IDs.
    void Reparent(int id, int new_p1, int new_p2);
-   void Reparent(int id, int new_p1, int new_p2, int new_p3, int new_p4);
+   void Reparent(int id, int new_p1, int new_p2, int new_p3, int new_p4 = -1);
    void Reparent(int id, int new_p1, int new_p2, int new_p3, int new_p4,
                  int new_p5);
 
    /// Return total size of allocated memory (tables plus items), in bytes.
    long MemoryUsage() const;
 
+   /// Write details of the memory usage to the mfem output stream.
    void PrintMemoryDetail() const;
 
    class iterator : public Base::iterator
@@ -233,7 +246,10 @@ HashTable<T>::HashTable(int block_size, int init_hash_size)
    MFEM_VERIFY(!(init_hash_size & mask), "init_size must be a power of two.");
 
    table = new int[init_hash_size];
-   for (int i = 0; i < init_hash_size; i++) { table[i] = -1; }
+   for (int i = 0; i < init_hash_size; i++)
+   {
+      table[i] = -1;
+   }
 }
 
 template<typename T>
@@ -278,6 +294,18 @@ inline void sort5(int &a, int &b, int &c, int &d, int &e)
    if (a > b)
    {
       int t = a; a = b; b = t;
+   }
+}
+
+inline void sort4_ext(int &a, int &b, int &c, int &d)
+{
+   if (d < 0) // support optional last index
+   {
+      sort3(a, b, c);
+   }
+   else
+   {
+      sort4(a, b, c, d);
    }
 }
 
@@ -336,7 +364,7 @@ template<typename T>
 int HashTable<T>::GetId(int p1, int p2, int p3, int p4)
 {
    // search for the item in the hashtable
-   internal::sort4(p1, p2, p3, p4);
+   internal::sort4_ext(p1, p2, p3, p4);
    int idx = Hash(p1, p2, p3);
    int id = SearchList(table[idx], p1, p2, p3);
    if (id >= 0) { return id; }
@@ -449,7 +477,7 @@ int HashTable<T>::FindId(int p1, int p2) const
 template<typename T>
 int HashTable<T>::FindId(int p1, int p2, int p3, int p4) const
 {
-   internal::sort4(p1, p2, p3, p4);
+   internal::sort4_ext(p1, p2, p3, p4);
    return SearchList(table[Hash(p1, p2, p3)], p1, p2, p3);
 }
 
@@ -567,6 +595,44 @@ void HashTable<T>::Delete(int id)
 }
 
 template<typename T>
+void HashTable<T>::DeleteAll()
+{
+   Base::DeleteAll();
+   for (int i = 0; i <= mask; i++) { table[i] = -1; }
+   unused.DeleteAll();
+}
+
+template<typename T>
+void HashTable<T>::Alloc(int id, int p1, int p2)
+{
+   // enlarge the BlockArray to hold 'id'
+   while (id >= Base::Size())
+   {
+      Base::At(Base::Append()).next = -2; // append "unused" items
+   }
+
+   T& item = Base::At(id);
+   if (item.next == -2)
+   {
+      item.next = -1;
+      item.p1 = p1;
+      item.p2 = p2;
+
+      Insert(Hash(p1, p2), id, item);
+   }
+}
+
+template<typename T>
+void HashTable<T>::UpdateUnused()
+{
+   unused.DeleteAll();
+   for (int i = 0; i < Base::Size(); i++)
+   {
+      if (Base::At(i).next == -2) { unused.Append(i); }
+   }
+}
+
+template<typename T>
 void HashTable<T>::Reparent(int id, int new_p1, int new_p2)
 {
    T& item = Base::At(id);
@@ -588,7 +654,7 @@ void HashTable<T>::Reparent(int id,
    T& item = Base::At(id);
    Unlink(Hash(item), id);
 
-   internal::sort4(new_p1, new_p2, new_p3, new_p4);
+   internal::sort4_ext(new_p1, new_p2, new_p3, new_p4);
    item.p1 = new_p1;
    item.p2 = new_p2;
    item.p3 = new_p3;

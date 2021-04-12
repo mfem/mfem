@@ -4,24 +4,34 @@
 //
 // Sample runs:  ex5 -m ../data/square-disc.mesh
 //               ex5 -m ../data/star.mesh
+//               ex5 -m ../data/star.mesh -pa
 //               ex5 -m ../data/beam-tet.mesh
 //               ex5 -m ../data/beam-hex.mesh
+//               ex5 -m ../data/beam-hex.mesh -pa
 //               ex5 -m ../data/escher.mesh
 //               ex5 -m ../data/fichera.mesh
 //
+// Device sample runs:
+//               ex5 -m ../data/star.mesh -pa -d cuda
+//               ex5 -m ../data/star.mesh -pa -d raja-cuda
+//               ex5 -m ../data/star.mesh -pa -d raja-omp
+//               ex5 -m ../data/beam-hex.mesh -pa -d cuda
+//
 // Description:  This example code solves a simple 2D/3D mixed Darcy problem
 //               corresponding to the saddle point system
+//
 //                                 k*u + grad p = f
 //                                 - div u      = g
+//
 //               with natural boundary condition -p = <given pressure>.
 //               Here, we use a given exact solution (u,p) and compute the
 //               corresponding r.h.s. (f,g).  We discretize with Raviart-Thomas
 //               finite elements (velocity u) and piecewise discontinuous
 //               polynomials (pressure p).
 //
-//               The example demonstrates the use of the BlockMatrix class, as
-//               well as the collective saving of several grid functions in a
-//               VisIt (visit.llnl.gov) visualization format.
+//               The example demonstrates the use of the BlockOperator class, as
+//               well as the collective saving of several grid functions in
+//               VisIt (visit.llnl.gov) and ParaView (paraview.org) formats.
 //
 //               We recommend viewing examples 1-4 before viewing this example.
 
@@ -47,6 +57,8 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
+   bool pa = false;
+   const char *device_config = "cpu";
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -54,6 +66,10 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -65,13 +81,18 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // 2. Read the mesh from the given mesh file. We can handle triangular,
+   // 2. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   device.Print();
+
+   // 3. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
-   // 3. Refine the mesh to increase the resolution. In this example we do
+   // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 10,000
    //    elements.
@@ -84,7 +105,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 4. Define a finite element space on the mesh. Here we use the
+   // 5. Define a finite element space on the mesh. Here we use the
    //    Raviart-Thomas finite elements of the specified order.
    FiniteElementCollection *hdiv_coll(new RT_FECollection(order, dim));
    FiniteElementCollection *l2_coll(new L2_FECollection(order, dim));
@@ -92,7 +113,7 @@ int main(int argc, char *argv[])
    FiniteElementSpace *R_space = new FiniteElementSpace(mesh, hdiv_coll);
    FiniteElementSpace *W_space = new FiniteElementSpace(mesh, l2_coll);
 
-   // 5. Define the BlockStructure of the problem, i.e. define the array of
+   // 6. Define the BlockStructure of the problem, i.e. define the array of
    //    offsets for each variable. The last component of the Array is the sum
    //    of the dimensions of each block.
    Array<int> block_offsets(3); // number of variables + 1
@@ -107,7 +128,7 @@ int main(int argc, char *argv[])
    std::cout << "dim(R+W) = " << block_offsets.Last() << "\n";
    std::cout << "***********************************************************\n";
 
-   // 6. Define the coefficients, analytical solution, and rhs of the PDE.
+   // 7. Define the coefficients, analytical solution, and rhs of the PDE.
    ConstantCoefficient k(1.0);
 
    VectorFunctionCoefficient fcoeff(dim, fFun);
@@ -117,25 +138,28 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient ucoeff(dim, uFun_ex);
    FunctionCoefficient pcoeff(pFun_ex);
 
-   // 7. Allocate memory (x, rhs) for the analytical solution and the right hand
+   // 8. Allocate memory (x, rhs) for the analytical solution and the right hand
    //    side.  Define the GridFunction u,p for the finite element solution and
    //    linear forms fform and gform for the right hand side.  The data
    //    allocated by x and rhs are passed as a reference to the grid functions
    //    (u,p) and the linear forms (fform, gform).
-   BlockVector x(block_offsets), rhs(block_offsets);
+   MemoryType mt = device.GetMemoryType();
+   BlockVector x(block_offsets, mt), rhs(block_offsets, mt);
 
    LinearForm *fform(new LinearForm);
    fform->Update(R_space, rhs.GetBlock(0), 0);
    fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
    fform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(fnatcoeff));
    fform->Assemble();
+   fform->SyncAliasMemory(rhs);
 
    LinearForm *gform(new LinearForm);
    gform->Update(W_space, rhs.GetBlock(1), 0);
    gform->AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
    gform->Assemble();
+   gform->SyncAliasMemory(rhs);
 
-   // 8. Assemble the finite element matrices for the Darcy operator
+   // 9. Assemble the finite element matrices for the Darcy operator
    //
    //                            D = [ M  B^T ]
    //                                [ B   0  ]
@@ -146,55 +170,103 @@ int main(int argc, char *argv[])
    BilinearForm *mVarf(new BilinearForm(R_space));
    MixedBilinearForm *bVarf(new MixedBilinearForm(R_space, W_space));
 
+   if (pa) { mVarf->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    mVarf->AddDomainIntegrator(new VectorFEMassIntegrator(k));
    mVarf->Assemble();
-   mVarf->Finalize();
-   SparseMatrix &M(mVarf->SpMat());
+   if (!pa) { mVarf->Finalize(); }
 
+   if (pa) { bVarf->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    bVarf->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
    bVarf->Assemble();
-   bVarf->Finalize();
-   SparseMatrix & B(bVarf->SpMat());
-   B *= -1.;
-   SparseMatrix *BT = Transpose(B);
+   if (!pa) { bVarf->Finalize(); }
 
-   BlockMatrix darcyMatrix(block_offsets);
-   darcyMatrix.SetBlock(0,0, &M);
-   darcyMatrix.SetBlock(0,1, BT);
-   darcyMatrix.SetBlock(1,0, &B);
+   BlockOperator darcyOp(block_offsets);
 
-   // 9. Construct the operators for preconditioner
+   TransposeOperator *Bt = NULL;
+
+   if (pa)
+   {
+      Bt = new TransposeOperator(bVarf);
+
+      darcyOp.SetBlock(0,0, mVarf);
+      darcyOp.SetBlock(0,1, Bt, -1.0);
+      darcyOp.SetBlock(1,0, bVarf, -1.0);
+   }
+   else
+   {
+      SparseMatrix &M(mVarf->SpMat());
+      SparseMatrix &B(bVarf->SpMat());
+      B *= -1.;
+      Bt = new TransposeOperator(&B);
+
+      darcyOp.SetBlock(0,0, &M);
+      darcyOp.SetBlock(0,1, Bt);
+      darcyOp.SetBlock(1,0, &B);
+   }
+
+   // 10. Construct the operators for preconditioner
    //
    //                 P = [ diag(M)         0         ]
    //                     [  0       B diag(M)^-1 B^T ]
    //
    //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
    //     pressure Schur Complement
-   SparseMatrix *MinvBt = Transpose(B);
-   Vector Md(M.Height());
-   M.GetDiag(Md);
-   for (int i = 0; i < Md.Size(); i++)
-   {
-      MinvBt->ScaleRow(i, 1./Md(i));
-   }
-   SparseMatrix *S = Mult(B, *MinvBt);
+   SparseMatrix *MinvBt = NULL;
+   Vector Md(mVarf->Height());
 
+   BlockDiagonalPreconditioner darcyPrec(block_offsets);
    Solver *invM, *invS;
-   invM = new DSmoother(M);
+   SparseMatrix *S = NULL;
+
+   if (pa)
+   {
+      mVarf->AssembleDiagonal(Md);
+      auto Md_host = Md.HostRead();
+      Vector invMd(mVarf->Height());
+      for (int i=0; i<mVarf->Height(); ++i)
+      {
+         invMd(i) = 1.0 / Md_host[i];
+      }
+
+      Vector BMBt_diag(bVarf->Height());
+      bVarf->AssembleDiagonal_ADAt(invMd, BMBt_diag);
+
+      Array<int> ess_tdof_list;  // empty
+
+      invM = new OperatorJacobiSmoother(Md, ess_tdof_list);
+      invS = new OperatorJacobiSmoother(BMBt_diag, ess_tdof_list);
+   }
+   else
+   {
+      SparseMatrix &M(mVarf->SpMat());
+      M.GetDiag(Md);
+
+      SparseMatrix &B(bVarf->SpMat());
+      MinvBt = Transpose(B);
+
+      for (int i = 0; i < Md.Size(); i++)
+      {
+         MinvBt->ScaleRow(i, 1./Md(i));
+      }
+
+      S = Mult(B, *MinvBt);
+
+      invM = new DSmoother(M);
+
 #ifndef MFEM_USE_SUITESPARSE
-   invS = new GSSmoother(*S);
+      invS = new GSSmoother(*S);
 #else
-   invS = new UMFPackSolver(*S);
+      invS = new UMFPackSolver(*S);
 #endif
+   }
 
    invM->iterative_mode = false;
    invS->iterative_mode = false;
 
-   BlockDiagonalPreconditioner darcyPrec(block_offsets);
    darcyPrec.SetDiagonalBlock(0, invM);
    darcyPrec.SetDiagonalBlock(1, invS);
 
-   // 10. Solve the linear system with MINRES.
+   // 11. Solve the linear system with MINRES.
    //     Check the norm of the unpreconditioned residual.
    int maxIter(1000);
    double rtol(1.e-6);
@@ -206,11 +278,12 @@ int main(int argc, char *argv[])
    solver.SetAbsTol(atol);
    solver.SetRelTol(rtol);
    solver.SetMaxIter(maxIter);
-   solver.SetOperator(darcyMatrix);
+   solver.SetOperator(darcyOp);
    solver.SetPreconditioner(darcyPrec);
    solver.SetPrintLevel(1);
    x = 0.0;
    solver.Mult(rhs, x);
+   if (device.IsEnabled()) { x.HostRead(); }
    chrono.Stop();
 
    if (solver.GetConverged())
@@ -221,7 +294,7 @@ int main(int argc, char *argv[])
                 << " iterations. Residual norm is " << solver.GetFinalNorm() << ".\n";
    std::cout << "MINRES solver took " << chrono.RealTime() << "s. \n";
 
-   // 11. Create the grid functions u and p. Compute the L2 error norms.
+   // 12. Create the grid functions u and p. Compute the L2 error norms.
    GridFunction u, p;
    u.MakeRef(R_space, x.GetBlock(0), 0);
    p.MakeRef(W_space, x.GetBlock(1), 0);
@@ -241,7 +314,7 @@ int main(int argc, char *argv[])
    std::cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
    std::cout << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
 
-   // 12. Save the mesh and the solution. This output can be viewed later using
+   // 13. Save the mesh and the solution. This output can be viewed later using
    //     GLVis: "glvis -m ex5.mesh -g sol_u.gf" or "glvis -m ex5.mesh -g
    //     sol_p.gf".
    {
@@ -258,13 +331,25 @@ int main(int argc, char *argv[])
       p.Save(p_ofs);
    }
 
-   // 13. Save data in the VisIt format
+   // 14. Save data in the VisIt format
    VisItDataCollection visit_dc("Example5", mesh);
    visit_dc.RegisterField("velocity", &u);
    visit_dc.RegisterField("pressure", &p);
    visit_dc.Save();
 
-   // 14. Send the solution by socket to a GLVis server.
+   // 15. Save data in the ParaView format
+   ParaViewDataCollection paraview_dc("Example5", mesh);
+   paraview_dc.SetPrefixPath("ParaView");
+   paraview_dc.SetLevelsOfDetail(order);
+   paraview_dc.SetCycle(0);
+   paraview_dc.SetDataFormat(VTKFormat::BINARY);
+   paraview_dc.SetHighOrderOutput(true);
+   paraview_dc.SetTime(0.0); // set the time
+   paraview_dc.RegisterField("velocity",&u);
+   paraview_dc.RegisterField("pressure",&p);
+   paraview_dc.Save();
+
+   // 16. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -277,14 +362,14 @@ int main(int argc, char *argv[])
       p_sock << "solution\n" << *mesh << p << "window_title 'Pressure'" << endl;
    }
 
-   // 15. Free the used memory.
+   // 17. Free the used memory.
    delete fform;
    delete gform;
    delete invM;
    delete invS;
    delete S;
+   delete Bt;
    delete MinvBt;
-   delete BT;
    delete mVarf;
    delete bVarf;
    delete W_space;

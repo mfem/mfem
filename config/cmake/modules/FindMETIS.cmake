@@ -1,13 +1,13 @@
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
-# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
-# See file COPYRIGHT for details.
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
 # Defines the following variables:
 #   - METIS_FOUND
@@ -25,16 +25,16 @@ mfem_find_package(METIS METIS METIS_DIR "include;Lib" "metis.h"
 
 int main()
 {
-    int n = 10;
-    int nparts = 5;
-    int edgecut;
-    int* partitioning = new int[10];
-    int* I = partitioning,
+    idx_t n = 10;
+    idx_t nparts = 5;
+    idx_t edgecut;
+    idx_t* partitioning = new idx_t[10];
+    idx_t* I = partitioning,
        * J = partitioning;
 
-    int ncon = 1;
+    idx_t ncon = 1;
     int err;
-    int options[40];
+    idx_t options[40];
 
     METIS_SetDefaultOptions(options);
     options[10] = 1; // set METIS_OPTION_CONTIG

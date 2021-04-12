@@ -51,6 +51,10 @@ public:
 
    virtual int GetNEdges() const { return 32; }
 
+   virtual int GetNFaces() const { return 8; }
+
+   virtual int GetNFaceVertices(int fi) const { return 8; }
+
    virtual const int *GetEdgeVertices(int ei) const
    { return edges[ei]; }
 

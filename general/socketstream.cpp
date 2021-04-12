@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifdef _WIN32
 // Turn off CRT deprecation warnings for strerror (VS 2013)
@@ -45,6 +45,40 @@ typedef int ssize_t;
 namespace mfem
 {
 
+// Helper class for handling Winsock initialization calls.
+class WinsockWrapper
+{
+public:
+   WinsockWrapper()
+   {
+#ifdef _WIN32
+      WSADATA wsaData;
+      int err = WSAStartup(MAKEWORD(2,2), &wsaData);
+      if (err != 0)
+      {
+         mfem::out << "Error occured during initialization of WinSock."
+                   << std::endl;
+         return;
+      }
+#endif
+      initialized = true;
+   }
+
+#ifdef _WIN32
+   ~WinsockWrapper() { WSACleanup(); }
+#endif
+
+   WinsockWrapper(const WinsockWrapper&) = delete;
+   WinsockWrapper& operator=(const WinsockWrapper&) = delete;
+
+   bool Initialized() { return initialized; }
+private:
+   bool initialized = false;
+};
+
+// If available, Winsock is initialized when this object is constructed.
+static WinsockWrapper wsInit_;
+
 int socketbuf::attach(int sd)
 {
    int old_sd = socket_descriptor;
@@ -59,6 +93,11 @@ int socketbuf::open(const char hostname[], int port)
 {
    struct sockaddr_in  sa;
    struct hostent     *hp;
+
+   if (!wsInit_.Initialized())
+   {
+      mfem_error("Attempting to open socket, but Winsock not initialized.");
+   }
 
    close();
    setg(NULL, NULL, NULL);

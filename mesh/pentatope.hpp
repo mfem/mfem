@@ -94,8 +94,12 @@ public:
 
    virtual const int *GetPlanarsVertices(int pi) const { return (geom_p::PlanarVert[pi]); }
 
-   virtual int GetNFaces(int &nFaceVertices) const
+   MFEM_DEPRECATED virtual int GetNFaces(int &nFaceVertices) const
    { nFaceVertices = 4; return 5; }
+
+   virtual int GetNFaces() const { return 5; };
+
+   virtual int GetNFaceVertices(int fi) const { return 4; };
 
    virtual const int *GetFaceVertices(int fi) const
    { return geom_p::FaceVert[fi]; }

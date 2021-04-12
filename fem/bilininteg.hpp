@@ -1,31 +1,132 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_BILININTEG
 #define MFEM_BILININTEG
 
 #include "../config/config.hpp"
 #include "nonlininteg.hpp"
+#include "fespace.hpp"
 
 namespace mfem
 {
+
+// Local maximum size of dofs and quads in 1D
+constexpr int HCURL_MAX_D1D = 5;
+constexpr int HCURL_MAX_Q1D = 6;
+
+constexpr int HDIV_MAX_D1D = 5;
+constexpr int HDIV_MAX_Q1D = 6;
 
 /// Abstract base class BilinearFormIntegrator
 class BilinearFormIntegrator : public NonlinearFormIntegrator
 {
 protected:
-   BilinearFormIntegrator(const IntegrationRule *ir = NULL) :
-      NonlinearFormIntegrator(ir) { }
+   BilinearFormIntegrator(const IntegrationRule *ir = NULL)
+      : NonlinearFormIntegrator(ir) { }
 
 public:
+   // TODO: add support for other assembly levels (in addition to PA) and their
+   // actions.
+
+   // TODO: for mixed meshes the quadrature rules to be used by methods like
+   // AssemblePA() can be given as a QuadratureSpace, e.g. using a new method:
+   // SetQuadratureSpace().
+
+   // TODO: the methods for the various assembly levels make sense even in the
+   // base class NonlinearFormIntegrator, except that not all assembly levels
+   // make sense for the action of the nonlinear operator (but they all make
+   // sense for its Jacobian).
+
+   using NonlinearFormIntegrator::AssemblePA;
+
+   /// Method defining partial assembly.
+   /** The result of the partial assembly is stored internally so that it can be
+       used later in the methods AddMultPA() and AddMultTransposePA(). */
+   virtual void AssemblePA(const FiniteElementSpace &fes);
+   /** Used with BilinearFormIntegrators that have different spaces. */
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
+   virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes);
+
+   virtual void AssemblePABoundaryFaces(const FiniteElementSpace &fes);
+
+   /// Assemble diagonal and add it to Vector @a diag.
+   virtual void AssembleDiagonalPA(Vector &diag);
+
+   /// Assemble diagonal of ADA^T (A is this integrator) and add it to @a diag.
+   virtual void AssembleDiagonalPA_ADAt(const Vector &D, Vector &diag);
+
+   /// Method for partially assembled action.
+   /** Perform the action of integrator on the input @a x and add the result to
+       the output @a y. Both @a x and @a y are E-vectors, i.e. they represent
+       the element-wise discontinuous version of the FE space.
+
+       This method can be called only after the method AssemblePA() has been
+       called. */
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+
+   /// Method for partially assembled transposed action.
+   /** Perform the transpose action of integrator on the input @a x and add the
+       result to the output @a y. Both @a x and @a y are E-vectors, i.e. they
+       represent the element-wise discontinuous version of the FE space.
+
+       This method can be called only after the method AssemblePA() has been
+       called. */
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+
+   /// Method defining element assembly.
+   /** The result of the element assembly is added to the @a emat Vector if
+       @a add is true. Otherwise, if @a add is false, we set @a emat. */
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                           const bool add = true);
+   /** Used with BilinearFormIntegrators that have different spaces. */
+   // virtual void AssembleEA(const FiniteElementSpace &trial_fes,
+   //                         const FiniteElementSpace &test_fes,
+   //                         Vector &emat);
+
+   /// Method defining matrix-free assembly.
+   /** The result of fully matrix-free assembly is stored internally so that it
+       can be used later in the methods AddMultMF() and AddMultTransposeMF(). */
+   virtual void AssembleMF(const FiniteElementSpace &fes);
+
+   /** Perform the action of integrator on the input @a x and add the result to
+       the output @a y. Both @a x and @a y are E-vectors, i.e. they represent
+       the element-wise discontinuous version of the FE space.
+
+       This method can be called only after the method AssembleMF() has been
+       called. */
+   virtual void AddMultMF(const Vector &x, Vector &y) const;
+
+   /** Perform the transpose action of integrator on the input @a x and add the
+       result to the output @a y. Both @a x and @a y are E-vectors, i.e. they
+       represent the element-wise discontinuous version of the FE space.
+
+       This method can be called only after the method AssemblePA() has been
+       called. */
+   virtual void AddMultTransposeMF(const Vector &x, Vector &y) const;
+
+   /// Assemble diagonal and add it to Vector @a diag.
+   virtual void AssembleDiagonalMF(Vector &diag);
+
+   virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes,
+                                        Vector &ea_data_int,
+                                        Vector &ea_data_ext,
+                                        const bool add = true);
+
+   virtual void AssembleEABoundaryFaces(const FiniteElementSpace &fes,
+                                        Vector &ea_data_bdr,
+                                        const bool add = true);
+
    /// Given a particular Finite Element computes the element matrix elmat.
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
@@ -53,10 +154,21 @@ public:
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 
-   /// Perform the local action of the BilinearFormIntegrator
+   /// @brief Perform the local action of the BilinearFormIntegrator.
+   /// Note that the default implementation in the base class is general but not
+   /// efficient.
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &Tr,
                                       const Vector &elfun, Vector &elvect);
+
+   /// @brief Perform the local action of the BilinearFormIntegrator resulting
+   /// from a face integral term.
+   /// Note that the default implementation in the base class is general but not
+   /// efficient.
+   virtual void AssembleFaceVector(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Tr,
+                                   const Vector &elfun, Vector &elvect);
 
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &Tr,
@@ -102,7 +214,7 @@ public:
                                    ElementTransformation &Trans,
                                    Vector &u,
                                    const FiniteElement &fluxelem,
-                                   Vector &flux, int with_coef = 1) { }
+                                   Vector &flux, bool with_coef = true) { }
 
    /** @brief Virtual method required for Zienkiewicz-Zhu type error estimators.
 
@@ -133,6 +245,8 @@ public:
    virtual ~BilinearFormIntegrator() { }
 };
 
+/** Wraps a given @a BilinearFormIntegrator and transposes the resulting element
+    matrices. See for example ex9, ex9p. */
 class TransposeIntegrator : public BilinearFormIntegrator
 {
 private:
@@ -159,6 +273,45 @@ public:
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
+
+   using BilinearFormIntegrator::AssemblePA;
+
+   virtual void AssemblePA(const FiniteElementSpace& fes)
+   {
+      bfi->AssemblePA(fes);
+   }
+
+   virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes)
+   {
+      bfi->AssemblePAInteriorFaces(fes);
+   }
+
+   virtual void AssemblePABoundaryFaces(const FiniteElementSpace &fes)
+   {
+      bfi->AssemblePABoundaryFaces(fes);
+   }
+
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const
+   {
+      bfi->AddMultPA(x, y);
+   }
+
+   virtual void AddMultPA(const Vector& x, Vector& y) const
+   {
+      bfi->AddMultTransposePA(x, y);
+   }
+
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                           const bool add);
+
+   virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes,
+                                        Vector &ea_data_int,
+                                        Vector &ea_data_ext,
+                                        const bool add);
+
+   virtual void AssembleEABoundaryFaces(const FiniteElementSpace &fes,
+                                        Vector &ea_data_bdr,
+                                        const bool add);
 
    virtual ~TransposeIntegrator() { if (own_bfi) { delete bfi; } }
 };
@@ -203,7 +356,7 @@ class SumIntegrator : public BilinearFormIntegrator
 {
 private:
    int own_integrators;
-   DenseMatrix elem_mat;
+   mutable DenseMatrix elem_mat;
    Array<BilinearFormIntegrator*> integrators;
 
 public:
@@ -215,6 +368,55 @@ public:
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+
+   virtual void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
+                                   const FiniteElement &test_fe1,
+                                   const FiniteElement &test_fe2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace& fes);
+
+   virtual void AssembleDiagonalPA(Vector &diag);
+
+   virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes);
+
+   virtual void AssemblePABoundaryFaces(const FiniteElementSpace &fes);
+
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+
+   virtual void AddMultPA(const Vector& x, Vector& y) const;
+
+   virtual void AssembleMF(const FiniteElementSpace &fes);
+
+   virtual void AddMultMF(const Vector &x, Vector &y) const;
+
+   virtual void AddMultTransposeMF(const Vector &x, Vector &y) const;
+
+   virtual void AssembleDiagonalMF(Vector &diag);
+
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                           const bool add);
+
+   virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes,
+                                        Vector &ea_data_int,
+                                        Vector &ea_data_ext,
+                                        const bool add);
+
+   virtual void AssembleEABoundaryFaces(const FiniteElementSpace &fes,
+                                        Vector &ea_data_bdr,
+                                        const bool add);
 
    virtual ~SumIntegrator();
 };
@@ -275,9 +477,9 @@ protected:
                                       Vector & shape)
    { trial_fe.CalcPhysShape(Trans, shape); }
 
-private:
-
    Coefficient *Q;
+
+private:
 
 #ifndef MFEM_THREAD_SAFE
    Vector test_shape;
@@ -313,8 +515,8 @@ protected:
       : same_calc_shape(false), Q(NULL), VQ(NULL), DQ(NULL), MQ(NULL) {}
    MixedVectorIntegrator(Coefficient &q)
       : same_calc_shape(false), Q(&q), VQ(NULL), DQ(NULL), MQ(NULL) {}
-   MixedVectorIntegrator(VectorCoefficient &dq, bool diag = true)
-      : same_calc_shape(false), Q(NULL), VQ(diag?NULL:&dq), DQ(diag?&dq:NULL),
+   MixedVectorIntegrator(VectorCoefficient &vq, bool diag = true)
+      : same_calc_shape(false), Q(NULL), VQ(diag?NULL:&vq), DQ(diag?&vq:NULL),
         MQ(NULL) {}
    MixedVectorIntegrator(MatrixCoefficient &mq)
       : same_calc_shape(false), Q(NULL), VQ(NULL), DQ(NULL), MQ(&mq) {}
@@ -349,12 +551,12 @@ protected:
                                       DenseMatrix & shape)
    { trial_fe.CalcVShape(Trans, shape); }
 
-private:
-
    Coefficient *Q;
    VectorCoefficient *VQ;
-   VectorCoefficient *DQ;
+   DiagonalMatrixCoefficient *DQ;
    MatrixCoefficient *MQ;
+
+private:
 
 #ifndef MFEM_THREAD_SAFE
    Vector V;
@@ -378,6 +580,16 @@ public:
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
+
+   /// Support for use in BilinearForm. Can be used only when appropriate.
+   /** Appropriate use cases are classes derived from
+       MixedScalarVectorIntegrator where the trial and test spaces can be the
+       same. Examples of such classes are: MixedVectorDivergenceIntegrator,
+       MixedScalarWeakDivergenceIntegrator, etc. */
+   virtual void AssembleElementMatrix(const FiniteElement &fe,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat)
+   { AssembleElementMatrix2(fe, fe, Trans, elmat); }
 
 protected:
 
@@ -430,11 +642,11 @@ protected:
                                  Vector & shape)
    { scalar_fe.CalcPhysShape(Trans, shape); }
 
-private:
-
    VectorCoefficient *VQ;
    bool transpose;
    bool cross_2d;  // In 2D use a cross product rather than a dot product
+
+private:
 
 #ifndef MFEM_THREAD_SAFE
    Vector V;
@@ -600,10 +812,12 @@ protected:
              "vector field";
    }
 
+   // Subtract one due to the divergence and add one for the coefficient
+   // which is assumed to be at least linear.
    inline virtual int GetIntegrationOrder(const FiniteElement & trial_fe,
                                           const FiniteElement & test_fe,
                                           ElementTransformation &Trans)
-   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW() - 1; }
+   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW() - 1 + 1; }
 
    inline virtual void CalcShape(const FiniteElement & scalar_fe,
                                  ElementTransformation &Trans,
@@ -636,6 +850,11 @@ protected:
              "Trial space must be a scalar field "
              "and the test space must be H(Div)";
    }
+
+   inline virtual int GetIntegrationOrder(const FiniteElement & trial_fe,
+                                          const FiniteElement & test_fe,
+                                          ElementTransformation &Trans)
+   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW() - 1; }
 
    virtual void CalcTestShape(const FiniteElement & test_fe,
                               ElementTransformation &Trans,
@@ -732,7 +951,7 @@ public:
    MixedVectorMassIntegrator() { same_calc_shape = true; }
    MixedVectorMassIntegrator(Coefficient &q)
       : MixedVectorIntegrator(q) { same_calc_shape = true; }
-   MixedVectorMassIntegrator(VectorCoefficient &dq)
+   MixedVectorMassIntegrator(DiagonalMatrixCoefficient &dq)
       : MixedVectorIntegrator(dq, true) { same_calc_shape = true; }
    MixedVectorMassIntegrator(MatrixCoefficient &mq)
       : MixedVectorIntegrator(mq) { same_calc_shape = true; }
@@ -797,6 +1016,13 @@ public:
              "and the test space must be a vector field with a divergence";
    }
 
+   // Subtract one due to the gradient and add one for the coefficient
+   // which is assumed to be at least linear.
+   inline virtual int GetIntegrationOrder(const FiniteElement & trial_fe,
+                                          const FiniteElement & test_fe,
+                                          ElementTransformation &Trans)
+   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW() - 1 + 1; }
+
    inline virtual void CalcShape(const FiniteElement & scalar_fe,
                                  ElementTransformation &Trans,
                                  Vector & shape)
@@ -843,7 +1069,7 @@ public:
    MixedGradGradIntegrator() { same_calc_shape = true; }
    MixedGradGradIntegrator(Coefficient &q)
       : MixedVectorIntegrator(q) { same_calc_shape = true; }
-   MixedGradGradIntegrator(VectorCoefficient &dq)
+   MixedGradGradIntegrator(DiagonalMatrixCoefficient &dq)
       : MixedVectorIntegrator(dq, true) { same_calc_shape = true; }
    MixedGradGradIntegrator(MatrixCoefficient &mq)
       : MixedVectorIntegrator(mq) { same_calc_shape = true; }
@@ -931,7 +1157,7 @@ public:
    MixedCurlCurlIntegrator() { same_calc_shape = true; }
    MixedCurlCurlIntegrator(Coefficient &q)
       : MixedVectorIntegrator(q) { same_calc_shape = true; }
-   MixedCurlCurlIntegrator(VectorCoefficient &dq)
+   MixedCurlCurlIntegrator(DiagonalMatrixCoefficient &dq)
       : MixedVectorIntegrator(dq, true) { same_calc_shape = true; }
    MixedCurlCurlIntegrator(MatrixCoefficient &mq)
       : MixedVectorIntegrator(mq) { same_calc_shape = true; }
@@ -1437,7 +1663,7 @@ public:
 };
 
 /** Class for integrating the bilinear form a(u,v) := (-V u, Grad v) in 2D or 3D
-    and where V is a vector coefficient, u is in H1 and v is in H1. */
+    and where V is a vector coefficient, u is in H1 or L2 and v is in H1. */
 class MixedScalarWeakDivergenceIntegrator : public MixedScalarVectorIntegrator
 {
 public:
@@ -1475,7 +1701,7 @@ public:
    MixedVectorGradientIntegrator() {}
    MixedVectorGradientIntegrator(Coefficient &q)
       : MixedVectorIntegrator(q) {}
-   MixedVectorGradientIntegrator(VectorCoefficient &dq)
+   MixedVectorGradientIntegrator(DiagonalMatrixCoefficient &dq)
       : MixedVectorIntegrator(dq, true) {}
    MixedVectorGradientIntegrator(MatrixCoefficient &mq)
       : MixedVectorIntegrator(mq) {}
@@ -1503,8 +1729,21 @@ protected:
       trial_fe.CalcPhysDShape(Trans, shape);
    }
 
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
+
 private:
    DenseMatrix Jinv;
+
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
+   const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
+   const GeometricFactors *geom;   ///< Not owned
+   int dim, ne, dofs1D, quad1D;
 };
 
 /** Class for integrating the bilinear form a(u,v) := (Q curl u, v) in 3D and
@@ -1516,7 +1755,7 @@ public:
    MixedVectorCurlIntegrator() {}
    MixedVectorCurlIntegrator(Coefficient &q)
       : MixedVectorIntegrator(q) {}
-   MixedVectorCurlIntegrator(VectorCoefficient &dq)
+   MixedVectorCurlIntegrator(DiagonalMatrixCoefficient &dq)
       : MixedVectorIntegrator(dq, true) {}
    MixedVectorCurlIntegrator(MatrixCoefficient &mq)
       : MixedVectorIntegrator(mq) {}
@@ -1544,6 +1783,22 @@ protected:
    {
       trial_fe.CalcPhysCurlShape(Trans, shape);
    }
+
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
+
+private:
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
+   const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
+   const DofToQuad *mapsOtest;     ///< Not owned. DOF-to-quad map, open.
+   const DofToQuad *mapsCtest;     ///< Not owned. DOF-to-quad map, closed.
+   const GeometricFactors *geom;   ///< Not owned
+   int dim, ne, dofs1D, dofs1Dtest,quad1D, testType, trialType, coeffDim;
 };
 
 /** Class for integrating the bilinear form a(u,v) := (Q u, curl v) in 3D and
@@ -1555,7 +1810,7 @@ public:
    MixedVectorWeakCurlIntegrator() {}
    MixedVectorWeakCurlIntegrator(Coefficient &q)
       : MixedVectorIntegrator(q) {}
-   MixedVectorWeakCurlIntegrator(VectorCoefficient &dq)
+   MixedVectorWeakCurlIntegrator(DiagonalMatrixCoefficient &dq)
       : MixedVectorIntegrator(dq, true) {}
    MixedVectorWeakCurlIntegrator(MatrixCoefficient &mq)
       : MixedVectorIntegrator(mq) {}
@@ -1583,6 +1838,20 @@ protected:
    {
       test_fe.CalcPhysCurlShape(Trans, shape);
    }
+
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
+
+private:
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
+   const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
+   const GeometricFactors *geom;   ///< Not owned
+   int dim, ne, dofs1D, quad1D, testType, trialType, coeffDim;
 };
 
 /** Class for integrating the bilinear form a(u,v) := - (Q u, grad v) in either
@@ -1594,7 +1863,7 @@ public:
    MixedVectorWeakDivergenceIntegrator() {}
    MixedVectorWeakDivergenceIntegrator(Coefficient &q)
       : MixedVectorIntegrator(q) {}
-   MixedVectorWeakDivergenceIntegrator(VectorCoefficient &dq)
+   MixedVectorWeakDivergenceIntegrator(DiagonalMatrixCoefficient &dq)
       : MixedVectorIntegrator(dq, true) {}
    MixedVectorWeakDivergenceIntegrator(MatrixCoefficient &mq)
       : MixedVectorIntegrator(mq) {}
@@ -1624,31 +1893,107 @@ protected:
    }
 };
 
+/** Class for integrating the bilinear form a(u,v) := (Q grad u, v) where Q is a
+    scalar coefficient, and v is a vector with components v_i in the same (H1) space
+    as u.
+
+    See also MixedVectorGradientIntegrator when v is in H(curl). */
+class GradientIntegrator : public BilinearFormIntegrator
+{
+protected:
+   Coefficient *Q;
+
+private:
+   Vector shape;
+   DenseMatrix dshape;
+   DenseMatrix gshape;
+   DenseMatrix Jadj;
+   DenseMatrix elmat_comp;
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *trial_maps, *test_maps; ///< Not owned
+   const GeometricFactors *geom;            ///< Not owned
+   int dim, ne, nq;
+   int trial_dofs1D, test_dofs1D, quad1D;
+
+public:
+   GradientIntegrator() :
+      Q{NULL}, trial_maps{NULL}, test_maps{NULL}, geom{NULL}
+   { }
+   GradientIntegrator(Coefficient *_q) :
+      Q{_q}, trial_maps{NULL}, test_maps{NULL}, geom{NULL}
+   { }
+   GradientIntegrator(Coefficient &q) :
+      Q{&q}, trial_maps{NULL}, test_maps{NULL}, geom{NULL}
+   { }
+
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+
+   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                         const FiniteElement &test_fe,
+                                         ElementTransformation &Trans);
+};
+
 /** Class for integrating the bilinear form a(u,v) := (Q grad u, grad v) where Q
     can be a scalar or a matrix coefficient. */
 class DiffusionIntegrator: public BilinearFormIntegrator
 {
+protected:
+   Coefficient *Q;
+   VectorCoefficient *VQ;
+   MatrixCoefficient *MQ;
+   SymmetricMatrixCoefficient *SMQ;
+
 private:
    Vector vec, pointflux, shape;
 #ifndef MFEM_THREAD_SAFE
    DenseMatrix dshape, dshapedxt, invdfdx, mq;
    DenseMatrix te_dshape, te_dshapedxt;
+   Vector D;
 #endif
-   Coefficient *Q;
-   MatrixCoefficient *MQ;
+
+   // PA extension
+   const FiniteElementSpace *fespace;
+   const DofToQuad *maps;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
+   int dim, ne, dofs1D, quad1D;
+   Vector pa_data;
+   bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
-   DiffusionIntegrator() { Q = NULL; MQ = NULL; }
+   DiffusionIntegrator()
+      : Q(NULL), VQ(NULL), MQ(NULL), SMQ(NULL), maps(NULL), geom(NULL) { }
 
    /// Construct a diffusion integrator with a scalar coefficient q
-   DiffusionIntegrator (Coefficient &q) : Q(&q) { MQ = NULL; }
+   DiffusionIntegrator(Coefficient &q)
+      : Q(&q), VQ(NULL), MQ(NULL), SMQ(NULL), maps(NULL), geom(NULL) { }
+
+   /// Construct a diffusion integrator with a vector coefficient q
+   DiffusionIntegrator(VectorCoefficient &q)
+      : Q(NULL), VQ(&q), MQ(NULL), SMQ(NULL), maps(NULL), geom(NULL) { }
 
    /// Construct a diffusion integrator with a matrix coefficient q
-   DiffusionIntegrator (MatrixCoefficient &q) : MQ(&q) { Q = NULL; }
+   DiffusionIntegrator(MatrixCoefficient &q)
+      : Q(NULL), VQ(NULL), MQ(&q), SMQ(NULL), maps(NULL), geom(NULL) { }
 
-   /** Given a particular Finite Element
-       computes the element stiffness matrix elmat. */
+
+   /// Construct a diffusion integrator with a symmetric matrix coefficient q
+   DiffusionIntegrator(SymmetricMatrixCoefficient &q)
+      : Q(NULL), VQ(NULL), MQ(NULL), SMQ(&q), maps(NULL), geom(NULL) { }
+
+   /** Given a particular Finite Element computes the element stiffness matrix
+       elmat. */
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
@@ -1667,11 +2012,33 @@ public:
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
                                    Vector &u, const FiniteElement &fluxelem,
-                                   Vector &flux, int with_coef = 1);
+                                   Vector &flux, bool with_coef = true);
 
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);
+
+   using BilinearFormIntegrator::AssemblePA;
+
+   virtual void AssembleMF(const FiniteElementSpace &fes);
+
+   virtual void AssemblePA(const FiniteElementSpace &fes);
+
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                           const bool add);
+
+   virtual void AssembleDiagonalPA(Vector &diag);
+
+   virtual void AssembleDiagonalMF(Vector &diag);
+
+   virtual void AddMultMF(const Vector&, Vector&) const;
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
+
+   virtual void AddMultTransposePA(const Vector&, Vector&) const;
+
+   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                         const FiniteElement &test_fe);
 };
 
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
@@ -1682,16 +2049,23 @@ protected:
    Vector shape, te_shape;
 #endif
    Coefficient *Q;
+   // PA extension
+   const FiniteElementSpace *fespace;
+   Vector pa_data;
+   const DofToQuad *maps;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
+   int dim, ne, nq, dofs1D, quad1D;
 
 public:
    MassIntegrator(const IntegrationRule *ir = NULL)
-      : BilinearFormIntegrator(ir) { Q = NULL; }
+      : BilinearFormIntegrator(ir), Q(NULL), maps(NULL), geom(NULL) { }
+
    /// Construct a mass integrator with coefficient q
    MassIntegrator(Coefficient &q, const IntegrationRule *ir = NULL)
-      : BilinearFormIntegrator(ir), Q(&q) { }
+      : BilinearFormIntegrator(ir), Q(&q), maps(NULL), geom(NULL) { }
 
-   /** Given a particular Finite Element
-       computes the element mass matrix elmat. */
+   /** Given a particular Finite Element computes the element mass matrix
+       elmat. */
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
@@ -1699,8 +2073,32 @@ public:
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
+
+   using BilinearFormIntegrator::AssemblePA;
+
+   virtual void AssembleMF(const FiniteElementSpace &fes);
+
+   virtual void AssemblePA(const FiniteElementSpace &fes);
+
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                           const bool add);
+
+   virtual void AssembleDiagonalPA(Vector &diag);
+
+   virtual void AssembleDiagonalMF(Vector &diag);
+
+   virtual void AddMultMF(const Vector&, Vector&) const;
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
+
+   virtual void AddMultTransposePA(const Vector&, Vector&) const;
+
+   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                         const FiniteElement &test_fe,
+                                         ElementTransformation &Trans);
 };
 
+/** Mass integrator (u, v) restricted to the boundary of a domain */
 class BoundaryMassIntegrator : public MassIntegrator
 {
 public:
@@ -1717,34 +2115,79 @@ public:
 /// alpha (q . grad u, v)
 class ConvectionIntegrator : public BilinearFormIntegrator
 {
+protected:
+   VectorCoefficient *Q;
+   double alpha;
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *maps;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
+   int dim, ne, nq, dofs1D, quad1D;
+
 private:
 #ifndef MFEM_THREAD_SAFE
    DenseMatrix dshape, adjJ, Q_ir;
    Vector shape, vec2, BdFidxT;
 #endif
-   VectorCoefficient &Q;
-   double alpha;
 
 public:
    ConvectionIntegrator(VectorCoefficient &q, double a = 1.0)
-      : Q(q) { alpha = a; }
+      : Q(&q) { alpha = a; }
+
    virtual void AssembleElementMatrix(const FiniteElement &,
                                       ElementTransformation &,
                                       DenseMatrix &);
+
+   using BilinearFormIntegrator::AssemblePA;
+
+   virtual void AssembleMF(const FiniteElementSpace &fes);
+
+   virtual void AssemblePA(const FiniteElementSpace&);
+
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                           const bool add);
+
+   virtual void AssembleDiagonalPA(Vector &diag);
+
+   virtual void AssembleDiagonalMF(Vector &diag);
+
+   virtual void AddMultMF(const Vector&, Vector&) const;
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
+
+   static const IntegrationRule &GetRule(const FiniteElement &el,
+                                         ElementTransformation &Trans);
+
+   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                         const FiniteElement &test_fe,
+                                         ElementTransformation &Trans);
+};
+
+// Alias for @ConvectionIntegrator.
+using NonconservativeConvectionIntegrator = ConvectionIntegrator;
+
+/// -alpha (u, q . grad v), negative transpose of ConvectionIntegrator
+class ConservativeConvectionIntegrator : public TransposeIntegrator
+{
+public:
+   ConservativeConvectionIntegrator(VectorCoefficient &q, double a = 1.0)
+      : TransposeIntegrator(new ConvectionIntegrator(q, -a)) { }
 };
 
 /// alpha (q . grad u, v) using the "group" FE discretization
 class GroupConvectionIntegrator : public BilinearFormIntegrator
 {
+protected:
+   VectorCoefficient *Q;
+   double alpha;
+
 private:
    DenseMatrix dshape, adjJ, Q_nodal, grad;
    Vector shape;
-   VectorCoefficient &Q;
-   double alpha;
 
 public:
    GroupConvectionIntegrator(VectorCoefficient &q, double a = 1.0)
-      : Q(q) { alpha = a; }
+      : Q(&q) { alpha = a; }
    virtual void AssembleElementMatrix(const FiniteElement &,
                                       ElementTransformation &,
                                       DenseMatrix &);
@@ -1760,31 +2203,36 @@ private:
    Vector shape, te_shape, vec;
    DenseMatrix partelmat;
    DenseMatrix mcoeff;
+   int Q_order;
+
+protected:
    Coefficient *Q;
    VectorCoefficient *VQ;
    MatrixCoefficient *MQ;
-
-   int Q_order;
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *maps;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
+   int dim, ne, nq, dofs1D, quad1D;
 
 public:
    /// Construct an integrator with coefficient 1.0
    VectorMassIntegrator()
-      : vdim(-1), Q(NULL), VQ(NULL), MQ(NULL), Q_order(0) { }
-   /** Construct an integrator with scalar coefficient q.
-       If possible, save memory by using a scalar integrator since
-       the resulting matrix is block diagonal with the same diagonal
-       block repeated. */
+      : vdim(-1), Q_order(0), Q(NULL), VQ(NULL), MQ(NULL) { }
+   /** Construct an integrator with scalar coefficient q.  If possible, save
+       memory by using a scalar integrator since the resulting matrix is block
+       diagonal with the same diagonal block repeated. */
    VectorMassIntegrator(Coefficient &q, int qo = 0)
-      : vdim(-1), Q(&q) { VQ = NULL; MQ = NULL; Q_order = qo; }
+      : vdim(-1), Q_order(qo), Q(&q), VQ(NULL), MQ(NULL) { }
    VectorMassIntegrator(Coefficient &q, const IntegrationRule *ir)
-      : BilinearFormIntegrator(ir), vdim(-1), Q(&q)
-   { VQ = NULL; MQ = NULL; Q_order = 0; }
+      : BilinearFormIntegrator(ir), vdim(-1), Q_order(0), Q(&q), VQ(NULL),
+        MQ(NULL) { }
    /// Construct an integrator with diagonal coefficient q
    VectorMassIntegrator(VectorCoefficient &q, int qo = 0)
-      : vdim(q.GetVDim()), VQ(&q) { Q = NULL; MQ = NULL; Q_order = qo; }
+      : vdim(q.GetVDim()), Q_order(qo), Q(NULL), VQ(&q), MQ(NULL) { }
    /// Construct an integrator with matrix coefficient q
    VectorMassIntegrator(MatrixCoefficient &q, int qo = 0)
-      : vdim(q.GetVDim()), MQ(&q) { Q = NULL; VQ = NULL; Q_order = qo; }
+      : vdim(q.GetVDim()), Q_order(qo), Q(NULL), VQ(NULL), MQ(&q) { }
 
    int GetVDim() const { return vdim; }
    void SetVDim(int vdim) { this->vdim = vdim; }
@@ -1796,23 +2244,47 @@ public:
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace &fes);
+   virtual void AssembleMF(const FiniteElementSpace &fes);
+   virtual void AssembleDiagonalPA(Vector &diag);
+   virtual void AssembleDiagonalMF(Vector &diag);
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AddMultMF(const Vector &x, Vector &y) const;
 };
 
 
-/** Class for integrating (div u, p) where u is a vector field given
-    by VectorFiniteElement through Piola transformation (for RT
-    elements); p is scalar function given by FiniteElement through
-    standard transformation. Here, u is the trial function and p is
-    the test function.
-    Note: the element matrix returned by AssembleElementMatrix2
-    does NOT depend on the ElementTransformation Trans. */
+/** Class for integrating (div u, p) where u is a vector field given by
+    VectorFiniteElement through Piola transformation (for RT elements); p is
+    scalar function given by FiniteElement through standard transformation.
+    Here, u is the trial function and p is the test function.
+
+    Note: the element matrix returned by AssembleElementMatrix2 does NOT depend
+    on the ElementTransformation Trans. */
 class VectorFEDivergenceIntegrator : public BilinearFormIntegrator
 {
-private:
+protected:
    Coefficient *Q;
+
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
+   virtual void AddMultTransposePA(const Vector&, Vector&) const;
+
+private:
 #ifndef MFEM_THREAD_SAFE
    Vector divshape, shape;
 #endif
+
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
+   const DofToQuad *L2mapsO;       ///< Not owned. DOF-to-quad map, open.
+   const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
+   int dim, ne, dofs1D, L2dofs1D, quad1D;
+
 public:
    VectorFEDivergenceIntegrator() { Q = NULL; }
    VectorFEDivergenceIntegrator(Coefficient &q) { Q = &q; }
@@ -1823,6 +2295,8 @@ public:
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
+
+   virtual void AssembleDiagonalPA_ADAt(const Vector &D, Vector &diag);
 };
 
 
@@ -1830,14 +2304,17 @@ public:
     This is equivalent to a weak divergence of the Nedelec basis functions. */
 class VectorFEWeakDivergenceIntegrator: public BilinearFormIntegrator
 {
-private:
+protected:
    Coefficient *Q;
+
+private:
 #ifndef MFEM_THREAD_SAFE
    DenseMatrix dshape;
    DenseMatrix dshapedxt;
    DenseMatrix vshape;
    DenseMatrix invdfdx;
 #endif
+
 public:
    VectorFEWeakDivergenceIntegrator() { Q = NULL; }
    VectorFEWeakDivergenceIntegrator(Coefficient &q) { Q = &q; }
@@ -1854,13 +2331,16 @@ public:
     test spaces are switched, assembles the form (u, curl v). */
 class VectorFECurlIntegrator: public BilinearFormIntegrator
 {
-private:
+protected:
    Coefficient *Q;
+
+private:
 #ifndef MFEM_THREAD_SAFE
    DenseMatrix curlshapeTrial;
    DenseMatrix vshapeTest;
    DenseMatrix curlshapeTrial_dFT;
 #endif
+
 public:
    VectorFECurlIntegrator() { Q = NULL; }
    VectorFECurlIntegrator(Coefficient &q) { Q = &q; }
@@ -1873,17 +2353,19 @@ public:
                                        DenseMatrix &elmat);
 };
 
-
 /// Class for integrating (Q D_i(u), v); u and v are scalars
 class DerivativeIntegrator : public BilinearFormIntegrator
 {
+protected:
+   Coefficient* Q;
+
 private:
-   Coefficient & Q;
    int xi;
    DenseMatrix dshape, dshapedxt, invdfdx;
    Vector shape, dshapedxi;
+
 public:
-   DerivativeIntegrator(Coefficient &q, int i) : Q(q), xi(i) { }
+   DerivativeIntegrator(Coefficient &q, int i) : Q(&q), xi(i) { }
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat)
@@ -1900,17 +2382,38 @@ class CurlCurlIntegrator: public BilinearFormIntegrator
 private:
    Vector vec, pointflux;
 #ifndef MFEM_THREAD_SAFE
+   Vector D;
    DenseMatrix curlshape, curlshape_dFt, M;
    DenseMatrix vshape, projcurl;
 #endif
+
+protected:
    Coefficient *Q;
+   DiagonalMatrixCoefficient *DQ;
    MatrixCoefficient *MQ;
+   SymmetricMatrixCoefficient *SMQ;
+
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
+   const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
+   const GeometricFactors *geom;   ///< Not owned
+   int dim, ne, nq, dofs1D, quad1D;
+   bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
 public:
-   CurlCurlIntegrator() { Q = NULL; MQ = NULL; }
+   CurlCurlIntegrator() { Q = NULL; DQ = NULL; MQ = NULL; SMQ = NULL; }
    /// Construct a bilinear form integrator for Nedelec elements
-   CurlCurlIntegrator(Coefficient &q) : Q(&q) { MQ = NULL; }
-   CurlCurlIntegrator(MatrixCoefficient &m) : MQ(&m) { Q = NULL; }
+   CurlCurlIntegrator(Coefficient &q, const IntegrationRule *ir = NULL) :
+      BilinearFormIntegrator(ir), Q(&q), DQ(NULL), MQ(NULL), SMQ(NULL) { }
+   CurlCurlIntegrator(DiagonalMatrixCoefficient &dq,
+                      const IntegrationRule *ir = NULL) :
+      BilinearFormIntegrator(ir), Q(NULL), DQ(&dq), MQ(NULL), SMQ(NULL) { }
+   CurlCurlIntegrator(MatrixCoefficient &mq, const IntegrationRule *ir = NULL) :
+      BilinearFormIntegrator(ir), Q(NULL), DQ(NULL), MQ(&mq), SMQ(NULL) { }
+   CurlCurlIntegrator(SymmetricMatrixCoefficient &smq,
+                      const IntegrationRule *ir = NULL) :
+      BilinearFormIntegrator(ir), Q(NULL), DQ(NULL), MQ(NULL), SMQ(&smq) { }
 
    /* Given a particular Finite Element, compute the
       element curl-curl matrix elmat */
@@ -1921,11 +2424,16 @@ public:
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
                                    Vector &u, const FiniteElement &fluxelem,
-                                   Vector &flux, int with_coef);
+                                   Vector &flux, bool with_coef);
 
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);
+
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace &fes);
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AssembleDiagonalPA(Vector& diag);
 };
 
 /** Integrator for (curl u, curl v) for FE spaces defined by 'dim' copies of a
@@ -1936,6 +2444,8 @@ private:
 #ifndef MFEM_THREAD_SAFE
    DenseMatrix dshape_hat, dshape, curlshape, Jadj, grad_hat, grad;
 #endif
+
+protected:
    Coefficient *Q;
 
 public:
@@ -1953,32 +2463,52 @@ public:
                                    const Vector &elfun);
 };
 
-/// Integrator for (Q u, v) for VectorFiniteElements
+/** Integrator for (Q u, v), where Q is an optional coefficient (of type scalar,
+    vector (diagonal matrix), or matrix), trial function u is in H(Curl) or
+    H(Div), and test function v is in H(Curl), H(Div), or v=(v1,...,vn), where
+    vi are in H1. */
 class VectorFEMassIntegrator: public BilinearFormIntegrator
 {
 private:
-   Coefficient *Q;
-   VectorCoefficient *VQ;
-   MatrixCoefficient *MQ;
-   void Init(Coefficient *q, VectorCoefficient *vq, MatrixCoefficient *mq)
-   { Q = q; VQ = vq; MQ = mq; }
+   void Init(Coefficient *q, DiagonalMatrixCoefficient *dq, MatrixCoefficient *mq,
+             SymmetricMatrixCoefficient *smq)
+   { Q = q; DQ = dq; MQ = mq; SMQ = smq; }
 
 #ifndef MFEM_THREAD_SAFE
    Vector shape;
    Vector D;
    DenseMatrix K;
+   DenseMatrix partelmat;
    DenseMatrix test_vshape;
    DenseMatrix trial_vshape;
 #endif
 
+protected:
+   Coefficient *Q;
+   DiagonalMatrixCoefficient *DQ;
+   MatrixCoefficient *MQ;
+   SymmetricMatrixCoefficient *SMQ;
+
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
+   const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
+   const DofToQuad *mapsOtest;     ///< Not owned. DOF-to-quad map, open.
+   const DofToQuad *mapsCtest;     ///< Not owned. DOF-to-quad map, closed.
+   const GeometricFactors *geom;   ///< Not owned
+   int dim, ne, nq, dofs1D, dofs1Dtest, quad1D, trial_fetype, test_fetype;
+   bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
+
 public:
-   VectorFEMassIntegrator() { Init(NULL, NULL, NULL); }
-   VectorFEMassIntegrator(Coefficient *_q) { Init(_q, NULL, NULL); }
-   VectorFEMassIntegrator(Coefficient &q) { Init(&q, NULL, NULL); }
-   VectorFEMassIntegrator(VectorCoefficient *_vq) { Init(NULL, _vq, NULL); }
-   VectorFEMassIntegrator(VectorCoefficient &vq) { Init(NULL, &vq, NULL); }
-   VectorFEMassIntegrator(MatrixCoefficient *_mq) { Init(NULL, NULL, _mq); }
-   VectorFEMassIntegrator(MatrixCoefficient &mq) { Init(NULL, NULL, &mq); }
+   VectorFEMassIntegrator() { Init(NULL, NULL, NULL, NULL); }
+   VectorFEMassIntegrator(Coefficient *_q) { Init(_q, NULL, NULL, NULL); }
+   VectorFEMassIntegrator(Coefficient &q) { Init(&q, NULL, NULL, NULL); }
+   VectorFEMassIntegrator(DiagonalMatrixCoefficient *_dq) { Init(NULL, _dq, NULL, NULL); }
+   VectorFEMassIntegrator(DiagonalMatrixCoefficient &dq) { Init(NULL, &dq, NULL, NULL); }
+   VectorFEMassIntegrator(MatrixCoefficient *_mq) { Init(NULL, NULL, _mq, NULL); }
+   VectorFEMassIntegrator(MatrixCoefficient &mq) { Init(NULL, NULL, &mq, NULL); }
+   VectorFEMassIntegrator(SymmetricMatrixCoefficient &smq) { Init(NULL, NULL, NULL, &smq); }
+   VectorFEMassIntegrator(SymmetricMatrixCoefficient *smq) { Init(NULL, NULL, NULL, smq); }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
@@ -1987,41 +2517,85 @@ public:
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
+
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace &fes);
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AssembleDiagonalPA(Vector& diag);
 };
 
 /** Integrator for (Q div u, p) where u=(v1,...,vn) and all vi are in the same
     scalar FE space; p is also in a (different) scalar FE space.  */
 class VectorDivergenceIntegrator : public BilinearFormIntegrator
 {
-private:
+protected:
    Coefficient *Q;
 
+private:
    Vector shape;
    Vector divshape;
    DenseMatrix dshape;
    DenseMatrix gshape;
    DenseMatrix Jadj;
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *trial_maps, *test_maps; ///< Not owned
+   const GeometricFactors *geom;            ///< Not owned
+   int dim, ne, nq;
+   int trial_dofs1D, test_dofs1D, quad1D;
 
 public:
-   VectorDivergenceIntegrator() { Q = NULL; }
-   VectorDivergenceIntegrator(Coefficient *_q) { Q = _q; }
-   VectorDivergenceIntegrator(Coefficient &q) { Q = &q; }
+   VectorDivergenceIntegrator() :
+      Q(NULL), trial_maps(NULL), test_maps(NULL), geom(NULL)
+   {  }
+   VectorDivergenceIntegrator(Coefficient *_q) :
+      Q(_q), trial_maps(NULL), test_maps(NULL), geom(NULL)
+   { }
+   VectorDivergenceIntegrator(Coefficient &q) :
+      Q(&q), trial_maps(NULL), test_maps(NULL), geom(NULL)
+   { }
 
    virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
+
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+
+   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                         const FiniteElement &test_fe,
+                                         ElementTransformation &Trans);
 };
 
 /// (Q div u, div v) for RT elements
 class DivDivIntegrator: public BilinearFormIntegrator
 {
-private:
+protected:
    Coefficient *Q;
 
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace &fes);
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AssembleDiagonalPA(Vector& diag);
+
+private:
 #ifndef MFEM_THREAD_SAFE
    Vector divshape;
 #endif
+
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
+   const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
+   const GeometricFactors *geom;   ///< Not owned
+   int dim, ne, dofs1D, quad1D;
 
 public:
    DivDivIntegrator() { Q = NULL; }
@@ -2033,28 +2607,85 @@ public:
 };
 
 /** Integrator for
+
       (Q grad u, grad v) = sum_i (Q grad u_i, grad v_i) e_i e_i^T
-    for FE spaces defined by 'dim' copies of a scalar FE space. Where e_i
-    is the unit vector in the i-th direction.  The resulting local element
-    matrix is a block-diagonal matrix consisting of 'dim' copies of a scalar
-    diffusion matrix in each diagonal block. */
+
+    for vector FE spaces, where e_i is the unit vector in the i-th direction.
+    The resulting local element matrix is square, of size <tt> vdim*dof </tt>,
+    where \c vdim is the vector dimension space and \c dof is the local degrees
+    of freedom. The integrator is not aware of the true vector dimension and
+    must use \c VectorCoefficient, \c MatrixCoefficient, or a caller-specified
+    value to determine the vector space. For a scalar coefficient, the caller
+    may manually specify the vector dimension or the vector dimension is assumed
+    to be the spatial dimension (i.e. 2-dimension or 3-dimension).
+*/
 class VectorDiffusionIntegrator : public BilinearFormIntegrator
 {
-private:
-   Coefficient *Q;
+protected:
+   Coefficient *Q = NULL;
+   VectorCoefficient *VQ = NULL;
+   MatrixCoefficient *MQ = NULL;
 
-   int vdim;
-   DenseMatrix Jinv;
-   DenseMatrix dshape;
-   DenseMatrix gshape;
-   DenseMatrix pelmat;
+   // PA extension
+   const DofToQuad *maps;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
+   int dim, sdim, ne, dofs1D, quad1D;
+   Vector pa_data;
+
+private:
+   DenseMatrix dshape, dshapedxt, pelmat;
+   int vdim = -1;
+   DenseMatrix mcoeff;
+   Vector vcoeff;
 
 public:
-   VectorDiffusionIntegrator() { Q = NULL; vdim = -1; }
-   VectorDiffusionIntegrator(Coefficient &q) { Q = &q; vdim = -1;}
+   VectorDiffusionIntegrator() { }
 
-   int GetVDim() const { return vdim; }
-   void SetVDim(int vdim) { this->vdim = vdim; }
+   /** \brief Integrator with unit coefficient for caller-specified vector
+       dimension.
+
+       If the vector dimension does not match the true dimension of the space,
+       the resulting element matrix will be mathematically invalid. */
+   VectorDiffusionIntegrator(int vector_dimension)
+      : vdim(vector_dimension) { }
+
+   VectorDiffusionIntegrator(Coefficient &q)
+      : Q(&q) { }
+
+   /** \brief Integrator with scalar coefficient for caller-specified vector
+       dimension.
+
+       The element matrix is block-diagonal with \c vdim copies of the element
+       matrix integrated with the \c Coefficient.
+
+       If the vector dimension does not match the true dimension of the space,
+       the resulting element matrix will be mathematically invalid. */
+   VectorDiffusionIntegrator(Coefficient &q, int vector_dimension)
+      : Q(&q), vdim(vector_dimension) { }
+
+   /** \brief Integrator with \c VectorCoefficient. The vector dimension of the
+       \c FiniteElementSpace is assumed to be the same as the dimension of the
+       \c Vector.
+
+       The element matrix is block-diagonal and each block is integrated with
+       coefficient q_i.
+
+       If the vector dimension does not match the true dimension of the space,
+       the resulting element matrix will be mathematically invalid. */
+   VectorDiffusionIntegrator(VectorCoefficient &vq)
+      : VQ(&vq), vdim(vq.GetVDim()) { }
+
+   /** \brief Integrator with \c MatrixCoefficient. The vector dimension of the
+       \c FiniteElementSpace is assumed to be the same as the dimension of the
+       \c Matrix.
+
+       The element matrix is populated in each block. Each block is integrated
+       with coefficient q_ij.
+
+       If the vector dimension does not match the true dimension of the space,
+       the resulting element matrix will be mathematically invalid. */
+   VectorDiffusionIntegrator(MatrixCoefficient& mq)
+      : MQ(&mq), vdim(mq.GetVDim()) { }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
@@ -2062,6 +2693,13 @@ public:
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &Tr,
                                       const Vector &elfun, Vector &elvect);
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace &fes);
+   virtual void AssembleMF(const FiniteElementSpace &fes);
+   virtual void AssembleDiagonalPA(Vector &diag);
+   virtual void AssembleDiagonalMF(Vector &diag);
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AddMultMF(const Vector &x, Vector &y) const;
 };
 
 /** Integrator for the linear elasticity form:
@@ -2071,10 +2709,11 @@ public:
     using multiple copies of a scalar FE space. */
 class ElasticityIntegrator : public BilinearFormIntegrator
 {
-private:
+protected:
    double q_lambda, q_mu;
    Coefficient *lambda, *mu;
 
+private:
 #ifndef MFEM_THREAD_SAFE
    Vector shape;
    DenseMatrix dshape, gshape, pelmat;
@@ -2105,7 +2744,7 @@ public:
                                    ElementTransformation &Trans,
                                    Vector &u,
                                    const FiniteElement &fluxelem,
-                                   Vector &flux, int with_coef = 1);
+                                   Vector &flux, bool with_coef = true);
 
    /** Compute the element energy (integral of the strain energy density)
        corresponding to the stress represented by @a flux which is a vector of
@@ -2124,34 +2763,110 @@ public:
 /** Integrator for the DG form:
     alpha < rho_u (u.n) {v},[w] > + beta < rho_u |u.n| [v],[w] >,
     where v and w are the trial and test variables, respectively, and rho/u are
-    given scalar/vector coefficients. The vector coefficient, u, is assumed to
-    be continuous across the faces and when given the scalar coefficient, rho,
-    is assumed to be discontinuous. The integrator uses the upwind value of rho,
-    rho_u, which is value from the side into which the vector coefficient, u,
-    points. */
+    given scalar/vector coefficients. {v} represents the average value of v on
+    the face and [v] is the jump such that {v}=(v1+v2)/2 and [v]=(v1-v2) for the
+    face between elements 1 and 2. For boundary elements, v2=0. The vector
+    coefficient, u, is assumed to be continuous across the faces and when given
+    the scalar coefficient, rho, is assumed to be discontinuous. The integrator
+    uses the upwind value of rho, rho_u, which is value from the side into which
+    the vector coefficient, u, points.
+
+    One use case for this integrator is to discretize the operator -u.grad(v)
+    with a DG formulation. The resulting formulation uses the
+    ConvectionIntegrator (with coefficient u, and parameter alpha = -1) and the
+    transpose of the DGTraceIntegrator (with coefficient u, and parameters alpha
+    = 1, beta = -1/2 to use the upwind face flux, see also
+    NonconservativeDGTraceIntegrator). This discretization and the handling of
+    the inflow and outflow boundaries is illustrated in Example 9/9p.
+
+    Another use case for this integrator is to discretize the operator -div(u v)
+    with a DG formulation. The resulting formulation is conservative and
+    consists of the ConservativeConvectionIntegrator (with coefficient u, and
+    parameter alpha = -1) plus the DGTraceIntegrator (with coefficient u, and
+    parameters alpha = -1, beta = -1/2 to use the upwind face flux).
+    */
 class DGTraceIntegrator : public BilinearFormIntegrator
 {
-private:
+protected:
    Coefficient *rho;
    VectorCoefficient *u;
    double alpha, beta;
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *maps;             ///< Not owned
+   const FaceGeometricFactors *geom;  ///< Not owned
+   int dim, nf, nq, dofs1D, quad1D;
 
+private:
    Vector shape1, shape2;
 
 public:
-   /// Construct integrator with rho = 1.
-   DGTraceIntegrator(VectorCoefficient &_u, double a, double b)
-   { rho = NULL; u = &_u; alpha = a; beta = b; }
+   /// Construct integrator with rho = 1, b = 0.5*a.
+   DGTraceIntegrator(VectorCoefficient &u_, double a)
+   { rho = NULL; u = &u_; alpha = a; beta = 0.5*a; }
 
-   DGTraceIntegrator(Coefficient &_rho, VectorCoefficient &_u,
+   /// Construct integrator with rho = 1.
+   DGTraceIntegrator(VectorCoefficient &u_, double a, double b)
+   { rho = NULL; u = &u_; alpha = a; beta = b; }
+
+   DGTraceIntegrator(Coefficient &_rho, VectorCoefficient &u_,
                      double a, double b)
-   { rho = &_rho; u = &_u; alpha = a; beta = b; }
+   { rho = &_rho; u = &u_; alpha = a; beta = b; }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
+
+   using BilinearFormIntegrator::AssemblePA;
+
+   virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes);
+
+   virtual void AssemblePABoundaryFaces(const FiniteElementSpace &fes);
+
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
+
+   virtual void AssembleEAInteriorFaces(const FiniteElementSpace& fes,
+                                        Vector &ea_data_int,
+                                        Vector &ea_data_ext,
+                                        const bool add);
+
+   virtual void AssembleEABoundaryFaces(const FiniteElementSpace& fes,
+                                        Vector &ea_data_bdr,
+                                        const bool add);
+
+   static const IntegrationRule &GetRule(Geometry::Type geom, int order,
+                                         FaceElementTransformations &T);
+
+private:
+   void SetupPA(const FiniteElementSpace &fes, FaceType type);
+};
+
+// Alias for @a DGTraceIntegrator.
+using ConservativeDGTraceIntegrator = DGTraceIntegrator;
+
+/** Integrator that represents the face terms used for the non-conservative
+    DG discretization of the convection equation:
+    -alpha < rho_u (u.n) {v},[w] > + beta < rho_u |u.n| [v],[w] >.
+
+    This integrator can be used with together with ConvectionIntegrator to
+    implement an upwind DG discretization in non-conservative form, see ex9 and
+    ex9p. */
+class NonconservativeDGTraceIntegrator : public TransposeIntegrator
+{
+public:
+   NonconservativeDGTraceIntegrator(VectorCoefficient &u, double a)
+      : TransposeIntegrator(new DGTraceIntegrator(u, -a, 0.5*a)) { }
+
+   NonconservativeDGTraceIntegrator(VectorCoefficient &u, double a, double b)
+      : TransposeIntegrator(new DGTraceIntegrator(u, -a, b)) { }
+
+   NonconservativeDGTraceIntegrator(Coefficient &rho, VectorCoefficient &u,
+                                    double a, double b)
+      : TransposeIntegrator(new DGTraceIntegrator(rho, u, -a, b)) { }
 };
 
 /** Integrator for the DG form:
@@ -2184,6 +2899,51 @@ public:
       : Q(&q), MQ(NULL), sigma(s), kappa(k) { }
    DGDiffusionIntegrator(MatrixCoefficient &q, const double s, const double k)
       : Q(NULL), MQ(&q), sigma(s), kappa(k) { }
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+};
+
+/** Integrator for the "BR2" diffusion stabilization term
+
+    sum_e eta (r_e([u]), r_e([v]))
+
+    where r_e is the lifting operator defined on each edge e. The parameter eta
+    can be chosen to be one to obtain a stable discretization. The constructor
+    for this integrator requires the finite element space because the lifting
+    operator depends on the element-wise inverse mass matrix.
+
+    BR2 stands for the second method of Bassi and Rebay:
+
+    - F. Bassi and S. Rebay. A high order discontinuous Galerkin method for
+      compressible turbulent flows. In B. Cockburn, G. E. Karniadakis, and
+      C.-W. Shu, editors, Discontinuous Galerkin Methods, pages 77–88. Springer
+      Berlin Heidelberg, 2000.
+    - D. N. Arnold, F. Brezzi, B. Cockburn, and L. D. Marini. Unified analysis
+      of discontinuous Galerkin methods for elliptic problems. SIAM Journal on
+      Numerical Analysis, 39(5):1749–1779, 2002.
+*/
+class DGDiffusionBR2Integrator : public BilinearFormIntegrator
+{
+protected:
+   double eta;
+
+   // Block factorizations of local mass matrices, with offsets for the case of
+   // not equally sized blocks (mixed meshes, p-refinement)
+   Array<double> Minv;
+   Array<int> ipiv;
+   Array<int> ipiv_offsets, Minv_offsets;
+
+   Vector shape1, shape2;
+
+   DenseMatrix R11, R12, R21, R22;
+   DenseMatrix MinvR11, MinvR12, MinvR21, MinvR22;
+   DenseMatrix Re, MinvRe;
+
+public:
+   DGDiffusionBR2Integrator(class FiniteElementSpace *fes, double e = 1.0);
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
@@ -2349,11 +3109,36 @@ class DiscreteInterpolator : public BilinearFormIntegrator { };
 class GradientInterpolator : public DiscreteInterpolator
 {
 public:
+   GradientInterpolator() : dofquad_fe(NULL) { }
+   virtual ~GradientInterpolator() { delete dofquad_fe; }
+
    virtual void AssembleElementMatrix2(const FiniteElement &h1_fe,
                                        const FiniteElement &nd_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat)
    { nd_fe.ProjectGrad(h1_fe, Trans, elmat); }
+
+   using BilinearFormIntegrator::AssemblePA;
+
+   /** @brief Setup method for PA data.
+
+       @param[in] trial_fes   H1 Lagrange space
+       @param[in] test_fes    H(curl) Nedelec space
+    */
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+
+private:
+   /// 1D finite element that generates and owns the 1D DofToQuad maps below
+   FiniteElement * dofquad_fe;
+
+   bool B_id; // is the B basis operator (maps_C_C) the identity?
+   const DofToQuad *maps_C_C; // one-d map with Lobatto rows, Lobatto columns
+   const DofToQuad *maps_O_C; // one-d map with Legendre rows, Lobatto columns
+   int dim, ne, o_dofs1D, c_dofs1D;
 };
 
 
@@ -2368,6 +3153,24 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat)
    { ran_fe.Project(dom_fe, Trans, elmat); }
+
+   using BilinearFormIntegrator::AssemblePA;
+
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+
+private:
+   /// 1D finite element that generates and owns the 1D DofToQuad maps below
+   FiniteElement * dofquad_fe;
+
+   const DofToQuad *maps_C_C; // one-d map with Lobatto rows, Lobatto columns
+   const DofToQuad *maps_O_C; // one-d map with Legendre rows, Lobatto columns
+   int dim, ne, o_dofs1D, c_dofs1D;
+
+   Vector pa_data;
 };
 
 
@@ -2432,7 +3235,7 @@ public:
 class ScalarProductInterpolator : public DiscreteInterpolator
 {
 public:
-   ScalarProductInterpolator(Coefficient & sc) : Q(sc) { }
+   ScalarProductInterpolator(Coefficient & sc) : Q(&sc) { }
 
    virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
                                        const FiniteElement &ran_fe,
@@ -2440,7 +3243,7 @@ public:
                                        DenseMatrix &elmat);
 
 protected:
-   Coefficient &Q;
+   Coefficient *Q;
 };
 
 /** Interpolator of a scalar coefficient multiplied by a vector field onto
@@ -2450,14 +3253,14 @@ class ScalarVectorProductInterpolator : public DiscreteInterpolator
 {
 public:
    ScalarVectorProductInterpolator(Coefficient & sc)
-      : Q(sc) { }
+      : Q(&sc) { }
 
    virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
                                        const FiniteElement &ran_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 protected:
-   Coefficient &Q;
+   Coefficient *Q;
 };
 
 /** Interpolator of a vector coefficient multiplied by a scalar field onto
@@ -2467,14 +3270,30 @@ class VectorScalarProductInterpolator : public DiscreteInterpolator
 {
 public:
    VectorScalarProductInterpolator(VectorCoefficient & vc)
-      : VQ(vc) { }
+      : VQ(&vc) { }
 
    virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
                                        const FiniteElement &ran_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 protected:
-   VectorCoefficient &VQ;
+   VectorCoefficient *VQ;
+};
+
+/** Interpolator of the 2D cross product between a vector coefficient and an
+    H(curl)-conforming field onto an L2-conforming field. */
+class ScalarCrossProductInterpolator : public DiscreteInterpolator
+{
+public:
+   ScalarCrossProductInterpolator(VectorCoefficient & vc)
+      : VQ(&vc) { }
+
+   virtual void AssembleElementMatrix2(const FiniteElement &nd_fe,
+                                       const FiniteElement &l2_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+protected:
+   VectorCoefficient *VQ;
 };
 
 /** Interpolator of the cross product between a vector coefficient and an
@@ -2484,14 +3303,14 @@ class VectorCrossProductInterpolator : public DiscreteInterpolator
 {
 public:
    VectorCrossProductInterpolator(VectorCoefficient & vc)
-      : VQ(vc) { }
+      : VQ(&vc) { }
 
    virtual void AssembleElementMatrix2(const FiniteElement &nd_fe,
                                        const FiniteElement &rt_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 protected:
-   VectorCoefficient &VQ;
+   VectorCoefficient *VQ;
 };
 
 /** Interpolator of the inner product between a vector coefficient and an
@@ -2500,14 +3319,14 @@ protected:
 class VectorInnerProductInterpolator : public DiscreteInterpolator
 {
 public:
-   VectorInnerProductInterpolator(VectorCoefficient & vc) : VQ(vc) { }
+   VectorInnerProductInterpolator(VectorCoefficient & vc) : VQ(&vc) { }
 
    virtual void AssembleElementMatrix2(const FiniteElement &rt_fe,
                                        const FiniteElement &l2_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 protected:
-   VectorCoefficient &VQ;
+   VectorCoefficient *VQ;
 };
 
 class DivSkewDivSkewIntegrator: public BilinearFormIntegrator
@@ -2686,6 +3505,15 @@ public:
 
 
 
-}
+// PA Diffusion Assemble 2D kernel
+template<const int T_SDIM>
+void PADiffusionSetup2D(const int Q1D,
+                        const int coeffDim,
+                        const int NE,
+                        const Array<double> &w,
+                        const Vector &j,
+                        const Vector &c,
+                        Vector &d);
 
+}
 #endif

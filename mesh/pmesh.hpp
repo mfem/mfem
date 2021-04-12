@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_PMESH
 #define MFEM_PMESH
@@ -85,6 +85,12 @@ protected:
    // in 4D, just all tetrahedra
    Array<int> sface_lface;
 
+   IsoparametricTransformation FaceNbrTransformation;
+
+   // glob_elem_offset + local element number defines a global element numbering
+   mutable long glob_elem_offset, glob_offset_sequence;
+   void ComputeGlobalElementOffset() const;
+
    /// Create from a nonconforming mesh.
    ParMesh(const ParNCMesh &pncmesh);
 
@@ -122,7 +128,7 @@ protected:
    void GetFaceNbrElementTransformation(
       int i, IsoparametricTransformation *ElTr);
 
-   ElementTransformation* GetGhostFaceTransformation(
+   void GetGhostFaceTransformation(
       FaceElementTransformations* FETr, Element::Type face_type,
       Geometry::Type face_geom);
 
@@ -163,6 +169,9 @@ protected:
    virtual bool NonconformingDerefinement(Array<double> &elem_error,
                                           double threshold, int nc_limit = 0,
                                           int op = 1);
+
+   void RebalanceImpl(const Array<int> *partition);
+
    void DeleteFaceNbrData();
 
    bool WantSkipSharedMaster(const NCMesh::Master &master) const;
@@ -233,16 +242,33 @@ protected:
    void BuildSharedVertMapping(int nvert, const Table* vert_element,
                                const Array<int> &vert_global_local);
 
+   /// Ensure that bdr_attributes and attributes agree across processors
+   void DistributeAttributes(Array<int> &attr);
+
+   void LoadSharedEntities(std::istream &input);
+
+   /// If the mesh is curved, make sure 'Nodes' is ParGridFunction.
+   /** Note that this method is not related to the public 'Mesh::EnsureNodes`.*/
+   void EnsureParNodes();
+
+   void Destroy();
 
 public:
+   /// Create a parallel mesh by partitioning a serial Mesh.
+   /** The mesh is partitioned automatically or using external partitioning
+       data (the optional parameter 'partitioning_[i]' contains the desired MPI
+       rank for element 'i'). Automatic partitioning uses METIS for conforming
+       meshes and quick space-filling curve equipartitioning for nonconforming
+       meshes (elements of nonconforming meshes should ideally be ordered as a
+       sequence of face-neighbors). */
+   ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_ = NULL,
+           int part_method = 1);
+
    /** Copy constructor. Performs a deep copy of (almost) all data, so that the
        source mesh can be modified (e.g. deleted, refined) without affecting the
        new mesh. If 'copy_nodes' is false, use a shallow (pointer) copy for the
        nodes, if present. */
    explicit ParMesh(const ParMesh &pmesh, bool copy_nodes = true);
-
-   ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_ = NULL,
-           int part_method = 1);
 
    /// Read a parallel mesh, each MPI rank from its own file/stream.
    /** The @a refine parameter is passed to the method Mesh::Finalize(). */
@@ -263,9 +289,31 @@ public:
 
    virtual void Finalize(bool refine = false, bool fix_orientation = false);
 
+   virtual void SetAttributes();
+
    MPI_Comm GetComm() const { return MyComm; }
    int GetNRanks() const { return NRanks; }
    int GetMyRank() const { return MyRank; }
+
+   /** Map a global element number to a local element number. If the global
+       element is not on this processor, return -1. */
+   int GetLocalElementNum(long global_element_num) const;
+
+   /// Map a local element number to a global element number.
+   long GetGlobalElementNum(int local_element_num) const;
+
+   /** The following functions define global indices for all local vertices,
+       edges, faces, or elements. The global indices have no meaning or
+       significance for ParMesh, but can be used for purposes beyond this class.
+    */
+   /// AMR meshes are not supported.
+   void GetGlobalVertexIndices(Array<HYPRE_Int> &gi) const;
+   /// AMR meshes are not supported.
+   void GetGlobalEdgeIndices(Array<HYPRE_Int> &gi) const;
+   /// AMR meshes are not supported.
+   void GetGlobalFaceIndices(Array<HYPRE_Int> &gi) const;
+   /// AMR meshes are supported.
+   void GetGlobalElementIndices(Array<HYPRE_Int> &gi) const;
 
    GroupTopology gtopo;
 
@@ -306,7 +354,11 @@ public:
    void ExchangeFaceNbrData();
    void ExchangeFaceNbrNodes();
 
+   virtual void SetCurvature(int order, bool discont = false, int space_dim = -1,
+                             int ordering = 1);
+
    int GetNFaceNeighbors() const { return face_nbr_group.Size(); }
+   int GetNFaceNeighborElements() const { return face_nbr_elements.Size(); }
    int GetFaceNbrGroup(int fn) const { return face_nbr_group[fn]; }
    int GetFaceNbrRank(int fn) const;
 
@@ -320,6 +372,18 @@ public:
    FaceElementTransformations *
    GetSharedFaceTransformations(int sf, bool fill2 = true);
 
+   ElementTransformation *
+   GetFaceNbrElementTransformation(int i)
+   {
+      GetFaceNbrElementTransformation(i, &FaceNbrTransformation);
+
+      return &FaceNbrTransformation;
+   }
+
+   /// Get the size of the i-th face neighbor element relative to the reference
+   /// element.
+   double GetFaceNbrElementSize(int i, int type=0);
+
    /// Return the number of shared faces (3D), edges (2D), vertices (1D)
    int GetNSharedFaces() const;
 
@@ -332,12 +396,27 @@ public:
    /// Utility function: sum integers from all processors (Allreduce).
    virtual long ReduceInt(int value) const;
 
-   /// Load balance the mesh. NC meshes only.
+   /** Load balance the mesh by equipartitioning the global space-filling
+       sequence of elements. Works for nonconforming meshes only. */
    void Rebalance();
+
+   /** Load balance a nonconforming mesh using a user-defined partition.
+       Each local element 'i' is migrated to processor rank 'partition[i]',
+       for 0 <= i < GetNE(). */
+   void Rebalance(const Array<int> &partition);
+
+   /// Save the mesh in a parallel mesh format.
+   void ParPrint(std::ostream &out) const;
 
    /** Print the part of the mesh in the calling processor adding the interface
        as boundary (for visualization purposes) using the mfem v1.0 format. */
    virtual void Print(std::ostream &out = mfem::out) const;
+
+#ifdef MFEM_USE_ADIOS2
+   /** Print the part of the mesh in the calling processor using adios2 bp
+       format. */
+   virtual void Print(adios2stream &out) const;
+#endif
 
    /** Print the part of the mesh in the calling processor adding the interface
        as boundary (for visualization purposes) using Netgen/Truegrid format .*/
@@ -352,6 +431,19 @@ public:
    /// Old mesh format (Netgen/Truegrid) version of 'PrintAsOne'
    void PrintAsOneXG(std::ostream &out = mfem::out);
 
+   /** Print the mesh in parallel PVTU format. The PVTU and VTU files will be
+       stored in the directory specified by @a pathname. If the directory does
+       not exist, it will be created. */
+   virtual void PrintVTU(std::string pathname,
+                         VTKFormat format=VTKFormat::ASCII,
+                         bool high_order_output=false,
+                         int compression_level=0,
+                         bool bdr=false);
+
+   /// Parallel version of Mesh::Load().
+   virtual void Load(std::istream &input, int generate_edges = 0,
+                     int refine = 1, bool fix_orientation = true);
+
    /// Returns the minimum and maximum corners of the mesh bounding box. For
    /// high-order meshes, the geometry is refined first "ref" times.
    void GetBoundingBox(Vector &p_min, Vector &p_max, int ref = 2);
@@ -361,9 +453,6 @@ public:
 
    /// Print various parallel mesh stats
    virtual void PrintInfo(std::ostream &out = mfem::out);
-
-   /// Save the mesh in a parallel mesh format.
-   void ParPrint(std::ostream &out) const;
 
    virtual int FindPoints(DenseMatrix& point_mat, Array<int>& elem_ids,
                           Array<IntegrationPoint>& ips, bool warn = true,
@@ -377,6 +466,9 @@ public:
    friend class ParNCMesh;
 #ifdef MFEM_USE_PUMI
    friend class ParPumiMesh;
+#endif
+#ifdef MFEM_USE_ADIOS2
+   friend class adios2stream;
 #endif
 };
 
