@@ -768,10 +768,8 @@ struct BufferReader : BufferReaderBase
       {
          for (int i=0; i<n; ++i)
          {
-            F val;
-            char *val_ptr = reinterpret_cast<char*>(&val);
-            std::copy(buf + i*sizeof(F), buf + (i+1)*sizeof(F), val_ptr);
-            dest[i] = val;
+            // Read binary data as type F, place in array as type T
+            dest[i] = bin_io::read<F>(buf + i*sizeof(F));
          }
       }
    }
