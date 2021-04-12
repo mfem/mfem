@@ -251,8 +251,8 @@ int main(int argc, char *argv[])
        // Define the Diffusion coefficient
        mfem::ConstantCoefficient* diffco=new mfem::ConstantCoefficient(1.0);
        // Define the Heat source
-       mfem::ConstantCoefficient* loadco=new mfem::ConstantCoefficient(1.0);
-       //mfem::Coefficient* loadco=new mfem::FunctionCoefficient(Gyroid);
+       //mfem::ConstantCoefficient* loadco=new mfem::ConstantCoefficient(1.0);
+       mfem::Coefficient* loadco=new mfem::FunctionCoefficient(Gyroid);
        // Define the q-function
        mfem::QLinearDiffusion* qfun=new mfem::QLinearDiffusion(*diffco,*loadco,1.0,rho_min,beta,eta);
 
