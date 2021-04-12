@@ -91,7 +91,6 @@ struct get_diagonal_tensor_values_rank<DiagonalTensor<DRank, Rank, T, Container,
 };
 
 // TODO Rewrite only for 2D?
-// TODO Make it work
 /// Represent a SRank+2*DRank symmetric Tensor, where SRank dims are symmetric.
 template <int DRank, // The rank of diagonal values
           int SRank, // The rank of symmetric values
