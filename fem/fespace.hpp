@@ -1016,7 +1016,6 @@ protected:
       /// Perform the mass conservative left-inverse prolongation operation.
       /// This functionality is also provided as an Operator by L2Prolongation.
       void Prolongate(const Vector &x, Vector &y) const;
-      ~L2ProjBdr() override = default;
    };
 
    /** Mass-conservative prolongation operator going in the opposite direction
@@ -1032,7 +1031,6 @@ protected:
       {
          l2proj.Prolongate(x, y);
       }
-      ~L2ProlBdr() override = default;
    };
 
    L2ProjBdr *F; ///< Forward, coarse-to-fine, operator
@@ -1052,6 +1050,65 @@ public:
    const Operator &BackwardOperator() override;
 
    ~L2ProjBdrGridTransfer() override;
+};
+
+
+class L2ProjBdrH1GridTransfer : public GridTransfer
+{
+
+    const Array<int>& bdr_attribs;
+
+protected:
+   class L2ProjBdrH1 : public Operator
+   {
+      const FiniteElementSpace &fes_ho;
+      const FiniteElementSpace &fes_lor;
+      Array<bool> integrate_bdr_elem_ho;
+
+      int ndof_lor, ndof_ho, nref;
+
+      Table ho2lor;
+
+      SparseMatrix* Rt;
+
+   public:
+      L2ProjBdrH1(const FiniteElementSpace &fes_ho_,
+                const FiniteElementSpace &fes_lor_,
+                const Array<int>& bdr_attribs_);
+      ~L2ProjBdrH1() override;
+      /// Perform the L2 projection onto the LOR space
+      void Mult(const Vector &x, Vector &y) const override;
+      /// Perform the transpose of L2 projection onto the LOR space, useful for
+      /// transferring dual fields.
+      void MultTranspose(const Vector &x, Vector &y) const override;
+
+    private:
+      /// Based on BilinearForm::AllocMat() except uses ho2lor to map HO
+      /// elements to LOR elements and skips boundary elements with the wrong
+      /// attribute.
+      void AllocRt();
+   };
+
+   L2ProjBdrH1 *F; ///< Forward, coarse-to-fine, operator
+
+public:
+   L2ProjBdrH1GridTransfer(FiniteElementSpace &coarse_fes,
+                         FiniteElementSpace &fine_fes,
+                         const Array<int>& bdr_attribs_)
+      : GridTransfer(coarse_fes, fine_fes),
+        bdr_attribs(bdr_attribs_),
+        F(NULL)
+   { }
+
+   const Operator &ForwardOperator() override;
+
+   const Operator &BackwardOperator() override
+   {
+       mfem_error("L2ProjBdrH1GridTransfer::BackwardOperator :\n"
+                  "   No backward operator defined.");
+   }
+
+   ~L2ProjBdrH1GridTransfer() override;
 };
 
 inline bool UsesTensorBasis(const FiniteElementSpace& fes)

@@ -3001,7 +3001,7 @@ L2ProjBdrGridTransfer::L2ProjBdr::L2ProjBdr(
    nref = nel_lor/nel_ho;
 
    // Find HO elements to integrate over
-   integrate_bdr_elem_ho.LoseData();
+   integrate_bdr_elem_ho.DeleteAll();
    integrate_bdr_elem_ho.SetSize(nel_ho, false);
    for (int iho=0; iho<nel_ho; ++iho)
    {
@@ -3253,6 +3253,348 @@ L2ProjBdrGridTransfer::~L2ProjBdrGridTransfer()
    {
       delete B;
       B = NULL;
+   }
+}
+
+L2ProjBdrH1GridTransfer::L2ProjBdrH1::L2ProjBdrH1(
+   const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_,
+   const Array<int>& bdr_attribs_)
+   : Operator(fes_lor_.GetVSize(), fes_ho_.GetVSize()),
+     fes_ho(fes_ho_),
+     fes_lor(fes_lor_)
+{
+   Mesh *mesh_ho = fes_ho.GetMesh();
+   MFEM_VERIFY(mesh_ho->GetNumGeometries(mesh_ho->Dimension()) <= 1,
+               "mixed meshes are not supported");
+
+   // If the local mesh is empty, skip all computations
+   if (mesh_ho->GetNE() == 0) { return; }
+
+   ndof_lor = fes_lor.GetNDofs();
+   ndof_ho = fes_ho.GetNDofs();
+
+   const int nel_lor = fes_lor.GetNBE();
+   const int nel_ho = fes_ho.GetNBE();
+
+   nref = nel_lor/nel_ho;
+
+   // Find HO elements to integrate over
+   integrate_bdr_elem_ho.DeleteAll();
+   integrate_bdr_elem_ho.SetSize(nel_ho, false);
+   for (int iho=0; iho<nel_ho; ++iho)
+   {
+      for (int iat=0; iat<bdr_attribs_.Size(); ++iat)
+      {
+         if (fes_ho.GetBdrAttribute(iho) == bdr_attribs_[iat])
+         {
+            integrate_bdr_elem_ho[iho] = true;
+            continue;
+         }
+      }
+   }
+
+   // Construct the mapping from HO to LOR
+   // ho2lor.GetRow(iho) will give all the LOR elements contained in iho
+
+   ho2lor.SetSize(nel_ho, nref);
+   const CoarseFineTransformations &cf_tr =
+      fes_lor.GetMesh()->GetRefinementBdrTransforms();
+   for (int ilor=0; ilor<nel_lor; ++ilor)
+   {
+      int iho = cf_tr.embeddings[ilor].parent;
+      ho2lor.AddConnection(iho, ilor);
+   }
+   ho2lor.ShiftUpI();
+
+   // compute ML_inv (lumped, row sum, store diagonal matrix as a vector)
+   Vector ML_inv(ndof_lor);
+   ML_inv = 0.0;
+
+   const int nedof_lor = fes_lor.GetBE(0)->GetDof();
+   Vector ML_el(nedof_lor);
+   Vector shape_lor(nedof_lor);
+   Array<int> dofs_lor(nedof_lor);
+
+   for (int iho=0; iho<nel_ho; ++iho)
+   {
+      // Don't need to compute ML_inv for elements with wrong boundary attrib
+      if (!integrate_bdr_elem_ho[iho])
+      {
+         continue;
+      }
+
+      for (int iref=0; iref<nref; ++iref)
+      {
+         int ilor = ho2lor.GetRow(iho)[iref];
+         ElementTransformation *el_tr = fes_lor.GetBdrElementTransformation(ilor);
+         const FiniteElement* fe_lor = fes_lor.GetBE(ilor);
+
+         int order = 2*fe_lor->GetOrder() + el_tr->OrderW();
+         const Geometry::Type geom = fe_lor->GetGeomType();
+         const IntegrationRule* ir = &IntRules.Get(geom, order);
+         ML_el = 0.0;
+         for (int i = 0; i < ir->GetNPoints(); ++i)
+         {
+            const IntegrationPoint& ip_lor = ir->IntPoint(i);
+            fe_lor->CalcShape(ip_lor, shape_lor);
+            el_tr->SetIntPoint(&ip_lor);
+            ML_el += (shape_lor *= (el_tr->Weight() * ip_lor.weight));
+         }
+         fes_lor.GetBdrElementDofs(ilor, dofs_lor);
+         ML_inv.AddElementVector(dofs_lor, ML_el);
+      }
+   }
+   // element by element inverse of non-zero entries
+   for (int i=0; i<ndof_lor; ++i)
+   {
+      if (ML_inv[i] != 0.0)
+      {
+         ML_inv[i] = 1.0/ML_inv[i];
+      }
+   }
+   // compute Rt.  Rt will contain the transpose of the restriction (L^2 projection
+   // operator) defined on the HO mesh
+   AllocRt();
+
+   const FiniteElement* fe_ho = fes_ho.GetBE(0);
+   const FiniteElement* fe_lor = fes_lor.GetBE(0);
+   const int nedof_ho = fe_ho->GetDof();
+   DenseMatrix Rt_el(nedof_ho, nedof_lor);
+
+   IntegrationPointTransformation ip_tr;
+   IsoparametricTransformation &emb_tr = ip_tr.Transf;
+
+   const Geometry::Type geom = fe_ho->GetGeomType();
+   const DenseTensor &pmats = cf_tr.point_matrices[geom];
+   emb_tr.SetIdentityTransformation(geom);
+
+   Vector shape_ho(nedof_ho);
+   Array<int> dofs_ho(nedof_ho);
+
+   for (int iho=0; iho<nel_ho; ++iho)
+   {
+      // Don't need to compute ML_inv for elements with wrong boundary attrib
+      if (!integrate_bdr_elem_ho[iho])
+      {
+         continue;
+      }
+
+      for (int iref=0; iref<nref; ++iref)
+      {
+         int ilor = ho2lor.GetRow(iho)[iref];
+         ElementTransformation *el_tr = fes_lor.GetBdrElementTransformation(ilor);
+         const FiniteElement* fe_lor = fes_lor.GetBE(ilor);
+
+         // Create the transformation that embeds the fine low-order element
+         // within the coarse high-order element in reference space
+         emb_tr.SetPointMat(pmats(cf_tr.embeddings[ilor].matrix));
+
+         int order = fe_lor->GetOrder() + fe_ho->GetOrder() + el_tr->OrderW();
+         const IntegrationRule* ir = &IntRules.Get(geom, order);
+         Rt_el = 0.0;
+         for (int i = 0; i < ir->GetNPoints(); i++)
+         {
+            const IntegrationPoint &ip_lor = ir->IntPoint(i);
+            IntegrationPoint ip_ho;
+            ip_tr.Transform(ip_lor, ip_ho);
+            fe_lor->CalcShape(ip_lor, shape_lor);
+            fe_ho->CalcShape(ip_ho, shape_ho);
+            el_tr->SetIntPoint(&ip_lor);
+            // For now we use the geometry information from the LOR space
+            // which means we won't be mass conservative if the mesh is curved
+            double w = el_tr->Weight()*ip_lor.weight;
+            shape_lor *= w;
+            AddMultVWt(shape_ho, shape_lor, Rt_el);
+         }
+         // mult each col by ML_inv[col]
+         fes_lor.GetBdrElementDofs(ilor, dofs_lor);
+         Vector* Rt_col;
+         for (int i=0; i<nedof_lor; ++i)
+         {
+            Rt_el.GetColumnReference(i, *Rt_col);
+            (*Rt_col) *= ML_inv[dofs_lor[i]];
+         }
+         fes_ho.GetBdrElementDofs(iho, dofs_ho);
+         Rt->AddSubMatrix(dofs_ho, dofs_lor, Rt_el);
+      }
+   }
+}
+
+L2ProjBdrH1GridTransfer::L2ProjBdrH1::~L2ProjBdrH1()
+{
+   delete Rt;
+}
+
+void L2ProjBdrH1GridTransfer::L2ProjBdrH1::Mult(
+   const Vector &x, Vector &y) const
+{
+   const int ndof_ho = fes_ho.GetNDofs();
+   const int ndof_lor = fes_lor.GetNDofs();
+   Array<int> dofs_ho(ndof_ho);
+   Array<int> dofs_lor(ndof_lor);
+   Vector x_dim(ndof_ho);
+   Vector y_dim(ndof_lor);
+
+   const int fes_dim = fes_ho.GetVDim();
+   for (int d=0; d<fes_dim; ++d)
+   {
+      for (int i=0; i<ndof_ho; ++i)
+      {
+         dofs_ho[i] = i;
+      }
+      fes_ho.DofsToVDofs(d, dofs_ho);
+      for (int i=0; i<ndof_lor; ++i)
+      {
+         dofs_lor[i] = i;
+      }
+      fes_lor.DofsToVDofs(d, dofs_lor);
+      x.GetSubVector(dofs_lor, x_dim);
+      Rt->Mult(x_dim, y_dim);
+      y.SetSubVector(dofs_ho, y_dim);
+   }
+}
+
+void L2ProjBdrH1GridTransfer::L2ProjBdrH1::MultTranspose(
+   const Vector &x, Vector &y) const
+{
+   const int ndof_ho = fes_ho.GetNDofs();
+   const int ndof_lor = fes_lor.GetNDofs();
+   Array<int> dofs_ho(ndof_ho);
+   Array<int> dofs_lor(ndof_lor);
+   Vector x_dim(ndof_lor);
+   Vector y_dim(ndof_ho);
+
+   const int fes_dim = fes_ho.GetVDim();
+   for (int d=0; d<fes_dim; ++d)
+   {
+      for (int i=0; i<ndof_ho; ++i)
+      {
+         dofs_ho[i] = i;
+      }
+      fes_ho.DofsToVDofs(d, dofs_ho);
+      for (int i=0; i<ndof_lor; ++i)
+      {
+         dofs_lor[i] = i;
+      }
+      fes_lor.DofsToVDofs(d, dofs_lor);
+      x.GetSubVector(dofs_lor, x_dim);
+      Rt->Mult(x_dim, y_dim);
+      y.SetSubVector(dofs_ho, y_dim);
+   }
+}
+
+void L2ProjBdrH1GridTransfer::L2ProjBdrH1::AllocRt()
+{
+   const Table& elem_dof_ho = fes_ho.GetBdrElementToDofTable();
+   const Table& elem_dof_lor = fes_lor.GetBdrElementToDofTable();
+
+   Table dof_elem_ho;
+   Transpose(elem_dof_ho, dof_elem_ho, ndof_ho);
+   
+   // mfem::Mult but uses ho2lor to map HO elements to LOR elements
+   const int* elem_dof_lorI = elem_dof_lor.GetI();
+   const int* elem_dof_lorJ = elem_dof_lor.GetJ();
+   const int* dof_elem_hoI = dof_elem_ho.GetI();
+   const int* dof_elem_hoJ = dof_elem_ho.GetJ();
+
+   Array<int> I(ndof_ho+1);
+
+   // figure out the size of J
+   Array<int> dof_used_lor;
+   dof_used_lor.SetSize(ndof_lor, -1);
+   
+   int nel_ho = fes_ho.GetNBE();
+   int nel_lor = fes_lor.GetNBE();
+   int sizeJ = 0;
+   for (int iho=0; iho<ndof_ho; ++iho)
+   {
+      for (int jho=dof_elem_hoI[iho]; jho<dof_elem_hoI[iho+1]; ++jho)
+      {
+         int el_ho = dof_elem_hoJ[jho];
+         // Don't need to include elements with wrong boundary attrib
+         if (!integrate_bdr_elem_ho[el_ho])
+         {
+            continue;
+         }
+         for (int iref=0; iref<nref; ++iref)
+         {
+            int ilor = ho2lor.GetRow(el_ho)[iref];
+            for (int jlor=elem_dof_lorI[ilor]; jlor<elem_dof_lorI[ilor+1]; ++jlor)
+            {
+               int dof_lor = elem_dof_lorJ[jlor];
+               if (dof_used_lor[dof_lor] != iho)
+               {
+                  dof_used_lor[dof_lor] = iho;
+                  ++sizeJ;
+               }
+            }
+         }
+      }
+   }
+   
+   // initialize dof_ho_dof_lor
+   Table dof_ho_dof_lor;
+   dof_ho_dof_lor.SetDims(ndof_ho, sizeJ);
+
+   for (int i=0; i<ndof_lor; ++i)
+   {
+      dof_used_lor[i] = -1;
+   }
+
+   // set values of J
+   int* dof_dofI = dof_ho_dof_lor.GetI();
+   int* dof_dofJ = dof_ho_dof_lor.GetJ();
+   sizeJ = 0;
+   for (int iho=0; iho<ndof_ho; ++iho)
+   {
+      dof_dofI[iho] = sizeJ;
+      for (int jho=dof_elem_hoI[iho]; jho<dof_elem_hoI[iho+1]; ++jho)
+      {
+         int el_ho = dof_elem_hoJ[jho];
+         // Don't need to include elements with wrong boundary attrib
+         if (!integrate_bdr_elem_ho[el_ho])
+         {
+            continue;
+         }
+         for (int iref=0; iref<nref; ++iref)
+         {
+            int ilor = ho2lor.GetRow(el_ho)[iref];
+            for (int jlor=elem_dof_lorI[ilor]; jlor<elem_dof_lorI[ilor+1]; ++jlor)
+            {
+               int dof_lor = elem_dof_lorJ[jlor];
+               if (dof_used_lor[dof_lor] != iho)
+               {
+                  dof_used_lor[dof_lor] = iho;
+                  dof_dofJ[sizeJ] = dof_lor;
+                  ++sizeJ;
+               }
+            }
+         }
+      }
+   }
+
+   dof_ho_dof_lor.SortRows();
+   double* data = Memory<double>(dof_dofI[ndof_ho]);
+
+   Rt = new SparseMatrix(dof_dofI, dof_dofJ, data, ndof_ho, ndof_lor,
+      true, true, true);
+   *Rt = 0.0;
+
+   dof_ho_dof_lor.LoseData();
+}
+
+const Operator &L2ProjBdrH1GridTransfer::ForwardOperator()
+{
+   if (!F) { F = new L2ProjBdrH1(dom_fes, ran_fes, bdr_attribs); }
+   return *F;
+}
+
+L2ProjBdrH1GridTransfer::~L2ProjBdrH1GridTransfer()
+{
+   if (F)
+   {
+      delete F;
+      F = NULL;
    }
 }
 
