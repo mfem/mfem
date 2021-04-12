@@ -71,7 +71,7 @@ auto Concatenate(Tensor<Rank,T,Container<T,Sizes...>,Layout<Rank>> &tl,
 {
    using ResContainer = Container<T,Sizes...,3>;
    using ResLayout = Layout<Rank+1>;
-   ResLayout layout = MakeLayout(tl, 2);
+   ResLayout layout = MakeLayout(tl, 3);
    Tensor<Rank+1, T, ResContainer, ResLayout> res(layout);
    res.template Get<Rank>(0) = tl;
    res.template Get<Rank>(1) = tm;

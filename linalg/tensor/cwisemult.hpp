@@ -387,7 +387,7 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
          const double D00 = D(q1,q2,0);
          const double D01 = D(q1,q2,1);
          const double D10 = D01;
-         const double D11 = D(q1,q2,1);
+         const double D11 = D(q1,q2,2);
          const double u0 = u(q1,q2,0);
          const double u1 = u(q1,q2,1);
          Du(q1,q2,0) = D00 * u0 + D01 * u1;
