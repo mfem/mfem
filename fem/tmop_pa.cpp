@@ -276,10 +276,6 @@ void TMOP_Integrator::AssembleGradDiagonalPA(Vector &de) const
 {
    MFEM_VERIFY(PA.R, "PA extension setup has not been done!");
 
-   //if (!PA.setup_Jtr) { ComputeElementTargetsPA(xe); }
-
-   //if (!PA.setup_Grad) { AssembleGradPA(xe); }
-
    if (PA.dim == 2)
    {
       AssembleDiagonalPA_2D(de);
@@ -315,9 +311,7 @@ void TMOP_Integrator::AddMultPA(const Vector &xe, Vector &ye) const
 
 void TMOP_Integrator::AddMultGradPA(const Vector &re, Vector &ce) const
 {
-   // if (!PA.setup_Jtr) { ComputeElementTargetsPA(xe); }
-
-   //if (!PA.setup_Grad) { AssembleGradPA(xe); }
+   if (!PA.setup_Jtr) { ComputeElementTargetsPA(); }
 
    if (PA.dim == 2)
    {
