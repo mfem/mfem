@@ -357,10 +357,11 @@ void FiniteElementSpace::BuildDofToArrays()
       const int n = elem_dof -> RowSize(i);
       for (int j = 0; j < n; j++)
       {
-         if (dof_elem_array[dofs[j]] < 0)
+         int dof = DecodeDof(dofs[j]);
+         if (dof_elem_array[dof] < 0)
          {
-            dof_elem_array[dofs[j]] = i;
-            dof_ldof_array[dofs[j]] = j;
+            dof_elem_array[dof] = i;
+            dof_ldof_array[dof] = j;
          }
       }
    }
@@ -461,6 +462,21 @@ void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
       R->BooleanMult(ess_vdofs, ess_tdofs);
    }
    MarkerToList(ess_tdofs, ess_tdof_list);
+}
+
+void FiniteElementSpace::GetBoundaryTrueDofs(Array<int> &boundary_dofs,
+                                             int component)
+{
+   if (mesh->bdr_attributes.Size())
+   {
+      Array<int> ess_bdr(mesh->bdr_attributes.Max());
+      ess_bdr = 1;
+      GetEssentialTrueDofs(ess_bdr, boundary_dofs, component);
+   }
+   else
+   {
+      boundary_dofs.DeleteAll();
+   }
 }
 
 // static method
@@ -2920,6 +2936,11 @@ void FiniteElementSpace::Update(bool want_transform)
 
       delete old_elem_dof;
    }
+}
+
+void FiniteElementSpace::UpdateMeshPointer(Mesh *new_mesh)
+{
+   mesh = new_mesh;
 }
 
 void FiniteElementSpace::Save(std::ostream &out) const
