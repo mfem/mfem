@@ -40,24 +40,24 @@ double uExact(const Vector &x)
 
 void duExact(const Vector &x, Vector &du)
 {
-  du.SetSize(3);
-  du[0] = 0.125 * (2.0 + x[0]) * x[1] * x[1];
-  du[1] = -0.125 * (2.0 + x[0]) * x[0] * x[1];
-  du[2] = -2.0 * x[2]; 
+   du.SetSize(3);
+   du[0] = 0.125 * (2.0 + x[0]) * x[1] * x[1];
+   du[1] = -0.125 * (2.0 + x[0]) * x[0] * x[1];
+   du[2] = -2.0 * x[2];
 }
 
 void fluxExact(const Vector &x, Vector &f)
 {
-  f.SetSize(3);
+   f.SetSize(3);
 
-  DenseMatrix s(3);
-  sigmaFunc(x, s);
+   DenseMatrix s(3);
+   sigmaFunc(x, s);
 
-  Vector du(3);
-  duExact(x, du);
+   Vector du(3);
+   duExact(x, du);
 
-  s.Mult(du, f);
-  f *= -1.0;
+   s.Mult(du, f);
+   f *= -1.0;
 }
 
 int main(int argc, char *argv[])
@@ -182,7 +182,7 @@ int main(int argc, char *argv[])
    //     Use a simple symmetric Gauss-Seidel preconditioner with PCG.
    GSSmoother M((SparseMatrix&)(*A));
    PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
-   
+
    // 12. Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, x);
 
@@ -195,7 +195,7 @@ int main(int argc, char *argv[])
    FiniteElementSpace flux_fespace(mesh, fec, 3);
    GridFunction flux(&flux_fespace);
    x.ComputeFlux(*integ, flux); flux *= -1.0;
-   
+
    VectorFunctionCoefficient fluxCoef(3, fluxExact);
    double flux_err = flux.ComputeL2Error(fluxCoef);
 
@@ -218,14 +218,14 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << *mesh << x
-	       << "window_title 'Solution'\n" << flush;
+               << "window_title 'Solution'\n" << flush;
 
       socketstream flux_sock(vishost, visport);
       flux_sock.precision(8);
       flux_sock << "solution\n" << *mesh << flux
-		<< "keys vvv\n"
-		<< "window_geometry 402 0 400 350\n"
-		<< "window_title 'Flux'\n"  << flush;
+                << "keys vvv\n"
+                << "window_geometry 402 0 400 350\n"
+                << "window_title 'Flux'\n"  << flush;
    }
 
    // 16. Free the used memory.
