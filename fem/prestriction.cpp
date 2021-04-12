@@ -540,8 +540,6 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
                 tfe->GetBasisType()==BasisType::Positive),
                "Only Gauss-Lobatto and Bernstein basis are supported in "
                "ParNCL2FaceRestriction.");
-   MFEM_VERIFY(pfes.GetMesh()->Conforming(),
-               "Non-conforming meshes not yet supported with partial assembly.");
    // Assuming all finite elements are using Gauss-Lobatto dofs
    height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nf*dof;
    width = pfes.GetVSize();
@@ -731,6 +729,7 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
                   const int gid = elementMap[e2*elem_dofs + did];
                   const int lid = dof*f_ind + d;
                   scatter_indices2[lid] = gid;
+                  ++offsets[gid + 1];
                }
             }
             else if (inf2>=0) // shared interior
