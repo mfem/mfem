@@ -284,7 +284,7 @@ public:
    SymmQData(double *x, Config &config, int ne)
    : InTensor<Dim+DimComp+1>(
         Container(x,ne*pow(config.quads,Dim)*Dim*(Dim+1)/2),
-        this->template initTensor<Layout>(config.quads,Dim,ne) )
+        this->template initTensor<Layout>(config.quads,Dim*(Dim+1)/2,ne) )
    {
       // TODO static asserts Config values 
    }
@@ -317,7 +317,7 @@ public:
    SymmQData(const double *x, Config &config, int ne)
    : InTensor<Dim+DimComp+1>(
         Container(x,ne*config.quads*Dim*(Dim+1)/2),
-        this->template initNonTensor<Layout>(config.quads,Dim,ne))
+        this->template initNonTensor<Layout>(config.quads,Dim*(Dim+1)/2,ne))
    {
       // TODO static asserts Config values 
    }
