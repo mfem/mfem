@@ -3,9 +3,9 @@
 // Compile with: make exXXp
 //
 // Sample runs:  mpirun -np 4 exXXp
-//               mpirun -np 4 exXXp -rs 2 -sc
-//               mpirun -np 4 exXXp -mt 3 -o 4 -sc
-//               mpirun -np 4 exXXp -mt 3 -rs 2 -o 4 -sc
+//               mpirun -np 4 exXXp -sc
+//               mpirun -np 4 exXXp -mt 3 -o 3 -sc
+//               mpirun -np 4 exXXp -mt 3 -rs 1 -o 4 -sc
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               finite element discretization of a PDE on a 2 dimensional
