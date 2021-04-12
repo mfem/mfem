@@ -3408,11 +3408,11 @@ L2ProjBdrH1GridTransfer::L2ProjBdrH1::L2ProjBdrH1(
          }
          // mult each col by ML_inv[col]
          fes_lor.GetBdrElementDofs(ilor, dofs_lor);
-         Vector* Rt_col;
+         Vector Rt_col;
          for (int i=0; i<nedof_lor; ++i)
          {
-            Rt_el.GetColumnReference(i, *Rt_col);
-            (*Rt_col) *= ML_inv[dofs_lor[i]];
+            Rt_el.GetColumnReference(i, Rt_col);
+            Rt_col *= ML_inv[dofs_lor[i]];
          }
          fes_ho.GetBdrElementDofs(iho, dofs_ho);
          Rt->AddSubMatrix(dofs_ho, dofs_lor, Rt_el);
