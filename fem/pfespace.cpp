@@ -531,7 +531,14 @@ const Operator *ParFiniteElementSpace::GetFaceRestriction(
       Operator* res;
       if (is_dg_space)
       {
-         res = new ParL2FaceRestriction(*this, e_ordering, type, m);
+         if (Conforming())
+         {
+            res = new ParL2FaceRestriction(*this, e_ordering, type, m);
+         }
+         else
+         {
+            res = new ParNCL2FaceRestriction(*this, e_ordering, type, m);
+         }
       }
       else
       {
