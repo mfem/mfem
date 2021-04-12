@@ -23,7 +23,7 @@ struct AddSize
    template <typename... Sizes>
    static auto init(const DynamicLayout<Rank> &in, Sizes... sizes)
    {
-      return AddSize<N+1,Rank>::init(in, in.template Size<Rank-N>(), sizes...);
+      return AddSize<Rank,N+1>::init(in, in.template Size<Rank-N>(), sizes...);
    }
 };
 
@@ -69,7 +69,7 @@ auto Concatenate(Tensor<Rank,T,Container<T,Sizes...>,Layout<Rank>> &tl,
                  Tensor<Rank,T,Container<T,Sizes...>,Layout<Rank>> &tm,
                  Tensor<Rank,T,Container<T,Sizes...>,Layout<Rank>> &tr)
 {
-   using ResContainer = Container<T,Sizes...,2>;
+   using ResContainer = Container<T,Sizes...,3>;
    using ResLayout = Layout<Rank+1>;
    ResLayout layout = MakeLayout(tl, 2);
    Tensor<Rank+1, T, ResContainer, ResLayout> res(layout);

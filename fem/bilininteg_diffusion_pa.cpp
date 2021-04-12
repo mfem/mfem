@@ -2005,16 +2005,25 @@ static void PADiffusionApply(const int dim,
    {
       switch (ID)
       {
-         case 0x23: return SmemPADiffusionApply3D<2,3>(NE,symm,B,G,D,X,Y);
-         case 0x34: return SmemPADiffusionApply3D<3,4>(NE,symm,B,G,D,X,Y);
-         case 0x45: return SmemPADiffusionApply3D<4,5>(NE,symm,B,G,D,X,Y);
-         case 0x46: return SmemPADiffusionApply3D<4,6>(NE,symm,B,G,D,X,Y);
-         case 0x56: return SmemPADiffusionApply3D<5,6>(NE,symm,B,G,D,X,Y);
-         case 0x58: return SmemPADiffusionApply3D<5,8>(NE,symm,B,G,D,X,Y);
-         case 0x67: return SmemPADiffusionApply3D<6,7>(NE,symm,B,G,D,X,Y);
-         case 0x78: return SmemPADiffusionApply3D<7,8>(NE,symm,B,G,D,X,Y);
-         case 0x89: return SmemPADiffusionApply3D<8,9>(NE,symm,B,G,D,X,Y);
-         default:   return PADiffusionApply3D(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
+         // case 0x23: return SmemPADiffusionApply3D<2,3>(NE,symm,B,G,D,X,Y);
+         // case 0x34: return SmemPADiffusionApply3D<3,4>(NE,symm,B,G,D,X,Y);
+         // case 0x45: return SmemPADiffusionApply3D<4,5>(NE,symm,B,G,D,X,Y);
+         // case 0x46: return SmemPADiffusionApply3D<4,6>(NE,symm,B,G,D,X,Y);
+         // case 0x56: return SmemPADiffusionApply3D<5,6>(NE,symm,B,G,D,X,Y);
+         // case 0x58: return SmemPADiffusionApply3D<5,8>(NE,symm,B,G,D,X,Y);
+         // case 0x67: return SmemPADiffusionApply3D<6,7>(NE,symm,B,G,D,X,Y);
+         // case 0x78: return SmemPADiffusionApply3D<7,8>(NE,symm,B,G,D,X,Y);
+         // case 0x89: return SmemPADiffusionApply3D<8,9>(NE,symm,B,G,D,X,Y);
+         // default:   return PADiffusionApply3D(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
+         case 0x23: return ApplyDiff<3,0,true,2,3>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x34: return ApplyDiff<3,0,true,3,4>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x45: return ApplyDiff<3,0,true,4,5>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x46: return ApplyDiff<3,0,true,4,6>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x56: return ApplyDiff<3,0,true,5,6>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x67: return ApplyDiff<3,0,true,6,7>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x78: return ApplyDiff<3,0,true,7,8>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x89: return ApplyDiff<3,0,true,8,9>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         default:   return ApplyDiff<3,0,true>(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
       }
    }
    MFEM_ABORT("Unknown kernel.");
