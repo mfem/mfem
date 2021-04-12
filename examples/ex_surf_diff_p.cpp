@@ -1,11 +1,11 @@
-//                                MFEM Example XX
+//                      MFEM Example XX - Parallel Version
 //
-// Compile with: make exXX
+// Compile with: make exXXp
 //
-// Sample runs:  exXX
-//               exXX -r 2 -sc
-//               exXX -mt 3 -o 4 -sc
-//               exXX -mt 3 -r 2 -o 4 -sc
+// Sample runs:  mpirun -np 4 exXXp
+//               mpirun -np 4 exXXp -rs 2 -sc
+//               mpirun -np 4 exXXp -mt 3 -o 4 -sc
+//               mpirun -np 4 exXXp -mt 3 -rs 2 -o 4 -sc
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               finite element discretization of a PDE on a 2 dimensional
@@ -62,18 +62,25 @@ void fluxExact(const Vector &x, Vector &f)
 
 int main(int argc, char *argv[])
 {
-   // 1. Parse command-line options.
+   // 1. Initialize MPI.
+   MPI_Session mpi;
+   if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+
+   // 2. Parse command-line options.
    int order = 3;
    int mesh_type = 4; // Default to Quadrilateral mesh
-   int ref_levels = 0;
+   int ser_ref_levels = 2;
+   int par_ref_levels = 1;
    bool static_cond = false;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_type, "-mt", "--mesh-type",
                   "Mesh type: 3 - Triangular, 4 - Quadrilateral.");
-   args.AddOption(&ref_levels, "-r", "--refine",
+   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
+                  "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -85,28 +92,38 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      args.PrintUsage(cout);
+      args.PrintUsage(mfem::out);
       return 1;
    }
-   args.PrintOptions(cout);
+   args.PrintOptions(mfem::out);
 
-   // 2. Construct a quadrilateral or triangular mesh with the topology of a
+   // 3. Construct a quadrilateral or triangular mesh with the topology of a
    //    cylindrical surface.
    Mesh *mesh = GetMesh(mesh_type);
    int dim = mesh->Dimension();
 
-   // 3. Refine the mesh to increase the resolution. In this example we do
-   //    'ref_levels' of uniform refinement.
-   for (int l = 0; l < ref_levels; l++)
+   // 4. Refine the mesh to increase the resolution. In this example we do
+   //    'ser_ref_levels' of uniform refinement.
+   for (int l = 0; l < ser_ref_levels; l++)
    {
       mesh->UniformRefinement();
    }
 
-   // 4. Transform the mesh so that it has a more interesting geometry.
-   mesh->SetCurvature(3);
-   mesh->Transform(trans);
+   // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
+   //    this mesh further in parallel to increase the resolution. Once the
+   //    parallel mesh is defined, the serial mesh can be deleted.
+   ParMesh pmesh(MPI_COMM_WORLD, *mesh);
+   delete mesh;
+   for (int l = 0; l < par_ref_levels; l++)
+   {
+      pmesh.UniformRefinement();
+   }
 
-   // 5. Define a finite element space on the mesh. Here we use continuous
+   // 6. Transform the mesh so that it has a more interesting geometry.
+   pmesh.SetCurvature(3);
+   pmesh.Transform(trans);
+
+   // 7. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
    FiniteElementCollection *fec;
@@ -116,9 +133,9 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order, dim);
       delete_fec = true;
    }
-   else if (mesh->GetNodes())
+   else if (pmesh.GetNodes())
    {
-      fec = mesh->GetNodes()->OwnFEC();
+      fec = pmesh.GetNodes()->OwnFEC();
       delete_fec = false;
       cout << "Using isoparametric FEs: " << fec->Name() << endl;
    }
@@ -127,45 +144,45 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order = 1, dim);
       delete_fec = true;
    }
-   FiniteElementSpace fespace(mesh, fec);
+   ParFiniteElementSpace fespace(&pmesh, fec);
    cout << "Number of finite element unknowns: "
-        << fespace.GetTrueVSize() << endl;
+        << fespace.GlobalTrueVSize() << endl;
 
-   // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
+   // 8. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
    //    the boundary attributes from the mesh as essential (Dirichlet) and
    //    converting them to a list of true dofs.
    Array<int> ess_tdof_list;
-   if (mesh->bdr_attributes.Size())
+   if (pmesh.bdr_attributes.Size())
    {
-      Array<int> ess_bdr(mesh->bdr_attributes.Max());
+      Array<int> ess_bdr(pmesh.bdr_attributes.Max());
       ess_bdr = 1;
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   // 7. Set up the linear form b(.) which corresponds to the right-hand side of
+   // 9. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
-   LinearForm b(&fespace);
+   ParLinearForm b(&fespace);
    ConstantCoefficient one(1.0);
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
    b.Assemble();
 
-   // 8. Define the solution vector x as a finite element grid function
-   //    corresponding to fespace. Initialize x with initial guess of zero,
-   //    which satisfies the boundary conditions.
-   GridFunction x(&fespace);
+   // 10. Define the solution vector x as a finite element grid function
+   //     corresponding to fespace. Initialize x with initial guess of zero,
+   //     which satisfies the boundary conditions.
+   ParGridFunction x(&fespace);
    x = 0.0;
 
-   // 9. Set up the bilinear form a(.,.) on the finite element space
-   //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
-   //    domain integrator.
-   BilinearForm a(&fespace);
+   // 11. Set up the bilinear form a(.,.) on the finite element space
+   //     corresponding to the Laplacian operator -Delta, by adding the
+   //     Diffusion domain integrator.
+   ParBilinearForm a(&fespace);
    MatrixFunctionCoefficient sigma(3, sigmaFunc);
    BilinearFormIntegrator *integ = new DiffusionIntegrator(sigma);
    a.AddDomainIntegrator(integ);
 
-   // 10. Assemble the bilinear form and the corresponding linear system,
+   // 12. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
    //     conditions, applying conforming constraints for non-conforming AMR,
    //     static condensation, etc.
@@ -176,24 +193,33 @@ int main(int argc, char *argv[])
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-   cout << "Size of linear system: " << A->Height() << endl;
+   mfem::out << "done." << endl;
+   mfem::out << "Size of linear system: "
+	     << A.As<HypreParMatrix>()->GetGlobalNumRows() << endl;
 
-   // 11. Solve the linear system A X = B.
-   //     Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-   GSSmoother M((SparseMatrix&)(*A));
-   PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
+   // 13. Define and apply a parallel PCG solver for A X = B with the BoomerAMG
+   //     preconditioner from hypre.
+   HypreBoomerAMG *amg = new HypreBoomerAMG;
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetRelTol(1e-12);
+   cg.SetMaxIter(2000);
+   cg.SetPrintLevel(1);
+   cg.SetPreconditioner(*amg);
+   cg.SetOperator(*A);
+   cg.Mult(B, X);
+   delete amg;
    
-   // 12. Recover the solution as a finite element grid function.
+   // 14. Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, x);
 
-   // 13. Compute error in the solution and its flux
+   // 15. Compute error in the solution and its flux
    FunctionCoefficient uCoef(uExact);
    double err = x.ComputeL2Error(uCoef);
 
    mfem::out << "|u - u_h|_2 = " << err << endl;
 
-   FiniteElementSpace flux_fespace(mesh, fec, 3);
-   GridFunction flux(&flux_fespace);
+   ParFiniteElementSpace flux_fespace(&pmesh, fec, 3);
+   ParGridFunction flux(&flux_fespace);
    x.ComputeFlux(*integ, flux); flux *= -1.0;
    
    VectorFunctionCoefficient fluxCoef(3, fluxExact);
@@ -201,39 +227,54 @@ int main(int argc, char *argv[])
 
    mfem::out << "|f - f_h|_2 = " << flux_err << endl;
 
-   // 14. Save the refined mesh and the solution. This output can be viewed
-   //     later using GLVis: "glvis -m refined.mesh -g sol.gf".
-   ofstream mesh_ofs("refined.mesh");
-   mesh_ofs.precision(8);
-   mesh->Print(mesh_ofs);
-   ofstream sol_ofs("sol.gf");
-   sol_ofs.precision(8);
-   x.Save(sol_ofs);
+   // 16. Save the refined mesh and the solution. This output can be viewed
+   //     later using GLVis: "glvis -np <np> -m mesh -g sol".
+   {
+     ostringstream mesh_name, sol_name, flux_name;
+      mesh_name << "mesh." << setfill('0') << setw(6) << mpi.WorldRank();
+      sol_name << "sol." << setfill('0') << setw(6) << mpi.WorldRank();
+      flux_name << "flux." << setfill('0') << setw(6) << mpi.WorldRank();
 
-   // 15. Send the solution by socket to a GLVis server.
+      ofstream mesh_ofs(mesh_name.str().c_str());
+      mesh_ofs.precision(8);
+      pmesh.Print(mesh_ofs);
+
+      ofstream sol_ofs(sol_name.str().c_str());
+      sol_ofs.precision(8);
+      x.Save(sol_ofs);
+
+      ofstream flux_ofs(flux_name.str().c_str());
+      flux_ofs.precision(8);
+      flux.Save(flux_ofs);
+   }
+   
+   // 17. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << mpi.WorldSize()
+	       << " " << mpi.WorldRank() << "\n";
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *mesh << x
+      sol_sock << "solution\n" << pmesh << x
 	       << "window_title 'Solution'\n" << flush;
 
       socketstream flux_sock(vishost, visport);
+      flux_sock << "parallel " << mpi.WorldSize()
+		<< " " << mpi.WorldRank() << "\n";
       flux_sock.precision(8);
-      flux_sock << "solution\n" << *mesh << flux
+      flux_sock << "solution\n" << pmesh << flux
 		<< "keys vvv\n"
 		<< "window_geometry 402 0 400 350\n"
 		<< "window_title 'Flux'\n"  << flush;
    }
 
-   // 16. Free the used memory.
+   // 18. Free the used memory.
    if (delete_fec)
    {
       delete fec;
    }
-   delete mesh;
 
    return 0;
 }
