@@ -20,8 +20,8 @@
 namespace mfem
 {
 
-
-void TMOP_Integrator::SetupGradPA(const Vector &xe) const
+void TMOP_Integrator::AssembleGradPA(const Vector &xe,
+                                     const FiniteElementSpace &fes)
 {
    MFEM_VERIFY(PA.R, "PA extension setup has not been done!");
    PA.setup_Grad = true;
@@ -272,14 +272,13 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    }
 }
 
-void TMOP_Integrator::AssembleGradientDiagonalPA(const Vector &xe,
-                                                 Vector &de) const
+void TMOP_Integrator::AssembleGradDiagonalPA(Vector &de) const
 {
    MFEM_VERIFY(PA.R, "PA extension setup has not been done!");
 
-   if (!PA.setup_Jtr) { ComputeElementTargetsPA(xe); }
+   //if (!PA.setup_Jtr) { ComputeElementTargetsPA(xe); }
 
-   if (!PA.setup_Grad) { SetupGradPA(xe); }
+   //if (!PA.setup_Grad) { AssembleGradPA(xe); }
 
    if (PA.dim == 2)
    {
@@ -314,27 +313,26 @@ void TMOP_Integrator::AddMultPA(const Vector &xe, Vector &ye) const
    }
 }
 
-void TMOP_Integrator::AddMultGradPA(const Vector &xe,
-                                    const Vector &re, Vector &ce) const
+void TMOP_Integrator::AddMultGradPA(const Vector &re, Vector &ce) const
 {
-   if (!PA.setup_Jtr) { ComputeElementTargetsPA(xe); }
+   // if (!PA.setup_Jtr) { ComputeElementTargetsPA(xe); }
 
-   if (!PA.setup_Grad) { SetupGradPA(xe); }
+   //if (!PA.setup_Grad) { AssembleGradPA(xe); }
 
    if (PA.dim == 2)
    {
       AddMultGradPA_2D(re,ce);
-      if (coeff0) { AddMultGradPA_C0_2D(xe,re,ce); }
+      if (coeff0) { AddMultGradPA_C0_2D(re,ce); }
    }
 
    if (PA.dim == 3)
    {
-      AddMultGradPA_3D(xe,re,ce);
-      if (coeff0) { AddMultGradPA_C0_3D(xe,re,ce); }
+      AddMultGradPA_3D(re,ce);
+      if (coeff0) { AddMultGradPA_C0_3D(re,ce); }
    }
 }
 
-double TMOP_Integrator::GetGridFunctionEnergyPA(const Vector &xe) const
+double TMOP_Integrator::GetLocalStateEnergyPA(const Vector &xe) const
 {
    double energy = 0.0;
 
@@ -342,14 +340,14 @@ double TMOP_Integrator::GetGridFunctionEnergyPA(const Vector &xe) const
 
    if (PA.dim == 2)
    {
-      energy = GetGridFunctionEnergyPA_2D(xe);
-      if (coeff0) { energy += GetGridFunctionEnergyPA_C0_2D(xe); }
+      energy = GetLocalStateEnergyPA_2D(xe);
+      if (coeff0) { energy += GetLocalStateEnergyPA_C0_2D(xe); }
    }
 
    if (PA.dim == 3)
    {
-      energy = GetGridFunctionEnergyPA_3D(xe);
-      if (coeff0) { energy += GetGridFunctionEnergyPA_C0_3D(xe); }
+      energy = GetLocalStateEnergyPA_3D(xe);
+      if (coeff0) { energy += GetLocalStateEnergyPA_C0_3D(xe); }
    }
 
    return energy;
