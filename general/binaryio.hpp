@@ -41,6 +41,15 @@ inline T read(std::istream& is)
    return value;
 }
 
+/// Read a value of type @a T from a binary buffer and return it.
+template <typename T>
+inline T read(const char *buf)
+{
+   T value;
+   std::copy(buf, buf + sizeof(T), reinterpret_cast<char*>(&value));
+   return value;
+}
+
 template <typename T>
 void AppendBytes(std::vector<char> &vec, const T &val)
 {
