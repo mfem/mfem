@@ -4,8 +4,8 @@
 //
 // Sample runs:  mpirun -np 4 ex6p -m ../data/star-hilbert.mesh -o 2
 //               mpirun -np 4 ex6p -m ../data/square-disc.mesh -rm 1 -o 1
-//               mpirun -np 4 ex6p -m ../data/square-disc.mesh -rm 1 -o 2
 //               mpirun -np 4 ex6p -m ../data/square-disc.mesh -rm 1 -o 2 -h1
+//               mpirun -np 4 ex6p -m ../data/square-disc.mesh -rm 1 -o 2 -cs
 //               mpirun -np 4 ex6p -m ../data/square-disc-nurbs.mesh -o 2
 //               mpirun -np 4 ex6p -m ../data/fichera.mesh -o 2
 //               mpirun -np 4 ex6p -m ../data/escher.mesh -rm 2 -o 2
