@@ -534,21 +534,21 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
       {
          for(int q1 = 0; q1 < Q1; ++q1)
          {
-            const double D00 = D(q1,q2,0);
-            const double D01 = D(q1,q2,1);
-            const double D02 = D(q1,q2,2);
+            const double D00 = D(q1,q2,q3,0);
+            const double D01 = D(q1,q2,q3,1);
+            const double D02 = D(q1,q2,q3,2);
             const double D10 = D01;
-            const double D11 = D(q1,q2,3);
-            const double D12 = D(q1,q2,4);
+            const double D11 = D(q1,q2,q3,3);
+            const double D12 = D(q1,q2,q3,4);
             const double D20 = D02;
             const double D21 = D12;
-            const double D22 = D(q1,q2,5);
-            const double u0 = u(q1,q2,0);
-            const double u1 = u(q1,q2,1);
-            const double u2 = u(q1,q2,2);
-            Du(q1,q2,0) = D00 * u0 + D01 * u1 + D02 * u2;
-            Du(q1,q2,1) = D10 * u0 + D11 * u1 + D12 * u2;
-            Du(q1,q2,2) = D20 * u0 + D21 * u1 + D22 * u2;
+            const double D22 = D(q1,q2,q3,5);
+            const double u0 = u(q1,q2,q3,0);
+            const double u1 = u(q1,q2,q3,1);
+            const double u2 = u(q1,q2,q3,2);
+            Du(q1,q2,q3,0) = D00 * u0 + D01 * u1 + D02 * u2;
+            Du(q1,q2,q3,1) = D10 * u0 + D11 * u1 + D12 * u2;
+            Du(q1,q2,q3,2) = D20 * u0 + D21 * u1 + D22 * u2;
          }
       }
    }
@@ -579,21 +579,21 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
       {
          for(int q1 = 0; q1 < Q1; ++q1)
          {
-            const double D00 = D(q1,q2,0);
-            const double D01 = D(q1,q2,1);
-            const double D02 = D(q1,q2,2);
+            const double D00 = D(q1,q2,q3,0);
+            const double D01 = D(q1,q2,q3,1);
+            const double D02 = D(q1,q2,q3,2);
             const double D10 = D01;
-            const double D11 = D(q1,q2,3);
-            const double D12 = D(q1,q2,4);
+            const double D11 = D(q1,q2,q3,3);
+            const double D12 = D(q1,q2,q3,4);
             const double D20 = D02;
             const double D21 = D12;
-            const double D22 = D(q1,q2,5);
-            const double u0 = u(q1,q2,0);
-            const double u1 = u(q1,q2,1);
-            const double u2 = u(q1,q2,2);
-            Du(q1,q2,0) = D00 * u0 + D01 * u1 + D02 * u2;
-            Du(q1,q2,1) = D10 * u0 + D11 * u1 + D12 * u2;
-            Du(q1,q2,2) = D20 * u0 + D21 * u1 + D22 * u2;
+            const double D22 = D(q1,q2,q3,5);
+            const double u0 = u(q1,q2,q3,0);
+            const double u1 = u(q1,q2,q3,1);
+            const double u2 = u(q1,q2,q3,2);
+            Du(q1,q2,q3,0) = D00 * u0 + D01 * u1 + D02 * u2;
+            Du(q1,q2,q3,1) = D10 * u0 + D11 * u1 + D12 * u2;
+            Du(q1,q2,q3,2) = D20 * u0 + D21 * u1 + D22 * u2;
          }
       }
    }

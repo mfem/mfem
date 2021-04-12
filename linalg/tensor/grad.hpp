@@ -22,6 +22,7 @@
 namespace mfem
 {
 
+// TODO rewrite with traits
 // Non-tensor
 template <int Dim, int D, int Q, typename Dofs>
 auto operator*(const BasisGradient<Dim,false,D,Q> &basis, const Dofs &u)
@@ -115,7 +116,7 @@ auto operator*(const BasisGradientTranspose<3,true,D,Q> &basis, const Dofs &u)
    auto Buy = ContractX(Bt,uy);
    auto GBuy = ContractY(Gt,Buy);
    v += ContractZ(Bt,GBuy);
-   auto uz = u.Get<Rank-1>(2);
+   auto uz = u.template Get<Rank-1>(2);
    auto Buz = ContractX(Bt,uz);
    auto BBuz = ContractY(Bt,Buz);
    v += ContractZ(Gt,BBuz);
