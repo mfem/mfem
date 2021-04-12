@@ -40,24 +40,24 @@ double uExact(const Vector &x)
 
 void duExact(const Vector &x, Vector &du)
 {
-  du.SetSize(3);
-  du[0] = 0.125 * (2.0 + x[0]) * x[1] * x[1];
-  du[1] = -0.125 * (2.0 + x[0]) * x[0] * x[1];
-  du[2] = -2.0 * x[2]; 
+   du.SetSize(3);
+   du[0] = 0.125 * (2.0 + x[0]) * x[1] * x[1];
+   du[1] = -0.125 * (2.0 + x[0]) * x[0] * x[1];
+   du[2] = -2.0 * x[2];
 }
 
 void fluxExact(const Vector &x, Vector &f)
 {
-  f.SetSize(3);
+   f.SetSize(3);
 
-  DenseMatrix s(3);
-  sigmaFunc(x, s);
+   DenseMatrix s(3);
+   sigmaFunc(x, s);
 
-  Vector du(3);
-  duExact(x, du);
+   Vector du(3);
+   duExact(x, du);
 
-  s.Mult(du, f);
-  f *= -1.0;
+   s.Mult(du, f);
+   f *= -1.0;
 }
 
 int main(int argc, char *argv[])
@@ -195,7 +195,7 @@ int main(int argc, char *argv[])
 
    mfem::out << "done." << endl;
    mfem::out << "Size of linear system: "
-	     << A.As<HypreParMatrix>()->GetGlobalNumRows() << endl;
+             << A.As<HypreParMatrix>()->GetGlobalNumRows() << endl;
 
    // 13. Define and apply a parallel PCG solver for A X = B with the BoomerAMG
    //     preconditioner from hypre.
@@ -208,7 +208,7 @@ int main(int argc, char *argv[])
    cg.SetOperator(*A);
    cg.Mult(B, X);
    delete amg;
-   
+
    // 14. Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, x);
 
@@ -221,7 +221,7 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace flux_fespace(&pmesh, fec, 3);
    ParGridFunction flux(&flux_fespace);
    x.ComputeFlux(*integ, flux); flux *= -1.0;
-   
+
    VectorFunctionCoefficient fluxCoef(3, fluxExact);
    double flux_err = flux.ComputeL2Error(fluxCoef);
 
@@ -230,7 +230,7 @@ int main(int argc, char *argv[])
    // 16. Save the refined mesh and the solution. This output can be viewed
    //     later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
-     ostringstream mesh_name, sol_name, flux_name;
+      ostringstream mesh_name, sol_name, flux_name;
       mesh_name << "mesh." << setfill('0') << setw(6) << mpi.WorldRank();
       sol_name << "sol." << setfill('0') << setw(6) << mpi.WorldRank();
       flux_name << "flux." << setfill('0') << setw(6) << mpi.WorldRank();
@@ -247,7 +247,7 @@ int main(int argc, char *argv[])
       flux_ofs.precision(8);
       flux.Save(flux_ofs);
    }
-   
+
    // 17. Send the solution by socket to a GLVis server.
    if (visualization)
    {
@@ -255,19 +255,19 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << mpi.WorldSize()
-	       << " " << mpi.WorldRank() << "\n";
+               << " " << mpi.WorldRank() << "\n";
       sol_sock.precision(8);
       sol_sock << "solution\n" << pmesh << x
-	       << "window_title 'Solution'\n" << flush;
+               << "window_title 'Solution'\n" << flush;
 
       socketstream flux_sock(vishost, visport);
       flux_sock << "parallel " << mpi.WorldSize()
-		<< " " << mpi.WorldRank() << "\n";
+                << " " << mpi.WorldRank() << "\n";
       flux_sock.precision(8);
       flux_sock << "solution\n" << pmesh << flux
-		<< "keys vvv\n"
-		<< "window_geometry 402 0 400 350\n"
-		<< "window_title 'Flux'\n"  << flush;
+                << "keys vvv\n"
+                << "window_geometry 402 0 400 350\n"
+                << "window_title 'Flux'\n"  << flush;
    }
 
    // 18. Free the used memory.
