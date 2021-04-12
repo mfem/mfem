@@ -81,6 +81,10 @@ jobs:
         sudo apt-get install mpich libmpich-dev
         export MAKE_CXX_FLAG="MPICXX=mpic++"
 
+    - name: Set up Homebrew
+      if: matrix.mpi == 'parallel' && matrix.os == 'macos-10.15'
+      uses: Homebrew/actions/setup-homebrew@master
+
     - name: get MPI (MacOS)
       if: matrix.mpi == 'parallel' && matrix.os == 'macos-10.15'
       run: |
