@@ -346,17 +346,13 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    nlf.SetEssentialBC(ess_bdr);
 
    // Diagonal test, skip if combo
+   Vector &xt(x.GetTrueVector());
+   Vector d(fes.GetTrueVSize());
+   d.UseDevice(true);
    res.diag = 0.0;
    if (diag && combo == 0)
    {
-      Vector d(fes.GetTrueVSize());
-      Vector &xt(x.GetTrueVector());
-      d.UseDevice(true);
-      if (pa)
-      {
-         nlf.GetGradient(xt);
-         nlf.AssembleGradientDiagonal(d);
-      }
+      if (pa) { nlf.GetGradient(xt).AssembleDiagonal(d); }
       else
       {
          ParNonlinearForm nlf_fa(&fes);
@@ -365,8 +361,7 @@ int tmop(int myid, Req &res, int argc, char *argv[])
          if (normalization == 1) { nlfi_fa->EnableNormalization(x0); }
          if (lim_const != 0.0) { nlfi_fa->EnableLimiting(x0, dist, lim_coeff); }
          nlf_fa.AddDomainIntegrator(nlfi_fa);
-         // We don't set the EssentialBC in order to get the same diagonal
-         // nlf_fa.SetEssentialBC(ess_bdr);
+         nlf_fa.SetEssentialBC(ess_bdr);
          dynamic_cast<GradientClass&>(nlf_fa.GetGradient(xt)).GetDiag(d);
       }
       res.diag = d*d;
@@ -399,8 +394,9 @@ int tmop(int myid, Req &res, int argc, char *argv[])
       {
          if (pa)
          {
+            nlf.GetGradient(xt).AssembleDiagonal(d);
             MFEM_VERIFY(lin_solver != 4, "PA l1-Jacobi is not implemented");
-            S_prec = new OperatorJacobiSmoother(nlf, nlf.GetEssentialTrueDofs());
+            S_prec = new OperatorJacobiSmoother(d, nlf.GetEssentialTrueDofs());
          }
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
          else

@@ -31,6 +31,7 @@ class NonlinearFormExtension : public Operator
 {
 protected:
    const NonlinearForm *nlf; ///< Not owned
+
 public:
    NonlinearFormExtension(const NonlinearForm*);
 

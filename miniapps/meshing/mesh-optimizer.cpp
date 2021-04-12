@@ -877,8 +877,10 @@ int main(int argc, char *argv[])
       {
          if (pa)
          {
+            Vector diag(a.FESpace()->GetTrueVSize());
             MFEM_VERIFY(lin_solver != 4, "PA l1-Jacobi is not implemented");
-            S_prec = new OperatorJacobiSmoother(a, a.GetEssentialTrueDofs());
+            a.GetGradient(x.GetTrueVector()).AssembleDiagonal(diag);
+            S_prec = new OperatorJacobiSmoother(diag, a.GetEssentialTrueDofs());
          }
          else
          {

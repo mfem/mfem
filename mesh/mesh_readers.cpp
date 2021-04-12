@@ -643,31 +643,52 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
 }
 
 void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
-                           bool &finalize_topo)
+                           bool &finalize_topo, const std::string &xml_prefix)
 {
    using namespace tinyxml2;
 
    const char *erstr = "XML parsing error";
 
-   // Read entire stream into buffer
+   // Helper function: return true if both strings are equal, false if not or if
+   // either one is NULL.
+   auto is_equal = [](const char *s1, const char *s2)
+   {
+      if (s1 == NULL || s2 == NULL) { return false; }
+      return strcmp(s1, s2) == 0;
+   };
+
+   auto verify_data_array = [erstr,is_equal](const XMLElement *data)
+   {
+      MFEM_VERIFY(is_equal(data->Name(), "DataArray"), erstr);
+      MFEM_VERIFY(is_equal(data->Attribute("format"), "ascii"),
+                  "MFEM does not currently support VTK meshes with appended"
+                  " or binary data.");
+   };
+
+   // Create buffer beginning with xml_prefix, then read the rest of the stream
+   std::vector<char> buf(xml_prefix.begin(), xml_prefix.end());
    std::istreambuf_iterator<char> eos;
-   std::vector<char> buf(std::istreambuf_iterator<char>(input), eos);
+   buf.insert(buf.end(), std::istreambuf_iterator<char>(input), eos);
    buf.push_back('\0'); // null-terminate buffer
 
    XMLDocument xml;
    xml.Parse(buf.data());
-   MFEM_VERIFY(xml.ErrorID() == XML_SUCCESS, erstr);
+   if (xml.ErrorID() != XML_SUCCESS)
+   {
+      MFEM_ABORT("Could not parse XML VTK file. This could be caused by raw "
+                 "binary data in the XML file. MFEM supports only ASCII data.");
+   }
 
    const XMLElement *vtkfile = xml.FirstChildElement();
    MFEM_VERIFY(vtkfile, erstr);
-   MFEM_VERIFY(std::string(vtkfile->Name()) == "VTKFile", erstr);
+   MFEM_VERIFY(is_equal(vtkfile->Name(), "VTKFile"), erstr);
    const XMLElement *vtu = vtkfile->FirstChildElement();
    MFEM_VERIFY(vtu, erstr);
-   MFEM_VERIFY(std::string(vtu->Name()) == "UnstructuredGrid", erstr);
+   MFEM_VERIFY(is_equal(vtu->Name(), "UnstructuredGrid"), erstr);
 
    // Count the number of points and cells
    const XMLElement *piece = vtu->FirstChildElement();
-   MFEM_VERIFY(std::string(piece->Name()) == "Piece", erstr);
+   MFEM_VERIFY(is_equal(piece->Name(), "Piece"), erstr);
    MFEM_VERIFY(piece->NextSiblingElement() == NULL,
                "XML VTK meshes with more than one Piece are not supported");
    int npts = piece->IntAttribute("NumberOfPoints");
@@ -680,12 +701,10 @@ void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
         pts_xml != NULL;
         pts_xml = pts_xml->NextSiblingElement())
    {
-      if (std::string(pts_xml->Name()) == "Points")
+      if (is_equal(pts_xml->Name(), "Points"))
       {
          const XMLElement *pts_data = pts_xml->FirstChildElement();
-         MFEM_VERIFY(std::string(pts_data->Name()) == "DataArray", erstr);
-         MFEM_VERIFY(std::string(pts_data->Attribute("Name")) == "Points",
-                     erstr);
+         verify_data_array(pts_data);
          MFEM_VERIFY(pts_data->IntAttribute("NumberOfComponents") == 3,
                      "XML VTK Points DataArray must have 3 components");
          const char *pts_txt = pts_data->GetText();
@@ -704,15 +723,17 @@ void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
         cells_xml != NULL;
         cells_xml = cells_xml->NextSiblingElement())
    {
-      if (std::string(cells_xml->Name()) == "Cells")
+      if (is_equal(cells_xml->Name(), "Cells"))
       {
          const char *cell_data_txt = NULL;
          for (const XMLElement *data_xml = cells_xml->FirstChildElement();
               data_xml != NULL;
               data_xml = data_xml->NextSiblingElement())
          {
-            MFEM_VERIFY(std::string(data_xml->Name()) == "DataArray", erstr);
-            std::string data_name(data_xml->Attribute("Name"));
+            verify_data_array(data_xml);
+            std::string data_name;
+            const char *data_name_cstr = data_xml->Attribute("Name");
+            if (data_name_cstr != NULL) { data_name = data_name_cstr; }
             const char *data_txt = data_xml->GetText();
             MFEM_VERIFY(data_txt != NULL, erstr);
             if (data_name == "offsets")

@@ -10,6 +10,7 @@
 # CONTRIBUTING.md for details.
 
 list(APPEND ALL_EXE_SRCS
+  ex0.cpp
   ex1.cpp
   ex2.cpp
   ex3.cpp
@@ -39,6 +40,7 @@ list(APPEND ALL_EXE_SRCS
 
 if (MFEM_USE_MPI)
   list(APPEND ALL_EXE_SRCS
+    ex0p.cpp
     ex1p.cpp
     ex2p.cpp
     ex3p.cpp
@@ -80,7 +82,9 @@ foreach(SRC_FILE ${ALL_EXE_SRCS})
   get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)
   string(REPLACE ".cpp" "" TEST_NAME ${SRC_FILENAME})
 
-  set(THIS_TEST_OPTIONS "-no-vis")
+  if (NOT (${TEST_NAME} MATCHES "ex0p?"))
+    set(THIS_TEST_OPTIONS "-no-vis")
+  endif()
   if (${TEST_NAME} MATCHES "ex10p*")
     list(APPEND THIS_TEST_OPTIONS "-tf" "5")
   elseif(${TEST_NAME} MATCHES "ex15p*")
