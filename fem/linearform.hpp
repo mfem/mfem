@@ -36,7 +36,7 @@ protected:
    /// Includes all by default.
    /// 0 - ignore attribute
    /// 1 - include attribute
-   Array<Array<int>*>           dlfi_elem_attr_marker;
+   Array<Array<int>*>           dlfi_marker;
 
    /// Separate array for integrators with delta function coefficients.
    Array<DeltaLFIntegrator*> dlfi_delta;
@@ -120,8 +120,7 @@ public:
    /// Adds new Domain Integrator restricted to certain elements specified by
    /// the @a elem_attr_marker.
    void AddDomainIntegrator(LinearFormIntegrator *lfi,
-                            Array<int> &elem_attr_marker);
-
+                            Array<int> &elem_marker);
 
    /// Adds new Boundary Integrator. Assumes ownership of @a lfi.
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi);
