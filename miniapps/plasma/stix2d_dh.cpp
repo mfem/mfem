@@ -142,6 +142,7 @@ static Vector rod_params_
 (0); // Amplitude of x, y, z current source, position in 2D, and radius
 static Vector slab_params_
 (0); // Amplitude of x, y, z current source, position in 2D, and size in 2D
+static int slab_profile_;
 
 void rod_current_source_r(const Vector &x, Vector &j);
 void rod_current_source_i(const Vector &x, Vector &j);
@@ -489,6 +490,8 @@ int main(int argc, char *argv[])
    args.AddOption(&slab_params_, "-slab", "--slab_params",
                   "3D Vector Amplitude (Real x,y,z, Imag x,y,z), "
                   "2D Position, 2D Size");
+   args.AddOption(&slab_profile_, "-slab-prof", "--slab_profile",
+                   "0 (Constant) or 1 (Sin Function)");
    args.AddOption(&abcs, "-abcs", "--absorbing-bc-surf",
                   "Absorbing Boundary Condition Surfaces");
    args.AddOption(&sbca, "-sbcs", "--sheath-bc-surf",
@@ -1658,7 +1661,8 @@ void slab_current_source_r(const Vector &x, Vector &j)
       j(0) = slab_params_(0);
       j(1) = slab_params_(1);
       j(2) = slab_params_(2);
-      j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5)));
+      if (slab_profile_ == 1)
+      { j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5)));}
    }
 }
 
@@ -1686,7 +1690,8 @@ void slab_current_source_i(const Vector &x, Vector &j)
          j(0) = slab_params_(3);
          j(1) = slab_params_(4);
          j(2) = slab_params_(5);
-         j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5)));
+         if (slab_profile_ == 1)
+         { j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5)));}
       }
    }
 }
