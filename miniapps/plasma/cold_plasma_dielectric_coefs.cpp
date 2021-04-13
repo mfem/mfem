@@ -42,8 +42,8 @@ complex<double> R_cold_plasma(double omega,
        double m = mass[i];
         complex<double> m_eff = m;
         if ( i == 0) {m_eff = m*collision_correction;}
-       complex<double> w_c = omega_c_complex(Bmag, q, m_eff);
-       complex<double> w_p = omega_p_complex(n, q, m_eff);
+       complex<double> w_c = omega_c(Bmag, q, m_eff);
+       complex<double> w_p = omega_p(n, q, m_eff);
        val -= w_p * w_p / (omega * (omega + w_c));
     }
     return val;
@@ -72,8 +72,8 @@ complex<double> L_cold_plasma(double omega,
        double m = mass[i];
         complex<double> m_eff = m;
         if ( i == 0) {m_eff = m*collision_correction;}
-       complex<double> w_c = omega_c_complex(Bmag, q, m_eff);
-       complex<double> w_p = omega_p_complex(n, q, m_eff);
+       complex<double> w_c = omega_c(Bmag, q, m_eff);
+       complex<double> w_p = omega_p(n, q, m_eff);
        val -= w_p * w_p / (omega * (omega - w_c));
     }
     return val;
@@ -102,8 +102,8 @@ complex<double> S_cold_plasma(double omega,
        double m = mass[i];
         complex<double> m_eff = m;
        if ( i == 0) {m_eff = m*collision_correction;}
-       complex<double> w_c = omega_c_complex(Bmag, q, m_eff);
-       complex<double> w_p = omega_p_complex(n, q, m_eff);
+       complex<double> w_c = omega_c(Bmag, q, m_eff);
+       complex<double> w_p = omega_p(n, q, m_eff);
        val -= w_p * w_p / (omega * omega - w_c * w_c);
         
     }
@@ -133,7 +133,7 @@ complex<double> D_cold_plasma(double omega,
        double m = mass[i];
         complex<double> m_eff = m;
         if ( i == 0) {m_eff = m*collision_correction;}
-       complex<double> w_p = omega_p_complex(n, q, m_eff);
+       complex<double> w_p = omega_p(n, q, m_eff);
        val -= w_p * w_p / (omega * omega);
     }
     return val;
