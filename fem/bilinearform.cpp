@@ -235,14 +235,14 @@ void BilinearForm::Finalize (int skip_zeros)
 void BilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi)
 {
    dbfi.Append(bfi);
-   dbfi_elem_attr_marker.Append(NULL); // NULL marker means apply everywhere
+   dbfi_marker.Append(NULL); // NULL marker means apply everywhere
 }
 
 void BilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi,
-                                       Array<int> &elem_attr_marker)
+                                       Array<int> &elem_marker)
 {
    dbfi.Append(bfi);
-   dbfi_elem_attr_marker.Append(&elem_attr_marker);
+   dbfi_marker.Append(&elem_marker);
 }
 
 void BilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi)
@@ -411,9 +411,9 @@ void BilinearForm::Assemble(int skip_zeros)
    {
       for (int k = 0; k < dbfi.Size(); k++)
       {
-         if (dbfi_elem_attr_marker[k] != NULL)
+         if (dbfi_marker[k] != NULL)
          {
-            MFEM_VERIFY(mesh->attributes.Size() == dbfi_elem_attr_marker[k]->Size(),
+            MFEM_VERIFY(mesh->attributes.Size() == dbfi_marker[k]->Size(),
                         "invalid element marker for domain integrator #"
                         << k << ", counting from zero");
          }
@@ -430,20 +430,13 @@ void BilinearForm::Assemble(int skip_zeros)
          else
          {
             elmat.SetSize(0);
-            const FiniteElement &fe = *fes->GetFE(i);
-            eltrans = fes->GetElementTransformation(i);
-            if ( (dbfi_elem_attr_marker[0] != NULL &&
-                  ((*(dbfi_elem_attr_marker[0]))[elem_attr-1] == 1)) ||
-                 dbfi_elem_attr_marker[0] == NULL)
+            for (int k = 0; k < dbfi.Size(); k++)
             {
-               dbfi[0]->AssembleElementMatrix(fe, *eltrans, elmat);
-            }
-            for (int k = 1; k < dbfi.Size(); k++)
-            {
-               if ( (dbfi_elem_attr_marker[k] != NULL &&
-                     ((*(dbfi_elem_attr_marker[k]))[elem_attr-1] == 1)) ||
-                    dbfi_elem_attr_marker[k] == NULL)
+               if ( dbfi_marker[k] == NULL ||
+                    (*(dbfi_marker[k]))[elem_attr-1] == 1)
                {
+                  const FiniteElement &fe = *fes->GetFE(i);
+                  eltrans = fes->GetElementTransformation(i);
                   dbfi[k]->AssembleElementMatrix(fe, *eltrans, elemmat);
                   if (elmat.Size() == 0)
                   {
