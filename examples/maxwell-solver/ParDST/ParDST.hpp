@@ -34,6 +34,7 @@ private:
    int nrsubdomains = 0;
    int nx,ny,nz;
    Array<int> nxyz;
+   
    Sweep * sweeps = nullptr;
    DofMaps * dmaps = nullptr;
    Array< SesquilinearForm * > sqf;
@@ -53,6 +54,8 @@ private:
    void SetMaxwellPmlSystemMatrix(int ip);
    void GetChiRes(Vector & res, int ip, Array2D<int> direct) const;
    void PlotLocal(Vector & sol, socketstream & sol_sock, int ip) const;
+   void PlotGlobal(Vector & sol, socketstream & sol_sock) const;
+   double GetSweepNumSteps(const int sweep) const;
    void GetStepSubdomains(const int sweep, const int step, Array2D<int> & subdomains) const;
    void TransferSources(int sweep, const Array<int> & subdomain_ids) const;
    int GetSweepToTransfer(const int s, Array<int> directions) const;

@@ -165,7 +165,7 @@ int main(int argc, char *argv[])
    //            << *pmesh << "window_title 'Global mesh'" << flush;
 
    double hl = GetUniformMeshElementSize(pmesh);
-   int nrlayers = 5;
+   int nrlayers = 3;
    Array2D<double> lengths(dim,2);
    lengths = hl*nrlayers;
    // lengths[0][1] = 0.0;
@@ -458,15 +458,16 @@ void source_re(const Vector &x, Vector &f)
    }
    else
    {
-      int nrsources = (dim == 2) ? 4 : 8;
-      // int nrsources = 1;
+      // int nrsources = (dim == 2) ? 4 : 8;
+      int nrsources = 1;
       Vector x0(nrsources);
       Vector y0(nrsources);
       Vector z0(nrsources);
-      x0(0) = 0.25; y0(0) = 0.25; z0(0) = 0.25;
-      x0(1) = 0.75; y0(1) = 0.25; z0(1) = 0.25;
-      x0(2) = 0.25; y0(2) = 0.75; z0(2) = 0.25;
-      x0(3) = 0.75; y0(3) = 0.75; z0(3) = 0.25;
+      // x0(0) = 0.25; y0(0) = 0.25; z0(0) = 0.25;
+      x0(0) = 0.5; y0(0) = 0.5; z0(0) = 0.25;
+      // x0(1) = 0.75; y0(1) = 0.25; z0(1) = 0.25;
+      // x0(2) = 0.25; y0(2) = 0.75; z0(2) = 0.25;
+      // x0(3) = 0.75; y0(3) = 0.75; z0(3) = 0.25;
       if (dim == 3)
       {
          x0(4) = 0.25; y0(4) = 0.25; z0(4) = 0.75;
