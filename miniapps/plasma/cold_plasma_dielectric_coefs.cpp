@@ -204,7 +204,7 @@ complex<double> fdcmplxANY(double omega, double vpp)
 {
   complex<double> val(0,1);
   double delta = pow(vrectfun(vpp),(3.0/4.0));
-  complex<double> zinvd = (-1*val*omega)/delta;
+  complex<double> zinvd = -val*omega/delta;
   return zinvd;
 }
 
