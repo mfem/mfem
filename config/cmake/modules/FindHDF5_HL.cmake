@@ -9,11 +9,9 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-# Save and restore the module path so we can use the CMake-provided FindHDF5.cmake
-set(_module_path ${CMAKE_MODULE_PATH})
-set(CMAKE_MODULE_PATH)
+set(HDF5_ROOT ${HDF5_DIR} CACHE PATH "")
+# In case HDF5 was already found (but without HL)
+set(HDF5_FOUND OFF)
 enable_language(C) # FindHDF5.cmake uses the C compiler
+# This sets HDF5_HL_LIBRARIES
 find_package(HDF5 COMPONENTS HL C) # netcdf requires HL - this matches defaults.mk
-# hdf5_hl depends on base hdf5 library
-list(INSERT HDF5_LIBRARIES 0 ${HDF5_HL_LIBRARIES})
-set(CMAKE_MODULE_PATH ${_module_path})

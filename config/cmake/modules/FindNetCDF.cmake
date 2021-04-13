@@ -15,5 +15,8 @@
 #   - NETCDF_INCLUDE_DIRS
 
 include(MfemCmakeUtilities)
+# If HDF5 was already found (without HL), this won't re-fetch it
+# so we look for HL separately
+set(NetCDF_REQUIRED_PACKAGES HDF5/C/HL HDF5_HL)
 mfem_find_package(NetCDF NETCDF NETCDF_DIR "include" netcdf.h "lib" netcdf
   "Paths to headers required by NetCDF." "Libraries required by NetCDF.")
