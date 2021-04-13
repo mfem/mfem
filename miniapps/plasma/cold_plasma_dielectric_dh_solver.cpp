@@ -773,8 +773,8 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
       Vector j(3); j = 0.0;
       jiCoef_ = new VectorConstantCoefficient(j);
    }
-   rhsrCoef_ = new ScalarVectorProductCoefficient(omega_, *jiCoef_);
-   rhsiCoef_ = new ScalarVectorProductCoefficient(-omega_, *jrCoef_);
+   //rhsrCoef_ = new ScalarVectorProductCoefficient(omega_, *jiCoef_);
+   //rhsiCoef_ = new ScalarVectorProductCoefficient(-omega_, *jrCoef_);
 
    if (nbcs_->Size() > 0)
    {
@@ -1079,8 +1079,8 @@ CPDSolverDH::~CPDSolverDH()
    delete negsinkx_;
    delete coskx_;
    delete sinkx_;
-   delete rhsrCoef_;
-   delete rhsiCoef_;
+   // delete rhsrCoef_;
+   // delete rhsiCoef_;
    delete jrCoef_;
    delete jiCoef_;
    // delete erCoef_;

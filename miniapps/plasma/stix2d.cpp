@@ -1075,6 +1075,7 @@ int main(int argc, char *argv[])
          dbcs[c].attr = peca;
          dbcs[c].real = &zeroCoef;
          dbcs[c].imag = &zeroCoef;
+         mfem::out << "PEC Surfaces: "; dbcs[c].attr.Print(mfem::out);
          c++;
       }
       if (dbca1.Size() > 0)
@@ -1082,6 +1083,7 @@ int main(int argc, char *argv[])
          dbcs[c].attr = dbca1;
          dbcs[c].real = &dbc1ReCoef;
          dbcs[c].imag = &dbc1ImCoef;
+         mfem::out << "Dirichlet(1) Surfaces: "; dbcs[c].attr.Print(mfem::out);
          c++;
       }
       if (dbca2.Size() > 0)
@@ -1089,6 +1091,7 @@ int main(int argc, char *argv[])
          dbcs[c].attr = dbca2;
          dbcs[c].real = &dbc2ReCoef;
          dbcs[c].imag = &dbc2ImCoef;
+         mfem::out << "Dirichlet(2) Surfaces: "; dbcs[c].attr.Print(mfem::out);
          c++;
       }
    }

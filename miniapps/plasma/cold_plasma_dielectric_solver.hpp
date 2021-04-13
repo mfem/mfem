@@ -293,11 +293,10 @@ private:
          {
             for (int j=0; j<3; j++)
             {
-               M(i,j) = kl(j) * kr(i);
+               M(i,j) += a * m * kl(j) * kr(i);
             }
-            M(i,i) -= kk;
+            M(i,i) -= a * m * kk;
          }
-         M *= a * m;
       }
 
    public:
@@ -380,6 +379,12 @@ private:
       }
    };
 
+   void computeB(const ParComplexGridFunction & e,
+                 ParComplexGridFunction & b);
+
+   void computeD(const ParComplexGridFunction & e,
+                 ParComplexGridFunction & d);
+
    int myid_;
    int num_procs_;
    int order_;
@@ -419,8 +424,13 @@ private:
    ParMixedBilinearForm * m12EpsRe_;
    ParMixedBilinearForm * m12EpsIm_;
 
+   ParDiscreteCurlOperator * curl_; // For Computing D from H
+   ParDiscreteLinearOperator * kReCross_;
+   ParDiscreteLinearOperator * kImCross_;
+
    ParComplexGridFunction * e_;   // Complex electric field (HCurl)
    ParComplexGridFunction * d_;   // Complex electric flux (HDiv)
+   ParComplexGridFunction * b_;   // Complex magnetic flux (HDiv)
    ParComplexGridFunction * j_;   // Complex current density (HCurl)
    ParComplexLinearForm   * rhs_; // Dual of complex current density (HCurl)
    ParGridFunction        * e_t_; // Time dependent Electric field
@@ -428,6 +438,7 @@ private:
    ParComplexGridFunction * e_v_; // Complex electric field (L2^d)
    ParComplexGridFunction * d_v_; // Complex electric flux (L2^d)
    ParComplexGridFunction * j_v_; // Complex current density (L2^d)
+   ParGridFunction        * b_hat_; // Unit vector along B (HDiv)
    ParGridFunction        * u_;   // Energy density (L2)
    ParGridFunction        * uE_;  // Electric Energy density (L2)
    ParGridFunction        * uB_;  // Magnetic Energy density (L2)

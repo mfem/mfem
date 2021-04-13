@@ -589,27 +589,27 @@ int main(int argc, char *argv[])
    }
    */
    if (phase_shift)
-     {
-       if (kVec.Size() >= 3)
-         {
-	   kReVec.SetDataAndSize(&kVec[0], 3);
-         }
-       else
-         {
-	   kReVec.SetSize(3);
-	   kReVec = 0.0;
-         }
-       if (kVec.Size() >= 6)
-         {
-	   kImVec.SetDataAndSize(&kVec[3], 3);
-         }
-       else
-         {
-	   kImVec.SetSize(3);
-	   kImVec = 0.0;
-         }
-     }
-   
+   {
+      if (kVec.Size() >= 3)
+      {
+         kReVec.SetDataAndSize(&kVec[0], 3);
+      }
+      else
+      {
+         kReVec.SetSize(3);
+         kReVec = 0.0;
+      }
+      if (kVec.Size() >= 6)
+      {
+         kImVec.SetDataAndSize(&kVec[3], 3);
+      }
+      else
+      {
+         kImVec.SetSize(3);
+         kImVec = 0.0;
+      }
+   }
+
    VectorConstantCoefficient BCoef(BVec);
 
    /*
