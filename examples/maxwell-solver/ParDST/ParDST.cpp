@@ -4,30 +4,33 @@
 
 ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
          double omega_, Coefficient * Q_,  
-         int nrlayers_ , int nx_, int ny_, int nz_, Coefficient * LossCoeff_)
+         int nrlayers_ , int nx_, int ny_, int nz_, 
+         BCType bc_type_, Coefficient * LossCoeff_)
    : Solver(2*bf_->ParFESpace()->GetTrueVSize(), 2*bf_->ParFESpace()->GetTrueVSize()), 
      bf(bf_), Pmllength(Pmllength_), omega(omega_), 
-     Q(Q_), nrlayers(nrlayers_), LossCoeff(LossCoeff_)
+     Q(Q_), nrlayers(nrlayers_), bc_type(bc_type_), LossCoeff(LossCoeff_)
 {
    nx = nx_; ny = ny_; nz = nz_;
    Init();
 }
 ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
          double omega_, VectorCoefficient * VQ_,  
-         int nrlayers_ , int nx_, int ny_, int nz_, Coefficient * LossCoeff_)
+         int nrlayers_ , int nx_, int ny_, int nz_, 
+         BCType bc_type_, Coefficient * LossCoeff_)
    : Solver(2*bf_->ParFESpace()->GetTrueVSize(), 2*bf_->ParFESpace()->GetTrueVSize()), 
      bf(bf_), Pmllength(Pmllength_), omega(omega_), 
-     VQ(VQ_), nrlayers(nrlayers_), LossCoeff(LossCoeff_)
+     VQ(VQ_), nrlayers(nrlayers_), bc_type(bc_type_), LossCoeff(LossCoeff_)
 {
    nx = nx_; ny = ny_; nz = nz_;
    Init();
 }
 ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
          double omega_, MatrixCoefficient * MQ_,  
-         int nrlayers_ , int nx_, int ny_, int nz_, Coefficient * LossCoeff_)
+         int nrlayers_ , int nx_, int ny_, int nz_, 
+         BCType bc_type_, Coefficient * LossCoeff_)
    : Solver(2*bf_->ParFESpace()->GetTrueVSize(), 2*bf_->ParFESpace()->GetTrueVSize()), 
      bf(bf_), Pmllength(Pmllength_), omega(omega_), 
-     MQ(MQ_), nrlayers(nrlayers_), LossCoeff(LossCoeff_)
+     MQ(MQ_), nrlayers(nrlayers_), bc_type(bc_type_), LossCoeff(LossCoeff_)
 {
    nx = nx_; ny = ny_; nz = nz_;
    Init();
@@ -344,7 +347,7 @@ void ParDST::SetHelmholtzPmlSystemMatrix(int ip)
    if (mesh->bdr_attributes.Size())
    {
       Array<int> ess_bdr(mesh->bdr_attributes.Max());
-      ess_bdr = 1;
+      ess_bdr = (bc_type == BCType::DIRICHLET) ? 1 : 0;
       dmaps->fes[ip]->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
@@ -405,10 +408,9 @@ void ParDST::SetMaxwellPmlSystemMatrix(int ip)
    if (mesh->bdr_attributes.Size())
    {
       Array<int> ess_bdr(mesh->bdr_attributes.Max());
-      ess_bdr = 1;
+      ess_bdr = (bc_type == BCType::DIRICHLET) ? 1 : 0;
       dmaps->fes[ip]->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
-
 
    Array<int> attr;
    Array<int> attrPML;

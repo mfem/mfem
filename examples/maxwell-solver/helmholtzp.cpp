@@ -51,6 +51,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../../data/one-hex.mesh";
    // finite element order of approximation
    int order = 1;
+   int bc_type = 1;
    bool visualization = 1;
    // number of wavelengths
    double k = 0.5;
@@ -78,6 +79,8 @@ int main(int argc, char *argv[])
    args.AddOption(&nz, "-nz", "--nz","Number of subdomains in z direction");
    args.AddOption(&sol, "-sol", "--exact",
                   "Exact solution flag - 0:polynomial, 1: plane wave, -1: unknown exact");
+   args.AddOption(&bc_type, "-bct", "--bc-type",
+                  "BC type - 0:Neumann, 1: Dirichlet");                  
    args.AddOption(&k, "-k", "--wavelengths",
                   "Number of wavelengths.");
    args.AddOption(&pml_length, "-pml_length", "--pml_length",
@@ -255,7 +258,7 @@ int main(int argc, char *argv[])
 
    Array<int> ess_tdof_list;
    Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-   ess_bdr = 1;
+   ess_bdr = bc_type;
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    // Solution grid function
@@ -265,67 +268,63 @@ int main(int argc, char *argv[])
 
    a.FormLinearSystem(ess_tdof_list, p_gf, b, Ah, X, B);
 
-   // lor preconditioner
-   ParMesh *pmesh_lor = NULL;
-   FiniteElementCollection *fec_lor = NULL;
-   ParFiniteElementSpace *fespace_lor = NULL;
-   int basis_lor = basis;
-   cout << order << endl;
-   pmesh_lor = new ParMesh(pmesh, order, basis_lor);
+   // // lor preconditioner
+   // ParMesh *pmesh_lor = NULL;
+   // FiniteElementCollection *fec_lor = NULL;
+   // ParFiniteElementSpace *fespace_lor = NULL;
+   // int basis_lor = basis;
+   // cout << order << endl;
+   // pmesh_lor = new ParMesh(pmesh, order, basis_lor);
    
-   CartesianPML pml_lor(pmesh_lor,lengths);
-   pml_lor.SetOmega(omega);
+   // CartesianPML pml_lor(pmesh_lor,lengths);
+   // pml_lor.SetOmega(omega);
    
    
-   fec_lor = new H1_FECollection(1, dim);
-   fespace_lor = new ParFiniteElementSpace(pmesh_lor, fec_lor);
-   ParSesquilinearForm a_lor(fespace_lor,conv);
+   // fec_lor = new H1_FECollection(1, dim);
+   // fespace_lor = new ParFiniteElementSpace(pmesh_lor, fec_lor);
+   // ParSesquilinearForm a_lor(fespace_lor,conv);
 
-   PmlMatrixCoefficient c1_re_lor(dim,pml_detJ_JT_J_inv_Re,&pml_lor);
-   PmlMatrixCoefficient c1_im_lor(dim,pml_detJ_JT_J_inv_Im,&pml_lor);
+   // PmlMatrixCoefficient c1_re_lor(dim,pml_detJ_JT_J_inv_Re,&pml_lor);
+   // PmlMatrixCoefficient c1_im_lor(dim,pml_detJ_JT_J_inv_Im,&pml_lor);
 
-   PmlCoefficient detJ_re_lor(pml_detJ_Re,&pml_lor);
-   PmlCoefficient detJ_im_lor(pml_detJ_Im,&pml_lor);
+   // PmlCoefficient detJ_re_lor(pml_detJ_Re,&pml_lor);
+   // PmlCoefficient detJ_im_lor(pml_detJ_Im,&pml_lor);
 
-   ProductCoefficient c2_re0_lor(sigma, detJ_re_lor);
-   ProductCoefficient c2_im0_lor(sigma, detJ_im_lor);
+   // ProductCoefficient c2_re0_lor(sigma, detJ_re_lor);
+   // ProductCoefficient c2_im0_lor(sigma, detJ_im_lor);
 
-   ProductCoefficient c2_re_lor(c2_re0_lor, ws);
-   ProductCoefficient c2_im_lor(c2_im0_lor, ws);
+   // ProductCoefficient c2_re_lor(c2_re0_lor, ws);
+   // ProductCoefficient c2_im_lor(c2_im0_lor, ws);
 
 
-   a_lor.AddDomainIntegrator(new DiffusionIntegrator(c1_re_lor),
-                             new DiffusionIntegrator(c1_im_lor));
-   a_lor.AddDomainIntegrator(new MassIntegrator(c2_re_lor),
-                             new MassIntegrator(c2_im_lor));
-   a_lor.Assemble();
-   a_lor.Finalize();
+   // a_lor.AddDomainIntegrator(new DiffusionIntegrator(c1_re_lor),
+                           //   new DiffusionIntegrator(c1_im_lor));
+   // a_lor.AddDomainIntegrator(new MassIntegrator(c2_re_lor),
+                           //   new MassIntegrator(c2_im_lor));
+   // a_lor.Assemble();
+   // a_lor.Finalize();
 
    // Solution grid function
-   OperatorHandle Ah_lor;
-   a_lor.FormSystemMatrix(ess_tdof_list, Ah_lor);
+   // OperatorHandle Ah_lor;
+   // a_lor.FormSystemMatrix(ess_tdof_list, Ah_lor);
 
-   ComplexMUMPSSolver prec;
+   // ComplexMUMPSSolver prec;
 
-   StopWatch chrono;
-   chrono.Clear();
-   chrono.Start();
+   // StopWatch chrono;
+   // chrono.Clear();
+   // chrono.Start();
    // prec.SetOperator(*Ah.As<ComplexHypreParMatrix>());
-   prec.SetOperator(*Ah_lor.As<ComplexHypreParMatrix>());
-   chrono.Stop();
-   cout << " myid: " << myid 
-        << ", lor time: " << chrono.RealTime() << endl;
-
-
-
-
-
+   // prec.SetOperator(*Ah_lor.As<ComplexHypreParMatrix>());
+   // chrono.Stop();
+   // cout << " myid: " << myid 
+      //   << ", lor time: " << chrono.RealTime() << endl;
 
    {
       StopWatch chrono;
       chrono.Clear();
       chrono.Start();
-      ParDST S(&a,lengths,omega, &ws,nrlayers,nx,ny,nz);
+      ParDST::BCType bct = (bc_type == 1)? ParDST::BCType::DIRICHLET : ParDST::BCType::NEUMANN;
+      ParDST S(&a,lengths,omega, &ws,nrlayers,nx,ny,nz, bct);
       // ParDST Slor(&a_lor,lengths,omega, &ws,nrlayers,nx,ny,nz);
       chrono.Stop();
       double t1 = chrono.RealTime();
@@ -336,8 +335,8 @@ int main(int argc, char *argv[])
       GMRESSolver gmres(MPI_COMM_WORLD);
       // gmres.SetPreconditioner(Slor);
       gmres.SetOperator(*Ah);
-      // gmres.SetPreconditioner(S);
-      gmres.SetPreconditioner(prec);
+      gmres.SetPreconditioner(S);
+      // gmres.SetPreconditioner(prec);
       gmres.SetRelTol(1e-12);
       gmres.SetMaxIter(200);
       gmres.SetPrintLevel(1);
@@ -459,20 +458,21 @@ int main(int argc, char *argv[])
 double f_exact_Re(const Vector &x)
 {
    
-   int nrsources = (dim == 2) ? 4 : 8;
+   // int nrsources = (dim == 2) ? 4 : 8;
+   int nrsources = 1;
    Vector x0(nrsources);
    Vector y0(nrsources);
    Vector z0(nrsources);
    x0(0) = 0.25; y0(0) = 0.25; z0(0) = 0.25;
-   x0(1) = 0.75; y0(1) = 0.25; z0(1) = 0.25;
-   x0(2) = 0.25; y0(2) = 0.75; z0(2) = 0.25;
-   x0(3) = 0.75; y0(3) = 0.75; z0(3) = 0.25;
+   // x0(1) = 0.75; y0(1) = 0.25; z0(1) = 0.25;
+   // x0(2) = 0.25; y0(2) = 0.75; z0(2) = 0.25;
+   // x0(3) = 0.75; y0(3) = 0.75; z0(3) = 0.25;
    if (dim == 3)
    {
-      x0(4) = 0.25; y0(4) = 0.25; z0(4) = 0.75;
-      x0(5) = 0.75; y0(5) = 0.25; z0(5) = 0.75;
-      x0(6) = 0.25; y0(6) = 0.75; z0(6) = 0.75;
-      x0(7) = 0.75; y0(7) = 0.75; z0(7) = 0.75;
+      // x0(4) = 0.25; y0(4) = 0.25; z0(4) = 0.75;
+      // x0(5) = 0.75; y0(5) = 0.25; z0(5) = 0.75;
+      // x0(6) = 0.25; y0(6) = 0.75; z0(6) = 0.75;
+      // x0(7) = 0.75; y0(7) = 0.75; z0(7) = 0.75;
    }
   
    double n = 4.0*omega/M_PI;

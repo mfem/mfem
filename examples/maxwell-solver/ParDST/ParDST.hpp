@@ -9,6 +9,26 @@ using namespace mfem;
 
 class ParDST : public Solver//
 {
+public:
+   enum BCType
+   {
+       NEUMANN,
+       DIRICHLET
+   };
+   ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
+       double omega_, Coefficient * Q_, int nrlayers_, 
+       int nx_=2, int ny_=2, int nz_=2, 
+       BCType bc_type_ = BCType::DIRICHLET, Coefficient * LossCoeff_ = nullptr);
+   ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
+       double omega_, VectorCoefficient * VQ_, int nrlayers_, 
+       int nx_=2, int ny_=2, int nz_=2,
+       BCType bc_type_ = BCType::DIRICHLET, Coefficient * LossCoeff_ = nullptr);
+   ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
+       double omega_, MatrixCoefficient * MQ_, int nrlayers_, int nx_=2, int ny_=2, int nz_=2, 
+       BCType bc_type_ = BCType::DIRICHLET, Coefficient * LossCoeff_ = nullptr);
+   virtual void SetOperator(const Operator &op) {}
+   virtual void Mult(const Vector &r, Vector &z) const;
+   virtual ~ParDST();
 private:
    MPI_Comm comm = MPI_COMM_WORLD;
    int num_procs, myid;
@@ -29,12 +49,12 @@ private:
    MatrixCoefficient * MQ=nullptr;
    int nrlayers;
    Coefficient * LossCoeff=nullptr;
-
+   
    int ovlpnrlayers;
    int nrsubdomains = 0;
    int nx,ny,nz;
    Array<int> nxyz;
-   
+   BCType bc_type = BCType::DIRICHLET;
    Sweep * sweeps = nullptr;
    DofMaps * dmaps = nullptr;
    Array< SesquilinearForm * > sqf;
@@ -61,19 +81,7 @@ private:
    int GetSweepToTransfer(const int s, Array<int> directions) const;
    void CorrectOrientation(int ip, Vector & x) const;
    void Init();
-public:
-   ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
-       double omega_, Coefficient * Q_, int nrlayers_, 
-       int nx_=2, int ny_=2, int nz_=2, Coefficient * LossCoeff_ = nullptr);
-   ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
-       double omega_, VectorCoefficient * VQ_, int nrlayers_, 
-       int nx_=2, int ny_=2, int nz_=2, Coefficient * LossCoeff_ = nullptr);
-   ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
-       double omega_, MatrixCoefficient * MQ_, int nrlayers_, int nx_=2, int ny_=2, int nz_=2, 
-       Coefficient * LossCoeff_ = nullptr);              
-   virtual void SetOperator(const Operator &op) {}
-   virtual void Mult(const Vector &r, Vector &z) const;
-   virtual ~ParDST();
+
 };
 
 
