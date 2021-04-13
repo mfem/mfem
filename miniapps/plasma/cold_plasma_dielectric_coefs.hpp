@@ -65,6 +65,9 @@ inline double nu_ei(double charge, double coul_log, double mass,
            * pow(Te, 1.5));
 }
 
+// Collisional frequency profile from Kohno et al 2017:
+inline double nu_art(double x){return (3e11*exp(x/0.1));}
+
 std::complex<double> R_cold_plasma(double omega, double Bmag,
                                    const Vector & number,
                                    const Vector & charge,
