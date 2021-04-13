@@ -48,11 +48,11 @@ void LinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi)
    {
       dlfi_delta.Append(maybe_delta);
    }
-   dlfi_elem_attr_marker.Append(NULL);
+   dlfi_marker.Append(NULL);
 }
 
 void LinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi,
-                                     Array<int> &elem_attr_marker)
+                                     Array<int> &elem_marker)
 {
    DeltaLFIntegrator *maybe_delta =
       dynamic_cast<DeltaLFIntegrator *>(lfi);
@@ -64,7 +64,7 @@ void LinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi,
    {
       dlfi_delta.Append(maybe_delta);
    }
-   dlfi_elem_attr_marker.Append(&elem_attr_marker);
+   dlfi_marker.Append(&elem_marker);
 }
 
 void LinearForm::AddBoundaryIntegrator (LinearFormIntegrator * lfi)
@@ -116,10 +116,10 @@ void LinearForm::Assemble()
    {
       for (int k = 0; k < dlfi.Size(); k++)
       {
-         if (dlfi_elem_attr_marker[k] != NULL)
+         if (dlfi_marker[k] != NULL)
          {
             MFEM_VERIFY(fes->GetMesh()->attributes.Size() ==
-                        dlfi_elem_attr_marker[k]->Size(),
+                        dlfi_marker[k]->Size(),
                         "invalid element marker for domain linear form "
                         "integrator #" << k << ", counting from zero");
          }
@@ -128,14 +128,13 @@ void LinearForm::Assemble()
       for (i = 0; i < fes -> GetNE(); i++)
       {
          int elem_attr = fes->GetMesh()->GetAttribute(i);
-         fes -> GetElementVDofs (i, vdofs);
-         eltrans = fes -> GetElementTransformation (i);
-         for (int k=0; k < dlfi.Size(); k++)
+         for (int k = 0; k < dlfi.Size(); k++)
          {
-            if ( (dlfi_elem_attr_marker[k] == NULL) ||
-                 ((dlfi_elem_attr_marker[k] != NULL &&
-                   ((*(dlfi_elem_attr_marker[k]))[elem_attr-1] == 1))) )
+            if ( dlfi_marker[k] == NULL ||
+                 (*(dlfi_marker[k]))[elem_attr-1] == 1 )
             {
+               fes -> GetElementVDofs (i, vdofs);
+               eltrans = fes -> GetElementTransformation (i);
                dlfi[k]->AssembleRHSElementVect(*fes->GetFE(i), *eltrans, elemvect);
                AddElementVector (vdofs, elemvect);
             }

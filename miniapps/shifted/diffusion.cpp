@@ -315,10 +315,7 @@ int main(int argc, char *argv[])
    a.Assemble();
 
    // Project the exact solution as an initial condition for dirichlet boundaries.
-   x = 0.;
-   Array<int> ess_bdr = ess_shift_bdr;
-   for (int i = 0; i < ess_bdr.Size(); i++) { ess_bdr[i] = 1 - ess_bdr[i]; }
-   x.ProjectBdrCoefficient(*dbcCoef, ess_bdr);
+   x.ProjectCoefficient(*dbcCoef);
 
    // Form the linear system and solve it.
    OperatorPtr A;
