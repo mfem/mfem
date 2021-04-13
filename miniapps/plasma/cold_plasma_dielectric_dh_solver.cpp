@@ -1615,6 +1615,7 @@ CPDSolverDH::Solve()
       GridFunctionCoefficient prevPhiImCoef(&prev_phi_->imag());
       while (H_iter < 15)
       {
+         if ( phi_diff < 1e-3) {break;}
          nzD12_->Update();
          nzD12_->Assemble();
          nzD12_->Finalize();
