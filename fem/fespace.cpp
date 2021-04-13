@@ -3449,7 +3449,7 @@ void L2ProjBdrH1GridTransfer::L2ProjBdrH1::Mult(
       }
       fes_lor.DofsToVDofs(d, dofs_lor);
       x.GetSubVector(dofs_lor, x_dim);
-      Rt->Mult(x_dim, y_dim);
+      Rt->MultTranspose(x_dim, y_dim);
       y.SetSubVector(dofs_ho, y_dim);
    }
 }
