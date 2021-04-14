@@ -83,11 +83,11 @@ static void Det3D(const int NE,
                   const int q1d = 0)
 {
    constexpr int DIM = 3;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-   constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
-   constexpr int MSZ = MDQ * MDQ * MDQ * 9;
-   constexpr int GRID = SMEM ? 0 : 128;
+   static constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+   static constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   static constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
+   static constexpr int MSZ = MDQ * MDQ * MDQ * 9;
+   static constexpr int GRID = SMEM ? 0 : 128;
 
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
