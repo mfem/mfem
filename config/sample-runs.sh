@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -444,6 +444,8 @@ function go_group()
       mkdir -p "${group_output_dir}" || exit 1
    fi
    for src in "$@"; do
+      ex_run_suffix=${run_suffix} && [[ $src =~ ex0p?\.cpp ]] \
+         && ex_run_suffix=""
       cd "${mfem_dir}/${group_dir}" || exit 1
       extract_sample_runs "${src}" || continue
       [ "${#runs[@]}" -eq 0 ] && continue
@@ -463,7 +465,7 @@ function go_group()
       fi
       for run in "${runs[@]}"; do
          if [ "${run}" == "" ]; then continue; fi
-         eval go \"\${run_prefix} \${run} \${run_suffix}\" $output
+         eval go \"\${run_prefix} \${run} \${ex_run_suffix}\" $output
       done
    done
    ${make} clean-exec

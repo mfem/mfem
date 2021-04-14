@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -18,10 +18,12 @@
 // low-order refined (LOR) finite element space, typically defined by 0th or 1st
 // order functions on a low-order refinement of the HO mesh.
 //
-// Two main operators are illustrated:
+// The grid transfer operators are represented using either
+// InterpolationGridTransfer or L2ProjectionGridTransfer (depending on the
+// options requested by the user). The two transfer operators are then:
 //
-//  1. R: HO -> LOR, defined by FiniteElementSpace::GetTransferOperator
-//  2. P: LOR -> HO, defined by FiniteElementSpace::GetReverseTransferOperator
+//  1. R: HO -> LOR, defined by GridTransfer::ForwardOperator
+//  2. P: LOR -> HO, defined by GridTransfer::BackwardOperator
 //
 // While defined generally, these operators have some nice properties for
 // particular finite element spaces. For example they satisfy PR=I, plus mass
@@ -33,6 +35,7 @@
 //               lor-transfer -h1
 //               lor-transfer -t
 //               lor-transfer -m ../../data/star-q2.mesh -lref 5 -p 4
+//               lor-transfer -m ../../data/star-mixed.mesh -lref 3 -p 2
 //               lor-transfer -lref 4 -o 4 -lo 0 -p 1
 //               lor-transfer -lref 5 -o 4 -lo 0 -p 1
 //               lor-transfer -lref 5 -o 4 -lo 3 -p 2
@@ -106,7 +109,7 @@ int main(int argc, char *argv[])
 
    // Create the low-order refined mesh
    int basis_lor = BasisType::GaussLobatto; // BasisType::ClosedUniform;
-   Mesh mesh_lor(&mesh, lref, basis_lor);
+   Mesh mesh_lor = Mesh::MakeRefined(mesh, lref, basis_lor);
 
    // Create spaces
    FiniteElementCollection *fec, *fec_lor;

@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+# This script is meant to be launched from the root directory of MFEM in order
+# to fetch a copy of uberenv configured for MFEM.
+
+set -o errexit
+set -o nounset
+
+uberenv_url="https://github.com/mfem/mfem-uberenv.git"
+uberenv_ref="af5f7f9ef3fbdc70d441a605e2b2f84be245682e"
+
+[[ ! -d tests/uberenv ]] && git clone ${uberenv_url} tests/uberenv
+cd tests/uberenv
+git fetch origin ${uberenv_ref}
+git checkout ${uberenv_ref}
+cd -
