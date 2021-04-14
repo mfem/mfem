@@ -336,6 +336,9 @@ New and updated examples and miniapps
     L2, with partial assembly support in Example 24/24p.
   * Weak Dirichlet boundary conditions (Nitsche) to the NURBS miniapp.
 
+- Added a high-order extension of the shifted boundary method to solve PDEs on 
+  non body-fitted meshes.
+
 Data management and Visualization
 ---------------------------------
 - Added support for ADIOS2 for parallel I/O with ParaView visualization. See
