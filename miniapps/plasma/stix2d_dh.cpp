@@ -491,7 +491,7 @@ int main(int argc, char *argv[])
                   "3D Vector Amplitude (Real x,y,z, Imag x,y,z), "
                   "2D Position, 2D Size");
    args.AddOption(&slab_profile_, "-slab-prof", "--slab_profile",
-                   "0 (Constant) or 1 (Sin Function)");
+                  "0 (Constant) or 1 (Sin Function)");
    args.AddOption(&abcs, "-abcs", "--absorbing-bc-surf",
                   "Absorbing Boundary Condition Surfaces");
    args.AddOption(&sbca, "-sbcs", "--sheath-bc-surf",
