@@ -117,26 +117,27 @@ complex<double> D_cold_plasma(double omega,
                               const Vector & mass,
                               const Vector & temp)
 {
-    complex<double> val(1.0, 0.0);
-     double n = number[0];
-     double q = charge[0];
-     double m = mass[0];
-     double Te = temp[0] * q_;
-     double coul_log = CoulombLog(n, Te);
-     double nuei = nu_ei(q, coul_log, m, Te, n); // nu_art(Te);
-     complex<double> collision_correction(1.0, nuei/omega);
+   complex<double> val(0.0, 0.0);
+   double n = number[0];
+   double q = charge[0];
+   double m = mass[0];
+   double Te = temp[0] * q_;
+   double coul_log = CoulombLog(n, Te);
+   double nuei = nu_ei(q, coul_log, m, Te, n); // nu_art(Te);
+   complex<double> collision_correction(1.0, nuei/omega);
 
-    for (int i=0; i<number.Size(); i++)
-    {
-       double n = number[i];
-       double q = charge[i];
-       double m = mass[i];
-        complex<double> m_eff = m;
-        if ( i == 0) {m_eff = m*collision_correction;}
-       complex<double> w_p = omega_p(n, q, m_eff);
-       val -= w_p * w_p / (omega * omega);
-    }
-    return val;
+   for (int i=0; i<number.Size(); i++)
+   {
+      double n = number[i];
+      double q = charge[i];
+      double m = mass[i];
+      complex<double> m_eff = m;
+      if (i == 0) { m_eff = m*collision_correction; }
+      complex<double> w_c = omega_c(Bmag, q, m_eff);
+      complex<double> w_p = omega_p(n, q, m_eff);
+      val += w_p * w_p * w_c / (omega * (omega * omega - w_c * w_c));
+   }
+   return val;
 }
 
 complex<double> P_cold_plasma(double omega,
@@ -146,25 +147,21 @@ complex<double> P_cold_plasma(double omega,
                               const Vector & temp)
 {
    complex<double> val(1.0, 0.0);
-   complex<double> mass_correction(1.0, 0.0);
-   for (int i=1; i<number.Size(); i++)
-   {
-      double n = number[i];
-      double q = charge[i];
-      double m = mass[i];
-      double Te = temp[i] * q_;
-      double coul_log = CoulombLog(n, Te);
-      double nuei = nu_ei(q, coul_log, m, Te, n);
-      complex<double> collision_correction(0, nuei/omega);
-      mass_correction += collision_correction;
-   }
+   double n = number[0];
+   double q = charge[0];
+   double m = mass[0];
+   double Te = temp[0] * q_;
+   double coul_log = CoulombLog(n, Te);
+   double nuei = nu_ei(q, coul_log, m, Te, n);
+   complex<double> collision_correction(1.0, nuei/omega);
 
    for (int i=0; i<number.Size(); i++)
    {
       double n = number[i];
       double q = charge[i];
       double m = mass[i];
-      complex<double> m_eff = m*mass_correction;
+      complex<double> m_eff = m;
+      if (i == 0) { m_eff = m*collision_correction; }
       complex<double> w_p = omega_p(n, q, m_eff);
       val -= w_p * w_p / (omega * omega);
    }
