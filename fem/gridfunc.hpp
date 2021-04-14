@@ -671,6 +671,10 @@ public:
    /// Save the GridFunction to an output stream.
    virtual void Save(std::ostream &out) const;
 
+   /// Save the GridFunction to a file. The given @a precision will be used for
+   /// ASCII output.
+   virtual void Save(const char *fname, int precision=16) const;
+
 #ifdef MFEM_USE_ADIOS2
    /// Save the GridFunction to a binary output stream using adios2 bp format.
    virtual void Save(adios2stream &out, const std::string& variable_name,

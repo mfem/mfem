@@ -247,7 +247,7 @@ protected:
    void ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
                     bool &finalize_topo);
    void ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
-                        bool &finalize_topo);
+                        bool &finalize_topo, const std::string &xml_prefix="");
    void ReadNURBSMesh(std::istream &input, int &curved, int &read_gf);
    void ReadInlineMesh(std::istream &input, bool generate_edges = false);
    void ReadGmshMesh(std::istream &input, int &curved, int &read_gf);
@@ -352,10 +352,6 @@ protected:
    /// Derefinement helper.
    double AggregateError(const Array<double> &elem_error,
                          const int *fine, int nfine, int op);
-
-   /// Implementation of the refinement constructors (LOR).
-   void CreateRefinedMesh(Mesh *orig_mesh, const Array<int> &ref_factors,
-                          int ref_type);
 
    /// Read NURBS patch/macro-element mesh
    void LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot);
@@ -471,21 +467,24 @@ protected:
    /// Creates a 1D mesh for the interval [0,sx] divided into n equal intervals.
    void Make1D(int n, double sx = 1.0);
 
+   /// Internal function used in Mesh::MakeRefined
+   void MakeRefined_(Mesh &orig_mesh, const Array<int> ref_factors,
+                     int ref_type);
+
    /// Initialize vertices/elements/boundary/tables from a nonconforming mesh.
    void InitFromNCMesh(const NCMesh &ncmesh);
 
    /// Create from a nonconforming mesh.
    explicit Mesh(const NCMesh &ncmesh);
 
-   /// Swaps internal data with another mesh. By default, non-geometry members
-   /// like 'ncmesh' and 'NURBSExt' are only swapped when 'non_geometry' is set.
-   void Swap(Mesh& other, bool non_geometry);
-
    // used in GetElementData() and GetBdrElementData()
    void GetElementData(const Array<Element*> &elem_array, int geom,
                        Array<int> &elem_vtx, Array<int> &attr) const;
 
    double GetElementSize(ElementTransformation *T, int type = 0);
+
+   // Internal helper used in MakeSimplicial (and ParMesh::MakeSimplicial).
+   void MakeSimplicial_(const Mesh &orig_mesh, int *vglobal);
 
 public:
 
@@ -496,6 +495,91 @@ public:
        new mesh. If 'copy_nodes' is false, use a shallow (pointer) copy for the
        nodes, if present. */
    explicit Mesh(const Mesh &mesh, bool copy_nodes = true);
+
+   /// Move constructor, useful for using a Mesh as a function return value.
+   Mesh(Mesh &&mesh);
+
+   /// Move assignment operstor.
+   Mesh& operator=(Mesh &&mesh);
+
+   /// Explicitly delete the copy assignment operator.
+   Mesh& operator=(Mesh &mesh) = delete;
+
+   /** @name Named mesh constructors.
+
+       Each of these constructors uses the move constructor, and can be used as
+       the right-hand side of an assignment when creating new meshes. */
+   ///@{
+
+   /** Creates mesh by reading a file in MFEM, Netgen, or VTK format. If
+       generate_edges = 0 (default) edges are not generated, if 1 edges are
+       generated. */
+   static Mesh LoadFromFile(const char *filename,
+                            int generate_edges = 0, int refine = 1,
+                            bool fix_orientation = true);
+
+   /** Creates 1D mesh , divided into n equal intervals. */
+   static Mesh MakeCartesian1D(int n, double sx = 1.0);
+
+   /** Creates mesh for the rectangle [0,sx]x[0,sy], divided into nx*ny
+       quadrilaterals if type = QUADRILATERAL or into 2*nx*ny triangles if
+       type = TRIANGLE. If generate_edges = 0 (default) edges are not generated,
+       if 1 edges are generated. If scf_ordering = true (default), elements are
+       ordered along a space-filling curve, instead of row by row. */
+   static Mesh MakeCartesian2D(
+      int nx, int ny, Element::Type type, bool generate_edges = false,
+      double sx = 1.0, double sy = 1.0, bool sfc_ordering = true);
+
+   /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
+       nx*ny*nz hexahedra if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons if
+       type=TETRAHEDRON. If sfc_ordering = true (default), elements are ordered
+       along a space-filling curve, instead of row by row and layer by layer. */
+   static Mesh MakeCartesian3D(
+      int nx, int ny, int nz, Element::Type type,
+      double sx = 1.0, double sy = 1.0, double sz = 1.0,
+      bool sfc_ordering = true);
+
+   /// Create a refined (by any factor) version of @a orig_mesh.
+   /** @param[in] orig_mesh  The starting coarse mesh.
+       @param[in] ref_factor The refinement factor, an integer > 1.
+       @param[in] ref_type   Specify the positions of the new vertices. The
+                             options are BasisType::ClosedUniform or
+                             BasisType::GaussLobatto.
+
+       The refinement data which can be accessed with GetRefinementTransforms()
+       is set to reflect the performed refinements.
+
+       @note The constructed Mesh is straight-sided. */
+   static Mesh MakeRefined(Mesh &orig_mesh, int ref_factor, int ref_type);
+
+   /// Create a refined mesh, where each element of the original mesh may be
+   /// refined by a different factor.
+   /** @param[in] orig_mesh   The starting coarse mesh.
+       @param[in] ref_factors An array of integers whose size is the number of
+                              elements of @a orig_mesh. The @a ith element of
+                              @a orig_mesh is refined by refinement factor
+                              @a ref_factors[i].
+       @param[in] ref_type    Specify the positions of the new vertices. The
+                              options are BasisType::ClosedUniform or
+                              BasisType::GaussLobatto.
+
+       The refinement data which can be accessed with GetRefinementTransforms()
+       is set to reflect the performed refinements.
+
+       @note The constructed Mesh is straight-sided. */
+   /// refined @a ref_factors[i] times in each dimension.
+   static Mesh MakeRefined(Mesh &orig_mesh, const Array<int> &ref_factors,
+                           int ref_type);
+
+   /** Create a mesh by splitting each element of @a orig_mesh into simplices.
+       Quadrilaterals are split into two triangles, prisms are split into
+       3 tetrahedra, and hexahedra are split into either 5 or 6 tetrahedra
+       depending on the configuration.
+       @warning The curvature of the original mesh is not carried over to the
+       new mesh. Periodic meshes are not supported. */
+   static Mesh MakeSimplicial(const Mesh &orig_mesh);
+
+   ///@}
 
    /// Construct a Mesh from the given primary data.
    /** The array @a vertices is used as external data, i.e. the Mesh does not
@@ -659,12 +743,8 @@ public:
        reorders vertices, edges and faces along with the elements. */
    void ReorderElements(const Array<int> &ordering, bool reorder_vertices = true);
 
-   /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
-       nx*ny*nz hexahedra if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons if
-       type=TETRAHEDRON. If sfc_ordering = true (default), elements are ordered
-       along a space-filling curve, instead of row by row and layer by layer.
-       The parameter @a generate_edges is ignored (for now, it is kept for
-       backward compatibility). */
+   /// Deprecated: see @a MakeCartesian3D.
+   MFEM_DEPRECATED
    Mesh(int nx, int ny, int nz, Element::Type type, bool generate_edges = false,
         double sx = 1.0, double sy = 1.0, double sz = 1.0,
         bool sfc_ordering = true)
@@ -673,11 +753,8 @@ public:
       Finalize(true); // refine = true
    }
 
-   /** Creates mesh for the rectangle [0,sx]x[0,sy], divided into nx*ny
-       quadrilaterals if type = QUADRILATERAL or into 2*nx*ny triangles if
-       type = TRIANGLE. If generate_edges = 0 (default) edges are not generated,
-       if 1 edges are generated. If scf_ordering = true (default), elements are
-       ordered along a space-filling curve, instead of row by row. */
+   /// Deprecated: see @a MakeCartesian2D.
+   MFEM_DEPRECATED
    Mesh(int nx, int ny, Element::Type type, bool generate_edges = false,
         double sx = 1.0, double sy = 1.0, bool sfc_ordering = true)
    {
@@ -685,7 +762,8 @@ public:
       Finalize(true); // refine = true
    }
 
-   /** Creates 1D mesh , divided into n equal intervals. */
+   /// Deprecated: see @a MakeCartesian1D.
+   MFEM_DEPRECATED
    explicit Mesh(int n, double sx = 1.0)
    {
       Make1D(n, sx);
@@ -694,7 +772,7 @@ public:
 
    /** Creates mesh by reading a file in MFEM, Netgen, or VTK format. If
        generate_edges = 0 (default) edges are not generated, if 1 edges are
-       generated. */
+       generated. See also @a Mesh::LoadFromFile. */
    explicit Mesh(const char *filename, int generate_edges = 0, int refine = 1,
                  bool fix_orientation = true);
 
@@ -707,17 +785,8 @@ public:
    /// Create a disjoint mesh from the given mesh array
    Mesh(Mesh *mesh_array[], int num_pieces);
 
-   /// Create a uniformly refined (by any factor) version of @a orig_mesh.
-   /** @param[in] orig_mesh  The starting coarse mesh.
-       @param[in] ref_factor The refinement factor, an integer > 1.
-       @param[in] ref_type   Specify the positions of the new vertices. The
-                             options are BasisType::ClosedUniform or
-                             BasisType::GaussLobatto.
-
-       The refinement data which can be accessed with GetRefinementTransforms()
-       is set to reflect the performed refinements.
-
-       @note The constructed Mesh is linear, i.e. it does not have nodes. */
+   /// Deprecated: see @a MakeRefined.
+   MFEM_DEPRECATED
    Mesh(Mesh *orig_mesh, int ref_factor, int ref_type);
 
    /// A version of the above constructor for non-uniform refinement.
@@ -1285,6 +1354,10 @@ public:
    /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
    virtual void Print(std::ostream &out = mfem::out) const { Printer(out); }
 
+   /// Save the mesh to a file using Mesh::Print. The given @a precision will be
+   /// used for ASCII output.
+   virtual void Save(const char *fname, int precision=16) const;
+
    /// Print the mesh to the given stream using the adios2 bp format
 #ifdef MFEM_USE_ADIOS2
    virtual void Print(adios2stream &out) const;
@@ -1424,6 +1497,10 @@ public:
    virtual int FindPoints(DenseMatrix& point_mat, Array<int>& elem_ids,
                           Array<IntegrationPoint>& ips, bool warn = true,
                           InverseElementTransformation *inv_trans = NULL);
+
+   /// Swaps internal data with another mesh. By default, non-geometry members
+   /// like 'ncmesh' and 'NURBSExt' are only swapped when 'non_geometry' is set.
+   void Swap(Mesh& other, bool non_geometry);
 
    /// Destroys Mesh.
    virtual ~Mesh() { DestroyPointers(); }
