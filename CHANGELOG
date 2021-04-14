@@ -88,8 +88,8 @@ Version 4.2.1 (development)
 - Upgraded the Catch unit test framework from version 2.13.0 to version 2.13.2.
 
 - Added support for different modes of QuadratureInterpolator on GPU.
-  The layout (QVectorLayout::byNODES|byVDIM) and the tensor modes can be
-  enabled before calling the Mult, Values, Derivatives, PhysDerivatives and
+  The layout (QVectorLayout::byNODES|byVDIM) and the tensor products modes can
+  be enabled before calling the Mult, Values, Derivatives, PhysDerivatives and
   Determinants methods.
 
 - Implemented a filter method for the Navier miniapp to stabilize highly
@@ -191,8 +191,12 @@ High-Performance Computing
   These are disabled by default, but can be enabled with MFEM_USE_SIMD=YES.
   See the new file linalg/simd.hpp and the new directory linalg/simd.
 
-Improved GPU capabilities
--------------------------
+- Added an Element Assembly mode compatible with GPU device execution for H1 and
+  L2 spaces in the mass, convection, diffusion, transpose, and the face DG trace
+  integrators. See option '-ea' in Example 9. When enabled, this assembly level
+  stores independent dense matrices for the elements, and independent dense
+  matrices for the faces in the DG case.
+
 - Added a Full Assembly mode compatible with GPU device execution. This assembly
   level builds on top of the Element Assembly kernels to compute a global sparse
   matrix. All integrators supported by element assembly are also supported by
