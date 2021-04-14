@@ -207,12 +207,18 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    PA.setup_Jtr = false;
    PA.setup_Grad = false;
 
+
+#ifdef MFEM_USE_UMPIRE
+   const MemoryType temp_type = Device::GetDeviceMemoryType() == MemoryType::DEVICE_UMPIRE
+      ? MemoryType::DEVICE_UMPIRE_2 : Device::GetDeviceMemoryType();
+#else
+   const MemoryType temp_type = Device::GetDeviceMemoryType();
+#endif
+
    // H for Grad
-   PA.H.SetSize(dim*dim * dim*dim * nq*ne);
-   PA.H.GetMemory().UseTemporary(true);
+   PA.H.SetSize(dim*dim * dim*dim * nq*ne, temp_type);
    // H0 for coeff0
-   PA.H0.SetSize(dim * dim * nq*ne);
-   PA.H0.GetMemory().UseTemporary(true);
+   PA.H0.SetSize(dim * dim * nq*ne, temp_type);
 
    // Restriction setup
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;

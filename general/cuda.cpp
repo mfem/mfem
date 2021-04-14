@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -61,11 +61,11 @@ void* CuMallocManaged(void** dptr, size_t bytes)
    return *dptr;
 }
 
-void* CuMemAllocHost(void** ptr, size_t bytes)
+void* CuMemAllocHostPinned(void** ptr, size_t bytes)
 {
 #ifdef MFEM_USE_CUDA
 #ifdef MFEM_TRACK_CUDA_MEM
-   mfem::out << "CuMemAllocHost(): allocating " << bytes << " bytes ... "
+   mfem::out << "CuMemAllocHostPinned(): allocating " << bytes << " bytes ... "
              << std::flush;
 #endif
    MFEM_GPU_CHECK(cudaMallocHost(ptr, bytes));
@@ -91,11 +91,11 @@ void* CuMemFree(void *dptr)
    return dptr;
 }
 
-void* CuMemFreeHost(void *ptr)
+void* CuMemFreeHostPinned(void *ptr)
 {
 #ifdef MFEM_USE_CUDA
 #ifdef MFEM_TRACK_CUDA_MEM
-   mfem::out << "CuMemFreeHost(): deallocating memory @ " << ptr << " ... "
+   mfem::out << "CuMemFreeHostPinned(): deallocating memory @ " << ptr << " ... "
              << std::flush;
 #endif
    MFEM_GPU_CHECK(cudaFreeHost(ptr));

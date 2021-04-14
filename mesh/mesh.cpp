@@ -755,7 +755,9 @@ void Mesh::GetLocalQuadToWdgTransformation(
 
 const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
                                                   const int flags,
-                                                  mfem::DofToQuad::Mode mode)
+                                                  mfem::DofToQuad::Mode mode,
+                                                  MemoryType d_mt
+                                               )
 {
    for (int i = 0; i < geom_factors.Size(); i++)
    {
@@ -767,7 +769,7 @@ const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
    }
 
    this->EnsureNodes();
-   GeometricFactors *gf = new GeometricFactors(this, ir, flags, mode);
+   GeometricFactors *gf = new GeometricFactors(this, ir, flags, mode, d_mt);
    geom_factors.Append(gf);
    return gf;
 }
@@ -10512,7 +10514,7 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
 
 
 GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
-                                   int flags, DofToQuad::Mode mode)
+                                   int flags, DofToQuad::Mode mode, MemoryType d_mt)
 {
    this->mesh = mesh;
    IntRule = &ir;
@@ -10528,19 +10530,21 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    const int NQ   = ir.GetNPoints();
 
    unsigned eval_flags = 0;
+   MemoryType my_d_mt = (d_mt != MemoryType::DEFAULT) ? d_mt :
+                         Device::GetDeviceMemoryType();
    if (flags & GeometricFactors::COORDINATES)
    {
-      X.SetSize(vdim*NQ*NE, Device::GetDeviceTempMemoryType());
+      X.SetSize(vdim*NQ*NE, my_d_mt);
       eval_flags |= QuadratureInterpolator::VALUES;
    }
    if (flags & GeometricFactors::JACOBIANS)
    {
-      J.SetSize(dim*vdim*NQ*NE, Device::GetDeviceTempMemoryType());
+      J.SetSize(dim*vdim*NQ*NE, my_d_mt);
       eval_flags |= QuadratureInterpolator::DERIVATIVES;
    }
    if (flags & GeometricFactors::DETERMINANTS)
    {
-      detJ.SetSize(NQ*NE, Device::GetDeviceTempMemoryType());
+      detJ.SetSize(NQ*NE, my_d_mt);
       eval_flags |= QuadratureInterpolator::DETERMINANTS;
    }
 
@@ -10559,7 +10563,7 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
 
    if (elem_restr)
    {
-      Vector Enodes(vdim*ND*NE, Device::GetDeviceTempMemoryType());
+      Vector Enodes(vdim*ND*NE, my_d_mt);
       elem_restr->Mult(*nodes, Enodes);
       qi->Mult(Enodes, eval_flags, X, J, detJ);
    }
@@ -10587,19 +10591,20 @@ GeometricFactors::GeometricFactors(const GridFunction *nodes_,
    const int NQ   = ir.GetNPoints();
 
    unsigned eval_flags = 0;
+   MemoryType d_mt = Device::GetDeviceMemoryType();
    if (flags & GeometricFactors::COORDINATES)
    {
-      X.SetSize(vdim*NQ*NE, Device::GetDeviceTempMemoryType());
+      X.SetSize(vdim*NQ*NE, d_mt);
       eval_flags |= QuadratureInterpolator::VALUES;
    }
    if (flags & GeometricFactors::JACOBIANS)
    {
-      J.SetSize(dim*vdim*NQ*NE, Device::GetDeviceTempMemoryType());
+      J.SetSize(dim*vdim*NQ*NE, d_mt);
       eval_flags |= QuadratureInterpolator::DERIVATIVES;
    }
    if (flags & GeometricFactors::DETERMINANTS)
    {
-      detJ.SetSize(NQ*NE, Device::GetDeviceTempMemoryType());
+      detJ.SetSize(NQ*NE, d_mt);
       eval_flags |= QuadratureInterpolator::DETERMINANTS;
    }
 
@@ -10618,7 +10623,7 @@ GeometricFactors::GeometricFactors(const GridFunction *nodes_,
 
    if (elem_restr)
    {
-      Vector Enodes(vdim*ND*NE, Device::GetDeviceTempMemoryType());
+      Vector Enodes(vdim*ND*NE, d_mt);
       elem_restr->Mult(*nodes, Enodes);
       qi->Mult(Enodes, eval_flags, X, J, detJ);
    }

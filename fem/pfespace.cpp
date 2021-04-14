@@ -3147,7 +3147,7 @@ static void SetSubVector(const int N,
                          const Array<int> &indices,
                          const Vector &in, Vector &out)
 {
-   auto y = out.Write();
+   auto y = out.ReadWrite();
    const auto x = in.Read();
    const auto I = indices.Read();
    MFEM_FORALL(i, N, y[I[i]] = x[i];);
@@ -3234,7 +3234,7 @@ static void AddSubVector(const int num_unique_dst_indices,
                          const Vector &src,
                          Vector &dst)
 {
-   auto y = dst.Write();
+   auto y = dst.ReadWrite();
    const auto x = src.Read();
    const auto DST_I = unique_dst_indices.Read();
    const auto SRC_O = unique_to_src_offsets.Read();
