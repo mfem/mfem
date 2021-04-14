@@ -14,17 +14,6 @@ ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_,
    Init();
 }
 ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
-         double omega_, VectorCoefficient * VQ_,  
-         int nrlayers_ , int nx_, int ny_, int nz_, 
-         BCType bc_type_, Coefficient * LossCoeff_)
-   : Solver(2*bf_->ParFESpace()->GetTrueVSize(), 2*bf_->ParFESpace()->GetTrueVSize()), 
-     bf(bf_), Pmllength(Pmllength_), omega(omega_), 
-     VQ(VQ_), nrlayers(nrlayers_), bc_type(bc_type_), LossCoeff(LossCoeff_)
-{
-   nx = nx_; ny = ny_; nz = nz_;
-   Init();
-}
-ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
          double omega_, MatrixCoefficient * MQ_,  
          int nrlayers_ , int nx_, int ny_, int nz_, 
          BCType bc_type_, Coefficient * LossCoeff_)
@@ -218,8 +207,8 @@ void ParDST::Mult(const Vector &r, Vector &z) const
                continue;
             }
             
-            char vishost[] = "localhost";
-            int visport = 19916;
+            // char vishost[] = "localhost";
+            // int visport = 19916;
 
             // socketstream res_sock(vishost, visport);
             // PlotLocal(res_local,res_sock,ip);
@@ -472,10 +461,6 @@ void ParDST::SetMaxwellPmlSystemMatrix(int ip)
    {
       c2_Re = new ScalarMatrixProductCoefficient(*Q,c2_Re0);
       c2_Im = new ScalarMatrixProductCoefficient(*Q,c2_Im0);
-   }
-   else if (VQ)
-   {
-      MFEM_ABORT("Vector Coeffiecient not supported ");
    }
    else if (MQ)
    {
