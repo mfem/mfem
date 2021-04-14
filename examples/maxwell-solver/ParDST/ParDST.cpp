@@ -38,7 +38,7 @@ void ParDST::Init()
    prob_kind = fec->GetContType();
    if (myid == 0)
    {
-      cout << " 1. Indentify problem to be solved ... " << endl;
+      cout << " 1. Identify problem to be solved ... " << endl;
       if (prob_kind == 0) cout << "    Helmholtz" << endl;
       if (prob_kind == 1) cout << "    Maxwell" << endl; 
    }
@@ -420,16 +420,52 @@ void ParDST::SetMaxwellPmlSystemMatrix(int ip)
    double epsilon = 1.0;
    ConstantCoefficient muinv(1.0/mu);
    ConstantCoefficient omeg(-pow(omega, 2)* epsilon);
-   RestrictedCoefficient * restr_loss = nullptr;
 
+   Coefficient * ws_re = nullptr;
+   Coefficient * ws_im = nullptr;
+   MatrixCoefficient * Mws_re = nullptr;
+   MatrixCoefficient * Mws_im = nullptr;
+   if (Q)
+   {
+      ws_re = new ProductCoefficient(*Q,omeg);
+   }
+   else if (MQ)
+   {
+      Mws_re = new ScalarMatrixProductCoefficient(omeg,*MQ);
+   }
+   else
+   {
+      ws_re = &omeg;
+   }
+
+
+   RestrictedCoefficient * restr_loss = nullptr;
    RestrictedCoefficient restr_muinv(muinv,attr);
-   RestrictedCoefficient restr_omeg(omeg,attr);
+   RestrictedCoefficient * restr_wsomeg_re = nullptr;
+   MatrixRestrictedCoefficient * restr_Mwsomeg_re = nullptr;
+   
+   if (MQ)
+   {
+      restr_Mwsomeg_re = new MatrixRestrictedCoefficient(*Mws_re,attr);
+   }
+   else
+   {
+      restr_wsomeg_re = new RestrictedCoefficient(*ws_re,attr);
+   }
+
 
    sqf[ip] = new SesquilinearForm(dmaps->fes[ip],bf->GetConvention());
    sqf[ip]->SetDiagonalPolicy(mfem::Matrix::DIAG_ONE);
 
    sqf[ip]->AddDomainIntegrator(new CurlCurlIntegrator(restr_muinv),NULL);
-   sqf[ip]->AddDomainIntegrator(new VectorFEMassIntegrator(restr_omeg),NULL);
+   if (MQ)
+   {
+      sqf[ip]->AddDomainIntegrator(new VectorFEMassIntegrator(*restr_Mwsomeg_re),NULL);
+   }
+   else
+   {
+      sqf[ip]->AddDomainIntegrator(new VectorFEMassIntegrator(*restr_wsomeg_re),NULL);
+   }
 
    if (LossCoeff) 
    {
@@ -464,8 +500,13 @@ void ParDST::SetMaxwellPmlSystemMatrix(int ip)
    }
    else if (MQ)
    {
-      c2_Re = new MatrixMatrixProductCoefficient(c2_Re0,*MQ);
-      c2_Im = new MatrixMatrixProductCoefficient(c2_Im0,*MQ);
+      c2_Re = new MatrixMatrixProductCoefficient(*MQ,c2_Re0);
+      c2_Im = new MatrixMatrixProductCoefficient(*MQ,c2_Im0);
+   }
+   else
+   {
+      c2_Re = &c2_Re0;
+      c2_Im = &c2_Im0;
    }
    
    MatrixRestrictedCoefficient restr_c2_Re(*c2_Re,attrPML);
@@ -479,8 +520,19 @@ void ParDST::SetMaxwellPmlSystemMatrix(int ip)
    sqf[ip]->Assemble();
    Optr[ip] = new OperatorPtr;
    sqf[ip]->FormSystemMatrix(ess_tdof_list,*Optr[ip]);
-   delete c2_Re;
-   delete c2_Im;
+   if (Q || MQ)
+   {
+      delete c2_Re;
+      delete c2_Im;
+   }
+   if (MQ)
+   {
+      delete restr_Mwsomeg_re;
+   }
+   else
+   {
+      delete restr_wsomeg_re;
+   }
    if (LossCoeff)  delete restr_loss;
 }
 

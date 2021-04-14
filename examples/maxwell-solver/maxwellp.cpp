@@ -56,6 +56,8 @@ int main(int argc, char *argv[])
    int nx=2;
    int ny=2;
    int nz=2;
+   bool matcoeff = false;
+
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -73,6 +75,9 @@ int main(int argc, char *argv[])
                   "Permeability of free space (or 1/(spring constant)).");
    args.AddOption(&epsilon, "-eps", "--permittivity",
                   "Permittivity of free space (or mass constant).");
+   args.AddOption(&matcoeff, "-matcoeff", "--matrix-coeff", "-no-matcoeff",
+                  "--no-matrix-coeff",
+                  "Matrix/scalar matrix coefficient");                     
    args.AddOption(&sigma_, "-sigma", "--damping-coef",
                   "Damping coefficient (or sigma).");          
    args.AddOption(&bc_type, "-bct", "--bc-type",
@@ -168,7 +173,7 @@ int main(int argc, char *argv[])
    //            << *pmesh << "window_title 'Global mesh'" << flush;
 
    double hl = GetUniformMeshElementSize(pmesh);
-   int nrlayers = 3;
+   int nrlayers = 5;
    Array2D<double> lengths(dim,2);
    lengths = hl*nrlayers;
    // lengths[0][1] = 0.0;
@@ -252,44 +257,45 @@ int main(int argc, char *argv[])
    //       1/mu (1/det(J) J^T J Curl E, Curl F)
    //        - omega^2 * epsilon (det(J) * (J^T J)^-1 * E, F)
    //
-   FunctionCoefficient ws(wavespeed);
-
-   // MatrixFunctionCoefficient Mws(dim,Mwavespeed);
-
-   // DenseMatrix M(dim); M = 0.0;
-   // M(0,0) = -pow(omega, 2);
-   // M(1,1) = -pow(omega, 2);
-   // M(2,2) = -pow(omega, 2);
-   // MatrixConstantCoefficient Momeg(M);
-   MatrixFunctionCoefficient eps_func(dim,Mwavespeed);
-
    ConstantCoefficient muinv(1.0/mu);
    ConstantCoefficient omeg(-pow(omega, 2) * epsilon);
+   
    ConstantCoefficient lossCoef(-omega * sigma_);
    RestrictedCoefficient restr_loss(lossCoef,attr);
    RestrictedCoefficient restr_muinv(muinv,attr);
-   RestrictedCoefficient restr_omeg(omeg,attr);
 
+   
+   FunctionCoefficient * ws = nullptr;
+   ProductCoefficient * wsomeg = nullptr;
+   RestrictedCoefficient * restr_wsomeg = nullptr;
+   MatrixFunctionCoefficient * Mws = nullptr;
+   ScalarMatrixProductCoefficient * Mwsomeg = nullptr;
+   MatrixRestrictedCoefficient * restr_Mwsomeg = nullptr; 
+   if (matcoeff)
+   {
+      Mws = new MatrixFunctionCoefficient(dim,Mwavespeed);
+      Mwsomeg = new ScalarMatrixProductCoefficient(omeg,*Mws);
+      restr_Mwsomeg = new MatrixRestrictedCoefficient(*Mwsomeg,attr);
+   }
+   else
+   {
+      ws = new FunctionCoefficient(wavespeed);
+      wsomeg = new ProductCoefficient(omeg,*ws);
+      restr_wsomeg = new RestrictedCoefficient(*wsomeg,attr);
+   }
+   
    // Integrators inside the computational domain (excluding the PML region)
    ParSesquilinearForm a(fespace, conv);
    a.AddDomainIntegrator(new CurlCurlIntegrator(restr_muinv),NULL);
-   a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_omeg),NULL);
+   if (matcoeff)
+   {
+      a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_Mwsomeg),NULL);
+   }
+   else
+   {
+      a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_wsomeg),NULL);
+   }
    a.AddDomainIntegrator(NULL, new VectorFEMassIntegrator(lossCoef));                         
-   // a.AddDomainIntegrator(NULL, new VectorFEMassIntegrator(restr_loss));                         
-
-
-
-   // int cdim = (dim == 2) ? 1 : dim;
-   // PmlMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, &pml);
-   // PmlMatrixCoefficient pml_c1_Im(cdim,detJ_inv_JT_J_Im, &pml);
-
-   // PmlMatrixCoefficient pml_c2_Re(dim, detJ_JT_J_inv_Re,&pml);
-   // PmlMatrixCoefficient pml_c2_Im(dim, detJ_JT_J_inv_Im,&pml);
-   // ScalarMatrixProductCoefficient c2_Re0(omeg,pml_c2_Re);
-   // ScalarMatrixProductCoefficient c2_Im0(omeg,pml_c2_Im);
-
-   // MatrixMatrixProductCoefficient c2_Re(c2_Re0,eps_func);
-   // MatrixMatrixProductCoefficient c2_Im(c2_Im0,eps_func);
 
    int cdim = (dim == 2) ? 1 : dim;
    PmlMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, &pml);
@@ -302,17 +308,28 @@ int main(int argc, char *argv[])
 
    PmlMatrixCoefficient pml_c2_Re(dim, detJ_JT_J_inv_Re,&pml);
    PmlMatrixCoefficient pml_c2_Im(dim, detJ_JT_J_inv_Im,&pml);
-   ScalarMatrixProductCoefficient c2_Re(omeg,pml_c2_Re);
-   ScalarMatrixProductCoefficient c2_Im(omeg,pml_c2_Im);
-   MatrixRestrictedCoefficient restr_c2_Re(c2_Re,attrPML);
-   MatrixRestrictedCoefficient restr_c2_Im(c2_Im,attrPML);
+
+   MatrixCoefficient * c2_Re = nullptr;
+   MatrixCoefficient * c2_Im = nullptr;
+   if (matcoeff)
+   {
+      c2_Re = new MatrixMatrixProductCoefficient(*Mwsomeg,pml_c2_Re);
+      c2_Im = new MatrixMatrixProductCoefficient(*Mwsomeg,pml_c2_Im);
+   }
+   else
+   {
+      c2_Re = new ScalarMatrixProductCoefficient(*wsomeg,pml_c2_Re);
+      c2_Im = new ScalarMatrixProductCoefficient(*wsomeg,pml_c2_Im);
+   }
+   
+   MatrixRestrictedCoefficient restr_c2_Re(*c2_Re,attrPML);
+   MatrixRestrictedCoefficient restr_c2_Im(*c2_Im,attrPML);
 
    // Integrators inside the PML region
    a.AddDomainIntegrator(new CurlCurlIntegrator(restr_c1_Re),
                          new CurlCurlIntegrator(restr_c1_Im));
    a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_c2_Re),
                          new VectorFEMassIntegrator(restr_c2_Im));
-
 
    a.Assemble(0);
 
@@ -328,7 +345,16 @@ int main(int argc, char *argv[])
    chrono.Start();
 
    ParDST::BCType bct = (bc_type == 1)? ParDST::BCType::DIRICHLET : ParDST::BCType::NEUMANN;
-   ParDST * S = new ParDST(&a,lengths, omega, &ws, nrlayers, nx, ny, nz, bct, &lossCoef);
+   ParDST * S = nullptr;
+   
+   if (matcoeff)
+   {
+      S = new ParDST(&a,lengths, omega, Mws, nrlayers, nx, ny, nz, bct, &lossCoef);
+   }
+   else
+   {
+      S = new ParDST(&a,lengths, omega, ws, nrlayers, nx, ny, nz, bct, &lossCoef);
+   }
    chrono.Stop();
    double t1 = chrono.RealTime();
 
@@ -340,7 +366,7 @@ int main(int argc, char *argv[])
    gmres.SetPreconditioner(*S);
 	gmres.SetOperator(*Ac);
 	gmres.SetRelTol(1e-8);
-	gmres.SetMaxIter(100);
+	gmres.SetMaxIter(20);
 	gmres.SetPrintLevel(1);
 	gmres.Mult(B, X);
    delete S;
@@ -353,6 +379,10 @@ int main(int argc, char *argv[])
    cout << " myid: " << myid 
          << ", setup time: " << t1
          << ", solution time: " << t2 << endl; 
+
+   // ComplexMUMPSSolver mumps;
+   // mumps.SetOperator(*Ah);
+   // mumps.Mult(B,X);
 
    // {
    //    HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
@@ -376,7 +406,7 @@ int main(int argc, char *argv[])
       string keys;
       if (dim ==2 )
       {
-         keys = "keys mrRljc\n";
+         keys = "keys mrRljcUUuuu\n";
       }
       else
       {
@@ -434,6 +464,14 @@ int main(int argc, char *argv[])
    }
 
    // 18. Free the used memory.
+   if (matcoeff)
+   {
+      delete Mws;
+   }
+   else
+   {
+      delete ws;
+   }
    delete fespace;
    delete fec;
    delete pmesh;
@@ -467,7 +505,8 @@ void source_re(const Vector &x, Vector &f)
       Vector x0(nrsources);
       Vector y0(nrsources);
       Vector z0(nrsources);
-      x0(0) = 0.25; y0(0) = 0.25; z0(0) = 0.25;
+      // x0(0) = 0.25; y0(0) = 0.25; z0(0) = 0.25;
+      x0(0) = 0.5; y0(0) = 0.5; z0(0) = 0.25;
       x0(1) = 0.75; y0(1) = 0.25; z0(1) = 0.25;
       x0(2) = 0.25; y0(2) = 0.75; z0(2) = 0.25;
       x0(3) = 0.75; y0(3) = 0.75; z0(3) = 0.25;
@@ -482,8 +521,8 @@ void source_re(const Vector &x, Vector &f)
       double n = 4.0*omega/M_PI;
       double coeff = 16.0*omega*omega/M_PI/M_PI/M_PI;
 
-      for (int i = 0; i<nrsources; i++)
-      // for (int i = 0; i<1; i++)
+      // for (int i = 0; i<nrsources; i++)
+      for (int i = 0; i<1; i++)
       {
          double beta = pow(x0(i)-x(0),2) + pow(y0(i)-x(1),2);
          if (dim == 3) { beta += pow(z0(i)-x(2),2); }
