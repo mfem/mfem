@@ -137,7 +137,7 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
             for (int el = NE-1; el > -1; el--)
             {
                tmp += pow(sorted_errors[el],total_norm_p);
-               if (pow(sorted_errors[el],1.0/total_norm_p) > total_fraction * total_err)
+               if (pow(tmp,1.0/total_norm_p) > total_fraction * total_err)
                {
                   threshold = sorted_errors[el] - std::numeric_limits<double>::epsilon();
                   break;
@@ -149,6 +149,7 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
             MFEM_ABORT("unknown MarkingScheme");
          }
       }
+      break;
    }
 
    for (int el = 0; el < NE; el++)
