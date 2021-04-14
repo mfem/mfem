@@ -36,7 +36,7 @@ public:
    explicit Matrix(int h, int w) : Operator(h, w) { }
 
    /// Returns whether the matrix is a square matrix.
-   bool IsSquare() const { return (height == width); };
+   bool IsSquare() const { return (height == width); }
 
    /// Returns reference to a_{ij}.
    virtual double &Elem(int i, int j) = 0;

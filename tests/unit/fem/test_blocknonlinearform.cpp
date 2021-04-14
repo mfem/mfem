@@ -106,10 +106,11 @@ TEST_CASE("ParBlockNonlinearForm",
         type++)
    {
       int n = 4;
-      Mesh *mesh = new Mesh(n, n, n, (Element::Type) type, 0, 2.0, 2.0, 2.0);
-      int dim = mesh->Dimension();
-      ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-      delete mesh;
+      Mesh mesh = Mesh::MakeCartesian3D(
+                     n, n, n, (Element::Type) type, 2.0, 2.0, 2.0);
+      int dim = mesh.Dimension();
+      ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+      mesh.Clear();
       pmesh->UniformRefinement();
       int uorder = 3;
       int rorder = 2;
