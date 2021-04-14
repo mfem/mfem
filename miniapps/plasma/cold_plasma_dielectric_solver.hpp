@@ -312,7 +312,8 @@ private:
    ParComplexGridFunction * e_tmp_; // Temporary complex electric field (HCurl)
    ParComplexGridFunction * d_;   // Complex electric flux (HDiv)
    ParGridFunction * temp_; // Temporary grid function (HCurl)
-   ParDiscreteGradOperator * grad_; // For Computing E from phi
+   ParDiscreteGradOperator * grad_; // For Computing E = Grad phi
+   ParDiscreteLinearOperator * kOp_; // E += i k phi
    ParComplexGridFunction * phi_; // Complex sheath potential (H1)
    ParComplexGridFunction * phi_tmp_; // Complex sheath potential temporary (H1)
    ParComplexGridFunction * rectPot_; // Complex rectified potential (H1)
@@ -367,6 +368,7 @@ private:
    MatrixCoefficient * negMuInvkxkxCoef_; // -\vec{k}\times\vec{k}\times/mu
 
    VectorCoefficient * negMuInvkCoef_; // -\vec{k}/mu
+   VectorCoefficient * muInvkCoef_; // \vec{k}/mu
    VectorCoefficient * jrCoef_;     // Volume Current Density Function
    VectorCoefficient * jiCoef_;     // Volume Current Density Function
    VectorCoefficient * rhsrCoef_;     // Volume Current Density Function

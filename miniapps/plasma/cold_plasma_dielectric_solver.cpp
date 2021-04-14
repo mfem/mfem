@@ -290,6 +290,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      d_(NULL),
      temp_(NULL),
      grad_(NULL),
+     kOp_(NULL),
      phi_(NULL),
      phi_tmp_(NULL),
      rectPot_(NULL),
@@ -337,6 +338,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      posMassCoef_(NULL),
      negMuInvkxkxCoef_(NULL),
      negMuInvkCoef_(NULL),
+     muInvkCoef_(NULL),
      jrCoef_(NULL),
      jiCoef_(NULL),
      rhsrCoef_(NULL),
@@ -408,6 +410,8 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
       negMuInvCoef_ = new ProductCoefficient(-1.0, *muInvCoef_);
       negMuInvkCoef_ = new ScalarVectorProductCoefficient(*negMuInvCoef_,
                                                           *kCoef_);
+      muInvkCoef_ = new ScalarVectorProductCoefficient(*muInvCoef_,
+						       *kCoef_);
       negMuInvkxkxCoef_ = new CrossCrossCoefficient(*muInvCoef_, *kCoef_);
    }
    else
@@ -568,8 +572,8 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
       Vector j(3); j = 0.0;
       jiCoef_ = new VectorConstantCoefficient(j);
    }
-   rhsrCoef_ = new ScalarVectorProductCoefficient(omega_, *jiCoef_);
-   rhsiCoef_ = new ScalarVectorProductCoefficient(-omega_, *jrCoef_);
+   rhsrCoef_ = new ScalarVectorProductCoefficient(-omega_, *jiCoef_);
+   rhsiCoef_ = new ScalarVectorProductCoefficient(omega_, *jrCoef_);
 
    if (nbcs_->Size() > 0)
    {
@@ -614,9 +618,9 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
       a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*negMuInvkxkxCoef_),
                                NULL);
       a1_->AddDomainIntegrator(NULL,
-                               new MixedCrossCurlIntegrator(*negMuInvkCoef_));
+                               new MixedCrossCurlIntegrator(*muInvkCoef_));
       a1_->AddDomainIntegrator(NULL,
-                               new MixedWeakCurlCrossIntegrator(*negMuInvkCoef_));
+                               new MixedWeakCurlCrossIntegrator(*muInvkCoef_));
    }
    if ( abcCoef_ )
    {
@@ -720,6 +724,12 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
       }
 
       grad_ = new ParDiscreteGradOperator(H1FESpace_, HCurlFESpace_);
+
+      if (kCoef_)
+      {
+	kOp_ = new ParDiscreteLinearOperator(H1FESpace_, HCurlFESpace_);
+	kOp_->AddDomainInterpolator(new VectorScalarProductInterpolator(*kCoef_));
+      }
    }
    // solNorm_ = e_->ComputeL2Error(const_cast<VectorCoefficient&>(erCoef_),
    //                               const_cast<VectorCoefficient&>(eiCoef_));
@@ -799,6 +809,7 @@ CPDSolver::~CPDSolver()
 {
    delete negMuInvkxkxCoef_;
    delete negMuInvkCoef_;
+   delete muInvkCoef_;
    delete negMuInvCoef_;
    delete negsinkx_;
    delete coskx_;
@@ -1027,6 +1038,12 @@ CPDSolver::Assemble()
       grad_->Assemble();
       grad_->Finalize();
    }
+   if ( kOp_ )
+   {
+      kOp_->Assemble();
+      kOp_->Finalize();
+   }
+
    /*
    curlMuInvCurl_->Assemble();
    curlMuInvCurl_->Finalize();
@@ -1131,6 +1148,7 @@ CPDSolver::Update()
    // Inform the other objects that the space has changed.
    // curl_->Update();
    if ( grad_ ) { grad_->Update(); }
+   if (kOp_) { kOp_->Update(); }
    // if ( DivFreeProj_ ) { DivFreeProj_->Update(); }
    // if ( SurfCur_     ) { SurfCur_->Update(); }
    tic_toc.Stop();
@@ -1173,6 +1191,11 @@ CPDSolver::Solve()
       {
          grad_->Mult(phi_->real(), e_->real());
          grad_->Mult(phi_->imag(), e_->imag());
+      }
+      if ( kOp_ && phi_ != NULL)
+      {
+	kOp_->AddMult(phi_->imag(), e_->real(), -1.0);
+	kOp_->AddMult(phi_->real(), e_->imag(),  1.0);
       }
       if (dbcs_->Size() > 0)
       {
@@ -1426,8 +1449,8 @@ CPDSolver::Solve()
          OperatorPtr M2;
          Vector D, RHS2;
 
-         ParComplexLinearForm rhs(HDivFESpace_);
-         ParComplexLinearForm tmp(HDivFESpace_);
+         ParComplexLinearForm rhs(HDivFESpace_, conv_);
+         ParComplexLinearForm tmp(HDivFESpace_, conv_);
 
          m12EpsRe_->Mult(e_->real(), rhs.real());
          m12EpsIm_->Mult(e_->imag(), tmp.real());
@@ -1479,6 +1502,11 @@ CPDSolver::Solve()
          rhs.imag().ParallelAssemble(RHS2);
          pcg->Mult(RHS2, D);
          d_->imag().Distribute(D);
+
+         if (conv_ == ComplexOperator::Convention::BLOCK_SYMMETRIC)
+         {
+            d_->imag() *= -1.0;
+         }
 
          delete diag;
          delete pcg;
@@ -1542,12 +1570,12 @@ CPDSolver::Solve()
          pcg.SetTol(1e-12);
          pcg.SetMaxIter(1000);
 
-         ParComplexLinearForm rhs(H1FESpace_);
-         ParComplexLinearForm tmp(H1FESpace_);
+         ParComplexLinearForm rhs(H1FESpace_, conv_);
+         ParComplexLinearForm tmp(H1FESpace_, conv_);
 
          double Phi_err  = 1.0;
          int    Phi_iter = 1;
-         while (Phi_err > 1e-4 && Phi_iter <= 10)
+         while (Phi_err > 1e-4 && Phi_iter <= 1)
          {
             n20ZRe_->Update();
             n20ZIm_->Update();
@@ -1586,6 +1614,11 @@ CPDSolver::Solve()
             pcg.Mult(RHS0, Phi);
 
             phi_->imag().Distribute(Phi);
+
+	    if (conv_ == ComplexOperator::Convention::BLOCK_SYMMETRIC)
+            {
+               phi_->imag() *= -1.0;
+            }
 
             // have to have some error tolerance ...
             double PhisolNorm = phi_tmp_->ComputeL2Error(zeroScalarCoef, zeroScalarCoef);
@@ -1937,15 +1970,15 @@ CPDSolver::DisplayToGLVis()
    {
       VectorGridFunctionCoefficient e_r(&e_->real());
       VectorGridFunctionCoefficient e_i(&e_->imag());
-      VectorSumCoefficient erCoef(e_r, e_i, *coskx_, *sinkx_);
-      VectorSumCoefficient eiCoef(e_i, e_r, *coskx_, *negsinkx_);
+      VectorSumCoefficient erCoef(e_r, e_i, *coskx_, *negsinkx_);
+      VectorSumCoefficient eiCoef(e_i, e_r, *coskx_, *sinkx_);
 
       e_v_->ProjectCoefficient(erCoef, eiCoef);
 
       VectorGridFunctionCoefficient d_r(&d_->real());
       VectorGridFunctionCoefficient d_i(&d_->imag());
-      VectorSumCoefficient drCoef(d_r, d_i, *coskx_, *sinkx_);
-      VectorSumCoefficient diCoef(d_i, d_r, *coskx_, *negsinkx_);
+      VectorSumCoefficient drCoef(d_r, d_i, *coskx_, *negsinkx_);
+      VectorSumCoefficient diCoef(d_i, d_r, *coskx_, *sinkx_);
 
       d_v_->ProjectCoefficient(drCoef, diCoef);
 
@@ -2054,8 +2087,8 @@ CPDSolver::DisplayToGLVis()
       {
          VectorGridFunctionCoefficient j_r(&j_->real());
          VectorGridFunctionCoefficient j_i(&j_->imag());
-         VectorSumCoefficient jrCoef(j_r, j_i, *coskx_, *sinkx_);
-         VectorSumCoefficient jiCoef(j_i, j_r, *coskx_, *negsinkx_);
+         VectorSumCoefficient jrCoef(j_r, j_i, *coskx_, *negsinkx_);
+         VectorSumCoefficient jiCoef(j_i, j_r, *coskx_, *sinkx_);
 
          j_v_->ProjectCoefficient(jrCoef, jiCoef);
       }
@@ -2132,8 +2165,8 @@ CPDSolver::DisplayAnimationToGLVis()
    {
       VectorGridFunctionCoefficient e_r(&e_->real());
       VectorGridFunctionCoefficient e_i(&e_->imag());
-      VectorSumCoefficient erCoef(e_r, e_i, *coskx_, *sinkx_);
-      VectorSumCoefficient eiCoef(e_i, e_r, *coskx_, *negsinkx_);
+      VectorSumCoefficient erCoef(e_r, e_i, *coskx_, *negsinkx_);
+      VectorSumCoefficient eiCoef(e_i, e_r, *coskx_, *sinkx_);
 
       e_v_->ProjectCoefficient(erCoef, eiCoef);
    }

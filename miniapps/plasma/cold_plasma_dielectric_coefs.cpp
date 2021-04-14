@@ -715,9 +715,9 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    complex<double> D = D_cold_plasma(omega_, Bmag, density_vals_,
                                      charges_, masses_, temp_vals_);
 
-   this->addParallelComp(realPart_ ? P.real() :  P.imag(), epsilon);
-   this->addPerpDiagComp(realPart_ ? S.real() :  S.imag(), epsilon);
-   this->addPerpSkewComp(realPart_ ? D.imag() : -D.real(), epsilon);
+   this->addParallelComp(realPart_ ?  P.real() : P.imag(), epsilon);
+   this->addPerpDiagComp(realPart_ ?  S.real() : S.imag(), epsilon);
+   this->addPerpSkewComp(realPart_ ? -D.imag() : D.real(), epsilon);
    /*
    if (realPart_)
    {

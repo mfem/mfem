@@ -19,12 +19,12 @@
 //   take to be of the form exp(i omega t).  With these assumptions we can
 //   write the Maxwell equations in the form:
 //
-//   i omega epsilon E = Curl mu^{-1} B - J
-//   i omega B         = - Curl E
+//   -i omega epsilon E = Curl mu^{-1} B - J
+//    i omega B         = Curl E
 //
 //   Which combine to yield:
 //
-//   Curl mu^{-1} Curl E - omega^2 epsilon E = - i omega J
+//   Curl mu^{-1} Curl E - omega^2 epsilon E = i omega J
 //
 //   In a cold plasma the dielectric tensor, epsilon, is complex-valued and
 //   anisotropic.  The anisotropy aligns with the external magnetic field and
