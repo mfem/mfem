@@ -1,7 +1,7 @@
 //
 // Compile with: make maxwellp
 //
-//               mpirun ./maxwellp -o 2 -f 8.0 -sr 3 -m ../../data/inline-quad.mesh
+//               mpirun -np 4 ./maxwellp -o 2 -f 8.0 -sr 3 -m ../../data/inline-quad.mesh
 //
 
 #include "mfem.hpp"
@@ -49,6 +49,7 @@ int main(int argc, char *argv[])
    // number of parallel refinements
    int par_ref_levels = 2;
    double freq = 5.0;
+   int bc_type = 1;
    bool herm_conv = true;
    bool visualization = 1;
    int nd=2;
@@ -73,7 +74,9 @@ int main(int argc, char *argv[])
    args.AddOption(&epsilon, "-eps", "--permittivity",
                   "Permittivity of free space (or mass constant).");
    args.AddOption(&sigma_, "-sigma", "--damping-coef",
-                  "Damping coefficient (or sigma).");            
+                  "Damping coefficient (or sigma).");          
+   args.AddOption(&bc_type, "-bct", "--bc-type",
+                  "BC type - 0:Neumann, 1: Dirichlet");                        
    args.AddOption(&freq, "-f", "--frequency",
                   "Frequency (in Hz).");
    args.AddOption(&herm_conv, "-herm", "--hermitian", "-no-herm",
@@ -165,7 +168,7 @@ int main(int argc, char *argv[])
    //            << *pmesh << "window_title 'Global mesh'" << flush;
 
    double hl = GetUniformMeshElementSize(pmesh);
-   int nrlayers = 5;
+   int nrlayers = 3;
    Array2D<double> lengths(dim,2);
    lengths = hl*nrlayers;
    // lengths[0][1] = 0.0;
@@ -199,7 +202,7 @@ int main(int argc, char *argv[])
    if (pmesh->bdr_attributes.Size())
    {
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-      ess_bdr = 1;
+      ess_bdr = bc_type;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
@@ -323,7 +326,9 @@ int main(int argc, char *argv[])
 
    chrono.Clear();
    chrono.Start();
-   ParDST * S = new ParDST(&a,lengths, omega, &ws, nrlayers, nx, ny, nz, &lossCoef);
+
+   ParDST::BCType bct = (bc_type == 1)? ParDST::BCType::DIRICHLET : ParDST::BCType::NEUMANN;
+   ParDST * S = new ParDST(&a,lengths, omega, &ws, nrlayers, nx, ny, nz, bct, &lossCoef);
    chrono.Stop();
    double t1 = chrono.RealTime();
 
@@ -459,7 +464,6 @@ void source_re(const Vector &x, Vector &f)
    else
    {
       int nrsources = (dim == 2) ? 4 : 8;
-      // int nrsources = 1;
       Vector x0(nrsources);
       Vector y0(nrsources);
       Vector z0(nrsources);

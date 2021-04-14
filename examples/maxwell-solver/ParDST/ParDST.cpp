@@ -4,30 +4,22 @@
 
 ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
          double omega_, Coefficient * Q_,  
-         int nrlayers_ , int nx_, int ny_, int nz_, Coefficient * LossCoeff_)
+         int nrlayers_ , int nx_, int ny_, int nz_, 
+         BCType bc_type_, Coefficient * LossCoeff_)
    : Solver(2*bf_->ParFESpace()->GetTrueVSize(), 2*bf_->ParFESpace()->GetTrueVSize()), 
      bf(bf_), Pmllength(Pmllength_), omega(omega_), 
-     Q(Q_), nrlayers(nrlayers_), LossCoeff(LossCoeff_)
-{
-   nx = nx_; ny = ny_; nz = nz_;
-   Init();
-}
-ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
-         double omega_, VectorCoefficient * VQ_,  
-         int nrlayers_ , int nx_, int ny_, int nz_, Coefficient * LossCoeff_)
-   : Solver(2*bf_->ParFESpace()->GetTrueVSize(), 2*bf_->ParFESpace()->GetTrueVSize()), 
-     bf(bf_), Pmllength(Pmllength_), omega(omega_), 
-     VQ(VQ_), nrlayers(nrlayers_), LossCoeff(LossCoeff_)
+     Q(Q_), nrlayers(nrlayers_), bc_type(bc_type_), LossCoeff(LossCoeff_)
 {
    nx = nx_; ny = ny_; nz = nz_;
    Init();
 }
 ParDST::ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
          double omega_, MatrixCoefficient * MQ_,  
-         int nrlayers_ , int nx_, int ny_, int nz_, Coefficient * LossCoeff_)
+         int nrlayers_ , int nx_, int ny_, int nz_, 
+         BCType bc_type_, Coefficient * LossCoeff_)
    : Solver(2*bf_->ParFESpace()->GetTrueVSize(), 2*bf_->ParFESpace()->GetTrueVSize()), 
      bf(bf_), Pmllength(Pmllength_), omega(omega_), 
-     MQ(MQ_), nrlayers(nrlayers_), LossCoeff(LossCoeff_)
+     MQ(MQ_), nrlayers(nrlayers_), bc_type(bc_type_), LossCoeff(LossCoeff_)
 {
    nx = nx_; ny = ny_; nz = nz_;
    Init();
@@ -175,23 +167,23 @@ void ParDST::Mult(const Vector &r, Vector &z) const
    }
 
    z = 0.0; 
-   int nsteps;
-   switch(dim)
-   {
-      case 1: nsteps = nx; break;
-      case 2: nsteps = nx+ny-1; break;
-      default: nsteps = nx+ny+nz-2; break;
-   }
    int nsweeps = sweeps->nsweeps;
    // 1. Loop through sweeps
    if (dim == 3 && nz == 1) { nsweeps = 4; } // x-y partition only;
    for (int l=0; l<nsweeps; l++)
    {  
+      // cout << "sweep = " << l << endl;
+      int nsteps = GetSweepNumSteps(l);
       // 2. loop through diagonals/steps of each sweep   
       for (int s = 0; s<nsteps; s++)
       {
+         // cout << "step = " << s << endl;
          Array2D<int> subdomains;
          GetStepSubdomains(l,s,subdomains);
+         // cout << "subdomains = " << endl;
+         // subdomains.Print(cout, subdomains.NumCols());
+         // cin.get();
+
          int nsubdomains = subdomains.NumRows();
 
          // 3. Loop through the subdomains on the diagonal
@@ -215,8 +207,8 @@ void ParDST::Mult(const Vector &r, Vector &z) const
                continue;
             }
             
-            char vishost[] = "localhost";
-            int visport = 19916;
+            // char vishost[] = "localhost";
+            // int visport = 19916;
 
             // socketstream res_sock(vishost, visport);
             // PlotLocal(res_local,res_sock,ip);
@@ -243,6 +235,11 @@ void ParDST::Mult(const Vector &r, Vector &z) const
       }
       // 5. Update the global solution 
       dmaps->SubdomainsToGlobal(subdomain_sol,z);
+      // char vishost[] = "localhost";
+      // int visport = 19916;
+      // socketstream sol_sock1(vishost, visport);
+      // PlotGlobal(z,sol_sock1);
+      // cin.get();
    }
    
 }
@@ -339,7 +336,7 @@ void ParDST::SetHelmholtzPmlSystemMatrix(int ip)
    if (mesh->bdr_attributes.Size())
    {
       Array<int> ess_bdr(mesh->bdr_attributes.Max());
-      ess_bdr = 1;
+      ess_bdr = (bc_type == BCType::DIRICHLET) ? 1 : 0;
       dmaps->fes[ip]->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
@@ -400,10 +397,9 @@ void ParDST::SetMaxwellPmlSystemMatrix(int ip)
    if (mesh->bdr_attributes.Size())
    {
       Array<int> ess_bdr(mesh->bdr_attributes.Max());
-      ess_bdr = 1;
+      ess_bdr = (bc_type == BCType::DIRICHLET) ? 1 : 0;
       dmaps->fes[ip]->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
-
 
    Array<int> attr;
    Array<int> attrPML;
@@ -465,10 +461,6 @@ void ParDST::SetMaxwellPmlSystemMatrix(int ip)
    {
       c2_Re = new ScalarMatrixProductCoefficient(*Q,c2_Re0);
       c2_Im = new ScalarMatrixProductCoefficient(*Q,c2_Im0);
-   }
-   else if (VQ)
-   {
-      MFEM_ABORT("Vector Coeffiecient not supported ");
    }
    else if (MQ)
    {
@@ -628,10 +620,34 @@ void ParDST::PlotLocal(Vector & sol, socketstream & sol_sock, int ip) const
    sol_sock << "solution\n" << *mesh << gf << keys << flush;
 }
 
+void ParDST::PlotGlobal(Vector & sol, socketstream & sol_sock) const
+{
+   ParMesh * pmesh = pfes->GetParMesh();
+   ParGridFunction pgf(pfes);
+   double * data = sol.GetData();
+   pgf.SetData(data);
+   string keys;
+   keys = "keys mrRljc\n";
+   sol_sock << "solution\n" << *pmesh << pgf << keys << flush;
+}
+
+
+double ParDST::GetSweepNumSteps(const int sweep) const
+{
+   int nsteps;
+   switch(dim)
+   {
+      case 1: nsteps = nx; break;
+      case 2: nsteps = nx+ny-1; break;
+      default: nsteps = nx+ny+nz-2; break;
+   }
+   return nsteps;
+}
 
 void ParDST::GetStepSubdomains(const int sweep, const int step, Array2D<int> & subdomains) const
 {
    Array<int> aux;
+
    switch(dim)
    {
       case 2: 
@@ -721,6 +737,7 @@ void ParDST::TransferSources(int sweep, const Array<int> & subdomain_ids) const
       Array<int> ijk;
       Array<int> ijk1(3);
       GetSubdomainijk(ip0,nxyz,ijk);
+      // cout << "Subdomain to transfer its sources: " << "(" <<ijk[0] << "," << ijk[1] << ")" <<endl;
       Array<int> directions(3);   
       for (int i=-1; i<2; i++)
       {
@@ -744,6 +761,8 @@ void ParDST::TransferSources(int sweep, const Array<int> & subdomain_ids) const
                if (i==0 && j==0 && k==0) continue;
 
                int l = GetSweepToTransfer(sweep,directions);
+               // cout << "in the direction " ; directions.Print(); 
+               // cout << "sweep of transfer = " << l << endl;
                if (l == -1) continue;
                ijk1[2] = k1;
                int ip1 = GetSubdomainId(nxyz,ijk1);
@@ -767,6 +786,7 @@ void ParDST::TransferSources(int sweep, const Array<int> & subdomain_ids) const
             }
          }  
       }
+      // cin.get();
    }
 
    for (int ip = 0; ip<nrsubdomains; ip++)

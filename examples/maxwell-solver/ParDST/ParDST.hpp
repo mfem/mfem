@@ -9,6 +9,22 @@ using namespace mfem;
 
 class ParDST : public Solver//
 {
+public:
+   enum BCType
+   {
+       NEUMANN,
+       DIRICHLET
+   };
+   ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
+       double omega_, Coefficient * Q_, int nrlayers_, 
+       int nx_=2, int ny_=2, int nz_=2, 
+       BCType bc_type_ = BCType::DIRICHLET, Coefficient * LossCoeff_ = nullptr);
+   ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
+       double omega_, MatrixCoefficient * MQ_, int nrlayers_, int nx_=2, int ny_=2, int nz_=2, 
+       BCType bc_type_ = BCType::DIRICHLET, Coefficient * LossCoeff_ = nullptr);
+   virtual void SetOperator(const Operator &op) {}
+   virtual void Mult(const Vector &r, Vector &z) const;
+   virtual ~ParDST();
 private:
    MPI_Comm comm = MPI_COMM_WORLD;
    int num_procs, myid;
@@ -25,11 +41,11 @@ private:
    int dim = 2;
    double omega = 0.5;
    Coefficient * Q=nullptr;
-   VectorCoefficient * VQ=nullptr;
    MatrixCoefficient * MQ=nullptr;
    int nrlayers;
+   BCType bc_type = BCType::DIRICHLET;
    Coefficient * LossCoeff=nullptr;
-
+   
    int ovlpnrlayers;
    int nrsubdomains = 0;
    int nx,ny,nz;
@@ -53,24 +69,14 @@ private:
    void SetMaxwellPmlSystemMatrix(int ip);
    void GetChiRes(Vector & res, int ip, Array2D<int> direct) const;
    void PlotLocal(Vector & sol, socketstream & sol_sock, int ip) const;
+   void PlotGlobal(Vector & sol, socketstream & sol_sock) const;
+   double GetSweepNumSteps(const int sweep) const;
    void GetStepSubdomains(const int sweep, const int step, Array2D<int> & subdomains) const;
    void TransferSources(int sweep, const Array<int> & subdomain_ids) const;
    int GetSweepToTransfer(const int s, Array<int> directions) const;
    void CorrectOrientation(int ip, Vector & x) const;
    void Init();
-public:
-   ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
-       double omega_, Coefficient * Q_, int nrlayers_, 
-       int nx_=2, int ny_=2, int nz_=2, Coefficient * LossCoeff_ = nullptr);
-   ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
-       double omega_, VectorCoefficient * VQ_, int nrlayers_, 
-       int nx_=2, int ny_=2, int nz_=2, Coefficient * LossCoeff_ = nullptr);
-   ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
-       double omega_, MatrixCoefficient * MQ_, int nrlayers_, int nx_=2, int ny_=2, int nz_=2, 
-       Coefficient * LossCoeff_ = nullptr);              
-   virtual void SetOperator(const Operator &op) {}
-   virtual void Mult(const Vector &r, Vector &z) const;
-   virtual ~ParDST();
+
 };
 
 
