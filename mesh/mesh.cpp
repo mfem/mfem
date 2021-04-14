@@ -11257,13 +11257,13 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
 
    const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(ir);
    qi->SetOutputLayout(QVectorLayout::byNODES);
-   const bool use_tensor_product = qi->UsesTensorProducts();
-   if (use_tensor_product)
+   const bool use_tensor_products = qi->UsesTensorProducts();
+   if (use_tensor_products)
    {
       MFEM_VERIFY(mesh->GetNumGeometries(dim) == 1,
                   "Mixed meshes are not supported in tensor mode!");
    }
-   const ElementDofOrdering e_ordering = use_tensor_product ?
+   const ElementDofOrdering e_ordering = use_tensor_products ?
                                          ElementDofOrdering::LEXICOGRAPHIC :
                                          ElementDofOrdering::NATIVE;
    const Operator *elem_restr = fespace->GetElementRestriction(e_ordering);
