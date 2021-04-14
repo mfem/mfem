@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -420,6 +420,35 @@ void QuadratureInterpolator::MultTranspose(
    MFEM_ABORT("this method is not implemented yet");
 }
 
+static void D2QValues1D(const int NE,
+                        const Array<double> &b_,
+                        const Vector &x_,
+                        Vector &y_,
+                        const int vdim = 1,
+                        const int d1d = 0,
+                        const int q1d = 0)
+{
+   auto b = Reshape(b_.Read(), q1d, d1d);
+   auto x = Reshape(x_.Read(), d1d, vdim, NE);
+   auto y = Reshape(y_.Write(), vdim, q1d, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      for (int c = 0; c < vdim; c++)
+      {
+         for (int q = 0; q < q1d; ++q)
+         {
+            double val = 0.0;
+            for (int d = 0; d < d1d; ++d)
+            {
+               val += b(q, d) * x(d, c, e);
+            }
+            y(c, q, e) = val;
+         }
+      }
+   });
+}
+
 
 template<int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void D2QValues2D(const int NE,
@@ -631,6 +660,15 @@ static void D2QValues(const FiniteElementSpace &fes,
    const int Q1D = maps->nqpt;
    const int id = (vdim<<8) | (D1D<<4) | Q1D;
 
+   if (dim == 1)
+   {
+      MFEM_VERIFY(D1D <= MAX_D1D, "Orders higher than " << MAX_D1D-1
+                  << " are not supported!");
+      MFEM_VERIFY(Q1D <= MAX_Q1D, "Quadrature rules with more than "
+                  << MAX_Q1D << " 1D points are not supported!");
+      D2QValues1D(NE, maps->B, e_vec, q_val, vdim, D1D, Q1D);
+      return;
+   }
    if (dim == 2)
    {
       switch (id)

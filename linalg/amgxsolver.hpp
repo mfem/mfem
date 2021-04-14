@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -73,13 +73,16 @@ public:
    /// Flags to configure AmgXSolver as a solver or preconditioner
    enum AMGX_MODE {SOLVER, PRECONDITIONER};
 
+   /// Flag to check for convergence
+   bool ConvergenceCheck;
+
    /**
       Flags to determine whether user solver settings are defined internally in
       the source code or will be read through an external JSON file.
    */
    enum CONFIG_SRC {INTERNAL, EXTERNAL, UNDEFINED};
 
-   AmgXSolver() = default;
+   AmgXSolver();
 
    /**
       Configures AmgX with a default configuration based on the AmgX mode, and
@@ -161,6 +164,9 @@ public:
       V-cycle with a block Jacobi smoother is used as a preconditioner.
    */
    void DefaultParameters(const AMGX_MODE amgxMode_, const bool verbose);
+
+   /// Add a check for convergence after applying Mult.
+   void SetConvergenceCheck(bool setConvergenceCheck_=true);
 
    ~AmgXSolver();
 
