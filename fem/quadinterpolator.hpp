@@ -43,7 +43,7 @@ protected:
    const IntegrationRule *IntRule;     ///< Not owned
    mutable QVectorLayout q_layout;     ///< Output Q-vector layout
 
-   mutable bool use_tensor_products;   ///< Tensor product evaluation mmode
+   mutable bool use_tensor_products;   ///< Tensor product evaluation mode
 
    static const int MAX_NQ2D = 100;
    static const int MAX_ND2D = 100;
