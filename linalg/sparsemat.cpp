@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -30,7 +30,7 @@ using namespace std;
 
 #ifdef MFEM_USE_CUDA
 int SparseMatrix::SparseMatrixCount = 0;
-cusparseHandle_t SparseMatrix::handle;
+cusparseHandle_t SparseMatrix::handle = nullptr;
 size_t SparseMatrix::bufferSize = 0;
 void * SparseMatrix::dBuffer = nullptr;
 #endif
@@ -39,10 +39,28 @@ void SparseMatrix::InitCuSparse()
 {
    // Initialize cuSPARSE library
 #ifdef MFEM_USE_CUDA
-   SparseMatrixCount++;
-   if (SparseMatrixCount == 1 && Device::Allows(Backend::CUDA_MASK))
+   if (Device::Allows(Backend::CUDA_MASK))
    {
-      cusparseCreate(&handle);
+      if (!handle) { cusparseCreate(&handle); }
+      useCuSparse=true;
+      SparseMatrixCount++;
+   }
+   else
+   {
+      useCuSparse=false;
+   }
+#endif
+}
+
+void SparseMatrix::ClearCuSparse()
+{
+#ifdef MFEM_USE_CUDA
+   if (initBuffers)
+   {
+      cusparseDestroySpMat(matA_descr);
+      cusparseDestroyDnVec(vecX_descr);
+      cusparseDestroyDnVec(vecY_descr);
+      initBuffers = false;
    }
 #endif
 }
@@ -282,15 +300,7 @@ void SparseMatrix::SetEmpty()
 #endif
    isSorted = false;
 
-#ifdef MFEM_USE_CUDA
-   if (initBuffers)
-   {
-      cusparseDestroySpMat(matA_descr);
-      cusparseDestroyDnVec(vecX_descr);
-      cusparseDestroyDnVec(vecY_descr);
-      initBuffers = false;
-   }
-#endif
+   ClearCuSparse();
 }
 
 int SparseMatrix::RowSize(const int i) const
@@ -415,10 +425,14 @@ void SparseMatrix::SortColumnIndices()
       return;
    }
 
+   const int * Ip=HostReadI();
+   HostReadWriteJ();
+   HostReadWriteData();
+
    Array<Pair<int,double> > row;
    for (int j = 0, i = 0; i < height; i++)
    {
-      int end = I[i+1];
+      int end = Ip[i+1];
       row.SetSize(end - j);
       for (int k = 0; k < row.Size(); k++)
       {
@@ -3156,13 +3170,7 @@ void SparseMatrix::Destroy()
    delete At;
 
 #ifdef MFEM_USE_CUDA
-   if (initBuffers)
-   {
-      cusparseDestroySpMat(matA_descr);
-      cusparseDestroyDnVec(vecX_descr);
-      cusparseDestroyDnVec(vecY_descr);
-      initBuffers = false;
-   }
+   ClearCuSparse();
 #endif
 }
 
@@ -3358,12 +3366,12 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
                "number of columns of A (" << ncolsA
                << ") must equal number of rows of B (" << nrowsB << ")");
 
-   A_i    = A.GetI();
-   A_j    = A.GetJ();
-   A_data = A.GetData();
-   B_i    = B.GetI();
-   B_j    = B.GetJ();
-   B_data = B.GetData();
+   A_i    = A.HostReadI();
+   A_j    = A.HostReadJ();
+   A_data = A.HostReadData();
+   B_i    = B.HostReadI();
+   B_j    = B.HostReadJ();
+   B_data = B.HostReadData();
 
    B_marker = new int[ncolsB];
 
@@ -3409,16 +3417,16 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
    {
       C = OAB;
 
-      MFEM_VERIFY(nrowsA == C -> Height() && ncolsB == C -> Width(),
+      MFEM_VERIFY(nrowsA == C->Height() && ncolsB == C->Width(),
                   "Input matrix sizes do not match output sizes"
                   << " nrowsA = " << nrowsA
                   << ", C->Height() = " << C->Height()
                   << " ncolsB = " << ncolsB
                   << ", C->Width() = " << C->Width());
 
-      // C_i    = C -> GetI(); // not used
-      C_j    = C -> GetJ();
-      C_data = C -> GetData();
+      // C_i    = C->HostReadI(); // not used
+      C_j    = C->HostWriteJ();
+      C_data = C->HostWriteData();
    }
 
    counter = 0;

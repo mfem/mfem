@@ -66,6 +66,7 @@ examples/sol_u.*
 examples/sol_p.*
 examples/sol_r.*
 examples/sol_i.*
+examples/ex6p-checkpoint.*
 examples/ex9.mesh
 examples/ex9-mesh.*
 examples/ex9-init.*
@@ -215,6 +216,7 @@ miniapps/meshing/polar-nc.mesh
 
 miniapps/navier/navier_mms
 miniapps/navier/navier_kovasznay
+miniapps/navier/navier_kovasznay_vs
 miniapps/navier/navier_tgv
 miniapps/navier/navier_shear
 miniapps/navier/navier_3dfoc
@@ -262,6 +264,8 @@ miniapps/toys/life.mesh
 miniapps/toys/lissajous.mesh
 miniapps/toys/lissajous.gf
 miniapps/toys/mondrian.mesh
+
+miniapps/solvers/block-solvers
 
 # Unit test binary and outputs
 tests/unit/output_meshes

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -330,6 +330,18 @@ public:
    virtual const Operator *GetProlongationMatrix() const
    { return GetConformingProlongation(); }
 
+   /// Return an operator that performs the transpose of GetRestrictionOperator
+   /** The returned operator is owned by the FiniteElementSpace. In serial this
+       is the same as GetProlongationMatrix() */
+   virtual const Operator *GetRestrictionTransposeOperator() const
+   { return GetConformingProlongation(); }
+
+   /// An abstract operator that performs the same action as GetRestrictionMatrix
+   /** In some cases this is an optimized matrix-free implementation. The
+       returned operator is owned by the FiniteElementSpace. */
+   virtual const Operator *GetRestrictionOperator() const
+   { return GetConformingRestriction(); }
+
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
    virtual const SparseMatrix *GetRestrictionMatrix() const
    { return GetConformingRestriction(); }
@@ -571,7 +583,7 @@ public:
 
    /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection
         associated with i'th element in the mesh object. */
-   const FiniteElement *GetFE(int i) const;
+   virtual const FiniteElement *GetFE(int i) const;
 
    /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection
         associated with i'th boundary face in the mesh object. */
@@ -756,6 +768,9 @@ public:
    /// Return the total number of quadrature points.
    int GetSize() const { return size; }
 
+   /// Return the order of the quadrature rule(s) used by all elements.
+   int GetOrder() const { return order; }
+
    /// Returns the mesh
    inline Mesh *GetMesh() const { return mesh; }
 
@@ -932,12 +947,15 @@ protected:
       const FiniteElementSpace &fes_ho;
       const FiniteElementSpace &fes_lor;
 
-      int ndof_lor, ndof_ho, nref;
+      // The restriction and prolongation operators are represented as dense
+      // elementwise matrices (of potentially different sizes, because of mixed
+      // meshes or p-refinement). The matrix entries are stored in the R and P
+      // arrays. The entries of the i'th high-order element are stored at the
+      // index given by offsets[i].
+      mutable Array<double> R, P;
+      Array<int> offsets;
 
       Table ho2lor;
-
-      DenseTensor R, P;
-
    public:
       L2Projection(const FiniteElementSpace &fes_ho_,
                    const FiniteElementSpace &fes_lor_);

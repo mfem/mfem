@@ -264,6 +264,7 @@ int main(int argc, char *argv[])
       }
 
       amgx.SetOperator(*A.As<HypreParMatrix>());
+      amgx.SetConvergenceCheck(true);
       amgx.Mult(B, X);
 
       // Release MPI communicators and resources created by AmgX

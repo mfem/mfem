@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -31,6 +31,11 @@ if (MFEM_USE_MPI)
 
   add_mfem_miniapp(navier_kovasznay
     MAIN navier_kovasznay.cpp
+    ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem)
+
+  add_mfem_miniapp(navier_kovasznay_vs
+    MAIN navier_kovasznay_vs.cpp
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem)
 

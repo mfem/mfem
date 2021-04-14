@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -75,6 +75,12 @@ private:
 
    /// The (block-diagonal) matrix R (restriction of dof to true dof). Owned.
    mutable SparseMatrix *R;
+   /// Optimized action-only restriction operator for conforming meshes. Owned.
+   mutable Operator *Rconf;
+   /** Transpose of R or Rconf. For conforming mesh, this is a matrix-free
+       (Device)ConformingProlongationOperator, for a non-conforming mesh
+       this is a TransposeOperator wrapping R. */
+   mutable Operator *R_transpose;
 
    ParNURBSExtension *pNURBSext() const
    { return dynamic_cast<ParNURBSExtension *>(NURBSext); }
@@ -264,6 +270,12 @@ public:
        including the dofs for the edges and the vertices of the face. */
    virtual void GetFaceDofs(int i, Array<int> &dofs) const;
 
+   /** Returns pointer to the FiniteElement in the FiniteElementCollection
+       associated with i'th element in the mesh object. If @a i is greater than
+       or equal to the number of local mesh elements, @a i will be interpreted
+       as a shifted index of a face neigbor element. */
+   virtual const FiniteElement *GetFE(int i) const;
+
    /** Returns an Operator that converts L-vectors to E-vectors on each face.
        The parallel version is different from the serial one because of the
        presence of shared faces. Shared faces are treated as interior faces,
@@ -335,6 +347,16 @@ public:
    HYPRE_Int GetMyTDofOffset() const;
 
    virtual const Operator *GetProlongationMatrix() const;
+   /** @brief Return logical transpose of restriction matrix, but in
+       non-assembled optimized matrix-free form.
+
+       The implementation is like GetProlongationMatrix, but it sets local
+       DOFs to the true DOF values if owned locally, otherwise zero. */
+   virtual const Operator *GetRestrictionTransposeOperator() const;
+   /** Get an Operator that performs the action of GetRestrictionMatrix(),
+       but potentially with a non-assembled optimized matrix-free
+       implementation. */
+   virtual const Operator *GetRestrictionOperator() const;
    /// Get the R matrix which restricts a local dof vector to true dof vector.
    virtual const SparseMatrix *GetRestrictionMatrix() const
    { Dof_TrueDof_Matrix(); return R; }
@@ -389,9 +411,11 @@ class ConformingProlongationOperator : public Operator
 protected:
    Array<int> external_ldofs;
    const GroupCommunicator &gc;
+   bool local;
 
 public:
-   ConformingProlongationOperator(const ParFiniteElementSpace &pfes);
+   ConformingProlongationOperator(const ParFiniteElementSpace &pfes,
+                                  bool local_=false);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -410,6 +434,8 @@ protected:
    Array<int> ltdof_ldof, unq_ltdof;
    Array<int> unq_shr_i, unq_shr_j;
    MPI_Request *requests;
+   bool local;
+
    // Kernel: copy ltdofs from 'src' to 'shr_buf' - prepare for send.
    //         shr_buf[i] = src[shr_ltdof[i]]
    void BcastBeginCopy(const Vector &src) const;
@@ -435,7 +461,8 @@ protected:
    void ReduceEndAssemble(Vector &dst) const;
 
 public:
-   DeviceConformingProlongationOperator(const ParFiniteElementSpace &pfes);
+   DeviceConformingProlongationOperator(const ParFiniteElementSpace &pfes,
+                                        bool local_=false);
 
    virtual ~DeviceConformingProlongationOperator();
 

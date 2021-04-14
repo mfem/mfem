@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -9,7 +9,8 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-cmake_minimum_required(VERSION 2.8.11)
+# The variable CMAKE_CXX_STANDARD and related were introduced in CMake v3.1
+cmake_minimum_required(VERSION 3.1)
 set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/user.cmake" CACHE PATH
   "Path to optional user configuration file.")
 
@@ -87,6 +88,9 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/config/XSDKDefaults.cmake")
 # Enable languages.
 enable_language(CXX)
 if (MFEM_USE_CUDA)
+   if (MFEM_USE_HIP)
+      message(FATAL_ERROR " *** MFEM_USE_HIP cannot be combined with MFEM_USE_CUDA.")
+   endif()
    # MFEM_USE_CUDA requires CMake 3.8 or newer (for direct CUDA support)
    cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
    # Use ${CMAKE_CXX_COMPILER} as the cuda host compiler.
@@ -356,6 +360,15 @@ if (MFEM_USE_UMPIRE)
    find_package(UMPIRE REQUIRED)
 endif()
 
+# AMD HIP
+if (MFEM_USE_HIP)
+  find_package(HIP REQUIRED)
+  if (HIP_ARCH)
+    message(STATUS "Using HIP architecture: ${HIP_ARCH}")
+    list(APPEND HIP_HIPCC_FLAGS "--amdgpu-target=${HIP_ARCH}")
+  endif()
+endif()
+
 # ADIOS2 for parallel I/O
 if (MFEM_USE_ADIOS2)
    find_package(ADIOS2 REQUIRED)
@@ -431,9 +444,9 @@ foreach(DIR IN LISTS MFEM_SOURCE_DIRS)
 endforeach()
 
 if (MFEM_USE_CUDA)
-   foreach(file IN LISTS SOURCES)
-      set_property(SOURCE ${file} PROPERTY LANGUAGE CUDA)
-   endforeach()
+  set_source_files_properties(${SOURCES} PROPERTIES LANGUAGE CUDA)
+elseif(MFEM_USE_HIP)
+  set_source_files_properties(${SOURCES} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT TRUE)
 endif()
 
 add_subdirectory(config)
@@ -452,7 +465,7 @@ set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
     "The MFEM install directory" FORCE)
 
 # Declaring the library
-add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
+mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
 if (CMAKE_VERSION VERSION_GREATER 2.8.11)
   target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})
@@ -609,7 +622,7 @@ endif()
 if (MFEM_USE_CEED)
   install(DIRECTORY ${MFEM_SOURCE_DIRS}
     DESTINATION ${INSTALL_INCLUDE_DIR}/mfem
-    FILES_MATCHING PATTERN "fem/libceed/*.h")
+    FILES_MATCHING PATTERN "fem/ceed/*.h")
 endif()
 
 # Install ${HEADERS}
