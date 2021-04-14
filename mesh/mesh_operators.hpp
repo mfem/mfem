@@ -171,8 +171,13 @@ public:
 */
 class ThresholdRefiner : public MeshOperator
 {
+public:
+   enum MarkingScheme{NORM,QUANTILE,DORFLER};
+
 protected:
    ErrorEstimator &estimator;
+   MarkingScheme ms;
+
    AnisotropicErrorEstimator *aniso_estimator;
 
    double total_norm_p;
@@ -199,14 +204,25 @@ protected:
 
 public:
    /// Construct a ThresholdRefiner using the given ErrorEstimator.
-   ThresholdRefiner(ErrorEstimator &est);
+   ThresholdRefiner(ErrorEstimator &est, MarkingScheme ms_ = MarkingScheme::NORM);
 
    // default destructor (virtual)
 
    /** @brief Set the exponent, p, of the discrete p-norm used to compute the
        total error from the local element errors. */
    void SetTotalErrorNormP(double norm_p = infinity())
-   { total_norm_p = norm_p; }
+   {
+    if (ms == MarkingScheme::QUANTILE)
+    {
+        MFEM_WARNING("norm_p does not affect quantile marking");
+    }
+    else if (ms == MarkingScheme::QUANTILE && norm_p == infinity())
+    {
+        MFEM_WARNING("Setting norm_p = infinity is incompatible with Dorfler marking. total_norm_p was left unchanged.");
+        return;
+    }
+    total_norm_p = norm_p;
+   }
 
    /** @brief Set the total error stopping criterion: stop when
        total_err <= total_err_goal. The default value is zero. */

@@ -51,11 +51,19 @@ void MeshOperatorSequence::Reset()
 }
 
 
-ThresholdRefiner::ThresholdRefiner(ErrorEstimator &est)
-   : estimator(est)
+ThresholdRefiner::ThresholdRefiner(ErrorEstimator &est, MarkingScheme ms_)
+   : estimator(est), ms(ms_)
 {
    aniso_estimator = dynamic_cast<AnisotropicErrorEstimator*>(&estimator);
-   total_norm_p = infinity();
+   if (ms == MarkingScheme::DORFLER)
+   {
+      total_norm_p = 2.0;
+   }
+   else
+   {
+      total_norm_p = infinity();
+   }
+
    total_err_goal = 0.0;
    total_fraction = 0.5;
    local_err_goal = 0.0;
@@ -98,15 +106,49 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
    const double total_err = GetNorm(local_err, mesh);
    if (total_err <= total_err_goal) { return STOP; }
 
-   if (total_norm_p < infinity())
+   switch (ms)
    {
-      threshold = std::max(total_err * total_fraction *
-                           std::pow(num_elements, -1.0/total_norm_p),
-                           local_err_goal);
-   }
-   else
-   {
-      threshold = std::max(total_err * total_fraction, local_err_goal);
+   case MarkingScheme::NORM:
+      if (total_norm_p < infinity())
+      {
+         threshold = std::max(total_err * total_fraction *
+                              std::pow(num_elements, -1.0/total_norm_p),
+                              local_err_goal);
+      }
+      else
+      {
+         threshold = std::max(total_err * total_fraction, local_err_goal);
+      }
+      break;
+   
+   default:
+      {
+         Array<double> sorted_errors(NE);
+         for (int el = 0; el < NE; el++){ sorted_errors[el] = local_err(el); }
+         sorted_errors.Sort();
+         if (ms == MarkingScheme::QUANTILE)
+         {
+            int el_q = NE * total_fraction;
+            threshold = sorted_errors[el_q - 1];
+         }
+         else if (ms == MarkingScheme::DORFLER)
+         {
+            double tmp = 0.0;
+            for (int el = NE-1; el > -1; el--)
+            {
+               tmp += pow(sorted_errors[el],total_norm_p);
+               if (pow(sorted_errors[el],1.0/total_norm_p) > total_fraction * total_err)
+               {
+                  threshold = sorted_errors[el] - std::numeric_limits<double>::epsilon();
+                  break;
+               }
+            }
+         }
+         else
+         {
+            MFEM_ABORT("unknown MarkingScheme");
+         }
+      }
    }
 
    for (int el = 0; el < NE; el++)
