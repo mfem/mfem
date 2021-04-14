@@ -157,9 +157,10 @@ void RajaCuWrap2D(const int N, DBODY &&d_body,
 
 template <typename DBODY>
 void RajaCuWrap3D(const int N, DBODY &&d_body,
-                  const int X, const int Y, const int Z)
+                  const int X, const int Y, const int Z, const int G)
 {
    MFEM_VERIFY(N>0, "");
+   const int GRID = G == 0 ? N : G;
    using namespace RAJA::expt;
    using RAJA::RangeSegment;
 
@@ -222,14 +223,15 @@ void RajaHipWrap2D(const int N, DBODY &&d_body,
 
 template <typename DBODY>
 void RajaHipWrap3D(const int N, DBODY &&d_body,
-                   const int X, const int Y, const int Z)
+                   const int X, const int Y, const int Z, const int G)
 {
    MFEM_VERIFY(N>0, "");
+   const int GRID = G == 0 ? N : G;
    using namespace RAJA::expt;
    using RAJA::RangeSegment;
 
    launch<hip_launch_policy>
-   (DEVICE, Resources(Teams(N), Threads(X, Y, Z)),
+   (DEVICE, Resources(Teams(GRID), Threads(X, Y, Z)),
     [=] RAJA_DEVICE (LaunchContext ctx)
    {
 
@@ -376,10 +378,10 @@ void HipWrap2D(const int N, DBODY &&d_body,
 
 template <typename DBODY>
 void HipWrap3D(const int N, DBODY &&d_body,
-               const int X, const int Y, const int Z)
+               const int X, const int Y, const int Z, const int G)
 {
    if (N==0) { return; }
-   const int GRID = N;
+   const int GRID = G == 0 ? N : G;
    const dim3 BLCK(X,Y,Z);
    hipLaunchKernelGGL(HipKernel3D,GRID,BLCK,0,0,N,d_body);
    MFEM_GPU_CHECK(hipGetLastError());
@@ -398,6 +400,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    MFEM_CONTRACT_VAR(X);
    MFEM_CONTRACT_VAR(Y);
    MFEM_CONTRACT_VAR(Z);
+   MFEM_CONTRACT_VAR(G);
    MFEM_CONTRACT_VAR(d_body);
    if (!use_dev) { goto backend_cpu; }
 
@@ -407,7 +410,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    {
       if (DIM == 1) { return RajaCuWrap1D(N, d_body); }
       if (DIM == 2) { return RajaCuWrap2D(N, d_body, X, Y, Z); }
-      if (DIM == 3) { return RajaCuWrap3D(N, d_body, X, Y, Z); }
+      if (DIM == 3) { return RajaCuWrap3D(N, d_body, X, Y, Z, G); }
    }
 #endif
 
@@ -417,7 +420,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    {
       if (DIM == 1) { return RajaHipWrap1D(N, d_body); }
       if (DIM == 2) { return RajaHipWrap2D(N, d_body, X, Y, Z); }
-      if (DIM == 3) { return RajaHipWrap3D(N, d_body, X, Y, Z); }
+      if (DIM == 3) { return RajaHipWrap3D(N, d_body, X, Y, Z, G); }
    }
 #endif
 
@@ -437,7 +440,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    {
       if (DIM == 1) { return HipWrap1D(N, d_body); }
       if (DIM == 2) { return HipWrap2D(N, d_body, X, Y, Z); }
-      if (DIM == 3) { return HipWrap3D(N, d_body, X, Y, Z); }
+      if (DIM == 3) { return HipWrap3D(N, d_body, X, Y, Z, G); }
    }
 #endif
 
