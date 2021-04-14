@@ -25,20 +25,22 @@ static bool testQuadratureInterpolator(const int dim,
    const int ordering = Ordering::byNODES;
 
    REQUIRE((dim == 2 || dim == 3));
-   Mesh *mesh = dim == 2 ? new Mesh(nx,ny, Element::QUADRILATERAL):
-                dim == 3 ? new Mesh(nx,nx,nz, Element::HEXAHEDRON): nullptr;
-   mesh->SetCurvature(p, false, dim, ordering);
+   Mesh mesh = dim == 1 ? Mesh::MakeCartesian1D(nx, Element::SEGMENT) :
+               dim == 2 ? Mesh::MakeCartesian2D(nx,ny, Element::QUADRILATERAL):
+               Mesh::MakeCartesian3D(nx,nx,nz, Element::HEXAHEDRON);
+
+   mesh.SetCurvature(p, false, dim, ordering);
 
    const H1_FECollection fec(p, dim);
-   FiniteElementSpace sfes(mesh, &fec, 1, ordering);
-   FiniteElementSpace vfes(mesh, &fec, vdim, ordering);
+   FiniteElementSpace sfes(&mesh, &fec, 1, ordering);
+   FiniteElementSpace vfes(&mesh, &fec, vdim, ordering);
 
    GridFunction x(&sfes);
    x.Randomize(seed);
 
    GridFunction nodes(&vfes);
-   mesh->SetNodalFESpace(&vfes);
-   mesh->SetNodalGridFunction(&nodes);
+   mesh.SetNodalFESpace(&vfes);
+   mesh.SetNodalGridFunction(&nodes);
    {
       Array<int> dofs, vdofs;
       GridFunction rdm(&vfes);
@@ -46,10 +48,10 @@ static bool testQuadratureInterpolator(const int dim,
       rdm.Randomize(seed);
       rdm -= 0.5;
       h0 = infinity();
-      for (int i = 0; i < mesh->GetNE(); i++)
+      for (int i = 0; i < mesh.GetNE(); i++)
       {
          vfes.GetElementDofs(i, dofs);
-         const double hi = mesh->GetElementSize(i);
+         const double hi = mesh.GetElementSize(i);
          for (int j = 0; j < dofs.Size(); j++)
          {
             h0(dofs[j]) = std::min(h0(dofs[j]), hi);
@@ -70,12 +72,12 @@ static bool testQuadratureInterpolator(const int dim,
       nodes -= rdm;
    }
 
-   const Geometry::Type GeomType = mesh->GetElementBaseGeometry(0);
+   const Geometry::Type GeomType = mesh.GetElementBaseGeometry(0);
    const IntegrationRule &ir = IntRules.Get(GeomType, q);
    const QuadratureInterpolator *sqi(sfes.GetQuadratureInterpolator(ir));
    const QuadratureInterpolator *vqi(vfes.GetQuadratureInterpolator(ir));
 
-   const int NE(mesh->GetNE());
+   const int NE(mesh.GetNE());
    const int NQ(ir.GetNPoints());
    const int ND(sfes.GetFE(0)->GetDof());
    REQUIRE(ND == vfes.GetFE(0)->GetDof());
@@ -186,7 +188,6 @@ static bool testQuadratureInterpolator(const int dim,
       REQUIRE(pdr[0] == MFEM_Approx(pdr[1]));
    }
 
-   delete mesh;
    return true;
 }
 
