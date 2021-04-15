@@ -189,7 +189,7 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
       Solver *prec = nullptr;
       if (use_pa)
       {
-#if MFEM_USE_CEED
+#ifdef MFEM_USE_CEED
         if (use_ceed)
         {
           prec = new ceed::AlgebraicSolver(a_d, ess_tdof_list);
@@ -227,7 +227,7 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
       Solver *prec2 = nullptr;
       if (use_pa)
       {
-#if MFEM_USE_CEED
+#ifdef MFEM_USE_CEED
         if (use_ceed)
         {
           prec2 = new ceed::AlgebraicSolver(a_d, ess_tdof_list);
@@ -283,7 +283,7 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
       Solver *prec = nullptr;
       if (use_pa)
       {
-#if MFEM_USE_CEED
+#ifdef MFEM_USE_CEED
         if (use_ceed)
         {
           prec = new ceed::AlgebraicSolver(a2, no_ess_tdofs);
