@@ -564,9 +564,6 @@
     <ProjectReference Include="..\..\hypre\src\Windows\utilities\hypre_utilities.vcxproj">
       <Project>{a005ed04-8aeb-4678-96f6-d1d60ca23bf2}</Project>
     </ProjectReference>
-    <ProjectReference Include="mfem.vcxproj">
-      <Project>{25075912-cfed-3edf-b674-d1e646b131a4}</Project>
-    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

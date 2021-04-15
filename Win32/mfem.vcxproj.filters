@@ -288,7 +288,7 @@
     <ClInclude Include="..\general\tic_toc.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\tinyxml.h">
+    <ClInclude Include="..\general\tinyxml2.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\general\version.hpp">

@@ -419,6 +419,7 @@
     <ClCompile Include="..\linalg\strumpack.cpp" />
     <ClCompile Include="..\linalg\sundials.cpp" />
     <ClCompile Include="..\linalg\superlu.cpp" />
+    <ClCompile Include="..\linalg\symmat.cpp" />
     <ClCompile Include="..\linalg\vector.cpp" />
     <ClCompile Include="..\mesh\element.cpp" />
     <ClCompile Include="..\mesh\gmsh.cpp" />
@@ -452,6 +453,7 @@
     <ClInclude Include="..\general\gecko.hpp" />
     <ClInclude Include="..\general\globals.hpp" />
     <ClInclude Include="..\general\hash.hpp" />
+    <ClInclude Include="..\general\hip.hpp" />
     <ClInclude Include="..\general\isockstream.hpp" />
     <ClInclude Include="..\general\mem_alloc.hpp" />
     <ClInclude Include="..\general\mem_manager.hpp" />
@@ -508,6 +510,7 @@
     <ClInclude Include="..\linalg\strumpack.hpp" />
     <ClInclude Include="..\linalg\sundials.hpp" />
     <ClInclude Include="..\linalg\superlu.hpp" />
+    <ClInclude Include="..\linalg\symmat.hpp" />
     <ClInclude Include="..\linalg\tlayout.hpp" />
     <ClInclude Include="..\linalg\tmatrix.hpp" />
     <ClInclude Include="..\linalg\ttensor.hpp" />
@@ -520,6 +523,7 @@
     <ClInclude Include="..\mesh\mesh_operators.hpp" />
     <ClInclude Include="..\mesh\mesquite.hpp" />
     <ClInclude Include="..\mesh\ncmesh.hpp" />
+    <ClInclude Include="..\mesh\ncmesh_tables.hpp" />
     <ClInclude Include="..\mesh\nurbs.hpp" />
     <ClInclude Include="..\mesh\pmesh.hpp" />
     <ClInclude Include="..\mesh\pncmesh.hpp" />
@@ -596,6 +600,9 @@
     </ProjectReference>
     <ProjectReference Include="..\..\hypre\src\Windows\utilities\hypre_utilities.vcxproj">
       <Project>{a005ed04-8aeb-4678-96f6-d1d60ca23bf2}</Project>
+    </ProjectReference>
+    <ProjectReference Include="mfem_fem.vcxproj">
+      <Project>{ae36b5b1-4818-4e76-a2e3-aa9f061281fe}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
