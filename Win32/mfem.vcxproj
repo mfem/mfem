@@ -373,12 +373,12 @@
     <Lib />
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\fem\libceed\convection.cpp" />
-    <ClCompile Include="..\fem\libceed\diffusion.cpp" />
-    <ClCompile Include="..\fem\libceed\mass.cpp" />
-    <ClCompile Include="..\fem\libceed\nlconvection.cpp" />
-    <ClCompile Include="..\fem\libceed\operator.cpp" />
-    <ClCompile Include="..\fem\libceed\util.cpp" />
+    <ClCompile Include="..\fem\ceed\convection.cpp" />
+    <ClCompile Include="..\fem\ceed\diffusion.cpp" />
+    <ClCompile Include="..\fem\ceed\mass.cpp" />
+    <ClCompile Include="..\fem\ceed\nlconvection.cpp" />
+    <ClCompile Include="..\fem\ceed\operator.cpp" />
+    <ClCompile Include="..\fem\ceed\util.cpp" />
     <ClCompile Include="..\fem\adios2datacollection.cpp" />
     <ClCompile Include="..\fem\bilinearform.cpp" />
     <ClCompile Include="..\fem\bilinearform_ext.cpp" />
@@ -510,18 +510,18 @@
     <ClCompile Include="..\mesh\vertex.cpp" />
     <ClCompile Include="..\mesh\vtk.cpp" />
     <ClCompile Include="..\mesh\wedge.cpp" />
-    <ClInclude Include="..\fem\libceed\coefficient.hpp" />
-    <ClInclude Include="..\fem\libceed\convection.hpp" />
-    <ClInclude Include="..\fem\libceed\convection_qf.h" />
-    <ClInclude Include="..\fem\libceed\diffusion.hpp" />
-    <ClInclude Include="..\fem\libceed\diffusion_qf.h" />
-    <ClInclude Include="..\fem\libceed\integrator.hpp" />
-    <ClInclude Include="..\fem\libceed\mass.hpp" />
-    <ClInclude Include="..\fem\libceed\mass_qf.h" />
-    <ClInclude Include="..\fem\libceed\nlconvection.hpp" />
-    <ClInclude Include="..\fem\libceed\nlconvection_qf.h" />
-    <ClInclude Include="..\fem\libceed\operator.hpp" />
-    <ClInclude Include="..\fem\libceed\util.hpp" />
+    <ClInclude Include="..\fem\ceed\coefficient.hpp" />
+    <ClInclude Include="..\fem\ceed\convection.hpp" />
+    <ClInclude Include="..\fem\ceed\convection_qf.h" />
+    <ClInclude Include="..\fem\ceed\diffusion.hpp" />
+    <ClInclude Include="..\fem\ceed\diffusion_qf.h" />
+    <ClInclude Include="..\fem\ceed\integrator.hpp" />
+    <ClInclude Include="..\fem\ceed\mass.hpp" />
+    <ClInclude Include="..\fem\ceed\mass_qf.h" />
+    <ClInclude Include="..\fem\ceed\nlconvection.hpp" />
+    <ClInclude Include="..\fem\ceed\nlconvection_qf.h" />
+    <ClInclude Include="..\fem\ceed\operator.hpp" />
+    <ClInclude Include="..\fem\ceed\util.hpp" />
     <ClInclude Include="..\fem\adios2datacollection.hpp" />
     <ClInclude Include="..\fem\bilinearform.hpp" />
     <ClInclude Include="..\fem\bilinearform_ext.hpp" />
