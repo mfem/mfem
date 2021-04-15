@@ -60,6 +60,7 @@ protected:
    LORBase(BilinearForm &a_);
 };
 
+/// Create and assemble a low-order refined version of a BilinearForm.
 class LOR : LORBase
 {
 protected:
@@ -70,14 +71,20 @@ protected:
    SparseMatrix A;
 
 public:
+   /// Construct the low-order refined version of @a a_ho using the given list
+   /// of essential DOFs. The mesh is refined using the refinement type
+   /// specified by @a ref_type (see Mesh::MakeRefined).
    LOR(BilinearForm &a_ho, const Array<int> &ess_tdof_list,
        int ref_type=BasisType::GaussLobatto);
 
+   /// Return the assembled LOR operator as a SparseMatrix
    SparseMatrix &GetAssembledMatrix();
 
    ~LOR();
 };
 
+/// Create a solver of type @a SolverType using the low-order refined version
+/// of the given BilinearForm.
 template <typename SolverType>
 class LORSolver : public Solver
 {
@@ -85,12 +92,15 @@ protected:
    LOR lor;
    SolverType solver;
 public:
+   /// Create a solver of type @a SolverType, created using a LOR version of
+   /// @a a_ho, see LOR.
    LORSolver(BilinearForm &a_ho, const Array<int> &ess_tdof_list,
              int ref_type=BasisType::GaussLobatto)
       : lor(a_ho, ess_tdof_list, ref_type),
         solver(lor.GetAssembledMatrix())
    { }
 
+   /// Not supported.
    void SetOperator(const Operator &op)
    {
       if (&op != &lor.GetAssembledMatrix())
@@ -103,10 +113,18 @@ public:
    {
       solver.Mult(x, y);
    }
+
+   /// Support the use of -> to call methods of the underlying solver.
+   SolverType *operator->() const { return solver; }
+
+   /// Access the underlying solver.
+   SolverType &operator*() { return solver; }
 };
 
 #ifdef MFEM_USE_MPI
 
+/// Create and assemble a low-order refined version of a ParBilinearForm in
+/// parallel.
 class ParLOR : public LORBase
 {
 protected:
@@ -117,14 +135,20 @@ protected:
    HypreParMatrix A;
 
 public:
+   /// Construct the low-order refined version of @a a_ho using the given list
+   /// of essential DOFs. The mesh is refined using the refinement type
+   /// specified by @a ref_type (see ParMesh::MakeRefined).
    ParLOR(ParBilinearForm &a_ho, const Array<int> &ess_tdof_list,
           int ref_type=BasisType::GaussLobatto);
 
+   /// Return the assembled LOR operator as a HypreParMatrix.
    HypreParMatrix &GetAssembledMatrix();
 
    ~ParLOR();
 };
 
+/// Wrapper class for a solver of type @a SolverType constructred using the
+/// low-order refined version of the given ParBilinearForm.
 template <typename SolverType>
 class ParLORSolver : public Solver
 {
@@ -132,6 +156,8 @@ protected:
    ParLOR lor;
    SolverType solver;
 public:
+   /// Create a solver of type @a SolverType, created using a LOR version of
+   /// @a a_ho, see ParLOR.
    ParLORSolver(ParBilinearForm &a_ho, const Array<int> &ess_tdof_list,
                 int ref_type=BasisType::GaussLobatto)
       : lor(a_ho, ess_tdof_list, ref_type),
@@ -150,6 +176,12 @@ public:
    {
       solver.Mult(x, y);
    }
+
+   /// Support the use of -> to call methods of the underlying solver.
+   SolverType *operator->() const { return solver; }
+
+   /// Access the underlying solver.
+   SolverType &operator*() { return solver; }
 };
 
 #endif
