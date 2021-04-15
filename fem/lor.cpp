@@ -294,7 +294,7 @@ LOR::LOR(BilinearForm &a_ho_, const Array<int> &ess_tdof_list, int ref_type)
    AssembleSystem(ess_tdof_list);
 }
 
-SparseMatrix &LOR::GetAssembledMatrix()
+SparseMatrix &LOR::GetAssembledMatrix() const
 {
    return *A.As<SparseMatrix>();
 }
@@ -326,9 +326,14 @@ ParLOR::ParLOR(ParBilinearForm &a_ho_, const Array<int> &ess_tdof_list,
    AssembleSystem(ess_tdof_list);
 }
 
-HypreParMatrix &ParLOR::GetAssembledMatrix()
+HypreParMatrix &ParLOR::GetAssembledMatrix() const
 {
    return *A.As<HypreParMatrix>();
+}
+
+ParFiniteElementSpace &ParLOR::GetParFESpace() const
+{
+   return static_cast<ParFiniteElementSpace&>(*fes);
 }
 
 #endif
