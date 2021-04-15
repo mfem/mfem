@@ -27,12 +27,12 @@ namespace mfem
 template <typename DiagonalTensor,
           typename Tensor,
           std::enable_if_t<
-             is_diagonal_tensor<DiagonalTensor>::value &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value &&
-             get_diagonal_tensor_diagonal_rank<DiagonalTensor>::value == 1 &&
-             get_diagonal_tensor_values_rank<DiagonalTensor>::value == 0 &&
-             get_tensor_rank<Tensor>::value == 1,
+             is_diagonal_tensor_v<DiagonalTensor>::value &&
+             is_dynamic_tensor<Tensor> &&
+             is_serial_tensor<Tensor> &&
+             get_diagonal_tensor_diagonal_rank<DiagonalTensor> == 1 &&
+             get_diagonal_tensor_values_rank<DiagonalTensor> == 0 &&
+             get_tensor_rank<Tensor> == 1,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const DiagonalTensor &D, const Tensor &u)
@@ -49,17 +49,17 @@ auto operator*(const DiagonalTensor &D, const Tensor &u)
 template <typename DiagonalTensor,
           typename Tensor,
           std::enable_if_t<
-             is_diagonal_tensor<DiagonalTensor>::value &&
-             is_static_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value &&
-             get_diagonal_tensor_diagonal_rank<DiagonalTensor>::value == 1 &&
-             get_diagonal_tensor_values_rank<DiagonalTensor>::value == 0 &&
-             get_tensor_rank<Tensor>::value == 1,
+             is_diagonal_tensor_v<DiagonalTensor>::value &&
+             is_static_tensor<Tensor> &&
+             is_serial_tensor<Tensor> &&
+             get_diagonal_tensor_diagonal_rank<DiagonalTensor> == 1 &&
+             get_diagonal_tensor_values_rank<DiagonalTensor> == 0 &&
+             get_tensor_rank<Tensor> == 1,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const DiagonalTensor &D, const Tensor &u)
 {
-   constexpr int Q = get_tensor_size<0,Tensor>::value;
+   constexpr int Q = get_tensor_size<0,Tensor>;
    StaticDTensor<Q> Du;
    for(int q = 0; q < Q; ++q)
    {
@@ -72,12 +72,12 @@ auto operator*(const DiagonalTensor &D, const Tensor &u)
 template <typename DiagonalTensor,
           typename Tensor,
           std::enable_if_t<
-             is_diagonal_tensor<DiagonalTensor>::value &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value &&
-             get_diagonal_tensor_diagonal_rank<DiagonalTensor>::value == 2 &&
-             get_diagonal_tensor_values_rank<DiagonalTensor>::value == 0 &&
-             get_tensor_rank<Tensor>::value == 2,
+             is_diagonal_tensor_v<DiagonalTensor>::value &&
+             is_dynamic_tensor<Tensor> &&
+             is_serial_tensor<Tensor> &&
+             get_diagonal_tensor_diagonal_rank<DiagonalTensor> == 2 &&
+             get_diagonal_tensor_values_rank<DiagonalTensor> == 0 &&
+             get_tensor_rank<Tensor> == 2,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const DiagonalTensor &D, const Tensor &u)
@@ -98,18 +98,18 @@ auto operator*(const DiagonalTensor &D, const Tensor &u)
 template <typename DiagonalTensor,
           typename Tensor,
           std::enable_if_t<
-             is_diagonal_tensor<DiagonalTensor>::value &&
-             is_static_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value &&
-             get_diagonal_tensor_diagonal_rank<DiagonalTensor>::value == 2 &&
-             get_diagonal_tensor_values_rank<DiagonalTensor>::value == 0 &&
-             get_tensor_rank<Tensor>::value == 2,
+             is_diagonal_tensor_v<DiagonalTensor>::value &&
+             is_static_tensor<Tensor> &&
+             is_serial_tensor<Tensor> &&
+             get_diagonal_tensor_diagonal_rank<DiagonalTensor> == 2 &&
+             get_diagonal_tensor_values_rank<DiagonalTensor> == 0 &&
+             get_tensor_rank<Tensor> == 2,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const DiagonalTensor &D, const Tensor &u)
 {
-   constexpr int Q1 = get_tensor_size<0,Tensor>::value;
-   constexpr int Q2 = get_tensor_size<1,Tensor>::value;
+   constexpr int Q1 = get_tensor_size<0,Tensor>;
+   constexpr int Q2 = get_tensor_size<1,Tensor>;
    StaticDTensor<Q1,Q2> Du;
    for(int q2 = 0; q2 < Q2; ++q2)
    {
@@ -125,12 +125,12 @@ auto operator*(const DiagonalTensor &D, const Tensor &u)
 template <typename DiagonalTensor,
           typename Tensor,
           std::enable_if_t<
-             is_diagonal_tensor<DiagonalTensor>::value &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value &&
-             get_diagonal_tensor_diagonal_rank<DiagonalTensor>::value == 3 &&
-             get_diagonal_tensor_values_rank<DiagonalTensor>::value == 0 &&
-             get_tensor_rank<Tensor>::value == 3,
+             is_diagonal_tensor_v<DiagonalTensor>::value &&
+             is_dynamic_tensor<Tensor> &&
+             is_serial_tensor<Tensor> &&
+             get_diagonal_tensor_diagonal_rank<DiagonalTensor> == 3 &&
+             get_diagonal_tensor_values_rank<DiagonalTensor> == 0 &&
+             get_tensor_rank<Tensor> == 3,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const DiagonalTensor &D, const Tensor &u)
@@ -155,19 +155,19 @@ auto operator*(const DiagonalTensor &D, const Tensor &u)
 template <typename DiagonalTensor,
           typename Tensor,
           std::enable_if_t<
-             is_diagonal_tensor<DiagonalTensor>::value &&
-             is_static_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value &&
-             get_diagonal_tensor_diagonal_rank<DiagonalTensor>::value == 3 &&
-             get_diagonal_tensor_values_rank<DiagonalTensor>::value == 0 &&
-             get_tensor_rank<Tensor>::value == 3,
+             is_diagonal_tensor_v<DiagonalTensor>::value &&
+             is_static_tensor<Tensor> &&
+             is_serial_tensor<Tensor> &&
+             get_diagonal_tensor_diagonal_rank<DiagonalTensor> == 3 &&
+             get_diagonal_tensor_values_rank<DiagonalTensor> == 0 &&
+             get_tensor_rank<Tensor> == 3,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const DiagonalTensor &D, const Tensor &u)
 {
-   constexpr int Q1 = get_tensor_size<0,Tensor>::value;
-   constexpr int Q2 = get_tensor_size<1,Tensor>::value;
-   constexpr int Q3 = get_tensor_size<2,Tensor>::value;
+   constexpr int Q1 = get_tensor_size<0,Tensor>;
+   constexpr int Q2 = get_tensor_size<1,Tensor>;
+   constexpr int Q3 = get_tensor_size<2,Tensor>;
    StaticDTensor<Q1,Q2,Q3> Du;
    for(int q3 = 0; q3 < Q3; ++q3)
    {
@@ -187,12 +187,12 @@ auto operator*(const DiagonalTensor &D, const Tensor &u)
 template <typename DiagonalSymmTensor,
           typename Tensor,
           std::enable_if_t<
-             is_diagonal_symmetric_tensor<DiagonalSymmTensor>::value &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value &&
-             get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor>::value == 1 &&
-             get_diagonal_symmetric_tensor_values_rank<DiagonalSymmTensor>::value == 1 &&
-             get_tensor_rank<Tensor>::value == 2,
+             is_diagonal_symmetric_tensor_v<DiagonalSymmTensor>::value &&
+             is_dynamic_tensor<Tensor> &&
+             is_serial_tensor<Tensor> &&
+             get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor> == 1 &&
+             get_diagonal_symmetric_tensor_values_rank<DiagonalSymmTensor> == 1 &&
+             get_tensor_rank<Tensor> == 2,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
@@ -220,18 +220,18 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
 template <typename DiagonalSymmTensor,
           typename Tensor,
           std::enable_if_t<
-             is_diagonal_symmetric_tensor<DiagonalSymmTensor>::value &&
-             is_static_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value &&
-             get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor>::value == 1 &&
-             get_diagonal_symmetric_tensor_values_rank<DiagonalSymmTensor>::value == 1 &&
-             get_tensor_rank<Tensor>::value == 2,
+             is_diagonal_symmetric_tensor_v<DiagonalSymmTensor>::value &&
+             is_static_tensor<Tensor> &&
+             is_serial_tensor<Tensor> &&
+             get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor> == 1 &&
+             get_diagonal_symmetric_tensor_values_rank<DiagonalSymmTensor> == 1 &&
+             get_tensor_rank<Tensor> == 2,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
 {
-   constexpr int Q = get_tensor_size<0,Tensor>::value;
-   constexpr int Dim = get_tensor_size<1,Tensor>::value;
+   constexpr int Q = get_tensor_size<0,Tensor>;
+   constexpr int Dim = get_tensor_size<1,Tensor>;
    StaticDTensor<Q,Dim> Du;
    for(int q = 0; q < Q; ++q)
    {
@@ -251,12 +251,12 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
 template <typename DiagonalSymmTensor,
           typename Tensor,
           std::enable_if_t<
-             is_diagonal_symmetric_tensor<DiagonalSymmTensor>::value &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value &&
-             get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor>::value == 1 &&
-             get_diagonal_symmetric_tensor_values_rank<DiagonalSymmTensor>::value == 1 &&
-             get_tensor_rank<Tensor>::value == 1,
+             is_diagonal_symmetric_tensor_v<DiagonalSymmTensor>::value &&
+             is_dynamic_tensor<Tensor> &&
+             is_serial_tensor<Tensor> &&
+             get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor> == 1 &&
+             get_diagonal_symmetric_tensor_values_rank<DiagonalSymmTensor> == 1 &&
+             get_tensor_rank<Tensor> == 1,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
@@ -273,17 +273,17 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
 template <typename DiagonalSymmTensor,
           typename Tensor,
           std::enable_if_t<
-             is_diagonal_symmetric_tensor<DiagonalSymmTensor>::value &&
-             is_static_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value &&
-             get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor>::value == 1 &&
-             get_diagonal_symmetric_tensor_values_rank<DiagonalSymmTensor>::value == 1 &&
-             get_tensor_rank<Tensor>::value == 1,
+             is_diagonal_symmetric_tensor_v<DiagonalSymmTensor>::value &&
+             is_static_tensor<Tensor> &&
+             is_serial_tensor<Tensor> &&
+             get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor> == 1 &&
+             get_diagonal_symmetric_tensor_values_rank<DiagonalSymmTensor> == 1 &&
+             get_tensor_rank<Tensor> == 1,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
 {
-   constexpr int Q = get_tensor_size<0,Tensor>::value;
+   constexpr int Q = get_tensor_size<0,Tensor>;
    StaticDTensor<Q> Du;
    for(int q = 0; q < Q; ++q)
    {
@@ -296,12 +296,12 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
 // template <typename DiagonalSymmTensor,
 //           typename Tensor,
 //           std::enable_if_t<
-//              is_diagonal_symmetric_tensor<DiagonalSymmTensor>::value &&
-//              is_dynamic_tensor<Tensor>::value &&
-//              is_serial_tensor<Tensor>::value &&
-//              get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor>::value == 2 &&
-//              get_diagonal_symmetric_tensor_values_rank<DiagonalSymmTensor>::value == 1 &&
-//              get_tensor_rank<Tensor>::value == 3,
+//              is_diagonal_symmetric_tensor_v<DiagonalSymmTensor>::value &&
+//              is_dynamic_tensor<Tensor> &&
+//              is_serial_tensor<Tensor> &&
+//              get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor> == 2 &&
+//              get_diagonal_symmetric_tensor_values_rank<DiagonalSymmTensor> == 1 &&
+//              get_tensor_rank<Tensor> == 3,
 //              bool> = true >
 // MFEM_HOST_DEVICE inline
 // auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
@@ -331,19 +331,19 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
 // template <typename DiagonalSymmTensor,
 //           typename Tensor,
 //           std::enable_if_t<
-//              is_diagonal_symmetric_tensor<DiagonalSymmTensor>::value &&
-//              is_static_tensor<Tensor>::value &&
-//              is_serial_tensor<Tensor>::value &&
-//              get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor>::value == 2 &&
-//              get_diagonal_symmetric_tensor_values_rank<DiagonalSymmTensor>::value == 1 &&
-//              get_tensor_rank<Tensor>::value == 3,
+//              is_diagonal_symmetric_tensor_v<DiagonalSymmTensor>::value &&
+//              is_static_tensor<Tensor> &&
+//              is_serial_tensor<Tensor> &&
+//              get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor> == 2 &&
+//              get_diagonal_symmetric_tensor_values_rank<DiagonalSymmTensor> == 1 &&
+//              get_tensor_rank<Tensor> == 3,
 //              bool> = true >
 // MFEM_HOST_DEVICE inline
 // auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
 // {
-//    constexpr int Q1 = get_tensor_size<0,Tensor>::value;
-//    constexpr int Q2 = get_tensor_size<1,Tensor>::value;
-//    constexpr int Dim = get_tensor_size<2,Tensor>::value;
+//    constexpr int Q1 = get_tensor_size<0,Tensor>;
+//    constexpr int Q2 = get_tensor_size<1,Tensor>;
+//    constexpr int Dim = get_tensor_size<2,Tensor>;
 //    StaticDTensor<Q1,Q2,Dim> Du;
 //    for(int q2 = 0; q2 < Q2; ++q2)
 //    {
@@ -366,12 +366,12 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
 template <typename DiagonalSymmTensor,
           typename Tensor,
           std::enable_if_t<
-             is_diagonal_symmetric_tensor<DiagonalSymmTensor>::value &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value &&
-             get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor>::value == 2 &&
-             get_diagonal_symmetric_tensor_values_rank<DiagonalSymmTensor>::value == 1 &&
-             get_tensor_rank<Tensor>::value == 3,
+             is_diagonal_symmetric_tensor_v<DiagonalSymmTensor>::value &&
+             is_dynamic_tensor<Tensor> &&
+             is_serial_tensor<Tensor> &&
+             get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor> == 2 &&
+             get_diagonal_symmetric_tensor_values_rank<DiagonalSymmTensor> == 1 &&
+             get_tensor_rank<Tensor> == 3,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
@@ -400,19 +400,19 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
 template <typename DiagonalSymmTensor,
           typename Tensor,
           std::enable_if_t<
-             is_diagonal_symmetric_tensor<DiagonalSymmTensor>::value &&
-             is_static_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value &&
-             get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor>::value == 2 &&
-             get_diagonal_symmetric_tensor_values_rank<DiagonalSymmTensor>::value == 1 &&
-             get_tensor_rank<Tensor>::value == 3,
+             is_diagonal_symmetric_tensor_v<DiagonalSymmTensor>::value &&
+             is_static_tensor<Tensor> &&
+             is_serial_tensor<Tensor> &&
+             get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor> == 2 &&
+             get_diagonal_symmetric_tensor_values_rank<DiagonalSymmTensor> == 1 &&
+             get_tensor_rank<Tensor> == 3,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
 {
-   constexpr int Q1 = get_tensor_size<0,Tensor>::value;
-   constexpr int Q2 = get_tensor_size<1,Tensor>::value;
-   constexpr int Dim = get_tensor_size<2,Tensor>::value;
+   constexpr int Q1 = get_tensor_size<0,Tensor>;
+   constexpr int Q2 = get_tensor_size<1,Tensor>;
+   constexpr int Dim = get_tensor_size<2,Tensor>;
    StaticDTensor<Q1,Q2,Dim> Du;
    for(int q2 = 0; q2 < Q2; ++q2)
    {
@@ -435,12 +435,12 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
 // template <typename DiagonalSymmTensor,
 //           typename Tensor,
 //           std::enable_if_t<
-//              is_diagonal_symmetric_tensor<DiagonalSymmTensor>::value &&
-//              is_dynamic_tensor<Tensor>::value &&
-//              is_serial_tensor<Tensor>::value &&
-//              get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor>::value == 3 &&
-//              get_diagonal_symmetric_tensor_values_rank<DiagonalSymmTensor>::value == 1 &&
-//              get_tensor_rank<Tensor>::value == 4,
+//              is_diagonal_symmetric_tensor_v<DiagonalSymmTensor>::value &&
+//              is_dynamic_tensor<Tensor> &&
+//              is_serial_tensor<Tensor> &&
+//              get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor> == 3 &&
+//              get_diagonal_symmetric_tensor_values_rank<DiagonalSymmTensor> == 1 &&
+//              get_tensor_rank<Tensor> == 4,
 //              bool> = true >
 // MFEM_HOST_DEVICE inline
 // auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
@@ -474,20 +474,20 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
 // template <typename DiagonalSymmTensor,
 //           typename Tensor,
 //           std::enable_if_t<
-//              is_diagonal_symmetric_tensor<DiagonalSymmTensor>::value &&
-//              is_static_tensor<Tensor>::value &&
-//              is_serial_tensor<Tensor>::value &&
-//              get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor>::value == 3 &&
-//              get_diagonal_symmetric_tensor_values_rank<DiagonalSymmTensor>::value == 1 &&
-//              get_tensor_rank<Tensor>::value == 4,
+//              is_diagonal_symmetric_tensor_v<DiagonalSymmTensor>::value &&
+//              is_static_tensor<Tensor> &&
+//              is_serial_tensor<Tensor> &&
+//              get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor> == 3 &&
+//              get_diagonal_symmetric_tensor_values_rank<DiagonalSymmTensor> == 1 &&
+//              get_tensor_rank<Tensor> == 4,
 //              bool> = true >
 // MFEM_HOST_DEVICE inline
 // auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
 // {
-//    constexpr int Q1 = get_tensor_size<0,Tensor>::value;
-//    constexpr int Q2 = get_tensor_size<1,Tensor>::value;
-//    constexpr int Q3 = get_tensor_size<2,Tensor>::value;
-//    constexpr int Dim = get_tensor_size<3,Tensor>::value;
+//    constexpr int Q1 = get_tensor_size<0,Tensor>;
+//    constexpr int Q2 = get_tensor_size<1,Tensor>;
+//    constexpr int Q3 = get_tensor_size<2,Tensor>;
+//    constexpr int Dim = get_tensor_size<3,Tensor>;
 //    StaticDTensor<Q1,Q2,Q3,Dim> Du;
 //    for(int q3 = 0; q3 < Q3; ++q3)
 //    {
@@ -513,12 +513,12 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
 template <typename DiagonalSymmTensor,
           typename Tensor,
           std::enable_if_t<
-             is_diagonal_symmetric_tensor<DiagonalSymmTensor>::value &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value &&
-             get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor>::value == 3 &&
-             get_diagonal_symmetric_tensor_values_rank<DiagonalSymmTensor>::value == 1 &&
-             get_tensor_rank<Tensor>::value == 4,
+             is_diagonal_symmetric_tensor_v<DiagonalSymmTensor>::value &&
+             is_dynamic_tensor<Tensor> &&
+             is_serial_tensor<Tensor> &&
+             get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor> == 3 &&
+             get_diagonal_symmetric_tensor_values_rank<DiagonalSymmTensor> == 1 &&
+             get_tensor_rank<Tensor> == 4,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
@@ -558,20 +558,20 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
 template <typename DiagonalSymmTensor,
           typename Tensor,
           std::enable_if_t<
-             is_diagonal_symmetric_tensor<DiagonalSymmTensor>::value &&
-             is_static_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value &&
-             get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor>::value == 3 &&
-             get_diagonal_symmetric_tensor_values_rank<DiagonalSymmTensor>::value == 1 &&
-             get_tensor_rank<Tensor>::value == 4,
+             is_diagonal_symmetric_tensor_v<DiagonalSymmTensor>::value &&
+             is_static_tensor<Tensor> &&
+             is_serial_tensor<Tensor> &&
+             get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor> == 3 &&
+             get_diagonal_symmetric_tensor_values_rank<DiagonalSymmTensor> == 1 &&
+             get_tensor_rank<Tensor> == 4,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
 {
-   constexpr int Q1 = get_tensor_size<0,Tensor>::value;
-   constexpr int Q2 = get_tensor_size<1,Tensor>::value;
-   constexpr int Q3 = get_tensor_size<2,Tensor>::value;
-   constexpr int Dim = get_tensor_size<3,Tensor>::value;
+   constexpr int Q1 = get_tensor_size<0,Tensor>;
+   constexpr int Q2 = get_tensor_size<1,Tensor>;
+   constexpr int Q3 = get_tensor_size<2,Tensor>;
+   constexpr int Dim = get_tensor_size<3,Tensor>;
    StaticDTensor<Q1,Q2,Q3,Dim> Du;
    for(int q3 = 0; q3 < Q3; ++q3)
    {

@@ -38,7 +38,7 @@ template <int DRank, typename Tensor>
 auto makeDiagonalTensor(const Tensor &t)
 {
    return DiagonalTensor<DRank,
-                         get_tensor_rank<Tensor>::value-DRank,
+                         get_tensor_rank<Tensor>-DRank,
                          typename Tensor::type,
                          typename Tensor::container,
                          typename Tensor::layout
@@ -49,46 +49,58 @@ auto makeDiagonalTensor(const Tensor &t)
 
 // is_diagonal_tensor
 template <typename Tensor>
-struct is_diagonal_tensor
-{
-   static constexpr bool value = false;
-};
+struct is_diagonal_tensor_v;
+// {
+//    static constexpr bool value = false;
+// };
 
 template <int DRank, int Rank, typename T, typename Container, typename Layout>
-struct is_diagonal_tensor<DiagonalTensor<DRank, Rank, T, Container, Layout>>
+struct is_diagonal_tensor_v<DiagonalTensor<DRank, Rank, T, Container, Layout>>
 {
    static constexpr bool value = true;
 };
 
+template <typename Tensor>
+constexpr bool is_diagonal_tensor = is_diagonal_tensor_v<Tensor>::value;
+
 // get_diagonal_tensor_rank
 template <typename Tensor>
-struct get_diagonal_tensor_rank;
+struct get_diagonal_tensor_rank_v;
 
 template <int DRank, int Rank, typename T, typename Container, typename Layout>
-struct get_diagonal_tensor_rank<DiagonalTensor<DRank, Rank, T, Container, Layout>>
+struct get_diagonal_tensor_rank_v<DiagonalTensor<DRank, Rank, T, Container, Layout>>
 {
    static constexpr int value = 2*DRank + Rank;
 };
 
+template <typename Tensor>
+constexpr int get_diagonal_tensor_rank = get_diagonal_tensor_rank_v<Tensor>::value;
+
 // get_diagonal_tensor_diagonal_rank
 template <typename Tensor>
-struct get_diagonal_tensor_diagonal_rank;
+struct get_diagonal_tensor_diagonal_rank_v;
 
 template <int DRank, int Rank, typename T, typename Container, typename Layout>
-struct get_diagonal_tensor_diagonal_rank<DiagonalTensor<DRank, Rank, T, Container, Layout>>
+struct get_diagonal_tensor_diagonal_rank_v<DiagonalTensor<DRank, Rank, T, Container, Layout>>
 {
    static constexpr int value = DRank;
 };
 
+template <typename Tensor>
+constexpr int get_diagonal_tensor_diagonal_rank = get_diagonal_tensor_diagonal_rank_v<Tensor>::value;
+
 // get_diagonal_tensor_values_rank
 template <typename Tensor>
-struct get_diagonal_tensor_values_rank;
+struct get_diagonal_tensor_values_rank_v;
 
 template <int DRank, int Rank, typename T, typename Container, typename Layout>
-struct get_diagonal_tensor_values_rank<DiagonalTensor<DRank, Rank, T, Container, Layout>>
+struct get_diagonal_tensor_values_rank_v<DiagonalTensor<DRank, Rank, T, Container, Layout>>
 {
    static constexpr int value = Rank;
 };
+
+template <typename Tensor>
+constexpr int get_diagonal_tensor_values_rank = get_diagonal_tensor_values_rank_v<Tensor>::value;
 
 // TODO Rewrite only for 2D?
 /// Represent a SRank+2*DRank symmetric Tensor, where SRank dims are symmetric.
@@ -112,7 +124,7 @@ template <int DRank, typename Tensor>
 auto makeDiagonalSymmetricTensor(const Tensor &t)
 {
    return DiagonalSymmetricTensor<DRank,
-                                  get_tensor_rank<Tensor>::value-DRank,
+                                  get_tensor_rank<Tensor>-DRank,
                                   typename Tensor::type,
                                   typename Tensor::container,
                                   typename Tensor::layout
@@ -123,46 +135,58 @@ auto makeDiagonalSymmetricTensor(const Tensor &t)
 
 // is_diagonal_symmetric_tensor
 template <typename Tensor>
-struct is_diagonal_symmetric_tensor
-{
-   static constexpr bool value = false;
-};
+struct is_diagonal_symmetric_tensor_v;
+// {
+//    static constexpr bool value = false;
+// };
 
 template <int DRank, int Rank, typename T, typename Container, typename Layout>
-struct is_diagonal_symmetric_tensor<DiagonalSymmetricTensor<DRank, Rank, T, Container, Layout>>
+struct is_diagonal_symmetric_tensor_v<DiagonalSymmetricTensor<DRank, Rank, T, Container, Layout>>
 {
    static constexpr bool value = true;
 };
 
+template <typename Tensor>
+constexpr bool is_diagonal_symmetric_tensor = is_diagonal_symmetric_tensor_v<Tensor>::value;
+
 // get_diagonal_symmetric_tensor_rank
 template <typename Tensor>
-struct get_diagonal_symmetric_tensor_rank;
+struct get_diagonal_symmetric_tensor_rank_v;
 
 template <int DRank, int Rank, typename T, typename Container, typename Layout>
-struct get_diagonal_symmetric_tensor_rank<DiagonalSymmetricTensor<DRank, Rank, T, Container, Layout>>
+struct get_diagonal_symmetric_tensor_rank_v<DiagonalSymmetricTensor<DRank, Rank, T, Container, Layout>>
 {
    static constexpr int value = 2*DRank + 2*Rank;
 };
 
+template <typename Tensor>
+constexpr int get_diagonal_symmetric_tensor_rank = get_diagonal_symmetric_tensor_rank_v<Tensor>::value;
+
 // get_diagonal_symmetric_tensor_diagonal_rank
 template <typename Tensor>
-struct get_diagonal_symmetric_tensor_diagonal_rank;
+struct get_diagonal_symmetric_tensor_diagonal_rank_v;
 
 template <int DRank, int Rank, typename T, typename Container, typename Layout>
-struct get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmetricTensor<DRank, Rank, T, Container, Layout>>
+struct get_diagonal_symmetric_tensor_diagonal_rank_v<DiagonalSymmetricTensor<DRank, Rank, T, Container, Layout>>
 {
    static constexpr int value = DRank;
 };
 
+template <typename Tensor>
+constexpr int get_diagonal_symmetric_tensor_diagonal_rank = get_diagonal_symmetric_tensor_diagonal_rank_v<Tensor>::value;
+
 // get_diagonal_symmetric_tensor_values_rank
 template <typename Tensor>
-struct get_diagonal_symmetric_tensor_values_rank;
+struct get_diagonal_symmetric_tensor_values_rank_v;
 
 template <int DRank, int Rank, typename T, typename Container, typename Layout>
-struct get_diagonal_symmetric_tensor_values_rank<DiagonalSymmetricTensor<DRank, Rank, T, Container, Layout>>
+struct get_diagonal_symmetric_tensor_values_rank_v<DiagonalSymmetricTensor<DRank, Rank, T, Container, Layout>>
 {
    static constexpr int value = Rank;
 };
+
+template <typename Tensor>
+constexpr int get_diagonal_symmetric_tensor_values_rank = get_diagonal_symmetric_tensor_values_rank_v<Tensor>::value;
 
 // /// Represent a SRank+2*DRank symmetric Tensor, where SRank dims are symmetric.
 // template <int DRank, // The rank of diagonal values

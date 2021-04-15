@@ -243,9 +243,9 @@ using QuadTensor = typename QuadTensorType<Config,DimComp>::Tensor;
 template <int DimComp, typename Config>
 auto MakeQData(Config &config, double *x, int ne)
 {
-   return QData<get_config_dim<Config>::value,
-                is_tensor_config<Config>::value,
-                get_config_quads<Config>::value,
+   return QData<get_config_dim<Config>,
+                is_tensor_config<Config>,
+                get_config_quads<Config>,
                 DimComp,
                 DeviceDTensor>(x, config, ne);
 }
@@ -253,9 +253,9 @@ auto MakeQData(Config &config, double *x, int ne)
 template <int DimComp, typename Config>
 auto MakeQData(Config &config, const double *x, int ne)
 {
-   return QData<get_config_dim<Config>::value,
-                is_tensor_config<Config>::value,
-                get_config_quads<Config>::value,
+   return QData<get_config_dim<Config>,
+                is_tensor_config<Config>,
+                get_config_quads<Config>,
                 DimComp,
                 ReadDTensor>(const_cast<double*>(x), config, ne);
 }
@@ -338,9 +338,9 @@ public:
 template <int DimComp, typename Config>
 auto MakeSymmQData(Config &config, double *x, int ne)
 {
-   return SymmQData<get_config_dim<Config>::value,
-                    is_tensor_config<Config>::value,
-                    get_config_quads<Config>::value,
+   return SymmQData<get_config_dim<Config>,
+                    is_tensor_config<Config>,
+                    get_config_quads<Config>,
                     DimComp,
                     DeviceDTensor>(x, config, ne);
 }
@@ -348,9 +348,9 @@ auto MakeSymmQData(Config &config, double *x, int ne)
 template <int DimComp, typename Config>
 auto MakeSymmQData(Config &config, const double *x, int ne)
 {
-   return SymmQData<get_config_dim<Config>::value,
-                    is_tensor_config<Config>::value,
-                    get_config_quads<Config>::value,
+   return SymmQData<get_config_dim<Config>,
+                    is_tensor_config<Config>,
+                    get_config_quads<Config>,
                     DimComp,
                     ReadDTensor>(const_cast<double*>(x), config, ne);
 }

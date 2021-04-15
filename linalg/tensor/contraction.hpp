@@ -23,10 +23,10 @@ namespace mfem
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 1 &&
-             get_tensor_rank<Tensor>::value == 1 &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 1 &&
+             get_tensor_rank<Tensor> == 1 &&
+             is_dynamic_tensor<Tensor> &&
+             is_serial_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
@@ -52,17 +52,17 @@ auto ContractX(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 1 &&
-             get_tensor_rank<Tensor>::value == 1 &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_2d_threaded_tensor<Tensor>::value, // TODO should be 1d?
+             get_basis_dim<Basis> == 1 &&
+             get_tensor_rank<Tensor> == 1 &&
+             is_dynamic_tensor<Tensor> &&
+             is_2d_threaded_tensor<Tensor>, // TODO should be 1d?
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
 {
    const int Q = B.template Size<0>();
    const int D = u.template Size<0>();
-   constexpr int BatchSize = get_tensor_batch_size<Tensor>::value;
+   constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    DynamicBlockDTensor<1,BatchSize> Bu(Q);
    MFEM_SHARED DynamicDTensor<2> slice(D,BatchSize);
@@ -90,16 +90,16 @@ auto ContractX(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 1 &&
-             get_tensor_rank<Tensor>::value == 1 &&
-             is_static_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 1 &&
+             get_tensor_rank<Tensor> == 1 &&
+             is_static_tensor<Tensor> &&
+             is_serial_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>::value;
-   constexpr int D = get_tensor_size<0,Tensor>::value;
+   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int D = get_tensor_size<0,Tensor>;
    StaticDTensor<Q> Bu;
    MFEM_UNROLL(Q)
    for(int q = 0; q < Q; ++q)
@@ -121,17 +121,17 @@ auto ContractX(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 1 &&
-             get_tensor_rank<Tensor>::value == 1 &&
-             is_static_tensor<Tensor>::value &&
-             is_2d_threaded_tensor<Tensor>::value, // TODO should be 1d?
+             get_basis_dim<Basis> == 1 &&
+             get_tensor_rank<Tensor> == 1 &&
+             is_static_tensor<Tensor> &&
+             is_2d_threaded_tensor<Tensor>, // TODO should be 1d?
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>::value;
-   constexpr int D = get_tensor_size<0,Tensor>::value;
-   constexpr int BatchSize = get_tensor_batch_size<Tensor>::value;
+   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int D = get_tensor_size<0,Tensor>;
+   constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    StaticBlockDTensor<BatchSize,Q> Bu;
    MFEM_SHARED StaticDTensor<D,BatchSize> slice;
@@ -163,17 +163,17 @@ auto ContractX(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 1 &&
-             get_tensor_rank<Tensor>::value == 2 &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 1 &&
+             get_tensor_rank<Tensor> == 2 &&
+             is_dynamic_tensor<Tensor> &&
+             is_serial_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
 {
    const int Q = B.template Size<0>();
    const int D = u.template Size<0>();
-   const int VDim = get_tensor_size<1,Tensor>::value;
+   const int VDim = get_tensor_size<1,Tensor>;
    DynamicDTensor<2> Bu(Q,VDim);
    for(int c = 0; c < VDim; ++c)
    {
@@ -196,18 +196,18 @@ auto ContractX(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 1 &&
-             get_tensor_rank<Tensor>::value == 2 &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_2d_threaded_tensor<Tensor>::value, // TODO should be 1d?
+             get_basis_dim<Basis> == 1 &&
+             get_tensor_rank<Tensor> == 2 &&
+             is_dynamic_tensor<Tensor> &&
+             is_2d_threaded_tensor<Tensor>, // TODO should be 1d?
              bool> = true >MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B,
                const Tensor &u)
 {
    const int Q = B.template Size<0>();
    const int D = u.template Size<0>();
-   const int VDim = get_tensor_size<1,Tensor>::value;
-   constexpr int BatchSize = get_tensor_batch_size<Tensor>::value;
+   const int VDim = get_tensor_size<1,Tensor>;
+   constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    DynamicBlockDTensor<2,BatchSize> Bu(Q,VDim); // TODO might be a problem
    MFEM_SHARED DynamicDTensor<3> slice(D,VDim,BatchSize);
@@ -241,17 +241,17 @@ auto ContractX(const Basis &B,
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 1 &&
-             get_tensor_rank<Tensor>::value == 2 &&
-             is_static_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 1 &&
+             get_tensor_rank<Tensor> == 2 &&
+             is_static_tensor<Tensor> &&
+             is_serial_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>::value;
-   constexpr int D = get_tensor_size<0,Tensor>::value;
-   constexpr int VDim = get_tensor_size<1,Tensor>::value;
+   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int D = get_tensor_size<0,Tensor>;
+   constexpr int VDim = get_tensor_size<1,Tensor>;
    StaticDTensor<Q,VDim> Bu;
    MFEM_UNROLL(Q)
    for(int q = 0; q < Q; ++q)
@@ -281,17 +281,17 @@ auto ContractX(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 1 &&
-             get_tensor_rank<Tensor>::value == 2 &&
-             is_static_tensor<Tensor>::value &&
-             is_2d_threaded_tensor<Tensor>::value, // TODO should be 1d?
+             get_basis_dim<Basis> == 1 &&
+             get_tensor_rank<Tensor> == 2 &&
+             is_static_tensor<Tensor> &&
+             is_2d_threaded_tensor<Tensor>, // TODO should be 1d?
              bool> = true >
 auto ContractX(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>::value;
-   constexpr int D = get_tensor_size<0,Tensor>::value;
-   constexpr int VDim = get_tensor_size<1,Tensor>::value;
-   constexpr int BatchSize = get_tensor_batch_size<Tensor>::value;
+   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int D = get_tensor_size<0,Tensor>;
+   constexpr int VDim = get_tensor_size<1,Tensor>;
+   constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    StaticBlockDTensor<BatchSize,Q,VDim> Bu;
    MFEM_SHARED StaticDTensor<D,VDim,BatchSize> slice;
@@ -328,10 +328,10 @@ auto ContractX(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 2 &&
-             get_tensor_rank<Tensor>::value == 2 &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 2 &&
+             get_tensor_rank<Tensor> == 2 &&
+             is_dynamic_tensor<Tensor> &&
+             is_serial_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
@@ -361,10 +361,10 @@ auto ContractX(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 2 &&
-             get_tensor_rank<Tensor>::value == 2 &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_2d_threaded_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 2 &&
+             get_tensor_rank<Tensor> == 2 &&
+             is_dynamic_tensor<Tensor> &&
+             is_2d_threaded_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
@@ -372,7 +372,7 @@ auto ContractX(const Basis &B, const Tensor &u)
    const int Q = B.template Size<0>();
    const int Dx = u.template Size<0>();
    const int Dy = u.template Size<1>();
-   constexpr int BatchSize = get_tensor_batch_size<Tensor>::value;
+   constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    DynamicBlockDTensor<2,BatchSize> Bu(Q,Dy);
    MFEM_SHARED DynamicDTensor<3> slice(Dx,Dy,BatchSize);
@@ -408,17 +408,17 @@ auto ContractX(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 2 &&
-             get_tensor_rank<Tensor>::value == 2 &&
-             is_static_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 2 &&
+             get_tensor_rank<Tensor> == 2 &&
+             is_static_tensor<Tensor> &&
+             is_serial_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>::value;
-   constexpr int Dx = get_tensor_size<0,Tensor>::value;
-   constexpr int Dy = get_tensor_size<1,Tensor>::value;
+   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Dx = get_tensor_size<0,Tensor>;
+   constexpr int Dy = get_tensor_size<1,Tensor>;
    StaticDTensor<Q,Dy> Bu;
    MFEM_UNROLL(Dy)
    for (int dy = 0; dy < Dy; dy++)
@@ -444,18 +444,18 @@ auto ContractX(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 2 &&
-             get_tensor_rank<Tensor>::value == 2 &&
-             is_static_tensor<Tensor>::value &&
-             is_2d_threaded_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 2 &&
+             get_tensor_rank<Tensor> == 2 &&
+             is_static_tensor<Tensor> &&
+             is_2d_threaded_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>::value;
-   constexpr int Dx = get_tensor_size<0,Tensor>::value;
-   constexpr int Dy = get_tensor_size<1,Tensor>::value;
-   constexpr int BatchSize = get_tensor_batch_size<Tensor>::value;
+   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Dx = get_tensor_size<0,Tensor>;
+   constexpr int Dy = get_tensor_size<1,Tensor>;
+   constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    StaticBlockDTensor<BatchSize,Q,Dy> Bu;
    MFEM_SHARED StaticDTensor<Dx,Dy,BatchSize> slice;
@@ -490,10 +490,10 @@ auto ContractX(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 2 &&
-             get_tensor_rank<Tensor>::value == 2 &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 2 &&
+             get_tensor_rank<Tensor> == 2 &&
+             is_dynamic_tensor<Tensor> &&
+             is_serial_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractY(const Basis &B, const Tensor &u)
@@ -523,10 +523,10 @@ auto ContractY(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 2 &&
-             get_tensor_rank<Tensor>::value == 2 &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_2d_threaded_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 2 &&
+             get_tensor_rank<Tensor> == 2 &&
+             is_dynamic_tensor<Tensor> &&
+             is_2d_threaded_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractY(const Basis &B, const Tensor &u)
@@ -534,7 +534,7 @@ auto ContractY(const Basis &B, const Tensor &u)
    const int Q = B.template Size<0>();
    const int Dx = u.template Size<0>();
    const int Dy = u.template Size<1>();
-   constexpr int BatchSize = get_tensor_batch_size<Tensor>::value;
+   constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    DynamicBlockDTensor<2,BatchSize> Bu(Dx,Q);
    MFEM_SHARED DynamicDTensor<3> slice(Dx,Dy,BatchSize);
@@ -568,17 +568,17 @@ auto ContractY(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 2 &&
-             get_tensor_rank<Tensor>::value == 2 &&
-             is_static_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 2 &&
+             get_tensor_rank<Tensor> == 2 &&
+             is_static_tensor<Tensor> &&
+             is_serial_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractY(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>::value;
-   constexpr int Dx = get_tensor_size<0,Tensor>::value;
-   constexpr int Dy = get_tensor_size<1,Tensor>::value;
+   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Dx = get_tensor_size<0,Tensor>;
+   constexpr int Dy = get_tensor_size<1,Tensor>;
    StaticDTensor<Dx,Q> Bu;
    MFEM_UNROLL(Dx)
    for (int dx = 0; dx < Dx; dx++)
@@ -604,18 +604,18 @@ auto ContractY(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 2 &&
-             get_tensor_rank<Tensor>::value == 2 &&
-             is_static_tensor<Tensor>::value &&
-             is_2d_threaded_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 2 &&
+             get_tensor_rank<Tensor> == 2 &&
+             is_static_tensor<Tensor> &&
+             is_2d_threaded_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractY(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>::value;
-   constexpr int Dx = get_tensor_size<0,Tensor>::value;
-   constexpr int Dy = get_tensor_size<1,Tensor>::value;
-   constexpr int BatchSize = get_tensor_batch_size<Tensor>::value;
+   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Dx = get_tensor_size<0,Tensor>;
+   constexpr int Dy = get_tensor_size<1,Tensor>;
+   constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    StaticBlockDTensor<BatchSize,Dx,Q> Bu;
    MFEM_SHARED StaticDTensor<Dx,Dy,BatchSize> slice;
@@ -653,10 +653,10 @@ auto ContractY(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 2 &&
-             get_tensor_rank<Tensor>::value == 3 &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 2 &&
+             get_tensor_rank<Tensor> == 3 &&
+             is_dynamic_tensor<Tensor> &&
+             is_serial_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
@@ -664,7 +664,7 @@ auto ContractX(const Basis &B, const Tensor &u)
    const int Q = B.template Size<0>();
    const int Dx = u.template Size<0>();
    const int Dy = u.template Size<1>();
-   const int VDim = get_tensor_size<2,Tensor>::value;
+   const int VDim = get_tensor_size<2,Tensor>;
    DynamicDTensor<3> Bu(Q,Dy,VDim);
    for(int c = 0; c < VDim; ++c)
    {
@@ -690,10 +690,10 @@ auto ContractX(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 2 &&
-             get_tensor_rank<Tensor>::value == 3 &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_2d_threaded_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 2 &&
+             get_tensor_rank<Tensor> == 3 &&
+             is_dynamic_tensor<Tensor> &&
+             is_2d_threaded_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
@@ -701,8 +701,8 @@ auto ContractX(const Basis &B, const Tensor &u)
    const int Q = B.template Size<0>();
    const int Dx = u.template Size<0>();
    const int Dy = u.template Size<1>();
-   const int VDim = get_tensor_size<2,Tensor>::value;
-   constexpr int BatchSize = get_tensor_batch_size<Tensor>::value;
+   const int VDim = get_tensor_size<2,Tensor>;
+   constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    DynamicBlockDTensor<3,BatchSize> Bu(Q,Dy,VDim);
    MFEM_SHARED DynamicDTensor<3> slice(Dx,Dy,BatchSize);
@@ -739,18 +739,18 @@ auto ContractX(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 2 &&
-             get_tensor_rank<Tensor>::value == 3 &&
-             is_static_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 2 &&
+             get_tensor_rank<Tensor> == 3 &&
+             is_static_tensor<Tensor> &&
+             is_serial_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>::value;
-   constexpr int Dx = get_tensor_size<0,Tensor>::value;
-   constexpr int Dy = get_tensor_size<1,Tensor>::value;
-   constexpr int VDim = get_tensor_size<2,Tensor>::value;
+   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Dx = get_tensor_size<0,Tensor>;
+   constexpr int Dy = get_tensor_size<1,Tensor>;
+   constexpr int VDim = get_tensor_size<2,Tensor>;
    StaticDTensor<Q,Dy,VDim> Bu;
    MFEM_UNROLL(VDim)
    for(int c = 0; c < VDim; ++c)
@@ -780,19 +780,19 @@ auto ContractX(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 2 &&
-             get_tensor_rank<Tensor>::value == 3 &&
-             is_static_tensor<Tensor>::value &&
-             is_2d_threaded_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 2 &&
+             get_tensor_rank<Tensor> == 3 &&
+             is_static_tensor<Tensor> &&
+             is_2d_threaded_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>::value;
-   constexpr int Dx = get_tensor_size<0,Tensor>::value;
-   constexpr int Dy = get_tensor_size<1,Tensor>::value;
-   constexpr int VDim = get_tensor_size<2,Tensor>::value;
-   constexpr int BatchSize = get_tensor_batch_size<Tensor>::value;
+   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Dx = get_tensor_size<0,Tensor>;
+   constexpr int Dy = get_tensor_size<1,Tensor>;
+   constexpr int VDim = get_tensor_size<2,Tensor>;
+   constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    StaticBlockDTensor<BatchSize,Q,Dy,VDim> Bu;
    MFEM_SHARED StaticDTensor<Dx,Dy,BatchSize,VDim> slice;
@@ -839,10 +839,10 @@ auto ContractX(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 2 &&
-             get_tensor_rank<Tensor>::value == 3 &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 2 &&
+             get_tensor_rank<Tensor> == 3 &&
+             is_dynamic_tensor<Tensor> &&
+             is_serial_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractY(const Basis &B, const Tensor &u)
@@ -850,7 +850,7 @@ auto ContractY(const Basis &B, const Tensor &u)
    const int Q = B.template Size<0>();
    const int Dx = u.template Size<0>();
    const int Dy = u.template Size<1>();
-   const int VDim = get_tensor_size<2,Tensor>::value;
+   const int VDim = get_tensor_size<2,Tensor>;
    DynamicDTensor<3> Bu(Dx,Q,VDim);
    for(int c = 0; c < VDim; ++c)
    {
@@ -876,10 +876,10 @@ auto ContractY(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 2 &&
-             get_tensor_rank<Tensor>::value == 3 &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_2d_threaded_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 2 &&
+             get_tensor_rank<Tensor> == 3 &&
+             is_dynamic_tensor<Tensor> &&
+             is_2d_threaded_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractY(const Basis &B, const Tensor &u)
@@ -887,8 +887,8 @@ auto ContractY(const Basis &B, const Tensor &u)
    const int Q = B.template Size<0>();
    const int Dx = u.template Size<0>();
    const int Dy = u.template Size<1>();
-   const int VDim = get_tensor_size<2,Tensor>::value;
-   constexpr int BatchSize = get_tensor_batch_size<Tensor>::value;
+   const int VDim = get_tensor_size<2,Tensor>;
+   constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    DynamicBlockDTensor<3,BatchSize> Bu(Dx,Q,VDim);
    MFEM_SHARED DynamicDTensor<3> slice(Dx,Dy,BatchSize);
@@ -925,18 +925,18 @@ auto ContractY(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 2 &&
-             get_tensor_rank<Tensor>::value == 3 &&
-             is_static_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 2 &&
+             get_tensor_rank<Tensor> == 3 &&
+             is_static_tensor<Tensor> &&
+             is_serial_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractY(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>::value;
-   constexpr int Dx = get_tensor_size<0,Tensor>::value;
-   constexpr int Dy = get_tensor_size<1,Tensor>::value;
-   constexpr int VDim = get_tensor_size<2,Tensor>::value;
+   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Dx = get_tensor_size<0,Tensor>;
+   constexpr int Dy = get_tensor_size<1,Tensor>;
+   constexpr int VDim = get_tensor_size<2,Tensor>;
    StaticDTensor<Dx,Q,VDim> Bu;
    MFEM_UNROLL(VDim)
    for(int c = 0; c < VDim; ++c)
@@ -966,19 +966,19 @@ auto ContractY(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 2 &&
-             get_tensor_rank<Tensor>::value == 3 &&
-             is_static_tensor<Tensor>::value &&
-             is_2d_threaded_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 2 &&
+             get_tensor_rank<Tensor> == 3 &&
+             is_static_tensor<Tensor> &&
+             is_2d_threaded_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractY(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>::value;
-   constexpr int Dx = get_tensor_size<0,Tensor>::value;
-   constexpr int Dy = get_tensor_size<1,Tensor>::value;
-   constexpr int VDim = get_tensor_size<2,Tensor>::value;
-   constexpr int BatchSize = get_tensor_batch_size<Tensor>::value;
+   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Dx = get_tensor_size<0,Tensor>;
+   constexpr int Dy = get_tensor_size<1,Tensor>;
+   constexpr int VDim = get_tensor_size<2,Tensor>;
+   constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    StaticBlockDTensor<BatchSize,Dx,Q,VDim> Bu;
    MFEM_SHARED StaticDTensor<Dx,Dy,BatchSize,VDim> slice;
@@ -1028,10 +1028,10 @@ auto ContractY(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 3 &&
-             get_tensor_rank<Tensor>::value == 3 &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Tensor> == 3 &&
+             is_dynamic_tensor<Tensor> &&
+             is_serial_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
@@ -1065,10 +1065,10 @@ auto ContractX(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 3 &&
-             get_tensor_rank<Tensor>::value == 3 &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_2d_threaded_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Tensor> == 3 &&
+             is_dynamic_tensor<Tensor> &&
+             is_2d_threaded_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
@@ -1077,7 +1077,7 @@ auto ContractX(const Basis &B, const Tensor &u)
    const int Dx = u.template Size<0>();
    const int Dy = u.template Size<1>();
    const int Dz = u.template Size<2>();
-   constexpr int BatchSize = get_tensor_batch_size<Tensor>::value;
+   constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    DynamicBlockDTensor<3,BatchSize> Bu(Q,Dy,Dz);
    MFEM_SHARED DynamicDTensor<3> slice(Dx,Dy,BatchSize);
@@ -1114,18 +1114,18 @@ auto ContractX(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 3 &&
-             get_tensor_rank<Tensor>::value == 3 &&
-             is_static_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Tensor> == 3 &&
+             is_static_tensor<Tensor> &&
+             is_serial_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>::value;
-   constexpr int Dx = get_tensor_size<0,Tensor>::value;
-   constexpr int Dy = get_tensor_size<1,Tensor>::value;
-   constexpr int Dz = get_tensor_size<2,Tensor>::value;
+   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Dx = get_tensor_size<0,Tensor>;
+   constexpr int Dy = get_tensor_size<1,Tensor>;
+   constexpr int Dz = get_tensor_size<2,Tensor>;
    StaticDTensor<Q,Dy,Dz> Bu;
    MFEM_UNROLL(Dz)
    for (int dz = 0; dz < Dz; dz++)
@@ -1155,19 +1155,19 @@ auto ContractX(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 3 &&
-             get_tensor_rank<Tensor>::value == 3 &&
-             is_static_tensor<Tensor>::value &&
-             is_2d_threaded_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Tensor> == 3 &&
+             is_static_tensor<Tensor> &&
+             is_2d_threaded_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>::value;
-   constexpr int Dx = get_tensor_size<0,Tensor>::value;
-   constexpr int Dy = get_tensor_size<1,Tensor>::value;
-   constexpr int Dz = get_tensor_size<2,Tensor>::value;
-   constexpr int BatchSize = get_tensor_batch_size<Tensor>::value;
+   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Dx = get_tensor_size<0,Tensor>;
+   constexpr int Dy = get_tensor_size<1,Tensor>;
+   constexpr int Dz = get_tensor_size<2,Tensor>;
+   constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    StaticBlockDTensor<BatchSize,Q,Dy,Dz> Bu;
    MFEM_SHARED StaticDTensor<Dx,Dy,BatchSize> slice;
@@ -1205,10 +1205,10 @@ auto ContractX(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 3 &&
-             get_tensor_rank<Tensor>::value == 3 &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Tensor> == 3 &&
+             is_dynamic_tensor<Tensor> &&
+             is_serial_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractY(const Basis &B, const Tensor &u)
@@ -1242,10 +1242,10 @@ auto ContractY(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 3 &&
-             get_tensor_rank<Tensor>::value == 3 &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_2d_threaded_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Tensor> == 3 &&
+             is_dynamic_tensor<Tensor> &&
+             is_2d_threaded_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractY(const Basis &B, const Tensor &u)
@@ -1254,7 +1254,7 @@ auto ContractY(const Basis &B, const Tensor &u)
    const int Dx = u.template Size<0>();
    const int Dy = u.template Size<1>();
    const int Dz = u.template Size<2>();
-   constexpr int BatchSize = get_tensor_batch_size<Tensor>::value;
+   constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    DynamicBlockDTensor<3,BatchSize> Bu(Dx,Q,Dz);
    MFEM_SHARED DynamicDTensor<3> slice(Dx,Dy,BatchSize);
@@ -1291,18 +1291,18 @@ auto ContractY(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 3 &&
-             get_tensor_rank<Tensor>::value == 3 &&
-             is_static_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Tensor> == 3 &&
+             is_static_tensor<Tensor> &&
+             is_serial_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractY(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>::value;
-   constexpr int Dx = get_tensor_size<0,Tensor>::value;
-   constexpr int Dy = get_tensor_size<1,Tensor>::value;
-   constexpr int Dz = get_tensor_size<2,Tensor>::value;
+   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Dx = get_tensor_size<0,Tensor>;
+   constexpr int Dy = get_tensor_size<1,Tensor>;
+   constexpr int Dz = get_tensor_size<2,Tensor>;
    StaticDTensor<Dx,Q,Dz> Bu;
    MFEM_UNROLL(Dz)
    for (int dz = 0; dz < Dz; dz++)
@@ -1332,19 +1332,19 @@ auto ContractY(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 3 &&
-             get_tensor_rank<Tensor>::value == 3 &&
-             is_static_tensor<Tensor>::value &&
-             is_2d_threaded_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Tensor> == 3 &&
+             is_static_tensor<Tensor> &&
+             is_2d_threaded_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractY(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>::value;
-   constexpr int Dx = get_tensor_size<0,Tensor>::value;
-   constexpr int Dy = get_tensor_size<1,Tensor>::value;
-   constexpr int Dz = get_tensor_size<2,Tensor>::value;
-   constexpr int BatchSize = get_tensor_batch_size<Tensor>::value;
+   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Dx = get_tensor_size<0,Tensor>;
+   constexpr int Dy = get_tensor_size<1,Tensor>;
+   constexpr int Dz = get_tensor_size<2,Tensor>;
+   constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    StaticBlockDTensor<BatchSize,Dx,Q,Dz> Bu;
    MFEM_SHARED StaticDTensor<Dx,Dy,BatchSize> slice;
@@ -1383,10 +1383,10 @@ auto ContractY(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 3 &&
-             get_tensor_rank<Tensor>::value == 3 &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Tensor> == 3 &&
+             is_dynamic_tensor<Tensor> &&
+             is_serial_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractZ(const Basis &B, const Tensor &u)
@@ -1419,10 +1419,10 @@ auto ContractZ(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 3 &&
-             get_tensor_rank<Tensor>::value == 3 &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_2d_threaded_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Tensor> == 3 &&
+             is_dynamic_tensor<Tensor> &&
+             is_2d_threaded_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractZ(const Basis &B, const Tensor &u)
@@ -1431,7 +1431,7 @@ auto ContractZ(const Basis &B, const Tensor &u)
    const int Dx = u.template Size<0>();
    const int Dy = u.template Size<1>();
    const int Dz = u.template Size<2>();
-   constexpr int BatchSize = get_tensor_batch_size<Tensor>::value;
+   constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    DynamicBlockDTensor<3,BatchSize> Bu(Dx,Dy,Q);
    MFEM_FOREACH_THREAD(dy,y,Dy)
    {
@@ -1457,18 +1457,18 @@ auto ContractZ(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 3 &&
-             get_tensor_rank<Tensor>::value == 3 &&
-             is_static_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Tensor> == 3 &&
+             is_static_tensor<Tensor> &&
+             is_serial_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractZ(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>::value;
-   constexpr int Dx = get_tensor_size<0,Tensor>::value;
-   constexpr int Dy = get_tensor_size<1,Tensor>::value;
-   constexpr int Dz = get_tensor_size<2,Tensor>::value;
+   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Dx = get_tensor_size<0,Tensor>;
+   constexpr int Dy = get_tensor_size<1,Tensor>;
+   constexpr int Dz = get_tensor_size<2,Tensor>;
    StaticDTensor<Dx,Dy,Q> Bu;
    MFEM_UNROLL(Dy)
    for (int dy = 0; dy < Dy; ++dy)
@@ -1498,19 +1498,19 @@ auto ContractZ(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 3 &&
-             get_tensor_rank<Tensor>::value == 3 &&
-             is_static_tensor<Tensor>::value &&
-             is_2d_threaded_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Tensor> == 3 &&
+             is_static_tensor<Tensor> &&
+             is_2d_threaded_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractZ(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>::value;
-   constexpr int Dx = get_tensor_size<0,Tensor>::value;
-   constexpr int Dy = get_tensor_size<1,Tensor>::value;
-   constexpr int Dz = get_tensor_size<2,Tensor>::value;
-   constexpr int BatchSize = get_tensor_batch_size<Tensor>::value;
+   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Dx = get_tensor_size<0,Tensor>;
+   constexpr int Dy = get_tensor_size<1,Tensor>;
+   constexpr int Dz = get_tensor_size<2,Tensor>;
+   constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    StaticBlockDTensor<BatchSize,Dx,Dy,Q> Bu;
    MFEM_FOREACH_THREAD(dy,y,Dy)
    {
@@ -1542,10 +1542,10 @@ auto ContractZ(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 3 &&
-             get_tensor_rank<Tensor>::value == 4 &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Tensor> == 4 &&
+             is_dynamic_tensor<Tensor> &&
+             is_serial_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
@@ -1554,7 +1554,7 @@ auto ContractX(const Basis &B, const Tensor &u)
    const int Dx = u.template Size<0>();
    const int Dy = u.template Size<1>();
    const int Dz = u.template Size<2>();
-   const int VDim = get_tensor_size<3,Tensor>::value;
+   const int VDim = get_tensor_size<3,Tensor>;
    DynamicDTensor<4> Bu(Q,Dy,Dz,VDim);
    for(int c = 0; c < VDim; ++c)
    {
@@ -1583,10 +1583,10 @@ auto ContractX(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 3 &&
-             get_tensor_rank<Tensor>::value == 4 &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_2d_threaded_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Tensor> == 4 &&
+             is_dynamic_tensor<Tensor> &&
+             is_2d_threaded_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
@@ -1595,8 +1595,8 @@ auto ContractX(const Basis &B, const Tensor &u)
    const int Dx = u.template Size<0>();
    const int Dy = u.template Size<1>();
    const int Dz = u.template Size<2>();
-   const int VDim = get_tensor_size<3,Tensor>::value;
-   constexpr int BatchSize = get_tensor_batch_size<Tensor>::value;
+   const int VDim = get_tensor_size<3,Tensor>;
+   constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    DynamicBlockDTensor<4,BatchSize> Bu(Q,Dy,Dz,VDim);
    MFEM_SHARED DynamicDTensor<3> slice(Dx,Dy,BatchSize);
@@ -1636,19 +1636,19 @@ auto ContractX(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 3 &&
-             get_tensor_rank<Tensor>::value == 4 &&
-             is_static_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Tensor> == 4 &&
+             is_static_tensor<Tensor> &&
+             is_serial_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>::value;
-   constexpr int Dx = get_tensor_size<0,Tensor>::value;
-   constexpr int Dy = get_tensor_size<1,Tensor>::value;
-   constexpr int Dz = get_tensor_size<2,Tensor>::value;
-   constexpr int VDim = get_tensor_size<3,Tensor>::value;
+   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Dx = get_tensor_size<0,Tensor>;
+   constexpr int Dy = get_tensor_size<1,Tensor>;
+   constexpr int Dz = get_tensor_size<2,Tensor>;
+   constexpr int VDim = get_tensor_size<3,Tensor>;
    StaticDTensor<Q,Dy,Dz,VDim> Bu;
    MFEM_UNROLL(VDim)
    for(int c = 0; c < VDim; ++c)
@@ -1682,20 +1682,20 @@ auto ContractX(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 3 &&
-             get_tensor_rank<Tensor>::value == 4 &&
-             is_static_tensor<Tensor>::value &&
-             is_2d_threaded_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Tensor> == 4 &&
+             is_static_tensor<Tensor> &&
+             is_2d_threaded_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>::value;
-   constexpr int Dx = get_tensor_size<0,Tensor>::value;
-   constexpr int Dy = get_tensor_size<1,Tensor>::value;
-   constexpr int Dz = get_tensor_size<2,Tensor>::value;
-   constexpr int VDim = get_tensor_size<3,Tensor>::value;
-   constexpr int BatchSize = get_tensor_batch_size<Tensor>::value;
+   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Dx = get_tensor_size<0,Tensor>;
+   constexpr int Dy = get_tensor_size<1,Tensor>;
+   constexpr int Dz = get_tensor_size<2,Tensor>;
+   constexpr int VDim = get_tensor_size<3,Tensor>;
+   constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    StaticBlockDTensor<BatchSize,Q,Dy,Dz,VDim> Bu;
    MFEM_SHARED StaticDTensor<Dx,Dy,BatchSize,VDim> slice;
@@ -1747,10 +1747,10 @@ auto ContractX(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 3 &&
-             get_tensor_rank<Tensor>::value == 4 &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Tensor> == 4 &&
+             is_dynamic_tensor<Tensor> &&
+             is_serial_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractY(const Basis &B, const Tensor &u)
@@ -1759,7 +1759,7 @@ auto ContractY(const Basis &B, const Tensor &u)
    const int Dx = u.template Size<0>();
    const int Dy = u.template Size<1>();
    const int Dz = u.template Size<2>();
-   const int VDim = get_tensor_size<3,Tensor>::value;
+   const int VDim = get_tensor_size<3,Tensor>;
    DynamicDTensor<4> Bu(Dx,Q,Dz,VDim);
    for(int c = 0; c < VDim; ++c)
    {
@@ -1788,10 +1788,10 @@ auto ContractY(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 3 &&
-             get_tensor_rank<Tensor>::value == 4 &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_2d_threaded_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Tensor> == 4 &&
+             is_dynamic_tensor<Tensor> &&
+             is_2d_threaded_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractY(const Basis &B, const Tensor &u)
@@ -1800,8 +1800,8 @@ auto ContractY(const Basis &B, const Tensor &u)
    const int Dx = u.template Size<0>();
    const int Dy = u.template Size<1>();
    const int Dz = u.template Size<2>();
-   const int VDim = get_tensor_size<3,Tensor>::value;
-   constexpr int BatchSize = get_tensor_batch_size<Tensor>::value;
+   const int VDim = get_tensor_size<3,Tensor>;
+   constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    DynamicBlockDTensor<4,BatchSize> Bu(Dx,Q,Dz,VDim);
    MFEM_SHARED DynamicDTensor<3> slice(Dx,Dy,BatchSize);
@@ -1841,19 +1841,19 @@ auto ContractY(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 3 &&
-             get_tensor_rank<Tensor>::value == 4 &&
-             is_static_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Tensor> == 4 &&
+             is_static_tensor<Tensor> &&
+             is_serial_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractY(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>::value;
-   constexpr int Dx = get_tensor_size<0,Tensor>::value;
-   constexpr int Dy = get_tensor_size<1,Tensor>::value;
-   constexpr int Dz = get_tensor_size<2,Tensor>::value;
-   constexpr int VDim = get_tensor_size<3,Tensor>::value;
+   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Dx = get_tensor_size<0,Tensor>;
+   constexpr int Dy = get_tensor_size<1,Tensor>;
+   constexpr int Dz = get_tensor_size<2,Tensor>;
+   constexpr int VDim = get_tensor_size<3,Tensor>;
    StaticDTensor<Dx,Q,Dz,VDim> Bu;
    MFEM_UNROLL(VDim)
    for(int c = 0; c < VDim; ++c)
@@ -1887,20 +1887,20 @@ auto ContractY(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 3 &&
-             get_tensor_rank<Tensor>::value == 4 &&
-             is_static_tensor<Tensor>::value &&
-             is_2d_threaded_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Tensor> == 4 &&
+             is_static_tensor<Tensor> &&
+             is_2d_threaded_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractY(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>::value;
-   constexpr int Dx = get_tensor_size<0,Tensor>::value;
-   constexpr int Dy = get_tensor_size<1,Tensor>::value;
-   constexpr int Dz = get_tensor_size<2,Tensor>::value;
-   constexpr int VDim = get_tensor_size<3,Tensor>::value;
-   constexpr int BatchSize = get_tensor_batch_size<Tensor>::value;
+   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Dx = get_tensor_size<0,Tensor>;
+   constexpr int Dy = get_tensor_size<1,Tensor>;
+   constexpr int Dz = get_tensor_size<2,Tensor>;
+   constexpr int VDim = get_tensor_size<3,Tensor>;
+   constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    const int batch_id = MFEM_THREAD_ID(z);
    StaticBlockDTensor<BatchSize,Dx,Q,Dz,VDim> Bu;
    MFEM_SHARED StaticDTensor<Dx,Dy,BatchSize,VDim> slice;
@@ -1952,10 +1952,10 @@ auto ContractY(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 3 &&
-             get_tensor_rank<Tensor>::value == 4 &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Tensor> == 4 &&
+             is_dynamic_tensor<Tensor> &&
+             is_serial_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractZ(const Basis &B, const Tensor &u)
@@ -1964,7 +1964,7 @@ auto ContractZ(const Basis &B, const Tensor &u)
    const int Dx = u.template Size<0>();
    const int Dy = u.template Size<1>();
    const int Dz = u.template Size<2>();
-   const int VDim = get_tensor_size<3,Tensor>::value;
+   const int VDim = get_tensor_size<3,Tensor>;
    DynamicDTensor<4> Bu(Dx,Dy,Q,VDim);
    for(int c = 0; c < VDim; ++c)
    {
@@ -1993,10 +1993,10 @@ auto ContractZ(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 3 &&
-             get_tensor_rank<Tensor>::value == 4 &&
-             is_dynamic_tensor<Tensor>::value &&
-             is_2d_threaded_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Tensor> == 4 &&
+             is_dynamic_tensor<Tensor> &&
+             is_2d_threaded_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractZ(const Basis &B, const Tensor &u)
@@ -2005,8 +2005,8 @@ auto ContractZ(const Basis &B, const Tensor &u)
    const int Dx = u.template Size<0>();
    const int Dy = u.template Size<1>();
    const int Dz = u.template Size<2>();
-   const int VDim = get_tensor_size<3,Tensor>::value;
-   constexpr int BatchSize = get_tensor_batch_size<Tensor>::value;
+   const int VDim = get_tensor_size<3,Tensor>;
+   constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    DynamicBlockDTensor<4,BatchSize> Bu(Dx,Dy,Q,VDim);
    for(int c = 0; c < VDim; ++c)
    {
@@ -2035,19 +2035,19 @@ auto ContractZ(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 3 &&
-             get_tensor_rank<Tensor>::value == 4 &&
-             is_static_tensor<Tensor>::value &&
-             is_serial_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Tensor> == 4 &&
+             is_static_tensor<Tensor> &&
+             is_serial_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractZ(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>::value;
-   constexpr int Dx = get_tensor_size<0,Tensor>::value;
-   constexpr int Dy = get_tensor_size<1,Tensor>::value;
-   constexpr int Dz = get_tensor_size<2,Tensor>::value;
-   constexpr int VDim = get_tensor_size<3,Tensor>::value;
+   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Dx = get_tensor_size<0,Tensor>;
+   constexpr int Dy = get_tensor_size<1,Tensor>;
+   constexpr int Dz = get_tensor_size<2,Tensor>;
+   constexpr int VDim = get_tensor_size<3,Tensor>;
    StaticDTensor<Dx,Dy,Q,VDim> Bu;
    MFEM_UNROLL(VDim)
    for(int c = 0; c < VDim; ++c)
@@ -2081,20 +2081,20 @@ auto ContractZ(const Basis &B, const Tensor &u)
 template <typename Basis,
           typename Tensor,
           std::enable_if_t<
-             get_basis_dim<Basis>::value == 3 &&
-             get_tensor_rank<Tensor>::value == 4 &&
-             is_static_tensor<Tensor>::value &&
-             is_2d_threaded_tensor<Tensor>::value,
+             get_basis_dim<Basis> == 3 &&
+             get_tensor_rank<Tensor> == 4 &&
+             is_static_tensor<Tensor> &&
+             is_2d_threaded_tensor<Tensor>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto ContractZ(const Basis &B, const Tensor &u)
 {
-   constexpr int Q = get_basis_quads<Basis>::value;
-   constexpr int Dx = get_tensor_size<0,Tensor>::value;
-   constexpr int Dy = get_tensor_size<1,Tensor>::value;
-   constexpr int Dz = get_tensor_size<2,Tensor>::value;
-   constexpr int VDim = get_tensor_size<3,Tensor>::value;
-   constexpr int BatchSize = get_tensor_batch_size<Tensor>::value;
+   constexpr int Q = get_basis_quads<Basis>;
+   constexpr int Dx = get_tensor_size<0,Tensor>;
+   constexpr int Dy = get_tensor_size<1,Tensor>;
+   constexpr int Dz = get_tensor_size<2,Tensor>;
+   constexpr int VDim = get_tensor_size<3,Tensor>;
+   constexpr int BatchSize = get_tensor_batch_size<Tensor>;
    StaticBlockDTensor<BatchSize,Dx,Dy,Q,VDim> Bu;
    MFEM_FOREACH_THREAD(dy,y,Dy)
    {

@@ -70,7 +70,7 @@ struct Foreach<1>
              typename Lambda,
              typename... Idx,
              std::enable_if_t<
-                is_serial_tensor<TensorLHS>::value,
+                is_serial_tensor<TensorLHS>,
              bool> = true>
    MFEM_HOST_DEVICE inline
    static void ApplyUnOp(TensorLHS &lhs, Lambda &&func, Idx... idx)
@@ -85,7 +85,7 @@ struct Foreach<1>
              typename Lambda,
              typename... Idx,
              std::enable_if_t<
-                is_2d_threaded_tensor<TensorLHS>::value,
+                is_2d_threaded_tensor<TensorLHS>,
              bool> = true>
    MFEM_HOST_DEVICE inline
    static void ApplyUnOp(TensorLHS &lhs, Lambda &&func, Idx... idx)
@@ -101,8 +101,8 @@ struct Foreach<1>
              typename Lambda,
              typename... Idx,
              std::enable_if_t<
-                is_serial_tensor<TensorLHS>::value &&
-                is_serial_tensor<TensorRHS>::value,
+                is_serial_tensor<TensorLHS> &&
+                is_serial_tensor<TensorRHS>,
              bool> = true>
    MFEM_HOST_DEVICE inline
    static void ApplyBinOp(TensorLHS &lhs, TensorRHS &rhs, Lambda &&func, Idx... idx)
@@ -118,12 +118,12 @@ struct Foreach<1>
              typename Lambda,
              typename... Idx,
              std::enable_if_t<
-                (is_2d_threaded_tensor<TensorLHS>::value &&
-                is_2d_threaded_tensor<TensorRHS>::value) ||
-                (has_pointer_container<TensorLHS>::value &&
-                is_2d_threaded_tensor<TensorRHS>::value) ||
-                (is_2d_threaded_tensor<TensorLHS>::value &&
-                has_pointer_container<TensorRHS>::value),
+                (is_2d_threaded_tensor<TensorLHS> &&
+                is_2d_threaded_tensor<TensorRHS>) ||
+                (has_pointer_container<TensorLHS> &&
+                is_2d_threaded_tensor<TensorRHS>) ||
+                (is_2d_threaded_tensor<TensorLHS> &&
+                has_pointer_container<TensorRHS>),
              bool> = true>
    MFEM_HOST_DEVICE inline
    static void ApplyBinOp(TensorLHS &lhs, TensorRHS &rhs, Lambda &&func, Idx... idx)
@@ -142,7 +142,7 @@ struct Foreach<2>
              typename Lambda,
              typename... Idx,
              std::enable_if_t<
-                is_serial_tensor<TensorLHS>::value,
+                is_serial_tensor<TensorLHS>,
              bool> = true>
    MFEM_HOST_DEVICE inline
    static void ApplyUnOp(TensorLHS &lhs, Lambda &&func, Idx... idx)
@@ -157,7 +157,7 @@ struct Foreach<2>
              typename Lambda,
              typename... Idx,
              std::enable_if_t<
-                is_2d_threaded_tensor<TensorLHS>::value,
+                is_2d_threaded_tensor<TensorLHS>,
              bool> = true>
    MFEM_HOST_DEVICE inline
    static void ApplyUnOp(TensorLHS &lhs, Lambda &&func, Idx... idx)
@@ -173,8 +173,8 @@ struct Foreach<2>
              typename Lambda,
              typename... Idx,
              std::enable_if_t<
-                is_serial_tensor<TensorLHS>::value &&
-                is_serial_tensor<TensorRHS>::value,
+                is_serial_tensor<TensorLHS> &&
+                is_serial_tensor<TensorRHS>,
              bool> = true>
    MFEM_HOST_DEVICE inline
    static void ApplyBinOp(TensorLHS &lhs, TensorRHS &rhs, Lambda &&func, Idx... idx)
@@ -190,12 +190,12 @@ struct Foreach<2>
              typename Lambda,
              typename... Idx,
              std::enable_if_t<
-                (is_2d_threaded_tensor<TensorLHS>::value &&
-                is_2d_threaded_tensor<TensorRHS>::value) ||
-                (has_pointer_container<TensorLHS>::value &&
-                is_2d_threaded_tensor<TensorRHS>::value) ||
-                (is_2d_threaded_tensor<TensorLHS>::value &&
-                has_pointer_container<TensorRHS>::value),
+                (is_2d_threaded_tensor<TensorLHS> &&
+                is_2d_threaded_tensor<TensorRHS>) ||
+                (has_pointer_container<TensorLHS> &&
+                is_2d_threaded_tensor<TensorRHS>) ||
+                (is_2d_threaded_tensor<TensorLHS> &&
+                has_pointer_container<TensorRHS>),
              bool> = true>
    MFEM_HOST_DEVICE inline
    static void ApplyBinOp(TensorLHS &lhs, TensorRHS &rhs, Lambda &&func, Idx... idx)

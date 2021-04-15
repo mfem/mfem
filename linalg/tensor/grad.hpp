@@ -89,7 +89,7 @@ auto operator*(const BasisGradientTranspose<1,true,D,Q> &basis, const Dofs &u)
 template <int D, int Q, typename Dofs>
 auto operator*(const BasisGradientTranspose<2,true,D,Q> &basis, const Dofs &u)
 {
-   constexpr int Rank = get_tensor_rank<Dofs>::value;
+   constexpr int Rank = get_tensor_rank<Dofs>;
    auto Bt = basis.GetBt();
    auto Gt = basis.GetGt();
    auto ux = u.template Get<Rank-1>(0);
@@ -105,7 +105,7 @@ auto operator*(const BasisGradientTranspose<2,true,D,Q> &basis, const Dofs &u)
 template <int D, int Q, typename Dofs>
 auto operator*(const BasisGradientTranspose<3,true,D,Q> &basis, const Dofs &u)
 {
-   constexpr int Rank = get_tensor_rank<Dofs>::value;
+   constexpr int Rank = get_tensor_rank<Dofs>;
    auto Bt = basis.GetBt();
    auto Gt = basis.GetGt();
    auto ux = u.template Get<Rank-1>(0);
