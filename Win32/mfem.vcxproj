@@ -435,8 +435,8 @@
     <ClCompile Include="..\fem\plinearform.cpp" />
     <ClCompile Include="..\fem\pnonlinearform.cpp" />
     <ClCompile Include="..\fem\prestriction.cpp" />
-    <ClCompile Include="..\fem\quadintepolator.cpp" />
-    <ClCompile Include="..\fem\quadintepolator_face.cpp" />
+    <ClCompile Include="..\fem\quadinterpolator.cpp" />
+    <ClCompile Include="..\fem\quadinterpolator_face.cpp" />
     <ClCompile Include="..\fem\restriction.cpp" />
     <ClCompile Include="..\fem\sidredatacollection.cpp" />
     <ClCompile Include="..\fem\staticcond.cpp" />
