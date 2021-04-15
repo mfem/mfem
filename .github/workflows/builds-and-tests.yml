@@ -159,7 +159,9 @@ jobs:
     # Code coverage (process and upload reports)
     - name: codecov
       if: matrix.codecov == 'YES'
-      uses: mfem/github-actions/upload-coverage@master
-      with:
-        name: ${{ matrix.os }}-${{ matrix.mpi }}
-        project_dir: ${{ env.MFEM_TOP_DIR }}
+      run: |
+        env
+        #uses: mfem/github-actions/upload-coverage@master
+        #with:
+        #  name: ${{ matrix.os }}-${{ matrix.mpi }}
+        #  project_dir: ${{ env.MFEM_TOP_DIR }}
