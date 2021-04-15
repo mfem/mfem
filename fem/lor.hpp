@@ -165,7 +165,7 @@ public:
    /// Create a solver of type @a SolverType, formed using the assembled
    /// HypreParMatrix of the LOR version of @a a_ho. @see ParLOR
    LORSolver(ParBilinearForm &a_ho, const Array<int> &ess_tdof_list,
-               int ref_type=BasisType::GaussLobatto)
+             int ref_type=BasisType::GaussLobatto)
    {
       lor = new ParLOR(a_ho, ess_tdof_list, ref_type);
       own_lor = true;
