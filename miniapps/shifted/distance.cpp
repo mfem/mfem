@@ -182,6 +182,7 @@ int main(int argc, char *argv[])
    double t_param = 1.0;
    bool pa = false;
    const char *device_config = "cpu";
+   bool algebraic_ceed = false;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -208,6 +209,8 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&algebraic_ceed, "-a", "--algebraic", "-no-a", "--no-algebraic",
+                  "Use algebraic Ceed solver");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -264,7 +267,7 @@ int main(int argc, char *argv[])
    DistanceSolver *dist_solver = NULL;
    if (solver_type == 0)
    {
-      auto ds = new HeatDistanceSolver(t_param * dx * dx, pa);
+      auto ds = new HeatDistanceSolver(t_param * dx * dx, pa, algebraic_ceed);
       if (problem == 0)
       {
          ds->transform = false;
