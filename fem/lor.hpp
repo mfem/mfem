@@ -17,7 +17,50 @@
 namespace mfem
 {
 
-class LOR
+/// Abstract base class for LOR and ParLOR classes, which construct low-order
+/// refined versions of bilinear forms.
+class LORBase
+{
+private:
+   using GetIntegratorsFn = Array<BilinearFormIntegrator*> *(BilinearForm::*)();
+   using GetMarkersFn = Array<Array<int>*> *(BilinearForm::*)();
+   using AddIntegratorFn = void (BilinearForm::*)(BilinearFormIntegrator*);
+   using AddIntegratorMarkersFn =
+      void (BilinearForm::*)(BilinearFormIntegrator*, Array<int>&);
+
+   BilinearForm &a;
+   IntegrationRules irs;
+   const IntegrationRule *ir;
+   std::map<BilinearFormIntegrator*, const IntegrationRule*> ir_map;
+
+   void AddIntegrators(BilinearForm &a_to,
+                       GetIntegratorsFn get_integrators,
+                       AddIntegratorFn add_integrator);
+
+   void AddIntegratorsAndMarkers(BilinearForm &a_to,
+                                 GetIntegratorsFn get_integrators,
+                                 GetMarkersFn get_markers,
+                                 AddIntegratorMarkersFn add_integrator);
+
+
+   void ResetIntegrationRules(GetIntegratorsFn get_integrators);
+
+protected:
+   /// Adds all the integrators from the member data @a a to the BilinearForm
+   /// @a a_to. Marks @a a_to as using external integrators. If the mesh
+   /// consists of tensor product elements, temporarily changes the integration
+   /// rules of the integrators to use collocated quadrature for better
+   /// conditioning of the LOR system.
+   void AddIntegrators(BilinearForm &a_to);
+
+   /// Resets the integration rules of the integrators of @a a to their original
+   /// values.
+   void ResetIntegrationRules();
+
+   LORBase(BilinearForm &a_);
+};
+
+class LOR : LORBase
 {
 protected:
    Mesh mesh;
@@ -64,7 +107,7 @@ public:
 
 #ifdef MFEM_USE_MPI
 
-class ParLOR
+class ParLOR : public LORBase
 {
 protected:
    ParMesh mesh;
