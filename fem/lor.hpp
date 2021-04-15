@@ -44,6 +44,13 @@ private:
 
    void ResetIntegrationRules(GetIntegratorsFn get_integrators);
 
+   enum SpaceType
+   {
+      H1, ND, RT, L2, INVALID
+   };
+
+   static inline int absdof(int i) { return i < 0 ? -1-i : i; }
+
 protected:
    BilinearForm &a_ho;
    Mesh *mesh;
@@ -51,6 +58,7 @@ protected:
    FiniteElementSpace *fes;
    BilinearForm *a;
    OperatorHandle A;
+   mutable Array<int> perm;
 
    /// Adds all the integrators from the member data @a a to the BilinearForm
    /// @a a_to. Marks @a a_to as using external integrators. If the mesh
@@ -63,17 +71,42 @@ protected:
    /// values.
    void ResetIntegrationRules();
 
+   /// Construct the permutation that maps LOR DOFs to high-order DOFs. See
+   /// GetDofPermutation
+   void ConstructDofPermutation() const;
+
+   /// Return the type of finite element space: H1, ND, RT or L2.
+   SpaceType GetSpaceType() const;
+
+   /// Return the order of the LOR space. 1 for H1 or ND, 0 for L2 or RT.
+   int GetLOROrder() const;
+
+   /// Assemble the LOR system.
+   void AssembleSystem(const Array<int> &ess_tdof_list);
+
    LORBase(BilinearForm &a_);
 
 public:
    /// Return the assembled LOR system
-   OperatorHandle &GetAssembledSystem();
+   const OperatorHandle &GetAssembledSystem() const;
+
+   /// Returns the permutation that maps LOR DOFs to high-order DOFs. This
+   /// permutation is constructed the first time it is requested. For H1 finite
+   /// element spaces, this is the identity. For vector finite element spaces,
+   /// this permutation is nontrivial. Returns an array @a perm such that, given
+   /// an index @a i of a LOR dof, @a perm[i] is the index of the corresponding
+   /// HO dof.
+   const Array<int> &GetDofPermutation() const;
+
+   /// Returns true if the LOR spaces requires a DOF permutation (if the
+   /// corresponding LOR and HO DOFs are numbered differently), false otherwise.
+   bool RequiresDofPermutation() const;
 
    ~LORBase();
 };
 
 /// Create and assemble a low-order refined version of a BilinearForm.
-class LOR : LORBase
+class LOR : public LORBase
 {
 public:
    /// Construct the low-order refined version of @a a_ho using the given list
@@ -94,6 +127,7 @@ class LORSolver : public Solver
 protected:
    LORBase *lor;
    SolverType solver;
+   mutable Vector px, py;
    LORSolver() { }
 public:
    /// Create a solver of type @a SolverType, created using a LOR version of
@@ -113,7 +147,28 @@ public:
 
    void Mult(const Vector &x, Vector &y) const
    {
-      solver.Mult(x, y);
+      bool permute = lor->RequiresDofPermutation();
+      if (permute)
+      {
+         const Array<int> &p = lor->GetDofPermutation();
+         px.SetSize(x.Size());
+         py.SetSize(y.Size());
+         for (int i=0; i<x.Size(); ++i)
+         { px[i] = p[i] < 0 ? -x[-1-p[i]] : x[p[i]]; }
+
+         solver.Mult(px, py);
+
+         for (int i=0; i<y.Size(); ++i)
+         {
+            int pi = p[i];
+            int s = pi < 0 ? -1 : 1;
+            y[pi < 0 ? -1-pi : pi] = s*py[i];
+         }
+      }
+      else
+      {
+         solver.Mult(x, y);
+      }
    }
 
    /// Support the use of -> to call methods of the underlying solver.
