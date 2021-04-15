@@ -447,13 +447,16 @@ auto grad(BasisTranspose<Dim,IsTensor,Dofs,Quads> &Bt)
 
 // get_basis_dim
 template <typename Basis>
-struct get_basis_dim;
+struct get_basis_dim_v;
 
 template <int Dim, bool IsTensor, typename TensorType>
-struct get_basis_dim<BasisTensor<Dim,IsTensor,TensorType>>
+struct get_basis_dim_v<BasisTensor<Dim,IsTensor,TensorType>>
 {
    static constexpr int value = Dim;
 };
+
+template <typename Basis>
+constexpr int get_basis_dim = get_basis_dim_v<Basis>::value;
 
 // is_tensor_basis
 template <typename Basis>
@@ -467,23 +470,29 @@ struct is_tensor_basis<BasisTensor<Dim,IsTensor,TensorType>>
 
 // get_basis_quads
 template <typename Basis>
-struct get_basis_quads;
+struct get_basis_quads_v;
 
 template <int Dim, bool IsTensor, typename TensorType>
-struct get_basis_quads<BasisTensor<Dim, IsTensor, TensorType>>
+struct get_basis_quads_v<BasisTensor<Dim, IsTensor, TensorType>>
 {
-   static constexpr int value = get_tensor_size<0,TensorType>::value;
+   static constexpr int value = get_tensor_size<0,TensorType>;
 };
+
+template <typename Basis>
+constexpr bool get_basis_quads = get_basis_quads_v<Basis>::value;
 
 // get_basis_dofs
 template <typename Basis>
-struct get_basis_dofs;
+struct get_basis_dofs_v;
 
 template <int Dim, bool IsTensor, typename TensorType>
-struct get_basis_dofs<BasisTensor<Dim, IsTensor, TensorType>>
+struct get_basis_dofs_v<BasisTensor<Dim, IsTensor, TensorType>>
 {
-   static constexpr int value = get_tensor_size<1,TensorType>::value;
+   static constexpr int value = get_tensor_size<1,TensorType>;
 };
+
+template <typename Basis>
+constexpr int get_basis_dofs = get_basis_dofs_v<Basis>::value;
 
 } // mfem namespace
 

@@ -21,7 +21,7 @@ namespace mfem
 // Determinant
 template <typename Tensor,
           std::enable_if_t<
-             is_dynamic_matrix<Tensor>::value,
+             is_dynamic_matrix<Tensor>,
           bool> = true>
 MFEM_HOST_DEVICE inline
 auto Determinant(const Tensor &J)
@@ -49,7 +49,7 @@ auto Determinant(const Tensor &J)
 
 template <typename Tensor,
           std::enable_if_t<
-             is_static_matrix<3,3,Tensor>::value,
+             is_static_matrix<3,3,Tensor>,
           bool> = true>
 MFEM_HOST_DEVICE inline
 auto Determinant(const Tensor &J)
@@ -61,7 +61,7 @@ auto Determinant(const Tensor &J)
 
 template <typename Tensor,
           std::enable_if_t<
-             is_static_matrix<2,2,Tensor>::value,
+             is_static_matrix<2,2,Tensor>,
           bool> = true>
 MFEM_HOST_DEVICE inline
 auto Determinant(const Tensor &J)
@@ -71,7 +71,7 @@ auto Determinant(const Tensor &J)
 
 template <typename Tensor,
           std::enable_if_t<
-             is_static_matrix<1,1,Tensor>::value,
+             is_static_matrix<1,1,Tensor>,
           bool> = true>
 MFEM_HOST_DEVICE inline
 auto Determinant(const Tensor &J)

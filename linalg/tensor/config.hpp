@@ -59,53 +59,68 @@ auto MakeConfig(int dofs, int quads)
 
 // get_config_dim
 template <typename Config>
-struct get_config_dim;
+struct get_config_dim_v;
 
 template <int Dim, bool IsTensor, int Dofs, int Quads, int BatchSize>
-struct get_config_dim<KernelConfig<Dim,IsTensor,Dofs,Quads,BatchSize>>
+struct get_config_dim_v<KernelConfig<Dim,IsTensor,Dofs,Quads,BatchSize>>
 {
    static constexpr int value = Dim;
 };
 
+template <typename Tensor>
+constexpr int get_config_dim = get_config_dim_v<Tensor>::value;
+
 // is_tensor_config
 template <typename Config>
-struct is_tensor_config;
+struct is_tensor_config_v;
 
 template <int Dim, bool IsTensor, int Dofs, int Quads, int BatchSize>
-struct is_tensor_config<KernelConfig<Dim,IsTensor,Dofs,Quads,BatchSize>>
+struct is_tensor_config_v<KernelConfig<Dim,IsTensor,Dofs,Quads,BatchSize>>
 {
    static constexpr bool value = IsTensor;
 };
 
+template <typename Tensor>
+constexpr bool is_tensor_config = is_tensor_config_v<Tensor>::value;
+
 // get_config_dofs
 template <typename Config>
-struct get_config_dofs;
+struct get_config_dofs_v;
 
 template <int Dim, bool IsTensor, int Dofs, int Quads, int BatchSize>
-struct get_config_dofs<KernelConfig<Dim,IsTensor,Dofs,Quads,BatchSize>>
+struct get_config_dofs_v<KernelConfig<Dim,IsTensor,Dofs,Quads,BatchSize>>
 {
    static constexpr int value = Dofs;
 };
 
+template <typename Tensor>
+constexpr int get_config_dofs = get_config_dofs_v<Tensor>::value;
+
 // get_config_quads
 template <typename Config>
-struct get_config_quads;
+struct get_config_quads_v;
 
 template <int Dim, bool IsTensor, int Dofs, int Quads, int BatchSize>
-struct get_config_quads<KernelConfig<Dim,IsTensor,Dofs,Quads,BatchSize>>
+struct get_config_quads_v<KernelConfig<Dim,IsTensor,Dofs,Quads,BatchSize>>
 {
    static constexpr int value = Quads;
 };
 
+template <typename Tensor>
+constexpr int get_config_quads = get_config_quads_v<Tensor>::value;
+
 // get_config_batchsize
 template <typename Config>
-struct get_config_batchsize;
+struct get_config_batchsize_v;
 
 template <int Dim, bool IsTensor, int Dofs, int Quads, int BatchSize>
-struct get_config_batchsize<KernelConfig<Dim,IsTensor,Dofs,Quads,BatchSize>>
+struct get_config_batchsize_v<KernelConfig<Dim,IsTensor,Dofs,Quads,BatchSize>>
 {
    static constexpr int value = BatchSize;
 };
+
+template <typename Tensor>
+constexpr int get_config_batchsize = get_config_batchsize_v<Tensor>::value;
 
 } // mfem namespace
 
