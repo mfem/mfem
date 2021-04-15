@@ -77,7 +77,7 @@ void LORBase::ResetIntegrationRules()
    ResetIntegrationRules(&BilinearForm::GetBFBFI);
 }
 
-LORBase::SpaceType LORBase::GetSpaceType() const
+LORBase::FESpaceType LORBase::GetFESpaceType() const
 {
    const FiniteElementCollection *fec = a_ho.FESpace()->FEColl();
    if (dynamic_cast<const H1_FECollection*>(fec)) { return H1; }
@@ -90,13 +90,13 @@ LORBase::SpaceType LORBase::GetSpaceType() const
 
 int LORBase::GetLOROrder() const
 {
-   SpaceType type = GetSpaceType();
+   FESpaceType type = GetFESpaceType();
    return (type == L2 || type == RT) ? 0 : 1;
 }
 
 void LORBase::ConstructDofPermutation() const
 {
-   SpaceType type = GetSpaceType();
+   FESpaceType type = GetFESpaceType();
 
    MFEM_VERIFY(type != L2, ""); // TODO: implement for DG
 
@@ -205,16 +205,13 @@ void LORBase::ConstructDofPermutation() const
 
 const Array<int> &LORBase::GetDofPermutation() const
 {
-   if (perm.Size() == 0)
-   {
-      ConstructDofPermutation();
-   }
+   if (perm.Size() == 0) { ConstructDofPermutation(); }
    return perm;
 }
 
 bool LORBase::RequiresDofPermutation() const
 {
-   return (GetSpaceType() == H1) ? false : true;
+   return (GetFESpaceType() == H1) ? false : true;
 }
 
 const OperatorHandle &LORBase::GetAssembledSystem() const

@@ -17,8 +17,8 @@
 namespace mfem
 {
 
-/// Abstract base class for LOR and ParLOR classes, which construct low-order
-/// refined versions of bilinear forms.
+/// @brief Abstract base class for LOR and ParLOR classes, which construct
+/// low-order refined versions of bilinear forms.
 class LORBase
 {
 private:
@@ -44,10 +44,7 @@ private:
 
    void ResetIntegrationRules(GetIntegratorsFn get_integrators);
 
-   enum SpaceType
-   {
-      H1, ND, RT, L2, INVALID
-   };
+   enum FESpaceType { H1, ND, RT, L2, INVALID };
 
    static inline int absdof(int i) { return i < 0 ? -1-i : i; }
 
@@ -76,7 +73,7 @@ protected:
    void ConstructDofPermutation() const;
 
    /// Return the type of finite element space: H1, ND, RT or L2.
-   SpaceType GetSpaceType() const;
+   FESpaceType GetFESpaceType() const;
 
    /// Return the order of the LOR space. 1 for H1 or ND, 0 for L2 or RT.
    int GetLOROrder() const;
@@ -119,8 +116,8 @@ public:
    SparseMatrix &GetAssembledMatrix();
 };
 
-/// Create a solver of type @a SolverType using the low-order refined version
-/// of the given BilinearForm.
+/// @brief Represents a solver of type @a SolverType created using the low-order
+/// refined version of the given BilinearForm.
 template <typename SolverType>
 class LORSolver : public Solver
 {
@@ -130,8 +127,8 @@ protected:
    mutable Vector px, py;
    LORSolver() { }
 public:
-   /// Create a solver of type @a SolverType, created using a LOR version of
-   /// @a a_ho, see LOR.
+   /// Create a solver of type @a SolverType, formed using the assembled
+   /// SparseMatrix of the LOR version of @a a_ho. @see LOR
    LORSolver(BilinearForm &a_ho, const Array<int> &ess_tdof_list,
              int ref_type=BasisType::GaussLobatto)
    {
@@ -182,8 +179,7 @@ public:
 
 #ifdef MFEM_USE_MPI
 
-/// Create and assemble a low-order refined version of a ParBilinearForm in
-/// parallel.
+/// Create and assemble a low-order refined version of a ParBilinearForm.
 class ParLOR : public LORBase
 {
 public:
@@ -197,14 +193,14 @@ public:
    HypreParMatrix &GetAssembledMatrix();
 };
 
-/// Create a solver of type @a SolverType using the low-order refined version
-/// of the given ParBilinearForm.
+/// @brief Represents a solver of type @a SolverType created using the
+/// low-order refined version of the given ParBilinearForm.
 template <typename SolverType>
 class ParLORSolver : public LORSolver<SolverType>
 {
 public:
-   /// Create a solver of type @a SolverType, created using a LOR version of
-   /// @a a_ho, see LOR.
+   /// Create a solver of type @a SolverType, formed using the assembled
+   /// HypreParMatrix of the LOR version of @a a_ho. @see ParLOR
    ParLORSolver(ParBilinearForm &a_ho, const Array<int> &ess_tdof_list,
                 int ref_type=BasisType::GaussLobatto)
    {
