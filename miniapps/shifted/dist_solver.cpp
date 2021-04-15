@@ -169,6 +169,7 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
 
       // Diffusion and mass terms in the LHS.
       ParBilinearForm a_d(&pfes);
+      if (use_pa) { a_d.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
       a_d.AddDomainIntegrator(new MassIntegrator);
       ConstantCoefficient t_coeff(parameter_t);
       a_d.AddDomainIntegrator(new DiffusionIntegrator(t_coeff));
@@ -185,16 +186,26 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
       ParGridFunction u_dirichlet(&pfes);
       u_dirichlet = 0.0;
       a_d.FormLinearSystem(ess_tdof_list, u_dirichlet, b, A, X, B);
-      auto *prec = new HypreBoomerAMG;
-      prec->SetPrintLevel(amg_print_lvl);
+      Solver *prec = nullptr;
+      if (use_pa)
+      {
+         prec = new OperatorJacobiSmoother(a_d, ess_tdof_list);
+      }
+      else
+      {
+         prec = new HypreBoomerAMG;
+         static_cast<HypreBoomerAMG*>(prec)->SetPrintLevel(amg_print_lvl);
+      }
       cg.SetPreconditioner(*prec);
       cg.SetOperator(*A);
       cg.Mult(B, X);
+      cg.SetMaxIter(2000);
       a_d.RecoverFEMSolution(X, b, u_dirichlet);
       delete prec;
 
       // Diffusion and mass terms in the LHS.
       ParBilinearForm a_n(&pfes);
+      if (use_pa) { a_n.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
       a_n.AddDomainIntegrator(new MassIntegrator);
       a_n.AddDomainIntegrator(new DiffusionIntegrator(t_coeff));
       a_n.Assemble();
@@ -203,11 +214,22 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
       ParGridFunction u_neumann(&pfes);
       ess_tdof_list.DeleteAll();
       a_n.FormLinearSystem(ess_tdof_list, u_neumann, b, A, X, B);
-      auto *prec2 = new HypreBoomerAMG;
-      prec2->SetPrintLevel(amg_print_lvl);
+
+      Solver *prec2 = nullptr;
+      if (use_pa)
+      {
+         prec2 = new OperatorJacobiSmoother(a_d, ess_tdof_list);
+      }
+      else
+      {
+         prec2 = new HypreBoomerAMG;
+         static_cast<HypreBoomerAMG*>(prec2)->SetPrintLevel(amg_print_lvl);
+      }
+
       cg.SetPreconditioner(*prec2);
       cg.SetOperator(*A);
       cg.Mult(B, X);
+      cg.SetMaxIter(2000);
       a_n.RecoverFEMSolution(X, b, u_neumann);
       delete prec2;
 
@@ -232,6 +254,7 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
 
       // LHS - diffusion.
       ParBilinearForm a2(&pfes);
+      if (use_pa) { a2.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
       a2.AddDomainIntegrator(new DiffusionIntegrator);
       a2.Assemble();
 
@@ -239,12 +262,20 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
       Array<int> no_ess_tdofs;
 
       a2.FormLinearSystem(no_ess_tdofs, distance, b2, A, X, B);
-
-      auto *prec = new HypreBoomerAMG;
-      prec->SetPrintLevel(amg_print_lvl);
+      Solver *prec = nullptr;
+      if (use_pa)
+      {
+         prec = new OperatorJacobiSmoother(a2, no_ess_tdofs);
+      }
+      else
+      {
+         prec = new HypreBoomerAMG;
+         static_cast<HypreBoomerAMG*>(prec)->SetPrintLevel(amg_print_lvl);
+      }
       cg.SetPreconditioner(*prec);
       cg.SetOperator(*A);
       cg.Mult(B, X);
+      cg.SetMaxIter(2000);
       a2.RecoverFEMSolution(X, b2, distance);
       delete prec;
    }

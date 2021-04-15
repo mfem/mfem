@@ -180,6 +180,7 @@ int main(int argc, char *argv[])
    int rs_levels = 2;
    int order = 2;
    double t_param = 1.0;
+   bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
 
@@ -203,6 +204,8 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&t_param, "-t", "--t-param",
                   "Diffusion time step (scaled internally scaled by dx*dx).");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -261,7 +264,7 @@ int main(int argc, char *argv[])
    DistanceSolver *dist_solver = NULL;
    if (solver_type == 0)
    {
-      auto ds = new HeatDistanceSolver(t_param * dx * dx);
+      auto ds = new HeatDistanceSolver(t_param * dx * dx, pa);
       if (problem == 0)
       {
          ds->transform = false;

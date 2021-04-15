@@ -55,8 +55,8 @@ public:
 class HeatDistanceSolver : public DistanceSolver
 {
 public:
-   HeatDistanceSolver(double diff_coeff)
-      : DistanceSolver(), parameter_t(diff_coeff), smooth_steps(0),
+   HeatDistanceSolver(double diff_coeff, bool use_pa_)
+      : DistanceSolver(), use_pa(use_pa_), parameter_t(diff_coeff), smooth_steps(0),
         diffuse_iter(1), transform(true), vis_glvis(false) { }
 
    // The computed distance is not "signed". In addition to the standard usage
@@ -65,6 +65,7 @@ public:
    void ComputeScalarDistance(Coefficient &zero_level_set,
                               ParGridFunction &distance);
 
+   bool use_pa;
    double parameter_t;
    int smooth_steps, diffuse_iter;
    bool transform, vis_glvis;
