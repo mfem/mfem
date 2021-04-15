@@ -415,6 +415,9 @@ public:
        integer overflow in the column indices. */
    void MergeDiagAndOffd(SparseMatrix &merged);
 
+   /// Return the diagonal of the matrix (Operator interface).
+   virtual void AssembleDiagonal(Vector &diag) const { GetDiag(diag); }
+
    /** Split the matrix into M x N equally sized blocks of parallel matrices.
        The size of 'blocks' must already be set to M x N. */
    void GetBlocks(Array2D<HypreParMatrix*> &blocks,
