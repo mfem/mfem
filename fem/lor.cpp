@@ -15,38 +15,86 @@
 namespace mfem
 {
 
-using GetIntegratorsFn = Array<BilinearFormIntegrator*> *(BilinearForm::*)();
-using GetMarkersFn = Array<Array<int>*> *(BilinearForm::*)();
-using AddIntegratorFn = void (BilinearForm::*)(BilinearFormIntegrator*);
-using AddIntegratorMarkersFn =
-   void (BilinearForm::*)(BilinearFormIntegrator*, Array<int>&);
-
-void AddIntegrators(BilinearForm &a_from, BilinearForm &a_to,
-                    GetIntegratorsFn get_integrators,
-                    AddIntegratorFn add_integrator)
+void LORBase::AddIntegrators(BilinearForm &a_to,
+                             GetIntegratorsFn get_integrators,
+                             AddIntegratorFn add_integrator)
 {
-   Array<BilinearFormIntegrator*> *integrators = (a_from.*get_integrators)();
+   Array<BilinearFormIntegrator*> *integrators = (a.*get_integrators)();
    for (int i=0; i<integrators->Size(); ++i)
    {
       (a_to.*add_integrator)(*integrators[i]);
+      ir_map[*integrators[i]] = (*integrators[i])->GetIntegrationRule();
+      if (ir) { (*integrators[i])->SetIntegrationRule(*ir); }
    }
 }
 
-void AddIntegratorsAndMarkers(BilinearForm &a_from, BilinearForm &a_to,
-                              GetIntegratorsFn get_integrators,
-                              GetMarkersFn get_markers,
-                              AddIntegratorMarkersFn add_integrator)
+void LORBase::AddIntegratorsAndMarkers(BilinearForm &a_to,
+                                       GetIntegratorsFn get_integrators,
+                                       GetMarkersFn get_markers,
+                                       AddIntegratorMarkersFn add_integrator)
 {
-   Array<BilinearFormIntegrator*> *integrators = (a_from.*get_integrators)();
-   Array<Array<int>*> *markers = (a_from.*get_markers)();
+   Array<BilinearFormIntegrator*> *integrators = (a.*get_integrators)();
+   Array<Array<int>*> *markers = (a.*get_markers)();
 
    for (int i=0; i<integrators->Size(); ++i)
    {
       (a_to.*add_integrator)(*integrators[i], *(*markers[i]));
+      ir_map[*integrators[i]] = (*integrators[i])->GetIntegrationRule();
+      if (ir) { (*integrators[i])->SetIntegrationRule(*ir); }
+   }
+}
+
+void LORBase::AddIntegrators(BilinearForm &a_to)
+{
+   a_to.UseExternalIntegrators();
+   AddIntegrators(a_to, &BilinearForm::GetDBFI,
+                  &BilinearForm::AddDomainIntegrator);
+   AddIntegrators(a_to, &BilinearForm::GetFBFI,
+                  &BilinearForm::AddInteriorFaceIntegrator);
+
+   AddIntegratorsAndMarkers(a_to, &BilinearForm::GetBBFI,
+                            &BilinearForm::GetBBFI_Marker,
+                            &BilinearForm::AddBoundaryIntegrator);
+   AddIntegratorsAndMarkers(a_to, &BilinearForm::GetBFBFI,
+                            &BilinearForm::GetBFBFI_Marker,
+                            &BilinearForm::AddBdrFaceIntegrator);
+}
+
+void LORBase::ResetIntegrationRules(GetIntegratorsFn get_integrators)
+{
+   Array<BilinearFormIntegrator*> *integrators = (a.*get_integrators)();
+   for (int i=0; i<integrators->Size(); ++i)
+   {
+      (*integrators[i])->SetIntegrationRule(*ir_map[*integrators[i]]);
+   }
+}
+
+void LORBase::ResetIntegrationRules()
+{
+   ResetIntegrationRules(&BilinearForm::GetDBFI);
+   ResetIntegrationRules(&BilinearForm::GetFBFI);
+   ResetIntegrationRules(&BilinearForm::GetBBFI);
+   ResetIntegrationRules(&BilinearForm::GetBFBFI);
+}
+
+LORBase::LORBase(BilinearForm &a_) : a(a_), irs(0, Quadrature1D::GaussLobatto)
+{
+   Mesh &mesh = *a.FESpace()->GetMesh();
+   int dim = mesh.Dimension();
+   Array<Geometry::Type> geoms;
+   mesh.GetGeometries(dim, geoms);
+   if (geoms.Size() == 1 && Geometry::IsTensorProduct(geoms[0]))
+   {
+      ir = &irs.Get(geoms[0], 1);
+   }
+   else
+   {
+      ir = NULL;
    }
 }
 
 LOR::LOR(BilinearForm &a_ho, const Array<int> &ess_tdof_list, int ref_type)
+   : LORBase(a_ho)
 {
    FiniteElementSpace &fes_ho = *a_ho.FESpace();
    MFEM_VERIFY(!fes_ho.IsDGSpace(),
@@ -64,21 +112,11 @@ LOR::LOR(BilinearForm &a_ho, const Array<int> &ess_tdof_list, int ref_type)
    fes = new FiniteElementSpace(&mesh, fec);
    a = new BilinearForm(fes);
 
-   a->UseExternalIntegrators();
-
-   AddIntegrators(a_ho, *a, &BilinearForm::GetDBFI,
-                  &BilinearForm::AddDomainIntegrator);
-   AddIntegrators(a_ho, *a, &BilinearForm::GetFBFI,
-                  &BilinearForm::AddInteriorFaceIntegrator);
-
-   AddIntegratorsAndMarkers(a_ho, *a, &BilinearForm::GetBBFI,
-                            &BilinearForm::GetBBFI_Marker,
-                            &BilinearForm::AddBoundaryIntegrator);
-   AddIntegratorsAndMarkers(a_ho, *a, &BilinearForm::GetBFBFI,
-                            &BilinearForm::GetBFBFI_Marker,
-                            &BilinearForm::AddBdrFaceIntegrator);
-
+   AddIntegrators(*a);
+   a->Assemble();
    a->FormSystemMatrix(ess_tdof_list, A);
+
+   ResetIntegrationRules();
 }
 
 SparseMatrix &LOR::GetAssembledMatrix()
@@ -96,7 +134,7 @@ LOR::~LOR()
 #ifdef MFEM_USE_MPI
 
 ParLOR::ParLOR(ParBilinearForm &a_ho, const Array<int> &ess_tdof_list,
-               int ref_type)
+               int ref_type) : LORBase(a_ho)
 {
    ParFiniteElementSpace &fes_ho = *a_ho.ParFESpace();
    MFEM_VERIFY(!fes_ho.IsDGSpace(),
@@ -114,22 +152,11 @@ ParLOR::ParLOR(ParBilinearForm &a_ho, const Array<int> &ess_tdof_list,
    fes = new ParFiniteElementSpace(&mesh, fec);
    a = new ParBilinearForm(fes);
 
-   a->UseExternalIntegrators();
-
-   AddIntegrators(a_ho, *a, &BilinearForm::GetDBFI,
-                  &BilinearForm::AddDomainIntegrator);
-   AddIntegrators(a_ho, *a, &BilinearForm::GetFBFI,
-                  &BilinearForm::AddInteriorFaceIntegrator);
-
-   AddIntegratorsAndMarkers(a_ho, *a, &BilinearForm::GetBBFI,
-                            &BilinearForm::GetBBFI_Marker,
-                            &BilinearForm::AddBoundaryIntegrator);
-   AddIntegratorsAndMarkers(a_ho, *a, &BilinearForm::GetBFBFI,
-                            &BilinearForm::GetBFBFI_Marker,
-                            &BilinearForm::AddBdrFaceIntegrator);
-
+   AddIntegrators(*a);
    a->Assemble();
    a->FormSystemMatrix(ess_tdof_list, A);
+
+   ResetIntegrationRules();
 }
 
 HypreParMatrix &ParLOR::GetAssembledMatrix()
