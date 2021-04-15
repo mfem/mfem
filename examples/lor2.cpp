@@ -6,23 +6,80 @@
 using namespace std;
 using namespace mfem;
 
+int exact_sol = 0;
+int dim = 0;
+
 void E_exact(const Vector &xvec, Vector &E)
 {
-   double x=xvec[0], y=xvec[1];
+   double x=xvec[0], y=xvec[1], z=xvec[2];
    constexpr double pi = M_PI;
 
-   E[0] = sin(2*pi*x)*sin(4*pi*y);
-   E[1] = sin(4*pi*x)*sin(2*pi*y);
+   if (exact_sol == 0)
+   {
+      E[0] = sin(2*pi*x)*sin(4*pi*y);
+      E[1] = sin(4*pi*x)*sin(2*pi*y);
+   }
+   else if (exact_sol == 1)
+   {
+      E(0) = x * y * (1.0-y) * z * (1.0-z);
+      E(1) = x * y * (1.0-x) * z * (1.0-z);
+      E(2) = x * z * (1.0-x) * y * (1.0-y);
+   }
+   else
+   {
+      constexpr double kappa = 2.0 * pi;
+      if (dim == 3)
+      {
+         E(0) = sin(kappa * y) * sin(kappa * z);
+         E(1) = sin(kappa * x) * sin(kappa * z);
+         E(2) = sin(kappa * x) * sin(kappa * y);
+      }
+      else
+      {
+         E(0) = sin(kappa * y);
+         E(1) = sin(kappa * x);
+         if (xvec.Size() == 3) { E(2) = 0.0; }
+      }
+   }
 }
 
 void f_exact(const Vector &xvec, Vector &f)
 {
-   double x=xvec[0], y=xvec[1];
+   double x=xvec[0], y=xvec[1], z=xvec[2];
    constexpr double pi = M_PI;
    constexpr double pi2 = M_PI*M_PI;
 
-   f[0] = 8*pi2*cos(4*pi*x)*cos(2*pi*y) + (1 + 16*pi2)*sin(2*pi*x)*sin(4*pi*y);
-   f[1] = 8*pi2*cos(2*pi*x)*cos(4*pi*y) + (1 + 16*pi2)*sin(4*pi*x)*sin(2*pi*y);
+   if (exact_sol == 0)
+   {
+      f[0] = 8*pi2*cos(4*pi*x)*cos(2*pi*y) + (1 + 16*pi2)*sin(2*pi*x)*sin(4*pi*y);
+      f[1] = 8*pi2*cos(2*pi*x)*cos(4*pi*y) + (1 + 16*pi2)*sin(4*pi*x)*sin(2*pi*y);
+   }
+   else if (exact_sol == 1)
+   {
+      f(0) = x * y * (1.0-y) * z * (1.0-z);
+      f(1) = x * y * (1.0-x) * z * (1.0-z);
+      f(2) = x * z * (1.0-x) * y * (1.0-y);
+
+      f(0) += y * (1.0-y) + z * (1.0-z);
+      f(1) += x * (1.0-x) + z * (1.0-z);
+      f(2) += x * (1.0-x) + y * (1.0-y);
+   }
+   else
+   {
+      constexpr double kappa = 2.0 * pi;
+      if (dim == 3)
+      {
+         f(0) = (1.0 + 2.0 * kappa * kappa) * sin(kappa * y) * sin(kappa * z);
+         f(1) = (1.0 + 2.0 * kappa * kappa) * sin(kappa * x) * sin(kappa * z);
+         f(2) = (1.0 + 2.0 * kappa * kappa) * sin(kappa * x) * sin(kappa * y);
+      }
+      else
+      {
+         f(0) = (1. + kappa * kappa) * sin(kappa * y);
+         f(1) = (1. + kappa * kappa) * sin(kappa * x);
+         if (xvec.Size() == 3) { f(2) = 0.0; }
+      }
+   }
 }
 
 int main(int argc, char *argv[])
@@ -37,6 +94,7 @@ int main(int argc, char *argv[])
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&ref_levels, "-r", "--refine", "Uniform refinements.");
    args.AddOption(&order, "-o", "--order", "Polynomial degree.");
+   args.AddOption(&exact_sol, "-p", "--problem", "Exact solution.");
    args.AddOption(&fe, "-fe", "--fe-type", "FE type. n for Hcurl, r for Hdiv");
    args.ParseCheck();
 
@@ -46,7 +104,7 @@ int main(int argc, char *argv[])
    else { MFEM_ABORT("Bad FE type. Must be 'n' or 'r'."); }
 
    Mesh mesh(mesh_file, 1, 1);
-   int dim = mesh.Dimension();
+   dim = mesh.Dimension();
    for (int l = 0; l < ref_levels; l++) { mesh.UniformRefinement(); }
 
    int b1 = BasisType::GaussLobatto, b2 = BasisType::Integrated;
