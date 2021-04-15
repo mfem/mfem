@@ -99,6 +99,9 @@ public:
    /// corresponding LOR and HO DOFs are numbered differently), false otherwise.
    bool RequiresDofPermutation() const;
 
+   /// Returns the low-order refined finite element space.
+   FiniteElementSpace &GetFESpace() const { return *fes; }
+
    ~LORBase();
 };
 
@@ -113,8 +116,28 @@ public:
        int ref_type=BasisType::GaussLobatto);
 
    /// Return the assembled LOR operator as a SparseMatrix
-   SparseMatrix &GetAssembledMatrix();
+   SparseMatrix &GetAssembledMatrix() const;
 };
+
+#ifdef MFEM_USE_MPI
+
+/// Create and assemble a low-order refined version of a ParBilinearForm.
+class ParLOR : public LORBase
+{
+public:
+   /// Construct the low-order refined version of @a a_ho using the given list
+   /// of essential DOFs. The mesh is refined using the refinement type
+   /// specified by @a ref_type (see ParMesh::MakeRefined).
+   ParLOR(ParBilinearForm &a_ho, const Array<int> &ess_tdof_list,
+          int ref_type=BasisType::GaussLobatto);
+
+   /// Return the assembled LOR operator as a HypreParMatrix.
+   HypreParMatrix &GetAssembledMatrix() const;
+
+   ParFiniteElementSpace &GetParFESpace() const;
+};
+
+#endif
 
 /// @brief Represents a solver of type @a SolverType created using the low-order
 /// refined version of the given BilinearForm.
@@ -123,6 +146,7 @@ class LORSolver : public Solver
 {
 protected:
    LORBase *lor;
+   bool own_lor;
    SolverType solver;
    mutable Vector px, py;
    LORSolver() { }
@@ -133,6 +157,27 @@ public:
              int ref_type=BasisType::GaussLobatto)
    {
       lor = new LOR(a_ho, ess_tdof_list, ref_type);
+      own_lor = true;
+      solver.SetOperator(*lor->GetAssembledSystem());
+   }
+
+#ifdef MFEM_USE_MPI
+   /// Create a solver of type @a SolverType, formed using the assembled
+   /// HypreParMatrix of the LOR version of @a a_ho. @see ParLOR
+   LORSolver(ParBilinearForm &a_ho, const Array<int> &ess_tdof_list,
+               int ref_type=BasisType::GaussLobatto)
+   {
+      lor = new ParLOR(a_ho, ess_tdof_list, ref_type);
+      own_lor = true;
+      solver.SetOperator(*lor->GetAssembledSystem());
+   }
+#endif
+
+   template <typename... Args>
+   LORSolver(LORBase &lor_, Args... args) : solver(args...)
+   {
+      lor = &lor_;
+      own_lor = false;
       solver.SetOperator(*lor->GetAssembledSystem());
    }
 
@@ -174,42 +219,8 @@ public:
    /// Access the underlying solver.
    SolverType &operator*() { return solver; }
 
-   ~LORSolver() { delete lor; }
+   ~LORSolver() { if (own_lor) { delete lor; } }
 };
-
-#ifdef MFEM_USE_MPI
-
-/// Create and assemble a low-order refined version of a ParBilinearForm.
-class ParLOR : public LORBase
-{
-public:
-   /// Construct the low-order refined version of @a a_ho using the given list
-   /// of essential DOFs. The mesh is refined using the refinement type
-   /// specified by @a ref_type (see ParMesh::MakeRefined).
-   ParLOR(ParBilinearForm &a_ho, const Array<int> &ess_tdof_list,
-          int ref_type=BasisType::GaussLobatto);
-
-   /// Return the assembled LOR operator as a HypreParMatrix.
-   HypreParMatrix &GetAssembledMatrix();
-};
-
-/// @brief Represents a solver of type @a SolverType created using the
-/// low-order refined version of the given ParBilinearForm.
-template <typename SolverType>
-class ParLORSolver : public LORSolver<SolverType>
-{
-public:
-   /// Create a solver of type @a SolverType, formed using the assembled
-   /// HypreParMatrix of the LOR version of @a a_ho. @see ParLOR
-   ParLORSolver(ParBilinearForm &a_ho, const Array<int> &ess_tdof_list,
-                int ref_type=BasisType::GaussLobatto)
-   {
-      this->lor = new ParLOR(a_ho, ess_tdof_list, ref_type);
-      this->solver.SetOperator(*this->lor->GetAssembledSystem());
-   }
-};
-
-#endif
 
 } // namespace mfem
 
