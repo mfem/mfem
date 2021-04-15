@@ -6,24 +6,25 @@
 using namespace std;
 using namespace mfem;
 
-void f_exact(const Vector &x, Vector &f)
+static constexpr double kappa = 2*M_PI;
+
+void E_exact(const Vector &xvec, Vector &E)
 {
-   double kappa = 2*M_PI;
-   if (x.Size() == 3)
-   {
-      f(0) = (1. + kappa * kappa) * sin(kappa * x(1));
-      f(1) = (1. + kappa * kappa) * sin(kappa * x(2));
-      f(2) = (1. + kappa * kappa) * sin(kappa * x(0));
-   }
-   else if (x.Size() == 2)
-   {
-      f(0) = (1. + kappa * kappa) * sin(kappa * x(1));
-      f(1) = (1. + kappa * kappa) * sin(kappa * x(0));
-   }
-   else
-   {
-      f(0) = (1. + kappa * kappa) * sin(kappa * x(0));
-   }
+   double x=xvec[0], y=xvec[1];
+   constexpr double pi = M_PI;
+
+   E[0] = sin(2*pi*x)*sin(4*pi*y);
+   E[1] = sin(4*pi*x)*sin(2*pi*y);
+}
+
+void f_exact(const Vector &xvec, Vector &f)
+{
+   double x=xvec[0], y=xvec[1];
+   constexpr double pi = M_PI;
+   constexpr double pi2 = M_PI*M_PI;
+
+   f[0] = 8*pi2*cos(4*pi*x)*cos(2*pi*y) + (1 + 16*pi2)*sin(2*pi*x)*sin(4*pi*y);
+   f[1] = 8*pi2*cos(2*pi*x)*cos(4*pi*y) + (1 + 16*pi2)*sin(4*pi*x)*sin(2*pi*y);
 }
 
 struct HybridizationSolver : Solver
@@ -204,23 +205,20 @@ int main(int argc, char *argv[])
    for (int l = 0; l < ref_levels; l++) { mesh.UniformRefinement(); }
 
    int btype = BasisType::GaussLobatto;
-   Mesh mesh_lor(&mesh, order, btype);
+   Mesh mesh_lor = Mesh::MakeRefined(mesh, order, btype);
 
    unique_ptr<FiniteElementCollection> fec_ho, fec_lor, fec_h;
    unique_ptr<FiniteElementSpace> fes_h;
+   int b1 = BasisType::GaussLobatto, b2 = BasisType::Integrated;
    if (ND)
    {
-      fec_ho.reset(new ND_FECollection(order, dim, BasisType::GaussLobatto,
-                                       BasisType::Integrated));
-      fec_lor.reset(new ND_FECollection(1, dim, BasisType::GaussLobatto,
-                                        BasisType::Integrated));
+      fec_ho.reset(new ND_FECollection(order, dim, b1, b2));
+      fec_lor.reset(new ND_FECollection(1, dim, b1, b2));
    }
    else
    {
-      fec_ho.reset(new RT_FECollection(order-1, dim, BasisType::GaussLobatto,
-                                       BasisType::Integrated));
-      fec_lor.reset(new RT_FECollection(0, dim, BasisType::GaussLobatto,
-                                        BasisType::Integrated));
+      fec_ho.reset(new RT_FECollection(order-1, dim, b1, b2));
+      fec_lor.reset(new RT_FECollection(0, dim, b1, b2));
       if (hybridization)
       {
          fec_h.reset(new DG_Interface_FECollection(0, dim));
@@ -231,11 +229,17 @@ int main(int argc, char *argv[])
    FiniteElementSpace fes_ho(&mesh, fec_ho.get());
    FiniteElementSpace fes_lor(&mesh_lor, fec_lor.get());
 
-   Array<int> ess_tdof_list;
+   FiniteElement::MapType t = ND ? FiniteElement::H_CURL : FiniteElement::H_DIV;
+   Array<int> perm = ComputeVectorFE_LORPermutation(fes_ho, fes_lor, t);
+
    ConstantCoefficient one(1.0);
    Vector ones_vec(dim);
    ones_vec = 1.0;
-   VectorFunctionCoefficient coeff(dim, f_exact);
+   VectorFunctionCoefficient f_coeff(dim, f_exact);
+
+   Array<int> ess_dofs_ho, ess_dofs_lor;
+   fes_ho.GetBoundaryTrueDofs(ess_dofs_ho);
+   fes_lor.GetBoundaryTrueDofs(ess_dofs_lor);
 
    BilinearForm a_ho(&fes_ho), a_lor(&fes_lor);
    a_ho.AddDomainIntegrator(new VectorFEMassIntegrator);
@@ -244,6 +248,8 @@ int main(int argc, char *argv[])
    {
       a_ho.AddDomainIntegrator(new CurlCurlIntegrator);
       a_lor.AddDomainIntegrator(new CurlCurlIntegrator);
+      // a_ho.AddBoundaryIntegrator(new VectorFECurlIntegrator);
+      // a_lor.AddBoundaryIntegrator(new VectorFECurlIntegrator);
    }
    else
    {
@@ -252,7 +258,7 @@ int main(int argc, char *argv[])
       if (hybridization)
       {
          a_lor.EnableHybridization(fes_h.get(), new NormalTraceJumpIntegrator,
-                                   ess_tdof_list);
+                                   ess_dofs_lor);
       }
    }
    a_ho.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -261,11 +267,11 @@ int main(int argc, char *argv[])
    a_lor.Finalize();
 
    LinearForm b_lor(&fes_lor);
-   b_lor.AddDomainIntegrator(new VectorFEDomainLFIntegrator(coeff));
+   b_lor.AddDomainIntegrator(new VectorFEDomainLFIntegrator(f_coeff));
    b_lor.Assemble();
 
    LinearForm b_ho(&fes_ho);
-   b_ho.AddDomainIntegrator(new VectorFEDomainLFIntegrator(coeff));
+   b_ho.AddDomainIntegrator(new VectorFEDomainLFIntegrator(f_coeff));
    b_ho.Assemble();
 
    GridFunction x_ho(&fes_ho), x_lor(&fes_lor);
@@ -274,8 +280,8 @@ int main(int argc, char *argv[])
 
    Vector X_ho, B_ho, X_lor, B_lor;
    OperatorHandle A_ho, A_lor;
-   a_ho.FormLinearSystem(ess_tdof_list, x_ho, b_ho, A_ho, X_ho, B_ho);
-   a_lor.FormLinearSystem(ess_tdof_list, x_lor, b_lor, A_lor, X_lor, B_lor);
+   a_ho.FormLinearSystem(ess_dofs_ho, x_ho, b_ho, A_ho, X_ho, B_ho);
+   a_lor.FormLinearSystem(ess_dofs_lor, x_lor, b_lor, A_lor, X_lor, B_lor);
 
    unique_ptr<UMFPackSolver> solv_direct;
    unique_ptr<Solver> solv_lor;
@@ -293,9 +299,6 @@ int main(int argc, char *argv[])
       direct_solver->SetOperator(*A_lor);
       solv_lor.reset(direct_solver);
    }
-
-   FiniteElement::MapType t = ND ? FiniteElement::H_CURL : FiniteElement::H_DIV;
-   Array<int> perm = ComputeVectorFE_LORPermutation(fes_ho, fes_lor, t);
 
    PermutedSolver solv_lor_perm(*solv_lor, perm);
 
@@ -327,6 +330,10 @@ int main(int argc, char *argv[])
    // cg.SetPreconditioner(smoother);
    cg.Mult(B_ho, X_ho);
    a_ho.RecoverFEMSolution(X_ho, b_ho, x_ho);
+
+   VectorFunctionCoefficient exact_coeff(dim, E_exact);
+   double er = x_ho.ComputeL2Error(exact_coeff);
+   std::cout << "L^2 error: " << er << '\n';
 
    ParaViewDataCollection dc("LOR", &mesh);
    dc.SetPrefixPath("ParaView");
