@@ -28,7 +28,6 @@ private:
    using AddIntegratorMarkersFn =
       void (BilinearForm::*)(BilinearFormIntegrator*, Array<int>&);
 
-   BilinearForm &a;
    IntegrationRules irs;
    const IntegrationRule *ir;
    std::map<BilinearFormIntegrator*, const IntegrationRule*> ir_map;
@@ -46,6 +45,13 @@ private:
    void ResetIntegrationRules(GetIntegratorsFn get_integrators);
 
 protected:
+   BilinearForm &a_ho;
+   Mesh *mesh;
+   FiniteElementCollection *fec;
+   FiniteElementSpace *fes;
+   BilinearForm *a;
+   OperatorHandle A;
+
    /// Adds all the integrators from the member data @a a to the BilinearForm
    /// @a a_to. Marks @a a_to as using external integrators. If the mesh
    /// consists of tensor product elements, temporarily changes the integration
@@ -58,18 +64,17 @@ protected:
    void ResetIntegrationRules();
 
    LORBase(BilinearForm &a_);
+
+public:
+   /// Return the assembled LOR system
+   OperatorHandle &GetAssembledSystem();
+
+   ~LORBase();
 };
 
 /// Create and assemble a low-order refined version of a BilinearForm.
 class LOR : LORBase
 {
-protected:
-   Mesh mesh;
-   FiniteElementCollection *fec;
-   FiniteElementSpace *fes;
-   BilinearForm *a;
-   SparseMatrix A;
-
 public:
    /// Construct the low-order refined version of @a a_ho using the given list
    /// of essential DOFs. The mesh is refined using the refinement type
@@ -79,8 +84,6 @@ public:
 
    /// Return the assembled LOR operator as a SparseMatrix
    SparseMatrix &GetAssembledMatrix();
-
-   ~LOR();
 };
 
 /// Create a solver of type @a SolverType using the low-order refined version
@@ -89,24 +92,23 @@ template <typename SolverType>
 class LORSolver : public Solver
 {
 protected:
-   LOR lor;
+   LORBase *lor;
    SolverType solver;
+   LORSolver() { }
 public:
    /// Create a solver of type @a SolverType, created using a LOR version of
    /// @a a_ho, see LOR.
    LORSolver(BilinearForm &a_ho, const Array<int> &ess_tdof_list,
              int ref_type=BasisType::GaussLobatto)
-      : lor(a_ho, ess_tdof_list, ref_type),
-        solver(lor.GetAssembledMatrix())
-   { }
+   {
+      lor = new LOR(a_ho, ess_tdof_list, ref_type);
+      solver.SetOperator(*lor->GetAssembledSystem());
+   }
 
    /// Not supported.
    void SetOperator(const Operator &op)
    {
-      if (&op != &lor.GetAssembledMatrix())
-      {
-         MFEM_ABORT("LORSolver::SetOperator not supported.")
-      }
+      MFEM_ABORT("LORSolver::SetOperator not supported.")
    }
 
    void Mult(const Vector &x, Vector &y) const
@@ -119,6 +121,8 @@ public:
 
    /// Access the underlying solver.
    SolverType &operator*() { return solver; }
+
+   ~LORSolver() { delete lor; }
 };
 
 #ifdef MFEM_USE_MPI
@@ -127,13 +131,6 @@ public:
 /// parallel.
 class ParLOR : public LORBase
 {
-protected:
-   ParMesh mesh;
-   FiniteElementCollection *fec;
-   ParFiniteElementSpace *fes;
-   ParBilinearForm *a;
-   HypreParMatrix A;
-
 public:
    /// Construct the low-order refined version of @a a_ho using the given list
    /// of essential DOFs. The mesh is refined using the refinement type
@@ -143,45 +140,22 @@ public:
 
    /// Return the assembled LOR operator as a HypreParMatrix.
    HypreParMatrix &GetAssembledMatrix();
-
-   ~ParLOR();
 };
 
-/// Wrapper class for a solver of type @a SolverType constructred using the
-/// low-order refined version of the given ParBilinearForm.
+/// Create a solver of type @a SolverType using the low-order refined version
+/// of the given ParBilinearForm.
 template <typename SolverType>
-class ParLORSolver : public Solver
+class ParLORSolver : public LORSolver<SolverType>
 {
-protected:
-   ParLOR lor;
-   SolverType solver;
 public:
    /// Create a solver of type @a SolverType, created using a LOR version of
-   /// @a a_ho, see ParLOR.
+   /// @a a_ho, see LOR.
    ParLORSolver(ParBilinearForm &a_ho, const Array<int> &ess_tdof_list,
                 int ref_type=BasisType::GaussLobatto)
-      : lor(a_ho, ess_tdof_list, ref_type),
-        solver(lor.GetAssembledMatrix())
-   { }
-
-   void SetOperator(const Operator &op)
    {
-      if (&op != &lor.GetAssembledMatrix())
-      {
-         MFEM_ABORT("ParLORSolver::SetOperator not supported.")
-      }
+      this->lor = new ParLOR(a_ho, ess_tdof_list, ref_type);
+      this->solver.SetOperator(*this->lor->GetAssembledSystem());
    }
-
-   void Mult(const Vector &x, Vector &y) const
-   {
-      solver.Mult(x, y);
-   }
-
-   /// Support the use of -> to call methods of the underlying solver.
-   SolverType *operator->() const { return solver; }
-
-   /// Access the underlying solver.
-   SolverType &operator*() { return solver; }
 };
 
 #endif

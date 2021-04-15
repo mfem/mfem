@@ -19,7 +19,7 @@ void LORBase::AddIntegrators(BilinearForm &a_to,
                              GetIntegratorsFn get_integrators,
                              AddIntegratorFn add_integrator)
 {
-   Array<BilinearFormIntegrator*> *integrators = (a.*get_integrators)();
+   Array<BilinearFormIntegrator*> *integrators = (a_ho.*get_integrators)();
    for (int i=0; i<integrators->Size(); ++i)
    {
       (a_to.*add_integrator)(*integrators[i]);
@@ -33,8 +33,8 @@ void LORBase::AddIntegratorsAndMarkers(BilinearForm &a_to,
                                        GetMarkersFn get_markers,
                                        AddIntegratorMarkersFn add_integrator)
 {
-   Array<BilinearFormIntegrator*> *integrators = (a.*get_integrators)();
-   Array<Array<int>*> *markers = (a.*get_markers)();
+   Array<BilinearFormIntegrator*> *integrators = (a_ho.*get_integrators)();
+   Array<Array<int>*> *markers = (a_ho.*get_markers)();
 
    for (int i=0; i<integrators->Size(); ++i)
    {
@@ -62,7 +62,7 @@ void LORBase::AddIntegrators(BilinearForm &a_to)
 
 void LORBase::ResetIntegrationRules(GetIntegratorsFn get_integrators)
 {
-   Array<BilinearFormIntegrator*> *integrators = (a.*get_integrators)();
+   Array<BilinearFormIntegrator*> *integrators = (a_ho.*get_integrators)();
    for (int i=0; i<integrators->Size(); ++i)
    {
       (*integrators[i])->SetIntegrationRule(*ir_map[*integrators[i]]);
@@ -77,9 +77,15 @@ void LORBase::ResetIntegrationRules()
    ResetIntegrationRules(&BilinearForm::GetBFBFI);
 }
 
-LORBase::LORBase(BilinearForm &a_) : a(a_), irs(0, Quadrature1D::GaussLobatto)
+OperatorHandle &LORBase::GetAssembledSystem()
 {
-   Mesh &mesh = *a.FESpace()->GetMesh();
+   return A;
+}
+
+LORBase::LORBase(BilinearForm &a_)
+   : irs(0, Quadrature1D::GaussLobatto), a_ho(a_)
+{
+   Mesh &mesh = *a_ho.FESpace()->GetMesh();
    int dim = mesh.Dimension();
    Array<Geometry::Type> geoms;
    mesh.GetGeometries(dim, geoms);
@@ -93,8 +99,16 @@ LORBase::LORBase(BilinearForm &a_) : a(a_), irs(0, Quadrature1D::GaussLobatto)
    }
 }
 
-LOR::LOR(BilinearForm &a_ho, const Array<int> &ess_tdof_list, int ref_type)
-   : LORBase(a_ho)
+LORBase::~LORBase()
+{
+   delete a;
+   delete fes;
+   delete fec;
+   delete mesh;
+}
+
+LOR::LOR(BilinearForm &a_ho_, const Array<int> &ess_tdof_list, int ref_type)
+   : LORBase(a_ho_)
 {
    FiniteElementSpace &fes_ho = *a_ho.FESpace();
    MFEM_VERIFY(!fes_ho.IsDGSpace(),
@@ -106,14 +120,15 @@ LOR::LOR(BilinearForm &a_ho, const Array<int> &ess_tdof_list, int ref_type)
    int order = fes_ho.GetMaxElementOrder();
 
    Mesh &mesh_ho = *fes_ho.GetMesh();
-   mesh = Mesh::MakeRefined(mesh_ho, order, ref_type);
+   mesh = new Mesh(Mesh::MakeRefined(mesh_ho, order, ref_type));
 
    fec = fes_ho.FEColl()->Clone(1);
-   fes = new FiniteElementSpace(&mesh, fec);
+   fes = new FiniteElementSpace(mesh, fec);
    a = new BilinearForm(fes);
 
    AddIntegrators(*a);
    a->Assemble();
+   A.SetType(Operator::MFEM_SPARSEMAT);
    a->FormSystemMatrix(ess_tdof_list, A);
 
    ResetIntegrationRules();
@@ -121,22 +136,15 @@ LOR::LOR(BilinearForm &a_ho, const Array<int> &ess_tdof_list, int ref_type)
 
 SparseMatrix &LOR::GetAssembledMatrix()
 {
-   return A;
-}
-
-LOR::~LOR()
-{
-   delete a;
-   delete fes;
-   delete fec;
+   return *A.As<SparseMatrix>();
 }
 
 #ifdef MFEM_USE_MPI
 
-ParLOR::ParLOR(ParBilinearForm &a_ho, const Array<int> &ess_tdof_list,
-               int ref_type) : LORBase(a_ho)
+ParLOR::ParLOR(ParBilinearForm &a_ho_, const Array<int> &ess_tdof_list,
+               int ref_type) : LORBase(a_ho_)
 {
-   ParFiniteElementSpace &fes_ho = *a_ho.ParFESpace();
+   ParFiniteElementSpace &fes_ho = *a_ho_.ParFESpace();
    MFEM_VERIFY(!fes_ho.IsDGSpace(),
                "Cannot construct LOR operators on DG spaces");
    // TODO: support variable-order spaces
@@ -146,14 +154,17 @@ ParLOR::ParLOR(ParBilinearForm &a_ho, const Array<int> &ess_tdof_list,
    int order = fes_ho.GetMaxElementOrder();
 
    ParMesh &mesh_ho = *fes_ho.GetParMesh();
-   mesh = ParMesh::MakeRefined(mesh_ho, order, ref_type);
+   ParMesh *pmesh = new ParMesh(ParMesh::MakeRefined(mesh_ho, order, ref_type));
+   mesh = pmesh;
 
    fec = fes_ho.FEColl()->Clone(1);
-   fes = new ParFiniteElementSpace(&mesh, fec);
-   a = new ParBilinearForm(fes);
+   ParFiniteElementSpace *pfes = new ParFiniteElementSpace(pmesh, fec);
+   fes = pfes;
+   a = new ParBilinearForm(pfes);
 
    AddIntegrators(*a);
    a->Assemble();
+   A.SetType(Operator::Hypre_ParCSR);
    a->FormSystemMatrix(ess_tdof_list, A);
 
    ResetIntegrationRules();
@@ -161,14 +172,7 @@ ParLOR::ParLOR(ParBilinearForm &a_ho, const Array<int> &ess_tdof_list,
 
 HypreParMatrix &ParLOR::GetAssembledMatrix()
 {
-   return A;
-}
-
-ParLOR::~ParLOR()
-{
-   delete a;
-   delete fes;
-   delete fec;
+   return *A.As<HypreParMatrix>();
 }
 
 #endif
