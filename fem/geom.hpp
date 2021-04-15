@@ -102,6 +102,11 @@ public:
    void JacToPerfJac(int GeomType, const DenseMatrix &J,
                      DenseMatrix &PJ) const;
 
+   /// Returns true if the given @a geom is of tensor-product type (i.e. if geom
+   /// is a segment, quadrilateral, or hexahedron), returns false otherwise.
+   static bool IsTensorProduct(Type geom)
+   { return geom == SEGMENT || geom == SQUARE || geom == CUBE; }
+
    /// Return the number of boundary "faces" of a given Geometry::Type.
    int NumBdr(int GeomType) { return NumBdrArray[GeomType]; }
 };
