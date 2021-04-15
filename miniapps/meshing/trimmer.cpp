@@ -47,7 +47,6 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include <vector>
 
 using namespace std;
 using namespace mfem;
@@ -143,21 +142,13 @@ int main(int argc, char *argv[])
    Mesh trimmed_mesh(mesh.Dimension(), mesh.GetNV(),
                      num_elements, num_bdr_elements, mesh.SpaceDimension());
 
-   // Check for curved or discontinuous mesh
-   const GridFunction * Nodes = mesh.GetNodes();
-   const FiniteElementSpace * fes = Nodes ? Nodes->FESpace() : NULL;
-
-   Array<int> vdofs;
-   std::vector<Vector> node_loc_vecs(Nodes ? num_elements : 0);
-
    // Copy vertices
    for (int v=0; v<mesh.GetNV(); v++)
    {
       trimmed_mesh.AddVertex(mesh.GetVertex(v));
    }
 
-   // Copy elements (and Nodes if applicable)
-   int te = 0;
+   // Copy elements
    for (int e=0; e<mesh.GetNE(); e++)
    {
       Element * el = mesh.GetElement(e);
@@ -168,13 +159,6 @@ int main(int argc, char *argv[])
          nel->SetAttribute(elem_attr);
          nel->SetVertices(el->GetVertices());
          trimmed_mesh.AddElement(nel);
-
-         if (Nodes)
-         {
-            fes->GetElementVDofs(e, vdofs);
-            Nodes->GetSubVector(vdofs, node_loc_vecs[te]);
-         }
-         te++;
       }
    }
 
@@ -230,24 +214,44 @@ int main(int argc, char *argv[])
    trimmed_mesh.Finalize();
    trimmed_mesh.RemoveUnusedVertices();
 
-   if (Nodes)
+   // Check for curved or discontinuous mesh
+   if (mesh.GetNodes())
    {
-      // Copy nodes to trimmed mesh
-      int order = fes->FEColl()->GetOrder();
+      // Extract Nodes GridFunction and determine its type
+      const GridFunction * Nodes = mesh.GetNodes();
+      const FiniteElementSpace * fes = Nodes->FESpace();
+
       Ordering::Type ordering = fes->GetOrdering();
+      int order = fes->FEColl()->GetOrder();
       int sdim = mesh.SpaceDimension();
       bool discont =
          dynamic_cast<const L2_FECollection*>(fes->FEColl()) != NULL;
 
+      // Set curvature of the same type as original mesh
       trimmed_mesh.SetCurvature(order, discont, sdim, ordering);
 
       const FiniteElementSpace * trimmed_fes = trimmed_mesh.GetNodalFESpace();
       GridFunction * trimmed_nodes = trimmed_mesh.GetNodes();
 
-      for (int e = 0; e < num_elements; e++)
+      Array<int> vdofs;
+      Array<int> trimmed_vdofs;
+      Vector loc_vec;
+
+      // Copy nodes to trimmed mesh
+      int te = 0;
+      for (int e = 0; e < mesh.GetNE(); e++)
       {
-         trimmed_fes->GetElementVDofs(e, vdofs);
-         trimmed_nodes->SetSubVector(vdofs, node_loc_vecs[e]);
+         Element * el = mesh.GetElement(e);
+         int elem_attr = el->GetAttribute();
+         if (!marker[elem_attr-1])
+         {
+            fes->GetElementVDofs(e, vdofs);
+            Nodes->GetSubVector(vdofs, loc_vec);
+
+            trimmed_fes->GetElementVDofs(te, trimmed_vdofs);
+            trimmed_nodes->SetSubVector(trimmed_vdofs, loc_vec);
+            te++;
+         }
       }
    }
 
