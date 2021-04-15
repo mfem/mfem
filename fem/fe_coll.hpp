@@ -182,14 +182,14 @@ public:
        the degree returned by GetOrder() of the contained FiniteElements).*/
    int GetOrder() const { return base_p; }
 
+   /// Instantiate a new collection of the same type with a different order.
+   virtual FiniteElementCollection* Clone(int p) const;
+
 protected:
    const int base_p;
 
    FiniteElementCollection() : base_p(0) {}
    FiniteElementCollection(int p) : base_p(p) {}
-
-   /// Instantiate a new collection of the same type with a different order.
-   virtual FiniteElementCollection* Clone(int p) const;
 
    void InitVarOrder(int p) const;
 
@@ -230,11 +230,10 @@ public:
    /// Variable order version of GetDofMap
    const int *GetDofMap(Geometry::Type GeomType, int p) const;
 
-   virtual ~H1_FECollection();
-
-protected:
    FiniteElementCollection* Clone(int p) const
    { return new H1_FECollection(p, dim, b_type); }
+
+   virtual ~H1_FECollection();
 };
 
 /** @brief Arbitrary order H1-conforming (continuous) finite elements with
@@ -313,11 +312,10 @@ public:
 
    int GetBasisType() const { return b_type; }
 
-   virtual ~L2_FECollection();
-
-protected:
    FiniteElementCollection* Clone(int p) const
    { return new L2_FECollection(p, dim, b_type, m_type); }
+
+   virtual ~L2_FECollection();
 };
 
 /// Declare an alternative name for L2_FECollection = DG_FECollection
@@ -327,6 +325,8 @@ typedef L2_FECollection DG_FECollection;
 class RT_FECollection : public FiniteElementCollection
 {
 protected:
+   int dim;
+   int cb_type; // closed BasisType
    int ob_type; // open BasisType
    char rt_name[32];
    FiniteElement *RT_Elements[Geometry::NumGeom];
@@ -363,6 +363,9 @@ public:
    virtual int GetContType() const { return NORMAL; }
    FiniteElementCollection *GetTraceCollection() const;
 
+   FiniteElementCollection* Clone(int p) const
+   { return new RT_FECollection(p, dim, cb_type, ob_type); }
+
    virtual ~RT_FECollection();
 };
 
@@ -392,6 +395,9 @@ public:
 class ND_FECollection : public FiniteElementCollection
 {
 protected:
+   int dim;
+   int cb_type; // closed BasisType
+   int ob_type; // open BasisType
    char nd_name[32];
    FiniteElement *ND_Elements[Geometry::NumGeom];
    int ND_dof[Geometry::NumGeom];
@@ -412,6 +418,9 @@ public:
    virtual const char *Name() const { return nd_name; }
    virtual int GetContType() const { return TANGENTIAL; }
    FiniteElementCollection *GetTraceCollection() const;
+
+   FiniteElementCollection* Clone(int p) const
+   { return new ND_FECollection(p, dim, cb_type, ob_type); }
 
    virtual ~ND_FECollection();
 };

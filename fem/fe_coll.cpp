@@ -2235,6 +2235,8 @@ L2_FECollection::~L2_FECollection()
 RT_FECollection::RT_FECollection(const int order, const int dim,
                                  const int cb_type, const int ob_type)
    : FiniteElementCollection(order + 1)
+   , dim(dim)
+   , cb_type(cb_type)
    , ob_type(ob_type)
 {
    int p = order;
@@ -2521,6 +2523,9 @@ DG_Interface_FECollection::DG_Interface_FECollection(const int p, const int dim,
 ND_FECollection::ND_FECollection(const int p, const int dim,
                                  const int cb_type, const int ob_type)
    : FiniteElementCollection(p)
+   , dim(dim)
+   , cb_type(cb_type)
+   , ob_type(ob_type)
 {
    MFEM_VERIFY(p >= 1, "ND_FECollection requires order >= 1.");
    MFEM_VERIFY(dim >= 1 && dim <= 3, "ND_FECollection requires 1 <= dim <= 3.");
