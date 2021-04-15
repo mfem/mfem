@@ -87,6 +87,9 @@ public:
    /// Access the underlying Operator.
    Operator &operator*() { return *oper; }
 
+   /// Access the underlying Operator.
+   const Operator &operator*() const { return *oper; }
+
    /// Get the currently set operator type id.
    Operator::Type Type() const { return type_id; }
 
