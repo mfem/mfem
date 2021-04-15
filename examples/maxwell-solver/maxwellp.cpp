@@ -20,6 +20,8 @@ void exact_im(const Vector & x, Vector & E);
 void maxwell_solution(const Vector & x, double E[], double curl2E[]);
 double wavespeed(const Vector &x);
 void Mwavespeed(const Vector & x, DenseMatrix & M);
+double curlcoeff(const Vector &x);
+void Mcurlcoeff(const Vector & x, DenseMatrix & M);
 
 void ess_data_func(const Vector & x, Vector & E);
 
@@ -56,7 +58,8 @@ int main(int argc, char *argv[])
    int nx=2;
    int ny=2;
    int nz=2;
-   bool matcoeff = false;
+   bool mat_masscoeff = false;
+   bool mat_curlcoeff = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -75,9 +78,12 @@ int main(int argc, char *argv[])
                   "Permeability of free space (or 1/(spring constant)).");
    args.AddOption(&epsilon, "-eps", "--permittivity",
                   "Permittivity of free space (or mass constant).");
-   args.AddOption(&matcoeff, "-matcoeff", "--matrix-coeff", "-no-matcoeff",
-                  "--no-matrix-coeff",
-                  "Matrix/scalar matrix coefficient");                     
+   args.AddOption(&mat_masscoeff, "-mat_masscoeff", "--mass-matrix-coeff", "-no-mat_masscoeff",
+                  "--no-mass-matrix-coeff",
+                  "Mass Matrix/scalar matrix coefficient");    
+   args.AddOption(&mat_curlcoeff, "-mat_curlcoeff", "--curl-matrix-coeff", "-no-mat_curlcoeff",
+                  "--no-curl-matrix-coeff",
+                  "Curl Matrix/scalar matrix coefficient");                                          
    args.AddOption(&sigma_, "-sigma", "--damping-coef",
                   "Damping coefficient (or sigma).");          
    args.AddOption(&bc_type, "-bct", "--bc-type",
@@ -123,6 +129,9 @@ int main(int argc, char *argv[])
    }
 
    dim = mesh->Dimension();
+   // dim for coefficient of the curl term
+   // (scalar in 2D since curl(E) is scalar)
+   int cdim = (dim == 2) ? 1 : dim; 
 
    // 4. Refine the mesh to increase the resolution.
    for (int l = 0; l < ser_ref_levels; l++)
@@ -259,11 +268,8 @@ int main(int argc, char *argv[])
    //
    ConstantCoefficient muinv(1.0/mu);
    ConstantCoefficient omeg(-pow(omega, 2) * epsilon);
-   
    ConstantCoefficient lossCoef(-omega * sigma_);
    RestrictedCoefficient restr_loss(lossCoef,attr);
-   RestrictedCoefficient restr_muinv(muinv,attr);
-
    
    FunctionCoefficient * ws = nullptr;
    ProductCoefficient * wsomeg = nullptr;
@@ -271,7 +277,7 @@ int main(int argc, char *argv[])
    MatrixFunctionCoefficient * Mws = nullptr;
    ScalarMatrixProductCoefficient * Mwsomeg = nullptr;
    MatrixRestrictedCoefficient * restr_Mwsomeg = nullptr; 
-   if (matcoeff)
+   if (mat_masscoeff)
    {
       Mws = new MatrixFunctionCoefficient(dim,Mwavespeed);
       Mwsomeg = new ScalarMatrixProductCoefficient(omeg,*Mws);
@@ -283,11 +289,37 @@ int main(int argc, char *argv[])
       wsomeg = new ProductCoefficient(omeg,*ws);
       restr_wsomeg = new RestrictedCoefficient(*wsomeg,attr);
    }
+   // Coefficient for the curl term 
+   FunctionCoefficient * alpha = nullptr;
+   ProductCoefficient * amu = nullptr;
+   RestrictedCoefficient * restr_amu = nullptr;
+   MatrixFunctionCoefficient * Alpha = nullptr;
+   ScalarMatrixProductCoefficient * Amu = nullptr;
+   MatrixRestrictedCoefficient * restr_Amu = nullptr; 
+   if (mat_curlcoeff)
+   {
+      Alpha = new MatrixFunctionCoefficient(cdim,Mcurlcoeff);
+      Amu = new ScalarMatrixProductCoefficient(muinv,*Alpha);
+      restr_Amu = new MatrixRestrictedCoefficient(*Amu,attr);
+   }
+   else
+   {
+      alpha = new FunctionCoefficient(curlcoeff);
+      amu = new ProductCoefficient(muinv,*alpha);
+      restr_amu = new RestrictedCoefficient(*amu,attr);
+   }
    
    // Integrators inside the computational domain (excluding the PML region)
    ParSesquilinearForm a(fespace, conv);
-   a.AddDomainIntegrator(new CurlCurlIntegrator(restr_muinv),NULL);
-   if (matcoeff)
+   if (mat_curlcoeff)
+   {
+     a.AddDomainIntegrator(new CurlCurlIntegrator(*restr_Amu),NULL);
+   }
+   else
+   {
+     a.AddDomainIntegrator(new CurlCurlIntegrator(*restr_amu),NULL);
+   }
+   if (mat_masscoeff)
    {
       a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_Mwsomeg),NULL);
    }
@@ -297,21 +329,32 @@ int main(int argc, char *argv[])
    }
    a.AddDomainIntegrator(NULL, new VectorFEMassIntegrator(lossCoef));                         
 
-   int cdim = (dim == 2) ? 1 : dim;
    PmlMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, &pml);
    PmlMatrixCoefficient pml_c1_Im(cdim,detJ_inv_JT_J_Im, &pml);
-   ScalarMatrixProductCoefficient c1_Re(muinv,pml_c1_Re);
-   ScalarMatrixProductCoefficient c1_Im(muinv,pml_c1_Im);
 
-   MatrixRestrictedCoefficient restr_c1_Re(c1_Re,attrPML);
-   MatrixRestrictedCoefficient restr_c1_Im(c1_Im,attrPML);
+   MatrixCoefficient * c1_Re = nullptr;
+   MatrixCoefficient * c1_Im = nullptr;
+
+   if (mat_curlcoeff)
+   {
+      c1_Re = new MatrixMatrixProductCoefficient(*Amu,pml_c1_Re);
+      c1_Im = new MatrixMatrixProductCoefficient(*Amu,pml_c1_Im);
+   }
+   else
+   {
+      c1_Re = new ScalarMatrixProductCoefficient(*amu,pml_c1_Re);
+      c1_Im = new ScalarMatrixProductCoefficient(*amu,pml_c1_Im);
+   }
+
+   MatrixRestrictedCoefficient restr_c1_Re(*c1_Re,attrPML);
+   MatrixRestrictedCoefficient restr_c1_Im(*c1_Im,attrPML);
 
    PmlMatrixCoefficient pml_c2_Re(dim, detJ_JT_J_inv_Re,&pml);
    PmlMatrixCoefficient pml_c2_Im(dim, detJ_JT_J_inv_Im,&pml);
 
    MatrixCoefficient * c2_Re = nullptr;
    MatrixCoefficient * c2_Im = nullptr;
-   if (matcoeff)
+   if (mat_masscoeff)
    {
       c2_Re = new MatrixMatrixProductCoefficient(*Mwsomeg,pml_c2_Re);
       c2_Im = new MatrixMatrixProductCoefficient(*Mwsomeg,pml_c2_Im);
@@ -347,14 +390,15 @@ int main(int argc, char *argv[])
    ParDST::BCType bct = (bc_type == 1)? ParDST::BCType::DIRICHLET : ParDST::BCType::NEUMANN;
    ParDST * S = nullptr;
    
-   if (matcoeff)
-   {
-      S = new ParDST(&a,lengths, omega, Mws, nrlayers, nx, ny, nz, bct, &lossCoef);
-   }
-   else
-   {
-      S = new ParDST(&a,lengths, omega, ws, nrlayers, nx, ny, nz, bct, &lossCoef);
-   }
+
+
+
+   S = new ParDST(&a,lengths, omega, nrlayers, 
+                  (mat_curlcoeff) ? nullptr : alpha, 
+                  (mat_masscoeff) ? nullptr : ws,
+                  (mat_curlcoeff) ? Alpha : nullptr,
+                  (mat_masscoeff) ? Mws : nullptr,
+                  nx, ny, nz, bct, &lossCoef);
    chrono.Stop();
    double t1 = chrono.RealTime();
 
@@ -464,7 +508,7 @@ int main(int argc, char *argv[])
    }
 
    // 18. Free the used memory.
-   if (matcoeff)
+   if (mat_masscoeff)
    {
       delete Mws;
    }
@@ -562,6 +606,25 @@ void Mwavespeed(const Vector & x, DenseMatrix & M)
    M(1,1) = 1.0;
    // M(2,2) = 4.0*x(0)-1.0;
    if (dim == 3) M(2,2) = 1.0;
+}
+
+double curlcoeff(const Vector &x)
+{
+   return 1.0;
+}
+void Mcurlcoeff(const Vector & x, DenseMatrix & M)
+{
+   if (dim == 2) 
+   {
+      M = 1.0; // in 2D this coefficient should be of dim = 1;
+   }
+   else
+   {
+      M = 0.0;
+      M(0,0) = 1.0;
+      M(1,1) = 1.0;
+      M(2,2) = 1.0;
+   }
 }
 
 

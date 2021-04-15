@@ -16,11 +16,11 @@ public:
        DIRICHLET
    };
    ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
-       double omega_, Coefficient * Q_, int nrlayers_, 
+       double omega_, 
+       int nrlayers_,
+       Coefficient * Qc_, Coefficient * Qm_ ,
+       MatrixCoefficient * MQc_, MatrixCoefficient * MQm_,
        int nx_=2, int ny_=2, int nz_=2, 
-       BCType bc_type_ = BCType::DIRICHLET, Coefficient * LossCoeff_ = nullptr);
-   ParDST(ParSesquilinearForm * bf_, Array2D<double> & Pmllength_, 
-       double omega_, MatrixCoefficient * MQ_, int nrlayers_, int nx_=2, int ny_=2, int nz_=2, 
        BCType bc_type_ = BCType::DIRICHLET, Coefficient * LossCoeff_ = nullptr);
    virtual void SetOperator(const Operator &op) {}
    virtual void Mult(const Vector &r, Vector &z) const;
@@ -40,8 +40,10 @@ private:
    Array2D<double> Pmllength;
    int dim = 2;
    double omega = 0.5;
-   Coefficient * Q=nullptr;
-   MatrixCoefficient * MQ=nullptr;
+   Coefficient * Qc=nullptr;
+   Coefficient * Qm=nullptr;
+   MatrixCoefficient * MQc=nullptr;
+   MatrixCoefficient * MQm=nullptr;
    int nrlayers;
    BCType bc_type = BCType::DIRICHLET;
    Coefficient * LossCoeff=nullptr;
