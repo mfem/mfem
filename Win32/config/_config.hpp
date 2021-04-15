@@ -116,7 +116,7 @@
 #endif
 
 // Version of HYPRE used for building MFEM.
-#define MFEM_HYPRE_VERSION 21400
+#define MFEM_HYPRE_VERSION 22000
 
 // Macro defined when PUMI is built with support for the Simmetrix SimModSuite
 // library.
