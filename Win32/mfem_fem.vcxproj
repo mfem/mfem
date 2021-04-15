@@ -485,7 +485,7 @@
     <ClInclude Include="..\fem\pbilinearform.hpp" />
     <ClInclude Include="..\fem\pfespace.hpp" />
     <ClInclude Include="..\fem\pgridfunc.hpp" />
-    <ClInclude Include="..\fem\picojson.h">
+    <ClInclude Include="..\fem\picojson.h" />
     <ClInclude Include="..\fem\plinearform.hpp" />
     <ClInclude Include="..\fem\pnonlinearform.hpp" />
     <ClInclude Include="..\fem\prestriction.hpp" />
