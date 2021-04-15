@@ -35,7 +35,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid></ProjectGuid>
+    <ProjectGuid>{AE36B5B1-4818-4E76-A2E3-AA9F061281FE}</ProjectGuid>
     <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
     <Keyword>Win32Proj</Keyword>
     <Platform>x64</Platform>
@@ -485,6 +485,7 @@
     <ClInclude Include="..\fem\pbilinearform.hpp" />
     <ClInclude Include="..\fem\pfespace.hpp" />
     <ClInclude Include="..\fem\pgridfunc.hpp" />
+    <ClInclude Include="..\fem\picojson.h">
     <ClInclude Include="..\fem\plinearform.hpp" />
     <ClInclude Include="..\fem\pnonlinearform.hpp" />
     <ClInclude Include="..\fem\prestriction.hpp" />
@@ -562,6 +563,9 @@
     </ProjectReference>
     <ProjectReference Include="..\..\hypre\src\Windows\utilities\hypre_utilities.vcxproj">
       <Project>{a005ed04-8aeb-4678-96f6-d1d60ca23bf2}</Project>
+    </ProjectReference>
+    <ProjectReference Include="mfem.vcxproj">
+      <Project>{25075912-cfed-3edf-b674-d1e646b131a4}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
