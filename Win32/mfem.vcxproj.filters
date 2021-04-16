@@ -79,10 +79,16 @@
     <ClCompile Include="..\fem\bilininteg_vectorfe.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\fem\ceed\algebraic.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\fem\ceed\convection.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\fem\ceed\diffusion.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\fem\ceed\full-assembly.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\fem\ceed\mass.cpp">
@@ -92,6 +98,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include=".\fem_ceed_operator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\fem\ceed\solvers-atpmg.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\fem\ceed\util.cpp">
@@ -280,6 +289,9 @@
     <ClCompile Include="..\linalg\amgxsolver.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\linalg\auxiliary.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\linalg\blockmatrix.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -290,6 +302,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\linalg\complex_operator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\linalg\constraints.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\linalg\cpardiso.cpp">
@@ -429,6 +444,9 @@
     <ClInclude Include="..\fem\bilininteg.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\fem\ceed\algebraic.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="..\fem\ceed\coefficient.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -442,6 +460,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\fem\ceed\diffusion_qf.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\fem\ceed\full-assembly.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\fem\ceed\integrator.hpp">
@@ -460,6 +481,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\fem\ceed\operator.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\fem\ceed\solvers-atpmg.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\fem\ceed\util.hpp">
@@ -711,6 +735,9 @@
     <ClInclude Include="..\linalg\simd\qpx256.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\linalg\simd\sve.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="..\linalg\simd\vsx.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -723,6 +750,9 @@
     <ClInclude Include="..\linalg\amgxsolver.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\linalg\auxiliary.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="..\linalg\blockmatrix.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -733,6 +763,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\linalg\complex_operator.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\linalg\constraints.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\linalg\cpardiso.hpp">
