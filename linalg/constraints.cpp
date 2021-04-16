@@ -391,8 +391,8 @@ PenaltyConstrainedSolver::PenaltyConstrainedSolver(
    HYPRE_BigInt glob_num_rows = global_constraints;
    HYPRE_BigInt glob_num_cols = A.N();
    HYPRE_BigInt row_starts[2] = {constraint_running_total - local_constraints,
-				constraint_running_total
-			      };
+                                 constraint_running_total
+                                };
    HYPRE_BigInt col_starts[2] = {A.ColPart()[0], A.ColPart()[1]};
    HypreParMatrix hB(A.GetComm(), glob_num_rows, glob_num_cols,
                      row_starts, col_starts, &B);
