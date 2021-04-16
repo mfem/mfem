@@ -32,8 +32,8 @@ endif
 .PRECIOUS: %.o
 
 COMMON_O= common/PML.o common/MeshPartition.o \
-			 common/Utilities.o common/complex_linalg.o\
-			 DST/DST.o ParDST/ParDST.o ParDST/DofMapsDST.o FOSLS.o lor.o
+			 common/Utilities.o common/complex_linalg.o common/complex_coeff.o\
+			 DST/DST.o ParDST/ParDST.o ParDST/DofMapsDST.o 
 
 # Remove built-in rules
 %: %.cpp

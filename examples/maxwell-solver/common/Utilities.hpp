@@ -51,10 +51,7 @@ public:
       sweep.SetSize(dim);
       sweep = sweeps[i];
    }
-
-
 };
-
 
 
 // Function coefficient that takes the bounding box of the mesh as an input
@@ -102,8 +99,6 @@ public:
    ~DofMap(){};
 };
 
-
-
 class LocalDofMap // Constructs dof mapbetween two partitions
 {
    const FiniteElementCollection *fec=nullptr;
@@ -118,7 +113,6 @@ public:
                MeshPartition * part2_);
    ~LocalDofMap();
 };
-
 
 struct NeighborDofMaps
 {

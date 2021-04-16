@@ -96,3 +96,4 @@ void MultAtB(const ComplexDenseMatrix &A, const ComplexDenseMatrix &B, ComplexDe
 
 /// Multiply the conjugate transpose of a matrix A with a matrix B:   At*B
 void MultAhB(const ComplexDenseMatrix &A, const ComplexDenseMatrix &B, ComplexDenseMatrix &AtB);
+

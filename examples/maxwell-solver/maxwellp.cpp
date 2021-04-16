@@ -9,6 +9,7 @@
 #include <iostream>
 #include "ParDST/ParDST.hpp"
 #include "common/PML.hpp"
+#include "common/complex_coeff.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -274,14 +275,24 @@ int main(int argc, char *argv[])
    FunctionCoefficient * ws = nullptr;
    ProductCoefficient * wsomeg = nullptr;
    RestrictedCoefficient * restr_wsomeg = nullptr;
-   MatrixFunctionCoefficient * Mws = nullptr;
+
+
+   MatrixCoefficient * Mws = nullptr;
    ScalarMatrixProductCoefficient * Mwsomeg = nullptr;
    MatrixRestrictedCoefficient * restr_Mwsomeg = nullptr; 
+
+   // MatrixComplexCoefficient * Mws = nullptr;
+   // ScalarMatrixProductComplexCoefficient * Mwsomeg = nullptr;
+   // MatrixRestrictedComplexCoefficient * restr_Mwsomeg = nullptr; 
    if (mat_masscoeff)
    {
       Mws = new MatrixFunctionCoefficient(dim,Mwavespeed);
       Mwsomeg = new ScalarMatrixProductCoefficient(omeg,*Mws);
       restr_Mwsomeg = new MatrixRestrictedCoefficient(*Mwsomeg,attr);
+      // Mws = new MatrixComplexCoefficient(
+                        // new MatrixFunctionCoefficient(dim,Mwavespeed), nullptr);
+      // Mwsomeg = new ScalarMatrixProductComplexCoefficient(&omeg,Mws);
+      // restr_Mwsomeg = new MatrixRestrictedComplexCoefficient(Mwsomeg,attr);
    }
    else
    {
@@ -322,6 +333,7 @@ int main(int argc, char *argv[])
    if (mat_masscoeff)
    {
       a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_Mwsomeg),NULL);
+      // a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_Mwsomeg->real()),NULL);
    }
    else
    {
@@ -358,6 +370,8 @@ int main(int argc, char *argv[])
    {
       c2_Re = new MatrixMatrixProductCoefficient(*Mwsomeg,pml_c2_Re);
       c2_Im = new MatrixMatrixProductCoefficient(*Mwsomeg,pml_c2_Im);
+      // c2_Re = new MatrixMatrixProductCoefficient(*Mwsomeg->real(),pml_c2_Re);
+      // c2_Im = new MatrixMatrixProductCoefficient(*Mwsomeg->real(),pml_c2_Im);
    }
    else
    {
@@ -391,13 +405,12 @@ int main(int argc, char *argv[])
    ParDST * S = nullptr;
    
 
-
-
    S = new ParDST(&a,lengths, omega, nrlayers, 
                   (mat_curlcoeff) ? nullptr : alpha, 
                   (mat_masscoeff) ? nullptr : ws,
                   (mat_curlcoeff) ? Alpha : nullptr,
                   (mat_masscoeff) ? Mws : nullptr,
+                  // (mat_masscoeff) ? Mws->real() : nullptr,
                   nx, ny, nz, bct, &lossCoef);
    chrono.Stop();
    double t1 = chrono.RealTime();
