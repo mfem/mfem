@@ -673,7 +673,7 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
    HYPRE_Int *j_offd = Memory<HYPRE_Int>(ldof-ltdof);
    int offd_counter;
 
-   HYPRE_BigInt *cmap   = Memory<HYPRE_BigInt>(ldof-ltdof);
+   HYPRE_BigInt *cmap = Memory<HYPRE_BigInt>(ldof-ltdof);
 
    HYPRE_BigInt *col_starts = GetTrueDofOffsets();
    HYPRE_BigInt *row_starts = GetDofOffsets();

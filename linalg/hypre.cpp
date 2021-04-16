@@ -279,7 +279,7 @@ char HypreParMatrix::CopyCSR(SparseMatrix *csr, hypre_CSRMatrix *hypre_csr)
 char HypreParMatrix::CopyBoolCSR(Table *bool_csr, hypre_CSRMatrix *hypre_csr)
 {
    int nnz = bool_csr->Size_of_connections();
-   double *data = new double[nnz];
+   double *data = Memory<double>(nnz);
    for (int i = 0; i < nnz; i++)
    {
       data[i] = 1.0;
@@ -308,14 +308,14 @@ void HypreParMatrix::CopyCSR_J(hypre_CSRMatrix *hypre_csr, int *J)
    {
       for (HYPRE_Int j = 0; j < nnz; j++)
       {
-         J[j] = int(hypre_CSRMatrixBigJ(hypre_csr)[j]);
+         J[j] = internal::to_int(hypre_CSRMatrixBigJ(hypre_csr)[j]);
       }
       return;
    }
 #endif
    for (HYPRE_Int j = 0; j < nnz; j++)
    {
-      J[j] = int(hypre_CSRMatrixJ(hypre_csr)[j]);
+      J[j] = internal::to_int(hypre_CSRMatrixJ(hypre_csr)[j]);
    }
 }
 
