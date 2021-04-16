@@ -284,6 +284,33 @@ public:
    }
 };
 
+template <int N, int Rank>
+struct BlockSize
+{
+   static int eval(int size0, int size1, const DynamicLayout<Rank-2> &layout)
+   {
+      return layout.template Size<N-2>();
+   }
+};
+
+template <int Rank>
+struct BlockSize<0, Rank>
+{
+   static int eval(int size0, int size1, const DynamicLayout<Rank-2> &layout)
+   {
+      return size0;
+   }
+};
+
+template <int Rank>
+struct BlockSize<1, Rank>
+{
+   static int eval(int size0, int size1, const DynamicLayout<Rank-2> &layout)
+   {
+      return size1;
+   }
+};
+
 template <int Rank, int BatchSize>
 class DynamicBlockLayout
 {
@@ -313,36 +340,8 @@ public:
    constexpr int Size() const
    {
       static_assert(N>=0 && N<Rank,"Accessed size is higher than the rank of the Tensor.");
-      return BlockSize<N>::eval(size0,size1,layout);
+      return BlockSize<N,Rank>::eval(size0,size1,layout);
    }
-
-private:
-   template <int N>
-   struct BlockSize
-   {
-      static int eval(int size0, int size1, const DynamicLayout<Rank-2> &layout)
-      {
-         return layout.template Size<N-2>();
-      }
-   };
-
-   template <>
-   struct BlockSize<0>
-   {
-      static int eval(int size0, int size1, const DynamicLayout<Rank-2> &layout)
-      {
-         return size0;
-      }
-   };
-
-   template <>
-   struct BlockSize<1>
-   {
-      static int eval(int size0, int size1, const DynamicLayout<Rank-2> &layout)
-      {
-         return size1;
-      }
-   };
 };
 
 template <int BatchSize>
@@ -414,52 +413,52 @@ public:
    }
 };
 
-/// Strided Layout
-template <int Rank>
-class StridedLayout
-{
-private:
-   int strides[Rank];
-   int offsets[Rank];
-   int sizes[Rank];
+// /// Strided Layout
+// template <int Rank>
+// class StridedLayout
+// {
+// private:
+//    int strides[Rank];
+//    int offsets[Rank];
+//    int sizes[Rank];
 
-public:
-   template <typename... Idx> MFEM_HOST_DEVICE inline
-   constexpr int index(Idx... idx) const
-   {
-      static_assert(sizeof...(Idx)==Rank,"Wrong number of argumets.");
-      return StridedIndex<1>::eval(offsets, strides, idx...);
-   }
+// public:
+//    template <typename... Idx> MFEM_HOST_DEVICE inline
+//    constexpr int index(Idx... idx) const
+//    {
+//       static_assert(sizeof...(Idx)==Rank,"Wrong number of argumets.");
+//       return StridedIndex<1>::eval(offsets, strides, idx...);
+//    }
 
-   // Can be constexpr if Tensor inherit from Layout
-   template <int N> MFEM_HOST_DEVICE inline
-   int Size() const
-   {
-      static_assert(N>=0 && N<Rank,"Accessed size is higher than the rank of the Tensor.");
-      return sizes[N];
-   }
+//    // Can be constexpr if Tensor inherit from Layout
+//    template <int N> MFEM_HOST_DEVICE inline
+//    int Size() const
+//    {
+//       static_assert(N>=0 && N<Rank,"Accessed size is higher than the rank of the Tensor.");
+//       return sizes[N];
+//    }
 
-private:
-   template <int N>
-   struct StridedIndex
-   {
-      template <typename... Idx>
-      static inline int eval(int* offsets, int* strides, int first, Idx... args)
-      {
-         return (offsets[N-1]+first)*strides[N-1] + StridedIndex<N+1>::eval(args...);
-      }
-   };
+// private:
+//    template <int N>
+//    struct StridedIndex
+//    {
+//       template <typename... Idx>
+//       static inline int eval(int* offsets, int* strides, int first, Idx... args)
+//       {
+//          return (offsets[N-1]+first)*strides[N-1] + StridedIndex<N+1>::eval(args...);
+//       }
+//    };
 
-   template <>
-   struct StridedIndex<Rank>
-   {
-      template <typename... Idx>
-      static inline int eval(int* offsets, int* strides, int first)
-      {
-         return (offsets[Rank-1]+first)*strides[Rank-1];
-      }
-   };
-};
+//    template <>
+//    struct StridedIndex<Rank>
+//    {
+//       template <typename... Idx>
+//       static inline int eval(int* offsets, int* strides, int first)
+//       {
+//          return (offsets[Rank-1]+first)*strides[Rank-1];
+//       }
+//    };
+// };
 
 // TODO possible to write directly in a generic way?
 // TODO throw an error if N>8?
