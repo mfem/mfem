@@ -44,11 +44,11 @@ private:
 
    void ResetIntegrationRules(GetIntegratorsFn get_integrators);
 
-   enum FESpaceType { H1, ND, RT, L2, INVALID };
-
    static inline int absdof(int i) { return i < 0 ? -1-i : i; }
 
 protected:
+   enum FESpaceType { H1, ND, RT, L2, INVALID };
+
    BilinearForm &a_ho;
    Mesh *mesh;
    FiniteElementCollection *fec;
@@ -140,16 +140,16 @@ public:
 #endif
 
 /// @brief Represents a solver of type @a SolverType created using the low-order
-/// refined version of the given BilinearForm.
+/// refined version of the given BilinearForm or ParBilinearForm.
 template <typename SolverType>
 class LORSolver : public Solver
 {
 protected:
    LORBase *lor;
-   bool own_lor;
+   bool own_lor = true;
+   bool use_permutation = true;
    SolverType solver;
    mutable Vector px, py;
-   LORSolver() { }
 public:
    /// Create a solver of type @a SolverType, formed using the assembled
    /// SparseMatrix of the LOR version of @a a_ho. @see LOR
@@ -157,7 +157,6 @@ public:
              int ref_type=BasisType::GaussLobatto)
    {
       lor = new LOR(a_ho, ess_tdof_list, ref_type);
-      own_lor = true;
       solver.SetOperator(*lor->GetAssembledSystem());
    }
 
@@ -168,7 +167,6 @@ public:
              int ref_type=BasisType::GaussLobatto)
    {
       lor = new ParLOR(a_ho, ess_tdof_list, ref_type);
-      own_lor = true;
       solver.SetOperator(*lor->GetAssembledSystem());
    }
 #endif
@@ -189,8 +187,7 @@ public:
 
    void Mult(const Vector &x, Vector &y) const
    {
-      bool permute = lor->RequiresDofPermutation();
-      if (permute)
+      if (use_permutation && lor->RequiresDofPermutation())
       {
          const Array<int> &p = lor->GetDofPermutation();
          px.SetSize(x.Size());
@@ -211,6 +208,18 @@ public:
       {
          solver.Mult(x, y);
       }
+   }
+
+   /** @brief Enable or disable the DOF permutation (enabled by default).
+
+       The corresponding LOR and high-order DOFs may not have the same numbering
+       (for example, when using ND or RT spaces), and so a permutation is
+       required when applying the LOR solver as a preconditioner for the
+       high-order problem. This permutation can be disabled (for example, in
+       order to precondition the low-order problem directly). */
+   void UsePermutation(bool use_permutation_)
+   {
+      use_permutation = use_permutation_;
    }
 
    /// Support the use of -> to call methods of the underlying solver.
