@@ -40,11 +40,11 @@ private:
    Array2D<double> Pmllength;
    int dim = 2;
    double omega = 0.5;
+   int nrlayers;
    Coefficient * Qc=nullptr;
    Coefficient * Qm=nullptr;
    MatrixCoefficient * MQc=nullptr;
    MatrixCoefficient * MQm=nullptr;
-   int nrlayers;
    BCType bc_type = BCType::DIRICHLET;
    Coefficient * LossCoeff=nullptr;
    

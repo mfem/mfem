@@ -112,12 +112,10 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
-
    // Angular frequency
    omega = 2.0 * M_PI * freq;
 
    Mesh *mesh;
-
 
    int nel = 1;
    if (nd == 2)
@@ -191,7 +189,6 @@ int main(int argc, char *argv[])
    // lengths[1][0] = 0.0;
    // lengths[0][0] = 0.0;
    if (exact_known) lengths = 0.0;
-   // CartesianPML pml(mesh,lengths);
    CartesianPML pml(pmesh,lengths);
    pml.SetAttributes(pmesh);
    pml.SetOmega(omega);
@@ -220,7 +217,6 @@ int main(int argc, char *argv[])
       ess_bdr = bc_type;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
-
 
    Array<int> attr;
    Array<int> attrPML;
@@ -254,8 +250,6 @@ int main(int argc, char *argv[])
    //     corresponding to fespace.
    ParComplexGridFunction x(fespace);
    x = 0.0;
-   // VectorFunctionCoefficient done(dim,ess_data_func);
-   // x.ProjectCoefficient(done,done);
    VectorFunctionCoefficient E_re(dim,exact_re);
    VectorFunctionCoefficient E_im(dim,exact_re);
    if (exact_known)
@@ -272,9 +266,6 @@ int main(int argc, char *argv[])
    ConstantCoefficient lossCoef(-omega * sigma_);
    RestrictedCoefficient restr_loss(lossCoef,attr);
    
-   // FunctionCoefficient * ws = nullptr;
-   // ProductCoefficient * wsomeg = nullptr;
-   // RestrictedCoefficient * restr_wsomeg = nullptr;
    ComplexCoefficient * ws = nullptr;
    ProductComplexCoefficient * wsomeg = nullptr;
    RestrictedComplexCoefficient * restr_wsomeg = nullptr;
@@ -335,50 +326,46 @@ int main(int argc, char *argv[])
    }
    a.AddDomainIntegrator(NULL, new VectorFEMassIntegrator(lossCoef));                         
 
-   PmlMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, &pml);
-   PmlMatrixCoefficient pml_c1_Im(cdim,detJ_inv_JT_J_Im, &pml);
 
-   MatrixCoefficient * c1_Re = nullptr;
-   MatrixCoefficient * c1_Im = nullptr;
+   MatrixComplexCoefficient * pml_c1 = new MatrixComplexCoefficient(
+      new PmlMatrixCoefficient(cdim,detJ_inv_JT_J_Re, &pml), 
+      new PmlMatrixCoefficient(cdim,detJ_inv_JT_J_Im, &pml));
+
+   MatrixComplexCoefficient * c1 = nullptr;
 
    if (mat_curlcoeff)
    {
-      c1_Re = new MatrixMatrixProductCoefficient(*Amu->real(),pml_c1_Re);
-      c1_Im = new MatrixMatrixProductCoefficient(*Amu->real(),pml_c1_Im);
+      c1 = new MatrixMatrixProductComplexCoefficient(Amu,pml_c1);
    }
    else
    {
-      c1_Re = new ScalarMatrixProductCoefficient(*amu->real(),pml_c1_Re);
-      c1_Im = new ScalarMatrixProductCoefficient(*amu->real(),pml_c1_Im);
+      c1 = new ScalarMatrixProductComplexCoefficient(amu,pml_c1);
    }
 
-   MatrixRestrictedCoefficient restr_c1_Re(*c1_Re,attrPML);
-   MatrixRestrictedCoefficient restr_c1_Im(*c1_Im,attrPML);
+   MatrixRestrictedComplexCoefficient rest_c1(c1,attrPML);
 
-   PmlMatrixCoefficient pml_c2_Re(dim, detJ_JT_J_inv_Re,&pml);
-   PmlMatrixCoefficient pml_c2_Im(dim, detJ_JT_J_inv_Im,&pml);
+   MatrixComplexCoefficient * pml_c2 = new MatrixComplexCoefficient(
+      new PmlMatrixCoefficient(dim, detJ_JT_J_inv_Re,&pml), 
+      new PmlMatrixCoefficient(dim, detJ_JT_J_inv_Im,&pml));
 
-   MatrixCoefficient * c2_Re = nullptr;
-   MatrixCoefficient * c2_Im = nullptr;
+   MatrixComplexCoefficient * c2 = nullptr;
    if (mat_masscoeff)
    {
-      c2_Re = new MatrixMatrixProductCoefficient(*Mwsomeg->real(),pml_c2_Re);
-      c2_Im = new MatrixMatrixProductCoefficient(*Mwsomeg->real(),pml_c2_Im);
+      c2 = new MatrixMatrixProductComplexCoefficient(Mwsomeg,pml_c2);
    }
    else
    {
-      c2_Re = new ScalarMatrixProductCoefficient(*wsomeg->real(),pml_c2_Re);
-      c2_Im = new ScalarMatrixProductCoefficient(*wsomeg->real(),pml_c2_Im);
+      c2 = new ScalarMatrixProductComplexCoefficient(wsomeg,pml_c2);
    }
    
-   MatrixRestrictedCoefficient restr_c2_Re(*c2_Re,attrPML);
-   MatrixRestrictedCoefficient restr_c2_Im(*c2_Im,attrPML);
+
+   MatrixRestrictedComplexCoefficient rest_c2(c2,attrPML);
 
    // Integrators inside the PML region
-   a.AddDomainIntegrator(new CurlCurlIntegrator(restr_c1_Re),
-                         new CurlCurlIntegrator(restr_c1_Im));
-   a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_c2_Re),
-                         new VectorFEMassIntegrator(restr_c2_Im));
+   a.AddDomainIntegrator(new CurlCurlIntegrator(*rest_c1.real()),
+                         new CurlCurlIntegrator(*rest_c1.imag()));                         
+   a.AddDomainIntegrator(new VectorFEMassIntegrator(*rest_c2.real()),
+                         new VectorFEMassIntegrator(*rest_c2.imag()));
 
    a.Assemble(0);
 

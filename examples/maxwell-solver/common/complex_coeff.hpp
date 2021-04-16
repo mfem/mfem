@@ -9,15 +9,15 @@ using namespace mfem;
 class ComplexCoefficient
 {
 protected:
-   bool own_r=false;
-   bool own_i=false;
    Coefficient * cr = nullptr;
    Coefficient * ci = nullptr;
+   bool own_r=false;
+   bool own_i=false;
 public:
    ComplexCoefficient(){};
    ComplexCoefficient(Coefficient * cr_, Coefficient * ci_, 
    bool ownr_ = false, bool owni_ = false) 
-   : cr(cr_), ci(ci_), own_r(own_r), own_i(owni_) {}
+   : cr(cr_), ci(ci_), own_r(ownr_), own_i(owni_) {}
    void SetReal(Coefficient * cr_) { cr = cr_; }
    void SetImag(Coefficient * ci_) { ci = ci_; }
    Coefficient * real() { return cr; }
@@ -51,10 +51,10 @@ public:
 class MatrixComplexCoefficient
 {
 protected:
-   bool own_r = false;
-   bool own_i = false;
    MatrixCoefficient * cr = nullptr;
    MatrixCoefficient * ci = nullptr;
+   bool own_r = false;
+   bool own_i = false;
 public:
    MatrixComplexCoefficient(){};
    MatrixComplexCoefficient(MatrixCoefficient * cr_, MatrixCoefficient * ci_) : cr(cr_), ci(ci_) 
@@ -136,7 +136,6 @@ private:
    MatrixCoefficient * d = nullptr;
    ComplexCoefficient * tmp1 = nullptr;
    MatrixComplexCoefficient * tmp2 = nullptr;
-   MatrixComplexCoefficient * tmp3 = nullptr;
    void Setup(ComplexCoefficient * A, MatrixComplexCoefficient * B);
 public:
    ScalarMatrixProductComplexCoefficient(ComplexCoefficient * A, MatrixComplexCoefficient * B)
@@ -176,17 +175,21 @@ private:
    MatrixCoefficient * c = nullptr;
    MatrixCoefficient * d = nullptr;
    MatrixComplexCoefficient * tmp = nullptr;
+   void Setup(MatrixComplexCoefficient *A, MatrixComplexCoefficient *B);
 public:
-   MatrixMatrixProductComplexCoefficient(MatrixComplexCoefficient * A, MatrixComplexCoefficient * B);
+   MatrixMatrixProductComplexCoefficient(MatrixComplexCoefficient * A, MatrixComplexCoefficient * B)
+   {
+      Setup(A,B);
+   }
    MatrixMatrixProductComplexCoefficient(MatrixComplexCoefficient * A, MatrixCoefficient * B) 
    {
       tmp = new MatrixComplexCoefficient(B,nullptr);
-      MatrixMatrixProductComplexCoefficient(A,tmp);
+      Setup(A,tmp);
    }
    MatrixMatrixProductComplexCoefficient(MatrixCoefficient * A, MatrixComplexCoefficient * B) 
    {
       tmp = new MatrixComplexCoefficient(A,nullptr);
-      MatrixMatrixProductComplexCoefficient(tmp,B);
+      Setup(tmp,B);
    }
    virtual ~MatrixMatrixProductComplexCoefficient()
    {

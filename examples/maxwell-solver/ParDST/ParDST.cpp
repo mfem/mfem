@@ -438,9 +438,9 @@ void ParDST::SetMaxwellPmlSystemMatrix(int ip)
    }
 
    Coefficient * ws_re = nullptr;
-   Coefficient * ws_im = nullptr;
+   // Coefficient * ws_im = nullptr;
    MatrixCoefficient * Mws_re = nullptr;
-   MatrixCoefficient * Mws_im = nullptr;
+   // MatrixCoefficient * Mws_im = nullptr;
    RestrictedCoefficient * restr_wsomeg_re = nullptr;
    MatrixRestrictedCoefficient * restr_Mwsomeg_re = nullptr;
    RestrictedCoefficient * restr_loss = nullptr;

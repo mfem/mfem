@@ -104,9 +104,8 @@ void ScalarMatrixProductComplexCoefficient::Setup
 
 
 
-MatrixMatrixProductComplexCoefficient::MatrixMatrixProductComplexCoefficient
-                                       (MatrixComplexCoefficient * A, 
-                                        MatrixComplexCoefficient * B)
+void MatrixMatrixProductComplexCoefficient::Setup(MatrixComplexCoefficient * A, 
+                                                  MatrixComplexCoefficient * B)
 {
    if (A->real() && B->real()) 
    {
