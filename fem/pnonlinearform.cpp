@@ -102,12 +102,20 @@ const SparseMatrix &ParNonlinearForm::GetLocalGradient(const Vector &x) const
 
 Operator &ParNonlinearForm::GetGradient(const Vector &x) const
 {
+   using namespace std;
    ParFiniteElementSpace *pfes = ParFESpace();
 
    pGrad.Clear();
 
    NonlinearForm::GetGradient(x); // (re)assemble Grad, no b.c.
-
+   if (cP)
+   {
+      cout << "cP is available " << endl;
+   }
+   if (!cP)
+   {
+      cout << "cP is  not available " << endl;
+   }
    OperatorHandle dA(pGrad.Type()), Ph(pGrad.Type());
 
    if (fnfi.Size() == 0)
@@ -121,7 +129,13 @@ Operator &ParNonlinearForm::GetGradient(const Vector &x) const
                              pfes->GetDofOffsets(), Grad);
       //MFEM_ABORT("TODO: assemble contributions from shared face terms");
    }
-
+   // using namespace std;
+   // HypreParMatrix *Q = pfes->Dof_TrueDof_Matrix();
+   // cout << "Q " << Q->Height() << " x " << Q->Width() << endl;
+   // HypreParMatrix *rap = mfem::RAP(Q, Q);
+   // cout << " *********************************************************************************** " << endl;
+   // cout << "rap size inside GetGradient() " << rap->Height() << " x " << rap->Width() << endl;
+   // cout << " *********************************************************************************** " << endl;
    // TODO - construct Dof_TrueDof_Matrix directly in the pGrad format
    Ph.ConvertFrom(pfes->Dof_TrueDof_Matrix());
    pGrad.MakePtAP(dA, Ph);

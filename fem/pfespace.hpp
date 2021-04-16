@@ -147,7 +147,7 @@ private:
                        Array<HYPRE_Int> &col_starts) const;
 
    /// Build the P and R matrices.
-   void Build_Dof_TrueDof_Matrix() const;
+   virtual void Build_Dof_TrueDof_Matrix() const;
 
    /** Used when the ParMesh is non-conforming, i.e. pmesh->pncmesh != NULL.
        Constructs the matrices P and R, the DOF and true DOF offset arrays,
@@ -246,9 +246,9 @@ public:
    { return NURBSext || Nonconforming() ? 1 : ldof_sign[VDofToDof(i)]; }
    HYPRE_Int *GetDofOffsets()     const { return dof_offsets; }
    HYPRE_Int *GetTrueDofOffsets() const { return tdof_offsets; }
-   HYPRE_Int GlobalVSize() const
+   virtual HYPRE_Int GlobalVSize() const
    { return Dof_TrueDof_Matrix()->GetGlobalNumRows(); }
-   HYPRE_Int GlobalTrueVSize() const
+   virtual HYPRE_Int GlobalTrueVSize() const
    { return Dof_TrueDof_Matrix()->GetGlobalNumCols(); }
 
    /// Return the number of local vector true dofs.
@@ -278,7 +278,7 @@ public:
    void GetSharedQuadrilateralDofs(int group, int fi, Array<int> &dofs) const;
 
    /// The true dof-to-dof interpolation matrix
-   HypreParMatrix *Dof_TrueDof_Matrix() const
+   virtual HypreParMatrix *Dof_TrueDof_Matrix() const
    { if (!P) { Build_Dof_TrueDof_Matrix(); } return P; }
 
    /** @brief For a non-conforming mesh, construct and return the interpolation
