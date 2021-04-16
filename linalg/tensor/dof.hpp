@@ -164,8 +164,9 @@ public:
    /// Returns a Tensor corresponding to the DoFs of element e
    auto operator()(int e) const
    {
-      OutTensor u_e(this->template Get<Dim+(VDim>0)>(e));
-      return u_e;
+      // OutTensor u_e(this->template Get<Dim+(VDim>0)>(e));
+      // return u_e;
+      return this->template Get<Dim+(VDim>0)>(e);
    }
 
    auto operator()(int e)
@@ -199,9 +200,10 @@ public:
    /// Returns a Tensor corresponding to the DoFs of element e
    auto operator()(int e) const
    {
-      auto u_e = DofUtil<Dim,DimComp>::template initNonTensor<OutTensor>(this->template Size<0>());
-      u_e = this->template Get<1+DimComp>(e);
-      return u_e;
+      // auto u_e = DofUtil<Dim,DimComp>::template initNonTensor<OutTensor>(this->template Size<0>());
+      // u_e = this->template Get<1+DimComp>(e);
+      // return u_e;
+      return this->template Get<1+DimComp>(e);
    }
 
    auto operator()(int e)
