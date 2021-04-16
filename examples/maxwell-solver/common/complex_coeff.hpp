@@ -32,6 +32,7 @@ public:
 
 class RestrictedComplexCoefficient: public ComplexCoefficient
 {
+public:
    RestrictedComplexCoefficient(ComplexCoefficient * A, Array<int> & attr)
    {
       if (A->real()) 
@@ -98,17 +99,21 @@ private:
    Coefficient * c = nullptr;
    Coefficient * d = nullptr;
    ComplexCoefficient * tmp = nullptr;
+   void Setup(ComplexCoefficient * A, ComplexCoefficient * B);
 public:
-   ProductComplexCoefficient(ComplexCoefficient * A, ComplexCoefficient * B);
+   ProductComplexCoefficient(ComplexCoefficient * A, ComplexCoefficient * B)
+   {
+      Setup(A,B);
+   }
    ProductComplexCoefficient(ComplexCoefficient * A, Coefficient * B) 
    {
       tmp = new ComplexCoefficient(B,nullptr);
-      ProductComplexCoefficient(A,tmp);
+      Setup(A,tmp);
    }
    ProductComplexCoefficient(Coefficient * A, ComplexCoefficient * B) 
    {
       tmp = new ComplexCoefficient(A,nullptr);
-      ProductComplexCoefficient(tmp,B);
+      Setup(tmp,B);
    }
    virtual ~ProductComplexCoefficient()
    {

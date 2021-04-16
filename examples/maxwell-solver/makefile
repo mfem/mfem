@@ -19,7 +19,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_EXAMPLES = helmholtz maxwell maxwell-impedanceBC annulus pml_torus torus_generate_ovlp_partitioning
-PAR_EXAMPLES = helmholtzp maxwellp
+PAR_EXAMPLES = helmholtzp maxwellp cmaxwellp
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else

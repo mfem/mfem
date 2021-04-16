@@ -272,64 +272,66 @@ int main(int argc, char *argv[])
    ConstantCoefficient lossCoef(-omega * sigma_);
    RestrictedCoefficient restr_loss(lossCoef,attr);
    
-   FunctionCoefficient * ws = nullptr;
-   ProductCoefficient * wsomeg = nullptr;
-   RestrictedCoefficient * restr_wsomeg = nullptr;
+   // FunctionCoefficient * ws = nullptr;
+   // ProductCoefficient * wsomeg = nullptr;
+   // RestrictedCoefficient * restr_wsomeg = nullptr;
+   ComplexCoefficient * ws = nullptr;
+   ProductComplexCoefficient * wsomeg = nullptr;
+   RestrictedComplexCoefficient * restr_wsomeg = nullptr;
 
-
-   MatrixCoefficient * Mws = nullptr;
-   ScalarMatrixProductCoefficient * Mwsomeg = nullptr;
-   MatrixRestrictedCoefficient * restr_Mwsomeg = nullptr; 
-
+   MatrixComplexCoefficient * Mws = nullptr;
+   ScalarMatrixProductComplexCoefficient * Mwsomeg = nullptr;
+   MatrixRestrictedComplexCoefficient * restr_Mwsomeg = nullptr; 
    if (mat_masscoeff)
    {
-      Mws = new MatrixFunctionCoefficient(dim,Mwavespeed);
-      Mwsomeg = new ScalarMatrixProductCoefficient(omeg,*Mws);
-      restr_Mwsomeg = new MatrixRestrictedCoefficient(*Mwsomeg,attr);
+      Mws = new MatrixComplexCoefficient(
+                        new MatrixFunctionCoefficient(dim,Mwavespeed), nullptr);
+      Mwsomeg = new ScalarMatrixProductComplexCoefficient(&omeg,Mws);
+      restr_Mwsomeg = new MatrixRestrictedComplexCoefficient(Mwsomeg,attr);
    }
    else
    {
-      ws = new FunctionCoefficient(wavespeed);
-      wsomeg = new ProductCoefficient(omeg,*ws);
-      restr_wsomeg = new RestrictedCoefficient(*wsomeg,attr);
+      ws = new ComplexCoefficient(new FunctionCoefficient(wavespeed),nullptr);
+      wsomeg = new ProductComplexCoefficient(&omeg,ws);
+      restr_wsomeg = new RestrictedComplexCoefficient(wsomeg,attr);
    }
    // Coefficient for the curl term 
-   FunctionCoefficient * alpha = nullptr;
-   ProductCoefficient * amu = nullptr;
-   RestrictedCoefficient * restr_amu = nullptr;
-   MatrixFunctionCoefficient * Alpha = nullptr;
-   ScalarMatrixProductCoefficient * Amu = nullptr;
-   MatrixRestrictedCoefficient * restr_Amu = nullptr; 
+   ComplexCoefficient * alpha = nullptr;
+   ProductComplexCoefficient * amu = nullptr;
+   RestrictedComplexCoefficient * restr_amu = nullptr;
+   MatrixComplexCoefficient * Alpha = nullptr;
+   ScalarMatrixProductComplexCoefficient * Amu = nullptr;
+   MatrixRestrictedComplexCoefficient * restr_Amu = nullptr; 
    if (mat_curlcoeff)
    {
-      Alpha = new MatrixFunctionCoefficient(cdim,Mcurlcoeff);
-      Amu = new ScalarMatrixProductCoefficient(muinv,*Alpha);
-      restr_Amu = new MatrixRestrictedCoefficient(*Amu,attr);
+      Alpha = new MatrixComplexCoefficient(new MatrixFunctionCoefficient(cdim,Mcurlcoeff),nullptr);
+      Amu = new ScalarMatrixProductComplexCoefficient(&muinv,Alpha);
+      restr_Amu = new MatrixRestrictedComplexCoefficient(Amu,attr);
    }
    else
    {
-      alpha = new FunctionCoefficient(curlcoeff);
-      amu = new ProductCoefficient(muinv,*alpha);
-      restr_amu = new RestrictedCoefficient(*amu,attr);
+      alpha = new ComplexCoefficient(new FunctionCoefficient(curlcoeff),nullptr);
+      amu = new ProductComplexCoefficient(&muinv,alpha);
+      restr_amu = new RestrictedComplexCoefficient(amu,attr);
    }
    
    // Integrators inside the computational domain (excluding the PML region)
    ParSesquilinearForm a(fespace, conv);
    if (mat_curlcoeff)
    {
-     a.AddDomainIntegrator(new CurlCurlIntegrator(*restr_Amu),NULL);
+     a.AddDomainIntegrator(new CurlCurlIntegrator(*restr_Amu->real()),NULL);
    }
    else
    {
-     a.AddDomainIntegrator(new CurlCurlIntegrator(*restr_amu),NULL);
+     a.AddDomainIntegrator(new CurlCurlIntegrator(*restr_amu->real()),NULL);
    }
    if (mat_masscoeff)
    {
-      a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_Mwsomeg),NULL);
+      a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_Mwsomeg->real()),NULL);
    }
    else
    {
-      a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_wsomeg),NULL);
+      a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_wsomeg->real()),NULL);
    }
    a.AddDomainIntegrator(NULL, new VectorFEMassIntegrator(lossCoef));                         
 
@@ -341,13 +343,13 @@ int main(int argc, char *argv[])
 
    if (mat_curlcoeff)
    {
-      c1_Re = new MatrixMatrixProductCoefficient(*Amu,pml_c1_Re);
-      c1_Im = new MatrixMatrixProductCoefficient(*Amu,pml_c1_Im);
+      c1_Re = new MatrixMatrixProductCoefficient(*Amu->real(),pml_c1_Re);
+      c1_Im = new MatrixMatrixProductCoefficient(*Amu->real(),pml_c1_Im);
    }
    else
    {
-      c1_Re = new ScalarMatrixProductCoefficient(*amu,pml_c1_Re);
-      c1_Im = new ScalarMatrixProductCoefficient(*amu,pml_c1_Im);
+      c1_Re = new ScalarMatrixProductCoefficient(*amu->real(),pml_c1_Re);
+      c1_Im = new ScalarMatrixProductCoefficient(*amu->real(),pml_c1_Im);
    }
 
    MatrixRestrictedCoefficient restr_c1_Re(*c1_Re,attrPML);
@@ -360,13 +362,13 @@ int main(int argc, char *argv[])
    MatrixCoefficient * c2_Im = nullptr;
    if (mat_masscoeff)
    {
-      c2_Re = new MatrixMatrixProductCoefficient(*Mwsomeg,pml_c2_Re);
-      c2_Im = new MatrixMatrixProductCoefficient(*Mwsomeg,pml_c2_Im);
+      c2_Re = new MatrixMatrixProductCoefficient(*Mwsomeg->real(),pml_c2_Re);
+      c2_Im = new MatrixMatrixProductCoefficient(*Mwsomeg->real(),pml_c2_Im);
    }
    else
    {
-      c2_Re = new ScalarMatrixProductCoefficient(*wsomeg,pml_c2_Re);
-      c2_Im = new ScalarMatrixProductCoefficient(*wsomeg,pml_c2_Im);
+      c2_Re = new ScalarMatrixProductCoefficient(*wsomeg->real(),pml_c2_Re);
+      c2_Im = new ScalarMatrixProductCoefficient(*wsomeg->real(),pml_c2_Im);
    }
    
    MatrixRestrictedCoefficient restr_c2_Re(*c2_Re,attrPML);
@@ -396,10 +398,10 @@ int main(int argc, char *argv[])
    
 
    S = new ParDST(&a,lengths, omega, nrlayers, 
-                  (mat_curlcoeff) ? nullptr : alpha, 
-                  (mat_masscoeff) ? nullptr : ws,
-                  (mat_curlcoeff) ? Alpha : nullptr,
-                  (mat_masscoeff) ? Mws : nullptr,
+                  (mat_curlcoeff) ? nullptr : alpha->real(), 
+                  (mat_masscoeff) ? nullptr : ws->real(),
+                  (mat_curlcoeff) ? Alpha->real() : nullptr,
+                  (mat_masscoeff) ? Mws->real() : nullptr,
                   nx, ny, nz, bct, &lossCoef);
    chrono.Stop();
    double t1 = chrono.RealTime();

@@ -1,8 +1,8 @@
 
 #include "complex_coeff.hpp"
 
-ProductComplexCoefficient::ProductComplexCoefficient(ComplexCoefficient * A, 
-                                                     ComplexCoefficient * B)
+void ProductComplexCoefficient::Setup(ComplexCoefficient * A, 
+                                      ComplexCoefficient * B)
 {
    if (A->real() && B->real()) 
    {
