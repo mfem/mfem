@@ -166,12 +166,12 @@ int main(int argc, char *argv[])
    Array<int> ess_dofs;
    fes.GetBoundaryTrueDofs(ess_dofs);
 
-   BilinearForm a_ho(&fes);
-   a_ho.AddDomainIntegrator(new VectorFEMassIntegrator);
-   if (ND) { a_ho.AddDomainIntegrator(new CurlCurlIntegrator); }
-   else { a_ho.AddDomainIntegrator(new DivDivIntegrator); }
-   a_ho.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   a_ho.Assemble();
+   BilinearForm a(&fes);
+   a.AddDomainIntegrator(new VectorFEMassIntegrator);
+   if (ND) { a.AddDomainIntegrator(new CurlCurlIntegrator); }
+   else { a.AddDomainIntegrator(new DivDivIntegrator); }
+   a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   a.Assemble();
 
    LinearForm b(&fes);
    VectorFunctionCoefficient f_coeff(dim, f_exact);
@@ -184,9 +184,9 @@ int main(int argc, char *argv[])
 
    Vector X, B;
    OperatorHandle A;
-   a_ho.FormLinearSystem(ess_dofs, x, b, A, X, B);
+   a.FormLinearSystem(ess_dofs, x, b, A, X, B);
 
-   LORSolver<UMFPackSolver> lor_solver(a_ho, ess_dofs);
+   LORSolver<UMFPackSolver> lor_solver(a, ess_dofs);
 
    CGSolver cg;
    cg.SetAbsTol(0.0);
@@ -196,7 +196,7 @@ int main(int argc, char *argv[])
    cg.SetOperator(*A);
    cg.SetPreconditioner(lor_solver);
    cg.Mult(B, X);
-   a_ho.RecoverFEMSolution(X, b, x);
+   a.RecoverFEMSolution(X, b, x);
 
    double er = x.ComputeL2Error(exact_coeff);
    std::cout << "L^2 error: " << er << '\n';
