@@ -98,8 +98,6 @@ void LORBase::ConstructDofPermutation() const
 {
    FESpaceType type = GetFESpaceType();
 
-   MFEM_VERIFY(type != L2, ""); // TODO: implement for DG
-
    if (type == H1)
    {
       // H1: no permutation necessary, return identity
@@ -111,7 +109,6 @@ void LORBase::ConstructDofPermutation() const
    FiniteElementSpace &fes_ho = *a_ho.FESpace();
    FiniteElementSpace &fes_lor = *fes;
 
-
    auto get_dof_map = [](FiniteElementSpace &fes, int i)
    {
       const FiniteElement *fe = fes.GetFE(i);
@@ -120,6 +117,7 @@ void LORBase::ConstructDofPermutation() const
       return tfe->GetDofMap();
    };
 
+   // TODO: PARALLEL?
    perm.SetSize(fes_lor.GetVSize());
    Array<int> vdof_ho, vdof_lor;
 
@@ -185,7 +183,7 @@ void LORBase::ConstructDofPermutation() const
             set_perm(8, offset, 1, p+1);
          }
       }
-      else
+      else if (type == RT)
       {
          // x
          offset = off_x + off_y*p1 + off_z*p*p1;
@@ -199,6 +197,10 @@ void LORBase::ConstructDofPermutation() const
             offset = 2*ndof_per_dim + off_x + off_y*p + off_z*p*p;
             set_perm(4, offset, p*p, 0);
          }
+      }
+      else if (type == L2)
+      {
+         perm[vdof_lor[0]] = vdof_ho[lor_index];
       }
    }
 }
@@ -275,13 +277,12 @@ LOR::LOR(BilinearForm &a_ho_, const Array<int> &ess_tdof_list, int ref_type)
    : LORBase(a_ho_)
 {
    FiniteElementSpace &fes_ho = *a_ho.FESpace();
-   MFEM_VERIFY(!fes_ho.IsDGSpace(),
-               "Cannot construct LOR operators on DG spaces");
    // TODO: support variable-order spaces
    MFEM_VERIFY(!fes_ho.IsVariableOrder(),
                "Cannot construct LOR operators on variable-order spaces");
 
    int order = fes_ho.GetMaxElementOrder();
+   if (GetFESpaceType() == L2) { ++order; }
 
    Mesh &mesh_ho = *fes_ho.GetMesh();
    mesh = new Mesh(Mesh::MakeRefined(mesh_ho, order, ref_type));
@@ -305,14 +306,12 @@ ParLOR::ParLOR(ParBilinearForm &a_ho_, const Array<int> &ess_tdof_list,
                int ref_type) : LORBase(a_ho_)
 {
    ParFiniteElementSpace &fes_ho = *a_ho_.ParFESpace();
-   // TODO: support DG
-   MFEM_VERIFY(!fes_ho.IsDGSpace(),
-               "Cannot construct LOR operators on DG spaces");
    // TODO: support variable-order spaces
    MFEM_VERIFY(!fes_ho.IsVariableOrder(),
                "Cannot construct LOR operators on variable-order spaces");
 
    int order = fes_ho.GetMaxElementOrder();
+   if (GetFESpaceType() == L2) { ++order; }
 
    ParMesh &mesh_ho = *fes_ho.GetParMesh();
    ParMesh *pmesh = new ParMesh(ParMesh::MakeRefined(mesh_ho, order, ref_type));
