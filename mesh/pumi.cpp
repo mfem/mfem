@@ -138,7 +138,7 @@ static void rotateSimplex(int type,
       MFEM_ASSERT(r>=0 && r<6, "incorrect rotation");
       n = 3;
    }
-   else if (type = apf::Mesh::TET) // tets
+   else if (type == apf::Mesh::TET) // tets
    {
       MFEM_ASSERT(r>=0 && r<12, "incorrect rotation");
       n = 4;
@@ -931,7 +931,7 @@ GridFunctionPumi::GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM,
    }
    PumiM->end(itr);
 
-   sequence = 0;
+   fes_sequence = 0;
 }
 
 // Copy the adapted mesh to the original mesh and increase the sequence to be

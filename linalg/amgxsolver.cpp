@@ -227,6 +227,8 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
          amgx_config = amgx_config + "\n";
       }
       amgx_config = amgx_config + " }\n" + "}\n";
+      // use a zero initial guess in Mult()
+      iterative_mode = false;
    }
    else if (amgxMode == AMGX_MODE::SOLVER)
    {
@@ -269,6 +271,8 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
          amgx_config = amgx_config + "\n";
       }
       amgx_config = amgx_config + "   } \n" + "} \n";
+      // use the user-specified vector as an initial guess in Mult()
+      iterative_mode = true;
    }
    else
    {
@@ -604,7 +608,7 @@ void AmgXSolver::SetMatrix(const HypreParMatrix &A, const bool update_mat)
    hypre_CSRMatrix *A_csr = hypre_MergeDiagAndOffd(A_ptr);
 
    Array<double> loc_A(A_csr->data, (int)A_csr->num_nonzeros);
-   const Array<int> loc_I(A_csr->i, (int)A_csr->num_rows+1);
+   const Array<HYPRE_Int> loc_I(A_csr->i, (int)A_csr->num_rows+1);
 
    // Column index must be int64_t so we must promote here
    Array<int64_t> loc_J((int)A_csr->num_nonzeros);
@@ -888,7 +892,7 @@ void AmgXSolver::Mult(const Vector& B, Vector& X) const
 {
    // Set initial guess to zero
    X.UseDevice(true);
-   X = 0.0;
+   if (!iterative_mode) { X = 0.0; }
 
    // Mult for serial, and mpi-exclusive modes
    if (mpi_gpu_mode != "mpi-teams")
