@@ -75,7 +75,7 @@ TEST_CASE("Domain Integration (Scalar Field)",
           "[GridFunction]"
           "[LinearForm]")
 {
-   int order = 3;
+   int order = 2;
 
    for (int mt = (int)MeshType::SEGMENT;
         mt <= (int)MeshType::MIXED3D8; mt++)
@@ -150,7 +150,7 @@ TEST_CASE("Domain Integration (Vector Field)",
           "[GridFunction]"
           "[LinearForm]")
 {
-   int order = 3;
+   int order = 1;
 
    for (int mt = (int)MeshType::SEGMENT;
         mt <= (int)MeshType::MIXED3D8; mt++)
