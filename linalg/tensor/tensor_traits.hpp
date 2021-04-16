@@ -25,7 +25,10 @@ class Tensor;
 
 // get_tensor_rank
 template <typename Tensor>
-struct get_tensor_rank_v;
+struct get_tensor_rank_v
+{
+   static constexpr int value = Error;
+};
 
 template <int Rank, typename T, typename C, typename L>
 struct get_tensor_rank_v<Tensor<Rank,T,C,L>>
@@ -63,7 +66,10 @@ using get_tensor_value_type = typename get_tensor_value_type_t<Tensor>::type;
 
 // is_dynamic_tensor
 template <typename Tensor>
-struct is_dynamic_tensor_v;
+struct is_dynamic_tensor_v
+{
+   static constexpr bool value = false;
+};
 
 template <int Rank, typename T, typename C, typename L>
 struct is_dynamic_tensor_v<Tensor<Rank,T,C,L>>
@@ -82,7 +88,10 @@ constexpr bool is_dynamic_tensor = is_dynamic_tensor_v<Tensor>::value;
 
 // is_static_tensor
 template <typename Tensor>
-struct is_static_tensor_v;
+struct is_static_tensor_v
+{
+   static constexpr bool value = false;
+};
 
 template <int Rank, typename T, typename C, typename L>
 struct is_static_tensor_v<Tensor<Rank,T,C,L>>
@@ -101,7 +110,10 @@ constexpr bool is_static_tensor = is_static_tensor_v<Tensor>::value;
 
 // is_serial_tensor
 template <typename Tensor>
-struct is_serial_tensor_v;
+struct is_serial_tensor_v
+{
+   static constexpr bool value = false;
+};
 
 template <int Rank, typename T, typename C, typename L>
 struct is_serial_tensor_v<Tensor<Rank,T,C,L>>
@@ -120,7 +132,10 @@ constexpr bool is_serial_tensor = is_serial_tensor_v<Tensor>::value;
 
 // is_2d_threaded_tensor
 template <typename Tensor>
-struct is_2d_threaded_tensor_v;
+struct is_2d_threaded_tensor_v
+{
+   static constexpr bool value = false;
+};
 
 template <int Rank, typename T, typename C, typename L>
 struct is_2d_threaded_tensor_v<Tensor<Rank,T,C,L>>
@@ -139,7 +154,10 @@ constexpr bool is_2d_threaded_tensor = is_2d_threaded_tensor_v<Tensor>::value;
 
 // get_tensor_size
 template <int N, typename Tensor>
-struct get_tensor_size_v;
+struct get_tensor_size_v
+{
+   static constexpr int value = Error;
+};
 
 template <int N, int R, typename T, typename C, typename L>
 struct get_tensor_size_v<N, Tensor<R,T,C,L>>
@@ -158,7 +176,10 @@ constexpr int get_tensor_size = get_tensor_size_v<N, Tensor>::value;
 
 // get_tensor_batch_size
 template <typename Tensor>
-struct get_tensor_batch_size_v;
+struct get_tensor_batch_size_v
+{
+   static constexpr int value = Error;
+};
 
 template <int Rank, typename T, typename C, typename L>
 struct get_tensor_batch_size_v<Tensor<Rank,T,C,L>>
@@ -177,7 +198,10 @@ constexpr int get_tensor_batch_size = get_tensor_batch_size_v<Tensor>::value;
 
 // has_pointer_container
 template <typename Tensor>
-struct has_pointer_container_v;
+struct has_pointer_container_v
+{
+   static constexpr bool value = false;
+};
 
 template <int R, typename T, typename C, typename L>
 struct has_pointer_container_v<Tensor<R,T,C,L>>

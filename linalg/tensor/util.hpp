@@ -16,6 +16,7 @@ namespace mfem
 {
 
 static constexpr int Dynamic = 0;
+static constexpr int Error = -1;
 
 /// Getter for the N-th dimension value
 template <int N, int... Dims>

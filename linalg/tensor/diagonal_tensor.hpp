@@ -49,10 +49,10 @@ auto makeDiagonalTensor(const Tensor &t)
 
 // is_diagonal_tensor
 template <typename Tensor>
-struct is_diagonal_tensor_v;
-// {
-//    static constexpr bool value = false;
-// };
+struct is_diagonal_tensor_v
+{
+   static constexpr bool value = false;
+};
 
 template <int DRank, int Rank, typename T, typename Container, typename Layout>
 struct is_diagonal_tensor_v<DiagonalTensor<DRank, Rank, T, Container, Layout>>
@@ -65,7 +65,10 @@ constexpr bool is_diagonal_tensor = is_diagonal_tensor_v<Tensor>::value;
 
 // get_diagonal_tensor_rank
 template <typename Tensor>
-struct get_diagonal_tensor_rank_v;
+struct get_diagonal_tensor_rank_v
+{
+   static constexpr int value = Error;
+};
 
 template <int DRank, int Rank, typename T, typename Container, typename Layout>
 struct get_diagonal_tensor_rank_v<DiagonalTensor<DRank, Rank, T, Container, Layout>>
@@ -78,7 +81,10 @@ constexpr int get_diagonal_tensor_rank = get_diagonal_tensor_rank_v<Tensor>::val
 
 // get_diagonal_tensor_diagonal_rank
 template <typename Tensor>
-struct get_diagonal_tensor_diagonal_rank_v;
+struct get_diagonal_tensor_diagonal_rank_v
+{
+   static constexpr int value = Error;
+};
 
 template <int DRank, int Rank, typename T, typename Container, typename Layout>
 struct get_diagonal_tensor_diagonal_rank_v<DiagonalTensor<DRank, Rank, T, Container, Layout>>
@@ -91,7 +97,10 @@ constexpr int get_diagonal_tensor_diagonal_rank = get_diagonal_tensor_diagonal_r
 
 // get_diagonal_tensor_values_rank
 template <typename Tensor>
-struct get_diagonal_tensor_values_rank_v;
+struct get_diagonal_tensor_values_rank_v
+{
+   static constexpr int value = Error;
+};
 
 template <int DRank, int Rank, typename T, typename Container, typename Layout>
 struct get_diagonal_tensor_values_rank_v<DiagonalTensor<DRank, Rank, T, Container, Layout>>
@@ -135,10 +144,10 @@ auto makeDiagonalSymmetricTensor(const Tensor &t)
 
 // is_diagonal_symmetric_tensor
 template <typename Tensor>
-struct is_diagonal_symmetric_tensor_v;
-// {
-//    static constexpr bool value = false;
-// };
+struct is_diagonal_symmetric_tensor_v
+{
+   static constexpr bool value = false;
+};
 
 template <int DRank, int Rank, typename T, typename Container, typename Layout>
 struct is_diagonal_symmetric_tensor_v<DiagonalSymmetricTensor<DRank, Rank, T, Container, Layout>>
@@ -151,7 +160,10 @@ constexpr bool is_diagonal_symmetric_tensor = is_diagonal_symmetric_tensor_v<Ten
 
 // get_diagonal_symmetric_tensor_rank
 template <typename Tensor>
-struct get_diagonal_symmetric_tensor_rank_v;
+struct get_diagonal_symmetric_tensor_rank_v
+{
+   static constexpr int value = Error;
+};
 
 template <int DRank, int Rank, typename T, typename Container, typename Layout>
 struct get_diagonal_symmetric_tensor_rank_v<DiagonalSymmetricTensor<DRank, Rank, T, Container, Layout>>
@@ -164,7 +176,10 @@ constexpr int get_diagonal_symmetric_tensor_rank = get_diagonal_symmetric_tensor
 
 // get_diagonal_symmetric_tensor_diagonal_rank
 template <typename Tensor>
-struct get_diagonal_symmetric_tensor_diagonal_rank_v;
+struct get_diagonal_symmetric_tensor_diagonal_rank_v
+{
+   static constexpr int value = Error;
+};
 
 template <int DRank, int Rank, typename T, typename Container, typename Layout>
 struct get_diagonal_symmetric_tensor_diagonal_rank_v<DiagonalSymmetricTensor<DRank, Rank, T, Container, Layout>>
@@ -177,7 +192,10 @@ constexpr int get_diagonal_symmetric_tensor_diagonal_rank = get_diagonal_symmetr
 
 // get_diagonal_symmetric_tensor_values_rank
 template <typename Tensor>
-struct get_diagonal_symmetric_tensor_values_rank_v;
+struct get_diagonal_symmetric_tensor_values_rank_v
+{
+   static constexpr int value = Error;
+};
 
 template <int DRank, int Rank, typename T, typename Container, typename Layout>
 struct get_diagonal_symmetric_tensor_values_rank_v<DiagonalSymmetricTensor<DRank, Rank, T, Container, Layout>>

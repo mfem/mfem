@@ -27,7 +27,7 @@ namespace mfem
 template <typename DiagonalTensor,
           typename Tensor,
           std::enable_if_t<
-             is_diagonal_tensor_v<DiagonalTensor>::value &&
+             is_diagonal_tensor<DiagonalTensor> &&
              is_dynamic_tensor<Tensor> &&
              is_serial_tensor<Tensor> &&
              get_diagonal_tensor_diagonal_rank<DiagonalTensor> == 1 &&
@@ -49,7 +49,7 @@ auto operator*(const DiagonalTensor &D, const Tensor &u)
 template <typename DiagonalTensor,
           typename Tensor,
           std::enable_if_t<
-             is_diagonal_tensor_v<DiagonalTensor>::value &&
+             is_diagonal_tensor<DiagonalTensor> &&
              is_static_tensor<Tensor> &&
              is_serial_tensor<Tensor> &&
              get_diagonal_tensor_diagonal_rank<DiagonalTensor> == 1 &&
@@ -72,7 +72,7 @@ auto operator*(const DiagonalTensor &D, const Tensor &u)
 template <typename DiagonalTensor,
           typename Tensor,
           std::enable_if_t<
-             is_diagonal_tensor_v<DiagonalTensor>::value &&
+             is_diagonal_tensor<DiagonalTensor> &&
              is_dynamic_tensor<Tensor> &&
              is_serial_tensor<Tensor> &&
              get_diagonal_tensor_diagonal_rank<DiagonalTensor> == 2 &&
@@ -98,7 +98,7 @@ auto operator*(const DiagonalTensor &D, const Tensor &u)
 template <typename DiagonalTensor,
           typename Tensor,
           std::enable_if_t<
-             is_diagonal_tensor_v<DiagonalTensor>::value &&
+             is_diagonal_tensor<DiagonalTensor> &&
              is_static_tensor<Tensor> &&
              is_serial_tensor<Tensor> &&
              get_diagonal_tensor_diagonal_rank<DiagonalTensor> == 2 &&
@@ -125,7 +125,7 @@ auto operator*(const DiagonalTensor &D, const Tensor &u)
 template <typename DiagonalTensor,
           typename Tensor,
           std::enable_if_t<
-             is_diagonal_tensor_v<DiagonalTensor>::value &&
+             is_diagonal_tensor<DiagonalTensor> &&
              is_dynamic_tensor<Tensor> &&
              is_serial_tensor<Tensor> &&
              get_diagonal_tensor_diagonal_rank<DiagonalTensor> == 3 &&
@@ -155,7 +155,7 @@ auto operator*(const DiagonalTensor &D, const Tensor &u)
 template <typename DiagonalTensor,
           typename Tensor,
           std::enable_if_t<
-             is_diagonal_tensor_v<DiagonalTensor>::value &&
+             is_diagonal_tensor<DiagonalTensor> &&
              is_static_tensor<Tensor> &&
              is_serial_tensor<Tensor> &&
              get_diagonal_tensor_diagonal_rank<DiagonalTensor> == 3 &&
@@ -187,7 +187,7 @@ auto operator*(const DiagonalTensor &D, const Tensor &u)
 template <typename DiagonalSymmTensor,
           typename Tensor,
           std::enable_if_t<
-             is_diagonal_symmetric_tensor_v<DiagonalSymmTensor>::value &&
+             is_diagonal_symmetric_tensor<DiagonalSymmTensor> &&
              is_dynamic_tensor<Tensor> &&
              is_serial_tensor<Tensor> &&
              get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor> == 1 &&
@@ -220,7 +220,7 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
 template <typename DiagonalSymmTensor,
           typename Tensor,
           std::enable_if_t<
-             is_diagonal_symmetric_tensor_v<DiagonalSymmTensor>::value &&
+             is_diagonal_symmetric_tensor<DiagonalSymmTensor> &&
              is_static_tensor<Tensor> &&
              is_serial_tensor<Tensor> &&
              get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor> == 1 &&
@@ -251,7 +251,7 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
 template <typename DiagonalSymmTensor,
           typename Tensor,
           std::enable_if_t<
-             is_diagonal_symmetric_tensor_v<DiagonalSymmTensor>::value &&
+             is_diagonal_symmetric_tensor<DiagonalSymmTensor> &&
              is_dynamic_tensor<Tensor> &&
              is_serial_tensor<Tensor> &&
              get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor> == 1 &&
@@ -273,7 +273,7 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
 template <typename DiagonalSymmTensor,
           typename Tensor,
           std::enable_if_t<
-             is_diagonal_symmetric_tensor_v<DiagonalSymmTensor>::value &&
+             is_diagonal_symmetric_tensor<DiagonalSymmTensor> &&
              is_static_tensor<Tensor> &&
              is_serial_tensor<Tensor> &&
              get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor> == 1 &&
@@ -296,7 +296,7 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
 // template <typename DiagonalSymmTensor,
 //           typename Tensor,
 //           std::enable_if_t<
-//              is_diagonal_symmetric_tensor_v<DiagonalSymmTensor>::value &&
+//              is_diagonal_symmetric_tensor<DiagonalSymmTensor> &&
 //              is_dynamic_tensor<Tensor> &&
 //              is_serial_tensor<Tensor> &&
 //              get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor> == 2 &&
@@ -331,7 +331,7 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
 // template <typename DiagonalSymmTensor,
 //           typename Tensor,
 //           std::enable_if_t<
-//              is_diagonal_symmetric_tensor_v<DiagonalSymmTensor>::value &&
+//              is_diagonal_symmetric_tensor<DiagonalSymmTensor> &&
 //              is_static_tensor<Tensor> &&
 //              is_serial_tensor<Tensor> &&
 //              get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor> == 2 &&
@@ -366,7 +366,7 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
 template <typename DiagonalSymmTensor,
           typename Tensor,
           std::enable_if_t<
-             is_diagonal_symmetric_tensor_v<DiagonalSymmTensor>::value &&
+             is_diagonal_symmetric_tensor<DiagonalSymmTensor> &&
              is_dynamic_tensor<Tensor> &&
              is_serial_tensor<Tensor> &&
              get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor> == 2 &&
@@ -400,7 +400,7 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
 template <typename DiagonalSymmTensor,
           typename Tensor,
           std::enable_if_t<
-             is_diagonal_symmetric_tensor_v<DiagonalSymmTensor>::value &&
+             is_diagonal_symmetric_tensor<DiagonalSymmTensor> &&
              is_static_tensor<Tensor> &&
              is_serial_tensor<Tensor> &&
              get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor> == 2 &&
@@ -435,7 +435,7 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
 // template <typename DiagonalSymmTensor,
 //           typename Tensor,
 //           std::enable_if_t<
-//              is_diagonal_symmetric_tensor_v<DiagonalSymmTensor>::value &&
+//              is_diagonal_symmetric_tensor<DiagonalSymmTensor> &&
 //              is_dynamic_tensor<Tensor> &&
 //              is_serial_tensor<Tensor> &&
 //              get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor> == 3 &&
@@ -474,7 +474,7 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
 // template <typename DiagonalSymmTensor,
 //           typename Tensor,
 //           std::enable_if_t<
-//              is_diagonal_symmetric_tensor_v<DiagonalSymmTensor>::value &&
+//              is_diagonal_symmetric_tensor<DiagonalSymmTensor> &&
 //              is_static_tensor<Tensor> &&
 //              is_serial_tensor<Tensor> &&
 //              get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor> == 3 &&
@@ -513,7 +513,7 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
 template <typename DiagonalSymmTensor,
           typename Tensor,
           std::enable_if_t<
-             is_diagonal_symmetric_tensor_v<DiagonalSymmTensor>::value &&
+             is_diagonal_symmetric_tensor<DiagonalSymmTensor> &&
              is_dynamic_tensor<Tensor> &&
              is_serial_tensor<Tensor> &&
              get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor> == 3 &&
@@ -558,7 +558,7 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
 template <typename DiagonalSymmTensor,
           typename Tensor,
           std::enable_if_t<
-             is_diagonal_symmetric_tensor_v<DiagonalSymmTensor>::value &&
+             is_diagonal_symmetric_tensor<DiagonalSymmTensor> &&
              is_static_tensor<Tensor> &&
              is_serial_tensor<Tensor> &&
              get_diagonal_symmetric_tensor_diagonal_rank<DiagonalSymmTensor> == 3 &&
