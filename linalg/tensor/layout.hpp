@@ -838,7 +838,7 @@ struct get_layout_size<N, BlockLayout<BatchSize, Dims...>>
 template <int N, int I, typename Layout>
 struct get_layout_size<N,RestrictedLayout<I,Layout>>
 {
-   static constexpr bool value = N<I?
+   static constexpr int value = N<I?
       get_layout_size<N,Layout>::value :
       get_layout_size<N+1,Layout>::value;
 };
