@@ -276,13 +276,13 @@ int main(int argc, char *argv[])
    if (mat_masscoeff)
    {
       Mws = new MatrixComplexCoefficient(
-                        new MatrixFunctionCoefficient(dim,Mwavespeed), nullptr);
+                  new MatrixFunctionCoefficient(dim,Mwavespeed),nullptr,true,false);
       Mwsomeg = new ScalarMatrixProductComplexCoefficient(&omeg,Mws);
       restr_Mwsomeg = new MatrixRestrictedComplexCoefficient(Mwsomeg,attr);
    }
    else
    {
-      ws = new ComplexCoefficient(new FunctionCoefficient(wavespeed),nullptr);
+      ws = new ComplexCoefficient(new FunctionCoefficient(wavespeed),nullptr, true,false);
       wsomeg = new ProductComplexCoefficient(&omeg,ws);
       restr_wsomeg = new RestrictedComplexCoefficient(wsomeg,attr);
    }
@@ -295,13 +295,15 @@ int main(int argc, char *argv[])
    MatrixRestrictedComplexCoefficient * restr_Amu = nullptr; 
    if (mat_curlcoeff)
    {
-      Alpha = new MatrixComplexCoefficient(new MatrixFunctionCoefficient(cdim,Mcurlcoeff),nullptr);
+      Alpha = new MatrixComplexCoefficient(
+            new MatrixFunctionCoefficient(cdim,Mcurlcoeff),nullptr,true,false);
       Amu = new ScalarMatrixProductComplexCoefficient(&muinv,Alpha);
       restr_Amu = new MatrixRestrictedComplexCoefficient(Amu,attr);
    }
    else
    {
-      alpha = new ComplexCoefficient(new FunctionCoefficient(curlcoeff),nullptr);
+      alpha = new ComplexCoefficient(
+            new FunctionCoefficient(curlcoeff),nullptr, true,false);
       amu = new ProductComplexCoefficient(&muinv,alpha);
       restr_amu = new RestrictedComplexCoefficient(amu,attr);
    }
@@ -326,10 +328,9 @@ int main(int argc, char *argv[])
    }
    a.AddDomainIntegrator(NULL, new VectorFEMassIntegrator(lossCoef));                         
 
-
    MatrixComplexCoefficient * pml_c1 = new MatrixComplexCoefficient(
       new PmlMatrixCoefficient(cdim,detJ_inv_JT_J_Re, &pml), 
-      new PmlMatrixCoefficient(cdim,detJ_inv_JT_J_Im, &pml));
+      new PmlMatrixCoefficient(cdim,detJ_inv_JT_J_Im, &pml),true,true);
 
    MatrixComplexCoefficient * c1 = nullptr;
 
@@ -346,7 +347,7 @@ int main(int argc, char *argv[])
 
    MatrixComplexCoefficient * pml_c2 = new MatrixComplexCoefficient(
       new PmlMatrixCoefficient(dim, detJ_JT_J_inv_Re,&pml), 
-      new PmlMatrixCoefficient(dim, detJ_JT_J_inv_Im,&pml));
+      new PmlMatrixCoefficient(dim, detJ_JT_J_inv_Im,&pml), true, true);
 
    MatrixComplexCoefficient * c2 = nullptr;
    if (mat_masscoeff)
@@ -357,7 +358,6 @@ int main(int argc, char *argv[])
    {
       c2 = new ScalarMatrixProductComplexCoefficient(wsomeg,pml_c2);
    }
-   
 
    MatrixRestrictedComplexCoefficient rest_c2(c2,attrPML);
 
@@ -369,6 +369,8 @@ int main(int argc, char *argv[])
 
    a.Assemble(0);
 
+   
+
    OperatorHandle Ah;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, Ah, X, B);
@@ -377,8 +379,8 @@ int main(int argc, char *argv[])
    StopWatch chrono;
 
 
-   chrono.Clear();
-   chrono.Start();
+   // chrono.Clear();
+   // chrono.Start();
 
    ParDST::BCType bct = (bc_type == 1)? ParDST::BCType::DIRICHLET : ParDST::BCType::NEUMANN;
    ParDST * S = nullptr;
@@ -411,25 +413,25 @@ int main(int argc, char *argv[])
    MPI_Barrier(MPI_COMM_WORLD);
 
 
-   cout << " myid: " << myid 
-         << ", setup time: " << t1
-         << ", solution time: " << t2 << endl; 
+   // cout << " myid: " << myid 
+   //       << ", setup time: " << t1
+   //       << ", solution time: " << t2 << endl; 
 
    // ComplexMUMPSSolver mumps;
    // mumps.SetOperator(*Ah);
    // mumps.Mult(B,X);
 
-   // {
-   //    HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
-   //    SuperLURowLocMatrix SA(*A);
-   //    SuperLUSolver superlu(MPI_COMM_WORLD);
-   //    superlu.SetPrintStatistics(false);
-   //    superlu.SetSymmetricPattern(false);
-   //    superlu.SetColumnPermutation(superlu::PARMETIS);
-   //    superlu.SetOperator(SA);
-   //    superlu.Mult(B, X);
-   //    delete A;
-   // }
+   // // {
+   // //    HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
+   // //    SuperLURowLocMatrix SA(*A);
+   // //    SuperLUSolver superlu(MPI_COMM_WORLD);
+   // //    superlu.SetPrintStatistics(false);
+   // //    superlu.SetSymmetricPattern(false);
+   // //    superlu.SetColumnPermutation(superlu::PARMETIS);
+   // //    superlu.SetOperator(SA);
+   // //    superlu.Mult(B, X);
+   // //    delete A;
+   // // }
 
    a.RecoverFEMSolution(X, b, x);
 
@@ -498,15 +500,40 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 18. Free the used memory.
+
+
+
+   // // 18. Free the used memory.
+   delete c2;
+   delete pml_c2;
+   delete c1;      
+   delete pml_c1;
+   if (mat_curlcoeff)
+   {
+      delete restr_Amu;
+      delete Alpha;
+      delete Amu; 
+   }
+   else
+   {
+      delete restr_amu;
+      delete alpha;
+      delete amu;
+   }
+
    if (mat_masscoeff)
    {
+      delete restr_Mwsomeg;
+      delete Mwsomeg;
       delete Mws;
    }
    else
    {
+      delete restr_wsomeg;
+      delete wsomeg;
       delete ws;
    }
+   // delete c2;
    delete fespace;
    delete fec;
    delete pmesh;

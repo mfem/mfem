@@ -1018,8 +1018,6 @@ void ComplexMUMPSSolver::SetOperator(const Operator &op)
 
 void ComplexMUMPSSolver::Mult(const Vector &x, Vector &y) const
 {
-#if MFEM_MUMPS_VERSION >= 530
-
    int n = x.Size()/2;
    double * datax = x.GetData();
    double * datay = y.GetData();
@@ -1029,8 +1027,7 @@ void ComplexMUMPSSolver::Mult(const Vector &x, Vector &y) const
       ximag.SetDataAndSize(&datax[n],n);
       ximag *=-1.0;
    }
-
-
+#if MFEM_MUMPS_VERSION >= 530
    id->nloc_rhs = n;
    id->lrhs_loc = n;
    mumps_double_complex *zx = new mumps_double_complex[n];
@@ -1064,8 +1061,8 @@ void ComplexMUMPSSolver::Mult(const Vector &x, Vector &y) const
    delete [] id->sol_loc;
    delete [] id->isol_loc;
 #else
-   int n = x.Size()/2;
    // real
+   MFEM_ABORT("Not implemented yet");
    double * rhs_glob_r = nullptr;
    double * rhs_glob_i = nullptr;
    if (myid == 0)
@@ -1073,11 +1070,10 @@ void ComplexMUMPSSolver::Mult(const Vector &x, Vector &y) const
       rhs_glob_r = new double[global_num_rows];
       rhs_glob_i = new double[global_num_rows];
    }
-   double * xdata = x.GetData();
-   MPI_Gatherv(xdata, n, MPI_DOUBLE,
+   MPI_Gatherv(datax, n, MPI_DOUBLE,
                rhs_glob_r, recv_counts,
                displs, MPI_DOUBLE, 0, comm);
-   MPI_Gatherv(&xdata[n], n, MPI_DOUBLE,
+   MPI_Gatherv(&datax[n], n, MPI_DOUBLE,
                rhs_glob_i, recv_counts,
                displs, MPI_DOUBLE, 0, comm);
 
@@ -1101,12 +1097,11 @@ void ComplexMUMPSSolver::Mult(const Vector &x, Vector &y) const
          rhs_glob_i[i] = rhs_glob[i].i;
       }
    }
-   double * ydata = y.GetData();
    MPI_Scatterv(rhs_glob_r, recv_counts, displs,
-                MPI_DOUBLE, ydata, n,
+                MPI_DOUBLE, datay, n,
                 MPI_DOUBLE, 0, comm);
    MPI_Scatterv(rhs_glob_i, recv_counts, displs,
-                MPI_DOUBLE, &ydata[n], n,
+                MPI_DOUBLE, &datay[n], n,
                 MPI_DOUBLE, 0, comm);
 
    if (myid == 0)

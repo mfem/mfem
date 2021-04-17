@@ -543,18 +543,35 @@ void ParDST::SetMaxwellPmlSystemMatrix(int ip)
    sqf[ip]->Assemble();
    Optr[ip] = new OperatorPtr;
    sqf[ip]->FormSystemMatrix(ess_tdof_list,*Optr[ip]);
+
+   if (Qc)
+   {
+      delete restr_amu;
+      delete amu;
+   }
+   else if (MQc)
+   {
+      delete restr_Amu;
+      delete Amu;
+   }
+
+   delete c1_Re;
+   delete c1_Im;
+
+   if (Qm)
+   {
+      delete restr_wsomeg_re;
+      delete ws_re;
+   }
+   else if (MQm)
+   {
+      delete restr_Mwsomeg_re;
+      delete Mws_re;
+   }
    if (Qm || MQm)
    {
       delete c2_Re;
       delete c2_Im;
-   }
-   if (MQm)
-   {
-      delete restr_Mwsomeg_re;
-   }
-   else
-   {
-      delete restr_wsomeg_re;
    }
    if (LossCoeff)  delete restr_loss;
 }

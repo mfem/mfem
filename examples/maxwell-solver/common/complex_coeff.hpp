@@ -57,7 +57,8 @@ protected:
    bool own_i = false;
 public:
    MatrixComplexCoefficient(){};
-   MatrixComplexCoefficient(MatrixCoefficient * cr_, MatrixCoefficient * ci_) : cr(cr_), ci(ci_) 
+   MatrixComplexCoefficient(MatrixCoefficient * cr_, MatrixCoefficient * ci_,bool ownr_ = false, bool owni_ = false) 
+   : cr(cr_), ci(ci_), own_r(ownr_), own_i(owni_) 
    { }
    void SetReal(MatrixCoefficient * cr_) { cr = cr_; }
    void SetImag(MatrixCoefficient * ci_) { ci = ci_; }
