@@ -12090,11 +12090,11 @@ ND_QuadrilateralElement::ND_QuadrilateralElement(const int p,
                                                  const int ob_type)
    : VectorTensorFiniteElement(2, 2*p*(p + 1), p, cb_type, ob_type,
                                H_CURL, DofMapType::L2_DOF_MAP),
-     dof2tk(dof)
+     dof2tk(dof),
+     cp(poly1d.ClosedPoints(p, cb_type))
 {
    dof_map.SetSize(dof);
 
-   const double *cp = poly1d.ClosedPoints(p, cb_type);
    const double *op = poly1d.OpenPoints(p - 1, ob_type);
    const int dof2 = dof/2;
 
@@ -12171,6 +12171,86 @@ ND_QuadrilateralElement::ND_QuadrilateralElement(const int p,
             dof2tk[idx] = 1;
          }
          Nodes.IntPoint(idx).Set2(cp[i], op[j]);
+      }
+}
+
+void ND_QuadrilateralElement::Project_Integrated_ND(const double *tk,
+                                                    const Array<int> &d2t,
+                                                    VectorCoefficient &vc,
+                                                    ElementTransformation &Trans,
+                                                    Vector &dofs) const
+{
+   MFEM_VERIFY(obasis1d.IsIntegratedType(), "Not integrated type");
+   double vk[Geometry::MaxDim];
+   Vector xk(vk, vc.GetVDim());
+
+   const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, order);
+   const int nqpt = ir.GetNPoints();
+
+   IntegrationPoint ip2d;
+
+   const int p = order;
+
+   int o = 0;
+   // x-components
+   for (int j = 0; j <= p; j++)
+      for (int i = 0; i < p; i++)
+      {
+         int idx;
+         if ((idx = dof_map[o++]) < 0)
+         {
+            idx = -1 - idx;
+         }
+
+         const double h = cp[i+1] - cp[i];
+
+         double val = 0.0;
+
+         for (int k = 0; k < nqpt; k++)
+         {
+            const IntegrationPoint &ip1d = ir.IntPoint(k);
+
+            ip2d.Set2(cp[i] + (h*ip1d.x), cp[j]);
+
+            Trans.SetIntPoint(&ip2d);
+            vc.Eval(xk, Trans, ip2d);
+
+            // xk^t J tk
+            const double ipval = Trans.Jacobian().InnerProduct(tk + d2t[idx]*dim, vk);
+            val += ip1d.weight * ipval;
+         }
+
+         dofs(idx) = val*h;
+      }
+   // y-components
+   for (int j = 0; j < p; j++)
+      for (int i = 0; i <= p; i++)
+      {
+         int idx;
+         if ((idx = dof_map[o++]) < 0)
+         {
+            idx = -1 - idx;
+         }
+
+         const double h = cp[j+1] - cp[j];
+
+         double val = 0.0;
+
+         for (int k = 0; k < nqpt; k++)
+         {
+            const IntegrationPoint &ip1d = ir.IntPoint(k);
+
+            ip2d.Set2(cp[i], cp[j] + (h*ip1d.x));
+
+            Trans.SetIntPoint(&ip2d);
+            vc.Eval(xk, Trans, ip2d);
+
+            // xk^t J tk
+            const double ipval = Trans.Jacobian().InnerProduct(tk + d2t[idx]*dim, vk);
+            val += ip1d.weight * ipval;
+         }
+
+         dofs(idx) = val*h;
       }
 }
 
