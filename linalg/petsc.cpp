@@ -25,7 +25,13 @@
 #endif
 
 // Backward compatibility
+#if PETSC_VERSION_LT(3,11,0)
+#define VecLockReadPush VecLockPush
+#define VecLockReadPop VecLockPop
+#endif
 #if PETSC_VERSION_LT(3,12,0)
+#define VecGetArrayWrite VecGetArray
+#define VecRestoreArrayWrite VecRestoreArray
 #define MatComputeOperator(A,B,C) MatComputeExplicitOperator(A,C)
 #define MatComputeOperatorTranspose(A,B,C) MatComputeExplicitOperatorTranspose(A,C)
 #endif
@@ -323,19 +329,26 @@ void PetscParVector::UpdateVecFromFlags()
 
 void PetscParVector::SetVecType_()
 {
+   VecType vectype;
    MFEM_VERIFY(x,"Missing Vec");
+   ierr = VecGetType(x,&vectype); PCHKERRQ(x,ierr);
+#if defined(_USE_DEVICE)
    switch (Device::GetDeviceMemoryType())
    {
-#if defined(_USE_DEVICE)
       case MemoryType::DEVICE:
       case MemoryType::MANAGED:
          ierr = VecSetType(x,VECCUDA); PCHKERRQ(x,ierr);
          break;
-#endif
       default:
          ierr = VecSetType(x,VECSTANDARD); PCHKERRQ(x,ierr);
          break;
    }
+#else
+   if (!vectype)
+   {
+      ierr = VecSetType(x,VECSTANDARD); PCHKERRQ(x,ierr);
+   }
+#endif
 }
 
 const double* PetscParVector::Read(bool on_dev) const
