@@ -21,9 +21,33 @@ void E_exact(const Vector &xvec, Vector &E)
    }
    else if (exact_sol == 1)
    {
-      E(0) = x * y * (1.0-y) * z * (1.0-z);
-      E(1) = x * y * (1.0-x) * z * (1.0-z);
-      E(2) = x * z * (1.0-x) * y * (1.0-y);
+      if (dim == 3)
+      {
+         E(0) = x * y * (1.0-y) * z * (1.0-z);
+         E(1) = x * y * (1.0-x) * z * (1.0-z);
+         E(2) = x * z * (1.0-x) * y * (1.0-y);
+      }
+      else
+      {
+         E(0) = y * (1.0-y);
+         E(1) = x * (1.0-x);
+      }
+   }
+   else if (exact_sol == 2)
+   {
+      E[0] = cos(2*pi*x)*cos(4*pi*y);
+      E[1] = cos(4*pi*x)*cos(2*pi*y);
+   }
+   else if (exact_sol == 3)
+   {
+      constexpr double kappa = 2.0 * pi;
+
+      if (dim == 3)
+      {
+         E(0) = sin(kappa * y);
+         E(1) = sin(kappa * z);
+         E(2) = sin(kappa * x);
+      }
    }
    else
    {
@@ -56,13 +80,39 @@ void f_exact(const Vector &xvec, Vector &f)
    }
    else if (exact_sol == 1)
    {
-      f(0) = x * y * (1.0-y) * z * (1.0-z);
-      f(1) = x * y * (1.0-x) * z * (1.0-z);
-      f(2) = x * z * (1.0-x) * y * (1.0-y);
+      if (dim == 3)
+      {
+         f(0) = x * y * (1.0-y) * z * (1.0-z);
+         f(1) = x * y * (1.0-x) * z * (1.0-z);
+         f(2) = x * z * (1.0-x) * y * (1.0-y);
 
-      f(0) += y * (1.0-y) + z * (1.0-z);
-      f(1) += x * (1.0-x) + z * (1.0-z);
-      f(2) += x * (1.0-x) + y * (1.0-y);
+         f(0) += y * (1.0-y) + z * (1.0-z);
+         f(1) += x * (1.0-x) + z * (1.0-z);
+         f(2) += x * (1.0-x) + y * (1.0-y);
+      }
+      else
+      {
+         f(0) = y * (1.0-y);
+         f(1) = x * (1.0-x);
+
+         f(0) += 2.0;
+         f(1) += 2.0;
+      }
+   }
+   else if (exact_sol == 2)
+   {
+      f[0] = 8*pi2*sin(4*pi*x)*sin(2*pi*y) + (1 + 16*pi2)*cos(2*pi*x)*cos(4*pi*y);
+      f[1] = 8*pi2*sin(2*pi*x)*sin(4*pi*y) + (1 + 16*pi2)*cos(4*pi*x)*cos(2*pi*y);
+   }
+   else if (exact_sol == 3)
+   {
+      constexpr double kappa = 2.0 * pi;
+      if (dim == 3)
+      {
+         f(0) = (1. + kappa * kappa) * sin(kappa * y);
+         f(1) = (1. + kappa * kappa) * sin(kappa * z);
+         f(2) = (1. + kappa * kappa) * sin(kappa * x);
+      }
    }
    else
    {
@@ -129,7 +179,8 @@ int main(int argc, char *argv[])
    b.Assemble();
 
    GridFunction x(&fes);
-   x = 0.0;
+   VectorFunctionCoefficient exact_coeff(dim, E_exact);
+   x.ProjectCoefficient(exact_coeff);
 
    Vector X, B;
    OperatorHandle A;
@@ -147,7 +198,6 @@ int main(int argc, char *argv[])
    cg.Mult(B, X);
    a_ho.RecoverFEMSolution(X, b, x);
 
-   VectorFunctionCoefficient exact_coeff(dim, E_exact);
    double er = x.ComputeL2Error(exact_coeff);
    std::cout << "L^2 error: " << er << '\n';
 
