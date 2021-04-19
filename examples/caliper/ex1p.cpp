@@ -114,7 +114,7 @@ int main(int argc, char *argv[])
    Device device(device_config);
    if (myid == 0) { device.Print(); }
 
-   //Caliper configuration
+   // Caliper configuration
    mgr.add(cali_config);
    mgr.start();
 
