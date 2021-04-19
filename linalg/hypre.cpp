@@ -1735,7 +1735,6 @@ HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
 {
    hypre_ParCSRMatrix *C;
    hypre_ParcsrAdd(alpha, A, beta, B, &C);
-   hypre_MatvecCommPkgCreate(C);
 
    return new HypreParMatrix(C);
 }
@@ -1744,8 +1743,6 @@ HypreParMatrix * ParAdd(const HypreParMatrix *A, const HypreParMatrix *B)
 {
    hypre_ParCSRMatrix *C;
    hypre_ParcsrAdd(1.0, *A, 1.0, *B, &C);
-
-   hypre_MatvecCommPkgCreate(C);
 
    return new HypreParMatrix(C);
 }
@@ -3914,6 +3911,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
    int p = 1;
    if (edge_fespace->GetNE() > 0)
    {
+      MFEM_VERIFY(!edge_fespace->IsVariableOrder(), "");
       if (trace_space)
       {
          p = edge_fespace->GetFaceOrder(0);
@@ -3921,7 +3919,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
       }
       else
       {
-         p = edge_fespace->GetOrder(0);
+         p = edge_fespace->GetElementOrder(0);
       }
    }
 
@@ -4143,13 +4141,14 @@ void HypreADS::Init(ParFiniteElementSpace *face_fespace)
    int p = 1;
    if (face_fespace->GetNE() > 0)
    {
+      MFEM_VERIFY(!face_fespace->IsVariableOrder(), "");
       if (trace_space)
       {
          p = face_fespace->GetFaceOrder(0) + 1;
       }
       else
       {
-         p = face_fespace->GetOrder(0);
+         p = face_fespace->GetElementOrder(0);
       }
    }
 

@@ -1,0 +1,91 @@
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+name: build-analysis
+
+on:
+  push:
+    branches:
+      - master
+      - next
+  pull_request:
+
+env:
+  HYPRE_ARCHIVE: v2.19.0.tar.gz
+  HYPRE_TOP_DIR: hypre-2.19.0
+  METIS_ARCHIVE: metis-4.0.3.tar.gz
+  METIS_TOP_DIR: metis-4.0.3
+  COVERAGE_ENV: mfem-coverage
+
+jobs:
+  gitignore:
+    runs-on: ubuntu-18.04
+
+    steps:
+    - name: checkout MFEM
+      uses: actions/checkout@v2
+      with:
+        path: mfem
+
+    - name: Get MPI (Linux)
+      run: |
+        sudo apt-get install mpich libmpich-dev
+        export MAKE_CXX_FLAG="MPICXX=mpic++"
+
+    - name: Cache Hypre Install
+      id: hypre-cache
+      uses: actions/cache@v2
+      with:
+        path: ${{ env.HYPRE_TOP_DIR }}
+        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-v2
+
+    - name: Get Hypre
+      if: steps.hypre-cache.outputs.cache-hit != 'true'
+      uses: mfem/github-actions/build-hypre@master
+      with:
+        hypre-archive: ${{ env.HYPRE_ARCHIVE }}
+        hypre-dir: ${{ env.HYPRE_TOP_DIR }}
+
+    - name: Cache Metis Install
+      id: metis-cache
+      uses: actions/cache@v2
+      with:
+        path: ${{ env.METIS_TOP_DIR }}
+        key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-v2
+
+    - name: Install Metis
+      if: steps.metis-cache.outputs.cache-hit != 'true'
+      uses: mfem/github-actions/build-metis@master
+      with:
+        metis-archive: ${{ env.METIS_ARCHIVE }}
+        metis-dir: ${{ env.METIS_TOP_DIR }}
+
+    # MFEM build and test
+    - name: build-mfem
+      uses: mfem/github-actions/build-mfem@master
+      with:
+        os: ${{ runner.os }}
+        target: optim
+        codecov: NO
+        mpi: parallel
+        build-system: make
+        hypre-dir: ${{ env.HYPRE_TOP_DIR }}
+        metis-dir: ${{ env.METIS_TOP_DIR }}
+        mfem-dir: mfem
+
+    - name: test (no clean)
+      run: |
+        cd mfem && make test-noclean
+
+    - name: gitignore
+      run: |
+        cd mfem/tests/scripts
+        ./runtest gitignore

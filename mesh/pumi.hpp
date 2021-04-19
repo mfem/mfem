@@ -36,7 +36,6 @@
 #include <apfField.h>
 #include <apfNumbering.h>
 #include <apfDynamicVector.h>
-#include <maMesh.h>
 
 namespace mfem
 {
