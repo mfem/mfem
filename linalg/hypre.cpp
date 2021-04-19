@@ -1603,6 +1603,70 @@ void HypreParMatrix::PrintCommPkg(std::ostream &out) const
    MPI_Barrier(comm);
 }
 
+void HypreParMatrix::PrintHash(std::ostream &out) const
+{
+   HashFunction hf;
+
+   out << "global number of rows    : " << A->global_num_rows << '\n'
+       << "global number of columns : " << A->global_num_cols << '\n'
+       << "first row index : " << A->first_row_index << '\n'
+       << " last row index : " << A->last_row_index << '\n'
+       << "first col diag  : " << A->first_col_diag << '\n'
+       << " last col diag  : " << A->last_col_diag << '\n'
+       << "number of nonzeros : " << A->num_nonzeros << '\n';
+   // diagonal, off-diagonal
+   hypre_CSRMatrix *csr = A->diag;
+   const char *csr_name = "diag";
+   for (int m = 0; m < 2; m++)
+   {
+      auto csr_nnz = csr->i[csr->num_rows];
+      out << csr_name << " num rows : " << csr->num_rows << '\n'
+          << csr_name << " num cols : " << csr->num_cols << '\n'
+          << csr_name << " num nnz  : " << csr->num_nonzeros << '\n'
+          << csr_name << " i last   : " << csr_nnz
+          << (csr_nnz == csr->num_nonzeros ?
+              " [good]" : " [** BAD **]") << '\n';
+      hf.AppendInts(csr->i, csr->num_rows + 1);
+      out << csr_name << " i     hash : " << hf.GetHash() << '\n';
+      out << csr_name << " j     hash : ";
+      if (csr->j == nullptr)
+      {
+         out << "(null)\n";
+      }
+      else
+      {
+         hf.AppendInts(csr->j, csr_nnz);
+         out << hf.GetHash() << '\n';
+      }
+      out << csr_name << " big j hash : ";
+      if (csr->big_j == nullptr)
+      {
+         out << "(null)\n";
+      }
+      else
+      {
+         hf.AppendInts(csr->big_j, csr_nnz);
+         out << hf.GetHash() << '\n';
+      }
+      out << csr_name << " data  hash : ";
+      if (csr->data == nullptr)
+      {
+         out << "(null)\n";
+      }
+      else
+      {
+         hf.AppendDoubles(csr->data, csr_nnz);
+         out << hf.GetHash() << '\n';
+      }
+
+      csr = A->offd;
+      csr_name = "offd";
+   }
+
+   hf.AppendInts(A->col_map_offd, A->offd->num_cols);
+   out << "col map offd hash : " << hf.GetHash() << '\n';
+}
+
 inline void delete_hypre_CSRMatrixData(hypre_CSRMatrix *M)
 {
    HYPRE_Complex *data = hypre_CSRMatrixData(M);

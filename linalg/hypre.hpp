@@ -589,6 +589,13 @@ public:
    /// Print information about the hypre_ParCSRCommPkg of the HypreParMatrix.
    void PrintCommPkg(std::ostream &out = mfem::out) const;
 
+   /** @brief Print sizes and hashes for all data arrays of the HypreParMatrix
+       from the local MPI rank. */
+   /** This is a compact text representation of the local data of the
+       HypreParMatrix that can be used to compare matrices from different runs
+       without the need to save the whole matrix. */
+   void PrintHash(std::ostream &out) const;
+
    /// Calls hypre's destroy function
    virtual ~HypreParMatrix() { Destroy(); }
 

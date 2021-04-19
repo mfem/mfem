@@ -377,6 +377,12 @@ public:
    /// Prints vector to stream out in HYPRE_Vector format.
    void Print_HYPRE(std::ostream &out) const;
 
+   /// Print the Vector size and hash of its data.
+   /** This is a compact text representation of the Vector contents that can be
+       used to compare vectors from different runs without the need to save the
+       whole vector. */
+   void PrintHash(std::ostream &out) const;
+
    /// Set random values in the vector.
    void Randomize(int seed = 0);
    /// Returns the l2 norm of the vector.
