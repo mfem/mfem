@@ -643,7 +643,8 @@ The specific libraries and their options are:
                 --with-shared-libraries=0
   URL: https://www.mcs.anl.gov/petsc
   Options: PETSC_OPT, PETSC_LIB.
-  Versions: PETSc >= 3.8.0.
+  Versions: PETSc >= 3.8.0   (PETSc build without CUDA)
+            PETSc >= 3.15.0  (PETSc built with CUDA)
 
 - SLEPc (optional), used when MFEM_USE_SLEPC = YES. SLEPc depends on PETSc and
   uses some of the PETSc options when compiled.
