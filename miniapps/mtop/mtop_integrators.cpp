@@ -113,11 +113,10 @@ void ParametricLinearDiffusion::AssembleElementVector(const Array<const FiniteEl
     Vector lvec; lvec.SetSize(dof_u0);
 
     const IntegrationRule *ir = nullptr;
-    if(ir==nullptr){
-        int order= 2 * el[0]->GetOrder() + Tr.OrderGrad(el[0])
+    int order= 2 * el[0]->GetOrder() + Tr.OrderGrad(el[0])
                             +pel[0]->GetOrder();
-        ir=&IntRules.Get(Tr.GetGeometryType(),order);
-    }
+    ir=&IntRules.Get(Tr.GetGeometryType(),order);
+    
 
     for (int i = 0; i < ir->GetNPoints(); i++)
     {
@@ -184,11 +183,9 @@ void ParametricLinearDiffusion::AssembleElementGrad(const Array<const FiniteElem
      Vector lvec; lvec.SetSize(dof_u0);
 
      const IntegrationRule *ir = nullptr;
-     if(ir==nullptr){
-         int order= 2 * el[0]->GetOrder() + Tr.OrderGrad(el[0])
+     int order= 2 * el[0]->GetOrder() + Tr.OrderGrad(el[0])
                              +pel[0]->GetOrder();
-         ir=&IntRules.Get(Tr.GetGeometryType(),order);
-     }
+     ir=&IntRules.Get(Tr.GetGeometryType(),order);
 
      for (int i = 0; i < ir->GetNPoints(); i++)
      {
