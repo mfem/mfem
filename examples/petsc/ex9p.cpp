@@ -67,18 +67,20 @@ Vector bb_min, bb_max;
 class FE_Evolution : public TimeDependentOperator
 {
 private:
-   HypreParMatrix &M, &K;
+   OperatorHandle M, K;
    const Vector &b;
-   HypreSmoother M_prec;
+   MPI_Comm comm;
+   Solver *M_prec;
    CGSolver M_solver;
+   AssemblyLevel MAlev,KAlev;
 
    mutable Vector z;
    mutable PetscParMatrix* iJacobian;
    mutable PetscParMatrix* rJacobian;
 
 public:
-   FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K, const Vector &_b,
-                bool M_in_lhs);
+   FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K, const Vector &_b,
+                bool implicit);
 
    virtual void ExplicitMult(const Vector &x, Vector &y) const;
    virtual void ImplicitMult(const Vector &x, const Vector &xp, Vector &y) const;
@@ -146,6 +148,10 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
    int order = 3;
+   bool pa = false;
+   bool ea = false;
+   bool fa = false;
+   const char *device_config = "cpu";
    int ode_solver_type = 4;
    double t_final = 10.0;
    double dt = 0.01;
@@ -172,6 +178,14 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&ea, "-ea", "--element-assembly", "-no-ea",
+                  "--no-element-assembly", "Enable Element Assembly.");
+   args.AddOption(&fa, "-fa", "--full-assembly", "-no-fa",
+                  "--no-full-assembly", "Enable Full Assembly.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Forward Euler,\n\t"
                   "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
@@ -215,6 +229,9 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
+
+   Device device(device_config);
+   if (myid == 0) { device.Print(); }
 
    // 3. Read the serial mesh from the given mesh file on all processors. We can
    //    handle geometrically periodic meshes in this code.
@@ -278,7 +295,7 @@ int main(int argc, char *argv[])
 
    // 7. Define the parallel discontinuous DG finite element space on the
    //    parallel refined mesh of the given polynomial order.
-   DG_FECollection fec(order, dim);
+   DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
 
    HYPRE_Int global_vSize = fes->GlobalTrueVSize();
@@ -295,8 +312,24 @@ int main(int argc, char *argv[])
    FunctionCoefficient u0(u0_function);
 
    ParBilinearForm *m = new ParBilinearForm(fes);
-   m->AddDomainIntegrator(new MassIntegrator);
    ParBilinearForm *k = new ParBilinearForm(fes);
+   if (pa)
+   {
+      m->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      k->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   }
+   else if (ea)
+   {
+      m->SetAssemblyLevel(AssemblyLevel::ELEMENT);
+      k->SetAssemblyLevel(AssemblyLevel::ELEMENT);
+   }
+   else if (fa)
+   {
+      m->SetAssemblyLevel(AssemblyLevel::FULL);
+      k->SetAssemblyLevel(AssemblyLevel::FULL);
+   }
+
+   m->AddDomainIntegrator(new MassIntegrator);
    k->AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
    k->AddInteriorFaceIntegrator(
       new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
@@ -307,15 +340,14 @@ int main(int argc, char *argv[])
    b->AddBdrFaceIntegrator(
       new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
 
-   m->Assemble();
-   m->Finalize();
    int skip_zeros = 0;
+   m->Assemble();
    k->Assemble(skip_zeros);
-   k->Finalize(skip_zeros);
    b->Assemble();
+   m->Finalize();
+   k->Finalize(skip_zeros);
 
-   HypreParMatrix *M = m->ParallelAssemble();
-   HypreParMatrix *K = k->ParallelAssemble();
+
    HypreParVector *B = b->ParallelAssemble();
 
    // 9. Define the initial conditions, save the corresponding grid function to
@@ -399,7 +431,7 @@ int main(int argc, char *argv[])
    }
 
    // 10. Define the time-dependent evolution operator describing the ODE
-   FE_Evolution *adv = new FE_Evolution(*M, *K, *B, implicit);
+   FE_Evolution *adv = new FE_Evolution(*m, *k, *B, implicit);
 
    double t = 0.0;
    adv->SetTime(t);
@@ -419,6 +451,8 @@ int main(int argc, char *argv[])
       bool done = false;
       for (int ti = 0; !done; )
       {
+         // We cannot match exactly the time history of the Run method
+         // since we are explictly telling PETSc to use a time step
          double dt_real = min(dt, t_final - t);
          ode_solver->Step(*U, t, dt_real);
          ti++;
@@ -468,9 +502,7 @@ int main(int argc, char *argv[])
    delete u;
    delete B;
    delete b;
-   delete K;
    delete k;
-   delete M;
    delete m;
    delete fes;
    delete pmesh;
@@ -489,26 +521,48 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
+FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
                            const Vector &_b,bool M_in_lhs)
    : TimeDependentOperator(_M.Height(), 0.0,
                            M_in_lhs ? TimeDependentOperator::IMPLICIT
                            : TimeDependentOperator::EXPLICIT),
-     M(_M), K(_K), b(_b), M_solver(M.GetComm()), z(_M.Height()),
+     b(_b), comm(_M.ParFESpace()->GetComm()), M_solver(comm), z(_M.Height()),
      iJacobian(NULL), rJacobian(NULL)
 {
-   if (isExplicit())
+   MAlev = _M.GetAssemblyLevel();
+   KAlev = _K.GetAssemblyLevel();
+   if (_M.GetAssemblyLevel()==AssemblyLevel::LEGACYFULL)
    {
-      M_prec.SetType(HypreSmoother::Jacobi);
-      M_solver.SetPreconditioner(M_prec);
-      M_solver.SetOperator(M);
-
-      M_solver.iterative_mode = false;
-      M_solver.SetRelTol(1e-9);
-      M_solver.SetAbsTol(0.0);
-      M_solver.SetMaxIter(100);
-      M_solver.SetPrintLevel(0);
+      M.Reset(_M.ParallelAssemble(), true);
+      K.Reset(_K.ParallelAssemble(), true);
    }
+   else
+   {
+      M.Reset(&_M, false);
+      K.Reset(&_K, false);
+   }
+
+   M_solver.SetOperator(*M);
+
+   Array<int> ess_tdof_list;
+   if (_M.GetAssemblyLevel()==AssemblyLevel::LEGACYFULL)
+   {
+      HypreParMatrix &M_mat = *M.As<HypreParMatrix>();
+
+      HypreSmoother *hypre_prec = new HypreSmoother(M_mat, HypreSmoother::Jacobi);
+      M_prec = hypre_prec;
+   }
+   else
+   {
+      M_prec = new OperatorJacobiSmoother(_M, ess_tdof_list);
+   }
+
+   M_solver.SetPreconditioner(*M_prec);
+   M_solver.iterative_mode = false;
+   M_solver.SetRelTol(1e-9);
+   M_solver.SetAbsTol(0.0);
+   M_solver.SetMaxIter(100);
+   M_solver.SetPrintLevel(0);
 }
 
 // RHS evaluation
@@ -517,14 +571,14 @@ void FE_Evolution::ExplicitMult(const Vector &x, Vector &y) const
    if (isExplicit())
    {
       // y = M^{-1} (K x + b)
-      K.Mult(x, z);
+      K->Mult(x, z);
       z += b;
       M_solver.Mult(z, y);
    }
    else
    {
       // y = K x + b
-      K.Mult(x, y);
+      K->Mult(x, y);
       y += b;
    }
 }
@@ -535,7 +589,7 @@ void FE_Evolution::ImplicitMult(const Vector &x, const Vector &xp,
 {
    if (isImplicit())
    {
-      M.Mult(xp, y);
+      M->Mult(xp, y);
    }
    else
    {
@@ -546,7 +600,7 @@ void FE_Evolution::ImplicitMult(const Vector &x, const Vector &xp,
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
    // y = M^{-1} (K x + b)
-   K.Mult(x, z);
+   K->Mult(x, z);
    z += b;
    M_solver.Mult(z, y);
 }
@@ -555,9 +609,11 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
 Operator& FE_Evolution::GetExplicitGradient(const Vector &x) const
 {
    delete rJacobian;
+   Operator::Type otype = (KAlev == AssemblyLevel::LEGACYFULL ?
+                           Operator::PETSC_MATAIJ : Operator::ANY_TYPE);
    if (isImplicit())
    {
-      rJacobian = new PetscParMatrix(&K, Operator::PETSC_MATAIJ);
+      rJacobian = new PetscParMatrix(comm, K.Ptr(), otype);
    }
    else
    {
@@ -570,10 +626,12 @@ Operator& FE_Evolution::GetExplicitGradient(const Vector &x) const
 Operator& FE_Evolution::GetImplicitGradient(const Vector &x, const Vector &xp,
                                             double shift) const
 {
+   Operator::Type otype = (MAlev == AssemblyLevel::LEGACYFULL ?
+                           Operator::PETSC_MATAIJ : Operator::ANY_TYPE);
    delete iJacobian;
    if (isImplicit())
    {
-      iJacobian = new PetscParMatrix(&M, Operator::PETSC_MATAIJ);
+      iJacobian = new PetscParMatrix(comm, M.Ptr(), otype);
       *iJacobian *= shift;
    }
    else
