@@ -104,7 +104,8 @@ public:
    /// Check and convert a BasisType constant to a char basis identifier.
    static char GetChar(int b_type)
    {
-      static const char ident[] = { 'g', 'G', 'P', 'u', 'U', 'o' };
+      static const char ident[]
+         = { 'g', 'G', 'P', 'u', 'U', 'o', 'S', 'c', 'i' };
       return ident[Check(b_type)];
    }
    /// Convert char basis identifier to a BasisType constant.
@@ -114,11 +115,14 @@ public:
       {
          case 'g': return GaussLegendre;
          case 'G': return GaussLobatto;
+         case 's': return GaussLobatto;
          case 'P': return Positive;
          case 'u': return OpenUniform;
          case 'U': return ClosedUniform;
          case 'o': return OpenHalfUniform;
-         case 's': return GaussLobatto;
+         case 'S': return Serendipity;
+         case 'c': return ClosedGL;
+         case 'i': return Integrated;
       }
       MFEM_ABORT("unknown BasisType identifier");
       return -1;
