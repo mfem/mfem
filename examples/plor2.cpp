@@ -97,6 +97,7 @@ int main(int argc, char *argv[])
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&ref_levels, "-r", "--refine", "Uniform refinements.");
    args.AddOption(&order, "-o", "--order", "Polynomial degree.");
+   args.AddOption(&exact_sol, "-p", "--problem", "Exact solution.");
    args.AddOption(&fe, "-fe", "--fe-type", "FE type. n for Hcurl, r for Hdiv");
    args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
                   "--no-hybridization", "Enable hybridization.");
@@ -115,7 +116,7 @@ int main(int argc, char *argv[])
    bool RT = !ND;
 
    Mesh serial_mesh(mesh_file, 1, 1);
-   int dim = serial_mesh.Dimension();
+   dim = serial_mesh.Dimension();
    for (int l = 0; l < ref_levels; l++) { serial_mesh.UniformRefinement(); }
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
    serial_mesh.Clear();
