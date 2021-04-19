@@ -725,6 +725,7 @@ The specific libraries and their options are:
 - Caliper (optional), used when MFEM_USE_CALIPER = YES.
   URL: https://github.com/LLNL/Caliper
   Options: CALIPER_DIR
+  Versions: CALIPER >= 2.5.0
 
 - Umpire, used when MFEM_USE_UMPIRE = YES.
   Umpire requires camp when the Umpire version is >= 3.0.0.
