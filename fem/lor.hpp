@@ -29,19 +29,29 @@ private:
       void (BilinearForm::*)(BilinearFormIntegrator*, Array<int>&);
 
    IntegrationRules irs;
-   const IntegrationRule *ir;
+   const IntegrationRule *ir_el, *ir_face;
    std::map<BilinearFormIntegrator*, const IntegrationRule*> ir_map;
 
-   void AddIntegrators(BilinearForm &a_to,
+   /// Adds all the integrators from the member data @a a to the BilinearForm
+   /// @a a_to. Marks @a a_to as using external integrators. If the mesh
+   /// consists of tensor product elements, temporarily changes the integration
+   /// rules of the integrators to use collocated quadrature for better
+   /// conditioning of the LOR system.
+   void AddIntegrators(BilinearForm &a_from,
+                       BilinearForm &a_to,
                        GetIntegratorsFn get_integrators,
-                       AddIntegratorFn add_integrator);
+                       AddIntegratorFn add_integrator,
+                       const IntegrationRule *ir);
 
-   void AddIntegratorsAndMarkers(BilinearForm &a_to,
+   void AddIntegratorsAndMarkers(BilinearForm &a_from,
+                                 BilinearForm &a_to,
                                  GetIntegratorsFn get_integrators,
                                  GetMarkersFn get_markers,
-                                 AddIntegratorMarkersFn add_integrator);
+                                 AddIntegratorMarkersFn add_integrator,
+                                 const IntegrationRule *ir);
 
-
+   /// Resets the integration rules of the integrators of @a a to their original
+   /// values.
    void ResetIntegrationRules(GetIntegratorsFn get_integrators);
 
    static inline int absdof(int i) { return i < 0 ? -1-i : i; }
@@ -49,24 +59,13 @@ private:
 protected:
    enum FESpaceType { H1, ND, RT, L2, INVALID };
 
-   BilinearForm &a_ho;
+   FiniteElementSpace &fes_ho;
    Mesh *mesh;
    FiniteElementCollection *fec;
    FiniteElementSpace *fes;
    BilinearForm *a;
    OperatorHandle A;
    mutable Array<int> perm;
-
-   /// Adds all the integrators from the member data @a a to the BilinearForm
-   /// @a a_to. Marks @a a_to as using external integrators. If the mesh
-   /// consists of tensor product elements, temporarily changes the integration
-   /// rules of the integrators to use collocated quadrature for better
-   /// conditioning of the LOR system.
-   void AddIntegrators(BilinearForm &a_to);
-
-   /// Resets the integration rules of the integrators of @a a to their original
-   /// values.
-   void ResetIntegrationRules();
 
    /// Construct the permutation that maps LOR DOFs to high-order DOFs. See
    /// GetDofPermutation
@@ -78,14 +77,14 @@ protected:
    /// Return the order of the LOR space. 1 for H1 or ND, 0 for L2 or RT.
    int GetLOROrder() const;
 
-   /// Assemble the LOR system.
-   void AssembleSystem(const Array<int> &ess_tdof_list);
-
-   LORBase(BilinearForm &a_);
+   LORBase(FiniteElementSpace &fes_ho_);
 
 public:
    /// Return the assembled LOR system
    const OperatorHandle &GetAssembledSystem() const;
+
+   /// Assemble the LOR system.
+   void AssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs);
 
    /// Returns the permutation that maps LOR DOFs to high-order DOFs. This
    /// permutation is constructed the first time it is requested. For H1 finite
@@ -115,6 +114,11 @@ public:
    LOR(BilinearForm &a_ho, const Array<int> &ess_tdof_list,
        int ref_type=BasisType::GaussLobatto);
 
+   /// Construct a low-order refined version of the FiniteElementSpace @a
+   /// fes_ho. The mesh is refined using the refinement type
+   /// specified by @a ref_type (see Mesh::MakeRefined).
+   LOR(FiniteElementSpace &fes_ho, int ref_type=BasisType::GaussLobatto);
+
    /// Return the assembled LOR operator as a SparseMatrix
    SparseMatrix &GetAssembledMatrix() const;
 };
@@ -130,6 +134,11 @@ public:
    /// specified by @a ref_type (see ParMesh::MakeRefined).
    ParLOR(ParBilinearForm &a_ho, const Array<int> &ess_tdof_list,
           int ref_type=BasisType::GaussLobatto);
+
+   /// Construct a low-order refined version of the ParFiniteElementSpace @a
+   /// pfes_ho. The mesh is refined using the refinement type specified by @a
+   /// ref_type (see ParMesh::MakeRefined).
+   ParLOR(ParFiniteElementSpace &fes_ho, int ref_type=BasisType::GaussLobatto);
 
    /// Return the assembled LOR operator as a HypreParMatrix.
    HypreParMatrix &GetAssembledMatrix() const;
@@ -157,7 +166,7 @@ public:
              int ref_type=BasisType::GaussLobatto)
    {
       lor = new LOR(a_ho, ess_tdof_list, ref_type);
-      solver.SetOperator(*lor->GetAssembledSystem());
+      SetOperator(*lor->GetAssembledSystem());
    }
 
 #ifdef MFEM_USE_MPI
@@ -167,22 +176,32 @@ public:
              int ref_type=BasisType::GaussLobatto)
    {
       lor = new ParLOR(a_ho, ess_tdof_list, ref_type);
-      solver.SetOperator(*lor->GetAssembledSystem());
+      SetOperator(*lor->GetAssembledSystem());
    }
 #endif
 
+   /// Create a solver of type @a SolverType using Operator @a op and arguments
+   /// @a args. The object @a lor_ will be used for DOF permutations.
    template <typename... Args>
-   LORSolver(LORBase &lor_, Args... args) : solver(args...)
+   LORSolver(const Operator &op, LORBase &lor_, Args... args) : solver(args...)
    {
       lor = &lor_;
       own_lor = false;
-      solver.SetOperator(*lor->GetAssembledSystem());
+      SetOperator(op);
    }
 
-   /// Not supported.
+   /// Create a solver of type @a SolverType using the assembled LOR operator
+   /// represented by @a lor_. The given @a args will be used as arguments to
+   /// the solver constructor.
+   template <typename... Args>
+   LORSolver(LORBase &lor_, Args... args)
+      : LORSolver(*lor_.GetAssembledSystem(), lor_, args...) { }
+
    void SetOperator(const Operator &op)
    {
-      MFEM_ABORT("LORSolver::SetOperator not supported.")
+      solver.SetOperator(op);
+      width = solver.Width();
+      height = solver.Height();
    }
 
    void Mult(const Vector &x, Vector &y) const

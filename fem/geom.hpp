@@ -107,6 +107,18 @@ public:
    static bool IsTensorProduct(Type geom)
    { return geom == SEGMENT || geom == SQUARE || geom == CUBE; }
 
+   static Type TensorProductGeometry(int dim)
+   {
+      switch (dim)
+      {
+         case 0: return POINT;
+         case 1: return SEGMENT;
+         case 2: return SQUARE;
+         case 3: return CUBE;
+         default: MFEM_ABORT("Invalid dimension."); return INVALID;
+      }
+   }
+
    /// Return the number of boundary "faces" of a given Geometry::Type.
    int NumBdr(int GeomType) { return NumBdrArray[GeomType]; }
 };

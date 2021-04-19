@@ -15,11 +15,13 @@
 namespace mfem
 {
 
-void LORBase::AddIntegrators(BilinearForm &a_to,
+void LORBase::AddIntegrators(BilinearForm &a_from,
+                             BilinearForm &a_to,
                              GetIntegratorsFn get_integrators,
-                             AddIntegratorFn add_integrator)
+                             AddIntegratorFn add_integrator,
+                             const IntegrationRule *ir)
 {
-   Array<BilinearFormIntegrator*> *integrators = (a_ho.*get_integrators)();
+   Array<BilinearFormIntegrator*> *integrators = (a_from.*get_integrators)();
    for (int i=0; i<integrators->Size(); ++i)
    {
       (a_to.*add_integrator)((*integrators)[i]);
@@ -28,13 +30,15 @@ void LORBase::AddIntegrators(BilinearForm &a_to,
    }
 }
 
-void LORBase::AddIntegratorsAndMarkers(BilinearForm &a_to,
+void LORBase::AddIntegratorsAndMarkers(BilinearForm &a_from,
+                                       BilinearForm &a_to,
                                        GetIntegratorsFn get_integrators,
                                        GetMarkersFn get_markers,
-                                       AddIntegratorMarkersFn add_integrator)
+                                       AddIntegratorMarkersFn add_integrator,
+                                       const IntegrationRule *ir)
 {
-   Array<BilinearFormIntegrator*> *integrators = (a_ho.*get_integrators)();
-   Array<Array<int>*> *markers = (a_ho.*get_markers)();
+   Array<BilinearFormIntegrator*> *integrators = (a_from.*get_integrators)();
+   Array<Array<int>*> *markers = (a_from.*get_markers)();
 
    for (int i=0; i<integrators->Size(); ++i)
    {
@@ -44,42 +48,18 @@ void LORBase::AddIntegratorsAndMarkers(BilinearForm &a_to,
    }
 }
 
-void LORBase::AddIntegrators(BilinearForm &a_to)
-{
-   a_to.UseExternalIntegrators();
-   AddIntegrators(a_to, &BilinearForm::GetDBFI,
-                  &BilinearForm::AddDomainIntegrator);
-   AddIntegrators(a_to, &BilinearForm::GetFBFI,
-                  &BilinearForm::AddInteriorFaceIntegrator);
-
-   AddIntegratorsAndMarkers(a_to, &BilinearForm::GetBBFI,
-                            &BilinearForm::GetBBFI_Marker,
-                            &BilinearForm::AddBoundaryIntegrator);
-   AddIntegratorsAndMarkers(a_to, &BilinearForm::GetBFBFI,
-                            &BilinearForm::GetBFBFI_Marker,
-                            &BilinearForm::AddBdrFaceIntegrator);
-}
-
 void LORBase::ResetIntegrationRules(GetIntegratorsFn get_integrators)
 {
-   Array<BilinearFormIntegrator*> *integrators = (a_ho.*get_integrators)();
+   Array<BilinearFormIntegrator*> *integrators = (a->*get_integrators)();
    for (int i=0; i<integrators->Size(); ++i)
    {
       ((*integrators)[i])->SetIntegrationRule(*ir_map[(*integrators)[i]]);
    }
 }
 
-void LORBase::ResetIntegrationRules()
-{
-   ResetIntegrationRules(&BilinearForm::GetDBFI);
-   ResetIntegrationRules(&BilinearForm::GetFBFI);
-   ResetIntegrationRules(&BilinearForm::GetBBFI);
-   ResetIntegrationRules(&BilinearForm::GetBFBFI);
-}
-
 LORBase::FESpaceType LORBase::GetFESpaceType() const
 {
-   const FiniteElementCollection *fec = a_ho.FESpace()->FEColl();
+   const FiniteElementCollection *fec = fes_ho.FEColl();
    if (dynamic_cast<const H1_FECollection*>(fec)) { return H1; }
    else if (dynamic_cast<const ND_FECollection*>(fec)) { return ND; }
    else if (dynamic_cast<const RT_FECollection*>(fec)) { return RT; }
@@ -106,7 +86,6 @@ void LORBase::ConstructDofPermutation() const
       return;
    }
 
-   FiniteElementSpace &fes_ho = *a_ho.FESpace();
    FiniteElementSpace &fes_lor = *fes;
 
    auto get_dof_map = [](FiniteElementSpace &fes, int i)
@@ -129,12 +108,18 @@ void LORBase::ConstructDofPermutation() const
       int iho = cf_tr.embeddings[ilor].parent;
       int lor_index = cf_tr.embeddings[ilor].matrix;
 
+      fes_ho.GetElementVDofs(iho, vdof_ho);
+      fes_lor.GetElementVDofs(ilor, vdof_lor);
+
+      if (type == L2)
+      {
+         perm[vdof_lor[0]] = vdof_ho[lor_index];
+         continue;
+      }
+
       int p = fes_ho.GetOrder(iho);
       int p1 = p+1;
       int ndof_per_dim = (dim == 2) ? p*p1 : type == ND ? p*p1*p1 : p*p*p1;
-
-      fes_ho.GetElementVDofs(iho, vdof_ho);
-      fes_lor.GetElementVDofs(ilor, vdof_lor);
 
       const Array<int> &dofmap_ho = get_dof_map(fes_ho, iho);
       const Array<int> &dofmap_lor = get_dof_map(fes_lor, ilor);
@@ -198,10 +183,6 @@ void LORBase::ConstructDofPermutation() const
             set_perm(4, offset, p*p, 0);
          }
       }
-      else if (type == L2)
-      {
-         perm[vdof_lor[0]] = vdof_ho[lor_index];
-      }
    }
 }
 
@@ -218,12 +199,24 @@ bool LORBase::RequiresDofPermutation() const
 
 const OperatorHandle &LORBase::GetAssembledSystem() const
 {
+   MFEM_VERIFY(a != NULL, "No LOR system assembled");
    return A;
 }
 
-void LORBase::AssembleSystem(const Array<int> &ess_tdof_list)
+void LORBase::AssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs)
 {
-   AddIntegrators(*a);
+   a->UseExternalIntegrators();
+   AddIntegrators(a_ho, *a, &BilinearForm::GetDBFI,
+                  &BilinearForm::AddDomainIntegrator, ir_el);
+   AddIntegrators(a_ho, *a, &BilinearForm::GetFBFI,
+                  &BilinearForm::AddInteriorFaceIntegrator, ir_face);
+
+   AddIntegratorsAndMarkers(a_ho, *a, &BilinearForm::GetBBFI,
+                            &BilinearForm::GetBBFI_Marker,
+                            &BilinearForm::AddBoundaryIntegrator, ir_face);
+   AddIntegratorsAndMarkers(a_ho, *a, &BilinearForm::GetBFBFI,
+                            &BilinearForm::GetBFBFI_Marker,
+                            &BilinearForm::AddBdrFaceIntegrator, ir_face);
    a->Assemble();
    if (RequiresDofPermutation())
    {
@@ -234,35 +227,41 @@ void LORBase::AssembleSystem(const Array<int> &ess_tdof_list)
       {
          pi[absdof(p[i])] = i;
       }
-      Array<int> ess_tdof_list_perm(ess_tdof_list.Size());
-      for (int i=0; i<ess_tdof_list.Size(); ++i)
+      Array<int> ess_dofs_perm(ess_dofs.Size());
+      for (int i=0; i<ess_dofs.Size(); ++i)
       {
-         ess_tdof_list_perm[i] = pi[ess_tdof_list[i]];
+         ess_dofs_perm[i] = pi[ess_dofs[i]];
       }
-      a->FormSystemMatrix(ess_tdof_list_perm, A);
+      a->FormSystemMatrix(ess_dofs_perm, A);
    }
    else
    {
-      a->FormSystemMatrix(ess_tdof_list, A);
+      a->FormSystemMatrix(ess_dofs, A);
    }
-   ResetIntegrationRules();
+   ResetIntegrationRules(&BilinearForm::GetDBFI);
+   ResetIntegrationRules(&BilinearForm::GetFBFI);
+   ResetIntegrationRules(&BilinearForm::GetBBFI);
+   ResetIntegrationRules(&BilinearForm::GetBFBFI);
 }
 
-LORBase::LORBase(BilinearForm &a_)
-   : irs(0, Quadrature1D::GaussLobatto), a_ho(a_)
+LORBase::LORBase(FiniteElementSpace &fes_ho_)
+   : irs(0, Quadrature1D::GaussLobatto), fes_ho(fes_ho_)
 {
-   Mesh &mesh = *a_ho.FESpace()->GetMesh();
-   int dim = mesh.Dimension();
+   Mesh &mesh_ = *fes_ho_.GetMesh();
+   int dim = mesh_.Dimension();
    Array<Geometry::Type> geoms;
-   mesh.GetGeometries(dim, geoms);
+   mesh_.GetGeometries(dim, geoms);
    if (geoms.Size() == 1 && Geometry::IsTensorProduct(geoms[0]))
    {
-      ir = &irs.Get(geoms[0], 1);
+      ir_el = &irs.Get(geoms[0], 1);
+      ir_face = &irs.Get(Geometry::TensorProductGeometry(dim-1), 1);
    }
    else
    {
-      ir = NULL;
+      ir_el = NULL;
+      ir_face = NULL;
    }
+   a = NULL;
 }
 
 LORBase::~LORBase()
@@ -274,9 +273,15 @@ LORBase::~LORBase()
 }
 
 LOR::LOR(BilinearForm &a_ho_, const Array<int> &ess_tdof_list, int ref_type)
-   : LORBase(a_ho_)
+   : LOR(*a_ho_.FESpace(), ref_type)
 {
-   FiniteElementSpace &fes_ho = *a_ho.FESpace();
+   a = new BilinearForm(fes);
+   A.SetType(Operator::MFEM_SPARSEMAT);
+   AssembleSystem(a_ho_, ess_tdof_list);
+}
+
+LOR::LOR(FiniteElementSpace &fes_ho, int ref_type) : LORBase(fes_ho)
+{
    // TODO: support variable-order spaces
    MFEM_VERIFY(!fes_ho.IsVariableOrder(),
                "Cannot construct LOR operators on variable-order spaces");
@@ -289,23 +294,26 @@ LOR::LOR(BilinearForm &a_ho_, const Array<int> &ess_tdof_list, int ref_type)
 
    fec = fes_ho.FEColl()->Clone(GetLOROrder());
    fes = new FiniteElementSpace(mesh, fec);
-   a = new BilinearForm(fes);
-   A.SetType(Operator::MFEM_SPARSEMAT);
-
-   AssembleSystem(ess_tdof_list);
 }
 
 SparseMatrix &LOR::GetAssembledMatrix() const
 {
+   MFEM_VERIFY(a != NULL, "No LOR system assembled");
    return *A.As<SparseMatrix>();
 }
 
 #ifdef MFEM_USE_MPI
 
 ParLOR::ParLOR(ParBilinearForm &a_ho_, const Array<int> &ess_tdof_list,
-               int ref_type) : LORBase(a_ho_)
+               int ref_type) : ParLOR(*a_ho_.ParFESpace(), ref_type)
 {
-   ParFiniteElementSpace &fes_ho = *a_ho_.ParFESpace();
+   a = new ParBilinearForm(static_cast<ParFiniteElementSpace*>(fes));
+   A.SetType(Operator::Hypre_ParCSR);
+   AssembleSystem(a_ho_, ess_tdof_list);
+}
+
+ParLOR::ParLOR(ParFiniteElementSpace &fes_ho, int ref_type) : LORBase(fes_ho)
+{
    // TODO: support variable-order spaces
    MFEM_VERIFY(!fes_ho.IsVariableOrder(),
                "Cannot construct LOR operators on variable-order spaces");
@@ -320,13 +328,11 @@ ParLOR::ParLOR(ParBilinearForm &a_ho_, const Array<int> &ess_tdof_list,
    fec = fes_ho.FEColl()->Clone(GetLOROrder());
    ParFiniteElementSpace *pfes = new ParFiniteElementSpace(pmesh, fec);
    fes = pfes;
-   a = new ParBilinearForm(pfes);
-
-   AssembleSystem(ess_tdof_list);
 }
 
 HypreParMatrix &ParLOR::GetAssembledMatrix() const
 {
+   MFEM_VERIFY(a != NULL, "No LOR system assembled");
    return *A.As<HypreParMatrix>();
 }
 
