@@ -106,7 +106,7 @@ int main(int argc, char *argv[])
    Device device(device_config);
    device.Print();
    
-   //Caliper configuration
+   // Caliper configuration
    mgr.add(cali_config);
    mgr.start();
 
